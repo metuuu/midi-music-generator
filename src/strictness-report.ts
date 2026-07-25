@@ -139,12 +139,15 @@ function empty(): Measurement {
 
 function main(): void {
   const count = Number(process.argv[2] ?? 40);
+  const genre = process.argv[3];
   const results = new Map<string, Measurement>();
 
   for (const level of STRICTNESS_LEVELS) {
     const m = empty();
     for (let i = 0; i < count; i++) {
-      measure(generateSong({ seed: `strict-${i}`, strictness: level.id }), m);
+      measure(generateSong({
+        seed: `strict-${i}`, strictness: level.id, ...(genre ? { genre } : {}),
+      }), m);
     }
     results.set(level.id, m);
   }
@@ -152,7 +155,7 @@ function main(): void {
   const per1000 = (m: Measurement, id: string) =>
     m.notes ? ((m.violations[id] ?? 0) / m.notes) * 1000 : 0;
 
-  console.log(`\nSame ${count} seeds regenerated at each strictness level.\n`);
+  console.log(`\nSame ${count} ${genre ?? 'mixed-genre'} seeds regenerated at each strictness level.\n`);
 
   // --- Violations -------------------------------------------------------
   const header = STRICTNESS_LEVELS.map((l) => l.id.padStart(10)).join('');

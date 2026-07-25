@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="fi">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Iskelmäradio — generator</title>
+    <title>Radio — music generator</title>
     <style>
       :root {
         --bg: #14100e;
@@ -75,25 +75,29 @@
   </head>
   <body>
     <div class="wrap">
-      <h1>Iskelmäradio</h1>
-      <div class="sub">Rule-based Finnish iskelmä generator — auditioned through Strudel</div>
+      <h1>Radio</h1>
+      <div class="sub">Rule-based music generator — iskelmä and jazz, auditioned through Strudel</div>
 
       <div class="panel">
         <div class="controls">
           <div>
-            <label for="mood">Tunnelma / mood</label>
+            <label for="genre">Genre</label>
+            <select id="genre"></select>
+          </div>
+          <div>
+            <label for="mood">Mood</label>
             <select id="mood"></select>
           </div>
           <div>
-            <label for="era">Aikakausi / era</label>
+            <label for="era">Era</label>
             <select id="era"></select>
           </div>
           <div>
-            <label for="style">Tanssi / dance</label>
+            <label for="style">Style</label>
             <select id="style"></select>
           </div>
           <div>
-            <label for="strictness">Sointuisuus / smoothness</label>
+            <label for="strictness">Smoothness</label>
             <select id="strictness"></select>
           </div>
           <div>
@@ -104,7 +108,7 @@
         <div class="hint" id="strictness-hint"></div>
         <div class="row">
           <button id="play" class="primary" disabled>Loading…</button>
-          <button id="next" disabled>Seuraava ▸</button>
+          <button id="next" disabled>Next ▸</button>
           <button id="radio" disabled>Radio mode: off</button>
           <button id="dl" disabled>Download MIDI</button>
         </div>

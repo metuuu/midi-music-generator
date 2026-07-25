@@ -10,32 +10,8 @@
  * that sample set); the MIDI renderer ignores them and uses GM channel 10.
  */
 
-import type { InstrumentId } from './instruments.js';
+import type { EraProfile } from '../../style/types.js';
 
-export interface EraProfile {
-  id: string;
-  label: string;
-  description: string;
-  /** Strudel drum-machine banks, weighted. */
-  drumBanks: (readonly [string, number])[];
-  /** Instrument choices per layer, weighted. */
-  palette: {
-    melody: (readonly [InstrumentId, number])[];
-    counter: (readonly [InstrumentId, number])[];
-    comp: (readonly [InstrumentId, number])[];
-    pad: (readonly [InstrumentId, number])[];
-    bass: (readonly [InstrumentId, number])[];
-    brass: (readonly [InstrumentId, number])[];
-  };
-  /** Style weights — some dances belong more to one era than the other. */
-  styleWeights: Record<string, number>;
-  /** Multiplier applied to the style's tempo range. */
-  tempoScale: number;
-  /** How likely the final chorus lifts by a semitone or tone. */
-  keyChangeChance: number;
-  /** Overall arrangement density 0..1, nudges how many layers play at once. */
-  density: number;
-}
 
 const tanssilava: EraProfile = {
   id: 'tanssilava',
@@ -114,10 +90,4 @@ const eighties: EraProfile = {
 };
 
 export const ERAS: Record<string, EraProfile> = { tanssilava, eighties };
-export const ERA_IDS = Object.keys(ERAS);
 
-export function getEra(id: string): EraProfile {
-  const e = ERAS[id];
-  if (!e) throw new Error(`Unknown era "${id}". Known: ${ERA_IDS.join(', ')}`);
-  return e;
-}

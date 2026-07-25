@@ -15,6 +15,7 @@ import type { Midi } from '../core/pitch.js';
 import { clampToRange, nearestPc, pc } from '../core/pitch.js';
 import type { Rng } from '../core/rng.js';
 import type { DrumEvent, DrumVoice, NoteEvent } from '../core/types.js';
+import type { Scale } from '../core/scale.js';
 import type { BassPattern, CompPattern, DrumPattern, Style } from '../style/types.js';
 import { SLOTS_PER_BEAT } from './melody.js';
 
@@ -29,6 +30,7 @@ export interface PartContext {
 const BASS_RANGE: [Midi, Midi] = [28, 52];
 
 export function generateBass(ctx: PartContext, pattern: BassPattern): NoteEvent[] {
+  if (pattern.walking) return generateWalkingBass(ctx);
   const { chords, beatsPerBar, startBeat, rng } = ctx;
   const out: NoteEvent[] = [];
 
@@ -74,6 +76,88 @@ export function generateBass(ctx: PartContext, pattern: BassPattern): NoteEvent[
 }
 
 /**
+ * A true walking bass line.
+ *
+ * The fixed-degree patterns cannot produce one: a walking line is defined by
+ * *connection*, not by which chord tone lands on which beat. The rules a bass
+ * player actually follows are —
+ *
+ *  - beat 1 is the chord root, so the harmony is unambiguous,
+ *  - the last beat approaches the next root by a semitone (or a fifth above it),
+ *  - and the beats in between move mostly by step toward that approach note,
+ *    preferring chord tones but taking scale tones freely.
+ *
+ * The result is a line that walks somewhere rather than outlining a chord in
+ * place, which is the whole point.
+ */
+function generateWalkingBass(ctx: PartContext): NoteEvent[] {
+  const { chords, beatsPerBar, startBeat, rng } = ctx;
+  const out: NoteEvent[] = [];
+  let previous: Midi | undefined;
+
+  for (let bar = 0; bar < chords.length; bar++) {
+    const chord = chords[bar]!;
+    const next = chords[bar + 1] ?? chords[0]!;
+    const barStart = startBeat + bar * beatsPerBar;
+    const tones = chordPcs(chord);
+
+    // Beat 1: the root, kept near where the previous bar left off.
+    const root = clampToRange(
+      previous === undefined ? nearestPc(chord.root, 40) : nearestPc(chord.root, previous),
+      BASS_RANGE[0], BASS_RANGE[1],
+    );
+    const beats = Math.max(1, Math.round(beatsPerBar));
+    const line: Midi[] = [root];
+
+    // Final beat: approach the next root, usually chromatically from below.
+    const nextRoot = nearestPc(next.root, root);
+    const approach = clampToRange(
+      rng.weighted([
+        [nextRoot - 1, 5],
+        [nextRoot + 1, 3],
+        [nearestPc(pc(next.root + 7), root), 2],
+      ] as const),
+      BASS_RANGE[0], BASS_RANGE[1],
+    );
+
+    // Middle beats: step from the root toward the approach note.
+    for (let b = 1; b < beats - 1; b++) {
+      const from = line[line.length - 1]!;
+      const remaining = beats - 1 - b;
+      const gap = approach - from;
+      const ideal = from + Math.round(gap / (remaining + 1));
+      const candidates: (readonly [Midi, number])[] = [];
+      for (let semi = -4; semi <= 4; semi++) {
+        const cand = from + semi;
+        if (cand < BASS_RANGE[0] || cand > BASS_RANGE[1] || cand === from) continue;
+        const stepSize = Math.abs(semi);
+        // A walking line walks: the overwhelming majority of its motion is by
+        // semitone or tone, with the one real leap saved for the arrival on the
+        // next root. Pulling too hard toward the target turns every beat into a
+        // leap, so the target is a lean rather than a destination.
+        let w = stepSize <= 2 ? 7 : stepSize === 3 ? 1.2 : stepSize === 4 ? 0.6 : 0.15;
+        w *= Math.exp(-Math.abs(cand - ideal) / 5);
+        if (tones.includes(pc(cand))) w *= 2.2;
+        candidates.push([cand, w]);
+      }
+      line.push(candidates.length ? rng.weighted(candidates) : from);
+    }
+    if (beats > 1) line.push(approach);
+
+    for (let b = 0; b < line.length; b++) {
+      out.push({
+        beat: barStart + b,
+        duration: 0.92,
+        midi: line[b]!,
+        velocity: (b === 0 ? 0.95 : 0.82) * rng.float(0.95, 1.02),
+      });
+    }
+    previous = line[line.length - 1];
+  }
+  return out;
+}
+
+/**
  * Walk into the next chord's root from a semitone or whole tone away.
  * The chromatic approach from below is the strongest and most common.
  */
@@ -92,6 +176,8 @@ export function generateComp(
   ctx: PartContext,
   pattern: CompPattern,
   centre: Midi,
+  /** Needed for quartal voicings, which draw on the scale rather than the chord. */
+  scaleFor?: (chord: Chord) => Scale,
 ): NoteEvent[] {
   const { chords, beatsPerBar, startBeat, rng } = ctx;
   const out: NoteEvent[] = [];
@@ -106,6 +192,8 @@ export function generateComp(
       centre,
       lo,
       hi,
+      style: pattern.voicing ?? 'tertian',
+      ...(scaleFor ? { scale: scaleFor(chord) } : {}),
       ...(previous ? { previous } : {}),
     });
     previous = voicing;

@@ -16,9 +16,8 @@ export type {
 } from './core/types.js';
 export { LAYER_ORDER, songDurationBeats, songDurationSeconds } from './core/types.js';
 
-export { STYLES, STYLE_IDS, getStyle } from './style/styles.js';
-export { ERAS, ERA_IDS, getEra } from './style/eras.js';
-export { MOODS, MOOD_IDS, getMood, type Mood } from './style/moods.js';
+export { GENRES, GENRE_IDS, getGenre, type Genre } from './genre/index.js';
+export type { Style, EraProfile, Mood } from './style/types.js';
 export {
   STRICTNESS_LEVELS, STRICTNESS_IDS, getStrictness, RULES,
   type StrictnessId, type StrictnessLevel, type Rule,

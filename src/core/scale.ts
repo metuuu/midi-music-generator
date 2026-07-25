@@ -21,6 +21,24 @@ export const SCALE_STEPS = {
   harmonicMinor: [0, 2, 3, 5, 7, 8, 11],
   /** Raised 6 and 7. Used for ascending approach into the leading tone. */
   melodicMinor: [0, 2, 3, 5, 7, 9, 11],
+
+  // --- Modes and scales the jazz genre needs -----------------------------
+  // Jazz melody follows the *chord* rather than the key, so each chord
+  // quality gets its own scale. These are the ones that mapping needs.
+  /** Minor 7th chords. The default minor sound in jazz, not aeolian. */
+  dorian: [0, 2, 3, 5, 7, 9, 10],
+  /** Unaltered dominant 7th chords. */
+  mixolydian: [0, 2, 4, 5, 7, 9, 10],
+  /** Major 7th chords wanting a #11 colour. */
+  lydian: [0, 2, 4, 6, 7, 9, 11],
+  /** Half-diminished chords. */
+  locrian: [0, 1, 3, 5, 6, 8, 10],
+  /** Whole-half diminished, for fully diminished sevenths. Eight notes. */
+  diminished: [0, 2, 3, 5, 6, 8, 9, 11],
+  /** Six-note blues scale — the ♭3, ♭5 and ♭7 blue notes. */
+  blues: [0, 3, 5, 6, 7, 10],
+  /** Mixolydian plus a passing major 7th, so chord tones land on the beat. */
+  bebopDominant: [0, 2, 4, 5, 7, 9, 10, 11],
 } as const satisfies Record<string, readonly number[]>;
 
 export type ScaleName = keyof typeof SCALE_STEPS;

@@ -11,7 +11,7 @@
  * always safe.
  */
 
-import type { Rng } from '../core/rng.js';
+import type { Rng } from '../../core/rng.js';
 
 interface Noun {
   nom: string;

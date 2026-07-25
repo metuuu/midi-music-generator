@@ -59,7 +59,11 @@ export interface DrumEvent {
   velocity: number;
 }
 
-export type DrumVoice = 'bd' | 'sd' | 'rim' | 'hh' | 'oh' | 'cp' | 'lt' | 'mt' | 'ht' | 'cr' | 'rd' | 'perc' | 'cb';
+export type DrumVoice =
+  | 'bd' | 'sd' | 'rim' | 'hh' | 'oh' | 'cp'
+  | 'lt' | 'mt' | 'ht' | 'cr' | 'rd' | 'perc' | 'cb'
+  /** Shaker — stands in for brushes, which jazz kits need and drum machines lack. */
+  | 'sh';
 
 export interface Track {
   layer: LayerId;
@@ -90,6 +94,9 @@ export interface SongMeta {
   era: string;
   eraLabel: string;
   mood: string;
+  /** Genre id, e.g. 'iskelma' or 'jazz'. */
+  genre: string;
+  genreLabel: string;
   /** Constraint strictness id, e.g. 'standard'. */
   strictness: string;
   strictnessLabel: string;

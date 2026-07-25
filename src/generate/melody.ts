@@ -53,6 +53,13 @@ export interface MelodyOptions {
   strictness?: number;
   /** What the band is already playing, for the vertical rules. */
   accompaniment?: Accompaniment;
+  /**
+   * Which scale the melody draws on for a given chord. Supplied by the genre:
+   * key-relative for iskelmä, chord-relative for jazz. This one function is
+   * most of what makes the two genres sound like different music rather than
+   * the same music with different chords.
+   */
+  scaleForChord?: (tonic: Pc, mode: Mode, chord: Chord) => Scale;
 }
 
 interface BarMotif {
@@ -61,8 +68,11 @@ interface BarMotif {
   intervals: number[];
 }
 
-/** Natural minor for melody, harmonic minor the moment the dominant arrives. */
-function scaleForChord(tonic: Pc, mode: Mode, chord: Chord): Scale {
+/**
+ * Fallback when no genre rule is supplied: natural minor, switching to harmonic
+ * minor the moment a dominant arrives.
+ */
+function defaultScaleForChord(tonic: Pc, mode: Mode, chord: Chord): Scale {
   if (mode === 'minor' && chord.dominantFunction) return makeScale(tonic, 'harmonicMinor');
   return makeScale(tonic, mode === 'minor' ? 'minor' : 'major');
 }
@@ -519,6 +529,7 @@ export function generateMelody(opts: MelodyOptions): NoteEvent[] {
 
   const strictness = opts.strictness ?? 2;
   const accompaniment = opts.accompaniment ?? EMPTY_ACCOMPANIMENT;
+  const scaleForChord = opts.scaleForChord ?? defaultScaleForChord;
   const barOf = (beat: number) =>
     Math.min(bars - 1, Math.max(0, Math.floor((beat - startBeat) / beatsPerBar)));
   const chordAtBeat = (beat: number) => chords[barOf(beat)]!;

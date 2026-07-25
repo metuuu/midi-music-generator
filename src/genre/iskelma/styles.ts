@@ -12,7 +12,7 @@
  * A minor `VII` is G major and `VI` is F major — no flats needed.
  */
 
-import type { Style } from './types.js';
+import type { Style } from '../../style/types.js';
 
 /**
  * SUOMALAINEN TANGO — the centrepiece of the genre.

@@ -7,7 +7,10 @@
  */
 
 import type { DrumVoice, LayerId, SectionKind } from '../core/types.js';
+import type { InstrumentId } from './instruments.js';
 import type { Mode } from '../core/scale.js';
+import type { VoicingStyle } from '../core/chord.js';
+import type { StrictnessId } from '../generate/constraints.js';
 
 /** One bar of melodic rhythm. `[6, 2, 8]` = dotted quarter, eighth, half. */
 export type RhythmCell = number[];
@@ -40,6 +43,13 @@ export interface BassPattern {
   name: string;
   weight: number;
   hits: BassHit[];
+  /**
+   * Generate a proper walking line instead of following `hits` literally:
+   * quarter notes that connect one chord root to the next by step, with a
+   * chromatic approach on beat 4. The signature sound of a jazz rhythm
+   * section, and not something a fixed pattern can fake.
+   */
+  walking?: boolean;
 }
 
 export interface CompHit {
@@ -55,6 +65,8 @@ export interface CompPattern {
   weight: number;
   voices: number;
   hits: CompHit[];
+  /** How the chord is stacked. Defaults to `tertian`. */
+  voicing?: VoicingStyle;
 }
 
 export interface DrumPattern {
@@ -81,12 +93,21 @@ export interface Style {
    * melancholy verse in i, hopeful chorus in III.
    */
   relativeMajorChorus: number;
+  /**
+   * Progressions for the style's *primary* mode — minor for tango and modal
+   * jazz, major for humppa and swing. Whichever mode a style mostly lives in.
+   */
   progressions: Partial<Record<SectionKind, Progression[]>> & {
     verse: Progression[];
     chorus: Progression[];
   };
-  /** Progressions keyed by mode where the two differ substantially. */
+  /**
+   * Overrides for the other mode. Roman numerals are read relative to the
+   * mode, so a major-key table read in minor produces nonsense — a style that
+   * can appear in both modes needs the table for each.
+   */
   majorProgressions?: Partial<Record<SectionKind, Progression[]>>;
+  minorProgressions?: Partial<Record<SectionKind, Progression[]>>;
   melodyCells: WeightedCell[];
   /** Cells reserved for phrase endings — longer, more settled. */
   cadenceCells: WeightedCell[];
@@ -95,6 +116,17 @@ export interface Style {
   drums: DrumPattern[];
   /** Layers this style never uses, regardless of arrangement density. */
   excludeLayers?: LayerId[];
+  /**
+   * Override the genre's default constraint level. Bebop wants `free`: the
+   * chromatic approach notes and unprepared dissonances the rules exist to
+   * suppress are precisely what the idiom is made of.
+   */
+  strictness?: StrictnessId;
+  /**
+   * Bars per chorus when the form is built on a fixed chorus length rather
+   * than eight-bar units. 12 for the blues.
+   */
+  chorusBars?: number;
   /** Melodic character knobs. */
   melody: {
     /** Probability of a leap (>2 semitones) at any given non-cadential note. */
@@ -106,4 +138,50 @@ export interface Style {
     /** Probability that a phrase repeats its motif as an exact sequence. */
     sequence: number;
   };
+}
+
+export interface EraProfile {
+  id: string;
+  label: string;
+  description: string;
+  /** Strudel drum-machine banks, weighted. */
+  drumBanks: (readonly [string, number])[];
+  /** Instrument choices per layer, weighted. */
+  palette: {
+    melody: (readonly [InstrumentId, number])[];
+    counter: (readonly [InstrumentId, number])[];
+    comp: (readonly [InstrumentId, number])[];
+    pad: (readonly [InstrumentId, number])[];
+    bass: (readonly [InstrumentId, number])[];
+    brass: (readonly [InstrumentId, number])[];
+  };
+  /** Style weights — some dances belong more to one era than the other. */
+  styleWeights: Record<string, number>;
+  /** Multiplier applied to the style's tempo range. */
+  tempoScale: number;
+  /** How likely the final chorus lifts by a semitone or tone. */
+  keyChangeChance: number;
+  /** Overall arrangement density 0..1, nudges how many layers play at once. */
+  density: number;
+}
+
+export interface Mood {
+  id: string;
+  label: string;
+  /** English gloss for UI. */
+  gloss: string;
+  /** Per-style multipliers applied on top of the era's style weights. */
+  styleBias: Record<string, number>;
+  /** Multipliers on the style's own mode weights. */
+  modeBias: { minor: number; major: number };
+  /** -1 = bottom of the tempo band, +1 = top. */
+  tempo: number;
+  /** Added to the era density, clamped to [0.25, 1]. */
+  density: number;
+  /** Multiplier on the style's ornament probability. */
+  ornament: number;
+  /** Multiplier on melodic leap probability — calmer moods move by step. */
+  leap: number;
+  /** Bias on how often the arrangement drops to a sparse texture. */
+  restraint: number;
 }

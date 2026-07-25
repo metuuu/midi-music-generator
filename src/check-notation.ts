@@ -13,8 +13,11 @@ const problems: string[] = [];
 let bars = 0;
 let songs = 0;
 
-for (let i = 0; i < 120; i++) {
-  const song = generateSong({ seed: `notation-${i}` });
+// Cover both genres: jazz brings extended chords, 3-note-plus voicings and
+// drum voices iskelmä never emits.
+for (let i = 0; i < 140; i++) {
+  const genre = i % 2 === 0 ? 'iskelma' : 'jazz';
+  const song = generateSong({ seed: `notation-${i}`, genre });
   songs++;
   const code = renderStrudel(song, { includePrebake: true });
 
@@ -27,7 +30,7 @@ for (let i = 0; i < 120; i++) {
     if (/(^|\s)~\s+_/.test(inner)) problems.push(`sustain marker after a rest: ${line.slice(0, 70)}`);
     if (/,\s*[\]]/.test(inner)) problems.push(`empty chord member: ${line.slice(0, 70)}`);
     // Every slot must be a note, a chord, a drum voice, a rest or a hold.
-    const DRUM = /^(bd|sd|rim|hh|oh|cp|lt|mt|ht|cr|rd|perc|cb)$/;
+    const DRUM = /^(bd|sd|rim|hh|oh|cp|lt|mt|ht|cr|rd|perc|cb|sh)$/;
     for (const tok of inner.split(/\s+/)) {
       const ok = tok === '~' || tok === '_'
         || DRUM.test(tok)

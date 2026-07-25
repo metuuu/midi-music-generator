@@ -1,13 +1,18 @@
 /**
  * Top-level song generation.
  *
- * Decides era, dance, key, tempo and form; lays out sections; then hands each
- * section to the part generators and assembles the Song IR.
+ * Genre-agnostic: it picks a genre, then asks that genre for its styles, eras,
+ * moods, forms, keys and chord-scale rule. Everything culturally specific lives
+ * under `src/genre/`; this file only knows how to assemble a song from those
+ * parts.
  *
- * The form logic encodes the two structural clichés that make iskelmä sound
- * like iskelmä:
- *  - a solo chorus (accordion or sax takes the tune while the "voice" rests),
- *  - and the final-chorus key change up a semitone or a tone.
+ * Two structural devices are handled here because both genres use them, for
+ * different reasons:
+ *  - a **solo section**, where the lead instrument rests and the counter
+ *    instrument takes the tune (an accordion break in iskelmä, a blowing
+ *    chorus in jazz),
+ *  - and a **key change** for the final chorus, which is an iskelmä cliché and
+ *    deliberately rare in jazz (each genre sets its own probability).
  */
 
 import { parseRoman, type Chord } from '../core/chord.js';
@@ -17,21 +22,20 @@ import type { Mode } from '../core/scale.js';
 import type {
   DrumEvent, DrumTrack, LayerId, NoteEvent, Section, SectionKind, Song, Track,
 } from '../core/types.js';
-import { getEra, type EraProfile } from '../style/eras.js';
+import { GENRES, getGenre, type FormStep, type Genre } from '../genre/index.js';
 import { INSTRUMENTS, type Instrument, type InstrumentId } from '../style/instruments.js';
-import { getMood, type Mood } from '../style/moods.js';
-import { getStyle, STYLES } from '../style/styles.js';
-import type { Progression, Style } from '../style/types.js';
+import type { EraProfile, Mood, Progression, Style } from '../style/types.js';
 import { buildAccompaniment, getStrictness, type StrictnessId } from './constraints.js';
 import { generateMelody } from './melody.js';
 import {
   generateBass, generateBrass, generateComp, generateCounter, generateDrums, generatePad,
   type PartContext,
 } from './parts.js';
-import { generateTitle } from './titles.js';
 
 export interface GenerateOptions {
   seed?: string | number;
+  /** Genre id, e.g. 'iskelma' or 'jazz'. Picked at random when omitted. */
+  genre?: string;
   era?: string;
   style?: string;
   mood?: string;
@@ -48,59 +52,30 @@ export interface GenerateOptions {
   strictness?: StrictnessId | number;
 }
 
-/** Keys that sit well for accordion, guitar and singers. */
-const MINOR_KEYS: (readonly [Pc, number])[] = [
-  [9, 5], [4, 4], [2, 4], [7, 3], [11, 3], [0, 2], [5, 2], [6, 1],
-];
-const MAJOR_KEYS: (readonly [Pc, number])[] = [
-  [0, 5], [7, 4], [5, 4], [2, 3], [10, 3], [9, 2], [3, 2],
-];
-
-interface FormStep {
-  kind: SectionKind;
-  bars: number;
-}
-
-const FORM_TEMPLATES: (readonly [FormStep[], number])[] = [
-  [[
-    { kind: 'intro', bars: 4 }, { kind: 'verse', bars: 8 }, { kind: 'verse', bars: 8 },
-    { kind: 'chorus', bars: 8 }, { kind: 'solo', bars: 8 }, { kind: 'chorus', bars: 8 },
-    { kind: 'chorus', bars: 8 }, { kind: 'outro', bars: 4 },
-  ], 5],
-  [[
-    { kind: 'intro', bars: 4 }, { kind: 'verse', bars: 8 }, { kind: 'chorus', bars: 8 },
-    { kind: 'verse', bars: 8 }, { kind: 'chorus', bars: 8 }, { kind: 'bridge', bars: 8 },
-    { kind: 'chorus', bars: 8 }, { kind: 'outro', bars: 4 },
-  ], 5],
-  [[
-    { kind: 'intro', bars: 4 }, { kind: 'verse', bars: 8 }, { kind: 'verse', bars: 8 },
-    { kind: 'chorus', bars: 8 }, { kind: 'verse', bars: 8 }, { kind: 'chorus', bars: 8 },
-    { kind: 'chorus', bars: 8 }, { kind: 'outro', bars: 4 },
-  ], 3],
-  [[
-    { kind: 'intro', bars: 4 }, { kind: 'verse', bars: 8 }, { kind: 'chorus', bars: 8 },
-    { kind: 'solo', bars: 8 }, { kind: 'chorus', bars: 8 }, { kind: 'chorus', bars: 8 },
-    { kind: 'outro', bars: 4 },
-  ], 4],
-];
-
 export function generateSong(opts: GenerateOptions = {}): Song {
   const seed = String(opts.seed ?? Math.floor(Math.random() * 1e9));
   const rng = new Rng(seed);
 
-  const era = getEra(opts.era ?? rng.weighted([['tanssilava', 1], ['eighties', 1]] as const));
-  const mood = getMood(opts.mood ?? 'neutraali');
-  const style = getStyle(opts.style ?? chooseStyle(rng, era, mood));
+  const genre = getGenre(opts.genre ?? rng.pick(Object.keys(GENRES)));
+  const era = lookup(genre.eras, opts.era, 'era', rng);
+  const mood = lookup(genre.moods, opts.mood, 'mood', rng, Object.keys(genre.moods).slice(-1)[0]);
+  const style = opts.style
+    ? lookup(genre.styles, opts.style, 'style', rng)
+    : genre.styles[chooseStyle(rng, genre, era, mood)]!;
   const mode = opts.mode ?? chooseMode(rng, style, mood);
-  const tonic = opts.tonic ?? rng.weighted(mode === 'minor' ? MINOR_KEYS : MAJOR_KEYS);
+  const tonic = opts.tonic ?? rng.weighted(mode === 'minor' ? genre.keys.minor : genre.keys.major);
   const bpm = opts.bpm ?? chooseTempo(rng, style, mood, era);
-  const strictness = getStrictness(opts.strictness ?? 'standard');
+  // Style overrides beat the genre default: bebop turns the rules off entirely.
+  const strictness = getStrictness(opts.strictness ?? style.strictness ?? genre.defaultStrictness);
 
   const density = clamp(era.density + mood.density, 0.25, 1);
   const instruments = chooseInstruments(rng, era);
 
   // ---- Form ------------------------------------------------------------
-  const steps = buildForm(rng, style, bpm, opts.targetSeconds ?? rng.float(105, 185));
+  const steps = buildForm(
+    rng, genre, style, bpm,
+    opts.targetSeconds ?? rng.float(genre.duration[0], genre.duration[1]),
+  );
   const liftAt = rng.chance(era.keyChangeChance) ? lastChorusIndex(steps) : -1;
   const lift = liftAt >= 0 ? rng.weighted([[1, 3], [2, 2]] as const) : 0;
 
@@ -165,7 +140,9 @@ export function generateSong(opts: GenerateOptions = {}): Song {
     // Keep this section's accompaniment to hand: the melody is written last, so
     // it can be checked against what the band is actually holding underneath.
     const sectionBass = active.has('bass') ? generateBass(ctx, bassPattern) : [];
-    const sectionComp = active.has('comp') ? generateComp(ctx, compPattern, instruments.comp.centre) : [];
+    const sectionComp = active.has('comp')
+      ? generateComp(ctx, compPattern, instruments.comp.centre, (c) => genre.scaleForChord(localTonic, mode, c))
+      : [];
     const sectionPad = active.has('pad') ? generatePad(ctx, instruments.pad.centre) : [];
 
     push(byLayer, 'bass', sectionBass);
@@ -200,6 +177,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
         soloistic: isSolo,
         strictness: strictness.level,
         accompaniment,
+        scaleForChord: genre.scaleForChord,
       });
       push(byLayer, leadLayer, melody);
 
@@ -248,11 +226,13 @@ export function generateSong(opts: GenerateOptions = {}): Song {
   return {
     meta: {
       seed,
-      title: generateTitle(rng),
+      title: genre.title(rng),
       style: style.id,
       styleLabel: style.label,
       era: era.id,
       eraLabel: era.label,
+      genre: genre.id,
+      genreLabel: genre.label,
       mood: mood.id,
       strictness: strictness.id,
       strictnessLabel: strictness.label,
@@ -282,8 +262,19 @@ function clamp(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, v));
 }
 
-function chooseStyle(rng: Rng, era: EraProfile, mood: Mood): string {
-  const options = Object.keys(STYLES)
+/** Look a table entry up by id, or pick one at random when unspecified. */
+function lookup<T>(table: Record<string, T>, id: string | undefined, what: string, rng: Rng, fallback?: string): T {
+  if (id) {
+    const found = table[id];
+    if (!found) throw new Error(`Unknown ${what} "${id}". Known: ${Object.keys(table).join(', ')}`);
+    return found;
+  }
+  const key = fallback ?? rng.pick(Object.keys(table));
+  return table[key]!;
+}
+
+function chooseStyle(rng: Rng, genre: Genre, era: EraProfile, mood: Mood): string {
+  const options = Object.keys(genre.styles)
     .map((id) => {
       const eraW = era.styleWeights[id] ?? 0;
       const moodW = mood.styleBias[id] ?? 1;
@@ -335,22 +326,65 @@ function chooseInstruments(rng: Rng, era: EraProfile) {
   return { melody, counter, comp, pad, bass, brass };
 }
 
-function buildForm(rng: Rng, style: Style, bpm: number, targetSeconds: number): FormStep[] {
-  const steps = rng.weighted(FORM_TEMPLATES).map((s) => ({ ...s }));
+function buildForm(rng: Rng, genre: Genre, style: Style, bpm: number, targetSeconds: number): FormStep[] {
+  const steps = rng.weighted(genre.forms).map((s) => ({ ...s }));
+
+  // Styles built on a fixed chorus length (the twelve-bar blues) rewrite the
+  // eight-bar units the templates are written in. Intros and outros keep their
+  // own length — a four-bar intro is a four-bar intro in any form.
+  if (style.chorusBars && style.chorusBars !== 8) {
+    for (const step of steps) {
+      if (step.kind === 'intro' || step.kind === 'outro') continue;
+      step.bars = style.chorusBars;
+      // A twelve-bar blues has no bridge — every chorus is the same twelve
+      // bars. Fold any the template contributed back into the head.
+      if (step.kind === 'bridge') step.kind = 'verse';
+    }
+  }
+
   const secondsPerBar = (style.beatsPerBar / bpm) * 60;
 
-  const duration = () => steps.reduce((a, s) => a + s.bars, 0) * secondsPerBar;
-
-  // Waltzes and fast dances run short at these bar counts, so extend by whole
-  // verse/chorus pairs rather than by padding sections.
-  let guard = 0;
-  while (duration() < targetSeconds * 0.82 && guard++ < 4) {
-    const insertAt = Math.max(1, steps.findIndex((s) => s.kind === 'chorus') + 1);
-    steps.splice(insertAt, 0, { kind: 'verse', bars: 8 }, { kind: 'chorus', bars: 8 });
+  /**
+   * A fast waltz bar lasts about a second, so an eight-bar section is gone in
+   * eight. Rather than pile on more sections — which produces a form no band
+   * would play — double the section length. A fast 3/4 or a bebop head phrases
+   * in sixteens anyway.
+   */
+  if (!style.chorusBars && secondsPerBar < 1.5) {
+    for (const step of steps) {
+      if (step.kind !== 'intro' && step.kind !== 'outro') step.bars *= 2;
+    }
   }
+
+  const duration = () => steps.reduce((a, s) => a + s.bars, 0) * secondsPerBar;
+  const unit = steps.find((s) => s.kind !== 'intro' && s.kind !== 'outro')?.bars ?? 8;
+
+  const MAX_SOLOS = 4;
+  const MAX_SECTIONS = 14;
+  let guard = 0;
+  while (duration() < targetSeconds * 0.82 && guard++ < 8) {
+    if (steps.length >= MAX_SECTIONS) break;
+    // Where the form already blows — jazz, and iskelmä's solo-chorus templates
+    // — add another *consecutive* solo, because that is what taking a second
+    // chorus means. Alternating solo and head instead reads as indecision.
+    const solos = steps.filter((s) => s.kind === 'solo').length;
+    const lastSolo = steps.map((s) => s.kind).lastIndexOf('solo');
+    if (lastSolo >= 0 && solos < MAX_SOLOS) {
+      steps.splice(lastSolo + 1, 0, { kind: 'solo', bars: unit });
+    } else {
+      const insertAt = Math.max(2, steps.findIndex((s) => s.kind === 'chorus') + 1);
+      steps.splice(insertAt, 0, { kind: 'verse', bars: unit }, { kind: 'chorus', bars: unit });
+    }
+  }
+
+  // Trim from the middle only: index 0 is the intro and index 1 is the opening
+  // statement of the head. Removing either leaves a song that begins on a
+  // bridge or a solo.
   guard = 0;
-  while (duration() > targetSeconds * 1.25 && steps.length > 5 && guard++ < 4) {
-    const idx = steps.findIndex((s, i) => i > 0 && i < steps.length - 1 && (s.kind === 'verse' || s.kind === 'solo'));
+  while (duration() > targetSeconds * 1.25 && steps.length > 5 && guard++ < 6) {
+    const idx = steps.findIndex(
+      (s, i) => i > 1 && i < steps.length - 2 && (s.kind === 'verse' || s.kind === 'solo'),
+    );
     if (idx < 0) break;
     steps.splice(idx, 1);
   }
@@ -394,10 +428,11 @@ function layersFor(kind: SectionKind, density: number, mood: Mood, rng: Rng): La
 }
 
 function pickProgression(rng: Rng, style: Style, kind: SectionKind, mode: Mode): Progression {
-  const useMajorTable = mode === 'major' && style.majorProgressions;
-  const table = useMajorTable
-    ? style.majorProgressions![kind] ?? style.majorProgressions!.verse ?? style.progressions.verse
-    : style.progressions[kind] ?? style.progressions.verse;
+  // Roman numerals are read relative to the mode, so a major-key table read in
+  // minor produces nonsense. Each style declares a table for its primary mode
+  // and, where it can appear in both, an override for the other.
+  const override = mode === 'major' ? style.majorProgressions : style.minorProgressions;
+  const table = override?.[kind] ?? override?.verse ?? style.progressions[kind] ?? style.progressions.verse;
 
   const candidates = table.length ? table : style.progressions.verse;
 

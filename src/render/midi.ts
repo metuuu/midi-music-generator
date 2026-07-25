@@ -29,6 +29,7 @@ const GM_DRUM_MAP: Record<DrumVoice, number> = {
   rd: 51,   // Ride Cymbal 1
   perc: 64, // Low Conga
   cb: 56,   // Cowbell
+  sh: 82,   // Shaker — the closest GM voice to a brush
 };
 
 interface MidiEvent {

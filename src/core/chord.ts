@@ -10,14 +10,18 @@
 
 import type { Midi, Pc } from './pitch.js';
 import { nearestPc, pc } from './pitch.js';
-import type { Mode } from './scale.js';
-import { SCALE_STEPS } from './scale.js';
+import type { Mode, Scale } from './scale.js';
+import { SCALE_STEPS, snapToScale, stepInScale } from './scale.js';
+
+export type VoicingStyle = 'tertian' | 'guide' | 'quartal';
 
 export type ChordQuality =
   | 'maj' | 'min' | 'dim' | 'aug'
   | 'maj6' | 'min6'
   | 'dom7' | 'min7' | 'maj7' | 'dim7' | 'halfdim7' | 'minmaj7'
-  | 'sus4' | 'sus2' | 'dom9' | 'dom7b9';
+  | 'sus4' | 'sus2' | 'dom9' | 'dom7b9'
+  // Jazz extensions. Stored as full stacks; the voicer decides what to keep.
+  | 'maj9' | 'min9' | 'dom13' | 'dom7sharp9' | 'dom7sharp5' | 'dom7flat5' | 'min11';
 
 /** Semitone offsets from the chord root. */
 export const CHORD_INTERVALS: Record<ChordQuality, number[]> = {
@@ -37,7 +41,20 @@ export const CHORD_INTERVALS: Record<ChordQuality, number[]> = {
   sus2: [0, 2, 7],
   dom9: [0, 4, 7, 10, 14],
   dom7b9: [0, 4, 7, 10, 13],
+  maj9: [0, 4, 7, 11, 14],
+  min9: [0, 3, 7, 10, 14],
+  min11: [0, 3, 7, 10, 17],
+  dom13: [0, 4, 7, 10, 14, 21],
+  dom7sharp9: [0, 4, 7, 10, 15],
+  dom7sharp5: [0, 4, 8, 10],
+  dom7flat5: [0, 4, 6, 10],
 };
+
+/** Dominant chords carrying an alteration — they call for the altered scale. */
+export function isAlteredDominant(quality: ChordQuality): boolean {
+  return quality === 'dom7b9' || quality === 'dom7sharp9'
+    || quality === 'dom7sharp5' || quality === 'dom7flat5';
+}
 
 export interface Chord {
   /** Absolute pitch class of the root. */
@@ -137,8 +154,14 @@ function qualityFor(isUpper: boolean, suffix: string, symbol: string): ChordQual
     case '7': return isUpper ? 'dom7' : 'min7';
     case '6': return isUpper ? 'maj6' : 'min6';
     case 'maj7': return isUpper ? 'maj7' : 'minmaj7';
-    case '9': return 'dom9';
+    case 'maj9': return 'maj9';
+    case '9': return isUpper ? 'dom9' : 'min9';
+    case '11': return 'min11';
+    case '13': return 'dom13';
     case '7b9': return 'dom7b9';
+    case '7#9': return 'dom7sharp9';
+    case '7#5': return 'dom7sharp5';
+    case '7b5': return 'dom7flat5';
     case '+': return 'aug';
     case 'o': return 'dim';
     case 'o7': return 'dim7';
@@ -160,18 +183,37 @@ function qualityFor(isUpper: boolean, suffix: string, symbol: string): ChordQual
  */
 export function voiceChord(
   chord: Chord,
-  opts: { voices: number; centre: Midi; previous?: Midi[]; lo?: Midi; hi?: Midi },
+  opts: {
+    voices: number; centre: Midi; previous?: Midi[]; lo?: Midi; hi?: Midi;
+    /**
+     * `tertian` stacks the chord from the root — right for dance-band comping.
+     * `guide` drops the root and leads with the 3rd and 7th, which is how a
+     * jazz pianist voices under a walking bass that already owns the root.
+     * `quartal` stacks fourths from the scale — the modal-jazz sound.
+     */
+    style?: VoicingStyle;
+    /** Required by `quartal`. */
+    scale?: Scale;
+  },
 ): Midi[] {
   const { voices, centre, previous } = opts;
   const lo = opts.lo ?? centre - 12;
   const hi = opts.hi ?? centre + 12;
   const pcs = chordPcs(chord);
+  const style = opts.style ?? 'tertian';
 
-  // Choose which chord tones to use when the chord has more tones than voices
-  // (drop the 5th first — standard practice), or double the root when it has
-  // fewer.
+  if (style === 'quartal' && opts.scale) {
+    return voiceQuartal(chord, opts.scale, { voices, centre, lo, hi });
+  }
+
+  // Choose which chord tones to use when the chord has more tones than voices,
+  // or double the root when it has fewer.
   const chosen: Pc[] = [];
-  const priority = pcs.length >= 4 ? [0, 2, 3, 1] : [0, 1, 2];
+  const priority = style === 'guide' && pcs.length >= 4
+    // 3rd and 7th first — they carry the chord quality. Root last: the bass
+    // has it, and doubling it just thickens the mud.
+    ? [1, 3, 4, 2, 5, 0]
+    : pcs.length >= 4 ? [0, 2, 3, 1] : [0, 1, 2];
   for (const p of priority) if (pcs[p] !== undefined) chosen.push(pcs[p]!);
   while (chosen.length > voices) chosen.pop();
   while (chosen.length < voices) chosen.push(pcs[chosen.length % pcs.length]!);
@@ -192,4 +234,42 @@ export function voiceChord(
     out.push(note);
   }
   return out.sort((a, b) => a - b);
+}
+
+/**
+ * Quartal voicing — stacked fourths drawn from the scale rather than the chord.
+ *
+ * This is the defining sound of modal jazz. Because the harmony sits still for
+ * eight or sixteen bars at a time, tertian voicings become monotonous fast;
+ * fourths are ambiguous enough to keep a static chord interesting.
+ *
+ * The stack is built by taking every other scale degree twice over (a fourth is
+ * three scale steps), which keeps it diatonic instead of parallel-chromatic.
+ */
+function voiceQuartal(
+  chord: Chord,
+  scale: Scale,
+  opts: { voices: number; centre: Midi; lo: Midi; hi: Midi },
+): Midi[] {
+  const { voices, centre, lo, hi } = opts;
+  // Start from a chord tone inside the scale so the voicing still says
+  // something about the harmony.
+  const tones = chordPcs(chord).filter((p) => scale.pcs.includes(p));
+  const startPc = tones[0] ?? chord.root;
+  let cursor = snapToScale(scale, nearestPc(startPc, centre - 4));
+
+  const out: Midi[] = [];
+  for (let i = 0; i < voices; i++) {
+    out.push(cursor);
+    cursor = stepInScale(scale, cursor, 3); // a fourth, diatonically
+  }
+
+  // Slide the whole stack into the register window rather than clamping each
+  // voice, which would collapse the fourths.
+  const top = Math.max(...out);
+  const bottom = Math.min(...out);
+  let shift = 0;
+  while (top + shift > hi) shift -= 12;
+  while (bottom + shift < lo) shift += 12;
+  return out.map((m) => m + shift).sort((a, b) => a - b);
 }

@@ -13,14 +13,13 @@ import { generateSong, type GenerateOptions } from './generate/song.js';
 import { renderMidi } from './render/midi.js';
 import { renderStrudel } from './render/strudel.js';
 import { songDurationSeconds, type Song } from './core/types.js';
-import { ERA_IDS } from './style/eras.js';
-import { MOOD_IDS } from './style/moods.js';
-import { STYLE_IDS } from './style/styles.js';
+import { GENRES, GENRE_IDS, getGenre } from './genre/index.js';
 import { STRICTNESS_IDS, type StrictnessId } from './generate/constraints.js';
 
 interface Args {
   count: number;
   out: string;
+  genre?: string;
   era?: string;
   style?: string;
   mood?: string;
@@ -38,6 +37,7 @@ function parseArgs(argv: string[]): Args {
     switch (a) {
       case '--count': case '-n': args.count = Number(next()); break;
       case '--out': case '-o': args.out = String(next()); break;
+      case '--genre': args.genre = String(next()); break;
       case '--era': args.era = String(next()); break;
       case '--style': args.style = String(next()); break;
       case '--mood': args.mood = String(next()); break;
@@ -61,14 +61,23 @@ Finnish iskelmä generator
 
   -n, --count <n>     how many songs to generate (default 5)
   -o, --out <dir>     output directory (default ./out)
-      --era <id>      ${ERA_IDS.join(' | ')}
-      --style <id>    ${STYLE_IDS.join(' | ')}
-      --mood <id>     ${MOOD_IDS.join(' | ')}
+      --genre <id>    ${GENRE_IDS.join(' | ')}   (random when omitted)
+      --era <id>      per genre; see below
+      --style <id>    per genre; see below
+      --mood <id>     per genre; see below
       --seed <s>      base seed; song N uses "<seed>-N" (reproducible)
       --seconds <n>   target length per song
       --strictness    ${STRICTNESS_IDS.join(' | ')}
                       how hard to police the melody (default: standard)
       --quiet         no per-song output
+
+${GENRE_IDS.map((g) => {
+  const genre = getGenre(g);
+  return `  ${genre.label} (--genre ${g})
+      styles  ${Object.keys(genre.styles).join(' | ')}
+      eras    ${Object.keys(genre.eras).join(' | ')}
+      moods   ${Object.keys(genre.moods).join(' | ')}`;
+}).join('\n\n')}
 `);
 }
 
@@ -91,6 +100,7 @@ function main(): void {
     const opts: GenerateOptions = {
       seed: args.seed ? `${args.seed}-${i}` : `${Date.now()}-${i}-${Math.random()}`,
     };
+    if (args.genre) opts.genre = args.genre;
     if (args.era) opts.era = args.era;
     if (args.style) opts.style = args.style;
     if (args.mood) opts.mood = args.mood;
@@ -117,6 +127,7 @@ function summarise(song: Song, file: string) {
     file,
     title: meta.title,
     seed: meta.seed,
+    genre: meta.genre,
     style: meta.style,
     era: meta.era,
     mood: meta.mood,
@@ -137,7 +148,7 @@ function describe(song: Song): string {
   const mins = songDurationSeconds(song);
   const lift = song.sections.find((s) => s.transpose > 0);
   return [
-    `♪ ${meta.title}`,
+    `♪ ${meta.title}  [${meta.genreLabel}]`,
     `   ${meta.styleLabel} · ${meta.keyLabel} · ${meta.bpm} BPM · ${meta.beatsPerBar}/${meta.beatUnit} · ${Math.floor(mins / 60)}:${String(Math.round(mins % 60)).padStart(2, '0')}`,
     `   ${meta.eraLabel} · drums: ${song.drums.bank}${lift ? ` · key change +${lift.transpose}` : ''}`,
     `   ${song.tracks.map((t) => t.instrument).join(', ')}`,

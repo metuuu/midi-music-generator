@@ -10,26 +10,8 @@
  * distinctions (haikea vs kaihoisa) do not survive translation cleanly.
  */
 
-export interface Mood {
-  id: string;
-  label: string;
-  /** English gloss for UI. */
-  gloss: string;
-  /** Per-style multipliers applied on top of the era's style weights. */
-  styleBias: Record<string, number>;
-  /** Multipliers on the style's own mode weights. */
-  modeBias: { minor: number; major: number };
-  /** -1 = bottom of the tempo band, +1 = top. */
-  tempo: number;
-  /** Added to the era density, clamped to [0.25, 1]. */
-  density: number;
-  /** Multiplier on the style's ornament probability. */
-  ornament: number;
-  /** Multiplier on melodic leap probability — calmer moods move by step. */
-  leap: number;
-  /** Bias on how often the arrangement drops to a sparse texture. */
-  restraint: number;
-}
+
+import type { Mood } from '../../style/types.js';
 
 const moods: Mood[] = [
   {
@@ -143,10 +125,4 @@ const moods: Mood[] = [
 ];
 
 export const MOODS: Record<string, Mood> = Object.fromEntries(moods.map((m) => [m.id, m]));
-export const MOOD_IDS = moods.map((m) => m.id);
 
-export function getMood(id: string): Mood {
-  const m = MOODS[id];
-  if (!m) throw new Error(`Unknown mood "${id}". Known: ${MOOD_IDS.join(', ')}`);
-  return m;
-}

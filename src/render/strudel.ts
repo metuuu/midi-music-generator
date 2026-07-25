@@ -113,7 +113,7 @@ export const DRUM_SAMPLES_URL =
 /** Rough per-voice balance so hats don't swamp the kick. */
 const DRUM_VOICE_GAIN: Record<DrumVoice, number> = {
   bd: 1.0, sd: 0.85, rim: 0.7, hh: 0.45, oh: 0.5, cp: 0.7,
-  lt: 0.7, mt: 0.7, ht: 0.7, cr: 0.55, rd: 0.5, perc: 0.6, cb: 0.5,
+  lt: 0.7, mt: 0.7, ht: 0.7, cr: 0.55, rd: 0.5, perc: 0.6, cb: 0.5, sh: 0.4,
 };
 
 /**

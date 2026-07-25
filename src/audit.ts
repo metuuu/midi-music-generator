@@ -123,6 +123,7 @@ function pct(a: number, b: number): string {
 
 function main(): void {
   const count = Number(process.argv[2] ?? 60);
+  const genre = process.argv[3];
   const s: Stats = {
     songs: 0, strongBeatNotes: 0, strongBeatChordTones: 0, intervals: [], leaps: 0,
     steps: 0, repeats: 0, melodyNotes: 0, keyChanges: 0, minorSongs: 0,
@@ -132,7 +133,7 @@ function main(): void {
 
   let midiBytes = 0;
   for (let i = 0; i < count; i++) {
-    const song = generateSong({ seed: `audit-${i}` });
+    const song = generateSong({ seed: `audit-${i}`, ...(genre ? { genre } : {}) });
     audit(song, s);
     midiBytes += renderMidi(song).length;
   }
@@ -140,7 +141,7 @@ function main(): void {
   const motion = s.steps + s.leaps + s.repeats;
   const avgRange = s.ranges.reduce((a, b) => a + b, 0) / Math.max(1, s.ranges.length);
 
-  console.log(`\nAudited ${s.songs} songs (${s.melodyNotes} melody notes, ${(midiBytes / 1024).toFixed(0)} KB of MIDI)\n`);
+  console.log(`\nAudited ${s.songs} ${genre ?? 'mixed-genre'} songs (${s.melodyNotes} melody notes, ${(midiBytes / 1024).toFixed(0)} KB of MIDI)\n`);
   console.log('Harmony');
   console.log(`  chord tone on the beat        ${pct(s.strongBeatChordTones, s.strongBeatNotes)}   (want > 70%)`);
   console.log(`  leading tone used over V      ${pct(s.leadingToneOverV, s.vChordBars)}   (some presence expected)`);

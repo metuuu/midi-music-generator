@@ -15,9 +15,7 @@ import { generateSong, type GenerateOptions } from '../generate/song.js';
 import { renderStrudel } from '../render/strudel.js';
 import { renderMidi } from '../render/midi.js';
 import { songDurationSeconds, type LayerId, type Song } from '../core/types.js';
-import { MOODS } from '../style/moods.js';
-import { ERAS } from '../style/eras.js';
-import { STYLES } from '../style/styles.js';
+import { GENRES, getGenre } from '../genre/index.js';
 import { STRICTNESS_LEVELS, getStrictness, type StrictnessId } from '../generate/constraints.js';
 
 const $ = <T extends HTMLElement>(id: string): T => {
@@ -27,6 +25,7 @@ const $ = <T extends HTMLElement>(id: string): T => {
 };
 
 const els = {
+  genre: $<HTMLSelectElement>('genre'),
   mood: $<HTMLSelectElement>('mood'),
   era: $<HTMLSelectElement>('era'),
   style: $<HTMLSelectElement>('style'),
@@ -56,12 +55,30 @@ function fillSelect(select: HTMLSelectElement, entries: [string, string][], anyL
   for (const [value, label] of entries) select.append(new Option(label, value));
 }
 
-fillSelect(els.mood, Object.values(MOODS).map((m) => [m.id, `${m.label} — ${m.gloss}`]));
-els.mood.value = 'neutraali';
-fillSelect(els.era, Object.values(ERAS).map((e) => [e.id, e.label]), 'Kumpi tahansa / either');
-fillSelect(els.style, Object.values(STYLES).map((s) => [s.id, s.label]), 'Mikä tahansa / any');
+fillSelect(els.genre, Object.values(GENRES).map((g) => [g.id, g.label]));
+els.genre.value = 'iskelma';
 fillSelect(els.strictness, STRICTNESS_LEVELS.map((l) => [l.id, `${l.level} · ${l.label}`]));
 els.strictness.value = 'standard';
+
+/**
+ * Styles, eras and moods all belong to a genre, so switching genre has to
+ * rebuild them. The "any" option stays first so the generator keeps its own
+ * weighted choice unless the user overrides it.
+ */
+function populateForGenre(): void {
+  const genre = getGenre(els.genre.value);
+  els.mood.replaceChildren();
+  els.era.replaceChildren();
+  els.style.replaceChildren();
+  fillSelect(els.mood, Object.values(genre.moods).map((m) => [m.id, `${m.label} — ${m.gloss}`]));
+  fillSelect(els.era, Object.values(genre.eras).map((e) => [e.id, e.label]), 'Any era');
+  fillSelect(els.style, Object.values(genre.styles).map((s) => [s.id, s.label]), 'Any style');
+  // Every genre defines a neutral mood last; default to it.
+  const moodIds = Object.keys(genre.moods);
+  els.mood.value = moodIds[moodIds.length - 1]!;
+  els.strictness.value = genre.defaultStrictness;
+}
+populateForGenre();
 
 function updateStrictnessHint(): void {
   const level = getStrictness(els.strictness.value as StrictnessId);
@@ -76,7 +93,7 @@ function setStatus(text: string, isError = false): void {
 }
 
 function currentOptions(): GenerateOptions {
-  const opts: GenerateOptions = {};
+  const opts: GenerateOptions = { genre: els.genre.value };
   if (els.seed.value.trim()) opts.seed = els.seed.value.trim();
   if (els.era.value) opts.era = els.era.value;
   if (els.style.value) opts.style = els.style.value;
@@ -101,7 +118,7 @@ function describe(song: Song): void {
   const mins = songDurationSeconds(song);
   const lift = song.sections.find((s) => s.transpose > 0);
   els.meta.innerHTML = [
-    `<b>${meta.styleLabel}</b> · ${meta.eraLabel}`,
+    `<b>${meta.genreLabel}</b> — <b>${meta.styleLabel}</b> · ${meta.eraLabel}`,
     `${meta.keyLabel} · ${meta.bpm} BPM · ${meta.beatsPerBar}/${meta.beatUnit} · ${meta.totalBars} bars · ${Math.floor(mins / 60)}:${String(Math.round(mins % 60)).padStart(2, '0')}`,
     `Drums: ${song.drums.bank}${lift ? ` · key change +${lift.transpose} for the last chorus` : ''}`,
     `Smoothness: <b>${meta.strictnessLabel}</b> — ${getStrictness(meta.strictness as StrictnessId).gloss}`,
@@ -207,6 +224,12 @@ els.dl.onclick = () => {
 for (const el of [els.mood, els.era, els.style]) {
   el.onchange = () => { if (!els.seed.value.trim()) void nextTrack(); };
 }
+
+els.genre.onchange = () => {
+  populateForGenre();
+  updateStrictnessHint();
+  void nextTrack();
+};
 
 // Strictness regenerates even with a pinned seed — hearing the same tune
 // filtered two ways is the whole point of the control.

@@ -44,23 +44,23 @@ export interface StrictnessLevel {
 
 export const STRICTNESS_LEVELS: StrictnessLevel[] = [
   {
-    id: 'free', level: 0, label: 'Vapaa',
+    id: 'free', level: 0, label: 'Free',
     gloss: 'no filtering — most character, occasional roughness',
   },
   {
-    id: 'light', level: 1, label: 'Kevyt',
+    id: 'light', level: 1, label: 'Light',
     gloss: 'blocks the unambiguously ugly melodic leaps only',
   },
   {
-    id: 'standard', level: 2, label: 'Normaali',
+    id: 'standard', level: 2, label: 'Standard',
     gloss: 'adds dissonance handling and resolution of tendency tones',
   },
   {
-    id: 'strict', level: 3, label: 'Tiukka',
+    id: 'strict', level: 3, label: 'Strict',
     gloss: 'adds vertical clash and parallel-motion checks against the band',
   },
   {
-    id: 'polished', level: 4, label: 'Silotettu',
+    id: 'polished', level: 4, label: 'Polished',
     gloss: 'maximum consonance — safe, smooth, and noticeably tamer',
   },
 ];
