@@ -53,7 +53,8 @@
       .seg.chorus { background: #43301f; color: var(--hot); }
       .seg.solo { background: #3a2430; color: #d090c0; }
       .seg.lift { border-color: var(--hot); color: var(--hot); }
-      .layers { display: flex; gap: .4rem; flex-wrap: wrap; margin-top: .9rem; }
+      .layers-label { margin-top: 1rem; margin-bottom: 0; }
+      .layers { display: flex; gap: .4rem; flex-wrap: wrap; margin-top: .45rem; }
       .layer {
         font-size: .72rem; padding: .3rem .6rem; border-radius: 20px;
         border: 1px solid var(--edge); color: var(--dim); cursor: pointer; user-select: none;
@@ -69,6 +70,8 @@
       .status { font-size: .8rem; color: var(--dim); margin-top: .8rem; min-height: 1.2em; }
       .status.err { color: #e2705a; }
       .hint { font-size: .78rem; color: var(--dim); margin-top: .7rem; font-style: italic; }
+      .check { display: flex; align-items: center; gap: .5rem; padding: .5rem 0; font-size: .85rem; }
+      .check input { width: auto; accent-color: var(--hot); margin: 0; }
       .compare { margin-top: 1.1rem; padding-top: 1rem; border-top: 1px solid var(--edge); }
       .compare .row { margin-top: .6rem; }
     </style>
@@ -104,6 +107,13 @@
             <label for="seed">Seed</label>
             <input id="seed" type="text" placeholder="random" />
           </div>
+          <div>
+            <label for="vocals">Voice</label>
+            <div class="check">
+              <input id="vocals" type="checkbox" />
+              <span>Wordless vocal</span>
+            </div>
+          </div>
         </div>
         <div class="hint" id="strictness-hint"></div>
         <div class="row">
@@ -121,6 +131,7 @@
         </div>
         <div class="meta" id="meta"></div>
         <div class="form-strip" id="form"></div>
+        <label class="layers-label">Layers — click to mute, live</label>
         <div class="layers" id="layers"></div>
         <details>
           <summary>Generated Strudel code</summary>

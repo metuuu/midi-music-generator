@@ -17,6 +17,7 @@ import type { Genre, FormStep } from '../types.js';
 import { STYLES } from './styles.js';
 import { ERAS } from './eras.js';
 import { MOODS } from './moods.js';
+import { VOCALS } from './vocals.js';
 import { generateTitle } from './titles.js';
 
 /**
@@ -65,6 +66,7 @@ export const jazz: Genre = {
   styles: STYLES,
   eras: ERAS,
   moods: MOODS,
+  vocals: VOCALS,
   title: generateTitle,
   forms: FORMS,
   keys: {

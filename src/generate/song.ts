@@ -27,6 +27,7 @@ import { INSTRUMENTS, type Instrument, type InstrumentId } from '../style/instru
 import type { EraProfile, Mood, Progression, Style } from '../style/types.js';
 import { buildAccompaniment, getStrictness, resolveRules, type StrictnessId } from './constraints.js';
 import { generateMelody } from './melody.js';
+import { generateVocalTrack } from './vocals.js';
 import {
   generateBass, generateBrass, generateComp, generateCounter, generateDrums, generatePad,
   type PartContext,
@@ -50,7 +51,23 @@ export interface GenerateOptions {
    * Defaults to 'standard'. See `generate/constraints.ts`.
    */
   strictness?: StrictnessId | number;
+  /**
+   * Add a wordless sung line doubling the melody. Off by default — the station
+   * is instrumental.
+   *
+   * This draws from its own RNG stream, so a seed produces the identical
+   * instrumental arrangement whether or not vocals are on. That is what makes
+   * the flag an A/B rather than a reroll.
+   */
+  vocals?: boolean;
 }
+
+/**
+ * Layers that draw an instrument from the era palette. Drums have their own
+ * track shape, and the voice takes its sound from the genre rather than the
+ * era — nobody's grandmother sang through a LinnDrum.
+ */
+type PlayedLayer = Exclude<LayerId, 'drums' | 'vocal'>;
 
 export function generateSong(opts: GenerateOptions = {}): Song {
   const seed = String(opts.seed ?? Math.floor(Math.random() * 1e9));
@@ -193,7 +210,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
   }
 
   // ---- Assemble --------------------------------------------------------
-  const layerInstruments: Record<Exclude<LayerId, 'drums'>, Instrument> = {
+  const layerInstruments: Record<PlayedLayer, Instrument> = {
     bass: instruments.bass,
     comp: instruments.comp,
     pad: instruments.pad,
@@ -202,12 +219,12 @@ export function generateSong(opts: GenerateOptions = {}): Song {
     brass: instruments.brass,
   };
 
-  const gains: Record<Exclude<LayerId, 'drums'>, number> = {
+  const gains: Record<PlayedLayer, number> = {
     bass: 0.9, comp: 0.62, pad: 0.45, melody: 0.85, counter: 0.55, brass: 0.6,
   };
 
   const tracks: Track[] = [];
-  for (const [layer, instrument] of Object.entries(layerInstruments) as [Exclude<LayerId, 'drums'>, Instrument][]) {
+  for (const [layer, instrument] of Object.entries(layerInstruments) as [PlayedLayer, Instrument][]) {
     const notes = byLayer.get(layer) ?? [];
     if (!notes.length) continue;
     notes.sort((a, b) => a.beat - b.beat || a.midi - b.midi);
@@ -219,6 +236,18 @@ export function generateSong(opts: GenerateOptions = {}): Song {
       notes: applySwing(notes, style.swing),
       gain: gains[layer],
     });
+  }
+
+  // The voice doubles the melody *after* swing has been applied, so it phrases
+  // with the instrument it is singing alongside rather than against it. It also
+  // inherits the melody's absence: in a solo section the lead moves to the
+  // counter instrument, which is exactly where a singer stops singing.
+  if (opts.vocals) {
+    const melodyTrack = tracks.find((t) => t.layer === 'melody');
+    if (melodyTrack) {
+      const vocal = generateVocalTrack(melodyTrack.notes, genre.vocals, new Rng(`${seed}:vocal`));
+      if (vocal) tracks.push(vocal);
+    }
   }
 
   drumEvents.sort((a, b) => a.beat - b.beat);

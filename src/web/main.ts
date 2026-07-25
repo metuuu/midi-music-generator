@@ -32,6 +32,7 @@ const els = {
   strictness: $<HTMLSelectElement>('strictness'),
   strictnessHint: $<HTMLDivElement>('strictness-hint'),
   seed: $<HTMLInputElement>('seed'),
+  vocals: $<HTMLInputElement>('vocals'),
   play: $<HTMLButtonElement>('play'),
   next: $<HTMLButtonElement>('next'),
   radio: $<HTMLButtonElement>('radio'),
@@ -99,6 +100,7 @@ function currentOptions(): GenerateOptions {
   if (els.style.value) opts.style = els.style.value;
   if (els.mood.value) opts.mood = els.mood.value;
   if (els.strictness.value) opts.strictness = els.strictness.value as StrictnessId;
+  if (els.vocals.checked) opts.vocals = true;
   return opts;
 }
 
@@ -237,10 +239,24 @@ els.strictness.onchange = () => {
   updateStrictnessHint();
   void regenerateSameSeed();
 };
+
+// Vocals draw from their own RNG stream, so the same seed gives the identical
+// arrangement either way — toggling this is a straight A/B on the voice.
+els.vocals.onchange = () => { void regenerateSameSeed(); };
+
 els.seed.oninput = updateStrictnessHint;
 
+/**
+ * Regenerate the song already loaded, with whatever the controls now say.
+ *
+ * When no seed is pinned it falls back to the current song's own seed. Both
+ * controls that call this exist to be compared against themselves, and
+ * rerolling the tune underneath the comparison would make it meaningless.
+ */
 async function regenerateSameSeed(): Promise<void> {
-  current = generateSong(currentOptions());
+  const opts = currentOptions();
+  if (!opts.seed && current) opts.seed = current.meta.seed;
+  current = generateSong(opts);
   describe(current);
   if (playing) await play(current);
 }

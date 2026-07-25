@@ -26,11 +26,12 @@ interface Args {
   seed?: string;
   seconds?: number;
   strictness?: string;
+  vocals: boolean;
   quiet: boolean;
 }
 
 function parseArgs(argv: string[]): Args {
-  const args: Args = { count: 5, out: './out', quiet: false };
+  const args: Args = { count: 5, out: './out', vocals: false, quiet: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]!;
     const next = () => argv[++i];
@@ -44,6 +45,7 @@ function parseArgs(argv: string[]): Args {
       case '--seed': args.seed = String(next()); break;
       case '--seconds': args.seconds = Number(next()); break;
       case '--strictness': args.strictness = String(next()); break;
+      case '--vocals': args.vocals = true; break;
       case '--quiet': args.quiet = true; break;
       case '--help': case '-h': usage(); process.exit(0);
       default:
@@ -69,6 +71,9 @@ Finnish iskelmä generator
       --seconds <n>   target length per song
       --strictness    ${STRICTNESS_IDS.join(' | ')}
                       how hard to police the melody (default: standard)
+      --vocals        double the melody with a wordless sung line. The seed
+                      still fixes the instrumental parts exactly, so the same
+                      seed with and without this is the same arrangement.
       --quiet         no per-song output
 
 ${GENRE_IDS.map((g) => {
@@ -106,6 +111,7 @@ function main(): void {
     if (args.mood) opts.mood = args.mood;
     if (args.seconds) opts.targetSeconds = args.seconds;
     if (args.strictness) opts.strictness = args.strictness as StrictnessId;
+    if (args.vocals) opts.vocals = true;
 
     const song = generateSong(opts);
     const name = `${String(i + 1).padStart(2, '0')}-${slug(song.meta.title)}`;

@@ -22,6 +22,7 @@ import type { Mode, Scale } from '../core/scale.js';
 import type { SectionKind } from '../core/types.js';
 import type { RuleOverrides, StrictnessId } from '../generate/constraints.js';
 import type { EraProfile, Mood, Style } from '../style/types.js';
+import type { VocalProfile } from '../style/vocals.js';
 
 export interface FormStep {
   kind: SectionKind;
@@ -37,6 +38,12 @@ export interface Genre {
   styles: Record<string, Style>;
   eras: Record<string, EraProfile>;
   moods: Record<string, Mood>;
+
+  /**
+   * How this genre sings, when asked to. Opt-in via `vocals: true` — the
+   * station is instrumental by default.
+   */
+  vocals: VocalProfile;
 
   /** Song-title generator. */
   title(rng: Rng): string;
