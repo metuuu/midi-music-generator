@@ -1,6 +1,6 @@
 # Iskelmägeneraattori
 
-A rule-based generator for **instrumental Finnish iskelmä** — intended as an in-game radio station. It writes complete arrangements (form, harmony, melody, bass, comping, drums), and renders them to **MIDI** for a native game engine and to **Strudel** code for auditioning in a browser.
+A rule-based generator for **instrumental Finnish iskelmä**, written for radio-style background music. It writes complete arrangements (form, harmony, melody, bass, comping, drums), and renders them to **MIDI** for offline rendering and to **Strudel** code for auditioning in a browser.
 
 ```bash
 npm install
@@ -14,7 +14,7 @@ npm run gen -- -n 12 --mood kaihoisa --out ./out
 
 Two constraints shaped the architecture.
 
-**Your game is native (Unity/Godot/Unreal), so Strudel cannot run in it.** Strudel is a browser library built on Web Audio. It is therefore used here as a *composition and audition* tool, not a runtime. The shipping path is MIDI → rendered audio.
+**Strudel only runs in a browser.** It is a live-coding library built on Web Audio, so it cannot be the playback layer anywhere else. It is used here as a *composition and audition* tool, not a runtime. The shipping path is MIDI → rendered audio.
 
 **Strudel is AGPL-3.0-or-later**, so it is quarantined. `src/web/audio.ts` is the only file that imports it — verify with `grep -rn "@strudel" src --include="*.ts" | grep import`. Everything else, including `render/strudel.ts` (which emits Strudel code as text but never imports it), is MIT and dependency-free.
 
@@ -93,9 +93,9 @@ iloinen       minor  15%  avg 147 BPM  | humppa 26%, iskelmapop 15%
 
 ---
 
-## Shipping to a native engine
+## Producing audio
 
-Everything is deterministic: **a seed reproduces a song exactly**, so a station can be stored as a list of seeds rather than as audio.
+Everything is deterministic: **a seed reproduces a song exactly**, so a whole station can be stored as a list of seeds rather than as audio.
 
 ### 1. Batch-generate
 
@@ -113,11 +113,11 @@ The MIDI is General MIDI with drums on channel 10, so any GM soundfont works:
 fluidsynth -ni GeneralUser-GS.sf2 out/01-satumaan-ruusu.mid -F out/01.wav -r 48000
 ```
 
-Then batch-convert to OGG/Vorbis for the engine. A better soundfont is the single biggest quality win available — the GM accordion and string ensemble in a good bank sound dramatically more convincing than the webaudiofont defaults.
+Then batch-convert to OGG/Vorbis for whatever plays it back. A better soundfont is the single biggest quality win available — the GM accordion and string ensemble in a good bank sound dramatically more convincing than the webaudiofont defaults.
 
 ### 3. Or drive a runtime sampler
 
-`manifest.json` plus the MIDI gives you per-layer tracks (`drums, bass, comp, pad, melody, counter, brass`) as separate MIDI tracks. If you want the radio to duck or thin out during dialogue, mute layers rather than lowering a master bus — that is the same mechanism the audition page's layer chips use, and it is the hook for the layered-ambient work you mentioned wanting next.
+`manifest.json` plus the MIDI gives you per-layer tracks (`drums, bass, comp, pad, melody, counter, brass`) as separate MIDI tracks. If you want the music to thin out under speech, mute layers rather than lowering a master bus — that is the same mechanism the audition page's layer chips use, and it is the hook for layered-ambient playback.
 
 ---
 
