@@ -115,7 +115,15 @@ export interface NoteContext {
   duration: number;
   beat: number;
   accompaniment: Accompaniment;
+  /**
+   * How freely the instrument playing this line leaps, 0..1. A vibraphone is
+   * near 1, a trombone near 0.4. Defaults to 0.7 when unknown.
+   */
+  agility: number;
 }
+
+/** Level high enough that a rule never applies — used to disable or never-veto. */
+export const RULE_DISABLED = 99;
 
 export interface Rule {
   id: string;
@@ -252,6 +260,13 @@ export const RULES: Rule[] = [
 
   // --- Monotony ----------------------------------------------------------
   {
+    id: 'static-repetition',
+    description:
+      'An immediately repeated note. Not a fault in itself, but once leaps are capped and beats want chord tones, repeating becomes the path of least resistance and the tune stops moving. A preference only — never vetoed.',
+    minLevel: 3, vetoLevel: RULE_DISABLED, penalty: 0.4,
+    test: ({ candidate, prev }) => prev !== undefined && candidate === prev,
+  },
+  {
     id: 'repeated-note-run',
     description: 'Three or more identical notes in a row.',
     minLevel: 2, vetoLevel: 2, penalty: 0.15,
@@ -267,7 +282,8 @@ export const RULES: Rule[] = [
     minLevel: 2, vetoLevel: 2, penalty: 0.1,
     test: ({ candidate, chord, strength, duration }) => {
       if (chord.quality === 'dom7b9') return false; // there it is the point
-      if (strength < 2 && duration < 0.5) return false;
+      // Same reasoning as semitone-clash: held, not brushed in passing.
+      if (strength < 2 || duration < 0.5) return false;
       return degreeAboveRoot(candidate, chord) === 1;
     },
   },
@@ -291,7 +307,11 @@ export const RULES: Rule[] = [
       'A melody note a semitone or minor ninth from something the band is holding. The most common source of accidental sourness.',
     minLevel: 3, vetoLevel: 3, penalty: 0.12,
     test: ({ candidate, beat, strength, duration, accompaniment }) => {
-      if (strength < 2 && duration < 0.5) return false;
+      // Only a *sustained* clash on a beat is sour. A passing note that brushes
+      // a semitone against a held chord tone is ordinary voice leading, and
+      // forbidding it deletes the very neighbour tones that connect a line —
+      // which measurably made 'strict' less smooth than no filtering at all.
+      if (strength < 2 || duration < 0.5) return false;
       for (const other of accompaniment.soundingAt(beat)) {
         const d = Math.abs(candidate - other);
         if (d === 1 || d === 13) return true;
@@ -335,18 +355,87 @@ export const RULES: Rule[] = [
       !scale.pcs.includes(pc(candidate)) && !isChordTone(candidate, chord),
   },
   {
-    id: 'non-chord-tone-on-beat',
-    description: 'Any non-chord tone falling on a beat.',
-    minLevel: 4, vetoLevel: 4, penalty: 0.08,
-    test: ({ candidate, chord, strength }) => strength >= 2 && !isChordTone(candidate, chord),
+    id: 'non-chord-tone-on-strong-beat',
+    description:
+      'A non-chord tone on a downbeat or half-bar. Restricted to *strong* beats on purpose: forcing a chord tone onto every quarter removes the passing notes that connect a line, and turns the melody into an arpeggio.',
+    minLevel: 3, vetoLevel: 4, penalty: 0.2,
+    test: ({ candidate, chord, strength }) => strength >= 3 && !isChordTone(candidate, chord),
+  },
+
+  // --- Melodic smoothness ------------------------------------------------
+  // These exist to counterbalance everything above. The vertical rules all
+  // push the melody toward chord tones, and chord tones are thirds apart — so
+  // without a countervailing pressure, raising strictness makes a line *less*
+  // smooth, not more. Measured before these were added: stepwise motion fell
+  // from 72% at 'standard' to 50% at 'polished', and wide leaps doubled.
+  {
+    id: 'wide-leap',
+    description:
+      'A leap beyond a perfect fourth. Vetoed from level 3, where the vertical rules start pushing the line onto chord tones and it needs a counterweight.',
+    minLevel: 2, vetoLevel: 3, penalty: 0.3,
+    test: ({ candidate, prev }) => prev !== undefined && Math.abs(candidate - prev) > 5,
+  },
+  {
+    id: 'leap-beyond-third',
+    description:
+      'Any motion wider than a major third. At the smoothest setting the line should walk, not jump.',
+    minLevel: 4, vetoLevel: 4, penalty: 0.25,
+    test: ({ candidate, prev }) => prev !== undefined && Math.abs(candidate - prev) > 4,
+  },
+  {
+    id: 'unidiomatic-leap',
+    description:
+      'A leap wider than the instrument comfortably plays. A tenth is nothing on a vibraphone and a real problem on a trombone, so the threshold follows the instrument rather than a fixed number.',
+    minLevel: 1, vetoLevel: 3, penalty: 0.12,
+    test: ({ candidate, prev, agility }) => {
+      if (prev === undefined) return false;
+      return Math.abs(candidate - prev) > comfortableLeap(agility);
+    },
   },
 ];
+
+/**
+ * Widest leap an instrument handles without sounding laboured, in semitones.
+ * Keyboards and mallets reach an octave and beyond; brass and reeds want to
+ * stay inside a sixth.
+ */
+export function comfortableLeap(agility: number): number {
+  // 0.4 (trombone) -> 7 semitones; 0.6 (sax) -> 9; 1.0 (vibraphone) -> 12.
+  // The low end has to sit inside the range melodies actually use, or the rule
+  // never fires and "instrument-aware" means nothing.
+  return Math.round(4 + agility * 8);
+}
 
 export const RULES_BY_ID = new Map(RULES.map((r) => [r.id, r]));
 
 // ---------------------------------------------------------------------------
 // Evaluation
 // ---------------------------------------------------------------------------
+
+/** Per-genre adjustments to a rule's thresholds. */
+export interface RuleOverride {
+  minLevel?: number;
+  vetoLevel?: number;
+  penalty?: number;
+}
+
+export type RuleOverrides = Record<string, RuleOverride>;
+
+/**
+ * Apply a genre's overrides to the rule table.
+ *
+ * The rules encode faults that classical and jazz practice mostly agree on,
+ * but not entirely: a jazz line is not obliged to resolve its leading tone,
+ * and bebop's chromaticism is the point rather than a defect. Rather than fork
+ * the table per genre, each genre nudges the thresholds it disagrees with.
+ */
+export function resolveRules(overrides?: RuleOverrides): Rule[] {
+  if (!overrides) return RULES;
+  return RULES.map((rule) => {
+    const o = overrides[rule.id];
+    return o ? { ...rule, ...o } : rule;
+  });
+}
 
 export interface Verdict {
   /** True when a rule at or above its veto level was broken. */
@@ -356,12 +445,12 @@ export interface Verdict {
   violations: string[];
 }
 
-export function evaluate(ctx: NoteContext, level: number): Verdict {
+export function evaluate(ctx: NoteContext, level: number, rules: Rule[] = RULES): Verdict {
   let weight = 1;
   let vetoed = false;
   const violations: string[] = [];
 
-  for (const rule of RULES) {
+  for (const rule of rules) {
     if (level < rule.minLevel) continue;
     if (!rule.test(ctx)) continue;
     violations.push(rule.id);
@@ -372,8 +461,8 @@ export function evaluate(ctx: NoteContext, level: number): Verdict {
 }
 
 /** Every rule violated by a note, ignoring levels. Used by the audit. */
-export function violationsOf(ctx: NoteContext): string[] {
-  return RULES.filter((r) => r.test(ctx)).map((r) => r.id);
+export function violationsOf(ctx: NoteContext, rules: Rule[] = RULES): string[] {
+  return rules.filter((r) => r.test(ctx)).map((r) => r.id);
 }
 
 // ---------------------------------------------------------------------------

@@ -27,7 +27,7 @@ Four axes control the output, and all four are optional:
 - **era** — the production: which drum machine, which instruments
 - **mood** — biases style, key, tempo and density without dictating notes
 
-Plus **smoothness**, which decides how hard known voice-leading faults are policed. See [docs/smoothness.md](docs/smoothness.md).
+Plus **smoothness**, which decides how hard known voice-leading faults are policed. Genres share the rule table but not the thresholds — jazz disables the ones it does not hold — and the rules are instrument-aware, so a trombone is not asked to leap like a vibraphone. See [docs/smoothness.md](docs/smoothness.md).
 
 ## Documentation
 

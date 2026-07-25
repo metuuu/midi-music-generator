@@ -105,6 +105,7 @@ function measure(song: Song, m: Measurement): void {
       duration: n.duration,
       beat: n.beat,
       accompaniment,
+      agility: 0.7,
       ...(i >= 1 ? { prev: notes[i - 1]!.midi, prevChord: chordAt.get(Math.floor(notes[i - 1]!.beat / beatsPerBar)) } : {}),
       ...(i >= 2 ? { prevPrev: notes[i - 2]!.midi } : {}),
     };

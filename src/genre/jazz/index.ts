@@ -12,6 +12,7 @@
 import { isAlteredDominant } from '../../core/chord.js';
 import { pc } from '../../core/pitch.js';
 import { makeScale } from '../../core/scale.js';
+import { RULE_DISABLED } from '../../generate/constraints.js';
 import type { Genre, FormStep } from '../types.js';
 import { STYLES } from './styles.js';
 import { ERAS } from './eras.js';
@@ -76,6 +77,46 @@ export const jazz: Genre = {
   // genuinely unplayable intervals are worth blocking here, and bebop turns
   // even that off via its own style override.
   defaultStrictness: 'light',
+
+  /**
+   * Where jazz disagrees with the shared rule table.
+   *
+   * The table was written from classical voice-leading and general arranging
+   * practice. Most of it transfers — a minor ninth against a held chord tone is
+   * sour in any idiom — but several rules encode conventions jazz simply does
+   * not hold, and enforcing those produces music that is correct and wrong.
+   */
+  ruleOverrides: {
+    // A jazz line is under no obligation to resolve its leading tone upward.
+    // Bebop routinely descends from the 7th, and the "resolution" of a ii–V is
+    // carried by the guide tones in the comp, not by the melody.
+    'unresolved-leading-tone': { minLevel: RULE_DISABLED, vetoLevel: RULE_DISABLED },
+
+    // Chromaticism is the vocabulary, not a defect: approach notes, enclosures
+    // and blue notes are all chromatic by definition.
+    'chromatic-tone': { minLevel: RULE_DISABLED, vetoLevel: RULE_DISABLED },
+
+    // Leaping into a non-chord tone is how a bebop line gets anywhere. Keep it
+    // as a gentle preference at the top two levels only.
+    'unprepared-dissonance': { minLevel: 3, vetoLevel: 4, penalty: 0.5 },
+
+    // A ♭9 over a dominant is a colour jazz reaches for deliberately — it is
+    // the sound of the minor ii–V. Only police it at the smoothest setting.
+    'flat-nine': { minLevel: 4, vetoLevel: 4 },
+
+    // Parallel fifths and octaves are a choral prohibition. Quartal planing and
+    // block-chord writing move in parallel on purpose.
+    'parallel-perfects': { minLevel: 4, vetoLevel: RULE_DISABLED, penalty: 0.6 },
+
+    // Still awkward, but less taboo than in a singable idiom — the altered and
+    // diminished scales contain them by construction.
+    'augmented-second': { vetoLevel: 2, penalty: 0.3 },
+
+    // The natural 11 over a major seventh is a genuine avoid note in jazz, more
+    // so than in iskelmä. Tighten rather than relax.
+    'avoid-fourth': { minLevel: 2, vetoLevel: 3 },
+  },
+
   duration: [125, 215],
 
   /**

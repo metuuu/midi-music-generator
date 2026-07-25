@@ -20,7 +20,7 @@ import type { Pc } from '../core/pitch.js';
 import type { Rng } from '../core/rng.js';
 import type { Mode, Scale } from '../core/scale.js';
 import type { SectionKind } from '../core/types.js';
-import type { StrictnessId } from '../generate/constraints.js';
+import type { RuleOverrides, StrictnessId } from '../generate/constraints.js';
 import type { EraProfile, Mood, Style } from '../style/types.js';
 
 export interface FormStep {
@@ -55,6 +55,13 @@ export interface Genre {
 
   /** Constraint level that suits the idiom by default. */
   defaultStrictness: StrictnessId;
+
+  /**
+   * Adjustments to the shared rule table. The rules encode faults classical
+   * and jazz practice largely agree on — but not entirely, and a rule applied
+   * to a genre that does not hold it produces music that is correct and wrong.
+   */
+  ruleOverrides?: RuleOverrides;
 
   /**
    * Which scale the melody should draw on for a given chord.

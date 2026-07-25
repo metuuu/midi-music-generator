@@ -78,6 +78,6 @@ Where iskelmä sorts itself by degrees of melancholy, jazz sorts itself by heat 
 
 ## Constraint defaults
 
-Jazz defaults to **`light`** smoothness rather than `standard`: the rules exist to stop a line wandering, and jazz wanders on purpose.
+Jazz defaults to **`light`** smoothness rather than `standard`: the rules exist to stop a line wandering, and jazz wanders on purpose. **Bebop overrides this to `free`** — chromatic approach notes, enclosures and unprepared dissonances are the *content* of a bebop line, not defects in it.
 
-**Bebop overrides this to `free`.** Chromatic approach notes, enclosures and unprepared dissonances are the *content* of a bebop line, not defects in it. Policing them produces something politely wrong. See [smoothness.md](smoothness.md).
+Jazz also overrides six individual rules, because the shared table was written from classical voice-leading practice and jazz does not hold all of it. `unresolved-leading-tone` and `chromatic-tone` are disabled outright; `unprepared-dissonance`, `flat-nine` and `parallel-perfects` are relaxed; `avoid-fourth` is *tightened*, because the natural 11 over a major seventh is a genuine avoid note here. See [smoothness.md](smoothness.md#do-genres-share-the-rules) for the reasoning.

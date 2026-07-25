@@ -11,6 +11,10 @@
 
 import { generateSong } from './generate/song.js';
 import { getGenre, GENRE_IDS } from './genre/index.js';
+import { generateMelody } from './generate/melody.js';
+import { comfortableLeap } from './generate/constraints.js';
+import { parseRoman } from './core/chord.js';
+import { Rng } from './core/rng.js';
 
 const problems: string[] = [];
 const check = (label: string, pass: boolean, detail: string) => {
@@ -108,6 +112,87 @@ if (comp) {
   }
 }
 check('modal comp stacks fourths', total > 0 && fourths / total > 0.8, `${((fourths / Math.max(1, total)) * 100).toFixed(0)}% of intervals are perfect fourths`);
+
+// --- Smoothness must actually smooth --------------------------------------
+// The regression this guards against: every vertical rule pushes the melody
+// onto chord tones, which are a third apart, so raising strictness once made
+// the line *less* smooth. Wide leaps must fall as the level rises.
+console.log('\nSmoothness monotonicity');
+{
+  const wideAt = (level: string, genreId: string) => {
+    let wide = 0, moves = 0;
+    for (let i = 0; i < 25; i++) {
+      const s = generateSong({ seed: `sm-${i}`, genre: genreId, strictness: level as never });
+      const mel = s.tracks.find((t) => t.layer === 'melody');
+      if (!mel) continue;
+      const n = mel.notes.slice().sort((a, b) => a.beat - b.beat);
+      for (let j = 1; j < n.length; j++) {
+        const d = Math.abs(n[j]!.midi - n[j - 1]!.midi);
+        if (d === 0) continue;
+        moves++;
+        if (d > 4) wide++;
+      }
+    }
+    return (wide / Math.max(1, moves)) * 100;
+  };
+  for (const genreId of GENRE_IDS) {
+    const free = wideAt('free', genreId);
+    const strict = wideAt('strict', genreId);
+    const polished = wideAt('polished', genreId);
+    check(
+      `${genreId}: wide leaps fall as strictness rises`,
+      strict <= free && polished <= strict,
+      `free ${free.toFixed(0)}% -> strict ${strict.toFixed(0)}% -> polished ${polished.toFixed(0)}%`,
+    );
+  }
+}
+
+// --- Instrument agility ----------------------------------------------------
+// Tested by holding everything else fixed and varying only agility. Comparing
+// real songs instead would be confounded: brass and vibraphone appear in
+// different styles, and the style's own leap character swamps the instrument's.
+console.log('\nInstrument awareness');
+{
+  const style = getGenre('iskelma').styles.tango!;
+  const chords = ['i', 'iv', 'V7', 'i', 'i', 'iv', 'V7', 'i'].map((l) => parseRoman(l, 'minor'));
+  const leapProfile = (agility: number) => {
+    let wide = 0, moves = 0, widest = 0;
+    for (let s2 = 0; s2 < 60; s2++) {
+      const notes = generateMelody({
+        chords, beatsPerBar: 4, style, rng: new Rng(`ag-${s2}`),
+        tonic: 0, mode: 'minor', range: [60, 79], startBeat: 0,
+        ornamentScale: 1, leapScale: 1, strictness: 2, agility,
+      });
+      for (let i = 1; i < notes.length; i++) {
+        const d = Math.abs(notes[i]!.midi - notes[i - 1]!.midi);
+        if (d === 0) continue;
+        moves++;
+        // Measure beyond a fifth: that is the range agility governs. Whether a
+        // melody uses thirds at all is a property of the style, not the player.
+        if (d > 7) wide++;
+        widest = Math.max(widest, d);
+      }
+    }
+    return { pct: (wide / Math.max(1, moves)) * 100, widest };
+  };
+  const trombone = leapProfile(0.4);
+  const vibraphone = leapProfile(1.0);
+  check(
+    'a stiff instrument leaps less than an agile one',
+    trombone.pct < vibraphone.pct,
+    `trombone(0.4) ${trombone.pct.toFixed(1)}% vs vibraphone(1.0) ${vibraphone.pct.toFixed(1)}% leaps > a fifth`,
+  );
+  check(
+    'a stiff instrument never reaches as far',
+    trombone.widest < vibraphone.widest,
+    `widest leap ${trombone.widest} vs ${vibraphone.widest} semitones`,
+  );
+  check(
+    'comfortable leap scales with agility',
+    comfortableLeap(0.4) < comfortableLeap(1.0),
+    `${comfortableLeap(0.4)} vs ${comfortableLeap(1.0)} semitones`,
+  );
+}
 
 console.log();
 if (problems.length) {

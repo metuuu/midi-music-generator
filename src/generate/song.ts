@@ -25,7 +25,7 @@ import type {
 import { GENRES, getGenre, type FormStep, type Genre } from '../genre/index.js';
 import { INSTRUMENTS, type Instrument, type InstrumentId } from '../style/instruments.js';
 import type { EraProfile, Mood, Progression, Style } from '../style/types.js';
-import { buildAccompaniment, getStrictness, type StrictnessId } from './constraints.js';
+import { buildAccompaniment, getStrictness, resolveRules, type StrictnessId } from './constraints.js';
 import { generateMelody } from './melody.js';
 import {
   generateBass, generateBrass, generateComp, generateCounter, generateDrums, generatePad,
@@ -68,6 +68,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
   // Style overrides beat the genre default: bebop turns the rules off entirely.
   const strictness = getStrictness(opts.strictness ?? style.strictness ?? genre.defaultStrictness);
 
+  const rules = resolveRules(genre.ruleOverrides);
   const density = clamp(era.density + mood.density, 0.25, 1);
   const instruments = chooseInstruments(rng, era);
 
@@ -178,6 +179,10 @@ export function generateSong(opts: GenerateOptions = {}): Song {
         strictness: strictness.level,
         accompaniment,
         scaleForChord: genre.scaleForChord,
+        rules,
+        // The instrument actually playing this line — the counter instrument
+        // takes over in solo sections.
+        agility: leadInstrument.agility,
       });
       push(byLayer, leadLayer, melody);
 

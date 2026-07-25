@@ -28,8 +28,8 @@ import type { Rng } from '../core/rng.js';
 import type { NoteEvent } from '../core/types.js';
 import type { RhythmCell, Style } from '../style/types.js';
 import {
-  buildAccompaniment, EMPTY_ACCOMPANIMENT, evaluate as evaluateRules,
-  type Accompaniment, type NoteContext,
+  buildAccompaniment, EMPTY_ACCOMPANIMENT, evaluate as evaluateRules, RULES,
+  type Accompaniment, type NoteContext, type Rule,
 } from './constraints.js';
 
 export const SLOTS_PER_BEAT = 4;
@@ -60,6 +60,10 @@ export interface MelodyOptions {
    * the same music with different chords.
    */
   scaleForChord?: (tonic: Pc, mode: Mode, chord: Chord) => Scale;
+  /** Rule table, already adjusted for the genre. Defaults to the base rules. */
+  rules?: Rule[];
+  /** Leap freedom of the instrument playing this line, 0..1. */
+  agility?: number;
 }
 
 interface BarMotif {
@@ -144,6 +148,8 @@ function choosePitch(args: {
   beat: number;
   accompaniment: Accompaniment;
   strictness: number;
+  rules: Rule[];
+  agility: number;
 }): Midi {
   const { scale, chord, prev, prevInterval, strength, targetHeight, range, rng, leap, forceChordTone } = args;
   const [lo, hi] = range;
@@ -176,8 +182,16 @@ function choosePitch(args: {
     // Stepwise motion is the default gait of the style. These weights are the
     // main lever on how singable the result is: iskelmä melodies are roughly
     // 60% seconds, 25% thirds, and only occasional wider leaps.
-    if (semis === 0) w *= 0.55;
-    else if (semis <= 2) w *= 6.0;
+    // Repeating a note is the safest move available, so at high strictness —
+    // where leaps are capped and beats want chord tones — it becomes the path
+    // of least resistance and the tune stops moving. Make it progressively
+    // less attractive as the other options narrow.
+    if (semis === 0) w *= Math.max(0.15, 0.55 - args.strictness * 0.09);
+    // "Chord tone on the beat" and "move by step" pull against each other,
+    // because adjacent chord tones are a third apart. As strictness rises the
+    // vertical rules win by default and the line starts arpeggiating, so the
+    // preference for steps has to rise with them.
+    else if (semis <= 2) w *= 6.0 + args.strictness * 2.5;
     else if (semis <= 4) w *= 1.15;
     else if (semis <= 7) w *= 0.3;
     else w *= 0.06;
@@ -225,10 +239,11 @@ function choosePitch(args: {
         duration: args.duration,
         beat: args.beat,
         accompaniment: args.accompaniment,
+        agility: args.agility,
         ...(args.prevPrev !== undefined ? { prevPrev: args.prevPrev } : {}),
         ...(args.prevChord !== undefined ? { prevChord: args.prevChord } : {}),
       };
-      const verdict = evaluateRules(ctx, level);
+      const verdict = evaluateRules(ctx, level, args.rules);
       if (!verdict.vetoed && verdict.weight > 0) allowed.push([cand, w * verdict.weight]);
     }
     if (allowed.length) return rng.weighted(allowed);
@@ -246,10 +261,11 @@ function choosePitch(args: {
         mode: args.mode, tonic: args.tonic, strength,
         duration: args.duration, beat: args.beat,
         accompaniment: args.accompaniment,
+        agility: args.agility,
         ...(args.prevPrev !== undefined ? { prevPrev: args.prevPrev } : {}),
         ...(args.prevChord !== undefined ? { prevChord: args.prevChord } : {}),
       };
-      const broken = evaluateRules(ctx, 1).violations.length;
+      const broken = evaluateRules(ctx, 1, args.rules).violations.length;
       const score = broken - w * 0.001; // weight only breaks ties
       if (score < bestScore) { bestScore = score; best = cand; }
     }
@@ -284,6 +300,8 @@ function renderBar(args: {
   prevChord?: Chord;
   accompaniment: Accompaniment;
   strictness: number;
+  rules: Rule[];
+  agility: number;
 }): { events: NoteEvent[]; last: Midi; lastInterval: number; motif: BarMotif } {
   const { cell, chord, scale, barStartBeat, slotsPerBar, range, rng, leap, arcAt, cadenceTarget } = args;
   const events: NoteEvent[] = [];
@@ -323,6 +341,8 @@ function renderBar(args: {
         beat,
         accompaniment: args.accompaniment,
         strictness: args.strictness,
+        rules: args.rules,
+        agility: args.agility,
         ...(prevPrev !== undefined ? { prevPrev } : {}),
         ...(prevChord !== undefined ? { prevChord } : {}),
       });
@@ -430,6 +450,8 @@ function repairMelody(args: {
   beatsPerBar: number;
   accompaniment: Accompaniment;
   strictness: number;
+  rules: Rule[];
+  agility: number;
 }): { notes: NoteEvent[]; repairs: number } {
   const { notes, chordAtBeat, scaleAtBeat, mode, tonic, range, beatsPerBar, accompaniment, strictness } = args;
   if (strictness < 1 || notes.length < 2) return { notes, repairs: 0 };
@@ -455,6 +477,7 @@ function repairMelody(args: {
       duration: note.duration,
       beat: note.beat,
       accompaniment,
+      agility: args.agility,
       ...(i >= 2 ? { prevPrev: sorted[i - 2]!.midi } : {}),
       ...(i >= 1 ? { prevChord: chordAtBeat(sorted[i - 1]!.beat) } : {}),
     });
@@ -467,7 +490,7 @@ function repairMelody(args: {
      * note for three merely bad ones.
      */
     const cost = (candidate: Midi): number => {
-      const here = evaluateRules(context(candidate), strictness);
+      const here = evaluateRules(context(candidate), strictness, args.rules);
       let total = (here.vetoed ? 100 : 0) + here.violations.length;
 
       const next = sorted[i + 1];
@@ -486,7 +509,8 @@ function repairMelody(args: {
           duration: next.duration,
           beat: next.beat,
           accompaniment,
-        }, strictness);
+          agility: args.agility,
+        }, strictness, args.rules);
         total += (after.vetoed ? 100 : 0) + after.violations.length;
       }
       return total;
@@ -520,7 +544,10 @@ export function generateMelody(opts: MelodyOptions): NoteEvent[] {
   const slotsPerBar = beatsPerBar * SLOTS_PER_BEAT;
   const bars = chords.length;
   const phraseBars = bars >= 8 ? 4 : Math.max(2, bars);
-  const leap = style.melody.leap * opts.leapScale * (opts.soloistic ? 1.25 : 1);
+  // Instruments that leap badly should also *want* to leap less, not merely be
+  // vetoed after the fact — filtering alone leaves the line fighting itself.
+  const leap = style.melody.leap * opts.leapScale * (opts.soloistic ? 1.25 : 1)
+    * (0.35 + (opts.agility ?? 0.7) * 1.05);
   const ornament = style.melody.ornament * opts.ornamentScale * (opts.soloistic ? 1.5 : 1);
 
   const baseScale = makeScale(tonic, mode === 'minor' ? 'minor' : 'major');
@@ -530,6 +557,8 @@ export function generateMelody(opts: MelodyOptions): NoteEvent[] {
   const strictness = opts.strictness ?? 2;
   const accompaniment = opts.accompaniment ?? EMPTY_ACCOMPANIMENT;
   const scaleForChord = opts.scaleForChord ?? defaultScaleForChord;
+  const rules = opts.rules ?? RULES;
+  const agility = opts.agility ?? 0.7;
   const barOf = (beat: number) =>
     Math.min(bars - 1, Math.max(0, Math.floor((beat - startBeat) / beatsPerBar)));
   const chordAtBeat = (beat: number) => chords[barOf(beat)]!;
@@ -596,7 +625,7 @@ export function generateMelody(opts: MelodyOptions): NoteEvent[] {
         const r = renderBar({
           cell, chord, scale, prev, prevInterval, barStartBeat, slotsPerBar, range, rng,
           leap, ornament, arcAt: arcFor(b),
-          mode, tonic, accompaniment, strictness,
+          mode, tonic, accompaniment, strictness, rules, agility,
           ...(prevPrev !== undefined ? { prevPrev } : {}),
           ...(prevChord !== undefined ? { prevChord } : {}),
           ...(cadenceTarget !== undefined ? { cadenceTarget } : {}),
@@ -624,6 +653,8 @@ export function generateMelody(opts: MelodyOptions): NoteEvent[] {
     beatsPerBar,
     accompaniment,
     strictness,
+    rules,
+    agility,
   }).notes;
 }
 
