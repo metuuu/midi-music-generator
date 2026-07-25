@@ -75,6 +75,27 @@ export function snapToScale(scale: Scale, midi: Midi): Midi {
  * Step `steps` scale degrees from a note that is assumed to be in the scale.
  * If it isn't, it is snapped first.
  */
+/**
+ * Signed number of scale steps from `a` to `b`.
+ *
+ * Used both to store motif shapes for transposition and to tell a real step
+ * from a leap that merely looks small in semitones — the augmented second
+ * between ♭6 and ♮7 in harmonic minor is one scale step but three semitones,
+ * and that distinction is exactly what makes it forbidden.
+ */
+export function scaleStepsBetween(scale: Scale, a: Midi, b: Midi): number {
+  const sa = snapToScale(scale, a);
+  const sb = snapToScale(scale, b);
+  if (sa === sb) return 0;
+  const dir = sb > sa ? 1 : -1;
+  let cur = sa;
+  for (let n = 1; n <= 24; n++) {
+    cur = stepInScale(scale, cur, dir);
+    if ((dir > 0 && cur >= sb) || (dir < 0 && cur <= sb)) return n * dir;
+  }
+  return Math.round((b - a) / 2);
+}
+
 export function stepInScale(scale: Scale, midi: Midi, steps: number): Midi {
   const snapped = snapToScale(scale, midi);
   const len = scale.pcs.length;

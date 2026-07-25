@@ -22,6 +22,7 @@ import { INSTRUMENTS, type Instrument, type InstrumentId } from '../style/instru
 import { getMood, type Mood } from '../style/moods.js';
 import { getStyle, STYLES } from '../style/styles.js';
 import type { Progression, Style } from '../style/types.js';
+import { buildAccompaniment, getStrictness, type StrictnessId } from './constraints.js';
 import { generateMelody } from './melody.js';
 import {
   generateBass, generateBrass, generateComp, generateCounter, generateDrums, generatePad,
@@ -40,6 +41,11 @@ export interface GenerateOptions {
   bpm?: number;
   /** Target song length in seconds; the form is stretched to fit. */
   targetSeconds?: number;
+  /**
+   * How hard to police the melody against known voice-leading faults.
+   * Defaults to 'standard'. See `generate/constraints.ts`.
+   */
+  strictness?: StrictnessId | number;
 }
 
 /** Keys that sit well for accordion, guitar and singers. */
@@ -88,6 +94,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
   const mode = opts.mode ?? chooseMode(rng, style, mood);
   const tonic = opts.tonic ?? rng.weighted(mode === 'minor' ? MINOR_KEYS : MAJOR_KEYS);
   const bpm = opts.bpm ?? chooseTempo(rng, style, mood, era);
+  const strictness = getStrictness(opts.strictness ?? 'standard');
 
   const density = clamp(era.density + mood.density, 0.25, 1);
   const instruments = chooseInstruments(rng, era);
@@ -154,10 +161,19 @@ export function generateSong(opts: GenerateOptions = {}): Song {
         intensity,
       }));
     }
-    if (active.has('bass')) push(byLayer, 'bass', generateBass(ctx, bassPattern));
-    if (active.has('comp')) push(byLayer, 'comp', generateComp(ctx, compPattern, instruments.comp.centre));
-    if (active.has('pad')) push(byLayer, 'pad', generatePad(ctx, instruments.pad.centre));
+
+    // Keep this section's accompaniment to hand: the melody is written last, so
+    // it can be checked against what the band is actually holding underneath.
+    const sectionBass = active.has('bass') ? generateBass(ctx, bassPattern) : [];
+    const sectionComp = active.has('comp') ? generateComp(ctx, compPattern, instruments.comp.centre) : [];
+    const sectionPad = active.has('pad') ? generatePad(ctx, instruments.pad.centre) : [];
+
+    push(byLayer, 'bass', sectionBass);
+    push(byLayer, 'comp', sectionComp);
+    push(byLayer, 'pad', sectionPad);
     if (active.has('brass')) push(byLayer, 'brass', generateBrass(ctx, instruments.brass.centre));
+
+    const accompaniment = buildAccompaniment([sectionBass, sectionComp, sectionPad]);
 
     // In a solo section the "voice" rests and the counter instrument takes the
     // tune — which is exactly how these arrangements work.
@@ -182,6 +198,8 @@ export function generateSong(opts: GenerateOptions = {}): Song {
         ornamentScale: mood.ornament,
         leapScale: mood.leap,
         soloistic: isSolo,
+        strictness: strictness.level,
+        accompaniment,
       });
       push(byLayer, leadLayer, melody);
 
@@ -236,6 +254,8 @@ export function generateSong(opts: GenerateOptions = {}): Song {
       era: era.id,
       eraLabel: era.label,
       mood: mood.id,
+      strictness: strictness.id,
+      strictnessLabel: strictness.label,
       tonic,
       mode,
       keyLabel: keyLabel(tonic, mode),

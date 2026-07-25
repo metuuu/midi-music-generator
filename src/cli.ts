@@ -16,6 +16,7 @@ import { songDurationSeconds, type Song } from './core/types.js';
 import { ERA_IDS } from './style/eras.js';
 import { MOOD_IDS } from './style/moods.js';
 import { STYLE_IDS } from './style/styles.js';
+import { STRICTNESS_IDS, type StrictnessId } from './generate/constraints.js';
 
 interface Args {
   count: number;
@@ -25,6 +26,7 @@ interface Args {
   mood?: string;
   seed?: string;
   seconds?: number;
+  strictness?: string;
   quiet: boolean;
 }
 
@@ -41,6 +43,7 @@ function parseArgs(argv: string[]): Args {
       case '--mood': args.mood = String(next()); break;
       case '--seed': args.seed = String(next()); break;
       case '--seconds': args.seconds = Number(next()); break;
+      case '--strictness': args.strictness = String(next()); break;
       case '--quiet': args.quiet = true; break;
       case '--help': case '-h': usage(); process.exit(0);
       default:
@@ -63,6 +66,8 @@ Finnish iskelmä generator
       --mood <id>     ${MOOD_IDS.join(' | ')}
       --seed <s>      base seed; song N uses "<seed>-N" (reproducible)
       --seconds <n>   target length per song
+      --strictness    ${STRICTNESS_IDS.join(' | ')}
+                      how hard to police the melody (default: standard)
       --quiet         no per-song output
 `);
 }
@@ -90,6 +95,7 @@ function main(): void {
     if (args.style) opts.style = args.style;
     if (args.mood) opts.mood = args.mood;
     if (args.seconds) opts.targetSeconds = args.seconds;
+    if (args.strictness) opts.strictness = args.strictness as StrictnessId;
 
     const song = generateSong(opts);
     const name = `${String(i + 1).padStart(2, '0')}-${slug(song.meta.title)}`;
@@ -114,6 +120,7 @@ function summarise(song: Song, file: string) {
     style: meta.style,
     era: meta.era,
     mood: meta.mood,
+    strictness: meta.strictness,
     key: meta.keyLabel,
     bpm: meta.bpm,
     meter: `${meta.beatsPerBar}/${meta.beatUnit}`,

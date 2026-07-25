@@ -90,6 +90,9 @@ export interface SongMeta {
   era: string;
   eraLabel: string;
   mood: string;
+  /** Constraint strictness id, e.g. 'standard'. */
+  strictness: string;
+  strictnessLabel: string;
   tonic: number;
   mode: Mode;
   keyLabel: string;

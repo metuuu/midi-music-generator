@@ -68,6 +68,9 @@
       }
       .status { font-size: .8rem; color: var(--dim); margin-top: .8rem; min-height: 1.2em; }
       .status.err { color: #e2705a; }
+      .hint { font-size: .78rem; color: var(--dim); margin-top: .7rem; font-style: italic; }
+      .compare { margin-top: 1.1rem; padding-top: 1rem; border-top: 1px solid var(--edge); }
+      .compare .row { margin-top: .6rem; }
     </style>
   </head>
   <body>
@@ -90,10 +93,15 @@
             <select id="style"></select>
           </div>
           <div>
+            <label for="strictness">Sointuisuus / smoothness</label>
+            <select id="strictness"></select>
+          </div>
+          <div>
             <label for="seed">Seed</label>
             <input id="seed" type="text" placeholder="random" />
           </div>
         </div>
+        <div class="hint" id="strictness-hint"></div>
         <div class="row">
           <button id="play" class="primary" disabled>Loading…</button>
           <button id="next" disabled>Seuraava ▸</button>

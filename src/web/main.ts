@@ -18,6 +18,7 @@ import { songDurationSeconds, type LayerId, type Song } from '../core/types.js';
 import { MOODS } from '../style/moods.js';
 import { ERAS } from '../style/eras.js';
 import { STYLES } from '../style/styles.js';
+import { STRICTNESS_LEVELS, getStrictness, type StrictnessId } from '../generate/constraints.js';
 
 const $ = <T extends HTMLElement>(id: string): T => {
   const el = document.getElementById(id);
@@ -29,6 +30,8 @@ const els = {
   mood: $<HTMLSelectElement>('mood'),
   era: $<HTMLSelectElement>('era'),
   style: $<HTMLSelectElement>('style'),
+  strictness: $<HTMLSelectElement>('strictness'),
+  strictnessHint: $<HTMLDivElement>('strictness-hint'),
   seed: $<HTMLInputElement>('seed'),
   play: $<HTMLButtonElement>('play'),
   next: $<HTMLButtonElement>('next'),
@@ -57,6 +60,15 @@ fillSelect(els.mood, Object.values(MOODS).map((m) => [m.id, `${m.label} — ${m.
 els.mood.value = 'neutraali';
 fillSelect(els.era, Object.values(ERAS).map((e) => [e.id, e.label]), 'Kumpi tahansa / either');
 fillSelect(els.style, Object.values(STYLES).map((s) => [s.id, s.label]), 'Mikä tahansa / any');
+fillSelect(els.strictness, STRICTNESS_LEVELS.map((l) => [l.id, `${l.level} · ${l.label}`]));
+els.strictness.value = 'standard';
+
+function updateStrictnessHint(): void {
+  const level = getStrictness(els.strictness.value as StrictnessId);
+  els.strictnessHint.textContent = els.seed.value.trim()
+    ? `${level.gloss} — seed is pinned, so changing this replays the same song filtered differently.`
+    : `${level.gloss} — pin a seed to hear the same song at different levels.`;
+}
 
 function setStatus(text: string, isError = false): void {
   els.status.textContent = text;
@@ -69,6 +81,7 @@ function currentOptions(): GenerateOptions {
   if (els.era.value) opts.era = els.era.value;
   if (els.style.value) opts.style = els.style.value;
   if (els.mood.value) opts.mood = els.mood.value;
+  if (els.strictness.value) opts.strictness = els.strictness.value as StrictnessId;
   return opts;
 }
 
@@ -91,6 +104,7 @@ function describe(song: Song): void {
     `<b>${meta.styleLabel}</b> · ${meta.eraLabel}`,
     `${meta.keyLabel} · ${meta.bpm} BPM · ${meta.beatsPerBar}/${meta.beatUnit} · ${meta.totalBars} bars · ${Math.floor(mins / 60)}:${String(Math.round(mins % 60)).padStart(2, '0')}`,
     `Drums: ${song.drums.bank}${lift ? ` · key change +${lift.transpose} for the last chorus` : ''}`,
+    `Smoothness: <b>${meta.strictnessLabel}</b> — ${getStrictness(meta.strictness as StrictnessId).gloss}`,
     song.tracks.map((t) => `${t.layer}: <b>${t.instrument}</b>`).join(' · '),
     `seed: <b>${meta.seed}</b>`,
   ].join('<br>');
@@ -194,6 +208,20 @@ for (const el of [els.mood, els.era, els.style]) {
   el.onchange = () => { if (!els.seed.value.trim()) void nextTrack(); };
 }
 
+// Strictness regenerates even with a pinned seed — hearing the same tune
+// filtered two ways is the whole point of the control.
+els.strictness.onchange = () => {
+  updateStrictnessHint();
+  void regenerateSameSeed();
+};
+els.seed.oninput = updateStrictnessHint;
+
+async function regenerateSameSeed(): Promise<void> {
+  current = generateSong(currentOptions());
+  describe(current);
+  if (playing) await play(current);
+}
+
 function boot(): void {
   // Kick the audio stack off now so its first-click listener is already armed
   // when the user presses Play.
@@ -202,6 +230,7 @@ function boot(): void {
     console.error(err);
   });
 
+  updateStrictnessHint();
   current = generateSong(currentOptions());
   describe(current);
   els.play.disabled = false;

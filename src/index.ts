@@ -19,6 +19,10 @@ export { LAYER_ORDER, songDurationBeats, songDurationSeconds } from './core/type
 export { STYLES, STYLE_IDS, getStyle } from './style/styles.js';
 export { ERAS, ERA_IDS, getEra } from './style/eras.js';
 export { MOODS, MOOD_IDS, getMood, type Mood } from './style/moods.js';
+export {
+  STRICTNESS_LEVELS, STRICTNESS_IDS, getStrictness, RULES,
+  type StrictnessId, type StrictnessLevel, type Rule,
+} from './generate/constraints.js';
 export { INSTRUMENTS, type Instrument } from './style/instruments.js';
 
 export { Rng } from './core/rng.js';

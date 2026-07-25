@@ -12,6 +12,7 @@
     "audit": "tsx src/audit.ts",
     "check": "tsx src/check-notation.ts",
     "moods": "tsx src/mood-report.ts",
+    "strictness": "tsx src/strictness-report.ts",
     "verify": "npm run typecheck && npm run check && npm run audit 40"
   },
   "devDependencies": {

@@ -23,10 +23,14 @@ import { chordPcs } from '../core/chord.js';
 import type { Midi, Pc } from '../core/pitch.js';
 import { clampToRange, pc } from '../core/pitch.js';
 import type { Mode, Scale } from '../core/scale.js';
-import { makeScale, snapToScale, stepInScale } from '../core/scale.js';
+import { makeScale, scaleStepsBetween, snapToScale, stepInScale } from '../core/scale.js';
 import type { Rng } from '../core/rng.js';
 import type { NoteEvent } from '../core/types.js';
 import type { RhythmCell, Style } from '../style/types.js';
+import {
+  buildAccompaniment, EMPTY_ACCOMPANIMENT, evaluate as evaluateRules,
+  type Accompaniment, type NoteContext,
+} from './constraints.js';
 
 export const SLOTS_PER_BEAT = 4;
 
@@ -45,6 +49,10 @@ export interface MelodyOptions {
   leapScale: number;
   /** Solo sections get busier, more ornamented lines. */
   soloistic?: boolean;
+  /** Constraint strictness, 0 (free) to 4 (polished). */
+  strictness?: number;
+  /** What the band is already playing, for the vertical rules. */
+  accompaniment?: Accompaniment;
 }
 
 interface BarMotif {
@@ -117,6 +125,15 @@ function choosePitch(args: {
   rng: Rng;
   leap: number;
   forceChordTone: boolean;
+  /** Constraint context — everything below is what the rule engine needs. */
+  prevPrev?: Midi;
+  prevChord?: Chord;
+  mode: Mode;
+  tonic: Pc;
+  duration: number;
+  beat: number;
+  accompaniment: Accompaniment;
+  strictness: number;
 }): Midi {
   const { scale, chord, prev, prevInterval, strength, targetHeight, range, rng, leap, forceChordTone } = args;
   const [lo, hi] = range;
@@ -179,6 +196,56 @@ function choosePitch(args: {
   }
 
   if (!scored.length) return clampToRange(snapToScale(scale, prev), lo, hi);
+
+  // Apply the constraint rules on top of the stylistic score. Vetoes can empty
+  // the field entirely — a bar where every reachable note breaks something —
+  // so relax one level at a time rather than failing. Music that obeys no rule
+  // beats music that stops.
+  for (let level = args.strictness; level >= 1; level--) {
+    const allowed: (readonly [Midi, number])[] = [];
+    for (const [cand, w] of scored) {
+      const ctx: NoteContext = {
+        candidate: cand,
+        prev,
+        chord,
+        scale,
+        mode: args.mode,
+        tonic: args.tonic,
+        strength,
+        duration: args.duration,
+        beat: args.beat,
+        accompaniment: args.accompaniment,
+        ...(args.prevPrev !== undefined ? { prevPrev: args.prevPrev } : {}),
+        ...(args.prevChord !== undefined ? { prevChord: args.prevChord } : {}),
+      };
+      const verdict = evaluateRules(ctx, level);
+      if (!verdict.vetoed && verdict.weight > 0) allowed.push([cand, w * verdict.weight]);
+    }
+    if (allowed.length) return rng.weighted(allowed);
+  }
+
+  // Even the last resort must not hand back an augmented second or a tritone
+  // leap. If level 1 forbade everything, take whichever candidate breaks the
+  // fewest of those rules rather than ignoring them wholesale.
+  if (args.strictness >= 1) {
+    let best: Midi | undefined;
+    let bestScore = Infinity;
+    for (const [cand, w] of scored) {
+      const ctx: NoteContext = {
+        candidate: cand, prev, chord, scale,
+        mode: args.mode, tonic: args.tonic, strength,
+        duration: args.duration, beat: args.beat,
+        accompaniment: args.accompaniment,
+        ...(args.prevPrev !== undefined ? { prevPrev: args.prevPrev } : {}),
+        ...(args.prevChord !== undefined ? { prevChord: args.prevChord } : {}),
+      };
+      const broken = evaluateRules(ctx, 1).violations.length;
+      const score = broken - w * 0.001; // weight only breaks ties
+      if (score < bestScore) { bestScore = score; best = cand; }
+    }
+    if (best !== undefined) return best;
+  }
+
   return rng.weighted(scored);
 }
 
@@ -201,11 +268,19 @@ function renderBar(args: {
   ornament: number;
   arcAt: (t: number) => number;
   cadenceTarget?: Midi;
+  mode: Mode;
+  tonic: Pc;
+  prevPrev?: Midi;
+  prevChord?: Chord;
+  accompaniment: Accompaniment;
+  strictness: number;
 }): { events: NoteEvent[]; last: Midi; lastInterval: number; motif: BarMotif } {
   const { cell, chord, scale, barStartBeat, slotsPerBar, range, rng, leap, arcAt, cadenceTarget } = args;
   const events: NoteEvent[] = [];
   const intervals: number[] = [];
   let prev = args.prev;
+  let prevPrev = args.prevPrev;
+  let prevChord = args.prevChord;
   let prevInterval = args.prevInterval;
   let slot = 0;
 
@@ -221,6 +296,7 @@ function renderBar(args: {
     const isLastNote = noteIdx === noteCount - 1;
     const strength = metricStrength(slot, slotsPerBar);
     const t = slotsPerBar > 0 ? slot / slotsPerBar : 0;
+    const beat = barStartBeat + slot / SLOTS_PER_BEAT;
 
     let midi: Midi;
     if (isLastNote && cadenceTarget !== undefined) {
@@ -231,12 +307,22 @@ function renderBar(args: {
         targetHeight: arcAt(t),
         range, rng, leap,
         forceChordTone: strength >= 2 && dur >= SLOTS_PER_BEAT,
+        mode: args.mode,
+        tonic: args.tonic,
+        duration: dur / SLOTS_PER_BEAT,
+        beat,
+        accompaniment: args.accompaniment,
+        strictness: args.strictness,
+        ...(prevPrev !== undefined ? { prevPrev } : {}),
+        ...(prevChord !== undefined ? { prevChord } : {}),
       });
     }
 
     // Record the motion as scale steps so the figure can be transposed later.
     intervals.push(scaleStepsBetween(scale, prev, midi));
     prevInterval = midi - prev;
+    prevPrev = prev;
+    prevChord = chord;
     prev = midi;
 
     events.push({
@@ -312,18 +398,111 @@ function velocityFor(strength: number, rng: Rng): number {
   return Math.max(0.3, Math.min(1, base + rng.float(-0.05, 0.05)));
 }
 
-/** Signed number of scale steps from `a` to `b`, used to store motif shapes. */
-function scaleStepsBetween(scale: Scale, a: Midi, b: Midi): number {
-  const sa = snapToScale(scale, a);
-  const sb = snapToScale(scale, b);
-  if (sa === sb) return 0;
-  const dir = sb > sa ? 1 : -1;
-  let cur = sa;
-  for (let n = 1; n <= 24; n++) {
-    cur = stepInScale(scale, cur, dir);
-    if ((dir > 0 && cur >= sb) || (dir < 0 && cur <= sb)) return n * dir;
+/**
+ * Second-pass repair.
+ *
+ * Two paths bypass `choosePitch` entirely: motif replay (which transposes a
+ * stored shape wholesale) and cadence targets (which are placed by rule). Both
+ * can land on something the constraints forbid, so sweep the finished line and
+ * nudge offenders to the nearest note that fixes the problem.
+ *
+ * Repairs move a note as little as possible and never touch the last note of
+ * the line, since that is the cadence the whole phrase was aiming at.
+ */
+function repairMelody(args: {
+  notes: NoteEvent[];
+  chordAtBeat: (beat: number) => Chord;
+  scaleAtBeat: (beat: number) => Scale;
+  mode: Mode;
+  tonic: Pc;
+  range: [Midi, Midi];
+  slotsPerBar: number;
+  beatsPerBar: number;
+  accompaniment: Accompaniment;
+  strictness: number;
+}): { notes: NoteEvent[]; repairs: number } {
+  const { notes, chordAtBeat, scaleAtBeat, mode, tonic, range, beatsPerBar, accompaniment, strictness } = args;
+  if (strictness < 1 || notes.length < 2) return { notes, repairs: 0 };
+
+  const sorted = notes.slice().sort((a, b) => a.beat - b.beat);
+  let repairs = 0;
+
+  for (let i = 1; i < sorted.length - 1; i++) {
+    const note = sorted[i]!;
+    const chord = chordAtBeat(note.beat);
+    const scale = scaleAtBeat(note.beat);
+    const barStart = Math.floor(note.beat / beatsPerBar) * beatsPerBar;
+    const slot = Math.round((note.beat - barStart) * SLOTS_PER_BEAT);
+
+    const context = (candidate: Midi): NoteContext => ({
+      candidate,
+      prev: sorted[i - 1]!.midi,
+      chord,
+      scale,
+      mode,
+      tonic,
+      strength: metricStrength(slot, args.slotsPerBar),
+      duration: note.duration,
+      beat: note.beat,
+      accompaniment,
+      ...(i >= 2 ? { prevPrev: sorted[i - 2]!.midi } : {}),
+      ...(i >= 1 ? { prevChord: chordAtBeat(sorted[i - 1]!.beat) } : {}),
+    });
+
+    /**
+     * Cost of placing `candidate` here: what it breaks looking backwards, plus
+     * what it breaks at the join to the *next* note. Checking backwards alone
+     * is how a fix for one interval quietly manufactures a tritone leap on the
+     * other side — and counting only vetoes is how a repair trades a forbidden
+     * note for three merely bad ones.
+     */
+    const cost = (candidate: Midi): number => {
+      const here = evaluateRules(context(candidate), strictness);
+      let total = (here.vetoed ? 100 : 0) + here.violations.length;
+
+      const next = sorted[i + 1];
+      if (next) {
+        const nextBarStart = Math.floor(next.beat / beatsPerBar) * beatsPerBar;
+        const nextSlot = Math.round((next.beat - nextBarStart) * SLOTS_PER_BEAT);
+        const after = evaluateRules({
+          candidate: next.midi,
+          prev: candidate,
+          prevPrev: note.midi,
+          prevChord: chord,
+          chord: chordAtBeat(next.beat),
+          scale: scaleAtBeat(next.beat),
+          mode, tonic,
+          strength: metricStrength(nextSlot, args.slotsPerBar),
+          duration: next.duration,
+          beat: next.beat,
+          accompaniment,
+        }, strictness);
+        total += (after.vetoed ? 100 : 0) + after.violations.length;
+      }
+      return total;
+    };
+
+    const currentCost = cost(note.midi);
+    if (currentCost < 100) continue; // nothing forbidden here; leave it alone
+
+    // Search outward for the closest strictly better replacement.
+    let replacement: Midi | undefined;
+    let bestCost = currentCost;
+    for (let step = 1; step <= 4; step++) {
+      for (const dir of [-1, 1]) {
+        const cand = clampToRange(stepInScale(scale, note.midi, step * dir), range[0], range[1]);
+        if (cand === note.midi) continue;
+        const c = cost(cand);
+        if (c < bestCost) { bestCost = c; replacement = cand; }
+      }
+      if (replacement !== undefined && bestCost < 100) break;
+    }
+    if (replacement !== undefined) {
+      sorted[i] = { ...note, midi: replacement };
+      repairs++;
+    }
   }
-  return Math.round((b - a) / 2);
+  return { notes: sorted, repairs };
 }
 
 export function generateMelody(opts: MelodyOptions): NoteEvent[] {
@@ -338,7 +517,16 @@ export function generateMelody(opts: MelodyOptions): NoteEvent[] {
   const centre = (range[0] + range[1]) / 2;
   const out: NoteEvent[] = [];
 
+  const strictness = opts.strictness ?? 2;
+  const accompaniment = opts.accompaniment ?? EMPTY_ACCOMPANIMENT;
+  const barOf = (beat: number) =>
+    Math.min(bars - 1, Math.max(0, Math.floor((beat - startBeat) / beatsPerBar)));
+  const chordAtBeat = (beat: number) => chords[barOf(beat)]!;
+  const scaleAtBeat = (beat: number) => scaleForChord(tonic, mode, chordAtBeat(beat));
+
   let prev = clampToRange(snapToScale(baseScale, Math.round(centre)), range[0], range[1]);
+  let prevPrev: Midi | undefined;
+  let prevChord: Chord | undefined;
   let prevInterval = 0;
 
   for (let phraseStart = 0; phraseStart < bars; phraseStart += phraseBars) {
@@ -386,7 +574,9 @@ export function generateMelody(opts: MelodyOptions): NoteEvent[] {
           ...(cadenceTarget !== undefined ? { cadenceTarget } : {}),
         });
         out.push(...r.events);
+        if (r.events.length >= 2) prevPrev = r.events[r.events.length - 2]!.midi;
         prev = r.last;
+        prevChord = chord;
         prevInterval = r.lastInterval;
       } else {
         const cell = isCadenceBar
@@ -395,17 +585,35 @@ export function generateMelody(opts: MelodyOptions): NoteEvent[] {
         const r = renderBar({
           cell, chord, scale, prev, prevInterval, barStartBeat, slotsPerBar, range, rng,
           leap, ornament, arcAt: arcFor(b),
+          mode, tonic, accompaniment, strictness,
+          ...(prevPrev !== undefined ? { prevPrev } : {}),
+          ...(prevChord !== undefined ? { prevChord } : {}),
           ...(cadenceTarget !== undefined ? { cadenceTarget } : {}),
         });
         out.push(...r.events);
+        if (r.events.length >= 2) prevPrev = r.events[r.events.length - 2]!.midi;
         prev = r.last;
+        prevChord = chord;
         prevInterval = r.lastInterval;
         if (b === 0) motifA = r.motif;
       }
     }
   }
 
-  return out;
+  // Motif replay and cadence targets never pass through choosePitch, so sweep
+  // the finished line for anything they introduced.
+  return repairMelody({
+    notes: out,
+    chordAtBeat,
+    scaleAtBeat,
+    mode,
+    tonic,
+    range,
+    slotsPerBar,
+    beatsPerBar,
+    accompaniment,
+    strictness,
+  }).notes;
 }
 
 /** Nearest note of scale degree `deg` (0-based) to a reference pitch. */
