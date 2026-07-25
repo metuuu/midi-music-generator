@@ -7,6 +7,7 @@ npm install
 npm run dev                                    # audition page at localhost:5178
 npm run gen -- -n 12 --genre jazz --mood smoky --out ./out
 npm run gen -- -n 12 --genre iskelma --mood kaihoisa --strictness strict
+npm run gen -- -n 12 --genre iskelma --hook earworm
 ```
 
 Everything is deterministic: **a seed reproduces a song exactly**, so a whole station can be stored as a list of seeds rather than as audio.
@@ -27,7 +28,14 @@ Four axes control the output, and all four are optional:
 - **era** — the production: which drum machine, which instruments
 - **mood** — biases style, key, tempo and density without dictating notes
 
-Plus **smoothness**, which decides how hard known voice-leading faults are policed. Genres share the rule table but not the thresholds — jazz disables the ones it does not hold — and the rules are instrument-aware, so a trombone is not asked to leap like a vibraphone. See [docs/smoothness.md](docs/smoothness.md).
+Plus two level settings, both 0–4 and deliberately independent of each other:
+
+- **smoothness** — how hard known voice-leading faults are policed. Genres share the rule table but not the thresholds — jazz disables the ones it does not hold — and the rules are instrument-aware, so a trombone is not asked to leap like a vibraphone. See [docs/smoothness.md](docs/smoothness.md).
+- **hook** — how much the song repeats itself. At the top the chorus is a fixed tune that returns each time, phrases run on one rhythm, and the vocabulary narrows; at the bottom every section is new material. Solos are never recalled at any level, which is what keeps it from ruining jazz. See [docs/hook.md](docs/hook.md).
+
+Smoothness asks whether a note is *wrong*; hook asks whether it is *familiar*. Both corners are useful: high hook with low smoothness is raw and catchy, and high hook with high smoothness is bland on purpose.
+
+Pin a seed and both settings become A/B controls rather than rerolls — the form, key, tempo, instruments and drums hold still while only the tune moves.
 
 ## Vocals
 
@@ -60,6 +68,7 @@ Five things went wrong on the way here, all of which produce a voice you cannot 
 - [docs/iskelma.md](docs/iskelma.md) — the iskelmä ruleset: dances, harmony, form, eras, moods
 - [docs/jazz.md](docs/jazz.md) — the jazz ruleset: styles, chord-scale mapping, walking bass, quartal voicings
 - [docs/smoothness.md](docs/smoothness.md) — the constraint system and what each level costs
+- [docs/hook.md](docs/hook.md) — the repetition system: section recall, rhythm lock, vocabulary
 - [docs/rules.md](docs/rules.md) — every rule and its thresholds (generated from the code)
 - [docs/architecture.md](docs/architecture.md) — layout, adding a genre, producing audio
 
@@ -69,11 +78,12 @@ Five things went wrong on the way here, all of which produce a voice you cannot 
 npm run verify      # typecheck + genre checks + notation validity + musical audit
 npm run genres      # asserts what defines each genre
 npm run strictness  # rule violations and musical cost at each smoothness level
+npm run hook        # how much the music repeats itself at each hook level
 npm run moods       # what each mood does to key, tempo and style choice
 npm run rules       # regenerate docs/rules.md from the rule table
 ```
 
-`npm run genres` is the one worth knowing about. It asserts the things a refactor could silently break: that every style generates in both modes, that the blues is twelve bars, that swing swings and bossa does not, that the walking bass actually walks, and that jazz melody takes dorian over a minor seventh while iskelmä takes harmonic minor over a dominant.
+`npm run genres` is the one worth knowing about. It asserts the things a refactor could silently break: that every style generates in both modes, that the blues is twelve bars, that swing swings and bossa does not, that the walking bass actually walks, that jazz melody takes dorian over a minor seventh while iskelmä takes harmonic minor over a dominant, that a chorus comes back as hook rises while a solo never does, and that changing hook leaves the form, key, tempo, instruments and drums untouched.
 
 ## Strudel and licensing
 

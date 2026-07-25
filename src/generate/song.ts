@@ -26,6 +26,7 @@ import { GENRES, getGenre, type FormStep, type Genre } from '../genre/index.js';
 import { INSTRUMENTS, type Instrument, type InstrumentId } from '../style/instruments.js';
 import type { EraProfile, Mood, Progression, Style } from '../style/types.js';
 import { buildAccompaniment, getStrictness, resolveRules, type StrictnessId } from './constraints.js';
+import { getHook, RECALL_BIAS, type HookId } from './hook.js';
 import { generateMelody } from './melody.js';
 import { generateVocalTrack } from './vocals.js';
 import {
@@ -52,6 +53,13 @@ export interface GenerateOptions {
    */
   strictness?: StrictnessId | number;
   /**
+   * How much the song repeats itself: whether a chorus is a fixed tune that
+   * comes back, or fresh material every time. Independent of `strictness` —
+   * one asks whether a note is wrong, the other whether it is familiar.
+   * See `generate/hook.ts`.
+   */
+  hook?: HookId | number;
+  /**
    * Add a wordless sung line doubling the melody. Off by default — the station
    * is instrumental.
    *
@@ -69,6 +77,22 @@ export interface GenerateOptions {
  */
 type PlayedLayer = Exclude<LayerId, 'drums' | 'vocal'>;
 
+/**
+ * What an earlier section of a given kind left behind for later ones to recall.
+ *
+ * Only the *first* instance of each kind is ever stored, so every chorus
+ * recalls the original statement rather than a copy of a copy. The melody is
+ * kept relative to its section start and alongside the key it was written in,
+ * because the final chorus frequently lifts a tone and a hook has to survive
+ * that — a tune that fails to come back after the key change is the one place
+ * where the device actively costs the listener something.
+ */
+interface Remembered {
+  progression: Progression;
+  tonic: Pc;
+  melody?: NoteEvent[];
+}
+
 export function generateSong(opts: GenerateOptions = {}): Song {
   const seed = String(opts.seed ?? Math.floor(Math.random() * 1e9));
   const rng = new Rng(seed);
@@ -84,6 +108,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
   const bpm = opts.bpm ?? chooseTempo(rng, style, mood, era);
   // Style overrides beat the genre default: bebop turns the rules off entirely.
   const strictness = getStrictness(opts.strictness ?? style.strictness ?? genre.defaultStrictness);
+  const hook = getHook(opts.hook ?? style.hook ?? genre.defaultHook);
 
   const rules = resolveRules(genre.ruleOverrides);
   const density = clamp(era.density + mood.density, 0.25, 1);
@@ -129,11 +154,56 @@ export function generateSong(opts: GenerateOptions = {}): Song {
   const drumPattern = rng.weightedBy(style.drums, (p) => p.weight);
   const drumBank = rng.weighted(era.drumBanks);
 
-  for (const section of sections) {
+  /**
+   * Every section draws from its own streams rather than from one running
+   * stream shared by the whole song.
+   *
+   * This is what makes `--strictness` and `--hook` comparisons rather than
+   * rerolls: whatever they do to the tune, the seed still fixes the form, the
+   * key, the tempo, the instruments and the drums. On a single stream any
+   * decision that consumed one more random number than before — a melody with
+   * an extra note, a recalled chorus whose chords sent the comp down a
+   * different path — shifted every later section's drum fills too, and the two
+   * level controls stopped being A/B tests of anything.
+   *
+   * The band's *identity* is still fixed for the whole song: the bass, comp and
+   * drum patterns are chosen once, above. What is per-section here is only the
+   * variation within them.
+   */
+  const remembered = new Map<string, Remembered>();
+  const hookRng = new Rng(`${seed}:hook`);
+
+  for (let s = 0; s < sections.length; s++) {
+    const section = sections[s]!;
     const localTonic = ((tonic + section.transpose) % 12 + 12) % 12;
-    const progression = pickProgression(rng, style, section.kind, mode);
+
+    // Recall is keyed by kind *and* length: a twelve-bar blues chorus and an
+    // eight-bar one are not the same section wearing different clothes.
+    const memoryKey = `${section.kind}:${section.lengthBars}`;
+    const prior = remembered.get(memoryKey);
+    const bias = RECALL_BIAS[section.kind];
+    const replayTune = prior?.melody !== undefined && hookRng.chance(hook.recall * bias);
+    // A remembered tune has to arrive over the harmony it was written against;
+    // replaying it over fresh chords is not a recollection, it is a mistake.
+    const replayChords = prior !== undefined
+      && (replayTune || hookRng.chance(hook.harmonyRecall * bias));
+
+    // Drawn even when it is about to be discarded. The waste is deliberate:
+    // keeping the band's stream aligned across hook levels is what stops a
+    // recalled chorus from reshuffling every later section's comping.
+    const fresh = pickProgression(rng, style, section.kind, mode);
+    const progression = replayChords && prior ? prior.progression : fresh;
     const chords = expandProgression(progression, section.lengthBars, mode);
     section.chordLabels = chords.map((c) => c.label);
+
+    // Install this section's memory before generating, so nothing recalls
+    // itself, and so a kind whose first instance carries no melody still
+    // contributes its harmony.
+    let memory = prior;
+    if (!memory && bias > 0) {
+      memory = { progression, tonic: localTonic };
+      remembered.set(memoryKey, memory);
+    }
 
     // Roman numerals parse to offsets *from the tonic*, so shifting by the
     // local tonic is what actually puts the song in its key.
@@ -141,7 +211,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
       chords: chords.map((c) => transposeChord(c, localTonic)),
       beatsPerBar: style.beatsPerBar,
       startBeat: section.startBar * style.beatsPerBar,
-      rng,
+      rng: new Rng(`${seed}:band:${s}`),
       style,
     };
 
@@ -181,30 +251,39 @@ export function generateSong(opts: GenerateOptions = {}): Song {
         leadInstrument.centre - Math.round(style.melody.span * 0.6),
         leadInstrument.centre + Math.round(style.melody.span * 0.6),
       ];
-      const melody = generateMelody({
-        chords: ctx.chords,
-        beatsPerBar: style.beatsPerBar,
-        style,
-        rng,
-        tonic: localTonic,
-        mode,
-        range,
-        startBeat: ctx.startBeat,
-        ornamentScale: mood.ornament,
-        leapScale: mood.leap,
-        soloistic: isSolo,
-        strictness: strictness.level,
-        accompaniment,
-        scaleForChord: genre.scaleForChord,
-        rules,
-        // The instrument actually playing this line — the counter instrument
-        // takes over in solo sections.
-        agility: leadInstrument.agility,
-      });
+      const melody = replayTune && prior?.melody
+        ? replay(prior.melody, prior.tonic, localTonic, ctx.startBeat, range)
+        : generateMelody({
+          chords: ctx.chords,
+          beatsPerBar: style.beatsPerBar,
+          style,
+          rng: new Rng(`${seed}:melody:${s}`),
+          tonic: localTonic,
+          mode,
+          range,
+          startBeat: ctx.startBeat,
+          ornamentScale: mood.ornament,
+          leapScale: mood.leap,
+          soloistic: isSolo,
+          strictness: strictness.level,
+          hook,
+          accompaniment,
+          scaleForChord: genre.scaleForChord,
+          rules,
+          // The instrument actually playing this line — the counter instrument
+          // takes over in solo sections.
+          agility: leadInstrument.agility,
+        });
       push(byLayer, leadLayer, melody);
 
+      // Solos are never remembered, so this only ever stores an actual tune.
+      if (memory && !memory.melody && !isSolo) {
+        memory.melody = melody.map((n) => ({ ...n, beat: n.beat - ctx.startBeat }));
+      }
+
       if (!isSolo && active.has('counter')) {
-        push(byLayer, 'counter', generateCounter(ctx, melody, instruments.counter.centre));
+        const counterCtx: PartContext = { ...ctx, rng: new Rng(`${seed}:counter:${s}`) };
+        push(byLayer, 'counter', generateCounter(counterCtx, melody, instruments.counter.centre));
       }
     }
   }
@@ -270,6 +349,8 @@ export function generateSong(opts: GenerateOptions = {}): Song {
       mood: mood.id,
       strictness: strictness.id,
       strictnessLabel: strictness.label,
+      hook: hook.id,
+      hookLabel: hook.label,
       tonic,
       mode,
       keyLabel: keyLabel(tonic, mode),
@@ -294,6 +375,52 @@ function push(map: Map<LayerId, NoteEvent[]>, layer: LayerId, notes: NoteEvent[]
 
 function clamp(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, v));
+}
+
+/**
+ * Replay a remembered melody at a new position, and in a new key if the song
+ * has lifted since it was written.
+ *
+ * The range travels with the transposition rather than holding still, and that
+ * detail is the whole point of the final-chorus key change: it exists to
+ * deliver the hook one more time, higher and harder. Holding the ceiling fixed
+ * clipped the top of the line — measurably, about 2% of notes, which was enough
+ * to damage a quarter of all lifted choruses — and the notes it clipped were
+ * always the peak of the phrase. A singer handed a lift sings above their
+ * comfortable range and it strains; that strain *is* the effect.
+ */
+function replay(
+  stored: NoteEvent[], from: Pc, to: Pc, startBeat: number, range: [number, number],
+): NoteEvent[] {
+  const shift = shortestShift(from, to);
+  const shifted: [number, number] = [
+    Math.min(range[0], range[0] + shift),
+    Math.max(range[1], range[1] + shift),
+  ];
+  return stored.map((n) => ({
+    ...n,
+    beat: n.beat + startBeat,
+    midi: fitToRange(n.midi + shift, shifted),
+  }));
+}
+
+/** Semitones from one tonic to another, taking the shorter way round. */
+function shortestShift(from: Pc, to: Pc): number {
+  return ((to - from + 18) % 12) - 6;
+}
+
+/**
+ * Keep a transposed note playable. Octave displacement first, since it at least
+ * preserves the pitch class; clamping is the last resort and flattens contour.
+ *
+ * With the range moving alongside the transposition this should never fire —
+ * it is a guard against a future caller that replays a line into a range it was
+ * not written for, not part of the key-change path.
+ */
+function fitToRange(midi: number, [lo, hi]: [number, number]): number {
+  if (midi > hi && midi - 12 >= lo) return midi - 12;
+  if (midi < lo && midi + 12 <= hi) return midi + 12;
+  return clamp(midi, lo, hi);
 }
 
 /** Look a table entry up by id, or pick one at random when unspecified. */

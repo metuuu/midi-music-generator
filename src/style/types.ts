@@ -11,6 +11,7 @@ import type { InstrumentId } from './instruments.js';
 import type { Mode } from '../core/scale.js';
 import type { VoicingStyle } from '../core/chord.js';
 import type { StrictnessId } from '../generate/constraints.js';
+import type { HookId } from '../generate/hook.js';
 
 /** One bar of melodic rhythm. `[6, 2, 8]` = dotted quarter, eighth, half. */
 export type RhythmCell = number[];
@@ -122,6 +123,13 @@ export interface Style {
    * suppress are precisely what the idiom is made of.
    */
   strictness?: StrictnessId;
+  /**
+   * Override the genre's default repetition level. How much a style repeats
+   * itself is one of the things that distinguishes styles inside a genre:
+   * humppa is relentless where tango develops, and bebop is the extreme case
+   * of a music whose whole value proposition is never playing it twice.
+   */
+  hook?: HookId;
   /**
    * Bars per chorus when the form is built on a fixed chorus length rather
    * than eight-bar units. 12 for the blues.

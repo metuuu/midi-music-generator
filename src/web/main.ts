@@ -17,6 +17,7 @@ import { renderMidi } from '../render/midi.js';
 import { songDurationSeconds, type LayerId, type Song } from '../core/types.js';
 import { GENRES, getGenre } from '../genre/index.js';
 import { STRICTNESS_LEVELS, getStrictness, type StrictnessId } from '../generate/constraints.js';
+import { HOOK_LEVELS, getHook, type HookId } from '../generate/hook.js';
 
 const $ = <T extends HTMLElement>(id: string): T => {
   const el = document.getElementById(id);
@@ -31,6 +32,8 @@ const els = {
   style: $<HTMLSelectElement>('style'),
   strictness: $<HTMLSelectElement>('strictness'),
   strictnessHint: $<HTMLDivElement>('strictness-hint'),
+  hook: $<HTMLSelectElement>('hook'),
+  hookHint: $<HTMLDivElement>('hook-hint'),
   seed: $<HTMLInputElement>('seed'),
   vocals: $<HTMLInputElement>('vocals'),
   play: $<HTMLButtonElement>('play'),
@@ -60,6 +63,8 @@ fillSelect(els.genre, Object.values(GENRES).map((g) => [g.id, g.label]));
 els.genre.value = 'iskelma';
 fillSelect(els.strictness, STRICTNESS_LEVELS.map((l) => [l.id, `${l.level} · ${l.label}`]));
 els.strictness.value = 'standard';
+fillSelect(els.hook, HOOK_LEVELS.map((l) => [l.id, `${l.level} · ${l.label}`]));
+els.hook.value = 'standard';
 
 /**
  * Styles, eras and moods all belong to a genre, so switching genre has to
@@ -78,6 +83,7 @@ function populateForGenre(): void {
   const moodIds = Object.keys(genre.moods);
   els.mood.value = moodIds[moodIds.length - 1]!;
   els.strictness.value = genre.defaultStrictness;
+  els.hook.value = genre.defaultHook;
 }
 populateForGenre();
 
@@ -86,6 +92,18 @@ function updateStrictnessHint(): void {
   els.strictnessHint.textContent = els.seed.value.trim()
     ? `${level.gloss} — seed is pinned, so changing this replays the same song filtered differently.`
     : `${level.gloss} — pin a seed to hear the same song at different levels.`;
+}
+
+/**
+ * Both level controls are meant to be A/B'd against a fixed arrangement: the
+ * seed pins the form, key, tempo, instruments and groove, and only the tune
+ * moves underneath them. Say so, because a control you can compare against
+ * itself is a different thing from one that rerolls the song.
+ */
+function updateHookHint(): void {
+  const level = getHook(els.hook.value as HookId);
+  els.hookHint.textContent =
+    `${level.gloss} — the arrangement is fixed by the seed, so this changes only how much the tune returns.`;
 }
 
 function setStatus(text: string, isError = false): void {
@@ -100,6 +118,7 @@ function currentOptions(): GenerateOptions {
   if (els.style.value) opts.style = els.style.value;
   if (els.mood.value) opts.mood = els.mood.value;
   if (els.strictness.value) opts.strictness = els.strictness.value as StrictnessId;
+  if (els.hook.value) opts.hook = els.hook.value as HookId;
   if (els.vocals.checked) opts.vocals = true;
   return opts;
 }
@@ -124,6 +143,7 @@ function describe(song: Song): void {
     `${meta.keyLabel} · ${meta.bpm} BPM · ${meta.beatsPerBar}/${meta.beatUnit} · ${meta.totalBars} bars · ${Math.floor(mins / 60)}:${String(Math.round(mins % 60)).padStart(2, '0')}`,
     `Drums: ${song.drums.bank}${lift ? ` · key change +${lift.transpose} for the last chorus` : ''}`,
     `Smoothness: <b>${meta.strictnessLabel}</b> — ${getStrictness(meta.strictness as StrictnessId).gloss}`,
+    `Hook: <b>${meta.hookLabel}</b> — ${getHook(meta.hook as HookId).gloss}`,
     song.tracks.map((t) => `${t.layer}: <b>${t.instrument}</b>`).join(' · '),
     `seed: <b>${meta.seed}</b>`,
   ].join('<br>');
@@ -230,6 +250,7 @@ for (const el of [els.mood, els.era, els.style]) {
 els.genre.onchange = () => {
   populateForGenre();
   updateStrictnessHint();
+  updateHookHint();
   void nextTrack();
 };
 
@@ -237,6 +258,13 @@ els.genre.onchange = () => {
 // filtered two ways is the whole point of the control.
 els.strictness.onchange = () => {
   updateStrictnessHint();
+  void regenerateSameSeed();
+};
+
+// Same reasoning as strictness: hook is meant to be heard against the same
+// arrangement, not against a fresh song.
+els.hook.onchange = () => {
+  updateHookHint();
   void regenerateSameSeed();
 };
 
@@ -270,6 +298,7 @@ function boot(): void {
   });
 
   updateStrictnessHint();
+  updateHookHint();
   current = generateSong(currentOptions());
   describe(current);
   els.play.disabled = false;

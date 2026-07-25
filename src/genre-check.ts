@@ -13,7 +13,9 @@ import { generateSong } from './generate/song.js';
 import { getGenre, GENRE_IDS } from './genre/index.js';
 import { generateMelody } from './generate/melody.js';
 import { comfortableLeap } from './generate/constraints.js';
+import type { HookId } from './generate/hook.js';
 import { parseRoman } from './core/chord.js';
+import type { Song } from './core/types.js';
 import { Rng } from './core/rng.js';
 
 const problems: string[] = [];
@@ -145,6 +147,113 @@ console.log('\nSmoothness monotonicity');
       `free ${free.toFixed(0)}% -> strict ${strict.toFixed(0)}% -> polished ${polished.toFixed(0)}%`,
     );
   }
+}
+
+// --- Hook must actually repeat --------------------------------------------
+// Three separate claims, because the axis can fail three ways: by not
+// repeating, by repeating the one thing that must never repeat, and by faking
+// repetition through playing fewer notes.
+console.log('\nHook');
+{
+  // Onsets are quantised by scaling *then* rounding. A swung offbeat sits on
+  // beat .665, which is exactly on the boundary at two decimal places, so two
+  // identical melodies at different offsets in the song can round apart.
+  const tick = (offset: number) => Math.round(offset * 1000);
+
+  /** A section's tune, relative to its own start, so a transposed replay matches. */
+  const signature = (song: Song, sec: Song['sections'][number]): string => {
+    const layer = sec.kind === 'solo' ? 'counter' : 'melody';
+    const track = song.tracks.find((t) => t.layer === layer);
+    if (!track) return '';
+    const from = sec.startBar * song.meta.beatsPerBar;
+    const to = from + sec.lengthBars * song.meta.beatsPerBar;
+    const notes = track.notes.filter((n) => n.beat >= from && n.beat < to)
+      .sort((a, b) => a.beat - b.beat);
+    if (!notes.length) return '';
+    const base = notes[0]!.midi;
+    const start = notes[0]!.beat;
+    return notes.map((n) => `${tick(n.beat - start)}:${n.midi - base}`).join(' ');
+  };
+
+  const recallProfile = (level: HookId, kind: string) => {
+    let pairs = 0, recalled = 0, notes = 0, songs = 0;
+    for (let i = 0; i < 40; i++) {
+      const song = generateSong({ seed: `hk-${i}`, hook: level });
+      const mel = song.tracks.find((t) => t.layer === 'melody');
+      if (!mel) continue;
+      songs++;
+      notes += mel.notes.length;
+      const first = new Map<string, string>();
+      for (const sec of song.sections) {
+        if (sec.kind !== kind) continue;
+        const sig = signature(song, sec);
+        if (!sig) continue;
+        const key = `${sec.kind}:${sec.lengthBars}`;
+        const prior = first.get(key);
+        if (prior === undefined) { first.set(key, sig); continue; }
+        pairs++;
+        if (sig === prior) recalled++;
+      }
+    }
+    return { pct: (recalled / Math.max(1, pairs)) * 100, pairs, notesPerSong: notes / Math.max(1, songs) };
+  };
+
+  const off = recallProfile('through', 'chorus');
+  const mid = recallProfile('standard', 'chorus');
+  const max = recallProfile('earworm', 'chorus');
+  check(
+    'a chorus comes back as hook rises',
+    off.pct === 0 && mid.pct > off.pct && max.pct > 95,
+    `through ${off.pct.toFixed(0)}% -> standard ${mid.pct.toFixed(0)}% -> earworm ${max.pct.toFixed(0)}% of ${max.pairs} pairs`,
+  );
+
+  // The one thing a high hook setting must not do to jazz. A solo that replays
+  // an earlier solo is not a solo.
+  const solos = recallProfile('earworm', 'solo');
+  check(
+    'a solo is never recalled, even at earworm',
+    solos.pct === 0,
+    `${solos.pct.toFixed(0)}% of ${solos.pairs} solo pairs`,
+  );
+
+  // Guards the cheap way to score well on the metric above: a line that repeats
+  // because it has stopped playing is not a hook, it is a rest.
+  check(
+    'repetition does not come from playing less',
+    Math.abs(max.notesPerSong - off.notesPerSong) / off.notesPerSong < 0.15,
+    `${off.notesPerSong.toFixed(0)} notes/song at through vs ${max.notesPerSong.toFixed(0)} at earworm`,
+  );
+
+  // The property the per-section streams exist to provide: hook is an A/B
+  // control, so everything that is not the tune must survive it untouched.
+  //
+  // Instruments are compared per layer rather than as a track list, because a
+  // track legitimately disappears when it falls silent — the counter answers
+  // the melody's gaps, and a recalled melody leaves different gaps.
+  let stable = true;
+  const differing: string[] = [];
+  for (let i = 0; i < 20; i++) {
+    const a = generateSong({ seed: `hs-${i}`, hook: 'through' });
+    const b = generateSong({ seed: `hs-${i}`, hook: 'earworm' });
+    const instrumentOf = (song: Song) =>
+      new Map(song.tracks.map((t) => [t.layer, t.instrument]));
+    const ia = instrumentOf(a), ib = instrumentOf(b);
+    const palettesAgree = [...ia].every(([layer, name]) => !ib.has(layer) || ib.get(layer) === name);
+    const same =
+      a.meta.style === b.meta.style && a.meta.era === b.meta.era
+      && a.meta.bpm === b.meta.bpm && a.meta.keyLabel === b.meta.keyLabel
+      && a.meta.totalBars === b.meta.totalBars
+      && a.drums.bank === b.drums.bank
+      && JSON.stringify(a.drums.events) === JSON.stringify(b.drums.events)
+      && JSON.stringify(a.sections.map((s) => s.kind)) === JSON.stringify(b.sections.map((s) => s.kind))
+      && palettesAgree;
+    if (!same) { stable = false; differing.push(`hs-${i}`); }
+  }
+  check(
+    'hook leaves form, key, tempo, instruments and drums alone',
+    stable,
+    stable ? '20 seeds identical apart from the tune' : `differed: ${differing.join(', ')}`,
+  );
 }
 
 // --- Instrument agility ----------------------------------------------------

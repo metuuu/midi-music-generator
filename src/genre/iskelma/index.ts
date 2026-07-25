@@ -54,6 +54,9 @@ export const iskelma: Genre = {
     major: [[0, 5], [7, 4], [5, 4], [2, 3], [10, 3], [9, 2], [3, 2]],
   },
   defaultStrictness: 'standard',
+  // Verse/chorus pop: the chorus is supposed to be the same tune each time, and
+  // for most of this repertoire that is the entire point of the chorus.
+  defaultHook: 'standard',
   scaleForChord: (tonic, mode, chord) => {
     if (mode === 'minor' && chord.dominantFunction) return makeScale(tonic, 'harmonicMinor');
     return makeScale(tonic, mode === 'minor' ? 'minor' : 'major');

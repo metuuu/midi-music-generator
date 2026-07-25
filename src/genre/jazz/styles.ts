@@ -171,6 +171,10 @@ const bebop: Style = {
   bpm: [196, 280],
   swing: 0.33,
   strictness: 'free',
+  // Repetition is off for the same reason the constraints are. A bebop line is
+  // an argument that never repeats itself; recalling a phrase would be the one
+  // thing the idiom actively refuses to do.
+  hook: 'through',
   modeWeights: { minor: 0.4, major: 0.6 },
   relativeMajorChorus: 0,
   progressions: {
@@ -488,6 +492,9 @@ const blues: Style = {
   // Every chorus is twelve bars, not eight. The form builder rewrites section
   // lengths to match, which is what makes the blues a blues.
   chorusBars: 12,
+  // A blues head is a riff, and a riff is stated again. The twelve-bar form is
+  // already a repetition machine; this just stops the tune fighting it.
+  hook: 'standard',
   modeWeights: { minor: 0.24, major: 0.76 },
   relativeMajorChorus: 0,
   progressions: {
@@ -624,6 +631,10 @@ const modal: Style = {
   beatUnit: 4,
   bpm: [112, 168],
   swing: 0.33,
+  // With the harmony holding still, a recalled tune would be the only thing
+  // marking time — and modal jazz is precisely the music that declines to mark
+  // it. The line floats or it is not modal.
+  hook: 'through',
   modeWeights: { minor: 0.82, major: 0.18 },
   relativeMajorChorus: 0,
   progressions: {

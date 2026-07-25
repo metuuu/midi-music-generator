@@ -13,6 +13,7 @@
     "check": "tsx src/check-notation.ts",
     "moods": "tsx src/mood-report.ts",
     "strictness": "tsx src/strictness-report.ts",
+    "hook": "tsx src/hook-report.ts",
     "genres": "tsx src/genre-check.ts",
     "rules": "tsx src/rules-doc.ts",
     "verify": "npm run typecheck && npm run rules && npm run genres && npm run check && npm run audit 40"

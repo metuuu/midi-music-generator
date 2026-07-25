@@ -6,7 +6,7 @@
 src/core/       pitch, scales, chords, roman numerals, voice leading, Song IR
 src/style/      shared vocabulary — Style, EraProfile, Mood, instrument catalogue
 src/genre/      per-genre content: iskelma/ and jazz/
-src/generate/   form, harmony, motif melody engine, accompaniment, constraints
+src/generate/   form, harmony, motif melody engine, accompaniment, constraints, hook
 src/render/     midi.ts (ships)  ·  strudel.ts (auditions)
 src/web/        browser preview  ·  audio.ts is the only file importing Strudel
 ```
@@ -15,7 +15,7 @@ The generator produces a neutral **Song IR** — sections, tracks of note events
 
 ## Adding a genre
 
-A genre owns everything culturally specific: styles, eras, moods, titles, forms, keys, a default constraint level, and a chord-scale rule. Add a folder under `src/genre/` and register it in `src/genre/index.ts`. Nothing in `generate/` or `render/` needs to change.
+A genre owns everything culturally specific: styles, eras, moods, titles, forms, keys, a default constraint level, a default repetition level, and a chord-scale rule. Add a folder under `src/genre/` and register it in `src/genre/index.ts`. Nothing in `generate/` or `render/` needs to change.
 
 The chord-scale rule is the interesting one. It answers "given this chord, where does the melody get its notes?" — key-relative for iskelmä, chord-relative for jazz. That one function is most of what makes two genres sound like different music rather than the same music with different chords.
 

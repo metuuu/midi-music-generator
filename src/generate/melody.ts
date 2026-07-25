@@ -31,6 +31,7 @@ import {
   buildAccompaniment, EMPTY_ACCOMPANIMENT, evaluate as evaluateRules, RULES,
   type Accompaniment, type NoteContext, type Rule,
 } from './constraints.js';
+import { getHook, type HookLevel } from './hook.js';
 
 export const SLOTS_PER_BEAT = 4;
 
@@ -64,6 +65,12 @@ export interface MelodyOptions {
   rules?: Rule[];
   /** Leap freedom of the instrument playing this line, 0..1. */
   agility?: number;
+  /**
+   * How much this line should repeat itself. Defaults to `through`, which is
+   * neutral: no motif is favoured, no rhythm locked, no vocabulary narrowed.
+   * See `generate/hook.ts`.
+   */
+  hook?: HookLevel;
 }
 
 interface BarMotif {
@@ -150,6 +157,10 @@ function choosePitch(args: {
   strictness: number;
   rules: Rule[];
   agility: number;
+  /** How far to narrow the vocabulary, 0..1. */
+  vocabulary: number;
+  /** Pitch classes already sounded in this phrase, and how often. */
+  phraseUse: Map<Pc, number>;
 }): Midi {
   const { scale, chord, prev, prevInterval, strength, targetHeight, range, rng, leap, forceChordTone } = args;
   const [lo, hi] = range;
@@ -186,7 +197,14 @@ function choosePitch(args: {
     // where leaps are capped and beats want chord tones — it becomes the path
     // of least resistance and the tune stops moving. Make it progressively
     // less attractive as the other options narrow.
-    if (semis === 0) w *= Math.max(0.15, 0.55 - args.strictness * 0.09);
+    //
+    // Hook pushes back on exactly this term, and the two are arguing about
+    // different things. Strictness suppresses repetition because a line that
+    // stalls is a *symptom* of the filtering. A hook repeats a note because
+    // repeating it is the idea.
+    if (semis === 0) {
+      w *= Math.max(0.15, 0.55 - args.strictness * 0.09) * (1 + args.vocabulary * 1.2);
+    }
     // "Chord tone on the beat" and "move by step" pull against each other,
     // because adjacent chord tones are a third apart. As strictness rises the
     // vertical rules win by default and the line starts arpeggiating, so the
@@ -208,6 +226,15 @@ function choosePitch(args: {
     // jumps straight to the target height.
     const heightErr = Math.abs(cand - targetHeight);
     w *= Math.exp(-(heightErr * heightErr) / (2 * 7 * 7));
+
+    // Narrow the vocabulary: pull toward pitch classes the phrase has already
+    // used. Six notes heard four times each are far more memorable than
+    // twenty-four heard once, and the difference between a folk tune and an
+    // exercise is mostly this.
+    if (args.vocabulary > 0) {
+      const heard = args.phraseUse.get(pc(cand)) ?? 0;
+      w *= heard > 0 ? 1 + args.vocabulary * 1.6 : 1 - args.vocabulary * 0.45;
+    }
 
     // Recover from a leap by stepping back the other way.
     if (Math.abs(prevInterval) > 4) {
@@ -302,6 +329,8 @@ function renderBar(args: {
   strictness: number;
   rules: Rule[];
   agility: number;
+  vocabulary: number;
+  phraseUse: Map<Pc, number>;
 }): { events: NoteEvent[]; last: Midi; lastInterval: number; motif: BarMotif } {
   const { cell, chord, scale, barStartBeat, slotsPerBar, range, rng, leap, arcAt, cadenceTarget } = args;
   const events: NoteEvent[] = [];
@@ -343,10 +372,14 @@ function renderBar(args: {
         strictness: args.strictness,
         rules: args.rules,
         agility: args.agility,
+        vocabulary: args.vocabulary,
+        phraseUse: args.phraseUse,
         ...(prevPrev !== undefined ? { prevPrev } : {}),
         ...(prevChord !== undefined ? { prevChord } : {}),
       });
     }
+
+    noteHeard(args.phraseUse, midi);
 
     // Record the motion as scale steps so the figure can be transposed later.
     intervals.push(scaleStepsBetween(scale, prev, midi));
@@ -381,6 +414,7 @@ function renderMotif(args: {
   /** Extra scale steps applied to the whole figure. */
   shift: number;
   cadenceTarget?: Midi;
+  phraseUse: Map<Pc, number>;
 }): { events: NoteEvent[]; last: Midi; lastInterval: number } {
   const { motif, chord, scale, slotsPerBar, range, rng, shift, barStartBeat, cadenceTarget } = args;
   const events: NoteEvent[] = [];
@@ -411,6 +445,7 @@ function renderMotif(args: {
 
     lastInterval = midi - prev;
     prev = midi;
+    noteHeard(args.phraseUse, midi);
     events.push({
       beat: barStartBeat + slot / SLOTS_PER_BEAT,
       duration: dur / SLOTS_PER_BEAT,
@@ -421,6 +456,12 @@ function renderMotif(args: {
     idx++;
   }
   return { events, last: prev, lastInterval };
+}
+
+/** Tally a sounded pitch class, for the vocabulary-narrowing weight. */
+function noteHeard(use: Map<Pc, number>, midi: Midi): void {
+  const p = pc(midi);
+  use.set(p, (use.get(p) ?? 0) + 1);
 }
 
 function velocityFor(strength: number, rng: Rng): number {
@@ -555,6 +596,8 @@ export function generateMelody(opts: MelodyOptions): NoteEvent[] {
   const out: NoteEvent[] = [];
 
   const strictness = opts.strictness ?? 2;
+  const hook = opts.hook ?? getHook('through');
+  const sequenceChance = Math.min(0.95, style.melody.sequence * hook.sequence);
   const accompaniment = opts.accompaniment ?? EMPTY_ACCOMPANIMENT;
   const scaleForChord = opts.scaleForChord ?? defaultScaleForChord;
   const rules = opts.rules ?? RULES;
@@ -587,6 +630,17 @@ export function generateMelody(opts: MelodyOptions): NoteEvent[] {
 
     let motifA: BarMotif | undefined;
 
+    // The vocabulary is counted per phrase, not per song: a hook is a small set
+    // of notes turned over inside one breath, and a tally that ran the whole
+    // way through would just converge on the scale.
+    const phraseUse = new Map<Pc, number>();
+
+    // Rhythm lock: one cell for every non-cadential bar of the phrase, so the
+    // shape stays recognisable even as the pitches move under it.
+    const lockedCell = rng.chance(hook.rhythmLock)
+      ? pickCell(rng, style.melodyCells, slotsPerBar)
+      : undefined;
+
     for (let b = 0; b < thisPhraseBars; b++) {
       const barIdx = phraseStart + b;
       const chord = chords[barIdx]!;
@@ -603,14 +657,24 @@ export function generateMelody(opts: MelodyOptions): NoteEvent[] {
         cadenceTarget = nearestDegree(baseScale, deg, target);
       }
 
+      // Bar 3 restates the opening figure by default. A hook may also restate
+      // it at bar 2, which is a different rhetorical move: waiting until bar 3
+      // reads as development, answering immediately reads as a refrain.
+      const restateBar = b === 2 || (hook.earlyRestate && b === 1);
       const useSequence =
-        b === 2 && motifA !== undefined && rng.chance(style.melody.sequence);
+        restateBar && !isCadenceBar && motifA !== undefined && rng.chance(sequenceChance);
 
       if (useSequence && motifA) {
         // Classic sequence: restate the opening figure a step or third lower.
-        const shift = rng.weighted([[-1, 4], [-2, 3], [1, 2], [0, 1]] as const);
+        // Verbatim restatement is the *least* likely outcome by default, which
+        // is right for art music and wrong for a hook — so hook is what buys
+        // the unchanged repeat its weight.
+        const shift = rng.weighted([
+          [-1, 4], [-2, 3], [1, 2], [0, 1 + hook.exactRepeat * 12],
+        ] as const);
         const r = renderMotif({
           motif: motifA, chord, scale, prev, barStartBeat, slotsPerBar, range, rng, shift,
+          phraseUse,
           ...(cadenceTarget !== undefined ? { cadenceTarget } : {}),
         });
         out.push(...r.events);
@@ -621,11 +685,12 @@ export function generateMelody(opts: MelodyOptions): NoteEvent[] {
       } else {
         const cell = isCadenceBar
           ? pickCell(rng, style.cadenceCells, slotsPerBar)
-          : pickCell(rng, style.melodyCells, slotsPerBar);
+          : lockedCell ?? pickCell(rng, style.melodyCells, slotsPerBar);
         const r = renderBar({
           cell, chord, scale, prev, prevInterval, barStartBeat, slotsPerBar, range, rng,
           leap, ornament, arcAt: arcFor(b),
           mode, tonic, accompaniment, strictness, rules, agility,
+          vocabulary: hook.vocabulary, phraseUse,
           ...(prevPrev !== undefined ? { prevPrev } : {}),
           ...(prevChord !== undefined ? { prevChord } : {}),
           ...(cadenceTarget !== undefined ? { cadenceTarget } : {}),

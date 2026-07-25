@@ -162,6 +162,9 @@ const humppa: Style = {
   beatUnit: 4,
   bpm: [132, 164],
   swing: 0,
+  // Humppa is relentless by design — the whole dance depends on the tune coming
+  // round again without asking anyone to follow a development.
+  hook: 'catchy',
   modeWeights: { minor: 0.12, major: 0.88 },
   relativeMajorChorus: 0,
   progressions: {
@@ -612,6 +615,10 @@ const iskelmapop: Style = {
   beatUnit: 4,
   bpm: [100, 126],
   swing: 0,
+  // Radio pop, and unembarrassed about it: the chorus is a fixed tune with a
+  // fixed rhythm, and the key change exists to deliver it one more time a tone
+  // higher. This is the style the hook axis was written for.
+  hook: 'catchy',
   modeWeights: { minor: 0.68, major: 0.32 },
   relativeMajorChorus: 0.7,
   progressions: {

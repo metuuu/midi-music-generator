@@ -15,6 +15,7 @@ import { renderStrudel } from './render/strudel.js';
 import { songDurationSeconds, type Song } from './core/types.js';
 import { GENRES, GENRE_IDS, getGenre } from './genre/index.js';
 import { STRICTNESS_IDS, type StrictnessId } from './generate/constraints.js';
+import { HOOK_IDS, type HookId } from './generate/hook.js';
 
 interface Args {
   count: number;
@@ -26,6 +27,7 @@ interface Args {
   seed?: string;
   seconds?: number;
   strictness?: string;
+  hook?: string;
   vocals: boolean;
   quiet: boolean;
 }
@@ -45,6 +47,7 @@ function parseArgs(argv: string[]): Args {
       case '--seed': args.seed = String(next()); break;
       case '--seconds': args.seconds = Number(next()); break;
       case '--strictness': args.strictness = String(next()); break;
+      case '--hook': args.hook = String(next()); break;
       case '--vocals': args.vocals = true; break;
       case '--quiet': args.quiet = true; break;
       case '--help': case '-h': usage(); process.exit(0);
@@ -71,6 +74,10 @@ Finnish iskelmä generator
       --seconds <n>   target length per song
       --strictness    ${STRICTNESS_IDS.join(' | ')}
                       how hard to police the melody (default: standard)
+      --hook          ${HOOK_IDS.join(' | ')}
+                      how much the song repeats itself. Independent of
+                      --strictness: one asks whether a note is wrong, the
+                      other whether it is familiar. Default is per genre.
       --vocals        double the melody with a wordless sung line. The seed
                       still fixes the instrumental parts exactly, so the same
                       seed with and without this is the same arrangement.
@@ -111,6 +118,7 @@ function main(): void {
     if (args.mood) opts.mood = args.mood;
     if (args.seconds) opts.targetSeconds = args.seconds;
     if (args.strictness) opts.strictness = args.strictness as StrictnessId;
+    if (args.hook) opts.hook = args.hook as HookId;
     if (args.vocals) opts.vocals = true;
 
     const song = generateSong(opts);
@@ -138,6 +146,7 @@ function summarise(song: Song, file: string) {
     era: meta.era,
     mood: meta.mood,
     strictness: meta.strictness,
+    hook: meta.hook,
     key: meta.keyLabel,
     bpm: meta.bpm,
     meter: `${meta.beatsPerBar}/${meta.beatUnit}`,

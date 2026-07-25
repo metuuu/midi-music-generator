@@ -80,6 +80,12 @@ export const jazz: Genre = {
   // even that off via its own style override.
   defaultStrictness: 'light',
 
+  // The head should come back recognisably — that is what makes it a head — but
+  // jazz keeps its repetition in the form rather than in the phrase, and the
+  // solos are exempt from recall at every level. `loose` gives the harmony that
+  // consistency without locking rhythms or narrowing the vocabulary.
+  defaultHook: 'loose',
+
   /**
    * Where jazz disagrees with the shared rule table.
    *

@@ -224,6 +224,9 @@ export interface SongMeta {
   /** Constraint strictness id, e.g. 'standard'. */
   strictness: string;
   strictnessLabel: string;
+  /** Repetition level id, e.g. 'catchy'. */
+  hook: string;
+  hookLabel: string;
   tonic: number;
   mode: Mode;
   keyLabel: string;

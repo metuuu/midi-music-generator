@@ -21,6 +21,7 @@ import type { Rng } from '../core/rng.js';
 import type { Mode, Scale } from '../core/scale.js';
 import type { SectionKind } from '../core/types.js';
 import type { RuleOverrides, StrictnessId } from '../generate/constraints.js';
+import type { HookId } from '../generate/hook.js';
 import type { EraProfile, Mood, Style } from '../style/types.js';
 import type { VocalProfile } from '../style/vocals.js';
 
@@ -62,6 +63,16 @@ export interface Genre {
 
   /** Constraint level that suits the idiom by default. */
   defaultStrictness: StrictnessId;
+
+  /**
+   * Repetition level that suits the idiom by default.
+   *
+   * This is one of the sharper distinctions between the two genres here.
+   * Iskelmä is verse/chorus pop and its chorus is meant to be the same tune
+   * every time. Jazz states a head and then leaves it, and a form that recalled
+   * its solos would not be jazz at all.
+   */
+  defaultHook: HookId;
 
   /**
    * Adjustments to the shared rule table. The rules encode faults classical
