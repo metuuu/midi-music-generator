@@ -14,7 +14,8 @@
     "moods": "tsx src/mood-report.ts",
     "strictness": "tsx src/strictness-report.ts",
     "genres": "tsx src/genre-check.ts",
-    "verify": "npm run typecheck && npm run genres && npm run check && npm run audit 40"
+    "rules": "tsx src/rules-doc.ts",
+    "verify": "npm run typecheck && npm run rules && npm run genres && npm run check && npm run audit 40"
   },
   "devDependencies": {
     "@types/node": "^22.20.1",

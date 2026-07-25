@@ -127,6 +127,8 @@ export const RULE_DISABLED = 99;
 
 export interface Rule {
   id: string;
+  /** Grouping for the generated reference — see `npm run rules`. */
+  category: string;
   /** Shown in the audit and the docs. */
   description: string;
   /** Level from which the rule applies as a penalty. */
@@ -171,8 +173,9 @@ export const RULES: Rule[] = [
   // --- Melodic intervals -------------------------------------------------
   {
     id: 'augmented-second',
+    category: 'melodic interval',
     description:
-      'Augmented second between adjacent scale degrees (♭6→♮7 in harmonic minor). One scale step but three semitones; it sounds exotic and wrong for iskelmä.',
+      'Augmented second between adjacent scale degrees (♭6→♮7 in harmonic minor). One scale step but three semitones. Sounds distinctly Middle Eastern; wrong for a singable idiom, and common because the generator reaches for harmonic minor over every dominant.',
     minLevel: 1, vetoLevel: 1, penalty: 0.02,
     test: ({ candidate, prev, scale }) => {
       if (prev === undefined) return false;
@@ -182,12 +185,14 @@ export const RULES: Rule[] = [
   },
   {
     id: 'tritone-leap',
+    category: 'melodic interval',
     description: 'Melodic tritone. Classically forbidden — the line loses its footing.',
     minLevel: 1, vetoLevel: 1, penalty: 0.05,
     test: ({ candidate, prev }) => prev !== undefined && Math.abs(candidate - prev) === 6,
   },
   {
     id: 'seventh-leap',
+    category: 'melodic interval',
     description: 'Leap of a major or minor seventh. Effectively unsingable.',
     minLevel: 1, vetoLevel: 1, penalty: 0.03,
     test: ({ candidate, prev }) => {
@@ -198,12 +203,14 @@ export const RULES: Rule[] = [
   },
   {
     id: 'oversized-leap',
+    category: 'melodic interval',
     description: 'Leap wider than an octave.',
     minLevel: 1, vetoLevel: 1, penalty: 0.02,
     test: ({ candidate, prev }) => prev !== undefined && Math.abs(candidate - prev) > 12,
   },
   {
     id: 'compound-leap',
+    category: 'melodic interval',
     description:
       'A leap followed by another leap in the same direction. Fine occasionally when it outlines the chord, tiring when it does not.',
     minLevel: 2, vetoLevel: 3, penalty: 0.3,
@@ -221,6 +228,7 @@ export const RULES: Rule[] = [
   // --- Tendency tones ----------------------------------------------------
   {
     id: 'unresolved-leading-tone',
+    category: 'tendency tone',
     description:
       'The leading tone under a dominant chord must rise to the tonic. Leaving it hanging is the single most audible voice-leading error.',
     minLevel: 2, vetoLevel: 3, penalty: 0.25,
@@ -234,6 +242,7 @@ export const RULES: Rule[] = [
   },
   {
     id: 'unresolved-seventh',
+    category: 'tendency tone',
     description:
       'The seventh of a seventh chord should fall by step. Leaping away from it leaves the dissonance dangling.',
     minLevel: 2, vetoLevel: 3, penalty: 0.3,
@@ -248,6 +257,7 @@ export const RULES: Rule[] = [
   },
   {
     id: 'unprepared-dissonance',
+    category: 'tendency tone',
     description:
       'A non-chord tone arrived at by leap. Dissonance should be approached by step — that is what makes a passing note sound intentional.',
     minLevel: 2, vetoLevel: 3, penalty: 0.2,
@@ -261,6 +271,7 @@ export const RULES: Rule[] = [
   // --- Monotony ----------------------------------------------------------
   {
     id: 'static-repetition',
+    category: 'motion',
     description:
       'An immediately repeated note. Not a fault in itself, but once leaps are capped and beats want chord tones, repeating becomes the path of least resistance and the tune stops moving. A preference only — never vetoed.',
     minLevel: 3, vetoLevel: RULE_DISABLED, penalty: 0.4,
@@ -268,6 +279,7 @@ export const RULES: Rule[] = [
   },
   {
     id: 'repeated-note-run',
+    category: 'motion',
     description: 'Three or more identical notes in a row.',
     minLevel: 2, vetoLevel: 2, penalty: 0.15,
     test: ({ candidate, prev, prevPrev }) =>
@@ -277,6 +289,7 @@ export const RULES: Rule[] = [
   // --- Vertical: melody against the chord --------------------------------
   {
     id: 'flat-nine',
+    category: 'melody vs chord',
     description:
       'A melody note a semitone above the chord root, held on a beat. The harshest interval available short of a cluster.',
     minLevel: 2, vetoLevel: 2, penalty: 0.1,
@@ -289,6 +302,7 @@ export const RULES: Rule[] = [
   },
   {
     id: 'avoid-fourth',
+    category: 'melody vs chord',
     description:
       'A sustained perfect fourth above the root of a major-quality chord, clashing with its major third. Fine as a passing suspension, muddy when held.',
     minLevel: 3, vetoLevel: 4, penalty: 0.25,
@@ -303,6 +317,7 @@ export const RULES: Rule[] = [
   // --- Vertical: melody against the band ---------------------------------
   {
     id: 'semitone-clash',
+    category: 'melody vs band',
     description:
       'A melody note a semitone or minor ninth from something the band is holding. The most common source of accidental sourness.',
     minLevel: 3, vetoLevel: 3, penalty: 0.12,
@@ -321,6 +336,7 @@ export const RULES: Rule[] = [
   },
   {
     id: 'parallel-perfects',
+    category: 'melody vs band',
     description:
       'Parallel fifths or octaves between melody and bass. Fuses the two lines into one and hollows out the texture.',
     minLevel: 3, vetoLevel: 4, penalty: 0.3,
@@ -349,6 +365,7 @@ export const RULES: Rule[] = [
   // --- Maximum smoothing -------------------------------------------------
   {
     id: 'chromatic-tone',
+    category: 'melody vs chord',
     description: 'A note outside the prevailing scale.',
     minLevel: 4, vetoLevel: 4, penalty: 0.1,
     test: ({ candidate, scale, chord }) =>
@@ -356,6 +373,7 @@ export const RULES: Rule[] = [
   },
   {
     id: 'non-chord-tone-on-strong-beat',
+    category: 'melody vs chord',
     description:
       'A non-chord tone on a downbeat or half-bar. Restricted to *strong* beats on purpose: forcing a chord tone onto every quarter removes the passing notes that connect a line, and turns the melody into an arpeggio.',
     minLevel: 3, vetoLevel: 4, penalty: 0.2,
@@ -370,13 +388,15 @@ export const RULES: Rule[] = [
   // from 72% at 'standard' to 50% at 'polished', and wide leaps doubled.
   {
     id: 'wide-leap',
+    category: 'melodic interval',
     description:
-      'A leap beyond a perfect fourth. Vetoed from level 3, where the vertical rules start pushing the line onto chord tones and it needs a counterweight.',
+      'A leap beyond a perfect fourth. Vetoed at the level where the vertical rules begin pushing the line onto chord tones, so it has a counterweight.',
     minLevel: 2, vetoLevel: 3, penalty: 0.3,
     test: ({ candidate, prev }) => prev !== undefined && Math.abs(candidate - prev) > 5,
   },
   {
     id: 'leap-beyond-third',
+    category: 'melodic interval',
     description:
       'Any motion wider than a major third. At the smoothest setting the line should walk, not jump.',
     minLevel: 4, vetoLevel: 4, penalty: 0.25,
@@ -384,6 +404,7 @@ export const RULES: Rule[] = [
   },
   {
     id: 'unidiomatic-leap',
+    category: 'melodic interval',
     description:
       'A leap wider than the instrument comfortably plays. A tenth is nothing on a vibraphone and a real problem on a trombone, so the threshold follows the instrument rather than a fixed number.',
     minLevel: 1, vetoLevel: 3, penalty: 0.12,

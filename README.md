@@ -34,6 +34,7 @@ Plus **smoothness**, which decides how hard known voice-leading faults are polic
 - [docs/iskelma.md](docs/iskelma.md) — the iskelmä ruleset: dances, harmony, form, eras, moods
 - [docs/jazz.md](docs/jazz.md) — the jazz ruleset: styles, chord-scale mapping, walking bass, quartal voicings
 - [docs/smoothness.md](docs/smoothness.md) — the constraint system and what each level costs
+- [docs/rules.md](docs/rules.md) — every rule and its thresholds (generated from the code)
 - [docs/architecture.md](docs/architecture.md) — layout, adding a genre, producing audio
 
 ## Verifying
@@ -43,6 +44,7 @@ npm run verify      # typecheck + genre checks + notation validity + musical aud
 npm run genres      # asserts what defines each genre
 npm run strictness  # rule violations and musical cost at each smoothness level
 npm run moods       # what each mood does to key, tempo and style choice
+npm run rules       # regenerate docs/rules.md from the rule table
 ```
 
 `npm run genres` is the one worth knowing about. It asserts the things a refactor could silently break: that every style generates in both modes, that the blues is twelve bars, that swing swings and bossa does not, that the walking bass actually walks, and that jazz melody takes dorian over a minor seventh while iskelmä takes harmonic minor over a dominant.
