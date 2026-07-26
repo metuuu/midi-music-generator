@@ -19,8 +19,8 @@
  * than as the same synthesiser at different speeds.
  *
  * The remaining fields are voice quality, which does not follow from length:
- * how steeply the glottal source rolls off (pressed and bright against soft and
- * dark), how much air escapes unvoiced, and how the singer's formant sits.
+ * how steeply the source rolls off (pressed and bright against soft and dark),
+ * how much air escapes unvoiced, and how the singer's formant sits.
  */
 
 import type { Midi } from '../core/pitch.js';
@@ -48,14 +48,21 @@ export interface VoiceSignature {
   /** Lowest and highest note it can produce at all, inclusive. */
   range: [Midi, Midi];
   /**
-   * How steeply the glottal source rolls off: harmonic n has amplitude 1/nᵖ.
+   * How steeply the source rolls off: harmonic n has amplitude 1/nᵖ.
    *
-   * A real glottal pulse is about -12 dB/octave, which is p = 2. Below that the
-   * fold closure is snappier and the voice is brighter and more pressed — belt,
-   * shout, a tenor at the top. Above it the closure is gentler, the upper
-   * harmonics are weak, and the voice is soft and dark. This is the difference
-   * between the same person singing loudly and quietly, and it does more for
-   * character than any filter setting.
+   * The neutral value is p = 1, which is -6 dB/octave — a sawtooth. It is not
+   * the -12 dB/octave a glottal *pulse* measures, and the difference is the
+   * whole reason a synthesised voice can come out sounding like a treble
+   * wobble. What drives the tract is the glottal flow's derivative, and what
+   * leaves the lips is differentiated once more by the radiation: two
+   * +6 dB/octave terms against the flow's -12. Every classic formant
+   * synthesiser drives its resonators with a sawtooth for exactly this reason.
+   *
+   * Below 1 the fold closure is snappier and the voice is brighter and more
+   * pressed — belt, shout, a tenor at the top. Above it the closure is gentler,
+   * the upper harmonics are weak, and the voice is soft and dark. This is the
+   * difference between the same person singing loudly and quietly, and it does
+   * more for character than any filter setting.
    */
   rolloff: number;
   /**
@@ -107,7 +114,7 @@ export const VOICE_SIGNATURES: Record<VoiceSignatureId, VoiceSignature> = {
     formantScale: 0.90,
     centre: 45,               // A2
     range: [33, 57],          // A1 – A3
-    rolloff: 2.25,
+    rolloff: 1.35,
     breath: 0.05,
     ring: 2,
     vibRate: 4.8,
@@ -121,7 +128,7 @@ export const VOICE_SIGNATURES: Record<VoiceSignatureId, VoiceSignature> = {
     formantScale: 1.00,
     centre: 52,               // E3
     range: [40, 65],          // E2 – F4
-    rolloff: 2.0,
+    rolloff: 1.15,
     breath: 0.07,
     ring: 4,
     vibRate: 5.2,
@@ -135,7 +142,7 @@ export const VOICE_SIGNATURES: Record<VoiceSignatureId, VoiceSignature> = {
     formantScale: 1.06,
     centre: 57,               // A3
     range: [45, 72],          // A2 – C5
-    rolloff: 1.8,
+    rolloff: 0.95,
     breath: 0.06,
     ring: 8,
     vibRate: 5.6,
@@ -149,7 +156,7 @@ export const VOICE_SIGNATURES: Record<VoiceSignatureId, VoiceSignature> = {
     formantScale: 1.09,
     centre: 59,               // B3
     range: [48, 74],
-    rolloff: 1.95,
+    rolloff: 1.10,
     breath: 0.10,
     ring: 4,
     vibRate: 5.4,
@@ -163,7 +170,7 @@ export const VOICE_SIGNATURES: Record<VoiceSignatureId, VoiceSignature> = {
     formantScale: 1.17,
     centre: 62,               // D4
     range: [50, 77],          // D3 – F5
-    rolloff: 1.9,
+    rolloff: 1.05,
     breath: 0.12,
     ring: 5,
     vibRate: 5.6,
@@ -177,7 +184,7 @@ export const VOICE_SIGNATURES: Record<VoiceSignatureId, VoiceSignature> = {
     formantScale: 1.22,
     centre: 67,               // G4
     range: [55, 84],          // G3 – C6
-    rolloff: 1.75,
+    rolloff: 0.90,
     breath: 0.14,
     ring: 7,
     vibRate: 5.9,
@@ -191,7 +198,7 @@ export const VOICE_SIGNATURES: Record<VoiceSignatureId, VoiceSignature> = {
     formantScale: 1.34,
     centre: 69,               // A4
     range: [57, 84],
-    rolloff: 1.7,
+    rolloff: 0.85,
     breath: 0.17,
     ring: 0,
     vibRate: 6.2,

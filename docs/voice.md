@@ -143,20 +143,74 @@ whole utterance** — legato, melisma and coarticulation are relationships
 *between* neighbouring syllables, and only a voice that persists across them can
 express them.
 
-The other difference is the filter topology, and it is the bigger win:
+### A vowel is not where the spectrum peaks. It is where it falls.
 
-> A vocal tract is a **cascade**, not a parallel bank. Each resonance multiplies
-> the whole spectrum, so the harmonics between formants are attenuated but
-> present. Three parallel bandpasses instead keep three slices and discard the
-> rest — which is why that version needed an unfiltered "body" channel mixed
-> underneath to sound like anything, and why the body then had to be kept tiny,
-> because it is identical for every vowel and drowns the differences the formants
-> exist to create. Chained peaking filters have no such tension.
+That is the whole of the tract model, and getting it wrong produces one very
+specific failure — vowels that read as an EQ wobble in the treble rather than as
+a mouth changing shape. Two versions had it:
 
-Measured on the cardinal vowels at E3, RMS spectral distance: /a/–/u/ 8.0 dB,
-/u/–/o/ 8.3 dB, /a/–/i/ 7.2 dB, /e/–/o/ 4.0 dB (the closest pair — nearly
-identical F1). The parallel-bandpass renderer measured 3.5 dB before tuning and
-6.4 dB after, *with* the body-gain compromise.
+- **Parallel bandpasses** keep three slices of the spectrum and throw the rest
+  away. Thin, quiet, and no makeup gain restores what is gone — hence the
+  unfiltered "body" channel that had to be mixed underneath to make it sound
+  like anything, which then had to be kept tiny because it is identical for
+  every vowel and drowns the differences out.
+- **Cascaded peaking filters** fix the thinness — they multiply the whole
+  spectrum — but they can only ever *add* narrow bumps to a flat response.
+  Measured: the entire tract response for /a/ spanned **3.8 dB**, and above
+  1 kHz /a/ and /i/ differed by under **4 dB**. Since the source rolls off
+  steeply, the only place those bumps were audible at all was up where the
+  source was weak.
+
+What a tube actually does is **resonate and then roll off**. Above each
+resonance the response falls at 12 dB/octave until the next one lifts it, so a
+real /i/ has a canyon roughly 30 dB deep between 300 Hz and 2 kHz — and that
+canyon is most of what makes it /i/. No arrangement of boosts can dig one.
+
+So the tract is what a tract is: an **all-pole cascade** — five resonant lowpass
+biquads in series, one per formant, each unity below its resonance, peaked at
+it, falling above it. Relative formant loudness is then not something to dial
+in; it falls out of the frequencies and bandwidths, which is the point of
+Klatt's cascade model and why it sounds like a person rather than a filter bank.
+
+Two consequences worth knowing about:
+
+- **The source had to change with it.** An all-pole tract must be driven by the
+  glottal flow *derivative* including lip radiation: flow falls at
+  -12 dB/octave, its derivative and the radiation are +6 each, so the excitation
+  is about **-6 dB/octave — a sawtooth**. This is why every classic formant
+  synthesiser drives its resonators with a sawtooth and nobody explains why. The
+  previous -12 was glottal flow with the radiation term missing, which
+  double-counted the darkness and pushed every audible difference into the
+  treble. `rolloff` is that exponent; 1.0 is neutral.
+- **Web Audio's lowpass `Q` is in decibels**, unlike its bandpass `Q`. Measured:
+  `Q = 18` gives exactly 18 dB of peak gain. Passing a linear ratio gives a
+  filter about eight times too sharp.
+
+Two corrections sit on top of the five poles, both fitted rather than tasted:
+
+- **Higher-pole correction** — a +10 dB shelf above 900 Hz standing in for the
+  resonances above the five modelled. Without it F2 measures 4–8 dB weaker than
+  published vowel spectra across the whole palette; with it every vowel's F2
+  lands within 3 dB of reference. F2 is where vowel identity lives.
+- **Per-vowel level** — a cascade passes /i/ about 10 dB under /a/, which is
+  roughly twice what a real speaker produces, because a real speaker
+  compensates. Equalising the *power* brings the RMS spread across all fifteen
+  vowels from 10.2 dB to **3.3 dB**. It deliberately equalises power and not
+  loudness: /i/ still sounding softer at the same RMS is a real cue, not an
+  error.
+
+Measured, cardinal vowels at E3:
+
+| | peaking cascade | all-pole cascade |
+|---|---|---|
+| tract response span, /a/ | 3.8 dB | 80 dB |
+| \|/a/ − /i/\| at 700 Hz | 9 dB | 37.8 dB |
+| spectral distance between vowels | 4.0–8.3 dB | 10.9–18.3 dB |
+| /a/–/i/ difference at 600–1500 Hz | under 4 dB | **27.5 dB** |
+| /a/–/i/ difference at 1500–5000 Hz | all of it | 12.0 dB |
+
+The last two rows are the point. The vowel now changes the **body** of the
+sound rather than wobbling its treble.
 
 Also here and not in the Strudel path:
 

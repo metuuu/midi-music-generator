@@ -16,18 +16,50 @@
  * with its own envelope. Both of those are the difference between a voice and a
  * row of blips, so they cannot be given up.
  *
- * The other reason is the filter topology, and it is the bigger win:
+ * The other reason is the filter topology, and it is the bigger win.
  *
- *   **A vocal tract is a cascade, not a parallel bank.** Each resonance
- *   multiplies the *whole* spectrum, so the harmonics between the formants are
- *   attenuated but present. Three parallel bandpasses instead keep three slices
- *   and discard everything else, which is why that version needed an unfiltered
- *   "body" channel mixed underneath to sound like anything at all — and why the
- *   body then had to be kept tiny, because it is identical for every vowel and
- *   drowns out the differences the formants exist to create. Chained peaking
- *   filters have no such tension: they put peaks on a full spectrum, which is
- *   what a tube does. Vowels come out both fuller and more distinct, and the
- *   compromise disappears rather than being tuned.
+ * **A vowel is not where the spectrum peaks. It is where the spectrum falls.**
+ *
+ * That sentence is the whole of this file's second half, and getting it wrong
+ * produces a very specific failure: vowels that read as an EQ wobble in the
+ * treble rather than as a mouth changing shape. Two earlier versions had it.
+ *
+ *  - **Parallel bandpasses** keep three slices of the spectrum and throw the
+ *    rest away. Thin, quiet, and no makeup gain restores what is gone — hence
+ *    the unfiltered "body" channel that had to be mixed underneath to make it
+ *    sound like anything, and which then had to be kept tiny because it is
+ *    identical for every vowel and drowns the differences out.
+ *  - **Cascaded peaking filters** fix the thinness — they multiply the whole
+ *    spectrum — but they can only ever *add* narrow bumps to a flat response.
+ *    Measured: the entire tract response for /a/ spanned 3.8 dB, and above
+ *    1 kHz /a/ and /i/ differed by under 4 dB. Since the source rolls off
+ *    steeply, the only place those bumps were audible at all was up where the
+ *    source was weak. Which is exactly what a listener reports as "the vowels
+ *    are just an annoying high-frequency change".
+ *
+ * What a tube actually does is **resonate and then roll off**. Above each
+ * resonance the response falls at 12 dB/octave until the next one lifts it, so
+ * a real /i/ has a canyon roughly 30 dB deep between 300 Hz and 2 kHz, and that
+ * canyon is most of what makes it /i/. No arrangement of boosts can dig one.
+ *
+ * So the tract here is what a tract is: an **all-pole cascade**. Five resonant
+ * lowpass biquads in series, one per formant, each unity below its resonance,
+ * peaked at it, and falling above it. The relative loudness of the formants is
+ * then not something to be dialled in — it falls out of the frequencies and
+ * bandwidths, which is the entire point of Klatt's cascade model and why it
+ * sounds like a person rather than like a filter bank.
+ *
+ *   tract response for /a/    spans 80 dB, against 3.8 dB for the peaking version
+ *   |/a/ − /i/| at 700 Hz     37.8 dB, against 9 dB, and now in the low-mid
+ *                             where the body of the voice is, not the treble
+ *   spectral distance         10–20 dB RMS between cardinal vowels, against 4–8
+ *
+ * The source changes with it. An all-pole tract must be driven by the glottal
+ * flow *derivative* including lip radiation — glottal flow falls at
+ * -12 dB/octave, radiation from the lips is a differentiator worth +6, so the
+ * excitation is about -6 dB/octave. The previous -12 was glottal flow with the
+ * radiation term missing, which double-counted the darkness and pushed every
+ * audible difference further into the treble.
  */
 
 import type { Consonant, Vowel } from '../core/types.js';
@@ -73,26 +105,96 @@ export interface VoicePatch {
 const UPPER_FORMANTS = [3500, 4500] as const;
 
 /**
- * Bandwidths in Hz, F1…F5. Real measured formants run 50–200 Hz wide and widen
- * as they rise; these are close to measured, which is affordable here in a way
- * it was not with parallel bandpasses. A narrow *peaking* filter that finds no
- * harmonic simply boosts nothing, where a narrow *bandpass* that finds no
- * harmonic outputs silence — so the cascade can be as sharp as the real thing.
+ * Bandwidths in Hz, F1…F5 — how wide each resonance is, and therefore how
+ * sharply it peaks. Real measured formants run 50–200 Hz and widen as they
+ * rise; these sit inside that, chosen by fitting the model's output against
+ * measured vowel spectra (see `formantQ`).
  */
-const BANDWIDTHS = [90, 110, 160, 250, 320] as const;
+const BANDWIDTHS = [80, 100, 140, 220, 280] as const;
 
 /**
- * Boost at each formant, dB.
+ * Higher-pole correction: a broad lift above 900 Hz, in dB.
  *
- * F2 gets the most, which looks upside down against a measured vowel spectrum
- * where F1 is strongest. Two reasons, both about being heard rather than about
- * being accurate: loudness is spectral rather than RMS, and hearing peaks
- * around 2–5 kHz, so energy under 700 Hz is worth far less than the meter says.
- * And F2 is where the vowel lives — the difference between /a/ and /i/ is
- * almost entirely F2, so under-mixing it means choosing vowels correctly and
- * then throwing them away.
+ * A real tract has infinitely many resonances and this one has five, so the
+ * spectrum above the modelled poles comes out too dark — the missing poles all
+ * sit up there and all of them contribute a rising trend. Klatt's cascade
+ * synthesiser corrects for exactly this, and a high shelf is the cheap version
+ * of it.
+ *
+ * Not a taste setting. Fitted: with the shelf off, the second formant measures
+ * 4–8 dB weaker than published vowel spectra say it should across the whole
+ * palette, and with it every vowel's F2 lands within 3 dB of the reference. F2
+ * is where vowel identity lives, so that error is not cosmetic.
  */
-const FORMANT_DB = [10, 13, 9, 6, 4] as const;
+const HIGHER_POLE_HZ = 900;
+const HIGHER_POLE_DB = 10;
+
+/**
+ * Web Audio's lowpass `Q` is **in decibels**, unlike its bandpass `Q` — which
+ * is easy to miss and produces a filter about eight times too sharp if you pass
+ * a linear ratio. Measured: Q = 18 gives exactly 18 dB of peak gain.
+ *
+ * A resonator's sharpness is centre over bandwidth, so this is that ratio
+ * expressed the way the node wants it. It has to be recomputed whenever the
+ * formant moves, or the bandwidth drifts with the vowel.
+ */
+function formantQ(freq: number, bandwidth: number): number {
+  return 20 * Math.log10(Math.max(1.05, freq / bandwidth));
+}
+
+/**
+ * How much each vowel has to be lifted to come out at the same power, /a/ = 1.
+ *
+ * A cascade does not pass every vowel at the same level, and it should not: /i/
+ * puts its first resonance at 270 Hz and then rolls everything above it away,
+ * so it carries far less energy than /a/, whose F1 and F2 sit close together
+ * and high. Measured through the model, /i/ arrives about 10 dB under /a/.
+ *
+ * But 10 dB is roughly twice what a real speaker produces, because a real
+ * speaker *compensates* — that is what "equal effort" means, and it is why a
+ * word does not lurch in volume from syllable to syllable. Every formant
+ * synthesiser since Klatt has had a per-segment amplitude control for exactly
+ * this reason. Equalising the power is therefore the natural choice rather than
+ * the artificial one.
+ *
+ * It deliberately equalises *power* and not loudness. What is left over after
+ * this — /i/ still sounding a little softer than /a/ at the same RMS, because
+ * its energy sits where the ear is less sensitive — is the real residual, and
+ * flattening that too would be erasing a cue rather than restoring one.
+ *
+ * Computed from the same resonator maths the graph uses, so it cannot drift
+ * from it. The analog two-pole prototype is close enough to the digital biquad
+ * for a level estimate, and tract length very nearly cancels out of the ratio,
+ * so this is computed once at the reference scale rather than per signature.
+ */
+const VOWEL_GAIN: Record<Vowel, number> = (() => {
+  const magnitude = (vowel: Vowel, f: number): number => {
+    let m = 1;
+    for (let i = 0; i < 5; i++) {
+      const f0 = i < 3 ? VOWEL_FORMANTS[vowel][i]! : UPPER_FORMANTS[i - 3]!;
+      const q = f0 / BANDWIDTHS[i]!;
+      const r = f / f0;
+      m /= Math.sqrt((1 - r * r) ** 2 + (r / q) ** 2);
+    }
+    const g = 10 ** (HIGHER_POLE_DB / 20);
+    const x = f / HIGHER_POLE_HZ;
+    return m * Math.sqrt((1 + g * g * x * x) / (1 + x * x));
+  };
+  // Source amplitude falls as 1/f, so its power falls as 1/f². Integrated in
+  // log frequency across the band a voice occupies.
+  const power = (vowel: Vowel): number => {
+    let sum = 0;
+    for (let k = 0; k < 400; k++) {
+      const f = 90 * (6500 / 90) ** (k / 399);
+      sum += (magnitude(vowel, f) * (100 / f)) ** 2;
+    }
+    return sum;
+  };
+  const reference = power('a');
+  return Object.fromEntries((Object.keys(VOWEL_FORMANTS) as Vowel[]).map(
+    (v) => [v, Math.min(2.2, Math.sqrt(reference / power(v)))],
+  )) as Record<Vowel, number>;
+})();
 
 /** Two seconds is plenty to loop without an audible period. */
 function makeNoiseBuffer(ctx: BaseAudioContext): AudioBuffer {
@@ -123,12 +225,23 @@ function makeImpulse(ctx: BaseAudioContext, seconds: number, decay: number): Aud
 }
 
 /**
- * The glottal source.
+ * The source: glottal flow derivative, with lip radiation folded in.
  *
- * Harmonic n at amplitude 1/nᵖ. A real glottal pulse rolls off at about
- * -12 dB/octave, which is p = 2; the exponent is a signature parameter because
- * varying it is what separates a pressed, bright voice from a soft, dark one,
- * and that difference does more for character than any filter setting.
+ * Harmonic n at amplitude 1/nᵖ, and p ≈ 1 rather than the 2 you get by reading
+ * "a glottal pulse falls at -12 dB/octave" and stopping there. The tract is
+ * driven by the *derivative* of the glottal flow, and what leaves the lips is
+ * differentiated again by the radiation itself — two +6 dB/octave terms against
+ * the flow's -12, leaving about -6 dB/octave, which is p = 1: a sawtooth. This
+ * is also why every classic formant synthesiser drives its resonators with a
+ * sawtooth or an impulse train and no one thinks to explain why.
+ *
+ * Getting this wrong is not subtle. At p = 2 the source is 6 dB/octave too dark
+ * everywhere, so the only region with enough energy left to hear a formant move
+ * in is the top — and the vowels stop being vowels and become a treble wobble.
+ *
+ * The exponent stays a signature parameter because varying it around 1 is what
+ * separates a pressed, bright voice from a soft, dark one, and that does more
+ * for character than any filter setting.
  *
  * Sixty-four harmonics: at a fundamental of 100 Hz that reaches 6.4 kHz, past
  * every formant that matters, and above 200 Hz the top ones fold away on their
@@ -305,15 +418,24 @@ export class VoiceSynth {
     hp.type = 'highpass';
     hp.frequency.value = 70;
 
+    // The tract: five resonators in series. Each is unity below its resonance,
+    // peaks at it, and falls at 12 dB/octave above it — so the response between
+    // two formants *descends*, which is the part a bank of boosts can never
+    // produce and the part that carries the vowel.
     const formants = BANDWIDTHS.map((bw, i) => {
       const f = ctx.createBiquadFilter();
-      f.type = 'peaking';
-      const rest = i < 3 ? VOWEL_FORMANTS.a[i]! : UPPER_FORMANTS[i - 3]!;
-      f.frequency.value = rest * sig.formantScale;
-      f.Q.value = (rest * sig.formantScale) / (bw * sig.formantScale);
-      f.gain.value = FORMANT_DB[i]!;
+      f.type = 'lowpass';
+      const rest = (i < 3 ? VOWEL_FORMANTS.a[i]! : UPPER_FORMANTS[i - 3]!) * sig.formantScale;
+      f.frequency.value = rest;
+      f.Q.value = formantQ(rest, bw * sig.formantScale);
       return f;
     });
+
+    // The resonances above the five that are modelled. See HIGHER_POLE_DB.
+    const higherPoles = ctx.createBiquadFilter();
+    higherPoles.type = 'highshelf';
+    higherPoles.frequency.value = HIGHER_POLE_HZ * sig.formantScale;
+    higherPoles.gain.value = HIGHER_POLE_DB;
 
     // The singer's formant: one peak around 2.8 kHz where the ear is most
     // sensitive and an orchestra has least energy. It is why an unamplified
@@ -325,22 +447,25 @@ export class VoiceSynth {
     ring.Q.value = 2.2;
     ring.gain.value = sig.ring;
 
-    const tilt = ctx.createBiquadFilter();
-    tilt.type = 'lowpass';
-    tilt.frequency.value = 5200 * sig.formantScale;
-    tilt.Q.value = 0.6;
-
     const env = ctx.createGain();
     env.gain.value = 0;
 
     const out = ctx.createGain();
-    // The cascade adds up to 40 dB of boost across five peaks; this is the
-    // makeup that keeps a voice at velocity 1 under the ceiling.
-    out.gain.value = 0.22 * patch.gain;
+    /**
+     * Makeup, measured rather than guessed.
+     *
+     * The cascade is unity below F1, so most of the source passes at the level
+     * it went in — but the F1 resonance adds about 19 dB on top of that, and at
+     * these fundamentals a harmonic lands on it constantly, taking the peak
+     * with it. Measured over whole lines in all seven signatures, this keeps
+     * the peak between 0.53 and 0.74 at the default level and leaves the
+     * limiter with nothing to do until the level slider is pushed near its top.
+     */
+    out.gain.value = 0.08 * patch.gain;
 
     let chain: AudioNode = mix.connect(hp);
     for (const f of formants) chain = chain.connect(f);
-    chain.connect(ring).connect(tilt).connect(env).connect(out);
+    chain.connect(higherPoles).connect(ring).connect(env).connect(out);
 
     const send = ctx.createGain();
     send.gain.value = patch.reverb;
@@ -350,7 +475,14 @@ export class VoiceSynth {
     // --- schedule -------------------------------------------------------
     const envRamp = new Ramp(env.gain, t0);
     const pitch = new Ramp(osc.frequency, t0);
-    const tract = formants.slice(0, 3).map((f) => new Ramp(f.frequency, t0));
+    // Only the first three move — F4 and F5 carry voice quality rather than
+    // vowel identity and barely shift as the tongue does. Q travels with the
+    // frequency, or the resonance would widen and narrow as the vowel changes.
+    const tract: FormantBand[] = formants.slice(0, 3).map((f, i) => ({
+      freq: new Ramp(f.frequency, t0),
+      q: new Ramp(f.Q, t0),
+      bandwidth: BANDWIDTHS[i]! * sig.formantScale,
+    }));
 
     const scale = sig.formantScale;
     let previous: SynthEvent | undefined;
@@ -359,6 +491,9 @@ export class VoiceSynth {
       const t = t0 + e.time;
       const freq = 440 * 2 ** ((e.midi - 69) / 12);
       const level = Math.max(0.02, e.velocity);
+      // The voice is compensated per vowel; the consonant burst is not. A /t/
+      // does not get louder because the vowel behind it happens to be closed.
+      const voiceLevel = level * VOWEL_GAIN[e.vowel];
       const shape = CONSONANTS[e.tie ? 'none' : e.consonant];
       // The consonant sets the shape of the arrival and the delivery sets how
       // crisp everything is, so they multiply rather than one overriding the
@@ -372,15 +507,15 @@ export class VoiceSynth {
         // re-attack, the same vowel carried onto a new note. This is the one
         // gesture that is unambiguously singing rather than speech.
         pitch.glide(freq, t, Math.max(0.012, del.glide * 0.5));
-        envRamp.to(level * del.sustain, t + 0.04);
+        envRamp.to(voiceLevel * del.sustain, t + 0.04);
       } else {
         schedulePitch(pitch, freq, t, del, previous);
-        scheduleOnset(envRamp, e, previous, level, attack, t, del);
+        scheduleOnset(envRamp, e, previous, voiceLevel, attack, t, del);
       }
 
       if (!e.legatoToNext) {
         const tEnd = Math.max(t + attack + del.decay + 0.005, t + e.duration);
-        envRamp.set(level * del.sustain, tEnd);
+        envRamp.set(voiceLevel * del.sustain, tEnd);
         envRamp.to(0, tEnd + del.release);
       }
 
@@ -471,14 +606,23 @@ export class VoiceSynth {
  * *are*: not events, but places the tract passes through.
  */
 function scheduleTract(
-  tract: Ramp[], e: SynthEvent, freq: number, scale: number, t: number, glide: number,
+  tract: FormantBand[], e: SynthEvent, freq: number, scale: number, t: number, glide: number,
 ): void {
   const [f1, f2, f3] = VOWEL_FORMANTS[e.vowel];
-  // A resonance below the fundamental has no harmonic to amplify, so a closed
-  // vowel simply loses its F1 up high. Nudging it up to meet F0 is not a
-  // workaround: it is vowel modification, and a soprano has no choice about it
-  // either — every vowel migrates toward /a/ at the top of the range.
-  const targets = [Math.max(f1 * scale, freq * 1.05), f2 * scale, f3 * scale];
+  /**
+   * Keep F1 at or above the fundamental.
+   *
+   * This matters far more in a cascade than it did in a bank of boosts. A
+   * resonant lowpass sitting under F0 does not merely fail to emphasise the
+   * first formant — it attenuates *the entire signal*, fundamental included, at
+   * 12 dB/octave. A closed vowel sung high would simply disappear.
+   *
+   * Nudging F1 up to meet F0 is not a workaround for that; it is what singers
+   * do, for the same physical reason. A soprano cannot sing /i/ at the top of
+   * her range either: the jaw opens and the vowel migrates toward /a/ whether
+   * she intends it or not.
+   */
+  const targets = [Math.max(f1 * scale, freq * 1.1), f2 * scale, f3 * scale];
   const tau = Math.max(0.004, glide / 3);
   const lead = t - glide * 0.4;
 
@@ -486,18 +630,39 @@ function scheduleTract(
     if (e.consonant === 'nasal') {
       // The murmur: sound comes out of the nose, the mouth is closed, and the
       // tract is a fixed shape with a low first resonance and little above it.
-      tract[0]?.glide(260 * scale, lead - 0.05, 0.015);
-      tract[1]?.glide(1100 * scale, lead - 0.05, 0.015);
-      tract[2]?.glide(2400 * scale, lead - 0.05, 0.015);
+      moveBand(tract[0], 260 * scale, lead - 0.05, 0.015);
+      moveBand(tract[1], 1100 * scale, lead - 0.05, 0.015);
+      moveBand(tract[2], 2400 * scale, lead - 0.05, 0.015);
     } else if (e.consonant === 'liquid') {
       // /l/ and /r/ between them: a low F2 and a distinctly lowered F3, which
       // is the single cue that makes an English /r/ recognisable.
-      tract[1]?.glide(1000 * scale, lead - 0.03, 0.012);
-      tract[2]?.glide(2000 * scale, lead - 0.03, 0.012);
+      moveBand(tract[1], 1000 * scale, lead - 0.03, 0.012);
+      moveBand(tract[2], 2000 * scale, lead - 0.03, 0.012);
     }
   }
 
-  targets.forEach((target, i) => tract[i]?.glide(target, lead, tau));
+  targets.forEach((target, i) => moveBand(tract[i], target, lead, tau));
+}
+
+/** One formant of the tract: where it sits, and how sharp it is there. */
+interface FormantBand {
+  freq: Ramp;
+  q: Ramp;
+  bandwidth: number;
+}
+
+/**
+ * Move a resonance, keeping its bandwidth constant.
+ *
+ * Q has to travel with the frequency because Web Audio specifies sharpness as a
+ * ratio rather than a width. Left alone while the formant moves, a resonance
+ * that is 80 Hz wide on /u/ becomes 220 Hz wide on /a/ — the peak flattens out
+ * exactly on the open vowels that most need it.
+ */
+function moveBand(band: FormantBand | undefined, hz: number, time: number, tau: number): void {
+  if (!band) return;
+  band.freq.glide(hz, time, tau);
+  band.q.glide(formantQ(hz, band.bandwidth), time, tau);
 }
 
 /**

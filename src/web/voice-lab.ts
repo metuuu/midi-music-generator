@@ -239,7 +239,9 @@ const SIGNATURE_SLIDERS: SliderSpec[] = [
   { key: 'formantScale', label: 'tract length', min: 0.8, max: 1.45, step: 0.01, key_: true,
     format: (v) => `×${v.toFixed(2)}` },
   { key: 'centre', label: 'centre pitch', min: 36, max: 79, step: 1, format: (v) => String(Math.round(v)) },
-  { key: 'rolloff', label: 'source rolloff', min: 1.3, max: 2.8, step: 0.05, key_: true },
+  // 1.0 is a sawtooth — the neutral source. Below is pressed and bright, above
+  // is soft and dark; the useful range is narrow and sits around it.
+  { key: 'rolloff', label: 'source rolloff', min: 0.6, max: 1.8, step: 0.05, key_: true },
   { key: 'breath', label: 'breath', min: 0, max: 0.4, step: 0.01 },
   { key: 'ring', label: 'singer’s formant', min: 0, max: 18, step: 0.5, format: (v) => `${v} dB` },
   { key: 'vibRate', label: 'vibrato rate', min: 3, max: 8, step: 0.1, format: (v) => `${v.toFixed(1)} Hz` },
