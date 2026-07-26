@@ -28,9 +28,12 @@ import {
 import { GENRES, getGenre, type FormStep, type Genre } from '../genre/index.js';
 import { INSTRUMENTS, type Instrument, type InstrumentId } from '../style/instruments.js';
 import type { EraProfile, Mood, Progression, Style } from '../style/types.js';
+import { planRegisters, resolveCollisions } from './arrange.js';
 import { buildAccompaniment, getStrictness, resolveRules, type StrictnessId } from './constraints.js';
 import { getHook, RECALL_BIAS, type HookId } from './hook.js';
 import { generateMelody } from './melody.js';
+import { chooseMotto } from './motto.js';
+import { trimOverlaps } from './rhythm.js';
 import { generateVocalTrack } from './vocals.js';
 import {
   generateBass, generateBrass, generateComp, generateCounter, generateDrums, generatePad,
@@ -114,6 +117,16 @@ export function generateSong(opts: GenerateOptions = {}): Song {
   const hook = getHook(opts.hook ?? style.hook ?? genre.defaultHook);
 
   const rules = resolveRules(genre.ruleOverrides);
+  /**
+   * Smoothness, seen by the arrangement rather than by the melody.
+   *
+   * The axis used to police the tune and nothing else, which left it unable to
+   * fix the loudest source of sourness in the output — layers colliding in
+   * register. It now also governs how far apart the layers are kept and how
+   * strictly the low-interval limits apply. At 0 the band is allowed to pile
+   * into one octave, which is a real sound and not merely an absence of care.
+   */
+  const clarity = strictness.level / 4;
   const density = clamp(era.density + mood.density, 0.25, 1);
   const instruments = chooseInstruments(rng, era);
 
@@ -158,6 +171,14 @@ export function generateSong(opts: GenerateOptions = {}): Song {
   const drumBank = rng.weighted(era.drumBanks);
 
   /**
+   * The song's own figure, chosen once and quoted throughout in proportion to
+   * `hook`. Drawn from its own stream so that adding it did not shift every
+   * later decision — the same reason the band and the melody have separate
+   * streams. See `generate/motto.ts`.
+   */
+  const motto = chooseMotto(new Rng(`${seed}:motto`), style, style.beatsPerBar * 4);
+
+  /**
    * Every section draws from its own streams rather than from one running
    * stream shared by the whole song.
    *
@@ -194,7 +215,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
     // Drawn even when it is about to be discarded. The waste is deliberate:
     // keeping the band's stream aligned across hook levels is what stops a
     // recalled chorus from reshuffling every later section's comping.
-    const fresh = pickProgression(rng, style, section.kind, mode);
+    const fresh = pickProgression(rng, style, section.kind, mode, hook.harmonicSimplicity);
     const progression = replayChords && prior ? prior.progression : fresh;
     const chords = expandProgression(progression, section.lengthBars, mode);
     section.chordLabels = chords.map((c) => c.label);
@@ -228,32 +249,57 @@ export function generateSong(opts: GenerateOptions = {}): Song {
       }));
     }
 
-    // Keep this section's accompaniment to hand: the melody is written last, so
-    // it can be checked against what the band is actually holding underneath.
-    const sectionBass = active.has('bass') ? generateBass(ctx, bassPattern) : [];
-    const sectionComp = active.has('comp')
-      ? generateComp(ctx, compPattern, instruments.comp.centre, (c) => genre.scaleForChord(localTonic, mode, c))
-      : [];
-    const sectionPad = active.has('pad') ? generatePad(ctx, instruments.pad.centre) : [];
-
-    push(byLayer, 'bass', sectionBass);
-    push(byLayer, 'comp', sectionComp);
-    push(byLayer, 'pad', sectionPad);
-    if (active.has('brass')) push(byLayer, 'brass', generateBrass(ctx, instruments.brass.centre));
-
-    const accompaniment = buildAccompaniment([sectionBass, sectionComp, sectionPad]);
-
     // In a solo section the "voice" rests and the counter instrument takes the
     // tune — which is exactly how these arrangements work.
     const isSolo = section.kind === 'solo';
     const leadLayer: LayerId = isSolo ? 'counter' : 'melody';
     const leadInstrument = isSolo ? instruments.counter : instruments.melody;
 
+    /**
+     * Lay the section out in register *before* writing any of it.
+     *
+     * This is the stage that was missing. Every part used to take its register
+     * from its own instrument and nothing else, so the comp and the pad voiced
+     * themselves straight through the tune. See `generate/arrange.ts`.
+     */
+    const plan = planRegisters({
+      leadCentre: leadInstrument.centre,
+      span: style.melody.span,
+      leadPresent: active.has('melody'),
+      clarity,
+      centres: {
+        comp: instruments.comp.centre,
+        pad: instruments.pad.centre,
+        brass: instruments.brass.centre,
+      },
+    });
+    const limitFor = (layer: LayerId) => ({
+      clarity,
+      ...(plan.ceiling[layer] !== undefined ? { ceiling: plan.ceiling[layer]! } : {}),
+    });
+
+    // Keep this section's accompaniment to hand: the melody is written last, so
+    // it can be checked against what the band is actually holding underneath.
+    const sectionBass = active.has('bass') ? generateBass(ctx, bassPattern) : [];
+    const sectionComp = active.has('comp')
+      ? generateComp(
+        ctx, compPattern, instruments.comp.centre,
+        (c) => genre.scaleForChord(localTonic, mode, c),
+        limitFor('comp'),
+      )
+      : [];
+    const sectionPad = active.has('pad')
+      ? generatePad(ctx, instruments.pad.centre, 4, limitFor('pad'))
+      : [];
+    const sectionBrass = active.has('brass')
+      ? generateBrass(ctx, instruments.brass.centre, limitFor('brass'))
+      : [];
+
+    const accompaniment = buildAccompaniment([sectionBass, sectionComp, sectionPad]);
+    let sectionMelody: NoteEvent[] = [];
+
     if (active.has('melody')) {
-      const range: [number, number] = [
-        leadInstrument.centre - Math.round(style.melody.span * 0.6),
-        leadInstrument.centre + Math.round(style.melody.span * 0.6),
-      ];
+      const range: [number, number] = plan.lead;
       const melody = replayTune && prior?.melody
         ? replay(prior.melody, prior.tonic, localTonic, ctx.startBeat, range)
         : generateMelody({
@@ -270,6 +316,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
           soloistic: isSolo,
           strictness: strictness.level,
           hook,
+          motto,
           accompaniment,
           scaleForChord: genre.scaleForChord,
           rules,
@@ -278,6 +325,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
           agility: leadInstrument.agility,
         });
       push(byLayer, leadLayer, melody);
+      sectionMelody = melody;
 
       // Solos are never remembered, so this only ever stores an actual tune.
       if (memory && !memory.melody && !isSolo) {
@@ -289,6 +337,22 @@ export function generateSong(opts: GenerateOptions = {}): Song {
         push(byLayer, 'counter', generateCounter(counterCtx, melody, instruments.counter.centre));
       }
     }
+
+    // The ceiling was a forecast; this is the correction. Now that the tune
+    // exists, move whatever is still doubling it — see `generate/arrange.ts`.
+    resolveCollisions({
+      melody: sectionMelody,
+      layers: new Map<LayerId, NoteEvent[]>([
+        ['comp', sectionComp], ['pad', sectionPad], ['brass', sectionBrass],
+      ]),
+      clarity,
+      floor: instruments.bass.centre + 10,
+    });
+
+    push(byLayer, 'bass', sectionBass);
+    push(byLayer, 'comp', sectionComp);
+    push(byLayer, 'pad', sectionPad);
+    push(byLayer, 'brass', sectionBrass);
   }
 
   // ---- Assemble --------------------------------------------------------
@@ -323,6 +387,18 @@ export function generateSong(opts: GenerateOptions = {}): Song {
     return Object.keys(merged).length ? merged : undefined;
   };
   const space: Space = { ...DEFAULT_SPACE, ...genre.space, ...era.space };
+
+  /**
+   * Melodic layers are monophonic and are written a section at a time, so the
+   * seams need clearing once they are concatenated. A phrase that begins with a
+   * pickup writes *backwards* across a section boundary on purpose — see
+   * `allowAnacrusis` in `generate/melody.ts` — and the note it lands on top of
+   * belongs to the section before it, which the melody generator never saw.
+   */
+  for (const layer of ['melody', 'counter'] as LayerId[]) {
+    const notes = byLayer.get(layer);
+    if (notes?.length) byLayer.set(layer, trimOverlaps(notes.filter((n) => n.beat >= 0)));
+  }
 
   const tracks: Track[] = [];
   for (const [layer, instrument] of Object.entries(layerInstruments) as [PlayedLayer, Instrument][]) {
@@ -624,7 +700,27 @@ function layersFor(kind: SectionKind, style: Style, density: number, mood: Mood,
   return [...layers];
 }
 
-function pickProgression(rng: Rng, style: Style, kind: SectionKind, mode: Mode): Progression {
+/**
+ * How plain a progression is, 0..1.
+ *
+ * Two things make harmony easy to hear past: **few distinct chords**, and
+ * **chords that belong to the key**. A ii–V into a secondary dominant is
+ * beautiful and it costs the listener attention, which is attention not being
+ * spent on the tune. The songs everyone can sing are built on three chords, and
+ * that is not a coincidence or a limitation — it is what leaves room for the
+ * melody to be the thing you remember.
+ */
+function plainness(prog: Progression): number {
+  const distinct = new Set(prog.chords).size;
+  const fewChords = Math.max(0, 1 - (distinct - 2) / 4);
+  const borrowed = prog.chords.filter((c) => c.includes('/') || c.startsWith('b') || c.startsWith('#')).length;
+  const diatonic = 1 - borrowed / Math.max(1, prog.chords.length);
+  return clamp((fewChords * 0.6 + diatonic * 0.4), 0, 1);
+}
+
+function pickProgression(
+  rng: Rng, style: Style, kind: SectionKind, mode: Mode, simplicity: number,
+): Progression {
   // Roman numerals are read relative to the mode, so a major-key table read in
   // minor produces nonsense. Each style declares a table for its primary mode
   // and, where it can appear in both, an override for the other.
@@ -633,16 +729,27 @@ function pickProgression(rng: Rng, style: Style, kind: SectionKind, mode: Mode):
 
   const candidates = table.length ? table : style.progressions.verse;
 
-  // In minor, boost the chorus progressions that open on III or VI — the
-  // relative-major region. That lift is the genre's core emotional device.
-  if (kind === 'chorus' && mode === 'minor' && style.relativeMajorChorus > 0) {
-    return rng.weighted(candidates.map((p) => {
+  /**
+   * Hook reaches the harmony, not only the tune.
+   *
+   * This is the half of repetition the generator was missing entirely. A song
+   * can restate its melody perfectly and still be hard to hold onto if the
+   * chords underneath keep asking for attention — and conversely, most of what
+   * makes a hook feel inevitable is that the harmony has stopped surprising you
+   * by the second chorus. At `earworm` the plainest progression available wins
+   * almost every draw; at `through` the weighting is untouched.
+   */
+  return rng.weighted(candidates.map((p) => {
+    let w = p.weight;
+    if (simplicity > 0) w *= 1 + simplicity * 3 * plainness(p);
+    // In minor, boost the chorus progressions that open on III or VI — the
+    // relative-major region. That lift is the genre's core emotional device.
+    if (kind === 'chorus' && mode === 'minor' && style.relativeMajorChorus > 0) {
       const first = p.chords[0] ?? '';
-      const lifted = first === 'III' || first === 'VI';
-      return [p, p.weight * (lifted ? 1 + style.relativeMajorChorus * 2 : 1)] as const;
-    }));
-  }
-  return rng.weightedBy(candidates, (p) => p.weight);
+      if (first === 'III' || first === 'VI') w *= 1 + style.relativeMajorChorus * 2;
+    }
+    return [p, w] as const;
+  }));
 }
 
 function expandProgression(prog: Progression, bars: number, mode: Mode): Chord[] {

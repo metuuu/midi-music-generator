@@ -9,7 +9,7 @@
 import type { DrumVoice, Effects, LayerId, SectionKind, Space } from '../core/types.js';
 import type { InstrumentId } from './instruments.js';
 import type { Mode } from '../core/scale.js';
-import type { VoicingStyle } from '../core/chord.js';
+import type { VoicingStyle } from '../core/voicing.js';
 import type { StrictnessId } from '../generate/constraints.js';
 import type { HookId } from '../generate/hook.js';
 
@@ -207,6 +207,17 @@ export interface Style {
     span: number;
     /** Probability that a phrase repeats its motif as an exact sequence. */
     sequence: number;
+    /**
+     * Appetite for rhythm that crosses the barline: pickups, anticipated
+     * downbeats, notes tied through the bar. 0 keeps every figure inside its
+     * own bar, which is what the generator used to do everywhere and is right
+     * almost nowhere. Defaults to 0.3.
+     *
+     * This belongs to the style rather than to smoothness. A tango pushes its
+     * downbeats because that is what a tango is, not because its voice leading
+     * is being policed loosely.
+     */
+    syncopation?: number;
   };
 }
 

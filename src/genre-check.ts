@@ -288,6 +288,15 @@ console.log('\nHook');
     const to = from + sec.lengthBars * song.meta.beatsPerBar;
     const notes = track.notes.filter((n) => n.beat >= from && n.beat < to)
       .sort((a, b) => a.beat - b.beat);
+    /**
+     * Drop the pickup into whatever comes next.
+     *
+     * A phrase that begins with an anacrusis writes its first notes *before* its
+     * own downbeat, so they sound inside the previous section. They are not that
+     * section's tune, and counting them here made an identically recalled chorus
+     * compare unequal purely because the section after it differed.
+     */
+    while (notes.length && to - notes[notes.length - 1]!.beat <= 1) notes.pop();
     if (!notes.length) return '';
     const base = notes[0]!.midi;
     const start = notes[0]!.beat;

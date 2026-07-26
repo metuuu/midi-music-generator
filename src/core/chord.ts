@@ -9,11 +9,9 @@
  */
 
 import type { Midi, Pc } from './pitch.js';
-import { nearestPc, pc } from './pitch.js';
-import type { Mode, Scale } from './scale.js';
-import { SCALE_STEPS, snapToScale, stepInScale } from './scale.js';
-
-export type VoicingStyle = 'tertian' | 'guide' | 'quartal';
+import { pc } from './pitch.js';
+import type { Mode } from './scale.js';
+import { SCALE_STEPS } from './scale.js';
 
 export type ChordQuality =
   | 'maj' | 'min' | 'dim' | 'aug'
@@ -171,105 +169,4 @@ function qualityFor(isUpper: boolean, suffix: string, symbol: string): ChordQual
     default:
       throw new Error(`Unknown chord suffix "${s}" in ${symbol}`);
   }
-}
-
-/**
- * Voice a chord as `voices` notes near `centre`, moving as little as possible
- * from `previous`.
- *
- * Greedy nearest-tone voice leading. It is not a full Schoenberg-grade solver,
- * but for triadic dance-band comping it produces exactly what a keyboard or
- * accordion player does: keep common tones, move the rest by step.
- */
-export function voiceChord(
-  chord: Chord,
-  opts: {
-    voices: number; centre: Midi; previous?: Midi[]; lo?: Midi; hi?: Midi;
-    /**
-     * `tertian` stacks the chord from the root — right for dance-band comping.
-     * `guide` drops the root and leads with the 3rd and 7th, which is how a
-     * jazz pianist voices under a walking bass that already owns the root.
-     * `quartal` stacks fourths from the scale — the modal-jazz sound.
-     */
-    style?: VoicingStyle;
-    /** Required by `quartal`. */
-    scale?: Scale;
-  },
-): Midi[] {
-  const { voices, centre, previous } = opts;
-  const lo = opts.lo ?? centre - 12;
-  const hi = opts.hi ?? centre + 12;
-  const pcs = chordPcs(chord);
-  const style = opts.style ?? 'tertian';
-
-  if (style === 'quartal' && opts.scale) {
-    return voiceQuartal(chord, opts.scale, { voices, centre, lo, hi });
-  }
-
-  // Choose which chord tones to use when the chord has more tones than voices,
-  // or double the root when it has fewer.
-  const chosen: Pc[] = [];
-  const priority = style === 'guide' && pcs.length >= 4
-    // 3rd and 7th first — they carry the chord quality. Root last: the bass
-    // has it, and doubling it just thickens the mud.
-    ? [1, 3, 4, 2, 5, 0]
-    : pcs.length >= 4 ? [0, 2, 3, 1] : [0, 1, 2];
-  for (const p of priority) if (pcs[p] !== undefined) chosen.push(pcs[p]!);
-  while (chosen.length > voices) chosen.pop();
-  while (chosen.length < voices) chosen.push(pcs[chosen.length % pcs.length]!);
-
-  const anchors = previous && previous.length ? previous : [centre];
-  const out: Midi[] = [];
-  const used = new Set<number>();
-  for (let i = 0; i < chosen.length; i++) {
-    const anchor = anchors[Math.min(i, anchors.length - 1)] ?? centre;
-    let note = nearestPc(chosen[i]!, anchor);
-    while (note < lo) note += 12;
-    while (note > hi) note -= 12;
-    // Avoid stacking two voices on the identical note; nudge by an octave.
-    let guard = 0;
-    while (used.has(note) && guard++ < 3) note += 12;
-    if (note > hi) note -= 12;
-    used.add(note);
-    out.push(note);
-  }
-  return out.sort((a, b) => a - b);
-}
-
-/**
- * Quartal voicing — stacked fourths drawn from the scale rather than the chord.
- *
- * This is the defining sound of modal jazz. Because the harmony sits still for
- * eight or sixteen bars at a time, tertian voicings become monotonous fast;
- * fourths are ambiguous enough to keep a static chord interesting.
- *
- * The stack is built by taking every other scale degree twice over (a fourth is
- * three scale steps), which keeps it diatonic instead of parallel-chromatic.
- */
-function voiceQuartal(
-  chord: Chord,
-  scale: Scale,
-  opts: { voices: number; centre: Midi; lo: Midi; hi: Midi },
-): Midi[] {
-  const { voices, centre, lo, hi } = opts;
-  // Start from a chord tone inside the scale so the voicing still says
-  // something about the harmony.
-  const tones = chordPcs(chord).filter((p) => scale.pcs.includes(p));
-  const startPc = tones[0] ?? chord.root;
-  let cursor = snapToScale(scale, nearestPc(startPc, centre - 4));
-
-  const out: Midi[] = [];
-  for (let i = 0; i < voices; i++) {
-    out.push(cursor);
-    cursor = stepInScale(scale, cursor, 3); // a fourth, diatonically
-  }
-
-  // Slide the whole stack into the register window rather than clamping each
-  // voice, which would collapse the fourths.
-  const top = Math.max(...out);
-  const bottom = Math.min(...out);
-  let shift = 0;
-  while (top + shift > hi) shift -= 12;
-  while (bottom + shift < lo) shift += 12;
-  return out.map((m) => m + shift).sort((a, b) => a - b);
 }

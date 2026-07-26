@@ -171,7 +171,7 @@ const hauntology: Style = {
     // that to chance would produce a station where everything ticks.
     { name: 'none', weight: 4, voices: {} },
   ],
-  melody: { leap: 0.16, ornament: 0.08, span: 12, sequence: 0.55 },
+  melody: { leap: 0.16, ornament: 0.08, span: 12, sequence: 0.55, syncopation: 0.3 },
 };
 
 /**
@@ -287,7 +287,7 @@ const wasteland: Style = {
       perc: [8],
     } },
   ],
-  melody: { leap: 0.28, ornament: 0.05, span: 20, sequence: 0.25 },
+  melody: { leap: 0.28, ornament: 0.05, span: 20, sequence: 0.25, syncopation: 0.22 },
 };
 
 /**
@@ -389,7 +389,7 @@ const drone: Style = {
   // requires a table and an empty one would be a trap for anyone who later
   // removes the exclusion.
   drums: [{ name: 'none', weight: 1, voices: {} }],
-  melody: { leap: 0.12, ornament: 0.02, span: 14, sequence: 0.5 },
+  melody: { leap: 0.12, ornament: 0.02, span: 14, sequence: 0.5, syncopation: 0.2 },
 };
 
 /**
@@ -514,7 +514,7 @@ const kosmische: Style = {
       hh: [4, 12],
     } },
   ],
-  melody: { leap: 0.2, ornament: 0.1, span: 16, sequence: 0.5 },
+  melody: { leap: 0.2, ornament: 0.1, span: 16, sequence: 0.5, syncopation: 0.25 },
 };
 
 /**
@@ -615,7 +615,7 @@ const choral: Style = {
     ] },
   ],
   drums: [{ name: 'none', weight: 1, voices: {} }],
-  melody: { leap: 0.14, ornament: 0.05, span: 13, sequence: 0.55 },
+  melody: { leap: 0.14, ornament: 0.05, span: 13, sequence: 0.55, syncopation: 0.3 },
 };
 
 /**
@@ -724,7 +724,7 @@ const aquatic: Style = {
     { name: 'kick-only', weight: 3, voices: { bd: [0, 4, 8, 12] } },
     { name: 'none', weight: 2, voices: {} },
   ],
-  melody: { leap: 0.15, ornament: 0.05, span: 12, sequence: 0.5 },
+  melody: { leap: 0.15, ornament: 0.05, span: 12, sequence: 0.5, syncopation: 0.28 },
 };
 
 export const STYLES: Record<string, Style> = {

@@ -43,6 +43,8 @@ Plus two level settings, both 0–4 and deliberately independent of each other:
 
 Smoothness asks whether a note is *wrong*; hook asks whether it is *familiar*. Both corners are useful: high hook with low smoothness is raw and catchy, and high hook with high smoothness is bland on purpose.
 
+Neither is confined to the tune. Smoothness also sets how far apart the layers are kept in register and how strictly the low-interval limits apply to a voicing — it could not previously touch the loudest source of sourness in the output. Hook also narrows the *harmony*, because a song everybody can sing is usually built on three chords and is singable partly for that reason.
+
 Pin a seed and both settings become A/B controls rather than rerolls — the form, key, tempo, instruments and drums hold still while only the tune moves.
 
 ## Ambient
@@ -57,6 +59,18 @@ Three things make it a different genre rather than everything else played slowly
 - **Effects are part of the composition.** A Boards of Canada track is a filtered, reverberant object; the dry notes underneath are not the piece. Reverb sends, delay, lowpass, highpass, resonance and pan live in the IR, defined per layer, genre-over-era. The bass stays dry everywhere (reverb on a sustained low tone is the fastest route to mud) and the kit is *filtered* rather than merely quiet — a lowpass at 1.4–2.4 kHz is what turns a drum machine into something heard through a wall.
 
 Ambient is also the genre this project was building toward — the layer stems and the `excludeLayers`/`requireLayers` machinery are what a game needs to duck and crossfade music under speech. See [docs/ambient.md](docs/ambient.md).
+
+## Arrangement
+
+Three stages run before a single pitch is chosen, and they are where most of the audible quality lives.
+
+**The layers are laid out in register first.** Every part used to take its register from its own instrument and know nothing about the others, so the comp and pad voiced themselves straight through the tune — the melody was doubled at unison by its own accompaniment on **21–34% of its notes**, and the comp's mean top note sat *above* the melody's mean bottom note. A tune doubled at unison by a sustaining chord stops being a tune. The lead's tessitura is now reserved, the accompaniment is given a ceiling under it, and a repair pass moves whatever is still colliding once the melody exists.
+
+**Chords are voiced bottom-up against low-interval limits.** A major third is warm at C4 and mud at C2. Every voicing requires each voice to clear a minimum interval for the register it lands in, which took seconds below middle C from 10% to zero and made two voices on the identical pitch unrepresentable. The drop order also changed: the third and the seventh are the last things to go, not the first, so a `V7` no longer arrives without its leading tone.
+
+**Rhythm is composed at phrase length, before pitch.** A rhythm cell forced to fill exactly one bar cannot express an anacrusis, a tie over the barline, or an anticipated downbeat — and the generator produced **zero** of all three across 120 songs. Phrases are now planned whole, with those gestures applied at the joins. Each style declares its own appetite for them: 0.12 for humppa, which is square on purpose, 0.65 for bossa, which anticipates almost everything.
+
+Plus a **motto** — one rhythm and one contour chosen per song and quoted throughout in proportion to `hook`. Repetition previously existed at exactly two scales, one bar and one whole section, with nothing between them, so a song could be locally shapely and globally arbitrary. See [docs/arrangement.md](docs/arrangement.md).
 
 ## Vocals
 
@@ -92,6 +106,7 @@ Five things went wrong on the way here, all of which produce a voice you cannot 
 - [docs/ambient.md](docs/ambient.md) — the ambient ruleset: the drone rule, sustain, arpeggios, the inverted mix, effects
 - [docs/smoothness.md](docs/smoothness.md) — the constraint system and what each level costs
 - [docs/hook.md](docs/hook.md) — the repetition system: section recall, rhythm lock, vocabulary
+- [docs/arrangement.md](docs/arrangement.md) — the vertical, phrase rhythm, and the motto
 - [docs/rules.md](docs/rules.md) — every rule and its thresholds (generated from the code)
 - [docs/architecture.md](docs/architecture.md) — layout, adding a genre, producing audio
 
@@ -99,6 +114,8 @@ Five things went wrong on the way here, all of which produce a voice you cannot 
 
 ```bash
 npm run verify      # typecheck + genre checks + notation validity + musical audit
+npm run ensemble    # how the layers sound together: voicings and register separation
+npm run score -- 7 iskelma tango   # read one song bar by bar, every layer
 npm run genres      # asserts what defines each genre
 npm run strictness  # rule violations and musical cost at each smoothness level
 npm run hook        # how much the music repeats itself at each hook level

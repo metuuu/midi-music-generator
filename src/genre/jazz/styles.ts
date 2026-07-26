@@ -147,7 +147,7 @@ const swing: Style = {
       hh: [4, 12],
     } },
   ],
-  melody: { leap: 0.32, ornament: 0.3, span: 18, sequence: 0.3 },
+  melody: { leap: 0.32, ornament: 0.3, span: 18, sequence: 0.3, syncopation: 0.5 },
 };
 
 /**
@@ -259,7 +259,7 @@ const bebop: Style = {
       sd: [6, 13],
     } },
   ],
-  melody: { leap: 0.3, ornament: 0.4, span: 22, sequence: 0.25 },
+  melody: { leap: 0.3, ornament: 0.4, span: 22, sequence: 0.25, syncopation: 0.55 },
 };
 
 /**
@@ -363,7 +363,7 @@ const ballad: Style = {
       rim: [4, 12],
     } },
   ],
-  melody: { leap: 0.24, ornament: 0.18, span: 16, sequence: 0.4 },
+  melody: { leap: 0.24, ornament: 0.18, span: 16, sequence: 0.4, syncopation: 0.28 },
 };
 
 /**
@@ -470,7 +470,7 @@ const bossa: Style = {
       bd: [0, 8],
     } },
   ],
-  melody: { leap: 0.22, ornament: 0.2, span: 15, sequence: 0.42 },
+  melody: { leap: 0.22, ornament: 0.2, span: 15, sequence: 0.42, syncopation: 0.65 },
 };
 
 /**
@@ -612,7 +612,7 @@ const blues: Style = {
       rim: [10],
     } },
   ],
-  melody: { leap: 0.3, ornament: 0.32, span: 17, sequence: 0.45 },
+  melody: { leap: 0.3, ornament: 0.32, span: 17, sequence: 0.45, syncopation: 0.42 },
 };
 
 /**
@@ -722,7 +722,7 @@ const modal: Style = {
       bd: [10],
     } },
   ],
-  melody: { leap: 0.28, ornament: 0.24, span: 18, sequence: 0.38 },
+  melody: { leap: 0.28, ornament: 0.24, span: 18, sequence: 0.38, syncopation: 0.35 },
 };
 
 /**
@@ -827,7 +827,7 @@ const gypsy: Style = {
     } },
     { name: 'none', weight: 4, voices: {} },
   ],
-  melody: { leap: 0.34, ornament: 0.36, span: 20, sequence: 0.35 },
+  melody: { leap: 0.34, ornament: 0.36, span: 20, sequence: 0.35, syncopation: 0.4 },
 };
 
 export const STYLES: Record<string, Style> = {

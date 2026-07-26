@@ -74,6 +74,29 @@ export interface HookLevel {
    * refrain.
    */
   earlyRestate: boolean;
+  /**
+   * Probability that a phrase builds on the song's own figure — the motto —
+   * rather than on a fresh draw from the style's vocabulary.
+   *
+   * This is the scale of repetition the generator had no way to express. It
+   * had exactly two: one bar (a motif restated inside its own phrase) and one
+   * whole section (a tune replayed verbatim). Nothing in between, so a song
+   * could be locally shapely and globally arbitrary at the same time — every
+   * phrase well-formed, no two phrases related. The motto is what makes a song
+   * *about* something. See `generate/motto.ts`.
+   */
+  mottoAdherence: number;
+  /**
+   * How far to bias the harmony toward the plainest progressions available,
+   * 0..1.
+   *
+   * A hook is not only a melodic property. The songs everybody can sing are
+   * built on three or four chords, and they are singable partly *because* the
+   * harmony stops asking for attention — the ear has spare capacity for the
+   * tune. Turning this up narrows the chord vocabulary and favours
+   * progressions that return to the tonic.
+   */
+  harmonicSimplicity: number;
 }
 
 export const HOOK_LEVELS: HookLevel[] = [
@@ -82,30 +105,35 @@ export const HOOK_LEVELS: HookLevel[] = [
     gloss: 'every section is new material — no tune ever comes back',
     recall: 0, harmonyRecall: 0, sequence: 1, exactRepeat: 0,
     rhythmLock: 0, vocabulary: 0, earlyRestate: false,
+    mottoAdherence: 0, harmonicSimplicity: 0,
   },
   {
     id: 'loose', level: 1, label: 'Loose',
     gloss: 'sections of a kind share their harmony; motifs recur within a phrase',
     recall: 0, harmonyRecall: 0.5, sequence: 1.3, exactRepeat: 0.15,
     rhythmLock: 0.15, vocabulary: 0.1, earlyRestate: false,
+    mottoAdherence: 0.2, harmonicSimplicity: 0.15,
   },
   {
     id: 'standard', level: 2, label: 'Standard',
     gloss: 'the chorus is a fixed tune that comes back each time',
     recall: 0.8, harmonyRecall: 1, sequence: 1.6, exactRepeat: 0.4,
     rhythmLock: 0.35, vocabulary: 0.25, earlyRestate: true,
+    mottoAdherence: 0.55, harmonicSimplicity: 0.4,
   },
   {
     id: 'catchy', level: 3, label: 'Catchy',
     gloss: 'one rhythm per phrase, tighter vocabulary, every section recalled',
     recall: 1, harmonyRecall: 1, sequence: 2.2, exactRepeat: 0.8,
     rhythmLock: 0.7, vocabulary: 0.5, earlyRestate: true,
+    mottoAdherence: 0.8, harmonicSimplicity: 0.7,
   },
   {
     id: 'earworm', level: 4, label: 'Earworm',
     gloss: 'maximum repetition — simple on purpose, and hard to shake',
     recall: 1, harmonyRecall: 1, sequence: 3, exactRepeat: 1,
     rhythmLock: 1, vocabulary: 0.8, earlyRestate: true,
+    mottoAdherence: 1, harmonicSimplicity: 0.9,
   },
 ];
 

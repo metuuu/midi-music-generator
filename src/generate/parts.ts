@@ -10,14 +10,15 @@
  */
 
 import type { Chord } from '../core/chord.js';
-import { chordPcs, voiceChord } from '../core/chord.js';
+import { chordPcs } from '../core/chord.js';
+import { voiceChord } from '../core/voicing.js';
 import type { Midi } from '../core/pitch.js';
 import { clampToRange, nearestPc, pc } from '../core/pitch.js';
 import type { Rng } from '../core/rng.js';
 import type { DrumEvent, DrumVoice, NoteEvent } from '../core/types.js';
 import type { Scale } from '../core/scale.js';
 import type { BassPattern, CompPattern, DrumPattern, Style } from '../style/types.js';
-import { SLOTS_PER_BEAT } from './melody.js';
+import { SLOTS_PER_BEAT } from './rhythm.js';
 
 export interface PartContext {
   chords: Chord[];
@@ -219,11 +220,17 @@ export function generateComp(
   centre: Midi,
   /** Needed for quartal voicings, which draw on the scale rather than the chord. */
   scaleFor?: (chord: Chord) => Scale,
+  /** Register discipline from the arranger — see `generate/arrange.ts`. */
+  limits: { ceiling?: Midi; clarity?: number } = {},
 ): NoteEvent[] {
   const { chords, beatsPerBar, startBeat, rng } = ctx;
   const out: NoteEvent[] = [];
-  const lo = centre - 10;
-  const hi = centre + 12;
+  // With a ceiling in force the window is anchored to it rather than to the
+  // instrument's centre: a comp given five semitones to voice a seventh chord
+  // in has no choice but to make a cluster, so it is given a proper octave and
+  // a bit underneath the tune instead.
+  const hi = limits.ceiling ?? centre + 12;
+  const lo = limits.ceiling !== undefined ? Math.min(centre - 10, hi - 17) : centre - 10;
   let previous: Midi[] | undefined;
   // Runs across barlines on purpose — see `arpeggio` in style/types.ts.
   let step = 0;
@@ -236,6 +243,7 @@ export function generateComp(
       lo,
       hi,
       style: pattern.voicing ?? 'tertian',
+      ...(limits.clarity !== undefined ? { clarity: limits.clarity } : {}),
       ...(scaleFor ? { scale: scaleFor(chord) } : {}),
       ...(previous ? { previous } : {}),
     });
@@ -257,12 +265,24 @@ export function generateComp(
   return pattern.sustain ? mergeHeld(out) : out;
 }
 
-/** Sustained chords, merged across repeated harmony so the pad breathes. */
-export function generatePad(ctx: PartContext, centre: Midi, voices = 4): NoteEvent[] {
+/**
+ * Sustained chords, merged across repeated harmony so the pad breathes.
+ *
+ * Voiced `spread` rather than close. A pad in close position occupies the same
+ * few semitones as the comp playing the same chord, and the two stop reading as
+ * two layers — the pad becomes thickness rather than colour. Opening the stack
+ * out is what gives it its own place in the texture.
+ */
+export function generatePad(
+  ctx: PartContext,
+  centre: Midi,
+  voices = 4,
+  limits: { ceiling?: Midi; clarity?: number } = {},
+): NoteEvent[] {
   const { chords, beatsPerBar, startBeat } = ctx;
   const out: NoteEvent[] = [];
-  const lo = centre - 8;
-  const hi = centre + 14;
+  const hi = limits.ceiling ?? centre + 14;
+  const lo = limits.ceiling !== undefined ? Math.min(centre - 10, hi - 22) : centre - 10;
   let previous: Midi[] | undefined;
 
   let bar = 0;
@@ -275,7 +295,8 @@ export function generatePad(ctx: PartContext, centre: Midi, voices = 4): NoteEve
     ) span++;
 
     const voicing = voiceChord(chord, {
-      voices, centre, lo, hi,
+      voices, centre, lo, hi, style: 'spread',
+      ...(limits.clarity !== undefined ? { clarity: limits.clarity } : {}),
       ...(previous ? { previous } : {}),
     });
     previous = voicing;
@@ -298,15 +319,22 @@ export function generatePad(ctx: PartContext, centre: Midi, voices = 4): NoteEve
  * pickup stab into section-ending bars. Deliberately sparse — brass in this
  * music answers the tune, it does not compete with it.
  */
-export function generateBrass(ctx: PartContext, centre: Midi): NoteEvent[] {
+export function generateBrass(
+  ctx: PartContext,
+  centre: Midi,
+  limits: { ceiling?: Midi; clarity?: number } = {},
+): NoteEvent[] {
   const { chords, beatsPerBar, startBeat, rng } = ctx;
   const out: NoteEvent[] = [];
+  const hi = limits.ceiling ?? centre + 12;
+  const lo = limits.ceiling !== undefined ? Math.min(centre - 9, hi - 15) : centre - 9;
   let previous: Midi[] | undefined;
 
   for (let bar = 0; bar < chords.length; bar++) {
     const chord = chords[bar]!;
     const voicing = voiceChord(chord, {
-      voices: 3, centre, lo: centre - 9, hi: centre + 12,
+      voices: 3, centre, lo, hi,
+      ...(limits.clarity !== undefined ? { clarity: limits.clarity } : {}),
       ...(previous ? { previous } : {}),
     });
     previous = voicing;

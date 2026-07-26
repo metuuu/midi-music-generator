@@ -1,0 +1,262 @@
+/**
+ * Arrangement — deciding which layer occupies which register, and keeping them
+ * out of each other's way.
+ *
+ * Every part in this generator was individually correct and the result still
+ * sounded muddled, for a reason that has nothing to do with harmony: the layers
+ * were all writing in the same octave. Each part took its register from its own
+ * instrument's centre and knew nothing about the others, so the comp routinely
+ * voiced itself straight through the tune. Measured before this file existed,
+ * **the melody was being played at unison by its own accompaniment on 21–34% of
+ * its notes**, and the mean top note of the comp sat *above* the mean bottom
+ * note of the melody.
+ *
+ * That is the single most destructive thing an arrangement can do. A melody
+ * doubled at unison by a sustaining chord instrument stops being a melody — it
+ * fuses into the chord and the ear hears texture where it should hear a tune.
+ * No amount of work on the notes themselves can survive it, which is why this
+ * file comes before the note-level rules rather than after them.
+ *
+ * Two mechanisms, deliberately overlapping:
+ *
+ *  1. **Register planning**, ahead of time. The lead's tessitura is reserved and
+ *     every accompaniment layer is given a ceiling under it. This is what makes
+ *     the texture *stratified* — bass, comp, pad, tune, in that order, the way a
+ *     score is laid out.
+ *  2. **Collision repair**, afterwards. A ceiling is a static guess, and the
+ *     melody does not always sit where it was expected to. The repair pass sees
+ *     the finished melody and moves whatever is still doubling it.
+ *
+ * Both are scaled by `clarity`, which comes from smoothness. At smoothness 0
+ * the layers are allowed to pile into one octave, because that is a legitimate
+ * raw sound and the axis is supposed to mean something at both ends.
+ */
+
+import type { Midi } from '../core/pitch.js';
+import { pc } from '../core/pitch.js';
+import { minInterval } from '../core/voicing.js';
+import type { LayerId, NoteEvent } from '../core/types.js';
+
+/** Layers that must stay out of the lead's register. */
+const ACCOMPANIMENT: LayerId[] = ['comp', 'pad', 'brass'];
+
+export interface RegisterPlan {
+  /** The register the lead line is written in. */
+  lead: [Midi, Midi];
+  /**
+   * Highest note each accompaniment layer may reach, exclusive. Undefined means
+   * unconstrained — which is what an instrumental section with no tune gets.
+   */
+  ceiling: Partial<Record<LayerId, Midi>>;
+}
+
+/**
+ * Reserve the lead's register and push the accompaniment underneath it.
+ *
+ * The ceiling is set from the lead's *tessitura* rather than from its nominal
+ * range. The two are very different: a range of a twelfth is declared, but the
+ * phrase arc keeps the line inside the upper half of it almost all the time, so
+ * a ceiling at the bottom of the declared range would shove the comp an octave
+ * lower than it needs to go and hollow out the middle of the arrangement.
+ *
+ * `leadPresent` is false in sections with no tune, where the accompaniment is
+ * the whole texture and should be allowed to fill the register it would
+ * otherwise vacate. That contrast — the comp opening up when the tune drops out
+ * and shrinking back when it returns — is most of what makes an arrangement
+ * sound arranged.
+ */
+export function planRegisters(args: {
+  leadCentre: Midi;
+  /** The style's melodic span, in semitones. */
+  span: number;
+  leadPresent: boolean;
+  /** 0 = layers may pile up, 1 = textbook separation. From smoothness. */
+  clarity: number;
+  /** Per-layer instrument centres, so no layer is pushed off its instrument. */
+  centres: Partial<Record<LayerId, Midi>>;
+}): RegisterPlan {
+  const { leadCentre, span, leadPresent, clarity, centres } = args;
+  const top = Math.round(leadCentre + span * 0.6);
+  const ceiling: Partial<Record<LayerId, Midi>> = {};
+  if (!leadPresent) {
+    return { lead: [Math.round(leadCentre - span * 0.6), top], ceiling };
+  }
+
+  // Where the line actually lives, as opposed to where it is allowed to go.
+  const tessituraLo = leadCentre - span * 0.35;
+  // At full clarity the accompaniment stops where the tune starts; slackening
+  // it lets the two interleave by up to a fourth.
+  const overlap = (1 - clamp01(clarity)) * 5;
+  const wanted = Math.round(tessituraLo + overlap);
+
+  let highest = -Infinity;
+  for (const layer of ACCOMPANIMENT) {
+    /**
+     * The pad sits lower than the comp, and wider.
+     *
+     * Given the same ceiling the two produce the *identical voicing* — same
+     * chord, same window, same voice-leading rule — and two layers playing the
+     * same notes are not two layers, they are one layer at twice the volume.
+     * Dropping the pad a minor third and voicing it `spread` (see
+     * `generatePad`) is what turns "chords, twice" into a bed with a rhythm
+     * part on top of it.
+     */
+    const offset = layer === 'pad' ? -3 : 0;
+    // Never push a layer so far down that it leaves its instrument's usable
+    // register — a comp squeezed into the bass is worse than a little overlap.
+    // A chord instrument comping nine semitones below its centre is ordinary.
+    const floor = (centres[layer] ?? 60) - (layer === 'pad' ? 14 : 9);
+    const c = Math.max(wanted + offset, floor);
+    ceiling[layer] = c;
+    highest = Math.max(highest, c);
+  }
+
+  /**
+   * Raise the tune's floor to meet the accompaniment's ceiling.
+   *
+   * Without this the two windows overlap by design and the repair pass has to
+   * clean up after every collision. Making them abut means the separation holds
+   * by construction: the melody cannot descend into the chord because it has
+   * nowhere to descend to.
+   *
+   * The floor is capped short of the lead's centre so a high-voiced comp cannot
+   * squeeze the melody into a sliver at the top of its range.
+   */
+  const cap = Math.round(leadCentre - span * 0.3);
+  const floor = Math.min(Math.max(Math.round(leadCentre - span * 0.6), highest), cap);
+  /**
+   * A tune needs an octave, and it needs a *whole* one.
+   *
+   * Below twelve semitones the window stops containing every pitch class, and
+   * the cadence machinery quietly breaks: it aims at the tonic, finds no tonic
+   * inside the range, and settles for whichever note the clamp happens to land
+   * on. Sections closing on the tonic fell from 72% to 49% before this line
+   * existed — a phrase that does not end where it was headed is the most
+   * audible structural fault there is, and it showed up as a *narrowing*
+   * problem rather than as a harmonic one.
+   */
+  const lead: [Midi, Midi] = [floor, Math.max(top, floor + 12)];
+  return { lead, ceiling };
+}
+
+/**
+ * Move accompaniment notes that are doubling or grinding against the melody.
+ *
+ * Runs after the melody exists, on the layers whose notes sustain long enough
+ * to fuse with it. Three faults, in descending order of how much damage they do:
+ *
+ *  - **unison** — the accompaniment is playing the melody's exact pitch. The
+ *    tune disappears into the chord.
+ *  - **octave** — audible as doubling rather than as a clash, and often wanted,
+ *    so it is only touched at high clarity.
+ *  - **minor ninth** — a semitone apart across an octave. Reliably sour.
+ *
+ * The repair is always downward by an octave, never sideways to another chord
+ * tone: moving a voice to a different note changes the harmony, and an octave
+ * displacement keeps the chord exactly as voiced while removing the collision.
+ * When the octave down would break the voicing's own spacing, the note is left
+ * alone — one audible unison is better than a manufactured cluster.
+ */
+export function resolveCollisions(args: {
+  melody: readonly NoteEvent[];
+  layers: Map<LayerId, NoteEvent[]>;
+  clarity: number;
+  floor: Midi;
+}): number {
+  const { melody, layers, clarity, floor } = args;
+  if (!melody.length || clarity <= 0) return 0;
+
+  // Index the melody by sixteenth so a sustained chord can be tested against
+  // every note it overlaps, not just the one it started with.
+  const RES = 4;
+  const melodyAt = new Map<number, Midi[]>();
+  for (const n of melody) {
+    const from = Math.round(n.beat * RES);
+    const to = Math.max(from + 1, Math.round((n.beat + n.duration) * RES));
+    for (let s = from; s < to; s++) {
+      const arr = melodyAt.get(s);
+      if (arr) arr.push(n.midi);
+      else melodyAt.set(s, [n.midi]);
+    }
+  }
+
+  const fixOctaves = clarity >= 0.75;
+  const drop = new Set<NoteEvent>();
+  let moved = 0;
+
+  for (const layer of ACCOMPANIMENT) {
+    const notes = layers.get(layer);
+    if (!notes?.length) continue;
+
+    // Simultaneous notes form a voicing; a repair has to respect its spacing.
+    const chordAt = new Map<number, NoteEvent[]>();
+    for (const n of notes) {
+      const k = Math.round(n.beat * RES);
+      const arr = chordAt.get(k);
+      if (arr) arr.push(n);
+      else chordAt.set(k, [n]);
+    }
+
+    for (const n of notes) {
+      const from = Math.round(n.beat * RES);
+      const to = Math.max(from + 1, Math.round((n.beat + n.duration) * RES));
+      let fault = false;
+      for (let s = from; s < to && !fault; s++) {
+        for (const m of melodyAt.get(s) ?? []) {
+          const d = Math.abs(n.midi - m);
+          if (d === 0) fault = true;
+          else if (d === 13) fault = true;                 // minor ninth
+          else if (fixOctaves && d === 12 && layer !== 'pad') fault = true;
+        }
+      }
+      if (!fault) continue;
+
+      const together = (chordAt.get(from) ?? []).filter((o) => o !== n);
+      const lower = n.midi - 12;
+      const safe = lower >= floor && together.every((o) => {
+        if (o.midi === lower) return false;
+        const bottom = Math.min(o.midi, lower);
+        return Math.abs(o.midi - lower) >= minInterval(bottom, clarity);
+      });
+
+      if (safe) {
+        n.midi = lower;
+        moved++;
+        continue;
+      }
+
+      // Nowhere to put it. Thin the voicing instead — which is what an arranger
+      // does when a voice is in the singer's way and cannot be moved. Only safe
+      // when the note is a doubling or the chord can spare its top: dropping a
+      // note that is carrying the chord's quality trades one fault for a worse
+      // one.
+      const doubled = together.some((o) => pc(o.midi) === pc(n.midi));
+      const isTop = together.every((o) => o.midi < n.midi);
+      if (together.length >= 2 && (doubled || (isTop && together.length >= 3))) {
+        drop.add(n);
+        moved++;
+      }
+    }
+
+    if (drop.size) {
+      for (let i = notes.length - 1; i >= 0; i--) {
+        if (drop.has(notes[i]!)) notes.splice(i, 1);
+      }
+      drop.clear();
+    }
+  }
+  return moved;
+}
+
+/**
+ * Whether a pitch class is already carried by another voice of the same chord.
+ * Used by the audit; kept here so the definition of "doubling" lives in one
+ * place.
+ */
+export function doubles(voicing: readonly Midi[], midi: Midi): boolean {
+  return voicing.filter((v) => pc(v) === pc(midi)).length > 1;
+}
+
+function clamp01(v: number): number {
+  return Math.max(0, Math.min(1, v));
+}

@@ -143,7 +143,7 @@ const tango: Style = {
       hh: [0, 2, 4, 6, 8, 10, 12, 14],
     } },
   ],
-  melody: { leap: 0.22, ornament: 0.14, span: 14, sequence: 0.42 },
+  melody: { leap: 0.22, ornament: 0.14, span: 14, sequence: 0.42, syncopation: 0.55 },
 };
 
 /**
@@ -251,7 +251,7 @@ const humppa: Style = {
       hh: [0, 2, 4, 6, 8, 10, 12, 14],
     } },
   ],
-  melody: { leap: 0.3, ornament: 0.2, span: 12, sequence: 0.5 },
+  melody: { leap: 0.3, ornament: 0.2, span: 12, sequence: 0.5, syncopation: 0.12 },
 };
 
 /**
@@ -342,7 +342,7 @@ const valssi: Style = {
     { name: 'waltz-light', weight: 5, voices: { bd: [0], sd: [4, 8], hh: [0, 4, 8] } },
     { name: 'waltz-brush', weight: 3, voices: { bd: [0], hh: [0, 2, 4, 6, 8, 10] } },
   ],
-  melody: { leap: 0.2, ornament: 0.16, span: 14, sequence: 0.45 },
+  melody: { leap: 0.2, ornament: 0.16, span: 14, sequence: 0.45, syncopation: 0.18 },
 };
 
 /**
@@ -417,7 +417,7 @@ const jenkka: Style = {
       bd: [0, 8], sd: [4, 12], hh: [0, 2, 4, 6, 8, 10, 12, 14],
     } },
   ],
-  melody: { leap: 0.28, ornament: 0.22, span: 12, sequence: 0.5 },
+  melody: { leap: 0.28, ornament: 0.22, span: 12, sequence: 0.5, syncopation: 0.3 },
 };
 
 /**
@@ -503,7 +503,7 @@ const foksi: Style = {
       bd: [0], rim: [4, 12], rd: [0, 3, 4, 7, 8, 11, 12, 15],
     } },
   ],
-  melody: { leap: 0.26, ornament: 0.24, span: 15, sequence: 0.35 },
+  melody: { leap: 0.26, ornament: 0.24, span: 15, sequence: 0.35, syncopation: 0.45 },
 };
 
 /**
@@ -596,7 +596,7 @@ const beguine: Style = {
       bd: [0, 6, 12], perc: [2, 6, 10, 14], hh: [0, 2, 4, 6, 8, 10, 12, 14],
     } },
   ],
-  melody: { leap: 0.24, ornament: 0.18, span: 14, sequence: 0.4 },
+  melody: { leap: 0.24, ornament: 0.18, span: 14, sequence: 0.4, syncopation: 0.6 },
 };
 
 /**
@@ -724,7 +724,7 @@ const iskelmapop: Style = {
       hh: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
     } },
   ],
-  melody: { leap: 0.24, ornament: 0.12, span: 14, sequence: 0.5 },
+  melody: { leap: 0.24, ornament: 0.12, span: 14, sequence: 0.5, syncopation: 0.4 },
 };
 
 export const STYLES: Record<string, Style> = {
