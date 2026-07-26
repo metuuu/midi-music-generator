@@ -68,11 +68,16 @@ Set per genre, overridable per style, overridable per call.
 |---|---|
 | iskelmä | `standard` |
 | jazz | `loose` |
+| ambient | `catchy` |
 | humppa, iskelmäpop | `catchy` |
 | blues | `standard` |
 | bebop, modal | `through` |
+| ambient's `wasteland` | `loose` |
+| ambient's `drone` | `earworm` |
 
 Bebop is off for the same reason its constraints are: a bebop line is an argument that never repeats itself. Modal jazz declines to mark time at all, and with the harmony holding still a recalled tune would be the only thing marking it.
+
+Ambient sits at the other extreme and for a reason that sounds like the modal one but is not. Modal jazz holds its harmony still so that *nothing* marks time; ambient holds its harmony still and then loops it, so the returning eight bars are the only structure there is. `drone` goes all the way to `earworm`, which is the one place in this project where maximum repetition is a description of the genre rather than a setting applied to it. `wasteland` pulls back to `loose`, because its fragments are supposed to sound overheard rather than composed.
 
 ## It is an A/B control, not a reroll
 

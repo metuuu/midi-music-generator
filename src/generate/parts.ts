@@ -72,7 +72,48 @@ export function generateBass(ctx: PartContext, pattern: BassPattern): NoteEvent[
       });
     }
   }
-  return out;
+  return pattern.sustain ? mergeHeld(out) : out;
+}
+
+/**
+ * Join notes that are the same pitch and meet end to end into one long note.
+ *
+ * The difference between a pedal and a pulse, and audible long before it is
+ * theoretical: at 60 BPM a re-articulated whole note is an attack every four
+ * seconds, which the ear reads as a part being played. Held through, the same
+ * pitches are one sustained tone that the rest of the arrangement moves over.
+ *
+ * Grouped by pitch before merging, because the parts that most want this are
+ * chordal: a four-note voicing repeated bar after bar is four independent held
+ * tones, and a scan that only ever compared each note to the one before it in
+ * time would never find its own pitch again through the three notes stacked on
+ * top of it.
+ *
+ * The tolerance is a sixteenth of a beat, so a pattern that leaves a deliberate
+ * breath — a `dur` short of the full bar — keeps it.
+ */
+function mergeHeld(notes: NoteEvent[]): NoteEvent[] {
+  const byPitch = new Map<Midi, NoteEvent[]>();
+  for (const n of notes) {
+    const arr = byPitch.get(n.midi);
+    if (arr) arr.push({ ...n });
+    else byPitch.set(n.midi, [{ ...n }]);
+  }
+
+  const out: NoteEvent[] = [];
+  for (const voice of byPitch.values()) {
+    voice.sort((a, b) => a.beat - b.beat);
+    let held: NoteEvent | undefined;
+    for (const note of voice) {
+      if (held && Math.abs(held.beat + held.duration - note.beat) < 0.0625) {
+        held.duration = note.beat + note.duration - held.beat;
+        continue;
+      }
+      out.push(note);
+      held = note;
+    }
+  }
+  return out.sort((a, b) => a.beat - b.beat || a.midi - b.midi);
 }
 
 /**
@@ -184,6 +225,8 @@ export function generateComp(
   const lo = centre - 10;
   const hi = centre + 12;
   let previous: Midi[] | undefined;
+  // Runs across barlines on purpose — see `arpeggio` in style/types.ts.
+  let step = 0;
 
   for (let bar = 0; bar < chords.length; bar++) {
     const chord = chords[bar]!;
@@ -200,7 +243,8 @@ export function generateComp(
     const barStart = startBeat + bar * beatsPerBar;
 
     for (const hit of pattern.hits) {
-      for (const midi of voicing) {
+      const sounding = pattern.arpeggio ? [voicing[step++ % voicing.length]!] : voicing;
+      for (const midi of sounding) {
         out.push({
           beat: barStart + hit.at / SLOTS_PER_BEAT,
           duration: hit.dur / SLOTS_PER_BEAT,
@@ -210,7 +254,7 @@ export function generateComp(
       }
     }
   }
-  return out;
+  return pattern.sustain ? mergeHeld(out) : out;
 }
 
 /** Sustained chords, merged across repeated harmony so the pad breathes. */
@@ -293,16 +337,23 @@ export function generateBrass(ctx: PartContext, centre: Midi): NoteEvent[] {
  * signature of the arrangement style, so rather than inventing an independent
  * line we look for holes — rests, or notes long enough to leave room — and
  * answer into them with chord tones.
+ *
+ * How fast the answer moves is the style's business, not this function's. An
+ * eighth-note figure is right for anything danced to and absurd in ambient,
+ * where the holes are bars long and the answer should be a bell, not a run.
+ * Everything below is expressed in multiples of `counterSpacing` so both come
+ * out of the same code.
  */
 export function generateCounter(
   ctx: PartContext,
   melody: NoteEvent[],
   centre: Midi,
 ): NoteEvent[] {
-  const { chords, beatsPerBar, startBeat, rng } = ctx;
+  const { chords, beatsPerBar, startBeat, rng, style } = ctx;
   const out: NoteEvent[] = [];
   const lo = centre - 9;
   const hi = centre + 9;
+  const spacing = style.counterSpacing ?? 0.5;
 
   for (let bar = 0; bar < chords.length; bar++) {
     const barStart = startBeat + bar * beatsPerBar;
@@ -320,19 +371,21 @@ export function generateCounter(
     }
     if (barEnd - cursor > bestLen) { bestLen = barEnd - cursor; bestStart = cursor; }
 
-    if (bestLen < 1 || !rng.chance(0.45)) continue;
+    // Two notes' worth of room is the price of admission, whatever a note costs
+    // in this style.
+    if (bestLen < spacing * 2 || !rng.chance(0.45)) continue;
 
     const chord = chords[bar]!;
     const tones = chordPcs(chord);
-    const count = Math.min(3, Math.max(1, Math.floor(bestLen)));
+    const count = Math.min(3, Math.max(1, Math.floor(bestLen / (spacing * 2))));
     let prev = clampToRange(nearestPc(tones[0]!, centre), lo, hi);
     for (let i = 0; i < count; i++) {
       const target = tones[(i + 1) % tones.length]!;
       const midi = clampToRange(nearestPc(target, prev), lo, hi);
       prev = midi;
       out.push({
-        beat: bestStart + i * 0.5,
-        duration: 0.45,
+        beat: bestStart + i * spacing,
+        duration: spacing * 0.9,
         midi,
         velocity: 0.5 * rng.float(0.9, 1.05),
       });

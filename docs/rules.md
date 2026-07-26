@@ -63,3 +63,15 @@ Genres that disagree with a threshold adjust it rather than forking the table.
 | `parallel-perfects` | polished | never |
 | `augmented-second` | light | standard |
 | `avoid-fourth` | standard | strict |
+
+### Ambient
+
+| Rule | Prefers from | Forbids from |
+|---|---|---|
+| `unresolved-leading-tone` | never | never |
+| `unresolved-seventh` | polished | never |
+| `parallel-perfects` | never | never |
+| `avoid-fourth` | never | never |
+| `static-repetition` | never | never |
+| `repeated-note-run` | polished | never |
+| `flat-nine` | polished | never |

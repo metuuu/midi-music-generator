@@ -1,7 +1,7 @@
 {
   "name": "midi-music-generator",
   "version": "0.1.0",
-  "description": "Rule-based generator for Finnish iskelmä (instrumental) — renders to MIDI and Strudel",
+  "description": "Rule-based generator for instrumental iskelmä, jazz and ambient — renders to MIDI and Strudel",
   "type": "module",
   "license": "MIT",
   "scripts": {

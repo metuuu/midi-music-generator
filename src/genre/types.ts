@@ -6,20 +6,27 @@
  * songs are called, how they are structured, and — importantly — how a melody
  * relates to the harmony underneath it.
  *
- * That last point is the one that forced this abstraction to exist. In iskelmä
- * the melody follows the *key*: natural minor throughout, harmonic minor at
- * cadences. In jazz the melody follows the *chord*: every chord quality
- * implies its own scale, and the line re-orients bar by bar. Those are not two
- * settings of one system, they are two different systems, and pretending
- * otherwise would produce jazz that sounds like iskelmä with extensions bolted
- * on.
+ * That last point is the one that forced this abstraction to exist, and there
+ * are now three genuinely different answers to it:
+ *
+ *  - **iskelmä** follows the *key* — natural minor throughout, harmonic minor
+ *    at cadences;
+ *  - **jazz** follows the *chord* — every chord quality implies its own scale,
+ *    and the line re-orients bar by bar;
+ *  - **ambient** follows the *drone* — one scale rooted on the tonic for the
+ *    whole piece, bent to absorb whatever the chord underneath happens to be,
+ *    so the tonal centre never moves at all.
+ *
+ * Those are not three settings of one system. Pretending otherwise would
+ * produce jazz that sounds like iskelmä with extensions bolted on, and ambient
+ * that sounds like a very slow ballad.
  */
 
 import type { Chord } from '../core/chord.js';
 import type { Pc } from '../core/pitch.js';
 import type { Rng } from '../core/rng.js';
 import type { Mode, Scale } from '../core/scale.js';
-import type { SectionKind } from '../core/types.js';
+import type { DrumVoice, Effects, LayerId, SectionKind, Space } from '../core/types.js';
 import type { RuleOverrides, StrictnessId } from '../generate/constraints.js';
 import type { HookId } from '../generate/hook.js';
 import type { EraProfile, Mood, Style } from '../style/types.js';
@@ -83,9 +90,39 @@ export interface Genre {
 
   /**
    * Which scale the melody should draw on for a given chord.
-   * Key-relative for iskelmä, chord-relative for jazz.
+   * Key-relative for iskelmä, chord-relative for jazz, drone-relative for
+   * ambient.
    */
   scaleForChord(tonic: Pc, mode: Mode, chord: Chord): Scale;
+
+  /**
+   * Per-layer mix overrides, 0..1, `drums` included. Omitted layers keep the
+   * default dance-band balance — melody loudest, pad furthest back. Ambient
+   * inverts that, which is a statement about the music rather than a taste in
+   * mixing: there the pad is the piece and the kit, when there is one, is
+   * barely present.
+   */
+  mix?: Partial<Record<LayerId, number>>;
+
+  /**
+   * Per-voice balance inside the kit, 0..1. Merged over `DEFAULT_DRUM_MIX`.
+   * A genre that wants its hats further back than everyone else's says so
+   * here rather than by writing quieter patterns.
+   */
+  drumMix?: Partial<Record<DrumVoice, number>>;
+
+  /**
+   * The room. Merged over `DEFAULT_SPACE`; an era may refine it further.
+   */
+  space?: Partial<Space>;
+
+  /**
+   * Filtering, reverb send and stereo position per layer. Merged under the
+   * era's, because production is mostly an era decision — but a genre-wide
+   * statement belongs here: ambient wants a dry bass and a drenched pad
+   * whichever decade it is pretending to be from.
+   */
+  effects?: Partial<Record<LayerId, Effects>>;
 
   /** Length in seconds a track of this genre should aim for. */
   duration: [number, number];

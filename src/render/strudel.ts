@@ -17,7 +17,7 @@
  */
 
 import { midiToNoteName, spellingFor } from '../core/pitch.js';
-import type { DrumVoice, NoteEvent, Song, Track, Vowel } from '../core/types.js';
+import type { DrumVoice, Effects, NoteEvent, Song, Track, Vowel } from '../core/types.js';
 import {
   CONSONANTS, FORMANT_BANDWIDTHS, FORMANT_GAINS, VOWEL_FORMANTS,
 } from '../style/vocals.js';
@@ -75,6 +75,7 @@ export function renderStrudel(song: Song, opts: StrudelRenderOptions = {}): stri
       `  note(\`${formatGrid(grid)}\`)`,
       `    .sound('${track.strudelSound}')`,
       `    .gain(${track.gain.toFixed(2)})`,
+      ...effectChain(track.effects, song),
     ].join('\n'));
   }
 
@@ -103,7 +104,8 @@ export function renderStrudel(song: Song, opts: StrudelRenderOptions = {}): stri
         `  // drums — ${voice}`,
         `  s(\`${formatGrid(bars)}\`)`,
         `    .bank('${song.drums.bank}')`,
-        `    .gain(${(song.drums.gain * DRUM_VOICE_GAIN[voice]).toFixed(2)})`,
+        `    .gain(${(song.drums.gain * (song.drums.voiceGains[voice] ?? 1)).toFixed(2)})`,
+        ...effectChain(song.drums.effects, song),
       ].join('\n'),
     );
   }
@@ -123,11 +125,40 @@ export function renderStrudel(song: Song, opts: StrudelRenderOptions = {}): stri
 export const DRUM_SAMPLES_URL =
   'https://raw.githubusercontent.com/felixroos/dough-samples/main/tidal-drum-machines.json';
 
-/** Rough per-voice balance so hats don't swamp the kick. */
-const DRUM_VOICE_GAIN: Record<DrumVoice, number> = {
-  bd: 1.0, sd: 0.85, rim: 0.7, hh: 0.45, oh: 0.5, cp: 0.7,
-  lt: 0.7, mt: 0.7, ht: 0.7, cr: 0.55, rd: 0.5, perc: 0.6, cb: 0.5, sh: 0.4,
-};
+/**
+ * Effects, as superdough controls.
+ *
+ * Reverb and delay are *sends*: the size of the room and the length of the echo
+ * come from `song.space` and are emitted identically on every part that sends
+ * to them, so all of them land in one shared reverb rather than each conjuring
+ * its own. That is both how a mixer works and how MIDI's CC91 works, which is
+ * why the IR is shaped this way.
+ *
+ * `delaysync` rather than `delaytime`: superdough's `delaytime` is in seconds,
+ * and an echo specified in seconds stops being a musical interval the moment
+ * the tempo changes. `delaysync` is in cycles, and this renderer puts one bar
+ * in a cycle — so a delay written in beats converts exactly.
+ */
+function effectChain(fx: Effects | undefined, song: Song): string[] {
+  if (!fx) return [];
+  const { space, meta } = song;
+  const out: string[] = [];
+  if (fx.lowpass !== undefined) out.push(`    .lpf(${Math.round(fx.lowpass)})`);
+  if (fx.highpass !== undefined) out.push(`    .hpf(${Math.round(fx.highpass)})`);
+  if (fx.resonance !== undefined) out.push(`    .resonance(${(fx.resonance * 20).toFixed(1)})`);
+  if (fx.pan !== undefined) out.push(`    .pan(${((fx.pan + 1) / 2).toFixed(2)})`);
+  if (fx.reverb) {
+    out.push(`    .room(${fx.reverb.toFixed(2)}).roomsize(${space.reverbSize.toFixed(2)})`);
+  }
+  if (fx.delay) {
+    const cycles = space.delayBeats / meta.beatsPerBar;
+    out.push(
+      `    .delay(${fx.delay.toFixed(2)}).delaysync(${cycles.toFixed(4)})`
+      + `.delayfeedback(${space.delayFeedback.toFixed(2)})`,
+    );
+  }
+  return out;
+}
 
 /**
  * Lay notes onto a per-bar sixteenth grid.

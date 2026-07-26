@@ -31,6 +31,8 @@ export const SCALE_STEPS = {
   mixolydian: [0, 2, 4, 5, 7, 9, 10],
   /** Major 7th chords wanting a #11 colour. */
   lydian: [0, 2, 4, 6, 7, 9, 11],
+  /** Flat 2. The darkest mode ambient reaches for; the sound of a ♭II drone. */
+  phrygian: [0, 1, 3, 5, 7, 8, 10],
   /** Half-diminished chords. */
   locrian: [0, 1, 3, 5, 6, 8, 10],
   /** Whole-half diminished, for fully diminished sevenths. Eight notes. */

@@ -1,13 +1,14 @@
 # Music generator
 
-A rule-based generator for **instrumental Finnish iskelmä and jazz**, written for radio-style background music. It writes complete arrangements — form, harmony, melody, bass, comping, drums — and renders them to **MIDI** for offline rendering, and to **Strudel** code for auditioning in a browser.
+A rule-based generator for **instrumental iskelmä, jazz and ambient**, written for radio-style and game background music. It writes complete arrangements — form, harmony, melody, bass, comping, drums — and renders them to **MIDI** for offline rendering, and to **Strudel** code for auditioning in a browser.
 
 ```bash
 npm install
 npm run dev                                    # audition page at localhost:5178
 npm run gen -- -n 12 --genre jazz --mood smoky --out ./out
 npm run gen -- -n 12 --genre iskelma --mood kaihoisa --strictness strict
-npm run gen -- -n 12 --genre iskelma --hook earworm
+npm run gen -- -n 12 --genre ambient --style wasteland --out ./out
+npm run gen -- -n 12 --genre ambient --style choral --vocals
 ```
 
 Everything is deterministic: **a seed reproduces a song exactly**, so a whole station can be stored as a list of seeds rather than as audio.
@@ -18,12 +19,19 @@ Everything is deterministic: **a seed reproduces a song exactly**, so a whole st
 |---|---|
 | **Iskelmä** | tango · humppa · valssi · jenkka · foksi · beguine · 1980s iskelmäpop |
 | **Jazz** | medium swing · bebop · ballad · bossa nova · blues · modal · gypsy jazz |
+| **Ambient** | hauntology · wasteland · drone · kosmische · choral · aquatic |
 
-Each genre owns its own styles, production eras, moods, song titles, song forms, preferred keys — and its own rule for how melody relates to harmony. Iskelmä melody follows the *key*; jazz melody follows the *chord*. That difference is what keeps the two from sounding like the same engine in different hats.
+Each genre owns its own styles, production eras, moods, song titles, song forms, preferred keys — and its own rule for how melody relates to harmony. There are three genuinely different answers to that last one:
+
+- **iskelmä** melody follows the **key** — one scale for the whole song, harmonic minor at cadences;
+- **jazz** melody follows the **chord** — every chord quality implies its own scale and the line re-orients bar by bar;
+- **ambient** melody follows the **drone** — one scale rooted on the tonic for the whole piece, bent to absorb whatever chord passes underneath, so the tonal centre never moves at all.
+
+That difference is what keeps the three from sounding like the same engine in different hats.
 
 Four axes control the output, and all four are optional:
 
-- **genre** — `iskelma` or `jazz`
+- **genre** — `iskelma`, `jazz` or `ambient`
 - **style** — the dance or feel
 - **era** — the production: which drum machine, which instruments
 - **mood** — biases style, key, tempo and density without dictating notes
@@ -37,14 +45,28 @@ Smoothness asks whether a note is *wrong*; hook asks whether it is *familiar*. B
 
 Pin a seed and both settings become A/B controls rather than rerolls — the form, key, tempo, instruments and drums hold still while only the tune moves.
 
+## Ambient
+
+Layered, slow and long — three to five and a half minutes a track, harmony that moves once every four to eight bars, and drums that are frequently absent: two of the six styles exclude the kit outright and three more draw a beatless pattern a good share of the time. Two of the six are named after specific bodies of work: **hauntology** is the Boards of Canada sound (warm, tape-degraded, plagal, mode-mixture), and **wasteland** is Mark Morgan's Fallout score (a motionless low pedal, ♭II leaning on it from a semitone above, sparse metallic fragments). The rest cover pure drone, Berlin-school sequencers, sacred minimalism in 3/4, and deep ambient techno.
+
+Three things make it a different genre rather than everything else played slowly:
+
+- **No dominant.** `V` is absent from every table and where a chord on the fifth appears it is minor. A leading tone promises resolution; the idiom is defined by not resolving. `npm run genres` asserts that not one chord in the genre has dominant function.
+- **Sustain is the instrument.** Bass and comp patterns can declare `sustain`, which merges same-pitch notes that meet end to end — a drone bass holds for sixteen bars instead of re-striking every four seconds. The pad already worked this way; `requireLayers: ['pad']` is what guarantees it is there at all, because the default arrangement rules treat a pad as decoration and here it is the piece.
+- **The mix is inverted, and the kit is barely there.** `Genre.mix` puts the pad at 0.78 and the melody at 0.55 — the reverse of the dance-band balance every other genre uses — and the drums at 0.34, less than half. `Genre.drumMix` then takes the transients down further inside the kit (hats 0.45 → 0.18) and leaves the kick nearly alone, because a kit faded uniformly becomes a disembodied tick with no body under it.
+- **Effects are part of the composition.** A Boards of Canada track is a filtered, reverberant object; the dry notes underneath are not the piece. Reverb sends, delay, lowpass, highpass, resonance and pan live in the IR, defined per layer, genre-over-era. The bass stays dry everywhere (reverb on a sustained low tone is the fastest route to mud) and the kit is *filtered* rather than merely quiet — a lowpass at 1.4–2.4 kHz is what turns a drum machine into something heard through a wall.
+
+Ambient is also the genre this project was building toward — the layer stems and the `excludeLayers`/`requireLayers` machinery are what a game needs to duck and crossfade music under speech. See [docs/ambient.md](docs/ambient.md).
+
 ## Vocals
 
 `--vocals` adds a **wordless sung line** doubling the melody — no lyrics, no language, no localisation. The melody is folded by whole octaves into the voice's range and each note is sung on a vowel chosen from the pitch, the note length and the genre. Held notes and high notes open toward `a`; short ones close toward `u` and `i`.
 
-How often the vowel changes is most of the difference between the two genres. Iskelmä holds one across roughly five notes — legato, one line per breath. Jazz changes on every note, which is scat.
+How often the vowel changes is most of the difference between the genres. Iskelmä holds one across roughly five notes — legato, one line per breath. Jazz changes on every note, which is scat. Ambient holds one across ten and re-attacks once every two beats, which at these tempos is one syllable every two seconds — slower than any language, and about the rate a choir sings a held Latin vowel. The `choral` style is the one written for it.
 
 ```bash
 npm run gen -- --genre jazz --seed 42 --vocals
+npm run gen -- --genre ambient --style choral --seed 42 --vocals
 ```
 
 Vocals draw from their own RNG stream, so **a seed produces the identical instrumental arrangement either way** — the flag is an A/B on the voice, not a reroll. The audition page has a checkbox for it, and the layer toggles let you solo the voice against the instrument it doubles.
@@ -67,6 +89,7 @@ Five things went wrong on the way here, all of which produce a voice you cannot 
 
 - [docs/iskelma.md](docs/iskelma.md) — the iskelmä ruleset: dances, harmony, form, eras, moods
 - [docs/jazz.md](docs/jazz.md) — the jazz ruleset: styles, chord-scale mapping, walking bass, quartal voicings
+- [docs/ambient.md](docs/ambient.md) — the ambient ruleset: the drone rule, sustain, arpeggios, the inverted mix, effects
 - [docs/smoothness.md](docs/smoothness.md) — the constraint system and what each level costs
 - [docs/hook.md](docs/hook.md) — the repetition system: section recall, rhythm lock, vocabulary
 - [docs/rules.md](docs/rules.md) — every rule and its thresholds (generated from the code)
@@ -85,6 +108,8 @@ npm run rules       # regenerate docs/rules.md from the rule table
 
 `npm run genres` is the one worth knowing about. It asserts the things a refactor could silently break: that every style generates in both modes, that the blues is twelve bars, that swing swings and bossa does not, that the walking bass actually walks, that jazz melody takes dorian over a minor seventh while iskelmä takes harmonic minor over a dominant, that a chorus comes back as hook rises while a solo never does, and that changing hook leaves the form, key, tempo, instruments and drums untouched.
 
+For ambient it also asserts the negative claims, which are the ones that quietly rot: that no chord in the genre has dominant function, that every chord is reachable without the drone moving off the tonic, that the drumless styles genuinely have no kit, that nothing anywhere ends a section with a crash, that the drone bass holds for at least a bar, and that the sequencer plays one note at a time.
+
 ## Strudel and licensing
 
 **Strudel only runs in a browser.** It is a live-coding library built on Web Audio, so it cannot be the playback layer anywhere else. It is used here as a *composition and audition* tool. The shipping path is MIDI → rendered audio.
@@ -100,6 +125,7 @@ Two runtime assets the preview downloads are **not** covered by this repo: the [
 ## Known limitations
 
 - **Per-note velocity is not carried into the Strudel render.** Mini-notation has no inline velocity. Dynamics survive at the layer level there, and fully in the MIDI, which is what ships.
+- **Two effects do not survive to MIDI.** Reverb send and pan are GM level 1 (CC91, CC10) and ship everywhere; lowpass and resonance are GM2/GS (CC74, CC71) and need a synth that honours them, such as FluidSynth. **Delay and highpass have no GM controller at all** and exist only in the audition render — inventing a CC for them would produce a `.mid` that plays back correctly on exactly the synth it was tested against. A native engine reads all six from the IR.
 - **Jazz drums in the preview are drum machines.** No acoustic kit samples are available to it. MIDI output is unaffected.
 - **Soundfonts stream from a public CDN** in the browser preview. Use `setSoundfontUrl()` to self-host.
 - The counter-melody answers in the lead's gaps rather than being independently voice-led against it.

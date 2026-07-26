@@ -5,7 +5,7 @@
 ```
 src/core/       pitch, scales, chords, roman numerals, voice leading, Song IR
 src/style/      shared vocabulary — Style, EraProfile, Mood, instrument catalogue
-src/genre/      per-genre content: iskelma/ and jazz/
+src/genre/      per-genre content: iskelma/, jazz/ and ambient/
 src/generate/   form, harmony, motif melody engine, accompaniment, constraints, hook
 src/render/     midi.ts (ships)  ·  strudel.ts (auditions)
 src/web/        browser preview  ·  audio.ts is the only file importing Strudel
@@ -15,9 +15,27 @@ The generator produces a neutral **Song IR** — sections, tracks of note events
 
 ## Adding a genre
 
-A genre owns everything culturally specific: styles, eras, moods, titles, forms, keys, a default constraint level, a default repetition level, and a chord-scale rule. Add a folder under `src/genre/` and register it in `src/genre/index.ts`. Nothing in `generate/` or `render/` needs to change.
+A genre owns everything culturally specific: styles, eras, moods, titles, forms, keys, a default constraint level, a default repetition level, an optional per-layer mix, and a chord-scale rule. Add a folder under `src/genre/` and register it in `src/genre/index.ts`. Nothing in `generate/` or `render/` needs to change.
 
-The chord-scale rule is the interesting one. It answers "given this chord, where does the melody get its notes?" — key-relative for iskelmä, chord-relative for jazz. That one function is most of what makes two genres sound like different music rather than the same music with different chords.
+The chord-scale rule is the interesting one. It answers "given this chord, where does the melody get its notes?" — key-relative for iskelmä, chord-relative for jazz, drone-relative for ambient. That one function is most of what makes three genres sound like different music rather than the same music with different chords.
+
+Adding ambient did require three things of the shared engine, and all three are style-level knobs rather than genre special cases:
+
+- `excludeLayers` / `requireLayers` — a hard veto and a hard guarantee on which layers sound, applied after the density rules have run. The first was already declared and unused; the second exists because the default rules treat a pad as decoration, which is backwards for music where the pad is the piece.
+- `sustain` on a bass or comp pattern — merge same-pitch notes that meet end to end, so a pedal is a pedal rather than a note restruck every bar.
+- `arpeggio` on a comp pattern — one note of the voicing per hit, cycling across barlines, which is what a sequencer does and a pianist does not.
+
+Plus `drumFills: false` and `counterSpacing`, both of which are about pacing: the fill and the eighth-note answering figure are dance-band gestures that read as intrusions at ambient tempos.
+
+## Mix and effects
+
+`Track.effects`, `DrumTrack.effects` and `Song.space` are part of the IR, not of a renderer. Reverb and delay are modelled as **sends into one shared space** — the room has a size, each track has a distance — because that is how a mixing desk works and how MIDI works, where CC91 is a send to the synth's single global reverb.
+
+Only what a delivery format can carry is expressed. `reverb` and `pan` are GM level 1; `lowpass` and `resonance` are GM2/GS and documented as such; `delay` and `highpass` have no GM controller and are marked audition-only rather than smuggled through an arbitrary CC.
+
+Levels come from `Genre.mix` (per layer, `drums` included) and `Genre.drumMix` (per voice inside the kit, merged over `DEFAULT_DRUM_MIX`). The per-voice table used to live in the Strudel renderer, where MIDI could not see it; both renderers apply it now, so the audition and the shipping file agree about how loud the hats are. A kit shares one MIDI channel, so per-voice level goes into note velocity there.
+
+Effects are resolved **era over genre**, per layer: the genre says what is true of the music whatever decade it claims to be from, and the era says how wet and how dark that decade's records were. Genres that define none render exactly as dry as before.
 
 ## Layers
 

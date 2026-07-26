@@ -66,7 +66,19 @@ A genre declares `ruleOverrides` for what it disagrees with. Jazz overrides six:
 | `parallel-perfects` | never vetoed | Quartal planing and block-chord writing move in parallel on purpose. |
 | `avoid-fourth` | **tightened** | The natural 11 over a maj7 is a genuine avoid note here, more than in iskelmä. |
 
-Defaults: iskelmä `standard` (singability is what the genre lives on), jazz `light` (the rules stop a line wandering; jazz wanders on purpose), bebop `free`.
+Ambient overrides seven, and the reasoning has a single shape: each of them encodes an assumption about *function* that this music rejects.
+
+| Rule | Ambient | Why |
+|---|---|---|
+| `unresolved-leading-tone` | **off** | There is no dominant in the genre at all; a leading tone promises the resolution the idiom exists not to make. |
+| `parallel-perfects` | **off** | Planing a voicing, organum in fifths, a pad moving in blocks — parallel by construction. |
+| `avoid-fourth` | **off** | The 11 over a major chord is the default sound here: sus2, sus4 and quartal voicings are what open harmony is made of. |
+| `static-repetition` | **off** | The rule catches a melody that has run out of options. Ambient is barely moving on purpose. |
+| `unresolved-seventh` | relaxed | A seventh held in a pad for eight bars is a colour, not a dissonance under pressure. |
+| `repeated-note-run` | relaxed | Same pitch four times over sixteen seconds is a pulse, not a stall. |
+| `flat-nine` | relaxed | A ♭II leaning on a drone from a semitone above is the wasteland sound; the ♭9 against the pedal is the point. |
+
+Defaults: iskelmä `standard` (singability is what the genre lives on), jazz `light` (the rules stop a line wandering; jazz wanders on purpose), bebop `free`, ambient `standard` — a note that lasts four seconds is exposed in a way a passing eighth never is, so its drone and choral styles go further to `strict`, while `wasteland` drops to `light` because the sour intervals are what it is for.
 
 ## Does it know about instruments?
 

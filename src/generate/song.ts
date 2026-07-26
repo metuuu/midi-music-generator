@@ -6,21 +6,24 @@
  * under `src/genre/`; this file only knows how to assemble a song from those
  * parts.
  *
- * Two structural devices are handled here because both genres use them, for
- * different reasons:
+ * Two structural devices are handled here because more than one genre uses
+ * them, for different reasons:
  *  - a **solo section**, where the lead instrument rests and the counter
  *    instrument takes the tune (an accordion break in iskelmä, a blowing
- *    chorus in jazz),
- *  - and a **key change** for the final chorus, which is an iskelmä cliché and
- *    deliberately rare in jazz (each genre sets its own probability).
+ *    chorus in jazz; ambient has no such thing and its forms contain none),
+ *  - and a **key change** for the final chorus, which is an iskelmä cliché,
+ *    deliberately rare in jazz, and set to zero throughout ambient — each
+ *    genre's eras set their own probability.
  */
 
 import { parseRoman, type Chord } from '../core/chord.js';
 import { keyLabel, type Pc } from '../core/pitch.js';
 import { Rng } from '../core/rng.js';
 import type { Mode } from '../core/scale.js';
-import type {
-  DrumEvent, DrumTrack, LayerId, NoteEvent, Section, SectionKind, Song, Track,
+import {
+  DEFAULT_DRUM_MIX, DEFAULT_SPACE,
+  type DrumEvent, type DrumTrack, type Effects, type LayerId, type NoteEvent,
+  type Section, type SectionKind, type Song, type Space, type Track,
 } from '../core/types.js';
 import { GENRES, getGenre, type FormStep, type Genre } from '../genre/index.js';
 import { INSTRUMENTS, type Instrument, type InstrumentId } from '../style/instruments.js';
@@ -133,7 +136,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
       lengthBars: step.bars,
       transpose,
       mode,
-      activeLayers: layersFor(step.kind, density, mood, rng),
+      activeLayers: layersFor(step.kind, style, density, mood, rng),
       chordLabels: [],
     });
     bar += step.bars;
@@ -220,7 +223,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
 
     if (active.has('drums')) {
       drumEvents.push(...generateDrums(ctx, drumPattern, {
-        fillAtEnd: section.kind !== 'outro',
+        fillAtEnd: section.kind !== 'outro' && style.drumFills !== false,
         intensity,
       }));
     }
@@ -298,15 +301,35 @@ export function generateSong(opts: GenerateOptions = {}): Song {
     brass: instruments.brass,
   };
 
+  /**
+   * The default balance is a dance-band balance: the tune on top, the pad a
+   * long way behind it. A genre may say otherwise, and ambient does — there the
+   * pad is the piece and the melody is the decoration, which is the same three
+   * layers in the opposite order.
+   */
   const gains: Record<PlayedLayer, number> = {
     bass: 0.9, comp: 0.62, pad: 0.45, melody: 0.85, counter: 0.55, brass: 0.6,
+    ...genre.mix,
   };
+
+  /**
+   * Effects are resolved era-over-genre, per layer. The genre states what is
+   * true of the music whatever decade it claims to be from — ambient's bass is
+   * dry and its pad is drenched in 1974 and in 2004 alike — and the era says
+   * how wet and how dark that decade's records actually were.
+   */
+  const effectsFor = (layer: LayerId): Effects | undefined => {
+    const merged = { ...genre.effects?.[layer], ...era.effects?.[layer] };
+    return Object.keys(merged).length ? merged : undefined;
+  };
+  const space: Space = { ...DEFAULT_SPACE, ...genre.space, ...era.space };
 
   const tracks: Track[] = [];
   for (const [layer, instrument] of Object.entries(layerInstruments) as [PlayedLayer, Instrument][]) {
     const notes = byLayer.get(layer) ?? [];
     if (!notes.length) continue;
     notes.sort((a, b) => a.beat - b.beat || a.midi - b.midi);
+    const effects = effectsFor(layer);
     tracks.push({
       layer,
       instrument: instrument.name,
@@ -314,6 +337,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
       strudelSound: instrument.strudel,
       notes: applySwing(notes, style.swing),
       gain: gains[layer],
+      ...(effects ? { effects } : {}),
     });
   }
 
@@ -330,10 +354,15 @@ export function generateSong(opts: GenerateOptions = {}): Song {
   }
 
   drumEvents.sort((a, b) => a.beat - b.beat);
+  const drumEffects = effectsFor('drums');
   const drums: DrumTrack = {
     bank: drumBank,
     events: applySwingDrums(drumEvents, style.swing),
-    gain: 0.8,
+    // The kit is a layer like any other, so a genre that wants it barely
+    // present says so in `mix` rather than by writing quieter patterns.
+    gain: genre.mix?.drums ?? 0.8,
+    voiceGains: { ...DEFAULT_DRUM_MIX, ...genre.drumMix },
+    ...(drumEffects ? { effects: drumEffects } : {}),
   };
 
   return {
@@ -363,6 +392,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
     sections,
     tracks,
     drums,
+    space,
   };
 }
 
@@ -559,7 +589,7 @@ function lastChorusIndex(steps: FormStep[]): number {
   return -1;
 }
 
-function layersFor(kind: SectionKind, density: number, mood: Mood, rng: Rng): LayerId[] {
+function layersFor(kind: SectionKind, style: Style, density: number, mood: Mood, rng: Rng): LayerId[] {
   const base: Record<SectionKind, LayerId[]> = {
     intro: ['drums', 'bass', 'comp'],
     verse: ['drums', 'bass', 'comp', 'melody'],
@@ -585,6 +615,12 @@ function layersFor(kind: SectionKind, density: number, mood: Mood, rng: Rng): La
       if (layers.has(candidate)) { layers.delete(candidate); break; }
     }
   }
+
+  // The style's own veto and guarantee, applied last so they always win — and
+  // applied after every `rng` draw above, so adding them to a style cannot
+  // shift the stream for any style that does not use them.
+  for (const layer of style.excludeLayers ?? []) layers.delete(layer);
+  for (const layer of style.requireLayers ?? []) layers.add(layer);
   return [...layers];
 }
 

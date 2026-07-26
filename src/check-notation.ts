@@ -8,15 +8,19 @@
 
 import { generateSong } from './generate/song.js';
 import { renderStrudel } from './render/strudel.js';
+import { GENRE_IDS } from './genre/index.js';
 
 const problems: string[] = [];
 let bars = 0;
 let songs = 0;
 
-// Cover both genres: jazz brings extended chords, 3-note-plus voicings and
-// drum voices iskelmä never emits.
-for (let i = 0; i < 140; i++) {
-  const genre = i % 2 === 0 ? 'iskelma' : 'jazz';
+// Cover every genre in turn. Each brings something the others never emit: jazz
+// has extended chords and voicings past three notes, and ambient has notes that
+// last sixteen bars — which is the case most likely to break the grid, since a
+// bar-group cannot open with a sustain marker and a held note has to be
+// re-articulated at every barline it crosses.
+for (let i = 0; i < 150; i++) {
+  const genre = GENRE_IDS[i % GENRE_IDS.length]!;
   const song = generateSong({ seed: `notation-${i}`, genre });
   songs++;
   const code = renderStrudel(song, { includePrebake: true });

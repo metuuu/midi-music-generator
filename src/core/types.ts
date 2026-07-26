@@ -184,6 +184,85 @@ export type DrumVoice =
   /** Shaker — stands in for brushes, which jazz kits need and drum machines lack. */
   | 'sh';
 
+/**
+ * Relative level of each drum voice within the kit, 0..1.
+ *
+ * A kit is not one instrument at one level. A closed hi-hat struck as hard as a
+ * kick is roughly twice as loud to the ear, because hearing peaks exactly where
+ * a hat lives and bottoms out where a kick does — so a kit mixed by velocity
+ * alone is all cymbals. These numbers are the balance an engineer would set on
+ * the faders, and a genre may override any of them.
+ *
+ * This used to live in the Strudel renderer, where MIDI could not see it, which
+ * meant the audition and the shipping file disagreed about the drum balance.
+ */
+export const DEFAULT_DRUM_MIX: Record<DrumVoice, number> = {
+  bd: 1.0, sd: 0.85, rim: 0.7, hh: 0.45, oh: 0.5, cp: 0.7,
+  lt: 0.7, mt: 0.7, ht: 0.7, cr: 0.55, rd: 0.5, perc: 0.6, cb: 0.5, sh: 0.4,
+};
+
+/**
+ * Per-track effects.
+ *
+ * These are a *mix* decision rather than a musical one everywhere except
+ * ambient, where they are the composition: a Boards of Canada track is a
+ * filtered, saturated, reverberant object and the dry notes underneath are not
+ * the piece. That is the same argument as "the pad is the piece", and it is why
+ * this sits in the IR rather than in a renderer.
+ *
+ * Only what survives to a real delivery format is expressed here. Two fields
+ * are audition-only and say so — a native engine is free to implement them, and
+ * MIDI simply has nowhere to put them.
+ */
+export interface Effects {
+  /** Send to the song's reverb, 0..1. MIDI CC91 — GM level 1, universal. */
+  reverb?: number;
+  /**
+   * Send to the song's delay, 0..1. **Audition only**: MIDI has no standard
+   * delay controller, and inventing one would mean a .mid that only plays back
+   * correctly on the synth we happened to test.
+   */
+  delay?: number;
+  /**
+   * Lowpass cutoff in Hz. MIDI CC74, which is GM2/GS rather than GM1 and is
+   * defined *relative* to the patch's own filter — so the MIDI render only ever
+   * uses it to darken, never to brighten. FluidSynth honours it; a bare GM1
+   * device ignores it and you get the unfiltered patch, which is wrong but not
+   * broken.
+   */
+  lowpass?: number;
+  /** Highpass cutoff in Hz. **Audition only** — GM has no highpass. */
+  highpass?: number;
+  /** Filter resonance, 0..1. MIDI CC71, same GM2 caveat as `lowpass`. */
+  resonance?: number;
+  /** Stereo position, -1 hard left … +1 hard right. MIDI CC10. */
+  pan?: number;
+}
+
+/**
+ * The space every track sends into.
+ *
+ * Reverb size and delay time belong to the *room*, not to the instrument
+ * standing in it — one hall, and each player further forward or further back in
+ * it. That is how a mixer works and, not coincidentally, how MIDI works: CC91
+ * is a send level to the synth's single global reverb, and there is no
+ * per-channel reverb to give a size to.
+ */
+export interface Space {
+  /** Reverb decay and size, 0..1. */
+  reverbSize: number;
+  /** Delay time in *beats*, so it stays musical across tempos. */
+  delayBeats: number;
+  /** Delay feedback, 0..1. */
+  delayFeedback: number;
+}
+
+export const DEFAULT_SPACE: Space = {
+  reverbSize: 0.5,
+  delayBeats: 1,
+  delayFeedback: 0.3,
+};
+
 export interface Track {
   layer: LayerId;
   /** Human name, e.g. "accordion". */
@@ -200,6 +279,8 @@ export interface Track {
    * track is sung rather than played, and that the notes carry vowels.
    */
   voice?: VoiceSettings;
+  /** Filtering, reverb send and stereo position. Absent means dry and centred. */
+  effects?: Effects;
 }
 
 export interface DrumTrack {
@@ -207,6 +288,9 @@ export interface DrumTrack {
   bank: string;
   events: DrumEvent[];
   gain: number;
+  /** Relative level of each voice within the kit. See `DEFAULT_DRUM_MIX`. */
+  voiceGains: Record<DrumVoice, number>;
+  effects?: Effects;
 }
 
 export interface SongMeta {
@@ -245,6 +329,8 @@ export interface Song {
   sections: Section[];
   tracks: Track[];
   drums: DrumTrack;
+  /** The reverb and delay every track's send level refers to. */
+  space: Space;
 }
 
 export function songDurationBeats(song: Song): number {

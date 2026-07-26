@@ -79,6 +79,55 @@ export const INSTRUMENTS = {
   flute: I('flute', 73, 'gm_flute', 84, 0.7),
   padWarm: I('warm pad', 89, 'gm_pad_warm', 60, 0.5),
   celesta: I('celesta', 8, 'gm_celesta', 84, 1.0),
+
+  // --- The ambient shelf ---------------------------------------------------
+  // GM programs 88–103 are the eight synth pads and the eight "effects", and
+  // they exist almost entirely for this music. Every general-purpose genre
+  // above ignores them; ambient is built out of them.
+  //
+  // Centres sit lower than the melodic instruments above. A pad is a texture
+  // rather than a tune, and a texture wants the register where the ear stops
+  // tracking individual notes — roughly C3 to C4 for anything sustained. The
+  // bell voices are the exception and sit high, because a bell that is not
+  // above the pad is simply part of the pad.
+  padNewAge: I('new age pad', 88, 'gm_pad_new_age', 60, 0.5),
+  padPoly: I('polysynth pad', 90, 'gm_pad_poly', 60, 0.6),
+  padChoir: I('choir pad', 91, 'gm_pad_choir', 60, 0.45),
+  padBowed: I('bowed pad', 92, 'gm_pad_bowed', 60, 0.45),
+  padMetallic: I('metallic pad', 93, 'gm_pad_metallic', 60, 0.5),
+  padHalo: I('halo pad', 94, 'gm_pad_halo', 60, 0.45),
+  padSweep: I('sweep pad', 95, 'gm_pad_sweep', 60, 0.5),
+  fxRain: I('rain', 96, 'gm_fx_rain', 72, 0.6),
+  fxSoundtrack: I('soundtrack', 97, 'gm_fx_soundtrack', 60, 0.5),
+  fxCrystal: I('crystal', 98, 'gm_fx_crystal', 79, 0.9),
+  fxAtmosphere: I('atmosphere', 99, 'gm_fx_atmosphere', 67, 0.7),
+  fxBrightness: I('brightness', 100, 'gm_fx_brightness', 72, 0.7),
+  fxGoblins: I('goblins', 101, 'gm_fx_goblins', 55, 0.5),
+  fxEchoes: I('echoes', 102, 'gm_fx_echoes', 72, 0.7),
+  fxSciFi: I('sci-fi', 103, 'gm_fx_sci_fi', 67, 0.6),
+  choirAahs: I('choir', 52, 'gm_choir_aahs', 64, 0.4),
+  voiceOohs: I('voices', 53, 'gm_voice_oohs', 64, 0.4),
+  synthChoir: I('synth choir', 54, 'gm_synth_choir', 64, 0.45),
+  churchOrgan: I('church organ', 19, 'gm_church_organ', 60, 0.7),
+  reedOrgan: I('reed organ', 20, 'gm_reed_organ', 60, 0.7),
+  tubularBells: I('tubular bells', 14, 'gm_tubular_bells', 72, 1.0),
+  musicBox: I('music box', 10, 'gm_music_box', 84, 1.0),
+  kalimba: I('kalimba', 108, 'gm_kalimba', 72, 1.0),
+  marimba: I('marimba', 12, 'gm_marimba', 72, 1.0),
+  leadSquare: I('square lead', 80, 'gm_lead_1_square', 72, 0.9),
+  leadSaw: I('saw lead', 81, 'gm_lead_2_sawtooth', 72, 0.9),
+  leadCalliope: I('calliope lead', 82, 'gm_lead_3_calliope', 72, 0.8),
+  leadChiff: I('chiff lead', 83, 'gm_lead_4_chiff', 72, 0.8),
+  leadVoice: I('voice lead', 85, 'gm_lead_6_voice', 72, 0.7),
+  fretlessBass: I('fretless bass', 35, 'gm_fretless_bass', 40, 0.7),
+  synthBass2: I('synth bass 2', 39, 'gm_synth_bass_2', 40, 0.85),
+  cello: I('cello', 42, 'gm_cello', 52, 0.5),
+  contrabass: I('contrabass', 43, 'gm_contrabass', 40, 0.45),
+  // Sympathetic strings and a drone string of its own — the one plucked
+  // instrument that already behaves like a pad.
+  sitar: I('sitar', 104, 'gm_sitar', 60, 0.7),
+  panFlute: I('pan flute', 75, 'gm_pan_flute', 79, 0.6),
+  shakuhachi: I('shakuhachi', 77, 'gm_shakuhachi', 74, 0.55),
 } satisfies Record<string, Instrument>;
 
 export type InstrumentId = keyof typeof INSTRUMENTS;

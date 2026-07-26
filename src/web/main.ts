@@ -138,10 +138,13 @@ function describe(song: Song): void {
   els.title.textContent = meta.title;
   const mins = songDurationSeconds(song);
   const lift = song.sections.find((s) => s.transpose > 0);
+  // Ambient styles frequently have no kit at all, and naming a drum machine
+  // that never plays is worse than saying nothing.
+  const hasDrums = song.drums.events.length > 0;
   els.meta.innerHTML = [
     `<b>${meta.genreLabel}</b> — <b>${meta.styleLabel}</b> · ${meta.eraLabel}`,
     `${meta.keyLabel} · ${meta.bpm} BPM · ${meta.beatsPerBar}/${meta.beatUnit} · ${meta.totalBars} bars · ${Math.floor(mins / 60)}:${String(Math.round(mins % 60)).padStart(2, '0')}`,
-    `Drums: ${song.drums.bank}${lift ? ` · key change +${lift.transpose} for the last chorus` : ''}`,
+    `${hasDrums ? `Drums: ${song.drums.bank}` : 'No drums'}${lift ? ` · key change +${lift.transpose} for the last chorus` : ''}`,
     `Smoothness: <b>${meta.strictnessLabel}</b> — ${getStrictness(meta.strictness as StrictnessId).gloss}`,
     `Hook: <b>${meta.hookLabel}</b> — ${getHook(meta.hook as HookId).gloss}`,
     song.tracks.map((t) => `${t.layer}: <b>${t.instrument}</b>`).join(' · '),
@@ -158,7 +161,10 @@ function describe(song: Song): void {
   }
 
   els.layers.innerHTML = '';
-  const layers: LayerId[] = ['drums', ...song.tracks.map((t) => t.layer)];
+  const layers: LayerId[] = [
+    ...(hasDrums ? ['drums' as LayerId] : []),
+    ...song.tracks.map((t) => t.layer),
+  ];
   for (const layer of layers) {
     const el = document.createElement('span');
     el.className = `layer${muted.has(layer) ? '' : ' on'}`;

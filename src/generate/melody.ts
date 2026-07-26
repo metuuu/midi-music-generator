@@ -56,9 +56,9 @@ export interface MelodyOptions {
   accompaniment?: Accompaniment;
   /**
    * Which scale the melody draws on for a given chord. Supplied by the genre:
-   * key-relative for iskelmä, chord-relative for jazz. This one function is
-   * most of what makes the two genres sound like different music rather than
-   * the same music with different chords.
+   * key-relative for iskelmä, chord-relative for jazz, drone-relative for
+   * ambient. This one function is most of what makes the genres sound like
+   * different music rather than the same music with different chords.
    */
   scaleForChord?: (tonic: Pc, mode: Mode, chord: Chord) => Scale;
   /** Rule table, already adjusted for the genre. Defaults to the base rules. */

@@ -60,7 +60,7 @@ function parseArgs(argv: string[]): Args {
 
 function usage(): void {
   console.log(`
-Finnish iskelmä generator
+Music generator — iskelmä, jazz and ambient
 
   npm run gen -- [options]
 

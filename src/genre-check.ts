@@ -14,7 +14,8 @@ import { getGenre, GENRE_IDS } from './genre/index.js';
 import { generateMelody } from './generate/melody.js';
 import { comfortableLeap } from './generate/constraints.js';
 import type { HookId } from './generate/hook.js';
-import { parseRoman } from './core/chord.js';
+import { chordPcs, parseRoman } from './core/chord.js';
+import { pc } from './core/pitch.js';
 import type { Song } from './core/types.js';
 import { Rng } from './core/rng.js';
 
@@ -95,6 +96,27 @@ check('jazz min7 takes dorian on the chord root', dorian.name === 'dorian' && do
 check('jazz altered dominant takes the altered scale', altered.name === 'melodicMinor' && altered.tonic === 8, `${altered.name} on ${altered.tonic}`);
 check('iskelma dominant takes harmonic minor on the key', harmonic.name === 'harmonicMinor' && harmonic.tonic === 9, `${harmonic.name} on ${harmonic.tonic}`);
 
+// Ambient's answer is neither: the scale is always rooted on the *tonic*, and
+// only its mode bends to admit whatever chord is underneath. These four are
+// the cases the rule exists to produce.
+const ambientGenre = getGenre('ambient');
+// Roman numerals parse to an offset from the tonic; the generator shifts them
+// into the key before the melody ever sees them, so the test has to as well.
+const inKey = (label: string, mode: 'major' | 'minor', tonic: number) => {
+  const chord = parseRoman(label, mode);
+  return { ...chord, root: pc(chord.root + tonic) };
+};
+const bend = (tonic: number, mode: 'major' | 'minor', label: string) =>
+  ambientGenre.scaleForChord(tonic as never, mode, inKey(label, mode, tonic));
+const flatSeven = bend(0, 'major', 'bVII');
+const flatSix = bend(0, 'major', 'bVI');
+const majorFour = bend(9, 'minor', 'IV');
+const flatTwo = bend(9, 'minor', 'bII');
+check('ambient ♭VII bends a major drone to mixolydian', flatSeven.name === 'mixolydian' && flatSeven.tonic === 0, `${flatSeven.name} on ${flatSeven.tonic}`);
+check('ambient ♭VI bends a major drone to aeolian', flatSix.name === 'minor' && flatSix.tonic === 0, `${flatSix.name} on ${flatSix.tonic}`);
+check('ambient IV bends a minor drone to dorian', majorFour.name === 'dorian' && majorFour.tonic === 9, `${majorFour.name} on ${majorFour.tonic}`);
+check('ambient ♭II bends a minor drone to phrygian', flatTwo.name === 'phrygian' && flatTwo.tonic === 9, `${flatTwo.name} on ${flatTwo.tonic}`);
+
 // --- Quartal voicing -----------------------------------------------------
 console.log('\nModal voicing');
 const modalSong = generateSong({ seed: 'md', genre: 'jazz', style: 'modal' });
@@ -114,6 +136,103 @@ if (comp) {
   }
 }
 check('modal comp stacks fourths', total > 0 && fourths / total > 0.8, `${((fourths / Math.max(1, total)) * 100).toFixed(0)}% of intervals are perfect fourths`);
+
+// --- Ambient ---------------------------------------------------------------
+// Four claims, each of which is a thing the genre *is* rather than a setting it
+// happens to use, and each of which an innocent-looking edit could undo.
+console.log('\nAmbient');
+{
+  const ambient = getGenre('ambient');
+
+  // 1. Every chord the tables contain must be *reachable* — some mode of the
+  //    tonic has to hold all of it, or the rule falls through to its guard and
+  //    the melody is left drawing on a scale that omits the notes underneath
+  //    it. This is what keeps "the drone absorbs the chord" from quietly
+  //    degrading into "the drone ignores the chord".
+  //    Each numeral is collected against the mode it is actually *read* in. A
+  //    roman numeral means different notes in the two modes, and a style's
+  //    minor table is never read in major — testing every label in both would
+  //    fail on chords the generator cannot build.
+  const labels = new Set<string>();
+  for (const style of Object.values(ambient.styles)) {
+    for (const mode of ['major', 'minor'] as const) {
+      const table = (mode === 'major' ? style.majorProgressions : style.minorProgressions)
+        ?? style.progressions;
+      for (const progressions of Object.values(table)) {
+        for (const p of progressions) for (const c of p.chords) labels.add(`${mode}:${c}`);
+      }
+    }
+  }
+  let unreachable = 0, dominants = 0;
+  const offenders: string[] = [];
+  for (const entry of labels) {
+    const [mode, label] = entry.split(':') as ['major' | 'minor', string];
+    if (parseRoman(label, mode).dominantFunction) dominants++;
+    // Three keys well apart, to catch anything that only works at C.
+    for (const tonic of [0, 5, 9] as const) {
+      const chord = inKey(label, mode, tonic);
+      const scale = ambient.scaleForChord(tonic, mode, chord);
+      const held = chordPcs(chord).every((p) => scale.pcs.includes(p));
+      if (!held || scale.tonic !== tonic) { unreachable++; offenders.push(entry); }
+    }
+  }
+  check(
+    'every chord is reachable without moving the drone',
+    unreachable === 0,
+    unreachable === 0 ? `${labels.size} distinct chords` : `${[...new Set(offenders)].join(', ')}`,
+  );
+  // The genre's central negative claim: no dominant function anywhere, so
+  // nothing ever asks to resolve.
+  check('no chord in the genre has dominant function', dominants === 0, `${dominants} dominant-function chords found`);
+
+  // 2. Styles that exclude the drums must actually have none, and nothing in
+  //    the genre may end a section with a crash — the fill is the single most
+  //    out-of-place gesture available here.
+  let silentKits = 0, crashes = 0, ambientSongs = 0;
+  for (const style of Object.keys(ambient.styles)) {
+    for (let i = 0; i < 6; i++) {
+      const song = generateSong({ seed: `amb-${style}-${i}`, genre: 'ambient', style });
+      ambientSongs++;
+      const excluded = ambient.styles[style]!.excludeLayers?.includes('drums') ?? false;
+      if (excluded && song.drums.events.length === 0) silentKits++;
+      else if (excluded) silentKits--;
+      if (song.drums.events.some((e) => e.voice === 'cr')) crashes++;
+    }
+  }
+  check('drumless styles generate no drums', silentKits === 12, `${silentKits}/12 drumless renders were silent`);
+  check('no section ends with a fill', crashes === 0, `${crashes} crashes across ${ambientSongs} songs`);
+
+  // 3. The bass pedals rather than pulses. Measured on the two styles built on
+  //    a drone: a note shorter than a bar there means `sustain` has stopped
+  //    merging, which turns the floor of the music back into a part.
+  let pedalled = 0, droneSongs = 0;
+  for (const style of ['drone', 'wasteland']) {
+    for (let i = 0; i < 8; i++) {
+      const song = generateSong({ seed: `ped-${style}-${i}`, genre: 'ambient', style });
+      const bass = song.tracks.find((t) => t.layer === 'bass');
+      if (!bass) continue;
+      droneSongs++;
+      const mean = bass.notes.reduce((a, n) => a + n.duration, 0) / bass.notes.length;
+      if (mean >= song.meta.beatsPerBar) pedalled++;
+    }
+  }
+  check('the drone bass holds for at least a bar', pedalled === droneSongs, `${pedalled}/${droneSongs} songs`);
+
+  // 4. A sequencer plays one note at a time. Every kosmische comp pattern is an
+  //    arpeggio, so any simultaneity there means the arpeggiator has silently
+  //    reverted to striking whole chords.
+  let stacked = 0, sequencerNotes = 0;
+  for (let i = 0; i < 8; i++) {
+    const song = generateSong({ seed: `seq-${i}`, genre: 'ambient', style: 'kosmische' });
+    const comp = song.tracks.find((t) => t.layer === 'comp');
+    if (!comp) continue;
+    const byBeat = new Map<number, number>();
+    for (const n of comp.notes) byBeat.set(n.beat, (byBeat.get(n.beat) ?? 0) + 1);
+    sequencerNotes += comp.notes.length;
+    for (const count of byBeat.values()) if (count > 1) stacked++;
+  }
+  check('the sequencer plays one note at a time', stacked === 0, `${stacked} stacked onsets in ${sequencerNotes} notes`);
+}
 
 // --- Smoothness must actually smooth --------------------------------------
 // The regression this guards against: every vertical rule pushes the melody
