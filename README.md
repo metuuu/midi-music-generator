@@ -5,6 +5,7 @@ A rule-based generator for **instrumental iskelmä, jazz and ambient**, written 
 ```bash
 npm install
 npm run dev                                    # audition page at localhost:5178
+                                               # voice lab at  localhost:5178/voice.html
 npm run gen -- -n 12 --genre jazz --mood smoky --out ./out
 npm run gen -- -n 12 --genre iskelma --mood kaihoisa --strictness strict
 npm run gen -- -n 12 --genre ambient --style wasteland --out ./out
@@ -109,8 +110,26 @@ Five things went wrong on the way here, all of which produce a voice you cannot 
 - **Loudness is spectral, not RMS.** The clearest lesson here. A voice can measure *the same RMS as the melody* and be inaudible next to it: measured at one point, the vocal had **0.1% of its energy above 1.5 kHz against the melody's 17%**, because every formant of a dark vowel sits below 1.5 kHz and hearing is most sensitive well above it. Turning the gain up does nothing — it makes a dark sound louder and still buried. What fixed it was spectrum: a full-spectrum body band, a wider F3 acting as a singer's formant, consonant bursts at 3–6 kHz, and dropping F1 *below* unity because a resonant lowpass passes everything under it and drowns the rest. If the voice ever sounds quiet again, look at `FORMANT_GAINS` and `burstGain` before touching `gain`.
 - **The renderer's sixteenth grid can quantise the gap away.** A 0.38-beat syllable at 0.5-beat spacing rounds to a full eighth note and the silence disappears, leaving a line that is re-articulated on paper and seamless to the ear. `blipBeats` is chosen per genre to survive the grid. The MIDI render keeps exact durations and does not have this problem.
 
+### The voice lab
+
+Everything above describes the **wordless** line the song generator ships today. A separate bench at [localhost:5178/voice.html](http://localhost:5178/voice.html) explores what comes after it: **words**, **talk-singing**, and **voice signatures**. It does not touch the song path, so the sound that already works stays available to compare against.
+
+```bash
+npm run dev   # then open /voice.html
+```
+
+Four things it separates, and keeps separate:
+
+- **Signature** — *who is singing*: `low-male` … `child`, seven of them. One number does most of the work — a vocal tract is a tube and a shorter tube resonates higher, so every formant scales by (reference length ÷ this tract's length): 1.17 for a female tract, 0.90 for a low male. Pitch and tract length stay independent, which is exactly what transposing a sample fails to do and why that sounds like a chipmunk instead of a woman.
+- **Delivery** — *how they perform*: `sung`, `ballad`, `syllabic`, `talk-sing`, `spoken`, `chant`, `whisper`. What separates talking from singing is not pitch — a monotone chant is unmistakably singing. It is **where the silence goes** (between words, not between syllables), **whether a syllable may outlast its note** (melisma), and **how much of the written tune survives**. `syllabic` is the current song-engine sound, kept as a preset so it can be A/B'd.
+- **Phonetics** — *what a word sounds like*, as a pure function of the word. The word's own vowel letters choose a region of the openness/frontness plane, a hash picks the vowel within that region, and a minimum-distance rule then guarantees neighbouring syllables never land on nearly the same mouth shape. So `kuutamo` is dark, `hiljaisuus` is bright, the same word is always identical, and no dictionary is needed for text that might be Finnish, English or invented. Consonants stay thin on purpose: word-initial usually, word-interior rarely, because vowel-to-vowel motion is what floats.
+- **The synth** — a cascade formant model in plain Web Audio, MIT, no Strudel. One oscillator and one filter chain for a whole utterance rather than one per note, which is what makes legato and melisma expressible at all. Chained peaking filters rather than parallel bandpasses, which removes the body-gain compromise entirely: measured spectral distance between cardinal vowels is 4.0–8.3 dB, against 6.4 dB for the tuned parallel version.
+
+The page shows the syllables each word hashes to, the timeline the layout produced, and a vowel-space chart with the path the line actually walked — so "why does everything sound the same" has a number next to it rather than an opinion. See [docs/voice.md](docs/voice.md).
+
 ## Documentation
 
+- [docs/voice.md](docs/voice.md) — the voice lab: signatures, delivery, word→syllable hashing, the formant synth
 - [docs/iskelma.md](docs/iskelma.md) — the iskelmä ruleset: dances, harmony, form, eras, moods
 - [docs/jazz.md](docs/jazz.md) — the jazz ruleset: styles, chord-scale mapping, walking bass, quartal voicings
 - [docs/ambient.md](docs/ambient.md) — the ambient ruleset: the drone rule, sustain, arpeggios, the inverted mix, effects

@@ -159,6 +159,42 @@ export const VOWEL_OPENNESS: Record<Vowel, number> = (() => {
   ) as Record<Vowel, number>;
 })();
 
+/**
+ * How far forward each vowel is, 0 (back) … 1 (front) — derived from F2, the
+ * other half of the coordinate.
+ *
+ * Openness alone is not a description of a vowel. /u/ and /i/ are both closed
+ * and could hardly sound less alike; what separates them is the tongue being at
+ * the back of the mouth or the front of it, which is F2. Together the two axes
+ * are the vowel quadrilateral every phonetics textbook draws, and — more to the
+ * point here — distance in that plane is very nearly a measure of how different
+ * two vowels *sound*. That is what lets the word generator guarantee it never
+ * puts two near-identical vowels next to each other.
+ *
+ * Logarithmic in F2, because pitch perception is: 870 → 1090 Hz is a small step
+ * and 1750 → 2290 Hz is a comparable one, though the second spans twice the Hz.
+ */
+export const VOWEL_FRONTNESS: Record<Vowel, number> = (() => {
+  const f2 = Object.values(VOWEL_FORMANTS).map(([, f]) => Math.log2(f));
+  const lo = Math.min(...f2);
+  const hi = Math.max(...f2);
+  return Object.fromEntries(
+    Object.entries(VOWEL_FORMANTS).map(([v, [, f]]) => [v, (Math.log2(f) - lo) / (hi - lo)]),
+  ) as Record<Vowel, number>;
+})();
+
+/**
+ * How different two vowels sound, as a distance in the openness/frontness
+ * plane. Roughly 0 … 1.4 — /i/ against /a/ is about 1.1, /o/ against /u/ about
+ * 0.3, and anything under 0.25 is two names for nearly the same mouth shape.
+ */
+export function vowelDistance(a: Vowel, b: Vowel): number {
+  return Math.hypot(
+    VOWEL_OPENNESS[a] - VOWEL_OPENNESS[b],
+    VOWEL_FRONTNESS[a] - VOWEL_FRONTNESS[b],
+  );
+}
+
 export interface VocalProfile {
   /** Track name, shown in the UI and written into the MIDI track title. */
   name: string;

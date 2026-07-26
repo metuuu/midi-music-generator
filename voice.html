@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Voice lab — music generator</title>
+    <style>
+      :root {
+        --bg: #14100e;
+        --panel: #1e1917;
+        --edge: #372e29;
+        --ink: #efe6dc;
+        --dim: #a2938a;
+        --hot: #e0a24a;
+        --cool: #79b0c4;
+        font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; min-height: 100vh; background: var(--bg); color: var(--ink);
+        display: flex; justify-content: center; padding: 2rem 1rem;
+      }
+      .wrap { width: 100%; max-width: 1080px; }
+      h1 { font-size: 1.35rem; margin: 0 0 .25rem; letter-spacing: .02em; }
+      h2 {
+        font-size: .74rem; text-transform: uppercase; letter-spacing: .1em;
+        color: var(--dim); margin: 0 0 .8rem; font-weight: 600;
+      }
+      .sub { color: var(--dim); font-size: .85rem; margin-bottom: 1.4rem; }
+      .sub a { color: var(--cool); }
+      .panel {
+        background: var(--panel); border: 1px solid var(--edge);
+        border-radius: 12px; padding: 1.15rem; margin-bottom: 1rem;
+      }
+      .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 1rem; align-items: start; }
+      .cols2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 1rem; align-items: start; }
+      .span2 { grid-column: span 2; }
+      @media (max-width: 900px) { .span2 { grid-column: span 1; } }
+      label { display: block; font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; color: var(--dim); margin-bottom: .35rem; }
+      select, input[type=text], input[type=number], textarea {
+        width: 100%; padding: .5rem .6rem; background: #100d0c; color: var(--ink);
+        border: 1px solid var(--edge); border-radius: 7px; font-size: .9rem; font-family: inherit;
+      }
+      textarea { resize: vertical; min-height: 4.5rem; line-height: 1.6; }
+      .row { display: flex; gap: .6rem; flex-wrap: wrap; align-items: center; }
+      .row + .row { margin-top: .7rem; }
+      button {
+        padding: .55rem 1rem; border-radius: 7px; border: 1px solid var(--edge);
+        background: #2a2320; color: var(--ink); font-size: .88rem; cursor: pointer; font-family: inherit;
+      }
+      button:hover:not(:disabled) { border-color: var(--hot); }
+      button.primary { background: var(--hot); color: #17110a; border-color: var(--hot); font-weight: 600; }
+      button.small { padding: .3rem .6rem; font-size: .75rem; }
+      button:disabled { opacity: .45; cursor: not-allowed; }
+      .gloss { font-size: .76rem; color: var(--dim); font-style: italic; margin: .5rem 0 .9rem; min-height: 1.1em; line-height: 1.5; }
+      .sliders { display: grid; gap: .5rem; }
+      .slider { display: grid; grid-template-columns: 8.5rem 1fr 3.2rem; gap: .55rem; align-items: center; }
+      .slider span.name { font-size: .76rem; color: var(--dim); }
+      .slider span.val { font-size: .74rem; color: var(--ink); text-align: right; font-variant-numeric: tabular-nums; }
+      .slider input[type=range] { width: 100%; accent-color: var(--hot); }
+      .slider.key span.name { color: var(--hot); }
+      .status { font-size: .8rem; color: var(--dim); margin-top: .8rem; min-height: 1.2em; }
+      .status.err { color: #e2705a; }
+      .words { display: flex; gap: .45rem; flex-wrap: wrap; }
+      .word {
+        border: 1px solid var(--edge); border-radius: 8px; padding: .4rem .6rem;
+        cursor: pointer; user-select: none; background: #191413; min-width: 4.5rem;
+      }
+      .word:hover { border-color: var(--hot); }
+      .word.lit { border-color: var(--hot); background: #2c2117; }
+      .word.dup { border-color: var(--cool); }
+      .word.dup .p { color: var(--cool); }
+      .word .w { font-size: .86rem; }
+      .word .p { font-size: .72rem; color: var(--hot); font-family: ui-monospace, monospace; margin-top: .15rem; }
+      .word .h { font-size: .62rem; color: var(--dim); font-family: ui-monospace, monospace; }
+      table { width: 100%; border-collapse: collapse; font-size: .74rem; }
+      th { text-align: left; color: var(--dim); font-weight: 500; padding: .3rem .5rem; border-bottom: 1px solid var(--edge); text-transform: uppercase; letter-spacing: .06em; font-size: .64rem; }
+      td { padding: .28rem .5rem; border-bottom: 1px solid #241e1b; font-variant-numeric: tabular-nums; }
+      td.tie { color: var(--cool); }
+      .scroll { max-height: 300px; overflow: auto; }
+      pre {
+        background: #100d0c; border: 1px solid var(--edge); border-radius: 8px;
+        padding: .8rem; overflow: auto; max-height: 260px; font-size: .72rem; line-height: 1.5;
+        color: #cfc3b6; margin: .5rem 0 0;
+      }
+      details { margin-top: .8rem; }
+      summary { cursor: pointer; color: var(--dim); font-size: .82rem; }
+      .chart { width: 100%; height: auto; }
+      .legend { font-size: .72rem; color: var(--dim); margin-top: .5rem; line-height: 1.6; }
+      .pill { display: inline-block; padding: .12rem .45rem; border-radius: 10px; border: 1px solid var(--edge); font-size: .7rem; color: var(--dim); }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>Voice lab</h1>
+      <div class="sub">
+        Words → syllables → a sung or spoken line, synthesised directly in Web Audio.
+        <a href="/index.html">← back to Radio</a>
+      </div>
+
+      <div class="panel">
+        <label for="text">Text — every word's sound is a pure function of the word</label>
+        <textarea id="text" spellcheck="false"></textarea>
+        <div class="row">
+          <button id="play" class="primary">Sing ▶</button>
+          <button id="stop">Stop ■</button>
+          <button id="reroll" class="small">New tune</button>
+          <span style="flex:1"></span>
+          <button class="small" data-sample="finnish">Finnish</button>
+          <button class="small" data-sample="english">English</button>
+          <button class="small" data-sample="nonsense">Nonsense</button>
+          <button class="small" data-sample="minimal">Minimal</button>
+        </div>
+        <div class="status" id="status"></div>
+      </div>
+
+      <div class="cols">
+        <div class="panel">
+          <h2>Voice — who is singing</h2>
+          <label for="signature">Signature</label>
+          <select id="signature"></select>
+          <div class="gloss" id="signature-gloss"></div>
+          <div class="sliders" id="signature-sliders"></div>
+        </div>
+
+        <div class="panel">
+          <h2>Delivery — how they perform</h2>
+          <label for="delivery">Style</label>
+          <select id="delivery"></select>
+          <div class="gloss" id="delivery-gloss"></div>
+          <div class="sliders" id="delivery-sliders"></div>
+          <details>
+            <summary>Envelope, timing and voice quality</summary>
+            <div class="sliders" id="delivery-more" style="margin-top:.6rem"></div>
+          </details>
+        </div>
+
+        <div class="panel">
+          <h2>Words — what a word sounds like</h2>
+          <label for="phonetics">Vowel palette</label>
+          <select id="phonetics"></select>
+          <div class="gloss" id="phonetics-gloss"></div>
+          <div class="sliders" id="phonetic-sliders"></div>
+        </div>
+
+      </div>
+
+      <div class="cols">
+        <div class="panel">
+          <h2>Tune — the pitches it is given</h2>
+          <div class="row">
+            <div style="flex:1 1 45%">
+              <label for="contour">Contour</label>
+              <select id="contour"></select>
+            </div>
+            <div style="flex:1 1 45%">
+              <label for="key">Key</label>
+              <select id="key"></select>
+            </div>
+          </div>
+          <div class="gloss" id="contour-gloss"></div>
+          <div class="sliders" id="tune-sliders"></div>
+        </div>
+
+        <div class="panel span2">
+          <h2>Reading — click a word to hear it alone</h2>
+          <div class="words" id="words"></div>
+          <div class="legend" id="reading-summary"></div>
+          <details>
+            <summary>Syllable timeline</summary>
+            <div class="scroll">
+              <table id="timeline">
+                <thead>
+                  <tr>
+                    <th>beat</th><th>len</th><th>midi</th><th>word</th>
+                    <th>vowel</th><th>onset</th><th>join</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </details>
+        </div>
+      </div>
+
+      <div class="cols2">
+        <div class="panel">
+          <h2>Vowel space — separation, as the ear measures it</h2>
+          <svg id="vowel-map" class="chart" viewBox="0 0 460 330" role="img"></svg>
+          <div class="legend" id="vowel-legend"></div>
+        </div>
+
+        <div class="panel">
+          <h2>Compare — park two settings and switch</h2>
+          <div class="row">
+            <button id="save-a" class="small">Save to A</button>
+            <button id="play-a" class="small" disabled>Play A</button>
+            <span class="pill" id="label-a">A: empty</span>
+          </div>
+          <div class="row">
+            <button id="save-b" class="small">Save to B</button>
+            <button id="play-b" class="small" disabled>Play B</button>
+            <span class="pill" id="label-b">B: empty</span>
+          </div>
+          <div class="row">
+            <button id="ab" class="small" disabled>Play A then B</button>
+          </div>
+          <details open>
+            <summary>Settings, ready to paste into a profile</summary>
+            <pre id="json"></pre>
+          </details>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/web/voice-lab.ts"></script>
+  </body>
+</html>
