@@ -320,9 +320,10 @@ export function generateSong(opts: GenerateOptions = {}): Song {
     const sectionPad = active.has('pad')
       ? generatePad(ctx, instruments.pad.centre, 4, limitFor('pad'))
       : [];
-    const sectionBrass = active.has('brass')
-      ? generateBrass(ctx, instruments.brass.centre, limitFor('brass'))
-      : [];
+    // Brass is written *after* the melody, below: it answers the tune's gaps
+    // and swells under its held notes, so it cannot be written before there is
+    // a tune to answer.
+    let sectionBrass: NoteEvent[] = [];
 
     const accompaniment = buildAccompaniment([sectionBass, sectionComp, sectionPad]);
     let sectionMelody: NoteEvent[] = [];
@@ -387,6 +388,13 @@ export function generateSong(opts: GenerateOptions = {}): Song {
       clarity,
       floor: instruments.bass.centre + 10,
     });
+
+    if (active.has('brass')) {
+      sectionBrass = generateBrass(ctx, instruments.brass.centre, limitFor('brass'), {
+        melody: sectionMelody,
+        intensity,
+      });
+    }
 
     /**
      * Scale the whole section at once. Doing it here rather than inside each

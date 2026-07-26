@@ -317,45 +317,119 @@ export function generatePad(
 }
 
 /**
- * Brass punctuation: short stabs on the downbeat of alternate bars, plus a
- * pickup stab into section-ending bars. Deliberately sparse — brass in this
- * music answers the tune, it does not compete with it.
+ * Brass — punctuation, not a third melody.
+ *
+ * What was here fired a three-note stab on the downbeat of alternate bars
+ * behind a coin flip, plus one pickup in the last bar. Measured across 68 songs
+ * that carried the layer: **every one of its 1325 notes was exactly half a beat
+ * long**, 72% landed on the downbeat and 25% on beat four, and **79% sounded on
+ * top of the melody** rather than around it. A brass section that only ever
+ * plays eighth-note stabs, always in the same two places, always over the tune,
+ * is a sample library demonstrating itself.
+ *
+ * Brass in this music does three things, and the choice between them belongs to
+ * what the melody is doing at that moment:
+ *
+ *  - **Stabs** in the tune's gaps. Short, often off the beat, answering. This
+ *    is the call-and-response gesture the layer exists for, and it has to be in
+ *    a *gap* — a stab over a sustained vocal line is a collision, not an answer.
+ *  - **Swells** underneath a held note. Where the tune stops moving, the brass
+ *    is what stops the arrangement going with it: a long chord that grows under
+ *    a held melody note is the oldest trick in dance-band scoring.
+ *  - **Punctuation** into the next section, which is the one gesture the old
+ *    code had, and it kept it.
+ *
+ * And, most of the time, nothing at all. A brass section that plays in every
+ * bar has no punctuation left to give.
  */
 export function generateBrass(
   ctx: PartContext,
   centre: Midi,
   limits: { ceiling?: Midi; clarity?: number } = {},
+  opts: {
+    /** What the tune is doing. Brass works around it, so it has to know. */
+    melody?: readonly NoteEvent[];
+    /** How busy this section is; drives how often the brass speaks at all. */
+    intensity?: number;
+  } = {},
 ): NoteEvent[] {
   const { chords, beatsPerBar, startBeat, rng } = ctx;
   const out: NoteEvent[] = [];
   const hi = limits.ceiling ?? centre + 12;
   const lo = limits.ceiling !== undefined ? Math.min(centre - 9, hi - 15) : centre - 9;
+  const melody = (opts.melody ?? []).slice().sort((a, b) => a.beat - b.beat);
+  const intensity = opts.intensity ?? 0.9;
   let previous: Midi[] | undefined;
 
   for (let bar = 0; bar < chords.length; bar++) {
     const chord = chords[bar]!;
+    const barStart = startBeat + bar * beatsPerBar;
+    const barEnd = barStart + beatsPerBar;
+    const isLast = bar === chords.length - 1;
+
     const voicing = voiceChord(chord, {
       voices: 3, centre, lo, hi,
       ...(limits.clarity !== undefined ? { clarity: limits.clarity } : {}),
       ...(previous ? { previous } : {}),
     });
     previous = voicing;
-    const barStart = startBeat + bar * beatsPerBar;
-    const isEven = bar % 2 === 0;
-    const isLast = bar === chords.length - 1;
 
-    if (isEven && rng.chance(0.55)) {
-      for (const midi of voicing) {
-        out.push({ beat: barStart, duration: 0.5, midi, velocity: 0.72 });
-      }
-    }
+    const sound = (beat: number, duration: number, velocity: number) => {
+      for (const midi of voicing) out.push({ beat, duration, midi, velocity });
+    };
+
     if (isLast) {
-      // Pickup into whatever comes next.
-      const at = barStart + beatsPerBar - 1;
-      for (const midi of voicing) {
-        out.push({ beat: at, duration: 0.5, midi, velocity: 0.66 });
+      // Punctuation into whatever comes next — the one gesture worth keeping.
+      sound(barStart + beatsPerBar - 1, 0.75, 0.7 * intensity);
+      continue;
+    }
+
+    // Where is the tune resting, and where is it holding?
+    const inBar = melody.filter((n) => n.beat < barEnd && n.beat + n.duration > barStart);
+    const held = inBar.find((n) => n.duration >= 2 && n.beat <= barStart + 1);
+
+    if (held && rng.chance(0.45 * intensity)) {
+      /**
+       * A swell under a held note. Length follows the note it is supporting,
+       * so the brass arrives with the tune's long note and leaves with it —
+       * which is what makes it read as support rather than as a second part.
+       */
+      const from = Math.max(barStart, held.beat);
+      const length = Math.min(held.beat + held.duration, barEnd) - from;
+      if (length >= 1) {
+        sound(from, length * 0.94, 0.5 * intensity);
+        continue;
       }
     }
+
+    // Otherwise look for a hole to answer into.
+    let cursor = barStart;
+    let gapStart = barStart;
+    let gapLen = 0;
+    for (const n of inBar) {
+      const gap = n.beat - cursor;
+      if (gap > gapLen) { gapLen = gap; gapStart = cursor; }
+      cursor = Math.max(cursor, n.beat + n.duration);
+    }
+    if (barEnd - cursor > gapLen) { gapLen = barEnd - cursor; gapStart = cursor; }
+
+    if (gapLen < 0.75 || !rng.chance(0.4 * intensity)) continue;
+
+    /**
+     * Place the stab off the beat where there is room for it. A brass hit on
+     * the downbeat doubles the accent the rhythm section is already making; one
+     * an eighth after it is the thing that makes a chart sound scored.
+     */
+    const onBarline = Math.abs(gapStart - barStart) < 1e-6;
+    const offset = gapLen >= 1.5
+      ? rng.weighted([[0.5, 5], [1.5, 3], [1, 2], [0, onBarline ? 0 : 3]] as const)
+      // A short hole still gets pushed off the barline: a brass hit on the
+      // downbeat only thickens the accent the rhythm section already made,
+      // where one an eighth later is what makes a chart sound scored.
+      : rng.weighted([[0.5, onBarline ? 5 : 2], [0, onBarline ? 1 : 4]] as const);
+    const at = gapStart + Math.min(offset, Math.max(0, gapLen - 0.5));
+    const duration = rng.weighted([[0.5, 4], [0.25, 3], [0.75, 2], [1.5, 1]] as const);
+    sound(at, Math.min(duration, barEnd - at), 0.72 * intensity);
   }
   return out;
 }

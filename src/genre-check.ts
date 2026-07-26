@@ -385,6 +385,55 @@ console.log('\nHook');
   );
 }
 
+// --- Brass -----------------------------------------------------------------
+// It used to fire a three-note stab on the downbeat of alternate bars behind a
+// coin flip. Every one of its notes was exactly half a beat long, and 79% of
+// them sounded on top of the melody rather than around it.
+console.log('\nBrass');
+{
+  let notes = 0, clashing = 0, sustained = 0, offBeat = 0;
+  const lengths = new Set<string>();
+  for (const gid of GENRE_IDS) {
+    for (let i = 0; i < 50; i++) {
+      const s = generateSong({ seed: `br-${i}`, genre: gid });
+      const bpb = s.meta.beatsPerBar;
+      const brass = s.tracks.find((t) => t.layer === 'brass')?.notes ?? [];
+      const melody = s.tracks.find((t) => t.layer === 'melody')?.notes ?? [];
+      for (const n of brass) {
+        notes++;
+        lengths.add(n.duration.toFixed(2));
+        if (n.duration >= 1) sustained++;
+        if (Math.abs(n.beat - Math.floor(n.beat / bpb) * bpb) > 1e-6) offBeat++;
+        // A swell under a held note is meant to overlap; the fault is a short
+        // stab landing on a melody note that is itself moving.
+        const clash = melody.some((m) => m.beat < n.beat + n.duration
+          && m.beat + m.duration > n.beat && n.duration < 1 && m.duration < 1);
+        if (clash) clashing++;
+      }
+    }
+  }
+  check(
+    'brass does more than one length of note',
+    lengths.size > 6,
+    `${lengths.size} distinct note lengths across ${notes} notes`,
+  );
+  check(
+    'brass sustains as well as stabs',
+    sustained / Math.max(1, notes) > 0.2,
+    `${((sustained / Math.max(1, notes)) * 100).toFixed(0)}% held a beat or longer`,
+  );
+  check(
+    'brass answers the tune rather than landing on it',
+    clashing / Math.max(1, notes) < 0.2,
+    `${((clashing / Math.max(1, notes)) * 100).toFixed(0)}% of stabs clash with a moving melody`,
+  );
+  check(
+    'brass does not only play on the downbeat',
+    offBeat / Math.max(1, notes) > 0.4,
+    `${((offBeat / Math.max(1, notes)) * 100).toFixed(0)}% land off the barline`,
+  );
+}
+
 // --- Drum fills ------------------------------------------------------------
 // There used to be exactly one fill: descending toms into a crash, in every
 // genre, at every boundary, whatever the section was turning into. A tom roll

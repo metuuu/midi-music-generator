@@ -78,6 +78,8 @@ Three stages run before a single pitch is chosen, and they are where most of the
 
 **The drums signpost the section they are arriving at.** There was one fill — descending toms into a crash, every genre, every boundary, whatever came next — and it stuttered on the low tom after three notes. Seven shapes now, drawn from a per-genre vocabulary, and a fill's size comes from the *next* section's intensity rather than the current one, because a fill is a delivery. Jazz gets the cymbal (ride 0.73 per fill bar against iskelmä's 0.02); iskelmä gets the toms (0.96 against jazz's 0.09). `drop` — the kit stopping dead for a bar — is in the vocabulary too, because silence makes the downbeat land twice as hard.
 
+**Brass punctuates rather than fires on a coin flip.** It played a stab on the downbeat of alternate bars: 1325 notes, every one exactly half a beat long, 72% on the downbeat, 79% landing on top of the tune. It now answers in the melody's gaps, swells underneath its held notes, and stays quiet the rest of the time — 18 note lengths instead of 1, 39% held a beat or longer, 60% off the barline, and 9% clashing instead of most of the layer.
+
 Plus a **motto** — one rhythm and one contour chosen per song and quoted throughout in proportion to `hook`. Repetition previously existed at exactly two scales, one bar and one whole section, with nothing between them, so a song could be locally shapely and globally arbitrary. See [docs/arrangement.md](docs/arrangement.md).
 
 ## Vocals

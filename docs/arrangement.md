@@ -193,6 +193,34 @@ ride per fill bar:   jazz    0.73   iskelmä 0.02
 
 The kick keeps playing through the fill — a drummer's right foot does not stop — and the rest of the pattern is silenced for exactly as much of the bar as the fill actually occupies, which used to be hardcoded to half a bar whatever was played there.
 
+## Brass
+
+A three-note stab on the downbeat of alternate bars behind a coin flip, plus one pickup in the last bar. Measured across 68 songs that carried the layer:
+
+```
+1325 notes, and every single one exactly 0.50 beats long
+72% on the downbeat, 25% on beat four, 3% anywhere else
+79% sounding on top of the melody
+```
+
+A brass section that only ever plays eighth-note stabs, always in the same two places, always over the tune, is a sample library demonstrating itself.
+
+What it does now depends on what the melody is doing at that moment:
+
+- **Stabs** in the tune's gaps — short, usually off the beat, answering. A stab over a sustained vocal line is a collision, not an answer, so it has to be in a hole.
+- **Swells** underneath a held note. Where the tune stops moving, the brass is what stops the arrangement stopping with it. The swell's length follows the note it supports, so it arrives and leaves with it.
+- **Punctuation** into the next section — the one gesture the old code had, and it kept it.
+- And most of the time, **nothing**. A brass section that plays in every bar has no punctuation left to give.
+
+```
+18 distinct note lengths (was 1)
+39% held a beat or longer (was 0%)
+60% land off the barline (was 28%)
+9% of short stabs clash with a moving melody (was most of the layer)
+```
+
+The placement rule that does the most work: a hit is pushed off the barline wherever there is room, because a brass hit on the downbeat only thickens the accent the rhythm section already made, where one an eighth later is what makes a chart sound scored.
+
 ## What the two axes govern now
 
 **Smoothness** used to police the melody and nothing else, which left it unable to touch the loudest source of sourness in the output. It now also sets:
