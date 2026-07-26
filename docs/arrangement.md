@@ -73,6 +73,52 @@ The contours are a short list of shapes a listener can hold after one hearing: a
 
 A quoted figure still has to bend to the changes. A strong-beat note that lands off the chord is pulled to the nearest chord tone within a step — which costs the shape almost nothing and is what a player does when sequencing a lick through changes. Without it, a motto arriving over new harmony sounds *nearly* right, which is worse than either familiar or wrong on its own.
 
+## Instrumental idiom
+
+`agility` says how far an instrument can *reach*. It says nothing about what the instrument actually plays, and that turns out to be the larger difference. Measured before `Idiom` existed, eight different lead instruments handed identical chords produced statistically identical lines:
+
+```
+instrument      step%  3rd%  run%  arp%   widest
+vibraphone       68%   22%   19%   2%      12
+flute            69%   22%   20%   2%       9
+trombone         72%   20%   20%   2%       9
+harp             68%   22%   19%   2%      12
+```
+
+A harp and a trombone wrote the same line. Every lead in the generator was a wordless singer wearing a different patch — which is a defensible default for music that ships with a vocal option and the wrong one for music that is instrumental by design.
+
+Real instrumental writing differs by **figuration**, and none of it is expressible as a leap width:
+
+| idiom | arpeggio | run | repeat | breath |
+|---|---|---|---|---|
+| `mallet` — vibraphone, harp, glockenspiel | 0.9 | 0.5 | 1.0 | 0.05 |
+| `keyboard` — piano, organ, celesta | 0.7 | 0.8 | 0.7 | 0.05 |
+| `plucked` — guitars, pizzicato, sitar | 0.8 | 0.4 | 1.0 | 0.1 |
+| `bowed` — violin, string ensembles, cello | 0.25 | 0.6 | 0.3 | 0.15 |
+| `wind` — flute, saxes, clarinet, shakuhachi | 0.2 | 1.0 | 0.4 | 0.7 |
+| `brass` — trumpet, trombone, brass section | 0.35 | 0.3 | 0.6 | 0.9 |
+| `reed` — accordion, bandoneon | 0.3 | 0.7 | 0.5 | 0.1 |
+| `vocal` — choir patches, voice leads | 0.0 | 0.35 | 0.5 | 0.8 |
+
+- **arpeggio** — a broken chord is a third followed by another third the same way. Two bonuses: one for *starting* a figure and one for *continuing* it. Only the second existed at first, and it was unreachable — a line that has not yet arpeggiated can never earn a bonus for continuing to.
+- **run** — a scale run is a step followed by another step the same way.
+- **repeat** — re-articulation is free on a mallet and awkward sung.
+- **breath** — gaps at the phrase midpoint and end, made by shortening the note that arrives there rather than deleting anything, so the phrase keeps all its onsets. A flute line with no gap in it reads as synthetic long before anyone works out why.
+
+After:
+
+```
+instrument      idiom      step%  3rd%  run%  arp%  gaps/bar  widest
+vibraphone      mallet      56%   36%   17%   7%     0.15      12
+harp            mallet      56%   36%   17%   7%     0.15      12
+nylonGuitar     plucked     59%   33%   17%   6%     0.16       8
+violin          bowed       62%   30%   22%   4%     0.17       9
+flute           wind        64%   26%   21%   3%     0.23       9
+trombone        brass       64%   26%   19%   3%     0.26       8
+```
+
+`npm run genres` asserts both halves: that a mallet breaks chords where a wind instrument runs, and that an instrument which has to breathe leaves more air than a keyboard.
+
 ## What the two axes govern now
 
 **Smoothness** used to police the melody and nothing else, which left it unable to touch the loudest source of sourness in the output. It now also sets:

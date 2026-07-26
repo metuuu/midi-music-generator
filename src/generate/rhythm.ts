@@ -135,6 +135,11 @@ export interface PhraseRhythmOptions {
    */
   allowAnacrusis: boolean;
   /**
+   * How badly the player needs air, 0..1, from the instrument's idiom. A flute
+   * and a trombone stop to breathe; a vibraphone does not.
+   */
+  breath: number;
+  /**
    * The song's own figure. When present, the phrase is built from it rather
    * than from a fresh draw — how often is `hook`'s business.
    */
@@ -206,7 +211,10 @@ export function planPhraseRhythm(opts: PhraseRhythmOptions): PhrasePlan {
   // ---- 3. Gestures across the barline ----------------------------------
   applyBarlineGestures(notes, { bars, slotsPerBar, rng, syncopation });
 
-  // ---- 4. The pickup ---------------------------------------------------
+  // ---- 4. Air ----------------------------------------------------------
+  applyBreath(notes, { bars, slotsPerBar, rng, breath: opts.breath });
+
+  // ---- 5. The pickup ---------------------------------------------------
   if (opts.allowAnacrusis && rng.chance(0.28 + syncopation * 0.34)) {
     addAnacrusis(notes, { slotsPerBar, rng });
   }
@@ -266,6 +274,40 @@ function applyBarlineGestures(
 }
 
 /**
+ * Let the player breathe.
+ *
+ * A line that never stops is playable on a keyboard and impossible on anything
+ * blown, and the ear knows the difference long before it can name it: a flute
+ * part with no gap in it reads as synthetic, not as virtuosic. The gaps go
+ * where a player would actually take them — at the midpoint of the phrase and
+ * at its end — by shortening the note that arrives there rather than by
+ * deleting anything, so the phrase keeps every one of its onsets.
+ */
+function applyBreath(
+  notes: PlannedNote[],
+  opts: { bars: number; slotsPerBar: number; rng: Rng; breath: number },
+): void {
+  const { bars, slotsPerBar, rng, breath } = opts;
+  if (breath <= 0) return;
+
+  const points = bars >= 4
+    ? [Math.floor(bars / 2) * slotsPerBar, bars * slotsPerBar]
+    : [bars * slotsPerBar];
+
+  for (const at of points) {
+    if (!rng.chance(breath)) continue;
+    const before = lastBefore(notes, at);
+    if (!before) continue;
+    // Already air here — nothing to take.
+    if (before.slot + before.dur <= at - 2) continue;
+    const gap = before.dur >= 6 ? 2 : 1; // an eighth where there is room for one
+    const trimmed = Math.min(before.dur, at - before.slot) - gap;
+    if (trimmed < 1) continue;
+    before.dur = trimmed;
+  }
+}
+
+/**
  * Prepend a pickup.
  *
  * Taken *out of* the phrase's first note rather than added in front of it, so
@@ -313,6 +355,13 @@ function lastBefore(notes: PlannedNote[], slot: number): PlannedNote | undefined
  * under the next attack anyway.
  */
 export function trimOverlaps<T extends { beat: number; duration: number }>(notes: T[]): T[] {
+  /**
+   * Below this, a note is a click rather than a pitch. At 130 BPM an eighth of
+   * a beat is about 55 ms, which is roughly where the ear stops hearing a note
+   * and starts hearing an attack — and a trim that leaves a stub is worse than
+   * one that removes the note, because the stub is audible and meaningless.
+   */
+  const MIN_AUDIBLE = 0.125;
   const sorted = notes.slice().sort((a, b) => a.beat - b.beat);
   const out: T[] = [];
   for (let i = 0; i < sorted.length; i++) {
@@ -320,7 +369,9 @@ export function trimOverlaps<T extends { beat: number; duration: number }>(notes
     const next = sorted[i + 1];
     const room = next ? next.beat - n.beat : n.duration;
     const duration = Math.min(n.duration, room);
-    if (duration <= 1e-6) continue; // wholly displaced by the note after it
+    // Squeezed out by whatever follows — most often a pickup written backwards
+    // across a section boundary onto a cadence that was still ringing.
+    if (duration < MIN_AUDIBLE) continue;
     out.push({ ...n, duration });
   }
   return out;

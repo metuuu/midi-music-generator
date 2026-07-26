@@ -18,6 +18,7 @@ import { chordPcs, parseRoman } from './core/chord.js';
 import { pc } from './core/pitch.js';
 import type { Song } from './core/types.js';
 import { Rng } from './core/rng.js';
+import { IDIOMS, type Idiom } from './style/instruments.js';
 
 const problems: string[] = [];
 const check = (label: string, pass: boolean, detail: string) => {
@@ -423,6 +424,50 @@ console.log('\nInstrument awareness');
     'a stiff instrument never reaches as far',
     trombone.widest < vibraphone.widest,
     `widest leap ${trombone.widest} vs ${vibraphone.widest} semitones`,
+  );
+
+  /**
+   * Idiom, which is a different question from agility.
+   *
+   * Agility says how far an instrument can reach; idiom says what it actually
+   * plays. Before idiom existed these were the same question and the answer was
+   * always "a wordless singer" — a harp and a trombone handed identical chords
+   * produced statistically identical lines, 68-72% steps and 2% arpeggiation
+   * apiece, differing only in the widest interval either would take.
+   */
+  const idiomProfile = (idiom: Idiom) => {
+    const inst = IDIOMS[idiom];
+    let thirds = 0, moves = 0, gaps = 0, bars = 0;
+    for (let s2 = 0; s2 < 60; s2++) {
+      const notes = generateMelody({
+        chords, beatsPerBar: 4, style, rng: new Rng(`id-${s2}`),
+        tonic: 0, mode: 'minor', range: [60, 79], startBeat: 0,
+        ornamentScale: 1, leapScale: 1, strictness: 2, agility: 0.9, idiom: inst,
+      });
+      bars += 8;
+      for (let i = 1; i < notes.length; i++) {
+        const d = Math.abs(notes[i]!.midi - notes[i - 1]!.midi);
+        if (notes[i]!.beat - (notes[i - 1]!.beat + notes[i - 1]!.duration) >= 0.45) gaps++;
+        if (d === 0) continue;
+        moves++;
+        if (d === 3 || d === 4) thirds++;
+      }
+    }
+    return { thirds: (thirds / Math.max(1, moves)) * 100, gaps: gaps / Math.max(1, bars) };
+  };
+  const mallet = idiomProfile('mallet');
+  const wind = idiomProfile('wind');
+  const keyboard = idiomProfile('keyboard');
+  const brass = idiomProfile('brass');
+  check(
+    'a mallet breaks chords where a wind instrument runs',
+    mallet.thirds > wind.thirds * 1.2,
+    `thirds: mallet ${mallet.thirds.toFixed(0)}% vs wind ${wind.thirds.toFixed(0)}%`,
+  );
+  check(
+    'an instrument that has to breathe leaves more air',
+    brass.gaps > keyboard.gaps * 1.3,
+    `gaps per bar: brass ${brass.gaps.toFixed(2)} vs keyboard ${keyboard.gaps.toFixed(2)}`,
   );
   check(
     'comfortable leap scales with agility',

@@ -26,7 +26,7 @@ import {
   type Section, type SectionKind, type Song, type Space, type Track,
 } from '../core/types.js';
 import { GENRES, getGenre, type FormStep, type Genre } from '../genre/index.js';
-import { INSTRUMENTS, type Instrument, type InstrumentId } from '../style/instruments.js';
+import { IDIOMS, INSTRUMENTS, type Instrument, type InstrumentId } from '../style/instruments.js';
 import type { EraProfile, Mood, Progression, Style } from '../style/types.js';
 import { planRegisters, resolveCollisions } from './arrange.js';
 import { buildAccompaniment, getStrictness, resolveRules, type StrictnessId } from './constraints.js';
@@ -321,8 +321,11 @@ export function generateSong(opts: GenerateOptions = {}): Song {
           scaleForChord: genre.scaleForChord,
           rules,
           // The instrument actually playing this line — the counter instrument
-          // takes over in solo sections.
+          // takes over in solo sections. Its idiom decides whether the line
+          // breaks chords, runs up scales, or stops to breathe; its agility
+          // decides how far it can reach.
           agility: leadInstrument.agility,
+          idiom: IDIOMS[leadInstrument.idiom],
         });
       push(byLayer, leadLayer, melody);
       sectionMelody = melody;
@@ -397,7 +400,14 @@ export function generateSong(opts: GenerateOptions = {}): Song {
    */
   for (const layer of ['melody', 'counter'] as LayerId[]) {
     const notes = byLayer.get(layer);
-    if (notes?.length) byLayer.set(layer, trimOverlaps(notes.filter((n) => n.beat >= 0)));
+    if (!notes?.length) continue;
+    // Swing *before* trimming, not after. Swing delays a note and holds its end
+    // fixed, which on a note already shorter than the delay leaves a stub of a
+    // few milliseconds — audible as a click and meaningless as a pitch. Trimming
+    // afterwards is what removes them, and it can only do that if it runs last.
+    byLayer.set(layer, trimOverlaps(
+      applySwing(notes.filter((n) => n.beat >= 0), style.swing),
+    ));
   }
 
   const tracks: Track[] = [];
@@ -411,7 +421,8 @@ export function generateSong(opts: GenerateOptions = {}): Song {
       instrument: instrument.name,
       gmProgram: instrument.gm,
       strudelSound: instrument.strudel,
-      notes: applySwing(notes, style.swing),
+      // Melodic layers were swung above, before their overlap trim.
+      notes: layer === 'melody' || layer === 'counter' ? notes : applySwing(notes, style.swing),
       gain: gains[layer],
       ...(effects ? { effects } : {}),
     });

@@ -25,6 +25,7 @@ import type { Mode, Scale } from '../core/scale.js';
 import { makeScale, scaleStepsBetween, snapToScale, stepInScale } from '../core/scale.js';
 import type { Rng } from '../core/rng.js';
 import type { NoteEvent } from '../core/types.js';
+import { IDIOMS, type IdiomProfile } from '../style/instruments.js';
 import type { Style } from '../style/types.js';
 import {
   buildAccompaniment, comfortableLeap, EMPTY_ACCOMPANIMENT,
@@ -68,6 +69,13 @@ export interface MelodyOptions {
   rules?: Rule[];
   /** Leap freedom of the instrument playing this line, 0..1. */
   agility?: number;
+  /**
+   * How the instrument playing this line shapes its music — whether it breaks
+   * chords, runs up scales, re-articulates freely, or has to stop and breathe.
+   * Defaults to `vocal`, which is what every lead in the generator used to be
+   * regardless of what was actually holding it. See `style/instruments.ts`.
+   */
+  idiom?: IdiomProfile;
   /**
    * How much this line should repeat itself. Defaults to `through`, which is
    * neutral: no motif is favoured, no rhythm locked, no vocabulary narrowed.
@@ -119,6 +127,7 @@ function choosePitch(args: {
   strictness: number;
   rules: Rule[];
   agility: number;
+  idiom: IdiomProfile;
   /** How far to narrow the vocabulary, 0..1. */
   vocabulary: number;
   /** Pitch classes already sounded in this phrase, and how often. */
@@ -181,7 +190,11 @@ function choosePitch(args: {
     // stalls is a *symptom* of the filtering. A hook repeats a note because
     // repeating it is the idea.
     if (semis === 0) {
-      w *= Math.max(0.15, 0.55 - args.strictness * 0.09) * (1 + args.vocabulary * 1.2);
+      // Re-articulation is free on a mallet and awkward sung, so the standing
+      // distaste for it is the instrument's rather than the generator's.
+      w *= Math.max(0.15, 0.55 - args.strictness * 0.09)
+        * (1 + args.vocabulary * 1.2)
+        * (0.65 + args.idiom.repeat * 0.5);
     }
     // "Chord tone on the beat" and "move by step" pull against each other,
     // because adjacent chord tones are a third apart. As strictness rises the
@@ -218,7 +231,33 @@ function choosePitch(args: {
       w *= heard > 0 ? 1 + args.vocabulary * 1.6 : 1 - args.vocabulary * 0.45;
     }
 
-    // Recover from a leap by stepping back the other way.
+    /**
+     * Figuration — the part of instrumental writing that is not a leap width.
+     *
+     * A broken chord is a third followed by another third the same way; a scale
+     * run is a step followed by another step the same way. Both were happening
+     * at whatever rate fell out of the other weights, identically on every
+     * instrument in the catalogue, which is why a harp and a trombone produced
+     * the same line. Continuing a figure is the whole of what makes a line
+     * sound *played* rather than merely composed.
+     */
+    const prevSemis = Math.abs(prevInterval);
+    const sameWay = prevInterval !== 0 && Math.sign(cand - prev) === Math.sign(prevInterval);
+    if (isChordTone && semis >= 3 && semis <= 4) {
+      // Starting one. Without this the figure can never begin: a bonus that
+      // only rewards *continuing* an arpeggio is unreachable from a line that
+      // has not arpeggiated yet, which is why the rate sat at 2% on every
+      // instrument no matter what the weights said.
+      w *= 1 + args.idiom.arpeggio * 2.4;
+      // Continuing one, which is what actually makes it read as a figure.
+      if (sameWay && prevSemis >= 3 && prevSemis <= 4) w *= 1 + args.idiom.arpeggio * 2.8;
+    } else if (sameWay && semis <= 2 && prevSemis <= 2) {
+      w *= 1 + args.idiom.run * 1.6;
+    }
+
+    // Recover from a leap by stepping back the other way. An instrument that
+    // arpeggiates is exempt while it is arpeggiating — the rule exists to stop
+    // a line wandering, and a broken chord is not wandering.
     if (Math.abs(prevInterval) > 4) {
       const sameDirection = Math.sign(cand - prev) === Math.sign(prevInterval);
       if (sameDirection) w *= 0.3;
@@ -531,6 +570,7 @@ function renderPhrase(args: {
   rules: Rule[];
   agility: number;
   hook: HookLevel;
+  idiom: IdiomProfile;
   /**
    * Widest interval a restated figure may use.
    *
@@ -658,6 +698,7 @@ function renderPhrase(args: {
         strictness: args.strictness,
         rules: args.rules,
         agility: args.agility,
+        idiom: args.idiom,
         vocabulary: hook.vocabulary,
         phraseUse,
         ...(prevPrev !== undefined ? { prevPrev } : {}),
@@ -708,6 +749,7 @@ export function generateMelody(opts: MelodyOptions): NoteEvent[] {
   const scaleForChord = opts.scaleForChord ?? defaultScaleForChord;
   const rules = opts.rules ?? RULES;
   const agility = opts.agility ?? 0.7;
+  const idiom = opts.idiom ?? IDIOMS.vocal;
 
   /**
    * Appetite for gestures that cross the barline.
@@ -776,6 +818,7 @@ export function generateMelody(opts: MelodyOptions): NoteEvent[] {
        * safe to write across the seam.
        */
       allowAnacrusis: true,
+      breath: idiom.breath,
       ...(opts.motto ? { motto: opts.motto.cell } : {}),
     });
     if (!plan.notes.length) continue;
@@ -805,6 +848,7 @@ export function generateMelody(opts: MelodyOptions): NoteEvent[] {
       rules,
       agility,
       hook,
+      idiom,
       reach: melodicReach(agility, strictness),
       phraseUse,
       phraseSlots: thisPhraseBars * slotsPerBar,

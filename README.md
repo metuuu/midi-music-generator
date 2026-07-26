@@ -70,6 +70,8 @@ Three stages run before a single pitch is chosen, and they are where most of the
 
 **Rhythm is composed at phrase length, before pitch.** A rhythm cell forced to fill exactly one bar cannot express an anacrusis, a tie over the barline, or an anticipated downbeat — and the generator produced **zero** of all three across 120 songs. Phrases are now planned whole, with those gestures applied at the joins. Each style declares its own appetite for them: 0.12 for humppa, which is square on purpose, 0.65 for bossa, which anticipates almost everything.
 
+**The lead is written for its instrument.** `agility` says how far an instrument can reach; it says nothing about what it plays. Handed identical chords, eight different leads used to produce statistically identical lines — a harp and a trombone wrote the same 68%-steps, 2%-arpeggiation part, differing only in the widest interval either would take. Every lead was a wordless singer wearing a different patch. Each instrument now declares an **idiom**: a mallet breaks chords (36% thirds, 7% arpeggiation), a flute runs up scales and stops to breathe (0.23 gaps per bar against a keyboard's 0.15), a trombone states a few notes and rests.
+
 Plus a **motto** — one rhythm and one contour chosen per song and quoted throughout in proportion to `hook`. Repetition previously existed at exactly two scales, one bar and one whole section, with nothing between them, so a song could be locally shapely and globally arbitrary. See [docs/arrangement.md](docs/arrangement.md).
 
 ## Vocals
