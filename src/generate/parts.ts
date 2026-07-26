@@ -17,6 +17,7 @@ import { clampToRange, nearestPc, pc } from '../core/pitch.js';
 import type { Rng } from '../core/rng.js';
 import type { DrumEvent, DrumVoice, NoteEvent } from '../core/types.js';
 import { scaleStepsBetween, stepInScale, type Scale } from '../core/scale.js';
+import { buildFill, DEFAULT_FILLS, landing, type FillPalette } from './fills.js';
 import { IDIOMS, type IdiomProfile } from '../style/instruments.js';
 import type { BassPattern, CompPattern, DrumPattern, Style } from '../style/types.js';
 import { SLOTS_PER_BEAT } from './rhythm.js';
@@ -562,7 +563,13 @@ function avoidClash(
 export function generateDrums(
   ctx: PartContext,
   pattern: DrumPattern,
-  opts: { fillAtEnd: boolean; intensity: number },
+  opts: {
+    fillAtEnd: boolean;
+    intensity: number;
+    /** How hard the section this fill delivers plays. See `generate/fills.ts`. */
+    arrival?: number;
+    palette?: FillPalette;
+  },
 ): DrumEvent[] {
   const { chords, beatsPerBar, startBeat, rng } = ctx;
   const slotsPerBar = beatsPerBar * SLOTS_PER_BEAT;
@@ -571,12 +578,23 @@ export function generateDrums(
   for (let bar = 0; bar < chords.length; bar++) {
     const barStart = startBeat + bar * beatsPerBar;
     const isLastBar = bar === chords.length - 1;
-    const doFill = opts.fillAtEnd && isLastBar;
+    const arrival = opts.arrival ?? opts.intensity;
+
+    const fill = opts.fillAtEnd && isLastBar
+      ? buildFill({
+        barStart, beatsPerBar, slotsPerBar, rng,
+        intensity: opts.intensity,
+        arrival,
+        palette: opts.palette ?? DEFAULT_FILLS,
+      })
+      : undefined;
 
     for (const [voice, slots] of Object.entries(pattern.voices) as [DrumVoice, number[]][]) {
       for (const slot of slots) {
-        // Leave the back half of the bar clear for the fill.
-        if (doFill && slot >= slotsPerBar / 2 && voice !== 'bd') continue;
+        // Clear exactly as much of the bar as the fill actually occupies —
+        // which used to be hardcoded to half a bar whatever was played there.
+        // The kick keeps going: a drummer's right foot does not stop for a fill.
+        if (fill && slot >= fill.fromSlot && voice !== 'bd') continue;
         const strength = slot === 0 ? 1 : slot % SLOTS_PER_BEAT === 0 ? 0.85 : 0.68;
         out.push({
           beat: barStart + slot / SLOTS_PER_BEAT,
@@ -586,20 +604,9 @@ export function generateDrums(
       }
     }
 
-    if (doFill) {
-      const toms: DrumVoice[] = ['ht', 'mt', 'lt'];
-      const start = slotsPerBar / 2;
-      const step = rng.pick([2, 2, 4]);
-      let i = 0;
-      for (let slot = start; slot < slotsPerBar; slot += step) {
-        out.push({
-          beat: barStart + slot / SLOTS_PER_BEAT,
-          voice: toms[Math.min(i, toms.length - 1)]!,
-          velocity: Math.min(1, (0.7 + i * 0.06) * opts.intensity),
-        });
-        i++;
-      }
-      out.push({ beat: barStart + beatsPerBar, voice: 'cr', velocity: 0.85 * opts.intensity });
+    if (fill) {
+      out.push(...fill.events);
+      out.push(landing(barStart + beatsPerBar, arrival));
     }
   }
   return out;

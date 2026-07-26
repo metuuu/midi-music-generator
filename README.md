@@ -76,6 +76,8 @@ Three stages run before a single pitch is chosen, and they are where most of the
 
 **The song has a dynamic shape.** Velocity used to be metric weight plus jitter, identical in every section, with the accompaniment on flat constants — a chorus arrived 2% louder than the verse before it, and the pad's velocity had a standard deviation of exactly zero. Section level now follows what kind of section it is, where it falls in the form, and how much each layer responds: a drummer plays a chorus visibly harder, a pad barely changes. Chorus 0.65, verse 0.59, bridge 0.46. Sustained parts swell across a section instead of sitting at one value.
 
+**The drums signpost the section they are arriving at.** There was one fill — descending toms into a crash, every genre, every boundary, whatever came next — and it stuttered on the low tom after three notes. Seven shapes now, drawn from a per-genre vocabulary, and a fill's size comes from the *next* section's intensity rather than the current one, because a fill is a delivery. Jazz gets the cymbal (ride 0.73 per fill bar against iskelmä's 0.02); iskelmä gets the toms (0.96 against jazz's 0.09). `drop` — the kit stopping dead for a bar — is in the vocabulary too, because silence makes the downbeat land twice as hard.
+
 Plus a **motto** — one rhythm and one contour chosen per song and quoted throughout in proportion to `hook`. Repetition previously existed at exactly two scales, one bar and one whole section, with nothing between them, so a song could be locally shapely and globally arbitrary. See [docs/arrangement.md](docs/arrangement.md).
 
 ## Vocals

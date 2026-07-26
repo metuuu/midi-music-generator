@@ -281,4 +281,12 @@ export const ambient: Genre = {
     // it would be the one thing this rule exists to prevent.
     return makeScale(tonic, mode === 'minor' ? 'minor' : 'major');
   },
+  /**
+   * Ambient mostly has no kit at all, and the styles that do should not
+   * announce anything — the idiom's whole proposition is that sections arrive
+   * without being signposted. Where a fill happens it is a shape, not a roll.
+   */
+  fills: [
+    ['drop', 6], ['lead-in', 3], ['rim', 2],
+  ],
 };

@@ -12,6 +12,7 @@ import type { Mode } from '../core/scale.js';
 import type { VoicingStyle } from '../core/voicing.js';
 import type { StrictnessId } from '../generate/constraints.js';
 import type { HookId } from '../generate/hook.js';
+import type { FillPalette } from '../generate/fills.js';
 
 /** One bar of melodic rhythm. `[6, 2, 8]` = dotted quarter, eighth, half. */
 export type RhythmCell = number[];
@@ -170,6 +171,15 @@ export interface Style {
    * announced.
    */
   drumFills?: boolean;
+  /**
+   * Which fill shapes this style's drummer reaches for. Falls back to the
+   * genre's palette, then to a dance-band default.
+   *
+   * A tom roll is a dance-band gesture. It is not what a bebop drummer plays
+   * into the head, and it is not what a bossa drummer plays into anything —
+   * see `generate/fills.ts`.
+   */
+  fills?: FillPalette;
   /**
    * Beats between successive notes of a counter-melody figure. Defaults to
    * 0.5 — an eighth note, which is right for anything danced to.

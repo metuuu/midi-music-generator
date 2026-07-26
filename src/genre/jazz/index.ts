@@ -155,4 +155,11 @@ export const jazz: Genre = {
         return makeScale(tonic, mode === 'minor' ? 'minor' : 'major');
     }
   },
+  /**
+   * A jazz drummer does not play a tom roll into the head. The fill is the
+   * cymbal, a couple of kicks under it, and a snare on the way in.
+   */
+  fills: [
+    ['cymbal', 6], ['snare-roll', 3], ['lead-in', 3], ['drop', 2], ['snare-toms', 1],
+  ],
 };

@@ -31,6 +31,7 @@ import type { RuleOverrides, StrictnessId } from '../generate/constraints.js';
 import type { HookId } from '../generate/hook.js';
 import type { EraProfile, Mood, Style } from '../style/types.js';
 import type { VocalProfile } from '../style/vocals.js';
+import type { FillPalette } from '../generate/fills.js';
 
 export interface FormStep {
   kind: SectionKind;
@@ -87,6 +88,8 @@ export interface Genre {
    * to a genre that does not hold it produces music that is correct and wrong.
    */
   ruleOverrides?: RuleOverrides;
+  /** Default fill vocabulary for the genre's styles. See `generate/fills.ts`. */
+  fills?: FillPalette;
 
   /**
    * Which scale the melody should draw on for a given chord.

@@ -62,4 +62,8 @@ export const iskelma: Genre = {
     return makeScale(tonic, mode === 'minor' ? 'minor' : 'major');
   },
   duration: [105, 185],
+  /** The dance-band vocabulary: toms into the chorus, and know when not to. */
+  fills: [
+    ['tom-roll', 5], ['snare-toms', 3], ['snare-roll', 3], ['lead-in', 2], ['drop', 1],
+  ],
 };

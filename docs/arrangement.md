@@ -176,6 +176,23 @@ The gain is emitted as a control grid on the same sixteenth slots as the notes, 
 
 Adding it immediately failed `npm run check`, which is the useful part: the notation checker had never seen a numeric token, because the only other numeric grids belong to the sung layer and the sweep never passed `vocals: true`. A whole class of emitted notation was going unchecked. It does now.
 
+## Drum fills
+
+There was one fill: descending toms from the half-bar into a crash, in every genre, at every section boundary, at every tempo, regardless of what the section was turning into. A tom roll is a dance-band gesture — a drummer plays it into a chorus and would not dream of playing it into the head of a bebop tune, where the fill is a cymbal, a couple of kicks under it, and no toms anywhere.
+
+It also had a quiet bug. It walked `ht, mt, lt` and then clamped to the end of the list, so a sixteenth-note fill played three toms and five repeats of the low one. That is not a roll, it is a stutter.
+
+Seven shapes now, drawn from a per-genre vocabulary: `tom-roll`, `snare-roll`, `snare-toms`, `cymbal`, `rim`, `lead-in`, and `drop` — where the kit simply stops and the silence *is* the fill, because a bar of near-nothing makes the next downbeat land twice as hard.
+
+```
+toms per fill bar:   iskelmä 0.96   jazz 0.09
+ride per fill bar:   jazz    0.73   iskelmä 0.02
+```
+
+**A fill's size belongs to what it lands on, not to what it leaves.** It is a delivery, so the length and the landing cymbal are chosen from the *next* section's intensity: the biggest fill in a song is the one into the last chorus, and that stays true even when the verse before it was quiet. A fill into something hushed gets an open hat rather than a crash, because a crash into a quiet verse announces the wrong thing.
+
+The kick keeps playing through the fill — a drummer's right foot does not stop — and the rest of the pattern is silenced for exactly as much of the bar as the fill actually occupies, which used to be hardcoded to half a bar whatever was played there.
+
 ## What the two axes govern now
 
 **Smoothness** used to police the melody and nothing else, which left it unable to touch the loudest source of sourness in the output. It now also sets:

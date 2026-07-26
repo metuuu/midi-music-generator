@@ -31,6 +31,7 @@ import type { EraProfile, Mood, Progression, Style } from '../style/types.js';
 import { planRegisters, resolveCollisions } from './arrange.js';
 import { buildAccompaniment, getStrictness, resolveRules, type StrictnessId } from './constraints.js';
 import { applyDynamics, sectionIntensity, swell } from './dynamics.js';
+import { DEFAULT_FILLS } from './fills.js';
 import { getHook, RECALL_BIAS, type HookId } from './hook.js';
 import { generateMelody } from './melody.js';
 import { chooseMotto } from './motto.js';
@@ -253,9 +254,26 @@ export function generateSong(opts: GenerateOptions = {}): Song {
     });
 
     if (active.has('drums')) {
+      /**
+       * A fill is a delivery, so how big it is belongs to the section it is
+       * delivering rather than to the one just finishing. The largest fill in a
+       * song is the one into the last chorus, and that is true even when the
+       * verse before it was quiet.
+       */
+      const next = sections[s + 1];
+      const arrival = next
+        ? sectionIntensity({
+          kind: next.kind,
+          index: s + 1,
+          total: sections.length,
+          ordinal: seenKinds.get(next.kind) ?? 0,
+        })
+        : intensity;
       drumEvents.push(...generateDrums(ctx, drumPattern, {
         fillAtEnd: section.kind !== 'outro' && style.drumFills !== false,
         intensity,
+        arrival,
+        palette: style.fills ?? genre.fills ?? DEFAULT_FILLS,
       }));
     }
 

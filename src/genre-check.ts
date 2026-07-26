@@ -385,6 +385,46 @@ console.log('\nHook');
   );
 }
 
+// --- Drum fills ------------------------------------------------------------
+// There used to be exactly one fill: descending toms into a crash, in every
+// genre, at every boundary, whatever the section was turning into. A tom roll
+// is a dance-band gesture and a bebop drummer would not play one into the head.
+console.log('\nDrum fills');
+{
+  const fillVoices = (gid: string) => {
+    const seen = new Map<string, number>();
+    let bars = 0;
+    for (let i = 0; i < 60; i++) {
+      const s = generateSong({ seed: `fill-${i}`, genre: gid });
+      const bpb = s.meta.beatsPerBar;
+      for (const sec of s.sections) {
+        const end = (sec.startBar + sec.lengthBars) * bpb;
+        // The back half of a section's last bar is where a fill lives.
+        const back = s.drums.events.filter((e) => e.beat >= end - bpb / 2 && e.beat < end);
+        if (!back.length) continue;
+        bars++;
+        for (const v of new Set(back.map((e) => e.voice))) {
+          seen.set(v, (seen.get(v) ?? 0) + 1);
+        }
+      }
+    }
+    const share = (v: string) => (seen.get(v) ?? 0) / Math.max(1, bars);
+    return { toms: share('ht') + share('mt') + share('lt'), ride: share('rd'), bars };
+  };
+  const isk = fillVoices('iskelma');
+  const jaz = fillVoices('jazz');
+  check(
+    'an iskelmä fill reaches for the toms',
+    isk.toms > jaz.toms,
+    `toms per fill bar: iskelmä ${isk.toms.toFixed(2)} vs jazz ${jaz.toms.toFixed(2)}`,
+  );
+  check(
+    'a jazz fill reaches for the cymbal',
+    jaz.ride > isk.ride,
+    `ride per fill bar: jazz ${jaz.ride.toFixed(2)} vs iskelmä ${isk.ride.toFixed(2)}`,
+  );
+}
+
 // --- Counter-melody --------------------------------------------------------
 // The answer has to be a *line* and it has to be *independent*. Before it was
 // rewritten it was neither: it restarted from the chord root nearest the
