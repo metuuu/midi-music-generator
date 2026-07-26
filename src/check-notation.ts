@@ -7,10 +7,22 @@
  */
 
 import { generateSong } from './generate/song.js';
+import { resolveVoice } from './render/drum-banks.js';
 import { renderStrudel } from './render/strudel.js';
 import { GENRE_IDS } from './genre/index.js';
 
 const problems: string[] = [];
+/**
+ * Drum voices asked for that the chosen bank does not have.
+ *
+ * Tracked separately because the failure is invisible in the emitted text — the
+ * line looks like every other drum line, and the sound simply never arrives.
+ * `substituted` is fine and expected; `dropped` means a part was written and
+ * then thrown away, which is worth knowing about even when it is unavoidable.
+ */
+let substituted = 0;
+let dropped = 0;
+let drumParts = 0;
 let bars = 0;
 let songs = 0;
 
@@ -28,6 +40,13 @@ for (let i = 0; i < 150; i++) {
   const song = generateSong({ seed: `notation-${i}`, genre, vocals: i % 3 === 0 });
   songs++;
   const code = renderStrudel(song, { includePrebake: true });
+
+  for (const voice of new Set(song.drums.events.map((e) => e.voice))) {
+    drumParts++;
+    const resolved = resolveVoice(song.drums.bank, voice);
+    if (resolved === undefined) dropped++;
+    else if (resolved !== voice) substituted++;
+  }
 
   for (const raw of code.split('\n')) {
     const line = raw.trim();
@@ -63,6 +82,13 @@ for (let i = 0; i < 150; i++) {
 }
 
 console.log(`Checked ${bars} bars across ${songs} songs.`);
+console.log(
+  `Drum voices: ${drumParts} asked for, ${substituted} substituted, ${dropped} dropped.`,
+);
+// A dropped voice is a part that was written and then silently thrown away. It
+// is tolerable for an ornament and not for the kit's backbone: no bank in the
+// pack lacks a kick, a snare or a hat, so a drop there means the table is wrong.
+if (dropped > 0) problems.push(`${dropped} drum parts had no playable substitute`);
 if (problems.length) {
   console.log(`\n${problems.length} problem(s):`);
   for (const p of [...new Set(problems)].slice(0, 15)) console.log('  ' + p);

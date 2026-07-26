@@ -17,6 +17,7 @@
  */
 
 import { midiToNoteName, spellingFor } from '../core/pitch.js';
+import { resolveVoice } from './drum-banks.js';
 import type { DrumVoice, Effects, NoteEvent, Song, Track, Vowel } from '../core/types.js';
 import {
   CONSONANTS, FORMANT_BANDWIDTHS, FORMANT_GAINS, VOWEL_FORMANTS,
@@ -101,14 +102,21 @@ export function renderStrudel(song: Song, opts: StrudelRenderOptions = {}): stri
   }
 
   for (const [voice, grid] of byVoice) {
+    /**
+     * Old machines do not have modern kits. Substitute what this bank actually
+     * has — see `render/drum-banks.ts` — or drop the part entirely rather than
+     * emit a sample name that does not resolve.
+     */
+    const sound = resolveVoice(song.drums.bank, voice);
+    if (!sound) continue;
     const bars = grid.map((slots) => {
       const row: string[] = Array.from({ length: slotsPerBar }, () => '~');
-      for (const s of slots) row[s] = voice;
+      for (const s of slots) row[s] = sound;
       return row;
     });
     parts.push(
       [
-        `  // drums — ${voice}`,
+        `  // drums — ${voice}${sound === voice ? '' : ` (as ${sound}: ${song.drums.bank} has no ${voice})`}`,
         `  s(\`${formatGrid(bars)}\`)`,
         `    .bank('${song.drums.bank}')`,
         `    .gain(${(song.drums.gain * (song.drums.voiceGains[voice] ?? 1)).toFixed(2)})`,

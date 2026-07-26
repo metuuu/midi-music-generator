@@ -143,6 +143,8 @@ For ambient it also asserts the negative claims, which are the ones that quietly
 
 MIT, except `src/web/` which is AGPL-3.0-or-later because it links Strudel.
 
+**The old drum machines are not complete kits.** `RolandCompurhythm78` is a 1978 preset box with six sounds and `KorgMinipops` has four, so a pattern asking either for a tom got a console error and silence. That was costing real music: every section-ending fill is written on toms and a crash, so on those banks the fills were not quiet, they were *absent*. `src/render/drum-banks.ts` holds what each bank actually contains — read from the pack, not guessed — and substitutes by role: a ride covers for a crash, the toms cover for each other and then land on the snare. 19% of drum parts were being dropped; none are now. MIDI is unaffected, since GM channel 10 has every voice by definition.
+
 Two runtime assets the preview downloads are **not** covered by this repo: the [drum-machine samples](https://github.com/ritchse/tidal-drum-machines) publish no licence at all, and the soundfonts derive from GeneralUser GS / FluidR3. Neither ends up in MIDI output — drums map to GM channel 10 — so audio you render uses your own soundfont. Check terms before shipping either as audio.
 
 ## Known limitations
