@@ -141,6 +141,41 @@ doubling the tune at
 
 A lone note in a hole is now *held* across the gap rather than played short. A single short note dropped into a silence is a blip — the ear files it as a stray attack rather than as a reply; sustained, it is a countersubject.
 
+## Dynamics
+
+A song had none. Velocity came from metric weight plus a little jitter, and the accompaniment layers used flat constants, so every section came out at the same level:
+
+```
+verse   mean 0.626        pad    sd 0.000
+chorus  mean 0.641        brass  sd 0.027
+```
+
+A chorus arriving 2% louder than the verse it follows does not arrive. The chords change and the layer count goes up and the ear still hears one unbroken plateau — which is most of what "it feels flat" means. The material was fine; nothing ever *happened* to it. And a pad whose every note is exactly 0.42 is not being played, it is being held down.
+
+Three things combine, in decreasing order of how much they matter:
+
+1. **What kind of section it is.** The gap that matters is chorus against bridge — a bridge that competes with the chorus destroys the chorus, which is the whole reason bridges drop back.
+2. **Where it falls in the form.** Records build. The last chorus is bigger than the first, and each return of a kind is a little more than the last. The outro is the one place that goes the other way.
+3. **How much the layer responds.** A drummer plays a chorus visibly harder (0.85); a pad barely changes (0.30), because a pad is the floor the arrangement stands on and a floor that surges is unsettling rather than dynamic.
+
+```
+intro   0.456      bass    sd 0.100
+verse   0.585      comp    sd 0.125
+chorus  0.653      pad     sd 0.028
+bridge  0.460      brass   sd 0.086
+outro   0.447
+```
+
+Sustained parts get a **swell** on top — one arch across the section, quietest at the edges — because a held chord at one fixed level is the sound of a patch rather than of a player.
+
+### It reaches the preview now
+
+Strudel's mini-notation has no inline velocity, which is why dynamics used to stop at the track level in the audition render and survive only in the MIDI. That was tolerable while the generator had no dynamics worth carrying; with a chorus measurably louder than the bridge before it, an audition tool that flattens the difference is auditioning the wrong thing.
+
+The gain is emitted as a control grid on the same sixteenth slots as the notes, holding its value with `_` between onsets, and only for parts whose velocity actually varies by more than a couple of dB. A comp that plays every chord at one level gains nothing from a second grid saying so.
+
+Adding it immediately failed `npm run check`, which is the useful part: the notation checker had never seen a numeric token, because the only other numeric grids belong to the sung layer and the sweep never passed `vocals: true`. A whole class of emitted notation was going unchecked. It does now.
+
 ## What the two axes govern now
 
 **Smoothness** used to police the melody and nothing else, which left it unable to touch the loudest source of sourness in the output. It now also sets:

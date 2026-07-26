@@ -30,6 +30,7 @@ import { IDIOMS, INSTRUMENTS, type Instrument, type InstrumentId } from '../styl
 import type { EraProfile, Mood, Progression, Style } from '../style/types.js';
 import { planRegisters, resolveCollisions } from './arrange.js';
 import { buildAccompaniment, getStrictness, resolveRules, type StrictnessId } from './constraints.js';
+import { applyDynamics, sectionIntensity, swell } from './dynamics.js';
 import { getHook, RECALL_BIAS, type HookId } from './hook.js';
 import { generateMelody } from './melody.js';
 import { chooseMotto } from './motto.js';
@@ -196,6 +197,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
    */
   const remembered = new Map<string, Remembered>();
   const hookRng = new Rng(`${seed}:hook`);
+  const seenKinds = new Map<SectionKind, number>();
 
   for (let s = 0; s < sections.length; s++) {
     const section = sections[s]!;
@@ -240,7 +242,15 @@ export function generateSong(opts: GenerateOptions = {}): Song {
     };
 
     const active = new Set(section.activeLayers);
-    const intensity = section.kind === 'chorus' ? 1 : section.kind === 'intro' || section.kind === 'outro' ? 0.78 : 0.9;
+    /**
+     * How hard the band plays this section. Replaces a three-way guess that
+     * only the drums ever saw — see `generate/dynamics.ts`.
+     */
+    const ordinal = seenKinds.get(section.kind) ?? 0;
+    seenKinds.set(section.kind, ordinal + 1);
+    const intensity = sectionIntensity({
+      kind: section.kind, index: s, total: sections.length, ordinal,
+    });
 
     if (active.has('drums')) {
       drumEvents.push(...generateDrums(ctx, drumPattern, {
@@ -328,6 +338,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
           agility: leadInstrument.agility,
           idiom: IDIOMS[leadInstrument.idiom],
         });
+      applyDynamics(melody, leadLayer, intensity);
       push(byLayer, leadLayer, melody);
       sectionMelody = melody;
 
@@ -338,11 +349,13 @@ export function generateSong(opts: GenerateOptions = {}): Song {
 
       if (!isSolo && active.has('counter')) {
         const counterCtx: PartContext = { ...ctx, rng: new Rng(`${seed}:counter:${s}`) };
-        push(byLayer, 'counter', generateCounter(counterCtx, melody, instruments.counter.centre, {
+        const answer = generateCounter(counterCtx, melody, instruments.counter.centre, {
           range: plan.counter,
           idiom: IDIOMS[instruments.counter.idiom],
           scaleFor: (c) => genre.scaleForChord(localTonic, mode, c),
-        }));
+        });
+        applyDynamics(answer, 'counter', intensity);
+        push(byLayer, 'counter', answer);
       }
     }
 
@@ -356,6 +369,21 @@ export function generateSong(opts: GenerateOptions = {}): Song {
       clarity,
       floor: instruments.bass.centre + 10,
     });
+
+    /**
+     * Scale the whole section at once. Doing it here rather than inside each
+     * part generator is what keeps the parts ignorant of the form: a comp
+     * pattern should not have to know whether it is in a bridge.
+     */
+    const sectionBeats = section.lengthBars * style.beatsPerBar;
+    applyDynamics(sectionBass, 'bass', intensity);
+    applyDynamics(sectionComp, 'comp', intensity);
+    applyDynamics(sectionPad, 'pad', intensity);
+    applyDynamics(sectionBrass, 'brass', intensity);
+    // Sustained parts get a swell on top, because a held chord at one fixed
+    // level is the sound of a patch rather than of a player.
+    swell(sectionPad, ctx.startBeat, sectionBeats, 0.35);
+    swell(sectionComp, ctx.startBeat, sectionBeats, 0.12);
 
     push(byLayer, 'bass', sectionBass);
     push(byLayer, 'comp', sectionComp);

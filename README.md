@@ -74,6 +74,8 @@ Three stages run before a single pitch is chosen, and they are where most of the
 
 **The counter-melody answers the tune instead of decorating it.** It used to restart on the chord root nearest its instrument's centre in every bar and walk root–third–fifth — 53% thirds and 24% minor sixths, which is a chord being spelled out rather than a line. It now echoes the shape of the phrase it follows (inverted about half the time), carries across barlines, and never doubles the tune at the unison or octave: 58% stepwise, 0% doubling.
 
+**The song has a dynamic shape.** Velocity used to be metric weight plus jitter, identical in every section, with the accompaniment on flat constants — a chorus arrived 2% louder than the verse before it, and the pad's velocity had a standard deviation of exactly zero. Section level now follows what kind of section it is, where it falls in the form, and how much each layer responds: a drummer plays a chorus visibly harder, a pad barely changes. Chorus 0.65, verse 0.59, bridge 0.46. Sustained parts swell across a section instead of sitting at one value.
+
 Plus a **motto** — one rhythm and one contour chosen per song and quoted throughout in proportion to `hook`. Repetition previously existed at exactly two scales, one bar and one whole section, with nothing between them, so a song could be locally shapely and globally arbitrary. See [docs/arrangement.md](docs/arrangement.md).
 
 ## Vocals
@@ -145,7 +147,6 @@ Two runtime assets the preview downloads are **not** covered by this repo: the [
 
 ## Known limitations
 
-- **Per-note velocity is not carried into the Strudel render.** Mini-notation has no inline velocity. Dynamics survive at the layer level there, and fully in the MIDI, which is what ships.
 - **Two effects do not survive to MIDI.** Reverb send and pan are GM level 1 (CC91, CC10) and ship everywhere; lowpass and resonance are GM2/GS (CC74, CC71) and need a synth that honours them, such as FluidSynth. **Delay and highpass have no GM controller at all** and exist only in the audition render — inventing a CC for them would produce a `.mid` that plays back correctly on exactly the synth it was tested against. A native engine reads all six from the IR.
 - **Jazz drums in the preview are drum machines.** No acoustic kit samples are available to it. MIDI output is unaffected.
 - **Soundfonts stream from a public CDN** in the browser preview. Use `setSoundfontUrl()` to self-host.

@@ -10,10 +10,10 @@
  * mini-notation `_` to sustain and `~` to rest. That produces code a human can
  * read and edit, rather than an opaque blob.
  *
- * Known limitation: per-note velocity is not carried across. Strudel has no
- * inline velocity in mini-notation, and emitting a parallel gain pattern
- * doubles the output for an audition tool. Dynamics survive at the layer level
- * (and fully in the MIDI render, which is the shipping format).
+ * Per-note velocity is carried as a parallel gain grid on the same slots as the
+ * notes — mini-notation has no inline velocity, so a control pattern is the only
+ * way. It is emitted only for parts that actually have dynamics to carry, which
+ * keeps the output readable; see `dynamicGrid`.
  */
 
 import { midiToNoteName, spellingFor } from '../core/pitch.js';
@@ -70,11 +70,18 @@ export function renderStrudel(song: Song, opts: StrudelRenderOptions = {}): stri
       continue;
     }
 
+    /**
+     * Per-note dynamics, as a gain grid laid on the same sixteenth slots as the
+     * notes. Only emitted when the part actually has dynamics to carry — a comp
+     * that plays every chord at one level gains nothing from a second grid
+     * saying so, and the audition output stays readable.
+     */
+    const dyn = dynamicGrid(track, meta.totalBars, slotsPerBar);
     parts.push([
       `  // ${track.layer} — ${track.instrument}`,
       `  note(\`${formatGrid(grid)}\`)`,
       `    .sound('${track.strudelSound}')`,
-      `    .gain(${track.gain.toFixed(2)})`,
+      dyn ? `    .gain(\`${formatGrid(dyn)}\`)` : `    .gain(${track.gain.toFixed(2)})`,
       ...effectChain(track.effects, song),
     ].join('\n'));
   }
@@ -158,6 +165,36 @@ function effectChain(fx: Effects | undefined, song: Song): string[] {
     );
   }
   return out;
+}
+
+/**
+ * Per-note velocity as a gain grid, or undefined when the part is flat.
+ *
+ * Strudel's mini-notation has no inline velocity, which is why dynamics used to
+ * stop at the track level here and survive only in the MIDI. That was tolerable
+ * while the generator had no dynamics worth carrying; now that a chorus is
+ * measurably louder than the bridge before it, an audition tool that flattens
+ * the difference is auditioning the wrong thing.
+ *
+ * The grid is laid on the same slots as the notes and holds its value with `_`
+ * between onsets, so it costs roughly what the note grid costs and stays in
+ * step with it. Velocity is folded into the track's own level here rather than
+ * multiplied at playback, so the two paths cannot drift apart.
+ */
+function dynamicGrid(
+  track: Track,
+  totalBars: number,
+  slotsPerBar: number,
+): string[][] | undefined {
+  const velocities = track.notes.map((n) => n.velocity);
+  if (velocities.length < 2) return undefined;
+  const lo = Math.min(...velocities);
+  const hi = Math.max(...velocities);
+  // Under a couple of dB there is nothing to hear and nothing worth printing.
+  if (hi - lo < 0.06) return undefined;
+
+  return buildValueGrid(track.notes, totalBars, slotsPerBar,
+    (n) => (track.gain * n.velocity).toFixed(2));
 }
 
 /**
