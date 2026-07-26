@@ -271,6 +271,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
         comp: instruments.comp.centre,
         pad: instruments.pad.centre,
         brass: instruments.brass.centre,
+        counter: instruments.counter.centre,
       },
     });
     const limitFor = (layer: LayerId) => ({
@@ -337,7 +338,11 @@ export function generateSong(opts: GenerateOptions = {}): Song {
 
       if (!isSolo && active.has('counter')) {
         const counterCtx: PartContext = { ...ctx, rng: new Rng(`${seed}:counter:${s}`) };
-        push(byLayer, 'counter', generateCounter(counterCtx, melody, instruments.counter.centre));
+        push(byLayer, 'counter', generateCounter(counterCtx, melody, instruments.counter.centre, {
+          range: plan.counter,
+          idiom: IDIOMS[instruments.counter.idiom],
+          scaleFor: (c) => genre.scaleForChord(localTonic, mode, c),
+        }));
       }
     }
 

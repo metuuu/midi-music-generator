@@ -16,7 +16,8 @@ import type { Midi } from '../core/pitch.js';
 import { clampToRange, nearestPc, pc } from '../core/pitch.js';
 import type { Rng } from '../core/rng.js';
 import type { DrumEvent, DrumVoice, NoteEvent } from '../core/types.js';
-import type { Scale } from '../core/scale.js';
+import { scaleStepsBetween, stepInScale, type Scale } from '../core/scale.js';
+import { IDIOMS, type IdiomProfile } from '../style/instruments.js';
 import type { BassPattern, CompPattern, DrumPattern, Style } from '../style/types.js';
 import { SLOTS_PER_BEAT } from './rhythm.js';
 
@@ -359,40 +360,75 @@ export function generateBrass(
 }
 
 /**
- * Counter-melody: short answering figures placed in the melody's gaps.
+ * Counter-melody — the line that answers the tune.
  *
- * Call and response between the singer and the accordion (or sax) is a
- * signature of the arrangement style, so rather than inventing an independent
- * line we look for holes — rests, or notes long enough to leave room — and
- * answer into them with chord tones.
+ * Call and response between the singer and the accordion (or the sax, or the
+ * vibraphone) is a signature of every arrangement style here, and the reason it
+ * works is that the answer is *about* the call. What was here before was not:
+ * it found a hole in the melody, started on the chord root nearest the
+ * instrument's centre, and walked root–third–fifth. Every bar. The same figure
+ * from the same starting note, with no memory across barlines and no
+ * relationship to the phrase it was supposedly answering. It was decoration,
+ * and the ear hears decoration as filler.
  *
- * How fast the answer moves is the style's business, not this function's. An
- * eighth-note figure is right for anything danced to and absurd in ambient,
- * where the holes are bars long and the answer should be a bell, not a run.
- * Everything below is expressed in multiples of `counterSpacing` so both come
- * out of the same code.
+ * Three things make it an answer instead:
+ *
+ *  - **Imitation.** The figure echoes the shape of the lead notes immediately
+ *    before the gap, held as scale steps so it transposes onto the current
+ *    chord. Sometimes inverted, which is a real device and has the useful side
+ *    effect of guaranteeing contrary motion.
+ *  - **Continuity.** The line carries across barlines instead of resetting to
+ *    the instrument's centre, so it reads as one part rather than as a series
+ *    of unrelated fills.
+ *  - **Independence where it overlaps.** When the answer does sound against a
+ *    held melody note — rare, since it lives in the gaps — it must not double
+ *    it at the unison or octave, and must not move in parallel fifths with it.
+ *    Two lines moving together are one line.
+ *
+ * How fast the answer moves is the style's business. An eighth-note figure is
+ * right for anything danced to and absurd in ambient, where the holes are bars
+ * long and the answer should be a bell, not a run. Everything is expressed in
+ * multiples of `counterSpacing` so both come out of the same code.
  */
 export function generateCounter(
   ctx: PartContext,
   melody: NoteEvent[],
   centre: Midi,
+  opts: {
+    /** Where this line may sit. Kept under the lead by the arranger. */
+    range?: [Midi, Midi];
+    /** The answering instrument's figuration. See `style/instruments.ts`. */
+    idiom?: IdiomProfile;
+    /** Needed to transpose an imitated shape onto the current harmony. */
+    scaleFor?: (chord: Chord) => Scale;
+  } = {},
 ): NoteEvent[] {
   const { chords, beatsPerBar, startBeat, rng, style } = ctx;
   const out: NoteEvent[] = [];
-  const lo = centre - 9;
-  const hi = centre + 9;
+  const [lo, hi] = opts.range ?? [centre - 9, centre + 9];
   const spacing = style.counterSpacing ?? 0.5;
+  const idiom = opts.idiom ?? IDIOMS.vocal;
+
+  const sortedMelody = melody.slice().sort((a, b) => a.beat - b.beat);
+  /** The melody note sounding at a given beat, if any. */
+  const melodyAt = (beat: number): NoteEvent | undefined =>
+    sortedMelody.find((n) => n.beat <= beat + 1e-6 && n.beat + n.duration > beat + 1e-6);
+
+  // Carried across bars: this is what makes it a part rather than a series of
+  // fills, and it costs one variable.
+  let prev: Midi | undefined;
+  let prevMelody: Midi | undefined;
 
   for (let bar = 0; bar < chords.length; bar++) {
     const barStart = startBeat + bar * beatsPerBar;
     const barEnd = barStart + beatsPerBar;
-    const inBar = melody.filter((n) => n.beat >= barStart && n.beat < barEnd);
+    const inBar = sortedMelody.filter((n) => n.beat >= barStart && n.beat < barEnd);
 
     // Find the largest silent window in this bar.
     let cursor = barStart;
     let bestStart = barStart;
     let bestLen = 0;
-    for (const n of inBar.slice().sort((a, b) => a.beat - b.beat)) {
+    for (const n of inBar) {
       const gap = n.beat - cursor;
       if (gap > bestLen) { bestLen = gap; bestStart = cursor; }
       cursor = Math.max(cursor, n.beat + n.duration);
@@ -404,22 +440,123 @@ export function generateCounter(
     if (bestLen < spacing * 2 || !rng.chance(0.45)) continue;
 
     const chord = chords[bar]!;
+    const scale = opts.scaleFor?.(chord);
     const tones = chordPcs(chord);
-    const count = Math.min(3, Math.max(1, Math.floor(bestLen / (spacing * 2))));
-    let prev = clampToRange(nearestPc(tones[0]!, centre), lo, hi);
+    /**
+     * How many notes the answer gets, and how long they last.
+     *
+     * Dividing the gap by *two* note-lengths gave a single note in almost every
+     * hole, and a single note cannot be an answer — there is no shape to it, so
+     * the imitation below had nothing to work with and never fired. The right
+     * count is however many fit, given that each occupies nine tenths of its
+     * slot and only the last one needs room to finish.
+     */
+    const count = Math.min(4, Math.max(1, Math.floor(bestLen / spacing + 0.1)));
+    /**
+     * When only one note fits, hold it.
+     *
+     * A lone short note dropped into a hole is a blip — the ear files it as a
+     * stray attack rather than as a reply. Sustained across the gap it becomes
+     * a countersubject, which is what a second part holding one note under a
+     * moving line has always been.
+     */
+    const held = count === 1 ? Math.max(spacing * 0.9, bestLen * 0.8) : spacing * 0.9;
+
+    /**
+     * The shape to answer with.
+     *
+     * Taken from the lead notes immediately before the gap — literally the
+     * phrase being answered — as scale steps, and inverted about half the time.
+     * An inverted answer is the oldest trick in counterpoint and it is worth the
+     * line of code: it makes the two parts move apart, which is the only way the
+     * ear keeps hearing two of them.
+     */
+    const call = sortedMelody.filter((n) => n.beat < bestStart && n.beat >= bestStart - beatsPerBar * 2);
+    const shape: number[] = [];
+    if (scale && call.length >= 2) {
+      const invert = rng.chance(0.5) ? -1 : 1;
+      for (let i = Math.max(1, call.length - count); i < call.length; i++) {
+        shape.push(scaleStepsBetween(scale, call[i - 1]!.midi, call[i]!.midi) * invert);
+      }
+    }
+
+    // Start on a chord tone, near where the line last was rather than near the
+    // instrument's centre.
+    const anchor = prev ?? centre;
+    let midi = clampToRange(nearestPc(tones[0]!, anchor), lo, hi);
+
     for (let i = 0; i < count; i++) {
-      const target = tones[(i + 1) % tones.length]!;
-      const midi = clampToRange(nearestPc(target, prev), lo, hi);
-      prev = midi;
+      const beat = bestStart + i * spacing;
+      if (i > 0) {
+        const step = shape[i - 1];
+        midi = step !== undefined && scale
+          ? clampToRange(stepInScale(scale, midi, step), lo, hi)
+          // No call to answer: fall back to the chord, moving as little as
+          // possible, and arpeggiate only as far as the instrument wants to.
+          : clampToRange(nearestPc(tones[(i + 1) % tones.length]!, midi), lo, hi);
+      }
+      midi = avoidClash(midi, melodyAt(beat)?.midi, prevMelody, prev, tones, [lo, hi], idiom);
       out.push({
-        beat: bestStart + i * spacing,
-        duration: spacing * 0.9,
+        beat,
+        duration: held,
         midi,
         velocity: 0.5 * rng.float(0.9, 1.05),
       });
+      prevMelody = melodyAt(beat)?.midi ?? prevMelody;
+      prev = midi;
     }
   }
   return out.filter((n) => n.beat + n.duration <= startBeat + chords.length * beatsPerBar);
+}
+
+/**
+ * Keep the answer independent of the tune where the two overlap.
+ *
+ * Only three faults matter here, and all three are ways of stopping the ear
+ * hearing two parts: doubling at the unison or octave, and moving in parallel
+ * fifths or octaves. The repair is a step through the chord rather than a
+ * semitone nudge, because a counter-line is chord-based and a chromatic
+ * correction would read as a wrong note rather than as a different one.
+ */
+function avoidClash(
+  midi: Midi,
+  melodyNow: Midi | undefined,
+  melodyPrev: Midi | undefined,
+  prev: Midi | undefined,
+  tones: readonly number[],
+  [lo, hi]: [Midi, Midi],
+  idiom: IdiomProfile,
+): Midi {
+  if (melodyNow === undefined) return midi;
+
+  const bad = (cand: Midi): boolean => {
+    const gap = Math.abs(cand - melodyNow);
+    if (gap % 12 === 0) return true;                       // unison or octave
+    if (cand > melodyNow) return true;                     // the answer stays under the tune
+    if (prev !== undefined && melodyPrev !== undefined) {
+      const now = ((melodyNow - cand) % 12 + 12) % 12;
+      const before = ((melodyPrev - prev) % 12 + 12) % 12;
+      const perfect = (n: number) => n === 0 || n === 7;
+      const moved = cand !== prev && melodyNow !== melodyPrev;
+      if (moved && perfect(now) && now === before
+        && Math.sign(cand - prev) === Math.sign(melodyNow - melodyPrev)) return true;
+    }
+    return false;
+  };
+
+  if (!bad(midi)) return midi;
+  // Try the chord tones either side, nearest first. A mallet will happily take
+  // the one further away; a wind instrument would rather stay put.
+  const spread = idiom.arpeggio > 0.5 ? 8 : 5;
+  for (let d = 1; d <= spread; d++) {
+    for (const dir of [-1, 1]) {
+      const cand = midi + d * dir;
+      if (cand < lo || cand > hi) continue;
+      if (!tones.includes(((cand % 12) + 12) % 12)) continue;
+      if (!bad(cand)) return cand;
+    }
+  }
+  return midi;
 }
 
 export function generateDrums(

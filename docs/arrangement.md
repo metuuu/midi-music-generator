@@ -119,6 +119,28 @@ trombone        brass       64%   26%   19%   3%     0.26       8
 
 `npm run genres` asserts both halves: that a mallet breaks chords where a wind instrument runs, and that an instrument which has to breathe leaves more air than a keyboard.
 
+## The counter-melody
+
+The layer that answers the tune was the last one still working the way everything else used to. It found a hole in the melody, started on the chord root nearest its own instrument's centre, and walked root–third–fifth. Every bar, from the same starting note, with no memory across barlines and no relationship to the phrase it was supposedly answering:
+
+```
+                        old      new
+stepwise motion         14%      58%
+thirds                  53%      20%
+minor sixths            24%       0%
+figures of >1 note      26%      91%
+doubling the tune at
+  unison or octave      29%       0%
+```
+
+53% thirds and 24% minor sixths is not a melody, it is a chord being spelled out — the sixths are where `nearestPc` wrapped an octave on its way round the triad. Three changes:
+
+- **Imitation.** The figure echoes the shape of the lead notes immediately before the gap, held as scale steps so it transposes onto the current chord, and inverted about half the time. An inverted answer is the oldest device in counterpoint and it has the useful side effect of guaranteeing contrary motion. 57% of testable figures now echo the phrase they follow.
+- **Continuity.** The line carries across barlines instead of resetting to the instrument's centre, so it reads as one part rather than a series of unrelated fills.
+- **Independence.** Where the answer does sound against a held melody note it may not double it at the unison or octave, may not move in parallel fifths with it, and stays under it. Two lines moving together are one line.
+
+A lone note in a hole is now *held* across the gap rather than played short. A single short note dropped into a silence is a blip — the ear files it as a stray attack rather than as a reply; sustained, it is a countersubject.
+
 ## What the two axes govern now
 
 **Smoothness** used to police the melody and nothing else, which left it unable to touch the loudest source of sourness in the output. It now also sets:

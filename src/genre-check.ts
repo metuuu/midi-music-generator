@@ -385,6 +385,66 @@ console.log('\nHook');
   );
 }
 
+// --- Counter-melody --------------------------------------------------------
+// The answer has to be a *line* and it has to be *independent*. Before it was
+// rewritten it was neither: it restarted from the chord root nearest the
+// instrument's centre in every bar and cycled root-third-fifth, which showed up
+// as 53% thirds and 24% minor sixths, and it doubled the tune at the unison or
+// octave on 29% of the notes where the two overlapped.
+console.log('\nCounter-melody');
+{
+  let steps = 0, thirds = 0, moves = 0, overlap = 0, doubled = 0, multi = 0, figures = 0;
+  for (const gid of GENRE_IDS) {
+    for (let i = 0; i < 40; i++) {
+      const s = generateSong({ seed: `cm-${i}`, genre: gid });
+      const bpb = s.meta.beatsPerBar;
+      // A solo section puts the *lead* on the counter instrument; those notes
+      // are a melody, not an answer, and counting them measures the wrong thing.
+      const answering = (beat: number) => s.sections.some((sec) => sec.kind !== 'solo'
+        && beat >= sec.startBar * bpb && beat < (sec.startBar + sec.lengthBars) * bpb);
+      const counter = (s.tracks.find((t) => t.layer === 'counter')?.notes ?? [])
+        .filter((n) => answering(n.beat)).sort((a, b) => a.beat - b.beat);
+      const melody = (s.tracks.find((t) => t.layer === 'melody')?.notes ?? [])
+        .slice().sort((a, b) => a.beat - b.beat);
+      if (!counter.length) continue;
+
+      let figure = 0;
+      for (let j = 0; j < counter.length; j++) {
+        const n = counter[j]!;
+        const prior = counter[j - 1];
+        if (!prior || n.beat - prior.beat > 1.01) {
+          if (figure) { figures++; if (figure > 1) multi++; }
+          figure = 1;
+        } else {
+          figure++;
+          const d = Math.abs(n.midi - prior.midi);
+          if (d > 0) { moves++; if (d <= 2) steps++; else if (d <= 4) thirds++; }
+        }
+        const under = melody.find((m) => m.beat <= n.beat + 1e-6 && m.beat + m.duration > n.beat + 1e-6);
+        if (under) { overlap++; if (Math.abs(under.midi - n.midi) % 12 === 0) doubled++; }
+      }
+      if (figure) { figures++; if (figure > 1) multi++; }
+    }
+  }
+  const stepPct = (steps / Math.max(1, moves)) * 100;
+  const thirdPct = (thirds / Math.max(1, moves)) * 100;
+  check(
+    'the answer is a line, not an arpeggio',
+    stepPct > thirdPct,
+    `${stepPct.toFixed(0)}% stepwise vs ${thirdPct.toFixed(0)}% thirds over ${moves} moves`,
+  );
+  check(
+    'the answer is a phrase, not a blip',
+    multi / Math.max(1, figures) > 0.6,
+    `${((multi / Math.max(1, figures)) * 100).toFixed(0)}% of ${figures} figures have more than one note`,
+  );
+  check(
+    'the answer never doubles the tune at the unison or octave',
+    doubled === 0,
+    `${doubled} of ${overlap} overlapping notes`,
+  );
+}
+
 // --- Instrument agility ----------------------------------------------------
 // Tested by holding everything else fixed and varying only agility. Comparing
 // real songs instead would be confounded: brass and vibraphone appear in

@@ -44,6 +44,16 @@ export interface RegisterPlan {
   /** The register the lead line is written in. */
   lead: [Midi, Midi];
   /**
+   * Where the answering line sits.
+   *
+   * Unlike the chordal layers this one is *allowed* to overlap the lead, and
+   * has to be: a counter-melody that answers a fifth below everything stops
+   * sounding like a second voice and starts sounding like a harmony part. It
+   * shares the lead's register and is kept independent in time instead — it
+   * plays in the gaps — with the overlaps policed note by note.
+   */
+  counter: [Midi, Midi];
+  /**
    * Highest note each accompaniment layer may reach, exclusive. Undefined means
    * unconstrained — which is what an instrumental section with no tune gets.
    */
@@ -78,8 +88,15 @@ export function planRegisters(args: {
   const { leadCentre, span, leadPresent, clarity, centres } = args;
   const top = Math.round(leadCentre + span * 0.6);
   const ceiling: Partial<Record<LayerId, Midi>> = {};
+  const counterOf = (band: [Midi, Midi]): [Midi, Midi] => {
+    // A third under the tune at the top, and a little further down at the
+    // bottom, so the answer has somewhere to go that is not the tune's octave.
+    const c = centres.counter ?? leadCentre - 4;
+    return [Math.min(band[0] - 4, c + 8), Math.max(band[1] - 3, c - 8)] as [Midi, Midi];
+  };
   if (!leadPresent) {
-    return { lead: [Math.round(leadCentre - span * 0.6), top], ceiling };
+    const band: [Midi, Midi] = [Math.round(leadCentre - span * 0.6), top];
+    return { lead: band, counter: counterOf(band), ceiling };
   }
 
   // Where the line actually lives, as opposed to where it is allowed to go.
@@ -136,7 +153,7 @@ export function planRegisters(args: {
    * problem rather than as a harmonic one.
    */
   const lead: [Midi, Midi] = [floor, Math.max(top, floor + 12)];
-  return { lead, ceiling };
+  return { lead, counter: counterOf(lead), ceiling };
 }
 
 /**
