@@ -137,6 +137,19 @@ export interface ArchetypeSpec {
    */
   blown?: boolean;
   /**
+   * Whether the player carries the instrument or stands at it.
+   *
+   * The distinction is not decoration: a carried instrument moves with the
+   * body, so when a saxophonist sways into a phrase the saxophone goes too. A
+   * standing one does not, and the player moves against it — a pianist leans
+   * over a keyboard that stays exactly where it was.
+   *
+   * Getting this wrong is immediately visible and was: with every instrument
+   * treated as furniture, the front-line wind player swayed straight through
+   * their own horn.
+   */
+  held: boolean;
+  /**
    * Radius in metres the instrument and its player occupy. Staging keeps these
    * from overlapping; a drum kit needs considerably more room than a flute.
    */

@@ -887,7 +887,18 @@ function stageBand(slots: Slot[], venue: Venue, seed: string): void {
  */
 function sidewaysTurn(archetype: Archetype): number {
   switch (archetype) {
-    case 'grand-piano': return 1.0;
+    /**
+     * Near profile, and it has to be.
+     *
+     * The keyboard sits between the pianist and the body of the instrument, so
+     * a piano square-on to the house shows the audience a large closed lid with
+     * the keys and the hands hidden behind it — which is the one thing a
+     * pianist is worth watching for. Turned to roughly eighty degrees the
+     * audience looks *along* the keyboard and sees the player in three-quarter
+     * profile, which is how a grand is set on a real stage and for the same
+     * reason.
+     */
+    case 'grand-piano': return 1.4;
     case 'organ': case 'electric-piano': case 'synth': return 0.45;
     case 'mallets': case 'harp': return 0.3;
     case 'upright-bass': return 0.2;
@@ -972,12 +983,22 @@ function layoutFrontLine(
      * and wall the band off. That one slides to the side the comp did not take.
      */
     const centreX = BULKY.includes(centre.archetype) ? geom.side * 1.6 : 0;
+    /**
+     * A grand piano does not stand on the front edge.
+     *
+     * Downstage-centre is for whoever the audience came to look at, and an
+     * instrument two and a half metres long placed there fills a third of every
+     * wide shot and most of a close one. Real bands put the piano back and to
+     * the side; so does this.
+     */
+    const bulkySetBack = BULKY.includes(centre.archetype) ? 0.9 : 0;
     const anchorIndex = ordered.findIndex((o) => o.s === centre);
     const shift = (anchorIndex >= 0 ? xs[anchorIndex]! : 0) - centreX;
     for (let i = 0; i < ordered.length; i++) {
       const s = ordered[i]!.s;
       s.x = clamp(xs[i]! - shift, -geom.xLimit, geom.xLimit);
-      s.z = s === centre ? anchorZ : restZ;
+      s.z = (s === centre ? anchorZ : restZ)
+        - (BULKY.includes(s.archetype) ? bulkySetBack : 0);
     }
     // Whoever has the middle keeps it when the solver starts shoving.
     centre.anchor = 1.8;

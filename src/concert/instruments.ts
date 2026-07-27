@@ -165,18 +165,18 @@ export const ARCHETYPES: Record<Archetype, ArchetypeSpec> = {
     // Nominal GM percussion span. Drum points are addressed by voice, not
     // pitch, so nothing resolves through this — it is here for completeness.
     range: [35, 81],
-    footprint: 1.6, workHeight: 0.75,
+    held: false, footprint: 1.6, workHeight: 0.75,
   }),
 
   'grand-piano': S({
     id: 'grand-piano', label: 'grand piano', family: 'keys',
     hands: 2, posture: 'sit', points: ['key', 'pedal', 'rest'],
-    range: [21, 108], footprint: 1.5, workHeight: 0.72,
+    range: [21, 108], held: false, footprint: 1.5, workHeight: 0.72,
   }),
   'electric-piano': S({
     id: 'electric-piano', label: 'electric piano', family: 'keys',
     hands: 2, posture: 'stand', points: ['key', 'rest'],
-    range: [28, 103], footprint: 0.9, workHeight: 0.95,
+    range: [28, 103], held: false, footprint: 0.9, workHeight: 0.95,
   }),
   organ: S({
     id: 'organ', label: 'organ', family: 'keys',
@@ -191,12 +191,12 @@ export const ARCHETYPES: Record<Archetype, ArchetypeSpec> = {
      * pedalboard and 36–96 to the manuals, and the choreographer sends the low
      * ones to a foot.
      */
-    range: [24, 96], footprint: 1.0, workHeight: 0.78,
+    range: [24, 96], held: false, footprint: 1.0, workHeight: 0.78,
   }),
   synth: S({
     id: 'synth', label: 'synthesiser', family: 'electronic',
     hands: 2, posture: 'stand', points: ['key', 'rest'],
-    range: [21, 108], footprint: 1.0, workHeight: 0.95,
+    range: [21, 108], held: false, footprint: 1.0, workHeight: 0.95,
   }),
 
   accordion: S({
@@ -204,12 +204,12 @@ export const ARCHETYPES: Record<Archetype, ArchetypeSpec> = {
     hands: 2, posture: 'stand', points: ['key', 'bellows', 'rest'],
     // Both hands. The right-hand keyboard starts around F3; the left-hand bass
     // and chord buttons go a good deal lower, and a comp part uses them.
-    range: [41, 93], footprint: 0.7, workHeight: 1.15,
+    range: [41, 93], held: true, footprint: 0.7, workHeight: 1.15,
   }),
   harmonica: S({
     id: 'harmonica', label: 'harmonica', family: 'free-reed',
     hands: 2, posture: 'stand', points: ['hole', 'rest'],
-    range: [60, 96], blown: true, footprint: 0.5, workHeight: 1.5,
+    range: [60, 96], blown: true, held: true, footprint: 0.5, workHeight: 1.5,
   }),
 
   // Standard guitar tuning, low to high: E2 A2 D3 G3 B3 E4.
@@ -217,7 +217,7 @@ export const ARCHETYPES: Record<Archetype, ArchetypeSpec> = {
     id: 'acoustic-guitar', label: 'acoustic guitar', family: 'plucked',
     hands: 2, posture: 'stand', points: ['string', 'rest'],
     range: [40, 83], strings: [40, 45, 50, 55, 59, 64], frets: 19,
-    footprint: 0.7, workHeight: 1.0,
+    held: true, footprint: 0.7, workHeight: 1.0,
   }),
   'electric-guitar': S({
     id: 'electric-guitar', label: 'electric guitar', family: 'plucked',
@@ -225,14 +225,14 @@ export const ARCHETYPES: Record<Archetype, ArchetypeSpec> = {
     // 22 frets from a low E is MIDI 86, not 88. The old number claimed two
     // notes that are past the end of the neck.
     range: [40, 86], strings: [40, 45, 50, 55, 59, 64], frets: 22,
-    footprint: 0.7, workHeight: 1.0,
+    held: true, footprint: 0.7, workHeight: 1.0,
   }),
   // E1 A1 D2 G2 — the same four for both basses; one has frets and one does not.
   'upright-bass': S({
     id: 'upright-bass', label: 'upright bass', family: 'plucked',
     hands: 2, posture: 'stand', points: ['string', 'rest'],
     range: [28, 67], strings: [28, 33, 38, 43],
-    footprint: 0.9, workHeight: 1.15,
+    held: false, footprint: 0.9, workHeight: 1.15,
   }),
   'electric-bass': S({
     id: 'electric-bass', label: 'electric bass', family: 'plucked',
@@ -240,12 +240,12 @@ export const ARCHETYPES: Record<Archetype, ArchetypeSpec> = {
     // 20 frets from a low E is MIDI 63, which is also where a real four-string
     // P-bass stops. 67 was simply the upright's number copied across.
     range: [28, 63], strings: [28, 33, 38, 43], frets: 20,
-    footprint: 0.7, workHeight: 1.0,
+    held: true, footprint: 0.7, workHeight: 1.0,
   }),
   harp: S({
     id: 'harp', label: 'harp', family: 'plucked',
     hands: 2, posture: 'sit', points: ['string', 'rest'],
-    range: [24, 103], footprint: 1.1, workHeight: 1.2,
+    range: [24, 103], held: false, footprint: 1.1, workHeight: 1.2,
   }),
   sitar: S({
     id: 'sitar', label: 'sitar', family: 'plucked',
@@ -253,7 +253,7 @@ export const ARCHETYPES: Record<Archetype, ArchetypeSpec> = {
     // Bounded by its own strings: the lowest opens at 48 and 20 frets from the
     // top course reaches 80. The old [45, 84] was reachable at neither end.
     range: [48, 80], strings: [48, 53, 55, 60], frets: 20,
-    footprint: 0.9, workHeight: 0.7,
+    held: true, footprint: 0.9, workHeight: 0.7,
   }),
 
   // G3 D4 A4 E5 and C2 G2 D3 A3.
@@ -261,19 +261,19 @@ export const ARCHETYPES: Record<Archetype, ArchetypeSpec> = {
     id: 'violin', label: 'violin', family: 'bowed',
     hands: 2, posture: 'stand', points: ['string', 'rest'],
     range: [55, 96], strings: [55, 62, 69, 76],
-    footprint: 0.7, workHeight: 1.45,
+    held: true, footprint: 0.7, workHeight: 1.45,
   }),
   cello: S({
     id: 'cello', label: 'cello', family: 'bowed',
     hands: 2, posture: 'sit', points: ['string', 'rest'],
     range: [36, 81], strings: [36, 43, 50, 57],
-    footprint: 0.9, workHeight: 0.9,
+    held: false, footprint: 0.9, workHeight: 0.9,
   }),
 
   mallets: S({
     id: 'mallets', label: 'vibraphone', family: 'percussion',
     hands: 2, posture: 'stand', points: ['key', 'rest'],
-    range: [53, 96], footprint: 1.2, workHeight: 0.9,
+    range: [53, 96], held: false, footprint: 1.2, workHeight: 0.9,
   }),
 
   trumpet: S({
@@ -281,13 +281,13 @@ export const ARCHETYPES: Record<Archetype, ArchetypeSpec> = {
     hands: 2, posture: 'stand', points: ['valve', 'rest'],
     // The top is a lead player's top, not a comfortable one. It is deliberately
     // generous: a screaming high F is a real note and a real thing to animate.
-    range: [52, 86], blown: true, footprint: 0.6, workHeight: 1.5,
+    range: [52, 86], blown: true, held: true, footprint: 0.6, workHeight: 1.5,
   }),
   trombone: S({
     id: 'trombone', label: 'trombone', family: 'brass',
     hands: 2, posture: 'stand', points: ['valve', 'rest'],
     // A slide needs room in front of the player that a bell does not.
-    range: [34, 80], blown: true, footprint: 0.9, workHeight: 1.5,
+    range: [34, 80], blown: true, held: true, footprint: 0.9, workHeight: 1.5,
   }),
   saxophone: S({
     id: 'saxophone', label: 'saxophone', family: 'wind',
@@ -301,24 +301,24 @@ export const ARCHETYPES: Record<Archetype, ArchetypeSpec> = {
      * the archetype forbade and a legal part could not be resolved. An
      * archetype range must contain every `RANGE_OF` entry that maps to it.
      */
-    range: [37, 89], blown: true, footprint: 0.7, workHeight: 1.2,
+    range: [37, 89], blown: true, held: true, footprint: 0.7, workHeight: 1.2,
   }),
   clarinet: S({
     id: 'clarinet', label: 'clarinet', family: 'wind',
     hands: 2, posture: 'stand', points: ['hole', 'rest'],
-    range: [50, 91], blown: true, footprint: 0.6, workHeight: 1.3,
+    range: [50, 91], blown: true, held: true, footprint: 0.6, workHeight: 1.3,
   }),
   flute: S({
     id: 'flute', label: 'flute', family: 'wind',
     hands: 2, posture: 'stand', points: ['hole', 'rest'],
-    range: [59, 96], blown: true, footprint: 0.7, workHeight: 1.5,
+    range: [59, 96], blown: true, held: true, footprint: 0.7, workHeight: 1.5,
   }),
 
   singer: S({
     id: 'singer', label: 'singer', family: 'voice',
     // No hands: they are free, which is most of what a singer's body is doing.
     hands: 0, posture: 'stand', points: ['viseme', 'rest'],
-    range: [40, 84], blown: true, footprint: 0.6, workHeight: 1.55,
+    range: [40, 84], blown: true, held: false, footprint: 0.6, workHeight: 1.55,
   }),
 };
 

@@ -315,6 +315,8 @@ export const buildSaxophone: InstrumentBuilder = (opts: InstrumentBuildOptions):
       position: new Vector3(0, t * bodyLen, -(r + 0.016)).applyMatrix4(bodyMatrix),
       // Keys face the player; a finger comes at them from the front.
       normal: new Vector3(0, 0.1, -1).normalize().transformDirection(bodyMatrix),
+      // The keys run the length of the tube, so the knuckles do too.
+      along: new Vector3(0, 1, 0).transformDirection(bodyMatrix),
     };
   });
   /** Hands at rest sit around the middle of the keywork, not at the bell. */

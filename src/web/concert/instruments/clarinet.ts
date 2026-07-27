@@ -227,6 +227,8 @@ export const buildClarinet: InstrumentBuilder = (opts: InstrumentBuildOptions): 
     // Out of the front of the tube, angled a little up its length: fingers
     // come over the top of a clarinet, never straight in from the side.
     normal: new Vector3(0, 0.25, 1).normalize().transformDirection(tubeMatrix),
+      // The keys run the length of the tube, so the knuckles do too.
+      along: new Vector3(0, 1, 0).transformDirection(tubeMatrix),
   }));
   /** Between phrases the hands stay over the middle of the horn. */
   const restContact = contacts[9]!;

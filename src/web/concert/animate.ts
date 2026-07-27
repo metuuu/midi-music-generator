@@ -276,6 +276,9 @@ const COMMIT_ORDER: readonly Effector[] = [
 
 const REST_POINT: PlayPoint = { kind: 'rest' };
 
+/** Floats cached per gesture: position, surface normal, knuckle axis. */
+const CONTACT_STRIDE = 9;
+
 // ---------------------------------------------------------------------------
 // Scratch. Six players at 60 Hz is not the place to allocate a vector.
 // ---------------------------------------------------------------------------
@@ -335,6 +338,7 @@ interface Slot {
   /** This frame's weighted accumulation, in world space. */
   px: number; py: number; pz: number;
   nx: number; ny: number; nz: number;
+  ax: number; ay: number; az: number;
   weight: number;
   /** Whether the play layer put anything here this frame. */
   played: boolean;
@@ -357,7 +361,7 @@ interface Slot {
 
 function makeSlot(): Slot {
   return {
-    px: 0, py: 0, pz: 0, nx: 0, ny: 0, nz: 0, weight: 0, played: false,
+    px: 0, py: 0, pz: 0, nx: 0, ny: 0, nz: 0, ax: 0, ay: 0, az: 0, weight: 0, played: false,
     last: new Vector3(), hasLast: false,
     idleFrom: new Vector3(), idleSince: 0, idling: false,
     idlePoint: undefined, idleLocal: new Float64Array(6), idleState: 0,
@@ -473,7 +477,7 @@ class Player {
     this.holding = [defaults.left === 'grip', defaults.right === 'grip'];
 
     const n = gestures.length;
-    this.contact = new Float64Array(n * 6);
+    this.contact = new Float64Array(n * CONTACT_STRIDE);
     this.resolved = new Uint8Array(n);
     this.anchor = new Float64Array(n * 3);
     this.anchored = new Uint8Array(n);
@@ -634,6 +638,7 @@ class Runtime implements Animator {
       const slot = p.slots[s]!;
       slot.px = 0; slot.py = 0; slot.pz = 0;
       slot.nx = 0; slot.ny = 0; slot.nz = 0;
+      slot.ax = 0; slot.ay = 0; slot.az = 0;
       slot.weight = 0; slot.played = false;
     }
     for (let i = 0; i < N_PART; i++) p.busy[i] = false;
@@ -698,6 +703,7 @@ class Runtime implements Animator {
         const slot = p.slots[SLOT_OF[target]]!;
         slot.px += V4.x * w; slot.py += V4.y * w; slot.pz += V4.z * w;
         slot.nx += V2.x * w; slot.ny += V2.y * w; slot.nz += V2.z * w;
+        slot.ax += V5.x * w; slot.ay += V5.y * w; slot.az += V5.z * w;
         slot.weight += w;
         slot.played = true;
         p.busy[PART_OF[target]] = true;
@@ -802,7 +808,7 @@ class Runtime implements Animator {
       const model = p.model;
       const c = model?.resolve(g.target, g.effector);
       if (!c) { p.resolved[i] = 2; return false; }
-      const at = i * 6;
+      const at = i * CONTACT_STRIDE;
       p.contact[at] = c.position.x;
       p.contact[at + 1] = c.position.y;
       p.contact[at + 2] = c.position.z;
@@ -811,12 +817,19 @@ class Runtime implements Animator {
       p.contact[at + 3] = n.x;
       p.contact[at + 4] = n.y;
       p.contact[at + 5] = n.z;
+      // The knuckle axis, when the model pins it. Zero means "you choose".
+      const a = c.along;
+      p.contact[at + 6] = a ? a.x : 0;
+      p.contact[at + 7] = a ? a.y : 0;
+      p.contact[at + 8] = a ? a.z : 0;
       p.resolved[i] = 1;
     }
-    const at = i * 6;
+    const at = i * CONTACT_STRIDE;
     V1.set(p.contact[at]!, p.contact[at + 1]!, p.contact[at + 2]!).applyMatrix4(p.world);
     V2.set(p.contact[at + 3]!, p.contact[at + 4]!, p.contact[at + 5]!)
       .applyQuaternion(p.worldQuat).normalize();
+    V5.set(p.contact[at + 6]!, p.contact[at + 7]!, p.contact[at + 8]!);
+    if (V5.lengthSq() > 1e-10) V5.applyQuaternion(p.worldQuat).normalize();
     return true;
   }
 
@@ -905,7 +918,12 @@ class Runtime implements Animator {
       }
 
       const hasNormal = V2.lengthSq() > 1e-8;
-      p.rig.setEffector(e, V1, hasNormal ? V2.normalize() : undefined);
+      V4.set(slot.ax, slot.ay, slot.az);
+      p.rig.setEffector(
+        e, V1,
+        hasNormal ? V2.normalize() : undefined,
+        V4.lengthSq() > 1e-8 ? V4.normalize() : undefined,
+      );
       slot.last.copy(V1);
       slot.hasLast = true;
       slot.idling = false;

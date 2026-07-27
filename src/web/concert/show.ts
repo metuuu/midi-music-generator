@@ -39,7 +39,7 @@ import type { LayerId, Song } from '../../core/types.js';
 import { songDurationSeconds } from '../../core/types.js';
 import { buildConcert, revoiceNumber } from '../../concert/index.js';
 import type { Concert, ConcertNumber, ConcertOptions } from '../../concert/types.js';
-import { instrumentIdForTrack } from '../../concert/instruments.js';
+import { instrumentIdForTrack, specFor } from '../../concert/instruments.js';
 import { renderStrudel } from '../../render/strudel.js';
 import { playCode, stopPlayback } from '../audio.js';
 
@@ -152,27 +152,58 @@ export function createShow(opts: ShowOptions = {}): Show {
 
     for (const performer of number.cast.performers) {
       const rig = buildPerformer(performer);
+      /**
+       * `position` is already where the feet are. `riser` only explains why.
+       *
+       * The two look like they should be added and they must not be: casting
+       * emits `y === riser` for anyone on a platform, so summing them stands
+       * the drummer half a metre above their own riser with the kit hanging in
+       * the air underneath the sticks. The casting system flagged this as
+       * double-owned when it was built; adding them is the mistake it
+       * predicted.
+       */
       const [x, y, z] = performer.station.position;
-      rig.root.position.set(x, y + performer.station.riser, z);
+      rig.root.position.set(x, y, z);
       rig.root.rotation.y = performer.station.facing;
       band.add(rig.root);
       rigs.set(performer.id, rig);
       subjects.set(performer.id, rig.root);
 
-      // The instrument goes where the performer is, offset by where the model
-      // says a player stands relative to it.
       const track = number.song.tracks.find((t) => t.layer === performer.layer);
       const model = buildInstrumentFor(
         performer,
         track ? instrumentIdForTrack(track) : undefined,
         concert.venue.palette.proscenium,
       );
-      model.root.position.set(x, y + performer.station.riser, z);
-      model.root.rotation.y = performer.station.facing;
-      model.root.position.sub(
-        new Vector3().copy(model.station.offset).applyAxisAngle(UP, performer.station.facing),
-      );
-      band.add(model.root);
+
+      /**
+       * Carried instruments hang off the player; standing ones do not.
+       *
+       * This is the whole of the distinction and it is worth spelling out,
+       * because treating every instrument as furniture is the obvious thing to
+       * do and it is visibly wrong: the front-line saxophonist swayed into a
+       * phrase and went straight through their own horn. A sax is attached to a
+       * person. A piano is attached to the floor, and the pianist leans over it.
+       *
+       * The animator re-reads `model.root.matrixWorld` every frame, so a
+       * carried instrument's contacts follow the body for free — the hands stay
+       * on the keys while the keys move.
+       */
+      if (specFor(performer.archetype).held) {
+        rig.carry(model.root);
+        // Torso-local: the rig's own origin is the hip, not the feet.
+        model.root.position.copy(model.station.offset)
+          .negate()
+          .setY(-model.station.offset.y - rig.proportions.hipY);
+        model.root.rotation.y = -model.station.facing;
+      } else {
+        model.root.position.set(x, y, z);
+        model.root.rotation.y = performer.station.facing;
+        model.root.position.sub(
+          new Vector3().copy(model.station.offset).applyAxisAngle(UP, performer.station.facing),
+        );
+        band.add(model.root);
+      }
       models.set(performer.id, model);
     }
 

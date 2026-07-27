@@ -162,7 +162,12 @@ export function createDirector(reducedMotion = false): CameraDirector {
    * So the distance is solved, per frame, from whichever axis is tighter.
    */
   function distanceFor(width: number, height: number): number {
-    const aspect = camera.aspect || 1;
+    // Belt and braces with `resize`: a camera that has never been sized, or one
+    // sized while the page was off-layout, must not be able to ask for an
+    // infinite pull-back. 16:9 is a better guess than a division by zero.
+    const aspect = Number.isFinite(camera.aspect) && camera.aspect > 0.05
+      ? Math.min(camera.aspect, 4)
+      : 16 / 9;
     const need = (fovY: number): number => {
       const fovX = 2 * Math.atan(Math.tan(fovY / 2) * aspect);
       return Math.max(
@@ -252,10 +257,32 @@ export function createDirector(reducedMotion = false): CameraDirector {
         break;
       }
       case 'low': {
-        // Near the boards looking up. The kit and the player behind it, so it
-        // has to hold rather more than a close-up does.
-        const d = distanceFor(2.6, 2.0) - push;
-        wanted.set(wantedFocus.x * 0.6 + 1.0, 0.85, wantedFocus.z + d);
+        /**
+         * Low *relative to the player*, not to the floor.
+         *
+         * An absolute height here put the lens at 0.85 m — below the top of a
+         * drum riser — so the shot that exists to show the kit was a study of
+         * the riser's front panel with the kit floating above it. Anything on a
+         * platform breaks a fixed camera height, and the drummer, who is the
+         * whole point of this framing, is the one player who is always on one.
+         *
+         * Half a metre under the sternum is still a looking-up angle and still
+         * reads as a low shot; it just does it from a height that can see the
+         * subject.
+         */
+        /**
+         * Framed on the *kit*, not on the player.
+         *
+         * The subject point is a person's sternum, which is the right thing to
+         * aim at for every other shot and the wrong thing here: a kit is wide,
+         * low and in front of its player, so a person-sized frame around a
+         * sternum crops the drummer's head off the top and fills the rest with
+         * bass drum. Drop the aim toward the drums and open the frame enough to
+         * hold the player behind them.
+         */
+        wantedFocus.y -= 0.15;
+        const d = distanceFor(4.6, 3.6) - push;
+        wanted.set(wantedFocus.x * 0.6 + 1.4, wantedFocus.y + 0.1, wantedFocus.z + d);
         break;
       }
       case 'front': {

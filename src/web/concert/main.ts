@@ -153,8 +153,30 @@ if (!canvas) {
   // --- Frame loop --------------------------------------------------------
 
   function resize(): void {
-    const w = canvas!.clientWidth;
-    const h = canvas!.clientHeight;
+    /**
+     * Three ways to ask how big the canvas is, because the first one lies.
+     *
+     * `clientWidth` is the CSS box, and it reads 0 whenever the element is
+     * off-layout — a background tab, a preview pane mid-attach. The backing
+     * store (`canvas.width`) is a real number even then, and the window is a
+     * last resort. Taking the first non-zero answer keeps the camera's aspect
+     * honest; without it every framing calculation downstream is solving for a
+     * frame of zero width.
+     */
+    const w = canvas!.clientWidth || canvas!.width || window.innerWidth;
+    const h = canvas!.clientHeight || canvas!.height || window.innerHeight;
+    /**
+     * A zero measurement is not a size, it is the absence of one.
+     *
+     * A canvas reports 0×0 while it is off-layout — a hidden tab, a display
+     * that has not settled, an embedded preview mid-attach — and writing that
+     * through gives the camera an aspect of zero. Nothing looks broken:
+     * three.js renders happily, but every framing calculation downstream
+     * divides by `tan(0)`, asks for an infinite distance, and collapses onto
+     * whatever bound it hits. Keeping the last good size is correct, because
+     * the last good size is the only real one there has been.
+     */
+    if (w <= 0 || h <= 0) return;
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(w, h, false);
     const cam = show.camera as { aspect?: number; updateProjectionMatrix?: () => void };

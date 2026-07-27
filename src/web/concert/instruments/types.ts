@@ -35,6 +35,21 @@ export interface Contact {
    * like they are typing.
    */
   normal: Vector3;
+  /**
+   * Which way the knuckles run, if the instrument cares.
+   *
+   * `normal` fixes two of the three axes of a hand and leaves the *roll* about
+   * it free, which is fine on a drum head — a fist round a stick looks the same
+   * either way — and wrong on anything the fingers lie along. A saxophone's
+   * keys run down the tube, so the knuckle line has to run down the tube too;
+   * without a reference the hand takes whatever roll the fallback happens to
+   * produce and the fingers end up across the keys instead of on them.
+   *
+   * Give the axis the hand should lie along, in the same frame as `position`.
+   * It is orthogonalised against `normal`, so it need not be exactly
+   * perpendicular. Omit it and the previous behaviour stands.
+   */
+  along?: Vector3;
 }
 
 /** Where the player belongs relative to the instrument's own origin. */

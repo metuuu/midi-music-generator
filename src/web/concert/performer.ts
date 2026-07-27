@@ -121,7 +121,7 @@ export interface PerformerRig {
    *   - `body` leans the whole torso toward the point, clamped to 0.22 m. This
    *     is `GrooveKind.lean`.
    */
-  setEffector(e: Effector, position: Vector3, normal?: Vector3): void;
+  setEffector(e: Effector, position: Vector3, normal?: Vector3, along?: Vector3): void;
 
   /**
    * Where an effector goes when nothing is asking it to be anywhere: the
@@ -142,6 +142,21 @@ export interface PerformerRig {
    * Pass `out` to avoid an allocation; the same vector is returned.
    */
   restPosition(e: Effector, out?: Vector3): Vector3;
+
+  /**
+   * Carry something. The object is parented to the torso and moves with it.
+   *
+   * A saxophone is not furniture. It hangs off the player, so when they sway,
+   * nod or lean into a phrase, it goes with them — and if it does not, the
+   * player slides through their own instrument, which is what happened before
+   * this existed. Floor-standing instruments (a kit, a piano, an upright bass)
+   * must NOT use this: they stay where they were put and the player moves
+   * against them, which is equally true and the opposite behaviour.
+   *
+   * Local `(0, 0, 0)` is the hip, not the feet — the torso's own origin. The
+   * caller positions the instrument from there.
+   */
+  carry(object: Object3D): void;
 
   /**
    * Shape one hand. `weight` blends from the archetype's default pose toward
@@ -477,7 +492,7 @@ class Rig implements PerformerRig {
 
   // -- placement ----------------------------------------------------------
 
-  setEffector(e: Effector, position: Vector3, normal?: Vector3): void {
+  setEffector(e: Effector, position: Vector3, normal?: Vector3, along?: Vector3): void {
     if (!finite(position)) return;
     const local = this.toLocal(position, V1);
 
@@ -515,10 +530,14 @@ class Rig implements PerformerRig {
     if (normal && finite(normal) && normal.lengthSq() > 1e-8) {
       const n = this.dirToLocal(normal, V2);
       st.pos.addScaledVector(n, st.standoff);
-      st.quat.copy(orientTo(n));
+      st.quat.copy(orientTo(n, along ? this.dirToLocal(along, V3) : undefined));
     } else {
       st.quat.copy(st.restQuat);
     }
+  }
+
+  carry(object: Object3D): void {
+    this.torso.add(object);
   }
 
   restPosition(e: Effector, out?: Vector3): Vector3 {
@@ -883,7 +902,25 @@ class Rig implements PerformerRig {
  * between frames: `setFromUnitVectors` alone leaves the roll unconstrained, and
  * an unconstrained roll on a drummer's hand looks like a fault in the renderer.
  */
-function orientTo(n: Vector3): Quaternion {
+/**
+ * Build a hand basis from a surface normal, and optionally a roll reference.
+ *
+ * `n` becomes local `+y` — the back of the hand — so the palm, which faces
+ * `-y`, presses into the surface. That fixes two axes. The third is the roll
+ * about the normal, and when the caller says nothing it falls back to a fixed
+ * forward, which is arbitrary. On anything the fingers lie *along* — a row of
+ * keys down a tube — arbitrary is visibly wrong, so `along` lets the model
+ * pin it.
+ */
+function orientTo(n: Vector3, along?: Vector3): Quaternion {
+  if (along && along.lengthSq() > 1e-8) {
+    const ax = V4.copy(along).addScaledVector(n, -along.dot(n));
+    if (ax.lengthSq() > 1e-6) {
+      ax.normalize();
+      M1.makeBasis(ax, n, V6.crossVectors(ax, n).normalize());
+      return Q1.setFromRotationMatrix(M1);
+    }
+  }
   const fwd = V4.copy(FWD).addScaledVector(n, -FWD.dot(n));
   if (fwd.lengthSq() < 1e-6) fwd.copy(UP).addScaledVector(n, -UP.dot(n));
   if (fwd.lengthSq() < 1e-6) fwd.set(1, 0, 0);

@@ -207,6 +207,8 @@ export const buildFlute: InstrumentBuilder = (opts: InstrumentBuildOptions): Ins
     // Down onto the keys from above and slightly behind: a flautist's fingers
     // curl over the top of the tube from the player's side.
     normal: new Vector3(0, 1, -0.35).normalize().transformDirection(fluteMatrix),
+      // The keys run the length of the tube, so the knuckles do too.
+      along: new Vector3(0, 1, 0).transformDirection(fluteMatrix),
   }));
   /** Hands stay over the keys between phrases; a flute is never put down. */
   const restContact = contacts[6]!;
