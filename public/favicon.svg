@@ -1,0 +1,35 @@
+<!--
+  A tuning knob, turned to the station.
+
+  Drawn for 16px first: the disc is the whole silhouette, and the dial scale
+  above it is allowed to blur into a warm halo at that size. Palette is the
+  radio page's own — #14100e ground, #e0a24a hot.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <radialGradient id="ground" cx="50%" cy="34%" r="72%">
+      <stop offset="0" stop-color="#33251a" />
+      <stop offset="1" stop-color="#14100e" />
+    </radialGradient>
+    <linearGradient id="knob" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f2bb62" />
+      <stop offset="1" stop-color="#c4623a" />
+    </linearGradient>
+  </defs>
+
+  <rect width="64" height="64" rx="14" fill="url(#ground)" />
+
+  <!-- The scale. Centre tick is the tuned one, so it is brighter and longer. -->
+  <g stroke="#e0a24a" stroke-linecap="round" fill="none">
+    <g stroke-width="3" opacity=".45">
+      <path d="M48.09 20.50 L51.53 17.61" />
+      <path d="M40.87 14.97 L42.78 10.89" />
+      <path d="M23.13 14.97 L21.22 10.89" />
+      <path d="M15.91 20.50 L12.47 17.61" />
+    </g>
+    <path d="M32 13 L32 7" stroke-width="3.5" />
+  </g>
+
+  <circle cx="32" cy="34" r="14" fill="url(#knob)" />
+  <path d="M32 25.5 L32 32" stroke="#14100e" stroke-width="4.5" stroke-linecap="round" />
+</svg>
