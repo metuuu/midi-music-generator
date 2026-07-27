@@ -70,6 +70,71 @@ export interface StageMetrics {
 }
 
 // ---------------------------------------------------------------------------
+// The sightline
+// ---------------------------------------------------------------------------
+
+/**
+ * Where the band's heads are, so that nothing hangs in front of one.
+ *
+ * The stage cannot see the cast — that is the whole point of the split, and it
+ * is not going to be given a back channel. So the rule that keeps a lantern off
+ * a drummer's face has to be geometric, and this is it: a box over the boards
+ * that hanging dressing stays out of.
+ *
+ * The numbers are `concert/cast.ts`'s, restated rather than imported because
+ * importing them would make the stage depend on the casting system to know how
+ * big a room is. If they ever disagree the symptom is a paper lantern parked in
+ * front of somebody's nose, which is exactly what this was written after: a
+ * festoon sagged to 2.08 m over the front line and a lantern hung with its
+ * bottom at 2.30 m directly over the drum riser, and from a camera down in the
+ * house both sat squarely on a player's face.
+ *
+ *  - `lo` is a seated player's chin. Below it is furniture's problem, not ours.
+ *  - `hi` is a tall player's crown **plus the 0.4 m drum riser** — `cast.ts`
+ *    puts the drummer up on one, and forgetting that is how the lantern got
+ *    there in the first place.
+ *  - the x and z margins are `MARGIN_SIDE`, `MARGIN_UP` and `MARGIN_DOWN`: the
+ *    band is never placed outside them, so outside them is safe.
+ *
+ * Dressing satisfies the rule by clearing the band in **y** (over their heads),
+ * or by clearing it in **z** — downstage of the front line or upstage of the
+ * backline. Either is enough; both is better.
+ */
+export const HEAD_BAND = { lo: 1.3, hi: 2.4 } as const;
+
+/** Bounds of the boards the cast can be standing on. See `HEAD_BAND`. */
+export interface PlayingArea {
+  /** Half-width. Nobody stands outside ±this. */
+  halfX: number;
+  /** Upstage limit — the backline. Nothing is placed upstage of it. */
+  backZ: number;
+  /** Downstage limit — the front line. Nothing is placed downstage of it. */
+  frontZ: number;
+}
+
+const MARGIN_SIDE = 0.5;
+const MARGIN_UP = 0.5;
+const MARGIN_DOWN = 0.7;
+
+export function playingArea(m: StageMetrics): PlayingArea {
+  return {
+    halfX: m.width / 2 - MARGIN_SIDE,
+    backZ: m.backZ + MARGIN_UP,
+    frontZ: m.lipZ - MARGIN_DOWN,
+  };
+}
+
+/** Whether a hanging box would sit in somebody's face. The one test. */
+export function inSightline(
+  area: PlayingArea,
+  box: { minX: number; maxX: number; minY: number; maxY: number; minZ: number; maxZ: number },
+): boolean {
+  return box.maxY > HEAD_BAND.lo && box.minY < HEAD_BAND.hi
+    && box.maxX > -area.halfX && box.minX < area.halfX
+    && box.maxZ > area.backZ && box.minZ < area.frontZ;
+}
+
+// ---------------------------------------------------------------------------
 // Colour
 // ---------------------------------------------------------------------------
 

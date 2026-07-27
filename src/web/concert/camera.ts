@@ -308,6 +308,25 @@ export function createDirector(reducedMotion = false): CameraDirector {
       orbitFor = 0;
       yaw = 0;
       pitch = 0;
+
+      /**
+       * Take up the opening position *now*, not on the first frame with a clock.
+       *
+       * The runner stopped driving the director while the transport is silent —
+       * correctly, because a stopped clock honestly reports beat 0 and the
+       * director read that as a position and reversed the camera two hundred
+       * metres. But the curtain opens *before* the first downbeat, and a camera
+       * that has never been placed is still at the origin: standing on the
+       * boards, inside the band, looking at the back of the curtain. The reveal
+       * is the one shot in the show that cannot be got wrong.
+       */
+      if (plan.length) {
+        place(plan[0]!, 0);
+        eye.copy(wanted);
+        focus.copy(wantedFocus);
+        camera.position.copy(eye);
+        camera.lookAt(focus);
+      }
     },
 
     setSubjects(next) {

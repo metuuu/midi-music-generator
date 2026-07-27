@@ -20,7 +20,9 @@ export const VOCALS: VocalProfile = {
   // cannot be scatted.
   gm: 52,
   strudel: 'square',
-  gain: 1.45,
+  // Level with the melody. A jazz singer is a member of the band, and this
+  // was mixed as though they were being amplified over one.
+  gain: 0.9,
   vowels: [
     ['u', 5], ['a', 4], ['o', 3], ['e', 2.5], ['uh', 2],
     ['aa', 1.5], ['i', 1],

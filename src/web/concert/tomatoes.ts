@@ -61,6 +61,14 @@
  * slot and the last writer in the frame owns it. An animator that would rather
  * arbitrate can read `mood(id).gaze` and do it properly.
  *
+ * **Nothing is built on the throw.** `begin` allocates the whole pool — six
+ * tomatoes, six shadows, every splat — and leaves it in the scene for a frame
+ * so the renderer compiles its programs and uploads its buffers there rather
+ * than on the frame somebody clicks. Building a mesh mid-flight is not a
+ * correctness problem and it is very much a *feel* problem: it put a visible
+ * hitch between the release and the tomato, which reads as the throw being
+ * broken. See `WARM_FRAMES` for the measurement.
+ *
  * `beat` is used for exactly one thing: stamping `TomatoHit.beat` so the show
  * runner knows which bar to end. Every duration in here is in seconds and comes
  * from accumulated `dt`, because gravity is metres per second squared and a
@@ -194,6 +202,10 @@ export interface Tomatoes {
    * Bind to a number. Resets the hit count, the morale and every mark — a
    * `begin` is a `strike` plus a new cast, so the runner never has to call
    * both.
+   *
+   * It is also where every object this module will ever draw is built and
+   * warmed up (see `WARM_FRAMES`), so **call it behind the curtain**. After it
+   * returns, the throw path allocates no geometry, no material and no mesh.
    */
   begin(cast: Cast, rigs: Map<string, PerformerRig>, stage: StageRig, staging?: Staging): void;
 
@@ -281,6 +293,31 @@ const MAX_SUBSTEPS = 16;
  * tomato on whoever the camera is standing in.
  */
 const ARM_DISTANCE = 0.3;
+/**
+ * Frames the pool is left in the scene, drawing nothing, after `begin`.
+ *
+ * A tomato used to be *built* on the throw: a group, three meshes, and — the
+ * part that actually cost — three materials and three geometries that no
+ * renderer had ever seen. The first `render` that meets one compiles and links
+ * a `MeshStandardMaterial` program and uploads its buffers, on that frame, in
+ * front of the audience. Measured cold in node, with no GPU work at all, the
+ * first throw's flight-and-land path cost 2.8 ms against 0.19 ms warm; on a
+ * real driver the program link is the larger half again and it lands as a
+ * visible hitch between the click and the tomato.
+ *
+ * So the pool is built and *drawn* during `begin`, which the show runner calls
+ * behind a closed curtain while the next number is being staged — the one
+ * moment in the show where a frame of jank is free. Two frames, because the
+ * first `update` after `begin` can precede the first `render`.
+ */
+const WARM_FRAMES = 2;
+/**
+ * How big a warm-up tomato is. Not zero: a degenerate scale can be optimised
+ * into nothing before it reaches the driver, and the whole point is to reach
+ * the driver. A tenth of a millimetre is under a pixel from anywhere.
+ */
+const WARM_SCALE = 1e-4;
+
 /** Seconds after which a reaction has played out and can be re-issued. */
 const GLARE_SECONDS = 2.7;
 /** How long one look at the wings lasts. */
@@ -382,6 +419,8 @@ export function createTomatoes(scene: Object3D, opts: TomatoOptions = {}): Tomat
 
   // --- state ---------------------------------------------------------------
   let now = 0;
+  /** Frames of pool warm-up still to run. See `WARM_FRAMES`. */
+  let warm = 0;
   let cooldown = 0;
   let throwCount = 0;
   let hits = 0;
@@ -603,10 +642,7 @@ export function createTomatoes(scene: Object3D, opts: TomatoOptions = {}): Tomat
     out.set(dx / t, dy / t + 0.5 * gravity * t, dz / t);
   }
 
-  function take(): Flight | undefined {
-    for (const f of flights) if (!f.live) return f;
-    if (flights.length >= maxInFlight) return undefined;
-
+  function build(): Flight {
     const group = new Group();
     const flesh = new Mesh(fleshGeo, fleshMat);
     // Not a ball: wider than it is tall, and a little flattened at the poles.
@@ -616,6 +652,18 @@ export function createTomatoes(scene: Object3D, opts: TomatoOptions = {}): Tomat
     calyx.scale.setScalar(radius);
     calyx.position.y = radius * 0.72;
     group.add(calyx);
+    /**
+     * Never culled, in flight or warming up.
+     *
+     * A tomato is 11 cm and spends its life between the camera and the band, so
+     * the cull test almost never says no; and while it is warming up it is
+     * 0.1 mm at the origin, where a cull *would* say no and quietly skip the
+     * one draw the whole warm-up exists for. Six groups that are invisible for
+     * the rest of the show cost nothing — `visible = false` is checked before
+     * the frustum.
+     */
+    group.frustumCulled = false;
+    group.visible = false;
     root.add(group);
 
     let shadow: Mesh | undefined;
@@ -623,6 +671,8 @@ export function createTomatoes(scene: Object3D, opts: TomatoOptions = {}): Tomat
       shadow = new Mesh(shadowGeo, shadowMat);
       shadow.rotation.x = -Math.PI / 2;
       shadow.renderOrder = 2;
+      shadow.frustumCulled = false;
+      shadow.visible = false;
       root.add(shadow);
     }
     const flight: Flight = {
@@ -631,6 +681,45 @@ export function createTomatoes(scene: Object3D, opts: TomatoOptions = {}): Tomat
     };
     flights.push(flight);
     return flight;
+  }
+
+  function take(): Flight | undefined {
+    for (const f of flights) if (!f.live) return f;
+    // `prime` fills the pool, so this only fires if somebody threw before
+    // `begin`. Building one is still better than dropping the throw.
+    return flights.length >= maxInFlight ? undefined : build();
+  }
+
+  /**
+   * Build the pool, and get every part of it in front of the renderer once.
+   *
+   * See `WARM_FRAMES`. Everything a throw and a landing will need — six
+   * tomatoes, six shadows, `splatCap` marks, six materials — exists and has
+   * been drawn before the first click, so the throw path allocates nothing and
+   * compiles nothing.
+   */
+  function prime(): void {
+    while (flights.length < maxInFlight) build();
+    for (const f of flights) {
+      if (f.live) continue;
+      f.group.position.set(0, 0, 0);
+      f.group.scale.setScalar(WARM_SCALE);
+      f.group.visible = true;
+      if (f.shadow) {
+        f.shadow.position.set(0, 0, 0);
+        f.shadow.scale.setScalar(WARM_SCALE);
+        f.shadow.visible = true;
+      }
+    }
+    splats.prime();
+    warm = WARM_FRAMES;
+  }
+
+  /** Put the warm-up back out of sight. Idempotent. */
+  function cool(): void {
+    warm = 0;
+    for (const f of flights) if (!f.live) retire(f);
+    splats.cool();
   }
 
   function positionAt(f: Flight, t: number, out: Vector3): Vector3 {
@@ -848,6 +937,9 @@ export function createTomatoes(scene: Object3D, opts: TomatoOptions = {}): Tomat
           glanceUntil: -1, phase: rng.float(0, 1.4), hits: 0,
         });
       }
+
+      // Last, so that a `strike` inside this call cannot undo it.
+      prime();
     },
 
     aim(ndcX, ndcY, cam) {
@@ -896,6 +988,10 @@ export function createTomatoes(scene: Object3D, opts: TomatoOptions = {}): Tomat
       flight.live = true;
       flight.group.visible = true;
       flight.group.position.copy(V1);
+      // Undo the warm-up shrink. A tomato that goes out at 0.1 mm is a throw
+      // that appears to do nothing, which is a worse bug than the one this
+      // whole mechanism fixes.
+      flight.group.scale.setScalar(1);
       flight.spin.set(rng.float(-14, 14), rng.float(-14, 14), rng.float(-14, 14));
       if (flight.shadow) flight.shadow.visible = true;
 
@@ -921,6 +1017,10 @@ export function createTomatoes(scene: Object3D, opts: TomatoOptions = {}): Tomat
       const step = Number.isFinite(dt) ? Math.min(Math.max(dt, 0), 0.1) : 0;
       now += step;
       cooldown = Math.max(0, cooldown - step);
+
+      // Frames, not seconds: what the warm-up is waiting for is a `render`, and
+      // there is exactly one of those per frame however long it took.
+      if (warm > 0 && --warm === 0) cool();
 
       if (bodies.length > 0) refreshBodies();
 
@@ -981,6 +1081,7 @@ export function createTomatoes(scene: Object3D, opts: TomatoOptions = {}): Tomat
     },
 
     strike() {
+      cool();
       for (const f of flights) retire(f);
       splats.clear();
       for (const tell of tells.values()) {

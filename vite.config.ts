@@ -1,9 +1,9 @@
 /**
- * Three pages, not one.
+ * Four pages, not one.
  *
  * The dev server finds any HTML file by path on its own, so this exists only
  * for `vite build` — which defaults to `index.html` alone and would silently
- * ship a bundle with no voice lab and no concert in it.
+ * ship a bundle with no voice lab, no concert and no model bench in it.
  */
 
 import { fileURLToPath } from 'node:url';
@@ -29,6 +29,7 @@ export default defineConfig({
         radio: here('index.html'),
         voice: here('voice.html'),
         concert: here('concert.html'),
+        models: here('models.html'),
       },
     },
   },

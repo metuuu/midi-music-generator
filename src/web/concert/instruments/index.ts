@@ -109,6 +109,8 @@ export function buildInstrumentFor(
   return withSoundingContact(build({
     seed: rng.int(0, 0xffff),
     scale: (instrumentId ? SCALE_OF[instrumentId] : undefined) ?? 0.5,
+    // A horn is held to a face, and this performer's face is where it is.
+    height: performer.look.height,
     ...(finish ? { finish } : {}),
   }));
 }

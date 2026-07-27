@@ -132,6 +132,8 @@ export const buildMallets: InstrumentBuilder = (opts) => {
   const sharpGeo = new BoxGeometry(SHARP_W, 0.014, 1);
   const naturalMesh = addTo(root, new InstancedMesh(naturalGeo, barMat, naturals.length));
   const sharpMesh = addTo(root, new InstancedMesh(sharpGeo, sharpMat, sharps.length));
+  naturalMesh.name = 'bars:natural';
+  sharpMesh.name = 'bars:sharp';
   naturalMesh.castShadow = true;
   sharpMesh.castShadow = true;
 
@@ -260,6 +262,11 @@ export const buildMallets: InstrumentBuilder = (opts) => {
 
   const moving = new Set<Bar>();
   const UP = new Vector3(0, 1, 0);
+  /**
+   * Knuckles across the row, so a mallet lies along the bar rather than across
+   * it. Same axis and same reason as every keyboard here; see `grand-piano.ts`.
+   */
+  const ACROSS = new Vector3(1, 0, 0);
   const scale = new Vector3();
 
   const model: InstrumentModel = {
@@ -269,7 +276,11 @@ export const buildMallets: InstrumentBuilder = (opts) => {
     resolve(point: PlayPoint): Contact | undefined {
       if (point.kind === 'rest') {
         // Mallets held over the middle of the naturals.
-        return { position: new Vector3(0, NATURAL_Y + 0.10, NATURAL_Z), normal: UP.clone() };
+        return {
+          position: new Vector3(0, NATURAL_Y + 0.10, NATURAL_Z),
+          normal: UP.clone(),
+          along: ACROSS.clone(),
+        };
       }
       if (point.kind !== 'key') return undefined;
       const midi = point.midi;
@@ -280,6 +291,7 @@ export const buildMallets: InstrumentBuilder = (opts) => {
       return {
         position: new Vector3(barX(midi), black ? SHARP_Y : NATURAL_Y, black ? SHARP_Z : NATURAL_Z),
         normal: UP.clone(),
+        along: ACROSS.clone(),
       };
     },
 

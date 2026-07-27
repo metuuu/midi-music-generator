@@ -37,7 +37,10 @@ export const VOCALS: VocalProfile = {
   // Clearly above the melody it doubles (0.85) — a lead vocal is the loudest
   // thing in a pop mix — with enough left under 1.0 that the peaks do not clip
   // against the drums, which reach it on their own.
-  gain: 1.5,
+  // A lead vocal sits just above the tune it doubles, not above the scale.
+  // This was 1.5, on a field documented as 0..1 where the loudest instrument
+  // is 0.9 — the singer was mixed roughly twice as loud as the band.
+  gain: 0.95,
   vowels: [
     ['o', 5], ['a', 4], ['aa', 3], ['oe', 3], ['u', 3],
     ['e', 2], ['uh', 1.5], ['y', 1.5],

@@ -43,6 +43,8 @@ const IDLE_X = SCALE * Math.pow(2, -3 / 12);
 
 const NECK_TILT = 0.28;
 const FACE = new Vector3(0, 1, 0);
+/** Across the strings, so the fingers cross them. See `acoustic-guitar.ts`. */
+const ACROSS = new Vector3(0, 0, 1);
 
 function mountBasis(alongStrings: Vector3, faceHint: Vector3, at: Vector3): Matrix4 {
   const x = alongStrings.clone().normalize();
@@ -71,6 +73,7 @@ function contactAt(x: number, y: number, z: number): Contact {
   return {
     position: new Vector3(x, y, z).applyMatrix4(MOUNT),
     normal: FACE.clone().transformDirection(MOUNT),
+    along: ACROSS.clone().transformDirection(MOUNT),
   };
 }
 

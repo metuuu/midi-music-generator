@@ -31,12 +31,18 @@
  * a drummer's are up on pedals. `proportions()` returns the differences and
  * `restLocals()` returns where the limbs live when nothing is asking them to
  * be anywhere in particular.
+ *
+ * The legs that connect the two ends are `performer-legs.ts`, which reads the
+ * hips and the feet and invents nothing. Nothing in this file may place a thigh
+ * itself, and one version of it did: a pair of fixed capsules under a seated
+ * player that pointed at where the feet usually were rather than at where they
+ * had been put.
  */
 
 import { Group, Mesh, Object3D, Vector3 } from 'three';
 
 import type { Accessory, HairStyle, Look, Posture } from '../../concert/types.js';
-import { Rng } from '../../core/rng.js';
+import type { Rng } from '../../core/rng.js';
 
 import {
   Leases, bead, clothSurface, collar, disc, hairSurface, hoodShell, hoop, orb,
@@ -126,6 +132,18 @@ export function proportions(look: Look, posture: Posture): Proportions {
 }
 
 /**
+ * The closest two hands are ever allowed to rest, in multiples of `handR`.
+ *
+ * `handR` is the palm's *half* width, so two hands whose centres are `2 × handR`
+ * apart are touching. 2.6 leaves about four centimetres of daylight at adult
+ * scale, which is what the eye needs to read two hands rather than one lump.
+ * Enforced here rather than hoped for, because the failure is not subtle: with
+ * both idle hands at one point the drummer's hands interpenetrated and the
+ * fingers of one poked out of the back of the other.
+ */
+export const MIN_HAND_GAP = 2.6;
+
+/**
  * Where each placeable part sits when nothing has asked it to be anywhere.
  *
  * This is the body's *own* idle, and it is deliberately not the instrument's.
@@ -134,20 +152,20 @@ export function proportions(look: Look, posture: Posture): Proportions {
  * falls back here when there is no instrument or no answer. What this gives is
  * a person standing there plausibly: hands by the hips, feet under the body,
  * head level.
+ *
+ * `rng` is the performer's own, so the small asymmetries below are stable for a
+ * given `Performer.id` and different between two players standing side by side.
+ * Pass a *dedicated* stream rather than the rig's general one — the draws here
+ * would otherwise shift every later draw and quietly re-roll the blink
+ * schedule of every existing performer.
  */
-export function restLocals(p: Proportions, posture: Posture): Record<string, Vector3> {
-  const h = p.height;
-  const seated = p.seatY > 0;
-  const outward = p.torsoW * 0.5 + p.handR * (seated ? 1.1 : 1.5);
-
-  const handY = seated ? p.hipY + p.torsoH * 0.34 : p.hipY + p.torsoH * 0.10;
-  const handZ = posture === 'perch' ? h * 0.22 : seated ? h * 0.15 : h * 0.045;
-
+export function restLocals(p: Proportions, posture: Posture, rng: Rng): Record<string, Vector3> {
+  const hands = handRests(p, posture, rng);
   const feet = footRests(p, posture);
 
   return {
-    'left-hand': new Vector3(SIDE.left * outward, handY, handZ),
-    'right-hand': new Vector3(SIDE.right * outward, handY, handZ),
+    'left-hand': hands.left,
+    'right-hand': hands.right,
     'left-foot': feet.left,
     'right-foot': feet.right,
     head: p.head.clone(),
@@ -155,6 +173,81 @@ export function restLocals(p: Proportions, posture: Posture): Record<string, Vec
     body: new Vector3(0, p.hipY + p.torsoH * 0.62 * Math.cos(p.lean), p.torsoH * 0.62 * Math.sin(p.lean)),
     mouth: new Vector3(0, p.head.y - p.headR * 0.42, p.head.z + p.headR * 0.92),
   };
+}
+
+/**
+ * Two resting hands, and specifically not one resting hand mirrored.
+ *
+ * The mirrored version was the first one and it is wrong twice over. It is
+ * wrong statically, because nobody stands with their hands at matched height
+ * and matched depth — one hand leads. And it is wrong dynamically, because two
+ * limbs easing home along mirrored paths arrive at mirrored places at the same
+ * instant, and a pair of hands that are always each other's reflection is the
+ * single clearest tell that a body is being driven by one number.
+ *
+ * So one hand leads: forward, a little lower, a little further out. Which one
+ * comes off the performer's id, along with a couple of centimetres of scatter,
+ * which is the cheapest possible answer to "why does the whole band stand the
+ * same way".
+ */
+function handRests(p: Proportions, posture: Posture, rng: Rng): { left: Vector3; right: Vector3 } {
+  const h = p.height;
+  const seated = p.seatY > 0;
+  const kit = posture === 'kit';
+  const outward = p.torsoW * 0.5 + p.handR * (seated ? 1.1 : 1.5);
+
+  // A drummer's idle is not a seated player's idle: the sticks stay up over the
+  // kit rather than dropping into the lap, which is also the difference between
+  // a drummer waiting for the count-in and a drummer who has left.
+  const handY = kit ? p.hipY + p.torsoH * 0.20
+    : seated ? p.hipY + p.torsoH * 0.34
+      : p.hipY + p.torsoH * 0.10;
+  const handZ = kit ? h * 0.22
+    : posture === 'perch' ? h * 0.22
+      : seated ? h * 0.15
+        : h * 0.045;
+
+  const lead: BodySide = rng.chance(0.5) ? 'right' : 'left';
+  const ahead = h * rng.float(0.028, 0.052);
+  const drop = h * rng.float(0.008, 0.020);
+  const tuck = rng.float(0.90, 0.97);
+
+  const place = (side: BodySide): Vector3 => {
+    const leads = side === lead;
+    return new Vector3(
+      SIDE[side] * outward * (leads ? 1 : tuck),
+      handY + (leads ? -drop : drop * 0.6),
+      handZ + (leads ? ahead : -ahead * 0.55),
+    );
+  };
+
+  const left = place('left');
+  const right = place('right');
+  separate(left, right, p.handR * MIN_HAND_GAP);
+  return { left, right };
+}
+
+/**
+ * Push two points apart along `x` until they are at least `gap` apart.
+ *
+ * Along the body's lateral axis and nothing else: a hand shoved forward to
+ * avoid its twin ends up somewhere the player is not reaching, whereas a hand
+ * shoved sideways ends up on its own side of the body, which is where it
+ * belongs anyway. Exported because the runtime has the same problem with a
+ * different input — see `PerformerRig.separateRest`.
+ */
+export function separate(left: Vector3, right: Vector3, gap: number): void {
+  if (left.distanceTo(right) >= gap) return;
+  // Opened to `gap` on the `x` axis alone rather than by the shortfall in
+  // distance, which is the version that provably works: separating two points
+  // by `gap − d` along one axis leaves them closer than `gap` whenever they
+  // were also apart on another. And the direction comes from `SIDE` rather than
+  // from the difference, because two points that coincide *exactly* have no
+  // difference to take a direction from — which is precisely the case that
+  // happens, a model answering `rest` once for both hands.
+  const push = (gap - (left.x - right.x)) * 0.5 + 1e-4;
+  left.x += SIDE.left * push;
+  right.x += SIDE.right * push;
 }
 
 function footRests(p: Proportions, posture: Posture): { left: Vector3; right: Vector3 } {
@@ -174,9 +267,11 @@ function footRests(p: Proportions, posture: Posture): { left: Vector3; right: Ve
         right: new Vector3(SIDE.right * h * 0.075, y, h * 0.05),
       };
     case 'sit':
+      // Not square: one foot goes further under the bench than the other. Two
+      // feet at matched depth is how a shop dummy sits.
       return {
-        left: new Vector3(SIDE.left * h * 0.085, y, h * 0.19),
-        right: new Vector3(SIDE.right * h * 0.085, y, h * 0.19),
+        left: new Vector3(SIDE.left * h * 0.085, y, h * 0.205),
+        right: new Vector3(SIDE.right * h * 0.090, y, h * 0.160),
       };
     case 'stool':
       // One foot hooked on the rung, one on the boards. The asymmetry is the
@@ -186,10 +281,22 @@ function footRests(p: Proportions, posture: Posture): { left: Vector3; right: Ve
         right: new Vector3(SIDE.right * h * 0.082, y, h * 0.16),
       };
     case 'kit':
-      // Both feet occupied, up on pedals, forward of the throne.
+      // Both feet occupied, on pedals, well forward of the throne.
+      //
+      // The height is the number the report was about. A footboard sits about
+      // three centimetres off the boards, not twelve, and at twelve the shins
+      // came out horizontal and the knees ended up level with the snare — which
+      // is what "the drummer's leg seems to be too high" looks like from the
+      // front. It is `y` — half a shoe, sole on the floor — plus the thickness
+      // of a pedal plate, and nothing else.
+      //
+      // Forward matters as much, now that there is a leg to see. Pedals are at
+      // the far end of a stretched-out leg; at a fifth of a body height ahead
+      // of the throne the leg folded into a Z. The kit model owns where the
+      // pedals actually are — this is only where the feet go until it says.
       return {
-        left: new Vector3(SIDE.left * h * 0.085, y + h * 0.045, h * 0.20),
-        right: new Vector3(SIDE.right * h * 0.075, y + h * 0.045, h * 0.21),
+        left: new Vector3(SIDE.left * h * 0.098, y + h * 0.016, h * 0.235),
+        right: new Vector3(SIDE.right * h * 0.062, y + h * 0.020, h * 0.255),
       };
   }
 }
@@ -207,7 +314,7 @@ function footRests(p: Proportions, posture: Posture): { left: Vector3; right: Ve
  * to the root rather than the torso because a thigh does not follow a lean.
  */
 export function dressTorso(
-  torso: Group, root: Object3D, look: Look, p: Proportions, l: Leases,
+  torso: Group, look: Look, p: Proportions, l: Leases,
 ): Mesh {
   const { jacket, shirt, trousers } = look.outfit;
 
@@ -232,25 +339,22 @@ export function dressTorso(
     torso.add(lapel);
   }
 
-  // Hips, in the trousers colour. With no legs this is all the trousers get
-  // when the player is standing, and it is enough to carry the colour.
+  // Hips, in the trousers colour, and the mass both thighs come out of. It has
+  // to be wide and deep enough to bury the top of each one — see the socket in
+  // `performer-legs.ts`, which sits at 30 % of the shoulder width and is inside
+  // this by a comfortable margin.
   const hips = new Mesh(orb(l), clothSurface(l, trousers));
   hips.scale.set(p.torsoW * 0.88, p.torsoH * 0.34, p.torsoD * 0.98);
   hips.position.set(0, -p.torsoH * 0.05, 0);
   hips.castShadow = true;
   torso.add(hips);
 
-  if (p.seatY > 0) {
-    const thighMat = clothSurface(l, trousers);
-    for (const s of [SIDE.left, SIDE.right]) {
-      const thigh = new Mesh(pill(l), thighMat);
-      thigh.scale.set(p.height * 0.075, p.height * 0.055, p.height * 0.075);
-      thigh.rotation.x = Math.PI / 2;
-      thigh.position.set(s * p.torsoW * 0.24, p.hipY - p.torsoH * 0.06, p.height * 0.085);
-      thigh.castShadow = true;
-      root.add(thigh);
-    }
-  }
+  // There were two stand-in thighs here for the seated postures: capsules
+  // parented to the root at a fixed angle, which did not move, did not reach
+  // the feet, and existed only because a seated player with nothing below the
+  // hips looked worse than a standing one. `performer-legs.ts` now builds real
+  // legs for every posture and they end at the ankle, so a fixed prop that
+  // ended in mid-air would only intersect them.
 
   return body;
 }

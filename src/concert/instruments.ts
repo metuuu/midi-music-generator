@@ -232,7 +232,17 @@ export const ARCHETYPES: Record<Archetype, ArchetypeSpec> = {
     id: 'upright-bass', label: 'upright bass', family: 'plucked',
     hands: 2, posture: 'stand', points: ['string', 'rest'],
     range: [28, 67], strings: [28, 33, 38, 43],
-    held: false, footprint: 0.9, workHeight: 1.15,
+    /**
+     * Carried, despite standing on an endpin.
+     *
+     * It looks like furniture and it is not: a double bass is balanced against
+     * the player with an arm round it, and it goes where they go. Left as
+     * furniture, the player swayed and the instrument did not, so the hands and
+     * the body came apart — which is exactly what was reported. The endpin now
+     * slides a few centimetres with the sway, which is what an endpin does on a
+     * wooden deck.
+     */
+    held: true, footprint: 0.9, workHeight: 1.15,
   }),
   'electric-bass': S({
     id: 'electric-bass', label: 'electric bass', family: 'plucked',

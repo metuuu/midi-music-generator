@@ -72,6 +72,33 @@ export type { Quality, StageMetrics } from './stage-kit.js';
  */
 const STAGE_RISE = 0.9;
 
+/**
+ * How far upstage of the lip the house tabs hang.
+ *
+ * This was 0.55 m, and 0.55 m is not a curtain line — it is the distance at
+ * which the cloth stopped hitting the footlights. `concert/cast.ts` holds the
+ * front line 0.7 m off the lip, so the tabs hung **0.15 m** in front of the
+ * frontmost player: less than a torso, never mind an accordion, and the band
+ * showed through a closed curtain before the show had started. Measured across
+ * every venue this generator builds it was 0.15 m in six rooms of eight and
+ * 0.20 m in the other two — a systematic miss, not a near one.
+ *
+ * 0.45 m is as far downstage as the tabs can go, and the thing that stops them
+ * is not the arch: `lights.ts` sets a footlight trough into the deck reaching
+ * `lipZ - 0.29`, and the closed cloth's own fold depth and idle breath give it
+ * a ±0.13 m envelope at the hem. Three centimetres short of the footlights is
+ * where that runs out. Any further and the curtain breathes through the
+ * footlight shells, which is a flicker rather than a fix.
+ *
+ * So this buys 0.25 m of clearance instead of 0.15 m — a torso rather than a
+ * third of one — and it is honestly not enough on its own. The rest of the
+ * reveal is bought in `show.ts`, which keeps the band out of the room until
+ * there is a gap to see it through. The two together, because a curtain that
+ * cannot be hung far enough downstage and a band that must be visible for its
+ * own bow do not have a single answer between them. See `CURTAIN_REVEALS`.
+ */
+const CURTAIN_FROM_LIP = 0.45;
+
 export interface StageOptions {
   quality?: Quality;
   /**
@@ -158,7 +185,7 @@ export function buildStage(venue: Venue, opts: StageOptions = {}): StageRig {
     houseY: -STAGE_RISE,
     openingWidth,
     openingHeight,
-    curtainZ: depth / 2 - 0.55,
+    curtainZ: depth / 2 - CURTAIN_FROM_LIP,
     flyY: openingHeight - 0.35,
     houseDepth: 2.6 + rows * (venue.audience.seated ? 0.95 : 0.8),
     houseWidth: width + 4,

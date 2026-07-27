@@ -56,6 +56,12 @@ const PLUCK_X = 0.075;
 const IDLE_X = SCALE * Math.pow(2, -4 / 12);
 
 const FACE = new Vector3(0, 1, 0);
+/**
+ * Across the strings. On this instrument it matters more than on any other in
+ * the family: the meend is a sideways pull *across* the fret, so a hand rolled
+ * to lie up the neck cannot even be doing the thing `react` is animating.
+ */
+const ACROSS = new Vector3(0, 0, 1);
 
 function mountBasis(alongStrings: Vector3, faceHint: Vector3, at: Vector3): Matrix4 {
   const x = alongStrings.clone().normalize();
@@ -85,6 +91,7 @@ function contactAt(x: number, y: number, z: number): Contact {
   return {
     position: new Vector3(x, y, z).applyMatrix4(MOUNT),
     normal: FACE.clone().transformDirection(MOUNT),
+    along: ACROSS.clone().transformDirection(MOUNT),
   };
 }
 

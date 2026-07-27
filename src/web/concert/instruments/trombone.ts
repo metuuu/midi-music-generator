@@ -33,6 +33,16 @@
  * slide; that is precisely the note a bass trombone's second valve exists for.
  * The model puts the slide at full extension with the trigger down, which is
  * the closest a real horn gets, and this comment is the honest record of it.
+ *
+ * ## Two hands, and only one of them was answered
+ *
+ * A trombonist's left hand takes the *whole weight* of the horn, up by the
+ * face: fingers round the brace just past the mouthpiece, thumb on the F
+ * trigger. The right hand does nothing but move the slide. `resolve` used to
+ * ignore `effector` and hand both of them the slide brace, so the left hand
+ * travelled half a metre down the slide with the right one and the horn was
+ * carried by nothing. Measured now: 0.41 m apart in first position, 1.03 m at
+ * seventh — which is simply what a trombone looks like.
  */
 
 import {
@@ -41,8 +51,9 @@ import {
 } from 'three';
 
 import { ARCHETYPES } from '../../../concert/instruments.js';
-import type { PlayPoint } from '../../../concert/types.js';
+import type { Effector, PlayPoint } from '../../../concert/types.js';
 import { Rng } from '../../../core/rng.js';
+import { mouthFor } from './mouth.js';
 import type {
   Contact, InstrumentBuildOptions, InstrumentBuilder, InstrumentModel,
 } from './types.js';
@@ -163,12 +174,22 @@ const SPEC = ARCHETYPES.trombone;
  * is laid out from this number.
  */
 const OUTER_LEN = 0.72;
-/** Mouthpiece at the lips. Negative because the origin is *not* at the player. */
+/** Mouthpiece **rim** — the lips. Negative because the origin is *not* at the player. */
 const MOUTH_Z = -0.62;
+/** Shank tip to rim of the mouthpiece mesh, which is laid out along −z. */
+const MP_LEN = 0.042;
 /** Front of the slide in first position: the far end of the outer slide. */
 const CROOK_Z = MOUTH_Z + 0.05 + OUTER_LEN;
-/** The grip brace, a hand's width behind the crook. */
-const BRACE_Z = CROOK_Z - 0.13;
+/**
+ * The grip brace, a third of the way back along the outer slide.
+ *
+ * Not at the crook. A real outer slide braces well back from its own end, and
+ * the difference is 13 cm of reach at every position — which matters here
+ * because seventh already puts the right hand 1.2 m in front of a player who
+ * has no arm to explain it with. Anywhere inside the outer slide's own length
+ * is honest; the far end of that range is not.
+ */
+const BRACE_Z = CROOK_Z - 0.24;
 /** Far end of the fixed inner tubes: inside the crook, past seventh position. */
 const INNER_FAR = 0.13;
 const INNER_NEAR = MOUTH_Z + 0.02;
@@ -178,6 +199,19 @@ const TILT = 0.09;
 const SLIDE_X = 0.036;
 /** Height of the slide tubes off the horn's axis. */
 const SLIDE_Y = -0.022;
+/**
+ * How far the bell section rides above the slide.
+ *
+ * This is the number that decides whether the bell reads as pointing at the
+ * audience or as sitting on top of the player's head. At 0.124 the rim's upper
+ * edge measured 1.708 m — the crown of an average cast member — because the
+ * horn's tilt pivots about the middle of the slide and everything behind the
+ * pivot rises with it. 0.100 puts the same edge at eye level, which is where
+ * it is in every photograph of a trombonist.
+ */
+const BELL_RISE = 0.100;
+/** Where the left hand takes the weight: the brace behind the mouthpiece. */
+const GRIP_Z = MOUTH_Z + 0.125;
 
 function bellProfile(len: number, r0: number, r1: number, steps: number): Vector2[] {
   const pts: Vector2[] = [];
@@ -191,6 +225,9 @@ function bellProfile(len: number, r0: number, r1: number, steps: number): Vector
 export const buildTrombone: InstrumentBuilder = (opts: InstrumentBuildOptions): InstrumentModel => {
   live++;
   const rng = new Rng(`trombone:${opts.seed}`);
+
+  /** This player's lips, solved once; the whole horn hangs off it. */
+  const mouth = mouthFor(opts, SPEC.workHeight);
 
   const brassHue = opts.finish ?? (rng.chance(0.2) ? '#d6d8dc' : '#c19a36');
   const matBrass = shared(`brass:${brassHue}`, () => new MeshStandardMaterial({
@@ -226,7 +263,14 @@ export const buildTrombone: InstrumentBuilder = (opts: InstrumentBuildOptions): 
   const geoGrip = shared('grip', () => new CylinderGeometry(0.014, 0.014, 0.05, 8).rotateZ(Math.PI / 2));
   const geoRotor = shared('rotor', () => new CylinderGeometry(0.030, 0.030, 0.044, 12));
   const geoLever = shared('lever', () => new BoxGeometry(0.010, 0.008, 0.085));
-  const geoStay = shared('stay', () => new BoxGeometry(0.012, 0.10, 0.014));
+  /**
+   * The bell-to-slide brace, which is a plate rather than a rod here.
+   *
+   * It has to physically bridge three tubes 72 mm apart in x and 100 mm apart
+   * in y, or the bell section and the slide are two objects that happen to be
+   * near each other. It is also what the left hand holds.
+   */
+  const geoStay = shared('stay', () => new BoxGeometry(SLIDE_X * 2 + 0.016, BELL_RISE, 0.014));
 
   // --- assembly ----------------------------------------------------------
   const root = new Group();
@@ -235,48 +279,72 @@ export const buildTrombone: InstrumentBuilder = (opts: InstrumentBuildOptions): 
   /** Horn frame: +z runs mouthpiece to bell and out along the slide. */
   const horn = addTo(root, new Group());
   horn.rotation.x = TILT;
-  // Solve the height so the mouthpiece lands on the archetype's workHeight.
-  horn.position.y = SPEC.workHeight
-    - (SLIDE_Y * Math.cos(TILT) - MOUTH_Z * Math.sin(TILT));
+  // The rim after the tilt, in the model's frame. Height and station are both
+  // solved from it, so the horn cannot end up at a face it is not aimed at.
+  const rimY = SLIDE_Y * Math.cos(TILT) - MOUTH_Z * Math.sin(TILT);
+  const rimZ = SLIDE_Y * Math.sin(TILT) + MOUTH_Z * Math.cos(TILT);
+  horn.position.y = mouth.y - rimY;
   horn.updateMatrix();
   const hornMatrix = horn.matrix.clone();
 
+  // The mesh is laid out along −z from its origin, so the origin goes a
+  // mouthpiece's length in front of where the lips are.
+  /**
+   * The mouthpiece is in line with one of the two slide tubes, not with the
+   * horn's centreline — which is why a trombonist's face is off to one side of
+   * their own instrument. `station.offset.x` puts that tube back under the
+   * lips, so the bell ends up just left of the player rather than through
+   * their nose.
+   */
   const mouthpiece = addTo(horn, new Mesh(geoMouthpiece, matSlide));
-  mouthpiece.position.set(0, SLIDE_Y, MOUTH_Z);
+  mouthpiece.name = 'mouthpiece';
+  mouthpiece.position.set(-SLIDE_X, SLIDE_Y, MOUTH_Z + MP_LEN);
   const receiver = addTo(horn, new Mesh(geoReceiver, matBrass));
-  receiver.position.set(0, SLIDE_Y, MOUTH_Z + 0.06);
+  receiver.name = 'receiver';
+  receiver.position.set(-SLIDE_X, SLIDE_Y, MOUTH_Z + 0.075);
 
   // The bell section wraps back behind the player's shoulder and comes
   // forward again above the slide. That doubling back is the silhouette.
+  // Half way across in x, because it joins the far slide tube to the bell
+  // tube on the centreline and has to touch both.
   const backBow = addTo(horn, new Mesh(geoBackBow, matBrass));
-  backBow.position.set(0, SLIDE_Y + 0.062, MOUTH_Z - 0.04);
+  backBow.name = 'back-bow';
+  backBow.position.set(SLIDE_X / 2, SLIDE_Y + BELL_RISE / 2, MOUTH_Z - 0.02);
   const bellTube = addTo(horn, new Mesh(geoBellTube, matBrass));
-  bellTube.position.set(0, SLIDE_Y + 0.124, MOUTH_Z + 0.08);
+  bellTube.name = 'bell-tube';
+  bellTube.position.set(0, SLIDE_Y + BELL_RISE, MOUTH_Z + 0.10);
   bellTube.castShadow = true;
 
   const bellGroup = addTo(horn, new Group());
-  bellGroup.position.set(0, SLIDE_Y + 0.124, MOUTH_Z + 0.20);
+  bellGroup.position.set(0, SLIDE_Y + BELL_RISE, MOUTH_Z + 0.22);
   const bell = addTo(bellGroup, new Mesh(geoBell, matBrass));
+  bell.name = 'bell';
   bell.castShadow = true;
   bell.receiveShadow = true;
   const bellRim = addTo(bellGroup, new Mesh(geoBellRim, matBrass));
+  bellRim.name = 'bell-rim';
   bellRim.position.z = 0.218;
 
   // The F attachment: a rotor on the bell section and a thumb lever.
   const rotor = addTo(horn, new Mesh(geoRotor, matBrass));
-  rotor.position.set(0.028, SLIDE_Y + 0.09, MOUTH_Z - 0.01);
+  rotor.name = 'rotor';
+  rotor.position.set(0.028, SLIDE_Y + BELL_RISE * 0.72, MOUTH_Z - 0.005);
   rotor.rotation.z = Math.PI / 2;
   const trigger = addTo(horn, new Group());
-  trigger.position.set(0.012, SLIDE_Y + 0.062, MOUTH_Z + 0.01);
+  trigger.position.set(0.012, SLIDE_Y + BELL_RISE / 2, MOUTH_Z + 0.01);
   const lever = addTo(trigger, new Mesh(geoLever, matDark));
+  lever.name = 'trigger';
   lever.position.z = 0.04;
 
-  // Stays holding the bell section to the slide section.
+  // Stays holding the bell section to the slide section. The near one is what
+  // the left hand actually holds, so it is where `GRIP_Z` says it is.
   const stay = addTo(horn, new Mesh(geoStay, matBrass));
-  stay.position.set(0, SLIDE_Y + 0.062, MOUTH_Z + 0.14);
+  stay.name = 'grip-stay';
+  stay.position.set(0, SLIDE_Y + BELL_RISE / 2, GRIP_Z);
 
   for (const x of [-SLIDE_X, SLIDE_X]) {
     const inner = addTo(horn, new Mesh(geoInner, matSlide));
+    inner.name = 'inner-slide';
     inner.position.set(x, SLIDE_Y, (INNER_NEAR + INNER_FAR) / 2);
   }
 
@@ -284,14 +352,18 @@ export const buildTrombone: InstrumentBuilder = (opts: InstrumentBuildOptions): 
   const slide = addTo(horn, new Group());
   for (const x of [-SLIDE_X, SLIDE_X]) {
     const outer = addTo(slide, new Mesh(geoOuter, matSlide));
+    outer.name = 'outer-slide';
     outer.position.set(x, SLIDE_Y, CROOK_Z - OUTER_LEN / 2);
     outer.castShadow = true;
   }
   const crook = addTo(slide, new Mesh(geoCrook, matSlide));
+  crook.name = 'slide-crook';
   crook.position.set(0, SLIDE_Y, CROOK_Z);
   const brace = addTo(slide, new Mesh(geoBrace, matSlide));
+  brace.name = 'slide-brace';
   brace.position.set(0, SLIDE_Y, BRACE_Z);
   const grip = addTo(slide, new Mesh(geoGrip, matDark));
+  grip.name = 'slide-grip';
   grip.position.set(0, SLIDE_Y, BRACE_Z);
 
   // --- contacts ----------------------------------------------------------
@@ -309,6 +381,10 @@ export const buildTrombone: InstrumentBuilder = (opts: InstrumentBuildOptions): 
       position: new Vector3(0, SLIDE_Y + 0.012, BRACE_Z + offset).applyMatrix4(hornMatrix),
       // Up and back: the grip is taken from above and behind, thumb over.
       normal: new Vector3(0, 0.82, -0.57).normalize().transformDirection(hornMatrix),
+      // The brace is a bar across the two slide tubes and the hand closes
+      // round it, so the knuckle line runs across the horn rather than along
+      // it — the one contact in this family whose `along` is *not* the tube.
+      along: new Vector3(1, 0, 0).transformDirection(hornMatrix),
     };
   }
   const openContacts = [1, 2, 3, 4, 5, 6, 7].map((p) => braceContact(slideOffset(p, L_BB)));
@@ -317,8 +393,34 @@ export const buildTrombone: InstrumentBuilder = (opts: InstrumentBuildOptions): 
   /** First position, thumb up: where the hand waits. */
   const restContact = openContacts[0]!;
 
+  /**
+   * The left hand: on the brace behind the mouthpiece, taking the weight.
+   *
+   * It never moves, whatever the slide is doing — which is the whole point of
+   * having it. One contact, and it is a metre from seventh position.
+   */
+  const holdContact: Contact = {
+    position: new Vector3(-0.014, SLIDE_Y + BELL_RISE * 0.55, GRIP_Z).applyMatrix4(hornMatrix),
+    // From above and the player's left: the hand comes over the brace with the
+    // thumb reaching in to the trigger.
+    normal: new Vector3(0.35, 0.90, -0.26).normalize().transformDirection(hornMatrix),
+    // Fingers wrap a vertical plate, so the knuckles run up it.
+    along: new Vector3(0, 1, 0).transformDirection(hornMatrix),
+  };
+
   function copy(c: Contact): Contact {
-    return { position: c.position.clone(), normal: c.normal.clone() };
+    // `along` survives the copy. It did not before, which made every
+    // `Contact.along` in this directory dead weight.
+    return {
+      position: c.position.clone(),
+      normal: c.normal.clone(),
+      ...(c.along ? { along: c.along.clone() } : {}),
+    };
+  }
+
+  /** `'right-hand'` and `'bow'` ask for the sounding hand. See `InstrumentModel`. */
+  function slides(effector?: Effector): boolean {
+    return effector === undefined || effector === 'right-hand' || effector === 'bow';
   }
 
   const [LO, HI] = SPEC.range;
@@ -330,6 +432,8 @@ export const buildTrombone: InstrumentBuilder = (opts: InstrumentBuildOptions): 
   let triggerTo = 0;
   let flare = 0;
   let lastBeat = Number.NaN;
+  /** Guards a second `dispose`: `release` is refcounted across the stage. */
+  let disposed = false;
 
   return {
     archetype: 'trombone',
@@ -342,18 +446,25 @@ export const buildTrombone: InstrumentBuilder = (opts: InstrumentBuildOptions): 
        * seventh position is 1.3 m in front of the player's face. Centring the
        * swept volume is the only way the whole instrument fits inside the
        * declared 0.9 m footprint at all.
+       *
+       * The z is the rim's own position minus how far in front of the body
+       * this player's mouth is, so a taller player's horn simply starts
+       * further out — which is what a longer face does to a trombone.
        */
-      offset: new Vector3(0, 0, MOUTH_Z - 0.12),
+      offset: new Vector3(-SLIDE_X, 0, rimZ - mouth.z),
       facing: 0,
       posture: SPEC.posture,
     },
 
-    resolve(point: PlayPoint): Contact | undefined {
-      if (point.kind === 'rest') return copy(restContact);
+    resolve(point: PlayPoint, effector?: Effector): Contact | undefined {
+      if (point.kind === 'rest') {
+        return copy(slides(effector) ? restContact : holdContact);
+      }
       if (point.kind !== 'valve') return undefined;
       if (point.midi < LO || point.midi > HI) return undefined;
       const p = positionFor(point.midi);
       if (!p) return undefined;
+      if (!slides(effector)) return copy(holdContact);
       const table = p.trigger ? triggerContacts : openContacts;
       return copy(table[p.position - 1]!);
     },
@@ -384,6 +495,11 @@ export const buildTrombone: InstrumentBuilder = (opts: InstrumentBuildOptions): 
     },
 
     update(now: number): void {
+      // A non-finite beat has to stop here. `dt` would be NaN, every eased
+      // value in this method is `x += (target − x) * k`, and one NaN k turns
+      // the whole instrument into NaN transforms permanently — three.js keeps
+      // drawing it, at no position, for the rest of the show.
+      if (!Number.isFinite(now)) return;
       const dt = Number.isFinite(lastBeat) ? Math.min(Math.max(now - lastBeat, 0), 0.5) : 0;
       lastBeat = now;
       if (dt === 0) return;
@@ -406,6 +522,11 @@ export const buildTrombone: InstrumentBuilder = (opts: InstrumentBuildOptions): 
     },
 
     dispose(): void {
+      // A second call would free the shared buffers out from under every
+      // other one of these on the stage. That renders as nothing at all and
+      // reports nothing, so it is guarded rather than left to be noticed.
+      if (disposed) return;
+      disposed = true;
       root.removeFromParent();
       root.clear();
       release();

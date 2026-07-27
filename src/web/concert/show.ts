@@ -30,6 +30,20 @@
  * since page load. That is a coincidence worth keeping rather than designing
  * around: a concert that needs a click to begin is exactly what a browser
  * autoplay policy needs too.
+ *
+ * **Between numbers, most of the stage must be told to stop.** This is the one
+ * that has bitten hardest. `transport.end()` drops the song and `beat()` then
+ * reports 0 — honestly, because there is no position. Everything downstream
+ * reads 0 as a *position*: the camera director decided its current shot began a
+ * hundred and fifty beats in the future, drove its push term hard negative, and
+ * reversed — measured — **200 metres** out through the back wall of the house
+ * over the following five seconds. That is what the show used to do instead of
+ * ending. (Not under `prefers-reduced-motion`, which sets the push to zero, so
+ * it did not reproduce for everybody.) The animator has the mirror-image
+ * problem — `end()`
+ * empties its player list and it then stops driving the bodies at all, so the
+ * band freezes mid-pose. So the runner tracks both explicitly (`clockLive`,
+ * `animatorHasRigs`) and takes the bodies over when the animator lets go.
  */
 
 import type { Camera, Object3D } from 'three';
@@ -91,6 +105,41 @@ const APPLAUSE_SECONDS = 4.5;
 /** Beats a tomatoed player sits out before returning with a new part. */
 const SULK_BEATS = 8;
 
+/**
+ * How far the curtain has to have travelled before the band is in the room.
+ *
+ * The tabs hang at the plaster line and clear the front line by 0.58 m (see
+ * `CURTAIN_FROM_LIP` in `stage.ts`), which covers a body and everything most
+ * players hold. It does not cover everything: a trombone slide at full stretch
+ * reaches 0.93 m downstage of its own station, and a grand piano's tail reaches
+ * further still. Rather than hang the curtain out over the audience to cover an
+ * extended slide, the band simply is not there until there is a gap to see it
+ * through — which is also the older and better staging note, because a reveal
+ * is a reveal.
+ *
+ * Small, not zero: at 0.02 the cloth still spans 98% of its own width, so the
+ * frame the band appears on is a frame where the opening is a hairline.
+ */
+const CURTAIN_REVEALS = 0.02;
+
+// --- The ending ------------------------------------------------------------
+//
+// The show used to end by drifting the camera backwards, which was not an
+// ending anybody wrote — see the note at the top of the file for the mechanism
+// and the 200 metres it covers. It read as a bug because it was one.
+//
+// A theatre ends with the curtain. So: the band acknowledges the house, the
+// tabs come in over their own three-second traverse, and the picture goes under
+// them. The camera does not move — `clockLive` sees to that.
+
+/** Seconds into the bow before the tabs are brought in. Let them take a bow. */
+const BOW_CURTAIN_AT = 1.6;
+/** When the black starts, and how long it takes. Under the curtain, not before. */
+const BOW_FADE_AT = 3.4;
+const BOW_FADE_SECONDS = 2.6;
+/** One deliberate dip of the head, in seconds. `setHeadNod` takes the sine. */
+const BOW_NOD_SECONDS = 1.4;
+
 export function createShow(opts: ShowOptions = {}): Show {
   const concert = buildConcert(opts.concert ?? {});
   let quality: Quality = opts.quality ?? 'high';
@@ -128,6 +177,34 @@ export function createShow(opts: ShowOptions = {}): Show {
   let current: ConcertNumber = concert.numbers[0]!;
   let state: ShowState = 'bill';
   let stateSeconds = 0;
+  /** Monotonic wall seconds. `PerformerRig.update` insists on them; `beat` wraps. */
+  let seconds = 0;
+  /**
+   * Whether the beat the director is reading means anything.
+   *
+   * `transport.end()` drops the song and `beat()` then honestly reports 0 — but
+   * the camera director takes 0 as a *position*, not as "no position", and the
+   * result is the reverse-through-the-wall described above. There is no clock
+   * between numbers, so there is nothing for the director to decide: hold the
+   * frame it is on.
+   */
+  let clockLive = false;
+  /**
+   * Whether the animator is still driving the bodies.
+   *
+   * `Animator.update` owns `PerformerRig.update` for every player, and
+   * `animator.end()` empties its player list — after which it returns before
+   * touching anything and the whole band freezes mid-pose. That is invisible
+   * during four seconds of applause behind a closing curtain, and very visible
+   * during a bow, where the point is that they move. So the runner takes the
+   * bodies over when the animator lets go. The flag exists so there is never a
+   * frame where both drive them: `animate.ts` is explicit that two `rig.update`
+   * calls in one frame run breath and blink at double rate.
+   */
+  let animatorHasRigs = false;
+  /** 0..1 of black over the picture. Only the bow moves it. */
+  let fade = 0;
+  const blackout = buildBlackout();
   /** Layers currently silenced by a tomato, and the beat each may return on. */
   const sulking = new Map<LayerId, { until: number; attempt: number }>();
 
@@ -197,10 +274,28 @@ export function createShow(opts: ShowOptions = {}): Show {
           .setY(-model.station.offset.y - rig.proportions.hipY);
         model.root.rotation.y = -model.station.facing;
       } else {
-        model.root.position.set(x, y, z);
-        model.root.rotation.y = performer.station.facing;
-        model.root.position.sub(
-          new Vector3().copy(model.station.offset).applyAxisAngle(UP, performer.station.facing),
+        /**
+         * A floor instrument is not always square to the player who stands at
+         * it, and `PlayerStation.facing` is how a model says so.
+         *
+         * It is the *player's* yaw expressed in the instrument's frame — so
+         * the instrument's own yaw is the player's less that angle, and the
+         * offset, which is also in the instrument's frame, has to be rotated
+         * by the instrument's yaw rather than the player's. The two are the
+         * same thing for the twenty-odd instruments that declare zero and
+         * different for the one that does not: a harp asks for 0.585 rad
+         * because you sit behind it and turn into it, and this branch used to
+         * drop that on the floor, stand the harp square, and leave the
+         * harpist reaching across their own shoulder for the top of the fan.
+         *
+         * The held branch has always applied it — `rotation.y =
+         * -model.station.facing`, in torso-local space, which is the same
+         * subtraction — so the two agree now instead of disagreeing quietly.
+         */
+        const yaw = performer.station.facing - model.station.facing;
+        model.root.rotation.y = yaw;
+        model.root.position.set(x, y, z).sub(
+          new Vector3().copy(model.station.offset).applyAxisAngle(UP, yaw),
         );
         band.add(model.root);
       }
@@ -265,14 +360,18 @@ export function createShow(opts: ShowOptions = {}): Show {
 
     stageBand(current);
     animator.begin(current, rigs, models);
+    animatorHasRigs = true;
     lights.begin(current.lighting);
     director.begin(current.song, current.cast, current.solos, concert.venue, `${concert.seed}/${n}`);
-    tomatoes.strike();
+    // No `tomatoes.strike()` here: `begin` is a strike plus a new cast, says so
+    // in its own contract, and a second strike would throw away the pool
+    // warm-up that `begin` just paid for behind this closed curtain.
 
     // Stop before evaluating. See the module note: a running cycle counter
     // would start this song somewhere in its middle.
     await stopPlayback();
     transport.begin(current.song);
+    clockLive = true;
     await sound(current.song);
 
     stage.setCurtain(1);
@@ -283,10 +382,29 @@ export function createShow(opts: ShowOptions = {}): Show {
   function endNumber(): void {
     void stopPlayback();
     transport.end();
+    clockLive = false;
     animator.end();
+    animatorHasRigs = false;
     lights.setHouse(0.45);
     stage.applaud(1);
     setState(index + 1 < concert.numbers.length ? 'applause' : 'bow');
+  }
+
+  /**
+   * The band turns out and takes it.
+   *
+   * Everything a bow needs is already on `PerformerRig` — a face, a gaze and a
+   * head nod — so this is three calls and no new API. The nod is driven from
+   * the bow's own clock rather than the song's, because there is no song.
+   */
+  function acknowledge(t: number): void {
+    HOUSE.set(0, 1.55, stage.metrics.lipZ + 3.5);
+    const dip = t < BOW_NOD_SECONDS ? Math.sin((t / BOW_NOD_SECONDS) * Math.PI) : 0;
+    for (const rig of rigs.values()) {
+      rig.lookAt(HOUSE);
+      rig.setHeadNod(dip, Math.PI / 2);
+      rig.setSway(0.25 * (1 - dip), t * 1.6);
+    }
   }
 
   // --- Tomato consequences ----------------------------------------------
@@ -339,6 +457,7 @@ export function createShow(opts: ShowOptions = {}): Show {
 
   function frame(dt: number): void {
     stateSeconds += dt;
+    seconds += dt;
 
     /**
      * One sample, at the top, passed to everyone. Nothing below may ask the
@@ -385,13 +504,30 @@ export function createShow(opts: ShowOptions = {}): Show {
         break;
 
       case 'bow':
-        if (stateSeconds > APPLAUSE_SECONDS) stage.setCurtain(0);
+        // The house up, the band out, the tabs in, and then the black. No
+        // camera move anywhere in it — see the note by `BOW_CURTAIN_AT`.
+        lights.setHouse(0.7);
+        acknowledge(stateSeconds);
+        if (stateSeconds > BOW_CURTAIN_AT) stage.setCurtain(0);
+        fade = Math.min(1, Math.max(0, (stateSeconds - BOW_FADE_AT) / BOW_FADE_SECONDS));
         break;
     }
 
-    animator.update(beat, dt);
+    /**
+     * The band is behind the cloth until there is a gap to see it through.
+     * The bow is the exception, because a bow wants the curtain coming in over
+     * a band that is visibly still there.
+     */
+    band.visible = state === 'bow' || stage.curtainOpen() > CURTAIN_REVEALS;
+    blackout.style.opacity = fade > 0 ? String(fade) : '0';
+
+    if (animatorHasRigs) animator.update(beat, dt);
+    else for (const rig of rigs.values()) rig.update(seconds, dt);
     lights.update(beat, dt);
-    director.update(beat, dt);
+    // Only while the beat means something. `transport.end()` reports 0, and the
+    // director reads 0 as a position rather than as an absence — which is the
+    // whole of the zoom-out this show used to end on.
+    if (clockLive) director.update(beat, dt);
     tomatoes.update(beat, dt);
     stage.update(beat, dt);
     for (const model of models.values()) model.update(beat);
@@ -432,6 +568,7 @@ export function createShow(opts: ShowOptions = {}): Show {
       tomatoes.dispose();
       lights.dispose();
       stage.dispose();
+      blackout.remove();
       bill.destroy?.();
     },
   };
@@ -442,6 +579,32 @@ export function createShow(opts: ShowOptions = {}): Show {
 }
 
 const UP = new Vector3(0, 1, 0);
+/** Where the band looks when they take a bow. Rewritten each frame. */
+const HOUSE = new Vector3(0, 1.55, 8);
+
+/**
+ * A sheet of black over the picture, for the end of the show.
+ *
+ * Not a light cue, because there is no such cue to call: `LightRig.setHouse`
+ * only ever *adds* — the rig is explicit that the house is a probe that must
+ * not be able to fight the score — and nothing else in the lighting API goes to
+ * black. Which is fine, because a fade-out is not a lighting state anyway. It
+ * is a sheet of black, exactly as it is in a theatre.
+ *
+ * It goes immediately after the canvas rather than at the end of the body, so
+ * the picture goes and whatever the page is captioning with — "Thank you.
+ * Goodnight." — is still legible on the black.
+ */
+function buildBlackout(): HTMLDivElement {
+  const el = document.createElement('div');
+  el.className = 'show-blackout';
+  el.style.cssText = 'position:fixed;inset:0;background:#000;opacity:0;'
+    + 'pointer-events:none;z-index:0';
+  const canvas = document.querySelector('canvas');
+  if (canvas?.parentNode) canvas.parentNode.insertBefore(el, canvas.nextSibling);
+  else document.body.append(el);
+  return el;
+}
 
 function prefersReducedMotion(): boolean {
   return typeof matchMedia === 'function'

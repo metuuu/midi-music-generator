@@ -61,13 +61,37 @@ export interface SplatField {
   /** Marks with no host of their own live here. Add it to the scene once. */
   root: Group;
   /**
+   * Build every slot now, and put them where a renderer will see them.
+   *
+   * Marks used to be built on the frame a tomato landed, which is the frame
+   * with the least room for it: a `BufferGeometry`, two typed arrays and an
+   * index buffer are the cheap half, and the expensive half is that the
+   * material has never been compiled and the buffers have never been uploaded.
+   * Both happen inside the first `render` that sees the mesh — so the audience
+   * saw a stutter at the moment of impact, every first impact, which reads as
+   * the throw being broken rather than as a frame drop.
+   *
+   * `prime` moves that cost to wherever the show runner calls it, which is
+   * behind a closed curtain. The primed meshes are degenerate — every vertex at
+   * the origin, so they draw nothing — and `frustumCulled` is already false, so
+   * they reach the renderer whatever the camera is doing.
+   *
+   * Idempotent, and safe to call every `begin`.
+   */
+  prime(): void;
+  /**
+   * Take the primed meshes back out of the scene. Call a frame or two after
+   * `prime`, once they have been drawn.
+   */
+  cool(): void;
+  /**
    * Leave a mark. `normal` points away from the surface; `size` is the blob's
    * radius in metres. `host`, when given, is what the mark is parented to so
    * it travels with a moving instrument.
    *
    * Past the cap the oldest mark is recycled, geometry and all. Nothing is
-   * allocated after the cap is reached, so a very determined audience cannot
-   * grow the scene.
+   * allocated after `prime()`, so neither the first throw nor a very determined
+   * audience can grow the scene or build a mesh mid-frame.
    */
   place(point: Vector3, normal: Vector3, size: number, host?: Object3D): void;
   /** Grows the drips. `dt` in seconds; a non-finite one is ignored. */
@@ -92,6 +116,14 @@ interface Slot {
   /** 0 on a floor, 1 on a wall. Scales how far the drips run. */
   drip: number;
   growing: boolean;
+  /**
+   * Whether this slot is carrying a mark somebody threw.
+   *
+   * Not the same question as "is it parented", which it used to be: `prime`
+   * parents every slot to warm it up, and a warm-up mesh is not a splat. The
+   * budget in `TomatoStats` counts marks, so it has to ask this instead.
+   */
+  used: boolean;
 }
 
 export interface SplatOptions {
@@ -158,10 +190,17 @@ export function createSplatField(o: SplatOptions = {}): SplatField {
       baseY: new Float32Array(DRIPS),
       halfWidth: new Float32Array(DRIPS),
       length: new Float32Array(DRIPS),
-      age: 0, drip: 0, growing: true,
+      age: 0, drip: 0, growing: true, used: false,
     };
   }
 
+  /**
+   * The next slot to write, oldest first once the cap is reached.
+   *
+   * Never allocates: `prime` has already built all of them. It is still written
+   * defensively — a caller that skipped `prime` gets a mark rather than a
+   * crash, and pays for it once.
+   */
   function take(): Slot {
     if (slots.length < cap) {
       const slot = build();
@@ -176,6 +215,25 @@ export function createSplatField(o: SplatOptions = {}): SplatField {
 
   return {
     root,
+
+    prime() {
+      while (slots.length < cap) slots.push(build());
+      for (const slot of slots) {
+        if (slot.used) continue;
+        // Every vertex at the origin: zero-area triangles, which the rasteriser
+        // throws away and the driver still has to have compiled a program for.
+        slot.pos.fill(0);
+        slot.attr.needsUpdate = true;
+        slot.mesh.position.set(0, 0, 0);
+        slot.mesh.quaternion.identity();
+        slot.growing = false;
+        root.add(slot.mesh);
+      }
+    },
+
+    cool() {
+      for (const slot of slots) if (!slot.used) slot.mesh.removeFromParent();
+    },
 
     place(point, normal, size, host) {
       if (!finite3(point) || !Number.isFinite(size)) return;
@@ -201,6 +259,7 @@ export function createSplatField(o: SplatOptions = {}): SplatField {
       slot.drip = Math.min(1, Math.max(0, 1 - Math.abs(V1.dot(UP))));
       slot.age = 0;
       slot.growing = true;
+      slot.used = true;
 
       // --- the blob --------------------------------------------------------
       const p = slot.pos;
@@ -250,7 +309,7 @@ export function createSplatField(o: SplatOptions = {}): SplatField {
       if (!Number.isFinite(dt) || dt <= 0) return;
       const step = Math.min(dt, 0.1);
       for (const slot of slots) {
-        if (!slot.growing || !slot.mesh.parent) continue;
+        if (!slot.used || !slot.growing || !slot.mesh.parent) continue;
         slot.age += step;
         if (slot.age >= DRIP_SECONDS) slot.growing = false;
         writeDrips(slot, slot.age);
@@ -262,13 +321,14 @@ export function createSplatField(o: SplatOptions = {}): SplatField {
       for (const slot of slots) {
         slot.mesh.removeFromParent();
         slot.growing = false;
+        slot.used = false;
       }
       next = 0;
     },
 
     stats() {
       let live = 0;
-      for (const slot of slots) if (slot.mesh.parent) live++;
+      for (const slot of slots) if (slot.used && slot.mesh.parent) live++;
       return { live, cap, objects: live, triangles: live * TRIS };
     },
 

@@ -55,6 +55,16 @@ const IDLE_X = SCALE * Math.pow(2, -3 / 12);
 const NECK_TILT = 0.244;
 
 const FACE = new Vector3(0, 1, 0);
+/**
+ * Across the strings — the axis the knuckles lie along.
+ *
+ * `normal` fixes the palm's facing and leaves the *roll* about it free, and on
+ * a fretboard the roll is the whole difference between a hand reaching over the
+ * strings and a hand lying up one of them like a splint. It is worth spelling
+ * out that this is *across*, not along the neck: a fretting hand's fingers
+ * cross the strings, and a picking hand's do too.
+ */
+const ACROSS = new Vector3(0, 0, 1);
 
 /** Body outline, in the build frame's x (along) and z (across). */
 const BODY_TAIL = -0.215;
@@ -96,6 +106,7 @@ function contactAt(x: number, y: number, z: number): Contact {
   return {
     position: new Vector3(x, y, z).applyMatrix4(MOUNT),
     normal: FACE.clone().transformDirection(MOUNT),
+    along: ACROSS.clone().transformDirection(MOUNT),
   };
 }
 

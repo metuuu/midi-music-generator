@@ -140,6 +140,23 @@ export interface InstrumentBuildOptions {
   seed: number;
   /** Body colour hint from the venue palette. Models may ignore it. */
   finish?: string;
+  /**
+   * How tall the player is, in metres. Optional; omit and a model assumes the
+   * archetype's `workHeight`.
+   *
+   * This exists because a horn is held *to a face*, and faces are not all at
+   * the same height. Casting draws a performer's height across a 1.58–1.92 m
+   * spread, the rig puts the mouth at about `0.886 × height`, and a mouthpiece
+   * anchored to the archetype's single `workHeight` is therefore correct for
+   * the mean and up to 15 cm out at the ends — the horn floating below the lips
+   * of a tall player and pushed through the chin of a short one.
+   *
+   * Only instruments that meet the body at a specific point need it: the blown
+   * family, and anything else whose contact height is dictated by the player
+   * rather than by the floor. A drum kit stands on the boards and should ignore
+   * this entirely.
+   */
+  height?: number;
 }
 
 /** A convenience for models that have nothing to settle. */

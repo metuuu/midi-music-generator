@@ -48,6 +48,15 @@ const NECK_HIGH = new Vector3(0.36, 1.63, 0);
 const PLUCK_T = 0.42;
 
 const PLANE_NORMAL = new Vector3(0, 0, 1);
+/**
+ * Across the courses — the axis the knuckles lie along.
+ *
+ * A harpist's four fingers take four adjacent strings, so the knuckle line runs
+ * across the fan and not up a string. Without this the roll about the plane's
+ * normal is whatever the fallback produces, and the hand ends up edge-on to the
+ * strings it is supposed to be raking.
+ */
+const ACROSS = new Vector3(1, 0, 0);
 
 /**
  * The string plane, turned so the audience gets a three-quarter view and the
@@ -100,6 +109,26 @@ function courseOf(point: PlayPoint): number | undefined {
     return undefined;
   }
   return n >= 0 && n < COURSES ? n : undefined;
+}
+
+/**
+ * Where a hand goes on course `n`, `off` metres clear of the string plane.
+ *
+ * One function for both hands, because on a harp there is only one answer: the
+ * hand that stops the string is the hand that sounds it. `soundingContact`
+ * therefore delegates here rather than to `resolve` — going back through
+ * `resolve` would go through `withSoundingContact`'s replacement of it, which
+ * works only because that wrapper passes no effector, and is one refactor away
+ * from being a loop.
+ */
+function pluckAt(n: number, lift: number, off: number): Contact {
+  const foot = footOf(n, new Vector3());
+  const head = headOf(n, new Vector3());
+  return {
+    position: foot.lerp(head, PLUCK_T).add(new Vector3(0, lift, off)).applyMatrix4(MOUNT),
+    normal: PLANE_NORMAL.clone().transformDirection(MOUNT),
+    along: ACROSS.clone().transformDirection(MOUNT),
+  };
 }
 
 class Kit {
@@ -286,29 +315,17 @@ export const buildHarp: InstrumentBuilder = (opts) => {
     station,
 
     resolve(point: PlayPoint): Contact | undefined {
-      if (point.kind === 'rest') {
-        // Hands lifted off the middle of the fan, which is where they wait.
-        const foot = footOf(40, new Vector3());
-        const head = headOf(40, new Vector3());
-        return {
-          position: foot.lerp(head, PLUCK_T).add(new Vector3(0, 0.05, 0.09))
-            .applyMatrix4(MOUNT),
-          normal: PLANE_NORMAL.clone().transformDirection(MOUNT),
-        };
-      }
+      // Hands lifted off the middle of the fan, which is where they wait.
+      if (point.kind === 'rest') return pluckAt(40, 0.05, 0.09);
       const n = courseOf(point);
       if (n === undefined) return undefined;
-      const foot = footOf(n, new Vector3());
-      const head = headOf(n, new Vector3());
-      return {
-        position: foot.lerp(head, PLUCK_T).add(new Vector3(0, 0, 0.012))
-          .applyMatrix4(MOUNT),
-        normal: PLANE_NORMAL.clone().transformDirection(MOUNT),
-      };
+      return pluckAt(n, 0, 0.012);
     },
 
     soundingContact(point: PlayPoint): Contact | undefined {
-      return model.resolve(point);
+      if (point.kind === 'rest') return pluckAt(40, 0.05, 0.09);
+      const n = courseOf(point);
+      return n === undefined ? undefined : pluckAt(n, 0, 0.012);
     },
 
     react(point: PlayPoint, force: number, now: number): void {

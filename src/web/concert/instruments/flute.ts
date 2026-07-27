@@ -14,6 +14,20 @@
  * than down; and the instrument catches the light along its whole length,
  * which is why it is the one wind here worth making properly silver.
  *
+ * ## Which way is out
+ *
+ * Out to the player's **right**, which is local −x: `SIDE.right === −1` in
+ * `performer-look.ts`. The file said "right" and built the tube along +x,
+ * which is the player's left — so the flute crossed the wrong shoulder, the
+ * left hand ended up further from the lips than the right, and the whole
+ * instrument leaned into whoever was standing on that side.
+ *
+ * ## Two hands, and they do not swap
+ *
+ * The left hand is the one nearer the lips and the right nearer the foot, on
+ * every flute ever made, and neither crosses the other. `resolve` answers per
+ * `effector` for exactly that reason; it used to hand both hands the same key.
+ *
  * ## Fingering, and the roll
  *
  * An open pipe, so it overblows at the octave: twelve stations, and the second
@@ -31,8 +45,9 @@ import {
 } from 'three';
 
 import { ARCHETYPES } from '../../../concert/instruments.js';
-import type { PlayPoint } from '../../../concert/types.js';
+import type { Effector, PlayPoint } from '../../../concert/types.js';
 import { Rng } from '../../../core/rng.js';
+import { mouthFor } from './mouth.js';
 import type {
   Contact, InstrumentBuildOptions, InstrumentBuilder, InstrumentModel,
 } from './types.js';
@@ -93,20 +108,28 @@ function release(): void {
 
 const SPEC = ARCHETYPES.flute;
 
-/** A concert flute is 67 cm; the local frame runs from -x to +x through it. */
+/**
+ * A concert flute is 67 cm. Local +x is the **crown** end and −x the foot,
+ * because −x is the player's right and that is the way a flute points.
+ */
 const HALF = 0.335;
 /** The embouchure hole sits 16.5 cm in from the crown. */
-const LIP_X = -HALF + 0.165;
+const LIP_X = HALF - 0.165;
 /** Swing of the far end toward the audience, and its droop. */
-const SWING = -0.30;
-const DROOP = -0.14;
-/** Keys run between these x, from just past the head joint to the foot. */
-const FIRST_KEY_X = -0.02;
-const LAST_KEY_X = 0.30;
+const SWING = 0.30;
+const DROOP = 0.14;
+/** Keys run between these x, from just past the head joint out to the foot. */
+const FIRST_KEY_X = 0.02;
+const LAST_KEY_X = -0.30;
+/** Stations 0..5 are the right hand's (the foot end), 6..11 the left's. */
+const HAND_SPLIT = 6;
 
 export const buildFlute: InstrumentBuilder = (opts: InstrumentBuildOptions): InstrumentModel => {
   live++;
   const rng = new Rng(`flute:${opts.seed}`);
+
+  /** This player's lips; the whole tube is hung off the embouchure hole. */
+  const mouth = mouthFor(opts, SPEC.workHeight);
 
   const bodyHue = opts.finish ?? (rng.chance(0.25) ? '#d8c47a' : '#dfe4ea');
   const matBody = shared(`body:${bodyHue}`, () => new MeshStandardMaterial({
@@ -147,7 +170,7 @@ export const buildFlute: InstrumentBuilder = (opts: InstrumentBuildOptions): Ins
   flute.rotation.set(0, SWING, DROOP);
   // Put the lips at the same height every blown archetype puts a mouth.
   const lipLocal = new Vector3(LIP_X, 0, 0).applyEuler(flute.rotation);
-  flute.position.set(0, SPEC.workHeight - lipLocal.y, -lipLocal.z);
+  flute.position.set(0, mouth.y - lipLocal.y, -lipLocal.z);
 
   /**
    * The roll group: everything hangs off it, and it turns about the tube's own
@@ -159,33 +182,44 @@ export const buildFlute: InstrumentBuilder = (opts: InstrumentBuildOptions): Ins
   flute.updateMatrix();
   const fluteMatrix = flute.matrix.clone();
 
+  // Everything is laid out from the crown at +x down to the foot at −x, so a
+  // joint's position is the crown minus how far along the tube it sits.
   const head = addTo(roll, new Mesh(geoHead, matBody));
-  head.position.x = -HALF + 0.110;
+  head.name = 'head-joint';
+  head.position.x = HALF - 0.110;
   head.castShadow = true;
   const crown = addTo(roll, new Mesh(geoCrown, matDark));
-  crown.position.x = -HALF + 0.009;
+  crown.name = 'crown';
+  crown.position.x = HALF - 0.009;
   const body = addTo(roll, new Mesh(geoBody, matBody));
-  body.position.x = -HALF + 0.220 + 0.1575;
+  body.name = 'body-joint';
+  body.position.x = HALF - 0.220 - 0.1575;
   body.castShadow = true;
   const foot = addTo(roll, new Mesh(geoFoot, matBody));
-  foot.position.x = -HALF + 0.535 + 0.0675;
+  foot.name = 'foot-joint';
+  foot.position.x = HALF - 0.535 - 0.0675;
   foot.castShadow = true;
   const tip = addTo(roll, new Mesh(geoTip, matBody));
-  tip.position.x = HALF;
+  tip.name = 'foot-tip';
+  tip.position.x = -HALF;
 
-  for (const x of [-HALF + 0.220, -HALF + 0.535]) {
+  for (const x of [0.220, 0.535]) {
     const tenon = addTo(roll, new Mesh(geoTenon, matBody));
-    tenon.position.x = x;
+    tenon.name = 'tenon';
+    tenon.position.x = HALF - x;
   }
 
   const lipPlate = addTo(roll, new Mesh(geoLipPlate, matBody));
+  lipPlate.name = 'mouthpiece';
   lipPlate.position.set(LIP_X, 0.0095, 0);
   const lipRim = addTo(roll, new Mesh(geoLipRim, matBody));
+  lipRim.name = 'embouchure';
   lipRim.position.set(LIP_X, 0.0125, 0);
 
   for (const x of [0.02, 0.24]) {
     const rod = addTo(roll, new Mesh(geoRod, matKeys));
-    rod.position.set(-HALF + x + 0.15, 0.0138, -0.0075);
+    rod.name = 'rod';
+    rod.position.set(HALF - x - 0.15, 0.0138, -0.0075);
   }
 
   /** Twelve stations, twelve cups, laid from the foot back toward the lips. */
@@ -193,28 +227,61 @@ export const buildFlute: InstrumentBuilder = (opts: InstrumentBuildOptions): Ins
   for (let i = 0; i < STATIONS; i++) {
     stationX.push(LAST_KEY_X - (i / (STATIONS - 1)) * (LAST_KEY_X - FIRST_KEY_X));
   }
-  const pads: Group[] = stationX.map((x) => {
+  const pads: Group[] = stationX.map((x, i) => {
     const hinge = addTo(roll, new Group());
     hinge.position.set(x, 0.0092, -0.0075);
     const cup = addTo(hinge, new Mesh(geoCup, matKeys));
+    cup.name = `pad-${i}`;
     cup.position.set(0, 0.0022, 0.0075);
     return hinge;
   });
 
   // --- contacts ----------------------------------------------------------
-  const contacts: Contact[] = stationX.map((x) => ({
-    position: new Vector3(x, 0.017, -0.004).applyMatrix4(fluteMatrix),
-    // Down onto the keys from above and slightly behind: a flautist's fingers
-    // curl over the top of the tube from the player's side.
-    normal: new Vector3(0, 1, -0.35).normalize().transformDirection(fluteMatrix),
+  /**
+   * A contact is where the hand goes, not the fingertip.
+   *
+   * The stations are 29 mm apart and a hand is 80 mm across, so the two hands
+   * are backed off toward their own ends of the tube by half a hand. Without
+   * it, a note either side of the split puts two palms 29 mm apart on a 20 mm
+   * pipe.
+   */
+  function contactAt(station: number, shift: number): Contact {
+    return {
+      position: new Vector3(stationX[station]! + shift, 0.017, -0.004).applyMatrix4(fluteMatrix),
+      // Down onto the keys from above and slightly behind: a flautist's fingers
+      // curl over the top of the tube from the player's side.
+      normal: new Vector3(0, 1, -0.35).normalize().transformDirection(fluteMatrix),
       // The keys run the length of the tube, so the knuckles do too.
-      along: new Vector3(0, 1, 0).transformDirection(fluteMatrix),
-  }));
-  /** Hands stay over the keys between phrases; a flute is never put down. */
-  const restContact = contacts[6]!;
+      along: new Vector3(1, 0, 0).transformDirection(fluteMatrix),
+    };
+  }
+  const HAND = 0.032;
+  const rightContacts: Contact[] = stationX.map((_, i) => contactAt(i, -HAND));
+  const leftContacts: Contact[] = stationX.map((_, i) => contactAt(i, HAND));
+
+  /** Neither hand crosses to the other's keys. */
+  function stationFor(station: number, right: boolean): number {
+    return right
+      ? Math.min(station, HAND_SPLIT - 1)
+      : Math.max(station, HAND_SPLIT);
+  }
+
+  /** Hands stay over their own keys between phrases; a flute is never put down. */
+  const restRight = rightContacts[HAND_SPLIT - 3]!;
+  const restLeft = leftContacts[HAND_SPLIT + 3]!;
 
   function copy(c: Contact): Contact {
-    return { position: c.position.clone(), normal: c.normal.clone() };
+    // With `along`, which the old copy dropped on the floor.
+    return {
+      position: c.position.clone(),
+      normal: c.normal.clone(),
+      ...(c.along ? { along: c.along.clone() } : {}),
+    };
+  }
+
+  /** `'right-hand'` and `'bow'` ask for the sounding hand. See `InstrumentModel`. */
+  function isRight(effector?: Effector): boolean {
+    return effector === undefined || effector === 'right-hand' || effector === 'bow';
   }
 
   const [LO, HI] = SPEC.range;
@@ -226,23 +293,28 @@ export const buildFlute: InstrumentBuilder = (opts: InstrumentBuildOptions): Ins
   let rollTo = 0;
   let shiver = 0;
   let lastBeat = Number.NaN;
+  /** Guards a second `dispose`: `release` is refcounted across the stage. */
+  let disposed = false;
 
   return {
     archetype: 'flute',
     root,
     station: {
       // Behind the lips, not behind the instrument: the player's shoulders sit
-      // where the head joint is, not at the middle of the tube.
-      offset: new Vector3(LIP_X * 1.05, 0, -0.16),
+      // where the head joint is, not at the middle of the tube. The z puts the
+      // embouchure 0.12 m in front of the body axis, at the mouth.
+      offset: new Vector3(lipLocal.x, 0, -mouth.z),
       facing: 0,
       posture: SPEC.posture,
     },
 
-    resolve(point: PlayPoint): Contact | undefined {
-      if (point.kind === 'rest') return copy(restContact);
+    resolve(point: PlayPoint, effector?: Effector): Contact | undefined {
+      const right = isRight(effector);
+      if (point.kind === 'rest') return copy(right ? restRight : restLeft);
       if (point.kind !== 'hole') return undefined;
       if (point.midi < LO || point.midi > HI) return undefined;
-      return copy(contacts[fingeringFor(point.midi).station]!);
+      const station = stationFor(fingeringFor(point.midi).station, right);
+      return copy((right ? rightContacts : leftContacts)[station]!);
     },
 
     react(point: PlayPoint, force: number, _now: number): void {
@@ -261,6 +333,11 @@ export const buildFlute: InstrumentBuilder = (opts: InstrumentBuildOptions): Ins
     },
 
     update(now: number): void {
+      // A non-finite beat has to stop here. `dt` would be NaN, every eased
+      // value in this method is `x += (target − x) * k`, and one NaN k turns
+      // the whole instrument into NaN transforms permanently — three.js keeps
+      // drawing it, at no position, for the rest of the show.
+      if (!Number.isFinite(now)) return;
       const dt = Number.isFinite(lastBeat) ? Math.min(Math.max(now - lastBeat, 0), 0.5) : 0;
       lastBeat = now;
       if (dt === 0) return;
@@ -276,6 +353,11 @@ export const buildFlute: InstrumentBuilder = (opts: InstrumentBuildOptions): Ins
     },
 
     dispose(): void {
+      // A second call would free the shared buffers out from under every
+      // other one of these on the stage. That renders as nothing at all and
+      // reports nothing, so it is guarded rather than left to be noticed.
+      if (disposed) return;
+      disposed = true;
       root.removeFromParent();
       root.clear();
       release();

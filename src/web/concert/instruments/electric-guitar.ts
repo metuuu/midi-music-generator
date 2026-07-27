@@ -41,6 +41,8 @@ const IDLE_X = SCALE * Math.pow(2, -5 / 12);
 
 const NECK_TILT = 0.21;
 const FACE = new Vector3(0, 1, 0);
+/** Across the strings, so the fingers cross them. See `acoustic-guitar.ts`. */
+const ACROSS = new Vector3(0, 0, 1);
 
 function mountBasis(alongStrings: Vector3, faceHint: Vector3, at: Vector3): Matrix4 {
   const x = alongStrings.clone().normalize();
@@ -69,6 +71,7 @@ function contactAt(x: number, y: number, z: number): Contact {
   return {
     position: new Vector3(x, y, z).applyMatrix4(MOUNT),
     normal: FACE.clone().transformDirection(MOUNT),
+    along: ACROSS.clone().transformDirection(MOUNT),
   };
 }
 
@@ -291,6 +294,10 @@ export const buildElectricGuitar: InstrumentBuilder = (opts) => {
       kit.geo(new TubeGeometry(curve, 14, 0.006, 4, false)),
       kit.mat(new MeshStandardMaterial({ color: '#15151a', roughness: 0.8 })),
     ));
+    // Named because it is the one part of this model that is not the guitar:
+    // it reaches the deck, so anything measuring the instrument's size has to
+    // be able to leave it out.
+    cable.name = 'lead';
     cable.castShadow = true;
   }
 

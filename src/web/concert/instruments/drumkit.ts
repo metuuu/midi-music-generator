@@ -45,6 +45,37 @@ const TAU = Math.PI * 2;
 // ---------------------------------------------------------------------------
 
 /**
+ * How thick the bronze is. A real cymbal is under two millimetres and at stage
+ * distance that is less than a pixel, so this is deliberately generous: the
+ * edge is the part of a cymbal that catches a light, and it has to have one.
+ */
+const CYMBAL_THICK = 0.005;
+
+/**
+ * Where the three cymbals hang, in one place because two things have to agree
+ * about them: the mesh, and the strike point in `LAYOUT` below.
+ *
+ * `y` is the height of the *rim* — a cymbal's lathe has its outer edge at the
+ * origin — and each of them clears the tallest drum head on the kit. That is
+ * not a nicety. The hi-hat used to sit at 0.84, which is below the rim of a
+ * tilted rack tom at 0.95: the hats disappeared into the toms from the front,
+ * and a hi-hat you cannot see is a groove you cannot read.
+ */
+const HAT_AT = [0.56, 0.980, -0.34] as const;
+const CRASH_AT = [0.52, 1.235, 0.12] as const;
+const RIDE_AT = [-0.60, 1.050, -0.02] as const;
+
+/**
+ * Hat gap: shut is the two cymbals nested, open is a hand's width of daylight.
+ *
+ * Shut has to be about the thickness of the bronze rather than zero, because
+ * both cymbals are domed the same way and a smaller number puts the top one's
+ * underside through the bottom one's bell.
+ */
+const HAT_SHUT = CYMBAL_THICK + 0.002;
+const HAT_OPEN = 0.055;
+
+/**
  * Where each voice is struck, and which way "off the drum" points.
  *
  * One table, consulted by `resolve` and used to place the geometry, so the
@@ -56,8 +87,16 @@ const TAU = Math.PI * 2;
  * prep being a vertical lift.
  */
 const LAYOUT: Record<DrumVoice, { at: readonly [number, number, number]; up: readonly [number, number, number] }> = {
-  /** The pedal board, not the head. A kick is played with a foot. */
-  bd: { at: [-0.09, 0.085, -0.26], up: [0, 1, 0] },
+  /**
+   * The pedal board, not the head. A kick is played with a foot.
+   *
+   * The height here *is* the height of the drummer's sole: the rig places a
+   * foot at the contact and pushes it half a foot back along the normal, which
+   * lands the underside of the shoe exactly on this number. It used to say
+   * 0.085 and the leg read as floating, because a footboard eight and a half
+   * centimetres off the boards is not a footboard.
+   */
+  bd: { at: [-0.09, 0.052, -0.22], up: [0, 0.993, -0.118] },
   sd: { at: [0.12, 0.740, -0.50], up: [0, 0.97, -0.24] },
   /** The near rim of the same drum — a cross-stick lands on the hoop. */
   rim: { at: [0.05, 0.766, -0.64], up: [0, 0.95, -0.31] },
@@ -66,16 +105,20 @@ const LAYOUT: Record<DrumVoice, { at: readonly [number, number, number]; up: rea
    * middle of a cymbal is one of those small wrongnesses that makes a whole
    * kit read as a toy, and it costs nothing to put the stick where a stick goes.
    */
-  hh: { at: [0.56, 0.860, -0.43], up: [0.10, 0.98, -0.15] },
-  /** Open hats are struck further out, on the edge, and that reads. */
-  oh: { at: [0.585, 0.858, -0.49], up: [0.16, 0.97, -0.15] },
+  hh: { at: [HAT_AT[0], HAT_AT[1] + HAT_SHUT + 0.003, -0.43], up: [0.10, 0.98, -0.15] },
+  /**
+   * Open hats are struck further out, on the edge — and *higher*, because the
+   * top cymbal has lifted by the time the stick gets there. Two voices, two
+   * heights, off one pair of numbers.
+   */
+  oh: { at: [HAT_AT[0] + 0.025, HAT_AT[1] + HAT_OPEN + 0.001, -0.49], up: [0.16, 0.97, -0.15] },
   lt: { at: [-0.50, 0.660, -0.30], up: [-0.12, 0.98, -0.10] },
   mt: { at: [-0.16, 0.860, 0.02], up: [-0.05, 0.95, -0.30] },
   ht: { at: [0.20, 0.900, 0.00], up: [0.05, 0.95, -0.30] },
   /** The near edge of the crash: what a drummer swings through, not the bell. */
-  cr: { at: [0.50, 1.242, -0.02], up: [0.18, 0.96, -0.20] },
+  cr: { at: [CRASH_AT[0] - 0.02, CRASH_AT[1] + 0.007, CRASH_AT[2] - 0.14], up: [0.18, 0.96, -0.20] },
   /** The bow of the ride, two thirds out, on the side nearest the player. */
-  rd: { at: [-0.58, 1.000, -0.16], up: [-0.15, 0.97, -0.18] },
+  rd: { at: [RIDE_AT[0] + 0.02, RIDE_AT[1] + 0.008, RIDE_AT[2] - 0.14], up: [-0.15, 0.97, -0.18] },
   /** A clap is not a kit piece, so the kit grows a pad for it, by the hats. */
   cp: { at: [0.40, 0.800, -0.68], up: [0, 1, 0] },
   /**
@@ -103,6 +146,21 @@ const SHELL_OF: Partial<Record<DrumVoice, ShellId>> = {
 type CymbalId = 'hatTop' | 'crash' | 'ride';
 const CYMBAL_OF: Partial<Record<DrumVoice, CymbalId>> = {
   hh: 'hatTop', oh: 'hatTop', cr: 'crash', rd: 'ride',
+};
+
+/**
+ * How far each cymbal swings when it is struck, how long it rings for in beats,
+ * and how fast it rocks in cycles per beat.
+ *
+ * One set of numbers for all three was the old behaviour and it was wrong in
+ * both directions at once: a hi-hat that flaps like a crash, and a crash that
+ * settles as fast as a hi-hat. A crash is a thin sail on a spring and it is
+ * still moving a bar later; hats are clamped between a clutch and a rod.
+ */
+const CYMBAL_MOTION: Record<CymbalId, { swing: number; tau: number; hz: number }> = {
+  hatTop: { swing: 0.05, tau: 0.30, hz: 2.6 },
+  crash: { swing: 0.26, tau: 1.10, hz: 1.5 },
+  ride: { swing: 0.11, tau: 0.85, hz: 1.9 },
 };
 
 // ---------------------------------------------------------------------------
@@ -183,16 +241,41 @@ function headGeometry(radius: number, seg = 16): BufferGeometry {
   return g;
 }
 
-/** A cymbal profile: a flat bow with a bell at the middle. */
+/**
+ * A cymbal: a flat bow with a bell in the middle, and — this is the whole fix —
+ * a solid one, walked in the direction that puts its normals in the light.
+ *
+ * The first version was a single open lathe of the bow alone, and every cymbal
+ * on the kit was invisible. `LatheGeometry` derives its normal from the
+ * direction of travel along the profile, as `(dy, -dx)`; a profile walked from
+ * the bell *outward and downward*, which is the way a cymbal is actually
+ * shaped, therefore has normals pointing at the floor. With the default
+ * `FrontSide` material that is a back face from every camera above the kit,
+ * which is every camera we have, so all three cymbals rendered as the dark
+ * sliver of their own edge — "thin dark ellipses", which is exactly what was
+ * reported.
+ *
+ * So: out to the rim, back *inward* along the top face (normals up), down the
+ * thickness, and back out along the underside (normals down). First point
+ * equals last, so the lathe closes and the thing is solid metal rather than a
+ * one-sided sheet.
+ */
 function cymbalGeometry(radius: number, seg = 20): BufferGeometry {
   const bell = radius * 0.16;
-  return new LatheGeometry([
-    new Vector2(0.0001, bell * 0.55),
-    new Vector2(bell * 0.5, bell * 0.5),
-    new Vector2(bell, bell * 0.24),
-    new Vector2(radius * 0.55, bell * 0.10),
-    new Vector2(radius, 0),
-  ], seg);
+  /** Rim first, then inward and up to the bell. */
+  const bow: ReadonlyArray<readonly [number, number]> = [
+    [radius, 0],
+    [radius * 0.55, bell * 0.10],
+    [bell, bell * 0.24],
+    [bell * 0.5, bell * 0.5],
+    [0.0001, bell * 0.55],
+  ];
+  const points = bow.map(([r, y]) => new Vector2(r, y));
+  for (let i = bow.length - 1; i >= 0; i--) {
+    points.push(new Vector2(bow[i]![0], bow[i]![1] - CYMBAL_THICK));
+  }
+  points.push(new Vector2(radius, 0));   // up the rim, closing the loop
+  return new LatheGeometry(points, seg);
 }
 
 function disposeTree(root: Object3D): void {
@@ -302,10 +385,12 @@ export const buildDrumkit: InstrumentBuilder = (opts) => {
     }
 
     const head = addTo(g, new Mesh(headGeometry(radius), headMat));
+    head.name = `head:${id}`;
     head.position.y = depth / 2;
     head.receiveShadow = true;
 
     const back = addTo(g, new Mesh(new CircleGeometry(radius, 20), headMat));
+    back.name = `shell:${id}`;
     back.rotation.x = Math.PI / 2;
     back.position.y = -depth / 2;
 
@@ -352,6 +437,7 @@ export const buildDrumkit: InstrumentBuilder = (opts) => {
   // The clap pad: a small rubber disc on a short boom by the hats.
   const padGeo = new CylinderGeometry(0.075, 0.075, 0.028, 16);
   const pad = addTo(root, new Mesh(padGeo, darkMat));
+  pad.name = 'head:pad';
   pad.position.set(0.40, 0.786, -0.68);
   pad.castShadow = true;
   shells['pad'] = { head: pad, hit: new Hit() };
@@ -383,31 +469,37 @@ export const buildDrumkit: InstrumentBuilder = (opts) => {
 
   // --- Cymbals -------------------------------------------------------------
 
-  const cymbals: Record<CymbalId, { mesh: Mesh; hit: Hit; tilt: number }> = {} as never;
+  const cymbals: Record<CymbalId, { mesh: Mesh; hit: Hit; tilt: number; baseY: number }> = {} as never;
 
-  function cymbal(id: CymbalId, radius: number, at: Vector3, lean: number): Mesh {
+  function cymbal(id: CymbalId, radius: number, at: readonly [number, number, number], lean: number): Mesh {
     const mesh = addTo(root, new Mesh(cymbalGeometry(radius), brassMat));
-    mesh.position.copy(at);
+    mesh.name = `cymbal:${id}`;
+    mesh.position.set(at[0], at[1], at[2]);
     mesh.rotation.z = lean;
     mesh.castShadow = true;
-    cymbals[id] = { mesh, hit: new Hit(), tilt: lean };
+    // A cymbal is thin enough that it catches the rim light on the underside
+    // too, and it is over the toms, so it is worth having it take a shadow.
+    mesh.receiveShadow = true;
+    cymbals[id] = { mesh, hit: new Hit(), tilt: lean, baseY: at[1] };
     return mesh;
   }
 
   // Hi-hat: two cymbals, and the gap between them is the whole point.
   const hatBottom = addTo(root, new Mesh(cymbalGeometry(0.17), brassMat));
-  hatBottom.position.set(0.56, 0.836, -0.34);
+  hatBottom.name = 'cymbal:hatBottom';
+  hatBottom.position.set(HAT_AT[0], HAT_AT[1], HAT_AT[2]);
   hatBottom.rotation.z = -0.10;
-  const hatTop = cymbal('hatTop', 0.175, new Vector3(0.56, 0.852, -0.34), -0.10);
-  tripod(new Vector3(0.56, 0.40, -0.34), 0.83);
+  hatBottom.receiveShadow = true;
+  const hatTop = cymbal('hatTop', 0.175, HAT_AT, -0.10);
+  tripod(new Vector3(HAT_AT[0], 0.40, HAT_AT[2]), HAT_AT[1] - 0.01);
 
-  cymbal('crash', 0.21, new Vector3(0.52, 1.235, 0.12), -0.20);
+  cymbal('crash', 0.21, CRASH_AT, -0.20);
   tripod(new Vector3(0.60, 0.60, 0.22), 1.10);
-  strut(tubeSlots, new Vector3(0.60, 1.10, 0.22), new Vector3(0.52, 1.23, 0.12));
+  strut(tubeSlots, new Vector3(0.60, 1.10, 0.22), new Vector3(CRASH_AT[0], CRASH_AT[1] - 0.005, CRASH_AT[2]));
 
-  cymbal('ride', 0.26, new Vector3(-0.60, 0.995, -0.02), 0.17);
-  tripod(new Vector3(-0.66, 0.50, 0.10), 0.95);
-  strut(tubeSlots, new Vector3(-0.66, 0.95, 0.10), new Vector3(-0.60, 0.99, -0.02));
+  cymbal('ride', 0.26, RIDE_AT, 0.17);
+  tripod(new Vector3(-0.66, 0.50, 0.10), 1.00);
+  strut(tubeSlots, new Vector3(-0.66, 1.00, 0.10), new Vector3(RIDE_AT[0], RIDE_AT[1] - 0.005, RIDE_AT[2]));
 
   // --- Cowbell and woodblock, on a bracket off the bass drum ---------------
 
@@ -427,18 +519,37 @@ export const buildDrumkit: InstrumentBuilder = (opts) => {
 
   // --- Pedals --------------------------------------------------------------
 
-  /** A footboard hinged at its far end, so the toe end is what drops. */
-  function pedal(x: number, zHeel: number, zToe: number): { board: Mesh; hit: Hit } {
-    const board = addTo(root, new Mesh(new BoxGeometry(0.10, 0.018, zHeel - zToe), darkMat));
-    board.position.set(x, 0.075, (zHeel + zToe) / 2);
+  /**
+   * A footboard: heel plate on the boards at the player's end, toe end raised
+   * toward the drum, hinged at the heel so that pressing flattens it.
+   *
+   * Both halves of this were wrong before and they compounded. The heel plate
+   * was at the *drum* end, which is a pedal built back to front, and the board
+   * sat at 0.075 with the contact 0.085 above it — and the contact is the sole
+   * of the drummer's shoe, not a hint. A foot cannot be on a board that is a
+   * hand's width off the floor, so the leg read as floating, which is what was
+   * reported. The whole assembly now lives between 0.02 and 0.06.
+   */
+  const PEDAL_HEEL_Y = 0.020;
+  const PEDAL_TOE_Y = 0.058;
+
+  function pedal(id: 'kick' | 'hat', x: number, toeZ: number, heelZ: number): { board: Mesh; hit: Hit; tilt: number } {
+    const len = toeZ - heelZ;
+    const board = addTo(root, new Mesh(new BoxGeometry(0.10, 0.016, len), darkMat));
+    board.name = `pedal:${id}`;
+    board.position.set(x, (PEDAL_HEEL_Y + PEDAL_TOE_Y) / 2, (heelZ + toeZ) / 2);
+    // Negative pitch lifts the `+z` end, and `+z` is the toe on both pedals.
+    const tilt = -Math.atan2(PEDAL_TOE_Y - PEDAL_HEEL_Y, len);
+    board.rotation.x = tilt;
     board.castShadow = true;
-    const plate = addTo(root, new Mesh(new BoxGeometry(0.13, 0.014, 0.09), chromeMat));
-    plate.position.set(x, 0.012, zHeel - 0.02);
-    return { board, hit: new Hit() };
+    const plate = addTo(root, new Mesh(new BoxGeometry(0.13, 0.012, 0.10), chromeMat));
+    plate.position.set(x, 0.008, heelZ - 0.03);
+    return { board, hit: new Hit(), tilt };
   }
 
-  const kickPedal = pedal(-0.09, -0.10, -0.42);
-  const hatPedal = pedal(0.56, -0.34, -0.64);
+  // Toe toward the drum, heel toward the throne — the drummer sits at `-z`.
+  const kickPedal = pedal('kick', -0.09, -0.12, -0.44);
+  const hatPedal = pedal('hat', 0.56, -0.36, -0.66);
 
   /** The beater, hinged low and swinging into the batter head. */
   const beater = addTo(root, new Group());
@@ -452,9 +563,6 @@ export const buildDrumkit: InstrumentBuilder = (opts) => {
   const BEATER_STRIKE = 0.12;
   beater.rotation.x = BEATER_REST;
 
-  /** Hat gap: closed is a couple of millimetres, open is a centimetre and a half. */
-  const HAT_SHUT = 0.016;
-  const HAT_OPEN = 0.055;
   const hatGap = new Eased(0.09, HAT_SHUT);
 
   // --- Throne --------------------------------------------------------------
@@ -502,7 +610,9 @@ export const buildDrumkit: InstrumentBuilder = (opts) => {
         }
         case 'pedal':
           if (point.which === 'kick') return contact(LAYOUT.bd);
-          if (point.which === 'hat') return contact({ at: [0.56, 0.085, -0.50], up: [0, 1, 0] });
+          // The same height as the kick board, for the same reason: this is
+          // where the sole of the left shoe ends up.
+          if (point.which === 'hat') return contact({ at: [0.56, 0.052, -0.46], up: [0, 0.993, -0.118] });
           return undefined;  // A drum kit has no sustain pedal.
         case 'rest':
           return contact(REST);
@@ -559,16 +669,25 @@ export const buildDrumkit: InstrumentBuilder = (opts) => {
         else s.head.scale.y = 1 - d * 2.2;
       }
 
+      // Cymbals rock, and they have to rock *visibly* or a struck crash reads
+      // as a painted disc. Each one gets its own swing and its own ring: a
+      // crash is a sail on a stick and flaps for a bar, a ride is stiffer and
+      // shorter, and the hats are two cymbals clamped together and barely move
+      // at all. The vertical bob is small but it is what sells the hit from
+      // straight on, where a rotation about the stand is nearly invisible.
       for (const id of ['hatTop', 'crash', 'ride'] as CymbalId[]) {
         const c = cymbals[id];
-        const w = c.hit.wobble(now, 0.85, 1.7);
-        c.mesh.rotation.z = c.tilt + w * 0.16;
-        c.mesh.rotation.x = w * 0.09;
+        const m = CYMBAL_MOTION[id];
+        const w = c.hit.wobble(now, m.tau, m.hz);
+        c.mesh.rotation.z = c.tilt + w * m.swing;
+        c.mesh.rotation.x = w * m.swing * 0.55;
+        c.mesh.position.y = c.baseY + w * m.swing * 0.04
+          + (id === 'hatTop' ? hatGap.value(now) : 0);
       }
-      hatTop.position.y = 0.836 + hatGap.value(now);
 
-      kickPedal.board.rotation.x = -kickPedal.hit.decay(now, 0.22) * 0.22;
-      hatPedal.board.rotation.x = -hatPedal.hit.decay(now, 0.22) * 0.22;
+      // A pressed board flattens onto the boards; it does not swing past them.
+      kickPedal.board.rotation.x = kickPedal.tilt * (1 - kickPedal.hit.decay(now, 0.22));
+      hatPedal.board.rotation.x = hatPedal.tilt * (1 - hatPedal.hit.decay(now, 0.22));
       beater.rotation.x = BEATER_REST
         + (BEATER_STRIKE - BEATER_REST) * kickPedal.hit.decay(now, 0.18);
 

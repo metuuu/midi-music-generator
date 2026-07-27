@@ -48,6 +48,23 @@
  * and `riser` is the one to watch, because `Station.riser` says a performer is
  * standing on a platform and this places one. Its top is at **0.4 m**, centred
  * at **(0, -1.15 m upstage of centre)**, 2.8 m wide by 2.0 m deep.
+ *
+ * ## Where props are allowed to *hang*
+ *
+ * The same argument one storey up, and it took a screenshot to notice. Floor
+ * props were kept out of the playing area from the start; hanging ones were
+ * hung by eye at a fraction of `openingHeight`, and a fraction of a small
+ * opening is head height. Measured across every room this generator builds:
+ * a paper lantern hung with its bottom at 2.30 m directly over the drum riser,
+ * a festoon sagged to 2.08 m over the front line, the upstage bunting run sank
+ * to 1.54 m, and the moths flew from 1.51 m up. From a camera down in the
+ * house every one of those sits on somebody's face.
+ *
+ * So hanging dressing answers to `HEAD_BAND` in `stage-kit.ts`: its lowest
+ * point clears `HANG_FLOOR`, or it is upstage of the backline, and the runs
+ * that span the opening do both. `swag()` is where the arithmetic lives —
+ * a run is tied off at whatever height its own sag and its own flag drop
+ * require, rather than at a fraction that happens to work in a ten-metre room.
  */
 
 import {
@@ -61,8 +78,8 @@ import {
 import { Rng } from '../../core/rng.js';
 import type { Venue } from '../../concert/types.js';
 import {
-  blend, cellPlane, hueShift, sagLine, shade, tint,
-  type Kit, type Quality, type StageMetrics,
+  blend, cellPlane, HEAD_BAND, hueShift, playingArea, sagLine, shade, tint,
+  type Kit, type PlayingArea, type Quality, type StageMetrics,
 } from './stage-kit.js';
 
 // ---------------------------------------------------------------------------
@@ -174,11 +191,41 @@ export interface PropRig {
 interface Ctx extends PropOptions {
   root: Group;
   m: StageMetrics;
+  /** Where the band can be standing. Nothing hangs into it. See `stage-kit`. */
+  play: PlayingArea;
   p: Venue['palette'];
   accent: string;
   idle: number;
   rng(tag: string): Rng;
   tick(fn: (t: number, dt: number) => void): void;
+}
+
+/**
+ * The lowest anything may hang over the boards.
+ *
+ * `HEAD_BAND.hi` already includes the drum riser; the extra quarter of a metre
+ * is for the swing, the sway and the fact that a decoration grazing the top of
+ * somebody's head still reads as being on their head.
+ */
+const HANG_FLOOR = HEAD_BAND.hi + 0.25;
+
+/**
+ * Tie a hanging run off high enough that nothing on it reaches a face.
+ *
+ * A swag is not one height: it is the height of its ends, minus how far it
+ * sags, minus how far whatever is tied to it drops below the line. Hanging by a
+ * fraction of `openingHeight` gets all three wrong at once, and gets them
+ * wrong hardest in the small rooms — where the opening is 3.6 m, a "0.62 of
+ * the opening" run with a 0.6 m sag and 0.3 m pennants bottoms out at 1.33 m.
+ *
+ * So: solve for the ends. If the sag will not fit under the header, the sag
+ * gives rather than the clearance — a taut run of bunting is a look, and a run
+ * of bunting through a trumpeter's face is not.
+ */
+function swag(c: Ctx, wantSag: number, drop: number): { y: number; sag: number } {
+  const top = c.m.openingHeight - 0.12;
+  const sag = Math.max(0.15, Math.min(wantSag, top - drop - HANG_FLOOR));
+  return { y: Math.min(top, HANG_FLOOR + sag + drop), sag };
 }
 
 export function dressStage(o: PropOptions): PropRig {
@@ -188,6 +235,7 @@ export function dressStage(o: PropOptions): PropRig {
     ...o,
     root,
     m: o.metrics,
+    play: playingArea(o.metrics),
     p: o.venue.palette,
     accent: hueShift(o.venue.palette.curtain, 42, 0.2),
     idle: o.reducedMotion ? 0.18 : 1,
@@ -247,13 +295,23 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
 
   // -- the pavilion --------------------------------------------------------
 
-  /** Two swagged runs of triangular flags across the opening. */
+  /**
+   * Two swagged runs of triangular flags across the opening.
+   *
+   * The flags hang about a third of a metre below the cord, so the cord is not
+   * the thing that has to clear a head — see `swag`. The upstage run is also
+   * pushed behind the backline: at `backZ + 0.5` it was tied off exactly on the
+   * cast's upstage margin and sagged into the drummer.
+   */
   bunting: (c) => {
     const rng = c.rng('bunting');
     const w = c.m.openingWidth;
+    const drop = 0.33;
+    const front = swag(c, 0.8, drop);
+    const back = swag(c, 0.6, drop);
     const runs = [
-      { y: c.m.openingHeight * 0.86, z: c.m.curtainZ - 0.35, sag: 0.8, n: 20 },
-      { y: c.m.openingHeight * 0.62, z: c.m.backZ + 0.5, sag: 0.6, n: 16 },
+      { y: front.y, z: c.m.curtainZ - 0.35, sag: front.sag, n: 20 },
+      { y: back.y, z: c.m.backZ + 0.25, sag: back.sag, n: 16 },
     ];
     const cols = [c.accent, hueShift(c.accent, 120, 0.1), hueShift(c.accent, -110, 0.1), tint(c.p.curtain, 0.5)];
     for (const run of runs) {
@@ -269,7 +327,7 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
       for (let i = 0; i < run.n; i++) {
         const a = pts[i]!;
         const b = pts[i + 1]!;
-        const drop = 0.3 + rng.float(-0.03, 0.03);
+        const drop = 0.3 + rng.float(-0.03, 0.03);   // ≤ `drop` above, by design
         pos.push(a.x, a.y, a.z, b.x, b.y, b.z, (a.x + b.x) / 2, (a.y + b.y) / 2 - drop, (a.z + b.z) / 2);
         tmp.set(cols[i % cols.length]!);
         for (let v = 0; v < 3; v++) col.push(tmp.r, tmp.g, tmp.b);
@@ -292,10 +350,15 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
     const rng = c.rng('fairy');
     const w = c.m.openingWidth + 1.2;
     const n = c.quality === 'low' ? 18 : 30;
+    // A 0.9 m sag off 0.78 of the opening bottomed out at 2.08 m in a jazz
+    // cellar — a bulb per player, at eye level. The bulbs are 5 cm, so that is
+    // all the drop `swag` has to allow for.
+    const line = swag(c, 0.9, 0.06);
+    const z = c.m.curtainZ - 0.15;
     const pts = sagLine(
-      new Vector3(-w / 2, c.m.openingHeight * 0.78, c.m.curtainZ - 0.15),
-      new Vector3(w / 2, c.m.openingHeight * 0.78, c.m.curtainZ - 0.15),
-      0.9, n,
+      new Vector3(-w / 2, line.y, z),
+      new Vector3(w / 2, line.y, z),
+      line.sag, n,
     );
     cord(c, pts, shade(c.p.proscenium, 0.6));
     const warm = tint(hueShift(c.p.ambient, 20, 0.2), 0.55);
@@ -325,6 +388,19 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
     });
   },
 
+  /**
+   * Lanterns against the back wall, above everybody.
+   *
+   * This is the prop the whole sightline rule was written for. A 0.38 m sphere
+   * of ten segments reads as a hexagon at any distance, it is unlit so it is the
+   * brightest thing in the room, and it used to hang at `backZ + 1.1` — which is
+   * the middle of the drum riser — with its bottom at 2.30 m, which is the top
+   * of a drummer's head once the riser is under them. It sat on the drummer's
+   * face in every wide shot.
+   *
+   * Both halves of the fix, because either alone leaves a camera angle that
+   * still finds it: upstage of the backline, *and* clear of `HANG_FLOOR`.
+   */
   'paper-lanterns': (c) => {
     const rng = c.rng('lanterns');
     const warm = tint(hueShift(c.p.curtain, 25, 0.1), 0.45);
@@ -332,10 +408,18 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
     const group = new Group();
     c.root.add(group);
     const swings: { node: Object3D; phase: number; rate: number }[] = [];
+    // The body is 0.19 × 0.85 tall, and the swing is a 0.05 rad tilt on a 0.9 m
+    // cord, so the lowest the paper ever gets is the centre less 0.17 m.
+    const lowest = HANG_FLOOR + 0.17;
     for (let i = 0; i < 5; i++) {
       const x = (i - 2) * (c.m.openingWidth / 5.5);
-      const y = c.m.openingHeight * (0.7 + rng.float(-0.08, 0.08));
-      const z = c.m.backZ + 1.1 + rng.float(-0.4, 0.4);
+      const y = Math.min(
+        c.m.openingHeight - 0.4,
+        Math.max(lowest, c.m.openingHeight * 0.72) + rng.float(-0.06, 0.06),
+      );
+      // Behind the backline at `play.backZ`, and far enough off the backdrop
+      // (which sits at `backZ - 0.1`) that a 0.19 m body does not go into it.
+      const z = c.m.backZ + 0.3 + rng.float(-0.12, 0.12);
       const node = new Group();
       node.position.set(x, y + 0.9, z);
       const body = new Mesh(geo, c.kit.basic(warm));
@@ -351,10 +435,21 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
     });
   },
 
-  /** Moths in the beams. Twenty-four instanced flecks and a lot of charm. */
+  /**
+   * Moths in the beams. Twenty-four instanced flecks and a lot of charm.
+   *
+   * *In the beams* — which is where the plan asks for them and, until this was
+   * measured, not where they were: the flock started at 1.6 m and wandered
+   * another 0.28 m below that, so a third of them spent the show orbiting the
+   * singer's head. They are 3.5 cm and it still reads, because a small bright
+   * thing crossing a face is exactly what the eye is built to notice.
+   */
   moths: (c) => {
     const rng = c.rng('moths');
     const n = c.quality === 'low' ? 10 : 24;
+    /** Wander amplitude is `r`, and `r * 0.4` of it is vertical. */
+    const floor = HANG_FLOOR + 0.7 * 0.4;
+    const ceil = Math.max(floor + 0.5, c.m.openingHeight * 0.92);
     const mesh = new InstancedMesh(
       c.kit.geometry('moth', () => new ConeGeometry(0.035, 0.07, 3)),
       c.kit.basic(tint(c.p.ambient, 0.7)),
@@ -364,7 +459,7 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
     c.root.add(mesh);
     const flock = Array.from({ length: n }, () => ({
       x: rng.float(-c.m.width * 0.4, c.m.width * 0.4),
-      y: rng.float(1.6, c.m.openingHeight * 0.85),
+      y: rng.float(floor, ceil),
       z: rng.float(c.m.backZ + 1, c.m.lipZ),
       r: rng.float(0.25, 0.7),
       s: rng.float(0.5, 1.4),
@@ -434,7 +529,11 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
     const tone = new Color();
     for (let i = 0; i < n; i++) {
       const x = (i - (n - 1) / 2) * (c.m.width / n);
-      dummy.position.set(x, 0.11, c.m.lipZ - 0.28);
+      // Downstage of the tabs by the same 0.27 m they always had: the pots are
+      // 0.26 m across and the closed cloth's own fold depth reaches 0.13 m
+      // upstage of them, so this is a 9 mm gap and it has to move when the
+      // curtain line does. It just did — see `CURTAIN_FROM_LIP`.
+      dummy.position.set(x, 0.11, c.m.curtainZ + 0.27);
       dummy.rotation.set(0, rng.float(0, 3), 0);
       dummy.scale.setScalar(1);
       dummy.updateMatrix();
@@ -455,14 +554,15 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
     const wood = shade(c.p.boards, 0.15);
     const mat = c.kit.solid(wood);
     const w = c.m.width - 0.4;
+    const z = c.m.lipZ - 0.12;
     for (const y of [0.95, 0.62]) {
-      put(c, c.kit.bevelBox(w, 0.09, 0.09, 0.03), mat, 0, y, c.m.lipZ - 0.12, true);
+      put(c, c.kit.bevelBox(w, 0.09, 0.09, 0.03), mat, 0, y, z, true);
     }
     const n = Math.max(4, Math.round(w / 1.3));
     const posts = new InstancedMesh(c.kit.bevelBox(0.1, 0.95, 0.1, 0.03), mat, n);
     const dummy = new Object3D();
     for (let i = 0; i < n; i++) {
-      dummy.position.set((i - (n - 1) / 2) * (w / (n - 1)), 0.48, c.m.lipZ - 0.12);
+      dummy.position.set((i - (n - 1) / 2) * (w / (n - 1)), 0.48, z);
       dummy.updateMatrix();
       posts.setMatrixAt(i, dummy.matrix);
     }
@@ -742,15 +842,30 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
     }
   },
 
-  /** Extra masking legs. A black box is mostly drapes. */
+  /**
+   * Extra masking legs. A black box is mostly drapes.
+   *
+   * A leg is floor-to-grid cloth, so it occupies the whole head band by
+   * definition and the only question is whether it occupies it *where somebody
+   * is standing*. It did: centred 0.2 m inside the opening edge, a 1.8 m panel
+   * reached 0.85 m into the playing area and a player at the x limit stood
+   * inside it. Anchoring the inner *edge* rather than the centre keeps the
+   * overlap that makes it mask and loses the overlap that makes it clip.
+   */
   drapes: (c) => {
     const cloth = c.kit.solid(shade(c.p.curtain, 0.55), { rough: 0.98, side: DoubleSide });
     const h = c.m.openingHeight;
-    const geo = c.kit.geometry(`drape|${h}`, () => new PlaneGeometry(1.8, h));
+    const halfW = 0.9;
+    const angle = 0.35;
+    const geo = c.kit.geometry(`drape|${h}`, () => new PlaneGeometry(halfW * 2, h));
+    // Inside the opening if there is room for it, and never inside the band.
+    const inner = Math.max(c.play.halfX, c.m.openingWidth / 2 - 0.25);
     for (const side of [-1, 1]) {
       for (let i = 0; i < 2; i++) {
-        const m = put(c, geo, cloth, side * (c.m.openingWidth / 2 - 0.2), h / 2, c.m.curtainZ - 1.6 - i * 1.9);
-        m.rotation.y = side * 0.35;
+        const m = put(c, geo, cloth,
+          side * (inner + halfW * Math.cos(angle)), h / 2,
+          c.m.curtainZ - 1.6 - i * 1.9);
+        m.rotation.y = side * angle;
       }
     }
   },

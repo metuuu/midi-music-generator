@@ -186,6 +186,8 @@ export const buildElectricPiano: InstrumentBuilder = (opts) => {
 
   const whiteMesh = addTo(root, new InstancedMesh(whiteGeo, ivoryMat, whites.length));
   const blackMesh = addTo(root, new InstancedMesh(blackGeo, ebonyMat, blacks.length));
+  whiteMesh.name = 'keys:white';
+  blackMesh.name = 'keys:black';
   whiteMesh.receiveShadow = true;
   blackMesh.castShadow = true;
 
@@ -213,6 +215,8 @@ export const buildElectricPiano: InstrumentBuilder = (opts) => {
   const lampHit = new Hit();
 
   const UP = new Vector3(0, 1, 0);
+  /** Knuckles across the keyboard. The argument is in `grand-piano.ts`. */
+  const ACROSS = new Vector3(1, 0, 0);
 
   const model: InstrumentModel = {
     archetype: 'electric-piano',
@@ -220,7 +224,11 @@ export const buildElectricPiano: InstrumentBuilder = (opts) => {
 
     resolve(point: PlayPoint): Contact | undefined {
       if (point.kind === 'rest') {
-        return { position: new Vector3(0, KEY_TOP_Y + 0.09, WHITE_TOUCH_Z), normal: UP.clone() };
+        return {
+          position: new Vector3(0, KEY_TOP_Y + 0.09, WHITE_TOUCH_Z),
+          normal: UP.clone(),
+          along: ACROSS.clone(),
+        };
       }
       if (point.kind !== 'key') return undefined;
       const midi = point.midi;
@@ -233,6 +241,7 @@ export const buildElectricPiano: InstrumentBuilder = (opts) => {
           black ? BLACK_TOUCH_Z : WHITE_TOUCH_Z,
         ),
         normal: UP.clone(),
+        along: ACROSS.clone(),
       };
     },
 

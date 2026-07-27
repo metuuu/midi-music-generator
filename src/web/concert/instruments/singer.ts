@@ -19,11 +19,15 @@
  * leaving as a silent `_` in a signature, because a reader who finds a
  * `Vowel` in the argument list and no use of it will otherwise assume a bug.
  *
- * The capsule sits at exactly `ARCHETYPES.singer.workHeight` (1.55 m), so the
- * rig has a fixed, documented place to find the mouth. `Contact.normal` runs
- * up the microphone's own axis toward the singer: a rig that wants the lips a
- * few centimetres off the grille rather than on it adds `normal * gap`, which
- * is what the normal is for.
+ * The capsule sits at **this singer's** mouth height — `mouthFor(opts)`, which
+ * falls back to `ARCHETYPES.singer.workHeight` (1.55 m, casting's mean) when
+ * nobody says who is singing. The stand racks out to reach it, which is what a
+ * stand is for and the reason this archetype needed the change least and shows
+ * it most: a 1.55 m capsule in front of a 1.92 m singer is not a compromise,
+ * it is a stand nobody adjusted. `Contact.normal` runs up the microphone's own
+ * axis toward the singer: a rig that wants the lips a few centimetres off the
+ * grille rather than on it adds `normal * gap`, which is what the normal is
+ * for.
  *
  * ## What moves
  *
@@ -44,6 +48,7 @@ import {
 import { ARCHETYPES } from '../../../concert/instruments.js';
 import type { PlayPoint } from '../../../concert/types.js';
 import { Rng } from '../../../core/rng.js';
+import { mouthFor } from './mouth.js';
 import type {
   Contact, InstrumentBuildOptions, InstrumentBuilder, InstrumentModel,
 } from './types.js';
@@ -78,12 +83,16 @@ function release(): void {
 
 const SPEC = ARCHETYPES.singer;
 
-/** The capsule, and therefore the mouth. The frozen table says 1.55. */
-const CAPSULE = new Vector3(0, SPEC.workHeight, -0.030);
+/** How far in front of the capsule the singer's own lips sit. */
+const LEAN_IN = 0.045;
+/** Where the capsule sits along the model's z; its height is the singer's. */
+const CAPSULE_Z = -0.030;
 /** How far the microphone leans back off vertical, toward the singer. */
 const MIC_TILT = -0.62;
 /** Capsule centre measured up the microphone from where the clip holds it. */
 const MIC_REACH = 0.145;
+/** Top of the fixed lower shaft, where the clutch grips. */
+const CLUTCH_Y = 0.99;
 /** Links in the swinging part of the cable. */
 const CABLE_LINKS = 5;
 const LINK_LEN = 0.055;
@@ -91,6 +100,22 @@ const LINK_LEN = 0.055;
 export const buildSinger: InstrumentBuilder = (opts: InstrumentBuildOptions): InstrumentModel => {
   live++;
   const rng = new Rng(`singer:${opts.seed}`);
+
+  /**
+   * The capsule goes where *this* singer's mouth is, and the stand is racked
+   * out to reach it.
+   *
+   * Which is the one instrument in the family where the fix is not a
+   * correction but the object's actual behaviour: setting the height is the
+   * first thing anyone does to a microphone stand, and a stand at a fixed
+   * 1.55 m in front of a 1.92 m singer is a stand nobody adjusted.
+   */
+  const mouth = mouthFor(opts, SPEC.workHeight);
+  const CAPSULE = new Vector3(0, mouth.y, CAPSULE_Z);
+  /** Where the clip has to sit for the capsule to land there. */
+  const clipY = CAPSULE.y - MIC_REACH * Math.cos(MIC_TILT);
+  /** The upper shaft is racked out of the clutch until it reaches the clip. */
+  const upperLen = clipY + 0.06 - CLUTCH_Y;
 
   // The stand is the one thing here a venue palette can usefully tint: a
   // chrome stand in a jazz cellar and a black one at a tanssilava.
@@ -118,8 +143,10 @@ export const buildSinger: InstrumentBuilder = (opts: InstrumentBuildOptions): In
   const geoLowerShaft = shared('lowershaft', () => new CylinderGeometry(0.0130, 0.0140, 0.94, 10)
     .translate(0, 0.47, 0));
   const geoClutch = shared('clutch', () => new CylinderGeometry(0.0215, 0.0215, 0.055, 12));
-  const geoUpperShaft = shared('uppershaft', () => new CylinderGeometry(0.0102, 0.0102, 0.40, 10)
-    .translate(0, 0.20, 0));
+  // Keyed by its own length: two singers of different heights are two lengths
+  // of shaft, and a stage with two of the same height still shares one.
+  const geoUpperShaft = shared(`uppershaft:${upperLen.toFixed(3)}`,
+    () => new CylinderGeometry(0.0102, 0.0102, upperLen, 10).translate(0, upperLen / 2, 0));
   const geoClipCollar = shared('clipcollar', () => new TorusGeometry(0.0225, 0.0055, 5, 14));
   const geoClipArm = shared('cliparm', () => new BoxGeometry(0.012, 0.048, 0.010));
   const geoMicBody = shared('micbody', () => new LatheGeometry([
@@ -137,18 +164,22 @@ export const buildSinger: InstrumentBuilder = (opts: InstrumentBuildOptions): In
   root.name = 'singer';
 
   const base = addTo(root, new Mesh(geoBase, matStand));
+  base.name = 'base';
   base.castShadow = true;
   base.receiveShadow = true;
 
   const lowerShaft = addTo(root, new Mesh(geoLowerShaft, matStand));
+  lowerShaft.name = 'lower-shaft';
   lowerShaft.position.y = 0.045;
   lowerShaft.castShadow = true;
 
   const clutch = addTo(root, new Mesh(geoClutch, matStand));
-  clutch.position.y = 0.99;
+  clutch.name = 'clutch';
+  clutch.position.y = CLUTCH_Y;
 
   const upperShaft = addTo(root, new Mesh(geoUpperShaft, matStand));
-  upperShaft.position.y = 1.01;
+  upperShaft.name = 'upper-shaft';
+  upperShaft.position.y = CLUTCH_Y + 0.02;
   upperShaft.castShadow = true;
 
   /**
@@ -162,18 +193,25 @@ export const buildSinger: InstrumentBuilder = (opts: InstrumentBuildOptions): In
   clip.position.copy(CAPSULE).sub(new Vector3(0, MIC_REACH, 0).applyEuler(clip.rotation));
 
   const collar = addTo(clip, new Mesh(geoClipCollar, matStand));
+  collar.name = 'clip-collar';
   collar.position.y = 0.045;
   collar.rotation.x = Math.PI / 2;
   const clipArm = addTo(clip, new Mesh(geoClipArm, matStand));
+  clipArm.name = 'clip-arm';
   clipArm.position.set(0, 0.020, 0.020);
 
   /** The microphone itself. Its own group, so it can shiver on its mount. */
   const mic = addTo(clip, new Group());
   const micBody = addTo(mic, new Mesh(geoMicBody, matMic));
+  micBody.name = 'mic-body';
   micBody.castShadow = true;
+  // The family calls whatever the mouth arrives at the "mouthpiece", and the
+  // probe checks all of them against the same measurement. A capsule is one.
   const grille = addTo(mic, new Mesh(geoGrille, matGrille));
+  grille.name = 'mouthpiece';
   grille.castShadow = true;
   const connector = addTo(mic, new Mesh(geoConnector, matMic));
+  connector.name = 'connector';
   connector.position.y = -0.012;
 
   /**
@@ -224,11 +262,16 @@ export const buildSinger: InstrumentBuilder = (opts: InstrumentBuildOptions): In
   };
   /**
    * A rest is a breath, and a singer takes one *off* the microphone — ten
-   * centimetres back along the same axis. It is the smallest possible way for
-   * the rig to show a phrase ending, and it costs nothing here.
+   * centimetres back from it. It is the smallest possible way for the rig to
+   * show a phrase ending, and it costs nothing here.
+   *
+   * Backing off along the microphone's own axis was the obvious thing and the
+   * wrong one: the mic leans back 35°, so "along the axis" is mostly *upward*,
+   * and the rig answered by lifting the singer's head 8 cm every time they
+   * stopped singing. A head goes back and down for a breath, not up.
    */
   const restContact: Contact = {
-    position: CAPSULE.clone().addScaledVector(axis, 0.10),
+    position: CAPSULE.clone().add(new Vector3(0, -0.015, -0.10)),
     normal: axis.clone(),
   };
 
@@ -242,6 +285,8 @@ export const buildSinger: InstrumentBuilder = (opts: InstrumentBuildOptions): In
   let swing = 0;
   let swingVel = 0;
   let lastBeat = Number.NaN;
+  /** Guards a second `dispose`: `release` is refcounted across the stage. */
+  let disposed = false;
 
   return {
     archetype: 'singer',
@@ -249,7 +294,7 @@ export const buildSinger: InstrumentBuilder = (opts: InstrumentBuildOptions): In
     station: {
       // Just behind the stand, facing out. Close enough that the rig's head
       // lands on the capsule without the body intersecting the shaft.
-      offset: new Vector3(0, 0, -0.20),
+      offset: new Vector3(0, 0, CAPSULE_Z - mouth.z - LEAN_IN),
       facing: 0,
       posture: SPEC.posture,
     },
@@ -277,6 +322,11 @@ export const buildSinger: InstrumentBuilder = (opts: InstrumentBuildOptions): In
     },
 
     update(now: number): void {
+      // A non-finite beat has to stop here. `dt` would be NaN, every eased
+      // value in this method is `x += (target − x) * k`, and one NaN k turns
+      // the whole instrument into NaN transforms permanently — three.js keeps
+      // drawing it, at no position, for the rest of the show.
+      if (!Number.isFinite(now)) return;
       const dt = Number.isFinite(lastBeat) ? Math.min(Math.max(now - lastBeat, 0), 0.5) : 0;
       lastBeat = now;
       if (dt === 0) return;
@@ -300,6 +350,11 @@ export const buildSinger: InstrumentBuilder = (opts: InstrumentBuildOptions): In
     },
 
     dispose(): void {
+      // A second call would free the shared buffers out from under every
+      // other one of these on the stage. That renders as nothing at all and
+      // reports nothing, so it is guarded rather than left to be noticed.
+      if (disposed) return;
+      disposed = true;
       root.removeFromParent();
       root.clear();
       release();

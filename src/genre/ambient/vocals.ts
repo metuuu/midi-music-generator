@@ -41,7 +41,8 @@ export const VOCALS: VocalProfile = {
   // Above the melody it doubles (0.55 in this genre's mix) but nowhere near
   // the 1.5 the pop genres use. A voice in ambient is a layer of the texture,
   // not the thing the texture exists to support.
-  gain: 1.0,
+  // Under the pad, because here the voice is a texture rather than a lead.
+  gain: 0.7,
   // Open and dark. You hold an /a/ or an /o/; you do not hold an /i/, and this
   // profile holds everything.
   vowels: [

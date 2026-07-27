@@ -1,7 +1,7 @@
 /**
  * SPDX-License-Identifier: AGPL-3.0-or-later
  *
- * A performer: a head, a torso, two hands, two feet, and a face.
+ * A performer: a head, a torso, two hands, two legs, two feet, and a face.
  *
  * Rayman hands are why this feature is achievable at all, and it is worth being
  * precise about what they delete. A conventional rig is a skeleton, a skinned
@@ -16,6 +16,18 @@
  * What that leaves is the part that actually reads from the tenth row: shape.
  * A hand in the right place with the wrong shape is worse than no hand, so the
  * poses in `performer-hands.ts` carry the weight the skeleton would have.
+ *
+ * ## The arms are floating. The legs are not, and never should have been
+ *
+ * The same argument was applied to the feet and it does not survive contact
+ * with a screenshot. An arm ends in the air, where a missing elbow reads as
+ * stylisation; a leg ends on the boards, and a torso with a gap under it reads
+ * as a bust on a plinth — which is what the drummer was. So `performer-legs.ts`
+ * draws two legs, and the thing that keeps it from re-introducing the problem
+ * Rayman hands solved is that **the legs are downstream of the feet**. The feet
+ * are still effectors, the animator still puts them on pedals, and the legs are
+ * re-fitted to wherever the hips and ankles ended up. Nothing solves for a foot
+ * position; nothing can disagree about one.
  *
  * ## What this file promises the runtime
  *
@@ -55,11 +67,12 @@ import {
 import { buildFace, type FaceRig } from './performer-face.js';
 import {
   DEFAULT_HAND_POSES, HAND_POSES, blendPoses, buildHand,
-  type HandPose, type HandPoseId, type HandRig,
+  type HandBias, type HandPose, type HandPoseId, type HandRig,
 } from './performer-hands.js';
+import { buildLegs, type LegsRig } from './performer-legs.js';
 import {
-  buildAccessories, buildHair, dressTorso, proportions, restLocals,
-  type BodySide, type Proportions,
+  MIN_HAND_GAP, SIDE, buildAccessories, buildHair, dressTorso, proportions,
+  restLocals, type BodySide, type Proportions,
 } from './performer-look.js';
 
 // The runtime should be able to import everything it needs from one module.
@@ -142,6 +155,32 @@ export interface PerformerRig {
    * Pass `out` to avoid an allocation; the same vector is returned.
    */
   restPosition(e: Effector, out?: Vector3): Vector3;
+
+  /**
+   * Move a contact meant for *both* hands onto this hand's own side.
+   *
+   * Several models — the kit, every horn, a microphone stand — answer
+   * `resolve({ kind: 'rest' })` with a single point, because from their side
+   * there is only one interesting place for a hand to be. Sending both hands
+   * there puts one inside the other: the fingers of the left hand come out of
+   * the back of the right, which is invisible in a still and unmissable the
+   * moment anything moves. It is what the drummer was doing.
+   *
+   * Given a world point and a hand — `left-hand`, `right-hand` or `bow` — this
+   * returns that point moved along the **performer's own lateral axis** onto
+   * that hand's side, and staggered slightly in depth so the pair does not read
+   * as two hands abreast. The offsets are half of `MIN_HAND_GAP × handR` each
+   * way, so two hands given the same input come back at least a hand's width
+   * and a bit apart, guaranteed rather than hoped for. Any other effector is
+   * copied through untouched.
+   *
+   * Idle only. A *gesture's* contact is the model's word and must never be
+   * nudged — a stick moved five centimetres off the snare is a stick that
+   * misses it.
+   *
+   * Pass `out` to avoid an allocation; the same vector is returned.
+   */
+  separateRest(e: Effector, shared: Vector3, out?: Vector3): Vector3;
 
   /**
    * Carry something. The object is parented to the torso and moves with it.
@@ -326,9 +365,14 @@ class Rig implements PerformerRig {
   private readonly torsoBody: Mesh;
   private readonly torsoBase = new Vector3();
   private readonly head = new Group();
+  private readonly legs: LegsRig;
   private readonly placed = new Map<Limb, Placed>();
   private readonly restLocal: Record<string, Vector3>;
   private readonly blown: boolean;
+  /** Where each shoulder is, in the torso's frame. The forearm's far end. */
+  private readonly shoulder: Record<BodySide, Vector3>;
+  /** The minimum distance between two resting hands, in metres. */
+  private readonly handGap: number;
 
   // Groove and pose state.
   private swayAmount = 0;
@@ -364,9 +408,16 @@ class Rig implements PerformerRig {
   private readonly splats: Splat[] = [];
   private splatNext = 0;
 
+  // Weight. See `settleUnder`.
+  private settle = 0;
+  private readonly handY: [number, number] = [0, 0];
+  private readonly handRate: [number, number] = [0, 0];
+  private readonly handHeld: [boolean, boolean] = [false, false];
+
   // World transform cache.
   private readonly world = new Matrix4();
   private readonly worldInv = new Matrix4();
+  private readonly worldQuat = new Quaternion();
   private readonly worldQuatInv = new Quaternion();
 
   constructor(performer: Performer) {
@@ -379,10 +430,20 @@ class Rig implements PerformerRig {
     this.rng = new Rng(`${performer.id}#rig`);
     const faceRng = new Rng(`${performer.id}#face`);
     const hairRng = new Rng(`${performer.id}#hair`);
+    // Its own stream. Drawing the rest asymmetries from `this.rng` would shift
+    // every draw after them and silently re-roll the breath phase, the glance
+    // schedule and the sway bias of every performer already on stage.
+    const restRng = new Rng(`${performer.id}#rest`);
+    const handRng = new Rng(`${performer.id}#hands`);
 
     const p = proportions(look, posture);
     this.proportions = p;
-    this.restLocal = restLocals(p, posture);
+    this.handGap = p.handR * MIN_HAND_GAP;
+    this.restLocal = restLocals(p, posture, restRng);
+    this.shoulder = {
+      left: new Vector3(SIDE.left * p.torsoW * 0.44, p.torsoH * 0.90, 0),
+      right: new Vector3(SIDE.right * p.torsoW * 0.44, p.torsoH * 0.90, 0),
+    };
 
     this.breathPhase = this.rng.float(0, Math.PI * 2);
     this.swayBias = this.rng.float(-0.12, 0.12);
@@ -396,7 +457,7 @@ class Rig implements PerformerRig {
     this.torso.position.copy(this.torsoBase);
     this.torso.rotation.x = p.lean;
     this.root.add(this.torso);
-    this.torsoBody = dressTorso(this.torso, this.root, look, p, this.leases);
+    this.torsoBody = dressTorso(this.torso, look, p, this.leases);
 
     // --- head -------------------------------------------------------------
     this.head.name = 'head';
@@ -418,8 +479,8 @@ class Rig implements PerformerRig {
     // --- hands ------------------------------------------------------------
     const cuff = shade(look.outfit.jacket, -0.04);
     this.hands = {
-      left: buildHand('left', p, skin, cuff, this.leases),
-      right: buildHand('right', p, skin, cuff, this.leases),
+      left: buildHand('left', p, skin, cuff, this.leases, handBias(handRng)),
+      right: buildHand('right', p, skin, cuff, this.leases, handBias(handRng)),
     };
     const defaults = DEFAULT_HAND_POSES[performer.archetype];
     this.handDefaults = {
@@ -444,6 +505,11 @@ class Rig implements PerformerRig {
       this.root.add(feet[side]);
     }
 
+    // --- legs -------------------------------------------------------------
+    // After the feet, and reading them: the legs have no state of their own and
+    // exist entirely as a function of where the hips and the ankles are.
+    this.legs = buildLegs(this.root, { torso: this.torso, feet }, p, look, this.leases);
+
     // --- effectors --------------------------------------------------------
     // `standoff` is what stops a hand sinking into a drum head: the point the
     // instrument returned is the surface, and the palm's centre is half a palm
@@ -453,6 +519,13 @@ class Rig implements PerformerRig {
     this.register('left-foot', feet.left, p.footH * 0.5, 0.15, 0.22, true);
     this.register('right-foot', feet.right, p.footH * 0.5, 0.15, 0.22, true);
     this.register('head', this.head, p.headR * 0.5, 1, 0.20, false);
+
+    // `register` is what actually puts the feet at their rest positions, so the
+    // fit `buildLegs` did on a pair of feet still at the origin is stale by one
+    // step. Re-fit before anyone can measure or draw this rig.
+    this.legs.update();
+    this.handY[0] = this.hands.left.group.position.y;
+    this.handY[1] = this.hands.right.group.position.y;
 
     this.syncWorld();
   }
@@ -476,7 +549,8 @@ class Rig implements PerformerRig {
     if (!this.world.equals(this.root.matrixWorld)) {
       this.world.copy(this.root.matrixWorld);
       this.worldInv.copy(this.world).invert();
-      this.root.getWorldQuaternion(this.worldQuatInv).invert();
+      this.root.getWorldQuaternion(this.worldQuat);
+      this.worldQuatInv.copy(this.worldQuat).invert();
     }
   }
 
@@ -554,6 +628,27 @@ class Rig implements PerformerRig {
     }
     this.syncWorld();
     return v.applyMatrix4(this.world);
+  }
+
+  separateRest(e: Effector, shared: Vector3, out?: Vector3): Vector3 {
+    const v = (out ?? new Vector3()).copy(shared);
+    const side: number | undefined =
+      e === 'left-hand' ? SIDE.left
+        : e === 'right-hand' || e === 'bow' ? SIDE.right
+          : undefined;
+    if (side === undefined || !finite(shared)) return v;
+    this.syncWorld();
+    // Half the gap each, so two hands handed the same point come back the full
+    // gap apart and neither has moved further than it had to.
+    V1.set(side, 0, 0).applyQuaternion(this.worldQuat);
+    v.addScaledVector(V1, this.handGap * 0.5);
+    // And a little depth, because two hands at matched depth on a kit read as
+    // one wide hand. The right leads, arbitrarily but consistently — the point
+    // is that they differ, and the alternative is another seeded draw whose
+    // only job is to be non-zero.
+    V2.set(0, 0, 1).applyQuaternion(this.worldQuat);
+    v.addScaledVector(V2, side === SIDE.right ? this.handGap * 0.22 : -this.handGap * 0.22);
+    return v;
   }
 
   // -- pose, groove, face -------------------------------------------------
@@ -652,6 +747,16 @@ class Rig implements PerformerRig {
     return slot;
   }
 
+  /**
+   * Which body part a tomato hit.
+   *
+   * Head, torso and hands, and deliberately not the legs, even though there are
+   * now legs to hit. A splat is a quad parented to the part it landed on, and a
+   * leg segment is scaled non-uniformly — its `scale.y` is its length in metres
+   * and its `scale.x` is its thickness — so a decal hung off one would be
+   * stretched by whatever the leg's length happened to be that frame. A tomato
+   * at shin height picks the torso, which is one part up and close enough.
+   */
   private nearestPart(world: Vector3): { node: Object3D; centre: Vector3; radius: number } | undefined {
     const p = this.proportions;
     const parts: { node: Object3D; centre: Vector3; radius: number }[] = [
@@ -694,6 +799,9 @@ class Rig implements PerformerRig {
     if (this.reaction && !Number.isFinite(this.reactionStart)) this.reactionStart = now;
     const bias = this.reactionBias(now);
 
+    // Read last frame's hands before anything moves them.
+    this.settleUnder(step);
+
     // --- body: lean, sway, breath -----------------------------------------
     const swayK = 1 - Math.exp(-step / 0.18);
     if (!this.bodyCommanded) this.bodyCommand.multiplyScalar(1 - swayK);
@@ -702,7 +810,7 @@ class Rig implements PerformerRig {
     const swing = Math.sin(this.swayPhase + this.swayBias) * this.swayAmount;
     this.bodyOffset.set(
       this.bodyCommand.x + swing * p.height * 0.026,
-      this.bodyCommand.y - Math.abs(swing) * p.height * 0.006,
+      this.bodyCommand.y - Math.abs(swing) * p.height * 0.006 - this.settle * p.height * 0.007,
       this.bodyCommand.z + Math.cos(this.swayPhase * 0.5 + this.swayBias) * this.swayAmount * p.height * 0.006,
     );
 
@@ -717,7 +825,9 @@ class Rig implements PerformerRig {
 
     this.torso.position.copy(this.torsoBase).add(this.bodyOffset);
     this.torso.rotation.set(
-      p.lean + bias.torsoPitch + this.nodAmount * 0.02,
+      // The settle folds the player very slightly over the hit as well as
+      // dropping them. Weight goes somewhere; it does not just descend.
+      p.lean + bias.torsoPitch + this.nodAmount * 0.02 + this.settle * 0.035,
       swing * 0.05,
       -swing * 0.055,
     );
@@ -738,6 +848,8 @@ class Rig implements PerformerRig {
     this.trackGaze(now, step);
 
     // --- limbs -------------------------------------------------------------
+    this.handHeld[0] = this.placed.get('left-hand')?.commanded === true;
+    this.handHeld[1] = this.placed.get('right-hand')?.commanded === true;
     for (const st of this.placed.values()) {
       if (st.commanded) {
         st.node.position.copy(st.pos);
@@ -774,13 +886,99 @@ class Rig implements PerformerRig {
     this.face.effort(this.effort);
     this.face.update(now, step);
 
+    this.followForearm('left');
+    this.followForearm('right');
     this.hands.left.update(step);
     this.hands.right.update(step);
+
+    // Last, and reading everything above it: the torso is posed, the feet are
+    // placed, and the legs are whatever is left between them.
+    this.legs.update();
+
     this.driftSplats(now);
 
     if (this.reaction && now - this.reactionStart >= REACTION_SECONDS[this.reaction]) {
       this.reaction = undefined;
     }
+  }
+
+  /**
+   * Weight: the body gives when a hand lands on something hard.
+   *
+   * Fourth on the list of things that separate a person from a puppet, after
+   * the arc, the fingers and the wrist, and the cheapest of the four. A hand
+   * that was travelling down fast and has stopped has hit something, and a body
+   * that absorbs nothing when that happens looks like a body with no mass in
+   * it. So the torso drops seven millimetres and folds a couple of degrees and
+   * recovers over about a sixth of a second.
+   *
+   * Two conditions on the trigger, both learned the hard way:
+   *
+   *  - **Only a commanded hand counts.** A *resting* limb rides `bodyOffset`,
+   *    so a settle would move it down, which would look like a landing, which
+   *    would settle the body further. That is an oscillator, and at 60 Hz a
+   *    centimetre of it is a vibrating performer.
+   *  - **It reads last frame's positions**, before anything this frame has
+   *    moved them. The one frame of latency is 16 ms against a 160 ms decay and
+   *    is not perceptible; the alternative is measuring a hand the same frame
+   *    that placed it, which measures nothing.
+   */
+  private settleUnder(step: number): void {
+    this.settle *= Math.exp(-step / 0.16);
+    if (this.settle < 1e-4) this.settle = 0;
+    if (step <= 1e-5) return;
+
+    const sides: readonly Limb[] = ['left-hand', 'right-hand'];
+    for (let i = 0; i < 2; i++) {
+      const st = this.placed.get(sides[i]!);
+      if (!st) continue;
+      const y = st.node.position.y;
+      const rate = (y - this.handY[i]!) / step;
+      const was = this.handRate[i]!;
+      // Coming down at better than half a metre a second, and losing most of
+      // that in one frame. Anything gentler is a hand being moved, not a hand
+      // arriving.
+      if (this.handHeld[i] && was < -0.5 && rate - was > 0.5) {
+        this.settle = Math.min(1, this.settle + Math.min(1, -was / 2.4));
+      }
+      this.handY[i] = y;
+      this.handRate[i] = rate;
+    }
+  }
+
+  /**
+   * Break one wrist toward wherever that arm would be coming from.
+   *
+   * The shoulder is a real point on the torso and the hand is a real point in
+   * the root's frame, so the line between them is where the forearm would run
+   * if there were one. Expressed in the hand's own frame — `-z` is the cuff,
+   * `+y` the back of the hand — the two angles off `-z` are exactly wrist
+   * extension and wrist deviation, and handing them to the hand costs one
+   * quaternion per hand per frame.
+   *
+   * This is the part of the Rayman compromise that can be bought back cheaply.
+   * The arm is still not there, but the hand now *knows which way it is*, and a
+   * wrist that breaks correctly is most of what sells an arm that does not
+   * exist. Only a fraction of the angle is taken: a wrist that lines up
+   * perfectly with an imaginary forearm reads as a mechanism, and the residual
+   * is what a real wrist's limited range looks like anyway.
+   */
+  private followForearm(side: BodySide): void {
+    const hand = this.hands[side].group;
+    // The shoulder, in the root's frame. The torso is a direct child of root.
+    V1.copy(this.shoulder[side]).applyQuaternion(this.torso.quaternion).add(this.torso.position);
+    V1.sub(hand.position);
+    if (V1.lengthSq() < 1e-8) { this.hands[side].setWrist(0, 0); return; }
+    // Into the hand's own frame.
+    V1.applyQuaternion(Q1.copy(hand.quaternion).invert()).normalize();
+    // How far behind the hand the arm is. Floored, so an arm that has ended up
+    // in front of the fingers — a hand reaching back past the hip — bends the
+    // wrist hard rather than dividing by nothing.
+    const back = Math.max(-V1.z, 0.18);
+    this.hands[side].setWrist(
+      Math.atan2(V1.y, back) * 0.45,
+      -Math.atan2(V1.x, back) * 0.40,
+    );
   }
 
   /**
@@ -929,6 +1127,26 @@ function orientTo(n: Vector3, along?: Vector3): Quaternion {
   const z = V6.crossVectors(x, n).normalize();
   M1.makeBasis(x, n, z);
   return Q1.setFromRotationMatrix(M1);
+}
+
+/**
+ * A hand's private, permanent deviation from whatever shape it is given.
+ *
+ * Two hands sent to the same pose on the same frame should not come out
+ * identical, and two players sent to the same pose should not either. This is
+ * the whole of that: a few percent, drawn once, applied for the life of the
+ * rig. Small enough that `stick` is unmistakably `stick`, big enough that the
+ * ten fingers of a drummer are not one finger drawn ten times.
+ */
+function handBias(rng: Rng): HandBias {
+  const j = (m: number): number => rng.float(-m, m);
+  return {
+    curl: [j(0.05), j(0.05), j(0.05), j(0.05)],
+    tip: j(0.04),
+    spread: j(0.04),
+    cup: j(0.05),
+    wrist: j(0.06),
+  };
 }
 
 function finite(v: Vector3): boolean {

@@ -63,8 +63,16 @@ const P_WHITES = whiteIndex(35) - whiteIndex(LOW) + 1;
 const P_BOARD_W = P_WHITES * P_WHITE_W;
 const P_NATURAL_Y = 0.095;
 const P_SHARP_Y = 0.165;
-const P_NATURAL_Z = -0.60;
-const P_SHARP_Z = -0.53;
+/**
+ * Where a foot lands on a pedal key, and it has to be *on* one.
+ *
+ * The naturals run from `-0.54` to `-0.14` and the sharps from `-0.46` to
+ * `-0.26`; these used to say -0.60 and -0.53, which is off the end of both —
+ * six centimetres of daylight between the shoe and the pedalboard, against the
+ * toe rail. Near the front of the key, where a foot goes, and no further.
+ */
+const P_NATURAL_Z = -0.47;
+const P_SHARP_Z = -0.40;
 
 /** How far downstage the whole console sits from the reserved centre. */
 const Z_SHIFT = 0.22;
@@ -152,11 +160,28 @@ export const buildOrgan: InstrumentBuilder = (opts) => {
 
   // --- Console -------------------------------------------------------------
 
+  /**
+   * The body, stopping **below the lower manual**.
+   *
+   * It used to be 0.44 tall with its top at 0.78, and the lower manual plays at
+   * 0.735: twenty-four of the seventy-three keys this model owns were inside
+   * the console, and from the front the lower keyboard simply was not there.
+   * A Hammond is a box with two keyboards cantilevered off the front of it and
+   * a knee well underneath — nothing solid reaches the height of the keys.
+   */
   const consoleW = M_BOARD_W + 0.14;
-  const shell = addTo(rig, new Mesh(new BoxGeometry(consoleW, 0.44, 0.62), woodMat));
-  shell.position.set(0, 0.56, -0.14);
+  const shell = addTo(rig, new Mesh(new BoxGeometry(consoleW, 0.36, 0.62), woodMat));
+  shell.position.set(0, 0.52, -0.14);
   shell.castShadow = true;
   shell.receiveShadow = true;
+
+  /**
+   * The step between the manuals: what the upper one stands on, set back far
+   * enough that it is behind the lower one's keys rather than over them.
+   */
+  const riser = addTo(rig, new Mesh(new BoxGeometry(consoleW, 0.11, 0.44), woodMat));
+  riser.position.set(0, 0.745, -0.04);
+  riser.castShadow = true;
 
   // The tall back, which carries the drawbars and hides the works.
   const back = addTo(rig, new Mesh(new BoxGeometry(consoleW, 0.30, 0.16), woodMat));
@@ -238,6 +263,8 @@ export const buildOrgan: InstrumentBuilder = (opts) => {
     // missing is a bug you can see from the back of the room.
     const nMesh = addTo(rig, new InstancedMesh(naturalGeo, naturalMat, allNaturals.length));
     const sMesh = addTo(rig, new InstancedMesh(sharpGeo, sharpMat, allSharps.length));
+    nMesh.name = `keys:manual${m}-natural`;
+    sMesh.name = `keys:manual${m}-sharp`;
     nMesh.receiveShadow = true;
     sMesh.castShadow = true;
 
@@ -278,6 +305,8 @@ export const buildOrgan: InstrumentBuilder = (opts) => {
   }
   const pnMesh = addTo(rig, new InstancedMesh(pedalNaturalGeo, naturalMat, pedalNaturals.length));
   const psMesh = addTo(rig, new InstancedMesh(pedalSharpGeo, sharpMat, pedalSharps.length));
+  pnMesh.name = 'keys:pedal-natural';
+  psMesh.name = 'keys:pedal-sharp';
   pnMesh.receiveShadow = true;
   psMesh.castShadow = true;
   pedalNaturals.forEach((midi, slot) => {
@@ -297,12 +326,17 @@ export const buildOrgan: InstrumentBuilder = (opts) => {
 
   // --- Bench ---------------------------------------------------------------
 
+  /**
+   * Top at 0.45, because that is where a `sit` player's seat is — see the same
+   * correction, and the same argument, on the grand's bench. An organ bench is
+   * lower than a piano bench in any case: the feet have a pedalboard to work.
+   */
   const bench = addTo(rig, new Mesh(new BoxGeometry(0.66, 0.06, 0.26), woodMat));
-  bench.position.set(0, 0.58, -0.96);
+  bench.position.set(0, 0.42, -0.96);
   bench.castShadow = true;
   for (const side of [1, -1]) {
-    const cheek = addTo(rig, new Mesh(new BoxGeometry(0.035, 0.55, 0.22), woodMat));
-    cheek.position.set(side * 0.29, 0.28, -0.96);
+    const cheek = addTo(rig, new Mesh(new BoxGeometry(0.035, 0.40, 0.22), woodMat));
+    cheek.position.set(side * 0.29, 0.20, -0.96);
   }
   // A rail across the front of the pedalboard, which is what stops a foot.
   const rail = addTo(rig, new Mesh(new BoxGeometry(P_BOARD_W + 0.06, 0.05, 0.03), darkMat));
@@ -311,6 +345,12 @@ export const buildOrgan: InstrumentBuilder = (opts) => {
   const moving = new Set<Key>();
   const lampHit = new Hit();
   const UP = new Vector3(0, 1, 0);
+  /**
+   * Knuckles across the keyboard, and toes across the pedalboard. See the same
+   * axis in `grand-piano.ts` for why the roll about the normal is not something
+   * to leave to the fallback.
+   */
+  const ACROSS = new Vector3(1, 0, 0);
 
   /**
    * The stop tabs above the drawbars, purely so the console has a face. Chrome
@@ -333,6 +373,7 @@ export const buildOrgan: InstrumentBuilder = (opts) => {
         return {
           position: new Vector3(0, MANUALS[1].whiteY + 0.085, MANUALS[1].backZ - 0.09 + Z_SHIFT),
           normal: UP.clone(),
+          along: ACROSS.clone(),
         };
       }
       if (point.kind !== 'key') return undefined;
@@ -350,6 +391,7 @@ export const buildOrgan: InstrumentBuilder = (opts) => {
             (black ? P_SHARP_Z : P_NATURAL_Z) + Z_SHIFT,
           ),
           normal: UP.clone(),
+          along: ACROSS.clone(),
         };
       }
 
@@ -361,6 +403,7 @@ export const buildOrgan: InstrumentBuilder = (opts) => {
           spec.backZ - (black ? 0.052 : 0.090) + Z_SHIFT,
         ),
         normal: UP.clone(),
+        along: ACROSS.clone(),
       };
     },
 

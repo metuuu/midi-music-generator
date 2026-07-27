@@ -33,7 +33,7 @@ import {
   Matrix4, Mesh, MeshStandardMaterial, Object3D, Quaternion, Vector3,
 } from 'three';
 
-import type { PlayPoint } from '../../../concert/types.js';
+import type { Effector, PlayPoint } from '../../../concert/types.js';
 import { Rng } from '../../../core/rng.js';
 import {
   addTo, type Contact, type InstrumentBuilder, type InstrumentModel,
@@ -60,9 +60,29 @@ const KEY_PIVOT_Z = -0.075;
 const TREBLE_OUTER_X = -0.19;
 const TREBLE_INNER_X = -0.09;
 const BASS_DEPTH = 0.09;
-const BELLOWS_SHUT = 0.06;
-const BELLOWS_NEUTRAL = 0.18;
-const BELLOWS_OPEN = 0.30;
+/**
+ * How far apart the two boxes get, and why the travel is only ten centimetres
+ * when a real bellows opens by half a metre.
+ *
+ * The treble side is strapped to the player and the bass side rides the
+ * bellows, so whatever the bellows does, the *left hand* has to live with —
+ * and `resolve` is required to be pure, so the bass-button contacts cannot
+ * follow it. The first version ran 0.06 to 0.30 about a neutral of 0.18, which
+ * put the buttons up to **13 cm** from the hand placed on them: at one end of
+ * every phrase the left hand was out in the air beside the instrument, which is
+ * what "the hands are not on both sides" looks like from the stalls.
+ *
+ * So the translation is small and the *fan* does the acting. A bellows hinged
+ * along its bottom edge opens like a book, and the wedge of daylight along the
+ * top reads as breath from the back of the room at a fraction of the hand
+ * error. Between them the buttons never stray more than about 5 cm from the
+ * hand, which is a hand shifting under its strap rather than a hand adrift.
+ */
+const BELLOWS_SHUT = 0.145;
+const BELLOWS_NEUTRAL = 0.185;
+const BELLOWS_OPEN = 0.225;
+/** The fan angle at full stretch, radians, about the bottom edge. */
+const BELLOWS_FAN = 0.055;
 const BOX_H = 0.50;
 const BOX_Z = 0.22;
 
@@ -104,6 +124,40 @@ function bassY(midi: number): number {
 /** The row that sounds single bass notes; the others are chord buttons. */
 const BASS_ROW_Z = -0.015;
 const BUTTON_ROWS = [-0.048, -0.015, 0.018, 0.051];
+
+/**
+ * Where the bass side of the box is when the bellows are `width` open.
+ *
+ * One function, called by `update` every frame and *once* at build time to
+ * place the button contacts. That is the only way the hand and the buttons stay
+ * together: two expressions of the same motion drift the moment either is
+ * touched, and this one is a rotation about a hinge, which is exactly the kind
+ * of thing that gets re-derived slightly differently the second time.
+ *
+ * The hinge is the bottom edge of the treble box's inner face, so opening tips
+ * the bass side out and *down* — the way an accordion sags on a standing
+ * player as the left arm pulls.
+ */
+const HINGE_X = TREBLE_INNER_X;
+const HINGE_Y = -BOX_H / 2;
+
+function bellowsFan(width: number): number {
+  const t = (width - BELLOWS_SHUT) / (BELLOWS_OPEN - BELLOWS_SHUT);
+  return -BELLOWS_FAN * (t < 0 ? 0 : t > 1 ? 1 : t);
+}
+
+/**
+ * The frame of the pleat (or the bass box) that sits `reach` along the bellows,
+ * fanned by `angle`, into `out`.
+ */
+function bellowsFrame(reach: number, angle: number, out: Matrix4): Matrix4 {
+  const c = Math.cos(angle);
+  const s = Math.sin(angle);
+  const rx = reach;
+  const ry = -HINGE_Y;   // every box is centred on the axis, half a box up
+  out.makeRotationZ(angle);
+  return out.setPosition(HINGE_X + rx * c - ry * s, HINGE_Y + rx * s + ry * c, 0);
+}
 
 class Hit {
   beat = -1e9;
@@ -261,9 +315,20 @@ export const buildAccordion: InstrumentBuilder = (opts) => {
   const pleatInnerGeo = new BoxGeometry(0.010, BOX_H * 0.93, BOX_Z * 0.90);
   const pleatsA = addTo(body, new InstancedMesh(pleatGeo, bellowsMat, Math.ceil(PLEATS / 2)));
   const pleatsB = addTo(body, new InstancedMesh(pleatInnerGeo, pleatMat, Math.floor(PLEATS / 2)));
+  pleatsA.name = 'bellows:pleats';
   pleatsA.castShadow = true;
 
-  const bellows = new Eased(0.45, BELLOWS_NEUTRAL);
+  /**
+   * How long the box takes to travel, in beats.
+   *
+   * Three beats, not the half a beat this used to ease over. `choreograph.ts`
+   * emits one squeeze per phrase and alternates the direction, so a slow ease
+   * spends the whole phrase on its way and the bellows is *always* moving — it
+   * opens through one phrase and closes through the next, which is what a
+   * bellows is for. A fast ease made the same gestures read as a twitch
+   * followed by a long freeze, which is the "jittering" that was reported.
+   */
+  const bellows = new Eased(3.0, BELLOWS_NEUTRAL);
 
   // --- Bass side -----------------------------------------------------------
 
@@ -290,6 +355,7 @@ export const buildAccordion: InstrumentBuilder = (opts) => {
   buttonGeo.rotateZ(-Math.PI / 2);          // axis along +x
   buttonGeo.translate(BASS_DEPTH + 0.008, 0, 0);
   const buttonMesh = addTo(bassSide, new InstancedMesh(buttonGeo, ivoryMat, BUTTON_ROWS.length * 12));
+  buttonMesh.name = 'keys:bass-buttons';
   {
     let i = 0;
     for (const rowZ of BUTTON_ROWS) {
@@ -318,15 +384,29 @@ export const buildAccordion: InstrumentBuilder = (opts) => {
   const bodyMatrix = body.matrix.clone();
   const bodyQuat = body.quaternion.clone();
 
-  function place(local: Vector3, normal: Vector3): Contact {
+  function place(local: Vector3, normal: Vector3, along: Vector3): Contact {
     return {
       position: local.clone().applyMatrix4(bodyMatrix),
       normal: normal.clone().applyQuaternion(bodyQuat).normalize(),
+      along: along.clone().applyQuaternion(bodyQuat).normalize(),
     };
   }
 
   const OUT_TREBLE = new Vector3(-0.97, 0, 0.24);
   const OUT_BASS = new Vector3(0.97, 0, -0.24);
+  /**
+   * The knuckle line, and it is vertical on both sides of this instrument.
+   *
+   * Four fingers sit on four adjacent treble keys, and those are stacked *up*
+   * the side of the box rather than across a bed — so the axis that runs
+   * across the keys is `y`, not `x` as it is on every other keyboard here.
+   * The two directions are opposite because the rig reads this as the hand's
+   * own `+x`: `+y` on the treble side and `-y` on the bass side is what puts
+   * both thumbs up and both sets of fingers pointing at the audience, which is
+   * how an accordionist's hands sit.
+   */
+  const UP_KEYBOARD = new Vector3(0, 1, 0);
+  const DOWN_BUTTONS = new Vector3(0, -1, 0);
 
   /** Every contact this model can ever return, worked out once. */
   const contacts = new Map<number, Contact>();
@@ -338,51 +418,86 @@ export const buildAccordion: InstrumentBuilder = (opts) => {
         keyY(midi),
         KEY_PIVOT_Z + (black ? BLACK_L * 0.62 : WHITE_L * 0.72),
       ),
-      OUT_TREBLE,
-    ));
-  }
-  const neutralBassX = TREBLE_INNER_X + BELLOWS_NEUTRAL;
-  for (let midi = BASS_LOW; midi <= BASS_HIGH; midi++) {
-    contacts.set(midi, place(
-      new Vector3(neutralBassX + BASS_DEPTH + 0.016, bassY(midi), BASS_ROW_Z),
-      OUT_BASS,
+      OUT_TREBLE, UP_KEYBOARD,
     ));
   }
 
-  /** Where the left hand sits under the strap, at either end of the travel. */
+  /**
+   * The bass buttons, through the *same* transform `update` will drive the box
+   * with, evaluated at the neutral bellows. Half the travel either side of this
+   * is what the left hand has to absorb, and the numbers at the top of the file
+   * are chosen so that it is about five centimetres.
+   */
+  const bassNeutral = bellowsFrame(BELLOWS_NEUTRAL, bellowsFan(BELLOWS_NEUTRAL), new Matrix4());
+  function onBassSide(local: Vector3, normal: Vector3, along: Vector3): Contact {
+    return place(local.clone().applyMatrix4(bassNeutral), normal, along);
+  }
+  for (let midi = BASS_LOW; midi <= BASS_HIGH; midi++) {
+    contacts.set(midi, onBassSide(
+      new Vector3(BASS_DEPTH + 0.016, bassY(midi), BASS_ROW_Z), OUT_BASS, DOWN_BUTTONS,
+    ));
+  }
+
+  /**
+   * Where the *body* leans at either end of the travel — `bellows` gestures go
+   * to the torso, not to a hand (`choreograph.ts` says why: it is the whole
+   * left arm that opens the box). Taken at the strap, which is the part of the
+   * instrument the pull is actually applied to.
+   */
   function strapContact(width: number): Contact {
+    const frame = bellowsFrame(width, bellowsFan(width), new Matrix4());
     return place(
-      new Vector3(TREBLE_INNER_X + width + BASS_DEPTH + 0.035, 0, 0),
-      OUT_BASS,
+      new Vector3(BASS_DEPTH + 0.035, 0, 0).applyMatrix4(frame), OUT_BASS, DOWN_BUTTONS,
     );
   }
   const BELLOWS_PULLED = strapContact(BELLOWS_OPEN);
   const BELLOWS_PUSHED = strapContact(BELLOWS_SHUT);
-  const REST_CONTACT = place(
-    new Vector3(TREBLE_OUTER_X - 0.075, 0, KEY_PIVOT_Z + WHITE_L * 0.72), OUT_TREBLE,
+
+  /**
+   * Resting hands, one per side — and this is the other half of "the hands are
+   * on both sides".
+   *
+   * There used to be a single `rest` contact, on the treble side, so the moment
+   * the part went quiet *both* hands drifted onto the keyboard and the accordion
+   * was being played like a small piano. `resolve` is handed the effector
+   * precisely so a two-sided instrument can answer twice.
+   */
+  const REST_TREBLE = place(
+    new Vector3(TREBLE_OUTER_X - 0.075, -0.02, KEY_PIVOT_Z + WHITE_L * 0.72),
+    OUT_TREBLE, UP_KEYBOARD,
+  );
+  const REST_BASS = onBassSide(
+    new Vector3(BASS_DEPTH + 0.030, 0.02, BASS_ROW_Z), OUT_BASS, DOWN_BUTTONS,
   );
 
   const moving = new Set<Pressable>();
   const KEY_DIP = 0.10;      // radians at the key pivot
   const BUTTON_DIP = 0.006;  // metres straight in
 
+  /**
+   * A contact belongs to the model, so nothing outside gets a reference to one
+   * it could write through. Cheap: three vectors, and `resolve` is called a few
+   * times per frame, not a few thousand.
+   */
+  function copy(c: Contact | undefined): Contact | undefined {
+    if (!c) return undefined;
+    return { position: c.position.clone(), normal: c.normal.clone(), along: c.along!.clone() };
+  }
+
   const model: InstrumentModel = {
     archetype: 'accordion',
     root,
 
-    resolve(point: PlayPoint): Contact | undefined {
+    resolve(point: PlayPoint, effector?: Effector): Contact | undefined {
       switch (point.kind) {
-        case 'key': {
-          const c = contacts.get(point.midi);
-          if (!c) return undefined;
-          return { position: c.position.clone(), normal: c.normal.clone() };
-        }
-        case 'bellows': {
-          const c = point.open ? BELLOWS_PULLED : BELLOWS_PUSHED;
-          return { position: c.position.clone(), normal: c.normal.clone() };
-        }
+        case 'key':
+          return copy(contacts.get(point.midi));
+        case 'bellows':
+          return copy(point.open ? BELLOWS_PULLED : BELLOWS_PUSHED);
         case 'rest':
-          return { position: REST_CONTACT.position.clone(), normal: REST_CONTACT.normal.clone() };
+          // The left hand never leaves the bass side; everything else that
+          // idles on this instrument is the right hand on the keyboard.
+          return copy(effector === 'left-hand' ? REST_BASS : REST_TREBLE);
         default:
           return undefined;
       }
@@ -390,13 +505,16 @@ export const buildAccordion: InstrumentBuilder = (opts) => {
 
     react(point: PlayPoint, force: number, now: number): void {
       if (point.kind === 'bellows') {
-        // A hard squeeze travels further than a gentle one, which is the whole
-        // dynamic range of the instrument made visible.
+        // A hard phrase uses the whole box and a quiet one breathes shallowly,
+        // which is the dynamic range of the instrument made visible. The
+        // destination is a *fraction of the full travel* rather than a distance
+        // added to neutral: a squeeze that stopped short of where the arm was
+        // going left the box and the arm disagreeing about the same phrase.
         const f = force < 0 ? 0 : force > 1 ? 1 : force;
-        const reach = 0.055 + 0.075 * f;
+        const reach = 0.45 + 0.55 * f;
         bellows.set(now, point.open
-          ? Math.min(BELLOWS_OPEN, BELLOWS_NEUTRAL + reach)
-          : Math.max(BELLOWS_SHUT, BELLOWS_NEUTRAL - reach));
+          ? BELLOWS_NEUTRAL + (BELLOWS_OPEN - BELLOWS_NEUTRAL) * reach
+          : BELLOWS_NEUTRAL - (BELLOWS_NEUTRAL - BELLOWS_SHUT) * reach);
         return;
       }
       if (point.kind !== 'key') return;
@@ -407,31 +525,42 @@ export const buildAccordion: InstrumentBuilder = (opts) => {
     },
 
     update(now: number): void {
-      // A small permanent drift on top of whatever the gestures asked for. An
-      // accordion with a perfectly still bellows is an accordion nobody is
-      // breathing through, and that reads as broken rather than as calm.
-      const drift = Math.sin(now * 0.22 * Math.PI * 2) * 0.012;
+      // A slow drift on top of whatever the gestures asked for. An accordion
+      // with a perfectly still bellows is an accordion nobody is breathing
+      // through, and that reads as broken rather than as calm — but it is a
+      // *breath*, a fifth of a cycle per beat, not a shiver.
+      const drift = Math.sin(now * 0.18 * Math.PI * 2) * 0.007;
       const w = Math.max(BELLOWS_SHUT, Math.min(BELLOWS_OPEN, bellows.value(now) + drift));
+      const fan = bellowsFan(w);
 
-      const start = TREBLE_INNER_X;
+      // Each pleat takes its share of the fold, so the pleats stay evenly
+      // spaced along the arc and their faces splay: a bellows opens like a book
+      // rather than like a drawer, and the wedge along the top edge is most of
+      // what makes the motion read at a distance.
       const step = w / PLEATS;
       let a = 0;
       let b = 0;
       for (let i = 0; i < PLEATS; i++) {
-        scratch.makeTranslation(start + step * (i + 0.5), 0, 0);
+        bellowsFrame(step * (i + 0.5), fan * ((i + 0.5) / PLEATS), scratch);
         if (i % 2 === 0) pleatsA.setMatrixAt(a++, scratch);
         else pleatsB.setMatrixAt(b++, scratch);
       }
       pleatsA.instanceMatrix.needsUpdate = true;
       pleatsB.instanceMatrix.needsUpdate = true;
-      bassSide.position.x = start + w;
+
+      bellowsFrame(w, fan, scratch);
+      bassSide.position.setFromMatrixPosition(scratch);
+      bassSide.rotation.z = fan;
 
       if (moving.size > 0) {
         let whiteDirty = false;
         let blackDirty = false;
         let buttonDirty = false;
         for (const p of moving) {
-          const env = p.hit.level(now, 0.30);
+          // A free reed sounds for as long as the key is held and the return is
+          // a spring, not a hammer — slower than a piano's key and about the
+          // same as an organ's, which is the instrument this one is.
+          const env = p.hit.level(now, 0.45);
           if (p.axis === 'key') {
             quat.setFromAxisAngle(yAxis, KEY_DIP * (0.6 + 0.4 * p.hit.force) * env);
             scratch.compose(p.pivot, quat, one);

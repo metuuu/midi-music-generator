@@ -10,9 +10,18 @@
  * that for free — the same continuous equal-tempered position rule as the
  * violin and the upright bass, with no wire to snap to.
  *
- * Build frame: `+x` bridge → nut, `+y` out of the belly, `+z` C string → A.
+ * Build frame: `+x` bridge → nut, `+y` out of the belly, `+z` A string → C.
  * The root's origin is the endpin, on the boards, which is also what the whole
  * instrument rocks about.
+ *
+ * **`+z` runs treble to bass, and the violin's runs bass to treble.** That
+ * asymmetry is not a slip; it is what the frames force. `z` is `x × y` in both
+ * files, and a violin lies across the player with its face up while a cello
+ * stands on end with its face to the house — so the same cross product lands on
+ * opposite sides of the player. Written the violin's way round the cello comes
+ * out mirrored, and the tell is the bow: the frog ends up over the player's
+ * *left* shoulder and the right hand reaches across the body to find it, which
+ * is what this file used to do.
  */
 
 import {
@@ -21,7 +30,7 @@ import {
   MeshStandardMaterial, Shape, Vector3,
 } from 'three';
 
-import type { PlayPoint } from '../../../concert/types.js';
+import type { GestureKind, PlayPoint } from '../../../concert/types.js';
 import { Rng } from '../../../core/rng.js';
 import {
   addTo, type Contact, type InstrumentBuilder, type InstrumentModel,
@@ -46,6 +55,29 @@ const BOW_X = 0.085;
 const BODY_TAIL = -0.400;
 const BODY_LEN = 0.755;
 
+// ---------------------------------------------------------------------------
+// The bow. See `violin.ts` for the argument; the numbers are a cello's.
+// ---------------------------------------------------------------------------
+
+/**
+ * Where the frog sits along the stick. Negative, because on this instrument the
+ * bow arm is at `-z` — see the note on the build frame at the top of the file.
+ */
+const FROG_Z = -0.344;
+const FROG_LEN = Math.abs(FROG_Z);
+const BOW_AXIS = new Vector3(0, 0, Math.sign(FROG_Z));
+const HAIR_HALF = 0.340;
+const BOW_CLEAR = 0.006;
+/** `BOW_TRAVEL` in `web/concert/animate.ts`, and it has to stay equal to it. */
+const BOW_LEAN = 0.055;
+const BOW_LIFT = 0.040;
+/** The runtime's easing. See the long note in `violin.ts`. */
+function smooth(s: number): number {
+  return s * s * (3 - 2 * s);
+}
+const SPAN_MIN = 0.15;
+const SPAN_MAX = 3;
+
 function mountBasis(alongStrings: Vector3, faceHint: Vector3, at: Vector3): Matrix4 {
   const x = alongStrings.clone().normalize();
   const y = faceHint.clone().addScaledVector(x, -faceHint.dot(x)).normalize();
@@ -60,14 +92,40 @@ const MOUNT = mountBasis(
   new Vector3(-0.060, 0.620, 0.100),
 );
 
+/**
+ * The player's own lateral axis, in the build frame.
+ *
+ * The cello stands on the floor rather than being carried, so its root takes
+ * the *performer's* facing and so does the rig — which leaves the rig's `+x`
+ * and this model's `+x` parallel, exactly as they are for a carried instrument.
+ * That is the axis `animate.ts` runs the bow hand along, and the bow has to be
+ * resolved into it. `rock` sits between root and mount and is ignored here: a
+ * third of a degree of endpin lean is two millimetres at the frog.
+ */
+const MOUNT_INTO = new Matrix4().extractRotation(MOUNT).transpose();
+const LATERAL = new Vector3(1, 0, 0).transformDirection(MOUNT_INTO);
+
+/** Reused by `placeBow`, once per performer per frame. */
+const U = new Vector3();
+const F = new Vector3();
+const D = new Vector3();
+
+/** Across the strings — the axis a hand's knuckles lie along. See `Contact`. */
+const ACROSS = new Vector3(0, 0, 1);
+
 function stopX(n: number): number {
   return MENSUR * Math.pow(2, -n / 12);
 }
 
+/**
+ * Where string `i` sits across the bridge, `x` from it. **High to low along
+ * `+z`** — see the build-frame note at the top. Index order is unchanged and
+ * still low to high, because that is what `PlayPoint.string` indexes.
+ */
 function stringZ(i: number, x: number): number {
   const t = Math.min(Math.max(x / MENSUR, 0), 1);
   const spread = BRIDGE_SPREAD + (NUT_SPREAD - BRIDGE_SPREAD) * t;
-  return (i - (STRINGS - 1) / 2) * (spread / (STRINGS - 1));
+  return -(i - (STRINGS - 1) / 2) * (spread / (STRINGS - 1));
 }
 
 function arcDrop(z: number): number {
@@ -82,6 +140,28 @@ function contactAt(x: number, lift: number, z: number): Contact {
   return {
     position: new Vector3(x, lift + arcDrop(z), z).applyMatrix4(MOUNT),
     normal: arcNormal(z).transformDirection(MOUNT),
+    // Across the strings, so the fingers lie over them rather than up one.
+    along: ACROSS.clone().transformDirection(MOUNT),
+  };
+}
+
+function bowTilt(z: number): number {
+  return Math.asin(Math.min(Math.max(z / ARC_R, -1), 1));
+}
+
+function bowPivotY(z: number, lift: number): number {
+  return STRING_HEIGHT + arcDrop(z) + BOW_CLEAR + lift;
+}
+
+/** The bowing hand: the frog, at the stroke's mid-point. See `violin.ts`. */
+function bowContactAt(z: number, lift: number): Contact {
+  const t = bowTilt(z);
+  return {
+    position: new Vector3(
+      BOW_X, bowPivotY(z, lift) - Math.sin(t) * FROG_Z, z + Math.cos(t) * FROG_Z,
+    ).applyMatrix4(MOUNT),
+    normal: arcNormal(z).transformDirection(MOUNT),
+    along: new Vector3(0, -Math.sin(t), Math.cos(t)).transformDirection(MOUNT),
   };
 }
 
@@ -124,9 +204,14 @@ function violinOutline(
 
 /** Not part of `InstrumentModel`. See the notes on the two extra members. */
 export interface CelloModel extends InstrumentModel {
-  /** Where the bow crosses this string. `resolve` answers for the left hand. */
+  /**
+   * Where the bowing hand goes: the frog, on the stick. `resolve` answers for
+   * the left hand. See `violin.ts` — this is not the hair-string crossing, and
+   * returning that crossing is what put the hand a third of a metre from the
+   * only part of the bow anybody holds.
+   */
   soundingContact(point: PlayPoint): Contact | undefined;
-  /** The model's own bow, animated by `react`. Hide it if the rig has one. */
+  /** The model's own bow, driven to stay under that hand. */
   bow: Group;
 }
 
@@ -281,6 +366,7 @@ export const buildCello: InstrumentBuilder = (opts) => {
   }
 
   // --- The bow -------------------------------------------------------------
+  /** Pivot on the string, stick on the pivot. See `violin.ts` for why. */
   const bowPivot = addTo(inst, new Group());
   const bow = addTo(bowPivot, new Group());
   {
@@ -289,16 +375,19 @@ export const buildCello: InstrumentBuilder = (opts) => {
     const stick = addTo(bow, new Mesh(stickGeo, kit.mat(new MeshStandardMaterial({
       color: '#3a2216', roughness: 0.4,
     }))));
-    stick.position.set(0, -0.012, 0.02);
+    stick.position.set(0, -0.012, -0.02);
     stick.castShadow = true;
-    const hairGeo = kit.geo(new BoxGeometry(0.0034, 0.0110, 0.680));
+    const hairGeo = kit.geo(new BoxGeometry(0.0034, 0.0110, HAIR_HALF * 2));
     addTo(bow, new Mesh(hairGeo, kit.mat(new MeshStandardMaterial({
       color: '#f2ecd8', roughness: 0.8,
-    })))).position.set(0, -0.0020, 0.02);
+    })))).position.set(0, -0.0020, -0.02);
     const frogGeo = kit.geo(new BoxGeometry(0.019, 0.024, 0.042));
-    addTo(bow, new Mesh(frogGeo, ebonyMat)).position.set(0, -0.010, 0.344);
+    // Named so the probe can measure the contact against the mesh itself.
+    const frog = addTo(bow, new Mesh(frogGeo, ebonyMat));
+    frog.name = 'bow-frog';
+    frog.position.set(0, -0.010, FROG_Z);
     const tipGeo = kit.geo(new BoxGeometry(0.012, 0.017, 0.024));
-    addTo(bow, new Mesh(tipGeo, ebonyMat)).position.set(0, -0.007, -0.338);
+    addTo(bow, new Mesh(tipGeo, ebonyMat)).position.set(0, -0.007, -FROG_Z - 0.006);
   }
 
   // --- Reaction state ------------------------------------------------------
@@ -309,19 +398,32 @@ export const buildCello: InstrumentBuilder = (opts) => {
   let bellyAmp = 0;
   let rockAmp = 0;
   let rockPhase = 0;
-  let bowDir = 1;
-  let bowSpeed = 0;
-  let bowSlide = rng.float(-0.08, 0.08);
+  /** The runtime's stroke: `+1` to start, reversed by every note that is not a slur. */
+  let stroke = 1;
+  let lean = 0;
+  let leanTo = 0;
+  let lift = BOW_LIFT;
+  /** Set on the beat, never eased — see the note in `violin.ts`. */
   let bowString = 1;
-  let bowStringNow = 1;
+  let strokeAt = 0;
+  let strokeSpan = 1;
   let last = 0;
   let started = false;
 
   function placeBow(): void {
-    const z = stringZ(bowStringNow, BOW_X);
-    bowPivot.position.set(BOW_X, STRING_HEIGHT + arcDrop(z) + 0.006, z);
-    bowPivot.rotation.x = Math.asin(Math.min(Math.max(z / ARC_R, -1), 1));
-    bow.position.z = bowSlide;
+    const z = stringZ(bowString, BOW_X);
+    const t = bowTilt(z);
+    bowPivot.position.set(BOW_X, bowPivotY(z, lift), z);
+    bowPivot.rotation.x = t;
+
+    const c = Math.cos(t);
+    const s = Math.sin(t);
+    U.set(LATERAL.x, LATERAL.y * c + LATERAL.z * s, LATERAL.z * c - LATERAL.y * s);
+    F.copy(BOW_AXIS).multiplyScalar(FROG_LEN).addScaledVector(U, lean);
+    const len = F.length();
+    D.copy(F).divideScalar(len);
+    bow.quaternion.setFromUnitVectors(BOW_AXIS, D);
+    bow.position.copy(D).multiplyScalar(len - FROG_LEN);
   }
   placeBow();
 
@@ -352,16 +454,17 @@ export const buildCello: InstrumentBuilder = (opts) => {
     },
 
     soundingContact(point: PlayPoint): Contact | undefined {
-      if (point.kind === 'rest') {
-        return contactAt(BOW_X, STRING_HEIGHT + 0.08, 0);
-      }
+      if (point.kind === 'rest') return bowContactAt(stringZ(1, BOW_X), BOW_LIFT);
       if (point.kind !== 'string') return undefined;
       const i = point.string;
       if (!Number.isInteger(i) || i < 0 || i >= STRINGS) return undefined;
-      return contactAt(BOW_X, STRING_HEIGHT + 0.005, stringZ(i, BOW_X));
+      return bowContactAt(stringZ(i, BOW_X), 0);
     },
 
-    react(point: PlayPoint, force: number, now: number): void {
+    react(point: PlayPoint, force: number, now: number, kind?: GestureKind): void {
+      const first = !started;
+      if (first) { last = now; started = true; }
+      if (point.kind === 'rest') { lift = BOW_LIFT; placeBow(); return; }
       if (point.kind !== 'string') return;
       const i = point.string;
       if (!Number.isInteger(i) || i < 0 || i >= STRINGS) return;
@@ -370,11 +473,16 @@ export const buildCello: InstrumentBuilder = (opts) => {
       bellyAmp = Math.min(1, bellyAmp + 0.3 + f * 0.45);
       rockAmp = Math.min(1, rockAmp + 0.15 + f * 0.35);
       rockPhase = 0;
+      // Reverse on anything that is not a slur, which is what `Runtime.stroke`
+      // does with the same gestures. See the long note in `violin.ts`.
+      if (kind !== 'hold') stroke = -stroke;
       bowString = i;
-      bowDir = -bowDir;
-      bowSpeed = 0.14 + f * 0.42;
-      bowSlide = Math.min(Math.max(bowSlide, -0.26), 0.26);
-      if (!started) { last = now; started = true; }
+      lift = 0;
+      lean = 0;
+      leanTo = stroke * BOW_LEAN * (0.4 + 0.6 * f);
+      if (!first) strokeSpan = Math.min(Math.max(now - strokeAt, SPAN_MIN), SPAN_MAX);
+      strokeAt = now;
+      placeBow();
     },
 
     update(now: number): void {
@@ -397,12 +505,7 @@ export const buildCello: InstrumentBuilder = (opts) => {
         strings[i]!.scale.set(1, gauge[i]! * (1 + a * 3.6), gauge[i]! * (1 + a * 1.3));
       }
 
-      bowSlide += bowDir * bowSpeed * dt;
-      if (bowSlide > 0.28) { bowSlide = 0.28; bowDir = -1; }
-      if (bowSlide < -0.28) { bowSlide = -0.28; bowDir = 1; }
-      bowSpeed *= Math.exp(-dt / 2.4);
-      const k = 1 - Math.exp(-dt * 12);
-      bowStringNow += (bowString - bowStringNow) * k;
+      lean = leanTo * smooth(Math.min(Math.max((now - strokeAt) / strokeSpan, 0), 1));
       placeBow();
 
       if (bellyAmp > 0.002) {

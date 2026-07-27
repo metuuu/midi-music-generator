@@ -18,8 +18,33 @@
  * The rock is in `react`, and it is most of what says "upright" rather than
  * "large cello".
  *
- * Build frame: `+x` bridge → nut, `+y` out of the belly, `+z` low → high string.
- * The root's origin is the endpin, on the boards.
+ * ## The bass leans on the player, and `held` says it does not
+ *
+ * `ARCHETYPES['upright-bass'].held` is `false`, so `show.ts` stands this model
+ * on the deck and leaves it there while the player sways against it — and the
+ * hands, which are placed from *this* model's world matrix, stay with the bass
+ * and come away from the body. That reads exactly as reported: a bassist waving
+ * left and right with their hands nailed to the air in front of them.
+ *
+ * It should be `true`. A double bass is not furniture; it is balanced against
+ * the player's hip with an arm round it, and it goes where they go. `carry`
+ * parents the root to the torso, and because `station.offset.y` is zero the
+ * root lands at torso-local `-hipY`, which puts the endpin back on the deck
+ * exactly. The one artefact is the endpin sliding a few centimetres with the
+ * sway, which is what a real endpin does on a wooden stage.
+ *
+ * That flag lives in `concert/instruments.ts`, which is not this file's to
+ * change. What *is* this file's is that the model works either way: everything
+ * below the mount hangs off one `rock` pivot at the endpin tip, so the
+ * instrument is a single rigid body about the point it actually turns about,
+ * and the lean in `update` is a real lean rather than a shiver.
+ *
+ * Build frame: `+x` bridge → nut, `+y` out of the belly, `+z` **high → low**
+ * string. The root's origin is the endpin, on the boards. The direction of `z`
+ * is forced: it is `x × y`, and on an instrument stood on end with its face to
+ * the house that lands on the player's *left* — which is the side the E string
+ * is on. Numbering it the other way mirrors the whole instrument, and the tell
+ * is a plucking hand that travels the wrong way across the strings.
  */
 
 import {
@@ -48,10 +73,27 @@ const BRIDGE_SPREAD = 0.086;
 /** Upright action is famously high, and the finger has to get above it. */
 const STRING_HEIGHT = 0.014;
 const FINGER_HEIGHT = 0.026;
-/** The pizzicato hand lives at the end of the fingerboard. */
-const PLUCK_X = 0.285;
+/**
+ * The pizzicato hand lives at the end of the fingerboard.
+ *
+ * The board runs from the nut down to `stopX(MAX_SEMITONES)`, which is 0.26 —
+ * so this was 0.285 and therefore two and a half centimetres *onto* the board,
+ * which is nowhere a bassist has ever plucked.
+ */
+const PLUCK_X = 0.250;
 /** And the bow between there and the bridge. */
 const BOW_X = 0.165;
+/**
+ * How much clear air the plucking hand keeps below the stopping one.
+ *
+ * At a fixed pluck point the two hands meet in thumb position: the top of the
+ * fingerboard *is* the end of the fingerboard, and the two contacts came out
+ * 1.2 cm apart with the fingers interleaved. A bassist working up there plucks
+ * further toward the bridge instead, so `soundingContact` moves with the stop.
+ * It stays a pure function of the point, which is all the contract asks.
+ */
+const PLUCK_CLEAR = 0.075;
+const PLUCK_MIN = 0.115;
 
 const BODY_TAIL = -0.40;
 const BODY_LEN = 1.10;
@@ -99,16 +141,26 @@ function stopX(n: number): number {
   return MENSUR * Math.pow(2, -n / 12);
 }
 
+/**
+ * Where string `i` sits across the bridge. Index order is low to high, as
+ * `PlayPoint.string` requires; `+z` runs the other way. See the frame note.
+ */
 function stringZ(i: number, x: number): number {
   const t = Math.min(Math.max(x / MENSUR, 0), 1);
   const spread = BRIDGE_SPREAD + (NUT_SPREAD - BRIDGE_SPREAD) * t;
-  return (i - (STRINGS - 1) / 2) * (spread / (STRINGS - 1));
+  return -(i - (STRINGS - 1) / 2) * (spread / (STRINGS - 1));
 }
+
+/** Across the strings — the axis a hand's knuckles lie along. See `Contact`. */
+const ACROSS = new Vector3(0, 0, 1);
 
 function contactAt(mount: Matrix4, x: number, y: number, z: number): Contact {
   return {
     position: new Vector3(x, y, z).applyMatrix4(mount),
     normal: FACE.clone().transformDirection(mount),
+    // Across the strings, not up the neck. On a fingerboard this is the whole
+    // difference between a hand over the strings and a hand lying along one.
+    along: ACROSS.clone().transformDirection(mount),
   };
 }
 
@@ -317,10 +369,19 @@ export const buildUprightBass: InstrumentBuilder = (opts) => {
   }
 
   // --- Endpin, which is vertical in the world and not in the build frame ---
+  /**
+   * On `rock`, not on `root`.
+   *
+   * The pin is the leg the instrument turns about and it has to turn with it.
+   * Hung off the root it stayed bolt upright while the body above it leaned,
+   * so the socket and the tail came apart — a millimetre at the old amplitude,
+   * and a centimetre at the one the lean actually needs. `rock`'s origin is the
+   * pin's tip, so the tip is the pivot and the pin sweeps from it.
+   */
   {
     const foot = new Vector3(BODY_TAIL - 0.02, -0.09, 0).applyMatrix4(MOUNT);
     const pinGeo = kit.geo(new CylinderGeometry(0.010, 0.008, Math.max(foot.y, 0.05), 6));
-    const pin = addTo(root, new Mesh(pinGeo, metalMat));
+    const pin = addTo(rock, new Mesh(pinGeo, metalMat));
     pin.position.set(foot.x, Math.max(foot.y, 0.05) / 2, foot.z);
     pin.castShadow = true;
   }
@@ -333,6 +394,8 @@ export const buildUprightBass: InstrumentBuilder = (opts) => {
   for (let i = 0; i < STRINGS; i++) phase[i] = rng.float(0, Math.PI * 2);
   let rockAmp = 0;
   let rockPhase = 0;
+  /** A steady lean into the player, topped up by every note and decaying out. */
+  let pull = 0;
   let bellyAmp = 0;
   let last = 0;
   let started = false;
@@ -342,6 +405,31 @@ export const buildUprightBass: InstrumentBuilder = (opts) => {
     facing: 0,
     posture: 'stand',
   };
+
+  /**
+   * Which way "toward the player" is, from `station` rather than beside it.
+   *
+   * A pluck pulls the top of the bass back onto the player's chest and it
+   * settles forward again — the one motion that says double bass rather than
+   * cello on stilts. Deriving the direction from the station is what stops it
+   * from pointing somewhere else the day the player moves.
+   */
+  const TOWARD = station.offset.clone().setY(0).normalize();
+
+  /**
+   * How far the instrument may lean, in radians. Small, and the ceiling is not
+   * taste.
+   *
+   * `rock` sits *under* `root`, and the runtime places hands from
+   * `root.matrixWorld` — so anything this group does moves the instrument and
+   * not the hands on it. At a metre up the neck, 0.012 rad is 1.2 cm of
+   * daylight between a fingertip and its string at the peak of a hard note,
+   * which is about a finger's width and gone within the beat. Twice this and
+   * the hands are visibly off the strings, which is the very complaint this
+   * file is answering. A lean big enough to *read* has to move the root, and
+   * the root is `show.ts`'s — see the `held` note at the top.
+   */
+  const LEAN_MAX = 0.012;
 
   const model: UprightBassModel = {
     archetype: 'upright-bass',
@@ -372,7 +460,11 @@ export const buildUprightBass: InstrumentBuilder = (opts) => {
       if (point.kind !== 'string') return undefined;
       const i = point.string;
       if (!Number.isInteger(i) || i < 0 || i >= STRINGS) return undefined;
-      return contactAt(MOUNT, PLUCK_X, STRING_HEIGHT + 0.022, stringZ(i, PLUCK_X));
+      const n = point.fret;
+      if (!Number.isFinite(n) || n < 0 || n > MAX_SEMITONES) return undefined;
+      // Down toward the bridge as the left hand climbs. See `PLUCK_CLEAR`.
+      const x = Math.min(PLUCK_X, Math.max(PLUCK_MIN, stopX(n) - PLUCK_CLEAR));
+      return contactAt(MOUNT, x, STRING_HEIGHT + 0.022, stringZ(i, x));
     },
 
     react(point: PlayPoint, force: number, now: number): void {
@@ -386,6 +478,10 @@ export const buildUprightBass: InstrumentBuilder = (opts) => {
       // half above the pivot, half a degree is already a visible lurch.
       rockAmp = Math.min(1, rockAmp + 0.3 + f * 0.5);
       rockPhase = 0;
+      // And the pull: a plucked string drags the whole instrument back onto the
+      // player before it settles. Direction, not just amplitude, which is what
+      // an oscillation on its own never gave.
+      pull = Math.min(1, pull + 0.25 + f * 0.5);
       if (!started) { last = now; started = true; }
     },
 
@@ -421,13 +517,20 @@ export const buildUprightBass: InstrumentBuilder = (opts) => {
         bridgeGroup.rotation.z = 0;
       }
 
-      if (rockAmp > 0.002) {
+      if (rockAmp > 0.002 || pull > 0.002) {
         rockAmp *= Math.exp(-dt / 0.9);
+        // The lean outlives the wobble, which is what makes it read as the
+        // instrument being held rather than as the instrument ringing.
+        pull *= Math.exp(-dt / 1.6);
         rockPhase += dt * 5.5;
-        rock.rotation.z = Math.sin(rockPhase) * rockAmp * 0.0075;
-        rock.rotation.x = Math.cos(rockPhase * 0.7) * rockAmp * 0.004;
-      } else if (rockAmp !== 0) {
+        const tilt = LEAN_MAX * (pull * 0.7 + Math.sin(rockPhase) * rockAmp * 0.5);
+        // Leaning the top toward `TOWARD`: a positive turn about `z` carries it
+        // toward `-x`, and a positive turn about `x` carries it toward `+z`.
+        rock.rotation.z = -TOWARD.x * tilt;
+        rock.rotation.x = TOWARD.z * tilt;
+      } else if (rockAmp !== 0 || pull !== 0) {
         rockAmp = 0;
+        pull = 0;
         rock.rotation.set(0, 0, 0);
       }
     },
