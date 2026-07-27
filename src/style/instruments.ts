@@ -9,6 +9,8 @@
  * is exactly the right voice for Finnish tango.
  */
 
+import type { Midi } from '../core/pitch.js';
+
 /**
  * How an instrument's music is *shaped*, as opposed to how far it can leap.
  *
@@ -188,3 +190,138 @@ export const INSTRUMENTS = {
 } satisfies Record<string, Instrument>;
 
 export type InstrumentId = keyof typeof INSTRUMENTS;
+
+/**
+ * The notes each instrument can actually play, as MIDI numbers.
+ *
+ * This lives here, next to `centre` and `agility`, because a playable range is
+ * a *musical* fact — the same kind of fact as "a trombone cannot leap a tenth".
+ * It was written for the concert stage, which needs it to put a hand somewhere,
+ * and only then did it become obvious that the generator had been missing it
+ * all along.
+ *
+ * What it caught: a clarinet handed the `pad` layer was being written down to
+ * C2, an octave and a half below the instrument, on 31% of its notes; a
+ * vibraphone comping went below its bottom F on 7%. Both are inaudible as
+ * *wrong* — a soundfont plays whatever it is sent — but a clarinet patch at C2
+ * does not sound like a clarinet, which is the whole reason for choosing one.
+ * `centre` was never enough: it says where a part should sit, not where the
+ * instrument stops.
+ *
+ * A note below the floor is folded up an octave rather than dropped, which is
+ * what an arranger does with a voicing that runs off the bottom of the horn.
+ */
+export const INSTRUMENT_RANGE: Record<InstrumentId, readonly [Midi, Midi]> = {
+  accordion: [41, 93],
+  bandoneon: [41, 93],
+  harmonica: [60, 96],
+  piano: [21, 108],
+  epiano1: [28, 103],
+  epiano2: [28, 103],
+  vibraphone: [53, 96],
+  glockenspiel: [53, 96],
+  drawbarOrgan: [24, 96],
+  rockOrgan: [24, 96],
+  nylonGuitar: [40, 83],
+  steelGuitar: [40, 83],
+  jazzGuitar: [40, 86],
+  cleanGuitar: [40, 86],
+  mutedGuitar: [40, 86],
+  acousticBass: [28, 67],
+  fingerBass: [28, 63],
+  pickBass: [28, 63],
+  synthBass: [21, 108],
+  violin: [55, 96],
+  fiddle: [55, 96],
+  tremoloStrings: [36, 96],
+  pizzStrings: [36, 96],
+  harp: [24, 103],
+  strings1: [36, 96],
+  strings2: [36, 96],
+  synthStrings: [36, 96],
+  synthStrings2: [36, 96],
+  trumpet: [52, 86],
+  trombone: [34, 80],
+  mutedTrumpet: [52, 86],
+  brassSection: [36, 84],
+  synthBrass: [36, 84],
+  sopranoSax: [56, 88],
+  altoSax: [49, 89],
+  tenorSax: [44, 84],
+  baritoneSax: [37, 76],
+  clarinet: [50, 91],
+  flute: [59, 96],
+  padWarm: [21, 108],
+  celesta: [28, 103],
+  padNewAge: [21, 108],
+  padPoly: [21, 108],
+  padChoir: [21, 108],
+  padBowed: [21, 108],
+  padMetallic: [21, 108],
+  padHalo: [21, 108],
+  padSweep: [21, 108],
+  fxRain: [21, 108],
+  fxSoundtrack: [21, 108],
+  fxCrystal: [21, 108],
+  fxAtmosphere: [21, 108],
+  fxBrightness: [21, 108],
+  fxGoblins: [21, 108],
+  fxEchoes: [21, 108],
+  fxSciFi: [21, 108],
+  choirAahs: [21, 108],
+  voiceOohs: [21, 108],
+  synthChoir: [21, 108],
+  churchOrgan: [24, 96],
+  reedOrgan: [24, 96],
+  tubularBells: [53, 96],
+  musicBox: [53, 96],
+  kalimba: [53, 96],
+  marimba: [53, 96],
+  leadSquare: [21, 108],
+  leadSaw: [21, 108],
+  leadCalliope: [21, 108],
+  leadChiff: [21, 108],
+  leadVoice: [21, 108],
+  fretlessBass: [28, 63],
+  synthBass2: [21, 108],
+  cello: [36, 81],
+  contrabass: [28, 67],
+  sitar: [48, 80],
+  panFlute: [59, 96],
+  shakuhachi: [59, 96],
+};
+
+/**
+ * The range of an instrument you have the object for rather than the key.
+ *
+ * `chooseInstruments` hands the generator `Instrument` values, not catalogue
+ * ids, and threading ids through every call site to reach a two-number table
+ * would be a lot of churn for no clarity. Names are unique across the
+ * catalogue — asserted below, because the day that stops being true this would
+ * fail silently and quietly re-range an instrument.
+ */
+const BY_NAME = new Map<string, readonly [Midi, Midi]>();
+for (const [id, entry] of Object.entries(INSTRUMENTS) as [InstrumentId, Instrument][]) {
+  if (BY_NAME.has(entry.name)) throw new Error(`duplicate instrument name "${entry.name}"`);
+  BY_NAME.set(entry.name, INSTRUMENT_RANGE[id]);
+}
+
+export function rangeOfInstrument(instrument: Instrument): readonly [Midi, Midi] {
+  return BY_NAME.get(instrument.name) ?? [0, 127];
+}
+
+/**
+ * Fold a note up by octaves until the instrument can reach it.
+ *
+ * Octaves rather than clamping: an octave transposition of a chord tone is
+ * still that chord tone, so the harmony survives untouched. Clamping to the
+ * bottom note would turn a voicing into a cluster on the instrument's lowest
+ * pitch, which is a worse sound than the one being fixed.
+ */
+export function foldIntoRange(midi: Midi, range: readonly [Midi, Midi]): Midi {
+  const [lo, hi] = range;
+  let n = midi;
+  while (n < lo && n + 12 <= hi) n += 12;
+  while (n > hi && n - 12 >= lo) n -= 12;
+  return n;
+}

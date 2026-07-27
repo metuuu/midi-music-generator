@@ -136,13 +136,15 @@ function measure(song: Song, m: Measurement): void {
   // --- Section recall ---
   // Grouped by kind and length, exactly as the generator's memory is keyed.
   //
-  // A solo moves the tune from the melody layer to the counter instrument, so
-  // each kind has to be read off the layer that actually carries it. Reading
-  // both layers together would fold in the counter's own per-section line and
-  // make a genuinely recalled chorus register as new material.
+  // A solo moves the tune off the melody layer, so each kind has to be read
+  // off the layer that actually carries it — `Section.solo` says which.
+  // Reading both layers together would fold in the counter's own per-section
+  // line and make a genuinely recalled chorus register as new material.
   const firstOfKind = new Map<string, string>();
   for (const sec of song.sections) {
-    const track = sec.kind === 'solo' ? counter : melody;
+    const track = sec.solo
+      ? song.tracks.find((t) => t.layer === sec.solo!.layer)
+      : melody;
     if (!track) continue;
     const from = sec.startBar * beatsPerBar;
     const to = from + sec.lengthBars * beatsPerBar;

@@ -30,6 +30,70 @@ export const LAYER_ORDER: LayerId[] = [
 
 export type SectionKind = 'intro' | 'verse' | 'chorus' | 'bridge' | 'solo' | 'outro';
 
+/**
+ * What the rest of the band does underneath a solo.
+ *
+ * A band that drops out under every solo sounds like a demo, and in most of
+ * this repertoire the rhythm section carrying on *is* the idiom — so this is
+ * stated per section rather than left to whichever layers happened to be
+ * active.
+ *
+ *   full     the arrangement continues exactly as written. Iskelmä: this is
+ *            dance music, the floor is full, and a rhythm section that gets
+ *            clever behind the break has forgotten its job.
+ *   comping  the comp thins and syncopates, the drums move to the ride, the
+ *            bass keeps walking. The band answers the soloist instead of
+ *            running its pattern. Jazz.
+ *   sparse   comp out, drums to brushes — the contrast a bass solo needs to be
+ *            audible at all.
+ *   trade    the section is shared, and `SoloAssignment.blocks` says how. The
+ *            band stops dead for the drummer's bars and comes back in on the
+ *            downbeat. This also covers the degenerate case of a full drum
+ *            chorus, where the drummer has every bar and nothing alternates —
+ *            read `blocks`, never the name, or a drum chorus reads as trading
+ *            the spotlight between the drummer and the drummer.
+ */
+export type BackingPolicy = 'full' | 'comping' | 'sparse' | 'trade';
+
+/**
+ * Who is soloing, and over what.
+ *
+ * Before this existed, "solo" was inferred: the lead rested and the counter
+ * instrument took the tune, and every consumer that cared re-derived that rule
+ * for itself. Naming the soloist makes the section say what it means — which
+ * matters most to the things outside the generator, since a stage cannot point
+ * a follow spot at an inference.
+ */
+export interface SoloAssignment {
+  /** Which layer takes the solo. `drums` is a drum solo. */
+  layer: LayerId;
+  /**
+   * Human name of the instrument soloing, matching `Track.instrument`.
+   *
+   * One exception, and it is unavoidable: a drum kit is a `DrumTrack`, not a
+   * `Track`, so it has no instrument name to match. Drum solos carry
+   * `'drum kit'` — the name a showbill would print. A bank name like
+   * "LinnDrum" would be wrong; that is a sample set, not an instrument.
+   */
+  instrument: string;
+  /** What the band plays underneath. */
+  backing: BackingPolicy;
+  /**
+   * Who has which bars, when the section is shared.
+   *
+   * Only present on `trade`. Without it, "the spot alternates every four bars"
+   * is an assumption each consumer has to hard-code — and two of them did,
+   * independently, before this field existed. Trading is not always fours and
+   * the blocks are not always even, so the section has to say.
+   *
+   * `soloBars` and `drumBars` are `[fromBar, toBar)` **relative to the section**
+   * and together cover it. A full drum chorus — the band out for the whole
+   * section rather than genuinely alternating — is the degenerate case where
+   * `soloBars` is empty and `drumBars` is the entire section.
+   */
+  blocks?: { soloBars: [number, number][]; drumBars: [number, number][] };
+}
+
 export interface Section {
   kind: SectionKind;
   /** Bar index where this section starts (0-based, absolute in the song). */
@@ -43,6 +107,11 @@ export interface Section {
   activeLayers: LayerId[];
   /** Chord per bar, as roman numeral text (for display/debug). */
   chordLabels: string[];
+  /**
+   * Set on `solo` sections only. Absent everywhere else, and absent on a solo
+   * section whose nominal soloist is not actually sounding.
+   */
+  solo?: SoloAssignment;
 }
 
 export interface NoteEvent {

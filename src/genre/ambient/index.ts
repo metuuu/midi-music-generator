@@ -54,6 +54,15 @@ const BY_BRIGHTNESS: ScaleName[] = [
  *
  * No `solo` sections anywhere. A blowing chorus is a jazz idea and there is
  * nothing in ambient it corresponds to.
+ *
+ * The genre also carries no `SoloProfile`, and the two facts have to agree:
+ * a form with a solo section and no profile would put the lead layer on the
+ * counter instrument and call it a solo, which is the behaviour the solo
+ * engine exists to replace. `npm run genres` asserts both halves — no solo
+ * section is ever generated, and no `Section.solo` is ever set — because this
+ * is a negative claim and negative claims are the ones an innocent edit
+ * quietly undoes. A genre that refuses to have a foreground is a genre whose
+ * staging has to mean something else; see `docs/concert-plan.md` §4.3.
  */
 const FORMS: (readonly [FormStep[], number])[] = [
   [[

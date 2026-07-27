@@ -120,10 +120,27 @@ check('ambient ♭II bends a minor drone to phrygian', flatTwo.name === 'phrygia
 
 // --- Quartal voicing -----------------------------------------------------
 console.log('\nModal voicing');
-const modalSong = generateSong({ seed: 'md', genre: 'jazz', style: 'modal' });
-const comp = modalSong.tracks.find((t) => t.layer === 'comp');
-let fourths = 0, total = 0;
-if (comp) {
+/**
+ * Pooled across seeds, not measured from one.
+ *
+ * All three modal comp patterns declare `voicing: 'quartal'`, so the property
+ * is real — but it is statistical rather than absolute: register ceilings and
+ * collision repair invert a stack now and then, and a fourth turned upside down
+ * is a fifth. Measured per seed the rate runs 0.60 to 0.99 around a median of
+ * 0.92, so a single-seed assertion at 0.8 passes or fails on which song it
+ * happened to draw. It did exactly that, silently, until an unrelated change to
+ * the option-resolution order moved the seed from the lucky side to the
+ * unlucky one.
+ *
+ * Pooling every interval across two dozen songs is what the check meant all
+ * along, and it is a stronger statement than the one it replaces.
+ */
+let fourths = 0, total = 0, modalSongs = 0;
+for (let i = 0; i < 24; i++) {
+  const song = generateSong({ seed: `md-${i}`, genre: 'jazz', style: 'modal' });
+  const comp = song.tracks.find((t) => t.layer === 'comp');
+  if (!comp) continue;
+  modalSongs++;
   const byBeat = new Map<number, number[]>();
   for (const n of comp.notes) {
     const arr = byBeat.get(n.beat) ?? [];
@@ -133,10 +150,11 @@ if (comp) {
   for (const v of byBeat.values()) {
     if (v.length < 3) continue;
     const sorted = v.slice().sort((a, b) => a - b);
-    for (let i = 1; i < sorted.length; i++) { total++; if (sorted[i]! - sorted[i - 1]! === 5) fourths++; }
+    for (let i2 = 1; i2 < sorted.length; i2++) { total++; if (sorted[i2]! - sorted[i2 - 1]! === 5) fourths++; }
   }
 }
-check('modal comp stacks fourths', total > 0 && fourths / total > 0.8, `${((fourths / Math.max(1, total)) * 100).toFixed(0)}% of intervals are perfect fourths`);
+check('modal comp stacks fourths', total > 0 && fourths / total > 0.8,
+  `${((fourths / Math.max(1, total)) * 100).toFixed(0)}% of ${total} intervals across ${modalSongs} songs`);
 
 // --- Ambient ---------------------------------------------------------------
 // Four claims, each of which is a thing the genre *is* rather than a setting it
@@ -282,7 +300,7 @@ console.log('\nHook');
 
   /** A section's tune, relative to its own start, so a transposed replay matches. */
   const signature = (song: Song, sec: Song['sections'][number]): string => {
-    const layer = sec.kind === 'solo' ? 'counter' : 'melody';
+    const layer = sec.solo?.layer ?? 'melody';
     const track = song.tracks.find((t) => t.layer === layer);
     if (!track) return '';
     const from = sec.startBar * song.meta.beatsPerBar;
@@ -489,7 +507,7 @@ console.log('\nCounter-melody');
       const bpb = s.meta.beatsPerBar;
       // A solo section puts the *lead* on the counter instrument; those notes
       // are a melody, not an answer, and counting them measures the wrong thing.
-      const answering = (beat: number) => s.sections.some((sec) => sec.kind !== 'solo'
+      const answering = (beat: number) => s.sections.some((sec) => sec.solo?.layer !== 'counter'
         && beat >= sec.startBar * bpb && beat < (sec.startBar + sec.lengthBars) * bpb);
       const counter = (s.tracks.find((t) => t.layer === 'counter')?.notes ?? [])
         .filter((n) => answering(n.beat)).sort((a, b) => a.beat - b.beat);
@@ -531,6 +549,323 @@ console.log('\nCounter-melody');
     'the answer never doubles the tune at the unison or octave',
     doubled === 0,
     `${doubled} of ${overlap} overlapping notes`,
+  );
+}
+
+// --- Solos -----------------------------------------------------------------
+/**
+ * The five properties in `docs/concert-plan.md` §4.2, each one a thing a solo
+ * *is* rather than a setting it happens to use.
+ *
+ * Before `generate/solo.ts` existed, a solo section was the melody engine with
+ * `soloistic: true` pointed at the counter instrument, and a solo and a head
+ * differed by nothing worth counting: 1.02 against 0.98 onsets per beat, 78%
+ * against 80% stepwise motion. Every number below is one that separates the
+ * two now, and none of them could have been measured then.
+ *
+ * Measured at **`strict`**, and that is the point of measuring it at all. The
+ * concert lifts smoothness above jazz's `light` default (§6), so the vocabulary
+ * has to carry the interest at the tight end of the axis rather than relying on
+ * a loose constraint level. If these numbers only hold at `light`, the solo
+ * engine is not doing the work the plan says it should.
+ */
+console.log('\nSolos');
+{
+  interface SoloStats {
+    sections: number;
+    notes: number;
+    /** Chord changes the soloist plays a downbeat on, and how many were guide tones. */
+    landings: number; guide: number; changes: number;
+    /** Three-gram shape recurrence within one chorus. */
+    grams: number; repeated: number;
+    /** Silence as a fraction of the chorus, per section. */
+    rest: number[];
+    /** Onsets and mean velocity in each half of the arc. */
+    early: number; late: number; vEarly: number; vEarlyN: number; vLate: number; vLateN: number;
+    risingSections: number; arcSections: number;
+    /** Choruses that came out byte-identical to another in the same song. */
+    identical: number; pairs: number;
+    layers: Map<string, number>;
+    backings: Map<string, number>;
+    /** Solo choruses where the same player also took the one before. */
+    consecutive: number; handovers: number;
+    /** Drum choruses: distinct kit voices, and whether the hand-off crashed. */
+    kitVoices: number[]; kitLandings: number; kitSolos: number;
+    /** Comp onsets per bar, behind a solo and behind the head. */
+    compUnderSolo: number; barsUnderSolo: number; compUnderHead: number; barsUnderHead: number;
+    /** Named soloists whose instrument does not match a track. */
+    misnamed: number;
+  }
+
+  const measure = (gid: string, songs: number): SoloStats => {
+    const m: SoloStats = {
+      sections: 0, notes: 0, landings: 0, guide: 0, changes: 0, grams: 0, repeated: 0,
+      rest: [], early: 0, late: 0, vEarly: 0, vEarlyN: 0, vLate: 0, vLateN: 0,
+      risingSections: 0, arcSections: 0, identical: 0, pairs: 0,
+      layers: new Map(), backings: new Map(),
+      consecutive: 0, handovers: 0, kitVoices: [], kitLandings: 0, kitSolos: 0,
+      compUnderSolo: 0, barsUnderSolo: 0, compUnderHead: 0, barsUnderHead: 0, misnamed: 0,
+    };
+
+    for (let i = 0; i < songs; i++) {
+      const song = generateSong({ seed: `solo-${i}`, genre: gid, strictness: 'strict' });
+      const bpb = song.meta.beatsPerBar;
+      const comp = song.tracks.find((t) => t.layer === 'comp')?.notes ?? [];
+      const onsetsIn = (notes: readonly { beat: number }[], from: number, to: number) =>
+        new Set(notes.filter((n) => n.beat >= from && n.beat < to).map((n) => n.beat.toFixed(3))).size;
+
+      const signatures: string[] = [];
+      let previousSoloist: string | undefined;
+
+      for (const sec of song.sections) {
+        const from = sec.startBar * bpb;
+        const to = from + sec.lengthBars * bpb;
+
+        if (!sec.solo) {
+          previousSoloist = undefined;
+          if (sec.kind === 'verse' || sec.kind === 'chorus') {
+            m.compUnderHead += onsetsIn(comp, from, to);
+            m.barsUnderHead += sec.lengthBars;
+          }
+          continue;
+        }
+
+        m.sections++;
+        /**
+         * The name has to match the track, because outside the generator that
+         * is the only way to find the player. A stage points a follow spot by
+         * looking up `Section.solo.instrument` in the cast; a name that matches
+         * nothing lights nobody. The kit is the one exception and it is not a
+         * `Track` at all — see the note where `Section.solo` is set.
+         */
+        const named = sec.solo.layer === 'drums'
+          ? sec.solo.instrument === 'drum kit'
+          : song.tracks.some((t) => t.layer === sec.solo!.layer && t.instrument === sec.solo!.instrument);
+        if (!named) m.misnamed++;
+        m.layers.set(sec.solo.layer, (m.layers.get(sec.solo.layer) ?? 0) + 1);
+        m.backings.set(sec.solo.backing, (m.backings.get(sec.solo.backing) ?? 0) + 1);
+        if (previousSoloist !== undefined) {
+          m.handovers++;
+          if (previousSoloist === sec.solo.layer) m.consecutive++;
+        }
+        previousSoloist = sec.solo.layer;
+
+        // Only where the comp is *comping*. Where the comp instrument is the
+        // one soloing there are no chords to thin, and counting the solo line
+        // as comping would measure the opposite of what this asks.
+        if (sec.solo.backing === 'comping' && sec.solo.layer !== 'comp') {
+          m.compUnderSolo += onsetsIn(comp, from, to);
+          m.barsUnderSolo += sec.lengthBars;
+        }
+
+        if (sec.solo.layer === 'drums') {
+          m.kitSolos++;
+          const inSection = song.drums.events.filter((e) => e.beat >= from && e.beat < to);
+          m.kitVoices.push(new Set(inSection.map((e) => e.voice)).size);
+          // The hand-off: a crash on the downbeat the band comes back in on,
+          // which belongs to the section after this one.
+          if (song.drums.events.some((e) => e.voice === 'cr' && Math.abs(e.beat - to) < 0.26)) {
+            m.kitLandings++;
+          }
+          continue;
+        }
+
+        const track = song.tracks.find((t) => t.layer === sec.solo!.layer);
+        const notes = (track?.notes ?? [])
+          .filter((n) => n.beat >= from - 1e-6 && n.beat < to - 1e-6)
+          .sort((a, b) => a.beat - b.beat);
+        if (!notes.length) continue;
+        m.notes += notes.length;
+        signatures.push(notes.map((n) => `${Math.round((n.beat - notes[0]!.beat) * 1000)}:${n.midi - notes[0]!.midi}`).join(' '));
+
+        // 1. Guide tones on the changes. Roman numerals are read relative to
+        //    the tonic, so the section's own transposition has to be put back.
+        const chords = sec.chordLabels.map((l) => parseRoman(l, sec.mode));
+        const localTonic = ((song.meta.tonic + sec.transpose) % 12 + 12) % 12;
+        for (let bar = 0; bar < sec.lengthBars; bar++) {
+          const here = chords[bar]!;
+          const before = bar > 0 ? chords[bar - 1] : undefined;
+          if (before && before.root === here.root && before.quality === here.quality) continue;
+          m.changes++;
+          const onset = notes.find((n) => Math.abs(n.beat - (from + bar * bpb)) < 0.13);
+          if (!onset) continue;
+          m.landings++;
+          const pcs = chordPcs({ ...here, root: pc(here.root + localTonic) });
+          if (pcs[1] === pc(onset.midi) || pcs[3] === pc(onset.midi)) m.guide++;
+        }
+
+        /**
+         * 2. Motivic recurrence, as three-gram shapes.
+         *
+         * A shape is the inter-onset gap and the *direction* of the interval,
+         * not its size — because a sequence bends to the changes by design, so
+         * demanding identical semitones would only count the restatements that
+         * happened to land over the same chord quality. Gap and direction is
+         * what survives being sequenced, and it is what the ear tracks.
+         */
+        const shape: string[] = [];
+        for (let j = 1; j < notes.length; j++) {
+          shape.push(`${Math.round((notes[j]!.beat - notes[j - 1]!.beat) * 4)}${Math.sign(notes[j]!.midi - notes[j - 1]!.midi)}`);
+        }
+        const counts = new Map<string, number>();
+        for (let j = 0; j + 3 <= shape.length; j++) {
+          const g = shape.slice(j, j + 3).join(',');
+          counts.set(g, (counts.get(g) ?? 0) + 1);
+        }
+        for (const c of counts.values()) { m.grams += c; if (c > 1) m.repeated += c; }
+
+        /**
+         * 3, 4. Space and the arc.
+         *
+         * Trading choruses are excluded from both. There the soloist genuinely
+         * has only half the bars, so a rest fraction over the whole section
+         * measures the trading rather than the phrasing, and the second half of
+         * the "arc" is somebody else's four bars.
+         */
+        if (sec.solo.backing === 'trade') continue;
+
+        /**
+         * Silence counted in *beats with nothing starting in them*, not in
+         * unfilled sixteenths.
+         *
+         * The sixteenth version measures articulation rather than space: a line
+         * of swung eighths leaves a gap after every note by construction — the
+         * swing shortens the offbeat and holds its end — and scored 47% "rest"
+         * on a chorus that never stops playing. The rests a listener hears are
+         * the beats the soloist sits out, which is what this counts.
+         */
+        const beats = Math.round(to - from);
+        const played = new Set<number>();
+        for (const n of notes) played.add(Math.floor(n.beat - from));
+        m.rest.push(1 - played.size / Math.max(1, beats));
+
+        // The last two bars are handed back deliberately, so the arc is
+        // measured over what is left of the chorus rather than over all of it.
+        const arcEnd = from + Math.max(1, sec.lengthBars - 2) * bpb;
+        const mid = (from + arcEnd) / 2;
+        let early = 0, late = 0;
+        for (const n of notes) {
+          if (n.beat >= arcEnd) continue;
+          if (n.beat < mid) { early++; m.vEarly += n.velocity; m.vEarlyN++; }
+          else { late++; m.vLate += n.velocity; m.vLateN++; }
+        }
+        if (early + late > 3) {
+          m.arcSections++;
+          m.early += early;
+          m.late += late;
+          if (late >= early) m.risingSections++;
+        }
+      }
+
+      for (let a = 0; a < signatures.length; a++) {
+        for (let b = a + 1; b < signatures.length; b++) {
+          m.pairs++;
+          if (signatures[a] === signatures[b]) m.identical++;
+        }
+      }
+    }
+    return m;
+  };
+
+  // More songs than the others need, because only about half the iskelmä forms
+  // contain a break at all and the per-section arc rate is noisy below fifty.
+  const isk = measure('iskelma', 60);
+  const jaz = measure('jazz', 40);
+  const amb = measure('ambient', 24);
+  const pct = (a: number, b: number) => (a / Math.max(1, b)) * 100;
+  const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / Math.max(1, xs.length);
+
+  // --- Ambient's negative claim ------------------------------------------
+  // The genre has no solos and its forms contain none. Both halves matter:
+  // a solo section with no profile would fall back to putting the lead on the
+  // counter instrument, which is the behaviour this engine replaces.
+  check(
+    'ambient has no soloist anywhere',
+    amb.sections === 0 && getGenre('ambient').solo === undefined,
+    `${amb.sections} solo sections, profile ${getGenre('ambient').solo ? 'present' : 'absent'}`,
+  );
+
+  for (const [gid, m] of [['iskelma', isk], ['jazz', jaz]] as const) {
+    check(
+      `${gid}: the line lands on the guide tones`,
+      pct(m.guide, m.landings) > 65 && pct(m.landings, m.changes) > 30,
+      `${pct(m.guide, m.landings).toFixed(0)}% of ${m.landings} landings are the 3rd or 7th; the line plays ${pct(m.landings, m.changes).toFixed(0)}% of ${m.changes} changes`,
+    );
+    check(
+      `${gid}: a figure comes back inside a chorus`,
+      pct(m.repeated, m.grams) > 9,
+      `${pct(m.repeated, m.grams).toFixed(1)}% of ${m.grams} three-gram shapes recur`,
+    );
+    check(
+      `${gid}: the chorus leaves room`,
+      mean(m.rest) > 0.15 && mean(m.rest) < 0.55,
+      `${(mean(m.rest) * 100).toFixed(0)}% of ${m.rest.length} choruses is silence`,
+    );
+    check(
+      `${gid}: the solo builds`,
+      m.late > m.early && m.vLate / Math.max(1, m.vLateN) > m.vEarly / Math.max(1, m.vEarlyN)
+        && pct(m.risingSections, m.arcSections) > 60,
+      `${m.early} -> ${m.late} onsets, ${(m.vEarly / Math.max(1, m.vEarlyN)).toFixed(2)} -> ${(m.vLate / Math.max(1, m.vLateN)).toFixed(2)} velocity, rising in ${pct(m.risingSections, m.arcSections).toFixed(0)}% of ${m.arcSections} choruses`,
+    );
+    /**
+     * The one that catches the worst failure. Two choruses of a solo that are
+     * the same notes is not a solo taken twice, it is a loop — and it is what
+     * every shortcut in this area produces, because the cheapest way to make a
+     * solo section is to generate one and repeat it.
+     */
+    check(
+      `${gid}: no two solo choruses are the same`,
+      m.identical === 0,
+      `${m.identical} identical of ${m.pairs} pairs, over ${m.sections} choruses`,
+    );
+  }
+
+  check(
+    'the named soloist is a player who exists',
+    isk.misnamed === 0 && jaz.misnamed === 0,
+    `${isk.misnamed + jaz.misnamed} of ${isk.sections + jaz.sections} choruses name an instrument no track carries`,
+  );
+
+  // --- Rotation ------------------------------------------------------------
+  // Jazz only. Iskelmä's rotation has one entry in it on purpose — the break
+  // belongs to the featured instrument and stays with it — so "never twice in
+  // a row" is a claim about the genre that has more than one candidate.
+  check(
+    'jazz never gives one player two choruses in a row',
+    jaz.consecutive === 0 && jaz.layers.size >= 3,
+    `${jaz.consecutive} repeats over ${jaz.handovers} hand-offs; ${[...jaz.layers].map(([k, v]) => `${k} ${v}`).join(', ')}`,
+  );
+  check(
+    'a tanssilava band never hands the break to the drummer',
+    !isk.layers.has('drums') && !isk.backings.has('trade'),
+    `${[...isk.layers.keys()].join(', ')} — backings ${[...isk.backings.keys()].join(', ')}`,
+  );
+
+  // --- Drum solos ----------------------------------------------------------
+  // Two claims, and both are about it being a *solo*. A drum solo that stays on
+  // one drum is a drum roll, and one that stops rather than handing back sounds
+  // like it was interrupted — the hand-off is the part the audience hears.
+  check(
+    'a drum solo is orchestrated around the kit',
+    jaz.kitSolos > 0 && Math.min(...jaz.kitVoices) >= 4,
+    `${jaz.kitSolos} drum choruses, ${mean(jaz.kitVoices).toFixed(1)} voices each (fewest ${Math.min(...jaz.kitVoices)})`,
+  );
+  check(
+    'a drum solo lands the band back in',
+    jaz.kitSolos > 0 && jaz.kitLandings === jaz.kitSolos,
+    `${jaz.kitLandings}/${jaz.kitSolos} ended on a crash on the returning downbeat`,
+  );
+
+  // --- Comping -------------------------------------------------------------
+  // The change that most makes a solo sound like a solo rather than like a
+  // different melody over the same accompaniment: the comp gets sparser and
+  // later, answering the soloist instead of running its figure at them.
+  const underSolo = jaz.compUnderSolo / Math.max(1, jaz.barsUnderSolo);
+  const underHead = jaz.compUnderHead / Math.max(1, jaz.barsUnderHead);
+  check(
+    'the comp thins behind a jazz solo',
+    underSolo < underHead * 0.8,
+    `${underSolo.toFixed(2)} onsets/bar behind a solo vs ${underHead.toFixed(2)} behind the head`,
   );
 }
 

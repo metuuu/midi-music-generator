@@ -8,9 +8,12 @@
  *
  * Two structural devices are handled here because more than one genre uses
  * them, for different reasons:
- *  - a **solo section**, where the lead instrument rests and the counter
- *    instrument takes the tune (an accordion break in iskelmä, a blowing
- *    chorus in jazz; ambient has no such thing and its forms contain none),
+ *  - a **solo section**, where the genre's rotation names a soloist, the solo
+ *    engine writes them a chorus, and the rest of the band changes what it is
+ *    playing underneath (a blowing chorus in jazz, an ornamented accordion
+ *    break in iskelmä; ambient has no such thing and its forms contain none).
+ *    See `generate/solo.ts` — this file only decides *where* the solo goes and
+ *    what the backing policy does to the other layers,
  *  - and a **key change** for the final chorus, which is an iskelmä cliché,
  *    deliberately rare in jazz, and set to zero throughout ambient — each
  *    genre's eras set their own probability.
@@ -26,7 +29,10 @@ import {
   type Section, type SectionKind, type Song, type Space, type Track,
 } from '../core/types.js';
 import { GENRES, getGenre, type FormStep, type Genre } from '../genre/index.js';
-import { IDIOMS, INSTRUMENTS, type Instrument, type InstrumentId } from '../style/instruments.js';
+import {
+  foldIntoRange, IDIOMS, INSTRUMENTS, rangeOfInstrument,
+  type Instrument, type InstrumentId,
+} from '../style/instruments.js';
 import type { EraProfile, Mood, Progression, Style } from '../style/types.js';
 import { planRegisters, resolveCollisions } from './arrange.js';
 import { buildAccompaniment, getStrictness, resolveRules, type StrictnessId } from './constraints.js';
@@ -36,6 +42,10 @@ import { getHook, RECALL_BIAS, type HookId } from './hook.js';
 import { generateMelody } from './melody.js';
 import { chooseMotto } from './motto.js';
 import { trimOverlaps } from './rhythm.js';
+import {
+  compBehindSolo, drumsBehindSolo, generateDrumSolo, generateSolo, planSolos,
+  type BarSpan, type SoloLayer,
+} from './solo.js';
 import { generateVocalTrack } from './vocals.js';
 import {
   generateBass, generateBrass, generateComp, generateCounter, generateDrums, generatePad,
@@ -76,6 +86,21 @@ export interface GenerateOptions {
    * the flag an A/B rather than a reroll.
    */
   vocals?: boolean;
+  /**
+   * Reroll one layer and nothing else.
+   *
+   * Every layer draws from its own named RNG stream, so salting one stream
+   * gives back a song identical in form, key, tempo, instrumentation, groove
+   * and every other part, with a different bass line — or melody, or comp.
+   * `generateSong({ seed, variation: { melody: 1 } })` is a genuine
+   * single-layer reroll rather than a new song that happens to share a seed.
+   *
+   * This exists for the concert stage, where a player hit by a tomato has to
+   * stop and come back playing something else while the band carries on. It is
+   * useful anywhere a part needs replacing without disturbing what surrounds
+   * it, which is also how a game would revoice one stem at runtime.
+   */
+  variation?: Partial<Record<LayerId, number>>;
 }
 
 /**
@@ -105,15 +130,36 @@ export function generateSong(opts: GenerateOptions = {}): Song {
   const seed = String(opts.seed ?? Math.floor(Math.random() * 1e9));
   const rng = new Rng(seed);
 
-  const genre = getGenre(opts.genre ?? rng.pick(Object.keys(GENRES)));
+  /**
+   * Every choice below is *drawn first and overridden second*, even when the
+   * caller has already said what it wants.
+   *
+   * The waste is deliberate, and it is the same argument that made the sections
+   * draw their own streams — see the note further down. A short-circuit here
+   * spends fewer random numbers when an option is supplied, which shifts every
+   * later draw and hands back a different song. That makes `SongMeta`
+   * *insufficient to reproduce the song it describes*: regenerating from the
+   * seed, genre, era, style and mood a song reports produced a different form,
+   * tempo and drum part.
+   *
+   * That was invisible while nothing needed to re-derive a song from its own
+   * metadata. The concert stage does — a player hit by a tomato has to come
+   * back with one layer rerolled and everything else identical — and it turned
+   * the property into a requirement. It is worth having anyway: it is what
+   * makes a `.mid` file's header enough to regenerate the piece.
+   */
+  const genre = getGenre(pick(rng.pick(Object.keys(GENRES)), opts.genre));
   const era = lookup(genre.eras, opts.era, 'era', rng);
   const mood = lookup(genre.moods, opts.mood, 'mood', rng, Object.keys(genre.moods).slice(-1)[0]);
+  const drawnStyle = chooseStyle(rng, genre, era, mood);
   const style = opts.style
-    ? lookup(genre.styles, opts.style, 'style', rng)
-    : genre.styles[chooseStyle(rng, genre, era, mood)]!;
-  const mode = opts.mode ?? chooseMode(rng, style, mood);
-  const tonic = opts.tonic ?? rng.weighted(mode === 'minor' ? genre.keys.minor : genre.keys.major);
-  const bpm = opts.bpm ?? chooseTempo(rng, style, mood, era);
+    ? lookup(genre.styles, opts.style, 'style', rng, opts.style)
+    : genre.styles[drawnStyle]!;
+  const mode = pick(chooseMode(rng, style, mood), opts.mode);
+  const tonic = pick(
+    rng.weighted(mode === 'minor' ? genre.keys.minor : genre.keys.major), opts.tonic,
+  );
+  const bpm = pick(chooseTempo(rng, style, mood, era), opts.bpm);
   // Style overrides beat the genre default: bebop turns the rules off entirely.
   const strictness = getStrictness(opts.strictness ?? style.strictness ?? genre.defaultStrictness);
   const hook = getHook(opts.hook ?? style.hook ?? genre.defaultHook);
@@ -135,7 +181,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
   // ---- Form ------------------------------------------------------------
   const steps = buildForm(
     rng, genre, style, bpm,
-    opts.targetSeconds ?? rng.float(genre.duration[0], genre.duration[1]),
+    pick(rng.float(genre.duration[0], genre.duration[1]), opts.targetSeconds),
   );
   const liftAt = rng.chance(era.keyChangeChance) ? lastChorusIndex(steps) : -1;
   const lift = liftAt >= 0 ? rng.weighted([[1, 3], [2, 2]] as const) : 0;
@@ -157,6 +203,43 @@ export function generateSong(opts: GenerateOptions = {}): Song {
     bar += step.bars;
   }
   const totalBars = bar;
+
+  /**
+   * Which instrument answers for which layer. Needed before the section loop
+   * now, because a solo section has to know who is soloing before it can decide
+   * what register to write in — a bass solo and a trumpet solo do not share a
+   * tessitura, and the arranger lays the section out before any of it is
+   * written.
+   */
+  const layerInstruments: Record<PlayedLayer, Instrument> = {
+    bass: instruments.bass,
+    comp: instruments.comp,
+    pad: instruments.pad,
+    melody: instruments.melody,
+    counter: instruments.counter,
+    brass: instruments.brass,
+  };
+
+  /**
+   * Who takes each chorus, settled for the whole song before a note is written.
+   *
+   * It has to be settled up front rather than per section, because the rotation
+   * is a property of the *sequence*: "never the same player twice in a row" and
+   * "trade fours on the last chorus" are both statements about what the other
+   * choruses are, and a decision made one section at a time can only know about
+   * the past. See `generate/solo.ts`.
+   *
+   * The stream is the song's, not a section's, for the same reason: the whole
+   * plan is one draw and adding a solo section should not reshuffle the band.
+   */
+  const excludedLayers = new Set<LayerId>(style.excludeLayers ?? []);
+  const soloPlan = planSolos({
+    sections,
+    profile: genre.solo,
+    excluded: excludedLayers,
+    rng: new Rng(`${seed}:solo`),
+    fallback: genre.soloBacking ?? 'full',
+  });
 
   // ---- Parts -----------------------------------------------------------
   const byLayer = new Map<LayerId, NoteEvent[]>();
@@ -234,12 +317,77 @@ export function generateSong(opts: GenerateOptions = {}): Song {
 
     // Roman numerals parse to offsets *from the tonic*, so shifting by the
     // local tonic is what actually puts the song in its key.
-    const ctx: PartContext = {
+    const ctxBase = {
       chords: chords.map((c) => transposeChord(c, localTonic)),
       beatsPerBar: style.beatsPerBar,
       startBeat: section.startBar * style.beatsPerBar,
-      rng: new Rng(`${seed}:band:${s}`),
       style,
+    };
+
+    /**
+     * One stream per layer per section, rather than one stream for the whole
+     * band.
+     *
+     * The band used to share `${seed}:band:${s}`, drawing from it in the order
+     * the parts happened to be written. That was already a level finer than a
+     * single song-wide stream — see the note above about why sections are
+     * separated — and it needs one level finer still, because a shared stream
+     * means the layers are entangled: reroll the bass and the comp moves too,
+     * since it is now reading different numbers off the same tape.
+     *
+     * Splitting it is what makes `variation` mean what it says. It is also the
+     * same argument that separated the sections, applied to the other axis.
+     */
+    const salt = (layer: LayerId): string => {
+      const v = opts.variation?.[layer];
+      return v ? `:v${v}` : '';
+    };
+    const ctxFor = (layer: LayerId): PartContext => ({
+      ...ctxBase,
+      rng: new Rng(`${seed}:band:${s}:${layer}${salt(layer)}`),
+    });
+
+    /**
+     * The soloist rewrites the section's layer list.
+     *
+     * `layersFor` builds a solo section from a template — drums, bass, comp,
+     * pad, melody — which was correct when "solo" meant "the lead rests and the
+     * counter instrument takes the tune" and is wrong now that a genre names a
+     * player. Three corrections, and each of them is a thing the band actually
+     * does:
+     *
+     *  - **the soloist's layer sounds**, whoever it is. The counter instrument
+     *    was already being written into a section that did not list it, which
+     *    left `Section.activeLayers` lying to everything downstream.
+     *  - **the lead rests** unless the lead is the one soloing. That is what a
+     *    solo section is for.
+     *  - **the backing policy removes layers.** A jazz band under a blowing
+     *    chorus is bass, drums and a comper; a sustained pad through it is a
+     *    film cue. Iskelmä's `full` keeps everything, because there the pattern
+     *    continuing exactly as written *is* the policy.
+     *
+     * Done here rather than inside `layersFor`, which draws from `rng` — a
+     * change to the draws in there would reshuffle every song in the catalogue.
+     */
+    const solo = soloPlan.get(s);
+    if (solo) {
+      const layers = new Set(section.activeLayers);
+      if (solo.layer !== 'drums') layers.add(solo.layer);
+      if (solo.layer !== 'melody') layers.delete('melody');
+      if (solo.feel === 'comping' || solo.feel === 'sparse') layers.delete('pad');
+      if (solo.feel === 'sparse') layers.delete('comp');
+      // A drum chorus: the band is not playing quietly, it is not playing.
+      if (!solo.soloBars.length) {
+        for (const l of ['bass', 'comp', 'pad'] as LayerId[]) layers.delete(l);
+      }
+      section.activeLayers = [...layers];
+    }
+
+    /** Whether a beat falls inside one of a solo's bar spans. */
+    const inSpans = (beat: number, spans: readonly BarSpan[]): boolean => {
+      const from = section.startBar * style.beatsPerBar;
+      return spans.some(([a, b]) =>
+        beat >= from + a * style.beatsPerBar - 1e-6 && beat < from + b * style.beatsPerBar - 1e-6);
     };
 
     const active = new Set(section.activeLayers);
@@ -269,19 +417,60 @@ export function generateSong(opts: GenerateOptions = {}): Song {
           ordinal: seenKinds.get(next.kind) ?? 0,
         })
         : intensity;
-      drumEvents.push(...generateDrums(ctx, drumPattern, {
-        fillAtEnd: section.kind !== 'outro' && style.drumFills !== false,
+      /**
+       * The drummer's own bars are not the pattern.
+       *
+       * Where a solo hands the kit whole bars — a drum chorus, or the drummer's
+       * half of a traded eight — the written pattern is silenced there and the
+       * drum solo generator fills the hole. The fill at the section end goes
+       * with it: the solo has its own ending, and a pattern fill on top of it
+       * would be two drummers announcing the same downbeat.
+       */
+      const kitSolo = solo?.drumBars.length ? solo.drumBars : undefined;
+      const lastBarIsSolo = kitSolo !== undefined
+        && kitSolo[kitSolo.length - 1]![1] >= section.lengthBars;
+      const pattern = generateDrums(ctxFor('drums'), drumPattern, {
+        fillAtEnd: section.kind !== 'outro' && style.drumFills !== false && !lastBarIsSolo,
         intensity,
         arrival,
         palette: style.fills ?? genre.fills ?? DEFAULT_FILLS,
-      }));
+      });
+
+      const behind = kitSolo
+        ? pattern.filter((e) => !inSpans(e.beat, kitSolo))
+        : pattern;
+      drumEvents.push(...(solo ? drumsBehindSolo(behind, solo.feel) : behind));
+
+      if (kitSolo) {
+        drumEvents.push(...generateDrumSolo({
+          startBeat: section.startBar * style.beatsPerBar,
+          beatsPerBar: style.beatsPerBar,
+          bars: section.lengthBars,
+          blocks: kitSolo,
+          rng: new Rng(`${seed}:solo:${s}:kit`),
+          intensity,
+          // The crash the band comes back in on belongs to whoever is next —
+          // unless somebody else is already playing there, in which case the
+          // drummer is handing over inside the section rather than out of it.
+          landing: lastBarIsSolo,
+        }));
+      }
     }
 
-    // In a solo section the "voice" rests and the counter instrument takes the
-    // tune — which is exactly how these arrangements work.
+    /**
+     * Who is out front, and in what register.
+     *
+     * `leadLayer` used to be a two-way guess — melody, or counter in a solo
+     * section — which three separate files re-derived for themselves and which
+     * a stage cannot use at all: a follow spot cannot be pointed at an implicit
+     * convention. The genre's rotation names the player now, and this is only
+     * the lookup.
+     */
     const isSolo = section.kind === 'solo';
-    const leadLayer: LayerId = isSolo ? 'counter' : 'melody';
-    const leadInstrument = isSolo ? instruments.counter : instruments.melody;
+    const soloLayer: Exclude<SoloLayer, 'drums'> | undefined =
+      solo && solo.layer !== 'drums' ? solo.layer : undefined;
+    const leadLayer: LayerId = soloLayer ?? 'melody';
+    const leadInstrument = layerInstruments[leadLayer as PlayedLayer];
 
     /**
      * Lay the section out in register *before* writing any of it.
@@ -293,7 +482,11 @@ export function generateSong(opts: GenerateOptions = {}): Song {
     const plan = planRegisters({
       leadCentre: leadInstrument.centre,
       span: style.melody.span,
-      leadPresent: active.has('melody'),
+      // A bass solo is the one line that must *not* push the accompaniment
+      // underneath it: there is nothing underneath a bass. The `sparse` policy
+      // has already taken the comp and pad away, and the solo is given the
+      // bass's own register explicitly below.
+      leadPresent: soloLayer ? soloLayer !== 'bass' : active.has('melody'),
       clarity,
       centres: {
         comp: instruments.comp.centre,
@@ -309,38 +502,143 @@ export function generateSong(opts: GenerateOptions = {}): Song {
 
     // Keep this section's accompaniment to hand: the melody is written last, so
     // it can be checked against what the band is actually holding underneath.
-    const sectionBass = active.has('bass') ? generateBass(ctx, bassPattern) : [];
-    const sectionComp = active.has('comp')
+    // A soloist's own layer is skipped here — a bass taking a chorus is not
+    // also walking behind it, and a pianist soloing is not also comping.
+    let sectionBass = active.has('bass') && soloLayer !== 'bass'
+      ? generateBass(ctxFor('bass'), bassPattern) : [];
+    let sectionComp = active.has('comp') && soloLayer !== 'comp'
       ? generateComp(
-        ctx, compPattern, instruments.comp.centre,
+        ctxFor('comp'), compPattern, instruments.comp.centre,
         (c) => genre.scaleForChord(localTonic, mode, c),
         limitFor('comp'),
       )
       : [];
-    const sectionPad = active.has('pad')
-      ? generatePad(ctx, instruments.pad.centre, 4, limitFor('pad'))
+    let sectionPad = active.has('pad')
+      ? generatePad(ctxFor('pad'), instruments.pad.centre, 4, limitFor('pad'))
       : [];
     // Brass is written *after* the melody, below: it answers the tune's gaps
     // and swells under its held notes, so it cannot be written before there is
     // a tune to answer.
     let sectionBrass: NoteEvent[] = [];
 
+    /**
+     * What the band does behind the soloist, applied before the line is written
+     * so the vertical rules see the thinned version rather than the pattern.
+     *
+     * `comping` is the one that earns its keep. The comp gets sparser and
+     * later — it answers the soloist instead of running its figure at them —
+     * and that single transformation is what most makes a solo sound like a
+     * solo rather than like a different melody over the same accompaniment.
+     * `trade` is the other half: the band stops dead for the drummer's four and
+     * comes back in on the downbeat, which is only a filter because the notes
+     * were already written.
+     */
+    if (solo) {
+      const backRng = new Rng(`${seed}:solo:${s}:back`);
+      if (solo.feel === 'comping') sectionComp = compBehindSolo(sectionComp, backRng);
+      if (solo.drumBars.length) {
+        const hush = (notes: NoteEvent[]) => notes.filter((n) => !inSpans(n.beat, solo.drumBars));
+        sectionBass = hush(sectionBass);
+        sectionComp = hush(sectionComp);
+        sectionPad = hush(sectionPad);
+      }
+    }
+
     const accompaniment = buildAccompaniment([sectionBass, sectionComp, sectionPad]);
     let sectionMelody: NoteEvent[] = [];
 
-    if (active.has('melody')) {
+    if (solo && soloLayer && genre.solo) {
+      /**
+       * The chorus itself.
+       *
+       * Written into the soloist's own layer, which is what makes
+       * `Section.solo.layer` mean something to everything downstream — the
+       * spotlight, the hook report and the recall check all read it rather than
+       * re-deriving "solo means counter" for themselves.
+       *
+       * A bass solo gets the neck rather than the arranger's lead window. A
+       * bassist soloing plays in the octave above where they walk, and handing
+       * them the horn's register would put the line where the instrument does
+       * not exist.
+       */
+      const soloInstrument = layerInstruments[soloLayer as PlayedLayer];
+      const range: [number, number] = soloLayer === 'bass'
+        ? [soloInstrument.centre - 2, soloInstrument.centre + 20]
+        : plan.lead;
+      /**
+       * The tune, for a genre whose break paraphrases rather than improvises.
+       *
+       * Taken from whatever the song has already stated at this length — the
+       * chorus if there is one, otherwise the verse. `generate/solo.ts` reads
+       * only its *contour*, in scale steps, so nothing has to be transposed and
+       * a break after a key change still quotes the right shape.
+       */
+      const stated = genre.solo.vocabulary.paraphrase > 0
+        ? remembered.get(`chorus:${section.lengthBars}`)
+          ?? remembered.get(`verse:${section.lengthBars}`)
+        : undefined;
+
+      const line = generateSolo({
+        chords: ctxBase.chords,
+        beatsPerBar: style.beatsPerBar,
+        startBeat: ctxBase.startBeat,
+        rng: new Rng(`${seed}:solo:${s}${salt(soloLayer)}`),
+        range,
+        tonic: localTonic,
+        mode,
+        scaleForChord: genre.scaleForChord,
+        vocabulary: genre.solo.vocabulary,
+        blocks: solo.soloBars,
+        chorus: solo.index,
+        choruses: solo.total,
+        intensity,
+        strictness: strictness.level,
+        rules,
+        accompaniment,
+        agility: soloInstrument.agility,
+        idiom: IDIOMS[soloInstrument.idiom],
+        motto,
+        quoteMotto: genre.solo.quoteMotto ?? 0,
+        swing: style.swing,
+        ...(stated?.melody ? { theme: stated.melody } : {}),
+        /**
+         * Only the lead layer may write backwards across the section join.
+         *
+         * Coming in before the downbeat is the most characteristic entrance a
+         * soloist has, and it is safe on the melody layer for the same reason
+         * the melody engine's own anacrusis is: whatever it lands on top of is
+         * that layer's previous cadence, and the concatenation trim clips it.
+         *
+         * It is not safe anywhere else, and the check caught it. A counter
+         * pickup lands inside the previous section, where the *melody* is still
+         * playing, and the two layers are never compared — 2.2% of overlapping
+         * counter notes ended up doubling the tune at the unison or octave,
+         * which `npm run genres` asserts must never happen. A comp or bass
+         * pickup is worse still: it sounds on top of a chord that is still
+         * ringing and nothing downstream would clear it.
+         */
+        pickupBeats: soloLayer === 'melody' ? 1 : 0,
+      });
+      applyDynamics(line, soloLayer, intensity);
+      push(byLayer, soloLayer, line);
+      sectionMelody = line;
+    } else if (active.has('melody')) {
       const range: [number, number] = plan.lead;
       const melody = replayTune && prior?.melody
-        ? replay(prior.melody, prior.tonic, localTonic, ctx.startBeat, range)
+        ? replay(prior.melody, prior.tonic, localTonic, ctxBase.startBeat, range)
         : generateMelody({
-          chords: ctx.chords,
+          chords: ctxBase.chords,
           beatsPerBar: style.beatsPerBar,
           style,
-          rng: new Rng(`${seed}:melody:${s}`),
+          // Salted like every other layer. Without it `variation: { melody }`
+          // was a no-op on the one layer it names — the melody stream was the
+          // only one that never read the salt, so a hit singer came back
+          // playing exactly what they had been playing.
+          rng: new Rng(`${seed}:melody:${s}${salt('melody')}`),
           tonic: localTonic,
           mode,
           range,
-          startBeat: ctx.startBeat,
+          startBeat: ctxBase.startBeat,
           ornamentScale: mood.ornament,
           leapScale: mood.leap,
           soloistic: isSolo,
@@ -350,10 +648,9 @@ export function generateSong(opts: GenerateOptions = {}): Song {
           accompaniment,
           scaleForChord: genre.scaleForChord,
           rules,
-          // The instrument actually playing this line — the counter instrument
-          // takes over in solo sections. Its idiom decides whether the line
-          // breaks chords, runs up scales, or stops to breathe; its agility
-          // decides how far it can reach.
+          // The instrument actually playing this line. Its idiom decides
+          // whether the line breaks chords, runs up scales, or stops to
+          // breathe; its agility decides how far it can reach.
           agility: leadInstrument.agility,
           idiom: IDIOMS[leadInstrument.idiom],
         });
@@ -363,11 +660,14 @@ export function generateSong(opts: GenerateOptions = {}): Song {
 
       // Solos are never remembered, so this only ever stores an actual tune.
       if (memory && !memory.melody && !isSolo) {
-        memory.melody = melody.map((n) => ({ ...n, beat: n.beat - ctx.startBeat }));
+        memory.melody = melody.map((n) => ({ ...n, beat: n.beat - ctxBase.startBeat }));
       }
 
       if (!isSolo && active.has('counter')) {
-        const counterCtx: PartContext = { ...ctx, rng: new Rng(`${seed}:counter:${s}`) };
+        const counterCtx: PartContext = {
+          ...ctxBase,
+          rng: new Rng(`${seed}:counter:${s}${salt('counter')}`),
+        };
         const answer = generateCounter(counterCtx, melody, instruments.counter.centre, {
           range: plan.counter,
           idiom: IDIOMS[instruments.counter.idiom],
@@ -376,6 +676,40 @@ export function generateSong(opts: GenerateOptions = {}): Song {
         applyDynamics(answer, 'counter', intensity);
         push(byLayer, 'counter', answer);
       }
+    }
+
+    /**
+     * Name the soloist on the section, and only where one is actually playing.
+     *
+     * The guard is the point. A solo section whose nominal soloist wrote no
+     * notes — a style that excluded their layer, a block that got trimmed to
+     * nothing — has no soloist, and claiming one would put a follow spot on
+     * silence. That is a worse failure than no spotlight at all, which is the
+     * whole reason this engine exists.
+     */
+    if (solo && (soloLayer ? sectionMelody.length > 0 : active.has('drums'))) {
+      section.solo = {
+        layer: solo.layer,
+        /**
+         * A drum kit is not a `Track`, so there is no `Track.instrument` for
+         * this to match. `'drum kit'` is the honest human name and the one a
+         * showbill would print; a bank name like "LinnDrum" is a sample set
+         * rather than an instrument. See the note in `core/types.ts`.
+         */
+        instrument: soloLayer ? layerInstruments[soloLayer as PlayedLayer].name : 'drum kit',
+        backing: solo.backing,
+        // The plan already worked out who has which bars; surfacing it stops
+        // every consumer from re-deriving "trading means fours" and being
+        // wrong about a drum chorus, which trades nothing.
+        ...(solo.backing === 'trade'
+          ? {
+            blocks: {
+              soloBars: solo.soloBars.map((b) => [b[0], b[1]] as [number, number]),
+              drumBars: solo.drumBars.map((b) => [b[0], b[1]] as [number, number]),
+            },
+          }
+          : {}),
+      };
     }
 
     // The ceiling was a forecast; this is the correction. Now that the tune
@@ -390,7 +724,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
     });
 
     if (active.has('brass')) {
-      sectionBrass = generateBrass(ctx, instruments.brass.centre, limitFor('brass'), {
+      sectionBrass = generateBrass(ctxFor('brass'), instruments.brass.centre, limitFor('brass'), {
         melody: sectionMelody,
         intensity,
       });
@@ -408,8 +742,8 @@ export function generateSong(opts: GenerateOptions = {}): Song {
     applyDynamics(sectionBrass, 'brass', intensity);
     // Sustained parts get a swell on top, because a held chord at one fixed
     // level is the sound of a patch rather than of a player.
-    swell(sectionPad, ctx.startBeat, sectionBeats, 0.35);
-    swell(sectionComp, ctx.startBeat, sectionBeats, 0.12);
+    swell(sectionPad, ctxBase.startBeat, sectionBeats, 0.35);
+    swell(sectionComp, ctxBase.startBeat, sectionBeats, 0.12);
 
     push(byLayer, 'bass', sectionBass);
     push(byLayer, 'comp', sectionComp);
@@ -418,15 +752,6 @@ export function generateSong(opts: GenerateOptions = {}): Song {
   }
 
   // ---- Assemble --------------------------------------------------------
-  const layerInstruments: Record<PlayedLayer, Instrument> = {
-    bass: instruments.bass,
-    comp: instruments.comp,
-    pad: instruments.pad,
-    melody: instruments.melody,
-    counter: instruments.counter,
-    brass: instruments.brass,
-  };
-
   /**
    * The default balance is a dance-band balance: the tune on top, the pad a
    * long way behind it. A genre may say otherwise, and ambient does — there the
@@ -473,6 +798,28 @@ export function generateSong(opts: GenerateOptions = {}): Song {
   for (const [layer, instrument] of Object.entries(layerInstruments) as [PlayedLayer, Instrument][]) {
     const notes = byLayer.get(layer) ?? [];
     if (!notes.length) continue;
+
+    /**
+     * Put the part inside the instrument playing it.
+     *
+     * The register planner works in `centre`s — where a layer should *sit* —
+     * and nothing until now knew where an instrument *stops*. So a clarinet
+     * handed the pad layer got written down to C2 on 31% of its notes, and a
+     * comping vibraphone went below its bottom F on 7%. Neither is audible as
+     * an error, because a soundfont plays whatever it is sent; both are
+     * audible as the instrument not sounding like itself, which is the entire
+     * reason for having chosen it.
+     *
+     * Folding by octave rather than clamping keeps the harmony intact — an
+     * octave transposition of a chord tone is still that chord tone, where
+     * clamping would pile a voicing into a cluster on the lowest note.
+     *
+     * Done here, once, after every part is written and after collision repair
+     * has had its say, so nothing downstream can push a note back out.
+     */
+    const range = rangeOfInstrument(instrument);
+    for (const n of notes) n.midi = foldIntoRange(n.midi, range);
+
     notes.sort((a, b) => a.beat - b.beat || a.midi - b.midi);
     const effects = effectsFor(layer);
     tracks.push({
@@ -600,14 +947,24 @@ function fitToRange(midi: number, [lo, hi]: [number, number]): number {
 }
 
 /** Look a table entry up by id, or pick one at random when unspecified. */
+/**
+ * Draw from the table, then let an explicit id win.
+ *
+ * The draw happens either way. See the note in `generateSong`: skipping it when
+ * the caller already knows the answer is what made a song irreproducible from
+ * its own metadata.
+ */
 function lookup<T>(table: Record<string, T>, id: string | undefined, what: string, rng: Rng, fallback?: string): T {
-  if (id) {
-    const found = table[id];
-    if (!found) throw new Error(`Unknown ${what} "${id}". Known: ${Object.keys(table).join(', ')}`);
-    return found;
-  }
   const key = fallback ?? rng.pick(Object.keys(table));
-  return table[key]!;
+  if (id === undefined) return table[key]!;
+  const found = table[id];
+  if (!found) throw new Error(`Unknown ${what} "${id}". Known: ${Object.keys(table).join(', ')}`);
+  return found;
+}
+
+/** The drawn value, unless the caller specified one. Both are always evaluated. */
+function pick<T>(drawn: T, override: T | undefined): T {
+  return override === undefined ? drawn : override;
 }
 
 function chooseStyle(rng: Rng, genre: Genre, era: EraProfile, mood: Mood): string {

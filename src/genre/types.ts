@@ -26,12 +26,15 @@ import type { Chord } from '../core/chord.js';
 import type { Pc } from '../core/pitch.js';
 import type { Rng } from '../core/rng.js';
 import type { Mode, Scale } from '../core/scale.js';
-import type { DrumVoice, Effects, LayerId, SectionKind, Space } from '../core/types.js';
+import type {
+  BackingPolicy, DrumVoice, Effects, LayerId, SectionKind, Space,
+} from '../core/types.js';
 import type { RuleOverrides, StrictnessId } from '../generate/constraints.js';
 import type { HookId } from '../generate/hook.js';
 import type { EraProfile, Mood, Style } from '../style/types.js';
 import type { VocalProfile } from '../style/vocals.js';
 import type { FillPalette } from '../generate/fills.js';
+import type { SoloProfile } from '../generate/solo.js';
 
 export interface FormStep {
   kind: SectionKind;
@@ -90,6 +93,31 @@ export interface Genre {
   ruleOverrides?: RuleOverrides;
   /** Default fill vocabulary for the genre's styles. See `generate/fills.ts`. */
   fills?: FillPalette;
+
+  /**
+   * What the band plays underneath a solo section. Defaults to `full`.
+   *
+   * Whether the rhythm section carries on unchanged, thins out and answers, or
+   * stops dead for four bars is a *genre* fact — a tanssilava band never stops,
+   * and a jazz rhythm section that never reacts is not comping. This is the
+   * fallback; `solo.backing` may name a different policy per soloist, because
+   * what the band does behind a bass solo is not what it does behind a horn.
+   */
+  soloBacking?: BackingPolicy;
+
+  /**
+   * Who solos, over what, and in what language. Absent means the genre has no
+   * solos and its forms contain no `solo` sections — which is a statement about
+   * the music rather than an omission. See `generate/solo.ts`.
+   *
+   * This is the largest genre-owned table after the styles themselves, and it
+   * has to be genre-owned for the same reason `scaleForChord` does: a jazz
+   * chorus and an iskelmä instrumental break are not two settings of one
+   * system. One is improvisation over the changes and the other is the tune
+   * with more notes in it, and generating the second by turning the first down
+   * would be wrong about the genre rather than merely tame.
+   */
+  solo?: SoloProfile;
 
   /**
    * Which scale the melody should draw on for a given chord.

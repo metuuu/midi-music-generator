@@ -16,14 +16,13 @@
  * keeps the output readable; see `dynamicGrid`.
  */
 
+import { SLOTS_PER_BEAT, slotOf } from '../core/grid.js';
 import { midiToNoteName, spellingFor } from '../core/pitch.js';
 import { resolveVoice } from './drum-banks.js';
 import type { DrumVoice, Effects, NoteEvent, Song, Track, Vowel } from '../core/types.js';
 import {
   CONSONANTS, FORMANT_BANDWIDTHS, FORMANT_GAINS, VOWEL_FORMANTS,
 } from '../style/vocals.js';
-
-const SLOTS_PER_BEAT = 4;
 
 export interface StrudelRenderOptions {
   /** Emit the `samples()` / soundfont preamble. Off when embedding in the demo page. */
@@ -91,7 +90,7 @@ export function renderStrudel(song: Song, opts: StrudelRenderOptions = {}): stri
   const byVoice = new Map<DrumVoice, number[][]>();
   for (const e of song.drums.events) {
     const bar = Math.floor(e.beat / meta.beatsPerBar);
-    const slot = Math.round((e.beat - bar * meta.beatsPerBar) * SLOTS_PER_BEAT);
+    const slot = slotOf(e.beat - bar * meta.beatsPerBar);
     if (bar < 0 || bar >= meta.totalBars) continue;
     let grid = byVoice.get(e.voice);
     if (!grid) {
@@ -220,7 +219,6 @@ function buildNoteGrid(
     Array.from({ length: slotsPerBar }, () => '~'),
   );
   const totalSlots = totalBars * slotsPerBar;
-  const slotOf = (beat: number) => Math.round(beat * SLOTS_PER_BEAT);
 
   const onsets = new Map<number, string[]>();
   /**
@@ -475,7 +473,7 @@ function buildValueGrid(
 
   const onsets = new Map<number, NoteEvent>();
   for (const n of notes) {
-    const slot = Math.round(n.beat * SLOTS_PER_BEAT);
+    const slot = slotOf(n.beat);
     if (slot < 0 || slot >= totalSlots) continue;
     onsets.set(slot, n);
   }
@@ -519,7 +517,7 @@ function buildOnsetGrid(
   for (const n of notes) {
     const token = tokenOf(n);
     if (!token) continue;
-    const slot = Math.round(n.beat * SLOTS_PER_BEAT);
+    const slot = slotOf(n.beat);
     if (slot < 0 || slot >= totalSlots) continue;
     grid[Math.floor(slot / slotsPerBar)]![slot % slotsPerBar] = token;
   }

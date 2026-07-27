@@ -86,6 +86,75 @@ export const jazz: Genre = {
   // consistency without locking rhythms or narrowing the vocabulary.
   defaultHook: 'loose',
 
+  // The rhythm section reacts to a soloist rather than running its pattern at
+  // them. This is what "comping" means and it is not optional in the idiom —
+  // a jazz band that plays the head arrangement under a blowing chorus is a
+  // jazz band playing a backing track.
+  soloBacking: 'comping',
+
+  /**
+   * Improvisation, and the reason the solo engine is worth building.
+   *
+   * The rotation is the bandstand's: the front-line horn first, then whoever
+   * is comping, then the second horn, and — rarely, because they are rare —
+   * the bass and the kit. `planSolos` refuses to give anyone two choruses in a
+   * row and refuses to open the blowing on the drums, so this table only has
+   * to say who is *available* and how often.
+   *
+   * The vocabulary numbers are where the idiom actually lives:
+   *
+   *  - `offbeatAccent` at 0.9. Swung eighths with the weight on the *and* is
+   *    most of what separates a jazz line from the same pitches played
+   *    correctly. Nothing else in this generator accents off the beat.
+   *  - `enclosure` at 0.55. Approaching a guide tone from above and below is
+   *    the single most characteristic bebop gesture, and it is chromatic by
+   *    construction — which is why `chromatic-tone` is disabled in the rule
+   *    overrides above rather than why the solo engine ignores the rules.
+   *  - `develop` at 0.72. High, because the difference between a solo and a
+   *    string of licks is whether the second phrase is *about* the first.
+   *  - `space` at 0.22, which comes out as a quarter of the chorus's beats
+   *    having nothing start in them once the phrase gaps and the two bars the
+   *    arc hands back are counted. Lower and the line never stops; higher and
+   *    it stops being a chorus and starts being a series of remarks.
+   *  - `paraphrase` at 0. Jazz states the head and then leaves it. A solo that
+   *    ornaments the tune is a different genre's break.
+   */
+  solo: {
+    rotation: [['melody', 6], ['comp', 4], ['counter', 3], ['bass', 1.5], ['drums', 1]],
+    // Better than half the time, and never every time. See `tradeFours`.
+    tradeFours: 0.6,
+    // Not every chorus, and never more than one quote in a chorus: the point of
+    // hearing the tune's figure in the solo is that it is unexpected.
+    quoteMotto: 0.4,
+    backing: {
+      melody: 'comping', counter: 'comping', comp: 'comping',
+      // A bass solo thins the backing to almost nothing — comp out, drums to
+      // brushes. That contrast *is* the bass solo, and a bass solo staged badly
+      // is worse than not having one, because the audience cannot hear it.
+      bass: 'sparse',
+      drums: 'trade',
+    },
+    vocabulary: {
+      gait: 0.5,
+      doubleTime: 0.22,
+      offbeatAccent: 0.9,
+      enclosure: 0.55,
+      chromatic: 0.5,
+      // Zero, and not an oversight. A bebop player's decoration is the
+      // chromatic approach note; a crushed grace before the beat is a
+      // dance-band gesture and belongs to the genre that owns it.
+      ornament: 0,
+      develop: 0.72,
+      displace: 0.5,
+      space: 0.22,
+      climb: 3,
+      paraphrase: 0,
+      // The head comes back with a tune of its own; a soloist still climbing
+      // into it is playing over it.
+      liftIntoReturn: 0.12,
+    },
+  },
+
   /**
    * Where jazz disagrees with the shared rule table.
    *
