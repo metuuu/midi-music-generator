@@ -338,6 +338,9 @@ function whereInRange(midi: Midi, [lo, hi]: [Midi, Midi]): number {
 // Reach
 // ---------------------------------------------------------------------------
 
+/** The two limbs that play a pitched line, whatever they are holding. */
+type Hand = 'left-hand' | 'right-hand';
+
 /**
  * The span of pitch one hand can cover in a single grab, in semitones.
  *
@@ -347,6 +350,51 @@ function whereInRange(midi: Midi, [lo, hi]: [Midi, Midi]): number {
  */
 function handSpanSemitones(archetype: Archetype): number {
   return archetype === 'mallets' ? 10 : 12;
+}
+
+/**
+ * The widest chord one hand will actually be given, in semitones, and why that
+ * is not the same number as the stretch above.
+ *
+ * `handSpanSemitones` answers "can the thumb and the little finger reach the
+ * ends of this", and answering "does this go to one hand" with it put the
+ * busier hand on 72.2% of a chordal keyboard part's notes, with one hand
+ * playing **every** note of 9.0% of them. That is the same failure `malletPart`
+ * was written to fix and it survived here because a keyboard is genuinely
+ * played one-handed often enough that the symptom looks like the idiom. With
+ * the two questions separated the same corpus reads 68.6% and 5.9%.
+ *
+ * A part that is genuinely a *line* is untouched by any of this and stays
+ * one-handed 92.7% of the time, which is correct: a pianist playing a melody
+ * plays it with one hand. Making both hands busy on those is the generator's
+ * job, not this one's — see `Style.twoHanded`.
+ *
+ * Two questions were being answered with one number, and they come apart as
+ * soon as the chord has more than two notes in it:
+ *
+ *  - **Three notes inside an octave are one grab.** Thumb, a finger and the
+ *    little finger; a pianist would be surprised to be asked for two hands, and
+ *    the rootless left-hand shell this generator writes is exactly this shape.
+ *  - **Four notes inside an octave are two hands.** Not because the octave is
+ *    out of reach — physically it is one hand — but because a four-note voicing
+ *    is *voiced* in two: the shell below and the colour tones above. It is what
+ *    a pianist does bar after bar, and the four-note guide voicing behind every
+ *    jazz comp in the catalogue is the single most common chord here.
+ *
+ * So width decides up to three notes and stops deciding at four, where there is
+ * no span at which one hand is the answer. The generator's voicings measure a
+ * median of nine semitones and a mean of eleven, mostly in four voices — which
+ * is precisely the band that used to land on the one-hand side of a twelve and
+ * now lands where a pianist puts it.
+ *
+ * The mallet player is exempt and keeps the stretch: two sticks in one hand
+ * have no fingers to fit between, so their only limit is reach. They do not
+ * reach this function anyway — `malletPart` has its own rules — and the guard
+ * is here so that stops being true silently.
+ */
+function grabSpan(archetype: Archetype, notes: number): number {
+  if (archetype === 'mallets') return handSpanSemitones(archetype);
+  return notes >= 4 ? -1 : handSpanSemitones(archetype);
 }
 
 /**
@@ -523,11 +571,18 @@ function playPart(
   const reach = reachFor(spec, track);
   switch (performer.archetype) {
     case 'accordion':
-      keyboardPart(groups, spec, reach, board, { kind: 'press', split: ACCORDION_BUTTON_TOP });
-      bellowsPart(groups, board);
+      // The bellows are planned first because the keys have to carry the plan:
+      // the left hand is on a box that moves, and a note has to say where the
+      // box was when it sounded. See `bellowsPart`.
+      keyboardPart(groups, spec, reach, board, {
+        kind: 'press', split: ACCORDION_BUTTON_TOP, bellows: bellowsPart(groups, board),
+      });
       return;
     case 'mallets':
-      keyboardPart(groups, spec, reach, board, { kind: 'strike' });
+      // Not a keyboard. See `malletPart` — two sticks is a different problem
+      // from ten fingers, and running it through `keyboardPart` left one arm
+      // hanging over the middle of the instrument for whole numbers at a time.
+      malletPart(groups, reach, board);
       return;
     case 'organ':
       keyboardPart(groups, spec, reach, board, { kind: 'press', pedalboardTop: ORGAN_MANUAL_BOTTOM });
@@ -731,38 +786,58 @@ interface KeyboardOptions {
   pedalboardTop?: number;
   /** Emit `string` points instead of `key` points. Harp. */
   asString?: boolean;
+  /**
+   * How far open the bellows are at each note group, from `bellowsPart`.
+   *
+   * Accordion only. Indexed by group, so it is the one thing in here that has
+   * to line up with the loop below rather than being a flag.
+   */
+  bellows?: number[];
 }
 
 /**
  * Two hands over a line of pitch.
  *
  * The interesting case is a chord, and the rule is the one a pianist would
- * describe: if the voicing fits under one hand, one hand takes it; if it does
- * not, it is split at its widest interval and the halves go low-to-left,
+ * describe: if the voicing is something one hand *grabs*, one hand takes it; if
+ * it is not, it is split at its widest interval and the halves go low-to-left,
  * high-to-right. Measured across all three genres the median voicing this
- * generator writes spans nine semitones and the widest spans twenty-three, so
- * both branches are live and neither is an edge case.
+ * generator writes spans nine semitones in four voices and the widest spans
+ * twenty-three, so both branches are live and neither is an edge case.
+ *
+ * **What counts as a grab is `grabSpan`, not the stretch**, and that distinction
+ * is the whole of a fix. See there.
  *
  * Splitting *at the widest interval* rather than in the middle matters: a
  * rootless voicing with the bass an octave below and three close notes on top is
  * one note in the left hand and a grab in the right, which is how it is actually
  * played. Splitting by count would put the hands in two impossible positions.
+ *
+ * Both halves then update `at`, which is what makes the assignment stateful
+ * rather than a per-chord decision: once a two-handed voicing has put the left
+ * hand low and the right hand high, the single notes between them go to
+ * whichever hand is already on that side of the keyboard. A pianist comping a
+ * chord and then answering it with one finger does not swap hands to do it, and
+ * before the split existed there was nothing to stop them.
  */
 function keyboardPart(
   groups: NoteEvent[][], spec: ArchetypeSpec, reach: [Midi, Midi],
   board: Board, opts: KeyboardOptions,
 ): void {
-  const span = handSpanSemitones(spec.id);
   // Hands start a third and two thirds of the way up, which is where they sit
   // on a keyboard nobody is playing yet.
-  const at: Record<'left-hand' | 'right-hand', number> = { 'left-hand': 0.35, 'right-hand': 0.6 };
+  const at: Record<Hand, number> = { 'left-hand': 0.35, 'right-hand': 0.6 };
   let footAt = 0.05;
 
-  const point = (midi: Midi): PlayPoint => (opts.asString
+  const point = (midi: Midi, bellows?: number): PlayPoint => (opts.asString
     ? { kind: 'string', string: midi - reach[0], fret: 0 }
-    : { kind: 'key', midi });
+    : { kind: 'key', midi, ...(bellows === undefined ? {} : { bellows }) });
 
-  for (const group of groups) {
+  for (const [index, group] of groups.entries()) {
+    // Bound to this group's bellows before it is handed to `map`, which would
+    // otherwise pass the array index in as the second argument.
+    const air = opts.bellows?.[index];
+    const pointHere = (midi: Midi): PlayPoint => point(midi, air);
     const beat = quantise(group[0]!.beat);
     const sustain = Math.max(...group.map((n) => n.duration));
     const force = Math.max(...group.map((n) => n.velocity));
@@ -775,7 +850,7 @@ function keyboardPart(
         const where = whereInRange(mean(feet), reach);
         board.place({
           effector: 'left-foot', beat, kind: opts.kind, travel: Math.abs(where - footAt),
-          force, sustainBeats: sustain, targets: feet.map(point),
+          force, sustainBeats: sustain, targets: feet.map(pointHere),
         });
         footAt = where;
       }
@@ -788,7 +863,10 @@ function keyboardPart(
       // chord buttons and the right hand is on a keyboard, and they are separate
       // instruments that happen to share a box.
       clusters = [midis.filter((m) => m < opts.split!), midis.filter((m) => m >= opts.split!)];
-    } else if (midis.length === 1 || (midis[midis.length - 1]! - midis[0]!) <= span) {
+    } else if (
+      midis.length === 1
+      || (midis[midis.length - 1]! - midis[0]!) <= grabSpan(spec.id, midis.length)
+    ) {
       clusters = [[], []];
       const where = whereInRange(mean(midis), reach);
       const hand = chooseHand(board, beat, where, at, opts.kind);
@@ -798,7 +876,7 @@ function keyboardPart(
       clusters = [midis.slice(0, cut), midis.slice(cut)];
     }
 
-    const hands: ['left-hand', 'right-hand'] = ['left-hand', 'right-hand'];
+    const hands: [Hand, Hand] = ['left-hand', 'right-hand'];
     for (let i = 0; i < 2; i++) {
       const cluster = clusters[i]!;
       if (!cluster.length) continue;
@@ -806,7 +884,7 @@ function keyboardPart(
       const where = whereInRange(mean(cluster), reach);
       board.place({
         effector: hand, beat, kind: opts.kind, travel: Math.abs(where - at[hand]),
-        force, sustainBeats: sustain, targets: cluster.map(point),
+        force, sustainBeats: sustain, targets: cluster.map(pointHere),
       });
       at[hand] = where;
     }
@@ -823,9 +901,9 @@ function keyboardPart(
  */
 function chooseHand(
   board: Board, beat: number, where: number,
-  at: Record<'left-hand' | 'right-hand', number>, kind: GestureKind,
-): 'left-hand' | 'right-hand' {
-  const cost = (hand: 'left-hand' | 'right-hand'): number => {
+  at: Record<Hand, number>, kind: GestureKind,
+): Hand {
+  const cost = (hand: Hand): number => {
     const travel = Math.abs(where - at[hand]);
     const crosses = hand === 'left-hand' ? where > at['right-hand'] : where < at['left-hand'];
     return travel
@@ -835,35 +913,265 @@ function chooseHand(
   return cost('left-hand') <= cost('right-hand') ? 'left-hand' : 'right-hand';
 }
 
+// ---------------------------------------------------------------------------
+// Mallets
+// ---------------------------------------------------------------------------
+
+/**
+ * Two sticks over a line of pitch, which is not the same problem as two hands.
+ *
+ * Mallets used to go through `keyboardPart`, and that is a *pianist's* rule:
+ * each hand owns a region of the keyboard and a note goes to whichever region
+ * it falls in. It is right for ten fingers and wrong for two sticks, because a
+ * pianist's region is as wide as their hand and a vibraphonist's is as wide as
+ * their arm — so on a part that sits inside one octave, which is most of what
+ * this generator writes, one region swallowed the whole line.
+ *
+ * Measured over 128 staged mallet parts before this existed: the busier hand
+ * took **77% of the notes on average and every single note on 29% of them**. A
+ * vibraphonist playing a whole number with one arm while the other hangs over
+ * the middle of the instrument is the most obviously wrong thing a mallet
+ * player can do, and it is also why the hands never went anywhere — a part
+ * spanning fifteen semitones is 38 cm of a 1.35 m instrument, and half of that
+ * again if only one hand ever crosses it.
+ *
+ * A percussionist alternates. That single difference is what puts both sticks
+ * on the bars and keeps them travelling along the row, and it is the reason a
+ * mallet player's hands visibly cross the instrument where a pianist's do not.
+ * Three rules, in order:
+ *
+ *  - **Alternate.** The stick that did not play the last note plays this one.
+ *  - **Do not cross by more than a stick's own span.** Left stays below right
+ *    at the scale that reads from the audience; inside a hand's span the two
+ *    interleave freely, which is what alternating through a close line
+ *    actually looks like. Without the limit an arpeggio plaits the arms;
+ *    with it set any tighter, a part inside one octave collapses back to one
+ *    stick, because in a narrow band every alternation is a small crossing.
+ *  - **Do not ask for the impossible.** A stick still coming back from the far
+ *    end of the row cannot make the next note, so the other one takes it —
+ *    a double stroke, and `Board.canReach` is the same test the kit's sticking
+ *    already uses for the same reason.
+ *
+ * A chord is split rather than stuck: at its widest interval, low notes to the
+ * left stick and high to the right. That is what a player does and it is also
+ * the only way two mallets reach three bars.
+ */
+function malletPart(groups: NoteEvent[][], reach: [Midi, Midi], board: Board): void {
+  /**
+   * How far a stick may stray onto the other stick's side, as a fraction of the
+   * row. One hand span, so the rule bites at a crossover and nowhere else.
+   */
+  const slack = handSpanSemitones('mallets') / Math.max(1, reach[1] - reach[0]);
+  // Where the sticks start: a third and two thirds up, over a row nobody is
+  // playing yet. Only the first note reads these — after that the sticks are
+  // wherever the line has taken them — so they are a plausible opening stance
+  // rather than a claim about who owns which end.
+  const at: Record<Hand, number> = { 'left-hand': 0.35, 'right-hand': 0.6 };
+  /**
+   * Which stick played last, or nothing after a chord.
+   *
+   * A chord is struck by both, so neither of them is "the one that went last"
+   * and there is nothing to alternate away from. The note after it goes to the
+   * nearer free stick instead, which is where alternation picks up again.
+   */
+  let last: Hand | undefined;
+
+  for (const group of groups) {
+    const beat = quantise(group[0]!.beat);
+    const sustain = Math.max(...group.map((n) => n.duration));
+    const force = Math.max(...group.map((n) => n.velocity));
+    const midis = group.map((n) => foldIntoReach(n.midi, reach)).sort((a, b) => a - b);
+
+    let clusters: [Midi[], Midi[]];
+    if (midis.length === 1) {
+      const hand = stickFor(board, beat, whereInRange(midis[0]!, reach), at, last, slack);
+      clusters = hand === 'left-hand' ? [midis, []] : [[], midis];
+      last = hand;
+    } else {
+      const cut = widestGap(midis);
+      clusters = [midis.slice(0, cut), midis.slice(cut)];
+      last = undefined;
+    }
+
+    const hands: [Hand, Hand] = ['left-hand', 'right-hand'];
+    for (let i = 0; i < 2; i++) {
+      const cluster = clusters[i]!;
+      if (!cluster.length) continue;
+      const hand = hands[i]!;
+      const where = whereInRange(mean(cluster), reach);
+      board.place({
+        effector: hand, beat, kind: 'strike', travel: Math.abs(where - at[hand]),
+        force, sustainBeats: sustain, targets: cluster.map((midi) => ({ kind: 'key', midi })),
+      });
+      at[hand] = where;
+    }
+  }
+}
+
+/**
+ * Which stick takes a single note: alternation, overruled by crossing and by
+ * physics, in that order.
+ *
+ * The fallbacks at the bottom are not decoration. Both sticks can be
+ * compromised at once — a fast line at the very top of the row leaves the left
+ * stick permanently crossing and the right stick permanently late — and a
+ * chooser that returned nothing in that case would have to be handled by its
+ * caller, which is worse than answering "the one that is free", then "the one
+ * that is near".
+ */
+function stickFor(
+  board: Board, beat: number, where: number,
+  at: Record<Hand, number>, last: Hand | undefined, slack: number,
+): Hand {
+  const other = (h: Hand): Hand => (h === 'left-hand' ? 'right-hand' : 'left-hand');
+  const gap = (h: Hand): number => Math.abs(where - at[h]);
+  const free = (h: Hand): boolean => board.canReach(h, beat, gap(h), 'strike');
+  const crosses = (h: Hand): boolean => (h === 'left-hand'
+    ? where > at['right-hand'] + slack
+    : where < at['left-hand'] - slack);
+
+  const want = last
+    ? other(last)
+    : gap('left-hand') <= gap('right-hand') ? 'left-hand' : 'right-hand';
+  if (!crosses(want) && free(want)) return want;
+  const alt = other(want);
+  if (!crosses(alt) && free(alt)) return alt;
+  if (free(want) !== free(alt)) return free(want) ? want : alt;
+  return gap(want) <= gap(alt) ? want : alt;
+}
+
+/**
+ * How far the bellows are allowed to travel, 0 shut .. 1 fully out, and where a
+ * number starts.
+ *
+ * The margins are not decoration. A bellows run to either stop is a bellows
+ * that has to change direction *now*, whatever the music is doing, and a player
+ * arranges never to be there — so the plan turns round inside them and the ends
+ * stay as headroom for a phrase that runs long.
+ */
+const BELLOWS_FLOOR = 0.08;
+const BELLOWS_CEIL = 0.94;
+/** Mostly shut, with the pull still in hand. Which is how you pick one up. */
+const BELLOWS_START = 0.28;
+
+/**
+ * How much of the box one beat of sound costs at full volume.
+ *
+ * The whole of "keep track of if there is enough range to play". A free reed
+ * spends air for as long as it sounds, so a held chord costs what a held chord
+ * costs and a staccato flick costs almost nothing — which is why an
+ * accordionist's box drifts steadily under a sustained line and barely moves
+ * under a comping pattern. At 0.14 a loud sustained line crosses the whole
+ * travel in about seven beats, near enough two bars, which is where a real
+ * player turns round.
+ */
+const AIR_PER_BEAT = 0.14;
+/** A chord opens more reeds than a single note, though not proportionally. */
+const AIR_PER_EXTRA_NOTE = 0.12;
+/** Longest note the air model will believe. A whole-note pad is not a drone. */
+const AIR_MAX_BEATS = 4;
+/**
+ * How little room has to be left before a phrase join is taken as the moment to
+ * turn round.
+ *
+ * The direction changes when the air runs out — that is the rule — but a player
+ * who can see the end coming would rather change at the join than four notes
+ * into the next phrase. A fifth of the travel is close enough to "nearly out"
+ * to be worth the early turn and far enough from it that a short rest in the
+ * middle of a long open passage does not flip the box for no reason.
+ */
+const BELLOWS_TURN_EARLY = 0.2;
+/**
+ * How far the box drifts before the arm is told about it again.
+ *
+ * The direction changes are the gestures that matter, but a squeeze that is
+ * only ever placed at a reversal leaves the *torso* still for the whole eight
+ * beats in between while the box slides out from under it. Restating it about
+ * every third of the travel keeps the lean tracking the box without turning
+ * every note into a gesture — the box itself is carried by the notes, so this
+ * only has to be often enough for a torso.
+ */
+const BELLOWS_STEP = 0.35;
+
 /**
  * Bellows, which are the accordion's breath and the only thing on stage that
  * moves continuously without making a note of its own.
  *
- * One squeeze per phrase, alternating direction, on the body rather than on a
- * hand — the left hand is on the buttons and it is the whole left *arm* that
- * opens the box. `PlayPoint` carries the direction, which is a small piece of
- * luck: the bow, which needs exactly the same thing, has nowhere to put it.
+ * Returns where the box is at each note group, which is what the left hand
+ * needs: half an accordion rides the bellows and the hand on it has to ride
+ * them too. See `PlayPoint`'s `bellows` for why that travels on the note rather
+ * than being worked out by the model.
+ *
+ * ## Why this is a budget and not an alternation
+ *
+ * The first version placed one squeeze per phrase and flipped the direction
+ * each time, which is the behaviour you write when you think of the bellows as
+ * a metronome. It is not one. A bellows is a **tank**: it holds a fixed amount
+ * of travel, every sounding note spends some, and the direction changes when
+ * the tank runs out — not when the phrase does. That single difference is most
+ * of what makes an accordionist look like they are playing rather than
+ * pumping, because it means the box goes the same way for four bars of quiet
+ * comping and turns round twice inside one loud held passage.
+ *
+ * So: spend `AIR_PER_BEAT` per beat of sound, turn round when there is not
+ * enough left for the note in front of you, and prefer to turn at a phrase join
+ * if one is close. Gestures go on the body rather than on a hand — the left
+ * hand is on the buttons and it is the whole left *arm* that opens the box.
  */
-function bellowsPart(groups: NoteEvent[][], board: Board): void {
-  let open = true;
+function bellowsPart(groups: NoteEvent[][], board: Board): number[] {
+  const plan: number[] = [];
+  let at = BELLOWS_START;
+  /** +1 pulling the box open, −1 pushing it shut. */
+  let dir = 1;
+  /** The last extension the arm was told about. */
+  let told = Number.NaN;
   let lastEnd = -Infinity;
-  let lastChange = -Infinity;
+
+  const say = (beat: number, force: number): void => {
+    board.place({
+      effector: 'body', beat, kind: 'squeeze', travel: 0, force,
+      sustainBeats: 2, targets: [{ kind: 'bellows', open: dir > 0, at }],
+    });
+    told = at;
+  };
+
   for (const group of groups) {
     const beat = quantise(group[0]!.beat);
-    // A phrase join, or two bars of one direction — whichever comes first. The
-    // arm is long but it is not infinite, and a box that opens for a whole
-    // number and never closes is the one thing an audience would notice.
-    if (beat - lastEnd > 1 || beat - lastChange > 8) {
-      board.place({
-        effector: 'body', beat, kind: 'squeeze', travel: 0,
-        force: Math.max(...group.map((n) => n.velocity)),
-        sustainBeats: 2, targets: [{ kind: 'bellows', open }],
-      });
-      open = !open;
-      lastChange = beat;
-    }
-    lastEnd = beat + Math.max(...group.map((n) => n.duration));
+    const sustain = Math.max(...group.map((n) => n.duration));
+    const force = Math.max(...group.map((n) => n.velocity));
+
+    const air = AIR_PER_BEAT
+      * Math.min(sustain, AIR_MAX_BEATS)
+      * (0.45 + 0.55 * clamp01(force))
+      * (1 + AIR_PER_EXTRA_NOTE * (group.length - 1));
+    const room = dir > 0 ? BELLOWS_CEIL - at : at - BELLOWS_FLOOR;
+    const join = beat - lastEnd > 1 || !Number.isFinite(lastEnd);
+
+    // Out of air, or close enough to it that this join is the better place.
+    const turn = air > room || (join && room < BELLOWS_TURN_EARLY);
+    if (turn) dir = -dir;
+
+    /**
+     * Where the box is **as this note lands**, which is what `PlayPoint.bellows`
+     * promises and what the hand on the bass buttons is placed at.
+     *
+     * Reported before the note's air is spent, not after. The other order reads
+     * as the natural one and says something else entirely: where the box will
+     * be when the note *ends*. So every left hand was placed one note's worth of
+     * travel ahead of the box it was resting on — a fifth of the stretch on a
+     * loud held chord, and a hand visibly running ahead of its own instrument.
+     */
+    plan.push(at);
+
+    // The arm hears about a reversal immediately and about a long drift every
+    // so often. Everything between is carried by the notes themselves.
+    if (turn || !Number.isFinite(told) || Math.abs(at - told) >= BELLOWS_STEP) say(beat, force);
+
+    at = Math.min(BELLOWS_CEIL, Math.max(BELLOWS_FLOOR, at + dir * air));
+
+    lastEnd = beat + sustain;
   }
+  return plan;
 }
 
 // ---------------------------------------------------------------------------

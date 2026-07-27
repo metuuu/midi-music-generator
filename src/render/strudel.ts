@@ -21,7 +21,7 @@ import { midiToNoteName, spellingFor } from '../core/pitch.js';
 import { resolveVoice } from './drum-banks.js';
 import type { DrumVoice, Effects, NoteEvent, Song, Track, Vowel } from '../core/types.js';
 import {
-  CONSONANTS, FORMANT_BANDWIDTHS, FORMANT_GAINS, VOWEL_FORMANTS,
+  CONSONANTS, FORMANT_BANDWIDTHS, FORMANT_GAINS, VOICE_MIX, VOWEL_FORMANTS,
 } from '../style/vocals.js';
 
 export interface StrudelRenderOptions {
@@ -340,7 +340,7 @@ function consonantBurst(
     `  s(\`${formatGrid(hits)}\`)`,
     `    .bpf(\`${formatGrid(freqs)}\`).bandq(1.6)`,
     `    .attack(0.001).decay(\`${formatGrid(decays)}\`).sustain(0).release(0.01)`,
-    `    .gain(${(track.gain * track.voice!.burstGain).toFixed(3)})`,
+    `    .gain(${(track.gain * VOICE_MIX * track.voice!.burstGain).toFixed(3)})`,
   ].join('\n');
 }
 
@@ -364,7 +364,9 @@ function consonantBurst(
  * that to 9 dB, which is what lets the emphasis track the line evenly.
  */
 function voiceParts(track: Track, totalBars: number, slotsPerBar: number): string[] {
-  const { gain } = track;
+  // The band levels below are a balance between themselves; `VOICE_MIX` is what
+  // turns that balance into a level against the rest of the arrangement.
+  const gain = track.gain * VOICE_MIX;
   const v = track.voice!;
 
   // The unfiltered source. Every formant of a dark vowel sits below 1.5 kHz, so

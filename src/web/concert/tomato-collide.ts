@@ -42,9 +42,10 @@ export type Shape =
 /**
  * What a hit *means*, which is the only reason this is not just geometry.
  *
- *   performer   the player. Scores, and the rig owns the mark.
- *   instrument  their kit. Does not score — hitting a bass drum is a miss with
- *               a bang — but the player notices.
+ *   performer   the player. Scores in full, and the rig owns the mark.
+ *   instrument  their kit. Scores against the same player, at a discount — see
+ *               `INSTRUMENT_COST` in `tomatoes.ts` for why a bass drum is worth
+ *               less than a face. The mark stays on the kit.
  *   scenery     the boards, the backdrop, the walls. Just a mark.
  */
 export type TargetKind = 'performer' | 'instrument' | 'scenery';

@@ -39,6 +39,7 @@ const els = {
   play: $<HTMLButtonElement>('play'),
   next: $<HTMLButtonElement>('next'),
   radio: $<HTMLButtonElement>('radio'),
+  watch: $<HTMLButtonElement>('watch'),
   dl: $<HTMLButtonElement>('dl'),
   status: $<HTMLDivElement>('status'),
   title: $<HTMLSpanElement>('title'),
@@ -235,6 +236,41 @@ els.radio.onclick = () => {
   els.radio.classList.toggle('primary', radioMode);
   if (radioMode && current) scheduleRadioAdvance(current);
   else if (radioTimer) { clearTimeout(radioTimer); radioTimer = undefined; }
+};
+
+/**
+ * Watch this song being played, rather than a concert like it.
+ *
+ * The stage is a renderer of the same IR, so the number it plays is the number
+ * loaded here — the one Play would start — note for note, and then the band
+ * bows. `single=1` is what says so; without it the concert programmes its own
+ * evening of three to five contrasting numbers, which is the right default for
+ * `/concert.html` and the wrong answer to this button.
+ *
+ * Everything comes from `song.meta` rather than from the controls, because the
+ * controls can say "any era" and a song cannot. Meta records what was actually
+ * chosen, which is precisely why regenerating from it is exact.
+ *
+ * Muted layers are not carried across. A muted layer is an audition tool — the
+ * player is still on stage, still playing, and silencing an instrument you can
+ * watch being played is a different feature with a different name.
+ */
+els.watch.onclick = () => {
+  if (!current) return;
+  stop();
+  const { meta } = current;
+  const q = new URLSearchParams({
+    single: '1',
+    seed: meta.seed,
+    genre: meta.genre,
+    era: meta.era,
+    style: meta.style,
+    mood: meta.mood,
+    strictness: String(meta.strictness),
+    hook: String(meta.hook),
+    vocals: current.tracks.some((t) => t.voice) ? 'sung' : 'instrumental',
+  });
+  location.href = `/concert.html?${q}`;
 };
 
 els.dl.onclick = () => {

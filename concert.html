@@ -33,8 +33,11 @@
       #fallback { max-width: 34rem; padding: 2rem; line-height: 1.7; }
       #fallback a { color: var(--hot); }
       .corner {
-        position: fixed; top: .9rem; left: 1rem; font-size: .74rem;
-        color: var(--dim); letter-spacing: .06em;
+        /* Above the billhouse (z-index 40): opening mode uses a transparent
+           scrim, so the link stays visible but would otherwise lose clicks to
+           “click anywhere to begin”. */
+        position: fixed; top: .9rem; left: 1rem; z-index: 50;
+        font-size: .74rem; color: var(--dim); letter-spacing: .06em;
       }
       .corner a { color: var(--dim); text-decoration: none; }
       .corner a:hover { color: var(--hot); }
@@ -45,7 +48,7 @@
     <div id="overlay">
       <div id="boot">Setting the stage…</div>
     </div>
-    <div class="corner"><a href="/">← radio</a> · <a href="/voice.html">voice lab</a></div>
+    <div class="corner"><a href="/">← radio</a></div>
     <script type="module" src="/src/web/concert/main.ts"></script>
   </body>
 </html>

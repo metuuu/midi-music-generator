@@ -348,6 +348,29 @@ export interface Track {
    * track is sung rather than played, and that the notes carry vowels.
    */
   voice?: VoiceSettings;
+  /**
+   * Set where one player performs this track with **both hands at once** — a
+   * pianist fronting a trio, whose right hand has the tune and whose left hand
+   * comps underneath it.
+   *
+   * Its presence is the declaration, exactly as `voice`'s is: every other
+   * melodic track in this IR is a line, and code that walks one note to the next
+   * measuring intervals, rests and overlaps is right about all of them and wrong
+   * about this one. Five reporting tools were, and each of them silently: a
+   * left-hand chord tone read as a leap down and back, and a chord sounding
+   * under a held melody note read as an overlap bug.
+   *
+   * A renderer needs nothing from this — polyphony was always expressible and
+   * the comp layer has always used it. It is here for the things that want *the
+   * line* back out again, and `melodicLine` is how they get it.
+   */
+  twoHanded?: {
+    /**
+     * Semitones of separation the two hands were written with, and the exact
+     * number needed to take them apart again. See `melodicLine`.
+     */
+    gap: number;
+  };
   /** Filtering, reverb send and stereo position. Absent means dry and centred. */
   effects?: Effects;
 }
@@ -400,6 +423,52 @@ export interface Song {
   drums: DrumTrack;
   /** The reverb and delay every track's send level refers to. */
   space: Space;
+}
+
+/**
+ * The melodic line of a track, which on all but one kind of track is the track.
+ *
+ * Anything measuring melody — intervals, range, phrase recall, voice-leading
+ * faults, whether a note overlaps the next one — needs a single line to walk,
+ * and every melodic track in this IR is one. The exception is a `twoHanded`
+ * keyboard, where the same person's accompaniment is interleaved with their
+ * tune, and where walking the notes in order produces nonsense.
+ *
+ * The separation is exact rather than a guess, because the part was *written*
+ * with a separation: the right hand is one note at a time and the left hand is a
+ * voicing kept `gap` semitones underneath it. So in any group of notes sharing
+ * an onset —
+ *
+ *  - one note is the right hand, playing alone;
+ *  - a top note standing `gap` or more above the rest is the right hand landing
+ *    on a left-hand chord, and the chord below it is not the line;
+ *  - and anything else is the left hand comping by itself, in a hole the right
+ *    hand left, which contributes no melody note at all.
+ *
+ * A track with no `twoHanded` is returned untouched, so no existing measurement
+ * moves — including the overlap check, which is a real bug report on a real line
+ * and must not be quietly filtered away.
+ */
+export function melodicLine(track: Track): NoteEvent[] {
+  const gap = track.twoHanded?.gap;
+  if (gap === undefined) return track.notes;
+
+  const groups = new Map<number, NoteEvent[]>();
+  for (const n of track.notes) {
+    const at = groups.get(n.beat);
+    if (at) at.push(n);
+    else groups.set(n.beat, [n]);
+  }
+
+  const out: NoteEvent[] = [];
+  for (const group of groups.values()) {
+    if (group.length === 1) { out.push(group[0]!); continue; }
+    const sorted = group.slice().sort((a, b) => a.midi - b.midi);
+    const top = sorted[sorted.length - 1]!;
+    const under = sorted[sorted.length - 2]!;
+    if (top.midi - under.midi >= gap) out.push(top);
+  }
+  return out.sort((a, b) => a.beat - b.beat);
 }
 
 export function songDurationBeats(song: Song): number {

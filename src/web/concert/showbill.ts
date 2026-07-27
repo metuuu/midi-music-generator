@@ -54,6 +54,17 @@ import type { BillEntry, ConcertOptions, Venue, VocalPolicy } from '../../concer
 export type BillMode = 'hidden' | 'opening' | 'programme';
 
 /**
+ * How far `fitToWindow` may shrink the paper before it gives up and scrolls.
+ *
+ * A little over half size, which on the smallest sheet here is around seven
+ * point — the size of the small print on a real theatre programme, and about
+ * where one stops being a document you read and becomes one you squint at. A
+ * window short enough to need less than this is a window the bill should be
+ * scrolled in.
+ */
+const MIN_FIT = 0.55;
+
+/**
  * A rendered bill, and everything the show runner may do to it.
  *
  * Deliberately small. Every method is either "show me" or "here is what
@@ -258,6 +269,43 @@ export function renderBill(
   let markedAt = -1;
   let markedTo = -1;
 
+  /**
+   * Shrink the sheet until it fits the window.
+   *
+   * The stylesheet already scales the paper with the viewport, and on its own
+   * that is not enough, because the one thing it cannot see is how long
+   * tonight's bill is: three ambient pieces and five dance numbers are the same
+   * document at very different heights, and the second one runs off the bottom
+   * of a 1080-line screen while the first has room to spare. A rule written for
+   * the worst case would print the short bill in tiny type for no reason.
+   *
+   * So the sheet is measured rather than guessed. `--fit` multiplies the one
+   * knob everything else is set in, so the whole thing — type, margins, rules,
+   * width — comes down together, exactly as if it had been printed smaller.
+   *
+   * Three passes, because the estimate is a ratio of heights and the paper is
+   * not quite linear in it: smaller type rewraps the long titles onto fewer
+   * lines, so one pass always lands a few pixels over and a few pixels over is
+   * a scrollbar. It converges in two and the third is insurance; the pass aims
+   * a pixel inside the room it has for the same reason.
+   *
+   * There is a floor. Past a certain point a programme has stopped being
+   * readable and scrolling it is the better failure, which is what
+   * `overflow: auto` is still there for.
+   */
+  const fitToWindow = (): void => {
+    if (root.hidden) return;
+    let scale = 1;
+    sheet.style.setProperty('--fit', '1');
+    for (let pass = 0; pass < 3; pass++) {
+      const room = sheet.clientHeight;
+      const need = sheet.scrollHeight;
+      if (room <= 0 || need <= room) break;
+      scale = Math.max(MIN_FIT, (scale * (room - 1)) / need);
+      sheet.style.setProperty('--fit', scale.toFixed(3));
+    }
+  };
+
   const setMode = (next: BillMode): void => {
     if (next === mode) return;
     const was = mode;
@@ -267,9 +315,23 @@ export function renderBill(
     cue.textContent = next === 'opening'
       ? 'click anywhere to begin'
       : next === 'programme' ? 'press P or Escape to go back' : '';
+    // After the mode is on the element, not before: the close control and the
+    // options block are printed by mode, so the sheet is a different height in
+    // each and measuring the old one fits the wrong document.
+    if (next !== 'hidden') fitToWindow();
     if (next === 'programme') sheet.focus({ preventScroll: true });
     if (next === 'hidden' && was === 'programme') for (const fn of dismissers) fn();
   };
+
+  /**
+   * Refit when the window changes shape.
+   *
+   * On `root`, which is `inset: 0` and therefore the window, rather than on the
+   * sheet — the sheet is what this writes to, and an observer that watches what
+   * it changes is a loop.
+   */
+  const resizer = new ResizeObserver(fitToWindow);
+  resizer.observe(root);
 
   const onRootClick = (e: MouseEvent): void => {
     if (mode === 'opening') {
@@ -364,6 +426,7 @@ export function renderBill(
     },
     destroy() {
       unbind?.();
+      resizer.disconnect();
       root.removeEventListener('click', onRootClick);
       close.removeEventListener('click', onClose);
       vocalToggle.removeEventListener('change', onVocals);
@@ -511,7 +574,10 @@ const CSS = `
 .billhouse {
   position: fixed; inset: 0; z-index: 40;
   display: flex; align-items: center; justify-content: center;
-  padding: clamp(.75rem, 3vw, 2.5rem);
+  /* vmin rather than vw: on a wide monitor the margin that runs out first is
+     the one above and below the paper, and 3vw of a 32:9 screen is a hand's
+     width of nothing on each side while the sheet is overflowing vertically. */
+  padding: clamp(.5rem, 2.4vmin, 2.5rem);
   cursor: pointer;
 }
 .billhouse[hidden] { display: none; }
@@ -523,16 +589,23 @@ const CSS = `
    closed curtain back there and it is worth looking at. */
 .billhouse[data-mode="programme"] .billhouse__scrim { background: rgba(6, 4, 3, .62); }
 
+/* One knob, and the whole sheet is set in \`em\` off it.
+   A programme is a physical object and it scales like one: the type, the
+   margins, the rules and the width all move together, or it stops being a piece
+   of paper and becomes a panel whose text happens to have got smaller. The
+   viewport term handles a phone; \`--fit\`, written by \`fitToWindow\`, handles the
+   case CSS cannot see — how many numbers are on tonight's bill. */
 .bill {
   position: relative; cursor: default;
-  width: min(38rem, 100%); max-height: 100%;
+  font-size: calc(clamp(.62rem, 2.15vw + .2rem, 1rem) * var(--fit, 1));
+  width: min(38em, 100%); max-height: 100%;
   overflow: auto; overscroll-behavior: contain;
-  padding: clamp(1.4rem, 4vw, 2.6rem) clamp(1.2rem, 4vw, 2.8rem) clamp(1rem, 3vw, 1.8rem);
+  padding: 2.6em 2.8em 1.8em;
   color: var(--ink);
   font-family: var(--face);
   background-color: var(--stock);
   background-image: var(--foxing, none), var(--grain, none);
-  box-shadow: 0 1.6rem 3.5rem rgba(0, 0, 0, .55), 0 .2rem .5rem rgba(0, 0, 0, .35);
+  box-shadow: 0 1.6em 3.5em rgba(0, 0, 0, .55), 0 .2em .5em rgba(0, 0, 0, .35);
   transform: rotate(var(--tilt, 0deg));
   transition: transform .3s ease;
 }
@@ -541,24 +614,28 @@ const CSS = `
 .bill::selection, .bill *::selection { background: var(--accent); color: var(--stock); }
 
 .bill__close {
-  position: absolute; top: .5rem; right: .6rem;
-  width: 1.9rem; height: 1.9rem; padding: 0;
+  position: absolute; top: .45em; right: .55em;
+  width: 1.7em; height: 1.7em; padding: 0;
   border: 1px solid var(--hair); border-radius: 50%;
   background: transparent; color: var(--ink-dim);
-  font: inherit; font-size: 1.1rem; line-height: 1; cursor: pointer;
+  font: inherit; font-size: 1.1em; line-height: 1; cursor: pointer;
   display: none;
 }
 .billhouse[data-mode="programme"] .bill__close { display: block; }
 .bill__close:hover { color: var(--ink); border-color: var(--accent); }
 
-.bill__head { text-align: inherit; margin-bottom: 1.4rem; }
+.bill__head { text-align: inherit; margin-bottom: 1.4em; }
 .bill__venue {
   font-family: var(--display); font-size: var(--venue-size);
   letter-spacing: var(--venue-track); text-transform: var(--venue-case);
   font-weight: var(--display-weight); line-height: 1.1;
 }
+/* Spacing on an element that also sets its own \`font-size\` is divided through
+   by it — \`em\` on such an element measures against the size it just took, not
+   against the sheet — so the printed result is what it always was and only the
+   knob moves it. */
 .bill__word {
-  margin-top: .45rem; font-size: .68rem; letter-spacing: .28em;
+  margin-top: .66em; font-size: .68em; letter-spacing: .28em;
   text-transform: uppercase; color: var(--accent);
 }
 
@@ -587,9 +664,9 @@ const CSS = `
 .bill__blurb::before { content: '\\201C'; }
 .bill__blurb::after { content: '\\201D'; }
 .bill__sung {
-  font-size: .6rem; letter-spacing: .2em; text-transform: uppercase;
+  font-size: .6em; letter-spacing: .2em; text-transform: uppercase;
   color: var(--accent); border: 1px solid var(--accent);
-  padding: .05rem .3rem; border-radius: .1rem; white-space: nowrap;
+  padding: .08em .5em; border-radius: .17em; white-space: nowrap;
 }
 /* How far through the number we are. A hairline under the row, not a widget:
    the programme is telling you where you are, not offering you a scrub bar. */
@@ -602,17 +679,17 @@ const CSS = `
 .bill__item.is-done { opacity: .5; }
 
 .bill__foot {
-  margin-top: 1.6rem; padding-top: .7rem; border-top: 1px solid var(--hair);
-  display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
-  font-size: .68rem; letter-spacing: .1em; text-transform: uppercase;
+  margin-top: 2.35em; padding-top: 1.03em; border-top: 1px solid var(--hair);
+  display: flex; justify-content: space-between; gap: 1.47em; flex-wrap: wrap;
+  font-size: .68em; letter-spacing: .1em; text-transform: uppercase;
   color: var(--ink-dim);
 }
 .bill__cue { color: var(--accent); }
 
 .bill__opts {
-  margin-top: .9rem; padding-top: .8rem; border-top: 1px dashed var(--hair);
-  display: none; align-items: center; gap: .5rem 1rem; flex-wrap: wrap;
-  font-size: .72rem; color: var(--ink-dim); cursor: default;
+  margin-top: 1.25em; padding-top: 1.11em; border-top: 1px dashed var(--hair);
+  display: none; align-items: center; gap: .7em 1.39em; flex-wrap: wrap;
+  font-size: .72em; color: var(--ink-dim); cursor: default;
 }
 .billhouse[data-mode="programme"] .bill__opts { display: flex; }
 /* Worth having on the opening bill too: choosing instrumental-only before the
@@ -620,13 +697,13 @@ const CSS = `
    useful pointing at a show you have not spoiled for yourself yet. */
 .billhouse[data-mode="opening"] .bill__opts { display: flex; }
 .bill__seed { font-family: var(--mono); }
-.bill__switch { display: inline-flex; align-items: center; gap: .35rem; cursor: pointer; }
+.bill__switch { display: inline-flex; align-items: center; gap: .49em; cursor: pointer; }
 .bill__switch input { accent-color: var(--accent); margin: 0; cursor: pointer; }
 .bill__link { color: var(--accent); text-decoration: none; border-bottom: 1px solid currentColor; }
 .bill__copy {
-  font: inherit; font-size: .72rem; cursor: pointer; color: var(--ink-dim);
-  background: transparent; border: 1px solid var(--hair); border-radius: .15rem;
-  padding: .15rem .45rem;
+  font: inherit; cursor: pointer; color: var(--ink-dim);
+  background: transparent; border: 1px solid var(--hair); border-radius: .21em;
+  padding: .21em .63em;
 }
 .bill__copy:hover { color: var(--ink); border-color: var(--accent); }
 
@@ -634,17 +711,17 @@ const CSS = `
 /* A dance-pavilion bill is centred, symmetrical and shouts the title. The
    ornament between numbers is doing the job a rule would do on a card. */
 .bill--poster { text-align: center; }
-.bill--poster .bill__item { padding: .8rem 0 .9rem; }
+.bill--poster .bill__item { padding: .8em 0 .9em; }
 .bill--poster .bill__item + .bill__item { border-top: 1px solid var(--hair); }
-.bill--poster .bill__num { display: block; font-size: .72rem; letter-spacing: .3em; margin-bottom: .35rem; }
+.bill--poster .bill__num { display: block; font-size: .72em; letter-spacing: .3em; margin-bottom: .49em; }
 .bill--poster .bill__title { display: block; }
 .bill--poster .bill__time::before { content: '· '; }
 .bill--poster .bill__time::after { content: ' ·'; }
 .bill--poster .bill__time, .bill--poster .bill__style {
-  display: inline; font-size: .82rem; letter-spacing: .06em;
+  display: inline; font-size: .82em; letter-spacing: .06em;
 }
-.bill--poster .bill__blurb { display: block; margin-top: .5rem; font-size: .86rem; font-style: italic; }
-.bill--poster .bill__sung { display: inline-block; margin-top: .55rem; }
+.bill--poster .bill__blurb { display: block; margin-top: .58em; font-size: .86em; font-style: italic; }
+.bill--poster .bill__sung { display: inline-block; margin-top: .92em; }
 .bill--poster .bill__foot { justify-content: center; }
 
 /* --- Layout: the club card ---------------------------------------------- */
@@ -652,31 +729,31 @@ const CSS = `
    duration and style sit on one line, which is what fits on a card small
    enough to be left on a table. */
 .bill--card .bill__item {
-  display: grid; grid-template-columns: 2.1rem minmax(0, 1fr) 2.9rem;
-  column-gap: .8rem; align-items: baseline; padding: .85rem 0;
+  display: grid; grid-template-columns: 2.1em minmax(0, 1fr) 2.9em;
+  column-gap: .8em; align-items: baseline; padding: .85em 0;
 }
 .bill--card .bill__item + .bill__item { border-top: 1px solid var(--hair); }
-.bill--card .bill__num { grid-column: 1; font-size: .8rem; }
+.bill--card .bill__num { grid-column: 1; font-size: .8em; }
 .bill--card .bill__title { grid-column: 2; }
-.bill--card .bill__time { grid-column: 3; font-size: .85rem; text-align: right; }
-.bill--card .bill__style { grid-column: 2 / 4; font-size: .78rem; margin-top: .15rem; }
-.bill--card .bill__blurb { grid-column: 2 / 4; font-size: .84rem; margin-top: .3rem; font-style: italic; }
-.bill--card .bill__sung { grid-column: 2 / 4; justify-self: start; margin-top: .45rem; }
+.bill--card .bill__time { grid-column: 3; font-size: .85em; text-align: right; }
+.bill--card .bill__style { grid-column: 2 / 4; font-size: .78em; margin-top: .19em; }
+.bill--card .bill__blurb { grid-column: 2 / 4; font-size: .84em; margin-top: .36em; font-style: italic; }
+.bill--card .bill__sung { grid-column: 2 / 4; justify-self: start; margin-top: .75em; }
 
 /* --- Layout: the gallery handout ---------------------------------------- */
 /* Almost nothing. No rules, no capitals, generous space, the duration set
    right and small. A genre that refuses to have a foreground gets a bill that
    refuses to have a headline. */
 .bill--handout .bill__item {
-  display: grid; grid-template-columns: minmax(0, 1fr) 2.6rem; column-gap: 1.2rem;
-  padding: 1.35rem 0 0;
+  display: grid; grid-template-columns: minmax(0, 1fr) 2.6em; column-gap: 1.2em;
+  padding: 1.35em 0 0;
 }
-.bill--handout .bill__num { grid-column: 1; font-size: .66rem; letter-spacing: .2em; opacity: .6; }
+.bill--handout .bill__num { grid-column: 1; font-size: .66em; letter-spacing: .2em; opacity: .6; }
 .bill--handout .bill__title { grid-column: 1; }
-.bill--handout .bill__time { grid-column: 2; grid-row: 2; font-size: .74rem; align-self: end; }
-.bill--handout .bill__style { grid-column: 1; font-size: .72rem; margin-top: .2rem; font-style: normal; }
-.bill--handout .bill__blurb { grid-column: 1 / 3; font-size: .8rem; margin-top: .45rem; opacity: .8; }
-.bill--handout .bill__sung { grid-column: 1; justify-self: start; margin-top: .45rem; border: 0; padding: 0; }
+.bill--handout .bill__time { grid-column: 2; grid-row: 2; font-size: .74em; align-self: end; }
+.bill--handout .bill__style { grid-column: 1; font-size: .72em; margin-top: .28em; font-style: normal; }
+.bill--handout .bill__blurb { grid-column: 1 / 3; font-size: .8em; margin-top: .56em; opacity: .8; }
+.bill--handout .bill__sung { grid-column: 1; justify-self: start; margin-top: .75em; border: 0; padding: 0; }
 .bill--handout .bill__foot { border-top-color: transparent; }
 
 /* --- Paper: 1960s–70s tanssilava ---------------------------------------- */
@@ -691,10 +768,10 @@ const CSS = `
   --display: Georgia, 'Iowan Old Style', 'Times New Roman', serif;
   --mono: ui-monospace, Menlo, Consolas, monospace;
   --display-weight: 700;
-  --venue-size: clamp(1.05rem, 3.2vw, 1.4rem); --venue-track: .3em; --venue-case: uppercase;
-  --title-size: clamp(1.2rem, 4.6vw, 1.72rem); --title-track: .13em; --title-case: uppercase;
+  --venue-size: 1.4em; --venue-track: .3em; --venue-case: uppercase;
+  --title-size: 1.72em; --title-track: .13em; --title-case: uppercase;
 }
-.paper--lava .bill__head { padding-bottom: .8rem; border-bottom: 3px double var(--hair); }
+.paper--lava .bill__head { padding-bottom: .8em; border-bottom: 3px double var(--hair); }
 
 /* --- Paper: 1980s iskelmäpop -------------------------------------------- */
 /* Coated, glossy, and printed in two colours because that was now cheap.
@@ -707,10 +784,10 @@ const CSS = `
   --display: 'Avenir Next', Avenir, 'Century Gothic', 'Futura', ui-sans-serif, sans-serif;
   --mono: ui-monospace, Menlo, Consolas, monospace;
   --display-weight: 800;
-  --venue-size: clamp(.95rem, 3vw, 1.25rem); --venue-track: .18em; --venue-case: uppercase;
-  --title-size: clamp(1.25rem, 4.8vw, 1.8rem); --title-track: -.01em; --title-case: uppercase;
+  --venue-size: 1.25em; --venue-track: .18em; --venue-case: uppercase;
+  --title-size: 1.8em; --title-track: -.01em; --title-case: uppercase;
 }
-.paper--neon .bill__head { padding-bottom: .8rem; border-bottom: .4rem solid var(--accent); }
+.paper--neon .bill__head { padding-bottom: .8em; border-bottom: .4em solid var(--accent); }
 
 /* --- Paper: 1930s–40s swing --------------------------------------------- */
 /* Buff card, deco double rules, a didone at small sizes with a lot of air
@@ -723,11 +800,11 @@ const CSS = `
   --display: Didot, 'Bodoni 72', 'Playfair Display', Georgia, serif;
   --mono: ui-monospace, Menlo, Consolas, monospace;
   --display-weight: 700;
-  --venue-size: clamp(1rem, 3.2vw, 1.28rem); --venue-track: .34em; --venue-case: uppercase;
-  --title-size: clamp(1.15rem, 4.4vw, 1.6rem); --title-track: .1em; --title-case: uppercase;
+  --venue-size: 1.28em; --venue-track: .34em; --venue-case: uppercase;
+  --title-size: 1.6em; --title-track: .1em; --title-case: uppercase;
 }
 .paper--buff .bill__head {
-  text-align: center; padding-bottom: .7rem;
+  text-align: center; padding-bottom: .7em;
   border-bottom: 1px solid var(--hair); box-shadow: 0 4px 0 -3px var(--hair);
 }
 
@@ -742,10 +819,10 @@ const CSS = `
   --display: 'Helvetica Neue', Helvetica, Arial, sans-serif;
   --mono: ui-monospace, Menlo, Consolas, monospace;
   --display-weight: 700;
-  --venue-size: clamp(1rem, 3.4vw, 1.35rem); --venue-track: -.02em; --venue-case: uppercase;
-  --title-size: clamp(1.2rem, 4.8vw, 1.7rem); --title-track: -.03em; --title-case: uppercase;
+  --venue-size: 1.35em; --venue-track: -.02em; --venue-case: uppercase;
+  --title-size: 1.7em; --title-track: -.03em; --title-case: uppercase;
 }
-.paper--bop .bill__head { padding-bottom: .7rem; border-bottom: 2px solid var(--ink); }
+.paper--bop .bill__head { padding-bottom: .7em; border-bottom: 2px solid var(--ink); }
 
 /* --- Paper: 1960s–70s modern -------------------------------------------- */
 /* Warm grey, larger and looser, lowercase. The decade stopped shouting. */
@@ -757,10 +834,10 @@ const CSS = `
   --display: 'Helvetica Neue', Helvetica, Arial, sans-serif;
   --mono: ui-monospace, Menlo, Consolas, monospace;
   --display-weight: 500;
-  --venue-size: clamp(1rem, 3.4vw, 1.3rem); --venue-track: .02em; --venue-case: lowercase;
-  --title-size: clamp(1.3rem, 5.2vw, 1.9rem); --title-track: -.02em; --title-case: lowercase;
+  --venue-size: 1.3em; --venue-track: .02em; --venue-case: lowercase;
+  --title-size: 1.9em; --title-track: -.02em; --title-case: lowercase;
 }
-.paper--modern .bill__head { padding-bottom: .9rem; }
+.paper--modern .bill__head { padding-bottom: .9em; }
 
 /* --- Paper: 1970s–80s tape ----------------------------------------------- */
 /* A photocopy of a typewritten sheet, on whatever was in the tray. */
@@ -772,8 +849,8 @@ const CSS = `
   --display: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
   --mono: ui-monospace, Menlo, Consolas, monospace;
   --display-weight: 400;
-  --venue-size: .82rem; --venue-track: .22em; --venue-case: uppercase;
-  --title-size: clamp(.95rem, 3.6vw, 1.15rem); --title-track: .08em; --title-case: uppercase;
+  --venue-size: .82em; --venue-track: .22em; --venue-case: uppercase;
+  --title-size: 1.15em; --title-track: .08em; --title-case: uppercase;
 }
 
 /* --- Paper: 1990s sampler ------------------------------------------------ */
@@ -786,8 +863,8 @@ const CSS = `
   --display: 'Helvetica Neue', Helvetica, Arial, sans-serif;
   --mono: ui-monospace, Menlo, Consolas, monospace;
   --display-weight: 400;
-  --venue-size: .8rem; --venue-track: .16em; --venue-case: lowercase;
-  --title-size: clamp(1rem, 3.8vw, 1.2rem); --title-track: .01em; --title-case: lowercase;
+  --venue-size: .8em; --venue-track: .16em; --venue-case: lowercase;
+  --title-size: 1.2em; --title-track: .01em; --title-case: lowercase;
 }
 
 /* --- Paper: 2000s hybrid ------------------------------------------------- */
@@ -801,8 +878,31 @@ const CSS = `
   --display: ui-sans-serif, 'Helvetica Neue', Arial, sans-serif;
   --mono: ui-monospace, Menlo, Consolas, monospace;
   --display-weight: 300;
-  --venue-size: .76rem; --venue-track: .3em; --venue-case: lowercase;
-  --title-size: clamp(.95rem, 3.4vw, 1.1rem); --title-track: .06em; --title-case: lowercase;
+  --venue-size: .76em; --venue-track: .3em; --venue-case: lowercase;
+  --title-size: 1.1em; --title-track: .06em; --title-case: lowercase;
+}
+
+/* --- A wide monitor gets a spread ---------------------------------------- */
+/* On a 21:9 the sheet was a narrow column with two thousand pixels of nothing
+   either side of it and its own foot below the fold — short of the one
+   dimension it had none of, drowning in the one it had plenty of. A programme
+   printed for a landscape sheet does the obvious thing and sets the numbers in
+   two columns, which is a centre spread and halves the height, so the fit below
+   rarely has to shrink anything at all.
+
+   Column-major rather than a two-across grid: a programme is read down one
+   column and then down the next, and 1-2 / 3-4 is a table of contents. */
+@media (min-aspect-ratio: 16 / 9) and (min-width: 60rem) {
+  .bill { width: min(58em, 100%); }
+  .bill__list { columns: 2; column-gap: 3em; }
+  .bill__item { break-inside: avoid; }
+  /* The rules between numbers are written with \`+\`, which cannot see a column
+     break: the second column starts with a rule over it and the first does not,
+     and one hairline out of alignment is exactly the sort of thing that makes a
+     careful layout look careless. Rule the first number too and both columns
+     open the same way — which, under a header, is what a rule is for anyway. */
+  .bill--poster .bill__item:first-child,
+  .bill--card .bill__item:first-child { border-top: 1px solid var(--hair); }
 }
 
 /* A calmed camera and a calmed programme. The tilt is decoration and the
@@ -812,6 +912,6 @@ const CSS = `
   .bill { transform: none; }
 }
 @media (max-width: 30rem) {
-  .bill--card .bill__item { grid-template-columns: 1.6rem 1fr auto; column-gap: .5rem; }
+  .bill--card .bill__item { grid-template-columns: 1.6em 1fr auto; column-gap: .5em; }
 }
 `;

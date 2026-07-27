@@ -268,6 +268,192 @@ export function generateComp(
 }
 
 /**
+ * The other hand.
+ *
+ * Everything else in this file writes a part for a *player*. This writes one for
+ * a **hand** — the left one, under a line the same person is playing with their
+ * right — and that is the only structural idea in it. The notes go into the same
+ * layer as the line, so the Song IR carries one track with two things happening
+ * in it at once, which is what a piano is.
+ *
+ * ## What a left hand actually does
+ *
+ * Not what the comp generator does. A comp pattern is a *figure*: it states two
+ * or four hits and repeats them bar after bar, which is right for a rhythm
+ * guitar and is the one thing a pianist accompanying themselves never does. The
+ * left hand is reactive. It punctuates where the right hand has stopped, it
+ * pushes ahead of a phrase, and it says nothing at all through a busy passage —
+ * because there is only one player and their attention is on the line.
+ *
+ * Three rules produce that, and each is a thing the alternative gets wrong:
+ *
+ *  - **It answers, or it punches, and it prefers the offbeat.** Where the line
+ *    has stopped, a chord goes in the hole; where the line attacks, a chord can
+ *    land *with* it and make the accent. Both are real and the second one is the
+ *    one worth insisting on: a left hand that only ever played in the gaps would
+ *    alternate with the right hand for four minutes and the two would never once
+ *    be seen doing something together, which is not what a piano looks like.
+ *  - **It is rootless.** `guide` voicing: the third and the seventh and a
+ *    colour, no root, because there is a bass player four feet away whose entire
+ *    job is the root. This is the single most recognisable sound in post-war
+ *    jazz piano and it is one word of configuration.
+ *  - **It stays out of the right hand's way, by more than a hand's width.**
+ *    `gap` semitones of daylight, which is both the voicing rule and — because
+ *    `keyboardPart` splits a chord at its widest interval — the thing that makes
+ *    the stage put the two halves in two different hands. Voice them closer and
+ *    a real pianist could not play it either.
+ *
+ * And it thins out where the right hand is busy, which is the one thing a
+ * two-part texture written by two independent generators can never do: a bar of
+ * running eighths gets one chord and a bar with air in it gets two, because
+ * there is one player and their attention is on the line.
+ */
+export function generateLeftHand(
+  ctx: PartContext,
+  /** What the right hand is playing. Already written; this answers it. */
+  line: readonly NoteEvent[],
+  opts: {
+    /** Where the right hand sits. The left hand works down from it. */
+    centre: Midi;
+    voices: number;
+    density: number;
+    gap: number;
+    /** Needed where the genre voices from the chord scale. */
+    scaleFor?: (chord: Chord) => Scale;
+    clarity?: number;
+  },
+): NoteEvent[] {
+  const { chords, beatsPerBar, startBeat, rng } = ctx;
+  const out: NoteEvent[] = [];
+  const sorted = line.slice().sort((a, b) => a.beat - b.beat);
+  let previous: Midi[] | undefined;
+
+  for (let bar = 0; bar < chords.length; bar++) {
+    const chord = chords[bar]!;
+    const barStart = startBeat + bar * beatsPerBar;
+    const barEnd = barStart + beatsPerBar;
+    const inBar = sorted.filter((n) => n.beat < barEnd && n.beat + n.duration > barStart);
+
+    /**
+     * The ceiling, from the lowest thing the right hand touches in this bar.
+     *
+     * Per bar rather than per note, because a hand does not re-voice between
+     * two stabs a beat apart — it finds a position for the bar and works in it,
+     * which is also why the voice leading below has anything to lead.
+     */
+    const floor = inBar.length ? Math.min(...inBar.map((n) => n.midi)) : opts.centre;
+    const hi = Math.max(
+      LEFT_FLOOR + LEFT_WINDOW,
+      Math.min(opts.centre, floor) - opts.gap,
+    );
+    const lo = Math.max(LEFT_FLOOR, hi - LEFT_WINDOW);
+
+    /**
+     * How much of the bar the right hand is actually sounding, 0..1.
+     *
+     * The one number that makes this a part for a *hand* rather than a second
+     * player. A generator that did not have it would comp identically through a
+     * held whole note and through a bar of running eighths, and the second of
+     * those is where a pianist's left hand goes quiet — not out of taste, but
+     * because the same person is playing both and the line is where they are.
+     */
+    // As the *union* of the notes, not the sum of their lengths. The line is
+    // written a section at a time and its overlaps are only cleared once it has
+    // been concatenated — see `trimOverlaps` — so a plain sum reads a phrase of
+    // eighths as more than a bar of sound and pins this to 1, which silenced
+    // the left hand almost everywhere. `inBar` is sorted, so one sweep does it.
+    let sounding = 0;
+    let covered = barStart;
+    for (const n of inBar) {
+      const from = Math.max(n.beat, covered);
+      const to = Math.min(n.beat + n.duration, barEnd);
+      if (to > from) { sounding += to - from; covered = to; }
+    }
+    const busy = Math.max(0, Math.min(1, sounding / beatsPerBar));
+
+    const voicing = voiceChord(chord, {
+      voices: opts.voices,
+      centre: Math.round((lo + hi) / 2),
+      lo,
+      hi,
+      style: 'guide',
+      ...(opts.clarity !== undefined ? { clarity: opts.clarity } : {}),
+      ...(opts.scaleFor ? { scale: opts.scaleFor(chord) } : {}),
+      ...(previous ? { previous } : {}),
+    });
+    previous = voicing;
+
+    /**
+     * How many chords this bar gets: nought, one, or two.
+     *
+     * Two is for a bar with room in it. The `busy` term is what takes the second
+     * one away as the line fills up, and takes the first one away too once the
+     * right hand has the whole bar — at which point the left hand has nothing to
+     * say and a real one says nothing.
+     */
+    if (!rng.chance(opts.density * (1 - busy * 0.25))) continue;
+    const want = rng.chance(0.5 * (1 - busy * 0.6)) ? 2 : 1;
+
+    /**
+     * Every eighth in the bar, weighted, and the weights are the whole idiom.
+     *
+     * **Metrically**, the offbeat wins by a wide margin. A left-hand chord on
+     * the downbeat lands with the bass and the ride and adds nothing to either;
+     * the same chord an eighth later is the anticipation that makes a rhythm
+     * section sound like it is listening to itself.
+     *
+     * **Against the line**, all three relationships are worth having and they
+     * are worth different amounts. A hole is the best of them — that is an
+     * answer. An attack is next: both hands together, which is the accent and,
+     * not incidentally, the only moment the audience sees a pianist play a
+     * chord and a note at once. Under a note that is merely sustaining is the
+     * quietest of the three and still idiomatic — it is a fill under a held
+     * tone — so it is kept and weighted last rather than excluded.
+     */
+    const slots: (readonly [number, number])[] = [];
+    for (let at = barStart; at < barEnd - 1e-6; at += 0.5) {
+      const onBeat = Math.abs(at - Math.round(at)) < 1e-6;
+      const attacks = inBar.some((n) => Math.abs(n.beat - at) < 1e-6);
+      const under = !attacks && inBar.some((n) => n.beat < at && n.beat + n.duration > at + 1e-6);
+      const metric = onBeat ? (Math.abs(at - barStart) < 1e-6 ? 1 : 2) : 5;
+      slots.push([at, metric * (attacks ? 1.6 : under ? 0.7 : 2.2)]);
+    }
+
+    let free = slots;
+    for (let k = 0; k < want && free.length; k++) {
+      const at = rng.weighted(free);
+      // A hand does not play two chords an eighth apart; the next one, if there
+      // is one, goes somewhere else in the bar.
+      free = free.filter(([b]) => Math.abs(b - at) >= 1);
+      const duration = Math.min(
+        rng.weighted([[0.5, 5], [0.75, 3], [1.5, 2], [0.25, 2]] as const),
+        barEnd - at,
+      );
+      if (duration < 0.25) continue;
+      const velocity = 0.5 * rng.float(0.86, 1.06);
+      for (const midi of voicing) out.push({ beat: at, duration, midi, velocity });
+    }
+  }
+  return out.sort((a, b) => a.beat - b.beat || a.midi - b.midi);
+}
+
+/**
+ * The bottom of the left hand's world, and how much of it it gets.
+ *
+ * A2 is about as low as a rootless voicing goes before the low-interval limits
+ * turn a third into a rumble — `minInterval` would open the spacing out rather
+ * than let that happen, but it can only do that if there is room, and below this
+ * there is not. It is also where the bass player is, and two instruments
+ * competing for the bottom octave is the oldest mix problem there is.
+ *
+ * Fourteen semitones of window is a ninth and a bit: enough for a three- or
+ * four-note voicing to move by voice leading rather than by leaping an octave
+ * whenever the harmony does.
+ */
+const LEFT_FLOOR: Midi = 45;
+const LEFT_WINDOW = 14;
+
+/**
  * Sustained chords, merged across repeated harmony so the pad breathes.
  *
  * Voiced `spread` rather than close. A pad in close position occupies the same

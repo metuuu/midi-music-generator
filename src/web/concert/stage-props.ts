@@ -30,8 +30,8 @@
  * **Low brick room (jazz)** — `brick`, `tables`, `candles`, `low-ceiling`,
  * `bar`, `posters`, `haze`, `rug`
  *
- * **Black box (ambient)** — `black-box`, `projection`, `gear-table`,
- * `flight-case`, `cables`, `drapes`
+ * **Black box (ambient)** — `black-box`, `projection`, `flight-case`,
+ * `cables`, `drapes`
  *
  * **Any stage** — `pa-stack`, `wedges`, `riser`
  *
@@ -96,7 +96,7 @@ export const SUPPORTED_PROPS = [
   // club
   'tables', 'candles', 'low-ceiling', 'bar', 'posters', 'rug',
   // black box
-  'projection', 'gear-table', 'flight-case', 'cables', 'drapes',
+  'projection', 'flight-case', 'cables', 'drapes',
   // any stage
   'pa-stack', 'wedges', 'riser',
 ] as const;
@@ -129,7 +129,6 @@ const ALIASES: Record<string, PropName> = {
   carpet: 'rug', rugs: 'rug',
   projections: 'projection', film: 'projection', slides: 'projection',
   video: 'projection', 'projection-screen': 'projection',
-  'table-of-gear': 'gear-table', trestle: 'gear-table', 'gear-tables': 'gear-table',
   'flight-cases': 'flight-case', 'road-case': 'flight-case', cases: 'flight-case',
   cabling: 'cables', leads: 'cables', 'cable-runs': 'cables',
   pa: 'pa-stack', speakers: 'pa-stack', 'speaker-stack': 'pa-stack',
@@ -794,20 +793,6 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
       const u = mat.uniforms.uTime;
       if (u) u.value = t * c.idle;
     });
-  },
-
-  /** The table half the band stands behind. */
-  'gear-table': (c) => {
-    const w = Math.min(2.4, c.m.width * 0.28);
-    const top = shade(c.p.boards, 0.55);
-    put(c, c.kit.bevelBox(w, 0.07, 0.7, 0.02), c.kit.solid(top), -c.m.width * 0.16, 0.82, c.m.backZ + 1.05, true);
-    const leg = c.kit.bevelBox(0.07, 0.8, 0.07, 0.02);
-    const legMat = c.kit.solid(shade(c.p.proscenium, 0.55), { metal: 0.3, rough: 0.5 });
-    for (const sx of [-1, 1]) {
-      for (const sz of [-1, 1]) {
-        put(c, leg, legMat, -c.m.width * 0.16 + sx * (w / 2 - 0.1), 0.4, c.m.backZ + 1.05 + sz * 0.28);
-      }
-    }
   },
 
   'flight-case': (c) => {

@@ -15,6 +15,8 @@
 import { Color, Fog, PCFShadowMap, Scene, WebGLRenderer } from 'three';
 
 import type { ConcertOptions } from '../../concert/types.js';
+import { STRICTNESS_LEVELS } from '../../generate/constraints.js';
+import { HOOK_LEVELS } from '../../generate/hook.js';
 import { initAudio } from '../audio.js';
 import { createShow, type Show, type ShowState } from './show.js';
 
@@ -38,17 +40,49 @@ function degrade(reason: string): void {
 /**
  * A concert is reproducible from its seed, so it is shareable from its URL.
  * `concert.html?seed=…&genre=jazz&vocals=instrumental` is the whole show.
+ *
+ * `single=1` means something narrower: the query does not describe a band that
+ * will pick its own programme, it describes **one specific number**, and the
+ * band plays that and goes home. The radio page links here that way, because
+ * "watch this" has to mean the song you were listening to and not a different
+ * one by the same band. It needs every field that steered the original —
+ * a seed alone reproduces nothing, since `generateSong({ seed })` picks its own
+ * genre — which is why the link is long.
  */
 function optionsFromUrl(): ConcertOptions {
   const q = new URLSearchParams(location.search);
+  const str = (key: string): string | undefined => q.get(key) || undefined;
+
   const vocals = q.get('vocals');
+  const policy = vocals === 'instrumental' || vocals === 'mixed' || vocals === 'sung'
+    ? vocals
+    : undefined;
+
+  const opts: ConcertOptions = {
+    ...(str('seed') ? { seed: str('seed')! } : {}),
+    ...(str('genre') ? { genre: str('genre')! } : {}),
+    ...(str('era') ? { era: str('era')! } : {}),
+    ...(policy ? { vocals: policy } : {}),
+  };
+  if (q.get('single') !== '1') return opts;
+
+  // Both level controls are validated against their own tables rather than
+  // cast: a typo in a hand-edited URL should cost the default, not the stage.
+  const strictness = STRICTNESS_LEVELS.find((l) => l.id === str('strictness'))?.id;
+  const hook = HOOK_LEVELS.find((l) => l.id === str('hook'))?.id;
+
   return {
-    ...(q.get('seed') ? { seed: q.get('seed')! } : {}),
-    ...(q.get('genre') ? { genre: q.get('genre')! } : {}),
-    ...(q.get('era') ? { era: q.get('era')! } : {}),
-    ...(vocals === 'instrumental' || vocals === 'mixed' || vocals === 'sung'
-      ? { vocals }
-      : {}),
+    ...opts,
+    song: {
+      ...(str('seed') ? { seed: str('seed')! } : {}),
+      ...(str('genre') ? { genre: str('genre')! } : {}),
+      ...(str('era') ? { era: str('era')! } : {}),
+      ...(str('style') ? { style: str('style')! } : {}),
+      ...(str('mood') ? { mood: str('mood')! } : {}),
+      ...(strictness ? { strictness } : {}),
+      ...(hook ? { hook } : {}),
+      vocals: policy === 'sung',
+    },
   };
 }
 

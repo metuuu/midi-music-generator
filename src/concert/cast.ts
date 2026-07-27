@@ -91,6 +91,26 @@ const MARGIN_UP = 0.5;
 const MARGIN_DOWN = 0.7;
 
 /**
+ * How far upstage of the lip the front of the stage is already occupied.
+ *
+ * `MARGIN_DOWN` keeps a *body* off the lip and nothing more, and the front edge
+ * is not empty: `web/concert/stage-props.ts` stands a railing 0.12 m inboard of
+ * it on every open-air stage, `lights.ts` sets a footlight trough into the deck
+ * to 0.29 m, and the house tabs hang at 0.45 m. A singer at 0.7 m clears all
+ * three; the horn in their hands does not, and a trombone in seventh position
+ * is playing through the rail from a metre away.
+ *
+ * So the front line is held off the lip by this *plus the player's own
+ * footprint*, which is the number the instrument models were sized to fit
+ * inside — see the trombone, whose 0.9 m was chosen to contain a slide at full
+ * stretch. The extra 0.35 m is the rail's upstage face and the hand's breadth
+ * of air that keeps a bell out of it. Small instruments are unaffected, because
+ * `MARGIN_DOWN` is still the floor; it is the wide ones that step back, which
+ * is what a player holding something long does anyway.
+ */
+const LIP_FURNITURE = 0.35;
+
+/**
  * The fraction of `venue.width` that is actually *visible* stage.
  *
  * `venue.width` is the boards. The proscenium opening is narrower than the
@@ -115,6 +135,22 @@ const OPENING = 0.47;
  * the part of the picture the show is composed around.
  */
 const FRONT_OPENING = 0.44;
+
+/**
+ * And what the lens holds, either side of centre, as a fraction of the width.
+ *
+ * A third line inside the other two, and the only one that decides whether a
+ * player is *in the show* rather than merely on the stage. `web/concert/
+ * camera.ts` frames its wide shot on 0.72 of the width at the plane the nearest
+ * players stand on, so 0.36 either side of centre is the edge of frame.
+ *
+ * The band layouts never needed the number because they are built outward from
+ * centre and land inside it by construction. Ambient's scatter is built the
+ * other way round — it looks for empty ground, and the emptiest ground on any
+ * stage is out at the sides — so it is the one routine that has to be told
+ * where the picture ends.
+ */
+const IN_FRAME = 0.36;
 
 /**
  * The house drum riser: 2.8 m × 2.0 m, top at 0.4 m, centred 1.45 m downstage
@@ -847,18 +883,23 @@ function stageBand(slots: Slot[], venue: Venue, seed: string): void {
         s.anchor = 1.6;
         s.box = { x0: -side > 0 ? 0.4 : -xLimit, x1: -side > 0 ? xLimit : -0.4, z0: zUp - 0.1, z1: zMid };
         break;
-      case 'comp':
-        s.x = -side * Math.max(1.6, xLimit - s.r - 0.1);
+      case 'comp': {
+        // The side the rhythm section did not take — unless the comp is a
+        // grand piano, which takes the audience's left whatever the coin said.
+        const compSide = BULKY.includes(s.archetype) ? PIANO_SIDE : -side;
+        s.x = compSide * Math.max(1.6, xLimit - s.r - 0.1);
         s.z = zMid;
         s.anchor = 2.6;
         s.box = { x0: -xLimit, x1: xLimit, z0: zUp + 0.4, z1: zMid + 0.6 };
         break;
+      }
       case 'front':
         s.anchor = 1;
         // The tighter limit goes in the *box*, not only into the initial
         // layout: the separator is perfectly capable of shoving a horn out
-        // past a limit that was only ever applied once, and did.
-        s.box = { x0: -xFront, x1: xFront, z0: zMid + 0.25, z1: zDown };
+        // past a limit that was only ever applied once, and did. The downstage
+        // edge is the player's own, for the reason `LIP_FURNITURE` gives.
+        s.box = { x0: -xFront, x1: xFront, z0: zMid + 0.25, z1: zLipLimit(D, s.r) };
         break;
     }
   }
@@ -888,22 +929,39 @@ function stageBand(slots: Slot[], venue: Venue, seed: string): void {
 function sidewaysTurn(archetype: Archetype): number {
   switch (archetype) {
     /**
-     * Near profile, and it has to be.
+     * A recital angle: turned across the stage, but not square to it.
      *
      * The keyboard sits between the pianist and the body of the instrument, so
      * a piano square-on to the house shows the audience a large closed lid with
      * the keys and the hands hidden behind it — which is the one thing a
-     * pianist is worth watching for. Turned to roughly eighty degrees the
-     * audience looks *along* the keyboard and sees the player in three-quarter
-     * profile, which is how a grand is set on a real stage and for the same
-     * reason.
+     * pianist is worth watching for. Turning the player is the fix, and how far
+     * is the whole question.
+     *
+     * A right angle is the concert-hall answer and it is a photograph of a
+     * silhouette: the audience gets a pure profile, one shoulder, and a
+     * keyboard receding straight away from them. Sixty-six degrees is the
+     * answer every band on a small stage arrives at instead — far enough that
+     * the lid is off the sightline and the keys are lit, near enough that the
+     * house sees three-quarters of the player and both hands foreshortened
+     * rather than edge-on. Paired with `PIANO_SIDE` it is the arrangement a
+     * photograph of a pianist is taken from.
      */
-    case 'grand-piano': return 1.4;
+    case 'grand-piano': return 1.15;
     case 'organ': case 'electric-piano': case 'synth': return 0.45;
     case 'mallets': case 'harp': return 0.3;
     case 'upright-bass': return 0.2;
     default: return 0;
   }
+}
+
+/**
+ * The furthest downstage this player may stand, in the venue's own metres.
+ *
+ * Per player rather than per stage, because what has to clear the rail is not a
+ * body — it is whatever the body is holding. See `LIP_FURNITURE`.
+ */
+function zLipLimit(depth: number, r: number): number {
+  return depth / 2 - Math.max(MARGIN_DOWN, LIP_FURNITURE + r);
 }
 
 /**
@@ -951,6 +1009,25 @@ function layoutFrontLine(
     .map((s, i) => ({ s, slot: i === 0 ? 0 : (i % 2 === 1 ? Math.ceil(i / 2) : -i / 2) }))
     .sort((a, b) => a.slot - b.slot);
 
+  /**
+   * Furniture takes the end of the line `PIANO_SIDE` names, whatever its
+   * prominence says.
+   *
+   * The alternating slots hand out sides by how prominent a player is, which is
+   * the right rule for people and the wrong one for a grand piano: prominence
+   * has no opinion about which way a lid opens, and half the seeds were putting
+   * the piano on the side where it hides its own keyboard. Exchanging two
+   * players keeps the line's spacing and its order-of-prominence spirit — the
+   * pianist and whoever was on that end swap places, and nothing else moves.
+   */
+  const bulkyAt = ordered.findIndex((o) => o.s !== centre && BULKY.includes(o.s.archetype));
+  const endAt = PIANO_SIDE < 0 ? 0 : ordered.length - 1;
+  if (bulkyAt >= 0 && bulkyAt !== endAt) {
+    const end = ordered[endAt]!;
+    const bulky = ordered[bulkyAt]!;
+    [end.s, bulky.s] = [bulky.s, end.s];
+  }
+
   // Widest gap that fits. A front line squeezed to nothing is worse than one
   // that spills a horn into the mid row, so try roomy first and give up in
   // steps.
@@ -980,9 +1057,10 @@ function layoutFrontLine(
      * to the average of several. The exception is a front line with nothing but
      * furniture in it — a number whose only front-line player is the pianist —
      * where centring would park a grand piano across the middle of the stage
-     * and wall the band off. That one slides to the side the comp did not take.
+     * and wall the band off. That one slides to the audience's left, for the
+     * reason `PIANO_SIDE` gives.
      */
-    const centreX = BULKY.includes(centre.archetype) ? geom.side * 1.6 : 0;
+    const centreX = BULKY.includes(centre.archetype) ? PIANO_SIDE * 1.6 : 0;
     /**
      * A grand piano does not stand on the front edge.
      *
@@ -997,8 +1075,13 @@ function layoutFrontLine(
     for (let i = 0; i < ordered.length; i++) {
       const s = ordered[i]!.s;
       s.x = clamp(xs[i]! - shift, -geom.xLimit, geom.xLimit);
-      s.z = (s === centre ? anchorZ : restZ)
-        - (BULKY.includes(s.archetype) ? bulkySetBack : 0);
+      // `s.box.z1` is this player's own downstage limit, not the line's: a
+      // singer stands on the front line and the trombone beside them stands
+      // half a metre upstage of it, because that is where their slide ends.
+      s.z = Math.min(
+        (s === centre ? anchorZ : restZ) - (BULKY.includes(s.archetype) ? bulkySetBack : 0),
+        s.box.z1,
+      );
     }
     // Whoever has the middle keeps it when the solver starts shoving.
     centre.anchor = 1.8;
@@ -1023,7 +1106,7 @@ function layoutFrontLine(
 // Staging — ambient
 // ---------------------------------------------------------------------------
 
-/** Archetypes that stand behind a trestle table rather than holding anything. */
+/** Archetypes that stand behind gear on a stand rather than holding anything. */
 const GEAR: Archetype[] = ['synth', 'electric-piano'];
 
 /**
@@ -1036,6 +1119,113 @@ const GEAR: Archetype[] = ['synth', 'electric-piano'];
  * photograph, not a problem.
  */
 const BULKY: Archetype[] = ['grand-piano', 'harp'];
+
+/**
+ * Which side of the stage a grand piano goes, and it is not a coin toss.
+ *
+ * Everything else in this file may be mirrored — the bass takes whichever side
+ * of the kit the seed says — but a grand is asymmetric and only one of the two
+ * mirror images is worth looking at. The case runs away from the player, the
+ * lid is hinged on the bass spine, and the pianist is turned so that the
+ * keyboard runs downstage. Put that on the audience's *left* (`-x`, see the
+ * space convention in `types.ts`) and the spine sits upstage, the lid opens
+ * toward the house, and the audience looks along the keys at the player's right
+ * side: the picture every photograph of a pianist is.
+ *
+ * Mirror it and the same geometry gives the house a closed lid to look at with
+ * the hands behind it — the one thing a pianist is worth watching for, hidden
+ * by their own instrument. So the piano gets the left, and the coin decides the
+ * things that are genuinely symmetrical.
+ */
+const PIANO_SIDE = -1;
+
+/**
+ * How far an instrument must turn its player before that turn stops being a
+ * preference and starts being where they have to face.
+ *
+ * Only the grand piano is over the line today. A pianist turned less than this
+ * cannot reach the keys, so the number outranks every other rule about facing —
+ * including ambient's, which otherwise splays everybody outward.
+ */
+const TURN_IS_STRUCTURAL = 1;
+
+/**
+ * How much of the outward splay is given back by the time a player is at the
+ * lip.
+ *
+ * 0.6 leaves a downstage player between 6° and 22° off the house, against the
+ * 14°–54° the back of the stage keeps. The lower end is small enough to read as
+ * a person standing naturally rather than as a rule being obeyed, and the upper
+ * end is still short of the angle at which a face becomes a cheekbone — which
+ * is the whole quantity being bought here.
+ *
+ * Not 1. Squaring the front row to the house would build the front line this
+ * staging exists to refuse; the fan has to survive at the lip, just quietly.
+ */
+const SPLAY_DECAY = 0.6;
+
+/**
+ * How much of the *framed* half-width the ambient scatter treats as free
+ * ground.
+ *
+ * Measured against `IN_FRAME` rather than against the boards, and that is the
+ * correction rather than the number. Against the boards the ramp reached full
+ * cost at 4.3 m — a place the camera cannot see — so a player out at 3.3 m,
+ * already half out of frame, was paying about a quarter of the penalty and
+ * taking the corner anyway. Against the frame the cost lands where the picture
+ * actually ends, and a player who crosses the line keeps paying past it.
+ *
+ * Half of the black box's 3.4 m of frame still leaves a three-and-a-half-metre
+ * middle to scatter four or five players across, which is more room than they
+ * need and nothing like a huddle.
+ */
+const SCATTER_SHOULDER = 0.5;
+
+/**
+ * What standing on the edge of frame costs, in the same units as `room`.
+ *
+ * Sized against what it competes with. `room` is metres of clearance to the
+ * nearest player, and on a stage this size the difference between a comfortable
+ * spot and the emptiest one available is a metre or two — so a penalty of 4 at
+ * the frame edge outbids the pull toward the corners without being absolute. A
+ * player who genuinely has nowhere else to go can still take the wing, which is
+ * the one thing a hard clamp on the draw range cannot express: clamping moves
+ * the pile-up to the new edge instead of dispersing it, because the selection
+ * is what does the pushing.
+ */
+const WING_PENALTY = 4;
+
+/** Metres of daylight between two pieces of gear on the table, when it fits. */
+const GEAR_GAP = 0.35;
+
+/**
+ * How wide a player at a shared table is, as a radius.
+ *
+ * `footprint` is the stage a free-standing player claims — arm's length, room
+ * to turn, room for somebody to walk behind them — and it is the wrong quantity
+ * for somebody parked behind a keyboard on a stand. A synthesiser
+ * claims 1.0 there and an electric piano 0.9, so three of them came out as a
+ * six-and-a-half-metre line: not a bank of keyboards, a row of people who own
+ * synthesisers, with the two ends of it out past the edge of frame. A stage
+ * keyboard is about 1.4 m wide and its player stands behind it, which is the
+ * measurement this is.
+ *
+ * It is written onto the slot rather than used only for the layout, because the
+ * solver separates on `r` and would otherwise spend its passes pushing the
+ * table back apart to arm's length.
+ */
+const TABLE_R = 0.7;
+
+/**
+ * How much of the framed width a full gear table may take up.
+ *
+ * Not a taste: at `TABLE_R` four players are 5.6 m of bodies before a single
+ * gap, against about 6.9 m of frame in the black box. At a fixed gap the line
+ * came out wider than the picture, and the clamp then jammed its far end into
+ * the side margin while leaving two metres of empty boards at the other end — a
+ * table shoved off the side of the stage rather than a table.
+ */
+const TABLE_SHARE = 0.86;
 
 /**
  * Stage an ambient set, which is not a band on a stage.
@@ -1051,9 +1241,12 @@ const BULKY: Archetype[] = ['grand-piano', 'harp'];
  *
  *  - **A table.** Whoever is on a keyboard or a synth is on `perch` posture in
  *    one line, off to one side and upstage. Clustering them is what makes it
- *    read as *a table* rather than as three people who happen to be standing in
- *    a row, and it gives the stage builder a coherent region without this file
- *    having to emit a prop for furniture it cannot position (see `venue.ts`).
+ *    read as *one rig* rather than as three people who happen to be standing in
+ *    a row. There is no trestle under it: each keyboard carries its own stand,
+ *    and the prop that used to sit here was placed by the stage builder at a
+ *    fixed spot with no idea where these stations ended up, so it stood inside
+ *    a player about as often as not. See `venue.ts` for why it went rather than
+ *    got reconciled.
  *  - **A scatter.** Everyone else is placed by best-candidate sampling, biased
  *    upstage, which produces an irregular arrangement that still keeps its
  *    distance. A grid would read as a band that had been told where to stand.
@@ -1066,8 +1259,21 @@ function stageAmbient(slots: Slot[], venue: Venue, seed: string): void {
   const rng = new Rng(`${seed}:cast:ambient`);
   const W = venue.width;
   const D = venue.depth;
-  const x0 = -W / 2 + MARGIN_SIDE;
-  const x1 = W / 2 - MARGIN_SIDE;
+  /**
+   * Two limits, and keeping them apart is most of what this routine got wrong.
+   *
+   * `xLimit` is where the boards stop being usable — the side margin or the
+   * masking, whichever binds. `xFrame` is where the *picture* stops. The old
+   * code had only the first, so the scatter spread happily across ground that
+   * is real, unobstructed, lit, and outside every shot the camera takes: five
+   * players on stage, three of them in frame.
+   *
+   * So the boxes are built from `xLimit`, because that is what is physically
+   * true, and everything that *chooses* a position is sized to `xFrame`.
+   */
+  const xLimit = Math.min(W / 2 - MARGIN_SIDE, W * OPENING);
+  /** Half the framed width. Never zero, because the scatter divides by it. */
+  const xFrame = Math.max(W * IN_FRAME, 0.5);
   const z0 = -D / 2 + MARGIN_UP;
   const z1 = D / 2 - MARGIN_DOWN;
   const side = rng.chance(0.5) ? 1 : -1;
@@ -1082,9 +1288,25 @@ function stageAmbient(slots: Slot[], venue: Venue, seed: string): void {
      * which is not where this kit is going to be.
      */
     s.riser = 0;
-    s.box = { x0, x1, z0, z1 };
+    if (GEAR.includes(s.archetype)) {
+      s.posture = 'perch';
+      s.r = Math.min(s.r, TABLE_R);
+    }
+    /**
+     * A box bounds a player's *centre*, so the side limit owes them their own
+     * footprint back.
+     *
+     * Without it the limit is a promise about a point rather than about a
+     * person: a drummer whose centre is 0.5 m off the edge of the boards has
+     * most of a kit in the wing flat, and the flats are 0.25 m inboard of the
+     * opening besides. Every other constraint reports success and the render
+     * shows a cymbal coming through the wall.
+     */
+    const half = Math.max(0.5, xLimit - s.r);
+    // And the downstage limit owes them the same, against the rail rather than
+    // against the wing flats. See `LIP_FURNITURE`.
+    s.box = { x0: -half, x1: half, z0, z1: Math.min(z1, zLipLimit(D, s.r)) };
     s.avoidFrontCentre = true;
-    if (GEAR.includes(s.archetype)) s.posture = 'perch';
     s.head = headAbove(s.posture, s.look.height);
   }
 
@@ -1096,15 +1318,33 @@ function stageAmbient(slots: Slot[], venue: Venue, seed: string): void {
   if (gear.length) {
     const angle = rng.float(-0.2, 0.2);
     const tableZ = z0 + rng.float(0.3, 1.1);
-    const centre = side * rng.float(0.5, 1.8);
-    let span = 0;
-    for (let i = 0; i < gear.length; i++) span += gear[i]!.r * 2 + (i ? 0.35 : 0);
+    const offset = rng.float(0.5, 1.8);
+    let bodies = 0;
+    for (const s of gear) bodies += s.r * 2;
+    /**
+     * The gaps close before anybody is pushed out of frame, and the offset
+     * gives way before the ends do.
+     *
+     * Both are the same failure seen twice: the line was laid out at its
+     * preferred size and preferred offset and then clamped, so on a full table
+     * the clamp — not the layout — decided where the outermost player stood,
+     * and it always decided "against the limit". Sizing the line to the frame
+     * first and spending whatever room is left on the offset keeps the ends
+     * inside the picture without giving up either the crowding or the lean to
+     * one side that make it read as furniture. Because the offset yields last,
+     * the worst case is an end player at `xFrame` minus their own width — in
+     * frame by construction, whatever the table is carrying.
+     */
+    const gaps = Math.max(gear.length - 1, 1);
+    const gap = Math.min(GEAR_GAP, Math.max(0.05, (2 * xFrame * TABLE_SHARE - bodies) / gaps));
+    const span = bodies + gap * (gear.length - 1);
+    const centre = side * Math.min(offset, Math.max(0, xFrame - span / 2));
     let t = -span / 2;
     for (const s of gear) {
       t += s.r;
-      s.x = clamp(centre + t * Math.cos(angle), x0, x1);
+      s.x = clamp(centre + t * Math.cos(angle), s.box.x0, s.box.x1);
       s.z = clamp(tableZ + t * Math.sin(angle), z0, z1);
-      t += s.r + 0.35;
+      t += s.r + gap;
     }
   }
 
@@ -1128,10 +1368,22 @@ function stageAmbient(slots: Slot[], venue: Venue, seed: string): void {
   let downstage = 0;
 
   for (const s of [...loose].sort((a, b) => b.r - a.r)) {
-    const zHigh = downstage >= 2 ? zFrontLimit : z1;
+    const zHigh = Math.min(downstage >= 2 ? zFrontLimit : z1, s.box.z1);
+    /**
+     * A grand piano is drawn from one half of the stage only.
+     *
+     * The scatter has no opinion about which way an instrument faces and it
+     * should not grow one, so the asymmetry is expressed where it belongs: in
+     * where the piano is allowed to land. `PIANO_SIDE` has the argument. Half a
+     * stage is still plenty of ground for one draw, and it is the only slot in
+     * this routine that gets told anything at all.
+     */
+    const bulky = BULKY.includes(s.archetype);
+    const drawLo = bulky && PIANO_SIDE > 0 ? 0 : s.box.x0;
+    const drawHi = bulky && PIANO_SIDE < 0 ? 0 : s.box.x1;
     let best: { x: number; z: number; score: number } | undefined;
     for (let k = 0; k < 28; k++) {
-      const cx = rng.float(x0, x1);
+      const cx = rng.float(drawLo, drawHi);
       const cz = z0 + (zHigh - z0) * Math.pow(rng.next(), 1.7);
       if (inFrontCentre(cx, cz, z1)) continue;
       let room = 6;
@@ -1139,7 +1391,8 @@ function stageAmbient(slots: Slot[], venue: Venue, seed: string): void {
         room = Math.min(room, Math.hypot(cx - p.x, cz - p.z) - p.r - s.r);
       }
       /**
-       * Elbow room, minus a penalty for being downstage.
+       * Elbow room, minus a penalty for being downstage and another for being
+       * out in the wings.
        *
        * Sampling `z` with an upstage bias is not enough on its own, and the
        * reason is worth recording: best-candidate sampling picks whichever
@@ -1148,8 +1401,30 @@ function stageAmbient(slots: Slot[], venue: Venue, seed: string): void {
        * silently inverted and the scatter grows a front line — which is the
        * one thing this staging is not allowed to have. The penalty is what
        * makes the preference survive the selection.
+       *
+       * The same inversion happens sideways, and it is worse because nothing
+       * was resisting it at all: the emptiest ground on a stage is always its
+       * two far corners, so "furthest from everybody" walked player after
+       * player out to the side margins and left them standing in the wings with
+       * the middle of the stage empty. Narrowing the draw would only have
+       * moved the pile-up to whatever the new edge was, because the selection
+       * is what is doing the pushing. So the sides cost something instead:
+       * nothing at all through the middle half of the *frame*, then a squared
+       * ramp that reaches `WING_PENALTY` where the picture ends and keeps
+       * climbing past it. Squared rather than linear because the cost has to
+       * stay negligible where the scatter is meant to be irregular and become
+       * decisive only where it is not — a linear ramp shaves the whole
+       * distribution toward centre and starts producing the tidy cluster this
+       * routine exists to avoid.
+       *
+       * Measuring the ramp against the frame rather than against the boards is
+       * the difference between a rule and a gesture: the two lines are a metre
+       * apart, and that metre is exactly the band where a player is on the
+       * stage and out of the shot.
        */
-      const score = room - 1.2 * ((cz - z0) / Math.max(0.001, z1 - z0));
+      const downstageness = (cz - z0) / Math.max(0.001, z1 - z0);
+      const wing = Math.max(0, Math.abs(cx) / xFrame - SCATTER_SHOULDER) / (1 - SCATTER_SHOULDER);
+      const score = room - 1.2 * downstageness - WING_PENALTY * wing * wing;
       if (!best || score > best.score) best = { x: cx, z: cz, score };
     }
     s.x = best?.x ?? 0;
@@ -1162,7 +1437,41 @@ function stageAmbient(slots: Slot[], venue: Venue, seed: string): void {
   for (const s of slots) {
     const own = new Rng(`${seed}:cast:facing:${s.id}`);
     const away = s.x >= 0 ? 1 : -1;
-    s.facing = away * own.float(0.25, 0.95) - (sidewaysTurn(s.archetype) * away * 0.4);
+    const turn = sidewaysTurn(s.archetype);
+    /**
+     * How much of the splay a player at this depth is allowed.
+     *
+     * The splay used to be the same everywhere, because it is a statement about
+     * the band rather than about a position — and that is exactly why it read
+     * wrong at the front. Upstage, 30° off the house is a player absorbed in
+     * their own gear; downstage, on the two people the camera is closest to, it
+     * is a pair of profiles turned into the wings, looking at the masking. The
+     * genre asks for nobody performing *at* the audience, which is not the same
+     * request as nobody showing them a face.
+     *
+     * So the splay is spent where it costs nothing. Full value along the back
+     * wall, `1 - SPLAY_DECAY` of it at the lip, linear between: the arrangement
+     * still fans outward, the players who read as a picture stay near square to
+     * the house, and no rule about eye contact has been relaxed — `avertGazes`
+     * runs afterwards either way.
+     */
+    const depth = (s.z - z0) / Math.max(0.001, z1 - z0);
+    const splay = 1 - SPLAY_DECAY * Math.min(1, Math.max(0, depth));
+    /**
+     * Unless the instrument decides it.
+     *
+     * The splay is a statement about how this band behaves, and a grand piano
+     * is not in a position to make statements: the keyboard is between the
+     * player and the case, so a pianist splayed 30° off the house is a pianist
+     * with a closed lid where their hands should be. Ambient loses nothing by
+     * conceding it — the player still faces across the stage rather than at
+     * anybody, which is the whole point of the splay in the first place.
+     */
+    if (turn >= TURN_IS_STRUCTURAL) {
+      s.facing = -away * turn + own.float(-0.1, 0.1);
+      continue;
+    }
+    s.facing = (away * own.float(0.25, 0.95) - (turn * away * 0.4)) * splay;
   }
   avertGazes(slots);
 }
@@ -1178,7 +1487,9 @@ function inFrontCentre(x: number, z: number, z1: number): boolean {
  * character of the genre's staging, so it gets enforced rather than hoped for.
  * A pair counts as looking at each other when both forward vectors point within
  * a narrow cone of the other player and they are close enough for it to read;
- * the later of the two turns further away until they do not.
+ * the later of the two turns further away until they do not — unless the later
+ * one is the player whose instrument is pointing them (`TURN_IS_STRUCTURAL`),
+ * in which case the other gives way. A pianist cannot turn 25° to be polite.
  */
 function avertGazes(slots: Slot[]): void {
   const CONE = 0.4;
@@ -1186,11 +1497,35 @@ function avertGazes(slots: Slot[]): void {
     for (let j = i + 1; j < slots.length; j++) {
       const a = slots[i]!;
       const b = slots[j]!;
+      const yields = sidewaysTurn(b.archetype) >= TURN_IS_STRUCTURAL ? a : b;
+      const other = yields === b ? a : b;
       for (let tries = 0; tries < 8; tries++) {
         const d = Math.hypot(b.x - a.x, b.z - a.z);
         if (d > 4.5) break;
         if (!looksAt(a, b, CONE) || !looksAt(b, a, CONE)) break;
-        b.facing += 0.45;
+        /**
+         * Turn away from them, rather than turning one fixed direction.
+         *
+         * This used to be `+= 0.45` unconditionally, which is a rotation of the
+         * whole stage toward the audience's right and only accidentally an
+         * aversion. Whether it helped depended on which side of the centre line
+         * the yielding player was standing: a player splayed to `-0.5` was
+         * rotated back toward the house, and a player splayed to `+0.95` was
+         * pushed on out to `+1.4`, past profile and into the wing — the one
+         * outcome `SPLAY_DECAY` above exists to prevent, reintroduced by the
+         * pass that runs after it.
+         *
+         * The bearing to the other player says which way is away: the yielding
+         * player is already leaning to one side of them by `delta`, and leaning
+         * further that way is both the shorter correction and a monotone one,
+         * so the cone is cleared in a step or two instead of by sweeping
+         * through most of a circle.
+         */
+        const bearing = Math.atan2(other.x - yields.x, other.z - yields.z);
+        let delta = (yields.facing - bearing) % (2 * Math.PI);
+        if (delta > Math.PI) delta -= 2 * Math.PI;
+        if (delta < -Math.PI) delta += 2 * Math.PI;
+        yields.facing += delta >= 0 ? 0.45 : -0.45;
       }
     }
   }
@@ -1234,14 +1569,40 @@ function looksAt(from: Slot, to: Slot, cone: number): boolean {
  * the players physically fit.
  */
 function solve(slots: Slot[], venue: Venue): void {
-  const half = Math.min(venue.width / 2 - MARGIN_SIDE, venue.width * OPENING);
+  /**
+   * The masking line, less the width of the person standing on it.
+   *
+   * Every limit in this file bounds a *centre*, and the solver is where that
+   * stops being a technicality: shoving is what puts players against their
+   * limits, so the players who reach this one are the same ones the audience is
+   * furthest off to the side of. Half a trumpeter behind the tormentor is the
+   * failure `OPENING` exists to prevent and was still allowing, because the
+   * layout was measured to a point and the tormentor is not.
+   *
+   * `SILHOUETTE_R` rather than `footprint`, for the reason it was defined:
+   * what the masking cuts into is shoulders, not floor space.
+   */
+  const half = Math.min(venue.width / 2 - MARGIN_SIDE, venue.width * OPENING) - SILHOUETTE_R;
   const stage: Box = {
     x0: -half,
     x1: half,
     z0: -venue.depth / 2 + MARGIN_UP,
     z1: venue.depth / 2 - MARGIN_DOWN,
   };
-  for (const s of slots) s.box = intersect(s.box, stage);
+  /**
+   * Clamped once here, not only when somebody is pushed.
+   *
+   * `clampInto` runs inside `separate`, which means a player who never
+   * collides with anybody is never checked against the stage at all — and the
+   * players who never collide are exactly the ones standing on their own out
+   * at the end of the front line. A layout that reached its own limit kept
+   * whatever the limit was when it was laid out, including the ones that do
+   * not know about the masking.
+   */
+  for (const s of slots) {
+    s.box = intersect(s.box, stage);
+    clampInto(s);
+  }
 
   for (let relax = 0; relax <= 3; relax++) {
     for (let pass = 0; pass < 6; pass++) {

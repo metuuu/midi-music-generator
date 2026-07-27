@@ -21,6 +21,14 @@
  * the way to keep that structural rather than a promise is to report events and
  * let the thing that owns the music decide what they mean.
  *
+ * ## What counts as a hit
+ *
+ * Hitting somebody's snare drum counts. It counts against *them*, it emits the
+ * same `onHit`, and it moves the same ladder — a tomato in the kit is a tomato
+ * thrown at the band, and a mechanic that silently ignores a third of the
+ * connections teaches the audience that the throw is broken rather than that
+ * their aim is. It does not count for as much: see `INSTRUMENT_COST`.
+ *
  * ## The escalating tell
  *
  * A patience budget you cannot see coming is a random punishment. A patience
@@ -39,7 +47,9 @@
  *   5th       `onPatienceLost`.
  *
  * The thresholds scale with `patience` so that tuning the budget does not throw
- * the ladder away.
+ * the ladder away. The rungs are counted in body hits — two in the kit climb
+ * one rung — but the *first* connection of any kind is answered immediately,
+ * because a hit nobody visibly notices is a hit that did not happen.
  *
  * ## Frame contract, which matters more than usual here
  *
@@ -61,13 +71,15 @@
  * slot and the last writer in the frame owns it. An animator that would rather
  * arbitrate can read `mood(id).gaze` and do it properly.
  *
- * **Nothing is built on the throw.** `begin` allocates the whole pool — six
- * tomatoes, six shadows, every splat — and leaves it in the scene for a frame
- * so the renderer compiles its programs and uploads its buffers there rather
- * than on the frame somebody clicks. Building a mesh mid-flight is not a
- * correctness problem and it is very much a *feel* problem: it put a visible
- * hitch between the release and the tomato, which reads as the throw being
- * broken. See `WARM_FRAMES` for the measurement.
+ * **Nothing is built on the throw, and nothing is built on the landing.**
+ * `begin` allocates the whole pool — six tomatoes, six shadows, thirty pieces
+ * of pulp, every splat, *and the material the performer rigs put on bodies* —
+ * and leaves it in the scene for a frame so the renderer compiles its programs
+ * and uploads its buffers there rather than on the frame somebody clicks.
+ * Building a mesh mid-flight is not a correctness problem and it is very much a
+ * *feel* problem: it put a visible hitch between the release and the tomato,
+ * which reads as the throw being broken. See `WARM_FRAMES` for the measurement,
+ * and `bodyMark` for the one that was still costing 6.5 ms of it.
  *
  * `beat` is used for exactly one thing: stamping `TomatoHit.beat` so the show
  * runner knows which bar to end. Every duration in here is in seconds and comes
@@ -81,11 +93,12 @@
 
 import {
   Box3, Camera, CircleGeometry, ConeGeometry, Group, IcosahedronGeometry, Mesh,
-  MeshBasicMaterial, MeshStandardMaterial, Object3D, Vector3,
+  MeshBasicMaterial, MeshStandardMaterial, Object3D, Quaternion, Vector3,
 } from 'three';
 
 import type { Cast, Performer } from '../../concert/types.js';
 import { Rng } from '../../core/rng.js';
+import { Leases, quad, splatSurface } from './performer-assets.js';
 import type { PerformerRig } from './performer.js';
 import type { StageRig } from './stage.js';
 import { sweep, type Impact, type Target } from './tomato-collide.js';
@@ -130,17 +143,36 @@ export interface TomatoOptions {
 }
 
 export interface TomatoHit {
+  /**
+   * Who wore it. For an instrument hit, whoever is playing the instrument —
+   * a tomato in the ride cymbal is an event about the drummer.
+   */
   performerId: string;
   /** Where it landed. A copy — safe to keep. */
   worldPoint: Vector3;
   /** Song position when it landed, straight off the beat passed to `update`. */
   beat: number;
-  /** Hits this player has taken this number, including this one. */
+  /** Hits this player has taken this number, on them or their kit, this one included. */
   hits: number;
-  /** Hits the band has taken this number, including this one. */
+  /** Hits the band has taken this number, this one included. */
   bandHits: number;
-  /** What is left before `onPatienceLost`. 0 means this hit was the last one. */
+  /**
+   * What is left before `onPatienceLost`, counted in body hits and rounded up.
+   * 0 means this hit was the last one, exactly as before — but it no longer
+   * falls out of `bandHits`, because an instrument hit costs less than one. See
+   * `INSTRUMENT_COST`.
+   */
   patienceLeft: number;
+  /**
+   * What the tomato actually hit.
+   *
+   * Optional in the type and always present in fact: it is new, and a consumer
+   * written when only bodies scored must keep compiling untouched. Read it
+   * rather than inferring anything from the other fields — a consumer that
+   * wants to treat a hit on the kit differently has to be told, and lying about
+   * `performerId` or `hits` to encode it would break everything else.
+   */
+  struck?: 'body' | 'instrument';
 }
 
 /**
@@ -265,6 +297,26 @@ export interface Tomatoes {
  */
 const PATIENCE = 5;
 /**
+ * What one tomato in somebody's kit costs, against a body hit's 1.
+ *
+ * Half, and the reason is target size. A performer is a 30 cm head on a 45 cm
+ * capsule and hitting one is a skill. A drum kit is the world bounding box of
+ * its model — a cubic metre and a half — and a piano is worse; at close range
+ * you cannot *miss* the kit. Charging full price for one would collapse the
+ * whole mechanic into "spray at the drums for fifteen seconds", and the head
+ * shot, which is the best thing in the game, would stop being worth aiming for.
+ *
+ * Free was worse, though, which is what this replaced: the tomato burst on the
+ * snare, the drummer looked up, and *nothing else happened* — no gasp, no
+ * ladder, no sulk. From the tenth row that is indistinguishable from the hit
+ * not registering, and the thing the audience concludes is that the game is
+ * broken rather than that they missed.
+ *
+ * Half also keeps the arithmetic legible: two in the kit are one in the chest,
+ * and the walk-off is still five bodies or ten drums.
+ */
+const INSTRUMENT_COST = 0.5;
+/**
  * Two seconds. A throw takes about a second to land and another half to
  * register, so this is "watch what you did, then go again" rather than a wait.
  * At one second the whole band can be exhausted inside a verse.
@@ -318,6 +370,68 @@ const WARM_FRAMES = 2;
  */
 const WARM_SCALE = 1e-4;
 
+// --- the impact ------------------------------------------------------------
+/**
+ * Seconds the tomato itself takes to stop existing after it lands.
+ *
+ * It used to be zero: the tomato vanished on the frame it touched and a flat
+ * mark appeared where it had been. Nothing about that reads as an impact — the
+ * eye gets no event, only a before and an after, and the mark looks like it was
+ * always there. What it needs is a beat in which the tomato is visibly *losing*
+ * — flattening into the surface, spreading across it, going. 120 ms is seven
+ * frames, which is long enough to see and short enough that it is over before
+ * anybody thinks about it.
+ */
+const BURST_SECONDS = 0.12;
+/**
+ * Bits of pulp per tomato, and how long they live.
+ *
+ * Five is enough to read as "it came apart" and few enough that the impact does
+ * not turn into confetti. They are pooled per tomato rather than globally so
+ * that a landing never has to find a free one — six tomatoes cannot land more
+ * than six times at once by definition.
+ *
+ * They fly ballistically and hit nothing. A pulp bit is a centimetre across and
+ * lives for four tenths of a second; running it through `sweep` would cost
+ * thirty more swept queries per substep to decide whether a speck stops at the
+ * boards or under them, and at that size and that speed there is nothing to
+ * see either way.
+ */
+const PULP = 5;
+const PULP_SECONDS = 0.34;
+/**
+ * Metres per second the pulp leaves at, before each bit's own scatter.
+ *
+ * Tuned down from something closer to the real physics. A tomato arriving at
+ * twelve metres a second really does throw pulp a metre and a half, and at this
+ * scale that is not a splash — it is a metre and a half of confetti around a
+ * performer who is 1.7 m tall, and it reads as a firework. What the eye wants
+ * is a spray about a head wide in the first tenth of a second, which is this.
+ */
+const PULP_SPEED = 1.6;
+/** A bit's radius as a fraction of the tomato's. */
+const PULP_SIZE = 0.26;
+/**
+ * The closing speed, in m/s, that counts as a full-force impact.
+ *
+ * Roughly what a flat throw from the third row arrives at. Everything softer
+ * scales down: the burst spreads less and the mark is smaller. A lobbed tomato
+ * that drops onto the boards from the top of its arc should not leave the same
+ * mark as one fired into the backdrop, and before this it did — the size was a
+ * constant, which is the sort of thing nobody can name and everybody feels.
+ */
+const HARD_IMPACT = 12;
+/**
+ * Mark radius as a multiple of the tomato's, from a graze to a full-force hit.
+ *
+ * Straddling 2.3, which is the constant this replaced: an ordinary throw leaves
+ * the mark it always did, and the range only shows up at the ends. Widening it
+ * further was tempting and wrong — at 3.1 a hard shot at the backdrop leaves a
+ * mark a third of a metre across, which stops reading as a tomato.
+ */
+const MARK_MIN = 1.7;
+const MARK_MAX = 2.9;
+
 /** Seconds after which a reaction has played out and can be re-issued. */
 const GLARE_SECONDS = 2.7;
 /** How long one look at the wings lasts. */
@@ -329,6 +443,17 @@ const V1 = new Vector3();
 const V2 = new Vector3();
 const V3 = new Vector3();
 const V4 = new Vector3();
+/**
+ * The burst path's own scratch.
+ *
+ * Separate from V1..V4 on purpose. The flight loop keeps live values in V1 and
+ * V2 across the substep loop and reads V2 again after it, and the burst is
+ * driven from inside that loop on the frame a tomato lands. Sharing would work
+ * today, by an accident of where the `continue`s are.
+ */
+const V5 = new Vector3();
+const V6 = new Vector3();
+const UP = new Vector3(0, 1, 0);
 const BOX = new Box3();
 
 /** The `Impact.target` before anything has been hit. Never dereferenced. */
@@ -345,8 +470,30 @@ interface Flight {
   vel: Vector3;
   /** Seconds since launch. */
   age: number;
+  /** In the air, and therefore collidable. False the instant it touches. */
   live: boolean;
   spin: Vector3;
+
+  // --- the burst, which outlives the flight by four tenths of a second -----
+  /**
+   * Seconds since it landed, or -1 when this tomato is not bursting.
+   *
+   * A separate state from `live` because a bursting tomato is neither flying
+   * nor free: it must not be swept against anything, and `take` must not hand
+   * its group to the next throw while its pulp is still in the air.
+   */
+  burst: number;
+  /** Where it burst, on the surface rather than a radius off it. */
+  hitAt: Vector3;
+  /** The surface normal there. Unit, pointing away from what it hit. */
+  hitNormal: Vector3;
+  /** Turns the impact frame's +y onto the surface normal. Squash and scatter. */
+  hitQuat: Quaternion;
+  /** How hard it arrived, 0..1 against `HARD_IMPACT`. */
+  force: number;
+  /** The pulp, and where each bit goes in the impact frame. */
+  pulp: Mesh[];
+  pulpDir: Vector3[];
 }
 
 interface Tell {
@@ -388,13 +535,65 @@ export function createTomatoes(scene: Object3D, opts: TomatoOptions = {}): Tomat
 
   // --- shared geometry and materials, owned and disposed here --------------
   const fleshGeo = new IcosahedronGeometry(1, 1);
+  /** A pulp bit is a centimetre across and lasts a third of a second: 20 tris. */
+  const pulpGeo = new IcosahedronGeometry(1, 0);
   const calyxGeo = new ConeGeometry(0.5, 0.4, 5);
   const shadowGeo = new CircleGeometry(1, 10);
   const fleshMat = new MeshStandardMaterial({ color: '#c8210f', roughness: 0.34, metalness: 0 });
   const calyxMat = new MeshStandardMaterial({ color: '#3f6b27', roughness: 0.8, metalness: 0 });
   const shadowMat = new MeshBasicMaterial({ color: '#000000', transparent: true, opacity: 0.3, depthWrite: false });
+  /** Every bit of pulp is the tomato's own material, so it costs no new program. */
+  const pulpMat = fleshMat;
+
+  /**
+   * A mesh that exists only so that the mark on a *body* is warm.
+   *
+   * This is the one hole the rest of the warm-up left, and it was the whole of
+   * the stall at impact. `PerformerRig.splat` builds its marks the first time
+   * somebody is hit, out of `quad` and `splatSurface` from the shared asset
+   * pool — and `splatSurface` is the only textured material in the concert. Its
+   * factory generates a 64×64 splat texture pixel by pixel, which measures at
+   * 6.5 ms of pure CPU on the impact frame, and hands back a
+   * `MeshStandardMaterial` with `map` + `alphaTest` + `transparent` that no
+   * other material on this stage matches — so the first `render` after the
+   * first hit also compiles and links a program nobody has ever asked for and
+   * uploads 16 kB of texture. All three land on the frame of the impact, which
+   * is why a hit lagged just before it showed.
+   *
+   * The tomato pool's own warm-up never covered it: `splats.prime()` warms the
+   * marks on *scenery*, whose material is untextured and opaque and shares no
+   * program with this one, and a warm-up hung off a rig would not have worked
+   * either — the show keeps `band.visible = false` behind the curtain, and an
+   * invisible subtree is never submitted, so it would have compiled nothing.
+   *
+   * So the mark's assets are leased here and drawn from `root`, which the
+   * curtain does not hide. The pool is keyed by name, so the material this
+   * takes is the identical instance the rigs get later; by the time anybody is
+   * hit, the texture exists, the program is linked and the buffers are up. The
+   * lease is held for the life of the module rather than released after the
+   * warm-up so that the texture survives a `strike` and is generated once for
+   * the life of the page rather than once per number.
+   */
+  const markLeases = new Leases();
+  const bodyMark = new Mesh(quad(markLeases), splatSurface(markLeases));
+  bodyMark.name = 'body-mark-warmup';
+  bodyMark.frustumCulled = false;
+  bodyMark.visible = false;
+  root.add(bodyMark);
 
   const flights: Flight[] = [];
+  /**
+   * The scatter every bit of pulp will ever fly along, drawn once at `build`.
+   *
+   * Fixed per bit rather than per landing, because a landing must not allocate
+   * an `Rng` and must not draw from a shared one — the throw streams are keyed
+   * by throw index precisely so that a replay is identical, and a draw whose
+   * count depends on how many things a tomato clipped on the way would desync
+   * them. Thirty bits across six tomatoes is more distinct scatter than anybody
+   * can see in a tenth of a second, and `Flight.force` varies the speed per
+   * impact anyway.
+   */
+  const pulpRng = new Rng(`${seed}:pulp`);
   /** Reused every substep. `target` is only meaningful when `sweep` returns true. */
   const impact: Impact = {
     t: 0, point: new Vector3(), normal: new Vector3(0, 1, 0), target: NOTHING,
@@ -423,7 +622,22 @@ export function createTomatoes(scene: Object3D, opts: TomatoOptions = {}): Tomat
   let warm = 0;
   let cooldown = 0;
   let throwCount = 0;
+  /**
+   * Tomatoes that connected with somebody this number, on them or on their kit.
+   *
+   * An honest event count, which is what `TomatoHit.bandHits` promises. It is
+   * deliberately *not* what the walk-off is measured in — see `spent`.
+   */
   let hits = 0;
+  /**
+   * The same tomatoes, priced. A body is worth 1 and a kit `INSTRUMENT_COST`.
+   *
+   * Split from `hits` rather than making `hits` fractional, because `hits` and
+   * `bandHits` are reported to the show runner as counts and "you have been hit
+   * one and a half times" is not a thing anybody can act on. Patience is what
+   * is fractional, so patience is what carries the fraction.
+   */
+  let spent = 0;
   let lost = false;
   let lastBeat = 0;
   let camera: Camera | undefined;
@@ -675,16 +889,38 @@ export function createTomatoes(scene: Object3D, opts: TomatoOptions = {}): Tomat
       shadow.visible = false;
       root.add(shadow);
     }
+    // The pulp. Same material as the flesh and its own cheap geometry, both of
+    // which `prime` draws, so a burst compiles nothing and uploads nothing.
+    const pulp: Mesh[] = [];
+    const pulpDir: Vector3[] = [];
+    for (let i = 0; i < PULP; i++) {
+      const bit = new Mesh(pulpGeo, pulpMat);
+      bit.frustumCulled = false;
+      bit.visible = false;
+      root.add(bit);
+      pulp.push(bit);
+      // A cone off the surface: always outward, never grazing, and weighted so
+      // most of it goes up and out rather than straight back at the thrower.
+      const a = pulpRng.float(0, Math.PI * 2);
+      const lift = pulpRng.float(0.34, 0.96);
+      const flat = Math.sqrt(Math.max(0, 1 - lift * lift));
+      pulpDir.push(new Vector3(Math.cos(a) * flat, lift, Math.sin(a) * flat)
+        .multiplyScalar(pulpRng.float(0.55, 1.35)));
+    }
+
     const flight: Flight = {
       group, shadow, from: new Vector3(), vel: new Vector3(),
       age: 0, live: false, spin: new Vector3(),
+      burst: -1, hitAt: new Vector3(), hitNormal: new Vector3(0, 1, 0),
+      hitQuat: new Quaternion(), force: 1, pulp, pulpDir,
     };
     flights.push(flight);
     return flight;
   }
 
+  /** Free means neither flying nor still bursting — see `Flight.burst`. */
   function take(): Flight | undefined {
-    for (const f of flights) if (!f.live) return f;
+    for (const f of flights) if (!f.live && f.burst < 0) return f;
     // `prime` fills the pool, so this only fires if somebody threw before
     // `begin`. Building one is still better than dropping the throw.
     return flights.length >= maxInFlight ? undefined : build();
@@ -694,15 +930,22 @@ export function createTomatoes(scene: Object3D, opts: TomatoOptions = {}): Tomat
    * Build the pool, and get every part of it in front of the renderer once.
    *
    * See `WARM_FRAMES`. Everything a throw and a landing will need — six
-   * tomatoes, six shadows, `splatCap` marks, six materials — exists and has
-   * been drawn before the first click, so the throw path allocates nothing and
-   * compiles nothing.
+   * tomatoes, six shadows, thirty pieces of pulp, `splatCap` marks, the mark
+   * the rigs put on bodies, seven materials — exists and has been drawn before
+   * the first click, so neither the throw nor the landing allocates anything or
+   * compiles anything.
+   *
+   * The rule for anything added here later: if a landing can put a mesh in
+   * front of the renderer, this has to have put it there first. A single
+   * uncovered material is the whole stall back again — `bodyMark` was one, and
+   * it cost more than everything else in the file put together.
    */
   function prime(): void {
     while (flights.length < maxInFlight) build();
     for (const f of flights) {
-      if (f.live) continue;
+      if (f.live || f.burst >= 0) continue;
       f.group.position.set(0, 0, 0);
+      f.group.quaternion.identity();
       f.group.scale.setScalar(WARM_SCALE);
       f.group.visible = true;
       if (f.shadow) {
@@ -710,7 +953,15 @@ export function createTomatoes(scene: Object3D, opts: TomatoOptions = {}): Tomat
         f.shadow.scale.setScalar(WARM_SCALE);
         f.shadow.visible = true;
       }
+      for (const bit of f.pulp) {
+        bit.position.set(0, 0, 0);
+        bit.scale.setScalar(WARM_SCALE);
+        bit.visible = true;
+      }
     }
+    bodyMark.position.set(0, 0, 0);
+    bodyMark.scale.setScalar(WARM_SCALE);
+    bodyMark.visible = true;
     splats.prime();
     warm = WARM_FRAMES;
   }
@@ -718,7 +969,8 @@ export function createTomatoes(scene: Object3D, opts: TomatoOptions = {}): Tomat
   /** Put the warm-up back out of sight. Idempotent. */
   function cool(): void {
     warm = 0;
-    for (const f of flights) if (!f.live) retire(f);
+    for (const f of flights) if (!f.live && f.burst < 0) retire(f);
+    bodyMark.visible = false;
     splats.cool();
   }
 
@@ -732,52 +984,168 @@ export function createTomatoes(scene: Object3D, opts: TomatoOptions = {}): Tomat
 
   function retire(f: Flight): void {
     f.live = false;
+    f.burst = -1;
     f.group.visible = false;
     if (f.shadow) f.shadow.visible = false;
+    for (const bit of f.pulp) bit.visible = false;
   }
 
   // -----------------------------------------------------------------------
   // Consequences — the visual half. The musical half is the show runner's.
   // -----------------------------------------------------------------------
 
-  function land(f: Flight, point: Vector3, normal: Vector3, target: Target): void {
-    retire(f);
-    const rig = target.performerId ? rigs.get(target.performerId) : undefined;
+  /**
+   * How hard this tomato is arriving, 0..1 against `HARD_IMPACT`.
+   *
+   * The component of its velocity *into* the surface rather than its speed: a
+   * tomato that grazes the backdrop at fifteen metres a second has barely
+   * touched it and should not leave the mark of one that went in square. The
+   * age is a substep past the true contact time, which is nine centimetres a
+   * second of gravity — three quarters of one per cent, and not worth solving.
+   */
+  function impactForce(f: Flight, normal: Vector3): number {
+    V5.set(f.vel.x, f.vel.y - gravity * f.age, f.vel.z);
+    return clamp(-V5.dot(normal) / HARD_IMPACT, 0, 1);
+  }
 
-    if (target.kind === 'performer' && rig && target.performerId) {
-      const tell = tells.get(target.performerId);
-      if (tell) tell.hits++;
-      hits++;
-      // The rig owns marks on bodies, and its `splat` already flinches — it
-      // reacts with 'hit' internally, so a `react` here would replace the
-      // reaction with a weaker one rather than adding to it.
-      rig.splat(point);
-      stage?.gasp();
-      escalate();
-      // The room finds the first one funny and the fourth one uncomfortable.
-      laughAt = now + LAUGH_DELAY;
-      laughLevel = Math.max(0.05, 0.3 - 0.06 * tier);
-      hitQueue.push({
-        performerId: target.performerId,
-        worldPoint: point.clone(),
-        beat: lastBeat,
-        hits: tell ? tell.hits : 1,
-        bandHits: hits,
-        patienceLeft: Math.max(0, patience - hits),
-      });
-      if (hits >= patience && !lost) { lost = true; lostQueued = true; }
-      return;
+  /**
+   * Stop flying, and start coming apart. See `BURST_SECONDS`.
+   *
+   * The tomato is not retired here. It stays in the scene, flattened against
+   * what it hit and losing size, while its pulp arcs off — which is the beat
+   * the impact used to be missing entirely.
+   */
+  function openBurst(f: Flight, point: Vector3, normal: Vector3): void {
+    f.force = impactForce(f, normal);
+    f.live = false;
+    f.burst = 0;
+    // `sweep` reports where the tomato's *centre* is at contact, which is one
+    // radius off the surface. Everything about the burst happens on it.
+    f.hitAt.copy(point).addScaledVector(normal, -radius);
+    f.hitNormal.copy(normal);
+    f.hitQuat.setFromUnitVectors(UP, normal);
+    if (f.shadow) f.shadow.visible = false;
+    // Stop the tumble and lie down on the surface, so that the squash below
+    // flattens along the normal instead of along whatever it had spun to.
+    f.group.quaternion.copy(f.hitQuat);
+    drawBurst(f);
+  }
+
+  /**
+   * One frame of a burst. Pure writes to transforms: no allocation, no branch
+   * that can build anything, and nothing here can touch the collision world.
+   */
+  function drawBurst(f: Flight): void {
+    const t = f.burst;
+
+    // --- the tomato: flattens into the surface, spreads, and goes -----------
+    const k = clamp(t / BURST_SECONDS, 0, 1);
+    if (k < 1) {
+      // Squared, so it holds its size for the first frame or two and then
+      // leaves quickly. Linear reads as a balloon deflating.
+      const fade = 1 - k * k;
+      const spread = 1 + (0.5 + 0.9 * f.force) * k;
+      f.group.visible = true;
+      // The centre sinks the radius it was standing off the surface, so the
+      // skin stays put while the middle collapses onto it.
+      f.group.position.copy(f.hitAt).addScaledVector(f.hitNormal, radius * (1 - k) * 0.9);
+      f.group.scale.set(spread * fade, (1 - 0.8 * k) * fade, spread * fade);
+    } else if (f.group.visible) {
+      f.group.visible = false;
     }
 
-    // Everything else is a mark and, if it was their kit, a look.
-    //
-    // `impact.point` is where the tomato's *centre* is at contact, which is one
-    // radius off the surface. The mark goes on the surface. `PerformerRig.splat`
-    // does its own projection onto the part it picks, so the centre is the right
-    // thing to hand it and the wrong thing to hand this.
-    V4.copy(point).addScaledVector(normal, -radius);
-    splats.place(V4, normal, radius * 2.3, target.node);
-    if (target.kind === 'instrument' && rig) rig.react('surprise', 0.55);
+    // --- the pulp -----------------------------------------------------------
+    const g = clamp(t / PULP_SECONDS, 0, 1);
+    // Shrinks away rather than fading out: one material is shared by every
+    // tomato and every bit of every burst, so there is no per-bit opacity to
+    // fade, and giving them one would be the impact-frame shader compile all
+    // over again — see `bodyMark`.
+    const size = radius * PULP_SIZE * (1 - g) * (0.55 + 0.45 * f.force);
+    const speed = PULP_SPEED * (0.45 + 0.55 * f.force);
+    for (let i = 0; i < f.pulp.length; i++) {
+      const bit = f.pulp[i]!;
+      if (g >= 1) { bit.visible = false; continue; }
+      V5.copy(f.pulpDir[i]!).applyQuaternion(f.hitQuat);
+      V6.copy(f.hitAt)
+        .addScaledVector(f.hitNormal, radius * 0.4)
+        .addScaledVector(V5, speed * t);
+      V6.y -= 0.5 * gravity * t * t;
+      bit.position.copy(V6);
+      bit.scale.setScalar(size);
+      bit.visible = true;
+    }
+  }
+
+  function land(f: Flight, point: Vector3, normal: Vector3, target: Target): void {
+    openBurst(f, point, normal);
+    const rig = target.performerId ? rigs.get(target.performerId) : undefined;
+    const body = target.kind === 'performer';
+    const instrument = target.kind === 'instrument';
+
+    // How far the pulp spread. Computed once, here, because both the rig's
+    // marks and this module's read the same closing speed and they should not
+    // disagree about how hard the same tomato arrived.
+    const mark = radius * (MARK_MIN + (MARK_MAX - MARK_MIN) * f.force);
+
+    if (rig && target.performerId && (body || instrument)) {
+      register(target.performerId, rig, body, point, mark);
+    }
+
+    // A mark on a body is the rig's: it knows which part was hit and can parent
+    // the mark to a head that is going to go on nodding, which this cannot.
+    if (body) return;
+
+    // Everything else — their kit, the boards, the backdrop — is a mark here.
+    // `f.hitAt` is already the surface point rather than the tomato's centre;
+    // `PerformerRig.splat` does its own projection onto the part it picks, so
+    // the centre is the right thing to hand *it* and the wrong thing for this.
+    splats.place(f.hitAt, normal, mark, target.node);
+  }
+
+  /**
+   * One tomato has connected with a player — on them, or on their kit.
+   *
+   * Everything the band and the house do about it is here. Everything the
+   * *music* does about it is in the event this queues, and the reason that
+   * split is worth a function boundary is in the module docs.
+   */
+  function register(
+    performerId: string, rig: PerformerRig, body: boolean, point: Vector3, mark: number,
+  ): void {
+    const tell = tells.get(performerId);
+    if (tell) tell.hits++;
+    hits++;
+    spent += body ? 1 : INSTRUMENT_COST;
+
+    if (body) {
+      // The rig owns marks on bodies, and its `splat` already flinches — it
+      // reacts with 'hit' internally, so a `react` here would replace the
+      // reaction with a weaker one rather than adding to it. The size goes
+      // with the point: the rig knows which part was hit and cannot know how
+      // fast the thing was going, and it clamps the number against that part.
+      rig.splat(point, mark);
+    } else {
+      // Their kit and not them: they look up from it, they do not flinch.
+      rig.react('surprise', 0.55);
+    }
+    stage?.gasp();
+    escalate();
+    // The room finds the first one funny and the fourth one uncomfortable. One
+    // that burst on a bass drum is funnier than one that burst on a person —
+    // there is a bang, and nobody is hurt — so it starts higher and then dies
+    // down the same ladder as everything else.
+    laughAt = now + LAUGH_DELAY;
+    laughLevel = Math.max(0.05, (body ? 0.3 : 0.4) - 0.06 * tier);
+    hitQueue.push({
+      performerId,
+      worldPoint: point.clone(),
+      beat: lastBeat,
+      hits: tell ? tell.hits : 1,
+      bandHits: hits,
+      patienceLeft: Math.max(0, Math.ceil(patience - spent)),
+      struck: body ? 'body' : 'instrument',
+    });
+    if (spent >= patience && !lost) { lost = true; lostQueued = true; }
   }
 
   /**
@@ -789,7 +1157,13 @@ export function createTomatoes(scene: Object3D, opts: TomatoOptions = {}): Tomat
    * pile up, and quicken again the moment another one lands.
    */
   function escalate(): void {
-    tier = Math.min(hits, patience);
+    // Rounded *up*, so half a rung still shows. The band's mood is the only
+    // read-out this mechanic has, and a first tomato in the kit that produced
+    // no glare at all would read exactly like a tomato that did not register —
+    // which is the bug instrument hits were added to fix, arriving by a
+    // different door. Up-rounding costs at most half a rung of generosity and
+    // buys every connection a visible answer.
+    tier = Math.min(Math.ceil(spent), patience);
     if (stage) {
       // The house going quiet is the cheapest tell there is, and it is the one
       // that reads from the back of the room. Set on the edge only, so the show
@@ -992,6 +1366,12 @@ export function createTomatoes(scene: Object3D, opts: TomatoOptions = {}): Tomat
       // that appears to do nothing, which is a worse bug than the one this
       // whole mechanism fixes.
       flight.group.scale.setScalar(1);
+      // And undo the last burst. The tumble below is written through `rotation`
+      // and the squash is written through `quaternion`; clearing the Euler
+      // clears both, and without it a reused tomato flies out already lying
+      // flat against a surface that is no longer there.
+      flight.group.rotation.set(0, 0, 0);
+      for (const bit of flight.pulp) bit.visible = false;
       flight.spin.set(rng.float(-14, 14), rng.float(-14, 14), rng.float(-14, 14));
       if (flight.shadow) flight.shadow.visible = true;
 
@@ -1028,6 +1408,14 @@ export function createTomatoes(scene: Object3D, opts: TomatoOptions = {}): Tomat
       const subs = Math.max(1, Math.min(MAX_SUBSTEPS, Math.ceil(step / SUBSTEP)));
       const h = step / subs;
       for (const f of flights) {
+        // A bursting tomato is out of the physics: it has already hit
+        // something, and its pulp is decoration rather than a projectile.
+        if (f.burst >= 0) {
+          f.burst += step;
+          if (f.burst >= PULP_SECONDS) retire(f);
+          else drawBurst(f);
+          continue;
+        }
         if (!f.live) continue;
         for (let i = 0; i < subs && f.live; i++) {
           positionAt(f, f.age, V1);
@@ -1094,6 +1482,7 @@ export function createTomatoes(scene: Object3D, opts: TomatoOptions = {}): Tomat
         tell.rig.clearSplats();
       }
       hits = 0;
+      spent = 0;
       tier = 0;
       lost = false;
       lostQueued = false;
@@ -1120,11 +1509,19 @@ export function createTomatoes(scene: Object3D, opts: TomatoOptions = {}): Tomat
 
     measure() {
       const s = splats.stats();
-      const perTomato = { objects: shadows ? 4 : 3, triangles: 80 + 10 + (shadows ? 10 : 0) };
+      // Group, flesh, calyx, shadow, and one object per bit of pulp. The
+      // triangles are the flesh's 80, the calyx's 10, the shadow's 10 and 20
+      // for each bit — a worst case, since the pulp is only ever drawn during
+      // the four tenths of a second after an impact.
+      const perTomato = {
+        objects: (shadows ? 4 : 3) + PULP,
+        triangles: 80 + 10 + (shadows ? 10 : 0) + PULP * 20,
+      };
       let live = 0;
-      for (const f of flights) if (f.live) live++;
+      for (const f of flights) if (f.live || f.burst >= 0) live++;
       return {
-        objects: 1 + flights.length * perTomato.objects + 1 + s.objects,
+        // The two roots, the body-mark warm-up, and the pool.
+        objects: 1 + 1 + 1 + flights.length * perTomato.objects + s.objects,
         triangles: live * perTomato.triangles + s.triangles,
         perTomato,
         perSplat: { objects: 1, triangles: SPLAT_TRIANGLES },
@@ -1140,10 +1537,18 @@ export function createTomatoes(scene: Object3D, opts: TomatoOptions = {}): Tomat
       for (const f of flights) {
         f.group.removeFromParent();
         f.shadow?.removeFromParent();
+        for (const bit of f.pulp) bit.removeFromParent();
       }
       flights.length = 0;
       splats.dispose();
+      // The body-mark assets belong to the shared pool, not to this. Giving the
+      // lease back is what lets the pool free the splat texture once the rigs
+      // have gone too; disposing them here would pull them out from under a rig
+      // that is still holding one.
+      bodyMark.removeFromParent();
+      markLeases.releaseAll();
       fleshGeo.dispose();
+      pulpGeo.dispose();
       calyxGeo.dispose();
       shadowGeo.dispose();
       fleshMat.dispose();

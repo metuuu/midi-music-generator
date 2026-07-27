@@ -25,15 +25,20 @@
  * exhaustively over it and a prop invented in a hurry is a compile error rather
  * than a piece of scenery that never appears.
  *
- * **Two props are furniture a performer stands at, and are therefore owned
- * twice.** `riser` and `gear-table` are placed by the stage builder, while
- * `cast.ts` independently decides where the drummer sits and where the ambient
- * players perch. If the two disagree the kit floats and the synths are behind
- * nothing. `riser` is reconciled: its size, height and position are fixed
+ * **One prop is furniture a performer stands at, and is therefore owned
+ * twice.** `riser` is placed by the stage builder, while `cast.ts`
+ * independently decides where the drummer sits. If the two disagree the kit
+ * floats — so it is reconciled: its size, height and position are fixed
  * constants shared by both files, and `cast.ts` pins the drummer inside them.
- * `gear-table` is **not** reconciled — the stage places it wherever it places
- * it, and nothing tells it where the `perch` stations ended up. That is a real
- * seam and it is flagged here rather than papered over.
+ *
+ * There used to be a second one. `gear-table` put a trestle upstage for the
+ * ambient electronics to sit on, and it was never reconciled with anything:
+ * the stage placed it at a fixed spot and nothing told it where the `perch`
+ * stations had ended up, so it spent most seeds standing inside a player.
+ * Reconciling it would have meant a second shared-constants seam for a prop
+ * that earns nothing — the synth and the electric piano both carry their own
+ * stands (see `web/concert/instruments/`), so the gear has legs without it.
+ * Deleted rather than fixed.
  *
  * Nothing else a player touches is a prop. No microphone stand, no music
  * stands, no instruments: those belong to the instrument models, which know
@@ -63,7 +68,7 @@ import type { Venue } from './types.js';
  * Every piece of set dressing this file can ask for.
  *
  * **This list is not ours alone.** `web/concert/stage.ts` is the thing that
- * places these, and it recognises exactly these twenty-nine names (matched
+ * places these, and it recognises exactly these twenty-eight names (matched
  * case-, space- and plural-insensitively, so near-misses resolve). A name
  * outside the list is silently ignored — which is a safe failure and a useless
  * one, so the union below *is* the stage's vocabulary rather than a wish list
@@ -100,7 +105,6 @@ import type { Venue } from './types.js';
  *
  * The black box:
  *   `projection`      a lit rectangle upstage; ambient's only scenery
- *   `gear-table`      the trestle the electronics sit on
  *   `flight-case`     the boxes it all arrived in, still on stage
  *   `cables`          gaffered runs across the boards
  *   `drapes`          black masking where a wall would be
@@ -120,7 +124,7 @@ export type PropName =
   // Club
   | 'tables' | 'candles' | 'low-ceiling' | 'bar' | 'posters' | 'rug'
   // Black box
-  | 'projection' | 'gear-table' | 'flight-case' | 'cables' | 'drapes'
+  | 'projection' | 'flight-case' | 'cables' | 'drapes'
   // Any stage
   | 'pa-stack' | 'wedges' | 'riser';
 
@@ -130,7 +134,7 @@ export const PROPS: readonly PropName[] = [
   'bunting', 'fairy-lights', 'paper-lanterns', 'moths', 'birch', 'lake',
   'flowers', 'railing', 'dance-floor', 'mirror-ball', 'chandelier',
   'tables', 'candles', 'low-ceiling', 'bar', 'posters', 'rug',
-  'projection', 'gear-table', 'flight-case', 'cables', 'drapes',
+  'projection', 'flight-case', 'cables', 'drapes',
   'pa-stack', 'wedges', 'riser',
 ];
 
@@ -340,7 +344,7 @@ const BLACK_BOX: Room = {
         ambient: '#c9a37a',
       },
       props: [
-        'black-box', 'drapes', 'projection', 'gear-table', 'cables',
+        'black-box', 'drapes', 'projection', 'cables',
         'flight-case', 'rug',
       ],
       maybe: [['pa-stack', 0.5]],
@@ -359,7 +363,7 @@ const BLACK_BOX: Room = {
         ambient: '#7fa8c8',
       },
       props: [
-        'black-box', 'projection', 'gear-table', 'cables', 'flight-case',
+        'black-box', 'projection', 'cables', 'flight-case',
         'pa-stack', 'wedges', 'haze',
       ],
       maybe: [['drapes', 0.35]],
@@ -377,7 +381,7 @@ const BLACK_BOX: Room = {
         ambient: '#9aa6b2',
       },
       props: [
-        'black-box', 'drapes', 'projection', 'gear-table', 'cables', 'rug',
+        'black-box', 'drapes', 'projection', 'cables', 'rug',
       ],
       maybe: [['flight-case', 0.4], ['pa-stack', 0.3]],
       fog: 0.72,
@@ -389,7 +393,7 @@ const BLACK_BOX: Room = {
       boards: '#26262a', backdrop: '#17181b', curtain: '#1e2024',
       proscenium: '#31333a', ambient: '#9aa6b2',
     },
-    props: ['black-box', 'drapes', 'projection', 'gear-table', 'cables'],
+    props: ['black-box', 'drapes', 'projection', 'cables'],
     fog: 0.7,
   },
 };

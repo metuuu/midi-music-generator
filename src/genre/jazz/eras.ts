@@ -39,7 +39,7 @@ const swingEra: EraProfile = {
     brass: [['brassSection', 4], ['mutedTrumpet', 3], ['trombone', 3], ['trumpet', 2]],
   },
   styleWeights: {
-    swing: 6, bebop: 1, ballad: 4, bossa: 0, blues: 4, modal: 0, gypsy: 3,
+    swing: 6, bebop: 1, ballad: 4, bossa: 0, blues: 4, modal: 0, gypsy: 3, trio: 1,
   },
   tempoScale: 1,
   keyChangeChance: 0.1,
@@ -72,7 +72,7 @@ const bop: EraProfile = {
     brass: [['trumpet', 4], ['trombone', 3], ['brassSection', 3], ['mutedTrumpet', 2]],
   },
   styleWeights: {
-    swing: 5, bebop: 5, ballad: 4, bossa: 2, blues: 5, modal: 4, gypsy: 1,
+    swing: 5, bebop: 5, ballad: 4, bossa: 2, blues: 5, modal: 4, gypsy: 1, trio: 4,
   },
   tempoScale: 1,
   keyChangeChance: 0.05,
@@ -105,7 +105,7 @@ const modern: EraProfile = {
     brass: [['trumpet', 3], ['trombone', 2], ['brassSection', 2], ['mutedTrumpet', 2]],
   },
   styleWeights: {
-    swing: 3, bebop: 2, ballad: 4, bossa: 6, blues: 3, modal: 6, gypsy: 1,
+    swing: 3, bebop: 2, ballad: 4, bossa: 6, blues: 3, modal: 6, gypsy: 1, trio: 6,
   },
   tempoScale: 1,
   keyChangeChance: 0.05,

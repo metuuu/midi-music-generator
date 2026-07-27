@@ -109,6 +109,62 @@ export interface DrumPattern {
   voices: Partial<Record<DrumVoice, number[]>>;
 }
 
+/**
+ * The lead is a keyboard, and it plays with both hands.
+ *
+ * Every other lead in this generator is one line: a horn plays the tune, the
+ * comp instrument plays the chords, and they are two players in two layers. A
+ * pianist fronting a trio is not that. The right hand has the tune and then the
+ * chorus; the left hand answers it with rootless voicings in its own gaps; and
+ * the two are **one part played by one person**, which is the whole reason this
+ * exists as a declaration rather than as a second track.
+ *
+ * That distinction is load-bearing all the way to the stage. Two tracks would
+ * cast two pianists standing at two pianos. One track carrying notes two
+ * octaves apart is a single performer whose chord splits across both hands by
+ * itself — `keyboardPart` in `concert/choreograph.ts` already divides a group at
+ * its widest interval, and the widest interval in a bar of this is exactly the
+ * gap between the left hand's voicing and the right hand's line. Nothing on the
+ * staging side had to be told about any of this.
+ */
+export interface TwoHandedKeys {
+  /**
+   * The instrument, overriding the era's palette for the lead layer.
+   *
+   * A style may name its lead here and nowhere else, and only because this
+   * particular style *is* the instrument: a piano trio with a flute on the tune
+   * is not a piano trio. The draw still happens — see `chooseInstruments` — so
+   * a seed reproduces the same song either way.
+   */
+  instrument: InstrumentId;
+  /**
+   * Where the *right hand* sits, as a MIDI note.
+   *
+   * Overrides `Instrument.centre`, and has to: the catalogue's piano sits at
+   * middle C because that is where a comping piano sits, in the middle of the
+   * keyboard with both hands round it. A pianist fronting a trio plays the tune
+   * an octave above that, and the octave they vacate is what the left hand
+   * comps in. Take the catalogue number and there is nowhere for the left hand
+   * to go except into the bass player's register.
+   */
+  centre: number;
+  /** Chance the left hand answers in any given hole, 0..1. */
+  density: number;
+  /** Notes in a left-hand voicing. Three is the rootless shell. */
+  voices: number;
+  /**
+   * Semitones of daylight kept between the top of a left-hand voicing and the
+   * right hand above it.
+   *
+   * Both a musical and a physical number, and it is the physical one that binds.
+   * A pianist's left hand really does sit an octave or so below the line, and a
+   * gap smaller than one hand's stretch would let the choreographer read the
+   * two as a single chord for one hand — which is true of a real keyboard as
+   * well, and is exactly why a real pianist does not voice there.
+   */
+  gap: number;
+}
+
 export interface Style {
   id: string;
   label: string;
@@ -207,6 +263,11 @@ export interface Style {
    * than eight-bar units. 12 for the blues.
    */
   chorusBars?: number;
+  /**
+   * The lead is a two-handed keyboard. Absent everywhere else, which is most
+   * places — see `TwoHandedKeys`.
+   */
+  twoHanded?: TwoHandedKeys;
   /** Melodic character knobs. */
   melody: {
     /** Probability of a leap (>2 semitones) at any given non-cadential note. */

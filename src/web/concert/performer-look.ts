@@ -440,9 +440,14 @@ export function buildHair(
     case 'long': {
       crown(2.08, 1.18, 2.08, 0.52, -0.20);
       for (const s of [SIDE.left, SIDE.right]) {
+        // Wide and shallow rather than close and deep. A curtain centred any
+        // nearer the middle, or reaching any further forward, swallows the
+        // outer eye corner and the end of the brow — which reads as hair over
+        // the face at every angle but dead-on. The length is untouched; it is
+        // the only thing making this style long.
         const side = new Mesh(orb(l), mat);
-        side.scale.set(R * 0.66, R * 3.20, R * 1.70);
-        side.position.set(s * R * 0.86, -R * 1.10, -R * 0.30);
+        side.scale.set(R * 0.60, R * 3.20, R * 1.42);
+        side.position.set(s * R * 0.98, -R * 1.10, -R * 0.52);
         side.castShadow = true;
         head.add(side);
       }
@@ -666,7 +671,12 @@ function buildAccessory(
       const shell = surface(l, '#20202a', { roughness: 0.5, metalness: 0.2 });
       const band = new Mesh(hoop(l), shell);
       band.scale.set(R * 2.45, R * 2.40, R * 2.40);
-      band.rotation.y = Math.PI / 2;
+      // No rotation, and that is the fix rather than an omission. A
+      // `TorusGeometry` already lies in the `xy` plane, which for a head is the
+      // ear-over-crown-to-ear arc a headband actually takes. The quarter turn
+      // that used to be here stood the ring up in `yz` instead — over the face
+      // and down the back of the skull — while the cups stayed at `±x`, so the
+      // band and the things it is supposed to join were at right angles.
       band.position.set(0, R * 0.28, -R * 0.06);
       head.add(band);
       for (const s of [SIDE.left, SIDE.right]) {

@@ -151,16 +151,74 @@ function stringZ(i: number, x: number): number {
   return -(i - (STRINGS - 1) / 2) * (spread / (STRINGS - 1));
 }
 
-/** Across the strings — the axis a hand's knuckles lie along. See `Contact`. */
-const ACROSS = new Vector3(0, 0, 1);
+/**
+ * Down the neck — the axis a hand's knuckles lie along, and it is **not**
+ * across the strings.
+ *
+ * `−x`, nut toward bridge, which is the same sign every other string model
+ * uses: the rig lays the four fingers out with the index at the `−along` end,
+ * and a bassist's first finger takes the lowest note of the position. See
+ * `acoustic-guitar.ts` for the argument in full.
+ *
+ * What it *looks* like differs from a guitar's, because this file's `+z` runs
+ * the other way — see the frame note on `stringZ`. The same sign sends a
+ * guitarist's fingers up across the strings toward the low E and a bassist's
+ * across toward the G, and both are right: a guitar neck is met from
+ * underneath, and a double bass, stood on end with its face to the house, is
+ * met from outside, with the arm round the E side and the thumb behind.
+ */
+const DOWN_NECK = new Vector3(-1, 0, 0);
+/**
+ * Up the neck: the **plucking** hand, which is round the other side.
+ *
+ * The two hands do not meet this instrument the same way and cannot share a
+ * roll. The stopping hand is round the outside of the neck, palm on the E side.
+ * The right hand comes at the end of the fingerboard from the *other* side —
+ * the arm hangs from the player's right, the thumb anchors against the edge of
+ * the board on the G side, and the index pulls in across the strings toward the
+ * E. So its fingers run `+z` where the stopping hand's run `−z`, and the axis
+ * that produces that is this one.
+ *
+ * It also puts the index at the top of the pair, nearest the nut, which is
+ * where the pulling finger goes. Sharing `DOWN_NECK` had it upside down as well
+ * as inside out: the little finger up by the board and the index down toward
+ * the bridge.
+ */
+const UP_NECK = new Vector3(1, 0, 0);
 
-function contactAt(mount: Matrix4, x: number, y: number, z: number): Contact {
+/**
+ * The positions a bassist's left hand stops in, and how far it leans past one.
+ *
+ * A bass hand spans a **whole tone** in the lower positions — one, two, four,
+ * with nothing in between — which is why a bassist shifts more than anybody
+ * else on the stage and why a walking line is a hand moving in visible steps
+ * rather than a finger creeping. Past thumb position the reach opens up, which
+ * is what the widening gaps at the top of the table are. See `violin.ts` for
+ * what the three numbers do.
+ */
+const POSITIONS: readonly number[] = [1, 3, 5, 7, 9, 12, 15, 18, 21, 24];
+const REACH = 2;
+const LEAN_INTO_REACH = 0.3;
+/** The hand never goes back past half position; the pegbox starts there. */
+const HALF_POSITION = 1;
+
+/** Where the *hand* sits for a note stopped `n` semitones up. See `violin.ts`. */
+function handStop(n: number): number {
+  let base = POSITIONS[POSITIONS.length - 1]!;
+  for (const p of POSITIONS) {
+    if (n <= p + REACH) { base = p; break; }
+  }
+  if (base > n) base = n;
+  return Math.max(base + (n - base) * LEAN_INTO_REACH, HALF_POSITION);
+}
+
+function contactAt(
+  mount: Matrix4, x: number, y: number, z: number, along: Vector3,
+): Contact {
   return {
     position: new Vector3(x, y, z).applyMatrix4(mount),
     normal: FACE.clone().transformDirection(mount),
-    // Across the strings, not up the neck. On a fingerboard this is the whole
-    // difference between a hand over the strings and a hand lying along one.
-    along: ACROSS.clone().transformDirection(mount),
+    along: along.clone().transformDirection(mount),
   };
 }
 
@@ -439,23 +497,25 @@ export const buildUprightBass: InstrumentBuilder = (opts) => {
     resolve(point: PlayPoint): Contact | undefined {
       if (point.kind === 'rest') {
         // Half position, hand off the string. Where a bassist's hand waits.
-        const x = stopX(2);
-        return contactAt(MOUNT, x, FINGER_HEIGHT + 0.05, stringZ(1, x));
+        const x = stopX(handStop(2));
+        return contactAt(MOUNT, x, FINGER_HEIGHT + 0.05, stringZ(1, x), DOWN_NECK);
       }
       if (point.kind !== 'string') return undefined;
       const i = point.string;
       if (!Number.isInteger(i) || i < 0 || i >= STRINGS) return undefined;
       const n = point.fret;
-      // Unfretted: no rounding. A stop at 3.5 semitones is a real place to be
-      // in the middle of a slide, and snapping it would kill the slide.
+      // Unfretted, so the *note* is not rounded: a stop at 3.5 semitones is a
+      // real place to be in the middle of a slide, and snapping it would kill
+      // the slide. The hand still goes to a position rather than to the note —
+      // see `handStop`, and the shift is most of what a bassist looks like.
       if (!Number.isFinite(n) || n < 0 || n > MAX_SEMITONES) return undefined;
-      const x = stopX(n);
-      return contactAt(MOUNT, x, FINGER_HEIGHT, stringZ(i, x));
+      const x = stopX(handStop(n));
+      return contactAt(MOUNT, x, FINGER_HEIGHT, stringZ(i, x), DOWN_NECK);
     },
 
     soundingContact(point: PlayPoint): Contact | undefined {
       if (point.kind === 'rest') {
-        return contactAt(MOUNT, PLUCK_X + 0.08, STRING_HEIGHT + 0.09, 0);
+        return contactAt(MOUNT, PLUCK_X + 0.08, STRING_HEIGHT + 0.09, 0, UP_NECK);
       }
       if (point.kind !== 'string') return undefined;
       const i = point.string;
@@ -464,7 +524,7 @@ export const buildUprightBass: InstrumentBuilder = (opts) => {
       if (!Number.isFinite(n) || n < 0 || n > MAX_SEMITONES) return undefined;
       // Down toward the bridge as the left hand climbs. See `PLUCK_CLEAR`.
       const x = Math.min(PLUCK_X, Math.max(PLUCK_MIN, stopX(n) - PLUCK_CLEAR));
-      return contactAt(MOUNT, x, STRING_HEIGHT + 0.022, stringZ(i, x));
+      return contactAt(MOUNT, x, STRING_HEIGHT + 0.022, stringZ(i, x), UP_NECK);
     },
 
     react(point: PlayPoint, force: number, now: number): void {

@@ -110,6 +110,55 @@ const MAX_FOV = 66;
  */
 const MIN_SHOT_BARS = 4;
 
+/**
+ * How far downstage of the wide shot's aim point the front row stands, as a
+ * fraction of the stage depth.
+ *
+ * Two numbers added together, both of them owned elsewhere. `concert/cast.ts`
+ * keeps everybody 0.7 m off the downstage lip, which on these stages puts the
+ * front row about 0.4 of the depth in front of stage centre; the wide shot then
+ * aims a further 0.25 of the depth upstage of centre. So the nearest players
+ * are about two thirds of a stage depth nearer the lens than the plane the
+ * framing is solved at — 4.2 m of it in the black box, which is most of the
+ * distance the camera stands off in the first place.
+ */
+const FRONT_PLANE = 0.65;
+
+/**
+ * How much of the stage width the wide shot holds *at the front row's plane*.
+ *
+ * Not the whole stage. Asking for all of it at the nearest plane puts the
+ * camera four metres further out and shrinks the band to nothing, and there is
+ * nobody standing in the downstage corners to see: the staging holds the front
+ * line inside 0.44 of the width by construction and inside about 0.37 of it in
+ * practice, ambient's scatter included. 0.72 of the width — 0.36 either side of
+ * centre — covers the players who are actually there and costs a metre.
+ */
+const FRONT_SHARE = 0.72;
+
+/**
+ * Where the downstage edge of the boards is, relative to the wide shot's aim
+ * point, as a fraction of the stage depth.
+ *
+ * Exact rather than measured, unlike `FRONT_PLANE`: the lip is at `+depth/2` by
+ * definition and the wide shot aims at `-depth * 0.25`, so the gap between them
+ * is three quarters of the depth and always will be.
+ */
+const LIP_PLANE = 0.75;
+
+/**
+ * How much house floor the wide shot keeps *under* the lip, in metres.
+ *
+ * A frame whose bottom edge lands exactly on the stage edge does not read as
+ * "the front of the stage is in shot" — it reads as a crop that happens to have
+ * stopped in the right place. A hand's breadth of the apron below it says the
+ * boards end there.
+ */
+const LIP_MARGIN = 0.12;
+
+/** The height the wide shot is aimed at: over the band, under the fly bar. */
+const WIDE_AIM_Y = 1.45;
+
 export function createDirector(reducedMotion = false): CameraDirector {
   const camera = new PerspectiveCamera(BASE_FOV, 1, 0.1, 120);
   const subjects = new Map<string, Object3D>();
@@ -161,36 +210,38 @@ export function createDirector(reducedMotion = false): CameraDirector {
    *
    * So the distance is solved, per frame, from whichever axis is tighter.
    */
-  function distanceFor(width: number, height: number): number {
-    // Belt and braces with `resize`: a camera that has never been sized, or one
-    // sized while the page was off-layout, must not be able to ask for an
-    // infinite pull-back. 16:9 is a better guess than a division by zero.
-    const aspect = Number.isFinite(camera.aspect) && camera.aspect > 0.05
-      ? Math.min(camera.aspect, 4)
-      : 16 / 9;
-    const need = (fovY: number): number => {
-      const fovX = 2 * Math.atan(Math.tan(fovY / 2) * aspect);
-      return Math.max(
-        (height / 2) / Math.tan(fovY / 2),
-        (width / 2) / Math.tan(fovX / 2),
-      ) * FRAMING_SLACK;
-    };
+  function fitRect(width: number, height: number, fovY: number): number {
+    const fovX = 2 * Math.atan(Math.tan(fovY / 2) * frameAspect());
+    return Math.max(
+      (height / 2) / Math.tan(fovY / 2),
+      (width / 2) / Math.tan(fovX / 2),
+    ) * FRAMING_SLACK;
+  }
 
-    /**
-     * In a small room, take a wider lens rather than a longer walk backwards.
-     *
-     * This is the second thing the framing maths got wrong, and it only appears
-     * in the venues that are actually small. Solving purely for distance asked
-     * for 13 m to fit an 8.8 m stage in a tall window — and a jazz cellar's
-     * house is nowhere near 13 m deep, so the camera reversed straight through
-     * the back wall and ended up *above the ceiling joists*, filming the band
-     * through the plumbing.
-     *
-     * A camera operator in a cramped room does not knock the wall out. They put
-     * a wider lens on, accept the perspective, and stay inside the building. So
-     * the FOV opens until the shot fits or until it starts to look like a
-     * fisheye, and only then does the distance give.
-     */
+  /**
+   * Settle the lens, then report where to stand.
+   *
+   * `need` answers "how far back does this shot have to be on a lens this
+   * wide", and a shot may have more than one thing to satisfy — the wide one
+   * has three. They are all asked on the *same* candidate lens and the furthest
+   * answer wins, because a framing solved against one field of view and then
+   * measured against another is not solved at all.
+   *
+   * In a small room, take a wider lens rather than a longer walk backwards.
+   *
+   * This is the second thing the framing maths got wrong, and it only appears
+   * in the venues that are actually small. Solving purely for distance asked
+   * for 13 m to fit an 8.8 m stage in a tall window — and a jazz cellar's
+   * house is nowhere near 13 m deep, so the camera reversed straight through
+   * the back wall and ended up *above the ceiling joists*, filming the band
+   * through the plumbing.
+   *
+   * A camera operator in a cramped room does not knock the wall out. They put
+   * a wider lens on, accept the perspective, and stay inside the building. So
+   * the FOV opens until the shot fits or until it starts to look like a
+   * fisheye, and only then does the distance give.
+   */
+  function solveDistance(need: (fovY: number) => number): number {
     let fovY = (BASE_FOV * Math.PI) / 180;
     let d = need(fovY);
     while (d > maxDistance() && fovY < (MAX_FOV * Math.PI) / 180) {
@@ -204,6 +255,115 @@ export function createDirector(reducedMotion = false): CameraDirector {
       camera.updateProjectionMatrix();
     }
     return Math.min(d, maxDistance());
+  }
+
+  /** The single-rectangle case, which is every shot except the wide one. */
+  function distanceFor(width: number, height: number): number {
+    return solveDistance((fovY) => fitRect(width, height, fovY));
+  }
+
+  /**
+   * The aspect ratio the framing maths is allowed to believe.
+   *
+   * Belt and braces with `resize`: a camera that has never been sized, or one
+   * sized while the page was off-layout, must not be able to ask for an
+   * infinite pull-back. 16:9 is a better guess than a division by zero.
+   */
+  function frameAspect(): number {
+    return Number.isFinite(camera.aspect) && camera.aspect > 0.05
+      ? Math.min(camera.aspect, 4)
+      : 16 / 9;
+  }
+
+  /**
+   * How far back the wide shot has to stand to keep the front row in frame.
+   *
+   * `distanceFor` fits its rectangle *at the plane it is given*, and the band
+   * is a volume rather than a plane: the players nearest the audience stand
+   * `FRONT_PLANE` of a stage depth in front of the plane the wide shot aims at,
+   * so they are magnified against the framing that was solved for the middle of
+   * the band and the ends of the front line fall out of shot.
+   *
+   * The reason this went unnoticed is that it hides itself on a tall window. A
+   * narrow horizontal field cannot fit the boards at the aim plane either, so
+   * the lens opens toward `MAX_FOV` and the camera walks backwards, and the
+   * front row comes along for free. A widescreen window has horizontal field to
+   * spare, stays at `BASE_FOV`, stands close — and crops. At 16:9 in the black
+   * box the frame was two metres either side of centre at the downstage lip.
+   *
+   * So the wide shot solves the front plane as well and takes whichever
+   * distance is further back.
+   */
+  function frontEdgeDistance(width: number, depth: number, fovY: number): number {
+    const tanX = Math.tan(fovY / 2) * frameAspect();
+    return ((width * FRONT_SHARE) / 2) / tanX + depth * FRONT_PLANE;
+  }
+
+  /**
+   * How high the wide shot's rostrum stands, at a given distance.
+   *
+   * Above the house, not in it. A wide shot taken at standing height in the
+   * audience is a shot with the balcony rail through the middle of the band —
+   * which is exactly what a person at the back of a club sees, and exactly what
+   * nobody wants to watch. Cameras live on a rostrum for this reason. The lift
+   * scales with distance so a small room does not end up looking down at the
+   * top of everyone's head.
+   */
+  function wideEye(d: number): number {
+    return 2.3 + Math.min(d * 0.11, 1.3);
+  }
+
+  /**
+   * How far back the wide shot has to stand for the front of the stage to be in
+   * shot at all.
+   *
+   * The third thing the framing maths got wrong, and the one a wide monitor
+   * shows off. `frontEdgeDistance` holds the front row's *width*; nothing held
+   * its *floor*, and the wide shot is a tilted camera, so the bottom of frame
+   * rises steeply as it comes forward. On a tall window that never mattered —
+   * the lens is already open and the camera is already at the back wall, so the
+   * lip is in frame by accident. Give the shot a 21:9 window and the horizontal
+   * constraint costs almost nothing, the camera walks in to eight metres, and
+   * the bottom of frame crosses the boards three quarters of a metre up: the
+   * front row is cut off at the waist and the stage has no edge. That is the
+   * "the camera has no maximum zoom" complaint, and this is where it lives.
+   *
+   * The condition is exact for a point on the camera's own vertical centre
+   * line, and the bottom of frame is a plane through the lens, so solving at
+   * centre stage holds the lip across the whole width: the lip is in shot when
+   * the angle down to it is no steeper than the tilt plus half the vertical
+   * field.
+   *
+   * Bisected rather than solved. The distance appears on both sides — the
+   * rostrum rises with it — and a closed form for that is a quadratic with a
+   * discriminant nobody would be able to check by reading it, where the
+   * predicate below says what it means in one line.
+   */
+  function lipDistance(depth: number, fovY: number): number {
+    const ahead = depth * LIP_PLANE;
+    const half = fovY / 2;
+    const holds = (d: number): boolean => {
+      const eye = wideEye(d);
+      const tilt = Math.atan((eye - WIDE_AIM_Y) / d);
+      const down = Math.atan((eye + LIP_MARGIN) / Math.max(d - ahead, 0.1));
+      return down - tilt <= half;
+    };
+
+    // Nothing nearer than the lip itself is a camera position, and nothing
+    // further than the back wall is one either. If the wall is not far enough,
+    // say so by asking for more than there is: the lens is what gives next.
+    const near = ahead + 0.6;
+    const far = maxDistance();
+    if (!holds(far)) return far + 1;
+    if (holds(near)) return near;
+
+    let lo = near;
+    let hi = far;
+    for (let i = 0; i < 18; i++) {
+      const mid = (lo + hi) / 2;
+      if (holds(mid)) hi = mid; else lo = mid;
+    }
+    return hi;
   }
 
   /**
@@ -235,19 +395,39 @@ export function createDirector(reducedMotion = false): CameraDirector {
     switch (shot.framing) {
       case 'wide': {
         // The whole band and the room it is in, plus headroom for the fly bar.
-        wantedFocus.set(0, 1.45, -depth * 0.25);
-        const d = distanceFor(width * 0.98, 3.4) - push;
+        wantedFocus.set(0, WIDE_AIM_Y, -depth * 0.25);
         /**
-         * Above the house, not in it.
+         * Three things to hold, and the shot stands wherever the furthest of
+         * them says. The boards at the plane the shot is aimed at, the front
+         * row's width at the plane it actually stands on, and the lip of the
+         * stage under it. Which one binds depends entirely on the window: a
+         * tall one is short of horizontal field and the first wins, a wide one
+         * has field to spare and the third does.
          *
-         * A wide shot taken at standing height in the audience is a shot with
-         * the balcony rail through the middle of the band — which is exactly
-         * what a person at the back of a club sees, and exactly what nobody
-         * wants to watch. Cameras live on a rostrum for this reason. The lift
-         * scales with distance so a small room does not end up looking down at
-         * the top of everyone's head.
+         * That third one is what stops a wide monitor from zooming in past the
+         * front of the stage, and it is a *derived* limit rather than a floor
+         * somebody picked: on any aspect from 16:9 upwards it settles this
+         * room's wide shot at about ten metres, which is where a camera has to
+         * be for the stage to have an edge.
          */
-        wanted.set(0, 2.3 + Math.min(d * 0.11, 1.3), wantedFocus.z + d);
+        const solved = solveDistance((fovY) => Math.max(
+          fitRect(width * 0.98, 3.4, fovY),
+          frontEdgeDistance(width, depth, fovY),
+          lipDistance(depth, fovY),
+        ));
+        /**
+         * Solve for where the push *ends*, and start a push behind it.
+         *
+         * A wide shot leans in half a metre over its length, and half a metre
+         * is a fifth of the margin the lip is holding on to. Framing the shot
+         * at its first frame therefore buys nothing: the stage would have an
+         * edge on the downbeat and lose it again by the end of the section,
+         * which is the same bug arriving slowly. The house wall still has the
+         * last word — in a room too shallow to back up into, the push simply
+         * spends what room there is.
+         */
+        const d = Math.min(solved + shot.push, maxDistance()) - push;
+        wanted.set(0, wideEye(d), wantedFocus.z + d);
         break;
       }
       case 'close': {

@@ -245,19 +245,46 @@ export const buildFlute: InstrumentBuilder = (opts: InstrumentBuildOptions): Ins
    * it, a note either side of the split puts two palms 29 mm apart on a 20 mm
    * pipe.
    */
-  function contactAt(station: number, shift: number): Contact {
+  /**
+   * ## The two hands are rolled opposite ways, and that is a flute
+   *
+   * Everything above the keys is symmetric — one tube, one row of cups — so it
+   * is easy to give both hands one answer and separate them along the tube.
+   * That was this, and it makes a flautist look like someone carrying a tray:
+   * the rig derives the fingers from `along × normal`, so one `along` points
+   * both sets of fingers the same way over the tube and puts both wrists on the
+   * same side of it.
+   *
+   * A flute is the one instrument in this family where that asymmetry is
+   * unmistakable from the stalls. The **left** hand comes from behind — thumb
+   * on the B key at the back, fingers arching over the top and pointing away
+   * from the player, forearm tucked in and supinated. The **right** hand comes
+   * from in front and below — thumb underneath, fingers curling back over the
+   * top toward the player, elbow up and out. Two hands doing visibly opposite
+   * things to one tube.
+   *
+   * `side` is `+1` for the left hand and `−1` for the right, which is also the
+   * end of the tube each one lives on: local `+x` is the crown, where the left
+   * hand is, and `−x` the foot.
+   */
+  const HAND = 0.032;
+
+  function contactAt(station: number, side: number): Contact {
     return {
-      position: new Vector3(stationX[station]! + shift, 0.017, -0.004).applyMatrix4(fluteMatrix),
-      // Down onto the keys from above and slightly behind: a flautist's fingers
-      // curl over the top of the tube from the player's side.
-      normal: new Vector3(0, 1, -0.35).normalize().transformDirection(fluteMatrix),
-      // The keys run the length of the tube, so the knuckles do too.
-      along: new Vector3(1, 0, 0).transformDirection(fluteMatrix),
+      position: new Vector3(stationX[station]! + side * HAND, 0.017, -0.004)
+        .applyMatrix4(fluteMatrix),
+      // Down onto the keys from above. The left hand leans back over the tube
+      // toward the player and the right hand stands over it, which is the roll
+      // difference between the two made into a place to put a palm.
+      normal: new Vector3(0, 1, side > 0 ? -0.42 : 0.06).normalize()
+        .transformDirection(fluteMatrix),
+      // The keys run the length of the tube, so the knuckles do too — and the
+      // sign is what rolls the hand onto its own side. See above.
+      along: new Vector3(side, 0, 0).transformDirection(fluteMatrix),
     };
   }
-  const HAND = 0.032;
-  const rightContacts: Contact[] = stationX.map((_, i) => contactAt(i, -HAND));
-  const leftContacts: Contact[] = stationX.map((_, i) => contactAt(i, HAND));
+  const rightContacts: Contact[] = stationX.map((_, i) => contactAt(i, -1));
+  const leftContacts: Contact[] = stationX.map((_, i) => contactAt(i, 1));
 
   /** Neither hand crosses to the other's keys. */
   function stationFor(station: number, right: boolean): number {

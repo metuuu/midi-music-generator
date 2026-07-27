@@ -53,11 +53,26 @@
  * crossing back to the centre so the mouthpiece is at the middle of the mouth.
  * The horn was previously built on +x, which put the whole instrument on the
  * wrong side of the body and the mouthpiece 6 cm past the corner of the lips.
+ *
+ * ## Which face the keys are on
+ *
+ * The rod, the twelve key cups and both hands live on the tube's **+z** face,
+ * which is the one pointed at the house; the thumb rest, the strap ring and
+ * the octave lever live on −z, against the player. That is the way round a
+ * saxophone is. The thumbs are the only things behind the horn — the right
+ * under its hook, the left on the octave touch — and the fingers curl round to
+ * the far side of the tube, which is why a saxophonist's knuckles are the part
+ * aimed at the audience.
+ *
+ * Every one of them was on −z, tucked between the tube and the chest. From the
+ * stalls that is a bare gold pipe with no keywork on it at all and two hands
+ * hidden behind it, which is what this file was reported as looking like.
  */
 
 import {
-  BoxGeometry, CatmullRomCurve3, CylinderGeometry, Group, LatheGeometry, Mesh,
-  MeshStandardMaterial, TorusGeometry, TubeGeometry, Vector2, Vector3,
+  BoxGeometry, CatmullRomCurve3, CylinderGeometry, DoubleSide, Group,
+  LatheGeometry, Mesh, MeshStandardMaterial, TorusGeometry, TubeGeometry,
+  Vector2, Vector3,
 } from 'three';
 
 import { ARCHETYPES } from '../../../concert/instruments.js';
@@ -188,8 +203,55 @@ const LIP_Z = -0.02;
 const MP_LEN = 0.068;
 /** How far past the lips the tip pokes; the rest of the beak is in the mouth. */
 const MP_BITE = 0.020;
-/** Body tube lean: back toward the player, and inboard toward the mouth. */
-const BODY_TILT_X = -0.30;
+/**
+ * Body tube lean: bell end forward, top end back toward the player.
+ *
+ * This was −0.30, and it is the reason the horn was reported as overlapping
+ * the body. A 0.54 m tube raked 17° carries its top 159 mm upstage of its
+ * base, and the base was only 15 mm in front of the lip point to start with —
+ * so the top of the tube finished on the player's own centreline. Measured
+ * against the torso shell: the tube's axis was inside it from a third of the
+ * way up, by as much as 142 mm; every key cup from `pad-8` upward was 130 to
+ * 226 mm inside; and both hands, which sit *behind* the tube because the keys
+ * face the player, were 58 and 156 mm inside the chest.
+ *
+ * −0.10 is close to what a saxophone actually does — the tube is near vertical
+ * and the bell's own 0.55 rad is what makes the silhouette — and it leaves the
+ * top of the tube 54 mm behind its base instead of 159. See `BODY_Z` for the
+ * other half; neither is enough alone.
+ *
+ * (Both of those measurements were taken back when the hands sat behind the
+ * tube. They now sit in front of it — see the note on which face the keys are
+ * on — so the clearance is better than the numbers here say, not worse.)
+ */
+const BODY_TILT_X = -0.10;
+/**
+ * How far in front of the lip point the bottom of the body tube sits.
+ *
+ * Not `station.offset`, which is the obvious knob and the wrong one: it moves
+ * the *whole* model, mouthpiece included, and the mouthpiece is the one part
+ * that is already in the right place. The body group is the correct pivot
+ * because `bodyMatrix` is taken from it — the key cups, the rod, the thumb
+ * rest, the octave key, the bow, the bell and every `resolve` contact are all
+ * expressed in that frame, so they move together and `resolve` stays honest.
+ * The mouthpiece, the ligature and the neck's far end are pinned to `mouth`
+ * and do not move at all; the neck curve simply reaches further, which is what
+ * a real crook does.
+ *
+ * It was 0.015. 0.140 puts the tube's axis 210 to 285 mm in front of the body
+ * axis over the keyed length, which is about the daylight a pair of hands needs
+ * between the keywork and the shirt. Measured across the four members with the
+ * hands still behind the tube, the worst contact cleared the chest by 83–96 mm
+ * on the right and 15–54 mm on the left; the left was tightest at the top of
+ * the upper stack on a baritone, which is a saxophonist's knuckles brushing
+ * their own chest and is where the number stopped being worth chasing.
+ *
+ * The hands have since moved to the far side of the tube, which buys another
+ * 50 to 90 mm and makes the tightest case comfortable. The value stays where it
+ * is because the *tube* still has to stand off the chest on its own account,
+ * and because more only floats the horn off the player.
+ */
+const BODY_Z = 0.140;
 /** Negative leans the top of the tube toward +x, i.e. from the right hip in
  * toward the centreline, which is the only way the neck reaches the mouth. */
 const BODY_TILT_Z = -0.09;
@@ -256,6 +318,22 @@ export const buildSaxophone: InstrumentBuilder = (opts: InstrumentBuildOptions):
   const matDark = shared('dark', () => new MeshStandardMaterial({
     color: '#1b1a18', roughness: 0.62, metalness: 0.06,
   }));
+  /**
+   * The same lacquer, drawn on both faces. For the bell and nothing else.
+   *
+   * A `LatheGeometry` is open at both ends, so the flare is a one-sided cone;
+   * under the default `FrontSide` its inside is culled and you look through
+   * the bell at the stage behind it. A saxophone's bell is turned up and out
+   * toward the house, which is precisely the angle that shows the inside of it
+   * to the audience, so this is the one on the stage you cannot miss.
+   *
+   * The body tube, the bow and the keywork are capped solids and stay
+   * single-sided; there is nothing to see inside them and a second face on
+   * every pad is a real cost in the shadow map.
+   */
+  const matBore = shared(`bore:${lacquer}`, () => new MeshStandardMaterial({
+    color: lacquer, roughness: 0.34, metalness: 0.85, side: DoubleSide,
+  }));
 
   const geoBody = shared(`tube:${key}`, () => new CylinderGeometry(rTop, rBot, bodyLen, 12)
     .translate(0, bodyLen / 2, 0));
@@ -266,6 +344,21 @@ export const buildSaxophone: InstrumentBuilder = (opts: InstrumentBuildOptions):
     return g;
   });
   const geoBell = shared(`bell:${key}`, () => new LatheGeometry(flareProfile(bellLen, rBot, bellR, 8), 16));
+  /**
+   * The bead round the bell's mouth, turned onto the bell's axis **here**.
+   *
+   * A `TorusGeometry` is built round z. This bell is lathed about `+y` and
+   * left there — unlike the trumpet's and the trombone's, which are turned
+   * onto z — so the ring genuinely does need a quarter turn about x to lie
+   * flat in x-z, and this is it.
+   *
+   * There was a second, opposite `-Math.PI / 2` on the *mesh*, which cancelled
+   * this one and stood the ring up through the mouth of the flare instead of
+   * round it: measured on a tenor, a 133 × 133 × 10 mm ring cutting edge-on
+   * across a 122 mm circular opening. Two rotations that undo each other are
+   * how a misaligned rim survives being looked at in the source, so the
+   * remaining one lives on the geometry where the bell's own axis is decided.
+   */
   const geoBellRim = shared(`bellrim:${key}`, () => new TorusGeometry(bellR, 0.0055, 5, 20).rotateX(Math.PI / 2));
   const geoCup = shared(`cup:${key}`, () => new CylinderGeometry(0.013 + 0.006 * s, 0.013 + 0.006 * s, 0.005, 8));
   const geoRod = shared(`rod:${key}`, () => new CylinderGeometry(0.0035, 0.0035, bodyLen * 0.8, 6));
@@ -284,7 +377,7 @@ export const buildSaxophone: InstrumentBuilder = (opts: InstrumentBuildOptions):
 
   /** The straight body tube. Its local +y runs from the bow up to the neck. */
   const body = addTo(root, new Group());
-  body.position.set(SIDE * 0.055, bowY + 0.055, 0.015);
+  body.position.set(SIDE * 0.055, bowY + 0.055, BODY_Z);
   body.rotation.set(BODY_TILT_X, 0, BODY_TILT_Z);
   body.updateMatrix();
   const bodyMatrix = body.matrix.clone();
@@ -296,7 +389,7 @@ export const buildSaxophone: InstrumentBuilder = (opts: InstrumentBuildOptions):
 
   const rod = addTo(body, new Mesh(geoRod, matKeys));
   rod.name = 'rod';
-  rod.position.set(SIDE * (0.021 + 0.008 * s), bodyLen * 0.5, -rTop * 0.4);
+  rod.position.set(SIDE * (0.021 + 0.008 * s), bodyLen * 0.5, rTop * 0.4);
 
   const bow = addTo(root, new Mesh(geoBow, matBody));
   bow.name = 'bow';
@@ -307,17 +400,19 @@ export const buildSaxophone: InstrumentBuilder = (opts: InstrumentBuildOptions):
   const bellGroup = addTo(root, new Group());
   bellGroup.position.set(body.position.x, body.position.y - 0.004, body.position.z + 2 * bowR);
   bellGroup.rotation.x = 0.55;
-  const bell = addTo(bellGroup, new Mesh(geoBell, matBody));
+  const bell = addTo(bellGroup, new Mesh(geoBell, matBore));
   bell.name = 'bell';
   bell.castShadow = true;
   bell.receiveShadow = true;
+  // No rotation on the mesh: `geoBellRim` is already turned onto the bell's
+  // axis, and the `-Math.PI / 2` that used to be here undid it. See there.
   const bellRim = addTo(bellGroup, new Mesh(geoBellRim, matBody));
   bellRim.name = 'bell-rim';
   bellRim.position.y = bellLen;
-  bellRim.rotation.x = -Math.PI / 2;
 
+  /** The strap hook, on the back of the tube where the strap can reach it. */
   const strapRing = addTo(body, new Mesh(geoRing, matKeys));
-  strapRing.position.set(0, bodyLen * 0.66, rTop + 0.008);
+  strapRing.position.set(0, bodyLen * 0.66, -(rTop + 0.008));
   strapRing.rotation.x = Math.PI / 2;
 
   /**
@@ -353,13 +448,17 @@ export const buildSaxophone: InstrumentBuilder = (opts: InstrumentBuildOptions):
   ligature.position.set(0, mouth.y - 0.004, corkZ - 0.014);
   ligature.rotation.x = 0.25;
 
-  /** The octave key: a thumb lever on the back of the neck. */
+  /**
+   * The octave key and the thumb hook: the two things a saxophone puts on the
+   * side of the tube facing the player, because thumbs are the only fingers
+   * that stay behind the horn. Everything else is round the front.
+   */
   const octave = addTo(body, new Group());
-  octave.position.set(0, bodyLen * 0.94, rTop + 0.006);
+  octave.position.set(0, bodyLen * 0.94, -(rTop + 0.006));
   addTo(octave, new Mesh(geoOctave, matKeys)).name = 'octave-key';
   const thumb = addTo(body, new Mesh(geoThumb, matDark));
   thumb.name = 'thumb-rest';
-  thumb.position.set(0, bodyLen * 0.5, rTop + 0.006);
+  thumb.position.set(0, bodyLen * 0.5, -(rTop + 0.006));
 
   /**
    * One key cup per station, laid up the tube from the bow to the neck.
@@ -375,10 +474,10 @@ export const buildSaxophone: InstrumentBuilder = (opts: InstrumentBuildOptions):
   for (const [i, t] of HOLE_T.entries()) {
     const r = rBot + (rTop - rBot) * t;
     const hinge = addTo(body, new Group());
-    hinge.position.set(SIDE * (0.018 + 0.008 * s), t * bodyLen, -r * 0.5);
+    hinge.position.set(SIDE * (0.018 + 0.008 * s), t * bodyLen, r * 0.5);
     const cup = addTo(hinge, new Mesh(geoCup, matKeys));
     cup.name = `pad-${i}`;
-    cup.position.set(-SIDE * (0.018 + 0.008 * s), 0, -(r * 0.5 + 0.006));
+    cup.position.set(-SIDE * (0.018 + 0.008 * s), 0, r * 0.5 + 0.006);
     cup.rotation.x = Math.PI / 2;
     cups.push(hinge);
   }
@@ -390,7 +489,8 @@ export const buildSaxophone: InstrumentBuilder = (opts: InstrumentBuildOptions):
    * the motion an audience reads as playing a wind instrument.
    */
   /**
-   * `shift` backs a palm off toward its own end of the horn.
+   * `side` backs a palm off toward its own end of the horn, and round to its
+   * own side of it.
    *
    * A contact is where the **hand** goes, not where the fingertip goes. The
    * stations are about 40 mm apart on a tenor and a hand is 80 mm across, so
@@ -398,21 +498,58 @@ export const buildSaxophone: InstrumentBuilder = (opts: InstrumentBuildOptions):
    * on a soprano before this existed. Half a hand each way is also simply
    * truer — the finger doing the work is at the end of the hand, not in the
    * middle of it.
+   *
+   * ## Both stacks face the house, and the hands arrive from both sides
+   *
+   * The rig builds a hand from `normal` and `along`, and the fingers come out
+   * along `along × normal`. Handing both hands the same `along` therefore aims
+   * both sets of fingers the same way round the tube, which puts both wrists on
+   * the same side of the horn — on a saxophone, both of them out to the
+   * player's left, with the right arm crossing in front of the keywork to get
+   * there. Mirroring the axis is the whole fix: the left hand's fingers reach
+   * right across the upper stack and the right hand's reach left across the
+   * lower one, so each wrist stays on its own side. The knuckles still run the
+   * length of the tube either way, which is what the keys need.
+   *
+   * The axis is `−side`, not `side`, and that sign is not free: the whole
+   * keywork moved to the tube's far face, `normal` reversed with it, and a
+   * cross product reverses when either input does. Leaving `along` alone would
+   * have swapped the two hands round the horn again by a different route.
+   *
+   * `side` is `+1` for the left hand and `−1` for the right — `SIDE.right` is
+   * local −x, as the note on which side the horn hangs already says.
    */
-  function contactAt(station: number, shift: number): Contact {
+  const HAND = 0.032;
+  /** How far round the tube from its centreline each wrist sits. */
+  const WRAP = 0.013;
+
+  /**
+   * How far in front of the bore a fingertip goes: onto the pad, not over it.
+   *
+   * A cup is centred at `r + 0.006` and is 5 mm deep, so its front face is at
+   * `r + 0.0085`. `keys` is a `touch: 1` pose and the contact is therefore the
+   * pad of the index finger rather than the palm, so `r + 0.016` held every
+   * finger 7.5 mm off the key it was pressing — an instrument being fingered
+   * from just above.
+   */
+  const KEY_Z = 0.011;
+
+  function contactAt(station: number, side: number): Contact {
     const t = HOLE_T[station]!;
     const r = rBot + (rTop - rBot) * t;
     return {
-      position: new Vector3(0, t * bodyLen + shift, -(r + 0.016)).applyMatrix4(bodyMatrix),
-      // Keys face the player; a finger comes at them from the front.
-      normal: new Vector3(0, 0.1, -1).normalize().transformDirection(bodyMatrix),
-      // The keys run the length of the tube, so the knuckles do too.
-      along: new Vector3(0, 1, 0).transformDirection(bodyMatrix),
+      position: new Vector3(side * WRAP, t * bodyLen + side * HAND, r + KEY_Z)
+        .applyMatrix4(bodyMatrix),
+      // The keys are on the far face of the tube, so a hand reaches round it
+      // and comes at them from downstage, from whichever side its own arm is
+      // on. `normal` is away from the instrument, hence +z.
+      normal: new Vector3(side * 0.38, 0.1, 1).normalize().transformDirection(bodyMatrix),
+      // Down the tube, mirrored per hand. See above for the sign.
+      along: new Vector3(0, -side, 0).transformDirection(bodyMatrix),
     };
   }
-  const HAND = 0.032;
-  const rightContacts: Contact[] = HOLE_T.map((_, i) => contactAt(i, -HAND));
-  const leftContacts: Contact[] = HOLE_T.map((_, i) => contactAt(i, HAND));
+  const rightContacts: Contact[] = HOLE_T.map((_, i) => contactAt(i, -1));
+  const leftContacts: Contact[] = HOLE_T.map((_, i) => contactAt(i, 1));
 
   /**
    * Which contact each hand takes for a given speaking hole.
@@ -515,7 +652,10 @@ export const buildSaxophone: InstrumentBuilder = (opts: InstrumentBuildOptions):
       const k = 1 - Math.exp(-dt / 0.035);
       for (let i = 0; i < STATIONS; i++) {
         closed[i] = closed[i]! + (closedTo[i]! - closed[i]!) * k;
-        cups[i]!.rotation.x = 0.24 * (1 - closed[i]!);
+        // Negative, because the cup now hangs off the hinge at +z. The pad has
+        // to swing the same way it always did — up off its hole — and the sign
+        // of that rotation follows the side of the tube the keywork is on.
+        cups[i]!.rotation.x = -0.24 * (1 - closed[i]!);
       }
       octaveAt += (octaveTo - octaveAt) * k;
       octave.rotation.x = -0.5 * octaveAt;

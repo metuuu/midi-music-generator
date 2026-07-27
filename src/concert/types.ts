@@ -57,6 +57,7 @@ import type { Midi } from '../core/pitch.js';
 import type {
   BackingPolicy, Consonant, DrumVoice, LayerId, Song, Vowel,
 } from '../core/types.js';
+import type { GenerateOptions } from '../generate/song.js';
 
 // ---------------------------------------------------------------------------
 // Instruments as physical objects
@@ -181,7 +182,25 @@ export interface ArchetypeSpec {
  */
 export type PlayPoint =
   /** A key on a keyboard, by pitch. */
-  | { kind: 'key'; midi: Midi }
+  | {
+    kind: 'key'; midi: Midi;
+    /**
+     * How far open the bellows are when this key is struck, 0 shut .. 1 out.
+     *
+     * Free reeds only, and the accordion is the only one here. It is on the
+     * *note* rather than left to the model because of a hard constraint at the
+     * seam: `resolve` must be pure and time-invariant, and half an accordion —
+     * the bass side, with a hand on it — rides the bellows. A model asked
+     * "where is F2?" with no more information can only answer "wherever the
+     * buttons are when the box is halfway", so the left hand sat still on a
+     * point the instrument had slid out from under. Anything the geometry
+     * needs and cannot derive belongs in the IR, and this is that.
+     *
+     * Absent on every other keyboard, and on an accordion whose part was
+     * choreographed before this existed.
+     */
+    bellows?: number;
+  }
   /** A stopped string. `string` indexes `ArchetypeSpec.strings`, low to high. */
   | { kind: 'string'; string: number; fret: number }
   /** A drum or cymbal, by the voice the Song IR names. */
@@ -192,8 +211,19 @@ export type PlayPoint =
   | { kind: 'hole'; midi: Midi }
   /** A foot pedal. */
   | { kind: 'pedal'; which: 'hat' | 'kick' | 'sustain' }
-  /** Bellows, which move continuously rather than being struck. */
-  | { kind: 'bellows'; open: boolean }
+  /**
+   * Bellows, which move continuously rather than being struck.
+   *
+   * `open` is the direction the arm is now travelling; `at` is how far open the
+   * box is as it sets off, 0 shut .. 1 out — the same measurement, at the same
+   * instant, that a `key` point's `bellows` carries, so the arm and the notes
+   * can never disagree about where the box has got to. The direction alone was
+   * the whole point for a while and it was not enough to be *natural* with: an
+   * accordionist does not run to the end of the bellows and back on every
+   * phrase, they spend the air they have and turn round when it runs out, so
+   * where a squeeze *stops* is as much of the gesture as which way it goes.
+   */
+  | { kind: 'bellows'; open: boolean; at?: number }
   /** A mouth shape. See `Viseme` — this is how a sung note reaches the face. */
   | { kind: 'viseme'; vowel: Vowel; consonant: Consonant }
   /** Nowhere in particular: a rest, a breath, an idle position. */
@@ -672,4 +702,21 @@ export interface ConcertOptions {
   /** How many numbers. 3–5 is a set; 1 is a soundcheck. */
   numbers?: number;
   vocals?: VocalPolicy;
+  /**
+   * Stage this exact piece of music, and nothing else.
+   *
+   * The setlist normally *decides* what gets played — style, mood, key, length
+   * and smoothness per slot, programmed for contrast across an evening. This
+   * replaces that decision wholesale with one the caller has already made, and
+   * it exists because the radio can hand the stage a song you are already
+   * listening to. Watching the band play something else would be a different
+   * feature.
+   *
+   * Two consequences worth stating, both of which follow from "exactly this":
+   * there is no arc, because there is no second number for one to run through;
+   * and `MIN_CONCERT_STRICTNESS` does not apply, because it is the setlist's
+   * floor for numbers the setlist chose. `numbers` and `vocals` are ignored —
+   * the song says how many (one) and whether it is sung.
+   */
+  song?: GenerateOptions;
 }

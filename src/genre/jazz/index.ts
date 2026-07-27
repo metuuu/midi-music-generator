@@ -215,7 +215,9 @@ export const jazz: Genre = {
         return makeScale(root, 'diminished');
       case 'minmaj7':
         return makeScale(root, 'melodicMinor');
-      case 'sus4': case 'sus2':
+      // Suspended, with or without the seventh: mixolydian, which contains the
+      // fourth the chord is built on and the third it is avoiding.
+      case 'sus4': case 'sus2': case 'dom7sus4':
         return makeScale(root, 'mixolydian');
       default:
         // Altered dominants take the altered scale, which is melodic minor a

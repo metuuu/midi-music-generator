@@ -36,7 +36,7 @@
  */
 
 import {
-  BoxGeometry, CylinderGeometry, Group, LatheGeometry, Mesh,
+  BoxGeometry, CylinderGeometry, DoubleSide, Group, LatheGeometry, Mesh,
   MeshStandardMaterial, TorusGeometry, Vector2, Vector3,
 } from 'three';
 
@@ -159,6 +159,21 @@ export const buildClarinet: InstrumentBuilder = (opts: InstrumentBuildOptions): 
   const matReed = shared('reed', () => new MeshStandardMaterial({
     color: '#d9c395', roughness: 0.7, metalness: 0.0,
   }));
+  /**
+   * The same wood, drawn on both faces. For the bell and nothing else.
+   *
+   * A `LatheGeometry` has no caps, so the bell is a one-sided flare open at
+   * both ends. With the default `FrontSide` its inside is culled, and this
+   * bell points down and out at the front row — the one angle that looks
+   * straight into it — so the horn ends the number with a hole in it.
+   *
+   * It costs one extra face on a 14-segment lathe. The joints, the barrel and
+   * the keywork stay single-sided: they are capped cylinders with no inside
+   * anyone can reach.
+   */
+  const matBore = shared(`bore:${woodHue}`, () => new MeshStandardMaterial({
+    color: woodHue, roughness: 0.42, metalness: 0.02, side: DoubleSide,
+  }));
 
   const geoBell = shared('bell', () => new LatheGeometry([
     new Vector2(0.037, 0), new Vector2(0.031, 0.020), new Vector2(0.0235, 0.046),
@@ -206,7 +221,7 @@ export const buildClarinet: InstrumentBuilder = (opts: InstrumentBuildOptions): 
 
   /** The bell gets its own group so it can shiver without moving the tube. */
   const bellGroup = addTo(tube, new Group());
-  const bell = addTo(bellGroup, new Mesh(geoBell, matWood));
+  const bell = addTo(bellGroup, new Mesh(geoBell, matBore));
   bell.name = 'bell';
   bell.castShadow = true;
   bell.receiveShadow = true;
@@ -275,23 +290,61 @@ export const buildClarinet: InstrumentBuilder = (opts: InstrumentBuildOptions): 
    * The stations are 20 mm apart, which is finer than a real clarinet's holes
    * and deliberately so — the hand walking down the tube is the read. But a
    * hand is 80 mm across, so putting both palms on adjacent stations either
-   * side of the joint overlaps them. `shift` backs each palm off toward its
-   * own end of the horn by half a hand, which is also where it really is: the
-   * finger doing the work is at one end of the hand, not in the middle of it.
+   * side of the joint overlaps them. Each palm backs off toward its own end of
+   * the horn by half a hand, which is also where it really is: the finger doing
+   * the work is at one end of the hand, not in the middle of it.
+   *
+   * ## Which side each hand arrives from, which is the whole of `side`
+   *
+   * Both hands finger the *front* of the tube, so it is tempting to give them
+   * one answer and shift it up and down. That is what this did, and it is wrong
+   * in a way that reads instantly: the rig builds a hand basis from
+   * `normal` and `along`, and the fingers come out along `along × normal`. One
+   * `along` for both hands therefore points both sets of fingers the same way
+   * round the tube — so both wrists end up on the *same* side of the clarinet
+   * and the left arm reaches across the right.
+   *
+   * A clarinettist's hands come from opposite sides: left wrist to the player's
+   * left with the fingers reaching right, right wrist to their right with the
+   * fingers reaching left. Mirroring `along` is what says so, and it costs a
+   * sign. The knuckle line still runs down the tube in both cases — which is the
+   * thing the old comment was reaching for — it just runs down it the other way
+   * for the other hand.
+   *
+   * `side` is `+1` for the left hand and `−1` for the right, matching `SIDE` in
+   * `performer-look.ts`: the player's right is local −x.
    */
-  function contactAt(station: number, shift: number): Contact {
+  const HAND = 0.030;
+  /** How far round the tube from its centreline each wrist sits. */
+  const WRAP = 0.011;
+
+  /**
+   * The front face of a key pad: the cups sit at `z = 0.017` and are 4 mm deep,
+   * so this is what a fingertip can actually be on.
+   *
+   * `keys` is a `touch: 1` pose, which means the contact is where the *pad of
+   * the index finger* goes — not where the palm goes. At `0.028` that left
+   * every finger 9 mm in front of the key it was supposed to be pressing. The
+   * rest of the family puts the fingertip within a few millimetres of the thing
+   * that moves: the trumpet's is 4 mm off a button by construction.
+   */
+  const KEY_Z = 0.020;
+
+  function contactAt(station: number, side: number): Contact {
     return {
-      position: new Vector3(0, stationY[station]! + shift, 0.028).applyMatrix4(tubeMatrix),
-      // Out of the front of the tube, angled a little up its length: fingers
-      // come over the top of a clarinet, never straight in from the side.
-      normal: new Vector3(0, 0.25, 1).normalize().transformDirection(tubeMatrix),
-      // The keys run the length of the tube, so the knuckles do too.
-      along: new Vector3(0, 1, 0).transformDirection(tubeMatrix),
+      position: new Vector3(side * WRAP, stationY[station]! + side * HAND, KEY_Z)
+        .applyMatrix4(tubeMatrix),
+      // Out of the front of the tube, angled a little up its length and out
+      // toward this hand's own side: fingers come over the top of a clarinet
+      // from the side the arm is on, never straight in from the front.
+      normal: new Vector3(side * 0.40, 0.25, 1).normalize().transformDirection(tubeMatrix),
+      // Down the tube — and *which way* down it is what puts this hand's
+      // fingers across the front and its wrist out on its own side.
+      along: new Vector3(0, -side, 0).transformDirection(tubeMatrix),
     };
   }
-  const HAND = 0.030;
-  const rightContacts: Contact[] = stationY.map((_, i) => contactAt(i, -HAND));
-  const leftContacts: Contact[] = stationY.map((_, i) => contactAt(i, HAND));
+  const rightContacts: Contact[] = stationY.map((_, i) => contactAt(i, -1));
+  const leftContacts: Contact[] = stationY.map((_, i) => contactAt(i, 1));
   /**
    * Which contact each hand takes. Neither crosses the joint: the right hand
    * stays on the lower six-and-a-bit stations and the left on the upper ones.

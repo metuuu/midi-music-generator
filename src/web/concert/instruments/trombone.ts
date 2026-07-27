@@ -46,7 +46,7 @@
  */
 
 import {
-  BoxGeometry, CylinderGeometry, Group, LatheGeometry, Mesh,
+  BoxGeometry, CylinderGeometry, DoubleSide, Group, LatheGeometry, Mesh,
   MeshStandardMaterial, TorusGeometry, Vector2, Vector3,
 } from 'three';
 
@@ -212,6 +212,28 @@ const SLIDE_Y = -0.022;
 const BELL_RISE = 0.100;
 /** Where the left hand takes the weight: the brace behind the mouthpiece. */
 const GRIP_Z = MOUTH_Z + 0.125;
+/** Flare length and mouth radius. The rim bead is placed from both. */
+const BELL_LEN = 0.22;
+const BELL_R = 0.103;
+/**
+ * How far in front of the lip point the mouthpiece rim sits.
+ *
+ * Same reasoning as the trumpet's constant of the same name: `mouth.z` is a
+ * point on the *surface* of the face, so a horn pinned to it starts inside the
+ * chin. It matters more here, because a trombone's bell section doubles back
+ * *behind* the mouthpiece — the back bow is at `MOUTH_Z − 0.02` — so anything
+ * buried at the lips takes a 62 mm loop of tubing into the player's head with
+ * it. Measured against the head sphere: the back bow was 45 mm inside it and
+ * the rotor 32 mm; after, 34 mm and 9 mm, and the bell tube is clear.
+ *
+ * The 34 mm that is left is not a depth problem and this constant cannot fix
+ * it: the whole bell section is built on the model's centreline and lands only
+ * 36 mm to the player's left, where a real one passes outside the ear. Moving
+ * it would mean re-cutting `geoStay`, which has to physically bridge the two
+ * slide tubes and the bell tube, so it is left as a known fault rather than
+ * half-done.
+ */
+const LIP_STANDOFF = 0.025;
 
 function bellProfile(len: number, r0: number, r1: number, steps: number): Vector2[] {
   const pts: Vector2[] = [];
@@ -241,6 +263,22 @@ export const buildTrombone: InstrumentBuilder = (opts: InstrumentBuildOptions): 
   const matDark = shared('dark', () => new MeshStandardMaterial({
     color: '#26221c', roughness: 0.7, metalness: 0.1,
   }));
+  /**
+   * The same brass, drawn on both faces. For the bell and nothing else.
+   *
+   * A `LatheGeometry` has no caps, so the flare is a one-sided cone open at
+   * both ends; under the default `FrontSide` everything you see from inside it
+   * is culled and a 206 mm bell becomes a hole through the horn onto whatever
+   * is upstage. On this instrument the bell points at the audience for the
+   * whole number, so it was the most visible instance of it.
+   *
+   * Not applied to the slide or the tubes: those are capped cylinders with no
+   * reachable back face, and double-siding them would cost a second pass in
+   * the shadow map for nothing.
+   */
+  const matBore = shared(`bore:${brassHue}`, () => new MeshStandardMaterial({
+    color: brassHue, roughness: 0.33, metalness: 0.88, side: DoubleSide,
+  }));
 
   const geoMouthpiece = shared('mouthpiece', () => new LatheGeometry([
     new Vector2(0.0072, 0), new Vector2(0.0080, 0.014), new Vector2(0.0115, 0.024),
@@ -254,8 +292,22 @@ export const buildTrombone: InstrumentBuilder = (opts: InstrumentBuildOptions): 
     return g;
   });
   const geoBellTube = shared('belltube', () => new CylinderGeometry(0.0125, 0.017, 0.24, 10).rotateX(Math.PI / 2));
-  const geoBell = shared('bell', () => new LatheGeometry(bellProfile(0.22, 0.017, 0.103, 8), 16).rotateX(Math.PI / 2));
-  const geoBellRim = shared('bellrim', () => new TorusGeometry(0.103, 0.006, 5, 20).rotateX(Math.PI / 2));
+  const geoBell = shared('bell', () => new LatheGeometry(bellProfile(BELL_LEN, 0.017, BELL_R, 8), 16).rotateX(Math.PI / 2));
+  /**
+   * The bead round the mouth, and the rotation it must **not** have.
+   *
+   * A torus is built round z already; the bell is lathed and then turned onto
+   * z, so they line up untouched. The `.rotateX(Math.PI / 2)` that used to be
+   * here belongs to the *lathe* and was copied onto a shape that did not need
+   * it, laying the ring flat in x-z: a 218 × 11 × 218 mm hoop cutting through
+   * a 206 mm mouth edge-on instead of running round it.
+   *
+   * `BELL_R` and `BELL_LEN` are now the same constants the profile is built
+   * from. They were two loose literals and a third, `0.218`, for the rim's
+   * position — 2 mm short of the flare's actual mouth, which is the sort of
+   * disagreement that only ever gets worse.
+   */
+  const geoBellRim = shared('bellrim', () => new TorusGeometry(BELL_R, 0.006, 5, 20));
   const geoInner = shared('inner', () => new CylinderGeometry(0.0072, 0.0072, INNER_FAR - INNER_NEAR, 8).rotateX(Math.PI / 2));
   const geoOuter = shared('outer', () => new CylinderGeometry(0.0098, 0.0098, OUTER_LEN, 10).rotateX(Math.PI / 2));
   const geoCrook = shared('crook', () => new TorusGeometry(SLIDE_X, 0.0095, 6, 12, Math.PI).rotateX(Math.PI / 2));
@@ -316,14 +368,16 @@ export const buildTrombone: InstrumentBuilder = (opts: InstrumentBuildOptions): 
   bellTube.castShadow = true;
 
   const bellGroup = addTo(horn, new Group());
+  // The 0.22 is where the flare starts, not its length; that it matches
+  // `BELL_LEN` is a coincidence of this horn's proportions.
   bellGroup.position.set(0, SLIDE_Y + BELL_RISE, MOUTH_Z + 0.22);
-  const bell = addTo(bellGroup, new Mesh(geoBell, matBrass));
+  const bell = addTo(bellGroup, new Mesh(geoBell, matBore));
   bell.name = 'bell';
   bell.castShadow = true;
   bell.receiveShadow = true;
   const bellRim = addTo(bellGroup, new Mesh(geoBellRim, matBrass));
   bellRim.name = 'bell-rim';
-  bellRim.position.z = 0.218;
+  bellRim.position.z = BELL_LEN;
 
   // The F attachment: a rotor on the bell section and a thumb lever.
   const rotor = addTo(horn, new Mesh(geoRotor, matBrass));
@@ -378,7 +432,13 @@ export const buildTrombone: InstrumentBuilder = (opts: InstrumentBuildOptions): 
    */
   function braceContact(offset: number): Contact {
     return {
-      position: new Vector3(0, SLIDE_Y + 0.012, BRACE_Z + offset).applyMatrix4(hornMatrix),
+      // On the grip rod's own axis, not above it. `grip` is a `touch: 0` pose,
+      // so the contact is where the palm's *surface* is asked to end up and the
+      // rig holds the palm `0.19 R` — about 13 mm — behind it. At `+0.012` on a
+      // rod of radius 0.014 that put the palm 9 mm clear of the brace: a
+      // trombonist working the slide with a hand hovering over it. Two
+      // millimetres up from the axis lays the palm on the rod.
+      position: new Vector3(0, SLIDE_Y + 0.002, BRACE_Z + offset).applyMatrix4(hornMatrix),
       // Up and back: the grip is taken from above and behind, thumb over.
       normal: new Vector3(0, 0.82, -0.57).normalize().transformDirection(hornMatrix),
       // The brace is a bar across the two slide tubes and the hand closes
@@ -394,18 +454,38 @@ export const buildTrombone: InstrumentBuilder = (opts: InstrumentBuildOptions): 
   const restContact = openContacts[0]!;
 
   /**
-   * The left hand: on the brace behind the mouthpiece, taking the weight.
+   * The left hand: round the bell tube where the stay bridges it, taking the
+   * weight.
    *
    * It never moves, whatever the slide is doing — which is the whole point of
-   * having it. One contact, and it is a metre from seventh position.
+   * having it. One contact, and it is a metre from seventh position. It is also
+   * what `animate.ts` pivots the horn about when this player stands down, so
+   * where it sits decides where the whole trombone hangs at ease.
+   *
+   * ## It was in the middle of the plate, which is inside the instrument
+   *
+   * `BELL_RISE * 0.55` is halfway up the stay — and the stay is a solid plate
+   * 88 × 100 × 14 mm. A `touch: 0` pose puts the palm's surface 13 mm along the
+   * normal from the contact and the palm's centre 43 mm along it, so both ended
+   * up *within* the plate: a hand sunk into the brace to the knuckles, which is
+   * not a grip either. The tube is the thing a trombonist's left hand actually
+   * closes on, so the contact goes on its axis (`SLIDE_Y + BELL_RISE`, radius
+   * about 15 mm here) and the palm lands on top of it.
    */
   const holdContact: Contact = {
-    position: new Vector3(-0.014, SLIDE_Y + BELL_RISE * 0.55, GRIP_Z).applyMatrix4(hornMatrix),
-    // From above and the player's left: the hand comes over the brace with the
+    position: new Vector3(-0.008, SLIDE_Y + BELL_RISE, GRIP_Z).applyMatrix4(hornMatrix),
+    // From above and the player's left: the hand comes over the tube with the
     // thumb reaching in to the trigger.
     normal: new Vector3(0.35, 0.90, -0.26).normalize().transformDirection(hornMatrix),
-    // Fingers wrap a vertical plate, so the knuckles run up it.
-    along: new Vector3(0, 1, 0).transformDirection(hornMatrix),
+    /**
+     * Knuckles down the tube, because the fingers wrap *across* it.
+     *
+     * `(0, 1, 0)` was for the plate, and it was also within 26° of the normal —
+     * the rig orthogonalises `along` against `normal`, so what survived was a
+     * quarter-length residual pointing wherever the rounding went. A knuckle
+     * line along `z` is perpendicular to the grip and decides the roll cleanly.
+     */
+    along: new Vector3(0, 0, 1).transformDirection(hornMatrix),
   };
 
   function copy(c: Contact): Contact {
@@ -449,9 +529,11 @@ export const buildTrombone: InstrumentBuilder = (opts: InstrumentBuildOptions): 
        *
        * The z is the rim's own position minus how far in front of the body
        * this player's mouth is, so a taller player's horn simply starts
-       * further out — which is what a longer face does to a trombone.
+       * further out — which is what a longer face does to a trombone. Less
+       * `LIP_STANDOFF`, because the mouth is a point on the face rather than
+       * a hole in it; see that constant for what was measured inside the head.
        */
-      offset: new Vector3(-SLIDE_X, 0, rimZ - mouth.z),
+      offset: new Vector3(-SLIDE_X, 0, rimZ - mouth.z - LIP_STANDOFF),
       facing: 0,
       posture: SPEC.posture,
     },

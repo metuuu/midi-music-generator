@@ -41,8 +41,14 @@ const IDLE_X = SCALE * Math.pow(2, -5 / 12);
 
 const NECK_TILT = 0.21;
 const FACE = new Vector3(0, 1, 0);
-/** Across the strings, so the fingers cross them. See `acoustic-guitar.ts`. */
-const ACROSS = new Vector3(0, 0, 1);
+/** Up the neck: the picking hand, over the top. See `acoustic-guitar.ts`. */
+const UP_NECK = new Vector3(1, 0, 0);
+/**
+ * Nut toward bridge: the fretting hand, which comes at the board from
+ * underneath with its index at the nut. The argument is in
+ * `acoustic-guitar.ts`; nothing about it is particular to a hollow body.
+ */
+const DOWN_NECK = new Vector3(-1, 0, 0);
 
 function mountBasis(alongStrings: Vector3, faceHint: Vector3, at: Vector3): Matrix4 {
   const x = alongStrings.clone().normalize();
@@ -67,11 +73,11 @@ function stringZ(i: number, x: number): number {
   return (i - (STRINGS - 1) / 2) * (spread / (STRINGS - 1));
 }
 
-function contactAt(x: number, y: number, z: number): Contact {
+function contactAt(x: number, y: number, z: number, along: Vector3): Contact {
   return {
     position: new Vector3(x, y, z).applyMatrix4(MOUNT),
     normal: FACE.clone().transformDirection(MOUNT),
-    along: ACROSS.clone().transformDirection(MOUNT),
+    along: along.clone().transformDirection(MOUNT),
   };
 }
 
@@ -324,7 +330,7 @@ export const buildElectricGuitar: InstrumentBuilder = (opts) => {
 
     resolve(point: PlayPoint): Contact | undefined {
       if (point.kind === 'rest') {
-        return contactAt(IDLE_X, FINGER_HEIGHT + 0.03, stringZ(2, IDLE_X));
+        return contactAt(IDLE_X, FINGER_HEIGHT + 0.03, stringZ(2, IDLE_X), DOWN_NECK);
       }
       if (point.kind !== 'string') return undefined;
       const i = point.string;
@@ -333,17 +339,17 @@ export const buildElectricGuitar: InstrumentBuilder = (opts) => {
       const n = Math.round(point.fret);
       if (n < 0 || n > FRETS) return undefined;
       const x = fretX(n);
-      return contactAt(x, FINGER_HEIGHT, stringZ(i, x));
+      return contactAt(x, FINGER_HEIGHT, stringZ(i, x), DOWN_NECK);
     },
 
     soundingContact(point: PlayPoint): Contact | undefined {
       if (point.kind === 'rest') {
-        return contactAt(PLUCK_X + 0.05, STRING_HEIGHT + 0.045, -0.02);
+        return contactAt(PLUCK_X + 0.05, STRING_HEIGHT + 0.045, -0.02, UP_NECK);
       }
       if (point.kind !== 'string') return undefined;
       const i = point.string;
       if (!Number.isInteger(i) || i < 0 || i >= STRINGS) return undefined;
-      return contactAt(PLUCK_X, STRING_HEIGHT + 0.014, stringZ(i, PLUCK_X));
+      return contactAt(PLUCK_X, STRING_HEIGHT + 0.014, stringZ(i, PLUCK_X), UP_NECK);
     },
 
     react(point: PlayPoint, force: number, now: number): void {

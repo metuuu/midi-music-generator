@@ -131,6 +131,28 @@ export const FORMANT_BANDWIDTHS = [250, 300, 400] as const;
  */
 export const FORMANT_GAINS = [0.8, 1.6, 2.0] as const;
 
+/**
+ * What the whole voice is worth against one instrument.
+ *
+ * The numbers above are a *balance between the bands*, not a level, and nothing
+ * used to convert one into the other. That is why the sung line was far louder
+ * than the band: every instrument is emitted as a single part at its track
+ * gain, and the voice is emitted as five — a body, three formants and the
+ * consonant bursts — whose gains add up to roughly four and a half times the
+ * gain the mix asked for. A vocal written as 0.95 on a scale where the melody
+ * is 0.85 arrived a good 10 dB above it.
+ *
+ * A quarter puts the sum back at about the nominal gain, so `VocalProfile.gain`
+ * finally means what its documentation claims: a level on the same scale as
+ * every other layer's. It multiplies the body, the formants and the bursts
+ * alike, because both of those are specified *relative to the voice* — scaling
+ * the bands alone would leave the consonants behind as loud as a snare.
+ *
+ * A native engine that runs its resonators in series will not need this: a
+ * cascade colours one signal instead of adding five copies of it.
+ */
+export const VOICE_MIX = 0.25;
+
 
 /**
  * How open each vowel is, 0 (closed) … 1 (open) — derived from F1, because

@@ -106,8 +106,21 @@ export interface InstrumentModel {
    *
    * `now` is the song position in beats, from the one clock. Do not keep your
    * own.
+   *
+   * `hold` is how long the effector stays on this point, in beats — the
+   * gesture's own follow-through, which for the sustaining kinds *is* the note
+   * length. It exists because the two halves of a sustained motion were
+   * estimating it separately and disagreeing: the runtime runs a bow hand out
+   * along `tau / release`, and the violin model had to guess the same span from
+   * the gap since the previous note, so a long note's bow finished its stroke
+   * a beat early and a short one's was still going. Anything that has to move
+   * *for the length of a note* — a bow, a key that stays down, a bellows —
+   * needs this and cannot derive it. Omitted, a model must fall back to
+   * whatever it did before.
    */
-  react(point: PlayPoint, force: number, now: number, kind?: GestureKind): void;
+  react(
+    point: PlayPoint, force: number, now: number, kind?: GestureKind, hold?: number,
+  ): void;
 
   /** Per-frame settling — decay whatever `react` displaced. Beats, again. */
   update(now: number): void;

@@ -56,15 +56,50 @@ const NECK_TILT = 0.244;
 
 const FACE = new Vector3(0, 1, 0);
 /**
- * Across the strings — the axis the knuckles lie along.
+ * Up the neck — the axis the knuckles lie along, and it is **not** across the
+ * strings.
  *
- * `normal` fixes the palm's facing and leaves the *roll* about it free, and on
- * a fretboard the roll is the whole difference between a hand reaching over the
- * strings and a hand lying up one of them like a splint. It is worth spelling
- * out that this is *across*, not along the neck: a fretting hand's fingers
- * cross the strings, and a picking hand's do too.
+ * This was `(0, 0, 1)`, and the comment that stood here said it was preventing
+ * "a hand lying up one string like a splint". It was producing exactly that.
+ * The rig builds the hand from `along \u00d7 normal`, so an axis across the strings
+ * comes out with the fingers pointing *down the neck toward the bridge*, and
+ * the four knuckles spread across the six strings.
+ *
+ * A fretting hand is the other way round on both counts. Its four fingers take
+ * four consecutive **frets**, so the knuckle line runs along the neck, and they
+ * come down onto the board across the strings, perpendicular to them. `±x` is
+ * bridge to nut, which is the line the frets are spaced along, and it is that
+ * knuckle line. Which of its two *directions* a fretting hand takes is a
+ * separate question with an anatomical answer: see `DOWN_NECK`.
+ *
+ * The *picking* hand keeps this direction. It comes over the top of the body
+ * with the index nearest the neck, and its fingers cross the strings downward,
+ * from the low E to the high.
  */
-const ACROSS = new Vector3(0, 0, 1);
+const UP_NECK = new Vector3(1, 0, 0);
+/**
+ * Nut toward bridge: the **fretting** hand's knuckle line, and the sign is the
+ * whole of it.
+ *
+ * One vector answers two questions, because the rig lays the four fingers out
+ * along `along` with *the index at the `−along` end* and points them along
+ * `along × normal`. So "which end of the span the index takes" and "which way
+ * the fingers cross the strings" are one question with one answer, and either
+ * of them fixes the roll of the hand about the board.
+ *
+ * The index is at the nut — that is what a position *is*: first finger on the
+ * lowest of the four frets, little finger on the highest. So the axis runs the
+ * other way, nut down toward the bridge, and what falls out of it is the hand
+ * arriving from *underneath*. Palm below the neck on the high-E side, thumb
+ * behind it, fingertips reaching up across the strings toward the low E. A
+ * barre chord is the picture: one finger over all six strings, its tip past
+ * the low E and its knuckle below the high one.
+ *
+ * It was `UP_NECK`, which is that hand turned half a revolution about its own
+ * contact — little finger at the nut, wrist above the low E, fingers hanging
+ * down over the board from the top. Nobody frets a guitar from above.
+ */
+const DOWN_NECK = new Vector3(-1, 0, 0);
 
 /** Body outline, in the build frame's x (along) and z (across). */
 const BODY_TAIL = -0.215;
@@ -102,11 +137,11 @@ function stringZ(i: number, x: number): number {
   return (i - (STRINGS - 1) / 2) * (spread / (STRINGS - 1));
 }
 
-function contactAt(x: number, y: number, z: number): Contact {
+function contactAt(x: number, y: number, z: number, along: Vector3): Contact {
   return {
     position: new Vector3(x, y, z).applyMatrix4(MOUNT),
     normal: FACE.clone().transformDirection(MOUNT),
-    along: ACROSS.clone().transformDirection(MOUNT),
+    along: along.clone().transformDirection(MOUNT),
   };
 }
 
@@ -324,7 +359,7 @@ export const buildAcousticGuitar: InstrumentBuilder = (opts) => {
 
     resolve(point: PlayPoint): Contact | undefined {
       if (point.kind === 'rest') {
-        return contactAt(IDLE_X, FINGER_HEIGHT + 0.035, stringZ(2, IDLE_X));
+        return contactAt(IDLE_X, FINGER_HEIGHT + 0.035, stringZ(2, IDLE_X), DOWN_NECK);
       }
       if (point.kind !== 'string') return undefined;
       const i = point.string;
@@ -335,17 +370,17 @@ export const buildAcousticGuitar: InstrumentBuilder = (opts) => {
       const n = Math.round(point.fret);
       if (n < 0 || n > FRETS) return undefined;
       const x = fretX(n);
-      return contactAt(x, FINGER_HEIGHT, stringZ(i, x));
+      return contactAt(x, FINGER_HEIGHT, stringZ(i, x), DOWN_NECK);
     },
 
     soundingContact(point: PlayPoint): Contact | undefined {
       if (point.kind === 'rest') {
-        return contactAt(PLUCK_X + 0.06, STRING_HEIGHT + 0.05, 0);
+        return contactAt(PLUCK_X + 0.06, STRING_HEIGHT + 0.05, 0, UP_NECK);
       }
       if (point.kind !== 'string') return undefined;
       const i = point.string;
       if (!Number.isInteger(i) || i < 0 || i >= STRINGS) return undefined;
-      return contactAt(PLUCK_X, STRING_HEIGHT + 0.016, stringZ(i, PLUCK_X));
+      return contactAt(PLUCK_X, STRING_HEIGHT + 0.016, stringZ(i, PLUCK_X), UP_NECK);
     },
 
     react(point: PlayPoint, force: number, now: number): void {

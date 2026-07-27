@@ -372,6 +372,17 @@ function drawKey(
  * what the evening consists of.
  */
 export function buildSetlist(opts: ConcertOptions = {}): Song[] {
+  /**
+   * A number the caller already chose skips everything below.
+   *
+   * Not "the arc with one slot" — there is no arc, no draw, no contrast to
+   * enforce and no key to keep clear of, because all four are properties of a
+   * *sequence* and this is one piece of music. Every table below stays out of
+   * it: the song is generated from exactly the options handed in, so it is the
+   * same song those options produce anywhere else, note for note.
+   */
+  if (opts.song) return [generateSong(opts.song)];
+
   const seed = String(opts.seed ?? Math.floor(Math.random() * 1e9));
   // Its own stream, so the cast, the venue and the lighting can share the
   // concert seed without any of them shifting when another one changes.

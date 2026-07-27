@@ -52,7 +52,7 @@
  */
 
 import {
-  BoxGeometry, CylinderGeometry, Group, LatheGeometry, Mesh,
+  BoxGeometry, CylinderGeometry, DoubleSide, Group, LatheGeometry, Mesh,
   MeshStandardMaterial, TorusGeometry, Vector2, Vector3,
 } from 'three';
 
@@ -198,6 +198,21 @@ const BUTTON_Y = 0.079;
 const VALVE_TRAVEL = 0.009;
 /** Shank tip to rim of the mouthpiece mesh, which is laid out along −z. */
 const MP_LEN = 0.035;
+/**
+ * How far in front of the lip point the mouthpiece rim sits.
+ *
+ * `mouthFor` returns the mouth as a point on the *surface* of the face — the
+ * lip mesh's own front is within a millimetre of it — so a rim placed exactly
+ * there has the whole 31 mm cup buried in the chin. Measured against the head
+ * sphere before this existed: the mouthpiece mesh was 5 mm inside it, and the
+ * rig is not a statue, so it was further in for most of every number (the head
+ * alone tracks up to `headR × 1.3`, and the groove moves the torso under it).
+ *
+ * 25 mm is a brass rim resting *on* the lips rather than through them, and it
+ * is small next to a 136 mm head — the horn still reads as being played, which
+ * a horn floating a hand's width off the face would not.
+ */
+const LIP_STANDOFF = 0.025;
 
 function bellProfile(len: number, r0: number, r1: number, steps: number): Vector2[] {
   const pts: Vector2[] = [];
@@ -228,6 +243,23 @@ export const buildTrumpet: InstrumentBuilder = (opts: InstrumentBuildOptions): I
   const matBrass = shared(`brass:${brassHue}`, () => new MeshStandardMaterial({
     color: brassHue, roughness: 0.31, metalness: 0.88,
   }));
+  /**
+   * The same brass, drawn on both faces. For the bell and nothing else.
+   *
+   * A `LatheGeometry` has no caps, so the bell is a cone of one-sided
+   * triangles with a hole at each end. Under the default `FrontSide` every
+   * triangle you are looking at from *inside* the flare is culled, so pointing
+   * a bell anywhere but straight at the camera opens a window through the horn
+   * onto the stage behind it. That is the "you see through them and it looks
+   * glitched" in the report, and it is one flag, not a modelling problem.
+   *
+   * Deliberately not applied to the rest of the horn. Every tube here is a
+   * capped `CylinderGeometry` with no reachable back face, and blanket
+   * double-siding would double their shadow-map and fill cost for nothing.
+   */
+  const matBore = shared(`bore:${brassHue}`, () => new MeshStandardMaterial({
+    color: brassHue, roughness: 0.31, metalness: 0.88, side: DoubleSide,
+  }));
   const matSilver = shared('silver', () => new MeshStandardMaterial({
     color: '#cfd4da', roughness: 0.22, metalness: 0.95,
   }));
@@ -254,7 +286,23 @@ export const buildTrumpet: InstrumentBuilder = (opts: InstrumentBuildOptions): I
     return g;
   });
   const geoBell = shared('bell', () => new LatheGeometry(bellProfile(BELL_LEN, 0.0105, BELL_R, 8), 14).rotateX(Math.PI / 2));
-  const geoRim = shared('rim', () => new TorusGeometry(BELL_R, 0.005, 5, 16).rotateX(Math.PI / 2));
+  /**
+   * The bead round the bell's mouth, and the rotation it must **not** have.
+   *
+   * A `TorusGeometry` is already built round the z axis — flat in x/y, thin in
+   * z — and the bell is lathed and then turned onto z as well, so the two
+   * agree with no help. The `.rotateX(Math.PI / 2)` that used to be here is the
+   * one the *lathe* needs, copied onto a shape that did not: it laid the ring
+   * flat in the x-z plane, thin in y. Measured, the ring's bounding box was
+   * 134 × 10 × 134 mm where the flare's mouth is 124 × 124 × 0 — a horizontal
+   * hoop standing edge-on through the bell rather than a rim round it, which
+   * is exactly the "wrongly aligned ring" in the report.
+   *
+   * Radius and position need nothing: `bellProfile` ends at `BELL_R` at
+   * `t === 1`, so the mouth is a circle of `BELL_R` in the plane `z = BELL_LEN`
+   * and the bead is centred on the edge it is rolled round.
+   */
+  const geoRim = shared('rim', () => new TorusGeometry(BELL_R, 0.005, 5, 16));
   const geoCasing = shared('casing', () => new CylinderGeometry(0.0195, 0.0195, CASING_LEN, 10));
   const geoStem = shared('stem', () => new CylinderGeometry(0.0055, 0.0055, 0.032, 6));
   const geoButton = shared('button', () => new CylinderGeometry(0.0125, 0.0125, 0.009, 10));
@@ -317,7 +365,7 @@ export const buildTrumpet: InstrumentBuilder = (opts: InstrumentBuildOptions): I
   /** The bell is its own group so a loud note can flare it without moving anything else. */
   const bellGroup = addTo(horn, new Group());
   bellGroup.position.set(0, BELL_Y, BELL_START);
-  const bell = addTo(bellGroup, new Mesh(geoBell, matBrass));
+  const bell = addTo(bellGroup, new Mesh(geoBell, matBore));
   bell.name = 'bell';
   bell.castShadow = true;
   bell.receiveShadow = true;
@@ -379,14 +427,23 @@ export const buildTrumpet: InstrumentBuilder = (opts: InstrumentBuildOptions): I
     return {
       // Slightly to the player's right of the axis, because that is the side
       // the fingers come from: `SIDE.right` is −x.
-      position: new Vector3(-0.008, BUTTON_Y - VALVE_TRAVEL / 2, z).applyMatrix4(hornMatrix),
-      // Up and back toward the player: a finger comes down onto a valve from
-      // above and slightly behind, never straight down a vertical.
-      normal: new Vector3(0, 1, -0.3).normalize().transformDirection(hornMatrix),
-      // Three buttons in a line down the horn, one finger each — so the
-      // knuckles run down the horn too. Without this the fallback roll lays
-      // the fingers *across* the valves and the hand reads as a paw.
-      along: new Vector3(0, 0, 1).transformDirection(hornMatrix),
+      position: new Vector3(-0.014, BUTTON_Y - VALVE_TRAVEL / 2, z).applyMatrix4(hornMatrix),
+      // Up and out to the player's right: a finger comes down onto a valve from
+      // above and from its own side, never straight down a vertical.
+      normal: new Vector3(-0.22, 1, -0.3).normalize().transformDirection(hornMatrix),
+      /**
+       * Three buttons in a line down the horn, one finger each — so the
+       * knuckles run down the horn too. Without this the fallback roll lays
+       * the fingers *across* the valves and the hand reads as a paw.
+       *
+       * Toward the mouthpiece, not toward the bell, and the sign is doing two
+       * jobs. The rig derives the fingers from `along × normal`, so `+z` aimed
+       * them at the player's right and left the palm out at their *left* —
+       * a right hand reaching across the horn to get at its own buttons. `−z`
+       * puts the wrist on the right where the arm is, and it also puts the
+       * index on the first valve, which is where a trumpeter's index goes.
+       */
+      along: new Vector3(0, 0, -1).transformDirection(hornMatrix),
     };
   });
 
@@ -400,9 +457,21 @@ export const buildTrumpet: InstrumentBuilder = (opts: InstrumentBuildOptions): I
    * were sent to the buttons, and the runtime's idle split pushed them 5 cm
    * apart sideways. Two hands stacked on one point is what a cluster of loose
    * fingers under the horn looks like.
+   *
+   * ## Why the x is inside the casing
+   *
+   * Because this is the hand the horn *hangs from*. `DEFAULT_HAND_POSES` gives
+   * it `grip`, and a `touch: 0` pose puts the contact `0.62 R` behind the
+   * palm's centre — `0.19 R`, about 13 mm, past the palm's own surface. So a
+   * contact is where the palm's surface is asked to end up, and one placed
+   * outside the object leaves the hand in the air beside it. At `x = 0.031`
+   * against a casing of radius `0.0195` that was 25 mm of daylight, measured:
+   * the trumpet stood at ease hanging off a hand that was visibly not touching
+   * it, which is the "should be in hand" in the report. `0.007` puts the palm's
+   * surface on the casing wall, which is what holding it means.
    */
   const leftContact: Contact = {
-    position: new Vector3(0.031, -0.022, VALVE_Z[1]!).applyMatrix4(hornMatrix),
+    position: new Vector3(0.007, -0.026, VALVE_Z[1]!).applyMatrix4(hornMatrix),
     normal: new Vector3(1, 0.22, -0.1).normalize().transformDirection(hornMatrix),
     along: new Vector3(0, 0, 1).transformDirection(hornMatrix),
   };
@@ -447,8 +516,11 @@ export const buildTrumpet: InstrumentBuilder = (opts: InstrumentBuildOptions): I
        * model's frame and the mouth is `mouth.z` in front of the body, so the
        * origin belongs at the difference — which moves with the player's
        * height, because their face does.
+       *
+       * Less `LIP_STANDOFF`, because `mouth.z` is the *surface* of the face
+       * and not a point a mouthpiece can occupy. See that constant.
        */
-      offset: new Vector3(0, 0, rimZ - mouth.z),
+      offset: new Vector3(0, 0, rimZ - mouth.z - LIP_STANDOFF),
       facing: 0,
       posture: SPEC.posture,
     },

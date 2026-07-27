@@ -20,12 +20,17 @@
  * it does.
  *
  * **What moves.** The treble side is strapped to the player and stays put; the
- * bass side rides the bellows, which is how a real accordion works and why
- * `resolve` can be pure for the right hand and only approximately fixed for the
- * left. Bass-button contacts are given at the *neutral* bellows position and
- * drift by up to ±0.12 m as the bellows work — the `bellows` point itself
- * carries the full travel, so the left hand that is following a squeeze gesture
- * goes where the buttons actually are.
+ * bass side rides the bellows, which is how a real accordion works and is the
+ * one fact this model is organised around. `resolve` is required to be pure, so
+ * for a long time the bass-button contacts were built once at the neutral and
+ * the left hand sat on a point the instrument slid out from under — which is
+ * why the travel had to be kept down to a few centimetres to stay plausible.
+ *
+ * A `key` point now carries how far open the box is when it is struck (see
+ * `PlayPoint.bellows`), so the answer is still a pure function of the point and
+ * the hand lands on the button *wherever the box has got to*. Every note also
+ * retargets the box, so the bellows is driven by the part rather than twitching
+ * once a phrase, and the two cannot disagree because they are the same number.
  */
 
 import {
@@ -33,7 +38,7 @@ import {
   Matrix4, Mesh, MeshStandardMaterial, Object3D, Quaternion, Vector3,
 } from 'three';
 
-import type { Effector, PlayPoint } from '../../../concert/types.js';
+import type { Effector, GestureKind, PlayPoint } from '../../../concert/types.js';
 import { Rng } from '../../../core/rng.js';
 import {
   addTo, type Contact, type InstrumentBuilder, type InstrumentModel,
@@ -61,28 +66,55 @@ const TREBLE_OUTER_X = -0.19;
 const TREBLE_INNER_X = -0.09;
 const BASS_DEPTH = 0.09;
 /**
- * How far apart the two boxes get, and why the travel is only ten centimetres
- * when a real bellows opens by half a metre.
+ * How far apart the two boxes get — and this time it is a real bellows.
  *
  * The treble side is strapped to the player and the bass side rides the
- * bellows, so whatever the bellows does, the *left hand* has to live with —
- * and `resolve` is required to be pure, so the bass-button contacts cannot
- * follow it. The first version ran 0.06 to 0.30 about a neutral of 0.18, which
- * put the buttons up to **13 cm** from the hand placed on them: at one end of
- * every phrase the left hand was out in the air beside the instrument, which is
- * what "the hands are not on both sides" looks like from the stalls.
+ * bellows, so whatever the bellows does, the *left hand* has to live with. That
+ * used to cap the travel at eight centimetres end to end: `resolve` is required
+ * to be pure, so the bass-button contacts were built once at the neutral, and
+ * every millimetre past that was a millimetre of daylight between the hand and
+ * the button it was supposed to be pressing.
  *
- * So the translation is small and the *fan* does the acting. A bellows hinged
- * along its bottom edge opens like a book, and the wedge of daylight along the
- * top reads as breath from the back of the room at a fraction of the hand
- * error. Between them the buttons never stray more than about 5 cm from the
- * hand, which is a hand shifting under its strap rather than a hand adrift.
+ * The cap is gone because the constraint is gone. A `key` point now carries how
+ * far open the box is when it is struck — see `PlayPoint.bellows` — so the
+ * contact is still a pure function of the point and the hand lands on the
+ * button *wherever the box has got to*. The hand rides the bass side, which is
+ * what a left hand does, and the bellows can be as long as an accordion's.
+ *
+ * 0.30 m of stretch on a 0.50 m box, plus the fan, is about what one opens to
+ * on a standing player before the arm runs out.
  */
-const BELLOWS_SHUT = 0.145;
-const BELLOWS_NEUTRAL = 0.185;
-const BELLOWS_OPEN = 0.225;
+const BELLOWS_SHUT = 0.075;
+const BELLOWS_OPEN = 0.375;
+/**
+ * Where the box hangs before anybody has played a note, as a `PlayPoint.bellows`.
+ *
+ * Matches `BELLOWS_START` in `choreograph.ts` — mostly shut, with the pull
+ * still in hand — so the first note of a number does not have to travel to
+ * reach the plan, and so the contacts a part choreographed without a bellows
+ * plan falls back to are the ones the box is actually at.
+ *
+ * It is where the box *starts* and not somewhere it ever returns to. Nothing
+ * walks it back here between phrases, because the left hand does not come back
+ * here either: the runtime idles a hand on the last point it played, bellows
+ * value and all, so a box that closed to the neutral under a resting phrase
+ * would be a box sliding out from under the hand it is supposed to be carrying.
+ */
+const NEUTRAL_AT = 0.28;
 /** The fan angle at full stretch, radians, about the bottom edge. */
-const BELLOWS_FAN = 0.055;
+const BELLOWS_FAN = 0.10;
+/**
+ * How much of the travel a beat of sound spends, until the plan has said.
+ *
+ * Only ever used for the first note of a number, because the second one gives
+ * the model a measurement — see `aim`. `choreograph.ts` spends `AIR_PER_BEAT`
+ * scaled by force, and a tenth of the travel is what that comes to at the
+ * middling velocity most first notes have.
+ */
+const AIR_SEED = 0.10;
+/** Bounds on the note length the box is run across, in beats. */
+const DRIFT_MIN = 0.15;
+const DRIFT_MAX = 4;
 const BOX_H = 0.50;
 const BOX_Z = 0.22;
 
@@ -147,6 +179,18 @@ function bellowsFan(width: number): number {
 }
 
 /**
+ * `PlayPoint.bellows` — 0 shut, 1 out — as a width in metres.
+ *
+ * The one place the IR's number becomes geometry. Both the contact the left
+ * hand is sent to and the box `update` draws go through it, which is the only
+ * reason a hand can be promised to land on a moving button.
+ */
+function widthAt(open: number): number {
+  const t = open < 0 ? 0 : open > 1 ? 1 : open;
+  return BELLOWS_SHUT + (BELLOWS_OPEN - BELLOWS_SHUT) * t;
+}
+
+/**
  * The frame of the pleat (or the bass box) that sits `reach` along the bellows,
  * fanned by `angle`, into `out`.
  */
@@ -162,30 +206,54 @@ function bellowsFrame(reach: number, angle: number, out: Matrix4): Matrix4 {
 class Hit {
   beat = -1e9;
   force = 0;
-  fire(now: number, force: number): void {
+  /**
+   * How long the finger stays on it, in beats.
+   *
+   * A key is not a drum head. The old envelope started decaying on the instant
+   * of the note, so a four-beat pad chord had its keys back up within half a
+   * beat while the hand that was holding them down stayed where it was — a
+   * player pressing keys that are not there. `hold` is the gesture's own
+   * follow-through, so the key is down for exactly as long as the hand is on
+   * it and the spring only has to bring it back afterwards.
+   */
+  hold = 0;
+  fire(now: number, force: number, hold = 0): void {
     this.beat = now;
     this.force = force < 0 ? 0 : force > 1 ? 1 : force;
+    this.hold = Number.isFinite(hold) && hold > 0 ? hold : 0;
   }
   level(now: number, tau: number): number {
     const age = now - this.beat;
-    if (age < 0 || age > tau * 6) return 0;
-    return Math.exp(-age / tau);
+    if (age < 0) return 0;
+    // Held all the way down, then released. `tau` is the return spring alone.
+    if (age <= this.hold) return 1;
+    const off = age - this.hold;
+    return off > tau * 6 ? 0 : Math.exp(-off / tau);
   }
 }
 
-/** Endpoint-and-start easing, so a seek lands in the right place. See drumkit. */
+/**
+ * Endpoint-and-start easing, so a seek lands in the right place. See drumkit.
+ *
+ * The span is per `set` rather than per instance, because the one thing on this
+ * instrument that eases is the box, and how long the box takes to cross is a
+ * fact about the note it is crossing under — see `aim`.
+ */
 class Eased {
   private from: number;
   private to: number;
   private at = -1e9;
-  constructor(private readonly span: number, initial: number) {
+  private span: number;
+  constructor(private readonly defaultSpan: number, initial: number) {
     this.from = initial;
     this.to = initial;
+    this.span = defaultSpan;
   }
-  set(now: number, value: number): void {
+  set(now: number, value: number, span = this.defaultSpan): void {
     this.from = this.value(now);
     this.to = value;
     this.at = now;
+    this.span = span > 0 ? span : this.defaultSpan;
   }
   value(now: number): number {
     const t = (now - this.at) / this.span;
@@ -319,16 +387,76 @@ export const buildAccordion: InstrumentBuilder = (opts) => {
   pleatsA.castShadow = true;
 
   /**
-   * How long the box takes to travel, in beats.
+   * The box, and it crosses **under the note** rather than in a burst after it.
    *
-   * Three beats, not the half a beat this used to ease over. `choreograph.ts`
-   * emits one squeeze per phrase and alternates the direction, so a slow ease
-   * spends the whole phrase on its way and the bellows is *always* moving — it
-   * opens through one phrase and closes through the next, which is what a
-   * bellows is for. A fast ease made the same gestures read as a twitch
-   * followed by a long freeze, which is the "jittering" that was reported.
+   * The default span is only the fallback for an IR that names an extension
+   * without saying how long the note holding it lasts; every real note goes
+   * through `aim`, which runs the box over that note's own length.
+   *
+   * This was a flat half beat for every note, and before that a beat and a
+   * half, and the flatness was the whole complaint: a semiquaver's box lurched
+   * and a semibreve's finished a fifteenth of the way into the note and then
+   * stood still for the rest of it. Neither is a bellows. A free reed spends
+   * air *for as long as it sounds*, which is exactly what `hold` measures.
    */
-  const bellows = new Eased(3.0, BELLOWS_NEUTRAL);
+  const bellows = new Eased(0.5, widthAt(NEUTRAL_AT));
+
+  /**
+   * The plan, as the model has heard it so far: the last extension a note was
+   * struck at, the beat it was struck on, and how long that note held.
+   *
+   * `bellowsPart` reports `PlayPoint.bellows` as where the box is **when the
+   * note lands** and only then spends the note's air, so consecutive values
+   * differ by exactly what the note in between cost. Two of them are therefore
+   * a measurement of the plan's own spending rate, in travel per beat of
+   * *sound* — which is the number needed to keep the box moving through a note
+   * whose successor has not been announced yet.
+   */
+  let planAt = NEUTRAL_AT;
+  let planBeat = Number.NEGATIVE_INFINITY;
+  let planSpan = 1;
+  /** Travel per beat of sound, unsigned. `bellowsDir` is what signs it. */
+  let airRate = AIR_SEED;
+  /** +1 pulling the box open, −1 pushing it shut. */
+  let bellowsDir = 1;
+  /**
+   * Whether a `bellows` gesture has ever named the direction.
+   *
+   * It always does in practice — `bellowsPart` places one on every reversal —
+   * and the direction has to come from there rather than from the samples,
+   * because the step between two extensions is the air the *earlier* note
+   * spent and so carries the direction that was in force before the turn. An IR
+   * that never places one falls back to reading the samples, which is right up
+   * to one note of lag at each reversal.
+   */
+  let toldDir = false;
+
+  /**
+   * Where the box is heading, and how long it has to get there.
+   *
+   * Called once per note with that note's extension and length. The target is
+   * the extension *plus the air this note is about to spend*, so the box is at
+   * the plan's own number on the beat — which is where the left hand has just
+   * been placed — and travels on through the note instead of arriving at the
+   * end of a burst and waiting. Nothing snaps: `Eased.set` re-bases from
+   * wherever the box actually is, so a prediction that came out slightly wrong
+   * is corrected across the next note rather than jumped.
+   */
+  function aim(now: number, at: number, span: number): void {
+    const s = Math.min(Math.max(
+      Number.isFinite(span) && span > 0 ? span : planSpan, DRIFT_MIN,
+    ), DRIFT_MAX);
+    // Only across a real gap: the notes of one chord all arrive on one beat
+    // carrying one extension, and a step of zero is not a measurement.
+    if (now > planBeat && Number.isFinite(planBeat) && at !== planAt) {
+      airRate = Math.abs(at - planAt) / planSpan;
+      if (!toldDir) bellowsDir = at > planAt ? 1 : -1;
+    }
+    planAt = at;
+    planBeat = now;
+    planSpan = s;
+    bellows.set(now, widthAt(at + bellowsDir * airRate * s), s);
+  }
 
   // --- Bass side -----------------------------------------------------------
 
@@ -423,35 +551,44 @@ export const buildAccordion: InstrumentBuilder = (opts) => {
   }
 
   /**
-   * The bass buttons, through the *same* transform `update` will drive the box
-   * with, evaluated at the neutral bellows. Half the travel either side of this
-   * is what the left hand has to absorb, and the numbers at the top of the file
-   * are chosen so that it is about five centimetres.
+   * The bass side, through the *same* transform `update` will drive the box
+   * with, at whatever extension the caller names.
+   *
+   * The extension is a parameter and not a constant, and that is the whole of
+   * "the hand moves with the accordion". It used to be `BELLOWS_NEUTRAL`,
+   * because `resolve` is required to be pure and the model has no way to know
+   * what beat it is — so every bass contact was built for a box that was
+   * halfway open and the hand sat there while the instrument slid past it. A
+   * note now carries the extension it was played at, so the answer is still a
+   * pure function of the point and it is the *right* pure function.
+   *
+   * `scratch` is not used here: this runs at build time and again per resolve,
+   * and `update` owns that matrix on the frame path.
    */
-  const bassNeutral = bellowsFrame(BELLOWS_NEUTRAL, bellowsFan(BELLOWS_NEUTRAL), new Matrix4());
-  function onBassSide(local: Vector3, normal: Vector3, along: Vector3): Contact {
-    return place(local.clone().applyMatrix4(bassNeutral), normal, along);
+  function onBassSide(local: Vector3, normal: Vector3, along: Vector3, open: number): Contact {
+    const w = widthAt(open);
+    const frame = bellowsFrame(w, bellowsFan(w), new Matrix4());
+    return place(local.clone().applyMatrix4(frame), normal, along);
+  }
+  /** The button's own local position; `onBassSide` puts it where the box is. */
+  function bassLocal(midi: number): Vector3 {
+    return new Vector3(BASS_DEPTH + 0.016, bassY(midi), BASS_ROW_Z);
   }
   for (let midi = BASS_LOW; midi <= BASS_HIGH; midi++) {
-    contacts.set(midi, onBassSide(
-      new Vector3(BASS_DEPTH + 0.016, bassY(midi), BASS_ROW_Z), OUT_BASS, DOWN_BUTTONS,
-    ));
+    contacts.set(midi, onBassSide(bassLocal(midi), OUT_BASS, DOWN_BUTTONS, NEUTRAL_AT));
   }
 
   /**
-   * Where the *body* leans at either end of the travel — `bellows` gestures go
-   * to the torso, not to a hand (`choreograph.ts` says why: it is the whole
+   * Where the *body* leans on the way to a given extension — `bellows` gestures
+   * go to the torso, not to a hand (`choreograph.ts` says why: it is the whole
    * left arm that opens the box). Taken at the strap, which is the part of the
    * instrument the pull is actually applied to.
    */
-  function strapContact(width: number): Contact {
-    const frame = bellowsFrame(width, bellowsFan(width), new Matrix4());
-    return place(
-      new Vector3(BASS_DEPTH + 0.035, 0, 0).applyMatrix4(frame), OUT_BASS, DOWN_BUTTONS,
-    );
+  function strapContact(open: number): Contact {
+    return onBassSide(new Vector3(BASS_DEPTH + 0.035, 0, 0), OUT_BASS, DOWN_BUTTONS, open);
   }
-  const BELLOWS_PULLED = strapContact(BELLOWS_OPEN);
-  const BELLOWS_PUSHED = strapContact(BELLOWS_SHUT);
+  const BELLOWS_PULLED = strapContact(1);
+  const BELLOWS_PUSHED = strapContact(0);
 
   /**
    * Resting hands, one per side — and this is the other half of "the hands are
@@ -461,14 +598,19 @@ export const buildAccordion: InstrumentBuilder = (opts) => {
    * the part went quiet *both* hands drifted onto the keyboard and the accordion
    * was being played like a small piano. `resolve` is handed the effector
    * precisely so a two-sided instrument can answer twice.
+   *
+   * The bass one is at the neutral because a rest carries no extension, and
+   * that is only ever asked before the first note of a number — the runtime
+   * idles a hand on the last point it played, so once anything has sounded the
+   * left hand is answered through `resolve`'s `key` branch with that note's own
+   * extension and this contact is not consulted again.
    */
   const REST_TREBLE = place(
     new Vector3(TREBLE_OUTER_X - 0.075, -0.02, KEY_PIVOT_Z + WHITE_L * 0.72),
     OUT_TREBLE, UP_KEYBOARD,
   );
-  const REST_BASS = onBassSide(
-    new Vector3(BASS_DEPTH + 0.030, 0.02, BASS_ROW_Z), OUT_BASS, DOWN_BUTTONS,
-  );
+  const REST_BASS_LOCAL = new Vector3(BASS_DEPTH + 0.030, 0.02, BASS_ROW_Z);
+  const REST_BASS = onBassSide(REST_BASS_LOCAL, OUT_BASS, DOWN_BUTTONS, NEUTRAL_AT);
 
   const moving = new Set<Pressable>();
   const KEY_DIP = 0.10;      // radians at the key pivot
@@ -490,10 +632,39 @@ export const buildAccordion: InstrumentBuilder = (opts) => {
 
     resolve(point: PlayPoint, effector?: Effector): Contact | undefined {
       switch (point.kind) {
-        case 'key':
-          return copy(contacts.get(point.midi));
+        case 'key': {
+          /**
+           * A bass note is answered where the box currently is; a treble note
+           * is answered where it always is.
+           *
+           * And each hand is kept on its own side even when the note is not
+           * its own. The runtime asks *both* hands where they idle, and it
+           * asks with the last point that was played — so a treble run used to
+           * hand the left hand a treble key and drift it round onto the
+           * keyboard, which is the accordion being played like a small piano
+           * again by a different route.
+           */
+          const bass = point.midi >= BASS_LOW && point.midi <= BASS_HIGH;
+          const open = point.bellows ?? NEUTRAL_AT;
+          // A left hand asked about a treble note is the runtime asking where
+          // it idles — the answer is the bass side, *at the extension that note
+          // was played at*. Returning the fixed neutral here was the last place
+          // the hand could still be left behind by the box: the bass line is
+          // sparse and the treble is not, so between two bass notes every idle
+          // frame was answered from a box that had since travelled.
+          if (effector === 'left-hand' && !bass) {
+            return copy(onBassSide(REST_BASS_LOCAL, OUT_BASS, DOWN_BUTTONS, open));
+          }
+          if (effector === 'right-hand' && bass) return copy(REST_TREBLE);
+          if (!bass) return copy(contacts.get(point.midi));
+          return copy(onBassSide(bassLocal(point.midi), OUT_BASS, DOWN_BUTTONS, open));
+        }
         case 'bellows':
-          return copy(point.open ? BELLOWS_PULLED : BELLOWS_PUSHED);
+          // Where the arm is pulling *to*, when the plan says; the ends of the
+          // travel when it does not.
+          return copy(point.at === undefined
+            ? (point.open ? BELLOWS_PULLED : BELLOWS_PUSHED)
+            : strapContact(point.at));
         case 'rest':
           // The left hand never leaves the bass side; everything else that
           // idles on this instrument is the right hand on the keyboard.
@@ -503,34 +674,69 @@ export const buildAccordion: InstrumentBuilder = (opts) => {
       }
     },
 
-    react(point: PlayPoint, force: number, now: number): void {
+    react(
+      point: PlayPoint, force: number, now: number,
+      _kind?: GestureKind, hold?: number,
+    ): void {
       if (point.kind === 'bellows') {
-        // A hard phrase uses the whole box and a quiet one breathes shallowly,
-        // which is the dynamic range of the instrument made visible. The
-        // destination is a *fraction of the full travel* rather than a distance
-        // added to neutral: a squeeze that stopped short of where the arm was
-        // going left the box and the arm disagreeing about the same phrase.
-        const f = force < 0 ? 0 : force > 1 ? 1 : force;
-        const reach = 0.45 + 0.55 * f;
-        bellows.set(now, point.open
-          ? BELLOWS_NEUTRAL + (BELLOWS_OPEN - BELLOWS_NEUTRAL) * reach
-          : BELLOWS_NEUTRAL - (BELLOWS_NEUTRAL - BELLOWS_SHUT) * reach);
+        /**
+         * The direction, mostly.
+         *
+         * A squeeze is placed at a reversal — and at a reversal the *samples*
+         * still describe the old direction, because the step between two of
+         * them is the air the note before the turn spent. So this is the one
+         * thing about the box the model cannot work out for itself.
+         *
+         * It aims as well, and then the note sharing this beat aims again over
+         * its own length and wins. The double call is deliberate: the note
+         * carries the identical extension but knows how long the sound it is
+         * paying for lasts, where a squeeze only has its own two-beat
+         * follow-through — and a squeeze that arrived without one would
+         * otherwise leave the box parked.
+         *
+         * The old version derived a destination from the *force* of the
+         * gesture — a hard phrase used the whole box, a quiet one breathed
+         * shallowly — which is a good instinct about dynamics and the wrong
+         * place for it. It made the box's position a function of how loud the
+         * squeeze was rather than of how much air had been spent, so the arm
+         * and the box could not be given a shared answer and the left hand had
+         * nothing to ride. The dynamics survive: `choreograph.ts` spends air
+         * faster on a loud passage, so a loud phrase still crosses more of the
+         * bellows. It simply decides that once, for both of us.
+         */
+        toldDir = true;
+        bellowsDir = point.open ? 1 : -1;
+        // No plan to ride, so there is nothing to drift toward: an IR that
+        // names only a direction gets the end of the travel, as it always did.
+        if (point.at === undefined) bellows.set(now, widthAt(point.open ? 1 : 0));
+        else aim(now, point.at, hold ?? planSpan);
         return;
       }
       if (point.kind !== 'key') return;
+      // Every sounding note moves the box, which is the difference between an
+      // instrument that is being played and a prop that twitches once a phrase.
+      // The extension is the one the hand on the buttons was placed at, and the
+      // note's own length is how long the box has to spend its air over.
+      if (point.bellows !== undefined) aim(now, point.bellows, hold ?? planSpan);
       const p = pressables.get(point.midi);
       if (!p) return;
-      p.hit.fire(now, force);
+      p.hit.fire(now, force, hold);
       moving.add(p);
     },
 
     update(now: number): void {
-      // A slow drift on top of whatever the gestures asked for. An accordion
-      // with a perfectly still bellows is an accordion nobody is breathing
-      // through, and that reads as broken rather than as calm — but it is a
-      // *breath*, a fifth of a cycle per beat, not a shiver.
-      const drift = Math.sin(now * 0.18 * Math.PI * 2) * 0.007;
-      const w = Math.max(BELLOWS_SHUT, Math.min(BELLOWS_OPEN, bellows.value(now) + drift));
+      // Where the plan says the box is, and nothing else on top of it.
+      //
+      // There used to be a slow sine here — an accordion with a perfectly still
+      // bellows is an accordion nobody is breathing through — and it was seven
+      // millimetres of wander the left hand had no way to follow. Everything
+      // the box does now is a consequence of the plan, which is the same plan
+      // the hand is placed from: the hand and the button meet exactly on the
+      // beat and part by at most one note's air before the next note brings
+      // them back together, where an ornament on this side would never close.
+      // The notes keep it alive without one: every one of them names an
+      // extension and pays for a note's worth of travel.
+      const w = bellows.value(now);
       const fan = bellowsFan(w);
 
       // Each pleat takes its share of the fold, so the pleats stay evenly

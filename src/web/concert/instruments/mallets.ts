@@ -69,6 +69,27 @@ function barLength(midi: number): number {
   return 0.255 - 0.115 * barT(midi);
 }
 
+/**
+ * How long a struck bar keeps moving, in beats, from the bottom bar to the top.
+ *
+ * A vibraphone's low bars are long, heavy and slow: an F3 rings for the better
+ * part of ten seconds and its flex is something you can watch, while a C7 is a
+ * finger-length of aluminium that ticks and is done. Every bar used to decay on
+ * the same 1.1 beats with the same 5.5 mm dip at the same 2.4 Hz, which made a
+ * strike say nothing at all about which note it was — the one piece of
+ * information a mallet instrument has that a drum does not.
+ */
+const RING_LOW = 2.0;
+const RING_HIGH = 0.55;
+/** How far a struck bar dips, metres, over the same span. */
+const DIP_LOW = 0.0085;
+const DIP_HIGH = 0.0030;
+/** And how fast it flexes about its cords. A long bar wobbles slowly. */
+const FLEX_LOW = 1.7;
+const FLEX_HIGH = 3.8;
+
+const mix = (lo: number, hi: number, t: number): number => lo + (hi - lo) * t;
+
 class Hit {
   beat = -1e9;
   force = 0;
@@ -137,7 +158,11 @@ export const buildMallets: InstrumentBuilder = (opts) => {
   naturalMesh.castShadow = true;
   sharpMesh.castShadow = true;
 
-  interface Bar { mesh: InstancedMesh; slot: number; home: Vector3; len: number; hit: Hit }
+  interface Bar {
+    mesh: InstancedMesh; slot: number; home: Vector3; len: number; hit: Hit;
+    /** This bar's own ring, dip and flex rate. See `RING_LOW` and friends. */
+    ring: number; dip: number; flex: number;
+  }
   const bars = new Map<number, Bar>();
   const scratch = new Matrix4();
   const noRot = new Quaternion();
@@ -148,7 +173,13 @@ export const buildMallets: InstrumentBuilder = (opts) => {
       const home = new Vector3(barX(midi), y, z);
       scratch.compose(home, noRot, new Vector3(1, 1, len));
       mesh.setMatrixAt(slot, scratch);
-      bars.set(midi, { mesh, slot, home, len, hit: new Hit() });
+      const t = barT(midi);
+      bars.set(midi, {
+        mesh, slot, home, len, hit: new Hit(),
+        ring: mix(RING_LOW, RING_HIGH, t),
+        dip: mix(DIP_LOW, DIP_HIGH, t),
+        flex: mix(FLEX_LOW, FLEX_HIGH, t),
+      });
     });
     mesh.instanceMatrix.needsUpdate = true;
   }
@@ -275,7 +306,27 @@ export const buildMallets: InstrumentBuilder = (opts) => {
 
     resolve(point: PlayPoint): Contact | undefined {
       if (point.kind === 'rest') {
-        // Mallets held over the middle of the naturals.
+        /**
+         * Mallets held over the middle of the naturals — one answer for both
+         * sticks, and **deliberately** one answer.
+         *
+         * This is the one place where declining to choose is the better model.
+         * `resolve` is pure and time-invariant by contract, so it cannot know
+         * which end of the row this number is being played at, and a stick
+         * parked over a fixed third of a three-and-a-half octave instrument is
+         * wrong for every part that does not happen to live there. The runtime
+         * *does* know: `animate.ts` keeps a running mean of the bars each hand
+         * has actually struck and idles that hand over them, and it only does
+         * so for a model that gave the two hands the same point — see
+         * `idleGoals` and `COINCIDENT`. Answering per stick here would switch
+         * that off and replace a measurement with a guess.
+         *
+         * It used to be switched off in practice anyway, because a hand needs
+         * three contacts of its own before its zone is trusted and `mallets`
+         * ran through `keyboardPart`, which left one hand with none at all for
+         * whole numbers. Both sticks now play — see `malletPart` — so both
+         * zones fill and the pair idles over the register in hand.
+         */
         return {
           position: new Vector3(0, NATURAL_Y + 0.10, NATURAL_Z),
           normal: UP.clone(),
@@ -314,15 +365,18 @@ export const buildMallets: InstrumentBuilder = (opts) => {
         let sharpDirty = false;
         for (const bar of moving) {
           // A struck bar rings: it dips and then oscillates about its rest
-          // height for a good deal longer than a drum head does.
-          const d = bar.hit.wobble(now, 1.1, 2.4) * 0.0055;
+          // height for a good deal longer than a drum head does — and it does
+          // it at its own rate, because a bottom F and a top C are not the same
+          // piece of metal. That is what makes a strike legible as a *pitch*
+          // rather than merely as a strike.
+          const d = bar.hit.wobble(now, bar.ring, bar.flex) * bar.dip;
           scale.set(1, 1, bar.len);
           scratch.compose(
             new Vector3(bar.home.x, bar.home.y - d, bar.home.z), noRot, scale,
           );
           bar.mesh.setMatrixAt(bar.slot, scratch);
           if (bar.mesh === naturalMesh) naturalDirty = true; else sharpDirty = true;
-          if (Math.abs(d) < 1e-5 && now - bar.hit.beat > 1.1) moving.delete(bar);
+          if (Math.abs(d) < 1e-5 && now - bar.hit.beat > bar.ring) moving.delete(bar);
         }
         if (naturalDirty) naturalMesh.instanceMatrix.needsUpdate = true;
         if (sharpDirty) sharpMesh.instanceMatrix.needsUpdate = true;

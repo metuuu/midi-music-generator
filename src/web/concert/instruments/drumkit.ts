@@ -406,32 +406,57 @@ export const buildDrumkit: InstrumentBuilder = (opts) => {
   strut(tubeSlots, new Vector3(0.24, 0.30, 0.15), new Vector3(0.40, 0.01, 0.02));
   strut(tubeSlots, new Vector3(-0.24, 0.30, 0.15), new Vector3(-0.40, 0.01, 0.02));
 
+  /**
+   * Stand a drum up so that its batter head *is* the contact `LAYOUT` names.
+   *
+   * The tilt used to be written a second time, as a `rotation.x` per drum, and
+   * the second copy had the sign backwards: the drummer sits at `z = −0.95`
+   * (see `station`) and every normal in `LAYOUT` leans that way — negative
+   * `z`, uphill toward the player, as the header says — while a positive
+   * `rotation.x` tilts a head toward `+z`. So the rack toms were raked over to
+   * face the audience, and the hands went on lying on the surface the table
+   * described, which is not the surface anybody could see.
+   *
+   * Deriving both from the one entry is what makes that class of bug
+   * impossible rather than merely fixed. The head sits at `depth / 2` up the
+   * drum's own axis, so backing the centre off by that much along the normal
+   * lands the head exactly on the strike point, which the hand-written
+   * positions were also missing by about a centimetre each.
+   *
+   * The kick is not in here on purpose: `LAYOUT.bd` is the *pedal board*, not
+   * a head, and a kick lies on its side by definition.
+   */
+  function stand(g: Group, voice: DrumVoice, depth: number): Vector3 {
+    const spec = LAYOUT[voice];
+    const up = new Vector3(spec.up[0], spec.up[1], spec.up[2]).normalize();
+    g.quaternion.setFromUnitVectors(yUp, up);
+    g.position.set(spec.at[0], spec.at[1], spec.at[2]).addScaledVector(up, -depth / 2);
+    return g.position.clone();
+  }
+
   // Snare: 14x5.5, tilted a little toward the player.
   const snare = drum('snare', 0.175, 0.135);
-  snare.position.set(0.12, 0.665, -0.50);
-  snare.rotation.x = 0.24;
+  stand(snare, 'sd', 0.135);
   tripod(new Vector3(0.12, 0.60, -0.50), 0.60);
 
   const ht = drum('high', 0.155, 0.20);
-  ht.position.set(0.20, 0.795, 0.00);
-  ht.rotation.x = 0.30;
-
   const mt = drum('mid', 0.175, 0.22);
-  mt.position.set(-0.16, 0.745, 0.02);
-  mt.rotation.x = 0.30;
+  const htAt = stand(ht, 'ht', 0.20);
+  const mtAt = stand(mt, 'mt', 0.22);
 
-  // The rack toms hang off one post out of the bass drum, the way they do.
+  // The rack toms hang off one post out of the bass drum, the way they do. The
+  // arms end at the shells rather than near them, so that moving a tom moves
+  // the thing holding it up.
   strut(tubeSlots, new Vector3(0.02, 0.55, 0.15), new Vector3(0.02, 1.02, 0.18));
-  strut(tubeSlots, new Vector3(0.02, 0.95, 0.16), new Vector3(0.22, 0.90, 0.02));
-  strut(tubeSlots, new Vector3(0.02, 0.95, 0.16), new Vector3(-0.16, 0.86, 0.04));
+  strut(tubeSlots, new Vector3(0.02, 0.95, 0.16), htAt);
+  strut(tubeSlots, new Vector3(0.02, 0.95, 0.16), mtAt);
 
   const lt = drum('floor', 0.205, 0.36);
-  lt.position.set(-0.50, 0.475, -0.30);
-  lt.rotation.x = 0.10;
+  const ltAt = stand(lt, 'lt', 0.36);
   for (let i = 0; i < 3; i++) {
     const a = (i / 3) * TAU + 0.7;
-    strut(legSlots, new Vector3(-0.50 + Math.cos(a) * 0.20, 0.60, -0.30 + Math.sin(a) * 0.20),
-      new Vector3(-0.50 + Math.cos(a) * 0.23, 0.01, -0.30 + Math.sin(a) * 0.23));
+    strut(legSlots, new Vector3(ltAt.x + Math.cos(a) * 0.20, 0.60, ltAt.z + Math.sin(a) * 0.20),
+      new Vector3(ltAt.x + Math.cos(a) * 0.23, 0.01, ltAt.z + Math.sin(a) * 0.23));
   }
 
   // The clap pad: a small rubber disc on a short boom by the hats.

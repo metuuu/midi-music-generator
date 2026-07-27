@@ -13,6 +13,7 @@
 
 import { parseRoman, chordPcs } from './core/chord.js';
 import { pc } from './core/pitch.js';
+import { melodicLine } from './core/types.js';
 import type { NoteEvent, Song } from './core/types.js';
 import { generateSong } from './generate/song.js';
 
@@ -89,7 +90,9 @@ function audit(song: Song, s: Stats): void {
     }
   }
 
-  const melody = song.tracks.find((t) => t.layer === 'melody')?.notes ?? [];
+  const melodyTrack = song.tracks.find((t) => t.layer === 'melody');
+  // The line, not the track: a `twoHanded` piano interleaves its own comping.
+  const melody = melodyTrack ? melodicLine(melodyTrack) : [];
   const comp = song.tracks.find((t) => t.layer === 'comp')?.notes ?? [];
   const pad = song.tracks.find((t) => t.layer === 'pad')?.notes ?? [];
 

@@ -130,8 +130,19 @@ export function chooseTones(chord: Chord, voices: number, opts: {
   const seventh = pcs[3];
   const extensions = pcs.slice(4);
 
-  // Suspensions have no third; their whole identity is the 4th or 2nd standing
-  // in for it, so that note is the one that must survive.
+  /**
+   * Suspensions have no third; their whole identity is the 4th or 2nd standing
+   * in for it, so that note is the one that must survive.
+   *
+   * The *suspended dominant* is deliberately not in this set even though it is
+   * suspended, and the omission is doing work rather than being an oversight. A
+   * `sus4` triad is three notes and losing any of them loses the chord, so it is
+   * taken whole. A `dom7sus4` is four, and its suspended fourth already sits
+   * where a third would in the stack — so `essential` picks up that fourth and
+   * the seventh without being told, and the *root* stays droppable. Which is
+   * exactly what a rootless left-hand voicing of one needs, and taking it whole
+   * would put the root back under a bass player who already has it.
+   */
   const isSus = chord.quality === 'sus4' || chord.quality === 'sus2';
 
   const essential: Pc[] = [];

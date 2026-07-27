@@ -45,7 +45,7 @@
  * prevent. The palm, which has no children, is free to be squashed.
  */
 
-import { Group, Mesh, MeshStandardMaterial } from 'three';
+import { Group, Mesh, MeshStandardMaterial, Vector3 } from 'three';
 
 import type { Archetype } from '../../concert/types.js';
 
@@ -62,6 +62,7 @@ export type HandPoseId =
   | 'flat'    // fingers straight and together — a palm mute, a wave
   | 'keys'    // curved and slightly spread, over a key bed
   | 'press'   // one finger down on a key, the rest lifted
+  | 'reach'   // stretched across a chord: thumb and little finger at the ends
   | 'spread'  // splayed, stopping strings on a fretboard
   | 'strap'   // flat under an accordion's bass strap, fingers on the buttons
   | 'pluck'   // thumb and index pinched, the rest folded
@@ -90,6 +91,30 @@ export interface HandPose {
    * fretting hand reaching up at a neck is negative.
    */
   wrist: number;
+
+  /**
+   * Which part of the hand the instrument's contact belongs under: **0 the
+   * palm, 1 the fingertips.**
+   *
+   * A `Contact` says where the hand *touches*, and until this existed the rig
+   * answered that with the centre of the palm for every pose. On anything
+   * played with the fingers that is out by the length of a finger: at adult
+   * scale the pad of an index finger sits about nine centimetres ahead of the
+   * palm's centre and three below it, so a pianist's palm lay on the keys with
+   * the fingers hanging past the far edge of them, a saxophonist's palm sat on
+   * the key stack, and a guitarist's fretting hand covered the fret it was
+   * supposed to be stopping instead of resting a finger on it. That is the
+   * "palm fisting the precision areas" the report names.
+   *
+   * It cannot be one rule for every hand, which is why this is a pose field
+   * rather than a constant in the rig. A hand closed round a stick, a
+   * microphone or a trombone slide really does meet the instrument at the
+   * palm — its fingertips are curled back *under* it — and moving that hand
+   * onto its fingertips would take the fist off the thing it is holding. So
+   * each shape says which part of itself does the work, and `buildHand` solves
+   * for where that part actually is.
+   */
+  touch: number;
 }
 
 /**
@@ -113,19 +138,30 @@ export interface HandPose {
  *    a key is a hand playing a cluster.
  */
 export const HAND_POSES: Record<HandPoseId, HandPose> = {
-  relax: { curl: [0.34, 0.40, 0.43, 0.46], tip: 0.50, spread: 0.18, thumbCurl: 0.30, thumbOut: 0.35, cup: 0.25, wrist: -0.06 },
-  fist: { curl: [1.00, 1.00, 1.00, 1.00], tip: 1.00, spread: 0.00, thumbCurl: 0.55, thumbOut: 0.12, cup: 0.65, wrist: 0.00 },
-  grip: { curl: [0.72, 0.76, 0.76, 0.72], tip: 0.86, spread: 0.05, thumbCurl: 0.34, thumbOut: 0.58, cup: 0.48, wrist: 0.00 },
-  stick: { curl: [0.58, 0.78, 0.86, 0.92], tip: 0.80, spread: 0.06, thumbCurl: 0.44, thumbOut: 0.28, cup: 0.58, wrist: -0.04 },
-  bowhold: { curl: [0.44, 0.52, 0.60, 0.70], tip: 0.60, spread: 0.24, thumbCurl: 0.68, thumbOut: 0.42, cup: 0.34, wrist: -0.12 },
-  flat: { curl: [0.00, 0.00, 0.00, 0.00], tip: 0.00, spread: 0.02, thumbCurl: 0.00, thumbOut: 0.22, cup: 0.00, wrist: 0.00 },
-  keys: { curl: [0.42, 0.46, 0.46, 0.44], tip: 0.56, spread: 0.32, thumbCurl: 0.18, thumbOut: 0.62, cup: 0.30, wrist: 0.10 },
-  press: { curl: [0.66, 0.28, 0.30, 0.32], tip: 0.74, spread: 0.26, thumbCurl: 0.20, thumbOut: 0.56, cup: 0.34, wrist: 0.14 },
-  spread: { curl: [0.30, 0.36, 0.38, 0.34], tip: 0.34, spread: 1.00, thumbCurl: 0.10, thumbOut: 0.86, cup: 0.10, wrist: -0.16 },
-  strap: { curl: [0.50, 0.58, 0.56, 0.48], tip: 0.68, spread: 0.22, thumbCurl: 0.22, thumbOut: 0.08, cup: 0.14, wrist: 0.24 },
-  pluck: { curl: [0.84, 0.54, 0.60, 0.66], tip: 0.90, spread: 0.10, thumbCurl: 0.70, thumbOut: 0.50, cup: 0.52, wrist: 0.00 },
-  point: { curl: [0.00, 1.00, 1.00, 1.00], tip: 1.00, spread: 0.00, thumbCurl: 0.60, thumbOut: 0.18, cup: 0.55, wrist: 0.00 },
-  open: { curl: [0.05, 0.05, 0.08, 0.10], tip: 0.05, spread: 0.76, thumbCurl: 0.00, thumbOut: 0.82, cup: 0.00, wrist: -0.10 },
+  relax: { curl: [0.34, 0.40, 0.43, 0.46], tip: 0.50, spread: 0.18, thumbCurl: 0.30, thumbOut: 0.35, cup: 0.25, wrist: -0.06, touch: 0.35 },
+  fist: { curl: [1.00, 1.00, 1.00, 1.00], tip: 1.00, spread: 0.00, thumbCurl: 0.55, thumbOut: 0.12, cup: 0.65, wrist: 0.00, touch: 0.00 },
+  grip: { curl: [0.72, 0.76, 0.76, 0.72], tip: 0.86, spread: 0.05, thumbCurl: 0.34, thumbOut: 0.58, cup: 0.48, wrist: 0.00, touch: 0.00 },
+  stick: { curl: [0.58, 0.78, 0.86, 0.92], tip: 0.80, spread: 0.06, thumbCurl: 0.44, thumbOut: 0.28, cup: 0.58, wrist: -0.04, touch: 0.00 },
+  bowhold: { curl: [0.44, 0.52, 0.60, 0.70], tip: 0.60, spread: 0.24, thumbCurl: 0.68, thumbOut: 0.42, cup: 0.34, wrist: -0.12, touch: 0.00 },
+  flat: { curl: [0.00, 0.00, 0.00, 0.00], tip: 0.00, spread: 0.02, thumbCurl: 0.00, thumbOut: 0.22, cup: 0.00, wrist: 0.00, touch: 0.35 },
+  keys: { curl: [0.42, 0.46, 0.46, 0.44], tip: 0.56, spread: 0.32, thumbCurl: 0.18, thumbOut: 0.62, cup: 0.30, wrist: 0.10, touch: 1.00 },
+  press: { curl: [0.66, 0.28, 0.30, 0.32], tip: 0.74, spread: 0.26, thumbCurl: 0.20, thumbOut: 0.56, cup: 0.34, wrist: 0.14, touch: 1.00 },
+  /**
+   * A hand opened out across a chord.
+   *
+   * Not `spread`, which is the fretting shape and lifts the fingers at the
+   * wrist to reach up at a neck; this one keeps the pianist's flat wrist and
+   * opens sideways. The tell is the thumb: a hand taking a tenth abducts it
+   * completely and *straightens the fingers*, because a curled finger is a
+   * shorter finger and the span is the whole problem. The palm flattens out of
+   * its arch for the same reason.
+   */
+  reach: { curl: [0.20, 0.24, 0.25, 0.22], tip: 0.24, spread: 1.00, thumbCurl: 0.06, thumbOut: 1.00, cup: 0.06, wrist: 0.08, touch: 1.00 },
+  spread: { curl: [0.30, 0.36, 0.38, 0.34], tip: 0.34, spread: 1.00, thumbCurl: 0.10, thumbOut: 0.86, cup: 0.10, wrist: -0.16, touch: 1.00 },
+  strap: { curl: [0.50, 0.58, 0.56, 0.48], tip: 0.68, spread: 0.22, thumbCurl: 0.22, thumbOut: 0.08, cup: 0.14, wrist: 0.24, touch: 0.85 },
+  pluck: { curl: [0.84, 0.54, 0.60, 0.66], tip: 0.90, spread: 0.10, thumbCurl: 0.70, thumbOut: 0.50, cup: 0.52, wrist: 0.00, touch: 1.00 },
+  point: { curl: [0.00, 1.00, 1.00, 1.00], tip: 1.00, spread: 0.00, thumbCurl: 0.60, thumbOut: 0.18, cup: 0.55, wrist: 0.00, touch: 1.00 },
+  open: { curl: [0.05, 0.05, 0.08, 0.10], tip: 0.05, spread: 0.76, thumbCurl: 0.00, thumbOut: 0.82, cup: 0.00, wrist: -0.10, touch: 0.80 },
 };
 
 /**
@@ -189,6 +225,7 @@ export function blendPoses(a: HandPose, b: HandPose, t: number): HandPose {
     thumbOut: mix(a.thumbOut, b.thumbOut),
     cup: mix(a.cup, b.cup),
     wrist: mix(a.wrist, b.wrist),
+    touch: mix(a.touch, b.touch),
   };
 }
 
@@ -205,6 +242,19 @@ export interface HandRig {
    * and no special cases for a snare versus a fretboard.
    */
   group: Group;
+  /**
+   * Where this hand currently touches the world, in `group`'s own frame.
+   *
+   * The point a `Contact` should end up on, which is the palm for a hand
+   * holding something and a fingertip for a hand playing something — see
+   * `HandPose.touch`. Solved from the shape the hand is actually in this
+   * frame, wrist included, so it is correct mid-blend rather than only at the
+   * ends of one.
+   *
+   * **Live and owned by the rig.** Read it, transform a copy of it, never
+   * retain or mutate it: the next `update` overwrites it in place.
+   */
+  readonly touchPoint: Vector3;
   /** Target shape. The hand eases toward it; see `update`. */
   setPose(pose: HandPose): void;
   /** Target shape, immediately. For the first frame and for a hard cut. */
@@ -288,6 +338,8 @@ export function buildHand(
   interface Finger { base: Mesh; tip: Mesh; fan: number; length: number }
   const fingers: Finger[] = [];
   const LENGTHS = [1.0, 1.08, 1.0, 0.84];
+  /** The index finger's bone length. `aimTouch` solves on that one alone. */
+  const INDEX = R * 0.62 * (LENGTHS[0] ?? 1);
   for (let i = 0; i < 4; i++) {
     const length = R * 0.62 * (LENGTHS[i] ?? 1);
     const base = new Mesh(boneGeo, skin);
@@ -324,8 +376,55 @@ export function buildHand(
   let extend = 0;
   let deviate = 0;
 
+  // The contact point, before and after the wrist. `touchLocal` is what the
+  // pose decided; `touchPoint` is that carried through the flex, which the
+  // rig reads. Two vectors held for the life of the hand rather than built
+  // per frame: this is on the placement path for twelve hands at 60 Hz.
+  const touchLocal = new Vector3();
+  const touchPoint = new Vector3();
+
   function applyFlex(): void {
     flex.rotation.set(clamp(current.wrist + bias.wrist, -1, 1) * 0.55 + extend, deviate, 0);
+    // The wrist moves the fingers, so it moves where they touch. Written here
+    // rather than in `apply` because the flex is re-evaluated every frame
+    // while the pose is settled, and a contact point that stopped tracking the
+    // wrist would drift off the instrument exactly when a player stops moving.
+    touchPoint.copy(touchLocal).applyEuler(flex.rotation);
+  }
+
+  /**
+   * Solve where this shape touches, into `touchLocal`.
+   *
+   * The same forward kinematics `apply` has just performed, run once for the
+   * index finger and nothing else. Reading it back off the meshes would need a
+   * matrix update per finger per frame; re-deriving it is four trig calls.
+   *
+   * The index rather than a mean of the four, because the index is the finger
+   * that actually meets a key, a fret, a valve or a string, and the mean is
+   * wrong precisely where the fingers disagree — `point` is one extended
+   * finger and three folded ones, and its mean is a fist.
+   *
+   * `bone` runs along `+y` from its own base and `+π/2` is what lays it along
+   * `+z`, so a segment at angle θ about `x` contributes `(0, L cos θ, L sin θ)`
+   * and the whole finger is two of those from the knuckle at `z = 0.78 R`.
+   */
+  function aimTouch(pose: HandPose, cup: number, tip: number): void {
+    const curl = clamp((pose.curl[0] ?? 0) + (bias.curl[0] ?? 0), 0, 1);
+    const t1 = Math.PI / 2 + curl * 1.75 + cup * 0.16;
+    const t2 = t1 + tip * curl * 1.45;
+    // The proximal bone reaches its child joint at 0.88 of its length; the pad
+    // of the fingertip is about six tenths along the bone beyond it, which is
+    // the fleshy part rather than the cap at the very end.
+    const l1 = INDEX * 0.88;
+    const l2 = INDEX * 0.62;
+    const tipY = l1 * Math.cos(t1) + l2 * Math.cos(t2);
+    const tipZ = R * 0.78 + l1 * Math.sin(t1) + l2 * Math.sin(t2);
+
+    // `touch === 0` reproduces the placement this rig made before poses could
+    // say otherwise — half a palm back along the surface normal — so every
+    // hand that holds something is left exactly where it was.
+    const k = clamp(pose.touch, 0, 1);
+    touchLocal.set(0, -R * 0.62 + (tipY + R * 0.62) * k, tipZ * k);
   }
 
   function apply(pose: HandPose): void {
@@ -354,6 +453,7 @@ export function buildHand(
     // The palm arches as it closes. Small, but it is what stops a fist looking
     // like four fingers folded onto a plank.
     palm.scale.set(R * 2.0 * (1 - cup * 0.10), R * 0.86 * (1 + cup * 0.22), R * 1.75);
+    aimTouch(pose, cup, tip);
     applyFlex();
   }
 
@@ -375,11 +475,16 @@ export function buildHand(
     };
     step('tip'); step('spread'); step('thumbCurl');
     step('thumbOut'); step('cup'); step('wrist');
+    // Eased like everything else, so a hand crossfading from a fist round a
+    // stick to fingers on a key bed slides its contact point across rather
+    // than teleporting the whole hand a finger's length on one frame.
+    step('touch');
     return moved;
   }
 
   return {
     group,
+    touchPoint,
     setPose(pose: HandPose): void {
       target = pose;
       settled = false;

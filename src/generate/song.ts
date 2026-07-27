@@ -48,7 +48,8 @@ import {
 } from './solo.js';
 import { generateVocalTrack } from './vocals.js';
 import {
-  generateBass, generateBrass, generateComp, generateCounter, generateDrums, generatePad,
+  generateBass, generateBrass, generateComp, generateCounter, generateDrums,
+  generateLeftHand, generatePad,
   type PartContext,
 } from './parts.js';
 
@@ -176,7 +177,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
    */
   const clarity = strictness.level / 4;
   const density = clamp(era.density + mood.density, 0.25, 1);
-  const instruments = chooseInstruments(rng, era);
+  const instruments = chooseInstruments(rng, era, style);
 
   // ---- Form ------------------------------------------------------------
   const steps = buildForm(
@@ -243,6 +244,18 @@ export function generateSong(opts: GenerateOptions = {}): Song {
 
   // ---- Parts -----------------------------------------------------------
   const byLayer = new Map<LayerId, NoteEvent[]>();
+  /**
+   * The lead keyboard's left hand, held aside rather than pushed into its layer.
+   *
+   * It belongs in the melody track and ends up there — see the merge after the
+   * section loop — but it cannot go in yet, because the melody layer is put
+   * through `trimOverlaps` on the way out and that function's whole premise is
+   * that the line it is clipping is *monophonic*. Handed a left-hand chord
+   * sounding under a right-hand note it would read the two as one voice running
+   * into the next and delete the chord, which is precisely the part being added.
+   * Empty for every style that is not `twoHanded`, which is all but one.
+   */
+  const leftHand: NoteEvent[] = [];
   const drumEvents: DrumEvent[] = [];
   for (const l of ['drums', 'bass', 'comp', 'pad', 'melody', 'counter', 'brass'] as LayerId[]) {
     byLayer.set(l, []);
@@ -679,6 +692,34 @@ export function generateSong(opts: GenerateOptions = {}): Song {
     }
 
     /**
+     * The other hand, where the style says the lead has one.
+     *
+     * Written last of everything on this layer and against the finished line,
+     * because that is the order the playing happens in: the left hand answers
+     * what the right hand did, so it cannot be written until the right hand has
+     * done it. It goes in for the head and for the pianist's own chorus alike —
+     * a trio pianist comps for themselves in both, and the difference between a
+     * stated melody and an improvised one is the right hand's business.
+     *
+     * `leadLayer === 'melody'` is doing real work rather than restating the
+     * type. A bass solo also fills `sectionMelody`, and a piano left hand under
+     * a bass chorus would be both the wrong instrument and — since the piano is
+     * not sounding in that section at all — a track playing by itself.
+     */
+    if (style.twoHanded && leadLayer === 'melody' && sectionMelody.length) {
+      const left = generateLeftHand(ctxFor('comp'), sectionMelody, {
+        centre: instruments.melody.centre,
+        voices: style.twoHanded.voices,
+        density: style.twoHanded.density,
+        gap: style.twoHanded.gap,
+        scaleFor: (c) => genre.scaleForChord(localTonic, mode, c),
+        clarity,
+      });
+      applyDynamics(left, 'comp', intensity);
+      leftHand.push(...left);
+    }
+
+    /**
      * Name the soloist on the section, and only where one is actually playing.
      *
      * The guard is the point. A solo section whose nominal soloist wrote no
@@ -794,6 +835,22 @@ export function generateSong(opts: GenerateOptions = {}): Song {
     ));
   }
 
+  /**
+   * And now the left hand, into the melody layer it belongs to.
+   *
+   * After the trim rather than before it, for the reason `leftHand` is declared
+   * separately at all: this is the point at which the melody track stops being
+   * one voice, and everything above assumes it is one. Swung on its own — the
+   * stabs land on eighths and a left hand swings with the band — and merged by
+   * beat so the track stays sorted, which `render/strudel.ts` and the
+   * choreographer both read it as being.
+   */
+  if (leftHand.length) {
+    const line = byLayer.get('melody') ?? [];
+    byLayer.set('melody', [...line, ...applySwing(leftHand.filter((n) => n.beat >= 0), style.swing)]
+      .sort((a, b) => a.beat - b.beat || a.midi - b.midi));
+  }
+
   const tracks: Track[] = [];
   for (const [layer, instrument] of Object.entries(layerInstruments) as [PlayedLayer, Instrument][]) {
     const notes = byLayer.get(layer) ?? [];
@@ -831,6 +888,12 @@ export function generateSong(opts: GenerateOptions = {}): Song {
       notes: layer === 'melody' || layer === 'counter' ? notes : applySwing(notes, style.swing),
       gain: gains[layer],
       ...(effects ? { effects } : {}),
+      // Said out loud, because from here on nothing can tell by looking: a
+      // pianist's two hands and a four-part comp are both just simultaneous
+      // notes. See `melodicLine`, which is what the declaration is for.
+      ...(layer === 'melody' && style.twoHanded && leftHand.length
+        ? { twoHanded: { gap: style.twoHanded.gap } }
+        : {}),
     });
   }
 
@@ -1003,7 +1066,7 @@ function chooseTempo(rng: Rng, style: Style, mood: Mood, era: EraProfile): numbe
  * filled in order of how much the choice matters, so the lead gets first pick
  * and the brass, which is sparse anyway, absorbs any collision that is left.
  */
-function chooseInstruments(rng: Rng, era: EraProfile) {
+function chooseInstruments(rng: Rng, era: EraProfile, style: Style) {
   const taken = new Set<string>();
   const pick = (list: (readonly [InstrumentId, number])[]): Instrument => {
     const free = list.filter(([id]) => !taken.has(INSTRUMENTS[id].name));
@@ -1011,12 +1074,30 @@ function chooseInstruments(rng: Rng, era: EraProfile) {
     taken.add(instrument.name);
     return instrument;
   };
-  const melody = pick(era.palette.melody);
+  const drawn = pick(era.palette.melody);
   const bass = pick(era.palette.bass);
   const comp = pick(era.palette.comp);
   const pad = pick(era.palette.pad);
   const counter = pick(era.palette.counter);
   const brass = pick(era.palette.brass);
+
+  /**
+   * A style that names its own lead overrides the draw *after* it has happened,
+   * never instead of it.
+   *
+   * The same argument as the one at the top of `generateSong`, and the same
+   * consequence if it is ignored: a branch that skipped `pick` would spend one
+   * fewer random number and hand back a different form, tempo and drum part for
+   * the same seed. So the flute is drawn and thrown away, and the seed still
+   * reproduces the song its own metadata describes.
+   *
+   * The centre travels with the override because the two are one decision — see
+   * `TwoHandedKeys.centre`. A piano is a piano wherever it is playing; a piano
+   * *fronting a trio* is a piano an octave higher.
+   */
+  const melody = style.twoHanded
+    ? { ...INSTRUMENTS[style.twoHanded.instrument], centre: style.twoHanded.centre }
+    : drawn;
   return { melody, counter, comp, pad, bass, brass };
 }
 

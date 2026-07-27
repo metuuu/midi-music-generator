@@ -17,7 +17,7 @@ export type ChordQuality =
   | 'maj' | 'min' | 'dim' | 'aug'
   | 'maj6' | 'min6'
   | 'dom7' | 'min7' | 'maj7' | 'dim7' | 'halfdim7' | 'minmaj7'
-  | 'sus4' | 'sus2' | 'dom9' | 'dom7b9'
+  | 'sus4' | 'sus2' | 'dom7sus4' | 'dom9' | 'dom7b9'
   // Jazz extensions. Stored as full stacks; the voicer decides what to keep.
   | 'maj9' | 'min9' | 'dom13' | 'dom7sharp9' | 'dom7sharp5' | 'dom7flat5' | 'min11';
 
@@ -37,6 +37,16 @@ export const CHORD_INTERVALS: Record<ChordQuality, number[]> = {
   minmaj7: [0, 3, 7, 11],
   sus4: [0, 5, 7],
   sus2: [0, 2, 7],
+  /**
+   * The suspended dominant — a fourth where the third would be, over a seventh.
+   *
+   * Not a decorated `sus4` and not a `dom7` waiting to be fixed. A plain sus4
+   * triad is a suspension, which by definition wants to resolve; adding the
+   * seventh turns it into a chord that is content to sit there, and sitting
+   * there is the entire point. It is the sound of a V that never arrives, which
+   * is most of what separates the harmony after 1959 from the harmony before it.
+   */
+  dom7sus4: [0, 5, 7, 10],
   dom9: [0, 4, 7, 10, 14],
   dom7b9: [0, 4, 7, 10, 13],
   maj9: [0, 4, 7, 11, 14],
@@ -90,7 +100,7 @@ const NUMERAL_RE = /^([b#]?)([ivIV]+)(.*)$/;
  * Parse a roman numeral in the context of a mode.
  *
  * Supported: `i` `IV` `V7` `bII` `#iv` `ii7` `viio7` `ii%7` `I6` `i6` `Isus4`
- * `V9` `V7b9` `III+`, and secondary dominants `V/V`, `V7/iv`, `viio7/V`.
+ * `V9` `V7b9` `V7sus4` `III+`, and secondary dominants `V/V`, `V7/iv`, `viio7/V`.
  */
 export function parseRoman(symbol: string, mode: Mode): Chord {
   const slash = symbol.indexOf('/');
@@ -166,6 +176,7 @@ function qualityFor(isUpper: boolean, suffix: string, symbol: string): ChordQual
     case '%7': return 'halfdim7';
     case 'sus4': return 'sus4';
     case 'sus2': return 'sus2';
+    case '7sus4': return 'dom7sus4';
     default:
       throw new Error(`Unknown chord suffix "${s}" in ${symbol}`);
   }

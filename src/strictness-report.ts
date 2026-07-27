@@ -13,6 +13,7 @@
 import { parseRoman, type Chord } from './core/chord.js';
 import { pc } from './core/pitch.js';
 import { makeScale, type Scale } from './core/scale.js';
+import { melodicLine } from './core/types.js';
 import type { NoteEvent, Song } from './core/types.js';
 import {
   buildAccompaniment, RULES, STRICTNESS_LEVELS, violationsOf,
@@ -75,7 +76,8 @@ function measure(song: Song, m: Measurement): void {
       .map((t) => t.notes as NoteEvent[]),
   );
 
-  const notes = mel.notes.slice().sort((a, b) => a.beat - b.beat);
+  // The line, not the track: a `twoHanded` piano interleaves its own comping.
+  const notes = melodicLine(mel).slice().sort((a, b) => a.beat - b.beat);
   const pitches = new Set<number>();
   let lo = Infinity, hi = -Infinity;
 

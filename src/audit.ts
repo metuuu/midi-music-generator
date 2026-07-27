@@ -12,6 +12,7 @@
 import { chordPcs, parseRoman } from './core/chord.js';
 import { pc } from './core/pitch.js';
 import { makeScale } from './core/scale.js';
+import { melodicLine } from './core/types.js';
 import type { Song } from './core/types.js';
 import { generateSong } from './generate/song.js';
 import { renderMidi } from './render/midi.js';
@@ -59,7 +60,8 @@ function audit(song: Song, s: Stats): void {
     }
   }
 
-  const notes = melody.notes.slice().sort((a, b) => a.beat - b.beat);
+  // The line, not the track: a `twoHanded` piano interleaves its own comping.
+  const notes = melodicLine(melody).slice().sort((a, b) => a.beat - b.beat);
   let prevMidi: number | undefined;
   let lo = Infinity;
   let hi = -Infinity;

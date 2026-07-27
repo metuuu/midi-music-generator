@@ -27,10 +27,11 @@
  *
  * ## Where the hands are
  *
- * On the audience side. The harp is at the lips with its holes facing the
- * player, so what a room actually sees of a harmonica player is the back of
- * the instrument and two hands wrapped around it — which is why the contacts
- * below sit on the far face rather than on the holes.
+ * Off the **ends**, not across the front. The harp is at the lips with its
+ * holes facing the player, so what a room sees is the back of the instrument —
+ * and a rig palm is 136 mm across on a 155 mm harp, so two hands placed on that
+ * face hide the entire object. They hold it at the end plates instead and let
+ * the fingers do the closing; see `cupAt`, where the measurement is.
  *
  * **Both** hands, at opposite ends. A harmonica is played in a cup: the left
  * hand holds the low end, the right closes and opens the far end and works the
@@ -235,35 +236,69 @@ export const buildHarmonica: InstrumentBuilder = (opts: InstrumentBuildOptions):
 
   // --- contacts ----------------------------------------------------------
   /**
-   * One contact per hole, on the audience face of the harp. The travel is only
-   * about eleven centimetres end to end, which is right: a harmonica player's
-   * hands drift along the instrument, they do not reach for it.
+   * One contact per hole per hand, and almost no travel between them — under
+   * three centimetres end to end. That is right: a harmonica player's hands
+   * breathe along the instrument, they do not reach for it, and the lips are
+   * what actually find the hole.
    */
   /**
-   * The cup: the left hand toward the low end, the right toward the slide,
-   * both drifting with the hole being played and never less than a hand apart.
+   * The cup: one hand off each **end** of the harp, not two palms in front of
+   * it.
    *
-   * `CUP` is half the gap between the palms: 96 mm apart on a 155 mm harp, so
-   * each hand covers its own third and the fingers meet over the middle. That
-   * is a cup; two contacts a centimetre apart is a fist.
+   * A rig hand is `2 R` across and `R` is `0.040 × height`, so a palm is about
+   * 136 mm wide and 119 mm deep on a 155 mm instrument. Two of those, centred
+   * 96 mm apart on the audience face and standing 17 mm proud of it — which is
+   * where this used to put them, because the contact was at `z = 0.018` and a
+   * `touch: 0` pose holds its palm `0.19 R` behind the contact — are not a cup
+   * around a harmonica. They are a harmonica-shaped hole in a wall of hand:
+   * measured, the pair covered `x ∈ [−0.116, 0.116]` against a comb that ends
+   * at ±0.078, so every part of the instrument was behind a palm and the model
+   * might as well not have been built.
+   *
+   * So the normal turns from the audience (`+z`) to **outward along the harp**
+   * (`±x`). That is the whole fix, and it is one line: the palm now hangs off
+   * the end plate rather than in front of the covers, and only the fingers —
+   * which curl toward `−normal`, meaning inward — come back across the harp.
+   * The middle ~100 mm of comb, holes, covers and slide is left in clear air.
+   *
+   * `GRIP_X` is `0.19 R` inside the end plate for the same reason the trumpet's
+   * left hand is inside its valve casing: the contact is where the palm's
+   * *surface* should end up, not where its centre goes, so a contact placed on
+   * the end plate floats the hand a centimetre and a half off the instrument.
    */
-  const CUP = 0.048;
+  const GRIP_X = COMB_LEN / 2 - 0.012;
+  /**
+   * How much of the played hole's offset the hands take.
+   *
+   * A quarter, not all of it. Hands that fully tracked the hole put the low
+   * hand 57 mm past the end of a harp it is supposed to be holding; a real
+   * player's cup breathes along the instrument by a centimetre or so while the
+   * lips do the travelling.
+   */
+  const DRIFT = 0.25;
   function cupAt(x: number, side: number): Contact {
     return {
-      position: new Vector3(
-        // Clamped so a cup never slides off the end of the instrument.
-        Math.max(-0.10, Math.min(0.10, x + side * CUP)), mouth.y - 0.004, 0.018,
-      ),
-      // Out of the far face and a little downward — a cupping hand comes up
-      // around a harmonica, not down onto it.
-      normal: new Vector3(0, -0.18, 1).normalize(),
-      // Fingers lie along the harp, which is what closes the cup.
-      along: new Vector3(1, 0, 0),
+      position: new Vector3(side * GRIP_X + x * DRIFT, mouth.y - 0.006, 0.002),
+      // Out of the end of the harp, a little downward and a little toward the
+      // audience — a cupping hand comes up around a harmonica from below and
+      // closes on it from the front, it does not press onto the covers.
+      normal: new Vector3(side * 0.95, -0.27, 0.18).normalize(),
+      /**
+       * Knuckles up the face, so the fingers reach *forward and then inward*.
+       *
+       * The rig derives the fingers from `along × normal`, and with the normal
+       * now running out of the end of the harp this sends both sets of fingers
+       * toward the audience; the pose's own curl then folds them back along
+       * `−normal`, which is inward over the end of the instrument. That is a
+       * cup: two hands closing on the ends from the front. The mirror is what
+       * keeps each hand's wrist on its own side of the body.
+       */
+      along: new Vector3(0, -side, 0),
     };
   }
   const leftContacts: Contact[] = holeX.map((x) => cupAt(x, 1));
   const rightContacts: Contact[] = holeX.map((x) => cupAt(x, -1));
-  /** Hands at rest: cupped around the middle of the harp. */
+  /** Hands at rest: closed on both ends, over the middle of the harp. */
   const restLeft = cupAt(0, 1);
   const restRight = cupAt(0, -1);
 

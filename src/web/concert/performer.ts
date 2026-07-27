@@ -240,8 +240,14 @@ export interface PerformerRig {
    * A tomato landed here. Leaves a mark on the nearest body part that persists
    * until `clearSplats`, and flinches. Capped per performer; the oldest mark is
    * recycled rather than a new quad allocated.
+   *
+   * `markRadius` is how far the pulp spread, in metres — the thrower's side
+   * knows the closing speed and this side does not, and a mark that is the
+   * same size however hard the thing arrived is the flattest part of a hit.
+   * Omit it and the mark is sized from the part it landed on, as before. It is
+   * clamped against that part either way.
    */
-  splat(worldPosition: Vector3): void;
+  splat(worldPosition: Vector3, markRadius?: number): void;
 
   /** Struck between numbers. The stage keeps its scars only for the number. */
   clearSplats(): void;
@@ -295,6 +301,36 @@ interface Placed {
   /** How much of the body's sway this part rides. Feet are on the floor. */
   follow: number;
   /**
+   * Whether this part is bolted to the torso rather than merely near it.
+   *
+   * The head is, and nothing else is. A head does not *follow* a body, it is
+   * *carried* by one: when the torso pitches into a reaction or folds under a
+   * settle, the neck goes with it in the same frame, at the same angle. Parts
+   * that are only *near* the torso — a hand by the hip, a foot on the boards —
+   * take a share of the sway offset instead and none of the rotation.
+   *
+   * See `liveRest`. The failure this names is specific: with the head merely
+   * chasing a moving rest it lagged the body by its own time constant, which
+   * read as a head on a rubber band, and on a wind player — whose horn is
+   * parented to the torso and therefore moves with it exactly — it slid the
+   * mouthpiece around the lips for the whole number.
+   */
+  onTorso: boolean;
+  /**
+   * Where this part is relative to its live rest, decayed rather than chased.
+   *
+   * The distinction is the whole of the rubber-band fix. Easing a part's
+   * *absolute* position toward its rest means that whenever the rest itself
+   * moves — every frame, for a body that sways and breathes — the part is
+   * permanently one time constant behind it. Easing the *offset* to zero
+   * instead leaves rest changes to arrive immediately and decays only the
+   * residue of the last command, which is the thing that actually wanted
+   * easing. The handover is still continuous: the offset is written every
+   * commanded frame, so releasing a limb starts the decay from exactly where
+   * that limb was.
+   */
+  offset: Vector3;
+  /**
    * Whether placing this part also sets its rotation.
    *
    * False for the head, whose attitude belongs to `lookAt` and the nod. Without
@@ -308,6 +344,13 @@ interface Placed {
   commanded: boolean;
   pos: Vector3;
   quat: Quaternion;
+}
+
+/** A place a tomato can land on a body, in that part's own frame. */
+interface TargetPart {
+  node: Object3D;
+  centre: Vector3;
+  radius: number;
 }
 
 interface Splat {
@@ -364,6 +407,15 @@ class Rig implements PerformerRig {
   private readonly torso = new Group();
   private readonly torsoBody: Mesh;
   private readonly torsoBase = new Vector3();
+  /**
+   * The inverse of the torso's *resting* attitude — the posture's own lean.
+   *
+   * Half of `ride`. A part measured in the root's frame at the resting lean is
+   * turned back into a torso-local point by this, and then forward again by
+   * whatever the torso is doing now. Held inverted because that is the
+   * direction it is always used in.
+   */
+  private readonly torsoRestInv = new Quaternion();
   private readonly head = new Group();
   private readonly legs: LegsRig;
   private readonly placed = new Map<Limb, Placed>();
@@ -407,6 +459,8 @@ class Rig implements PerformerRig {
   // Splats.
   private readonly splats: Splat[] = [];
   private splatNext = 0;
+  /** What a tomato can land on. Fixed for the life of the rig; see `nearestPart`. */
+  private readonly parts: TargetPart[];
 
   // Weight. See `settleUnder`.
   private settle = 0;
@@ -456,6 +510,10 @@ class Rig implements PerformerRig {
     this.torsoBase.set(0, p.hipY, 0);
     this.torso.position.copy(this.torsoBase);
     this.torso.rotation.x = p.lean;
+    // Captured here, while the torso is at exactly its resting attitude and
+    // nothing has moved it yet. Everything `liveRest` does is measured against
+    // this, so it has to be the posture's lean and nothing else.
+    this.torsoRestInv.copy(this.torso.quaternion).invert();
     this.root.add(this.torso);
     this.torsoBody = dressTorso(this.torso, look, p, this.leases);
 
@@ -514,11 +572,17 @@ class Rig implements PerformerRig {
     // `standoff` is what stops a hand sinking into a drum head: the point the
     // instrument returned is the surface, and the palm's centre is half a palm
     // back along the normal from it.
-    this.register('left-hand', this.hands.left.group, p.handR * 0.62, 1, 0.16, true);
-    this.register('right-hand', this.hands.right.group, p.handR * 0.62, 1, 0.16, true);
+    //
+    // The hands' standoff is zero, and that is not an omission: a hand knows
+    // where it touches better than this table does, and says so through
+    // `HandRig.touchPoint` — which already carries the half-palm this used to
+    // add, plus the finger length it never did. See `setEffector`.
+    this.register('left-hand', this.hands.left.group, 0, 1, 0.16, true);
+    this.register('right-hand', this.hands.right.group, 0, 1, 0.16, true);
     this.register('left-foot', feet.left, p.footH * 0.5, 0.15, 0.22, true);
     this.register('right-foot', feet.right, p.footH * 0.5, 0.15, 0.22, true);
-    this.register('head', this.head, p.headR * 0.5, 1, 0.20, false);
+    // The one part carried by the torso rather than merely near it.
+    this.register('head', this.head, p.headR * 0.5, 1, 0.20, false, true);
 
     // `register` is what actually puts the feet at their rest positions, so the
     // fit `buildLegs` did on a pair of feet still at the origin is stale by one
@@ -527,19 +591,53 @@ class Rig implements PerformerRig {
     this.handY[0] = this.hands.left.group.position.y;
     this.handY[1] = this.hands.right.group.position.y;
 
+    // What a tomato can land on. See `nearestPart` for why the legs are not in
+    // it, and for why this is built here rather than per hit.
+    this.parts = [
+      { node: this.head, centre: new Vector3(0, 0, 0), radius: p.headR * 1.06 },
+      {
+        node: this.torso,
+        centre: new Vector3(0, p.torsoH * 0.58, 0),
+        radius: Math.max(p.torsoW, p.torsoH) * 0.46,
+      },
+      { node: this.hands.left.group, centre: new Vector3(), radius: p.handR * 1.2 },
+      { node: this.hands.right.group, centre: new Vector3(), radius: p.handR * 1.2 },
+    ];
+
     this.syncWorld();
   }
 
   private register(
     limb: Limb, node: Object3D, standoff: number, follow: number,
-    tau: number, orientable: boolean,
+    tau: number, orientable: boolean, onTorso = false,
   ): void {
     const rest = (this.restLocal[limb] ?? new Vector3()).clone();
     node.position.copy(rest);
     this.placed.set(limb, {
       node, rest, restQuat: node.quaternion.clone(), standoff, follow, tau, orientable,
+      onTorso, offset: new Vector3(),
       commanded: false, pos: rest.clone(), quat: node.quaternion.clone(),
     });
+  }
+
+  /**
+   * Where a part's rest is *this frame*, in the root's frame.
+   *
+   * Two kinds of part and two answers. Something merely near the torso takes a
+   * share of the sway offset and none of the rotation — a hand by the hip does
+   * not tip when the chest folds. The head is *carried*: it is taken back into
+   * the torso's own frame through the resting lean, and brought out again
+   * through whatever the torso is doing now, so a pitch, a roll and a sway all
+   * reach it in the same frame they reach the shoulders. `follow` is not
+   * consulted for a carried part, because "how much of it do you ride" is not
+   * a question a neck gets to answer.
+   */
+  private liveRest(st: Placed, out: Vector3): Vector3 {
+    if (!st.onTorso) return out.copy(st.rest).addScaledVector(this.bodyOffset, st.follow);
+    return out.copy(st.rest).sub(this.torsoBase)
+      .applyQuaternion(this.torsoRestInv)
+      .applyQuaternion(this.torso.quaternion)
+      .add(this.torso.position);
   }
 
   // -- transforms ---------------------------------------------------------
@@ -608,6 +706,23 @@ class Rig implements PerformerRig {
     } else {
       st.quat.copy(st.restQuat);
     }
+
+    /**
+     * A hand is placed by the part of it that touches, not by its origin.
+     *
+     * `standoff` can only back a part off along the surface normal, which is
+     * the whole answer for a foot on a pedal and half an answer for a hand:
+     * the other half is *along the fingers*, and it is the bigger half. The
+     * hand knows where its own contact is for the shape it is in — see
+     * `HandPose.touch` — so the placement is the contact less that point,
+     * turned into the root's frame by the attitude just chosen. A closed hand
+     * reports the same half-palm the old `standoff` did, so nothing holding an
+     * implement moves; an open one reports a fingertip, and a pianist's
+     * fingers land on the keys their palm used to be lying across.
+     */
+    const hand: BodySide | undefined =
+      limb === 'left-hand' ? 'left' : limb === 'right-hand' ? 'right' : undefined;
+    if (hand) st.pos.sub(V4.copy(this.hands[hand].touchPoint).applyQuaternion(st.quat));
   }
 
   carry(object: Object3D): void {
@@ -622,9 +737,37 @@ class Rig implements PerformerRig {
       // Every member of `Effector` is in the table; this is the branch that
       // catches a contract change rather than guessing at one.
       v.set(0, this.proportions.hipY, 0);
+    } else if (limb === 'head' || limb === 'mouth') {
+      // Carried by the torso, exactly as `liveRest` carries the head node, so
+      // that a bandmate watching this player looks at where the head *is* and
+      // not at where it would have been if the chest had never moved.
+      //
+      // `body` is deliberately not in here — see below.
+      v.copy(rest).sub(this.torsoBase)
+        .applyQuaternion(this.torsoRestInv)
+        .applyQuaternion(this.torso.quaternion)
+        .add(this.torso.position);
     } else {
-      const grounded = limb === 'left-foot' || limb === 'right-foot';
-      v.copy(rest).addScaledVector(this.bodyOffset, grounded ? 0.15 : 1);
+      /**
+       * How much of the chest's own movement this answer carries, and for the
+       * chest the answer is **none of it**.
+       *
+       * `setEffector('body')` measures its command as the distance from the
+       * chest's *rest* to the point it is given, so a caller that asks where
+       * the chest rests, pushes the answer a little and hands it back — which
+       * is what a lean is, and the only way anything leans — must be given an
+       * answer that does not already contain the last lean. The branch above
+       * says this about the rotation and it is just as true of the offset: at
+       * a share of 1 the command was `bodyOffset + lean` and the offset it
+       * produced was fed back in on the next frame, so a lean of a centimetre
+       * grew to the 0.22 m clamp within a few frames and stayed there. Every
+       * `lean` in the groove score was pinned to the stop, and an accordion's
+       * `squeeze` — the same channel — threw the player's whole torso, and the
+       * instrument strapped to it, to one side.
+       */
+      const share = limb === 'body' ? 0
+        : limb === 'left-foot' || limb === 'right-foot' ? 0.15 : 1;
+      v.copy(rest).addScaledVector(this.bodyOffset, share);
     }
     this.syncWorld();
     return v.applyMatrix4(this.world);
@@ -701,7 +844,7 @@ class Rig implements PerformerRig {
 
   // -- tomatoes -----------------------------------------------------------
 
-  splat(worldPosition: Vector3): void {
+  splat(worldPosition: Vector3, markRadius?: number): void {
     if (!finite(worldPosition)) return;
     const host = this.nearestPart(worldPosition);
     if (!host) return;
@@ -714,7 +857,22 @@ class Rig implements PerformerRig {
 
     const slot = this.takeSplat(host.node);
     const mesh = slot.mesh;
-    const size = host.radius * this.rng.float(0.85, 1.35);
+    /**
+     * How big the mark is.
+     *
+     * The caller's number when there is one, because only the thrower's side
+     * knows how hard the thing arrived and a fast flat hit really does spread
+     * further than a slow steep one. Falling back to the part's own radius
+     * keeps the old behaviour for any caller that has nothing to say, and the
+     * seeded jitter survives either way — two marks the same size is the tell
+     * that a decal is a decal.
+     *
+     * Clamped against the part so a mark cannot swallow the head it is on: a
+     * quad wider than a face reads as a paint job rather than as a tomato.
+     */
+    const wanted = markRadius !== undefined && Number.isFinite(markRadius) && markRadius > 0
+      ? markRadius : host.radius;
+    const size = Math.min(wanted, host.radius * 1.6) * this.rng.float(0.85, 1.35);
     mesh.scale.set(size, size, 1);
     mesh.position.copy(host.centre).addScaledVector(dir, host.radius * 1.01);
     mesh.quaternion.setFromUnitVectors(FWD, dir);
@@ -757,15 +915,12 @@ class Rig implements PerformerRig {
    * stretched by whatever the leg's length happened to be that frame. A tomato
    * at shin height picks the torso, which is one part up and close enough.
    */
-  private nearestPart(world: Vector3): { node: Object3D; centre: Vector3; radius: number } | undefined {
-    const p = this.proportions;
-    const parts: { node: Object3D; centre: Vector3; radius: number }[] = [
-      { node: this.head, centre: new Vector3(0, 0, 0), radius: p.headR * 1.06 },
-      { node: this.torso, centre: new Vector3(0, p.torsoH * 0.58, 0), radius: Math.max(p.torsoW, p.torsoH) * 0.46 },
-      { node: this.hands.left.group, centre: new Vector3(), radius: p.handR * 1.2 },
-      { node: this.hands.right.group, centre: new Vector3(), radius: p.handR * 1.2 },
-    ];
-    let best: typeof parts[number] | undefined;
+  private nearestPart(world: Vector3): TargetPart | undefined {
+    // Built once, in the constructor. It used to be built here — four objects
+    // and four vectors on every hit, on the one frame of the show that is
+    // already doing the most work and the one the player is watching hardest.
+    const parts = this.parts;
+    let best: TargetPart | undefined;
     let bestD = Infinity;
     for (const part of parts) {
       part.node.getWorldPosition(V3);
@@ -851,13 +1006,21 @@ class Rig implements PerformerRig {
     this.handHeld[0] = this.placed.get('left-hand')?.commanded === true;
     this.handHeld[1] = this.placed.get('right-hand')?.commanded === true;
     for (const st of this.placed.values()) {
+      // The rest first, and for every part whether it is commanded or not: an
+      // uncommanded part is placed at it, and a commanded one still has to
+      // record how far off it the command was. See `Placed.offset` — decaying
+      // that residue is what makes an idle limb ride the body's own movement
+      // immediately instead of trailing it by a time constant.
+      const rest = this.liveRest(st, V1);
       if (st.commanded) {
         st.node.position.copy(st.pos);
+        st.offset.subVectors(st.pos, rest);
         if (st.orientable) st.node.quaternion.copy(st.quat);
       } else {
-        V1.copy(st.rest).addScaledVector(this.bodyOffset, st.follow);
         const k = 1 - Math.exp(-step / st.tau);
-        st.node.position.lerp(V1, k);
+        st.offset.multiplyScalar(1 - k);
+        if (st.offset.lengthSq() < 1e-10) st.offset.set(0, 0, 0);
+        st.node.position.copy(rest).add(st.offset);
         st.pos.copy(st.node.position);
         if (st.orientable) {
           st.node.quaternion.slerp(st.restQuat, k);

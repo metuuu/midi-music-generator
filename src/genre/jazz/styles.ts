@@ -830,6 +830,193 @@ const gypsy: Style = {
   melody: { leap: 0.34, ornament: 0.36, span: 20, sequence: 0.35, syncopation: 0.4 },
 };
 
+/**
+ * PIANO TRIO — the pianist is the band.
+ *
+ * Piano, bass and drums, and the one thing that makes it a different style
+ * rather than swing with the horns deleted: **the piano plays both parts at
+ * once**. The right hand states the head and then blows for chorus after
+ * chorus; the left hand comps underneath it, rootless, in the holes the right
+ * hand leaves. Corea, Evans, Jarrett, Tyner — four completely different players
+ * whose *texture* is this one, and the texture is what this table describes.
+ *
+ * Everything unusual about the entry follows from there.
+ *
+ *  - **`twoHanded` is the whole style.** It names the instrument, moves it up an
+ *    octave so the left hand has somewhere to live, and says how densely that
+ *    hand speaks. Without it this is a quartet missing its horn.
+ *  - **`comp`, `pad`, `brass` and `counter` are excluded.** Not thinned —
+ *    excluded. A second chord instrument comping behind a pianist who is
+ *    comping for themselves is two people doing one job, and it is the specific
+ *    thing a trio exists to not have. `requireLayers` then pins the piano into
+ *    every section, because a trio in which the piano lays out is a bass solo.
+ *  - **The tempo band is wide and the harmony is modern.** Suspensions that
+ *    never resolve, quartal-friendly modal stretches, a ♭II7 sidestep, and
+ *    ii–Vs that move in thirds rather than in fifths. This is the post-1960
+ *    language rather than the standards repertoire `swing` already covers, and
+ *    it is where a pianist gets something to *play on* — a I chord for eight
+ *    bars is only interesting if you are the one filling it.
+ *  - **`hook: 'through'`.** With one instrument carrying the tune, the solos and
+ *    the accompaniment, a recalled phrase is the same voice saying the same
+ *    thing three times. The form is repetitive enough on its own.
+ */
+const trio: Style = {
+  id: 'trio',
+  label: 'Piano trio',
+  description:
+    'Post-bop piano trio. The right hand takes the head and the choruses, the left hand comps rootless voicings underneath it, and the bass and drums are the only other people in the room.',
+  beatsPerBar: 4,
+  beatUnit: 4,
+  bpm: [128, 208],
+  swing: 0.31,
+  hook: 'through',
+  modeWeights: { minor: 0.46, major: 0.54 },
+  relativeMajorChorus: 0,
+  twoHanded: {
+    instrument: 'piano',
+    /**
+     * C5. An octave above the catalogue's piano, which sits at middle C because
+     * that is where a *comping* piano sits. See `TwoHandedKeys.centre`.
+     */
+    centre: 72,
+    /**
+     * High, and it has to be: this is the rate *before* the line's own busyness
+     * takes chords away, and this line is busy nearly all the time. A jazz
+     * melody at `gait: 0.5` covers close to the whole bar, so anything under
+     * about 0.9 here comes out the far side as a left hand speaking in one bar
+     * in four — which is a pianist who has forgotten they have one.
+     */
+    density: 0.92,
+    /** Three. The shell plus one colour — the rootless left hand. */
+    voices: 3,
+    /** A minor seventh of daylight under the line. */
+    gap: 10,
+  },
+  excludeLayers: ['comp', 'pad', 'brass', 'counter'],
+  requireLayers: ['melody'],
+  progressions: {
+    intro: [
+      { chords: ['ii7', 'V7sus4', 'Imaj9', 'Imaj9'], weight: 4 },
+      { chords: ['Imaj9', 'Imaj9', 'IVmaj9', 'IVmaj9'], weight: 3 },
+    ],
+    verse: [
+      { chords: ['Imaj9', 'Imaj9', 'iii7', 'VI7b9', 'ii7', 'V7sus4', 'Imaj9', 'Imaj9'], weight: 5, note: 'The V that never quite resolves — a suspension held where bebop would have put the leading tone' },
+      { chords: ['Imaj9', 'bIIImaj9', 'bVImaj9', 'bIImaj9', 'Imaj9', 'ii7', 'V7', 'Imaj9'], weight: 4, note: 'Thirds motion: the harmony walks down in major thirds instead of round the circle' },
+      { chords: ['ii7', 'ii7', 'V7#9', 'V7#9', 'Imaj9', 'IVmaj9', 'iii7', 'VI7b9'], weight: 4 },
+      { chords: ['Imaj9', 'IVmaj9', 'Imaj9', 'IVmaj9', 'iii7', 'VI7b9', 'ii7', 'V7sus4'], weight: 3, note: 'Two chords rocking for four bars, which is a vamp and is somewhere to play' },
+    ],
+    chorus: [
+      { chords: ['IVmaj9', 'IVmaj9', 'Imaj9', 'Imaj9', 'ii7', 'V7sus4', 'Imaj9', 'Imaj9'], weight: 4 },
+      { chords: ['ii7', 'V7#9', 'Imaj9', 'bII7', 'ii7', 'V7', 'Imaj9', 'Imaj9'], weight: 4 },
+      { chords: ['Imaj9', 'VI7#9', 'ii7', 'V7b9', 'iii7', 'VI7b9', 'ii7', 'V7sus4'], weight: 3 },
+    ],
+    bridge: [
+      { chords: ['IVmaj9', 'IVmaj9', 'bVII7', 'bVII7', 'bIIImaj9', 'bIIImaj9', 'ii7', 'V7sus4'], weight: 4 },
+      { chords: ['iv9', 'iv9', 'bVII7', 'bVII7', 'Imaj9', 'Imaj9', 'ii7', 'V7'], weight: 3 },
+    ],
+    solo: [
+      { chords: ['Imaj9', 'Imaj9', 'iii7', 'VI7b9', 'ii7', 'V7sus4', 'Imaj9', 'Imaj9'], weight: 4 },
+      { chords: ['ii7', 'ii7', 'V7#9', 'V7#9', 'Imaj9', 'IVmaj9', 'iii7', 'VI7b9'], weight: 4 },
+      { chords: ['Imaj9', 'IVmaj9', 'Imaj9', 'IVmaj9', 'ii7', 'V7sus4', 'Imaj9', 'Imaj9'], weight: 3 },
+    ],
+    outro: [
+      { chords: ['ii7', 'V7sus4', 'Imaj9', 'Imaj9'], weight: 4 },
+      { chords: ['IVmaj9', 'bVII7', 'Imaj9', 'Imaj9'], weight: 2 },
+    ],
+  },
+  minorProgressions: {
+    intro: [{ chords: ['i9', 'i9', 'ii%7', 'V7b9'], weight: 4 }],
+    verse: [
+      { chords: ['i11', 'i11', 'i11', 'i11', 'iv9', 'iv9', 'ii%7', 'V7b9'], weight: 5, note: 'Four bars of one minor eleventh: the modal half of the idiom, and the left hand voices it in fourths' },
+      { chords: ['i9', 'VII7', 'VImaj9', 'V7#9', 'i9', 'VII7', 'ii%7', 'V7b9'], weight: 4 },
+      { chords: ['i9', 'i9', 'iv9', 'iv9', 'bIImaj9', 'bIImaj9', 'i9', 'V7b9'], weight: 3, note: 'The Neapolitan sitting where a ii–V would be — a semitone sidestep and back' },
+    ],
+    chorus: [
+      { chords: ['iv9', 'iv9', 'i9', 'i9', 'ii%7', 'V7b9', 'i9', 'i9'], weight: 4 },
+      { chords: ['VImaj9', 'VII7', 'i9', 'i9', 'iv9', 'V7#9', 'i9', 'i9'], weight: 3 },
+    ],
+    bridge: [{ chords: ['iv11', 'iv11', 'bVIImaj9', 'bVIImaj9', 'IIImaj9', 'IIImaj9', 'ii%7', 'V7b9'], weight: 4 }],
+    solo: [
+      { chords: ['i11', 'i11', 'i11', 'i11', 'iv9', 'iv9', 'ii%7', 'V7b9'], weight: 4 },
+      { chords: ['i9', 'VII7', 'VImaj9', 'V7#9', 'i9', 'VII7', 'ii%7', 'V7b9'], weight: 3 },
+    ],
+    outro: [{ chords: ['ii%7', 'V7b9', 'i9', 'i9'], weight: 4 }],
+  },
+  /**
+   * Long lines with room in them. The right hand is carrying a whole band's
+   * worth of interest, and a cell that never rests gives the left hand nowhere
+   * to answer — the holes in these are what the other hand is written into.
+   */
+  melodyCells: [
+    { cell: [2, 2, 2, 2, 2, 2, 4], weight: 5 },
+    { cell: [-4, 2, 2, 2, 2, 4], weight: 5 },
+    { cell: [4, 2, 2, 4, 4], weight: 4 },
+    { cell: [-2, 2, 2, 2, 8], weight: 4 },
+    { cell: [6, 2, 4, 4], weight: 4 },
+    { cell: [-8, 2, 2, 2, 2], weight: 3 },
+    { cell: [2, 2, 4, 8], weight: 3 },
+    { cell: [8, 4, 4], weight: 3 },
+    { cell: [-4, 4, 4, 4], weight: 3 },
+  ],
+  cadenceCells: [
+    { cell: [16], weight: 5 },
+    { cell: [-4, 12], weight: 4 },
+    { cell: [12, 4], weight: 3 },
+    { cell: [8, 8], weight: 2 },
+  ],
+  bass: [
+    { name: 'walking', weight: 6, walking: true, hits: [
+      { at: 0, dur: 3, tone: 'root', vel: 0.94 },
+      { at: 4, dur: 3, tone: 'third', vel: 0.8 },
+      { at: 8, dur: 3, tone: 'fifth', vel: 0.85 },
+      { at: 12, dur: 3, tone: 'approach', vel: 0.8 },
+    ] },
+    // A pedal under a vamp, which is what the bass does when the harmony stops
+    // moving and the piano is the one filling the space.
+    { name: 'pedal', weight: 3, hits: [
+      { at: 0, dur: 7, tone: 'root', vel: 0.9 },
+      { at: 10, dur: 2, tone: 'fifth', vel: 0.76 },
+      { at: 12, dur: 3, tone: 'root', vel: 0.8 },
+    ] },
+    { name: 'two-feel', weight: 2, hits: [
+      { at: 0, dur: 6, tone: 'root', vel: 0.94 },
+      { at: 8, dur: 6, tone: 'fifth', vel: 0.84 },
+    ] },
+  ],
+  /**
+   * Never read.
+   *
+   * `excludeLayers` removes the comp layer in every section, because on this
+   * style the comper is the pianist and their comping is `twoHanded`. `Style`
+   * requires the table, so this is the honest minimum rather than a figure
+   * anybody plays — and a quartal shape, so that if the exclusion is ever
+   * relaxed what turns up is at least the right sound.
+   */
+  comp: [
+    { name: 'unused', weight: 1, voices: 4, voicing: 'quartal', hits: [{ at: 6, dur: 4, vel: 0.45 }] },
+  ],
+  drums: [
+    { name: 'ride-open', weight: 6, voices: {
+      rd: [0, 6, 8, 14],
+      hh: [4, 12],
+      bd: [0],
+      sd: [10],
+    } },
+    { name: 'ride-conversational', weight: 5, voices: {
+      rd: [0, 6, 8, 14],
+      hh: [4, 12],
+      sd: [6, 13],
+      bd: [10],
+    } },
+    { name: 'brushes-trio', weight: 3, voices: {
+      sh: [0, 4, 8, 12],
+      rd: [0, 8],
+      hh: [4, 12],
+    } },
+  ],
+  melody: { leap: 0.34, ornament: 0.2, span: 20, sequence: 0.34, syncopation: 0.55 },
+};
+
 export const STYLES: Record<string, Style> = {
-  swing, bebop, ballad, bossa, blues, modal, gypsy,
+  swing, bebop, ballad, bossa, blues, modal, gypsy, trio,
 };

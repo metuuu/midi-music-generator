@@ -15,6 +15,7 @@
  */
 
 import { pc } from './core/pitch.js';
+import { melodicLine } from './core/types.js';
 import type { NoteEvent, Song } from './core/types.js';
 import { generateSong } from './generate/song.js';
 import { HOOK_LEVELS } from './generate/hook.js';
@@ -94,7 +95,8 @@ function measure(song: Song, m: Measurement): void {
   m.songs++;
 
   const { beatsPerBar } = song.meta;
-  const notes = melody.notes.slice().sort((a, b) => a.beat - b.beat);
+  // The line, not the track: a `twoHanded` piano interleaves its own comping.
+  const notes = melodicLine(melody).slice().sort((a, b) => a.beat - b.beat);
   m.notes += notes.length;
 
   // --- Bar-level self-similarity ---

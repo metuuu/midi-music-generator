@@ -57,11 +57,38 @@ const IDLE_X = SCALE * Math.pow(2, -4 / 12);
 
 const FACE = new Vector3(0, 1, 0);
 /**
- * Across the strings. On this instrument it matters more than on any other in
- * the family: the meend is a sideways pull *across* the fret, so a hand rolled
- * to lie up the neck cannot even be doing the thing `react` is animating.
+ * Up the neck — the axis the knuckles lie along, and it is **not** across the
+ * strings.
+ *
+ * This was `(0, 0, 1)`, and the comment that stood here said it was preventing
+ * "a hand lying up one string like a splint". It was producing exactly that.
+ * The rig builds the hand from `along \u00d7 normal`, so an axis across the strings
+ * comes out with the fingers pointing *down the neck toward the bridge*, and
+ * the four knuckles spread across the six strings.
+ *
+ * A fretting hand is the other way round on both counts. Its four fingers take
+ * four consecutive **frets**, so the knuckle line runs along the neck, and they
+ * come down onto the board across the strings, perpendicular to them. `±x` is
+ * bridge to nut, which is the line the frets are spaced along, and it is that
+ * knuckle line. Which of its two *directions* a fretting hand takes is a
+ * separate question with an anatomical answer: see `DOWN_NECK`.
+ *
+ * The *plucking* hand keeps this direction. It works over the top, by the
+ * bridge, with the index nearest the neck and the mizrab crossing the strings
+ * downward.
  */
-const ACROSS = new Vector3(0, 0, 1);
+const UP_NECK = new Vector3(1, 0, 0);
+/**
+ * Nut toward bridge: the fretting hand, index at the nut and therefore arriving
+ * from underneath, palm below the neck and fingertips reaching up across the
+ * strings. The argument is in `acoustic-guitar.ts`.
+ *
+ * A sitar makes it plainer than a guitar does, because the fingers do not just
+ * stop the string here — they *pull* it sideways across the fret for a meend,
+ * and the pull only makes sense as a hand hooked under the wire rather than
+ * dropped onto it from above.
+ */
+const DOWN_NECK = new Vector3(-1, 0, 0);
 
 function mountBasis(alongStrings: Vector3, faceHint: Vector3, at: Vector3): Matrix4 {
   const x = alongStrings.clone().normalize();
@@ -87,11 +114,11 @@ function stringZ(i: number, x: number): number {
   return (i - (STRINGS - 1) / 2) * (spread / (STRINGS - 1));
 }
 
-function contactAt(x: number, y: number, z: number): Contact {
+function contactAt(x: number, y: number, z: number, along: Vector3): Contact {
   return {
     position: new Vector3(x, y, z).applyMatrix4(MOUNT),
     normal: FACE.clone().transformDirection(MOUNT),
-    along: ACROSS.clone().transformDirection(MOUNT),
+    along: along.clone().transformDirection(MOUNT),
   };
 }
 
@@ -307,7 +334,7 @@ export const buildSitar: InstrumentBuilder = (opts) => {
 
     resolve(point: PlayPoint): Contact | undefined {
       if (point.kind === 'rest') {
-        return contactAt(IDLE_X, FINGER_HEIGHT + 0.045, stringZ(0, IDLE_X));
+        return contactAt(IDLE_X, FINGER_HEIGHT + 0.045, stringZ(0, IDLE_X), DOWN_NECK);
       }
       if (point.kind !== 'string') return undefined;
       const i = point.string;
@@ -316,17 +343,17 @@ export const buildSitar: InstrumentBuilder = (opts) => {
       const n = Math.round(point.fret);
       if (n < 0 || n > FRETS) return undefined;
       const x = fretX(n);
-      return contactAt(x, FINGER_HEIGHT, stringZ(i, x));
+      return contactAt(x, FINGER_HEIGHT, stringZ(i, x), DOWN_NECK);
     },
 
     soundingContact(point: PlayPoint): Contact | undefined {
       if (point.kind === 'rest') {
-        return contactAt(PLUCK_X + 0.06, STRING_HEIGHT + 0.07, 0.02);
+        return contactAt(PLUCK_X + 0.06, STRING_HEIGHT + 0.07, 0.02, UP_NECK);
       }
       if (point.kind !== 'string') return undefined;
       const i = point.string;
       if (!Number.isInteger(i) || i < 0 || i >= STRINGS) return undefined;
-      return contactAt(PLUCK_X, STRING_HEIGHT + 0.020, stringZ(i, PLUCK_X));
+      return contactAt(PLUCK_X, STRING_HEIGHT + 0.020, stringZ(i, PLUCK_X), UP_NECK);
     },
 
     react(point: PlayPoint, force: number, now: number): void {

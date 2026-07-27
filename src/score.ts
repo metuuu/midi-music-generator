@@ -10,6 +10,7 @@
 
 import { parseRoman, chordPcs } from './core/chord.js';
 import { pc } from './core/pitch.js';
+import { melodicLine } from './core/types.js';
 import type { NoteEvent, Song } from './core/types.js';
 import { generateSong } from './generate/song.js';
 
@@ -36,7 +37,9 @@ function main(): void {
   console.log(`${song.meta.keyLabel}  ${song.meta.bpm} BPM  ${bpb}/${song.meta.beatUnit}  swing ${song.meta.swing}`);
   console.log(`smoothness ${song.meta.strictness}  hook ${song.meta.hook}  mood ${song.meta.mood}\n`);
 
-  const melody = song.tracks.find((t) => t.layer === 'melody')?.notes ?? [];
+  const melodyTrack = song.tracks.find((t) => t.layer === 'melody');
+  // The line, not the track: a `twoHanded` piano interleaves its own comping.
+  const melody = melodyTrack ? melodicLine(melodyTrack) : [];
   const counter = song.tracks.find((t) => t.layer === 'counter')?.notes ?? [];
   const bass = song.tracks.find((t) => t.layer === 'bass')?.notes ?? [];
   const comp = song.tracks.find((t) => t.layer === 'comp')?.notes ?? [];

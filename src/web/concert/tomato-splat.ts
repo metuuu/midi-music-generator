@@ -16,11 +16,25 @@
  * uses, and a projected decal would need the receiving geometry, which for a
  * curtain that moves is a different mesh every frame.
  *
- * The drips are the only animated part and they are animated in the *geometry*
- * rather than in a shader, because a shader uniform is per material and these
- * share one. Twelve vertices move, for about eight seconds, and then the mark
- * is static for the rest of the number. A splat that has stopped growing costs
- * exactly one draw call and no CPU.
+ * The drips are the only animated part of the *geometry*, and they are animated
+ * in the geometry rather than in a shader, because a shader uniform is per
+ * material and these share one. Twelve vertices move, for about eight seconds,
+ * and then the mark is static for the rest of the number. A splat that has
+ * stopped growing costs exactly one draw call and no CPU.
+ *
+ * ## Being born
+ *
+ * A mark that switches on in one frame reads as a texture swap rather than as
+ * something landing, so every mark spends its first hundred milliseconds
+ * arriving: it comes in at just under half size, overshoots by about a tenth,
+ * and settles. That is a write to `mesh.scale` and nothing else — see
+ * `POP_SECONDS`.
+ *
+ * It is deliberately *not* an opacity ramp, which would read better and cannot
+ * be had: every mark shares one material, so a per-mark alpha means a material
+ * per mark, which means a program-cache entry and an upload per mark, on the
+ * frame of impact. That is exactly the stall the warm-up in `prime` exists to
+ * remove, and buying a nicer fade with it would be a bad trade.
  *
  * ## Gravity, for free
  *
@@ -45,6 +59,47 @@ const DRIPS = 3;
 const DRIP_TAU = 2.4;
 /** After this the mark is static and stops costing anything. */
 const DRIP_SECONDS = 8;
+
+/**
+ * Seconds a mark takes to arrive.
+ *
+ * Under about 60 ms it is indistinguishable from an instant quad and the whole
+ * thing is wasted; over about 200 ms the mark is visibly inflating after the
+ * tomato that made it has already gone, which reads as a bubble rather than as
+ * a splash. 110 ms is six or seven frames, which is enough to see and short
+ * enough that it still belongs to the impact.
+ */
+const POP_SECONDS = 0.11;
+/**
+ * Where the mark starts, as a fraction of its settled size.
+ *
+ * Not 0. A mark that starts at nothing spends its first frames as a few
+ * sub-pixel triangles, which is a frame of *nothing* followed by a mark, and
+ * that is the instant quad again with extra steps.
+ */
+const POP_FROM = 0.42;
+/** How far past full size it goes on the way. Thrown fluid overshoots. */
+const POP_OVERSHOOT = 0.16;
+
+/**
+ * How far a mark floats off its surface: this, plus `LIFT_PER_RADIUS` of its
+ * own radius.
+ *
+ * The polygon offset on the material handles the depth *test*. This handles the
+ * geometry, which the depth test cannot: a mark is flat and a drum shell is
+ * not, so a 12 cm blob laid tangent to a 20 cm shell has its rim about six
+ * millimetres inside the drum, and it comes out as a ring of holes. Scaling the
+ * lift by the mark's own radius covers that, and leaves a small mark on the
+ * flat boards pressed where it belongs — a fixed lift big enough for the drum
+ * would make every mark on the boards a hovering sticker.
+ *
+ * It only covers marks that are small against what they landed on, which is all
+ * of them at the sizes `tomatoes.ts` asks for. A mark as wide as its host would
+ * still clip, and no lift fixes that: the fix is a projected decal, and the
+ * reason there is not one is at the top of this file.
+ */
+const LIFT = 0.003;
+const LIFT_PER_RADIUS = 0.05;
 
 const VERTS = 1 + RIM + DRIPS * 4;
 const TRIS = RIM + DRIPS * 2;
@@ -86,8 +141,13 @@ export interface SplatField {
   cool(): void;
   /**
    * Leave a mark. `normal` points away from the surface; `size` is the blob's
-   * radius in metres. `host`, when given, is what the mark is parented to so
-   * it travels with a moving instrument.
+   * radius in metres — the caller is expected to vary it with how hard the
+   * tomato arrived, since a mark that is the same size however it got there is
+   * the single most obvious tell that this is a decal. `host`, when given, is
+   * what the mark is parented to so it travels with a moving instrument.
+   *
+   * The mark is not full size when this returns: it arrives over the next
+   * hundred milliseconds of `update`. See `POP_SECONDS`.
    *
    * Past the cap the oldest mark is recycled, geometry and all. Nothing is
    * allocated after `prime()`, so neither the first throw nor a very determined
@@ -116,6 +176,18 @@ interface Slot {
   /** 0 on a floor, 1 on a wall. Scales how far the drips run. */
   drip: number;
   growing: boolean;
+  /** Still arriving. Cleared once the pop has settled, so it stops costing. */
+  popping: boolean;
+  /**
+   * The scale the mark settles at.
+   *
+   * Not always 1: `attach` re-derives the local transform from the world one,
+   * so a mark hung on a host with a scaled ancestor lands with a compensating
+   * scale of its own. The pop multiplies this rather than replacing it, which
+   * is the difference between a mark that grows into place and one that snaps
+   * to the wrong size the first time `update` touches it.
+   */
+  restScale: Vector3;
   /**
    * Whether this slot is carrying a mark somebody threw.
    *
@@ -190,7 +262,8 @@ export function createSplatField(o: SplatOptions = {}): SplatField {
       baseY: new Float32Array(DRIPS),
       halfWidth: new Float32Array(DRIPS),
       length: new Float32Array(DRIPS),
-      age: 0, drip: 0, growing: true, used: false,
+      age: 0, drip: 0, growing: true, popping: false, used: false,
+      restScale: new Vector3(1, 1, 1),
     };
   }
 
@@ -226,7 +299,9 @@ export function createSplatField(o: SplatOptions = {}): SplatField {
         slot.attr.needsUpdate = true;
         slot.mesh.position.set(0, 0, 0);
         slot.mesh.quaternion.identity();
+        slot.mesh.scale.set(1, 1, 1);
         slot.growing = false;
+        slot.popping = false;
         root.add(slot.mesh);
       }
     },
@@ -259,6 +334,7 @@ export function createSplatField(o: SplatOptions = {}): SplatField {
       slot.drip = Math.min(1, Math.max(0, 1 - Math.abs(V1.dot(UP))));
       slot.age = 0;
       slot.growing = true;
+      slot.popping = true;
       slot.used = true;
 
       // --- the blob --------------------------------------------------------
@@ -292,7 +368,7 @@ export function createSplatField(o: SplatOptions = {}): SplatField {
 
       // --- hang it ---------------------------------------------------------
       const mesh = slot.mesh;
-      mesh.position.copy(point).addScaledVector(V1, 0.004);
+      mesh.position.copy(point).addScaledVector(V1, LIFT + r * LIFT_PER_RADIUS);
       mesh.quaternion.copy(Q1);
       mesh.scale.set(1, 1, 1);
       if (host) {
@@ -303,14 +379,26 @@ export function createSplatField(o: SplatOptions = {}): SplatField {
       } else {
         root.add(mesh);
       }
+      // After the parenting, never before: `attach` may have written a scale of
+      // its own, and that scale is what the pop is a fraction of.
+      slot.restScale.copy(mesh.scale);
+      mesh.scale.copy(slot.restScale).multiplyScalar(popScale(0));
     },
 
     update(dt) {
       if (!Number.isFinite(dt) || dt <= 0) return;
       const step = Math.min(dt, 0.1);
       for (const slot of slots) {
-        if (!slot.used || !slot.growing || !slot.mesh.parent) continue;
+        if (!slot.used || !slot.mesh.parent) continue;
+        if (!slot.growing && !slot.popping) continue;
         slot.age += step;
+        if (slot.popping) {
+          // Two multiplies and a write to a transform. No allocation, and it
+          // stops entirely after a tenth of a second.
+          slot.mesh.scale.copy(slot.restScale).multiplyScalar(popScale(slot.age));
+          if (slot.age >= POP_SECONDS) slot.popping = false;
+        }
+        if (!slot.growing) continue;
         if (slot.age >= DRIP_SECONDS) slot.growing = false;
         writeDrips(slot, slot.age);
         slot.attr.needsUpdate = true;
@@ -321,6 +409,7 @@ export function createSplatField(o: SplatOptions = {}): SplatField {
       for (const slot of slots) {
         slot.mesh.removeFromParent();
         slot.growing = false;
+        slot.popping = false;
         slot.used = false;
       }
       next = 0;
@@ -342,6 +431,22 @@ export function createSplatField(o: SplatOptions = {}): SplatField {
       root.removeFromParent();
     },
   };
+}
+
+/**
+ * How big a mark is, as a fraction of its settled size, `age` seconds in.
+ *
+ * Out-cubic to full size with a half-sine laid over it, so it arrives fast,
+ * passes about a tenth over, and comes back — and lands on exactly 1 at
+ * `POP_SECONDS` rather than near it, because a mark that settles at 0.998 of
+ * its size is a mark whose rim moves for the rest of the number.
+ */
+function popScale(age: number): number {
+  if (!(age > 0)) return POP_FROM;
+  if (age >= POP_SECONDS) return 1;
+  const t = age / POP_SECONDS;
+  const eased = 1 - (1 - t) ** 3;
+  return POP_FROM + (1 - POP_FROM) * eased + POP_OVERSHOOT * Math.sin(Math.PI * t);
 }
 
 /** Ease the drips out to length. Twelve vertices, and only while growing. */

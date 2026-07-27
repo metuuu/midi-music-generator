@@ -340,6 +340,32 @@ export function createShow(opts: ShowOptions = {}): Show {
     };
   }
 
+  /**
+   * Re-render the pattern, but not on this frame.
+   *
+   * `sound` is `async` and looks deferred and is not: `renderStrudel` runs
+   * synchronously, before the first `await`, on whatever frame called it. That
+   * is fine at the top of a number, where the picture is behind a curtain and
+   * nothing is moving, and it is exactly wrong on the frame a tomato lands —
+   * which is already the busiest frame of the show and the one the thrower is
+   * watching for a response. A whole song's worth of pattern text is built
+   * between the impact and the picture of it.
+   *
+   * So the impact frame gets the splat and the flinch, and the pattern is
+   * rebuilt on the next task. Coalesced, because a burst of hits would
+   * otherwise queue a full render each, and they would all produce the same
+   * answer — the *last* state of `sulking` is the only one that matters.
+   */
+  let soundPending = false;
+  function scheduleSound(): void {
+    if (soundPending) return;
+    soundPending = true;
+    setTimeout(() => {
+      soundPending = false;
+      void sound(current.song);
+    }, 0);
+  }
+
   async function sound(song: Song): Promise<void> {
     try {
       await playCode(renderStrudel(audible(song)));
@@ -422,7 +448,8 @@ export function createShow(opts: ShowOptions = {}): Show {
     sulking.set(layer, { until: transport.beat() + SULK_BEATS, attempt });
 
     animator.setPlaying(hit.performerId, false);
-    void sound(current.song);
+    // Off this frame. See `scheduleSound`.
+    scheduleSound();
   });
 
   tomatoes.onPatienceLost(() => {
@@ -441,7 +468,10 @@ export function createShow(opts: ShowOptions = {}): Show {
     for (const p of current.cast.performers) {
       if (p.layer === layer) animator.setPlaying(p.id, true);
     }
-    void sound(current.song);
+    // Also off this frame, and for the same reason: this one already ran
+    // `revoiceNumber` here, so it is the last thing that should also render a
+    // pattern before the picture gets a look in.
+    scheduleSound();
   }
 
   // --- Input -------------------------------------------------------------
@@ -480,8 +510,17 @@ export function createShow(opts: ShowOptions = {}): Show {
 
       case 'count-in':
         // The transport reports zero until the first cycle actually arrives.
-        // That gap *is* the count-in: the band is up, the lights are on, and
-        // nothing has happened yet.
+        // That gap *is* the count-in: the band comes up, the lights are on,
+        // and nothing has happened yet.
+        //
+        // "Comes up" is literal now, and this is where it is asked for. The
+        // animator holds the band at ease from `begin` — which happens behind
+        // a closed curtain, in the middle of two awaited promises — until it
+        // is called, so that the one moment worth watching lands while the
+        // tabs are travelling rather than before anybody can see the stage.
+        // `cue` is idempotent, so calling it per frame is a boolean write and
+        // both routes into this state are covered without a second flag.
+        animator.cue();
         if (transport.state() === 'playing' && beat > 0) setState('playing');
         break;
 

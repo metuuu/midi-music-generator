@@ -48,8 +48,13 @@ export function buildConcert(opts: ConcertOptions = {}): Concert {
    * and the share link contains it, so a show whose seed only exists inside a
    * song's metadata cannot be shared or reproduced. One resolution, at the top,
    * and every subsystem downstream derives from it.
+   *
+   * A show staged from one exact number falls back to that number's seed, so
+   * the venue, the cast and the lights are reproducible from the same string
+   * the song is.
    */
-  const seed = opts.seed ?? String(Math.floor(Math.random() * 1e9));
+  const seed = opts.seed
+    ?? (opts.song?.seed !== undefined ? String(opts.song.seed) : String(Math.floor(Math.random() * 1e9)));
   const resolved: ConcertOptions = { ...opts, seed };
 
   const songs = buildSetlist(resolved);

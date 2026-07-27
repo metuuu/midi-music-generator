@@ -28,7 +28,7 @@ import {
   Quaternion, Shape, Vector3,
 } from 'three';
 
-import type { PlayPoint } from '../../../concert/types.js';
+import type { GestureKind, PlayPoint } from '../../../concert/types.js';
 import { Rng } from '../../../core/rng.js';
 import {
   addTo, type Contact, type InstrumentBuilder, type InstrumentModel,
@@ -101,21 +101,60 @@ const PEDAL_SUSTAIN = new Vector3(-0.075, 0.095, -0.885);
 // Motion
 // ---------------------------------------------------------------------------
 
+/**
+ * How long a re-struck key spends letting go and falling again, in beats, and
+ * how far up it gets in that time as a fraction of full travel. Short: a piano
+ * action repeats fast, and the lift has to fit inside the shortest repeat the
+ * music can ask for.
+ */
+const REBOUND = 0.12;
+const REBOUND_LIFT = 0.85;
+
 /** One impulse, stored as *when* rather than as a running value. See drumkit. */
 class Hit {
   beat = -1e9;
   force = 0;
-
-  fire(now: number, force: number): void {
+  /**
+   * How long the finger stays on it, in beats.
+   *
+   * A key is not a drum head. The old envelope started decaying on the instant
+   * of the note, so a four-beat pad chord had its keys back up within half a
+   * beat while the hand that was holding them down stayed where it was — a
+   * player pressing keys that are not there. `hold` is the gesture's own
+   * follow-through, so the key is down for exactly as long as the hand is on
+   * it and the spring only has to bring it back afterwards.
+   */
+  hold = 0;
+  /**
+   * How long this press spends coming back up before it falls again, in beats.
+   *
+   * Non-zero only when the note repeated — when the press landed on a key that
+   * `hold` was still holding down. A repeated note is not one long note, and
+   * pinning the key at full depth across the re-strike turned a bar of the same
+   * quaver into a player leaning on one key. The escapement is the whole reason
+   * a repeated note sounds twice, so the key has to be seen letting go.
+   */
+  rebound = 0;
+  fire(now: number, force: number, hold = 0): void {
+    const stillDown = now - this.beat < this.hold;
     this.beat = now;
     this.force = force < 0 ? 0 : force > 1 ? 1 : force;
+    this.hold = Number.isFinite(hold) && hold > 0 ? hold : 0;
+    // Never longer than half the note it belongs to, or a run of short repeats
+    // would be all lift and no key.
+    this.rebound = stillDown ? Math.min(REBOUND, this.hold * 0.45) : 0;
   }
-
-  /** Unit envelope: 1 at the instant of the hit, 0 once settled. */
   level(now: number, tau: number): number {
     const age = now - this.beat;
-    if (age < 0 || age > tau * 6) return 0;
-    return Math.exp(-age / tau);
+    if (age < 0) return 0;
+    // Up and back down again, landing at full depth exactly as the lift ends.
+    if (age < this.rebound) {
+      return 1 - REBOUND_LIFT * Math.sin(Math.PI * age / this.rebound);
+    }
+    // Held all the way down, then released. `tau` is the return spring alone.
+    if (age <= this.hold) return 1;
+    const off = age - this.hold;
+    return off > tau * 6 ? 0 : Math.exp(-off / tau);
   }
 }
 
@@ -438,11 +477,14 @@ export const buildGrandPiano: InstrumentBuilder = (opts) => {
       }
     },
 
-    react(point: PlayPoint, force: number, now: number): void {
+    react(
+      point: PlayPoint, force: number, now: number,
+      _kind?: GestureKind, hold?: number,
+    ): void {
       if (point.kind === 'key') {
         const key = keys.get(point.midi);
         if (!key) return;
-        key.hit.fire(now, force);
+        key.hit.fire(now, force, hold);
         moving.add(key);
         return;
       }
