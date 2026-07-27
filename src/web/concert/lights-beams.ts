@@ -1,0 +1,292 @@
+/**
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * The beams — the part of a lighting rig you can actually see.
+ *
+ * A spotlight with nothing in front of it is a bright patch on the floor.
+ * Every argument in `concert/lighting.ts` about isolation, about a solo being
+ * a statement, about a drum chorus lighting one player, assumes an audience can
+ * see the *cone*. So the beams are not decoration on top of the lighting; they
+ * are half of it, and `LightingScore.haze` is the fixture budget's other half.
+ *
+ * ## Why a cone mesh and not volumetrics
+ *
+ * Real volumetric scattering means ray-marching the depth buffer per fixture
+ * per pixel, and on the integrated graphics this feature targets that is the
+ * whole frame budget for something an additive cone approximates to within a
+ * hair. The cone is also *better behaved*: it never flickers under temporal
+ * reprojection, it costs the same whether the camera is in the beam or not, and
+ * it can be tuned by a person rather than by a scattering coefficient.
+ *
+ * Three tricks make it read as air rather than as a plastic cone:
+ *
+ *  - **Facing-angle fade.** The brightness of a ray through a cone of haze is
+ *    proportional to how far that ray travels inside it: long through the
+ *    middle, nothing at the silhouette. On the cone's surface that is exactly
+ *    `abs(dot(normal, view))` — near 1 where the surface faces you, which is
+ *    the middle of the projected shape, and near 0 at the edge. Raising it to a
+ *    power sharpens the core. Rendered double-sided, the near and far walls sum,
+ *    which doubles the middle for free and is the right answer for the same
+ *    reason.
+ *  - **Dilution along the throw.** A beam spreads, so the same light is spread
+ *    over more air the further it gets. The alpha falls off toward the far end
+ *    and reaches zero there, which is also what stops the cone having a visible
+ *    rim where it stops.
+ *  - **No depth write.** Beams never occlude each other or anything else; they
+ *    only add. Depth *test* stays on, so a beam behind a player is correctly
+ *    hidden while the near wall of the same cone still draws in front of them —
+ *    which is what a beam passing over somebody looks like.
+ *
+ * ## Cost
+ *
+ * One open-ended cone, one height segment: `segments * 2` triangles. Sixteen
+ * segments is 32 triangles and one draw call per beam. The whole rig's beams at
+ * the top quality tier are under four hundred triangles — the expense is fill,
+ * not geometry, which is why the quality tiers cut the *number* of beams and
+ * not their tessellation until the bottom tier.
+ *
+ * ## Colour space
+ *
+ * `ShaderMaterial` output does not go through three's automatic linear-to-sRGB
+ * conversion (only the built-in materials carry that chunk), so the uniform is
+ * fed the sRGB values rather than the working-space ones. `stage.ts`'s haze
+ * cards take the same shortcut; this one converts explicitly so the beam is the
+ * colour the gel says it is.
+ */
+
+import {
+  AdditiveBlending, Color, CylinderGeometry, DoubleSide, Mesh, PlaneGeometry,
+  ShaderMaterial, Vector3, type BufferGeometry,
+} from 'three';
+
+import type { Kit } from './stage-kit.js';
+
+/** Local axis the unit cone points along: apex at the origin, spreading down. */
+const AXIS = new Vector3(0, -1, 0);
+
+const scratchDir = new Vector3();
+
+export interface Beam {
+  readonly mesh: Mesh;
+  /** Point the cone from `from` to `to`, spreading to `halfAngle` radians. */
+  aim(from: Vector3, to: Vector3, halfAngle: number): void;
+  /** Gel and density. `alpha` 0 makes it invisible without removing it. */
+  set(colour: Color, alpha: number): void;
+  /** Swap tessellation when the quality tier changes. */
+  setSegments(segments: number): void;
+}
+
+export interface BeamOptions {
+  /** How hard the core is. 1.2 is a soft glow, 2.2 is a defined shaft. */
+  sharpness?: number;
+  /** Render order. Beams draw after the stage's own haze cards. */
+  order?: number;
+}
+
+/**
+ * A unit cone with its apex at the local origin, spreading along -y to y = -1.
+ *
+ * Not a `ConeGeometry`: a cylinder with a small top radius gives the beam a
+ * lens-sized mouth instead of a mathematical point, which is what stops the
+ * first few centimetres out of the lantern looking like a needle. Cached on the
+ * kit by segment count, so the three quality tiers share three geometries
+ * between every beam in the rig.
+ */
+function beamGeometry(kit: Kit, segments: number): BufferGeometry {
+  return kit.geometry(`beam|${segments}`, () => {
+    const g = new CylinderGeometry(0.045, 1, 1, segments, 1, true);
+    g.translate(0, -0.5, 0);
+    return g;
+  });
+}
+
+const VERTEX = /* glsl */ `
+  varying vec3 vNormalV;
+  varying vec3 vPosV;
+  varying float vT;
+  void main() {
+    vNormalV = normalMatrix * normal;
+    vec4 mv = modelViewMatrix * vec4(position, 1.0);
+    vPosV = mv.xyz;
+    // Cylinder uv.y runs 0 at the wide end to 1 at the lens; flip it so vT is
+    // distance travelled, which is what everything downstream wants.
+    vT = 1.0 - uv.y;
+    gl_Position = projectionMatrix * mv;
+  }
+`;
+
+const FRAGMENT = /* glsl */ `
+  uniform vec3 uColour;
+  uniform float uAlpha;
+  uniform float uSharp;
+  varying vec3 vNormalV;
+  varying vec3 vPosV;
+  varying float vT;
+  void main() {
+    // How much air this ray crosses: everything at the middle, nothing at the
+    // silhouette. See the header.
+    float facing = abs(dot(normalize(vNormalV), normalize(-vPosV)));
+    float a = pow(facing, uSharp);
+    // The beam spreads, so the same light thins out along the throw, and it
+    // reaches zero at the end rather than stopping at a rim.
+    a *= 1.0 - pow(clamp(vT, 0.0, 1.0), 1.25);
+    // ...and it does not start as a bright disc pasted on the lens either.
+    a *= smoothstep(0.0, 0.05, vT);
+    gl_FragColor = vec4(uColour, a * uAlpha);
+  }
+`;
+
+export function buildBeam(kit: Kit, segments: number, opts: BeamOptions = {}): Beam {
+  const material = kit.own(new ShaderMaterial({
+    uniforms: {
+      uColour: { value: new Color(1, 1, 1) },
+      uAlpha: { value: 0 },
+      uSharp: { value: opts.sharpness ?? 1.7 },
+    },
+    vertexShader: VERTEX,
+    fragmentShader: FRAGMENT,
+    transparent: true,
+    blending: AdditiveBlending,
+    depthWrite: false,
+    depthTest: true,
+    side: DoubleSide,
+    fog: false,
+  }));
+
+  const mesh = new Mesh(beamGeometry(kit, segments), material);
+  mesh.renderOrder = opts.order ?? 12;
+  mesh.frustumCulled = false;
+  mesh.matrixAutoUpdate = true;
+  mesh.visible = false;
+
+  const uColour = material.uniforms.uColour!.value as Color;
+
+  return {
+    mesh,
+
+    aim(from, to, halfAngle) {
+      scratchDir.copy(to).sub(from);
+      const length = scratchDir.length();
+      if (!(length > 1e-3)) { mesh.visible = false; return; }
+      scratchDir.divideScalar(length);
+      mesh.position.copy(from);
+      mesh.quaternion.setFromUnitVectors(AXIS, scratchDir);
+      const radius = Math.max(0.05, length * Math.tan(halfAngle));
+      mesh.scale.set(radius, length, radius);
+    },
+
+    set(colour, alpha) {
+      const a = alpha > 0 ? alpha : 0;
+      material.uniforms.uAlpha!.value = a;
+      // Written as sRGB because a raw ShaderMaterial output is not converted.
+      uColour.copy(colour).convertLinearToSRGB();
+      mesh.visible = a > 0.002;
+    },
+
+    setSegments(next) {
+      mesh.geometry = beamGeometry(kit, next);
+    },
+  };
+}
+
+/**
+ * The backdrop wash, which is a glowing cloth rather than a light.
+ *
+ * `cyc` was built as a lantern first and it does not work as one, for a reason
+ * that is geometric rather than a matter of tuning. A cyc has to cover five
+ * metres of cloth from a metre or two away, which needs a cone so wide that it
+ * swallows the upstage half of the stage — and the drummer is centre-back by
+ * construction, so *every* build of it put several times the key light on the
+ * one player who is furthest from the audience. Flown high and aimed down, hung
+ * low and aimed up, wide or narrow: the same fixture, the same problem.
+ *
+ * A real cyc bar solves this with a line of asymmetric reflectors hugging the
+ * cloth, which is a dozen lights this budget does not have. So the wash is
+ * drawn instead of lit: an additive card standing just downstage of the
+ * backdrop, graded bright at the bottom and gone by two thirds height, the way
+ * a groundrow actually lays light on a cloth. One draw call, no light in the
+ * shader loop, and it is *incapable* of spilling on anybody — which is a
+ * stronger guarantee than any amount of careful aiming.
+ *
+ * The top of the gradient reaching zero also means the card can safely be
+ * larger than whatever is behind it: an open-air stage has a low wall and the
+ * night, and the wash fades out well before it would be caught glowing in the
+ * sky.
+ */
+export interface CycGlow {
+  readonly mesh: Mesh;
+  set(colour: Color, alpha: number): void;
+}
+
+const CYC_VERTEX = /* glsl */ `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const CYC_FRAGMENT = /* glsl */ `
+  uniform vec3 uColour;
+  uniform float uAlpha;
+  varying vec2 vUv;
+  void main() {
+    // Bright along the foot of the cloth and gone by two thirds up, which is
+    // what a groundrow does and what stops the card having a top edge.
+    float v = smoothstep(0.92, 0.16, vUv.y) * smoothstep(0.0, 0.05, vUv.y);
+    float x = abs(vUv.x - 0.5) * 2.0;
+    v *= smoothstep(1.0, 0.70, x);
+    gl_FragColor = vec4(uColour, v * uAlpha);
+  }
+`;
+
+export function buildCycGlow(kit: Kit, width: number, height: number): CycGlow {
+  const material = kit.own(new ShaderMaterial({
+    uniforms: {
+      uColour: { value: new Color(1, 1, 1) },
+      uAlpha: { value: 0 },
+    },
+    vertexShader: CYC_VERTEX,
+    fragmentShader: CYC_FRAGMENT,
+    transparent: true,
+    blending: AdditiveBlending,
+    depthWrite: false,
+    depthTest: true,
+    fog: false,
+  }));
+  const mesh = new Mesh(
+    kit.geometry(`cyc|${width.toFixed(2)}|${height.toFixed(2)}`,
+      () => new PlaneGeometry(width, height)),
+    material,
+  );
+  mesh.renderOrder = 6;
+  mesh.visible = false;
+  const uColour = material.uniforms.uColour!.value as Color;
+
+  return {
+    mesh,
+    set(colour, alpha) {
+      const a = alpha > 0 ? alpha : 0;
+      material.uniforms.uAlpha!.value = a;
+      uColour.copy(colour).convertLinearToSRGB();
+      mesh.visible = a > 0.002;
+    },
+  };
+}
+
+/**
+ * How dense the beams are, from `LightingScore.haze`.
+ *
+ * The score's range is real and has to survive intact: iskelmä's lakeside
+ * pavilion sits around 0.25–0.35, where a beam should be a suggestion of moths
+ * and damp air, and ambient sits around 0.85–0.95, where the room is more fog
+ * than air and the beams are nearly solid objects. A linear map gives the
+ * pavilion far too much and ambient not enough, so the curve is convex: the
+ * bottom of the range is squashed toward nothing and the top opens up.
+ *
+ *   haze 0.25 -> 0.10    haze 0.28 -> 0.13    haze 0.70 -> 0.57    haze 0.90 -> 0.83
+ */
+export function beamDensity(haze: number): number {
+  const t = Math.max(0, Math.min(1, (haze - 0.12) / 0.76));
+  return 0.045 + 0.78 * Math.pow(t, 1.45);
+}

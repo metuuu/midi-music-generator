@@ -19,7 +19,27 @@ declare module '@strudel/core' {
   export interface StrudelRepl {
     evaluate(code: string, autostart?: boolean, hush?: boolean): Promise<unknown>;
     stop(): void;
-    scheduler: { now(): number; started: boolean };
+    scheduler: StrudelScheduler;
+  }
+  /**
+   * The clock, as far as we need it.
+   *
+   * `now()` is the cycle position currently being *queried*, which is not the
+   * one being heard: haps are scheduled `latency` seconds into the future. The
+   * concert reads the last three fields instead and inverts Strudel's own
+   * scheduling formula, which gives the audible position exactly rather than
+   * approximately. See `web/concert/transport.ts`.
+   */
+  export interface StrudelScheduler {
+    now(): number;
+    started: boolean;
+    cps: number;
+    /** Fixed offset, in seconds, between scheduling a hap and hearing it. */
+    latency: number;
+    /** Cycle position at the last tempo change. */
+    num_cycles_at_cps_change: number;
+    /** Audio-clock time, in seconds, at that same moment. */
+    seconds_at_cps_change: number;
   }
 }
 

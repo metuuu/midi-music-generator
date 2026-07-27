@@ -1,7 +1,7 @@
 {
   "name": "midi-music-generator",
   "version": "0.1.0",
-  "description": "Rule-based generator for instrumental iskelm\u00e4, jazz and ambient \u2014 renders to MIDI and Strudel",
+  "description": "Rule-based generator for instrumental iskelmä, jazz and ambient — renders to MIDI and Strudel",
   "type": "module",
   "license": "MIT",
   "scripts": {
@@ -16,7 +16,8 @@
     "hook": "tsx src/hook-report.ts",
     "genres": "tsx src/genre-check.ts",
     "rules": "tsx src/rules-doc.ts",
-    "verify": "npm run typecheck && npm run rules && npm run genres && npm run check && npm run audit 40 && npm run ensemble 40",
+    "concert": "tsx src/concert-check.ts",
+    "verify": "npm run typecheck && npm run rules && npm run genres && npm run check && npm run concert && npm run audit 40 && npm run ensemble 40",
     "ensemble": "tsx src/ensemble-report.ts",
     "score": "tsx src/score.ts"
   },
@@ -32,6 +33,8 @@
     "@strudel/soundfonts": "1.3.0",
     "@strudel/tonal": "^1.2.6",
     "@strudel/transpiler": "^1.2.6",
-    "@strudel/webaudio": "^1.3.0"
+    "@strudel/webaudio": "^1.3.0",
+    "@types/three": "^0.185.1",
+    "three": "^0.185.1"
   }
 }

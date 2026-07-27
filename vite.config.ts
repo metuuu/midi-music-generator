@@ -1,9 +1,9 @@
 /**
- * Two pages, not one.
+ * Three pages, not one.
  *
  * The dev server finds any HTML file by path on its own, so this exists only
  * for `vite build` — which defaults to `index.html` alone and would silently
- * ship a bundle with no voice lab in it.
+ * ship a bundle with no voice lab and no concert in it.
  */
 
 import { fileURLToPath } from 'node:url';
@@ -14,11 +14,21 @@ import { defineConfig } from 'vite';
 const here = (file: string) => fileURLToPath(new URL(file, import.meta.url));
 
 export default defineConfig({
+  /**
+   * One copy of three.js, not two.
+   *
+   * `three/examples/jsm/*` imports `three` by bare specifier, and Vite's dep
+   * pre-bundling can resolve that to a second instance. Two copies means two
+   * separate class identities, so `instanceof Mesh` starts returning false for
+   * objects built by the other half and the failures are baffling.
+   */
+  resolve: { dedupe: ['three'] },
   build: {
     rollupOptions: {
       input: {
         radio: here('index.html'),
         voice: here('voice.html'),
+        concert: here('concert.html'),
       },
     },
   },
