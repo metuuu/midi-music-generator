@@ -83,6 +83,13 @@ export interface Proportions {
   seatY: number;
   /** Forward pitch of the torso about the hip, radians. */
   lean: number;
+  /**
+   * How far the knees turn out, as the lateral weight in the bend direction
+   * `performer-legs.ts` bulges a knee along. It is a posture's number rather
+   * than the legs' own, because what the knees are making room for is decided
+   * by what the player is sitting at: nothing, a pedalboard, or a cello.
+   */
+  splay: number;
 }
 
 /** The gap between the shoulders and the head. Rayman's neck is not there. */
@@ -99,13 +106,24 @@ export function proportions(look: Look, posture: Posture): Proportions {
   const standHipY = height * 0.50;
   const torsoH = standShoulderY - standHipY;
 
+  const seated = posture === 'sit' || posture === 'straddle';
   const seatY =
-    posture === 'sit' ? Math.min(0.47, height * 0.27)
+    seated ? Math.min(0.47, height * 0.27)
       : posture === 'stool' ? height * 0.40
         : posture === 'kit' ? height * 0.33
           : 0;
   const hipY = seatY > 0 ? seatY + height * 0.055 : standHipY;
-  const lean = posture === 'perch' ? 0.26 : posture === 'kit' ? 0.13 : posture === 'sit' ? 0.05 : 0;
+  const lean = posture === 'perch' ? 0.26 : posture === 'kit' ? 0.13 : seated ? 0.05 : 0;
+  /**
+   * Knees apart, more so sitting, and much more so round an instrument.
+   *
+   * A cellist's knees are turned out far enough that the lower bout passes
+   * between them, which is most of a metre across the shoulders of the thighs.
+   * The seated 0.30 is what a pianist does and it is not enough by about ten
+   * centimetres a side — the measurement that started this was a right thigh
+   * through the ribs of a cello.
+   */
+  const splay = posture === 'straddle' ? 0.75 : seatY > 0 ? 0.30 : 0.11;
 
   // The head rides on top of the leaned torso rather than floating where the
   // shoulders would have been. A leaning player whose head stays put is the
@@ -128,6 +146,7 @@ export function proportions(look: Look, posture: Posture): Proportions {
     footH: height * 0.050,
     seatY,
     lean,
+    splay,
   };
 }
 
@@ -272,6 +291,21 @@ function footRests(p: Proportions, posture: Posture): { left: Vector3; right: Ve
       return {
         left: new Vector3(SIDE.left * h * 0.085, y, h * 0.205),
         right: new Vector3(SIDE.right * h * 0.090, y, h * 0.160),
+      };
+    case 'straddle':
+      // Both feet flat and planted wide, because they are what the knees are
+      // braced against: a cellist grips the instrument between the legs and
+      // that is not done from a pianist's stance. Still not square — the bow
+      // arm's side draws back a little, as it does on a real bench.
+      //
+      // The width is not free. Each two centimetres of foot buys only one of
+      // knee, since the knee is placed near the middle of the hip→ankle line
+      // (`performer-legs.ts`), so the clearance round the lower bout is bought
+      // mostly by `Proportions.splay` and this only has to be the stance that
+      // splay is plausible from.
+      return {
+        left: new Vector3(SIDE.left * h * 0.175, y, h * 0.190),
+        right: new Vector3(SIDE.right * h * 0.170, y, h * 0.155),
       };
     case 'stool':
       // One foot hooked on the rung, one on the boards. The asymmetry is the

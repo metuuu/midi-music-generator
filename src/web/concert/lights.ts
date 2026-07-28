@@ -95,7 +95,7 @@ import {
   type FixtureState, type Timeline,
 } from './lights-cues.js';
 import { FollowSpot, OPERATOR, STEADY } from './lights-follow.js';
-import { Kit, shade, tint, type Quality } from './stage-kit.js';
+import { houseLid, Kit, shade, tint, type Quality } from './stage-kit.js';
 import type { StageRig } from './stage.js';
 
 export type { Quality } from './stage-kit.js';
@@ -425,13 +425,35 @@ export function buildLightRig(
   // --- where things hang --------------------------------------------------
 
   /**
+   * The two lids, or `Infinity` twice in a room with nothing overhead.
+   *
+   * Every fixture in this rig was hung off `m.openingHeight`, which is the
+   * height of the *arch* — a fine proxy for "up in the air" right up until a
+   * room got a ceiling lower than its own opening. Then the whole rig was
+   * inside the plaster: the bar and its pars over the stage, the back light
+   * upstage, and the follow spot 1.75 m above the house lid, all of them
+   * throwing beams that began somewhere the audience cannot see.
+   *
+   * A lantern is not dressing and does not answer to `HANG_FLOOR`; what it
+   * answers to is the surface it is bolted to. So each of these clamps to the
+   * lid it hangs from, and `Math.min` against `Infinity` leaves every other
+   * room exactly as it was.
+   */
+  const stageLid = m.headroom;
+  const roomLid = houseLid(m);
+
+  /**
    * The follow spot lives front of house, above and behind the audience, which
    * is where a follow spot has always lived: it is the only position from which
    * a beam can find a face without the beam itself being in the shot.
+   *
+   * In the cellar it comes down to a bracket under the house plaster, which
+   * flattens its angle onto the stage — and that is what a follow spot in a
+   * basement actually looks like. There is no rostrum to put it on.
    */
   const fohPos = new Vector3(
     0,
-    m.openingHeight + 1.35,
+    Math.min(m.openingHeight + 1.35, roomLid - 0.3),
     m.lipZ + Math.max(2.6, m.houseDepth * 0.42),
   );
 
@@ -599,12 +621,22 @@ export function buildLightRig(
 
   // Fly bar: the pars. Local coordinates, because they are children of the bar.
   const parSpan = Math.max(1, m.openingWidth / 2 - 0.8);
+  /**
+   * How far a can slings below the pipe, and under a soffit it slings less.
+   *
+   * The bar is now a handspan under the plaster, so the old 0.24 m yoke drop
+   * put the bottom of every can at 2.32 m — 0.08 m *inside* `HEAD_BAND.hi`,
+   * which is a par on the scroll of a double bass on the riser. Short-yoked at
+   * 0.10 m it sits at 2.49 m and clears, and clamped tight to the pipe is how a
+   * rig bolted to a ceiling looks anyway: there is no room to sling anything.
+   */
+  const parDrop = Number.isFinite(stageLid) ? -0.10 : -0.24;
   const parLocal: Vector3[] = [];
   const parWorld: Vector3[] = [];
   const parTarget: Vector3[] = [];
   for (let i = 0; i < MAX_PARS; i++) {
     const f = (i / (MAX_PARS - 1)) * 2 - 1;
-    const local = new Vector3(f * parSpan, -0.24, 0);
+    const local = new Vector3(f * parSpan, parDrop, 0);
     parLocal.push(local);
     const world = stage.flyBar.localToWorld(local.clone());
     parWorld.push(world);
@@ -613,11 +645,13 @@ export function buildLightRig(
     lantern(flyRig, local, target, 0.2, parLens);
   }
 
-  // Upstage back light: two lanterns high behind the band.
+  // Upstage back light: two lanterns high behind the band — under the soffit
+  // where there is one, since "high" upstage is still inside the room.
   const backPos: Vector3[] = [];
   const backTarget: Vector3[] = [];
+  const backY = Math.min(m.openingHeight - 0.5, stageLid - 0.35);
   for (const side of [-1, 1]) {
-    const at = new Vector3(side * m.width * 0.3, m.openingHeight - 0.5, m.backZ + 0.6);
+    const at = new Vector3(side * m.width * 0.3, backY, m.backZ + 0.6);
     const to = new Vector3(side * m.width * 0.12, 0.1, m.lipZ * 0.25);
     backPos.push(at);
     backTarget.push(to);

@@ -238,16 +238,30 @@ export const synth: Genre = {
    * mixes its comp as accompaniment — the thing holding the harmony up behind
    * whatever is in front. In this music the sequencer figure is *material*: it
    * is what the listener came for, it is what they hum afterwards, and on half
-   * this repertoire it is playing when nothing else is. 0.72 puts it a step
-   * behind the lead rather than a floor beneath it.
+   * this repertoire it is playing when nothing else is. 0.57 puts it a step
+   * behind the lead rather than a floor beneath it — which is what 0.72 said
+   * before the sequencer's own fonts turned out to be 1.27× quiet.
+   *
+   * Every number here is the one it always was, divided by the mean trim of the
+   * pool that layer draws from, so `render/source-levels.ts` did not silently
+   * re-mix the genre while making it consistent.
+   *
+   * The lead is the exception, and it is the one deliberate move: re-centring
+   * gives 1.06 and this is 1.5 dB above that. This genre's melody pool is the
+   * hottest in the project — `leadSaw`, `leadSquare` and `leadCharang` between
+   * them measured 6 to 8 dB above the catalogue median — so calibration cost
+   * the typical lead more here than anywhere else, and a synth record is one
+   * where the lead is supposed to be uncomfortably in front. Above 1 is not a
+   * mistake: a fader is not a ceiling, and the fonts underneath it peak around
+   * 0.3.
    */
   mix: {
-    melody: 0.9,
-    comp: 0.72,
-    bass: 0.86,
-    pad: 0.55,
-    counter: 0.6,
-    drums: 0.68,
+    melody: 1.27,
+    comp: 0.57,
+    bass: 0.82,
+    pad: 0.50,
+    counter: 0.50,
+    drums: 0.55,
   },
 
   /**

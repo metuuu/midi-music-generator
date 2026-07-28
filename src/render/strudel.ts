@@ -19,6 +19,7 @@
 import { SLOTS_PER_BEAT, slotOf } from '../core/grid.js';
 import { midiToNoteName, spellingFor } from '../core/pitch.js';
 import { resolveVoice } from './drum-banks.js';
+import { levelOfDrum, levelOfSound } from './source-levels.js';
 import { sweptCutoff } from '../core/types.js';
 import type {
   DrumVoice, Effects, Envelope, NoteEvent, Song, Track, Vowel,
@@ -74,12 +75,20 @@ export function renderStrudel(song: Song, opts: StrudelRenderOptions = {}): stri
     }
 
     /**
+     * The soundfont's own trim, folded in here rather than into `track.gain`.
+     *
+     * It is a fact about webaudiofont's conversion of this particular program
+     * and not about the part, so it must not reach the MIDI — which reads
+     * `track.gain` straight into channel volume. See `render/source-levels.ts`.
+     */
+    const level = levelOfSound(track.strudelSound);
+    /**
      * Per-note dynamics, as a gain grid laid on the same sixteenth slots as the
      * notes. Only emitted when the part actually has dynamics to carry — a comp
      * that plays every chord at one level gains nothing from a second grid
      * saying so, and the audition output stays readable.
      */
-    const dyn = dynamicGrid(track, meta.totalBars, slotsPerBar);
+    const dyn = dynamicGrid(track, meta.totalBars, slotsPerBar, level);
     /**
      * The same trick again for the filter: where a part's notes carry
      * brightness, the cutoff becomes a pattern on the note slots and takes the
@@ -91,7 +100,7 @@ export function renderStrudel(song: Song, opts: StrudelRenderOptions = {}): stri
       `  // ${track.layer} — ${track.instrument}`,
       `  note(\`${formatGrid(grid)}\`)`,
       `    .sound('${track.strudelSound}')`,
-      dyn ? `    .gain(\`${formatGrid(dyn)}\`)` : `    .gain(${track.gain.toFixed(2)})`,
+      dyn ? `    .gain(\`${formatGrid(dyn)}\`)` : `    .gain(${(track.gain * level).toFixed(3)})`,
       ...envelopeChain(track.envelope),
       ...effectChain(track.effects, song, sweep),
     ].join('\n'));
@@ -132,12 +141,20 @@ export function renderStrudel(song: Song, opts: StrudelRenderOptions = {}): stri
      */
     const perVoice = song.drums.voiceEffects?.[voice];
     const fx = perVoice ? { ...song.drums.effects, ...perVoice } : song.drums.effects;
+    /**
+     * Two different keys, and both are right. The fader is the voice the part
+     * was *written* as, because a tom standing in for another tom is still
+     * mixed as the tom it was written as; the trim is the voice that actually
+     * sounds, because that is the sample whose level was measured. See
+     * `render/source-levels.ts`.
+     */
+    const level = levelOfDrum(song.drums.bank, sound);
     parts.push(
       [
         `  // drums — ${voice}${sound === voice ? '' : ` (as ${sound}: ${song.drums.bank} has no ${voice})`}`,
         `  s(\`${formatGrid(bars)}\`)`,
         `    .bank('${song.drums.bank}')`,
-        `    .gain(${(song.drums.gain * (song.drums.voiceGains[voice] ?? 1)).toFixed(2)})`,
+        `    .gain(${(song.drums.gain * (song.drums.voiceGains[voice] ?? 1) * level).toFixed(3)})`,
         ...effectChain(fx, song),
       ].join('\n'),
     );
@@ -207,6 +224,33 @@ const DRIVE_MAX = 2;
 const PHASER_RATE = 0.4;
 
 /**
+ * How long a glide takes, in seconds. Fixed, for the same reason `PHASER_RATE`
+ * is: the IR carries the interval and superdough needs a time.
+ *
+ * Eighty milliseconds. A glide is heard as a slur into the note at this length
+ * and as a separate pitch event above about a fifth of a second, and the
+ * distinction is not subtle — the second one turns a lead line into a sequence
+ * of sirens. Fixed rather than proportional to the note, because portamento on
+ * the instruments this imitates is a knob setting in seconds and does not know
+ * how long the note is going to be.
+ */
+const GLIDE_SECONDS = 0.08;
+
+/**
+ * How long a filter swell takes to open, in seconds.
+ *
+ * Long, and deliberately longer than any envelope in the `Envelope` table: this
+ * is the gesture of leaning into a note that is already sounding, so it has to
+ * be slow enough that the opening is audible *as* a change rather than as the
+ * note's attack. At the tempi that ask for it — `cinematic` runs from 60 to 84
+ * BPM — one and a half seconds is under half a bar.
+ *
+ * A note shorter than this simply gets the first part of the sweep, which is
+ * the correct behaviour and the same one a real filter envelope has.
+ */
+const SWELL_SECONDS = 1.5;
+
+/**
  * Effects, as superdough controls.
  *
  * Reverb and delay are *sends*: the size of the room and the length of the echo
@@ -242,14 +286,49 @@ const PHASER_RATE = 0.4;
  *    for `phaserrate`, and superdough builds no phaser at all unless it is set,
  *    so the IR's depth has to go to `.phaserdepth()` and the rate has to be
  *    supplied here. See `PHASER_RATE`.
+ *
+ * ## The two envelopes, and why they reach a soundfont at all
+ *
+ * `glide` and `swell` are the only things in this chain that modulate a note
+ * *while it sounds*, and the reason they can is worth stating because it is not
+ * obvious from the outside: `@strudel/soundfonts` looks like a closed sampler,
+ * but its `registerSound` hands its buffer source's `detune` to superdough's
+ * own `getPitchEnvelope`, and the filter is built downstream of every source in
+ * the shared chain. So a GM patch gets a pitch envelope and a filter envelope
+ * on exactly the same terms a synthesised voice does.
+ *
+ *  - **`.penv(n)` is in semitones, and the sign is already the one wanted.**
+ *    superdough anchors the envelope to its sustain level, which defaults to 1,
+ *    so the detune runs from `-n` semitones up to zero across `pattack` and
+ *    lands the note dead in tune. A positive `glide` therefore slides *up* onto
+ *    the note, which is what the field says. `pcurve` is left at its linear
+ *    default: an exponential ramp in cents cannot pass through zero, and zero
+ *    is where every one of these has to finish.
+ *  - **`.lpenv(n)` is in octaves, and needs three companions to be a swell
+ *    rather than a blip.** superdough's filter ADSR defaults to `sustain: 0`,
+ *    so `lpenv` alone opens the filter and shuts it again inside 150 ms.
+ *    `lpsustain(1)` is what makes it stay open; the decay is set short and
+ *    harmless because with full sustain it has nothing to do. `fanchor(1)` is
+ *    the load-bearing one: it puts the sweep's *top* at the written cutoff and
+ *    its bottom `n` octaves below, so the note climbs to the brightness the era
+ *    asked for instead of overshooting it into empty spectrum. See `swell`.
  */
 function effectChain(fx: Effects | undefined, song: Song, lpf?: string): string[] {
   if (!fx) return [];
   const { space, meta } = song;
   const out: string[] = [];
+  if (fx.glide) out.push(`    .penv(${fx.glide.toFixed(2)}).pattack(${GLIDE_SECONDS})`);
   // `lpf` is the note-by-note sweep when the part has one; see `filterSweep`.
   if (lpf !== undefined) out.push(`    .lpf(${lpf})`);
   else if (fx.lowpass !== undefined) out.push(`    .lpf(${Math.round(fx.lowpass)})`);
+  // Inert without a cutoff to open from, and superdough builds no filter at all
+  // in that case — so this is skipped rather than emitted and ignored.
+  if (fx.swell && (lpf !== undefined || fx.lowpass !== undefined)) {
+    out.push(
+      `    .lpenv(${fx.swell.toFixed(2)}).lpattack(${SWELL_SECONDS})`
+      + `.lpdecay(0.01).lpsustain(1).fanchor(1)`,
+    );
+  }
   if (fx.highpass !== undefined) out.push(`    .hpf(${Math.round(fx.highpass)})`);
   if (fx.resonance !== undefined) out.push(`    .resonance(${(fx.resonance * 20).toFixed(1)})`);
   if (fx.crush !== undefined) out.push(`    .crush(${fx.crush})`);
@@ -289,6 +368,7 @@ function dynamicGrid(
   track: Track,
   totalBars: number,
   slotsPerBar: number,
+  level: number,
 ): string[][] | undefined {
   const velocities = track.notes.map((n) => n.velocity);
   if (velocities.length < 2) return undefined;
@@ -297,8 +377,10 @@ function dynamicGrid(
   // Under a couple of dB there is nothing to hear and nothing worth printing.
   if (hi - lo < 0.06) return undefined;
 
+  // The source trim rides along, so the two branches of the `.gain()` call
+  // above cannot come to disagree about how loud this font is.
   return buildValueGrid(track.notes, totalBars, slotsPerBar,
-    (n) => (track.gain * n.velocity).toFixed(2));
+    (n) => (track.gain * n.velocity * level).toFixed(3));
 }
 
 

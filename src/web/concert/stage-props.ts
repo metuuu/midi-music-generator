@@ -649,10 +649,14 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
     const n = 8;
     const brass = tint(hueShift(c.p.proscenium, 30, 0.15), 0.25);
     /** The ceiling if there is one; the fly height if the sky is open. */
-    // The house lid rather than `headroom` — these hang over the crowd, and in
-    // the cellar `headroom` is now the soffit, which is 0.35 m lower and over
-    // the stage. See `houseLid`.
-    const hang = Math.min(houseLid(c.m), c.m.flyY);
+    // The ceiling if there is one; the fly height if the sky is open — which is
+    // what the line above has always said and what `Math.min(lid, flyY)` only
+    // accidentally did. It stopped being accidental when the cellar's bar came
+    // down under its soffit: the lower of the two is now the *pipe over the
+    // stage*, and a chandelier hung at that height over the crowd is a lamp
+    // floating half a metre below the plaster it is supposed to be screwed to.
+    const lid = houseLid(c.m);
+    const hang = Number.isFinite(lid) ? lid : c.m.flyY;
     const stem = 0.08;
     const bulbDrop = 0.07;
     const bulbR = 0.05 * 1.2;

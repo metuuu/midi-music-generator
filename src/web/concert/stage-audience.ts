@@ -42,6 +42,60 @@ import { blend, shade, type Kit, type Quality } from './stage-kit.js';
 
 const CAP: Record<Quality, number> = { low: 48, medium: 96, high: 168 };
 
+/**
+ * How a house is laid out, in one place, because two files need it.
+ *
+ * These were literals inside `buildAudience` and one of them — the row gap —
+ * was *also* a literal in `stage.ts`, where `houseDepth` is derived from it.
+ * That is the kind of duplication that stays correct right up until somebody
+ * seats the crowd closer together and the room does not follow.
+ */
+const ROW = {
+  /** Downstage face of the first row, upstage of the lip. */
+  frontZ: 1.35,
+  seated: { gap: 0.95, rake: 0.1, head: 1.14 },
+  standing: { gap: 0.8, rake: 0.05, head: 1.58 },
+} as const;
+
+/** The gap between rows a house of this kind is built with. */
+export function rowGap(seated: boolean): number {
+  return (seated ? ROW.seated : ROW.standing).gap;
+}
+
+/** Where the crowd is, for anything that has to keep out of it. */
+export interface CrowdExtent {
+  /** Nothing downstage of this is in the crowd at all. */
+  frontZ: number;
+  /** The back of the last row. */
+  backZ: number;
+  /** The top of the tallest head in the house, jitter and bobbing included. */
+  topY: number;
+}
+
+/**
+ * The volume the audience occupies, from the numbers that place it.
+ *
+ * `camera.ts` is the caller that matters: a lens is solved from framing, and
+ * framing has no opinion about whether the answer is inside somebody's head.
+ * It was, and the reason it took a room rebuild to notice is that the crowd
+ * used to sit half a metre lower — the shot heights that skimmed the back of
+ * the house came down with the boards, and the heads did not.
+ */
+export function crowdExtent(
+  audience: Venue['audience'], houseY: number, lipZ: number,
+): CrowdExtent {
+  const rows = Math.max(1, Math.min(16, Math.round(audience.rows)));
+  const r = audience.seated ? ROW.seated : ROW.standing;
+  const back = rows - 1;
+  return {
+    frontZ: lipZ + ROW.frontZ - 0.35,
+    backZ: lipZ + ROW.frontZ + back * r.gap + 0.35,
+    // The head jitter tops out at +0.07 and the idle bob and applause lift add
+    // about another 0.1 between them. Rounded up, because this is a clearance.
+    topY: houseY + back * r.rake + r.head + 0.2,
+  };
+}
+
 interface Person {
   x: number;
   /** Head height above the house floor for this row. */
@@ -95,22 +149,22 @@ export function buildAudience(o: AudienceOptions): AudienceRig {
 
   // --- who is in the room ------------------------------------------------
   const spacing = seated ? 0.66 : 0.58;
-  const rowGap = seated ? 0.95 : 0.8;
+  const r = seated ? ROW.seated : ROW.standing;
   const perRow = Math.max(3, Math.min(30, Math.floor(o.houseWidth / spacing)));
   const cap = CAP.high;
   const people: Person[] = [];
 
   // Front row first, so thinning for quality thins the back of the house.
-  outer: for (let r = 0; r < rows; r++) {
-    const z = o.lipZ + 1.35 + r * rowGap;
-    const rake = r * (seated ? 0.1 : 0.05);
-    const stagger = (r % 2) * spacing * 0.5;
+  outer: for (let row = 0; row < rows; row++) {
+    const z = o.lipZ + ROW.frontZ + row * r.gap;
+    const rake = row * r.rake;
+    const stagger = (row % 2) * spacing * 0.5;
     for (let s = 0; s < perRow; s++) {
       if (people.length >= cap) break outer;
       // Density is an occupancy, not a scale: an empty row has gaps in it.
       if (!rng.chance(density * 0.92 + 0.08)) continue;
       const base = (s - (perRow - 1) / 2) * spacing + stagger;
-      const head = (seated ? 1.14 : 1.58) + rng.float(-0.06, 0.07);
+      const head = r.head + rng.float(-0.06, 0.07);
       people.push({
         x: base + rng.float(-0.08, 0.08),
         y: o.houseY + rake + head,

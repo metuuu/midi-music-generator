@@ -172,46 +172,72 @@ const berlin: Style = {
      * and the accent row — a strong step on every bar head, a lesser one on
      * every beat — is what a sequencer's accent switches actually do.
      *
+     * **Seven steps are missing, and they are the reason this reads as a
+     * sequence rather than as a texture.** A gate switch that is on for all
+     * sixty-four steps produces an unbroken stream of sixteenths, and an
+     * unbroken stream has no figure in it to remember — which is what this
+     * pattern was for as long as every step fired. The gaps fall at the end of
+     * bar two, in the middle of bar three and across the last beat of bar four,
+     * so no two bars of the four have the same silhouette.
+     *
+     * They also make the arithmetic work. Fifty-seven steps against an
+     * eight-rung ladder leaves a remainder of one, so each pass through the
+     * four bars starts one rung further up than the last and the figure takes
+     * eight passes — thirty-two bars — to return to where it began. A
+     * gapless sixty-four would have divided the ladder exactly and come back
+     * every four.
+     *
      * Written out rather than generated because the accent row is the part
      * anyone would want to edit, and a loop that emitted it would hide exactly
      * the thing worth reading.
      */
-    { name: 'sequence-4-bar', weight: 6, voices: 4, arpeggio: true, cycle: 64, hits: [
+    { name: 'sequence-4-bar', weight: 6, voices: 4, arpeggio: true, arpOctaves: 2, cycle: 64, hits: [
       { at: 0, dur: 1, vel: 0.54 }, { at: 1, dur: 1, vel: 0.36 }, { at: 2, dur: 1, vel: 0.42 }, { at: 3, dur: 1, vel: 0.36 },
       { at: 4, dur: 1, vel: 0.48 }, { at: 5, dur: 1, vel: 0.36 }, { at: 6, dur: 1, vel: 0.42 }, { at: 7, dur: 1, vel: 0.36 },
       { at: 8, dur: 1, vel: 0.48 }, { at: 9, dur: 1, vel: 0.36 }, { at: 10, dur: 1, vel: 0.42 }, { at: 11, dur: 1, vel: 0.36 },
       { at: 12, dur: 1, vel: 0.48 }, { at: 13, dur: 1, vel: 0.36 }, { at: 14, dur: 1, vel: 0.42 }, { at: 15, dur: 1, vel: 0.36 },
       { at: 16, dur: 1, vel: 0.54 }, { at: 17, dur: 1, vel: 0.36 }, { at: 18, dur: 1, vel: 0.42 }, { at: 19, dur: 1, vel: 0.36 },
-      { at: 20, dur: 1, vel: 0.48 }, { at: 21, dur: 1, vel: 0.36 }, { at: 22, dur: 1, vel: 0.42 }, { at: 23, dur: 1, vel: 0.36 },
+      { at: 20, dur: 1, vel: 0.48 }, { at: 21, dur: 1, vel: 0.36 }, { at: 22, dur: 1, vel: 0.42 },
       { at: 24, dur: 1, vel: 0.48 }, { at: 25, dur: 1, vel: 0.36 }, { at: 26, dur: 1, vel: 0.42 }, { at: 27, dur: 1, vel: 0.36 },
-      { at: 28, dur: 1, vel: 0.48 }, { at: 29, dur: 1, vel: 0.36 }, { at: 30, dur: 1, vel: 0.42 }, { at: 31, dur: 1, vel: 0.36 },
-      { at: 32, dur: 1, vel: 0.54 }, { at: 33, dur: 1, vel: 0.36 }, { at: 34, dur: 1, vel: 0.42 }, { at: 35, dur: 1, vel: 0.36 },
+      { at: 28, dur: 1, vel: 0.48 }, { at: 29, dur: 1, vel: 0.36 }, { at: 30, dur: 1, vel: 0.42 },
+      { at: 32, dur: 1, vel: 0.54 }, { at: 33, dur: 1, vel: 0.36 }, { at: 34, dur: 1, vel: 0.42 },
       { at: 36, dur: 1, vel: 0.48 }, { at: 37, dur: 1, vel: 0.36 }, { at: 38, dur: 1, vel: 0.42 }, { at: 39, dur: 1, vel: 0.36 },
-      { at: 40, dur: 1, vel: 0.48 }, { at: 41, dur: 1, vel: 0.36 }, { at: 42, dur: 1, vel: 0.42 }, { at: 43, dur: 1, vel: 0.36 },
+      { at: 40, dur: 1, vel: 0.48 }, { at: 41, dur: 1, vel: 0.36 }, { at: 42, dur: 1, vel: 0.42 },
       { at: 44, dur: 1, vel: 0.48 }, { at: 45, dur: 1, vel: 0.36 }, { at: 46, dur: 1, vel: 0.42 }, { at: 47, dur: 1, vel: 0.36 },
       { at: 48, dur: 1, vel: 0.54 }, { at: 49, dur: 1, vel: 0.36 }, { at: 50, dur: 1, vel: 0.42 }, { at: 51, dur: 1, vel: 0.36 },
-      { at: 52, dur: 1, vel: 0.48 }, { at: 53, dur: 1, vel: 0.36 }, { at: 54, dur: 1, vel: 0.42 }, { at: 55, dur: 1, vel: 0.36 },
+      { at: 52, dur: 1, vel: 0.48 }, { at: 53, dur: 1, vel: 0.36 }, { at: 54, dur: 1, vel: 0.42 },
       { at: 56, dur: 1, vel: 0.48 }, { at: 57, dur: 1, vel: 0.36 }, { at: 58, dur: 1, vel: 0.42 }, { at: 59, dur: 1, vel: 0.36 },
-      { at: 60, dur: 1, vel: 0.48 }, { at: 61, dur: 1, vel: 0.36 }, { at: 62, dur: 1, vel: 0.42 }, { at: 63, dur: 1, vel: 0.36 },
+      { at: 60, dur: 1, vel: 0.48 }, { at: 61, dur: 1, vel: 0.36 },
     ] },
-    /** The same machine set to two bars. Three voices, so it turns over faster. */
-    { name: 'sequence-2-bar', weight: 4, voices: 3, arpeggio: true, cycle: 32, hits: [
+    /**
+     * The same machine set to two bars, and set to walk up and back down.
+     *
+     * Three voices over two octaves is six rungs, which the fold turns into
+     * ten — so this pattern's thirty-two steps and its ladder share no factor
+     * but two, and the figure needs five passes to come home. The `updown`
+     * is not decoration: it is what makes ten out of six.
+     */
+    { name: 'sequence-2-bar', weight: 4, voices: 3, arpeggio: true, arpDirection: 'updown', arpOctaves: 2, cycle: 32, hits: [
       { at: 0, dur: 1, vel: 0.52 }, { at: 1, dur: 1, vel: 0.36 }, { at: 2, dur: 1, vel: 0.42 }, { at: 3, dur: 1, vel: 0.36 },
-      { at: 4, dur: 1, vel: 0.46 }, { at: 5, dur: 1, vel: 0.36 }, { at: 6, dur: 1, vel: 0.42 }, { at: 7, dur: 1, vel: 0.36 },
+      { at: 4, dur: 1, vel: 0.46 }, { at: 5, dur: 1, vel: 0.36 }, { at: 6, dur: 1, vel: 0.42 },
       { at: 8, dur: 1, vel: 0.46 }, { at: 9, dur: 1, vel: 0.36 }, { at: 10, dur: 1, vel: 0.42 }, { at: 11, dur: 1, vel: 0.36 },
       { at: 12, dur: 1, vel: 0.46 }, { at: 13, dur: 1, vel: 0.36 }, { at: 14, dur: 1, vel: 0.42 }, { at: 15, dur: 1, vel: 0.36 },
       { at: 16, dur: 1, vel: 0.52 }, { at: 17, dur: 1, vel: 0.36 }, { at: 18, dur: 1, vel: 0.42 }, { at: 19, dur: 1, vel: 0.36 },
-      { at: 20, dur: 1, vel: 0.46 }, { at: 21, dur: 1, vel: 0.36 }, { at: 22, dur: 1, vel: 0.42 }, { at: 23, dur: 1, vel: 0.36 },
+      { at: 20, dur: 1, vel: 0.46 }, { at: 21, dur: 1, vel: 0.36 }, { at: 22, dur: 1, vel: 0.42 },
       { at: 24, dur: 1, vel: 0.46 }, { at: 25, dur: 1, vel: 0.36 }, { at: 26, dur: 1, vel: 0.42 }, { at: 27, dur: 1, vel: 0.36 },
-      { at: 28, dur: 1, vel: 0.46 }, { at: 29, dur: 1, vel: 0.36 }, { at: 30, dur: 1, vel: 0.42 }, { at: 31, dur: 1, vel: 0.36 },
+      { at: 28, dur: 1, vel: 0.46 }, { at: 29, dur: 1, vel: 0.36 }, { at: 30, dur: 1, vel: 0.42 },
     ] },
     /**
      * Twenty-four steps: a bar and a half, in eighths. It arrives on the
      * downbeat every third bar and on the *and* of 3 in between, which is the
      * cheapest way this genre has of making four bars sound like something other
      * than four bars.
+     *
+     * The one descending figure in the style. A falling sequence under a rising
+     * lead is the oldest trick in this repertoire and it was unreachable while
+     * every arpeggio in the project walked upward.
      */
-    { name: 'sequence-twelve-eighths', weight: 3, voices: 5, arpeggio: true, cycle: 24, hits: [
+    { name: 'sequence-twelve-eighths', weight: 3, voices: 5, arpeggio: true, arpDirection: 'down', cycle: 24, hits: [
       { at: 0, dur: 2, vel: 0.5 }, { at: 2, dur: 2, vel: 0.38 },
       { at: 4, dur: 2, vel: 0.46 }, { at: 6, dur: 2, vel: 0.38 },
       { at: 8, dur: 2, vel: 0.46 }, { at: 10, dur: 2, vel: 0.38 },
@@ -227,17 +253,25 @@ const berlin: Style = {
    * the main sequence has become furniture.
    */
   counterPatterns: [
-    { name: 'phase-12', weight: 5, voices: 3, arpeggio: true, cycle: 12, hits: [
+    /** Six steps against a four-rung ladder: the pair rotate by two a bar. */
+    { name: 'phase-12', weight: 5, voices: 3, arpeggio: true, arpDirection: 'updown', cycle: 12, hits: [
       { at: 0, dur: 2, vel: 0.44 }, { at: 2, dur: 2, vel: 0.34 },
       { at: 4, dur: 2, vel: 0.4 }, { at: 6, dur: 2, vel: 0.34 },
       { at: 8, dur: 2, vel: 0.4 }, { at: 10, dur: 2, vel: 0.34 },
     ] },
-    { name: 'phase-20', weight: 4, voices: 4, arpeggio: true, cycle: 20, hits: [
+    /**
+     * Five steps against eight rungs, on a cycle of twenty against a bar of
+     * sixteen. Nothing in this pattern shares a factor with anything else in
+     * it, and it takes forty bars to repeat exactly — which is roughly the
+     * length of a side, and is the point.
+     */
+    { name: 'phase-20', weight: 4, voices: 4, arpeggio: true, arpOctaves: 2, cycle: 20, hits: [
       { at: 0, dur: 3, vel: 0.44 }, { at: 4, dur: 3, vel: 0.36 },
       { at: 8, dur: 3, vel: 0.4 }, { at: 12, dur: 3, vel: 0.36 },
       { at: 16, dur: 3, vel: 0.4 },
     ] },
-    { name: 'phase-6', weight: 3, voices: 3, arpeggio: true, cycle: 6, hits: [
+    /** The shortest one, falling, so it reads against the rising main figure. */
+    { name: 'phase-6', weight: 3, voices: 3, arpeggio: true, arpDirection: 'down', cycle: 6, hits: [
       { at: 0, dur: 2, vel: 0.42 }, { at: 3, dur: 2, vel: 0.34 },
     ] },
   ],
@@ -416,8 +450,13 @@ const cinematic: Style = {
      * A broken chord, not a sequence. It arpeggiates within the bar and restarts
      * at every barline, which is what a player does and the opposite of what
      * `cycle` would do.
+     *
+     * `updown` for the same reason: a hand rolling a chord under a held melody
+     * note goes up and comes back, where a machine goes up and starts again
+     * from the bottom. Six rungs against four hits a bar also means the turn
+     * lands in a different place every bar without any cycle being involved.
      */
-    { name: 'broken-chord', weight: 3, voices: 4, arpeggio: true, hits: [
+    { name: 'broken-chord', weight: 3, voices: 4, arpeggio: true, arpDirection: 'updown', hits: [
       { at: 0, dur: 4, vel: 0.44 },
       { at: 4, dur: 4, vel: 0.36 },
       { at: 8, dur: 4, vel: 0.4 },

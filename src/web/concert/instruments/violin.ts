@@ -28,7 +28,7 @@
 import {
   BoxGeometry, type BufferGeometry, CapsuleGeometry, CylinderGeometry,
   ExtrudeGeometry, Group, InstancedMesh, type Material, Matrix4, Mesh,
-  MeshStandardMaterial, Shape, Vector3,
+  MeshStandardMaterial, Quaternion, Shape, Vector3,
 } from 'three';
 
 import type { GestureKind, PlayPoint } from '../../../concert/types.js';
@@ -123,6 +123,46 @@ const BOW_SPEED = 0.085;
 const BOW_MIN_STROKE = 0.085;
 /** How far the bow lifts off the string on a rest. A visible, small thing. */
 const BOW_LIFT = 0.030;
+
+/**
+ * Standing down: the bow goes with the hand, because the hand is holding it.
+ *
+ * The bow is a child of the instrument, so when the runtime lowers a violin off
+ * the chin the bow came down with it — still lying across the strings, still at
+ * the playing angle, with nothing at the frog. The bowing arm had meanwhile gone
+ * to the player's hip, which is what `AT_EASE` says it does. A bow held by
+ * nobody, at the one moment there is time to look at it.
+ *
+ * So the carried pose is stated the way the object actually is: the frog in the
+ * hand, the stick hanging off it. `carryBow` blends between that and the playing
+ * pose, and it can only be the runtime that drives it — the hand's position is
+ * the rig's business and the model has never been able to see it.
+ *
+ * `CARRY_FULL` is how far into the stand-down the bow is fully in the hand
+ * rather than partly on the strings. Short, and short on purpose: the two ends
+ * of the blend are a few centimetres apart at the moment it starts — the model's
+ * frog against wherever the idle layer has drifted the hand — so a blend that
+ * took the whole stand-down would spend it visibly closing that gap. Past this
+ * the frog *is* the hand and the two travel to the hip together.
+ *
+ * `FROG_DIR` is which way down the stick the frog lies in the pivot's own frame.
+ * `+z` here and `−z` on the cello, which is the whole reason it is a constant
+ * and not a literal — see the note on `bow.position` in `placeBow`.
+ */
+const CARRY_FULL = 0.5;
+const FROG_DIR = new Vector3(0, 0, Math.sign(FROG_Z));
+/** Frog to tip. The stick is a shade longer; this is the part that can hit. */
+const BOW_REACH = Math.abs(FROG_Z) * 2;
+/** The tip clears the boards by this much, which is what tilts a low bow up. */
+const BOW_FLOOR = 0.10;
+
+// Scratch for the carry, which runs per frame per bowed player and may not
+// allocate. See `hangBow`.
+const C1 = new Vector3();
+const C2 = new Vector3();
+const C3 = new Vector3();
+const CM = new Matrix4();
+const CQ = new Quaternion();
 
 /**
  * The runtime's own easing, because the bow has to ride the same curve.
@@ -448,12 +488,24 @@ function bowPivotY(z: number, lift: number): number {
  * the runtime displaces the hand from it by however far along the travel the
  * bow has got, which is the one number both sides compute the same way. See
  * `BOW_LEAN`.
+ *
+ * `STICK_Y` is the last centimetre of "the hand is a bit above the bow", and it
+ * is a discrepancy between what this file draws and what it publishes rather
+ * than a matter of taste. `bowPivot` is the *hair-string crossing*, so its axis
+ * is a construction line: the hair hangs 1.5 mm under it, the stick 10 mm and
+ * the frog's own centre 8. The contact used to be on the axis, which is a hand
+ * placed against a line that has no bow on it. Measured off the stick mesh, so
+ * moving the stick moves the hand.
  */
+const STICK_Y = -0.010;
+
 function bowContactAt(mount: Matrix4, z: number, lift: number): Contact {
   const t = frogTilt(z);
   return {
     position: new Vector3(
-      BOW_X, bowPivotY(z, lift) - Math.sin(t) * FROG_Z, z + Math.cos(t) * FROG_Z,
+      BOW_X,
+      bowPivotY(z, lift) + Math.cos(t) * STICK_Y - Math.sin(t) * FROG_Z,
+      z + Math.sin(t) * STICK_Y + Math.cos(t) * FROG_Z,
     ).applyMatrix4(mount),
     normal: arcNormal(z).transformDirection(mount),
     // Down the stick: a bow hold spaces the fingers along it, thumb at the frog.
@@ -517,6 +569,15 @@ export interface ViolinModel extends InstrumentModel {
    * `soundingContact` placed. Hide it if the performer rig carries its own.
    */
   bow: Group;
+  /**
+   * Carry the bow in the bowing hand rather than on the strings.
+   *
+   * `down` is how far that hand has let go of the instrument, 0..1, and `hand`
+   * is where it actually is in world space — the runtime knows both and the
+   * model can see neither. At 0 the bow is played; above it the frog moves into
+   * the hand and the stick hangs from it. See `CARRY_FULL`.
+   */
+  carryBow(down: number, hand: Vector3): void;
 }
 
 export const buildViolin: InstrumentBuilder = (opts) => {
@@ -726,6 +787,9 @@ export const buildViolin: InstrumentBuilder = (opts) => {
   let leanTo = 0;
   /** Off the string, on a rest. Starts lifted: nothing has been played yet. */
   let lift = BOW_LIFT;
+  /** How far the bow has gone to the hand, and where that hand is. `carryBow`. */
+  let carried = 0;
+  const carriedHand = new Vector3();
   /**
    * Which string, when the stroke started, and how long the last one lasted.
    *
@@ -815,7 +879,13 @@ export const buildViolin: InstrumentBuilder = (opts) => {
     // Turned about the string it is on, which is what makes crossing to the E
     // look like a different movement from crossing to the G. Not quite the
     // arc's own tangent — see `frogTilt`.
-    bowPivot.rotation.x = frogTilt(z);
+    //
+    // All three axes, not just the one that carries the tilt. `hangBow` writes
+    // a whole quaternion, three.js back-fills the Euler from it, and every
+    // player is at ease before the cue — so assigning `rotation.x` alone left
+    // the carry's yaw and roll on the pivot for the rest of the number, which
+    // is a bow skewed off the strings that no stroke could straighten.
+    bowPivot.rotation.set(frogTilt(z), 0, 0);
 
     // And the stroke is a slide down the stick and nothing else: the crossing
     // point stays on the string, the frog runs up and down the hair, and the
@@ -827,6 +897,78 @@ export const buildViolin: InstrumentBuilder = (opts) => {
     // and opposite on the cello, whose frog is at `−z`, and taking the frog's
     // side would have sent that bow the other way from its own hand.
     bow.position.set(0, 0, lean);
+
+    // And then, if the player is standing down, none of the above: the bow is
+    // in their hand rather than on their instrument. It is still computed
+    // first, because `hangBow` blends *from* it and reads the pose it just set.
+    if (carried > 0.001) hangBow();
+  }
+
+  /**
+   * Take the bow off the strings and hang it from the bowing hand.
+   *
+   * Everything here is a rigid stick described by two things — which way it
+   * points and where its frog is — because those are the two the blend has to
+   * be continuous in and because the second of them is given in world space by
+   * a runtime that has never heard of the pivot.
+   *
+   *  - **Pointing.** `tip → frog`, which is `FROG_DIR` turned by whatever
+   *    `placeBow` just decided. The carried answer is straight up, so the stick
+   *    hangs; tilted off vertical only when there is not the height under the
+   *    hand to hang it in, which is a seated cellist and very occasionally a
+   *    short violinist. The tilt goes the way the tip already lies, so the bow
+   *    swings down out of the playing pose and stops early rather than
+   *    sweeping round to some unrelated side.
+   *  - **The frog.** The hand, once the blend is in — the hand is *holding* it.
+   *
+   * The pose is then written back through the pivot, since that is what the
+   * scene graph has: the pivot takes the whole orientation and sits one frog's
+   * worth back up the stick, and `bow.position` keeps the stroke it already had.
+   * At `carried = 0` this reproduces `placeBow` exactly — the minimal rotation
+   * from `FROG_DIR` to `FROG_DIR` turned about `x` *is* that turn about `x` —
+   * which is what makes the two ends of the blend one continuous motion.
+   */
+  /** Pivot to the hand's grip on the stick, turned by `q`. See `STICK_Y`. */
+  function gripOffset(q: Quaternion, out: Vector3): Vector3 {
+    return out.set(0, STICK_Y, FROG_Z + lean).applyQuaternion(q);
+  }
+
+  function hangBow(): void {
+    // The pivot's own frame, this frame. Read rather than cached because the
+    // runtime lowers `root` as the player stands down, which is exactly the
+    // thing being answered here.
+    inst.updateWorldMatrix(true, false);
+    CM.copy(inst.matrixWorld);
+
+    // The playing pose, in world: where the hand has the stick, and which way
+    // the stick runs from its tip to its frog. The same offset the contact is
+    // published at, so the bow arrives *in* the hand rather than beside it.
+    C3.copy(bowPivot.position).add(gripOffset(bowPivot.quaternion, C2)).applyMatrix4(CM);
+    C1.copy(FROG_DIR).applyQuaternion(bowPivot.quaternion).transformDirection(CM);
+
+    // The carried one: hanging, tilted up only as far as the boards insist.
+    const rise = Math.min(Math.max((carriedHand.y - BOW_FLOOR) / BOW_REACH, 0.3), 1);
+    C2.set(-C1.x, 0, -C1.z);
+    if (C2.lengthSq() < 1e-8) C2.set(0, 0, 1);
+    C2.normalize().multiplyScalar(Math.sqrt(1 - rise * rise));
+    C2.y = -rise;
+    C2.negate();
+
+    const t = smooth(Math.min(carried / CARRY_FULL, 1));
+    // A lerp between two directions collapses if they are ever exactly
+    // opposed, which these are not and which is one line to be sure of.
+    C1.lerp(C2, t);
+    if (C1.lengthSq() < 1e-6) C1.copy(C2);
+    C1.normalize();
+    C3.lerp(carriedHand, t);
+
+    // Back into the frame the pivot is placed in, and back onto the pivot:
+    // the whole orientation, and then one grip's worth back up the stick.
+    CM.invert();
+    C1.transformDirection(CM);
+    C3.applyMatrix4(CM);
+    bowPivot.quaternion.copy(CQ.setFromUnitVectors(FROG_DIR, C1));
+    bowPivot.position.copy(C3).sub(gripOffset(CQ, C2));
   }
   placeBow();
 
@@ -877,6 +1019,14 @@ export const buildViolin: InstrumentBuilder = (opts) => {
       const i = point.string;
       if (!Number.isInteger(i) || i < 0 || i >= STRINGS) return undefined;
       return bowContactAt(mount, stringZ(i, BOW_X), 0);
+    },
+
+    carryBow(down: number, hand: Vector3): void {
+      const c = Math.min(Math.max(down, 0), 1);
+      if (c <= 0 && carried <= 0) return;
+      carried = c;
+      if (c > 0) carriedHand.copy(hand);
+      placeBow();
     },
 
     react(

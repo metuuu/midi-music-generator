@@ -121,6 +121,11 @@ const MAX_FOV = 66;
 const MIN_SHOT_BARS = 4;
 
 /**
+ * How soon after a cut its subject has to be playing, in bars. See `playsFrom`.
+ */
+const ENTRY_BARS = 2;
+
+/**
  * How far downstage of the wide shot's aim point the front row stands, as a
  * fraction of the stage depth.
  *
@@ -356,6 +361,33 @@ export function createDirector(reducedMotion = false): CameraDirector {
   }
 
   /**
+   * Over the crowd, or in front of it. Never through it.
+   *
+   * The room has always been solved for and the *people in it* never were: a
+   * lens gets its height from what it is framing and its distance from how wide
+   * that is, and neither of those has an opinion about whose head is in the
+   * way. Every shot standing back far enough — the wide at `maxDistance`, a
+   * front-on across a broad stage — puts the camera somewhere in the seats, and
+   * the only reason it was not obviously wrong before is that the house floor
+   * used to be 0.9 m down, which bought the shot heights half a metre of
+   * accidental clearance. The boards came down to `CELLAR_RISE`, the crowd came
+   * up with them, and the accident ran out.
+   *
+   * Downstage of the front row this does nothing — that is open floor between
+   * the lip and the first table, and it is where the close shots live. Behind
+   * that line the lens goes over the heads or it does not go there.
+   *
+   * The ceiling still wins. In a room too low to fly the camera over its own
+   * audience the honest answer is a shot with somebody's head in the near
+   * foreground, which is a jazz photograph, rather than a lens inside it.
+   */
+  function clearCrowd(v: Vector3): void {
+    const c = metrics?.crowd;
+    if (!c || v.z < c.frontZ) return;
+    v.y = Math.min(Math.max(v.y, c.topY + 0.3), ceiling());
+  }
+
+  /**
    * How far back the wide shot has to stand for the front of the stage to be in
    * shot at all.
    *
@@ -542,6 +574,7 @@ export function createDirector(reducedMotion = false): CameraDirector {
      * is exactly what a guard rail should do the day it is installed.
      */
     wanted.y = Math.max(Math.min(wanted.y, ceiling()), houseFloor());
+    clearCrowd(wanted);
   }
 
   return {
@@ -632,6 +665,10 @@ export function createDirector(reducedMotion = false): CameraDirector {
           wantedFocus.y + Math.sin(p) * r,
           wantedFocus.z + Math.cos(yaw) * Math.cos(p) * r,
         );
+        // The pitch limits are solved against the room's two surfaces; the
+        // crowd is neither, and swinging round the back of the house at wide
+        // radius is exactly the move that ends up inside it.
+        clearCrowd(wanted);
       }
 
       /**
@@ -755,22 +792,24 @@ function planShots(
      * that it does not form those: a bridge with no tune in it is a band
      * moment, and the wide shot is what a band moment looks like.
      *
-     * The window is the shot's, not the section's, and the difference is a real
-     * one: a melody that rests through a bridge and comes back with a pickup
-     * into the solo *does* sound inside that section, one beat before the end
-     * of it, four bars after this shot has already cut away. So the test runs
-     * to wherever the picture goes next — the mid-section cut where the section
-     * is long enough to take one, the section end otherwise.
+     * And it is the *top* of the shot that has to be playing, which is a
+     * stricter thing than the shot containing a note somewhere — see
+     * `playsFrom`. Asking the looser question left the fault it was written to
+     * fix half in place: a melody that rests through a bridge and comes back
+     * with a pickup into the next section sounds inside this shot, one beat
+     * before the end of it, and the picture is on a still player for the four
+     * bars before that.
      *
-     * The draw stays where it was. `rng.chance` is spent before the new test,
-     * so a shot list is either the same as it was or one shot wider — nothing
+     * The draw stays where it was. `rng.chance` is spent before the test, so a
+     * shot list is either the same as it was or one shot wider — nothing
      * downstream of this section's stream moves.
      */
     const half = Math.floor(section.lengthBars / 2);
     const canCut = section.lengthBars >= MIN_SHOT_BARS * 3 && !!drummer;
     const midCut = at + half * beatsPerBar;
     const closeUp = !isBig && lead && rng.chance(0.35)
-      && leadLayer !== undefined && soundsIn(song, leadLayer, at, canCut ? midCut : over);
+      && leadLayer !== undefined
+      && playsFrom(song, leadLayer, at, canCut ? midCut : over, beatsPerBar);
     shots.push(closeUp
       ? { beat: at, framing: 'front', subject: { kind: 'performer', performerId: lead }, push }
       : { beat: at, framing: 'wide', subject: { kind: 'stage' }, push });
@@ -780,13 +819,20 @@ function planShots(
      * shot at 60 BPM is thirty-two seconds of one picture, which is a still
      * photograph with sound.
      *
-     * Only where the kit is actually going in the half this lands in. A
-     * drummer exists as soon as the number contains one drum event anywhere,
-     * so "there is a drummer" says nothing about whether they are playing in
-     * bar nine — and a low, close shot up at a motionless kit is the most
-     * conspicuous still frame the stage can produce.
+     * Only where the kit is actually going *as this lands*. A drummer exists
+     * as soon as the number contains one drum event anywhere, so "there is a
+     * drummer" says nothing about whether they are playing in bar nine — and a
+     * low, close shot up at a motionless kit is the most conspicuous still
+     * frame the stage can produce.
+     *
+     * Anywhere in the half is not the same question, and the difference is the
+     * fault: a kit that lays out over a quiet second half and comes back with a
+     * fill into the next chorus has a drum event in this window, at the far end
+     * of it, and the shot was eight bars of a drummer sitting still followed by
+     * one bar of playing. `playsFrom` asks the question the picture cares
+     * about.
      */
-    if (canCut && rng.chance(0.5) && soundsIn(song, 'drums', midCut, over)) {
+    if (canCut && rng.chance(0.5) && playsFrom(song, 'drums', midCut, over, beatsPerBar)) {
       shots.push({
         beat: midCut,
         framing: 'low',
@@ -816,4 +862,36 @@ function soundsIn(song: Song, layer: LayerId, from: number, to: number): boolean
   if (layer === 'drums') return song.drums.events.some((e) => e.beat >= from && e.beat < to);
   return song.tracks.some((t) => t.layer === layer
     && t.notes.some((n) => n.beat >= from && n.beat < to));
+}
+
+/**
+ * Whether a layer is playing *when the camera arrives*.
+ *
+ * The test every shot that names a player is gated on, and the one `soundsIn`
+ * on its own gets wrong. A gallery does not cut to a player because they will
+ * eventually do something in the next sixteen bars; it cuts to a player who is
+ * going now, because a cut is an assertion that this is where the music is. Ask
+ * only whether the window contains a note and the two worst cases pass it — a
+ * horn that comes back with a pickup on the last beat of the shot, and a kit
+ * that lays out and returns with a fill into the next chorus. Both put the lens
+ * on somebody sitting still for the whole shot and then cut away as they start,
+ * which is the exact opposite of the shot that was wanted, and both were
+ * happening: about one shot in twenty across the four genres, and the drum
+ * version is the most visible of all because the low shot fills the frame with
+ * hands that are not moving.
+ *
+ * Two bars, not one. A bar is short enough that a snare answering on beat 3 of
+ * bar two reads as a late entry rather than as silence, and long enough that
+ * nothing musical needs a third — a player who has not moved in two bars is not
+ * about to be the subject of anything.
+ *
+ * The whole rest of the shot is deliberately not tested. A soloist who finishes
+ * their phrase two bars before the cut is a phrase ending, which is a normal
+ * shape for music and a good one to be watching; the shot is about who is
+ * playing, and by then they have played.
+ */
+function playsFrom(
+  song: Song, layer: LayerId, from: number, to: number, beatsPerBar: number,
+): boolean {
+  return soundsIn(song, layer, from, Math.min(to, from + ENTRY_BARS * beatsPerBar));
 }

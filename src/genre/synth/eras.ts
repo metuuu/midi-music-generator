@@ -63,6 +63,7 @@ import type { EraProfile } from '../../style/types.js';
  */
 const modular: EraProfile = {
   id: 'modular',
+  year: 1974,
   label: '1972–77 modular',
   description:
     'Monophonic leads and step sequencers. Filter sweeps by hand, string machines, phaser, and a preset rhythm box for a drummer.',
@@ -131,7 +132,14 @@ const modular: EraProfile = {
     // Resonance, everywhere, because a ladder filter near self-oscillation is
     // what a hand on a cutoff knob is *for*. The later eras drop it: a DX7 has
     // no resonant filter at all, having no filter at all.
-    melody: { reverb: 0.5, delay: 0.35, lowpass: 5000, resonance: 0.35, phaser: 0.2 },
+    //
+    // `glide` is the other knob on the same panel. A Minimoog is monophonic and
+    // has a portamento control next to the pitch wheel, and the reason it is
+    // set modestly here rather than at the polysynth's depth is that this era's
+    // lead is competing with a sixteenth-note sequence: a long slide smears
+    // against a hard grid, which is precisely why the next era could afford
+    // more of it and this one could not.
+    melody: { reverb: 0.5, delay: 0.35, lowpass: 5000, resonance: 0.35, phaser: 0.2, glide: 1.5 },
     counter: { reverb: 0.55, delay: 0.45, lowpass: 4200, resonance: 0.3, phaser: 0.3 },
     bass: { reverb: 0.06, lowpass: 800, resonance: 0.25 },
     // The rhythm box is a piece of furniture in the room, not a kit in a
@@ -165,6 +173,7 @@ const modular: EraProfile = {
  */
 const polysynth: EraProfile = {
   id: 'polysynth',
+  year: 1981,
   label: '1978–83 polysynth',
   description:
     'Prophet, CS-80 and Jupiter. Real polyphony, memories, brass swells, vocoders, and drum machines you program yourself.',
@@ -219,9 +228,29 @@ const polysynth: EraProfile = {
     // its neighbours, which is not an absence of character — a Jupiter chorus
     // is wide and clean, and the wideness is in the instrument rather than in a
     // pedal in front of it.
-    pad: { reverb: 0.75, lowpass: 6000 },
+    // The swell on the pad is smaller than the lead's and is there for the
+    // held-chord half of this repertoire: a string patch that arrives at its
+    // brightness rather than starting there is the difference between a pad
+    // entering and a pad being switched on.
+    pad: { reverb: 0.75, lowpass: 6000, swell: 1.2 },
     comp: { reverb: 0.55, lowpass: 6500 },
-    melody: { reverb: 0.6, delay: 0.3, lowpass: 8000, resonance: 0.22 },
+    /**
+     * The CS-80 line, in the two numbers the instrument is actually remembered
+     * for. `glide` is the ribbon controller under the keyboard — the slide onto
+     * the note that is the single most identifiable gesture in this era's film
+     * writing — and `swell` is per-key aftertouch, which no other synthesiser
+     * of the decade had and which is why leaning on a held note here opens it
+     * up instead of merely sustaining it.
+     *
+     * Both land on the whole era rather than on `cinematic`, because effects
+     * live on eras and styles have no `effects` of their own. That is the same
+     * limitation `keyChangeChance` runs into above and it is handled the same
+     * way — put the number where the style is most likely to be drawn. The
+     * spill is not damaging: `berlin`'s lead is a polysynth in 1981 too, and a
+     * two-and-a-half semitone slide at eighty milliseconds is a slur rather
+     * than a siren.
+     */
+    melody: { reverb: 0.6, delay: 0.3, lowpass: 8000, resonance: 0.22, glide: 2.5, swell: 2 },
     counter: { reverb: 0.65, delay: 0.4, lowpass: 7000, resonance: 0.2 },
     bass: { reverb: 0.08, lowpass: 1000, resonance: 0.18 },
     drums: { reverb: 0.35, lowpass: 3600 },
@@ -259,6 +288,7 @@ const polysynth: EraProfile = {
  */
 const digital: EraProfile = {
   id: 'digital',
+  year: 1987,
   label: '1984–90 digital',
   description:
     'DX7, D-50 and Fairlight. FM bells, glassy electric pianos, sampled choirs, gated snares and eight-bit grit.',

@@ -289,7 +289,7 @@ const PROMINENCE: Record<LayerId, number> = {
  */
 function headAbove(posture: Posture, height: number): number {
   switch (posture) {
-    case 'sit': return height * 0.76;
+    case 'sit': case 'straddle': return height * 0.76;
     case 'kit': return height * 0.78;
     case 'stool': return height * 0.86;
     case 'perch': return height * 0.94;
@@ -814,6 +814,24 @@ function leadLayerOf(layers: LayerId[]): LayerId | undefined {
  * side at mid depth because a chord instrument is wide, is played sideways, and
  * is the one player the audience does not need to see the face of. And the tune
  * is downstage because that is what downstage is for.
+ *
+ * ## Except that a band of keyboards is not that band
+ *
+ * The layout above hands out one position per *role*, and that is the right unit
+ * for a dance band, where the roles are played by different objects. It is the
+ * wrong unit for the `synth` genre, where they are not: across ten synth
+ * concerts the stage carries twelve distinct instrument models and 49% of them
+ * are the same one, and 90% of numbers put three or more keyboards on the
+ * boards. Placed by role those three go to three unrelated corners of the stage
+ * — one beside the kit playing bass, one out at the side comping, one downstage
+ * on the tune — and read as three people who each happen to own a synthesiser.
+ *
+ * Keyboard players do not stand like that. They stand inside an arc of their own
+ * gear, and where there are several of them the arc is shared: it curves back
+ * and out around whoever is fronting the number, each board toed in toward the
+ * middle. So the keyboards are lifted out of the role layout and given
+ * `layoutGearArc`, which runs first and takes whoever it claims out of the front
+ * line as well.
  */
 function stageBand(slots: Slot[], venue: Venue, seed: string): void {
   const rng = new Rng(`${seed}:cast:stage`);
@@ -834,8 +852,17 @@ function stageBand(slots: Slot[], venue: Venue, seed: string): void {
    * side of the licence line. Drawing it from the seed at least means the same
    * concert always looks the same, and that two consecutive numbers are not
    * mirror images of each other for no reason.
+   *
+   * Unless there is a grand piano in the band, where the draw is not between
+   * two mirror images but between one good picture and one bad one. The piano
+   * takes the audience's left and takes it with two and a half metres of case
+   * — see `PIANO_SIDE` — so half the seeds were sending the bass into the one
+   * corner of the stage that was already full and leaving the other half of it
+   * bare boards. A piano trio came out as everybody on the left and nobody on
+   * the right. So the bass takes the side the piano did not.
    */
-  const side = rng.chance(0.5) ? 1 : -1;
+  const furniture = slots.some((s) => BULKY.includes(s.archetype));
+  const side = furniture ? -PIANO_SIDE : rng.chance(0.5) ? 1 : -1;
 
   const kit = slots.find((s) => s.role === 'kit');
   const kitR = kit?.r ?? 0;
@@ -884,9 +911,20 @@ function stageBand(slots: Slot[], venue: Venue, seed: string): void {
         s.box = { x0: -side > 0 ? 0.4 : -xLimit, x1: -side > 0 ? xLimit : -0.4, z0: zUp - 0.1, z1: zMid };
         break;
       case 'comp': {
-        // The side the rhythm section did not take — unless the comp is a
-        // grand piano, which takes the audience's left whatever the coin said.
-        const compSide = BULKY.includes(s.archetype) ? PIANO_SIDE : -side;
+        /**
+         * The side the rhythm section did not take — with two exceptions, and
+         * both of them are the grand piano.
+         *
+         * A comp that *is* a grand takes the audience's left whatever the coin
+         * said. A comp standing beside somebody else's grand takes the other
+         * side instead of the pad's, because the pad is upstage of the piano
+         * and a comp is level with it: an organ sent to the piano's side landed
+         * against the tail, and since it starts at the masking line and the
+         * piano does not, the separator settled the argument by walking the
+         * piano back toward the middle of the stage — undoing the placement
+         * `PIANO_OFF_CENTRE` exists to make.
+         */
+        const compSide = BULKY.includes(s.archetype) ? PIANO_SIDE : furniture ? side : -side;
         s.x = compSide * Math.max(1.6, xLimit - s.r - 0.1);
         s.z = zMid;
         s.anchor = 2.6;
@@ -904,7 +942,17 @@ function stageBand(slots: Slot[], venue: Venue, seed: string): void {
     }
   }
 
-  layoutFrontLine(slots, { xLimit: xFront, zMid, zDown, side });
+  /**
+   * The keyboards first, because the arc takes players out of the front line.
+   *
+   * It never takes the one in the middle — `frontCentre` is what both routines
+   * ask — but a synth on the counter line and a Rhodes on the brass line are
+   * both fair game, and `layoutFrontLine` has to be handed the list it is
+   * actually laying out or it spaces the line around players who are no longer
+   * standing in it.
+   */
+  const arc = layoutGearArc(slots, { zMid, depth: D, side });
+  layoutFrontLine(slots.filter((s) => !arc.has(s)), { xLimit: xFront, zMid, zDown, side });
 
   // Everyone faces the audience, give or take. The exceptions are the players
   // whose instrument is played sideways — a pianist sits along the keyboard,
@@ -913,6 +961,14 @@ function stageBand(slots: Slot[], venue: Venue, seed: string): void {
   // fence posts.
   for (const s of slots) {
     const jitter = new Rng(`${seed}:cast:facing:${s.id}`).float(-0.07, 0.07);
+    // A player on the arc has already been turned by where they stand on it,
+    // which is a better answer than the flat one below and knows about the
+    // same instruments. They still get the jitter: it is a statement about
+    // people, not about keyboards.
+    if (arc.has(s)) {
+      s.facing += jitter;
+      continue;
+    }
     const turn = sidewaysTurn(s.archetype);
     s.facing = jitter + (turn ? -Math.sign(s.x || 1) * turn : 0);
   }
@@ -939,14 +995,29 @@ function sidewaysTurn(archetype: Archetype): number {
      *
      * A right angle is the concert-hall answer and it is a photograph of a
      * silhouette: the audience gets a pure profile, one shoulder, and a
-     * keyboard receding straight away from them. Sixty-six degrees is the
-     * answer every band on a small stage arrives at instead — far enough that
-     * the lid is off the sightline and the keys are lit, near enough that the
-     * house sees three-quarters of the player and both hands foreshortened
-     * rather than edge-on. Paired with `PIANO_SIDE` it is the arrangement a
-     * photograph of a pianist is taken from.
+     * keyboard receding straight away from them. So the number lives between
+     * that and square-on, and it lives closer to the right angle than it looks
+     * like it should, because two things move with it and both want more turn.
+     *
+     * The **lid** is one. It is hinged on the spine and opens across the case,
+     * so the direction the instrument speaks in is the turn less a right angle:
+     * at sixty-six degrees the open lid was still aimed a quarter-turn off the
+     * house, throwing the piano at the wing it stands in. Seventy-six brings it
+     * inside fifteen degrees of the audience, which is what a lid propped for a
+     * room is doing.
+     *
+     * The **player** is the other, and this is the part that reads as backwards
+     * until you stand where the camera is. The case is downstage-right of the
+     * bench at a shallow turn — between the pianist and a centred house — and
+     * squarer to the house it goes, the more of it the audience looks past to
+     * find the player. Turning further slides the whole instrument sideways out
+     * of that line, and the house gets the pianist beside their piano rather
+     * than behind it. Paired with `PIANO_SIDE` and `PIANO_OFF_CENTRE` it is the
+     * arrangement a photograph of a pianist is taken from; short of the profile
+     * a right angle would give, the house still sees more of a face than of a
+     * cheekbone, and both hands foreshortened rather than edge-on.
      */
-    case 'grand-piano': return 1.15;
+    case 'grand-piano': return 1.32;
     case 'organ': case 'electric-piano': case 'synth': return 0.45;
     case 'mallets': case 'harp': return 0.3;
     case 'upright-bass': return 0.2;
@@ -962,6 +1033,27 @@ function sidewaysTurn(archetype: Archetype): number {
  */
 function zLipLimit(depth: number, r: number): number {
   return depth / 2 - Math.max(MARGIN_DOWN, LIP_FURNITURE + r);
+}
+
+/**
+ * Who takes the middle of the front line, which is not always who has the tune.
+ *
+ * A grand piano and a harp are furniture: they are floor-standing, they are
+ * played sideways, and putting one dead centre downstage walls the band off from
+ * the audience. So a bulky instrument yields the middle to the next player along
+ * and takes an outer slot, even when it is the one carrying the melody.
+ * `leadPerformerId` still names the pianist — they *are* the lead — and the
+ * follow spot will find them where they are.
+ *
+ * Lifted out of `layoutFrontLine` because `layoutGearArc` has to ask the same
+ * question before the front line is laid out, and the two answers have to be the
+ * same answer. If the arc were to guess differently, either two players would
+ * claim the middle of the stage or nobody would.
+ */
+function frontCentre(slots: Slot[]): Slot | undefined {
+  const front = slots.filter((s) => s.role === 'front')
+    .sort((a, b) => PROMINENCE[a.layer] - PROMINENCE[b.layer]);
+  return front.find((s) => !BULKY.includes(s.archetype)) ?? front[0];
 }
 
 /**
@@ -985,17 +1077,7 @@ function layoutFrontLine(
     .sort((a, b) => PROMINENCE[a.layer] - PROMINENCE[b.layer]);
   if (!front.length) return;
 
-  /**
-   * Who takes the middle, which is not always who has the tune.
-   *
-   * A grand piano and a harp are furniture: they are floor-standing, they are
-   * played sideways, and putting one dead centre downstage walls the band off
-   * from the audience. So a bulky instrument yields the middle to the next
-   * player along and takes an outer slot, even when it is the one carrying the
-   * melody. `leadPerformerId` still names the pianist — they *are* the lead —
-   * and the follow spot will find them where they are.
-   */
-  const centre = front.find((s) => !BULKY.includes(s.archetype)) ?? front[0]!;
+  const centre = frontCentre(slots) ?? front[0]!;
   const sung = centre.layer === 'vocal';
   // The centre of the line, at the very front. Everyone else steps back when
   // there is a singer to step back from.
@@ -1059,8 +1141,16 @@ function layoutFrontLine(
      * where centring would park a grand piano across the middle of the stage
      * and wall the band off. That one slides to the audience's left, for the
      * reason `PIANO_SIDE` gives.
+     *
+     * How far it slides depends on which piece of furniture it is, and the two
+     * are not close. A harp is a metre of floor with the player behind it, so
+     * the old 1.6 places the whole instrument. A grand is a bench with two and
+     * a half metres of piano hanging off the side of it, and placing the bench
+     * is not placing the piano — see `PIANO_OFF_CENTRE`.
      */
-    const centreX = BULKY.includes(centre.archetype) ? PIANO_SIDE * 1.6 : 0;
+    const centreX = BULKY.includes(centre.archetype)
+      ? PIANO_SIDE * (centre.archetype === 'grand-piano' ? PIANO_OFF_CENTRE : BULKY_OFF_CENTRE)
+      : 0;
     /**
      * A grand piano does not stand on the front edge.
      *
@@ -1103,10 +1193,278 @@ function layoutFrontLine(
 }
 
 // ---------------------------------------------------------------------------
+// Staging — the keyboard arc
+// ---------------------------------------------------------------------------
+
+/**
+ * The radius the rig curves on, in metres.
+ *
+ * Two facts pin it, and they pull opposite ways.
+ *
+ * It is the rig's own width limit. A player standing `t` metres along the arc
+ * from its apex is at `R·sin(t/R)`, so *nobody* on the arc is ever further than
+ * `R` from the centre line however many keyboards arrive — the number is a
+ * bound, not a preference. 3.4 m is inside the masking on the narrowest stage
+ * this file stages a band on, the 8.8 m cellar, where the solver's own side
+ * limit works out at 3.58 m. So the clamp never gets to decide where a keyboard
+ * stands, which is the failure `stageAmbient` records against its own table: a
+ * line laid out at its preferred size and then clamped is a line whose ends were
+ * placed by the clamp.
+ *
+ * And it is the depth the curve spends buying that width. The widest rig this
+ * generator produces is five keyboards, whose outer end is 4.0 m along the arc;
+ * at 3.4 m that player stands 3.14 m to the side and 2.09 m upstage of the
+ * middle, which is a rig that has visibly wrapped on a stage six metres deep.
+ * Open the radius to 6 m and the same player gains 0.57 m of width, gives up
+ * 0.81 m of that depth, and lands at 3.71 m — outside the cellar's 3.58 m and
+ * back in the hands of the clamp. Which is the whole trade in one line: a
+ * flatter arc is wider than the stage and reads, from a camera eleven metres
+ * out, as a straight line with a wobble in it.
+ */
+const GEAR_ARC_R = 3.4;
+
+/**
+ * How far round the arc the outermost keyboard may swing, in radians.
+ *
+ * `R·sin θ` peaks at a quarter turn, so past about 70° another keyboard buys
+ * almost no width and nothing but depth: two players on nearly the same bearing
+ * from the house with a metre and a half between them, which is a stack rather
+ * than a rig and is precisely what `fixSightlines` then has to pull apart. 1.2
+ * rad is 69°, which on this radius is 4.08 m of arc, and the only casts that
+ * reach it are the ones putting five keyboards on the arc — where closing the
+ * gaps from 0.35 m to 0.2 m brings the far end back from 4.38 m to 4.0 m, which
+ * is the cheaper concession.
+ */
+const GEAR_ARC_SWING = 1.2;
+
+/**
+ * How far off the arc the solver may push a keyboard.
+ *
+ * A box is a rectangle and the arc is a curve, so the box cannot say "on the
+ * arc"; what it can say is "near where the arc put you". Half a metre sideways
+ * is deliberately more than the 0.3 m step `fixSightlines` takes, so a keyboard
+ * that has to move to be seen slides along the rig rather than being ejected
+ * from it. The depth slack is `Z_BIAS` of that — 0.2 m — for the same reason
+ * every push in the solver is flattened toward the horizontal: a crowded rig
+ * should widen, not deepen.
+ */
+const GEAR_SLACK = 0.5;
+
+/**
+ * Stand the keyboard players inside one arc of gear instead of scattering them
+ * by role.
+ *
+ * ```
+ *   upstage                  KIT(riser)
+ *                 synth                        synth    <- further back, and out
+ *   downstage            e-piano      synth
+ *                            LEAD                       <- the front line's own
+ *   ---------------------------- audience ----------------------------
+ * ```
+ *
+ * The shape is a circle bulging toward the house, its downstage point on the
+ * centre line: every further keyboard is both further to the side *and* further
+ * upstage, so a fourth and a fifth nest behind the first two rather than
+ * extending a row. A row is the thing being avoided, and it is worth being
+ * precise about why it fails — four identical rigs abreast are four identical
+ * silhouettes at four evenly spaced bearings, which is the visual signature of a
+ * trade stand, not of a band. Stagger them in depth and the same four read as
+ * one instrument that several people are standing inside.
+ *
+ * Three rules decide who is where.
+ *
+ *  - **Prominence orders the rig**, on the same ordering the front line uses, so
+ *    the player carrying the tune is the one nearest the centre and the pad is
+ *    out at the end. This overrides the role layout for the bass and the pad,
+ *    deliberately: "the bass stands beside the kit" is a fact about a bass
+ *    *player*, someone holding an instrument and watching a hi-hat, and a
+ *    keyboard bass is a patch on a board that belongs with the other boards.
+ *  - **The front line keeps its own middle, and nobody stands on the centre
+ *    line.** Whoever `frontCentre` names is left exactly where the front line
+ *    would have put them, keyboard or not — the alternative was tried and it
+ *    quietly demoted the lead: on a pavilion stage carrying a synth on the tune
+ *    and a guitar on the counter, the rig swallowed the synth and handed
+ *    downstage centre to the guitarist, which is a follow spot pointed at the
+ *    wrong person. So the rig curves back *around* whoever is fronting the
+ *    number, and its two innermost players straddle the centre line half a gap
+ *    either side. That is worth having for its own sake: a keyboard directly
+ *    behind a singer is a keyboard the camera cannot see and the sightline pass
+ *    has to rescue, and straddling leaves the singer — and, as it happens, the
+ *    drummer on the riser behind them — in the gap.
+ *  - **Only when two or more are left after that.** One keyboard on a dance-band
+ *    stage is a keyboard player, and an arc through one point is a point; it
+ *    keeps its role position and the flat turn `sidewaysTurn` gives it. The
+ *    threshold is where it is because that is the measured shape of the problem:
+ *    90% of synth numbers carry three or more keyboards, against 41% of iskelmä
+ *    and 30% of jazz numbers carrying as many as two.
+ *
+ * Where it meets the rest of the file it gives way, because the rest of the file
+ * was right first. `BULKY` is untouched: a grand piano is not gear, it is never
+ * on the arc, and `PIANO_SIDE` still owns the side it stands on — the two rules
+ * cannot argue because `frontCentre` is the only thing either of them asks, and
+ * it skips a piano before the arc ever sees the answer. The drummer is untouched
+ * too: the ends of a full arc do run upstage past the front of the riser, but
+ * they do it 3.1 m off the centre line against a platform 1.4 m half-wide, so
+ * they pass beside it rather than onto it — and the kit's box is `locked`, so
+ * wherever the two do crowd each other the solver moves the keyboard and never
+ * the kit. And the sightline pass keeps its veto — see `GEAR_SLACK`, which is
+ * sized so that a keyboard it has to move slides along the rig instead of out
+ * of it.
+ *
+ * Returns the players it claimed, because the caller has to keep them out of the
+ * front line and out of the flat facing rule.
+ */
+function layoutGearArc(
+  slots: Slot[],
+  geom: { zMid: number; depth: number; side: number },
+): Set<Slot> {
+  const arc = new Set<Slot>();
+  const keeper = frontCentre(slots);
+  const ordered = slots
+    .filter((s) => GEAR.includes(s.archetype) && s !== keeper)
+    .sort((a, b) => PROMINENCE[a.layer] - PROMINENCE[b.layer]);
+  if (ordered.length < 2) return arc;
+
+  for (const s of ordered) {
+    /**
+     * A player at the rig is as wide as their board, not as wide as their
+     * `footprint`.
+     *
+     * The same correction `TABLE_R` makes for ambient's table, and for the same
+     * reason: three synthesisers at their free-standing footprint are six and a
+     * half metres of arc before a single gap, which on this radius swings the
+     * ends past a quarter turn and into the wings. Written onto the slot rather
+     * than used only here, because the solver separates on `r` and would
+     * otherwise spend every pass prising the rig back apart to arm's length.
+     */
+    s.r = Math.min(s.r, TABLE_R);
+    /**
+     * Heavier than a horn, lighter than the kit. A keyboard on a stand with a
+     * player behind it does not shuffle sideways to make room — but it is not
+     * bolted to a platform either, and the pair of numbers is what decides
+     * whether a crowded stage bends the rig or bends the person walking into
+     * it. 2.4 puts it just above the comp it usually replaces.
+     */
+    s.anchor = 2.4;
+    arc.add(s);
+  }
+
+  /**
+   * Where the downstage point of the arc sits.
+   *
+   * `zMid + 0.6`, which is not a new number: it is the downstage edge of the
+   * comp's own box, and it means the same thing here as it does there — as far
+   * toward the house as an accompanying player may come without joining the
+   * front line. The rig is exactly that, several times over, so it stands on
+   * that line and curves upstage from it.
+   */
+  const zApex = geom.zMid + 0.6;
+
+  /**
+   * Which way the rig grows first — away from the side the rhythm section took.
+   *
+   * `side` is already the coin that decides whether the bass sits stage-left or
+   * stage-right of the kit, and reusing it rather than drawing again keeps the
+   * whole stage picture mirroring as one thing: on the seeds where the bass goes
+   * right, the rig leans left, and the boards do not all pile up on the same
+   * side as the amps.
+   */
+  const dir0 = -geom.side;
+
+  // Widest gap whose ends stay inside the swing limit, tried in steps — the
+  // same concession `layoutFrontLine` makes, and in the same order: keep the air
+  // between players if it fits, and give it up rather than give up the shape.
+  let offsets: number[] = [];
+  for (const gap of [GEAR_GAP, 0.2, 0.08]) {
+    offsets = arcOffsets(ordered, gap, dir0);
+    const widest = offsets.reduce((m, t) => Math.max(m, Math.abs(t)), 0);
+    if (widest <= GEAR_ARC_SWING * GEAR_ARC_R) break;
+  }
+
+  const place = (s: Slot, t: number): void => {
+    const theta = t / GEAR_ARC_R;
+    const x = GEAR_ARC_R * Math.sin(theta);
+    const z = zApex - GEAR_ARC_R * (1 - Math.cos(theta));
+    s.x = x;
+    s.z = z;
+    /**
+     * Toed in by as much as the arc has already swung them, and no further than
+     * this instrument's own `sidewaysTurn`.
+     *
+     * The grading is the point. A flat turn is what the file did before — every
+     * keyboard 26° off the house whatever it was standing next to, decided by
+     * the sign of an `x` that may be 4 cm from centre — and a flat turn applied
+     * to a row is still a row, just a slanted one. Turning each player by their
+     * own arc angle makes the rig converge on the middle instead: the inner pair
+     * is barely off square, at 13° or so, and every player beyond them is at the
+     * cap. The cap is the number `sidewaysTurn` already believes about a
+     * keyboard rather than a new one, so the outer boards sit at the 26° a
+     * keyboard is played at and nobody ends up in profile at the end of a long
+     * arc.
+     */
+    s.facing = -Math.sign(x || 1) * Math.min(sidewaysTurn(s.archetype), Math.abs(theta));
+    const zSlack = GEAR_SLACK * Z_BIAS;
+    s.box = {
+      x0: x - GEAR_SLACK,
+      x1: x + GEAR_SLACK,
+      z0: z - zSlack,
+      z1: Math.min(z + zSlack, zLipLimit(geom.depth, s.r)),
+    };
+  };
+
+  ordered.forEach((s, i) => place(s, offsets[i]!));
+  return arc;
+}
+
+/**
+ * Arc length from the centre line to each player of the rig, signed.
+ *
+ * Bodies are laid end to end outward from the middle, alternating sides, so the
+ * spacing is measured *along the curve* rather than across the stage. That is
+ * the whole difference between an arc and a row with a bend in it: laid out in
+ * `x` and then sagged, five keyboards still need 7.8 m of stage, and the ends of
+ * that are in the masking on every room in `venue.ts`. Laid out in arc length the
+ * same 7.8 m of bodies occupies 5.34 m across and 2.09 m of depth.
+ *
+ * Both cursors start half a gap out from the centre line, which is what leaves
+ * it clear for whoever is fronting the number.
+ */
+function arcOffsets(ordered: Slot[], gap: number, dir0: number): number[] {
+  let right = gap / 2;
+  let left = right;
+  const out: number[] = [];
+  for (let i = 0; i < ordered.length; i++) {
+    const s = ordered[i]!;
+    if ((i % 2 === 0 ? dir0 : -dir0) > 0) {
+      out.push(right + s.r);
+      right += 2 * s.r + gap;
+    } else {
+      out.push(-(left + s.r));
+      left += 2 * s.r + gap;
+    }
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
 // Staging — ambient
 // ---------------------------------------------------------------------------
 
-/** Archetypes that stand behind gear on a stand rather than holding anything. */
+/**
+ * Archetypes that stand behind gear on a stand rather than holding anything.
+ *
+ * Read by both staging routines and meaning slightly different things to each,
+ * which is worth naming rather than discovering: ambient puts them on `perch`
+ * posture at a shared table, and the band layout lifts them out of their roles
+ * onto `layoutGearArc`. What the two agree about is the only thing this list
+ * asserts — that the player is parked behind a board on legs, so their width is
+ * the board's and not their arm's reach.
+ *
+ * The organ is deliberately absent from both. It is a keyboard, but it is a
+ * console with a bench, its spec sits the player down, and an organist wheeled
+ * into an arc of stands would be the one member of the rig at the wrong height
+ * facing the wrong way.
+ */
 const GEAR: Archetype[] = ['synth', 'electric-piano'];
 
 /**
@@ -1138,6 +1496,37 @@ const BULKY: Archetype[] = ['grand-piano', 'harp'];
  * things that are genuinely symmetrical.
  */
 const PIANO_SIDE = -1;
+
+/**
+ * How far off centre a piece of furniture sits when it is the whole front line.
+ *
+ * The harp's number, and the grand piano's until it turned out to be measuring
+ * the bench. Anything played from behind is more or less where its player is,
+ * so 1.6 is a metre and a half of daylight between it and the middle of the
+ * stage and there is nothing more to say about it.
+ */
+const BULKY_OFF_CENTRE = 1.6;
+
+/**
+ * How far off centre the *pianist* sits when the piano is the whole front line.
+ *
+ * The one number in this file that is not measuring the thing it places. Every
+ * other station is a person with their instrument more or less on top of them;
+ * a pianist sits at the keyboard end of two and a half metres of case that runs
+ * out to their right, so the bench is at one end of the picture and the tail
+ * and the raised lid are 2.3 m further across the stage. At the old 1.6 that
+ * put the lid over the centre line, in front of the drummer — who is sitting
+ * down behind a wall of drums and is already the easiest player on any stage to
+ * lose. Nothing caught it: `fixSightlines` measures people against people, and
+ * a piano is furniture.
+ *
+ * 2.7 is where the bench has to be for the tail to land short of the kit's
+ * bearing from the house, and it costs nothing — the front line here is one
+ * player wide and the other half of the stage is bass and drums. It also
+ * uncrosses the pianist's own sightline: at 1.6 the camera looked at them
+ * across the corner of their own lid.
+ */
+const PIANO_OFF_CENTRE = 2.7;
 
 /**
  * How far an instrument must turn its player before that turn stops being a
@@ -1195,7 +1584,10 @@ const SCATTER_SHOULDER = 0.5;
  */
 const WING_PENALTY = 4;
 
-/** Metres of daylight between two pieces of gear on the table, when it fits. */
+/**
+ * Metres of daylight between two pieces of gear, when it fits — on ambient's
+ * table, and along the band's arc, where it is measured round the curve.
+ */
 const GEAR_GAP = 0.35;
 
 /**
@@ -1213,6 +1605,11 @@ const GEAR_GAP = 0.35;
  * It is written onto the slot rather than used only for the layout, because the
  * solver separates on `r` and would otherwise spend its passes pushing the
  * table back apart to arm's length.
+ *
+ * `layoutGearArc` borrows it for the band stages, where the measurement is the
+ * same measurement: a keyboard is 1.4 m wide in a black box and 1.4 m wide in a
+ * pavilion, and the arc has less room to waste on the difference than the table
+ * does.
  */
 const TABLE_R = 0.7;
 

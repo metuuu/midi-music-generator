@@ -975,12 +975,28 @@ console.log('\nTwo hands');
 // instrument's centre in every bar and cycled root-third-fifth, which showed up
 // as 53% thirds and 24% minor sixths, and it doubled the tune at the unison or
 // octave on 29% of the notes where the two overlapped.
+//
+// **Two different parts land on this layer and they have to be counted apart.**
+// `counterMode: 'ostinato'` puts a running sequencer figure here instead of an
+// answering line, and every property below inverts between them by design — see
+// `counterMode` in `style/types.ts`. Pooled, they measured a mixture and
+// therefore nothing: the ostinato's 671 arpeggiated moves swamped the answer's
+// 220 stepwise ones and both of the original claims read as broken while the
+// answer itself was untouched. Split, each half is checked for what it is, and
+// the split is not a loosening — the ostinato picks up two claims of its own
+// below, and the one thing both parts must do is stated for both.
 console.log('\nCounter-melody');
 {
   let steps = 0, thirds = 0, moves = 0, overlap = 0, doubled = 0, multi = 0, figures = 0;
+  /** The `ostinato` half: notes, how many sound under the tune, and stacks. */
+  let ostNotes = 0, ostUnder = 0, ostStacked = 0, ostSongs = 0;
+  /** The same overlap fraction for the answer, so the contrast is measured
+   *  rather than asserted against a number somebody chose. */
+  let ansNotes = 0, ansUnder = 0;
   for (const gid of GENRE_IDS) {
     for (let i = 0; i < 40; i++) {
       const s = generateSong({ seed: `cm-${i}`, genre: gid });
+      const isOstinato = getGenre(gid).styles[s.meta.style]?.counterMode === 'ostinato';
       const bpb = s.meta.beatsPerBar;
       // A solo section puts the *lead* on the counter instrument; those notes
       // are a melody, not an answer, and counting them measures the wrong thing.
@@ -997,6 +1013,28 @@ console.log('\nCounter-melody');
       const melody = (melodyTrack ? melodicLine(melodyTrack) : [])
         .slice().sort((a, b) => a.beat - b.beat);
       if (!counter.length) continue;
+
+      /**
+       * A sequencer sounds one note at a time and does not care what the tune
+       * is doing. Both are measured here rather than in the answer's loop
+       * below, because the answer's loop is about phrase shape and an ostinato
+       * has no phrases in it — it never stops.
+       */
+      if (isOstinato) {
+        ostSongs++;
+        const byBeat = new Map<number, number>();
+        for (const n of counter) byBeat.set(n.beat, (byBeat.get(n.beat) ?? 0) + 1);
+        for (const count of byBeat.values()) if (count > 1) ostStacked++;
+        ostNotes += counter.length;
+        for (const n of counter) {
+          if (melody.some((m) => m.beat <= n.beat + 1e-6 && m.beat + m.duration > n.beat + 1e-6)) ostUnder++;
+        }
+        continue;
+      }
+      ansNotes += counter.length;
+      for (const n of counter) {
+        if (melody.some((m) => m.beat <= n.beat + 1e-6 && m.beat + m.duration > n.beat + 1e-6)) ansUnder++;
+      }
 
       let figure = 0;
       for (let j = 0; j < counter.length; j++) {
@@ -1032,6 +1070,20 @@ console.log('\nCounter-melody');
     'the answer never doubles the tune at the unison or octave',
     doubled === 0,
     `${doubled} of ${overlap} overlapping notes`,
+  );
+  // The second sequencer. Its whole claim is that it is *not* an answer, so the
+  // checks are the two properties an answer could never have.
+  const ostPct = (ostUnder / Math.max(1, ostNotes)) * 100;
+  const ansPct = (ansUnder / Math.max(1, ansNotes)) * 100;
+  check(
+    'the second sequencer plays one note at a time',
+    ostSongs > 0 && ostStacked === 0,
+    `${ostStacked} stacked onsets in ${ostNotes} notes over ${ostSongs} songs`,
+  );
+  check(
+    'the second sequencer runs under the tune, not in its gaps',
+    ostNotes > 0 && ostPct > ansPct * 1.5,
+    `${ostPct.toFixed(0)}% of ostinato notes sound under a melody note vs ${ansPct.toFixed(0)}% of answers`,
   );
 }
 

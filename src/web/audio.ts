@@ -18,6 +18,7 @@
 import { evalScope, type StrudelRepl } from '@strudel/core';
 import {
   getAudioContext,
+  getSuperdoughAudioController,
   initAudioOnFirstClick,
   registerSynthSounds,
   samples,
@@ -73,8 +74,56 @@ async function boot(): Promise<StrudelRepl> {
   registerSoundfonts();
   await samples(DRUM_SAMPLES_URL);
 
+  installLimiter();
+
   instance = repl;
   return repl;
+}
+
+/**
+ * A brickwall on the way out, because the finished mix goes over full scale.
+ *
+ * Measured, not assumed: whole songs rendered offline through this same chain
+ * peak at 1.03–1.09 — every iskelmä song probed clipped, by up to 0.8 dB. That
+ * is what seven layers summing with no headroom management does, and Web Audio
+ * hard-clips at the destination, which is a far uglier sound than a limiter
+ * that touches the top decibel and nothing else.
+ *
+ * Set as a peak catcher rather than as a mix-bus compressor: −1 dBFS threshold
+ * with a hard knee, so it is inert through the roughly 16 dB of crest a song
+ * spends most of its time in, and 20:1 above that, which puts a +0.8 dB
+ * overshoot back to about −0.96. A 1 ms attack is short enough to catch a kick
+ * transient and long enough not to distort the bass it sits on.
+ *
+ * No makeup gain, deliberately. `render/strudel.ts` explains at length why a
+ * `DynamicsCompressorNode` is the wrong tool *inside* the arrangement — it only
+ * attenuates, so it buys quiet rather than loudness. Out here that is exactly
+ * the job.
+ *
+ * This is the one place in the project that reaches past Strudel's documented
+ * surface, so it fails soft: if the output does not have the shape we expect —
+ * a version bump, a context reset calling `SuperdoughOutput.reset()` — the
+ * splice is skipped and the audio still plays, unlimited. It also means the
+ * limiter is the audition's, not the music's: code pasted into strudel.cc does
+ * not get it, which is another reason the gains upstream have to be right on
+ * their own.
+ */
+function installLimiter(): void {
+  const ctx = getAudioContext();
+  const out = getSuperdoughAudioController().output;
+  const master = out?.destinationGain;
+  if (!master) return;
+
+  const limiter = new DynamicsCompressorNode(ctx, {
+    threshold: -1,
+    knee: 0,
+    ratio: 20,
+    attack: 0.001,
+    release: 0.1,
+  });
+  master.disconnect();
+  master.connect(limiter);
+  limiter.connect(ctx.destination);
 }
 
 export async function playCode(code: string): Promise<void> {

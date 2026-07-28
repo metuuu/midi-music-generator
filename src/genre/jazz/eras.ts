@@ -15,6 +15,7 @@ import type { EraProfile } from '../../style/types.js';
 
 const swingEra: EraProfile = {
   id: 'swingera',
+  year: 1938,
   label: '1930s–40s swing',
   description:
     'Big-band and small-group swing. Clarinet and muted brass over acoustic piano, upright bass and brushes.',
@@ -49,6 +50,7 @@ const swingEra: EraProfile = {
 
 const bop: EraProfile = {
   id: 'bop',
+  year: 1957,
   label: '1950s–60s bop',
   description:
     'Small-group bebop and hard bop. Tenor and alto sax, trumpet, piano trio, walking bass, ride cymbal.',
@@ -84,6 +86,7 @@ const bop: EraProfile = {
 
 const modern: EraProfile = {
   id: 'modern',
+  year: 1968,
   label: '1960s–70s modern',
   description:
     'Cooler and more open. Rhodes and vibraphone, flute and soprano sax, bossa and modal material.',
@@ -132,6 +135,7 @@ const modern: EraProfile = {
  */
 const electric: EraProfile = {
   id: 'electric',
+  year: 1975,
   label: '1970s electric',
   description:
     'Fusion and odd metres. Rhodes and synth over electric bass, clean guitar and a kit playing straight.',

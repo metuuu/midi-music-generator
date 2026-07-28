@@ -400,6 +400,7 @@ export function createShow(opts: ShowOptions = {}): Show {
         performer,
         track ? instrumentIdForTrack(track) : undefined,
         concert.venue.palette.proscenium,
+        concert.year,
       );
 
       /**

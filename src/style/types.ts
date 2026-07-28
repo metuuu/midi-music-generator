@@ -88,16 +88,49 @@ export interface CompPattern {
   /** How the chord is stacked. Defaults to `tertian`. */
   voicing?: VoicingStyle;
   /**
-   * Play one note of the voicing per hit instead of the whole chord, cycling
-   * upward and carrying the cycle across barlines.
+   * Play one note of the voicing per hit instead of the whole chord, walking a
+   * ladder built from the voicing and carrying the position across barlines.
    *
    * A comp pattern sounds the entire voicing at once, which is what a pianist
    * does and the opposite of what a sequencer does. Carrying the index across
    * bars is the important half: a four-note figure against a four-beat bar
    * would otherwise land identically every bar, and the whole appeal of a
    * Berlin-school sequence is that the pattern and the bar drift out of phase.
+   *
+   * See `arpDirection` and `arpOctaves` for the shape of the ladder, and
+   * `arpLadder` in `generate/parts.ts` for how it is built.
    */
   arpeggio?: boolean;
+  /**
+   * Which way the figure walks its voicing. Defaults to `up`.
+   *
+   * For a long time this was not a field and the answer was always `up`, which
+   * meant every arpeggio in the repo — six sequencer patterns across two
+   * styles, a broken chord, a slow ambient figure — had the *same contour*.
+   * That is not a small sameness: voicings are led to move as little as
+   * possible from bar to bar, so a rising walk through consecutive chords
+   * produces very nearly the same shape over and over, and the only thing
+   * distinguishing one sequence from another was its step count.
+   *
+   * `updown` and `downup` are the ones worth reaching for, and not because
+   * they are prettier. They make the ladder **longer than the voicing** — four
+   * notes become six rungs — so a figure whose step count already disagreed
+   * with the bar now disagrees with the ladder too, and the pattern takes
+   * three times as long to come back round to where it started.
+   */
+  arpDirection?: 'up' | 'down' | 'updown' | 'downup';
+  /**
+   * How many octaves the ladder spans. Defaults to 1 — the voicing as voiced.
+   *
+   * The octave jump is the signature of a step sequencer and was unreachable:
+   * a walk through a four-note voicing spans a tenth at most, where the figure
+   * everyone remembers off a Berlin-school side climbs two octaves and drops
+   * back. Asking for 2 does not push the part into the melody's register — the
+   * voicing is placed an octave *lower* to make room, so the figure occupies
+   * the same span it always did and starts from further down. See
+   * `generateComp`.
+   */
+  arpOctaves?: number;
   /**
    * Merge a chord into the one before it when the harmony has not moved,
    * instead of re-striking the whole voicing on every downbeat. The same
@@ -460,6 +493,27 @@ export interface EraProfile {
   id: string;
   label: string;
   description: string;
+  /**
+   * The year this era is standing in — roughly the middle of the window it
+   * covers.
+   *
+   * Here because the *visual* side needs a decade and cannot use `id`. Era ids
+   * are genre-local: ambient's are `tape`/`sampler`/`hybrid`, this genre's are
+   * `modular`/`polysynth`/`digital`, and iskelmä's are `tanssilava`/`eighties`.
+   * A stage model that branched on the id would have to learn all four
+   * vocabularies and would be wrong the moment a fifth genre appeared.
+   *
+   * A year is genre-neutral and is what actually decides the question being
+   * asked. What a synthesiser *looks like* is not a fact about ambient or about
+   * this genre — it is a fact about 1974, when the instrument was a wall of
+   * patch cables, versus 1987, when it was a plastic slab with no knobs on it.
+   * Two genres whose eras land in the same decade should stage the same object,
+   * and with a year they do so without either knowing the other exists.
+   *
+   * Nothing audible reads this. It is production metadata that happens to be
+   * true, which is the same standing `label` and `description` already have.
+   */
+  year: number;
   /** Strudel drum-machine banks, weighted. */
   drumBanks: (readonly [string, number])[];
   /** Instrument choices per layer, weighted. */

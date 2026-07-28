@@ -27,6 +27,9 @@ import {
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 
 import type { Rng } from '../../core/rng.js';
+// Type-only, and it has to be: `stage-audience.ts` imports this file for its
+// materials, so anything but `import type` here is a runtime cycle.
+import type { CrowdExtent } from './stage-audience.js';
 
 /**
  * How much the stage is allowed to cost.
@@ -83,6 +86,11 @@ export interface StageMetrics {
    * nothing.
    */
   backdropHeight: number;
+  /**
+   * The volume the audience fills, for anything solved from framing rather
+   * than from the room. See `crowdExtent` in `stage-audience.ts`.
+   */
+  crowd: CrowdExtent;
 }
 
 /**

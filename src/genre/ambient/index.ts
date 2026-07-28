@@ -186,17 +186,23 @@ export const ambient: Genre = {
    * the opposite order, and the numbers below are a statement about the music
    * rather than a taste in mixing — a melody louder than the texture it sits
    * in is simply a different genre played slowly.
+   *
+   * Each one is divided by the mean trim of the pool it draws from, so the
+   * statement survives `render/source-levels.ts` unchanged. The counter moved
+   * furthest by a long way — those are the quietest fonts in the catalogue, and
+   * calibrating them had lifted an answering line 4.4 dB into a genre whose
+   * entire argument is that nothing answers loudly.
    */
   mix: {
-    pad: 0.78,
-    comp: 0.5,
-    bass: 0.72,
-    melody: 0.55,
-    counter: 0.4,
+    pad: 0.71,
+    comp: 0.44,
+    bass: 0.73,
+    melody: 0.54,
+    counter: 0.24,
     // The kit, where there is one, is a texture at the back of the room rather
     // than the thing keeping everyone together. Less than half the level every
     // other genre gives it.
-    drums: 0.34,
+    drums: 0.29,
   },
 
   /**

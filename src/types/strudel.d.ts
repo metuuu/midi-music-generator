@@ -80,6 +80,17 @@ declare module '@strudel/webaudio' {
     hapDuration: number,
     cps?: number,
   ): Promise<void>;
+  /**
+   * The object that owns the path from the orbit buses to the speakers.
+   *
+   * Typed only as far as the one node we need to splice into — see the master
+   * limiter in `web/audio.ts` — and every field is optional on purpose, because
+   * this is the one place here that reaches past Strudel's documented surface
+   * and a version bump is allowed to take it away without taking the audio too.
+   */
+  export function getSuperdoughAudioController(): {
+    output?: { destinationGain?: GainNode | null };
+  };
 }
 
 declare module '@strudel/soundfonts/gm.mjs' {

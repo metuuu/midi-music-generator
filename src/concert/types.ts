@@ -101,13 +101,23 @@ export type InstrumentFamily =
   | 'percussion' | 'keys' | 'bowed' | 'plucked'
   | 'wind' | 'brass' | 'free-reed' | 'electronic' | 'voice';
 
-/** How the player is arranged around the instrument. */
+/**
+ * How the player is arranged around the instrument.
+ *
+ * `straddle` is a chair like `sit` is, and it is a separate posture because of
+ * what is between the knees. A pianist's legs go forward under a keyboard and
+ * may sit as close together as they like; a cellist's have a body the width of
+ * their own shoulders between them, and knees at a pianist's spacing put a
+ * thigh straight through it. The difference is a stance, not a seat height, so
+ * it belongs here rather than in any one model.
+ */
 export type Posture =
-  | 'stand'   // guitar, horns, singer
-  | 'sit'     // piano bench, cello chair
-  | 'stool'   // upright bass, high stool
-  | 'kit'     // behind a drum kit, both feet occupied
-  | 'perch';  // leaning over a table of gear
+  | 'stand'    // guitar, horns, singer
+  | 'sit'      // piano bench, harp stool
+  | 'straddle' // a chair, knees turned out round the instrument: cello
+  | 'stool'    // upright bass, high stool
+  | 'kit'      // behind a drum kit, both feet occupied
+  | 'perch';   // leaning over a table of gear
 
 /**
  * Geometry-free facts about an archetype.
@@ -729,6 +739,13 @@ export interface Concert {
    * which holds only while no two genres share a label.
    */
   era: string;
+  /**
+   * The year that era stands in. Resolved once alongside `era`, and carried
+   * because the era id cannot answer for it: ids are genre-local, so a model
+   * branching on one would have to know every genre's vocabulary. What an
+   * instrument looks like is a fact about a decade, not about a genre.
+   */
+  year: number;
   venue: Venue;
   bill: BillEntry[];
   numbers: ConcertNumber[];

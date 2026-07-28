@@ -149,7 +149,7 @@ console.log(`        archetypes exercised: ${[...seenArchetypes].sort().join(', 
 // spotlight has a person, and the same seed gives the same evening twice.
 console.log('\nShows');
 
-const CHECKED_GENRES = ['iskelma', 'jazz', 'ambient'];
+const CHECKED_GENRES = ['iskelma', 'jazz', 'ambient', 'synth'];
 let shows = 0;
 let gestures = 0;
 let soundingNotes = 0;
@@ -263,6 +263,90 @@ check('ambient never uses a follow spot', ambientSpots === 0,
   ambientSpots ? `${ambientSpots} spot cues` : 'the warm fixture instead');
 check('every solo resolves to a performer', soloWithoutPlayer === 0,
   soloWithoutPlayer ? `${soloWithoutPlayer} unresolved` : 'none');
+
+/**
+ * Staging: two people cannot stand in the same place, and everyone is on the
+ * stage.
+ *
+ * `concert/types.ts` has claimed since it was written that this file asserts
+ * "no two players are standing in the same place". It did not. The `overlaps`
+ * counter above is about a *hand* being scheduled over its own release, which
+ * is a different thing entirely, and nothing here had ever looked at where
+ * anybody was standing.
+ *
+ * That gap was survivable while staging was a fixed dance-band layout that
+ * changed only when the roster did. It stopped being survivable when keyboard
+ * players moved onto a computed arc: placement is now a function of how many
+ * gear players there are, which venue it is and who took the centre, and the
+ * failure mode of an arc one player too wide for a small stage is two bodies in
+ * one spot — silently, in the data, on the seeds nobody dumped.
+ *
+ * ## Why this measures bodies and not footprints
+ *
+ * The obvious test is that no two `ArchetypeSpec.footprint` circles overlap,
+ * and `footprint` describes itself as "staging keeps these from overlapping".
+ * Written that way it fails everywhere: 21 pairs in iskelmä, 19 in ambient,
+ * 4 in jazz, on layout routines nobody has touched in this work. It is not a
+ * regression and it is not a bug — the stager separates *boxes* with their own
+ * clearance pad, and a footprint is a generous radius for a player and their
+ * gear rather than a hull anyone ever enforced. Requiring two metres between
+ * two keyboard players is stricter than a real stage: they stand about 1.4 m
+ * apart, which is what this generator already produces.
+ *
+ * So the assertion is the one that is actually meaningful — nobody
+ * interpenetrates. Measured across 1995 pairs in four genres the closest any
+ * two performers come is 1.21 m, so a metre is comfortably clear of normal
+ * spacing while still catching the failure that matters: an arc that packs
+ * players toward each other drives this number toward zero. The observed
+ * minimum is printed even when it passes, so the margin is visible rather than
+ * merely asserted.
+ */
+{
+  const TOLERANCE = 0.01;
+  /** Two standing bodies, near enough. Below this they are in each other. */
+  const PERSONAL_SPACE = 1.0;
+  let tooClose = 0;
+  let offStage = 0;
+  let placements = 0;
+  let closest = Infinity;
+  let closestAt = '';
+  for (const gid of CHECKED_GENRES) {
+    for (let i = 0; i < 4; i++) {
+      const concert = buildConcert({ seed: `stage-${gid}-${i}`, genre: gid });
+      const halfW = concert.venue.width / 2;
+      const halfD = concert.venue.depth / 2;
+      for (const number of concert.numbers) {
+        const people = number.cast.performers;
+        placements += people.length;
+        for (const p of people) {
+          const [x, , z] = p.station.position;
+          if (Math.abs(x) > halfW + TOLERANCE || Math.abs(z) > halfD + TOLERANCE) offStage++;
+        }
+        for (let a = 0; a < people.length; a++) {
+          for (let b = a + 1; b < people.length; b++) {
+            const A = people[a]!;
+            const B = people[b]!;
+            const gap = Math.hypot(
+              A.station.position[0] - B.station.position[0],
+              A.station.position[2] - B.station.position[2],
+            );
+            if (gap < closest) {
+              closest = gap;
+              closestAt = `${gid}#${i} ${A.archetype}/${B.archetype}`;
+            }
+            if (gap < PERSONAL_SPACE) tooClose++;
+          }
+        }
+      }
+    }
+  }
+  check('no two performers share a spot', tooClose === 0,
+    tooClose
+      ? `${tooClose} inside ${PERSONAL_SPACE} m, closest ${closest.toFixed(2)} m at ${closestAt}`
+      : `${placements} placements, closest ${closest.toFixed(2)} m (${closestAt})`);
+  check('every performer is on the stage', offStage === 0,
+    offStage ? `${offStage} off the boards` : `${placements} placements`);
+}
 check('visemes exist exactly when there is a voice', visemeGaps === 0,
   visemeGaps ? `${visemeGaps} mismatches` : 'none');
 

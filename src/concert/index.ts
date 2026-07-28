@@ -19,6 +19,7 @@
 
 import type { LayerId, Song } from '../core/types.js';
 import { generateSong, withCountIn, type GenerateOptions } from '../generate/song.js';
+import { getGenre } from '../genre/index.js';
 
 import { castSong } from './cast.js';
 import { choreograph } from './choreograph.js';
@@ -82,11 +83,17 @@ export function buildConcert(opts: ConcertOptions = {}): Concert {
   // agree about which night it is.
   const genre = songs[0]!.meta.genre;
   const era = songs[0]!.meta.era;
+  /**
+   * The decade, resolved here for the same reason the era is: one band, one
+   * night. The stage needs it and cannot get it from `era`, whose ids are
+   * genre-local — see `EraProfile.year`.
+   */
+  const year = getGenre(genre).eras[era]?.year ?? 1980;
   const venue = chooseVenue(genre, era, seed);
 
   const numbers = songs.map((song, i) => buildNumber(song, venue, `${seed}/${i + 1}`));
 
-  return { seed, genre, era, venue, bill: buildBill(songs), numbers };
+  return { seed, genre, era, year, venue, bill: buildBill(songs), numbers };
 }
 
 function buildNumber(song: Song, venue: Venue, seed: string): ConcertNumber {

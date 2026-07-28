@@ -30,6 +30,7 @@ import type { EraProfile } from '../../style/types.js';
  */
 const tape: EraProfile = {
   id: 'tape',
+  year: 1978,
   label: '1970s–80s tape',
   description:
     'Analogue and magnetic. String machines, choir patches, warm pads, Rhodes and a slightly detuned everything.',
@@ -102,6 +103,7 @@ const tape: EraProfile = {
  */
 const sampler: EraProfile = {
   id: 'sampler',
+  year: 1993,
   label: '1990s sampler',
   description:
     'Twelve-bit samplers and FM. Metallic bells, aliased pads, atmospheres and effects patches — the CD-era game-score palette.',
@@ -163,6 +165,7 @@ const sampler: EraProfile = {
  */
 const hybrid: EraProfile = {
   id: 'hybrid',
+  year: 2006,
   label: '2000s hybrid',
   description:
     'Processed acoustics alongside synthetic ones. Strings, cello and voices treated until they hold like pads.',

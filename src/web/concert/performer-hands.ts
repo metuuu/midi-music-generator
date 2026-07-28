@@ -49,7 +49,7 @@ import { Group, Mesh, MeshStandardMaterial, Vector3 } from 'three';
 
 import type { Archetype } from '../../concert/types.js';
 
-import { Leases, bone, collar, orb, surface } from './performer-assets.js';
+import { Leases, bone, collar, orb, pip, rod, surface } from './performer-assets.js';
 import type { Proportions } from './performer-look.js';
 
 /** The named shapes. Anything outside this list is a blend of two of them. */
@@ -115,6 +115,27 @@ export interface HandPose {
    * for where that part actually is.
    */
   touch: number;
+
+  /**
+   * For a hand holding an implement: **how far out along it the contact runs.**
+   * 0 is the hand's own `touch` point, 1 the working end — a stick's bead, a
+   * mallet's ball. Ignored entirely by a hand holding nothing.
+   *
+   * This is `touch` continued past the fingers, and it exists for the same
+   * reason: the rig places a hand by the part of it that meets the instrument,
+   * and for a drummer that part is twenty-eight centimetres beyond the fist.
+   * With no such field the palm went to the snare and the stick — once there
+   * was one — went through it.
+   *
+   * A separate number rather than `touch: 1.4`, because the two ends of the
+   * scale answer to different things. `touch` is a fact about the shape of the
+   * hand and is true whether or not it is carrying anything; this one is a
+   * fact about whether the shape is *aiming* the thing it holds. Only `stick`
+   * says yes, so a drummer standing down — whose hands ease toward `relax` —
+   * eases the aim off at the same rate, and the sticks go from working to
+   * merely held without a second timer to keep in step.
+   */
+  tool: number;
 }
 
 /**
@@ -138,14 +159,19 @@ export interface HandPose {
  *    a key is a hand playing a cluster.
  */
 export const HAND_POSES: Record<HandPoseId, HandPose> = {
-  relax: { curl: [0.34, 0.40, 0.43, 0.46], tip: 0.50, spread: 0.18, thumbCurl: 0.30, thumbOut: 0.35, cup: 0.25, wrist: -0.06, touch: 0.35 },
-  fist: { curl: [1.00, 1.00, 1.00, 1.00], tip: 1.00, spread: 0.00, thumbCurl: 0.55, thumbOut: 0.12, cup: 0.65, wrist: 0.00, touch: 0.00 },
-  grip: { curl: [0.72, 0.76, 0.76, 0.72], tip: 0.86, spread: 0.05, thumbCurl: 0.34, thumbOut: 0.58, cup: 0.48, wrist: 0.00, touch: 0.00 },
-  stick: { curl: [0.58, 0.78, 0.86, 0.92], tip: 0.80, spread: 0.06, thumbCurl: 0.44, thumbOut: 0.28, cup: 0.58, wrist: -0.04, touch: 0.00 },
-  bowhold: { curl: [0.44, 0.52, 0.60, 0.70], tip: 0.60, spread: 0.24, thumbCurl: 0.68, thumbOut: 0.42, cup: 0.34, wrist: -0.12, touch: 0.00 },
-  flat: { curl: [0.00, 0.00, 0.00, 0.00], tip: 0.00, spread: 0.02, thumbCurl: 0.00, thumbOut: 0.22, cup: 0.00, wrist: 0.00, touch: 0.35 },
-  keys: { curl: [0.42, 0.46, 0.46, 0.44], tip: 0.56, spread: 0.32, thumbCurl: 0.18, thumbOut: 0.62, cup: 0.30, wrist: 0.10, touch: 1.00 },
-  press: { curl: [0.66, 0.28, 0.30, 0.32], tip: 0.74, spread: 0.26, thumbCurl: 0.20, thumbOut: 0.56, cup: 0.34, wrist: 0.14, touch: 1.00 },
+  relax: { curl: [0.34, 0.40, 0.43, 0.46], tip: 0.50, spread: 0.18, thumbCurl: 0.30, thumbOut: 0.35, cup: 0.25, wrist: -0.06, touch: 0.35, tool: 0.00 },
+  fist: { curl: [1.00, 1.00, 1.00, 1.00], tip: 1.00, spread: 0.00, thumbCurl: 0.55, thumbOut: 0.12, cup: 0.65, wrist: 0.00, touch: 0.00, tool: 0.00 },
+  grip: { curl: [0.72, 0.76, 0.76, 0.72], tip: 0.86, spread: 0.05, thumbCurl: 0.34, thumbOut: 0.58, cup: 0.48, wrist: 0.00, touch: 0.00, tool: 0.00 },
+  /**
+   * The one shape in the table that is *working* something rather than merely
+   * closed on it — see `HandPose.tool`. Everything else holds at 0, including
+   * `grip` and `bowhold`, whose instruments meet the world at the hand itself.
+   */
+  stick: { curl: [0.58, 0.78, 0.86, 0.92], tip: 0.80, spread: 0.06, thumbCurl: 0.44, thumbOut: 0.28, cup: 0.58, wrist: -0.04, touch: 0.00, tool: 1.00 },
+  bowhold: { curl: [0.44, 0.52, 0.60, 0.70], tip: 0.60, spread: 0.24, thumbCurl: 0.68, thumbOut: 0.42, cup: 0.34, wrist: -0.12, touch: 0.00, tool: 0.00 },
+  flat: { curl: [0.00, 0.00, 0.00, 0.00], tip: 0.00, spread: 0.02, thumbCurl: 0.00, thumbOut: 0.22, cup: 0.00, wrist: 0.00, touch: 0.35, tool: 0.00 },
+  keys: { curl: [0.42, 0.46, 0.46, 0.44], tip: 0.56, spread: 0.32, thumbCurl: 0.18, thumbOut: 0.62, cup: 0.30, wrist: 0.10, touch: 1.00, tool: 0.00 },
+  press: { curl: [0.66, 0.28, 0.30, 0.32], tip: 0.74, spread: 0.26, thumbCurl: 0.20, thumbOut: 0.56, cup: 0.34, wrist: 0.14, touch: 1.00, tool: 0.00 },
   /**
    * A hand opened out across a chord.
    *
@@ -156,12 +182,12 @@ export const HAND_POSES: Record<HandPoseId, HandPose> = {
    * shorter finger and the span is the whole problem. The palm flattens out of
    * its arch for the same reason.
    */
-  reach: { curl: [0.20, 0.24, 0.25, 0.22], tip: 0.24, spread: 1.00, thumbCurl: 0.06, thumbOut: 1.00, cup: 0.06, wrist: 0.08, touch: 1.00 },
-  spread: { curl: [0.30, 0.36, 0.38, 0.34], tip: 0.34, spread: 1.00, thumbCurl: 0.10, thumbOut: 0.86, cup: 0.10, wrist: -0.16, touch: 1.00 },
-  strap: { curl: [0.50, 0.58, 0.56, 0.48], tip: 0.68, spread: 0.22, thumbCurl: 0.22, thumbOut: 0.08, cup: 0.14, wrist: 0.24, touch: 0.85 },
-  pluck: { curl: [0.84, 0.54, 0.60, 0.66], tip: 0.90, spread: 0.10, thumbCurl: 0.70, thumbOut: 0.50, cup: 0.52, wrist: 0.00, touch: 1.00 },
-  point: { curl: [0.00, 1.00, 1.00, 1.00], tip: 1.00, spread: 0.00, thumbCurl: 0.60, thumbOut: 0.18, cup: 0.55, wrist: 0.00, touch: 1.00 },
-  open: { curl: [0.05, 0.05, 0.08, 0.10], tip: 0.05, spread: 0.76, thumbCurl: 0.00, thumbOut: 0.82, cup: 0.00, wrist: -0.10, touch: 0.80 },
+  reach: { curl: [0.20, 0.24, 0.25, 0.22], tip: 0.24, spread: 1.00, thumbCurl: 0.06, thumbOut: 1.00, cup: 0.06, wrist: 0.08, touch: 1.00, tool: 0.00 },
+  spread: { curl: [0.30, 0.36, 0.38, 0.34], tip: 0.34, spread: 1.00, thumbCurl: 0.10, thumbOut: 0.86, cup: 0.10, wrist: -0.16, touch: 1.00, tool: 0.00 },
+  strap: { curl: [0.50, 0.58, 0.56, 0.48], tip: 0.68, spread: 0.22, thumbCurl: 0.22, thumbOut: 0.08, cup: 0.14, wrist: 0.24, touch: 0.85, tool: 0.00 },
+  pluck: { curl: [0.84, 0.54, 0.60, 0.66], tip: 0.90, spread: 0.10, thumbCurl: 0.70, thumbOut: 0.50, cup: 0.52, wrist: 0.00, touch: 1.00, tool: 0.00 },
+  point: { curl: [0.00, 1.00, 1.00, 1.00], tip: 1.00, spread: 0.00, thumbCurl: 0.60, thumbOut: 0.18, cup: 0.55, wrist: 0.00, touch: 1.00, tool: 0.00 },
+  open: { curl: [0.05, 0.05, 0.08, 0.10], tip: 0.05, spread: 0.76, thumbCurl: 0.00, thumbOut: 0.82, cup: 0.00, wrist: -0.10, touch: 0.80, tool: 0.00 },
 };
 
 /**
@@ -211,6 +237,106 @@ export const DEFAULT_HAND_POSES: Record<Archetype, { left: HandPoseId; right: Ha
   singer: { left: 'relax', right: 'open' },
 };
 
+// ---------------------------------------------------------------------------
+// Things the hands hold
+// ---------------------------------------------------------------------------
+
+/**
+ * Something a hand *works with* rather than merely holds.
+ *
+ * The distinction is where the instrument gets touched, and it is the whole
+ * reason this is in the hand rather than in the instrument model. A microphone,
+ * a bass neck and a trombone slide are held, and the hand itself is the contact;
+ * a violin's bow is held, and the *model* owns it because the bow lies on the
+ * strings whether or not anybody is holding it. A drumstick is neither. It has
+ * no resting place on the kit — a stick that is not in a hand is a stick on the
+ * floor — and the drum is struck twenty-eight centimetres past the fist.
+ *
+ * So the hand carries it, and the hand reports its working end as the point the
+ * rig should place. Two archetypes, and the eye goes straight to both of them:
+ * the drummer's hands were bare fists landing on the heads, and the vibraphone
+ * was being played by somebody patting it.
+ */
+export type HeldImplement = 'drumstick' | 'mallet';
+
+/**
+ * Which archetypes put something in the player's hands.
+ *
+ * Partial, unlike `DEFAULT_HAND_POSES`, and the asymmetry is deliberate: every
+ * archetype needs a hand shape, so a missing entry there is a bug worth a
+ * compile error, while holding nothing is what twenty of the twenty-two do and
+ * a table of twenty `undefined`s would say nothing.
+ */
+export const IMPLEMENT_OF: Partial<Record<Archetype, HeldImplement>> = {
+  drumkit: 'drumstick',
+  mallets: 'mallet',
+};
+
+/**
+ * One implement, in hand radii — because a stick has to look right *in the
+ * hand that is holding it* and these hands are deliberately oversized.
+ *
+ * The lengths are honest metres, though: a 5A is 40 cm whoever picks it up, and
+ * at `handR = 0.04 × height` that is what `length` works out to on a player of
+ * mean height. The thicknesses are the compromise. Scaled truthfully against a
+ * cartoon palm a drumstick would be an inch across, so these sit between the
+ * real ratio and the real millimetre and read as sticks either way.
+ */
+interface ImplementSpec {
+  /** Butt to working end. */
+  length: number;
+  /** Where the fulcrum sits along it: 0 the butt, 1 the working end. */
+  grip: number;
+  /** Shaft diameter at the butt. `rod` tapers it toward the tip. */
+  thick: number;
+  /** Radius of the bead or ball on the end. */
+  bead: number;
+  shaft: string;
+  head: string;
+  /** The head's finish — lacquered hickory and wound yarn are not alike. */
+  headRough: number;
+}
+
+const IMPLEMENTS: Record<HeldImplement, ImplementSpec> = {
+  /** Hickory, a third of the way up from the butt, acorn tip. */
+  drumstick: {
+    length: 5.60, grip: 0.28, thick: 0.24, bead: 0.16,
+    shaft: '#c6a068', head: '#c6a068', headRough: 0.45,
+  },
+  /** Rattan and wound yarn, held nearer the butt and much softer on the end. */
+  mallet: {
+    length: 5.40, grip: 0.24, thick: 0.17, bead: 0.23,
+    shaft: '#d8c191', head: '#3f5f9e', headRough: 0.96,
+  },
+};
+
+/**
+ * Where the shaft crosses the hand and which way it runs, in the hand's own
+ * frame — palm in the `xz` plane facing `-y`, fingers along `+z`.
+ *
+ * A matched grip lies diagonally: in at the heel of the hand on the little
+ * finger's side, out between the thumb pad and the first joint of the index. So
+ * the aim is mostly forward with a lean toward the thumb (`x` is signed by the
+ * side, which is what makes a drummer's two tips converge rather than run
+ * parallel) and a third of a right angle down, because the head being struck is
+ * below the hand and the palm stays flat to it.
+ *
+ * **Both angles are really a statement about where the fists end up**, and the
+ * fists are the constraint. The rig places a hand by the end of what it holds,
+ * so a stick that ran straight out of the knuckles would park the drummer's
+ * hand a stick's length back along the kit's own forward — which, for a snare
+ * that sits between the player's knees by definition, is inside the player.
+ * Measured against the torso: at 25° down and 9° across, a hand crossing to the
+ * snare came out three centimetres inside the belly. At these it clears, the
+ * tips converge the way a matched grip's do, and the whole thing is still a
+ * stick angled gently at the drum rather than stabbed at it.
+ */
+const IMPLEMENT_AT = { x: 0.10, y: -0.20, z: 0.24 } as const;
+const IMPLEMENT_AIM = { x: 0.30, y: -0.50, z: 0.81 } as const;
+
+/** `rod` and `bone` both run along `+y`; this is what aims one somewhere else. */
+const UP = new Vector3(0, 1, 0);
+
 export function blendPoses(a: HandPose, b: HandPose, t: number): HandPose {
   const k = t < 0 ? 0 : t > 1 ? 1 : t;
   const mix = (x: number, y: number): number => x + (y - x) * k;
@@ -226,6 +352,7 @@ export function blendPoses(a: HandPose, b: HandPose, t: number): HandPose {
     cup: mix(a.cup, b.cup),
     wrist: mix(a.wrist, b.wrist),
     touch: mix(a.touch, b.touch),
+    tool: mix(a.tool, b.tool),
   };
 }
 
@@ -308,6 +435,7 @@ export const NO_BIAS: HandBias = { curl: [0, 0, 0, 0], tip: 0, spread: 0, cup: 0
 export function buildHand(
   side: 'left' | 'right', p: Proportions, skin: MeshStandardMaterial,
   cuffColour: string, l: Leases, bias: HandBias = NO_BIAS,
+  implement?: HeldImplement,
 ): HandRig {
   const R = p.handR;
   // Which way the thumb points. The right hand lives at -x and its thumb
@@ -353,6 +481,56 @@ export function buildHand(
     base.add(tip);
 
     fingers.push({ base, tip, fan: 1.5 - i, length });
+  }
+
+  /**
+   * The stick, and where its working end is in `flex`'s frame.
+   *
+   * Under `flex` rather than under `group`, so it rides the wrist with the
+   * fingers — a stick that stayed square to the placement node while the wrist
+   * broke would swing out of the fist that is supposed to be holding it.
+   *
+   * The pivot sits at the fulcrum, so the butt hangs back past the heel of the
+   * hand and the tip runs out past the fingers off one rotation. `undefined`
+   * when the hand holds nothing, which is what `aimTouch` tests.
+   */
+  let toolTip: Vector3 | undefined;
+  if (implement) {
+    const spec = IMPLEMENTS[implement];
+    const aim = new Vector3(
+      thumbSign * IMPLEMENT_AIM.x, IMPLEMENT_AIM.y, IMPLEMENT_AIM.z,
+    ).normalize();
+
+    const held = new Group();
+    held.name = `${side}-${implement}`;
+    held.position.set(
+      thumbSign * IMPLEMENT_AT.x * R, IMPLEMENT_AT.y * R, IMPLEMENT_AT.z * R,
+    );
+    held.quaternion.setFromUnitVectors(UP, aim);
+    flex.add(held);
+
+    const length = spec.length * R;
+    const butt = length * spec.grip;
+    const reach = length - butt;
+    const bead = spec.bead * R;
+
+    // `rod` runs from its own base along `+y`, so the whole shaft is one
+    // position and one scale. Non-uniform, and allowed to be: it is a leaf.
+    const shaft = new Mesh(rod(l), surface(l, spec.shaft, { roughness: 0.55 }));
+    shaft.position.y = -butt;
+    shaft.scale.set(spec.thick * R, length, spec.thick * R);
+    shaft.castShadow = true;
+    held.add(shaft);
+
+    // Centred a radius short of the end, so the ball's far surface is exactly
+    // the point the rig will place on the drum. Anything else either buries the
+    // bead in the head or floats the stick above it.
+    const tip = new Mesh(pip(l), surface(l, spec.head, { roughness: spec.headRough }));
+    tip.position.y = reach - bead;
+    tip.scale.setScalar(bead * 2);
+    held.add(tip);
+
+    toolTip = held.position.clone().addScaledVector(aim, reach);
   }
 
   const thumbBase = new Mesh(boneGeo, skin);
@@ -425,6 +603,11 @@ export function buildHand(
     // hand that holds something is left exactly where it was.
     const k = clamp(pose.touch, 0, 1);
     touchLocal.set(0, -R * 0.62 + (tipY + R * 0.62) * k, tipZ * k);
+
+    // And out along whatever the hand is holding, if it is holding anything.
+    // Same lerp, one stage further out: `touch` runs the contact from the palm
+    // to the fingertips and `tool` runs it from there to the end of the stick.
+    if (toolTip) touchLocal.lerp(toolTip, clamp(pose.tool, 0, 1));
   }
 
   function apply(pose: HandPose): void {

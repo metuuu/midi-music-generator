@@ -303,6 +303,13 @@ export type DrumVoice =
  *
  * This used to live in the Strudel renderer, where MIDI could not see it, which
  * meant the audition and the shipping file disagreed about the drum balance.
+ *
+ * These numbers are a balance between the *voices* of a kit and say nothing
+ * about the machines. The pack's kicks span 13 dB from bank to bank and its
+ * snares 17, which is not a fader decision and is corrected before this one
+ * applies — see `render/source-levels.ts`. Left as it was when that landed, on
+ * purpose: it was settled by ear and a measurement of a different thing has no
+ * standing to overwrite it.
  */
 export const DEFAULT_DRUM_MIX: Record<DrumVoice, number> = {
   bd: 1.0, sd: 0.85, rim: 0.7, hh: 0.45, oh: 0.5, cp: 0.7,
@@ -374,6 +381,51 @@ export interface Effects {
    * like the digital one after it.
    */
   phaser?: number;
+  /**
+   * Portamento depth in semitones: how far below the written note this one
+   * starts before sliding onto it. Negative slides down onto the note.
+   * **Audition only** — MIDI's portamento controllers are GM2, and CC5 is a
+   * *time* with no agreed relationship to an interval.
+   *
+   * Here for the same reason `phaser` is. The slide onto the note is not a
+   * decoration on this repertoire's melodies, it is one of the two or three
+   * things that identify the instrument playing them: a monophonic synthesiser
+   * with the glide switched on, and after 1977 a CS-80 with a ribbon under the
+   * keyboard. Every note in the catalogue arrived exactly in tune and started
+   * exactly where it ended, which is the one thing a synthesiser lead of this
+   * period reliably does not do.
+   *
+   * Small numbers. Two semitones is a lead player's slur; a fifth is a sound
+   * effect. The time it takes is fixed — see `GLIDE_SECONDS` in
+   * `render/strudel.ts`.
+   */
+  glide?: number;
+  /**
+   * How many octaves *below* `lowpass` a note starts before opening up to it,
+   * across the note and staying open. **Audition only**, and inert without a
+   * `lowpass` to open toward.
+   *
+   * Written as a distance below rather than above so that the era's `lowpass`
+   * stays what it has always been — the brightness this instrument arrives at
+   * in this decade — and this field only says how far under it the note begins.
+   * The other direction was tried first and is the wrong one: opening *upward*
+   * from a cutoff already set at 8 kHz sweeps a range with almost nothing in
+   * it, so the gesture is inaudible unless every era table is darkened to make
+   * room for it.
+   *
+   * `NoteEvent.brightness` already says where a note sits in its instrument's
+   * range, and the section-long `filter` ramp already says where the section
+   * does. Both are decided *before* the note sounds and neither can change
+   * anything while it is sounding — so a four-second held chord under a lead
+   * is, timbrally, four seconds of nothing happening.
+   *
+   * This is the third one: the note gets brighter as it is held. On the
+   * instrument that matters it was aftertouch — the CS-80 is the only
+   * synthesiser of its decade with per-key pressure, and leaning into a held
+   * note is why that lead sounds like someone playing rather than someone
+   * holding a key down.
+   */
+  swell?: number;
 }
 
 /**

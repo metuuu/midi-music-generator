@@ -144,7 +144,10 @@ const hauntology: Style = {
       { at: 8, dur: 8, vel: 0.44 },
     ] },
     { name: 'whole-bar', weight: 4, voices: 4, hits: [{ at: 0, dur: 16, vel: 0.46 }] },
-    { name: 'slow-arpeggio', weight: 4, voices: 4, arpeggio: true, hits: [
+    // Four hits against a six-rung folded ladder, so the roll lands somewhere
+    // new every bar. Four against four would have been the same four notes in
+    // the same order for the length of the piece.
+    { name: 'slow-arpeggio', weight: 4, voices: 4, arpeggio: true, arpDirection: 'updown', hits: [
       { at: 0, dur: 4, vel: 0.5 },
       { at: 4, dur: 4, vel: 0.42 },
       { at: 8, dur: 4, vel: 0.46 },
@@ -479,25 +482,27 @@ const kosmische: Style = {
     ] },
   ],
   comp: [
-    // Sixteen steps against four beats. The voicing has four notes, so the
-    // figure lands on a different chord tone on every downbeat.
-    { name: 'sequence-16', weight: 6, voices: 4, arpeggio: true, hits: [
+    // Sixteen steps against four beats, climbing two octaves. Eight rungs and
+    // fourteen firing steps, so the figure starts six rungs further on every
+    // bar and takes four bars to come home — which is the length of this
+    // style's harmonic unit, and no accident.
+    { name: 'sequence-16', weight: 6, voices: 4, arpeggio: true, arpOctaves: 2, hits: [
       { at: 0, dur: 1, vel: 0.5 }, { at: 1, dur: 1, vel: 0.4 },
-      { at: 2, dur: 1, vel: 0.46 }, { at: 3, dur: 1, vel: 0.4 },
+      { at: 2, dur: 1, vel: 0.46 },
       { at: 4, dur: 1, vel: 0.48 }, { at: 5, dur: 1, vel: 0.4 },
       { at: 6, dur: 1, vel: 0.46 }, { at: 7, dur: 1, vel: 0.4 },
       { at: 8, dur: 1, vel: 0.5 }, { at: 9, dur: 1, vel: 0.4 },
-      { at: 10, dur: 1, vel: 0.46 }, { at: 11, dur: 1, vel: 0.4 },
+      { at: 10, dur: 1, vel: 0.46 },
       { at: 12, dur: 1, vel: 0.48 }, { at: 13, dur: 1, vel: 0.4 },
       { at: 14, dur: 1, vel: 0.46 }, { at: 15, dur: 1, vel: 0.4 },
     ] },
-    { name: 'sequence-8', weight: 5, voices: 3, arpeggio: true, hits: [
+    { name: 'sequence-8', weight: 5, voices: 3, arpeggio: true, arpDirection: 'updown', hits: [
       { at: 0, dur: 2, vel: 0.5 }, { at: 2, dur: 2, vel: 0.42 },
       { at: 4, dur: 2, vel: 0.48 }, { at: 6, dur: 2, vel: 0.42 },
       { at: 8, dur: 2, vel: 0.5 }, { at: 10, dur: 2, vel: 0.42 },
       { at: 12, dur: 2, vel: 0.48 }, { at: 14, dur: 2, vel: 0.42 },
     ] },
-    { name: 'sequence-offbeat', weight: 3, voices: 5, arpeggio: true, hits: [
+    { name: 'sequence-offbeat', weight: 3, voices: 5, arpeggio: true, arpDirection: 'downup', hits: [
       { at: 2, dur: 2, vel: 0.46 }, { at: 6, dur: 2, vel: 0.46 },
       { at: 10, dur: 2, vel: 0.46 }, { at: 14, dur: 2, vel: 0.46 },
     ] },

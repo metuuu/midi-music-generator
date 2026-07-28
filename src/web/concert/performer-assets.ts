@@ -161,6 +161,23 @@ export const bone = (l: Leases): CapsuleGeometry =>
     return g;
   });
 
+/**
+ * A stick: diameter 1 at the butt tapering to 0.62 at the far end, length 1
+ * along `+y`, **origin at the butt**.
+ *
+ * Origin at the butt for the same reason `bone` has it at the base — the mesh
+ * is its own pivot, so a thing held at a fulcrum is one position and one scale
+ * rather than a group wrapping a centred cylinder. The taper is what separates
+ * a drumstick from a dowel at ten metres; on a mallet's thin shaft it is
+ * invisible, which is why one geometry serves both.
+ */
+export const rod = (l: Leases): CylinderGeometry =>
+  l.geometry('rod', () => {
+    const g = new CylinderGeometry(0.31, 0.5, 1, 8);
+    g.translate(0, 0.5, 0);
+    return g;
+  });
+
 /** Capsule of diameter 1 and total length 2, centred. Feet, limbs, lips. */
 export const pill = (l: Leases): CapsuleGeometry =>
   l.geometry('pill', () => new CapsuleGeometry(0.5, 1, 2, 8));

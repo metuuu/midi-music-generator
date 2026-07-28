@@ -102,7 +102,7 @@ const SCALE_OF: Partial<Record<InstrumentId, number>> = {
  * choreography can be computed without ever seeing the geometry.
  */
 export function buildInstrumentFor(
-  performer: Performer, instrumentId?: InstrumentId, finish?: string,
+  performer: Performer, instrumentId?: InstrumentId, finish?: string, year?: number,
 ): InstrumentModel {
   const build = BUILDERS[performer.archetype];
   const rng = new Rng(`instrument:${performer.id}`);
@@ -112,6 +112,7 @@ export function buildInstrumentFor(
     // A horn is held to a face, and this performer's face is where it is.
     height: performer.look.height,
     ...(finish ? { finish } : {}),
+    ...(year !== undefined ? { year } : {}),
   }));
 }
 

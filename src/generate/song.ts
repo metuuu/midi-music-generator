@@ -271,6 +271,18 @@ export function generateSong(opts: GenerateOptions = {}): Song {
    * reading.
    */
   const hands = instruments.hands;
+  /**
+   * Beat spans where a layer is carrying a solo rather than accompanying.
+   *
+   * Collected because a soloist was being mixed as whatever they normally are.
+   * `Section.solo.layer` writes the chorus into the soloist's own layer — the
+   * point of that design — and the track it lands in is then handed one gain
+   * for the whole song, which is the *accompaniment* level of that layer. On
+   * the default balance a counter solo played 4.6 dB under the tune it had
+   * replaced and a comp solo 5.4 dB under, which is the opposite of what a solo
+   * section is. See the assembly loop for what is done about it.
+   */
+  const soloSpans = new Map<PlayedLayer, [number, number][]>();
   const drumEvents: DrumEvent[] = [];
   for (const l of ['drums', 'bass', 'comp', 'pad', 'melody', 'counter', 'brass'] as LayerId[]) {
     byLayer.set(l, []);
@@ -282,6 +294,17 @@ export function generateSong(opts: GenerateOptions = {}): Song {
   const compPattern = rng.weightedBy(style.comp, (p) => p.weight);
   const drumPattern = rng.weightedBy(style.drums, (p) => p.weight);
   const drumBank = rng.weighted(era.drumBanks);
+  /**
+   * The second sequencer, where the style has one — fixed for the song like
+   * every other rhythm-section figure, because a machine that changed its
+   * pattern at every section boundary would be somebody playing it.
+   *
+   * Drawn only when the style asks for `ostinato`, so that no style which does
+   * not consumes a draw and shifts every seed after it.
+   */
+  const counterPattern = style.counterMode === 'ostinato' && style.counterPatterns?.length
+    ? rng.weightedBy(style.counterPatterns, (p) => p.weight)
+    : undefined;
 
   /**
    * The song's own figure, chosen once and quoted throughout in proportion to
@@ -684,6 +707,13 @@ export function generateSong(opts: GenerateOptions = {}): Song {
       });
       applyDynamics(line, soloLayer, intensity, genre.layerPlan?.response);
       push(byLayer, soloLayer, filtered(line, soloLayer));
+      // The whole section, not just `solo.soloBars`: the soloist's layer writes
+      // nothing else here — see the `soloLayer !== …` guards on the
+      // accompaniment above — so the section *is* the span it holds the floor.
+      const from = section.startBar * style.beatsPerBar;
+      const spans = soloSpans.get(soloLayer as PlayedLayer) ?? [];
+      spans.push([from, from + section.lengthBars * style.beatsPerBar]);
+      soloSpans.set(soloLayer as PlayedLayer, spans);
       sectionMelody = line;
     } else if (active.has('melody')) {
       const range: [number, number] = plan.lead;
@@ -731,11 +761,33 @@ export function generateSong(opts: GenerateOptions = {}): Song {
           ...ctxBase,
           rng: new Rng(`${seed}:counter:${s}${salt('counter')}`),
         };
-        const answer = generateCounter(counterCtx, melody, instruments.counter.centre, {
-          range: plan.counter,
-          idiom: IDIOMS[instruments.counter.idiom],
-          scaleFor: (c) => genre.scaleForChord(localTonic, mode, c),
-        });
+        /**
+         * Two different parts share this layer, and which one is written is the
+         * distinction `counterMode` exists to make.
+         *
+         * `answer` looks at the tune and plays where it is not. `ostinato` does
+         * not look at the tune at all — it is a second machine running against
+         * the first, and the Berlin-school texture is two sequencers at
+         * different cycle lengths phasing against each other, which no
+         * answering line can imitate because an answer by definition waits for
+         * a gap and this music has none.
+         *
+         * It goes through `generateComp` rather than through anything of its
+         * own, and that is the whole implementation: a figure with a `cycle`,
+         * voiced against the harmony, walking a ladder one note at a time. The
+         * only thing that made it a *counter* was which layer it lands in.
+         */
+        const answer = counterPattern
+          ? generateComp(
+            counterCtx, counterPattern, instruments.counter.centre,
+            (c) => genre.scaleForChord(localTonic, mode, c),
+            limitFor('counter'),
+          )
+          : generateCounter(counterCtx, melody, instruments.counter.centre, {
+            range: plan.counter,
+            idiom: IDIOMS[instruments.counter.idiom],
+            scaleFor: (c) => genre.scaleForChord(localTonic, mode, c),
+          });
         applyDynamics(answer, 'counter', intensity, genre.layerPlan?.response);
         push(byLayer, 'counter', filtered(answer, 'counter'));
       }
@@ -857,9 +909,34 @@ export function generateSong(opts: GenerateOptions = {}): Song {
    * long way behind it. A genre may say otherwise, and ambient does — there the
    * pad is the piece and the melody is the decoration, which is the same three
    * layers in the opposite order.
+   *
+   * ## Why these are not the numbers they used to be
+   *
+   * They are the same balance. `render/source-levels.ts` made a fader mean one
+   * loudness whatever font is on it, and that necessarily moved every layer by
+   * however far its own instrument pool sat from the catalogue median — the
+   * bass fonts here are quiet ones, so calibrating them lifted the bass 3.2 dB
+   * without anybody asking. Dividing each fader by its pool's mean trim puts
+   * the average song back exactly where it was and keeps the consistency, which
+   * is the whole point: the old numbers were right on average and wrong per
+   * song, and only the second half was worth fixing.
+   *
+   * Measured over the pools iskelmä and jazz actually draw from — the two
+   * genres that use these defaults; ambient and synth re-centre their own in
+   * their own `genre/…/index.ts`. `brass` barely moved (0.994) and is left
+   * alone.
    */
   const gains: Record<PlayedLayer, number> = {
-    bass: 0.9, comp: 0.62, pad: 0.45, melody: 0.85, counter: 0.55, brass: 0.6,
+    // was 0.9 — bass fonts run 1.44× quiet
+    bass: 0.63,
+    // was 0.62 — comp fonts 1.21× quiet
+    comp: 0.51,
+    // was 0.45 — pad fonts sit on the median already
+    pad: 0.44,
+    // was 0.85 — melody fonts run 1.12× *hot*, so this one goes up
+    melody: 0.95,
+    counter: 0.56,
+    brass: 0.60,
     ...genre.mix,
   };
 
@@ -950,6 +1027,33 @@ export function generateSong(opts: GenerateOptions = {}): Song {
     for (const n of notes) n.midi = foldIntoRange(n.midi, range);
 
     notes.sort((a, b) => a.beat - b.beat || a.midi - b.midi);
+
+    /**
+     * Ride the fader up for the solo.
+     *
+     * A `Track` carries one gain for the whole song, and a layer that takes a
+     * chorus needs two levels: its own when it is accompanying, and the lead's
+     * when it is the piece. The only way to say that with one number is to set
+     * the fader where the solo wants it and write everything else quieter,
+     * which is what an engineer does with an automation lane and exactly what
+     * the product `gain × velocity` lets us do here — the accompaniment comes
+     * out where it always did, note for note, and the solo comes up.
+     *
+     * Never *down*: a bass already mixed above the tune is at lead level and a
+     * bassist taking a chorus does not want it cut. Only the layers that sit
+     * behind the melody move, which is the four that can be handed a solo.
+     */
+    const spans = soloSpans.get(layer);
+    let gain = gains[layer];
+    if (spans?.length && gains.melody > gain) {
+      const back = gain / gains.melody;
+      for (const n of notes) {
+        const soloing = spans.some(([a, b]) => n.beat >= a - 1e-6 && n.beat < b - 1e-6);
+        if (!soloing) n.velocity = clamp(n.velocity * back, 0.08, 1);
+      }
+      gain = gains.melody;
+    }
+
     const effects = effectsFor(layer, instrument);
     tracks.push({
       layer,
@@ -958,7 +1062,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
       strudelSound: instrument.strudel,
       // Melodic layers were swung above, before their overlap trim.
       notes: layer === 'melody' || layer === 'counter' ? notes : applySwing(notes, style.swing),
-      gain: gains[layer],
+      gain,
       envelope: envelopeFor(instrument),
       ...(effects ? { effects } : {}),
       // Said out loud, because from here on nothing can tell by looking: a
@@ -987,9 +1091,24 @@ export function generateSong(opts: GenerateOptions = {}): Song {
   const drums: DrumTrack = {
     bank: drumBank,
     events: applySwingDrums(oneHatAtATime(drumEvents), style.swing),
-    // The kit is a layer like any other, so a genre that wants it barely
-    // present says so in `mix` rather than by writing quieter patterns.
-    gain: genre.mix?.drums ?? 0.8,
+    /**
+     * The kit is a layer like any other, so a genre that wants it barely
+     * present says so in `mix` rather than by writing quieter patterns.
+     *
+     * Two moves from the 0.8 this sat at before the sources were measured, and
+     * only the second is a matter of opinion. Re-centring for the banks these
+     * genres roll (mean trim 1.07) gives 0.75, and then −2 dB on top of that,
+     * because with every machine calibrated the kit was still playing its kick
+     * 2.4 dB over the melody layer — and that figure flatters the drums, since
+     * a 400 ms momentary window is generous to a sustained note and stingy with
+     * an 80 ms transient. It leaves the tune a shade above the kick, which is
+     * where a dance band wants it.
+     *
+     * A genre that states its own drum level keeps it, re-centred and with no
+     * opinion of mine on top: ambient and synth both said what they wanted and
+     * were entitled to.
+     */
+    gain: genre.mix?.drums ?? 0.59,
     voiceGains: { ...DEFAULT_DRUM_MIX, ...genre.drumMix },
     ...(drumEffects ? { effects: drumEffects } : {}),
   };

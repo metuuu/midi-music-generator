@@ -304,7 +304,7 @@ export const ARCHETYPES: Record<Archetype, ArchetypeSpec> = {
   }),
   cello: S({
     id: 'cello', label: 'cello', family: 'bowed',
-    hands: 2, posture: 'sit', points: ['string', 'rest'],
+    hands: 2, posture: 'straddle', points: ['string', 'rest'],
     range: [36, 81], strings: [36, 43, 50, 57],
     held: false, footprint: 0.9, workHeight: 0.9,
   }),

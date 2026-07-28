@@ -140,8 +140,13 @@ export function buildLegs(
    */
   const reach = (p.height * 0.50 + socket.left.y) - (p.footH * 0.5 + ankle.y);
 
-  /** Knees apart, more so sitting. Two parallel shins read as a doll. */
-  const splay = seated ? 0.30 : 0.11;
+  /**
+   * Knees apart. Two parallel shins read as a doll, and a cellist's have to be
+   * further apart than that again — see `Proportions.splay`, which is where the
+   * number lives now, because it is a fact about the posture rather than about
+   * the fitting done here.
+   */
+  const splay = p.splay;
 
   interface Leg { side: BodySide; thigh: Mesh; knee: Mesh; shin: Mesh }
   const legs: Leg[] = [];

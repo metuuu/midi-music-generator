@@ -66,7 +66,7 @@ import {
 } from './performer-assets.js';
 import { buildFace, type FaceRig } from './performer-face.js';
 import {
-  DEFAULT_HAND_POSES, HAND_POSES, blendPoses, buildHand,
+  DEFAULT_HAND_POSES, HAND_POSES, IMPLEMENT_OF, blendPoses, buildHand,
   type HandBias, type HandPose, type HandPoseId, type HandRig,
 } from './performer-hands.js';
 import { buildLegs, type LegsRig } from './performer-legs.js';
@@ -575,9 +575,14 @@ class Rig implements PerformerRig {
 
     // --- hands ------------------------------------------------------------
     const cuff = shade(look.outfit.jacket, -0.04);
+    // A drummer and a vibraphonist arrive holding something, and the thing they
+    // hold is what meets the instrument — see `HeldImplement`. Nothing else in
+    // the rig has to know: the hand reports its own contact point and the stick
+    // is simply further out than a fingertip.
+    const held = IMPLEMENT_OF[performer.archetype];
     this.hands = {
-      left: buildHand('left', p, skin, cuff, this.leases, handBias(handRng)),
-      right: buildHand('right', p, skin, cuff, this.leases, handBias(handRng)),
+      left: buildHand('left', p, skin, cuff, this.leases, handBias(handRng), held),
+      right: buildHand('right', p, skin, cuff, this.leases, handBias(handRng), held),
     };
     const defaults = DEFAULT_HAND_POSES[performer.archetype];
     this.handDefaults = {

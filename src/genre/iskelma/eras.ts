@@ -15,6 +15,7 @@ import type { EraProfile } from '../../style/types.js';
 
 const tanssilava: EraProfile = {
   id: 'tanssilava',
+  year: 1968,
   label: '1960s–70s tanssilava',
   description:
     'Dance-pavilion era. Preset rhythm boxes, accordion and bandoneon, tremolo guitar, string ensemble, muted brass.',
@@ -54,6 +55,7 @@ const tanssilava: EraProfile = {
 
 const eighties: EraProfile = {
   id: 'eighties',
+  year: 1985,
   label: '1980s iskelmäpop',
   description:
     'Radio-era iskelmä. LinnDrum and DMX, synth strings, electric piano, electric bass, synth brass stabs, big key changes.',

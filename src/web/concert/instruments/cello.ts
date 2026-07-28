@@ -25,9 +25,9 @@
  */
 
 import {
-  BoxGeometry, type BufferGeometry, CapsuleGeometry, CylinderGeometry,
+  BoxGeometry, type BufferGeometry, CapsuleGeometry, Color, CylinderGeometry,
   ExtrudeGeometry, Group, InstancedMesh, type Material, Matrix4, Mesh,
-  MeshStandardMaterial, Shape, Vector3,
+  MeshStandardMaterial, Quaternion, Shape, Vector3,
 } from 'three';
 
 import type { GestureKind, PlayPoint } from '../../../concert/types.js';
@@ -78,6 +78,31 @@ const BOW_LEAN = 0.170;
 const BOW_SPEED = 0.085;
 const BOW_MIN_STROKE = 0.085;
 const BOW_LIFT = 0.040;
+/**
+ * Standing down: the bow goes with the hand. See `violin.ts` for the whole
+ * argument — the bow is a child of the instrument, so a bowing arm that has
+ * gone to the player's side leaves it lying across the strings with nothing at
+ * the frog. It matters more here than it does there, because a cello is not
+ * lowered at all: the instrument stays exactly where it was played and the bow
+ * on it is the only thing that reads as abandoned.
+ *
+ * `FROG_DIR` is `−z` on this instrument and `+z` on the violin, which is the
+ * build-frame asymmetry at the top of this file and the reason the carry is
+ * written against a direction rather than against a sign.
+ */
+const CARRY_FULL = 0.5;
+const FROG_DIR = new Vector3(0, 0, Math.sign(FROG_Z));
+/** Frog to tip, and how much air the tip is left under a seated player. */
+const BOW_REACH = Math.abs(FROG_Z) * 2;
+const BOW_FLOOR = 0.10;
+
+// Per frame, per bowed player, and it may not allocate. See `hangBow`.
+const C1 = new Vector3();
+const C2 = new Vector3();
+const C3 = new Vector3();
+const CM = new Matrix4();
+const CQ = new Quaternion();
+
 /** The runtime's easing, over the runtime's own span. See `violin.ts`. */
 function smooth(s: number): number {
   return s * s * (3 - 2 * s);
@@ -98,6 +123,30 @@ const MOUNT = mountBasis(
   new Vector3(0, 0.25, 0.96),
   new Vector3(-0.060, 0.620, 0.100),
 );
+
+/**
+ * Where the player sits, in the instrument's frame: behind the endpin, and a
+ * hand's width to its **left**, which is what puts the instrument between their
+ * knees rather than through one of them.
+ *
+ * The lateral number is the one that was missing. `MOUNT` tilts the cello so
+ * the scroll goes past the left ear, and a tilted line whose top is left of
+ * centre has its bottom right of centre — the endpin lands 15 cm to the
+ * player's right and the lower bout with it. Seated at `x = 0` the player then
+ * has the whole width of the ribs on top of their right thigh, and no stance
+ * fixes that, because the instrument is not between the knees at all: it is
+ * outside the right one. Sitting 0.10 m to its right leaves the bout centred on
+ * the player at knee height, with the endpin 5 cm inside their right foot,
+ * which is where a cellist actually plants it.
+ *
+ * `y` stays zero. Both the player and the endpin are on the boards.
+ */
+const SEAT = new Vector3(-0.100, 0, -0.300);
+/**
+ * How far behind the player's hips the chair's own centre is: they sit forward
+ * on it, as anybody working an instrument does. See the chair.
+ */
+const SEAT_SHIFT = -0.050;
 
 /**
  * The axis the stopping hand's knuckles lie along: **down the fingerboard**.
@@ -192,12 +241,23 @@ function bowPivotY(z: number, lift: number): number {
   return STRING_HEIGHT + arcDrop(z) + BOW_CLEAR + lift;
 }
 
-/** The bowing hand: the frog, at the stroke's mid-point. See `violin.ts`. */
+/**
+ * The bowing hand: the frog, at the stroke's mid-point. See `violin.ts`.
+ *
+ * `STICK_Y` is where the stick hangs under the pivot's axis, which is the
+ * hair-string crossing and therefore a construction line with no bow on it.
+ * Measured off the stick mesh below; without it the hand is placed a centimetre
+ * over the thing it is supposed to be holding.
+ */
+const STICK_Y = -0.012;
+
 function bowContactAt(z: number, lift: number): Contact {
   const t = bowTilt(z);
   return {
     position: new Vector3(
-      BOW_X, bowPivotY(z, lift) - Math.sin(t) * FROG_Z, z + Math.cos(t) * FROG_Z,
+      BOW_X,
+      bowPivotY(z, lift) + Math.cos(t) * STICK_Y - Math.sin(t) * FROG_Z,
+      z + Math.sin(t) * STICK_Y + Math.cos(t) * FROG_Z,
     ).applyMatrix4(MOUNT),
     normal: arcNormal(z).transformDirection(MOUNT),
     along: new Vector3(0, -Math.sin(t), Math.cos(t)).transformDirection(MOUNT),
@@ -252,6 +312,12 @@ export interface CelloModel extends InstrumentModel {
   soundingContact(point: PlayPoint): Contact | undefined;
   /** The model's own bow, driven to stay under that hand. */
   bow: Group;
+  /**
+   * Carry the bow in the bowing hand rather than on the strings. `down` is how
+   * far that hand has let go, 0..1, and `hand` is where it is in world space —
+   * both of which only the runtime can know. See `violin.ts`.
+   */
+  carryBow(down: number, hand: Vector3): void;
 }
 
 export const buildCello: InstrumentBuilder = (opts) => {
@@ -404,6 +470,87 @@ export const buildCello: InstrumentBuilder = (opts) => {
     pin.castShadow = true;
   }
 
+  // --- The chair -----------------------------------------------------------
+  //
+  // A cellist sits on something, and until now they sat on nothing: the rig put
+  // the hips at seat height and there was no seat, so a stage of players
+  // standing at their instruments had one of them sitting in mid-air.
+  //
+  // It belongs to the model rather than to the stage for the same reason the
+  // grand's bench does — the seat height and the station are one measurement,
+  // and a chair placed by anything that cannot see `SEAT` is a chair the player
+  // is beside. One chair for every room, not one per venue: the shape of an
+  // orchestral chair does not change between a lakeside pavilion and a black
+  // box, and the thing that actually reads from the house is what the room's
+  // light does to it. The venue's own timber colour comes in through `finish`,
+  // taken down dark so the chair is furniture rather than a second cello.
+  {
+    /**
+     * The seat, three centimetres under the hip height the rig sits at.
+     *
+     * `min(0.47, 0.27 × height)` is `proportions()` in `performer-look.ts` and
+     * has to stay equal to it. The three centimetres are the difference between
+     * a seat and a plinth: the rig's thighs are cartoon-thick, so a top at
+     * exactly the hip height is a chair through both of them — which is the
+     * correction the grand's bench had made to it for the same reason.
+     */
+    const seatY = Math.min(0.47, (opts.height ?? 1.75) * 0.27) - 0.030;
+    /**
+     * Wider than the hips and no deeper than them.
+     *
+     * The width is a floor rather than a taste: the rig's seated hip mass is
+     * `0.88 × torsoW` across, which at the tall end of casting is 0.44 m, and a
+     * seat narrower than that is a player perched on a plank. The depth is
+     * capped the other way — the thighs leave the hip going forward and down,
+     * so every centimetre of seat in front of the hips is a centimetre the
+     * front edge spends inside one.
+     */
+    const w = 0.46 * rng.float(0.97, 1.03);
+    const d = 0.36;
+    const cx = SEAT.x;
+    const cz = SEAT.z + SEAT_SHIFT;
+
+    const frameMat = kit.mat(new MeshStandardMaterial({
+      color: new Color(opts.finish ?? '#6b4a2c').multiplyScalar(0.42),
+      roughness: 0.55,
+    }));
+    const seatMat = kit.mat(new MeshStandardMaterial({
+      color: new Color(opts.finish ?? '#6b4a2c').multiplyScalar(0.55),
+      roughness: 0.7,
+    }));
+
+    const seat = addTo(root, new Mesh(kit.geo(new BoxGeometry(w, 0.038, d)), seatMat));
+    seat.position.set(cx, seatY - 0.019, cz);
+    seat.castShadow = true;
+    seat.receiveShadow = true;
+
+    const legGeo = kit.geo(new CylinderGeometry(0.014, 0.011, seatY - 0.038, 6));
+    for (const sx of [-1, 1]) {
+      for (const sz of [-1, 1]) {
+        const leg = addTo(root, new Mesh(legGeo, frameMat));
+        leg.position.set(
+          cx + sx * (w / 2 - 0.030), (seatY - 0.038) / 2, cz + sz * (d / 2 - 0.030),
+        );
+        leg.castShadow = true;
+      }
+    }
+
+    // A low back, and low on purpose. It is behind the lumbar and nowhere near
+    // the shoulder blades, because a player who leans into a phrase leans back
+    // out of it — and a rail at shoulder height is a rail through a shoulder.
+    const postGeo = kit.geo(new CylinderGeometry(0.013, 0.013, 0.300, 6));
+    for (const sx of [-1, 1]) {
+      const post = addTo(root, new Mesh(postGeo, frameMat));
+      post.position.set(cx + sx * (w / 2 - 0.030), seatY + 0.150, cz - d / 2 + 0.020);
+      post.castShadow = true;
+    }
+    const rail = addTo(root, new Mesh(
+      kit.geo(new BoxGeometry(w - 0.040, 0.070, 0.024)), seatMat,
+    ));
+    rail.position.set(cx, seatY + 0.265, cz - d / 2 + 0.020);
+    rail.castShadow = true;
+  }
+
   // --- The bow -------------------------------------------------------------
   /** Pivot on the string, stick on the pivot. See `violin.ts` for why. */
   const bowPivot = addTo(inst, new Group());
@@ -447,6 +594,9 @@ export const buildCello: InstrumentBuilder = (opts) => {
   let leanFrom = 0;
   let leanTo = 0;
   let lift = BOW_LIFT;
+  /** How far the bow has gone to the hand, and where that hand is. `carryBow`. */
+  let carried = 0;
+  const carriedHand = new Vector3();
   /** Set on the beat, never eased — see the note in `violin.ts`. */
   let bowString = 1;
   /** `-Infinity`, so the first note is a new beat by the same test as the rest. */
@@ -491,7 +641,10 @@ export const buildCello: InstrumentBuilder = (opts) => {
   function placeBow(): void {
     const z = stringZ(bowString, BOW_X);
     bowPivot.position.set(BOW_X, bowPivotY(z, lift), z);
-    bowPivot.rotation.x = bowTilt(z);
+    // All three axes: `hangBow` writes a quaternion and three.js back-fills the
+    // Euler from it, so an assignment to `x` alone leaves the carry's yaw and
+    // roll on the pivot for good. See `violin.ts`.
+    bowPivot.rotation.set(bowTilt(z), 0, 0);
     // The stroke is a slide down the stick and nothing else: the crossing point
     // stays on the string and the frog runs up and down the hair, under a hand
     // the runtime has displaced along this same axis by this same number.
@@ -500,13 +653,58 @@ export const buildCello: InstrumentBuilder = (opts) => {
     // on this instrument the frog is at `−z`, so taking the frog's side would
     // have run the bow one way while the hand went the other.
     bow.position.set(0, 0, lean);
+
+    // Unless the player has stood down, in which case the bow is in their hand
+    // instead. Computed after the playing pose because it blends from it.
+    if (carried > 0.001) hangBow();
+  }
+
+  /**
+   * Hang the bow from the bowing hand: the frog in the hand, the stick under
+   * it, tilted up out of the boards when a seated player has not the height to
+   * hang it in. The argument, the axes and the reason it is written through the
+   * pivot are all in `violin.ts`; this is the same six lines against a cello's
+   * frame, where the frog is at `−z` and the mount hangs off a rocking group
+   * rather than off the root.
+   */
+  /** Pivot to the hand's grip on the stick, turned by `q`. See `STICK_Y`. */
+  function gripOffset(q: Quaternion, out: Vector3): Vector3 {
+    return out.set(0, STICK_Y, FROG_Z + lean).applyQuaternion(q);
+  }
+
+  function hangBow(): void {
+    inst.updateWorldMatrix(true, false);
+    CM.copy(inst.matrixWorld);
+
+    C3.copy(bowPivot.position).add(gripOffset(bowPivot.quaternion, C2)).applyMatrix4(CM);
+    C1.copy(FROG_DIR).applyQuaternion(bowPivot.quaternion).transformDirection(CM);
+
+    const rise = Math.min(Math.max((carriedHand.y - BOW_FLOOR) / BOW_REACH, 0.3), 1);
+    C2.set(-C1.x, 0, -C1.z);
+    if (C2.lengthSq() < 1e-8) C2.set(0, 0, 1);
+    C2.normalize().multiplyScalar(Math.sqrt(1 - rise * rise));
+    C2.y = -rise;
+    C2.negate();
+
+    const t = smooth(Math.min(carried / CARRY_FULL, 1));
+    C1.lerp(C2, t);
+    if (C1.lengthSq() < 1e-6) C1.copy(C2);
+    C1.normalize();
+    C3.lerp(carriedHand, t);
+
+    CM.invert();
+    C1.transformDirection(CM);
+    C3.applyMatrix4(CM);
+    bowPivot.quaternion.copy(CQ.setFromUnitVectors(FROG_DIR, C1));
+    bowPivot.position.copy(C3).sub(gripOffset(CQ, C2));
   }
   placeBow();
 
   const station: PlayerStation = {
-    offset: new Vector3(0.0, 0, -0.30),
+    // Cloned: the station is handed out and `SEAT` is this module's own.
+    offset: SEAT.clone(),
     facing: 0,
-    posture: 'sit',
+    posture: 'straddle',
   };
 
   const model: CelloModel = {
@@ -536,6 +734,14 @@ export const buildCello: InstrumentBuilder = (opts) => {
       const i = point.string;
       if (!Number.isInteger(i) || i < 0 || i >= STRINGS) return undefined;
       return bowContactAt(stringZ(i, BOW_X), 0);
+    },
+
+    carryBow(down: number, hand: Vector3): void {
+      const c = Math.min(Math.max(down, 0), 1);
+      if (c <= 0 && carried <= 0) return;
+      carried = c;
+      if (c > 0) carriedHand.copy(hand);
+      placeBow();
     },
 
     react(

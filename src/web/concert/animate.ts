@@ -624,6 +624,19 @@ const AT_EASE: Partial<Record<Archetype, AtEasePose>> = {
 };
 
 /**
+ * A model whose bow is held rather than parked, and can therefore be handed to
+ * the hand that holds it.
+ *
+ * Structural, like `HasSoundingContact` in `instruments/index.ts` and for the
+ * same reason: two of the twenty-two models have a bow and `InstrumentModel`
+ * should not grow a member the other twenty must ignore. See
+ * `Animator.carryBow`.
+ */
+interface CarriesBow {
+  carryBow(down: number, hand: Vector3): void;
+}
+
+/**
  * How far an at-ease hand may be pulled back to get out of the instrument.
  *
  * The body's own idle puts a standing player's hands a few centimetres in
@@ -1777,6 +1790,9 @@ class Runtime implements Animator {
     this.idle(p, beat, step);
     this.face(p, beat, blowWeight, breathWeight, visemeForce);
     this.poses(p, step);
+    // After both layers have had the hands, because it needs to know where one
+    // of them actually ended up. See `carryBow`.
+    this.carryBow(p);
 
     const sounding = !p.stopped && (blowWeight > 0 || p.slots[0]!.played || p.slots[1]!.played
       || p.slots[5]!.played || p.slots[2]!.played || p.slots[3]!.played);
@@ -1938,6 +1954,37 @@ class Runtime implements Animator {
     if (down <= 0) return 0;
     const hands = p.atEase?.hands;
     return hands ? down * (hands[side] ?? 1) : down;
+  }
+
+  /**
+   * Hand the bow to the hand that is holding it.
+   *
+   * A bow is the one thing on this stage that belongs to the player rather than
+   * to the instrument, and the scene graph says the opposite: it is a child of
+   * the violin, so a violinist standing down took their bow with the violin —
+   * down to the hip, still lying across the strings at the playing angle, with
+   * the arm that was holding it away at their side. A cellist's stayed on the
+   * cello, which does not come down at all, so theirs simply sat there being
+   * held by nobody. Both are the same fact about parentage and neither is
+   * fixable inside a model: **where the hand went is the rig's answer**, and a
+   * model has never been able to see it.
+   *
+   * So the runtime tells it. `standDown` is the same number the hand itself was
+   * blended by one layer above, which is what keeps the frog *in* the hand
+   * rather than chasing it, and the position is the one that was actually
+   * commanded this frame — the play layer's while a stroke is live, the idle
+   * layer's otherwise, since the two write to different slots for one physical
+   * hand. Anything with no bow to carry costs one property lookup.
+   */
+  private carryBow(p: Player): void {
+    const bowed = p.model as Partial<CarriesBow> | undefined;
+    if (typeof bowed?.carryBow !== 'function') return;
+    const played = p.slots[SLOT_OF.bow]!;
+    const idled = p.slots[SLOT_OF['right-hand']]!;
+    const src = played.played ? played : idled;
+    if (src.hasLast) this.toWorld(p, src.last, V1);
+    else this.atEaseHand(p, 'right-hand', V1);
+    bowed.carryBow(this.standDown(p, 1), V1);
   }
 
   /**
@@ -2410,7 +2457,46 @@ class Runtime implements Animator {
       }
       slot.idling = false;
       slot.idleSince = beat;
+      if (e === 'bow') this.handOver(p, SLOT_OF.bow, SLOT_OF['right-hand'], beat);
     }
+  }
+
+  /**
+   * Carry one hand's continuity from the slot that just drove it to the slot
+   * that will drive it next.
+   *
+   * `bow` and `right-hand` are two effectors and **one hand** — `PART_OF` says
+   * so — and the play layer writes to one of them while the idle layer writes
+   * to the other. Everything that makes a limb continuous across the handover
+   * lives per *slot*: where it was last put, the attitude it was put at, when
+   * the idle hold started. So a bowed player's right hand crossed between the
+   * two layers with none of it: the idle layer picked up `last` from wherever
+   * that hand had been the previous time it idled — a whole note and up to
+   * 17 cm of stroke ago — and `IDLE_FOLLOW_SECONDS` then pulled the hand most
+   * of the way back to it for a frame before hauling it home again. Which is
+   * the hand jumping somewhere and jumping back, once per note, all number.
+   *
+   * The reverse direction matters for the same reason and is less visible:
+   * `arcOf` anchors a windup at the bow slot's `last`, so without this a
+   * stroke wound up from where the previous stroke ended rather than from
+   * where the hand actually is.
+   *
+   * Cheap enough to do unconditionally on a bowed player: three vector copies
+   * and four flags, twice a frame, for the two models that have a bow.
+   */
+  private handOver(p: Player, from: number, to: number, beat: number): void {
+    const a = p.slots[from]!;
+    const b = p.slots[to]!;
+    b.last.copy(a.last);
+    b.hasLast = a.hasLast;
+    b.norm.copy(a.norm);
+    b.hasNorm = a.hasNorm;
+    b.along.copy(a.along);
+    b.hasAlong = a.hasAlong;
+    // The receiving slot has not been drifting, whatever it thinks: this hand
+    // was commanded this frame, so its idle hold starts from now.
+    b.idling = false;
+    b.idleSince = beat;
   }
 
   /**
@@ -2670,6 +2756,8 @@ class Runtime implements Animator {
       p.rig.setEffector(e, V1, norm, along);
       this.toLocal(p, V1, slot.last);
       slot.hasLast = true;
+      // The other half of the same hand. See `handOver`.
+      if (k === 1 && p.usesBow) this.handOver(p, SLOT_OF['right-hand'], SLOT_OF.bow, beat);
     }
   }
 

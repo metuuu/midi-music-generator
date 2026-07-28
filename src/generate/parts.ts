@@ -255,6 +255,37 @@ function approachNote(from: Midi, nextRoot: number, rng: Rng): Midi {
   return rng.weighted(options);
 }
 
+/**
+ * The rungs an arpeggio walks, in the order it walks them.
+ *
+ * Built from a voicing rather than from a chord, so it inherits the voice
+ * leading: the ladder for bar two sits where bar one's ladder left off, and the
+ * figure moves as little as the harmony did. That is the whole reason this
+ * takes a voicing and not a `Chord`.
+ *
+ * `updown` and `downup` drop the turn-round notes rather than repeating them —
+ * four rungs give six steps, not eight. Repeating the top and the bottom is
+ * what a cheap arpeggiator does and it puts an accidental accent on both ends
+ * of the figure; a sequencer with the same six steps punched into it does not.
+ * The length is the point as much as the shape: six against a sixteen-step bar
+ * comes back round every three bars, where four came back round every one.
+ *
+ * A two-rung ladder has no turn-round to drop, so the up-and-down modes fall
+ * back to the plain walk rather than emitting a one-note figure.
+ */
+function arpLadder(voicing: Midi[], pattern: CompPattern): Midi[] {
+  const octaves = Math.max(1, Math.round(pattern.arpOctaves ?? 1));
+  const rungs: Midi[] = [];
+  for (let o = 0; o < octaves; o++) for (const midi of voicing) rungs.push(midi + o * 12);
+  const fold = (up: Midi[]) => (up.length > 2 ? [...up, ...up.slice(1, -1).reverse()] : up);
+  switch (pattern.arpDirection ?? 'up') {
+    case 'down': return rungs.slice().reverse();
+    case 'updown': return fold(rungs);
+    case 'downup': return fold(rungs.slice().reverse());
+    default: return rungs;
+  }
+}
+
 export function generateComp(
   ctx: PartContext,
   pattern: CompPattern,
@@ -267,12 +298,19 @@ export function generateComp(
   const { chords, beatsPerBar, startBeat, rng } = ctx;
   const slotsPerBar = beatsPerBar * SLOTS_PER_BEAT;
   const out: NoteEvent[] = [];
+  // A multi-octave arpeggio needs somewhere to climb *to*, and the one place it
+  // must not climb into is the melody's register — which is exactly what the
+  // arranger's ceiling is there to protect. So the extra octaves are bought by
+  // voicing the chord lower rather than by letting the figure rise higher: the
+  // top of the ladder ends up where the top of a one-octave figure would have
+  // been, and the pattern gets its span without spending the tune's headroom.
+  const climb = pattern.arpeggio ? (Math.max(1, Math.round(pattern.arpOctaves ?? 1)) - 1) * 12 : 0;
   // With a ceiling in force the window is anchored to it rather than to the
   // instrument's centre: a comp given five semitones to voice a seventh chord
   // in has no choice but to make a cluster, so it is given a proper octave and
   // a bit underneath the tune instead.
-  const hi = limits.ceiling ?? centre + 12;
-  const lo = limits.ceiling !== undefined ? Math.min(centre - 10, hi - 17) : centre - 10;
+  const hi = (limits.ceiling ?? centre + 12) - climb;
+  const lo = limits.ceiling !== undefined ? Math.min(centre - 10 - climb, hi - 17) : centre - 10 - climb;
   // Runs across barlines on purpose — see `arpeggio` in style/types.ts.
   let step = 0;
 
@@ -301,12 +339,17 @@ export function generateComp(
     voicings.push(voicing);
     previous = voicing;
   }
+  // Built per bar because the voicing is, but the *length* is a property of the
+  // pattern rather than of the harmony, so the walk keeps its phase across the
+  // whole section — which is the entire reason `step` survives the barline.
+  const ladders = pattern.arpeggio ? voicings.map((v) => arpLadder(v, pattern)) : [];
 
   for (const { hit, bar, slot } of cycleHits(pattern.hits, {
     cycle: pattern.cycle ?? slotsPerBar, bars: chords.length, slotsPerBar,
   })) {
     const voicing = voicings[bar]!;
-    const sounding = pattern.arpeggio ? [voicing[step++ % voicing.length]!] : voicing;
+    const ladder = ladders[bar];
+    const sounding = ladder ? [ladder[step++ % ladder.length]!] : voicing;
     for (const midi of sounding) {
       out.push({
         beat: startBeat + slot / SLOTS_PER_BEAT,

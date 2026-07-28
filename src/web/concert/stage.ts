@@ -51,7 +51,7 @@ import {
 
 import { Rng } from '../../core/rng.js';
 import type { Venue } from '../../concert/types.js';
-import { buildAudience, type AudienceRig } from './stage-audience.js';
+import { buildAudience, crowdExtent, rowGap, type AudienceRig } from './stage-audience.js';
 import { buildCurtain, type CurtainRig } from './stage-curtain.js';
 import {
   blend, cellPlane, hueShift, shade, tint,
@@ -214,8 +214,19 @@ export function buildStage(venue: Venue, opts: StageOptions = {}): StageRig {
     openingWidth,
     openingHeight,
     curtainZ: depth / 2 - CURTAIN_FROM_LIP,
-    flyY: openingHeight - 0.35,
-    houseDepth: 2.6 + rows * (venue.audience.seated ? 0.95 : 0.8),
+    /**
+     * The pipe, and in a cellar it is bolted to the soffit rather than flown.
+     *
+     * `openingHeight - 0.35` is a fly tower's answer and it stopped being true
+     * the moment the stage got a lid: the arch is 3.6 m at its shortest and the
+     * soffit is at 2.85, so the bar and everything the rig hangs on it — every
+     * par, the warm lamp, the wires — sat *inside the ceiling*, invisible, with
+     * their beams starting in the plaster. A fly bar cannot be higher than the
+     * room; where there is no fly tower it is a length of scaffold on drop-arms
+     * a handspan under the plaster, which is what this now is.
+     */
+    flyY: lowCeiling ? STAGE_SOFFIT - 0.13 : openingHeight - 0.35,
+    houseDepth: 2.6 + rows * rowGap(venue.audience.seated),
     houseWidth: width + 4,
     /**
      * The lid, published so the camera can stay under it. `Infinity` is not a
@@ -231,6 +242,7 @@ export function buildStage(venue: Venue, opts: StageOptions = {}): StageRig {
      */
     headroom: lowCeiling ? Math.min(-rise + LOW_CEILING, STAGE_SOFFIT) : Infinity,
     backdropHeight: backHeight,
+    crowd: crowdExtent(venue.audience, -rise, depth / 2),
   };
 
   const root = new Group();
@@ -269,10 +281,37 @@ export function buildStage(venue: Venue, opts: StageOptions = {}): StageRig {
   lip.position.set(0, -0.02, m.lipZ + 0.04);
   root.add(lip);
 
-  // --- the house floor ---------------------------------------------------
+  /**
+   * The house floor — and the crowd is standing on it, which it did not look
+   * like.
+   *
+   * The audience is unlit by design: `MeshBasicMaterial`, near black, so it
+   * reads as silhouette instead of as a hundred badly lit people. That only
+   * works if there is something *behind* the silhouette. This was one flat
+   * plane of `shade(blend(boards, backdrop, 0.6), 0.6)` — 26 counts of brown
+   * before any light reached it — so in the cellar the crowd was a field of
+   * dark shapes on a darker nothing, floating, with no ground plane to sit the
+   * heads on. The same failure as the ceiling and the same two-part fix: an
+   * albedo that can return the light it gets, and cells so it is a surface
+   * rather than a fill.
+   *
+   * It gets the better half of the light, unlike the ceiling — a floor faces
+   * the hemisphere's *sky* colour and every directional in the rig is above it
+   * — so it needs less help and gets a smaller lift: dark boards you can see
+   * the grain of, not a lit floor competing with the stage.
+   */
+  const floorRng = new Rng(`${venue.id}:housefloor`);
+  const floorW = m.houseWidth + 8;
+  const floorD = m.houseDepth + 8;
   const houseFloor = new Mesh(
-    kit.geometry('housefloor', () => new PlaneGeometry(m.houseWidth + 8, m.houseDepth + 8)),
-    kit.solid(shade(blend(p.boards, p.backdrop, 0.6), 0.6), { rough: 0.95 }),
+    kit.own(cellPlane({
+      width: floorW, height: floorD,
+      cols: Math.max(6, Math.round(floorW / 0.9)),
+      rows: Math.max(6, Math.round(floorD / 0.9)),
+      colour: shade(blend(p.boards, p.backdrop, 0.6), 0.34),
+      jitter: 0.1, rng: floorRng,
+    })),
+    kit.solid('#ffffff', { vertexColors: true, rough: 0.95 }),
   );
   houseFloor.rotation.x = -Math.PI / 2;
   houseFloor.position.set(0, -rise, m.lipZ + m.houseDepth / 2);
@@ -545,12 +584,20 @@ export function buildStage(venue: Venue, opts: StageOptions = {}): StageRig {
     kit.solid(shade(p.proscenium, 0.65), { metal: 0.55, rough: 0.45 }),
   );
   flyBar.add(pipe);
+  /**
+   * What holds it up, and it has to reach something. 2.6 m of wire going up
+   * from a bar 0.16 m under a soffit is 2.44 m of steel through the ceiling —
+   * the same mistake as the bar itself, one level down. In a low room these are
+   * drop-arms to the plaster, which is how a pipe is hung where there is
+   * nothing above it to fly from.
+   */
+  const wireH = lowCeiling ? Math.max(0.06, STAGE_SOFFIT - m.flyY - 0.045) : 2.6;
   for (const side of [-1, 1]) {
     const wire = new Mesh(
-      kit.bevelBox(0.03, 2.6, 0.03, 0.014),
+      kit.bevelBox(0.03, wireH, 0.03, Math.min(0.014, wireH * 0.3)),
       kit.solid(shade(p.proscenium, 0.75), { metal: 0.5, rough: 0.5 }),
     );
-    wire.position.set(side * (openingWidth / 2 - 0.6), 1.3, 0);
+    wire.position.set(side * (openingWidth / 2 - 0.6), wireH / 2, 0);
     flyBar.add(wire);
   }
   root.add(flyBar);

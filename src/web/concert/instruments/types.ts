@@ -195,6 +195,24 @@ export interface InstrumentBuildOptions {
    * this entirely.
    */
   height?: number;
+  /**
+   * The year the show is standing in, from `Concert.year`. Omit and a model
+   * assumes whatever it looked like before this existed.
+   *
+   * This is the one piece of show-level context the seam carries, and it passes
+   * the narrowness test above for a reason worth stating: it says nothing about
+   * the music. It is not "which section is this" or "how loud is the chorus" —
+   * it does not vary across a show, across a number, or across a bar. It is a
+   * fact about the *object on the stand*, and a model is exactly the thing that
+   * should know it. A synthesiser in 1974 is a wall of patch cables with a
+   * keyboard in front of it; in 1987 it is a plastic slab with no knobs at all.
+   * Those are different props, not one prop in two moods.
+   *
+   * A year rather than an era id, because era ids are genre-local and a model
+   * that branched on them would have to learn four vocabularies to answer a
+   * question about a decade. See `EraProfile.year`.
+   */
+  year?: number;
 }
 
 /** A convenience for models that have nothing to settle. */

@@ -60,10 +60,28 @@ const CYMBAL_THICK = 0.005;
  * not a nicety. The hi-hat used to sit at 0.84, which is below the rim of a
  * tilted rack tom at 0.95: the hats disappeared into the toms from the front,
  * and a hi-hat you cannot see is a groove you cannot read.
+ *
+ * **How far out the hats are is a fact about the drummer's left leg**, and that
+ * is why it changed. The stand carries the pedal, the pedal carries the foot,
+ * and the foot is the far end of a leg whose other end is on a throne at
+ * `z = −0.95`. At `x = 0.56` the hip-to-ankle span came out a shade *longer*
+ * than the leg — `performer-legs.ts` stretches a leg by a percent rather than
+ * open a gap at the ankle — so the left leg was pulled dead straight and
+ * splayed out sideways for the whole number, with no knee in it at all. Every
+ * twelve centimetres in is about eight degrees of knee back, and 0.44 puts the
+ * span at nine tenths of the leg: bent, and still a reach.
  */
-const HAT_AT = [0.56, 0.980, -0.34] as const;
+const HAT_AT = [0.44, 0.980, -0.34] as const;
 const CRASH_AT = [0.52, 1.235, 0.12] as const;
 const RIDE_AT = [-0.60, 1.050, -0.02] as const;
+
+/**
+ * The clap pad, on its own boom — and *forward* of the hats rather than beside
+ * them, which is where it used to be and where the left foot now is. Its post
+ * ran from the boards at `z = −0.68`, straight up through the middle of the
+ * hi-hat's heel plate.
+ */
+const PAD_AT = [0.62, 0.786, -0.18] as const;
 
 /**
  * Hat gap: shut is the two cymbals nested, open is a hand's width of daylight.
@@ -95,11 +113,38 @@ const LAYOUT: Record<DrumVoice, { at: readonly [number, number, number]; up: rea
    * lands the underside of the shoe exactly on this number. It used to say
    * 0.085 and the leg read as floating, because a footboard eight and a half
    * centimetres off the boards is not a footboard.
+   *
+   * *Where* along the board is the same question the hi-hat's `HAT_FOOT_ALONG`
+   * asks, with the same answer. At `z = −0.22` the shoe hung five centimetres
+   * off the toe end of a board that is thirty-two long, and the right leg came
+   * out fractionally longer than a leg — dead straight, stretched, and the
+   * mirror of the complaint about the left. Back at the board's own pivot the
+   * whole shoe is on it, the sole barely moves as the board flattens, which is
+   * why the pivot is where it is, and the knee has something to bend.
    */
-  bd: { at: [-0.09, 0.052, -0.22], up: [0, 0.993, -0.118] },
-  sd: { at: [0.12, 0.740, -0.50], up: [0, 0.97, -0.24] },
-  /** The near rim of the same drum — a cross-stick lands on the hoop. */
-  rim: { at: [0.05, 0.766, -0.64], up: [0, 0.95, -0.31] },
+  bd: { at: [-0.09, 0.045, -0.30], up: [0, 0.993, -0.118] },
+  /**
+   * The batter head, and both numbers moved once the drummer had a stick in
+   * their hand: four centimetres further out, and raked over half as far.
+   *
+   * A hand is placed by the end of what it holds, so a stick's length of the
+   * drummer's reach is now spent behind the strike point rather than in front
+   * of it — and the snare is the one drum that sits between the player's own
+   * knees, with nowhere for that length to go. Fourteen degrees of rake made it
+   * worse again by aiming the retreat downward as well as backward, into the
+   * lap. Eight is what a real snare tilts anyway.
+   */
+  sd: { at: [0.12, 0.745, -0.46], up: [0, 0.99, -0.14] },
+  /**
+   * The hoop of the same drum, on the forward-left quarter of it.
+   *
+   * The *near* hoop is where a cross-stick is really struck and it is the one
+   * place on this kit a stick cannot reach: thirty centimetres in front of the
+   * throne, which puts the fist through the player's stomach. Round the front
+   * is the same hoop, at the same angle, within a hand's width of where the
+   * cross-stick hand rests — and reachable.
+   */
+  rim: { at: [0.244, 0.757, -0.336], up: [0.12, 0.96, -0.25] },
   /**
    * On the bow, on the near side — not on the bell. A hand hovering over the
    * middle of a cymbal is one of those small wrongnesses that makes a whole
@@ -120,21 +165,29 @@ const LAYOUT: Record<DrumVoice, { at: readonly [number, number, number]; up: rea
   /** The bow of the ride, two thirds out, on the side nearest the player. */
   rd: { at: [RIDE_AT[0] + 0.02, RIDE_AT[1] + 0.008, RIDE_AT[2] - 0.14], up: [-0.15, 0.97, -0.18] },
   /** A clap is not a kit piece, so the kit grows a pad for it, by the hats. */
-  cp: { at: [0.40, 0.800, -0.68], up: [0, 1, 0] },
+  cp: { at: [PAD_AT[0], PAD_AT[1] + 0.014, PAD_AT[2]], up: [0, 1, 0] },
   /**
    * The shaker stands in for brushes (`core/types.ts` says so), and brushes
    * live on the snare. Resolving it just above the batter head means a jazz
    * kit's hand goes where a jazz player's hand goes, rather than into the air.
    */
-  sh: { at: [0.26, 0.820, -0.56], up: [0, 1, 0] },
+  sh: { at: [0.18, 0.815, -0.42], up: [0, 0.99, -0.14] },
   /** Woodblock, clamped to the bass drum hoop on the player's right. */
   perc: { at: [-0.26, 1.103, 0.234], up: [0, 0.92, -0.40] },
   /** Cowbell, on the same bracket, struck on the shoulder. */
   cb: { at: [0.02, 1.160, 0.242], up: [0, 0.80, -0.60] },
 };
 
-/** Sticks at rest, hovering over the middle of the kit. */
-const REST = { at: [0.10, 0.98, -0.52] as const, up: [0, 1, 0] as const };
+/**
+ * Sticks at rest, hovering over the middle of the kit.
+ *
+ * The *tips*, now that there are sticks — the rig places a drummer's hand by
+ * the end of what it is holding (`HandPose.tool`), so this point is where the
+ * beads park and the fists sit a stick's reach behind it. It moved forward by
+ * sixteen centimetres for exactly that reason: at `z = −0.52` the hands landed
+ * inside the drummer's own chest.
+ */
+const REST = { at: [0.10, 0.98, -0.36] as const, up: [0, 1, 0] as const };
 
 /** Which drum shell each voice belongs to, for `react`. */
 type ShellId = 'kick' | 'snare' | 'high' | 'mid' | 'floor' | 'pad';
@@ -349,11 +402,20 @@ export const buildDrumkit: InstrumentBuilder = (opts) => {
     ));
   }
 
-  /** A tripod under a cymbal or a snare: three splayed legs and a post. */
-  function tripod(at: Vector3, top: number): void {
+  /**
+   * A tripod under a cymbal or a snare: three splayed legs and a post.
+   *
+   * `phase` turns the legs about the post, and the hi-hat is the reason it is a
+   * parameter. Three legs at 120° always put one within 60° of any direction
+   * you care about, and at the default the hi-hat's third leg came back at the
+   * player and landed inside the shoe on the footboard. Pointing one leg
+   * straight down the kit puts the other two at ±30° off the back, which is a
+   * pedal arriving between two legs — which is how a hi-hat stand is built.
+   */
+  function tripod(at: Vector3, top: number, phase = 0.4): void {
     strut(tubeSlots, new Vector3(at.x, 0.02, at.z), new Vector3(at.x, top, at.z));
     for (let i = 0; i < 3; i++) {
-      const a = (i / 3) * TAU + 0.4;
+      const a = (i / 3) * TAU + phase;
       strut(legSlots, new Vector3(at.x, 0.30, at.z), new Vector3(
         at.x + Math.cos(a) * 0.26, 0.01, at.z + Math.sin(a) * 0.26,
       ));
@@ -436,8 +498,8 @@ export const buildDrumkit: InstrumentBuilder = (opts) => {
 
   // Snare: 14x5.5, tilted a little toward the player.
   const snare = drum('snare', 0.175, 0.135);
-  stand(snare, 'sd', 0.135);
-  tripod(new Vector3(0.12, 0.60, -0.50), 0.60);
+  const sdAt = stand(snare, 'sd', 0.135);
+  tripod(new Vector3(sdAt.x, 0.60, sdAt.z), 0.60);
 
   const ht = drum('high', 0.155, 0.20);
   const mt = drum('mid', 0.175, 0.22);
@@ -463,10 +525,12 @@ export const buildDrumkit: InstrumentBuilder = (opts) => {
   const padGeo = new CylinderGeometry(0.075, 0.075, 0.028, 16);
   const pad = addTo(root, new Mesh(padGeo, darkMat));
   pad.name = 'head:pad';
-  pad.position.set(0.40, 0.786, -0.68);
+  pad.position.set(PAD_AT[0], PAD_AT[1], PAD_AT[2]);
   pad.castShadow = true;
   shells['pad'] = { head: pad, hit: new Hit() };
-  strut(tubeSlots, new Vector3(0.40, 0.02, -0.68), new Vector3(0.40, 0.77, -0.68));
+  strut(tubeSlots,
+    new Vector3(PAD_AT[0], 0.02, PAD_AT[2]),
+    new Vector3(PAD_AT[0], PAD_AT[1] - 0.016, PAD_AT[2]));
 
   // Lugs are the detail that makes a shell read as a drum, and forty separate
   // draw calls for them would be a poor trade. One instanced mesh for the kit,
@@ -516,7 +580,8 @@ export const buildDrumkit: InstrumentBuilder = (opts) => {
   hatBottom.rotation.z = -0.10;
   hatBottom.receiveShadow = true;
   const hatTop = cymbal('hatTop', 0.175, HAT_AT, -0.10);
-  tripod(new Vector3(HAT_AT[0], 0.40, HAT_AT[2]), HAT_AT[1] - 0.01);
+  // One leg down the kit, two splayed off the back with the pedal between them.
+  tripod(new Vector3(HAT_AT[0], 0.40, HAT_AT[2]), HAT_AT[1] - 0.01, Math.PI / 2);
 
   cymbal('crash', 0.21, CRASH_AT, -0.20);
   tripod(new Vector3(0.60, 0.60, 0.22), 1.10);
@@ -634,8 +699,12 @@ export const buildDrumkit: InstrumentBuilder = (opts) => {
   }
 
   // Toe toward the drum, heel toward the throne — the drummer sits at `-z`.
+  //
+  // The hat board is placed off `HAT_AT` rather than beside it, because a
+  // footboard that did not move with its own stand is a pedal connected to
+  // nothing: the rod comes out of the toe end of it.
   const kickPedal = pedal('kick', -0.09, -0.12, -0.44, 'middle');
-  const hatPedal = pedal('hat', 0.56, -0.36, -0.66, 'heel');
+  const hatPedal = pedal('hat', HAT_AT[0], HAT_AT[2] - 0.02, HAT_AT[2] - 0.32, 'heel');
 
   /**
    * Where the sole of the left shoe sits, with the hat board at `angle`.
@@ -646,7 +715,15 @@ export const buildDrumkit: InstrumentBuilder = (opts) => {
    * hinge, carried by the hinge. A hand-written pair would be a second opinion
    * about the same hinge, and the first one to be edited would be right.
    */
-  const HAT_FOOT_ALONG = 0.20;
+  /**
+   * How far up the board the sole sits.
+   *
+   * A hi-hat's hinge is at the *back* of its board, so a whole foot laid on it
+   * from the heel forward puts the ankle about here. It was 0.20, which hung
+   * the toe six centimetres off the front of a thirty-centimetre board and
+   * bought another two of reach for a leg that had none to spare.
+   */
+  const HAT_FOOT_ALONG = 0.15;
   function hatFoot(angle: number): Contact {
     const s = Math.sin(angle), c = Math.cos(angle), t = PEDAL_THICK / 2;
     return {
@@ -781,7 +858,7 @@ export const buildDrumkit: InstrumentBuilder = (opts) => {
       for (const id of ['kick', 'snare', 'high', 'mid', 'floor', 'pad'] as ShellId[]) {
         const s = shells[id];
         const d = s.hit.wobble(now, 0.22, 3.2);
-        if (id === 'pad') s.head.position.y = 0.786 - d * 0.010;
+        if (id === 'pad') s.head.position.y = PAD_AT[1] - d * 0.010;
         else s.head.scale.y = 1 - d * 2.2;
       }
 
