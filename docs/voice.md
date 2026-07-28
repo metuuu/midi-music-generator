@@ -212,6 +212,41 @@ Measured, cardinal vowels at E3:
 The last two rows are the point. The vowel now changes the **body** of the
 sound rather than wobbling its treble.
 
+### Why it does not sound like a robot
+
+The robot is an **absence, not a presence** — there is no resonance to filter
+out. What is missing is the variation no larynx can avoid and no oscillator
+produces. Real vocal folds are two lumps of wet tissue being blown apart several
+hundred times a second, and they never do it twice the same way:
+
+| | reference | measured here |
+|---|---|---|
+| jitter (period variation) | 0.2–1.0% | **0.33%** |
+| shimmer (amplitude variation) | 2–5% | **3.6%** |
+
+Both come from band-limited noise rather than from an LFO, which matters: a slow
+sine is a *periodic* wobble, so it swaps one machine for a slower one and the ear
+finds the period. Two independent noise sources, so pitch and level do not wander
+in lockstep — a voice that goes sharp exactly as it gets louder is a tremolo, not
+a person. The vibrato itself wanders in rate and depth for the same reason.
+
+The normalisation is the part worth knowing about. White noise lowpassed at 24 Hz
+keeps 24 Hz of a 22 kHz band, so its RMS collapses to about a fortieth of the
+source's, and a depth passed in raw arrives ~50× too small. The first version of
+this produced **0.3 cents** of pitch deviation where it intended five — which is
+to say it produced none. Measured `rms ≈ 0.74·√(cutoff/nyquist)`, flat to within
+3% from 1 to 40 Hz, so dividing by it makes the depth mean what it says.
+
+One thing genuinely *is* a filter fix: **anti-resonances**. A cascade of
+resonators is all-pole and has only peaks, but a real tract has zeros — side
+branches trap energy and cancel it. The piriform sinuses put a permanent notch
+around 4–5 kHz in every vowel a human makes, and its absence is much of what
+"plasticky" means. There is a second, far more audible one: during /m/ or /n/ the
+mouth is a closed side branch off the nasal tract, and the band it cancels near
+1 kHz *is* the sound of nasality. Moving the formants alone (which is what this
+did before) produces a muffled vowel rather than a consonant, because the
+defining feature of the murmur is the hole in it.
+
 Also here and not in the Strudel path:
 
 - **Anticipatory coarticulation** — the formants start moving *before* the

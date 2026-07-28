@@ -78,6 +78,18 @@ const els = {
   ab: $<HTMLButtonElement>('ab'),
   labelA: $<HTMLSpanElement>('label-a'),
   labelB: $<HTMLSpanElement>('label-b'),
+  roll: $<HTMLButtonElement>('roll'),
+  rollPlay: $<HTMLButtonElement>('roll-play'),
+  rollSliders: $<HTMLDivElement>('roll-sliders'),
+  rollSeed: $<HTMLInputElement>('roll-seed'),
+  rollGloss: $<HTMLDivElement>('roll-gloss'),
+  presetName: $<HTMLInputElement>('preset-name'),
+  presetSave: $<HTMLButtonElement>('preset-save'),
+  presetExport: $<HTMLButtonElement>('preset-export'),
+  presets: $<HTMLDivElement>('presets'),
+  presetNote: $<HTMLDivElement>('preset-note'),
+  presetExportWrap: $<HTMLDetailsElement>('preset-export-wrap'),
+  presetExportText: $<HTMLPreElement>('preset-export-text'),
 };
 
 // --- sample texts ---------------------------------------------------------
@@ -243,7 +255,9 @@ const SIGNATURE_SLIDERS: SliderSpec[] = [
   // is soft and dark; the useful range is narrow and sits around it.
   { key: 'rolloff', label: 'source rolloff', min: 0.6, max: 1.8, step: 0.05, key_: true },
   { key: 'breath', label: 'breath', min: 0, max: 0.4, step: 0.01 },
-  { key: 'ring', label: 'singer’s formant', min: 0, max: 18, step: 0.5, format: (v) => `${v} dB` },
+  // Rounded, because a roll sets values off the slider's step and the raw
+  // float is nineteen digits of noise in a 3-character box.
+  { key: 'ring', label: 'singer’s formant', min: 0, max: 18, step: 0.5, format: (v) => `${v.toFixed(1)} dB` },
   { key: 'vibRate', label: 'vibrato rate', min: 3, max: 8, step: 0.1, format: (v) => `${v.toFixed(1)} Hz` },
   { key: 'vibDepth', label: 'vibrato depth', min: 0, max: 0.6, step: 0.01 },
 ];
@@ -793,12 +807,233 @@ els.ab.onclick = async () => {
   }, (seconds + 0.6) * 1000);
 };
 
+// --- rolling a voice ------------------------------------------------------
+
+/**
+ * What a roll is allowed to touch, and how far.
+ *
+ * Uniform random over twenty-odd parameters does not find voices — it finds
+ * broken ones, because the region that sounds like a person is a thin shell in
+ * that space and almost none of the volume is inside it. Every range here is
+ * the plausible span of the real thing rather than the slider's full travel:
+ * human vocal tracts vary by about a third end to end, so `formantScale` rolls
+ * 0.88…1.32 and not 0.8…1.45.
+ *
+ * `spread` then interpolates between the current value and the rolled one, so
+ * the button can nudge as well as teleport. At 1 it is a fresh voice; at 0.2 it
+ * is the voice you have with a different accent, which is the setting you
+ * actually want once something is nearly right.
+ */
+const ROLLABLE: { key: string; lo: number; hi: number }[] = [
+  { key: 'formantScale', lo: 0.88, hi: 1.32 },
+  { key: 'rolloff', lo: 0.8, hi: 1.5 },
+  { key: 'breath', lo: 0.03, hi: 0.22 },
+  { key: 'ring', lo: 0, hi: 12 },
+  { key: 'vibRate', lo: 4.4, hi: 6.4 },
+  { key: 'vibDepth', lo: 0.04, hi: 0.24 },
+];
+
+const rollOptions = { spread: 1 };
+
+/**
+ * Centre pitch follows tract length rather than rolling on its own.
+ *
+ * They are not independent in a real person — a short tract comes with short
+ * folds — and rolling them separately produces the two voices nobody wants: a
+ * bass with a child's formants, and a soprano singing in the basement.
+ */
+function centreForScale(scale: number): number {
+  return Math.round(45 + (scale - 0.88) * (69 - 45) / (1.32 - 0.88));
+}
+
+function rollVoice(seed: string): void {
+  const rng = new Rng(`voice:${seed}`);
+  const target = settings.signature as unknown as Record<string, number>;
+  for (const { key, lo, hi } of ROLLABLE) {
+    const rolled = rng.float(lo, hi);
+    const current = target[key] ?? rolled;
+    target[key] = current + (rolled - current) * rollOptions.spread;
+  }
+  const centre = centreForScale(settings.signature.formantScale);
+  settings.signature.centre = Math.round(
+    settings.signature.centre + (centre - settings.signature.centre) * rollOptions.spread,
+  );
+  // Keep the range around the new centre so the octave fold still has somewhere
+  // to put the tune.
+  settings.signature.range = [settings.signature.centre - 12, settings.signature.centre + 15];
+  settings.signature.label = `Rolled ${seed}`;
+  settings.signature.gloss =
+    `Tract ×${settings.signature.formantScale.toFixed(2)}, `
+    + `rolloff ${settings.signature.rolloff.toFixed(2)}, `
+    + `ring ${settings.signature.ring.toFixed(1)} dB.`;
+  // After `syncSignature`, which rebuilds the sliders and would otherwise put
+  // the *preset's* gloss back over the rolled one.
+  syncSignature();
+  els.signatureGloss.textContent = settings.signature.gloss;
+  refresh();
+}
+
+function newSeed(): string {
+  // Short, typeable, and drawn from the clock rather than from `Rng` so that
+  // consecutive rolls differ. Once it is in the box it is deterministic.
+  return Math.floor(Date.now() % 1e6).toString(36);
+}
+
+buildSliders(els.rollSliders, rollOptions as unknown as Record<string, unknown>, [
+  { key: 'spread', label: 'nudge → teleport', min: 0.05, max: 1, step: 0.05, key_: true },
+], () => { /* read at roll time */ });
+
+/** Clearing the seed box means "surprise me"; typing one back means "that one again". */
+function roll(fresh: boolean): void {
+  const seed = fresh || !els.rollSeed.value.trim() ? newSeed() : els.rollSeed.value.trim();
+  els.rollSeed.value = seed;
+  rollVoice(seed);
+  els.rollGloss.textContent =
+    `Seed ${seed} · ${settings.signature.gloss} Clear the seed to roll a different one.`;
+}
+
+els.roll.onclick = () => roll(false);
+els.rollPlay.onclick = () => { roll(true); void playSettings(settings); };
+
+// --- saved voices ---------------------------------------------------------
+
+/**
+ * Presets live in `localStorage` rather than in the A/B slots.
+ *
+ * The slots are for the comparison you are making right now and are meant to be
+ * overwritten; a voice you liked three sessions ago is a different kind of
+ * object and losing it on reload is the whole problem. Only the signature is
+ * stored — delivery and palette are performance rather than identity, and a
+ * saved voice you cannot sing a different way is not much use.
+ */
+const PRESET_KEY = 'voice-lab.presets.v1';
+
+interface Preset {
+  name: string;
+  signature: VoiceSignature;
+}
+
+function loadPresets(): Preset[] {
+  try {
+    const raw = localStorage.getItem(PRESET_KEY);
+    const parsed: unknown = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? (parsed as Preset[]).filter((p) => p && p.signature) : [];
+  } catch {
+    // A corrupt or unavailable store is not worth an error dialog in a bench.
+    return [];
+  }
+}
+
+function savePresets(list: Preset[]): void {
+  try {
+    localStorage.setItem(PRESET_KEY, JSON.stringify(list));
+  } catch {
+    els.presetNote.textContent = 'Could not write to local storage — presets will not survive a reload.';
+  }
+}
+
+function renderPresets(): void {
+  const list = loadPresets();
+  els.presets.replaceChildren();
+  for (const preset of list) {
+    const row = document.createElement('div');
+    row.className = 'preset';
+
+    const name = document.createElement('div');
+    name.className = 'nm';
+    name.textContent = preset.name;
+    const sub = document.createElement('div');
+    sub.className = 'sub';
+    sub.textContent = `×${preset.signature.formantScale.toFixed(2)} · centre ${preset.signature.centre}`;
+    name.append(document.createElement('br'), sub);
+
+    const load = document.createElement('button');
+    load.textContent = 'Load';
+    load.onclick = () => {
+      settings.signature = { ...preset.signature, range: [...preset.signature.range] as [number, number] };
+      syncSignature();
+      els.signatureGloss.textContent = preset.signature.gloss;
+      refresh();
+      setStatus(`Loaded "${preset.name}".`);
+    };
+
+    const play = document.createElement('button');
+    play.textContent = 'Play';
+    play.onclick = () => {
+      const s = cloneSettings(settings);
+      s.signature = { ...preset.signature, range: [...preset.signature.range] as [number, number] };
+      void playSettings(s);
+    };
+
+    const del = document.createElement('button');
+    del.textContent = '✕';
+    del.className = 'del';
+    del.title = `Delete "${preset.name}"`;
+    del.onclick = () => {
+      savePresets(loadPresets().filter((p) => p.name !== preset.name));
+      renderPresets();
+    };
+
+    row.append(name, load, play, del);
+    els.presets.append(row);
+  }
+  els.presetNote.textContent = list.length
+    ? `${list.length} saved. Stored in this browser only — use Export to move them into the code.`
+    : 'Nothing saved yet. Roll a voice, then give it a name.';
+}
+
+els.presetSave.onclick = () => {
+  const name = els.presetName.value.trim() || settings.signature.label;
+  const list = loadPresets().filter((p) => p.name !== name);
+  list.push({ name, signature: { ...settings.signature, range: [...settings.signature.range] as [number, number] } });
+  savePresets(list);
+  els.presetName.value = '';
+  renderPresets();
+  setStatus(`Saved "${name}".`);
+};
+
+/**
+ * Export as TypeScript rather than as JSON, because the destination is
+ * `VOICE_SIGNATURES` in `src/style/voices.ts` and a bench whose output has to
+ * be reformatted by hand before it can be used is a bench nobody uses twice.
+ */
+els.presetExport.onclick = () => {
+  const list = loadPresets();
+  if (!list.length) {
+    setStatus('Nothing to export yet.', true);
+    return;
+  }
+  const id = (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'voice';
+  els.presetExportText.textContent = list.map((p) => {
+    const s = p.signature;
+    return `  '${id(p.name)}': {\n`
+      + `    id: '${id(p.name)}',\n`
+      + `    label: ${JSON.stringify(p.name)},\n`
+      + `    gloss: ${JSON.stringify(s.gloss)},\n`
+      + `    formantScale: ${s.formantScale.toFixed(2)},\n`
+      + `    centre: ${Math.round(s.centre)},\n`
+      + `    range: [${Math.round(s.range[0])}, ${Math.round(s.range[1])}],\n`
+      + `    rolloff: ${s.rolloff.toFixed(2)},\n`
+      + `    breath: ${s.breath.toFixed(2)},\n`
+      + `    ring: ${s.ring.toFixed(1)},\n`
+      + `    vibRate: ${s.vibRate.toFixed(1)},\n`
+      + `    vibDepth: ${s.vibDepth.toFixed(2)},\n`
+      + `    gm: ${s.gm},\n`
+      + `  },`;
+  }).join('\n');
+  els.presetExportWrap.hidden = false;
+  els.presetExportWrap.open = true;
+};
+
 function boot(): void {
   els.text.value = settings.text;
   syncSignature();
   syncDelivery();
   syncPhonetics();
   syncTune();
+  renderPresets();
+  els.rollGloss.textContent =
+    'Rolls only the voice, not the delivery or the words — so a voice you like can be heard saying anything.';
   refresh();
   setStatus('Ready. Audio starts on the first press of Sing.');
 }

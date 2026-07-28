@@ -112,6 +112,15 @@
       summary { cursor: pointer; color: var(--dim); font-size: .82rem; }
       .chart { width: 100%; height: auto; }
       .legend { font-size: .72rem; color: var(--dim); margin-top: .5rem; line-height: 1.6; }
+      .presets { display: flex; flex-direction: column; gap: .35rem; margin-top: .8rem; }
+      .preset {
+        display: flex; align-items: center; gap: .5rem; padding: .4rem .55rem;
+        border: 1px solid var(--edge); border-radius: 7px; background: #191413;
+      }
+      .preset .nm { flex: 1; font-size: .84rem; }
+      .preset .sub { font-size: .7rem; color: var(--dim); }
+      .preset button { padding: .22rem .5rem; font-size: .72rem; }
+      .preset .del { color: #e2705a; }
       .pill { display: inline-block; padding: .12rem .45rem; border-radius: 10px; border: 1px solid var(--edge); font-size: .7rem; color: var(--dim); }
     </style>
   </head>
@@ -230,9 +239,40 @@
           <div class="row">
             <button id="ab" class="small" disabled>Play A then B</button>
           </div>
-          <details open>
+          <details>
             <summary>Settings, ready to paste into a profile</summary>
             <pre id="json"></pre>
+          </details>
+        </div>
+
+        <div class="panel">
+          <h2>Find a voice — roll, then keep the ones worth keeping</h2>
+          <div class="row">
+            <button id="roll" class="primary">Roll a voice 🎲</button>
+            <button id="roll-play" class="small">Roll and play</button>
+          </div>
+          <div class="sliders" id="roll-sliders" style="margin-top:.9rem"></div>
+          <div class="row" style="margin-top:1rem">
+            <div style="flex:1 1 100%">
+              <label for="roll-seed">Seed — every roll has one, so a good accident is reproducible</label>
+              <input id="roll-seed" type="text" spellcheck="false" />
+            </div>
+          </div>
+          <div class="gloss" id="roll-gloss"></div>
+        </div>
+
+        <div class="panel">
+          <h2>Saved voices — kept in this browser</h2>
+          <div class="row">
+            <input id="preset-name" type="text" placeholder="name this voice" spellcheck="false" style="flex:1 1 12rem" />
+            <button id="preset-save" class="small">Save</button>
+            <button id="preset-export" class="small">Export all</button>
+          </div>
+          <div class="presets" id="presets"></div>
+          <div class="legend" id="preset-note"></div>
+          <details id="preset-export-wrap" hidden>
+            <summary>Paste-ready signatures</summary>
+            <pre id="preset-export-text"></pre>
           </details>
         </div>
       </div>
