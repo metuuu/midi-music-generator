@@ -43,6 +43,11 @@ export const BANK_VOICES: Record<string, DrumVoice[]> = {
   RolandR8: ['bd', 'sd', 'rim', 'hh', 'oh', 'cp', 'lt', 'mt', 'ht', 'cr', 'rd', 'perc', 'cb', 'sh'],
   RolandTR707: ['bd', 'sd', 'rim', 'hh', 'oh', 'cp', 'lt', 'mt', 'ht', 'cr', 'cb'],
   RolandTR808: ['bd', 'sd', 'rim', 'hh', 'oh', 'cp', 'lt', 'mt', 'ht', 'cr', 'perc', 'cb', 'sh'],
+  // Read from the pack. The 909 is the first machine here with a ride of its
+  // own — it is the one Roland put a real cymbal sample in — and the last with
+  // no cowbell, no shaker and no spare percussion, because by 1983 those had
+  // stopped being what a rhythm box was for.
+  RolandTR909: ['bd', 'sd', 'rim', 'hh', 'oh', 'cp', 'lt', 'mt', 'ht', 'cr', 'rd'],
   ViscoSpaceDrum: ['bd', 'sd', 'rim', 'hh', 'oh', 'lt', 'mt', 'ht', 'perc', 'cb'],
   YamahaRY30: ['bd', 'sd', 'rim', 'hh', 'oh', 'cp', 'lt', 'mt', 'ht', 'cr', 'rd', 'perc', 'cb', 'sh'],
 };

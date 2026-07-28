@@ -214,6 +214,63 @@ export interface Genre {
    */
   effects?: Partial<Record<LayerId, Effects>>;
 
+  /**
+   * How this genre's filter moves, and which layers move most.
+   *
+   * Absent means it does not move at all — three of the four genres here are
+   * built out of instruments that were played rather than swept, and a static
+   * cutoff is the truth about them. The fourth is built out of the sweep.
+   *
+   * `kind` and `place` are the same two ideas `generate/dynamics.ts` already
+   * uses for level: what kind of section this is, and where it falls in the
+   * form. They are separate from the dynamics tables because loudness and
+   * brightness are not the same gesture — an intro can be quiet and open, and a
+   * closed filter on a loud chorus is a different thing entirely from a quiet
+   * one.
+   */
+  filter?: {
+    /** Base openness per section kind, 0..1. */
+    kind: Partial<Record<SectionKind, number>>;
+    /** How far each layer swings between its darkest and its brightest. */
+    response: Partial<Record<LayerId, number>>;
+    /** How much brighter the last statement is than the first, 0..1. */
+    build?: number;
+  };
+
+  /**
+   * How this genre's texture is stacked and how it breathes.
+   *
+   * Both halves used to be global constants describing a dance band — the
+   * arranger stratified bass, comp, pad, melody upward and reserved the top for
+   * the tune, and the dynamics table gave every genre the same per-layer
+   * response. Correct for a band with a singer in front of it, and exactly
+   * backwards for music where the pad is the piece: ambient could say the pad
+   * was loudest, but not that it belonged *above* the comp in the register plan,
+   * because the plan was not a genre's to state.
+   */
+  layerPlan?: {
+    /**
+     * Semitones each accompaniment layer sits above (+) or below (−) the shared
+     * ceiling the arranger puts under the tune. Merged over the default, which
+     * drops the pad a minor third and leaves everything else level.
+     *
+     * The pad's −3 was hardcoded, and the comment explaining it is the argument
+     * for this field existing: given the same ceiling, the pad and the comp
+     * produce the *identical voicing*, and two layers playing the same notes are
+     * one layer at twice the volume. That is a real problem and −3 is a real
+     * solution, but it is a dance band's solution. Ambient wants the pad *above*
+     * the comp, because there the pad is the piece and the comp is the
+     * decoration on it — a statement it could previously make about level and
+     * not about register.
+     */
+    offsets?: Partial<Record<LayerId, number>>;
+    /**
+     * How far each layer swings between the quietest section and the loudest.
+     * Merged over the default response; omitted layers keep it.
+     */
+    response?: Partial<Record<LayerId, number>>;
+  };
+
   /** Length in seconds a track of this genre should aim for. */
   duration: [number, number];
 }

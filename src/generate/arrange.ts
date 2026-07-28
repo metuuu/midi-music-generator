@@ -40,6 +40,25 @@ import type { LayerId, NoteEvent } from '../core/types.js';
 /** Layers that must stay out of the lead's register. */
 const ACCOMPANIMENT: LayerId[] = ['comp', 'pad', 'brass'];
 
+/**
+ * Semitones each accompaniment layer sits away from the shared ceiling, before
+ * a genre says otherwise.
+ *
+ * Only the pad moves, and the reason is in `planRegisters` below: given the same
+ * ceiling the pad and the comp produce the identical voicing, and two layers
+ * playing the same notes are one layer at twice the volume. A minor third is
+ * enough daylight to make the pair read as a bed with a rhythm part on it.
+ *
+ * It is a *default* rather than a rule because it is a dance band's answer.
+ * Music where the pad is the piece wants it the other way up, and that is a
+ * genre's statement to make — see `Genre.layerPlan`.
+ */
+const DEFAULT_OFFSETS: Partial<Record<LayerId, number>> = { pad: -3 };
+
+/** How far below its own centre a layer may be pushed before it leaves its instrument. */
+const DEFAULT_HEADROOM: Partial<Record<LayerId, number>> = { pad: 14 };
+const HEADROOM = 9;
+
 export interface RegisterPlan {
   /** The register the lead line is written in. */
   lead: [Midi, Midi];
@@ -84,8 +103,11 @@ export function planRegisters(args: {
   clarity: number;
   /** Per-layer instrument centres, so no layer is pushed off its instrument. */
   centres: Partial<Record<LayerId, Midi>>;
+  /** The genre's register statement, merged over `DEFAULT_OFFSETS`. */
+  offsets?: Partial<Record<LayerId, number>>;
 }): RegisterPlan {
   const { leadCentre, span, leadPresent, clarity, centres } = args;
+  const offsets = { ...DEFAULT_OFFSETS, ...args.offsets };
   const top = Math.round(leadCentre + span * 0.6);
   const ceiling: Partial<Record<LayerId, Midi>> = {};
   const counterOf = (band: [Midi, Midi]): [Midi, Midi] => {
@@ -118,11 +140,11 @@ export function planRegisters(args: {
      * `generatePad`) is what turns "chords, twice" into a bed with a rhythm
      * part on top of it.
      */
-    const offset = layer === 'pad' ? -3 : 0;
+    const offset = offsets[layer] ?? 0;
     // Never push a layer so far down that it leaves its instrument's usable
     // register — a comp squeezed into the bass is worse than a little overlap.
     // A chord instrument comping nine semitones below its centre is ordinary.
-    const floor = (centres[layer] ?? 60) - (layer === 'pad' ? 14 : 9);
+    const floor = (centres[layer] ?? 60) - (DEFAULT_HEADROOM[layer] ?? HEADROOM);
     const c = Math.max(wanted + offset, floor);
     ceiling[layer] = c;
     highest = Math.max(highest, c);

@@ -41,6 +41,7 @@ import type {
 import { planRegisters, resolveCollisions } from './arrange.js';
 import { buildAccompaniment, getStrictness, resolveRules, type StrictnessId } from './constraints.js';
 import { applyDynamics, sectionIntensity, swell } from './dynamics.js';
+import { applyFilter } from './filter.js';
 import { DEFAULT_FILLS } from './fills.js';
 import { getHook, RECALL_BIAS, type HookId } from './hook.js';
 import { generateMelody } from './melody.js';
@@ -434,9 +435,33 @@ export function generateSong(opts: GenerateOptions = {}): Song {
      */
     const ordinal = seenKinds.get(section.kind) ?? 0;
     seenKinds.set(section.kind, ordinal + 1);
-    const intensity = sectionIntensity({
+    const placement = {
       kind: section.kind, index: s, total: sections.length, ordinal,
-    });
+    };
+    const intensity = sectionIntensity(placement);
+
+    /**
+     * How far open the filter is, laid on the same section and the same
+     * placement the dynamics use.
+     *
+     * A sibling of `applyDynamics` and applied alongside it, but the two are
+     * independent gestures rather than one gesture in two units: an intro can be
+     * quiet and open, and a closed filter over a loud chorus is a different
+     * thing from a quiet one. Where the genre has no filter profile — which is
+     * three of the four — this returns its argument untouched and no note ever
+     * gains a `brightness`. See `generate/filter.ts`.
+     */
+    const filtered = (notes: NoteEvent[], layer: LayerId): NoteEvent[] => applyFilter(
+      notes,
+      layer,
+      {
+        ...(genre.filter ? { profile: genre.filter } : {}),
+        ...(style.filter ? { sweep: style.filter } : {}),
+        at: placement,
+        startBeat: section.startBar * style.beatsPerBar,
+        lengthBeats: section.lengthBars * style.beatsPerBar,
+      },
+    );
 
     if (active.has('drums')) {
       /**
@@ -525,6 +550,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
       // bass's own register explicitly below.
       leadPresent: soloLayer ? soloLayer !== 'bass' : active.has('melody'),
       clarity,
+      ...(genre.layerPlan?.offsets ? { offsets: genre.layerPlan.offsets } : {}),
       centres: {
         comp: instruments.comp.centre,
         pad: instruments.pad.centre,
@@ -656,8 +682,8 @@ export function generateSong(opts: GenerateOptions = {}): Song {
          */
         pickupBeats: soloLayer === 'melody' ? 1 : 0,
       });
-      applyDynamics(line, soloLayer, intensity);
-      push(byLayer, soloLayer, line);
+      applyDynamics(line, soloLayer, intensity, genre.layerPlan?.response);
+      push(byLayer, soloLayer, filtered(line, soloLayer));
       sectionMelody = line;
     } else if (active.has('melody')) {
       const range: [number, number] = plan.lead;
@@ -691,8 +717,8 @@ export function generateSong(opts: GenerateOptions = {}): Song {
           agility: leadInstrument.agility,
           idiom: IDIOMS[leadInstrument.idiom],
         });
-      applyDynamics(melody, leadLayer, intensity);
-      push(byLayer, leadLayer, melody);
+      applyDynamics(melody, leadLayer, intensity, genre.layerPlan?.response);
+      push(byLayer, leadLayer, filtered(melody, leadLayer));
       sectionMelody = melody;
 
       // Solos are never remembered, so this only ever stores an actual tune.
@@ -710,8 +736,8 @@ export function generateSong(opts: GenerateOptions = {}): Song {
           idiom: IDIOMS[instruments.counter.idiom],
           scaleFor: (c) => genre.scaleForChord(localTonic, mode, c),
         });
-        applyDynamics(answer, 'counter', intensity);
-        push(byLayer, 'counter', answer);
+        applyDynamics(answer, 'counter', intensity, genre.layerPlan?.response);
+        push(byLayer, 'counter', filtered(answer, 'counter'));
       }
     }
 
@@ -748,7 +774,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
         clarity,
         ...(style.twoHanded.ostinato ? { ostinato: style.twoHanded.ostinato } : {}),
       });
-      applyDynamics(left, 'comp', intensity);
+      applyDynamics(left, 'comp', intensity, genre.layerPlan?.response);
       leftHand.push(...left);
     }
 
@@ -810,19 +836,19 @@ export function generateSong(opts: GenerateOptions = {}): Song {
      * pattern should not have to know whether it is in a bridge.
      */
     const sectionBeats = section.lengthBars * style.beatsPerBar;
-    applyDynamics(sectionBass, 'bass', intensity);
-    applyDynamics(sectionComp, 'comp', intensity);
-    applyDynamics(sectionPad, 'pad', intensity);
-    applyDynamics(sectionBrass, 'brass', intensity);
+    applyDynamics(sectionBass, 'bass', intensity, genre.layerPlan?.response);
+    applyDynamics(sectionComp, 'comp', intensity, genre.layerPlan?.response);
+    applyDynamics(sectionPad, 'pad', intensity, genre.layerPlan?.response);
+    applyDynamics(sectionBrass, 'brass', intensity, genre.layerPlan?.response);
     // Sustained parts get a swell on top, because a held chord at one fixed
     // level is the sound of a patch rather than of a player.
     swell(sectionPad, ctxBase.startBeat, sectionBeats, 0.35);
     swell(sectionComp, ctxBase.startBeat, sectionBeats, 0.12);
 
-    push(byLayer, 'bass', sectionBass);
-    push(byLayer, 'comp', sectionComp);
-    push(byLayer, 'pad', sectionPad);
-    push(byLayer, 'brass', sectionBrass);
+    push(byLayer, 'bass', filtered(sectionBass, 'bass'));
+    push(byLayer, 'comp', filtered(sectionComp, 'comp'));
+    push(byLayer, 'pad', filtered(sectionPad, 'pad'));
+    push(byLayer, 'brass', filtered(sectionBrass, 'brass'));
   }
 
   // ---- Assemble --------------------------------------------------------
@@ -838,13 +864,26 @@ export function generateSong(opts: GenerateOptions = {}): Song {
   };
 
   /**
-   * Effects are resolved era-over-genre, per layer. The genre states what is
-   * true of the music whatever decade it claims to be from — ambient's bass is
-   * dry and its pad is drenched in 1974 and in 2004 alike — and the era says
-   * how wet and how dark that decade's records actually were.
+   * Effects are resolved instrument-over-era-over-genre, per layer.
+   *
+   * The genre states what is true of the music whatever decade it claims to be
+   * from — ambient's bass is dry and its pad is drenched in 1974 and in 2004
+   * alike — and the era says how wet and how dark that decade's records
+   * actually were.
+   *
+   * The instrument goes **last**, and it is last rather than first for a reason
+   * the other two do not share: it is not describing the production at all. An
+   * electric violin is a violin with a pickup and an amplifier, and a 1990s
+   * mixing desk cannot un-electrify one any more than it can un-tune it. So a
+   * catalogue entry that declares `drive` keeps it through every era, while the
+   * era retains everything the instrument does not mention — which is nearly
+   * all of it, since eras speak in `reverb` and `lowpass` and this speaks in
+   * `drive` and `phaser`. See `Instrument.effects`.
    */
-  const effectsFor = (layer: LayerId): Effects | undefined => {
-    const merged = { ...genre.effects?.[layer], ...era.effects?.[layer] };
+  const effectsFor = (layer: LayerId, instrument?: Instrument): Effects | undefined => {
+    const merged = {
+      ...genre.effects?.[layer], ...era.effects?.[layer], ...instrument?.effects,
+    };
     return Object.keys(merged).length ? merged : undefined;
   };
   const space: Space = { ...DEFAULT_SPACE, ...genre.space, ...era.space };
@@ -911,7 +950,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
     for (const n of notes) n.midi = foldIntoRange(n.midi, range);
 
     notes.sort((a, b) => a.beat - b.beat || a.midi - b.midi);
-    const effects = effectsFor(layer);
+    const effects = effectsFor(layer, instrument);
     tracks.push({
       layer,
       instrument: instrument.name,

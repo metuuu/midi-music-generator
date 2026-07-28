@@ -49,6 +49,24 @@ import type { Archetype, ArchetypeSpec } from './types.js';
  *    still a keyboard.
  */
 export const ARCHETYPE_OF: Record<InstrumentId, Archetype> = {
+  // Electric variants
+  //
+  // Each of these is its acoustic base plus an `effects` delta — same GM
+  // programme, same soundfont, same range and same idiom — so it stages on the
+  // same object. A pickup does not change what the audience is looking at.
+  //
+  // Written *before* their bases, and the order is load-bearing. `ID_BY_GM`
+  // below is a `Map`, so on a shared GM programme the entry written last wins;
+  // the acoustic one should win, because a bare `gm 40` with no other
+  // information is a violin. Every lookup derived from this table agrees either
+  // way today — archetype, range and idiom are identical by construction — but
+  // `SCALE_OF` and `RANGE_OF` are keyed by id, and the day one of those gains a
+  // `violin` entry the wrong order would silently drop it.
+  electricViolin: 'violin',
+  electricCello: 'cello',
+  electricVibes: 'mallets',
+  crushedPad: 'synth',
+
   // Free reed
   accordion: 'accordion',
   bandoneon: 'accordion',
@@ -58,9 +76,13 @@ export const ARCHETYPE_OF: Record<InstrumentId, Archetype> = {
   piano: 'grand-piano',
   epiano1: 'electric-piano',
   epiano2: 'electric-piano',
+  // Struck strings and a keyboard, on a stand, played standing: the same object
+  // an audience sees behind a Rhodes.
+  clavinet: 'electric-piano',
   celesta: 'electric-piano',
   drawbarOrgan: 'organ',
   rockOrgan: 'organ',
+  percussiveOrgan: 'organ',
   churchOrgan: 'organ',
   reedOrgan: 'organ',
 
@@ -78,6 +100,8 @@ export const ARCHETYPE_OF: Record<InstrumentId, Archetype> = {
   jazzGuitar: 'electric-guitar',
   cleanGuitar: 'electric-guitar',
   mutedGuitar: 'electric-guitar',
+  overdriveGuitar: 'electric-guitar',
+  distortionGuitar: 'electric-guitar',
   harp: 'harp',
   sitar: 'sitar',
 
@@ -86,6 +110,7 @@ export const ARCHETYPE_OF: Record<InstrumentId, Archetype> = {
   contrabass: 'upright-bass',
   fingerBass: 'electric-bass',
   pickBass: 'electric-bass',
+  slapBass: 'electric-bass',
   fretlessBass: 'electric-bass',
   synthBass: 'synth',
   synthBass2: 'synth',
@@ -105,6 +130,7 @@ export const ARCHETYPE_OF: Record<InstrumentId, Archetype> = {
   brassSection: 'trumpet',
   trombone: 'trombone',
   synthBrass: 'synth',
+  synthBrass2: 'synth',
 
   // Winds
   sopranoSax: 'saxophone',
@@ -140,6 +166,9 @@ export const ARCHETYPE_OF: Record<InstrumentId, Archetype> = {
   leadCalliope: 'synth',
   leadChiff: 'synth',
   leadVoice: 'synth',
+  leadCharang: 'synth',
+  leadFifths: 'synth',
+  leadBassLead: 'synth',
   choirAahs: 'synth',
   voiceOohs: 'synth',
   synthChoir: 'synth',

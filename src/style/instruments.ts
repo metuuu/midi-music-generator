@@ -10,7 +10,7 @@
  */
 
 import type { Midi } from '../core/pitch.js';
-import type { Envelope } from '../core/types.js';
+import type { Effects, Envelope } from '../core/types.js';
 import type { VoicingStyle } from '../core/voicing.js';
 
 /**
@@ -122,6 +122,23 @@ export interface Instrument {
   gm: number;
   /** Soundfont name in @strudel/soundfonts. */
   strudel: string;
+  /**
+   * Processing that is part of what this instrument *is*, merged last — over
+   * the genre's effects and over the era's.
+   *
+   * General MIDI has no electric violin and no electric vibraphone, and there is
+   * no patch to substitute for either. But an electric violin is not a different
+   * instrument: it is a violin with a pickup and an amplifier, which is a
+   * statement about processing rather than about timbre, and this is where
+   * processing lives.
+   *
+   * Merged **last** on purpose. An era and a genre describe the room and the
+   * decade; this describes the object, and a 1990s production should not be able
+   * to un-drive an electric violin any more than it can un-electrify one. In
+   * practice they rarely collide — eras speak in `reverb` and `lowpass`, this
+   * speaks in `drive` and `phaser`.
+   */
+  effects?: Effects;
   /** Suggested octave centre for this instrument's part. */
   centre: number;
   /** How its music is shaped. See `Idiom`. */
@@ -160,10 +177,28 @@ const I = (
 const E = (instrument: Instrument, envelope: Partial<Envelope>): Instrument =>
   ({ ...instrument, envelope });
 
+/** The same instrument through a pickup and an amp. See `Instrument.effects`. */
+const FX = (instrument: Instrument, name: string, effects: Effects): Instrument =>
+  ({ ...instrument, name, effects });
+
 /** The idiom's envelope with this instrument's own corrections applied. */
 export function envelopeFor(instrument: Instrument): Envelope {
   return { ...IDIOM_ENVELOPES[instrument.idiom], ...instrument.envelope };
 }
+
+/**
+ * Four acoustic entries named here and used twice below.
+ *
+ * The electric variants at the foot of the table are these objects *spread*,
+ * not re-typed, so the two can never come to disagree about a range, a centre
+ * or an idiom. Change the violin here and its amplified twin moves with it,
+ * which is the correct behaviour and the whole argument of that section: it is
+ * the same violin.
+ */
+const VIOLIN = I('violin', 40, 'gm_violin', 76, 0.6, 'bowed');
+const CELLO = I('cello', 42, 'gm_cello', 52, 0.5, 'bowed');
+const VIBRAPHONE = I('vibraphone', 11, 'gm_vibraphone', 72, 1.0, 'mallet');
+const PAD_METALLIC = E(I('metallic pad', 93, 'gm_pad_metallic', 60, 0.5, 'bowed'), PAD);
 
 export const INSTRUMENTS = {
   accordion: I('accordion', 21, 'gm_accordion', 72, 0.8, 'reed'),
@@ -172,10 +207,22 @@ export const INSTRUMENTS = {
   piano: I('piano', 0, 'gm_piano', 60, 1.0, 'keyboard'),
   epiano1: I('electric piano', 4, 'gm_epiano1', 60, 1.0, 'keyboard'),
   epiano2: I('electric piano 2', 5, 'gm_epiano2', 60, 1.0, 'keyboard'),
-  vibraphone: I('vibraphone', 11, 'gm_vibraphone', 72, 1.0, 'mallet'),
+  // Fingered like a piano and strung like nothing else: a rubber tangent strikes
+  // the string and a yarn damper stops it the instant the key comes up. That is
+  // why a clavinet riff is heard as rhythm and a Rhodes chord as harmony. The
+  // keyboard idiom's two-second tail would make this a small electric piano;
+  // just under half a second is the length the string actually has.
+  clavinet: E(I('clavinet', 7, 'gm_clavinet', 60, 1.0, 'keyboard'), { decay: 0.45 }),
+  vibraphone: VIBRAPHONE,
   glockenspiel: I('glockenspiel', 9, 'gm_glockenspiel', 84, 1.0, 'mallet'),
   drawbarOrgan: E(I('drawbar organ', 16, 'gm_drawbar_organ', 60, 0.9, 'keyboard'), ORGAN),
   rockOrgan: E(I('rock organ', 18, 'gm_rock_organ', 60, 0.9, 'keyboard'), ORGAN),
+  // `ORGAN` and not something with a decay in it, despite the name. The
+  // percussion tab adds a decaying harmonic *over* the drawbars, and the
+  // drawbars underneath go on sounding for as long as the key is held. That ping
+  // is in the sample, where it belongs; the envelope describes what is left once
+  // it has gone, and what is left is an organ.
+  percussiveOrgan: E(I('percussive organ', 17, 'gm_percussive_organ', 60, 0.9, 'keyboard'), ORGAN),
   nylonGuitar: I('nylon guitar', 24, 'gm_acoustic_guitar_nylon', 60, 0.8, 'plucked'),
   steelGuitar: I('steel guitar', 25, 'gm_acoustic_guitar_steel', 60, 0.8, 'plucked'),
   jazzGuitar: I('jazz guitar', 26, 'gm_electric_guitar_jazz', 60, 0.85, 'plucked'),
@@ -183,11 +230,25 @@ export const INSTRUMENTS = {
   // Palm-muted: the string is damped by the hand that struck it.
   mutedGuitar: E(I('muted guitar', 28, 'gm_electric_guitar_muted', 60, 0.8, 'plucked'),
     { decay: 0.25 }),
+  // Overdrive is a clean note pushed into an amplifier that has run out of
+  // headroom. The string still decays like a string, so this takes the plucked
+  // envelope untouched.
+  overdriveGuitar: I('overdriven guitar', 29, 'gm_overdriven_guitar', 60, 0.8, 'plucked'),
+  // Distortion is the same process taken far enough to compress, and compression
+  // is what abolishes the decay: the note holds at level until the player damps
+  // it. Two and a half seconds against the plucked default's one is the whole
+  // difference between a chord and a power chord.
+  distortionGuitar: E(I('distortion guitar', 30, 'gm_distortion_guitar', 60, 0.8, 'plucked'),
+    { decay: 2.6 }),
   acousticBass: I('upright bass', 32, 'gm_acoustic_bass', 40, 0.7, 'plucked'),
   fingerBass: I('electric bass', 33, 'gm_electric_bass_finger', 40, 0.75, 'plucked'),
   pickBass: I('picked bass', 34, 'gm_electric_bass_pick', 40, 0.75, 'plucked'),
+  // The same fingerboard, the same four strings and the same reach as
+  // `fingerBass`: thumb and popping finger are a technique, not a wider
+  // instrument. What makes it 1983 is in the sample, not in these numbers.
+  slapBass: I('slap bass', 36, 'gm_slap_bass_1', 40, 0.75, 'plucked'),
   synthBass: E(I('synth bass', 38, 'gm_synth_bass_1', 40, 0.85, 'keyboard'), SYNTH_BASS),
-  violin: I('violin', 40, 'gm_violin', 76, 0.6, 'bowed'),
+  violin: VIOLIN,
   fiddle: I('fiddle', 110, 'gm_fiddle', 76, 0.65, 'bowed'),
   tremoloStrings: I('tremolo strings', 44, 'gm_tremolo_strings', 72, 0.5, 'bowed'),
   // Plucked with a fingertip and stopped by the next bow stroke: very short.
@@ -203,6 +264,7 @@ export const INSTRUMENTS = {
   mutedTrumpet: I('muted trumpet', 59, 'gm_muted_trumpet', 72, 0.45, 'brass'),
   brassSection: I('brass section', 61, 'gm_brass_section', 72, 0.4, 'brass'),
   synthBrass: I('synth brass', 62, 'gm_synth_brass_1', 72, 0.6, 'brass'),
+  synthBrass2: I('synth brass 2', 63, 'gm_synth_brass_2', 72, 0.6, 'brass'),
   sopranoSax: I('soprano sax', 64, 'gm_soprano_sax', 76, 0.6, 'wind'),
   altoSax: I('alto sax', 65, 'gm_alto_sax', 72, 0.6, 'wind'),
   tenorSax: I('tenor sax', 66, 'gm_tenor_sax', 60, 0.6, 'wind'),
@@ -233,7 +295,7 @@ export const INSTRUMENTS = {
   padPoly: E(I('polysynth pad', 90, 'gm_pad_poly', 60, 0.6, 'bowed'), PAD),
   padChoir: E(I('choir pad', 91, 'gm_pad_choir', 60, 0.45, 'vocal'), PAD),
   padBowed: E(I('bowed pad', 92, 'gm_pad_bowed', 60, 0.45, 'bowed'), PAD),
-  padMetallic: E(I('metallic pad', 93, 'gm_pad_metallic', 60, 0.5, 'bowed'), PAD),
+  padMetallic: PAD_METALLIC,
   padHalo: E(I('halo pad', 94, 'gm_pad_halo', 60, 0.45, 'bowed'), PAD),
   padSweep: E(I('sweep pad', 95, 'gm_pad_sweep', 60, 0.5, 'bowed'), PAD),
   fxRain: E(I('rain', 96, 'gm_fx_rain', 72, 0.6, 'mallet'), PAD),
@@ -262,15 +324,114 @@ export const INSTRUMENTS = {
   leadCalliope: I('calliope lead', 82, 'gm_lead_3_calliope', 72, 0.8, 'wind'),
   leadChiff: I('chiff lead', 83, 'gm_lead_4_chiff', 72, 0.8, 'wind'),
   leadVoice: I('voice lead', 85, 'gm_lead_6_voice', 72, 0.7, 'vocal'),
+  leadCharang: E(I('charang lead', 84, 'gm_lead_5_charang', 72, 0.9, 'keyboard'), SYNTH_LEAD),
+  /**
+   * **This patch sounds a note nobody wrote.**
+   *
+   * GM 86 has the harmony baked into the programme: the engine writes one line
+   * and the soundfont sounds a perfect fifth above every note of it. Two
+   * consequences follow, and the second is the one that costs something.
+   *
+   * The part moves in parallel fifths by construction, and `parallel-perfects`
+   * never sees a single one of them — the constraint engine is looking at one
+   * voice, and one voice cannot make a parallel anything. Jazz penalises that
+   * interval deliberately (see its rule table) and is silently exempted from its
+   * own rule the moment this patch is drawn.
+   *
+   * And everything that measures this project — the score dump, `npm run check`,
+   * the interval histograms, the concert's range assertions — reads the written
+   * line. On this patch the written line is not what will be heard, so the
+   * measurement is of a part that does not exist. Choose it where parallel
+   * fifths *are* the sound, which is a 1980s lead and very little else, and
+   * never choose it as the instrument you audit anything on.
+   */
+  leadFifths: E(I('fifths lead', 86, 'gm_lead_7_fifths', 72, 0.9, 'keyboard'), SYNTH_LEAD),
+  // Two layers in one programme, a lead over a bass an octave down, which is
+  // what a one-keyboard band used when there was nobody to play the bass line.
+  // Centred with the other leads because the layer underneath follows the note
+  // it is given; it is a lead that brings its own bottom, not a bass.
+  leadBassLead: E(I('bass lead', 87, 'gm_lead_8_bass_lead', 72, 0.9, 'keyboard'), SYNTH_LEAD),
   fretlessBass: I('fretless bass', 35, 'gm_fretless_bass', 40, 0.7, 'bowed'),
   synthBass2: E(I('synth bass 2', 39, 'gm_synth_bass_2', 40, 0.85, 'keyboard'), SYNTH_BASS),
-  cello: I('cello', 42, 'gm_cello', 52, 0.5, 'bowed'),
+  cello: CELLO,
   contrabass: I('contrabass', 43, 'gm_contrabass', 40, 0.45, 'bowed'),
   // Sympathetic strings and a drone string of its own — the one plucked
   // instrument that already behaves like a pad.
   sitar: I('sitar', 104, 'gm_sitar', 60, 0.7, 'plucked'),
   panFlute: I('pan flute', 75, 'gm_pan_flute', 79, 0.6, 'wind'),
   shakuhachi: I('shakuhachi', 77, 'gm_shakuhachi', 74, 0.55, 'wind'),
+
+  // --- Electric variants ---------------------------------------------------
+  // An electric violin is not a different instrument. It is a violin — the same
+  // box, the same four strings, the same bow arm — with a pickup under the
+  // bridge and an amplifier after it, and everything that changed happened
+  // downstream of the note. General MIDI has no programme for one, and the
+  // tempting fix is to substitute a brighter patch and call it electric. That is
+  // wrong twice over: the substitute writes a *different line*, because `idiom`
+  // and `agility` travel with the patch, and it still is not an electric violin,
+  // because what makes one is a signal path. So these carry the base's own `gm`
+  // and `strudel` and say the rest as processing. See `Instrument.effects`.
+  //
+  // Ranges and idioms are inherited rather than restated, and that is the claim
+  // the section is making rather than an economy: an amplifier does not extend a
+  // fingerboard, and a phaser does not teach a bow to arpeggiate.
+  electricViolin: FX(VIOLIN, 'electric violin', {
+    // Enough that the amplifier is audibly working, and not enough to turn a
+    // sustained bow stroke into a square wave. The amplified violin anyone can
+    // actually picture — Jean-Luc Ponty's — is a nearly clean signal with the
+    // gain structure pushed, not a fuzz box on a fiddle.
+    drive: 0.35,
+    // A shallow sweep, sitting behind the note rather than on it. Deep enough to
+    // hear on a held bow, shallow enough that a fast passage is unaffected,
+    // since a phaser only reveals itself on something long.
+    phaser: 0.3,
+    // The one field here that collides with the era tables, and it is meant to.
+    // A bridge pickup hears the *string*; it never hears the body, and the body
+    // is what rolls a violin off, a wooden box being a poor radiator at the top
+    // of its range. Take the box out of the path and the bow's own edge arrives
+    // intact. 8000 is chosen to cut both ways: brighter than any era's melody
+    // ceiling in this project (ambient's darkest is 4800) and darker than its
+    // brightest (10000), because an amplifier has a top end and an open window
+    // does not.
+    lowpass: 8000,
+  }),
+  electricCello: FX(CELLO, 'electric cello', {
+    // Less than the violin gets, because drive does more damage lower down: the
+    // harmonics it manufactures sit closer together down there and beat against
+    // one another instead of adding edge. It is the same reason a bass player
+    // runs less gain than the guitarist standing next to them.
+    drive: 0.3,
+    // And the sweep pulled back with it. A phaser works by notching the
+    // spectrum, and a spectrum with its energy in the bottom two octaves has
+    // fewer places to be notched before the note starts disappearing.
+    phaser: 0.25,
+  }),
+  // Still `mallet`, still [53, 96], still centred at 72: it IS a vibraphone,
+  // played with the same four mallets over the same three and a half octaves,
+  // and the only thing that changed is what happens after the bars.
+  electricVibes: FX(VIBRAPHONE, 'electric vibraphone', {
+    // The lightest drive of the three, because a struck bar is a transient and
+    // then very nearly a sine, and distortion has almost nothing to take hold
+    // of. What it does take hold of is the strike. 0.2 grits the attack and
+    // leaves the ring alone, which is the right way round.
+    drive: 0.2,
+    // The deepest sweep of the three, and the one instrument in the catalogue
+    // where a phaser is not an effect at all: a vibraphone already has a motor
+    // turning discs in its resonators to sweep the tone, and a phaser sweeping
+    // the spectrum is the electric statement of that same gesture. It belongs
+    // here more than it belongs on either of the strings.
+    phaser: 0.45,
+  }),
+  // The 12-bit sampler pad. Ambient's `sampler` era promises "audible aliasing"
+  // in its own docstring and has never had anything to produce it with.
+  crushedPad: FX(PAD_METALLIC, 'crushed pad', {
+    // Eight bits rather than the twelve the era's hardware actually had. A
+    // 12-bit reduction of an already-clean soundfont is inaudible on a pad — the
+    // grit has to survive a third of a second of attack and the best part of a
+    // second of tail — and `Effects.crush` documents 8 as where grit begins and
+    // 6 as where it stops being usable.
+    crush: 8,
+  }),
 } satisfies Record<string, Instrument>;
 
 export type InstrumentId = keyof typeof INSTRUMENTS;
@@ -302,18 +463,23 @@ export const INSTRUMENT_RANGE: Record<InstrumentId, readonly [Midi, Midi]> = {
   piano: [21, 108],
   epiano1: [28, 103],
   epiano2: [28, 103],
+  clavinet: [28, 103],
   vibraphone: [53, 96],
   glockenspiel: [53, 96],
   drawbarOrgan: [24, 96],
   rockOrgan: [24, 96],
+  percussiveOrgan: [24, 96],
   nylonGuitar: [40, 83],
   steelGuitar: [40, 83],
   jazzGuitar: [40, 86],
   cleanGuitar: [40, 86],
   mutedGuitar: [40, 86],
+  overdriveGuitar: [40, 86],
+  distortionGuitar: [40, 86],
   acousticBass: [28, 67],
   fingerBass: [28, 63],
   pickBass: [28, 63],
+  slapBass: [28, 63],
   synthBass: [21, 108],
   violin: [55, 96],
   fiddle: [55, 96],
@@ -329,6 +495,11 @@ export const INSTRUMENT_RANGE: Record<InstrumentId, readonly [Midi, Midi]> = {
   mutedTrumpet: [52, 86],
   brassSection: [36, 84],
   synthBrass: [36, 84],
+  // A keyboard's reach rather than a brass section's, unlike `synthBrass` above.
+  // GM 63 is the fatter, slower of the two synth-brass programmes and the one
+  // that gets used as a pad; capping it at a trumpet section's top would forbid
+  // exactly the register it is chosen for.
+  synthBrass2: [21, 108],
   sopranoSax: [56, 88],
   altoSax: [49, 89],
   tenorSax: [44, 84],
@@ -366,6 +537,9 @@ export const INSTRUMENT_RANGE: Record<InstrumentId, readonly [Midi, Midi]> = {
   leadCalliope: [21, 108],
   leadChiff: [21, 108],
   leadVoice: [21, 108],
+  leadCharang: [21, 108],
+  leadFifths: [21, 108],
+  leadBassLead: [21, 108],
   fretlessBass: [28, 63],
   synthBass2: [21, 108],
   cello: [36, 81],
@@ -373,6 +547,12 @@ export const INSTRUMENT_RANGE: Record<InstrumentId, readonly [Midi, Midi]> = {
   sitar: [48, 80],
   panFlute: [59, 96],
   shakuhachi: [59, 96],
+  // The electric variants take their acoustic base's range exactly. A pickup
+  // does not add a string and an amplifier does not add a bar.
+  electricViolin: [55, 96],
+  electricCello: [36, 81],
+  electricVibes: [53, 96],
+  crushedPad: [21, 108],
 };
 
 /**

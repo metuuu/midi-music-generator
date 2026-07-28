@@ -129,6 +129,27 @@ export interface NoteEvent {
   vowel?: Vowel;
   /** How the syllable is started. Only the `vocal` layer sets it. */
   consonant?: Consonant;
+  /**
+   * How far open the filter is on this note, 0..1. Absent means "all the way",
+   * which is what every note in the project was until this existed.
+   *
+   * The relationship to `Track.effects.lowpass` is exactly the one `velocity`
+   * has to `Track.gain`:
+   *
+   *     velocity : Track.gain  ::  brightness : Track.effects.lowpass
+   *
+   * The track says where this instrument's tone sits in this decade; the note
+   * says where in that range *this moment* sits. Keeping the absolute hertz on
+   * the track and the movement on the note is what stops a filter sweep from
+   * being a production setting — it is material, and it is generated, in
+   * `generate/filter.ts`.
+   *
+   * It only ever closes. A sweep that could open past the era's own cutoff
+   * would let a style out-bright its decade, and the MIDI render could not
+   * carry it either: CC74 is defined relative to the patch's own filter, so
+   * darkening is the only direction that means the same thing on every device.
+   */
+  brightness?: number;
 }
 
 /**
@@ -232,6 +253,24 @@ export interface VoiceSettings {
   /** Vibrato depth in semitones. */
   vibDepth: number;
   /**
+   * How much the formants follow the sung pitch, 0..1. Defaults to 1.
+   *
+   * This is the difference between a singer and a vocoder, stated as the one
+   * number it actually is.
+   *
+   * A human tract cannot hold a formant below the note being sung, and the
+   * renderer already knows it: `effectiveF1` lifts the first formant to meet the
+   * fundamental on high notes, with the observation that this is what singers
+   * do — the jaw opens and a closed vowel migrates toward /a/ whether the singer
+   * wants it or not. At 1 that compensation applies in full.
+   *
+   * A vocoder is a *fixed* bank of filters that a carrier is pushed through, and
+   * the bank does not care what pitch arrives. At 0 the compensation is off, so
+   * high notes lose their body — and that hollow, buzzing thinness at the top of
+   * the range is not a defect to be corrected, it is the sound.
+   */
+  formantTrack?: number;
+  /**
    * The scoop: how far below the note the voice starts, in semitones, and how
    * long it takes to arrive. The single strongest "this is a person" cue there
    * is — a voice reaches a pitch, an organ is simply already on it.
@@ -306,6 +345,35 @@ export interface Effects {
   resonance?: number;
   /** Stereo position, -1 hard left … +1 hard right. MIDI CC10. */
   pan?: number;
+  /**
+   * Overdrive, 0..1. **Audition only** — GM has no controller for it.
+   *
+   * Here because of what an electric instrument actually is. General MIDI has
+   * no electric violin and no electric vibraphone, and picking an approximate
+   * patch for either would be the wrong fix: an electric violin is not a
+   * different instrument, it is a violin with a pickup and an amplifier. That
+   * is a statement about *processing*, and processing already has a home.
+   * See `Instrument.effects`.
+   */
+  drive?: number;
+  /**
+   * Bit depth. 16 is clean, 8 is grit, below 6 is unusable on purpose.
+   * **Audition only.**
+   *
+   * The sound of a sampler that could not afford the bits. Ambient's `sampler`
+   * era already describes "audible aliasing" in its docstring and has never had
+   * any way to produce it.
+   */
+  crush?: number;
+  /**
+   * Phaser sweep depth, 0..1. **Audition only.**
+   *
+   * Earns its place on period grounds rather than taste: a string machine
+   * through a phaser is more characteristic of 1976 than any choice of patch
+   * is, and it is the cheapest single thing that stops an analogue era sounding
+   * like the digital one after it.
+   */
+  phaser?: number;
 }
 
 /**
@@ -428,6 +496,17 @@ export interface DrumTrack {
   /** Relative level of each voice within the kit. See `DEFAULT_DRUM_MIX`. */
   voiceGains: Record<DrumVoice, number>;
   effects?: Effects;
+  /**
+   * Per-voice treatment, merged over `effects`.
+   *
+   * A kit is not treated as one object, and the case that forces this is a
+   * single gesture: **gated reverb on the snare and nothing else** is the most
+   * recognisable production sound of 1984, and applying it to the whole kit
+   * puts a two-second tail on the hi-hats, which is a mess rather than a
+   * period. The same argument `voiceGains` already makes — a kit is fourteen
+   * sources sharing a stand — applied to the other half of the mix.
+   */
+  voiceEffects?: Partial<Record<DrumVoice, Effects>>;
 }
 
 export interface SongMeta {
@@ -564,6 +643,34 @@ export function timeSignature(meta: SongMeta): [number, number] {
 export function meterLabel(meta: SongMeta): string {
   const [n, d] = timeSignature(meta);
   return `${n}/${d}`;
+}
+
+/**
+ * How far a fully closed filter travels, in octaves.
+ *
+ * Four is a real sweep and not more: closing further puts the cutoff under the
+ * fundamental of anything but a bass part, at which point the note stops being
+ * dark and starts being missing.
+ */
+const SWEEP_OCTAVES = 4;
+
+/**
+ * The cutoff a note is actually heard through, from the track's declared
+ * lowpass and the note's `brightness`.
+ *
+ * Lives here rather than in either renderer because **both** of them need it and
+ * neither may import the other — `render/strudel.ts` is the only file allowed to
+ * know Strudel exists, so `render/midi.ts` cannot reach across for it. It was
+ * briefly a `const SWEEP_OCTAVES = 4` in each, which is the arrangement where
+ * one of them gets tuned and the audition and the shipped file quietly disagree
+ * about what the filter did.
+ *
+ * Exponential because cutoff is heard logarithmically: halving the hertz is one
+ * octave darker wherever you start from, so a linear scale would spend most of
+ * its travel in the top octave and do nothing audible at the bottom.
+ */
+export function sweptCutoff(lowpass: number, brightness: number | undefined): number {
+  return Math.round(lowpass * 2 ** (-SWEEP_OCTAVES * (1 - (brightness ?? 1))));
 }
 
 export function songDurationBeats(song: Song): number {

@@ -10,8 +10,9 @@ import type { Genre } from './types.js';
 import { iskelma } from './iskelma/index.js';
 import { jazz } from './jazz/index.js';
 import { ambient } from './ambient/index.js';
+import { synth } from './synth/index.js';
 
-export const GENRES: Record<string, Genre> = { iskelma, jazz, ambient };
+export const GENRES: Record<string, Genre> = { iskelma, jazz, ambient, synth };
 export const GENRE_IDS = Object.keys(GENRES);
 
 export function getGenre(id: string): Genre {

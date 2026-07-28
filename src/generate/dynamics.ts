@@ -109,8 +109,17 @@ export function applyDynamics(
   notes: NoteEvent[],
   layer: LayerId,
   intensity: number,
+  /**
+   * The genre's response table, merged over `LAYER_RESPONSE`.
+   *
+   * The defaults describe a dance band breathing: the drummer plays a chorus
+   * visibly harder and the pad barely changes, because a pad is a bed and a bed
+   * that surges is unsettling. True of a band with a singer in front of it, and
+   * not true everywhere — see `Genre.layerPlan`.
+   */
+  override?: Partial<Record<LayerId, number>>,
 ): void {
-  const response = LAYER_RESPONSE[layer] ?? 0.6;
+  const response = override?.[layer] ?? LAYER_RESPONSE[layer] ?? 0.6;
   const factor = 1 - response + response * intensity;
   for (const n of notes) {
     n.velocity = clamp(n.velocity * factor, 0.08, 1);

@@ -372,6 +372,44 @@ export interface Style {
    */
   counterSpacing?: number;
   /**
+   * What the counter layer *is*. Defaults to `answer`.
+   *
+   * `answer` is a second player replying in the lead's gaps, which is what a
+   * counter-melody has been everywhere in this project so far. `ostinato` is not
+   * a reply at all — it is a second figure running continuously alongside the
+   * first, and the Berlin-school texture is two of them at different cycle
+   * lengths, phasing against each other.
+   *
+   * The distinction has to be declared rather than inferred, because the two
+   * want opposite treatment from the arranger: an answering line is *supposed*
+   * to be moved out of the melody's way note by note, and an ostinato moved note
+   * by note has stopped being an ostinato. See `avoidClash`.
+   */
+  counterMode?: 'answer' | 'ostinato';
+  /**
+   * The figures for `counterMode: 'ostinato'`, drawn like any other pattern.
+   * Their `cycle` is usually the point — see `Cycle`.
+   */
+  counterPatterns?: CompPattern[];
+  /**
+   * How the filter moves. Absent means it does not, which is what every style
+   * in the project did before this existed.
+   *
+   * `depth` is how far the sweep closes at its darkest, 0..1, scaled against the
+   * track's own cutoff. `shape` is whether the movement happens *across* a
+   * section or *at* its edges:
+   *
+   *   ramp   the filter opens over the section's bars. The Berlin-school
+   *          gesture, and the reason this field exists — a sixteen-bar opening
+   *          is the composition, not a mix move.
+   *   step   one value per section, held. What a style wants when it needs the
+   *          chorus brighter than the verse and nothing more athletic.
+   *
+   * There is deliberately no `gate`. The gated sound in this repertoire is
+   * amplitude rather than filter, and `CompHit.vel` already carries it.
+   */
+  filter?: { depth: number; shape: 'ramp' | 'step' };
+  /**
    * Override the genre's default constraint level. Bebop wants `free`: the
    * chromatic approach notes and unprepared dissonances the rules exist to
    * suppress are precisely what the idiom is made of.

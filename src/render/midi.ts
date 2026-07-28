@@ -10,7 +10,9 @@
  * because this is the output that actually ships.
  */
 
-import { timeSignature, type DrumVoice, type Effects, type Song } from '../core/types.js';
+import {
+  sweptCutoff, timeSignature, type DrumVoice, type Effects, type Song, type Track,
+} from '../core/types.js';
 
 const PPQ = 480;
 
@@ -73,6 +75,9 @@ export function renderMidi(song: Song): Uint8Array {
     for (const [cc, value] of controllersFor(track.effects)) {
       events.push({ tick: 0, order: 0, bytes: [0xb0 | ch, cc, value] });
     }
+    for (const [tick, value] of brightnessSweep(track)) {
+      events.push({ tick, order: 0, bytes: [0xb0 | ch, 74, value] });
+    }
 
     for (const note of track.notes) {
       const on = beatsToTicks(note.beat);
@@ -89,6 +94,13 @@ export function renderMidi(song: Song): Uint8Array {
     const events: MidiEvent[] = [];
     events.push({ tick: 0, order: 0, bytes: [0xff, 0x03, ...textBytes(`drums — ${song.drums.bank}`)] });
     events.push({ tick: 0, order: 0, bytes: [0xb9, 7, clamp7(Math.round(song.drums.gain * 127))] });
+    // `voiceEffects` is not readable from here and cannot be. A controller
+    // addresses a *channel*, the whole kit is on channel 10, and there is no
+    // sixteenth of a channel to give the snare — so gated reverb on the snare
+    // alone is not something a .mid can say, in the same way and for the same
+    // reason that delay and drive are not. The Strudel render, which emits one
+    // pattern per voice, carries it; this file emits the kit's own effects and
+    // the audition is where that production sound lives.
     for (const [cc, value] of controllersFor(song.drums.effects)) {
       events.push({ tick: 0, order: 0, bytes: [0xb9, cc, value] });
     }
@@ -139,19 +151,75 @@ export function renderMidi(song: Song): Uint8Array {
  *    patch's own filter, with 64 meaning "as the patch has it", which is why
  *    the mapping below only ever darkens and never brightens: claiming to open
  *    a filter we did not close would change every patch differently.
- *  - **Delay and highpass have no GM controller at all** and are simply absent
- *    here. Inventing a CC for them would produce a .mid that plays back
- *    correctly on exactly the synth it was tested against.
+ *  - **Delay, highpass, drive, crush and phaser have no GM controller at all**
+ *    and are simply absent here. Inventing a CC for them would produce a .mid
+ *    that plays back correctly on exactly the synth it was tested against — and
+ *    the undefined controllers are not free real estate either, since a
+ *    manufacturer is entitled to map them to anything at all. All five are
+ *    marked **audition only** in the IR for this reason; the .mid is the dry
+ *    performance, and a driven, bit-crushed, phased version of it is a mix that
+ *    happens downstream of this file.
  */
 function controllersFor(fx: Effects | undefined): [number, number][] {
   if (!fx) return [];
   const out: [number, number][] = [];
   if (fx.reverb !== undefined) out.push([91, clamp7(fx.reverb * 127)]);
   if (fx.pan !== undefined) out.push([10, clamp7(64 + fx.pan * 63)]);
-  // 8 kHz is treated as "open", i.e. the patch's own setting, and every octave
-  // below that takes 16 off. 500 Hz bottoms out at 0.
-  if (fx.lowpass !== undefined) out.push([74, clamp7(Math.min(64, 64 + 16 * Math.log2(fx.lowpass / 8000)))]);
+  if (fx.lowpass !== undefined) out.push([74, brightnessCC(fx.lowpass)]);
   if (fx.resonance !== undefined) out.push([71, clamp7(64 + fx.resonance * 63)]);
+  return out;
+}
+
+/**
+ * A cutoff in Hz as a CC74 value.
+ *
+ * 8 kHz is treated as "open", i.e. the patch's own setting, and every octave
+ * below that takes 16 off. 500 Hz bottoms out at 0.
+ *
+ * One function rather than two copies of the expression because the track's
+ * opening setting and the per-note sweep have to sit on the same curve: if they
+ * disagreed about where the track's own cutoff lands, the first swept note
+ * would jump rather than move.
+ */
+function brightnessCC(hz: number): number {
+  return clamp7(Math.min(64, 64 + 16 * Math.log2(hz / 8000)));
+}
+
+
+/**
+ * The part's brightness as a stream of CC74 changes, one per onset that moves.
+ *
+ * `NoteEvent.brightness` is to `effects.lowpass` what velocity is to gain, and
+ * velocity already survives this renderer — a filter sweep that stopped at the
+ * audition would mean the shipping file is not the song. So it is emitted, and
+ * emitted as controller changes, because there is nowhere else in a .mid to put
+ * a continuous parameter.
+ *
+ * The docstring above records what makes this safe: CC74 is defined relative to
+ * the patch's own filter, so this renderer only ever uses it to darken. Since
+ * `brightness` is at most 1, the swept cutoff is at most the track's own — the
+ * stream can never claim to open a filter it did not close. That holds by
+ * construction rather than by a clamp, which is why there is no clamp.
+ *
+ * Only changes are emitted, seeded from the value `controllersFor` already put
+ * at tick 0, so a part that dips once costs one controller and not one per
+ * note. `order: 0` puts each change ahead of the note-on it belongs to; a
+ * change landing after its own note-on would be heard on the note after it, and
+ * the note it was written for would sound at the previous note's cutoff.
+ */
+function brightnessSweep(track: Track): [tick: number, value: number][] {
+  const cutoff = track.effects?.lowpass;
+  if (cutoff === undefined) return [];
+  if (!track.notes.some((n) => n.brightness !== undefined)) return [];
+
+  const out: [number, number][] = [];
+  let last = brightnessCC(cutoff);
+  for (const note of [...track.notes].sort((a, b) => a.beat - b.beat)) {
+    const value = brightnessCC(sweptCutoff(cutoff, note.brightness));
+    if (value === last) continue;
+    last = value;
+    out.push([beatsToTicks(note.beat), value]);
+  }
   return out;
 }
 

@@ -19,6 +19,7 @@
 import { SLOTS_PER_BEAT, slotOf } from '../core/grid.js';
 import { midiToNoteName, spellingFor } from '../core/pitch.js';
 import { resolveVoice } from './drum-banks.js';
+import { sweptCutoff } from '../core/types.js';
 import type {
   DrumVoice, Effects, Envelope, NoteEvent, Song, Track, Vowel,
 } from '../core/types.js';
@@ -79,13 +80,20 @@ export function renderStrudel(song: Song, opts: StrudelRenderOptions = {}): stri
      * saying so, and the audition output stays readable.
      */
     const dyn = dynamicGrid(track, meta.totalBars, slotsPerBar);
+    /**
+     * The same trick again for the filter: where a part's notes carry
+     * brightness, the cutoff becomes a pattern on the note slots and takes the
+     * place of the static `.lpf()` in the effect chain rather than joining it —
+     * two `.lpf()` calls on one pattern is the second one winning silently.
+     */
+    const sweep = filterSweep(track, meta.totalBars, slotsPerBar);
     parts.push([
       `  // ${track.layer} — ${track.instrument}`,
       `  note(\`${formatGrid(grid)}\`)`,
       `    .sound('${track.strudelSound}')`,
       dyn ? `    .gain(\`${formatGrid(dyn)}\`)` : `    .gain(${track.gain.toFixed(2)})`,
       ...envelopeChain(track.envelope),
-      ...effectChain(track.effects, song),
+      ...effectChain(track.effects, song, sweep),
     ].join('\n'));
   }
 
@@ -116,13 +124,21 @@ export function renderStrudel(song: Song, opts: StrudelRenderOptions = {}): stri
       for (const s of slots) row[s] = sound;
       return row;
     });
+    /**
+     * Per-voice treatment costs nothing here, because the kit is already one
+     * pattern per voice — the split `voiceGains` needed. It is what lets 1984
+     * exist: gated reverb on the snare and nothing else, where a kit treated as
+     * one object puts that same two-second tail on every hi-hat.
+     */
+    const perVoice = song.drums.voiceEffects?.[voice];
+    const fx = perVoice ? { ...song.drums.effects, ...perVoice } : song.drums.effects;
     parts.push(
       [
         `  // drums — ${voice}${sound === voice ? '' : ` (as ${sound}: ${song.drums.bank} has no ${voice})`}`,
         `  s(\`${formatGrid(bars)}\`)`,
         `    .bank('${song.drums.bank}')`,
         `    .gain(${(song.drums.gain * (song.drums.voiceGains[voice] ?? 1)).toFixed(2)})`,
-        ...effectChain(song.drums.effects, song),
+        ...effectChain(fx, song),
       ].join('\n'),
     );
   }
@@ -169,6 +185,28 @@ function envelopeChain(env: Envelope | undefined): string[] {
 }
 
 /**
+ * What `Effects.drive` of 1 means, as a `.distort()` amount.
+ *
+ * The s-curve's small-signal gain is `e^d` for a `.distort(d)`, so this is
+ * about 17 dB into the saturator. Past roughly 3 the curve stops sounding like
+ * an amplifier being pushed and starts sounding like a fuzz box, and the IR's
+ * `drive` is there to say that an electric violin has a pickup and an amp —
+ * not that it has a pedalboard.
+ */
+const DRIVE_MAX = 2;
+
+/**
+ * How fast the phaser sweeps, in Hz. Fixed, because the IR carries a depth and
+ * superdough needs a rate.
+ *
+ * One sweep every two and a half seconds. This effect is in the IR on period
+ * grounds — a string machine through a phaser is the sound of 1976 — and that
+ * sound is a slow one. Above about 2 Hz a phaser stops reading as a sweep and
+ * starts reading as a tremolo, which belongs to a different decade entirely.
+ */
+const PHASER_RATE = 0.4;
+
+/**
  * Effects, as superdough controls.
  *
  * Reverb and delay are *sends*: the size of the room and the length of the echo
@@ -181,14 +219,44 @@ function envelopeChain(env: Envelope | undefined): string[] {
  * and an echo specified in seconds stops being a musical interval the moment
  * the tempo changes. `delaysync` is in cycles, and this renderer puts one bar
  * in a cycle — so a delay written in beats converts exactly.
+ *
+ * Drive, crush and phaser are written between the filters and the sends purely
+ * so the chain reads as one sentence — filter, dirt, placement, sends.
+ * superdough assembles its graph in a fixed order whatever order these are
+ * called in, so nothing here depends on it. What does need saying is that only
+ * one of the three takes the 0..1 the IR uses:
+ *
+ *  - **`.distort(d)` is not a wet/dry mix.** superdough raises it through
+ *    `expm1(d)` into the shape coefficient of an s-curve whose small-signal
+ *    gain works out to exactly `e^d` — so `d` is the drive stage's gain, 0 is
+ *    an exact bypass, and the scale has no top (Strudel's own docs call 0..10
+ *    useful). Full drive maps to `DRIVE_MAX`, ~17 dB into the saturator: an
+ *    overdrive pedal rather than a fuzz box. Nothing compensates for the level
+ *    it adds, because that level *is* the effect — the s-curve is unity at full
+ *    scale and lifts everything below it, which is what a pushed amplifier
+ *    sounds like. It follows that the grit is level-dependent, since
+ *    superdough's gain stage runs before this one.
+ *  - **`.crush(n)` is already in the IR's units**: n is the bit depth it
+ *    quantises to, 1 drastic and 16 barely audible, and passes straight through.
+ *  - **`.phaser(r)` is the sweep *rate* in Hz, not the depth.** It is an alias
+ *    for `phaserrate`, and superdough builds no phaser at all unless it is set,
+ *    so the IR's depth has to go to `.phaserdepth()` and the rate has to be
+ *    supplied here. See `PHASER_RATE`.
  */
-function effectChain(fx: Effects | undefined, song: Song): string[] {
+function effectChain(fx: Effects | undefined, song: Song, lpf?: string): string[] {
   if (!fx) return [];
   const { space, meta } = song;
   const out: string[] = [];
-  if (fx.lowpass !== undefined) out.push(`    .lpf(${Math.round(fx.lowpass)})`);
+  // `lpf` is the note-by-note sweep when the part has one; see `filterSweep`.
+  if (lpf !== undefined) out.push(`    .lpf(${lpf})`);
+  else if (fx.lowpass !== undefined) out.push(`    .lpf(${Math.round(fx.lowpass)})`);
   if (fx.highpass !== undefined) out.push(`    .hpf(${Math.round(fx.highpass)})`);
   if (fx.resonance !== undefined) out.push(`    .resonance(${(fx.resonance * 20).toFixed(1)})`);
+  if (fx.crush !== undefined) out.push(`    .crush(${fx.crush})`);
+  if (fx.drive) out.push(`    .distort(${(fx.drive * DRIVE_MAX).toFixed(2)})`);
+  if (fx.phaser) {
+    out.push(`    .phaser(${PHASER_RATE}).phaserdepth(${fx.phaser.toFixed(2)})`);
+  }
   if (fx.pan !== undefined) out.push(`    .pan(${((fx.pan + 1) / 2).toFixed(2)})`);
   if (fx.reverb) {
     out.push(`    .room(${fx.reverb.toFixed(2)}).roomsize(${space.reverbSize.toFixed(2)})`);
@@ -231,6 +299,45 @@ function dynamicGrid(
 
   return buildValueGrid(track.notes, totalBars, slotsPerBar,
     (n) => (track.gain * n.velocity).toFixed(2));
+}
+
+
+/**
+ * Per-note brightness as a cutoff pattern, or undefined when the part has none.
+ *
+ * The argument to `.lpf()`, already formatted — a grid where the sweep moves,
+ * and a plain number where it does not, so a part whose brightness never
+ * changes costs no more output than one that has no brightness at all.
+ *
+ * `brightness` stands to `effects.lowpass` exactly as `velocity` stands to
+ * `gain`: the track says where this instrument's tone sits in its decade and
+ * the note says where in that range this moment sits. A track with no `lowpass`
+ * therefore has nothing to sweep and is left alone — a brightness with no
+ * cutoff to multiply is not a darker note, it is an underspecified one.
+ *
+ * The sung path never reaches here: it returns before the effect chain and
+ * spends its own `.lpf()` on the first formant, which is the body of the voice
+ * rather than a mix decision.
+ */
+function filterSweep(
+  track: Track,
+  totalBars: number,
+  slotsPerBar: number,
+): string | undefined {
+  const cutoff = track.effects?.lowpass;
+  if (cutoff === undefined) return undefined;
+  if (!track.notes.some((n) => n.brightness !== undefined)) return undefined;
+
+  const hzOf = (n: NoteEvent) => String(sweptCutoff(cutoff, n.brightness));
+  // Asked in the domain that gets printed: if every note rounds to the same
+  // hertz there is no sweep, whatever the underlying numbers did. A note with
+  // no brightness is fully open, so this also collapses back to exactly the
+  // static `.lpf()` `effectChain` would have emitted.
+  const distinct = new Set(track.notes.map(hzOf));
+  const [only] = distinct;
+  if (distinct.size === 1) return only!;
+
+  return `\`${formatGrid(buildValueGrid(track.notes, totalBars, slotsPerBar, hzOf))}\``;
 }
 
 /**

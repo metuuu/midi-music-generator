@@ -75,3 +75,13 @@ Genres that disagree with a threshold adjust it rather than forking the table.
 | `static-repetition` | never | never |
 | `repeated-note-run` | polished | never |
 | `flat-nine` | polished | never |
+
+### Synth
+
+| Rule | Prefers from | Forbids from |
+|---|---|---|
+| `parallel-perfects` | never | never |
+| `avoid-fourth` | never | never |
+| `unresolved-seventh` | polished | never |
+| `static-repetition` | strict | never |
+| `repeated-note-run` | polished | never |

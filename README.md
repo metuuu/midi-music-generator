@@ -1,6 +1,6 @@
 # Music generator
 
-A rule-based generator for **instrumental iskelmä, jazz and ambient**, written for radio-style and game background music. It writes complete arrangements — form, harmony, melody, bass, comping, drums — and renders them to **MIDI** for offline rendering, and to **Strudel** code for auditioning in a browser.
+A rule-based generator for **instrumental iskelmä, jazz, ambient and vintage synth**, written for radio-style and game background music. It writes complete arrangements — form, harmony, melody, bass, comping, drums — and renders them to **MIDI** for offline rendering, and to **Strudel** code for auditioning in a browser.
 
 ```bash
 npm install
@@ -10,6 +10,7 @@ npm run gen -- -n 12 --genre jazz --mood smoky --out ./out
 npm run gen -- -n 12 --genre iskelma --mood kaihoisa --strictness strict
 npm run gen -- -n 12 --genre ambient --style wasteland --out ./out
 npm run gen -- -n 12 --genre ambient --style choral --vocals
+npm run gen -- -n 12 --genre synth --style berlin --mood motorway
 ```
 
 Everything is deterministic: **a seed reproduces a song exactly**, so a whole station can be stored as a list of seeds rather than as audio.
@@ -21,6 +22,7 @@ Everything is deterministic: **a seed reproduces a song exactly**, so a whole st
 | **Iskelmä** | tango · humppa · valssi · jenkka · foksi · beguine · 1980s iskelmäpop |
 | **Jazz** | medium swing · bebop · ballad · bossa nova · blues · modal · gypsy jazz · piano trio · odd metre · fusion |
 | **Ambient** | hauntology · wasteland · drone · kosmische · choral · aquatic |
+| **Synth** | berlin · cinematic · machine · cosmic · stalker |
 
 Each genre owns its own styles, production eras, moods, song titles, song forms, preferred keys — and its own rule for how melody relates to harmony. There are three genuinely different answers to that last one:
 
@@ -28,11 +30,13 @@ Each genre owns its own styles, production eras, moods, song titles, song forms,
 - **jazz** melody follows the **chord** — every chord quality implies its own scale and the line re-orients bar by bar;
 - **ambient** melody follows the **drone** — one scale rooted on the tonic for the whole piece, bent to absorb whatever chord passes underneath, so the tonal centre never moves at all.
 
-That difference is what keeps the three from sounding like the same engine in different hats.
+**Synth** follows the key as iskelmä does, minus the harmonic minor — where another idiom writes `V` it writes `bVII`, and the seventh stays natural. It is the one genre here that is not a new answer to the question, and it earns its place elsewhere: it is the only one whose *filter* moves, and a sixteen-bar filter opening is the arrangement rather than a mix setting. See [docs/synth.md](docs/synth.md).
+
+That difference is what keeps them from sounding like the same engine in different hats.
 
 Four axes control the output, and all four are optional:
 
-- **genre** — `iskelma`, `jazz` or `ambient`
+- **genre** — `iskelma`, `jazz`, `ambient` or `synth`
 - **style** — the dance or feel
 - **era** — the production: which drum machine, which instruments
 - **mood** — biases style, key, tempo and density without dictating notes
@@ -139,6 +143,7 @@ Measured at E3, peaking cascade → all-pole cascade: tract response span for /a
 - [docs/iskelma.md](docs/iskelma.md) — the iskelmä ruleset: dances, harmony, form, eras, moods
 - [docs/jazz.md](docs/jazz.md) — the jazz ruleset: styles, chord-scale mapping, walking bass, quartal voicings
 - [docs/ambient.md](docs/ambient.md) — the ambient ruleset: the drone rule, sustain, arpeggios, the inverted mix, effects
+- [docs/synth.md](docs/synth.md) — the synth ruleset: cycles that are not the bar, the filter as arrangement, electric instruments
 - [docs/smoothness.md](docs/smoothness.md) — the constraint system and what each level costs
 - [docs/hook.md](docs/hook.md) — the repetition system: section recall, rhythm lock, vocabulary
 - [docs/arrangement.md](docs/arrangement.md) — the vertical, phrase rhythm, and the motto
@@ -178,7 +183,7 @@ Two runtime assets the preview downloads are **not** covered by this repo: the [
 
 ## Known limitations
 
-- **Two effects do not survive to MIDI.** Reverb send and pan are GM level 1 (CC91, CC10) and ship everywhere; lowpass and resonance are GM2/GS (CC74, CC71) and need a synth that honours them, such as FluidSynth. **Delay and highpass have no GM controller at all** and exist only in the audition render — inventing a CC for them would produce a `.mid` that plays back correctly on exactly the synth it was tested against. A native engine reads all six from the IR.
+- **Two effects do not survive to MIDI.** Reverb send and pan are GM level 1 (CC91, CC10) and ship everywhere; lowpass and resonance are GM2/GS (CC74, CC71) and need a synth that honours them, such as FluidSynth. **Delay, highpass, drive, crush and phaser have no GM controller at all** and exist only in the audition render — inventing a CC for them would produce a `.mid` that plays back correctly on exactly the synth it was tested against. A native engine reads all of them from the IR. A filter *sweep* does survive, as a CC74 stream, because CC74 is defined relative to the patch's own filter and brightness only ever closes it.
 - **Jazz drums in the preview are drum machines.** No acoustic kit samples are available to it. MIDI output is unaffected.
 - **Soundfonts stream from a public CDN** in the browser preview. Use `setSoundfontUrl()` to self-host.
 - **The voice sings the melody's notes, not a singer's.** It gets one vowel per note and no consonants, so it reads as a vocal *timbre* rather than as phrasing — no syllable structure, no melisma, no breath. Adding those is what would make it sound sung rather than merely voiced.

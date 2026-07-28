@@ -49,6 +49,44 @@ for (const gid of GENRE_IDS) {
 }
 check('all style x mode combinations generate', problems.length === 0, `${ok} songs`);
 
+// --- The default mood ------------------------------------------------------
+/**
+ * A genre's *last* mood is the one every song gets unless someone asks for
+ * another by name — `generateSong` passes it to `lookup` as the fallback, so an
+ * unspecified mood does not draw at random. That makes the final entry of every
+ * mood table load-bearing in a way nothing about it looks load-bearing, and it
+ * is why all four genres end theirs with a neutral entry.
+ *
+ * Asserted because the failure is silent and looks like somebody else's fault.
+ * `synth` shipped briefly with four strongly-opinionated moods and no neutral
+ * one, so its last entry — `cosmos`, which biases `cinematic` 3.0 and `stalker`
+ * 0.4 — became the default for every song. Over 200 songs it produced 98
+ * cinematic and 6 stalker, and every symptom pointed at the style weights, which
+ * were flat and innocent. One mood in one position, and nothing threw.
+ *
+ * Neutral means neutral: no style bias, no mode bias, and no thumb on tempo,
+ * density, ornament, leap or restraint.
+ */
+console.log('\nDefault mood');
+{
+  const offenders: string[] = [];
+  for (const gid of GENRE_IDS) {
+    const moods = Object.values(getGenre(gid).moods);
+    const last = moods[moods.length - 1];
+    if (!last) { offenders.push(`${gid}: no moods at all`); continue; }
+    const flat = Object.keys(last.styleBias).length === 0
+      && last.modeBias.minor === 1 && last.modeBias.major === 1
+      && last.tempo === 0 && last.density === 0
+      && last.ornament === 1 && last.leap === 1 && last.restraint === 0;
+    if (!flat) offenders.push(`${gid}: "${last.id}" biases the draw`);
+  }
+  check(
+    "every genre's default mood is neutral",
+    offenders.length === 0,
+    offenders.length ? offenders.join('; ') : `${GENRE_IDS.length} genres`,
+  );
+}
+
 // --- Form ----------------------------------------------------------------
 console.log('\nForm');
 const bluesBars = new Set<number>();
@@ -253,6 +291,154 @@ console.log('\nAmbient');
     for (const count of byBeat.values()) if (count > 1) stacked++;
   }
   check('the sequencer plays one note at a time', stacked === 0, `${stacked} stacked onsets in ${sequencerNotes} notes`);
+}
+
+// --- Synth -----------------------------------------------------------------
+// Three claims. The first is the genre's central negative one, the second is
+// the thing it was built for, and the third exists because two styles in this
+// repo describe the same instrument and could quietly converge on the same
+// music.
+console.log('\nSynth');
+{
+  const synth = getGenre('synth');
+
+  /**
+   * 1. The raised seventh never sounds in a minor-key synth song.
+   *
+   * This is the line between this genre and iskelmä, whose `scaleForChord`
+   * is otherwise the same rule: iskelmä substitutes harmonic minor under a
+   * dominant and this one has no dominant in minor to substitute under. Where
+   * another idiom writes `V`, this writes `bVII`, and the seventh stays natural.
+   *
+   * Checked on the *sounding notes* rather than on the tables, because that is
+   * where it could break without anyone editing a progression: a chord-scale
+   * rule that fell through to a guard clause returning harmonic minor, or a
+   * melody generator reaching for a leading tone as a chromatic approach, would
+   * both leave the tables innocent and the music wrong.
+   */
+  let raised = 0, minorNotes = 0, minorSections = 0;
+  for (const style of Object.keys(synth.styles)) {
+    for (let i = 0; i < 4; i++) {
+      const song = generateSong({ seed: `syn-${style}-${i}`, genre: 'synth', style });
+      for (const sec of song.sections) {
+        if (sec.mode !== 'minor') continue;
+        minorSections++;
+        const tonic = ((song.meta.tonic + sec.transpose) % 12 + 12) % 12;
+        const leadingTone = (tonic + 11) % 12;
+        const from = sec.startBar * song.meta.beatsPerBar;
+        const to = from + sec.lengthBars * song.meta.beatsPerBar;
+        for (const track of song.tracks) {
+          // Melodic layers only. A comp voicing takes its notes from the chord,
+          // and a chord that legitimately contains the note is not the fault
+          // being looked for here.
+          if (track.layer !== 'melody' && track.layer !== 'counter') continue;
+          for (const n of track.notes) {
+            if (n.beat < from || n.beat >= to) continue;
+            minorNotes++;
+            if (((n.midi % 12) + 12) % 12 === leadingTone) raised++;
+          }
+        }
+      }
+    }
+  }
+  check(
+    'no raised seventh in a minor-key song',
+    raised === 0,
+    `${raised} in ${minorNotes} notes across ${minorSections} minor sections`,
+  );
+
+  /**
+   * 2. A ramp ramps, and only where it was asked for.
+   *
+   * Two halves, and the second is the one that would rot silently. `berlin`
+   * declares `filter: { shape: 'ramp' }` and its sections must get measurably
+   * brighter from their first quarter to their last — a filter opening across
+   * sixteen bars is the gesture this genre exists to make, and a bug that
+   * flattened it would produce a song that is merely duller rather than one
+   * that is obviously broken.
+   *
+   * The other half is that the three genres with no filter profile carry **no
+   * `brightness` at all** — not a brightness of 1. The distinction matters
+   * because it is the difference between a renderer emitting nothing and a
+   * renderer emitting a full-length grid of the number one per track, which is
+   * the same sound and a much worse artefact.
+   */
+  let ramped = 0, flat = 0, fell = 0;
+  for (let i = 0; i < 6; i++) {
+    const song = generateSong({ seed: `ramp-${i}`, genre: 'synth', style: 'berlin' });
+    const comp = song.tracks.find((t) => t.layer === 'comp');
+    if (!comp) continue;
+    for (const sec of song.sections) {
+      const from = sec.startBar * song.meta.beatsPerBar;
+      const span = sec.lengthBars * song.meta.beatsPerBar;
+      const inSection = comp.notes.filter((n) => n.beat >= from && n.beat < from + span);
+      if (inSection.length < 8) continue;
+      const mean = (ns: typeof inSection): number =>
+        ns.reduce((a, n) => a + (n.brightness ?? 1), 0) / Math.max(1, ns.length);
+      const first = mean(inSection.filter((n) => n.beat < from + span * 0.25));
+      const last = mean(inSection.filter((n) => n.beat >= from + span * 0.75));
+      if (last < first) fell++;
+      /**
+       * The outro is exempt, and it is the one exemption worth having.
+       *
+       * It sits at the bottom of the genre's `kind` table because these records
+       * end by shutting the filter, so its whole section quantises to a single
+       * dark value — and that is the intended sound rather than a ramp that
+       * failed to fire. A filter *opening* across an outro would be exactly
+       * backwards: the piece would brighten as it ended.
+       *
+       * `fell` is checked over every section including this one, because a ramp
+       * running backwards is a real bug in a way a flat outro is not.
+       */
+      if (sec.kind === 'outro') continue;
+      if (last > first) ramped++; else flat++;
+    }
+  }
+  check('a ramp opens across its section', flat === 0 && ramped > 0,
+    `${ramped} sections opened, ${flat} did not (outros exempt)`);
+  check('no section closes as it plays', fell === 0, `${fell} ran backwards`);
+
+  let stray = 0, strayNotes = 0;
+  for (const gid of ['iskelma', 'jazz', 'ambient']) {
+    for (let i = 0; i < 4; i++) {
+      const song = generateSong({ seed: `nofx-${gid}-${i}`, genre: gid });
+      for (const t of song.tracks) {
+        for (const n of t.notes) { strayNotes++; if (n.brightness !== undefined) stray++; }
+      }
+    }
+  }
+  check('genres without a filter profile carry no brightness', stray === 0,
+    `${stray} of ${strayNotes} notes carried one`);
+
+  /**
+   * 3. `berlin` and `ambient/kosmische` are different music.
+   *
+   * They describe the same instrument doing two different jobs — a sequencer
+   * over a drone that changes once a minute, and a sequencer over harmony that
+   * moves every two bars — and nothing but the tables keeps them apart. If they
+   * converge, one of them should not exist, and harmonic rhythm is the honest
+   * discriminator because it is the thing that actually differs.
+   */
+  const changesPerEightBars = (genreId: string, styleId: string): number => {
+    let changes = 0, bars = 0;
+    for (let i = 0; i < 6; i++) {
+      const song = generateSong({ seed: `hr-${styleId}-${i}`, genre: genreId, style: styleId });
+      for (const sec of song.sections) {
+        for (let b = 1; b < sec.chordLabels.length; b++) {
+          if (sec.chordLabels[b] !== sec.chordLabels[b - 1]) changes++;
+        }
+        bars += sec.chordLabels.length;
+      }
+    }
+    return (changes / Math.max(1, bars)) * 8;
+  };
+  const berlinRate = changesPerEightBars('synth', 'berlin');
+  const kosmischeRate = changesPerEightBars('ambient', 'kosmische');
+  check(
+    'berlin moves faster than kosmische',
+    berlinRate > kosmischeRate * 1.5,
+    `berlin ${berlinRate.toFixed(1)} vs kosmische ${kosmischeRate.toFixed(1)} changes per 8 bars`,
+  );
 }
 
 // --- Smoothness must actually smooth --------------------------------------
