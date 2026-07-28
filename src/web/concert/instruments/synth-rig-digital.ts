@@ -90,8 +90,13 @@ const CASE_H = 0.092;
  * A hand playing the lower board keeps its wrist around 8 cm above the key
  * surface and the knuckles rise another 4 or 5 on a lifted attack, so about
  * 13 cm is the tallest a hand ever gets. Real double stands adjust between
- * roughly 0.25 and 0.35 m and players set them near the middle of that, which
- * is both the honest number and about twice the clearance a hand needs.
+ * roughly 0.25 and 0.35 m, and this sits near the *bottom* of that rather than
+ * the middle: a player has to see over the top board and reach across it, so
+ * they wind the second tier down as far as their own hands allow and stop. Set
+ * near the middle instead, the upper keyboard clears the lower one by half a
+ * forearm and the pair reads as scaffolding rather than as one instrument the
+ * player is standing at. The low end of the range is still most of twice the
+ * clearance a hand actually needs.
  *
  * It is a *guaranteed* minimum rather than a hopeful one: every child of the
  * tier group is built at local `y >= 0` and local `z >= 0`, and the group is
@@ -101,8 +106,8 @@ const CASE_H = 0.092;
  * whole assembly, tilt and all, is exactly the group origin. Tilting the second
  * keyboard can never drop it onto the player's hands.
  */
-const TIER_CLEAR_MIN = 0.300;
-const TIER_CLEAR_MAX = 0.330;
+const TIER_CLEAR_MIN = 0.235;
+const TIER_CLEAR_MAX = 0.260;
 
 /** Depth of the steel arms the upper keyboard rests on, top to bottom. */
 const ARM_H = 0.026;
