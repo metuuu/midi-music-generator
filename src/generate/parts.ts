@@ -18,9 +18,11 @@ import type { Rng } from '../core/rng.js';
 import type { DrumEvent, DrumVoice, NoteEvent } from '../core/types.js';
 import { scaleStepsBetween, stepInScale, type Scale } from '../core/scale.js';
 import { buildFill, DEFAULT_FILLS, landing, type FillPalette } from './fills.js';
-import { IDIOMS, type IdiomProfile } from '../style/instruments.js';
-import type { BassPattern, CompPattern, DrumPattern, Style } from '../style/types.js';
-import { SLOTS_PER_BEAT } from './rhythm.js';
+import { IDIOMS, type HandSpec, type IdiomProfile } from '../style/instruments.js';
+import type {
+  BassPattern, CompHit, CompPattern, DrumPattern, LeftHandMode, Style,
+} from '../style/types.js';
+import { metricStrength, SLOTS_PER_BEAT } from './rhythm.js';
 
 export interface PartContext {
   chords: Chord[];
@@ -32,19 +34,55 @@ export interface PartContext {
 
 const BASS_RANGE: [Midi, Midi] = [28, 52];
 
+/**
+ * Every slot a repeating figure lands on across a whole section, paired with the
+ * bar it lands in.
+ *
+ * One helper for all three pattern generators, because "walk the section in
+ * figures rather than in bars" is the same sentence in each of them and getting
+ * it subtly different in three places is how a cycle ends up drifting in the
+ * bass and not in the drums.
+ *
+ * The bar is carried alongside the slot because the harmony is still bar-shaped
+ * — see `Cycle` in `style/types.ts`. A figure that straddles a barline takes the
+ * chord it lands in, one hit at a time, which is what a player reading a chart
+ * does and is the whole reason an ostinato over moving changes sounds like
+ * music rather than like a sequencer left running.
+ *
+ * The last partial cycle is played rather than dropped. A three-beat figure in a
+ * four-bar phrase does not stop five beats early because the maths ran out; it
+ * plays until the section does, and the tail lands wherever the drift put it.
+ */
+function* cycleHits<T extends { at: number }>(
+  hits: readonly T[],
+  opts: { cycle: number; bars: number; slotsPerBar: number },
+): Generator<{ hit: T; bar: number; slot: number }> {
+  const total = opts.bars * opts.slotsPerBar;
+  const cycle = Math.max(1, Math.round(opts.cycle));
+  for (let base = 0; base < total; base += cycle) {
+    for (const hit of hits) {
+      const slot = base + hit.at;
+      if (slot >= total) continue;
+      yield { hit, bar: Math.floor(slot / opts.slotsPerBar), slot };
+    }
+  }
+}
+
 export function generateBass(ctx: PartContext, pattern: BassPattern): NoteEvent[] {
   if (pattern.walking) return generateWalkingBass(ctx);
   const { chords, beatsPerBar, startBeat, rng } = ctx;
+  const slotsPerBar = beatsPerBar * SLOTS_PER_BEAT;
   const out: NoteEvent[] = [];
 
-  for (let bar = 0; bar < chords.length; bar++) {
+  for (const { hit, bar, slot } of cycleHits(pattern.hits, {
+    cycle: pattern.cycle ?? slotsPerBar, bars: chords.length, slotsPerBar,
+  })) {
     const chord = chords[bar]!;
     const next = chords[bar + 1] ?? chords[0]!;
     const pcs = chordPcs(chord);
     const rootMidi = clampToRange(nearestPc(chord.root, 40), BASS_RANGE[0], BASS_RANGE[1]);
-    const barStart = startBeat + bar * beatsPerBar;
 
-    for (const hit of pattern.hits) {
+    {
       let midi: Midi;
       switch (hit.tone) {
         case 'root':
@@ -68,13 +106,14 @@ export function generateBass(ctx: PartContext, pattern: BassPattern): NoteEvent[
       }
       midi = clampToRange(midi, BASS_RANGE[0], BASS_RANGE[1]);
       out.push({
-        beat: barStart + hit.at / SLOTS_PER_BEAT,
+        beat: startBeat + slot / SLOTS_PER_BEAT,
         duration: hit.dur / SLOTS_PER_BEAT,
         midi,
         velocity: (hit.vel ?? 0.85) * rng.float(0.94, 1.0),
       });
     }
   }
+  out.sort((a, b) => a.beat - b.beat || a.midi - b.midi);
   return pattern.sustain ? mergeHeld(out) : out;
 }
 
@@ -226,6 +265,7 @@ export function generateComp(
   limits: { ceiling?: Midi; clarity?: number } = {},
 ): NoteEvent[] {
   const { chords, beatsPerBar, startBeat, rng } = ctx;
+  const slotsPerBar = beatsPerBar * SLOTS_PER_BEAT;
   const out: NoteEvent[] = [];
   // With a ceiling in force the window is anchored to it rather than to the
   // instrument's centre: a comp given five semitones to voice a seventh chord
@@ -233,12 +273,21 @@ export function generateComp(
   // a bit underneath the tune instead.
   const hi = limits.ceiling ?? centre + 12;
   const lo = limits.ceiling !== undefined ? Math.min(centre - 10, hi - 17) : centre - 10;
-  let previous: Midi[] | undefined;
   // Runs across barlines on purpose — see `arpeggio` in style/types.ts.
   let step = 0;
 
-  for (let bar = 0; bar < chords.length; bar++) {
-    const chord = chords[bar]!;
+  /**
+   * Every bar's voicing, decided before a hit is placed.
+   *
+   * Voicings are led bar to bar — each one is chosen to move as little as
+   * possible from the one before — and a cycle that straddles a barline needs
+   * two of them in the same breath. Building the chain up front keeps the voice
+   * leading a property of the *harmony*, where it belongs, rather than of the
+   * order the figure happened to visit the bars in.
+   */
+  const voicings: Midi[][] = [];
+  let previous: Midi[] | undefined;
+  for (const chord of chords) {
     const voicing = voiceChord(chord, {
       voices: pattern.voices,
       centre,
@@ -249,21 +298,25 @@ export function generateComp(
       ...(scaleFor ? { scale: scaleFor(chord) } : {}),
       ...(previous ? { previous } : {}),
     });
+    voicings.push(voicing);
     previous = voicing;
-    const barStart = startBeat + bar * beatsPerBar;
+  }
 
-    for (const hit of pattern.hits) {
-      const sounding = pattern.arpeggio ? [voicing[step++ % voicing.length]!] : voicing;
-      for (const midi of sounding) {
-        out.push({
-          beat: barStart + hit.at / SLOTS_PER_BEAT,
-          duration: hit.dur / SLOTS_PER_BEAT,
-          midi,
-          velocity: (hit.vel ?? 0.65) * rng.float(0.92, 1.0),
-        });
-      }
+  for (const { hit, bar, slot } of cycleHits(pattern.hits, {
+    cycle: pattern.cycle ?? slotsPerBar, bars: chords.length, slotsPerBar,
+  })) {
+    const voicing = voicings[bar]!;
+    const sounding = pattern.arpeggio ? [voicing[step++ % voicing.length]!] : voicing;
+    for (const midi of sounding) {
+      out.push({
+        beat: startBeat + slot / SLOTS_PER_BEAT,
+        duration: hit.dur / SLOTS_PER_BEAT,
+        midi,
+        velocity: (hit.vel ?? 0.65) * rng.float(0.92, 1.0),
+      });
     }
   }
+  out.sort((a, b) => a.beat - b.beat || a.midi - b.midi);
   return pattern.sustain ? mergeHeld(out) : out;
 }
 
@@ -276,16 +329,140 @@ export function generateComp(
  * layer as the line, so the Song IR carries one track with two things happening
  * in it at once, which is what a piano is.
  *
- * ## What a left hand actually does
+ * ## Four things, not one
+ *
+ * This function had one behaviour for as long as there was one style using it,
+ * and the behaviour was good enough that it took a second instrument to notice
+ * it was also the *only* one. A left hand that exclusively answers in the holes
+ * is a real and recognisable sound — it is post-war comping — but a player who
+ * did nothing else for four minutes would sound like a player with a tic. See
+ * `LeftHandMode` for what the four are and why they are drawn per section.
+ *
+ * ## What every mode has in common
+ *
+ * **It stays out of the right hand's way, by more than a hand's width.**
+ * `HandSpec.gap` semitones of daylight, which is three rules at once: it is why
+ * a real pianist does not voice there, it is why `keyboardPart` splits the group
+ * into two hands on stage, and it is how `melodicLine` gets the tune back out of
+ * a track that has an accompaniment interleaved with it. A mode that voiced
+ * closer would not merely sound wrong — it would make the part unmeasurable.
+ *
+ * **It is written against the finished line**, which is the order the playing
+ * happens in and the reason this cannot be a second independent generator: the
+ * left hand knows what the right hand did, thins out where the right hand is
+ * busy, and shuts up entirely when the right hand has the whole bar.
+ *
+ * **Its anatomy comes from the instrument, not the style.** How low it goes,
+ * how many notes it holds and how it stacks them are `HandSpec` — see
+ * `style/instruments.ts`, where the piano's rootless shell, the vibraphone's two
+ * mallets and the accordion's stradella triad are three different sets of
+ * numbers for what used to be one hardcoded hand.
+ */
+export function generateLeftHand(
+  ctx: PartContext,
+  /** What the right hand is playing. Already written; this answers it. */
+  line: readonly NoteEvent[],
+  opts: LeftHandOptions,
+): NoteEvent[] {
+  switch (opts.mode) {
+    case 'unison': return unisonHand(ctx, line, opts);
+    case 'block': return blockHand(ctx, line, opts);
+    case 'ostinato': return ostinatoHand(ctx, opts);
+    default: return answeringHand(ctx, line, opts);
+  }
+}
+
+export interface LeftHandOptions {
+  /** What this hand is doing in this section. See `LeftHandMode`. */
+  mode: LeftHandMode;
+  /** The instrument's anatomy. See `HandSpec`. */
+  spec: HandSpec;
+  /**
+   * How much the hand speaks, 0..1.
+   *
+   * Read by `answer` and `block`, which choose whether to place each chord, and
+   * ignored by `unison` and `ostinato`, which cannot use it: a unison line that
+   * dropped out for one bar in five is not a sparser unison, it is a mistake,
+   * and the same is true of a vamp with holes in it. Sparseness in those two is
+   * a property of the figure, which is where it belongs.
+   */
+  density: number;
+  /** Needed where the genre voices from the chord scale. */
+  scaleFor?: (chord: Chord) => Scale;
+  clarity?: number;
+  /** The figure, for `ostinato`. Ignored by every other mode. */
+  ostinato?: { cycle: number; hits: CompHit[] };
+}
+
+/**
+ * Where the hand can be, in a bar whose line reaches down to `lineFloor`.
+ *
+ * From the *lowest* note the right hand touches in the bar rather than from the
+ * nearest one, because a hand does not re-voice between two stabs a beat apart:
+ * it finds a position for the bar and works in it, which is also why the voice
+ * leading has anything to lead.
+ *
+ * Daylight wins over width where the two conflict. A window squeezed to nothing
+ * is a right hand playing in the basement, and the honest answer there is that
+ * the left hand has nowhere to go and says nothing — which `roomToVoice` is what
+ * the callers ask.
+ */
+function handWindow(spec: HandSpec, lineFloor: Midi): [Midi, Midi] {
+  const hi = Math.min(spec.ceiling, lineFloor - spec.gap);
+  return [Math.max(spec.floor, hi - spec.window), hi];
+}
+
+/** Below this a "voicing" is a cluster on the bottom note. See `handWindow`. */
+function roomToVoice([lo, hi]: [Midi, Midi]): boolean {
+  return hi - lo >= 4;
+}
+
+/**
+ * Is this a chord, or is it one note?
+ *
+ * `voiceChord` drops voices rather than clustering when the window is tight —
+ * correctly, because two notes a semitone apart at A2 is mud and one note is
+ * not — so a hand squeezed low enough comes back holding a single pitch. That
+ * is fine as a voicing and fatal as a *left hand*: `melodicLine` recovers the
+ * tune from a two-handed track by reading a note sounding alone as the right
+ * hand, so a lone accompaniment note is not merely thin, it is counted as
+ * melody. Measured before this guard: one onset in roughly six hundred, always
+ * in the bars where the tune had dropped low enough to squeeze the hand.
+ *
+ * Silence is the honest answer. A player whose left hand has nowhere to voice
+ * does not play half a chord there; they wait for the next bar.
+ */
+function isChord(voicing: readonly Midi[]): boolean {
+  return voicing.length >= 2;
+}
+
+/** One chord for the hand, in the window, led from where it last was. */
+function handVoicing(
+  chord: Chord, [lo, hi]: [Midi, Midi], opts: LeftHandOptions, previous?: Midi[],
+): Midi[] {
+  return voiceChord(chord, {
+    voices: opts.spec.voices,
+    centre: Math.round((lo + hi) / 2),
+    lo,
+    hi,
+    style: opts.spec.voicing,
+    ...(opts.clarity !== undefined ? { clarity: opts.clarity } : {}),
+    ...(opts.scaleFor ? { scale: opts.scaleFor(chord) } : {}),
+    ...(previous ? { previous } : {}),
+  });
+}
+
+/**
+ * ANSWER — punctuate where the line has stopped.
  *
  * Not what the comp generator does. A comp pattern is a *figure*: it states two
  * or four hits and repeats them bar after bar, which is right for a rhythm
- * guitar and is the one thing a pianist accompanying themselves never does. The
- * left hand is reactive. It punctuates where the right hand has stopped, it
- * pushes ahead of a phrase, and it says nothing at all through a busy passage —
- * because there is only one player and their attention is on the line.
+ * guitar and is the one thing a pianist accompanying themselves never does. This
+ * hand is reactive. It punctuates where the right hand has stopped, it pushes
+ * ahead of a phrase, and it says nothing at all through a busy passage — because
+ * there is only one player and their attention is on the line.
  *
- * Three rules produce that, and each is a thing the alternative gets wrong:
+ * Two rules produce that, and each is a thing the alternative gets wrong:
  *
  *  - **It answers, or it punches, and it prefers the offbeat.** Where the line
  *    has stopped, a chord goes in the hole; where the line attacks, a chord can
@@ -293,35 +470,12 @@ export function generateComp(
  *    one worth insisting on: a left hand that only ever played in the gaps would
  *    alternate with the right hand for four minutes and the two would never once
  *    be seen doing something together, which is not what a piano looks like.
- *  - **It is rootless.** `guide` voicing: the third and the seventh and a
- *    colour, no root, because there is a bass player four feet away whose entire
- *    job is the root. This is the single most recognisable sound in post-war
- *    jazz piano and it is one word of configuration.
- *  - **It stays out of the right hand's way, by more than a hand's width.**
- *    `gap` semitones of daylight, which is both the voicing rule and — because
- *    `keyboardPart` splits a chord at its widest interval — the thing that makes
- *    the stage put the two halves in two different hands. Voice them closer and
- *    a real pianist could not play it either.
- *
- * And it thins out where the right hand is busy, which is the one thing a
- * two-part texture written by two independent generators can never do: a bar of
- * running eighths gets one chord and a bar with air in it gets two, because
- * there is one player and their attention is on the line.
+ *  - **It thins out where the right hand is busy**, which is the one thing a
+ *    two-part texture written by two independent generators can never do: a bar
+ *    of running eighths gets one chord and a bar with air in it gets two.
  */
-export function generateLeftHand(
-  ctx: PartContext,
-  /** What the right hand is playing. Already written; this answers it. */
-  line: readonly NoteEvent[],
-  opts: {
-    /** Where the right hand sits. The left hand works down from it. */
-    centre: Midi;
-    voices: number;
-    density: number;
-    gap: number;
-    /** Needed where the genre voices from the chord scale. */
-    scaleFor?: (chord: Chord) => Scale;
-    clarity?: number;
-  },
+function answeringHand(
+  ctx: PartContext, line: readonly NoteEvent[], opts: LeftHandOptions,
 ): NoteEvent[] {
   const { chords, beatsPerBar, startBeat, rng } = ctx;
   const out: NoteEvent[] = [];
@@ -334,19 +488,10 @@ export function generateLeftHand(
     const barEnd = barStart + beatsPerBar;
     const inBar = sorted.filter((n) => n.beat < barEnd && n.beat + n.duration > barStart);
 
-    /**
-     * The ceiling, from the lowest thing the right hand touches in this bar.
-     *
-     * Per bar rather than per note, because a hand does not re-voice between
-     * two stabs a beat apart — it finds a position for the bar and works in it,
-     * which is also why the voice leading below has anything to lead.
-     */
-    const floor = inBar.length ? Math.min(...inBar.map((n) => n.midi)) : opts.centre;
-    const hi = Math.max(
-      LEFT_FLOOR + LEFT_WINDOW,
-      Math.min(opts.centre, floor) - opts.gap,
-    );
-    const lo = Math.max(LEFT_FLOOR, hi - LEFT_WINDOW);
+    const lineFloor = inBar.length ? Math.min(...inBar.map((n) => n.midi)) : opts.spec.lead;
+    const window = handWindow(opts.spec, lineFloor);
+    if (!roomToVoice(window)) continue;
+    const [lo, hi] = window;
 
     /**
      * How much of the bar the right hand is actually sounding, 0..1.
@@ -371,17 +516,9 @@ export function generateLeftHand(
     }
     const busy = Math.max(0, Math.min(1, sounding / beatsPerBar));
 
-    const voicing = voiceChord(chord, {
-      voices: opts.voices,
-      centre: Math.round((lo + hi) / 2),
-      lo,
-      hi,
-      style: 'guide',
-      ...(opts.clarity !== undefined ? { clarity: opts.clarity } : {}),
-      ...(opts.scaleFor ? { scale: opts.scaleFor(chord) } : {}),
-      ...(previous ? { previous } : {}),
-    });
+    const voicing = handVoicing(chord, [lo, hi], opts, previous);
     previous = voicing;
+    if (!isChord(voicing)) continue;
 
     /**
      * How many chords this bar gets: nought, one, or two.
@@ -438,20 +575,183 @@ export function generateLeftHand(
 }
 
 /**
- * The bottom of the left hand's world, and how much of it it gets.
+ * UNISON — both hands playing the same line, an octave apart.
  *
- * A2 is about as low as a rootless voicing goes before the low-interval limits
- * turn a third into a rumble — `minInterval` would open the spacing out rather
- * than let that happen, but it can only do that if there is room, and below this
- * there is not. It is also where the bass player is, and two instruments
- * competing for the bottom octave is the oldest mix problem there is.
+ * The gesture this whole union was built to reach. It is the sound of Corea and
+ * of everyone who learned it from him, it is most of what anyone means by
+ * "complicated piano jazz", and it was not merely missing before — it was
+ * unreachable, because the only thing the left hand could do was voice a chord
+ * somewhere, and this is not a chord at all.
  *
- * Fourteen semitones of window is a ninth and a bit: enough for a three- or
- * four-note voicing to move by voice leading rather than by leaping an octave
- * whenever the harmony does.
+ * An octave, not two. Two puts the left hand in the bass player's register and
+ * the effect stops being a doubled line and starts being a bass part in the
+ * wrong place. Where even one octave will not fit — a line already low, or an
+ * instrument whose other hand cannot reach — the note is simply not doubled,
+ * which is what a player does with the bottom of a run.
+ *
+ * The dynamic is the tell. A doubling is played *under* the line rather than
+ * with it: a shade quieter, so the octave reads as weight rather than as two
+ * people playing.
  */
-const LEFT_FLOOR: Midi = 45;
-const LEFT_WINDOW = 14;
+function unisonHand(
+  ctx: PartContext, line: readonly NoteEvent[], opts: LeftHandOptions,
+): NoteEvent[] {
+  const { spec } = opts;
+  const out: NoteEvent[] = [];
+  for (const note of line) {
+    const midi = note.midi - 12;
+    if (midi < spec.floor || midi > spec.ceiling) continue;
+    out.push({
+      beat: note.beat,
+      duration: note.duration,
+      midi,
+      velocity: note.velocity * 0.82,
+    });
+  }
+  return out.sort((a, b) => a.beat - b.beat || a.midi - b.midi);
+}
+
+/**
+ * BLOCK — a chord struck *with* the line rather than around it.
+ *
+ * Locked hands, in the sense that matters: the two move together, so a phrase
+ * arrives as a series of harmonised events instead of a tune with comping
+ * scattered through it. It is the other half of the post-bop piano vocabulary
+ * and the one that makes a passage sound emphatic rather than conversational.
+ *
+ * **Not full locked-hands harmony**, which would put the melody note in the top
+ * of a five-part voicing with chord tones a second and a third below it. That is
+ * genuinely how Shearing and Garland voiced it, and it would break the one thing
+ * the rest of the system relies on: `melodicLine` recovers the tune from a
+ * two-handed track by finding the note standing `gap` above the rest, and a
+ * harmonisation that close leaves no daylight to find it by. So this is a left
+ * hand locked to the line's rhythm, which is the same gesture from the audience
+ * and keeps the part measurable.
+ *
+ * Only the notes worth landing on. Every attack in a running passage would be a
+ * chord on every eighth, which no one plays and which would bury the line it is
+ * supposed to be supporting; the accented and the longer notes get the chord,
+ * and the rest of the line is left alone.
+ */
+function blockHand(
+  ctx: PartContext, line: readonly NoteEvent[], opts: LeftHandOptions,
+): NoteEvent[] {
+  const { chords, beatsPerBar, startBeat, rng } = ctx;
+  const out: NoteEvent[] = [];
+  const sorted = line.slice().sort((a, b) => a.beat - b.beat);
+  const slotsPerBar = beatsPerBar * SLOTS_PER_BEAT;
+  let previous: Midi[] | undefined;
+
+  for (let bar = 0; bar < chords.length; bar++) {
+    const chord = chords[bar]!;
+    const barStart = startBeat + bar * beatsPerBar;
+    const barEnd = barStart + beatsPerBar;
+    const inBar = sorted.filter((n) => n.beat >= barStart - 1e-6 && n.beat < barEnd - 1e-6);
+    if (!inBar.length) continue;
+
+    const lineFloor = Math.min(...inBar.map((n) => n.midi));
+    const window = handWindow(opts.spec, lineFloor);
+    if (!roomToVoice(window)) continue;
+
+    const voicing = handVoicing(chord, window, opts, previous);
+    previous = voicing;
+    if (!isChord(voicing)) continue;
+
+    for (const note of inBar) {
+      const slot = Math.round((note.beat - barStart) * SLOTS_PER_BEAT);
+      const strength = metricStrength(slot, slotsPerBar, ctx.style.groups);
+      /**
+       * Long notes and strong ones. A held note is where a chord has room to
+       * sound, and an accented one is where the emphasis was going anyway — so
+       * the two together are exactly the passing notes' complement.
+       */
+      const worth = (note.duration >= 0.75 ? 0.55 : 0) + strength * 0.16;
+      if (!rng.chance(Math.min(0.95, opts.density * worth * 1.6))) continue;
+      const duration = Math.min(note.duration, barEnd - note.beat);
+      if (duration < 0.25) continue;
+      for (const midi of voicing) {
+        out.push({ beat: note.beat, duration, midi, velocity: note.velocity * 0.72 });
+      }
+    }
+  }
+  return out.sort((a, b) => a.beat - b.beat || a.midi - b.midi);
+}
+
+/**
+ * OSTINATO — a figure that repeats regardless of what the right hand is doing.
+ *
+ * The montuno, the vamp, the riff the whole band is sitting on. It is the one
+ * mode that does not read the line at all, and that indifference is the point:
+ * `answer` correctly falls silent under a busy right hand, which is right for
+ * conversation and leaves the texture thin in exactly the passage — a long
+ * blowing chorus over two chords — where a real trio is at its densest. A vamp
+ * does not care that the soloist is busy. That is what a vamp is for.
+ *
+ * Its window is fixed rather than taken from the bar, for the same reason: a
+ * figure that re-voiced itself around whatever the line happened to be doing
+ * would not be a repeating figure. It sits under where the line *lives*, which
+ * is `HandSpec.lead`, and stays there.
+ *
+ * The cycle is usually not the bar — see `Cycle` in `style/types.ts`. A montuno
+ * that came back round on every downbeat would be a comp pattern with extra
+ * steps; the drift against the barline is the whole gesture.
+ */
+function ostinatoHand(ctx: PartContext, opts: LeftHandOptions): NoteEvent[] {
+  const figure = opts.ostinato;
+  if (!figure?.hits.length) return [];
+
+  const { chords, beatsPerBar, startBeat, rng } = ctx;
+  const slotsPerBar = beatsPerBar * SLOTS_PER_BEAT;
+  const window = handWindow(opts.spec, opts.spec.lead);
+  if (!roomToVoice(window)) return [];
+
+  const voicings: Midi[][] = [];
+  let previous: Midi[] | undefined;
+  for (const chord of chords) {
+    const voicing = handVoicing(chord, window, opts, previous);
+    voicings.push(voicing);
+    previous = voicing;
+  }
+
+  /**
+   * Two notes of the voicing per hit, walking up through it.
+   *
+   * A montuno is a *shape* made out of a chord rather than the chord struck
+   * repeatedly — that is what separates it from a comp figure, and the walking
+   * index is the same mechanism as `arpeggio` on a comp pattern, carried across
+   * barlines for the same reason.
+   *
+   * Two rather than one, and this is not a stylistic preference — it is the
+   * invariant the whole two-handed IR rests on. `melodicLine` takes a track that
+   * has one player's two hands interleaved in it and gets the tune back out by
+   * reading **a note sounding alone as the right hand**; a left hand playing
+   * single notes in the holes would be read, correctly by that rule and wrongly
+   * in fact, as the melody. Measured when this mode first played one note at a
+   * time: the reported mean low note of the jazz melody line fell four semitones
+   * overnight, which was not a melody that had moved but an accompaniment being
+   * counted as one.
+   *
+   * A dyad costs nothing musically. A left-hand vamp on a piano is a shell — two
+   * notes — far more often than it is a single line, and on a vibraphone the
+   * left hand *is* two mallets and could not play one note if it wanted to.
+   */
+  const out: NoteEvent[] = [];
+  let step = 0;
+  for (const { hit, bar, slot } of cycleHits(figure.hits, {
+    cycle: figure.cycle, bars: chords.length, slotsPerBar,
+  })) {
+    const voicing = voicings[bar]!;
+    if (!isChord(voicing)) continue;
+    const at = step++ % voicing.length;
+    const pair = [voicing[at]!, voicing[(at + 1) % voicing.length]!];
+    const beat = startBeat + slot / SLOTS_PER_BEAT;
+    const velocity = (hit.vel ?? 0.55) * rng.float(0.9, 1.05);
+    for (const midi of new Set(pair)) {
+      out.push({ beat, duration: hit.dur / SLOTS_PER_BEAT, midi, velocity });
+    }
+  }
+  return out.sort((a, b) => a.beat - b.beat || a.midi - b.midi);
+}
 
 /**
  * Sustained chords, merged across repeated harmony so the pad breathes.
@@ -778,6 +1078,18 @@ export function generateCounter(
  * fifths or octaves. The repair is a step through the chord rather than a
  * semitone nudge, because a counter-line is chord-based and a chromatic
  * correction would read as a wrong note rather than as a different one.
+ *
+ * **Two tiers, and the second one is what makes the first one safe.** Staying
+ * under the tune is a preference; not doubling it is a rule. Enforced together
+ * they can contradict each other outright — when the melody drops into the
+ * bottom of its range, *every* pitch the answer can reach is above it, so a
+ * search that vetoed both would find nothing and return the note it came in
+ * with, which is the octave it was called to remove. Measured: one doubling in
+ * 138 overlaps, every one of them a melody note below the counter's floor. So
+ * the register rule is dropped on the second pass and the independence rules
+ * are not, which is the correct order to give way in — an answer sitting above
+ * a low tune is ordinary counterpoint, and an answer doubling it is the one
+ * thing this function exists to prevent.
  */
 function avoidClash(
   midi: Midi,
@@ -790,10 +1102,9 @@ function avoidClash(
 ): Midi {
   if (melodyNow === undefined) return midi;
 
-  const bad = (cand: Midi): boolean => {
-    const gap = Math.abs(cand - melodyNow);
-    if (gap % 12 === 0) return true;                       // unison or octave
-    if (cand > melodyNow) return true;                     // the answer stays under the tune
+  /** Doubling and parallel motion: the two the ear hears as one part. */
+  const clashes = (cand: Midi): boolean => {
+    if (Math.abs(cand - melodyNow) % 12 === 0) return true;   // unison or octave
     if (prev !== undefined && melodyPrev !== undefined) {
       const now = ((melodyNow - cand) % 12 + 12) % 12;
       const before = ((melodyPrev - prev) % 12 + 12) % 12;
@@ -804,20 +1115,25 @@ function avoidClash(
     }
     return false;
   };
+  /** And the preference: the answer sits under the tune where it can. */
+  const bad = (cand: Midi): boolean => clashes(cand) || cand > melodyNow;
 
   if (!bad(midi)) return midi;
   // Try the chord tones either side, nearest first. A mallet will happily take
   // the one further away; a wind instrument would rather stay put.
   const spread = idiom.arpeggio > 0.5 ? 8 : 5;
-  for (let d = 1; d <= spread; d++) {
-    for (const dir of [-1, 1]) {
-      const cand = midi + d * dir;
-      if (cand < lo || cand > hi) continue;
-      if (!tones.includes(((cand % 12) + 12) % 12)) continue;
-      if (!bad(cand)) return cand;
+  const nearest = (reject: (cand: Midi) => boolean): Midi | undefined => {
+    for (let d = 1; d <= spread; d++) {
+      for (const dir of [-1, 1]) {
+        const cand = midi + d * dir;
+        if (cand < lo || cand > hi) continue;
+        if (!tones.includes(((cand % 12) + 12) % 12)) continue;
+        if (!reject(cand)) return cand;
+      }
     }
-  }
-  return midi;
+    return undefined;
+  };
+  return nearest(bad) ?? nearest(clashes) ?? midi;
 }
 
 export function generateDrums(
@@ -831,43 +1147,70 @@ export function generateDrums(
     palette?: FillPalette;
   },
 ): DrumEvent[] {
-  const { chords, beatsPerBar, startBeat, rng } = ctx;
+  const { chords, beatsPerBar, startBeat, rng, style } = ctx;
   const slotsPerBar = beatsPerBar * SLOTS_PER_BEAT;
+  const bars = chords.length;
   const out: DrumEvent[] = [];
+  const arrival = opts.arrival ?? opts.intensity;
 
-  for (let bar = 0; bar < chords.length; bar++) {
-    const barStart = startBeat + bar * beatsPerBar;
-    const isLastBar = bar === chords.length - 1;
-    const arrival = opts.arrival ?? opts.intensity;
+  /**
+   * The fill belongs to the last *bar*, whatever the figure's cycle is.
+   *
+   * A drummer setting up the next section plays into the barline, not into
+   * whatever point a three-beat ostinato happens to have reached. So the fill is
+   * still bar-shaped, and the cycle is what has to give way around it.
+   */
+  const lastBarStart = startBeat + (bars - 1) * beatsPerBar;
+  const fill = opts.fillAtEnd && bars > 0
+    ? buildFill({
+      barStart: lastBarStart, beatsPerBar, slotsPerBar, rng,
+      intensity: opts.intensity,
+      arrival,
+      palette: opts.palette ?? DEFAULT_FILLS,
+    })
+    : undefined;
+  const clearFrom = fill ? (bars - 1) * slotsPerBar + fill.fromSlot : Infinity;
 
-    const fill = opts.fillAtEnd && isLastBar
-      ? buildFill({
-        barStart, beatsPerBar, slotsPerBar, rng,
-        intensity: opts.intensity,
-        arrival,
-        palette: opts.palette ?? DEFAULT_FILLS,
-      })
-      : undefined;
-
-    for (const [voice, slots] of Object.entries(pattern.voices) as [DrumVoice, number[]][]) {
-      for (const slot of slots) {
-        // Clear exactly as much of the bar as the fill actually occupies —
-        // which used to be hardcoded to half a bar whatever was played there.
-        // The kick keeps going: a drummer's right foot does not stop for a fill.
-        if (fill && slot >= fill.fromSlot && voice !== 'bd') continue;
-        const strength = slot === 0 ? 1 : slot % SLOTS_PER_BEAT === 0 ? 0.85 : 0.68;
-        out.push({
-          beat: barStart + slot / SLOTS_PER_BEAT,
-          voice,
-          velocity: Math.min(1, strength * opts.intensity * rng.float(0.92, 1.05)),
-        });
-      }
-    }
-
-    if (fill) {
-      out.push(...fill.events);
-      out.push(landing(barStart + beatsPerBar, arrival));
+  for (const [voice, slots] of Object.entries(pattern.voices) as [DrumVoice, number[]][]) {
+    for (const { slot } of cycleHits(slots.map((at) => ({ at })), {
+      cycle: pattern.cycle ?? slotsPerBar, bars, slotsPerBar,
+    })) {
+      // Clear exactly as much of the bar as the fill actually occupies — which
+      // used to be hardcoded to half a bar whatever was played there. The kick
+      // keeps going: a drummer's right foot does not stop for a fill.
+      if (slot >= clearFrom && voice !== 'bd') continue;
+      const inBar = slot % slotsPerBar;
+      const strength = accentOf(inBar, slotsPerBar, style.groups);
+      out.push({
+        beat: startBeat + slot / SLOTS_PER_BEAT,
+        voice,
+        velocity: Math.min(1, strength * opts.intensity * rng.float(0.92, 1.05)),
+      });
     }
   }
-  return out;
+
+  if (fill) {
+    out.push(...fill.events);
+    out.push(landing(lastBarStart + beatsPerBar, arrival));
+  }
+  return out.sort((a, b) => a.beat - b.beat);
+}
+
+/**
+ * How hard a kit voice hits, by where in the bar it lands.
+ *
+ * The old arithmetic — downbeat, then every fourth slot, then everything else —
+ * is right in 4/4 and silently wrong the moment a bar groups asymmetrically: in
+ * a 2+2+3 it accents slot 12, which is the *weak* eighth of the last group,
+ * two groups, and leaves the head of the third group as an offbeat. A drummer
+ * playing that is not playing 7/8, and no amount of writing better patterns in
+ * the table fixes an accent applied after the fact.
+ *
+ * So the grouping decides it where there is one. `metricStrength` already knows
+ * how; this only maps its five levels onto the three velocities a kit uses.
+ */
+function accentOf(slot: number, slotsPerBar: number, groups?: readonly number[]): number {
+  const strength = metricStrength(slot, slotsPerBar, groups);
+  if (strength === 4) return 1;
+  return strength >= 2 ? 0.85 : 0.68;
 }

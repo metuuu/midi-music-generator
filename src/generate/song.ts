@@ -32,10 +32,12 @@ import {
   GENRES, getGenre, type EndingStyle, type FormStep, type Genre,
 } from '../genre/index.js';
 import {
-  envelopeFor, foldIntoRange, IDIOMS, INSTRUMENTS, rangeOfInstrument,
-  type Instrument, type InstrumentId,
+  envelopeFor, foldIntoRange, HANDS, IDIOMS, INSTRUMENTS, rangeOfInstrument,
+  type HandSpec, type Instrument, type InstrumentId,
 } from '../style/instruments.js';
-import type { EraProfile, Mood, Progression, Style } from '../style/types.js';
+import type {
+  EraProfile, LeftHandMode, Mood, Progression, Style, TwoHandedKeys,
+} from '../style/types.js';
 import { planRegisters, resolveCollisions } from './arrange.js';
 import { buildAccompaniment, getStrictness, resolveRules, type StrictnessId } from './constraints.js';
 import { applyDynamics, sectionIntensity, swell } from './dynamics.js';
@@ -43,7 +45,7 @@ import { DEFAULT_FILLS } from './fills.js';
 import { getHook, RECALL_BIAS, type HookId } from './hook.js';
 import { generateMelody } from './melody.js';
 import { chooseMotto } from './motto.js';
-import { trimOverlaps } from './rhythm.js';
+import { SLOTS_PER_BEAT, trimOverlaps } from './rhythm.js';
 import {
   compBehindSolo, drumsBehindSolo, generateDrumSolo, generateSolo, planSolos,
   type BarSpan, type SoloLayer,
@@ -152,7 +154,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
    * makes a `.mid` file's header enough to regenerate the piece.
    */
   const genre = getGenre(pick(rng.pick(Object.keys(GENRES)), opts.genre));
-  const era = lookup(genre.eras, opts.era, 'era', rng);
+  const era = chooseEra(rng, genre, opts);
   const mood = lookup(genre.moods, opts.mood, 'mood', rng, Object.keys(genre.moods).slice(-1)[0]);
   const drawnStyle = chooseStyle(rng, genre, era, mood);
   const style = opts.style
@@ -255,9 +257,19 @@ export function generateSong(opts: GenerateOptions = {}): Song {
    * that the line it is clipping is *monophonic*. Handed a left-hand chord
    * sounding under a right-hand note it would read the two as one voice running
    * into the next and delete the chord, which is precisely the part being added.
-   * Empty for every style that is not `twoHanded`, which is all but one.
+   * Empty for every style whose lead is a horn or a voice.
    */
   const leftHand: NoteEvent[] = [];
+  /**
+   * The anatomy of the hand doing it, and what it does with the section.
+   *
+   * `hands` is absent where the style is not two-handed, and — deliberately —
+   * also where it names a lead the catalogue has no `HandSpec` for. That
+   * combination is a table error rather than a runtime one, so `npm run genres`
+   * asserts against it; here it simply means no second hand, which is the safe
+   * reading.
+   */
+  const hands = instruments.hands;
   const drumEvents: DrumEvent[] = [];
   for (const l of ['drums', 'bass', 'comp', 'pad', 'melody', 'counter', 'brass'] as LayerId[]) {
     byLayer.set(l, []);
@@ -718,14 +730,23 @@ export function generateSong(opts: GenerateOptions = {}): Song {
      * a bass chorus would be both the wrong instrument and — since the piano is
      * not sounding in that section at all — a track playing by itself.
      */
-    if (style.twoHanded && leadLayer === 'melody' && sectionMelody.length) {
+    if (style.twoHanded && hands && leadLayer === 'melody' && sectionMelody.length) {
+      /**
+       * Drawn per section, on its own stream.
+       *
+       * Per section rather than per song because a trio changing what the left
+       * hand does at the top of a chorus is the clearest signal there is that an
+       * arrangement was arranged — the same tune comes back and the texture
+       * under it has moved. Per song it would be a setting; per phrase it would
+       * be a player who cannot decide.
+       */
       const left = generateLeftHand(ctxFor('comp'), sectionMelody, {
-        centre: instruments.melody.centre,
-        voices: style.twoHanded.voices,
+        mode: chooseLeftHandMode(new Rng(`${seed}:hand:${s}`), style.twoHanded, hands),
+        spec: hands,
         density: style.twoHanded.density,
-        gap: style.twoHanded.gap,
         scaleFor: (c) => genre.scaleForChord(localTonic, mode, c),
         clarity,
+        ...(style.twoHanded.ostinato ? { ostinato: style.twoHanded.ostinato } : {}),
       });
       applyDynamics(left, 'comp', intensity);
       leftHand.push(...left);
@@ -904,8 +925,8 @@ export function generateSong(opts: GenerateOptions = {}): Song {
       // Said out loud, because from here on nothing can tell by looking: a
       // pianist's two hands and a four-part comp are both just simultaneous
       // notes. See `melodicLine`, which is what the declaration is for.
-      ...(layer === 'melody' && style.twoHanded && leftHand.length
-        ? { twoHanded: { gap: style.twoHanded.gap } }
+      ...(layer === 'melody' && hands && leftHand.length
+        ? { twoHanded: { gap: hands.gap } }
         : {}),
     });
   }
@@ -955,6 +976,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
       bpm,
       beatsPerBar: style.beatsPerBar,
       beatUnit: style.beatUnit,
+      ...(style.groups ? { groups: style.groups } : {}),
       totalBars,
       swing: style.swing,
     },
@@ -1178,14 +1200,31 @@ export function withCountIn(song: Song): Song {
   if (!getGenre(song.meta.genre).countIn) return song;
   if (!song.drums.events.length) return song;
 
-  const { beatsPerBar, swing } = song.meta;
+  const { beatsPerBar, groups, swing } = song.meta;
   const shift = COUNT_BARS * beatsPerBar;
 
-  const clicks: DrumEvent[] = [];
-  for (let b = 0; b < beatsPerBar; b++) {
-    // Rising slightly, which is what a count-in does: the last one is the cue.
-    clicks.push({ beat: b, voice: 'rim', velocity: 0.5 + 0.05 * b });
+  /**
+   * Where the clicks go: on the beats, or on the groups where the bar has them.
+   *
+   * A drummer counting a band into 7/8 does not count seven eighths and does not
+   * count four quarters either — they give the three pulses, long-long-short,
+   * because that is the information the band needs and the count-in exists to
+   * deliver it. Counting quarters into an asymmetric bar would state a metre
+   * nobody is about to play.
+   */
+  const beats: number[] = [];
+  if (groups?.length) {
+    let at = 0;
+    for (const g of groups) { beats.push(at / SLOTS_PER_BEAT); at += g; }
+  } else {
+    for (let b = 0; b < beatsPerBar; b++) beats.push(b);
   }
+
+  const clicks: DrumEvent[] = [];
+  beats.forEach((beat, i) => {
+    // Rising slightly, which is what a count-in does: the last one is the cue.
+    clicks.push({ beat, voice: 'rim', velocity: 0.5 + 0.05 * i });
+  });
   clicks.push({ beat: beatsPerBar - 0.5 + swing * 0.5, voice: 'rim', velocity: 0.72 });
 
   const count: Section = {
@@ -1302,6 +1341,39 @@ function fitToRange(midi: number, [lo, hi]: [number, number]): number {
  * the caller already knows the answer is what made a song irreproducible from
  * its own metadata.
  */
+/**
+ * Which era the band is playing in.
+ *
+ * Uniform, except when the caller has named a style — in which case the era is
+ * drawn from the ones that would actually have chosen that style. Asking for
+ * fusion and getting a 1930s swing band with a clarinet and an upright bass is
+ * not a compromise between the two requests; it is the style playing on
+ * instruments that did not exist for it, and the era is the half nobody asked
+ * about. It went unnoticed while the catalogue was eight styles that four eras
+ * could all plausibly play, and stopped being tolerable the moment one of them
+ * needed a Rhodes and an electric bass.
+ *
+ * Exactly one random number, whichever branch runs, because that is what keeps a
+ * song reproducible from its own metadata — see the note at the top of
+ * `generateSong`. Regenerating supplies both era and style, so what matters is
+ * not which era the draw lands on but that the draw *happens* and consumes the
+ * same amount of the stream either way.
+ */
+function chooseEra(rng: Rng, genre: Genre, opts: { era?: string; style?: string }): EraProfile {
+  const ids = Object.keys(genre.eras);
+  const wanted = opts.style
+    ? ids.map((id) => [id, genre.eras[id]!.styleWeights[opts.style!] ?? 0] as const)
+      .filter(([, w]) => w > 0)
+    : [];
+  const drawn = rng.weighted(wanted.length ? wanted : ids.map((id) => [id, 1] as const));
+  const chosen = opts.era ?? drawn;
+  const era = genre.eras[chosen];
+  if (!era) {
+    throw new Error(`Unknown era "${chosen}". Known: ${ids.join(', ')}`);
+  }
+  return era;
+}
+
 function lookup<T>(table: Record<string, T>, id: string | undefined, what: string, rng: Rng, fallback?: string): T {
   const key = fallback ?? rng.pick(Object.keys(table));
   if (id === undefined) return table[key]!;
@@ -1360,6 +1432,18 @@ function chooseInstruments(rng: Rng, era: EraProfile, style: Style) {
     return instrument;
   };
   const drawn = pick(era.palette.melody);
+  /**
+   * The two-handed lead is drawn here, before the rest of the band, so that it
+   * can be *taken*.
+   *
+   * Drawing it last was the obvious order and produced a vibraphone trio whose
+   * counter-melody was also on vibraphone — one instrument cast twice, which the
+   * `taken` set exists to prevent and could not, because by the time the lead
+   * was known the other five had already been picked around a lead that turned
+   * out not to be playing. Order matters here and nowhere else in the function.
+   */
+  const lead = style.twoHanded ? rng.weighted(style.twoHanded.instruments) : undefined;
+  if (lead) taken.add(INSTRUMENTS[lead].name);
   const bass = pick(era.palette.bass);
   const comp = pick(era.palette.comp);
   const pad = pick(era.palette.pad);
@@ -1367,7 +1451,7 @@ function chooseInstruments(rng: Rng, era: EraProfile, style: Style) {
   const brass = pick(era.palette.brass);
 
   /**
-   * A style that names its own lead overrides the draw *after* it has happened,
+   * A style that names its own leads overrides the draw *after* it has happened,
    * never instead of it.
    *
    * The same argument as the one at the top of `generateSong`, and the same
@@ -1377,13 +1461,41 @@ function chooseInstruments(rng: Rng, era: EraProfile, style: Style) {
    * reproduces the song its own metadata describes.
    *
    * The centre travels with the override because the two are one decision — see
-   * `TwoHandedKeys.centre`. A piano is a piano wherever it is playing; a piano
-   * *fronting a trio* is a piano an octave higher.
+   * `HandSpec.lead`. A piano is a piano wherever it is playing; a piano
+   * *fronting a trio* is a piano an octave higher, and a vibraphone fronting one
+   * is higher again, because the two instruments do not sit in the same place.
    */
-  const melody = style.twoHanded
-    ? { ...INSTRUMENTS[style.twoHanded.instrument], centre: style.twoHanded.centre }
-    : drawn;
-  return { melody, counter, comp, pad, bass, brass };
+  if (!lead) return { melody: drawn, counter, comp, pad, bass, brass, hands: undefined };
+  const hands = HANDS[lead];
+  return {
+    melody: { ...INSTRUMENTS[lead], ...(hands ? { centre: hands.lead } : {}) },
+    counter, comp, pad, bass, brass, hands,
+  };
+}
+
+/**
+ * What the left hand does in this section.
+ *
+ * Two things get filtered out before the draw rather than after, because a mode
+ * that was chosen and then silently produced nothing would look — in the audit,
+ * in the report, on the stage — exactly like a style whose left hand is meant to
+ * be sparse:
+ *
+ *  - **`unison` needs a hand that can play a line.** An accordion's cannot; the
+ *    button side sounds fixed chords. See `HandSpec.melodic`.
+ *  - **`ostinato` needs a figure.** A style that offers the mode without writing
+ *    one has a table error, which `npm run genres` reports; dropping it here is
+ *    what keeps the song generating in the meantime.
+ *
+ * Filtering before the draw also keeps the weights meaning what they say. A
+ * table asking for equal parts unison and answer on an accordion gets all
+ * answer, not half a part missing.
+ */
+function chooseLeftHandMode(rng: Rng, keys: TwoHandedKeys, spec: HandSpec): LeftHandMode {
+  const offered = keys.modes ?? [['answer', 1] as const];
+  const eligible = offered.filter(([mode]) =>
+    (mode !== 'unison' || spec.melodic) && (mode !== 'ostinato' || keys.ostinato));
+  return eligible.length ? rng.weighted(eligible) : 'answer';
 }
 
 function buildForm(rng: Rng, genre: Genre, style: Style, bpm: number, targetSeconds: number): FormStep[] {

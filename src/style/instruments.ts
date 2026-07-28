@@ -11,6 +11,7 @@
 
 import type { Midi } from '../core/pitch.js';
 import type { Envelope } from '../core/types.js';
+import type { VoicingStyle } from '../core/voicing.js';
 
 /**
  * How an instrument's music is *shaped*, as opposed to how far it can leap.
@@ -372,6 +373,116 @@ export const INSTRUMENT_RANGE: Record<InstrumentId, readonly [Midi, Midi]> = {
   sitar: [48, 80],
   panFlute: [59, 96],
   shakuhachi: [59, 96],
+};
+
+/**
+ * What an instrument's *other hand* can do.
+ *
+ * These numbers used to live on the style, as five fields of `TwoHandedKeys`,
+ * and they were wrong there in a way that only became visible when a second
+ * instrument wanted them. How low a left hand goes, how many notes it can hold
+ * and how it stacks them are facts about the instrument: a vibraphonist's left
+ * hand holds two mallets in a ballad and in a bebop head alike, and no style
+ * decision changes that. Leaving them on the style meant every new style
+ * restated the piano's anatomy, and meant a style could not offer a choice of
+ * lead at all — the numbers only described one of them.
+ *
+ * The three instruments here differ in every field, which is the argument for
+ * the table existing:
+ *
+ *  - A **piano** left hand plays a rootless shell — third, seventh and a colour,
+ *    no root, because there is a bass player four feet away whose entire job is
+ *    the root. It is the single most recognisable sound in post-war jazz piano.
+ *  - A **vibraphone** left hand is *two mallets*. Not a hand with fingers: two
+ *    notes, maximum, and both of them inside a three-and-a-half octave
+ *    instrument whose bottom bar is F3 — so a piano's octave of daylight and its
+ *    A2 floor are both off the end of the instrument.
+ *  - An **accordion** left hand is on the button side, and stradella buttons
+ *    play a root-position triad with the bass note under it. It is the exact
+ *    opposite of rootless, and voicing it `guide` would produce a sound the
+ *    instrument physically cannot make.
+ *
+ * `ceiling` is where the accordion earns its entry twice over. The button side
+ * ends at F3 and the choreographer splits the two hands there — see
+ * `ACCORDION_BUTTON_TOP` in `concert/choreograph.ts` — so a left hand placed by
+ * daylight alone would be voiced up on the right-hand keyboard, and staged
+ * there too, with one player's two hands overlapping on the same manual.
+ */
+export interface HandSpec {
+  /**
+   * Where the *right hand* sits, as a MIDI note, overriding `Instrument.centre`.
+   *
+   * It has to override: the catalogue's piano sits at middle C because that is
+   * where a *comping* piano sits, in the middle of the keyboard with both hands
+   * round it. A pianist fronting a trio plays the tune an octave above that, and
+   * the octave they vacate is what the left hand comps in. Take the catalogue
+   * number and there is nowhere for the left hand to go except into the bass
+   * player's register.
+   */
+  lead: Midi;
+  /** The bottom of the left hand's world. */
+  floor: Midi;
+  /** The top of it, before the daylight rule is even consulted. */
+  ceiling: Midi;
+  /**
+   * How much room the left hand gets to voice and move in, in semitones. Wide
+   * enough that the voicing leads by step rather than leaping an octave every
+   * time the harmony does.
+   */
+  window: number;
+  /** Notes in a left-hand voicing. Three is the rootless shell; two is a pair of mallets. */
+  voices: number;
+  /**
+   * Semitones of daylight kept between the top of the left hand and the right
+   * hand above it.
+   *
+   * Both a musical and a physical number, and it is the physical one that binds.
+   * A pianist's left hand really does sit an octave or so below the line, and a
+   * gap smaller than one hand's stretch would let the choreographer read the two
+   * as a single chord for one hand — which is true of a real keyboard as well,
+   * and is exactly why a real pianist does not voice there.
+   *
+   * It is also the number that gets the line back out of the finished track. See
+   * `melodicLine` in `core/types.ts`: everything that measures melody depends on
+   * the two hands being separable by this distance, so a mode that voices closer
+   * than this does not merely sound wrong, it makes the part unmeasurable.
+   */
+  gap: number;
+  /** How the left hand stacks a chord. */
+  voicing: VoicingStyle;
+  /**
+   * Can this hand play a *line*, or only chords?
+   *
+   * True of every hand with fingers or mallets on it and false of exactly one
+   * thing in the catalogue, which is why it is worth a field: an accordion's
+   * left hand is a grid of buttons that each sound a fixed chord, so it can no
+   * more play a unison line than a foot pedal can. Asking it to would not sound
+   * bad — it would sound like an instrument that does not exist.
+   *
+   * `chooseLeftHandMode` reads this to drop `unison` from the draw rather than
+   * letting it be chosen and then quietly produce nothing.
+   */
+  melodic: boolean;
+}
+
+export const HANDS: Partial<Record<InstrumentId, HandSpec>> = {
+  // C5 for the tune, a minor seventh of daylight, the rootless shell beneath.
+  piano: { lead: 72, floor: 45, ceiling: 72, window: 14, voices: 3, gap: 10, voicing: 'guide', melodic: true },
+  epiano1: { lead: 72, floor: 45, ceiling: 72, window: 14, voices: 3, gap: 10, voicing: 'guide', melodic: true },
+  epiano2: { lead: 72, floor: 45, ceiling: 72, window: 14, voices: 3, gap: 10, voicing: 'guide', melodic: true },
+  // Two mallets, a fifth of daylight, and a floor on the instrument rather than
+  // under it. The narrower gap is not a compromise: a vibraphonist's hands work
+  // within arm's reach of each other on one row of bars, where a pianist's are
+  // at opposite ends of eighty-eight keys.
+  vibraphone: { lead: 79, floor: 55, ceiling: 72, window: 12, voices: 2, gap: 7, voicing: 'guide', melodic: true },
+  marimba: { lead: 79, floor: 55, ceiling: 72, window: 12, voices: 2, gap: 7, voicing: 'guide', melodic: true },
+  // The button side: a full triad with its own root, below the split, and an
+  // octave of daylight because that is where the buttons are.
+  accordion: { lead: 74, floor: 41, ceiling: 52, window: 11, voices: 3, gap: 12, voicing: 'tertian', melodic: false },
+  bandoneon: { lead: 74, floor: 41, ceiling: 52, window: 11, voices: 3, gap: 12, voicing: 'tertian', melodic: false },
+  // A string per note and no fretting hand, so both hands pluck freely. Voiced
+  // in fourths, which is the one thing a harp does that a piano has to work at.
+  harp: { lead: 79, floor: 48, ceiling: 67, window: 16, voices: 3, gap: 10, voicing: 'quartal', melodic: true },
 };
 
 /**

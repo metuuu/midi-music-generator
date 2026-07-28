@@ -424,6 +424,7 @@ function repairMelody(args: {
   tonic: Pc;
   range: [Midi, Midi];
   slotsPerBar: number;
+  groups?: readonly number[];
   beatsPerBar: number;
   accompaniment: Accompaniment;
   strictness: number;
@@ -450,7 +451,7 @@ function repairMelody(args: {
       scale,
       mode,
       tonic,
-      strength: metricStrength(slot, args.slotsPerBar),
+      strength: metricStrength(slot, args.slotsPerBar, args.groups),
       duration: note.duration,
       beat: note.beat,
       accompaniment,
@@ -482,7 +483,7 @@ function repairMelody(args: {
           chord: chordAtBeat(next.beat),
           scale: scaleAtBeat(next.beat),
           mode, tonic,
-          strength: metricStrength(nextSlot, args.slotsPerBar),
+          strength: metricStrength(nextSlot, args.slotsPerBar, args.groups),
           duration: next.duration,
           beat: next.beat,
           accompaniment,
@@ -804,6 +805,7 @@ export function generateMelody(opts: MelodyOptions): NoteEvent[] {
     const plan = planPhraseRhythm({
       bars: thisPhraseBars,
       slotsPerBar,
+      ...(style.groups ? { groups: style.groups } : {}),
       cells: style.melodyCells,
       cadenceCells: style.cadenceCells,
       rng,
@@ -884,6 +886,7 @@ export function generateMelody(opts: MelodyOptions): NoteEvent[] {
     tonic,
     range,
     slotsPerBar,
+    ...(style.groups ? { groups: style.groups } : {}),
     beatsPerBar,
     accompaniment,
     strictness,

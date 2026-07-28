@@ -14,7 +14,7 @@ import { initAudio, playCode, stopPlayback } from './audio.js';
 import { generateSong, type GenerateOptions } from '../generate/song.js';
 import { renderStrudel } from '../render/strudel.js';
 import { renderMidi } from '../render/midi.js';
-import { songDurationSeconds, type LayerId, type Song } from '../core/types.js';
+import { meterLabel, songDurationSeconds, type LayerId, type Song } from '../core/types.js';
 import { GENRES, getGenre } from '../genre/index.js';
 import { STRICTNESS_LEVELS, getStrictness, type StrictnessId } from '../generate/constraints.js';
 import { HOOK_LEVELS, getHook, type HookId } from '../generate/hook.js';
@@ -144,7 +144,7 @@ function describe(song: Song): void {
   const hasDrums = song.drums.events.length > 0;
   els.meta.innerHTML = [
     `<b>${meta.genreLabel}</b> — <b>${meta.styleLabel}</b> · ${meta.eraLabel}`,
-    `${meta.keyLabel} · ${meta.bpm} BPM · ${meta.beatsPerBar}/${meta.beatUnit} · ${meta.totalBars} bars · ${Math.floor(mins / 60)}:${String(Math.round(mins % 60)).padStart(2, '0')}`,
+    `${meta.keyLabel} · ${meta.bpm} BPM · ${meterLabel(meta)} · ${meta.totalBars} bars · ${Math.floor(mins / 60)}:${String(Math.round(mins % 60)).padStart(2, '0')}`,
     `${hasDrums ? `Drums: ${song.drums.bank}` : 'No drums'}${lift ? ` · key change +${lift.transpose} for the last chorus` : ''}`,
     `Smoothness: <b>${meta.strictnessLabel}</b> — ${getStrictness(meta.strictness as StrictnessId).gloss}`,
     `Hook: <b>${meta.hookLabel}</b> — ${getHook(meta.hook as HookId).gloss}`,

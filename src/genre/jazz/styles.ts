@@ -873,12 +873,16 @@ const trio: Style = {
   modeWeights: { minor: 0.46, major: 0.54 },
   relativeMajorChorus: 0,
   twoHanded: {
-    instrument: 'piano',
     /**
-     * C5. An octave above the catalogue's piano, which sits at middle C because
-     * that is where a *comping* piano sits. See `TwoHandedKeys.centre`.
+     * Three pianos, weighted, and no fourth instrument.
+     *
+     * A trio led from a vibraphone is a real group and a different record —
+     * Burton's, Jackson's — rather than this one, and it belongs in its own
+     * entry with its own tempo band rather than as a one-in-eight surprise here.
+     * What the Rhodes buys is the same room a decade later, which is a shading
+     * of this style rather than a departure from it.
      */
-    centre: 72,
+    instruments: [['piano', 8], ['epiano1', 2], ['epiano2', 1]],
     /**
      * High, and it has to be: this is the rate *before* the line's own busyness
      * takes chords away, and this line is busy nearly all the time. A jazz
@@ -887,10 +891,25 @@ const trio: Style = {
      * in four — which is a pianist who has forgotten they have one.
      */
     density: 0.92,
-    /** Three. The shell plus one colour — the rootless left hand. */
-    voices: 3,
-    /** A minor seventh of daylight under the line. */
-    gap: 10,
+    /**
+     * Mostly answering, because that is what this idiom is, with the other three
+     * as the departures they should be. A unison line every fifth section is a
+     * gesture; every other section it would be a mannerism.
+     */
+    modes: [['answer', 6], ['block', 2], ['unison', 2], ['ostinato', 1]],
+    /**
+     * Three beats against a four-beat bar, so the figure arrives on a different
+     * beat every bar and comes back round every three. Two notes and a rest:
+     * a vamp is mostly space, and the space is where the right hand goes.
+     */
+    ostinato: {
+      cycle: 12,
+      hits: [
+        { at: 0, dur: 2, vel: 0.5 },
+        { at: 6, dur: 2, vel: 0.44 },
+        { at: 10, dur: 2, vel: 0.4 },
+      ],
+    },
   },
   excludeLayers: ['comp', 'pad', 'brass', 'counter'],
   requireLayers: ['melody'],
@@ -1017,6 +1036,402 @@ const trio: Style = {
   melody: { leap: 0.34, ornament: 0.2, span: 20, sequence: 0.34, syncopation: 0.55 },
 };
 
+/**
+ * ODD METRE — five beats, grouped three and two.
+ *
+ * The oldest of the "difficult" jazz metres and by some distance the most
+ * playable: a 5/4 grouped 3+2 is a bar of waltz followed by a bar of two, and a
+ * rhythm section that can feel those two things can feel this. Everything that
+ * makes it sound like five rather than like a mistake is in `groups`.
+ *
+ *  - **The accents.** `metricStrength` is handed the grouping and puts the
+ *    second pulse on slot 12, where the ear expects it, instead of on slot 10,
+ *    where the arithmetic would have put a half-bar. The melody phrases to it,
+ *    the drums accent to it, and the soloist lands on it.
+ *  - **The bass does not walk.** A walking line is four quarters connecting one
+ *    root to the next, and a fifth quarter has nowhere to be in that sentence;
+ *    what a bassist actually plays in five is a *figure* that states the
+ *    grouping — root on 1, the fifth on the 4, an approach on the way out. So
+ *    the patterns here are fixed-degree and each of them spells 3+2 out loud.
+ *  - **The kit rides in five.** The ride pattern is the pulse of the music, and
+ *    a swing ride in five puts its skip beat inside the long group only.
+ *
+ * The harmony is deliberately plainer than the trio's. A listener counting a
+ * metre they do not know has no attention left for a reharmonisation, and every
+ * record that made five work knew it: hold a vamp, let the metre be the event.
+ */
+const odd: Style = {
+  id: 'odd',
+  label: 'Odd metre',
+  description:
+    'Five beats to the bar, grouped three-and-two, over a modal vamp. The metre is the event, so the harmony holds still and the rhythm section spells the grouping out.',
+  beatsPerBar: 5,
+  beatUnit: 4,
+  /** Three and two, in sixteenths. The long group first, which is how it swings. */
+  groups: [12, 8],
+  bpm: [116, 168],
+  swing: 0.3,
+  hook: 'through',
+  modeWeights: { minor: 0.66, major: 0.34 },
+  relativeMajorChorus: 0,
+  twoHanded: {
+    instruments: [['piano', 6], ['vibraphone', 4], ['epiano1', 2]],
+    density: 0.85,
+    /**
+     * Ostinato-heavy, which is the reverse of the trio's balance and follows
+     * from the metre. A left hand answering in the holes of a bar the listener
+     * cannot yet count adds a second thing to work out; a figure that states the
+     * grouping every bar is how the band teaches it to them.
+     */
+    modes: [['ostinato', 5], ['answer', 3], ['block', 2], ['unison', 2]],
+    /**
+     * The grouping itself, as a figure: the long pulse, its offbeat, the short
+     * pulse. A cycle of 20 is the bar, and here that is deliberate — this vamp
+     * is teaching the metre, and a figure that drifted would teach the opposite.
+     */
+    ostinato: {
+      cycle: 20,
+      hits: [
+        { at: 0, dur: 3, vel: 0.55 },
+        { at: 6, dur: 2, vel: 0.42 },
+        { at: 12, dur: 3, vel: 0.5 },
+      ],
+    },
+  },
+  excludeLayers: ['comp', 'pad', 'brass'],
+  requireLayers: ['melody'],
+  progressions: {
+    intro: [
+      { chords: ['i11', 'i11', 'i11', 'i11'], weight: 4 },
+      { chords: ['i11', 'iv9', 'i11', 'i11'], weight: 3 },
+    ],
+    verse: [
+      { chords: ['i11', 'i11', 'i11', 'i11', 'iv9', 'iv9', 'i11', 'i11'], weight: 5, note: 'A vamp on one chord: in an unfamiliar metre the harmony is what holds still' },
+      { chords: ['i11', 'i11', 'bVIImaj9', 'bVIImaj9', 'i11', 'i11', 'iv9', 'V7b9'], weight: 4 },
+      { chords: ['i9', 'bVImaj9', 'bVIImaj9', 'i9', 'i9', 'bVImaj9', 'ii%7', 'V7b9'], weight: 3, note: 'The aeolian cadence — down a third, up a tone, home — which needs no leading tone' },
+    ],
+    chorus: [
+      { chords: ['iv9', 'iv9', 'i11', 'i11', 'bVIImaj9', 'bVIImaj9', 'i11', 'i11'], weight: 4 },
+      { chords: ['bVImaj9', 'bVIImaj9', 'i11', 'i11', 'bVImaj9', 'bVIImaj9', 'i9', 'V7b9'], weight: 3 },
+    ],
+    bridge: [
+      { chords: ['iv11', 'iv11', 'iv11', 'iv11', 'bIImaj9', 'bIImaj9', 'ii%7', 'V7b9'], weight: 4 },
+    ],
+    solo: [
+      { chords: ['i11', 'i11', 'i11', 'i11', 'iv9', 'iv9', 'i11', 'i11'], weight: 5 },
+      { chords: ['i11', 'i11', 'bVIImaj9', 'bVIImaj9', 'i11', 'i11', 'iv9', 'V7b9'], weight: 3 },
+    ],
+    outro: [
+      { chords: ['iv9', 'i11', 'i11', 'i11'], weight: 4 },
+    ],
+  },
+  majorProgressions: {
+    intro: [{ chords: ['Imaj9', 'Imaj9', 'Imaj9', 'Imaj9'], weight: 4 }],
+    verse: [
+      { chords: ['Imaj9', 'Imaj9', 'Imaj9', 'Imaj9', 'IVmaj9', 'IVmaj9', 'Imaj9', 'Imaj9'], weight: 5 },
+      { chords: ['Imaj9', 'IVmaj9', 'Imaj9', 'IVmaj9', 'ii7', 'V7sus4', 'Imaj9', 'Imaj9'], weight: 4 },
+    ],
+    chorus: [
+      { chords: ['IVmaj9', 'IVmaj9', 'Imaj9', 'Imaj9', 'ii7', 'V7sus4', 'Imaj9', 'Imaj9'], weight: 4 },
+      { chords: ['Imaj9', 'bVIImaj9', 'IVmaj9', 'Imaj9', 'Imaj9', 'bVIImaj9', 'ii7', 'V7sus4'], weight: 3 },
+    ],
+    bridge: [{ chords: ['IVmaj9', 'IVmaj9', 'bVIImaj9', 'bVIImaj9', 'iii7', 'VI7b9', 'ii7', 'V7sus4'], weight: 4 }],
+    solo: [{ chords: ['Imaj9', 'Imaj9', 'Imaj9', 'Imaj9', 'IVmaj9', 'IVmaj9', 'Imaj9', 'Imaj9'], weight: 5 }],
+    outro: [{ chords: ['IVmaj9', 'Imaj9', 'Imaj9', 'Imaj9'], weight: 4 }],
+  },
+  /**
+   * Twenty sixteenths, and every cell says three-and-two somewhere.
+   *
+   * `fitCell` would pad a 4/4 cell out to length by lengthening its last note,
+   * which fills the bar and states nothing — the extra beat would arrive as a
+   * held note rather than as part of the count. These are written to the metre
+   * instead: the ones that break at slot 12 are the grouping, and the ones that
+   * run through it are the syncopation that only means anything against it.
+   */
+  melodyCells: [
+    { cell: [4, 4, 4, 4, 4], weight: 4 },
+    { cell: [6, 6, 4, 4], weight: 5 },
+    { cell: [-4, 4, 4, 4, 4], weight: 4 },
+    { cell: [2, 2, 2, 2, 4, 4, 4], weight: 4 },
+    { cell: [12, 4, 4], weight: 4 },
+    { cell: [4, 4, 4, 8], weight: 3 },
+    { cell: [-6, 6, 4, 4], weight: 3 },
+    { cell: [2, 2, 4, 4, 8], weight: 3 },
+    { cell: [8, 4, 8], weight: 2 },
+  ],
+  cadenceCells: [
+    { cell: [20], weight: 5 },
+    { cell: [12, 8], weight: 4 },
+    { cell: [-4, 16], weight: 3 },
+    { cell: [8, 12], weight: 2 },
+  ],
+  bass: [
+    /**
+     * Three and two, stated. Root on the downbeat, the fifth where the second
+     * group starts, and the walk-up only inside the long group — which is the
+     * one place five beats leaves room for one.
+     */
+    { name: 'five-figure', weight: 6, hits: [
+      { at: 0, dur: 5, tone: 'root', vel: 0.95 },
+      { at: 6, dur: 2, tone: 'fifth', vel: 0.8 },
+      { at: 8, dur: 3, tone: 'octave', vel: 0.78 },
+      { at: 12, dur: 3, tone: 'root', vel: 0.9 },
+      { at: 16, dur: 3, tone: 'approach', vel: 0.8 },
+    ] },
+    { name: 'five-pedal', weight: 4, hits: [
+      { at: 0, dur: 11, tone: 'root', vel: 0.94 },
+      { at: 12, dur: 7, tone: 'fifth', vel: 0.82 },
+    ] },
+    /**
+     * A three-beat figure against a five-beat bar, which comes back round every
+     * three bars. The most disorienting thing in the style and the reason
+     * `cycle` exists — no bar-shaped pattern can produce it.
+     */
+    { name: 'three-against-five', weight: 3, cycle: 12, hits: [
+      { at: 0, dur: 3, tone: 'root', vel: 0.92 },
+      { at: 6, dur: 2, tone: 'fifth', vel: 0.78 },
+      { at: 8, dur: 3, tone: 'seventh', vel: 0.76 },
+    ] },
+  ],
+  comp: [
+    { name: 'unused', weight: 1, voices: 4, voicing: 'quartal', hits: [{ at: 6, dur: 4, vel: 0.45 }] },
+  ],
+  drums: [
+    { name: 'ride-five', weight: 6, voices: {
+      rd: [0, 6, 8, 12, 16],
+      hh: [8, 16],
+      bd: [0],
+      sd: [12],
+    } },
+    { name: 'ride-five-busy', weight: 4, voices: {
+      rd: [0, 4, 6, 8, 12, 14, 16],
+      hh: [8, 16],
+      bd: [0, 10],
+      rim: [6],
+    } },
+    /**
+     * A four-slot hat cycle under a five-beat bar: the hat and the barline agree
+     * once every four bars and disagree everywhere else. The ride and the kick
+     * hold the metre while it happens, which is what stops it sounding like a
+     * mistake.
+     */
+    { name: 'hat-against-five', weight: 3, cycle: 4, voices: {
+      hh: [0],
+      rd: [0, 2],
+    } },
+    { name: 'brushes-five', weight: 2, voices: {
+      sh: [0, 4, 8, 12, 16],
+      rd: [0, 12],
+      hh: [8],
+    } },
+  ],
+  melody: { leap: 0.3, ornament: 0.22, span: 18, sequence: 0.42, syncopation: 0.45 },
+};
+
+/**
+ * FUSION — seven eighths, grouped three-three-two, and nothing swings.
+ *
+ * The style the whole rhythm rewrite was for. Everything in it is a thing the
+ * generator could not previously express:
+ *
+ *  - **The metre is written in eighths.** `beatsPerBar: 3.5` is not a fudge —
+ *    seven eighths genuinely is three and a half quarters, the bar is fourteen
+ *    sixteenths, and every slot index below is an honest one. The MIDI file
+ *    still says 7/8, because `renderMidi` works the numerator back out.
+ *  - **The grouping is declared**, so the pulses land on slots 0, 6 and 10 — the
+ *    long, long, short that the whole style is built on. Without it the accents
+ *    fall on the quarters, which in this bar are three notes that mean nothing.
+ *  - **The bass is an ostinato, not a walk.** Fusion bass is a *riff*: a fixed
+ *    shape re-rooted on each chord, repeating until the section ends. Two of
+ *    the three here run on their own cycle and drift against the bar.
+ *  - **The lead plays two-handed and mostly in octaves.** The unison line is the
+ *    sound — both hands, an octave apart, through changes that do not resolve —
+ *    and it was flatly unreachable before `LeftHandMode` existed.
+ *
+ * Straight eighths throughout. Swinging this would be as wrong as swinging a
+ * bossa, and for the same reason: the sixteenth grid *is* the idiom, and a
+ * triplet feel laid over it deletes the thing being played.
+ */
+const fusion: Style = {
+  id: 'fusion',
+  label: 'Fusion',
+  description:
+    'Seven eighths grouped three-three-two, straight, electric. Ostinato bass, quartal harmony that refuses to resolve, and a lead playing two-handed octaves over the top.',
+  beatsPerBar: 3.5,
+  beatUnit: 8,
+  /** 2+2+3 eighths, in sixteenths. The defining fact about the style. */
+  groups: [4, 4, 6],
+  bpm: [132, 196],
+  swing: 0,
+  hook: 'through',
+  /**
+   * Free, for the same reason bebop is. The vocabulary here is the altered
+   * scale, the chromatic sidestep and the fourth stacked on a fourth; the rules
+   * exist to police exactly those, and policing them produces a fusion line
+   * with the fusion taken out.
+   */
+  strictness: 'free',
+  modeWeights: { minor: 0.72, major: 0.28 },
+  relativeMajorChorus: 0,
+  twoHanded: {
+    instruments: [['epiano1', 6], ['epiano2', 3], ['piano', 3], ['vibraphone', 2]],
+    density: 0.8,
+    /**
+     * Unison first, which is the one place in the catalogue where it should be.
+     * A fusion head *is* the two hands playing the same line an octave apart;
+     * the comping modes are what happens between heads.
+     */
+    modes: [['unison', 6], ['ostinato', 4], ['block', 3], ['answer', 2]],
+    /**
+     * Five slots against a fourteen-slot bar: the figure returns to the downbeat
+     * once every five bars and lands somewhere new in between. Short and
+     * insistent, because a vamp under a busy right hand is a pulse rather than
+     * a part.
+     */
+    ostinato: {
+      cycle: 5,
+      hits: [
+        { at: 0, dur: 2, vel: 0.5 },
+        { at: 3, dur: 2, vel: 0.4 },
+      ],
+    },
+  },
+  excludeLayers: ['comp', 'brass'],
+  requireLayers: ['melody'],
+  /**
+   * Suspended, quartal and modal — harmony that provides a *place* rather than a
+   * direction. Seven eighths is already asking the listener to count; a
+   * functional progression underneath would be a second thing happening, and the
+   * records this comes from all made the same choice.
+   */
+  progressions: {
+    intro: [
+      { chords: ['i11', 'i11', 'i11', 'i11'], weight: 5 },
+      { chords: ['i11', 'i11', 'bIImaj9', 'i11'], weight: 2 },
+    ],
+    verse: [
+      { chords: ['i11', 'i11', 'i11', 'i11', 'i11', 'i11', 'iv11', 'iv11'], weight: 5, note: 'Six bars of one chord and a lift: the vamp is the form' },
+      { chords: ['i11', 'i11', 'bVII7', 'bVII7', 'bVImaj9', 'bVImaj9', 'V7#9', 'V7#9'], weight: 4, note: 'The descending tetrachord as a vamp rather than as a cadence' },
+      { chords: ['i9', 'i9', 'iv11', 'iv11', 'bIImaj9', 'bIImaj9', 'i9', 'V7#9'], weight: 3 },
+    ],
+    chorus: [
+      { chords: ['iv11', 'iv11', 'bVIImaj9', 'bVIImaj9', 'i11', 'i11', 'i11', 'V7#9'], weight: 4 },
+      { chords: ['bVImaj9', 'bVImaj9', 'bVII7', 'bVII7', 'i11', 'i11', 'i11', 'i11'], weight: 4 },
+    ],
+    bridge: [
+      { chords: ['bIImaj9', 'bIImaj9', 'bVImaj9', 'bVImaj9', 'iv11', 'iv11', 'V7#9', 'V7#9'], weight: 4, note: 'Semitone sidestep and back — the fusion way out of a vamp' },
+    ],
+    solo: [
+      { chords: ['i11', 'i11', 'i11', 'i11', 'i11', 'i11', 'iv11', 'iv11'], weight: 5 },
+      { chords: ['i11', 'i11', 'bVII7', 'bVII7', 'bVImaj9', 'bVImaj9', 'V7#9', 'V7#9'], weight: 4 },
+    ],
+    outro: [
+      { chords: ['iv11', 'i11', 'i11', 'i11'], weight: 4 },
+    ],
+  },
+  majorProgressions: {
+    intro: [{ chords: ['Imaj9', 'Imaj9', 'Imaj9', 'Imaj9'], weight: 4 }],
+    verse: [
+      { chords: ['Imaj9', 'Imaj9', 'Imaj9', 'Imaj9', 'IVmaj9', 'IVmaj9', 'Imaj9', 'Imaj9'], weight: 5 },
+      { chords: ['Imaj9', 'Imaj9', 'bVIImaj9', 'bVIImaj9', 'IVmaj9', 'IVmaj9', 'V7sus4', 'V7sus4'], weight: 4 },
+    ],
+    chorus: [
+      { chords: ['IVmaj9', 'IVmaj9', 'bVIImaj9', 'bVIImaj9', 'Imaj9', 'Imaj9', 'Imaj9', 'V7sus4'], weight: 4 },
+      { chords: ['Imaj9', 'II7', 'IVmaj9', 'bVII7', 'Imaj9', 'Imaj9', 'Imaj9', 'Imaj9'], weight: 3 },
+    ],
+    bridge: [{ chords: ['bIImaj9', 'bIImaj9', 'bVImaj9', 'bVImaj9', 'IVmaj9', 'IVmaj9', 'V7sus4', 'V7sus4'], weight: 4 }],
+    solo: [{ chords: ['Imaj9', 'Imaj9', 'Imaj9', 'Imaj9', 'IVmaj9', 'IVmaj9', 'Imaj9', 'Imaj9'], weight: 5 }],
+    outro: [{ chords: ['IVmaj9', 'Imaj9', 'Imaj9', 'Imaj9'], weight: 4 }],
+  },
+  /**
+   * Fourteen sixteenths, and every one of these is a way of counting to seven.
+   *
+   * The straight ones spell 2+2+3 and the rest cut across it — a figure that
+   * runs through slot 6 only sounds like anything because the kit is accenting
+   * it. Written in sixteenths rather than eighths because at these tempos the
+   * sixteenth is the fusion unit: this is the one style here whose melodies are
+   * genuinely faster than its beat.
+   */
+  melodyCells: [
+    { cell: [4, 4, 6], weight: 5 },
+    { cell: [2, 2, 2, 2, 2, 2, 2], weight: 5 },
+    { cell: [4, 2, 4, 2, 2], weight: 4 },
+    { cell: [-2, 2, 2, 2, 2, 2, 2], weight: 4 },
+    { cell: [6, 4, 4], weight: 4 },
+    { cell: [3, 3, 4, 4], weight: 3 },
+    { cell: [2, 4, 2, 4, 2], weight: 3 },
+    { cell: [-4, 2, 4, 4], weight: 3 },
+    { cell: [10, 4], weight: 2 },
+  ],
+  cadenceCells: [
+    { cell: [14], weight: 5 },
+    { cell: [10, 4], weight: 3 },
+    { cell: [-2, 12], weight: 3 },
+    { cell: [6, 8], weight: 2 },
+  ],
+  bass: [
+    /**
+     * The riff, on the grouping: root, root, the flat seventh where the short
+     * group starts. This is what a fusion bassist plays and it is nothing like a
+     * walk — it is a shape, re-rooted every time the harmony moves.
+     */
+    { name: 'seven-riff', weight: 6, hits: [
+      { at: 0, dur: 3, tone: 'root', vel: 0.98 },
+      { at: 4, dur: 3, tone: 'root', vel: 0.86 },
+      { at: 8, dur: 3, tone: 'fifth', vel: 0.9 },
+      { at: 12, dur: 2, tone: 'seventh', vel: 0.8 },
+    ] },
+    { name: 'seven-octaves', weight: 4, hits: [
+      { at: 0, dur: 2, tone: 'root', vel: 0.98 },
+      { at: 2, dur: 2, tone: 'octave', vel: 0.76 },
+      { at: 4, dur: 2, tone: 'root', vel: 0.9 },
+      { at: 6, dur: 2, tone: 'octave', vel: 0.74 },
+      { at: 8, dur: 6, tone: 'fifth', vel: 0.86 },
+    ] },
+    /**
+     * A three-slot figure — a dotted eighth — against a fourteen-slot bar. It
+     * returns to the downbeat once every three bars, and in between the bass and
+     * the kit are audibly counting different things. The oldest trick in
+     * progressive rock and the one this engine could not do at all.
+     */
+    { name: 'dotted-drift', weight: 3, cycle: 3, hits: [
+      { at: 0, dur: 3, tone: 'root', vel: 0.9 },
+    ] },
+  ],
+  comp: [
+    { name: 'unused', weight: 1, voices: 4, voicing: 'quartal', hits: [{ at: 6, dur: 4, vel: 0.45 }] },
+  ],
+  drums: [
+    /**
+     * The hat on the eighths, the kick and snare on the grouping. Every accent
+     * here is on a slot `groups` calls a pulse, which is what makes fourteen
+     * sixteenths audible as three beats instead of as a bar going wrong.
+     */
+    { name: 'seven-straight', weight: 6, voices: {
+      hh: [0, 2, 4, 6, 8, 10, 12],
+      bd: [0, 4],
+      sd: [8],
+    } },
+    { name: 'seven-busy', weight: 5, voices: {
+      hh: [0, 2, 4, 6, 8, 10, 12],
+      bd: [0, 3, 8, 11],
+      sd: [4, 8],
+      rd: [0, 4, 8],
+    } },
+    /**
+     * A four-slot ride under a fourteen-slot bar: two cycles that meet every
+     * seven bars. The kick still spells the grouping underneath, because
+     * something has to, and this is exactly the division of labour a fusion
+     * drummer is doing when it sounds like they have grown an extra limb.
+     */
+    { name: 'ride-drift', weight: 3, cycle: 4, voices: {
+      rd: [0, 2],
+      hh: [0],
+    } },
+  ],
+  melody: { leap: 0.4, ornament: 0.16, span: 24, sequence: 0.45, syncopation: 0.6 },
+};
+
 export const STYLES: Record<string, Style> = {
-  swing, bebop, ballad, bossa, blues, modal, gypsy, trio,
+  swing, bebop, ballad, bossa, blues, modal, gypsy, trio, odd, fusion,
 };

@@ -19,7 +19,7 @@ Everything is deterministic: **a seed reproduces a song exactly**, so a whole st
 | Genre | Styles |
 |---|---|
 | **Iskelmä** | tango · humppa · valssi · jenkka · foksi · beguine · 1980s iskelmäpop |
-| **Jazz** | medium swing · bebop · ballad · bossa nova · blues · modal · gypsy jazz |
+| **Jazz** | medium swing · bebop · ballad · bossa nova · blues · modal · gypsy jazz · piano trio · odd metre · fusion |
 | **Ambient** | hauntology · wasteland · drone · kosmische · choral · aquatic |
 
 Each genre owns its own styles, production eras, moods, song titles, song forms, preferred keys — and its own rule for how melody relates to harmony. There are three genuinely different answers to that last one:
@@ -80,6 +80,10 @@ Three stages run before a single pitch is chosen, and they are where most of the
 **The drums signpost the section they are arriving at.** There was one fill — descending toms into a crash, every genre, every boundary, whatever came next — and it stuttered on the low tom after three notes. Seven shapes now, drawn from a per-genre vocabulary, and a fill's size comes from the *next* section's intensity rather than the current one, because a fill is a delivery. Jazz gets the cymbal (ride 0.73 per fill bar against iskelmä's 0.02); iskelmä gets the toms (0.96 against jazz's 0.09). `drop` — the kit stopping dead for a bar — is in the vocabulary too, because silence makes the downbeat land twice as hard.
 
 **Brass punctuates rather than fires on a coin flip.** It played a stab on the downbeat of alternate bars: 1325 notes, every one exactly half a beat long, 72% on the downbeat, 79% landing on top of the tune. It now answers in the melody's gaps, swells underneath its held notes, and stays quiet the rest of the time — 18 note lengths instead of 1, 39% held a beat or longer, 60% off the barline, and 9% clashing instead of most of the layer.
+
+**The bar is not always four, and the figure is not always the bar.** Every rhythm-section pattern used to be "one bar, repeated" — not as a property of the table but of the loop reading it — so a three-beat ostinato over a four-beat bar was inexpressible rather than merely absent. Patterns now carry a `cycle` in sixteenths and drift against the barline when it differs; styles carry a `groups` declaration for a bar that does not divide evenly, and the group heads become the beats everywhere it matters — where the melody phrases, where the soloist lands, where the kit accents, what the drummer counts in. Jazz's `fusion` is 7/8 grouped 2+2+3 and `odd metre` is 5/4 grouped 3+2. See [docs/jazz.md](docs/jazz.md#metre).
+
+**A two-handed lead does four things, not one.** `twoHanded` says the lead is one player using both hands, and the left one used to have a single behaviour — rootless chords in the holes the line left, which is one of the things a pianist does rather than the definition of playing two-handed. It now draws per section between answering, doubling the line in octaves, locking blocks to it and vamping an ostinato under it; the two-hand unison line in particular was previously unreachable, because the only thing the left hand could produce was a chord. Its anatomy comes from the instrument rather than the style, so a vibraphone's other hand is two mallets and an accordion's is a stradella triad on the button side.
 
 Plus a **motto** — one rhythm and one contour chosen per song and quoted throughout in proportion to `hook`. Repetition previously existed at exactly two scales, one bar and one whole section, with nothing between them, so a song could be locally shapely and globally arbitrary. See [docs/arrangement.md](docs/arrangement.md).
 

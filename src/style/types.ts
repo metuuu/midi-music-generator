@@ -46,6 +46,11 @@ export interface BassPattern {
   weight: number;
   hits: BassHit[];
   /**
+   * The length of the repeating figure in sixteenths, where it is not the bar.
+   * See `Cycle`.
+   */
+  cycle?: number;
+  /**
    * Generate a proper walking line instead of following `hits` literally:
    * quarter notes that connect one chord root to the next by step, with a
    * chromatic approach on beat 4. The signature sound of a jazz rhythm
@@ -68,8 +73,6 @@ export interface CompHit {
   at: number;
   dur: number;
   vel?: number;
-  /** Number of voices in the chord for this hit. Defaults to the pattern value. */
-  voices?: number;
 }
 
 export interface CompPattern {
@@ -77,6 +80,11 @@ export interface CompPattern {
   weight: number;
   voices: number;
   hits: CompHit[];
+  /**
+   * The length of the repeating figure in sixteenths, where it is not the bar.
+   * See `Cycle`.
+   */
+  cycle?: number;
   /** How the chord is stacked. Defaults to `tertian`. */
   voicing?: VoicingStyle;
   /**
@@ -107,17 +115,102 @@ export interface DrumPattern {
   weight: number;
   /** Slot indices per drum voice, in sixteenths. */
   voices: Partial<Record<DrumVoice, number[]>>;
+  /**
+   * The length of the repeating figure in sixteenths, where it is not the bar.
+   * See `Cycle`.
+   */
+  cycle?: number;
 }
 
 /**
- * The lead is a keyboard, and it plays with both hands.
+ * ## Cycle — the figure that is not the bar
+ *
+ * Every pattern in this file used to be read as "one bar, repeated", and the
+ * repeat was not a property of the table but of the loop that read it: the bass,
+ * comp and drum generators walked bars and applied the hits inside each one. So
+ * a figure three beats long over a four-beat bar — the single most common device
+ * in anything anyone calls progressive — was not merely absent from the tables,
+ * it was **inexpressible**, and no amount of writing new patterns would have
+ * produced one.
+ *
+ * `cycle` says how long the figure actually is, in sixteenths, and the
+ * generators walk cycles rather than bars. A `cycle` of 12 against a 4/4 bar is
+ * a three-beat ostinato that arrives on a different beat every bar and comes
+ * back round every three; a `cycle` of 20 against a 7/8 bar takes ten bars to
+ * return. That drift is the whole point and is what separates an ostinato from a
+ * riff.
+ *
+ * Three things stay bar-shaped no matter what the cycle is, because they are
+ * properties of the harmony rather than of the figure:
+ *
+ *  - **Chords change on the barline.** A hit halfway through a cycle that
+ *    straddles a barline takes the chord it lands in, which is what a player
+ *    reading a chart does.
+ *  - **Voicings are led per bar.** A comp finds a position for the bar and
+ *    stays in it; see `generateComp`.
+ *  - **Drum fills belong to the last bar**, not to the last cycle.
+ *
+ * Absent means the figure is the bar, which is what almost every dance rhythm
+ * in the catalogue actually is. Leave it absent unless the drift is the idea.
+ */
+
+/**
+ * What the left hand is *doing*, as opposed to where it is.
+ *
+ * The first version of this had one behaviour and no name for it, which is the
+ * usual shape of a missing abstraction: the left hand answered in the holes the
+ * right hand left, always, and that is one of the four things a two-handed
+ * player does rather than the definition of playing two-handed. A pianist who
+ * only ever answered would be a pianist with a tic.
+ *
+ * These are chosen per *section*, not per song. That is the load-bearing half:
+ * a trio changing what the left hand does at the top of a chorus is the single
+ * clearest signal that an arrangement was arranged, and it costs one draw.
+ */
+export type LeftHandMode =
+  /**
+   * Punctuate where the line has stopped. The rootless post-war comping sound,
+   * and what this generator did exclusively before the others existed.
+   */
+  | 'answer'
+  /**
+   * Double the line, an octave down, note for note.
+   *
+   * The two-hand unison line — Corea, Hiromi, half of what anyone means by
+   * "complicated piano jazz" — and the mode that made the union necessary,
+   * because it is not a chord at all. Every other mode voices a chord somewhere
+   * under the tune; this one plays the tune.
+   */
+  | 'unison'
+  /**
+   * A chord struck *with* the line rather than around it: same onsets, held
+   * under the note.
+   *
+   * Written as a left hand under the melody rather than as full locked-hands
+   * harmony, which would put chord tones a second below the tune and break the
+   * one invariant the IR relies on to get the line back out again — see
+   * `melodicLine` and `HandSpec.gap`.
+   */
+  | 'block'
+  /**
+   * A figure that repeats regardless of what the right hand is doing.
+   *
+   * The montuno, the vamp, the riff the whole band is sitting on. It ignores the
+   * line entirely — which is exactly why it works under a busy one, where
+   * `answer` correctly falls silent and leaves the texture thin.
+   */
+  | 'ostinato';
+
+/**
+ * The lead is a keyboard — or a vibraphone, or an accordion — and it plays with
+ * both hands.
  *
  * Every other lead in this generator is one line: a horn plays the tune, the
  * comp instrument plays the chords, and they are two players in two layers. A
  * pianist fronting a trio is not that. The right hand has the tune and then the
- * chorus; the left hand answers it with rootless voicings in its own gaps; and
- * the two are **one part played by one person**, which is the whole reason this
- * exists as a declaration rather than as a second track.
+ * chorus; the left hand answers it, doubles it, locks with it or vamps under it;
+ * and the two are **one part played by one person**, which is the whole reason
+ * this exists as a declaration rather than as a second track.
  *
  * That distinction is load-bearing all the way to the stage. Two tracks would
  * cast two pianists standing at two pianos. One track carrying notes two
@@ -125,44 +218,48 @@ export interface DrumPattern {
  * itself — `keyboardPart` in `concert/choreograph.ts` already divides a group at
  * its widest interval, and the widest interval in a bar of this is exactly the
  * gap between the left hand's voicing and the right hand's line. Nothing on the
- * staging side had to be told about any of this.
+ * staging side had to be told about any of this, and nothing had to be told
+ * about the vibraphone or the accordion either: `malletPart` and the accordion's
+ * button split were both already there, waiting for a generator that would write
+ * something for the other hand to do.
+ *
+ * **Where the physical facts live.** Not here. How low a left hand goes, how
+ * many notes it can hold and how it stacks them are facts about the instrument,
+ * not about the style — a vibraphonist's left hand holds two mallets in a bebop
+ * head and in a ballad alike. Those live in `HandSpec`, keyed by instrument, in
+ * `style/instruments.ts`. What is left here is what genuinely is the style's
+ * business: which instruments are eligible, how much the left hand speaks, and
+ * which of the four things it does.
  */
 export interface TwoHandedKeys {
   /**
-   * The instrument, overriding the era's palette for the lead layer.
+   * Eligible leads, weighted, overriding the era's palette for the lead layer.
    *
-   * A style may name its lead here and nowhere else, and only because this
+   * A style may name its leads here and nowhere else, and only because this
    * particular style *is* the instrument: a piano trio with a flute on the tune
    * is not a piano trio. The draw still happens — see `chooseInstruments` — so
    * a seed reproduces the same song either way.
-   */
-  instrument: InstrumentId;
-  /**
-   * Where the *right hand* sits, as a MIDI note.
    *
-   * Overrides `Instrument.centre`, and has to: the catalogue's piano sits at
-   * middle C because that is where a comping piano sits, in the middle of the
-   * keyboard with both hands round it. A pianist fronting a trio plays the tune
-   * an octave above that, and the octave they vacate is what the left hand
-   * comps in. Take the catalogue number and there is nowhere for the left hand
-   * to go except into the bass player's register.
+   * Every id listed must have a `HandSpec`, or there is no left hand to write.
+   * `npm run genres` asserts it.
    */
-  centre: number;
-  /** Chance the left hand answers in any given hole, 0..1. */
+  instruments: (readonly [InstrumentId, number])[];
+  /** Chance the left hand speaks at any given opportunity, 0..1. */
   density: number;
-  /** Notes in a left-hand voicing. Three is the rootless shell. */
-  voices: number;
   /**
-   * Semitones of daylight kept between the top of a left-hand voicing and the
-   * right hand above it.
-   *
-   * Both a musical and a physical number, and it is the physical one that binds.
-   * A pianist's left hand really does sit an octave or so below the line, and a
-   * gap smaller than one hand's stretch would let the choreographer read the
-   * two as a single chord for one hand — which is true of a real keyboard as
-   * well, and is exactly why a real pianist does not voice there.
+   * What the left hand does, weighted, drawn once per section. Defaults to
+   * `answer` alone, which is what this was before it could do anything else.
    */
-  gap: number;
+  modes?: (readonly [LeftHandMode, number])[];
+  /**
+   * The figure, for `ostinato`. Cycles like any other pattern, and the cycle is
+   * usually the point — see `Cycle`.
+   *
+   * Required if `ostinato` can be drawn; asserted by `npm run genres`, because
+   * a style that draws a mode it has no figure for would silently fall back to
+   * answering and the table would look like it was working.
+   */
+  ostinato?: { cycle: number; hits: CompHit[] };
 }
 
 export interface Style {
@@ -170,8 +267,37 @@ export interface Style {
   label: string;
   /** Short explanation of the rhythm, used in the README and the demo UI. */
   description: string;
+  /**
+   * Quarter-note beats in a bar. Fractional where the metre is written in
+   * eighths: 7/8 is 3.5, which is 14 sixteenths and divides exactly.
+   *
+   * The engine's beat is always a quarter — `beatUnit` is notation, read only by
+   * the MIDI time-signature event — so a metre in eighths is spelled by how much
+   * of a quarter-note bar it fills. That is arithmetic rather than a lie: 7/8
+   * genuinely is three and a half quarters, and every slot index in the tables
+   * below stays an honest sixteenth.
+   */
   beatsPerBar: number;
   beatUnit: number;
+  /**
+   * How the bar groups, in sixteenths, where it does not group evenly.
+   *
+   * `[4, 4, 6]` is the 2+2+3 of a 7/8; `[12, 8]` is the 3+2 of a 5/4. Absent
+   * means the bar divides into equal beats, which is true of everything that
+   * gets danced to and false of most of what gets called progressive.
+   *
+   * This has to be declared because it cannot be derived. `metricStrength`
+   * computes accent from slot arithmetic — divide by four, land on a beat — and
+   * that arithmetic is *correct* for 4/4 and *confidently wrong* for 7/8, where
+   * it puts a half-bar accent on an odd sixteenth in the middle of the second
+   * group. There is no formula that recovers 2+2+3 from the number 14; the
+   * grouping is a compositional choice, and 2+2+3 is a different piece of music.
+   *
+   * Must sum to `beatsPerBar * 4`. `npm run genres` asserts it, because the
+   * failure mode of a grouping that does not add up is a phrase whose accents
+   * drift a sixteenth per bar, which sounds like a bug in the swing.
+   */
+  groups?: number[];
   bpm: [number, number];
   /** 0 = straight. Foxtrot and some 60s material shuffle lightly. */
   swing: number;
@@ -264,8 +390,8 @@ export interface Style {
    */
   chorusBars?: number;
   /**
-   * The lead is a two-handed keyboard. Absent everywhere else, which is most
-   * places — see `TwoHandedKeys`.
+   * The lead plays with both hands. Absent on any style whose lead is a horn or
+   * a voice, which is most of them — see `TwoHandedKeys`.
    */
   twoHanded?: TwoHandedKeys;
   /** Melodic character knobs. */

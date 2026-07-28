@@ -40,6 +40,7 @@ const swingEra: EraProfile = {
   },
   styleWeights: {
     swing: 6, bebop: 1, ballad: 4, bossa: 0, blues: 4, modal: 0, gypsy: 3, trio: 1,
+    odd: 0, fusion: 0,
   },
   tempoScale: 1,
   keyChangeChance: 0.1,
@@ -73,6 +74,8 @@ const bop: EraProfile = {
   },
   styleWeights: {
     swing: 5, bebop: 5, ballad: 4, bossa: 2, blues: 5, modal: 4, gypsy: 1, trio: 4,
+    // Take Five was 1959. Fusion was not.
+    odd: 2, fusion: 0,
   },
   tempoScale: 1,
   keyChangeChance: 0.05,
@@ -106,10 +109,59 @@ const modern: EraProfile = {
   },
   styleWeights: {
     swing: 3, bebop: 2, ballad: 4, bossa: 6, blues: 3, modal: 6, gypsy: 1, trio: 6,
+    odd: 4, fusion: 2,
   },
   tempoScale: 1,
   keyChangeChance: 0.05,
   density: 0.58,
 };
 
-export const ERAS: Record<string, EraProfile> = { swingera: swingEra, bop, modern };
+/**
+ * The band plugs in.
+ *
+ * A fourth era rather than a shading of the third, because the difference is not
+ * a choice of patch — it is a different set of instruments in a different room.
+ * The upright is gone, the piano is a Rhodes, the guitar has an amplifier and
+ * the reverb is short and bright rather than long and wooden. An `odd` or
+ * `fusion` chart played by the `modern` band would come out with a double bass
+ * walking under it, which is a fair description of nothing anybody recorded.
+ *
+ * The drum banks are the one place the preview's limits work *for* the music:
+ * every bank available here is a drum machine, which has been a caveat on every
+ * other jazz era in this file and is simply correct for this one.
+ */
+const electric: EraProfile = {
+  id: 'electric',
+  label: '1970s electric',
+  description:
+    'Fusion and odd metres. Rhodes and synth over electric bass, clean guitar and a kit playing straight.',
+  drumBanks: [
+    ['LinnDrum', 4],
+    ['RolandMT32', 3],
+    ['OberheimDMX', 3],
+    ['YamahaRY30', 2],
+  ],
+  palette: {
+    melody: [
+      ['epiano1', 5], ['sopranoSax', 3], ['vibraphone', 3], ['leadSaw', 2],
+      ['cleanGuitar', 2], ['flute', 2], ['tenorSax', 2],
+    ],
+    counter: [
+      ['epiano2', 4], ['cleanGuitar', 3], ['vibraphone', 3], ['leadSquare', 2],
+      ['sopranoSax', 2], ['flute', 2],
+    ],
+    comp: [['epiano1', 5], ['cleanGuitar', 4], ['rockOrgan', 3], ['epiano2', 3]],
+    pad: [['synthStrings', 4], ['padWarm', 3], ['padPoly', 3], ['strings1', 2]],
+    bass: [['fingerBass', 6], ['pickBass', 3], ['synthBass', 2], ['fretlessBass', 2]],
+    brass: [['synthBrass', 3], ['trumpet', 3], ['brassSection', 2], ['mutedTrumpet', 2]],
+  },
+  styleWeights: {
+    swing: 1, bebop: 1, ballad: 2, bossa: 2, blues: 2, modal: 4, gypsy: 0, trio: 3,
+    odd: 6, fusion: 7,
+  },
+  tempoScale: 1,
+  keyChangeChance: 0.02,
+  density: 0.66,
+};
+
+export const ERAS: Record<string, EraProfile> = { swingera: swingEra, bop, modern, electric };

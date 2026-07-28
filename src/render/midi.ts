@@ -10,7 +10,7 @@
  * because this is the output that actually ships.
  */
 
-import type { DrumVoice, Effects, Song } from '../core/types.js';
+import { timeSignature, type DrumVoice, type Effects, type Song } from '../core/types.js';
 
 const PPQ = 480;
 
@@ -47,7 +47,9 @@ export function renderMidi(song: Song): Uint8Array {
   const conductor: MidiEvent[] = [];
   const usPerQuarter = Math.round(60_000_000 / meta.bpm);
   conductor.push({ tick: 0, order: 0, bytes: [0xff, 0x51, 0x03, (usPerQuarter >> 16) & 0xff, (usPerQuarter >> 8) & 0xff, usPerQuarter & 0xff] });
-  conductor.push({ tick: 0, order: 0, bytes: [0xff, 0x58, 0x04, meta.beatsPerBar, Math.log2(meta.beatUnit), 24, 8] });
+  // Written as a notator would rather than as the engine counts. See `timeSignature`.
+  const [numerator, denominator] = timeSignature(meta);
+  conductor.push({ tick: 0, order: 0, bytes: [0xff, 0x58, 0x04, numerator, Math.log2(denominator), 24, 8] });
   conductor.push({ tick: 0, order: 0, bytes: [0xff, 0x03, ...textBytes(meta.title)] });
   conductor.push({ tick: 0, order: 0, bytes: [0xff, 0x01, ...textBytes(`${meta.styleLabel} · ${meta.eraLabel} · ${meta.keyLabel} · ${meta.bpm} BPM · seed ${meta.seed}`)] });
   tracks.push(buildTrack(conductor));

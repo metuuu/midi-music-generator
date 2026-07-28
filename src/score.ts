@@ -10,7 +10,7 @@
 
 import { parseRoman, chordPcs } from './core/chord.js';
 import { pc } from './core/pitch.js';
-import { melodicLine } from './core/types.js';
+import { melodicLine, meterLabel } from './core/types.js';
 import type { NoteEvent, Song } from './core/types.js';
 import { generateSong } from './generate/song.js';
 
@@ -34,7 +34,7 @@ function main(): void {
   });
   const { beatsPerBar: bpb, tonic, mode } = song.meta;
   console.log(`\n${song.meta.title} — ${song.meta.genreLabel} / ${song.meta.styleLabel} / ${song.meta.eraLabel}`);
-  console.log(`${song.meta.keyLabel}  ${song.meta.bpm} BPM  ${bpb}/${song.meta.beatUnit}  swing ${song.meta.swing}`);
+  console.log(`${song.meta.keyLabel}  ${song.meta.bpm} BPM  ${meterLabel(song.meta)}  swing ${song.meta.swing}`);
   console.log(`smoothness ${song.meta.strictness}  hook ${song.meta.hook}  mood ${song.meta.mood}\n`);
 
   const melodyTrack = song.tracks.find((t) => t.layer === 'melody');

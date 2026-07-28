@@ -452,10 +452,20 @@ export interface SongMeta {
   mode: Mode;
   keyLabel: string;
   bpm: number;
-  /** Beats per bar. */
+  /** Quarter-note beats per bar. Fractional where the metre is written in eighths. */
   beatsPerBar: number;
   /** Which note value gets the beat (4 = quarter). */
   beatUnit: number;
+  /**
+   * How the bar groups, in sixteenths, where it does not group evenly — the
+   * 2+2+3 of a 7/8, the 3+2 of a 5/4. See `Style.groups`.
+   *
+   * Carried on the song rather than left in the style table because by the time
+   * anything is reading a `Song` the style is gone, and the grouping is not
+   * recoverable from the notes: it is why the accents are where they are, so
+   * anything counting the band in or lighting the downbeats has to be told.
+   */
+  groups?: number[];
   totalBars: number;
   /** Swing amount 0..0.33; 0 = straight. */
   swing: number;
@@ -529,6 +539,31 @@ export function melodicLine(track: Track): NoteEvent[] {
     if (top.midi - under.midi >= gap) out.push(top);
   }
   return out.sort((a, b) => a.beat - b.beat);
+}
+
+/**
+ * The time signature as a notator would write it: `[7, 8]`, not `[3.5, 8]`.
+ *
+ * The engine counts in quarter-note beats, always, so a metre written in
+ * eighths reaches `SongMeta` as a fraction — 7/8 is three and a half quarters,
+ * which is exactly true and reads as an error in every place a human sees it.
+ * The numerator is recovered by asking how many `beatUnit`s fit in that many
+ * quarters, which turns 3.5 and 8 back into the 7 that was written and leaves
+ * 4/4, 3/4 and 5/4 untouched.
+ *
+ * Here rather than in each caller because there are four of them — the MIDI
+ * header, the CLI listing, the score dump and the web UI — and a metre printed
+ * one way in the browser and another way in the file is the kind of discrepancy
+ * that gets debugged twice.
+ */
+export function timeSignature(meta: SongMeta): [number, number] {
+  return [Math.round((meta.beatsPerBar * meta.beatUnit) / 4), meta.beatUnit];
+}
+
+/** The same, as `7/8`. */
+export function meterLabel(meta: SongMeta): string {
+  const [n, d] = timeSignature(meta);
+  return `${n}/${d}`;
 }
 
 export function songDurationBeats(song: Song): number {

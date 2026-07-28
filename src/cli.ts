@@ -12,7 +12,7 @@ import { join, resolve } from 'node:path';
 import { generateSong, type GenerateOptions } from './generate/song.js';
 import { renderMidi } from './render/midi.js';
 import { renderStrudel } from './render/strudel.js';
-import { songDurationSeconds, type Song } from './core/types.js';
+import { meterLabel, songDurationSeconds, type Song } from './core/types.js';
 import { GENRES, GENRE_IDS, getGenre } from './genre/index.js';
 import { STRICTNESS_IDS, type StrictnessId } from './generate/constraints.js';
 import { HOOK_IDS, type HookId } from './generate/hook.js';
@@ -149,7 +149,7 @@ function summarise(song: Song, file: string) {
     hook: meta.hook,
     key: meta.keyLabel,
     bpm: meta.bpm,
-    meter: `${meta.beatsPerBar}/${meta.beatUnit}`,
+    meter: meterLabel(meta),
     bars: meta.totalBars,
     seconds: Math.round(songDurationSeconds(song)),
     instruments: song.tracks.map((t) => `${t.layer}:${t.instrument}`),
@@ -164,7 +164,7 @@ function describe(song: Song): string {
   const lift = song.sections.find((s) => s.transpose > 0);
   return [
     `♪ ${meta.title}  [${meta.genreLabel}]`,
-    `   ${meta.styleLabel} · ${meta.keyLabel} · ${meta.bpm} BPM · ${meta.beatsPerBar}/${meta.beatUnit} · ${Math.floor(mins / 60)}:${String(Math.round(mins % 60)).padStart(2, '0')}`,
+    `   ${meta.styleLabel} · ${meta.keyLabel} · ${meta.bpm} BPM · ${meterLabel(meta)} · ${Math.floor(mins / 60)}:${String(Math.round(mins % 60)).padStart(2, '0')}`,
     `   ${meta.eraLabel} · drums: ${song.drums.bank}${lift ? ` · key change +${lift.transpose}` : ''}`,
     `   ${song.tracks.map((t) => t.instrument).join(', ')}`,
   ].join('\n');

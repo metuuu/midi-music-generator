@@ -10,16 +10,17 @@
  */
 
 import { generateSong } from './generate/song.js';
+import { generateLeftHand } from './generate/parts.js';
 import { getGenre, GENRE_IDS } from './genre/index.js';
 import { generateMelody } from './generate/melody.js';
 import { comfortableLeap } from './generate/constraints.js';
 import type { HookId } from './generate/hook.js';
 import { chordPcs, parseRoman } from './core/chord.js';
 import { pc } from './core/pitch.js';
-import type { DrumVoice, Song } from './core/types.js';
+import { melodicLine, type DrumVoice, type Song } from './core/types.js';
 import { Rng } from './core/rng.js';
 import { BANK_VOICES, resolveVoice } from './render/drum-banks.js';
-import { IDIOMS, type Idiom } from './style/instruments.js';
+import { HANDS, IDIOMS, type Idiom } from './style/instruments.js';
 
 const problems: string[] = [];
 const check = (label: string, pass: boolean, detail: string) => {
@@ -576,6 +577,212 @@ console.log('\nDrum banks');
   );
 }
 
+// --- Metre -----------------------------------------------------------------
+// Two things about an asymmetric bar cannot be checked by listening to one song
+// and cannot be derived from the notes afterwards: that the grouping adds up,
+// and that the accents land on it. A grouping that does not sum to the bar
+// produces a phrase whose accents drift a sixteenth per bar, which sounds like
+// a fault in the swing rather than like the arithmetic error it is.
+console.log('\nMetre');
+{
+  const wrong: string[] = [];
+  let grouped = 0;
+  for (const gid of GENRE_IDS) {
+    for (const [sid, style] of Object.entries(getGenre(gid).styles)) {
+      if (!style.groups) continue;
+      grouped++;
+      const sum = style.groups.reduce((a, b) => a + b, 0);
+      const want = style.beatsPerBar * 4;
+      if (sum !== want) wrong.push(`${gid}/${sid}: ${sum} vs ${want}`);
+    }
+  }
+  check(
+    'every grouping fills its own bar',
+    wrong.length === 0,
+    wrong.length ? wrong.join('; ') : `${grouped} grouped styles`,
+  );
+
+  /**
+   * The accents follow the grouping, not the arithmetic.
+   *
+   * Measured on the kit, because that is where it is audible and because the
+   * drum generator is the one that used to get it wrong: `accentOf` derived
+   * strength by counting in fours, which in a 2+2+3 accents the weak eighth of
+   * the first two groups and leaves the head of the third as an offbeat. So the
+   * test is that the mean velocity on a group head beats the mean everywhere
+   * else — a band playing 7/8 rather than a band playing 14/16.
+   */
+  for (const sid of ['odd', 'fusion']) {
+    const style = getGenre('jazz').styles[sid]!;
+    const heads = new Set<number>();
+    let at = 0;
+    for (const g of style.groups!) { heads.add(at); at += g; }
+    let onHead = 0, onHeadN = 0, off = 0, offN = 0;
+    for (let i = 0; i < 12; i++) {
+      const s = generateSong({ seed: `mt-${i}`, genre: 'jazz', style: sid });
+      const bar = s.meta.beatsPerBar;
+      for (const e of s.drums.events) {
+        const slot = Math.round(((e.beat % bar) + bar) % bar * 4);
+        if (heads.has(slot)) { onHead += e.velocity; onHeadN++; }
+        else { off += e.velocity; offN++; }
+      }
+    }
+    const a = onHead / Math.max(1, onHeadN);
+    const b = off / Math.max(1, offN);
+    check(
+      `${sid}: the kit accents the grouping`,
+      a > b,
+      `${a.toFixed(3)} on the ${style.groups!.length} group heads vs ${b.toFixed(3)} elsewhere`,
+    );
+  }
+
+  /**
+   * A cycle that is not the bar has to actually drift.
+   *
+   * The whole point of `cycle` is that the figure and the barline disagree, and
+   * the failure mode if the generators ever go back to walking bars is silent:
+   * the pattern still plays, it just lands in the same place every bar and
+   * sounds like an ordinary riff. So the test is that the figure's onsets, taken
+   * modulo the bar, land in more than one place.
+   */
+  {
+    const style = getGenre('jazz').styles.fusion!;
+    const drifting = style.drums.find((d) => d.cycle);
+    const bars = 8;
+    const slotsPerBar = style.beatsPerBar * 4;
+    const landings = new Set<number>();
+    if (drifting) {
+      for (const slots of Object.values(drifting.voices)) {
+        for (const at of slots ?? []) {
+          for (let base = 0; base < bars * slotsPerBar; base += drifting.cycle!) {
+            const slot = base + at;
+            if (slot < bars * slotsPerBar) landings.add(slot % slotsPerBar);
+          }
+        }
+      }
+    }
+    check(
+      'a figure on its own cycle drifts against the bar',
+      landings.size > 2,
+      drifting ? `${drifting.name} lands on ${landings.size} slots of ${slotsPerBar}` : 'no cycled pattern',
+    );
+  }
+}
+
+// --- Two hands -------------------------------------------------------------
+// A two-handed lead is one track carrying two parts, and everything that
+// measures melody depends on being able to take them apart again — see
+// `melodicLine`. Its rule is that a note sounding *alone* is the right hand, so
+// a left hand that ever plays a single note is not merely voiced oddly, it is
+// counted as the tune. That happened: an ostinato written one note at a time
+// dropped the reported mean of the jazz melody line by four semitones, which was
+// an accompaniment being read as a melody.
+console.log('\nTwo hands');
+{
+  const missing: string[] = [];
+  const figureless: string[] = [];
+  for (const gid of GENRE_IDS) {
+    for (const [sid, style] of Object.entries(getGenre(gid).styles)) {
+      if (!style.twoHanded) continue;
+      for (const [id] of style.twoHanded.instruments) {
+        if (!HANDS[id]) missing.push(`${gid}/${sid}: ${id}`);
+      }
+      const offersOstinato = (style.twoHanded.modes ?? []).some(([m]) => m === 'ostinato');
+      if (offersOstinato && !style.twoHanded.ostinato) figureless.push(`${gid}/${sid}`);
+    }
+  }
+  check(
+    'every two-handed lead has a hand to play with',
+    missing.length === 0,
+    missing.length ? missing.join('; ') : 'all leads have a HandSpec',
+  );
+  check(
+    'a style that vamps has a figure to vamp on',
+    figureless.length === 0,
+    figureless.length ? figureless.join('; ') : 'every ostinato mode has its hits',
+  );
+
+  /**
+   * The invariant, tested at the source rather than on the finished track.
+   *
+   * It cannot be checked downstream, and that is the whole difficulty: once the
+   * two hands are merged into one track, a left-hand note sounding alone is
+   * indistinguishable from a melody note sounding alone — `melodicLine` reads it
+   * as the tune and is not wrong to, because nothing in the notes says
+   * otherwise. So the property has to be asserted where the two parts still
+   * exist separately, which is here, against `generateLeftHand` itself.
+   *
+   * What has to hold, for every mode: **a left-hand onset either sounds two or
+   * more notes, or lands on a note of the line.** Two notes are a chord and read
+   * as an accompaniment; landing on the line puts a melody note above it to be
+   * recovered. One note in a hole is neither, and is the case that broke.
+   */
+  const style = getGenre('jazz').styles.trio!;
+  const spec = HANDS.piano!;
+  const chords = ['i7', 'iv7', 'bVImaj7', 'V7'].map((label) => parseRoman(label, 'minor'));
+  let checked = 0;
+  const orphans: string[] = [];
+  for (const mode of ['answer', 'unison', 'block', 'ostinato'] as const) {
+    for (let i = 0; i < 12; i++) {
+      const rng = new Rng(`hand-${mode}-${i}`);
+      const line = generateMelody({
+        chords, beatsPerBar: 4, style, rng: new Rng(`hand-line-${i}`),
+        tonic: 0, mode: 'minor', range: [65, 84], startBeat: 0,
+        ornamentScale: 1, leapScale: 1, strictness: 1, agility: 1,
+      });
+      if (!line.length) continue;
+      const onLine = new Set(line.map((n) => n.beat.toFixed(4)));
+      const hand = generateLeftHand(
+        { chords, beatsPerBar: 4, startBeat: 0, rng, style },
+        line,
+        {
+          mode, spec, density: 0.9,
+          ...(style.twoHanded?.ostinato ? { ostinato: style.twoHanded.ostinato } : {}),
+        },
+      );
+      const byBeat = new Map<string, number>();
+      for (const n of hand) {
+        const at = n.beat.toFixed(4);
+        byBeat.set(at, (byBeat.get(at) ?? 0) + 1);
+      }
+      for (const [at, count] of byBeat) {
+        checked++;
+        if (count === 1 && !onLine.has(at)) orphans.push(`${mode}@${at}`);
+      }
+    }
+  }
+  check(
+    'the left hand never sounds a note by itself',
+    orphans.length === 0,
+    orphans.length ? orphans.slice(0, 4).join(', ') : `${checked} left-hand onsets across 4 modes`,
+  );
+
+  let octaves = 0, chordsPlayed = 0, songs = 0;
+  for (const sid of ['trio', 'odd', 'fusion']) {
+    for (let i = 0; i < 14; i++) {
+      const s = generateSong({ seed: `th-${sid}-${i}`, genre: 'jazz', style: sid });
+      const track = s.tracks.find((t) => t.layer === 'melody');
+      if (!track?.twoHanded) continue;
+      songs++;
+      const byBeat = new Map<number, number[]>();
+      for (const n of track.notes) {
+        const at = byBeat.get(n.beat) ?? [];
+        at.push(n.midi);
+        byBeat.set(n.beat, at);
+      }
+      for (const group of byBeat.values()) {
+        if (group.length === 2 && Math.abs(group[0]! - group[1]!) === 12) octaves++;
+        if (group.length > 2) chordsPlayed++;
+      }
+    }
+  }
+  check(
+    'the left hand doubles and chords, not just answers',
+    octaves > 0 && chordsPlayed > 0,
+    `${octaves} octave doublings and ${chordsPlayed} chords over ${songs} songs`,
+  );
+}
+
 // --- Counter-melody --------------------------------------------------------
 // The answer has to be a *line* and it has to be *independent*. Before it was
 // rewritten it was neither: it restarted from the chord root nearest the
@@ -595,7 +802,13 @@ console.log('\nCounter-melody');
         && beat >= sec.startBar * bpb && beat < (sec.startBar + sec.lengthBars) * bpb);
       const counter = (s.tracks.find((t) => t.layer === 'counter')?.notes ?? [])
         .filter((n) => answering(n.beat)).sort((a, b) => a.beat - b.beat);
-      const melody = (s.tracks.find((t) => t.layer === 'melody')?.notes ?? [])
+      // The line, not the track. On a two-handed lead the track also carries
+      // that player's own accompaniment, and an answer landing an octave above a
+      // left-hand chord tone is not the answer doubling the tune — it is the
+      // answer doing its job over a comp, which is what every other style in the
+      // catalogue has a separate comp track for.
+      const melodyTrack = s.tracks.find((t) => t.layer === 'melody');
+      const melody = (melodyTrack ? melodicLine(melodyTrack) : [])
         .slice().sort((a, b) => a.beat - b.beat);
       if (!counter.length) continue;
 

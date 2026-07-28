@@ -60,7 +60,7 @@ import {
   type Accompaniment, type NoteContext, type Rule,
 } from './constraints.js';
 import type { Motto } from './motto.js';
-import { SLOTS_PER_BEAT, trimOverlaps } from './rhythm.js';
+import { metricStrength, SLOTS_PER_BEAT, trimOverlaps } from './rhythm.js';
 
 // ---------------------------------------------------------------------------
 // The genre's side of the contract
@@ -607,6 +607,11 @@ export interface SoloOptions {
   /** One chord per bar of the section, already in the local key. */
   chords: Chord[];
   beatsPerBar: number;
+  /**
+   * How the bar groups, where it does not group evenly. A soloist in 7/8 phrases
+   * to the 2+2+3 or they are playing in a different metre from the band.
+   */
+  groups?: readonly number[];
   /** Absolute beat the section starts on. */
   startBeat: number;
   rng: Rng;
@@ -806,7 +811,7 @@ export function generateSolo(opts: SoloOptions): NoteEvent[] {
         anchor: arrival !== undefined && cellStart !== undefined
           ? { from: cellStart, steps: arrival } : undefined,
         prev, prevPrev, prevChord,
-        chordAt, scaleFor, barOf, slotsPerBar, beatsPerBar, startBeat,
+        chordAt, scaleFor, barOf, slotsPerBar, groups: opts.groups, beatsPerBar, startBeat,
         range, rng, rules, strictness: opts.strictness, accompaniment,
         agility, idiom, mode, tonic, vocab,
         changeSlots, enclosed, energy,
@@ -912,7 +917,7 @@ export function generateSolo(opts: SoloOptions): NoteEvent[] {
       cell: rise, start: from, blockEnd: totalSlots,
       anchor: { from: liftFrom, steps: 0 },
       prev, prevPrev, prevChord,
-      chordAt, scaleFor, barOf, slotsPerBar, beatsPerBar, startBeat,
+      chordAt, scaleFor, barOf, slotsPerBar, groups: opts.groups, beatsPerBar, startBeat,
       range, rng, rules, strictness: opts.strictness, accompaniment,
       agility, idiom, mode, tonic, vocab,
       // No landing target inside a run: the run *is* the gesture, and pulling
@@ -961,6 +966,7 @@ function placeCell(args: {
   scaleFor: (chord: Chord) => Scale;
   barOf: (slot: number) => number;
   slotsPerBar: number;
+  groups?: readonly number[];
   beatsPerBar: number;
   startBeat: number;
   range: [Midi, Midi];
@@ -1056,7 +1062,7 @@ function placeCell(args: {
     const midi = choose({
       scale, chord, prev, prevPrev, prevChord,
       preferred, wanted, height, range, rng,
-      strength: metricAt(slot, args.slotsPerBar),
+      strength: metricStrength(slot, args.slotsPerBar, args.groups),
       duration, beat,
       accompaniment: args.accompaniment,
       strictness: args.strictness,
@@ -1117,16 +1123,6 @@ function placeCell(args: {
     ...(prevPrev !== undefined ? { prevPrev } : {}),
     span: Math.max(cell.span, lastSlot - start + 1),
   };
-}
-
-/** 0 = offbeat sixteenth … 4 = downbeat. Mirrors `rhythm.ts`, on absolute slots. */
-function metricAt(slot: number, slotsPerBar: number): number {
-  const s = ((slot % slotsPerBar) + slotsPerBar) % slotsPerBar;
-  if (s === 0) return 4;
-  if (slotsPerBar % 2 === 0 && s === slotsPerBar / 2) return 3;
-  if (s % SLOTS_PER_BEAT === 0) return 2;
-  if (s % 2 === 0) return 1;
-  return 0;
 }
 
 /**

@@ -75,10 +75,45 @@ export interface PhrasePlan {
   fromMotto: boolean;
 }
 
-/** 0 = offbeat sixteenth, 1 = eighth, 2 = beat, 3 = half-bar, 4 = downbeat. */
-export function metricStrength(slot: number, slotsPerBar: number): number {
+/**
+ * 0 = offbeat sixteenth, 1 = eighth, 2 = beat, 3 = half-bar, 4 = downbeat.
+ *
+ * Almost every consumer of this treats the number as "how much does the ear
+ * expect something here", so being wrong about it is not a rounding error: it
+ * decides where a melody puts its long notes, where a cadence is allowed to
+ * land, and which notes the constraint engine will defend.
+ *
+ * `groups` is what makes it right in a metre that does not divide evenly. The
+ * arithmetic below — halve the bar, then count in fours — describes 4/4 and 3/4
+ * exactly and describes 7/8 confidently and wrongly: it finds a half-bar at slot
+ * 7, which in a 2+2+3 is the middle of the third group and the last place
+ * anyone accents. Handed the grouping, the group heads become the beats and the
+ * arithmetic is not consulted at all.
+ *
+ * Inside a group the subdivision depends on what the groups are made of. A 5/4
+ * grouped 3+2 is still counted in quarters, so a slot on a quarter is a beat; a
+ * 7/8 grouped 2+2+3 is counted in eighths, and a "quarter" in it is an accident
+ * of arithmetic rather than a pulse anyone feels. Whether every group is a whole
+ * number of quarters is exactly that question, and it answers itself.
+ */
+export function metricStrength(
+  slot: number, slotsPerBar: number, groups?: readonly number[],
+): number {
   const s = ((slot % slotsPerBar) + slotsPerBar) % slotsPerBar;
   if (s === 0) return 4;
+
+  if (groups?.length) {
+    let at = 0;
+    for (const g of groups) {
+      at += g;
+      if (at >= slotsPerBar) break;
+      if (s === at) return 3;
+    }
+    const inQuarters = groups.every((g) => g % SLOTS_PER_BEAT === 0);
+    if (inQuarters && s % SLOTS_PER_BEAT === 0) return 2;
+    return s % 2 === 0 ? 1 : 0;
+  }
+
   if (slotsPerBar % 2 === 0 && s === slotsPerBar / 2) return 3;
   if (s % SLOTS_PER_BEAT === 0) return 2;
   if (s % 2 === 0) return 1;
@@ -118,6 +153,8 @@ export function pickCell(rng: Rng, cells: WeightedCell[], slotsPerBar: number): 
 export interface PhraseRhythmOptions {
   bars: number;
   slotsPerBar: number;
+  /** How the bar groups, where it does not group evenly. See `metricStrength`. */
+  groups?: readonly number[];
   cells: WeightedCell[];
   cadenceCells: WeightedCell[];
   rng: Rng;
@@ -156,7 +193,7 @@ export interface PhraseRhythmOptions {
  * sampler happened to leave a gap.
  */
 export function planPhraseRhythm(opts: PhraseRhythmOptions): PhrasePlan {
-  const { bars, slotsPerBar, rng, hook, syncopation } = opts;
+  const { bars, slotsPerBar, groups, rng, hook, syncopation } = opts;
 
   // ---- 1. The figure this phrase is made of ----------------------------
   const fromMotto = opts.motto !== undefined && rng.chance(hook.mottoAdherence);
@@ -198,7 +235,7 @@ export function planPhraseRhythm(opts: PhraseRhythmOptions): PhrasePlan {
       if (entry > 0) {
         notes.push({
           slot, dur, bar, pos,
-          strength: metricStrength(slot, slotsPerBar),
+          strength: metricStrength(slot, slotsPerBar, groups),
         });
         pos++;
       }
@@ -216,12 +253,12 @@ export function planPhraseRhythm(opts: PhraseRhythmOptions): PhrasePlan {
 
   // ---- 5. The pickup ---------------------------------------------------
   if (opts.allowAnacrusis && rng.chance(0.28 + syncopation * 0.34)) {
-    addAnacrusis(notes, { slotsPerBar, rng });
+    addAnacrusis(notes, { slotsPerBar, groups, rng });
   }
 
   notes.sort((a, b) => a.slot - b.slot);
   for (const n of notes) {
-    if (!n.anticipated) n.strength = metricStrength(n.slot, slotsPerBar);
+    if (!n.anticipated) n.strength = metricStrength(n.slot, slotsPerBar, groups);
   }
   return { notes, restates, motif, fromMotto };
 }
@@ -316,9 +353,9 @@ function applyBreath(
  */
 function addAnacrusis(
   notes: PlannedNote[],
-  opts: { slotsPerBar: number; rng: Rng },
+  opts: { slotsPerBar: number; groups?: readonly number[]; rng: Rng },
 ): void {
-  const { slotsPerBar, rng } = opts;
+  const { slotsPerBar, groups, rng } = opts;
   const first = notes[0];
   if (!first || first.slot !== 0 || first.dur < 3) return;
 
@@ -332,7 +369,7 @@ function addAnacrusis(
     const slot = -(count - i) * unit;
     notes.push({
       slot, dur: unit, bar: -1, pos: i,
-      strength: metricStrength(slot, slotsPerBar),
+      strength: metricStrength(slot, slotsPerBar, groups),
     });
   }
 }
