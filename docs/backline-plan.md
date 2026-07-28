@@ -382,10 +382,31 @@ found by measuring rather than by reading:
   them. The genres that own machines do not hand breaks to drummers, so the guard in the
   generator is belt and braces rather than load-bearing.
 
-**Wave 1 — the backline in the IR.**
-`Performer.rig`, era pools with caps, `pickRig` deleted, modular in `BULKY` with its own
-footprint and height, the L/R-or-centre staging rule, wings re-aimed. Fixes three
-modulars and makes the sightline assertions honest.
+**Wave 1 — the backline in the IR. ✅ Landed.**
+`Performer.rig`, year-keyed pools with caps, `pickRig` deleted, the modular given its own
+footprint and height and laid out as furniture, the L/R-or-centre staging rule, wings
+re-aimed. Fixes three modulars and makes the sightline assertions honest.
+
+Three corrections it forced, all of them to things this plan asserted confidently:
+
+- **The wings were in front of the player, not behind.** §6.3 of this document said the
+  cabinets already stood 0.87 m behind them and only the yaw was wrong. The distance was
+  right and the direction was backwards — the player is at `keyBackZ − whiteLength −
+  0.28`, the wings stood at `keyBackZ + 0.44`, and `+z` is downstage. The house had been
+  looking at the backs of two 1.7 m cabinets. Moving them upstage also invalidated the
+  patch-cable clamp, which would have dragged every lead forward onto the keyboard.
+- **An availability window and a weight table can contradict each other silently.**
+  `modular.to` was set to 1979 meaning "superseded", while the pool gave it weight 2
+  through 1983 meaning "still in the corner". The gate wins and says nothing: 82
+  concerts of the 1981 era contained no modular at all.
+- **The modular's footprint was invented from the impression.** 1.7 m is what a wall of
+  cabinets feels like; the object is 1.08 m from centre line to outer cabinet face, so
+  1.25 is the honest radius. At 1.7 a flanking modular hung past the masking.
+
+The `BULKY` route this plan proposed was not taken. `BULKY` is the front-line rule that
+`PIANO_SIDE` owns, and a modular never reaches the front line — it is claimed by
+`layoutModulars` before either the arc or the front line runs, which is a smaller change
+than teaching the piano rules about a second kind of furniture.
 
 **Wave 2 — machines that play themselves.**
 `Track.machine`, no performer for a machine track, the start gesture, the stepping
