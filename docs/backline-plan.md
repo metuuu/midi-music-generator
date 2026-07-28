@@ -358,10 +358,29 @@ Every assertion here is on the IR, so none of it needs eyes:
 
 Ordered so that every stage stands on its own and can be the last one.
 
-**Wave 0 — the bug, on its own.**
+**Wave 0 — the bug, on its own. ✅ Landed.**
 `DrumTrack.source`, the four values, the year gate, era weights, the `box` part gate,
 count-in suppression, the box prop, the electronic-kit variant. Removes a man miming a
 Mini Pops. Touches the generator and casting; touches no rig.
+
+Four things it turned up that this plan had not predicted, recorded because each was
+found by measuring rather than by reading:
+
+- **The source needs its own `Rng` stream.** Drawn from the shared one it moved every
+  seed in the project and failed iskelmä's solo-arc check. Re-weighting the table to
+  400:1 — which very nearly removes the box — gave *bit-identical* numbers, so nothing
+  the box did mattered; the songs had moved because one number had been taken out of
+  the stream in front of them.
+- **The part gate is wider than "no fills".** A box also had to stop dropping to
+  brushes behind a soloist and stop landing a crash on a button ending. Both were found
+  by counting distinct velocities in a generated box part: three were expected, from the
+  metric accent a preset pattern genuinely has, and five turned up.
+- **A flat pad needs a different response from a domed head.** Dishing is `scale.y` on a
+  dome; a pad's surface is a disc, and scaling zero moves nothing. The pad kit would
+  have shipped with no response in it at all.
+- **A machine number never names the drums as its soloist** — checked across 619 of
+  them. The genres that own machines do not hand breaks to drummers, so the guard in the
+  generator is belt and braces rather than load-bearing.
 
 **Wave 1 — the backline in the IR.**
 `Performer.rig`, era pools with caps, `pickRig` deleted, modular in `BULKY` with its own
