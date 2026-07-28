@@ -27,6 +27,20 @@ import {
   ARCHETYPES, ARCHETYPE_OF, archetypeForTrack, trackCanReach,
 } from './concert/instruments.js';
 import { buildConcert, soundingEffectors } from './concert/index.js';
+import type { Gesture } from './concert/types.js';
+
+/**
+ * A hi-hat pedal being held down or let up — the one gesture in the IR that is
+ * a *position* rather than a stroke, and the one that must not be counted as a
+ * note.
+ *
+ * The hats are shut because a foot is on the pedal, so the crossings between
+ * shut and open are choreographed onto the left leg with no drum event behind
+ * them. A chick is a different thing and still counts: it makes a sound, and
+ * `drumPart` places it as a `strike`.
+ */
+const silentPedal = (g: Gesture): boolean =>
+  g.kind === 'press' && g.target.kind === 'pedal' && g.target.which === 'hat';
 
 const problems: string[] = [];
 const check = (label: string, pass: boolean, detail: string) => {
@@ -176,7 +190,7 @@ for (const gid of CHECKED_GENRES) {
           ? song.drums.events.length
           : track?.notes.length ?? 0;
         const sounded = part.gestures.filter(
-          (g) => sounding.has(g.effector) && g.target.kind !== 'rest',
+          (g) => sounding.has(g.effector) && g.target.kind !== 'rest' && !silentPedal(g),
         ).length;
         soundingNotes += notes;
         soundingGestures += sounded;

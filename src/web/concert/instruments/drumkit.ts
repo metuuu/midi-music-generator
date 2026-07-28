@@ -579,7 +579,8 @@ export const buildDrumkit: InstrumentBuilder = (opts) => {
 
   /**
    * A footboard: heel plate on the boards at the player's end, toe end raised
-   * toward the drum, hinged at the heel so that pressing flattens it.
+   * toward the drum, and pressing flattens it — about the heel or about the
+   * middle, which is `pedal`'s argument and its own paragraph.
    *
    * Both halves of this were wrong before and they compounded. The heel plate
    * was at the *drum* end, which is a pedal built back to front, and the board
@@ -590,24 +591,76 @@ export const buildDrumkit: InstrumentBuilder = (opts) => {
    */
   const PEDAL_HEEL_Y = 0.020;
   const PEDAL_TOE_Y = 0.058;
+  const PEDAL_THICK = 0.016;
 
-  function pedal(id: 'kick' | 'hat', x: number, toeZ: number, heelZ: number): { board: Mesh; hit: Hit; tilt: number } {
+  /**
+   * `pivot` is where the board turns, and the two pedals want different
+   * answers because their feet do.
+   *
+   * The kick's foot is aimed at one contact by every stroke — `LAYOUT.bd`, a
+   * point on the board at rest — so its board has to stay under that point:
+   * turning about its middle moves the sole's end of it by millimetres, which
+   * is a pedal going down without a shoe hovering off it. The hat's foot is
+   * placed at *two* contacts, up and down, so its board turns where a real one
+   * is hinged, and the two and a half centimetres its toe travels are exactly
+   * the two and a half centimetres the leg does.
+   *
+   * Either way the rest pose is the same board in the same place: the pivot is
+   * placed by walking back along the board's own axis, so moving it does not
+   * move the geometry.
+   */
+  function pedal(
+    id: 'kick' | 'hat', x: number, toeZ: number, heelZ: number,
+    pivot: 'heel' | 'middle',
+  ): { hinge: Group; hit: Hit; tilt: number } {
     const len = toeZ - heelZ;
-    const board = addTo(root, new Mesh(new BoxGeometry(0.10, 0.016, len), darkMat));
-    board.name = `pedal:${id}`;
-    board.position.set(x, (PEDAL_HEEL_Y + PEDAL_TOE_Y) / 2, (heelZ + toeZ) / 2);
     // Negative pitch lifts the `+z` end, and `+z` is the toe on both pedals.
     const tilt = -Math.atan2(PEDAL_TOE_Y - PEDAL_HEEL_Y, len);
-    board.rotation.x = tilt;
+    const back = pivot === 'heel' ? len / 2 : 0;
+    const hinge = addTo(root, new Group());
+    hinge.position.set(
+      x,
+      (PEDAL_HEEL_Y + PEDAL_TOE_Y) / 2 + Math.sin(tilt) * back,
+      (heelZ + toeZ) / 2 - Math.cos(tilt) * back,
+    );
+    hinge.rotation.x = tilt;
+    const board = addTo(hinge, new Mesh(new BoxGeometry(0.10, PEDAL_THICK, len), darkMat));
+    board.name = `pedal:${id}`;
+    board.position.z = back;
     board.castShadow = true;
     const plate = addTo(root, new Mesh(new BoxGeometry(0.13, 0.012, 0.10), chromeMat));
     plate.position.set(x, 0.008, heelZ - 0.03);
-    return { board, hit: new Hit(), tilt };
+    return { hinge, hit: new Hit(), tilt };
   }
 
   // Toe toward the drum, heel toward the throne — the drummer sits at `-z`.
-  const kickPedal = pedal('kick', -0.09, -0.12, -0.44);
-  const hatPedal = pedal('hat', 0.56, -0.36, -0.66);
+  const kickPedal = pedal('kick', -0.09, -0.12, -0.44, 'middle');
+  const hatPedal = pedal('hat', 0.56, -0.36, -0.66, 'heel');
+
+  /**
+   * Where the sole of the left shoe sits, with the hat board at `angle`.
+   *
+   * Derived rather than written down, because there are now two of them and
+   * they have to be the same two positions the board actually takes: the
+   * contact is a point on the board's top face, `HAT_FOOT_ALONG` from the
+   * hinge, carried by the hinge. A hand-written pair would be a second opinion
+   * about the same hinge, and the first one to be edited would be right.
+   */
+  const HAT_FOOT_ALONG = 0.20;
+  function hatFoot(angle: number): Contact {
+    const s = Math.sin(angle), c = Math.cos(angle), t = PEDAL_THICK / 2;
+    return {
+      position: new Vector3(
+        hatPedal.hinge.position.x,
+        hatPedal.hinge.position.y + t * c - HAT_FOOT_ALONG * s,
+        hatPedal.hinge.position.z + t * s + HAT_FOOT_ALONG * c,
+      ),
+      normal: new Vector3(0, c, s),
+    };
+  }
+  /** Pedal down, hats shut; pedal up, hats parted. Both are geometry. */
+  const HAT_FOOT_DOWN = hatFoot(0);
+  const HAT_FOOT_UP = hatFoot(hatPedal.tilt);
 
   /** The beater, hinged low and swinging into the batter head. */
   const beater = addTo(root, new Group());
@@ -668,9 +721,10 @@ export const buildDrumkit: InstrumentBuilder = (opts) => {
         }
         case 'pedal':
           if (point.which === 'kick') return contact(LAYOUT.bd);
-          // The same height as the kick board, for the same reason: this is
-          // where the sole of the left shoe ends up.
-          if (point.which === 'hat') return contact({ at: [0.56, 0.052, -0.46], up: [0, 0.993, -0.118] });
+          // Two places, not one — see `PlayPoint.shut`. A foot that only ever
+          // had the board's rest position to stand on could not open a hi-hat,
+          // and the cymbals parted with the leg holding still under them.
+          if (point.which === 'hat') return point.shut === false ? HAT_FOOT_UP : HAT_FOOT_DOWN;
           return undefined;  // A drum kit has no sustain pedal.
         case 'rest':
           return contact(REST);
@@ -687,9 +741,13 @@ export const buildDrumkit: InstrumentBuilder = (opts) => {
           kickPedal.hit.fire(now, f);
           shells.kick.hit.fire(now, f);
         } else if (point.which === 'hat') {
-          hatPedal.hit.fire(now, f);
-          hatGap.set(now, HAT_SHUT);
-          cymbals.hatTop.hit.fire(now, f * 0.3);
+          // The foot coming off is the whole of an open hat, and it makes no
+          // sound; the foot going down chicks.
+          if (point.shut === false) hatGap.set(now, HAT_OPEN);
+          else {
+            hatGap.set(now, HAT_SHUT);
+            cymbals.hatTop.hit.fire(now, f * 0.3);
+          }
         }
         return;
       }
@@ -744,8 +802,18 @@ export const buildDrumkit: InstrumentBuilder = (opts) => {
       }
 
       // A pressed board flattens onto the boards; it does not swing past them.
-      kickPedal.board.rotation.x = kickPedal.tilt * (1 - kickPedal.hit.decay(now, 0.22));
-      hatPedal.board.rotation.x = hatPedal.tilt * (1 - hatPedal.hit.decay(now, 0.22));
+      kickPedal.hinge.rotation.x = kickPedal.tilt * (1 - kickPedal.hit.decay(now, 0.22));
+
+      // The hat board is not driven by its own hits at all: it is drawn from
+      // the gap, because the gap is *made of* the board. A pedal that flattened
+      // on a chick and then rose again while the hats stayed shut would be a
+      // hi-hat held closed by nothing, and a stick-played open hat would part
+      // two cymbals over a pedal that never moved. One number, drawn twice —
+      // and the same number the choreography sent the foot to, so the leg, the
+      // board and the daylight between the cymbals cannot disagree.
+      const open = (hatGap.value(now) - HAT_SHUT) / (HAT_OPEN - HAT_SHUT);
+      hatPedal.hinge.rotation.x = hatPedal.tilt * (open < 0 ? 0 : open > 1 ? 1 : open);
+
       beater.rotation.x = BEATER_REST
         + (BEATER_STRIKE - BEATER_REST) * kickPedal.hit.decay(now, 0.18);
 

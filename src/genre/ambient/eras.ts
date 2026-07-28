@@ -114,8 +114,8 @@ const sampler: EraProfile = {
   palette: {
     melody: [
       ['fxCrystal', 4], ['tubularBells', 3], ['fxAtmosphere', 3], ['padMetallic', 3],
-      ['leadChiff', 2], ['shakuhachi', 2], ['panFlute', 2], ['glockenspiel', 2],
-      ['fxBrightness', 2], ['musicBox', 1],
+      ['leadChiff', 2], ['shakuhachi', 2], ['panFlute', 2], ['fxBrightness', 2],
+      ['musicBox', 1],
     ],
     counter: [
       ['tubularBells', 3], ['fxCrystal', 3], ['kalimba', 2], ['marimba', 2],

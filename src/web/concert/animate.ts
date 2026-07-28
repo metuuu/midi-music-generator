@@ -3236,5 +3236,7 @@ function samePoint(a: PlayPoint | undefined, b: PlayPoint): boolean {
     // instrument has moved between them. Leaving them out let the idle cache
     // answer a note with a contact built for a box that had since slid 20 cm.
     && x['open'] === y['open'] && x['at'] === y['at'] && x['bellows'] === y['bellows']
+    // And the hi-hat pedal's, for the same reason: up and down are two places.
+    && x['shut'] === y['shut']
     && x['vowel'] === y['vowel'] && x['consonant'] === y['consonant'];
 }

@@ -214,7 +214,16 @@ export const INSTRUMENTS = {
   // just under half a second is the length the string actually has.
   clavinet: E(I('clavinet', 7, 'gm_clavinet', 60, 1.0, 'keyboard'), { decay: 0.45 }),
   vibraphone: VIBRAPHONE,
-  glockenspiel: I('glockenspiel', 9, 'gm_glockenspiel', 84, 1.0, 'mallet'),
+  // A colour instrument, and the centre has to say so. At 84 the register
+  // planner put a line's top excursion — `leadCentre + span * 0.6` — at around
+  // C7, which on this patch is where a note stops being a pitch and becomes a
+  // ping, and the mallet idiom's tolerance for repeated notes kept it there.
+  // G5 is the bottom of the real instrument: still above anything it decorates,
+  // without spending the whole part in the octave that fatigues the ear. The
+  // range below stays the vibraphone's, generous at the bottom and harmless —
+  // nothing writes a glockenspiel down there once it is centred here, and
+  // raising that floor would fold low notes *up*, which is the wrong direction.
+  glockenspiel: I('glockenspiel', 9, 'gm_glockenspiel', 79, 1.0, 'mallet'),
   drawbarOrgan: E(I('drawbar organ', 16, 'gm_drawbar_organ', 60, 0.9, 'keyboard'), ORGAN),
   rockOrgan: E(I('rock organ', 18, 'gm_rock_organ', 60, 0.9, 'keyboard'), ORGAN),
   // `ORGAN` and not something with a decay in it, despite the name. The

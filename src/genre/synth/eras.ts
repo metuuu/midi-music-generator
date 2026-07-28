@@ -275,7 +275,7 @@ const digital: EraProfile = {
     melody: [
       ['leadCharang', 4], ['fxCrystal', 3], ['leadChiff', 3], ['synthBrass2', 3],
       ['electricVibes', 3], ['tubularBells', 2], ['leadVoice', 2], ['leadSaw', 2],
-      ['glockenspiel', 2], ['distortionGuitar', 1],
+      ['distortionGuitar', 1],
     ],
     counter: [
       ['fxCrystal', 4], ['electricVibes', 3], ['tubularBells', 3], ['celesta', 2],

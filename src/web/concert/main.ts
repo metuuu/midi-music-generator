@@ -181,7 +181,14 @@ if (!canvas) {
   });
 
   window.addEventListener('keydown', (e) => {
+    // Bare presses only: ⌘P is the print dialog and always has been, and a page
+    // that answers it with something else is a page that broke printing.
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
     if (e.key === 'p' || e.key === 'P') show.toggleProgramme();
+    // The programme is a dialog and Escape closes dialogs. The tab in the
+    // corner and the × on the sheet are the other two ways out; the show never
+    // stopped, so none of them resumes anything.
+    else if (e.key === 'Escape') show.closeProgramme();
   });
 
   // --- Frame loop --------------------------------------------------------

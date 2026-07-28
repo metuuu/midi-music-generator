@@ -143,6 +143,21 @@ interface HouseStyle {
   announces: boolean;
   /** Haze density before the era shades it. */
   haze: number;
+  /**
+   * How much of the opening look is already up when the tabs open. See
+   * `LightingScore.preset` for what it does; what it *means* is how dark a room
+   * this is willing to be found in.
+   *
+   * A dance floor is never found dark — there are people standing on it — so a
+   * pavilion presets nearly its whole opening state and the first cue is a
+   * settle. A cellar is found dark, but "dark" there is a low amber, not an
+   * absence: the point of the reveal is a quartet in a pool of light, and a
+   * quartet nobody can see is not it. A black box genuinely is found black, and
+   * its twenty-four-beat fade up out of nothing is the piece beginning rather
+   * than a stage waiting to be lit — but even there the cyc carries a little,
+   * because the alternative is several seconds where the screen is off.
+   */
+  preset: number;
 }
 
 const HOUSE: Record<string, HouseStyle> = {
@@ -150,25 +165,25 @@ const HOUSE: Record<string, HouseStyle> = {
   // most of the work — which is exactly the condition a follow spot needs.
   jazz: {
     dim: 0.86, floor: 0.20, contrast: 0.58, fade: 2, lagBars: 0,
-    footlights: false, announces: true, haze: 0.70,
+    footlights: false, announces: true, haze: 0.70, preset: 0.78,
   },
   // A lakeside dance pavilion: warm, bright enough to dance in, footlights
   // along the boards and moths in the beams. You do not black out a full floor.
   iskelma: {
     dim: 1.0, floor: 0.28, contrast: 0.52, fade: 2, lagBars: 0,
-    footlights: true, announces: true, haze: 0.28,
+    footlights: true, announces: true, haze: 0.28, preset: 0.9,
   },
   // A black box and a projection. Almost all fog, almost no swing, and every
   // cue deliberately out of step with the form.
   ambient: {
     dim: 0.72, floor: 0.26, contrast: 0.22, fade: 12, lagBars: 2,
-    footlights: false, announces: false, haze: 0.90,
+    footlights: false, announces: false, haze: 0.90, preset: 0.35,
   },
 };
 
 const DEFAULT_HOUSE: HouseStyle = {
   dim: 0.9, floor: 0.24, contrast: 0.5, fade: 2, lagBars: 0,
-  footlights: false, announces: true, haze: 0.45,
+  footlights: false, announces: true, haze: 0.45, preset: 0.75,
 };
 
 /**
@@ -370,10 +385,14 @@ export function scoreLighting(
     const at = index === 0 ? start : start + house.lagBars * beatsPerBar;
 
     /**
-     * The first section fades up from black rather than appearing. A curtain
-     * opens on a stage that is already lit; a stage that snaps on reads as a
-     * bug in the renderer. Twice the house fade, which in ambient is twenty-four
-     * beats — at 60 BPM, a fade-up nobody can watch happening.
+     * The first section fades up rather than appearing. A stage that snaps on
+     * reads as a bug in the renderer. Twice the house fade, which in ambient is
+     * twenty-four beats — at 60 BPM, a fade-up nobody can watch happening.
+     *
+     * What it fades up *from* is the preset, not black — see
+     * `LightingScore.preset`. Black was the original reading of "a curtain opens
+     * on a stage that is already lit", and it had it exactly backwards: this cue
+     * is taken on the downbeat, and the curtain opened seconds earlier.
      */
     const fade = index === 0
       ? Math.min(house.fade * 2, section.lengthBars * beatsPerBar * 0.5)
@@ -460,7 +479,11 @@ export function scoreLighting(
     add({ beat: from, fadeBeats: over, fixture: 'back', intensity: 0.18, colour: palette.cool });
   }
 
-  return { cues: consolidate(intents), haze: hazeFor(genre, era, house, showRng) };
+  return {
+    cues: consolidate(intents),
+    haze: hazeFor(genre, era, house, showRng),
+    preset: house.preset,
+  };
 }
 
 // ---------------------------------------------------------------------------

@@ -78,7 +78,8 @@ import {
 import { Rng } from '../../core/rng.js';
 import type { Venue } from '../../concert/types.js';
 import {
-  blend, cellPlane, HEAD_BAND, hueShift, LENS_GAP, LOW_CEILING, playingArea, sagLine, shade, tint,
+  blend, cellPlane, HEAD_BAND, houseLid, hueShift, LENS_GAP, LOW_CEILING, playingArea, sagLine,
+  shade, STAGE_SOFFIT, tint,
   type Kit, type PlayingArea, type Quality, type StageMetrics,
 } from './stage-kit.js';
 
@@ -648,7 +649,10 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
     const n = 8;
     const brass = tint(hueShift(c.p.proscenium, 30, 0.15), 0.25);
     /** The ceiling if there is one; the fly height if the sky is open. */
-    const hang = Math.min(c.m.headroom, c.m.flyY);
+    // The house lid rather than `headroom` — these hang over the crowd, and in
+    // the cellar `headroom` is now the soffit, which is 0.35 m lower and over
+    // the stage. See `houseLid`.
+    const hang = Math.min(houseLid(c.m), c.m.flyY);
     const stem = 0.08;
     const bulbDrop = 0.07;
     const bulbR = 0.05 * 1.2;
@@ -786,17 +790,104 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
    * last row, so it meets the wall `stage.ts` puts there. A ceiling with an
    * edge in mid-air is the thing that read as a plane through the crowd; a
    * ceiling that dies into brick is a room.
+   *
+   * The third thing was that it came out **black**, and the fix is a colour
+   * rather than a light, which took one wrong attempt to see.
+   *
+   * A ceiling is the worst-lit orientation in the room and there is no fixing
+   * that: every lantern in `lights.ts` is above it pointing down, so the only
+   * thing that reaches a down-facing normal is a hemisphere's *ground* colour —
+   * `washHemi`'s is the cue colour at 0.28, and that is the whole budget. What
+   * made it black was spending that budget on the darkest albedo in the room.
+   * This was `shade(backdrop, 0.55)`, darker than the house walls beside it at
+   * `shade(backdrop, 0.32)`, so the surface with the least light on it also had
+   * the least to give back: 0.18 of a light on 0.45 of a dark brown is five
+   * counts out of 255, which is a hole in the top of the frame.
+   *
+   * The wrong fix was emissive — a tenth of the lamp colour baked into the
+   * plaster. It reads fine in one frame and is broken in every other: emissive
+   * is not light, so it does not go out in a blackout, does not take the cue's
+   * colour, and adds *on top of* a lit room instead of inside it. A ceiling
+   * glowing over a dark stage is worse than a black one, because a black
+   * ceiling is at least what a room with the lights off looks like.
+   *
+   * So: **whitewash**. A cellar ceiling is limewashed plaster gone warm with
+   * smoke, not more brick — the walls are the masonry, the lid is the thing
+   * painted over it, and tinting toward white rather than shading toward black
+   * is what makes it a different surface instead of a darker one. A pale albedo
+   * spends the same small budget of light and returns something visible, which
+   * is exactly how a real low ceiling reads: never bright, never absent, and
+   * carrying whatever colour the wash happens to be. It goes properly black in
+   * a blackout, because then so does everything.
+   *
+   * And it is `cellPlane`, for the reason the value alone was not enough. A
+   * hemisphere lights a flat plane to *one number*: every pixel of a lid whose
+   * normal never changes gets identical light, so however well the value is
+   * chosen the result is a fill, and a fill of any brightness reads as a hole
+   * rather than as a ceiling. Making it paler only made it a paler hole. What
+   * the eye wants is variation, and this file already has the way to get it —
+   * the same per-cell vertex colours the walls, the boards and the brick use,
+   * one draw call and no texture. Bays 0.45 m across and long down the room,
+   * jittered a little harder than brick because limewash over plaster is
+   * patchier than a bond is, and running the same way as the pipes so the
+   * ceiling has one grain instead of two.
    */
   'low-ceiling': (c) => {
-    // Still stops at the stage lip: a ceiling over the *band* at this height
-    // would have the trumpet player's head inside it. `HEAD_BAND.hi` is 2.4 m
-    // and so, in a room raised 0.9 m above its own floor, is this.
     const y = c.m.houseY + LOW_CEILING;
     const depth = c.m.houseDepth + 2;
-    const ceil = put(c, c.kit.geometry('ceil', () => new PlaneGeometry(c.m.houseWidth + 6, depth)),
-      c.kit.solid(shade(c.p.backdrop, 0.55), { side: DoubleSide }),
-      0, y, c.m.lipZ + depth / 2 + 0.25);
+    const width = c.m.houseWidth + 6;
+    /** Where the house lid begins, and where the fascia hangs. */
+    const stepZ = c.m.lipZ + 0.25;
+
+    // Smoke-stained limewash: a fifth of the room's lamp colour blended into
+    // the brick, then most of the way to white. Bright as a *surface*, dim in
+    // every frame, because the light on it is the only thing that sets it.
+    const plaster = tint(blend(c.p.backdrop, c.p.ambient, 0.2), 0.45);
+    const lid = c.kit.solid('#ffffff', { vertexColors: true, side: DoubleSide });
+    /** Bays 0.45 m across and long down the room, in the grain of the pipes. */
+    const bays = (w: number, d: number, tag: string): BufferGeometry => cellPlane({
+      width: w, height: d,
+      cols: Math.max(6, Math.round(w / 0.45)),
+      rows: Math.max(4, Math.round(d / 1.4)),
+      colour: plaster, jitter: 0.17, rng: c.rng(tag),
+    });
+
+    const ceil = put(c, c.kit.own(bays(width, depth, 'ceiling')), lid,
+      0, y, stepZ + depth / 2);
     ceil.rotation.x = -Math.PI / 2;
+
+    /**
+     * And over the stage, lower — see `STAGE_SOFFIT`. This is the half that
+     * makes it a cellar, and the half that was missing.
+     *
+     * It runs from the fascia to behind the backdrop rather than to the back
+     * wall of the stage, for the same reason the house lid runs past the last
+     * row: an edge in mid-air is what read as a plane, and the only cure is for
+     * every edge to die into something. Upstage that something is the cloth.
+     */
+    const soffitDepth = stepZ - (c.m.backZ - 0.5);
+    const soffit = put(c, c.kit.own(bays(width, soffitDepth, 'soffit')), lid,
+      0, STAGE_SOFFIT, stepZ - soffitDepth / 2);
+    soffit.rotation.x = -Math.PI / 2;
+
+    /**
+     * The step between them, at the lip.
+     *
+     * Two lids at two heights with nothing joining them is a slot you can see
+     * the arch through, which is the same void as before in a thinner shape. A
+     * fascia closes it, and closing it is not the only thing it does: a
+     * downstand across the top of the opening is the most basement thing in the
+     * room. It is what the eye measures the band against, and it is darker than
+     * the plaster because the underside of a beam is the one surface here that
+     * faces the room rather than the floor.
+     */
+    const drop = y - STAGE_SOFFIT;
+    if (drop > 0.02) {
+      put(c, c.kit.geometry(`fascia|${width.toFixed(2)}|${drop.toFixed(2)}`,
+        () => new PlaneGeometry(width, drop)),
+        c.kit.solid(shade(plaster, 0.35), { side: DoubleSide }),
+        0, STAGE_SOFFIT + drop / 2, stepZ);
+    }
 
     /**
      * Service runs — along the room, and flush to the lid.

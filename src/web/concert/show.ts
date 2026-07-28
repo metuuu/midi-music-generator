@@ -14,8 +14,8 @@
  *                                                  └──▾ PROGRAMME       BOW
  *
  * The two edges either side of PLAYING carry most of the staging, and both of
- * them are about *order*. CURTAIN is: house out, tabs open, stage look up
- * under them, band picks up its instruments — and no sound at all, because the
+ * them are about *order*. CURTAIN is: tabs open, stage look up under them,
+ * band picks up its instruments — and no sound at all, because the
  * pattern is compiled behind the cloth and started later. COUNT-IN is the
  * leader beating time and then the first bar of the music, which for anything
  * with a kit is the drummer's four clicks (`withCountIn`, in the generator —
@@ -107,7 +107,14 @@ export interface Show {
   click(ndcX: number, ndcY: number): void;
   drag(dx: number, dy: number): void;
   aim(ndcX: number, ndcY: number): void;
+  /**
+   * Show the programme mid-concert, or put it away again. The music never
+   * stops for it. Ignored while the opening bill is still up — that bill *is*
+   * the programme, and there is no show behind it to go back to.
+   */
   toggleProgramme(): void;
+  /** Put the programme away if it is up. Never touches the opening bill. */
+  closeProgramme(): void;
   setQuality(q: Quality): void;
   dispose(): void;
 }
@@ -126,22 +133,53 @@ const SULK_BEATS = 8;
 // ever happened in a theatre and read exactly as wrong as it was — no reveal,
 // no beginning, just an edit.
 //
-// What a room actually does, in order, is: the house goes out; the tabs open
-// onto a stage that is coming up under them; the band takes up its
-// instruments while they travel; somebody counts; and *then* the music. Each
-// of those is a step below, and the ones with a fixed length have a number
-// here rather than being folded into one another — the curtain's own three
-// seconds are the curtain's, and the count's are the count's.
+// What a room actually does, in order, is: the tabs open onto a stage that is
+// coming up under them; the band takes up its instruments while they travel;
+// somebody counts; and *then* the music. Each of those is a step below, and the
+// ones with a fixed length have a number here rather than being folded into one
+// another — the curtain's own three seconds are the curtain's, and the count's
+// are the count's.
+//
+// There used to be a house dim in front of all that, because that is the order
+// a real room does it in and a real room is right. A page is not a room. The
+// audience arrives *at the interval* — the programme is already up, the tabs
+// are already in, and the click is not the moment they sat down, it is the
+// moment they asked for the show. Taking a lit room away from them first meant
+// the first second of the evening was a subtraction, and then a curtain opened
+// on the dark it had just made. So the room is at its show level before the
+// programme is ever read: nothing dims when the click lands, because there is
+// nothing left to dim.
 
-/** Seconds the house takes to go out. Slow: everybody is looking at it. */
+/** Seconds a house move takes. Slow: everybody is looking at it. */
 const HOUSE_DIM_SECONDS = 1.0;
-/** How far into that dim the tabs start to travel. They overlap; a room does. */
-const CURTAIN_AT = 0.55;
+/**
+ * The house level the show runs at, and therefore the level it is found at.
+ *
+ * Not zero. The house is a second probe and only ever adds (see `setHouse`), so
+ * a floor under it cannot fight the score — what it buys is a room that is
+ * *dark* rather than *absent*: a curtain you can see is red before it moves, a
+ * proscenium with an edge, and a band that has a floor of visibility under
+ * whatever the cue sheet is doing to it.
+ *
+ * Small, and this is the number to move if it is wrong in either direction. At
+ * `GAIN.house` it lands around a quarter of a hemisphere, which is under a
+ * third of a jazz intro's wash — a fill, not a light. Any higher and the
+ * cellar stops being a cellar.
+ */
+const HOUSE_FLOOR = 0.10;
+/**
+ * How long after the click the tabs start to travel.
+ *
+ * Short, and not zero: the click frame is the one that tears down six bodies
+ * and builds six more (`stageNumber`), and a curtain that starts moving on it
+ * stutters in its first centimetres. This is that frame, not a dramatic pause.
+ */
+const CURTAIN_AT = 0.2;
 /** Seconds the score's own opening state takes to come up behind the cloth. */
 const STAGE_UP_SECONDS = 1.9;
-/** House level with the programme up, and again for the applause. */
-const HOUSE_BILL = 0.7;
+/** House level for the applause, and further up again for the curtain call. */
 const HOUSE_APPLAUSE = 0.45;
+const HOUSE_CALL = 0.7;
 /** Seconds the house takes to come back up at the end of a number. */
 const HOUSE_UP_SECONDS = 0.9;
 /**
@@ -507,6 +545,13 @@ export function createShow(opts: ShowOptions = {}): Show {
     cueGiven = false;
     heldBeat = 0;
 
+    // The programme can be opened at any moment, including this one, so the
+    // number being staged is marked the instant it is staged rather than at the
+    // downbeat — behind a closed curtain the next number is already the one the
+    // evening is on, and a programme that still points at the last one is
+    // simply out of date.
+    bill.mark(n, 0);
+
     stageBand(current);
     animator.begin(current, rigs, models);
     animatorHasRigs = true;
@@ -580,11 +625,15 @@ export function createShow(opts: ShowOptions = {}): Show {
     lights.setHouse(HOUSE_APPLAUSE, HOUSE_UP_SECONDS);
     stage.applaud(1);
 
+    // Nothing is playing during the applause. Marking nothing is what settles
+    // the number that just finished into the struck-through half of the list.
+    bill.mark(-1, 0);
+
     const last = index + 1 >= concert.numbers.length;
     if (last) {
       // A curtain call: the house comes up further, and the stage stays lit
       // until the black takes it. See `BOW_CURTAIN_AT`.
-      lights.setHouse(HOUSE_BILL, HOUSE_UP_SECONDS);
+      lights.setHouse(HOUSE_CALL, HOUSE_UP_SECONDS);
     } else {
       // The tabs come in *now*, over the band still standing in the applause,
       // rather than four seconds later at the moment the next band appears.
@@ -706,9 +755,9 @@ export function createShow(opts: ShowOptions = {}): Show {
   bill.onStart(() => {
     if (state !== 'bill') return;
     bill.hide();
-    // The house goes out first and everything else follows it. Staging the
-    // number is silent and invisible, so it can happen underneath the dim.
-    lights.setHouse(0, HOUSE_DIM_SECONDS);
+    // No house move: the room has been at `HOUSE_FLOOR` the whole time the
+    // programme was up, which is where the show runs. The click asks for the
+    // tabs and nothing else. See the note by `HOUSE_FLOOR`.
     stageNumber(0);
   });
 
@@ -735,16 +784,17 @@ export function createShow(opts: ShowOptions = {}): Show {
     switch (state) {
       case 'bill':
         stage.snapCurtain(0);
-        lights.setHouse(HOUSE_BILL);
+        lights.setHouse(HOUSE_FLOOR);
         lights.setMaster(0);
         break;
 
       case 'curtain':
         /**
-         * The reveal, in the order a room does it: the house out, then the
-         * tabs, then the stage coming up under them while they travel — and
-         * the band picking their instruments up in the same gap, which is the
-         * one moment of the evening worth spending a whole curtain on.
+         * The reveal: the tabs, and the stage coming up under them while they
+         * travel — and the band picking their instruments up in the same gap,
+         * which is the one moment of the evening worth spending a whole
+         * curtain on. The house does not move at all; it was already where the
+         * show runs before the programme came down. See `HOUSE_FLOOR`.
          */
         if (!revealed && stateSeconds >= CURTAIN_AT) {
           revealed = true;
@@ -815,7 +865,10 @@ export function createShow(opts: ShowOptions = {}): Show {
         // curtain has closed.
         if (stateSeconds < APPLAUSE_SECONDS * 0.6) stage.applaud(1);
         if (stateSeconds > APPLAUSE_SECONDS && stage.curtainOpen() <= CURTAIN_REVEALS) {
-          lights.setHouse(0, HOUSE_DIM_SECONDS);
+          // Back to the floor rather than out. The applause lifted the house
+          // above where the show runs; this puts it back, and the next reveal
+          // then changes nothing about the room either.
+          lights.setHouse(HOUSE_FLOOR, HOUSE_DIM_SECONDS);
           stageNumber(index + 1);
         }
         break;
@@ -885,6 +938,7 @@ export function createShow(opts: ShowOptions = {}): Show {
     aim(ndcX, ndcY) { tomatoes.aim(ndcX, ndcY, director.camera); },
     drag(dx, dy) { director.orbit(dx, dy); },
     toggleProgramme() { bill.toggleProgramme(); },
+    closeProgramme() { if (bill.mode() === 'programme') bill.hide(); },
 
     setQuality(q) {
       quality = q;

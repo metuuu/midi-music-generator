@@ -21,7 +21,10 @@
  * `LightCue` says it and `concert/lighting.ts` argues it: a cue is **taken at
  * `beat`** and **completes at `beat + fadeBeats`**. So at any moment a fixture
  * is somewhere on the fade belonging to the last cue whose beat has passed, and
- * `fadeBeats: 0` is a snap. Fixtures start **black**.
+ * `fadeBeats: 0` is a snap. Fixtures start **black**, except where the score
+ * asks for a preset — a fixture whose first cue is the opening one starts at
+ * `LightingScore.preset` of it, because the audience is looking at the stage
+ * before the downbeat and has to be looking at something.
  *
  * The one thing that is not obvious: when a cue is taken while the previous
  * fade is still running, the new fade starts from **wherever the fixture
@@ -106,6 +109,7 @@ const WHITE: Rgb = { r: 1, g: 1, b: 1 };
 export function buildTimeline(score: LightingScore, minFade = 0): Timeline {
   const out = {} as Record<FixtureId, Step[]>;
   for (const f of FIXTURES) out[f] = [];
+  const preset = clamp01(score.preset);
 
   // The score promises sorted cues; sorting again costs nothing and means a
   // hand-written or spliced cue list cannot produce a silently wrong fade.
@@ -121,7 +125,21 @@ export function buildTimeline(score: LightingScore, minFade = 0): Timeline {
     const to = clamp01(cue.intensity);
     const toColour = cue.colour ? parseHex(cue.colour) : (prev ? prev.toColour : WHITE);
 
-    let from = 0;
+    /**
+     * Where this fixture is coming from.
+     *
+     * Black, unless this is the fixture's first cue *and* it is taken at the
+     * top, in which case the fixture was on the preset — the board has been
+     * holding it since before the house went out, and the score's opening state
+     * settles it rather than creating it. `preset` is a fraction of the level
+     * the cue is heading for, so this needs no second look at the score.
+     *
+     * The test is `beat <= 0` rather than "the first step", because a follow
+     * spot's first cue is a pickup in the middle of a number and a spot already
+     * burning at three quarters, on a player who is not soloing yet, is a worse
+     * bug than the one this fixes.
+     */
+    let from = !prev && cue.beat <= 0 ? to * preset : 0;
     let fromColour = toColour;
     if (prev) {
       const t = prev.fade > 0 ? clamp01((cue.beat - prev.beat) / prev.fade) : 1;

@@ -102,13 +102,61 @@ export interface StageMetrics {
  * crowd. The complaint was that the crowd had a plane through it. The cause was
  * that the room had a ceiling the camera could not fit under.
  *
- * 3.3 m is where both can be right. It is still unambiguously a basement — the
- * comparison the eye makes is against the proscenium arch, and the lid comes in
- * a metre and a half below the top of it, so the room visibly cannot contain
- * its own stage opening — and it leaves the lens 1.8 m once `LENS_GAP` has had
- * its share, which still clears the back row of a seated house by a metre.
+ * 3.3 m was where both could be right, and the sentence written here to justify
+ * it was the bug: *the room visibly cannot contain its own stage opening*, said
+ * approvingly, as if a lid a metre and a half below the top of the arch were a
+ * sense of scale rather than an impossibility. It is an impossibility. A lid
+ * that stops at the lip and an opening that carries on up past it is not a low
+ * room, it is a shelf ending in mid-air over a void, and no amount of colour or
+ * texture on the shelf fixes what is wrong above it. That is what
+ * `STAGE_SOFFIT` is for, and this constant now only has to be the *house* half
+ * of a ceiling that covers the whole room.
+ *
+ * 3.6 m, and it can afford to go up because it is no longer the only thing
+ * holding the room down — the soffit over the stage is what says cellar now, at
+ * the place where the eye has the arch to compare it against. Over the house,
+ * where there is nothing to compare it to, height only buys the camera room:
+ * the lens gets 2.25 m once `LENS_GAP` and the soffit have had their share,
+ * against 1.8 m before, in a house whose floor also came up half a metre.
  */
-export const LOW_CEILING = 3.3;
+export const LOW_CEILING = 3.6;
+
+/**
+ * How far above the *boards* the ceiling comes down over the stage.
+ *
+ * The other half of the lid, and the half that makes the cellar a cellar. Rooms
+ * like this have a downstand at the proscenium line — a beam, a duct run, the
+ * underside of the stairs to the street — and the stage is tucked under it. So
+ * the ceiling steps: `LOW_CEILING` over the house, this over the boards, and a
+ * fascia at the lip joining the two. `stage-props.ts` draws all three;
+ * `stage.ts` publishes the lower of them as `headroom`, because a camera that
+ * clears the house lid and not the soffit is back to filming through a ceiling.
+ *
+ * 2.85 m sets everything else in the room. `HEAD_BAND.hi` is 2.4 m, so it
+ * leaves the tallest thing the band can be 0.45 m of air — tight, and meant to
+ * be: a cellar stage where the trumpet player has room to spare overhead is a
+ * theatre. That clearance is also the whole reason the boards came down to
+ * `CELLAR_RISE`; at the old 0.9 m rise there was no height here to give.
+ *
+ * It hides the top of the arch, the fly bar and the upper backdrop, and that is
+ * the point rather than a cost. Those are what a cellar does not have, and they
+ * were only ever visible because nothing was in front of them.
+ */
+export const STAGE_SOFFIT = 2.85;
+
+/**
+ * The plaster over the *house*, or `Infinity` where there is none.
+ *
+ * `headroom` cannot answer this any more. It publishes the lower of the two
+ * lids so the camera gets the worst case, which is right for a lens and wrong
+ * for everything hung in the room: dressing solved against it hangs at the
+ * height of a ceiling that is somewhere else, and a chandelier 0.35 m below the
+ * plaster with a 0.08 m stem is the floating-lamp bug this file has already had
+ * once. Ask for the surface you are fixing to.
+ */
+export function houseLid(m: StageMetrics): number {
+  return Number.isFinite(m.headroom) ? m.houseY + LOW_CEILING : Infinity;
+}
 
 /**
  * How far under `StageMetrics.headroom` the lens keeps.

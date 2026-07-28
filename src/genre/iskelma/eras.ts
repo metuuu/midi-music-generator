@@ -65,7 +65,7 @@ const eighties: EraProfile = {
   palette: {
     melody: [
       ['synthStrings', 4], ['tenorSax', 4], ['strings2', 3], ['accordion', 2],
-      ['epiano1', 2], ['synthBrass', 2], ['altoSax', 2], ['glockenspiel', 1],
+      ['epiano1', 2], ['synthBrass', 2], ['altoSax', 2],
     ],
     counter: [
       ['epiano1', 3], ['synthStrings', 3], ['cleanGuitar', 3], ['glockenspiel', 2],

@@ -55,7 +55,7 @@ import { buildAudience, type AudienceRig } from './stage-audience.js';
 import { buildCurtain, type CurtainRig } from './stage-curtain.js';
 import {
   blend, cellPlane, hueShift, shade, tint,
-  Kit, LOW_CEILING, type Quality, type StageMetrics,
+  Kit, LOW_CEILING, STAGE_SOFFIT, type Quality, type StageMetrics,
 } from './stage-kit.js';
 import { dressStage, readProps, type PropRig } from './stage-props.js';
 
@@ -72,6 +72,27 @@ export type { Quality, StageMetrics } from './stage-kit.js';
  * one place, so the audience, the apron and the house floor agree.
  */
 const STAGE_RISE = 0.9;
+
+/**
+ * The same, in a room with a lid on it.
+ *
+ * A cellar club does not have a stage, it has a *riser* — a platform you step
+ * up onto, ankle-high to the people standing at the bar. 0.9 m is a proscenium
+ * house: it puts the band above a standing crowd, which is what a pavilion
+ * wants and what a basement has never once had.
+ *
+ * It is not only a truth about clubs, it is where the headroom comes from.
+ * `STAGE_SOFFIT` needs air over `HEAD_BAND.hi` and there is only so much room
+ * between a floor and a ceiling; every centimetre the boards give up is a
+ * centimetre the lid does not have to. Half a metre of it was sitting under the
+ * band for no reason but a default shared with a room that has open sky.
+ *
+ * The cost is honest and worth naming: at 0.4 m a seated house no longer clears
+ * the front line by much, so from a low camera there are heads between the lens
+ * and the band. That is not a defect. It is the photograph everybody has seen
+ * of a room like this, and it is the reason to sit near the front.
+ */
+const CELLAR_RISE = 0.4;
 
 /**
  * How far upstage of the lip the house tabs hang.
@@ -171,6 +192,9 @@ export function buildStage(venue: Venue, opts: StageOptions = {}): StageRig {
   const openAir = props.has('open-air');
   const brick = props.has('brick');
   const extraHaze = props.has('haze');
+  const lowCeiling = props.has('low-ceiling');
+  /** See `CELLAR_RISE`: a room with a lid puts the band on a kerb, not a stage. */
+  const rise = lowCeiling ? CELLAR_RISE : STAGE_RISE;
 
   const width = Math.max(4, venue.width);
   const depth = Math.max(3, venue.depth);
@@ -186,7 +210,7 @@ export function buildStage(venue: Venue, opts: StageOptions = {}): StageRig {
     depth,
     lipZ: depth / 2,
     backZ: -depth / 2,
-    houseY: -STAGE_RISE,
+    houseY: -rise,
     openingWidth,
     openingHeight,
     curtainZ: depth / 2 - CURTAIN_FROM_LIP,
@@ -198,8 +222,14 @@ export function buildStage(venue: Venue, opts: StageOptions = {}): StageRig {
      * cop-out here: most of these rooms genuinely have nothing overhead, and a
      * height nobody can reach is the honest way to say so — every consumer of
      * this wants a `Math.min` and gets the right answer for free.
+     *
+     * The cellar's ceiling is two heights now, so this is the **lower** of them.
+     * A camera solved against the house lid would clear it and then put its lens
+     * through the soffit the moment the shot moved over the boards, which is the
+     * original bug with an extra step in it. Every consumer wanting the worst
+     * case is exactly why one number can still say this.
      */
-    headroom: props.has('low-ceiling') ? -STAGE_RISE + LOW_CEILING : Infinity,
+    headroom: lowCeiling ? Math.min(-rise + LOW_CEILING, STAGE_SOFFIT) : Infinity,
     backdropHeight: backHeight,
   };
 
@@ -225,10 +255,10 @@ export function buildStage(venue: Venue, opts: StageOptions = {}): StageRig {
   // The apron: the face of the stage below the lip, and the reason the house
   // reads as being *below* the band rather than on the same floor.
   const apron = new Mesh(
-    kit.bevelBox(width, STAGE_RISE, depth, 0.04),
+    kit.bevelBox(width, rise, depth, 0.04),
     kit.solid(shade(p.boards, 0.55), { rough: 0.9 }),
   );
-  apron.position.set(0, -STAGE_RISE / 2 - 0.006, 0);
+  apron.position.set(0, -rise / 2 - 0.006, 0);
   apron.receiveShadow = true;
   root.add(apron);
 
@@ -245,7 +275,7 @@ export function buildStage(venue: Venue, opts: StageOptions = {}): StageRig {
     kit.solid(shade(blend(p.boards, p.backdrop, 0.6), 0.6), { rough: 0.95 }),
   );
   houseFloor.rotation.x = -Math.PI / 2;
-  houseFloor.position.set(0, -STAGE_RISE, m.lipZ + m.houseDepth / 2);
+  houseFloor.position.set(0, -rise, m.lipZ + m.houseDepth / 2);
   houseFloor.receiveShadow = true;
   root.add(houseFloor);
 
@@ -274,7 +304,7 @@ export function buildStage(venue: Venue, opts: StageOptions = {}): StageRig {
       kit.bevelBox(backWidth, backHeight, 0.3, 0.04),
       kit.solid(backColour, { rough: 0.95 }),
     );
-    wall.position.set(0, backHeight / 2 - STAGE_RISE, m.backZ - 0.25);
+    wall.position.set(0, backHeight / 2 - rise, m.backZ - 0.25);
     wall.castShadow = true;
     wall.receiveShadow = true;
     root.add(wall);
@@ -283,7 +313,7 @@ export function buildStage(venue: Venue, opts: StageOptions = {}): StageRig {
       kit.bevelBox(backWidth + 0.18, 0.11, 0.46, 0.04),
       kit.solid(shade(p.proscenium, 0.22), { rough: 0.7 }),
     );
-    coping.position.set(0, backHeight - STAGE_RISE + 0.05, m.backZ - 0.25);
+    coping.position.set(0, backHeight - rise + 0.05, m.backZ - 0.25);
     coping.castShadow = true;
     root.add(coping);
   } else {
@@ -300,7 +330,7 @@ export function buildStage(venue: Venue, opts: StageOptions = {}): StageRig {
         })),
       kit.solid('#ffffff', { vertexColors: true, rough: 0.95 }),
     );
-    backdrop.position.set(0, backHeight / 2 - STAGE_RISE, m.backZ - 0.1);
+    backdrop.position.set(0, backHeight / 2 - rise, m.backZ - 0.1);
     backdrop.receiveShadow = true;
     root.add(backdrop);
   }
@@ -401,7 +431,12 @@ export function buildStage(venue: Venue, opts: StageOptions = {}): StageRig {
    * and the entire point of it is that there is nothing at the sides.
    */
   if (!openAir) {
-    const wallTop = Number.isFinite(m.headroom) ? m.headroom : backHeight - STAGE_RISE;
+    // The *house* lid, not `m.headroom` — that publishes the lower of the two
+    // ceilings for the camera's sake, and a wall built to it would stop a
+    // handspan short of the plaster and leave a slot of nothing all round the
+    // room. What a wall has to meet is the ceiling above it.
+    const wallTop = lowCeiling ? -rise + LOW_CEILING
+      : Number.isFinite(m.headroom) ? m.headroom : backHeight - rise;
     const wallH = wallTop - m.houseY;
     /**
      * Behind the camera, with room to spare. The wide shot stands at most
@@ -450,24 +485,24 @@ export function buildStage(venue: Venue, opts: StageOptions = {}): StageRig {
   const mouldMat = kit.solid(blackBox ? archColour : tint(p.proscenium, 0.22), { rough: 0.5 });
   const archZ = m.lipZ + 0.28;
   const legW = 0.62;
-  const legH = openingHeight + 1.1 + STAGE_RISE;
+  const legH = openingHeight + 1.1 + rise;
 
   for (const side of [-1, 1]) {
     const x = side * (openingWidth / 2 + legW / 2);
     const leg = new Mesh(kit.bevelBox(legW, legH, 0.55, 0.06), archMat);
-    leg.position.set(x, legH / 2 - STAGE_RISE, archZ);
+    leg.position.set(x, legH / 2 - rise, archZ);
     leg.castShadow = false;
     root.add(leg);
     if (!blackBox) {
       const mould = new Mesh(kit.bevelBox(0.16, legH - 0.4, 0.66, 0.05), mouldMat);
-      mould.position.set(x - side * (legW / 2 - 0.08), legH / 2 - 0.2 - STAGE_RISE, archZ);
+      mould.position.set(x - side * (legW / 2 - 0.08), legH / 2 - 0.2 - rise, archZ);
       root.add(mould);
     }
     // Tormentors — flat panels running out to the edge of frame, so a wide
     // shot cannot see past the arch into nothing.
     const torW = 4;
     const tor = new Mesh(kit.bevelBox(torW, legH + 3, 0.3, 0.04), kit.solid(shade(archColour, 0.7)));
-    tor.position.set(side * (openingWidth / 2 + legW + torW / 2 - 0.05), (legH + 3) / 2 - STAGE_RISE, archZ + 0.1);
+    tor.position.set(side * (openingWidth / 2 + legW + torW / 2 - 0.05), (legH + 3) / 2 - rise, archZ + 0.1);
     root.add(tor);
   }
 

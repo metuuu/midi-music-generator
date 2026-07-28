@@ -214,7 +214,26 @@ export type PlayPoint =
   /** Tone holes or keywork, by pitch. */
   | { kind: 'hole'; midi: Midi }
   /** A foot pedal. */
-  | { kind: 'pedal'; which: 'hat' | 'kick' | 'sustain' }
+  | {
+    kind: 'pedal'; which: 'hat' | 'kick' | 'sustain';
+    /**
+     * Whether the foot is holding this pedal *down*. Hi-hat only, and the
+     * default is down.
+     *
+     * A hi-hat pedal is the one pedal here that is not a trigger: it has two
+     * resting places, and which of them the foot is at is what decides whether
+     * the cymbals are shut or parted. So the point has to carry it, for the
+     * same reason `key.bellows` does — the state is a fact about the *music*,
+     * known only to something that can see whether the next hat is `hh` or
+     * `oh`, and the model is handed the answer rather than guessing it from
+     * what it last heard.
+     *
+     * It also keeps `resolve` pure while still giving the foot two places to
+     * be: the board is at one angle with the hats shut and another with them
+     * open, and both are constants of the geometry, not of the moment.
+     */
+    shut?: boolean;
+  }
   /**
    * Bellows, which move continuously rather than being struck.
    *
@@ -601,7 +620,8 @@ export interface LightingScore {
    * Sorted by beat. **Every fixture starts black**, so the first cue naming a
    * fixture is its fade up from nothing and there are no no-op cues at beat 0.
    * Only changes are emitted: a cue never restates a level a fixture is already
-   * holding.
+   * holding. The one exception to "starts black" is the opening state — see
+   * `preset`.
    */
   cues: LightCue[];
   /**
@@ -609,6 +629,25 @@ export interface LightingScore {
    * front of it is a bright patch on the floor.
    */
   haze: number;
+  /**
+   * The preset: how much of the opening look is **already up when the tabs
+   * open**, 0..1 of it.
+   *
+   * A cue list is indexed by beat and there is no beat before the music, so
+   * every fixture's opening cue is taken at 0 and the rig sitting at beat 0 is
+   * sitting at the *front* of that fade — which is black. The whole reveal
+   * therefore happened on an unlit stage, and the band came up only once the
+   * transport did, several seconds after the audience had already seen them as
+   * silhouettes. A room does not do that: the tabs open on a preset the board
+   * has been holding since before the house went out, and the first cue settles
+   * it rather than creating it.
+   *
+   * So this is not a dimmer level, it is the fraction of each fixture's opening
+   * level that the fade starts *from*. 1 would be a stage that snaps to its
+   * final state with nothing left for the cue to do; 0 is the old fade-up from
+   * black, which is still the right answer for a black box.
+   */
+  preset: number;
 }
 
 // ---------------------------------------------------------------------------

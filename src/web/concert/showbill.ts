@@ -15,6 +15,11 @@
  *    overlay, not a pause, and a programme you can open mid-show without the
  *    band noticing is a thing real theatres have.
  *
+ * Which is why the paper never quite leaves: once the show has started, a
+ * corner of it stays in the bottom of the frame — the **tab** — and touching it
+ * brings the programme back. A key nobody was told about is not a way in, and
+ * on a phone it is not even that; the programme in your lap is.
+ *
  * One implementation, because they are one object: the audience is looking at
  * the same piece of paper the second time, and building two would guarantee
  * they drifted apart.
@@ -74,6 +79,11 @@ export interface BillView {
   /**
    * The root element, `position: fixed` and covering the viewport. Append it
    * once, anywhere — `#overlay` is the natural home. It starts hidden.
+   *
+   * "Hidden" means the paper is down, not that the element is gone: once the
+   * show has begun the root keeps the tab in the corner, and it lets every
+   * click through everywhere else, so the stage underneath still catches
+   * tomatoes.
    */
   readonly el: HTMLElement;
 
@@ -93,7 +103,13 @@ export interface BillView {
   /** Take it down. Fires `onDismiss` if it was the programme. */
   hide(): void;
 
-  /** `P` behaviour: open the programme, or close it if it is already up. */
+  /**
+   * `P` behaviour: open the programme, or close it if it is already up.
+   *
+   * Does nothing while the opening bill is hanging. There is no show behind it
+   * to go back to, and a key that turned the opening bill into a programme
+   * would take the start click away with it.
+   */
   toggleProgramme(): void;
 
   /**
@@ -154,12 +170,28 @@ export function renderBill(
   const seed = String(opts.seed ?? '');
 
   // --- Structure ---------------------------------------------------------
-  const root = el('div', 'billhouse');
-  root.hidden = true;
+  /**
+   * The stock is named on the root as well as on the sheet, because the tab is
+   * a corner of the same paper and has to be printed in the same ink. Nothing
+   * else on the root draws, so the class costs a cascade and no pixels.
+   */
+  const root = el('div', `billhouse paper--${house.paper}`);
   root.dataset.mode = 'hidden';
 
   const scrim = el('div', 'billhouse__scrim');
   root.append(scrim);
+
+  /**
+   * The corner of the programme, left showing.
+   *
+   * It appears only once the bill has been up and come down — before that the
+   * paper is the whole screen and a tab of it would be a tab of itself.
+   */
+  const tab = el('button', 'bill__tab');
+  tab.type = 'button';
+  tab.setAttribute('aria-label', 'Open the programme');
+  tab.append(text('span', 'bill__tabword', 'programme'), text('kbd', 'bill__key', 'P'));
+  root.append(tab);
 
   const sheet = el('article', `bill bill--${house.layout} paper--${house.paper}`);
   sheet.setAttribute('role', 'dialog');
@@ -294,7 +326,7 @@ export function renderBill(
    * `overflow: auto` is still there for.
    */
   const fitToWindow = (): void => {
-    if (root.hidden) return;
+    if (mode === 'hidden') return;
     let scale = 1;
     sheet.style.setProperty('--fit', '1');
     for (let pass = 0; pass < 3; pass++) {
@@ -310,8 +342,10 @@ export function renderBill(
     if (next === mode) return;
     const was = mode;
     mode = next;
-    root.hidden = next === 'hidden';
     root.dataset.mode = next;
+    // The tab is the way back, so there has to be somewhere to go back to: it
+    // is printed only after a bill has been on screen once and come down.
+    if (was !== 'hidden') root.classList.add('is-begun');
     cue.textContent = next === 'opening'
       ? 'click anywhere to begin'
       : next === 'programme' ? 'press P or Escape to go back' : '';
@@ -350,6 +384,17 @@ export function renderBill(
   };
   close.addEventListener('click', onClose);
 
+  /**
+   * Stopped, or the same click reaches the root a moment later with the mode
+   * already switched to `programme`, finds itself outside the sheet, and takes
+   * the programme straight back down again.
+   */
+  const onTab = (e: MouseEvent): void => {
+    e.stopPropagation();
+    setMode('programme');
+  };
+  tab.addEventListener('click', onTab);
+
   const onVocals = (): void => {
     const vocals: VocalPolicy = vocalToggle.checked ? 'instrumental' : lastSung;
     if (!vocalToggle.checked) lastSung = vocals;
@@ -377,13 +422,20 @@ export function renderBill(
     mode: () => mode,
     show: (m) => setMode(m),
     hide: () => setMode('hidden'),
-    toggleProgramme: () => setMode(mode === 'programme' ? 'hidden' : 'programme'),
+    toggleProgramme() {
+      if (mode === 'opening') return;
+      setMode(mode === 'programme' ? 'hidden' : 'programme');
+    },
     mark(index, progress) {
       const clamped = index >= 0 && index < rows.length ? index : -1;
       if (clamped !== markedAt) {
         rows[markedAt]?.li.classList.remove('is-playing');
+        rows[markedAt]?.li.removeAttribute('aria-current');
         rows[markedAt]?.li.classList.add('is-done');
         rows[clamped]?.li.classList.add('is-playing');
+        // The colour and the mark in the margin say "this one" to the eye;
+        // this is the same sentence said to a screen reader.
+        rows[clamped]?.li.setAttribute('aria-current', 'true');
         markedAt = clamped;
         markedTo = -1;
       }
@@ -409,9 +461,7 @@ export function renderBill(
         if (on && (on.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(on.tagName))) return;
         if (ev.key === 'p' || ev.key === 'P') {
           ev.preventDefault();
-          // The opening bill is not a programme and P must not dismiss it —
-          // there is no show behind it to go back to.
-          if (mode !== 'opening') view.toggleProgramme();
+          view.toggleProgramme();
         } else if (ev.key === 'Escape' && mode === 'programme') {
           ev.preventDefault();
           setMode('hidden');
@@ -429,6 +479,7 @@ export function renderBill(
       resizer.disconnect();
       root.removeEventListener('click', onRootClick);
       close.removeEventListener('click', onClose);
+      tab.removeEventListener('click', onTab);
       vocalToggle.removeEventListener('change', onVocals);
       copy.removeEventListener('click', onCopy);
       starters.length = dismissers.length = optioners.length = 0;
@@ -580,7 +631,46 @@ const CSS = `
   padding: clamp(.5rem, 2.4vmin, 2.5rem);
   cursor: pointer;
 }
-.billhouse[hidden] { display: none; }
+/* Down, not gone. The root stays in the page to carry the tab, so everywhere
+   except the tab it has to be a hole: a fixed sheet of glass over the stage
+   would swallow every tomato thrown for the rest of the evening. */
+.billhouse[data-mode="hidden"] { pointer-events: none; }
+.billhouse[data-mode="hidden"] .billhouse__scrim,
+.billhouse[data-mode="hidden"] .bill { display: none; }
+
+/* --- The tab -------------------------------------------------------------- */
+/* A corner of the programme, resting in the bottom of the frame the way it
+   rests on your knee: the same stock, the same ink, slightly askew, and lifting
+   towards the hand that reaches for it. It is deliberately the only piece of
+   furniture the show puts on top of the picture, so it is small, it is quiet,
+   and it is on the side away from the exit link.
+
+   Sized in \`rem\`, alone on the sheet: everything else scales with \`--fit\`,
+   which is a measurement of the paper, and the tab is not on the paper. */
+.bill__tab {
+  position: absolute; display: none; pointer-events: auto;
+  right: max(1rem, env(safe-area-inset-right, 0px));
+  bottom: max(1rem, env(safe-area-inset-bottom, 0px));
+  align-items: center; gap: .7em;
+  padding: .62em .9em .58em; border: 0; border-top: 2px solid var(--accent);
+  font-family: var(--face); font-size: .68rem; line-height: 1;
+  letter-spacing: .22em; text-transform: uppercase;
+  color: var(--ink-dim); background: var(--stock); cursor: pointer;
+  box-shadow: 0 .6em 1.6em rgba(0, 0, 0, .5);
+  transform: rotate(-1.1deg) translateY(.4em);
+  transition: transform .25s ease, color .25s ease;
+}
+.billhouse.is-begun[data-mode="hidden"] .bill__tab { display: inline-flex; }
+.bill__tab:hover, .bill__tab:focus-visible {
+  color: var(--ink); transform: rotate(-1.1deg) translateY(0);
+}
+.bill__key {
+  font-family: var(--mono); font-size: .92em; letter-spacing: 0;
+  padding: .1em .4em; border: 1px solid var(--hair); border-radius: .2em;
+}
+/* No keyboard, no key. A hint you cannot act on is just noise in the corner. */
+@media (hover: none) { .bill__key { display: none; } }
+
 .billhouse__scrim {
   position: absolute; inset: 0; background: rgba(6, 4, 3, 0);
   transition: background .35s ease;
@@ -677,6 +767,22 @@ const CSS = `
 .bill__item.is-playing .bill__meter { opacity: .85; }
 .bill__item.is-playing .bill__title { color: var(--accent); }
 .bill__item.is-done { opacity: .5; }
+/* Which one is going on right now.
+   A tick in the margin, the mark a person makes on their own programme with a
+   thumbnail. It runs the height of the number rather than sitting at a fixed
+   offset down it, so it lands correctly on all three layouts and on a row that
+   has wrapped onto four lines — there is no line to align to that they agree
+   on. It breathes, slowly, because the meter beneath it only says how far
+   through we are and something in the margin should say that we are still
+   going. Everything else on the sheet is already saying which number this is;
+   this only has to be enough to find. */
+.bill__item::before {
+  content: ''; position: absolute; left: -1em; top: .5em; bottom: .5em;
+  width: 2px; background: var(--accent);
+  opacity: 0; transition: opacity .45s ease;
+}
+.bill__item.is-playing::before { opacity: .8; animation: bill-breathe 2.8s ease-in-out infinite; }
+@keyframes bill-breathe { 50% { opacity: .3; } }
 
 .bill__foot {
   margin-top: 2.35em; padding-top: 1.03em; border-top: 1px solid var(--hair);
@@ -908,8 +1014,11 @@ const CSS = `
 /* A calmed camera and a calmed programme. The tilt is decoration and the
    transitions are decoration; neither survives being asked not to move. */
 @media (prefers-reduced-motion: reduce) {
-  .billhouse__scrim, .bill, .bill__meter { transition: none; }
+  .billhouse__scrim, .bill, .bill__meter, .bill__tab, .bill__item::before { transition: none; }
   .bill { transform: none; }
+  /* The tick stays — it is the indicator, not the decoration. It just stops
+     breathing and sits at the steady end of its own range. */
+  .bill__item.is-playing::before { animation: none; opacity: .8; }
 }
 @media (max-width: 30rem) {
   .bill--card .bill__item { grid-template-columns: 1.6em 1fr auto; column-gap: .5em; }

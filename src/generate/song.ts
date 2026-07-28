@@ -986,7 +986,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
   const drumEffects = effectsFor('drums');
   const drums: DrumTrack = {
     bank: drumBank,
-    events: applySwingDrums(drumEvents, style.swing),
+    events: applySwingDrums(oneHatAtATime(drumEvents), style.swing),
     // The kit is a layer like any other, so a genre that wants it barely
     // present says so in `mix` rather than by writing quieter patterns.
     gain: genre.mix?.drums ?? 0.8,
@@ -1723,6 +1723,27 @@ function applySwing(notes: NoteEvent[], swing: number): NoteEvent[] {
     }
     return n;
   });
+}
+
+/**
+ * One pair of hats, and they are either open or shut.
+ *
+ * Nothing upstream knows the whole kit: a pattern can write both voices on the
+ * same slot (`disco-shuffle` has hats on every eighth and an open hat on two of
+ * them), a fill's landing puts an open hat on a downbeat the next section's
+ * pattern is already chicking, and a drum solo's cymbal work meets the pattern
+ * at the barline. Each of those is reasonable on its own and all of them come
+ * out as one stick hitting one cymbal twice at once — which no drummer has ever
+ * played and which reads on the kit as a hat that is open and closed together.
+ *
+ * The open hat wins, because it is the one carrying the accent wherever the two
+ * collide. A closed hat *after* an open one is left alone: that is a drummer
+ * shutting the pedal, and it is most of what makes an open hat sound open.
+ */
+function oneHatAtATime(events: DrumEvent[]): DrumEvent[] {
+  const open = new Set(events.filter((e) => e.voice === 'oh').map((e) => Math.round(e.beat * 960)));
+  if (!open.size) return events;
+  return events.filter((e) => e.voice !== 'hh' || !open.has(Math.round(e.beat * 960)));
 }
 
 function applySwingDrums(events: DrumEvent[], swing: number): DrumEvent[] {

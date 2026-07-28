@@ -670,7 +670,9 @@ export function buildLightRig(
   const flickerRate = parLocal.map(() => rng.float(0.7, 1.9));
 
   const subjects = new Map<string, Object3D>();
-  let timeline: Timeline = buildTimeline({ cues: [], haze: 0 }, reduced ? CALM_MIN_FADE : 0);
+  let timeline: Timeline = buildTimeline(
+    { cues: [], haze: 0, preset: 0 }, reduced ? CALM_MIN_FADE : 0,
+  );
   let haze = 0;
   let density = beamDensity(0);
   const houseFader = makeFader(0);

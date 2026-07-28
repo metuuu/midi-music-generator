@@ -666,6 +666,23 @@ function drumPart(events: DrumEvent[], board: Board): void {
     'right-hand': timekeeperOf(events),
   };
 
+  /**
+   * Where the left foot has the hi-hat pedal — `undefined` until it has taken
+   * up position.
+   *
+   * A hi-hat is shut because a foot is holding it shut and open because that
+   * foot let go, so `hh` and `oh` are not two sounds, they are two *leg
+   * positions*, and every crossing between them is a movement. Without this the
+   * cymbals parted and closed over a leg that never moved all night, which is
+   * the drum equivalent of a piano playing itself.
+   *
+   * Only the crossings, though. A drummer does not pump the pedal under a bar
+   * of closed hats — the foot goes down on the first stroke of the number and
+   * then stays wherever it was put until the music asks for the other state,
+   * which is also why one gesture per change is enough to hold it there.
+   */
+  let hatShut: boolean | undefined;
+
   for (const beat of beats) {
     // Loudest first: when two strokes compete for one stick, the accent should
     // get the hand that is already near it and the ghost note should be the one
@@ -685,13 +702,38 @@ function drumPart(events: DrumEvent[], board: Board): void {
     // foot without lying about the sound; an *open* hat cannot, because the
     // pedal being down is what makes a hat closed, so an open hat is always
     // somebody's stick.
+    let chicked = false;
     while (stickable.length > 2 && stickable.some((x) => x.voice === 'hh')) {
       const i = stickable.map((x) => x.voice).lastIndexOf('hh');
       const [hat] = stickable.splice(i, 1);
       board.place({
         effector: 'left-foot', beat, kind: 'strike', travel: 0,
-        force: hat!.velocity, targets: [{ kind: 'pedal', which: 'hat' }],
+        force: hat!.velocity, targets: [{ kind: 'pedal', which: 'hat', shut: true }],
       });
+      chicked = true;
+    }
+
+    // The foot, when it is not making a sound with the pedal but is still the
+    // reason there is one. A chick is already that press and does not want a
+    // second gesture arguing with it for the limb on the same beat; anything
+    // else that says something about the hats moves the leg iff the state it
+    // asks for is not the state the leg is already holding.
+    if (chicked) hatShut = true;
+    else {
+      const asks = here.some((x) => x.voice === 'oh') ? false
+        : here.some((x) => x.voice === 'hh') ? true
+          : undefined;
+      if (hatShut === undefined || (asks !== undefined && asks !== hatShut)) {
+        const shut = asks ?? true;
+        board.place({
+          effector: 'left-foot', beat, kind: 'press', travel: 0,
+          // Weight, not speed. A foot that slammed the pedal every time the
+          // hats shut would be a drummer with one dynamic.
+          force: shut ? 0.45 : 0.2,
+          targets: [{ kind: 'pedal', which: 'hat', shut }],
+        });
+        hatShut = shut;
+      }
     }
 
     // Two sticks, assigned as a pair rather than one at a time: with two strokes
