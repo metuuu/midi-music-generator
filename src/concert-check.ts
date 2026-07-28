@@ -476,6 +476,57 @@ check('visemes exist exactly when there is a voice', visemeGaps === 0,
     unrigged ? `${unrigged} of ${keyboards} have no rig` : `${keyboards} keyboards`);
 }
 
+/**
+ * Where the walls of cabinets stand.
+ *
+ * Two rules, and they are one decision seen twice rather than two that have to
+ * be kept in step. Back centre is the drum riser — 2.8 m wide, and the
+ * drummer's box is `locked` so nothing will ever move it — so a modular may
+ * only take the centre when the riser is empty, which is exactly when the
+ * percussion source came back a machine. And two of them flank rather than
+ * pile up, because two objects this size on one side of a stage means one of
+ * them is behind the other.
+ */
+{
+  const CENTRE = 0.9;
+  let onTheDrummer = 0;
+  let sameSide = 0;
+  let centred = 0;
+  let flanking = 0;
+  let sidelined = 0;
+  const notes: string[] = [];
+  for (const gid of CHECKED_GENRES) {
+    for (let i = 0; i < 6; i++) {
+      const concert = buildConcert({ seed: `wall-${gid}-${i}`, genre: gid });
+      for (const number of concert.numbers) {
+        const walls = number.cast.performers.filter((p) => p.rig === 'modular');
+        if (!walls.length) continue;
+        const drummer = number.cast.performers.some((p) => p.layer === 'drums');
+        const xs = walls.map((p) => p.station.position[0]);
+        if (walls.length >= 2) {
+          flanking++;
+          if (xs.every((x) => x > 0) || xs.every((x) => x < 0)) {
+            sameSide++;
+            if (notes.length < 3) notes.push(`${gid}#${i} both at ${xs.map((x) => x.toFixed(1))}`);
+          }
+        } else if (Math.abs(xs[0]!) < CENTRE) {
+          centred++;
+          if (drummer) {
+            onTheDrummer++;
+            if (notes.length < 3) notes.push(`${gid}#${i} centred at ${xs[0]!.toFixed(2)} with a drummer`);
+          }
+        } else sidelined++;
+      }
+    }
+  }
+  check('a modular takes the centre only when the riser is empty', onTheDrummer === 0,
+    onTheDrummer ? `${onTheDrummer} on top of a drummer: ${notes.join('; ')}`
+      : `${centred} centred, ${sidelined} sidelined, ${flanking} pairs`);
+  check('two modulars flank rather than pile up', sameSide === 0,
+    sameSide ? `${sameSide} of ${flanking} pairs on one side: ${notes.join('; ')}`
+      : `${flanking} pairs straddle the centre line`);
+}
+
 // Determinism — the property the whole repo is built on, at show scale.
 const showA = JSON.stringify(buildConcert({ seed: 'twice', genre: 'jazz' }));
 const showB = JSON.stringify(buildConcert({ seed: 'twice', genre: 'jazz' }));

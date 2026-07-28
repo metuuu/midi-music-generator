@@ -1040,8 +1040,18 @@ function stageBand(slots: Slot[], venue: Venue, seed: string): void {
    * actually laying out or it spaces the line around players who are no longer
    * standing in it.
    */
-  const arc = layoutGearArc(slots, { zMid, depth: D, side });
-  layoutFrontLine(slots.filter((s) => !arc.has(s)), { xLimit: xFront, zMid, zDown, side });
+  /**
+   * The walls first of all, because they are furniture and take their players
+   * out of both of the layouts below.
+   *
+   * Order matters here the same way it does between the arc and the front line:
+   * each routine has to be handed the list it is actually laying out, or it
+   * spaces itself around players who are no longer standing there.
+   */
+  const walls = layoutModulars(slots, { xLimit, zUp, riserZ, hasKit: !!kit });
+  const standing = slots.filter((s) => !walls.has(s));
+  const arc = layoutGearArc(standing, { zMid, depth: D, side });
+  layoutFrontLine(standing.filter((s) => !arc.has(s)), { xLimit: xFront, zMid, zDown, side });
 
   // Everyone faces the audience, give or take. The exceptions are the players
   // whose instrument is played sideways — a pianist sits along the keyboard,
@@ -1054,7 +1064,7 @@ function stageBand(slots: Slot[], venue: Venue, seed: string): void {
     // which is a better answer than the flat one below and knows about the
     // same instruments. They still get the jitter: it is a statement about
     // people, not about keyboards.
-    if (arc.has(s)) {
+    if (arc.has(s) || walls.has(s)) {
       s.facing += jitter;
       continue;
     }
@@ -1284,6 +1294,92 @@ function layoutFrontLine(
 // ---------------------------------------------------------------------------
 // Staging — the keyboard arc
 // ---------------------------------------------------------------------------
+
+/**
+ * Stand the walls of cabinets at the back, and take their players off the arc.
+ *
+ * A modular is not gear on a stand, it is a piece of furniture with somebody in
+ * front of it — 1.7 m tall and a metre and a quarter of floor. The arc exists to
+ * make several keyboards read as one instrument that people are standing inside,
+ * which is right for boards and wrong for a wall: you do not curve a Moog System
+ * 55 around anybody, you put it at the back and stand in front of it.
+ *
+ * Two placements, and the choice between them is the same decision the
+ * percussion already made rather than a second one:
+ *
+ * ```
+ *   with a drummer            without one
+ *   MODULAR  KIT  MODULAR       .    MODULAR   .
+ *      \      |      /                  |
+ *          the band                 the band
+ * ```
+ *
+ * **Two of them flank the riser**, as far out as they fit, which is the only
+ * place two objects this size can both go without one of them being in front of
+ * the other.
+ *
+ * **One of them takes the centre — but only if the riser is empty.** Back centre
+ * is the drum riser: 2.8 m wide, and the drummer's box is `locked` so the solver
+ * will never move it. So the centre is available exactly when there is no
+ * drummer, which is exactly when the percussion source came back a machine. One
+ * player, a wall of cabinets dead centre, and a rhythm box running: that is the
+ * Jarre photograph, and it falls out of a decision that was already made rather
+ * than being a rule that has to be kept in step with one.
+ *
+ * Where there is a drummer and only one wall, it takes a side. Half a stage
+ * picture is better than a modular growing out of a drum riser.
+ */
+function layoutModulars(
+  slots: Slot[],
+  geom: { xLimit: number; zUp: number; riserZ: number; hasKit: boolean },
+): Set<Slot> {
+  const walls = slots.filter((s) => s.rig === 'modular');
+  const claimed = new Set<Slot>();
+  if (!walls.length) return claimed;
+
+  /**
+   * Upstage, and level with the riser rather than in front of it.
+   *
+   * A wall placed at `zUp` alone would stand level with the *bass player*,
+   * which puts 1.7 m of cabinet in the middle of the band. It belongs on the
+   * back line with the kit, where the only thing behind it is the masking.
+   */
+  const z = Math.max(geom.zUp, geom.riserZ);
+
+  walls.forEach((s, i) => {
+    claimed.add(s);
+    /**
+     * Heavier than anything else that is not bolted down. A modular does not
+     * get shuffled aside to make room for a horn player; the horn player walks
+     * round it. Below the kit's 6, which is on a physical platform.
+     */
+    s.anchor = 4.5;
+
+    const alone = walls.length === 1;
+    // The centre only where nothing is already standing on it. See above.
+    const side = alone && !geom.hasKit ? 0 : i % 2 === 0 ? 1 : -1;
+    const x = side === 0 ? 0 : side * Math.max(1.6, geom.xLimit - s.r);
+    s.x = x;
+    s.z = z;
+    /**
+     * Boxed to its own end of the back line so the separator can slide it along
+     * the wall but never bring it downstage into the band. Wide enough in `x`
+     * to give the solver somewhere to go, and nearly flat in `z` because there
+     * is nothing behind it to move into.
+     */
+    s.box = {
+      x0: side === 0 ? -0.8 : side > 0 ? 0.6 : -geom.xLimit,
+      x1: side === 0 ? 0.8 : side > 0 ? geom.xLimit : -0.6,
+      z0: z - 0.15,
+      z1: z + 0.6,
+    };
+    // Square to the house: a wall is placed, not turned. `stageBand` still adds
+    // its jitter, which is a statement about the person rather than the gear.
+    s.facing = 0;
+  });
+
+  return claimed;
+}
 
 /**
  * The radius the rig curves on, in metres.

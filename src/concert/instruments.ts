@@ -489,12 +489,20 @@ export interface SynthRigSpec {
    */
   max: number;
   /**
-   * Floor it occupies, overriding `ARCHETYPES.synth.footprint`.
+   * Floor it occupies as a radius, overriding `ARCHETYPES.synth.footprint`.
    *
    * A wall of cabinets and a slab on an X-stand are not the same object and
    * have never been the same size, and the stager has been treating them as
    * one — which is why the sightline checks could not be trusted around a
    * modular. See `height`.
+   *
+   * Measured off the models rather than guessed, and the modular's is smaller
+   * than it sounds: `synth-rig-modular.ts` stands its wings at `WING_X = 0.78`
+   * and builds them `WING_W = 0.60` across, so the outermost cabinet face is
+   * 1.08 m off the centre line. 1.25 covers that and the player. The first
+   * draft said 1.7, which is what a wall of cabinets *feels* like, and it put
+   * the outer edge of a flanking modular past the masking on the narrower
+   * rooms — a number invented from the impression rather than from the object.
    */
   footprint: number;
   /**
@@ -532,7 +540,7 @@ export const SYNTH_RIGS: Record<SynthRigId, SynthRigSpec> = {
    */
   modular: {
     id: 'modular', label: 'modular system', from: 1965, to: 1985,
-    max: 2, footprint: 1.7, height: 1.72, furniture: true,
+    max: 2, footprint: 1.25, height: 1.72, furniture: true,
   },
   /**
    * 1978–83. The keyboard *is* the instrument: wooden end-cheeks, one row of
