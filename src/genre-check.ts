@@ -16,8 +16,9 @@ import { comfortableLeap } from './generate/constraints.js';
 import type { HookId } from './generate/hook.js';
 import { chordPcs, parseRoman } from './core/chord.js';
 import { pc } from './core/pitch.js';
-import type { Song } from './core/types.js';
+import type { DrumVoice, Song } from './core/types.js';
 import { Rng } from './core/rng.js';
+import { BANK_VOICES, resolveVoice } from './render/drum-banks.js';
 import { IDIOMS, type Idiom } from './style/instruments.js';
 
 const problems: string[] = [];
@@ -489,6 +490,89 @@ console.log('\nDrum fills');
     'a jazz fill reaches for the cymbal',
     jaz.ride > isk.ride,
     `ride per fill bar: jazz ${jaz.ride.toFixed(2)} vs iskelmä ${isk.ride.toFixed(2)}`,
+  );
+}
+
+// --- Drum banks ------------------------------------------------------------
+// `render/drum-banks.ts` stands in for voices a bank does not have, and this is
+// the assertion that the substitution table actually covers what gets asked of
+// it. Two failures it catches that nothing else does:
+//
+//  - **A bank nobody measured.** `resolveVoice` returns the voice unchanged for
+//    a bank missing from `BANK_VOICES`, so an era table that names a new machine
+//    gets no substitutions at all. That does not fail loudly, it fails the way
+//    the original bug did: `sound <Bank>_<voice> not found` in the browser
+//    console, at playback, where nobody is looking. `check-notation.ts` cannot
+//    see it either — an unmeasured bank counts as neither substituted nor
+//    dropped, so the sweep reports perfect health while the preview is broken.
+//  - **A combination the weights never produce.** Era and style are independent
+//    controls on the audition page, so a style an era weights at zero is one
+//    click away and no randomly generated song will ever cover it. Both are
+//    forced here rather than drawn.
+console.log('\nDrum banks');
+{
+  /**
+   * Every voice a genre can ask a bank for: the style tables read directly,
+   * which is exhaustive over the patterns, plus what real songs add on top of
+   * them — fills, their landing cymbal, drum solos — since that is where most
+   * of the voices old machines lack come from.
+   */
+  const emitted = (gid: string): Set<DrumVoice> => {
+    const genre = getGenre(gid);
+    const voices = new Set<DrumVoice>();
+    for (const style of Object.values(genre.styles)) {
+      for (const pattern of style.drums) {
+        for (const voice of Object.keys(pattern.voices) as DrumVoice[]) voices.add(voice);
+      }
+    }
+    for (const era of Object.keys(genre.eras)) {
+      for (const sid of Object.keys(genre.styles)) {
+        for (let i = 0; i < 3; i++) {
+          const song = generateSong({ seed: `bank-${gid}-${era}-${sid}-${i}`, genre: gid, era, style: sid });
+          for (const e of song.drums.events) voices.add(e.voice);
+        }
+      }
+    }
+    return voices;
+  };
+
+  const unmeasured: string[] = [];
+  const unplayable: string[] = [];
+  let pairs = 0;
+  for (const gid of GENRE_IDS) {
+    const voices = emitted(gid);
+    for (const era of Object.values(getGenre(gid).eras)) {
+      for (const [bank] of era.drumBanks) {
+        if (!BANK_VOICES[bank]) { unmeasured.push(`${gid}/${era.id}: ${bank}`); continue; }
+        for (const voice of voices) {
+          pairs++;
+          if (!resolveVoice(bank, voice)) unplayable.push(`${bank} cannot play ${voice}`);
+        }
+      }
+    }
+  }
+  check(
+    'every bank an era names has been measured',
+    unmeasured.length === 0,
+    unmeasured.length ? unmeasured.join(', ') : `${Object.keys(BANK_VOICES).length} banks in the table`,
+  );
+  check(
+    'every voice a genre plays resolves on all its banks',
+    unplayable.length === 0,
+    unplayable.length ? [...new Set(unplayable)].join(', ') : `${pairs} bank x voice pairs, substitutions included`,
+  );
+
+  // Substitution is acceptable for every voice but this one. A ride standing in
+  // as a closed hat is fine in iskelmä, where it is decoration; in jazz the ride
+  // *is* the pulse, and a bank without its own would pass the check above while
+  // quietly making the genre impossible.
+  const ridelessJazz = Object.values(getGenre('jazz').eras)
+    .flatMap((era) => era.drumBanks.map(([bank]) => bank))
+    .filter((bank) => resolveVoice(bank, 'rd') !== 'rd');
+  check(
+    'every jazz bank has a ride of its own',
+    ridelessJazz.length === 0,
+    ridelessJazz.length ? ridelessJazz.join(', ') : 'no jazz bank falls back to the hat',
   );
 }
 
