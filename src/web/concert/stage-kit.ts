@@ -67,7 +67,74 @@ export interface StageMetrics {
   houseDepth: number;
   /** How wide the house is; wider than the stage. */
   houseWidth: number;
+  /**
+   * y of the lowest thing hanging over the house, or `Infinity` under an open
+   * sky. The camera stands underneath it — see `camera.ts`.
+   */
+  headroom: number;
+  /**
+   * How tall the thing behind the band is, measured from the house floor.
+   *
+   * A full-height cloth indoors; a low wall on an open-air stage, where the
+   * whole point is that you can see over it. `lights.ts` needs it because a
+   * cyclorama glow is a glow *on* something — sized from the opening instead,
+   * it hung three metres of lit rectangle in the night sky above a tanssilava's
+   * back wall, which is the brightest thing in the frame and attached to
+   * nothing.
+   */
+  backdropHeight: number;
 }
+
+/**
+ * How far above the house floor a low ceiling hangs.
+ *
+ * Owned twice, like the drum riser: `stage-props.ts` draws the lid and
+ * `stage.ts` publishes it as `StageMetrics.headroom` for the camera to keep
+ * under. If those two ever disagree the symptom is the one this constant was
+ * written after — a camera above the ceiling of the room it is filming.
+ *
+ * It was 2.9 m, which is an honest cellar and half a metre too low for anything
+ * to be shot in. `camera.ts` starts its wide shot at 2.3 m and lifts with
+ * distance to 3.6 m, so **every** wide shot in the jazz room was taken from
+ * above the lid; and because the plane was single-sided it did not even
+ * occlude, it simply stopped existing overhead and left its own leading edge
+ * and its two pipes drawn as a hard horizontal band across the middle of the
+ * crowd. The complaint was that the crowd had a plane through it. The cause was
+ * that the room had a ceiling the camera could not fit under.
+ *
+ * 3.3 m is where both can be right. It is still unambiguously a basement — the
+ * comparison the eye makes is against the proscenium arch, and the lid comes in
+ * a metre and a half below the top of it, so the room visibly cannot contain
+ * its own stage opening — and it leaves the lens 1.8 m once `LENS_GAP` has had
+ * its share, which still clears the back row of a seated house by a metre.
+ */
+export const LOW_CEILING = 3.3;
+
+/**
+ * How far under `StageMetrics.headroom` the lens keeps.
+ *
+ * `camera.ts` obeys it, and the dressing has to know it: the band of height
+ * between the ceiling and the lens is the one place in the house where a light
+ * fitting can hang without ever crossing a player, because everything on stage
+ * projects *below* the horizon and anything above the lens projects above it.
+ * A fitting that hangs into this gap instead is the chandelier bug — an object
+ * at exactly camera height, in front of the band, drifting in and out of frame
+ * with the window's aspect ratio.
+ *
+ * 0.6 m. This was 0.3 m, which cleared the ceiling arithmetically and did not
+ * clear it to look at: a lens 0.3 m under a lid is *at* the lid, the ceiling
+ * starts at the top of the picture and stays there, and the shot reads as taken
+ * by somebody with their head against the plaster. Twice that much puts the
+ * lens at 1.8 m in the cellar — a person standing on the floor of the room
+ * rather than pressed into its ceiling — and 1.8 m is still a metre above the
+ * back row of a seated house, which is the only clearance the height was ever
+ * bought for.
+ *
+ * It costs the dressing nothing to widen: everything hung is built *downward
+ * from the ceiling* to fit inside this band, so a deeper band is more room to
+ * hang in, not less.
+ */
+export const LENS_GAP = 0.6;
 
 // ---------------------------------------------------------------------------
 // The sightline

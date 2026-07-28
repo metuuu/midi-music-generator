@@ -139,17 +139,35 @@ export interface Animator {
    * that took up position there has already done the one thing worth watching
    * before the audience arrives.
    *
-   * So the show runner says when. The natural moment is the count-in — the gap
-   * between the curtain opening and the first cycle landing, which exists
-   * because Strudel schedules to a cycle boundary — and it is exactly long
-   * enough to see six people pick their instruments up.
+   * So the show runner says when. The natural moment is the reveal: the tabs
+   * are travelling, the band is standing there, and the whole band picking
+   * their instruments up is the thing worth watching.
+   *
+   * `leaderPerformerId` names whoever is giving the count, and turns this from
+   * a state change into a *cue*: that player beats time until their own first
+   * note and the rest of the band watches them, which is what a band waiting to
+   * come in actually does. Omit it and the band simply comes up.
    *
    * Idempotent, and **not** undone by `begin`: a player revoiced mid-number
    * after a tomato re-binds every player, and dropping the whole band's hands
    * in answer to that would be worse than the bug this fixes. `end` is what
    * puts the band back at ease.
    */
-  cue(): void;
+  cue(leaderPerformerId?: string): void;
+
+  /**
+   * The count is over: the piece proper has begun.
+   *
+   * Ends the leader's count and hands the engagement want back to the gesture
+   * list, which is the only thing that should be deciding it once there is
+   * music. Both halves matter. A leader still beating time under the second
+   * verse is a man with a tic; and a player whose first entry is thirty bars
+   * away would otherwise stand at the ready for the whole intro, when what
+   * they actually do is wait with their hands down and come up for it.
+   *
+   * Idempotent, and safe before `cue` — it only ever clears.
+   */
+  downbeat(): void;
 
   /** Struck. Drops every reference; safe to call twice. */
   end(): void;
@@ -361,6 +379,14 @@ const IDLE_EASE_SECONDS = 0.9;
 
 /** Seconds the groove takes to die away under a player who has stopped. */
 const STOP_FADE_SECONDS = 0.9;
+
+/**
+ * How far the leader's head moves while counting the band in.
+ *
+ * Bigger than any groove nod in the score, and it has to be: this one is not
+ * feeling the pulse, it is *giving* it to five other people across a stage.
+ */
+const COUNT_NOD = 0.55;
 
 // ---------------------------------------------------------------------------
 // At ease, and coming back up
@@ -859,7 +885,10 @@ const V6 = new Vector3();
 const V7 = new Vector3();
 const V8 = new Vector3();
 const Q1 = new Quaternion();
+const Q2 = new Quaternion();
 const E1 = new Euler();
+/** `InstrumentModel.shift`'s answer, and its rotation, for this frame. */
+const M1 = new Matrix4();
 
 /** Points fired this beat, for the `react` de-duplication. */
 const FIRED: (PlayPoint | undefined)[] = new Array<PlayPoint | undefined>(24).fill(undefined);
@@ -1412,6 +1441,13 @@ class Runtime implements Animator {
   private started = false;
   /** Whether the band has been told to take up position. See `cue`. */
   private cued = false;
+  /**
+   * Whether the band is waiting to come in: cued, and the piece has not
+   * started. See `cue` and `downbeat`.
+   */
+  private waiting = false;
+  /** Who is giving the count, if anybody. See `cue` and `counting`. */
+  private leader: string | undefined;
 
   constructor(driveRigs: boolean) {
     this.driveRigs = driveRigs;
@@ -1514,8 +1550,29 @@ class Runtime implements Animator {
     if (player) player.stopped = !playing;
   }
 
-  cue(): void {
+  cue(leaderPerformerId?: string): void {
     this.cued = true;
+    this.waiting = true;
+    this.leader = leaderPerformerId;
+  }
+
+  downbeat(): void {
+    this.waiting = false;
+    this.leader = undefined;
+  }
+
+  /**
+   * The leader, while they are still beating time.
+   *
+   * From the cue until the piece begins — or until the leader's own first
+   * gesture window opens, whichever comes first, which is the honest end of a
+   * count whoever is giving it: a drummer counting four stops beating time the
+   * moment the sticks start, and a singer keeps going until the band is in.
+   */
+  private counting(): Player | undefined {
+    if (!this.waiting || !this.leader) return undefined;
+    const lead = this.byId.get(this.leader);
+    return lead && lead.hi === 0 ? lead : undefined;
   }
 
   end(): void {
@@ -1530,6 +1587,8 @@ class Runtime implements Animator {
     // And the next number opens at ease again. Cleared here rather than in
     // `begin` precisely because `begin` is the one that runs mid-number.
     this.cued = false;
+    this.waiting = false;
+    this.leader = undefined;
   }
 
   update(beat: number, dt: number): void {
@@ -1692,7 +1751,7 @@ class Runtime implements Animator {
         const target: Effector = g.effector;
         // `contactOf` leaves the position in V1, the normal in V2 and the
         // knuckle axis, when the model pinned one, in V5.
-        if (!this.contactOf(p, i, g)) continue;
+        if (!this.contactOf(p, i, g, beat)) continue;
         const slot = p.slots[SLOT_OF[target]]!;
         // The width of what this hand is playing, measured before `arcOf`
         // displaces anything. A hand's *shape* is a fact about the notes, not
@@ -1783,6 +1842,25 @@ class Runtime implements Animator {
       // it is the same thing a real player does, and it costs nothing here
       // because the sulk already means there are no gestures to answer.
       want = 0;
+    } else if (this.waiting) {
+      /**
+       * Cued, and the piece has not started: at the ready, whatever the clock
+       * says.
+       *
+       * This is the count-in, and it is the one place the ordinary rule is
+       * wrong. That rule asks "is a gesture near?" and before the first
+       * downbeat the honest answer for most of the band is no — the drummer is
+       * clicking four and everyone else's first note is a bar away, which is
+       * comfortably past `ENGAGE_LEAD_SECONDS`. So a band that had just taken
+       * up position on the cue would put its instruments straight back down
+       * and pick them up again during the count, one player at a time.
+       *
+       * A cue is an instruction rather than a forecast: from the moment it is
+       * given until the band is in, everybody is at their instrument. It also
+       * covers the pre-roll, where there is no clock at all — `show.ts` runs
+       * the beat backwards of zero while the curtain travels.
+       */
+      want = 1;
     } else if (p.lo < p.hi) {
       want = 1;
     } else {
@@ -2062,8 +2140,14 @@ class Runtime implements Animator {
    * and must answer the same regardless of what has been played — and it is
    * what keeps the per-frame allocation at zero, since every model returns
    * freshly built vectors.
+   *
+   * The cache is a cache of the instrument *at rest*. Anything on it that moves
+   * is declared through `InstrumentModel.shift` and composed back in here, every
+   * frame, before the world transform — so a hand on a moving part rides it
+   * exactly, rather than being placed where the part was when the note landed
+   * and left there while it travels out from under.
    */
-  private contactOf(p: Player, i: number, g: Gesture): boolean {
+  private contactOf(p: Player, i: number, g: Gesture, beat: number): boolean {
     const state = p.resolved[i]!;
     if (state === 2) return false;
     if (state === 0) {
@@ -2088,11 +2172,32 @@ class Runtime implements Animator {
       this.learnZone(p, g.effector, at);
     }
     const at = i * CONTACT_STRIDE;
-    V1.set(p.contact[at]!, p.contact[at + 1]!, p.contact[at + 2]!).applyMatrix4(p.world);
-    V2.set(p.contact[at + 3]!, p.contact[at + 4]!, p.contact[at + 5]!)
-      .applyQuaternion(p.worldQuat).normalize();
+    V1.set(p.contact[at]!, p.contact[at + 1]!, p.contact[at + 2]!);
+    V2.set(p.contact[at + 3]!, p.contact[at + 4]!, p.contact[at + 5]!);
     V5.set(p.contact[at + 6]!, p.contact[at + 7]!, p.contact[at + 8]!);
+    if (this.shiftOf(p, g.effector, beat)) {
+      V1.applyMatrix4(M1);
+      V2.applyQuaternion(Q2);
+      if (V5.lengthSq() > 1e-10) V5.applyQuaternion(Q2);
+    }
+    V1.applyMatrix4(p.world);
+    V2.applyQuaternion(p.worldQuat).normalize();
     if (V5.lengthSq() > 1e-10) V5.applyQuaternion(p.worldQuat).normalize();
+    return true;
+  }
+
+  /**
+   * Where the moving part this effector works on has got to, into `M1`, with
+   * its rotation into `Q2`. `false` when nothing under it moves, which is the
+   * answer for every model but the accordion and costs one absent method call.
+   *
+   * The displacement is in the model's own frame and composes *inside* the world
+   * transform, because a bellows opens the same way whether the player it is
+   * strapped to is standing still or swaying — rule 5, from the other side.
+   */
+  private shiftOf(p: Player, e: Effector, beat: number): boolean {
+    if (!p.model?.shift?.(e, beat, M1)) return false;
+    Q2.setFromRotationMatrix(M1);
     return true;
   }
 
@@ -2405,13 +2510,35 @@ class Runtime implements Animator {
       }
     }
 
+    /**
+     * The count-in, which overrides all of the above for as long as it lasts.
+     *
+     * The leader beats time — one nod per beat, in the tempo the number is
+     * about to be in — and everybody else watches them. Both halves matter: a
+     * leader nodding at a band that is looking elsewhere is a man with a tic,
+     * and it is the *watching* that makes an audience understand that
+     * something is about to happen.
+     *
+     * On the show clock rather than on `beat`, because for most of a count-in
+     * there is no beat: the transport does not start until the cue has been
+     * given. See `show.ts`, which runs the clock backwards of zero until then.
+     */
+    const lead = this.counting();
+    if (lead === p) {
+      nod = Math.max(nod, COUNT_NOD);
+      nodPhase = this.seconds * this.beatsPerSecond * Math.PI * 2;
+    }
+
     p.rig.setSway(sway, swayPhase);
     p.rig.setHeadNod(nod, nodPhase);
     p.rig.setEyesClosed(eyes);
 
     // A head can only be turned toward one person, so the score emits one
     // `watch` per soloist with non-overlapping spans and the loudest wins.
-    const target = watch && watchAmp > 0.02 ? this.byId.get(watch.targetPerformerId ?? '') : undefined;
+    const watched = watch && watchAmp > 0.02
+      ? this.byId.get(watch.targetPerformerId ?? '')
+      : undefined;
+    const target = lead && lead !== p ? lead : watched;
     if (target && target !== p) {
       target.rig.restPosition('head', p.look);
       p.rig.lookAt(p.look);
@@ -2577,7 +2704,9 @@ class Runtime implements Animator {
       // where they all used to return one contact and leave both palms in the
       // same place.
       const ask: Effector = k === 1 && p.usesBow ? 'bow' : e;
-      p.goalOk[k] = this.idleContact(p, ask, p.goal[k]!, p.goalNormal[k]!, p.goalAlong[k]!);
+      p.goalOk[k] = this.idleContact(
+        p, ask, beat, p.goal[k]!, p.goalNormal[k]!, p.goalAlong[k]!,
+      );
     }
     // And the bow hand idles at the frog, which is wherever the stroke left it.
     // `soundingContact({rest})` answers for a bow at the middle of its hair —
@@ -2660,7 +2789,8 @@ class Runtime implements Animator {
    * the whole point of passing one.
    */
   private idleContact(
-    p: Player, e: Effector, out: Vector3, outNormal?: Vector3, outAlong?: Vector3,
+    p: Player, e: Effector, beat: number,
+    out: Vector3, outNormal?: Vector3, outAlong?: Vector3,
   ): boolean {
     const model = p.model;
     if (!model) return false;
@@ -2708,15 +2838,26 @@ class Runtime implements Animator {
     }
     if (slot.idleFlags[hit] !== 1) return false;
     const at = hit * IDLE_STRIDE;
-    out.set(slot.idleLocal[at]!, slot.idleLocal[at + 1]!, slot.idleLocal[at + 2]!)
-      .applyMatrix4(p.world);
+    // Cached at rest and shifted onto the moving part, exactly as in
+    // `contactOf` — an idling hand rides the box too, or the handover between
+    // the two layers would move it.
+    const shifted = this.shiftOf(p, e, beat);
+    out.set(slot.idleLocal[at]!, slot.idleLocal[at + 1]!, slot.idleLocal[at + 2]!);
+    if (shifted) out.applyMatrix4(M1);
+    out.applyMatrix4(p.world);
     if (outNormal) {
       outNormal.set(slot.idleLocal[at + 3]!, slot.idleLocal[at + 4]!, slot.idleLocal[at + 5]!);
-      if (outNormal.lengthSq() > 1e-10) outNormal.normalize(); else outNormal.set(0, 0, 0);
+      if (outNormal.lengthSq() > 1e-10) {
+        if (shifted) outNormal.applyQuaternion(Q2);
+        outNormal.normalize();
+      } else outNormal.set(0, 0, 0);
     }
     if (outAlong) {
       outAlong.set(slot.idleLocal[at + 6]!, slot.idleLocal[at + 7]!, slot.idleLocal[at + 8]!);
-      if (outAlong.lengthSq() > 1e-10) outAlong.normalize(); else outAlong.set(0, 0, 0);
+      if (outAlong.lengthSq() > 1e-10) {
+        if (shifted) outAlong.applyQuaternion(Q2);
+        outAlong.normalize();
+      } else outAlong.set(0, 0, 0);
     }
     return true;
   }

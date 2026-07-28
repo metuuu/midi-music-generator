@@ -118,6 +118,12 @@ export const ambient: Genre = {
   // time to be heard in — a note that lasts four seconds is exposed in a way a
   // passing eighth never is. `standard` rather than `light`, and the two styles
   // where everything sustains at once (`drone`, `choral`) raise it further.
+  // Neither end of an ambient piece is an event. It is already going when you
+  // arrive and it is still going when you leave; the last chord is simply let
+  // go of, and there is nobody to count in music that never starts.
+  ending: 'fade',
+  countIn: false,
+
   defaultStrictness: 'standard',
 
   // Ambient is loop music. The same eight bars come round again with something

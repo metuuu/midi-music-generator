@@ -30,6 +30,7 @@ export default defineConfig({
         voice: here('voice.html'),
         concert: here('concert.html'),
         models: here('models.html'),
+        bench: here('bench.html'),
       },
     },
   },

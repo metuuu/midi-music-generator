@@ -17,7 +17,14 @@ declare module '@strudel/core' {
   export const controls: Record<string, unknown>;
   export function repl(options: Record<string, unknown>): StrudelRepl;
   export interface StrudelRepl {
+    /**
+     * Compile and load. `autostart` defaults to true; passing false loads the
+     * pattern without starting the clock, which is what lets a caller decide
+     * when bar 1 happens — see `loadCode`/`startLoaded` in `web/audio.ts`.
+     */
     evaluate(code: string, autostart?: boolean, hush?: boolean): Promise<unknown>;
+    /** Start the clock on the loaded pattern, from cycle 0. */
+    start(): Promise<void>;
     stop(): void;
     scheduler: StrudelScheduler;
   }
@@ -59,6 +66,26 @@ declare module '@strudel/webaudio' {
   export function registerZZFXSounds(): void;
   export function samples(url: string | Record<string, unknown>, base?: string): Promise<void>;
   export const webaudioOutput: unknown;
+  /**
+   * One sound, scheduled directly. `t` is absolute time on the audio clock —
+   * superdough warns and drops anything already past — and `hapDuration` is how
+   * long the note is held, in seconds, before its release begins.
+   *
+   * This is what the pattern engine calls per event, so a note played through
+   * it takes exactly the path a generated song takes.
+   */
+  export function superdough(
+    value: Record<string, unknown>,
+    t: number,
+    hapDuration: number,
+    cps?: number,
+  ): Promise<void>;
+}
+
+declare module '@strudel/soundfonts/gm.mjs' {
+  /** GM soundfont name (`gm_vibraphone`) to the banks registered for it. */
+  const gm: Record<string, string[]>;
+  export default gm;
 }
 
 declare module '@strudel/soundfonts' {

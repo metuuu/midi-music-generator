@@ -31,8 +31,9 @@
 import { PerspectiveCamera, Vector3, type Object3D } from 'three';
 
 import { Rng } from '../../core/rng.js';
-import type { Song } from '../../core/types.js';
+import type { LayerId, Song } from '../../core/types.js';
 import type { Cast, SoloSpot, Venue } from '../../concert/types.js';
+import { LENS_GAP, type StageMetrics } from './stage-kit.js';
 
 /** What a shot is looking at. Resolved to an object at render time. */
 export type ShotSubject =
@@ -63,6 +64,15 @@ export interface Shot {
 
 export interface CameraDirector {
   camera: PerspectiveCamera;
+  /**
+   * The room, once, when the stage is built.
+   *
+   * Separate from `begin` because it is a different lifetime: the shot list is
+   * per number and the building is not. What the director wants out of it is
+   * the ceiling and the floor — the two surfaces it can put the lens through if
+   * nobody tells it they are there.
+   */
+  room(metrics: StageMetrics): void;
   /** Plan the shot list for a number. Call before it starts. */
   begin(song: Song, cast: Cast, solos: SoloSpot[], venue: Venue, seed: string): void;
   /** The objects a shot can point at, keyed by performer id. */
@@ -165,6 +175,7 @@ export function createDirector(reducedMotion = false): CameraDirector {
 
   let plan: Shot[] = [];
   let venue: Venue | undefined;
+  let metrics: StageMetrics | undefined;
   let index = -1;
   /** Beats into the current shot, for the push. */
   let held = 0;
@@ -308,9 +319,40 @@ export function createDirector(reducedMotion = false): CameraDirector {
    * nobody wants to watch. Cameras live on a rostrum for this reason. The lift
    * scales with distance so a small room does not end up looking down at the
    * top of everyone's head.
+   *
+   * **Under the ceiling, though.** That was the assumption nobody wrote down:
+   * that a room has as much height as the shot wants. The jazz cellar does not
+   * — its lid is the whole reason it reads as a cellar — and so every wide shot
+   * in that room was framed from a rostrum standing *through* the ceiling. What
+   * you saw was not the obstruction you would expect, because a single-sided
+   * plane seen from above does not obstruct: you saw its edge and its two
+   * service pipes ruled straight across the crowd, appearing and disappearing
+   * as the solved distance moved the lens back and forth through 2.0 m.
+   *
+   * `headroom` is `Infinity` in a room with nothing overhead, so this costs the
+   * pavilion and the black box exactly nothing. In the cellar it settles the
+   * lens at 1.8 m, which is still a metre above the back row of a seated house
+   * — the shot the doc above refuses is a *standing* crowd, and the one room
+   * with a lid is the one room whose audience is sitting down.
+   *
+   * The margin is `LENS_GAP` and it is deliberately generous. Clearing the
+   * ceiling is not the same as looking like you have cleared it: a lens a
+   * hand's breadth under a lid puts the ceiling at the top of every frame and
+   * keeps it there, which is a different bad picture from the one this started
+   * as but still a bad picture.
    */
   function wideEye(d: number): number {
-    return 2.3 + Math.min(d * 0.11, 1.3);
+    return Math.min(2.3 + Math.min(d * 0.11, 1.3), ceiling());
+  }
+
+  /** The highest the lens may go in this room. See `wideEye`. */
+  function ceiling(): number {
+    return (metrics?.headroom ?? Infinity) - LENS_GAP;
+  }
+
+  /** The lowest. A camera under the floorboards is not a low angle. */
+  function houseFloor(): number {
+    return (metrics?.houseY ?? -0.9) + 0.4;
   }
 
   /**
@@ -431,9 +473,23 @@ export function createDirector(reducedMotion = false): CameraDirector {
         break;
       }
       case 'close': {
-        // Chest up on one player: about 1.1 m of subject.
-        const d = distanceFor(1.3, 1.15) - push;
-        wanted.set(wantedFocus.x * 0.55, wantedFocus.y + 0.18, wantedFocus.z + d);
+        /**
+         * Waist up on one player: about 1.7 m of subject.
+         *
+         * A chest-up frame was too tight on anyone the rig does not hold
+         * perfectly still. The aim point is a sternum, and a sternum moves —
+         * a singer leans, a guitarist rocks back — so a frame with 1.1 m in it
+         * spends half the solo on a chin or an elbow. Hold the player instead
+         * of the player's shirt and the same movement stays inside the frame.
+         *
+         * The push is solved for like the wide shot's: this is where the shot
+         * *ends*, and it starts that much further back. Framing the first
+         * frame instead would just move the crop to the last one — and the
+         * solo push is the longest in the show at 0.8 m, which is a third of
+         * this distance.
+         */
+        const d = distanceFor(1.9, 1.7) + shot.push - push;
+        wanted.set(wantedFocus.x * 0.55, wantedFocus.y + 0.12, wantedFocus.z + d);
         break;
       }
       case 'low': {
@@ -475,10 +531,25 @@ export function createDirector(reducedMotion = false): CameraDirector {
 
     // Never end up behind the audience, and never inside the band.
     wanted.z = Math.max(wanted.z, wantedFocus.z + 1.6);
+    /**
+     * And never through a surface of the room.
+     *
+     * `wideEye` already keeps the wide shot under the lid, which is where the
+     * problem was; this is the same rule applied to the other three framings so
+     * that the one place the height is decided is not three places. They are all
+     * well clear of it today — `front` is fixed at 1.6 m and the rest track a
+     * player's sternum — so this changes no shot that currently exists, which
+     * is exactly what a guard rail should do the day it is installed.
+     */
+    wanted.y = Math.max(Math.min(wanted.y, ceiling()), houseFloor());
   }
 
   return {
     camera,
+
+    room(m) {
+      metrics = m;
+    },
 
     begin(song, cast, solos, v, seed) {
       venue = v;
@@ -536,10 +607,30 @@ export function createDirector(reducedMotion = false): CameraDirector {
         // Viewer has the camera. Orbit the *current* focus so letting go does
         // not snap somewhere unrelated.
         const r = wanted.distanceTo(wantedFocus);
+        /**
+         * Pitch is clamped by the room, not by a pair of constants.
+         *
+         * The fixed ±limits could not do this job, because the angle that puts
+         * the lens through the ceiling depends on how far away the camera is
+         * standing: 0.9 rad is a perfectly good high angle on a close-up three
+         * metres out and takes the lens eight metres up on a wide shot. The old
+         * lower limit had the matching fault at the other end — 0.35 rad down
+         * at wide-shot range put the camera two metres *below* the house floor,
+         * looking up at the underside of everything.
+         *
+         * So the limits are solved from the same two surfaces `place` respects,
+         * at this radius. Under an open sky `asin` is handed a number past 1,
+         * clamps, and hands back the vertical — which is to say the pavilion
+         * keeps the old behaviour exactly.
+         */
+        const arc = (y: number): number =>
+          Math.asin(Math.max(-1, Math.min(1, (y - wantedFocus.y) / Math.max(r, 0.1))));
+        const hi = arc(ceiling());
+        const p = Math.max(Math.min(pitch, hi), Math.min(arc(houseFloor()), hi));
         wanted.set(
-          wantedFocus.x + Math.sin(yaw) * Math.cos(pitch) * r,
-          wantedFocus.y + Math.sin(pitch) * r,
-          wantedFocus.z + Math.cos(yaw) * Math.cos(pitch) * r,
+          wantedFocus.x + Math.sin(yaw) * Math.cos(p) * r,
+          wantedFocus.y + Math.sin(p) * r,
+          wantedFocus.z + Math.cos(yaw) * Math.cos(p) * r,
         );
       }
 
@@ -593,6 +684,7 @@ function planShots(
 
   const drummer = cast.performers.find((p) => p.layer === 'drums');
   const lead = cast.leadPerformerId;
+  const leadLayer = cast.performers.find((p) => p.id === lead)?.layer;
 
   for (let i = 0; i < song.sections.length; i++) {
     const section = song.sections[i]!;
@@ -606,8 +698,16 @@ function planShots(
        * is the exception worth special-casing: the picture alternating with the
        * band is most of what makes the device legible to someone who does not
        * know what trading fours is.
+       *
+       * `backing: 'trade'` on its own is not that, and the drummer test is what
+       * separates them — the same test `concert/lighting.ts` makes at the spot,
+       * for the same reason. A drum chorus is written as `trade` with every
+       * block belonging to the drummer, so alternating on the name alone cut
+       * every four bars between the drummer and the drummer: the right person
+       * in the frame, and the framing snapping between `low` and `close` for a
+       * whole chorus for no reason anyone watching could have named.
        */
-      if (solo.backing === 'trade' && drummer) {
+      if (solo.backing === 'trade' && drummer && drummer.id !== solo.performerId) {
         const bars = section.lengthBars;
         for (let b = 0; b < bars; b += 4) {
           const toDrums = (b / 4) % 2 === 1;
@@ -636,7 +736,41 @@ function planShots(
     // a periodic look at whoever has the tune so the wide shot means something
     // when it comes back.
     const isBig = section.kind === 'chorus' || section.transpose > 0;
-    const closeUp = !isBig && lead && rng.chance(0.35);
+    const over = at + section.lengthBars * beatsPerBar;
+    /**
+     * ...as long as they have it *here*.
+     *
+     * `leadPerformerId` is the front person for the whole number, decided once
+     * from the instrumentation, and a bridge is exactly where the tune stops:
+     * jazz drops the melody through the middle eight and comes back in for the
+     * head out, and an outro is often rhythm section alone. Pushing in on the
+     * singer through eight bars they are not singing is the picture equivalent
+     * of a spotlight on silence, which `concert/lighting.ts` refuses for the
+     * spot and this used to allow for the lens — very nearly one close-up in
+     * five, across a hundred and twenty concerts of all three genres.
+     *
+     * The fallback is the wide shot rather than a substitute soloist. Which of
+     * the players still going should inherit the close-up is a second opinion
+     * about who the section is about, and this director's whole argument is
+     * that it does not form those: a bridge with no tune in it is a band
+     * moment, and the wide shot is what a band moment looks like.
+     *
+     * The window is the shot's, not the section's, and the difference is a real
+     * one: a melody that rests through a bridge and comes back with a pickup
+     * into the solo *does* sound inside that section, one beat before the end
+     * of it, four bars after this shot has already cut away. So the test runs
+     * to wherever the picture goes next — the mid-section cut where the section
+     * is long enough to take one, the section end otherwise.
+     *
+     * The draw stays where it was. `rng.chance` is spent before the new test,
+     * so a shot list is either the same as it was or one shot wider — nothing
+     * downstream of this section's stream moves.
+     */
+    const half = Math.floor(section.lengthBars / 2);
+    const canCut = section.lengthBars >= MIN_SHOT_BARS * 3 && !!drummer;
+    const midCut = at + half * beatsPerBar;
+    const closeUp = !isBig && lead && rng.chance(0.35)
+      && leadLayer !== undefined && soundsIn(song, leadLayer, at, canCut ? midCut : over);
     shots.push(closeUp
       ? { beat: at, framing: 'front', subject: { kind: 'performer', performerId: lead }, push }
       : { beat: at, framing: 'wide', subject: { kind: 'stage' }, push });
@@ -645,11 +779,16 @@ function planShots(
      * Long sections get one cut in the middle. Without it an eight-bar wide
      * shot at 60 BPM is thirty-two seconds of one picture, which is a still
      * photograph with sound.
+     *
+     * Only where the kit is actually going in the half this lands in. A
+     * drummer exists as soon as the number contains one drum event anywhere,
+     * so "there is a drummer" says nothing about whether they are playing in
+     * bar nine — and a low, close shot up at a motionless kit is the most
+     * conspicuous still frame the stage can produce.
      */
-    const half = Math.floor(section.lengthBars / 2);
-    if (section.lengthBars >= MIN_SHOT_BARS * 3 && drummer && rng.chance(0.5)) {
+    if (canCut && rng.chance(0.5) && soundsIn(song, 'drums', midCut, over)) {
       shots.push({
-        beat: at + half * beatsPerBar,
+        beat: midCut,
         framing: 'low',
         subject: { kind: 'performer', performerId: drummer.id },
         push,
@@ -662,4 +801,19 @@ function planShots(
   if (shots.length) shots[0] = { ...shots[0]!, framing: 'wide', subject: { kind: 'stage' } };
 
   return shots.sort((a, b) => a.beat - b.beat);
+}
+
+/**
+ * Whether a layer has a note in `[from, to)`.
+ *
+ * The one thing a close-up has to be right about, and `Section.activeLayers` is
+ * nearly the answer without being it: a layer can be listed for a section and
+ * still rest through the half of it a shot actually covers, which is precisely
+ * where the mid-section cut lands. The notes are the only source that cannot be
+ * stale, and they are right here.
+ */
+function soundsIn(song: Song, layer: LayerId, from: number, to: number): boolean {
+  if (layer === 'drums') return song.drums.events.some((e) => e.beat >= from && e.beat < to);
+  return song.tracks.some((t) => t.layer === layer
+    && t.notes.some((n) => n.beat >= from && n.beat < to));
 }

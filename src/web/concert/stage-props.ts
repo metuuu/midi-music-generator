@@ -68,7 +68,7 @@
  */
 
 import {
-  AdditiveBlending, BackSide, BufferGeometry, CatmullRomCurve3, Color,
+  AdditiveBlending, BufferGeometry, CatmullRomCurve3, Color,
   ConeGeometry, CylinderGeometry, DoubleSide, Float32BufferAttribute, Group,
   IcosahedronGeometry, InstancedMesh, Line, LineBasicMaterial, Material, Mesh,
   Object3D, PlaneGeometry, ShaderMaterial, SphereGeometry, TorusGeometry,
@@ -78,7 +78,7 @@ import {
 import { Rng } from '../../core/rng.js';
 import type { Venue } from '../../concert/types.js';
 import {
-  blend, cellPlane, HEAD_BAND, hueShift, playingArea, sagLine, shade, tint,
+  blend, cellPlane, HEAD_BAND, hueShift, LENS_GAP, LOW_CEILING, playingArea, sagLine, shade, tint,
   type Kit, type PlayingArea, type Quality, type StageMetrics,
 } from './stage-kit.js';
 
@@ -600,31 +600,93 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
     c.tick((t, dt) => { ball.rotation.y += dt * 0.35 * c.idle; void t; });
   },
 
+  /**
+   * The one piece of grandeur a gilt room has — hung off something, and hung
+   * off the centre line.
+   *
+   * There used to be one of these, a bare brass ring with eight bulbs on it,
+   * parked at 2.5 m over the middle of the house. Three things were wrong with
+   * that and they compound.
+   *
+   * It had **no stem**. The mirror ball got a rod and the paper lanterns got a
+   * cord; this one hung on nothing, in a house that also had no ceiling to hang
+   * it from, and a lit ring seen edge-on with nothing above it does not read as
+   * a light fitting. It reads as a small balcony floating in the room.
+   *
+   * It was at **camera height**. The wide shot works between 2.1 and 3.6 m and
+   * the ring sat at 2.5 m, dead ahead — an object in the lens's own volume,
+   * in front of the band, in a band of heights the framing solver sweeps
+   * through as the window's aspect changes. That is the "it looks different on
+   * different screens" of it: nothing about the fitting changed, only whether
+   * the frame happened to contain it.
+   *
+   * And in the swing-era cellar it was above the room's **own ceiling** — 2.5 m
+   * against a lid at 2.0 m — so the one venue that always emits it hung it
+   * outside the building.
+   *
+   * All three answers are the same answer: hang it from the ceiling, and hang
+   * it high enough that the lens passes *underneath* it. That last part is the
+   * one that actually holds, and it holds for a reason worth stating plainly —
+   * everything on the stage projects below the horizon of a camera looking
+   * slightly down at it, so anything kept above that horizon cannot cross a
+   * player no matter where the camera stands or what shape the window is. The
+   * band of height between `headroom` and `headroom - LENS_GAP` is the only
+   * place in the house where that is true, which is why the fitting below is
+   * built downward from the ceiling to fit inside it rather than hung at a
+   * height that looked about right. Reading the depth of that band from the
+   * constant rather than baking it in is what let the camera drop 0.3 m later
+   * without this having to be re-measured.
+   *
+   * With no lid at all it goes up to the fly height instead — roof beams, over
+   * a dance floor, which is where a tanssilava would have put one — with a stem
+   * that says what it is fixed to.
+   *
+   * And a pair, off to either side. Two lamps near the edges of the frame are a
+   * room with lighting in it; one lamp on the centre line is an obstacle.
+   */
   chandelier: (c) => {
     const n = 8;
     const brass = tint(hueShift(c.p.proscenium, 30, 0.15), 0.25);
-    const node = new Group();
-    node.position.set(0, c.m.houseY + 3.4, c.m.lipZ + 4.5);
-    const ring = new Mesh(
-      c.kit.geometry('chand-ring', () => new TorusGeometry(0.55, 0.045, 5, 16)),
-      c.kit.solid(brass, { metal: 0.7, rough: 0.35 }),
-    );
-    ring.rotation.x = Math.PI / 2;
-    node.add(ring);
-    const bulbs = new InstancedMesh(
-      c.kit.geometry('bulb', () => new IcosahedronGeometry(0.05, 0)),
-      c.kit.basic(tint(c.p.ambient, 0.6)), n,
-    );
-    const dummy = new Object3D();
-    for (let i = 0; i < n; i++) {
-      const a = (i / n) * Math.PI * 2;
-      dummy.position.set(Math.cos(a) * 0.55, 0.1, Math.sin(a) * 0.55);
-      dummy.scale.setScalar(1.4);
-      dummy.updateMatrix();
-      bulbs.setMatrixAt(i, dummy.matrix);
+    /** The ceiling if there is one; the fly height if the sky is open. */
+    const hang = Math.min(c.m.headroom, c.m.flyY);
+    const stem = 0.08;
+    const bulbDrop = 0.07;
+    const bulbR = 0.05 * 1.2;
+    /** Everything hangs above this, and `LENS_GAP` is why. */
+    const clear = hang - LENS_GAP;
+    const ringGeo = c.kit.geometry('chand-ring', () => new TorusGeometry(0.42, 0.04, 5, 16));
+    const stemGeo = c.kit.geometry('chand-stem', () => new CylinderGeometry(0.022, 0.022, stem, 6));
+    const metal = c.kit.solid(brass, { metal: 0.7, rough: 0.35 });
+    const bulbGeo = c.kit.geometry('bulb', () => new IcosahedronGeometry(0.05, 0));
+    const bulbMat = c.kit.basic(tint(c.p.ambient, 0.6));
+
+    for (const side of [-1, 1]) {
+      const node = new Group();
+      node.position.set(
+        side * c.m.houseWidth * 0.17,
+        Math.max(hang - stem, clear + bulbDrop + bulbR),
+        c.m.lipZ + c.m.houseDepth * 0.3,
+      );
+      const ring = new Mesh(ringGeo, metal);
+      ring.rotation.x = Math.PI / 2;
+      node.add(ring);
+      const drop = new Mesh(stemGeo, metal);
+      drop.position.y = stem / 2;
+      node.add(drop);
+      // Below the ring, which is where a bulb goes and is also the half of the
+      // 0.3 m that is left once the stem has spent the other half.
+      const bulbs = new InstancedMesh(bulbGeo, bulbMat, n);
+      const dummy = new Object3D();
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * Math.PI * 2;
+        dummy.position.set(Math.cos(a) * 0.42, -bulbDrop, Math.sin(a) * 0.42);
+        dummy.scale.setScalar(1.2);
+        dummy.updateMatrix();
+        bulbs.setMatrixAt(i, dummy.matrix);
+      }
+      node.add(bulbs);
+      c.root.add(node);
     }
-    node.add(bulbs);
-    c.root.add(node);
   },
 
   // -- the club ------------------------------------------------------------
@@ -705,19 +767,69 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
     });
   },
 
-  /** The ceiling is what makes a basement a basement. */
+  /**
+   * The ceiling is what makes a basement a basement.
+   *
+   * Height is `LOW_CEILING`, in `stage-kit.ts`, because the camera has to know
+   * it too — read that constant for why it went up by 0.4 m and what was wrong
+   * before. Two smaller things were also wrong here, and both are the same
+   * mistake in different clothing: this was a plane rather than a surface.
+   *
+   * `DoubleSide` rather than `BackSide`. A one-sided lid does not fail by
+   * blocking the view when you get above it, which would at least be legible —
+   * it fails by *vanishing*, leaving its own edge and its pipes drawn across
+   * whatever is behind them. The camera is held under it now, so this should
+   * never be seen from above; it is here so that the frame in which some future
+   * shot gets it wrong looks like a mistake instead of like a glitch.
+   *
+   * And it runs past the back of the house rather than stopping level with the
+   * last row, so it meets the wall `stage.ts` puts there. A ceiling with an
+   * edge in mid-air is the thing that read as a plane through the crowd; a
+   * ceiling that dies into brick is a room.
+   */
   'low-ceiling': (c) => {
-    // Stops at the stage lip: a ceiling over the *band* at this height would
-    // have the trumpet player's head inside it.
-    const ceil = put(c, c.kit.geometry('ceil', () => new PlaneGeometry(c.m.houseWidth + 6, c.m.houseDepth)),
-      c.kit.solid(shade(c.p.backdrop, 0.55), { side: BackSide }),
-      0, c.m.houseY + 2.9, c.m.lipZ + c.m.houseDepth / 2 + 0.25);
+    // Still stops at the stage lip: a ceiling over the *band* at this height
+    // would have the trumpet player's head inside it. `HEAD_BAND.hi` is 2.4 m
+    // and so, in a room raised 0.9 m above its own floor, is this.
+    const y = c.m.houseY + LOW_CEILING;
+    const depth = c.m.houseDepth + 2;
+    const ceil = put(c, c.kit.geometry('ceil', () => new PlaneGeometry(c.m.houseWidth + 6, depth)),
+      c.kit.solid(shade(c.p.backdrop, 0.55), { side: DoubleSide }),
+      0, y, c.m.lipZ + depth / 2 + 0.25);
     ceil.rotation.x = -Math.PI / 2;
-    const pipe = c.kit.geometry('pipe', () => new CylinderGeometry(0.07, 0.07, c.m.houseWidth + 6, 6));
-    for (const z of [c.m.lipZ + 2.2, c.m.lipZ + 5.4]) {
-      const p = put(c, pipe, c.kit.solid(shade(c.p.proscenium, 0.5), { metal: 0.4, rough: 0.5 }),
-        0, c.m.houseY + 2.72, z);
-      p.rotation.z = Math.PI / 2;
+
+    /**
+     * Service runs — along the room, and flush to the lid.
+     *
+     * Both of those were wrong, and they were wrong in the way this whole file
+     * keeps being wrong: something was placed at a height that sounded right
+     * instead of against the rule three functions up. These hung 0.18 m below
+     * the ceiling — *inside* the `LENS_GAP` band reserved for the camera — and
+     * they ran across the room, so the nearer of the two sat 1.45 m in front of
+     * the lens at wide-shot distance. A 0.14 m cylinder at 1.45 m subtends five
+     * and a half degrees. It was not a pipe on a ceiling, it was a bar ruled
+     * across the picture.
+     *
+     * Running them along the depth instead fixes it twice over. A pipe pointing
+     * away from the camera converges toward the arch rather than cutting the
+     * frame in half, which is what a real basement ceiling does to a
+     * photograph; and there is no camera position from which it becomes a
+     * horizontal rule, so this cannot come back at some other aspect ratio.
+     *
+     * And they are *against* the plaster, not hanging near it. `PIPE_R` up from
+     * the centre puts the top of the cylinder exactly on the ceiling plane, so
+     * the last centimetre is what stops a sliver of ceiling showing through the
+     * gap at a grazing angle: a pipe with daylight between it and the ceiling is
+     * a cylinder somebody left floating, and a pipe touching the ceiling is a
+     * service run. That is the whole difference, and it is one number.
+     */
+    const PIPE_R = 0.07;
+    const pipe = c.kit.geometry(`pipe|${depth.toFixed(2)}`, () => new CylinderGeometry(PIPE_R, PIPE_R, depth, 6));
+    const pipeMat = c.kit.solid(shade(c.p.proscenium, 0.5), { metal: 0.4, rough: 0.5 });
+    for (const side of [-1, 1]) {
+      const p = put(c, pipe, pipeMat,
+        side * c.m.houseWidth * 0.22, y - PIPE_R + 0.01, c.m.lipZ + depth / 2 + 0.25);
+      p.rotation.x = Math.PI / 2;
     }
   },
 

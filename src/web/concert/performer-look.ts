@@ -440,14 +440,18 @@ export function buildHair(
     case 'long': {
       crown(2.08, 1.18, 2.08, 0.52, -0.20);
       for (const s of [SIDE.left, SIDE.right]) {
-        // Wide and shallow rather than close and deep. A curtain centred any
-        // nearer the middle, or reaching any further forward, swallows the
-        // outer eye corner and the end of the brow — which reads as hair over
-        // the face at every angle but dead-on. The length is untouched; it is
-        // the only thing making this style long.
+        // Two numbers here are load-bearing, and both are about the profile
+        // rather than the front. A head in profile is seen *along* this axis,
+        // so a curtain is not merely beside the face — it is drawn over the
+        // whole of it. Hence the front edge at z +0.25R, behind the cheek and
+        // well behind the brow, nose and lip line at z +0.76R and out: the
+        // silhouette that makes a head a face survives the turn. And the top
+        // at y +1.26R, barely proud of the crown, because a mass rising past
+        // the skull on both sides closes the head into a smooth dark ovoid —
+        // the helmet. Length is untouched; it is what makes this style long.
         const side = new Mesh(orb(l), mat);
-        side.scale.set(R * 0.60, R * 3.20, R * 1.42);
-        side.position.set(s * R * 0.98, -R * 1.10, -R * 0.52);
+        side.scale.set(R * 0.60, R * 2.78, R * 1.05);
+        side.position.set(s * R * 0.98, -R * 1.52, -R * 0.80);
         side.castShadow = true;
         head.add(side);
       }

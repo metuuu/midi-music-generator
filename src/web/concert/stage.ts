@@ -45,7 +45,8 @@
  */
 
 import {
-  BackSide, Color, Fog, Group, Mesh, Object3D, PlaneGeometry, ShaderMaterial,
+  BackSide, type BufferGeometry, Color, Float32BufferAttribute, Fog, Group, Mesh,
+  MeshBasicMaterial, Object3D, PlaneGeometry, ShaderMaterial, SphereGeometry,
 } from 'three';
 
 import { Rng } from '../../core/rng.js';
@@ -53,8 +54,8 @@ import type { Venue } from '../../concert/types.js';
 import { buildAudience, type AudienceRig } from './stage-audience.js';
 import { buildCurtain, type CurtainRig } from './stage-curtain.js';
 import {
-  blend, cellPlane, shade, tint,
-  Kit, type Quality, type StageMetrics,
+  blend, cellPlane, hueShift, shade, tint,
+  Kit, LOW_CEILING, type Quality, type StageMetrics,
 } from './stage-kit.js';
 import { dressStage, readProps, type PropRig } from './stage-props.js';
 
@@ -176,6 +177,9 @@ export function buildStage(venue: Venue, opts: StageOptions = {}): StageRig {
   const openingWidth = width * 0.94;
   const openingHeight = Math.max(3.6, Math.min(width * 0.44, 6.4));
   const rows = Math.max(1, Math.min(16, Math.round(venue.audience.rows)));
+  // Up here rather than with the backdrop it builds, because `m` publishes it
+  // and the lighting rig sizes the cyclorama glow off it.
+  const backHeight = openAir ? 2.4 : openingHeight + 2.2;
 
   const m: StageMetrics = {
     width,
@@ -189,6 +193,14 @@ export function buildStage(venue: Venue, opts: StageOptions = {}): StageRig {
     flyY: openingHeight - 0.35,
     houseDepth: 2.6 + rows * (venue.audience.seated ? 0.95 : 0.8),
     houseWidth: width + 4,
+    /**
+     * The lid, published so the camera can stay under it. `Infinity` is not a
+     * cop-out here: most of these rooms genuinely have nothing overhead, and a
+     * height nobody can reach is the honest way to say so — every consumer of
+     * this wants a `Math.min` and gets the right answer for free.
+     */
+    headroom: props.has('low-ceiling') ? -STAGE_RISE + LOW_CEILING : Infinity,
+    backdropHeight: backHeight,
   };
 
   const root = new Group();
@@ -240,26 +252,197 @@ export function buildStage(venue: Venue, opts: StageOptions = {}): StageRig {
   // --- the backdrop ------------------------------------------------------
   // Brick is the same cell trick with the rows staggered into a bond; an
   // open-air stage gets a low wall and the night behind it instead.
-  const backHeight = openAir ? 2.4 : openingHeight + 2.2;
   const backWidth = width * 1.2;
   const backColour = blackBox ? shade(p.backdrop, 0.55) : p.backdrop;
   const backRng = new Rng(`${venue.id}:backdrop`);
-  const backdrop = new Mesh(
-    brick
-      ? kit.own(cellPlane({
-        width: backWidth, height: backHeight, cols: Math.round(backWidth / 0.42),
-        rows: Math.round(backHeight / 0.2), colour: backColour, jitter: 0.13,
-        rng: backRng, stagger: true,
-      }))
-      : kit.own(cellPlane({
-        width: backWidth, height: backHeight, cols: 6, rows: 4,
-        colour: backColour, jitter: 0.05, rng: backRng,
-      })),
-    kit.solid('#ffffff', { vertexColors: true, rough: 0.95 }),
-  );
-  backdrop.position.set(0, backHeight / 2 - STAGE_RISE, m.backZ - 0.1);
-  backdrop.receiveShadow = true;
-  root.add(backdrop);
+  if (openAir) {
+    /**
+     * A wall you can walk behind.
+     *
+     * Indoors a backdrop is a cloth and a plane is the honest model of one:
+     * nobody is ever on the other side of it. Outdoors it is a low wall at the
+     * back of a dance floor, the audience can and does walk round it, and the
+     * camera can be swung behind it in one drag — at which point a plane is a
+     * sheet of paper with nothing printed on the back. It is also the one
+     * surface in this room the eye has a real thickness for, because a coping
+     * stone reading as a *line* rather than as a top is what makes a low wall
+     * look like a cut-out.
+     *
+     * So it is a box with a capping rail, and it costs two draw calls.
+     */
+    const wall = new Mesh(
+      kit.bevelBox(backWidth, backHeight, 0.3, 0.04),
+      kit.solid(backColour, { rough: 0.95 }),
+    );
+    wall.position.set(0, backHeight / 2 - STAGE_RISE, m.backZ - 0.25);
+    wall.castShadow = true;
+    wall.receiveShadow = true;
+    root.add(wall);
+
+    const coping = new Mesh(
+      kit.bevelBox(backWidth + 0.18, 0.11, 0.46, 0.04),
+      kit.solid(shade(p.proscenium, 0.22), { rough: 0.7 }),
+    );
+    coping.position.set(0, backHeight - STAGE_RISE + 0.05, m.backZ - 0.25);
+    coping.castShadow = true;
+    root.add(coping);
+  } else {
+    const backdrop = new Mesh(
+      brick
+        ? kit.own(cellPlane({
+          width: backWidth, height: backHeight, cols: Math.round(backWidth / 0.42),
+          rows: Math.round(backHeight / 0.2), colour: backColour, jitter: 0.13,
+          rng: backRng, stagger: true,
+        }))
+        : kit.own(cellPlane({
+          width: backWidth, height: backHeight, cols: 6, rows: 4,
+          colour: backColour, jitter: 0.05, rng: backRng,
+        })),
+      kit.solid('#ffffff', { vertexColors: true, rough: 0.95 }),
+    );
+    backdrop.position.set(0, backHeight / 2 - STAGE_RISE, m.backZ - 0.1);
+    backdrop.receiveShadow = true;
+    root.add(backdrop);
+  }
+
+  // --- the night ---------------------------------------------------------
+  /**
+   * What an open-air stage has instead of walls.
+   *
+   * The cellar and the black box are answered by building the room; a
+   * tanssilava cannot be, because the absence of a room is the whole idea of
+   * one. But "no walls" was being drawn as *no anything* — past the 2.4 m back
+   * wall, and past the ends of it, and above it, and behind you if you dragged
+   * the camera round, the scene was the page's background colour. That is not
+   * an open-air stage at midnight, it is a stage with the lights off in a void,
+   * and the void is what reads as out of bounds.
+   *
+   * A dome fixes it from every angle at once, which is the property worth
+   * paying for: there is no orbit, no aspect ratio and no shot that finds an
+   * edge of it. One sphere, seen from the inside, unlit and unfogged — it *is*
+   * the far distance, so a fog that pulls it toward the fog colour would only
+   * be telling you the horizon is far away, which you can already see.
+   *
+   * The gradient is three bands and all three come from `Venue.palette`, so the
+   * sixties tanssilava and the eighties one get different nights out of the same
+   * arithmetic — the deep blue overhead is `backdrop`, the pale band at the
+   * waterline is `ambient`, and below it darkens to a far shore. Finland in
+   * July: the sun is barely down and the horizon never quite goes out.
+   *
+   * The horizon sits at the house floor, which is *below* the top of the back
+   * wall — so from the front you see wall, then sky, and the shore only shows
+   * once the camera is high enough or wide enough to look past the ends. That
+   * is the right way round. The wall is the near thing and it should occlude.
+   */
+  if (openAir) {
+    /**
+     * Big enough to contain the `lake`, which is 90 m across and reaches 79 m
+     * from the origin at its corners. The dome writes no depth and draws first,
+     * so anything *outside* it paints over the sky instead of being hidden by
+     * it — at 60 m that put the lake's far edge as a hard line a fraction of a
+     * degree above the horizon. The camera's far plane is 120 m and the most
+     * distant point of this is about 104 m, so there is room for it.
+     */
+    const skyR = 90;
+    // 32 rings rather than 16: the gradient is shaped finer than the mesh at
+    // the horizon, which is the one part of it anybody looks at, and a band of
+    // 11° there smears the glow halfway up the sky. Two thousand triangles.
+    const skyGeo = kit.own(new SphereGeometry(skyR, 24, 32));
+    const pos = skyGeo.getAttribute('position');
+    const tint3 = new Float32Array(pos.count * 3);
+    const zenith = new Color(shade(p.backdrop, 0.4));
+    const horizon = new Color(tint(hueShift(p.ambient, -8, 0.05), 0.12));
+    const shore = new Color(shade(p.backdrop, 0.8));
+    const band = new Color();
+    for (let i = 0; i < pos.count; i++) {
+      const t = pos.getY(i) / skyR;
+      // Below the waterline the shore closes in fast; above it the pale band
+      // is thin and the blue takes over. `pow` rather than a straight ramp so
+      // the glow hugs the horizon instead of washing halfway up the sky.
+      band.copy(horizon).lerp(t < 0 ? shore : zenith,
+        t < 0 ? Math.min(1, -t * 7) : Math.min(1, Math.pow(t, 0.55)));
+      tint3[i * 3] = band.r;
+      tint3[i * 3 + 1] = band.g;
+      tint3[i * 3 + 2] = band.b;
+    }
+    skyGeo.setAttribute('color', new Float32BufferAttribute(tint3, 3));
+    const sky = new Mesh(skyGeo, kit.own(new MeshBasicMaterial({
+      vertexColors: true, side: BackSide, fog: false, depthWrite: false,
+    })));
+    sky.position.set(0, m.houseY, 0);
+    sky.renderOrder = -1;
+    root.add(sky);
+  }
+
+  // --- the walls of the house --------------------------------------------
+  /**
+   * The room the camera is standing in.
+   *
+   * Everything above this line dresses the thing the camera points *at*, and
+   * for a long time that was the whole model: a stage, a floor, and an audience
+   * sitting in the dark on it. That survives a camera which only ever looks
+   * forward from one seat. It does not survive a camera the viewer can orbit,
+   * and it does not survive a ceiling — a lid over a house with no walls is a
+   * slab hanging in space, which is exactly what the low ceiling looked like
+   * from every angle that could see its edge.
+   *
+   * So the house gets three sides. Not for their own sake, and not to be looked
+   * at: they are what the ceiling terminates against, and a ceiling that meets
+   * a wall reads as a ceiling where the same plane alone reads as a mistake.
+   *
+   * **Single-sided, deliberately.** The camera is now held inside the room in y
+   * and was always held in z, but orbit yaw is not clamped at all and swinging
+   * round the side of the house is a thing a viewer does in the first ten
+   * seconds. Solid walls answer that with a black screen. These let you look
+   * straight in from outside instead, which is the graceful version of the same
+   * failure: the room disappears and the show does not.
+   *
+   * `openAir` opts out. A tanssilava is a roof on posts at the edge of a lake
+   * and the entire point of it is that there is nothing at the sides.
+   */
+  if (!openAir) {
+    const wallTop = Number.isFinite(m.headroom) ? m.headroom : backHeight - STAGE_RISE;
+    const wallH = wallTop - m.houseY;
+    /**
+     * Behind the camera, with room to spare. The wide shot stands at most
+     * `depth * 0.25 + rows * 0.95 + 2.5` downstage of centre — `maxDistance`
+     * in `camera.ts`, less the quarter-depth its aim point sits upstage — and
+     * `houseDepth` is derived from the same row count, so the last seat is
+     * always a little over a metre in front of that. The 1.6 m states the
+     * margin rather than trusting it.
+     */
+    const houseBackZ = m.lipZ + m.houseDepth + 1.6;
+    const wallRng = new Rng(`${venue.id}:walls`);
+    const wallColour = shade(backColour, blackBox ? 0.25 : 0.32);
+    const wallMat = kit.solid('#ffffff', { vertexColors: true, rough: 0.95 });
+
+    /** The backdrop's own trick, so a brick room is brick the whole way round. */
+    const wall = (w: number, h: number): BufferGeometry => cellPlane({
+      width: w,
+      height: h,
+      cols: brick ? Math.round(w / 0.42) : 5,
+      rows: brick ? Math.round(h / 0.2) : 3,
+      colour: wallColour,
+      jitter: brick ? 0.13 : 0.05,
+      rng: wallRng,
+      stagger: brick,
+    });
+
+    const sideDepth = houseBackZ - m.backZ;
+    for (const side of [-1, 1]) {
+      const mesh = new Mesh(kit.own(wall(sideDepth, wallH)), wallMat);
+      mesh.position.set(side * (m.houseWidth / 2 + 0.6), m.houseY + wallH / 2, m.backZ + sideDepth / 2);
+      mesh.rotation.y = side * -Math.PI / 2;
+      mesh.receiveShadow = true;
+      root.add(mesh);
+    }
+
+    const back = new Mesh(kit.own(wall(m.houseWidth + 1.2, wallH)), wallMat);
+    back.position.set(0, m.houseY + wallH / 2, houseBackZ);
+    back.rotation.y = Math.PI;
+    back.receiveShadow = true;
+    root.add(back);
+  }
 
   // --- proscenium and masking -------------------------------------------
   const archColour = blackBox ? shade(p.proscenium, 0.5) : p.proscenium;

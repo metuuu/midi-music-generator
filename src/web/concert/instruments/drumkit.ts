@@ -526,9 +526,8 @@ export const buildDrumkit: InstrumentBuilder = (opts) => {
   tripod(new Vector3(-0.66, 0.50, 0.10), 1.00);
   strut(tubeSlots, new Vector3(-0.66, 1.00, 0.10), new Vector3(RIDE_AT[0], RIDE_AT[1] - 0.005, RIDE_AT[2]));
 
-  // --- Cowbell and woodblock, on a bracket off the bass drum ---------------
+  // --- Cowbell and woodblock, on a bracket off the tom post ----------------
 
-  strut(tubeSlots, new Vector3(0.02, 0.95, 0.16), new Vector3(-0.12, 1.16, 0.22));
   const bell = addTo(root, new Mesh(new BoxGeometry(0.055, 0.10, 0.075), brassMat));
   bell.position.set(0.02, 1.12, 0.22);
   bell.rotation.x = 0.5;
@@ -537,6 +536,40 @@ export const buildDrumkit: InstrumentBuilder = (opts) => {
   block.position.set(-0.26, 1.08, 0.24);
   block.rotation.x = 0.4;
   block.castShadow = true;
+
+  /**
+   * Where a mounted piece's underside is: the centre of the bottom face of its
+   * box, carried through the piece's own tilt, and then sunk a little way into
+   * the wood or the brass.
+   *
+   * The inset is not cosmetic. Both pieces bob on a hit and the bob is a signed
+   * oscillation, so a tip that merely touched the bottom face at rest would
+   * part from it on the up-swing. Sinking it further than the amplitude means
+   * the joint can only ever be tighter than it looks, never open.
+   */
+  function underside(mesh: Mesh, halfHeight: number): Vector3 {
+    return mesh.position.clone().add(
+      new Vector3(0, -halfHeight + 0.016, 0).applyEuler(mesh.rotation),
+    );
+  }
+
+  /**
+   * Both pieces used to hang off the end of one diagonal tube that ran past
+   * them rather than to them: the cowbell floated about eight centimetres clear
+   * of the bracket and the woodblock was out beyond its far end entirely.
+   *
+   * So the arms now end on the pieces. The cowbell is a topper straight off the
+   * head of the tom post, which is where a spare bell goes on a real kit, and
+   * the woodblock is out on a boom from the same clamp with a short riser under
+   * it — an L, the shape a percussion arm actually is. Both ends are derived
+   * from the mesh transforms above, so moving a piece moves its mount.
+   */
+  const POST_TOP = new Vector3(0.02, 1.02, 0.18);
+  const blockFoot = underside(block, 0.025);
+  const elbow = new Vector3(blockFoot.x, POST_TOP.y, blockFoot.z);
+  strut(tubeSlots, POST_TOP, underside(bell, 0.05));
+  strut(tubeSlots, POST_TOP, elbow);
+  strut(tubeSlots, elbow, blockFoot);
   const aux: Record<'cb' | 'perc', { mesh: Mesh; hit: Hit; base: number }> = {
     cb: { mesh: bell, hit: new Hit(), base: 1.12 },
     perc: { mesh: block, hit: new Hit(), base: 1.08 },

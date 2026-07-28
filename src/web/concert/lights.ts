@@ -149,8 +149,10 @@ export interface FixtureReading {
 export interface LightRigState {
   /** The beat last passed to `update`. */
   beat: number;
-  /** The house level last passed to `setHouse`. */
+  /** The house level, as the fader has actually reached it. */
   house: number;
+  /** The grand master, likewise. 1 unless the show runner has dimmed it. */
+  master: number;
   /** `LightingScore.haze` of the running number. */
   haze: number;
   quality: Quality;
@@ -198,8 +200,33 @@ export interface LightRig {
    * A separate probe light that only ever *adds*, so it cannot fight a cue: the
    * score fades to an ember rather than to black precisely so that the house
    * has somewhere to come up from. Bring it up for BILL, APPLAUSE and BOW.
+   *
+   * `seconds` is a fade. Omit it and the change is instant, which is what a
+   * work light does and *not* what a house does — the audience is looking at
+   * the house lights when they go, so a snap there is the one lighting change
+   * everybody in the room notices. See `setMaster`.
    */
-  setHouse(level: number): void;
+  setHouse(level: number, seconds?: number): void;
+
+  /**
+   * The grand master over everything the *score* is doing, 0..1.
+   *
+   * Not a cue and not part of the score: it is the fader the whole rig hangs
+   * off, and the reason it exists is the moment before a number starts. The
+   * timeline is evaluated from beat 0, so `begin` puts every fixture at its
+   * opening level immediately — behind a closed curtain, with the house still
+   * up, which reads as the room being far too bright and then abruptly
+   * changing when the tabs move.
+   *
+   * A theatre does it the other way round: the house goes out, *then* the
+   * stage comes up, and the curtain opens onto a lit set. That ordering is
+   * three calls with this and impossible without it, because nothing in a
+   * lighting score can say "not yet".
+   *
+   * The house is deliberately outside it. Dimming the house with the same
+   * fader would mean the pre-show had no light at all.
+   */
+  setMaster(level: number, seconds?: number): void;
 
   setQuality(q: Quality): void;
 
@@ -325,6 +352,46 @@ function prefersReducedMotion(): boolean {
     && matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
+/**
+ * A level that travels: the house, and the grand master.
+ *
+ * Both are the show runner's rather than the score's, and neither can go
+ * through the cue timeline — that is indexed by *beat*, and the two moments
+ * these exist for are precisely the ones where there is no music playing.
+ *
+ * Linear, because a dimmer is linear. An eased console fade reads as somebody
+ * riding the fader rather than as the lights changing.
+ */
+interface Fader {
+  value: number;
+  target: number;
+  /** Units per second; `Infinity` is a snap. */
+  rate: number;
+}
+
+function makeFader(value: number): Fader {
+  return { value, target: value, rate: Number.POSITIVE_INFINITY };
+}
+
+function setFader(f: Fader, level: number, seconds: number | undefined): void {
+  const to = Number.isFinite(level) ? Math.max(0, Math.min(1, level)) : 0;
+  f.target = to;
+  f.rate = seconds && seconds > 0
+    ? Math.abs(to - f.value) / seconds
+    : Number.POSITIVE_INFINITY;
+  if (!Number.isFinite(f.rate) || f.rate <= 0) f.value = to;
+}
+
+function stepFader(f: Fader, dt: number): number {
+  if (f.value === f.target) return f.value;
+  if (!Number.isFinite(f.rate)) { f.value = f.target; return f.value; }
+  const step = f.rate * dt;
+  f.value = f.value < f.target
+    ? Math.min(f.target, f.value + step)
+    : Math.max(f.target, f.value - step);
+  return f.value;
+}
+
 // ---------------------------------------------------------------------------
 
 export function buildLightRig(
@@ -432,7 +499,17 @@ export function buildLightRig(
    * `buildCycGlow` for why every version of it built as a lantern floodlit the
    * drummer.
    */
-  const cycHeight = m.openingHeight * 1.06;
+  /**
+   * ...and it is only as tall as the cloth is.
+   *
+   * Sized from the opening, which is a fine assumption in any room whose
+   * backdrop reaches the top of the arch and a badly wrong one outdoors. A
+   * tanssilava's backdrop is a 2.4 m wall you are meant to see over, so a
+   * 4.7 m glow put three metres of lit rectangle in the night sky above it:
+   * the brightest thing in the frame, hard-edged, hanging off nothing, and
+   * covering the view the low wall exists to leave open.
+   */
+  const cycHeight = Math.min(m.openingHeight * 1.06, m.backdropHeight - 0.1);
   const cycGlow = buildCycGlow(kit, m.openingWidth * 1.02, cycHeight);
   cycGlow.mesh.position.set(0, cycHeight / 2 - 0.85, m.backZ - 0.07);
   root.add(cycGlow.mesh);
@@ -494,9 +571,14 @@ export function buildLightRig(
    * A lantern: a bevelled can, a stubby yoke, and a lens that glows.
    *
    * `at` is in the parent's space; `aimAt` is in **world** space, because
-   * `Object3D.lookAt` is. The can is modelled along -y with the lens at its
-   * foot, so after `lookAt` has pointed local -z at the target it is tipped a
-   * quarter turn to bring the lens round to the front.
+   * `Object3D.lookAt` is — which is also why the body is hung on its parent
+   * before it is aimed. A fixture aimed while it is still parentless takes its
+   * bar-local position for a world one and ends up pointing somewhere else.
+   *
+   * On a plain `Object3D`, `lookAt` puts local **+z** on the target (it is
+   * cameras and lights that face -z). The can is modelled along -y with the
+   * lens at its foot, so a quarter turn back about x brings the lens round
+   * from -y onto +z, and the housing points where the beam goes.
    */
   function lantern(
     parent: Object3D, at: Vector3, aimAt: Vector3, size: number, lens: MeshBasicMaterial,
@@ -509,10 +591,10 @@ export function buildLightRig(
 
     const body = new Group();
     body.add(can, disc, hook);
+    parent.add(body);
     body.position.copy(at);
     body.lookAt(aimAt);
-    body.rotateX(Math.PI / 2);
-    parent.add(body);
+    body.rotateX(-Math.PI / 2);
   }
 
   // Fly bar: the pars. Local coordinates, because they are children of the bar.
@@ -591,7 +673,8 @@ export function buildLightRig(
   let timeline: Timeline = buildTimeline({ cues: [], haze: 0 }, reduced ? CALM_MIN_FADE : 0);
   let haze = 0;
   let density = beamDensity(0);
-  let houseLevel = 0;
+  const houseFader = makeFader(0);
+  const masterFader = makeFader(1);
   let beat = 0;
   let elapsed = 0;
 
@@ -666,6 +749,13 @@ export function buildLightRig(
     for (const f of FIXTURES) evaluate(timeline[f], beat, state[f]!);
 
     const tier = TIERS[quality];
+    /**
+     * The grand master, applied to every fixture the score drives and to
+     * nothing else. `state[f].intensity` stays exactly as the cue meant it, so
+     * `readState` still reports the score rather than the fader — see
+     * `FixtureReading`.
+     */
+    const master = stepFader(masterFader, d);
 
     // -- wash: a probe for the cover, a soft top light for the modelling ----
     const w = state.wash!;
@@ -674,25 +764,25 @@ export function buildLightRig(
     washHemi.groundColor.copy(colour).multiplyScalar(0.28);
     // At `low` the top light is gone, so its energy folds into the probe rather
     // than the stage simply going darker when somebody picks the fast tier.
-    washHemi.intensity = w.intensity * GAIN.washHemi * (tier.washTop ? 1 : 1.28);
+    washHemi.intensity = w.intensity * GAIN.washHemi * (tier.washTop ? 1 : 1.28) * master;
     washTop.color.copy(colour);
-    washTop.intensity = tier.washTop ? w.intensity * GAIN.washTop : 0;
+    washTop.intensity = tier.washTop ? w.intensity * GAIN.washTop * master : 0;
     washTop.visible = tier.washTop;
 
     const k = state.key!;
     key.color.copy(applyColour(colour, k));
-    key.intensity = k.intensity * GAIN.key;
+    key.intensity = k.intensity * GAIN.key * master;
 
     const bk = state.back!;
     back.color.copy(applyColour(colour, bk));
-    back.intensity = bk.intensity * GAIN.back;
+    back.intensity = bk.intensity * GAIN.back * master;
 
     const ft = state.footlights!;
     foot.color.copy(applyColour(colour, ft));
-    foot.intensity = ft.intensity * GAIN.foot;
+    foot.intensity = ft.intensity * GAIN.foot * master;
 
     const cy = state.cyc!;
-    cycGlow.set(applyColour(colour, cy), cy.intensity * GAIN.cyc);
+    cycGlow.set(applyColour(colour, cy), cy.intensity * GAIN.cyc * master);
 
     // -- the follow spot ---------------------------------------------------
     //
@@ -706,7 +796,7 @@ export function buildLightRig(
     if (wantSpot) spotWanted.copy(wantSpot);
     follow.update(d, spotWanted, wantSpot ? sp.follow : undefined);
     spot.color.copy(applyColour(colour, sp));
-    spot.intensity = sp.intensity * GAIN.spot;
+    spot.intensity = sp.intensity * GAIN.spot * master;
     spot.target.position.copy(follow.aim);
     spot.target.updateMatrixWorld();
 
@@ -735,7 +825,7 @@ export function buildLightRig(
       }
     }
     warm.color.copy(applyColour(colour, wm));
-    warm.intensity = wm.intensity * GAIN.warm;
+    warm.intensity = wm.intensity * GAIN.warm * master;
     warm.position.set(warmAim.x, warmAim.y + WARM_LAMP_HEIGHT, warmAim.z);
     warm.updateMatrixWorld();
 
@@ -743,23 +833,23 @@ export function buildLightRig(
     //
     // Emissive bodies are what make a rig read as a rig rather than as light
     // arriving from nowhere, and they are three small meshes each.
-    const parDrive = Math.min(1, w.intensity * 0.55 + k.intensity * 0.65);
+    const parDrive = Math.min(1, w.intensity * 0.55 + k.intensity * 0.65) * master;
     applyColour(colour, w);
     parLens.color.copy(colour).multiplyScalar(0.05 + 0.95 * parDrive);
-    backLens.color.copy(applyColour(colour, bk)).multiplyScalar(0.05 + 0.95 * bk.intensity);
-    footLens.color.copy(applyColour(colour, ft)).multiplyScalar(0.05 + 0.95 * ft.intensity);
-    spotLens.color.copy(applyColour(colour, sp)).multiplyScalar(0.05 + 0.95 * sp.intensity);
-    warmLens.color.copy(applyColour(colour, wm)).multiplyScalar(0.05 + 0.95 * wm.intensity);
+    backLens.color.copy(applyColour(colour, bk)).multiplyScalar(0.05 + 0.95 * bk.intensity * master);
+    footLens.color.copy(applyColour(colour, ft)).multiplyScalar(0.05 + 0.95 * ft.intensity * master);
+    spotLens.color.copy(applyColour(colour, sp)).multiplyScalar(0.05 + 0.95 * sp.intensity * master);
+    warmLens.color.copy(applyColour(colour, wm)).multiplyScalar(0.05 + 0.95 * wm.intensity * master);
 
     for (let i = 0; i < MAX_FOOTS; i++) footBodies[i]!.visible = i < tier.foots;
 
     // -- beams -------------------------------------------------------------
-    const spotAlpha = density * BEAM_SCALE.spot * sp.intensity;
+    const spotAlpha = density * BEAM_SCALE.spot * sp.intensity * master;
     spotBeam.aim(fohPos, toFloor(fohPos, follow.aim, beamEnd), SPOT_ANGLE * 1.25);
     spotBeam.set(applyColour(colour, sp), spotAlpha);
 
     warmBeam.aim(warmPos, toFloor(warmPos, warmAim, beamEnd), WARM_BEAM_ANGLE);
-    warmBeam.set(applyColour(colour, wm), density * BEAM_SCALE.warm * wm.intensity);
+    warmBeam.set(applyColour(colour, wm), density * BEAM_SCALE.warm * wm.intensity * master);
 
     applyColour(colour, w);
     for (let i = 0; i < MAX_PARS; i++) {
@@ -778,11 +868,11 @@ export function buildLightRig(
       const b = backBeams[i]!;
       if (i >= tier.backBeams) { b.set(colour, 0); continue; }
       b.aim(backPos[i]!, backTarget[i]!, 0.22);
-      b.set(colour, density * BEAM_SCALE.back * bk.intensity);
+      b.set(colour, density * BEAM_SCALE.back * bk.intensity * master);
     }
 
     // -- the house ---------------------------------------------------------
-    houseHemi.intensity = houseLevel * GAIN.house;
+    houseHemi.intensity = stepFader(houseFader, d) * GAIN.house;
   }
 
   // --- measurement --------------------------------------------------------
@@ -851,9 +941,13 @@ export function buildLightRig(
 
     update,
 
-    setHouse(level: number): void {
-      houseLevel = Number.isFinite(level) ? Math.max(0, Math.min(1, level)) : 0;
-      houseHemi.intensity = houseLevel * GAIN.house;
+    setHouse(level: number, seconds?: number): void {
+      setFader(houseFader, level, seconds);
+      houseHemi.intensity = houseFader.value * GAIN.house;
+    },
+
+    setMaster(level: number, seconds?: number): void {
+      setFader(masterFader, level, seconds);
     },
 
     setQuality(q: Quality): void {
@@ -876,7 +970,8 @@ export function buildLightRig(
       }
       return {
         beat,
-        house: houseLevel,
+        house: houseFader.value,
+        master: masterFader.value,
         haze,
         quality,
         fixtures,

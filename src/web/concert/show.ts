@@ -13,6 +13,17 @@
  *                                        programme │  │ P / button       ▾
  *                                                  └──▾ PROGRAMME       BOW
  *
+ * The two edges either side of PLAYING carry most of the staging, and both of
+ * them are about *order*. CURTAIN is: house out, tabs open, stage look up
+ * under them, band picks up its instruments — and no sound at all, because the
+ * pattern is compiled behind the cloth and started later. COUNT-IN is the
+ * leader beating time and then the first bar of the music, which for anything
+ * with a kit is the drummer's four clicks (`withCountIn`, in the generator —
+ * the count is music, not an effect). APPLAUSE runs the other way: the last
+ * chord is still ringing, the house comes up, the tabs come in *over* the band
+ * while they take it, and the next number is not staged until the cloth is
+ * shut. Nobody watches six people turn into six other people.
+ *
  * Three things here are load-bearing and easy to get wrong:
  *
  * **The scheduler is stopped between numbers, not swapped.** Strudel's cycle
@@ -54,8 +65,9 @@ import { songDurationSeconds } from '../../core/types.js';
 import { buildConcert, revoiceNumber } from '../../concert/index.js';
 import type { Concert, ConcertNumber, ConcertOptions } from '../../concert/types.js';
 import { instrumentIdForTrack, specFor } from '../../concert/instruments.js';
+import { getGenre } from '../../genre/index.js';
 import { renderStrudel } from '../../render/strudel.js';
-import { playCode, stopPlayback } from '../audio.js';
+import { loadCode, playCode, startLoaded, stopPlayback } from '../audio.js';
 
 import { createAnimator, type Animator } from './animate.js';
 import { createDirector, type CameraDirector } from './camera.js';
@@ -105,6 +117,65 @@ const APPLAUSE_SECONDS = 4.5;
 /** Beats a tomatoed player sits out before returning with a new part. */
 const SULK_BEATS = 8;
 
+// --- The beginning ---------------------------------------------------------
+//
+// A number used to start on the frame the curtain did: `beginNumber` evaluated
+// the pattern and then opened the tabs, and Strudel starts a pattern about a
+// tenth of a second after it is handed one. So the first bar of music and the
+// first millimetre of cloth happened together, which is not a thing that has
+// ever happened in a theatre and read exactly as wrong as it was — no reveal,
+// no beginning, just an edit.
+//
+// What a room actually does, in order, is: the house goes out; the tabs open
+// onto a stage that is coming up under them; the band takes up its
+// instruments while they travel; somebody counts; and *then* the music. Each
+// of those is a step below, and the ones with a fixed length have a number
+// here rather than being folded into one another — the curtain's own three
+// seconds are the curtain's, and the count's are the count's.
+
+/** Seconds the house takes to go out. Slow: everybody is looking at it. */
+const HOUSE_DIM_SECONDS = 1.0;
+/** How far into that dim the tabs start to travel. They overlap; a room does. */
+const CURTAIN_AT = 0.55;
+/** Seconds the score's own opening state takes to come up behind the cloth. */
+const STAGE_UP_SECONDS = 1.9;
+/** House level with the programme up, and again for the applause. */
+const HOUSE_BILL = 0.7;
+const HOUSE_APPLAUSE = 0.45;
+/** Seconds the house takes to come back up at the end of a number. */
+const HOUSE_UP_SECONDS = 0.9;
+/**
+ * Seconds the stage look takes to go out under the incoming curtain.
+ *
+ * A little under the cloth's own full traverse — 0.9 + 2.4 s of easing, in
+ * `stage-curtain.ts` — so the last thing the house sees is the band dimming
+ * behind it rather than a lit stage being covered up.
+ */
+const CURTAIN_IN_SECONDS = 2.6;
+
+/**
+ * Seconds between the reveal landing and the music starting.
+ *
+ * The count-in proper is *inside the music* — see `withCountIn` — so this is
+ * only the beat before it: the band settled, the leader looking round, the
+ * moment where a real band checks that everybody is actually ready. Long
+ * enough to read as deliberate, short enough that nobody wonders whether the
+ * page has hung.
+ */
+const CUE_SECONDS = 1.1;
+
+/**
+ * The beat handed to the animator before the transport has started.
+ *
+ * Negative, and any negative will do: the cursors are all `beat`-indexed, so a
+ * position before the first gesture is exactly "nothing has happened yet",
+ * which is the truth. It matters that it is not **zero** — zero is a real
+ * position in the music, and the band held there was standing at the first
+ * downbeat's pose for as long as the reveal took. That was the whole of "some
+ * of them are already playing before the music starts".
+ */
+const PRE_ROLL_BEAT = -1;
+
 /**
  * How far the curtain has to have travelled before the band is in the room.
  *
@@ -131,6 +202,14 @@ const CURTAIN_REVEALS = 0.02;
 // A theatre ends with the curtain. So: the band acknowledges the house, the
 // tabs come in over their own three-second traverse, and the picture goes under
 // them. The camera does not move — `clockLive` sees to that.
+//
+// The *number's* ending is a different thing and is not decided here at all.
+// `landEnding` in `generate/song.ts` writes the last bar as a held chord, so
+// by the time the transport runs out there is a whole bar of it ringing and
+// stopping the scheduler does not cut it — Strudel's stop halts the clock and
+// leaves the voices already handed to the audio graph to finish. What happens
+// here is only what a room does over that ringing chord: the house comes up,
+// the audience claps, and the tabs come in over the band while they take it.
 
 /** Seconds into the bow before the tabs are brought in. Let them take a bow. */
 const BOW_CURTAIN_AT = 1.6;
@@ -155,6 +234,7 @@ export function createShow(opts: ShowOptions = {}): Show {
   root.add(lights.root);
 
   const director = createDirector(reducedMotion);
+  director.room(stage.metrics);
   const transport = createTransport();
   const animator = createAnimator();
   const tomatoes = createTomatoes(root, { seed: concert.seed });
@@ -202,6 +282,37 @@ export function createShow(opts: ShowOptions = {}): Show {
    * calls in one frame run breath and blink at double rate.
    */
   let animatorHasRigs = false;
+  /**
+   * Whether the tabs have been sent out for this number, and whether the band
+   * has been cued. Both are one-shots inside a state that lasts several
+   * seconds, and both drive things that must not be re-asked every frame: a
+   * fade re-issued per frame never finishes, and a curtain re-issued per frame
+   * restarts its own easing.
+   */
+  let revealed = false;
+  let cueGiven = false;
+  /**
+   * The song whose pattern is compiled and sitting in the scheduler, stopped.
+   *
+   * Identity rather than a boolean, because a tomato can replace `current.song`
+   * between the load and the downbeat — `revoiceNumber` builds a new object —
+   * and starting a stale pattern would put the stage a bar out of step with
+   * what is sounding.
+   */
+  let loaded: Song | undefined;
+  /** The load in flight, so the downbeat can wait for it rather than race it. */
+  let loading: Promise<void> | undefined;
+  /**
+   * The last beat the clock actually reported, held while it is stopped.
+   *
+   * The lighting rig is indexed by beat, and `transport.end()` reports 0 —
+   * which is a real position in the cue timeline, and specifically the
+   * *opening* one. So the moment a number finished, the stage snapped back to
+   * the state it had started in and held it through the applause. Reset by
+   * `stageNumber`, because a held beat from the previous number would index
+   * the new timeline at its ending.
+   */
+  let heldBeat = 0;
   /** 0..1 of black over the picture. Only the bow moves it. */
   let fade = 0;
   const blackout = buildBlackout();
@@ -379,41 +490,157 @@ export function createShow(opts: ShowOptions = {}): Show {
 
   // --- Numbers -----------------------------------------------------------
 
-  async function beginNumber(n: number): Promise<void> {
+  /**
+   * Put a number on the stage. Behind a closed curtain, in silence.
+   *
+   * Everything expensive happens here — six bodies and their instruments torn
+   * down and rebuilt, a cue timeline, a camera plan, and the pattern text
+   * compiled — and all of it while the cloth is shut and the stage look is
+   * held at zero. That is not only for the jank: it is what the curtain is
+   * *for*. The audience should meet a band that is already standing there.
+   */
+  function stageNumber(n: number): void {
     index = n;
     current = concert.numbers[n]!;
     sulking.clear();
+    revealed = false;
+    cueGiven = false;
+    heldBeat = 0;
 
     stageBand(current);
     animator.begin(current, rigs, models);
     animatorHasRigs = true;
     lights.begin(current.lighting);
+    // The score is loaded but held down: `begin` evaluates the timeline at beat
+    // 0, so without this the whole opening state lands on the front of a closed
+    // curtain with the house still up. See `LightRig.setMaster`.
+    lights.setMaster(0);
     director.begin(current.song, current.cast, current.solos, concert.venue, `${concert.seed}/${n}`);
     // No `tomatoes.strike()` here: `begin` is a strike plus a new cast, says so
     // in its own contract, and a second strike would throw away the pool
     // warm-up that `begin` just paid for behind this closed curtain.
 
-    // Stop before evaluating. See the module note: a running cycle counter
-    // would start this song somewhere in its middle.
-    await stopPlayback();
+    setState('curtain');
+    loading = load(current.song);
+  }
+
+  /**
+   * Compile the pattern and hand it to the scheduler, stopped.
+   *
+   * Split from starting it because the two want to happen at different
+   * moments: this one wants to be over before anybody is looking, and the
+   * start wants to be exactly on the cue. Evaluating in one call put a
+   * transpile on the frame the count-in began, which is a stutter in the one
+   * second of the show that is nothing but timing.
+   */
+  async function load(song: Song): Promise<void> {
+    try {
+      // Stop before loading. See the module note: a running cycle counter
+      // would start this song somewhere in its middle.
+      await stopPlayback();
+      await loadCode(renderStrudel(audible(song)));
+      loaded = song;
+    } catch (err) {
+      console.error('concert: Strudel could not evaluate the pattern', err);
+    }
+  }
+
+  /** The downbeat. Everything is already compiled; this is one clock start. */
+  async function startMusic(): Promise<void> {
     transport.begin(current.song);
     clockLive = true;
-    await sound(current.song);
-
-    stage.setCurtain(1);
-    lights.setHouse(0);
-    setState('count-in');
+    try {
+      /**
+       * Wait for the load rather than racing it.
+       *
+       * It has had the whole reveal to finish and normally has, but on the
+       * first number it is also waiting for the soundfonts, and two
+       * evaluations in flight against one scheduler is the sort of race that
+       * shows up once in fifty page loads as a number that never starts.
+       */
+      await loading;
+      // A pattern that failed to load — or one a tomato replaced while the
+      // curtain was travelling — is compiled here instead, late but audible.
+      if (loaded === current.song) await startLoaded();
+      else await sound(current.song);
+    } catch (err) {
+      console.error('concert: the number could not be started', err);
+    }
   }
 
   function endNumber(): void {
+    // The clock stops; the sound does not. The last bar is a held chord and
+    // Strudel's stop only halts the scheduler, so it rings out over the first
+    // seconds of the applause exactly as it would in a room.
     void stopPlayback();
     transport.end();
     clockLive = false;
     animator.end();
     animatorHasRigs = false;
-    lights.setHouse(0.45);
+    lights.setHouse(HOUSE_APPLAUSE, HOUSE_UP_SECONDS);
     stage.applaud(1);
-    setState(index + 1 < concert.numbers.length ? 'applause' : 'bow');
+
+    const last = index + 1 >= concert.numbers.length;
+    if (last) {
+      // A curtain call: the house comes up further, and the stage stays lit
+      // until the black takes it. See `BOW_CURTAIN_AT`.
+      lights.setHouse(HOUSE_BILL, HOUSE_UP_SECONDS);
+    } else {
+      // The tabs come in *now*, over the band still standing in the applause,
+      // rather than four seconds later at the moment the next band appears.
+      // Which is the whole fix: the change happens behind them.
+      stage.setCurtain(0);
+      // And the stage look goes out under the closing cloth, so that by the
+      // time the next number is struck and staged there is nothing lit to snap
+      // — `lights.begin` puts every fixture at its new opening level the
+      // instant it is called, and that would otherwise land on the front of a
+      // closed curtain that the house is still washing.
+      lights.setMaster(0, CURTAIN_IN_SECONDS);
+    }
+    setState(last ? 'bow' : 'applause');
+  }
+
+  /**
+   * Beats of count-in at the front of this number, or 0.
+   *
+   * Read from the song rather than assumed, because whether there is one at
+   * all depends on the genre and on whether anybody is holding sticks — see
+   * `withCountIn`. An ambient number has none and simply begins.
+   */
+  function leadInBeats(): number {
+    const { leadInBars, beatsPerBar } = current.song.meta;
+    return (leadInBars ?? 0) * beatsPerBar;
+  }
+
+  /**
+   * Whether this music is counted in at all.
+   *
+   * The genre's answer rather than `leadInBeats() > 0`, and the difference is
+   * the number with no kit on it: there is nothing to click, so the song
+   * carries no lead-in bar, and the leader's cue is then the *only* count
+   * there is. Ambient is the other way round — it is not counted in by
+   * anybody, with or without a drummer.
+   */
+  function counted(): boolean {
+    return getGenre(current.song.meta.genre).countIn;
+  }
+
+  /**
+   * Who gives the count.
+   *
+   * The person out front, and the drummer only if there is nobody out front —
+   * which is the opposite of who is *audibly* counting and is right for both
+   * reasons: a band takes its cue from the singer whether or not the sticks
+   * are what they hear, and if the drummer were also the visible leader the
+   * cue and the count would be the same person doing two things at once.
+   */
+  function leaderId(): string | undefined {
+    const players = current.cast.performers;
+    for (const layer of ['vocal', 'melody', 'comp', 'drums'] as LayerId[]) {
+      const found = players.find((p) => p.layer === layer);
+      if (found) return found.id;
+    }
+    return players[0]?.id;
   }
 
   /**
@@ -479,8 +706,10 @@ export function createShow(opts: ShowOptions = {}): Show {
   bill.onStart(() => {
     if (state !== 'bill') return;
     bill.hide();
-    setState('curtain');
-    void beginNumber(0);
+    // The house goes out first and everything else follows it. Staging the
+    // number is silent and invisible, so it can happen underneath the dim.
+    lights.setHouse(0, HOUSE_DIM_SECONDS);
+    stageNumber(0);
   });
 
   // --- The frame ---------------------------------------------------------
@@ -494,34 +723,68 @@ export function createShow(opts: ShowOptions = {}): Show {
      * transport again this frame.
      */
     const beat = transport.beat();
+    /** The same sample, un-wrapped: how far into the number we are. */
+    const elapsed = transport.elapsed();
+    /**
+     * Whether that number is a position in a piece of music that is actually
+     * sounding. Before the downbeat the transport honestly reports 0, and 0 is
+     * a place *in* the music — see `PRE_ROLL_BEAT`.
+     */
+    const live = clockLive && transport.state() === 'playing' && elapsed > 0;
 
     switch (state) {
       case 'bill':
         stage.snapCurtain(0);
-        lights.setHouse(0.7);
+        lights.setHouse(HOUSE_BILL);
+        lights.setMaster(0);
         break;
 
       case 'curtain':
-        // `beginNumber` has already asked the curtain to open; wait for the
-        // cloth rather than for a timer, because the gather takes as long as it
-        // takes and a timer would either cut it off or leave a gap.
-        if (stage.curtainOpen() > 0.98) setState('count-in');
+        /**
+         * The reveal, in the order a room does it: the house out, then the
+         * tabs, then the stage coming up under them while they travel — and
+         * the band picking their instruments up in the same gap, which is the
+         * one moment of the evening worth spending a whole curtain on.
+         */
+        if (!revealed && stateSeconds >= CURTAIN_AT) {
+          revealed = true;
+          stage.setCurtain(1);
+          lights.setMaster(1, STAGE_UP_SECONDS);
+          // Named only where the music is counted in at all. An ambient piece
+          // has no pulse to give and nobody to give it — the band simply takes
+          // up its instruments and the piece is found already happening.
+          animator.cue(counted() ? leaderId() : undefined);
+        }
+        // Wait for the cloth rather than for a timer: the gather takes as long
+        // as it takes and a timer would either cut it off or leave a gap.
+        if (revealed && stage.curtainOpen() > 0.98) setState('count-in');
         break;
 
       case 'count-in':
-        // The transport reports zero until the first cycle actually arrives.
-        // That gap *is* the count-in: the band comes up, the lights are on,
-        // and nothing has happened yet.
-        //
-        // "Comes up" is literal now, and this is where it is asked for. The
-        // animator holds the band at ease from `begin` — which happens behind
-        // a closed curtain, in the middle of two awaited promises — until it
-        // is called, so that the one moment worth watching lands while the
-        // tabs are travelling rather than before anybody can see the stage.
-        // `cue` is idempotent, so calling it per frame is a boolean write and
-        // both routes into this state are covered without a second flag.
-        animator.cue();
-        if (transport.state() === 'playing' && beat > 0) setState('playing');
+        /**
+         * Nothing is sounding yet, deliberately.
+         *
+         * The band is up, the leader is beating time — `animator.cue` named
+         * them, and the animator runs that off its own clock precisely because
+         * there is no beat here to run it off — and after a moment the music
+         * starts. Whether the audience then *hears* a count depends on whether
+         * there is a kit to count on: `withCountIn` puts four clicks at the
+         * front of the pattern when there is, so from here on the count is
+         * simply the first bar of the song and the drummer plays it like any
+         * other bar.
+         */
+        if (!cueGiven && stateSeconds >= CUE_SECONDS) {
+          cueGiven = true;
+          void startMusic();
+        }
+        // The piece proper begins after the lead-in. With no lead-in that is
+        // the downbeat, so the smallest positive elapsed will do.
+        if (live && elapsed >= Math.max(leadInBeats(), 1e-6)) {
+          // The band is in: the count stops and the gesture list takes the
+          // band's hands back. See `Animator.downbeat`.
+          animator.downbeat();
+          setState('playing');
+        }
         break;
 
       case 'playing': {
@@ -529,24 +792,40 @@ export function createShow(opts: ShowOptions = {}): Show {
           if (beat >= sulk.until) returnToPlaying(layer, sulk.attempt);
         }
         const total = songDurationSeconds(current.song) * current.song.meta.bpm / 60;
-        if (transport.elapsed() >= total) endNumber();
-        bill.mark(index, total > 0 ? Math.min(transport.elapsed() / total, 1) : 0);
+        if (elapsed >= total) endNumber();
+        // Against the music rather than the pattern: a progress bar that
+        // starts a bar before the piece does is wrong by exactly the count-in.
+        const lead = leadInBeats();
+        const played = elapsed - lead;
+        bill.mark(index, total > lead ? Math.min(Math.max(played, 0) / (total - lead), 1) : 0);
         break;
       }
 
       case 'applause':
-        if (stateSeconds > APPLAUSE_SECONDS) {
-          stage.setCurtain(0);
-          setState('curtain');
-          void beginNumber(index + 1);
+        /**
+         * The last chord is still ringing, the house is coming up, and the
+         * tabs are already travelling — `endNumber` sent them. The band stays
+         * in the light taking it until the cloth covers them, and only *then*
+         * is the stage struck and the next number staged, which is the whole
+         * of why nobody sees six people change into six other people.
+         */
+        acknowledge(stateSeconds);
+        // Held rather than struck once: the house's own applause decays over
+        // about two seconds, and a room does not stop clapping before the
+        // curtain has closed.
+        if (stateSeconds < APPLAUSE_SECONDS * 0.6) stage.applaud(1);
+        if (stateSeconds > APPLAUSE_SECONDS && stage.curtainOpen() <= CURTAIN_REVEALS) {
+          lights.setHouse(0, HOUSE_DIM_SECONDS);
+          stageNumber(index + 1);
         }
         break;
 
       case 'bow':
-        // The house up, the band out, the tabs in, and then the black. No
-        // camera move anywhere in it — see the note by `BOW_CURTAIN_AT`.
-        lights.setHouse(0.7);
+        // The house came up with the applause in `endNumber`; the tabs come in
+        // over the band, and then the black. No camera move anywhere in it —
+        // see the note by `BOW_CURTAIN_AT`.
         acknowledge(stateSeconds);
+        if (stateSeconds < BOW_FADE_AT) stage.applaud(1);
         if (stateSeconds > BOW_CURTAIN_AT) stage.setCurtain(0);
         fade = Math.min(1, Math.max(0, (stateSeconds - BOW_FADE_AT) / BOW_FADE_SECONDS));
         break;
@@ -560,16 +839,29 @@ export function createShow(opts: ShowOptions = {}): Show {
     band.visible = state === 'bow' || stage.curtainOpen() > CURTAIN_REVEALS;
     blackout.style.opacity = fade > 0 ? String(fade) : '0';
 
-    if (animatorHasRigs) animator.update(beat, dt);
+    /**
+     * The animator is given a position *before* the music when there is no
+     * music. The lights are not.
+     *
+     * Two different meanings for the same absence, and they have to differ. A
+     * gesture list indexed at 0 is a band caught at the first downbeat — hands
+     * on the snare, fingers on the keys, before a note has sounded — where a
+     * cue timeline indexed before its first cue is simply black, and a stage
+     * that goes dark for the length of its own reveal is not a reveal. So the
+     * animator reads the pre-roll and everything else reads the opening state.
+     */
+    const shown = live ? beat : PRE_ROLL_BEAT;
+    if (live) heldBeat = beat;
+    if (animatorHasRigs) animator.update(shown, dt);
     else for (const rig of rigs.values()) rig.update(seconds, dt);
-    lights.update(beat, dt);
+    lights.update(heldBeat, dt);
     // Only while the beat means something. `transport.end()` reports 0, and the
     // director reads 0 as a position rather than as an absence — which is the
     // whole of the zoom-out this show used to end on.
     if (clockLive) director.update(beat, dt);
     tomatoes.update(beat, dt);
-    stage.update(beat, dt);
-    for (const model of models.values()) model.update(beat);
+    stage.update(live ? beat : Number.NaN, dt);
+    for (const model of models.values()) model.update(shown);
   }
 
   const api: Show = {

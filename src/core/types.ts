@@ -332,6 +332,43 @@ export const DEFAULT_SPACE: Space = {
   delayFeedback: 0.3,
 };
 
+/**
+ * How one note rises and falls. Times in seconds; `sustain` is a level, 0..1.
+ *
+ * This is in the IR rather than in the Strudel renderer because it is a fact
+ * about the *instrument*, not about the playback library — a struck bar decays
+ * to nothing and a bowed string does not, and any engine that ever replaces
+ * Strudel needs to know that too.
+ *
+ * It is here at all because a sampler plays whatever it is sent, and what it is
+ * sent by default is a gate: superdough's envelope defaults are
+ * `[0.001, 0.001, 1, 0.01]`, meaning full level for the note's entire written
+ * length and off in ten milliseconds. That is the one shape a mallet never
+ * makes. Worse, the soundfont loader turns on `src.loop` for any zone with loop
+ * points, so a held note is a short slice of the sample cycling at constant
+ * level — a vibraphone stops being a struck bar and becomes a small organ.
+ *
+ * `sustain: 0` is the whole point for anything struck or plucked: the note
+ * decays over `decay` seconds from its own attack and pays no attention to how
+ * long it was written for.
+ */
+export interface Envelope {
+  /** Seconds from silence to full level. */
+  attack: number;
+  /** Seconds from full level down to `sustain`. */
+  decay: number;
+  /** Level held until the note ends, 0..1. Zero means struck: it rings out. */
+  sustain: number;
+  /**
+   * Seconds to fade once the note ends.
+   *
+   * On a struck instrument this is not the tail — `decay` is. It is what
+   * catches a note whose written length ran out mid-decay, so a short mallet
+   * note tapers instead of stopping dead.
+   */
+  release: number;
+}
+
 export interface Track {
   layer: LayerId;
   /** Human name, e.g. "accordion". */
@@ -371,6 +408,14 @@ export interface Track {
      */
     gap: number;
   };
+  /**
+   * How each note of this part rises and falls. See `Envelope`.
+   *
+   * Absent means "whatever the renderer does by default", which is a gate. The
+   * MIDI renderer ignores it and is right to: a GM program number already
+   * carries its own envelope, and there is no CC that would say this.
+   */
+  envelope?: Envelope;
   /** Filtering, reverb send and stereo position. Absent means dry and centred. */
   effects?: Effects;
 }
@@ -414,6 +459,21 @@ export interface SongMeta {
   totalBars: number;
   /** Swing amount 0..0.33; 0 = straight. */
   swing: number;
+  /**
+   * Bars of count-in at the very front of the song, before bar 1 of the music.
+   *
+   * Absent or 0 on anything that is a *record* — the radio plays songs, and a
+   * record that counts itself in is a demo. It is set by `withCountIn`, which
+   * the concert applies to every number it stages, because a band on a stage
+   * does not start by telepathy: somebody clicks four and the band comes in.
+   *
+   * Those bars are ordinary music — real drum events in a real section — so
+   * every renderer, the choreographer and the lighting score see them without
+   * being told. What this field is *for* is the one thing they cannot derive:
+   * that the piece proper starts at `leadInBars * beatsPerBar`, which is where
+   * "has the number begun" and any progress bar have to measure from.
+   */
+  leadInBars?: number;
 }
 
 export interface Song {

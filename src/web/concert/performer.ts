@@ -369,6 +369,35 @@ const REACTION_SECONDS: Record<PerformerReaction, number> = {
 };
 
 /**
+ * How far a player with a mouthpiece on their lips turns, and where the turn
+ * comes from.
+ *
+ * A horn is carried by the torso and its mouthpiece is placed at *this*
+ * player's mouth — see `instruments/mouth.ts`, which derives the height from
+ * the same arithmetic `proportions()` uses. That agreement holds only while the
+ * head is square to the chest. A neck turn of 1.2 rad swings the lips about
+ * 12 cm sideways off a mouthpiece that stayed where it was, and a trumpeter
+ * watching the soloist ends up blowing past their own horn.
+ *
+ * So the turn comes from the waist instead. The torso carries the instrument
+ * and the contacts the hands are placed on, and the head rides the torso, so
+ * everything that has to stay together does: the lips travel with the
+ * mouthpiece and the fingers travel with the keys, all from one angle.
+ *
+ * A waist is not a neck, though, and 69° of it is a dance move. `TURN` is what
+ * a player will actually swivel to watch someone; the rest of the angle is done
+ * with the eyes, which `trackGaze` already hands whatever the head did not
+ * cover. `IDLE_TURN` is the same limit for the aimless glances between
+ * targets, and it is much smaller — a head that wanders 17° costs a neck
+ * nothing and would have the whole front line rotating on the spot.
+ */
+const MOUTHPIECE_TURN = 0.55;
+const MOUTHPIECE_IDLE_TURN = 0.10;
+
+/** The idle wander for anyone else: a neck, doing what a neck does. */
+const IDLE_TURN = 0.30;
+
+/**
  * What a reaction adds to the frame.
  *
  * Additive rather than authoritative, so a reaction never *replaces* the
@@ -421,6 +450,15 @@ class Rig implements PerformerRig {
   private readonly placed = new Map<Limb, Placed>();
   private readonly restLocal: Record<string, Vector3>;
   private readonly blown: boolean;
+  /**
+   * Whether this player has an instrument against their lips.
+   *
+   * Not the same as `blown`, and the difference is the singer: they are blown —
+   * they breathe, they run out of air — and they hold nothing, so their head is
+   * free to turn wherever the song wants it. Every other blown archetype in the
+   * table carries the thing it blows into. See `MOUTHPIECE_TURN`.
+   */
+  private readonly mouthpiece: boolean;
   /** Where each shoulder is, in the torso's frame. The forearm's far end. */
   private readonly shoulder: Record<BodySide, Vector3>;
   /** The minimum distance between two resting hands, in metres. */
@@ -480,6 +518,7 @@ class Rig implements PerformerRig {
     const posture = performer.station.posture;
     const spec = ARCHETYPES[performer.archetype];
     this.blown = spec.blown === true;
+    this.mouthpiece = this.blown && spec.held;
 
     this.rng = new Rng(`${performer.id}#rig`);
     const faceRng = new Rng(`${performer.id}#face`);
@@ -957,6 +996,11 @@ class Rig implements PerformerRig {
     // Read last frame's hands before anything moves them.
     this.settleUnder(step);
 
+    // Ahead of the body, because for a player holding a mouthpiece the gaze is
+    // what the torso turns by — see `MOUTHPIECE_TURN`. It reads the head's world
+    // position, which is last frame's either way.
+    this.trackGaze(now, step);
+
     // --- body: lean, sway, breath -----------------------------------------
     const swayK = 1 - Math.exp(-step / 0.18);
     if (!this.bodyCommanded) this.bodyCommand.multiplyScalar(1 - swayK);
@@ -983,7 +1027,13 @@ class Rig implements PerformerRig {
       // The settle folds the player very slightly over the hit as well as
       // dropping them. Weight goes somewhere; it does not just descend.
       p.lean + bias.torsoPitch + this.nodAmount * 0.02 + this.settle * 0.035,
-      swing * 0.05,
+      // The whole of the gaze's yaw for a player with a horn at their lips, and
+      // none of it for anyone else, whose neck does the job. Taking all of it
+      // rather than a share is the point: the head's yaw below is in the root's
+      // frame, so an equal turn here leaves the face square to the chest — and
+      // to the mouthpiece, and to the keys the fingers are on, all of which are
+      // carried by this group.
+      swing * 0.05 + (this.mouthpiece ? this.headYaw : 0),
       -swing * 0.055,
     );
     this.torsoBody.scale.set(
@@ -1000,7 +1050,6 @@ class Rig implements PerformerRig {
       headState.rest.y += nod * p.height * 0.006 + breath * p.height * 0.0025;
       headState.rest.z += bias.headPush;
     }
-    this.trackGaze(now, step);
 
     // --- limbs -------------------------------------------------------------
     this.handHeld[0] = this.placed.get('left-hand')?.commanded === true;
@@ -1161,12 +1210,20 @@ class Rig implements PerformerRig {
       wantYaw = clamp(Math.atan2(V2.x, V2.z), -1.2, 1.2);
       wantPitch = clamp(-Math.atan2(V2.y, Math.max(flat, 1e-4)), -0.5, 0.5);
     } else if (now >= this.nextGlance) {
-      this.idleYaw = this.rng.float(-0.30, 0.30);
+      // One draw either way, so the schedule stays in step with the seed and
+      // only the size of the wander changes. See `MOUTHPIECE_IDLE_TURN`.
+      const wander = this.mouthpiece ? MOUTHPIECE_IDLE_TURN : IDLE_TURN;
+      this.idleYaw = this.rng.float(-wander, wander);
       this.idlePitch = this.rng.float(-0.10, 0.14);
       this.nextGlance = now + this.rng.float(1.4, 4.5);
     }
+    // A player with a mouthpiece on their lips turns from the waist and only so
+    // far; whatever is left over goes to the eyes below, as it already does for
+    // the part of a turn the neck has not caught up with.
+    const turn = this.mouthpiece
+      ? clamp(wantYaw, -MOUTHPIECE_TURN, MOUTHPIECE_TURN) : wantYaw;
     const k = 1 - Math.exp(-step / 0.24);
-    this.headYaw += (wantYaw - this.headYaw) * k;
+    this.headYaw += (turn - this.headYaw) * k;
     this.headPitch += (wantPitch - this.headPitch) * k;
     // Whatever the head has not caught up with yet, the eyes are already doing.
     this.face.gaze((wantYaw - this.headYaw) * 2.2, (wantPitch - this.headPitch) * 2.0);

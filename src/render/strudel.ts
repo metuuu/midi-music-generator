@@ -19,7 +19,9 @@
 import { SLOTS_PER_BEAT, slotOf } from '../core/grid.js';
 import { midiToNoteName, spellingFor } from '../core/pitch.js';
 import { resolveVoice } from './drum-banks.js';
-import type { DrumVoice, Effects, NoteEvent, Song, Track, Vowel } from '../core/types.js';
+import type {
+  DrumVoice, Effects, Envelope, NoteEvent, Song, Track, Vowel,
+} from '../core/types.js';
 import {
   CONSONANTS, FORMANT_BANDWIDTHS, FORMANT_GAINS, VOICE_MIX, VOWEL_FORMANTS,
 } from '../style/vocals.js';
@@ -82,6 +84,7 @@ export function renderStrudel(song: Song, opts: StrudelRenderOptions = {}): stri
       `  note(\`${formatGrid(grid)}\`)`,
       `    .sound('${track.strudelSound}')`,
       dyn ? `    .gain(\`${formatGrid(dyn)}\`)` : `    .gain(${track.gain.toFixed(2)})`,
+      ...envelopeChain(track.envelope),
       ...effectChain(track.effects, song),
     ].join('\n'));
   }
@@ -138,6 +141,32 @@ export function renderStrudel(song: Song, opts: StrudelRenderOptions = {}): stri
 /** Drum-machine sample set used by the audition render (verified reachable). */
 export const DRUM_SAMPLES_URL =
   'https://raw.githubusercontent.com/felixroos/dough-samples/main/tidal-drum-machines.json';
+
+/**
+ * The note's amplitude shape, as superdough controls.
+ *
+ * Emitted on every played part, and it has to be, because leaving all four out
+ * is not "no opinion" — it selects superdough's default of
+ * `[0.001, 0.001, 1, 0.01]`, a gate. Which is why every instrument here used to
+ * arrive sounding like the same cheap sampler: the soundfont loader loops any
+ * zone that has loop points, so under a flat sustain a struck bar held for a bar
+ * is a short slice of itself cycling at constant level, cut off in ten
+ * milliseconds. The instruments that survived it were the ones that genuinely do
+ * hold a note — organs, strings — which is exactly the set that sounded fine.
+ *
+ * Note that `clip`/`legato` is not the tool for a struck note's ring here, even
+ * though it is the obvious one: `@strudel/soundfonts` takes its hold time
+ * straight from the hap's duration and never reads `clip`, unlike the sampler
+ * and synth paths. A struck note therefore rings for at most as long as it was
+ * written, and `release` is what keeps that from being a click — see `Envelope`.
+ */
+function envelopeChain(env: Envelope | undefined): string[] {
+  if (!env) return [];
+  return [
+    `    .attack(${env.attack}).decay(${env.decay})`
+    + `.sustain(${env.sustain}).release(${env.release})`,
+  ];
+}
 
 /**
  * Effects, as superdough controls.

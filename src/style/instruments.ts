@@ -10,6 +10,7 @@
  */
 
 import type { Midi } from '../core/pitch.js';
+import type { Envelope } from '../core/types.js';
 
 /**
  * How an instrument's music is *shaped*, as opposed to how far it can leap.
@@ -65,6 +66,55 @@ export const IDIOMS: Record<Idiom, IdiomProfile> = {
   reed: { arpeggio: 0.3, run: 0.7, repeat: 0.5, breath: 0.1 },
 };
 
+/**
+ * How each family's notes rise and fall, as a default per idiom. See `Envelope`.
+ *
+ * Keyed on `Idiom` because that is the closest thing the catalogue already has
+ * to a family, and for six of the eight it is exactly the right axis: everything
+ * bowed sustains, everything struck decays, everything blown needs a moment to
+ * speak. `keyboard` is the one that does not hold — a piano decays and an organ
+ * does not, and both live there because they are *fingered the same way*, which
+ * is what `Idiom` is actually about. Those pay for themselves with an override
+ * below rather than by splitting a figuration axis to carry a sound fact.
+ *
+ * Numbers are a considered first pass, not measurements. `bench.html` is where
+ * they get settled by ear, and it prints the line to paste back here.
+ */
+export const IDIOM_ENVELOPES: Record<Idiom, Envelope> = {
+  // A voice does not start on the note; it arrives at it.
+  vocal: { attack: 0.05, decay: 0.12, sustain: 0.9, release: 0.25 },
+  // Piano-shaped: struck, but into a long tail rather than to nothing, because
+  // a damper leaves a little of the note behind while the key is down.
+  keyboard: { attack: 0.002, decay: 2.2, sustain: 0.15, release: 0.35 },
+  // Struck metal or wood. `sustain: 0` is the whole fix — the bar rings for its
+  // own length, not for the length it was written for.
+  mallet: { attack: 0.002, decay: 1.6, sustain: 0, release: 0.35 },
+  plucked: { attack: 0.003, decay: 1.1, sustain: 0, release: 0.25 },
+  // A bow takes time to move a string, and that slowness is most of what tells
+  // the ear this is bowed and not a keyboard patch holding a note.
+  bowed: { attack: 0.08, decay: 0.15, sustain: 0.9, release: 0.4 },
+  wind: { attack: 0.04, decay: 0.1, sustain: 0.92, release: 0.18 },
+  // A brass note has a harder front than a flute's, and stops sooner.
+  brass: { attack: 0.025, decay: 0.1, sustain: 0.9, release: 0.15 },
+  // Free reed: the bellows do not run out and the note does not decay.
+  reed: { attack: 0.02, decay: 0.08, sustain: 0.95, release: 0.12 },
+};
+
+/**
+ * A pad is not a slow violin. It fades in over a third of a second and leaves a
+ * tail behind it, which is the difference between a texture and a held chord.
+ */
+const PAD: Envelope = { attack: 0.35, decay: 0.3, sustain: 0.9, release: 0.8 };
+
+/** Drawbars: on, then off. No decay at all, and nothing to ring out. */
+const ORGAN: Partial<Envelope> = { attack: 0.01, decay: 0.05, sustain: 1, release: 0.08 };
+
+/** An oscillator through a gate — which, for once, is the honest shape. */
+const SYNTH_LEAD: Partial<Envelope> = { attack: 0.01, decay: 0.06, sustain: 1, release: 0.1 };
+
+/** The same gate with a plucky front on it, which is what a synth bass is. */
+const SYNTH_BASS: Partial<Envelope> = { attack: 0.004, decay: 0.25, sustain: 0.7, release: 0.08 };
+
 export interface Instrument {
   name: string;
   /** 0-based General MIDI program. */
@@ -89,12 +139,30 @@ export interface Instrument {
    *   0.5  bowed strings and pads, which read as vocal lines
    */
   agility: number;
+  /**
+   * Where this instrument's envelope departs from its idiom's. See `envelopeFor`.
+   *
+   * Only for instruments whose *sound* contradicts the family they are fingered
+   * like — an organ among the keyboards, a synth pad among the strings. Not for
+   * shading one bell against another; that belongs in the idiom default until
+   * the bench says otherwise.
+   */
+  envelope?: Partial<Envelope>;
 }
 
 const I = (
   name: string, gm: number, strudel: string, centre: number,
   agility = 0.7, idiom: Idiom = 'vocal',
 ): Instrument => ({ name, gm, strudel, centre, idiom, agility });
+
+/** An instrument that does not ring the way its idiom rings. */
+const E = (instrument: Instrument, envelope: Partial<Envelope>): Instrument =>
+  ({ ...instrument, envelope });
+
+/** The idiom's envelope with this instrument's own corrections applied. */
+export function envelopeFor(instrument: Instrument): Envelope {
+  return { ...IDIOM_ENVELOPES[instrument.idiom], ...instrument.envelope };
+}
 
 export const INSTRUMENTS = {
   accordion: I('accordion', 21, 'gm_accordion', 72, 0.8, 'reed'),
@@ -105,21 +173,25 @@ export const INSTRUMENTS = {
   epiano2: I('electric piano 2', 5, 'gm_epiano2', 60, 1.0, 'keyboard'),
   vibraphone: I('vibraphone', 11, 'gm_vibraphone', 72, 1.0, 'mallet'),
   glockenspiel: I('glockenspiel', 9, 'gm_glockenspiel', 84, 1.0, 'mallet'),
-  drawbarOrgan: I('drawbar organ', 16, 'gm_drawbar_organ', 60, 0.9, 'keyboard'),
-  rockOrgan: I('rock organ', 18, 'gm_rock_organ', 60, 0.9, 'keyboard'),
+  drawbarOrgan: E(I('drawbar organ', 16, 'gm_drawbar_organ', 60, 0.9, 'keyboard'), ORGAN),
+  rockOrgan: E(I('rock organ', 18, 'gm_rock_organ', 60, 0.9, 'keyboard'), ORGAN),
   nylonGuitar: I('nylon guitar', 24, 'gm_acoustic_guitar_nylon', 60, 0.8, 'plucked'),
   steelGuitar: I('steel guitar', 25, 'gm_acoustic_guitar_steel', 60, 0.8, 'plucked'),
   jazzGuitar: I('jazz guitar', 26, 'gm_electric_guitar_jazz', 60, 0.85, 'plucked'),
   cleanGuitar: I('clean electric guitar', 27, 'gm_electric_guitar_clean', 60, 0.8, 'plucked'),
-  mutedGuitar: I('muted guitar', 28, 'gm_electric_guitar_muted', 60, 0.8, 'plucked'),
+  // Palm-muted: the string is damped by the hand that struck it.
+  mutedGuitar: E(I('muted guitar', 28, 'gm_electric_guitar_muted', 60, 0.8, 'plucked'),
+    { decay: 0.25 }),
   acousticBass: I('upright bass', 32, 'gm_acoustic_bass', 40, 0.7, 'plucked'),
   fingerBass: I('electric bass', 33, 'gm_electric_bass_finger', 40, 0.75, 'plucked'),
   pickBass: I('picked bass', 34, 'gm_electric_bass_pick', 40, 0.75, 'plucked'),
-  synthBass: I('synth bass', 38, 'gm_synth_bass_1', 40, 0.85, 'keyboard'),
+  synthBass: E(I('synth bass', 38, 'gm_synth_bass_1', 40, 0.85, 'keyboard'), SYNTH_BASS),
   violin: I('violin', 40, 'gm_violin', 76, 0.6, 'bowed'),
   fiddle: I('fiddle', 110, 'gm_fiddle', 76, 0.65, 'bowed'),
   tremoloStrings: I('tremolo strings', 44, 'gm_tremolo_strings', 72, 0.5, 'bowed'),
-  pizzStrings: I('pizzicato strings', 45, 'gm_pizzicato_strings', 60, 0.8, 'plucked'),
+  // Plucked with a fingertip and stopped by the next bow stroke: very short.
+  pizzStrings: E(I('pizzicato strings', 45, 'gm_pizzicato_strings', 60, 0.8, 'plucked'),
+    { decay: 0.5 }),
   harp: I('harp', 46, 'gm_orchestral_harp', 72, 1.0, 'mallet'),
   strings1: I('string ensemble', 48, 'gm_string_ensemble_1', 72, 0.5, 'bowed'),
   strings2: I('string ensemble 2', 49, 'gm_string_ensemble_2', 72, 0.5, 'bowed'),
@@ -136,8 +208,9 @@ export const INSTRUMENTS = {
   baritoneSax: I('baritone sax', 67, 'gm_baritone_sax', 48, 0.5, 'wind'),
   clarinet: I('clarinet', 71, 'gm_clarinet', 72, 0.65, 'wind'),
   flute: I('flute', 73, 'gm_flute', 84, 0.7, 'wind'),
-  padWarm: I('warm pad', 89, 'gm_pad_warm', 60, 0.5, 'bowed'),
-  celesta: I('celesta', 8, 'gm_celesta', 84, 1.0, 'keyboard'),
+  padWarm: E(I('warm pad', 89, 'gm_pad_warm', 60, 0.5, 'bowed'), PAD),
+  // Fingered like a keyboard, but it is a struck metal bar and rings like one.
+  celesta: E(I('celesta', 8, 'gm_celesta', 84, 1.0, 'keyboard'), { decay: 1.2, sustain: 0 }),
 
   // --- The ambient shelf ---------------------------------------------------
   // GM programs 88–103 are the eight synth pads and the eight "effects", and
@@ -149,37 +222,47 @@ export const INSTRUMENTS = {
   // tracking individual notes — roughly C3 to C4 for anything sustained. The
   // bell voices are the exception and sit high, because a bell that is not
   // above the pad is simply part of the pad.
-  padNewAge: I('new age pad', 88, 'gm_pad_new_age', 60, 0.5, 'bowed'),
-  padPoly: I('polysynth pad', 90, 'gm_pad_poly', 60, 0.6, 'bowed'),
-  padChoir: I('choir pad', 91, 'gm_pad_choir', 60, 0.45, 'vocal'),
-  padBowed: I('bowed pad', 92, 'gm_pad_bowed', 60, 0.45, 'bowed'),
-  padMetallic: I('metallic pad', 93, 'gm_pad_metallic', 60, 0.5, 'bowed'),
-  padHalo: I('halo pad', 94, 'gm_pad_halo', 60, 0.45, 'bowed'),
-  padSweep: I('sweep pad', 95, 'gm_pad_sweep', 60, 0.5, 'bowed'),
-  fxRain: I('rain', 96, 'gm_fx_rain', 72, 0.6, 'mallet'),
-  fxSoundtrack: I('soundtrack', 97, 'gm_fx_soundtrack', 60, 0.5, 'bowed'),
-  fxCrystal: I('crystal', 98, 'gm_fx_crystal', 79, 0.9, 'mallet'),
-  fxAtmosphere: I('atmosphere', 99, 'gm_fx_atmosphere', 67, 0.7, 'bowed'),
-  fxBrightness: I('brightness', 100, 'gm_fx_brightness', 72, 0.7, 'bowed'),
-  fxGoblins: I('goblins', 101, 'gm_fx_goblins', 55, 0.5, 'bowed'),
-  fxEchoes: I('echoes', 102, 'gm_fx_echoes', 72, 0.7, 'mallet'),
-  fxSciFi: I('sci-fi', 103, 'gm_fx_sci_fi', 67, 0.6, 'bowed'),
+  //
+  // Every one of these carries `PAD`, including the three filed under `mallet`.
+  // The idiom is right about the *writing* — `fxCrystal` is figured in broken
+  // chords like a bell — and wrong about the sound, because these are synth
+  // patches with a slow front and a long tail, not struck bars. Giving them a
+  // mallet's `sustain: 0` would cut a texture off at the knees.
+  padNewAge: E(I('new age pad', 88, 'gm_pad_new_age', 60, 0.5, 'bowed'), PAD),
+  padPoly: E(I('polysynth pad', 90, 'gm_pad_poly', 60, 0.6, 'bowed'), PAD),
+  padChoir: E(I('choir pad', 91, 'gm_pad_choir', 60, 0.45, 'vocal'), PAD),
+  padBowed: E(I('bowed pad', 92, 'gm_pad_bowed', 60, 0.45, 'bowed'), PAD),
+  padMetallic: E(I('metallic pad', 93, 'gm_pad_metallic', 60, 0.5, 'bowed'), PAD),
+  padHalo: E(I('halo pad', 94, 'gm_pad_halo', 60, 0.45, 'bowed'), PAD),
+  padSweep: E(I('sweep pad', 95, 'gm_pad_sweep', 60, 0.5, 'bowed'), PAD),
+  fxRain: E(I('rain', 96, 'gm_fx_rain', 72, 0.6, 'mallet'), PAD),
+  fxSoundtrack: E(I('soundtrack', 97, 'gm_fx_soundtrack', 60, 0.5, 'bowed'), PAD),
+  fxCrystal: E(I('crystal', 98, 'gm_fx_crystal', 79, 0.9, 'mallet'), PAD),
+  fxAtmosphere: E(I('atmosphere', 99, 'gm_fx_atmosphere', 67, 0.7, 'bowed'), PAD),
+  fxBrightness: E(I('brightness', 100, 'gm_fx_brightness', 72, 0.7, 'bowed'), PAD),
+  fxGoblins: E(I('goblins', 101, 'gm_fx_goblins', 55, 0.5, 'bowed'), PAD),
+  fxEchoes: E(I('echoes', 102, 'gm_fx_echoes', 72, 0.7, 'mallet'), PAD),
+  fxSciFi: E(I('sci-fi', 103, 'gm_fx_sci_fi', 67, 0.6, 'bowed'), PAD),
   choirAahs: I('choir', 52, 'gm_choir_aahs', 64, 0.4, 'vocal'),
   voiceOohs: I('voices', 53, 'gm_voice_oohs', 64, 0.4, 'vocal'),
   synthChoir: I('synth choir', 54, 'gm_synth_choir', 64, 0.45, 'vocal'),
-  churchOrgan: I('church organ', 19, 'gm_church_organ', 60, 0.7, 'keyboard'),
-  reedOrgan: I('reed organ', 20, 'gm_reed_organ', 60, 0.7, 'keyboard'),
-  tubularBells: I('tubular bells', 14, 'gm_tubular_bells', 72, 1.0, 'mallet'),
-  musicBox: I('music box', 10, 'gm_music_box', 84, 1.0, 'mallet'),
-  kalimba: I('kalimba', 108, 'gm_kalimba', 72, 1.0, 'mallet'),
-  marimba: I('marimba', 12, 'gm_marimba', 72, 1.0, 'mallet'),
-  leadSquare: I('square lead', 80, 'gm_lead_1_square', 72, 0.9, 'keyboard'),
-  leadSaw: I('saw lead', 81, 'gm_lead_2_sawtooth', 72, 0.9, 'keyboard'),
+  churchOrgan: E(I('church organ', 19, 'gm_church_organ', 60, 0.7, 'keyboard'), ORGAN),
+  reedOrgan: E(I('reed organ', 20, 'gm_reed_organ', 60, 0.7, 'keyboard'), ORGAN),
+  // The bells shade against each other by a lot, not a little: a struck tube
+  // rings for the better part of a bar, a music-box comb for a moment.
+  tubularBells: E(I('tubular bells', 14, 'gm_tubular_bells', 72, 1.0, 'mallet'),
+    { decay: 4.5, release: 0.8 }),
+  musicBox: E(I('music box', 10, 'gm_music_box', 84, 1.0, 'mallet'), { decay: 0.9 }),
+  kalimba: E(I('kalimba', 108, 'gm_kalimba', 72, 1.0, 'mallet'), { decay: 0.8 }),
+  // Wood, not metal — a marimba bar is dead long before a vibraphone's is.
+  marimba: E(I('marimba', 12, 'gm_marimba', 72, 1.0, 'mallet'), { decay: 0.9 }),
+  leadSquare: E(I('square lead', 80, 'gm_lead_1_square', 72, 0.9, 'keyboard'), SYNTH_LEAD),
+  leadSaw: E(I('saw lead', 81, 'gm_lead_2_sawtooth', 72, 0.9, 'keyboard'), SYNTH_LEAD),
   leadCalliope: I('calliope lead', 82, 'gm_lead_3_calliope', 72, 0.8, 'wind'),
   leadChiff: I('chiff lead', 83, 'gm_lead_4_chiff', 72, 0.8, 'wind'),
   leadVoice: I('voice lead', 85, 'gm_lead_6_voice', 72, 0.7, 'vocal'),
   fretlessBass: I('fretless bass', 35, 'gm_fretless_bass', 40, 0.7, 'bowed'),
-  synthBass2: I('synth bass 2', 39, 'gm_synth_bass_2', 40, 0.85, 'keyboard'),
+  synthBass2: E(I('synth bass 2', 39, 'gm_synth_bass_2', 40, 0.85, 'keyboard'), SYNTH_BASS),
   cello: I('cello', 42, 'gm_cello', 52, 0.5, 'bowed'),
   contrabass: I('contrabass', 43, 'gm_contrabass', 40, 0.45, 'bowed'),
   // Sympathetic strings and a drone string of its own — the one plucked

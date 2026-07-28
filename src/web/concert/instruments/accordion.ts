@@ -26,11 +26,16 @@
  * the left hand sat on a point the instrument slid out from under — which is
  * why the travel had to be kept down to a few centimetres to stay plausible.
  *
- * A `key` point now carries how far open the box is when it is struck (see
- * `PlayPoint.bellows`), so the answer is still a pure function of the point and
- * the hand lands on the button *wherever the box has got to*. Every note also
- * retargets the box, so the bellows is driven by the part rather than twitching
- * once a phrase, and the two cannot disagree because they are the same number.
+ * `resolve` still answers for a box at rest — it must — and `shift` says where
+ * that box has got to, every frame, off the one value `update` draws it from.
+ * The left hand is therefore *carried* by the bass side rather than posted to
+ * it: they open and close at one speed, over one span, and the hand reads as
+ * the thing doing the pulling.
+ *
+ * `PlayPoint.bellows` is still what drives the box — every note names an
+ * extension and pays for a note's worth of travel, so the bellows follows the
+ * part instead of twitching once a phrase — it is simply no longer asked to
+ * place a hand, which was never a job a snapshot could do.
  */
 
 import {
@@ -201,6 +206,12 @@ function bellowsFrame(reach: number, angle: number, out: Matrix4): Matrix4 {
   const ry = -HINGE_Y;   // every box is centred on the axis, half a box up
   out.makeRotationZ(angle);
   return out.setPosition(HINGE_X + rx * c - ry * s, HINGE_Y + rx * s + ry * c, 0);
+}
+
+/** The bass side's frame at a `PlayPoint.bellows` extension, 0 shut .. 1 out. */
+function frameAt(open: number, out: Matrix4): Matrix4 {
+  const w = widthAt(open);
+  return bellowsFrame(w, bellowsFan(w), out);
 }
 
 class Hit {
@@ -511,6 +522,20 @@ export const buildAccordion: InstrumentBuilder = (opts) => {
 
   const bodyMatrix = body.matrix.clone();
   const bodyQuat = body.quaternion.clone();
+  const bodyInv = bodyMatrix.clone().invert();
+
+  /**
+   * The extension every bass-side contact is described at, and the frame that
+   * puts it there.
+   *
+   * Which extension this is does not matter — `shift` measures the box's live
+   * position *from* it and hands the runtime the difference, so any choice
+   * cancels. The neutral is used because it is where the box starts, so the
+   * numbers in a debugger read as the instrument at rest.
+   */
+  const REST_AT = NEUTRAL_AT;
+  const REST_FRAME = frameAt(REST_AT, new Matrix4());
+  const REST_FRAME_INV = REST_FRAME.clone().invert();
 
   function place(local: Vector3, normal: Vector3, along: Vector3): Contact {
     return {
@@ -551,31 +576,36 @@ export const buildAccordion: InstrumentBuilder = (opts) => {
   }
 
   /**
-   * The bass side, through the *same* transform `update` will drive the box
-   * with, at whatever extension the caller names.
+   * The bass side at rest, through the *same* transform `update` will drive the
+   * box with — and `shift` is what carries it from there to wherever the box
+   * actually is on this frame.
    *
-   * The extension is a parameter and not a constant, and that is the whole of
-   * "the hand moves with the accordion". It used to be `BELLOWS_NEUTRAL`,
-   * because `resolve` is required to be pure and the model has no way to know
-   * what beat it is — so every bass contact was built for a box that was
-   * halfway open and the hand sat there while the instrument slid past it. A
-   * note now carries the extension it was played at, so the answer is still a
-   * pure function of the point and it is the *right* pure function.
+   * The two halves have to be separate because they answer to different rules.
+   * `resolve` is required to be pure and time-invariant, so it can only ever
+   * describe a box at one extension; `REST_AT` is that extension, and it is a
+   * label rather than a place — nothing about the answer depends on which one
+   * is picked, because `shift` measures from it.
    *
-   * `scratch` is not used here: this runs at build time and again per resolve,
-   * and `update` owns that matrix on the frame path.
+   * The version before this one parameterised the contact by
+   * `PlayPoint.bellows` instead: the hand was placed where the box was **when
+   * the note landed**, which is right on the beat and wrong for every frame
+   * after it. A free reed spends air for as long as it sounds, so the box
+   * travels *under* the note — while the hand, which is nailed to its contact
+   * for the whole release, stood still and watched it go. Then the next note's
+   * windup caught it up in a rush. That is the hand moving after the sound.
+   *
+   * `scratch` is not used here: this runs at build time, and `update` owns that
+   * matrix on the frame path.
    */
-  function onBassSide(local: Vector3, normal: Vector3, along: Vector3, open: number): Contact {
-    const w = widthAt(open);
-    const frame = bellowsFrame(w, bellowsFan(w), new Matrix4());
-    return place(local.clone().applyMatrix4(frame), normal, along);
+  function onBassSide(local: Vector3, normal: Vector3, along: Vector3): Contact {
+    return place(local.clone().applyMatrix4(REST_FRAME), normal, along);
   }
   /** The button's own local position; `onBassSide` puts it where the box is. */
   function bassLocal(midi: number): Vector3 {
     return new Vector3(BASS_DEPTH + 0.016, bassY(midi), BASS_ROW_Z);
   }
   for (let midi = BASS_LOW; midi <= BASS_HIGH; midi++) {
-    contacts.set(midi, onBassSide(bassLocal(midi), OUT_BASS, DOWN_BUTTONS, NEUTRAL_AT));
+    contacts.set(midi, onBassSide(bassLocal(midi), OUT_BASS, DOWN_BUTTONS));
   }
 
   /**
@@ -583,9 +613,19 @@ export const buildAccordion: InstrumentBuilder = (opts) => {
    * go to the torso, not to a hand (`choreograph.ts` says why: it is the whole
    * left arm that opens the box). Taken at the strap, which is the part of the
    * instrument the pull is actually applied to.
+   *
+   * This one *is* still parameterised by the extension, and that is not an
+   * oversight left behind by `shift`. A lean is a reading of the plan — how far
+   * through its air the arm is being asked to pull — and `leanTo` measures it
+   * against the mean of everywhere the effector has been sent. A torso that
+   * rode the live box instead would be handed a point that moved with its own
+   * average and would lean nowhere.
    */
   function strapContact(open: number): Contact {
-    return onBassSide(new Vector3(BASS_DEPTH + 0.035, 0, 0), OUT_BASS, DOWN_BUTTONS, open);
+    return place(
+      new Vector3(BASS_DEPTH + 0.035, 0, 0).applyMatrix4(frameAt(open, new Matrix4())),
+      OUT_BASS, DOWN_BUTTONS,
+    );
   }
   const BELLOWS_PULLED = strapContact(1);
   const BELLOWS_PUSHED = strapContact(0);
@@ -599,18 +639,16 @@ export const buildAccordion: InstrumentBuilder = (opts) => {
    * was being played like a small piano. `resolve` is handed the effector
    * precisely so a two-sided instrument can answer twice.
    *
-   * The bass one is at the neutral because a rest carries no extension, and
-   * that is only ever asked before the first note of a number — the runtime
-   * idles a hand on the last point it played, so once anything has sounded the
-   * left hand is answered through `resolve`'s `key` branch with that note's own
-   * extension and this contact is not consulted again.
+   * The bass one is described at `REST_AT` like every other bass contact and
+   * rides the box through `shift`, so a hand idling here through eight bars of
+   * a held chord is carried by the bellows rather than left behind by them.
    */
   const REST_TREBLE = place(
     new Vector3(TREBLE_OUTER_X - 0.075, -0.02, KEY_PIVOT_Z + WHITE_L * 0.72),
     OUT_TREBLE, UP_KEYBOARD,
   );
   const REST_BASS_LOCAL = new Vector3(BASS_DEPTH + 0.030, 0.02, BASS_ROW_Z);
-  const REST_BASS = onBassSide(REST_BASS_LOCAL, OUT_BASS, DOWN_BUTTONS, NEUTRAL_AT);
+  const REST_BASS = onBassSide(REST_BASS_LOCAL, OUT_BASS, DOWN_BUTTONS);
 
   const moving = new Set<Pressable>();
   const KEY_DIP = 0.10;      // radians at the key pivot
@@ -634,30 +672,23 @@ export const buildAccordion: InstrumentBuilder = (opts) => {
       switch (point.kind) {
         case 'key': {
           /**
-           * A bass note is answered where the box currently is; a treble note
-           * is answered where it always is.
+           * Every answer here is the instrument at rest; `shift` is what moves
+           * the bass side's answers onto the box.
            *
-           * And each hand is kept on its own side even when the note is not
-           * its own. The runtime asks *both* hands where they idle, and it
-           * asks with the last point that was played — so a treble run used to
-           * hand the left hand a treble key and drift it round onto the
-           * keyboard, which is the accordion being played like a small piano
-           * again by a different route.
+           * Each hand is kept on its own side even when the note is not its
+           * own. The runtime asks *both* hands where they idle, and it asks
+           * with the last point that was played — so a treble run used to hand
+           * the left hand a treble key and drift it round onto the keyboard,
+           * which is the accordion being played like a small piano again by a
+           * different route.
            */
           const bass = point.midi >= BASS_LOW && point.midi <= BASS_HIGH;
-          const open = point.bellows ?? NEUTRAL_AT;
           // A left hand asked about a treble note is the runtime asking where
-          // it idles — the answer is the bass side, *at the extension that note
-          // was played at*. Returning the fixed neutral here was the last place
-          // the hand could still be left behind by the box: the bass line is
-          // sparse and the treble is not, so between two bass notes every idle
-          // frame was answered from a box that had since travelled.
-          if (effector === 'left-hand' && !bass) {
-            return copy(onBassSide(REST_BASS_LOCAL, OUT_BASS, DOWN_BUTTONS, open));
-          }
+          // it idles, and the answer is the bass side — the resting spot, since
+          // a treble note names no button.
+          if (effector === 'left-hand' && !bass) return copy(REST_BASS);
           if (effector === 'right-hand' && bass) return copy(REST_TREBLE);
-          if (!bass) return copy(contacts.get(point.midi));
-          return copy(onBassSide(bassLocal(point.midi), OUT_BASS, DOWN_BUTTONS, open));
+          return copy(contacts.get(point.midi));
         }
         case 'bellows':
           // Where the arm is pulling *to*, when the plan says; the ends of the
@@ -672,6 +703,34 @@ export const buildAccordion: InstrumentBuilder = (opts) => {
         default:
           return undefined;
       }
+    },
+
+    /**
+     * The bass side, from where `resolve` described it to where it is now — and
+     * this is the whole of "the hand is doing the work".
+     *
+     * Only the left hand. The treble box is strapped to the player and does not
+     * move; the torso's `bellows` gestures are a lean toward a plan and must not
+     * ride the box at all (see `strapContact`).
+     *
+     * Read off `bellows` — the *same* value `update` draws the box from, on the
+     * same frame — rather than from anything the choreography said. That is the
+     * point. The hand is not being sent to where the box was on the beat and
+     * left there; it is being carried by the box, so the two accelerate, cross
+     * and stop together, and there is no frame on which they disagree by so much
+     * as a millimetre.
+     *
+     * The displacement is `F(now)` composed against the inverse of the frame the
+     * contacts were built at, wrapped in the body transform they were built
+     * through: exactly the motion `update` gives `bassSide`, expressed as a
+     * difference. Written into `out` and nothing is allocated.
+     */
+    shift(effector: Effector, now: number, out: Matrix4): boolean {
+      if (effector !== 'left-hand') return false;
+      const w = bellows.value(now);
+      bellowsFrame(w, bellowsFan(w), out);
+      out.multiply(REST_FRAME_INV).multiply(bodyInv).premultiply(bodyMatrix);
+      return true;
     },
 
     react(
@@ -729,13 +788,12 @@ export const buildAccordion: InstrumentBuilder = (opts) => {
       //
       // There used to be a slow sine here — an accordion with a perfectly still
       // bellows is an accordion nobody is breathing through — and it was seven
-      // millimetres of wander the left hand had no way to follow. Everything
-      // the box does now is a consequence of the plan, which is the same plan
-      // the hand is placed from: the hand and the button meet exactly on the
-      // beat and part by at most one note's air before the next note brings
-      // them back together, where an ornament on this side would never close.
-      // The notes keep it alive without one: every one of them names an
-      // extension and pays for a note's worth of travel.
+      // millimetres of wander the left hand had no way to follow. It has one
+      // now: `shift` hands the runtime this same `bellows.value(now)`, so the
+      // hand is on the button on every frame and not merely on the beat. The
+      // sine stays gone anyway, because the notes keep the box alive without
+      // one: every one of them names an extension and pays for a note's worth
+      // of travel.
       const w = bellows.value(now);
       const fan = bellowsFan(w);
 

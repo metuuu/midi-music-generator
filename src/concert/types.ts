@@ -188,13 +188,17 @@ export type PlayPoint =
      * How far open the bellows are when this key is struck, 0 shut .. 1 out.
      *
      * Free reeds only, and the accordion is the only one here. It is on the
-     * *note* rather than left to the model because of a hard constraint at the
-     * seam: `resolve` must be pure and time-invariant, and half an accordion —
-     * the bass side, with a hand on it — rides the bellows. A model asked
-     * "where is F2?" with no more information can only answer "wherever the
-     * buttons are when the box is halfway", so the left hand sat still on a
-     * point the instrument had slid out from under. Anything the geometry
-     * needs and cannot derive belongs in the IR, and this is that.
+     * *note* because the box's whole motion is a fact about the music and
+     * nothing else: a bellows is a tank of air, every sounding note spends
+     * some, and the direction turns when it runs out — which is a decision only
+     * something that can see the phrase ahead can make. The model is handed the
+     * answer and runs the box under the note, so the bellows follows the part
+     * instead of twitching once a phrase.
+     *
+     * It does *not* place the left hand. That hand is carried by the bass side
+     * through `InstrumentModel.shift`, off the box's live position, because a
+     * value sampled on the beat is right for one frame and stale for every
+     * frame of the note after it.
      *
      * Absent on every other keyboard, and on an accordion whose part was
      * choreographed before this existed.

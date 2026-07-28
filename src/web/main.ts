@@ -205,11 +205,27 @@ function stop(): void {
   if (radioTimer) { clearTimeout(radioTimer); radioTimer = undefined; }
 }
 
+/**
+ * Seconds between one track ending and the next starting.
+ *
+ * The song's last bar is now a held chord rather than whatever the pattern was
+ * doing at the loop point — see `landEnding` — and a segue that starts the next
+ * track on top of it throws that away. Stopping the scheduler leaves the voices
+ * already sounding to finish, so this gap *is* the ending, and it is the same
+ * beat of air a station leaves between records.
+ */
+const RING_OUT_SECONDS = 1.8;
+
 function scheduleRadioAdvance(song: Song): void {
   if (radioTimer) clearTimeout(radioTimer);
   if (!radioMode) return;
   const ms = songDurationSeconds(song) * 1000;
-  radioTimer = window.setTimeout(() => { void nextTrack(); }, ms);
+  radioTimer = window.setTimeout(() => {
+    // Stop at the loop point rather than let the pattern come round again
+    // underneath the ring.
+    void stopPlayback();
+    radioTimer = window.setTimeout(() => { void nextTrack(); }, RING_OUT_SECONDS * 1000);
+  }, ms);
 }
 
 async function nextTrack(): Promise<void> {

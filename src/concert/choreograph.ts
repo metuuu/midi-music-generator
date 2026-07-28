@@ -1153,13 +1153,13 @@ function bellowsPart(groups: NoteEvent[][], board: Board): number[] {
 
     /**
      * Where the box is **as this note lands**, which is what `PlayPoint.bellows`
-     * promises and what the hand on the bass buttons is placed at.
+     * promises and what the model starts this note's travel from.
      *
      * Reported before the note's air is spent, not after. The other order reads
      * as the natural one and says something else entirely: where the box will
-     * be when the note *ends*. So every left hand was placed one note's worth of
-     * travel ahead of the box it was resting on — a fifth of the stretch on a
-     * loud held chord, and a hand visibly running ahead of its own instrument.
+     * be when the note *ends*. So the box arrived at each note already holding
+     * the air that note had yet to spend, and every extension in the plan was
+     * one note out of step with the sound paying for it.
      */
     plan.push(at);
 
@@ -1208,12 +1208,27 @@ function stringPart(
   let bowBeats = 0;
   let lastEnd = -Infinity;
 
-  for (const group of groups) {
+  // Folded once, up front, because the position planner reads ahead into them.
+  const pitches = groups.map(
+    (g) => g.map((n) => foldIntoReach(n.midi, reach)).sort((a, b) => a - b),
+  );
+
+  for (let i = 0; i < groups.length; i++) {
+    const group = groups[i]!;
     const beat = quantise(group[0]!.beat);
     const sustain = Math.max(...group.map((n) => n.duration));
     const force = Math.max(...group.map((n) => n.velocity));
-    const midis = group.map((n) => foldIntoReach(n.midi, reach)).sort((a, b) => a - b);
-    const stops = chooseStops(midis, open, maxFret, reach, fretAt);
+    const midis = pitches[i]!;
+
+    // Everything the hand has to cover before it can shift again.
+    const window = [midis];
+    for (let j = i + 1; j < groups.length; j++) {
+      if (quantise(groups[j]![0]!.beat) - beat > POSITION_LOOKAHEAD) break;
+      window.push(pitches[j]!);
+    }
+    const position = open.length ? planPosition(window, open, maxFret) : fretAt;
+
+    const stops = chooseStops(midis, open, maxFret, reach, position);
     const gap = beat - lastEnd;
 
     // A bow that has left the string has to come back to it, and a bow that has
@@ -1255,12 +1270,85 @@ function stringPart(
 }
 
 /**
+ * How many frets one hand covers without shifting.
+ *
+ * Four, so a position is five frets wide counting the one the index finger is
+ * on: first position on a guitar, and about what a bassist covers with
+ * one-two-four low on a much longer neck. This is the unit a player actually
+ * thinks in — you shift *positions*, not fingers — and it is therefore the unit
+ * the planner below works in.
+ */
+const POSITION_SPAN = 4;
+
+/**
+ * How far ahead the hand commits, in beats.
+ *
+ * Half a bar. Long enough that a shift is made for a phrase rather than for a
+ * note, short enough that the hand is not sitting up at the seventh fret two
+ * bars before the one note that needs it.
+ */
+const POSITION_LOOKAHEAD = 2;
+
+/**
+ * Where the hand sits for the next half-bar — the fix for a hand that went up
+ * the neck once and never came back.
+ *
+ * The anchor used to be simply the last position the hand was in, and that has
+ * a ratchet in it: the single highest note in a phrase drags the hand up to
+ * reach it, and every note afterwards is then *closer* to a high fingering than
+ * to the low one it belongs at, so it stays. One Eb3 in a bass line — the only
+ * note in it that a four-string bass cannot play below the eighth fret — pinned
+ * an entire chorus of E2s and G2s to the sixth and eighth frets, on the thick
+ * strings, for the rest of the number. Measured over a dozen concerts, the mean
+ * bass fret was 8.1 where the notes themselves only ever needed 2.9.
+ *
+ * So plan instead of drift: take the lowest position that covers everything in
+ * the look-ahead window, and if nothing covers the whole window, shorten it
+ * until something does. A player reaches up for the outlier and comes straight
+ * back down, because the *next* window no longer contains it.
+ *
+ * Open strings are always available — they need no hand at all — so a note that
+ * an open string can sound never constrains the position.
+ *
+ * This ignores the one-note-per-string rule, which `chooseStops` still enforces:
+ * a position is a hint about where the arm goes, and a chord that cannot quite
+ * be fingered there still wants the hand in the neighbourhood.
+ */
+function planPosition(window: Midi[][], open: Midi[], maxFret: number): number {
+  for (let end = window.length; end > 0; end--) {
+    const p = lowestPositionCovering(window.slice(0, end).flat(), open, maxFret);
+    if (p >= 0) return p;
+  }
+  return 0;
+}
+
+/** The lowest index-finger fret that reaches every one of these, or -1. */
+function lowestPositionCovering(midis: Midi[], open: Midi[], maxFret: number): number {
+  for (let p = 0; p <= maxFret; p++) {
+    const top = Math.min(p + POSITION_SPAN, maxFret);
+    let covered = true;
+    for (const midi of midis) {
+      let reachable = false;
+      for (const o of open) {
+        const fret = midi - o;
+        if (fret === 0 || (fret >= p && fret <= top)) { reachable = true; break; }
+      }
+      if (!reachable) { covered = false; break; }
+    }
+    if (covered) return p;
+  }
+  return -1;
+}
+
+/**
  * Where to put the fingers.
  *
  * Ascending, one string each — a chord cannot use a string twice — choosing the
- * fingering that keeps the hand where it already is. That is the actual decision
- * a player makes and it is why a bass line stays in one position instead of
- * lurching up the neck for every note that happens to be available higher.
+ * fingering nearest the position the hand has been planned into. That is the
+ * actual decision a player makes and it is why a bass line stays in one position
+ * instead of lurching up the neck for every note that happens to be available
+ * higher. `anchor` is that position; see `planPosition` for how it is chosen and
+ * for what went wrong when it was just wherever the hand happened to be last.
  *
  * The fallback exists because a `PlayPoint` must always resolve: a sitar's
  * lowest string is a C3 and its declared range starts a minor third below, so a

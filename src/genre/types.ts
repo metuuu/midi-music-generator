@@ -41,6 +41,46 @@ export interface FormStep {
   bars: number;
 }
 
+/**
+ * How the last bar of a piece lands.
+ *
+ * A generated form runs out of bars; that is not the same thing as ending, and
+ * the difference is the most audible unfinished edge this generator had. The
+ * final bar used to be an ordinary bar of the pattern, cut wherever the loop
+ * point fell — a comp figure sliced mid-figure, a tune left on whatever note
+ * the phrase happened to be passing through.
+ *
+ * So the last bar is not a bar of the arrangement any more. It is the ending,
+ * and there are exactly two of them in this repertoire:
+ *
+ *   button  everybody lands the final chord together on the downbeat and holds
+ *           it, with a cymbal under it. What a dance band does, what a jazz
+ *           head does on the way out, and what an audience claps at.
+ *   fade    the chord that is already sounding is simply held and let go, with
+ *           nothing struck on top of it. Ambient does not finish, it stops
+ *           being there, and a crash on the end of a drone is a joke.
+ */
+export type EndingStyle = 'button' | 'fade';
+
+/**
+ * What the piece turned out to be, so that its title can avoid claiming
+ * otherwise.
+ *
+ * Titles in all three of these repertoires are half imagery and half
+ * announcement — "Sodium Corridor" only pictures something, but "Midnight
+ * Swing", "Satumaan valssi" and "Blue Harlem Blues" also say what the band is
+ * playing. An announcement that disagrees with the music is worse than no
+ * announcement at all: a bossa called a swing reads as a mistake, not as a
+ * poetic liberty. So the word pools are filtered against the piece before
+ * anything is drawn from them.
+ */
+export interface TitleContext {
+  style: Style;
+  mood: Mood;
+  /** The tempo actually chosen, not the style's band. */
+  bpm: number;
+}
+
 export interface Genre {
   id: string;
   label: string;
@@ -58,7 +98,7 @@ export interface Genre {
   vocals: VocalProfile;
 
   /** Song-title generator. */
-  title(rng: Rng): string;
+  title(rng: Rng, ctx: TitleContext): string;
 
   /**
    * Song forms, weighted. Iskelmä is verse/chorus; jazz is head–solos–head
@@ -71,6 +111,25 @@ export interface Genre {
     minor: (readonly [Pc, number])[];
     major: (readonly [Pc, number])[];
   };
+
+  /** How a piece in this genre finishes. See `EndingStyle`. */
+  ending: EndingStyle;
+
+  /**
+   * Whether a live band counts this music in.
+   *
+   * A *staging* fact rather than a musical one, and the only one of those in
+   * this table — which is why it is here rather than inferred on the stage: the
+   * concert is a renderer of the IR and does not get to invent bars of music.
+   * Applied by `withCountIn`, and only ever to a number a band is playing in
+   * front of people. The radio never counts anything in; a record that counted
+   * itself in would be a demo.
+   *
+   * False for music that has no pulse to count. An ambient piece does not
+   * begin, it is found already happening, and four clicks in front of it would
+   * be four clicks in front of the wrong music.
+   */
+  countIn: boolean;
 
   /** Constraint level that suits the idiom by default. */
   defaultStrictness: StrictnessId;

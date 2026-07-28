@@ -78,6 +78,12 @@ export const jazz: Genre = {
   // The rules exist to stop a line wandering; jazz wanders on purpose. Only the
   // genuinely unplayable intervals are worth blocking here, and bebop turns
   // even that off via its own style override.
+  // The head goes out on a held chord, and the count-in is so much a part of
+  // the idiom that it survives onto the records — a stick count is the first
+  // thing on more jazz sides than anybody bothers to notice.
+  ending: 'button',
+  countIn: true,
+
   defaultStrictness: 'light',
 
   // The head should come back recognisably — that is what makes it a head — but

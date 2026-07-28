@@ -19,7 +19,7 @@
  *    genre's eras set their own probability.
  */
 
-import { parseRoman, type Chord } from '../core/chord.js';
+import { CHORD_INTERVALS, parseRoman, type Chord } from '../core/chord.js';
 import { keyLabel, type Pc } from '../core/pitch.js';
 import { Rng } from '../core/rng.js';
 import type { Mode } from '../core/scale.js';
@@ -28,9 +28,11 @@ import {
   type DrumEvent, type DrumTrack, type Effects, type LayerId, type NoteEvent,
   type Section, type SectionKind, type Song, type Space, type Track,
 } from '../core/types.js';
-import { GENRES, getGenre, type FormStep, type Genre } from '../genre/index.js';
 import {
-  foldIntoRange, IDIOMS, INSTRUMENTS, rangeOfInstrument,
+  GENRES, getGenre, type EndingStyle, type FormStep, type Genre,
+} from '../genre/index.js';
+import {
+  envelopeFor, foldIntoRange, IDIOMS, INSTRUMENTS, rangeOfInstrument,
   type Instrument, type InstrumentId,
 } from '../style/instruments.js';
 import type { EraProfile, Mood, Progression, Style } from '../style/types.js';
@@ -295,6 +297,15 @@ export function generateSong(opts: GenerateOptions = {}): Song {
   const remembered = new Map<string, Remembered>();
   const hookRng = new Rng(`${seed}:hook`);
   const seenKinds = new Map<SectionKind, number>();
+  /**
+   * The chord the piece finishes on, in concert pitch. See `landEnding`.
+   *
+   * Captured here rather than re-derived from `Section.chordLabels` at the end,
+   * because a label is a roman numeral and reading one back means knowing the
+   * section's mode *and* its transposition — which is exactly the pair of
+   * things the final chorus's key change moves.
+   */
+  let finalChord: Chord | undefined;
 
   for (let s = 0; s < sections.length; s++) {
     const section = sections[s]!;
@@ -336,6 +347,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
       startBeat: section.startBar * style.beatsPerBar,
       style,
     };
+    if (s === sections.length - 1) finalChord = ctxBase.chords[ctxBase.chords.length - 1];
 
     /**
      * One stream per layer per section, rather than one stream for the whole
@@ -887,6 +899,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
       // Melodic layers were swung above, before their overlap trim.
       notes: layer === 'melody' || layer === 'counter' ? notes : applySwing(notes, style.swing),
       gain: gains[layer],
+      envelope: envelopeFor(instrument),
       ...(effects ? { effects } : {}),
       // Said out loud, because from here on nothing can tell by looking: a
       // pianist's two hands and a four-part comp are both just simultaneous
@@ -921,10 +934,10 @@ export function generateSong(opts: GenerateOptions = {}): Song {
     ...(drumEffects ? { effects: drumEffects } : {}),
   };
 
-  return {
+  const song: Song = {
     meta: {
       seed,
-      title: genre.title(rng),
+      title: genre.title(rng, { style, mood, bpm }),
       style: style.id,
       styleLabel: style.label,
       era: era.id,
@@ -950,6 +963,278 @@ export function generateSong(opts: GenerateOptions = {}): Song {
     drums,
     space,
   };
+
+  landEnding(song, genre.ending, finalChord);
+  return song;
+}
+
+// ---------------------------------------------------------------------------
+// The ending
+// ---------------------------------------------------------------------------
+
+/**
+ * How far into the final bar an onset still counts as *the* landing, in beats.
+ *
+ * A band lands together, but not to the sample: a comp figure that stabs on the
+ * "and" of one is playing the same arrival as the bass note on the downbeat,
+ * and pulling it back onto the beat is what makes them one chord instead of two
+ * events. Half a beat is the widest that stays true — anything later in the bar
+ * is a *different* event, and the ending has already happened.
+ */
+const LAND_WINDOW = 0.5;
+
+/**
+ * How far back a layer may have stopped and still be brought into the ending.
+ *
+ * A part that dropped out two bars ago has finished; hauling it back for the
+ * final chord would be re-orchestrating rather than ending. Measured in bars.
+ */
+const LAND_RECALL_BARS = 2;
+
+/** Semitones a landing note may be moved to reach a chord tone. */
+const LAND_SNAP = 2;
+
+/** Slack for comparing beats that have been through swing and back. */
+const EPS = 1e-6;
+
+/**
+ * Turn the last bar into an ending.
+ *
+ * The generator builds a form out of bars and then runs out of them, and
+ * "running out of bars" is not an ending — it was the most audible unfinished
+ * edge in the output. Whatever the pattern happened to be doing was cut at the
+ * loop point: a comp figure sliced in half, a tune left standing on whatever
+ * note the phrase was passing through, the kit still going.
+ *
+ * So the final bar stops being a bar of the arrangement. Three things happen to
+ * it, and each is what a band does rather than what is convenient here:
+ *
+ *  - **everything lands on the downbeat and holds.** Onsets within
+ *    `LAND_WINDOW` are pulled onto the beat and stretched across the bar;
+ *    anything already ringing is held to the end rather than cut; anything
+ *    later is dropped, because it would be playing after the ending.
+ *  - **the landing is a chord tone.** The one detail that separates "it ends"
+ *    from "it stops": a held note two semitones off the final chord is a fault
+ *    the whole bar long, where the same note passing through is nothing. Only
+ *    notes actually *struck* here are moved — bending one that has been
+ *    sounding since the bar before would be a pitch change mid-note.
+ *  - **a cymbal, or not.** `button` puts a crash and a kick under it and takes
+ *    the rest of the kit out; `fade` adds nothing at all, because ambient does
+ *    not finish, it stops being there.
+ *
+ * The show runner then has a whole bar of ringing chord to bring the house up
+ * over, which is what applause is *for* — see `web/concert/show.ts`.
+ */
+function landEnding(song: Song, style: EndingStyle, chord: Chord | undefined): void {
+  const { beatsPerBar, totalBars } = song.meta;
+  if (totalBars < 2) return;
+
+  /** The downbeat of the final bar, and the end of the piece. */
+  const at = (totalBars - 1) * beatsPerBar;
+  const end = totalBars * beatsPerBar;
+  const tones = chord
+    ? CHORD_INTERVALS[chord.quality].map((i) => ((chord.root + i) % 12 + 12) % 12)
+    : [];
+
+  for (const track of song.tracks) {
+    /**
+     * The one thing this track plays in the final bar, if anything.
+     *
+     * The *first* onset inside the window and no other — not everything within
+     * half a beat of the downbeat pulled onto it. An arpeggio's next note is
+     * not part of the landing chord, and stacking it on the first one turns a
+     * line that plays one note at a time into one that does not, which is a
+     * fault the ambient sequencer check catches by name.
+     */
+    let landAt = Number.POSITIVE_INFINITY;
+    for (const note of track.notes) {
+      if (note.beat < at - EPS || note.beat > at + LAND_WINDOW + EPS) continue;
+      if (note.beat < landAt) landAt = note.beat;
+    }
+
+    const kept: NoteEvent[] = [];
+    /** Notes struck on the landing, which are the ones worth snapping. */
+    const struck: NoteEvent[] = [];
+    /** Final-bar notes that are not part of it, in the order they were played. */
+    const dropped: NoteEvent[] = [];
+    let ringing = false;
+
+    for (const note of track.notes) {
+      if (note.beat < at - EPS) {
+        // Still sounding when the ending lands: hold it rather than let it
+        // stop somewhere inside the last bar.
+        if (note.beat + note.duration > at + EPS) {
+          note.duration = end - note.beat;
+          ringing = true;
+        }
+        kept.push(note);
+        continue;
+      }
+      // Everything else in the final bar goes. Including, when `landAt` is
+      // infinite, a part whose only note there is halfway through it: the band
+      // landed on the downbeat and that note would be playing after the end.
+      if (!Number.isFinite(landAt) || note.beat > landAt + EPS) {
+        dropped.push(note);
+        continue;
+      }
+      // A button re-articulates on the beat; a fade leaves the attack where the
+      // player put it and simply does not let go of it.
+      if (style === 'button') {
+        note.beat = at;
+        note.velocity = clamp(note.velocity * 1.15 + 0.06, 0, 1);
+        struck.push(note);
+      }
+      note.duration = end - note.beat;
+      kept.push(note);
+    }
+
+    /**
+     * A layer that was playing right up to the end but has nothing on the
+     * landing gets its last voicing back, on the beat.
+     *
+     * This is what stops a button from being half a band. A comp whose figure
+     * put its last stab on the "and" of four in the previous bar is a layer
+     * that is *playing*, and dropping it from the final chord leaves a hole
+     * exactly where the arrangement is at its thickest everywhere else. The
+     * group is re-struck rather than a chord invented, so the voicing is the
+     * one this instrument was already holding.
+     *
+     * The dropped notes are preferred as the source, when there are any: a
+     * part whose last chord fell *inside* the final bar was written against
+     * this very harmony, where anything further back was written against the
+     * bar before it.
+     */
+    const source = dropped.length ? dropped : kept;
+    if (style === 'button' && !struck.length && !ringing && source.length) {
+      const last = source[source.length - 1]!;
+      if (last.beat >= at - LAND_RECALL_BARS * beatsPerBar) {
+        // The whole last simultaneity, so a chord comes back as a chord. Built
+        // before anything is appended — `kept` is what is being added to.
+        const group = source.filter((n) => n.beat >= last.beat - EPS);
+        for (const note of group) {
+          const copy: NoteEvent = {
+            ...note,
+            beat: at,
+            duration: beatsPerBar,
+            velocity: clamp(note.velocity * 1.15 + 0.06, 0, 1),
+          };
+          kept.push(copy);
+          struck.push(copy);
+        }
+      }
+    }
+
+    if (tones.length) for (const note of struck) note.midi = snapToChord(note.midi, tones);
+    track.notes = kept;
+  }
+
+  // The kit. Whatever it was playing in the last bar was a bar of pattern, and
+  // the pattern is over.
+  const hadDrums = song.drums.events.length > 0;
+  song.drums.events = song.drums.events.filter((e) => e.beat < at - EPS);
+  if (style === 'button' && hadDrums) {
+    song.drums.events.push({ beat: at, voice: 'cr', velocity: 0.95 });
+    song.drums.events.push({ beat: at, voice: 'bd', velocity: 0.9 });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// The count-in
+// ---------------------------------------------------------------------------
+
+/** Bars of clicks. One, in any tempo — two is a rehearsal, not a performance. */
+const COUNT_BARS = 1;
+
+/**
+ * The same song with the drummer counting it in.
+ *
+ * **Staging, not composition, which is why it is a separate call.** A record
+ * does not count itself in — the radio plays songs and gets none of this — and
+ * a band on a stage cannot start without it. So the concert applies this to
+ * every number it stages and nothing else does; see `concert/index.ts`.
+ *
+ * What it produces is *ordinary music*: real drum events in a real section at
+ * the front of the song, with everything else pushed back a bar. That is the
+ * whole trick, and it is why this is fourteen lines rather than a subsystem —
+ * the pattern renderer plays the clicks because they are drum events, the
+ * choreographer animates the drummer hitting them because they are drum events,
+ * the lighting score sees a bar it can bring the wash up over, and none of them
+ * had to be told a count-in exists. `SongMeta.leadInBars` is the one thing they
+ * cannot derive: where the music proper starts.
+ *
+ * Quarter-note clicks with an extra one on the last "and", swung with the song,
+ * because the "and" is what tells a band what the eighths are going to feel
+ * like. Silent for anything with no kit — there is nobody to click, and a bar
+ * of silence in front of the music is the show runner's problem rather than the
+ * generator's: the leader gives a visual cue instead. See `show.ts`.
+ *
+ * Idempotent, and it has to be: a player hit by a tomato comes back through
+ * `revoiceNumber`, which regenerates the song mid-number, and a second count-in
+ * would shift every beat in the piece a bar away from the clock still playing
+ * it.
+ */
+export function withCountIn(song: Song): Song {
+  if (song.meta.leadInBars) return song;
+  if (!getGenre(song.meta.genre).countIn) return song;
+  if (!song.drums.events.length) return song;
+
+  const { beatsPerBar, swing } = song.meta;
+  const shift = COUNT_BARS * beatsPerBar;
+
+  const clicks: DrumEvent[] = [];
+  for (let b = 0; b < beatsPerBar; b++) {
+    // Rising slightly, which is what a count-in does: the last one is the cue.
+    clicks.push({ beat: b, voice: 'rim', velocity: 0.5 + 0.05 * b });
+  }
+  clicks.push({ beat: beatsPerBar - 0.5 + swing * 0.5, voice: 'rim', velocity: 0.72 });
+
+  const count: Section = {
+    kind: 'intro',
+    startBar: 0,
+    lengthBars: COUNT_BARS,
+    transpose: 0,
+    mode: song.meta.mode,
+    activeLayers: ['drums'],
+    // Nothing is playing it yet, but it is the harmony the count is in front
+    // of, and a section with no chords at all reads downstream as a fault.
+    chordLabels: Array.from({ length: COUNT_BARS },
+      () => song.sections[0]?.chordLabels[0] ?? 'I'),
+  };
+
+  return {
+    ...song,
+    meta: {
+      ...song.meta,
+      totalBars: song.meta.totalBars + COUNT_BARS,
+      leadInBars: COUNT_BARS,
+    },
+    sections: [count, ...song.sections.map((s) => ({ ...s, startBar: s.startBar + COUNT_BARS }))],
+    tracks: song.tracks.map((t) => ({
+      ...t,
+      notes: t.notes.map((n) => ({ ...n, beat: n.beat + shift })),
+    })),
+    drums: {
+      ...song.drums,
+      events: [...clicks, ...song.drums.events.map((e) => ({ ...e, beat: e.beat + shift }))],
+    },
+  };
+}
+
+/**
+ * The nearest pitch of `tones` (pitch classes) to `midi`, within `LAND_SNAP`.
+ *
+ * Nearest rather than "the root", because the note is part of a voicing the
+ * arranger already balanced: dropping every layer onto the root would end the
+ * piece on a unison. Ties go downward, which is where a resolution goes.
+ */
+function snapToChord(midi: number, tones: number[]): number {
+  const has = (m: number): boolean => tones.includes(((m % 12) + 12) % 12);
+  if (has(midi)) return midi;
+  for (let d = 1; d <= LAND_SNAP; d++) {
+    if (has(midi - d)) return midi - d;
+    if (has(midi + d)) return midi + d;
+  }
+  return midi;
 }
 
 // ---------------------------------------------------------------------------

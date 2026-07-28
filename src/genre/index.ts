@@ -20,4 +20,4 @@ export function getGenre(id: string): Genre {
   return g;
 }
 
-export type { Genre, FormStep } from './types.js';
+export type { Genre, FormStep, EndingStyle } from './types.js';

@@ -10,13 +10,14 @@
  * be written or tested, which is the only reason the models can be built in
  * parallel with the thing that drives them.
  *
- * The interface is deliberately four members wide. Every temptation to add a
- * fifth — "let the model know what section it is" — is the same temptation to
- * let the visuals reach back into the music, and the answer is always that the
- * IR should carry it instead.
+ * The interface is deliberately narrow. Every temptation to widen it — "let the
+ * model know what section it is" — is the same temptation to let the visuals
+ * reach back into the music, and the answer is always that the IR should carry
+ * it instead. `shift` is the one addition that passed that test, and only
+ * because it says nothing about music: it is geometry the runtime cannot see.
  */
 
-import type { Group, Object3D, Vector3 } from 'three';
+import type { Group, Matrix4, Object3D, Vector3 } from 'three';
 
 import type {
   Archetype, Effector, GestureKind, PlayPoint, Posture,
@@ -95,6 +96,30 @@ export interface InstrumentModel {
    * adapts the string models rather than making all 22 implement this.
    */
   resolve(point: PlayPoint, effector?: Effector): Contact | undefined;
+
+  /**
+   * How far the part of this instrument `effector` works on has moved since
+   * `resolve` answered, as a displacement in the model's own frame, into `out`.
+   * `false` — or no method at all — means nothing under that effector moves,
+   * which is true of every instrument here but one.
+   *
+   * This is not a fifth thing the seam knows about music; it is the honest
+   * statement of a geometric fact `resolve`'s purity would otherwise have to
+   * lie about. An accordion's bass side rides the bellows, so the buttons under
+   * the left hand are not where they were a beat ago. `resolve` cannot say so —
+   * it is required to be pure and time-invariant, and rightly — so it answers
+   * where the buttons are on a box at rest and this says where that box has got
+   * to. Composed by the runtime every frame, so the hand and the thing it is
+   * pressing move as one object at one speed, which is the only way it reads as
+   * the hand doing the work rather than trailing it.
+   *
+   * `now` is the song position in beats, from the one clock, as in `react`.
+   * Must be cheap and must not allocate: this runs per live gesture per frame.
+   * Whatever it reports has to be the same motion `update` draws, from the same
+   * expression — two derivations of one movement drift the moment either is
+   * touched.
+   */
+  shift?(effector: Effector, now: number, out: Matrix4): boolean;
 
   /**
    * The instrument's own response to being played — a drum head dishing, a

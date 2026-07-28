@@ -53,6 +53,11 @@ export const iskelma: Genre = {
     minor: [[9, 5], [4, 4], [2, 4], [7, 3], [11, 3], [0, 2], [5, 2], [6, 1]],
     major: [[0, 5], [7, 4], [5, 4], [2, 3], [10, 3], [9, 2], [3, 2]],
   },
+  // A dance band finishes together and the floor claps. Both of these are the
+  // same fact from either end: somebody counts it in, and it lands on a button.
+  ending: 'button',
+  countIn: true,
+
   defaultStrictness: 'standard',
   // Verse/chorus pop: the chorus is supposed to be the same tune each time, and
   // for most of this repertoire that is the entire point of the chorus.

@@ -18,7 +18,7 @@
  */
 
 import type { LayerId, Song } from '../core/types.js';
-import { generateSong, type GenerateOptions } from '../generate/song.js';
+import { generateSong, withCountIn, type GenerateOptions } from '../generate/song.js';
 
 import { castSong } from './cast.js';
 import { choreograph } from './choreograph.js';
@@ -57,7 +57,24 @@ export function buildConcert(opts: ConcertOptions = {}): Concert {
     ?? (opts.song?.seed !== undefined ? String(opts.song.seed) : String(Math.floor(Math.random() * 1e9)));
   const resolved: ConcertOptions = { ...opts, seed };
 
-  const songs = buildSetlist(resolved);
+  /**
+   * The setlist, counted in.
+   *
+   * This is the one place a concert's music differs from the same music on the
+   * radio, and it is a difference about *performance* rather than composition:
+   * a band on a stage does not start by telepathy. `withCountIn` puts the
+   * drummer's four clicks at the front as ordinary bars of music, so the
+   * choreographer animates them, the lighting score sees them and the
+   * programme's running times include them — see `generate/song.ts`. It is a
+   * no-op for a genre that does not count itself in, and for any number with
+   * no kit to count on; those get the leader's silent cue instead, which is the
+   * show runner's business rather than the generator's.
+   *
+   * Before `buildBill`, deliberately: the bill prints durations, and a
+   * programme that disagreed with the clock by a bar per number would be wrong
+   * about the length of the evening.
+   */
+  const songs = buildSetlist(resolved).map(withCountIn);
   if (!songs.length) throw new Error('buildConcert: the setlist came back empty');
 
   // Every number shares a genre and an era — a band is one band on one night,
@@ -175,7 +192,14 @@ export function revoiceNumber(
     vocals: number.song.tracks.some((t) => t.voice),
     variation: { [layer]: attempt },
   });
-  return { ...number, song, choreography: choreograph(song, number.cast) };
+  /**
+   * Counted in again, and this is load-bearing rather than tidy: this runs
+   * *mid-number*, against a transport that is already playing the counted-in
+   * version, and a song that came back a bar short would put every remaining
+   * beat of the piece one bar away from the clock animating it.
+   */
+  const staged = withCountIn(song);
+  return { ...number, song: staged, choreography: choreograph(staged, number.cast) };
 }
 
 /** Total running time of the show, in seconds. */
