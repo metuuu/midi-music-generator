@@ -563,6 +563,22 @@ export interface Look {
   accessories: Accessory[];
 }
 
+/**
+ * Which object a keyboard player is standing behind.
+ *
+ * One archetype, three objects, and they share almost no geometry — the
+ * argument is set out at length in `web/concert/instruments/synth-rig.ts`. What
+ * that file could not do is *count*: it chose per performer, from the year, in
+ * the renderer, so a 1974 concert put a five-cabinet Moog System 55 behind
+ * every keyboard on the stage. Three walls of patch cables, because nothing was
+ * in a position to know there were three.
+ *
+ * The type is here and the table of what each one *is* — how much floor, how
+ * tall, how many a band may own — is `SYNTH_RIGS` in `concert/instruments.ts`,
+ * which is the same split `Archetype` and `ARCHETYPES` already use.
+ */
+export type SynthRigId = 'modular' | 'polysynth' | 'digital';
+
 export interface Performer {
   /** Stable within a number. Choreography, groove and lighting all key on it. */
   id: string;
@@ -573,6 +589,21 @@ export interface Performer {
   instrument: string;
   look: Look;
   station: Station;
+  /**
+   * Which synthesiser this is, where the archetype is `synth`. See `SynthRigId`.
+   *
+   * Absent on every other archetype, and absent is not a default — a trumpeter
+   * has no rig, rather than having the plain one.
+   *
+   * It is on the performer rather than looked up by the renderer because it is
+   * a decision about the *band*: one modular is a centrepiece and three are a
+   * trade stand, and only something holding the whole cast can tell those
+   * apart. The renderer chose per player from the year and could not. It also
+   * has to be settled before staging rather than merely before rendering, since
+   * a wall of cabinets and a slab on a stand occupy different amounts of floor
+   * and block different amounts of sightline.
+   */
+  rig?: SynthRigId;
 }
 
 export interface Cast {

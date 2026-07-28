@@ -26,7 +26,7 @@
 import type { Midi } from '../core/pitch.js';
 import type { InstrumentId } from '../style/instruments.js';
 import { INSTRUMENTS } from '../style/instruments.js';
-import type { Archetype, ArchetypeSpec } from './types.js';
+import type { Archetype, ArchetypeSpec, SynthRigId } from './types.js';
 
 /**
  * Which object each catalogue entry is played on.
@@ -450,6 +450,148 @@ export function archetypeForTrack(
 
 export function specFor(archetype: Archetype): ArchetypeSpec {
   return ARCHETYPES[archetype];
+}
+
+// ---------------------------------------------------------------------------
+// Which synthesiser
+// ---------------------------------------------------------------------------
+
+export interface SynthRigSpec {
+  id: SynthRigId;
+  label: string;
+  /**
+   * The years this object could appear on a stage at all — **not** the years it
+   * was current.
+   *
+   * The distinction is load-bearing and got itself wrong once already. `to` was
+   * 1979 for the modular, meaning "when the Prophet-5 replaced it", while
+   * `rigPoolFor` gave it a weight of 2 through 1983 to say "the bands who
+   * already owned one kept hauling it about". Those two statements contradict
+   * each other and the gate wins silently: the weight was unreachable and the
+   * 1981 stage had no modular on it in 82 concerts, which is not what either
+   * table said and is not true of 1981.
+   *
+   * So this is the outer bound and the weights are the only thing that says how
+   * likely. A rig is *eligible* for as long as one could plausibly still be
+   * wheeled on; whether it usually is, is `rigPoolFor`'s business and nothing
+   * here may quietly override it.
+   */
+  from: number;
+  to: number;
+  /**
+   * How many of these one band may own.
+   *
+   * The only field here that is a statement about a *stage* rather than about
+   * an object, and the reason this table exists. A modular was the centrepiece
+   * a band saved up for; two is a famously well-funded band and three is a
+   * trade stand. Everything else is a keyboard and you may have as many as you
+   * have players.
+   */
+  max: number;
+  /**
+   * Floor it occupies, overriding `ARCHETYPES.synth.footprint`.
+   *
+   * A wall of cabinets and a slab on an X-stand are not the same object and
+   * have never been the same size, and the stager has been treating them as
+   * one — which is why the sightline checks could not be trusted around a
+   * modular. See `height`.
+   */
+  footprint: number;
+  /**
+   * How tall it stands off the boards, for sightlines.
+   *
+   * `SILHOUETTE_R` in `cast.ts` measures people against people because a grand
+   * piano is knee-high and hides nobody. A modular is 1.7 m of cabinet and
+   * hides everybody, so it is the first piece of gear on this stage that has to
+   * be in that calculation.
+   */
+  height: number;
+  /**
+   * Whether it is furniture: placed like a grand piano rather than stood behind
+   * on the gear arc.
+   *
+   * The arc exists to make several keyboards read as one instrument that people
+   * are standing inside. That is right for boards on stands and wrong for a
+   * wall — you do not curve a Moog System 55 around anybody, you put it at the
+   * back and stand in front of it.
+   */
+  furniture: boolean;
+}
+
+export const SYNTH_RIGS: Record<SynthRigId, SynthRigSpec> = {
+  /**
+   * 1972–77. A cabinet of patch cables the player stands inside, with a plain
+   * controller keyboard in front of it.
+   *
+   * `to: 1985`, which is long after it stopped being what anybody bought, and
+   * that is what this field means — see `from`/`to` above. A System 55 did not
+   * evaporate when the Prophet-5 shipped; Tangerine Dream and Schulze were
+   * still carting them around stages well into the eighties. How *rare* that
+   * had become is the weight's job, and setting this to 1979 to say the same
+   * thing twice made the weight unreachable instead.
+   */
+  modular: {
+    id: 'modular', label: 'modular system', from: 1965, to: 1985,
+    max: 2, footprint: 1.7, height: 1.72, furniture: true,
+  },
+  /**
+   * 1978–83. The keyboard *is* the instrument: wooden end-cheeks, one row of
+   * knobs, an X-stand.
+   *
+   * `from: 1970`, which is earlier than the era boundary `synth-rig.ts` names,
+   * and deliberately: a Minimoog is 1970 and is geometrically this object. That
+   * is what makes the 1974 pool work without a fourth model — the players who
+   * do not get the modular are standing behind Minimoogs, which is both correct
+   * and free.
+   */
+  polysynth: {
+    id: 'polysynth', label: 'polysynth', from: 1970, to: 1990,
+    max: 99, footprint: 0.95, height: 1.05, furniture: false,
+  },
+  /**
+   * 1984–90. A thin plastic slab with membrane buttons and no knobs, usually
+   * two of them stacked on a double stand.
+   */
+  digital: {
+    id: 'digital', label: 'digital synth', from: 1984, to: 2100,
+    max: 99, footprint: 0.95, height: 1.35, furniture: false,
+  },
+};
+
+/**
+ * What a keyboard player could be standing behind in a given year, weighted.
+ *
+ * Keyed on the year and not on the era, which is the same call
+ * `InstrumentBuildOptions.year` already makes and for the same reason: era ids
+ * are genre-local, and what a synthesiser looked like is a fact about a decade.
+ * Ambient's `tape` era and synth's `polysynth` era are four years apart and
+ * should stage the same object without either genre knowing the other exists.
+ *
+ * The weights are the period statement. In 1974 the modular is what the money
+ * went on and everything else on the stage is a Minimoog; by 1981 the modular
+ * is the thing in the corner that two bands in ten still cart around; after
+ * 1984 it is gone and the slab has won. Availability is enforced separately
+ * from weighting — an entry outside its own `from`/`to` is dropped before any
+ * draw — so no weight written later can stage a DX7 in 1974.
+ */
+export function rigPoolFor(year: number): (readonly [SynthRigId, number])[] {
+  const weights: Record<SynthRigId, number> = year < 1978
+    ? { modular: 6, polysynth: 5, digital: 0 }
+    : year < 1984
+      ? { modular: 2, polysynth: 8, digital: 0 }
+      : { modular: 0, polysynth: 3, digital: 8 };
+
+  const open = (Object.keys(weights) as SynthRigId[])
+    .filter((id) => {
+      const spec = SYNTH_RIGS[id];
+      return weights[id] > 0 && year >= spec.from && year <= spec.to;
+    })
+    .map((id) => [id, weights[id]] as const);
+
+  // A year outside every window at once should stage the plain keyboard rather
+  // than nothing — the same fallback `eligibleDrumSources` makes, for the same
+  // reason: the quiet answer should also be the one that was true before.
+  return open.length ? open : [['polysynth', 1] as const];
 }
 
 /**

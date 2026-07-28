@@ -62,11 +62,12 @@ import { LAYER_ORDER, isPlayedByHand } from '../core/types.js';
 import { GENRES } from '../genre/index.js';
 import type { EraProfile } from '../style/types.js';
 import {
-  DRUM_ARCHETYPE, VOCAL_ARCHETYPE, archetypeForTrack, specFor,
+  DRUM_ARCHETYPE, SYNTH_RIGS, VOCAL_ARCHETYPE, archetypeForTrack, rigPoolFor,
+  specFor,
 } from './instruments.js';
 import type {
   Accessory, Archetype, ArchetypeSpec, Cast, HairStyle, Look, Performer,
-  Posture, StageMachine, Station, Venue,
+  Posture, StageMachine, Station, SynthRigId, Venue,
 } from './types.js';
 
 /**
@@ -263,6 +264,8 @@ interface Slot {
   box: Box;
   /** Ambient only: stay out of the downstage-centre spot nobody occupies. */
   avoidFrontCentre: boolean;
+  /** Which synthesiser, where this is one. See `assignRigs`. */
+  rig?: SynthRigId;
 }
 
 const ROLE_OF: Record<LayerId, Role> = {
@@ -698,7 +701,9 @@ function makeLook(args: {
  * behind a silent kit for four minutes is the most conspicuous thing a stage
  * can contain.
  */
-function roster(song: Song, seed: string, wardrobe: Wardrobe, density: number): Slot[] {
+function roster(
+  song: Song, seed: string, wardrobe: Wardrobe, density: number, year: number,
+): Slot[] {
   const drafts: { layer: LayerId; archetype: Archetype; instrument: string }[] = [];
 
   for (const layer of LAYER_ORDER) {
@@ -786,7 +791,80 @@ function roster(song: Song, seed: string, wardrobe: Wardrobe, density: number): 
       avoidFrontCentre: false,
     });
   }
+  assignRigs(slots, year, seed);
   return slots;
+}
+
+/**
+ * Hand each keyboard player a synthesiser, and make sure the band owns a
+ * plausible collection of them.
+ *
+ * The decision this file exists to be able to make. Drawn per performer from
+ * the year — which is what the renderer did — a 1974 concert stages a Moog
+ * System 55 behind every keyboard on the boards, because the year says modular
+ * and nothing counts. Here the whole band is in one array, so the cap can
+ * actually be applied.
+ *
+ * Three rules, in the order they matter.
+ *
+ * **The cap is real.** `SynthRigSpec.max` is the number of these one band may
+ * own; a modular is 2, everything else is effectively unlimited. Once it is
+ * spent that rig leaves the pool for the rest of the band.
+ *
+ * **Nobody stands behind the same thing as their neighbour if they do not have
+ * to.** Draw is without replacement while the pool lasts and with replacement
+ * afterwards, which is the same concession `layoutFrontLine` and `layoutGearArc`
+ * both make about spacing — keep the variety if it fits, and give it up rather
+ * than fail. This is the measured complaint from `synth-rig.ts` restated: five
+ * identical people behind five identical tables was never one bad model, it was
+ * one model chosen five times.
+ *
+ * **The wall goes to the back of the queue.** A modular is furniture 1.7 m tall
+ * and belongs upstage, so it goes to the *least* prominent keyboard players and
+ * never to whoever is fronting the number — which is both the staging answer and
+ * the historical one, since the person behind the wall of cabinets was the one
+ * making textures rather than the one playing the tune.
+ */
+function assignRigs(slots: Slot[], year: number, seed: string): void {
+  const keys = slots.filter((s) => s.archetype === 'synth');
+  if (!keys.length) return;
+
+  const rng = new Rng(`${seed}:cast:rigs`);
+  const pool = rigPoolFor(year);
+  /** Least prominent first, so the furniture is handed out from the back. */
+  const queue = [...keys].sort((a, b) => PROMINENCE[b.layer] - PROMINENCE[a.layer]);
+
+  const spent: Partial<Record<SynthRigId, number>> = {};
+  const drawn = new Set<SynthRigId>();
+
+  for (const s of queue) {
+    /**
+     * What is still available: inside its cap, and — while anything is left —
+     * not already on this stage.
+     */
+    const uncapped = pool.filter(([id]) => (spent[id] ?? 0) < SYNTH_RIGS[id].max);
+    const fresh = uncapped.filter(([id]) => !drawn.has(id));
+    const choices = fresh.length ? fresh : uncapped;
+    if (!choices.length) continue;
+
+    const rig = rng.weighted(choices);
+    spent[rig] = (spent[rig] ?? 0) + 1;
+    drawn.add(rig);
+    s.rig = rig;
+    /**
+     * The rig's own size, replacing the archetype's one-size-fits-all figure.
+     *
+     * `ARCHETYPES.synth.footprint` is 1.0 for everything from a wall of
+     * cabinets to a slab on an X-stand, which is why the separator and the
+     * sightline pass could not be trusted anywhere near a modular. `head` is
+     * the taller of the player and the gear for the same reason: what hides a
+     * player is normally another player's shoulders, and a 1.72 m cabinet is
+     * the first thing on this stage that is not a person and hides one anyway.
+     */
+    const spec = SYNTH_RIGS[rig];
+    s.r = spec.footprint;
+    s.head = Math.max(s.head, spec.height);
+  }
 }
 
 /**
@@ -2203,7 +2281,7 @@ export function castSong(song: Song, venue: Venue, seed: string): Cast {
   const genre = song.meta.genre;
   const era: EraProfile | undefined = GENRES[genre]?.eras[song.meta.era];
   const wardrobe = wardrobeFor(genre, song.meta.era);
-  const slots = roster(song, seed, wardrobe, era?.density ?? 0.6);
+  const slots = roster(song, seed, wardrobe, era?.density ?? 0.6, era?.year ?? 1980);
 
   if (genre === 'ambient') stageAmbient(slots, venue, seed);
   else stageBand(slots, venue, seed);
@@ -2232,6 +2310,7 @@ export function castSong(song: Song, venue: Venue, seed: string): Cast {
       instrument: s.instrument,
       look: s.look,
       station,
+      ...(s.rig ? { rig: s.rig } : {}),
     };
   });
 

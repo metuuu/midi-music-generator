@@ -20,7 +20,7 @@
 import type { Group, Matrix4, Object3D, Vector3 } from 'three';
 
 import type {
-  Archetype, Effector, GestureKind, PlayPoint, Posture,
+  Archetype, Effector, GestureKind, PlayPoint, Posture, SynthRigId,
 } from '../../../concert/types.js';
 
 /** Where an effector has to be, and which way it should be pointing. */
@@ -231,6 +231,17 @@ export interface InstrumentBuildOptions {
    * playing the same kit.
    */
   electronic?: boolean;
+  /**
+   * Which synthesiser this is. Keyboards only; every other model ignores it.
+   *
+   * From `Performer.rig`, and it replaces the year this model used to branch
+   * on. The reason is the reason `Performer.rig` exists: which object a player
+   * stands behind is a decision about the *band* — one modular is a centrepiece
+   * and three are a trade stand — and a year cannot tell those apart because it
+   * cannot count. `year` is still passed and still means what it meant; it is
+   * simply no longer what decides this.
+   */
+  rig?: SynthRigId;
 }
 
 /** A convenience for models that have nothing to settle. */

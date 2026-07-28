@@ -123,6 +123,7 @@ export function buildInstrumentFor(
     ...(finish ? { finish } : {}),
     ...(year !== undefined ? { year } : {}),
     ...(drums === 'electronic-kit' ? { electronic: true } : {}),
+    ...(performer.rig ? { rig: performer.rig } : {}),
   }));
 }
 

@@ -26,13 +26,11 @@ import {
   Vector3,
 } from 'three';
 
-import type { GestureKind, PlayPoint } from '../../../concert/types.js';
+import type { GestureKind, PlayPoint, SynthRigId } from '../../../concert/types.js';
 import { buildDigitalRig } from './synth-rig-digital.js';
 import { buildModularRig } from './synth-rig-modular.js';
 import { buildPolysynthRig } from './synth-rig-polysynth.js';
-import {
-  DIGITAL_FROM, POLYSYNTH_FROM, disposeTree, type SynthRigBuilder,
-} from './synth-rig.js';
+import { disposeTree, type SynthRigBuilder } from './synth-rig.js';
 import {
   addTo, type Contact, type InstrumentBuilder, type InstrumentModel,
 } from './types.js';
@@ -126,24 +124,37 @@ class Hit {
 }
 
 /**
- * Which instrument the year was standing in.
+ * Which of the three to build.
  *
- * This lives here and **not** in `synth-rig.ts` on purpose. That file is the
- * contract every rig is written against; if it also imported the three rigs
+ * A lookup and no longer a decision, which is the whole of this change. It used
+ * to take the year and answer from it, per performer, here in the renderer —
+ * and a year cannot count. Synth's `modular` era is 1974, 90% of its numbers
+ * carry three or more keyboards, so every one of them got a five-cabinet Moog
+ * System 55 and the stage came out as three walls of patch cables. Nothing was
+ * broken; nothing was in a position to know there were three.
+ *
+ * `Performer.rig` is now decided in `concert/cast.ts`, where the whole band is
+ * one array and a cap can be applied. See `assignRigs` and `SYNTH_RIGS`.
+ *
+ * The table lives here and **not** in `synth-rig.ts` on purpose. That file is
+ * the contract every rig is written against; if it also imported the three rigs
  * then every rig would transitively depend on the other two, and each of them
  * would import a module that imports it back. The keyboard is the one place
- * that already knows about all three, so the choosing happens here.
+ * that already knows about all three, so the mapping happens here.
  *
- * An unknown year is the pre-1978 keyboard-shaped instrument rather than the
- * earliest rig, because that is what this model looked like before any of this
- * existed and a caller who never sets a year should not have their stage
- * silently redecorated.
+ * An unnamed rig is the keyboard-shaped instrument rather than the earliest
+ * one, because that is what this model looked like before any of this existed
+ * and a caller who sets nothing should not have their stage silently
+ * redecorated.
  */
-function pickRig(year: number | undefined): SynthRigBuilder {
-  if (year === undefined) return buildPolysynthRig;   // what it looked like before this existed
-  if (year < POLYSYNTH_FROM) return buildModularRig;
-  if (year >= DIGITAL_FROM) return buildDigitalRig;
-  return buildPolysynthRig;
+const RIGS: Record<SynthRigId, SynthRigBuilder> = {
+  modular: buildModularRig,
+  polysynth: buildPolysynthRig,
+  digital: buildDigitalRig,
+};
+
+function pickRig(rig: SynthRigId | undefined): SynthRigBuilder {
+  return rig ? RIGS[rig] : buildPolysynthRig;
 }
 
 export const buildSynth: InstrumentBuilder = (opts) => {
@@ -156,7 +167,7 @@ export const buildSynth: InstrumentBuilder = (opts) => {
    * Nothing comes back the other way: a rig cannot move a key and is never
    * asked where one is.
    */
-  const rig = pickRig(opts.year)({
+  const rig = pickRig(opts.rig)({
     seed: opts.seed,
     ...(opts.finish ? { finish: opts.finish } : {}),
     boardWidth: BOARD_W,

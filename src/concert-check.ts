@@ -25,10 +25,10 @@ import { generateSong } from './generate/song.js';
 import { GENRE_IDS, getGenre } from './genre/index.js';
 import { INSTRUMENTS, type InstrumentId } from './style/instruments.js';
 import {
-  ARCHETYPES, ARCHETYPE_OF, archetypeForTrack, trackCanReach,
+  ARCHETYPES, ARCHETYPE_OF, SYNTH_RIGS, archetypeForTrack, trackCanReach,
 } from './concert/instruments.js';
 import { buildConcert, soundingEffectors } from './concert/index.js';
-import type { Gesture } from './concert/types.js';
+import type { Gesture, SynthRigId } from './concert/types.js';
 
 /**
  * A hi-hat pedal being held down or let up — the one gesture in the IR that is
@@ -413,6 +413,67 @@ check('visemes exist exactly when there is a voice', visemeGaps === 0,
       : `${machines} placed on the boards`);
   check('a machine does not count the band in', counted === 0,
     counted ? `${counted} of ${machines} have lead-in bars` : `${machines} start on bar one`);
+}
+
+/**
+ * A band owns a plausible collection of synthesisers.
+ *
+ * The reported failure and the one this is here to keep fixed: a 1974 concert
+ * put a five-cabinet Moog System 55 behind every keyboard on the stage, because
+ * the renderer chose from the year, per performer, with no idea how many
+ * keyboards there were. Three walls of patch cables and nothing to notice it.
+ *
+ * The cap is asserted per *number* rather than per concert, because that is
+ * where it means something — the band re-stages between numbers, and a modular
+ * being wheeled off and a different one wheeled on is a fact about the same two
+ * pieces of gear.
+ */
+{
+  let overCap = 0;
+  let anachronistic = 0;
+  let unrigged = 0;
+  let keyboards = 0;
+  const seen = new Map<string, number>();
+  let worst = 0;
+  const notes: string[] = [];
+  for (const gid of CHECKED_GENRES) {
+    for (let i = 0; i < 4; i++) {
+      const concert = buildConcert({ seed: `rig-${gid}-${i}`, genre: gid });
+      for (const number of concert.numbers) {
+        const counts = new Map<SynthRigId, number>();
+        for (const p of number.cast.performers) {
+          if (p.archetype !== 'synth') continue;
+          keyboards++;
+          if (!p.rig) {
+            unrigged++;
+            continue;
+          }
+          counts.set(p.rig, (counts.get(p.rig) ?? 0) + 1);
+          seen.set(p.rig, (seen.get(p.rig) ?? 0) + 1);
+          const spec = SYNTH_RIGS[p.rig];
+          if (concert.year < spec.from || concert.year > spec.to) {
+            anachronistic++;
+            if (notes.length < 3) notes.push(`${p.rig} in ${concert.year}`);
+          }
+        }
+        for (const [id, n] of counts) {
+          if (id === 'modular') worst = Math.max(worst, n);
+          if (n > SYNTH_RIGS[id].max) {
+            overCap++;
+            if (notes.length < 3) notes.push(`${n}x ${id} in ${gid}#${i}`);
+          }
+        }
+      }
+    }
+  }
+  const spread = [...seen].map(([id, n]) => `${id} ${n}`).join(', ');
+  check('no band owns more modulars than a band could', overCap === 0,
+    overCap ? `${overCap} numbers over cap: ${notes.join('; ')}`
+      : `${keyboards} keyboards — ${spread}; most modulars in one number: ${worst}`);
+  check('every synthesiser existed in the year it is staged in', anachronistic === 0,
+    anachronistic ? `${anachronistic}: ${notes.join('; ')}` : `${keyboards} keyboards`);
+  check('every keyboard player is standing behind something', unrigged === 0,
+    unrigged ? `${unrigged} of ${keyboards} have no rig` : `${keyboards} keyboards`);
 }
 
 // Determinism — the property the whole repo is built on, at show scale.
