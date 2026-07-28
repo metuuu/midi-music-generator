@@ -60,6 +60,7 @@
 import type { Camera, Object3D } from 'three';
 import { Group, Vector3 } from 'three';
 
+import { Rng } from '../../core/rng.js';
 import type { LayerId, Song } from '../../core/types.js';
 import { songDurationSeconds } from '../../core/types.js';
 import { buildConcert, revoiceNumber } from '../../concert/index.js';
@@ -71,6 +72,7 @@ import { loadCode, playCode, startLoaded, stopPlayback } from '../audio.js';
 
 import { createAnimator, type Animator } from './animate.js';
 import { createDirector, type CameraDirector } from './camera.js';
+import { buildDrumMachine, type DrumMachine } from './instruments/drum-machine.js';
 import { buildInstrumentFor } from './instruments/index.js';
 import type { InstrumentModel } from './instruments/types.js';
 import { buildLightRig, type LightRig } from './lights.js';
@@ -286,6 +288,15 @@ export function createShow(opts: ShowOptions = {}): Show {
   /** The cast on stage, which is rebuilt whenever the instrumentation changes. */
   const rigs = new Map<string, PerformerRig>();
   const models = new Map<string, InstrumentModel>();
+  /**
+   * Gear that plays without hands. Almost always empty; see `Cast.machines`.
+   *
+   * Kept beside `models` rather than inside it because the two are driven
+   * differently and only one of them has a performer: a model is placed from a
+   * `Performer.station` and ticked with that performer's shown beat, and a
+   * machine is placed from its own `StageMachine` and ticked with the clock.
+   */
+  const machines: DrumMachine[] = [];
   const subjects = new Map<string, Object3D>();
   let band = new Group();
   band.name = 'band';
@@ -452,6 +463,29 @@ export function createShow(opts: ShowOptions = {}): Show {
       models.set(performer.id, model);
     }
 
+    /**
+     * The machines, which have no performer to hang off.
+     *
+     * They are handed the number's own drum events because that is what the
+     * object holds — a rhythm box has its pattern in memory — and it is what
+     * lets the step lamp run from nothing but the beat. See `drum-machine.ts`.
+     */
+    for (const spec of number.cast.machines ?? []) {
+      const machine = buildDrumMachine({
+        kind: spec.kind,
+        seed: new Rng(`machine:${concert.seed}:${spec.id}`).int(0, 0xffff),
+        finish: concert.venue.palette.proscenium,
+        events: number.song.drums.events,
+        beatsPerBar: number.song.meta.beatsPerBar,
+        standHeight: spec.position[1],
+      });
+      const [mx, my, mz] = spec.position;
+      machine.root.position.set(mx, my, mz);
+      machine.root.rotation.y = spec.facing;
+      band.add(machine.root);
+      machines.push(machine);
+    }
+
     director.setSubjects(subjects);
     lights.setSubjects(subjects);
     tomatoes.begin(number.cast, rigs, stage, {
@@ -462,8 +496,10 @@ export function createShow(opts: ShowOptions = {}): Show {
   function strikeBand(): void {
     for (const rig of rigs.values()) rig.dispose();
     for (const model of models.values()) model.dispose();
+    for (const machine of machines) machine.dispose();
     rigs.clear();
     models.clear();
+    machines.length = 0;
     subjects.clear();
     root.remove(band);
     band = new Group();
@@ -916,6 +952,8 @@ export function createShow(opts: ShowOptions = {}): Show {
     tomatoes.update(beat, dt);
     stage.update(live ? beat : Number.NaN, dt);
     for (const model of models.values()) model.update(shown);
+    // The clock, not a performer's shown beat: nobody is playing this.
+    for (const machine of machines) machine.update(beat);
   }
 
   const api: Show = {
