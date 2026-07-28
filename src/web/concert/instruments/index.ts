@@ -12,6 +12,7 @@
 import { Rng } from '../../../core/rng.js';
 import { ARCHETYPE_OF } from '../../../concert/instruments.js';
 import type { Archetype, Effector, PlayPoint, Performer } from '../../../concert/types.js';
+import type { DrumSource } from '../../../core/types.js';
 import type { InstrumentId } from '../../../style/instruments.js';
 
 import type { Contact, InstrumentBuilder, InstrumentModel } from './types.js';
@@ -103,6 +104,14 @@ const SCALE_OF: Partial<Record<InstrumentId, number>> = {
  */
 export function buildInstrumentFor(
   performer: Performer, instrumentId?: InstrumentId, finish?: string, year?: number,
+  /**
+   * What is producing the percussion, where this performer is the drummer.
+   *
+   * Only two of the four values reach here at all — the other two have no
+   * drummer, so there is no performer to build an instrument for. See
+   * `InstrumentBuildOptions.electronic`.
+   */
+  drums?: DrumSource,
 ): InstrumentModel {
   const build = BUILDERS[performer.archetype];
   const rng = new Rng(`instrument:${performer.id}`);
@@ -113,6 +122,7 @@ export function buildInstrumentFor(
     height: performer.look.height,
     ...(finish ? { finish } : {}),
     ...(year !== undefined ? { year } : {}),
+    ...(drums === 'electronic-kit' ? { electronic: true } : {}),
   }));
 }
 

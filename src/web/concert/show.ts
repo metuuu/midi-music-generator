@@ -412,6 +412,7 @@ export function createShow(opts: ShowOptions = {}): Show {
         track ? instrumentIdForTrack(track) : undefined,
         concert.venue.palette.proscenium,
         concert.year,
+        number.song.drums.source,
       );
 
       /**

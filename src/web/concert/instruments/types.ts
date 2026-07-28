@@ -213,6 +213,24 @@ export interface InstrumentBuildOptions {
    * question about a decade. See `EraProfile.year`.
    */
   year?: number;
+  /**
+   * Whether this kit's heads are pads. Percussion only; every other model
+   * ignores it.
+   *
+   * It passes the same narrowness test `year` does, and for the same reason: it
+   * says nothing whatsoever about the music. It does not vary across a show, a
+   * number or a bar, and it is not "how loud is the chorus" — it is a fact
+   * about the object standing on the boards, which is exactly what a model is
+   * entitled to know. `DrumTrack.source` is where it comes from, and the two
+   * values that set it are the two with a drummer behind them.
+   *
+   * Note what it deliberately does *not* change: the layout. A drummer on a
+   * Simmons kit sits at the same throne and reaches to the same places, so
+   * `LAYOUT`, `resolve` and every gesture in the choreography are identical.
+   * The pads are shallower and hexagonal and the hoops are gone; the drummer is
+   * playing the same kit.
+   */
+  electronic?: boolean;
 }
 
 /** A convenience for models that have nothing to settle. */

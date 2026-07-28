@@ -295,6 +295,22 @@ function headGeometry(radius: number, seg = 16): BufferGeometry {
 }
 
 /**
+ * The same surface for a pad: hexagonal, and flat.
+ *
+ * A drum head is a membrane under tension and domes; a pad is a sheet of rubber
+ * on a plastic moulding and does not. Built as a six-sided disc at the local
+ * origin so it drops into `drum()` exactly where `headGeometry` does — and
+ * rotated a twelfth of a turn so its flats line up with the shell's, which is
+ * the difference between a pad and a pad with a hexagonal biscuit on top.
+ */
+function padGeometry(radius: number, seg = 6): BufferGeometry {
+  const g = new CircleGeometry(radius * 0.94, seg);
+  g.rotateX(-Math.PI / 2);
+  g.rotateY(Math.PI / seg);
+  return g;
+}
+
+/**
  * A cymbal: a flat bow with a bell in the middle, and — this is the whole fix —
  * a solid one, walked in the direction that puts its normals in the light.
  *
@@ -360,13 +376,39 @@ export const buildDrumkit: InstrumentBuilder = (opts) => {
 
   // Finish varies per kit; nothing `resolve` reads does. A second kit on a
   // stage should be a different colour, never a different shape.
-  const shellHue = opts.finish ?? rng.pick(['#8c2f26', '#1d2a3a', '#3d2a1b', '#6d6257', '#2b2b2e']);
-  const sparkle = rng.chance(0.5);
+  /**
+   * A drummer on pads is still a drummer, and this is the whole of the
+   * difference. See `InstrumentBuildOptions.electronic`.
+   *
+   * Everything `resolve` answers is untouched — same throne, same layout, same
+   * gestures — because that is what a Simmons kit was: a drummer's kit with the
+   * shells replaced. What changes is the object, in three ways, and they are
+   * the three a camera can resolve at six metres. It is hexagonal, it is flat,
+   * and it does not shine.
+   */
+  const pads = opts.electronic === true;
+
+  const shellHue = opts.finish ?? rng.pick(pads
+    // Simmons sold them in black with one coloured edge, and the black is the
+    // read. A sparkle-red pad kit would be an acoustic kit that had lost its
+    // depth rather than a different instrument.
+    ? ['#1a1a1e', '#141418', '#20202a', '#241a22', '#1a2028']
+    : ['#8c2f26', '#1d2a3a', '#3d2a1b', '#6d6257', '#2b2b2e']);
+  const sparkle = !pads && rng.chance(0.5);
 
   const shellMat = new MeshStandardMaterial({
-    color: shellHue, roughness: sparkle ? 0.28 : 0.55, metalness: sparkle ? 0.35 : 0.05,
+    color: shellHue,
+    roughness: pads ? 0.82 : sparkle ? 0.28 : 0.55,
+    metalness: pads ? 0 : sparkle ? 0.35 : 0.05,
   });
-  const headMat = new MeshStandardMaterial({ color: '#efe7d8', roughness: 0.75, metalness: 0 });
+  /**
+   * Mylar is off-white and catches the lights; a playing surface is black
+   * rubber and eats them. Getting this one material wrong is most of what would
+   * make a pad kit read as an acoustic kit in the dark.
+   */
+  const headMat = new MeshStandardMaterial(pads
+    ? { color: '#232327', roughness: 0.92, metalness: 0 }
+    : { color: '#efe7d8', roughness: 0.75, metalness: 0 });
   const chromeMat = new MeshStandardMaterial({ color: '#c9ced6', roughness: 0.3, metalness: 0.85 });
   const brassMat = new MeshStandardMaterial({
     color: rng.pick(['#caa85c', '#c9a552', '#b89a4e']), roughness: 0.34, metalness: 0.9,
@@ -425,6 +467,16 @@ export const buildDrumkit: InstrumentBuilder = (opts) => {
   // --- Drums ---------------------------------------------------------------
 
   const shells: Record<ShellId, { head: Mesh; hit: Hit }> = {} as never;
+  /**
+   * Where each pad's surface rests, in its own drum's local frame.
+   *
+   * Only populated for a pad kit, and only because a pad is depressed rather
+   * than dished — so `update` needs a datum to return it to. The acoustic kit
+   * scales its dome instead and never reads this. Local rather than world on
+   * purpose: `stand` has already rotated the drum, so local `y` is along the
+   * pad's own normal, which is the direction a stick actually pushes it.
+   */
+  const padRestY: Partial<Record<ShellId, number>> = {};
 
   /**
    * One drum, built about its own centre with the batter head at `+y`. The
@@ -433,29 +485,46 @@ export const buildDrumkit: InstrumentBuilder = (opts) => {
   function drum(id: ShellId, radius: number, depth: number): Group {
     const g = addTo(root, new Group());
 
+    /**
+     * Six sides on a pad kit and twenty on an acoustic one, which is the same
+     * lathe doing both jobs — a hexagon *is* a cylinder with six segments, and
+     * the hexagonal shell is the single most recognisable thing about the
+     * object. `open: true` stays either way: the top is the head and the bottom
+     * is capped by `back` below.
+     */
     const shell = addTo(g, new Mesh(
-      new CylinderGeometry(radius, radius, depth, 20, 1, true), shellMat,
+      new CylinderGeometry(radius, radius, depth, pads ? 6 : 20, 1, true), shellMat,
     ));
     shell.castShadow = true;
     shell.receiveShadow = true;
 
-    for (const side of [1, -1]) {
-      const hoop = addTo(g, new Mesh(
-        new CylinderGeometry(radius * 1.04, radius * 1.04, 0.024, 20, 1, true), chromeMat,
-      ));
-      hoop.position.y = (side * depth) / 2;
+    // No hoops on a pad: there is no head to tension, and a chrome ring round
+    // a Simmons pad is the detail that would give the whole thing away.
+    if (!pads) {
+      for (const side of [1, -1]) {
+        const hoop = addTo(g, new Mesh(
+          new CylinderGeometry(radius * 1.04, radius * 1.04, 0.024, 20, 1, true), chromeMat,
+        ));
+        hoop.position.y = (side * depth) / 2;
+      }
     }
 
-    const head = addTo(g, new Mesh(headGeometry(radius), headMat));
+    const head = addTo(g, new Mesh(
+      pads ? padGeometry(radius) : headGeometry(radius), headMat,
+    ));
     head.name = `head:${id}`;
     head.position.y = depth / 2;
     head.receiveShadow = true;
 
-    const back = addTo(g, new Mesh(new CircleGeometry(radius, 20), headMat));
+    // An acoustic drum has a resonant head on the bottom; a pad has a moulding.
+    const back = addTo(g, new Mesh(
+      new CircleGeometry(radius, pads ? 6 : 20), pads ? shellMat : headMat,
+    ));
     back.name = `shell:${id}`;
     back.rotation.x = Math.PI / 2;
     back.position.y = -depth / 2;
 
+    if (pads) padRestY[id] = head.position.y;
     shells[id] = { head, hit: new Hit() };
     return g;
   }
@@ -496,15 +565,32 @@ export const buildDrumkit: InstrumentBuilder = (opts) => {
     return g.position.clone();
   }
 
+  /**
+   * How deep a pad is, whatever drum it is standing in for.
+   *
+   * The one number that makes a pad kit read as a pad kit from the side: a
+   * Simmons pad is a hexagonal biscuit about six centimetres thick, where the
+   * floor tom it replaces is thirty-six. Depth has to go through `stand` as
+   * well as `drum` — that function backs the shell off along its own normal by
+   * half its depth so the *head* lands on the contact `LAYOUT` names — so a pad
+   * that were shallow in one and not the other would put every gesture on this
+   * kit a centimetre or two off its surface.
+   */
+  const PAD_DEEP = 0.055;
+  const deep = (acoustic: number): number => (pads ? PAD_DEEP : acoustic);
+
   // Snare: 14x5.5, tilted a little toward the player.
-  const snare = drum('snare', 0.175, 0.135);
-  const sdAt = stand(snare, 'sd', 0.135);
+  const snareD = deep(0.135);
+  const snare = drum('snare', 0.175, snareD);
+  const sdAt = stand(snare, 'sd', snareD);
   tripod(new Vector3(sdAt.x, 0.60, sdAt.z), 0.60);
 
-  const ht = drum('high', 0.155, 0.20);
-  const mt = drum('mid', 0.175, 0.22);
-  const htAt = stand(ht, 'ht', 0.20);
-  const mtAt = stand(mt, 'mt', 0.22);
+  const htD = deep(0.20);
+  const mtD = deep(0.22);
+  const ht = drum('high', 0.155, htD);
+  const mt = drum('mid', 0.175, mtD);
+  const htAt = stand(ht, 'ht', htD);
+  const mtAt = stand(mt, 'mt', mtD);
 
   // The rack toms hang off one post out of the bass drum, the way they do. The
   // arms end at the shells rather than near them, so that moving a tom moves
@@ -513,8 +599,9 @@ export const buildDrumkit: InstrumentBuilder = (opts) => {
   strut(tubeSlots, new Vector3(0.02, 0.95, 0.16), htAt);
   strut(tubeSlots, new Vector3(0.02, 0.95, 0.16), mtAt);
 
-  const lt = drum('floor', 0.205, 0.36);
-  const ltAt = stand(lt, 'lt', 0.36);
+  const ltD = deep(0.36);
+  const lt = drum('floor', 0.205, ltD);
+  const ltAt = stand(lt, 'lt', ltD);
   for (let i = 0; i < 3; i++) {
     const a = (i / 3) * TAU + 0.7;
     strut(legSlots, new Vector3(ltAt.x + Math.cos(a) * 0.20, 0.60, ltAt.z + Math.sin(a) * 0.20),
@@ -858,7 +945,17 @@ export const buildDrumkit: InstrumentBuilder = (opts) => {
       for (const id of ['kick', 'snare', 'high', 'mid', 'floor', 'pad'] as ShellId[]) {
         const s = shells[id];
         const d = s.hit.wobble(now, 0.22, 3.2);
+        /**
+         * A membrane inverts and a pad does not. `scale.y` on the dome is what
+         * dishing a head *is*, and applying it to a flat disc scales zero by a
+         * number and moves nothing at all — so a pad kit would have been a kit
+         * with no response in it, which is the failure the whole `react`/`update`
+         * split exists to avoid. Rubber over plastic gives about a millimetre,
+         * so the pad drops instead, exactly as the clap pad beside it already
+         * did for the same reason.
+         */
         if (id === 'pad') s.head.position.y = PAD_AT[1] - d * 0.010;
+        else if (pads) s.head.position.y = padRestY[id]! - d * 0.004;
         else s.head.scale.y = 1 - d * 2.2;
       }
 
