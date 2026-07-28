@@ -58,7 +58,7 @@
 
 import { Rng } from '../core/rng.js';
 import type { LayerId, Song } from '../core/types.js';
-import { LAYER_ORDER } from '../core/types.js';
+import { LAYER_ORDER, isPlayedByHand } from '../core/types.js';
 import { GENRES } from '../genre/index.js';
 import type { EraProfile } from '../style/types.js';
 import {
@@ -66,7 +66,7 @@ import {
 } from './instruments.js';
 import type {
   Accessory, Archetype, ArchetypeSpec, Cast, HairStyle, Look, Performer,
-  Posture, Station, Venue,
+  Posture, StageMachine, Station, Venue,
 } from './types.js';
 
 /**
@@ -703,7 +703,18 @@ function roster(song: Song, seed: string, wardrobe: Wardrobe, density: number): 
 
   for (const layer of LAYER_ORDER) {
     if (layer === 'drums') {
-      if (song.drums.events.length) {
+      /**
+       * …and only when a person is playing them.
+       *
+       * `DrumTrack.source` is the generator's statement about what is making
+       * this sound, and half its values are machines. A box was already being
+       * staged as a drummer before the field existed — the synth `modular` era
+       * has described itself as "a preset rhythm box for a drummer" all along,
+       * and got a man on a riser miming one. The machine is staged by
+       * `placeMachine` instead, which is not a casting decision because a
+       * machine has no face, no clothes and no limbs to choreograph.
+       */
+      if (song.drums.events.length && isPlayedByHand(song.drums.source ?? 'kit')) {
         drafts.push({ layer, archetype: DRUM_ARCHETYPE, instrument: `${song.drums.bank} kit` });
       }
       continue;
@@ -2224,9 +2235,89 @@ export function castSong(song: Song, venue: Venue, seed: string): Cast {
     };
   });
 
-  return lead
-    ? { performers, leadPerformerId: lead.id }
-    : { performers };
+  const machines = placeMachine(song, slots, venue);
+
+  return {
+    performers,
+    ...(lead ? { leadPerformerId: lead.id } : {}),
+    ...(machines.length ? { machines } : {}),
+  };
+}
+
+/**
+ * How far to the side of a player their rhythm box stands, in metres.
+ *
+ * Inside arm's reach and outside the space their own instrument occupies, which
+ * is what `footprint` measures — so it is added rather than assumed. A box any
+ * closer is inside the keyboard; any further and the hand that starts it has to
+ * take a step, which is a different gesture and a worse one.
+ */
+const MACHINE_REACH = 0.42;
+
+/** Table height. A rhythm box sits on a stand, not on the boards. */
+const MACHINE_HEIGHT = 0.92;
+
+/**
+ * Stand the drum machine somewhere, if there is one.
+ *
+ * Two placements, and the choice between them is the whole of the logic.
+ *
+ * **Beside somebody, where there is somebody.** The machine goes next to the
+ * player most likely to have switched it on — a keyboard player by preference,
+ * since on every stage this genre describes the box lived on the end of the
+ * keyboard rig and the person behind it was the one who started it. It stands
+ * on the side away from the middle of the stage, so it never comes between that
+ * player and the audience.
+ *
+ * **On the riser, where there is not.** A number with no keyboard and no
+ * drummer — an ambient piece of tape and voices — has an empty platform at the
+ * back of the stage that the kit would have been on, and that is exactly where
+ * the pulse should appear to be coming from. It gets no tender, and the type
+ * says so: a renderer must not assume a hand is ever near it.
+ */
+function placeMachine(song: Song, slots: Slot[], venue: Venue): StageMachine[] {
+  const source = song.drums.source ?? 'kit';
+  if (!song.drums.events.length || isPlayedByHand(source)) return [];
+  const kind = source === 'box' ? 'box' : 'programmed';
+
+  /**
+   * Whoever is nearest to having started it: a keyboard player, then anybody.
+   *
+   * `GEAR` is the list of archetypes that stand behind a board on a stand
+   * rather than holding something, which is the same question asked for a
+   * different reason — a player with both hands full of trombone is not
+   * reaching over to a rhythm box either.
+   */
+  const tender = slots.find((s) => GEAR.includes(s.archetype))
+    ?? slots.find((s) => !specFor(s.archetype).held)
+    ?? slots[0];
+
+  if (!tender) {
+    return [{
+      id: 'machine',
+      kind,
+      bank: song.drums.bank,
+      position: [0, round(RISER_HEIGHT + MACHINE_HEIGHT), round(-venue.depth / 2 + RISER_FROM_BACK)],
+      facing: 0,
+    }];
+  }
+
+  // Outboard of the tender: `-sign(x)` would walk it toward the centre line and
+  // put it between them and the house. A player on the centre line has no
+  // outboard side, so they get their right.
+  const out = tender.x >= 0 ? 1 : -1;
+  return [{
+    id: 'machine',
+    kind,
+    bank: song.drums.bank,
+    position: [
+      round(tender.x + out * (tender.r + MACHINE_REACH)),
+      round(tender.riser + MACHINE_HEIGHT),
+      round(tender.z),
+    ],
+    facing: round(tender.facing),
+    tendedBy: tender.id,
+  }];
 }
 
 // ---------------------------------------------------------------------------

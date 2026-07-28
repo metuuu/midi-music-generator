@@ -579,6 +579,49 @@ export interface Cast {
   performers: Performer[];
   /** Who is the front person for this number — the tune, or the singer. */
   leadPerformerId?: string;
+  /**
+   * Gear that is playing but is not a person. Empty on most numbers.
+   *
+   * A `Performer` is somebody with a `look` and a `layer` and limbs to
+   * choreograph, and a rhythm box is none of those — but it is making a sound
+   * the audience can hear, so it has to be somewhere they can see it. Without
+   * this the percussion of a synth-modular number comes from nowhere at all,
+   * which is a worse answer than the drummer who used to mime it.
+   */
+  machines?: StageMachine[];
+}
+
+/**
+ * A machine on the stage, making a sound nobody's hands are on.
+ *
+ * Only the percussion sources use it today. The shape is deliberately the one a
+ * sequencer will also need — an object, a place, and the performer whose reach
+ * it is inside — because the rule that keeps a self-playing part watchable is
+ * that somebody starts it and the machine shows what it is doing, and both
+ * halves of that need to know which person is next to which box.
+ */
+export interface StageMachine {
+  /** Stable within a number, like `Performer.id`. */
+  id: string;
+  /**
+   * What kind of object it is. `box` has presets and a start button;
+   * `programmed` was written into a step at a time. See `DrumSource`.
+   */
+  kind: 'box' | 'programmed';
+  /** The bank it is playing, e.g. "KorgMinipops". A renderer may label it. */
+  bank: string;
+  /** Where it stands, in stage coordinates. `y` includes any riser. */
+  position: [number, number, number];
+  /** Radians. 0 faces the audience. */
+  facing: number;
+  /**
+   * Whoever is standing close enough to work it, if anybody is.
+   *
+   * Absent on a stage with nobody near it — an ambient number of pure drone and
+   * tape where the box is simply running. That is a real arrangement and the
+   * renderer must not assume a tender exists.
+   */
+  tendedBy?: string;
 }
 
 // ---------------------------------------------------------------------------

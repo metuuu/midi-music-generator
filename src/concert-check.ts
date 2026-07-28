@@ -20,6 +20,7 @@
  */
 
 import { quantise } from './core/grid.js';
+import { isPlayedByHand } from './core/types.js';
 import { generateSong } from './generate/song.js';
 import { GENRE_IDS, getGenre } from './genre/index.js';
 import { INSTRUMENTS, type InstrumentId } from './style/instruments.js';
@@ -349,6 +350,70 @@ check('every solo resolves to a performer', soloWithoutPlayer === 0,
 }
 check('visemes exist exactly when there is a voice', visemeGaps === 0,
   visemeGaps ? `${visemeGaps} mismatches` : 'none');
+
+/**
+ * Nobody mimes a machine, and no machine plays from nowhere.
+ *
+ * The failure this catches shipped for months and nothing complained, because
+ * every individual system was behaving: the synth `modular` era drew a preset
+ * rhythm box, the box wrote drum events like anything else, and casting stages a
+ * drummer whenever there are drum events. Four correct steps and a man on a
+ * riser playing a Korg Mini Pops.
+ *
+ * So both directions are asserted. A machine number has no drummer *and* has a
+ * machine standing on the boards where the sound can be seen to come from —
+ * the second half matters as much as the first, because percussion arriving
+ * from an empty stage is a worse answer than the mime was.
+ */
+{
+  let mimed = 0;
+  let unexplained = 0;
+  let counted = 0;
+  let offStage = 0;
+  let machines = 0;
+  let handPlayed = 0;
+  const notes: string[] = [];
+  for (const gid of CHECKED_GENRES) {
+    for (let i = 0; i < 4; i++) {
+      const concert = buildConcert({ seed: `machine-${gid}-${i}`, genre: gid });
+      const halfW = concert.venue.width / 2;
+      const halfD = concert.venue.depth / 2;
+      for (const number of concert.numbers) {
+        const source = number.song.drums.source ?? 'kit';
+        const drummer = number.cast.performers.some((p) => p.layer === 'drums');
+        const placed = number.cast.machines ?? [];
+        if (isPlayedByHand(source)) {
+          handPlayed++;
+          continue;
+        }
+        if (!number.song.drums.events.length) continue;
+        machines++;
+        if (drummer) {
+          mimed++;
+          if (notes.length < 3) notes.push(`${gid}#${i} ${source} with a drummer`);
+        }
+        if (!placed.length) {
+          unexplained++;
+          if (notes.length < 3) notes.push(`${gid}#${i} ${source} with nothing on stage`);
+        }
+        // A machine does not count anybody in; somebody presses start.
+        if (number.song.meta.leadInBars) counted++;
+        for (const m of placed) {
+          const [x, , z] = m.position;
+          if (Math.abs(x) > halfW + 0.01 || Math.abs(z) > halfD + 0.01) offStage++;
+        }
+      }
+    }
+  }
+  check('a machine is never mimed by a drummer', mimed === 0,
+    mimed ? `${mimed} of ${machines}: ${notes.join('; ')}` : `${machines} machine numbers, ${handPlayed} played by hand`);
+  check('a machine is somewhere the audience can see it', unexplained === 0 && offStage === 0,
+    unexplained || offStage
+      ? `${unexplained} unplaced, ${offStage} off the boards: ${notes.join('; ')}`
+      : `${machines} placed on the boards`);
+  check('a machine does not count the band in', counted === 0,
+    counted ? `${counted} of ${machines} have lead-in bars` : `${machines} start on bar one`);
+}
 
 // Determinism — the property the whole repo is built on, at show scale.
 const showA = JSON.stringify(buildConcert({ seed: 'twice', genre: 'jazz' }));
