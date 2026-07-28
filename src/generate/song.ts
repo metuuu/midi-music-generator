@@ -24,7 +24,7 @@ import { keyLabel, type Pc } from '../core/pitch.js';
 import { Rng } from '../core/rng.js';
 import type { Mode } from '../core/scale.js';
 import {
-  DEFAULT_DRUM_MIX, DEFAULT_SPACE,
+  DEFAULT_DRUM_MIX, DEFAULT_SPACE, canVary, eligibleDrumSources, isPlayedByHand,
   type DrumEvent, type DrumTrack, type Effects, type LayerId, type NoteEvent,
   type Section, type SectionKind, type Song, type Space, type Track,
 } from '../core/types.js';
@@ -295,6 +295,43 @@ export function generateSong(opts: GenerateOptions = {}): Song {
   const drumPattern = rng.weightedBy(style.drums, (p) => p.weight);
   const drumBank = rng.weighted(era.drumBanks);
   /**
+   * What is making the percussion, as an object. See `DrumSource`.
+   *
+   * Drawn here with the other rhythm-section decisions and *before* a single
+   * drum event is written, because it constrains what may be written: a preset
+   * box has no fill, no drum solo and no response to how hard the section is
+   * going. Choosing it afterwards would stage a machine miming music it has no
+   * mechanism for — see the note on `DrumSource`.
+   *
+   * A style whose identity is the drummer's may veto the box outright. That is a
+   * stronger statement than a weight and it belongs to the style rather than to
+   * the decade: `bebop` in 1957 is a kit era anyway, but a style that *needed*
+   * saying so should not have to hope the era table agrees.
+   */
+  /**
+   * Its own stream, and that is not tidiness — it is the difference between
+   * this field being additive and it rewriting the whole corpus.
+   *
+   * Drawn from `rng` it consumed one number and moved every draw after it, so
+   * every song in every genre came out different. Measured: `npm run genres`
+   * went from 66% to 59% on iskelmä's solo-arc check and failed it. The probe
+   * that settled the cause is worth recording, because the answer is not the
+   * obvious one — re-weighting the table from 8:2 to 400:1, which very nearly
+   * removes the box, produced *bit-identical* numbers. Nothing the box did
+   * mattered. The songs moved because one number had been taken out of the
+   * stream in front of them.
+   *
+   * So it gets a namespace, like `${seed}:vocal` and `${seed}:solo:*` before it,
+   * and every song this generator has ever written is unchanged unless it
+   * actually has a machine in it.
+   */
+  const drumSource = new Rng(`${seed}:drums:source`).weighted(eligibleDrumSources(
+    era.year,
+    style.boxDrums === false
+      ? era.drumSources?.filter(([source]) => source !== 'box')
+      : era.drumSources,
+  ));
+  /**
    * The second sequencer, where the style has one — fixed for the song like
    * every other rhythm-section figure, because a machine that changed its
    * pattern at every section boundary would be somebody playing it.
@@ -511,20 +548,46 @@ export function generateSong(opts: GenerateOptions = {}): Song {
        * with it: the solo has its own ending, and a pattern fill on top of it
        * would be two drummers announcing the same downbeat.
        */
-      const kitSolo = solo?.drumBars.length ? solo.drumBars : undefined;
+      /**
+       * …and a rhythm box has no bars of its own, because it has no hands.
+       *
+       * `canVary` is false for exactly one source and it takes away exactly the
+       * three things that source cannot do: the fill, the solo, and the velocity
+       * that answers how hard the section is going. All three are the same
+       * capability — a part that differs bar to bar — and a Mini Pops has one
+       * pattern per button and a volume knob.
+       */
+      const machine = !canVary(drumSource);
+      const kitSolo = !machine && solo?.drumBars.length ? solo.drumBars : undefined;
       const lastBarIsSolo = kitSolo !== undefined
         && kitSolo[kitSolo.length - 1]![1] >= section.lengthBars;
       const pattern = generateDrums(ctxFor('drums'), drumPattern, {
-        fillAtEnd: section.kind !== 'outro' && style.drumFills !== false && !lastBarIsSolo,
+        fillAtEnd: !machine && section.kind !== 'outro'
+          && style.drumFills !== false && !lastBarIsSolo,
         intensity,
         arrival,
+        machine,
         palette: style.fills ?? genre.fills ?? DEFAULT_FILLS,
       });
 
       const behind = kitSolo
         ? pattern.filter((e) => !inSpans(e.beat, kitSolo))
         : pattern;
-      drumEvents.push(...(solo ? drumsBehindSolo(behind, solo.feel) : behind));
+      /**
+       * …and it does not drop to brushes behind the sax, either.
+       *
+       * `drumsBehindSolo` moves the hand from the hat to the ride and, on the
+       * sparse policy, swaps the whole kit for brushes at 0.62. Both are a
+       * drummer listening to someone else play. A Mini Pops has a volume knob
+       * and nobody's hand is on it, so the machine keeps time through the solo
+       * exactly as it kept time through the verse — which is, incidentally, the
+       * reason a rhythm box makes a soloist sound lonely, and is worth having
+       * rather than smoothing away.
+       *
+       * Found by counting distinct velocities in a generated box part: three
+       * were expected, from `accentOf`, and five turned up.
+       */
+      drumEvents.push(...(solo && !machine ? drumsBehindSolo(behind, solo.feel) : behind));
 
       if (kitSolo) {
         drumEvents.push(...generateDrumSolo({
@@ -1090,6 +1153,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
   const drumEffects = effectsFor('drums');
   const drums: DrumTrack = {
     bank: drumBank,
+    source: drumSource,
     events: applySwingDrums(oneHatAtATime(drumEvents), style.swing),
     /**
      * The kit is a layer like any other, so a genre that wants it barely
@@ -1312,7 +1376,17 @@ function landEnding(song: Song, style: EndingStyle, chord: Chord | undefined): v
   // the pattern is over.
   const hadDrums = song.drums.events.length > 0;
   song.drums.events = song.drums.events.filter((e) => e.beat < at - EPS);
-  if (style === 'button' && hadDrums) {
+  /**
+   * A button ending is four people hitting the same beat, and a rhythm box is
+   * not one of them.
+   *
+   * The line above is already the whole of a box's ending: the pattern stops.
+   * That is what those records do — the band lands the chord and the machine
+   * simply is not there any more, because somebody reached over and switched it
+   * off. Giving it a crash would be the machine agreeing to a cue it has no way
+   * of hearing.
+   */
+  if (style === 'button' && hadDrums && canVary(song.drums.source ?? 'kit')) {
     song.drums.events.push({ beat: at, voice: 'cr', velocity: 0.95 });
     song.drums.events.push({ beat: at, voice: 'bd', velocity: 0.9 });
   }
@@ -1357,6 +1431,18 @@ export function withCountIn(song: Song): Song {
   if (song.meta.leadInBars) return song;
   if (!getGenre(song.meta.genre).countIn) return song;
   if (!song.drums.events.length) return song;
+  /**
+   * A machine does not count anybody in — somebody presses start.
+   *
+   * The clicks below are a person's: four rim shots, rising, the last one
+   * placed late as the cue. A rhythm box has no gesture for that and no reason
+   * to want one; its whole proposition is that it begins when it is switched on
+   * and continues until it is switched off. So the numbers it plays begin at
+   * bar one, and the *start* is the count-in — a hand on the front panel on beat
+   * zero, which the stage animates because there is a machine and somebody
+   * standing near it. See `DrumSource` and §4.3 of `docs/backline-plan.md`.
+   */
+  if (!isPlayedByHand(song.drums.source ?? 'kit')) return song;
 
   const { beatsPerBar, groups, swing } = song.meta;
   const shift = COUNT_BARS * beatsPerBar;

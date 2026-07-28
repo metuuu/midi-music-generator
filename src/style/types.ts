@@ -6,7 +6,7 @@
  * numbers are rests, and the absolute value is the length in sixteenths.
  */
 
-import type { DrumVoice, Effects, LayerId, SectionKind, Space } from '../core/types.js';
+import type { DrumSource, DrumVoice, Effects, LayerId, SectionKind, Space } from '../core/types.js';
 import type { InstrumentId } from './instruments.js';
 import type { Mode } from '../core/scale.js';
 import type { VoicingStyle } from '../core/voicing.js';
@@ -387,6 +387,21 @@ export interface Style {
    */
   drumFills?: boolean;
   /**
+   * May a preset rhythm box play this style at all? Defaults to true.
+   *
+   * The era decides how likely a box is; this decides whether it is *possible*,
+   * and the two are different questions. A decade can be full of Mini Pops and
+   * still contain one style whose identity is a person behind a kit — a shuffle
+   * whose whole character is the swing between the hands, a march that has to
+   * accelerate. Those cannot be expressed as a low weight, because a low weight
+   * still fires sometimes and the result is not a quiet version of the style, it
+   * is the style with its subject removed.
+   *
+   * Set it false and the box is struck from this style's pool before the draw.
+   * The era's other sources take up the weight; nothing else changes.
+   */
+  boxDrums?: boolean;
+  /**
    * Which fill shapes this style's drummer reaches for. Falls back to the
    * genre's palette, then to a dance-band default.
    *
@@ -516,6 +531,20 @@ export interface EraProfile {
   year: number;
   /** Strudel drum-machine banks, weighted. */
   drumBanks: (readonly [string, number])[];
+  /**
+   * What is *producing* the percussion, weighted. See `DrumSource`.
+   *
+   * Deliberately not derivable from `drumBanks`, which is a sample library and
+   * says nothing about the room — this era's own banks are the sound, and this
+   * is the object making it.
+   *
+   * Absent means a kit, which is what every era staged before this existed, so
+   * a genre with nothing to say here says nothing. The weights are only ever
+   * consulted for sources the era's `year` can actually have: the gate in
+   * `eligibleDrumSources` runs first and is not overridable from here, so a
+   * table listing a Simmons kit in 1938 gets a drummer rather than an argument.
+   */
+  drumSources?: (readonly [DrumSource, number])[];
   /** Instrument choices per layer, weighted. */
   palette: {
     melody: (readonly [InstrumentId, number])[];

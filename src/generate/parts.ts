@@ -1188,6 +1188,18 @@ export function generateDrums(
     /** How hard the section this fill delivers plays. See `generate/fills.ts`. */
     arrival?: number;
     palette?: FillPalette;
+    /**
+     * Whether a preset rhythm box is playing this, in which case the pattern is
+     * the pattern and nothing bends it. See `DrumSource`.
+     *
+     * It takes away the two things below the fill: the section intensity, and
+     * the per-hit jitter. Both are a player responding to the room, and a box
+     * has no mechanism for either — the whole reason the sound is recognisable
+     * is that bar 64 is bit-identical to bar 1. What survives is `accentOf`,
+     * because a preset *pattern* genuinely does accent: a Mini Pops bossa nova
+     * has a shape, it just has the same shape every time.
+     */
+    machine?: boolean;
   },
 ): DrumEvent[] {
   const { chords, beatsPerBar, startBeat, rng, style } = ctx;
@@ -1227,7 +1239,9 @@ export function generateDrums(
       out.push({
         beat: startBeat + slot / SLOTS_PER_BEAT,
         voice,
-        velocity: Math.min(1, strength * opts.intensity * rng.float(0.92, 1.05)),
+        velocity: opts.machine
+          ? strength
+          : Math.min(1, strength * opts.intensity * rng.float(0.92, 1.05)),
       });
     }
   }

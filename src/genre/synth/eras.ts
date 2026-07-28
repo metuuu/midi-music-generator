@@ -73,6 +73,19 @@ const modular: EraProfile = {
     ['RhythmAce', 3],
     ['KorgKR55', 3],
   ],
+  /**
+   * Mostly a box, and this era's own description has said so all along — *"a
+   * preset rhythm box for a drummer"*. All four banks above are preset boxes,
+   * and until this field existed the stage put a man on a riser miming one.
+   *
+   * The kit is here at a real weight rather than as a token. 1974 is not only
+   * Tangerine Dream: it is also every prog band who owned a Minimoog and a
+   * drummer, and a stage that never once had both would be as narrow as the one
+   * that never had the box. `programmed` and `electronic-kit` are absent by
+   * year rather than by choice — the gate would strike them anyway, and listing
+   * them at zero would only look like an opinion.
+   */
+  drumSources: [['box', 6], ['kit', 4]],
   palette: {
     // Every entry is a single-line voice, because every lead in 1974 was. The
     // square and the saw are the two oscillator shapes a Minimoog offers; the
@@ -183,6 +196,18 @@ const polysynth: EraProfile = {
     ['OberheimDMX', 3],
     ['RolandCompurhythm1000', 2],
   ],
+  /**
+   * The decade the machine won, and the one year in this genre where all four
+   * sources are legal at once — the Simmons kit arrives in 1981 and the LinnDrum
+   * in 1982, so this era gets the argument the other two are spared.
+   *
+   * `programmed` leads because these four banks are programmable machines and
+   * this is the music that made them famous. The electronic kit is next, because
+   * a drummer behind hexagonal pads is the single most 1981 object available and
+   * it keeps a person on the riser. The acoustic kit survives at the bottom: it
+   * is what a band who could not afford a Linn still had.
+   */
+  drumSources: [['programmed', 6], ['electronic-kit', 3], ['kit', 2], ['box', 1]],
   palette: {
     // `leadVoice` is here at a high weight and it is not a compromise. GM 85 is
     // the closest fixed patch to the breathy, brass-and-choir CS-80 lead that
@@ -298,6 +323,17 @@ const digital: EraProfile = {
     ['AlesisSR16', 3],
     ['YamahaRY30', 2],
   ],
+  /**
+   * By 1987 the argument is over. The sequencer runs the number and the drums
+   * come out of the same box as everything else, so `programmed` is most of the
+   * table and the preset box is gone entirely — an instrument you program
+   * through a menu has no *Bossa Nova* button.
+   *
+   * The electronic kit holds on because the pads did, well past the point the
+   * sound had stopped being new; the acoustic kit is the residue, and at 1 in 12
+   * it is the surprise it should be rather than a thing that keeps happening.
+   */
+  drumSources: [['programmed', 8], ['electronic-kit', 3], ['kit', 1]],
   palette: {
     // Bells and buzz, which is what FM is good at and what it was therefore
     // used for. The saw survives at a low weight because analogue instruments

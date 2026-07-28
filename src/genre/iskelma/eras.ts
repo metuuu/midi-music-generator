@@ -25,6 +25,19 @@ const tanssilava: EraProfile = {
     ['RolandCompurhythm78', 3],
     ['KorgKR55', 2],
   ],
+  /**
+   * A drummer, nearly always — and the box is here because this era's
+   * description names it, not in spite of that.
+   *
+   * The banks and the prose both say "preset rhythm boxes", and they are right
+   * about the *sound*: a Mini Pops is what a tanssilava record's beat came off.
+   * They are not a claim about the bandstand. A dance pavilion hired a band, and
+   * a band has a drummer; the box on those nights was the one built into the
+   * organ, played by the organist, on the smaller bookings where there was no
+   * fourth member to pay. That is a real Finnish arrangement and it is worth one
+   * night in five — which is exactly the weight it gets.
+   */
+  drumSources: [['kit', 8], ['box', 2]],
   palette: {
     melody: [
       ['accordion', 5], ['bandoneon', 3], ['tenorSax', 3], ['strings1', 3],
@@ -64,6 +77,17 @@ const eighties: EraProfile = {
     ['OberheimDMX', 3],
     ['RolandTR707', 3],
   ],
+  /**
+   * Split almost evenly between the machine and the man, because that is what
+   * the decade was for this music: the record was made on a LinnDrum and the
+   * band that toured it still had a drummer, and both are honest pictures of
+   * 1985 iskelmä.
+   *
+   * The electronic kit is the smallest weight of the three and belongs at the
+   * bottom: hexagonal pads were a rock and a synth-pop object, and a dance band
+   * playing to a pavilion was the last place to buy them.
+   */
+  drumSources: [['kit', 5], ['programmed', 5], ['electronic-kit', 2]],
   palette: {
     melody: [
       ['synthStrings', 4], ['tenorSax', 4], ['strings2', 3], ['accordion', 2],

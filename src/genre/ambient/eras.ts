@@ -49,6 +49,16 @@ const tape: EraProfile = {
     ['RolandCompurhythm1000', 3],
     ['LinnDrum', 2],
   ],
+  /**
+   * A machine, and no drummer at all.
+   *
+   * This is the one genre where that is not a compromise: `drone` and `choral`
+   * already exclude the kit outright, and where this music has a pulse it is a
+   * box left running in the corner rather than somebody keeping it. A drummer on
+   * a riser in the fog would be the loudest thing in a room built to have no
+   * loudest thing.
+   */
+  drumSources: [['box', 5], ['programmed', 4]],
   palette: {
     melody: [
       ['leadCalliope', 3], ['epiano1', 3], ['leadVoice', 3], ['vibraphone', 3],
@@ -113,6 +123,12 @@ const sampler: EraProfile = {
     ['ViscoSpaceDrum', 3],
     ['RolandR8', 2],
   ],
+  /**
+   * Programmed, and nothing else. An SP-12 and an MPC are machines you write
+   * into a bar at a time, and 1993 ambient is the sound of somebody doing that
+   * — there is no preset on any of these boxes and no drummer anywhere near it.
+   */
+  drumSources: [['programmed', 1]],
   palette: {
     melody: [
       ['fxCrystal', 4], ['tubularBells', 3], ['fxAtmosphere', 3], ['padMetallic', 3],
@@ -175,6 +191,16 @@ const hybrid: EraProfile = {
     ['RolandMT32', 3],
     ['KorgT3', 2],
   ],
+  /**
+   * Still mostly programmed, and this is the one ambient era where a person
+   * behind a kit is a real possibility rather than a category error. The whole
+   * point of 2000s hybrid is that the sources went back to being played — real
+   * strings, real voices — and a brushed kit under all that is the same move.
+   * It stays the minority because the pulse in this music is usually still a
+   * loop; it is not zero because by now somebody is choosing the loop *over* a
+   * drummer rather than for want of one.
+   */
+  drumSources: [['programmed', 6], ['kit', 3]],
   palette: {
     melody: [
       ['violin', 3], ['cello', 3], ['leadVoice', 3], ['vibraphone', 2],

@@ -540,9 +540,112 @@ export interface Track {
   effects?: Effects;
 }
 
+/**
+ * What is producing the percussion — as an object in a room, not as a sound.
+ *
+ * `bank` is a sample library and cannot answer this. Jazz's 1938 era draws from
+ * `AkaiMPC60` and `AlesisSR16`, which are sample sources standing in for a kit
+ * nobody in 1938 could have recorded any other way; reading a drum machine off
+ * the bank name would put an MPC on a swing bandstand. So the object gets its
+ * own field, and the field is decided here — in the generator, before the notes
+ * exist — rather than on the stage afterwards.
+ *
+ * That ordering is the whole point and it is worth being explicit about, because
+ * the other one is the obvious design and it is wrong. A preset rhythm box
+ * cannot play what `generate/fills.ts` writes: it has fourteen buttons on it
+ * marked *Bossa Nova* and *Waltz*, and no button marked *descending tom roll
+ * into the last chorus*. Choosing the box after the part was written would
+ * stage a machine miming music it has no mechanism for. So the source is chosen
+ * first and **constrains** what may then be written, and casting reads the
+ * answer exactly as it reads `Track.voice`.
+ */
+export type DrumSource =
+  /** A drummer, an acoustic kit, a riser. */
+  | 'kit'
+  /** A drummer on pads. Same choreography, different object and different sound. */
+  | 'electronic-kit'
+  /** A machine programmed a step at a time. No drummer; it can play anything. */
+  | 'programmed'
+  /** A machine with presets and a start button. No drummer, and no fills. */
+  | 'box';
+
+/**
+ * The year each source became a thing somebody could have owned.
+ *
+ * A hard gate, applied *before* any era weighting is consulted — see
+ * `chooseDrumSource`. Era tables are authored by hand and will go on being
+ * authored by hand; this is what stops a weight written later from putting a
+ * Rhythm Ace on a 1938 bandstand, whatever that table says.
+ *
+ * `box` is the Rhythm Ace (1964) and the Mini Pops (1967). `programmed` is the
+ * Roland CR-78 (1978), the first with a memory a player could write into, though
+ * the decade that means it is the LinnDrum's. `electronic-kit` is the Simmons
+ * SDS-V, which is 1981 and is the reason a 1974 stage cannot have one however
+ * much it would suit the music.
+ */
+export const DRUM_SOURCE_FROM: Record<DrumSource, number> = {
+  kit: 0,
+  box: 1964,
+  programmed: 1978,
+  'electronic-kit': 1981,
+};
+
+/**
+ * A drummer is behind these, and is not behind the others.
+ *
+ * The one question casting needs answered, given a name so that the two places
+ * that ask it cannot drift apart.
+ */
+export function isPlayedByHand(source: DrumSource): boolean {
+  return source === 'kit' || source === 'electronic-kit';
+}
+
+/**
+ * Whether this source can play a fill, a drum solo, or a velocity that responds
+ * to how hard the section is going.
+ *
+ * All three are the same capability — a part that varies bar to bar — and all
+ * three are the thing a preset box does not have. Hands obviously do; a machine
+ * somebody programmed does too, because they programmed each bar.
+ */
+export function canVary(source: DrumSource): boolean {
+  return source !== 'box';
+}
+
+/**
+ * The sources an era may actually draw from, weighted, after the year gate.
+ *
+ * Returns the list rather than the answer so the draw itself happens in
+ * `generate/song.ts` alongside every other weighted choice — one `Rng` stream,
+ * one place a seed can be traced through.
+ *
+ * An era that names no sources gets a kit, and so does one whose entire table
+ * was gated away. Both fallbacks are deliberate: a kit is what every song in
+ * this project staged before this field existed, so the quiet answer is also the
+ * backwards-compatible one.
+ */
+export function eligibleDrumSources(
+  year: number,
+  weights: readonly (readonly [DrumSource, number])[] | undefined,
+): (readonly [DrumSource, number])[] {
+  const open = (weights ?? []).filter(
+    ([source, weight]) => weight > 0 && year >= DRUM_SOURCE_FROM[source],
+  );
+  return open.length ? open : [['kit', 1] as const];
+}
+
 export interface DrumTrack {
   /** Strudel drum-machine bank, e.g. "LinnDrum". */
   bank: string;
+  /**
+   * What is making this sound, as an object on a stage. See `DrumSource`.
+   *
+   * Optional in the type and never optional in practice: every song this
+   * generator writes sets it. It is optional so that a `Song` deserialised from
+   * before this existed still type-checks, and consumers should read a missing
+   * value as `'kit'`, which is what every such song staged as.
+   */
+  source?: DrumSource;
   events: DrumEvent[];
   gain: number;
   /** Relative level of each voice within the kit. See `DEFAULT_DRUM_MIX`. */
