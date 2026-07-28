@@ -18,36 +18,54 @@
  * ## Where it is allowed to stand, and what that forces
  *
  * `SynthRigOptions` hands over the keybed's measurements and nothing else, and
- * the rule this file obeys absolutely is that **no part of it is ever forward of
- * `keyBackZ`**. A hand approaches a key from `-z` and lands on top of it; a
+ * the rule this file obeys absolutely is that **nothing occupies the band the
+ * hands work in**: from `keyBackZ` forward to the key fronts, at or above the
+ * key plane. A hand approaches a key from `-z` and lands on top of it, so a
  * cabinet cheek beside the keys or a lip over them would be clipped through
- * several times a bar. So the whole rig lives at greater `z` than the key line,
- * and the keyboard itself cantilevers off the front of it.
+ * several times a bar.
+ *
+ * Everything the *keyboard* carries therefore lives at greater `z` than the key
+ * line, and the keyboard cantilevers off the front of it. The wings are the one
+ * exception and are not really an exception at all: they stand behind the
+ * **player**, who is another 0.43 m upstage of the hands again, so they clear
+ * the working band by the width of a person rather than by a margin. The rule
+ * was previously written as "no part of it is ever forward of `keyBackZ`",
+ * which is the same rule stated as a coordinate — and stating it that way is
+ * what kept two 1.7 m cabinets parked between the player and the audience,
+ * because that was the only place the coordinate allowed.
  *
  * The obvious build from there is a flat wall straight across the back, which is
- * what the era's photographs mostly show. It cannot be used, and the number that
- * kills it is in `show.ts`: the house camera sits at **y = 1.55 m**, about three
- * and a half metres out. A sightline from there down to a key at 0.95 m crosses
- * the plane half a metre behind the keybed at roughly **y = 1.0 m** — so any
- * cabinet back there taller than a metre hides the keyboard, the hands, and the
- * one thing this project is actually for. A modular that eats the choreography
- * is a worse prop than a trestle table.
+ * what the era's photographs mostly show. It cannot be used flat, and the number
+ * that rules it out is in `show.ts`: the house camera sits at **y = 1.55 m**,
+ * about three and a half metres out. A sightline from there down to a key at
+ * 0.95 m crosses the plane half a metre downstage of the keybed at roughly
+ * **y = 1.0 m** — so any cabinet *between the camera and the keys* taller than a
+ * metre hides the keyboard, the hands, and the one thing this project is
+ * actually for. A modular that eats the choreography is a worse prop than a
+ * trestle table.
  *
- * So the wall is a **U**, and the U is honest to the instrument:
+ * So the rig is a **U around the player**, and the U is honest to the
+ * instrument:
  *
- *  - **A low console straight ahead**, its top *below the key plane*. That is
- *    not a taste decision — anything behind the key line and no higher than the
- *    keys cannot cross a sightline that reaches a key from above, for any camera
- *    anywhere. It is the ARP 2500's centre section, and it is free.
- *  - **Two tall wing cabinets**, outboard of the player, `keyTopY + 0.77` tall —
- *    about 1.7 m from the boards, which is a real System 55 with its stand. They
- *    leave a 0.9 m window over the console, which is where the player and most
- *    of the playing is. They are **aimed, not angled**: each one is turned so
- *    its panel normal points at the player's chest, computed from the station
- *    offset rather than set to a round number of degrees, because that is what a
- *    person does when they put two racks either side of themselves. It also
- *    means the audience gets the near wing three-quarters on from any seat off
- *    the centre line, instead of two flat backs.
+ *  - **A low console straight ahead of them**, its top *below the key plane*.
+ *    Downstage of the keys, where the camera looks past it: anything no higher
+ *    than the keys cannot cross a sightline that reaches a key from above, for
+ *    any camera anywhere. It is the ARP 2500's centre section, and it is free.
+ *  - **Two tall wing cabinets, upstage of the player** — `keyTopY + 0.77`, about
+ *    1.7 m from the boards, which is a real System 55 with its stand. Behind
+ *    them is the whole point and it was wrong until it was measured: the wings
+ *    used to stand at `keyBackZ + 0.44`, which is nearly a metre *downstage* of
+ *    the person, so the house spent every number looking at the backs of two
+ *    cabinets with a player somewhere in the gap. A modular stands behind its
+ *    player. That is what the photographs show, and it is the only arrangement
+ *    in which the patch bay faces the room instead of the wall.
+ *
+ *    They are **aimed, not angled**, at a point on the centre line 1.6 m in
+ *    front of the player: about 19° of toe-in, which is a rack turned in toward
+ *    the person using it and a panel the room can still read. Aimed at the chest
+ *    itself — the same instinct, applied before the cabinets moved — a wing
+ *    from behind sits 51° off the house and shows the audience a patch bay in
+ *    sharp profile.
  *
  * ## Patch cables
  *
@@ -522,19 +540,59 @@ export const buildModularRig: SynthRigBuilder = (opts: SynthRigOptions): SynthRi
 
   // --- The wings -----------------------------------------------------------
 
-  /** Where the player's chest is, from the station offset `synth.ts` publishes. */
-  const chest = new Vector3(0, kt + 0.40, kb - opts.whiteLength - 0.28);
-  const wingZ = kb + 0.44;
+  /**
+   * Where the player stands, from the station offset `synth.ts` publishes.
+   *
+   * Derived rather than written down, because it is the same expression the
+   * keyboard uses to place the body and the two must not drift.
+   */
+  const playerZ = kb - opts.whiteLength - 0.28;
+  const chest = new Vector3(0, kt + 0.40, playerZ);
+
+  /**
+   * The wings stand **upstage of the player**, and this is the correction.
+   *
+   * They used to sit at `kb + 0.44` — which is 0.87 m *downstage* of the person,
+   * because the player is at `kb − whiteLength − 0.28` and `+z` is toward the
+   * audience. So the house was looking at the backs of two 1.7 m cabinets with
+   * a player somewhere behind them, on both sides, all night. The rest of this
+   * file's sightline argument was carefully right and pointed at the wrong side
+   * of the instrument: the low console exists to keep a window open over the
+   * top of gear that should never have been in the way to begin with.
+   *
+   * A modular stands behind its player. That is what every photograph of one
+   * shows, and it is the only arrangement in which the thing worth looking at —
+   * the patch bay — faces the room rather than the wall.
+   *
+   * `WING_BEHIND` is a body's clearance and no more: half a wing's depth is
+   * 0.16 and a standing player is about 0.32 across, so 0.62 puts the cabinet
+   * face 0.46 m behind the shoulder blades. Close enough to reach round to,
+   * which is what those players did.
+   */
+  const WING_BEHIND = 0.62;
+  const wingZ = playerZ - WING_BEHIND;
   const wingTop = kt + 0.77;
+
+  /**
+   * How far downstage of the player the wings are aimed.
+   *
+   * Aimed at the chest — which is what this did, and was the right instinct on
+   * the wrong side of the stage — a wing from behind sits 51° off the house,
+   * and the audience gets a patch bay in sharp profile. Aimed square downstage
+   * it is a flat wall and the two cabinets read as one backdrop.
+   *
+   * So they are aimed at a point on the centre line well in front of the
+   * player: 1.6 m gives about 19° of toe-in, which is a rack turned in toward
+   * the person using it *and* a panel the room can read. The player still
+   * stands inside the vee; it is just no longer a vee that the audience is
+   * outside of.
+   */
+  const AIM_AHEAD = 1.6;
+  const aimAt = new Vector3(0, 0, playerZ + AIM_AHEAD);
 
   for (const side of [1, -1]) {
     const centre = new Vector3(side * WING_X, 0, wingZ);
-    // Aimed rather than angled: the panel normal points at the player. The
-    // rig's one hard rule is checked here rather than trusted — at this yaw the
-    // outer front corner of a wing is the nearest thing on the whole rig to the
-    // key line, and the arithmetic that keeps it behind that line is the reason
-    // `wingZ` is 0.44 and not 0.30.
-    const aim = new Vector3(chest.x - centre.x, 0, chest.z - centre.z).normalize();
+    const aim = new Vector3(aimAt.x - centre.x, 0, aimAt.z - centre.z).normalize();
     const yaw = Math.atan2(aim.x, aim.z);
     const frame = new Matrix4().makeRotationY(yaw).setPosition(centre);
 
@@ -606,7 +664,24 @@ export const buildModularRig: SynthRigBuilder = (opts: SynthRigOptions): SynthRi
     const belly = end0.clone().add(end1).multiplyScalar(0.5)
       .addScaledVector(a.n.clone().add(b.n).normalize(), 0.03 + rng.float(0, 0.05));
     belly.y -= sag;
-    for (const p of [c0, belly, c1]) p.z = Math.max(p.z, minZ);
+    /**
+     * Keep a cable out of the band the hands work in — but only on the side of
+     * the player where hands are.
+     *
+     * This used to be an unconditional `max(p.z, minZ)`, which was right while
+     * every panel on the rig stood downstage of the keys. Now that the wings are
+     * upstage of the *player*, every one of their control points is about a
+     * metre behind `minZ`, and clamping unconditionally would have dragged every
+     * cable on both wings forward onto the keyboard — a rig whose leads all
+     * reach for the keys like ivy.
+     *
+     * A wing-to-console lead cannot arise to be caught in between: the two are
+     * over 1.25 m apart and the length filter above rejects them, as it does
+     * wing-to-wing at 1.56 m.
+     */
+    for (const p of [c0, belly, c1]) {
+      if (p.z > playerZ) p.z = Math.max(p.z, minZ);
+    }
 
     const curve = new CatmullRomCurve3([a.p.clone(), c0, belly, c1, b.p.clone()]);
     parts.push(new TubeGeometry(curve, 14, 0.0032, 6, false));
