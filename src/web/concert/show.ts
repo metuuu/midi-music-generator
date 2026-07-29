@@ -478,7 +478,6 @@ export function createShow(opts: ShowOptions = {}): Show {
         finish: concert.venue.palette.proscenium,
         events: number.song.drums.events,
         beatsPerBar: number.song.meta.beatsPerBar,
-        standHeight: spec.position[1],
       });
       const [mx, my, mz] = spec.position;
       machine.root.position.set(mx, my, mz);

@@ -2421,35 +2421,64 @@ export function castSong(song: Song, venue: Venue, seed: string): Cast {
 }
 
 /**
- * How far to the side of a player their rhythm box stands, in metres.
+ * How far along their own rig the machine sits, as a fraction of the player's
+ * own footprint.
  *
- * Inside arm's reach and outside the space their own instrument occupies, which
- * is what `footprint` measures — so it is added rather than assumed. A box any
- * closer is inside the keyboard; any further and the hand that starts it has to
- * take a step, which is a different gesture and a worse one.
+ * Outboard enough to be beside the hands rather than under them, and inside the
+ * gear the player is already standing at — this is a *mount*, not a position on
+ * the boards. Past 1.0 it would be off the end of the stand.
  */
-const MACHINE_REACH = 0.42;
-
-/** Table height. A rhythm box sits on a stand, not on the boards. */
-const MACHINE_HEIGHT = 0.92;
+const MACHINE_ALONG = 0.72;
 
 /**
- * Stand the drum machine somewhere, if there is one.
+ * How far above the playing surface the machine sits, and how far behind it.
  *
- * Two placements, and the choice between them is the whole of the logic.
+ * On top of the rig, at the back of it: a rhythm box lived on the panel behind
+ * the keys or on a shelf over them, which is the one place on a keyboard stand
+ * that is not in the way of playing. `workHeight` is the key plane, so this is
+ * a hand's depth above it and far enough back to clear the keys.
+ */
+const MACHINE_ABOVE = 0.11;
+const MACHINE_BEHIND = 0.46;
+
+/**
+ * How much of the player's own turn the machine takes.
  *
- * **Beside somebody, where there is somebody.** The machine goes next to the
- * player most likely to have switched it on — a keyboard player by preference,
- * since on every stage this genre describes the box lived on the end of the
- * keyboard rig and the person behind it was the one who started it. It stands
- * on the side away from the middle of the stage, so it never comes between that
- * player and the audience.
+ * Not all of it, which is what it used to take, and that was the second half of
+ * the complaint about this object: a player toed 26° into the gear arc handed
+ * the machine the same 26°, and the panel — the only part of it with anything
+ * to see on — pointed across the stage instead of at the room. Not none of it
+ * either, or a box bolted to a turned rig would sit visibly askew on its own
+ * mount. A third keeps it on the rig and still square enough to read.
+ */
+const MACHINE_SQUARE = 0.34;
+
+/**
+ * Mount the drum machine on somebody's rig, if there is one.
  *
- * **On the riser, where there is not.** A number with no keyboard and no
- * drummer — an ambient piece of tape and voices — has an empty platform at the
- * back of the stage that the kit would have been on, and that is exactly where
- * the pulse should appear to be coming from. It gets no tender, and the type
- * says so: a renderer must not assume a hand is ever near it.
+ * **Never furniture of its own.** The first version of this stood the box on a
+ * folding table beside the nearest keyboard player, and that is confusing to
+ * look at for a reason worth stating precisely: a lone table producing a full
+ * drum part offers no account of itself, so the eye files it as scenery and the
+ * percussion goes back to arriving from nowhere — the exact failure the box was
+ * added to fix, moved rather than solved. Gear on a person's own equipment
+ * needs no explanation.
+ *
+ * So it goes on the rig of whoever works it, at the back of the panel and a
+ * hand's depth above the keys, which is where a rhythm box actually lived. The
+ * ideal case is better still and is not built yet: where the tender is standing
+ * at a modular, the machine should be a percussion *module* in the cabinet
+ * alongside the oscillators — see §6.0 of `docs/backline-plan.md`. That covers a
+ * minority of numbers, though: 24 of 25 machine numbers in iskelmä's tanssilava
+ * era have no modular on stage at all, and 97 of 97 in ambient's sampler era. A
+ * rule that only worked inside a modular would fix almost nothing.
+ *
+ * **The tender is the point, not a nicety.** A machine is chosen for the person
+ * most likely to have switched it on: a keyboard player first, then anybody not
+ * holding their instrument, then whoever is there. Only a stage with literally
+ * nobody on it falls through, and then the machine stands where the kit would
+ * have been — which is the one case where there is genuinely no one to explain
+ * it, and the type still says so.
  */
 function placeMachine(song: Song, slots: Slot[], venue: Venue): StageMachine[] {
   const source = song.drums.source ?? 'kit';
@@ -2462,7 +2491,7 @@ function placeMachine(song: Song, slots: Slot[], venue: Venue): StageMachine[] {
    * `GEAR` is the list of archetypes that stand behind a board on a stand
    * rather than holding something, which is the same question asked for a
    * different reason — a player with both hands full of trombone is not
-   * reaching over to a rhythm box either.
+   * reaching over to a rhythm box either, and has no rig to bolt one to.
    */
   const tender = slots.find((s) => GEAR.includes(s.archetype))
     ?? slots.find((s) => !specFor(s.archetype).held)
@@ -2473,28 +2502,42 @@ function placeMachine(song: Song, slots: Slot[], venue: Venue): StageMachine[] {
       id: 'machine',
       kind,
       bank: song.drums.bank,
-      position: [0, round(RISER_HEIGHT + MACHINE_HEIGHT), round(-venue.depth / 2 + RISER_FROM_BACK)],
+      position: [0, round(RISER_HEIGHT + 0.92), round(-venue.depth / 2 + RISER_FROM_BACK)],
       facing: 0,
     }];
   }
 
-  // Outboard of the tender: `-sign(x)` would walk it toward the centre line and
-  // put it between them and the house. A player on the centre line has no
-  // outboard side, so they get their right.
+  // Outboard of the player's own centre: `-sign(x)` would walk it toward the
+  // middle of the stage and put it between them and the house. Somebody on the
+  // centre line has no outboard side, so they get their right.
   const out = tender.x >= 0 ? 1 : -1;
+  const work = specFor(tender.archetype).workHeight;
+  const facing = tender.facing * MACHINE_SQUARE;
+  /**
+   * Placed along the rig in the rig's own frame, then turned with it.
+   *
+   * The offset has to rotate with the player or a machine on a turned rig would
+   * slide off the end of it — the same composition `show.ts` does when it hangs
+   * an instrument off a performer.
+   */
+  const along = out * tender.r * MACHINE_ALONG;
+  const back = MACHINE_BEHIND;
+  const cos = Math.cos(tender.facing);
+  const sin = Math.sin(tender.facing);
   return [{
     id: 'machine',
     kind,
     bank: song.drums.bank,
     position: [
-      round(tender.x + out * (tender.r + MACHINE_REACH)),
-      round(tender.riser + MACHINE_HEIGHT),
-      round(tender.z),
+      round(tender.x + along * cos + back * sin),
+      round(tender.riser + work + MACHINE_ABOVE),
+      round(tender.z - along * sin + back * cos),
     ],
-    facing: round(tender.facing),
+    facing: round(facing),
     tendedBy: tender.id,
   }];
 }
+
 
 // ---------------------------------------------------------------------------
 

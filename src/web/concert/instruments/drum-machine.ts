@@ -36,9 +36,9 @@
  * a row of sixteen step keys, which is the object's whole visual signature and
  * the reason the pattern is a grid rather than a knob.
  *
- * They share a carcass and a stand because at stage distance they *are* the same
- * silhouette: a shoebox on a table. What differs is the row along the front, and
- * that is the part a camera can actually resolve.
+ * They share a carcass and a mounting plate because at stage distance they *are*
+ * the same silhouette: a shoebox on somebody's rig. What differs is the row
+ * along the front, and that is the part a camera can actually resolve.
  */
 
 import {
@@ -61,9 +61,6 @@ const TILT = 0.22;
 
 /** Sixteen steps, because that is what a bar of this music is. */
 const STEPS = 16;
-
-/** How far the case stands above the boards when nobody says. See the stand. */
-const LEG_DROP = 0.92;
 
 /**
  * How long a lit step stays lit, in beats.
@@ -91,14 +88,6 @@ export interface DrumMachineOptions {
   events: readonly DrumEvent[];
   /** Beats per bar, so the step row means a bar rather than an arbitrary window. */
   beatsPerBar: number;
-  /**
-   * How far the case is above the boards, so the stand can reach the floor.
-   *
-   * The IR places the machine at working height and says nothing about what is
-   * holding it up, which is correct — where a thing stands is a staging
-   * decision and what it stands on is this file's business.
-   */
-  standHeight?: number;
 }
 
 export interface DrumMachine {
@@ -152,60 +141,43 @@ export function buildDrumMachine(opts: DrumMachineOptions): DrumMachine {
     color: '#ff5a4a', emissive: '#ff3b28', emissiveIntensity: 1.5, roughness: 0.35,
   });
 
-  // --- The stand -----------------------------------------------------------
+  // --- How it is held up ---------------------------------------------------
 
   /**
-   * A folding table, not a keyboard stand. The box lived on whatever was to
-   * hand, and a four-leg table is the honest and cheapest read — the machine's
-   * own position already has the table height baked in, so the legs run from
-   * the boards up to the case rather than the other way round.
+   * A mounting plate and two brackets, and **no legs**.
+   *
+   * The first version of this stood on a folding table of its own, and that was
+   * the whole problem with it: a lone box on a table in the middle of a stage
+   * produces a full drum part and offers no account of why. The eye files it as
+   * scenery, so the percussion still arrives from nowhere — which is the failure
+   * the box was introduced to fix, relocated rather than solved.
+   *
+   * Gear is mounted, not parked. This sits on somebody's rig — the end of a
+   * keyboard stand, the shelf of a modular — and the plate is what says so. A
+   * machine on a person's own equipment needs no explanation; a machine on its
+   * own furniture is a mystery the audience has to solve.
    */
   const TOP_Y = 0;
-  /**
-   * The legs reach from the case down to the boards, and the machine does not
-   * know how far that is — the IR places it at table height and the table has
-   * to arrive at the floor whatever height that turns out to be.
-   *
-   * So the geometry is one unit-tall box and the drop is on the instance
-   * matrix. `LEG_DROP` is the fallback for a machine placed with no height
-   * information at all, which should not happen and would otherwise produce
-   * legs of length zero rather than a visible mistake.
-   */
-  const legDrop = opts.standHeight ?? LEG_DROP;
-  const TOP_THICK = 0.018;
-  /** Underside of the tabletop, which is where a leg starts. */
-  const underside = TOP_Y - 0.012 - TOP_THICK / 2;
-  /**
-   * Length is measured to the boards rather than assumed, and the difference is
-   * the tabletop's own thickness. Scaling a unit box by the full stand height
-   * put the feet 12 mm through the deck — small enough to survive review and
-   * large enough to see from the front row, since the stage floor is exactly
-   * where the eye goes looking for whether a thing is standing on it.
-   */
-  const legLen = Math.max(0.01, legDrop + underside);
-  const legGeo = new BoxGeometry(0.022, 1, 0.022);
-  const legs = addTo(root, new InstancedMesh(legGeo, steelMat, 4));
-  legs.castShadow = true;
+  const PLATE_THICK = 0.010;
+  const plate = addTo(root, new Mesh(
+    new BoxGeometry(CASE_W + 0.03, PLATE_THICK, CASE_D + 0.02), steelMat));
+  plate.position.set(0, TOP_Y - PLATE_THICK / 2, 0);
+  plate.receiveShadow = true;
+  plate.castShadow = true;
+
+  // Two short brackets under the plate, which is what a clamp on the end of a
+  // stand looks like from six metres: a hand's width of steel and then nothing.
+  const bracketGeo = new BoxGeometry(0.020, 0.055, 0.020);
+  const brackets = addTo(root, new InstancedMesh(bracketGeo, steelMat, 2));
+  brackets.castShadow = true;
   {
     const m = new Matrix4();
-    let slot = 0;
-    for (const sx of [1, -1]) {
-      for (const sz of [1, -1]) {
-        m.makeScale(1, legLen, 1);
-        m.setPosition(
-          sx * (CASE_W / 2 - 0.03),
-          underside - legLen / 2,
-          sz * (CASE_D / 2 - 0.03),
-        );
-        legs.setMatrixAt(slot++, m);
-      }
-    }
-    legs.instanceMatrix.needsUpdate = true;
+    [1, -1].forEach((sx, i) => {
+      m.makeTranslation(sx * (CASE_W / 2 - 0.05), TOP_Y - PLATE_THICK - 0.0275, 0);
+      brackets.setMatrixAt(i, m);
+    });
+    brackets.instanceMatrix.needsUpdate = true;
   }
-
-  const top = addTo(root, new Mesh(new BoxGeometry(CASE_W + 0.14, TOP_THICK, CASE_D + 0.12), steelMat));
-  top.position.set(0, TOP_Y - 0.012, 0);
-  top.receiveShadow = true;
 
   // --- The case ------------------------------------------------------------
 

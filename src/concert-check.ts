@@ -366,7 +366,12 @@ check('visemes exist exactly when there is a voice', visemeGaps === 0,
  * from an empty stage is a worse answer than the mime was.
  */
 {
+  /** Arm's reach. Past this it is furniture standing near somebody, not their gear. */
+  const MACHINE_REACH = 1.1;
   let mimed = 0;
+  let untended = 0;
+  let adrift = 0;
+  let askew = 0;
   let unexplained = 0;
   let counted = 0;
   let offStage = 0;
@@ -396,6 +401,34 @@ check('visemes exist exactly when there is a voice', visemeGaps === 0,
           unexplained++;
           if (notes.length < 3) notes.push(`${gid}#${i} ${source} with nothing on stage`);
         }
+        /**
+         * Mounted on somebody's rig, not parked on furniture of its own.
+         *
+         * Both halves are asserted because both were wrong. A machine beside a
+         * player rather than on their gear reads as scenery and explains
+         * nothing; a machine inheriting the player's full yaw points its panel
+         * across the stage when that player is toed into the gear arc, and the
+         * panel is the only part of it worth seeing.
+         */
+        for (const m of placed) {
+          const tender = number.cast.performers.find((p) => p.id === m.tendedBy);
+          if (!tender) {
+            if (number.cast.performers.length) untended++;
+            continue;
+          }
+          const reach = Math.hypot(
+            m.position[0] - tender.station.position[0],
+            m.position[2] - tender.station.position[2],
+          );
+          if (reach > MACHINE_REACH) {
+            adrift++;
+            if (notes.length < 3) notes.push(`${gid}#${i} ${reach.toFixed(2)} m from its tender`);
+          }
+          if (Math.abs(m.facing) > Math.abs(tender.station.facing) + 1e-6) {
+            askew++;
+            if (notes.length < 3) notes.push(`${gid}#${i} turned further than its player`);
+          }
+        }
         // A machine does not count anybody in; somebody presses start.
         if (number.song.meta.leadInBars) counted++;
         for (const m of placed) {
@@ -413,6 +446,13 @@ check('visemes exist exactly when there is a voice', visemeGaps === 0,
       : `${machines} placed on the boards`);
   check('a machine does not count the band in', counted === 0,
     counted ? `${counted} of ${machines} have lead-in bars` : `${machines} start on bar one`);
+  check('a machine is mounted on somebody\'s rig', untended === 0 && adrift === 0,
+    untended || adrift
+      ? `${untended} untended, ${adrift} out of reach: ${notes.join('; ')}`
+      : `${machines} within ${MACHINE_REACH} m of the player who works them`);
+  check('a machine faces the room, not the stage', askew === 0,
+    askew ? `${askew} turned further than their player: ${notes.join('; ')}`
+      : `${machines} squarer to the house than the rig they sit on`);
 }
 
 /**
