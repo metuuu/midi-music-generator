@@ -266,6 +266,8 @@ interface Slot {
   avoidFrontCentre: boolean;
   /** Which synthesiser, where this is one. See `assignRigs`. */
   rig?: SynthRigId;
+  /** How many keyboards they stand at. See `assignRigs`. */
+  boards?: number;
 }
 
 const ROLE_OF: Record<LayerId, Role> = {
@@ -865,6 +867,24 @@ function assignRigs(slots: Slot[], year: number, genre: string, seed: string): v
     const spec = SYNTH_RIGS[rig];
     s.r = spec.footprint;
     s.head = Math.max(s.head, spec.height);
+    /**
+     * How many keyboards this player stands at.
+     *
+     * Only a frame carries more than one, so this is a modular's question and
+     * nobody else's — a Prophet is a keyboard and a DX7 is a keyboard. Drawn
+     * rather than fixed, because a rig with three boards and a rig with one are
+     * both real and the difference is what the number needed.
+     *
+     * Weighted toward the smaller counts. Four boards is Emerson, and Emerson
+     * is not what most nights looked like; two is a player who wanted a second
+     * sound within reach, which is most of them.
+     */
+    if (spec.maxBoards > 1) {
+      const boards = rng.weighted([[1, 3], [2, 4], [3, 2], [4, 1]] as const);
+      s.boards = Math.min(boards, spec.maxBoards);
+      // Wings cost width the tier does not. Only the counts that have them pay.
+      if (s.boards >= 3) s.r += 0.20;
+    }
   }
 }
 
@@ -2408,6 +2428,7 @@ export function castSong(song: Song, venue: Venue, seed: string): Cast {
       look: s.look,
       station,
       ...(s.rig ? { rig: s.rig } : {}),
+      ...(s.boards && s.boards > 1 ? { boards: s.boards } : {}),
     };
   });
 
@@ -2429,6 +2450,18 @@ export function castSong(song: Song, venue: Venue, seed: string): Cast {
  * the boards. Past 1.0 it would be off the end of the stand.
  */
 const MACHINE_ALONG = 0.72;
+
+/**
+ * …and no further than this, whatever the rig is.
+ *
+ * A fraction of the footprint alone is wrong at the top end: a modular carrying
+ * three keyboards is 1.45 m of gear, and 72% of that puts the machine past the
+ * arm that has to start it. The verifier caught it the moment wings landed —
+ * 1.14 m from the tender against a 1.1 m reach — which is the check doing
+ * exactly its job, since nothing about the machine changed. Reach is a fact
+ * about a person and does not grow with their equipment.
+ */
+const MACHINE_ALONG_MAX = 0.78;
 
 /**
  * How far above the playing surface the machine sits, and how far behind it.
@@ -2521,7 +2554,7 @@ function placeMachine(song: Song, slots: Slot[], venue: Venue): StageMachine[] {
    * slide off the end of it — the same composition `show.ts` does when it hangs
    * an instrument off a performer.
    */
-  const along = out * tender.r * MACHINE_ALONG;
+  const along = out * Math.min(tender.r * MACHINE_ALONG, MACHINE_ALONG_MAX);
   const back = MACHINE_BEHIND;
   const cos = Math.cos(tender.facing);
   const sin = Math.sin(tender.facing);

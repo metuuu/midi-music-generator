@@ -51,6 +51,7 @@
 import type { BufferGeometry, InstancedMesh, Material, Mesh, Object3D } from 'three';
 import { Group } from 'three';
 
+import type { BoardSpec } from '../../../concert/instruments.js';
 import type { DrumEvent } from '../../../core/types.js';
 
 /**
@@ -75,6 +76,20 @@ export interface SynthRigOptions {
   keyBackZ: number;
   /** Length of a white key, front to back, so a case can be sized around it. */
   whiteLength: number;
+  /**
+   * The extra keyboards this station carries, beyond the one under the hands.
+   *
+   * Empty for every rig but a modular, which is a frame rather than a keyboard
+   * — see `SynthRigSpec.maxBoards`. The rig's job is to hold them up: the keys
+   * themselves belong to `synth.ts` on the other side of this seam, and a rig
+   * that moved one would break the contact its own choreography was written
+   * against.
+   *
+   * Board 0 is deliberately not in here. It sits on whatever this rig already
+   * builds for it, and passing it would invite a second shelf under the one
+   * keyboard that already has one.
+   */
+  extraBoards?: readonly BoardSpec[];
   /**
    * A machine this rig *contains*, if the band's is mounted here.
    *

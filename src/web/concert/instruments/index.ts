@@ -128,6 +128,7 @@ export function buildInstrumentFor(
     ...(year !== undefined ? { year } : {}),
     ...(drums === 'electronic-kit' ? { electronic: true } : {}),
     ...(performer.rig ? { rig: performer.rig } : {}),
+    ...(performer.boards ? { boards: performer.boards } : {}),
     ...(machine ? { machine } : {}),
   }));
 }

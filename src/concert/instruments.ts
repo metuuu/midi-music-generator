@@ -524,6 +524,15 @@ export interface SynthRigSpec {
    * back and stand in front of it.
    */
   furniture: boolean;
+  /**
+   * The most keyboards a player stands at behind this rig.
+   *
+   * One for everything but the modular, and that is not a limitation of the
+   * models — it is what the objects were. A Prophet is a keyboard and a DX7 is a
+   * keyboard; a modular is a *frame*, and what a player put in it was as many
+   * boards as the music wanted. See `boardsFor`.
+   */
+  maxBoards: number;
 }
 
 export const SYNTH_RIGS: Record<SynthRigId, SynthRigSpec> = {
@@ -548,7 +557,7 @@ export const SYNTH_RIGS: Record<SynthRigId, SynthRigSpec> = {
    */
   modular: {
     id: 'modular', label: 'modular system', from: 1973, to: 1985,
-    max: 2, footprint: 1.25, height: 1.72, furniture: true,
+    max: 2, footprint: 1.25, height: 1.72, furniture: true, maxBoards: 4,
   },
   /**
    * 1978–83. The keyboard *is* the instrument: wooden end-cheeks, one row of
@@ -570,7 +579,7 @@ export const SYNTH_RIGS: Record<SynthRigId, SynthRigSpec> = {
    */
   polysynth: {
     id: 'polysynth', label: 'polysynth', from: 1963, to: 1990,
-    max: 99, footprint: 0.95, height: 1.05, furniture: false,
+    max: 99, footprint: 0.95, height: 1.05, furniture: false, maxBoards: 1,
   },
   /**
    * 1984–90. A thin plastic slab with membrane buttons and no knobs, usually
@@ -578,7 +587,7 @@ export const SYNTH_RIGS: Record<SynthRigId, SynthRigSpec> = {
    */
   digital: {
     id: 'digital', label: 'digital synth', from: 1984, to: 2100,
-    max: 99, footprint: 0.95, height: 1.35, furniture: false,
+    max: 99, footprint: 0.95, height: 1.35, furniture: false, maxBoards: 1,
   },
 };
 
@@ -621,6 +630,89 @@ export const SYNTH_RIGS: Record<SynthRigId, SynthRigSpec> = {
 const GENRE_RIG_VETO: Record<string, SynthRigId[]> = {
   iskelma: ['modular'],
 };
+
+// ---------------------------------------------------------------------------
+// How many keyboards, and where they are
+// ---------------------------------------------------------------------------
+
+/**
+ * One keyboard at a station, in the station's own frame.
+ *
+ * **This table is the single owner of the layout**, and that matters more than
+ * where it happens to live. Two systems need it and they must not disagree: the
+ * model in `web/concert/instruments/synth.ts` puts the keys there, and the
+ * choreographer in `concert/choreograph.ts` decides whether a hand has time to
+ * get from one to another. A second copy of these numbers would let the
+ * geometry and the travel budget drift, and the failure would look like a hand
+ * arriving early on a board it could not have reached — which is exactly the
+ * class of bug this project's own IR seam exists to make impossible.
+ *
+ * It is geometry in a directory that is otherwise geometry-free, which is the
+ * same exception `ArchetypeSpec.footprint` and `workHeight` already are, and for
+ * the same reason: the stager and the choreographer cannot do their jobs
+ * without a few real measurements.
+ */
+export interface BoardSpec {
+  /** Metres from the station origin: `x` across, `y` up, `z` away from player. */
+  at: readonly [number, number, number];
+  /** Radians, toed in toward the player. Sign follows the staging convention. */
+  yaw: number;
+  /** What this board can play. The main one is 88 keys; the extras are 61. */
+  range: readonly [Midi, Midi];
+}
+
+/** The board every keyboard player has: 88 keys, square, under the hands. */
+const MAIN_BOARD: BoardSpec = { at: [0, 0, 0], yaw: 0, range: [21, 108] };
+
+/**
+ * The extras, in the order a player would actually add them.
+ *
+ * **A tier before a wing.** The second keyboard anybody buys goes *above* the
+ * first, because it costs no floor and both hands can still reach it — which is
+ * also why a two-tier stand is the silhouette of the era. Only the fourth and
+ * fifth boards go out to the sides, where they cost width and reach.
+ *
+ * The tier sits 0.285 m up and 0.24 m further from the player: high enough to
+ * clear a hand on the lower board with the same margin `synth-rig-digital.ts`
+ * argues for at length, and set back because everything past that is stretch.
+ *
+ * The wings are toed in half a radian and held at ±0.95, which keeps their
+ * inner ends clear of the main board's own 0.61 m half-width in `z` rather than
+ * in `x` — they sit 0.21 m further from the player than the main keys end.
+ */
+const EXTRA_BOARDS: readonly BoardSpec[] = [
+  { at: [0, 0.285, 0.24], yaw: 0, range: [36, 96] },
+  { at: [0.95, 0.06, 0.16], yaw: -0.5, range: [36, 96] },
+  { at: [-0.95, 0.06, 0.16], yaw: 0.5, range: [36, 96] },
+];
+
+/**
+ * The most boards any station carries. Beyond this a player is a trade stand.
+ *
+ * `SYNTH_RIGS.modular.maxBoards` says 4 as a literal rather than referring to
+ * this, because that table is declared above and a const cannot be read before
+ * it exists. The check in `npm run concert` asserts the two agree.
+ */
+export const MAX_BOARDS = 1 + EXTRA_BOARDS.length;
+
+export function boardsFor(count: number): BoardSpec[] {
+  const n = Math.max(1, Math.min(MAX_BOARDS, Math.floor(count)));
+  return [MAIN_BOARD, ...EXTRA_BOARDS.slice(0, n - 1)];
+}
+
+/**
+ * How far apart two boards are, in metres, for the travel budget.
+ *
+ * Centre to centre and including the height difference, because a hand going up
+ * to a tier is travelling as surely as one going sideways — more so, since it
+ * has to clear the board it is leaving.
+ */
+export function boardGap(boards: BoardSpec[], a: number, b: number): number {
+  const p = boards[a]?.at;
+  const q = boards[b]?.at;
+  if (!p || !q) return 0;
+  return Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
+}
 
 export function rigPoolFor(
   year: number, genre?: string,

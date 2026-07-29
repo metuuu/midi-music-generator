@@ -244,6 +244,14 @@ export interface InstrumentBuildOptions {
    */
   rig?: SynthRigId;
   /**
+   * How many keyboards this player is standing at. Absent means one.
+   *
+   * From `Performer.boards`, and the layout for a given count is `boardsFor` in
+   * `concert/instruments.ts` — which both this model and the choreographer read,
+   * so the keys and the travel budget cannot disagree about where a board is.
+   */
+  boards?: number;
+  /**
    * A machine this instrument *contains*, where the band's is mounted in it.
    *
    * See `SynthRigOptions.machine` and `StageMachine.mount`. Only reaches a rig

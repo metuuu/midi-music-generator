@@ -650,6 +650,46 @@ export const buildModularRig: SynthRigBuilder = (opts: SynthRigOptions): SynthRi
     fillRow(frame, 0, 0, conW - 0.06, slope);
   }
 
+  // --- Shelves for the extra boards ----------------------------------------
+  //
+  // A frame with several keyboards in it needs something under each of them,
+  // and the seam says which side of the line that is: `synth.ts` owns the keys
+  // and this owns everything holding them off the floor. So the layout arrives
+  // as measurements — `SynthRigOptions.extraBoards` — and a shelf is built to
+  // fit rather than a board being placed to fit a shelf.
+
+  for (const board of opts.extraBoards ?? []) {
+    const [bx, by, bz] = board.at;
+    const frame = new Matrix4().makeRotationY(board.yaw).setPosition(bx, kt + by, bz);
+    /**
+     * The tray, at the board's own height and a shade under it.
+     *
+     * `kt` is the key plane, so `kt + by` is where this board's keys are and the
+     * tray sits below by the depth of a keybed's own case. Wide enough for a
+     * 61-note board and no wider: this is a shelf a player bolted on, not a
+     * piece of furniture.
+     */
+    const shelfWide = 0.90;
+    carcass.box(frame, 0, -0.055, kb + 0.02, shelfWide, 0.055, 0.30);
+    wood.box(frame, 0, -0.021, kb - 0.13, shelfWide + 0.02, 0.016, 0.05);
+
+    /**
+     * Two posts down to the boards, and their length is measured rather than
+     * assumed: a wing at `by = 0.06` needs a metre of leg and a tier at 0.285
+     * needs to reach only as far as the frame under it. Scaling one unit post
+     * is what `Bank.box` is for.
+     */
+    const drop = kt + by - 0.083;
+    if (drop > 0.05) {
+      for (const side of [1, -1]) {
+        legs.add(new Matrix4()
+          .makeTranslation(side * (shelfWide / 2 - 0.07), -0.055 - drop / 2, kb + 0.02)
+          .scale(new Vector3(1, drop, 1))
+          .premultiply(frame));
+      }
+    }
+  }
+
   // --- The wings -----------------------------------------------------------
 
   /**

@@ -214,6 +214,27 @@ export type PlayPoint =
      * choreographed before this existed.
      */
     bellows?: number;
+    /**
+     * Which keyboard, where the player is standing at more than one.
+     *
+     * `0` — and absent — is the board under the hands: the one a player with a
+     * single keyboard is at, and the one anything written before this existed
+     * meant. Higher indices are the extra boards a station carries, laid out by
+     * `boardsFor` in `concert/instruments.ts`.
+     *
+     * On the `PlayPoint` rather than inferred from pitch, and that is the whole
+     * design. A model asked to pick a board from the note would send the same
+     * phrase to a different keyboard whenever it crossed a register line, and
+     * the hands would flit between boards mid-figure. *Which* board is a
+     * decision about the music — this line is the lead and it wants the board
+     * with the lead sound on it — so it belongs to the thing that can see the
+     * phrase, exactly as `bellows` above does for the same reason.
+     *
+     * A board the model does not have resolves to `undefined` rather than
+     * falling back to board 0. A hand that visibly does not know where to go is
+     * a bug worth seeing.
+     */
+    board?: number;
   }
   /** A stopped string. `string` indexes `ArchetypeSpec.strings`, low to high. */
   | { kind: 'string'; string: number; fret: number }
@@ -604,6 +625,15 @@ export interface Performer {
    * and block different amounts of sightline.
    */
   rig?: SynthRigId;
+  /**
+   * How many keyboards this player is standing at. Absent means one.
+   *
+   * Only a modular carries more than one today — see `SynthRigSpec.maxBoards`.
+   * It is in the IR rather than drawn in the renderer for the reason `rig` is:
+   * the choreographer decides which board a phrase is played on and cannot see
+   * geometry, so it has to be told how many there are and how far apart.
+   */
+  boards?: number;
 }
 
 export interface Cast {

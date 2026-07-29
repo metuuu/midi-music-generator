@@ -26,6 +26,7 @@ import {
   Vector3,
 } from 'three';
 
+import { boardsFor, type BoardSpec } from '../../../concert/instruments.js';
 import type { GestureKind, PlayPoint, SynthRigId } from '../../../concert/types.js';
 import { buildDigitalRig } from './synth-rig-digital.js';
 import { buildModularRig } from './synth-rig-modular.js';
@@ -51,15 +52,32 @@ const BLACK_H = 0.014;
 function whiteIndex(midi: number): number {
   return Math.floor(midi / 12) * 7 + WHITE_AT[midi % 12]!;
 }
-const WHITE_COUNT = whiteIndex(HIGH) - whiteIndex(LOW) + 1;
+
+/** Whites across a board spanning `lo..hi`, and therefore how wide it is. */
+function whiteCount(lo: number, hi: number): number {
+  return whiteIndex(hi) - whiteIndex(lo) + 1;
+}
+function boardWidth(lo: number, hi: number): number {
+  return whiteCount(lo, hi) * WHITE_W;
+}
+
+const WHITE_COUNT = whiteCount(LOW, HIGH);
 const BOARD_W = WHITE_COUNT * WHITE_W;
 
-function keyU(midi: number): number {
-  const i = whiteIndex(midi) - whiteIndex(LOW);
+/**
+ * Where a key sits across its own board, in that board's local frame.
+ *
+ * Takes the board's range rather than assuming the full 88, because a station
+ * may carry a 61-note board beside an 88 and the two number their whites from
+ * different places. Pitch still runs bass at `+x` to treble at `-x` on every one
+ * of them; the argument is in `grand-piano.ts`.
+ */
+function keyU(midi: number, lo: number): number {
+  const i = whiteIndex(midi) - whiteIndex(lo);
   return BLACK[midi % 12]! ? (i + 1) * WHITE_W : (i + 0.5) * WHITE_W;
 }
-function keyX(midi: number): number {
-  return BOARD_W / 2 - keyU(midi);
+function keyX(midi: number, lo: number, hi: number): number {
+  return boardWidth(lo, hi) / 2 - keyU(midi, lo);
 }
 
 const KEY_BACK_Z = -0.05;
@@ -162,6 +180,12 @@ export const buildSynth: InstrumentBuilder = (opts) => {
   root.name = 'synth';
 
   /**
+   * How many keyboards, and where. Read before the rig is built because the rig
+   * has to put a shelf under each of the extra ones.
+   */
+  const layout = boardsFor(opts.boards ?? 1);
+
+  /**
    * The rig is handed measurements of the keybed rather than importing them, so
    * that a change to the keyboard cannot leave a case sized for the old one.
    * Nothing comes back the other way: a rig cannot move a key and is never
@@ -175,48 +199,90 @@ export const buildSynth: InstrumentBuilder = (opts) => {
     keyBackZ: KEY_BACK_Z,
     whiteLength: WHITE_L,
     ...(opts.machine ? { machine: opts.machine } : {}),
+    // Board 0 is the one every rig already builds a shelf for; the rest are the
+    // rig's to support. See `SynthRigOptions.extraBoards`.
+    ...(layout.length > 1 ? { extraBoards: layout.slice(1) } : {}),
   });
   addTo(root, rig.group);
 
   const ivoryMat = new MeshStandardMaterial({ color: '#eceade', roughness: 0.44, metalness: 0 });
   const ebonyMat = new MeshStandardMaterial({ color: '#141417', roughness: 0.4, metalness: 0 });
 
-  // --- Keybed --------------------------------------------------------------
+  // --- Keybeds -------------------------------------------------------------
+  //
+  // One per board. A station with several is a *frame* with keyboards in it —
+  // see `boardsFor` — and every board here is a real keybed with real keys that
+  // `resolve` can send a hand to. That is the whole point of the change: the
+  // second row of keys on this stage used to be scenery.
+  //
+  // The geometry is shared and the layout is not. Every board reuses one white
+  // and one black `BoxGeometry` through two instanced meshes, so four boards
+  // cost four draw calls rather than four hundred.
 
   const whiteGeo = new BoxGeometry(WHITE_W * 0.94, WHITE_H, WHITE_L);
   whiteGeo.translate(0, -WHITE_H / 2, -WHITE_L / 2);
   const blackGeo = new BoxGeometry(BLACK_W, BLACK_H, BLACK_L);
   blackGeo.translate(0, -BLACK_H / 2, -BLACK_L / 2);
 
-  const whites: number[] = [];
-  const blacks: number[] = [];
-  for (let m = LOW; m <= HIGH; m++) (BLACK[m % 12]! ? blacks : whites).push(m);
-
-  const whiteMesh = addTo(root, new InstancedMesh(whiteGeo, ivoryMat, whites.length));
-  const blackMesh = addTo(root, new InstancedMesh(blackGeo, ebonyMat, blacks.length));
-  whiteMesh.name = 'keys:white';
-  blackMesh.name = 'keys:black';
-  whiteMesh.receiveShadow = true;
-  blackMesh.castShadow = true;
-
   interface Key { mesh: InstancedMesh; slot: number; pivot: Vector3; hit: Hit }
-  const keys = new Map<number, Key>();
+  interface Board {
+    spec: BoardSpec;
+    /** Board-local → model-local. Composed once; `resolve` reads it every call. */
+    place: Matrix4;
+    keys: Map<number, Key>;
+  }
   const scratch = new Matrix4();
   const quat = new Quaternion();
   const one = new Vector3(1, 1, 1);
   const xAxis = new Vector3(1, 0, 0);
+  const yAxis = new Vector3(0, 1, 0);
 
-  function seat(mesh: InstancedMesh, list: number[], y: number): void {
-    list.forEach((midi, slot) => {
-      const pivot = new Vector3(keyX(midi), y, KEY_BACK_Z);
-      scratch.makeTranslation(pivot.x, pivot.y, pivot.z);
-      mesh.setMatrixAt(slot, scratch);
-      keys.set(midi, { mesh, slot, pivot, hit: new Hit() });
-    });
-    mesh.instanceMatrix.needsUpdate = true;
-  }
-  seat(whiteMesh, whites, KEY_TOP_Y);
-  seat(blackMesh, blacks, BLACK_TOP_Y);
+  const boards: Board[] = layout.map((spec, index) => {
+    const [lo, hi] = spec.range;
+    const whites: number[] = [];
+    const blacks: number[] = [];
+    for (let m = lo; m <= hi; m++) (BLACK[m % 12]! ? blacks : whites).push(m);
+
+    /**
+     * Where this board sits, as one matrix.
+     *
+     * Board 0 is the identity by construction — `boardsFor` puts it at the
+     * origin with no yaw — so a single-board station composes exactly the
+     * transforms it did before this existed, and nothing about it can have
+     * moved.
+     */
+    const place = new Matrix4()
+      .makeRotationY(spec.yaw)
+      .setPosition(spec.at[0], spec.at[1], spec.at[2]);
+
+    const whiteMesh = addTo(root, new InstancedMesh(whiteGeo, ivoryMat, whites.length));
+    const blackMesh = addTo(root, new InstancedMesh(blackGeo, ebonyMat, blacks.length));
+    whiteMesh.name = `keys:white:${index}`;
+    blackMesh.name = `keys:black:${index}`;
+    whiteMesh.receiveShadow = true;
+    blackMesh.castShadow = true;
+    whiteMesh.matrixAutoUpdate = false;
+    blackMesh.matrixAutoUpdate = false;
+    whiteMesh.matrix.copy(place);
+    blackMesh.matrix.copy(place);
+
+    const keys = new Map<number, Key>();
+    const seat = (mesh: InstancedMesh, list: number[], y: number): void => {
+      list.forEach((midi, slot) => {
+        // Board-local: the instanced mesh already carries `place`, so a key's
+        // own matrix must not carry it a second time.
+        const pivot = new Vector3(keyX(midi, lo, hi), y, KEY_BACK_Z);
+        scratch.makeTranslation(pivot.x, pivot.y, pivot.z);
+        mesh.setMatrixAt(slot, scratch);
+        keys.set(midi, { mesh, slot, pivot, hit: new Hit() });
+      });
+      mesh.instanceMatrix.needsUpdate = true;
+    };
+    seat(whiteMesh, whites, KEY_TOP_Y);
+    seat(blackMesh, blacks, BLACK_TOP_Y);
+
+    return { spec, place, keys };
+  });
 
   const moving = new Set<Key>();
   const UP = new Vector3(0, 1, 0);
@@ -236,17 +302,29 @@ export const buildSynth: InstrumentBuilder = (opts) => {
         };
       }
       if (point.kind !== 'key') return undefined;
+      const board = boards[point.board ?? 0];
+      /**
+       * A board this station does not have is `undefined`, not board 0.
+       *
+       * Falling back would hide a choreography bug behind a hand that looks
+       * fine — the model's contract is that a point it does not recognise gets
+       * no guess, precisely so the failure is visible.
+       */
+      if (!board) return undefined;
       const midi = point.midi;
-      if (midi < LOW || midi > HIGH || !Number.isInteger(midi)) return undefined;
+      const [lo, hi] = board.spec.range;
+      if (midi < lo || midi > hi || !Number.isInteger(midi)) return undefined;
       const black = BLACK[midi % 12]!;
       return {
         position: new Vector3(
-          keyX(midi),
+          keyX(midi, lo, hi),
           black ? BLACK_TOP_Y : KEY_TOP_Y,
           black ? BLACK_TOUCH_Z : WHITE_TOUCH_Z,
-        ),
-        normal: UP.clone(),
-        along: ACROSS.clone(),
+        ).applyMatrix4(board.place),
+        // Turned with the board: a wing is toed in half a radian, so "up off
+        // the keys" and "along the knuckles" are not the model's axes there.
+        normal: UP.clone().applyAxisAngle(yAxis, board.spec.yaw),
+        along: ACROSS.clone().applyAxisAngle(yAxis, board.spec.yaw),
       };
     },
 
@@ -255,7 +333,7 @@ export const buildSynth: InstrumentBuilder = (opts) => {
       _kind?: GestureKind, hold?: number,
     ): void {
       if (point.kind !== 'key') return;
-      const key = keys.get(point.midi);
+      const key = boards[point.board ?? 0]?.keys.get(point.midi);
       if (!key) return;
       key.hit.fire(now, force, hold);
       moving.add(key);
@@ -266,8 +344,7 @@ export const buildSynth: InstrumentBuilder = (opts) => {
 
     update(now: number): void {
       if (moving.size > 0) {
-        let whiteDirty = false;
-        let blackDirty = false;
+        const dirty = new Set<InstancedMesh>();
         for (const key of moving) {
           // Slower than a piano: a pad is held, and a synth action is squashy.
           const env = key.hit.level(now, 0.40);
@@ -275,11 +352,11 @@ export const buildSynth: InstrumentBuilder = (opts) => {
           quat.setFromAxisAngle(xAxis, -dip);
           scratch.compose(key.pivot, quat, one);
           key.mesh.setMatrixAt(key.slot, scratch);
-          if (key.mesh === whiteMesh) whiteDirty = true; else blackDirty = true;
+          dirty.add(key.mesh);
           if (env < 0.02) moving.delete(key);
         }
-        if (whiteDirty) whiteMesh.instanceMatrix.needsUpdate = true;
-        if (blackDirty) blackMesh.instanceMatrix.needsUpdate = true;
+        // Which meshes rather than which two: with four boards there are eight.
+        for (const mesh of dirty) mesh.instanceMatrix.needsUpdate = true;
       }
       rig.update?.(now);
     },
