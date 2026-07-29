@@ -187,6 +187,35 @@ synthesiser you can look over and one you cannot.
 
 ## 6. The modular station
 
+### 6.0 The clue is in the name
+
+A modular is not one object with a fixed set of parts. It is a frame with **modules in
+it**, chosen for what the band needs that year, and the whole reason it is worth staging
+is that the choice is visible from the fourth row.
+
+Today the rig fills its three rack rows from one weighted table of anonymous panels —
+jacks, knobs, sliders, mixed. That is the right texture and the wrong level of meaning:
+it says "a lot of hardware" and cannot say *which* hardware, so the rig cannot answer any
+question the rest of the show asks it.
+
+So the bays become named. A modular is assembled from what this number actually needs:
+
+| Bay | Present when | What it shows |
+|---|---|---|
+| voice | always | oscillators, filters — the anonymous panels it has now |
+| sequencer | a machine-played part (§8) | a step row, running in time |
+| percussion | the drum source is a machine (§4) and this rig is the nearest | the drum machine, as a module |
+| keyboard | one to three, plus one above | see §6.1 |
+
+That is one mechanism answering three separate complaints. The drum machine gets a home
+that explains it (§8.0). A sequencer gets somewhere to be that is not a second table. And
+the several-keyboards idea in §6.1 stops being a special case bolted onto a synthesiser
+and becomes what it always was — another kind of module in the same frame.
+
+It also gives the rig a reason to differ between numbers, which nothing else on this
+stage does: a band that sequences its bass has a sequencer bay and a band that does not,
+does not, and you can see which from the audience.
+
 ### 6.1 Several boards, one player
 
 A modular station is a horseshoe: the cabinets behind, one to three keyboards around the
@@ -271,6 +300,37 @@ mechanism is pointed at a genre that wants it more than jazz does.
 
 ---
 
+## 7b. A genre gets a veto on gear
+
+`rigPoolFor` keys on the year and nothing else, on the argument — borrowed from
+`InstrumentBuildOptions.year`, where it is correct — that what a synthesiser *looked
+like* is a fact about a decade rather than about a genre. That argument is sound and it
+answers the wrong question. What an object looked like in 1968 is indeed a fact about
+1968. **Whether this band owns one is a fact about the band.**
+
+Measured: iskelmä's tanssilava era stages 14 modular systems across 30 concerts, because
+`padWarm` sits in its pad palette, maps to the `synth` archetype, and 1968 offers a
+modular at weight 6. A Moog System 55 at a Finnish dance pavilion, behind an accordion
+player.
+
+So the pool takes the shape the percussion source already has, which is the shape that
+worked:
+
+1. **The year gate stays hard and stays first.** No genre table can stage a DX7 in 1974.
+2. **The genre or era authors the weights**, and may write zero. Iskelmä owns no modular
+   in any era — a pavilion band hired a van, not a cabinet wall. Ambient and synth own
+   them freely.
+3. **Absent means the year's default**, so jazz and anything added later keep working
+   without an entry.
+
+The same correction applies one level down and is already half-built. `Style.boxDrums`
+exists to let a style whose subject is the drummer refuse a rhythm box outright, and it
+is currently set on **no style at all** — which is why a humppa comes out with a box
+playing it. Humppa, jenkka, tango and valssi are dances a live band plays for people
+dancing; the drummer is the point of them.
+
+---
+
 ## 8. Machines that play themselves
 
 This is the multiplier. A sequenced bassline, a latched drone, an arpeggiator — none of
@@ -278,6 +338,47 @@ them needs a hand at all, and that is what takes five keyboard players down to o
 two. `Track.machine` names the station that owns it and the cycle it repeats; casting
 creates **no performer** for such a track, but a station must own it or it has nowhere
 to stand.
+
+### 8.0 A machine is a bay in somebody's rig, never a table of its own
+
+**This replaces what Wave 0 shipped, and Wave 0 was wrong.**
+
+What landed was a free-standing drum machine: a box on a folding table, placed beside the
+nearest keyboard player, facing wherever that player faced. It is confusing to look at,
+and the two reasons are worth separating because only one of them is about the object.
+
+- **It explains nothing.** A lone box on a table produces a full drum part. There is no
+  visual account of why that table is making drum sounds, so the eye files it as scenery
+  and the percussion still arrives from nowhere — which is the failure the box was
+  introduced to fix, relocated rather than solved.
+- **It faces the wrong way.** It inherits the tender's yaw, so on a player turned 26° in
+  toward the arc the panel — the only part with anything to see on it — points across the
+  stage rather than at the room.
+
+The fix is not to re-aim it. It is that **gear is mounted, not parked**. A machine
+belongs in the rig of the person who works it:
+
+- **Where there is a modular**, it is a percussion bay in the cabinet, alongside the
+  oscillators and the sequencer. This is what a modular *is* — a set of modules chosen
+  for what the band needs — and it is the arrangement that needs no explanation at all,
+  because a wall of modules with somebody standing at it already reads as one instrument
+  being operated.
+- **Where there is no modular**, it sits on top of the keyboard rig, on the end of the
+  stand, tilted to the room. A rhythm box on top of an organ is not a compromise here; it
+  is the single most characteristic iskelmä object of the period.
+- **Where there is no keyboard either**, it goes on the end of whatever rack is nearest,
+  still on somebody's gear. Nothing on this stage is a table with a box on it.
+
+Two consequences follow, and both are improvements rather than costs. **`tendedBy` stops
+being optional** — a machine now always belongs to a rig, so there is always a person
+whose hand can start it, which is the "cause" half of §8.1 becoming structural instead of
+best-effort. And **the machine's facing comes from the rig it is bolted to**, not from
+the player's body, so a panel is aimed at the house by construction.
+
+The measurement that shaped this: folding the machine into the modular alone covers a
+small minority of the cases. 24 of 25 machine numbers in iskelmä's tanssilava era have no
+modular on stage, 68 of 68 in its eighties era, and 97 of 97 in ambient's sampler era.
+The mounting rule has to generalise past the modular or it fixes almost nothing.
 
 ### 8.1 The rule that makes it survivable
 
@@ -408,13 +509,33 @@ The `BULKY` route this plan proposed was not taken. `BULKY` is the front-line ru
 `layoutModulars` before either the arc or the front line runs, which is a smaller change
 than teaching the piano rules about a second kind of furniture.
 
+**Wave 1b — the corrections, before anything new is built on them.**
+The genre veto on rigs (§7b) so iskelmä stops staging Moog systems; `boxDrums: false` on
+humppa, jenkka, tango and valssi; the free-standing drum machine replaced by a mounted
+bay (§8.0). Small, and it removes three things that are visibly wrong now rather than
+adding a fourth on top of them.
+
 **Wave 2 — machines that play themselves.**
 `Track.machine`, no performer for a machine track, the start gesture, the stepping
-lights. Cause and consequence land together or not at all.
+lights. Cause and consequence land together or not at all. Rides on the mounting rule
+from Wave 1b — a sequencer is a bay, for the same reason a drum machine is.
 
 **Wave 3 — the multi-board station and the hands.**
 N keybeds on the synth model, board index on the `key` point, crossing costs, the travel
-budget, synth `twoHanded` styles. The largest wave and the one most likely to be cut.
+budget, synth `twoHanded` styles. The largest wave and the one most likely to be cut. By
+this point the keyboards are a bay in the frame (§6.0) rather than a new kind of object.
+
+### Not in any wave, and worth saying so
+
+**The hex-pad kit is already built** — Wave 0 shipped it. Hexagonal shells, flat rubber
+pads, no chrome hoops, matte black, and all fourteen contacts identical to the acoustic
+kit so the drummer plays exactly the same kit. It is live in iskelmä's eighties era and
+both later synth eras. What it has *not* had is a pair of eyes: every check on it so far
+has been headless — bounds, floor contact, contact identity, and that the surface moves
+when struck. The same is true of the rhythm box and of every staging change in Wave 1.
+
+Nothing here is blocked on looking at it. It is the cheapest remaining way to find out
+that something is wrong.
 
 ---
 
