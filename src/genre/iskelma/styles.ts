@@ -35,6 +35,12 @@ const tango: Style = {
   beatUnit: 4,
   bpm: [96, 126],
   swing: 0,
+  /**
+   * The Finnish tango is a band's dance. Its whole character is rubato that a
+   * preset pattern cannot bend to — the pull against the beat is the thing, and
+   * a box holds the beat exactly, which is the one thing this must not do.
+   */
+  boxDrums: false,
   modeWeights: { minor: 0.94, major: 0.06 },
   relativeMajorChorus: 0.45,
   progressions: {
@@ -162,6 +168,14 @@ const humppa: Style = {
   beatUnit: 4,
   bpm: [132, 164],
   swing: 0,
+  /**
+   * No rhythm box, ever. A humppa is 132–164 bpm of oom-pah with a hall full of
+   * people dancing to it, and what keeps them together is a drummer pushing —
+   * the accordion states the tune and the kit does the driving. A preset box
+   * plays one pattern at one weight and cannot push anything; the dance would
+   * still be in time and would have nothing behind it.
+   */
+  boxDrums: false,
   // Humppa is relentless by design — the whole dance depends on the tune coming
   // round again without asking anyone to follow a development.
   hook: 'catchy',
@@ -269,6 +283,12 @@ const valssi: Style = {
   beatUnit: 4,
   bpm: [150, 190],
   swing: 0,
+  /**
+   * A rhythm box has a *Waltz* button, and that is precisely the trap. The
+   * preset is a metronome in three; a pavilion valssi lives on the lift into
+   * the downbeat, which is a drummer listening to a room.
+   */
+  boxDrums: false,
   modeWeights: { minor: 0.58, major: 0.42 },
   relativeMajorChorus: 0.35,
   progressions: {
@@ -360,6 +380,11 @@ const jenkka: Style = {
   beatUnit: 4,
   bpm: [140, 170],
   swing: 0,
+  /**
+   * As humppa, and more so: at 140–170 with the dotted figure doing the work,
+   * the bounce *is* the drummer. See `boxDrums` there.
+   */
+  boxDrums: false,
   modeWeights: { minor: 0.14, major: 0.86 },
   relativeMajorChorus: 0,
   progressions: {
