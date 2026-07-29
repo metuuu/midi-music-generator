@@ -534,6 +534,67 @@ check('visemes exist exactly when there is a voice', visemeGaps === 0,
 }
 
 /**
+ * A sequenced part has no player, and a sequencer has somebody who could work it.
+ *
+ * Both halves, because both are ways of getting this wrong and they fail in
+ * opposite directions. Staging a performer for a machine-played line is the
+ * drummer-miming-a-Mini-Pops bug one layer up — somebody on the boards with a
+ * part they are not playing. Leaving the machine with nobody near it is the
+ * lone-table bug: a sound with no visible cause.
+ *
+ * The host check is the interesting one, because `held: false` was doing the
+ * job on its own and let in exactly the wrong people. A drummer, a harpist, a
+ * cellist and a mallet player all stand at their instruments and none of them
+ * has a hand free between downbeats.
+ */
+{
+  let ghosts = 0;
+  let hostless = 0;
+  let busyHost = 0;
+  let sequencers = 0;
+  let bays = 0;
+  const BUSY = ['drumkit', 'harp', 'mallets', 'cello', 'upright-bass'];
+  const notes: string[] = [];
+  for (const gid of CHECKED_GENRES) {
+    for (let i = 0; i < 5; i++) {
+      const concert = buildConcert({ seed: `seq-${gid}-${i}`, genre: gid });
+      for (const number of concert.numbers) {
+        const machined = new Set(
+          number.song.tracks.filter((t) => t.machine).map((t) => t.layer),
+        );
+        for (const p of number.cast.performers) {
+          if (!machined.has(p.layer)) continue;
+          ghosts++;
+          if (notes.length < 3) notes.push(`${gid}#${i} ${p.id} plays a sequenced ${p.layer}`);
+        }
+        for (const m of number.cast.machines ?? []) {
+          if (m.kind !== 'sequencer') continue;
+          sequencers++;
+          if (m.mount === 'bay') bays++;
+          const host = number.cast.performers.find((p) => p.id === m.tendedBy);
+          if (!host) {
+            // Only forgivable on a stage with nobody eligible on it at all.
+            if (number.cast.performers.some((p) => !BUSY.includes(p.archetype))) hostless++;
+            continue;
+          }
+          if (BUSY.includes(host.archetype)) {
+            busyHost++;
+            if (notes.length < 3) notes.push(`${gid}#${i} ${host.archetype} hosting a sequencer`);
+          }
+        }
+      }
+    }
+  }
+  check('nobody is staged playing a part a machine is playing', ghosts === 0,
+    ghosts ? `${ghosts}: ${notes.join('; ')}` : `${sequencers} sequencers, no ghost players`);
+  check('every sequencer has someone who could work it',
+    hostless === 0 && busyHost === 0,
+    hostless || busyHost
+      ? `${hostless} hostless, ${busyHost} on hands that are full: ${notes.join('; ')}`
+      : `${sequencers} hosted, ${bays} of them as a module in a modular`);
+}
+
+/**
  * No hand crosses to another keyboard faster than it could have got there.
  *
  * The teleport test, and the reason the board layout has exactly one owner:

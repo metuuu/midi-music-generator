@@ -730,6 +730,18 @@ function roster(
     for (const track of song.tracks) {
       if (track.layer !== layer) continue;
       /**
+       * …and a part nobody's fingers are on gets nobody.
+       *
+       * `Track.machine` says a sequencer is running this line. Staging a
+       * performer for it would put a keyboard player on the boards with a part
+       * they are not playing — which is the same failure as the drummer miming
+       * a Mini Pops, one layer up. The sequencer is placed by `placeMachine`
+       * instead, in the rig of a player who *is* here, and that player works
+       * it: a number that would have needed a fourth keyboard needs three, and
+       * all three are busier rather than idler.
+       */
+      if (track.machine) continue;
+      /**
        * The voice is not drawn from the instrument catalogue — it has no GM
        * program that means "a person" — so `archetypeForTrack` would look up a
        * choir patch and stage a keyboard player. `Track.voice` is the field
@@ -2432,7 +2444,7 @@ export function castSong(song: Song, venue: Venue, seed: string): Cast {
     };
   });
 
-  const machines = placeMachine(song, slots, venue);
+  const machines = placeMachines(song, slots, venue);
 
   return {
     performers,
@@ -2440,6 +2452,28 @@ export function castSong(song: Song, venue: Venue, seed: string): Cast {
     ...(machines.length ? { machines } : {}),
   };
 }
+
+/**
+ * Players who are standing at their instrument and still have no hand to spare.
+ *
+ * `held` says whether an instrument is *carried*, which is the right question
+ * for whether a body sways with it and the wrong one for whether its player has
+ * a spare hand. Every archetype below stands on the floor and passes that test,
+ * and not one of them could reach over and start a sequencer:
+ *
+ *  - a **drummer** has the busiest hands on the stage and both feet as well;
+ *  - a **harpist** has both hands in the strings and a **mallet** player a
+ *    stick in each;
+ *  - a **cellist** and an **upright bassist** have one hand stopping and one
+ *    bowing or plucking, and letting go of either stops the note.
+ *
+ * A keyboard player is the opposite case and is why the distinction is worth a
+ * list: they can lift a hand between phrases and the instrument keeps sounding
+ * or sits quietly, which is exactly what working a machine requires.
+ */
+const BUSY_HANDS: Archetype[] = [
+  'drumkit', 'harp', 'mallets', 'cello', 'upright-bass',
+];
 
 /**
  * How far along their own rig the machine sits, as a fraction of the player's
@@ -2513,71 +2547,136 @@ const MACHINE_SQUARE = 0.34;
  * have been — which is the one case where there is genuinely no one to explain
  * it, and the type still says so.
  */
-function placeMachine(song: Song, slots: Slot[], venue: Venue): StageMachine[] {
+function placeMachines(song: Song, slots: Slot[], venue: Venue): StageMachine[] {
+  /**
+   * Everything on this stage that is playing without hands, in one list.
+   *
+   * The percussion first, because it is the one every genre can have; then a
+   * sequencer per machine-played track. Ordering matters only in that it is
+   * stable — hosts are handed out in this order, so the drum machine goes to
+   * the most obvious player and the sequencers fill in behind it.
+   */
+  const wanted: { kind: StageMachine['kind']; id: string; bank: string; layer?: LayerId }[] = [];
   const source = song.drums.source ?? 'kit';
-  if (!song.drums.events.length || isPlayedByHand(source)) return [];
-  const kind = source === 'box' ? 'box' : 'programmed';
-
-  /**
-   * Whoever is nearest to having started it: a keyboard player, then anybody.
-   *
-   * `GEAR` is the list of archetypes that stand behind a board on a stand
-   * rather than holding something, which is the same question asked for a
-   * different reason — a player with both hands full of trombone is not
-   * reaching over to a rhythm box either, and has no rig to bolt one to.
-   */
-  const tender = slots.find((s) => GEAR.includes(s.archetype))
-    ?? slots.find((s) => !specFor(s.archetype).held)
-    ?? slots[0];
-
-  if (!tender) {
-    return [{
+  if (song.drums.events.length && !isPlayedByHand(source)) {
+    wanted.push({
+      kind: source === 'box' ? 'box' : 'programmed',
       id: 'machine',
-      kind,
       bank: song.drums.bank,
-      position: [0, round(RISER_HEIGHT + 0.92), round(-venue.depth / 2 + RISER_FROM_BACK)],
-      facing: 0,
-      mount: 'rig',
-    }];
+    });
   }
+  for (const track of song.tracks) {
+    if (!track.machine) continue;
+    wanted.push({
+      kind: 'sequencer',
+      id: `sequencer-${track.layer}`,
+      bank: track.instrument,
+      layer: track.layer,
+    });
+  }
+  if (!wanted.length) return [];
 
-  // Outboard of the player's own centre: `-sign(x)` would walk it toward the
-  // middle of the stage and put it between them and the house. Somebody on the
-  // centre line has no outboard side, so they get their right.
-  const out = tender.x >= 0 ? 1 : -1;
-  const work = specFor(tender.archetype).workHeight;
-  const facing = tender.facing * MACHINE_SQUARE;
   /**
-   * Placed along the rig in the rig's own frame, then turned with it.
+   * Who works them, best first.
    *
-   * The offset has to rotate with the player or a machine on a turned rig would
-   * slide off the end of it — the same composition `show.ts` does when it hangs
-   * an instrument off a performer.
+   * A modular player leads, and not only because a bay is the better-looking
+   * answer: a frame full of modules is the object these machines *were* part
+   * of, so putting a sequencer in one needs no explaining at all. After that
+   * any player standing behind a board on a stand, then anybody with their
+   * hands free of an instrument. `GEAR` is the same list the arc uses, asked
+   * for a different reason — a player with both hands full of trombone has no
+   * rig to bolt anything to.
    */
-  const along = out * Math.min(tender.r * MACHINE_ALONG, MACHINE_ALONG_MAX);
-  const back = MACHINE_BEHIND;
-  const cos = Math.cos(tender.facing);
-  const sin = Math.sin(tender.facing);
-  return [{
-    id: 'machine',
-    kind,
-    bank: song.drums.bank,
-    position: [
-      round(tender.x + along * cos + back * sin),
-      round(tender.riser + work + MACHINE_ABOVE),
-      round(tender.z - along * sin + back * cos),
-    ],
-    facing: round(facing),
+  const hosts = [
+    ...slots.filter((s) => s.rig === 'modular'),
+    ...slots.filter((s) => s.rig !== 'modular' && GEAR.includes(s.archetype)),
     /**
-     * A modular contains it; anything else carries it.
+     * …and only then anybody else standing at something, minus the two who
+     * cannot possibly work a machine.
      *
-     * The best answer where it is available — a rhythm module in a cabinet of
-     * modules needs no explaining at all — and not available often: this is the
-     * minority case, and the mounted plate above is what covers the rest.
+     * `held: false` was doing this job alone and let in exactly the wrong
+     * people. A **drummer** is the busiest pair of hands on the stage and has
+     * both feet occupied as well; a **harpist** has both hands on the strings
+     * and a mallet player has a stick in each. Every one of them passes "is not
+     * carrying their instrument" and none of them has a free hand between
+     * downbeats, which is the thing that actually matters.
      */
-    mount: tender.rig === 'modular' ? 'bay' : 'rig',
-    tendedBy: tender.id,
-  }];
+    ...slots.filter((s) => !GEAR.includes(s.archetype)
+      && !specFor(s.archetype).held
+      && !BUSY_HANDS.includes(s.archetype)),
+  ];
+
+  const out: StageMachine[] = [];
+  /** How many each host is already carrying, so a second one does not sit on the first. */
+  const load = new Map<Slot, number>();
+
+  wanted.forEach((want, i) => {
+    /**
+     * Round-robin over the hosts.
+     *
+     * One player with three machines bolted to them is a stall rather than a
+     * station, and it is also a worse picture: the whole reason a sequencer is
+     * worth staging is that somebody visibly works it, and one pair of hands
+     * cannot visibly work three things.
+     */
+    const tender = hosts.length ? hosts[i % hosts.length] : undefined;
+
+    if (!tender) {
+      // Nobody on stage at all — an ambient number of tape and voices. It goes
+      // where the kit would have been, and the type says it has no tender.
+      out.push({
+        id: want.id,
+        kind: want.kind,
+        bank: want.bank,
+        ...(want.layer ? { layer: want.layer } : {}),
+        position: [0, round(RISER_HEIGHT + 0.92), round(-venue.depth / 2 + RISER_FROM_BACK)],
+        facing: 0,
+        mount: 'rig',
+      });
+      return;
+    }
+
+    const nth = load.get(tender) ?? 0;
+    load.set(tender, nth + 1);
+
+    // Outboard of the player's own centre: `-sign(x)` would walk it toward the
+    // middle of the stage and put it between them and the house. Somebody on the
+    // centre line has no outboard side, so they get their right.
+    const out0 = tender.x >= 0 ? 1 : -1;
+    const work = specFor(tender.archetype).workHeight;
+    /**
+     * A second machine on the same rig sits behind the first rather than beside
+     * it. Sideways is where the reach runs out; backwards is panel the player
+     * already has.
+     */
+    const along = out0 * Math.min(tender.r * MACHINE_ALONG, MACHINE_ALONG_MAX);
+    const back = MACHINE_BEHIND + nth * 0.24;
+    const cos = Math.cos(tender.facing);
+    const sin = Math.sin(tender.facing);
+    out.push({
+      id: want.id,
+      kind: want.kind,
+      bank: want.bank,
+      ...(want.layer ? { layer: want.layer } : {}),
+      position: [
+        round(tender.x + along * cos + back * sin),
+        round(tender.riser + work + MACHINE_ABOVE + nth * 0.06),
+        round(tender.z - along * sin + back * cos),
+      ],
+      facing: round(tender.facing * MACHINE_SQUARE),
+      /**
+       * A modular contains it; anything else carries it.
+       *
+       * The best answer where it is available — a module in a cabinet of
+       * modules needs no explaining — and not available often, which is what
+       * the mounted plate is for.
+       */
+      mount: tender.rig === 'modular' ? 'bay' : 'rig',
+      tendedBy: tender.id,
+    });
+  });
+
+  return out;
 }
 
 

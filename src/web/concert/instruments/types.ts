@@ -22,7 +22,6 @@ import type { Group, Matrix4, Object3D, Vector3 } from 'three';
 import type {
   Archetype, Effector, GestureKind, PlayPoint, Posture, SynthRigId,
 } from '../../../concert/types.js';
-import type { DrumEvent } from '../../../core/types.js';
 
 /** Where an effector has to be, and which way it should be pointing. */
 export interface Contact {
@@ -259,8 +258,8 @@ export interface InstrumentBuildOptions {
    * drawn as its own mounted object instead.
    */
   machine?: {
-    kind: 'box' | 'programmed';
-    events: readonly DrumEvent[];
+    kind: 'box' | 'programmed' | 'sequencer';
+    events: readonly { beat: number; velocity: number }[];
     beatsPerBar: number;
   };
 }

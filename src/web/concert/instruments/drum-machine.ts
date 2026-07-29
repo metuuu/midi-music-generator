@@ -47,7 +47,6 @@ import {
 } from 'three';
 
 import { Rng } from '../../../core/rng.js';
-import type { DrumEvent } from '../../../core/types.js';
 import { disposeTree } from './synth-rig.js';
 import { addTo } from './types.js';
 
@@ -85,7 +84,7 @@ export interface DrumMachineOptions {
    * it here rather than feeding events per frame is what keeps the show runner
    * from having to know a machine exists beyond calling `update`.
    */
-  events: readonly DrumEvent[];
+  events: readonly { beat: number; velocity: number; voice?: string }[];
   /** Beats per bar, so the step row means a bar rather than an arbitrary window. */
   beatsPerBar: number;
 }
@@ -105,15 +104,27 @@ export interface DrumMachineOptions {
  * backwards, which is what a number restarting looks like.
  */
 export function createMachineRunner(
-  events: readonly DrumEvent[], beatsPerBar: number, steps: number,
+  events: readonly { beat: number; voice?: string }[],
+  beatsPerBar: number, steps: number,
 ): { step(now: number): number; lamp(i: number, now: number): boolean; lamps: number } {
   const LAMP_OF: Record<string, number> = {
     bd: 0, lt: 0, mt: 0,
     sd: 1, rim: 1, cp: 1, ht: 1,
     hh: 2, oh: 2, rd: 2, cr: 2, perc: 2, cb: 2, sh: 2,
   };
+  /**
+   * A pitched figure has no voices, so every note lights the same lamp pair.
+   *
+   * `voice` is a drum's; a sequencer's events are notes. Rather than two
+   * runners, the mapping falls through to a rotating lamp so a running sequence
+   * still has something moving on it — which is the whole job of these three
+   * lights, and is true of a bass figure as much as of a hi-hat.
+   */
   const hits = [...events]
-    .map((e) => ({ beat: e.beat, lamp: LAMP_OF[e.voice] ?? 2 }))
+    .map((e, i) => ({
+      beat: e.beat,
+      lamp: e.voice === undefined ? i % 3 : LAMP_OF[e.voice] ?? 2,
+    }))
     .sort((a, b) => a.beat - b.beat);
 
   let cursor = 0;

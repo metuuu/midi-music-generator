@@ -270,7 +270,7 @@ function weld(parts: readonly BufferGeometry[], tints: readonly Color[]): Buffer
  * the arrangement that needs no explaining: a wall of modules with somebody
  * standing at it already reads as one thing being operated.
  */
-type ModuleKind = 'jacks' | 'knobs' | 'sliders' | 'mixed' | 'percussion';
+type ModuleKind = 'jacks' | 'knobs' | 'sliders' | 'mixed' | 'percussion' | 'sequencer';
 
 export const buildModularRig: SynthRigBuilder = (opts: SynthRigOptions): SynthRig => {
   const rng = new Rng(`synth-rig-modular:${opts.seed}`);
@@ -483,6 +483,17 @@ export const buildModularRig: SynthRigBuilder = (opts: SynthRigOptions): SynthRi
         knobGrid(panel, free + 0.024, 1);
         jackGrid(panel, free + 0.024 + KNOB_PITCH, 1);
         break;
+      /**
+       * The step sequencer, and it is the same panel as the drum module with
+       * one row swapped.
+       *
+       * A 960 is sixteen columns of knobs over sixteen step lamps: you set a
+       * *pitch* per step rather than choosing which drum fires, so the voice
+       * lamps become a bank of knobs and the step row stays exactly what it
+       * was. Sharing the case is honest as well as cheap — on a real frame
+       * these were two modules in the same rack from the same maker.
+       */
+      case 'sequencer':
       case 'percussion': {
         /**
          * The drum machine, as a module.
@@ -512,17 +523,30 @@ export const buildModularRig: SynthRigBuilder = (opts: SynthRigOptions): SynthRi
           stepAt.push(m.clone());
         }
         const vVoice = Math.min(top - 0.012, vStep + 0.040);
-        for (let i = 0; i < 3; i++) {
-          const m = new Matrix4()
-            .makeTranslation((i - 1) * 0.042, vVoice, FACE + 0.002)
-            .scale(new Vector3(0.012, 0.012, 0.005))
-            .premultiply(panel.m);
-          voiceOff.add(m);
-          voiceAt.push(m.clone());
+        if (kind === 'sequencer') {
+          /**
+           * A knob per step, above the step it sets.
+           *
+           * This is the whole difference between the two modules and it is the
+           * right one to spend geometry on: a row of pots over a row of lamps
+           * *is* what a step sequencer looks like, and it is the panel anybody
+           * would recognise from the era's photographs.
+           */
+          knobGrid(panel, vVoice, 1);
+          if (vVoice + KNOB_PITCH < top) knobGrid(panel, vVoice + KNOB_PITCH, 1);
+        } else {
+          for (let i = 0; i < 3; i++) {
+            const m = new Matrix4()
+              .makeTranslation((i - 1) * 0.042, vVoice, FACE + 0.002)
+              .scale(new Vector3(0.012, 0.012, 0.005))
+              .premultiply(panel.m);
+            voiceOff.add(m);
+            voiceAt.push(m.clone());
+          }
+          // A row of trim above them, so the bay is not a lamp panel with
+          // nothing to set. Every module on a real one had something to turn.
+          if (vVoice + 0.030 < top) knobGrid(panel, vVoice + 0.030, 1);
         }
-        // A row of trim above them, so the bay is not a lamp panel with nothing
-        // to set. Every module on a real one had something to turn.
-        if (vVoice + 0.030 < top) knobGrid(panel, vVoice + 0.030, 1);
         break;
       }
     }
@@ -555,7 +579,9 @@ export const buildModularRig: SynthRigBuilder = (opts: SynthRigOptions): SynthRi
    * lands where the player can actually reach it.
    */
   const pending: ModuleKind[] = [];
-  if (opts.machine) pending.push('percussion');
+  if (opts.machine) {
+    pending.push(opts.machine.kind === 'sequencer' ? 'sequencer' : 'percussion');
+  }
 
   function fillRow(frame: Matrix4, yCentre: number, outZ: number, width: number, height: number): void {
     const count = width > 0.44 ? rng.int(2, 3) : 2;

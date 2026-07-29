@@ -416,18 +416,26 @@ export function createShow(opts: ShowOptions = {}): Show {
        */
       const bay = (number.cast.machines ?? [])
         .find((m) => m.mount === 'bay' && m.tendedBy === performer.id);
+      /**
+       * The notes the bay is running.
+       *
+       * A drum machine's pattern is `song.drums`; a sequencer's is the track of
+       * the layer it was given. `StageMachine.layer` says which, so this does
+       * not have to re-derive the mapping the cast already made.
+       */
+      const bayNotes = bay
+        ? (bay.layer
+          ? number.song.tracks.find((t) => t.layer === bay.layer)?.notes ?? []
+          : number.song.drums.events)
+        : undefined;
       const model = buildInstrumentFor(
         performer,
         track ? instrumentIdForTrack(track) : undefined,
         concert.venue.palette.proscenium,
         concert.year,
         number.song.drums.source,
-        bay
-          ? {
-            kind: bay.kind,
-            events: number.song.drums.events,
-            beatsPerBar: number.song.meta.beatsPerBar,
-          }
+        bay && bayNotes
+          ? { kind: bay.kind, events: bayNotes, beatsPerBar: number.song.meta.beatsPerBar }
           : undefined,
       );
 
@@ -490,11 +498,15 @@ export function createShow(opts: ShowOptions = {}): Show {
     for (const spec of number.cast.machines ?? []) {
       // A bay is drawn by the instrument that contains it, above.
       if (spec.mount === 'bay') continue;
+      // As above: a sequencer runs its own layer's notes, a box runs the kit's.
+      const notes = spec.layer
+        ? number.song.tracks.find((t) => t.layer === spec.layer)?.notes ?? []
+        : number.song.drums.events;
       const machine = buildDrumMachine({
         kind: spec.kind,
         seed: new Rng(`machine:${concert.seed}:${spec.id}`).int(0, 0xffff),
         finish: concert.venue.palette.proscenium,
-        events: number.song.drums.events,
+        events: notes,
         beatsPerBar: number.song.meta.beatsPerBar,
       });
       const [mx, my, mz] = spec.position;

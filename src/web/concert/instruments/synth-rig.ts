@@ -52,7 +52,6 @@ import type { BufferGeometry, InstancedMesh, Material, Mesh, Object3D } from 'th
 import { Group } from 'three';
 
 import type { BoardSpec } from '../../../concert/instruments.js';
-import type { DrumEvent } from '../../../core/types.js';
 
 /**
  * Where the keys are, so a rig can be built around them without being able to
@@ -104,8 +103,13 @@ export interface SynthRigOptions {
    * because the object holds its own pattern — see `createMachineRunner`.
    */
   machine?: {
-    kind: 'box' | 'programmed';
-    events: readonly DrumEvent[];
+    kind: 'box' | 'programmed' | 'sequencer';
+    /**
+     * When each note of the figure lands, in beats. Pitch is deliberately not
+     * here: a step lamp knows a step fired and how hard, exactly as `react`
+     * knows a note happened and not which one.
+     */
+    events: readonly { beat: number; velocity: number }[];
     beatsPerBar: number;
   };
 }

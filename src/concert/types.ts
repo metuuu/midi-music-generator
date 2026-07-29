@@ -666,11 +666,24 @@ export interface StageMachine {
   id: string;
   /**
    * What kind of object it is. `box` has presets and a start button;
-   * `programmed` was written into a step at a time. See `DrumSource`.
+   * `programmed` was written into a step at a time — see `DrumSource`. A
+   * `sequencer` is running a pitched figure rather than a drum pattern, which
+   * is a different panel and, on a modular, a different bay.
    */
-  kind: 'box' | 'programmed';
-  /** The bank it is playing, e.g. "KorgMinipops". A renderer may label it. */
+  kind: 'box' | 'programmed' | 'sequencer';
+  /**
+   * What it is playing, for a renderer that wants to label it: a drum bank for
+   * the two percussion kinds, the instrument name for a sequencer.
+   */
   bank: string;
+  /**
+   * The layer this machine is playing, where it is playing a pitched part.
+   *
+   * Absent on a drum machine, whose part is `song.drums` and has no layer. It
+   * is here so the renderer can find the notes to run the step lamps off
+   * without re-deriving which track belongs to which box.
+   */
+  layer?: LayerId;
   /** Where it stands, in stage coordinates. `y` includes any riser. */
   position: [number, number, number];
   /** Radians. 0 faces the audience. */
