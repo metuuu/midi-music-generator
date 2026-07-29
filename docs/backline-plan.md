@@ -560,11 +560,28 @@ mounting rule had to land first because the bay could never have been the whole 
 24 of 25 machine numbers in tanssilava have no modular on stage, 68 of 68 in iskelmä
 eighties, 97 of 97 in ambient sampler.
 
-**Wave 2 — machines that play themselves.** *(Deferred until after Wave 3, by
-preference: the operating gestures need the rig to be a frame of modules first.)*
+**Wave 2 — machines that play themselves. ✅ Landed**, after Wave 3 and on the terms
+in §8.0b: the player stays and works the machine.
 `Track.machine`, no performer for a machine track, the start gesture, the stepping
 lights. Cause and consequence land together or not at all. Rides on the mounting rule
 from Wave 1b — a sequencer is a bay, for the same reason a drum machine is.
+
+Four things it turned up:
+
+- **`board.canReach` is the wrong question after a part is written.** It compares a
+  candidate beat against a limb's *most recent* placement, so running it over a finished
+  schedule makes every beat look like the past — it could only place a gesture after the
+  final note, and cost three quarters of them.
+- **A fixed brightness threshold could never fire.** A sequenced bass line's filter
+  spans 0.06 across a whole number. The bar has to be relative to the range the part
+  actually has.
+- **`held: false` is not "has a hand free".** A drummer, harpist, cellist and mallet
+  player all stand at their instruments and none could reach a sequencer.
+- **100% visible causation is not reachable, and faking it would be worse.** 33 of 35
+  unworked machines have a figure beginning on beat 0 — no earlier beat exists and the
+  tender is playing from that downbeat. The honest reading is that the sequencer was
+  already running when the lights came up. The assertion is the reachable one: every
+  machine entering after bar one is visibly started.
 
 **Wave 3 — the multi-board station and the hands. ✅ Landed.**
 N keybeds on the synth model, board index on the `key` point, crossing costs, the travel
