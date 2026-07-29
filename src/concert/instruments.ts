@@ -537,23 +537,39 @@ export const SYNTH_RIGS: Record<SynthRigId, SynthRigSpec> = {
    * still carting them around stages well into the eighties. How *rare* that
    * had become is the weight's job, and setting this to 1979 to say the same
    * thing twice made the weight unreachable instead.
+   *
+   * `from: 1973` for the same reason read the other way, and it was 1965 — the
+   * year the object was *invented*, which is not what this field means. A Moog
+   * modular before about 1973 was a studio instrument: Switched-On Bach is 1968
+   * and was made in a room, not on a stage. Emerson and Tangerine Dream are
+   * what put one in front of an audience. At 1965 the pool was staging walls of
+   * cabinets behind a 1968 jazz quintet and a 1968 tanssilava band, which are
+   * both anachronisms of the specific kind this field exists to prevent.
    */
   modular: {
-    id: 'modular', label: 'modular system', from: 1965, to: 1985,
+    id: 'modular', label: 'modular system', from: 1973, to: 1985,
     max: 2, footprint: 1.25, height: 1.72, furniture: true,
   },
   /**
    * 1978–83. The keyboard *is* the instrument: wooden end-cheeks, one row of
    * knobs, an X-stand.
    *
-   * `from: 1970`, which is earlier than the era boundary `synth-rig.ts` names,
-   * and deliberately: a Minimoog is 1970 and is geometrically this object. That
-   * is what makes the 1974 pool work without a fourth model — the players who
-   * do not get the modular are standing behind Minimoogs, which is both correct
-   * and free.
+   * The window is far wider than that label, and on purpose: this is the
+   * project's generic keyboard-on-a-stand, and 1978–83 is what it is *modelled
+   * on* rather than the only thing it can stand in for. A case with wooden end
+   * cheeks, one row of controls and an X-stand under it is a Minimoog in 1970,
+   * and it is a Farfisa or a Mellotron before that — which is what a 1968
+   * tanssilava band or a 1968 jazz quintet would actually have wheeled in when
+   * the pad palette hands them one.
+   *
+   * That width is what makes the 1974 pool work without a fourth model too: the
+   * players who do not get the modular are standing behind Minimoogs, correct
+   * and free. It replaced a `from` of 1970, which was the Minimoog's own year
+   * and left 1968 falling through to a fallback the verifier then flagged as an
+   * anachronism — correctly, because it was one.
    */
   polysynth: {
-    id: 'polysynth', label: 'polysynth', from: 1970, to: 1990,
+    id: 'polysynth', label: 'polysynth', from: 1963, to: 1990,
     max: 99, footprint: 0.95, height: 1.05, furniture: false,
   },
   /**
@@ -582,23 +598,59 @@ export const SYNTH_RIGS: Record<SynthRigId, SynthRigSpec> = {
  * from weighting — an entry outside its own `from`/`to` is dropped before any
  * draw — so no weight written later can stage a DX7 in 1974.
  */
-export function rigPoolFor(year: number): (readonly [SynthRigId, number])[] {
+/**
+ * Gear a genre does not own, whatever the year allows.
+ *
+ * The year table above answers "did this object exist on stages yet", which is
+ * a fact about a decade and is why the pool is keyed on a year in the first
+ * place. It cannot answer "would *this band* have one", which is a fact about
+ * the band, and the two are not the same question: a modular system existed in
+ * 1975 and a Finnish dance-pavilion orchestra still did not have one. They
+ * hired a van, not a cabinet wall.
+ *
+ * A veto rather than a per-genre weight table, deliberately. The only statement
+ * anybody has to make here is "never", and inventing a full set of weights for
+ * every genre would be putting opinions in the file that nobody holds. A genre
+ * with nothing to say says nothing and gets the decade's own answer.
+ *
+ * Jazz is deliberately absent even though it draws modulars in its `electric`
+ * era: 1975 fusion with a wall of Moog behind it is Hancock, and a real
+ * photograph. Its 1968 era no longer draws one because 1968 is now before
+ * `modular.from`, which is where that correction belongs.
+ */
+const GENRE_RIG_VETO: Record<string, SynthRigId[]> = {
+  iskelma: ['modular'],
+};
+
+export function rigPoolFor(
+  year: number, genre?: string,
+): (readonly [SynthRigId, number])[] {
   const weights: Record<SynthRigId, number> = year < 1978
     ? { modular: 6, polysynth: 5, digital: 0 }
     : year < 1984
       ? { modular: 2, polysynth: 8, digital: 0 }
       : { modular: 0, polysynth: 3, digital: 8 };
 
+  const vetoed = genre ? GENRE_RIG_VETO[genre] ?? [] : [];
   const open = (Object.keys(weights) as SynthRigId[])
     .filter((id) => {
       const spec = SYNTH_RIGS[id];
-      return weights[id] > 0 && year >= spec.from && year <= spec.to;
+      return weights[id] > 0 && year >= spec.from && year <= spec.to
+        && !vetoed.includes(id);
     })
     .map((id) => [id, weights[id]] as const);
 
-  // A year outside every window at once should stage the plain keyboard rather
-  // than nothing — the same fallback `eligibleDrumSources` makes, for the same
-  // reason: the quiet answer should also be the one that was true before.
+  /**
+   * A year outside every window stages the plain keyboard rather than nothing.
+   *
+   * Unreachable for any era in the project today — `polysynth` spans 1963–1990
+   * and covers every one of them — and kept because a table this small should
+   * not be able to return an empty list. It fired exactly once, when
+   * `polysynth.from` was still 1970 and 1968 fell through it, and the verifier
+   * caught the result as the anachronism it was rather than this quietly
+   * absorbing it. That is the right division of labour and the reason it stays
+   * a last resort rather than a strategy.
+   */
   return open.length ? open : [['polysynth', 1] as const];
 }
 

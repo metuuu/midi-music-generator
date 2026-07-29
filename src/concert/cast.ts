@@ -703,6 +703,7 @@ function makeLook(args: {
  */
 function roster(
   song: Song, seed: string, wardrobe: Wardrobe, density: number, year: number,
+  genre: string,
 ): Slot[] {
   const drafts: { layer: LayerId; archetype: Archetype; instrument: string }[] = [];
 
@@ -791,7 +792,7 @@ function roster(
       avoidFrontCentre: false,
     });
   }
-  assignRigs(slots, year, seed);
+  assignRigs(slots, year, genre, seed);
   return slots;
 }
 
@@ -825,12 +826,12 @@ function roster(
  * the historical one, since the person behind the wall of cabinets was the one
  * making textures rather than the one playing the tune.
  */
-function assignRigs(slots: Slot[], year: number, seed: string): void {
+function assignRigs(slots: Slot[], year: number, genre: string, seed: string): void {
   const keys = slots.filter((s) => s.archetype === 'synth');
   if (!keys.length) return;
 
   const rng = new Rng(`${seed}:cast:rigs`);
-  const pool = rigPoolFor(year);
+  const pool = rigPoolFor(year, genre);
   /** Least prominent first, so the furniture is handed out from the back. */
   const queue = [...keys].sort((a, b) => PROMINENCE[b.layer] - PROMINENCE[a.layer]);
 
@@ -2377,7 +2378,7 @@ export function castSong(song: Song, venue: Venue, seed: string): Cast {
   const genre = song.meta.genre;
   const era: EraProfile | undefined = GENRES[genre]?.eras[song.meta.era];
   const wardrobe = wardrobeFor(genre, song.meta.era);
-  const slots = roster(song, seed, wardrobe, era?.density ?? 0.6, era?.year ?? 1980);
+  const slots = roster(song, seed, wardrobe, era?.density ?? 0.6, era?.year ?? 1980, genre);
 
   if (genre === 'ambient') stageAmbient(slots, venue, seed);
   else stageBand(slots, venue, seed);
