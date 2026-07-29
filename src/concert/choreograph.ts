@@ -56,7 +56,7 @@ import {
 } from './instruments.js';
 import type {
   Archetype, ArchetypeSpec, Cast, Choreography, Effector, Gesture, GestureKind,
-  Performer, PerformerPart, PlayPoint,
+  Performer, PerformerPart, PlayPoint, StageMachine,
 } from './types.js';
 
 // ---------------------------------------------------------------------------
@@ -525,13 +525,18 @@ export function choreograph(song: Song, cast: Cast): Choreography {
   for (const performer of cast.performers) {
     parts[performer.id] = {
       performerId: performer.id,
-      gestures: gesturesFor(song, performer),
+      gestures: gesturesFor(
+        song, performer,
+        (cast.machines ?? []).filter((m) => m.tendedBy === performer.id),
+      ),
     };
   }
   return { parts };
 }
 
-function gesturesFor(song: Song, performer: Performer): Gesture[] {
+function gesturesFor(
+  song: Song, performer: Performer, machines: StageMachine[] = [],
+): Gesture[] {
   const spec = specFor(performer.archetype);
   // Deterministic from the song and the performer, so the same seed gives the
   // same show and adding a player cannot reshuffle anyone else's timing.
@@ -548,10 +553,174 @@ function gesturesFor(song: Song, performer: Performer): Gesture[] {
     }
   }
 
+  /**
+   * …and then whatever machines this player is minding, in the gaps.
+   *
+   * **After the part, deliberately.** Playing wins: the gestures above are
+   * already on the schedule, so `canReach` refuses any panel move that would
+   * need a hand which is busy, and operating fills the room that is left. That
+   * is the right precedence and it is also what a player does — you play your
+   * line and you reach over when you can.
+   */
+  if (machines.length) operatePart(song, machines, board);
+
   // Sorted by beat, as `PerformerPart` promises. `Array.prototype.sort` is
   // stable, so gestures placed together in one motion keep the order they were
   // emitted in and the output is byte-identical run to run.
   return board.gestures.sort((a, b) => a.beat - b.beat);
+}
+
+/**
+ * How much room a hand on the panel needs either side of the touch, in beats.
+ *
+ * Generous rather than tight. These gestures are placed into whatever gaps a
+ * part leaves, and a hand that leaves the keys for a knob and is back a
+ * sixteenth later has not visibly done anything — the point of the gesture is
+ * that somebody can *see* the machine being worked.
+ */
+const PANEL_PREP = 0.75;
+const PANEL_RELEASE = 0.75;
+
+/**
+ * Working a machine that is playing itself.
+ *
+ * The rule from `docs/backline-plan.md` §8.1, made concrete: a self-playing part
+ * must have a **visible cause**. Without one the music starts by itself and the
+ * whole proposition of this project — that you can watch it being made — is
+ * quietly given away, one sequencer at a time.
+ *
+ * Two gestures, and neither invents anything about the music.
+ *
+ * **Somebody starts it.** A hand goes to the panel on the beat the machine's
+ * figure first sounds. That beat is not chosen, it is read off the part, so the
+ * cause lands exactly on the effect.
+ *
+ * **Somebody keeps working it.** `NoteEvent.brightness` is a real, generated,
+ * section-long filter sweep, and until now nothing on the stage was causing it.
+ * A hand on the panel where that ramp turns is an honest cause for an audible
+ * change — the sound genuinely opens while the hand is on the knob, because the
+ * generator already decided it would.
+ *
+ * The `where` a hand goes is 0..1 across the panel and tracks the brightness
+ * itself, so the knob the player reaches for moves with the sound rather than
+ * being a fixed spot they keep prodding.
+ */
+function operatePart(song: Song, machines: StageMachine[], board: Board): void {
+  for (const machine of machines) {
+    const notes = machine.layer
+      ? song.tracks.find((t) => t.layer === machine.layer)?.notes ?? []
+      : song.drums.events.map((e) => ({ beat: e.beat, brightness: undefined }));
+    if (!notes.length) continue;
+
+    /** Every moment the machine's sound is asked to change, plus its start. */
+    const moments: { beat: number; at: number; start?: boolean }[] = [];
+    const first = quantise(notes[0]!.beat);
+    moments.push({ beat: first, at: 0.12, start: true });
+
+    /**
+     * How far the filter moves across this part, and therefore what counts as
+     * a move.
+     *
+     * A fixed threshold was wrong and measurably so: a sequenced bass line's
+     * brightness spans at most 0.06 over a whole number, so anything absolute
+     * either never fires or fires on noise. What matters is not how far the
+     * sweep goes in the abstract but whether *this* part audibly changes, so
+     * the bar is a third of the range the track actually has — and a part whose
+     * filter barely moves at all gets no hand on it, correctly, because there
+     * is nothing to cause.
+     */
+    const brights = (notes as { brightness?: number }[])
+      .map((n) => n.brightness).filter((b): b is number => b !== undefined);
+    const span = brights.length ? Math.max(...brights) - Math.min(...brights) : 0;
+    const step = span / 3;
+
+    if (span > 0.02) {
+      let last: number | undefined;
+      for (const n of notes as { beat: number; brightness?: number }[]) {
+        const bright = n.brightness;
+        if (bright === undefined) continue;
+        // Only where it actually turns. A ramp sampled per note would put a
+        // hand on the knob every sixteenth, which is a fidget, not a gesture.
+        if (last === undefined || Math.abs(bright - last) >= step) {
+          const beat = quantise(n.beat);
+          if (beat > first) moments.push({ beat, at: 0.10 + 0.55 * (1 - bright) });
+          last = bright;
+        }
+      }
+    }
+
+    /**
+     * The free hand, and it is the left by preference.
+     *
+     * A right hand is where the tune usually is on a keyboard, so the left is
+     * the one more often idle at a section boundary. `canReach` settles it
+     * either way — this only decides who is asked first.
+     */
+    for (const moment of moments) {
+      /**
+       * A start may happen *early*, and that is not a concession — it is what
+       * pressing start is.
+       *
+       * The first attempt placed it exactly on the beat the figure comes in,
+       * and lost three quarters of them: a machine's part very often begins on
+       * the same downbeat as the player's own, and a hand cannot be in two
+       * places. But nobody starts a sequencer on the beat they want to hear it;
+       * they start it in the bar before and it comes round. So a start walks
+       * backwards half a bar at a time looking for a hand that is free, and
+       * only a start does — a filter move has to land where the sound moves.
+       */
+      /**
+       * Where a start may go, and it is a search rather than a beat.
+       *
+       * Walking back in ever coarser steps: a hand that can start the thing
+       * exactly on the downbeat should, and one that cannot should still start
+       * it, a bar or two earlier, which is what a player does anyway — you set
+       * the sequencer running and it comes round. Coarse to eight beats because
+       * beyond that the gesture has stopped belonging to the entrance.
+       */
+      const tries = moment.start
+        ? [0, -0.25, -0.5, -0.75, -1, -1.5, -2, -3, -4, -6, -8]
+          .map((d) => moment.beat + d).filter((b) => b >= 0)
+        : [moment.beat];
+      let placed = false;
+      for (const beat of tries) {
+        if (placed) break;
+        /**
+         * Whether a hand is free *then*, rather than free since it last moved.
+         *
+         * `board.canReach` is the wrong question here and answering it cost
+         * three quarters of these gestures. It compares a candidate beat with
+         * that limb's most recent placement, which is exactly right while a
+         * part is being written forwards — and this runs *after* the whole part
+         * is on the schedule, so the most recent placement is the last note of
+         * the number and every candidate beat looks like the past. It could
+         * only ever have placed a gesture after the final note.
+         *
+         * So the window is checked against the gestures themselves. A limb is
+         * busy from `beat - prep` to `beat + release`; a panel touch needs its
+         * own such window clear.
+         */
+        const free = (hand: Hand): boolean => !board.gestures.some((g) => (
+          g.effector === hand
+          && beat + PANEL_RELEASE > g.beat - g.prep
+          && beat - PANEL_PREP < g.beat + g.release
+        ));
+        const hand: Hand = free('left-hand') ? 'left-hand'
+          : free('right-hand') ? 'right-hand' : 'left-hand';
+        if (!free(hand)) continue;
+        placed = true;
+        board.place({
+          effector: hand,
+          beat,
+          kind: 'press',
+          travel: 0.5,
+          force: 0.45,
+          sustainBeats: 0.5,
+          targets: [{ kind: 'control', at: moment.at }],
+        });
+      }
+    }
+  }
 }
 
 /**

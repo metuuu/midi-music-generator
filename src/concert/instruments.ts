@@ -224,7 +224,10 @@ export const ARCHETYPES: Record<Archetype, ArchetypeSpec> = {
   }),
   synth: S({
     id: 'synth', label: 'synthesiser', family: 'electronic',
-    hands: 2, posture: 'stand', points: ['key', 'rest'],
+    // `control` is the panel, and only this archetype claims it: a synthesiser
+    // is the one object here whose player operates the instrument as well as
+    // playing it. See `PlayPoint`'s `control` member.
+    hands: 2, posture: 'stand', points: ['key', 'control', 'rest'],
     range: [21, 108], held: false, footprint: 1.0, workHeight: 0.95,
   }),
 

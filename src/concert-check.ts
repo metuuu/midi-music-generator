@@ -43,6 +43,17 @@ import type { Gesture, SynthRigId } from './concert/types.js';
 const silentPedal = (g: Gesture): boolean =>
   g.kind === 'press' && g.target.kind === 'pedal' && g.target.which === 'hat';
 
+/**
+ * A hand on the panel — starting a sequencer, moving a filter while it runs.
+ *
+ * The second gesture in this IR that makes no sound of its own, and excluded
+ * from the note count for the same reason the hi-hat pedal above is: it is a
+ * *position*, not a stroke. There is no note behind it because the thing it
+ * causes is a machine playing notes nobody's fingers are on, which is the whole
+ * point of it existing — see `operatePart`.
+ */
+const panelTouch = (g: Gesture): boolean => g.target.kind === 'control';
+
 const problems: string[] = [];
 const check = (label: string, pass: boolean, detail: string) => {
   console.log(`  ${pass ? 'ok  ' : 'FAIL'}  ${label.padEnd(46)} ${detail}`);
@@ -191,7 +202,8 @@ for (const gid of CHECKED_GENRES) {
           ? song.drums.events.length
           : track?.notes.length ?? 0;
         const sounded = part.gestures.filter(
-          (g) => sounding.has(g.effector) && g.target.kind !== 'rest' && !silentPedal(g),
+          (g) => sounding.has(g.effector) && g.target.kind !== 'rest'
+            && !silentPedal(g) && !panelTouch(g),
         ).length;
         soundingNotes += notes;
         soundingGestures += sounded;
@@ -553,6 +565,24 @@ check('visemes exist exactly when there is a voice', visemeGaps === 0,
   let busyHost = 0;
   let sequencers = 0;
   let bays = 0;
+  /**
+   * Machines whose figure begins after the first bar, and how many of those
+   * nobody is seen starting.
+   *
+   * Deliberately *not* asserted over all machines, because 100% is not
+   * reachable and pretending otherwise would mean faking a gesture. A figure
+   * that begins on beat 0 has no earlier beat for a hand to reach, and its
+   * tender is usually playing from that same downbeat — so the honest reading
+   * is that the sequencer was already running when the lights came up, which is
+   * exactly how those records begin. Measured: 33 of the 35 unworked machines
+   * are that case.
+   *
+   * What *is* reachable, and therefore what is asserted, is that a machine
+   * coming in later — where there was room for a hand — is never seen starting
+   * itself.
+   */
+  let lateEntries = 0;
+  let lateSilent = 0;
   const BUSY = ['drumkit', 'harp', 'mallets', 'cello', 'upright-bass'];
   const notes: string[] = [];
   for (const gid of CHECKED_GENRES) {
@@ -568,6 +598,21 @@ check('visemes exist exactly when there is a voice', visemeGaps === 0,
           if (notes.length < 3) notes.push(`${gid}#${i} ${p.id} plays a sequenced ${p.layer}`);
         }
         for (const m of number.cast.machines ?? []) {
+          if (m.tendedBy) {
+            const figure = m.layer
+              ? number.song.tracks.find((t) => t.layer === m.layer)?.notes ?? []
+              : number.song.drums.events;
+            const first = figure[0]?.beat ?? 0;
+            if (first >= number.song.meta.beatsPerBar) {
+              lateEntries++;
+              const worked = (number.choreography.parts[m.tendedBy]?.gestures ?? [])
+                .some((g) => g.target.kind === 'control' && g.beat <= first + 1e-6);
+              if (!worked) {
+                lateSilent++;
+                if (notes.length < 3) notes.push(`${gid}#${i} ${m.id} enters at ${first}`);
+              }
+            }
+          }
           if (m.kind !== 'sequencer') continue;
           sequencers++;
           if (m.mount === 'bay') bays++;
@@ -587,6 +632,10 @@ check('visemes exist exactly when there is a voice', visemeGaps === 0,
   }
   check('nobody is staged playing a part a machine is playing', ghosts === 0,
     ghosts ? `${ghosts}: ${notes.join('; ')}` : `${sequencers} sequencers, no ghost players`);
+  check('a machine that enters mid-number is visibly started', lateSilent === 0,
+    lateSilent
+      ? `${lateSilent} of ${lateEntries} enter with nobody touching them: ${notes.join('; ')}`
+      : `${lateEntries} entries, every one with a hand on the panel first`);
   check('every sequencer has someone who could work it',
     hostless === 0 && busyHost === 0,
     hostless || busyHost

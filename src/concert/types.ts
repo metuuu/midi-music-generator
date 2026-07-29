@@ -236,6 +236,21 @@ export type PlayPoint =
      */
     board?: number;
   }
+  /**
+   * A control on the panel — a knob, a slider, a start switch.
+   *
+   * The one point in this union that is not a note. It exists because a player
+   * standing at a rig with a machine running in it is doing something, and what
+   * they are doing is not playing keys: they start the sequencer, they stop it,
+   * and they move the filter while it runs.
+   *
+   * `at` is 0..1 across the instrument's control surface, bass end to treble
+   * end, and it is deliberately that vague. The choreographer has no business
+   * knowing which knob is the cutoff — it knows *that a hand goes to the panel*,
+   * which is the same altitude at which it knows a high tom is being hit
+   * without knowing where one is. A model answers with a real point.
+   */
+  | { kind: 'control'; at: number }
   /** A stopped string. `string` indexes `ArchetypeSpec.strings`, low to high. */
   | { kind: 'string'; string: number; fret: number }
   /** A drum or cymbal, by the voice the Song IR names. */

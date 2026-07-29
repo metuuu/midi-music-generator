@@ -94,6 +94,16 @@ const BLACK_TOUCH_Z = KEY_BACK_Z - 0.056;
 const REBOUND = 0.16;
 const REBOUND_LIFT = 0.85;
 
+/**
+ * Where the control surface is, relative to the keys.
+ *
+ * A hand's depth above the key plane and a hand's reach behind the key line —
+ * which is where a panel is on all three rigs, and which is clear of the keys
+ * by construction so reaching for a knob never puts a fist through a keybed.
+ */
+const PANEL_RISE = 0.10;
+const PANEL_BACK = 0.24;
+
 class Hit {
   beat = -1e9;
   force = 0;
@@ -297,6 +307,36 @@ export const buildSynth: InstrumentBuilder = (opts) => {
       if (point.kind === 'rest') {
         return {
           position: new Vector3(0, KEY_TOP_Y + 0.085, WHITE_TOUCH_Z),
+          normal: UP.clone(),
+          along: ACROSS.clone(),
+        };
+      }
+      if (point.kind === 'control') {
+        /**
+         * The panel, in this model's own frame rather than the rig's.
+         *
+         * Every one of the three rigs puts its controls in the same place —
+         * above the key plane and behind the key line — because that is the one
+         * region a keyboard leaves free: the modular's console, the polysynth's
+         * knob row and the digital deck are all there. So the keyboard can
+         * answer this without asking the rig, which keeps the seam intact: a
+         * rig is geometry the keys are built around and is never consulted
+         * about where a hand goes.
+         *
+         * Approximate on purpose, and it is worth saying which way. A mounted
+         * machine sits a little off the end of the rig rather than on this
+         * exact plane, so the hand arrives at the panel beside it rather than
+         * on its front face. That reads correctly at stage distance and is the
+         * right trade against threading a machine's world position back through
+         * a model that works in local metres.
+         */
+        const at = Math.max(0, Math.min(1, point.at));
+        return {
+          position: new Vector3(
+            BOARD_W / 2 - at * BOARD_W,
+            KEY_TOP_Y + PANEL_RISE,
+            KEY_BACK_Z + PANEL_BACK,
+          ),
           normal: UP.clone(),
           along: ACROSS.clone(),
         };
