@@ -380,6 +380,33 @@ small minority of the cases. 24 of 25 machine numbers in iskelmä's tanssilava e
 modular on stage, 68 of 68 in its eighties era, and 97 of 97 in ambient's sampler era.
 The mounting rule has to generalise past the modular or it fixes almost nothing.
 
+### 8.0b Settled: the player stays, and the machine is theirs to work
+
+Asked and answered, so it is not re-litigated when this wave is built.
+
+**Nobody leaves the stage.** A machine-played part does not delete its performer. The
+plan originally wanted the opposite — that was "the multiplier", five keyboard players
+becoming one — and it is the wrong trade for this project. The whole proposition is that
+you can watch the music being made, and buying a smaller band with more sound coming
+from objects nobody is visibly working is buying the wrong thing.
+
+**So a sequencer is a module in somebody's rig**, exactly as the drum machine now is
+(§8.0), and the player standing at that rig *operates* it: starts it on the beat, stops
+it, switches which loop is running, moves the filter while it runs. That is a person
+playing a synthesiser — it is simply not a person playing a keyboard — and it is what
+the instrument was actually for.
+
+Two consequences for how this gets built. The `Track.machine` field still marks the part
+as machine-played, because the choreographer must not write note-by-note gestures for a
+line no hand is touching. But casting keeps the performer, and the choreographer gives
+them **operating** gestures instead of playing ones — reaching to the panel at a section
+boundary, a hand resting near the sequencer between moves.
+
+The scope note found while checking: `counterMode: 'ostinato'` is the generator's
+existing "this part is a sequencer" hook, and exactly one style uses it — synth's
+`berlin`. Widening that is a separate generator decision of the same shape as
+`DrumSource`, and should be treated as one rather than smuggled in.
+
 ### 8.1 The rule that makes it survivable
 
 A stage where the bass and the pad are sequenced and one person noodles over the top is
@@ -533,7 +560,8 @@ mounting rule had to land first because the bay could never have been the whole 
 24 of 25 machine numbers in tanssilava have no modular on stage, 68 of 68 in iskelmä
 eighties, 97 of 97 in ambient sampler.
 
-**Wave 2 — machines that play themselves.**
+**Wave 2 — machines that play themselves.** *(Deferred until after Wave 3, by
+preference: the operating gestures need the rig to be a frame of modules first.)*
 `Track.machine`, no performer for a machine track, the start gesture, the stepping
 lights. Cause and consequence land together or not at all. Rides on the mounting rule
 from Wave 1b — a sequencer is a bay, for the same reason a drum machine is.
