@@ -509,11 +509,29 @@ The `BULKY` route this plan proposed was not taken. `BULKY` is the front-line ru
 `layoutModulars` before either the arc or the front line runs, which is a smaller change
 than teaching the piano rules about a second kind of furniture.
 
-**Wave 1b — the corrections, before anything new is built on them.**
+**Wave 1b — the corrections, before anything new is built on them. ✅ Landed.**
 The genre veto on rigs (§7b) so iskelmä stops staging Moog systems; `boxDrums: false` on
 humppa, jenkka, tango and valssi; the free-standing drum machine replaced by a mounted
 bay (§8.0). Small, and it removes three things that are visibly wrong now rather than
 adding a fourth on top of them.
+
+Two things it turned up:
+
+- **`modular.from` was 1965 — the year the object was invented, not the year it reached
+  a stage**, which is what the field means. That alone was staging a cabinet wall behind
+  a 1968 jazz quintet, unreported, alongside the tanssilava case that was reported. Jazz
+  keeps its 1975 modulars; fusion with a wall of Moog behind it is Hancock.
+- **Fixing it emptied the 1968 pool and fired the last-resort fallback, which staged a
+  polysynth two years before its own `from`** — and the verifier caught that rather than
+  a person. The check was right and the window was wrong: that rig is the project's
+  generic wooden-cheeked keyboard on a stand, a Minimoog in 1970 and a Farfisa before it,
+  so 1963 is the honest figure. The fallback is unreachable again, which is where a last
+  resort belongs.
+
+The percussion **bay inside the modular** (§6.0) is *not* in this wave. The general
+mounting rule had to land first because the bay could never have been the whole answer —
+24 of 25 machine numbers in tanssilava have no modular on stage, 68 of 68 in iskelmä
+eighties, 97 of 97 in ambient sampler.
 
 **Wave 2 — machines that play themselves.**
 `Track.machine`, no performer for a machine track, the start gesture, the stepping
