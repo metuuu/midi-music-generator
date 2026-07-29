@@ -59,6 +59,13 @@ const tape: EraProfile = {
    * loudest thing.
    */
   drumSources: [['box', 5], ['programmed', 4]],
+  /**
+   * Lower than synth's, and the difference is what the two genres want from a
+   * repeating figure. Berlin school is *built* on a sequence you can hear
+   * cycling; tape-era ambient is built on a drone, and a sequencer is one
+   * texture among several rather than the engine.
+   */
+  sequenced: { bass: 0.4, counter: 0.35 },
   palette: {
     melody: [
       ['leadCalliope', 3], ['epiano1', 3], ['leadVoice', 3], ['vibraphone', 3],
@@ -129,6 +136,8 @@ const sampler: EraProfile = {
    * — there is no preset on any of these boxes and no drummer anywhere near it.
    */
   drumSources: [['programmed', 1]],
+  /** Everything on this record came out of a machine, including the bass. */
+  sequenced: { bass: 0.5, counter: 0.4 },
   palette: {
     melody: [
       ['fxCrystal', 4], ['tubularBells', 3], ['fxAtmosphere', 3], ['padMetallic', 3],
@@ -201,6 +210,12 @@ const hybrid: EraProfile = {
    * drummer rather than for want of one.
    */
   drumSources: [['programmed', 6], ['kit', 3]],
+  /**
+   * The lowest of the six, for the reason the drums are: 2000s hybrid is where
+   * the sources went back to being played, and a sequenced bass under a real
+   * cello is the arrangement this era spent its time getting away from.
+   */
+  sequenced: { bass: 0.35, counter: 0.3 },
   palette: {
     melody: [
       ['violin', 3], ['cello', 3], ['leadVoice', 3], ['vibraphone', 2],

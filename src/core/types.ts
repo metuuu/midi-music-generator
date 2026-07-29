@@ -538,7 +538,57 @@ export interface Track {
   envelope?: Envelope;
   /** Filtering, reverb send and stereo position. Absent means dry and centred. */
   effects?: Effects;
+  /**
+   * Set where this part is played by a **sequencer** rather than by hands.
+   *
+   * The same declaration `voice` and `twoHanded` are, and it exists for the
+   * same reason: from here on nothing can tell by looking. A sequenced bass and
+   * a played bass are both a list of notes, and the difference — that nobody's
+   * fingers are on it — is not recoverable from the notes.
+   *
+   * What it means downstream, in the order the pipeline meets it:
+   *
+   *  - The generator **constrains what may be written**. A sequencer holds one
+   *    figure and repeats it at one level; it does not ride a fader up for a
+   *    solo and it does not lean into a chorus, because there is nobody to
+   *    lean. It is also never handed a solo — a machine taking a chorus is a
+   *    loop with the band politely waiting.
+   *  - Casting stages **no performer for it**. The part is hosted by a keyboard
+   *    player who is already on stage: the sequencer is a module in their rig
+   *    and they work it. So a number that would have needed a fourth keyboard
+   *    player needs three, and all three are busier rather than idler.
+   *  - The choreographer writes **operating** gestures instead of playing ones —
+   *    starting it on the beat it first sounds, and reaching to the panel where
+   *    the section's filter already moves.
+   *
+   * `cycle` is the figure's length in beats. The stage needs it to run a step
+   * row that means a bar of this music rather than an arbitrary window.
+   */
+  machine?: { cycle: number };
 }
+
+/**
+ * Layers a sequencer may be given.
+ *
+ * Bass and counter, and nothing else, because those are the two the genre
+ * actually sequenced: a bass figure and a second figure phasing against it is
+ * the entire Berlin-school texture. The exclusions are the point of the list —
+ * a sequenced *melody* is a tune nobody is playing, which is the one thing that
+ * would make a stage look emptier rather than busier, and a sequenced comp is
+ * an arranger's decision rather than a machine's.
+ */
+export type SequencedLayer = 'bass' | 'counter';
+
+/**
+ * The year a sequencer could be running on a stage.
+ *
+ * Gated hard and separately from any era weighting, exactly as
+ * `DRUM_SOURCE_FROM` is, so no table written later can put one behind a dance
+ * band. 1971 is Tangerine Dream and the Moog 960 in front of an audience; the
+ * technology is older and was a studio object before that, which is the same
+ * distinction `SYNTH_RIGS.modular.from` had to be corrected for.
+ */
+export const SEQUENCER_FROM = 1971;
 
 /**
  * What is producing the percussion — as an object in a room, not as a sound.

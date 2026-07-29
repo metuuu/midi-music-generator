@@ -24,9 +24,11 @@ import { keyLabel, type Pc } from '../core/pitch.js';
 import { Rng } from '../core/rng.js';
 import type { Mode } from '../core/scale.js';
 import {
-  DEFAULT_DRUM_MIX, DEFAULT_SPACE, canVary, eligibleDrumSources, isPlayedByHand,
+  DEFAULT_DRUM_MIX, DEFAULT_SPACE, SEQUENCER_FROM, canVary, eligibleDrumSources,
+  isPlayedByHand,
   type DrumEvent, type DrumTrack, type Effects, type LayerId, type NoteEvent,
-  type Section, type SectionKind, type Song, type Space, type Track,
+  type Section, type SectionKind, type SequencedLayer, type Song, type Space,
+  type Track,
 } from '../core/types.js';
 import {
   GENRES, getGenre, type EndingStyle, type FormStep, type Genre,
@@ -239,10 +241,43 @@ export function generateSong(opts: GenerateOptions = {}): Song {
    * plan is one draw and adding a solo section should not reshuffle the band.
    */
   const excludedLayers = new Set<LayerId>(style.excludeLayers ?? []);
+  /**
+   * Which parts are left to a sequencer rather than played by hand.
+   *
+   * Its own namespaced stream for the reason `drumSource` needed one: drawn
+   * from the shared `rng` it would move every seed in the project, and the
+   * probe that settled that showed the songs moving because a number had been
+   * taken out of the stream rather than because anything about the draw
+   * mattered.
+   *
+   * Two gates, in the order that makes them un-overridable. The year is hard
+   * and runs first — no era table can put a sequencer behind a 1938 band. Then
+   * the era's own chance per layer, which is where the period statement lives,
+   * and which is absent for iskelmä and jazz because a pavilion orchestra and a
+   * bop quintet had no such thing and would not have wanted one.
+   */
+  const sequencedRng = new Rng(`${seed}:sequenced`);
+  const sequenced = new Set<SequencedLayer>();
+  if (era.year >= SEQUENCER_FROM) {
+    for (const layer of ['bass', 'counter'] as SequencedLayer[]) {
+      const chance = era.sequenced?.[layer] ?? 0;
+      if (chance > 0 && sequencedRng.chance(chance)) sequenced.add(layer);
+    }
+  }
+
   const soloPlan = planSolos({
     sections,
     profile: genre.solo,
-    excluded: excludedLayers,
+    /**
+     * A machine is never given a chorus.
+     *
+     * Not a taste: a solo is a player stepping forward, and a sequencer running
+     * its figure while the band drops out behind it is a loop with everyone
+     * politely waiting. It is also the one place a sequenced layer could still
+     * have produced a follow spot pointed at nobody, since casting stages no
+     * performer for it.
+     */
+    excluded: new Set([...excludedLayers, ...sequenced]),
     rng: new Rng(`${seed}:solo`),
     fallback: genre.soloBacking ?? 'full',
   });
@@ -1063,6 +1098,23 @@ export function generateSong(opts: GenerateOptions = {}): Song {
       .sort((a, b) => a.beat - b.beat || a.midi - b.midi));
   }
 
+  /**
+   * How long the repeating figure is, in beats, for a layer left to a machine.
+   *
+   * Read off the pattern the part was actually written from rather than
+   * assumed, because that is the whole point of `Cycle`: a figure five
+   * sixteenths long against a four-four bar is the device this genre is built
+   * on, and a step row that showed four beats regardless would be displaying a
+   * bar the machine is not playing. Absent `cycle` means the figure *is* the
+   * bar, which is what most patterns are.
+   */
+  const cycleOf = (layer: PlayedLayer): number => {
+    const slots = layer === 'counter'
+      ? counterPattern?.cycle
+      : layer === 'bass' ? bassPattern.cycle : undefined;
+    return slots ? slots / SLOTS_PER_BEAT : style.beatsPerBar;
+  };
+
   const tracks: Track[] = [];
   for (const [layer, instrument] of Object.entries(layerInstruments) as [PlayedLayer, Instrument][]) {
     const notes = byLayer.get(layer) ?? [];
@@ -1106,7 +1158,16 @@ export function generateSong(opts: GenerateOptions = {}): Song {
      * bassist taking a chorus does not want it cut. Only the layers that sit
      * behind the melody move, which is the four that can be handed a solo.
      */
-    const spans = soloSpans.get(layer);
+    /**
+     * …and a sequencer never rides the fader up, because it never solos.
+     *
+     * `sequenced` layers are excluded from solo assignment upstream, so this
+     * should be empty for them; reading it here as well is the belt to that
+     * braces, and costs one condition. A machine taking a chorus is a loop with
+     * the band politely waiting for it to finish.
+     */
+    const isMachine = sequenced.has(layer as SequencedLayer);
+    const spans = isMachine ? undefined : soloSpans.get(layer);
     let gain = gains[layer];
     if (spans?.length && gains.melody > gain) {
       const back = gain / gains.melody;
@@ -1115,6 +1176,22 @@ export function generateSong(opts: GenerateOptions = {}): Song {
         if (!soloing) n.velocity = clamp(n.velocity * back, 0.08, 1);
       }
       gain = gains.melody;
+    }
+
+    /**
+     * A sequencer has one level per step and does not lean into a chorus.
+     *
+     * The velocities a part is written with carry two things at once: the
+     * figure's own accents, and the section's intensity riding over them. A
+     * machine has the first and cannot have the second — there is nobody to
+     * lean — so the section's contribution is divided back out and the figure's
+     * own shape is left alone. Flattening to a constant instead would have
+     * thrown away the accents the pattern was written with, which is the part a
+     * sequencer genuinely does have.
+     */
+    if (isMachine) {
+      const loudest = Math.max(...notes.map((n) => n.velocity), 0.0001);
+      for (const n of notes) n.velocity = clamp(n.velocity / loudest * 0.82, 0.08, 1);
     }
 
     const effects = effectsFor(layer, instrument);
@@ -1134,6 +1211,13 @@ export function generateSong(opts: GenerateOptions = {}): Song {
       ...(layer === 'melody' && hands && leftHand.length
         ? { twoHanded: { gap: hands.gap } }
         : {}),
+      /**
+       * …and the same kind of declaration for a part nobody is touching.
+       *
+       * A sequenced bass and a played bass are the same list of notes, and the
+       * difference is not recoverable from them. See `Track.machine`.
+       */
+      ...(isMachine ? { machine: { cycle: cycleOf(layer) } } : {}),
     });
   }
 

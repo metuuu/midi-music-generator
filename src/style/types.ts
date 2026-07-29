@@ -6,7 +6,9 @@
  * numbers are rests, and the absolute value is the length in sixteenths.
  */
 
-import type { DrumSource, DrumVoice, Effects, LayerId, SectionKind, Space } from '../core/types.js';
+import type {
+  DrumSource, DrumVoice, Effects, LayerId, SectionKind, SequencedLayer, Space,
+} from '../core/types.js';
 import type { InstrumentId } from './instruments.js';
 import type { Mode } from '../core/scale.js';
 import type { VoicingStyle } from '../core/voicing.js';
@@ -545,6 +547,20 @@ export interface EraProfile {
    * table listing a Simmons kit in 1938 gets a drummer rather than an argument.
    */
   drumSources?: (readonly [DrumSource, number])[];
+  /**
+   * How often a part is left to a sequencer rather than played, by layer.
+   *
+   * A chance per layer rather than a weighted choice, because these are
+   * independent: a band may sequence its bass, its counter figure, both or
+   * neither, and those are four real arrangements. `DrumSource` is a weighted
+   * draw because a number has exactly one thing making the percussion.
+   *
+   * Absent means never, which is what iskelmä and jazz mean — a pavilion
+   * orchestra and a bop quintet had no sequencer and would not have wanted one.
+   * The year gate in `SEQUENCER_FROM` runs first and is not overridable from
+   * here.
+   */
+  sequenced?: Partial<Record<SequencedLayer, number>>;
   /** Instrument choices per layer, weighted. */
   palette: {
     melody: (readonly [InstrumentId, number])[];

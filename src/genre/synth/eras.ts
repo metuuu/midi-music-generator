@@ -86,6 +86,15 @@ const modular: EraProfile = {
    * them at zero would only look like an opinion.
    */
   drumSources: [['box', 6], ['kit', 4]],
+  /**
+   * The sequencer era, and the highest rates in the project.
+   *
+   * A 1974 synth stage *is* a sequencer running: the whole Berlin-school
+   * texture is a bass figure with a second figure phasing against it, and both
+   * of them are machines. Better than half the time for the bass, because a
+   * player with two hands and one lead to play had no third hand for it.
+   */
+  sequenced: { bass: 0.55, counter: 0.5 },
   palette: {
     // Every entry is a single-line voice, because every lead in 1974 was. The
     // square and the saw are the two oscillator shapes a Minimoog offers; the
@@ -208,6 +217,12 @@ const polysynth: EraProfile = {
    * is what a band who could not afford a Linn still had.
    */
   drumSources: [['programmed', 6], ['electronic-kit', 3], ['kit', 2], ['box', 1]],
+  /**
+   * Still mostly sequenced, and slightly less so than 1974 — the polysynth is
+   * the decade a keyboard player got something worth playing by hand, and some
+   * of what used to be patched became a part somebody performed.
+   */
+  sequenced: { bass: 0.5, counter: 0.4 },
   palette: {
     // `leadVoice` is here at a high weight and it is not a compromise. GM 85 is
     // the closest fixed patch to the breathy, brass-and-choir CS-80 lead that
@@ -334,6 +349,8 @@ const digital: EraProfile = {
    * it is the surprise it should be rather than a thing that keeps happening.
    */
   drumSources: [['programmed', 8], ['electronic-kit', 3], ['kit', 1]],
+  /** By 1987 the sequencer is a menu on the same box as everything else. */
+  sequenced: { bass: 0.45, counter: 0.35 },
   palette: {
     // Bells and buzz, which is what FM is good at and what it was therefore
     // used for. The saw survives at a low weight because analogue instruments
