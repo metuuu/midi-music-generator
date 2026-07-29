@@ -534,6 +534,63 @@ check('visemes exist exactly when there is a voice', visemeGaps === 0,
 }
 
 /**
+ * No hand crosses to another keyboard faster than it could have got there.
+ *
+ * The teleport test, and the reason the board layout has exactly one owner:
+ * `boardsFor` is read by the model that puts the keys down and by the
+ * choreographer that decides whether a hand has time to reach them. If those
+ * two ever disagreed the symptom would be a hand arriving early on a board it
+ * could not have reached, which looks like nothing at all in a still and like a
+ * glitch in motion.
+ *
+ * What is asserted is the honest minimum: a gesture that lands on a different
+ * board from that effector's previous one must have had at least its own `prep`
+ * of clear time since that previous gesture. `prep` is beats of travel *before*
+ * the note — the whole reason this IR is scheduled rather than reactive — so a
+ * crossing with less room than that is a hand that did not travel.
+ */
+{
+  let crossings = 0;
+  let rushed = 0;
+  let players = 0;
+  let worst = Infinity;
+  const notes: string[] = [];
+  for (const gid of CHECKED_GENRES) {
+    for (let i = 0; i < 5; i++) {
+      const concert = buildConcert({ seed: `board-${gid}-${i}`, genre: gid });
+      for (const number of concert.numbers) {
+        for (const p of number.cast.performers) {
+          if (!p.boards || p.boards < 2) continue;
+          players++;
+          const last = new Map<string, { beat: number; board: number }>();
+          for (const g of number.choreography.parts[p.id]?.gestures ?? []) {
+            if (g.target.kind !== 'key') continue;
+            const board = g.target.board ?? 0;
+            const prev = last.get(g.effector);
+            if (prev && prev.board !== board) {
+              crossings++;
+              const gap = g.beat - prev.beat;
+              worst = Math.min(worst, gap - g.prep);
+              if (gap < g.prep - 1e-6) {
+                rushed++;
+                if (notes.length < 3) {
+                  notes.push(`${gid}#${i} ${p.id} ${gap.toFixed(3)} < prep ${g.prep.toFixed(3)}`);
+                }
+              }
+            }
+            last.set(g.effector, { beat: g.beat, board });
+          }
+        }
+      }
+    }
+  }
+  check('no hand reaches a second keyboard faster than it could', rushed === 0,
+    rushed ? `${rushed} of ${crossings}: ${notes.join('; ')}`
+      : `${crossings} crossings by ${players} players, tightest with ${
+        crossings ? worst.toFixed(3) : '—'} beats to spare`);
+}
+
+/**
  * Where the walls of cabinets stand.
  *
  * Two rules, and they are one decision seen twice rather than two that have to

@@ -50,7 +50,10 @@ import type { Midi } from '../core/pitch.js';
 import { Rng } from '../core/rng.js';
 import type { DrumEvent, DrumVoice, NoteEvent, Song, Track } from '../core/types.js';
 import { IDIOMS, INSTRUMENTS } from '../style/instruments.js';
-import { instrumentIdForTrack, rangeForTrack, specFor } from './instruments.js';
+import {
+  boardGap, boardsFor, instrumentIdForTrack, rangeForTrack, specFor,
+  type BoardSpec,
+} from './instruments.js';
 import type {
   Archetype, ArchetypeSpec, Cast, Choreography, Effector, Gesture, GestureKind,
   Performer, PerformerPart, PlayPoint,
@@ -589,8 +592,16 @@ function playPart(
       return;
     case 'grand-piano':
     case 'electric-piano':
-    case 'synth':
       keyboardPart(groups, spec, reach, board, { kind: 'press' });
+      return;
+    case 'synth':
+      keyboardPart(groups, spec, reach, board, {
+        kind: 'press',
+        // A station with one board behaves exactly as it did; see `boardsFor`.
+        ...(performer.boards && performer.boards > 1
+          ? { boards: boardsFor(performer.boards) }
+          : {}),
+      });
       return;
     case 'harp':
       // A harp has a string per note and no fretting hand, so it is a keyboard
@@ -835,7 +846,38 @@ interface KeyboardOptions {
    * to line up with the loop below rather than being a flag.
    */
   bellows?: number[];
+  /**
+   * The keyboards this player is standing at, where there is more than one.
+   *
+   * Absent means one board and every gesture emits no `board` on its point,
+   * which is what everything written before this existed means. See `boardsFor`
+   * — the same table the model reads, so the hand and the keys cannot disagree
+   * about where a board is.
+   */
+  boards?: BoardSpec[];
 }
+
+/**
+ * Width of the main keyboard in metres, for converting a board gap into the
+ * units `travel` is measured in.
+ *
+ * `whereInRange` runs 0..1 across an instrument's whole pitch span, so a travel
+ * of 1 is a hand crossing the full keyboard — 52 white keys at 23.5 mm, which is
+ * 1.22 m. Reaching to another board is a real distance in metres and has to be
+ * converted before it can be added to that, or a tier 0.29 m up would read as a
+ * cost of 0.29 of a keyboard: four times what it is.
+ */
+const BOARD_SPAN_M = 1.222;
+
+/**
+ * The most a hand may be asked to travel between boards, in `travel` units.
+ *
+ * A hand that cannot make it stays where it is — see `pickBoard`. This is not a
+ * comfort threshold, it is the point past which the gesture would be a lie: the
+ * runtime places a hand *at* the target on the beat, so a crossing the schedule
+ * cannot fit produces a hand that teleports rather than one that hurries.
+ */
+const BOARD_REACH = 1.15;
 
 /**
  * Two hands over a line of pitch.
@@ -869,11 +911,64 @@ function keyboardPart(
   // Hands start a third and two thirds of the way up, which is where they sit
   // on a keyboard nobody is playing yet.
   const at: Record<Hand, number> = { 'left-hand': 0.35, 'right-hand': 0.6 };
+  /** Which keyboard each hand is currently on. Everyone starts on the main one. */
+  const on: Record<Hand, number> = { 'left-hand': 0, 'right-hand': 0 };
   let footAt = 0.05;
 
-  const point = (midi: Midi, bellows?: number): PlayPoint => (opts.asString
+  const point = (midi: Midi, bellows?: number, board?: number): PlayPoint => (opts.asString
     ? { kind: 'string', string: midi - reach[0], fret: 0 }
-    : { kind: 'key', midi, ...(bellows === undefined ? {} : { bellows }) });
+    : {
+      kind: 'key', midi,
+      ...(bellows === undefined ? {} : { bellows }),
+      // Omitted entirely for board 0, so a single-keyboard part is byte-identical
+      // to what it was before any of this existed.
+      ...(board ? { board } : {}),
+    });
+
+  /**
+   * Which keyboard this cluster goes to, and it is deliberately conservative.
+   *
+   * The main board plays everything and is always the answer unless a *reason*
+   * shows up, because the failure mode on the other side is the one this whole
+   * change exists to fix in reverse: boards that exist and are never touched are
+   * scenery, and boards a hand hops between for no reason are worse — a player
+   * whose hands flit mid-figure reads as broken rather than as busy.
+   *
+   * So the reason is the hands already being far apart. When a voicing is too
+   * wide for one hand it is split at its widest interval, and *that* is the
+   * moment a player with two keyboards uses the second one: the low half stays
+   * under the left hand and the right hand goes up to the board above. It is
+   * what the instrument is for and it needs no new musical concept to detect.
+   *
+   * Three things can veto it, in order of how often they fire:
+   *
+   *  - **The notes have to fit.** The extra boards are 61-note; a cluster with
+   *    anything outside that range stays on the 88.
+   *  - **The hand has to get there.** Board-to-board distance is real metres
+   *    converted into `travel` units, added to the move the hand was making
+   *    anyway, and checked against the schedule like any other travel. A
+   *    crossing that does not fit does not happen — the hand stays put and
+   *    plays the notes where it is.
+   *  - **Nothing to cross to.** A one-board station never reaches this at all.
+   */
+  const pickBoard = (
+    hand: Hand, cluster: Midi[], beat: number, where: number, split: boolean,
+  ): number => {
+    const boards = opts.boards;
+    if (!boards || boards.length < 2 || !cluster.length) return 0;
+    // Only the upper half of a split voicing goes up, and only the right hand
+    // takes it: a left hand crossing over to a tier is a circus trick.
+    const want = split && hand === 'right-hand' ? 1 : 0;
+    if (want === on[hand]) return want;
+    const spec = boards[want];
+    if (!spec) return on[hand];
+    const [lo, hi] = spec.range;
+    if (cluster.some((m) => m < lo || m > hi)) return on[hand];
+    const cross = boardGap(boards, on[hand], want) / BOARD_SPAN_M;
+    const travel = Math.abs(where - at[hand]) + cross;
+    if (travel > BOARD_REACH) return on[hand];
+    return board.canReach(hand, beat, travel, opts.kind) ? want : on[hand];
+  };
 
   for (const [index, group] of groups.entries()) {
     // Bound to this group's bellows before it is handed to `map`, which would
@@ -919,16 +1014,24 @@ function keyboardPart(
     }
 
     const hands: [Hand, Hand] = ['left-hand', 'right-hand'];
+    // Both clusters carrying notes is what "the hands are apart" means, and it
+    // is the only thing that sends a hand to another keyboard. See `pickBoard`.
+    const split = clusters[0]!.length > 0 && clusters[1]!.length > 0;
     for (let i = 0; i < 2; i++) {
       const cluster = clusters[i]!;
       if (!cluster.length) continue;
       const hand = hands[i]!;
       const where = whereInRange(mean(cluster), reach);
+      const to = pickBoard(hand, cluster, beat, where, split);
+      const cross = opts.boards ? boardGap(opts.boards, on[hand], to) / BOARD_SPAN_M : 0;
       board.place({
-        effector: hand, beat, kind: opts.kind, travel: Math.abs(where - at[hand]),
-        force, sustainBeats: sustain, targets: cluster.map(pointHere),
+        effector: hand, beat, kind: opts.kind,
+        travel: Math.abs(where - at[hand]) + cross,
+        force, sustainBeats: sustain,
+        targets: cluster.map((m) => point(m, air, to)),
       });
       at[hand] = where;
+      on[hand] = to;
     }
   }
 }
