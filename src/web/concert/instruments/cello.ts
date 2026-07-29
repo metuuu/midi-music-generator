@@ -10,18 +10,23 @@
  * that for free — the same continuous equal-tempered position rule as the
  * violin and the upright bass, with no wire to snap to.
  *
- * Build frame: `+x` bridge → nut, `+y` out of the belly, `+z` A string → C.
+ * Build frame: `+x` bridge → nut, `+y` out of the belly, `+z` C string → A.
  * The root's origin is the endpin, on the boards, which is also what the whole
  * instrument rocks about.
  *
- * **`+z` runs treble to bass, and the violin's runs bass to treble.** That
- * asymmetry is not a slip; it is what the frames force. `z` is `x × y` in both
- * files, and a violin lies across the player with its face up while a cello
- * stands on end with its face to the house — so the same cross product lands on
- * opposite sides of the player. Written the violin's way round the cello comes
- * out mirrored, and the tell is the bow: the frog ends up over the player's
- * *left* shoulder and the right hand reaches across the body to find it, which
- * is what this file used to do.
+ * **`+z` is `x × y`, and low to high along it is the whole family's rule.**
+ * A front view with the neck up puts the lowest string on the viewer's left —
+ * a guitar chord chart, a violin's chinrest on the G side, a cello's C — which
+ * is `low → high = scroll × face` and nothing else. What standing the
+ * instrument on end changes is where that lands *in the world*, not the order:
+ * the violin's `+z` runs off to the player's right and this one's to their
+ * left, so a cellist's C string is on their right, on the same side as the
+ * frog, and the A is out by the tip.
+ *
+ * This file used to negate `stringZ`, which put the frog back on the right by
+ * mirroring the instrument instead — A under the bow hand, C over by the left
+ * knee, the stopping fingers reaching for the A and the bow arm pushing *out*
+ * toward the house for the low C rather than drawing back into the player.
  */
 
 import {
@@ -60,8 +65,10 @@ const BODY_LEN = 0.755;
 // ---------------------------------------------------------------------------
 
 /**
- * Where the frog sits along the stick. Negative, because on this instrument the
- * bow arm is at `-z` — see the note on the build frame at the top of the file.
+ * Where the frog sits along the stick. Negative, because `-z` is the player's
+ * right on a cello — the same side as the C string, which is why the bow arm
+ * draws *back* into the player for the low string and reaches out toward the
+ * house for the A. See the note on the build frame at the top of the file.
  */
 const FROG_Z = -0.344;
 const HAIR_HALF = 0.340;
@@ -86,9 +93,10 @@ const BOW_LIFT = 0.040;
  * lowered at all: the instrument stays exactly where it was played and the bow
  * on it is the only thing that reads as abandoned.
  *
- * `FROG_DIR` is `−z` on this instrument and `+z` on the violin, which is the
- * build-frame asymmetry at the top of this file and the reason the carry is
- * written against a direction rather than against a sign.
+ * `FROG_DIR` is `−z` on this instrument and `+z` on the violin — the bow hand
+ * is on the player's right in both cases, and the two frames put that on
+ * opposite sides of `z`. Hence a carry written against a direction rather than
+ * against a sign.
  */
 const CARRY_FULL = 0.5;
 const FROG_DIR = new Vector3(0, 0, Math.sign(FROG_Z));
@@ -156,13 +164,14 @@ const SEAT_SHIFT = -0.050;
  * end, and the first finger takes the lowest note of the position. See
  * `violin.ts` for the argument in full.
  *
- * The sign being shared does *not* mean the hands look alike, because `+z` runs
- * the other way here — see the build-frame note at the top. `along × normal`
- * sends a violinist's fingers across the strings toward the G and a cellist's
- * toward the A, and both are right: a violin is played from underneath its neck
- * and a cello from outside it, with the arm round the C side. Which is why the
- * cellist's elbow lifts for the C string and the violinist's swings under for
- * the G — in both cases the elbow follows the palm round the neck.
+ * `along × normal` is `−z` on both instruments, so both hands reach across the
+ * strings toward the *lowest* one — the violinist's toward the G and the
+ * cellist's toward the C. That is what a stopping hand does: the palm is round
+ * the near side of the neck and the fingers have furthest to go to the far
+ * string. It is why the cellist's elbow lifts for the C and the violinist's
+ * swings under for the G; in both cases the elbow follows the palm round the
+ * neck. What differs is only which way the two instruments face, and `MOUNT`
+ * already carries that.
  */
 const DOWN_BOARD = new Vector3(-1, 0, 0);
 
@@ -199,14 +208,14 @@ function handStop(n: number): number {
 }
 
 /**
- * Where string `i` sits across the bridge, `x` from it. **High to low along
- * `+z`** — see the build-frame note at the top. Index order is unchanged and
- * still low to high, because that is what `PlayPoint.string` indexes.
+ * Where string `i` sits across the bridge, `x` from it. Low to high along
+ * `+z`, which is `x × y` and the same order every other string model uses —
+ * see the build-frame note at the top.
  */
 function stringZ(i: number, x: number): number {
   const t = Math.min(Math.max(x / MENSUR, 0), 1);
   const spread = BRIDGE_SPREAD + (NUT_SPREAD - BRIDGE_SPREAD) * t;
-  return -(i - (STRINGS - 1) / 2) * (spread / (STRINGS - 1));
+  return (i - (STRINGS - 1) / 2) * (spread / (STRINGS - 1));
 }
 
 function arcDrop(z: number): number {

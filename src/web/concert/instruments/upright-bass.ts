@@ -39,12 +39,17 @@
  * instrument is a single rigid body about the point it actually turns about,
  * and the lean in `update` is a real lean rather than a shiver.
  *
- * Build frame: `+x` bridge → nut, `+y` out of the belly, `+z` **high → low**
+ * Build frame: `+x` bridge → nut, `+y` out of the belly, `+z` **low → high**
  * string. The root's origin is the endpin, on the boards. The direction of `z`
- * is forced: it is `x × y`, and on an instrument stood on end with its face to
- * the house that lands on the player's *left* — which is the side the E string
- * is on. Numbering it the other way mirrors the whole instrument, and the tell
- * is a plucking hand that travels the wrong way across the strings.
+ * is forced: it is `x × y`, and low-to-high along it is the whole family's
+ * rule — a front view with the neck up puts the lowest string on the viewer's
+ * left, on a bass exactly as on the guitar chord chart everyone has seen.
+ * Standing the instrument on end turns where that lands *in the world*, not
+ * the order: `+z` is the player's left here where it is their right on a
+ * violin, so the E string is on the player's *right*, nearest the plucking
+ * hand, and the G is the far one. This file used to negate `stringZ`, which
+ * mirrored the whole instrument and sent both hands across the strings the
+ * wrong way.
  */
 
 import {
@@ -142,13 +147,14 @@ function stopX(n: number): number {
 }
 
 /**
- * Where string `i` sits across the bridge. Index order is low to high, as
- * `PlayPoint.string` requires; `+z` runs the other way. See the frame note.
+ * Where string `i` sits across the bridge. Low to high along `+z`, which is
+ * both what `PlayPoint.string` indexes and what `x × y` gives. See the frame
+ * note.
  */
 function stringZ(i: number, x: number): number {
   const t = Math.min(Math.max(x / MENSUR, 0), 1);
   const spread = BRIDGE_SPREAD + (NUT_SPREAD - BRIDGE_SPREAD) * t;
-  return -(i - (STRINGS - 1) / 2) * (spread / (STRINGS - 1));
+  return (i - (STRINGS - 1) / 2) * (spread / (STRINGS - 1));
 }
 
 /**
@@ -160,24 +166,23 @@ function stringZ(i: number, x: number): number {
  * and a bassist's first finger takes the lowest note of the position. See
  * `acoustic-guitar.ts` for the argument in full.
  *
- * What it *looks* like differs from a guitar's, because this file's `+z` runs
- * the other way — see the frame note on `stringZ`. The same sign sends a
- * guitarist's fingers up across the strings toward the low E and a bassist's
- * across toward the G, and both are right: a guitar neck is met from
- * underneath, and a double bass, stood on end with its face to the house, is
- * met from outside, with the arm round the E side and the thumb behind.
+ * `along × normal` is `−z`, so the fingers lie across the strings toward the
+ * low E, exactly as a guitarist's do — the palm is round the near side of the
+ * neck, the thumb behind it, and the far string is the one the hand has to
+ * reach for. On this instrument the near side is the player's left, so that
+ * reach is out across the board rather than up under it.
  */
 const DOWN_NECK = new Vector3(-1, 0, 0);
 /**
  * Up the neck: the **plucking** hand, which is round the other side.
  *
  * The two hands do not meet this instrument the same way and cannot share a
- * roll. The stopping hand is round the outside of the neck, palm on the E side.
- * The right hand comes at the end of the fingerboard from the *other* side —
- * the arm hangs from the player's right, the thumb anchors against the edge of
- * the board on the G side, and the index pulls in across the strings toward the
- * E. So its fingers run `+z` where the stopping hand's run `−z`, and the axis
- * that produces that is this one.
+ * roll. The stopping hand is round the outside of the neck, palm on the G side,
+ * reaching across to the E. The right hand comes at the end of the fingerboard
+ * from the *other* side — the arm hangs from the player's right, which is the
+ * E side, the thumb anchors against the near edge of the board, and the index
+ * hooks across the strings toward the G. So its fingers run `+z` where the
+ * stopping hand's run `−z`, and the axis that produces that is this one.
  *
  * It also puts the index at the top of the pair, nearest the nut, which is
  * where the pulling finger goes. Sharing `DOWN_NECK` had it upside down as well

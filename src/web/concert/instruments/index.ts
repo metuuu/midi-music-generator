@@ -9,6 +9,8 @@
  * because it looks deliberate.
  */
 
+import { Vector3 } from 'three';
+
 import { Rng } from '../../../core/rng.js';
 import { ARCHETYPE_OF } from '../../../concert/instruments.js';
 import type { Archetype, Effector, PlayPoint, Performer } from '../../../concert/types.js';
@@ -24,6 +26,7 @@ import { buildAcousticGuitar } from './acoustic-guitar.js';
 import { buildCello } from './cello.js';
 import { buildClarinet } from './clarinet.js';
 import { buildDrumkit } from './drumkit.js';
+import { MACHINE_PANEL_W, MACHINE_PANEL_Y, MACHINE_PANEL_Z } from './drum-machine.js';
 import { buildElectricBass } from './electric-bass.js';
 import { buildElectricGuitar } from './electric-guitar.js';
 import { buildElectricPiano } from './electric-piano.js';
@@ -131,6 +134,84 @@ export function buildInstrumentFor(
     ...(performer.boards ? { boards: performer.boards } : {}),
     ...(machine ? { machine } : {}),
   }));
+}
+
+/**
+ * Where a machine this player works is standing, in their instrument's frame.
+ *
+ * Four numbers rather than a matrix because that is all a yaw on a flat stage
+ * is, and because the thing consuming it is a contact — a position and two
+ * directions — not a transform.
+ */
+export interface MachinePanel {
+  /** The top of the machine's stand, in the model's own local metres. */
+  x: number;
+  y: number;
+  z: number;
+  /** The machine's yaw *relative to the model's*, in radians. */
+  yaw: number;
+}
+
+/**
+ * Send this player's panel touches to the machine standing beside them.
+ *
+ * `resolve` answers in the model's own frame and the models are, correctly,
+ * ignorant of everything that is not them — so a synthesiser asked where a
+ * `control` point is answers with its own knob row, which is exactly right when
+ * the player is sweeping their own filter and exactly wrong when they are
+ * starting a drum machine. It used to be neither: the box was bolted to the
+ * back of the same rig, so the panel row was a few centimetres from the machine
+ * and the hand arriving there read as close enough. On a stand at the player's
+ * right hand it is most of a metre away, and a hand pressing start on the wrong
+ * object is worse than no hand at all — it is the stage asserting a cause that
+ * plainly is not one.
+ *
+ * So the show, which is the only thing that knows where both objects ended up,
+ * hands over the machines' positions in this model's frame and the `control`
+ * points that name one are answered here. Everything else — including a bay,
+ * which genuinely *is* on the player's own rig — falls through untouched.
+ *
+ * Wrapping rather than a build option, for the same reason `withSoundingContact`
+ * wraps: the answer depends on where the model was finally stood, which is not
+ * known when it is built. `resolve`'s contract survives — this is pure, cheap,
+ * and constant for the life of the number.
+ */
+export function aimMachineControls(
+  model: InstrumentModel, panels: readonly (MachinePanel | undefined)[],
+): InstrumentModel {
+  if (!panels.some(Boolean)) return model;
+  const inner = model.resolve.bind(model);
+  model.resolve = (point, effector) => {
+    if (point.kind !== 'control' || point.machine === undefined) {
+      return inner(point, effector);
+    }
+    const panel = panels[point.machine];
+    if (!panel) return inner(point, effector);
+    /**
+     * The box's own axes, turned into the model's frame, and the row's own
+     * offset along them.
+     *
+     * `at` runs the way it does on a keyboard's panel — 0 at one end of the row
+     * — and `MACHINE_PANEL_Z` puts the hand on the *front* row rather than in
+     * the middle of the case, which is 7 cm and the difference between a finger
+     * on a button and a palm on a lid.
+     */
+    const cos = Math.cos(panel.yaw);
+    const sin = Math.sin(panel.yaw);
+    const along = new Vector3(cos, 0, -sin);
+    const fwd = new Vector3(sin, 0, cos);
+    const off = (0.5 - Math.max(0, Math.min(1, point.at))) * MACHINE_PANEL_W;
+    return {
+      position: new Vector3(
+        panel.x + along.x * off + fwd.x * MACHINE_PANEL_Z,
+        panel.y + MACHINE_PANEL_Y,
+        panel.z + along.z * off + fwd.z * MACHINE_PANEL_Z,
+      ),
+      normal: new Vector3(0, 1, 0),
+      along,
+    };
+  };
+  return model;
 }
 
 /** Effectors that *sound* a note rather than stopping it. */

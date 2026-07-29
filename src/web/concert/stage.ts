@@ -167,6 +167,16 @@ export interface StageRig {
   /** Sustained: a solo leans the house in and stills it. 0 relaxed, 1 rapt. */
   setAttention(level: number): void;
 
+  /**
+   * Whether the drum platform is standing, for the number about to go on.
+   *
+   * The room owns the riser and the cast owns the drummer, so only the runner
+   * knows whether the two agree — call it from wherever the band is staged,
+   * with `true` when somebody on this number has `Station.riser` above zero.
+   * A room without a riser in its props ignores it. See `stage-props.ts`.
+   */
+  showRiser(on: boolean): void;
+
   /** Audience size, haze card count. Cheap to change at any time. */
   setQuality(q: Quality): void;
   /** How many people are being drawn. */
@@ -700,6 +710,8 @@ export function buildStage(venue: Venue, opts: StageOptions = {}): StageRig {
     applaud: (intensity) => audience.applaud(intensity),
     gasp: () => audience.gasp(),
     setAttention: (level) => audience.setAttention(level),
+
+    showRiser: (on) => dressed.showRiser(on),
 
     setQuality(q: Quality): void {
       audience.setQuality(q);

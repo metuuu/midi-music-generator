@@ -64,7 +64,9 @@ import { Rng } from '../../core/rng.js';
 import type { LayerId, Song } from '../../core/types.js';
 import { songDurationSeconds } from '../../core/types.js';
 import { buildConcert, revoiceNumber } from '../../concert/index.js';
-import type { Concert, ConcertNumber, ConcertOptions } from '../../concert/types.js';
+import type {
+  Concert, ConcertNumber, ConcertOptions, StageMachine,
+} from '../../concert/types.js';
 import { instrumentIdForTrack, specFor } from '../../concert/instruments.js';
 import { getGenre } from '../../genre/index.js';
 import { renderStrudel } from '../../render/strudel.js';
@@ -73,7 +75,7 @@ import { loadCode, playCode, startLoaded, stopPlayback } from '../audio.js';
 import { createAnimator, type Animator } from './animate.js';
 import { createDirector, type CameraDirector } from './camera.js';
 import { buildDrumMachine, type DrumMachine } from './instruments/drum-machine.js';
-import { buildInstrumentFor } from './instruments/index.js';
+import { aimMachineControls, buildInstrumentFor } from './instruments/index.js';
 import type { InstrumentModel } from './instruments/types.js';
 import { buildLightRig, type LightRig } from './lights.js';
 import { buildPerformer, type PerformerRig } from './performer.js';
@@ -387,6 +389,17 @@ export function createShow(opts: ShowOptions = {}): Show {
   function stageBand(number: ConcertNumber): void {
     strikeBand();
 
+    /**
+     * The platform only stands when somebody is standing on it.
+     *
+     * The riser belongs to the room and the drummer belongs to the number, and
+     * this is the only place both are in hand. Numbers whose percussion is a
+     * machine have no `riser` in the cast at all, and `cast.ts` then hands the
+     * back centre to whoever needs it — so the platform has to go, or it comes
+     * up through their legs. See `StageRig.showRiser`.
+     */
+    stage.showRiser(number.cast.performers.some((p) => p.station.riser > 0));
+
     for (const performer of number.cast.performers) {
       const rig = buildPerformer(performer);
       /**
@@ -408,34 +421,37 @@ export function createShow(opts: ShowOptions = {}): Show {
 
       const track = number.song.tracks.find((t) => t.layer === performer.layer);
       /**
+       * Everything this player is minding, in the order the choreographer
+       * counted them.
+       *
+       * `PlayPoint.control` names a machine by its index in this list, so it has
+       * to be the same list `choreograph` built — which it is, because both take
+       * `cast.machines` in order and filter on `tendedBy`. Getting this out of
+       * step would send a hand to the wrong box, silently.
+       */
+      const minded = (number.cast.machines ?? [])
+        .filter((m) => m.tendedBy === performer.id);
+      /**
        * A machine mounted *inside* this performer's rig, if the cast said so.
        *
        * Only a modular has a bay for one, and only its tender gets it — see
        * `StageMachine.mount`. The instrument then draws the machine as a module
        * and no separate object is built for it below.
        */
-      const bay = (number.cast.machines ?? [])
-        .find((m) => m.mount === 'bay' && m.tendedBy === performer.id);
-      /**
-       * The notes the bay is running.
-       *
-       * A drum machine's pattern is `song.drums`; a sequencer's is the track of
-       * the layer it was given. `StageMachine.layer` says which, so this does
-       * not have to re-derive the mapping the cast already made.
-       */
-      const bayNotes = bay
-        ? (bay.layer
-          ? number.song.tracks.find((t) => t.layer === bay.layer)?.notes ?? []
-          : number.song.drums.events)
-        : undefined;
+      const bay = minded.find((m) => m.mount === 'bay');
       const model = buildInstrumentFor(
         performer,
         track ? instrumentIdForTrack(track) : undefined,
         concert.venue.palette.proscenium,
         concert.year,
         number.song.drums.source,
-        bay && bayNotes
-          ? { kind: bay.kind, events: bayNotes, beatsPerBar: number.song.meta.beatsPerBar }
+        bay
+          ? {
+            kind: bay.kind,
+            events: notesOf(number, bay),
+            beatsPerBar: number.song.meta.beatsPerBar,
+            ...startedAt(number, bay),
+          }
           : undefined,
       );
 
@@ -484,6 +500,36 @@ export function createShow(opts: ShowOptions = {}): Show {
           new Vector3().copy(model.station.offset).applyAxisAngle(UP, yaw),
         );
         band.add(model.root);
+
+        /**
+         * …and now this player's instrument can answer for the boxes beside it.
+         *
+         * Only here, and only in this branch, because this is the first moment
+         * anything knows where the instrument was finally stood — and only a
+         * player standing at something can be minding a machine anyway, since
+         * casting will not hand one to a pair of hands holding a horn.
+         *
+         * The stand's own position is in stage coordinates and the contact has
+         * to be in the model's, so it is the placement above run backwards: out
+         * of the model's origin and out of its yaw. See `aimMachineControls`.
+         */
+        if (minded.length) {
+          const cos = Math.cos(-yaw);
+          const sin = Math.sin(-yaw);
+          aimMachineControls(model, minded.map((m) => {
+            // A bay is on this player's own rig, so the model's own panel is
+            // the right answer and this must not override it.
+            if (m.mount === 'bay') return undefined;
+            const dx = m.position[0] - model.root.position.x;
+            const dz = m.position[2] - model.root.position.z;
+            return {
+              x: dx * cos + dz * sin,
+              y: m.position[1] - model.root.position.y,
+              z: -dx * sin + dz * cos,
+              yaw: m.facing - yaw,
+            };
+          }));
+        }
       }
       models.set(performer.id, model);
     }
@@ -498,16 +544,14 @@ export function createShow(opts: ShowOptions = {}): Show {
     for (const spec of number.cast.machines ?? []) {
       // A bay is drawn by the instrument that contains it, above.
       if (spec.mount === 'bay') continue;
-      // As above: a sequencer runs its own layer's notes, a box runs the kit's.
-      const notes = spec.layer
-        ? number.song.tracks.find((t) => t.layer === spec.layer)?.notes ?? []
-        : number.song.drums.events;
       const machine = buildDrumMachine({
         kind: spec.kind,
         seed: new Rng(`machine:${concert.seed}:${spec.id}`).int(0, 0xffff),
         finish: concert.venue.palette.proscenium,
-        events: notes,
+        events: notesOf(number, spec),
         beatsPerBar: number.song.meta.beatsPerBar,
+        stand: spec.stand ?? 0.9,
+        ...startedAt(number, spec),
       });
       const [mx, my, mz] = spec.position;
       machine.root.position.set(mx, my, mz);
@@ -1035,6 +1079,58 @@ export function createShow(opts: ShowOptions = {}): Show {
 const UP = new Vector3(0, 1, 0);
 /** Where the band looks when they take a bow. Rewritten each frame. */
 const HOUSE = new Vector3(0, 1.55, 8);
+
+/**
+ * What a machine is running: a sequencer plays its own layer, a box plays the
+ * kit's. `StageMachine.layer` says which, so nothing here re-derives a mapping
+ * the cast already made.
+ */
+function notesOf(
+  number: ConcertNumber, spec: StageMachine,
+): readonly { beat: number; velocity: number; voice?: string }[] {
+  return spec.layer
+    ? number.song.tracks.find((t) => t.layer === spec.layer)?.notes ?? []
+    : number.song.drums.events;
+}
+
+/**
+ * The beat somebody's hand starts this machine, if anybody's does.
+ *
+ * Read out of the choreography rather than guessed from the pattern, because
+ * the two do not agree and the choreographer is right: nobody starts a
+ * sequencer on the beat they want to hear it, they start it in the bar before
+ * and it comes round, so `operatePart` walks the start backwards to wherever
+ * the player has a hand free. The panel lighting up has to be that beat and not
+ * the first note, or the machine is running before it was started — which is
+ * the whole failure the start gesture exists to prevent, restated as a lamp.
+ *
+ * **Only a touch at or before the first note counts**, and that clause is the
+ * whole of the care needed here. A start is not always placeable — a player
+ * whose own part begins on the same downbeat has no hand free and there is no
+ * earlier beat to walk back to, which is the documented residue in §8.1 — and
+ * the earliest panel touch is then a *pattern change* twenty-eight bars in.
+ * Taking that as the start blanks a machine that has been audibly playing since
+ * bar one, which is a worse lie than the one this is fixing. So an unstarted
+ * machine runs from its own first event: the honest reading of a box with no
+ * hand on it at bar one is that it was already going when the lights came up.
+ *
+ * Absent for an untended machine on an empty stage, for the same reason.
+ */
+function startedAt(number: ConcertNumber, spec: StageMachine): { startedAt?: number } {
+  const tender = spec.tendedBy;
+  if (!tender) return {};
+  // The same index the choreographer counted with — see `PlayPoint.control`.
+  const which = (number.cast.machines ?? [])
+    .filter((m) => m.tendedBy === tender).indexOf(spec);
+  const sounds = notesOf(number, spec).reduce((m, e) => Math.min(m, e.beat), Infinity);
+  let start: number | undefined;
+  for (const g of number.choreography.parts[tender]?.gestures ?? []) {
+    if (g.target.kind !== 'control' || g.target.machine !== which) continue;
+    if (g.beat > sounds) continue;
+    if (start === undefined || g.beat < start) start = g.beat;
+  }
+  return start === undefined ? {} : { startedAt: start };
+}
 
 /**
  * A sheet of black over the picture, for the end of the show.

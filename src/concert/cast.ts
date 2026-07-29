@@ -882,14 +882,20 @@ function assignRigs(slots: Slot[], year: number, genre: string, seed: string): v
     /**
      * How many keyboards this player stands at.
      *
-     * Only a frame carries more than one, so this is a modular's question and
-     * nobody else's — a Prophet is a keyboard and a DX7 is a keyboard. Drawn
-     * rather than fixed, because a rig with three boards and a rig with one are
-     * both real and the difference is what the number needed.
+     * A question for the two rigs that carry more than one board and not for
+     * the polysynth, which is a keyboard and stays one. Drawn rather than
+     * fixed, because a rig with three boards and a rig with one are both real
+     * and the difference is what the number needed.
      *
      * Weighted toward the smaller counts. Four boards is Emerson, and Emerson
      * is not what most nights looked like; two is a player who wanted a second
      * sound within reach, which is most of them.
+     *
+     * One table for both rigs, clamped by `maxBoards` rather than branched on
+     * the rig, and the clamp says the right thing on its own: a digital slab
+     * caps at two, so the draw lands as seven stacks in ten and three lone
+     * slabs — which is what a room of them looked like. The rest of the table
+     * is a frame's question and only a frame ever sees it.
      */
     if (spec.maxBoards > 1) {
       const boards = rng.weighted([[1, 3], [2, 4], [3, 2], [4, 1]] as const);
@@ -2476,37 +2482,57 @@ const BUSY_HANDS: Archetype[] = [
 ];
 
 /**
- * How far along their own rig the machine sits, as a fraction of the player's
- * own footprint.
+ * How far to the side of the player the stand's centre goes, and how much room
+ * the stand itself needs around that centre.
  *
- * Outboard enough to be beside the hands rather than under them, and inside the
- * gear the player is already standing at — this is a *mount*, not a position on
- * the boards. Past 1.0 it would be off the end of the stand.
+ * **Past the end of their keyboard, not over it.** That is the whole point of a
+ * stand, and it is an absolute measurement rather than a fraction of anything —
+ * which was the first version of this and was wrong twice over. `footprint` is
+ * "the stage a free-standing player claims", not the width of their gear, and
+ * `TABLE_R` then overwrites it with 0.7 for anybody on the arc, so a fraction of
+ * `r` shrank *exactly* when the player was crowded and put the stand inside the
+ * keys. What has to be cleared is a keyboard, and a keyboard is 1.4 m wide
+ * whatever stage it is on — the same measurement `TABLE_R` states.
+ *
+ * So: 0.70 to the end of the keys, plus the stand's own half-width, plus
+ * daylight. Reach comes out at 0.94 m against the verifier's 1.1 m arm, which
+ * is a lean rather than a stretch — and a lean is what working a box at the end
+ * of your keyboard is.
  */
-const MACHINE_ALONG = 0.72;
+const MACHINE_BESIDE = 0.92;
+const MACHINE_STAND_HALF = 0.21;
 
 /**
- * …and no further than this, whatever the rig is.
+ * How far downstage of the player the stand sits.
  *
- * A fraction of the footprint alone is wrong at the top end: a modular carrying
- * three keyboards is 1.45 m of gear, and 72% of that puts the machine past the
- * arm that has to start it. The verifier caught it the moment wings landed —
- * 1.14 m from the tender against a 1.1 m reach — which is the check doing
- * exactly its job, since nothing about the machine changed. Reach is a fact
- * about a person and does not grow with their equipment.
+ * A little in front of them, because that is where a small table beside a
+ * keyboard player actually goes: level with the near end of their own keys,
+ * where they can see the panel without turning round and reach it without
+ * leaving the boards. Behind the shoulder it would be a thing they grope for.
  */
-const MACHINE_ALONG_MAX = 0.78;
+const MACHINE_AHEAD = 0.20;
 
 /**
- * How far above the playing surface the machine sits, and how far behind it.
+ * How far *below* the key plane the stand's top is.
  *
- * On top of the rig, at the back of it: a rhythm box lived on the panel behind
- * the keys or on a shelf over them, which is the one place on a keyboard stand
- * that is not in the way of playing. `workHeight` is the key plane, so this is
- * a hand's depth above it and far enough back to clear the keys.
+ * `workHeight` is the plane the hands already work at, and a table exactly
+ * level with it would put the box's own case above the keys and the panel out
+ * of the player's sight line. Dropping the top by the depth of the case brings
+ * the panel back up to about the height of the keys, which is the one height
+ * this player's hands are already at — the reach from a chord to the start
+ * switch is then across, not up.
  */
-const MACHINE_ABOVE = 0.11;
-const MACHINE_BEHIND = 0.46;
+const MACHINE_TABLE_DROP = 0.08;
+
+/**
+ * How far behind the first a second machine's stand goes.
+ *
+ * Backwards rather than further out, because sideways is where the reach runs
+ * out: 0.92 m is already a lean. Each box brings its own stand, and this is the
+ * depth of a top plus daylight, so two of them abut into a bench rather than
+ * growing through one another.
+ */
+const MACHINE_STACK_BACK = 0.28;
 
 /**
  * How much of the player's own turn the machine takes.
@@ -2515,30 +2541,44 @@ const MACHINE_BEHIND = 0.46;
  * the complaint about this object: a player toed 26° into the gear arc handed
  * the machine the same 26°, and the panel — the only part of it with anything
  * to see on — pointed across the stage instead of at the room. Not none of it
- * either, or a box bolted to a turned rig would sit visibly askew on its own
- * mount. A third keeps it on the rig and still square enough to read.
+ * either, or the stand would sit square to the house beside a player who is
+ * not, and read as something delivered rather than something theirs. A third
+ * keeps it plainly part of their corner and still square enough to read.
  */
 const MACHINE_SQUARE = 0.34;
 
 /**
- * Mount the drum machine on somebody's rig, if there is one.
+ * Stand the drum machine at somebody's right hand.
  *
- * **Never furniture of its own.** The first version of this stood the box on a
- * folding table beside the nearest keyboard player, and that is confusing to
- * look at for a reason worth stating precisely: a lone table producing a full
- * drum part offers no account of itself, so the eye files it as scenery and the
- * percussion goes back to arriving from nowhere — the exact failure the box was
- * added to fix, moved rather than solved. Gear on a person's own equipment
- * needs no explanation.
+ * **Beside the player, on a stand built for it — never on top of their
+ * keyboard, and never furniture standing on its own in the middle of a stage.**
+ * Those are two different failures and this is the placement that avoids both.
  *
- * So it goes on the rig of whoever works it, at the back of the panel and a
- * hand's depth above the keys, which is where a rhythm box actually lived. The
- * ideal case is better still and is not built yet: where the tender is standing
- * at a modular, the machine should be a percussion *module* in the cabinet
- * alongside the oscillators — see §6.0 of `docs/backline-plan.md`. That covers a
- * minority of numbers, though: 24 of 25 machine numbers in iskelmä's tanssilava
- * era have no modular on stage at all, and 97 of 97 in ambient's sampler era. A
- * rule that only worked inside a modular would fix almost nothing.
+ * The first version parked the box on a folding table beside the nearest
+ * keyboard player, and the table was scenery: a lone piece of furniture
+ * producing a full drum part offers no account of itself, so the percussion
+ * still arrived from nowhere. The fix for that was to bolt the box to the
+ * player's own rig, and it fixed the wrong half. What it bought was an
+ * explanation; what it cost was the object. A shoebox lying on the panel behind
+ * somebody's keys is inside the silhouette of the keyboard from every seat in
+ * the house — the audience sees one instrument, and the one thing they must be
+ * able to see is a *second* one being started.
+ *
+ * So the box gets a stand of its own, and the stand is not a table somebody
+ * happened to leave there: it is a small purpose-built one, the size of the box
+ * and nothing more, standing at the player's right hand where the near end of
+ * their own keyboard is. That is where this gear actually went, and it reads
+ * correctly for the reason the rig mount was reaching for and missed — the
+ * machine belongs to the person standing next to it *because they turn to it
+ * and work it*, which the eye reads directly, rather than because it is
+ * screwed to their stand, which the eye cannot see at all.
+ *
+ * The one exception stays: where the tender is standing at a modular, the
+ * machine is a percussion *module* in the cabinet, because that is what a
+ * modular is. That covers a minority of numbers — 24 of 25 machine numbers in
+ * iskelmä's tanssilava era have no modular on stage at all, and 97 of 97 in
+ * ambient's sampler era — which is why the general answer has to stand on its
+ * own legs.
  *
  * **The tender is the point, not a nicety.** A machine is chosen for the person
  * most likely to have switched it on: a keyboard player first, then anybody not
@@ -2631,7 +2671,8 @@ function placeMachines(song: Song, slots: Slot[], venue: Venue): StageMachine[] 
         ...(want.layer ? { layer: want.layer } : {}),
         position: [0, round(RISER_HEIGHT + 0.92), round(-venue.depth / 2 + RISER_FROM_BACK)],
         facing: 0,
-        mount: 'rig',
+        mount: 'stand',
+        stand: 0.92,
       });
       return;
     }
@@ -2639,39 +2680,73 @@ function placeMachines(song: Song, slots: Slot[], venue: Venue): StageMachine[] 
     const nth = load.get(tender) ?? 0;
     load.set(tender, nth + 1);
 
-    // Outboard of the player's own centre: `-sign(x)` would walk it toward the
-    // middle of the stage and put it between them and the house. Somebody on the
-    // centre line has no outboard side, so they get their right.
-    const out0 = tender.x >= 0 ? 1 : -1;
-    const work = specFor(tender.archetype).workHeight;
     /**
-     * A second machine on the same rig sits behind the first rather than beside
-     * it. Sideways is where the reach runs out; backwards is panel the player
-     * already has.
+     * The player's own right, and their forward, in stage coordinates.
+     *
+     * `facing` 0 looks at the house, which is `+z`; a person facing that way
+     * has their right hand toward `-x`, and the audience's left. Both unit
+     * vectors are written out rather than derived at the call site because the
+     * old code moved the box "outboard" — away from stage centre — which is the
+     * player's right for half the band and their left for the other half, and
+     * which side of somebody their own gear is on is not a thing that should
+     * flip with where they happen to be standing.
      */
-    const along = out0 * Math.min(tender.r * MACHINE_ALONG, MACHINE_ALONG_MAX);
-    const back = MACHINE_BEHIND + nth * 0.24;
     const cos = Math.cos(tender.facing);
     const sin = Math.sin(tender.facing);
+    const rightX = -cos;
+    const rightZ = sin;
+    const fwdX = sin;
+    const fwdZ = cos;
+
+    const work = specFor(tender.archetype).workHeight;
+    const ahead = MACHINE_AHEAD - nth * MACHINE_STACK_BACK;
+    const stand = work - MACHINE_TABLE_DROP;
+
+    const spot = (side: number): [number, number] => [
+      tender.x + side * MACHINE_BESIDE * rightX + ahead * fwdX,
+      tender.z + side * MACHINE_BESIDE * rightZ + ahead * fwdZ,
+    ];
+    /**
+     * The right hand unless somebody else's gear is standing in it.
+     *
+     * A keyboard arc puts its players 1.75 m apart, so on a crowded one the
+     * far corner of this stand and the far end of the next player's keyboard
+     * want the same 7 cm. The right is the side to want — you reach across
+     * yourself for the left — but not at the price of a table growing out of
+     * a neighbour's board, so a blocked right takes the left. `r` is the right
+     * question to ask of the others: it is what the solver separated them on,
+     * and for anybody at a keyboard it is that keyboard's own half-width.
+     *
+     * Both blocked leaves it on the right anyway. A player boxed in on both
+     * sides is a real arrangement and a table that has to touch something is
+     * a smaller problem than a table on the wrong side of its player — and it
+     * cannot go in front, which is between them and the house.
+     */
+    const clear = (side: number): boolean => {
+      const [sx, sz] = spot(side);
+      return slots.every((o) => o === tender
+        || Math.hypot(sx - o.x, sz - o.z) > o.r + MACHINE_STAND_HALF);
+    };
+    const side = clear(1) || !clear(-1) ? 1 : -1;
+    const [px, pz] = spot(side);
+
     out.push({
       id: want.id,
       kind: want.kind,
       bank: want.bank,
       ...(want.layer ? { layer: want.layer } : {}),
-      position: [
-        round(tender.x + along * cos + back * sin),
-        round(tender.riser + work + MACHINE_ABOVE + nth * 0.06),
-        round(tender.z - along * sin + back * cos),
-      ],
+      position: [round(px), round(tender.riser + stand), round(pz)],
       facing: round(tender.facing * MACHINE_SQUARE),
       /**
-       * A modular contains it; anything else carries it.
+       * A modular contains it; everything else stands it beside the player.
        *
        * The best answer where it is available — a module in a cabinet of
        * modules needs no explaining — and not available often, which is what
-       * the mounted plate is for.
+       * the stand is for.
        */
-      mount: tender.rig === 'modular' ? 'bay' : 'rig',
+      ...(tender.rig === 'modular'
+        ? { mount: 'bay' as const }
+        : { mount: 'stand' as const, stand: round(stand) }),
       tendedBy: tender.id,
     });
   });

@@ -1,17 +1,24 @@
 /**
  * SPDX-License-Identifier: AGPL-3.0-or-later
  *
- * The house — silhouetted heads in the near foreground.
+ * The house — silhouetted people in the near foreground.
  *
  * A concert with no crowd is a rehearsal, so this is not decoration; it is
  * half of what tells you what kind of room you are in. It is also the only
  * thing on this stage that exists in the hundreds, which decides everything
  * about how it is built:
  *
- * - **Three `InstancedMesh`es for the whole house.** Heads, shoulders, hands.
+ * - **Three `InstancedMesh`es for the whole house.** Heads, bodies, hands.
  *   A hundred and sixty people cost three draw calls and about thirty thousand
  *   triangles of very small, very dark geometry. Adding a fourth part to a
  *   person is a whole extra draw call, which is why they do not have arms.
+ * - **The body reaches the floor.** It was a shoulder blob — a squashed sphere
+ *   ending at the ribs — which is fine in a seated house where the row in front
+ *   hides everybody's middle, and is a row of heads hanging in mid-air at a
+ *   tanssilava, where the crowd is standing on an open dance floor with nothing
+ *   in front of it. It is now a tapered column anchored at the feet and
+ *   restretched to the shoulders every frame, so a bobbing head cannot lift
+ *   anybody off the boards. Same draw call, fewer triangles than the sphere.
  * - **Unlit.** `MeshBasicMaterial`, near black, with a few percent of
  *   per-instance variation so the crowd has depth without having features.
  *   This is cheaper than lighting them, and it is also *better*: a foreground
@@ -33,7 +40,7 @@
  */
 
 import {
-  Color, Group, IcosahedronGeometry, InstancedMesh, Object3D, SphereGeometry,
+  Color, CylinderGeometry, Group, IcosahedronGeometry, InstancedMesh, Object3D,
 } from 'three';
 
 import { Rng } from '../../core/rng.js';
@@ -100,6 +107,15 @@ interface Person {
   x: number;
   /** Head height above the house floor for this row. */
   y: number;
+  /**
+   * y this one is standing on — the house floor, plus their row's rake.
+   *
+   * The rake is a cheat: the floor plane is flat and the back rows are lifted
+   * off it so they clear the front. The body has to end at the level its owner
+   * was lifted to rather than at the plane, or the back of a raked house grows
+   * a row of giants.
+   */
+  foot: number;
   z: number;
   yaw: number;
   scale: number;
@@ -168,6 +184,7 @@ export function buildAudience(o: AudienceOptions): AudienceRig {
       people.push({
         x: base + rng.float(-0.08, 0.08),
         y: o.houseY + rake + head,
+        foot: o.houseY + rake,
         z: z + rng.float(-0.12, 0.12),
         yaw: rng.float(-0.22, 0.22),
         scale: rng.float(0.92, 1.09),
@@ -189,13 +206,19 @@ export function buildAudience(o: AudienceOptions): AudienceRig {
   const mat = kit.basic(dark);
 
   const headGeo = kit.geometry('aud-head', () => new IcosahedronGeometry(0.115, 1));
-  const bustGeo = kit.geometry('aud-bust', () => new SphereGeometry(0.23, 8, 5));
+  // A unit column hanging from its own origin: the top face is the shoulder
+  // line at y=0 and the feet are at y=-1, so one scale sets a person's height
+  // and nothing has to solve for a centre. Seven sides is enough for a shape
+  // that is never lit and never more than a couple of hundred pixels tall.
+  const bodyGeo = kit.geometry('aud-body', () => (
+    new CylinderGeometry(1, 0.74, 1, 7, 1).translate(0, -0.5, 0)
+  ));
   const handGeo = kit.geometry('aud-hand', () => new IcosahedronGeometry(0.055, 0));
 
   const heads = new InstancedMesh(headGeo, mat, Math.max(1, n));
-  const busts = new InstancedMesh(bustGeo, mat, Math.max(1, n));
+  const bodies = new InstancedMesh(bodyGeo, mat, Math.max(1, n));
   const hands = new InstancedMesh(handGeo, mat, Math.max(1, n * 2));
-  for (const m of [heads, busts, hands]) {
+  for (const m of [heads, bodies, hands]) {
     m.frustumCulled = false;   // one bounding sphere for the whole house
     m.castShadow = false;
     m.receiveShadow = false;
@@ -210,11 +233,11 @@ export function buildAudience(o: AudienceOptions): AudienceRig {
     const k = 0.86 + rng.next() * 0.3;
     tone.copy(baseTone).multiplyScalar(k);
     heads.setColorAt(i, tone);
-    busts.setColorAt(i, tone.clone().multiplyScalar(0.82));
+    bodies.setColorAt(i, tone.clone().multiplyScalar(0.82));
     hands.setColorAt(i * 2, tone);
     hands.setColorAt(i * 2 + 1, tone);
   }
-  for (const m of [heads, busts, hands]) {
+  for (const m of [heads, bodies, hands]) {
     if (m.instanceColor) m.instanceColor.needsUpdate = true;
   }
 
@@ -276,22 +299,33 @@ export function buildAudience(o: AudienceOptions): AudienceRig {
       dummy.updateMatrix();
       heads.setMatrixAt(i, dummy.matrix);
 
-      dummy.position.set(x - sway * 0.006, y - 0.3 * p.scale, z + 0.02);
-      dummy.rotation.set(attention * 0.12, p.yaw * 0.6, 0);
-      dummy.scale.set(p.scale * 1.45, p.scale * 0.95, p.scale * 0.95);
+      // Shoulders follow the head; the feet do not move. The column is stood
+      // between the two rather than placed at a height, so bobbing, gasping and
+      // leaning in all happen without anybody taking off. No lean on x either:
+      // the origin is at the shoulders, so a tilt there swings the feet.
+      const shoulder = y - 0.12 * p.scale;
+      dummy.position.set(x - sway * 0.006, shoulder, z + 0.02);
+      dummy.rotation.set(0, p.yaw * 0.6, 0);
+      dummy.scale.set(
+        p.scale * 0.335, Math.max(0.3, shoulder - p.foot), p.scale * 0.22,
+      );
       dummy.updateMatrix();
-      busts.setMatrixAt(i, dummy.matrix);
+      bodies.setMatrixAt(i, dummy.matrix);
 
-      // Hands: in the lap, or up and clapping, or over the head if this one is
-      // the sort. The clap is the only fast motion in the house and it is what
-      // makes applause read from thirty feet away.
+      // Hands: at the sides, or up and clapping, or over the head if this one
+      // is the sort. The clap is the only fast motion in the house and it is
+      // what makes applause read from thirty feet away.
       const clap = Math.sin(time * p.clapRate * 6.283 + p.clapPhase);
       const lift = excite * (0.34 + p.demonstrative * 0.42);
+      // At rest they sit just inside the body's own width, because a person
+      // with no arms and a hand floating clear of their side reads as a mistake
+      // rather than as a hand. Coming in to the chest is what brings them out.
       // The clap itself is fast repetitive motion, so it is the oscillation
       // rather than the raised hands that reduced motion takes away.
-      const sep = 0.115 - excite * 0.055 * (0.5 + 0.5 * clap * idle);
-      const hy = y - 0.36 * p.scale + lift;
-      const hz = z + 0.14 + excite * 0.06;
+      const sep = Math.max(0.05, p.scale * (0.3 - excite * 0.17)
+        - excite * 0.05 * (0.5 + 0.5 * clap * idle));
+      const hy = y - 0.5 * p.scale + lift;
+      const hz = z + 0.16 + excite * 0.08;
       for (let h = 0; h < 2; h++) {
         dummy.position.set(x + (h === 0 ? -sep : sep), hy, hz);
         dummy.rotation.set(0, 0, 0);
@@ -302,10 +336,10 @@ export function buildAudience(o: AudienceOptions): AudienceRig {
     }
 
     heads.count = shown;
-    busts.count = shown;
+    bodies.count = shown;
     hands.count = shown * 2;
     heads.instanceMatrix.needsUpdate = true;
-    busts.instanceMatrix.needsUpdate = true;
+    bodies.instanceMatrix.needsUpdate = true;
     hands.instanceMatrix.needsUpdate = true;
   }
 

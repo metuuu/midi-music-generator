@@ -210,8 +210,15 @@ export const buildSynth: InstrumentBuilder = (opts) => {
     whiteLength: WHITE_L,
     ...(opts.machine ? { machine: opts.machine } : {}),
     // Board 0 is the one every rig already builds a shelf for; the rest are the
-    // rig's to support. See `SynthRigOptions.extraBoards`.
-    ...(layout.length > 1 ? { extraBoards: layout.slice(1) } : {}),
+    // rig's to support, each with the width only this file can measure. See
+    // `SynthRigOptions.extraBoards`.
+    ...(layout.length > 1
+      ? {
+        extraBoards: layout.slice(1).map((b) => ({
+          ...b, width: boardWidth(b.range[0], b.range[1]),
+        })),
+      }
+      : {}),
   });
   addTo(root, rig.group);
 
@@ -323,12 +330,14 @@ export const buildSynth: InstrumentBuilder = (opts) => {
          * rig is geometry the keys are built around and is never consulted
          * about where a hand goes.
          *
-         * Approximate on purpose, and it is worth saying which way. A mounted
-         * machine sits a little off the end of the rig rather than on this
-         * exact plane, so the hand arrives at the panel beside it rather than
-         * on its front face. That reads correctly at stage distance and is the
-         * right trade against threading a machine's world position back through
-         * a model that works in local metres.
+         * This is the player's *own* panel — their filter, their mod wheel.
+         * A `control` point that names a machine standing beside them never
+         * reaches here: the show intercepts it, because the box is a separate
+         * object at a distance only the show knows. See `aimMachineControls` in
+         * `./index.ts`. This answer was doing that job too while the machine was
+         * bolted to the back of the same rig and the two were a few centimetres
+         * apart; on its own stand at the player's elbow they are most of a
+         * metre apart and it was placing the hand on the wrong object.
          */
         const at = Math.max(0, Math.min(1, point.at));
         return {

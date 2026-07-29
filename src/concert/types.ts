@@ -250,7 +250,25 @@ export type PlayPoint =
    * which is the same altitude at which it knows a high tom is being hit
    * without knowing where one is. A model answers with a real point.
    */
-  | { kind: 'control'; at: number }
+  | {
+    kind: 'control'; at: number;
+    /**
+     * Which of this player's machines the hand is on, indexed into the
+     * `StageMachine`s whose `tendedBy` is them, in cast order.
+     *
+     * Absent means the player's own panel — the filter they are sweeping is on
+     * the synthesiser under their hands. Present means a *separate object*
+     * standing beside them, and the difference is a metre of stage: a machine
+     * now has a stand of its own (`StageMachine.mount`), so a hand sent to the
+     * keyboard's panel to start it would press a knob with nothing under it
+     * while the box across the way lit up by itself.
+     *
+     * On the point rather than inferred, for the reason `key.board` is: which
+     * object a hand is going to is a decision, and the thing that made it is
+     * the only thing that can say.
+     */
+    machine?: number;
+  }
   /** A stopped string. `string` indexes `ArchetypeSpec.strings`, low to high. */
   | { kind: 'string'; string: number; fret: number }
   /** A drum or cymbal, by the voice the Song IR names. */
@@ -643,7 +661,7 @@ export interface Performer {
   /**
    * How many keyboards this player is standing at. Absent means one.
    *
-   * Only a modular carries more than one today — see `SynthRigSpec.maxBoards`.
+   * A modular frame or a digital stack — see `SynthRigSpec.maxBoards`.
    * It is in the IR rather than drawn in the renderer for the reason `rig` is:
    * the choreographer decides which board a phrase is played on and cannot see
    * geometry, so it has to be told how many there are and how far apart.
@@ -713,11 +731,23 @@ export interface StageMachine {
    * percussion module in the cabinet rather than a second box balanced on the
    * end of the stand.
    *
-   * `'rig'` is everything else: mounted on a plate on top of whatever the
-   * tender is standing at. That is most of them, and has to be — 97 of 97
-   * machine numbers in ambient's sampler era have no modular on stage at all.
+   * `'stand'` is everything else: a stand of its own, built for this box and
+   * nothing else, standing at the player's right hand. That is most of them and
+   * has to be — 97 of 97 machine numbers in ambient's sampler era have no
+   * modular on stage at all. See §8.0 of `docs/backline-plan.md` for why it is a
+   * stand beside the player rather than a plate on top of their keyboard.
    */
-  mount: 'rig' | 'bay';
+  mount: 'stand' | 'bay';
+  /**
+   * How far the stand's top surface is above the deck the tender stands on, in
+   * metres. Absent on a bay, which has no stand.
+   *
+   * `position[1]` already carries the same height in world terms, and this is
+   * the other half of it: a renderer building legs has to know where the floor
+   * is, and subtracting a riser it would have to be told about separately is
+   * two chances to build a table hanging in the air.
+   */
+  stand?: number;
   /**
    * Whoever is standing close enough to work it, if anybody is.
    *

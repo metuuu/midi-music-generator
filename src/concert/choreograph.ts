@@ -589,7 +589,7 @@ const PANEL_RELEASE = 0.75;
  * whole proposition of this project — that you can watch it being made — is
  * quietly given away, one sequencer at a time.
  *
- * Two gestures, and neither invents anything about the music.
+ * Four gestures, and not one of them invents anything about the music.
  *
  * **Somebody starts it.** A hand goes to the panel on the beat the machine's
  * figure first sounds. That beat is not chosen, it is read off the part, so the
@@ -601,20 +601,49 @@ const PANEL_RELEASE = 0.75;
  * change — the sound genuinely opens while the hand is on the knob, because the
  * generator already decided it would.
  *
- * The `where` a hand goes is 0..1 across the panel and tracks the brightness
- * itself, so the knob the player reaches for moves with the sound rather than
- * being a fixed spot they keep prodding.
+ * **Somebody changes it at the seams.** A drum machine has no brightness on its
+ * events at all, so the clause above never fires for one and the player touched
+ * the box exactly once in four minutes — which is a start switch, not somebody
+ * working a machine. A section boundary is a real event in the IR and it is
+ * precisely what the front row of a rhythm box is *for*: those are named
+ * patterns, and you change them when the song does. So every section the
+ * machine plays into gets a hand on the row.
+ *
+ * **Somebody switches it off.** After the last event it goes quiet, and a box
+ * that stops on its own is the same silent-cause problem the other way round.
+ *
+ * The `where` a hand goes is 0..1 across the panel. On a filter move it tracks
+ * the brightness itself, so the knob the player reaches for moves with the sound
+ * rather than being a fixed spot they keep prodding; on a pattern change it
+ * walks along the row of buttons, because those are different buttons.
  */
 function operatePart(song: Song, machines: StageMachine[], board: Board): void {
-  for (const machine of machines) {
+  machines.forEach((machine, index) => {
     const notes = machine.layer
       ? song.tracks.find((t) => t.layer === machine.layer)?.notes ?? []
       : song.drums.events.map((e) => ({ beat: e.beat, brightness: undefined }));
-    if (!notes.length) continue;
+    if (!notes.length) return;
 
     /** Every moment the machine's sound is asked to change, plus its start. */
     const moments: { beat: number; at: number; start?: boolean }[] = [];
-    const first = quantise(notes[0]!.beat);
+    /**
+     * The ends of the part, as a min and a max rather than as the ends of the
+     * array.
+     *
+     * `playPart` sorts a track's notes before it walks them, which says plainly
+     * that the IR does not promise an order. Reading `notes[0]` for the start
+     * was getting away with it; a stop read off the last element would land in
+     * the middle of the number the first time a generator emitted a layer out of
+     * order, and would look like a player switching the drums off early.
+     */
+    let lo = Infinity;
+    let hi = 0;
+    for (const n of notes) {
+      if (n.beat < lo) lo = n.beat;
+      if (n.beat > hi) hi = n.beat;
+    }
+    const first = quantise(lo);
+    const lastBeat = quantise(hi);
     moments.push({ beat: first, at: 0.12, start: true });
 
     /**
@@ -648,6 +677,39 @@ function operatePart(song: Song, machines: StageMachine[], board: Board): void {
         }
       }
     }
+
+    /**
+     * A pattern change where the song changes, walking along the row.
+     *
+     * The row of buttons on the front of one of these machines is a row of
+     * *named rhythms* on a preset box and a row of steps on a programmed one,
+     * and both are things a player reaches for when the arrangement turns. This
+     * is the gesture that keeps a drum machine's tender doing something: with
+     * no brightness on a drum event the sweep above never fires, so before this
+     * the whole of "somebody is working that box" was one press at bar one.
+     *
+     * Only the seams the machine actually plays across — a boundary before it
+     * starts or after it stops is a hand on a box that is not running.
+     */
+    const bar = song.meta.beatsPerBar;
+    song.sections.forEach((section, i) => {
+      if (i === 0) return;
+      const beat = quantise(section.startBar * bar);
+      if (beat <= first || beat >= lastBeat) return;
+      // Along the row rather than at one spot: consecutive changes are
+      // different buttons, which is what changing the pattern looks like.
+      moments.push({ beat, at: 0.18 + 0.62 * ((i % 4) / 3) });
+    });
+
+    /**
+     * And somebody switches it off.
+     *
+     * Half a beat after the last thing it plays, which is a hand arriving as
+     * the sound stops rather than cutting it short. The panel goes dark a bar
+     * later — see `createMachineRunner` — so the gesture and the lamps agree
+     * about which way round cause and effect go at this end too.
+     */
+    if (lastBeat > first) moments.push({ beat: quantise(lastBeat + 0.5), at: 0.12 });
 
     /**
      * The free hand, and it is the left by preference.
@@ -699,6 +761,15 @@ function operatePart(song: Song, machines: StageMachine[], board: Board): void {
          * So the window is checked against the gestures themselves. A limb is
          * busy from `beat - prep` to `beat + release`; a panel touch needs its
          * own such window clear.
+         *
+         * What is still lost, measured across twenty machine numbers: two, and
+         * both are the same case. Their figure begins on beat 0, so the walk
+         * backwards has nowhere to walk to — every candidate is filtered off
+         * the front of the number — and the player's own part begins on that
+         * downbeat with both hands. Narrowing the window does not help; there
+         * is one beat to try and it is occupied. The fix is a start *before*
+         * the number, which is a decision about where a number begins rather
+         * than about this loop.
          */
         const free = (hand: Hand): boolean => !board.gestures.some((g) => (
           g.effector === hand
@@ -716,11 +787,11 @@ function operatePart(song: Song, machines: StageMachine[], board: Board): void {
           travel: 0.5,
           force: 0.45,
           sustainBeats: 0.5,
-          targets: [{ kind: 'control', at: moment.at }],
+          targets: [{ kind: 'control', at: moment.at, machine: index }],
         });
       }
     }
-  }
+  });
 }
 
 /**

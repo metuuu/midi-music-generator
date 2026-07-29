@@ -384,6 +384,10 @@ check('visemes exist exactly when there is a voice', visemeGaps === 0,
   let untended = 0;
   let adrift = 0;
   let askew = 0;
+  let overKeys = 0;
+  let floating = 0;
+  let onTheRight = 0;
+  let onTheLeft = 0;
   let miscased = 0;
   let bays = 0;
   let mounted = 0;
@@ -417,13 +421,16 @@ check('visemes exist exactly when there is a voice', visemeGaps === 0,
           if (notes.length < 3) notes.push(`${gid}#${i} ${source} with nothing on stage`);
         }
         /**
-         * Mounted on somebody's rig, not parked on furniture of its own.
+         * At somebody's right hand, on its own legs, and squarer to the house
+         * than they are.
          *
-         * Both halves are asserted because both were wrong. A machine beside a
-         * player rather than on their gear reads as scenery and explains
-         * nothing; a machine inheriting the player's full yaw points its panel
-         * across the stage when that player is toed into the gear arc, and the
-         * panel is the only part of it worth seeing.
+         * Every clause is asserted because every one of them has been wrong at
+         * some point. A machine standing *away* from a player reads as scenery
+         * and explains nothing. A machine on top of their keyboard explains
+         * itself and cannot be seen — it is inside the keyboard's silhouette
+         * from every seat in the room. And a machine inheriting the player's
+         * full yaw points its panel across the stage when that player is toed
+         * into the gear arc, which is the only part of it worth seeing.
          */
         for (const m of placed) {
           const tender = number.cast.performers.find((p) => p.id === m.tendedBy);
@@ -431,13 +438,48 @@ check('visemes exist exactly when there is a voice', visemeGaps === 0,
             if (number.cast.performers.length) untended++;
             continue;
           }
-          const reach = Math.hypot(
-            m.position[0] - tender.station.position[0],
-            m.position[2] - tender.station.position[2],
-          );
+          const dx = m.position[0] - tender.station.position[0];
+          const dz = m.position[2] - tender.station.position[2];
+          const reach = Math.hypot(dx, dz);
           if (reach > MACHINE_REACH) {
             adrift++;
             if (notes.length < 3) notes.push(`${gid}#${i} ${reach.toFixed(2)} m from its tender`);
+          }
+          if (m.mount === 'stand') {
+            /**
+             * Beside them, not in front of them.
+             *
+             * `facing` 0 looks at the house, so the player's own right is
+             * `(-cos, 0, sin)` and their forward is `(sin, 0, cos)` — the
+             * conventions in `concert/types.ts`. A box more forward than
+             * sideways is a box over the keys, which is the placement this
+             * replaced, and it is the failure worth asserting. *Which* side is
+             * reported rather than asserted: the right is the side to want, and
+             * `placeMachines` gives up on it when a neighbour's gear is already
+             * standing there.
+             */
+            const f = tender.station.facing;
+            const right = -Math.cos(f) * dx + Math.sin(f) * dz;
+            const fwd = Math.sin(f) * dx + Math.cos(f) * dz;
+            if (Math.abs(right) < 0.3 || Math.abs(fwd) > Math.abs(right)) {
+              overKeys++;
+              if (notes.length < 3) {
+                notes.push(`${gid}#${i} ${right.toFixed(2)} right, ${fwd.toFixed(2)} forward`);
+              }
+            }
+            if (right > 0) onTheRight++; else onTheLeft++;
+            /**
+             * And its legs reach the deck the player is standing on.
+             *
+             * `stand` is the leg length and `position[1]` is where the top
+             * surface ended up; a renderer builds one from the other, so a
+             * disagreement is a table hanging in the air over a riser.
+             */
+            const deck = m.position[1] - (m.stand ?? 0);
+            if (Math.abs(deck - tender.station.position[1]) > 1e-6) {
+              floating++;
+              if (notes.length < 3) notes.push(`${gid}#${i} stand foot at ${deck.toFixed(2)}`);
+            }
           }
           if (m.mount !== 'bay' && Math.abs(m.facing) > Math.abs(tender.station.facing) + 1e-6) {
             askew++;
@@ -472,10 +514,14 @@ check('visemes exist exactly when there is a voice', visemeGaps === 0,
       : `${machines} placed on the boards`);
   check('a machine does not count the band in', counted === 0,
     counted ? `${counted} of ${machines} have lead-in bars` : `${machines} start on bar one`);
-  check('a machine is mounted on somebody\'s rig', untended === 0 && adrift === 0,
+  check('a machine is within reach of somebody', untended === 0 && adrift === 0,
     untended || adrift
       ? `${untended} untended, ${adrift} out of reach: ${notes.join('; ')}`
       : `${machines} within ${MACHINE_REACH} m of the player who works them`);
+  check('a machine stands at the player\'s right hand', overKeys === 0 && floating === 0,
+    overKeys || floating
+      ? `${overKeys} over the keys, ${floating} off the deck: ${notes.join('; ')}`
+      : `${onTheRight} at their right hand, ${onTheLeft} pushed to their left`);
   check('a machine bay only goes in a rig that has one', miscased === 0,
     miscased ? `${miscased} misrouted: ${notes.join('; ')}`
       : `${bays} in a modular, ${mounted} on a stand`);

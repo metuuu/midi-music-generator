@@ -11,13 +11,32 @@
  * process for as long as no show happened to feature a trumpet in a close shot.
  *
  * Assertions catch what you thought to assert. A bench catches the rest, and it
- * takes about a minute to check all twenty-two here against a minute *each* in
- * a running show, with no guarantee of ever seeing some of them.
+ * takes about a minute to check every exhibit here against a minute *each* in a
+ * running show, with no guarantee of ever seeing some of them.
  *
  * Nothing on this page is part of the concert. It goes through
  * `buildInstrumentFor` — the same entry point `show.ts` uses, not the raw
  * builder behind it — so what you see is what the show gets, down to the
  * sounding-hand wrapper and the horn sized to this player's face.
+ *
+ * ## An archetype is not an object
+ *
+ * The list used to be `Object.keys(ARCHETYPES)`, which reads as "everything"
+ * and is not: three archetypes build genuinely different objects depending on
+ * what was decided *before* the renderer was called, and enumerating
+ * archetypes shows one of each and hides the rest. A synthesiser is a modular
+ * wall, a polysynth or a digital slab depending on `Performer.rig`; a kit is
+ * drums or pads depending on the number's `DrumSource`. Five objects reached
+ * the stage that this page could not be made to draw — including, at the time
+ * of writing, the two rigs someone was actively editing.
+ *
+ * The machines are missing for a blunter reason: they have no performer, so
+ * `buildInstrumentFor` is not the way in and no amount of archetype
+ * enumeration would ever have reached them. They are built here the way
+ * `show.ts` builds them, from their own entry point.
+ *
+ * So the unit of this page is an *exhibit* — one buildable object — and the
+ * archetype is only one of the things that decides which.
  *
  * The player can be put in either of the two poses that matter: waiting at the
  * instrument, and playing it. Both come from the model's own `resolve`, so a
@@ -32,8 +51,12 @@ import {
 
 import { ARCHETYPES, specFor } from '../../concert/instruments.js';
 import type {
-  Archetype, ArchetypeSpec, Effector, Look, Performer, PlayPoint,
+  Archetype, ArchetypeSpec, Effector, Look, Performer, PlayPoint, SynthRigId,
 } from '../../concert/types.js';
+import type { DrumEvent } from '../../core/types.js';
+import {
+  buildDrumMachine, type DrumMachine, type DrumMachineOptions,
+} from './instruments/drum-machine.js';
 import { buildInstrumentFor } from './instruments/index.js';
 import type { InstrumentModel } from './instruments/types.js';
 import { buildPerformer, type PerformerRig } from './performer.js';
@@ -47,8 +70,65 @@ const spinning = document.getElementById('spin') as HTMLInputElement;
 const idleButton = document.getElementById('idle') as HTMLButtonElement;
 const playButton = document.getElementById('play') as HTMLButtonElement;
 
-const NAMES = Object.keys(ARCHETYPES) as Archetype[];
-for (const id of NAMES) pick.append(new Option(`${ARCHETYPES[id].label} — ${id}`, id));
+/**
+ * One buildable object. See the note at the top of the file.
+ *
+ * `id` is the bench's own name for it, and — by way of the performer built
+ * around it — what seeds the build, so an exhibit looks the same every time you
+ * come back to it and two variants of one archetype get different finishes
+ * rather than being the same object twice over. A machine has no performer and
+ * takes its variation from its kind instead.
+ */
+interface Entry {
+  id: string;
+  label: string;
+  /** What to build, or absent where this is a machine and there is no player. */
+  archetype?: Archetype;
+  /** Which synthesiser, where the archetype is `synth`. From `Performer.rig`. */
+  rig?: SynthRigId;
+  /** A drummer on pads rather than an acoustic kit. From the number's `DrumSource`. */
+  electronic?: boolean;
+  machine?: DrumMachineOptions['kind'];
+}
+
+/**
+ * What the three rigs are called on the bench.
+ *
+ * The ids are the cast's vocabulary and say what the object *is* only if you
+ * already know; these say what you are looking for when you pick one, which is
+ * a silhouette. See `synth-rig.ts` for the three decades behind them.
+ */
+const RIG_LABEL: Record<SynthRigId, string> = {
+  modular: 'modular wall',
+  polysynth: 'polysynth',
+  digital: 'digital slab',
+};
+
+function entries(): Entry[] {
+  const out: Entry[] = [];
+  for (const id of Object.keys(ARCHETYPES) as Archetype[]) {
+    const { label } = ARCHETYPES[id];
+    if (id === 'synth') {
+      for (const rig of Object.keys(RIG_LABEL) as SynthRigId[]) {
+        out.push({ id: `synth:${rig}`, label: `${label}, ${RIG_LABEL[rig]}`, archetype: id, rig });
+      }
+    } else if (id === 'drumkit') {
+      out.push({ id, label, archetype: id });
+      out.push({ id: 'drumkit:pads', label: `${label}, pads`, archetype: id, electronic: true });
+    } else {
+      out.push({ id, label, archetype: id });
+    }
+  }
+  // No player, so these come last rather than sorting in among the archetypes.
+  out.push(
+    { id: 'machine:box', label: 'rhythm box, preset', machine: 'box' },
+    { id: 'machine:programmed', label: 'drum machine, programmed', machine: 'programmed' },
+  );
+  return out;
+}
+
+const NAMES = entries();
+for (const e of NAMES) pick.append(new Option(`${e.label} — ${e.id}`, e.id));
 
 const renderer = new WebGLRenderer({ canvas, antialias: true });
 renderer.shadowMap.enabled = true;
@@ -91,9 +171,17 @@ const LOOK: Look = {
 /**
  * One thing on the bench, with both of the poses it can be put in already
  * worked out. See `stanceFor`.
+ *
+ * Exactly one of `model` and `machine` is present: a machine is not an
+ * `InstrumentModel` and deliberately does not pretend to be one — it has no
+ * `resolve`, no station and no player, which is the whole point of it. So the
+ * poses, the contact dots and the facts panel all sit behind `model`, and what
+ * a machine shares with the rest is only a group, a clock and a `dispose`.
  */
 interface Exhibit {
-  model: InstrumentModel;
+  entry: Entry;
+  model?: InstrumentModel;
+  machine?: DrumMachine;
   rig?: PerformerRig;
   group: Group;
   playing: Stance;
@@ -105,9 +193,9 @@ let mode: 'one' | 'grid' = 'one';
 let pose: 'idle' | 'play' = 'play';
 let spin = 0;
 
-function performerFor(archetype: Archetype, id: string): Performer {
+function performerFor(entry: Entry, archetype: Archetype): Performer {
   return {
-    id,
+    id: `bench-${entry.id}`,
     layer: archetype === 'drumkit' ? 'drums' : archetype === 'singer' ? 'vocal' : 'melody',
     archetype,
     instrument: ARCHETYPES[archetype].label,
@@ -115,7 +203,38 @@ function performerFor(archetype: Archetype, id: string): Performer {
     station: {
       position: [0, 0, 0], facing: 0, posture: ARCHETYPES[archetype].posture, riser: 0,
     },
+    ...(entry.rig ? { rig: entry.rig } : {}),
   };
+}
+
+/**
+ * How high its own stand holds it.
+ *
+ * The machine brings its legs with it — it stands at the player's right hand on
+ * a stand built for it, and on this bench that is the whole object rather than
+ * half of one. The number is a keyboard player's work height less the depth of
+ * the case, which is what `cast.ts` computes for a real stage; here it is
+ * written out, because there is no player on the bench to ask.
+ */
+const MACHINE_HEIGHT = 0.87;
+
+/**
+ * A bar for the machines to be playing.
+ *
+ * A rhythm box with a dead lamp row is a shoebox, and the lamp is the half of
+ * that model worth looking at — it is what says the thing is running rather
+ * than sitting there. So the bench hands it a pattern, the same way `show.ts`
+ * hands it the number's own: kick, snare and a straight eighth-note hat, which
+ * is the least interesting bar either machine could be playing and lights every
+ * lamp on the front.
+ */
+const MACHINE_BEATS_PER_BAR = 4;
+const MACHINE_PATTERN: DrumEvent[] = [];
+for (let i = 0; i < MACHINE_BEATS_PER_BAR * 2; i++) {
+  const beat = i / 2;
+  MACHINE_PATTERN.push({ beat, voice: 'hh', velocity: 0.6 });
+  if (i % 4 === 0) MACHINE_PATTERN.push({ beat, voice: 'bd', velocity: 1 });
+  if (i % 4 === 2) MACHINE_PATTERN.push({ beat, voice: 'sd', velocity: 0.9 });
 }
 
 // --- poses ---------------------------------------------------------------
@@ -235,7 +354,7 @@ const HANDS: ReadonlySet<Effector> = new Set<Effector>(['left-hand', 'right-hand
  */
 function applyPose(item: Exhibit): void {
   const { model, rig } = item;
-  if (!rig) return;
+  if (!rig || !model) return;
   const playing = pose === 'play';
   const spec = specFor(model.archetype);
 
@@ -267,7 +386,8 @@ function applyPose(item: Exhibit): void {
 
 function clear(): void {
   for (const item of live) {
-    item.model.dispose();
+    item.model?.dispose();
+    item.machine?.dispose();
     item.rig?.dispose();
     stand.remove(item.group);
   }
@@ -312,12 +432,12 @@ function markContacts(model: InstrumentModel, into: Group): void {
   }
 }
 
-function build(which: Archetype[]): void {
+function build(which: Entry[]): void {
   clear();
   const cols = Math.ceil(Math.sqrt(which.length));
   const pitch = 3.2;
 
-  which.forEach((archetype, i) => {
+  which.forEach((entry, i) => {
     const group = new Group();
     if (which.length > 1) {
       group.position.set(
@@ -328,12 +448,34 @@ function build(which: Archetype[]): void {
     }
     stand.add(group);
 
+    if (entry.machine) {
+      const machine = buildDrumMachine({
+        kind: entry.machine,
+        seed: 0x51a1,
+        events: MACHINE_PATTERN,
+        beatsPerBar: MACHINE_BEATS_PER_BAR,
+        stand: MACHINE_HEIGHT,
+        // Running from the first frame: there is no player on this bench to
+        // start it, and a dark panel is the one thing this exhibit cannot show.
+        startedAt: 0,
+      });
+      machine.root.position.y = MACHINE_HEIGHT;
+      group.add(machine.root);
+      if (which.length > 1) group.add(new AxesHelper(0.3));
+      live.push({ entry, machine, group, playing: [], waiting: [] });
+      return;
+    }
+
+    const archetype = entry.archetype!;
     // The stage's own entry point, not the raw builder: it is what sizes a horn
     // to this player's face and what wraps the string models so the *sounding*
     // hand gets the sounding contact. Building around it left the picking hand
     // on the fretboard, which is the one pose a guitarist never takes.
-    const performer = performerFor(archetype, `bench-${archetype}`);
-    const model = buildInstrumentFor(performer);
+    const performer = performerFor(entry, archetype);
+    const model = buildInstrumentFor(
+      performer, undefined, undefined, undefined,
+      entry.electronic ? 'electronic-kit' : undefined,
+    );
     let rig: PerformerRig | undefined;
 
     if (showPlayer.checked) {
@@ -356,11 +498,11 @@ function build(which: Archetype[]): void {
     if (which.length > 1) group.add(new AxesHelper(0.3));
     const spec = specFor(archetype);
     live.push({
-      model, rig, group, playing: playStance(spec), waiting: restStance(spec),
+      entry, model, rig, group, playing: playStance(spec), waiting: restStance(spec),
     });
   });
 
-  frameAll(which.length);
+  frameAll(which);
   describe(which);
 }
 
@@ -376,19 +518,34 @@ let dist = 4.2;
 /** The wheel, as a multiplier on that. Kept across model switches on purpose. */
 let zoom = 1;
 
-/** Put the camera where the whole of what is on the bench fits. */
-function frameAll(count: number): void {
-  dist = count > 1 ? Math.ceil(Math.sqrt(count)) * 3.2 * 1.15 : 4.2;
-}
-
-function describe(which: Archetype[]): void {
-  if (which.length !== 1) {
-    facts.textContent = `${which.length} archetypes · drag to orbit`;
+/**
+ * Put the camera where the whole of what is on the bench fits.
+ *
+ * A machine gets its own distance because it is the one exhibit with no player
+ * to frame on: a shoebox at a whole person's remove is a dark smudge with a
+ * lamp row too small to read, which is the only part of it worth coming here
+ * for. 1.3 m used to be that, and it was measured on a machine with no legs —
+ * the object now brings its own stand and is most of a metre tall, so at 1.3 the
+ * feet were outside the frame. 2.1 holds the whole stand and still shows the row
+ * at twice the size the default distance would.
+ */
+function frameAll(which: Entry[]): void {
+  if (which.length > 1) {
+    dist = Math.ceil(Math.sqrt(which.length)) * 3.2 * 1.15;
     return;
   }
-  const spec = specFor(which[0]!);
-  const model = live[0]!.model;
-  model.root.updateWorldMatrix(true, true);
+  dist = which[0]?.machine ? 2.1 : 4.2;
+}
+
+function describe(which: Entry[]): void {
+  if (which.length !== 1) {
+    facts.textContent = `${which.length} exhibits · drag to orbit`;
+    return;
+  }
+  const entry = which[0]!;
+  const item = live[0]!;
+  const root = (item.model ?? item.machine!).root;
+  root.updateWorldMatrix(true, true);
 
   /**
    * `Box3.setFromObject`, not a hand-rolled traversal.
@@ -401,26 +558,44 @@ function describe(which: Archetype[]): void {
    * the bench reported a drum kit reaching half a metre below the boards and I
    * nearly went looking for it in the model. `Box3` knows about instancing.
    */
-  const bounds = new Box3().setFromObject(model.root);
+  const bounds = new Box3().setFromObject(root);
   const lo = bounds.min;
   const hi = bounds.max;
   const box = new Vector3().subVectors(hi, lo);
   const sits = lo.y < -0.02 ? ' <span class="warn">below the floor</span>' : '';
-  facts.innerHTML = [
-    `<b>${spec.label}</b>  (${spec.id})`,
-    `family ${spec.family} · ${spec.hands} hands · ${spec.posture}${spec.held ? ' · carried' : ' · stands'}`,
-    `range ${spec.range[0]}–${spec.range[1]} · footprint ${spec.footprint} m · work height ${spec.workHeight} m`,
+  const size = [
     `size  ${box.x.toFixed(2)} × ${box.y.toFixed(2)} × ${box.z.toFixed(2)} m`,
     `floor ${lo.y.toFixed(3)} m${sits}  ·  top ${hi.y.toFixed(2)} m`,
+  ];
+
+  // A machine has no spec to report and never will: every line of one is about
+  // a player, and this is the object that has none.
+  if (!item.model) {
+    facts.innerHTML = [
+      `<b>${entry.label}</b>  (${entry.id})`,
+      'no player · self-playing · on its own stand at a player’s right hand',
+      ...size,
+    ].join('<br>');
+    return;
+  }
+
+  const spec = specFor(item.model.archetype);
+  facts.innerHTML = [
+    `<b>${entry.label}</b>  (${entry.id})`,
+    `family ${spec.family} · ${spec.hands} hands · ${spec.posture}${spec.held ? ' · carried' : ' · stands'}`,
+    `range ${spec.range[0]}–${spec.range[1]} · footprint ${spec.footprint} m · work height ${spec.workHeight} m`,
+    ...size,
   ].join('<br>');
 }
 
 // --- interaction ---------------------------------------------------------
 
 let index = 0;
-const showOne = (): void => { pick.value = NAMES[index]!; mode = 'one'; build([NAMES[index]!]); };
+const showOne = (): void => {
+  pick.value = NAMES[index]!.id; mode = 'one'; build([NAMES[index]!]);
+};
 
-pick.onchange = () => { index = NAMES.indexOf(pick.value as Archetype); showOne(); };
+pick.onchange = () => { index = NAMES.findIndex((e) => e.id === pick.value); showOne(); };
 document.getElementById('prev')!.onclick = () => {
   index = (index - 1 + NAMES.length) % NAMES.length; showOne();
 };
@@ -488,7 +663,17 @@ function frame(now: number): void {
   // frame's `setEffector` calls — the arrangement `animate.ts` keeps.
   for (const item of live) {
     applyPose(item);
-    item.model.update(now / 1000);
+    item.model?.update(now / 1000);
+    /**
+     * The machine gets the same clock, wrapped to its one bar.
+     *
+     * It holds a whole number's pattern in the show and walks a cursor through
+     * it once; the bench has a bar and runs forever, so the clock is what
+     * repeats. Going backwards is the path the machine already has for a number
+     * restarting — it rewinds the cursor and clears the lamps — which is
+     * exactly what a loop point is.
+     */
+    item.machine?.update((now / 1000) % MACHINE_BEATS_PER_BAR);
     item.rig?.update(now / 1000, dt);
   }
   renderer.render(scene, camera);

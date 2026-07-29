@@ -339,46 +339,61 @@ two. `Track.machine` names the station that owns it and the cycle it repeats; ca
 creates **no performer** for such a track, but a station must own it or it has nowhere
 to stand.
 
-### 8.0 A machine is a bay in somebody's rig, never a table of its own
+### 8.0 A machine stands at somebody's right hand, on a stand built for it
 
-**This replaces what Wave 0 shipped, and Wave 0 was wrong.**
+**This is the third placement, and the first two were each half right.** They are worth
+keeping side by side, because the second one was a correction that overshot.
 
-What landed was a free-standing drum machine: a box on a folding table, placed beside the
-nearest keyboard player, facing wherever that player faced. It is confusing to look at,
-and the two reasons are worth separating because only one of them is about the object.
+**Wave 0 parked it.** A free-standing drum machine: a box on a folding table, placed
+beside the nearest keyboard player, facing wherever that player faced.
 
-- **It explains nothing.** A lone box on a table produces a full drum part. There is no
-  visual account of why that table is making drum sounds, so the eye files it as scenery
-  and the percussion still arrives from nowhere — which is the failure the box was
-  introduced to fix, relocated rather than solved.
-- **It faces the wrong way.** It inherits the tender's yaw, so on a player turned 26° in
-  toward the arc the panel — the only part with anything to see on it — points across the
+- **It explained nothing.** A lone box on a table produces a full drum part. There was no
+  visual account of why that table was making drum sounds, so the eye filed it as scenery
+  and the percussion still arrived from nowhere — the failure the box was introduced to
+  fix, relocated rather than solved.
+- **It faced the wrong way.** It inherited the tender's yaw, so on a player turned 26° in
+  toward the arc the panel — the only part with anything to see on it — pointed across the
   stage rather than at the room.
 
-The fix is not to re-aim it. It is that **gear is mounted, not parked**. A machine
-belongs in the rig of the person who works it:
+**Wave 1b mounted it**, on the principle that gear is mounted and not parked: the box went
+on top of the keyboard rig of whoever worked it, at the back of the panel, a hand's depth
+above the keys. That bought the explanation and lost the object. From six metres a
+shoebox lying behind somebody's keys is *inside the keyboard's own silhouette* — the
+audience sees one instrument, and the one thing they have to be able to see is a second
+one being started. The mounting plate is an argument nobody in row six can read.
 
-- **Where there is a modular**, it is a percussion bay in the cabinet, alongside the
-  oscillators and the sequencer. This is what a modular *is* — a set of modules chosen
-  for what the band needs — and it is the arrangement that needs no explanation at all,
-  because a wall of modules with somebody standing at it already reads as one instrument
-  being operated.
-- **Where there is no modular**, it sits on top of the keyboard rig, on the end of the
-  stand, tilted to the room. A rhythm box on top of an organ is not a compromise here; it
-  is the single most characteristic iskelmä object of the period.
-- **Where there is no keyboard either**, it goes on the end of whatever rack is nearest,
-  still on somebody's gear. Nothing on this stage is a table with a box on it.
+So: **a stand of its own, at the player's right hand.** Not the folding table again — a
+purpose-built stand the size of the case, four tubes and a brace, standing where the near
+end of their own keyboard is, at the height their hands already work at. Two things make
+it theirs, and neither is the plate:
+
+- **They turn and work it**, repeatedly, through the number. That is what an audience
+  reads, and it is a stronger statement of ownership than any bracket.
+- **It is inside their gear, not on the boards.** Two thirds of a metre from the player,
+  turned a third of the way toward wherever they are facing. Nothing about it says
+  "delivered here"; it says "this is the corner they stand in".
+
+The exception stays. **Where there is a modular**, the machine is a percussion bay in the
+cabinet alongside the oscillators. That is what a modular *is* — a set of modules chosen
+for what the band needs — and a wall of modules with somebody standing at it already
+reads as one instrument being operated. It covers a minority of numbers: 24 of 25 machine
+numbers in iskelmä's tanssilava era have no modular on stage, 68 of 68 in its eighties
+era, and 97 of 97 in ambient's sampler era. The general rule has to stand on its own legs
+or it fixes almost nothing.
 
 Two consequences follow, and both are improvements rather than costs. **`tendedBy` stops
-being optional** — a machine now always belongs to a rig, so there is always a person
-whose hand can start it, which is the "cause" half of §8.1 becoming structural instead of
-best-effort. And **the machine's facing comes from the rig it is bolted to**, not from
-the player's body, so a panel is aimed at the house by construction.
+being optional** — a machine always belongs to somebody, so there is always a hand that
+can start it, which is the "cause" half of §8.1 becoming structural instead of
+best-effort. And **the machine's facing is a fraction of its player's**, not a copy of it,
+so a panel is aimed at the house by construction.
 
-The measurement that shaped this: folding the machine into the modular alone covers a
-small minority of the cases. 24 of 25 machine numbers in iskelmä's tanssilava era have no
-modular on stage, 68 of 68 in its eighties era, and 97 of 97 in ambient's sampler era.
-The mounting rule has to generalise past the modular or it fixes almost nothing.
+One thing this placement forces that the mounted one let slide: **the hand has to go to
+the machine.** While the box sat on the back of the same rig, a `control` point resolving
+to the keyboard's own knob row landed a few centimetres from it and read as close enough.
+A metre away it does not, and a hand pressing start on the wrong object is worse than no
+hand at all — it is the stage asserting a cause that plainly is not one. So a `control`
+point now names which machine it is on, and the show, which is the only thing that knows
+where both objects ended up, tells the player's instrument where to send the hand.
 
 ### 8.0b Settled: the player stays, and the machine is theirs to work
 
@@ -605,6 +620,35 @@ What it turned up:
 - **`canReach` and `place` clamp travel to 1**, so a board crossing cannot be charged
   more than a full-keyboard sweep. `BOARD_REACH` keeps the window where that
   under-charges narrow, but it is not zero and is worth knowing about.
+
+**Wave 4 — the machine gets its own stand, and its player gets more to do. ✅ Landed.**
+§8.0 rewritten for the third time: off the top of the keyboard, onto a purpose-built stand
+at the player's right hand. Plus the two things that placement forces — a `control` point
+that names *which* machine, so the hand goes to the box rather than to the panel it used
+to sit on, and a panel that is dark until somebody starts it.
+
+What it turned up:
+
+- **"Mounted, not parked" solved the wrong half.** Wave 1b read the Wave 0 failure as
+  "this object has no owner" and it was also "this object cannot be seen". Bolting the
+  box behind somebody's keys answers the first and makes the second worse, because a
+  keyboard's silhouette swallows it. Ownership an audience can read is a person turning
+  and working the thing, not a bracket.
+- **A drum machine's tender had one gesture in four minutes.** The operating gestures
+  were driven off `NoteEvent.brightness`, and a drum event has none — so the whole of
+  "somebody is working that box" was a single press at bar one. Section boundaries are
+  already in the IR and are exactly what the front row of a rhythm box is for. Median
+  panel touches per machine number went from 1 to 6.
+- **The lamps were running before anybody touched the panel.** Two years of §8.1 said the
+  start gesture is the cause, and the machine had been stepping from frame one regardless
+  — which makes the hand arriving on the downbeat a hand pressing a button that
+  demonstrably does nothing. The renderer now takes the start beat out of the
+  choreography, because that is the only place it exists: `operatePart` walks a start
+  backwards to wherever the player has a hand free, and the first note is not that beat.
+- **The old placement flipped sides mid-band.** It went *outboard* — away from stage
+  centre — which is the player's right for half the band and their left for the other
+  half. Which side of somebody their own gear is on should not depend on where they
+  happen to be standing.
 
 ### Not in any wave, and worth saying so
 

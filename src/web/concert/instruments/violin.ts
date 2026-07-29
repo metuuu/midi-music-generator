@@ -20,9 +20,12 @@
  *    See the bow section below: this was the thing the model got wrong.
  *
  * Build frame: `+x` bridge → nut, `+y` out of the belly, `+z` G string → E.
- * `+z` lands on the player's right, which is the side the E string and the
- * frog are both on. (The cello and the upright bass are stood on end and the
- * same construction lands the other way round there — see their files.)
+ * Low to high is `x × y` here as on every other string model — a front view
+ * with the neck up puts the lowest string on the viewer's left — and on a
+ * violin that lands on the player's right, which is the side the E string and
+ * the frog are both on. (The cello and the upright bass are stood on end, so
+ * the same `+z` lands on the player's *left* there. The order along it does
+ * not change; only where it points does — see their files.)
  */
 
 import {

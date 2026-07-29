@@ -185,6 +185,13 @@ export interface PropRig {
   placed: PropName[];
   /** Which were not recognised. */
   ignored: string[];
+  /**
+   * Whether the drum platform is standing. See the note by `BUILDERS.riser`.
+   *
+   * A no-op in a venue whose props do not include one, so the caller can say
+   * what this number needs without first asking what the room owns.
+   */
+  showRiser(on: boolean): void;
   update(t: number, dt: number): void;
 }
 
@@ -198,6 +205,8 @@ interface Ctx extends PropOptions {
   idle: number;
   rng(tag: string): Rng;
   tick(fn: (t: number, dt: number) => void): void;
+  /** Set by `BUILDERS.riser` so `showRiser` has something to hide. */
+  riser?: Group;
 }
 
 /**
@@ -255,6 +264,9 @@ export function dressStage(o: PropOptions): PropRig {
     root,
     placed,
     ignored: unknownProps(o.venue.props),
+    showRiser(on: boolean): void {
+      if (ctx.riser) ctx.riser.visible = on;
+    },
     update(t: number, dt: number): void {
       for (const fn of updaters) fn(t, dt);
     },
@@ -1103,13 +1115,46 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
   /**
    * A drum riser upstage centre. Top at 0.4 m — see the note at the top of
    * this file, because `Station.riser` is the other half of this decision.
+   *
+   * ## And why it is a group with a switch on it
+   *
+   * A riser is a venue prop, so it is built once for the room; a drummer is
+   * cast per number, so some numbers have one and some have a rhythm box
+   * instead. Left standing, the platform in the empty half of that arrangement
+   * is not merely a spare piece of staging — `cast.ts` gives the back centre
+   * away the moment the riser is empty, deliberately: a lone modular is placed
+   * dead centre exactly there, and with no drummer to keep, `stageBand` puts
+   * the bass and the pad within half a metre of the middle of the back line.
+   * All of them stand on the boards at `y = 0`, so the 0.4 m platform came up
+   * through them and cut the band off at the shins.
+   *
+   * Of the two ways out — keep everybody off the footprint, or take the
+   * platform away — this is the one that agrees with the decision already made
+   * upstairs. `layoutModulars` reads an empty riser as free floor on purpose,
+   * and `concert-check` asserts it. So the platform is here when somebody is
+   * standing on it and gone when nobody is, which is also what a stage crew
+   * would do with it.
    */
   riser: (c) => {
     const w = Math.min(2.8, c.m.width * 0.32);
     const d = Math.min(2.0, c.m.depth * 0.3);
-    put(c, c.kit.bevelBox(w, 0.4, d, 0.03), c.kit.solid(shade(c.p.boards, 0.3), { rough: 0.9 }),
-      0, 0.2, c.m.backZ + d / 2 + 0.45, true);
-    put(c, c.kit.bevelBox(w + 0.1, 0.04, d + 0.1, 0.015), c.kit.solid(shade(c.p.curtain, 0.35)),
-      0, 0.41, c.m.backZ + d / 2 + 0.45);
+    const z = c.m.backZ + d / 2 + 0.45;
+    const deck = new Mesh(
+      c.kit.bevelBox(w, 0.4, d, 0.03),
+      c.kit.solid(shade(c.p.boards, 0.3), { rough: 0.9 }),
+    );
+    deck.position.set(0, 0.2, z);
+    deck.castShadow = true;
+    deck.receiveShadow = true;
+    const lip = new Mesh(
+      c.kit.bevelBox(w + 0.1, 0.04, d + 0.1, 0.015),
+      c.kit.solid(shade(c.p.curtain, 0.35)),
+    );
+    lip.position.set(0, 0.41, z);
+
+    const group = new Group();
+    group.add(deck, lip);
+    c.root.add(group);
+    c.riser = group;
   },
 };

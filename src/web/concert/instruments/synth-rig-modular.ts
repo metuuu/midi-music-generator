@@ -904,7 +904,8 @@ export const buildModularRig: SynthRigBuilder = (opts: SynthRigOptions): SynthRi
    * three transforms to get one number wrong in.
    */
   const runner = opts.machine && stepAt.length
-    ? createMachineRunner(opts.machine.events, opts.machine.beatsPerBar, stepAt.length)
+    ? createMachineRunner(
+      opts.machine.events, opts.machine.beatsPerBar, stepAt.length, opts.machine.startedAt)
     : undefined;
   let stepLit: Mesh | undefined;
   let voiceLit: Mesh[] = [];
@@ -960,9 +961,14 @@ export const buildModularRig: SynthRigBuilder = (opts: SynthRigOptions): SynthRi
        * something nobody is driving.
        */
       if (runner && stepLit) {
-        stepLit.matrix.copy(stepAt[runner.step(now)]!);
+        // …once a hand has started it, and not before. The bay is the same
+        // machine as the one on a stand and answers to the same rule: a panel
+        // stepping before anybody touched it is a machine that started itself.
+        const live = runner.running(now);
+        stepLit.visible = live;
+        if (live) stepLit.matrix.copy(stepAt[runner.step(now)]!);
         for (let i = 0; i < voiceLit.length; i++) {
-          voiceLit[i]!.visible = runner.lamp(i, now);
+          voiceLit[i]!.visible = live && runner.lamp(i, now);
         }
       }
       if (!started) { last = now; started = true; }

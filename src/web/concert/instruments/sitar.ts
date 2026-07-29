@@ -15,8 +15,12 @@
  *  - **The frets are tall arcs**, tied on and movable, which is what leaves
  *    room to pull a string sideways. A hard note bends across the fret rather
  *    than just ringing.
- *  - **The gourd is on the floor.** The player sits cross-legged, the work
- *    height is 0.7 m, and the neck goes up over the left shoulder.
+ *  - **The gourd hangs at the hip.** A sitar player sits cross-legged with the
+ *    tumba on one foot, and `Posture` has no floor to sit on — `sit` is a
+ *    chair. So the mount is measured off the player's hip rather than off the
+ *    boards, the gourd hangs outboard of the thigh instead of resting on a foot
+ *    that is standing on the ground, and the neck goes up across the body to
+ *    the left shoulder from there. See `BRIDGE_ABOVE_HIP`.
  *
  * Fret positions are the same equal-tempered rule as every fretted instrument
  * here — `SCALE * 2^(-n/12)` from the bridge — which is a simplification a
@@ -97,12 +101,57 @@ function mountBasis(alongStrings: Vector3, faceHint: Vector3, at: Vector3): Matr
   return new Matrix4().makeBasis(x, y, z).setPosition(at);
 }
 
-/** Gourd on the left foot, neck up across the body to the right shoulder. */
-const MOUNT = mountBasis(
-  new Vector3(0.859, 0.499, 0.100),
-  new Vector3(0, 0.55, 0.84),
-  new Vector3(-0.318, 0.420, 0.100),
-);
+/**
+ * The hip this player is sitting on, in metres off the boards.
+ *
+ * `min(0.47, 0.27 × height)` is the seat `proportions()` puts a `sit` posture
+ * on in `performer-look.ts`, and `0.055 × height` is the hip pivot above it.
+ * `cello.ts` restates the first half of the same line for the same reason, and
+ * the reason is `InstrumentBuildOptions.height`: an instrument whose contact
+ * height is dictated by the player rather than by the floor has to ask how tall
+ * the player is. A sitar is the clearest case of that in the catalogue and was
+ * the last one still ignoring it.
+ */
+const NOMINAL_HEIGHT = 1.75;
+function hipHeight(height: number | undefined): number {
+  const h = height ?? NOMINAL_HEIGHT;
+  return Math.min(0.47, h * 0.27) + h * 0.055;
+}
+
+/**
+ * How far above the hip the jawari sits, and how far outboard of it.
+ *
+ * The mount used to be three constants measured off the boards, and they were
+ * measured off the boards of a player sitting **on them**: gourd on the left
+ * foot, bridge at 0.42, neck rising to 0.85 at the nut. That is the sitar, and
+ * it is right for the cross-legged player the rest of this file describes — but
+ * `Posture` has no floor to sit on, so `sit` is a chair, and the rig's hip
+ * lands 0.37 m above where this geometry assumed it. The instrument stayed
+ * where the boards were: gourd by the shin, neck across the knees, and both
+ * hands playing somewhere around the player's lap.
+ *
+ * So the two numbers that matter are now measured off the *player*. A hand's
+ * span above the hip is where a plucking wrist can sit over the bridge without
+ * the elbow having to leave the ribs, and it carries the neck up across the
+ * chest so the fretting hand meets the top of it at about shoulder height —
+ * which is where a sitar player's left hand is.
+ *
+ * `OUTBOARD` is the other half of moving up: the gourd is a beach ball and the
+ * player now has a thigh where it used to have air. Clearing it means hanging
+ * the tumba beside the hip rather than over the leg, which is where a seated
+ * player would have to hold one anyway.
+ */
+const BRIDGE_ABOVE_HIP = 0.15;
+const OUTBOARD = -0.48;
+
+/** Gourd beside the right hip, neck up across the body to the left shoulder. */
+function mountFor(height: number | undefined): Matrix4 {
+  return mountBasis(
+    new Vector3(0.859, 0.499, 0.100),
+    new Vector3(0, 0.55, 0.84),
+    new Vector3(OUTBOARD, hipHeight(height) + BRIDGE_ABOVE_HIP, 0.100),
+  );
+}
 
 function fretX(n: number): number {
   return SCALE * Math.pow(2, -n / 12);
@@ -114,11 +163,13 @@ function stringZ(i: number, x: number): number {
   return (i - (STRINGS - 1) / 2) * (spread / (STRINGS - 1));
 }
 
-function contactAt(x: number, y: number, z: number, along: Vector3): Contact {
+function contactAt(
+  mount: Matrix4, x: number, y: number, z: number, along: Vector3,
+): Contact {
   return {
-    position: new Vector3(x, y, z).applyMatrix4(MOUNT),
-    normal: FACE.clone().transformDirection(MOUNT),
-    along: along.clone().transformDirection(MOUNT),
+    position: new Vector3(x, y, z).applyMatrix4(mount),
+    normal: FACE.clone().transformDirection(mount),
+    along: along.clone().transformDirection(mount),
   };
 }
 
@@ -149,7 +200,11 @@ export const buildSitar: InstrumentBuilder = (opts) => {
   root.name = 'sitar';
   const shiver = addTo(root, new Group());
   const inst = addTo(shiver, new Group());
-  inst.applyMatrix4(MOUNT);
+  // Resolved once, here, and never again: `height` is fixed for the life of a
+  // model and `resolve` has to answer the same thing twice. Same rule the
+  // blown family follows — see `mouth.ts` on purity.
+  const mount = mountFor(opts.height);
+  inst.applyMatrix4(mount);
 
   const wood = opts.finish ?? rng.pick(['#8a5a2a', '#7a4a22', '#9a6a34']);
   const woodMat = kit.mat(new MeshStandardMaterial({
@@ -334,7 +389,7 @@ export const buildSitar: InstrumentBuilder = (opts) => {
 
     resolve(point: PlayPoint): Contact | undefined {
       if (point.kind === 'rest') {
-        return contactAt(IDLE_X, FINGER_HEIGHT + 0.045, stringZ(0, IDLE_X), DOWN_NECK);
+        return contactAt(mount, IDLE_X, FINGER_HEIGHT + 0.045, stringZ(0, IDLE_X), DOWN_NECK);
       }
       if (point.kind !== 'string') return undefined;
       const i = point.string;
@@ -343,17 +398,17 @@ export const buildSitar: InstrumentBuilder = (opts) => {
       const n = Math.round(point.fret);
       if (n < 0 || n > FRETS) return undefined;
       const x = fretX(n);
-      return contactAt(x, FINGER_HEIGHT, stringZ(i, x), DOWN_NECK);
+      return contactAt(mount, x, FINGER_HEIGHT, stringZ(i, x), DOWN_NECK);
     },
 
     soundingContact(point: PlayPoint): Contact | undefined {
       if (point.kind === 'rest') {
-        return contactAt(PLUCK_X + 0.06, STRING_HEIGHT + 0.07, 0.02, UP_NECK);
+        return contactAt(mount, PLUCK_X + 0.06, STRING_HEIGHT + 0.07, 0.02, UP_NECK);
       }
       if (point.kind !== 'string') return undefined;
       const i = point.string;
       if (!Number.isInteger(i) || i < 0 || i >= STRINGS) return undefined;
-      return contactAt(PLUCK_X, STRING_HEIGHT + 0.020, stringZ(i, PLUCK_X), UP_NECK);
+      return contactAt(mount, PLUCK_X, STRING_HEIGHT + 0.020, stringZ(i, PLUCK_X), UP_NECK);
     },
 
     react(point: PlayPoint, force: number, now: number): void {

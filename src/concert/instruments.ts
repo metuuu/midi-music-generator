@@ -295,7 +295,10 @@ export const ARCHETYPES: Record<Archetype, ArchetypeSpec> = {
     // Bounded by its own strings: the lowest opens at 48 and 20 frets from the
     // top course reaches 80. The old [45, 84] was reachable at neither end.
     range: [48, 80], strings: [48, 53, 55, 60], frets: 20,
-    held: true, footprint: 0.9, workHeight: 0.7,
+    // 0.7 was the cross-legged player this instrument cannot have: `sit` is a
+    // chair, so the model hangs its bridge off the hip and the strings run from
+    // about 0.72 at the jawari to 1.15 at the nut. This is where the hands work.
+    held: true, footprint: 0.9, workHeight: 0.95,
   }),
 
   // G3 D4 A4 E5 and C2 G2 D3 A3.
@@ -530,10 +533,13 @@ export interface SynthRigSpec {
   /**
    * The most keyboards a player stands at behind this rig.
    *
-   * One for everything but the modular, and that is not a limitation of the
-   * models — it is what the objects were. A Prophet is a keyboard and a DX7 is a
-   * keyboard; a modular is a *frame*, and what a player put in it was as many
-   * boards as the music wanted. See `boardsFor`.
+   * Not a limitation of the models — it is what the objects were. A modular is a
+   * *frame*, and what a player put in it was as many boards as the music
+   * wanted. A polysynth is a keyboard and stays one: a Prophet with its wooden
+   * cheeks on an X-stand is the whole instrument, and a second one is a second
+   * station rather than a second tier. A digital slab is a keyboard too — but
+   * two of them on a double stand is what the decade looked like, so it stops at
+   * two: a stack, not a frame. See `boardsFor`.
    */
   maxBoards: number;
 }
@@ -587,10 +593,18 @@ export const SYNTH_RIGS: Record<SynthRigId, SynthRigSpec> = {
   /**
    * 1984–90. A thin plastic slab with membrane buttons and no knobs, usually
    * two of them stacked on a double stand.
+   *
+   * `maxBoards: 2` is that "usually" made real rather than drawn. The second
+   * slab used to be scenery — a keybed of white and black boxes nothing could
+   * ever resolve against — and the point of the stack was never the silhouette
+   * alone: a player buys the upper board to have a second sound under the same
+   * hands. So it is a board in the layout table like any other, `synth.ts` puts
+   * real keys on it, and `synth-rig-digital.ts` builds the upper case around
+   * them instead of inventing its own.
    */
   digital: {
     id: 'digital', label: 'digital synth', from: 1984, to: 2100,
-    max: 99, footprint: 0.95, height: 1.35, furniture: false, maxBoards: 1,
+    max: 99, footprint: 0.95, height: 1.35, furniture: false, maxBoards: 2,
   },
 };
 

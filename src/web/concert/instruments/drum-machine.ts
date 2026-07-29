@@ -32,18 +32,19 @@
  * rhythm-name buttons and a start switch, because that is the entire interface:
  * you choose *Bossa Nova* and you press start.
  *
- * `programmed` is a machine you write into — a TR-808, a LinnDrum. Its front is
- * a row of sixteen step keys, which is the object's whole visual signature and
- * the reason the pattern is a grid rather than a knob.
+ * `programmed` is a machine you write into — a TR-808, a LinnDrum — and
+ * `sequencer` is the same object running a pitched figure instead of a kit.
+ * Their front is a row of sixteen step keys, which is the object's whole visual
+ * signature and the reason the pattern is a grid rather than a knob.
  *
- * They share a carcass and a mounting plate because at stage distance they *are*
- * the same silhouette: a shoebox on somebody's rig. What differs is the row
- * along the front, and that is the part a camera can actually resolve.
+ * They share a carcass and a stand because at stage distance they *are* the
+ * same silhouette: a shoebox at somebody's elbow. What differs is the row along
+ * the front, and that is the part a camera can actually resolve.
  */
 
 import {
-  BoxGeometry, Color, Group, InstancedMesh, Matrix4, Mesh, MeshStandardMaterial,
-  Vector3,
+  BoxGeometry, Color, CylinderGeometry, Group, InstancedMesh, Matrix4, Mesh,
+  MeshStandardMaterial,
 } from 'three';
 
 import { Rng } from '../../../core/rng.js';
@@ -62,6 +63,41 @@ const TILT = 0.22;
 const STEPS = 16;
 
 /**
+ * The row of keys along the front, in the tilted case's own frame: how wide it
+ * is, how far up the panel, and how far forward.
+ *
+ * Module-level because two things need them and one of them is not in this file
+ * — see `MACHINE_PANEL_Y` below.
+ */
+const ROW_W = CASE_W - 0.05;
+const ROW_Y = CASE_H + 0.001;
+const ROW_Z = -CASE_D / 2 + 0.045;
+
+/**
+ * Where a hand lands on this object, in its own frame, relative to the top of
+ * its stand.
+ *
+ * Exported because the hand is placed by something that never sees this
+ * geometry: `resolve` on the *player's instrument* answers a `control` point,
+ * and a machine standing beside them is not part of that instrument. The
+ * alternative is a second set of numbers in `instruments/index.ts` describing a
+ * box it cannot see, which would be wrong the first time either file was
+ * touched — and wrong invisibly, since a hand landing 2 cm off a button looks
+ * like a hand on a button.
+ *
+ * Derived rather than written down, because the case is *tilted*: the row is at
+ * `ROW_Y` on a panel turned `TILT` toward the player, and rotating it about `x`
+ * drops it 1.3 cm and pulls it 1.7 cm nearer — numbers nobody would guess and
+ * nobody would notice being stale.
+ *
+ * `PANEL_Z` is negative, and that is the row facing its player: the box's local
+ * `+z` runs away from them, so its front row is on their side of the case.
+ */
+export const MACHINE_PANEL_W = ROW_W;
+export const MACHINE_PANEL_Y = ROW_Y * Math.cos(TILT) + ROW_Z * Math.sin(TILT);
+export const MACHINE_PANEL_Z = ROW_Z * Math.cos(TILT) - ROW_Y * Math.sin(TILT);
+
+/**
  * How long a lit step stays lit, in beats.
  *
  * Short — a step lamp is a strobe, not a glow. Long enough to survive a frame
@@ -72,7 +108,7 @@ const FLASH = 0.22;
 
 export interface DrumMachineOptions {
   /** Which object. See the note above; it decides the front row and nothing else. */
-  kind: 'box' | 'programmed';
+  kind: 'box' | 'programmed' | 'sequencer';
   /** Deterministic per number. Varies the finish. */
   seed: number;
   /** Body colour hint from the venue palette. May be ignored. */
@@ -87,6 +123,28 @@ export interface DrumMachineOptions {
   events: readonly { beat: number; velocity: number; voice?: string }[];
   /** Beats per bar, so the step row means a bar rather than an arbitrary window. */
   beatsPerBar: number;
+  /**
+   * How far the stand's top is above the deck it stands on, in metres.
+   *
+   * `StageMachine.stand`. The object's origin is that top surface, so this is
+   * the length of the legs and nothing else — the box's own geometry is
+   * unaffected by how high it is being held.
+   */
+  stand: number;
+  /**
+   * The beat the player's hand reaches the panel, if anybody's does.
+   *
+   * The panel is **dark before it**. A machine already running when the curtain
+   * goes up is the failure §8.1 of `docs/backline-plan.md` exists to prevent,
+   * dressed up as a lit lamp: if the box is stepping before anybody touches it,
+   * the hand that arrives on the downbeat is pressing a button that changes
+   * nothing, and the start gesture becomes decoration.
+   *
+   * Absent — an ambient number with nobody on the boards — and it runs from its
+   * own first event, which is the honest answer when there is no cause to wait
+   * for.
+   */
+  startedAt?: number;
 }
 
 /**
@@ -106,7 +164,14 @@ export interface DrumMachineOptions {
 export function createMachineRunner(
   events: readonly { beat: number; voice?: string }[],
   beatsPerBar: number, steps: number,
-): { step(now: number): number; lamp(i: number, now: number): boolean; lamps: number } {
+  /** See `DrumMachineOptions.startedAt`. Absent means "from its own first event". */
+  startedAt?: number,
+): {
+  step(now: number): number;
+  lamp(i: number, now: number): boolean;
+  running(now: number): boolean;
+  lamps: number;
+} {
   const LAMP_OF: Record<string, number> = {
     bd: 0, lt: 0, mt: 0,
     sd: 1, rim: 1, cp: 1, ht: 1,
@@ -126,6 +191,19 @@ export function createMachineRunner(
       lamp: e.voice === undefined ? i % 3 : LAMP_OF[e.voice] ?? 2,
     }))
     .sort((a, b) => a.beat - b.beat);
+
+  /**
+   * When it is running, which is a window and not "always".
+   *
+   * It starts when somebody starts it — or, with nobody to do so, at its own
+   * first note. It stops a bar after its last, which is where the choreographer
+   * puts the hand that switches it off: a machine that stops at the instant of
+   * its final hit has been cut off rather than switched off, and a bar is one
+   * cycle of the row coming round empty, which is what you see on the real
+   * object between the last note and the hand reaching the switch.
+   */
+  const from = startedAt ?? (hits.length ? hits[0]!.beat : 0);
+  const to = (hits.length ? hits[hits.length - 1]!.beat : 0) + beatsPerBar;
 
   let cursor = 0;
   const litUntil = [-1e9, -1e9, -1e9];
@@ -158,6 +236,9 @@ export function createMachineRunner(
     lamp(i: number, now: number): boolean {
       advance(now);
       return now < litUntil[i]!;
+    },
+    running(now: number): boolean {
+      return now >= from && now < to;
     },
   };
 }
@@ -216,39 +297,94 @@ export function buildDrumMachine(opts: DrumMachineOptions): DrumMachine {
   // --- How it is held up ---------------------------------------------------
 
   /**
-   * A mounting plate and two brackets, and **no legs**.
+   * A stand of its own, the size of the box and nothing more.
    *
-   * The first version of this stood on a folding table of its own, and that was
-   * the whole problem with it: a lone box on a table in the middle of a stage
-   * produces a full drum part and offers no account of why. The eye files it as
-   * scenery, so the percussion still arrives from nowhere — which is the failure
-   * the box was introduced to fix, relocated rather than solved.
+   * Two versions of this were wrong in opposite directions and both are worth
+   * keeping in view. The first stood the machine on a **folding table** in the
+   * middle of the stage: a lone piece of furniture producing a full drum part,
+   * which the eye files as scenery, so the percussion still arrived from
+   * nowhere. The second bolted it to the **top of somebody's keyboard**, which
+   * bought the explanation and lost the object — from six metres a shoebox
+   * lying on the panel behind the keys is inside the keyboard's own silhouette,
+   * and the one thing the audience has to be able to see is a second instrument
+   * being started.
    *
-   * Gear is mounted, not parked. This sits on somebody's rig — the end of a
-   * keyboard stand, the shelf of a modular — and the plate is what says so. A
-   * machine on a person's own equipment needs no explanation; a machine on its
-   * own furniture is a mystery the audience has to solve.
+   * So: a stand, at the player's right hand, purpose-built and obviously so —
+   * a top the size of the case, four tubes and a brace, no wider than it has to
+   * be. It is not furniture that happens to have a box on it, and it is not
+   * hidden behind a keyboard. What makes it belong to the person beside it is
+   * that they turn and work it, which is the thing an audience can actually
+   * read; a mounting plate is an argument nobody in row six can see.
+   *
+   * The origin is the **top surface**, so `stand` is the leg length and the
+   * case's own geometry does not know how high it is being held.
    */
   const TOP_Y = 0;
-  const PLATE_THICK = 0.010;
-  const plate = addTo(root, new Mesh(
-    new BoxGeometry(CASE_W + 0.03, PLATE_THICK, CASE_D + 0.02), steelMat));
-  plate.position.set(0, TOP_Y - PLATE_THICK / 2, 0);
-  plate.receiveShadow = true;
-  plate.castShadow = true;
+  const TOP_THICK = 0.014;
+  const TOP_W = CASE_W + 0.06;
+  const TOP_D = CASE_D + 0.05;
+  const stand = Math.max(0, opts.stand);
 
-  // Two short brackets under the plate, which is what a clamp on the end of a
-  // stand looks like from six metres: a hand's width of steel and then nothing.
-  const bracketGeo = new BoxGeometry(0.020, 0.055, 0.020);
-  const brackets = addTo(root, new InstancedMesh(bracketGeo, steelMat, 2));
-  brackets.castShadow = true;
-  {
-    const m = new Matrix4();
-    [1, -1].forEach((sx, i) => {
-      m.makeTranslation(sx * (CASE_W / 2 - 0.05), TOP_Y - PLATE_THICK - 0.0275, 0);
-      brackets.setMatrixAt(i, m);
-    });
-    brackets.instanceMatrix.needsUpdate = true;
+  const top = addTo(root, new Mesh(
+    new BoxGeometry(TOP_W, TOP_THICK, TOP_D), steelMat));
+  top.position.set(0, TOP_Y - TOP_THICK / 2, 0);
+  top.receiveShadow = true;
+  top.castShadow = true;
+
+  /**
+   * Four tubes and one brace low down, which is the whole stand.
+   *
+   * Tubes rather than a box frame: this is stage hardware, and the thing that
+   * says so is that you can see through it. A solid pedestal at this size reads
+   * as a plinth, and a plinth is furniture again. The brace sits near the floor
+   * for the same reason a real one does — it is what stops a light frame
+   * racking, and it is the detail that makes four separate legs read as one
+   * object.
+   */
+  if (stand > TOP_THICK + 0.05) {
+    const LEG_R = 0.011;
+    const legX = TOP_W / 2 - 0.028;
+    const legZ = TOP_D / 2 - 0.028;
+    /**
+     * The legs run from *under the top* to the deck, so they are `stand` less
+     * the top's own thickness.
+     *
+     * Written out because the obvious version is wrong by exactly that: `stand`
+     * is the height of the top *surface*, which is this object's origin, so four
+     * legs of length `stand` hung beneath the board put their feet 14 mm into
+     * the boards. Small enough never to be seen and exactly what the verifier's
+     * "its legs reach the deck the player stands on" is for.
+     */
+    const legLen = stand - TOP_THICK;
+    const legGeo = new CylinderGeometry(LEG_R, LEG_R, legLen, 8);
+    const legs = addTo(root, new InstancedMesh(legGeo, steelMat, 4));
+    legs.castShadow = true;
+    {
+      const m = new Matrix4();
+      let i = 0;
+      for (const sx of [1, -1]) {
+        for (const sz of [1, -1]) {
+          m.makeTranslation(sx * legX, TOP_Y - TOP_THICK - legLen / 2, sz * legZ);
+          legs.setMatrixAt(i++, m);
+        }
+      }
+      legs.instanceMatrix.needsUpdate = true;
+    }
+
+    // Measured up from the deck rather than down from the top: a brace sits a
+    // hand's width off the floor whatever height the stand is set to.
+    const braceY = TOP_Y - stand + 0.16;
+    const braceGeo = new BoxGeometry(legX * 2, 0.012, 0.012);
+    const braces = addTo(root, new InstancedMesh(braceGeo, steelMat, 2));
+    braces.castShadow = true;
+    {
+      const m = new Matrix4();
+      [1, -1].forEach((sz, i) => {
+        m.makeTranslation(0, braceY, sz * legZ);
+        braces.setMatrixAt(i, m);
+      });
+      braces.instanceMatrix.needsUpdate = true;
+    }
   }
 
   // --- The case ------------------------------------------------------------
@@ -280,8 +416,10 @@ export function buildDrumMachine(opts: DrumMachineOptions): DrumMachine {
 
   // --- The front row -------------------------------------------------------
 
-  const panelY = CASE_H + 0.001;
-  const rowZ = -CASE_D / 2 + 0.045;
+  // Hoisted to module scope, because `MACHINE_PANEL_Y` is derived from them and
+  // a second copy here would drift the first time the panel moved.
+  const panelY = ROW_Y;
+  const rowZ = ROW_Z;
 
   /**
    * Sixteen steps on a programmable machine, and on a preset one the same row
@@ -295,11 +433,11 @@ export function buildDrumMachine(opts: DrumMachineOptions): DrumMachine {
    * *this object is producing the beat* — is true of both machines.
    */
   const keys = preset ? 10 : STEPS;
-  const keyW = (CASE_W - 0.05) / keys * 0.78;
+  const keyW = ROW_W / keys * 0.78;
   const keyGeo = new BoxGeometry(keyW, 0.004, 0.016);
   const stepXs: number[] = [];
   for (let i = 0; i < keys; i++) {
-    stepXs.push(-(CASE_W - 0.05) / 2 + ((CASE_W - 0.05) / keys) * (i + 0.5));
+    stepXs.push(-ROW_W / 2 + (ROW_W / keys) * (i + 0.5));
   }
 
   const stepRow = addTo(shell, new InstancedMesh(keyGeo, lampOffMat, keys));
@@ -349,13 +487,26 @@ export function buildDrumMachine(opts: DrumMachineOptions): DrumMachine {
 
   // --- What it is playing --------------------------------------------------
 
-  const runner = createMachineRunner(opts.events, opts.beatsPerBar, keys);
+  const runner = createMachineRunner(opts.events, opts.beatsPerBar, keys, opts.startedAt);
 
   const machine: DrumMachine = {
     root,
 
     update(now: number): void {
       if (!Number.isFinite(now)) return;
+      /**
+       * Dark until somebody starts it, and dark again once they stop it.
+       *
+       * The whole of the "cause" half of §8.1 lives in this branch. A panel
+       * that steps from the first frame is a machine that started itself, and
+       * the player's hand arriving on the downbeat is then a hand pressing a
+       * button that demonstrably does nothing.
+       */
+      if (!runner.running(now)) {
+        for (let i = 0; i < VOICE_ROWS; i++) voiceLit[i]!.visible = false;
+        lit.visible = false;
+        return;
+      }
       for (let i = 0; i < VOICE_ROWS; i++) voiceLit[i]!.visible = runner.lamp(i, now);
       lit.position.x = stepXs[runner.step(now)]!;
       lit.visible = true;

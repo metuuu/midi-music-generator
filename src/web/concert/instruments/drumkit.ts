@@ -295,18 +295,34 @@ function headGeometry(radius: number, seg = 16): BufferGeometry {
 }
 
 /**
+ * Where the corners of a pad's hexagon sit.
+ *
+ * A hexagon has two orientations and only one of them is a Simmons: flats top
+ * and bottom, corners out to the sides. That matters most on the kick, which is
+ * the one hexagon on the kit an audience gets square to, and `CylinderGeometry`
+ * starts a corner at `+z` — which, on a shell tipped onto its side, is a corner
+ * pointing at the ceiling and a ridge running the length of the top of it.
+ *
+ * `CircleGeometry` starts a corner a quarter turn round from that, and a
+ * quarter turn is this phase for a six-sided thing, so the head and the bottom
+ * moulding are already here and the shell is the one that has to be told. All
+ * three read it from one place because they have to agree: a shell half a
+ * segment off its own caps is a twelve-pointed star at the rim, which is what
+ * the kick was.
+ */
+const HEX_PHASE = Math.PI / 6;
+
+/**
  * The same surface for a pad: hexagonal, and flat.
  *
  * A drum head is a membrane under tension and domes; a pad is a sheet of rubber
  * on a plastic moulding and does not. Built as a six-sided disc at the local
- * origin so it drops into `drum()` exactly where `headGeometry` does — and
- * rotated a twelfth of a turn so its flats line up with the shell's, which is
- * the difference between a pad and a pad with a hexagonal biscuit on top.
+ * origin so it drops into `drum()` exactly where `headGeometry` does, on the
+ * phase `CircleGeometry` hands it — see `HEX_PHASE`.
  */
 function padGeometry(radius: number, seg = 6): BufferGeometry {
   const g = new CircleGeometry(radius * 0.94, seg);
   g.rotateX(-Math.PI / 2);
-  g.rotateY(Math.PI / seg);
   return g;
 }
 
@@ -328,16 +344,24 @@ function padGeometry(radius: number, seg = 6): BufferGeometry {
  * thickness, and back out along the underside (normals down). First point
  * equals last, so the lathe closes and the thing is solid metal rather than a
  * one-sided sheet.
+ *
+ * `dome` is how much of that curve survives, and it is the difference between a
+ * cymbal and a cymbal pad. A bronze cymbal is hammered and lathed into a shape
+ * that catches a light differently at every radius; a pad is rubber laid on a
+ * flat plastic disc with a boss in the middle for the bolt, and its profile is
+ * a straight line. Flattening it is half of why the pad kit's plates stop
+ * reading as metal — the other half is what they are made of, which is the
+ * caller's business.
  */
-function cymbalGeometry(radius: number, seg = 20): BufferGeometry {
+function cymbalGeometry(radius: number, seg = 20, dome = 1): BufferGeometry {
   const bell = radius * 0.16;
   /** Rim first, then inward and up to the bell. */
   const bow: ReadonlyArray<readonly [number, number]> = [
     [radius, 0],
-    [radius * 0.55, bell * 0.10],
-    [bell, bell * 0.24],
-    [bell * 0.5, bell * 0.5],
-    [0.0001, bell * 0.55],
+    [radius * 0.55, bell * 0.10 * dome],
+    [bell, bell * 0.24 * dome],
+    [bell * 0.5, bell * 0.5 * dome],
+    [0.0001, bell * 0.55 * dome],
   ];
   const points = bow.map(([r, y]) => new Vector2(r, y));
   for (let i = bow.length - 1; i >= 0; i--) {
@@ -396,18 +420,28 @@ export const buildDrumkit: InstrumentBuilder = (opts) => {
     : ['#8c2f26', '#1d2a3a', '#3d2a1b', '#6d6257', '#2b2b2e']);
   const sparkle = !pads && rng.chance(0.5);
 
+  /**
+   * A pad is injection-moulded plastic and there is no such thing as a gloss on
+   * it. `metalness` was already zero and it was not enough: a hexagon is six
+   * flat panels, and a flat panel takes a light in one piece, so at 0.82 the
+   * whole side of a pad lit at once and held it — which is how a sheet of
+   * anodised metal behaves, not a moulding, and it is what makes the plates
+   * read as metal even with no metal in the material.
+   */
   const shellMat = new MeshStandardMaterial({
     color: shellHue,
-    roughness: pads ? 0.82 : sparkle ? 0.28 : 0.55,
+    roughness: pads ? 0.97 : sparkle ? 0.28 : 0.55,
     metalness: pads ? 0 : sparkle ? 0.35 : 0.05,
   });
   /**
    * Mylar is off-white and catches the lights; a playing surface is black
    * rubber and eats them. Getting this one material wrong is most of what would
-   * make a pad kit read as an acoustic kit in the dark.
+   * make a pad kit read as an acoustic kit in the dark — and the playing
+   * surface is the flattest panel on the object, so it is the one that showed
+   * the sheen first.
    */
   const headMat = new MeshStandardMaterial(pads
-    ? { color: '#232327', roughness: 0.92, metalness: 0 }
+    ? { color: '#232327', roughness: 1, metalness: 0 }
     : { color: '#efe7d8', roughness: 0.75, metalness: 0 });
   const chromeMat = new MeshStandardMaterial({ color: '#c9ced6', roughness: 0.3, metalness: 0.85 });
   const brassMat = new MeshStandardMaterial({
@@ -489,11 +523,15 @@ export const buildDrumkit: InstrumentBuilder = (opts) => {
      * Six sides on a pad kit and twenty on an acoustic one, which is the same
      * lathe doing both jobs — a hexagon *is* a cylinder with six segments, and
      * the hexagonal shell is the single most recognisable thing about the
-     * object. `open: true` stays either way: the top is the head and the bottom
-     * is capped by `back` below.
+     * object. Which six, though, is `HEX_PHASE`: at twenty segments the start
+     * angle is invisible and at six it is the difference between a Simmons and
+     * a hex nut. `open: true` stays either way: the top is the head and the
+     * bottom is capped by `back` below.
      */
     const shell = addTo(g, new Mesh(
-      new CylinderGeometry(radius, radius, depth, pads ? 6 : 20, 1, true), shellMat,
+      new CylinderGeometry(
+        radius, radius, depth, pads ? 6 : 20, 1, true, pads ? HEX_PHASE : 0,
+      ), shellMat,
     ));
     shell.castShadow = true;
     shell.receiveShadow = true;
@@ -557,7 +595,7 @@ export const buildDrumkit: InstrumentBuilder = (opts) => {
    * The kick is not in here on purpose: `LAYOUT.bd` is the *pedal board*, not
    * a head, and a kick lies on its side by definition.
    */
-  function stand(g: Group, voice: DrumVoice, depth: number): Vector3 {
+  function stand(g: Object3D, voice: DrumVoice, depth: number): Vector3 {
     const spec = LAYOUT[voice];
     const up = new Vector3(spec.up[0], spec.up[1], spec.up[2]).normalize();
     g.quaternion.setFromUnitVectors(yUp, up);
@@ -608,9 +646,12 @@ export const buildDrumkit: InstrumentBuilder = (opts) => {
       new Vector3(ltAt.x + Math.cos(a) * 0.23, 0.01, ltAt.z + Math.sin(a) * 0.23));
   }
 
-  // The clap pad: a small rubber disc on a short boom by the hats.
-  const padGeo = new CylinderGeometry(0.075, 0.075, 0.028, 16);
-  const pad = addTo(root, new Mesh(padGeo, darkMat));
+  // The clap pad: a small rubber disc on a short boom by the hats — and six
+  // sided on a pad kit, where it is the only round pad on a rack of hexagons.
+  const padGeo = new CylinderGeometry(
+    0.075, 0.075, 0.028, pads ? 6 : 16, 1, false, pads ? HEX_PHASE : 0,
+  );
+  const pad = addTo(root, new Mesh(padGeo, pads ? headMat : darkMat));
   pad.name = 'head:pad';
   pad.position.set(PAD_AT[0], PAD_AT[1], PAD_AT[2]);
   pad.castShadow = true;
@@ -622,7 +663,14 @@ export const buildDrumkit: InstrumentBuilder = (opts) => {
   // Lugs are the detail that makes a shell read as a drum, and forty separate
   // draw calls for them would be a poor trade. One instanced mesh for the kit,
   // placed through each drum's own matrix so the kick's lie on their side too.
-  {
+  //
+  // A pad has none of them, for the reason it has no hoops: a lug tensions a
+  // head, and there is no head here. They were also the last bright thing left
+  // on a pad kit — thirty-four chrome blocks, each one standing the full depth
+  // of the pad it was bolted to and eight of them ringing the face of the kick
+  // — so a moulded black hexagon came out studded in metal, which is the one
+  // finish it cannot have.
+  if (!pads) {
     const drums: Array<[Group, number, number]> = [
       [kick, 0.28, 8], [snare, 0.175, 8], [ht, 0.155, 6], [mt, 0.175, 6], [lt, 0.205, 6],
     ];
@@ -647,8 +695,24 @@ export const buildDrumkit: InstrumentBuilder = (opts) => {
 
   const cymbals: Record<CymbalId, { mesh: Mesh; hit: Hit; tilt: number; baseY: number }> = {} as never;
 
+  /**
+   * A pad kit's cymbals are cymbal *pads*, and they were the brightest thing
+   * left on the object: three discs of `brassMat` at `metalness: 0.9` hanging
+   * over a kit with no metal anywhere else on it, which is a Simmons rack
+   * someone had hung real bronze on.
+   *
+   * Both halves of a cymbal's read change. `dome` takes the hammered bow out —
+   * a pad is a flat disc with a boss for the bolt — and the surface becomes the
+   * same black rubber as the heads, because on an electronic kit it is the same
+   * black rubber as the heads. The thickness does not change: `CYMBAL_THICK` is
+   * what `HAT_SHUT` is measured in, so a fatter plate would be a hi-hat that
+   * closed through itself.
+   */
+  const plateMat = pads ? headMat : brassMat;
+  const PLATE_DOME = pads ? 0.18 : 1;
+
   function cymbal(id: CymbalId, radius: number, at: readonly [number, number, number], lean: number): Mesh {
-    const mesh = addTo(root, new Mesh(cymbalGeometry(radius), brassMat));
+    const mesh = addTo(root, new Mesh(cymbalGeometry(radius, 20, PLATE_DOME), plateMat));
     mesh.name = `cymbal:${id}`;
     mesh.position.set(at[0], at[1], at[2]);
     mesh.rotation.z = lean;
@@ -661,7 +725,7 @@ export const buildDrumkit: InstrumentBuilder = (opts) => {
   }
 
   // Hi-hat: two cymbals, and the gap between them is the whole point.
-  const hatBottom = addTo(root, new Mesh(cymbalGeometry(0.17), brassMat));
+  const hatBottom = addTo(root, new Mesh(cymbalGeometry(0.17, 20, PLATE_DOME), plateMat));
   hatBottom.name = 'cymbal:hatBottom';
   hatBottom.position.set(HAT_AT[0], HAT_AT[1], HAT_AT[2]);
   hatBottom.rotation.z = -0.10;
@@ -680,19 +744,62 @@ export const buildDrumkit: InstrumentBuilder = (opts) => {
 
   // --- Cowbell and woodblock, on a bracket off the tom post ----------------
 
-  const bell = addTo(root, new Mesh(new BoxGeometry(0.055, 0.10, 0.075), brassMat));
-  bell.position.set(0.02, 1.12, 0.22);
-  bell.rotation.x = 0.5;
+  /**
+   * Two more pads, on a pad kit, because a cowbell is a lump of cast steel and
+   * a woodblock is a lump of rosewood and neither of them is a thing an
+   * electronic kit has. What it has instead is another trigger on the same
+   * bracket, and a Simmons trigger is a small hexagon whatever it is called in
+   * the part of the arrangement that hits it — which is exactly the trade the
+   * whole `pads` flag makes: the kit answers the same, and the object is
+   * different.
+   *
+   * Half-height is the one number the rest of the section needs off them, and
+   * it is the one that changes: a biscuit is not as tall as a cowbell. It is
+   * what `stand` backs each piece off its contact by, and what `underside`
+   * reaches up into to find the end of its arm — so the bracket follows the
+   * swap without being told about it.
+   */
+  const auxPad = (radius: number): BufferGeometry =>
+    new CylinderGeometry(radius, radius, PAD_DEEP, 6, 1, false, HEX_PHASE);
+  const bellHalf = pads ? PAD_DEEP / 2 : 0.05;
+  const blockHalf = pads ? PAD_DEEP / 2 : 0.025;
+
+  const bell = addTo(root, new Mesh(
+    pads ? auxPad(0.058) : new BoxGeometry(0.055, 0.10, 0.075), pads ? headMat : brassMat,
+  ));
   bell.castShadow = true;
-  const block = addTo(root, new Mesh(new BoxGeometry(0.16, 0.05, 0.055), woodMat));
-  block.position.set(-0.26, 1.08, 0.24);
-  block.rotation.x = 0.4;
+  const block = addTo(root, new Mesh(
+    pads ? auxPad(0.068) : new BoxGeometry(0.16, 0.05, 0.055), pads ? headMat : woodMat,
+  ));
   block.castShadow = true;
+
+  /**
+   * Both pieces hang the way a drum stands: off the contact that names them.
+   *
+   * Their tilts were written here instead, as a `rotation.x` each, and both had
+   * the sign backwards — the second-opinion bug `stand` exists to end, in the
+   * one corner of the kit that never went through it. `LAYOUT.cb.up` leans at
+   * the player, the way every normal in that table does; `rotation.x = 0.5`
+   * leans at the audience. On a brass box nobody could tell, and the hand
+   * landing on the far face of a cowbell reads as a hand landing on a cowbell.
+   * A hexagonal pad is a *face*, and a face put the wrong way round is a pad
+   * turned to play to the crowd, which is what was reported.
+   *
+   * The positions go with it and had to: the contact is a point on the struck
+   * surface, so a piece that turned in place would have left its own strike
+   * point hanging in the air off the front edge. `stand` backs the centre off
+   * along the normal by half the piece to land the surface on the point — half
+   * a drum's depth there, half a biscuit's height here, doubled on the way in
+   * because it is the same arithmetic and there is no sense in a second copy of
+   * it.
+   */
+  const bellBase = stand(bell, 'cb', bellHalf * 2).y;
+  const blockBase = stand(block, 'perc', blockHalf * 2).y;
 
   /**
    * Where a mounted piece's underside is: the centre of the bottom face of its
    * box, carried through the piece's own tilt, and then sunk a little way into
-   * the wood or the brass.
+   * the wood, the brass, or the moulding that stands in for both.
    *
    * The inset is not cosmetic. Both pieces bob on a hit and the bob is a signed
    * oscillation, so a tip that merely touched the bottom face at rest would
@@ -717,14 +824,14 @@ export const buildDrumkit: InstrumentBuilder = (opts) => {
    * from the mesh transforms above, so moving a piece moves its mount.
    */
   const POST_TOP = new Vector3(0.02, 1.02, 0.18);
-  const blockFoot = underside(block, 0.025);
+  const blockFoot = underside(block, blockHalf);
   const elbow = new Vector3(blockFoot.x, POST_TOP.y, blockFoot.z);
-  strut(tubeSlots, POST_TOP, underside(bell, 0.05));
+  strut(tubeSlots, POST_TOP, underside(bell, bellHalf));
   strut(tubeSlots, POST_TOP, elbow);
   strut(tubeSlots, elbow, blockFoot);
   const aux: Record<'cb' | 'perc', { mesh: Mesh; hit: Hit; base: number }> = {
-    cb: { mesh: bell, hit: new Hit(), base: 1.12 },
-    perc: { mesh: block, hit: new Hit(), base: 1.08 },
+    cb: { mesh: bell, hit: new Hit(), base: bellBase },
+    perc: { mesh: block, hit: new Hit(), base: blockBase },
   };
 
   // --- Pedals --------------------------------------------------------------

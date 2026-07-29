@@ -54,6 +54,24 @@ import { Group } from 'three';
 import type { BoardSpec } from '../../../concert/instruments.js';
 
 /**
+ * An extra board as a rig sees it: the layout table's entry, plus the one thing
+ * about it only the keyboard can measure.
+ *
+ * `BoardSpec.range` says which notes are on it and `boardWidth` in `synth.ts`
+ * turns that into metres, using a white key's own width — which lives with the
+ * keys and should stay there. A rig that wanted a case around one of these
+ * boards would otherwise have to guess, and a guess is a case whose end caps
+ * are a centimetre out from the keybed they are supposed to wrap.
+ *
+ * It is a measurement of the keybed like every other field here, and it is
+ * handed over for the same reason: a rig cannot ask, and must not assume.
+ */
+export type RigBoard = BoardSpec & {
+  /** Width of this board's keybed, in metres. */
+  width: number;
+};
+
+/**
  * Where the keys are, so a rig can be built around them without being able to
  * move them.
  *
@@ -88,7 +106,7 @@ export interface SynthRigOptions {
    * builds for it, and passing it would invite a second shelf under the one
    * keyboard that already has one.
    */
-  extraBoards?: readonly BoardSpec[];
+  extraBoards?: readonly RigBoard[];
   /**
    * A machine this rig *contains*, if the band's is mounted here.
    *
@@ -111,6 +129,8 @@ export interface SynthRigOptions {
      */
     events: readonly { beat: number; velocity: number }[];
     beatsPerBar: number;
+    /** The beat a hand starts it. Dark before then — see `DrumMachineOptions`. */
+    startedAt?: number;
   };
 }
 

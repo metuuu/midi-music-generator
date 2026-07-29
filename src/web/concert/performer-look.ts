@@ -400,9 +400,13 @@ export function dressTorso(
 /**
  * Eight styles, all built from the same three primitives.
  *
- * The crown is the load-bearing part: an ellipsoid pushed back and up so the
- * hairline clears the brows. Everything else — a bob's side masses, a
- * beehive's tower, seven curls — hangs off that. `hood` is the odd one: it is
+ * Two of them are load-bearing. The crown is an ellipsoid pushed back and up
+ * so the hairline clears the brows, and it is all a short style needs. The
+ * shell is a whole head of hair for the styles that hang: everything with
+ * length — a bob's wings, a curtain, the fall down the nape — grows out of
+ * that rather than being asked to cover the skull as well as reach. A
+ * beehive's tower and seven curls still sit on the crown. `hood` is the odd
+ * one out: it is
  * jacket-coloured outerwear, not hair, and it needs an open shell so the face
  * is a hole in the geometry rather than a hole in a texture.
  */
@@ -420,6 +424,34 @@ export function buildHair(
     m.castShadow = true;
     head.add(m);
     return m;
+  };
+
+  /**
+   * A whole head of hair, for the styles that cover more of the skull than a
+   * crown does.
+   *
+   * It is the skull's own ellipsoid — 2 × 2.10 × 1.90 R — inflated about a
+   * sixth and pushed back, and that one relationship does all the work. A
+   * scaled copy of a convex shape is proud of it everywhere the surface turns
+   * away and buried behind it everywhere it turns towards you, so this is
+   * outside the skin over the crown, the temples, the sides and the nape, and
+   * inside it across the whole face: brow, eye, cheek, nose, lip and chin end
+   * up clear without a single number being tuned against any of them. What is
+   * left is a head of hair with a face-shaped hole in it.
+   *
+   * It matters because the hanging styles were built without one. A bob and a
+   * curtain were each asked to cover the head *and* be the length, from
+   * masses parked beside the skull, and both failed the same way: the slab
+   * either reached forward far enough to lie down the cheek, or sat back far
+   * enough to leave bare scalp between itself and the crown. With a shell
+   * underneath, length is only length.
+   */
+  const shell = (): void => {
+    const m = new Mesh(orb(l), mat);
+    m.scale.set(R * 2.36, R * 2.58, R * 2.30);
+    m.position.set(0, -R * 0.10, -R * 0.38);
+    m.castShadow = true;
+    head.add(m);
   };
 
   switch (style) {
@@ -457,41 +489,46 @@ export function buildHair(
 
     case 'bob': {
       crown(2.08, 1.18, 2.08, 0.52, -0.20);
+      shell();
+      // Wings, and the only part of a bob that is a bob: hair held out at full
+      // width past the ear and cut off level below the jaw instead of
+      // following the skull back in. The shell already covers the head, so
+      // these only have to be the shape — which is why they can sit outboard
+      // at x ±0.88R and stop at z +0.28R, still behind the widest point of the
+      // face. A bob swings forward of the ear; it is never drawn down a cheek,
+      // which is what the old pair of slabs at z +0.73R were doing.
       for (const s of [SIDE.left, SIDE.right]) {
-        const side = new Mesh(orb(l), mat);
-        side.scale.set(R * 0.62, R * 1.60, R * 1.90);
-        side.position.set(s * R * 0.88, -R * 0.30, -R * 0.22);
-        side.castShadow = true;
-        head.add(side);
+        const wing = new Mesh(orb(l), mat);
+        wing.scale.set(R * 0.80, R * 1.85, R * 1.24);
+        wing.position.set(s * R * 0.88, -R * 0.62, -R * 0.34);
+        wing.castShadow = true;
+        head.add(wing);
       }
-      const back = new Mesh(orb(l), mat);
-      back.scale.set(R * 1.90, R * 1.70, R * 0.90);
-      back.position.set(0, -R * 0.16, -R * 0.86);
-      head.add(back);
       break;
     }
 
     case 'long': {
       crown(2.08, 1.18, 2.08, 0.52, -0.20);
+      shell();
       for (const s of [SIDE.left, SIDE.right]) {
-        // Two numbers here are load-bearing, and both are about the profile
-        // rather than the front. A head in profile is seen *along* this axis,
-        // so a curtain is not merely beside the face — it is drawn over the
-        // whole of it. Hence the front edge at z +0.25R, behind the cheek and
-        // well behind the brow, nose and lip line at z +0.76R and out: the
-        // silhouette that makes a head a face survives the turn. And the top
-        // at y +1.26R, barely proud of the crown, because a mass rising past
-        // the skull on both sides closes the head into a smooth dark ovoid —
-        // the helmet. Length is untouched; it is what makes this style long.
-        const side = new Mesh(orb(l), mat);
-        side.scale.set(R * 0.60, R * 2.78, R * 1.05);
-        side.position.set(s * R * 0.98, -R * 1.52, -R * 0.80);
-        side.castShadow = true;
-        head.add(side);
+        // Curtains, and the two numbers that keep them curtains. The top at
+        // y +0.30R is inside the shell rather than level with it, so the fall
+        // grows out of the hair instead of hanging behind a bare head — the
+        // fault that had these parked at z -0.80R, where they read as boards
+        // beside a skull from every angle but dead-on. And the front edge at
+        // z +0.26R stays behind the cheek and a long way behind the brow, nose
+        // and lip line at +0.76R and out, because a head in profile is seen
+        // *along* this axis: a curtain that reaches the face does not sit
+        // beside it, it is drawn over the whole of it.
+        const fall = new Mesh(orb(l), mat);
+        fall.scale.set(R * 0.76, R * 3.20, R * 1.20);
+        fall.position.set(s * R * 0.92, -R * 1.30, -R * 0.34);
+        fall.castShadow = true;
+        head.add(fall);
       }
       const back = new Mesh(orb(l), mat);
-      back.scale.set(R * 1.95, R * 3.40, R * 1.00);
-      back.position.set(0, -R * 1.20, -R * 0.82);
+      back.scale.set(R * 1.95, R * 3.25, R * 1.00);
+      back.position.set(0, -R * 1.32, -R * 0.80);
       back.castShadow = true;
       head.add(back);
       break;
