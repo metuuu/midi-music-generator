@@ -646,6 +646,21 @@ export interface StageMachine {
   /** Radians. 0 faces the audience. */
   facing: number;
   /**
+   * Whether the machine is drawn by the renderer as its own object, or is a
+   * module inside the rig its tender is standing at.
+   *
+   * `'bay'` means the tender's instrument draws it and `position`/`facing` are
+   * not used — a modular is a frame with modules in it, and where the person
+   * working the machine is the person at that frame, the honest object is a
+   * percussion module in the cabinet rather than a second box balanced on the
+   * end of the stand.
+   *
+   * `'rig'` is everything else: mounted on a plate on top of whatever the
+   * tender is standing at. That is most of them, and has to be — 97 of 97
+   * machine numbers in ambient's sampler era have no modular on stage at all.
+   */
+  mount: 'rig' | 'bay';
+  /**
    * Whoever is standing close enough to work it, if anybody is.
    *
    * Absent on a stage with nobody near it — an ambient number of pure drone and

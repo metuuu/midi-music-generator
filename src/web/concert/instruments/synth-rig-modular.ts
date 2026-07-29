@@ -103,6 +103,7 @@ import {
 } from 'three';
 
 import { Rng } from '../../../core/rng.js';
+import { createMachineRunner } from './drum-machine.js';
 import {
   disposeTree, type SynthRig, type SynthRigBuilder, type SynthRigOptions,
 } from './synth-rig.js';
@@ -127,6 +128,16 @@ const WING_X = 0.78;
 
 /** A faceplate's outer surface, in panel-local `z`. Everything sits on it. */
 const FACE = 0.012;
+
+/**
+ * Steps across a percussion module, and how far apart they sit.
+ *
+ * Sixteen because that is what a bar of this music is, and the pitch is tighter
+ * than a jack's because a lamp needs no finger. A narrow bay draws fewer rather
+ * than shrinking them to nothing — see the `percussion` case.
+ */
+const MACHINE_STEPS = 16;
+const STEP_PITCH = 0.019;
 
 /** Jack pitch on a panel. A quarter-inch nut is 12 mm; 26 mm is a Moog row. */
 const JACK_PITCH = 0.026;
@@ -244,7 +255,22 @@ function weld(parts: readonly BufferGeometry[], tints: readonly Color[]): Buffer
 }
 
 /** What a module does, which is all that decides what is drawn on it. */
-type ModuleKind = 'jacks' | 'knobs' | 'sliders' | 'mixed';
+/**
+ * What a module in this frame *is*.
+ *
+ * The first four are texture: a rack of anonymous panels that says "a lot of
+ * hardware" and cannot say which. That is the right read for most of a modular
+ * and the wrong level of meaning for all of it, because the interesting fact
+ * about a modular is that the modules were chosen — a band that sequenced its
+ * bass owned a sequencer and a band that did not, did not, and you could see
+ * which from the fourth row.
+ *
+ * `percussion` is the first named one. It is what makes the drum machine a part
+ * of the instrument rather than a box balanced on the end of a stand, and it is
+ * the arrangement that needs no explaining: a wall of modules with somebody
+ * standing at it already reads as one thing being operated.
+ */
+type ModuleKind = 'jacks' | 'knobs' | 'sliders' | 'mixed' | 'percussion';
 
 export const buildModularRig: SynthRigBuilder = (opts: SynthRigOptions): SynthRig => {
   const rng = new Rng(`synth-rig-modular:${opts.seed}`);
@@ -299,6 +325,26 @@ export const buildModularRig: SynthRigBuilder = (opts: SynthRigOptions): SynthRi
   const gateMat = new MeshStandardMaterial({
     color: '#2a2205', emissive: '#ffcc44', emissiveIntensity: 0.3, roughness: 0.4,
   });
+  /**
+   * Unlit steps and voices, and the two lit ones that move over them.
+   *
+   * A `Bank` is one instanced mesh with one material, so sixteen individually
+   * lit steps would be sixteen materials and sixteen draw calls for a strip
+   * 30 cm across. One dark row plus one bright lamp parked on the current step
+   * is two draw calls and reads identically from anywhere an audience sits.
+   */
+  const stepOffMat = new MeshStandardMaterial({
+    color: '#241a12', roughness: 0.7, metalness: 0,
+  });
+  const stepOnMat = new MeshStandardMaterial({
+    color: '#ffb347', emissive: '#ff9020', emissiveIntensity: 1.7, roughness: 0.35,
+  });
+  const voiceOffMat = new MeshStandardMaterial({
+    color: '#221417', roughness: 0.7, metalness: 0,
+  });
+  const voiceOnMat = new MeshStandardMaterial({
+    color: '#ff5a4a', emissive: '#ff3b28', emissiveIntensity: 1.5, roughness: 0.35,
+  });
 
   // --- Shared primitives ---------------------------------------------------
 
@@ -316,6 +362,17 @@ export const buildModularRig: SynthRigBuilder = (opts: SynthRigOptions): SynthRi
   const pointers = new Bank();
   const lfoLamps = new Bank();
   const gateLamps = new Bank();
+  /**
+   * The percussion bay's own lamps, kept out of the two banks above because
+   * they answer to something else entirely: those two are a free-running LFO
+   * and a gate that follows the keyboard, and these follow a drum pattern
+   * nobody is playing.
+   */
+  const stepOff = new Bank();
+  const voiceOff = new Bank();
+  /** Where each step lamp sits, so the lit one can be parked on top of it. */
+  const stepAt: Matrix4[] = [];
+  const voiceAt: Matrix4[] = [];
   const legs = new Bank();
   const jacks = new Bank();
   const knobs = new Bank();
@@ -426,6 +483,48 @@ export const buildModularRig: SynthRigBuilder = (opts: SynthRigOptions): SynthRi
         knobGrid(panel, free + 0.024, 1);
         jackGrid(panel, free + 0.024 + KNOB_PITCH, 1);
         break;
+      case 'percussion': {
+        /**
+         * The drum machine, as a module.
+         *
+         * Sixteen steps across the panel with three voice lamps above them,
+         * which is the whole of what a rhythm module showed. The row is
+         * deliberately the widest thing on the faceplate: a running position
+         * light is the one detail that reads from the back of a room, and it is
+         * what says this cabinet is producing the beat rather than merely
+         * standing near it.
+         *
+         * The positions are stored as well as drawn, because the lit lamp is a
+         * single mesh that gets parked on whichever step is current — sixteen
+         * separately-lit meshes would be sixteen materials, and a `Bank` is one
+         * instanced mesh with one material by construction.
+         */
+        const cols = Math.max(4, Math.min(MACHINE_STEPS,
+          Math.floor((panel.w - 0.022) / STEP_PITCH)));
+        const x0 = -((cols - 1) * STEP_PITCH) / 2;
+        const vStep = free + 0.020;
+        for (let c = 0; c < cols; c++) {
+          const m = new Matrix4()
+            .makeTranslation(x0 + c * STEP_PITCH, vStep, FACE + 0.002)
+            .scale(new Vector3(0.013, 0.007, 0.005))
+            .premultiply(panel.m);
+          stepOff.add(m);
+          stepAt.push(m.clone());
+        }
+        const vVoice = Math.min(top - 0.012, vStep + 0.040);
+        for (let i = 0; i < 3; i++) {
+          const m = new Matrix4()
+            .makeTranslation((i - 1) * 0.042, vVoice, FACE + 0.002)
+            .scale(new Vector3(0.012, 0.012, 0.005))
+            .premultiply(panel.m);
+          voiceOff.add(m);
+          voiceAt.push(m.clone());
+        }
+        // A row of trim above them, so the bay is not a lamp panel with nothing
+        // to set. Every module on a real one had something to turn.
+        if (vVoice + 0.030 < top) knobGrid(panel, vVoice + 0.030, 1);
+        break;
+      }
     }
     // A lamp on roughly one module in four. Two circuits: the free-running LFO,
     // and a gate lamp that answers the keyboard.
@@ -445,6 +544,19 @@ export const buildModularRig: SynthRigBuilder = (opts: SynthRigOptions): SynthRi
     return shares.map((s) => (s / total) * width);
   }
 
+  /**
+   * Modules this frame has been asked to contain, taken before the random ones.
+   *
+   * A queue rather than a probability, because these are not texture: the band
+   * either owns a rhythm machine this number or it does not, and that is
+   * settled in the IR before this file is called. The widest bay gets it —
+   * `fillRow` shifts the queue on its first panel, and the rows are filled
+   * bottom-first from the wing level with the keyboard, so a requested module
+   * lands where the player can actually reach it.
+   */
+  const pending: ModuleKind[] = [];
+  if (opts.machine) pending.push('percussion');
+
   function fillRow(frame: Matrix4, yCentre: number, outZ: number, width: number, height: number): void {
     const count = width > 0.44 ? rng.int(2, 3) : 2;
     const widths = split(width, count);
@@ -455,7 +567,7 @@ export const buildModularRig: SynthRigBuilder = (opts: SynthRigOptions): SynthRi
         w,
         h: height,
       };
-      module(panel, rng.weighted([
+      module(panel, pending.shift() ?? rng.weighted([
         ['jacks', 3], ['knobs', 3], ['sliders', 2], ['mixed', 2],
       ] as const));
       x += w;
@@ -714,6 +826,36 @@ export const buildModularRig: SynthRigBuilder = (opts: SynthRigOptions): SynthRi
   pointers.build(group, BOX, pointerMat, 'modular:pointers');
   lfoLamps.build(group, BOX, lfoMat, 'modular:lfo-lamps');
   gateLamps.build(group, BOX, gateMat, 'modular:gate-lamps');
+  stepOff.build(group, BOX, stepOffMat, 'modular:step-lamps');
+  voiceOff.build(group, BOX, voiceOffMat, 'modular:voice-lamps');
+  /**
+   * The two lamps that move, and the runner that says where.
+   *
+   * Built after the banks so the dark rows are already in the scene to sit on
+   * top of. `matrixAutoUpdate` is off because these are parked by matrix rather
+   * than by position — a step lamp lives on a faceplate that is tilted, turned
+   * and offset, and re-deriving that from a `position` every frame would be
+   * three transforms to get one number wrong in.
+   */
+  const runner = opts.machine && stepAt.length
+    ? createMachineRunner(opts.machine.events, opts.machine.beatsPerBar, stepAt.length)
+    : undefined;
+  let stepLit: Mesh | undefined;
+  let voiceLit: Mesh[] = [];
+  if (runner) {
+    stepLit = addTo(group, new Mesh(BOX, stepOnMat));
+    stepLit.name = 'modular:step-lit';
+    stepLit.matrixAutoUpdate = false;
+    stepLit.matrix.copy(stepAt[0]!);
+    voiceLit = voiceAt.map((m) => {
+      const lamp = addTo(group, new Mesh(BOX, voiceOnMat));
+      lamp.matrixAutoUpdate = false;
+      lamp.matrix.copy(m);
+      lamp.visible = false;
+      return lamp;
+    });
+  }
+
   legs.build(group, POST, chromeMat, 'modular:legs');
   jacks.build(group, JACK, darkMat, 'modular:jacks');
   knobs.build(group, KNOB, knobMat, 'modular:knobs');
@@ -743,6 +885,20 @@ export const buildModularRig: SynthRigBuilder = (opts: SynthRigOptions): SynthRi
     },
 
     update(now: number): void {
+      /**
+       * The percussion bay first, because it answers to nothing on this rig.
+       *
+       * Every other moving thing here is a response to the keyboard being
+       * played. This one is a machine running: it keeps going through the rests
+       * and through the whole number, which is exactly what makes it read as
+       * something nobody is driving.
+       */
+      if (runner && stepLit) {
+        stepLit.matrix.copy(stepAt[runner.step(now)]!);
+        for (let i = 0; i < voiceLit.length; i++) {
+          voiceLit[i]!.visible = runner.lamp(i, now);
+        }
+      }
       if (!started) { last = now; started = true; }
       const dt = Math.min(Math.max(now - last, 0), 0.4);
       last = now;

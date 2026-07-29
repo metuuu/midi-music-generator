@@ -2504,6 +2504,7 @@ function placeMachine(song: Song, slots: Slot[], venue: Venue): StageMachine[] {
       bank: song.drums.bank,
       position: [0, round(RISER_HEIGHT + 0.92), round(-venue.depth / 2 + RISER_FROM_BACK)],
       facing: 0,
+      mount: 'rig',
     }];
   }
 
@@ -2534,6 +2535,14 @@ function placeMachine(song: Song, slots: Slot[], venue: Venue): StageMachine[] {
       round(tender.z - along * sin + back * cos),
     ],
     facing: round(facing),
+    /**
+     * A modular contains it; anything else carries it.
+     *
+     * The best answer where it is available — a rhythm module in a cabinet of
+     * modules needs no explaining at all — and not available often: this is the
+     * minority case, and the mounted plate above is what covers the rest.
+     */
+    mount: tender.rig === 'modular' ? 'bay' : 'rig',
     tendedBy: tender.id,
   }];
 }

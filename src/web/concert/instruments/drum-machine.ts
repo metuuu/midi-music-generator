@@ -90,6 +90,67 @@ export interface DrumMachineOptions {
   beatsPerBar: number;
 }
 
+/**
+ * Which step is lit and which voice lamps are flashing, at a given beat.
+ *
+ * Exported because a rhythm box is not always a box: where the player is
+ * standing at a modular it is a *module* in the cabinet, drawn by
+ * `synth-rig-modular.ts`, and both objects have to agree about what the machine
+ * is doing at any moment. Two copies of this would drift the day either was
+ * touched, and the drift would be invisible — a panel lamp is not something
+ * anybody checks against a second panel lamp.
+ *
+ * Holds a cursor rather than scanning: a four-minute number is a couple of
+ * thousand drum events and this runs at frame rate. Rewinds when the clock goes
+ * backwards, which is what a number restarting looks like.
+ */
+export function createMachineRunner(
+  events: readonly DrumEvent[], beatsPerBar: number, steps: number,
+): { step(now: number): number; lamp(i: number, now: number): boolean; lamps: number } {
+  const LAMP_OF: Record<string, number> = {
+    bd: 0, lt: 0, mt: 0,
+    sd: 1, rim: 1, cp: 1, ht: 1,
+    hh: 2, oh: 2, rd: 2, cr: 2, perc: 2, cb: 2, sh: 2,
+  };
+  const hits = [...events]
+    .map((e) => ({ beat: e.beat, lamp: LAMP_OF[e.voice] ?? 2 }))
+    .sort((a, b) => a.beat - b.beat);
+
+  let cursor = 0;
+  const litUntil = [-1e9, -1e9, -1e9];
+  let lastNow = -1e9;
+
+  const advance = (now: number): void => {
+    if (now < lastNow) {
+      cursor = 0;
+      litUntil.fill(-1e9);
+    }
+    lastNow = now;
+    while (cursor < hits.length && hits[cursor]!.beat <= now) {
+      litUntil[hits[cursor]!.lamp] = hits[cursor]!.beat + FLASH;
+      cursor++;
+    }
+  };
+
+  return {
+    lamps: 3,
+    /**
+     * The position light, which runs whether or not this step has anything in
+     * it. That is the difference between a machine *running* and a machine
+     * responding, and it is the one that says nobody is driving this.
+     */
+    step(now: number): number {
+      advance(now);
+      const inBar = ((now % beatsPerBar) + beatsPerBar) % beatsPerBar;
+      return Math.floor((inBar / beatsPerBar) * steps) % steps;
+    },
+    lamp(i: number, now: number): boolean {
+      advance(now);
+      return now < litUntil[i]!;
+    },
+  };
+}
+
 export interface DrumMachine {
   root: Group;
   /** Song position in beats, from the one clock. Do not keep your own. */
@@ -277,55 +338,15 @@ export function buildDrumMachine(opts: DrumMachineOptions): DrumMachine {
 
   // --- What it is playing --------------------------------------------------
 
-  /**
-   * The pattern, bucketed by voice lamp and sorted once.
-   *
-   * Sorted so `update` can walk a cursor rather than scanning the whole song
-   * every frame: a four-minute number is a couple of thousand drum events and
-   * this runs at frame rate. The cursor rewinds only when the clock goes
-   * backwards, which happens when a number restarts.
-   */
-  const LAMP_OF: Record<string, number> = {
-    bd: 0, lt: 0, mt: 0,
-    sd: 1, rim: 1, cp: 1, ht: 1,
-    hh: 2, oh: 2, rd: 2, cr: 2, perc: 2, cb: 2, sh: 2,
-  };
-  const hits = [...opts.events]
-    .map((e) => ({ beat: e.beat, lamp: LAMP_OF[e.voice] ?? 2 }))
-    .sort((a, b) => a.beat - b.beat);
-
-  let cursor = 0;
-  const litUntil = [-1e9, -1e9, -1e9];
-  let lastNow = -1e9;
+  const runner = createMachineRunner(opts.events, opts.beatsPerBar, keys);
 
   const machine: DrumMachine = {
     root,
 
     update(now: number): void {
       if (!Number.isFinite(now)) return;
-      if (now < lastNow) {
-        cursor = 0;
-        litUntil.fill(-1e9);
-      }
-      lastNow = now;
-
-      // Everything that has landed since the last frame lights its lamp.
-      while (cursor < hits.length && hits[cursor]!.beat <= now) {
-        litUntil[hits[cursor]!.lamp] = hits[cursor]!.beat + FLASH;
-        cursor++;
-      }
-      for (let i = 0; i < VOICE_ROWS; i++) voiceLit[i]!.visible = now < litUntil[i]!;
-
-      /**
-       * The step lamp runs whether or not anything is being played on this
-       * beat, because a drum machine's position light runs whether or not the
-       * step has anything in it. That is the difference between a machine
-       * *running* and a machine responding, and it is the one that says nobody
-       * is driving this.
-       */
-      const inBar = ((now % opts.beatsPerBar) + opts.beatsPerBar) % opts.beatsPerBar;
-      const step = Math.floor((inBar / opts.beatsPerBar) * keys) % keys;
-      lit.position.x = stepXs[step]!;
+      for (let i = 0; i < VOICE_ROWS; i++) voiceLit[i]!.visible = runner.lamp(i, now);
+      lit.position.x = stepXs[runner.step(now)]!;
       lit.visible = true;
     },
 

@@ -174,6 +174,7 @@ export const buildSynth: InstrumentBuilder = (opts) => {
     keyTopY: KEY_TOP_Y,
     keyBackZ: KEY_BACK_Z,
     whiteLength: WHITE_L,
+    ...(opts.machine ? { machine: opts.machine } : {}),
   });
   addTo(root, rig.group);
 

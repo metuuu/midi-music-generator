@@ -15,7 +15,9 @@ import type { Archetype, Effector, PlayPoint, Performer } from '../../../concert
 import type { DrumSource } from '../../../core/types.js';
 import type { InstrumentId } from '../../../style/instruments.js';
 
-import type { Contact, InstrumentBuilder, InstrumentModel } from './types.js';
+import type {
+  Contact, InstrumentBuilder, InstrumentBuildOptions, InstrumentModel,
+} from './types.js';
 
 import { buildAccordion } from './accordion.js';
 import { buildAcousticGuitar } from './acoustic-guitar.js';
@@ -112,6 +114,8 @@ export function buildInstrumentFor(
    * `InstrumentBuildOptions.electronic`.
    */
   drums?: DrumSource,
+  /** A machine mounted inside this instrument. See `StageMachine.mount`. */
+  machine?: InstrumentBuildOptions['machine'],
 ): InstrumentModel {
   const build = BUILDERS[performer.archetype];
   const rng = new Rng(`instrument:${performer.id}`);
@@ -124,6 +128,7 @@ export function buildInstrumentFor(
     ...(year !== undefined ? { year } : {}),
     ...(drums === 'electronic-kit' ? { electronic: true } : {}),
     ...(performer.rig ? { rig: performer.rig } : {}),
+    ...(machine ? { machine } : {}),
   }));
 }
 

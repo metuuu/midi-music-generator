@@ -372,6 +372,9 @@ check('visemes exist exactly when there is a voice', visemeGaps === 0,
   let untended = 0;
   let adrift = 0;
   let askew = 0;
+  let miscased = 0;
+  let bays = 0;
+  let mounted = 0;
   let unexplained = 0;
   let counted = 0;
   let offStage = 0;
@@ -424,10 +427,21 @@ check('visemes exist exactly when there is a voice', visemeGaps === 0,
             adrift++;
             if (notes.length < 3) notes.push(`${gid}#${i} ${reach.toFixed(2)} m from its tender`);
           }
-          if (Math.abs(m.facing) > Math.abs(tender.station.facing) + 1e-6) {
+          if (m.mount !== 'bay' && Math.abs(m.facing) > Math.abs(tender.station.facing) + 1e-6) {
             askew++;
             if (notes.length < 3) notes.push(`${gid}#${i} turned further than its player`);
           }
+          /**
+           * A bay is drawn *by* the tender's instrument, so only a rig that has
+           * one may be given it. Routed wrongly the machine would vanish: the
+           * show skips building an object for a bay, and a rig with no bay for
+           * it would ignore what it was handed.
+           */
+          if (m.mount === 'bay' && tender.rig !== 'modular') {
+            miscased++;
+            if (notes.length < 3) notes.push(`${gid}#${i} bay on ${tender.rig ?? tender.archetype}`);
+          }
+          if (m.mount === 'bay') bays++; else mounted++;
         }
         // A machine does not count anybody in; somebody presses start.
         if (number.song.meta.leadInBars) counted++;
@@ -450,6 +464,9 @@ check('visemes exist exactly when there is a voice', visemeGaps === 0,
     untended || adrift
       ? `${untended} untended, ${adrift} out of reach: ${notes.join('; ')}`
       : `${machines} within ${MACHINE_REACH} m of the player who works them`);
+  check('a machine bay only goes in a rig that has one', miscased === 0,
+    miscased ? `${miscased} misrouted: ${notes.join('; ')}`
+      : `${bays} in a modular, ${mounted} on a stand`);
   check('a machine faces the room, not the stage', askew === 0,
     askew ? `${askew} turned further than their player: ${notes.join('; ')}`
       : `${machines} squarer to the house than the rig they sit on`);

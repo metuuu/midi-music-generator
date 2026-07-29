@@ -407,12 +407,28 @@ export function createShow(opts: ShowOptions = {}): Show {
       subjects.set(performer.id, rig.root);
 
       const track = number.song.tracks.find((t) => t.layer === performer.layer);
+      /**
+       * A machine mounted *inside* this performer's rig, if the cast said so.
+       *
+       * Only a modular has a bay for one, and only its tender gets it — see
+       * `StageMachine.mount`. The instrument then draws the machine as a module
+       * and no separate object is built for it below.
+       */
+      const bay = (number.cast.machines ?? [])
+        .find((m) => m.mount === 'bay' && m.tendedBy === performer.id);
       const model = buildInstrumentFor(
         performer,
         track ? instrumentIdForTrack(track) : undefined,
         concert.venue.palette.proscenium,
         concert.year,
         number.song.drums.source,
+        bay
+          ? {
+            kind: bay.kind,
+            events: number.song.drums.events,
+            beatsPerBar: number.song.meta.beatsPerBar,
+          }
+          : undefined,
       );
 
       /**
@@ -472,6 +488,8 @@ export function createShow(opts: ShowOptions = {}): Show {
      * lets the step lamp run from nothing but the beat. See `drum-machine.ts`.
      */
     for (const spec of number.cast.machines ?? []) {
+      // A bay is drawn by the instrument that contains it, above.
+      if (spec.mount === 'bay') continue;
       const machine = buildDrumMachine({
         kind: spec.kind,
         seed: new Rng(`machine:${concert.seed}:${spec.id}`).int(0, 0xffff),

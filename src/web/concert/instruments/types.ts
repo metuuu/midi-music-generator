@@ -22,6 +22,7 @@ import type { Group, Matrix4, Object3D, Vector3 } from 'three';
 import type {
   Archetype, Effector, GestureKind, PlayPoint, Posture, SynthRigId,
 } from '../../../concert/types.js';
+import type { DrumEvent } from '../../../core/types.js';
 
 /** Where an effector has to be, and which way it should be pointing. */
 export interface Contact {
@@ -242,6 +243,18 @@ export interface InstrumentBuildOptions {
    * simply no longer what decides this.
    */
   rig?: SynthRigId;
+  /**
+   * A machine this instrument *contains*, where the band's is mounted in it.
+   *
+   * See `SynthRigOptions.machine` and `StageMachine.mount`. Only reaches a rig
+   * that has a bay for one; every other model ignores it, and the machine is
+   * drawn as its own mounted object instead.
+   */
+  machine?: {
+    kind: 'box' | 'programmed';
+    events: readonly DrumEvent[];
+    beatsPerBar: number;
+  };
 }
 
 /** A convenience for models that have nothing to settle. */

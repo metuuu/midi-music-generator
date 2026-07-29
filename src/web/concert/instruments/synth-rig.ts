@@ -51,6 +51,8 @@
 import type { BufferGeometry, InstancedMesh, Material, Mesh, Object3D } from 'three';
 import { Group } from 'three';
 
+import type { DrumEvent } from '../../../core/types.js';
+
 /**
  * Where the keys are, so a rig can be built around them without being able to
  * move them.
@@ -73,6 +75,24 @@ export interface SynthRigOptions {
   keyBackZ: number;
   /** Length of a white key, front to back, so a case can be sized around it. */
   whiteLength: number;
+  /**
+   * A machine this rig *contains*, if the band's is mounted here.
+   *
+   * The clue is in the name: a modular is a frame with modules in it, chosen
+   * for what the band needs, and a rhythm box is one of the things a band
+   * needed. Where the person working the machine is the person standing at this
+   * rig, the honest object is a percussion module in the cabinet next to the
+   * oscillators — not a second box balanced on the end of the stand.
+   *
+   * A rig that has no bay for one ignores this and the machine is mounted
+   * externally instead; see `StageMachine.mount`. The events are the pattern,
+   * because the object holds its own pattern — see `createMachineRunner`.
+   */
+  machine?: {
+    kind: 'box' | 'programmed';
+    events: readonly DrumEvent[];
+    beatsPerBar: number;
+  };
 }
 
 export interface SynthRig {
