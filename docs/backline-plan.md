@@ -566,10 +566,28 @@ preference: the operating gestures need the rig to be a frame of modules first.)
 lights. Cause and consequence land together or not at all. Rides on the mounting rule
 from Wave 1b — a sequencer is a bay, for the same reason a drum machine is.
 
-**Wave 3 — the multi-board station and the hands.**
+**Wave 3 — the multi-board station and the hands. ✅ Landed.**
 N keybeds on the synth model, board index on the `key` point, crossing costs, the travel
 budget, synth `twoHanded` styles. The largest wave and the one most likely to be cut. By
 this point the keyboards are a bay in the frame (§6.0) rather than a new kind of object.
+
+What it turned up:
+
+- **The boards needed a *reason*, or they were the dead upper manual again with more of
+  it.** The first one was already in the file: a voicing too wide for one hand is split
+  at its widest interval, and that is exactly when a player with two keyboards uses the
+  second. The second reason is `twoHanded`, which is what actually drives them — usage
+  went from 14-in-48 multi-board players to 23-in-62 once `stalker` had a two-handed
+  part.
+- **A synthesiser's left hand is a line, not a shell.** Every existing `HandSpec` comps a
+  chord under the tune; half the leads this genre reaches for are monophonic and cannot.
+  `voices: 2`, `melodic: true` — a bass figure, which is what those players did.
+- **A wider rig moved the drum machine out of arm's reach**, caught by the Wave 1b check
+  the moment wings landed. Reach is a fact about a person and does not grow with their
+  equipment.
+- **`canReach` and `place` clamp travel to 1**, so a board crossing cannot be charged
+  more than a full-keyboard sweep. `BOARD_REACH` keeps the window where that
+  under-charges narrow, but it is not zero and is worth knowing about.
 
 ### Not in any wave, and worth saying so
 
