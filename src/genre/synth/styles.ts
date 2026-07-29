@@ -913,6 +913,53 @@ const stalker: Style = {
   /** Two beats between answering notes. What replies to an ostinato is a shape
    *  in the distance, not a second line. */
   counterSpacing: 2,
+  /**
+   * One person at one keyboard, which is what this music literally was.
+   *
+   * A Carpenter score is not a band — it is a man with a Prophet and a
+   * sequencer, left hand holding a figure while the right plays the theme. The
+   * `twoHanded` machinery already exists for exactly this shape; it was built
+   * for a jazz trio's pianist and has been waiting for the genre that needs it
+   * more.
+   *
+   * `density: 0.55` rather than the trio's 0.92, and the difference is the
+   * idiom. A bebop pianist's left hand speaks at nearly every opportunity
+   * because the texture is conversation. This one is holding a shape while
+   * something else moves, and a left hand that spoke every bar would turn a
+   * horror cue into a piano piece.
+   *
+   * `ostinato` leads the modes for the same reason the style exists: what the
+   * left hand does here is *repeat*, and the repetition is the horror. `answer`
+   * is second because a figure that occasionally replies to the theme is the
+   * one departure that still sounds like this music. `block` is last and
+   * `unison` is absent — two hands playing the same line an octave apart is a
+   * prog gesture and belongs in a different style entirely.
+   */
+  twoHanded: {
+    /**
+     * Three leads, all polyphonic enough to hold the left hand's fifth.
+     *
+     * `leadVoice` is the CS-80 — Vangelis's instrument and the closest fixed
+     * patch to a breathy analogue lead — and it is weighted highest because it
+     * is the one that sounds like a person playing rather than a preset.
+     */
+    instruments: [['leadVoice', 5], ['leadSaw', 3], ['leadSquare', 2]],
+    density: 0.55,
+    modes: [['ostinato', 6], ['answer', 3], ['block', 1]],
+    /**
+     * Five sixteenths, against a four-four bar.
+     *
+     * The same trick the counter figure plays and the reason this style is in
+     * 4/4 at all: a five-unit cycle in a sixteen-unit bar comes back round every
+     * four bars, so the left hand is never in the same place twice within a
+     * phrase. Written as a bass note and its fifth, held long — the hand is
+     * keeping a shape, not articulating a rhythm.
+     */
+    ostinato: {
+      cycle: 5,
+      hits: [{ at: 0, dur: 3, vel: 0.72 }, { at: 3, dur: 2, vel: 0.55 }],
+    },
+  },
   filter: { depth: 0.35, shape: 'step' },
   progressions: {
     intro: [

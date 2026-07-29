@@ -672,6 +672,27 @@ export const HANDS: Partial<Record<InstrumentId, HandSpec>> = {
   // A string per note and no fretting hand, so both hands pluck freely. Voiced
   // in fourths, which is the one thing a harp does that a piano has to work at.
   harp: { lead: 79, floor: 48, ceiling: 67, window: 16, voices: 3, gap: 10, voicing: 'quartal', melodic: true },
+  /**
+   * The synthesiser's left hand, and it is a *line* rather than a shell.
+   *
+   * Every other entry here comps: a pianist's left hand voices a chord under
+   * the tune. A synthesiser's does not, and the reason is the instrument. Half
+   * the leads this genre reaches for were monophonic — a Minimoog plays one
+   * note at a time whatever your fingers do — so a three-note rootless voicing
+   * under the melody is an arrangement the object cannot produce. What one
+   * player at one synthesiser actually did is the thing this genre is famous
+   * for: a bass figure in the left hand and the theme in the right. Carpenter,
+   * Vangelis, half of Tangerine Dream.
+   *
+   * So `voices: 2` and `melodic: true`, which is a line with the odd fifth
+   * under it rather than a chord. The floor is 33 because a synthesiser reaches
+   * where a piano's left hand does not care to go, and the gap is wide for the
+   * same reason it is wide on a piano — `melodicLine` has to be able to pull the
+   * two apart again, and these two are further apart than any acoustic pair.
+   */
+  leadVoice: { lead: 79, floor: 33, ceiling: 55, window: 12, voices: 2, gap: 14, voicing: 'quartal', melodic: true },
+  leadSaw: { lead: 79, floor: 33, ceiling: 55, window: 12, voices: 2, gap: 14, voicing: 'quartal', melodic: true },
+  leadSquare: { lead: 76, floor: 33, ceiling: 55, window: 12, voices: 2, gap: 14, voicing: 'quartal', melodic: true },
 };
 
 /**
