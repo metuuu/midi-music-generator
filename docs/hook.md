@@ -31,12 +31,12 @@ So level 0 is not a disabled feature. It describes what the generator used to do
 | level | id | what it does |
 |---|---|---|
 | 0 | `through` | every section is new material; no tune ever comes back |
-| 1 | `loose` | sections of a kind share their harmony; motifs recur within a phrase |
+| 1 | `loose` | sections of a kind share their harmony; a figure recurs inside a phrase |
 | 2 | `standard` | the chorus is a fixed tune that returns each time |
-| 3 | `catchy` | one rhythm per phrase, tighter vocabulary, every section recalled |
+| 3 | `catchy` | one figure carries a section, and every section is recalled |
 | 4 | `earworm` | maximum repetition — simple on purpose, and hard to shake |
 
-## The five mechanisms
+## The mechanisms
 
 Ordered by how much each one is worth.
 
@@ -44,13 +44,13 @@ Ordered by how much each one is worth.
 
 **2. Harmony recall.** A section reuses an earlier section's chords without its tune. Cheaper and subtler — the ear notices that the chorus always turns the same corner even when the melody is new. Melody recall implies it: a tune replayed over different chords is not a recollection, it is a mistake.
 
-**3. Rhythm lock.** One rhythm cell drives every non-cadential bar of a phrase, and only the pitches move. Rhythmic identity is what survives being hummed badly by someone who cannot hold a pitch, which is most people.
+**3. Harmonic simplicity.** Narrows the chord vocabulary and favours progressions that return to the tonic. The songs everybody can sing are built on three or four chords, and they are singable partly *because* the harmony stops asking for attention — the ear has spare capacity for the tune.
 
-**4. Motif restatement.** Scales the style's existing `melody.sequence` probability, and re-weights *how* the motif returns. By default an unchanged repeat is the least likely outcome, which is right for art music and wrong for a hook — so hook is what buys verbatim restatement its weight. At level 2 and above a phrase may also restate at bar 2 rather than waiting for bar 3; answering immediately reads as a refrain, waiting reads as development.
+**4. Repetition, inside the tune engine.** The level reaches `src/tune/` as one number per section, multiplied by the section's own appetite: a chorus at `through` still repeats more than a bridge at `through`, because a chorus is a chorus. There it decides whether a phrase marked `repeat` comes back verbatim or ornamented, and whether the second half of a sixteen-bar section restates its material or varies it. See `tune-plan.md`.
 
-**5. Vocabulary narrowing.** Pulls the line back toward pitch classes the phrase has already sounded, and relaxes the generator's standing distaste for repeating a note. Six notes heard four times each are more memorable than twenty-four heard once.
+Mechanisms 3 and 4 used to be six. `rhythmLock`, `vocabulary`, `exactRepeat`, `earlyRestate`, `mottoAdherence` and `sequence` were probabilities applied to a note-by-note melody walk, and they are gone with it — every one of them is now a consequence of the derivation the tune engine writes rather than a chance applied to a lottery. `sequence` is the one worth naming: it was authored in every level here and in every style in the project, and read by no code at all, because nothing developed a motif.
 
-Mechanism 5 pushes directly against a term in the smoothness system, which suppresses note repetition harder as strictness rises. The two are arguing about different things and both are right: strictness treats a stalled line as a *symptom* of its own filtering, while a hook repeats a note because repeating it is the idea.
+Figure-level repetition is therefore no longer a hook setting. A phrase is built from the section's own material at every level, so 34% of bars restate an earlier bar even at `through` — which is what "through-composed" has always actually meant. What the axis controls is whether a *section* comes back.
 
 ## Solos are exempt
 
@@ -90,25 +90,36 @@ Getting that property required giving each section its own RNG streams for melod
 From `npm run hook`, 40 mixed-genre seeds regenerated at each level:
 
 ```
-                              through   loose  standard  catchy  earworm
+                                  through      loose   standard     catchy    earworm
 
 Repetition
-  choruses recalled %             0.0     0.0     81.1    100.0    100.0
-  bars restating an earlier bar  20.0    20.0     51.3     61.5     63.9
-  repeated notes %                5.3     6.4      9.4     12.3     15.4
+  choruses recalled %                 0.0        0.0       50.9       56.6       66.0
+  all sections recalled %             0.8        0.8       35.4       40.8       50.8
+  bars restating an earlier bar %    34.4       35.6       54.5       59.9       60.8
 
 Cost — variety given up
-  pitch classes / 4-bar phrase   6.16    5.96     5.78     5.51     5.33
-  distinct bar shapes / song     40.0    40.0     24.4     19.3     18.0
-  notes / song                    192     190      193      192      193
+  pitch classes / 4-bar phrase       4.49       4.47       4.44       4.46       4.41
+  distinct bar shapes / song         38.5       37.8       27.0       24.6       23.4
+  notes / song                        144        142        145        148        142
 ```
 
-The trade is real and worth stating plainly. By `earworm` a song is built from less than half as many distinct bar shapes as at `through`. That is the point, and it is also the cost.
+The trade is real and worth stating plainly. By `earworm` a song is built from about
+sixty per cent as many distinct bar shapes as at `through`. That is the point, and it
+is also the cost.
 
-`notes / song` holding flat is deliberate: it guards the cheap way to score well on every other row. A line that repeats because it has stopped playing is not a hook, it is a rest.
+`notes / song` holding flat is deliberate: it guards the cheap way to score well on
+every other row. A line that repeats because it has stopped playing is not a hook, it
+is a rest.
+
+Two rows read differently than they used to. **Pitch classes per phrase** sits at 4.4
+at every level, against 5.3–6.2 before, and barely moves across the axis — the tune
+engine picks a five-degree subset per section as a matter of course, so economy is no
+longer something repetition has to buy. **Bars restating an earlier bar** starts at
+34% rather than 20%, for the reason given above: a phrase is derived from the
+section's material at every level.
 
 ## Known limitations
 
-- **Recall is verbatim.** A real arrangement varies its final chorus — an extra ornament, a higher last note. Here it is the same tune, transposed. The variation-on-recall case is not modelled.
+- **Recall is verbatim.** A real arrangement varies its final chorus — an extra ornament, a higher last note. Here it is the same tune, transposed. The tune engine has the operators to vary it (`ornament`, `expand`, `extend`) and nothing yet applies them on the way back; that is `tune-plan.md`'s Phase 6.
 - **The intro never states the hook.** Stating the chorus melody in the intro is idiomatic in both genres, but intros are four bars against a chorus's eight, so the length-matched recall rule excludes them.
 - **Nothing recalls across kinds.** A bridge cannot quote the chorus.

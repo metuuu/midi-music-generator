@@ -34,10 +34,11 @@ import type { Rng } from '../core/rng.js';
 import type { Mode, Scale } from '../core/scale.js';
 import { snapToScale, scaleStepsBetween, stepInScale } from '../core/scale.js';
 import {
-  evaluate as evaluateRules, type Accompaniment, type NoteContext, type Rule,
+  comfortableLeap, evaluate as evaluateRules,
+  type Accompaniment, type NoteContext, type Rule,
 } from '../core/rules.js';
 import type { NoteEvent } from '../core/types.js';
-import type { Motif, Skeleton } from './types.js';
+import type { Idiom, Motif, Skeleton } from './types.js';
 
 export interface SurfaceOptions {
   figure: Motif;
@@ -59,6 +60,10 @@ export interface SurfaceOptions {
   accompaniment: Accompaniment;
   /** Leap freedom of whoever is playing this, 0..1. */
   agility: number;
+  /** What the player actually plays. See `types.ts`. */
+  idiom: Idiom;
+  /** Pitch the previous phrase ended on, so the join is inside reach too. */
+  prev?: Midi;
   rng: Rng;
 }
 
@@ -69,8 +74,12 @@ export function realisePhrase(opts: SurfaceOptions): NoteEvent[] {
   if (!onsets.length || !skeleton.targets.length) return [];
 
   const midis = walk(opts, onsets, phraseSlots);
+  capLeaps(opts, midis);
   resolveDissonances(opts, onsets, midis, phraseSlots);
   applyRules(opts, onsets, midis, phraseSlots);
+  // Again, because both passes above move notes to fix one fault and can commit
+  // another doing it. Cheap, and a no-op whenever they behaved.
+  capLeaps(opts, midis);
 
   return onsets.map((onset, i) => ({
     beat: opts.startBeat + onset.at / SLOTS_PER_BEAT,
@@ -127,12 +136,13 @@ function walk(
 
     const steps = figure.contour.slice(from + 1, to + 1);
     const required = scaleStepsBetween(scaleFor(from), midis[from]!, midis[to]!);
-    const fitted = fitSegment(steps, required, opts.agility);
+    const fitted = fitSegment(steps, required, melodicReach(opts.agility, opts.strictness));
 
     let cursor = midis[from]!;
     for (let i = from + 1; i < to; i++) {
-      cursor = reflect(stepInScale(scaleFor(i), cursor, fitted[i - from - 1] ?? 0), lo, hi);
-      midis[i] = snapToSubset(scaleFor(i), opts.subset, cursor);
+      const step = fitted[i - from - 1] ?? 0;
+      cursor = reflect(stepInScale(scaleFor(i), cursor, step), lo, hi);
+      midis[i] = unstall(snapToSubset(scaleFor(i), opts.subset, cursor), midis[i - 1]!, step, scaleFor(i), lo, hi);
     }
   }
 
@@ -140,12 +150,95 @@ function walk(
   const last = anchors[anchors.length - 1]!;
   let cursor = midis[last]!;
   for (let i = last + 1; i < onsets.length; i++) {
-    cursor = reflect(stepInScale(scaleFor(i), cursor, figure.contour[i] ?? 0), lo, hi);
-    midis[i] = snapToSubset(scaleFor(i), opts.subset, cursor);
+    const step = figure.contour[i] ?? 0;
+    cursor = reflect(stepInScale(scaleFor(i), cursor, step), lo, hi);
+    midis[i] = unstall(snapToSubset(scaleFor(i), opts.subset, cursor), midis[i - 1]!, step, scaleFor(i), lo, hi);
   }
 
   void phraseSlots;
   return midis;
+}
+
+/**
+ * The widest interval this line may take, in semitones.
+ *
+ * Two ceilings and the lower wins. The player's reach is physical and comes from
+ * `comfortableLeap`; the stylistic one mirrors the rule table, where `wide-leap`
+ * forbids anything beyond a fourth at `strict` and `leap-beyond-third` narrows it
+ * again at `polished`. Keeping the number in step with the rules is what makes the
+ * paths that never consult them — a transposed backbone, a bent approach — behave
+ * like the path that does. Without it, smoothness measured no smoother than free.
+ */
+export function melodicReach(agility: number, strictness: number): number {
+  const physical = comfortableLeap(agility) + Math.max(0, 3 - strictness);
+  const stylistic = strictness >= 4 ? 4 : strictness >= 3 ? 5 : strictness >= 2 ? 7 : 99;
+  // The stylistic ceiling is widened by the player's own reach rather than applied
+  // flat. Flat, it swallows the instrument entirely: at `standard` every line was
+  // capped at a fifth, so a vibraphone measured exactly as stiff as a trombone and
+  // "instrument-aware" meant nothing above the loosest setting. Taste narrows what a
+  // player would do; it does not make them all the same player.
+  return Math.min(physical, stylistic + Math.round(agility * 5));
+}
+
+/**
+ * A note the figure said moved must actually move.
+ *
+ * Everything that narrows a line can collapse a step into a unison: a tightened
+ * approach, a subset snap, a reflection off the top of the range. Each is right on
+ * its own and together they stall the tune — measured on synth, repeated notes rose
+ * from 24% at `strict` to 32% at `polished`, so the line was not getting smoother, it
+ * was getting stuck. The old engine knew this ("repeating a note is the safest move
+ * available, so at high strictness it becomes the path of least resistance and the
+ * tune stops moving") and fought it with a weight. Here the figure has already said
+ * whether this note moves, so there is nothing to weigh: if it said so, it moves.
+ */
+function unstall(
+  midi: Midi, prev: Midi, step: number, scale: Scale, lo: Midi, hi: Midi,
+): Midi {
+  if (step === 0 || midi !== prev) return midi;
+  for (const dir of [Math.sign(step), -Math.sign(step)]) {
+    const cand = stepInScale(scale, prev, dir);
+    if (cand !== prev && cand >= lo && cand <= hi) return cand;
+  }
+  return midi;
+}
+
+/**
+ * Bring any interval back inside what the player can reach.
+ *
+ * A last resort rather than a policy: the skeleton already refuses anchors beyond
+ * reach, and `fitSegment` bounds the approach. What this catches is the compound
+ * case — a bent approach into a transposed anchor over a reflected range — where
+ * three reasonable decisions add up to an octave. A trombone that leaps a tenth once
+ * every few hundred bars is still a trombone that cannot.
+ */
+function capLeaps(opts: SurfaceOptions, midis: Midi[]): void {
+  const reach = melodicReach(opts.agility, opts.strictness);
+  // The join into the phrase counts. Realising phrases independently let a line
+  // leap a tenth across a phrase boundary while every interval inside both phrases
+  // was inside reach — which is how a trombone reached as far as a vibraphone.
+  const from = opts.prev !== undefined ? 0 : 1;
+  for (let i = from; i < midis.length; i++) {
+    const before = i === 0 ? opts.prev! : midis[i - 1]!;
+    const gap = midis[i]! - before;
+    if (Math.abs(gap) <= reach) continue;
+    /**
+     * The nearest scale tone *at or inside* the limit.
+     *
+     * `snapToScale` alone leaks: it moves to the nearest scale tone in either
+     * direction, which can put the note back outside the reach it was just pulled
+     * inside — measured as a trombone still reaching eleven semitones with a
+     * seven-semitone cap in force. Walking inward guarantees the bound.
+     */
+    const limit = before + Math.sign(gap) * reach;
+    let landed = clampToRange(limit, opts.range[0], opts.range[1]);
+    for (let k = 0; k <= reach; k++) {
+      const cand = limit - Math.sign(gap) * k;
+      if (cand < opts.range[0] || cand > opts.range[1]) continue;
+      if (opts.baseScale.pcs.includes(pc(cand))) { landed = cand; break; }
+    }
+    midis[i] = landed;
+  }
 }
 
 /**
@@ -157,10 +250,32 @@ function walk(
  * target is a different figure; one whose last interval is a fourth instead of a
  * third is the same figure arriving.
  */
-export function fitSegment(steps: number[], required: number, agility: number): number[] {
+export function fitSegment(
+  steps: number[], required: number, reachSemis: number, strictness = 2,
+): number[] {
   if (!steps.length) return steps;
   const out = steps.slice();
-  const reach = 3 + Math.round(agility * 3);
+  /**
+   * The approach ceiling, in scale steps — which is what a contour is made of.
+   *
+   * Deriving it as `3 + agility * 3` read as semitones and spent as steps, so a
+   * default instrument's approach into an anchor could be five scale steps, an
+   * octave, and two thirds of every interval in a jazz line came out wider than a
+   * major third. Halving the semitone reach is the honest conversion: a scale step
+   * is a tone, give or take.
+   *
+   * Tightened at the top of the smoothness range, and the *approach* is the right
+   * place to tighten. Narrowing the figure's interior instead — the obvious move,
+   * since "chord tone on the beat" and "move by step" pull against each other as
+   * strictness rises — makes it worse: a shorter interior leaves more distance for
+   * the approach to cover, so every phrase ends with a bigger leap than it began
+   * with. Measured on synth, that made `polished` leapier than `strict`. Capping the
+   * approach spills the distance backwards into the body instead, which spreads the
+   * motion rather than concentrating it.
+   */
+  const reach = strictness >= 4
+    ? 2
+    : strictness >= 3 ? 3 : Math.max(2, Math.floor(reachSemis / 2));
 
   const body = out.slice(0, -1).reduce((a, b) => a + b, 0);
   let approach = required - body;
@@ -180,7 +295,17 @@ export function fitSegment(steps: number[], required: number, agility: number): 
   for (let pass = 0; pass < 4 && debt > 0 && order.length; pass++) {
     for (const i of order) {
       if (debt <= 0) break;
-      out[i] = out[i]! + dir;
+      // No interior step may grow past the ceiling the approach is held to. Left
+      // unbounded, tightening the approach made things worse rather than better: the
+      // distance the approach could no longer cover was pushed into the body, four
+      // passes deep, so a stepwise figure came out full of fifths. Tightening a cap
+      // must not have a leak behind it.
+      const grown = out[i]! + dir;
+      if (Math.abs(grown) > reach) continue;
+      // A step the figure meant may shrink; it may not vanish. Letting it cross
+      // zero is how a tightened cap makes a line stall — see `unstall` below.
+      if (grown === 0 && out[i] !== 0) continue;
+      out[i] = grown;
       debt--;
     }
   }
@@ -233,7 +358,18 @@ function resolveDissonances(
     const dir = approach > 0 ? -1 : approach < 0 ? 1 : (opts.rng.chance(0.7) ? -1 : 1);
     const scale = opts.scaleAt(bar);
     const cand = stepInScale(scale, midis[i]!, dir);
-    if (!anchorSlots.has(onsets[i + 1]!.at) && cand >= lo && cand <= hi) {
+    /**
+     * Moving the resolution must not strand the note after it.
+     *
+     * The note being resolved onto is often the one that has to reach the next
+     * anchor, and pulling it a step closer can leave that reach unplayable —
+     * measured as a trombone leaping an octave into a cadence, where every
+     * individual decision was reasonable and the third one paid for the first two.
+     */
+    const after = midis[i + 2];
+    const reach = melodicReach(opts.agility, opts.strictness);
+    const safe = after === undefined || Math.abs(after - cand) <= reach;
+    if (safe && !anchorSlots.has(onsets[i + 1]!.at) && cand >= lo && cand <= hi) {
       midis[i + 1] = cand;
     } else {
       midis[i] = nearChordTone(chord, midis[i]!, 2, lo, hi) ?? midis[i]!;
@@ -281,13 +417,36 @@ function applyRules(
 
     if (!evaluateRules(context(midis[i]!), opts.strictness, opts.rules).vetoed) continue;
 
-    // Search outward for the nearest note that is not forbidden. Failing that,
-    // leave it: music that breaks a rule beats music that stops.
+    /**
+     * Search outward for the nearest note that is not forbidden, bounded by the
+     * player's reach on *both* sides. Failing that, leave it: music that breaks a
+     * rule beats music that stops.
+     *
+     * The bound is not decoration. A repair that clears a veto by manufacturing an
+     * octave leap into or out of the note has not repaired anything, and because
+     * higher strictness means more repairs it is how `polished` ended up measuring
+     * *leapier* than `strict` — the axis fixing one fault by committing another.
+     */
+    const reach = melodicReach(opts.agility, opts.strictness);
+    const prevMidi = midis[i - 1]!;
+    const nextMidi = midis[i + 1];
+    const widest = (c: Midi) => Math.max(
+      Math.abs(c - prevMidi),
+      nextMidi === undefined ? 0 : Math.abs(nextMidi - c),
+    );
+    const before = widest(midis[i]!);
     for (let d = 1; d <= 3; d++) {
       const up = clampToRange(stepInScale(scale, midis[i]!, d), lo, hi);
       const down = clampToRange(stepInScale(scale, midis[i]!, -d), lo, hi);
       const better = [down, up].find((c) =>
-        c !== midis[i]! && !evaluateRules(context(c), opts.strictness, opts.rules).vetoed);
+        c !== midis[i]!
+        && widest(c) <= Math.max(before, reach)
+        // A repair may not open a bigger gap than the one it found. Left free to,
+        // it does: raising strictness means more vetoes, so more repairs, so more
+        // manufactured leaps — which is how `polished` measured leapier than
+        // `strict` on the one genre whose rule table lets most of them through.
+        && widest(c) <= before + 1
+        && !evaluateRules(context(c), opts.strictness, opts.rules).vetoed);
       if (better !== undefined) { midis[i] = better; break; }
     }
   }

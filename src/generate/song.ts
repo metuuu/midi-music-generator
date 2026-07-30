@@ -46,7 +46,8 @@ import { applyDynamics, sectionIntensity, swell } from './dynamics.js';
 import { applyFilter } from './filter.js';
 import { DEFAULT_FILLS } from './fills.js';
 import { getHook, RECALL_BIAS, type HookId } from './hook.js';
-import { generateMelody } from './melody.js';
+import { composeSectionTune } from '../tune/adapt.js';
+import type { Signature } from '../tune/judge.js';
 import { chooseMotto } from './motto.js';
 import { SLOTS_PER_BEAT, trimOverlaps } from './rhythm.js';
 import {
@@ -403,6 +404,15 @@ export function generateSong(opts: GenerateOptions = {}): Song {
    * variation within them.
    */
   const remembered = new Map<string, Remembered>();
+  /**
+   * Fingerprints of every tune this song has already written.
+   *
+   * Handed to each new section so the engine can score how unlike the rest of the
+   * song a candidate is — the `freshness` term in `tune/judge.ts`. Without it a
+   * verse and a chorus can legitimately converge on the same tune, since nothing
+   * either of them is measured against knows the other exists.
+   */
+  const stated: Signature[] = [];
   const hookRng = new Rng(`${seed}:hook`);
   const seenKinds = new Map<SectionKind, number>();
   /**
@@ -815,36 +825,51 @@ export function generateSong(opts: GenerateOptions = {}): Song {
       sectionMelody = line;
     } else if (active.has('melody')) {
       const range: [number, number] = plan.lead;
-      const melody = replayTune && prior?.melody
-        ? replay(prior.melody, prior.tonic, localTonic, ctxBase.startBeat, range)
-        : generateMelody({
-          chords: ctxBase.chords,
-          beatsPerBar: style.beatsPerBar,
+      /**
+       * The tune.
+       *
+       * Either recalled from an earlier section of the same kind, or written from
+       * scratch by the engine in `src/tune/` — which plans the whole section before
+       * placing a note, writes it two dozen times, and keeps the one its own judge
+       * scores highest. See `docs/tune-plan.md`.
+       *
+       * The stream tag is salted like every other layer. Without it
+       * `variation: { melody }` was a no-op on the one layer it names, and a hit
+       * singer came back playing exactly what they had been playing.
+       */
+      const written = replayTune && prior?.melody
+        ? undefined
+        : composeSectionTune({
           style,
-          // Salted like every other layer. Without it `variation: { melody }`
-          // was a no-op on the one layer it names — the melody stream was the
-          // only one that never read the salt, so a hit singer came back
-          // playing exactly what they had been playing.
-          rng: new Rng(`${seed}:melody:${s}${salt('melody')}`),
+          hook,
+          kind: section.kind,
+          chords: ctxBase.chords,
+          startBeat: ctxBase.startBeat,
           tonic: localTonic,
           mode,
           range,
-          startBeat: ctxBase.startBeat,
-          ornamentScale: mood.ornament,
-          leapScale: mood.leap,
-          soloistic: isSolo,
-          strictness: strictness.level,
-          hook,
-          motto,
-          accompaniment,
           scaleForChord: genre.scaleForChord,
+          tag: `${seed}:tune:${s}${salt('melody')}`,
+          strictness: strictness.level,
           rules,
-          // The instrument actually playing this line. Its idiom decides
-          // whether the line breaks chords, runs up scales, or stops to
-          // breathe; its agility decides how far it can reach.
+          accompaniment,
+          // The instrument actually playing this line. Agility says how far it can
+          // reach; the idiom says what it plays — whether it breaks chords, runs up
+          // scales, holds one note, or has to stop and breathe.
           agility: leadInstrument.agility,
           idiom: IDIOMS[leadInstrument.idiom],
+          // Everything the song has already stated, so this section can be told
+          // apart from it. Without this the freshness term has nothing to measure
+          // and a verse and a chorus may legitimately converge on one tune.
+          avoid: stated,
+          mood: { leap: mood.leap, ornament: mood.ornament },
         });
+      const melody = written
+        ? written.notes
+        : replay(prior!.melody!, prior!.tonic, localTonic, ctxBase.startBeat, range);
+      // Only freshly written material joins the comparison set. A recalled chorus
+      // resembling the chorus it recalls is the point of recalling it.
+      if (written) stated.push(written.audition.signature);
       applyDynamics(melody, leadLayer, intensity, genre.layerPlan?.response);
       push(byLayer, leadLayer, filtered(melody, leadLayer));
       sectionMelody = melody;

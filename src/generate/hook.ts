@@ -1,6 +1,20 @@
 /**
  * Hook — how much the song repeats itself.
  *
+ * Nine fields once, six of them gone. They described mechanisms inside the melody
+ * engine that no longer exists — a motif's chance of exact restatement, a phrase's
+ * chance of locking to one rhythm cell, how far a phrase's pitch vocabulary
+ * narrowed — and every one of them is now a consequence of the derivation the tune
+ * engine writes rather than a probability applied to a walk. `sequence` is the one
+ * worth naming: it was authored in every level and read by nothing, because there
+ * was no code that developed a motif.
+ *
+ * What is left is what the axis always meant. `recall` and `harmonyRecall` are
+ * *arrangement* decisions — does this section come back, and over what chords — and
+ * they belong here because they are about the song rather than about the tune. The
+ * level itself reaches the tune engine as one number per section; see
+ * `tune/adapt.ts`.
+ *
  * This is the axis that decides whether a listener could hum the thing
  * afterwards. It is not a quality setting and it is emphatically not a second
  * name for smoothness: smoothness asks *is this note wrong*, hook asks *have I
@@ -44,48 +58,6 @@ export interface HookLevel {
    * recollection, it is a mistake.
    */
   harmonyRecall: number;
-  /** Multiplier on the style's own motif-sequence probability. */
-  sequence: number;
-  /**
-   * How much to favour an *exact* restatement of a motif over a transposed one.
-   *
-   * The generator's default weights make an unchanged repeat the least likely
-   * outcome, which is right for art music and wrong for a hook. Verbatim is the
-   * whole point: "da-da-da-DAA" three times, unchanged.
-   */
-  exactRepeat: number;
-  /**
-   * Probability that a phrase runs on a single rhythm cell, varying only pitch.
-   *
-   * Rhythmic identity is what survives being hummed badly by someone who cannot
-   * hold a pitch, which is most people, which is why it matters more than the
-   * notes do.
-   */
-  rhythmLock: number;
-  /**
-   * How far the pitch vocabulary narrows within a phrase, 0..1. Pulls the line
-   * back toward notes it has already sounded, and relaxes the generator's
-   * standing distaste for repeating a note.
-   */
-  vocabulary: number;
-  /**
-   * May bar 2 of a phrase already restate bar 1? Off at the low levels, where
-   * a restatement waits until bar 3 and reads as development rather than as a
-   * refrain.
-   */
-  earlyRestate: boolean;
-  /**
-   * Probability that a phrase builds on the song's own figure — the motto —
-   * rather than on a fresh draw from the style's vocabulary.
-   *
-   * This is the scale of repetition the generator had no way to express. It
-   * had exactly two: one bar (a motif restated inside its own phrase) and one
-   * whole section (a tune replayed verbatim). Nothing in between, so a song
-   * could be locally shapely and globally arbitrary at the same time — every
-   * phrase well-formed, no two phrases related. The motto is what makes a song
-   * *about* something. See `generate/motto.ts`.
-   */
-  mottoAdherence: number;
   /**
    * How far to bias the harmony toward the plainest progressions available,
    * 0..1.
@@ -103,37 +75,27 @@ export const HOOK_LEVELS: HookLevel[] = [
   {
     id: 'through', level: 0, label: 'Through-composed',
     gloss: 'every section is new material — no tune ever comes back',
-    recall: 0, harmonyRecall: 0, sequence: 1, exactRepeat: 0,
-    rhythmLock: 0, vocabulary: 0, earlyRestate: false,
-    mottoAdherence: 0, harmonicSimplicity: 0,
+    recall: 0, harmonyRecall: 0, harmonicSimplicity: 0,
   },
   {
     id: 'loose', level: 1, label: 'Loose',
-    gloss: 'sections of a kind share their harmony; motifs recur within a phrase',
-    recall: 0, harmonyRecall: 0.5, sequence: 1.3, exactRepeat: 0.15,
-    rhythmLock: 0.15, vocabulary: 0.1, earlyRestate: false,
-    mottoAdherence: 0.2, harmonicSimplicity: 0.15,
+    gloss: 'sections of a kind share their harmony; a figure recurs inside a phrase',
+    recall: 0, harmonyRecall: 0.5, harmonicSimplicity: 0.15,
   },
   {
     id: 'standard', level: 2, label: 'Standard',
     gloss: 'the chorus is a fixed tune that comes back each time',
-    recall: 0.8, harmonyRecall: 1, sequence: 1.6, exactRepeat: 0.4,
-    rhythmLock: 0.35, vocabulary: 0.25, earlyRestate: true,
-    mottoAdherence: 0.55, harmonicSimplicity: 0.4,
+    recall: 0.8, harmonyRecall: 1, harmonicSimplicity: 0.4,
   },
   {
     id: 'catchy', level: 3, label: 'Catchy',
-    gloss: 'one rhythm per phrase, tighter vocabulary, every section recalled',
-    recall: 1, harmonyRecall: 1, sequence: 2.2, exactRepeat: 0.8,
-    rhythmLock: 0.7, vocabulary: 0.5, earlyRestate: true,
-    mottoAdherence: 0.8, harmonicSimplicity: 0.7,
+    gloss: 'one figure carries a section, and every section is recalled',
+    recall: 1, harmonyRecall: 1, harmonicSimplicity: 0.7,
   },
   {
     id: 'earworm', level: 4, label: 'Earworm',
     gloss: 'maximum repetition — simple on purpose, and hard to shake',
-    recall: 1, harmonyRecall: 1, sequence: 3, exactRepeat: 1,
-    rhythmLock: 1, vocabulary: 0.8, earlyRestate: true,
-    mottoAdherence: 1, harmonicSimplicity: 0.9,
+    recall: 1, harmonyRecall: 1, harmonicSimplicity: 0.9,
   },
 ];
 

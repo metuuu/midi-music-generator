@@ -59,6 +59,8 @@ export interface JudgeOptions {
   slotsPerBar: number;
   /** Onsets per bar the section plan asked for. */
   wantDensity: number;
+  /** Constraint strictness, 0..4. */
+  strictness: number;
   /** Material this section should not resemble — the song's other sections. */
   avoid?: readonly Signature[];
 }

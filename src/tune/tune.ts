@@ -26,11 +26,11 @@ import { EMPTY_ACCOMPANIMENT, RULES, type Accompaniment, type Rule } from '../co
 import type { NoteEvent } from '../core/types.js';
 import { describePhrases, planPhrases } from './grammar.js';
 import { judge, signatureOf, type Signature, type Verdict } from './judge.js';
-import { applyOps, motifFamily } from './motif.js';
+import { NEUTRAL_IDIOM, applyOps, motifFamily } from './motif.js';
 import { describeSkeleton, planArc, skeletonFor } from './skeleton.js';
 import { realisePhrase } from './surface.js';
 import type {
-  ArchetypeId, Motif, PhraseNode, SectionShape, Skeleton, TuneContext, TunePlan, Voice,
+  ArchetypeId, Idiom, Motif, PhraseNode, SectionShape, Skeleton, TuneContext, TunePlan, Voice,
 } from './types.js';
 import { ARCHETYPES, archetypeWeights } from './voice.js';
 
@@ -57,6 +57,12 @@ export interface TuneOptions {
   accompaniment?: Accompaniment;
   /** Leap freedom of the instrument playing this line, 0..1. */
   agility?: number;
+  /**
+   * How the instrument playing this line shapes its music — whether it breaks
+   * chords, runs up scales, holds one note, or has to stop and breathe. Agility says
+   * how far it can reach; this says what it plays.
+   */
+  idiom?: Idiom;
 }
 
 export interface Tune {
@@ -84,6 +90,7 @@ export function composeTune(opts: TuneOptions): Tune {
     archetype: arch,
     slotsPerBar,
     span,
+    ...(opts.idiom ? { idiom: opts.idiom } : {}),
     ...(ctx.groups ? { groups: ctx.groups } : {}),
   });
 
@@ -92,7 +99,7 @@ export function composeTune(opts: TuneOptions): Tune {
   });
 
   const figures = resolveFigures(phrases, motifs, rng);
-  const arc = planArc(rng, arch, ctx.range, voice.compass);
+  const arc = planArc(rng, arch, ctx.range, voice.compass, opts.strictness ?? 2);
   const baseScale = makeScale(ctx.tonic, ctx.mode === 'minor' ? 'minor' : 'major');
 
   const skeletons: Record<string, Skeleton> = {};
@@ -100,6 +107,7 @@ export function composeTune(opts: TuneOptions): Tune {
   const peakBar = peakPosition(arc) * bars;
 
   let bar = 0;
+  let previous: Midi | undefined;
   for (const phrase of phrases) {
     const figure = figures.get(phrase.id);
     if (!figure) { bar += phrase.bars; continue; }
@@ -129,6 +137,8 @@ export function composeTune(opts: TuneOptions): Tune {
       arc: (pos) => arc(sectionSlots > 0 ? (phraseStartSlot + pos * phraseSlots) / sectionSlots : 0),
       shift: figure.shift,
       carriesPeak: peakBar >= bar && peakBar < bar + phrase.bars,
+      agility: opts.agility ?? 0.7,
+      strictness: opts.strictness ?? 2,
       rng,
       ...(phrase.from && skeletons[phrase.from.id] ? { model: skeletons[phrase.from.id]! } : {}),
     });
@@ -151,8 +161,11 @@ export function composeTune(opts: TuneOptions): Tune {
       rules: opts.rules ?? RULES,
       accompaniment: opts.accompaniment ?? EMPTY_ACCOMPANIMENT,
       agility: opts.agility ?? 0.7,
+      idiom: opts.idiom ?? NEUTRAL_IDIOM,
+      ...(previous !== undefined ? { prev: previous } : {}),
       rng,
     }));
+    previous = notes[notes.length - 1]?.midi ?? previous;
 
     bar += phrase.bars;
   }
@@ -215,6 +228,7 @@ export function auditionTune(opts: AuditionOptions): { best: Audition; worst: Au
       bars,
       slotsPerBar,
       wantDensity: opts.voice.density * arch.density * (opts.density ?? 1),
+      strictness: opts.strictness ?? 2,
       ...(opts.avoid ? { avoid: opts.avoid } : {}),
     });
     const candidate: Audition = {

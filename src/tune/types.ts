@@ -277,6 +277,27 @@ export interface Archetype {
   judge?: Partial<Record<TermId, number>>;
 }
 
+/**
+ * How the instrument holding this line shapes its music.
+ *
+ * Declared here rather than imported so the engine keeps its one-way door onto the
+ * style tables, and mapped across in `adapt.ts`. It is the same four numbers the old
+ * engine had, and they answer a question agility does not: agility says how far an
+ * instrument can *reach*, idiom says what it actually *plays*. Before it existed a
+ * harp and a trombone handed identical chords produced statistically identical
+ * lines.
+ */
+export interface Idiom {
+  /** Appetite for broken chords — thirds in the same direction. */
+  arpeggio: number;
+  /** Appetite for scale runs — steps in the same direction. */
+  run: number;
+  /** Tolerance for re-articulating the same note. Free on a mallet, ugly sung. */
+  repeat: number;
+  /** How badly the line needs air. A flute stops to breathe; a vibraphone does not. */
+  breath: number;
+}
+
 // ---------------------------------------------------------------------------
 // Voice — what a style's melodies are made of
 // ---------------------------------------------------------------------------

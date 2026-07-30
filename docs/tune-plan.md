@@ -141,7 +141,12 @@ architecture cannot offer: today a melody can only be heard as the ninth thing t
 happened in a 2,000-line section loop.
 
 This adds no harness. It is one CLI subcommand that builds a minimal `Song` and calls
-`renderMidi`, and it is deleted in Phase 5 when the engine is wired in for real.
+`renderMidi`.
+
+*Kept rather than deleted at Phase 5, and the reason is Phase 4's unfinished half:*
+three styles have authored voices and seventeen do not. `npm run tune -- --style tango
+--kind chorus` is the only way to hear one voice on its own while writing the rest, and
+a scaffold that is still load-bearing is not a scaffold.
 
 ---
 
@@ -482,12 +487,21 @@ is measuring correctness and needs the blandness term it was supposed to have.
 iskelmäpop, one synth style — plus archetypes and pitch subsets. *Audible:* two songs in
 the same style are different *kinds* of tune, not two samples of one.
 
-**Phase 5 — the swap.** `adapt.ts`, wire into the one call site in `song.ts`, delete
-`melody.ts`, `rhythm.ts`, `motto.ts` and the melodic half of `hook.ts` in the same commit.
-Delete the Phase 1 CLI subcommand. Remaining styles get a serviceable default derived from
-their existing `MelodyStyle` fields, and are hand-authored later, one at a time, on
-hearing. *Expect to re-baseline* the melodic assertions in `npm run genres` consciously,
-recording what moved and why.
+**Phase 5 — the swap.** `adapt.ts`, wire into the one call site in `song.ts`, delete the
+old engine in the same commit. Remaining styles get a serviceable default derived from
+their existing `MelodyStyle` fields — and, better than the plan assumed, from their own
+melody *cells*, read as a histogram of where that style puts its notes. *Expect to
+re-baseline* the melodic assertions in `npm run genres` consciously, recording what moved
+and why.
+
+What actually went, against what this section predicted:
+
+- `generate/melody.ts` deleted outright.
+- `generate/rhythm.ts` keeps `metricStrength`, `fitCell`, `pickCell` and `trimOverlaps`,
+  which the *accompaniment* needs; its phrase planner is gone.
+- `generate/motto.ts` survives, because `generate/solo.ts` is a second melodic engine and
+  still its consumer. Phase 9's question, unchanged.
+- `generate/hook.ts` loses six of its nine fields.
 
 **Phase 6 — variation on recall.** The third chorus stops being a copy-paste. Closes the
 first known limitation in `docs/hook.md`.

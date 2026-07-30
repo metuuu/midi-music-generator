@@ -20,8 +20,11 @@
 import type { Rng } from '../core/rng.js';
 import { SLOTS_PER_BEAT } from '../core/grid.js';
 import type {
-  Archetype, Gesture, Motif, MotifRole, Onset, Op, ShapeId, Slot, Voice,
+  Archetype, Gesture, Idiom, Motif, MotifRole, Onset, Op, ShapeId, Slot, Voice,
 } from './types.js';
+
+/** What a line sounds like when nothing has said who is playing it. */
+export const NEUTRAL_IDIOM: Idiom = { arpeggio: 0.3, run: 0.6, repeat: 0.5, breath: 0.3 };
 
 // ---------------------------------------------------------------------------
 // The accent template
@@ -118,6 +121,8 @@ export interface GestureOptions {
   extent: number;
   /** May the figure start before the canvas does? */
   pickup: boolean;
+  /** How badly the player needs air, 0..1. */
+  breath: number;
   groups?: readonly number[];
 }
 
@@ -188,7 +193,38 @@ export function makeGesture(rng: Rng, voice: Voice, opts: GestureOptions): Gestu
   const tail = Math.min(span - last.at, last.dur * 3, slotsPerBar);
   if (tail > last.dur) last.dur = tail;
 
+  breathe(onsets, reach, opts.breath, rng);
   return { onsets: accentuate(onsets, accents, span, voice, rng), span };
+}
+
+/**
+ * Let the player breathe.
+ *
+ * A line that never stops is playable on a keyboard and impossible on anything
+ * blown, and the ear knows the difference long before it can name it: a flute part
+ * with no gap in it reads as synthetic rather than as virtuosic. The gap is taken by
+ * *shortening* the note that arrives at the figure's end rather than by deleting
+ * anything, so the figure keeps every one of its onsets.
+ */
+function breathe(onsets: Onset[], reach: Slot, breath: number, rng: Rng): void {
+  if (breath <= 0 || !onsets.length) return;
+  const body = onsets.filter((o) => o.at >= 0);
+  if (!body.length) return;
+
+  // Where a player would actually take one: at the end of the figure, and — if they
+  // need air badly — halfway through it as well.
+  const points = breath > 0.55 ? [reach, Math.round(reach / 2)] : [reach];
+  for (const at of points) {
+    if (!rng.chance(breath)) continue;
+    let before: Onset | undefined;
+    for (const o of body) if (o.at < at && (!before || o.at > before.at)) before = o;
+    if (!before) continue;
+    if (before.at + before.dur <= at - 2) continue;  // already air here
+    const gap = before.dur >= 8 ? 4 : before.dur >= 6 ? 3 : 2;
+    const trimmed = Math.min(before.dur, at - before.at) - gap;
+    if (trimmed < 1) continue;
+    before.dur = trimmed;
+  }
 }
 
 /**
@@ -275,7 +311,31 @@ export interface MotifOptions {
   archetype: Archetype;
   slotsPerBar: number;
   span: Slot;
+  /** Who is playing it. Defaults to `NEUTRAL_IDIOM`. */
+  idiom?: Idiom;
   groups?: readonly number[];
+}
+
+/**
+ * The archetype's shapes, re-weighted by what the instrument actually plays.
+ *
+ * A mallet breaks chords, so `thirds` and `leap-home` rise with `arpeggio`. A wind
+ * instrument runs, so `rise` and `fall` rise with `run`. Anything that
+ * re-articulates freely can hold one note and make the rhythm the idea, so
+ * `plateau` and `repeat-tail` rise with `repeat`. The archetype still says what kind
+ * of tune this is; the idiom says who is singing it.
+ */
+function shapesFor(archetype: Archetype, idiom: Idiom): readonly (readonly [ShapeId, number])[] {
+  const bump: Partial<Record<ShapeId, number>> = {
+    thirds: 1 + idiom.arpeggio * 2,
+    'leap-home': 1 + idiom.arpeggio * 1.2,
+    'gap-fill': 1 + idiom.arpeggio * 0.8,
+    rise: 1 + idiom.run * 1.4,
+    fall: 1 + idiom.run * 1.4,
+    plateau: 1 + idiom.repeat * 1.6,
+    'repeat-tail': 1 + idiom.repeat * 1.3,
+  };
+  return archetype.shapes.map(([id, w]) => [id, w * (bump[id] ?? 1)] as const);
 }
 
 export function makeMotif(rng: Rng, role: MotifRole, opts: MotifOptions): Motif {
@@ -285,12 +345,14 @@ export function makeMotif(rng: Rng, role: MotifRole, opts: MotifOptions): Motif 
     ? rng.float(0.3, 0.5)
     : rng.weighted([[0.5, 3], [0.66, 4], [0.82, 3], [1, 2]] as const);
 
+  const idiom = opts.idiom ?? NEUTRAL_IDIOM;
   const draw = () => makeGesture(rng, voice, {
     span,
     slotsPerBar,
     density,
     extent,
     pickup: role === 'hook' && rng.chance(voice.syncopation * 0.5 + 0.12),
+    breath: idiom.breath,
     ...(opts.groups ? { groups: opts.groups } : {}),
   });
 
@@ -311,9 +373,30 @@ export function makeMotif(rng: Rng, role: MotifRole, opts: MotifOptions): Motif 
     }
   }
 
-  const shape = rng.weighted(archetype.shapes);
-  const contour = contourFor(rng, shape, gesture.onsets.length, voice.leap * archetype.leap);
+  const shape = rng.weighted(shapesFor(archetype, idiom));
+  const contour = idiomise(
+    contourFor(rng, shape, gesture.onsets.length, voice.leap * archetype.leap), idiom, rng,
+  );
   return { gesture, contour, role, shift: 0 };
+}
+
+/**
+ * The player's hand, applied to the shape itself.
+ *
+ * Re-weighting which shapes are *drawn* is not enough on its own — a mallet and a
+ * flute given the same six shapes at slightly different odds produce lines that
+ * differ by two percent, which is what the old engine's problem was before idiom
+ * existed. This is the direct statement: an instrument that breaks chords turns a
+ * step into a third, and one that runs turns a third into a step. That is what those
+ * two words mean.
+ */
+function idiomise(contour: number[], idiom: Idiom, rng: Rng): number[] {
+  return contour.map((s, i) => {
+    if (i === 0 || s === 0) return s;
+    if (Math.abs(s) === 1 && rng.chance(idiom.arpeggio * 0.85)) return Math.sign(s) * 2;
+    if (Math.abs(s) === 2 && rng.chance(idiom.run * 0.7)) return Math.sign(s);
+    return s;
+  });
 }
 
 /**

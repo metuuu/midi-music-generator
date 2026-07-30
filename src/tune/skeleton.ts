@@ -31,6 +31,7 @@ import { clampToRange, pc } from '../core/pitch.js';
 import type { Rng } from '../core/rng.js';
 import type { Scale } from '../core/scale.js';
 import { scaleStepsBetween, snapToScale, stepInScale } from '../core/scale.js';
+import { comfortableLeap } from '../core/rules.js';
 import type { Archetype, Cadence, Motif, Skeleton, Slot, Target } from './types.js';
 
 /**
@@ -46,12 +47,22 @@ import type { Archetype, Cadence, Motif, Skeleton, Slot, Target } from './types.
  * climb to the note you meant and then come down off it.
  */
 export function planArc(
-  rng: Rng, arch: Archetype, range: [Midi, Midi], compass: number,
+  rng: Rng, arch: Archetype, range: [Midi, Midi], compass: number, strictness = 2,
 ): (pos: number) => Midi {
   const [lo, hi] = range;
   const centre = (lo + hi) / 2;
   const peak = rng.float(arch.peakAt[0], arch.peakAt[1]);
-  const lift = Math.min(compass * 0.7, (hi - lo) * 0.6);
+  /**
+   * How far the section climbs, narrowed as smoothness rises.
+   *
+   * The only lever the axis has on music whose figures are two notes to the bar. In
+   * ambient the segments between anchors are empty, so nothing about the *surface*
+   * can be smoothed and nothing about the approach applies — the intervals a listener
+   * hears are the distances between structural notes, and those come from the arc.
+   * Polished music stays in a narrower band, which is both true of it and the reason
+   * this works.
+   */
+  const lift = Math.min(compass * 0.7, (hi - lo) * 0.6) * (1 - strictness * 0.045);
   const base = centre - lift * 0.42;
   // Where the tune sits once it has come down. Not back at the bottom: a phrase
   // that ends exactly where it started has not been anywhere.
@@ -97,6 +108,10 @@ export interface SkeletonOptions {
   shift: number;
   /** True when the section's high point falls inside this phrase. */
   carriesPeak: boolean;
+  /** Leap freedom of whoever is playing, 0..1. */
+  agility: number;
+  /** Constraint strictness, 0 (free) to 4 (polished). */
+  strictness: number;
   rng: Rng;
 }
 
@@ -188,7 +203,7 @@ export function skeletonFor(opts: SkeletonOptions): Skeleton {
      * there is: the restated phrase that takes its top note higher.
      */
     const midi = last || (opts.model && role !== 'peak')
-      ? clampToRange(settle(wanted[i]!, chord, scale, range), range[0], range[1])
+      ? clampToRange(settle(wanted[i]!, chord, scale, range, prev), range[0], range[1])
       : chooseAnchor({
         ...opts,
         wanted: wanted[i]!,
@@ -213,15 +228,25 @@ export function skeletonFor(opts: SkeletonOptions): Skeleton {
  * cadence, or an inherited target. Dragging such a note a third to reach a chord
  * tone would destroy the thing it was chosen for.
  */
-function settle(want: Midi, chord: Chord, scale: Scale, range: [Midi, Midi]): Midi {
+function settle(
+  want: Midi, chord: Chord, scale: Scale, range: [Midi, Midi], prev?: Midi,
+): Midi {
   const rounded = Math.round(want);
   const tones = chordPcs(chord);
   for (let d = 0; d <= 2; d++) {
     for (const cand of [rounded - d, rounded + d]) {
-      if (cand >= range[0] && cand <= range[1] && tones.includes(pc(cand))) return cand;
+      if (cand < range[0] || cand > range[1] || !tones.includes(pc(cand))) continue;
+      // …and not the note the phrase is already on, for the same reason
+      // `chooseAnchor` refuses one: two structural notes on one pitch leave the
+      // surface nothing to move between.
+      if (cand === prev) continue;
+      return cand;
     }
   }
-  return snapToScale(scale, rounded);
+  const snapped = snapToScale(scale, rounded);
+  if (snapped !== prev) return snapped;
+  const away = stepInScale(scale, snapped, want >= snapped ? 1 : -1);
+  return away >= range[0] && away <= range[1] ? away : snapped;
 }
 
 /**
@@ -341,9 +366,26 @@ function chooseAnchor(args: AnchorArgs): Midi {
       // Strides are how far this kind of tune moves between structural notes. Both
       // failure modes are audible: a backbone that inches produces a line with no
       // shape, and one that leaps every time produces a line with no line.
-      w *= Math.exp(-((steps - archetype.stride) ** 2) / 8);
-      if (m === prev) w *= 0.35;
-      if (Math.abs(m - prev) > 12) w *= 0.05;
+      //
+      // Narrowed at the top of the smoothness range, and that is the only lever the
+      // axis has on music this sparse. Where a figure has two notes to a bar the
+      // segments between anchors are empty, so nothing about the *surface* can be
+      // smoothed — the intervals a listener hears are the backbone's own.
+      w *= Math.exp(-((steps - stride(archetype, args.strictness)) ** 2) / 8);
+      // Not a weight. A structural note that repeats the one before it gives the
+      // phrase nothing to move between, and at the top of the smoothness range —
+      // where strides are narrowed — a soft penalty loses: repeated notes rose to
+      // 32% of a synth line at `polished`, so the tune was stalling rather than
+      // smoothing.
+      if (m === prev) return [m, 1e-9] as const;
+      /**
+       * Reach is a physical property of the instrument, so it belongs in the
+       * candidate set rather than in the scoring: weighting a leap down makes it
+       * rare and does not make it impossible, and across a few hundred bars "rare"
+       * still means a trombone eventually plays an octave. The note is not
+       * unlikely, it is unavailable.
+       */
+      if (Math.abs(m - prev) > comfortableLeap(args.agility) + 2) return [m, 1e-9] as const;
     }
     /**
      * A backbone has to go somewhere, and it is the pair of anchors that decides
@@ -358,7 +400,7 @@ function chooseAnchor(args: AnchorArgs): Midi {
      */
     if (args.next !== undefined) {
       const ahead = Math.abs(scaleStepsBetween(args.scale, m, args.next));
-      w *= Math.exp(-((ahead - archetype.stride) ** 2) / 12);
+      w *= Math.exp(-((ahead - stride(archetype, args.strictness)) ** 2) / 12);
       if (Math.round(m) === Math.round(args.next)) w *= 0.4;
     }
     if (args.role === 'peak') {
@@ -370,6 +412,11 @@ function chooseAnchor(args: AnchorArgs): Midi {
   });
 
   return rng.weighted(scored);
+}
+
+/** How far apart structural notes want to be, once taste has had its say. */
+function stride(archetype: Archetype, strictness: number): number {
+  return Math.max(1, archetype.stride - (strictness >= 3 ? 1 : 0));
 }
 
 /**
