@@ -2,32 +2,34 @@
  * The entry point: plan a tune, then realise it.
  *
  * The order is the point. Everything about the section is decided — archetype,
- * degree subset, material, form, derivations — before a single pitch exists, and
- * the result of that deciding is a `TunePlan` that can be printed. When a tune is
- * bad you read its plan and see which pass was wrong. The engine this replaces
- * could only be adjusted by moving one of fourteen weights in a scoring function
- * and listening to a hundred songs, which is not debugging.
+ * degree subset, material, form, derivations, the arc, every phrase's backbone —
+ * before a single pitch sounds, and the result of that deciding is a `TunePlan`
+ * that can be printed. When a tune is bad you read its plan and see which pass was
+ * wrong. The engine this replaces could only be adjusted by moving one of fourteen
+ * weights in a scoring function and listening to a hundred songs, which is not
+ * debugging, it is superstition.
  *
- * At this stage realisation is deliberately plain: place the figure's onsets, walk
- * its contour through the scale, snap the strong notes to the harmony. It is
- * enough to hear whether the *derivations* are audible, which is what Phase 1 is
- * for, and it is replaced wholesale by the skeleton in Phase 2 — see
- * `docs/tune-plan.md`.
+ * The passes, in order, and each one is a file:
+ *
+ *   1. material   `motif.ts`     a figure, and two relatives of it
+ *   2. form       `grammar.ts`   which phrase is which phrase transformed how
+ *   3. arc        `skeleton.ts`  one high point for the whole section
+ *   4. backbone   `skeleton.ts`  two to four structural pitches per phrase
+ *   5. surface    `surface.ts`   how to get from each one to the next
  */
 
-import { chordPcs } from '../core/chord.js';
-import type { Chord } from '../core/chord.js';
 import { SLOTS_PER_BEAT } from '../core/grid.js';
 import type { Midi } from '../core/pitch.js';
-import { clampToRange, pc } from '../core/pitch.js';
 import type { Rng } from '../core/rng.js';
-import type { Scale } from '../core/scale.js';
-import { makeScale, snapToScale, stepInScale } from '../core/scale.js';
+import { makeScale } from '../core/scale.js';
+import { EMPTY_ACCOMPANIMENT, RULES, type Accompaniment, type Rule } from '../core/rules.js';
 import type { NoteEvent } from '../core/types.js';
 import { describePhrases, planPhrases } from './grammar.js';
 import { applyOps, motifFamily } from './motif.js';
+import { describeSkeleton, planArc, skeletonFor } from './skeleton.js';
+import { realisePhrase } from './surface.js';
 import type {
-  ArchetypeId, Cadence, Motif, PhraseNode, TuneContext, TunePlan, Voice,
+  ArchetypeId, Motif, PhraseNode, Skeleton, TuneContext, TunePlan, Voice,
 } from './types.js';
 import { ARCHETYPES } from './voice.js';
 
@@ -41,6 +43,14 @@ export interface TuneOptions {
   density?: number;
   /** Forced rather than drawn — the section plan's business once it exists. */
   archetype?: ArchetypeId;
+  /** Constraint strictness, 0 (free) to 4 (polished). */
+  strictness?: number;
+  /** Rule table, already adjusted for the genre. */
+  rules?: Rule[];
+  /** What the band is already playing, for the vertical rules. */
+  accompaniment?: Accompaniment;
+  /** Leap freedom of the instrument playing this line, 0..1. */
+  agility?: number;
 }
 
 export interface Tune {
@@ -52,8 +62,8 @@ export function composeTune(opts: TuneOptions): Tune {
   const { ctx, voice, rng } = opts;
   const bars = ctx.chords.length;
   const slotsPerBar = Math.round(ctx.beatsPerBar * SLOTS_PER_BEAT);
-  const canvasBars = voice.canvasBars ?? 2;
-  const span = slotsPerBar * canvasBars;
+  const sectionSlots = bars * slotsPerBar;
+  const span = slotsPerBar * (voice.canvasBars ?? 2);
 
   const archetypeId = opts.archetype ?? rng.weighted(voice.archetypes);
   const arch = ARCHETYPES[archetypeId];
@@ -76,18 +86,73 @@ export function composeTune(opts: TuneOptions): Tune {
   });
 
   const figures = resolveFigures(phrases, motifs, rng);
+  const arc = planArc(rng, arch, ctx.range, voice.compass);
+  const baseScale = makeScale(ctx.tonic, ctx.mode === 'minor' ? 'minor' : 'major');
 
-  const plan: TunePlan = {
-    archetype: archetypeId,
-    form,
-    subset,
-    motifs,
-    phrases,
-    skeletons: {},
-  };
+  const skeletons: Record<string, Skeleton> = {};
+  const notes: NoteEvent[] = [];
+  const peakBar = peakPosition(arc) * bars;
 
-  const notes = realise({ plan, figures, ctx, slotsPerBar, span, rng });
-  return { plan, notes };
+  let bar = 0;
+  for (const phrase of phrases) {
+    const figure = figures.get(phrase.id);
+    if (!figure) { bar += phrase.bars; continue; }
+
+    const chords = ctx.chords.slice(bar, bar + phrase.bars);
+    while (chords.length < phrase.bars) chords.push(chords[chords.length - 1] ?? ctx.chords[0]!);
+    const scaleAt = (barInPhrase: number) =>
+      ctx.scaleForChord(ctx.tonic, ctx.mode, chords[Math.min(chords.length - 1, barInPhrase)]!);
+
+    const phraseStartSlot = bar * slotsPerBar;
+    const phraseSlots = phrase.bars * slotsPerBar;
+
+    const skeleton = skeletonFor({
+      figure,
+      bars: phrase.bars,
+      slotsPerBar,
+      cadence: phrase.cadence,
+      chords,
+      scaleAt,
+      baseScale,
+      subset,
+      range: ctx.range,
+      archetype: arch,
+      // The phrase sees the *section's* arc through the window it occupies. One
+      // shape for the whole section is the correction: four phrases with four
+      // little hills of their own is a texture, not a shape.
+      arc: (pos) => arc(sectionSlots > 0 ? (phraseStartSlot + pos * phraseSlots) / sectionSlots : 0),
+      shift: figure.shift,
+      carriesPeak: peakBar >= bar && peakBar < bar + phrase.bars,
+      rng,
+      ...(phrase.from && skeletons[phrase.from.id] ? { model: skeletons[phrase.from.id]! } : {}),
+    });
+    skeletons[phrase.id] = skeleton;
+
+    notes.push(...realisePhrase({
+      figure,
+      skeleton,
+      bars: phrase.bars,
+      slotsPerBar,
+      startBeat: ctx.startBeat + bar * ctx.beatsPerBar,
+      chords,
+      scaleAt,
+      baseScale,
+      subset,
+      range: ctx.range,
+      mode: ctx.mode,
+      tonic: ctx.tonic,
+      strictness: opts.strictness ?? 2,
+      rules: opts.rules ?? RULES,
+      accompaniment: opts.accompaniment ?? EMPTY_ACCOMPANIMENT,
+      agility: opts.agility ?? 0.7,
+      rng,
+    }));
+
+    bar += phrase.bars;
+  }
+
+  const plan: TunePlan = { archetype: archetypeId, form, subset, motifs, phrases, skeletons };
+  return { plan, notes: trim(notes) };
 }
 
 /**
@@ -116,211 +181,25 @@ export function resolveFigures(
   return out;
 }
 
-interface RealiseArgs {
-  plan: TunePlan;
-  figures: Map<string, Motif>;
-  ctx: TuneContext;
-  slotsPerBar: number;
-  span: number;
-  rng: Rng;
-}
-
-/**
- * Place the notes.
- *
- * Plain on purpose at this stage — see the file header. What it does own, and will
- * keep owning after the skeleton lands, is the two things that are true of every
- * realisation: a figure is *clipped* to its phrase rather than allowed to run past
- * it, and the phrase's last note is placed by its cadence rather than by wherever
- * the contour arrived.
- */
-function realise(args: RealiseArgs): NoteEvent[] {
-  const { plan, figures, ctx, slotsPerBar, rng } = args;
-  const [lo, hi] = ctx.range;
-  const baseScale = makeScale(ctx.tonic, ctx.mode === 'minor' ? 'minor' : 'major');
-  const out: NoteEvent[] = [];
-
-  const chordAt = (bar: number): Chord =>
-    ctx.chords[Math.max(0, Math.min(ctx.chords.length - 1, bar))]!;
-  const scaleAt = (bar: number): Scale => ctx.scaleForChord(ctx.tonic, ctx.mode, chordAt(bar));
-
-  const starts = new Map<string, Midi>();
-  let bar = 0;
-  let prev = clampToRange(snapToScale(baseScale, Math.round((lo + hi) / 2)), lo, hi);
-
-  for (const phrase of plan.phrases) {
-    const figure = figures.get(phrase.id);
-    if (!figure) { bar += phrase.bars; continue; }
-
-    const phraseSlots = phrase.bars * slotsPerBar;
-    const onsets = figure.gesture.onsets.filter((o) => o.at < phraseSlots);
-    if (!onsets.length) { bar += phrase.bars; continue; }
-
-    // Where the figure enters. A derived phrase enters `shift` scale steps above
-    // wherever its model entered, which is what makes a transposition audible as
-    // a transposition rather than as a new phrase that happens to be higher.
-    const modelStart = phrase.from ? starts.get(phrase.from.id) : undefined;
-    const entry = modelStart !== undefined
-      ? stepInScale(baseScale, modelStart, figure.shift)
-      : prev;
-    /**
-     * The contour walks on its own cursor, and snapping only touches what is
-     * emitted.
-     *
-     * Stepping from the *snapped* note is the bug that makes a generated line
-     * stall: a figure that goes up a step and back down gets its up-step pulled
-     * onto a chord tone, then its down-step measured from there, and the two
-     * cancel — the tune repeats a note where the figure said it moved. Keeping the
-     * intended pitch and the sounded pitch apart costs nothing and is the whole
-     * difference between a shape surviving the harmony and being erased by it.
-     */
-    let cursor = clampToRange(snapToScale(baseScale, entry), lo, hi);
-    starts.set(phrase.id, cursor);
-
-    const events: NoteEvent[] = [];
-    for (let i = 0; i < onsets.length; i++) {
-      const onset = onsets[i]!;
-      const slot = bar * slotsPerBar + onset.at;
-      const inBar = Math.max(0, Math.min(ctx.chords.length - 1, Math.floor(slot / slotsPerBar)));
-      const scale = scaleAt(inBar);
-
-      if (i > 0) cursor = reflect(stepInScale(scale, cursor, figure.contour[i] ?? 0), lo, hi);
-      let midi = snapToSubset(scale, plan.subset, cursor);
-      /**
-       * A note the figure leans on wants to belong to the chord under it — but
-       * only just, and this is the rule the old engine got backwards.
-       *
-       * There it was a hard skip: a strong beat could not carry a non-chord tone
-       * at all. The cost is visible the moment you print a line, because pulling
-       * an accented note a whole tone onto a chord tone destroys the interval that
-       * got it there — a figure that steps up arrives on the note it left. So the
-       * nudge is a semitone, which fixes a genuinely sour note and leaves a
-       * deliberate one alone. A figure being replayed over new changes is the one
-       * case that wants the whole tone, because there the point is that it fits.
-       */
-      if (figure.resnap) {
-        midi = nearChordTone(chordAt(inBar), midi, 2, [lo, hi]) ?? midi;
-      } else if (onset.accent >= 0.85) {
-        midi = nearChordTone(chordAt(inBar), midi, 1, [lo, hi]) ?? midi;
-      }
-
-      events.push({
-        beat: ctx.startBeat + slot / SLOTS_PER_BEAT,
-        duration: Math.max(1, onset.dur) / SLOTS_PER_BEAT,
-        midi,
-        velocity: 0.55 + onset.accent * 0.35,
-      });
-    }
-
-    const landed = landCadence(events, phrase.cadence, baseScale, chordAt(bar + phrase.bars - 1), [lo, hi], rng);
-    out.push(...events);
-    prev = landed;
-    bar += phrase.bars;
-  }
-
-  return trim(out);
-}
-
-/**
- * Put the phrase's last note where its cadence says.
- *
- * A phrase ending is a destination the whole phrase was aiming at, not an outcome
- * of having walked. `open` leaves the listener hanging on 5̂ or 2̂; `half` stops on
- * the chord's own root so the stop is real without being final; `closed` lands on
- * the tonic; `suspended` sits on 4̂ or 7̂ and asks to be continued.
- */
-function landCadence(
-  events: NoteEvent[], cadence: Cadence, scale: Scale, chord: Chord,
-  [lo, hi]: [Midi, Midi], rng: Rng,
-): Midi {
-  const last = events[events.length - 1];
-  if (!last) return Math.round((lo + hi) / 2);
-
-  const degree = cadence === 'closed'
-    ? rng.weighted([[0, 6], [2, 1]] as const)
-    : cadence === 'open'
-      ? rng.weighted([[4, 5], [1, 3], [2, 2]] as const)
-      : cadence === 'suspended'
-        ? rng.weighted([[3, 3], [6, 2]] as const)
-        : -1;
-
-  const target = degree >= 0
-    ? nearestDegree(scale, degree, last.midi)
-    : nearPc(chord.root, last.midi);
-
-  last.midi = clampToRange(target, lo, hi);
-  return last.midi;
-}
-
-// ---------------------------------------------------------------------------
-// Pitch helpers
-// ---------------------------------------------------------------------------
-
-/**
- * Step into the range by turning back rather than by dropping an octave.
- *
- * `clampToRange` preserves the pitch class by moving whole octaves, which is right
- * for placing an isolated note and wrong in the middle of a figure: a sequence
- * that walks into the ceiling comes back an octave lower and the listener hears a
- * twelve-semitone leap in the middle of a stepwise idea. Reflecting keeps the size
- * of the motion, which is what the shape is made of, and reverses only its
- * direction — which is what a composer does when a sequence runs out of room.
- */
-function reflect(midi: Midi, lo: Midi, hi: Midi): Midi {
-  if (midi >= lo && midi <= hi) return midi;
-  const span = hi - lo;
-  if (span <= 0) return lo;
-  let m = midi;
-  for (let guard = 0; guard < 8 && (m < lo || m > hi); guard++) {
-    if (m < lo) m = lo + (lo - m);
-    if (m > hi) m = hi - (m - hi);
-  }
-  return clampToRange(m, lo, hi);
-}
-
-/** Pull a note onto the section's degree subset, by the smallest move available. */
-function snapToSubset(scale: Scale, subset: readonly number[], midi: Midi): Midi {
-  if (subset.length >= scale.pcs.length) return midi;
-  const allowed = new Set(subset.map((d) => scale.pcs[d % scale.pcs.length]!));
-  if (allowed.has(pc(midi))) return midi;
-  for (let d = 1; d <= 3; d++) {
-    if (allowed.has(pc(midi - d))) return midi - d;
-    if (allowed.has(pc(midi + d))) return midi + d;
-  }
-  return midi;
-}
-
-/** The chord tone nearest `midi` within `reach`, or nothing that close. */
-export function nearChordTone(
-  chord: Chord, midi: Midi, reach: number, [lo, hi]: [Midi, Midi],
-): Midi | undefined {
-  const tones = chordPcs(chord);
-  let best: Midi | undefined;
-  let bestDist = Infinity;
-  for (let d = -reach; d <= reach; d++) {
-    const cand = midi + d;
-    if (cand < lo || cand > hi || !tones.includes(pc(cand))) continue;
-    if (Math.abs(d) < bestDist) { bestDist = Math.abs(d); best = cand; }
+/** Where the arc's high point sits, as a fraction of the section. */
+function peakPosition(arc: (pos: number) => Midi): number {
+  let best = 0;
+  let height = -Infinity;
+  for (let i = 0; i <= 32; i++) {
+    const h = arc(i / 32);
+    if (h > height) { height = h; best = i / 32; }
   }
   return best;
 }
 
-export function nearestDegree(scale: Scale, degree: number, reference: Midi): Midi {
-  return nearPc(scale.pcs[degree % scale.pcs.length]!, reference);
-}
-
-function nearPc(target: number, reference: Midi): Midi {
-  const base = Math.floor(reference / 12) * 12 + target;
-  let best = base;
-  let bestDist = Math.abs(base - reference);
-  for (const cand of [base - 12, base + 12]) {
-    const d = Math.abs(cand - reference);
-    if (d < bestDist) { best = cand; bestDist = d; }
-  }
-  return best;
-}
-
-/** Clip a monophonic line so no note runs into the next. */
+/**
+ * Clip a monophonic line so no note runs into the next.
+ *
+ * Expected rather than exceptional: a figure may be held past its own extent and a
+ * phrase's pickup is written backwards into the phrase before it. Trimming keeps the
+ * onset, which is what the ear timed, and loses only tail that was inaudible under
+ * the next attack anyway.
+ */
 export function trim(notes: NoteEvent[]): NoteEvent[] {
   const MIN_AUDIBLE = 0.125;
   const sorted = notes.slice().sort((a, b) => a.beat - b.beat);
@@ -341,7 +220,9 @@ export function trim(notes: NoteEvent[]): NoteEvent[] {
 // ---------------------------------------------------------------------------
 
 /** The plan as text. See `docs/tune-plan.md` §4.6 — this is how a tune is debugged. */
-export function describeTune(plan: TunePlan, notes: readonly NoteEvent[]): string[] {
+export function describeTune(
+  plan: TunePlan, notes: readonly NoteEvent[], slotsPerBar = 16,
+): string[] {
   const lines = [
     `archetype  ${ARCHETYPES[plan.archetype].label} — ${ARCHETYPES[plan.archetype].gloss}`,
     `form       ${plan.form}`,
@@ -356,6 +237,11 @@ export function describeTune(plan: TunePlan, notes: readonly NoteEvent[]): strin
     lines.push(`  ${''.padEnd(7)} contour ${m.contour.join(' ')}`);
   }
   lines.push('', 'phrases');
-  for (const line of describePhrases(plan.phrases)) lines.push('  ' + line);
+  const described = describePhrases(plan.phrases);
+  plan.phrases.forEach((p, i) => {
+    lines.push('  ' + described[i]!);
+    const skeleton = plan.skeletons[p.id];
+    if (skeleton) lines.push(`        bones  ${describeSkeleton(skeleton, slotsPerBar)}`);
+  });
   return lines;
 }
