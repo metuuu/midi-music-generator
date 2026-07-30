@@ -96,11 +96,16 @@ export interface SynthRigOptions {
   /**
    * The extra keyboards this station carries, beyond the one under the hands.
    *
-   * Empty for every rig but a modular, which is a frame rather than a keyboard
-   * — see `SynthRigSpec.maxBoards`. The rig's job is to hold them up: the keys
+   * A modular frame or a digital stack, and never a polysynth — see
+   * `SynthRigSpec.maxBoards`. The rig's job is to hold them up: the keys
    * themselves belong to `synth.ts` on the other side of this seam, and a rig
    * that moved one would break the contact its own choreography was written
    * against.
+   *
+   * There is one of these when the music asked for one, which is what
+   * `boardsWanted` in `concert/cast.ts` decides — a second part to put on it, or
+   * a part that has to split across two keyboards. A rig is never handed a board
+   * that nobody will play on.
    *
    * Board 0 is deliberately not in here. It sits on whatever this rig already
    * builds for it, and passing it would invite a second shelf under the one

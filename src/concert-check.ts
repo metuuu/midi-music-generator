@@ -24,6 +24,7 @@ import { isPlayedByHand } from './core/types.js';
 import { generateSong } from './generate/song.js';
 import { GENRE_IDS, getGenre } from './genre/index.js';
 import { INSTRUMENTS, type InstrumentId } from './style/instruments.js';
+import { trackForPart } from './concert/choreograph.js';
 import {
   ARCHETYPES, ARCHETYPE_OF, SYNTH_RIGS, archetypeForTrack, trackCanReach,
 } from './concert/instruments.js';
@@ -197,10 +198,16 @@ for (const gid of CHECKED_GENRES) {
         // Coverage: one note does NOT mean one gesture in general — a guitarist
         // frets and plucks, a trombonist moves a slide while the sound comes out
         // of their mouth. The *sounding* effector is what must line up 1:1.
-        const track = song.tracks.find((t) => t.layer === performer.layer);
+        //
+        // Every part this player is carrying, not just the one they were cast
+        // for: a keyboard player covering the bass in their left hand owns two
+        // tracks' worth of notes and must produce two tracks' worth of gestures.
+        // See `Performer.doubles`. This is the assertion that a merged station
+        // is really playing both lines rather than dropping one of them.
         const notes = performer.layer === 'drums'
           ? song.drums.events.length
-          : track?.notes.length ?? 0;
+          : [performer, ...(performer.doubles ?? [])]
+            .reduce((n, ref) => n + (trackForPart(song, ref)?.notes.length ?? 0), 0);
         const sounded = part.gestures.filter(
           (g) => sounding.has(g.effector) && g.target.kind !== 'rest'
             && !silentPedal(g) && !panelTouch(g),
@@ -744,6 +751,55 @@ check('visemes exist exactly when there is a voice', visemeGaps === 0,
     rushed ? `${rushed} of ${crossings}: ${notes.join('; ')}`
       : `${crossings} crossings by ${players} players, tightest with ${
         crossings ? worst.toFixed(3) : '—'} beats to spare`);
+}
+
+/**
+ * Every keyboard somebody stands at gets played.
+ *
+ * The rule that makes gear honest, and the one thing nothing was asserting while
+ * three players in ten stood behind a board their hands never reached. A second
+ * keyboard is not scenery, a set dressing or a silhouette: if it is on the
+ * stand, a hand lands on it during the number.
+ *
+ * It holds by construction now rather than by luck — `boardsWanted` in `cast.ts`
+ * gives a player a second board only when there is a second part to put on it or
+ * a part that has to split across two — so this check is the guard on that
+ * derivation. A board with no gesture on it means something upstream started
+ * drawing a number again.
+ *
+ * Stated per board rather than per player on purpose: "the player used more than
+ * one keyboard" would pass a four-board rig that touched two of them.
+ */
+{
+  let stations = 0;
+  let idle = 0;
+  const notes: string[] = [];
+  for (const gid of CHECKED_GENRES) {
+    for (let i = 0; i < 5; i++) {
+      const concert = buildConcert({ seed: `idle-${gid}-${i}`, genre: gid });
+      for (const number of concert.numbers) {
+        for (const p of number.cast.performers) {
+          const boards = p.boards ?? 1;
+          if (boards < 2) continue;
+          stations++;
+          const played = new Set<number>();
+          for (const g of number.choreography.parts[p.id]?.gestures ?? []) {
+            if (g.target.kind === 'key') played.add(g.target.board ?? 0);
+          }
+          for (let b = 0; b < boards; b++) {
+            if (played.has(b)) continue;
+            idle++;
+            if (notes.length < 3) {
+              notes.push(`${gid}#${i} ${p.id} (${p.rig}, ${boards} boards) never touches ${b}`);
+            }
+          }
+        }
+      }
+    }
+  }
+  check('every keyboard a player stands at is played', idle === 0,
+    idle ? `${idle} untouched: ${notes.join('; ')}`
+      : `${stations} multi-board stations, every board in use`);
 }
 
 /**

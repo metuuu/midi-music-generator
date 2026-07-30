@@ -61,12 +61,21 @@ import type { LayerId, Song } from '../core/types.js';
 import { LAYER_ORDER, isPlayedByHand } from '../core/types.js';
 import { GENRES } from '../genre/index.js';
 import type { EraProfile } from '../style/types.js';
+/**
+ * Two questions about hands, asked of the file that owns them.
+ *
+ * The import runs the unusual way round — casting reading the choreographer —
+ * and it is the right way round: whether one hand can hold a voicing is
+ * `grabSpan`'s business and nobody else's, and this file needs the answer
+ * before it can decide that two lines are one player. See `oneHanded`.
+ */
+import { oneHanded, trackForPart } from './choreograph.js';
 import {
   DRUM_ARCHETYPE, SYNTH_RIGS, VOCAL_ARCHETYPE, archetypeForTrack, rigPoolFor,
   specFor,
 } from './instruments.js';
 import type {
-  Accessory, Archetype, ArchetypeSpec, Cast, HairStyle, Look, Performer,
+  Accessory, Archetype, ArchetypeSpec, Cast, HairStyle, Look, PartRef, Performer,
   Posture, StageMachine, Station, SynthRigId, Venue,
 } from './types.js';
 
@@ -268,6 +277,13 @@ interface Slot {
   rig?: SynthRigId;
   /** How many keyboards they stand at. See `assignRigs`. */
   boards?: number;
+  /** Other lines this player is covering. See `mergeStations`. */
+  doubles: PartRef[];
+  /**
+   * How many keyboards this player's music actually asks for, before any rig
+   * says how many it can hold. See `boardsWanted` and `assignRigs`.
+   */
+  wantBoards: number;
 }
 
 const ROLE_OF: Record<LayerId, Role> = {
@@ -689,6 +705,146 @@ function makeLook(args: {
 // Casting
 // ---------------------------------------------------------------------------
 
+/** A player-to-be: one part, plus any others they end up covering. */
+interface Draft {
+  layer: LayerId;
+  archetype: Archetype;
+  instrument: string;
+  doubles: PartRef[];
+}
+
+/**
+ * The most lines one player may cover.
+ *
+ * Two, because two hands. It is not a taste limit that could be turned up: each
+ * line is choreographed onto one hand — see `PartShare` — and a third would have
+ * to share, at which point the hand is in two places and the stage is showing
+ * something nobody can do. A third keyboard therefore needs a different idea
+ * (lines that alternate by section, so both hands are free for each in turn),
+ * not a bigger number here.
+ */
+const MAX_PARTS = 2;
+
+/**
+ * How often two lines that *could* be one player actually are.
+ *
+ * Not 1. A band with two keyboard players is as real as a band with one, and
+ * always merging would trade one monotony for another — every stage in the
+ * catalogue with exactly as few people as physically possible. This is the
+ * variation the whole change is for, so it sits nearer the middle than the
+ * edges.
+ */
+const MERGE_CHANCE = 0.55;
+
+/**
+ * One player, two lines, where the music allows it.
+ *
+ * ## Why a stage of keyboard players was the wrong picture
+ *
+ * One track, one performer was the rule, and it produced numbers with five
+ * people on stage each minding a single line. That is not what a synth band
+ * looked like: the keyboard bass and the tune came out of the same person, with
+ * a hand on each, which is Manzarek's left arm and Emerson's and half of what a
+ * two-tier stand was *for*. Measured across the four checked genres before this
+ * existed: 49 of 118 numbers put two or more keyboard players up, and 21 of
+ * those put up three or more.
+ *
+ * It is also the answer to a second complaint, and that is the reason it lives
+ * here rather than in a wish list. A rig with several keyboards needs a reason
+ * for the second one, and until now the reason was a weighted draw — so three
+ * players in ten stood behind a wing of keys their hands never reached. Boards
+ * are now derived from parts (see `boardsWanted`), so a keyboard and something
+ * to play on it arrive together or neither does.
+ *
+ * ## What may merge
+ *
+ * **Keyboards only.** A second line on a trumpet is not a thing a person has.
+ * The archetype is `synth` specifically rather than every keyboard: a pianist
+ * doubling on organ is two instruments in two places, which is a staging problem
+ * and not this one.
+ *
+ * **Both lines have to fit one hand each.** `oneHanded` is the whole test, and
+ * it is the choreographer's own rule rather than a guess made here. It is why
+ * pads almost never merge — a four-voice pad is a two-handed part by
+ * `grabSpan`'s reckoning, so it *is* somebody's line — and why bass and melody
+ * almost always can.
+ *
+ * **The more prominent line keeps the player.** The queue is in `PROMINENCE`
+ * order, so a bass folded into a melody leaves a melody player standing rather
+ * than a bass player who happens to have the tune. That matters beyond
+ * tidiness: the lead, the follow spot and the front line are all decided from
+ * `layer`, and the surviving performer has to be the one the number is about.
+ */
+function mergeStations(drafts: Draft[], song: Song, seed: string): void {
+  const rng = new Rng(seed);
+  const open = drafts.filter((d) => {
+    if (d.archetype !== 'synth') return false;
+    const track = trackForPart(song, d);
+    return Boolean(track?.notes.length) && oneHanded(d.archetype, track!.notes);
+  });
+  if (open.length < 2) return;
+
+  // Most prominent first, so the host of a pair is the line the number is about.
+  const queue = [...open].sort((a, b) => PROMINENCE[a.layer] - PROMINENCE[b.layer]);
+
+  /**
+   * Off the front of the queue, and whoever is taken comes off the back of it.
+   *
+   * The host has to be the more prominent of the two *whenever a pair happens*,
+   * which is why the coin is flipped inside this loop rather than over the
+   * candidates: a coin drawn per candidate leaves the melody free to decline and
+   * the bass free to swallow it a moment later, and a bass player who happens to
+   * have the tune in their right hand is the wrong way round. Declining takes
+   * you out of the pool in both directions.
+   *
+   * The tail is the partner because a tune that swallows the bass is the pairing
+   * this whole thing is named after; a tune that swallows the countermelody and
+   * leaves a separate bass player saves the same body and says less about the
+   * band.
+   */
+  const folded: Draft[] = [];
+  while (queue.length) {
+    const host = queue.shift()!;
+    if (host.doubles.length + 1 >= MAX_PARTS) continue;
+    if (!queue.length) break;
+    if (!rng.chance(MERGE_CHANCE)) continue;
+    const taken = queue.pop()!;
+    host.doubles.push({ layer: taken.layer, instrument: taken.instrument });
+    folded.push(taken);
+  }
+
+  for (const d of folded) drafts.splice(drafts.indexOf(d), 1);
+}
+
+/**
+ * How many keyboards this player's music asks for.
+ *
+ * Two reasons a second board is real, and nothing else counts:
+ *
+ *  - **A second line to put on it.** A player covering two parts has one under
+ *    each hand, and the upper board is where the right hand's line lives.
+ *  - **One line that needs both hands.** A part with voicings too wide to grab
+ *    is split at its widest interval, and that split is exactly the moment
+ *    `pickBoard` sends the right hand up to the tier. A pad is this case, every
+ *    time, which is why the stacked silhouette survives the change.
+ *
+ * A lone line one hand can hold gets one keyboard, because nothing would ever
+ * take a hand off it. That is the whole of the deletion: this used to be
+ * `rng.weighted([[1, 3], [2, 4], [3, 2], [4, 1]])`, which put three and four
+ * boards behind players whose hands could not have filled two.
+ *
+ * Capped where the rig's own ceiling is lower — see `SYNTH_RIGS` — so a player
+ * with two lines and a Prophet plays both on the one keyboard, which is what a
+ * player with one keyboard does.
+ */
+function boardsWanted(draft: Draft, song: Song): number {
+  if (draft.archetype !== 'synth') return 1;
+  if (draft.doubles.length) return 1 + draft.doubles.length;
+  const track = trackForPart(song, draft);
+  if (!track?.notes.length) return 1;
+  return oneHanded(draft.archetype, track.notes) ? 1 : 2;
+}
+
 /**
  * Turn the song's tracks into players.
  *
@@ -707,7 +863,7 @@ function roster(
   song: Song, seed: string, wardrobe: Wardrobe, density: number, year: number,
   genre: string,
 ): Slot[] {
-  const drafts: { layer: LayerId; archetype: Archetype; instrument: string }[] = [];
+  const drafts: Draft[] = [];
 
   for (const layer of LAYER_ORDER) {
     if (layer === 'drums') {
@@ -723,7 +879,9 @@ function roster(
        * machine has no face, no clothes and no limbs to choreograph.
        */
       if (song.drums.events.length && isPlayedByHand(song.drums.source ?? 'kit')) {
-        drafts.push({ layer, archetype: DRUM_ARCHETYPE, instrument: `${song.drums.bank} kit` });
+        drafts.push({
+          layer, archetype: DRUM_ARCHETYPE, instrument: `${song.drums.bank} kit`, doubles: [],
+        });
       }
       continue;
     }
@@ -756,9 +914,19 @@ function roster(
       const archetype = track.voice
         ? VOCAL_ARCHETYPE
         : (archetypeForTrack(track) ?? 'synth');
-      drafts.push({ layer, archetype, instrument: track.instrument });
+      drafts.push({ layer, archetype, instrument: track.instrument, doubles: [] });
     }
   }
+
+  /**
+   * …and then some of those keyboard players turn out to be one person.
+   *
+   * Before the ids and the looks, because a player who has been folded into
+   * somebody else should never have had a name or a jacket — and after the whole
+   * list exists, because whether two lines are one player is a question about the
+   * pair and not about either of them. See `mergeStations`.
+   */
+  mergeStations(drafts, song, `${seed}:cast:stations`);
 
   const uniformRng = new Rng(`${seed}:cast:uniform`);
   const uniform = {
@@ -804,6 +972,8 @@ function roster(
       head: headAbove(spec.posture, look.height),
       box: { x0: 0, x1: 0, z0: 0, z1: 0 },
       avoidFrontCentre: false,
+      doubles: d.doubles,
+      wantBoards: boardsWanted(d, song),
     });
   }
   assignRigs(slots, year, genre, seed);
@@ -880,27 +1050,25 @@ function assignRigs(slots: Slot[], year: number, genre: string, seed: string): v
     s.r = spec.footprint;
     s.head = Math.max(s.head, spec.height);
     /**
-     * How many keyboards this player stands at.
+     * How many keyboards this player stands at: what their music asked for, or
+     * what this rig can hold, whichever is smaller.
      *
-     * A question for the two rigs that carry more than one board and not for
-     * the polysynth, which is a keyboard and stays one. Drawn rather than
-     * fixed, because a rig with three boards and a rig with one are both real
-     * and the difference is what the number needed.
+     * **Nothing is drawn here any more, and that is the fix.** It used to be
+     * `rng.weighted([[1, 3], [2, 4], [3, 2], [4, 1]])` — Emerson at the tail,
+     * two boards in the middle — and a weighted draw cannot know whether the
+     * part in front of this player will ever take a hand off the first
+     * keyboard. Three players in ten stood behind a board their hands never
+     * reached, which is the same fault as a keybed with no keys in it: gear
+     * that is there to be looked at. `boardsWanted` asks the music instead.
      *
-     * Weighted toward the smaller counts. Four boards is Emerson, and Emerson
-     * is not what most nights looked like; two is a player who wanted a second
-     * sound within reach, which is most of them.
-     *
-     * One table for both rigs, clamped by `maxBoards` rather than branched on
-     * the rig, and the clamp says the right thing on its own: a digital slab
-     * caps at two, so the draw lands as seven stacks in ten and three lone
-     * slabs — which is what a room of them looked like. The rest of the table
-     * is a frame's question and only a frame ever sees it.
+     * The rig's own ceiling still binds, and it says something true when it
+     * does: two lines and a Prophet is a player with both hands on one
+     * keyboard, which is how a Prophet is played.
      */
-    if (spec.maxBoards > 1) {
-      const boards = rng.weighted([[1, 3], [2, 4], [3, 2], [4, 1]] as const);
-      s.boards = Math.min(boards, spec.maxBoards);
-      // Wings cost width the tier does not. Only the counts that have them pay.
+    if (spec.maxBoards > 1 && s.wantBoards > 1) {
+      s.boards = Math.min(s.wantBoards, spec.maxBoards);
+      // Wings cost width the tier does not. Nothing reaches three today — see
+      // `MAX_PARTS` — so nothing pays it; it is here for when something does.
       if (s.boards >= 3) s.r += 0.20;
     }
   }
@@ -2406,6 +2574,35 @@ function fixSightlines(slots: Slot[]): boolean {
 // ---------------------------------------------------------------------------
 
 /**
+ * Who is playing a given line — including where it is somebody's second one.
+ *
+ * `Performer.layer` is the part a player was cast for, and it stopped being the
+ * whole answer the moment one player could carry two: a section whose solo is on
+ * the bass, in a number where the bass is the melody player's left hand, has a
+ * soloist standing right there and no performer whose `layer` says so. Both solo
+ * paths used to look up the layer directly and both would have dropped the spot
+ * — a solo nobody is lit for, which reads as the number forgetting about itself.
+ *
+ * Primary parts win over doubles, so a layer that still has its own player is
+ * unaffected however many people are doubling. `instrument` breaks a tie where a
+ * layer somehow carries two tracks, exactly as `trackForPart` does.
+ */
+export function playerFor(
+  cast: Cast, layer: LayerId, instrument?: string,
+): Performer | undefined {
+  const own = cast.performers.filter((p) => p.layer === layer);
+  const doubling = cast.performers.filter(
+    (p) => p.doubles?.some((d) => d.layer === layer),
+  );
+  const candidates = [...own, ...doubling];
+  if (instrument === undefined) return candidates[0];
+  return candidates.find((p) => (p.layer === layer
+    ? p.instrument === instrument
+    : p.doubles?.some((d) => d.layer === layer && d.instrument === instrument)))
+    ?? candidates[0];
+}
+
+/**
  * Cast, dress and stage one number.
  *
  * `venue` rather than a genre string, because staging is a fact about the room:
@@ -2447,6 +2644,8 @@ export function castSong(song: Song, venue: Venue, seed: string): Cast {
       station,
       ...(s.rig ? { rig: s.rig } : {}),
       ...(s.boards && s.boards > 1 ? { boards: s.boards } : {}),
+      // Absent on everybody who is playing the one line they were cast for.
+      ...(s.doubles.length ? { doubles: s.doubles } : {}),
     };
   });
 

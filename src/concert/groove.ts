@@ -45,6 +45,7 @@ import { SLOTS_PER_BEAT, quantise, slotOf } from '../core/grid.js';
 import { Rng } from '../core/rng.js';
 import type { DrumVoice, LayerId, Section, Song } from '../core/types.js';
 import { sectionIntensity } from '../generate/dynamics.js';
+import { playerFor } from './cast.js';
 import type {
   Cast, GrooveBehaviour, GroovePart, GrooveScore, Performer, Span,
 } from './types.js';
@@ -461,9 +462,9 @@ function soloSpans(song: Song, cast: Cast): SoloSpan[] {
   const out: SoloSpan[] = [];
   for (const section of song.sections) {
     if (!section.solo) continue;
-    const candidates = cast.performers.filter((p) => p.layer === section.solo!.layer);
-    const performer = candidates.find((p) => p.instrument === section.solo!.instrument)
-      ?? candidates[0];
+    // Through `playerFor` rather than by layer, so a line somebody is covering
+    // as their second one still has a soloist. See `Performer.doubles`.
+    const performer = playerFor(cast, section.solo.layer, section.solo.instrument);
     if (!performer) continue;
     out.push({
       fromBeat: quantise(section.startBar * barBeats),

@@ -56,7 +56,7 @@ import {
 } from './instruments.js';
 import type {
   Archetype, ArchetypeSpec, Cast, Choreography, Effector, Gesture, GestureKind,
-  Performer, PerformerPart, PlayPoint, StageMachine,
+  PartRef, Performer, PerformerPart, PlayPoint, StageMachine,
 } from './types.js';
 
 // ---------------------------------------------------------------------------
@@ -401,6 +401,40 @@ function grabSpan(archetype: Archetype, notes: number): number {
 }
 
 /**
+ * Whether one hand could carry this part from end to end.
+ *
+ * The question casting has to answer before it can put two lines on one player:
+ * a person has two hands, so two parts fit one body exactly when each of them
+ * fits one hand. A part with a single voicing wider than a grab is a two-handed
+ * part and cannot be anybody's second line — it *is* their line.
+ *
+ * **Exported, and the direction of that import is the point.** What a hand can
+ * hold is a fact this file owns — see `grabSpan` above, and the corpus argument
+ * in it — and `cast.ts` needs the answer to decide whether a band of five
+ * keyboard players is really a band of four. The alternative is a second copy of
+ * `grabSpan`'s rule in a file that has no business restating it, which is the
+ * failure mode this project keeps writing single-owner tables to avoid. See
+ * `mergeStations`.
+ *
+ * It reads the raw pitches rather than the folded ones `keyboardPart` groups,
+ * which is an approximation of exactly one kind: a note outside the
+ * instrument's reach is folded by octaves before it is grouped, so a part with
+ * such a note could be judged on a span it will not actually be played at.
+ * `npm run concert` measures that at 0.0000% of notes, so the two agree
+ * everywhere it matters and the honest thing is to say so rather than to thread
+ * a reach through here.
+ */
+export function oneHanded(archetype: Archetype, notes: readonly NoteEvent[]): boolean {
+  for (const group of groupByBeat(notes.slice())) {
+    if (group.length < 2) continue;
+    const midis = group.map((n) => n.midi).sort((a, b) => a - b);
+    const span = midis[midis.length - 1]! - midis[0]!;
+    if (span > grabSpan(archetype, midis.length)) return false;
+  }
+  return true;
+}
+
+/**
  * What this player can physically be asked for.
  *
  * Three sources, intersected, and each of them can be the binding one:
@@ -546,10 +580,52 @@ function gesturesFor(
   if (performer.archetype === 'drumkit' || performer.layer === 'drums') {
     drumPart(song.drums.events, board);
   } else {
-    const track = trackFor(song, performer);
-    if (track) {
-      const notes = track.notes.slice().sort((a, b) => a.beat - b.beat || a.midi - b.midi);
-      playPart(notes, track, performer, spec, board);
+    /**
+     * Every line this player is carrying, and there is usually one.
+     *
+     * A part that resolves to no track, or to a track with no notes, is dropped
+     * here rather than choreographed as silence — `choreograph` promises a
+     * performer with nothing to play an empty part, and a double that has gone
+     * missing should leave the hand that would have been on it free.
+     */
+    const parts: { track: Track; notes: NoteEvent[] }[] = [];
+    for (const ref of [performer, ...(performer.doubles ?? [])]) {
+      const track = trackForPart(song, ref);
+      if (!track?.notes.length) continue;
+      parts.push({
+        track,
+        notes: track.notes.slice().sort((a, b) => a.beat - b.beat || a.midi - b.midi),
+      });
+    }
+
+    if (parts.length === 1) {
+      playPart(parts[0]!.notes, parts[0]!.track, performer, spec, board);
+    } else if (parts.length > 1) {
+      /**
+       * Two lines, one player: **a hand each, lowest to the left**.
+       *
+       * The hand split is what makes this safe rather than merely plausible.
+       * Each part is choreographed on its own effector, so the two never compete
+       * for a limb — `Board.place` keeps its bookkeeping per effector and would
+       * otherwise be handed a second part that rewinds the clock on a hand it
+       * had already scheduled to the end of the number. Casting guarantees the
+       * halves fit: see `oneHanded`, which is the test it uses to allow this at
+       * all.
+       *
+       * Lowest to the left hand is not a convention, it is the only way round it
+       * is played: the keyboard bass sits under the left hand and the tune under
+       * the right, which is Manzarek's whole left arm and Emerson's. It also
+       * decides the keyboards for free — the right hand is the one that goes up
+       * to the tier, which is the same answer `pickBoard` gives for a split
+       * voicing and for the same reason, since a left hand crossing up to a
+       * second board is a circus trick.
+       */
+      parts.sort((a, b) => mean(a.notes.map((n) => n.midi)) - mean(b.notes.map((n) => n.midi)));
+      const top = (performer.boards ?? 1) - 1;
+      parts.forEach((part, i) => playPart(part.notes, part.track, performer, spec, board, {
+        only: i === 0 ? 'left-hand' : 'right-hand',
+        atBoard: Math.min(i, top),
+      }));
     }
   }
 
@@ -795,20 +871,45 @@ function operatePart(song: Song, machines: StageMachine[], board: Board): void {
 }
 
 /**
- * Which track this performer is playing.
+ * Which track a part reference names.
  *
  * By layer, which is what `Performer.layer` means, and by instrument name where
  * a layer somehow carries more than one track — the Song IR does not forbid it
  * and a silent performer would be a worse failure than a guess.
+ *
+ * A `PartRef` rather than a `Performer` because a player may be carrying more
+ * than one line — see `Performer.doubles` — and the second one has to be looked
+ * up the same way the first is. A `Performer` *is* a `PartRef` structurally, so
+ * the primary part still resolves through this one function and there is no
+ * second description of "which track is this person playing" to disagree with
+ * it. `cast.ts` and `concert-check.ts` both need it too.
  */
-function trackFor(song: Song, performer: Performer): Track | undefined {
-  const candidates = song.tracks.filter((t) => t.layer === performer.layer);
+export function trackForPart(song: Song, ref: PartRef): Track | undefined {
+  const candidates = song.tracks.filter((t) => t.layer === ref.layer);
   if (candidates.length <= 1) return candidates[0];
-  return candidates.find((t) => t.instrument === performer.instrument) ?? candidates[0];
+  return candidates.find((t) => t.instrument === ref.instrument) ?? candidates[0];
+}
+
+/**
+ * One of a player's parts, where they are carrying more than one.
+ *
+ * Only keyboards ever see this — `mergeStations` merges nothing else, because a
+ * second line on a trumpet is not a thing a person has — so the branches below
+ * that ignore it are correct rather than unfinished. If it ever arrives on an
+ * archetype that cannot honour it, that archetype's part is played the way it
+ * always was and the collision would show up in the checks rather than on the
+ * stage.
+ */
+interface PartShare {
+  /** The one hand this part gets. The other is on the player's other line. */
+  only: Hand;
+  /** The keyboard it lives on, already clamped to what this player stands at. */
+  atBoard: number;
 }
 
 function playPart(
   notes: NoteEvent[], track: Track, performer: Performer, spec: ArchetypeSpec, board: Board,
+  share?: PartShare,
 ): void {
   const groups = groupByBeat(notes);
   const reach = reachFor(spec, track);
@@ -841,6 +942,8 @@ function playPart(
         ...(performer.boards && performer.boards > 1
           ? { boards: boardsFor(performer.boards) }
           : {}),
+        // One line of two: this hand, that keyboard, and no crossing.
+        ...(share ?? {}),
       });
       return;
     case 'harp':
@@ -1095,6 +1198,25 @@ interface KeyboardOptions {
    * about where a board is.
    */
   boards?: BoardSpec[];
+  /**
+   * Give this part one hand, because the other one is on another part.
+   *
+   * Set only where a player is carrying two lines — see `Performer.doubles` and
+   * `PartShare`. It replaces every hand decision below rather than biasing one:
+   * no proximity choice, no split at the widest interval, no crossing to another
+   * board. One line, one hand, and the other hand is somewhere else in this same
+   * schedule doing the same thing with the other line.
+   */
+  only?: Hand;
+  /**
+   * The keyboard this part lives on, instead of `pickBoard` choosing per figure.
+   *
+   * A player with two lines has put one sound on each board and is not hopping:
+   * the reason to cross mid-figure is a voicing too wide for one hand, and a
+   * part that got here has none. So the board is settled once, by casting, and
+   * the hand goes there and stays.
+   */
+  atBoard?: number;
 }
 
 /**
@@ -1190,10 +1312,13 @@ function keyboardPart(
    *    crossing that does not fit does not happen — the hand stays put and
    *    plays the notes where it is.
    *  - **Nothing to cross to.** A one-board station never reaches this at all.
+   *  - **Somebody already decided.** A player carrying two lines has one on each
+   *    board and this question does not arise; `atBoard` answers it.
    */
   const pickBoard = (
     hand: Hand, cluster: Midi[], beat: number, where: number, split: boolean,
   ): number => {
+    if (opts.atBoard !== undefined) return opts.atBoard;
     const boards = opts.boards;
     if (!boards || boards.length < 2 || !cluster.length) return 0;
     // Only the upper half of a split voicing goes up, and only the right hand
@@ -1235,7 +1360,12 @@ function keyboardPart(
     if (!midis.length) continue;
 
     let clusters: [Midi[], Midi[]];
-    if (opts.split !== undefined) {
+    if (opts.only) {
+      // One hand has this whole line, so there is nothing to divide: no
+      // proximity choice, and no splitting a voicing that casting has already
+      // established one hand can hold. See `oneHanded`.
+      clusters = opts.only === 'left-hand' ? [midis, []] : [[], midis];
+    } else if (opts.split !== undefined) {
       // The accordion is not split by proximity: the left hand is on bass and
       // chord buttons and the right hand is on a keyboard, and they are separate
       // instruments that happen to share a box.

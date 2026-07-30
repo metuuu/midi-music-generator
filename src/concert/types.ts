@@ -661,12 +661,52 @@ export interface Performer {
   /**
    * How many keyboards this player is standing at. Absent means one.
    *
-   * A modular frame or a digital stack — see `SynthRigSpec.maxBoards`.
-   * It is in the IR rather than drawn in the renderer for the reason `rig` is:
-   * the choreographer decides which board a phrase is played on and cannot see
+   * A modular frame or a digital stack — see `SynthRigSpec.maxBoards`. It is in
+   * the IR rather than drawn in the renderer for the reason `rig` is: the
+   * choreographer decides which board a phrase is played on and cannot see
    * geometry, so it has to be told how many there are and how far apart.
+   *
+   * **It is derived from the music and never drawn.** See `boardsWanted` in
+   * `cast.ts`: a second keyboard exists because there is a second part to put on
+   * it, or because this one part needs both hands often enough to send one of
+   * them up. It used to be a weighted draw, which is how three of these ended up
+   * with a wing of keys nobody's hands ever reached.
    */
   boards?: number;
+  /**
+   * The other parts this player is covering, beyond the one on `layer`.
+   *
+   * One person, several lines — the keyboard bass in the left hand and the tune
+   * in the right, which is Manzarek and Emerson and half the synth bands of the
+   * period. Absent on almost everybody.
+   *
+   * This is the only place in the IR where a performer is not one part, and it
+   * exists for two reasons that turn out to be the same one. A stage of five
+   * keyboard players each minding a single line is not what a band looked like:
+   * one player covering two of those lines is both commoner and more legible.
+   * And a rig with several keyboards on it needs a reason for the second one to
+   * be there — `boards` is derived from this, so a part and a keyboard arrive
+   * together or neither does.
+   *
+   * A reference rather than a copy of the track: `{layer, instrument}` is what
+   * `trackFor` already resolves against, so a double is looked up the same way
+   * the primary part is and there is one description of "which track is this
+   * person playing" rather than two that can disagree.
+   *
+   * What is deliberately *not* here: which hand, and which keyboard. Those are
+   * the choreographer's, exactly as `PlayPoint.board` is — casting says who is
+   * playing what, and the thing that can see the phrase decides how.
+   */
+  doubles?: readonly PartRef[];
+}
+
+/**
+ * A part, named the way `trackFor` looks one up: the layer it is on, and the
+ * instrument that distinguishes it where a layer carries more than one track.
+ */
+export interface PartRef {
+  layer: LayerId;
+  instrument: string;
 }
 
 export interface Cast {

@@ -21,7 +21,7 @@ import type { LayerId, Song } from '../core/types.js';
 import { generateSong, withCountIn, type GenerateOptions } from '../generate/song.js';
 import { getGenre } from '../genre/index.js';
 
-import { castSong } from './cast.js';
+import { castSong, playerFor } from './cast.js';
 import { choreograph } from './choreograph.js';
 import { scoreGroove } from './groove.js';
 import { scoreLighting } from './lighting.js';
@@ -133,9 +133,13 @@ function buildNumber(song: Song, venue: Venue, seed: string): ConcertNumber {
  * generator already guards against naming a soloist who wrote no notes, so this
  * should never fire; if it ever does, a missing spotlight is a far better
  * failure than a spotlight on the wrong player.
+ *
+ * "Nobody is playing" means nobody's hands, not nobody's `layer` — see
+ * `playerFor`. A keyboard player carrying the bass in their left hand is who a
+ * bass solo belongs to, and matching layers directly would have dropped the spot
+ * on the grounds that the person playing it was cast as something else.
  */
 export function resolveSolos(song: Song, cast: Cast): SoloSpot[] {
-  const byLayer = new Map(cast.performers.map((p) => [p.layer, p]));
   const { beatsPerBar } = song.meta;
   const spots: SoloSpot[] = [];
 
@@ -143,7 +147,7 @@ export function resolveSolos(song: Song, cast: Cast): SoloSpot[] {
     const section = song.sections[i]!;
     const solo = section.solo;
     if (!solo) continue;
-    const performer = byLayer.get(solo.layer);
+    const performer = playerFor(cast, solo.layer, solo.instrument);
     if (!performer) continue;
 
     spots.push({

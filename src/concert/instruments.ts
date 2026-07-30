@@ -539,7 +539,13 @@ export interface SynthRigSpec {
    * cheeks on an X-stand is the whole instrument, and a second one is a second
    * station rather than a second tier. A digital slab is a keyboard too — but
    * two of them on a double stand is what the decade looked like, so it stops at
-   * two: a stack, not a frame. See `boardsFor`.
+   * two: a stack, not a frame.
+   *
+   * **A ceiling, not a count.** How many a player actually stands at is
+   * `boardsWanted` in `cast.ts`, from the parts they are carrying; this is only
+   * how many *this object* could hold. So the modular's 4 is unreachable while a
+   * player is limited to two lines — see `MAX_PARTS` — and it stays 4 because the
+   * frame is the thing that could hold four, which is what this field means.
    */
   maxBoards: number;
 }
@@ -672,7 +678,23 @@ const GENRE_RIG_VETO: Record<string, SynthRigId[]> = {
 export interface BoardSpec {
   /** Metres from the station origin: `x` across, `y` up, `z` away from player. */
   at: readonly [number, number, number];
-  /** Radians, toed in toward the player. Sign follows the staging convention. */
+  /**
+   * Radians about `+y`, toeing the board in toward the player.
+   *
+   * **The sign is the opposite of a performer's `facing`, and that is not a
+   * mistake to be tidied up.** A body faces the house, so its forward is local
+   * `+z` and a player out at `+x` turns toward the middle with a *negative*
+   * facing — see `layoutGearArc`. A keyboard faces the other way: the hands come
+   * at it from upstage, so the face of it is local `−z`, and turning that face
+   * toward a player standing at the centre line means a *positive* yaw at `+x`.
+   *
+   * Written down because it was wrong here first, and wrong in the way that
+   * looks right: the wings carried a body's sign, which splayed them away from
+   * the player like a shop display, with their outer ends 1.55 m from the hands
+   * that were supposed to reach them and their faces pointing off into the wing
+   * masking. The convention note in `types.ts` avoids "stage-left" for exactly
+   * this class of bug; this is the same sentence one object further in.
+   */
   yaw: number;
   /** What this board can play. The main one is 88 keys; the extras are 61. */
   range: readonly [Midi, Midi];
@@ -683,6 +705,15 @@ const MAIN_BOARD: BoardSpec = { at: [0, 0, 0], yaw: 0, range: [21, 108] };
 
 /**
  * The extras, in the order a player would actually add them.
+ *
+ * **Only the tier is reachable today, and the wings are parked.** A board exists
+ * because a part needs it — see `boardsWanted` in `cast.ts` — and a player has
+ * two hands, so two parts, so two keyboards. What would unlock a third is a
+ * different idea rather than a bigger cap: parts that *alternate* by section,
+ * where both hands are free for each in turn and a third board is where the one
+ * that is waiting lives. The two entries below are the layout for that day, kept
+ * rather than deleted because the geometry is argued and correct — including,
+ * now, which way round they face.
  *
  * **A tier before a wing.** The second keyboard anybody buys goes *above* the
  * first, because it costs no floor and both hands can still reach it — which is
@@ -695,20 +726,33 @@ const MAIN_BOARD: BoardSpec = { at: [0, 0, 0], yaw: 0, range: [21, 108] };
  *
  * The wings are toed in half a radian and held at ±0.95, which keeps their
  * inner ends clear of the main board's own 0.61 m half-width in `z` rather than
- * in `x` — they sit 0.21 m further from the player than the main keys end.
+ * in `x` — they sit 0.21 m further from the player than the main keys end. Half
+ * a radian rather than the full 0.6 that would square them to the player: the
+ * toe-in brings the far end of a wing 0.12 m closer to the hands and turns its
+ * face out of profile, and past that the near end starts walking into the main
+ * board's own end cap.
+ *
+ * The sign of that half radian is `+` on the wing at `+x`. See `BoardSpec.yaw`,
+ * where it is argued, because it is the opposite of what a body would carry and
+ * it was wrong here for exactly that reason.
  */
 const EXTRA_BOARDS: readonly BoardSpec[] = [
   { at: [0, 0.285, 0.24], yaw: 0, range: [36, 96] },
-  { at: [0.95, 0.06, 0.16], yaw: -0.5, range: [36, 96] },
-  { at: [-0.95, 0.06, 0.16], yaw: 0.5, range: [36, 96] },
+  { at: [0.95, 0.06, 0.16], yaw: 0.5, range: [36, 96] },
+  { at: [-0.95, 0.06, 0.16], yaw: -0.5, range: [36, 96] },
 ];
 
 /**
- * The most boards any station carries. Beyond this a player is a trade stand.
+ * The most boards this table can lay out. Beyond it a player is a trade stand.
  *
  * `SYNTH_RIGS.modular.maxBoards` says 4 as a literal rather than referring to
  * this, because that table is declared above and a const cannot be read before
- * it exists. The check in `npm run concert` asserts the two agree.
+ * it exists. Nothing asserts that the two agree — an earlier version of this
+ * comment claimed `npm run concert` did, and it never has.
+ *
+ * What *is* asserted is the thing that matters more: `every keyboard a player
+ * stands at is played`. A count these two disagreed about would have to produce
+ * a board with no hand on it to do any harm, and that is the check that fires.
  */
 export const MAX_BOARDS = 1 + EXTRA_BOARDS.length;
 
