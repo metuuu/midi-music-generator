@@ -54,7 +54,7 @@ import type { Pc } from '../core/pitch.js';
 import { Rng } from '../core/rng.js';
 import type { Mode } from '../core/scale.js';
 import type { Song } from '../core/types.js';
-import type { StrictnessId } from '../generate/constraints.js';
+import type { StrictnessId } from '../core/rules.js';
 import { generateSong } from '../generate/song.js';
 import { GENRE_IDS, getGenre, type Genre } from '../genre/index.js';
 import type { EraProfile, Mood, Style } from '../style/types.js';
@@ -67,7 +67,7 @@ import type { ConcertOptions, VocalPolicy } from './types.js';
 /**
  * Smoothness for a concert number: the top half of the scale, never the bottom.
  *
- * Smoothness filters melodic and vertical roughness (`generate/constraints.ts`)
+ * Smoothness filters melodic and vertical roughness (`core/rules.ts`)
  * and the low end of the scale exists so that the axis means something at both
  * ends — `free` is a real sound, not an absence of care. But a concert is
  * *watched* as well as heard, under a follow spot, by an audience that can see

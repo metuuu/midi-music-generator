@@ -41,7 +41,7 @@ import type {
   EraProfile, LeftHandMode, Mood, Progression, Style, TwoHandedKeys,
 } from '../style/types.js';
 import { planRegisters, resolveCollisions } from './arrange.js';
-import { buildAccompaniment, getStrictness, resolveRules, type StrictnessId } from './constraints.js';
+import { buildAccompaniment, getStrictness, resolveRules, type StrictnessId } from '../core/rules.js';
 import { applyDynamics, sectionIntensity, swell } from './dynamics.js';
 import { applyFilter } from './filter.js';
 import { DEFAULT_FILLS } from './fills.js';
@@ -75,7 +75,7 @@ export interface GenerateOptions {
   targetSeconds?: number;
   /**
    * How hard to police the melody against known voice-leading faults.
-   * Defaults to 'standard'. See `generate/constraints.ts`.
+   * Defaults to 'standard'. See `core/rules.ts`.
    */
   strictness?: StrictnessId | number;
   /**

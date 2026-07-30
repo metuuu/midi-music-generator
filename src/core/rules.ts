@@ -21,13 +21,13 @@
  * never offend and rarely surprises.
  */
 
-import type { Chord } from '../core/chord.js';
-import { chordPcs } from '../core/chord.js';
-import type { Midi, Pc } from '../core/pitch.js';
-import { pc } from '../core/pitch.js';
-import type { Mode, Scale } from '../core/scale.js';
-import { scaleStepsBetween } from '../core/scale.js';
-import type { NoteEvent } from '../core/types.js';
+import type { Chord } from './chord.js';
+import { chordPcs } from './chord.js';
+import type { Midi, Pc } from './pitch.js';
+import { pc } from './pitch.js';
+import type { Mode, Scale } from './scale.js';
+import { scaleStepsBetween } from './scale.js';
+import type { NoteEvent } from './types.js';
 
 // ---------------------------------------------------------------------------
 // Levels

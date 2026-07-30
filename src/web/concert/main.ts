@@ -15,7 +15,7 @@
 import { Color, Fog, PCFShadowMap, Scene, WebGLRenderer } from 'three';
 
 import type { ConcertOptions } from '../../concert/types.js';
-import { STRICTNESS_LEVELS } from '../../generate/constraints.js';
+import { STRICTNESS_LEVELS } from '../../core/rules.js';
 import { HOOK_LEVELS } from '../../generate/hook.js';
 import { initAudio } from '../audio.js';
 import { createShow, type Show, type ShowState } from './show.js';

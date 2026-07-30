@@ -16,7 +16,7 @@ import { renderStrudel } from '../render/strudel.js';
 import { renderMidi } from '../render/midi.js';
 import { meterLabel, songDurationSeconds, type LayerId, type Song } from '../core/types.js';
 import { GENRES, getGenre } from '../genre/index.js';
-import { STRICTNESS_LEVELS, getStrictness, type StrictnessId } from '../generate/constraints.js';
+import { STRICTNESS_LEVELS, getStrictness, type StrictnessId } from '../core/rules.js';
 import { HOOK_LEVELS, getHook, type HookId } from '../generate/hook.js';
 
 const $ = <T extends HTMLElement>(id: string): T => {

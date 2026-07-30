@@ -22,7 +22,7 @@
 
 import { chordPcs } from '../../core/chord.js';
 import { makeScale, type ScaleName } from '../../core/scale.js';
-import { RULE_DISABLED } from '../../generate/constraints.js';
+import { RULE_DISABLED } from '../../core/rules.js';
 import type { Genre, FormStep } from '../types.js';
 import { STYLES } from './styles.js';
 import { ERAS } from './eras.js';

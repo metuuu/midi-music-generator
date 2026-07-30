@@ -12,7 +12,7 @@ import type {
 import type { InstrumentId } from './instruments.js';
 import type { Mode } from '../core/scale.js';
 import type { VoicingStyle } from '../core/voicing.js';
-import type { StrictnessId } from '../generate/constraints.js';
+import type { StrictnessId } from '../core/rules.js';
 import type { HookId } from '../generate/hook.js';
 import type { FillPalette } from '../generate/fills.js';
 

@@ -18,7 +18,7 @@ import type { NoteEvent, Song } from './core/types.js';
 import {
   buildAccompaniment, RULES, STRICTNESS_LEVELS, violationsOf,
   type Accompaniment, type NoteContext,
-} from './generate/constraints.js';
+} from './core/rules.js';
 import { generateSong } from './generate/song.js';
 
 const SLOTS_PER_BEAT = 4;

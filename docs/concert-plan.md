@@ -274,7 +274,7 @@ Concert numbers draw from the **top half** of the smoothness scale — `standard
 `strict` or `polished`, weighted toward `strict` — and never from `free` or `light`.
 
 The reasoning: smoothness is a filter on melodic and vertical roughness
-(`generate/constraints.ts`), and the low end exists so the axis means something at both
+(`core/rules.ts`), and the low end exists so the axis means something at both
 ends. But a concert is a performance in front of an audience, watched as well as heard,
 and a rough line is exactly the wrong thing to put under a spotlight. A polished band
 is what a stage implies.

@@ -58,7 +58,7 @@ import { IDIOMS, type IdiomProfile } from '../style/instruments.js';
 import {
   comfortableLeap, EMPTY_ACCOMPANIMENT, evaluate as evaluateRules, RULES,
   type Accompaniment, type NoteContext, type Rule,
-} from './constraints.js';
+} from '../core/rules.js';
 import type { Motto } from './motto.js';
 import { metricStrength, SLOTS_PER_BEAT, trimOverlaps } from './rhythm.js';
 

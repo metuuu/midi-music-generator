@@ -14,7 +14,7 @@ import { renderMidi } from './render/midi.js';
 import { renderStrudel } from './render/strudel.js';
 import { meterLabel, songDurationSeconds, type Song } from './core/types.js';
 import { GENRES, GENRE_IDS, getGenre } from './genre/index.js';
-import { STRICTNESS_IDS, type StrictnessId } from './generate/constraints.js';
+import { STRICTNESS_IDS, type StrictnessId } from './core/rules.js';
 import { HOOK_IDS, type HookId } from './generate/hook.js';
 
 interface Args {

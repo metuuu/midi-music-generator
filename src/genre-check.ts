@@ -13,7 +13,7 @@ import { generateSong } from './generate/song.js';
 import { generateLeftHand } from './generate/parts.js';
 import { getGenre, GENRE_IDS } from './genre/index.js';
 import { generateMelody } from './generate/melody.js';
-import { comfortableLeap } from './generate/constraints.js';
+import { comfortableLeap } from './core/rules.js';
 import type { HookId } from './generate/hook.js';
 import { chordPcs, parseRoman } from './core/chord.js';
 import { pc } from './core/pitch.js';

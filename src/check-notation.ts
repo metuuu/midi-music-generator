@@ -1,11 +1,12 @@
 /**
- * Sanity check on the emitted mini-notation.
+ * Sanity check on the emitted mini-notation, plus the tune engine's import wall.
  *
  * Each bar is its own group, so a bar may never start with a sustain marker and
  * a rest may never be followed by one. Both are parse errors in Strudel, and
  * both are easy to reintroduce when touching the grid builder.
  */
 
+import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { generateSong } from './generate/song.js';
 import { resolveVoice } from './render/drum-banks.js';
 import { renderStrudel } from './render/strudel.js';
@@ -89,6 +90,37 @@ console.log(
 // is tolerable for an ornament and not for the kit's backbone: no bank in the
 // pack lacks a kick, a snare or a hat, so a drop there means the table is wrong.
 if (dropped > 0) problems.push(`${dropped} drum parts had no playable substitute`);
+
+/**
+ * The tune engine's import wall.
+ *
+ * `src/tune/` is a from-scratch melodic engine and its whole value is that it
+ * inherited none of the previous one's assumptions. Those assumptions live in
+ * *types*: import `RhythmCell` and rhythm is bar-shaped again, import
+ * `HookLevel` and repetition is nine scalars rather than a derivation. So the
+ * rule is mechanical rather than aspirational — `core/` and nothing else, with
+ * `adapt.ts` the single door onto the style and genre tables.
+ *
+ * Checked here rather than in a script of its own because it is one grep, and a
+ * boundary nobody runs is not a boundary. See `docs/tune-plan.md` §3.
+ */
+const TUNE_DIR = new URL('./tune/', import.meta.url);
+if (existsSync(TUNE_DIR)) {
+  const allowed = /^(\.\/|\.\.\/core\/|node:)/;
+  let checked = 0;
+  for (const name of readdirSync(TUNE_DIR)) {
+    if (!name.endsWith('.ts') || name === 'adapt.ts') continue;
+    checked++;
+    const src = readFileSync(new URL(name, TUNE_DIR), 'utf8');
+    for (const m of src.matchAll(/from '([^']+)'/g)) {
+      const spec = m[1]!;
+      if (!allowed.test(spec)) {
+        problems.push(`tune/${name} imports "${spec}" — only core/ is allowed`);
+      }
+    }
+  }
+  console.log(`Tune engine: ${checked} files inside the import wall.`);
+}
 if (problems.length) {
   console.log(`\n${problems.length} problem(s):`);
   for (const p of [...new Set(problems)].slice(0, 15)) console.log('  ' + p);

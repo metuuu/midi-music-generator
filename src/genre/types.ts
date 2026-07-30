@@ -29,7 +29,7 @@ import type { Mode, Scale } from '../core/scale.js';
 import type {
   BackingPolicy, DrumVoice, Effects, LayerId, SectionKind, Space,
 } from '../core/types.js';
-import type { RuleOverrides, StrictnessId } from '../generate/constraints.js';
+import type { RuleOverrides, StrictnessId } from '../core/rules.js';
 import type { HookId } from '../generate/hook.js';
 import type { EraProfile, Mood, Style } from '../style/types.js';
 import type { VocalProfile } from '../style/vocals.js';

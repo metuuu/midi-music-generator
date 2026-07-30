@@ -21,7 +21,7 @@ export type { Style, EraProfile, Mood } from './style/types.js';
 export {
   STRICTNESS_LEVELS, STRICTNESS_IDS, getStrictness, RULES,
   type StrictnessId, type StrictnessLevel, type Rule,
-} from './generate/constraints.js';
+} from './core/rules.js';
 export { INSTRUMENTS, type Instrument } from './style/instruments.js';
 
 export { Rng } from './core/rng.js';

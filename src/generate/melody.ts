@@ -31,7 +31,7 @@ import {
   buildAccompaniment, comfortableLeap, EMPTY_ACCOMPANIMENT,
   evaluate as evaluateRules, RULES,
   type Accompaniment, type NoteContext, type Rule,
-} from './constraints.js';
+} from '../core/rules.js';
 import { getHook, type HookLevel } from './hook.js';
 import type { Motto } from './motto.js';
 import {

@@ -1,6 +1,6 @@
 # Smoothness
 
-`src/generate/constraints.ts` · full rule list in [rules.md](rules.md)
+`src/core/rules.ts` · full rule list in [rules.md](rules.md)
 
 Writing rules for what *should* happen only gets you so far. Much of what makes generated melody sound wrong is a short list of specific, nameable faults — an augmented second, a tritone leap, a leading tone left hanging. **19 of them are encoded as rules**, and a smoothness level decides how hard each is policed.
 
