@@ -21,7 +21,7 @@
 import { SLOTS_PER_BEAT } from '../core/grid.js';
 import type { Midi } from '../core/pitch.js';
 import { Rng } from '../core/rng.js';
-import { makeScale } from '../core/scale.js';
+import { makeScale, stepInScale, type Scale } from '../core/scale.js';
 import { EMPTY_ACCOMPANIMENT, RULES, type Accompaniment, type Rule } from '../core/rules.js';
 import type { NoteEvent } from '../core/types.js';
 import { describePhrases, planPhrases } from './grammar.js';
@@ -278,6 +278,99 @@ function peakPosition(arc: (pos: number) => Midi): number {
     if (h > height) { height = h; best = i / 32; }
   }
   return best;
+}
+
+// ---------------------------------------------------------------------------
+// Variation on recall
+// ---------------------------------------------------------------------------
+
+export interface VaryOptions {
+  notes: readonly NoteEvent[];
+  /** The key's own scale, for stepping. */
+  scale: Scale;
+  range: [Midi, Midi];
+  /** How far to go, 0..1. */
+  amount: number;
+  rng: Rng;
+}
+
+/**
+ * The same tune, with one thing changed.
+ *
+ * A real arrangement does not paste its chorus back in three times. It adds an
+ * ornament, holds the last note longer, takes the top note higher the final time —
+ * and those small differences are most of what makes a record sound arranged rather
+ * than assembled. `docs/hook.md` listed verbatim recall as a known limitation from
+ * the day recall was written.
+ *
+ * Note-level rather than plan-level, deliberately. The operators in `motif.ts` work
+ * on a figure and would need the whole plan re-realised to apply, which would
+ * produce a *different* tune — and a chorus that comes back different is not a
+ * chorus. These four are the ones a player actually does to a line they have already
+ * played twice.
+ */
+export function varyRecall(opts: VaryOptions): NoteEvent[] {
+  const { scale, range, rng } = opts;
+  let notes = opts.notes.map((n) => ({ ...n }));
+  if (notes.length < 3 || opts.amount <= 0) return notes;
+
+  const moves = Math.max(1, Math.round(opts.amount * 2.4));
+  for (let k = 0; k < moves; k++) {
+    notes = rng.weighted([
+      [liftPeak, 3],
+      [ornamentLongest, 3],
+      [holdLast, 2],
+      [addPickup, opts.amount > 0.5 ? 2 : 0.5],
+    ] as const)(notes, scale, range, rng);
+  }
+  return trim(notes);
+}
+
+/** Take the high note higher — the most idiomatic final-chorus gesture there is. */
+function liftPeak(notes: NoteEvent[], scale: Scale, range: [Midi, Midi], rng: Rng): NoteEvent[] {
+  const top = notes.reduce((a, b) => (b.midi > a.midi ? b : a));
+  const up = rng.chance(0.3) ? top.midi + 12 : stepInScale(scale, top.midi, 1);
+  if (up > range[1]) return notes;
+  return notes.map((n) => (n === top ? { ...n, midi: up, velocity: Math.min(1, n.velocity + 0.06) } : n));
+}
+
+/** Split the longest note into a note and its neighbour. */
+function ornamentLongest(notes: NoteEvent[], scale: Scale, range: [Midi, Midi], rng: Rng): NoteEvent[] {
+  let idx = -1;
+  let best = 0.7;
+  for (let i = 0; i < notes.length; i++) {
+    if (notes[i]!.duration > best) { best = notes[i]!.duration; idx = i; }
+  }
+  if (idx < 0) return notes;
+  const note = notes[idx]!;
+  const half = note.duration / 2;
+  const neighbour = stepInScale(scale, note.midi, rng.chance(0.6) ? 1 : -1);
+  if (neighbour < range[0] || neighbour > range[1]) return notes;
+  const out = notes.slice();
+  out.splice(idx, 1,
+    { ...note, duration: half },
+    { ...note, beat: note.beat + half, duration: half, midi: neighbour, velocity: note.velocity * 0.85 });
+  return out;
+}
+
+/** Sit on the arrival. A cadence held is a cadence meant. */
+function holdLast(notes: NoteEvent[]): NoteEvent[] {
+  const out = notes.slice();
+  const last = out[out.length - 1]!;
+  out[out.length - 1] = { ...last, duration: last.duration * 1.5 };
+  return out;
+}
+
+/** Come in early. What a singer does the third time they sing something. */
+function addPickup(notes: NoteEvent[], scale: Scale, range: [Midi, Midi], rng: Rng): NoteEvent[] {
+  const first = notes[0]!;
+  if (first.duration < 0.5) return notes;
+  const from = stepInScale(scale, first.midi, rng.chance(0.7) ? -1 : 1);
+  if (from < range[0] || from > range[1]) return notes;
+  return [
+    { ...first, beat: first.beat - 0.25, duration: 0.25, midi: from, velocity: first.velocity * 0.8 },
+    ...notes,
+  ];
 }
 
 /**

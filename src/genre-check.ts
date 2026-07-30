@@ -578,6 +578,14 @@ console.log('\nHook');
     return notes.map((n) => `${tick(n.beat - start)}:${n.midi - base}`).join(' ');
   };
 
+  /** Fraction of the shorter signature's tokens the two share, in order-free terms. */
+  const overlap = (a: string, b: string) => {
+    const xs = a.split(' ');
+    const ys = new Set(b.split(' '));
+    const shared = xs.filter((t) => ys.has(t)).length;
+    return shared / Math.max(1, Math.min(xs.length, ys.size));
+  };
+
   const recallProfile = (level: HookId, kind: string) => {
     let pairs = 0, recalled = 0, notes = 0, songs = 0;
     for (let i = 0; i < 40; i++) {
@@ -595,7 +603,13 @@ console.log('\nHook');
         const prior = first.get(key);
         if (prior === undefined) { first.set(key, sig); continue; }
         pairs++;
-        if (sig === prior) recalled++;
+        // Similar, not identical. A recalled chorus now comes back *varied* — an
+        // added ornament, the top note taken up, the arrival held — and demanding
+        // byte identity would count every one of those as a failure to recall.
+        // Five in six of the onset-and-interval tokens shared is well beyond what two
+        // freshly written choruses reach, which is what the `through` row measures —
+        // and it stays at zero, so the threshold is doing its job at both ends.
+        if (sig === prior || overlap(sig, prior) >= 0.85) recalled++;
       }
     }
     return { pct: (recalled / Math.max(1, pairs)) * 100, pairs, notesPerSong: notes / Math.max(1, songs) };

@@ -22,7 +22,7 @@
 import { CHORD_INTERVALS, parseRoman, type Chord } from '../core/chord.js';
 import { keyLabel, type Pc } from '../core/pitch.js';
 import { Rng } from '../core/rng.js';
-import type { Mode } from '../core/scale.js';
+import { makeScale, type Mode } from '../core/scale.js';
 import {
   DEFAULT_DRUM_MIX, DEFAULT_SPACE, SEQUENCER_FROM, canVary, eligibleDrumSources,
   isPlayedByHand,
@@ -47,6 +47,7 @@ import { applyFilter } from './filter.js';
 import { DEFAULT_FILLS } from './fills.js';
 import { getHook, RECALL_BIAS, type HookId } from './hook.js';
 import { composeSectionTune } from '../tune/adapt.js';
+import { varyRecall } from '../tune/tune.js';
 import type { Signature } from '../tune/judge.js';
 import { chooseMotto } from './motto.js';
 import { SLOTS_PER_BEAT, trimOverlaps } from './rhythm.js';
@@ -864,9 +865,24 @@ export function generateSong(opts: GenerateOptions = {}): Song {
           avoid: stated,
           mood: { leap: mood.leap, ornament: mood.ornament },
         });
+      /**
+       * A recalled tune comes back varied rather than pasted.
+       *
+       * How far varied is a property of *which* time this is, not of the hook
+       * setting: an arrangement leaves the second chorus nearly alone and takes the
+       * high note up on the last one. And a high hook setting wants *less*
+       * variation, not more — at `earworm` the whole point is that it is the same
+       * thing again. See `tune/tune.ts`.
+       */
       const melody = written
         ? written.notes
-        : replay(prior!.melody!, prior!.tonic, localTonic, ctxBase.startBeat, range);
+        : varyRecall({
+          notes: replay(prior!.melody!, prior!.tonic, localTonic, ctxBase.startBeat, range),
+          scale: makeScale(localTonic, mode),
+          range,
+          amount: Math.min(0.9, (0.2 + ordinal * 0.28) * (1.25 - hook.level * 0.18)),
+          rng: new Rng(`${seed}:vary:${s}${salt('melody')}`),
+        });
       // Only freshly written material joins the comparison set. A recalled chorus
       // resembling the chorus it recalls is the point of recalling it.
       if (written) stated.push(written.audition.signature);

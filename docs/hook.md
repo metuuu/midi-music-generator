@@ -93,14 +93,14 @@ From `npm run hook`, 40 mixed-genre seeds regenerated at each level:
                                   through      loose   standard     catchy    earworm
 
 Repetition
-  choruses recalled %                 0.0        0.0       50.9       56.6       66.0
-  all sections recalled %             0.8        0.8       35.4       40.8       50.8
-  bars restating an earlier bar %    34.4       35.6       54.5       59.9       60.8
+  choruses recalled %                 0.0        0.0       84.9       96.2       96.2
+  all sections recalled %             0.8        0.8       63.1       76.2       76.2
+  bars restating an earlier bar %    34.4       35.6       53.2       58.3       59.4
 
 Cost — variety given up
-  pitch classes / 4-bar phrase       4.49       4.47       4.44       4.46       4.41
-  distinct bar shapes / song         38.5       37.8       27.0       24.6       23.4
-  notes / song                        144        142        145        148        142
+  pitch classes / 4-bar phrase       4.49       4.47       4.46       4.49       4.43
+  distinct bar shapes / song         38.5       37.8       27.9       25.7       24.3
+  notes / song                        144        142        147        149        143
 ```
 
 The trade is real and worth stating plainly. By `earworm` a song is built from about
@@ -120,6 +120,8 @@ section's material at every level.
 
 ## Known limitations
 
-- **Recall is verbatim.** A real arrangement varies its final chorus — an extra ornament, a higher last note. Here it is the same tune, transposed. The tune engine has the operators to vary it (`ornament`, `expand`, `extend`) and nothing yet applies them on the way back; that is `tune-plan.md`'s Phase 6.
+- ~~**Recall is verbatim.**~~ Fixed. A recalled section comes back varied — an ornament added, the high note taken up, the arrival held, sometimes a pickup in front of it — and how far varied depends on *which* time this is rather than on the hook level: an arrangement leaves the second chorus nearly alone and takes the top note up on the last one. A high hook setting varies *less*, because at `earworm` the point is that it is the same thing again.
+
+  Both `npm run hook` and `npm run genres` therefore count a *similar* section as recalled rather than an identical one — five in six of its onset-and-interval tokens shared. Byte identity would score every variation as a failure to recall and report the axis as half as strong as it is. Two freshly written choruses do not reach the threshold, which is what the `through` column demonstrates.
 - **The intro never states the hook.** Stating the chorus melody in the intro is idiomatic in both genres, but intros are four bars against a chorus's eight, so the length-matched recall rule excludes them.
 - **Nothing recalls across kinds.** A bridge cannot quote the chorus.

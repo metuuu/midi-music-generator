@@ -50,6 +50,14 @@ function barSignature(notes: NoteEvent[], barStart: number): string {
     .join(' ');
 }
 
+/** Fraction of the shorter signature's tokens the two share, order-free. */
+function similar(a: string, b: string): number {
+  const xs = a.split(' ');
+  const ys = new Set(b.split(' '));
+  const shared = xs.filter((t) => ys.has(t)).length;
+  return shared / Math.max(1, Math.min(xs.length, ys.size));
+}
+
 /** The same idea for a whole section, used to detect a recalled chorus. */
 function sectionSignature(notes: NoteEvent[]): string {
   if (!notes.length) return '';
@@ -162,15 +170,26 @@ function measure(song: Song, m: Measurement): void {
       firstOfKind.set(key, sig);
       continue;
     }
+    /**
+     * Similar counts as recalled, and it has to.
+     *
+     * A recalled section comes back *varied* — an ornament added, the top note taken
+     * up, the arrival held — because an arrangement that pastes its chorus in three
+     * times is the thing `tune-plan.md` Phase 6 set out to stop. Byte identity would
+     * score every one of those as new material and report the axis as half as strong
+     * as it is. Five in six tokens shared is the threshold; two freshly written
+     * choruses do not reach it, which is what the `through` column demonstrates.
+     */
+    const same = sig === first || similar(sig, first) >= 0.85;
     if (sec.kind === 'solo') {
       m.soloPairs++;
-      if (sig === first) m.recalledSolos++;
+      if (same) m.recalledSolos++;
     } else {
       m.sectionPairs++;
-      if (sig === first) m.recalledSections++;
+      if (same) m.recalledSections++;
       if (sec.kind === 'chorus') {
         m.chorusPairs++;
-        if (sig === first) m.recalledChoruses++;
+        if (same) m.recalledChoruses++;
       }
     }
   }
