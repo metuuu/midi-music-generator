@@ -43,6 +43,15 @@
  * travelled half a metre down the slide with the right one and the horn was
  * carried by nothing. Measured now: 0.41 m apart in first position, 1.03 m at
  * seventh — which is simply what a trombone looks like.
+ *
+ * ## Past the face, not through it
+ *
+ * The bell section is the half of this horn that is *behind* the mouthpiece,
+ * and on a cast whose heads are 270 mm wide there is only one place it can go:
+ * outboard, past the cheek. It used to be built on the model's centreline and
+ * the back bow turned inside the player's head. `BELL_X` is that decision and
+ * carries the measurements; `geoNeck`, `geoInnerFar` and the stay's width are
+ * what it costs.
  */
 
 import {
@@ -226,14 +235,41 @@ const BELL_R = 0.103;
  * it. Measured against the head sphere: the back bow was 45 mm inside it and
  * the rotor 32 mm; after, 34 mm and 9 mm, and the bell tube is clear.
  *
- * The 34 mm that is left is not a depth problem and this constant cannot fix
- * it: the whole bell section is built on the model's centreline and lands only
- * 36 mm to the player's left, where a real one passes outside the ear. Moving
- * it would mean re-cutting `geoStay`, which has to physically bridge the two
- * slide tubes and the bell tube, so it is left as a known fault rather than
- * half-done.
+ * What was left after that is not a depth problem and this constant cannot fix
+ * it. It is a lateral one, and `BELL_X` is what fixes it.
  */
 const LIP_STANDOFF = 0.025;
+/**
+ * How far to the player's left the whole bell section rides.
+ *
+ * The bell section used to be built on the model's centreline, which put it
+ * 36 mm to the player's left — and the back bow, which turns 62 mm *backwards*
+ * to get from the slide up to the bell tube, turned straight into the face.
+ * Against the head ellipsoid (`performer.ts`: 2 × 2.10 × 1.90 `headR`, and
+ * `headR` is 0.078 of standing height) the outside of that tube measured 58 to
+ * 62 mm inside the head across the whole cast. That is the horn through the
+ * face, and it is what this constant is for.
+ *
+ * Going backwards is not the way out. The mouth is a point on the *front* of a
+ * head 260 mm deep, so a bow that clears behind the skull would have to sit
+ * 230 mm further back than this one and take the bell tube's length with it —
+ * a different instrument. A real trombone passes *beside* the head, so this one
+ * does too: 120 mm out, plus the 36 mm the model is already offset by, puts the
+ * bell tube 156 mm to the player's left. The head is 136 mm wide to a side at
+ * 1.75 m, so the tube runs just outside the cheek, and the bow — the deepest
+ * part, and the last to clear — has 26 mm of daylight there and 12 mm on the
+ * 2.10 m player whose head is the biggest thing the same-sized horn has to get
+ * round. Proportionally it is where a real bell tube sits: 1.14 head-radii off
+ * the face against a real player's 1.2.
+ *
+ * Three things follow from it and are not optional. `geoStay` has to grow to
+ * still bridge the slide, the far inner tube runs back to `BOW_Z` and a
+ * gooseneck carries the bore out to the bow, and the left hand goes with the
+ * bell tube it is holding.
+ */
+const BELL_X = 0.12;
+/** Where the back bow turns: just behind the mouthpiece, and 62 mm more behind that. */
+const BOW_Z = MOUTH_Z - 0.02;
 
 function bellProfile(len: number, r0: number, r1: number, steps: number): Vector2[] {
   const pts: Vector2[] = [];
@@ -309,6 +345,24 @@ export const buildTrombone: InstrumentBuilder = (opts: InstrumentBuildOptions): 
    */
   const geoBellRim = shared('bellrim', () => new TorusGeometry(BELL_R, 0.006, 5, 20));
   const geoInner = shared('inner', () => new CylinderGeometry(0.0072, 0.0072, INNER_FAR - INNER_NEAR, 8).rotateX(Math.PI / 2));
+  /**
+   * The far inner tube, which is not the same length as the near one.
+   *
+   * It has nothing at its near end — no mouthpiece, no receiver — and the bore
+   * carries on past the lips into the bow, so it runs back to `BOW_Z` where the
+   * gooseneck is. The near tube must *not*: its near end is the receiver, and
+   * 40 mm more of it would come out through the mouthpiece at the lips.
+   */
+  const geoInnerFar = shared('inner-far', () => new CylinderGeometry(0.0072, 0.0072, INNER_FAR - BOW_Z, 8).rotateX(Math.PI / 2));
+  /**
+   * The gooseneck: the cross-run that takes the bore out to the bell section.
+   *
+   * A real one is a curve and this is a straight length of tube, which is the
+   * simplification a 40-foot view pays for. What it is not is optional — with
+   * `BELL_X` at 120 mm the bow no longer stands over the slide, and without
+   * this the bell section is an object floating beside the horn.
+   */
+  const geoNeck = shared('neck', () => new CylinderGeometry(0.0105, 0.0105, BELL_X - SLIDE_X + 0.014, 8).rotateZ(Math.PI / 2));
   const geoOuter = shared('outer', () => new CylinderGeometry(0.0098, 0.0098, OUTER_LEN, 10).rotateX(Math.PI / 2));
   const geoCrook = shared('crook', () => new TorusGeometry(SLIDE_X, 0.0095, 6, 12, Math.PI).rotateX(Math.PI / 2));
   const geoBrace = shared('brace', () => new BoxGeometry(0.072, 0.012, 0.016));
@@ -318,11 +372,13 @@ export const buildTrombone: InstrumentBuilder = (opts: InstrumentBuildOptions): 
   /**
    * The bell-to-slide brace, which is a plate rather than a rod here.
    *
-   * It has to physically bridge three tubes 72 mm apart in x and 100 mm apart
-   * in y, or the bell section and the slide are two objects that happen to be
-   * near each other. It is also what the left hand holds.
+   * It has to physically bridge three tubes — the two slide tubes 72 mm apart
+   * in x and the bell tube `BELL_X` beyond them and 100 mm up — or the bell
+   * section and the slide are two objects that happen to be near each other.
+   * Its width is that whole span rather than a number, which is the only reason
+   * `BELL_X` could move without it having to be re-measured by hand.
    */
-  const geoStay = shared('stay', () => new BoxGeometry(SLIDE_X * 2 + 0.016, BELL_RISE, 0.014));
+  const geoStay = shared('stay', () => new BoxGeometry(BELL_X + SLIDE_X + 0.016, BELL_RISE, 0.014));
 
   // --- assembly ----------------------------------------------------------
   const root = new Group();
@@ -345,8 +401,9 @@ export const buildTrombone: InstrumentBuilder = (opts: InstrumentBuildOptions): 
    * The mouthpiece is in line with one of the two slide tubes, not with the
    * horn's centreline — which is why a trombonist's face is off to one side of
    * their own instrument. `station.offset.x` puts that tube back under the
-   * lips, so the bell ends up just left of the player rather than through
-   * their nose.
+   * lips, and everything else on the horn is then to the player's left of it:
+   * the far slide tube by 72 mm and the bell section by `BELL_X` more, which is
+   * what carries it past the head rather than through it.
    */
   const mouthpiece = addTo(horn, new Mesh(geoMouthpiece, matSlide));
   mouthpiece.name = 'mouthpiece';
@@ -355,22 +412,28 @@ export const buildTrombone: InstrumentBuilder = (opts: InstrumentBuildOptions): 
   receiver.name = 'receiver';
   receiver.position.set(-SLIDE_X, SLIDE_Y, MOUTH_Z + 0.075);
 
-  // The bell section wraps back behind the player's shoulder and comes
-  // forward again above the slide. That doubling back is the silhouette.
-  // Half way across in x, because it joins the far slide tube to the bell
-  // tube on the centreline and has to touch both.
+  // The bell section wraps back past the player's cheek and comes forward
+  // again above and outside the slide. That doubling back is the silhouette,
+  // and `BELL_X` is what keeps it beside the head instead of inside it.
+  //
+  // The gooseneck runs out at the bow's own z, where the head has already
+  // curved away: 17 mm of daylight at the inboard end, which is the tightest
+  // this horn passes anything.
+  const neck = addTo(horn, new Mesh(geoNeck, matBrass));
+  neck.name = 'gooseneck';
+  neck.position.set((SLIDE_X + BELL_X) / 2, SLIDE_Y - 0.006, BOW_Z);
   const backBow = addTo(horn, new Mesh(geoBackBow, matBrass));
   backBow.name = 'back-bow';
-  backBow.position.set(SLIDE_X / 2, SLIDE_Y + BELL_RISE / 2, MOUTH_Z - 0.02);
+  backBow.position.set(BELL_X, SLIDE_Y + BELL_RISE / 2, BOW_Z);
   const bellTube = addTo(horn, new Mesh(geoBellTube, matBrass));
   bellTube.name = 'bell-tube';
-  bellTube.position.set(0, SLIDE_Y + BELL_RISE, MOUTH_Z + 0.10);
+  bellTube.position.set(BELL_X, SLIDE_Y + BELL_RISE, MOUTH_Z + 0.10);
   bellTube.castShadow = true;
 
   const bellGroup = addTo(horn, new Group());
   // The 0.22 is where the flare starts, not its length; that it matches
   // `BELL_LEN` is a coincidence of this horn's proportions.
-  bellGroup.position.set(0, SLIDE_Y + BELL_RISE, MOUTH_Z + 0.22);
+  bellGroup.position.set(BELL_X, SLIDE_Y + BELL_RISE, MOUTH_Z + 0.22);
   const bell = addTo(bellGroup, new Mesh(geoBell, matBore));
   bell.name = 'bell';
   bell.castShadow = true;
@@ -382,10 +445,10 @@ export const buildTrombone: InstrumentBuilder = (opts: InstrumentBuildOptions): 
   // The F attachment: a rotor on the bell section and a thumb lever.
   const rotor = addTo(horn, new Mesh(geoRotor, matBrass));
   rotor.name = 'rotor';
-  rotor.position.set(0.028, SLIDE_Y + BELL_RISE * 0.72, MOUTH_Z - 0.005);
+  rotor.position.set(BELL_X + 0.028, SLIDE_Y + BELL_RISE * 0.72, MOUTH_Z - 0.005);
   rotor.rotation.z = Math.PI / 2;
   const trigger = addTo(horn, new Group());
-  trigger.position.set(0.012, SLIDE_Y + BELL_RISE / 2, MOUTH_Z + 0.01);
+  trigger.position.set(BELL_X + 0.012, SLIDE_Y + BELL_RISE / 2, MOUTH_Z + 0.01);
   const lever = addTo(trigger, new Mesh(geoLever, matDark));
   lever.name = 'trigger';
   lever.position.z = 0.04;
@@ -394,13 +457,15 @@ export const buildTrombone: InstrumentBuilder = (opts: InstrumentBuildOptions): 
   // the left hand actually holds, so it is where `GRIP_Z` says it is.
   const stay = addTo(horn, new Mesh(geoStay, matBrass));
   stay.name = 'grip-stay';
-  stay.position.set(0, SLIDE_Y + BELL_RISE / 2, GRIP_Z);
+  // Centred on its own span, from the near slide tube out to the bell tube.
+  stay.position.set((BELL_X - SLIDE_X) / 2, SLIDE_Y + BELL_RISE / 2, GRIP_Z);
 
-  for (const x of [-SLIDE_X, SLIDE_X]) {
-    const inner = addTo(horn, new Mesh(geoInner, matSlide));
-    inner.name = 'inner-slide';
-    inner.position.set(x, SLIDE_Y, (INNER_NEAR + INNER_FAR) / 2);
-  }
+  const near = addTo(horn, new Mesh(geoInner, matSlide));
+  near.name = 'inner-slide';
+  near.position.set(-SLIDE_X, SLIDE_Y, (INNER_NEAR + INNER_FAR) / 2);
+  const far = addTo(horn, new Mesh(geoInnerFar, matSlide));
+  far.name = 'inner-slide';
+  far.position.set(SLIDE_X, SLIDE_Y, (BOW_Z + INNER_FAR) / 2);
 
   /** The part that actually travels. Everything else on the horn is still. */
   const slide = addTo(horn, new Group());
@@ -473,7 +538,7 @@ export const buildTrombone: InstrumentBuilder = (opts: InstrumentBuildOptions): 
    * about 15 mm here) and the palm lands on top of it.
    */
   const holdContact: Contact = {
-    position: new Vector3(-0.008, SLIDE_Y + BELL_RISE, GRIP_Z).applyMatrix4(hornMatrix),
+    position: new Vector3(BELL_X - 0.008, SLIDE_Y + BELL_RISE, GRIP_Z).applyMatrix4(hornMatrix),
     // From above and the player's left: the hand comes over the tube with the
     // thumb reaching in to the trigger.
     normal: new Vector3(0.35, 0.90, -0.26).normalize().transformDirection(hornMatrix),
