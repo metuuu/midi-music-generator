@@ -7,8 +7,11 @@ project so far: the melodic engine is thrown away and rebuilt from a different m
 Not refactored — replaced, in a new directory, with its own types, developed with no
 access to the current one.
 
-Like `concert-plan.md` and `backline-plan.md`, this says what is intended. When it is
-built it becomes `docs/tune.md` and describes what exists.
+Like `concert-plan.md` and `backline-plan.md`, this said what was intended. **Phases 0
+through 8 are built**; each section below now also records what actually happened,
+including the four places the plan was wrong. Phase 9 — whether the solo engine becomes
+a consumer of `Motif` or an archetype — is still open, and still to be decided on
+evidence rather than on principle.
 
 ---
 
@@ -508,7 +511,13 @@ first known limitation in `docs/hook.md`.
 
 **Phase 7 — the key route.** Replaces `liftAt`.
 
-**Phase 8 — band patching.**
+**Phase 8 — band patching.** Two operations, both small on purpose: the bass moves onto
+an eighth the tune anticipates (at most twice a section, never adding or removing an
+onset), and the comp clears the second half of the bar carrying the section's high note.
+Only in choruses and outros, and scaled by which time round it is — the last chorus is
+the one that gets arranged. The first attempt shipped as dead code: it tested velocity
+against an absolute threshold, and by the time the patch runs `applyDynamics` has
+already scaled every velocity by how hard the section is playing.
 
 **Phase 9 — the solo engine.** On evidence: does `solo.ts` become a consumer of `Motif`,
 or does it become a `voice.ts` archetype? Decided after Phase 5, not now.

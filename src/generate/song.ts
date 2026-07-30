@@ -48,6 +48,7 @@ import { DEFAULT_FILLS } from './fills.js';
 import { getHook, RECALL_BIAS, type HookId } from './hook.js';
 import { composeSectionTune } from '../tune/adapt.js';
 import { planKeys } from '../tune/keyplan.js';
+import { patchBand } from '../tune/band.js';
 import { varyRecall } from '../tune/tune.js';
 import type { Signature } from '../tune/judge.js';
 import { chooseMotto } from './motto.js';
@@ -1054,6 +1055,29 @@ export function generateSong(opts: GenerateOptions = {}): Song {
           }
           : {}),
       };
+    }
+
+    /**
+     * The band, edited to agree with the tune that has just been written.
+     *
+     * Every other pass writes the melody around an accompaniment decided first; this
+     * one runs the other way. Only where the section is making a point — a chorus, an
+     * outro — and capped at a couple of moments, because a band that follows the tune
+     * everywhere is a doubling rather than an arrangement. See `tune/band.ts`.
+     */
+    if (sectionMelody.length && (section.kind === 'chorus' || section.kind === 'outro')) {
+      const patch = patchBand({
+        melody: sectionMelody,
+        bass: sectionBass,
+        comp: sectionComp,
+        beatsPerBar: style.beatsPerBar,
+        startBeat: ctxBase.startBeat,
+        bars: section.lengthBars,
+        // The last chorus is the one that gets arranged. Earlier ones state the tune.
+        amount: Math.min(0.9, 0.25 + ordinal * 0.3) * intensity,
+      });
+      sectionBass = patch.bass;
+      sectionComp = patch.comp;
     }
 
     // The ceiling was a forecast; this is the correction. Now that the tune
