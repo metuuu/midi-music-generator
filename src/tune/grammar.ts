@@ -178,12 +178,28 @@ export interface FormOptions {
 export function planPhrases(opts: FormOptions): { form: FormId; phrases: PhraseNode[] } {
   const { bars, archetype, rng, repetition } = opts;
 
-  // A form whose phrases would scale below two bars is not that form any more;
-  // prefer the ones that survive the section length.
-  const candidates = archetype.forms.filter(([id]) => {
-    const t = BY_ID.get(id);
-    return t !== undefined && bars / t.slots.length >= 1;
-  });
+  /**
+   * A form whose phrases would scale below one bar is not that form any more, and
+   * one whose phrases are much shorter than the figure they are made of throws the
+   * figure away.
+   *
+   * The second half matters for the slow styles. A voice with a four-bar canvas —
+   * Berlin school, where the harmony moves every two bars and the lead holds still
+   * — handed a four-phrase template over eight bars gets two-bar phrases, and half
+   * of every figure is clipped off unheard. Weighting toward phrase lengths near the
+   * canvas is what makes `canvasBars` mean anything.
+   */
+  const want = opts.voice.canvasBars ?? 2;
+  const candidates = archetype.forms
+    .filter(([id]) => {
+      const t = BY_ID.get(id);
+      return t !== undefined && bars / t.slots.length >= 1;
+    })
+    .map(([id, w]) => {
+      const t = BY_ID.get(id)!;
+      const perPhrase = bars / t.slots.length;
+      return [id, w / (1 + Math.abs(perPhrase - want) * 0.6)] as const;
+    });
   const form = rng.weighted(candidates.length ? candidates : archetype.forms);
   const template = BY_ID.get(form) ?? FORMS[0]!;
 

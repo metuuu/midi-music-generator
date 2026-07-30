@@ -18,12 +18,12 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { parseRoman, type Chord } from './core/chord.js';
 import { keyLabel, noteNameToPc } from './core/pitch.js';
 import { makeScale, type Mode } from './core/scale.js';
-import { DEFAULT_SPACE, type Song, type Track } from './core/types.js';
+import { DEFAULT_SPACE, type SectionKind, type Song, type Track } from './core/types.js';
 import { renderMidi } from './render/midi.js';
 import { auditionTune, describeTune } from './tune/tune.js';
 import { describeVerdict } from './tune/judge.js';
 import type { ArchetypeId } from './tune/types.js';
-import { ARCHETYPES, getVoice } from './tune/voice.js';
+import { ARCHETYPES, getVoice, sectionShape } from './tune/voice.js';
 
 const args = process.argv.slice(2);
 const flag = (name: string, fallback?: string): string | undefined => {
@@ -38,8 +38,11 @@ const bpm = Number(flag('bpm', '104'));
 const beatsPerBar = Number(flag('beats', '4'));
 const mode = (flag('mode', 'major') as Mode);
 const tonic = noteNameToPc(flag('key', 'C')!);
-const repetition = Number(flag('repetition', '0.5'));
-const density = Number(flag('density', '1'));
+const styleId = flag('style');
+const kind = (flag('kind', 'chorus') as SectionKind);
+const shape = sectionShape(kind);
+const repetition = Number(flag('repetition', String(shape.repetition)));
+const density = Number(flag('density', String(shape.density)));
 const archetypeArg = flag('archetype');
 const progression = (flag('chords', 'I vi IV V')!).split(/\s+/);
 const outDir = flag('out', './out')!;
@@ -55,7 +58,7 @@ const chords: Chord[] = Array.from(
 ).map((c) => ({ ...c, root: (c.root + tonic) % 12 }));
 
 const attempts = Number(flag('attempts', '80'));
-const voice = getVoice();
+const voice = getVoice(styleId);
 const { best, worst } = auditionTune({
   tag: `${seed}:tune`,
   attempts,
@@ -65,7 +68,7 @@ const { best, worst } = auditionTune({
     startBeat: 0,
     tonic,
     mode,
-    range: [60, 60 + voice.compass + 4],
+    range: [60 + shape.register, 60 + shape.register + voice.compass + 4],
     // No genre here, so the fallback rule: natural minor, harmonic minor the
     // moment a dominant arrives.
     scaleForChord: (t, m, chord) => makeScale(
@@ -75,6 +78,7 @@ const { best, worst } = auditionTune({
   voice,
   repetition,
   density,
+  shape,
   ...(archetypeArg ? { archetype: archetypeArg as ArchetypeId } : {}),
 });
 
@@ -106,7 +110,7 @@ const song: Song = {
     swing: 0,
   },
   sections: [{
-    kind: 'chorus',
+    kind,
     startBar: 0,
     lengthBars: bars,
     transpose: 0,
@@ -120,11 +124,11 @@ const song: Song = {
 };
 
 mkdirSync(outDir, { recursive: true });
-const file = `${outDir}/tune-${seed}${has('worst') ? '-worst' : ''}.mid`;
+const file = `${outDir}/tune-${voice.id}-${kind}-${seed}${has('worst') ? '-worst' : ''}.mid`;
 writeFileSync(file, renderMidi(song));
 
 console.log(`${bars} bars · ${progression.join(' ')} · ${keyLabel(tonic, mode)} · ${bpm} BPM`);
-console.log(`${attempts} attempts · keeping the ${has('worst') ? 'worst' : 'best'}`);
+console.log(`voice ${voice.id} · ${kind} · ${attempts} attempts · keeping the ${has('worst') ? 'worst' : 'best'}`);
 console.log('');
 for (const line of describeTune(plan, notes, Math.round(beatsPerBar * 4))) console.log(line);
 console.log('');

@@ -15,7 +15,8 @@
  * kind, made once per section, is heard immediately.
  */
 
-import type { Archetype, ArchetypeId, Voice } from './types.js';
+import type { SectionKind } from '../core/types.js';
+import type { Archetype, ArchetypeId, SectionShape, Voice } from './types.js';
 
 export const ARCHETYPES: Record<ArchetypeId, Archetype> = {
   'arch-hook': {
@@ -148,9 +149,141 @@ export const DEFAULT_VOICE: Voice = {
   syncopation: 0.3,
 };
 
-const VOICES = new Map<string, Voice>();
+// ---------------------------------------------------------------------------
+// Authored voices
+// ---------------------------------------------------------------------------
 
-/** The voice for a style id, or the fallback. */
+/**
+ * TANGO — suomalainen tango.
+ *
+ * Everything here follows from two facts the style's own description states: the
+ * melodies are stepwise and they end phrases on a long held note, the *kaipuu*
+ * note the whole style is built around. So `long-note` is weighted where it would
+ * be a curiosity elsewhere, and `descending-sequence` is weighted high because the
+ * descending i–VII–VI–V tetrachord is the style's signature and a tune that walks
+ * down with it is the tune that belongs on it.
+ *
+ * The accent table is the dotted lilt. Slots 6 and 14 — the eighth after a dotted
+ * quarter — carry more weight than the beats on either side of them, which is what
+ * a tango melody leans on and what a purely metric template gets exactly backwards.
+ */
+const tango: Voice = {
+  id: 'tango',
+  archetypes: [
+    ['arch-hook', 4],
+    ['descending-sequence', 4],
+    ['long-note', 3],
+    ['wide-interval', 2],
+    ['riff-response', 0.5],
+    ['chant', 0.5],
+  ],
+  subsets: [
+    [[0, 1, 2, 3, 4, 5, 6], 4],
+    [[0, 2, 3, 4, 6], 3],
+    [[0, 1, 2, 3, 4, 6], 2],
+    [[0, 1, 2, 4, 5], 1],
+  ],
+  density: 2.6,
+  leap: 0.22,
+  ornament: 0.14,
+  compass: 14,
+  syncopation: 0.5,
+  accents: [
+    1, 0.08, 0.3, 0.1, 0.72, 0.08, 0.55, 0.1,
+    0.86, 0.08, 0.32, 0.1, 0.7, 0.08, 0.5, 0.12,
+  ],
+  ops: { sequence: 1.6, transpose: 1.3, diminish: 0.4, displace: 0.6, ornament: 0.8 },
+};
+
+/**
+ * ISKELMÄPOP — the 1980s radio sound.
+ *
+ * Straight eighths and unembarrassed about it. The style's own note says the chorus
+ * is a fixed tune with a fixed rhythm and that the key change exists to deliver it
+ * one more time a tone higher, so `chant` and `riff-response` — the two archetypes
+ * whose hook *is* the rhythm — are weighted where tango has them near zero.
+ *
+ * Its accent table is the opposite statement from tango's: every eighth is a place
+ * a note belongs, and no sixteenth is.
+ */
+const iskelmapop: Voice = {
+  id: 'iskelmapop',
+  archetypes: [
+    ['arch-hook', 4],
+    ['riff-response', 3],
+    ['chant', 2.5],
+    ['wide-interval', 2],
+    ['descending-sequence', 2],
+    ['long-note', 1],
+  ],
+  subsets: [
+    [[0, 1, 2, 4, 5], 4],
+    [[0, 2, 3, 4, 6], 3],
+    [[0, 1, 2, 3, 4, 5, 6], 3],
+    [[0, 1, 2, 4, 5, 6], 2],
+  ],
+  density: 3.6,
+  leap: 0.24,
+  ornament: 0.18,
+  compass: 14,
+  syncopation: 0.45,
+  accents: [
+    1, 0.1, 0.5, 0.12, 0.75, 0.1, 0.5, 0.12,
+    0.88, 0.1, 0.5, 0.12, 0.72, 0.1, 0.55, 0.16,
+  ],
+  ops: { transpose: 1.4, sequence: 1.2, ornament: 1.2, expand: 1.3 },
+};
+
+/**
+ * BERLIN — the school where the composer is the sequencer.
+ *
+ * The lead is not the piece here and the voice has to say so. Density is a third of
+ * iskelmäpop's, the canvas is four bars rather than two because the harmony moves
+ * every two, and `ornament` is almost absent: a melody over a running sixteenth
+ * figure earns its place by holding still while the machine moves.
+ *
+ * That is also why `long-note` and `chant` carry it. The style's own melody cells
+ * are `[8,8]`, `[16]` and `[12,4]` — half notes and whole notes, which is a
+ * statement about what a tune is for in this music rather than a rhythmic
+ * preference.
+ */
+const berlin: Voice = {
+  id: 'berlin',
+  archetypes: [
+    ['long-note', 5],
+    ['chant', 3],
+    ['descending-sequence', 2],
+    ['arch-hook', 1.5],
+    ['wide-interval', 1],
+    ['riff-response', 0.5],
+  ],
+  subsets: [
+    [[0, 1, 3, 4, 6], 4],
+    [[0, 1, 2, 4, 5, 6], 3],
+    [[0, 2, 3, 4, 6], 2],
+    [[0, 1, 2, 3, 4, 5, 6], 2],
+  ],
+  density: 1.2,
+  leap: 0.22,
+  ornament: 0.06,
+  compass: 14,
+  syncopation: 0.2,
+  canvasBars: 4,
+  ops: { transpose: 1.5, sequence: 1.4, ornament: 0.2, diminish: 0.3, displace: 0.4 },
+};
+
+const VOICES = new Map<string, Voice>(
+  [tango, iskelmapop, berlin].map((v) => [v.id, v]),
+);
+
+/**
+ * The voice for a style id, or the fallback.
+ *
+ * Three styles are authored. The rest resolve through `DEFAULT_VOICE` until
+ * `adapt.ts` derives something serviceable from their existing `MelodyStyle`
+ * fields — see `docs/tune-plan.md` §13, which says plainly that "serviceable" means
+ * generic until somebody sits with them.
+ */
 export function getVoice(styleId?: string): Voice {
   return (styleId ? VOICES.get(styleId) : undefined) ?? DEFAULT_VOICE;
 }
@@ -159,6 +292,64 @@ export function registerVoice(voice: Voice): void {
   VOICES.set(voice.id, voice);
 }
 
+export function hasVoice(styleId: string): boolean {
+  return VOICES.has(styleId);
+}
+
 export function archetype(id: ArchetypeId): Archetype {
   return ARCHETYPES[id];
+}
+
+// ---------------------------------------------------------------------------
+// Section contrast
+// ---------------------------------------------------------------------------
+
+/**
+ * How each kind of section differs from the others, before the style has a say.
+ *
+ * The `favour` entries are the substantive part. A chorus reaches for the
+ * archetypes whose hook is a repeated figure; a bridge reaches for the ones that
+ * contrast with whatever it interrupts, which is why `wide-interval` and
+ * `descending-sequence` are lifted there and `chant` is pushed down. A solo wants
+ * none of it — the whole point of a solo is that it is not the tune.
+ */
+const SHAPES: Record<SectionKind, SectionShape> = {
+  intro: {
+    density: 0.7, register: -2, repetition: 0.45,
+    favour: { 'long-note': 2, chant: 1.5, 'riff-response': 1.4 },
+  },
+  verse: {
+    density: 1, register: -2, repetition: 0.55,
+  },
+  chorus: {
+    // Higher, longer, and more repetitive: the three things that make a chorus a
+    // chorus and that the old engine expressed with none of.
+    density: 1.05, register: 2, repetition: 0.85,
+    favour: { 'arch-hook': 1.8, chant: 1.5, 'riff-response': 1.5, 'long-note': 0.7 },
+  },
+  bridge: {
+    density: 0.95, register: 0, repetition: 0.3,
+    favour: { 'wide-interval': 2, 'descending-sequence': 1.6, chant: 0.4, 'arch-hook': 0.7 },
+  },
+  solo: {
+    density: 1.35, register: 1, repetition: 0.15,
+    favour: { 'descending-sequence': 1.5, 'wide-interval': 1.5, chant: 0.3, 'long-note': 0.5 },
+  },
+  outro: {
+    density: 0.7, register: -1, repetition: 0.75,
+    favour: { 'long-note': 2, 'arch-hook': 1.2 },
+  },
+};
+
+export function sectionShape(kind: SectionKind): SectionShape {
+  return SHAPES[kind];
+}
+
+/** The voice's archetype weights with a section's bias applied. */
+export function archetypeWeights(
+  voice: Voice, shape?: SectionShape,
+): readonly (readonly [ArchetypeId, number])[] {
+  if (!shape?.favour) return voice.archetypes;
+  const favour = shape.favour;
+  return voice.archetypes.map(([id, w]) => [id, w * (favour[id] ?? 1)] as const);
 }

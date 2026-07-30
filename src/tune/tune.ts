@@ -30,9 +30,9 @@ import { applyOps, motifFamily } from './motif.js';
 import { describeSkeleton, planArc, skeletonFor } from './skeleton.js';
 import { realisePhrase } from './surface.js';
 import type {
-  ArchetypeId, Motif, PhraseNode, Skeleton, TuneContext, TunePlan, Voice,
+  ArchetypeId, Motif, PhraseNode, SectionShape, Skeleton, TuneContext, TunePlan, Voice,
 } from './types.js';
-import { ARCHETYPES } from './voice.js';
+import { ARCHETYPES, archetypeWeights } from './voice.js';
 
 export interface TuneOptions {
   ctx: TuneContext;
@@ -42,8 +42,13 @@ export interface TuneOptions {
   repetition: number;
   /** Multiplier on the voice's onset density, from the section plan. */
   density?: number;
-  /** Forced rather than drawn — the section plan's business once it exists. */
+  /** Forced rather than drawn. */
   archetype?: ArchetypeId;
+  /**
+   * What kind of section this is, as a bias on which archetypes are drawn and how
+   * much the section repeats itself. See `voice.ts`.
+   */
+  shape?: SectionShape;
   /** Constraint strictness, 0 (free) to 4 (polished). */
   strictness?: number;
   /** Rule table, already adjusted for the genre. */
@@ -66,7 +71,7 @@ export function composeTune(opts: TuneOptions): Tune {
   const sectionSlots = bars * slotsPerBar;
   const span = slotsPerBar * (voice.canvasBars ?? 2);
 
-  const archetypeId = opts.archetype ?? rng.weighted(voice.archetypes);
+  const archetypeId = opts.archetype ?? rng.weighted(archetypeWeights(voice, opts.shape));
   const arch = ARCHETYPES[archetypeId];
   const subset = rng.weighted(voice.subsets).slice();
 

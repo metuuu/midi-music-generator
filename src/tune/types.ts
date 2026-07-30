@@ -320,6 +320,31 @@ export interface Voice {
 }
 
 // ---------------------------------------------------------------------------
+// Section contrast
+// ---------------------------------------------------------------------------
+
+/**
+ * What makes one kind of section a different kind of thing from another.
+ *
+ * The old engine distinguished a verse from a chorus by two facts: which chord
+ * progression it drew from, and whether the tune was replayed verbatim. Everything
+ * else — register, density, phrase length, how much it repeats itself, what kind of
+ * tune it is at all — was identical, which is why its choruses sounded like verses
+ * with different chords. A chorus is not a verse with a better progression. It sits
+ * higher, holds its notes longer, repeats itself more, and lands harder.
+ */
+export interface SectionShape {
+  /** Multiplier on the voice's onset density. */
+  density: number;
+  /** Semitones the lead window moves for this kind of section. */
+  register: number;
+  /** How much this kind of section leans on repeating itself, 0..1. */
+  repetition: number;
+  /** Multiplied into the voice's archetype weights. */
+  favour?: Partial<Record<ArchetypeId, number>>;
+}
+
+// ---------------------------------------------------------------------------
 // The plan
 // ---------------------------------------------------------------------------
 
