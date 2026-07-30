@@ -20,11 +20,12 @@
 
 import { SLOTS_PER_BEAT } from '../core/grid.js';
 import type { Midi } from '../core/pitch.js';
-import type { Rng } from '../core/rng.js';
+import { Rng } from '../core/rng.js';
 import { makeScale } from '../core/scale.js';
 import { EMPTY_ACCOMPANIMENT, RULES, type Accompaniment, type Rule } from '../core/rules.js';
 import type { NoteEvent } from '../core/types.js';
 import { describePhrases, planPhrases } from './grammar.js';
+import { judge, signatureOf, type Signature, type Verdict } from './judge.js';
 import { applyOps, motifFamily } from './motif.js';
 import { describeSkeleton, planArc, skeletonFor } from './skeleton.js';
 import { realisePhrase } from './surface.js';
@@ -153,6 +154,74 @@ export function composeTune(opts: TuneOptions): Tune {
 
   const plan: TunePlan = { archetype: archetypeId, form, subset, motifs, phrases, skeletons };
   return { plan, notes: trim(notes) };
+}
+
+// ---------------------------------------------------------------------------
+// Audition
+// ---------------------------------------------------------------------------
+
+export interface AuditionOptions extends Omit<TuneOptions, 'rng'> {
+  /**
+   * Stream tag for this section. Attempt *k* draws from `${tag}:${k}`.
+   *
+   * Per-attempt streams rather than one running stream, and this is not tidiness.
+   * Drawing every attempt off a shared tape makes attempt 7 depend on how many
+   * numbers attempts 0–6 happened to consume, so changing `attempts` silently
+   * rewrites every tune in the catalogue — the same fault that made adding one
+   * drum-source draw move every song in the project. Here, attempt *k* is the same
+   * tune whether you asked for ten or three hundred, and raising the count only
+   * changes which one wins.
+   */
+  tag: string;
+  attempts: number;
+  /** Material this section should not resemble — the song's other sections. */
+  avoid?: readonly Signature[];
+}
+
+export interface Audition extends Tune {
+  verdict: Verdict;
+  signature: Signature;
+}
+
+/**
+ * Write it many times and keep the best one.
+ *
+ * Both ends are returned because the difference between them is the only honest
+ * test of whether the judge is measuring anything: if best-of-a-hundred and
+ * worst-of-a-hundred are hard to tell apart by ear, the scoring is decoration. See
+ * `docs/tune-plan.md` Phase 3.
+ */
+export function auditionTune(opts: AuditionOptions): { best: Audition; worst: Audition } {
+  const slotsPerBar = Math.round(opts.ctx.beatsPerBar * SLOTS_PER_BEAT);
+  const bars = opts.ctx.chords.length;
+  const canvasBars = opts.voice.canvasBars ?? 2;
+  let best: Audition | undefined;
+  let worst: Audition | undefined;
+
+  for (let k = 0; k < Math.max(1, opts.attempts); k++) {
+    const tune = composeTune({ ...opts, rng: new Rng(`${opts.tag}:${k}`) });
+    const arch = ARCHETYPES[tune.plan.archetype];
+    const verdict = judge({
+      notes: tune.notes,
+      plan: tune.plan,
+      ctx: opts.ctx,
+      archetype: arch,
+      voice: opts.voice,
+      bars,
+      slotsPerBar,
+      wantDensity: opts.voice.density * arch.density * (opts.density ?? 1),
+      ...(opts.avoid ? { avoid: opts.avoid } : {}),
+    });
+    const candidate: Audition = {
+      ...tune,
+      verdict,
+      signature: signatureOf(tune.notes, slotsPerBar, canvasBars),
+    };
+    if (!best || verdict.score > best.verdict.score) best = candidate;
+    if (!worst || verdict.score < worst.verdict.score) worst = candidate;
+  }
+
+  return { best: best!, worst: worst! };
 }
 
 /**

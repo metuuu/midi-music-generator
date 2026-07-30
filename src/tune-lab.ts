@@ -17,11 +17,11 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { parseRoman, type Chord } from './core/chord.js';
 import { keyLabel, noteNameToPc } from './core/pitch.js';
-import { Rng } from './core/rng.js';
 import { makeScale, type Mode } from './core/scale.js';
 import { DEFAULT_SPACE, type Song, type Track } from './core/types.js';
 import { renderMidi } from './render/midi.js';
-import { composeTune, describeTune } from './tune/tune.js';
+import { auditionTune, describeTune } from './tune/tune.js';
+import { describeVerdict } from './tune/judge.js';
 import type { ArchetypeId } from './tune/types.js';
 import { ARCHETYPES, getVoice } from './tune/voice.js';
 
@@ -54,8 +54,11 @@ const chords: Chord[] = Array.from(
   (_, i) => parseRoman(progression[i % progression.length]!, mode),
 ).map((c) => ({ ...c, root: (c.root + tonic) % 12 }));
 
+const attempts = Number(flag('attempts', '80'));
 const voice = getVoice();
-const { plan, notes } = composeTune({
+const { best, worst } = auditionTune({
+  tag: `${seed}:tune`,
+  attempts,
   ctx: {
     chords,
     beatsPerBar,
@@ -70,11 +73,13 @@ const { plan, notes } = composeTune({
     ),
   },
   voice,
-  rng: new Rng(`${seed}:tune`),
   repetition,
   density,
   ...(archetypeArg ? { archetype: archetypeArg as ArchetypeId } : {}),
 });
+
+const keep = has('worst') ? worst : best;
+const { plan, notes } = keep;
 
 const track: Track = {
   layer: 'melody',
@@ -115,12 +120,16 @@ const song: Song = {
 };
 
 mkdirSync(outDir, { recursive: true });
-const file = `${outDir}/tune-${seed}.mid`;
+const file = `${outDir}/tune-${seed}${has('worst') ? '-worst' : ''}.mid`;
 writeFileSync(file, renderMidi(song));
 
 console.log(`${bars} bars · ${progression.join(' ')} · ${keyLabel(tonic, mode)} · ${bpm} BPM`);
+console.log(`${attempts} attempts · keeping the ${has('worst') ? 'worst' : 'best'}`);
 console.log('');
-for (const line of describeTune(plan, notes)) console.log(line);
+for (const line of describeTune(plan, notes, Math.round(beatsPerBar * 4))) console.log(line);
+console.log('');
+console.log(`best   ${describeVerdict(best.verdict)}`);
+console.log(`worst  ${describeVerdict(worst.verdict)}`);
 console.log('');
 if (has('print')) {
   for (const n of notes) {

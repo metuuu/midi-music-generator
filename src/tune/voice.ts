@@ -29,6 +29,7 @@ export const ARCHETYPES: Record<ArchetypeId, Archetype> = {
     stride: 2,
     sequenceDir: 0.6,
     leap: 1,
+    judge: { peak: 1.4, shape: 1.3 },
   },
   'descending-sequence': {
     id: 'descending-sequence',
@@ -44,6 +45,7 @@ export const ARCHETYPES: Record<ArchetypeId, Archetype> = {
     stride: 2,
     sequenceDir: -1,
     leap: 1.1,
+    judge: { peak: 0.8, shape: 1.3, figure: 1.5 },
   },
   'riff-response': {
     id: 'riff-response',
@@ -56,6 +58,7 @@ export const ARCHETYPES: Record<ArchetypeId, Archetype> = {
     stride: 1,
     sequenceDir: 0.2,
     leap: 0.9,
+    judge: { figure: 1.8, economy: 1.5, freshness: 0.8 },
   },
   'long-note': {
     id: 'long-note',
@@ -68,6 +71,8 @@ export const ARCHETYPES: Record<ArchetypeId, Archetype> = {
     stride: 3,
     sequenceDir: 0.5,
     leap: 0.8,
+    // Sparse is the point, so it must not be measured against a dance band.
+    judge: { density: 0.3, figure: 0.7, economy: 1.4 },
   },
   chant: {
     id: 'chant',
@@ -80,6 +85,8 @@ export const ARCHETYPES: Record<ArchetypeId, Archetype> = {
     stride: 1,
     sequenceDir: 0,
     leap: 0.5,
+    // A chant is supposed to stall. `interest` would otherwise veto the archetype.
+    judge: { interest: 0.5, economy: 1.7, figure: 1.9, motion: 0.6 },
   },
   'wide-interval': {
     id: 'wide-interval',
@@ -92,6 +99,7 @@ export const ARCHETYPES: Record<ArchetypeId, Archetype> = {
     stride: 3,
     sequenceDir: 0.4,
     leap: 1.6,
+    judge: { motion: 1.5, interest: 1.2 },
   },
 };
 

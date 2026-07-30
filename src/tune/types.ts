@@ -232,6 +232,14 @@ export type ShapeId =
   | 'rise' | 'fall' | 'arch' | 'valley' | 'turn' | 'repeat-tail'
   | 'leap-home' | 'thirds' | 'neighbour' | 'gap-fill' | 'climb-hold' | 'plateau';
 
+/**
+ * The dimensions a tune is scored on. Defined here rather than in `judge.ts` so an
+ * archetype can carry its own weights without the two files importing each other.
+ */
+export type TermId =
+  | 'peak' | 'economy' | 'figure' | 'motion' | 'arrival'
+  | 'shape' | 'density' | 'groove' | 'interest' | 'freshness';
+
 export interface Archetype {
   id: ArchetypeId;
   label: string;
@@ -258,6 +266,15 @@ export interface Archetype {
   sequenceDir: number;
   /** Multiplier on the voice's leap appetite. */
   leap: number;
+  /**
+   * Overrides on the judge's term weights.
+   *
+   * This is what makes the score *conditional* rather than absolute — see
+   * `judge.ts`. A chant is supposed to stall, so `interest` cannot be allowed to
+   * veto one; a long-note ballad is supposed to be sparse, so `density` must not
+   * measure it against a dance band.
+   */
+  judge?: Partial<Record<TermId, number>>;
 }
 
 // ---------------------------------------------------------------------------
