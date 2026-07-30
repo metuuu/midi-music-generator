@@ -48,7 +48,7 @@ import { DEFAULT_FILLS } from './fills.js';
 import { getHook, RECALL_BIAS, type HookId } from './hook.js';
 import { composeSectionTune } from '../tune/adapt.js';
 import { planKeys } from '../tune/keyplan.js';
-import { figureSlots, harmonise, patchBand } from '../tune/band.js';
+import { figureSlots, handOff, harmonise, patchBand } from '../tune/band.js';
 import { varyRecall } from '../tune/tune.js';
 import type { Signature } from '../tune/judge.js';
 import { chooseMotto } from './motto.js';
@@ -926,7 +926,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
        * variation, not more — at `earworm` the whole point is that it is the same
        * thing again. See `tune/tune.ts`.
        */
-      const melody = written
+      const full = written
         ? written.notes
         : varyRecall({
           notes: replay(prior!.melody!, prior!.tonic, localTonic, ctxBase.startBeat, range),
@@ -935,6 +935,32 @@ export function generateSong(opts: GenerateOptions = {}): Song {
           amount: Math.min(0.9, (0.2 + ordinal * 0.28) * (1.25 - hook.level * 0.18)),
           rng: new Rng(`${seed}:vary:${s}${salt('melody')}`),
         });
+      /**
+       * Trading a phrase: the lead states one and then stops, and somebody else has
+       * the floor.
+       *
+       * The answering line otherwise lives in the holes of the tune — it finds the
+       * largest silence in each bar and speaks into it, which is a fill however well
+       * it is shaped. This is the other thing two melodic players do, and it is the
+       * one an ear reads as a conversation. Only the drummer could do it before, and
+       * only inside a solo.
+       *
+       * Never the first phrase and never the last: the tune has to be stated before
+       * it can be handed over, and the section has to be landed by whoever owns it.
+       * Freshly written sections only, because the phrase boundaries come from the
+       * plan and a recalled tune arrives as notes.
+       */
+      const traded = written && active.has('counter') && !counterPattern && !isSolo
+        && section.lengthBars >= 8 && written.audition.plan.phrases.length >= 3
+        && new Rng(`${seed}:trade:${s}`).chance(0.45)
+        ? tradedPhrase(written.audition.plan.phrases, section, style.beatsPerBar, ctxBase.startBeat,
+          new Rng(`${seed}:trade:${s}:where`))
+        : undefined;
+
+      const melody = traded
+        ? full.filter((n) => n.beat < traded.from - 1e-6 || n.beat >= traded.to - 1e-6)
+        : full;
+
       // Only freshly written material joins the comparison set. A recalled chorus
       // resembling the chorus it recalls is the point of recalling it.
       if (written) stated.push(written.audition.signature);
@@ -961,7 +987,10 @@ export function generateSong(opts: GenerateOptions = {}): Song {
 
       // Solos are never remembered, so this only ever stores an actual tune.
       if (memory && !memory.melody && !isSolo) {
-        memory.melody = melody.map((n) => ({ ...n, beat: n.beat - ctxBase.startBeat }));
+        // The *whole* tune, including any phrase handed away: a recalled chorus that
+        // inherited the hole would trade in every chorus at once, and the gesture
+        // only means anything the once.
+        memory.melody = full.map((n) => ({ ...n, beat: n.beat - ctxBase.startBeat }));
         if (sectionHook) {
           memory.hook = sectionHook.contour.slice();
           memory.figure = sectionHook.onsets.slice();
@@ -1055,6 +1084,21 @@ export function generateSong(opts: GenerateOptions = {}): Song {
           );
           if (line.length >= 3) {
             answer = [...answer.filter((n) => n.beat < from - 1e-6 || n.beat >= to - 1e-6), ...line]
+              .sort((a, b) => a.beat - b.beat);
+          }
+        }
+
+        /**
+         * …and where a phrase was traded, the answer takes it over outright.
+         *
+         * Placed after everything else the answering line does, and replacing it in
+         * that span, because the two are different jobs: a fill goes around the tune
+         * and this *is* the tune, in another voice, for two bars.
+         */
+        if (traded) {
+          const taken = handOff(full, traded.from, traded.to, traded.from, plan.counter);
+          if (taken.length >= 2) {
+            answer = [...answer.filter((n) => n.beat < traded.from - 1e-6 || n.beat >= traded.to - 1e-6), ...taken]
               .sort((a, b) => a.beat - b.beat);
           }
         }
@@ -1891,6 +1935,35 @@ function withTail(
     .map((n) => ({ ...n, duration: Math.min(n.duration, Math.max(0, until - n.beat)) }))
     .filter((n) => n.duration > 1e-6);
   return clipped.length ? [...clipped, ...notes] : notes;
+}
+
+/**
+ * Which phrase gets handed over, as an absolute beat span.
+ *
+ * Drawn from the middle of the form — never the statement, never the arrival — and
+ * measured off the plan rather than guessed from the notes, which is the whole reason
+ * the tune engine keeps its phrases as data.
+ */
+function tradedPhrase(
+  phrases: readonly { bars: number }[],
+  section: Section,
+  beatsPerBar: number,
+  startBeat: number,
+  rng: Rng,
+): { from: number; to: number } | undefined {
+  const starts: number[] = [];
+  let bar = 0;
+  for (const p of phrases) { starts.push(bar); bar += p.bars; }
+  if (bar > section.lengthBars) return undefined;
+
+  const choices = phrases
+    .map((p, i) => ({ i, p }))
+    .filter(({ i, p }) => i >= 1 && i < phrases.length - 1 && p.bars >= 2);
+  if (!choices.length) return undefined;
+
+  const { i, p } = rng.pick(choices);
+  const from = startBeat + starts[i]! * beatsPerBar;
+  return { from, to: from + p.bars * beatsPerBar };
 }
 
 /**

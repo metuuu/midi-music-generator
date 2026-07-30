@@ -181,6 +181,47 @@ export function harmonise(
 }
 
 /**
+ * Hand a phrase to somebody else.
+ *
+ * The answering line otherwise lives in the holes of the tune — it finds the largest
+ * silence in each bar and speaks into it, which is a fill however well it is shaped.
+ * Trading is the other thing two melodic players do, and it is the one the ear reads
+ * as a conversation: the lead states a phrase and then *stops*, and the second
+ * instrument has the floor for two bars. Only the drummer could do that here, and
+ * only inside a solo.
+ *
+ * What gets handed over is the phrase just heard, moved into the other player's
+ * register by whole octaves. Octaves rather than a transposition, because the point
+ * is that it is recognisably the same phrase coming back in a different voice — the
+ * answer *is* the quotation, and a version at some other interval would be a new idea
+ * arriving at the moment the listener is waiting for a reply.
+ */
+export function handOff(
+  model: readonly NoteEvent[],
+  fromBeat: number,
+  toBeat: number,
+  atBeat: number,
+  [lo, hi]: [number, number],
+): NoteEvent[] {
+  const taken = model.filter((n) => n.beat >= fromBeat - 1e-6 && n.beat < toBeat - 1e-6);
+  if (taken.length < 2) return [];
+
+  const shift = atBeat - taken[0]!.beat;
+  const mean = taken.reduce((sum, n) => sum + n.midi, 0) / taken.length;
+  const centre = (lo + hi) / 2;
+  const octaves = Math.round((centre - mean) / 12);
+
+  return taken
+    .map((n) => ({
+      ...n,
+      beat: n.beat + shift,
+      midi: n.midi + octaves * 12,
+      velocity: Math.min(1, n.velocity * 0.95),
+    }))
+    .filter((n) => n.midi >= lo && n.midi <= hi && n.beat < atBeat + (toBeat - fromBeat) - 1e-6);
+}
+
+/**
  * Take the comp out for half a bar under the section's high note.
  *
  * The second half of the bar rather than the whole of it: the chord still arrives,

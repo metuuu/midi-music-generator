@@ -265,6 +265,29 @@ const humppa: Style = {
       hh: [0, 2, 4, 6, 8, 10, 12, 14],
     } },
   ],
+  /**
+   * The one iskelmä style whose lead is genuinely one player with two hands.
+   *
+   * A humppa accordionist is not a melody instrument with a rhythm section behind
+   * it — the right hand states the tune and the left hand is on the button side
+   * playing the same oom-pah the band is playing, which is why `HANDS.accordion`
+   * voices a full triad low down rather than a rootless shell. Declaring it here
+   * *fixes* the lead for every humppa, and that is the correct reading of this
+   * style rather than a narrowing of it: the description above already says the
+   * accordion carries the tune, and a humppa fronted by a muted trumpet is a foxtrot
+   * with the wrong tempo.
+   *
+   * No `unison`: two hands an octave apart is a virtuoso's gesture and this style's
+   * left hand has a job to do. No `ostinato`: the left hand is the oom-pah, and an
+   * oom-pah that ignores the harmony is a drone.
+   */
+  twoHanded: {
+    instruments: [['accordion', 7], ['bandoneon', 3]],
+    // High, because the button side plays on nearly every beat of a humppa. What
+    // takes chords away is the right hand being busy, not this number being low.
+    density: 0.85,
+    modes: [['block', 6], ['answer', 3]],
+  },
   melody: { leap: 0.3, ornament: 0.2, span: 12, sequence: 0.5, syncopation: 0.12 },
 };
 

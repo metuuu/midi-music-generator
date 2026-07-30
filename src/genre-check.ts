@@ -553,7 +553,17 @@ console.log('\nHook');
     if (!track) return '';
     const from = sec.startBar * song.meta.beatsPerBar;
     const to = from + sec.lengthBars * song.meta.beatsPerBar;
-    const notes = track.notes.filter((n) => n.beat >= from && n.beat < to)
+    /**
+     * The line, not the track.
+     *
+     * On a two-handed lead the track also carries that player's own accompaniment,
+     * and the left hand is drawn per section on purpose — a trio changing what it
+     * does at the top of a chorus is the clearest signal there is that an
+     * arrangement was arranged. Compared raw, two choruses of the *same tune* with
+     * different comping under them read as two different tunes, and the recall rate
+     * for every two-handed style collapses. What comes back is the melody.
+     */
+    const notes = melodicLine(track).filter((n) => n.beat >= from && n.beat < to)
       .sort((a, b) => a.beat - b.beat);
     /**
      * Drop the pickup into whatever comes next.
