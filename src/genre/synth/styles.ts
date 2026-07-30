@@ -345,6 +345,47 @@ const cinematic: Style = {
    */
   counterSpacing: 1,
   drumFills: false,
+  /**
+   * One player at one keyboard — the second shape that takes in this genre, and
+   * not the same shape as `stalker`.
+   *
+   * That one is Carpenter: a left hand holding a *figure* while the right plays
+   * the theme, which is why its modes lead with `ostinato`. This style has no
+   * figure to hold and says so in its own description — one chord a bar, nothing
+   * repeating underneath it — and a vamp here would turn the most identifiable
+   * style in the catalogue into `berlin` with the tempo halved, which is the same
+   * argument this style already makes about having no `cycle` anywhere in it. So
+   * the hand sustains the harmony and now and then answers: `block` leading,
+   * `answer` behind it, and neither of the other two offered at all.
+   *
+   * `density: 0.35`, lower than the trio's 0.92 and lower than `stalker`'s 0.55,
+   * and it is the right hand that sets it. This lead holds one note for most of a
+   * bar, so the left hand moving underneath *is* the event — the whole thing that
+   * happens in that bar. A hand speaking at every opportunity would be busier
+   * than the tune it is accompanying, which is not this music.
+   *
+   * This was tried once before and reverted, and the reason recorded for the
+   * revert was wrong, so it is worth correcting here. It was not that the left
+   * hand was being counted as the tune: measured both ways on the same songs, the
+   * gap heuristic and `NoteEvent.hand` read this style's line identically, because
+   * `HANDS.leadVoice` voices a quartal dyad five semitones wide under fourteen
+   * semitones of daylight and `isChord` never lets it sound alone.
+   *
+   * What actually moves is the music. `twoHanded.instruments` overrides the era's
+   * palette and `HandSpec.lead` puts the tune an octave up, so this style gets a
+   * different lead playing a different tune — which is the change being asked
+   * for, and not a measurement artefact. Two genre checks read the difference as a
+   * regression, and both were sampling too little to tell: one asserted a zero
+   * that held across the twenty songs it drew and failed on seventeen songs in
+   * two hundred, and the other was resolving a four-tenths-of-a-point ordering
+   * out of noise of the same size.
+   */
+  twoHanded: {
+    /** As `stalker`: the CS-80 first, because it is the one that sounds played. */
+    instruments: [['leadVoice', 5], ['leadSaw', 3], ['leadSquare', 2]],
+    density: 0.35,
+    modes: [['block', 5], ['answer', 3]],
+  },
   filter: { depth: 0.2, shape: 'step' },
   progressions: {
     intro: [

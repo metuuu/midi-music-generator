@@ -362,6 +362,39 @@ export const RULES: Rule[] = [
     },
   },
 
+  /**
+   * Off in the shared table, and on for exactly one genre — which is the only
+   * honest place for it, because in most of this repertoire the raised seventh in
+   * minor is not a fault but the entire cadence. Iskelmä and jazz reach for
+   * harmonic minor under a dominant on purpose, and there the note is *in* the
+   * prevailing scale, so this would not fire on them even switched on.
+   *
+   * Synth turns it on because its identity is the opposite claim: where another
+   * idiom writes `V`, this writes `bVII`, and a leading tone in a minor-key song
+   * sounds like a dance band walked in. That genre states the claim twice and
+   * rests it on `scaleForChord` never producing the note — which is true, and
+   * insufficient. Nothing that decorates a line asks the chord scale for
+   * permission: a soloist with any appetite for notes outside it
+   * (`SoloVocabulary.chromatic`) is offered the semitone either side of wherever
+   * it is, and one of those is the leading tone. Seventeen songs in two hundred
+   * had one, on four of that genre's five styles.
+   *
+   * Scoped to notes *outside* the prevailing scale so it can never contradict
+   * `scaleForChord`: where a genre's own chord scale contains the leading tone,
+   * that is the genre saying it wants it, and a rule is not the place to argue.
+   */
+  {
+    id: 'chromatic-leading-tone-in-minor',
+    category: 'melody vs chord',
+    description:
+      'The leading tone of a minor key, reached as a chromatic note rather than from the prevailing scale. Off by default: most idioms here raise the seventh in minor on purpose. On for a genre whose claim is that it never does.',
+    minLevel: RULE_DISABLED, vetoLevel: RULE_DISABLED, penalty: 0.02,
+    test: ({ candidate, scale, mode, tonic }) =>
+      mode === 'minor'
+      && pc(candidate) === leadingTonePc(tonic)
+      && !scale.pcs.includes(pc(candidate)),
+  },
+
   // --- Maximum smoothing -------------------------------------------------
   {
     id: 'chromatic-tone',

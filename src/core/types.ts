@@ -150,6 +150,38 @@ export interface NoteEvent {
    * darkening is the only direction that means the same thing on every device.
    */
   brightness?: number;
+  /**
+   * Set on the notes a two-handed player's **left hand** played, and on nothing
+   * else. See `Track.twoHanded` for what a track like that is.
+   *
+   * **Optional and one-sided**, and both halves of that are deliberate. The line
+   * is what every consumer wants and the accompaniment is the exception, so it is
+   * the exception that identifies itself: an unmarked note means what it has
+   * always meant, nothing else in the project has to start declaring anything
+   * about itself, and a `Song` serialised before this field existed still reads
+   * back correctly. Marking the right hand instead would make an absent field
+   * ambiguous — is this the tune, or is it a note written by something that
+   * predates the mark — which is precisely the ambiguity being removed.
+   *
+   * It exists because the alternative was to *infer* it, and the inference is
+   * wrong in both directions. `melodicLine` reads the note standing
+   * `Track.twoHanded.gap` above the rest as the right hand, so a left hand voicing
+   * a root and a seventh — eleven semitones on a track whose gap is ten — reads as
+   * two hands and charges the tune with a note it never played; and a left hand
+   * that sounds one note at a time reads as the tune outright.
+   *
+   * The first of those was live and measurable: reading jazz through the mark
+   * instead of the gap moved its wide-leap figures by two to three points at every
+   * strictness level, all of it a pianist's own left hand having been counted as
+   * melody. The second has never fired, and only because it is defended at the
+   * source — `isChord` in `generate/parts.ts` makes a hand with no room to voice
+   * fall silent rather than sound one note, a guard whose entire justification is
+   * how fragile this inference is. A synthesiser's left hand is a bass *line* by
+   * design, see `HANDS.leadVoice`, so the day something writes it without that
+   * guard the tune quietly acquires an accompaniment. Better for the part to say
+   * what it is than for four separate places to keep the inference safe.
+   */
+  hand?: 'left';
 }
 
 /**
@@ -788,16 +820,27 @@ export interface Song {
  * keyboard, where the same person's accompaniment is interleaved with their
  * tune, and where walking the notes in order produces nonsense.
  *
- * The separation is exact rather than a guess, because the part was *written*
- * with a separation: the right hand is one note at a time and the left hand is a
- * voicing kept `gap` semitones underneath it. So in any group of notes sharing
- * an onset —
+ * **Where the part says which hand played it, that is the answer.** A left hand
+ * written by `generateLeftHand` marks its notes `hand: 'left'`, and the line is
+ * everything else — no reasoning, no register, nothing to get wrong. Every song
+ * this generator writes takes that path.
+ *
+ * **Where nothing is marked, the separation is reconstructed** from the fact that
+ * the part was *written* with one: the right hand is one note at a time and the
+ * left hand is a voicing kept `gap` semitones underneath it. So in any group of
+ * notes sharing an onset —
  *
  *  - one note is the right hand, playing alone;
  *  - a top note standing `gap` or more above the rest is the right hand landing
  *    on a left-hand chord, and the chord below it is not the line;
  *  - and anything else is the left hand comping by itself, in a hole the right
  *    hand left, which contributes no melody note at all.
+ *
+ * The fallback stays because it is what makes the mark safe to have introduced.
+ * A two-handed track built by hand or by a probe in a check carries no marks and
+ * is not wrong, merely older; it goes on measuring exactly as it did. What the
+ * fallback cannot do is the reason the mark exists — see `NoteEvent.hand` — so
+ * anything generated reaches for it first.
  *
  * A track with no `twoHanded` is returned untouched, so no existing measurement
  * moves — including the overlap check, which is a real bug report on a real line
@@ -806,6 +849,10 @@ export interface Song {
 export function melodicLine(track: Track): NoteEvent[] {
   const gap = track.twoHanded?.gap;
   if (gap === undefined) return track.notes;
+
+  if (track.notes.some((n) => n.hand === 'left')) {
+    return track.notes.filter((n) => n.hand !== 'left');
+  }
 
   const groups = new Map<number, NoteEvent[]>();
   for (const n of track.notes) {

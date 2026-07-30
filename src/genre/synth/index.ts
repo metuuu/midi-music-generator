@@ -237,7 +237,26 @@ export const synth: Genre = {
      * here exactly as it is in iskelmä. In minor the rule is simply inert,
      * because `scaleForChord` never produces a raised seventh for it to catch —
      * which is a much better way to be modal than switching the rule off.
+     *
+     * …and this is the entry that says the rest of that sentence out loud.
+     *
+     * `scaleForChord` never producing the note turned out to be a claim about
+     * the *chord scale* and not about the music. Nothing that decorates a line
+     * asks the chord scale for permission: the soloist's `chromatic` appetite
+     * offers the semitone either side of wherever it is, and one of those is the
+     * leading tone. Seventeen songs in two hundred had one — on `berlin`,
+     * `machine`, `cosmic` and `stalker`, three of which have no left hand and
+     * none of which had changed — while `npm run genres` sampled twenty songs and
+     * asserted zero, which it had been passing on luck. Almost all of them are in
+     * solo sections, which is the one place this genre improvises.
+     *
+     * Vetoed from the first level rather than penalised, because this is not a
+     * matter of taste that gets stricter: the note is either in this music or it
+     * is not, and the genre's whole position is that it is not. `chromatic`
+     * stays at 0.08 — the trickle of colour is wanted, and it has eleven other
+     * semitones to find it in.
      */
+    'chromatic-leading-tone-in-minor': { minLevel: 1, vetoLevel: 1 },
   },
 
   /**

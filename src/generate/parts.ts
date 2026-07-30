@@ -407,12 +407,27 @@ export function generateLeftHand(
   line: readonly NoteEvent[],
   opts: LeftHandOptions,
 ): NoteEvent[] {
-  switch (opts.mode) {
-    case 'unison': return unisonHand(ctx, line, opts);
-    case 'block': return blockHand(ctx, line, opts);
-    case 'ostinato': return ostinatoHand(ctx, opts);
-    default: return answeringHand(ctx, line, opts);
-  }
+  const notes = (() => {
+    switch (opts.mode) {
+      case 'unison': return unisonHand(ctx, line, opts);
+      case 'block': return blockHand(ctx, line, opts);
+      case 'ostinato': return ostinatoHand(ctx, opts);
+      default: return answeringHand(ctx, line, opts);
+    }
+  })();
+  /**
+   * And say so, once, here.
+   *
+   * *Being the left hand* is what this function returns, not something any one
+   * mode decides — a montuno and a block chord are different gestures and equally
+   * the left hand. Marking at the boundary means a mode added later is marked
+   * before it is written, which is the failure the four modes have already had in
+   * a different form: `ostinato` shipped playing single notes and was silently
+   * counted as melody for as long as it took someone to notice the jazz line's
+   * mean had dropped four semitones. See `NoteEvent.hand`.
+   */
+  for (const note of notes) note.hand = 'left';
+  return notes;
 }
 
 export interface LeftHandOptions {

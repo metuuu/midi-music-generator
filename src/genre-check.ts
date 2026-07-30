@@ -491,16 +491,29 @@ console.log('\nSynth');
 console.log('\nSmoothness monotonicity');
 {
   /**
-   * Sixty seeds rather than twenty-five, and the extra thirty-five are load-bearing.
+   * A hundred and twenty seeds, and every one of them is load-bearing.
    *
    * Strictness does not merely tighten a line, it changes *which* of two dozen
    * auditioned tunes wins — so the three columns are three different tunes per seed
    * rather than three renderings of one, and the sampling error is a point or two.
-   * At twenty-five seeds synth read 21 → 19 → 22 and at sixty it reads what it is.
+   * At twenty-five seeds synth read 21 → 19 → 22, and sixty was thought to be
+   * enough because it read 22 → 19 → 19.
+   *
+   * It was not. Those last two columns were the same number to two significant
+   * figures and the sign between them was a coin: giving `cinematic` a left hand
+   * changed six songs in that sample of sixty and synth came back 22.11 → 18.50 →
+   * 18.91, failing by four tenths of a point on an axis that moves three and a
+   * half between its first two columns. The same seeds at 120 read 23.06 → 19.29 →
+   * 18.77 and at 240 read 23.77 → 20.33 → 19.27, so the ordering is real and sixty
+   * was measuring it through noise of its own size.
+   *
+   * The threshold is untouched — what a well-behaved axis looks like is not a
+   * matter of how hard it is to see. Only the sample grew, which is the same
+   * correction this check already made once.
    */
   const wideAt = (level: string, genreId: string) => {
     let wide = 0, moves = 0;
-    for (let i = 0; i < 60; i++) {
+    for (let i = 0; i < 120; i++) {
       const s = generateSong({ seed: `sm-${i}`, genre: genreId, strictness: level as never });
       const mel = s.tracks.find((t) => t.layer === 'melody');
       if (!mel) continue;
@@ -1091,27 +1104,17 @@ console.log('\nCounter-melody');
       // left-hand chord tone is not the answer doubling the tune — it is the
       // answer doing its job over a comp, which is what every other style in the
       // catalogue has a separate comp track for.
+      //
+      // …and the whole line, because there is no longer anything ambiguous in it.
+      // This used to count only the onsets where a single note sounded, to work
+      // around `melodicLine` reading a wide left-hand voicing — a root and a
+      // seventh, eleven semitones on a track whose gap is ten — as a right hand
+      // over a left hand and charging the answer with doubling a note that was
+      // never the tune. Two of them in 351 overlaps. The left hand now says which
+      // notes are its own, so the filter was discarding real overlaps to hide two
+      // false ones and every note here is the tune.
       const melodyTrack = s.tracks.find((t) => t.layer === 'melody');
-      /**
-       * …and only where the line is unambiguous.
-       *
-       * `melodicLine` recovers the tune from a two-handed track by taking, within a
-       * group of notes sharing an onset, the top note when it stands `gap` or more
-       * above the rest. A left-hand voicing that happens to span more than the gap —
-       * a root and a seventh, eleven semitones on a track whose gap is ten — reads as
-       * a right hand over a left hand, and the answer then gets charged with doubling
-       * a note that was never the tune. Two of them in 351 overlaps, both a piano's
-       * own left hand.
-       *
-       * Onsets where only one note sounds are never ambiguous, so the count is taken
-       * over those. It removes the misreadings and nothing else.
-       */
-      const onsetCount = new Map<number, number>();
-      for (const n of melodyTrack?.notes ?? []) {
-        onsetCount.set(n.beat, (onsetCount.get(n.beat) ?? 0) + 1);
-      }
       const melody = (melodyTrack ? melodicLine(melodyTrack) : [])
-        .filter((n) => !melodyTrack?.twoHanded || (onsetCount.get(n.beat) ?? 0) === 1)
         .slice().sort((a, b) => a.beat - b.beat);
       if (!counter.length) continue;
 
