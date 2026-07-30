@@ -1005,6 +1005,17 @@ export function generateCounter(
     idiom?: IdiomProfile;
     /** Needed to transpose an imitated shape onto the current harmony. */
     scaleFor?: (chord: Chord) => Scale;
+    /**
+     * The section's hook, as scale steps.
+     *
+     * The answer otherwise takes its shape from the lead notes immediately before the
+     * gap — the *surface* of the phrase it is answering. That is a real device and it
+     * is the smaller one: an answer built from the last four notes echoes whatever
+     * just happened, and an answer built from the hook says *I know what this song is
+     * about*. Now that the tune has a motif with a shape of its own, the second is
+     * available for the first time; before the rewrite there was nothing to quote.
+     */
+    quote?: readonly number[];
   } = {},
 ): NoteEvent[] {
   const { chords, beatsPerBar, startBeat, rng, style } = ctx;
@@ -1077,7 +1088,15 @@ export function generateCounter(
      */
     const call = sortedMelody.filter((n) => n.beat < bestStart && n.beat >= bestStart - beatsPerBar * 2);
     const shape: number[] = [];
-    if (scale && call.length >= 2) {
+    const quoting = opts.quote && opts.quote.length >= 2 && rng.chance(0.45);
+    if (quoting && opts.quote) {
+      // The hook, fragmented to what fits the hole and inverted about half the time.
+      // Its first entry is always zero — the figure arrives wherever it is put — so
+      // it is dropped rather than played as a repeated note.
+      const invert = rng.chance(0.5) ? -1 : 1;
+      const steps = opts.quote.slice(1);
+      for (let i = 0; i < count - 1; i++) shape.push((steps[i % steps.length] ?? 0) * invert);
+    } else if (scale && call.length >= 2) {
       const invert = rng.chance(0.5) ? -1 : 1;
       for (let i = Math.max(1, call.length - count); i < call.length; i++) {
         shape.push(scaleStepsBetween(scale, call[i - 1]!.midi, call[i]!.midi) * invert);

@@ -125,6 +125,62 @@ function agree(opts: PatchOptions, moves: string[]): NoteEvent[] {
 }
 
 /**
+ * The rhythm of a band figure, in sixteenths from the start of a bar.
+ *
+ * Taken from the section's own hook rather than invented, because a tutti that plays
+ * something nobody has heard is a fanfare and a tutti that plays *the hook* is an
+ * arrangement. Fragmented to what a whole band can hit together: three or four
+ * attacks, quantised to eighths, because five players landing on a sixteenth is not
+ * an ensemble figure, it is a smear.
+ */
+export function figureSlots(
+  onsets: readonly { at: number; dur: number }[], slotsPerBar: number,
+): number[] {
+  const inBar = onsets
+    .filter((o) => o.at >= 0 && o.at < slotsPerBar)
+    .map((o) => Math.round(o.at / 2) * 2);
+  const unique = [...new Set(inBar)].sort((a, b) => a - b);
+  // A figure has to start where the bar does, or the band is answering something.
+  if (unique[0] !== 0) unique.unshift(0);
+  return unique.slice(0, 4);
+}
+
+/**
+ * A line in parallel thirds or sixths under the tune.
+ *
+ * The deliberate half of a question this project otherwise only answers negatively:
+ * the arranger spends real effort keeping the accompaniment *off* the melody, and
+ * `npm run genres` forbids the answering line from doubling it at the unison or the
+ * octave outright. All of that is right about an accident and wrong about a decision.
+ * Two horns in thirds is one of the most characteristic sounds in this repertoire,
+ * and the only thing separating it from mud is that it is sustained and parallel
+ * rather than momentary and incidental.
+ *
+ * Thirds and sixths rather than unisons and octaves, and that is not timidity. A
+ * doubling at the octave *is* one line played twice, which is why the checks call it
+ * a fault; a third is two lines. True unison doubling already exists in this project
+ * where it belongs — the `unison` mode of a two-handed player's left hand, which is
+ * one instrument and therefore one voice.
+ */
+export function harmonise(
+  melody: readonly NoteEvent[],
+  from: number,
+  to: number,
+  below: number,
+  step: (midi: number, steps: number) => number,
+  [lo, hi]: [number, number],
+): NoteEvent[] {
+  const out: NoteEvent[] = [];
+  for (const n of melody) {
+    if (n.beat < from - 1e-6 || n.beat >= to - 1e-6) continue;
+    const midi = step(n.midi, -below);
+    if (midi < lo || midi > hi) continue;
+    out.push({ beat: n.beat, duration: n.duration, midi, velocity: n.velocity * 0.82 });
+  }
+  return out;
+}
+
+/**
  * Take the comp out for half a bar under the section's high note.
  *
  * The second half of the bar rather than the whole of it: the chord still arrives,

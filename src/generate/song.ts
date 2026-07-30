@@ -22,7 +22,7 @@
 import { CHORD_INTERVALS, parseRoman, type Chord } from '../core/chord.js';
 import { keyLabel, type Pc } from '../core/pitch.js';
 import { Rng } from '../core/rng.js';
-import { makeScale, type Mode } from '../core/scale.js';
+import { makeScale, stepInScale, type Mode } from '../core/scale.js';
 import {
   DEFAULT_DRUM_MIX, DEFAULT_SPACE, SEQUENCER_FROM, canVary, eligibleDrumSources,
   isPlayedByHand,
@@ -48,7 +48,7 @@ import { DEFAULT_FILLS } from './fills.js';
 import { getHook, RECALL_BIAS, type HookId } from './hook.js';
 import { composeSectionTune } from '../tune/adapt.js';
 import { planKeys } from '../tune/keyplan.js';
-import { patchBand } from '../tune/band.js';
+import { figureSlots, harmonise, patchBand } from '../tune/band.js';
 import { varyRecall } from '../tune/tune.js';
 import type { Signature } from '../tune/judge.js';
 import { chooseMotto } from './motto.js';
@@ -135,6 +135,17 @@ interface Remembered {
   progression: Progression;
   tonic: Pc;
   melody?: NoteEvent[];
+  /**
+   * The hook this section was built on, as scale steps.
+   *
+   * Remembered alongside the notes so that a *recalled* section can still hand its
+   * figure to the answering line. Without it the band quotes the tune in the chorus
+   * that invents it and forgets it in the two that bring it back, which is exactly
+   * backwards — the later ones are where a listener recognises the quotation.
+   */
+  hook?: number[];
+  /** Its rhythm too, so a recalled section can still call the band in. */
+  figure?: { at: number; dur: number }[];
 }
 
 export function generateSong(opts: GenerateOptions = {}): Song {
@@ -776,6 +787,12 @@ export function generateSong(opts: GenerateOptions = {}): Song {
      * which is the only place the guarantee can actually be made.
      */
     let sectionCounter: NoteEvent[] = [];
+    /**
+     * The figure this section is about, held at section scope so the band can have
+     * it. Freshly written where there is a new tune, remembered where the section is
+     * a recollection — the later choruses are exactly where a quotation lands.
+     */
+    let sectionHook: { contour: number[]; onsets: { at: number; dur: number }[] } | undefined;
 
     if (solo && soloLayer && genre.solo) {
       /**
@@ -925,9 +942,30 @@ export function generateSong(opts: GenerateOptions = {}): Song {
       push(byLayer, leadLayer, filtered(melody, leadLayer));
       sectionMelody = melody;
 
+      /**
+       * The figure this section is made of, for the band to quote.
+       *
+       * From the freshly written plan where there is one, otherwise from what this
+       * kind of section was remembered as being about.
+       */
+      const fresh = written?.audition.plan.motifs.find((m) => m.role === 'hook');
+      if (fresh) {
+        sectionHook = {
+          contour: fresh.contour.slice(),
+          onsets: fresh.gesture.onsets.map((o) => ({ at: o.at, dur: o.dur })),
+        };
+      } else if (prior?.hook) {
+        sectionHook = { contour: prior.hook, onsets: prior.figure ?? [] };
+      }
+      const hookContour = sectionHook?.contour;
+
       // Solos are never remembered, so this only ever stores an actual tune.
       if (memory && !memory.melody && !isSolo) {
         memory.melody = melody.map((n) => ({ ...n, beat: n.beat - ctxBase.startBeat }));
+        if (sectionHook) {
+          memory.hook = sectionHook.contour.slice();
+          memory.figure = sectionHook.onsets.slice();
+        }
       }
 
       if (!isSolo && active.has('counter')) {
@@ -951,7 +989,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
          * voiced against the harmony, walking a ladder one note at a time. The
          * only thing that made it a *counter* was which layer it lands in.
          */
-        const answer = counterPattern
+        let answer = counterPattern
           ? generateComp(
             counterCtx, counterPattern, instruments.counter.centre,
             (c) => genre.scaleForChord(localTonic, mode, c),
@@ -961,6 +999,9 @@ export function generateSong(opts: GenerateOptions = {}): Song {
             range: plan.counter,
             idiom: IDIOMS[instruments.counter.idiom],
             scaleFor: (c) => genre.scaleForChord(localTonic, mode, c),
+            // The section's own figure, so the answer can quote the song rather than
+            // echo the last four notes it heard. See `generateCounter`.
+            ...(hookContour ? { quote: hookContour } : {}),
           });
         applyDynamics(answer, 'counter', intensity, genre.layerPlan?.response);
         /**
@@ -977,6 +1018,47 @@ export function generateSong(opts: GenerateOptions = {}): Song {
          * because for a chordal layer doubling the tune is a matter of degree. For
          * the answer it is a rule at every setting.
          */
+        /**
+         * …and, once in a while, the answer stops answering and *joins in*.
+         *
+         * The arranger spends real effort keeping every part off the tune, and
+         * `npm run genres` forbids the answering line from doubling it at the unison
+         * or the octave outright. All of that is right about an accident and wrong
+         * about a decision: two lines in thirds is one of the most characteristic
+         * sounds in this repertoire, and the only thing separating it from mud is
+         * that it is sustained and parallel rather than momentary and incidental.
+         *
+         * Thirds and sixths rather than unisons and octaves, and not out of timidity.
+         * A doubling at the octave *is* one line played twice, which is why the checks
+         * call it a fault. True unison doubling already exists where it belongs — the
+         * `unison` mode of a two-handed player's left hand, which is one instrument
+         * and therefore one voice.
+         *
+         * One phrase, in a chorus that has been heard before, and never the last two
+         * bars: the cadence is where the two parts most need to be two.
+         */
+        if (section.kind === 'chorus' && ordinal >= 1 && section.lengthBars >= 8
+          && new Rng(`${seed}:harmony:${s}`).chance(0.55)) {
+          const half = Math.floor(section.lengthBars / 2);
+          const from = ctxBase.startBeat + half * style.beatsPerBar;
+          const to = from + Math.min(4, section.lengthBars - half - 2) * style.beatsPerBar;
+          const line = harmonise(
+            melody, from, to,
+            new Rng(`${seed}:harmony:${s}:size`).chance(0.65) ? 2 : 5,
+            (midi, steps) => stepInScale(
+              genre.scaleForChord(localTonic, mode, ctxBase.chords[Math.min(
+                ctxBase.chords.length - 1, Math.floor((from - ctxBase.startBeat) / style.beatsPerBar),
+              )]!),
+              midi, steps,
+            ),
+            plan.counter,
+          );
+          if (line.length >= 3) {
+            answer = [...answer.filter((n) => n.beat < from - 1e-6 || n.beat >= to - 1e-6), ...line]
+              .sort((a, b) => a.beat - b.beat);
+          }
+        }
+
         sectionCounter = undoubleAgainst(
           answer,
           withTail(byLayer, 'melody', ctxBase.startBeat, melody),
@@ -1066,6 +1148,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
      * everywhere is a doubling rather than an arrangement. See `tune/band.ts`.
      */
     if (sectionMelody.length && (section.kind === 'chorus' || section.kind === 'outro')) {
+      const bandRng = new Rng(`${seed}:band:${s}:figure`);
       const patch = patchBand({
         melody: sectionMelody,
         bass: sectionBass,
@@ -1078,6 +1161,43 @@ export function generateSong(opts: GenerateOptions = {}): Song {
       });
       sectionBass = patch.bass;
       sectionComp = patch.comp;
+
+      /**
+       * The whole band on one figure, for a bar.
+       *
+       * Nothing in this project could say *everybody hit this together* — the shout
+       * chorus, the tutti break, the bar where the rhythm section stops keeping time
+       * and plays the tune's rhythm instead. It is one of the loudest signals there
+       * is that a piece was arranged rather than assembled, and it needs three layers
+       * to move at once, which is why it lives here rather than in any of the part
+       * generators.
+       *
+       * The figure is the section's own hook, not an invention: a tutti playing
+       * something nobody has heard is a fanfare, and a tutti playing *the hook* is an
+       * arrangement. Reserved for a chorus that has already been stated once, because
+       * the gesture is a comment on something the listener knows.
+       *
+       * **The drummer does not join, and that is a deliberate cost.** The figure comes
+       * from the tune, so a kit that caught it would change with the tune — and
+       * `--hook` is documented as an A/B control that leaves form, key, tempo,
+       * instruments and drums alone at every level. Drums catching kicks is exactly
+       * what would make this gesture land hardest, and it is not worth turning the
+       * repetition axis back into a reroll to get it. The rhythm section hitting a
+       * figure while the kit keeps time is its own real sound.
+       */
+      const onsets = sectionHook?.onsets ?? [];
+      const figure = ordinal >= 1 && onsets.length && bandRng.chance(0.45)
+        ? figureSlots(onsets, Math.round(style.beatsPerBar * SLOTS_PER_BEAT))
+        : [];
+      if (figure.length >= 2) {
+        const hitBar = section.startBar + (bandRng.chance(0.6) ? 0 : Math.max(0, section.lengthBars - 2));
+        const from = hitBar * style.beatsPerBar;
+        const to = from + style.beatsPerBar;
+        const beats = figure.map((slot) => from + slot / SLOTS_PER_BEAT);
+
+        sectionBass = hitTogether(sectionBass, from, to, beats);
+        sectionComp = hitTogether(sectionComp, from, to, beats);
+      }
     }
 
     // The ceiling was a forecast; this is the correction. Now that the tune
@@ -1771,6 +1891,41 @@ function withTail(
     .map((n) => ({ ...n, duration: Math.min(n.duration, Math.max(0, until - n.beat)) }))
     .filter((n) => n.duration > 1e-6);
   return clipped.length ? [...clipped, ...notes] : notes;
+}
+
+/**
+ * Replace whatever a part was playing in one bar with the band's figure.
+ *
+ * The pitches are the part's own — a bass hit is still the bass note it would have
+ * played, a comp hit is still that bar's voicing — because a tutti is a rhythmic
+ * event, not a harmonic one. What changes is *when*, and that everyone changes it
+ * together.
+ */
+function hitTogether(
+  notes: NoteEvent[], from: number, to: number, beats: readonly number[],
+): NoteEvent[] {
+  const inBar = notes.filter((n) => n.beat >= from - 1e-6 && n.beat < to - 1e-6);
+  if (inBar.length < 2) return notes;
+  const kept = notes.filter((n) => n.beat < from - 1e-6 || n.beat >= to - 1e-6);
+
+  // One onset's worth of pitches per hit, taken from what the part was already
+  // holding, so a chord stays a chord and a bass line stays one note.
+  const groups = new Map<number, NoteEvent[]>();
+  for (const n of inBar) {
+    const at = groups.get(n.beat) ?? [];
+    at.push(n);
+    groups.set(n.beat, at);
+  }
+  const voicings = [...groups.values()];
+
+  const hits: NoteEvent[] = [];
+  beats.forEach((beat, i) => {
+    const next = beats[i + 1] ?? to;
+    for (const n of voicings[Math.min(i, voicings.length - 1)]!) {
+      hits.push({ ...n, beat, duration: Math.min(n.duration, Math.max(0.25, next - beat)), velocity: Math.min(1, n.velocity + 0.12) });
+    }
+  });
+  return [...kept, ...hits].sort((a, b) => a.beat - b.beat);
 }
 
 function push(map: Map<LayerId, NoteEvent[]>, layer: LayerId, notes: NoteEvent[]): void {
