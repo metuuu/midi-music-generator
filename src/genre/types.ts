@@ -82,6 +82,18 @@ export interface TitleContext {
 }
 
 export interface Genre {
+  /**
+   * Does a key change get announced by the dominant of the key it is going to?
+   *
+   * True by default, because a prepared modulation is what most of this repertoire
+   * does. False where an applied dominant would be an anachronism in the other
+   * direction: modal pop after 1970 has no leading tone in minor — where another
+   * idiom writes `V` it writes `bVII` — so a `V7/II` in front of the last chorus
+   * would sound like a dance band had walked in, and `npm run genres` asserts that
+   * the raised seventh never appears. Those genres modulate directly instead, which
+   * is also a real gesture. See `tune/keyplan.ts`.
+   */
+  preparedModulation?: boolean;
   id: string;
   label: string;
   /** One line, shown in the CLI and the audition page. */

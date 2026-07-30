@@ -144,8 +144,24 @@ export function composeTune(opts: TuneOptions): Tune {
     });
     skeletons[phrase.id] = skeleton;
 
+    /**
+     * A section's tune starts inside its section.
+     *
+     * The engine writes pickups freely, and a pickup on the *first* phrase lands
+     * before bar 0 — inside the section before it, where that section's answering
+     * line is already playing and was written without knowing this note would
+     * arrive. The old engine took the same liberty and got away with it; three
+     * counter notes in 377 overlaps came out doubling the tune at the octave, which
+     * `npm run genres` forbids outright and is right to. Phrase pickups inside the
+     * section are untouched — it is only the seam that has to be respected.
+     */
+    const entering = bar === 0
+      ? { ...figure, gesture: { ...figure.gesture, onsets: figure.gesture.onsets.filter((o) => o.at >= 0) } }
+      : figure;
+    if (!entering.gesture.onsets.length) { bar += phrase.bars; continue; }
+
     notes.push(...realisePhrase({
-      figure,
+      figure: entering,
       skeleton,
       bars: phrase.bars,
       slotsPerBar,
@@ -320,7 +336,6 @@ export function varyRecall(opts: VaryOptions): NoteEvent[] {
       [liftPeak, 3],
       [ornamentLongest, 3],
       [holdLast, 2],
-      [addPickup, opts.amount > 0.5 ? 2 : 0.5],
     ] as const)(notes, scale, range, rng);
   }
   return trim(notes);
@@ -353,24 +368,20 @@ function ornamentLongest(notes: NoteEvent[], scale: Scale, range: [Midi, Midi], 
   return out;
 }
 
-/** Sit on the arrival. A cadence held is a cadence meant. */
+/**
+ * Sit on the arrival. A cadence held is a cadence meant.
+ *
+ * There is deliberately no *pickup* among these three. Coming in early is the fourth
+ * thing a singer does to a line they have sung twice, and it is the one that cannot be
+ * done here: written in front of the first note it lands in the previous section, and
+ * carved out of the first note it changes the two tokens every recall measurement
+ * keys on. Both are worse than not having it.
+ */
 function holdLast(notes: NoteEvent[]): NoteEvent[] {
   const out = notes.slice();
   const last = out[out.length - 1]!;
   out[out.length - 1] = { ...last, duration: last.duration * 1.5 };
   return out;
-}
-
-/** Come in early. What a singer does the third time they sing something. */
-function addPickup(notes: NoteEvent[], scale: Scale, range: [Midi, Midi], rng: Rng): NoteEvent[] {
-  const first = notes[0]!;
-  if (first.duration < 0.5) return notes;
-  const from = stepInScale(scale, first.midi, rng.chance(0.7) ? -1 : 1);
-  if (from < range[0] || from > range[1]) return notes;
-  return [
-    { ...first, beat: first.beat - 0.25, duration: 0.25, midi: from, velocity: first.velocity * 0.8 },
-    ...notes,
-  ];
 }
 
 /**

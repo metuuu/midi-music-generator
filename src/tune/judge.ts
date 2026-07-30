@@ -93,6 +93,17 @@ export function judge(opts: JudgeOptions): Verdict {
   };
 
   const weights = { ...BASE_WEIGHTS, ...(opts.archetype.judge ?? {}) };
+  /**
+   * Smoothness has to reach the *selection*, not only the realisation.
+   *
+   * Making every candidate tamer is not the same as choosing a tamer candidate: the
+   * axis changes which of two dozen tunes wins, and on the one genre whose rule table
+   * is mostly disabled the winner at `polished` came out leapier than the winner at
+   * `strict` even though each individual realisation was narrower. The *target* for
+   * `motion` is unchanged — what a well-moving line looks like is not a matter of
+   * taste — only how much it counts against the rest.
+   */
+  weights.motion = (weights.motion ?? 1) * (1 + opts.strictness * 0.3);
   let total = 0;
   let sum = 0;
   for (const id of Object.keys(terms) as TermId[]) {

@@ -124,6 +124,15 @@ const FORMS: (readonly [FormStep[], number])[] = [
 ];
 
 export const synth: Genre = {
+  /**
+   * Direct, never prepared — the same negative claim as the missing harmonic minor.
+   *
+   * `keyChangeChance` is non-zero in every era here because the final lift is a
+   * signature move, and an applied dominant in front of it would put a leading tone
+   * in a minor-key song, which is the one thing this genre asserts never happens.
+   * See `tune/keyplan.ts`.
+   */
+  preparedModulation: false,
   id: 'synth',
   label: 'Synth',
   description:

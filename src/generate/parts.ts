@@ -1099,7 +1099,9 @@ export function generateCounter(
           // possible, and arpeggiate only as far as the instrument wants to.
           : clampToRange(nearestPc(tones[(i + 1) % tones.length]!, midi), lo, hi);
       }
-      midi = avoidClash(midi, melodyAt(beat)?.midi, prevMelody, prev, tones, [lo, hi], idiom);
+      midi = avoidClash(
+        midi, melodyAt(beat)?.midi, prevMelody, prev, tones, [lo, hi], idiom, scale?.pcs,
+      );
       out.push({
         beat,
         duration: held,
@@ -1142,6 +1144,7 @@ function avoidClash(
   tones: readonly number[],
   [lo, hi]: [Midi, Midi],
   idiom: IdiomProfile,
+  scalePcs?: readonly number[],
 ): Midi {
   if (melodyNow === undefined) return midi;
 
@@ -1176,7 +1179,87 @@ function avoidClash(
     }
     return undefined;
   };
-  return nearest(bad) ?? nearest(clashes) ?? midi;
+  /**
+   * Third tier: any pitch at all, rather than the doubling.
+   *
+   * The chord-tone search can genuinely come up empty — a triad offers three pitch
+   * classes and the octave of the melody note is one of them often enough that
+   * within a fifth either way there may be nothing else. Falling back to `midi` then
+   * returns the very note this function was called to remove. A non-chord tone in an
+   * answering line is ordinary counterpoint; doubling the tune is the one thing this
+   * exists to prevent, so the chord is what gives way last.
+   *
+   * The *scale* does not give way, though, and the first attempt at this got that
+   * wrong: allowing any pitch at all put two leading tones into a minor-key synth
+   * song, which is the one thing that genre asserts never happens. A chord tone is a
+   * preference and a scale tone is the floor.
+   */
+  const scaleTone = (): Midi | undefined => {
+    if (!scalePcs?.length) return undefined;
+    // The whole register, not a neighbourhood of it. A note further from where the
+    // line wanted to be is a compromise; doubling the tune is a failure.
+    for (let d = 1; d <= hi - lo; d++) {
+      for (const dir of [-1, 1]) {
+        const cand = midi + d * dir;
+        if (cand < lo || cand > hi) continue;
+        if (!scalePcs.includes(((cand % 12) + 12) % 12)) continue;
+        if (!clashes(cand)) return cand;
+      }
+    }
+    return undefined;
+  };
+  return nearest(bad) ?? nearest(clashes) ?? scaleTone() ?? midi;
+}
+
+/**
+ * Move any answer note that doubles the tune at the unison or octave.
+ *
+ * A guarantee rather than a preference, and it has to be checked after both parts
+ * exist. `avoidClash` does the same test while the answer is being written and cannot
+ * see everything: a melody note held across a section boundary is not in the notes it
+ * was handed, and a recalled tune may be varied after the answer was placed.
+ *
+ * Repaired through the *scale* rather than by a semitone, and downward first — an
+ * answer sits under the tune where it can, so the first place to look for room is
+ * below.
+ */
+export function undoubleAgainst(
+  counter: NoteEvent[],
+  melody: readonly NoteEvent[],
+  scale: Scale,
+  [lo, hi]: [Midi, Midi],
+): NoteEvent[] {
+  if (!counter.length || !melody.length) return counter;
+  /**
+   * The *latest* note still sounding, not the first one found.
+   *
+   * A line is monophonic, so at most one note sounds at a time — but the array handed
+   * in is a concatenation, and a note carried over from the section before is at the
+   * front of it. Taking the first match therefore compared the answer against a note
+   * that had already been cut off, and let the note actually sounding go unchecked.
+   */
+  const sounding = (beat: number): NoteEvent | undefined => {
+    let best: NoteEvent | undefined;
+    for (const m of melody) {
+      if (m.beat > beat + 1e-6 || m.beat + m.duration <= beat + 1e-6) continue;
+      if (!best || m.beat > best.beat) best = m;
+    }
+    return best;
+  };
+
+  return counter.map((n) => {
+    const under = sounding(n.beat);
+    if (!under || Math.abs(under.midi - n.midi) % 12 !== 0) return n;
+    for (let d = 1; d <= 6; d++) {
+      for (const dir of [-1, 1]) {
+        const cand = stepInScale(scale, n.midi, d * dir);
+        if (cand < lo || cand > hi) continue;
+        if (Math.abs(under.midi - cand) % 12 === 0) continue;
+        return { ...n, midi: cand };
+      }
+    }
+    return n;
+  });
 }
 
 export function generateDrums(

@@ -47,6 +47,7 @@ import { applyFilter } from './filter.js';
 import { DEFAULT_FILLS } from './fills.js';
 import { getHook, RECALL_BIAS, type HookId } from './hook.js';
 import { composeSectionTune } from '../tune/adapt.js';
+import { planKeys } from '../tune/keyplan.js';
 import { varyRecall } from '../tune/tune.js';
 import type { Signature } from '../tune/judge.js';
 import { chooseMotto } from './motto.js';
@@ -59,8 +60,7 @@ import { generateVocalTrack } from './vocals.js';
 import {
   generateBass, generateBrass, generateComp, generateCounter, generateDrums,
   generateLeftHand, generatePad,
-  type PartContext,
-} from './parts.js';
+  type PartContext, undoubleAgainst } from './parts.js';
 
 export interface GenerateOptions {
   seed?: string | number;
@@ -193,14 +193,27 @@ export function generateSong(opts: GenerateOptions = {}): Song {
     rng, genre, style, bpm,
     pick(rng.float(genre.duration[0], genre.duration[1]), opts.targetSeconds),
   );
-  const liftAt = rng.chance(era.keyChangeChance) ? lastChorusIndex(steps) : -1;
-  const lift = liftAt >= 0 ? rng.weighted([[1, 3], [2, 2]] as const) : 0;
+  /**
+   * Where the song changes key, and how it gets there. See `tune/keyplan.ts`.
+   *
+   * This used to be one roll and one field: if it came up, every section from the
+   * last chorus onward went up a semitone or a tone, unannounced. The route can also
+   * send a bridge to the subdominant or the dominant and bring it home, and it names
+   * the applied dominant that belongs in the bar before each change — which is the
+   * difference between a modulation and a splice.
+   */
+  const keys = planKeys({
+    kinds: steps.map((step) => step.kind),
+    chance: era.keyChangeChance,
+    ...(genre.preparedModulation === false ? { prepared: false } : {}),
+    rng,
+  });
 
   const sections: Section[] = [];
   let bar = 0;
   for (let i = 0; i < steps.length; i++) {
     const step = steps[i]!;
-    const transpose = liftAt >= 0 && i >= liftAt ? lift : 0;
+    const transpose = keys.transpose[i] ?? 0;
     sections.push({
       kind: step.kind,
       startBar: bar,
@@ -447,6 +460,16 @@ export function generateSong(opts: GenerateOptions = {}): Song {
     const fresh = pickProgression(rng, style, section.kind, mode, hook.harmonicSimplicity);
     const progression = replayChords && prior ? prior.progression : fresh;
     const chords = expandProgression(progression, section.lengthBars, mode);
+    /**
+     * The pivot into the next key, in the last bar of the section before it.
+     *
+     * Written as a roman numeral and parsed back, so the label and the chord agree by
+     * construction: `V7/II` *is* the dominant of the key a tone up, and every tool
+     * that reads `Section.chordLabels` — the showbill, the guide-tone check, the
+     * strudel comments — reads the same chord the generator wrote.
+     */
+    const pivot = keys.pivots.get(s);
+    if (pivot && chords.length) chords[chords.length - 1] = parseRoman(pivot, mode);
     section.chordLabels = chords.map((c) => c.label);
 
     // Install this section's memory before generating, so nothing recalls
@@ -741,6 +764,17 @@ export function generateSong(opts: GenerateOptions = {}): Song {
 
     const accompaniment = buildAccompaniment([sectionBass, sectionComp, sectionPad]);
     let sectionMelody: NoteEvent[] = [];
+    /**
+     * Held aside rather than pushed, so the collision pass can see it.
+     *
+     * The answering line is written against the tune and still ends up doubling it
+     * occasionally — a note held across the section seam, a variation applied to a
+     * recalled tune after the answer was placed, an escape search that ran out of
+     * chord tones. `resolveCollisions` is the pass that already fixes exactly this
+     * for the comp, the pad and the brass, and it runs after every part exists,
+     * which is the only place the guarantee can actually be made.
+     */
+    let sectionCounter: NoteEvent[] = [];
 
     if (solo && soloLayer && genre.solo) {
       /**
@@ -922,13 +956,32 @@ export function generateSong(opts: GenerateOptions = {}): Song {
             (c) => genre.scaleForChord(localTonic, mode, c),
             limitFor('counter'),
           )
-          : generateCounter(counterCtx, melody, instruments.counter.centre, {
+          : generateCounter(counterCtx, withTail(byLayer, 'melody', ctxBase.startBeat, melody), instruments.counter.centre, {
             range: plan.counter,
             idiom: IDIOMS[instruments.counter.idiom],
             scaleFor: (c) => genre.scaleForChord(localTonic, mode, c),
           });
         applyDynamics(answer, 'counter', intensity, genre.layerPlan?.response);
-        push(byLayer, 'counter', filtered(answer, 'counter'));
+        /**
+         * The last word on the one thing an answering line may never do.
+         *
+         * `generateCounter` already avoids the tune, note by note, as it writes — and
+         * still cannot guarantee it, because three things happen outside its view: a
+         * melody note held across the section seam, a variation applied to a recalled
+         * tune, and its own escape search running out of chord tones. Checked here,
+         * against the finished line, it is a guarantee rather than an effort.
+         *
+         * Not folded into `resolveCollisions`, which is where the comp, pad and brass
+         * are kept off the tune: that pass only fixes octaves at high clarity,
+         * because for a chordal layer doubling the tune is a matter of degree. For
+         * the answer it is a rule at every setting.
+         */
+        sectionCounter = undoubleAgainst(
+          answer,
+          withTail(byLayer, 'melody', ctxBase.startBeat, melody),
+          makeScale(localTonic, mode),
+          plan.counter,
+        );
       }
     }
 
@@ -1036,6 +1089,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
     swell(sectionPad, ctxBase.startBeat, sectionBeats, 0.35);
     swell(sectionComp, ctxBase.startBeat, sectionBeats, 0.12);
 
+    push(byLayer, 'counter', filtered(sectionCounter, 'counter'));
     push(byLayer, 'bass', filtered(sectionBass, 'bass'));
     push(byLayer, 'comp', filtered(sectionComp, 'comp'));
     push(byLayer, 'pad', filtered(sectionPad, 'pad'));
@@ -1121,6 +1175,28 @@ export function generateSong(opts: GenerateOptions = {}): Song {
     byLayer.set(layer, trimOverlaps(
       applySwing(notes.filter((n) => n.beat >= 0), style.swing),
     ));
+  }
+
+  /**
+   * The answer against the finished tune, once there is a finished tune.
+   *
+   * Every earlier check of this ran a section at a time, and a section cannot see
+   * what the section after it will write across the seam: a pickup, a variation
+   * applied to a recalled chorus, a cadence held past the barline. `undoubleAgainst`
+   * inside the loop catches almost all of it and cannot catch that, so the guarantee
+   * is made here, where both layers are whole and trimmed.
+   */
+  {
+    const line = byLayer.get('melody') ?? [];
+    const answer = byLayer.get('counter') ?? [];
+    if (line.length && answer.length) {
+      // The window is the part's own, widened by an octave, rather than a guess at
+      // the instrument's. A guessed window that does not contain the note being
+      // repaired rejects every candidate and silently returns the fault.
+      const lo = Math.min(...answer.map((n) => n.midi)) - 12;
+      const hi = Math.max(...answer.map((n) => n.midi)) + 12;
+      byLayer.set('counter', undoubleAgainst(answer, line, makeScale(tonic, mode), [lo, hi]));
+    }
   }
 
   /**
@@ -1647,6 +1723,32 @@ function snapToChord(midi: number, tones: number[]): number {
 
 // ---------------------------------------------------------------------------
 
+/**
+ * The tune this section is answering, plus whatever is still ringing from the last
+ * one.
+ *
+ * The answering line places itself in the holes of the melody it is handed, and it is
+ * handed *this section's* melody — so a note held across the section boundary is
+ * invisible to it, and the first hole of a section is exactly where such a note would
+ * still be sounding. Two counter notes in 354 overlaps came out doubling the tune at
+ * the octave that way, which `npm run genres` forbids outright and is right to.
+ */
+function withTail(
+  byLayer: Map<LayerId, NoteEvent[]>, layer: LayerId, startBeat: number, notes: NoteEvent[],
+): NoteEvent[] {
+  const written = byLayer.get(layer) ?? [];
+  const ringing = written.filter((n) => n.beat < startBeat && n.beat + n.duration > startBeat + 1e-6);
+  if (!ringing.length) return notes;
+  // Clipped where the new section's first note cuts it off, which is what the
+  // concatenation trim will do to it anyway. Handed over untrimmed it claims to be
+  // sounding under half the section and the answer avoids a note nobody can hear.
+  const until = notes[0]?.beat ?? startBeat + 1e9;
+  const clipped = ringing
+    .map((n) => ({ ...n, duration: Math.min(n.duration, Math.max(0, until - n.beat)) }))
+    .filter((n) => n.duration > 1e-6);
+  return clipped.length ? [...clipped, ...notes] : notes;
+}
+
 function push(map: Map<LayerId, NoteEvent[]>, layer: LayerId, notes: NoteEvent[]): void {
   const arr = map.get(layer);
   if (arr) arr.push(...notes);
@@ -1930,13 +2032,6 @@ function buildForm(rng: Rng, genre: Genre, style: Style, bpm: number, targetSeco
     steps.splice(idx, 1);
   }
   return steps;
-}
-
-function lastChorusIndex(steps: FormStep[]): number {
-  for (let i = steps.length - 1; i >= 0; i--) {
-    if (steps[i]!.kind === 'chorus') return i;
-  }
-  return -1;
 }
 
 function layersFor(kind: SectionKind, style: Style, density: number, mood: Mood, rng: Rng): LayerId[] {
