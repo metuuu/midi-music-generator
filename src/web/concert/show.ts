@@ -15,11 +15,12 @@
  *
  * The two edges either side of PLAYING carry most of the staging, and both of
  * them are about *order*. CURTAIN is: tabs open, stage look up under them,
- * band picks up its instruments — and no sound at all, because the
- * pattern is compiled behind the cloth and started later. COUNT-IN is the
- * leader beating time and then the first bar of the music, which for anything
- * with a kit is the drummer's four clicks (`withCountIn`, in the generator —
- * the count is music, not an effect). APPLAUSE runs the other way: the last
+ * whoever opens the number picks up their instrument — and no sound at all,
+ * because the pattern is compiled behind the cloth and started later. COUNT-IN
+ * is the leader beating time and then the first bar of the music, which for
+ * anything with a kit is the drummer's four clicks, and the drummer is then
+ * also the leader (`withCountIn`, in the generator — the count is music, not an
+ * effect). APPLAUSE runs the other way: the last
  * chord is still ringing, the house comes up, the tabs come in *over* the band
  * while they take it, and the next number is not staged until the cloth is
  * shut. Nobody watches six people turn into six other people.
@@ -788,15 +789,23 @@ export function createShow(opts: ShowOptions = {}): Show {
   /**
    * Who gives the count.
    *
-   * The person out front, and the drummer only if there is nobody out front —
-   * which is the opposite of who is *audibly* counting and is right for both
-   * reasons: a band takes its cue from the singer whether or not the sticks
-   * are what they hear, and if the drummer were also the visible leader the
-   * cue and the count would be the same person doing two things at once.
+   * **The drummer, when there is a drummer counting.** A lead-in bar means
+   * `withCountIn` put four clicks at the front of the number, and those clicks
+   * *are* the count — so it comes from the person playing them, and the band
+   * takes it from there. The singer nodding four over the top of a count the
+   * drummer is already giving is two counts, and the second one reads as a tic:
+   * a head keeping time to a rhythm somebody else is stating.
+   *
+   * Otherwise the person out front. With no kit there is nothing to click, the
+   * song carries no lead-in, and the leader's own count is the only one there
+   * is — so it goes to whoever the band would take it from anyway.
    */
   function leaderId(): string | undefined {
     const players = current.cast.performers;
-    for (const layer of ['vocal', 'melody', 'comp', 'drums'] as LayerId[]) {
+    const order: LayerId[] = leadInBeats() > 0
+      ? ['drums', 'vocal', 'melody', 'comp']
+      : ['vocal', 'melody', 'comp', 'drums'];
+    for (const layer of order) {
       const found = players.find((p) => p.layer === layer);
       if (found) return found.id;
     }
@@ -902,10 +911,12 @@ export function createShow(opts: ShowOptions = {}): Show {
       case 'curtain':
         /**
          * The reveal: the tabs, and the stage coming up under them while they
-         * travel — and the band picking their instruments up in the same gap,
-         * which is the one moment of the evening worth spending a whole
-         * curtain on. The house does not move at all; it was already where the
-         * show runs before the programme came down. See `HOUSE_FLOOR`.
+         * travel — and the players who open the number picking their
+         * instruments up in the same gap, which is the one moment of the
+         * evening worth spending a whole curtain on. The rest of the band is
+         * standing there at ease waiting for its entry, which is the other half
+         * of the same picture. The house does not move at all; it was already
+         * where the show runs before the programme came down. See `HOUSE_FLOOR`.
          */
         if (!revealed && stateSeconds >= CURTAIN_AT) {
           revealed = true;
@@ -925,14 +936,16 @@ export function createShow(opts: ShowOptions = {}): Show {
         /**
          * Nothing is sounding yet, deliberately.
          *
-         * The band is up, the leader is beating time — `animator.cue` named
-         * them, and the animator runs that off its own clock precisely because
-         * there is no beat here to run it off — and after a moment the music
-         * starts. Whether the audience then *hears* a count depends on whether
-         * there is a kit to count on: `withCountIn` puts four clicks at the
-         * front of the pattern when there is, so from here on the count is
-         * simply the first bar of the song and the drummer plays it like any
-         * other bar.
+         * The players who open the number are up, the leader is beating time —
+         * `animator.cue` named them, and the animator runs that off its own
+         * clock precisely because there is no beat here to run it off — and
+         * after a moment the music starts. Whether the audience then *hears* a
+         * count depends on whether there is a kit to count on: `withCountIn`
+         * puts four clicks at the front of the pattern when there is, so from
+         * here on the count is simply the first bar of the song and the drummer
+         * plays it like any other bar — and the head that was beating time is
+         * the same drummer's, which is why it stops the moment the sticks do
+         * the talking. See `leaderId` and `Runtime.counting`.
          */
         if (!cueGiven && stateSeconds >= CUE_SECONDS) {
           cueGiven = true;

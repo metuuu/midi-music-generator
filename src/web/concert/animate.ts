@@ -140,8 +140,13 @@ export interface Animator {
    * before the audience arrives.
    *
    * So the show runner says when. The natural moment is the reveal: the tabs
-   * are travelling, the band is standing there, and the whole band picking
-   * their instruments up is the thing worth watching.
+   * are travelling, the band is standing there, and the band picking their
+   * instruments up is the thing worth watching.
+   *
+   * Who comes up is the number's own answer, not this call's: whoever is in at
+   * the top takes their instrument up on the cue, and anybody whose first entry
+   * is further off than `OPENING_ENTRY_SECONDS` waits at ease for it. A cue is
+   * for the people who are about to play.
    *
    * `leaderPerformerId` names whoever is giving the count, and turns this from
    * a state change into a *cue*: that player beats time until their own first
@@ -160,10 +165,13 @@ export interface Animator {
    *
    * Ends the leader's count and hands the engagement want back to the gesture
    * list, which is the only thing that should be deciding it once there is
-   * music. Both halves matter. A leader still beating time under the second
-   * verse is a man with a tic; and a player whose first entry is thirty bars
-   * away would otherwise stand at the ready for the whole intro, when what
-   * they actually do is wait with their hands down and come up for it.
+   * music. Both halves matter: a leader still beating time under the second
+   * verse is a man with a tic, and the opening is the one moment the gesture
+   * list cannot decide for itself — there is no clock behind it to ask.
+   *
+   * It also closes the reveal. Whoever waited the count out at ease comes up
+   * for their entry at the working speed rather than at the slow one the
+   * opening shot is worth. See `OPEN_RISE_SECONDS`.
    *
    * Idempotent, and safe before `cue` — it only ever clears.
    */
@@ -466,6 +474,27 @@ const ENGAGE_HOLD_SECONDS = 0.90;
  * for the gap instead of half-made twice.
  */
 const ENGAGE_GAP_SECONDS = 4.0;
+
+/**
+ * How far into a number a first entry can be and still be part of the opening.
+ *
+ * The cue raises the band, but not all of it: the people who *start the number*
+ * take their instruments up and everybody else stays at ease and comes up for
+ * their own entry. Which is what a band does, and it is also the only way the
+ * entries read as entries — a horn section that came up on the cue and then
+ * stood at the ready through a sixteen-bar intro has spent its entrance before
+ * it happened.
+ *
+ * Deliberately the same figure as `ENGAGE_GAP_SECONDS`, for the same reason:
+ * that constant says the shortest pause worth standing down for, and this is
+ * the same question asked at the front of the number. Anything shorter would
+ * leave a player at ease through the count and then bring them straight back up
+ * a beat into the music, which is the half-measure both constants exist to
+ * prevent. Measured from the first downbeat of the music proper rather than
+ * from the cue, because the runway between the two is the show runner's and
+ * varies with the curtain.
+ */
+const OPENING_ENTRY_SECONDS = 4.0;
 
 /**
  * Where a carried instrument goes when its player stands down.
@@ -1190,6 +1219,16 @@ class Player {
    * revoiced player would take the slow reveal raise in the middle of a bar.
    */
   opened = false;
+  /**
+   * Whether this player is in at the top of the number. See
+   * `OPENING_ENTRY_SECONDS`, which decides it, and `Runtime.begin`, which asks.
+   *
+   * A property of the gesture list rather than of the frame, and that is the
+   * point: the cue is an instruction taken once for the whole wait, so a player
+   * either comes up with the band or does not, and nothing about the passing
+   * pre-roll can change its mind halfway.
+   */
+  opens = false;
 
   /**
    * A carried instrument's staged transform, in the torso's frame.
@@ -1447,6 +1486,15 @@ class Runtime implements Animator {
   private idleHold = 1;
   private idleEase = 1;
   private closeBeats = 0.1;
+  /**
+   * Where the music proper starts, in beats: past the drummer's count-in, or 0.
+   *
+   * Only `Player.opens` reads it, and only to ask how far into the number a
+   * first entry is. Taken from the song rather than from the show runner
+   * because it is a fact about the pattern — `withCountIn` wrote the clicks and
+   * `SongMeta.leadInBars` records where it put the music.
+   */
+  private startBeat = 0;
 
   /** Monotonic show seconds, accumulated from `dt`. The rigs read this. */
   private seconds = 0;
@@ -1473,6 +1521,7 @@ class Runtime implements Animator {
   ): void {
     const bpm = number.song.meta.bpm > 0 ? number.song.meta.bpm : 120;
     this.beatsPerSecond = bpm / 60;
+    this.startBeat = (number.song.meta.leadInBars ?? 0) * number.song.meta.beatsPerBar;
     this.idleHold = IDLE_HOLD_SECONDS * this.beatsPerSecond;
     this.idleEase = IDLE_EASE_SECONDS * this.beatsPerSecond;
     this.closeBeats = MOUTH_CLOSE_SECONDS * this.beatsPerSecond;
@@ -1530,6 +1579,7 @@ class Runtime implements Animator {
       );
       player.engage = carriedOver.get(performer.id) ?? 0;
       player.opened = wasOpened.has(performer.id);
+      player.opens = this.opensNumber(player);
       const was = previous.get(performer.id);
       if (was) {
         player.stroke = was.stroke;
@@ -1541,6 +1591,25 @@ class Runtime implements Animator {
       this.players.push(player);
       this.byId.set(performer.id, player);
     }
+  }
+
+  /**
+   * Whether this player's first entry belongs to the opening.
+   *
+   * The whole of who picks their instrument up on the cue. A drummer clicking
+   * the count is in before the music starts, so their entry is negative and
+   * they are in by a mile; a bassist on the downbeat is in at zero; a horn line
+   * that arrives at the second chorus is not, and stands at ease until its own
+   * lead brings it up under the ordinary rule.
+   *
+   * A player with nothing to play never opens — there is no instrument to take
+   * up and no note to take it up for.
+   */
+  private opensNumber(p: Player): boolean {
+    const first = p.gestures[0];
+    if (!first) return false;
+    const entry = (first.beat - first.prep - this.startBeat) / this.beatsPerSecond;
+    return entry <= OPENING_ENTRY_SECONDS;
   }
 
   /**
@@ -1572,6 +1641,12 @@ class Runtime implements Animator {
   downbeat(): void {
     this.waiting = false;
     this.leader = undefined;
+    // The reveal is over, so every later raise is a working raise: whoever
+    // stayed at ease through the count comes up for their entry at the brisk
+    // constant rather than at the slow one the opening shot is worth. See
+    // `OPEN_RISE_SECONDS`, which is the difference between a band picking its
+    // instruments up and one player reaching for theirs.
+    for (const p of this.players) p.opened = true;
   }
 
   /**
@@ -1860,23 +1935,29 @@ class Runtime implements Animator {
       want = 0;
     } else if (this.waiting) {
       /**
-       * Cued, and the piece has not started: at the ready, whatever the clock
-       * says.
+       * Cued, and the piece has not started: whoever is in at the top is at the
+       * ready, whatever the clock says.
        *
        * This is the count-in, and it is the one place the ordinary rule is
        * wrong. That rule asks "is a gesture near?" and before the first
-       * downbeat the honest answer for most of the band is no — the drummer is
-       * clicking four and everyone else's first note is a bar away, which is
-       * comfortably past `ENGAGE_LEAD_SECONDS`. So a band that had just taken
-       * up position on the cue would put its instruments straight back down
-       * and pick them up again during the count, one player at a time.
+       * downbeat the honest answer for even the players who open the number is
+       * no — the drummer is clicking four and everyone else's first note is a
+       * bar away, which is comfortably past `ENGAGE_LEAD_SECONDS`. So a band
+       * that had just taken up position on the cue would put its instruments
+       * straight back down and pick them up again during the count, one player
+       * at a time.
        *
        * A cue is an instruction rather than a forecast: from the moment it is
-       * given until the band is in, everybody is at their instrument. It also
-       * covers the pre-roll, where there is no clock at all — `show.ts` runs
-       * the beat backwards of zero while the curtain travels.
+       * given until the band is in, everybody who starts the number is at their
+       * instrument. It also covers the pre-roll, where there is no clock at all
+       * — `show.ts` runs the beat backwards of zero while the curtain travels.
+       *
+       * What it is *not* is a rule about the whole band. `Player.opens` is the
+       * cast list for the first bar, and anybody outside it waits at ease with
+       * everybody else's instruments up around them, which is the picture, and
+       * comes up for their own entry when the ordinary rule gets there.
        */
-      want = 1;
+      want = p.opens ? 1 : 0;
     } else if (p.lo < p.hi) {
       want = 1;
     } else {
