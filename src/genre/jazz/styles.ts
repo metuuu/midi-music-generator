@@ -178,6 +178,19 @@ const bebop: Style = {
   // an argument that never repeats itself; recalling a phrase would be the one
   // thing the idiom actively refuses to do.
   hook: 'through',
+  /**
+   * The one style in the catalogue where a rhythm section playing a hair in
+   * front of the grid is not a fault. Bebop at 240 is a music about forward
+   * motion, and `driving` is the only feel in the library that says forward:
+   * short, in front, no ghosts and no subdivision, because at this tempo a
+   * sixteenth is 62 milliseconds and anything added inside a beat is a smear.
+   *
+   * Two entries and no third. Bebop has no use for `pocket` — laying the
+   * backbeat back at this tempo is not a groove, it is the drummer falling off
+   * — so the choice this style is offered is between its own default and its own
+   * excess, which is what a bebop rhythm section is actually choosing between.
+   */
+  feels: [['straight', 7], ['driving', 3]],
   modeWeights: { minor: 0.4, major: 0.6 },
   relativeMajorChorus: 0,
   progressions: {
@@ -280,6 +293,18 @@ const ballad: Style = {
   beatUnit: 4,
   bpm: [56, 80],
   swing: 0.22,
+  /**
+   * The mirror of bebop's table, and the reason the pair is worth having: a
+   * ballad's only excess is in the other direction. Behind the beat, held long,
+   * the metre allowed to go soft — which is what a rhythm section does behind a
+   * singer at 64 and which reads as sloppiness at any tempo where the listener
+   * is counting.
+   *
+   * `laidback`'s accent array runs *against* `metricStrength`, and a ballad is
+   * where that is safe: the notes are far enough apart that flattening the bar
+   * loosens it rather than obscuring it.
+   */
+  feels: [['straight', 7], ['laidback', 3]],
   modeWeights: { minor: 0.42, major: 0.58 },
   relativeMajorChorus: 0,
   progressions: {
@@ -689,6 +714,22 @@ const modal: Style = {
   // marking time — and modal jazz is precisely the music that declines to mark
   // it. The line floats or it is not modal.
   hook: 'through',
+  /**
+   * The one style where turning the swing off for a section is a statement
+   * rather than a bug, and therefore the only place `halftime` is enabled.
+   *
+   * `Feel.swing` is the field that crosses the divide — it is applied at
+   * assembly, to the melody as well as the band — and it wanted a style with
+   * swing to switch off. Modal has 0.33 of it and eight bars of one chord
+   * underneath, which is exactly the music where a straight, long, wide section
+   * reads as the band settling into the mode rather than as the drummer losing
+   * the feel. Under a style whose form moves every bar the same gesture would
+   * sound like the swing had been forgotten.
+   *
+   * What it does *not* do is move the snare onto beat three, which is what half
+   * time actually is. See the entry: that is a figure and a figure is a style.
+   */
+  feels: [['straight', 7], ['halftime', 3]],
   modeWeights: { minor: 0.82, major: 0.18 },
   relativeMajorChorus: 0,
   progressions: {
@@ -1331,8 +1372,43 @@ const fusion: Style = {
    * one in four. If `pocket` is genuinely genre-neutral it should read as the
    * same gesture under both, and if it only works under the shuffle then it is a
    * jazz field wearing a neutral name.
+   *
+   * **And the only style in the catalogue that may play `funk`.** One style, on
+   * purpose: funk is the feel that reads as a genre if it is overused, so it
+   * ships where it can be listened to rather than spread across the four styles
+   * it would flatter. A straight sixteenth grid is what the stabs and the ghosts
+   * are made of, and a swung style handed the same numbers would be a shuffle
+   * with the eighths chopped out of it. The bar being 2+2+3 rather than
+   * four-four is a feature of the test and not an obstacle: it is what forced
+   * `funk`'s accent array to say something metre-neutral instead of quietly
+   * asserting a backbeat.
+   *
+   * ## And it is the wrong style, for a reason worth writing down
+   *
+   * **Fusion has no comp layer.** It is two-handed: the comping is the lead's
+   * left hand, `generateLeftHand` writes it into the `melody` track, and a feel
+   * may not touch that track because it was auditioned. Over six seeds this
+   * style produces zero notes on `comp`, and so do `trio` and `odd` for the same
+   * reason.
+   *
+   * So what fusion receives from `funk` is the push, the accent and the ghosts —
+   * measured over twelve songs: bass 11.2 ms in front, snare 18.0 ms behind,
+   * hats level, bass duration 0.69 → 0.33 beats, 1854 bass ghosts and 892 snare
+   * ghosts added, all under a fifth of the level around them. That is a real
+   * gesture and it is a good one. It is not the stabs, and the stabs are what
+   * the word funk is doing in the name.
+   *
+   * Left as it is rather than moved, because "ship it on one style and listen"
+   * is the instruction and this is the style named. The listening will show it.
+   * The style that would show the whole feel is `blues` or `swing` — both have a
+   * comp — and neither is straight, which is the other half of what funk wants.
+   * The catalogue currently has no straight style with a comp layer.
+   *
+   * Straight still leads, and pocket and funk are level behind it, because the
+   * point of a table is that the sections differ from each other. A table with
+   * funk at the top would be a style change wearing a per-section draw.
    */
-  feels: [['straight', 6], ['pocket', 4]],
+  feels: [['straight', 5], ['pocket', 3], ['funk', 3]],
   modeWeights: { minor: 0.72, major: 0.28 },
   relativeMajorChorus: 0,
   twoHanded: {

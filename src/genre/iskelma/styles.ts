@@ -484,6 +484,30 @@ const foksi: Style = {
   beatUnit: 4,
   bpm: [100, 128],
   swing: 0.16,
+  /**
+   * The claim being tested, said out loud: **`pocket` under a foksi and `pocket`
+   * under a jazz blues are the same object with the same numbers in it.** If a
+   * feel is genre-neutral then this costs nothing to write and sounds like a
+   * tanssilava band; if it is not, then `pocket` is a jazz field that was given
+   * a neutral name, and this is where that shows.
+   *
+   * It holds. Bass twelve milliseconds in front and the backbeat eighteen
+   * behind is a description of players and not of an idiom — a foksi rhythm
+   * section is a bass, a comping keyboard and a kit playing a light shuffle, and
+   * it leans exactly like the acoustic quartet under a blues does. Measured over
+   * twelve songs the offsets come out where they do under jazz, to the
+   * millisecond, because the numbers are in milliseconds and nothing about them
+   * consults the style.
+   *
+   * Foksi rather than humppa or jenkka on purpose, and the difference is the
+   * useful part of the result. Foksi is the iskelmä style with jazz harmony and
+   * a light swing already in it, so it is the one where a pocket has somewhere
+   * to sit. A humppa is a march played at 200 with the whole band on the
+   * quarter; leaning the bass in front of that would not be a groove, it would
+   * be the band coming apart, which is why humppa's answer to this question is
+   * still to say nothing.
+   */
+  feels: [['straight', 6], ['pocket', 4]],
   modeWeights: { minor: 0.3, major: 0.7 },
   relativeMajorChorus: 0.2,
   progressions: {

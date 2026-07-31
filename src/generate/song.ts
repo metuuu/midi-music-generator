@@ -208,6 +208,18 @@ export function generateSong(opts: GenerateOptions = {}): Song {
    * `drumSource` note below for what the alternative cost last time.
    */
   const feelTable = style.feels ?? genre.feels;
+  /**
+   * What the swing *is* over a span that has an opinion about it.
+   *
+   * Interpolated from the style's value rather than substituted for it, so that
+   * `amount` means here what it means everywhere else in a feel: at 0 the style
+   * is untouched, at 1 the feel's number wins outright, and half way is half way.
+   * A straight bridge in a swung tune and a shuffled one in a straight tune are
+   * the same expression with the two numbers swapped.
+   */
+  const swingOver = (feel: Feel, amount: number) => (feel.swing === undefined
+    ? style.swing
+    : style.swing + (feel.swing - style.swing) * amount);
 
   const rules = resolveRules(genre.ruleOverrides);
   /**
@@ -1345,7 +1357,21 @@ export function generateSong(opts: GenerateOptions = {}): Song {
         feel,
         amount: 1,
         bpm,
-        swing: style.swing,
+        /**
+         * The span's swing, resolved here rather than inside `applyFeel`, so
+         * that this and `swingPlan` below are reading the same expression and a
+         * note cannot be swung by one of them and then again by the other. See
+         * `Feel.swing`.
+         */
+        swing: swingOver(feel, 1),
+        beatsPerBar: style.beatsPerBar,
+        /**
+         * Its own stream, and one that is only drawn from by the fields a feel
+         * actually declares — `pocket` states a push and nothing else, so a
+         * pocket section takes exactly as many numbers out of this as `straight`
+         * does, which is none.
+         */
+        rng: new Rng(`${seed}:feel:${s}:play`),
         endsAt: (totalBars - 1) * style.beatsPerBar,
         layers: {
           bass: sectionBass, comp: sectionComp, pad: sectionPad, brass: sectionBrass,
@@ -1357,7 +1383,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
          * Pops has one pattern per button and a volume knob, and a preset that
          * dragged its backbeat would be somebody playing it.
          */
-        ...(canVary(drumSource) ? { drums: drumEvents.slice(drumsFrom) } : {}),
+        ...(canVary(drumSource) ? { drums: { events: drumEvents, from: drumsFrom } } : {}),
       });
     }
 
@@ -1384,6 +1410,31 @@ export function generateSong(opts: GenerateOptions = {}): Song {
   }
 
   // ---- Assemble --------------------------------------------------------
+  /**
+   * Swing, made span-aware — which is the whole of `Feel.swing`.
+   *
+   * Every other field of a feel is applied by `applyFeel`, to the rhythm section
+   * only, because the melody and the counter were auditioned and bending them
+   * afterwards hands back a gesture nobody scored. Swing is the exception and
+   * the type says why: it is a property of the *grid* rather than a gesture, it
+   * reaches every layer including the melody, and a tune that is swung is still
+   * the tune that won. So it stays where it always was — here, at assembly — and
+   * what changes is that it can now answer per bar instead of per song.
+   *
+   * A number unless some span actually carries an override, because that is not
+   * an optimisation: `applySwing` returns the array untouched for a straight
+   * style, and a song that never asked the question must be bit-for-bit what it
+   * was. `swingOver` is the same expression `applyFeel` was handed for its own
+   * pre-swing, so the two cannot drift apart.
+   */
+  const swung = feels.filter((f) => f.feel.swing !== undefined);
+  const swingPlan: SwingPlan = swung.length
+    ? (beat: number) => {
+      const bar = Math.floor(beat / style.beatsPerBar + 1e-9);
+      const span = swung.find((f) => bar >= f.from && bar < f.to);
+      return span ? swingOver(span.feel, span.amount) : style.swing;
+    }
+    : style.swing;
   /**
    * The default balance is a dance-band balance: the tune on top, the pad a
    * long way behind it. A genre may say otherwise, and ambient does — there the
@@ -1493,7 +1544,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
     // few milliseconds — audible as a click and meaningless as a pitch. Trimming
     // afterwards is what removes them, and it can only do that if it runs last.
     byLayer.set(layer, trimOverlaps(
-      applySwing(notes.filter((n) => n.beat >= 0), style.swing),
+      applySwing(notes.filter((n) => n.beat >= 0), swingPlan),
     ));
   }
 
@@ -1531,7 +1582,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
    */
   if (leftHand.length) {
     const line = byLayer.get('melody') ?? [];
-    byLayer.set('melody', [...line, ...applySwing(leftHand.filter((n) => n.beat >= 0), style.swing)]
+    byLayer.set('melody', [...line, ...applySwing(leftHand.filter((n) => n.beat >= 0), swingPlan)]
       .sort((a, b) => a.beat - b.beat || a.midi - b.midi));
   }
 
@@ -1674,7 +1725,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
       gmProgram: instrument.gm,
       strudelSound: instrument.strudel,
       // Melodic layers were swung above, before their overlap trim.
-      notes: layer === 'melody' || layer === 'counter' ? notes : applySwing(notes, style.swing),
+      notes: layer === 'melody' || layer === 'counter' ? notes : applySwing(notes, swingPlan),
       gain,
       envelope: envelopeFor(instrument),
       ...(effects ? { effects } : {}),
@@ -1711,7 +1762,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
   const drums: DrumTrack = {
     bank: drumBank,
     source: drumSource,
-    events: applySwingDrums(oneHatAtATime(drumEvents), style.swing),
+    events: applySwingDrums(oneHatAtATime(drumEvents), swingPlan),
     /**
      * The kit is a layer like any other, so a genre that wants it barely
      * present says so in `mix` rather than by writing quieter patterns.
@@ -2571,16 +2622,46 @@ function transposeChord(chord: Chord, semitones: number): Chord {
  * and the melody and the counter are not among them, because those were
  * auditioned and moving them afterwards throws the audition away.
  *
- * Two fields today, `push` and `articulation`. The rest of `Feel` is declared
- * and unread; adding one means adding a block here and nothing else.
+ * ## The order the blocks run in, which is not arbitrary
+ *
+ * `subdivide`, `displace`, `accent`, `articulation`, `ghost`, `push`.
+ *
+ * Everything that reads a note's *position in the bar* runs before the one thing
+ * that moves notes off the bar's grid, so `push` is last and every block above
+ * it can round a beat to a sixteenth and be right. `ghost` sits between
+ * articulation and push because a ghost's level and length are stated outright
+ * rather than derived — it should not be re-accented or re-articulated — but it
+ * should still lean with the rest of its layer, so it has to exist before the
+ * push happens. `subdivide` runs first because the half it leaves behind is a
+ * real note and everything after it should treat it as one.
+ *
+ * ## What each block may not do
+ *
+ * **A feel modifies, it never authors.** Two of these blocks add notes, which
+ * looks like a contradiction and is not: the invariant is that a feel never
+ * changes *what* is played. A subdivision repeats a pitch inside the footprint
+ * of the note it came from; a ghost repeats the pitch of the note it leads into,
+ * lands only where its layer is already silent, and is capped far below the
+ * surrounding level. Neither carries a pitch class that was not already there,
+ * which is where the boundary between "how" and "what" actually sits — see
+ * `genre-check.ts`, where it is asserted in those terms.
  */
 function applyFeel(args: {
   feel: Feel;
   /** How far toward the feel this span goes, 0..1. */
   amount: number;
   bpm: number;
-  /** The style's swing, needed to move a note without losing it — see below. */
+  /**
+   * The swing in force over this span: the style's, or the feel's override
+   * interpolated by `amount`. Needed both to move a note without losing its
+   * swing — see below — and so that this pass and assembly agree about what the
+   * swing is, which is the whole of `Feel.swing`'s contract.
+   */
   swing: number;
+  /** The style's bar length, for reading a beat's position in its bar. */
+  beatsPerBar: number;
+  /** Its own stream. Drawn from only by the blocks that are actually present. */
+  rng: Rng;
   /**
    * The downbeat of the final bar. Nothing at or after it is touched.
    *
@@ -2597,10 +2678,21 @@ function applyFeel(args: {
    */
   endsAt: number;
   layers: Partial<Record<Exclude<FeelLayer, 'drums'>, NoteEvent[]>>;
-  /** This section's kit events. Absent for a preset rhythm box. */
-  drums?: DrumEvent[];
+  /**
+   * The song's kit list, and the index this section's events start at. Absent
+   * for a preset rhythm box.
+   *
+   * A window into the real array rather than a copy of it, which wave 3 did not
+   * need and wave 4 does. The kit is the one part not held in a `section…` local
+   * — see `drumsFrom` — so this used to be handed a `slice`, and a slice shares
+   * its elements but not its length: every in-place edit landed and every
+   * *added* event went into an array that was thrown away a line later. Silent,
+   * and it cost a debugging session — funk's ghosted snares simply never
+   * appeared, with no error and no missing hit to notice.
+   */
+  drums?: { events: DrumEvent[]; from: number };
 }): void {
-  const { feel, amount, bpm, swing } = args;
+  const { feel, amount, bpm, rng, swing } = args;
   if (amount <= 0) return;
 
   const ending = (beat: number) => beat >= args.endsAt - 1e-6;
@@ -2616,40 +2708,221 @@ function applyFeel(args: {
   /** The second eighth of a beat, which is the only thing `applySwing` moves. */
   const offbeat = (beat: number) => Math.abs((beat - Math.floor(beat)) - 0.5) < 1e-6;
 
+  const slotsPerBar = Math.round(args.beatsPerBar * SLOTS_PER_BEAT);
+  /** Which sixteenth of its own bar a beat falls on. */
+  const slotOf = (beat: number) => {
+    const s = Math.round(beat * SLOTS_PER_BEAT) % slotsPerBar;
+    return s < 0 ? s + slotsPerBar : s;
+  };
+  const barOf = (beat: number) => Math.floor(beat / args.beatsPerBar + 1e-9);
+  const onGrid = (beat: number) =>
+    Math.abs(beat * SLOTS_PER_BEAT - Math.round(beat * SLOTS_PER_BEAT)) < 1e-6;
+
+  /** This section's kit events. The elements are the real ones; the list is not. */
+  const kitHere = args.drums ? args.drums.events.slice(args.drums.from) : undefined;
+
+  /**
+   * `subdivide` and `displace` reach the comp and nothing else, and the bass's
+   * absence is the interesting half of that.
+   *
+   * A pad is a bed and a bed broken in two is a bed with a hole in it; brass here
+   * is written as stabs and answers that are already short and already placed.
+   * Those two are easy. The bass is not, because both gestures are real on a bass
+   * and both were tried:
+   *
+   *  - **Subdividing a bass note** is repeating it, and a repeated bass note is a
+   *    different bass figure rather than a different articulation. A funk bass
+   *    line's sixteenths come out of the pattern that was drawn for it — see
+   *    `Style.bass` — and manufacturing them here is the feel library growing
+   *    into a second style table, which is the one thing it must not do. On a
+   *    comp the same edit is a bow stroke: a held chord and the same chord struck
+   *    twice are one harmony played two ways.
+   *  - **Anticipating a bass note** unlocks it from the kick. The bass and the
+   *    bass drum land together and that lock is most of what a rhythm section
+   *    *is*; moving one of them a sixteenth without the other does not read as a
+   *    push, it reads as a flam. The comp has no such partner and can move alone.
+   *
+   * It also makes the boundary checkable rather than merely stated: with the two
+   * note-adding gestures on disjoint layers, every note added to the bass is a
+   * ghost and every note added to the comp is half of a note that was already
+   * there, and `genre-check.ts` can assert each without having to guess which it
+   * is looking at.
+   */
+  const figureLayers = ['comp'] as const;
+
+  /**
+   * Notes grouped by the onset they were struck on, in beat order.
+   *
+   * A comp chord is four simultaneous notes and it is *one hit*. Subdividing or
+   * displacing one voice of it and leaving the other three would re-voice the
+   * chord, which is authoring — so every block that moves or splits a hit works
+   * on groups and moves all of a group together. Keyed on the beat rather than
+   * on identity because that is what "struck together" means here.
+   */
+  const onsets = (notes: NoteEvent[]): [number, NoteEvent[]][] => {
+    const map = new Map<number, NoteEvent[]>();
+    for (const n of notes) {
+      const key = Math.round(n.beat * 960);
+      const at = map.get(key);
+      if (at) at.push(n); else map.set(key, [n]);
+    }
+    return [...map.entries()].sort((a, b) => a[0] - b[0]);
+  };
+
+  /**
+   * Break a sustained hit into two shorter ones.
+   *
+   * The split point is quantised to a sixteenth and both halves have to survive
+   * as notes, which is what stops this from turning a dotted eighth into a
+   * thirty-second and a click. The tail keeps the pitch, so the layer's bag of
+   * pitches is exactly what it was — see the header on why that is the line
+   * rather than the note count.
+   */
+  if (feel.subdivide) {
+    const chance = feel.subdivide * amount;
+    for (const layer of figureLayers) {
+      const notes = args.layers[layer];
+      if (!notes?.length) continue;
+      const added: NoteEvent[] = [];
+      for (const [, group] of onsets(notes)) {
+        const head = group[0]!;
+        if (ending(head.beat)) continue;
+        // The shortest voice decides: a chord splits where all of it can.
+        const shortest = Math.min(...group.map((n) => n.duration));
+        const half = Math.round(shortest / 2 * SLOTS_PER_BEAT) / SLOTS_PER_BEAT;
+        if (half < 0.25 || shortest - half < 0.25) continue;
+        if (ending(head.beat + half)) continue;
+        if (!rng.chance(chance)) continue;
+        for (const n of group) {
+          const rest = n.duration - half;
+          n.duration = Math.max(0.05, half * 0.9);
+          // Lighter on the repeat: a re-struck note is a re-struck note, not a
+          // second attack of the same weight.
+          added.push({ ...n, beat: n.beat + half, duration: Math.max(0.05, rest * 0.9), velocity: n.velocity * 0.86 });
+        }
+      }
+      if (added.length) {
+        notes.push(...added);
+        notes.sort((a, b) => a.beat - b.beat || a.midi - b.midi);
+      }
+    }
+  }
+
+  /**
+   * Anticipate a weak beat by a sixteenth.
+   *
+   * Early and tied over, so the note still ends where it ended — the band gets
+   * to the chord before the bar says to and stays there, which is an
+   * anticipation. The duration grows here and `articulation` shortens it
+   * afterwards, in that order deliberately: under `funk` the anticipation
+   * becomes a stab a sixteenth in front of the beat, which is the gesture, and
+   * under `laidback` it becomes a longer note that arrives early, which is also
+   * the gesture.
+   *
+   * Only hits squarely on a beat, never the bar's downbeat, and only where the
+   * sixteenth in front is genuinely empty — nothing struck there and nothing
+   * sounding through it. That last test is what keeps a comp from anticipating
+   * itself into a doubled voice.
+   *
+   * The restriction to on-beat hits is also what keeps this out of the swing's
+   * way: neither a beat nor the sixteenth before it is the offbeat eighth that
+   * `applySwing` moves, so a displaced note is swung exactly as often as it was
+   * before, which is never.
+   */
+  if (feel.displace) {
+    const chance = feel.displace * amount;
+    for (const layer of figureLayers) {
+      const notes = args.layers[layer];
+      if (!notes?.length) continue;
+      const struck = new Set(notes.map((n) => Math.round(n.beat * SLOTS_PER_BEAT)));
+      let moved = 0;
+      for (const [, group] of onsets(notes)) {
+        const head = group[0]!;
+        const slot = slotOf(head.beat);
+        if (!onGrid(head.beat) || ending(head.beat)) continue;
+        if (slot === 0 || slot % SLOTS_PER_BEAT !== 0) continue;
+        const to = head.beat - 1 / SLOTS_PER_BEAT;
+        if (to < 0 || struck.has(Math.round(to * SLOTS_PER_BEAT))) continue;
+        if (notes.some((m) => m.beat < to - 1e-6 && m.beat + m.duration > to + 1e-6)) continue;
+        if (!rng.chance(chance)) continue;
+        struck.delete(Math.round(head.beat * SLOTS_PER_BEAT));
+        struck.add(Math.round(to * SLOTS_PER_BEAT));
+        moved++;
+        for (const n of group) {
+          n.beat -= 1 / SLOTS_PER_BEAT;
+          n.duration += 1 / SLOTS_PER_BEAT;
+        }
+      }
+      // Only when something actually moved. Re-sorting a list nothing happened
+      // to is how a pass that declines to act still changes the output.
+      if (moved) notes.sort((a, b) => a.beat - b.beat || a.midi - b.midi);
+    }
+  }
+
+  /**
+   * Redistribute the weight inside the bar.
+   *
+   * ## Two normalisations, and the second is the one that works
+   *
+   * The plan asks for the array to be normalised to mean 1.0 so that a feel
+   * changes the shape of a section's loudness and never its rank. That is
+   * necessary and it is **not sufficient**, and the gap is not subtle: an array
+   * of mean 1.0 only leaves the mean alone if the notes are spread evenly over
+   * the bar's sixteenths, and no rhythm-section part in this project is. A bass
+   * playing root and fifth on the strong beats collects the array's largest
+   * entries on every note it plays.
+   *
+   * Measured with only the bar normalisation in place, over twelve songs per
+   * style: `funk` lifts the blues bass 10.8% and the fusion kit 8.1%,
+   * `halftime` lifts the modal comp 10.0%, and `laidback` drops every layer of
+   * a ballad by 7 to 9%. Those are the size of the gap between a verse and a
+   * chorus — so a feel drawn on one and not the other could invert the pair
+   * while satisfying the letter of the rule, which is exactly the failure the
+   * rule was written to prevent.
+   *
+   * So the array is normalised over the bar (which is what makes the numbers in
+   * the table mean what they look like), and then the *factors actually applied*
+   * are normalised over the notes they are applied to, per layer. After that the
+   * layer's mean velocity is arithmetically unchanged and only its distribution
+   * has moved, which is the property stated rather than an approximation of it.
+   *
+   * The bar window is built by tiling rather than by slicing, so a sixteen-long
+   * array under fusion's fourteen-sixteenth bar normalises over the fourteen
+   * entries that can actually sound instead of over two that cannot.
+   */
+  if (feel.accent?.length) {
+    const table = feel.accent;
+    const window: number[] = [];
+    for (let i = 0; i < slotsPerBar; i++) window.push(table[i % table.length]!);
+    const barMean = window.reduce((a, b) => a + b, 0) / window.length;
+    if (barMean > 0) {
+      const factorAt = (beat: number) => 1 + (window[slotOf(beat)]! / barMean - 1) * amount;
+      /**
+       * Not the pad — see `Feel.accent`. Its notes are long, few, and nearly all
+       * on a downbeat, so a per-sixteenth accent on one is a fader move.
+       */
+      const accented: (NoteEvent[] | DrumEvent[])[] = [];
+      for (const layer of ['bass', 'comp', 'brass'] as const) {
+        const notes = args.layers[layer];
+        if (notes?.length) accented.push(notes);
+      }
+      if (kitHere?.length) accented.push(kitHere);
+      for (const events of accented) {
+        const live = (events as { beat: number }[]).filter((e) => !ending(e.beat));
+        if (!live.length) continue;
+        const mean = live.reduce((sum, e) => sum + factorAt(e.beat), 0) / live.length;
+        if (mean <= 0) continue;
+        for (const e of events as { beat: number; velocity: number }[]) {
+          if (ending(e.beat)) continue;
+          e.velocity = clamp(e.velocity * factorAt(e.beat) / mean, 0.08, 1);
+        }
+      }
+    }
+  }
+
   for (const [layer, notes] of Object.entries(args.layers) as
     [Exclude<FeelLayer, 'drums'>, NoteEvent[] | undefined][]) {
     if (!notes?.length) continue;
-
-    /**
-     * Move the onsets, taking the swing with them.
-     *
-     * The subtlety is worth the three lines. `applySwing` runs at assembly and
-     * finds its offbeats by testing the fraction against exactly 0.5, so a note
-     * this pass has already nudged twelve milliseconds is no longer at 0.5 and
-     * would quietly stop being swung — arriving *earlier* than a straight note
-     * instead of a hair in front of a swung one. That is a groove bug that reads
-     * as sloppiness rather than as a fault, which is the worst kind. So an onset
-     * about to be moved off the grid is swung here first, and assembly then
-     * correctly leaves it alone.
-     *
-     * Neither feel shipped today triggers it in the pattern — a blues snare is
-     * on the beat and fusion is straight — but a blues *fill* puts snares on
-     * offbeats, and the first feel that pushes a comp will hit it everywhere.
-     *
-     * Clamped at zero because the song starts there: a bass leaning into the
-     * first downbeat of the piece has nothing to lean out of.
-     */
-    const offset = toBeats(feel.push?.[layer] ?? 0);
-    if (offset) {
-      for (const n of notes) {
-        if (ending(n.beat)) continue;
-        if (swing > 0 && offbeat(n.beat)) {
-          n.beat += swing * 0.5;
-          n.duration = Math.max(0.05, n.duration - swing * 0.5);
-        }
-        n.beat = Math.max(0, n.beat + offset);
-      }
-    }
 
     /**
      * Articulation is interpolated rather than scaled, so that `amount` means
@@ -2667,9 +2940,153 @@ function applyFeel(args: {
     }
   }
 
-  if (args.drums?.length && feel.push) {
+  /**
+   * The notes that are not notes.
+   *
+   * A ghost is the softest thing on the record and it is what makes a rhythm
+   * section sound busy without being loud: the snare stroke between the
+   * backbeats that you feel rather than hear, and the bass note a sixteenth
+   * before the real one that is mostly string noise. It is also the one gesture
+   * in this file that adds an event, so it is scoped until it cannot say
+   * anything new:
+   *
+   *  - **snare and bass only.** Nothing else. A ghosted comp chord is a comp
+   *    chord and a ghosted pad is a mistake;
+   *  - **a bass ghost repeats the pitch it leads into**, so the layer's bag of
+   *    pitch classes is untouched and no harmony has been proposed;
+   *  - **only where the layer is already silent** — nothing struck on the slot
+   *    and, for the bass, nothing sounding through it;
+   *  - **capped at a fraction of the surrounding level.** 0.22 of the mean in
+   *    the same bar, against a check that allows 0.35: a ghost that can be heard
+   *    as a note is not a ghost, and the reference is the bar rather than the
+   *    section so that a quiet passage gets quiet ghosts.
+   *
+   * The snare's eligible rests are the sixteenths either side of a stroke it is
+   * already playing, and not every empty weak sixteenth in the bar. Both are
+   * defensible readings of "an eligible rest"; this one places the ghosts where
+   * a drummer's stick actually is, and it makes the count a property of the
+   * pattern rather than of the bar — eight candidates a bar at 0.35 would be
+   * nearly three ghosts a bar whatever the figure was doing.
+   *
+   * **A ghost stays in the bar of the note it belongs to**, which costs a real
+   * gesture and buys two things worth more. The gesture lost is the bass ghost
+   * that leads across the barline into a downbeat, which is idiomatic and which
+   * this cannot do. What it buys: the level a ghost is measured against always
+   * exists, since the bar it lands in is the bar containing the note it came
+   * from; and — the load-bearing one — the silence test cannot be wrong. This
+   * pass only sees the section's own notes, so a ghost written before the
+   * section's first onset would be tested for silence against a list that does
+   * not contain the note it was about to collide with. Sections begin on
+   * barlines, so staying inside the bar is staying inside the section.
+   */
+  if (feel.ghost) {
+    const chance = feel.ghost * amount;
+    /** The level a ghost is measured against: what this layer is playing here. */
+    const levelIn = (events: { beat: number; velocity: number }[]) => {
+      const sum = new Map<number, [number, number]>();
+      for (const e of events) {
+        const bar = barOf(e.beat);
+        const at = sum.get(bar) ?? [0, 0];
+        sum.set(bar, [at[0] + e.velocity, at[1] + 1]);
+      }
+      return (beat: number) => {
+        const at = sum.get(barOf(beat));
+        return at && at[1] ? at[0] / at[1] : 0;
+      };
+    };
+
+    const bass = args.layers.bass;
+    if (bass?.length) {
+      const level = levelIn(bass);
+      const added: NoteEvent[] = [];
+      for (const [, group] of onsets(bass)) {
+        const head = group[0]!;
+        const at = head.beat - 1 / SLOTS_PER_BEAT;
+        if (at < 0 || !onGrid(head.beat) || ending(head.beat)) continue;
+        if (barOf(at) !== barOf(head.beat)) continue;
+        if (bass.some((m) => Math.abs(m.beat - at) < 1e-6)) continue;
+        if (bass.some((m) => m.beat < at - 1e-6 && m.beat + m.duration > at + 1e-6)) continue;
+        if (!rng.chance(chance)) continue;
+        // The pitch of the note it leads into, which is the whole licence for
+        // this existing: it is the same note, played early and almost silently.
+        added.push({
+          ...head, beat: at, duration: 0.2, velocity: Math.max(0.05, level(at) * 0.22),
+        });
+      }
+      if (added.length) {
+        bass.push(...added);
+        bass.sort((a, b) => a.beat - b.beat || a.midi - b.midi);
+      }
+    }
+
+    const snare = kitHere?.filter((e) => e.voice === 'sd') ?? [];
+    if (args.drums && snare.length) {
+      const level = levelIn(snare);
+      const struck = new Set(snare.map((e) => Math.round(e.beat * SLOTS_PER_BEAT)));
+      for (const e of snare) {
+        for (const step of [-1, 1]) {
+          // Offset from the stroke rather than snapped to the grid, so the ghost
+          // inherits whatever humanising jitter `generateDrums` gave its
+          // neighbour: one hand played both, a sixteenth apart.
+          const at = e.beat + step / SLOTS_PER_BEAT;
+          const key = Math.round(at * SLOTS_PER_BEAT);
+          if (at < 0 || ending(at) || struck.has(key)) continue;
+          if (barOf(at) !== barOf(e.beat)) continue;
+          // The weak sixteenths only. A ghost on a beat is a quiet backbeat.
+          if (slotOf(at) % 2 === 0) continue;
+          if (!rng.chance(chance)) continue;
+          struck.add(key);
+          // Onto the song's list, not onto the window — see `drums` above. The
+          // whole list is sorted once at assembly, so the tail is the right place.
+          args.drums.events.push({
+            beat: at, voice: 'sd', velocity: Math.max(0.05, level(at) * 0.22),
+          });
+        }
+      }
+    }
+  }
+
+  /**
+   * And last, the one block that takes notes off the grid.
+   *
+   * Everything above reads a beat's position in its bar, so this runs after all
+   * of it — see the header. Within it, the subtlety is worth the three lines.
+   * `applySwing` runs at assembly and finds its offbeats by testing the fraction
+   * against exactly 0.5, so a note this pass has already nudged twelve
+   * milliseconds is no longer at 0.5 and would quietly stop being swung —
+   * arriving *earlier* than a straight note instead of a hair in front of a
+   * swung one. That is a groove bug that reads as sloppiness rather than as a
+   * fault, which is the worst kind. So an onset about to be moved off the grid
+   * is swung here first, and assembly then correctly leaves it alone.
+   *
+   * `swing` is the span's swing and not the style's, which is what makes
+   * `Feel.swing` safe: this pass and assembly are handed the same number, so a
+   * note is swung by one of them and never by both.
+   *
+   * Clamped at zero because the song starts there: a bass leaning into the
+   * first downbeat of the piece has nothing to lean out of.
+   */
+  for (const [layer, notes] of Object.entries(args.layers) as
+    [Exclude<FeelLayer, 'drums'>, NoteEvent[] | undefined][]) {
+    if (!notes?.length) continue;
+    const offset = toBeats(feel.push?.[layer] ?? 0);
+    if (!offset) continue;
+    for (const n of notes) {
+      if (ending(n.beat)) continue;
+      if (swing > 0 && offbeat(n.beat)) {
+        n.beat += swing * 0.5;
+        n.duration = Math.max(0.05, n.duration - swing * 0.5);
+      }
+      n.beat = Math.max(0, n.beat + offset);
+    }
+  }
+
+  if (args.drums && feel.push) {
     const kit = toBeats(feel.push.drums ?? 0);
-    for (const e of args.drums) {
+    // Re-sliced rather than reusing `kitHere`, so that a ghost added above leans
+    // with the stroke it was ghosting. A ghost that stayed on the grid while the
+    // snare around it dragged would be the one hit in the bar playing straight.
+    for (const e of args.drums.events.slice(args.drums.from)) {
       // The voice wins over the kit: `pocket` drags the snare and leaves the
       // hats where they were, which is the difference between a band laying
       // back and a band slowing down.
@@ -2682,15 +3099,35 @@ function applyFeel(args: {
 }
 
 /**
+ * How much swing is in force at a given beat.
+ *
+ * A number for every song that has not asked the question, which is nearly all
+ * of them and which is also the fast path: `applySwing` takes the same exit it
+ * always took and a straight style is not walked at all. A function only where
+ * some span carries `Feel.swing`, because that is the one field of a feel that
+ * cannot be applied by `applyFeel` — swing reaches the melody too, and the
+ * melody is auditioned, so it has to happen where swing already happens.
+ */
+type SwingPlan = number | ((beat: number) => number);
+
+/**
  * Swing: delay the second eighth of each beat. Applied in the IR so both
  * renderers inherit it identically.
+ *
+ * A note is swung here exactly once or not at all. `applyFeel` swings an onset
+ * itself when it is about to move it off the grid — otherwise the test below
+ * would stop finding it — and takes its number from the same `SwingPlan`, so
+ * the two passes cannot disagree and cannot both fire on the same note.
  */
-function applySwing(notes: NoteEvent[], swing: number): NoteEvent[] {
-  if (swing <= 0) return notes;
+function applySwing(notes: NoteEvent[], swing: SwingPlan): NoteEvent[] {
+  if (typeof swing === 'number' && swing <= 0) return notes;
+  const swingAt = typeof swing === 'number' ? () => swing : swing;
   return notes.map((n) => {
+    const s = swingAt(n.beat);
+    if (s <= 0) return n;
     const frac = n.beat - Math.floor(n.beat);
     if (Math.abs(frac - 0.5) < 1e-6) {
-      return { ...n, beat: n.beat + swing * 0.5, duration: Math.max(0.05, n.duration - swing * 0.5) };
+      return { ...n, beat: n.beat + s * 0.5, duration: Math.max(0.05, n.duration - s * 0.5) };
     }
     return n;
   });
@@ -2717,11 +3154,14 @@ function oneHatAtATime(events: DrumEvent[]): DrumEvent[] {
   return events.filter((e) => e.voice !== 'hh' || !open.has(Math.round(e.beat * 960)));
 }
 
-function applySwingDrums(events: DrumEvent[], swing: number): DrumEvent[] {
-  if (swing <= 0) return events;
+function applySwingDrums(events: DrumEvent[], swing: SwingPlan): DrumEvent[] {
+  if (typeof swing === 'number' && swing <= 0) return events;
+  const swingAt = typeof swing === 'number' ? () => swing : swing;
   return events.map((e) => {
+    const s = swingAt(e.beat);
+    if (s <= 0) return e;
     const frac = e.beat - Math.floor(e.beat);
-    if (Math.abs(frac - 0.5) < 1e-6) return { ...e, beat: e.beat + swing * 0.5 };
+    if (Math.abs(frac - 0.5) < 1e-6) return { ...e, beat: e.beat + s * 0.5 };
     return e;
   });
 }

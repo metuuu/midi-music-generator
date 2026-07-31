@@ -503,9 +503,11 @@ export interface Style {
    * a shared stream costs, which was every song in every genre and a check
    * dropping from 66% to 59%.
    *
-   * Two styles carry one today. Six feels applied liberally across four genres
-   * would make everything sound like the same band, and the way to find that out
-   * is to enable two and listen rather than to fill the tables in.
+   * Six styles carry one today, out of twenty-three, and each names at most two
+   * entries beside `straight`. Six feels applied liberally across four genres
+   * would make everything sound like the same band, so the library grew and the
+   * enabling did not: every table is a decision about one style, made once, with
+   * the reason written beside it.
    */
   feels?: (readonly [FeelId, number])[];
   /**

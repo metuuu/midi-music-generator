@@ -24,6 +24,7 @@ import { Rng } from './core/rng.js';
 import { BANK_VOICES, resolveVoice } from './render/drum-banks.js';
 import { HANDS, IDIOMS, type Idiom, type IdiomProfile } from './style/instruments.js';
 import type { Style } from './style/types.js';
+import { FEELS, type FeelId } from './style/feel.js';
 
 const problems: string[] = [];
 const check = (label: string, pass: boolean, detail: string) => {
@@ -271,25 +272,33 @@ check('bossa nova is straight, not swung', bossaVal === 0, `swing = ${bossaVal}`
  * *rest* of the catalogue is unmoved. That is a statement about two versions of
  * the repo rather than about one run of it, and pinning it would mean checking a
  * hash of every song in the project into the repo. It was measured instead —
- * every genre × style over twenty seeds in two passes, hashed with the change
- * and without it, with exactly `jazz/blues` and `jazz/fusion` moving — and the
- * property that makes it hold is the one asserted below: a style with no table
+ * every genre × style over six seeds in two passes, hashed with the tables on and
+ * with them off, and the off pass is bit-identical to the off pass taken before
+ * any of this existed. Exactly the six styles that carry a table move, and the
+ * property that makes that hold is the one asserted below: a style with no table
  * draws nothing.
+ *
+ * The list spans two genres on purpose. `pocket` under an iskelmä foksi and
+ * `pocket` under a jazz blues are meant to be the same object with the same
+ * numbers in it, and a check that only ever looked at jazz would let that claim
+ * rot without noticing.
  */
-const feltStyles = ['blues', 'fusion'] as const;
-const jazzStyles = getGenre('jazz').styles;
+const feltStyles = [
+  ['jazz', 'blues'], ['jazz', 'fusion'], ['jazz', 'bebop'],
+  ['jazz', 'ballad'], ['jazz', 'modal'], ['iskelma', 'foksi'],
+] as const;
 const feelPairs: { style: string; seed: string; felt: Song; plain: Song }[] = [];
-for (const styleId of feltStyles) {
-  const style = jazzStyles[styleId]!;
+for (const [genreId, styleId] of feltStyles) {
+  const style = getGenre(genreId).styles[styleId]!;
   const table = style.feels;
   for (let i = 0; i < 12; i++) {
     const seed = `fl-${i}`;
     style.feels = table;
-    const felt = generateSong({ seed, genre: 'jazz', style: styleId });
+    const felt = generateSong({ seed, genre: genreId, style: styleId });
     style.feels = undefined;
-    const plain = generateSong({ seed, genre: 'jazz', style: styleId });
+    const plain = generateSong({ seed, genre: genreId, style: styleId });
     style.feels = table;
-    feelPairs.push({ style: styleId, seed, felt, plain });
+    feelPairs.push({ style: `${genreId}/${styleId}`, seed, felt, plain });
   }
 }
 
@@ -299,6 +308,107 @@ const feelBeats = (song: Song, id: string): [number, number][] =>
     .map((f) => [f.from * song.meta.beatsPerBar, f.to * song.meta.beatsPerBar]);
 const inside = (beat: number, spans: [number, number][]) =>
   spans.some(([a, b]) => beat >= a - 1e-9 && beat < b);
+
+/**
+ * Pair each event of the plain song with the event it became in the felt one.
+ *
+ * Wave 3 could do this by index, because nothing a feel did changed how many
+ * events there were. Wave 4 adds two gestures that do — a ghosted note and a
+ * subdivided chord — so an index is no longer an identity and every measurement
+ * below that says "how far did this move" needs one that is.
+ *
+ * Same pitch (or same kit voice), and **globally nearest first** rather than in
+ * list order. That is not fastidiousness: taking each plain note in turn and
+ * giving it its nearest free partner mispairs wherever two candidates are close
+ * together, and a drum fill under `halftime` is exactly that case — the swing
+ * goes off, the offbeat sixteenth slides back 0.15 of a beat toward the
+ * sixteenth in front of it, and greedy-in-order hands the earlier hit the later
+ * one's partner and then reports the later one as lost and a new one as added.
+ * It produced 21 phantom losses and three phantom ghosts on modal before the
+ * order was fixed, all of them notes sitting exactly where they should be.
+ *
+ * The tolerance is pinned from both ends and neither end has any slack in it:
+ *
+ *  - it has to be **above 0.17 beats**, because `halftime` switches the swing
+ *    off and a modal offbeat that was delayed by `swing * 0.5 = 0.165` in the
+ *    plain song is not delayed at all in the felt one. That is the same note;
+ *  - it has to be **below 0.25 beats**, because a ghost sits exactly one
+ *    sixteenth in front of the note it repeats and has the same pitch. Any wider
+ *    and a ghost is paired with its own target and reported as the target having
+ *    moved a whole sixteenth.
+ *
+ * The two never occur in the same song — `halftime` is modal's and `ghost` is
+ * funk's — but the tolerance has to satisfy both, and the fact that it barely can
+ * is worth knowing before a third gesture is added.
+ */
+const PAIR_TOLERANCE = 0.2;
+interface Timed { beat: number; velocity: number }
+function pairUp<T extends Timed>(
+  felt: readonly T[], plain: readonly T[], key: (e: T) => number | string,
+): { pairs: [T, T][]; added: T[]; lost: T[] } {
+  const buckets = new Map<number | string, T[]>();
+  for (const e of felt) {
+    const k = key(e);
+    const at = buckets.get(k);
+    if (at) at.push(e); else buckets.set(k, [e]);
+  }
+  for (const list of buckets.values()) list.sort((x, y) => x.beat - y.beat);
+  // Every pairing that is even possible, then settle them in order of how
+  // certain each one is. A window into the sorted bucket keeps this linear in
+  // the number of events rather than quadratic.
+  const candidates: [number, T, T][] = [];
+  for (const p of plain) {
+    const list = buckets.get(key(p));
+    if (!list) continue;
+    let lo = 0; let hi = list.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (list[mid]!.beat < p.beat - PAIR_TOLERANCE) lo = mid + 1; else hi = mid;
+    }
+    for (let i = lo; i < list.length && list[i]!.beat < p.beat + PAIR_TOLERANCE; i++) {
+      candidates.push([Math.abs(list[i]!.beat - p.beat), list[i]!, p]);
+    }
+  }
+  candidates.sort((x, y) => x[0] - y[0]);
+  const usedFelt = new Set<T>();
+  const usedPlain = new Set<T>();
+  const pairs: [T, T][] = [];
+  for (const [, f, p] of candidates) {
+    if (usedFelt.has(f) || usedPlain.has(p)) continue;
+    usedFelt.add(f); usedPlain.add(p);
+    pairs.push([f, p]);
+  }
+  return {
+    pairs,
+    added: felt.filter((f) => !usedFelt.has(f)),
+    lost: plain.filter((p) => !usedPlain.has(p)),
+  };
+}
+
+/**
+ * Mean velocity per bar, which is the level a ghost is measured against.
+ *
+ * The part's own mean where a bar has nothing in it. `applyFeel` keeps a ghost
+ * inside the bar of the note it came from, so that bar always has at least that
+ * note — but a push of eighteen milliseconds can carry a ghost written at the
+ * very end of a bar over the barline without carrying its parent, and the
+ * fallback is what stops that arithmetic from reading as a violation.
+ */
+const levelByBar = (events: readonly Timed[], beatsPerBar: number) => {
+  const sum = new Map<number, [number, number]>();
+  let all = 0;
+  for (const e of events) {
+    const bar = Math.floor(e.beat / beatsPerBar + 1e-9);
+    const at = sum.get(bar) ?? [0, 0];
+    sum.set(bar, [at[0] + e.velocity, at[1] + 1]);
+    all += e.velocity;
+  }
+  const overall = events.length ? all / events.length : 0;
+  return (beat: number) => {
+    const at = sum.get(Math.floor(beat / beatsPerBar + 1e-9));
+    return at && at[1] ? at[0] / at[1] : overall;
+  };
+};
 
 {
   /**
@@ -319,24 +429,25 @@ const inside = (beat: number, spans: [number, number][]) =>
     const ms = 60000 / felt.meta.bpm;
     const last = (felt.meta.totalBars - 1) * felt.meta.beatsPerBar;
 
-    const a = felt.tracks.find((t) => t.layer === 'bass');
-    const b = plain.tracks.find((t) => t.layer === 'bass');
-    if (a && b && a.notes.length === b.notes.length) {
-      for (let k = 0; k < a.notes.length; k++) {
-        const from = b.notes[k]!.beat;
-        if (from >= last || !inside(from, spans)) continue;
-        bassSum += (a.notes[k]!.beat - from) * ms; bassN++;
-      }
-    } else if (a || b) mismatched++;
+    const a = felt.tracks.find((t) => t.layer === 'bass')?.notes ?? [];
+    const b = plain.tracks.find((t) => t.layer === 'bass')?.notes ?? [];
+    const bass = pairUp(a, b, (n) => n.midi);
+    mismatched += bass.lost.length;
+    for (const [f, p] of bass.pairs) {
+      if (p.beat >= last || !inside(p.beat, spans)) continue;
+      bassSum += (f.beat - p.beat) * ms; bassN++;
+    }
 
     for (const voice of ['sd', 'hh'] as DrumVoice[]) {
-      const ea = felt.drums.events.filter((e) => e.voice === voice);
-      const eb = plain.drums.events.filter((e) => e.voice === voice);
-      if (ea.length !== eb.length) { mismatched++; continue; }
-      for (let k = 0; k < ea.length; k++) {
-        const from = eb[k]!.beat;
-        if (from >= last || !inside(from, spans)) continue;
-        const moved = (ea[k]!.beat - from) * ms;
+      const kit = pairUp(
+        felt.drums.events.filter((e) => e.voice === voice),
+        plain.drums.events.filter((e) => e.voice === voice),
+        () => voice,
+      );
+      mismatched += kit.lost.length;
+      for (const [f, p] of kit.pairs) {
+        if (p.beat >= last || !inside(p.beat, spans)) continue;
+        const moved = (f.beat - p.beat) * ms;
         if (voice === 'sd') { snareSum += moved; snareN++; } else if (Math.abs(moved) > 1e-9) hatMoved++;
       }
     }
@@ -361,12 +472,60 @@ const inside = (beat: number, spans: [number, number][]) =>
    * velocity: the melodic half of a feel goes into the `Voice` before the
    * audition, never into the notes after it.
    *
-   * And the rhythm section: **a feel modifies, it never authors.** The same bag
-   * of pitches on every layer and the same bag of kit voices. Whatever moves,
-   * what is played does not.
+   * And the rhythm section: **a feel modifies, it never authors.**
+   *
+   * ## Why this assertion is narrower than the one wave 3 shipped
+   *
+   * Wave 3 asserted the multiset of pitches per layer, unchanged, which is the
+   * same sentence as "the note count never moves". Wave 4 adds a ghosted note
+   * and a subdivided chord, and both add notes, so the old form and the new
+   * fields collide head-on. Neither was dropped, because the collision is with
+   * the *proxy* rather than with the invariant: what a feel must never change is
+   * **what is played**, and the note count was standing in for that.
+   *
+   * So the boundary between "how" and "what" is drawn where it actually is —
+   * **at the pitch class**. A ghost repeats the pitch of the note it leads into,
+   * a subdivision repeats the pitch it was split from, and neither proposes a
+   * note that was not already sounding. Nothing about the harmony, the voicing
+   * or the figure has been altered by either; only the surface has. A feel that
+   * introduced one new pitch class would be composing, whatever it called
+   * itself, and that is the line worth defending.
+   *
+   * The count, having stopped being the invariant, becomes three narrower ones
+   * that say exactly what the two gestures are allowed to do:
+   *
+   *  - **nothing is ever removed**, and notes appear only on `bass`, on `comp`
+   *    and on the `sd` voice — the two layers `Feel.ghost` names plus the one
+   *    `Feel.subdivide` names, which are disjoint on purpose so that each added
+   *    note's provenance is structural rather than guessed;
+   *  - **every ghost is under the cap.** 0.35 of the mean level in its own bar,
+   *    against a construction that aims at 0.22. A ghost that can be heard as a
+   *    note is not a ghost, and it is the one place a feel could smuggle in
+   *    something audible while satisfying every other rule here;
+   *  - **every subdivision repeats a pitch that survived**, which is what makes
+   *    it half of a note rather than a new one.
    */
-  let bent = 0; let melodyNotes = 0; let authored = 0; let rhythmNotes = 0;
-  for (const { felt, plain } of feelPairs) {
+  const cap = 0.35;
+  let bent = 0; let melodyNotes = 0; let rhythmNotes = 0; let regridded = 0;
+  let authored = 0; let lost = 0; let wrongLayer = 0; let tooLoud = 0;
+  let ghosts = 0; let splits = 0;
+  const loud: string[] = [];
+  for (const { style, seed, felt, plain } of feelPairs) {
+    /**
+     * The swing in force in a given bar, which is the one thing a feel may say
+     * to a composed part — see `Feel.swing`. Read off the IR rather than off the
+     * style, so this measures what the song claims about itself.
+     */
+    const spanSwing = (beat: number) => {
+      const bar = Math.floor(beat / felt.meta.beatsPerBar + 1e-9);
+      const span = (felt.meta.feels ?? []).find(
+        (f) => bar >= f.from && bar < f.to && f.feel.swing !== undefined,
+      );
+      return span
+        ? felt.meta.swing + (span.feel.swing! - felt.meta.swing) * span.amount
+        : felt.meta.swing;
+    };
+    const base = plain.meta.swing;
     for (const layer of ['melody', 'counter'] as const) {
       const a = felt.tracks.find((t) => t.layer === layer)?.notes ?? [];
       const b = plain.tracks.find((t) => t.layer === layer)?.notes ?? [];
@@ -374,29 +533,223 @@ const inside = (beat: number, spans: [number, number][]) =>
       if (a.length !== b.length) { bent += Math.abs(a.length - b.length); continue; }
       for (let k = 0; k < a.length; k++) {
         const x = a[k]!; const y = b[k]!;
-        if (Math.abs(x.beat - y.beat) > 1e-9 || Math.abs(x.duration - y.duration) > 1e-9
-          || x.midi !== y.midi || Math.abs(x.velocity - y.velocity) > 1e-9) bent++;
+        if (x.midi !== y.midi || Math.abs(x.velocity - y.velocity) > 1e-9) { bent++; continue; }
+        /**
+         * The one licensed difference, and the reason this check is not simply
+         * "identical". `Feel.swing` is applied at assembly, to every layer, the
+         * melody included — it is a property of the *grid* and not a gesture, so
+         * a tune re-gridded is still the tune that won its audition. What is
+         * asserted is that the note is on the grid the span asks for and nowhere
+         * else: an onset the plain song swung by `base / 2` is expected to be
+         * swung by the span's own figure instead, exactly, and every other note
+         * is expected not to have moved at all.
+         *
+         * The duration is only compared where nothing moved. Swing shortens the
+         * note it delays and `trimOverlaps` then runs against a line whose gaps
+         * have changed, so a re-gridded tune's durations are a consequence of
+         * both and not a fact this check can predict.
+         */
+        const frac = y.beat - Math.floor(y.beat);
+        const swung = base > 0 && Math.abs(frac - (0.5 + base * 0.5)) < 1e-6;
+        const shift = swung ? (spanSwing(y.beat) - base) * 0.5 : 0;
+        if (Math.abs(x.beat - (y.beat + shift)) > 1e-9) { bent++; continue; }
+        if (shift !== 0) { regridded++; continue; }
+        if (Math.abs(x.duration - y.duration) > 1e-9) bent++;
       }
     }
-    /**
-     * As multisets, not note for note. A push moves an onset past a neighbour
-     * now and then — a snare eighteen milliseconds late sorts behind the hat it
-     * was struck with, a bass note leaning over a section boundary lands in
-     * front of the one before it — and both are the feel working rather than a
-     * note going missing. What must not change is the bag of notes itself.
-     */
+    const bpb = felt.meta.beatsPerBar;
     for (const layer of ['bass', 'comp', 'pad', 'brass'] as const) {
-      const pitches = (song: Song) => (song.tracks.find((t) => t.layer === layer)?.notes ?? [])
-        .map((n) => n.midi).sort((x, y) => x - y).join(',');
-      rhythmNotes += plain.tracks.find((t) => t.layer === layer)?.notes.length ?? 0;
-      if (pitches(felt) !== pitches(plain)) authored++;
+      const a = felt.tracks.find((t) => t.layer === layer)?.notes ?? [];
+      const b = plain.tracks.find((t) => t.layer === layer)?.notes ?? [];
+      rhythmNotes += b.length;
+      const classes = (ns: readonly { midi: number }[]) =>
+        [...new Set(ns.map((n) => n.midi % 12))].sort((x, y) => x - y).join(',');
+      if (classes(a) !== classes(b)) authored++;
+      if (a.length < b.length) lost += b.length - a.length;
+      const grown = a.length - b.length;
+      if (grown > 0 && layer !== 'bass' && layer !== 'comp') { wrongLayer += grown; continue; }
+      if (grown <= 0) continue;
+
+      /**
+       * The bass pairs cleanly — nothing on it moves by a sixteenth and nothing
+       * on it is split — so whatever is left over is a ghost by construction.
+       * The comp does not pair cleanly, because a displaced chord moves by
+       * exactly the sixteenth a subdivision sits at, so it is asserted
+       * structurally instead of by pairing.
+       */
+      if (layer === 'bass') {
+        const level = levelByBar(pairUp(a, b, (n) => n.midi).pairs.map(([f]) => f), bpb);
+        for (const g of pairUp(a, b, (n) => n.midi).added) {
+          ghosts++;
+          const ref = level(g.beat);
+          if (!(ref > 0 && g.velocity <= ref * cap)) {
+            tooLoud++;
+            if (loud.length < 3) loud.push(`${style}/${seed} bass ${g.velocity.toFixed(3)} vs ${(ref * cap).toFixed(3)}`);
+          }
+        }
+      } else {
+        // Each surplus comp note has to be a pitch that is still there.
+        const survive = new Set(b.map((n) => n.midi));
+        splits += grown;
+        for (const n of a) if (!survive.has(n.midi)) wrongLayer++;
+      }
     }
     rhythmNotes += plain.drums.events.length;
-    const kit = (song: Song) => song.drums.events.map((e) => e.voice).sort().join(',');
-    if (kit(felt) !== kit(plain)) authored++;
+    const voices = (song: Song) =>
+      [...new Set(song.drums.events.map((e) => e.voice))].sort().join(',');
+    if (voices(felt) !== voices(plain)) authored++;
+    // The kit is unambiguous: `subdivide` never touches it, so every event a
+    // feel leaves behind here is a ghosted snare.
+    const kit = pairUp(felt.drums.events, plain.drums.events, (e) => e.voice);
+    lost += kit.lost.length;
+    const snareLevel = levelByBar(
+      kit.pairs.map(([f]) => f).filter((e) => e.voice === 'sd'), bpb,
+    );
+    for (const g of kit.added) {
+      if (g.voice !== 'sd') { wrongLayer++; continue; }
+      ghosts++;
+      const ref = snareLevel(g.beat);
+      if (!(ref > 0 && g.velocity <= ref * cap)) {
+        tooLoud++;
+        if (loud.length < 3) loud.push(`${style}/${seed} sd ${g.velocity.toFixed(3)} vs ${(ref * cap).toFixed(3)}`);
+      }
+    }
   }
-  check('a feel never bends the tune', bent === 0, `${bent} of ${melodyNotes} melody and counter notes moved`);
-  check('a feel modifies, it never authors', authored === 0, `${authored} altered parts over ${rhythmNotes} rhythm-section notes`);
+  check(
+    'a feel never bends the tune',
+    bent === 0 && regridded > 0,
+    `${bent} of ${melodyNotes} melody and counter notes moved; ${regridded} re-gridded by a swing override, which is the only thing allowed to`,
+  );
+  check(
+    'a feel modifies, it never authors: no new pitch class',
+    authored === 0 && lost === 0,
+    `${authored} layers changed their pitch classes, ${lost} notes lost, over ${rhythmNotes} rhythm-section notes`,
+  );
+  check(
+    'a ghost stays a ghost: snare and bass only, under the cap',
+    tooLoud === 0 && wrongLayer === 0 && ghosts > 0,
+    tooLoud || wrongLayer
+      ? `${loud.join('; ')}${wrongLayer ? ` — ${wrongLayer} on a layer that may not have them` : ''}`
+      : `${ghosts} ghosts all under ${cap} of their bar, ${splits} comp notes added, none anywhere else`,
+  );
+}
+
+{
+  /**
+   * **Funk is short**, which is the claim that separates it from `pocket`.
+   *
+   * ## Measured on the blues, and the reason is a finding rather than a detail
+   *
+   * `funk` ships enabled on `fusion` and on nothing else, and **fusion cannot
+   * answer this question, because fusion has no comp layer.** It is a two-handed
+   * keyboard style: the comping is the lead's left hand, `generateLeftHand`
+   * writes it into the `melody` track, and a feel may not touch that track by
+   * design — it was auditioned. Measured over six seeds, `jazz/fusion`,
+   * `jazz/trio` and `jazz/odd` produce zero notes on `comp` between them.
+   *
+   * So on the style it is enabled on, the half of `funk` that makes it funk —
+   * `articulation: { comp: 0.45 }`, `subdivide`, `displace` — is inert, and what
+   * fusion actually receives is pocket plus an accent plus ghosts. That is a
+   * real gesture and it is not this one. The check therefore installs the feel
+   * on a style that has a comp to shorten, because the alternative is a check
+   * that passes by measuring nothing.
+   *
+   * Both halves of the sentence are asserted: the comp gets shorter, and the
+   * notes `subdivide` adds are halves of notes that were already there rather
+   * than notes of their own — every added pitch is one that survived, which is
+   * what makes a subdivision an articulation.
+   */
+  const style = getGenre('jazz').styles.blues!;
+  const table = style.feels;
+  const run = (id: 'funk' | 'straight') => {
+    style.feels = [[id, 1]];
+    const songs = [...Array(10).keys()].map(
+      (i) => generateSong({ seed: `fk-${i}`, genre: 'jazz', style: 'blues' }),
+    );
+    style.feels = table;
+    return songs;
+  };
+  const funk = run('funk');
+  const straight = run('straight');
+  const comps = (songs: Song[]) =>
+    songs.flatMap((s) => s.tracks.find((t) => t.layer === 'comp')?.notes ?? []);
+  const meanDur = (songs: Song[]) => {
+    const notes = comps(songs);
+    return notes.reduce((sum, n) => sum + n.duration, 0) / Math.max(1, notes.length);
+  };
+  const shortened = meanDur(funk) / meanDur(straight);
+
+  let added = 0; let orphan = 0;
+  for (let i = 0; i < funk.length; i++) {
+    const a = funk[i]!.tracks.find((t) => t.layer === 'comp')?.notes ?? [];
+    const b = straight[i]!.tracks.find((t) => t.layer === 'comp')?.notes ?? [];
+    added += Math.max(0, a.length - b.length);
+    const survive = new Set(b.map((n) => n.midi));
+    for (const n of a) if (!survive.has(n.midi)) orphan++;
+  }
+  /**
+   * And the anticipations, counted rather than asserted, because the number is
+   * the point. `displace` only takes a hit that lands squarely on a beat that is
+   * not the downbeat, and a swung comp barely has any: this comping sits on the
+   * one and on the swung offbeat, and a swung offbeat is not on the sixteenth
+   * grid so a sixteenth in front of it means nothing. Roughly 20 anticipations
+   * in seven thousand notes. The field wants a straight-sixteenth style with a
+   * comp layer and the catalogue has not got one — fusion is straight and has no
+   * comp, the blues has a comp and is swung — so it is shipped exercised and
+   * essentially unheard. Printed so that stays visible.
+   */
+  const anticipations = (songs: Song[]) => comps(songs)
+    .filter((n) => Math.abs((n.beat % 1) - 0.75) < 1e-6).length;
+  check(
+    'funk is short: the chords become stabs',
+    shortened < 0.6 && added > 0 && orphan === 0,
+    `mean comp duration ${(shortened * 100).toFixed(0)}% of straight (${meanDur(straight).toFixed(2)} → ${meanDur(funk).toFixed(2)} beats), ${added} notes added by subdivision, ${orphan} carrying a pitch that was not there, ${anticipations(funk) - anticipations(straight)} anticipations`,
+  );
+}
+
+{
+  /**
+   * **A box does not groove.** Decision 6 of the plan, and the third statement
+   * of it in the codebase: a Mini Pops has one pattern per button and a volume
+   * knob, and a preset that dragged its backbeat would be somebody playing it.
+   *
+   * Every feel, not just the ones the style ships with, because the gate is
+   * `canVary(drumSource)` and it has to hold for whatever a table later names.
+   * Foksi is the probe because it is the only style in the catalogue with both a
+   * feel table and an era that can draw a box — the jazz eras never do, over 60
+   * seeds each.
+   *
+   * The assertion is on the kit alone. The band around the box still leans; a
+   * bass player does not stop playing in the pocket because the drummer is a
+   * machine, and it is the machine that cannot lean.
+   */
+  const style = getGenre('iskelma').styles.foksi!;
+  const table = style.feels;
+  let boxed = 0; let moved = 0; let felt = 0;
+  for (const id of Object.keys(FEELS) as FeelId[]) {
+    style.feels = [[id, 1]];
+    for (let i = 0; i < 60; i++) {
+      const song = generateSong({ seed: `bx-${i}`, genre: 'iskelma', style: 'foksi' });
+      if (song.drums.source !== 'box') continue;
+      style.feels = undefined;
+      const plain = generateSong({ seed: `bx-${i}`, genre: 'iskelma', style: 'foksi' });
+      style.feels = [[id, 1]];
+      boxed++;
+      if (id !== 'straight') felt++;
+      const a = song.drums.events; const b = plain.drums.events;
+      if (a.length !== b.length) { moved += Math.abs(a.length - b.length); continue; }
+      for (let k = 0; k < a.length; k++) {
+        if (Math.abs(a[k]!.beat - b[k]!.beat) > 1e-9 || a[k]!.voice !== b[k]!.voice
+          || Math.abs(a[k]!.velocity - b[k]!.velocity) > 1e-9) moved++;
+      }
+    }
+  }
+  style.feels = table;
+  check(
+    'a box does not groove',
+    moved === 0 && felt > 0,
+    `${moved} kit events altered over ${boxed} preset-box songs across ${Object.keys(FEELS).length} feels`,
+  );
 }
 
 {
@@ -415,10 +768,28 @@ const inside = (beat: number, spans: [number, number][]) =>
    * dynamics. Measured: 3 of 36 songs fail that way today, before feels do
    * anything. Per layer it is clean, and it is also the sharper statement, since
    * `applyDynamics` scales one layer at a time.
+   *
+   * ## And over the notes the feel did not add, which is not a loophole
+   *
+   * The mean velocity of a layer's notes stopped being a measure of how loud a
+   * section is the moment a feel could add a ghost to it. Measured on
+   * `jazz/fusion` seed `fl-6`: a funk chorus came out at 0.449 against a pocket
+   * verse at 0.487 and read as an inversion, and the whole of the difference was
+   * 23 ghost notes at a fifth of the level dragging the average down. Its loud
+   * notes were louder than the verse's and there were more of them — 0.519
+   * against 0.487 once the ghosts are set aside — so the section was not quieter
+   * by any definition a listener would recognise. Averaging in a note that
+   * exists to be inaudible measures how many ghosts there are, not how hard the
+   * band is playing.
+   *
+   * So the comparison is over the notes present in *both* songs: the same
+   * material, played two ways, which is the only thing the word "rank" can
+   * sensibly range over. It is also the stricter reading — nothing a feel adds
+   * can flatter the number in either direction.
    */
   let compared = 0; let inverted = 0; let multi = 0;
   const detail: string[] = [];
-  for (const { style, seed, felt } of feelPairs) {
+  for (const { style, seed, felt, plain } of feelPairs) {
     const ids = new Set((felt.meta.feels ?? []).map((f) => f.feel.id));
     if (ids.size < 2) continue;
     multi++;
@@ -426,7 +797,11 @@ const inside = (beat: number, spans: [number, number][]) =>
     const bars = (kind: string) => felt.sections.filter((s) => s.kind === kind)
       .map((s) => [s.startBar * bpb, (s.startBar + s.lengthBars) * bpb] as [number, number]);
     for (const layer of ['bass', 'comp', 'pad'] as const) {
-      const notes = felt.tracks.find((t) => t.layer === layer)?.notes ?? [];
+      const notes = pairUp(
+        felt.tracks.find((t) => t.layer === layer)?.notes ?? [],
+        plain.tracks.find((t) => t.layer === layer)?.notes ?? [],
+        (n) => n.midi,
+      ).pairs.map(([f]) => f);
       const mean = (kind: string) => {
         const spans = bars(kind);
         const hit = notes.filter((n) => inside(n.beat, spans));
