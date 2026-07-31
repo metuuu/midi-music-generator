@@ -190,19 +190,23 @@ check('blues choruses are twelve bars', bluesBars.size === 1 && bluesBars.has(12
 
   /**
    * The bar is 5%, and the plan asked for 10% *and* for the ♭3 to outnumber the
-   * ♮3. It does neither, and no chord scale can make it: `chooseAnchor` in
-   * `tune/skeleton.ts` draws every structural note from `chordPcs`, so over a I7
-   * the ♮3 is in the *skeleton* and the scale is never consulted about it. 82%
-   * of the ♮3s land on a beat, and its share barely moved when the mapping
-   * changed (17.5% → 17.2%) while the ♭3 went up more than fivefold. Off the
-   * beat, where the chord scale does decide, the ♭3 already outnumbers the ♮3 —
-   * 11.6% against 8.2%.
+   * ♮3. It now outnumbers it, and it took two changes rather than one.
    *
-   * So 5% asserts the thing that actually changed and still fails loudly if the
-   * override is dropped, which is what this check is for. The remaining half of
-   * the plan's target belongs to wave 2's blues/mixolydian mixture and to
-   * whatever lets a blues skeleton prefer the ♭3 — not to a threshold argued
-   * downwards here.
+   * The chord scale was the first and could not finish the job on its own: with
+   * the tonic blues scale in place the ♭3 went up more than fivefold and the ♮3
+   * barely moved, 17.5% → 17.2%, because `chooseAnchor` and `settle` in
+   * `tune/skeleton.ts` built the backbone out of `chordPcs` alone and the I7's
+   * major third is a chord tone. 82% of those ♮3s landed on a beat, which is what
+   * a structural note looks like from here. Filtering the structural passes to
+   * chord tones the prevailing scale also holds — wave 2, and a general change
+   * rather than a blues one — halved it: ♭3 8.3% against ♮3 8.2%.
+   *
+   * The threshold stays at 5% rather than being tightened to `flat3 > nat3`. The
+   * two are a tenth of a point apart, so asserting the ordering would be asserting
+   * noise. 5% is aimed at the override: drop that and the ♭3 falls to 1.4%. The
+   * filter's half of the work is the ♮3 printed beside it, which nothing asserts —
+   * lose the filter and the ♭3 stays at 7.9% and passes while the ♮3 doubles, so
+   * that is the number to read when this line looks fine and the blues does not.
    */
   check(
     'the blue third reaches the I7',
@@ -220,11 +224,16 @@ check('blues choruses are twelve bars', bluesBars.size === 1 && bluesBars.has(12
    * tonic scale but two chord scales that happen to share a note.
    *
    * §8 of the plan wrote this as a subset test: the pitch classes used over IV7
-   * inside those used over I7. That version cannot pass and should not be
-   * written. The two commonest notes over IV7 are IV's own root and major third,
-   * both anchors out of `chordPcs` and both rare over I7, so the set difference
-   * measures the skeleton rather than the scale — the same confound as above,
-   * and it would have been read as the scale failing.
+   * inside those used over I7. That version should still not be written, though
+   * for less of a reason than it was. It used to fail on the skeleton — the two
+   * commonest notes over IV7 were IV's own root and its major third, both anchors
+   * straight out of `chordPcs` and both rare over I7, so the set difference
+   * measured where the backbone landed rather than which scale was in force. Once
+   * the structural passes started asking the scale, IV's major third stopped being
+   * an anchor and fell to 5.4%, and the two commonest notes over IV7 became IV's
+   * root and the key's own ♭3 — which is the tonic scale holding, said in the
+   * histogram. Shares remain the right instrument for saying so: a set test would
+   * still turn on a handful of chromatic approach notes either side.
    */
   const blue = [
     ['♭3/I7', share(tally.I7.flat3, tally.I7.n)],

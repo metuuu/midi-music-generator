@@ -26,7 +26,7 @@
  */
 
 import { chordPcs, type Chord } from '../core/chord.js';
-import type { Midi } from '../core/pitch.js';
+import type { Midi, Pc } from '../core/pitch.js';
 import { clampToRange, pc } from '../core/pitch.js';
 import type { Rng } from '../core/rng.js';
 import type { Scale } from '../core/scale.js';
@@ -222,6 +222,56 @@ export function skeletonFor(opts: SkeletonOptions): Skeleton {
 }
 
 /**
+ * The chord tones this line can actually speak: the ones the prevailing scale
+ * holds too.
+ *
+ * Both structural passes below drew their candidates from `chordPcs` alone and
+ * never consulted the scale sitting right beside it, which is a claim that the
+ * harmony outranks the idiom at the one note where the two can disagree. It does
+ * not. A structural tone is the note the surface has to *reach* and then *leave*,
+ * and everything around it moves by `stepInScale` — so an anchor outside the
+ * prevailing scale is a note the line can neither approach nor quit in the
+ * language it is speaking. It is arrived at by leap and left by leap, every time,
+ * whatever the figure said.
+ *
+ * The blues is where this was measured and it is not a blues fix. Wave 1 gave that
+ * style one tonic blues scale across the whole form and the ♮3 still sat on 17.2%
+ * of melody notes over I7, 82% of them on a beat — because the I7's major third is
+ * a chord tone and the backbone is made of chord tones. No `scaleForChord` can
+ * take away a note the pass underneath it never asks about.
+ *
+ * Checked against every genre's mapping before being believed, because a filter
+ * that fired everywhere would be a rewrite of the catalogue wearing a bug fix's
+ * clothes. Jazz's chord scales contain their own chords by construction —
+ * mixolydian holds 1-3-5-♭7, dorian 1-♭3-5-♭7, locrian 1-♭3-♭5-♭7 — so its only
+ * movers are the altered dominants, whose scale has no natural 5th, and losing that
+ * 5th as a *structural* note is the right reading of an altered chord rather than a
+ * side effect of this. Ambient and synth pick a mode of the tonic that already
+ * contains the chord, so nothing of theirs moves at all. Iskelmä moves on borrowed
+ * chords and secondary dominants — `iv`, `VI7`, `V7/V` — and there this enforces
+ * the genre's own claim rather than contradicting it: it holds the key's scale
+ * under every chord, so the raised third of a `VI7` was already a note the tune had
+ * no way into and no way out of. Genre-wide that is 6.2% of melody notes outside
+ * the prevailing scale falling to 3.4%, and stepwise motion moving by three
+ * quarters of a point.
+ *
+ * The fallback keeps the unfiltered chord when the intersection is too thin to
+ * build a backbone from, and the floor is **two** distinct pitch classes. At one,
+ * every anchor in the bar is the same pitch class in some octave, and
+ * `chooseAnchor` both refuses the note it just played and rejects anything past a
+ * comfortable leap: all candidates score 1e-9 and the draw stops being a choice.
+ * Two is a real backbone — a root and a fifth is what a bugle call is made of.
+ * Three was rejected because it would fire on the ordinary case this exists for: a
+ * borrowed triad keeping two of its three tones is exactly the chord whose third
+ * the line cannot sing.
+ */
+function anchorTones(chord: Chord, scale: Scale): Pc[] {
+  const tones = chordPcs(chord);
+  const speakable = tones.filter((t) => scale.pcs.includes(t));
+  return new Set(speakable).size >= 2 ? speakable : tones;
+}
+
+/**
  * The nearest note that belongs here: a chord tone within a tone, else a scale tone.
  *
  * Used where the pitch is already decided and only needs to be made legal — a
@@ -232,7 +282,18 @@ function settle(
   want: Midi, chord: Chord, scale: Scale, range: [Midi, Midi], prev?: Midi,
 ): Midi {
   const rounded = Math.round(want);
-  const tones = chordPcs(chord);
+  /**
+   * Filtered here too, and this is the path that carries the *arrival*.
+   *
+   * It belongs here more clearly than in `chooseAnchor` rather than less, because
+   * the fall-through below already prefers a scale tone when no chord tone is
+   * close: filtering only stops the search short-circuiting past a note the scale
+   * would have refused anyway. The blues shows what that cost. `cadenceTarget`
+   * offers the key's 3̂ as one way to end `closed`, the I7 makes it a chord tone, so
+   * the search took it at distance 0 and the phrase landed on the ♮3; filtered, it
+   * falls through to the blues scale's own ♭3 a semitone away.
+   */
+  const tones = anchorTones(chord, scale);
   for (let d = 0; d <= 2; d++) {
     for (const cand of [rounded - d, rounded + d]) {
       if (cand < range[0] || cand > range[1] || !tones.includes(pc(cand))) continue;
@@ -342,11 +403,15 @@ interface AnchorArgs extends SkeletonOptions {
  * was wrong there was applying it to *every* strong beat, which left no room for a
  * suspension. Applied to the backbone only, it is the difference between a line
  * that is in the chords and a line that is merely near them.
+ *
+ * Chord tones *the scale also holds*, which is the half that was missing: see
+ * `anchorTones`. Belonging to the harmony is not enough on its own, because a note
+ * has to be got to and got away from.
  */
 function chooseAnchor(args: AnchorArgs): Midi {
   const { chord, wanted, range, archetype, prev, rng } = args;
   const [lo, hi] = range;
-  const tones = chordPcs(chord);
+  const tones = anchorTones(chord, args.scale);
 
   const candidates: Midi[] = [];
   for (let m = lo; m <= hi; m++) {
