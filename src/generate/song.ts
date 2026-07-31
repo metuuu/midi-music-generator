@@ -185,6 +185,17 @@ export function generateSong(opts: GenerateOptions = {}): Song {
   // Style overrides beat the genre default: bebop turns the rules off entirely.
   const strictness = getStrictness(opts.strictness ?? style.strictness ?? genre.defaultStrictness);
   const hook = getHook(opts.hook ?? style.hook ?? genre.defaultHook);
+  /**
+   * The same override shape as `strictness` and `hook`, and it is resolved here
+   * rather than at each of the seven call sites so that there is one place to
+   * read the answer off. The genre states the idiom's mapping; a style is
+   * allowed to disagree about itself, and exactly one does — see
+   * `Style.scaleForChord`.
+   *
+   * A function swap and nothing else: no draw, so every style that does not
+   * override it generates the song it generated before this existed.
+   */
+  const scaleForChord = style.scaleForChord ?? genre.scaleForChord;
 
   const rules = resolveRules(genre.ruleOverrides);
   /**
@@ -739,7 +750,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
     let sectionComp = active.has('comp') && soloLayer !== 'comp'
       ? generateComp(
         ctxFor('comp'), compPattern, instruments.comp.centre,
-        (c) => genre.scaleForChord(localTonic, mode, c),
+        (c) => scaleForChord(localTonic, mode, c),
         limitFor('comp'),
       )
       : [];
@@ -833,7 +844,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
         range,
         tonic: localTonic,
         mode,
-        scaleForChord: genre.scaleForChord,
+        scaleForChord,
         vocabulary: genre.solo.vocabulary,
         blocks: solo.soloBars,
         chorus: solo.index,
@@ -901,7 +912,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
           tonic: localTonic,
           mode,
           range,
-          scaleForChord: genre.scaleForChord,
+          scaleForChord,
           tag: `${seed}:tune:${s}${salt('melody')}`,
           strictness: strictness.level,
           rules,
@@ -1021,13 +1032,13 @@ export function generateSong(opts: GenerateOptions = {}): Song {
         let answer = counterPattern
           ? generateComp(
             counterCtx, counterPattern, instruments.counter.centre,
-            (c) => genre.scaleForChord(localTonic, mode, c),
+            (c) => scaleForChord(localTonic, mode, c),
             limitFor('counter'),
           )
           : generateCounter(counterCtx, withTail(byLayer, 'melody', ctxBase.startBeat, melody), instruments.counter.centre, {
             range: plan.counter,
             idiom: IDIOMS[instruments.counter.idiom],
-            scaleFor: (c) => genre.scaleForChord(localTonic, mode, c),
+            scaleFor: (c) => scaleForChord(localTonic, mode, c),
             // The section's own figure, so the answer can quote the song rather than
             // echo the last four notes it heard. See `generateCounter`.
             ...(hookContour ? { quote: hookContour } : {}),
@@ -1075,7 +1086,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
             melody, from, to,
             new Rng(`${seed}:harmony:${s}:size`).chance(0.65) ? 2 : 5,
             (midi, steps) => stepInScale(
-              genre.scaleForChord(localTonic, mode, ctxBase.chords[Math.min(
+              scaleForChord(localTonic, mode, ctxBase.chords[Math.min(
                 ctxBase.chords.length - 1, Math.floor((from - ctxBase.startBeat) / style.beatsPerBar),
               )]!),
               midi, steps,
@@ -1141,7 +1152,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
         mode: chooseLeftHandMode(new Rng(`${seed}:hand:${s}`), style.twoHanded, hands),
         spec: hands,
         density: style.twoHanded.density,
-        scaleFor: (c) => genre.scaleForChord(localTonic, mode, c),
+        scaleFor: (c) => scaleForChord(localTonic, mode, c),
         clarity,
         ...(style.twoHanded.ostinato ? { ostinato: style.twoHanded.ostinato } : {}),
       });

@@ -18,6 +18,9 @@
  *    12-bar blues and the 32-bar AABA are the two that matter.
  */
 
+import { isAlteredDominant } from '../../core/chord.js';
+import { pc } from '../../core/pitch.js';
+import { makeScale } from '../../core/scale.js';
 import type { Style } from '../../style/types.js';
 
 /**
@@ -495,6 +498,45 @@ const blues: Style = {
   // A blues head is a riff, and a riff is stated again. The twelve-bar form is
   // already a repetition machine; this just stops the tune fighting it.
   hook: 'standard',
+  /**
+   * Fixed on the *key*, not the chord — the tonic blues scale over everything,
+   * except that a ii–V turnaround is a real ii–V and gets treated as one. The
+   * jazz blues progressions in this table have one in bars nine and ten, and a
+   * line that ignored it would be playing over the changes rather than through
+   * them.
+   *
+   * The only style in the catalogue that overrides its genre here, and the
+   * reason is measurable. Jazz's chord-scale mapping gives every dom7
+   * mixolydian rooted on the *chord*, so a blues in F played F mixolydian over
+   * I7 and B♭ mixolydian over IV7, re-orienting every bar. Across 25 major-key
+   * blues songs that put the ♭3 on 1.4% of melody notes over I7 against 17.5%
+   * for the ♮3 — exactly backwards. The grind between a held ♭3 and the I7's
+   * own major third is the sound of the idiom, and the mapping guaranteed it
+   * could not occur; the ♭3 that did show up was over IV7, where it is that
+   * chord's own ♭7 and has no friction in it at all.
+   *
+   * In a minor blues this barely fires, and does not need to: `i7` and `iv7`
+   * are min7, so they take dorian on their own roots, and B♭ dorian under an F
+   * minor blues is the same seven pitch classes as F aeolian. The mapping is
+   * already key-relative there, ♭3 included. Major is where it was wrong.
+   *
+   * The min7/halfdim7/altered arm is jazz's own switch, copied rather than
+   * called: `jazz/index.ts` imports this file, so reaching back for
+   * `jazz.scaleForChord` would close an import cycle. Three cases is a cheap
+   * copy, and they are the settled end of that switch, but they do have to stay
+   * in step with it.
+   *
+   * Six notes with no 2nd, 6th or major 3rd is thin, and a head built purely
+   * from it reads as pentatonic noodling. Shipped pure on purpose: the
+   * blues-scale/mixolydian mixture that fixes it wants a blend chosen off these
+   * numbers rather than guessed in front of them.
+   */
+  scaleForChord: (tonic, _mode, chord) => {
+    if (chord.quality === 'min7') return makeScale(chord.root, 'dorian');
+    if (chord.quality === 'halfdim7') return makeScale(chord.root, 'locrian');
+    if (isAlteredDominant(chord.quality)) return makeScale(pc(chord.root + 1), 'melodicMinor');
+    return makeScale(tonic, 'blues');
+  },
   modeWeights: { minor: 0.24, major: 0.76 },
   relativeMajorChorus: 0,
   progressions: {

@@ -10,7 +10,9 @@ import type {
   DrumSource, DrumVoice, Effects, LayerId, SectionKind, SequencedLayer, Space,
 } from '../core/types.js';
 import type { InstrumentId } from './instruments.js';
-import type { Mode } from '../core/scale.js';
+import type { Chord } from '../core/chord.js';
+import type { Pc } from '../core/pitch.js';
+import type { Mode, Scale } from '../core/scale.js';
 import type { VoicingStyle } from '../core/voicing.js';
 import type { StrictnessId } from '../core/rules.js';
 import type { HookId } from '../generate/hook.js';
@@ -472,6 +474,21 @@ export interface Style {
    * of a music whose whole value proposition is never playing it twice.
    */
   hook?: HookId;
+  /**
+   * Where this style's melody gets its notes, overriding the genre's answer.
+   *
+   * Absent on every style but one, and that is the point: the genre's mapping is
+   * the idiom's mapping, and a style that overrides it is making a claim about
+   * itself rather than about its genre.
+   *
+   * The blues is why this exists. Jazz follows the *chord* — each quality implies
+   * its own scale and the line re-orients bar by bar — and that is correct for
+   * every jazz style in the catalogue except the one whose entire sound is a
+   * fixed tonic scale dragged across moving changes. A blues line that
+   * re-orients onto each dominant is a bebop line over blues changes, which is a
+   * real and different music.
+   */
+  scaleForChord?(tonic: Pc, mode: Mode, chord: Chord): Scale;
   /**
    * Bars per chorus when the form is built on a fixed chorus length rather
    * than eight-bar units. 12 for the blues.
