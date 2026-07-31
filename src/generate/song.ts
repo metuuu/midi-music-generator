@@ -1307,13 +1307,46 @@ export function generateSong(opts: GenerateOptions = {}): Song {
    * their own `genre/…/index.ts`. `brass` barely moved (0.994) and is left
    * alone.
    */
+  /**
+   * How hard a part on each layer is played, as the velocity its *typical* note
+   * is normalised to. See the use site — this is level, not shape.
+   *
+   * The median note rather than the loudest one, because the median is what a
+   * listener hears as the level of a part: matching peaks left a line with a
+   * wide shape sitting 3 dB under a flat one that peaked identically. Each
+   * number is the median that layer already wrote, measured over 240 songs
+   * across all four genres, so this collapses the spread without moving the
+   * average.
+   */
+  const LAYER_VELOCITY: Record<PlayedLayer, number> = {
+    melody: 0.80,
+    counter: 0.62,
+    comp: 0.38,
+    pad: 0.39,
+    bass: 0.78,
+    brass: 0.56,
+  };
+
   const gains: Record<PlayedLayer, number> = {
     // was 0.9 — bass fonts run 1.44× quiet
     bass: 0.63,
-    // was 0.62 — comp fonts 1.21× quiet
-    comp: 0.51,
-    // was 0.45 — pad fonts sit on the median already
-    pad: 0.44,
+    /**
+     * was 0.62, then 0.51 once the fonts were measured — and then +3 dB, which
+     * is the one number here that is an opinion rather than a measurement.
+     *
+     * Measured against the tune, a comping instrument was landing 11.5 dB back
+     * in iskelmä and 11.2 in jazz, at the note and not only in the average. A
+     * comping piano is not a pad: it is the harmony, it is played by somebody
+     * the audience can see playing it, and at 11 dB under a saxophone with a
+     * kit over the top it was inaudible as anything but texture. Eight decibels
+     * back is still unmistakably accompaniment and is where these records
+     * actually sit.
+     */
+    comp: 0.72,
+    // was 0.45, then 0.44 — the fonts sit on the median, so this is +1.5 dB of
+    // the same opinion and no more: a pad *is* a bed, and the only claim here
+    // is that a bed 13 dB down is furniture rather than a bed.
+    pad: 0.52,
     // was 0.85 — melody fonts run 1.12× *hot*, so this one goes up
     melody: 0.95,
     counter: 0.56,
@@ -1447,6 +1480,42 @@ export function generateSong(opts: GenerateOptions = {}): Song {
     for (const n of notes) n.midi = foldIntoRange(n.midi, range);
 
     notes.sort((a, b) => a.beat - b.beat || a.midi - b.midi);
+
+    /**
+     * Play every part on this layer as hard as every other part on this layer.
+     *
+     * Velocity was carrying two different things and only one of them belongs
+     * to it. The shape — accents inside a bar, a section leaning in, a swell
+     * across a held chord — is the part's own and is worth keeping to the note.
+     * The *level* is not: it was whatever constant the figure that generated
+     * these notes happened to be written with, and figures differ. A comping
+     * pattern hands out 0.55, a two-note ostinato 0.42, a strummed guitar
+     * figure closer to 0.8 — so on the same layer, at the same fader, a celesta
+     * counter-line came out 8 dB under a jazz-guitar counter-line, for no
+     * reason anybody chose. Measured across 240 songs the counter and comp
+     * layers each spanned about 6 dB of written velocity, and the parts
+     * measured up to 16 dB apart.
+     *
+     * Dividing the part by its own median and multiplying by the layer's puts
+     * every part on the layer at the level the fader promises, and leaves every
+     * relationship *inside* the part untouched, since one constant cannot bend
+     * a shape. The scale is held back where it would push the part's loudest
+     * note past full velocity, so a line with a big shape keeps its accents
+     * instead of flattening them against the ceiling.
+     *
+     * Before the solo ride, which is a deliberate statement about level and has
+     * to survive this; and not for machines, which have their own rule below
+     * for a different reason.
+     */
+    if (!sequenced.has(layer as SequencedLayer) && notes.length) {
+      const sorted = notes.map((n) => n.velocity).sort((a, b) => a - b);
+      const median = sorted[Math.floor(sorted.length / 2)]!;
+      const peak = sorted.at(-1)!;
+      if (median > 0) {
+        const k = Math.min(LAYER_VELOCITY[layer] / median, 1 / peak);
+        for (const n of notes) n.velocity = clamp(n.velocity * k, 0.08, 1);
+      }
+    }
 
     /**
      * Ride the fader up for the solo.

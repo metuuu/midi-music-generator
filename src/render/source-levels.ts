@@ -82,6 +82,7 @@
  * a measurement nobody took with a number somebody already tuned.
  */
 
+import type { Midi } from '../core/pitch.js';
 import type { DrumVoice } from '../core/types.js';
 
 /**
@@ -182,6 +183,78 @@ export const SOUNDFONT_LEVEL: Record<string, number> = {
 };
 
 /**
+ * Where a font's own level steps across the keyboard, as a correction to the
+ * trim above.
+ *
+ * `SOUNDFONT_LEVEL` was measured at one pitch — each instrument's `centre` —
+ * and the assumption underneath it was that a soundfont is one instrument at
+ * one loudness with the pitch changed. It is not. A webaudiofont program is a
+ * handful of recorded notes in zones, and the zones were not levelled against
+ * each other: they are separate takes, sometimes from separate instruments, and
+ * the trim is only true in the zone it was measured in.
+ *
+ * Measured the same way as the trim — the renderer's own zone lookup, playback
+ * rate, loop and envelope, then maximum momentary loudness — at every semitone
+ * of the instrument's range, and averaged per zone. Below, dB against the pitch
+ * the trim was measured at, with the share of notes the generator actually
+ * writes in each zone over 600 songs:
+ *
+ * ```
+ *   violin (centre 76)          accordion (centre 72)     brass section (72)
+ *     55      −4.8    0%          41–53   −1.9   11%        36–66   −4.1   67%
+ *     56–62   −0.1    1%          54–57   −2.8    3%        67–70   −3.0   18%
+ *     63–68   −2.0    0%          58–61   −1.9   15%        71–84   ~0      11%
+ *     69–72   −3.8    8%          62–65   −3.9   15%
+ *     73–77    0.0   38%          66–69   +0.3   18%      trumpet (72)
+ *     78–82   −2.6   42%          70–77    0.0   32%        52–67   −3.3   33%
+ *     83–86   −0.3    9%          78–85   +0.7    6%        68–76   −0.4   46%
+ *     87–96   −1.1    2%          86–93   +1.3    0%        77–86   +0.8   21%
+ *
+ *   flute (centre 84)           muted trumpet (centre 72)
+ *     59–64   −4.3    1%          52–75    ~0     71%
+ *     65–73   −1.9    6%          76–78   −2.1    16%
+ *     74–83   −0.2   25%          79–86   −0.5    12%
+ *     84–96   +0.4   69%
+ * ```
+ *
+ * The violin is the case that started this. Its loudest zone is the one its
+ * `centre` sits in, and the zone the tune spends most of its time in — F#5 to
+ * A#5, 42% of every violin note in the catalogue — is 2.6 dB below it. So the
+ * fader was set on the register the line *starts* in and the line then walks up
+ * into a quieter recording of the same instrument, which is exactly the
+ * "sometimes" in "the violin is sometimes not loud enough": not sometimes in
+ * time, sometimes in pitch. The accordion has the same fault across the bottom
+ * half of its keyboard, where its comping and its left hand live: 44% of its
+ * notes sit 1.9–3.9 dB under.
+ *
+ * The brass section is the worst of them and the clearest statement of why one
+ * pitch is not enough: the window its trim was measured in holds **5%** of the
+ * notes anybody writes for it, and 85% of them sit 3 to 4.1 dB below that. A
+ * section that is supposed to answer the tune had been mixed as though it were
+ * a section playing an octave higher than it ever plays.
+ *
+ * The absence of the rest of the catalogue is not a claim that the rest is
+ * even. These are the fonts that were measured because somebody heard them.
+ *
+ * Read as: from this MIDI note up to the next entry, multiply. A font with no
+ * entry is flat as far as anyone has checked, and gets 1.
+ */
+export const REGISTER_LEVEL: Record<string, readonly (readonly [Midi, number])[]> = {
+  gm_violin: [
+    [55, 1.74], [56, 1.01], [63, 1.26], [69, 1.55],
+    [73, 1.00], [78, 1.35], [83, 1.04], [87, 1.14],
+  ],
+  gm_accordion: [
+    [41, 1.24], [54, 1.38], [58, 1.24], [62, 1.57],
+    [66, 0.97], [70, 1.00], [78, 0.92], [86, 0.86],
+  ],
+  gm_brass_section: [[36, 1.60], [67, 1.42], [71, 0.99]],
+  gm_trumpet: [[52, 1.46], [68, 1.03], [73, 1.07], [77, 0.91]],
+  gm_flute: [[59, 1.64], [65, 1.24], [74, 0.97], [79, 1.09], [84, 0.95]],
+  gm_muted_trumpet: [[52, 1.02], [76, 1.27], [79, 1.05]],
+};
+
+/**
  * Per-bank, per-voice trim, relative to the median of that voice across banks.
  *
  * Read the columns rather than the rows: `RolandTR808` is uniformly around ×2.3
@@ -214,14 +287,29 @@ export const DRUM_SAMPLE_LEVEL: Record<string, Partial<Record<DrumVoice, number>
 };
 
 /**
- * The trim for one soundfont, or 1 for anything unmeasured.
+ * The trim for one soundfont at one pitch, or 1 for anything unmeasured.
  *
  * Unity rather than an error: an unmeasured source is exactly where the renderer
  * stood before this file existed, and a new catalogue entry should sound wrong
  * in a way somebody notices, not fail to render.
+ *
+ * The pitch is not optional, because there is no such thing as the loudness of
+ * a soundfont — see `REGISTER_LEVEL`. For the fonts nobody has measured across
+ * their range it makes no difference, which is the only reason this reads as
+ * one number for most of the catalogue.
  */
-export function levelOfSound(sound: string): number {
-  return SOUNDFONT_LEVEL[sound] ?? 1;
+export function levelOfSound(sound: string, midi: Midi): number {
+  const base = SOUNDFONT_LEVEL[sound] ?? 1;
+  const steps = REGISTER_LEVEL[sound];
+  if (!steps) return base;
+  // The bottom entry also covers anything below it: a part folded under the
+  // instrument's floor is a fault the range table catches, not a silent one.
+  let register = steps[0]![1];
+  for (const [from, trim] of steps) {
+    if (midi < from) break;
+    register = trim;
+  }
+  return base * register;
 }
 
 /**

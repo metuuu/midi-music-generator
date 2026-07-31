@@ -80,13 +80,19 @@ export function renderStrudel(song: Song, opts: StrudelRenderOptions = {}): stri
      * It is a fact about webaudiofont's conversion of this particular program
      * and not about the part, so it must not reach the MIDI — which reads
      * `track.gain` straight into channel volume. See `render/source-levels.ts`.
+     *
+     * Per note rather than per track, because a soundfont's zones are separate
+     * recordings and are not levelled against each other — so the trim belongs
+     * to the note, in the same way the drum trim belongs to the sample that
+     * sounds rather than to the kit.
      */
-    const level = levelOfSound(track.strudelSound);
+    const level = (note: NoteEvent) => levelOfSound(track.strudelSound, note.midi);
     /**
      * Per-note dynamics, as a gain grid laid on the same sixteenth slots as the
-     * notes. Only emitted when the part actually has dynamics to carry — a comp
-     * that plays every chord at one level gains nothing from a second grid
-     * saying so, and the audition output stays readable.
+     * notes. Only emitted when the part actually has something to carry — a comp
+     * that plays every chord at one level, on one zone of its font, gains
+     * nothing from a second grid saying so, and the audition output stays
+     * readable.
      */
     const dyn = dynamicGrid(track, meta.totalBars, slotsPerBar, level);
     /**
@@ -100,7 +106,9 @@ export function renderStrudel(song: Song, opts: StrudelRenderOptions = {}): stri
       `  // ${track.layer} — ${track.instrument}`,
       `  note(\`${formatGrid(grid)}\`)`,
       `    .sound('${track.strudelSound}')`,
-      dyn ? `    .gain(\`${formatGrid(dyn)}\`)` : `    .gain(${(track.gain * level).toFixed(3)})`,
+      dyn
+        ? `    .gain(\`${formatGrid(dyn)}\`)`
+        : `    .gain(${(track.gain * level(track.notes[0]!)).toFixed(3)})`,
       ...envelopeChain(track.envelope),
       ...effectChain(track.effects, song, sweep),
     ].join('\n'));
@@ -368,19 +376,27 @@ function dynamicGrid(
   track: Track,
   totalBars: number,
   slotsPerBar: number,
-  level: number,
+  level: (note: NoteEvent) => number,
 ): string[][] | undefined {
   const velocities = track.notes.map((n) => n.velocity);
   if (velocities.length < 2) return undefined;
   const lo = Math.min(...velocities);
   const hi = Math.max(...velocities);
-  // Under a couple of dB there is nothing to hear and nothing worth printing.
-  if (hi - lo < 0.06) return undefined;
+  /**
+   * Two reasons to print a grid, and the second is not dynamics at all: a line
+   * that crosses one of its font's zone boundaries changes level without
+   * changing how hard it is played, and a single `.gain()` cannot say so. See
+   * `REGISTER_LEVEL` in `render/source-levels.ts`.
+   */
+  const trims = track.notes.map(level);
+  const trimSpread = Math.max(...trims) / Math.min(...trims);
+  // Under half a dB there is nothing to hear and nothing worth printing.
+  if (hi - lo < 0.06 && trimSpread < 1.06) return undefined;
 
   // The source trim rides along, so the two branches of the `.gain()` call
   // above cannot come to disagree about how loud this font is.
   return buildValueGrid(track.notes, totalBars, slotsPerBar,
-    (n) => (track.gain * n.velocity * level).toFixed(3));
+    (n) => (track.gain * n.velocity * level(n)).toFixed(3));
 }
 
 
