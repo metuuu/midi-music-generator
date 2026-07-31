@@ -71,7 +71,7 @@ import type {
 import { instrumentIdForTrack, specFor } from '../../concert/instruments.js';
 import { getGenre } from '../../genre/index.js';
 import { renderStrudel } from '../../render/strudel.js';
-import { loadCode, playCode, startLoaded, stopPlayback } from '../audio.js';
+import { loadCode, playCode, preloadSounds, startLoaded, stopPlayback } from '../audio.js';
 
 import { createAnimator, type Animator } from './animate.js';
 import { createDirector, type CameraDirector } from './camera.js';
@@ -682,13 +682,22 @@ export function createShow(opts: ShowOptions = {}): Show {
   }
 
   /**
-   * Compile the pattern and hand it to the scheduler, stopped.
+   * Compile the pattern, hand it to the scheduler stopped, and get the band's
+   * instruments onto the machine.
    *
    * Split from starting it because the two want to happen at different
    * moments: this one wants to be over before anybody is looking, and the
    * start wants to be exactly on the cue. Evaluating in one call put a
    * transpile on the frame the count-in began, which is a stutter in the one
    * second of the show that is nothing but timing.
+   *
+   * The preload is the same argument carried one step further. Compiling the
+   * pattern loads no audio whatever — Strudel fetches an instrument on the beat
+   * it is first played — so a number used to open with its own band still
+   * arriving over the wire: soundfont notes landing late and out of place, and
+   * drum hits that missed their deadline dropped outright. The curtain is
+   * several seconds long and the stage is silent behind it, which is precisely
+   * the room that fetch wanted. See `preloadSounds`.
    */
   async function load(song: Song): Promise<void> {
     try {
@@ -700,6 +709,9 @@ export function createShow(opts: ShowOptions = {}): Show {
     } catch (err) {
       console.error('concert: Strudel could not evaluate the pattern', err);
     }
+    // After the compile rather than beside it: the pattern is what the downbeat
+    // cannot do without, and a slow CDN must not delay handing it over.
+    await preloadSounds(song);
   }
 
   /** The downbeat. Everything is already compiled; this is one clock start. */

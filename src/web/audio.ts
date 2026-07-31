@@ -18,6 +18,8 @@
 import { evalScope, type StrudelRepl } from '@strudel/core';
 import {
   getAudioContext,
+  getSampleBuffer,
+  getSound,
   getSuperdoughAudioController,
   initAudioOnFirstClick,
   registerSynthSounds,
@@ -26,7 +28,7 @@ import {
   webaudioRepl,
 } from '@strudel/webaudio';
 import { transpiler } from '@strudel/transpiler';
-import { registerSoundfonts } from '@strudel/soundfonts';
+import { getFontBufferSource, registerSoundfonts } from '@strudel/soundfonts';
 /**
  * The soundfont-name → bank-list map, which the package exports only as the
  * default of this module. `list.mjs`, the one on the public entry point, opens
@@ -34,7 +36,8 @@ import { registerSoundfonts } from '@strudel/soundfonts';
  */
 import GM_FONTS from '@strudel/soundfonts/gm.mjs';
 
-import type { Envelope } from '../core/types.js';
+import type { Envelope, Song } from '../core/types.js';
+import { resolveVoice } from '../render/drum-banks.js';
 import { DRUM_SAMPLES_URL } from '../render/strudel.js';
 
 let instance: StrudelRepl | undefined;
@@ -161,6 +164,96 @@ export async function startLoaded(): Promise<void> {
 
 export async function stopPlayback(): Promise<void> {
   if (instance) instance.stop();
+}
+
+/**
+ * Seconds a preload is allowed to take before the music starts without it.
+ *
+ * A bound rather than a promise, because a stalled CDN must not hold the
+ * curtain: an opening bar that is thin is a disappointment, a stage that never
+ * starts is a bug. Generous enough that it only ever catches a black hole and
+ * never a merely slow link — a whole band is well under a megabyte, fetched in
+ * parallel — and the loads that miss it are not cancelled, they simply stop
+ * being waited for and arrive during the first bars.
+ */
+const PRELOAD_SECONDS = 6;
+
+/**
+ * Fetch and decode everything a song will ask for, before it asks.
+ *
+ * **Nothing in Strudel loads a sound until a hap triggers it.**
+ * `registerSoundfonts` registers a callback and no audio; `samples()` fetches
+ * the map of URLs and no audio. The instrument itself — 25 to 200 kB per
+ * soundfont, one WAV per drum voice — is fetched *inside* the trigger, on the
+ * beat it is first needed. So the opening of a number arrives while its band is
+ * still on the wire, and what is heard depends on which requests won the race.
+ *
+ * The two loaders lose that race differently and both badly. The soundfont one
+ * awaits the fetch and then calls `start()` with a time that has long since
+ * passed, so the note plays immediately and in the wrong place. The sampler
+ * checks, sees the deadline is gone, and *drops the hit* — which is why the
+ * count-in of a cold page can be missing its first kick entirely.
+ *
+ * Every call here is the one the trigger itself would make, so it fills the
+ * same caches: both loaders key by font-and-pitch and by URL, and both store
+ * the promise rather than the result, so a load still in flight is what the
+ * trigger waits on rather than a second request for the same bytes.
+ *
+ * Exactly the pitches the song plays, rather than each instrument's full range:
+ * the soundfont cache decodes per pitch, so this is precisely the work the song
+ * was going to do anyway, moved to a moment where there is nothing to be late
+ * for.
+ *
+ * Never rejects, and that is part of the contract rather than laziness: this is
+ * a warm-up, callers await it on the way to the downbeat, and a band that could
+ * not be warmed is a band that plays cold — which is where the show was before
+ * any of this existed.
+ */
+export async function preloadSounds(song: Song): Promise<void> {
+  try {
+    await warm(song);
+  } catch (err) {
+    console.warn('audio: the instruments could not be preloaded', err);
+  }
+}
+
+async function warm(song: Song): Promise<void> {
+  await initAudio();
+  const ctx = getAudioContext();
+  const loads: Promise<unknown>[] = [];
+
+  for (const track of song.tracks) {
+    // Bank 0 rather than a choice: the renderer never emits `.n()`, so that is
+    // the one the trigger will pick. No entry at all means this part is not a
+    // soundfont — a sung line rides an oscillator, which needs no loading.
+    const font = GM_FONTS[track.strudelSound]?.[0];
+    if (!font) continue;
+    for (const midi of new Set(track.notes.map((n) => n.midi))) {
+      loads.push(getFontBufferSource(font, { note: midi }, ctx));
+    }
+  }
+
+  for (const voice of new Set(song.drums.events.map((e) => e.voice))) {
+    // The bank's own substitution, so what gets warmed is the sample that will
+    // actually sound. A voice the bank cannot play at all is dropped from the
+    // pattern by the renderer, and there is nothing to load for it here either.
+    const sound = resolveVoice(song.drums.bank, voice);
+    if (!sound) continue;
+    // `.bank()` is applied by prefixing the name at trigger time, so this is
+    // the key superdough will look up: `linndrum_bd`, not `bd`.
+    const bank = getSound(`${song.drums.bank}_${sound}`)?.data?.samples;
+    if (!bank) continue;
+    loads.push(getSampleBuffer({ s: sound, n: 0 }, bank));
+  }
+
+  // Settled rather than all: an instrument that will not load is one that was
+  // going to fail on the downbeat regardless, and the rest of the band is
+  // waiting behind this promise.
+  const done = Promise.allSettled(loads).then(() => undefined);
+  const deadline = new Promise<void>((resolve) => {
+    window.setTimeout(resolve, PRELOAD_SECONDS * 1000);
+  });
+  await Promise.race([done, deadline]);
 }
 
 /** One struck note, for the bench. See `playNote`. */

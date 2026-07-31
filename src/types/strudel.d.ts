@@ -91,6 +91,22 @@ declare module '@strudel/webaudio' {
   export function getSuperdoughAudioController(): {
     output?: { destinationGain?: GainNode | null };
   };
+  /**
+   * A registered sound, under the name the trigger path looks it up by — which
+   * for a banked sample is `bank_name`, lower case. `data.samples` is the bank
+   * `samples()` resolved: the URLs, absolute, in `.n()` order.
+   */
+  export function getSound(name: string): { data?: { samples?: unknown } } | undefined;
+  /**
+   * Fetch and decode the sample a hap would play, into the sampler's own cache.
+   *
+   * The half of `onTriggerSample` that touches the network, without the half
+   * that schedules a node — which is exactly what preloading wants. See
+   * `preloadSounds` in `web/audio.ts`.
+   */
+  export function getSampleBuffer(
+    value: Record<string, unknown>, bank: unknown,
+  ): Promise<{ buffer: AudioBuffer; playbackRate: number }>;
 }
 
 declare module '@strudel/soundfonts/gm.mjs' {
@@ -103,4 +119,15 @@ declare module '@strudel/soundfonts' {
   export function registerSoundfonts(): void;
   /** Point the loader at a self-hosted copy of the soundfont data. */
   export function setSoundfontUrl(url: string): void;
+  /**
+   * Fetch, decode and cache one pitch of one soundfont, returning a source
+   * ready to be started.
+   *
+   * The loader caches by font and pitch and holds the *promise*, so calling
+   * this ahead of time is what makes the trigger's own call free — it discards
+   * the node and keeps the cache. See `preloadSounds` in `web/audio.ts`.
+   */
+  export function getFontBufferSource(
+    font: string, value: { note: number }, ctx: BaseAudioContext,
+  ): Promise<AudioBufferSourceNode>;
 }

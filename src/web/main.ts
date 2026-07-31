@@ -9,7 +9,7 @@
  * mechanism a game would use to duck stems.
  */
 
-import { initAudio, playCode, stopPlayback } from './audio.js';
+import { initAudio, playCode, preloadSounds, stopPlayback } from './audio.js';
 
 import { generateSong, type GenerateOptions } from '../generate/song.js';
 import { renderStrudel } from '../render/strudel.js';
@@ -53,6 +53,16 @@ let current: Song | undefined;
 let playing = false;
 let radioMode = false;
 let radioTimer: number | undefined;
+/**
+ * Which press the audio belongs to. Bumped by every play and every stop.
+ *
+ * `play` waits for the instruments to load before it starts anything, which is
+ * a window a second or two wide on a cold page — long enough for the user to
+ * press Stop, or to toggle a layer and ask for a different render, while the
+ * first request is still in the air. Without a generation the stale one lands
+ * afterwards and starts music nobody asked for any more.
+ */
+let playGeneration = 0;
 const muted = new Set<LayerId>();
 
 function fillSelect(select: HTMLSelectElement, entries: [string, string][], anyLabel?: string): void {
@@ -183,8 +193,23 @@ function describe(song: Song): void {
 }
 
 async function play(song: Song): Promise<void> {
+  const generation = ++playGeneration;
   const code = renderStrudel(audible(song));
   try {
+    /**
+     * Get the instruments onto the machine before the downbeat, not on it.
+     *
+     * Strudel fetches a sound the first time a hap plays it, so without this
+     * the opening bars are a race between the pattern and the band arriving
+     * over the wire — see `preloadSounds`. It is bounded and it is cached, so
+     * the wait is a second or so on the first song of a session and nothing at
+     * all on a track that reuses instruments already heard.
+     */
+    setStatus('Loading instruments…');
+    await preloadSounds(song);
+    // Stopped, or superseded by a newer press, while the band was loading.
+    // Whoever bumped the generation has already said what the status is.
+    if (generation !== playGeneration) return;
     await playCode(code);
     playing = true;
     els.play.textContent = 'Stop ■';
@@ -199,6 +224,7 @@ async function play(song: Song): Promise<void> {
 }
 
 function stop(): void {
+  playGeneration += 1;
   void stopPlayback();
   playing = false;
   els.play.textContent = 'Play ▶';
@@ -364,7 +390,7 @@ function boot(): void {
   els.radio.disabled = false;
   els.dl.disabled = false;
   els.play.textContent = 'Play ▶';
-  setStatus('Ready. Instruments stream from the soundfont CDN on first use, so the opening bar can be thin.');
+  setStatus('Ready. Instruments come from the soundfont CDN, so the first press has a moment of loading.');
 }
 
 boot();
