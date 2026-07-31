@@ -62,9 +62,17 @@ function mountBasis(alongStrings: Vector3, faceHint: Vector3, at: Vector3): Matr
   return new Matrix4().makeBasis(x, y, z).setPosition(at);
 }
 
+/**
+ * The face angle is the guitar's story on a longer plank — see the note on
+ * `MOUNT` in `electric-guitar.ts`. It was `(0, 0.26, 0.96)`, fifteen degrees,
+ * and a bass body is lower and longer than a guitar's, so the same tilt left it
+ * nine centimetres off the hip and nineteen off the thigh: an instrument on a
+ * stand that the player happened to be standing behind. At seven it lies against
+ * them.
+ */
 const MOUNT = mountBasis(
   new Vector3(Math.cos(NECK_TILT), Math.sin(NECK_TILT), 0),
-  new Vector3(0, 0.26, 0.96),
+  new Vector3(0, 0.12, 0.99),
   new Vector3(-0.340, 0.885, 0.085),
 );
 
@@ -278,7 +286,9 @@ export const buildElectricBass: InstrumentBuilder = (opts) => {
   let started = false;
 
   const station: PlayerStation = {
-    offset: new Vector3(-0.36, 0, -0.22),
+    // Four centimetres back from -0.22, which is the last of the gap the flatter
+    // face could not close on its own. See `MOUNT`.
+    offset: new Vector3(-0.36, 0, -0.18),
     facing: 0,
     posture: 'stand',
   };

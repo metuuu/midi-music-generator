@@ -57,9 +57,25 @@ function mountBasis(alongStrings: Vector3, faceHint: Vector3, at: Vector3): Matr
   return new Matrix4().makeBasis(x, y, z).setPosition(at);
 }
 
+/**
+ * How the guitar hangs, and the face angle is the number that was wrong.
+ *
+ * `faceHint` was `(0, 0.28, 0.96)` — the face tilted sixteen degrees up, which
+ * is a real angle to wear a guitar at and is not the one to draw. A solid body
+ * is a *plank*, and a plank at sixteen degrees against a torso touches it along
+ * one line and stands off everywhere else: measured up the body, this one met
+ * the player at the chest and was eight, ten and twelve centimetres clear of
+ * them at the waist, the hip and the thigh. From the side it read as a guitar
+ * held out in front of somebody rather than worn.
+ *
+ * At seven degrees the same plank lies down the front of the player and the gap
+ * closes to a couple of centimetres at the chest and five at the thigh, which is
+ * where a strap really leaves it. What it costs is a face that is nearly
+ * vertical — and that is the audience's view of it, so it is not a cost.
+ */
 const MOUNT = mountBasis(
   new Vector3(Math.cos(NECK_TILT), Math.sin(NECK_TILT), 0),
-  new Vector3(0, 0.28, 0.96),
+  new Vector3(0, 0.12, 0.99),
   new Vector3(-0.092, 0.985, 0.085),
 );
 
@@ -318,7 +334,9 @@ export const buildElectricGuitar: InstrumentBuilder = (opts) => {
   let started = false;
 
   const station: PlayerStation = {
-    offset: new Vector3(-0.07, 0, -0.22),
+    // Four centimetres back from -0.22, which is the last of the gap the flatter
+    // face could not close on its own. See `MOUNT`.
+    offset: new Vector3(-0.07, 0, -0.18),
     facing: 0,
     posture: 'stand',
   };

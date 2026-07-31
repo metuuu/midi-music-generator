@@ -463,8 +463,24 @@ export const buildUprightBass: InstrumentBuilder = (opts) => {
   let last = 0;
   let started = false;
 
+  /**
+   * Where the player stands, and it was fourteen centimetres too far over.
+   *
+   * The offset is read as the player's place relative to the *instrument*, so
+   * the instrument lands at its negation in the player's frame — and at 0.30 the
+   * whole bass sat out beyond the player's left shoulder, its body centred a
+   * third of a metre off their centre line. A bassist does not stand beside
+   * their bass, they stand behind it: the back of the instrument leans on the
+   * left hip and the centre line of the body is barely left of the player's own.
+   * Everything else followed from that, because a bass parked out to one side
+   * makes both arms reach around it — which is what the arms were drawn doing.
+   *
+   * The two centimetres forward are the bass keeping the same lean against the
+   * player while it comes in, since a body brought sideways into a torso that is
+   * round meets it a little sooner.
+   */
   const station: PlayerStation = {
-    offset: new Vector3(-0.30, 0, -0.34),
+    offset: new Vector3(-0.16, 0, -0.36),
     facing: 0,
     posture: 'stand',
   };

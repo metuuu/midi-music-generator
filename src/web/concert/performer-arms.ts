@@ -133,6 +133,8 @@ const OUT = new Vector3();
 const AIMED = new Vector3();
 const BLEND = new Vector3();
 const T = new Vector3();
+const RIB = new Vector3();
+const SAMPLE = new Vector3();
 const QI = new Quaternion();
 
 const XAXIS = new Vector3(1, 0, 0);
@@ -211,6 +213,30 @@ const REACH_FULL = 0.50;
 
 /** How much the ribs push an elbow forward rather than sideways. `clearRibs`. */
 const RIBS_FRONT = 0.85;
+
+/**
+ * Where along the upper arm the body guard starts looking, and how finely.
+ *
+ * Not at the shoulder: the socket is inside the torso on purpose and the top of
+ * the arm is meant to be buried in it. Half way out is past the deltoid and
+ * still early enough that a lever arm of 0.5 does not turn a centimetre of
+ * shortfall into a metre of correction.
+ */
+const RIB_FROM = 0.5;
+const RIB_STEP = 0.125;
+
+/**
+ * How many times the guard is allowed to have another go, and how deep a point
+ * is allowed to stay.
+ *
+ * One pass moves the elbow far enough for whichever point of the arm was
+ * deepest, and a point nearer the shoulder moves only its share of that — so
+ * the pass that fixes the elbow can leave the middle of the upper arm still
+ * inside. Three is enough for everything on this stage; the slack is what stops
+ * a fourth from being spent chasing a millimetre.
+ */
+const RIB_PASSES = 3;
+const RIB_SLACK = 0.02;
 
 /**
  * The body an elbow may not be inside, above the chest: how wide the neck and
@@ -332,49 +358,82 @@ export function buildArms(
   const arms: Record<BodySide, Arm> = { left: build('left'), right: build('right') };
 
   /**
-   * Keep an elbow out of the player, and take it out forwards.
-   *
-   * The last guard, and the one worth having: this is the exact failure an IK
-   * solver would have handed us for free, an elbow inside the chest. It cannot
-   * come from the fall, which leans outward by construction. It comes from
-   * `align`, which puts the elbow where the back of the hand points, and from
-   * instruments played across the body — a flute is over the right shoulder and
-   * its player's left arm has to get there somehow.
+   * How deep into the player a point is, as a fraction of the way to the axis:
+   * 0 on the skin or outside it, 1 at the centre. Leaves the point in the
+   * torso's frame in `T` and its normalised radial coordinates in `RIB`.
    *
    * The column runs from the hips to the crown, not to the shoulders, and it
-   * narrows where the player does. An arm reaching right across the body at
-   * chest height ends up nearly straight, and a straight arm's elbow sits
-   * halfway along it, which for a flautist's left arm is on the centre line at
-   * chin height: a guard that stopped at the shoulder line let that elbow sit
-   * inside the player's own jaw. Above the shoulders the radius tapers to
+   * narrows where the player does. Above the shoulder line the radius tapers to
    * `NECK_OF_TORSO` — a neck and a head are about half the width of a chest —
-   * so the same push that clears a rib clears a chin.
-   *
-   * *Somehow* is the second half of the guard and the half that took a
-   * screenshot to find. Pushing straight out from the chest's axis is the
-   * shortest move and it is the wrong one: it takes an elbow that was over the
-   * sternum and puts it out of the player's side, so the upper arm still lies
-   * through the chest and the forearm doubles back. **An arm that crosses the
-   * body crosses in front of it** — always, on every instrument here — so the
-   * push leans forward, and an elbow that has to leave the ribs leaves through
-   * the shirt front with the whole arm in front of the body behind it.
-   *
-   * The maths is a ray against the ellipse, in the space where the ellipse is a
-   * unit circle. Solved in the torso's own frame, so a folded chest carries its
-   * own ribs with it rather than being defended by a box left behind at the
-   * resting lean.
+   * so the same guard that clears a rib clears a chin. Solved in the torso's own
+   * frame, so a folded chest carries its own ribs with it rather than being
+   * defended by a box left behind at the resting lean.
    */
-  const clearRibs = (e: Vector3, torso: Object3D, side: BodySide): void => {
-    T.copy(e).sub(torso.position).applyQuaternion(QI);
+  const intoBody = (q: Vector3, torso: Object3D): number => {
+    T.copy(q).sub(torso.position).applyQuaternion(QI);
     const up = T.y / p.torsoH;
-    if (up < -0.10 || up > CROWN_OF_TORSO) return;
-    // One taper, from the shoulder line to the neck, held from there up.
+    if (up < -0.10 || up > CROWN_OF_TORSO) return 0;
     const narrow = up <= 0.90 ? 1
       : Math.max(NECK_OF_TORSO, 1 - (up - 0.90) * (1 - NECK_OF_TORSO) / 0.22);
-    const ux = T.x / (ribX * narrow);
-    const uz = T.z / (ribZ * narrow);
-    const inside = ux * ux + uz * uz;
-    if (inside >= 1) return;
+    RIB.set(T.x / (ribX * narrow), narrow, T.z / (ribZ * narrow));
+    const r = Math.hypot(RIB.x, RIB.z);
+    return r >= 1 ? 0 : 1 - r;
+  };
+
+  /**
+   * Keep the **whole upper arm** out of the player, and take it out forwards.
+   *
+   * The failure an IK solver would have handed us for free is an elbow inside
+   * the chest, and guarding the elbow alone is not enough — that was the second
+   * thing a screenshot found. A guitarist's picking hand sits in front of their
+   * own belly at very nearly the arm's full reach, so there is no bend left to
+   * place: the elbow is pinned to the shoulder→wrist line, the line runs
+   * straight through the ribcage, and the elbow itself comes out the far side
+   * perfectly clear of it. The guard passed and the upper arm was a third of the
+   * way through the player's chest. Every fretted instrument had it, because
+   * every one of them is played with one hand across the front of the body.
+   *
+   * So the segment is sampled and the elbow is moved for whichever point of it
+   * is deepest. Moving the elbow moves a sample at *t* along the arm by `t` of
+   * as much, so the elbow has to move by the sample's shortfall over `t` — which
+   * is why the sweep starts at `RIB_FROM` rather than at the shoulder. The
+   * shoulder is *inside* the body by construction, the top of the upper arm is
+   * supposed to be buried in the deltoid, and a guard that included it would
+   * divide by nothing and throw the arm across the stage.
+   *
+   * The push leans forward rather than going straight out from the chest's axis,
+   * and that is the other half of it: **an arm that crosses the body crosses in
+   * front of it** — always, on every instrument here. Pushed sideways, an arm
+   * over the sternum comes out of the player's flank and the forearm doubles
+   * back; pushed forwards, it leaves through the shirt front with the rest of
+   * the arm in front of the body behind it.
+   *
+   * The maths is a ray against the ellipse, in the space where the ellipse is a
+   * unit circle.
+   */
+  const clearRibs = (e: Vector3, a: Vector3, torso: Object3D, side: BodySide): void => {
+    for (let pass = 0; pass < RIB_PASSES; pass++) if (!pushOnce(e, a, torso, side)) return;
+  };
+
+  /** One pass of `clearRibs`. True if it moved the elbow and another is worth it. */
+  const pushOnce = (e: Vector3, a: Vector3, torso: Object3D, side: BodySide): boolean => {
+    let deep = 0;
+    let at = 1;
+    let ux = 0;
+    let uz = 0;
+    let narrow = 1;
+    for (let t = RIB_FROM; t <= 1.0001; t += RIB_STEP) {
+      SAMPLE.copy(a).lerp(e, t);
+      const d = intoBody(SAMPLE, torso);
+      if (d > deep) {
+        deep = d;
+        at = t;
+        ux = RIB.x;
+        uz = RIB.z;
+        narrow = RIB.y;
+      }
+    }
+    if (deep <= RIB_SLACK) return false;
 
     let dx = ux;
     let dz = uz + RIBS_FRONT;
@@ -388,11 +447,57 @@ export function buildArms(
     }
     dx /= len;
     dz /= len;
+    // Where the ray leaves the ellipse, in normalised units, and then the same
+    // move in metres — divided by `at`, because the elbow is the end of a lever
+    // whose other end is pinned in the shoulder.
+    const inside = ux * ux + uz * uz;
     const back = ux * dx + uz * dz;
-    const s = -back + Math.sqrt(Math.max(0, back * back + 1 - inside));
-    T.x = (ux + s * dx) * ribX * narrow;
-    T.z = (uz + s * dz) * ribZ * narrow;
+    const s = (-back + Math.sqrt(Math.max(0, back * back + 1 - inside))) / at;
+    T.copy(e).sub(torso.position).applyQuaternion(QI);
+    T.x += s * dx * ribX * narrow;
+    T.z += s * dz * ribZ * narrow;
     e.copy(T).applyQuaternion(torso.quaternion).add(torso.position);
+    return true;
+  };
+
+  /**
+   * Slide the elbow along the arm until the two links are stretched alike.
+   *
+   * The guard above moves the elbow *away* from the line, and everything it
+   * takes comes out of the upper arm: a guitarist's picking elbow, pushed clear
+   * of their own belly, ended up with an upper arm 40 % long and a forearm a
+   * shade short. One bone doing all of the lying reads as a deformity where two
+   * bones sharing it read as an arm held a little further round than it can
+   * quite reach — the same trade the over-reach case makes, for the same reason.
+   *
+   * Where the elbow ends up is decided; how far along the arm it sits is not, and
+   * that is the one degree of freedom left to spend. Keeping its distance from
+   * the line and sliding it along, the two link lengths are
+   * `√(a² + h²)` and `√((span − a)² + h²)`; asking for those to be in the ratio
+   * the real bones are in is a quadratic in `a`, and the root that matters is the
+   * one that gives `a = upper·span/reach` when the elbow is on the line.
+   */
+  const rebalance = (e: Vector3, a: Vector3, b: Vector3): void => {
+    OUT.subVectors(b, a);
+    const span = OUT.length();
+    if (span < 1e-4) return;
+    OUT.divideScalar(span);
+    SAMPLE.subVectors(e, a);
+    const along = SAMPLE.dot(OUT);
+    SAMPLE.addScaledVector(OUT, -along);
+    const h = SAMPLE.length();
+    // On the line there is nothing to balance, and the links are already in
+    // proportion by construction.
+    if (h < 1e-4) return;
+    const u2 = upperL * upperL;
+    const k = foreL * foreL - u2;
+    const want = Math.abs(k) < 1e-6
+      ? span * 0.5
+      : (-u2 * span + Math.sqrt(Math.max(0, u2 * span * span * (u2 + k) - k * k * h * h))) / k;
+    if (!(want > 0) || want > span * 1.5) return;
+    // `SAMPLE` is still the offset from the line, so the elbow keeps exactly the
+    // clearance the guard just bought it and only slides along the arm.
+    e.copy(a).addScaledVector(OUT, want).add(SAMPLE);
   };
 
   function update(dt: number): void {
@@ -520,7 +625,9 @@ export function buildArms(
       E.copy(A).addScaledVector(D, span > d ? along * (span / d) : along)
         .addScaledVector(FALL, bulge);
 
-      clearRibs(E, torso, side);
+      clearRibs(E, A, torso, side);
+      rebalance(E, A, B);
+      clearRibs(E, A, torso, side);
 
       fitLimb(arm.upper, A, E, upperR);
       fitLimb(arm.fore, E, B, foreR);

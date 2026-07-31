@@ -305,6 +305,14 @@ interface Placed {
   /** How much of the body's sway this part rides. Feet are on the floor. */
   follow: number;
   /**
+   * The part's own swing about that share, and how fast it is moving.
+   *
+   * A hanging limb is a pendulum on a moving pivot, not a bracket welded to one.
+   * See `liveRest`, which owns the spring these two hold the state for.
+   */
+  swing: Vector3;
+  swingRate: Vector3;
+  /**
    * Whether this part is bolted to the torso rather than merely near it.
    *
    * The head is, and nothing else is. A head does not *follow* a body, it is
@@ -411,6 +419,25 @@ const IDLE_TURN = 0.30;
  * everyone: nobody plays square-on to something off to one side. See
  * `twistToHands`, which owns the argument and the stability of it.
  */
+/**
+ * The spring an idle limb hangs on: stiffness and drag, per second.
+ *
+ * Tuned as a pendulum rather than as a filter. `sqrt(SPRING)` is the natural
+ * frequency — 6.6 rad/s, a shade over one swing a second, which is what half a
+ * metre of arm does — and the drag is a little under half of critical, so a limb
+ * arrives after the body that moved it and goes a little past it. Both of those
+ * are the point: a limb that tracked the body exactly is the rigid version, and
+ * the whole reason this exists is that the rigid version does not bend an elbow.
+ *
+ * Measured on a standing player at a strong sway: the hips travel 73 mm and the
+ * idle hand 82 mm, 100 mm of which is *relative* to the hips — so the elbow
+ * opens and closes by three centimetres over the bar rather than not at all.
+ * Damped much less than this and a groove at the arm's own frequency, which a
+ * groove usually is, swings the hands like a rag doll's.
+ */
+const SWING_SPRING = 44;
+const SWING_DRAG = 5.6;
+
 const TWIST_SHARE = 0.38;
 const TWIST_LIMIT = 0.30;
 const TWIST_TAU = 0.28;
@@ -478,6 +505,18 @@ class Rig implements PerformerRig {
    * table carries the thing it blows into. See `MOUTHPIECE_TURN`.
    */
   private readonly mouthpiece: boolean;
+  /**
+   * How much of the groove's sway this player's *hips* are allowed to take.
+   *
+   * One for a player on their feet, who shifts their weight from one to the
+   * other and whose hips go with it. A quarter of that for anyone on a bench or
+   * a throne, because the part of them in contact with it is the part that
+   * cannot go anywhere: a seated player swaying by translation slides across the
+   * seat, and a drummer sliding around their throne in time with their own hi-hat
+   * is the most distracting thing on the stage. What the hips give up the spine
+   * takes back as roll — see `update`.
+   */
+  private readonly shift: number;
   /** The minimum distance between two resting hands, in metres. */
   private readonly handGap: number;
   /**
@@ -559,6 +598,7 @@ class Rig implements PerformerRig {
     const p = proportions(look, posture);
     this.proportions = p;
     this.handGap = p.handR * MIN_HAND_GAP;
+    this.shift = p.seatY > 0 ? 0.25 : 1;
     this.restLocal = restLocals(p, posture, restRng);
 
     this.breathPhase = this.rng.float(0, Math.PI * 2);
@@ -695,7 +735,7 @@ class Rig implements PerformerRig {
     node.position.copy(rest);
     this.placed.set(limb, {
       node, rest, restQuat: node.quaternion.clone(), standoff, follow, tau, orientable,
-      onTorso, offset: new Vector3(),
+      onTorso, offset: new Vector3(), swing: new Vector3(), swingRate: new Vector3(),
       commanded: false, pos: rest.clone(), quat: node.quaternion.clone(),
     });
   }
@@ -711,13 +751,44 @@ class Rig implements PerformerRig {
    * reach it in the same frame they reach the shoulders. `follow` is not
    * consulted for a carried part, because "how much of it do you ride" is not
    * a question a neck gets to answer.
+   *
+   * ## An idle hand does not ride the body. It hangs off it
+   *
+   * The share used to be applied straight, and straight is rigid: a resting hand
+   * moved exactly as far as the chest did, exactly when the chest did, so the
+   * whole arm translated as one piece and nothing in it ever bent. A band
+   * grooving that way reads as a rank of statues on a moving floor — and it
+   * reads *worse* now than it did before there were arms, because an arm is what
+   * the eye expects to see swing.
+   *
+   * So the share is a target and the part chases it on a spring. An arm is a
+   * pendulum about half a metre long, which is a shade under one swing a second;
+   * a body's groove is one or two. Below its own resonance a pendulum follows
+   * late and a little further than its pivot went, which is exactly what a
+   * hanging hand does and exactly what `SWING_*` is tuned to: the hand arrives
+   * after the hip and overshoots it, the elbow bends because the two ends
+   * disagree, and the arm is doing something rather than being carried.
+   *
+   * The spring is per part and lives in `Placed`, so it costs two vectors a limb
+   * and runs whether the part is commanded or not — a hand that was placed and
+   * then let go finds its rest already in motion instead of stepping into it.
    */
-  private liveRest(st: Placed, out: Vector3): Vector3 {
-    if (!st.onTorso) return out.copy(st.rest).addScaledVector(this.bodyOffset, st.follow);
-    return out.copy(st.rest).sub(this.torsoBase)
-      .applyQuaternion(this.torsoRestInv)
-      .applyQuaternion(this.torso.quaternion)
-      .add(this.torso.position);
+  private liveRest(st: Placed, out: Vector3, step: number): Vector3 {
+    if (st.onTorso) {
+      return out.copy(st.rest).sub(this.torsoBase)
+        .applyQuaternion(this.torsoRestInv)
+        .applyQuaternion(this.torso.quaternion)
+        .add(this.torso.position);
+    }
+    // Target, then one semi-implicit Euler step of a damped spring toward it.
+    // Semi-implicit rather than explicit because it is unconditionally stable at
+    // the frame rates a backgrounded tab hands back, and this runs on a limb
+    // that must not be able to fling itself off stage.
+    V6.copy(this.bodyOffset).multiplyScalar(st.follow);
+    V6.sub(st.swing).multiplyScalar(SWING_SPRING * step);
+    st.swingRate.addScaledVector(V6, 1).multiplyScalar(Math.max(0, 1 - SWING_DRAG * step));
+    st.swing.addScaledVector(st.swingRate, step);
+    return out.copy(st.rest).add(st.swing);
   }
 
   // -- transforms ---------------------------------------------------------
@@ -1049,9 +1120,10 @@ class Rig implements PerformerRig {
 
     const swing = Math.sin(this.swayPhase + this.swayBias) * this.swayAmount;
     this.bodyOffset.set(
-      this.bodyCommand.x + swing * p.height * 0.026,
+      this.bodyCommand.x + swing * p.height * 0.026 * this.shift,
       this.bodyCommand.y - Math.abs(swing) * p.height * 0.006 - this.settle * p.height * 0.007,
-      this.bodyCommand.z + Math.cos(this.swayPhase * 0.5 + this.swayBias) * this.swayAmount * p.height * 0.006,
+      this.bodyCommand.z
+        + Math.cos(this.swayPhase * 0.5 + this.swayBias) * this.swayAmount * p.height * 0.006 * this.shift,
     );
 
     // Breathing. Faster and deeper for a player who is blowing into something;
@@ -1077,7 +1149,10 @@ class Rig implements PerformerRig {
       // to the mouthpiece, and to the keys the fingers are on, all of which are
       // carried by this group.
       swing * 0.05 + this.twist + (this.mouthpiece ? this.headYaw : 0),
-      -swing * 0.055,
+      // The roll picks up whatever the shift gave away, and then some: a seated
+      // player's groove is *all* spine, because the one part of them that cannot
+      // move is the part they are sitting on.
+      -swing * (0.055 + (1 - this.shift) * 0.075),
     );
     this.torsoBody.scale.set(
       p.torsoW * (1 + breath * depth),
@@ -1107,7 +1182,7 @@ class Rig implements PerformerRig {
       // record how far off it the command was. See `Placed.offset` — decaying
       // that residue is what makes an idle limb ride the body's own movement
       // immediately instead of trailing it by a time constant.
-      const rest = this.liveRest(st, V1);
+      const rest = this.liveRest(st, V1, step);
       if (st.commanded) {
         st.node.position.copy(st.pos);
         st.offset.subVectors(st.pos, rest);
