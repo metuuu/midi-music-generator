@@ -255,9 +255,27 @@ const MEAN_HEIGHT = 1.75;
  * measured.
  *
  * Anchored to the jaw, the chinrest's top face lands on it at every height and
- * the body hangs in the neck-to-collarbone band below. The extra 0.035 in z
- * carries it out from under the chin to where a jaw can close on it instead of
- * behind the throat.
+ * the body hangs in the neck-to-collarbone band below.
+ *
+ * ## And anchored to the *jaw*, not to the air beside it
+ *
+ * The x and z were 0.100 and 0.095, which put the chinrest at (0.26, 0.235) in
+ * the player's own frame once the station offset is added — twenty-six
+ * centimetres out from the centre line and twenty-three forward, when the side
+ * of a jaw at that height is at about (0.13, 0.12). The violin was being held a
+ * hand's width clear of the player, out in front of their left shoulder, and
+ * *everything downstream inherited it*: the stopping hand ended up 0.512 from
+ * the shoulder against an arm that reaches 0.549, so the left arm played the
+ * whole show straight as a pole with no elbow under the instrument, and the bow
+ * hand was past the end of the right arm altogether.
+ *
+ * Brought in to (0.17, 0.165), which is a chinrest against a jaw rather than
+ * near one, the same stopping hand sits at three quarters of the arm's reach and
+ * the elbow comes up underneath where a violinist's is. Half a correction rather
+ * than a whole one on purpose: the model's own positions put the hand only 0.29
+ * along the strings from the chinrest, where a real first position is nearer
+ * 0.40, so taking the chinrest all the way to the jaw would fold the arm double
+ * to reach a neck that is itself too close.
  *
  * The basis is the same at every height — only the origin moves — so only the
  * two contact helpers have to be told which mount they are answering for.
@@ -266,7 +284,7 @@ function mountFor(height: number): Matrix4 {
   return mountBasis(
     new Vector3(0.86, 0.10, 0.50),
     new Vector3(0.20, 0.90, 0.40),
-    new Vector3(0.100, height * JAW_OF_HEIGHT + CHINREST_RISE, 0.095),
+    new Vector3(0.010, height * JAW_OF_HEIGHT + CHINREST_RISE, 0.025),
   );
 }
 

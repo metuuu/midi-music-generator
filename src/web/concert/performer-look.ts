@@ -336,6 +336,40 @@ function footRests(p: Proportions, posture: Posture): { left: Vector3; right: Ve
 }
 
 // ---------------------------------------------------------------------------
+// Limbs
+// ---------------------------------------------------------------------------
+
+const FIT_UP = new Vector3(0, 1, 0);
+const FIT_AXIS = new Vector3();
+
+/**
+ * Stand a unit cylinder between two points.
+ *
+ * The tips land exactly on `a` and `b`, so a chain of these has no gap at the
+ * joints by construction — there is no length arithmetic that could disagree
+ * with the endpoints, because the length *is* the endpoints. That is the one
+ * property both fitted limbs are built on: `performer-legs.ts` spans hip to
+ * knee to ankle and `performer-arms.ts` spans shoulder to elbow to wrist, and
+ * neither is allowed to open a seam at a joint whatever the solve does.
+ *
+ * Here rather than in either of them because it is the same function, and a
+ * second copy is a second place for the degenerate case below to be got wrong.
+ */
+export function fitLimb(mesh: Mesh, a: Vector3, b: Vector3, radius: number): void {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const dz = b.z - a.z;
+  const len = Math.sqrt(dx * dx + dy * dy + dz * dz);
+  mesh.position.set(a.x + dx * 0.5, a.y + dy * 0.5, a.z + dz * 0.5);
+  if (len < 1e-6) {
+    mesh.scale.set(radius * 2, 1e-4, radius * 2);
+    return;
+  }
+  mesh.quaternion.setFromUnitVectors(FIT_UP, FIT_AXIS.set(dx / len, dy / len, dz / len));
+  mesh.scale.set(radius * 2, len, radius * 2);
+}
+
+// ---------------------------------------------------------------------------
 // Clothes
 // ---------------------------------------------------------------------------
 

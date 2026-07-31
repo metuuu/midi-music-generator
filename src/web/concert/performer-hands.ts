@@ -3,12 +3,13 @@
  *
  * Hands, which are most of what an audience actually watches.
  *
- * The art direction deletes the hard problem — a floating hand has no elbow, so
- * there is no IK solution to find and nothing to put through the ribs — but it
- * does not delete the *interesting* one. A hand placed correctly on a snare and
- * shaped like a starfish still reads as a bug. So the position comes from the
- * instrument model and the **shape comes from here**: a fist around a stick, a
- * flat palm on a key bed, fingers spread across a fretboard.
+ * The art direction deletes the hard problem — a hand is *placed*, so there is
+ * no IK solution to find and nothing to put through the ribs; the arm that
+ * `performer-arms.ts` fits afterwards is downstream of this and never argues
+ * with it — but it does not delete the *interesting* one. A hand placed on a
+ * snare and shaped like a starfish still reads as a bug. So the position comes
+ * from the instrument model and the **shape comes from here**: a fist around a
+ * stick, a flat palm on a key bed, fingers spread across a fretboard.
  *
  * Thirteen poses, blended rather than switched. A pose is nine numbers — four
  * finger curls, a second-joint fold, a splay, two thumb values and a palm
@@ -22,9 +23,15 @@
  *
  * **The wrist follows the arm.** A placed hand takes its whole orientation from
  * the contact normal, which leaves the wrist perfectly square to the instrument
- * whatever the body is doing. `setWrist` breaks it toward wherever the forearm
- * would be running. That cannot be a pose, because it changes for a reason the
- * pose knows nothing about — where the hand happens to have been put.
+ * whatever the body is doing. `setWrist` breaks it toward the forearm — an
+ * imaginary one when this was written, the drawn one now. That cannot be a pose,
+ * because it changes for a reason the pose knows nothing about: where the hand
+ * happens to have been put.
+ *
+ * The traffic runs the other way too, and `HandPose.align` is that direction: a
+ * bow hold *demands* a straight wrist, which is a demand about the elbow, so the
+ * shape states it and the arm obeys. A shape may say how the arm has to arrive.
+ * It may not say where the hand is.
  *
  * **The two hands are never identical.** Each carries a fixed, tiny `HandBias`
  * drawn from the performer's id, so "both hands to `stick`" produces two
@@ -136,6 +143,35 @@ export interface HandPose {
    * merely held without a second timer to keep in step.
    */
   tool: number;
+
+  /**
+   * How much this shape dictates where the arm is: **0 the elbow hangs wherever
+   * it falls, 1 the wrist stays straight and the elbow goes wherever that puts
+   * it.**
+   *
+   * The third of the family `touch` and `tool` started, and the same kind of
+   * fact: where the hand meets the world, how far past itself it works, and now
+   * how the arm has to arrive. All three belong to the shape rather than to the
+   * instrument, which is what makes them pose fields — a bow hold is a bow hold
+   * on a violin or a cello, and its wrist is straight either way.
+   *
+   * The number is a claim about technique, so it is worth saying which technique
+   * each one is. `bowhold` is the whole reason the field exists: a bow arm's
+   * wrist is straight, the forearm continues the back of the hand, and the elbow
+   * lifts out behind the frog to make that true — an elbow left to hang there
+   * instead has to break the wrist to reach, which is the single thing a bow arm
+   * may not do. A pianist's forearm is level with the back of the hand and an
+   * accordionist's runs straight in behind the bass strap, so those insist too,
+   * though less. A hand hanging at rest insists on nothing at all, and neither
+   * does a fist: there is no such thing as the correct elbow for a clenched
+   * hand.
+   *
+   * `performer-arms.ts` reads it, blends the two elbows it implies, and scales
+   * the whole thing by whether the hand is actually working — technique is
+   * something a player does to an instrument, not a posture they hold all
+   * evening.
+   */
+  align: number;
 }
 
 /**
@@ -159,19 +195,44 @@ export interface HandPose {
  *    a key is a hand playing a cluster.
  */
 export const HAND_POSES: Record<HandPoseId, HandPose> = {
-  relax: { curl: [0.34, 0.40, 0.43, 0.46], tip: 0.50, spread: 0.18, thumbCurl: 0.30, thumbOut: 0.35, cup: 0.25, wrist: -0.06, touch: 0.35, tool: 0.00 },
-  fist: { curl: [1.00, 1.00, 1.00, 1.00], tip: 1.00, spread: 0.00, thumbCurl: 0.55, thumbOut: 0.12, cup: 0.65, wrist: 0.00, touch: 0.00, tool: 0.00 },
-  grip: { curl: [0.72, 0.76, 0.76, 0.72], tip: 0.86, spread: 0.05, thumbCurl: 0.34, thumbOut: 0.58, cup: 0.48, wrist: 0.00, touch: 0.00, tool: 0.00 },
+  relax: { curl: [0.34, 0.40, 0.43, 0.46], tip: 0.50, spread: 0.18, thumbCurl: 0.30, thumbOut: 0.35, cup: 0.25, wrist: -0.06, touch: 0.35, tool: 0.00, align: 0.00 },
+  fist: { curl: [1.00, 1.00, 1.00, 1.00], tip: 1.00, spread: 0.00, thumbCurl: 0.55, thumbOut: 0.12, cup: 0.65, wrist: 0.00, touch: 0.00, tool: 0.00, align: 0.00 },
+  grip: { curl: [0.72, 0.76, 0.76, 0.72], tip: 0.86, spread: 0.05, thumbCurl: 0.34, thumbOut: 0.58, cup: 0.48, wrist: 0.00, touch: 0.00, tool: 0.00, align: 0.25 },
   /**
    * The one shape in the table that is *working* something rather than merely
    * closed on it — see `HandPose.tool`. Everything else holds at 0, including
    * `grip` and `bowhold`, whose instruments meet the world at the hand itself.
+   *
+   * Its `wrist` is flat, and that is a decision rather than an omission: this
+   * is the one pose whose attitude is already being set by something else.
+   * `followForearm` pitches a drummer's hand about twenty degrees down at the
+   * kit all by itself — the shoulder is above and behind the hand and the wrist
+   * breaks to meet it — and that is exactly the angle a stick should make with
+   * a head. Anything asked for here would be added to it. See `IMPLEMENT_AIM`.
    */
-  stick: { curl: [0.58, 0.78, 0.86, 0.92], tip: 0.80, spread: 0.06, thumbCurl: 0.44, thumbOut: 0.28, cup: 0.58, wrist: -0.04, touch: 0.00, tool: 1.00 },
-  bowhold: { curl: [0.44, 0.52, 0.60, 0.70], tip: 0.60, spread: 0.24, thumbCurl: 0.68, thumbOut: 0.42, cup: 0.34, wrist: -0.12, touch: 0.00, tool: 0.00 },
-  flat: { curl: [0.00, 0.00, 0.00, 0.00], tip: 0.00, spread: 0.02, thumbCurl: 0.00, thumbOut: 0.22, cup: 0.00, wrist: 0.00, touch: 0.35, tool: 0.00 },
-  keys: { curl: [0.42, 0.46, 0.46, 0.44], tip: 0.56, spread: 0.32, thumbCurl: 0.18, thumbOut: 0.62, cup: 0.30, wrist: 0.10, touch: 1.00, tool: 0.00 },
-  press: { curl: [0.66, 0.28, 0.30, 0.32], tip: 0.74, spread: 0.26, thumbCurl: 0.20, thumbOut: 0.56, cup: 0.34, wrist: 0.14, touch: 1.00, tool: 0.00 },
+  stick: { curl: [0.58, 0.78, 0.86, 0.92], tip: 0.80, spread: 0.06, thumbCurl: 0.44, thumbOut: 0.28, cup: 0.58, wrist: 0.00, touch: 0.00, tool: 1.00, align: 0.40 },
+  /**
+   * `align` is 0.30 and it was 1.00, which is the number a bow hold deserves and
+   * cannot have here.
+   *
+   * The straight wrist is real and the elbow that follows from it is not: both
+   * bowed models pin the hand's roll off `Contact.along`, the bow stick, and the
+   * axis that comes out of that runs *up* out of the back of a cellist's hand.
+   * Asked for in full, the arm turned its bend to match and drew an elbow level
+   * with the shoulder with the forearm hanging vertically out of it — which is
+   * the broken wrist this field exists to prevent, arrived at from the other
+   * side. At 0.30 the fall keeps the bow elbow down and near the ribs, where a
+   * cellist's is, and the hand leans the last of the way.
+   *
+   * The honest fix is in the models: a bow contact whose `along` faces the other
+   * way would give an axis an arm can follow, and would also reverse the stroke.
+   * See `REACH_MIN` in `performer-arms.ts`, which catches the violin's version
+   * of the same disagreement.
+   */
+  bowhold: { curl: [0.44, 0.52, 0.60, 0.70], tip: 0.60, spread: 0.24, thumbCurl: 0.68, thumbOut: 0.42, cup: 0.34, wrist: -0.12, touch: 0.00, tool: 0.00, align: 0.30 },
+  flat: { curl: [0.00, 0.00, 0.00, 0.00], tip: 0.00, spread: 0.02, thumbCurl: 0.00, thumbOut: 0.22, cup: 0.00, wrist: 0.00, touch: 0.35, tool: 0.00, align: 0.30 },
+  keys: { curl: [0.42, 0.46, 0.46, 0.44], tip: 0.56, spread: 0.32, thumbCurl: 0.18, thumbOut: 0.62, cup: 0.30, wrist: 0.10, touch: 1.00, tool: 0.00, align: 0.55 },
+  press: { curl: [0.66, 0.28, 0.30, 0.32], tip: 0.74, spread: 0.26, thumbCurl: 0.20, thumbOut: 0.56, cup: 0.34, wrist: 0.14, touch: 1.00, tool: 0.00, align: 0.55 },
   /**
    * A hand opened out across a chord.
    *
@@ -182,12 +243,12 @@ export const HAND_POSES: Record<HandPoseId, HandPose> = {
    * shorter finger and the span is the whole problem. The palm flattens out of
    * its arch for the same reason.
    */
-  reach: { curl: [0.20, 0.24, 0.25, 0.22], tip: 0.24, spread: 1.00, thumbCurl: 0.06, thumbOut: 1.00, cup: 0.06, wrist: 0.08, touch: 1.00, tool: 0.00 },
-  spread: { curl: [0.30, 0.36, 0.38, 0.34], tip: 0.34, spread: 1.00, thumbCurl: 0.10, thumbOut: 0.86, cup: 0.10, wrist: -0.16, touch: 1.00, tool: 0.00 },
-  strap: { curl: [0.50, 0.58, 0.56, 0.48], tip: 0.68, spread: 0.22, thumbCurl: 0.22, thumbOut: 0.08, cup: 0.14, wrist: 0.24, touch: 0.85, tool: 0.00 },
-  pluck: { curl: [0.84, 0.54, 0.60, 0.66], tip: 0.90, spread: 0.10, thumbCurl: 0.70, thumbOut: 0.50, cup: 0.52, wrist: 0.00, touch: 1.00, tool: 0.00 },
-  point: { curl: [0.00, 1.00, 1.00, 1.00], tip: 1.00, spread: 0.00, thumbCurl: 0.60, thumbOut: 0.18, cup: 0.55, wrist: 0.00, touch: 1.00, tool: 0.00 },
-  open: { curl: [0.05, 0.05, 0.08, 0.10], tip: 0.05, spread: 0.76, thumbCurl: 0.00, thumbOut: 0.82, cup: 0.00, wrist: -0.10, touch: 0.80, tool: 0.00 },
+  reach: { curl: [0.20, 0.24, 0.25, 0.22], tip: 0.24, spread: 1.00, thumbCurl: 0.06, thumbOut: 1.00, cup: 0.06, wrist: 0.08, touch: 1.00, tool: 0.00, align: 0.55 },
+  spread: { curl: [0.30, 0.36, 0.38, 0.34], tip: 0.34, spread: 1.00, thumbCurl: 0.10, thumbOut: 0.86, cup: 0.10, wrist: -0.16, touch: 1.00, tool: 0.00, align: 0.45 },
+  strap: { curl: [0.50, 0.58, 0.56, 0.48], tip: 0.68, spread: 0.22, thumbCurl: 0.22, thumbOut: 0.08, cup: 0.14, wrist: 0.24, touch: 0.85, tool: 0.00, align: 0.50 },
+  pluck: { curl: [0.84, 0.54, 0.60, 0.66], tip: 0.90, spread: 0.10, thumbCurl: 0.70, thumbOut: 0.50, cup: 0.52, wrist: 0.00, touch: 1.00, tool: 0.00, align: 0.30 },
+  point: { curl: [0.00, 1.00, 1.00, 1.00], tip: 1.00, spread: 0.00, thumbCurl: 0.60, thumbOut: 0.18, cup: 0.55, wrist: 0.00, touch: 1.00, tool: 0.00, align: 0.35 },
+  open: { curl: [0.05, 0.05, 0.08, 0.10], tip: 0.05, spread: 0.76, thumbCurl: 0.00, thumbOut: 0.82, cup: 0.00, wrist: -0.10, touch: 0.80, tool: 0.00, align: 0.10 },
 };
 
 /**
@@ -353,6 +414,7 @@ export function blendPoses(a: HandPose, b: HandPose, t: number): HandPose {
     wrist: mix(a.wrist, b.wrist),
     touch: mix(a.touch, b.touch),
     tool: mix(a.tool, b.tool),
+    align: mix(a.align, b.align),
   };
 }
 
@@ -382,6 +444,27 @@ export interface HandRig {
    * retain or mutate it: the next `update` overwrites it in place.
    */
   readonly touchPoint: Vector3;
+  /**
+   * Where the forearm meets this hand, in `group`'s own frame — the cuff.
+   *
+   * `touchPoint`'s opposite number, and it exists for the same reason: the arm
+   * has to end where the hand actually begins, and that is not the placement
+   * node. It is carried through the wrist break, so a hand bent hard at the
+   * wrist has its cuff where the cuff is drawn rather than where it would have
+   * been if the wrist were square, which is a couple of centimetres and exactly
+   * the couple of centimetres that would show as a gap.
+   *
+   * **Live and owned by the rig**, on the same terms as `touchPoint`.
+   */
+  readonly wristPoint: Vector3;
+  /**
+   * How much this hand's shape dictates where its elbow is, right now.
+   *
+   * The eased `HandPose.align` — the target, not the pose that was asked for —
+   * so an arm reads a hand that is halfway out of a bow hold as halfway out of
+   * bow-arm discipline. See `performer-arms.ts`, which is the only caller.
+   */
+  readonly align: number;
   /** Target shape. The hand eases toward it; see `update`. */
   setPose(pose: HandPose): void;
   /** Target shape, immediately. For the first frame and for a hard cut. */
@@ -561,6 +644,11 @@ export function buildHand(
   const touchLocal = new Vector3();
   const touchPoint = new Vector3();
 
+  // And the other end. The cuff is where the arm arrives; unlike the contact it
+  // is a fixed point on the hand, so only the flex ever moves it.
+  const wristLocal = new Vector3(0, 0, -R * 1.02);
+  const wristPoint = new Vector3();
+
   function applyFlex(): void {
     flex.rotation.set(clamp(current.wrist + bias.wrist, -1, 1) * 0.55 + extend, deviate, 0);
     // The wrist moves the fingers, so it moves where they touch. Written here
@@ -568,6 +656,7 @@ export function buildHand(
     // while the pose is settled, and a contact point that stopped tracking the
     // wrist would drift off the instrument exactly when a player stops moving.
     touchPoint.copy(touchLocal).applyEuler(flex.rotation);
+    wristPoint.copy(wristLocal).applyEuler(flex.rotation);
   }
 
   /**
@@ -662,12 +751,19 @@ export function buildHand(
     // stick to fingers on a key bed slides its contact point across rather
     // than teleporting the whole hand a finger's length on one frame.
     step('touch');
+    // On the same clock as the fingers, and that is the point of easing it here
+    // rather than reading the target: the elbow of a player coming off a bow
+    // hold is halfway out of bow-arm discipline exactly when the hand is
+    // halfway out of the shape, with no second time constant to keep in step.
+    step('align');
     return moved;
   }
 
   return {
     group,
     touchPoint,
+    wristPoint,
+    get align(): number { return current.align; },
     setPose(pose: HandPose): void {
       target = pose;
       settled = false;

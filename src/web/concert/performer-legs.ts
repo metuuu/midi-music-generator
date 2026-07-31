@@ -1,17 +1,19 @@
 /**
  * SPDX-License-Identifier: AGPL-3.0-or-later
  *
- * Legs — the half of the Rayman decision that turned out to be wrong.
+ * Legs — the half of the Rayman decision that turned out to be wrong first.
  *
- * Floating hands are the right call and the header of `performer.ts` argues it
- * properly: a hand with no elbow has no IK solution to find, so the instrument
- * model can say "the snare is here" and be obeyed exactly. Floating *feet* were
- * the same trick applied a second time without re-checking the premise, and the
- * premise does not hold, because the two ends of a limb are not symmetric. An
- * arm ends in the air, where a missing elbow is a stylisation. A leg ends on the
- * floor, and a torso with nothing between it and the boards does not read as a
- * style — it reads as a bust on a plinth. In the screenshots the drummer was a
- * body and a head sitting on the kit with a pair of shoes parked in front of it.
+ * *Placed* hands are the right call and the header of `performer.ts` argues it
+ * properly: a hand nothing has to solve for can be put exactly where the
+ * instrument model says the snare is. Floating *feet* were read as the same
+ * decision, and they are not the same decision. A missing forearm is a gap in
+ * mid-air and can pass for a stylisation; a missing leg is a gap between a body
+ * and the boards it is standing on, and that reads as a bust on a plinth. In the
+ * screenshots the drummer was a body and a head sitting on the kit with a pair
+ * of shoes parked in front of it.
+ *
+ * The arm turned out to be worth drawing too — `performer-arms.ts`, built on
+ * everything below — but the leg is where the argument was made and won.
  *
  * ## Legs that follow the feet, rather than deciding where they are
  *
@@ -59,7 +61,7 @@ import { Mesh, Object3D, Vector3 } from 'three';
 import type { Look } from '../../concert/types.js';
 
 import { Leases, bead, clothSurface, tube } from './performer-assets.js';
-import { SIDE, type BodySide, type Proportions } from './performer-look.js';
+import { SIDE, fitLimb, type BodySide, type Proportions } from './performer-look.js';
 
 // Scratch. `update` runs per leg per performer per frame.
 const A = new Vector3();
@@ -67,7 +69,6 @@ const B = new Vector3();
 const K = new Vector3();
 const D = new Vector3();
 const BEND = new Vector3();
-const AXIS = new Vector3();
 const UP = new Vector3(0, 1, 0);
 
 export interface LegsRig {
@@ -180,8 +181,8 @@ export function buildLegs(
         // A foot inside its own hip. Nothing sensible to draw and nothing that
         // should ever be reached; the guard exists so a bad frame is a squashed
         // leg rather than a NaN that poisons every transform below it.
-        fit(leg.thigh, A, A, thighR);
-        fit(leg.shin, A, A, shinR);
+        fitLimb(leg.thigh, A, A, thighR);
+        fitLimb(leg.shin, A, A, shinR);
         leg.knee.position.copy(A);
         continue;
       }
@@ -212,33 +213,12 @@ export function buildLegs(
 
       K.copy(A).addScaledVector(D, span * 0.5).addScaledVector(BEND, bulge);
 
-      fit(leg.thigh, A, K, thighR);
-      fit(leg.shin, K, B, shinR);
+      fitLimb(leg.thigh, A, K, thighR);
+      fitLimb(leg.shin, K, B, shinR);
       leg.knee.position.copy(K);
     }
   }
 
   update();
   return { update };
-}
-
-/**
- * Stand a unit cylinder between two points.
- *
- * The tips land exactly on `a` and `b`, so a chain of these has no gap at the
- * joints by construction — there is no length arithmetic that could disagree
- * with the endpoints, because the length *is* the endpoints.
- */
-function fit(mesh: Mesh, a: Vector3, b: Vector3, radius: number): void {
-  const dx = b.x - a.x;
-  const dy = b.y - a.y;
-  const dz = b.z - a.z;
-  const len = Math.sqrt(dx * dx + dy * dy + dz * dz);
-  mesh.position.set(a.x + dx * 0.5, a.y + dy * 0.5, a.z + dz * 0.5);
-  if (len < 1e-6) {
-    mesh.scale.set(radius * 2, 1e-4, radius * 2);
-    return;
-  }
-  mesh.quaternion.setFromUnitVectors(UP, AXIS.set(dx / len, dy / len, dz / len));
-  mesh.scale.set(radius * 2, len, radius * 2);
 }

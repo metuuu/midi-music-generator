@@ -59,7 +59,7 @@ src/web/concert/ Performance IR -> pixels.     App side. three.js + the Strudel 
 | Vocals | **Mixed by default, with an instrumental-only switch.** Some numbers are sung, some are not, and the singer leaves the stage for the instrumentals. See §5. |
 | Smoothness | **The top half of the scale, never the bottom.** A concert is a performance, not an experiment. See §6. |
 | 3D library | **three.js** (MIT). Hand-rolled WebGL is a month of work to reach parity on shadows, and the dependency sits on the app side of the licence line where Strudel already is. Pinned, imported as ES modules, no CDN — the soundfont CDN is already one runtime dependency too many. |
-| Art style | **Rayman hands.** Floating hands and feet, no arms or legs. See §8.4 — this is a technical decision disguised as an aesthetic one. |
+| Art style | **Rayman hands.** Hands and feet are *placed*, never solved for; the arms and legs between them are fitted to wherever the placement left them. See §8.4 — this is a technical decision disguised as an aesthetic one. |
 | Determinism | The concert seed derives every random choice: which players, their faces, their clothes, where they stand, what the lights do. Same seed → same band, exactly. Non-negotiable; it is the property the whole repo is built on. |
 
 ### Assumption worth flagging
@@ -427,9 +427,14 @@ limb must start moving. The rules that matter:
 
 - **Hand assignment is a scheduling problem.** A drummer with a hat pattern in the
   right hand and a backbeat in the left has to swap when a fill crosses over; a pianist
-  splits a voicing by register. Assign greedily by proximity to where the hand already
-  is, with a hard "cannot be in two places at once" check — which becomes an assertion
-  in §11.
+  splits a voicing by register. Assign by proximity to where the hand already is, with a
+  hard "cannot be in two places at once" check — which becomes an assertion in §11.
+  Greedy is enough everywhere except the kit, where it is not: which hand starts a fill
+  is decided by where the fill *ends*, and a per-stroke choice cannot see that. So a
+  drummer's two sticks and their hat foot are solved as a path over the whole part —
+  cheapest way through, scored on what an arm can do (a hand bursts and cannot sustain),
+  what two arms can do at once (crossed is normal, knotted is not), and what a
+  right-handed drummer does out of habit. See `planSticking`.
 - **Prep scales with distance and force.** A hard crash needs a bigger windup than a
   ghost note on the snare, and a stick travelling from the floor tom to the ride needs
   longer than one bouncing on the snare. Prep is computed, not constant.
@@ -645,7 +650,7 @@ Rayman hands are the reason this project is achievable at this scale.
 
 A conventional rig means skeletons, skinned meshes, and inverse kinematics with elbow
 pole targets — and IK on a drummer is genuinely hard, because the solution that puts
-the hand on the snare frequently puts the elbow through the ribs. **Floating hands have
+the hand on the snare frequently puts the elbow through the ribs. **A placed hand has
 no elbow to solve.** The hand is simply *placed*, along an arc, at the position the
 instrument model returned. The hardest technical problem in the feature is deleted by
 the art direction, and the result reads as deliberate rather than as a shortcut because
@@ -656,6 +661,15 @@ procedural face (eyes, brow, mouth) that can look at things, react, and sing (§
 Clothing is material and simple geometry on the torso — no cloth simulation. Hands still
 need character: a fist around a stick, a flat palm on a key bed, fingers spread on a
 fretboard. A handful of hand poses per archetype, blended.
+
+Arms and legs came later and do not walk any of that back, because they are **downstream
+of the placement**: `performer-legs.ts` and `performer-arms.ts` re-fit two links and an
+invented joint between the torso and wherever the effector ended up, every frame, with
+no opinion of their own. A knee bends forward and an elbow falls away from the hand —
+down, back and a little out — which is anatomy standing in for the pole target IK would
+have needed. The one thing that overrides a falling elbow is technique: a hand pose can
+declare that its wrist must stay straight, which a bow arm demands, and the elbow goes
+wherever that puts it for as long as the hand is actually playing.
 
 The runtime consumes everything above. For each performer, find the gestures whose
 `[beat - prep, beat + release]` window contains now, resolve their `PlayPoint` through

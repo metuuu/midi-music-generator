@@ -115,8 +115,27 @@ const SPEC = ARCHETYPES.flute;
 const HALF = 0.335;
 /** The embouchure hole sits 16.5 cm in from the crown. */
 const LIP_X = HALF - 0.165;
-/** Swing of the far end toward the audience, and its droop. */
-const SWING = 0.30;
+/**
+ * Swing of the far end toward the audience, and its droop.
+ *
+ * The swing was 0.30 and is 0.70 — 17° and 40°, and 40° is what a flautist
+ * actually stands at. The old angle held the tube almost across the shoulders,
+ * which put the *left* hand out past the player's right shoulder with nothing in
+ * front of the chest, and left the left arm reaching it straight through the
+ * ribs: at that angle there is no elbow anywhere that both bends and stays out
+ * of the body. Swung forward, the two hands sit in front of the chest instead of
+ * beside it, and the left arm crosses in front of the player the way an arm
+ * crossing a body does. See `performer-arms.ts`, which can keep an elbow out of
+ * a chest but cannot move the hand that put it there.
+ *
+ * It does not go further, and the reason is this file's own first paragraph: a
+ * flute is the one *horizontal* in the wind section, and past about 50° it stops
+ * running across the frame and starts pointing at the camera. Left arm and
+ * silhouette are traded against each other here, and the silhouette wins the
+ * last 10° — the left arm on a low note still reaches nearly straight across the
+ * chest, which is the honest cost.
+ */
+const SWING = 0.70;
 const DROOP = 0.14;
 /** Keys run between these x, from just past the head joint out to the foot. */
 const FIRST_KEY_X = 0.02;

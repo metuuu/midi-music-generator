@@ -1,14 +1,15 @@
 /**
  * SPDX-License-Identifier: AGPL-3.0-or-later
  *
- * A performer: a head, a torso, two hands, two legs, two feet, and a face.
+ * A performer: a head, a torso, two arms, two hands, two legs, two feet, and a
+ * face.
  *
  * Rayman hands are why this feature is achievable at all, and it is worth being
  * precise about what they delete. A conventional rig is a skeleton, a skinned
  * mesh and an IK solver with elbow pole targets, and IK on a drummer is
  * genuinely hard — the solution that puts the hand on the snare puts the elbow
  * through the ribs, and the fix is per-instrument hinting that never quite
- * generalises. **A floating hand has no elbow to solve.** The instrument model
+ * generalises. **A placed hand has no elbow to solve.** The instrument model
  * says where the contact is, the runtime says when to be there, and this file
  * puts the hand at that point. There is no chain, so there is nothing to
  * unsolve.
@@ -17,17 +18,19 @@
  * A hand in the right place with the wrong shape is worse than no hand, so the
  * poses in `performer-hands.ts` carry the weight the skeleton would have.
  *
- * ## The arms are floating. The legs are not, and never should have been
+ * ## The limbs are drawn. They are still not solved
  *
- * The same argument was applied to the feet and it does not survive contact
- * with a screenshot. An arm ends in the air, where a missing elbow reads as
- * stylisation; a leg ends on the boards, and a torso with a gap under it reads
- * as a bust on a plinth — which is what the drummer was. So `performer-legs.ts`
- * draws two legs, and the thing that keeps it from re-introducing the problem
- * Rayman hands solved is that **the legs are downstream of the feet**. The feet
- * are still effectors, the animator still puts them on pedals, and the legs are
- * re-fitted to wherever the hips and ankles ended up. Nothing solves for a foot
- * position; nothing can disagree about one.
+ * Floating hands and floating feet were one decision, and only half of it
+ * survived a screenshot. A gap under a torso reads as a bust on a plinth rather
+ * than as a style — which is what the drummer was — and a torso with legs and
+ * no arms reads as an injury rather than as Rayman. So `performer-legs.ts` and
+ * `performer-arms.ts` draw four limbs, and the thing that keeps them from
+ * re-introducing the problem Rayman hands solved is that **they are downstream
+ * of the effectors**. The hands and feet are still placed, the animator still
+ * puts them on snares and pedals, and the limbs are re-fitted every frame to
+ * wherever the shoulders, hips, wrists and ankles ended up. Nothing solves for
+ * a hand position; nothing can disagree about one. The elbow through the ribs
+ * cannot happen, because no elbow is ever asked to reach anything.
  *
  * ## What this file promises the runtime
  *
@@ -64,6 +67,7 @@ import { Rng } from '../../core/rng.js';
 import {
   Leases, ball, pill, quad, shade, skinSurface, splatSurface, surface,
 } from './performer-assets.js';
+import { buildArms, type ArmsRig } from './performer-arms.js';
 import { buildFace, type FaceRig } from './performer-face.js';
 import {
   DEFAULT_HAND_POSES, HAND_POSES, IMPLEMENT_OF, blendPoses, buildHand,
@@ -398,6 +402,20 @@ const MOUTHPIECE_IDLE_TURN = 0.10;
 const IDLE_TURN = 0.30;
 
 /**
+ * How far a player turns their chest toward their own hands, and how fast.
+ *
+ * `TWIST_SHARE` is the fraction of the angle to the hands that the waist takes;
+ * `TWIST_LIMIT` caps it at about 17°, which is a stance rather than a swivel.
+ * A drummer working two voices on their left is the case that asked for it, and
+ * the reason it is a *body* number rather than a drummer's is that it is true of
+ * everyone: nobody plays square-on to something off to one side. See
+ * `twistToHands`, which owns the argument and the stability of it.
+ */
+const TWIST_SHARE = 0.38;
+const TWIST_LIMIT = 0.30;
+const TWIST_TAU = 0.28;
+
+/**
  * What a reaction adds to the frame.
  *
  * Additive rather than authoritative, so a reaction never *replaces* the
@@ -447,6 +465,7 @@ class Rig implements PerformerRig {
   private readonly torsoRestInv = new Quaternion();
   private readonly head = new Group();
   private readonly legs: LegsRig;
+  private readonly arms: ArmsRig;
   private readonly placed = new Map<Limb, Placed>();
   private readonly restLocal: Record<string, Vector3>;
   private readonly blown: boolean;
@@ -459,10 +478,16 @@ class Rig implements PerformerRig {
    * table carries the thing it blows into. See `MOUTHPIECE_TURN`.
    */
   private readonly mouthpiece: boolean;
-  /** Where each shoulder is, in the torso's frame. The forearm's far end. */
-  private readonly shoulder: Record<BodySide, Vector3>;
   /** The minimum distance between two resting hands, in metres. */
   private readonly handGap: number;
+  /**
+   * Whether each hand is being placed on something this frame.
+   *
+   * Written where `handHeld` is and read by the arms, which use it to decide how
+   * much of a hand's technique its elbow owes — see `ArmAnchors.working`. A
+   * live object handed over once rather than a call per arm per frame.
+   */
+  private readonly handWorking: Record<BodySide, boolean> = { left: false, right: false };
 
   // Groove and pose state.
   private swayAmount = 0;
@@ -475,6 +500,8 @@ class Rig implements PerformerRig {
   private mouthSpread = 0;
   private playing = false;
   private effort = 0;
+  /** The waist's turn toward the hands, radians. See `twistToHands`. */
+  private twist = 0;
   private readonly bodyOffset = new Vector3();
   private readonly bodyCommand = new Vector3();
   private bodyCommanded = false;
@@ -533,10 +560,6 @@ class Rig implements PerformerRig {
     this.proportions = p;
     this.handGap = p.handR * MIN_HAND_GAP;
     this.restLocal = restLocals(p, posture, restRng);
-    this.shoulder = {
-      left: new Vector3(SIDE.left * p.torsoW * 0.44, p.torsoH * 0.90, 0),
-      right: new Vector3(SIDE.right * p.torsoW * 0.44, p.torsoH * 0.90, 0),
-    };
 
     this.breathPhase = this.rng.float(0, Math.PI * 2);
     this.swayBias = this.rng.float(-0.12, 0.12);
@@ -612,6 +635,18 @@ class Rig implements PerformerRig {
     // exist entirely as a function of where the hips and the ankles are.
     this.legs = buildLegs(this.root, { torso: this.torso, feet }, p, look, this.leases);
 
+    // --- arms ---------------------------------------------------------------
+    // Downstream of the hands exactly as the legs are downstream of the feet:
+    // nothing in here places a hand, and an arm is whatever is left between a
+    // shoulder and wherever the hand went. It owns the shoulder, because that
+    // point is now a joint on a drawn limb rather than a landmark this file
+    // measures an imaginary forearm from.
+    this.arms = buildArms(
+      this.root,
+      { torso: this.torso, hands: this.hands, working: this.handWorking },
+      p, look, this.leases,
+    );
+
     // --- effectors --------------------------------------------------------
     // `standoff` is what stops a hand sinking into a drum head: the point the
     // instrument returned is the surface, and the palm's centre is half a palm
@@ -628,10 +663,11 @@ class Rig implements PerformerRig {
     // The one part carried by the torso rather than merely near it.
     this.register('head', this.head, p.headR * 0.5, 1, 0.20, false, true);
 
-    // `register` is what actually puts the feet at their rest positions, so the
-    // fit `buildLegs` did on a pair of feet still at the origin is stale by one
-    // step. Re-fit before anyone can measure or draw this rig.
+    // `register` is what actually puts the feet and the hands at their rest
+    // positions, so the fit both limb rigs did on parts still at the origin is
+    // stale by one step. Re-fit before anyone can measure or draw this rig.
     this.legs.update();
+    this.arms.update(0);
     this.handY[0] = this.hands.left.group.position.y;
     this.handY[1] = this.hands.right.group.position.y;
 
@@ -1027,6 +1063,8 @@ class Rig implements PerformerRig {
 
     this.effort += ((this.playing ? 0.72 : 0.12) - this.effort) * (1 - Math.exp(-step / 0.35));
 
+    this.twistToHands(step);
+
     this.torso.position.copy(this.torsoBase).add(this.bodyOffset);
     this.torso.rotation.set(
       // The settle folds the player very slightly over the hit as well as
@@ -1038,7 +1076,7 @@ class Rig implements PerformerRig {
       // frame, so an equal turn here leaves the face square to the chest — and
       // to the mouthpiece, and to the keys the fingers are on, all of which are
       // carried by this group.
-      swing * 0.05 + (this.mouthpiece ? this.headYaw : 0),
+      swing * 0.05 + this.twist + (this.mouthpiece ? this.headYaw : 0),
       -swing * 0.055,
     );
     this.torsoBody.scale.set(
@@ -1059,6 +1097,10 @@ class Rig implements PerformerRig {
     // --- limbs -------------------------------------------------------------
     this.handHeld[0] = this.placed.get('left-hand')?.commanded === true;
     this.handHeld[1] = this.placed.get('right-hand')?.commanded === true;
+    // The same reading, for the arms. `commanded` is cleared at the bottom of
+    // the loop below, so both have to be taken here or not at all.
+    this.handWorking.left = this.handHeld[0];
+    this.handWorking.right = this.handHeld[1];
     for (const st of this.placed.values()) {
       // The rest first, and for every part whether it is commanded or not: an
       // uncommanded part is placed at it, and a commanded one still has to
@@ -1108,15 +1150,55 @@ class Rig implements PerformerRig {
     this.hands.left.update(step);
     this.hands.right.update(step);
 
-    // Last, and reading everything above it: the torso is posed, the feet are
-    // placed, and the legs are whatever is left between them.
+    // Last, and reading everything above them: the torso is posed, the feet and
+    // the hands are placed, the hands have taken their shape, and the two fitted
+    // limbs are whatever is left between the ends of all that.
     this.legs.update();
+    this.arms.update(step);
 
     this.driftSplats(now);
 
     if (this.reaction && now - this.reactionStart >= REACTION_SECONDS[this.reaction]) {
       this.reaction = undefined;
     }
+  }
+
+  /**
+   * Turn the chest toward whatever the hands are doing.
+   *
+   * Nobody plays square-on to something that is off to one side. A drummer
+   * working the hi-hat and the snare — both of them left of the throne — sits
+   * turned that way, and it is not decoration: with the chest square, the arm
+   * that has to cross the body has nowhere to cross but *through* it, and no
+   * amount of care about where an elbow goes can fix a shoulder that is facing
+   * the wrong way. The same turn is most of what a flautist's stance is.
+   *
+   * So: the mean of the two hands, as an angle off the body's own forward, and
+   * a share of it. A share rather than the whole angle because a player turns
+   * *toward* their hands and does not face them squarely — and because the
+   * share is what keeps this stable for a player whose instrument is strapped
+   * on. A carried instrument turns with the chest, so its contacts turn with
+   * it, so the angle this reads next frame contains the turn it just made; at a
+   * share below one that settles a little short of the clamp instead of winding
+   * up into it, and where it does reach the clamp — a flute, held out to one
+   * side by definition — the clamp is a stance a flautist actually stands in.
+   *
+   * Read from last frame's hands, like `settleUnder` and for the same reason:
+   * the alternative is measuring hands the same frame that placed them.
+   */
+  private twistToHands(step: number): void {
+    const l = this.hands.left.group.position;
+    const r = this.hands.right.group.position;
+    // Depth is floored rather than clamped to a sign: hands *behind* the chest
+    // are a fold, not a turn, and dividing by the true depth there would spin
+    // the player round to look at their own back.
+    const ahead = Math.max(
+      (l.z + r.z) * 0.5 - this.torso.position.z, this.proportions.torsoD * 0.6,
+    );
+    const want = clamp(
+      Math.atan2((l.x + r.x) * 0.5, ahead) * TWIST_SHARE, -TWIST_LIMIT, TWIST_LIMIT,
+    );
+    this.twist += (want - this.twist) * (1 - Math.exp(-step / TWIST_TAU));
   }
 
   /**
@@ -1164,27 +1246,37 @@ class Rig implements PerformerRig {
   }
 
   /**
-   * Break one wrist toward wherever that arm would be coming from.
+   * Break one wrist toward the forearm that is actually there.
    *
-   * The shoulder is a real point on the torso and the hand is a real point in
-   * the root's frame, so the line between them is where the forearm would run
-   * if there were one. Expressed in the hand's own frame — `-z` is the cuff,
-   * `+y` the back of the hand — the two angles off `-z` are exactly wrist
-   * extension and wrist deviation, and handing them to the hand costs one
-   * quaternion per hand per frame.
+   * This began as the cheap half of the Rayman compromise bought back: there was
+   * no arm, so the line from the shoulder to the hand stood in for one, and a
+   * wrist breaking correctly is most of what sells a limb that does not exist.
+   * The limb exists now — `performer-arms.ts` fits one — so the stand-in is
+   * retired and this reads the drawn elbow. It is the same measurement either
+   * way: expressed in the hand's own frame, where `-z` is the cuff and `+y` the
+   * back of the hand, the two angles off `-z` are exactly wrist extension and
+   * wrist deviation, and handing them to the hand costs one quaternion per hand
+   * per frame.
    *
-   * This is the part of the Rayman compromise that can be bought back cheaply.
-   * The arm is still not there, but the hand now *knows which way it is*, and a
-   * wrist that breaks correctly is most of what sells an arm that does not
-   * exist. Only a fraction of the angle is taken: a wrist that lines up
-   * perfectly with an imaginary forearm reads as a mechanism, and the residual
-   * is what a real wrist's limited range looks like anyway.
+   * Two things follow from using the real elbow rather than the shoulder. The
+   * angle is right — an elbow hangs well below the shoulder→hand line and a
+   * wrist bent toward the shoulder was bent about twenty degrees too far — and
+   * a pose that demands a straight wrist now gets one for free: `HandPose.align`
+   * puts the elbow directly behind the hand, so the angle measured here comes
+   * out at zero with nothing having to know why.
+   *
+   * The elbow read is one frame old, since the arms are fitted after the hands
+   * are posed. That is 16 ms against a 120 ms wrist, it is not perceptible, and
+   * the alternative is fitting the arms twice a frame to chase a loop whose gain
+   * is a few hundredths — see `settleUnder`, which makes the same trade.
+   *
+   * Only a fraction of the angle is taken: a wrist that lines up perfectly with
+   * its forearm reads as a mechanism, and the residual is what a real wrist's
+   * limited range looks like anyway.
    */
   private followForearm(side: BodySide): void {
     const hand = this.hands[side].group;
-    // The shoulder, in the root's frame. The torso is a direct child of root.
-    V1.copy(this.shoulder[side]).applyQuaternion(this.torso.quaternion).add(this.torso.position);
-    V1.sub(hand.position);
+    V1.copy(this.arms.elbow(side)).sub(hand.position);
     if (V1.lengthSq() < 1e-8) { this.hands[side].setWrist(0, 0); return; }
     // Into the hand's own frame.
     V1.applyQuaternion(Q1.copy(hand.quaternion).invert()).normalize();
