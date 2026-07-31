@@ -372,8 +372,19 @@ function padGeometry(radius: number, seg = 6): BufferGeometry {
  * a straight line. Flattening it is half of why the pad kit's plates stop
  * reading as metal — the other half is what they are made of, which is the
  * caller's business.
+ *
+ * `flip` turns the whole bow over, and the one piece on the kit that wants it
+ * is the bottom hi-hat plate: two cymbals domed the same way are a pair of
+ * parasols stacked on a rod, with the lower one's rim falling away from the
+ * upper one's. Turned over, the two bows close on each other and the rims meet,
+ * which is the shape a shut hi-hat actually has. The flip is a rotation rather
+ * than a negated profile so the lathe's winding — and with it every normal the
+ * comment above exists to protect — survives it, and the piece is dropped by
+ * its own thickness afterwards so that the rim's upper face stays at `y = 0`:
+ * that plane is what `HAT_SHUT` is measured from, so moving it would be a
+ * hi-hat that closed through itself.
  */
-function cymbalGeometry(radius: number, seg = 20, dome = 1): BufferGeometry {
+function cymbalGeometry(radius: number, seg = 20, dome = 1, flip = false): BufferGeometry {
   const bell = radius * 0.16;
   /** Rim first, then inward and up to the bell. */
   const bow: ReadonlyArray<readonly [number, number]> = [
@@ -388,7 +399,12 @@ function cymbalGeometry(radius: number, seg = 20, dome = 1): BufferGeometry {
     points.push(new Vector2(bow[i]![0], bow[i]![1] - CYMBAL_THICK));
   }
   points.push(new Vector2(radius, 0));   // up the rim, closing the loop
-  return new LatheGeometry(points, seg);
+  const g = new LatheGeometry(points, seg);
+  if (flip) {
+    g.rotateX(Math.PI);
+    g.translate(0, -CYMBAL_THICK, 0);
+  }
+  return g;
 }
 
 function disposeTree(root: Object3D): void {
@@ -744,8 +760,10 @@ export const buildDrumkit: InstrumentBuilder = (opts) => {
     return mesh;
   }
 
-  // Hi-hat: two cymbals, and the gap between them is the whole point.
-  const hatBottom = addTo(root, new Mesh(cymbalGeometry(0.17, 20, PLATE_DOME), plateMat));
+  // Hi-hat: two cymbals, and the gap between them is the whole point — which is
+  // why the lower one is turned over (`flip`) rather than being a second copy
+  // of the upper. Two bows domed the same way part at the rim and touch nowhere.
+  const hatBottom = addTo(root, new Mesh(cymbalGeometry(0.17, 20, PLATE_DOME, true), plateMat));
   hatBottom.name = 'cymbal:hatBottom';
   hatBottom.position.set(HAT_AT[0], HAT_AT[1], HAT_AT[2]);
   hatBottom.rotation.z = -0.10;
