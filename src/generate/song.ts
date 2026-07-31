@@ -220,6 +220,25 @@ export function generateSong(opts: GenerateOptions = {}): Song {
   const swingOver = (feel: Feel, amount: number) => (feel.swing === undefined
     ? style.swing
     : style.swing + (feel.swing - style.swing) * amount);
+  /**
+   * …and the same interpolation for what a feel says to the *composed* layers.
+   *
+   * Every multiplier is pulled back toward 1 by `amount`, so a span played half
+   * way toward funk asks the engine for half the extra syncopation, and a span
+   * at 0 asks for nothing. Written as one expression beside `swingOver` because
+   * a second place that decides what `amount` means is a second place that can
+   * decide it differently.
+   */
+  const voiceOver = (feel: Feel, amount: number): NonNullable<Feel['voice']> | undefined => {
+    const v = feel.voice;
+    if (!v) return undefined;
+    const toward = (m: number) => 1 + (m - 1) * amount;
+    return {
+      ...(v.syncopation !== undefined ? { syncopation: toward(v.syncopation) } : {}),
+      ...(v.density !== undefined ? { density: toward(v.density) } : {}),
+      ...(v.accents ? { accents: v.accents.map(toward) } : {}),
+    };
+  };
 
   const rules = resolveRules(genre.ruleOverrides);
   /**
@@ -495,6 +514,48 @@ export function generateSong(opts: GenerateOptions = {}): Song {
   for (let s = 0; s < sections.length; s++) {
     const section = sections[s]!;
     const localTonic = ((tonic + section.transpose) % 12 + 12) % 12;
+
+    /**
+     * How this section is felt. Drawn here, applied in two places and at two
+     * different moments, and the split is the load-bearing part of the design.
+     *
+     * One draw per section, from its own namespaced stream, and **only where
+     * there is a table to draw from** — a style that has not opted in must not
+     * consume a number here, or every song in the catalogue moves. See
+     * `Style.feels`.
+     *
+     * Per section rather than per song because that is what a feel *is*: a
+     * statement about a passage. Per bar would be a different feature and is
+     * wave 5's; sections change at their boundary, which is where a band changes
+     * anything.
+     *
+     * **It is drawn before a note exists**, which is why it is up here rather
+     * than beside `applyFeel` where it started. The composed layers take their
+     * half of a feel as multipliers into the `Voice`, before the audition runs,
+     * and something the audition has to see cannot be decided after it. Moving
+     * the draw costs nothing and could not: the stream is its own, so reading it
+     * earlier changes no other draw in the song.
+     */
+    let felt: {
+      feel: Feel;
+      amount: number;
+      /** The `voice` block, already pulled back by `amount`. Absent for most feels. */
+      voice?: NonNullable<Feel['voice']>;
+    } | undefined;
+    if (feelTable?.length) {
+      const feelBias = mood.feelBias;
+      const feel = FEELS[new Rng(`${seed}:feel:${s}`).weighted(
+        feelTable.map(([id, w]) => [id, w * (feelBias?.[id] ?? 1)] as const),
+      )];
+      /**
+       * Whole-hearted, always, for now. A partial amount is how a break eases
+       * in and out of half time, which is wave 5's problem; a section either is
+       * or is not played in the pocket.
+       */
+      const amount = 1;
+      const voice = voiceOver(feel, amount);
+      felt = { feel, amount, ...(voice ? { voice } : {}) };
+    }
 
     // Recall is keyed by kind *and* length: a twelve-bar blues chorus and an
     // eight-bar one are not the same section wearing different clothes.
@@ -968,6 +1029,18 @@ export function generateSong(opts: GenerateOptions = {}): Song {
           // and a verse and a chorus may legitimately converge on one tune.
           avoid: stated,
           mood: { leap: mood.leap, ornament: mood.ornament },
+          /**
+           * …and how the section is felt, in the same place and for the same
+           * reason. This is the only door a feel has onto a composed part, and
+           * it is deliberately on this side of the audition: the judge has to
+           * score the tune the feel asked for, not a tune that was written
+           * straight and then shoved off the beat afterwards.
+           *
+           * Absent for `straight` and `pocket` and for every style with no feel
+           * table, so most songs pass `undefined` here and compose exactly what
+           * they always did.
+           */
+          ...(felt?.voice ? { feel: felt.voice } : {}),
         });
       /**
        * A recalled tune comes back varied rather than pasted.
@@ -1315,47 +1388,32 @@ export function generateSong(opts: GenerateOptions = {}): Song {
     }
 
     /**
-     * How this section is felt.
-     *
-     * One draw per section, from its own namespaced stream, and **only where
-     * there is a table to draw from** — a style that has not opted in must not
-     * consume a number here, or every song in the catalogue moves. See
-     * `Style.feels`.
-     *
-     * Per section rather than per song because that is what a feel *is*: a
-     * statement about a passage. Per bar would be a different feature and is
-     * wave 5's; sections change at their boundary, which is where a band changes
-     * anything.
+     * The other half of the feel drawn at the top of the loop: what the *played*
+     * layers do with it, as against what the *composed* ones were written to do.
      *
      * It runs immediately before the dynamics and that order is load-bearing.
-     * `applyFeel` will eventually multiply velocities, and intensity has to be
-     * the outermost term — a chorus that was louder than its verse before feels
-     * existed stays louder afterwards, whatever the feel says. A feel changes
-     * the shape of a section's loudness and never its rank.
+     * `applyFeel` multiplies velocities, and intensity has to be the outermost
+     * term — a chorus that was louder than its verse before feels existed stays
+     * louder afterwards, whatever the feel says. A feel changes the shape of a
+     * section's loudness and never its rank.
      *
      * The melody and the counter are absent from the call and cannot be added:
      * they were auditioned, and bending the gesture that won hands back one
-     * nobody scored. See `style/feel.ts`.
+     * nobody scored. They took their half of this feel at the top of the loop,
+     * as multipliers into the `Voice` the audition ran against. See
+     * `style/feel.ts`.
      */
-    if (feelTable?.length) {
-      const bias = mood.feelBias;
-      const feel = FEELS[new Rng(`${seed}:feel:${s}`).weighted(
-        feelTable.map(([id, w]) => [id, w * (bias?.[id] ?? 1)] as const),
-      )];
+    if (felt) {
+      const { feel, amount } = felt;
       feels.push({
         from: section.startBar,
         to: section.startBar + section.lengthBars,
         feel,
-        /**
-         * Whole-hearted, always, for now. A partial amount is how a break eases
-         * in and out of half time, which is wave 5's problem; a section either
-         * is or is not played in the pocket.
-         */
-        amount: 1,
+        amount,
       });
       applyFeel({
         feel,
-        amount: 1,
+        amount,
         bpm,
         /**
          * The span's swing, resolved here rather than inside `applyFeel`, so
@@ -1363,7 +1421,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
          * note cannot be swung by one of them and then again by the other. See
          * `Feel.swing`.
          */
-        swing: swingOver(feel, 1),
+        swing: swingOver(feel, amount),
         beatsPerBar: style.beatsPerBar,
         /**
          * Its own stream, and one that is only drawn from by the fields a feel

@@ -31,6 +31,7 @@ import type { Midi, Pc } from '../core/pitch.js';
 import type { Mode, Scale } from '../core/scale.js';
 import type { Accompaniment, Rule } from '../core/rules.js';
 import type { NoteEvent, SectionKind } from '../core/types.js';
+import type { Feel } from '../style/feel.js';
 import type { IdiomProfile } from '../style/instruments.js';
 import type { Style, WeightedCell } from '../style/types.js';
 import type { HookLevel } from '../generate/hook.js';
@@ -202,6 +203,21 @@ export interface SectionTuneOptions {
    * as `leapScale` and `ornamentScale`.
    */
   mood?: { leap: number; ornament: number };
+  /**
+   * How the section is *felt*, in the three terms a feel is allowed to say to a
+   * composed part. See `Feel.voice`.
+   *
+   * The same door as `mood` above, for the same reason and with more force: the
+   * melody is not merely generated here, it is *auditioned*. `auditionTune`
+   * writes two dozen candidates, scores each against the rules and a freshness
+   * term, and keeps the winner — so a feel that pushed those notes around
+   * afterwards would hand back a gesture nobody scored. A funkier section has to
+   * be a section the engine *wanted* to write funkier.
+   *
+   * Already scaled by the span's `amount` when it arrives, so `1` here is
+   * genuinely "leave it alone" whatever the span said.
+   */
+  feel?: NonNullable<Feel['voice']>;
 }
 
 export interface SectionTune {
@@ -209,17 +225,61 @@ export interface SectionTune {
   audition: Audition;
 }
 
+/**
+ * The style's voice with the song's mood and the section's feel folded in.
+ *
+ * One object, built once, because the two are the same kind of statement: a bag
+ * of multipliers over a vocabulary that already exists. Neither may add a field
+ * to `Voice` — if a modifier needs a knob the voice has not got, it is composing
+ * rather than modifying and belongs somewhere else entirely.
+ *
+ * ## The absent accent table, which is the one real decision here
+ *
+ * `Voice.accents` is optional, and absent means *"derived from `syncopation` and
+ * the metre"* — a derivation that also needs the canvas span and the style's own
+ * beat groups, neither of which exists at this altitude. So a multiplier here
+ * has nothing to multiply, and it deliberately does nothing rather than
+ * materialising a table to scale: any array written here would *replace* the
+ * derivation instead of scaling it, which would move the tune even at 1.0 and
+ * would assert a four-four backbeat under a style grouped 2+2+3.
+ *
+ * That is not the feel losing its voice on such a style. The derivation reads
+ * `syncopation`, and `syncopation` is the first field in this block — so a feel
+ * that wants the offbeats lifted on a voice with no table says it through the
+ * door the type already provides, and the metre stays intact on the way through.
+ * Every style in the catalogue that can currently draw a feel has a table
+ * anyway, derived from its own melody cells by `cellAccents` above; the absent
+ * case is the three authored voices and whatever is authored next.
+ */
+function adaptVoice(
+  base: Voice, mood?: { leap: number; ornament: number }, feel?: NonNullable<Feel['voice']>,
+): Voice {
+  if (!mood && !feel) return base;
+  const accents = feel?.accents && base.accents
+    ? base.accents.map((a, i) => Math.max(0, a * feel.accents![i % feel.accents!.length]!))
+    : base.accents;
+  return {
+    ...base,
+    ...(mood ? {
+      leap: clamp01(base.leap * mood.leap),
+      ornament: clamp01(base.ornament * mood.ornament),
+    } : {}),
+    ...(feel?.syncopation !== undefined
+      ? { syncopation: clamp01(base.syncopation * feel.syncopation) } : {}),
+    // Onsets per bar, so a count rather than an appetite: floored just above
+    // silence instead of clamped to one, and left uncapped upward because the
+    // archetype and the section shape both scale it again downstream.
+    ...(feel?.density !== undefined
+      ? { density: Math.max(0.4, base.density * feel.density) } : {}),
+    ...(accents ? { accents } : {}),
+  };
+}
+
 /** Write one section's tune. */
 export function composeSectionTune(opts: SectionTuneOptions): SectionTune {
   const base = voiceForStyle(opts.style);
   const shape = sectionShape(opts.kind);
-  const voice = opts.mood
-    ? {
-      ...base,
-      leap: clamp01(base.leap * opts.mood.leap),
-      ornament: clamp01(base.ornament * opts.mood.ornament),
-    }
-    : base;
+  const voice = adaptVoice(base, opts.mood, opts.feel);
 
   const { best } = auditionTune({
     tag: opts.tag,

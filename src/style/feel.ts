@@ -25,10 +25,10 @@
  * `tune/adapt.ts` already wrote this lesson down about mood: a calmer mood should
  * make the engine *want* to move by step, not write a leaping tune and then
  * flatten it. What a feel has to say to a composed part therefore goes into the
- * `Voice` before the audition runs, which is the `voice` block below and is a
- * later wave. The rhythm section is post-processed precisely *because* it is
- * pattern playback: no candidate set, no judge, and a per-section pass over
- * those same events already exists to sit beside.
+ * `Voice` before the audition runs, which is the `voice` block below. The rhythm
+ * section is post-processed precisely *because* it is pattern playback: no
+ * candidate set, no judge, and a per-section pass over those same events already
+ * exists to sit beside.
  *
  * **It modifies, it never authors.** No pattern banks, no note choices, no
  * harmony, no layers added or dropped. A proposal that needs its own bass figure
@@ -52,9 +52,9 @@
  * fusion, a blues and a foksi alike, to the millisecond, because the numbers are
  * in milliseconds and nothing about them consults the style.
  *
- * Every field but `voice` is read today. `voice` is the melodic half and is
- * declared here so that the wave implementing it adds behaviour instead of
- * churning this type; its comment says so.
+ * Three of the six entries carry a `voice` block and three do not, and the
+ * absences are arguments rather than gaps — see `straight`, `pocket` and
+ * `driving` below.
  */
 
 import type { DrumVoice, LayerId } from '../core/types.js';
@@ -225,15 +225,64 @@ export interface Feel {
    * how much it lands off the beat, where it likes to land, and how busy it is —
    * and a feel that needed a fourth is a feel that is trying to compose.
    *
-   * Declared, not yet read — wave 4b, which is separate from wave 4 because this
-   * is the only part of a Feel that can change which tune wins an audition.
+   * **This is the only part of a Feel that can change which tune wins**, which
+   * is why it landed on its own rather than inside the batch of rhythm changes.
+   * The audition scores two dozen candidates against the rules and a freshness
+   * term; a multiplier that pushes the engine somewhere the judge dislikes comes
+   * back as *worse* tunes rather than as different ones, and the only way to
+   * know is to measure the styles it reaches. Every number below has been.
+   *
+   * **`straight` and `pocket` deliberately carry none**, and that is the line
+   * this block is drawn against. A pocket is a rhythm-section phenomenon: the
+   * band leans and the soloist floats over it, which is most of what makes a
+   * pocket audible in the first place. Because those two are the whole of the
+   * blues's and the foksi's tables, both of those styles compose exactly the
+   * tune they always did, which is a free determinism check every time this
+   * block is touched.
    */
   voice?: {
-    /** Multiplier on `Voice.syncopation`. */
+    /**
+     * Multiplier on `Voice.syncopation`.
+     *
+     * Worth knowing what it reaches, because it is less than the name suggests
+     * and it was measured rather than assumed. `syncopation` decides where a
+     * note lands only for a voice with **no** `accents` table; where there is
+     * one — which is every style in the catalogue that can currently draw a feel,
+     * since `adapt.ts` derives a table from the style's own melody cells — this
+     * moves the appetite for dotted values, the chance the figure accents a slot
+     * the metre says nothing about, and the chance of a pickup. Real, and worth
+     * about a point of off-beat share on its own. `accents` is the knob that
+     * moves where the notes go.
+     */
     syncopation?: number;
-    /** Multiplier on `Voice.accents`, per sixteenth. Absent leaves them alone. */
+    /**
+     * Multiplier on `Voice.accents`, per sixteenth, tiled. Absent leaves them
+     * alone, and so does a present multiplier over an absent table — see
+     * `adaptVoice` in `tune/adapt.ts` for why inventing one would fight the
+     * derivation rather than scale it.
+     *
+     * Keep the shape **beat-relative** rather than bar-relative, for the reason
+     * `accent` above gives at more length: a period of four slots is a statement
+     * about a beat and survives any metre, where a period of sixteen is a
+     * statement about a four-four bar and does not.
+     *
+     * And it can only lift what the style already visits. A voice whose table
+     * came from cells that put every onset on a beat has the sixteenths at
+     * `cellAccents`' floor of 0.08, and 1.4 times a floor is still a floor —
+     * measured on the ballad, where an accent lift moved nothing at all. Same
+     * shortfall as the one `accent` documents for a comp that plays in one
+     * place, and the same answer: use the fields that can reach it.
+     */
     accents?: number[];
-    /** Multiplier on `Voice.density`. */
+    /**
+     * Multiplier on `Voice.density`, in onsets per bar.
+     *
+     * The bluntest of the three and by some way the most reliable: it moves the
+     * note count and, because the canvas does not change, the note *lengths*
+     * with it. Two of the three feels that carry a block reach for it and reach
+     * for nothing else, which is a fact about how narrow this vocabulary is
+     * rather than about how alike those feels are.
+     */
     density?: number;
   };
 }
@@ -345,6 +394,23 @@ export const FEELS: Record<FeelId, Feel> = {
    * `displace` is small on purpose. An anticipated chord is the funk gesture and
    * a bar in which every weak beat is anticipated has no beats left to anticipate
    * against.
+   *
+   * ## And the one thing funk has to say to the tune
+   *
+   * A funk melody is not a swing melody played over a funk band: it lands
+   * between the beats, it is busier, and its notes are shorter. All three of
+   * those are sayable in the voice's own vocabulary, so all three are said, and
+   * the third comes for free — the canvas is fixed, so more onsets on it are
+   * necessarily shorter ones.
+   *
+   * Measured on fusion over thirty songs, against the same seeds under
+   * `straight`: off-beat onsets 54.6% → 58.3%, onsets per bar 2.39 → 2.53, mean
+   * melody note 0.85 → 0.79 beats. Each knob was measured alone as well, because
+   * three numbers that only work together are three numbers nobody can reason
+   * about: the accent lift is the strongest (54.6 → 56.9), density next (→ 55.5),
+   * syncopation smallest (→ 55.2). Nothing the judge cares about got worse —
+   * stepwise motion 51.8% → 52.4% and chord tone on the beat 84.7% → 84.6%,
+   * which is to say the engine wrote funkier tunes rather than looser ones.
    */
   funk: {
     id: 'funk',
@@ -367,6 +433,22 @@ export const FEELS: Record<FeelId, Feel> = {
     ghost: 0.35,
     subdivide: 0.4,
     displace: 0.2,
+    voice: {
+      syncopation: 1.35,
+      density: 1.15,
+      /**
+       * On the beat, leave it; on the eighth between, a little; on the
+       * sixteenths, half again. Periodic in the *beat* rather than in the bar,
+       * so it says the same true thing under fusion's seven eight as it would
+       * under a four-four — see `Feel.voice.accents`.
+       */
+      accents: [
+        1.00, 1.50, 1.15, 1.50,
+        1.00, 1.50, 1.15, 1.50,
+        1.00, 1.50, 1.15, 1.50,
+        1.00, 1.50, 1.15, 1.50,
+      ],
+    },
   },
 
   /**
@@ -389,12 +471,27 @@ export const FEELS: Record<FeelId, Feel> = {
    * The accent array here *is* four-four-shaped, unlike `funk`'s, and that is a
    * deliberate exception with a cost attached: it is enabled on one four-four
    * style and it would say something wrong under a valssi.
+   *
+   * The tune gets the same instruction in the only word that reaches it. A band
+   * counting in two covers the same ground in half the gestures, so the line
+   * broadens: fewer onsets over an unchanged canvas, which is longer notes by
+   * arithmetic. That is the whole of it — "weight onto one and three" is a
+   * statement about the *bar*, and `Voice.accents` is a statement about where a
+   * note likes to land, so saying it there would be asserting a four-four
+   * backbeat to a melody engine rather than redistributing a velocity.
+   *
+   * Measured on modal over thirty songs against the same seeds under `straight`:
+   * onsets per bar 1.63 → 1.48, mean melody note 1.01 → 1.14 beats, chord tone
+   * on the beat 81.6% → 83.0%, stepwise motion 53.6% → 52.3%. 0.75 was tried and
+   * is not shipped: it takes another 0.05 off the same axis and 0.4 more points
+   * off stepwise motion, which is the tune thinning past broad and into bare.
    */
   halftime: {
     id: 'halftime',
     label: 'Half time',
     description: 'Counted in two: weight onto one and three, everything long, everything behind, and the swing switched off.',
     swing: 0,
+    voice: { density: 0.8 },
     push: { bass: 8, comp: 8, pad: 6, sd: 14 },
     articulation: { comp: 1.35, bass: 1.25, pad: 1.2, brass: 1.2 },
     accent: [
@@ -417,6 +514,22 @@ export const FEELS: Record<FeelId, Feel> = {
    *
    * No accent, no ghosts and no subdivision: this is a feel about urgency, and
    * urgency is timing and length. Adding notes to it would make it funk.
+   *
+   * ## And no `voice`, which is the same sentence pointed at the tune
+   *
+   * The one entry that was expected to want one and does not. Urgency is timing
+   * and length, and a `Voice` can express neither — it has how busy, how far off
+   * the beat, and where the beats are, and none of those is "in front of it".
+   * The two candidates were tried on bebop over thirty songs and both are noise
+   * or worse: `density: 1.15` moves onsets per bar from 1.90 to 1.91 and takes
+   * stepwise motion from 58.6% to 57.1%, and `syncopation: 0.8` — the idea that
+   * a driving line nails the beat — moves the off-beat share by a tenth of a
+   * point, from 47.5% to 47.4%. What they would actually have shipped is a last
+   * chorus with a *different* tune in it rather than the same tune played
+   * harder, and the second of those is the thing a listener recognises as
+   * driving.
+   *
+   * So the melody is left alone here on purpose, and the absence is the claim.
    */
   driving: {
     id: 'driving',
@@ -437,11 +550,37 @@ export const FEELS: Record<FeelId, Feel> = {
    * lets the strong ones down, so the bar stops announcing itself. That is what
    * "flattened" means as an instruction to a player, and it is the difference
    * between a band playing behind and a band playing quietly.
+   *
+   * ## The tune gets the "held long", and only that
+   *
+   * A player who is not pushing plays fewer notes and holds them, which is
+   * `density` and lands on the ballad as onsets per bar 1.32 → 1.21 and mean
+   * melody note 1.22 → 1.30 beats over thirty songs, with chord tone on the beat
+   * up from 88.7% to 89.5% and stepwise motion unmoved.
+   *
+   * **`syncopation` was the obvious second number and it is not shipped.** The
+   * reasoning for it was sound — behind the beat, composed, can only come out as
+   * landing off it — and the measurement was not: `syncopation: 1.25` alone
+   * moves the ballad's off-beat share by 1.1 points and takes 1.6 points off the
+   * chord tone with it, and *alongside* the thinning it is invisible, 26.4%
+   * against the 26.2% the thinning gives on its own. An accent lift is worse
+   * still and for a reason the type already documents: this ballad's cells put
+   * every onset on a beat, so its derived sixteenths sit at `cellAccents`' floor
+   * and multiplying a floor leaves a floor.
+   *
+   * What that leaves is `halftime`'s number with a different multiplier on it,
+   * and the near-collision is worth naming rather than dressing up. Two
+   * different musical claims — the metre has halved, and the player is not
+   * pushing — reach the tune through the same knob because it is the only knob
+   * either of them can reach. That is the vocabulary being three numbers wide,
+   * which is a deliberate limit, and it is the point at which a fourth would
+   * start to look justified. It is not yet.
    */
   laidback: {
     id: 'laidback',
     label: 'Laid back',
     description: 'Everything behind the beat, held long, and the metre allowed to go soft.',
+    voice: { density: 0.85 },
     push: { bass: 10, comp: 14, pad: 12, brass: 12, sd: 16 },
     articulation: { comp: 1.15, bass: 1.1, pad: 1.15, brass: 1.1 },
     accent: [

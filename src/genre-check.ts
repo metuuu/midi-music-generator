@@ -287,20 +287,51 @@ const feltStyles = [
   ['jazz', 'blues'], ['jazz', 'fusion'], ['jazz', 'bebop'],
   ['jazz', 'ballad'], ['jazz', 'modal'], ['iskelma', 'foksi'],
 ] as const;
-const feelPairs: { style: string; seed: string; felt: Song; plain: Song }[] = [];
-for (const [genreId, styleId] of feltStyles) {
-  const style = getGenre(genreId).styles[styleId]!;
-  const table = style.feels;
-  for (let i = 0; i < 12; i++) {
-    const seed = `fl-${i}`;
-    style.feels = table;
-    const felt = generateSong({ seed, genre: genreId, style: styleId });
-    style.feels = undefined;
-    const plain = generateSong({ seed, genre: genreId, style: styleId });
-    style.feels = table;
-    feelPairs.push({ style: `${genreId}/${styleId}`, seed, felt, plain });
+
+/**
+ * Run something with the *composed* half of every feel taken out of the library.
+ *
+ * A feel reaches the band through two doors that open at different moments: the
+ * `voice` block multiplies the `Voice` before the audition runs, and everything
+ * else post-processes the rhythm section afterwards. Every measurement below is
+ * about the second door, and every one of them works by generating the same song
+ * with the feel table on and off — so with both doors open the baseline moves for
+ * two reasons at once and the measurement means nothing. A different tune is not
+ * merely a different melody: `resolveCollisions` repairs the comp against it and
+ * `generateCounter` writes into its holes, so the whole arrangement shifts.
+ *
+ * Holding the composed half out is what makes those pairs a controlled
+ * comparison again. It is not a gap, because the composed half is not
+ * unmeasured — it has its own check further down, which is the only one that
+ * generates with the library exactly as it ships.
+ */
+const withoutVoice = <T>(run: () => T): T => {
+  const saved = (Object.keys(FEELS) as FeelId[]).map((id) => [id, FEELS[id].voice] as const);
+  for (const [id] of saved) delete FEELS[id].voice;
+  try {
+    return run();
+  } finally {
+    for (const [id, voice] of saved) if (voice) FEELS[id].voice = voice;
   }
-}
+};
+
+const feelPairs: { style: string; seed: string; felt: Song; plain: Song }[] = withoutVoice(() => {
+  const pairs: { style: string; seed: string; felt: Song; plain: Song }[] = [];
+  for (const [genreId, styleId] of feltStyles) {
+    const style = getGenre(genreId).styles[styleId]!;
+    const table = style.feels;
+    for (let i = 0; i < 12; i++) {
+      const seed = `fl-${i}`;
+      style.feels = table;
+      const felt = generateSong({ seed, genre: genreId, style: styleId });
+      style.feels = undefined;
+      const plain = generateSong({ seed, genre: genreId, style: styleId });
+      style.feels = table;
+      pairs.push({ style: `${genreId}/${styleId}`, seed, felt, plain });
+    }
+  }
+  return pairs;
+});
 
 /** Beats a given feel covers, from the spans the song carries on its IR. */
 const feelBeats = (song: Song, id: string): [number, number][] =>
@@ -661,14 +692,18 @@ const levelByBar = (events: readonly Timed[], beatsPerBar: number) => {
    */
   const style = getGenre('jazz').styles.blues!;
   const table = style.feels;
-  const run = (id: 'funk' | 'straight') => {
+  // Articulation is a rhythm-section measurement, so the composed half is held
+  // out here for the same reason it is held out of `feelPairs` above: funk's
+  // `voice` block would move the melody, and a moved melody moves the comp with
+  // it through `resolveCollisions`.
+  const run = (id: 'funk' | 'straight') => withoutVoice(() => {
     style.feels = [[id, 1]];
     const songs = [...Array(10).keys()].map(
       (i) => generateSong({ seed: `fk-${i}`, genre: 'jazz', style: 'blues' }),
     );
     style.feels = table;
     return songs;
-  };
+  });
   const funk = run('funk');
   const straight = run('straight');
   const comps = (songs: Song[]) =>
@@ -820,6 +855,179 @@ const levelByBar = (events: readonly Timed[], beatsPerBar: number) => {
     'intensity outranks feel: the chorus is still the loudest',
     inverted === 0 && compared > 0,
     inverted ? detail.join('; ') : `${compared} layer comparisons over ${multi} songs with more than one feel`,
+  );
+}
+
+{
+  /**
+   * **The composed half: a feel that reaches the melody reaches it by writing a
+   * different one.** `Feel.voice` multiplies the `Voice` before `auditionTune`
+   * scores a single candidate, so the tune that wins is the tune the feel asked
+   * for. The last check that generates with the library exactly as it ships, and
+   * the only one that may see a melody move at all.
+   *
+   * Three assertions, and the third is the one that keeps the divide honest.
+   *
+   * **What the block claims, it moves.** Read off the table rather than written
+   * out here, so a number edited without being re-measured fails rather than
+   * passing quietly: a `density` multiplier has to move onsets per bar its own
+   * way, and an `accents` lift has to put more of the tune on the sixteenths it
+   * lifts.
+   *
+   * The bar for `density` is one percent, which looks slack and is not, because
+   * **the knob is not linear and is not close to it.** Half time asks for 20%
+   * fewer onsets and gets 12%; funk asks for 15% more and gets 2%. The engine
+   * rounds a figure's onset count to a whole number, and the archetype and the
+   * section shape both scale it again after the feel has spoken, so a multiplier
+   * near 1 is mostly rounded away and a multiplier further from it is not. One
+   * percent is set against the *smallest real move* rather than against the
+   * largest: funk came out between 1.9% and 6.0% over sixteen seed sets and
+   * never once the wrong way, so this fails the entry that has stopped saying
+   * anything without failing the entry that says the least.
+   *
+   * ## Why the second statistic is the odd sixteenth and not "off the beat"
+   *
+   * Measured rather than assumed, and the obvious phrasing loses. Funk's lift is
+   * on the *odd* slots — the sixteenths between the eighths — and the share of
+   * onsets landing there rose in all twelve seed sets tried, by between 1.3 and
+   * 3.4 points. The share landing anywhere off the beat is the same effect
+   * diluted by the eighth-note upbeats, which fusion's melody was already full
+   * of, and over twelve songs it came out anywhere between +0.7 and +4.7 points.
+   * Both say the same thing about the music; only one of them says it every
+   * time. Twenty-four songs a side for the same reason: the audition is a
+   * lottery over two dozen candidates, so one seed's tune is not evidence about
+   * anything and the sample has to be big enough to see past that.
+   *
+   * `syncopation` is deliberately not gated on its own. It is worth about half a
+   * point of off-beat share on these styles — below what this sample can
+   * separate — because a voice with an `accents` table does not consult it about
+   * where notes land at all. What it does reach is documented on the field.
+   *
+   * **`pocket` composes nothing.** Under `pocket` the blues's melody is the
+   * melody it writes under `straight`, note for note — the band leans and the
+   * soloist floats, which is decision, not accident, and it is what keeps
+   * `jazz/blues` and `iskelma/foksi` bit-identical to what they were before this
+   * wave.
+   *
+   * **Nothing was bent on the way out.** Every melody onset still lands on the
+   * sixteenth grid or on the span's own swung offbeat. A tune that had been
+   * pushed by a feel after the audition would sit at some millisecond fraction
+   * instead, and that is the failure this whole design exists to make
+   * impossible — silent, and it sounds merely sloppy.
+   */
+  const voiced = [
+    ['jazz', 'fusion', 'funk'], ['jazz', 'modal', 'halftime'],
+    ['jazz', 'ballad', 'laidback'],
+  ] as const;
+  /** The melody alone: a `twoHanded` fusion keyboard interleaves its own comping. */
+  const lead = (song: Song) => {
+    const track = song.tracks.find((t) => t.layer === 'melody');
+    return track ? melodicLine(track).slice().sort((a, b) => a.beat - b.beat) : [];
+  };
+  const shape = (songs: Song[]) => {
+    let onsets = 0; let odd = 0; let bars = 0;
+    for (const song of songs) {
+      bars += song.meta.totalBars;
+      for (const n of lead(song)) {
+        onsets++;
+        // The sixteenths between the eighths, which is the slot an `accents`
+        // lift is written to reach.
+        const frac = (n.beat - Math.floor(n.beat)) * 4;
+        if (Math.abs(frac - Math.round(frac)) < 1e-6 && Math.round(frac) % 2 === 1) odd++;
+      }
+    }
+    return { odd: (odd / Math.max(1, onsets)) * 100, perBar: onsets / Math.max(1, bars) };
+  };
+  const SONGS = 24;
+  const cache = new Map<string, Song[]>();
+  const under = (genreId: 'jazz' | 'iskelma', styleId: string, id: FeelId) => {
+    const key = `${genreId}/${styleId}/${id}`;
+    const had = cache.get(key);
+    if (had) return had;
+    const style = getGenre(genreId).styles[styleId]!;
+    const table = style.feels;
+    style.feels = [[id, 1]];
+    const songs = [...Array(SONGS).keys()].map(
+      (i) => generateSong({ seed: `vc-${i}`, genre: genreId, style: styleId }),
+    );
+    style.feels = table;
+    cache.set(key, songs);
+    return songs;
+  };
+
+  const said: string[] = [];
+  const missed: string[] = [];
+  // Every claim the table makes, counted from the table, so that adding a knob
+  // to a feel and forgetting to measure it cannot leave this check reporting
+  // that everything it looked at passed.
+  let claims = 0;
+  for (const [genreId, styleId, id] of voiced) {
+    const block = FEELS[id].voice!;
+    const felt = shape(under(genreId, styleId, id));
+    const plain = shape(under(genreId, styleId, 'straight'));
+    if (block.density !== undefined) {
+      claims++;
+      const ratio = felt.perBar / plain.perBar;
+      const moved = block.density > 1 ? ratio > 1.01 : ratio < 0.99;
+      (moved ? said : missed).push(
+        `${id} ${plain.perBar.toFixed(2)}→${felt.perBar.toFixed(2)}/bar`,
+      );
+    }
+    if (block.accents) {
+      claims++;
+      (felt.odd - plain.odd > 0.8 ? said : missed).push(
+        `${id} ${plain.odd.toFixed(1)}→${felt.odd.toFixed(1)}% on the odd sixteenths`,
+      );
+    }
+  }
+  check(
+    'a feel composes the melody it asked for',
+    missed.length === 0 && claims > 0 && said.length === claims,
+    missed.length ? `no measurable move: ${missed.join('; ')}` : said.join(', '),
+  );
+
+  const pocket = under('jazz', 'blues', 'pocket').map(lead);
+  const flat = under('jazz', 'blues', 'straight').map(lead);
+  let differed = 0; let compared = 0;
+  for (let i = 0; i < pocket.length; i++) {
+    const a = pocket[i]!; const b = flat[i]!;
+    compared += b.length;
+    if (a.length !== b.length) { differed += Math.abs(a.length - b.length); continue; }
+    for (let k = 0; k < a.length; k++) {
+      if (a[k]!.midi !== b[k]!.midi || Math.abs(a[k]!.beat - b[k]!.beat) > 1e-9) differed++;
+    }
+  }
+  check(
+    'the band leans, the soloist floats: pocket composes nothing',
+    differed === 0 && compared > 0,
+    `${differed} of ${compared} blues melody notes differ between pocket and straight`,
+  );
+
+  let offGrid = 0; let onGrid = 0;
+  for (const [genreId, styleId, id] of voiced) {
+    for (const song of under(genreId, styleId, id)) {
+      const spanSwing = (beat: number) => {
+        const bar = Math.floor(beat / song.meta.beatsPerBar + 1e-9);
+        const span = (song.meta.feels ?? []).find(
+          (f) => bar >= f.from && bar < f.to && f.feel.swing !== undefined,
+        );
+        return span
+          ? song.meta.swing + (span.feel.swing! - song.meta.swing) * span.amount
+          : song.meta.swing;
+      };
+      for (const n of lead(song)) {
+        onGrid++;
+        const frac = n.beat - Math.floor(n.beat);
+        const sixteenth = Math.abs(frac * 4 - Math.round(frac * 4)) < 1e-6;
+        const swung = Math.abs(frac - (0.5 + spanSwing(n.beat) * 0.5)) < 1e-6;
+        if (!sixteenth && !swung) offGrid++;
+      }
+    }
+  }
+  check(
+    'a composed feel still leaves the tune on the grid',
+    offGrid === 0 && onGrid > 0,
+    `${offGrid} of ${onGrid} melody onsets off the sixteenth grid and off the span's swing`,
   );
 }
 
