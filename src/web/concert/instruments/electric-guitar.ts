@@ -58,20 +58,29 @@ function mountBasis(alongStrings: Vector3, faceHint: Vector3, at: Vector3): Matr
 }
 
 /**
- * How the guitar hangs, and the face angle is the number that was wrong.
+ * How the guitar hangs, and the face angle is half of what was wrong.
  *
  * `faceHint` was `(0, 0.28, 0.96)` — the face tilted sixteen degrees up, which
  * is a real angle to wear a guitar at and is not the one to draw. A solid body
  * is a *plank*, and a plank at sixteen degrees against a torso touches it along
- * one line and stands off everywhere else: measured up the body, this one met
- * the player at the chest and was eight, ten and twelve centimetres clear of
- * them at the waist, the hip and the thigh. From the side it read as a guitar
- * held out in front of somebody rather than worn.
+ * one line and leans away from it everywhere else. At seven it lies down the
+ * front of the player. What that costs is a face that is nearly vertical — and
+ * that is the audience's view of it, so it is not a cost.
  *
- * At seven degrees the same plank lies down the front of the player and the gap
- * closes to a couple of centimetres at the chest and five at the thigh, which is
- * where a strap really leaves it. What it costs is a face that is nearly
- * vertical — and that is the audience's view of it, so it is not a cost.
+ * The other half was the *depth*, and it hid behind a bad measurement twice.
+ * `dressTorso` builds a lathe, not a cylinder: it is 0.50 of its width at the
+ * shoulders, pinches to 0.36 at the waist and swells back to 0.38 at the hip.
+ * Checked against an even ellipse — which is what a first pass assumed — this
+ * guitar's back was a millimetre off the player and apparently perfect. Checked
+ * against the profile the renderer actually draws, the same back was eleven
+ * centimetres clear of the waist, which is precisely the band a guitar body
+ * covers, and looked exactly as far off as it was.
+ *
+ * Six centimetres further back it meets the player at the hip and again at the
+ * chest, and bridges the waist between them by five. That last gap is not a
+ * placement error and closing it would be one: it is the hollow a plank leaves
+ * over anybody's stomach, and taking the guitar in far enough to touch there
+ * would bury both bouts in the body.
  */
 const MOUNT = mountBasis(
   new Vector3(Math.cos(NECK_TILT), Math.sin(NECK_TILT), 0),
@@ -334,9 +343,9 @@ export const buildElectricGuitar: InstrumentBuilder = (opts) => {
   let started = false;
 
   const station: PlayerStation = {
-    // Four centimetres back from -0.22, which is the last of the gap the flatter
-    // face could not close on its own. See `MOUNT`.
-    offset: new Vector3(-0.07, 0, -0.18),
+    // Eleven centimetres of standoff rather than twenty-two: the depth half of
+    // the fit, and the half a flatter face could not buy on its own. See `MOUNT`.
+    offset: new Vector3(-0.07, 0, -0.11),
     facing: 0,
     posture: 'stand',
   };
