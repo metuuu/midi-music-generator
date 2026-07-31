@@ -83,10 +83,37 @@ export function realisePhrase(opts: SurfaceOptions): NoteEvent[] {
 
   return onsets.map((onset, i) => ({
     beat: opts.startBeat + onset.at / SLOTS_PER_BEAT,
-    duration: Math.max(1, onset.dur) / SLOTS_PER_BEAT,
+    duration: sounding(Math.max(1, onset.dur) / SLOTS_PER_BEAT, opts.idiom.detache),
     midi: clampToRange(midis[i]!, range[0], range[1]),
     velocity: 0.5 + onset.accent * 0.4,
   }));
+}
+
+/**
+ * How long the note actually sounds, given how this player stops it.
+ *
+ * A figure advances its cursor by exactly the duration it wrote, so a written
+ * duration *is* the distance to the next onset and every note runs into its
+ * successor. That is not legato, which is a choice; it is the absence of any
+ * articulation at all, and it is what made 77% of the melody notes in the
+ * catalogue — 91% on synth — begin at the exact instant the one before them ended.
+ * Attacks are most of what tells a listener which instrument is playing, and an
+ * attack with no silence in front of it is not heard as an attack.
+ *
+ * **The gap is a duration, not a proportion.** Stopping a note takes about as long
+ * whatever the note was: a tongue interrupts a reed in the same few milliseconds
+ * whether it is ending a semiquaver or a semibreve. Taken as a percentage instead,
+ * a held note would give back a beat of silence and stop being a held note, which
+ * is exactly the fault that makes sampled brass sound like a machine gun and
+ * sampled strings sound like a church organ with hiccups.
+ *
+ * Bounded at half the note, so a sixteenth stays a note rather than becoming a
+ * click, and floored at the renderer's own audibility limit.
+ */
+function sounding(beats: number, detache: number): number {
+  const MIN_AUDIBLE = 1 / SLOTS_PER_BEAT / 2;
+  const gap = Math.min(detache, beats / 2);
+  return Math.max(MIN_AUDIBLE, beats - gap);
 }
 
 /**

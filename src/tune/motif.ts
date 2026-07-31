@@ -24,7 +24,9 @@ import type {
 } from './types.js';
 
 /** What a line sounds like when nothing has said who is playing it. */
-export const NEUTRAL_IDIOM: Idiom = { arpeggio: 0.3, run: 0.6, repeat: 0.5, breath: 0.3 };
+export const NEUTRAL_IDIOM: Idiom = {
+  arpeggio: 0.3, run: 0.6, repeat: 0.5, breath: 0.3, detache: 0.08,
+};
 
 // ---------------------------------------------------------------------------
 // The accent template

@@ -296,6 +296,24 @@ export interface Idiom {
   repeat: number;
   /** How badly the line needs air. A flute stops to breathe; a vibraphone does not. */
   breath: number;
+  /**
+   * How much silence this player leaves before the next attack, in beats.
+   *
+   * Not the same axis as `breath`, and the difference is the whole reason both
+   * exist: `breath` is the phrase-length gap a wind player takes because they have
+   * run out of air, and it happens once or twice in a figure. This is the far
+   * smaller gap between two ordinary notes that are not slurred — the tongue
+   * stopping the reed, the bow changing, the finger leaving the key. It happens
+   * between *every* pair.
+   *
+   * Absent, a melody in this engine is glued end to end by construction: a figure
+   * advances its cursor by exactly the duration it just wrote, so each note's length
+   * *is* the distance to the next onset, and `despace` and `trim` only ever clip
+   * that shorter. Measured across the catalogue, 77% of adjacent melody notes had
+   * no gap at all — 86% in iskelmä, 91% in synth — which is why every line sounded
+   * like one continuous smear whatever instrument was nominally playing it.
+   */
+  detache: number;
 }
 
 // ---------------------------------------------------------------------------

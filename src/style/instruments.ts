@@ -54,17 +54,32 @@ export interface IdiomProfile {
    * with no gap in it reads as synthetic long before anyone works out why.
    */
   breath: number;
+  /**
+   * Silence before the next attack, in beats — the gap between two notes that
+   * are not slurred. See `tune/types.ts` for why this is a different axis from
+   * `breath`, which is the once-a-phrase gap of a player running out of air.
+   *
+   * The numbers are what stops the note, and they are ordered by how the sound
+   * is interrupted rather than by how it is made. A singer does not stop at
+   * all between two vowels, which is why `vocal` is nearly zero and why the
+   * vocal aesthetic this project already has survives untouched. A bow changes
+   * direction, a key lifts a damper onto a string, a plectrum has to come back
+   * to the string it just left, and a tongue stops a reed dead — that last one
+   * is the largest gap on any wind instrument and it is why brass phrasing
+   * reads as speech.
+   */
+  detache: number;
 }
 
 export const IDIOMS: Record<Idiom, IdiomProfile> = {
-  vocal: { arpeggio: 0.0, run: 0.35, repeat: 0.5, breath: 0.8 },
-  keyboard: { arpeggio: 0.7, run: 0.8, repeat: 0.7, breath: 0.05 },
-  mallet: { arpeggio: 0.9, run: 0.5, repeat: 1.0, breath: 0.05 },
-  plucked: { arpeggio: 0.8, run: 0.4, repeat: 1.0, breath: 0.1 },
-  bowed: { arpeggio: 0.25, run: 0.6, repeat: 0.3, breath: 0.15 },
-  wind: { arpeggio: 0.2, run: 1.0, repeat: 0.4, breath: 0.7 },
-  brass: { arpeggio: 0.35, run: 0.3, repeat: 0.6, breath: 0.9 },
-  reed: { arpeggio: 0.3, run: 0.7, repeat: 0.5, breath: 0.1 },
+  vocal: { arpeggio: 0.0, run: 0.35, repeat: 0.5, breath: 0.8, detache: 0.03 },
+  keyboard: { arpeggio: 0.7, run: 0.8, repeat: 0.7, breath: 0.05, detache: 0.10 },
+  mallet: { arpeggio: 0.9, run: 0.5, repeat: 1.0, breath: 0.05, detache: 0.10 },
+  plucked: { arpeggio: 0.8, run: 0.4, repeat: 1.0, breath: 0.1, detache: 0.13 },
+  bowed: { arpeggio: 0.25, run: 0.6, repeat: 0.3, breath: 0.15, detache: 0.06 },
+  wind: { arpeggio: 0.2, run: 1.0, repeat: 0.4, breath: 0.7, detache: 0.11 },
+  brass: { arpeggio: 0.35, run: 0.3, repeat: 0.6, breath: 0.9, detache: 0.15 },
+  reed: { arpeggio: 0.3, run: 0.7, repeat: 0.5, breath: 0.1, detache: 0.08 },
 };
 
 /**
