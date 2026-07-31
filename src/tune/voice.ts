@@ -16,7 +16,8 @@
  */
 
 import type { SectionKind } from '../core/types.js';
-import type { Archetype, ArchetypeId, SectionShape, Voice } from './types.js';
+import { shapesFor } from './motif.js';
+import type { Archetype, ArchetypeId, Idiom, SectionShape, Voice } from './types.js';
 
 export const ARCHETYPES: Record<ArchetypeId, Archetype> = {
   'arch-hook': {
@@ -345,11 +346,49 @@ export function sectionShape(kind: SectionKind): SectionShape {
   return SHAPES[kind];
 }
 
-/** The voice's archetype weights with a section's bias applied. */
+/**
+ * The voice's archetype weights, with the section's bias and the player's hand
+ * applied.
+ *
+ * **Why the idiom belongs here at all.** Which *kind* of tune gets written used to
+ * be settled twice: drawn here, and then re-chosen by the judge across two dozen
+ * candidates. The second pass is gone — see `auditionTune` — and it was quietly
+ * supplying a coupling this table never stated, that a mallet player and a flute
+ * player do not reach for the same kind of tune. A harpist writes a tune out of
+ * broken chords because that is what is under the hands; a wind player writes one
+ * that runs, and holds it, because that is what breath does. Left unstated, both
+ * drew the same archetypes and differed only in what `idiomise` could do to a
+ * contour afterwards, which is a two-percent difference — the exact failure idiom
+ * was introduced to fix.
+ *
+ * The affinity is *derived* rather than authored, from `shapesFor`, which already
+ * says what this idiom plays. An archetype whose shape table the idiom lifts is an
+ * archetype that idiom reaches for; the ratio of lifted weight to plain weight is
+ * that sentence as a number, and it needs no second table to disagree with the
+ * first.
+ */
 export function archetypeWeights(
-  voice: Voice, shape?: SectionShape,
+  voice: Voice, shape?: SectionShape, idiom?: Idiom,
 ): readonly (readonly [ArchetypeId, number])[] {
-  if (!shape?.favour) return voice.archetypes;
-  const favour = shape.favour;
-  return voice.archetypes.map(([id, w]) => [id, w * (favour[id] ?? 1)] as const);
+  const favour = shape?.favour;
+  if (!favour && !idiom) return voice.archetypes;
+  return voice.archetypes.map(([id, w]) => [
+    id,
+    w * (favour?.[id] ?? 1) * (idiom ? idiomAffinity(ARCHETYPES[id], idiom) : 1),
+  ] as const);
+}
+
+
+/**
+ * How much this idiom's hand lifts this archetype's shapes, as a multiplier.
+ *
+ * Damped with a square root: the point is a lean, not a filter. A mallet should
+ * reach for `wide-interval` more often than a flute does and still be able to write
+ * a long-note tune, because mallet players do.
+ */
+function idiomAffinity(archetype: Archetype, idiom: Idiom): number {
+  const plain = archetype.shapes.reduce((a, [, w]) => a + w, 0);
+  if (plain <= 0) return 1;
+  const lifted = shapesFor(archetype, idiom).reduce((a, [, w]) => a + w, 0);
+  return Math.sqrt(lifted / plain);
 }

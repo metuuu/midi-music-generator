@@ -325,7 +325,7 @@ export interface MotifOptions {
  * `plateau` and `repeat-tail` rise with `repeat`. The archetype still says what kind
  * of tune this is; the idiom says who is singing it.
  */
-function shapesFor(archetype: Archetype, idiom: Idiom): readonly (readonly [ShapeId, number])[] {
+export function shapesFor(archetype: Archetype, idiom: Idiom): readonly (readonly [ShapeId, number])[] {
   const bump: Partial<Record<ShapeId, number>> = {
     thirds: 1 + idiom.arpeggio * 2,
     'leap-home': 1 + idiom.arpeggio * 1.2,

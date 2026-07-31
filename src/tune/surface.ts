@@ -177,7 +177,17 @@ export function melodicReach(agility: number, strictness: number): number {
   // capped at a fifth, so a vibraphone measured exactly as stiff as a trombone and
   // "instrument-aware" meant nothing above the loosest setting. Taste narrows what a
   // player would do; it does not make them all the same player.
-  return Math.min(physical, stylistic + Math.round(agility * 5));
+  //
+  // The allowance shrinks at the top of the range, and without that the top of the
+  // range does not exist. Taste tightens the ceiling by one semitone going from
+  // `strict` to `polished` (5 to 4) and then hands back the same four or five it
+  // handed back before, so the two settings came out a semitone apart on paper and
+  // indistinguishable in the notes — iskelmä measured 17.77% of intervals wider than
+  // a major third at `strict` and 17.55% at `polished`, an ordering held by two
+  // tenths of a point. A setting that promises smoothness has to spend the
+  // instrument's licence as well as its own.
+  const licence = strictness >= 4 ? 2 : 5;
+  return Math.min(physical, stylistic + Math.round(agility * licence));
 }
 
 /**
@@ -445,7 +455,16 @@ function applyRules(
         // it does: raising strictness means more vetoes, so more repairs, so more
         // manufactured leaps — which is how `polished` measured leapier than
         // `strict` on the one genre whose rule table lets most of them through.
-        && widest(c) <= before + 1
+        //
+        // At the top of the range the allowance goes away entirely. One semitone
+        // per repair is a rounding error on any single note and is not one across a
+        // catalogue: `polished` runs the most vetoes, so it collects the most of
+        // these, and it was still arriving fractionally leapier than `strict` on
+        // iskelmä with every other cap already tighter. The setting whose whole
+        // promise is smoothness is the one that cannot afford to buy a fix with a
+        // wider interval — and where no repair is available inside the gap it found,
+        // the note simply stands, which is the same fallback the loop already has.
+        && widest(c) <= (opts.strictness >= 4 ? before : before + 1)
         && !evaluateRules(context(c), opts.strictness, opts.rules).vetoed);
       if (better !== undefined) { midis[i] = better; break; }
     }

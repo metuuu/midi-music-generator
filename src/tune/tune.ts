@@ -42,7 +42,14 @@ export interface TuneOptions {
   repetition: number;
   /** Multiplier on the voice's onset density, from the section plan. */
   density?: number;
-  /** Forced rather than drawn. */
+  /**
+   * The kind of tune this is, declared rather than drawn here.
+   *
+   * Supplied on every path that goes through `auditionTune`, which draws it once for
+   * the whole audition — see there for why the judge must not be the one choosing.
+   * Left out, this falls back to a draw, which is right for a single unjudged tune
+   * and is what the tune lab and the checks use.
+   */
   archetype?: ArchetypeId;
   /**
    * What kind of section this is, as a bias on which archetypes are drawn and how
@@ -77,7 +84,21 @@ export function composeTune(opts: TuneOptions): Tune {
   const sectionSlots = bars * slotsPerBar;
   const span = slotsPerBar * (voice.canvasBars ?? 2);
 
-  const archetypeId = opts.archetype ?? rng.weighted(archetypeWeights(voice, opts.shape));
+  /**
+   * The draw happens whether or not the archetype was declared, and its result is
+   * then thrown away if it was.
+   *
+   * This looks wasteful and is load-bearing. `AuditionOptions` states the project's
+   * rule about randomness: a draw added or removed must not move decisions that have
+   * nothing to do with it — "the same fault that made adding one drum-source draw
+   * move every song in the project". Skipping this draw when the audition supplies an
+   * archetype would take one number off the front of the tape and shift every motif,
+   * form and arc behind it, so declaring the archetype would silently rewrite the
+   * catalogue and every measurement taken on it. Keeping the draw means the only
+   * thing the declaration changes is the thing it declares.
+   */
+  const drawn = rng.weighted(archetypeWeights(voice, opts.shape, opts.idiom));
+  const archetypeId = opts.archetype ?? drawn;
   const arch = ARCHETYPES[archetypeId];
   const subset = rng.weighted(voice.subsets).slice();
 
@@ -224,16 +245,43 @@ export interface Audition extends Tune {
  * test of whether the judge is measuring anything: if best-of-a-hundred and
  * worst-of-a-hundred are hard to tell apart by ear, the scoring is decoration. See
  * `docs/tune-plan.md` Phase 3.
+ *
+ * **The archetype is drawn here, once, and every attempt is handed it.**
+ *
+ * `judge.ts` claims its first defence against Goodharting is that the score is
+ * conditional — measured against a declared archetype rather than against tunes in
+ * general. That claim was false while the archetype was drawn inside `composeTune`,
+ * because then twenty-four attempts drew twenty-four archetypes and the judge chose
+ * between them: it was comparing scores computed with *different weight sets*, which
+ * is not a comparison. Archetypes are not equally scorable under their own weights —
+ * measured over 128 sections, `wide-interval` averaged 0.651 and `arch-hook` 0.699 —
+ * and a 5% handicap under max-of-24 is fatal. `wide-interval` won 11 auditions where
+ * chance would give it 32, `long-note` 11 against 24, while `chant` — which lowers
+ * its own `interest` weight to 0.5 and raises `figure` to 1.9, trading the hard term
+ * for the easy one — won 33 against 17.
+ *
+ * So the judge was quietly deleting two thirds of the two most characterful kinds of
+ * tune in the table, and the effect compounds across a catalogue: winners measured
+ * more like each other than random candidates did, in every genre. Declaring the
+ * archetype before the audition is what the doc always said happened, and it costs
+ * one draw.
+ *
+ * Its own RNG stream, for the reason the per-attempt streams have theirs: drawn off
+ * attempt 0's tape, changing `attempts` would silently rewrite which *kind* of tune
+ * every section of every song is.
  */
 export function auditionTune(opts: AuditionOptions): { best: Audition; worst: Audition } {
   const slotsPerBar = Math.round(opts.ctx.beatsPerBar * SLOTS_PER_BEAT);
   const bars = opts.ctx.chords.length;
   const canvasBars = opts.voice.canvasBars ?? 2;
+  const archetype = opts.archetype
+    ?? new Rng(`${opts.tag}:archetype`)
+      .weighted(archetypeWeights(opts.voice, opts.shape, opts.idiom));
   let best: Audition | undefined;
   let worst: Audition | undefined;
 
   for (let k = 0; k < Math.max(1, opts.attempts); k++) {
-    const tune = composeTune({ ...opts, rng: new Rng(`${opts.tag}:${k}`) });
+    const tune = composeTune({ ...opts, archetype, rng: new Rng(`${opts.tag}:${k}`) });
     const arch = ARCHETYPES[tune.plan.archetype];
     const verdict = judge({
       notes: tune.notes,
