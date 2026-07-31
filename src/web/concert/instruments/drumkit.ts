@@ -94,6 +94,26 @@ const HAT_SHUT = CYMBAL_THICK + 0.002;
 const HAT_OPEN = 0.055;
 
 /**
+ * How far the hats bounce apart on a foot press, and how long that takes to
+ * settle, in beats.
+ *
+ * Without this a chick played on already-shut hats is a gesture with nothing at
+ * the end of it: the gap is set to the number it is already at, so the board
+ * does not turn, the cymbals do not move, and the leg pumps a pedal that is
+ * nailed flat. That is the one drum voice whose whole performance is the foot,
+ * and it was the only one you could not see.
+ *
+ * A rebound rather than a lift, because the lift happens before the beat and
+ * `react` does not arrive until the beat — the model is told what was played,
+ * never what is about to be. It is also what a shut hi-hat actually does under
+ * a foot: the cymbals clash, part a few millimetres off each other, and settle.
+ * A third of the open gap is enough to read across a stage and small enough
+ * that the board's end of it stays under the sole.
+ */
+const HAT_CHICK = 0.016;
+const HAT_CHICK_TAU = 0.10;
+
+/**
  * Where each voice is struck, and which way "off the drum" points.
  *
  * One table, consulted by `resolve` and used to place the geometry, so the
@@ -946,6 +966,8 @@ export const buildDrumkit: InstrumentBuilder = (opts) => {
   beater.rotation.x = BEATER_REST;
 
   const hatGap = new Eased(0.09, HAT_SHUT);
+  /** The foot's own mark on the hats, on top of whatever state they are in. */
+  const hatChick = new Hit();
 
   // --- Throne --------------------------------------------------------------
 
@@ -1018,6 +1040,9 @@ export const buildDrumkit: InstrumentBuilder = (opts) => {
           else {
             hatGap.set(now, HAT_SHUT);
             cymbals.hatTop.hit.fire(now, f * 0.3);
+            // The press itself, which the gap alone cannot carry: shutting hats
+            // that are already shut is a change of nothing. See `HAT_CHICK`.
+            hatChick.fire(now, f);
           }
         }
         return;
@@ -1072,6 +1097,12 @@ export const buildDrumkit: InstrumentBuilder = (opts) => {
       // shorter, and the hats are two cymbals clamped together and barely move
       // at all. The vertical bob is small but it is what sells the hit from
       // straight on, where a rotation about the stand is nearly invisible.
+
+      // The gap, once, for everything made of it. The eased state is where the
+      // foot is holding the hats; the chick is the press that put it there, and
+      // a press onto hats that were already shut is *only* the second term.
+      const gap = hatGap.value(now) + HAT_CHICK * hatChick.decay(now, HAT_CHICK_TAU);
+
       for (const id of ['hatTop', 'crash', 'ride'] as CymbalId[]) {
         const c = cymbals[id];
         const m = CYMBAL_MOTION[id];
@@ -1079,20 +1110,21 @@ export const buildDrumkit: InstrumentBuilder = (opts) => {
         c.mesh.rotation.z = c.tilt + w * m.swing;
         c.mesh.rotation.x = w * m.swing * 0.55;
         c.mesh.position.y = c.baseY + w * m.swing * 0.04
-          + (id === 'hatTop' ? hatGap.value(now) : 0);
+          + (id === 'hatTop' ? gap : 0);
       }
 
       // A pressed board flattens onto the boards; it does not swing past them.
       kickPedal.hinge.rotation.x = kickPedal.tilt * (1 - kickPedal.hit.decay(now, 0.22));
 
       // The hat board is not driven by its own hits at all: it is drawn from
-      // the gap, because the gap is *made of* the board. A pedal that flattened
-      // on a chick and then rose again while the hats stayed shut would be a
-      // hi-hat held closed by nothing, and a stick-played open hat would part
-      // two cymbals over a pedal that never moved. One number, drawn twice —
+      // the gap, because the gap is *made of* the board. A pedal that rose on
+      // its own while the hats stayed shut would be a hi-hat held closed by
+      // nothing, and a stick-played open hat would part two cymbals over a
+      // pedal that never moved. One number, drawn twice — the chick included,
+      // which is why it is a term in `gap` rather than a second opinion here —
       // and the same number the choreography sent the foot to, so the leg, the
       // board and the daylight between the cymbals cannot disagree.
-      const open = (hatGap.value(now) - HAT_SHUT) / (HAT_OPEN - HAT_SHUT);
+      const open = (gap - HAT_SHUT) / (HAT_OPEN - HAT_SHUT);
       hatPedal.hinge.rotation.x = hatPedal.tilt * (open < 0 ? 0 : open > 1 ? 1 : open);
 
       beater.rotation.x = BEATER_REST
