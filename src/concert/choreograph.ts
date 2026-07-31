@@ -651,6 +651,7 @@ function gesturesFor(
         only: i === 0 ? 'left-hand' : 'right-hand',
         atBoard: Math.min(i, top),
       }));
+      patchPart(parts, performer, board);
     }
   }
 
@@ -681,6 +682,116 @@ function gesturesFor(
  */
 const PANEL_PREP = 0.75;
 const PANEL_RELEASE = 0.75;
+
+/**
+ * Whether this limb is clear to spend `PANEL_PREP`…`PANEL_RELEASE` on a panel.
+ *
+ * **Not `board.canReach`, and answering the wrong one of these two questions
+ * cost three quarters of the machine gestures once already.** `canReach`
+ * compares a candidate beat with that limb's most recent placement, which is
+ * exactly right while a part is being written forwards — and every caller here
+ * runs *after* the whole part is on the schedule, so the most recent placement
+ * is the last note of the number and every candidate beat looks like the past.
+ * It could only ever have placed a gesture after the final note.
+ *
+ * So the window is checked against the gestures themselves: a limb is busy from
+ * `beat - prep` to `beat + release`, and a panel touch needs its own such
+ * window clear of all of them.
+ */
+function panelFree(board: Board, hand: Hand, beat: number): boolean {
+  return !board.gestures.some((g) => (
+    g.effector === hand
+    && beat + PANEL_RELEASE > g.beat - g.prep
+    && beat - PANEL_PREP < g.beat + g.release
+  ));
+}
+
+/**
+ * The one hand that could be on the panel at `beat`, left by preference.
+ *
+ * A right hand is where the tune usually is on a keyboard, so the left is the
+ * one more often idle at a section boundary. `undefined` where both are busy.
+ */
+function freeHand(board: Board, beat: number): Hand | undefined {
+  if (panelFree(board, 'left-hand', beat)) return 'left-hand';
+  if (panelFree(board, 'right-hand', beat)) return 'right-hand';
+  return undefined;
+}
+
+/** A hand on a panel: the player's own where `machine` is absent. */
+function panelTouch(board: Board, hand: Hand, beat: number, at: number, machine?: number): void {
+  board.place({
+    effector: hand,
+    beat,
+    kind: 'press',
+    travel: 0.5,
+    force: 0.45,
+    sustainBeats: 0.5,
+    targets: [{ kind: 'control', at, ...(machine === undefined ? {} : { machine }) }],
+  });
+}
+
+/**
+ * One keyboard, two lines, two sounds — so somebody changes it.
+ *
+ * `mergeStations` folds a thin line into a player who is already standing at a
+ * keyboard, and on a polysynth (`maxBoards: 1`) both lines come out of the one
+ * instrument. Two different patches out of one synthesiser with nobody touching
+ * it is the same silent-cause problem `operatePart` exists to answer, one
+ * object closer in: the sound changes and the stage offers no reason.
+ *
+ * **Only where the lines take turns.** Two parts sounding at once on one
+ * keyboard is a split — the bass under the left hand and the lead under the
+ * right, one patch keyed across the boards — and a player does not reach for
+ * anything to do it. What earns a press is a line that stops and a different
+ * one that starts, which is exactly the shape of a thin part: a colour that
+ * arrives for a section and leaves again.
+ *
+ * The press goes in the gap *before* the incoming line, walking back half a
+ * beat at a time and then in whole ones until a hand is free, for the reason a
+ * start switch does: you change the sound before you play it, not while it is
+ * coming out. Four beats is as far back as it looks — beyond that the reach has
+ * stopped belonging to the line it is for, and the sound would sit changed and
+ * unused for a bar.
+ */
+function patchPart(
+  parts: { track: Track; notes: NoteEvent[] }[], performer: Performer, board: Board,
+): void {
+  // A second board carries the second sound on its own; nothing to press.
+  if ((performer.boards ?? 1) > 1) return;
+  if (new Set(parts.map((p) => p.track.instrument)).size < 2) return;
+
+  const spans = parts.map((p) => p.notes.map((n) => [n.beat, n.beat + n.duration] as const));
+  for (let i = 0; i < spans.length; i++) {
+    for (let j = i + 1; j < spans.length; j++) {
+      const together = spans[i]!.some(([a, b]) => spans[j]!.some(
+        ([c, d]) => a < d - 1e-6 && b > c + 1e-6,
+      ));
+      if (together) return;
+    }
+  }
+
+  const timeline = parts
+    .flatMap((part, owner) => part.notes.map((n) => ({ beat: n.beat, owner })))
+    .sort((a, b) => a.beat - b.beat);
+
+  let changes = 0;
+  for (let i = 1; i < timeline.length; i++) {
+    if (timeline[i]!.owner === timeline[i - 1]!.owner) continue;
+    const into = timeline[i]!.beat;
+    for (const step of [-0.5, -1, -1.5, -2, -3, -4]) {
+      const beat = quantise(into + step);
+      if (beat < 0) break;
+      const hand = freeHand(board, beat);
+      if (!hand) continue;
+      // Along the panel rather than at one spot: two sounds are two presets,
+      // and a player reaching for the same button twice has selected one thing.
+      panelTouch(board, hand, beat, 0.16 + 0.6 * ((changes % 3) / 2));
+      break;
+    }
+    changes++;
+  }
+}
 
 /**
  * Working a machine that is playing itself.
@@ -822,13 +933,9 @@ function operatePart(song: Song, machines: StageMachine[], board: Board): void {
      */
     if (lastBeat > first) moments.push({ beat: quantise(lastBeat + 0.5), at: 0.12 });
 
-    /**
-     * The free hand, and it is the left by preference.
-     *
-     * A right hand is where the tune usually is on a keyboard, so the left is
-     * the one more often idle at a section boundary. `canReach` settles it
-     * either way — this only decides who is asked first.
-     */
+    /** How many of this machine's moments actually got a hand. */
+    let touches = 0;
+
     for (const moment of moments) {
       /**
        * A start may happen *early*, and that is not a concession — it is what
@@ -855,51 +962,59 @@ function operatePart(song: Song, machines: StageMachine[], board: Board): void {
         ? [0, -0.25, -0.5, -0.75, -1, -1.5, -2, -3, -4, -6, -8]
           .map((d) => moment.beat + d).filter((b) => b >= 0)
         : [moment.beat];
-      let placed = false;
+      /**
+       * A hand that is free *then*, rather than free since it last moved. See
+       * `panelFree` — this runs after the whole part is on the schedule, so the
+       * question `board.canReach` answers is the wrong one here.
+       *
+       * What is lost even so, measured across twenty machine numbers: two, and
+       * both are the same case. Their figure begins on beat 0, so the walk
+       * backwards has nowhere to walk to — every candidate is filtered off the
+       * front of the number — and the player's own part begins on that downbeat
+       * with both hands. The settling touch below is what catches those.
+       */
       for (const beat of tries) {
-        if (placed) break;
-        /**
-         * Whether a hand is free *then*, rather than free since it last moved.
-         *
-         * `board.canReach` is the wrong question here and answering it cost
-         * three quarters of these gestures. It compares a candidate beat with
-         * that limb's most recent placement, which is exactly right while a
-         * part is being written forwards — and this runs *after* the whole part
-         * is on the schedule, so the most recent placement is the last note of
-         * the number and every candidate beat looks like the past. It could
-         * only ever have placed a gesture after the final note.
-         *
-         * So the window is checked against the gestures themselves. A limb is
-         * busy from `beat - prep` to `beat + release`; a panel touch needs its
-         * own such window clear.
-         *
-         * What is still lost, measured across twenty machine numbers: two, and
-         * both are the same case. Their figure begins on beat 0, so the walk
-         * backwards has nowhere to walk to — every candidate is filtered off
-         * the front of the number — and the player's own part begins on that
-         * downbeat with both hands. Narrowing the window does not help; there
-         * is one beat to try and it is occupied. The fix is a start *before*
-         * the number, which is a decision about where a number begins rather
-         * than about this loop.
-         */
-        const free = (hand: Hand): boolean => !board.gestures.some((g) => (
-          g.effector === hand
-          && beat + PANEL_RELEASE > g.beat - g.prep
-          && beat - PANEL_PREP < g.beat + g.release
-        ));
-        const hand: Hand = free('left-hand') ? 'left-hand'
-          : free('right-hand') ? 'right-hand' : 'left-hand';
-        if (!free(hand)) continue;
-        placed = true;
-        board.place({
-          effector: hand,
-          beat,
-          kind: 'press',
-          travel: 0.5,
-          force: 0.45,
-          sustainBeats: 0.5,
-          targets: [{ kind: 'control', at: moment.at, machine: index }],
-        });
+        const hand = freeHand(board, beat);
+        if (!hand) continue;
+        panelTouch(board, hand, beat, moment.at, index);
+        touches++;
+        break;
+      }
+    }
+
+    /**
+     * …and a box nobody ever touched gets one touch, wherever there is room.
+     *
+     * Every gesture above is tied to a moment in the music — the entry, a turn
+     * in the filter, a seam, the stop — which is what makes them honest, and
+     * also what lets a machine end up with none of them: a figure that starts on
+     * beat 0 has no earlier beat to be started from, a drum pattern has no
+     * brightness to turn, and a player whose own part covers the seams has no
+     * hand to spare at any of them. Measured before this: 29 of 317 staged
+     * machines were never touched at all, and 11 of those stood on a stage with
+     * another box beside them that *was* worked — two identical shoeboxes, one
+     * of them plainly somebody's and the other plainly furniture.
+     *
+     * So: anywhere this machine is running, any hand that is free, one press.
+     * It invents nothing about the music — the level and the tone of a running
+     * box are a player's to settle at any point — and it is the difference
+     * between a machine that belongs to somebody and a machine that is scenery.
+     * Walking forwards from the first thing it plays, because the sooner the
+     * audience sees whose it is the less of the number it has spent unexplained.
+     *
+     * Half a bar at a time rather than a bar: the four boxes a whole-bar walk
+     * still missed were all minded by pad players, whose chords are struck on
+     * the downbeats and held, so the free room in their hands is the second half
+     * of the bar and a search that only ever asked about the first found none of
+     * it. At half a bar every machine measured — 317 of them — is worked.
+     */
+    if (!touches) {
+      const step = song.meta.beatsPerBar / 2;
+      for (let beat = quantise(first + step); beat < lastBeat; beat = quantise(beat + step)) {
+        const hand = freeHand(board, beat);
+        if (!hand) continue;
+        panelTouch(board, hand, beat, 0.3, index);
+        break;
       }
     }
   });

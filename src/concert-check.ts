@@ -387,10 +387,25 @@ check('visemes exist exactly when there is a voice', visemeGaps === 0,
 {
   /** Arm's reach. Past this it is furniture standing near somebody, not their gear. */
   const MACHINE_REACH = 1.1;
+  /**
+   * How far off the panel may be aimed, and how close two cases may stand.
+   *
+   * The aim is a constructed quantity, so the tolerance is only there to catch
+   * a sign or a stale position rather than to allow a range — a panel more than
+   * a few degrees off its player has been computed from something other than
+   * where that player ended up. The spacing is a case width: two boxes nearer
+   * than that are one object drawn twice, which is what a second machine at a
+   * player who can only work one of them looks like.
+   */
+  const MACHINE_AIM = 5 * Math.PI / 180;
+  const MACHINE_APART = 0.4;
   let mimed = 0;
   let untended = 0;
   let adrift = 0;
   let askew = 0;
+  let worstAim = 0;
+  let doubled = 0;
+  let piled = 0;
   let overKeys = 0;
   let floating = 0;
   let onTheRight = 0;
@@ -488,9 +503,30 @@ check('visemes exist exactly when there is a voice', visemeGaps === 0,
               if (notes.length < 3) notes.push(`${gid}#${i} stand foot at ${deck.toFixed(2)}`);
             }
           }
-          if (m.mount !== 'bay' && Math.abs(m.facing) > Math.abs(tender.station.facing) + 1e-6) {
-            askew++;
-            if (notes.length < 3) notes.push(`${gid}#${i} turned further than its player`);
+          /**
+           * And its panel is pointed at the person who reads it.
+           *
+           * The box stands beside its player, not in front of them, so a yaw
+           * copied or scaled from theirs leaves the buttons facing the back
+           * wall and the player working a case edge-on. The panel is the `-z`
+           * face — see `MACHINE_PANEL_Z` — and the angle between that face and
+           * the line to the tender is the whole assertion. It lands near a
+           * right angle to the house by consequence rather than by rule.
+           */
+          if (m.mount !== 'bay') {
+            const to = Math.hypot(dx, dz);
+            // `dx`/`dz` run box-to-player-*wards* the wrong way — they are the
+            // box's offset *from* the player — so the dot with the panel's
+            // `-z` comes out as the plain sines rather than their negatives.
+            const aim = to < 1e-6 ? 0 : Math.acos(Math.max(-1, Math.min(1,
+              (Math.sin(m.facing) * dx + Math.cos(m.facing) * dz) / to)));
+            worstAim = Math.max(worstAim, aim);
+            if (aim > MACHINE_AIM) {
+              askew++;
+              if (notes.length < 3) {
+                notes.push(`${gid}#${i} panel ${(aim * 180 / Math.PI).toFixed(0)}° off its player`);
+              }
+            }
           }
           /**
            * A bay is drawn *by* the tender's instrument, so only a rig that has
@@ -509,6 +545,39 @@ check('visemes exist exactly when there is a voice', visemeGaps === 0,
         for (const m of placed) {
           const [x, , z] = m.position;
           if (Math.abs(x) > halfW + 0.01 || Math.abs(z) > halfD + 0.01) offStage++;
+        }
+        /**
+         * One box per pair of hands, and no two of them in the same place.
+         *
+         * The claim a machine makes on the stage is that the person beside it
+         * works it, and one person can only make that claim for one box: a
+         * second at the same elbow is an object nobody is ever seen touching,
+         * standing next to one they are. Distance catches the same fault where
+         * it does not go through a tender — an untended stage used to give
+         * every machine the same fallback point and draw two cases at one spot.
+         */
+        const perTender = new Map<string, number>();
+        for (const m of placed) {
+          if (!m.tendedBy) continue;
+          const n = (perTender.get(m.tendedBy) ?? 0) + 1;
+          perTender.set(m.tendedBy, n);
+          if (n === 2) {
+            doubled++;
+            if (notes.length < 3) notes.push(`${gid}#${i} ${m.tendedBy} minds two`);
+          }
+        }
+        const cases = placed.filter((m) => m.mount !== 'bay');
+        for (let a = 0; a < cases.length; a++) {
+          for (let b = a + 1; b < cases.length; b++) {
+            const gap = Math.hypot(
+              cases[a]!.position[0] - cases[b]!.position[0],
+              cases[a]!.position[2] - cases[b]!.position[2],
+            );
+            if (gap < MACHINE_APART) {
+              piled++;
+              if (notes.length < 3) notes.push(`${gid}#${i} two cases ${gap.toFixed(2)} m apart`);
+            }
+          }
         }
       }
     }
@@ -532,9 +601,13 @@ check('visemes exist exactly when there is a voice', visemeGaps === 0,
   check('a machine bay only goes in a rig that has one', miscased === 0,
     miscased ? `${miscased} misrouted: ${notes.join('; ')}`
       : `${bays} in a modular, ${mounted} on a stand`);
-  check('a machine faces the room, not the stage', askew === 0,
-    askew ? `${askew} turned further than their player: ${notes.join('; ')}`
-      : `${machines} squarer to the house than the rig they sit on`);
+  check('a machine\'s panel faces the player who works it', askew === 0,
+    askew ? `${askew} pointed somewhere else: ${notes.join('; ')}`
+      : `${mounted} panels, worst ${(worstAim * 180 / Math.PI).toFixed(1)}° off`);
+  check('no two machines stand in one place', doubled === 0 && piled === 0,
+    doubled || piled
+      ? `${doubled} players minding two, ${piled} pairs within ${MACHINE_APART} m: ${notes.join('; ')}`
+      : `${machines} machine numbers, one box per pair of hands`);
 }
 
 /**
@@ -611,9 +684,23 @@ check('visemes exist exactly when there is a voice', visemeGaps === 0,
  * job on its own and let in exactly the wrong people. A drummer, a harpist, a
  * cellist and a mallet player all stand at their instruments and none of them
  * has a hand free between downbeats.
+ *
+ * Two more of the same family sit here, because they produce the same picture
+ * from the other end:
+ *
+ *  - **Nobody is staged with nothing to play.** An empty track used to stage a
+ *    whole person and rig, and what the audience got was a keyboard player whose
+ *    only movement all number was a hand on the drum machine beside them — a
+ *    sequenced part with a ghost player, except that the part was silent too.
+ *  - **Every box on the stage is somebody's.** A machine nobody is ever seen
+ *    touching is furniture, and it is worst where there are two of them and only
+ *    one is worked: the eye reads the untouched one as scenery and then doubts
+ *    the other. See the settling touch at the foot of `operatePart`.
  */
 {
   let ghosts = 0;
+  let silent = 0;
+  let idle = 0;
   let hostless = 0;
   let busyHost = 0;
   let sequencers = 0;
@@ -636,6 +723,8 @@ check('visemes exist exactly when there is a voice', visemeGaps === 0,
    */
   let lateEntries = 0;
   let lateSilent = 0;
+  let players = 0;
+  let boxes = 0;
   const BUSY = ['drumkit', 'harp', 'mallets', 'cello', 'upright-bass'];
   const notes: string[] = [];
   for (const gid of CHECKED_GENRES) {
@@ -646,11 +735,46 @@ check('visemes exist exactly when there is a voice', visemeGaps === 0,
           number.song.tracks.filter((t) => t.machine).map((t) => t.layer),
         );
         for (const p of number.cast.performers) {
+          players++;
+          const own = p.layer === 'drums'
+            ? number.song.drums.events.length
+            : trackForPart(number.song, p)?.notes.length ?? 0;
+          if (!own) {
+            silent++;
+            if (notes.length < 3) {
+              notes.push(`${gid}#${i} ${p.id}/${p.archetype} is staged with an empty part`);
+            }
+          }
           if (!machined.has(p.layer)) continue;
           ghosts++;
           if (notes.length < 3) notes.push(`${gid}#${i} ${p.id} plays a sequenced ${p.layer}`);
         }
         for (const m of number.cast.machines ?? []) {
+          /**
+           * Worked at all, by the hands it belongs to.
+           *
+           * `PlayPoint.machine` indexes into the machines *this player* tends,
+           * in cast order — the same reading `show.ts` does — so a player with
+           * two boxes has one of them at index 1 and a check that ignored the
+           * index would call both of them worked on the strength of one touch.
+           *
+           * A machine with no tender at all is somebody else's assertion: it is
+           * only reachable on a stage with nobody eligible standing on it, which
+           * is what `every sequencer has someone who could work it` is about.
+           */
+          if (m.tendedBy) {
+            boxes++;
+            const mine = (number.cast.machines ?? []).filter((x) => x.tendedBy === m.tendedBy);
+            const at = mine.indexOf(m);
+            const touched = (number.choreography.parts[m.tendedBy]?.gestures ?? [])
+              .some((g) => g.target.kind === 'control' && g.target.machine === at);
+            if (!touched) {
+              idle++;
+              if (notes.length < 3) {
+                notes.push(`${gid}#${i} ${m.id} stands untouched beside ${m.tendedBy}`);
+              }
+            }
+          }
           if (m.tendedBy) {
             const figure = m.layer
               ? number.song.tracks.find((t) => t.layer === m.layer)?.notes ?? []
@@ -685,6 +809,12 @@ check('visemes exist exactly when there is a voice', visemeGaps === 0,
   }
   check('nobody is staged playing a part a machine is playing', ghosts === 0,
     ghosts ? `${ghosts}: ${notes.join('; ')}` : `${sequencers} sequencers, no ghost players`);
+  check('nobody is staged with nothing to play', silent === 0,
+    silent ? `${silent} of ${players}: ${notes.join('; ')}`
+      : `${players} players, every one with notes of their own`);
+  check('every machine somebody minds is worked by hand', idle === 0,
+    idle ? `${idle} of ${boxes} never touched: ${notes.join('; ')}`
+      : `${boxes} minded machines, every one with a hand on it`);
   check('a machine that enters mid-number is visibly started', lateSilent === 0,
     lateSilent
       ? `${lateSilent} of ${lateEntries} enter with nobody touching them: ${notes.join('; ')}`

@@ -737,6 +737,43 @@ const MAX_PARTS = 2;
 const MERGE_CHANCE = 0.55;
 
 /**
+ * How little of a number a line can strike before it stops being a person.
+ *
+ * A tenth of the bars, counted where the notes *start* rather than where they
+ * are still sounding. Sustain is the wrong measure here: a pad holding one
+ * chord across twenty bars is audible for twenty bars and moves once, and what
+ * makes a station look alive is the hand arriving, not the note decaying.
+ *
+ * Loose on purpose. A player who comes in for the last chorus is a real thing
+ * and lands well over this; what it catches is the part that is a colour rather
+ * than a line — a few stabs, a chord at the top of each section — which is
+ * something a player already at a keyboard adds with their spare hand.
+ */
+const THIN_BARS = 0.1;
+
+/**
+ * Which bars of the number this line puts a hand down in.
+ *
+ * The one measure of "how busy is this player" the cast has, and it is used for
+ * two different questions — whether a line is thin enough to fold into somebody
+ * else, and which of the eligible players has a hand spare for a machine — so
+ * it is written once. Onsets rather than sounding time, because both questions
+ * are about hands and a held chord occupies a hand exactly once.
+ */
+function struckBars(song: Song, ref: PartRef): Set<number> {
+  const track = trackForPart(song, ref);
+  const bars = new Set<number>();
+  for (const n of track?.notes ?? []) bars.add(Math.floor(n.beat / song.meta.beatsPerBar));
+  return bars;
+}
+
+/** Whether this line strikes in fewer than `THIN_BARS` of the number's bars. */
+function isThin(song: Song, draft: Draft): boolean {
+  const struck = struckBars(song, draft);
+  return struck.size > 0 && struck.size < song.meta.totalBars * THIN_BARS;
+}
+
+/**
  * One player, two lines, where the music allows it.
  *
  * ## Why a stage of keyboard players was the wrong picture
@@ -774,6 +811,10 @@ const MERGE_CHANCE = 0.55;
  * than a bass player who happens to have the tune. That matters beyond
  * tidiness: the lead, the follow spot and the front line are all decided from
  * `layer`, and the surviving performer has to be the one the number is about.
+ *
+ * **A thin line merges whether the coin likes it or not.** See `THIN_BARS` and
+ * the loop below: the coin is there to vary how many keyboard players a band
+ * has, and a part of four notes is not a keyboard player either way.
  */
 function mergeStations(drafts: Draft[], song: Song, seed: string): void {
   const rng = new Rng(seed);
@@ -803,6 +844,38 @@ function mergeStations(drafts: Draft[], song: Song, seed: string): void {
    * band.
    */
   const folded: Draft[] = [];
+
+  /**
+   * A part too thin to be a person folds first, and no coin is thrown for it.
+   *
+   * The coin below is there for variation — a band with two keyboard players is
+   * as real as a band with one — and variation is not the question a four-note
+   * part asks. Measured across 160 numbers: 22 keyboard players carried ten
+   * notes or fewer through a whole number, and one of them struck four notes in
+   * eighty bars while minding a rhythm box. That is not a keyboard player who
+   * is having a quiet number, it is a body the stage has no reason to hold, and
+   * the audience reads it exactly as one: the only thing moving at that station
+   * is the machine's step row.
+   *
+   * So a thin line goes to somebody who is already playing, and it goes to the
+   * most prominent one with a hand to spare, which is the same order the coin
+   * loop uses and for the same reason. It never *hosts* — a person who plays
+   * four notes cannot be the one the number is about — and a stage with nothing
+   * but thin lines on it keeps them, because there is nobody busier to give
+   * them to.
+   *
+   * What it costs the host is a second sound on one keyboard, which is what
+   * `patchPart` in `choreograph.ts` is for.
+   */
+  const thin = new Set(queue.filter((d) => isThin(song, d)));
+  for (const part of thin) {
+    const host = queue.find((d) => !thin.has(d) && d.doubles.length + 1 < MAX_PARTS);
+    if (!host) continue;
+    host.doubles.push({ layer: part.layer, instrument: part.instrument });
+    folded.push(part);
+    queue.splice(queue.indexOf(part), 1);
+  }
+
   while (queue.length) {
     const host = queue.shift()!;
     if (host.doubles.length + 1 >= MAX_PARTS) continue;
@@ -899,6 +972,25 @@ function roster(
        * all three are busier rather than idler.
        */
       if (track.machine) continue;
+      /**
+       * …and neither does a part with nothing in it.
+       *
+       * A track with no notes is a part nobody is playing for a second reason —
+       * there is nothing to play — and it staged a whole person and rig anyway.
+       * Measured before this line existed: one number in about three thousand,
+       * always the `brass` layer of a synth number, and the picture it produced
+       * is the one worth the check. In "Telemetry" the empty part was cast as a
+       * modular player whose entire choreography came out as thirteen gestures,
+       * every one of them a hand on the sequencer bolted into their bay: a
+       * person standing at a wall of cabinets who plays nothing all number and
+       * whose only movement is working a box. Another seed staged the same
+       * empty part with no gestures at all — somebody standing perfectly still
+       * behind a polysynth for eighty bars.
+       *
+       * `boardsWanted` below already reads `!track?.notes.length`, so half of
+       * this file knew the case could happen. This is the other half.
+       */
+      if (!track.notes.length) continue;
       /**
        * The voice is not drawn from the instrument catalogue — it has no GM
        * program that means "a person" — so `archetypeForTrack` would look up a
@@ -1004,11 +1096,33 @@ function roster(
  * identical people behind five identical tables was never one bad model, it was
  * one model chosen five times.
  *
- * **The wall goes to the back of the queue.** A modular is furniture 1.7 m tall
- * and belongs upstage, so it goes to the *least* prominent keyboard players and
- * never to whoever is fronting the number — which is both the staging answer and
- * the historical one, since the person behind the wall of cabinets was the one
- * making textures rather than the one playing the tune.
+ * **The wall goes to the back of the queue** — or rather, it is *meant* to. A
+ * modular is furniture 1.7 m tall and belongs upstage, away from whoever is
+ * fronting the keys, which is both the staging answer and the historical one:
+ * the person behind the wall of cabinets was making textures rather than playing
+ * the tune.
+ *
+ * **The ordering below does not deliver that, and the claim this comment used to
+ * make is false.** Handing rigs out least prominent first looks like it puts the
+ * furniture at the back, but the draw is *without replacement*: the early
+ * players take rigs out of the pool and the late ones are left with whatever
+ * nobody wanted, so the leftover is pushed onto the most prominent player rather
+ * than away from them. Measured across 479 numbers — in a two-keyboard band, the
+ * commonest shape in the genre, the modular goes to the front keyboard 38% of
+ * the time and to the back one 20%. Backwards, and worst where it matters most.
+ *
+ * Fixing it in this function alone is not enough, which is why it is still
+ * written down rather than repaired. A penalty against the front keyboard is
+ * inert in the two-keyboard case, because freshness has already narrowed that
+ * player's choices to a single rig and a penalty against a lone option is not a
+ * penalty; letting them fall back to a repeat rig then moves which player hosts
+ * a sequencer, because a modular is the first tier `placeMachines` looks in.
+ * That used to be the hard half of this: boxes went out in slot order, so the
+ * knock-on was a machine on a two-handed melody line and `npm run concert`
+ * failing on a sequencer that starts itself. `placeMachines` now picks the hands
+ * with room while the box is running, which absorbs most of that — but the
+ * decisions are still one decision, not three: who stands behind the furniture,
+ * who has a spare hand, and who gets the box.
  */
 function assignRigs(slots: Slot[], year: number, genre: string, seed: string): void {
   const keys = slots.filter((s) => s.archetype === 'synth');
@@ -1291,39 +1405,38 @@ function stageBand(slots: Slot[], venue: Venue, seed: string): void {
 function sidewaysTurn(archetype: Archetype): number {
   switch (archetype) {
     /**
-     * A recital angle: turned across the stage, but not square to it.
+     * A recital angle, and the thing it aims is the lid.
      *
      * The keyboard sits between the pianist and the body of the instrument, so
      * a piano square-on to the house shows the audience a large closed lid with
      * the keys and the hands hidden behind it — which is the one thing a
      * pianist is worth watching for. Turning the player is the fix, and how far
-     * is the whole question.
+     * is decided by where the sound goes, because on a grand that is a
+     * direction rather than a place: the lid is hinged on the bass spine and
+     * props open over the bentside, so the instrument speaks along the turn
+     * *less a right angle*. At the old 1.32 that put the open lid fourteen
+     * degrees to the audience's **left** of straight downstage — and the piano
+     * is already a metre and a half that side of centre, thanks to
+     * `PIANO_SIDE`, so the two errors added and a quarter-turn of the house got
+     * the sound thrown past it into the wing. A lid propped for a room is
+     * pointed at the room.
      *
-     * A right angle is the concert-hall answer and it is a photograph of a
-     * silhouette: the audience gets a pure profile, one shoulder, and a
-     * keyboard receding straight away from them. So the number lives between
-     * that and square-on, and it lives closer to the right angle than it looks
-     * like it should, because two things move with it and both want more turn.
+     * So the turn is a right angle plus the bearing from the case to the middle
+     * of the crowd — about twelve degrees from where `PIANO_OFF_CENTRE` and the
+     * bulky end of a front line actually leave it, with the house running from
+     * the lip out past the back row. 1.77 aims the lid there.
      *
-     * The **lid** is one. It is hinged on the spine and opens across the case,
-     * so the direction the instrument speaks in is the turn less a right angle:
-     * at sixty-six degrees the open lid was still aimed a quarter-turn off the
-     * house, throwing the piano at the wing it stands in. Seventy-six brings it
-     * inside fifteen degrees of the audience, which is what a lid propped for a
-     * room is doing.
-     *
-     * The **player** is the other, and this is the part that reads as backwards
-     * until you stand where the camera is. The case is downstage-right of the
-     * bench at a shallow turn — between the pianist and a centred house — and
-     * squarer to the house it goes, the more of it the audience looks past to
-     * find the player. Turning further slides the whole instrument sideways out
-     * of that line, and the house gets the pianist beside their piano rather
-     * than behind it. Paired with `PIANO_SIDE` and `PIANO_OFF_CENTRE` it is the
-     * arrangement a photograph of a pianist is taken from; short of the profile
-     * a right angle would give, the house still sees more of a face than of a
-     * cheekbone, and both hands foreshortened rather than edge-on.
+     * Past a right angle is not past a profile, which is the part that reads as
+     * backwards until you stand where the camera is. The house is not straight
+     * downstage of a pianist parked at the audience's left — from the bench it
+     * bears some twenty degrees across — so a player turned 101° off the boards
+     * is still under 80° off the *house*, and it sees the front of them. What
+     * the extra turn spends is a little more of the face for a little more
+     * cheekbone; what it buys is a piano that plays at the audience instead of
+     * at the masking, and a case that keeps sliding sideways out of the line
+     * the house looks along to find the player.
      */
-    case 'grand-piano': return 1.32;
+    case 'grand-piano': return 1.77;
     case 'organ': case 'electric-piano': case 'synth': return 0.45;
     case 'mallets': case 'harp': return 0.3;
     case 'upright-bass': return 0.2;
@@ -2724,29 +2837,6 @@ const MACHINE_AHEAD = 0.20;
 const MACHINE_TABLE_DROP = 0.08;
 
 /**
- * How far behind the first a second machine's stand goes.
- *
- * Backwards rather than further out, because sideways is where the reach runs
- * out: 0.92 m is already a lean. Each box brings its own stand, and this is the
- * depth of a top plus daylight, so two of them abut into a bench rather than
- * growing through one another.
- */
-const MACHINE_STACK_BACK = 0.28;
-
-/**
- * How much of the player's own turn the machine takes.
- *
- * Not all of it, which is what it used to take, and that was the second half of
- * the complaint about this object: a player toed 26° into the gear arc handed
- * the machine the same 26°, and the panel — the only part of it with anything
- * to see on — pointed across the stage instead of at the room. Not none of it
- * either, or the stand would sit square to the house beside a player who is
- * not, and read as something delivered rather than something theirs. A third
- * keeps it plainly part of their corner and still square enough to read.
- */
-const MACHINE_SQUARE = 0.34;
-
-/**
  * Stand the drum machine at somebody's right hand.
  *
  * **Beside the player, on a stand built for it — never on top of their
@@ -2787,32 +2877,58 @@ const MACHINE_SQUARE = 0.34;
  * it, and the type still says so.
  */
 function placeMachines(song: Song, slots: Slot[], venue: Venue): StageMachine[] {
+  /** The bars a figure is running across, end to end, gaps included. */
+  const runOf = (beats: readonly { beat: number }[]): Set<number> => {
+    const out = new Set<number>();
+    if (!beats.length) return out;
+    let lo = Infinity;
+    let hi = 0;
+    for (const n of beats) {
+      if (n.beat < lo) lo = n.beat;
+      if (n.beat > hi) hi = n.beat;
+    }
+    const bar = song.meta.beatsPerBar;
+    for (let b = Math.floor(lo / bar); b <= Math.floor(hi / bar); b++) out.add(b);
+    return out;
+  };
+
   /**
    * Everything on this stage that is playing without hands, in one list.
    *
    * The percussion first, because it is the one every genre can have; then a
-   * sequencer per machine-played track. Ordering matters only in that it is
-   * stable — hosts are handed out in this order, so the drum machine goes to
-   * the most obvious player and the sequencers fill in behind it.
+   * sequencer per machine-played track. Hosts are handed out in this order, so
+   * the drum machine goes to the most obvious player and the sequencers fill in
+   * behind it — and the order decides who is left out as well, since the list
+   * of hosts stops rather than wrapping. Percussion first is therefore also
+   * what guarantees the part that most needs a visible source has one.
+   *
+   * **The sequencers behind it go shortest run first**, which is the same
+   * argument one level down. A figure that runs the whole number can be worked
+   * anywhere in it; one that runs for ten bars has to be worked in those ten,
+   * so it is the fussier customer and it picks first. Handing them out in track
+   * order instead left a ten-bar counter figure with the one player whose hands
+   * were full for exactly those bars, and a box nobody touches is furniture —
+   * see `operatePart`'s settling touch, which is what fails when this is wrong.
    */
-  const wanted: { kind: StageMachine['kind']; id: string; bank: string; layer?: LayerId }[] = [];
+  const wanted: {
+    kind: StageMachine['kind']; id: string; bank: string; layer?: LayerId; runs: Set<number>;
+  }[] = [];
   const source = song.drums.source ?? 'kit';
   if (song.drums.events.length && !isPlayedByHand(source)) {
     wanted.push({
       kind: source === 'box' ? 'box' : 'programmed',
       id: 'machine',
       bank: song.drums.bank,
+      runs: runOf(song.drums.events),
     });
   }
-  for (const track of song.tracks) {
-    if (!track.machine) continue;
-    wanted.push({
-      kind: 'sequencer',
-      id: `sequencer-${track.layer}`,
-      bank: track.instrument,
-      layer: track.layer,
-    });
-  }
+  wanted.push(...song.tracks.filter((t) => t.machine).map((track) => ({
+    kind: 'sequencer' as const,
+    id: `sequencer-${track.layer}`,
+    bank: track.instrument,
+    layer: track.layer,
+    runs: runOf(track.notes),
+  })).sort((a, b) => a.runs.size - b.runs.size));
   if (!wanted.length) return [];
 
   /**
@@ -2826,9 +2942,9 @@ function placeMachines(song: Song, slots: Slot[], venue: Venue): StageMachine[] 
    * for a different reason — a player with both hands full of trombone has no
    * rig to bolt anything to.
    */
-  const hosts = [
-    ...slots.filter((s) => s.rig === 'modular'),
-    ...slots.filter((s) => s.rig !== 'modular' && GEAR.includes(s.archetype)),
+  const tiers: Slot[][] = [
+    slots.filter((s) => s.rig === 'modular'),
+    slots.filter((s) => s.rig !== 'modular' && GEAR.includes(s.archetype)),
     /**
      * …and only then anybody else standing at something, minus the two who
      * cannot possibly work a machine.
@@ -2840,29 +2956,87 @@ function placeMachines(song: Song, slots: Slot[], venue: Venue): StageMachine[] 
      * carrying their instrument" and none of them has a free hand between
      * downbeats, which is the thing that actually matters.
      */
-    ...slots.filter((s) => !GEAR.includes(s.archetype)
+    slots.filter((s) => !GEAR.includes(s.archetype)
       && !specFor(s.archetype).held
       && !BUSY_HANDS.includes(s.archetype)),
   ];
 
-  const out: StageMachine[] = [];
-  /** How many each host is already carrying, so a second one does not sit on the first. */
-  const load = new Map<Slot, number>();
+  /** Which bars each player's hands are down in — their own line and any they double. */
+  const struck = new Map<Slot, Set<number>>(slots.map((s) => [
+    s, new Set([s, ...s.doubles].flatMap((ref) => [...struckBars(song, ref)])),
+  ]));
 
-  wanted.forEach((want, i) => {
+  /**
+   * Inside every tier, the hands with the most room *while this box is running*.
+   *
+   * The tiers say who *can* work a machine; this says which of them will still
+   * have a hand free when it needs one, and it is not a tidiness fix. Every
+   * gesture on a panel is placed into a gap the player's own part leaves — see
+   * `operatePart` — so a box handed to somebody carrying a sixteenth-note line
+   * through every bar it plays in gets no gesture at all, and a box nobody is
+   * ever seen touching is furniture. Measured with the tiers handed out in slot
+   * order: 7 of 621 staged machines went untouched from end to end, and their
+   * tenders were the comp and melody players on stages where a pad player was
+   * standing right there with nothing in their hands.
+   *
+   * *While it is running* rather than overall, because that is the window the
+   * gesture has to land in: a player who is busy for the first half of a number
+   * and still for the second is the right person for a box that comes in at the
+   * bridge and the wrong one for a box that runs from bar one. Overall idleness
+   * is the tie-break behind it, and the tier order is the tie-break behind that.
+   */
+  const taken = new Set<Slot>();
+  const hostFor = (runs: Set<number>): Slot | undefined => {
+    for (const tier of tiers) {
+      const free = tier.filter((s) => !taken.has(s));
+      if (!free.length) continue;
+      const busyIn = (s: Slot): number => {
+        let n = 0;
+        for (const b of struck.get(s) ?? []) if (runs.has(b)) n++;
+        return n;
+      };
+      const best = [...free].sort((a, b) => busyIn(a) - busyIn(b)
+        || (struck.get(a)?.size ?? 0) - (struck.get(b)?.size ?? 0))[0]!;
+      taken.add(best);
+      return best;
+    }
+    return undefined;
+  };
+
+  const out: StageMachine[] = [];
+
+  wanted.forEach((want) => {
     /**
-     * Round-robin over the hosts.
+     * One host, one box. Never two, and never a second in the same spot.
      *
-     * One player with three machines bolted to them is a stall rather than a
-     * station, and it is also a worse picture: the whole reason a sequencer is
-     * worth staging is that somebody visibly works it, and one pair of hands
-     * cannot visibly work three things.
+     * A host is taken out of the pool once they have a box rather than coming
+     * round again. Round-robin came back to the head of the list once every
+     * host had one, and what it produced was a second shoebox 28 cm behind
+     * the first at the same player's elbow — the object whose whole
+     * claim on the stage is that somebody is seen working it, standing next to
+     * an identical one that nobody can be, because a player has one pair of
+     * hands and the choreographer only ever sends them to one panel. Two boxes
+     * where one is worked reads as scenery twice over: it makes the audience
+     * doubt the one that *is* real.
+     *
+     * The empty stage was the same fault without even the offset. With no
+     * hosts at all every machine took the same fallback position, so an ambient
+     * number with a rhythm box and a bass sequencer put two cases at exactly
+     * one point — the same box drawn twice, z-fighting, neither of them tended.
+     * One stands there now and the rest are not staged.
+     *
+     * What that costs is a machine-played part with no object of its own, and
+     * it is charged in the right order: `wanted` puts the percussion first, so
+     * what goes unstaged is a pitched sequencer figure on a stage that has
+     * already run out of people. Percussion — the part that arrives from
+     * nowhere loudest, and the reason §8.1 exists — always gets the first host.
      */
-    const tender = hosts.length ? hosts[i % hosts.length] : undefined;
+    const tender = hostFor(want.runs);
 
     if (!tender) {
       // Nobody on stage at all — an ambient number of tape and voices. It goes
       // where the kit would have been, and the type says it has no tender.
+      if (out.length) return;
       out.push({
         id: want.id,
         kind: want.kind,
@@ -2875,9 +3049,6 @@ function placeMachines(song: Song, slots: Slot[], venue: Venue): StageMachine[] 
       });
       return;
     }
-
-    const nth = load.get(tender) ?? 0;
-    load.set(tender, nth + 1);
 
     /**
      * The player's own right, and their forward, in stage coordinates.
@@ -2898,12 +3069,11 @@ function placeMachines(song: Song, slots: Slot[], venue: Venue): StageMachine[] 
     const fwdZ = cos;
 
     const work = specFor(tender.archetype).workHeight;
-    const ahead = MACHINE_AHEAD - nth * MACHINE_STACK_BACK;
     const stand = work - MACHINE_TABLE_DROP;
 
     const spot = (side: number): [number, number] => [
-      tender.x + side * MACHINE_BESIDE * rightX + ahead * fwdX,
-      tender.z + side * MACHINE_BESIDE * rightZ + ahead * fwdZ,
+      tender.x + side * MACHINE_BESIDE * rightX + MACHINE_AHEAD * fwdX,
+      tender.z + side * MACHINE_BESIDE * rightZ + MACHINE_AHEAD * fwdZ,
     ];
     /**
      * The right hand unless somebody else's gear is standing in it.
@@ -2935,7 +3105,31 @@ function placeMachines(song: Song, slots: Slot[], venue: Venue): StageMachine[] 
       bank: want.bank,
       ...(want.layer ? { layer: want.layer } : {}),
       position: [round(px), round(tender.riser + stand), round(pz)],
-      facing: round(tender.facing * MACHINE_SQUARE),
+      /**
+       * Turned to face the person working it, which is across the stage
+       * rather than out at the room.
+       *
+       * The box's panel faces its own `-z` — see `MACHINE_PANEL_Z` — and its
+       * player is not in front of it, they are *beside* it, a metre to one
+       * side. A yaw taken from the player's own therefore stood the case
+       * square to the house with its buttons pointing at the back wall, and
+       * the player working it reached sideways at a panel edge-on to them.
+       * That is not how a box on a stand at your elbow sits: you turn it in.
+       *
+       * So the panel is aimed at the tender directly, and it comes out at
+       * roughly a right angle to the front of the stage because that is where
+       * the player is standing. Not *quite* square, and the residue is worth
+       * the arithmetic: the stand sits `MACHINE_AHEAD` downstage of them, so
+       * aiming at the body tips the panel about twelve degrees back toward the
+       * house — enough that the step lamps still read from the seats without
+       * the case pretending its audience is out there. Its audience is the one
+       * person who has to find the start switch.
+       *
+       * The vector is player-to-box and not box-to-player, because the panel
+       * is on the case's `-z` face: the yaw whose *back* points away from the
+       * player is the one whose front points at them.
+       */
+      facing: round(Math.atan2(px - tender.x, pz - tender.z)),
       /**
        * A modular contains it; everything else stands it beside the player.
        *
