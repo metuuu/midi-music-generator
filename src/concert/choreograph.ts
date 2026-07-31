@@ -27,11 +27,14 @@
  *     miming to a recording — which, technically, it is, so the one thing the
  *     animation must never do is admit it.
  *
- *  3. **Hand assignment is greedy by proximity in the instrument's own space,**
- *     with a hard "can it get there in time" test that is allowed to override
+ *  3. **Hand assignment is by proximity in the instrument's own space,** with a
+ *     hard "can it get there in time" test that is allowed to override
  *     proximity. There is no geometry here, so proximity cannot be metres; see
  *     `kitDistance` and `whereInRange` for what it is instead, and for the
- *     limitation that implies.
+ *     limitation that implies. Greedy everywhere except the kit, where a
+ *     drummer's two sticks are planned as a path rather than a series of
+ *     independent choices — see `planSticking`, and the argument there for why
+ *     greedy cannot answer "which hand starts the fill".
  *
  *  4. **Sustaining instruments do not strike.** A bowed line travels and changes
  *     direction; a blown line does not travel at all — the fingers move and the
@@ -299,20 +302,42 @@ class Board {
  * for that, since crashes arrive loud and a loud hit already buys a bigger
  * windup. And it treats the kit as symmetric for a left-handed player, which
  * nobody has asked for.
+ *
+ * ## The ordering is now load-bearing, and four entries had to be corrected
+ *
+ * "The relative ordering will still be right, which is all the metric uses" was
+ * true while the only question asked of this table was how long a stroke takes.
+ * It is not the only question any more: `tangle` reads `sweep` as *which side of
+ * the body a surface is on* and `tier` as *whether an arm can pass over another
+ * one*, so a voice filed on the wrong side of its neighbours no longer costs a
+ * few milliseconds of windup, it sends the wrong hand across the kit.
+ *
+ * Four entries disagreed with the kit the renderer actually builds, and all four
+ * moved to agree with it. The clap pad is not beside the snare, it is on a boom
+ * *outboard of the crash*, which is the far left of the kit and the longest
+ * reach on it. Brushes are played on the snare — `sh` resolves to a point a
+ * centimetre above the batter head — so they are at the snare's sweep rather
+ * than out past the mid tom. The woodblock is to the *right* of the mid tom on
+ * its bracket, not to the left of it. And both bracket pieces are mounted a full
+ * head-height above the drums, which is `tier: 1` for the same reason a ride is.
+ *
+ * This is still not geometry — no metre appears here and none may — but where
+ * the model has an opinion about which side of a drummer something stands, this
+ * table now shares it.
  */
 const KIT: Record<DrumVoice, { sweep: number; tier: number }> = {
+  cp: { sweep: 0.02, tier: 0 },
   hh: { sweep: 0.06, tier: 1 },
   oh: { sweep: 0.06, tier: 1 },
   cr: { sweep: 0.18, tier: 1 },
+  rim: { sweep: 0.32, tier: 0 },
   sd: { sweep: 0.34, tier: 0 },
-  rim: { sweep: 0.34, tier: 0 },
-  cp: { sweep: 0.36, tier: 0 },
+  sh: { sweep: 0.34, tier: 0 },
   ht: { sweep: 0.46, tier: 0 },
   cb: { sweep: 0.50, tier: 1 },
   bd: { sweep: 0.50, tier: 0 }, // a foot; here so the record is total
-  perc: { sweep: 0.54, tier: 0 },
-  sh: { sweep: 0.58, tier: 0 },
   mt: { sweep: 0.64, tier: 0 },
+  perc: { sweep: 0.70, tier: 1 },
   lt: { sweep: 0.78, tier: 0 },
   rd: { sweep: 0.90, tier: 1 },
 };
@@ -992,6 +1017,520 @@ const ORGAN_MANUAL_BOTTOM = 36;
 // Drums
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Sticking
+// ---------------------------------------------------------------------------
+
+/**
+ * Which hand plays which stroke — the one decision on this kit an audience can
+ * read at fifteen metres, and the one greedy proximity gets wrong.
+ *
+ * Four facts about a pair of arms, none of which is a distance to the next drum:
+ *
+ *  1. **A hand cannot repeat as fast as two hands can alternate.** A stick
+ *     bounces, so a single hand will hold down eighths all night, but sixteenths
+ *     past about 115 bpm are two hands trading — and a moving figure runs out of
+ *     hand far sooner than a stationary one, because the stick has to be carried
+ *     as well as lifted. That is `REPEAT_SECONDS`, and it is the whole of "use
+ *     both hands for fast stuff": nothing here counts notes or measures a tempo,
+ *     it just becomes cheaper to alternate than to hurry one arm.
+ *
+ *  2. **Arms are in each other's way.** `tangle`, below.
+ *
+ *  3. **A right-handed drummer leads with the right.** The timekeeper is under
+ *     the lead hand and the backbeat under the other, which is what makes the
+ *     hats-over-snare cross the *normal* posture rather than an accident.
+ *
+ *  4. **Which hand starts a fill is decided by where the fill ends.** This is
+ *     the one that cannot be greedy. Coming off a groove into `sd ht mt lt`, the
+ *     first stroke is a coin toss on proximity alone — both sticks are a snare's
+ *     width away — and the two choices differ only three strokes later, where
+ *     one of them has the left hand out on the floor tom with the right stranded
+ *     on the mid and the other does not. A per-stroke choice cannot see that, so
+ *     the sticking for a whole part is solved as a path instead: every stroke is
+ *     a state, every state is scored, and the cheapest way through the part wins.
+ *     A drummer calls this working out the sticking, and does it in the bar's
+ *     rest before the fill.
+ */
+
+/**
+ * How long one hand needs between two strokes, in **seconds**:
+ * `base + travel × reach`, the same shape as `PREP_SECONDS`.
+ *
+ * Two thresholds rather than one, because "can a hand do this" and "would a
+ * drummer ask a hand to" are different questions and the space between them is
+ * where the sticking is actually decided.
+ *
+ * `floor` is the physical limit: below it the stroke does not happen and the
+ * planner will pay almost anything to avoid asking for it. It is not
+ * `PREP_SECONDS.strike`, which is a *windup* — how long the stick has been on
+ * its way — and fifty milliseconds looks impossibly short next to it until you
+ * remember what the stationary case is: the second half of a double is the
+ * stick's own rebound, and a rebound comes back in about that.
+ *
+ * `ease` is what one hand does without being asked twice. Its base is small on
+ * purpose and is stretched by `BURST_FADE` below; nearly all of the standing
+ * cost is in the travel term, and that is the point. A stick that has to be
+ * *carried* from the high tom to the mid tom has spent most of the gap
+ * travelling before the stroke is started, which is why a fill runs out of one
+ * hand at a tempo a hi-hat pattern is comfortable at.
+ */
+const REPEAT_SECONDS = {
+  floor: [0.050, 0.22] as const,
+  ease: [0.060, 0.28] as const,
+};
+
+/**
+ * A hand can burst, and cannot sustain — which is the distinction a single
+ * threshold cannot draw, and the one drumming is actually made of.
+ *
+ * A jazz ride at 150 bpm puts two strokes a tenth of a second apart and then
+ * leaves the hand alone for three times that. Straight sixteenths at the same
+ * tempo put every stroke a tenth of a second apart for thirty-two bars. The gaps
+ * are identical and the answers are opposite: the first is one hand playing
+ * spang-a-lang, which is the most recognisable figure in the idiom, and the
+ * second is two hands trading, because nobody's right arm does that for a
+ * chorus. Scored on the gap alone the planner has to get one of them wrong, and
+ * it got the ride wrong — it broke the swing pattern across both hands, which is
+ * a jazz drummer nobody would book.
+ *
+ * So a hand carries a `run`: how many strokes it has already made inside
+ * `BURST_SECONDS` of each other. Every run resets the moment the hand gets a
+ * breath. `ease` stretches by `BURST_FADE` for each stroke of it, so the first
+ * fast repeat is free, the second is asked for, and the fourth is refused —
+ * which is a stick's rebound running out, told in the order it runs out in.
+ *
+ * `BURST_SECONDS` is therefore the sustainable rate rather than a fast one:
+ * eight strokes a second, which is sixteenths at 120 bpm or eighths at 240, and
+ * a right hand really will hold either of those down for a whole number. Only
+ * what is faster than a hand can *keep up* counts toward a run, which is why the
+ * ordinary rock groove — eighths on the hats at any tempo this generator writes
+ * — never reaches this machinery at all and stays where it belongs, in one hand,
+ * crossed over a left hand on the snare.
+ */
+const BURST_SECONDS = 0.125;
+const BURST_FADE = 1.10;
+const RUN_CAP = 3;
+
+/**
+ * The same two numbers for the left foot, which is the other limb that can take
+ * a closed hat — and a foot is not a hand. A heel-down pedal stroke lives around
+ * five or six a second at the outside, where a hand bursts at twenty, so the
+ * foot is offered the hats it can hold down rather than the ones it cannot.
+ */
+const FOOT_SECONDS = { floor: 0.115, ease: 0.200 };
+
+/**
+ * What each thing costs the planner, in units where 1 is a stick crossing the
+ * whole kit. The ratios are the argument; the absolutes are not.
+ *
+ * **Travel is cheap on purpose.** It is the one term that would otherwise decide
+ * everything, and in the wrong direction: an arm that never moves never pays,
+ * so a planner that weighted travel heavily would keep one hand parked and play
+ * the whole fill with the other. Travel here is a preference for the nearer
+ * stick between two that are both free, and nothing more — the *hard* cost of
+ * moving a stick is time, and that is charged by `REPEAT_SECONDS` instead.
+ *
+ * `STUCK` is not infinite because a demand no sticking can meet must still
+ * produce a sticking: thirty-second notes on one surface arrive occasionally and
+ * the drummer plays them as best they can rather than throwing.
+ */
+const TRAVEL_COST = 0.35;
+const CRAMPED_COST = 2.0;
+const STUCK_COST = 12;
+const LEAD_COST = 0.06;
+
+/**
+ * What it costs to take a stroke with the hand that took the one before it,
+ * **when the stroke is somewhere else on the kit** — and this is the term that
+ * makes a fill look like drumming.
+ *
+ * Everything above it is about what a hand *can* do, and by that measure a
+ * three-stroke tom fill at 160 bpm is comfortably one-handed: half a second to
+ * cross two drums, both sticks free, and the nearest one is the one that just
+ * played. So that is what came out — the left hand walking `ht mt lt` on its own
+ * while the right arm hung there — and it is wrong for a reason no feasibility
+ * test can state. Drummers alternate. It is the first thing anybody is taught,
+ * it is why the rudiments are named after it, and a fill played with one arm
+ * reads as a man tapping rather than a man playing.
+ *
+ * The condition is what keeps it honest: **only when the surface changes.** A
+ * hand repeating on one surface is not a failure to alternate, it is the
+ * timekeeping hand doing its job, and charging it here would break the one thing
+ * on this kit that must not break — the right hand riding the hats for a whole
+ * number while the left answers on the snare.
+ */
+const DOUBLE_COST = 0.35;
+
+/**
+ * A cymbal that is not the timekeeper belongs to the lead hand, and this is a
+ * much larger claim than `LEAD_COST` because it is a much stronger convention.
+ *
+ * A crash on the downbeat is the right arm coming up over the hats. It is the
+ * one gesture an audience reads from the back of a hall and there is no
+ * right-handed kit on which the left hand takes it — the left hand is down on
+ * the snare, a foot lower and half a metre back, and reaching it across and up
+ * to a crash is a movement nobody makes when the other stick is free.
+ *
+ * Being *above* `DOUBLE_COST` is the whole point of the number: without it the
+ * alternation rule sends the crash to the left hand purely because the right one
+ * played the last hat, which is the correct instinct applied to the one stroke
+ * it does not apply to.
+ */
+const CYMBAL_LEAD_COST = 0.45;
+
+/**
+ * What it costs to give a closed hat to the left foot rather than to a stick.
+ *
+ * The foot is not free and must not be cheap: a chick and a stick on a shut
+ * hi-hat are different sounds, and a planner that could reach for the pedal
+ * whenever it was convenient would quietly take the drummer's right arm out of
+ * the groove — the arm being the thing an audience is watching. So this is
+ * priced above a comfortable stick stroke and below an awkward one, which makes
+ * the foot exactly what a drummer uses it for: the hat that keeps ticking while
+ * both hands are busy elsewhere.
+ *
+ * It is what puts a jazz drummer back together. A ride pattern with the hats on
+ * two and four and the snare comping between them is three voices for two
+ * sticks, over and over, and the sticks-only answer is the right hand hopping
+ * off the ride onto the snare and the left hand tapping the hats — a drummer
+ * playing their own kit backwards. The hats on two and four are a *foot*, and
+ * this is the number that says so without anything having to know it is jazz.
+ */
+const CHICK_COST = 0.25;
+
+/**
+ * The cost of the two arms being crossed, per unit of overlap — and the reason
+ * there are two numbers rather than a prohibition.
+ *
+ * A drummer's hands are crossed most of the time and it is not a bug. The right
+ * hand keeps time on the hi-hat, which is out at the *left* of a right-handed
+ * kit, while the left hand plays a snare that is further right than the hats
+ * are: crossed, by any definition, and the single most recognisable thing a
+ * drummer's arms do. What makes it work is that the crossing hand is on a cymbal
+ * *above* the hand it crosses — the right forearm passes over the left, they
+ * never meet, and the reach costs almost nothing.
+ *
+ * So the tier difference is the whole distinction. Right hand higher: an arm
+ * passing over an arm, which is `OVER` and nearly free. Level or lower: two
+ * forearms competing for the same air, which is `THROUGH` and expensive enough
+ * that the planner will re-stick a whole fill to avoid it. A left hand out on
+ * the floor tom with the right hand back on the high tom is the case this
+ * number exists to delete, and it is what greedy proximity produced.
+ */
+const OVER_COST = 0.25;
+const THROUGH_COST = 1.6;
+
+/**
+ * How far the hands may cross before it counts as crossing at all.
+ *
+ * Two sticks on neighbouring toms are about a hand's width apart whichever way
+ * round they are, and calling that a tangle is what stopped fills alternating:
+ * every descending fill crosses the hands *somewhere*, because the toms run
+ * left to right and two hands taking turns have to trade places to follow them.
+ * Charged from zero, the planner's answer was to keep one arm still, which is
+ * the one thing worse than a momentary cross.
+ *
+ * A fifth of the kit is roughly the width of a tom, and it is the width at which
+ * two forearms stop being near each other and start being in each other's way.
+ */
+const CROSS_SLACK = 0.18;
+
+/** How many partial stickings survive each stroke. See `planSticking`. */
+const STICKING_WIDTH = 24;
+
+/**
+ * How badly these two hands are in each other's way, given where each of them
+ * last struck.
+ *
+ * Positive depth is the left hand standing to the right of the right hand,
+ * measured along the kit's own sweep — the only axis this file has, and enough,
+ * because crossing is a fact about the left-to-right order of two arms.
+ *
+ * A crossing is charged for as long as it stands, and **not** faded by how long
+ * ago either arm last moved — which is what it used to do, and the fade was the
+ * single worst bug in this planner.
+ *
+ * The reasoning behind the fade was that an arm which struck half a second ago
+ * has come back to a hover and is not in anybody's way. It is even true. What it
+ * misses is that a *station* is not a position: an arm that keeps returning to
+ * the same wrong place is stationed there, and the tell is that the fade could
+ * only ever be escaped by playing *slowly*. So a jazz drummer alternating the
+ * ride and the hats a beat apart got the crossing for nothing, and settled into
+ * the left hand out on the ride with the right hand over on the hi-hats — arms
+ * fully swapped, held for a whole number, at zero cost. It was 0.8% of every
+ * posture in the corpus and every one of them was this.
+ *
+ * `CROSS_SLACK` is what makes the un-faded reading safe: it is transient
+ * crossings the fade was really trying to forgive, and a tom's width of slack
+ * forgives them without pretending an arm has gone home. It is also the reading
+ * the renderer agrees with — a drummer's idle hands hover over the mean of what
+ * that hand has been playing, so a hand that keeps playing the ride *is* over
+ * the ride between strokes.
+ */
+function tangle(left: DrumVoice, right: DrumVoice): number {
+  const { depth, over } = crossing(left, right);
+  return depth <= 0 ? 0 : depth * (over ? OVER_COST : THROUGH_COST);
+}
+
+/**
+ * How far past each other the two sticks are, and whether the right forearm has
+ * the height to pass over the left.
+ */
+function crossing(left: DrumVoice, right: DrumVoice): { depth: number; over: boolean } {
+  return {
+    depth: KIT[left].sweep - KIT[right].sweep - CROSS_SLACK,
+    over: KIT[right].tier > KIT[left].tier,
+  };
+}
+
+/**
+ * Whether a pair of arms in these two places is knotted: crossed by more than
+ * they can be waved off as, with neither forearm clear of the other.
+ *
+ * **Exported for `concert-check.ts`**, which asserts that a drummer is almost
+ * never in one — the same reason `oneHanded` is exported, and the same rule
+ * about which direction the import runs. What the arms can do is a fact this
+ * file owns; the check is entitled to ask, and not to re-derive.
+ *
+ * The hats-over-snare cross that a drummer holds all night is deliberately *not*
+ * one of these, and that is the whole distinction: the right hand is up on a
+ * cymbal and the left is down on a head, so the arms never meet. See `tangle`.
+ */
+export function armsKnotted(left: DrumVoice, right: DrumVoice): boolean {
+  const { depth, over } = crossing(left, right);
+  return depth > 0 && !over;
+}
+
+/**
+ * The lead hand's claim on a surface, in three strengths.
+ *
+ * The **timekeeper and the backbeat** are the two anchors a groove is built out
+ * of, and their claim is deliberately tiny — a twentieth of a kit-crossing —
+ * because it is a convention rather than a constraint. It decides nothing except
+ * the cases where everything else is level, and those are exactly the cases
+ * where a drummer falls back on habit: the timekeeper under the right hand and
+ * the backbeat under the left, on every right-handed kit ever set up.
+ *
+ * Without even that much, a fast hi-hat pattern comes out *open-handed* — the
+ * two sticks alternate on the hats, so at the backbeat the cheapest thing is for
+ * the right hand to take the snare and the left to stay on the hats, which is
+ * uncrossed, physically sound, and not what anybody does.
+ *
+ * Being tiny is also what lets the fast pattern alternate in the first place,
+ * and it is why the timekeeper is tested *before* `CYMBAL_LEAD_COST` rather than
+ * falling into it. A hi-hat is a cymbal; the hi-hat a drummer is keeping time on
+ * is not an accent, and pricing the left hand off it at accent rates would buy
+ * back the very thing the whole `run` machinery exists to produce.
+ */
+function anchorCost(hand: Hand, voice: DrumVoice, timekeeper: DrumVoice): number {
+  const lead = hand === 'right-hand';
+  if (voice === timekeeper) return lead ? 0 : LEAD_COST;
+  if (voice === 'sd' || voice === 'rim') return lead ? LEAD_COST : 0;
+  return KIT[voice].tier === 1 && !lead ? CYMBAL_LEAD_COST : 0;
+}
+
+/** One beat's worth of work for the sticks, after the kick has taken its own. */
+interface StickSlot {
+  beat: number;
+  /** The one or two strokes that need a stick of their own, loudest first. */
+  primary: DrumEvent[];
+  /** A third surface on a two-stick kit — see the end of `drumPart`. */
+  extra: DrumEvent[];
+  /**
+   * When the left foot last had the hat pedal for a chick this beat or before,
+   * counting only the ones already decided — see the overflow rule in
+   * `drumPart`. The planner's own chicks are in its state; these are not, so
+   * they are carried alongside as a floor under it.
+   */
+  footFrom: number;
+}
+
+/** Which limb takes which stroke, for one slot. */
+interface Deal {
+  strokes: ReadonlyArray<readonly [Hand, DrumEvent]>;
+  /** A closed hat handed to the left foot instead of to a stick. */
+  chick?: DrumEvent;
+}
+
+/** Where a stick is, when it got there, and how long it has been hurrying. */
+interface Where {
+  voice: DrumVoice;
+  beat: number;
+  run: number;
+}
+
+interface Sticking {
+  cost: number;
+  left: Where;
+  right: Where;
+  /** When the left foot last chicked. */
+  foot: number;
+  /** Index into the previous slot's surviving stickings. */
+  from: number;
+  deal: Deal;
+}
+
+/**
+ * Every way this slot's strokes could be shared out.
+ *
+ * Two ways to deal a slot between two sticks, and two more for each of them if
+ * one of the strokes is a closed hat, because a closed hat has a third limb that
+ * can make it. An open hat has not: the pedal being down is what closes a
+ * hi-hat, so `oh` is always somebody's stick.
+ *
+ * The conventional deal is listed first so that a tie breaks toward habit rather
+ * than toward whatever the sort happens to do.
+ */
+function dealsFor(primary: readonly DrumEvent[], footBusy: boolean): Deal[] {
+  const [a, b] = primary;
+  const out: Deal[] = [];
+  if (a && b) {
+    out.push({ strokes: [['left-hand', a], ['right-hand', b]] });
+    out.push({ strokes: [['right-hand', a], ['left-hand', b]] });
+  } else if (a) {
+    out.push({ strokes: [['right-hand', a]] });
+    out.push({ strokes: [['left-hand', a]] });
+  } else {
+    return [{ strokes: [] }];
+  }
+  if (footBusy) return out;
+  // The hat, on the foot, and whatever is left over on whichever stick suits.
+  const hat = a?.voice === 'hh' ? a : b?.voice === 'hh' ? b : undefined;
+  if (hat) {
+    const rest = hat === a ? b : a;
+    if (rest) {
+      out.push({ strokes: [['left-hand', rest]], chick: hat });
+      out.push({ strokes: [['right-hand', rest]], chick: hat });
+    } else {
+      out.push({ strokes: [], chick: hat });
+    }
+  }
+  return out;
+}
+
+/**
+ * Solve the sticking for a whole drum part.
+ *
+ * A Viterbi pass, and the state is small enough to say out loud: where each
+ * stick is and when it last struck. Every slot offers two ways to share its
+ * strokes out, each is scored against the state it would leave behind, and
+ * states that come out identical keep only their cheapest history — which is
+ * what stops two choices per slot from becoming two to the power of the song.
+ *
+ * "Identical" needs the ages rather than the beats, and needs them capped: a
+ * hand that struck a second ago and a hand that struck a minute ago are the same
+ * hand as far as anything here can tell, so `horizon` folds the whole of the
+ * past into one state and the live set stays at a handful. `STICKING_WIDTH` is a
+ * backstop for the pathological part rather than a working limit.
+ */
+function planSticking(
+  slots: readonly StickSlot[], board: Board, timekeeper: DrumVoice,
+): Deal[] {
+  /** Past this, nothing in the scoring can tell one gap from another. */
+  const horizon = board.toBeats(Math.max(
+    BURST_SECONDS, FOOT_SECONDS.ease,
+    REPEAT_SECONDS.ease[0] * (1 + BURST_FADE * RUN_CAP) + REPEAT_SECONDS.ease[1],
+  ));
+
+  const burst = board.toBeats(BURST_SECONDS);
+
+  const score = (
+    from: Sticking, deal: Deal, slot: StickSlot,
+  ): { cost: number; left: Where; right: Where; foot: number } => {
+    const beat = slot.beat;
+    let cost = 0;
+    let left = from.left;
+    let right = from.right;
+    let foot = Math.max(from.foot, slot.footFrom);
+    /** Whose turn it would not be. `undefined` when both struck together. */
+    const played = left.beat === right.beat ? undefined
+      : left.beat > right.beat ? 'left-hand' : 'right-hand';
+
+    for (const [hand, e] of deal.strokes) {
+      const at = hand === 'left-hand' ? left : right;
+      const travel = kitDistance(at.voice, e.voice);
+      const gap = beat - at.beat;
+      const floor = board.toBeats(REPEAT_SECONDS.floor[0] + REPEAT_SECONDS.floor[1] * travel);
+      const ease = board.toBeats(
+        REPEAT_SECONDS.ease[0] * (1 + BURST_FADE * at.run) + REPEAT_SECONDS.ease[1] * travel,
+      );
+      if (gap < floor) cost += STUCK_COST;
+      else if (gap < ease) cost += CRAMPED_COST * (1 - gap / ease);
+      cost += TRAVEL_COST * travel;
+      cost += anchorCost(hand, e.voice, timekeeper);
+      if (hand === played && travel > 0) cost += DOUBLE_COST;
+      const now: Where = {
+        voice: e.voice, beat, run: gap < burst ? Math.min(at.run + 1, RUN_CAP) : 0,
+      };
+      if (hand === 'left-hand') left = now; else right = now;
+    }
+
+    if (deal.chick) {
+      cost += CHICK_COST;
+      const gap = beat - foot;
+      const ease = board.toBeats(FOOT_SECONDS.ease);
+      if (gap < board.toBeats(FOOT_SECONDS.floor)) cost += STUCK_COST;
+      else if (gap < ease) cost += CRAMPED_COST * (1 - gap / ease);
+      foot = beat;
+    }
+
+    // And the arms, where this deal has left them. Nothing to say until both of
+    // them have been somewhere: a hand that has not played yet is not crossed
+    // with anything, it is by the player's side.
+    const both = left.beat > -Infinity && right.beat > -Infinity;
+    return {
+      cost: cost + (both ? tangle(left.voice, right.voice) : 0), left, right, foot,
+    };
+  };
+
+  /**
+   * Where a drummer's hands start: the right on whatever this song keeps time
+   * on, the left on the snare. Both `-Infinity` ago, so the first stroke of the
+   * number is never charged for hurrying.
+   */
+  let live: Sticking[] = [{
+    cost: 0,
+    left: { voice: 'sd', beat: -Infinity, run: 0 },
+    right: { voice: timekeeper, beat: -Infinity, run: 0 },
+    foot: -Infinity,
+    from: -1,
+    deal: { strokes: [] },
+  }];
+  const steps: Sticking[][] = [];
+
+  for (const slot of slots) {
+    const merged = new Map<string, Sticking>();
+    const age = (at: number): number =>
+      Math.round(Math.min(slot.beat - at, horizon) * 1000);
+    const deals = dealsFor(slot.primary, slot.footFrom === slot.beat);
+    for (let i = 0; i < live.length; i++) {
+      const at = live[i]!;
+      for (const deal of deals) {
+        const { cost, left, right, foot } = score(at, deal, slot);
+        const total = at.cost + cost;
+        const key = `${left.voice}:${age(left.beat)}:${left.run}`
+          + `|${right.voice}:${age(right.beat)}:${right.run}|${age(foot)}`;
+        const seen = merged.get(key);
+        if (seen && seen.cost <= total) continue;
+        merged.set(key, { cost: total, left, right, foot, from: i, deal });
+      }
+    }
+    live = [...merged.values()].sort((a, b) => a.cost - b.cost).slice(0, STICKING_WIDTH);
+    steps.push(live);
+  }
+
+  // Back down the cheapest path. The sort above leaves it first.
+  const out: Deal[] = new Array(slots.length);
+  let at = 0;
+  for (let i = steps.length - 1; i >= 0; i--) {
+    const node = steps[i]![at]!;
+    out[i] = node.deal;
+    at = node.from;
+  }
+  return out;
+}
+
 /**
  * Two sticks, two pedals, and a scheduling problem.
  *
@@ -999,9 +1538,9 @@ const ORGAN_MANUAL_BOTTOM = 36;
  * exactly the one a table cannot express: a drummer keeping time on the hat with
  * the right hand and the backbeat with the left has to give the hat up when the
  * right hand crosses to the toms for a fill, and take it back afterwards. So the
- * hands start where a drummer's hands start — right on whatever this song's
- * timekeeper is, left on the snare — and every stroke afterwards goes to the
- * nearest stick that can physically get there.
+ * kick is settled first — it is the one limb whose job never moves — and
+ * everything else goes to `planSticking`, which works out both sticks and the
+ * hat foot together, for the whole part at once.
  *
  * Feet:
  *  - The kick is the right foot, always. `{kind: 'pedal', which: 'kick'}`.
@@ -1011,6 +1550,14 @@ const ORGAN_MANUAL_BOTTOM = 36;
  *    ticking through a tom fill, and the only limb left to tick it is the foot.
  *    Deriving that from the scheduler rather than from a rule is the difference
  *    between a drummer and a drum machine with arms.
+ *
+ *    Two routes on to that foot, and only the first of them is arithmetic. Three
+ *    surfaces on a two-stick kit is a *count*, and the hat goes down here before
+ *    anything is planned because no sticking can make three into two. The second
+ *    is a judgement and belongs to the planner, which is what `CHICK_COST` is
+ *    for: the hats on two and four under a jazz ride are two voices, not three,
+ *    and the reason they are still a foot is that the alternative takes the
+ *    right hand off the cymbal.
  *
  * Neither foot is ever given anything else, which is also what stops the groove
  * score from tapping a foot that is on a pedal.
@@ -1024,11 +1571,55 @@ function drumPart(events: DrumEvent[], board: Board): void {
     else slots.set(beat, [e]);
   }
   const beats = [...slots.keys()].sort((a, b) => a - b);
+  const timekeeper = timekeeperOf(events);
 
-  const hands: Record<'left-hand' | 'right-hand', DrumVoice> = {
-    'left-hand': 'sd',
-    'right-hand': timekeeperOf(events),
-  };
+  /**
+   * What each beat holds, worked out once and then choreographed twice.
+   *
+   * The pass has to be split, and the split is where the feature lives:
+   * `planSticking` decides the first stroke of a fill by looking at the last one
+   * of it, so it cannot be handed one beat at a time and cannot place anything
+   * as it goes. So this loop only sorts the events into limbs it is certain
+   * about, and everything a plan could change is put aside until there is one.
+   */
+  const here = new Map<number, DrumEvent[]>();
+  /** Hats a count, rather than a plan, has already sent to the foot. */
+  const chicks = new Map<number, DrumEvent[]>();
+  /** Surfaces past the second, which ride along with a stick that is going anyway. */
+  const extras = new Map<number, DrumEvent[]>();
+  const work: StickSlot[] = [];
+  let footFrom = -Infinity;
+
+  for (const beat of beats) {
+    // Loudest first: when two strokes compete for one stick, the accent should
+    // get the hand that is already near it and the ghost note should be the one
+    // that travels.
+    const all = slots.get(beat)!.slice().sort((a, b) => b.velocity - a.velocity);
+    here.set(beat, all);
+
+    let stickable = all.filter((x) => x.voice !== 'bd');
+
+    // More voices than sticks. A closed hat is the one that can be handed to a
+    // foot without lying about the sound; an *open* hat cannot, because the
+    // pedal being down is what makes a hat closed, so an open hat is always
+    // somebody's stick.
+    const forced: DrumEvent[] = [];
+    while (stickable.length > 2 && stickable.some((x) => x.voice === 'hh')) {
+      const i = stickable.map((x) => x.voice).lastIndexOf('hh');
+      const [hat] = stickable.splice(i, 1);
+      forced.push(hat!);
+    }
+    if (forced.length) footFrom = beat;
+
+    if (forced.length) chicks.set(beat, forced);
+    if (stickable.length) {
+      work.push({ beat, footFrom, primary: stickable.slice(0, 2), extra: stickable.slice(2) });
+      if (stickable.length > 2) extras.set(beat, stickable.slice(2));
+    }
+  }
+
+  // Both sticks and the hat foot, for the whole part, solved together.
+  const deals = planSticking(work, board, timekeeper);
 
   /**
    * Where the left foot has the hi-hat pedal — `undefined` until it has taken
@@ -1047,34 +1638,30 @@ function drumPart(events: DrumEvent[], board: Board): void {
    */
   let hatShut: boolean | undefined;
 
-  for (const beat of beats) {
-    // Loudest first: when two strokes compete for one stick, the accent should
-    // get the hand that is already near it and the ghost note should be the one
-    // that travels.
-    const here = slots.get(beat)!.slice().sort((a, b) => b.velocity - a.velocity);
+  const hands: Record<Hand, DrumVoice> = {
+    'left-hand': 'sd',
+    'right-hand': timekeeper,
+  };
+  const planned = new Map(work.map((slot, i) => [slot.beat, deals[i]!]));
 
-    for (const e of here.filter((x) => x.voice === 'bd')) {
+  for (const beat of beats) {
+    const all = here.get(beat)!;
+
+    for (const e of all.filter((x) => x.voice === 'bd')) {
       board.place({
         effector: 'right-foot', beat, kind: 'strike', travel: 0,
         force: e.velocity, targets: [{ kind: 'pedal', which: 'kick' }],
       });
     }
 
-    let stickable = here.filter((x) => x.voice !== 'bd');
-
-    // More voices than sticks. A closed hat is the one that can be handed to a
-    // foot without lying about the sound; an *open* hat cannot, because the
-    // pedal being down is what makes a hat closed, so an open hat is always
-    // somebody's stick.
-    let chicked = false;
-    while (stickable.length > 2 && stickable.some((x) => x.voice === 'hh')) {
-      const i = stickable.map((x) => x.voice).lastIndexOf('hh');
-      const [hat] = stickable.splice(i, 1);
+    const deal = planned.get(beat);
+    const onTheFoot = [...(chicks.get(beat) ?? [])];
+    if (deal?.chick) onTheFoot.push(deal.chick);
+    for (const hat of onTheFoot) {
       board.place({
         effector: 'left-foot', beat, kind: 'strike', travel: 0,
-        force: hat!.velocity, targets: [{ kind: 'pedal', which: 'hat', shut: true }],
+        force: hat.velocity, targets: [{ kind: 'pedal', which: 'hat', shut: true }],
       });
-      chicked = true;
     }
 
     // The foot, when it is not making a sound with the pedal but is still the
@@ -1082,10 +1669,10 @@ function drumPart(events: DrumEvent[], board: Board): void {
     // second gesture arguing with it for the limb on the same beat; anything
     // else that says something about the hats moves the leg iff the state it
     // asks for is not the state the leg is already holding.
-    if (chicked) hatShut = true;
+    if (onTheFoot.length) hatShut = true;
     else {
-      const asks = here.some((x) => x.voice === 'oh') ? false
-        : here.some((x) => x.voice === 'hh') ? true
+      const asks = all.some((x) => x.voice === 'oh') ? false
+        : all.some((x) => x.voice === 'hh') ? true
           : undefined;
       if (hatShut === undefined || (asks !== undefined && asks !== hatShut)) {
         const shut = asks ?? true;
@@ -1100,50 +1687,22 @@ function drumPart(events: DrumEvent[], board: Board): void {
       }
     }
 
-    // Two sticks, assigned as a pair rather than one at a time: with two strokes
-    // to place, the total travel of the better pairing is frequently smaller
-    // than what greedy-per-note produces, and the difference is the crossover.
-    const primary = stickable.slice(0, 2);
-    const [first, second] = primary;
-    let assignment: [Effector, DrumEvent][] = [];
-    if (first && second) {
-      const straight = kitDistance(hands['left-hand'], first.voice)
-        + kitDistance(hands['right-hand'], second.voice);
-      const crossed = kitDistance(hands['left-hand'], second.voice)
-        + kitDistance(hands['right-hand'], first.voice);
-      assignment = straight <= crossed
-        ? [['left-hand', first], ['right-hand', second]]
-        : [['left-hand', second], ['right-hand', first]];
-    } else if (first) {
-      const left = kitDistance(hands['left-hand'], first.voice);
-      const right = kitDistance(hands['right-hand'], first.voice);
-      const leftFree = board.canReach('left-hand', beat, left, 'strike');
-      const rightFree = board.canReach('right-hand', beat, right, 'strike');
-      // Proximity picks the stick; reachability overrules it. This is the only
-      // place the two disagree, and when they do it is because the near hand is
-      // still coming back from somewhere else — which is precisely the case the
-      // "cannot be in two places at once" rule exists for.
-      const useLeft = leftFree === rightFree ? left <= right : leftFree;
-      assignment = [[useLeft ? 'left-hand' : 'right-hand', first]];
-    }
-
-    for (const [effector, e] of assignment) {
-      const hand = effector as 'left-hand' | 'right-hand';
+    if (!deal) continue;
+    for (const [hand, e] of deal.strokes) {
       board.place({
-        effector, beat, kind: 'strike',
+        effector: hand, beat, kind: 'strike',
         travel: kitDistance(hands[hand], e.voice),
         force: e.velocity,
         targets: [{ kind: 'drum', voice: e.voice }],
       });
       hands[hand] = e.voice;
     }
-
     // Anything still left is a third surface on a two-stick kit, and it is
     // almost always a clap layered on the backbeat — which is one physical
     // event, not a third arm. It joins the nearest stick's stroke and inherits
     // its timing, so the limb is still in exactly one place.
-    for (const e of stickable.slice(2)) {
-      const hand: 'left-hand' | 'right-hand'
+    for (const e of extras.get(beat) ?? []) {
+      const hand: Hand
         = kitDistance(hands['left-hand'], e.voice) <= kitDistance(hands['right-hand'], e.voice)
           ? 'left-hand' : 'right-hand';
       board.place({

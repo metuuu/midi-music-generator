@@ -20,11 +20,11 @@
  */
 
 import { quantise } from './core/grid.js';
-import { isPlayedByHand } from './core/types.js';
+import { isPlayedByHand, type DrumVoice } from './core/types.js';
 import { generateSong } from './generate/song.js';
 import { GENRE_IDS, getGenre } from './genre/index.js';
 import { INSTRUMENTS, type InstrumentId } from './style/instruments.js';
-import { trackForPart } from './concert/choreograph.js';
+import { armsKnotted, trackForPart } from './concert/choreograph.js';
 import {
   ARCHETYPES, ARCHETYPE_OF, SYNTH_RIGS, archetypeForTrack, trackCanReach,
 } from './concert/instruments.js';
@@ -851,6 +851,91 @@ check('visemes exist exactly when there is a voice', visemeGaps === 0,
   check('two modulars flank rather than pile up', sameSide === 0,
     sameSide ? `${sameSide} of ${flanking} pairs on one side: ${notes.join('; ')}`
       : `${flanking} pairs straddle the centre line`);
+}
+
+/**
+ * Sticking: the drummer's arms are not knotted, and both of them play.
+ *
+ * The one part of this show whose failure mode is a *posture* rather than a
+ * missing gesture, which is why it needs its own assertion. Every physical rule
+ * above passes on a drummer whose left stick is out on the ride while the right
+ * one is back on the hi-hat: nothing is in two places, nothing overlaps its own
+ * release, every note has a hand. It is simply a person who could not exist, and
+ * the only way to see it in the IR is to ask where the two hands are at once.
+ *
+ * Two questions, and the second is why the first is not enough. **Knotted** is
+ * `armsKnotted` — crossed past a tom's width with neither forearm above the
+ * other — and the hats-over-snare cross a drummer holds all evening is
+ * deliberately not one, so this can be held near zero rather than at some
+ * tolerated percentage. **Both of them play** catches the opposite failure and
+ * the more tempting one: a planner can drive the knots to exactly zero by never
+ * moving the left arm at all, and a drummer playing a fill one-handed with the
+ * other stick hanging is no better than a drummer in a knot.
+ *
+ * What is counted is a knot that *persists* — knotted after this stroke and
+ * still knotted after the next one — rather than every instant of one. Arms
+ * cross in passing all the time and it is not a fault: `ht mt lt ht` alternated
+ * puts the right hand back on the high tom while the left is still coming off
+ * the floor tom, which is one eighth of daylight and is what the figure looks
+ * like when a person plays it. Measured per instant this reads 1.4% and says
+ * nothing; measured as a posture the drummer is left holding, it is the thing
+ * the eye actually objects to.
+ */
+{
+  let strokes = 0;
+  let knotted = 0;
+  let idleHand = 0;
+  let states = 0;
+  let worst = '';
+  for (const gid of CHECKED_GENRES) {
+    for (let i = 0; i < 4; i++) {
+      const concert = buildConcert({ seed: `check-${gid}-${i}`, genre: gid, vocals: 'mixed' });
+      for (const number of concert.numbers) {
+        for (const performer of number.cast.performers) {
+          if (performer.layer !== 'drums') continue;
+          const part = number.choreography.parts[performer.id];
+          if (!part) continue;
+          const hits = part.gestures
+            .filter((g): g is Gesture & { target: { kind: 'drum'; voice: DrumVoice } } =>
+              g.target.kind === 'drum'
+              && (g.effector === 'left-hand' || g.effector === 'right-hand'))
+            .sort((a, b) => a.beat - b.beat);
+
+          const at: Record<'left-hand' | 'right-hand', { voice: DrumVoice; beat: number }> = {
+            'left-hand': { voice: 'sd', beat: -Infinity },
+            'right-hand': { voice: 'hh', beat: -Infinity },
+          };
+          /** Consecutive strokes on one hand that each moved somewhere new. */
+          let solo = 0;
+          let wasKnotted = false;
+          for (const g of hits) {
+            const hand = g.effector as 'left-hand' | 'right-hand';
+            const other = hand === 'left-hand' ? 'right-hand' : 'left-hand';
+            solo = at[hand].beat > at[other].beat && at[hand].voice !== g.target.voice
+              ? solo + 1 : 0;
+            if (solo >= 3) { idleHand++; solo = 0; }
+            at[hand] = { voice: g.target.voice, beat: g.beat };
+            strokes++;
+            // Both hands have to have played before there is a posture at all.
+            if (at[other].beat === -Infinity) continue;
+            states++;
+            const now = armsKnotted(at['left-hand'].voice, at['right-hand'].voice);
+            if (now && wasKnotted) {
+              knotted++;
+              if (!worst) worst = `${gid} b${g.beat} L:${at['left-hand'].voice} R:${at['right-hand'].voice}`;
+            }
+            wasKnotted = now;
+          }
+        }
+      }
+    }
+  }
+  const rate = knotted / Math.max(states, 1);
+  check('the drummer\'s arms are never knotted', rate < 0.002,
+    `${(rate * 100).toFixed(2)}% of ${states} postures held${worst ? ` — ${worst}` : ''}`);
+  const idle = idleHand / Math.max(strokes, 1);
+  check('the drummer plays figures with both hands', idle < 0.004,
+    `${(idle * 100).toFixed(2)}% of ${strokes} strokes begin a one-armed figure`);
 }
 
 // Determinism — the property the whole repo is built on, at show scale.
