@@ -44,6 +44,20 @@ export function quantise(beat: number): number {
   return slotOf(beat) / SLOTS_PER_BEAT;
 }
 
+/**
+ * The last slot boundary at or before `beat`.
+ *
+ * For the gestures that *cause* a sound rather than accompany it. `quantise`
+ * rounds to the nearest slot and may therefore round forward, which is harmless
+ * for a hand that lands with a note and wrong for a hand that starts a machine:
+ * a first note at 165.44 quantises to 165.5, and a start gesture placed there is
+ * a player pressing the button after the box has already spoken. Sixteenths of a
+ * beat early is a player being ready; any amount late is cause following effect.
+ */
+export function quantiseDown(beat: number): number {
+  return Math.floor(beat * SLOTS_PER_BEAT) / SLOTS_PER_BEAT;
+}
+
 /** How far a note moves when it is put on the grid. Signed, in beats. */
 export function gridError(beat: number): number {
   return quantise(beat) - beat;

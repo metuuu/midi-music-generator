@@ -313,11 +313,28 @@ export function opsFor(intent: Intent, opts: FormOptions): Op[] {
       ] as const);
     }
 
+    /**
+     * Taking a figure apart is the one intent that may change how fast it moves.
+     *
+     * The double-time option is weighted where it used to be an also-ran, and the
+     * reason is that it was the engine's only route to a fast passage and it was
+     * effectively closed. Measured across the catalogue, 2% of sections contained a
+     * run of three consecutive sixteenths and the mean section's longest such run
+     * was a fifth of a note — there were, in practice, no fast passages anywhere.
+     * That is not a stylistic choice this project made; it is what happens when the
+     * one operator that can halve a note is drawn at weight 2 out of 11.5, inside an
+     * intent that only two of the six forms use, times a style appetite most voices
+     * set below 1.
+     *
+     * A development that moves at the same speed as its model is a transposition
+     * with extra steps. Speed is what "take it apart" means to a player.
+     */
     case 'develop':
       return pick([
         [[{ op: 'fragment', keep: 2 }, { op: 'sequence', times: 3, steps: -1 }], 3],
         [[{ op: 'fragment', keep: 3 }, { op: 'sequence', times: 2, steps: 1 }], 3],
-        [[{ op: 'diminish', factor: 2 }, { op: 'sequence', times: 2, steps: 0 }], 2],
+        [[{ op: 'diminish', factor: 2 }, { op: 'sequence', times: 2, steps: 0 }], 5],
+        [[{ op: 'diminish', factor: 2 }, { op: 'sequence', times: 2, steps: 1 }], 3],
         [[{ op: 'displace', by: 2 }, { op: 'invert' }], 2],
         [[{ op: 'invert' }, { op: 'expand', factor: 1.5 }], 1.5],
       ] as const);
@@ -346,6 +363,11 @@ export function opsFor(intent: Intent, opts: FormOptions): Op[] {
         [[{ op: 'expand', factor: 1.4 }], 2],
         [[{ op: 'displace', by: 2 }], 1.5],
         [[{ op: 'transpose', steps: 1 }, { op: 'ornament', amount: voice.ornament }], 1.5],
+        // The second half of a tiled section is the other place a player doubles
+        // up, and it is the only one available to the four forms that have no
+        // `develop` slot at all. Without it, a sixteen-bar chorus repeats itself at
+        // exactly one speed however many times it comes round.
+        [[{ op: 'diminish', factor: 2 }, { op: 'sequence', times: 2, steps: 0 }], 2],
       ] as const);
   }
 }

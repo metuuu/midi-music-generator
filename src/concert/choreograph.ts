@@ -45,7 +45,7 @@
  * (a breath, a bow lift), or by the mechanics of making one (bellows).
  */
 
-import { quantise } from '../core/grid.js';
+import { quantise, quantiseDown } from '../core/grid.js';
 import type { Midi } from '../core/pitch.js';
 import { Rng } from '../core/rng.js';
 import type { DrumEvent, DrumVoice, NoteEvent, Song, Track } from '../core/types.js';
@@ -720,7 +720,17 @@ function operatePart(song: Song, machines: StageMachine[], board: Board): void {
     }
     const first = quantise(lo);
     const lastBeat = quantise(hi);
-    moments.push({ beat: first, at: 0.12, start: true });
+    /**
+     * The start lands on the slot at or *before* the machine's first note.
+     *
+     * `quantise` rounds to the nearest slot and so can round forward: a counter
+     * entering at 165.44 gives a first note of 165.5 and a start gesture on top
+     * of it, which is a player pressing the button a sixteenth after the box has
+     * already spoken. Cause has to precede effect even by a hair, and this is the
+     * one gesture in the file where that is true — every other one accompanies a
+     * sound rather than causing it, which is why `quantise` is right for them.
+     */
+    moments.push({ beat: quantiseDown(lo), at: 0.12, start: true });
 
     /**
      * How far the filter moves across this part, and therefore what counts as
