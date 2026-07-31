@@ -1296,6 +1296,181 @@ export function undoubleAgainst(
   });
 }
 
+/**
+ * ## What the drummer's hand does, which the pattern does not say
+ *
+ * One drum pattern is drawn for the whole song — see the note beside that draw
+ * in `generate/song.ts`, and it is right: a band does not change its groove
+ * every eight bars. What a band *does* change is the hand. The hat rides on
+ * quarters through a verse and on eighths in the chorus; it moves to the ride
+ * cymbal when the record lifts; it opens on the offbeat. None of that is a
+ * different pattern and all of it was inexpressible, so the kit played sixteen
+ * identical slots for a hundred and ten bars and the only thing separating a
+ * verse from a last chorus was a gain multiplier and a fill at the seam.
+ *
+ * **This is deliberately not a second draw.** Redrawing from `Style.drums` per
+ * section would move the backbeat — `gated-backbeat` puts the snare on slot 8
+ * and `sixteenth-hats` puts it on 4 and 12 — and a song whose backbeat moves at
+ * the chorus is not a band varying a groove, it is two bands. What varies here
+ * is the timekeeping voice and how many hits it plays. Everything else in the
+ * pattern is untouchable, which `npm run genres` asserts rather than trusting.
+ *
+ * **And it is not `Feel` either**, though they are neighbours and were nearly
+ * one thing. A feel bends events that exist: it pushes them off the grid,
+ * scales them per sixteenth, ghosts a snare into a rest. It cannot say *which
+ * voice* a hit sounds on, because a voice is not a scalar — `accent` can make
+ * the hat quieter on the offbeats and there is no number that turns it into a
+ * ride. The two compose: a feel decides how the hand plays, this decides what
+ * it plays on.
+ */
+export interface KitVariation {
+  /** The timekeeping voice being varied. */
+  on: DrumVoice;
+  /** Where the hand moved, if it moved at all. */
+  to?: DrumVoice;
+  /**
+   * Keep every other hit of the hand.
+   *
+   * Uniformly the right thinning, which is why it is a flag rather than a
+   * density: halving sixteenths gives eighths, halving eighths gives quarters,
+   * and halving a swung ride of `[0, 6, 8, 14]` gives `[0, 8]` — the sparse
+   * version of each of those figures, and in every case the one a drummer
+   * actually drops to. Thinning by "keep the hits on beats" would be the same
+   * answer for the first two and nonsense for the third.
+   */
+  thin?: boolean;
+  /**
+   * Indices into the hand's surviving hits that sound as an open hat instead.
+   *
+   * Indices rather than slots because a pattern may carry a `cycle`, in which
+   * case its slots are relative to the figure and not to the bar — see `Cycle`.
+   * The hand's own hit list is the one space both readings agree on.
+   */
+  open?: number[];
+}
+
+/**
+ * The voices a hand keeps time on, in the order ties are broken.
+ *
+ * `rd` first because a pattern carrying both a ride and something else is a
+ * jazz pattern and the ride is the pulse of it; `hh` below `sh` because where a
+ * brush pattern also has a hat, the hat is the foot.
+ */
+const HAND_VOICES: readonly DrumVoice[] = ['rd', 'sh', 'hh', 'oh'];
+
+/**
+ * Which voice is keeping time, or nothing if the pattern does not say clearly.
+ *
+ * Derived rather than declared, because declaring it means authoring a field
+ * onto seventy-six table entries to record something every one of them already
+ * shows: the hand is the busiest voice on the kit. The two guards are what make
+ * the derivation safe rather than merely usually right —
+ *
+ *  - **strictly busier than anything not in `HAND_VOICES`**, which is what
+ *    keeps jazz honest. `ride-swing` writes `hh: [4, 12]`, and that is the
+ *    *foot* on two and four — the backbeat of the style. Thinning or opening it
+ *    would be varying the one thing this must never touch. The ride outnumbers
+ *    it four to two and wins.
+ *  - **at least four hits**, below which there is nothing to thin. `waltz-light`
+ *    rides three quarters over a bar of twelve; halving that is not a sparser
+ *    hand, it is a hole.
+ */
+function handOf(pattern: DrumPattern): DrumVoice | undefined {
+  const count = (v: DrumVoice) => pattern.voices[v]?.length ?? 0;
+  let hand: DrumVoice | undefined;
+  for (const v of HAND_VOICES) {
+    if (count(v) > (hand ? count(hand) : 0)) hand = v;
+  }
+  if (!hand || count(hand) < 4) return undefined;
+  for (const v of Object.keys(pattern.voices) as DrumVoice[]) {
+    if (!HAND_VOICES.includes(v) && count(v) >= count(hand)) return undefined;
+  }
+  return hand;
+}
+
+/**
+ * What the hand does in a section this hard.
+ *
+ * The structural half is read straight off the intensity and the ornamental
+ * half is drawn, which is the same division `fills.ts` already makes and it is
+ * deliberate: *that* a quiet section plays a sparser kit is an arrangement rule
+ * and should hold in every song, where *which* offbeat the hat opens on is a
+ * detail nobody would notice repeating and everybody would notice being the
+ * same in every song ever generated.
+ *
+ * The lifts are exclusive. A hand that moves to the ride *and* opens the hat is
+ * playing two cymbals at once, which is a different pattern rather than a
+ * louder one.
+ */
+export function planKitVariation(
+  pattern: DrumPattern,
+  opts: { intensity: number; rng: Rng },
+): KitVariation | undefined {
+  const on = handOf(pattern);
+  if (!on) return undefined;
+  const hits = pattern.voices[on]!;
+  const { intensity, rng } = opts;
+
+  /**
+   * Quiet sections thin. The threshold sits above what an intro and an outro
+   * are worth and below a verse, so the arrangement that falls out of it is the
+   * one a band plays without discussing it: **the table's pattern is the verse**,
+   * the ends of the record are sparser than the middle, and the chorus is the
+   * only place the hand does something extra. See `KIND_LEVEL`.
+   */
+  if (intensity < 0.72) return { on, thin: true };
+
+  /**
+   * Loud ones lift, and only from the closed hat: a hand already on the ride
+   * has nowhere to go, and brushes moved to a cymbal are a different pair of
+   * sticks rather than a lift.
+   */
+  if (intensity > 0.9 && on === 'hh') {
+    if (rng.chance(0.45)) return { on, to: 'rd' };
+    const offbeats = hits
+      .map((slot, i) => [slot, i] as const)
+      .filter(([slot]) => slot % SLOTS_PER_BEAT !== 0)
+      .map(([, i]) => i);
+    if (offbeats.length) {
+      // One or two in the bar. A hat open on every offbeat is a disco pattern,
+      // which is a thing to write in a table and not a thing to arrive at by
+      // varying something else.
+      const wanted = Math.min(offbeats.length, rng.chance(0.4) ? 2 : 1);
+      const open = rng.shuffle(offbeats).slice(0, wanted).sort((a, b) => a - b);
+      return { on, open };
+    }
+  }
+  return undefined;
+}
+
+/**
+ * The pattern as this section's hand plays it.
+ *
+ * A new `DrumPattern` rather than a pass over the events, so everything
+ * downstream — the cycle walk, `accentOf`, the fill's clearing, the per-hit
+ * jitter — reads the varied figure without being told any of this exists.
+ */
+function varyPattern(pattern: DrumPattern, v: KitVariation): DrumPattern {
+  const hits = pattern.voices[v.on];
+  if (!hits?.length) return pattern;
+
+  const kept = v.thin ? hits.filter((_, i) => i % 2 === 0) : hits;
+  const opened = new Set(v.open ?? []);
+  const hand: number[] = [];
+  const open: number[] = [];
+  kept.forEach((slot, i) => (opened.has(i) ? open : hand).push(slot));
+
+  const voices: Partial<Record<DrumVoice, number[]>> = { ...pattern.voices };
+  delete voices[v.on];
+  const merge = (voice: DrumVoice, slots: number[]) => {
+    if (!slots.length) return;
+    voices[voice] = [...new Set([...(voices[voice] ?? []), ...slots])].sort((a, b) => a - b);
+  };
+  merge(v.to ?? v.on, hand);
+  merge('oh', open);
+  return { ...pattern, voices };
+}
+
 export function generateDrums(
   ctx: PartContext,
   pattern: DrumPattern,
@@ -1317,9 +1492,15 @@ export function generateDrums(
      * has a shape, it just has the same shape every time.
      */
     machine?: boolean;
+    /**
+     * What this section's hand is doing. See `KitVariation` — and note that a
+     * box never gets one, for the same reason it gets no fill.
+     */
+    variation?: KitVariation;
   },
 ): DrumEvent[] {
   const { chords, beatsPerBar, startBeat, rng, style } = ctx;
+  const figure = opts.variation ? varyPattern(pattern, opts.variation) : pattern;
   const slotsPerBar = beatsPerBar * SLOTS_PER_BEAT;
   const bars = chords.length;
   const out: DrumEvent[] = [];
@@ -1343,9 +1524,9 @@ export function generateDrums(
     : undefined;
   const clearFrom = fill ? (bars - 1) * slotsPerBar + fill.fromSlot : Infinity;
 
-  for (const [voice, slots] of Object.entries(pattern.voices) as [DrumVoice, number[]][]) {
+  for (const [voice, slots] of Object.entries(figure.voices) as [DrumVoice, number[]][]) {
     for (const { slot } of cycleHits(slots.map((at) => ({ at })), {
-      cycle: pattern.cycle ?? slotsPerBar, bars, slotsPerBar,
+      cycle: figure.cycle ?? slotsPerBar, bars, slotsPerBar,
     })) {
       // Clear exactly as much of the bar as the fill actually occupies — which
       // used to be hardcoded to half a bar whatever was played there. The kick

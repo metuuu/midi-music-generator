@@ -193,6 +193,33 @@ ride per fill bar:   jazz    0.73   iskelmä 0.02
 
 The kick keeps playing through the fill — a drummer's right foot does not stop — and the rest of the pattern is silenced for exactly as much of the bar as the fill actually occupies, which used to be hardcoded to half a bar whatever was played there.
 
+## The drummer's hand
+
+One drum pattern is drawn for the whole song, and that is right: a band does not change its groove every eight bars. But it meant the kit played sixteen identical slots for a hundred and ten bars, and the only things separating a verse from a last chorus were a gain multiplier and a fill at the seam. Every song in the catalogue had exactly **one** kit texture in it.
+
+What a band actually changes is the hand. The hat rides on quarters through a verse and eighths in the chorus, it moves to the ride when the record lifts, it opens on an offbeat. None of that is a different pattern, and none of it was expressible.
+
+**Redrawing per section would have been the wrong fix.** `gated-backbeat` puts the snare on slot 8 and `sixteenth-hats` puts it on 4 and 12 — a song whose backbeat moves at the chorus is not a band varying a groove, it is two bands. So the song's pattern stays fixed and three bounded things happen to the timekeeping voice: it **thins** (every other hit — sixteenths become eighths, eighths become quarters, a swung ride of `[0, 6, 8, 14]` becomes `[0, 8]`), it moves to the **ride**, or it **opens** one or two offbeats onto the hat. Nothing else in the pattern may move, which `npm run genres` asserts by generating each pattern twice and diffing every voice the hand is not.
+
+Which voice *is* the hand is derived rather than declared, and the guard is what makes that safe. `ride-swing` writes `hh: [4, 12]` — that is the hi-hat **foot**, on two and four, and it is the backbeat of the style. The rule is that the hand must be strictly busier than anything outside the timekeeping voices, so the ride outnumbers it four to two and wins; a pattern that does not say clearly is left alone.
+
+The structural half is read off the section's intensity and the ornamental half is drawn, which is the same split `fills.ts` makes. *That* a quiet section plays a sparser kit is an arrangement rule and should hold in every song; *which* offbeat the hat opens on is a detail nobody would notice repeating and everybody would notice being identical in every song ever generated. The thresholds sit above what an intro and an outro are worth and below a verse, so the arrangement that falls out is the one nobody has to discuss: **the table's pattern is the verse**, the ends of the record are sparser, and the chorus is where the hand does something extra.
+
+```
+distinct kit textures per song, was 1.00 everywhere
+
+iskelmä  4.78  over  9.4 sections   100% of songs vary
+jazz     5.72  over 10.4 sections   100%
+synth    2.89  over  6.4 sections    73%
+ambient  1.52  over  5.6 sections    40%
+```
+
+Ambient staying near one is correct rather than a shortfall: two of its six styles have no kit at all and the rest are below the four-hit floor, which is the same sentence as "nothing in ambient announces itself".
+
+**A preset box gets none of it**, which is the fourth thing on the list `machine` already takes away, beside the fill, the drum solo and the response to how hard the section is going. One pattern per button, and no hand on the kit to move.
+
+This is the half of the groove that [`Feel`](feel-plan.md) cannot reach, and the two compose cleanly. A feel bends events that exist — pushes them off the grid, scales them per sixteenth, ghosts a snare into a rest — but a voice is not a scalar, and there is no number that turns a hat into a ride. A feel decides how the hand plays; this decides what it plays on.
+
 ## Brass
 
 A three-note stab on the downbeat of alternate bars behind a coin flip, plus one pickup in the last bar. Measured across 68 songs that carried the layer:

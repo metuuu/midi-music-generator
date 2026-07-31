@@ -61,7 +61,7 @@ import {
 import { generateVocalTrack } from './vocals.js';
 import {
   generateBass, generateBrass, generateComp, generateCounter, generateDrums,
-  generateLeftHand, generatePad,
+  generateLeftHand, generatePad, planKitVariation,
   type PartContext, undoubleAgainst } from './parts.js';
 
 export interface GenerateOptions {
@@ -362,6 +362,40 @@ export function generateSong(opts: GenerateOptions = {}): Song {
     rng: new Rng(`${seed}:solo`),
     fallback: genre.soloBacking ?? 'full',
   });
+
+  /**
+   * A soloist is somebody who was already in the band.
+   *
+   * `planSolos` draws its player from the genre's rotation and `layersFor`
+   * decides which layers sound in a verse, and the two have never spoken. Where
+   * they disagreed the number grew a player who walks on, stands through the
+   * head, takes one chorus and is never heard again: measured over 240 numbers,
+   * 11 of the 105 with solos in them had one — a jazz alto sounding in 7 bars of
+   * 96, a tango harp in 7 of 56. Always the counter, because the counter is the
+   * one melodic layer a form can leave out.
+   *
+   * The stage cannot hide it either. `castSong` puts a body behind every track
+   * that has notes in it and folds only keyboards into one another, so a horn
+   * player stands at the front for three minutes and plays for twelve seconds.
+   *
+   * So the band makes the correction a band would make: whoever is taking a
+   * chorus plays the head as well. Adding the layer to the sections that state
+   * the tune costs no draw — every layer writes from its own named stream, and
+   * this list is read rather than drawn from — so a number whose soloist was
+   * already in the arrangement is unchanged to the note, and one whose soloist
+   * was not gains an answering line through the heads and a player who has a
+   * reason to be up there.
+   *
+   * The kit is exempt because a drummer is never not playing.
+   */
+  for (const chorus of soloPlan.values()) {
+    const layer: LayerId = chorus.layer;
+    if (layer === 'drums') continue;
+    if (sections.some((s) => s.kind !== 'solo' && s.activeLayers.includes(layer))) continue;
+    for (const head of sections) {
+      if (head.kind === 'verse' || head.kind === 'chorus') head.activeLayers.push(layer);
+    }
+  }
 
   // ---- Parts -----------------------------------------------------------
   const byLayer = new Map<LayerId, NoteEvent[]>();
@@ -755,6 +789,26 @@ export function generateSong(opts: GenerateOptions = {}): Song {
       const kitSolo = !machine && solo?.drumBars.length ? solo.drumBars : undefined;
       const lastBarIsSolo = kitSolo !== undefined
         && kitSolo[kitSolo.length - 1]![1] >= section.lengthBars;
+      /**
+       * What the hand is doing this section. See `KitVariation`.
+       *
+       * Its own stream, and for the reason `boxDrums` above documents at
+       * length: drawn from `ctxFor('drums')` this would consume numbers in
+       * front of the fill and the per-hit jitter, and every drum part in the
+       * catalogue would come out different whether or not the hand ever moved.
+       * Namespaced, the only thing that changes is what this actually does.
+       *
+       * Salted like every other layer, so `variation: { drums }` rerolls the
+       * hand along with the rest of the kit rather than leaving it pinned.
+       *
+       * A box gets none — one pattern per button, and no hand on the kit to
+       * move. The same three-way rule `machine` already carries for the fill,
+       * the drum solo and the intensity response.
+       */
+      const hand = machine ? undefined : planKitVariation(drumPattern, {
+        intensity,
+        rng: new Rng(`${seed}:kit:${s}${salt('drums')}`),
+      });
       const pattern = generateDrums(ctxFor('drums'), drumPattern, {
         fillAtEnd: !machine && section.kind !== 'outro'
           && style.drumFills !== false && !lastBarIsSolo,
@@ -762,6 +816,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
         arrival,
         machine,
         palette: style.fills ?? genre.fills ?? DEFAULT_FILLS,
+        ...(hand ? { variation: hand } : {}),
       });
 
       const behind = kitSolo

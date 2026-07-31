@@ -10,7 +10,7 @@
  */
 
 import { generateSong } from './generate/song.js';
-import { generateLeftHand } from './generate/parts.js';
+import { generateDrums, generateLeftHand, planKitVariation } from './generate/parts.js';
 import { getGenre, GENRE_IDS } from './genre/index.js';
 import { composeSectionTune } from './tune/adapt.js';
 import { getHook } from './generate/hook.js';
@@ -19,7 +19,7 @@ import type { HookId } from './generate/hook.js';
 import { chordPcs, parseRoman, type Chord } from './core/chord.js';
 import { makeScale } from './core/scale.js';
 import { pc } from './core/pitch.js';
-import { melodicLine, type DrumVoice, type Song } from './core/types.js';
+import { canVary, melodicLine, type DrumVoice, type Song } from './core/types.js';
 import { Rng } from './core/rng.js';
 import { BANK_VOICES, resolveVoice } from './render/drum-banks.js';
 import { HANDS, IDIOMS, type Idiom, type IdiomProfile } from './style/instruments.js';
@@ -1657,6 +1657,120 @@ console.log('\nDrum fills');
     'a jazz fill reaches for the cymbal',
     jaz.ride > isk.ride,
     `ride per fill bar: jazz ${jaz.ride.toFixed(2)} vs iskelmä ${isk.ride.toFixed(2)}`,
+  );
+}
+
+// ---------------------------------------------------------------------------
+// The drummer's hand
+// ---------------------------------------------------------------------------
+//
+// `KitVariation` moves the timekeeping voice and thins it, and the entire
+// safety of the idea rests on one claim: **nothing else in the pattern moves.**
+// A hand that varies is a drummer; a backbeat that varies is a second band, and
+// the difference between the two is the assertion below rather than the care of
+// whoever writes the next feature.
+//
+// Written against `generateDrums` twice over the same pattern — once plain,
+// once varied — rather than over generated songs, because a song has fills,
+// drum solos, feels that ghost the snare and feels that push the whole kit off
+// the grid, and every one of those legitimately moves an event the invariant
+// does not range over. Two calls with the fill off isolate exactly the thing
+// under test.
+console.log("\nThe drummer's hand");
+{
+  const chords = [parseRoman('i', 'minor'), parseRoman('iv', 'minor'),
+    parseRoman('V7', 'minor'), parseRoman('i', 'minor')];
+  const LEVELS = [0.45, 0.55, 0.65, 0.75, 0.85, 0.95, 1.0, 1.06];
+
+  let planned = 0; let thinned = 0; let rode = 0; let opened = 0;
+  let compared = 0; let moved = 0;
+  const detail: string[] = [];
+
+  for (const gid of GENRE_IDS) {
+    for (const style of Object.values(getGenre(gid).styles)) {
+      for (const pattern of style.drums) {
+        for (const level of LEVELS) {
+          for (let k = 0; k < 4; k++) {
+            const hand = planKitVariation(pattern, {
+              intensity: level, rng: new Rng(`${style.id}:${pattern.name}:${level}:${k}`),
+            });
+            if (!hand) continue;
+            planned++;
+            if (hand.thin) thinned++;
+            if (hand.to === 'rd') rode++;
+            if (hand.open?.length) opened++;
+
+            const ctx = () => ({
+              chords, beatsPerBar: style.beatsPerBar, startBeat: 0, style,
+              rng: new Rng(`${style.id}:kit`),
+            });
+            const opts = { fillAtEnd: false, intensity: level };
+            const plain = generateDrums(ctx(), pattern, opts);
+            const varied = generateDrums(ctx(), pattern, { ...opts, variation: hand });
+
+            /**
+             * Everything the hand is not. `oh` is excluded because opening the
+             * hat is the gesture: those hits are hand hits wearing another
+             * voice, and they came out of the count `on` lost.
+             */
+            const untouched = (events: typeof plain) => events
+              .filter((e) => e.voice !== hand.on && e.voice !== hand.to && e.voice !== 'oh')
+              .map((e) => `${e.voice}@${e.beat.toFixed(3)}`).join(' ');
+            compared++;
+            if (untouched(plain) !== untouched(varied)) {
+              moved++;
+              if (detail.length < 3) detail.push(`${style.id}/${pattern.name}@${level}`);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  check(
+    'varying the hand moves nothing else',
+    moved === 0 && compared > 0,
+    `${moved} of ${compared} varied patterns disturbed another voice${detail.length ? ` — ${detail.join(', ')}` : ''}`,
+  );
+  check(
+    'the hand thins, rides and opens',
+    thinned > 0 && rode > 0 && opened > 0,
+    `${planned} plans: ${thinned} thinned, ${rode} to the ride, ${opened} opened`,
+  );
+
+  /**
+   * And a box has no hand at all.
+   *
+   * The guard for this lives at the call site in `song.ts`, next to the ones
+   * that take away the fill and the drum solo — so this is the check that the
+   * fourth thing a machine cannot do stays taken away when somebody moves that
+   * line. A preset box plays one pattern per button: the *set* of voices it
+   * sounds is the same in every section, and a hand that varied would put a
+   * ride or an open hat into one of them and nothing into the others.
+   */
+  let boxes = 0; let varying = 0;
+  for (const gid of GENRE_IDS) {
+    for (let i = 0; i < 40; i++) {
+      const song = generateSong({ seed: `box-${gid}-${i}`, genre: gid });
+      // `canVary` and not "is it a machine": a programmed box and a set of
+      // electronic pads are both machines and both have somebody deciding what
+      // they do bar to bar. Exactly one source has a start button.
+      if (canVary(song.drums.source ?? 'kit') || !song.drums.events.length) continue;
+      boxes++;
+      const bpb = song.meta.beatsPerBar;
+      const sets = song.sections.map((sec) => {
+        const from = sec.startBar * bpb;
+        const to = from + sec.lengthBars * bpb;
+        return [...new Set(song.drums.events
+          .filter((e) => e.beat >= from && e.beat < to).map((e) => e.voice))].sort().join(',');
+      }).filter((s) => s.length);
+      if (new Set(sets).size > 1) varying++;
+    }
+  }
+  check(
+    'a box keeps one hand on one button',
+    varying === 0 && boxes > 0,
+    `${varying} of ${boxes} preset-box songs changed kit voices between sections`,
   );
 }
 
