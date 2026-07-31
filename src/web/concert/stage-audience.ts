@@ -61,8 +61,33 @@ const ROW = {
   /** Downstage face of the first row, upstage of the lip. */
   frontZ: 1.35,
   seated: { gap: 0.95, rake: 0.1, head: 1.14 },
-  standing: { gap: 0.8, rake: 0.05, head: 1.58 },
+  standing: { gap: 0.8, rake: 0.05, head: 1.62 },
 } as const;
+
+/**
+ * Half the width of a person at the shoulders, and the number the rest of the
+ * body is measured against.
+ *
+ * It was 0.335 — a 0.67 m shoulder, half again as wide as anybody's, and the
+ * reason a standing house did not look like one. Height was never the problem:
+ * a standing person here is 1.62 m to the middle of the head and 1.74 m to the
+ * top of it, which is an adult in shoes. But a silhouette is read by its
+ * *proportion*, and 1.74 m over a 0.67 m shoulder is a bollard. It compounded
+ * at the spacing, too: people stand 0.58 m apart, so bodies that wide overlap
+ * their neighbours and a row stopped being people at all — it merged into one
+ * dark band with heads sitting on top, which is exactly the shape a seated
+ * crowd makes. Standing, and reading as seated.
+ *
+ * 0.235 is a 0.47 m shoulder, or a shade under 0.45 across the flats of a
+ * seven-sided column. Two head-widths, where the old one was nearly three, and
+ * it leaves a hand's breadth of air between neighbours so a row is individuals.
+ *
+ * The depth is not the same number. A person is much thinner front to back than
+ * side to side and the old one was nearly round, which cost nothing head-on and
+ * everything the moment the camera came round the side.
+ */
+const SHOULDER = 0.235;
+const CHEST = 0.15;
 
 /** The gap between rows a house of this kind is built with. */
 export function rowGap(seated: boolean): number {
@@ -307,7 +332,7 @@ export function buildAudience(o: AudienceOptions): AudienceRig {
       dummy.position.set(x - sway * 0.006, shoulder, z + 0.02);
       dummy.rotation.set(0, p.yaw * 0.6, 0);
       dummy.scale.set(
-        p.scale * 0.335, Math.max(0.3, shoulder - p.foot), p.scale * 0.22,
+        p.scale * SHOULDER, Math.max(0.3, shoulder - p.foot), p.scale * CHEST,
       );
       dummy.updateMatrix();
       bodies.setMatrixAt(i, dummy.matrix);
@@ -322,8 +347,12 @@ export function buildAudience(o: AudienceOptions): AudienceRig {
       // rather than as a hand. Coming in to the chest is what brings them out.
       // The clap itself is fast repetitive motion, so it is the oscillation
       // rather than the raised hands that reduced motion takes away.
-      const sep = Math.max(0.05, p.scale * (0.3 - excite * 0.17)
-        - excite * 0.05 * (0.5 + 0.5 * clap * idle));
+      //
+      // Measured off the shoulder rather than in metres, so that narrowing a
+      // person cannot leave their hands out in the air beside them: 0.89 of the
+      // half-width at rest, a third of it with the hands together clapping.
+      const sep = Math.max(0.04, p.scale * SHOULDER * (0.89 - excite * 0.5)
+        - excite * 0.035 * (0.5 + 0.5 * clap * idle));
       const hy = y - 0.5 * p.scale + lift;
       const hz = z + 0.16 + excite * 0.08;
       for (let h = 0; h < 2; h++) {

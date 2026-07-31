@@ -318,10 +318,25 @@ const CELLAR: Room = {
 /**
  * THE BLACK BOX — ambient.
  *
- * No architecture, no proscenium worth the name, and more fog than person. The
- * audience is seated on folding chairs and there is nothing to look at except a
- * projection and whatever the haze is doing, which is the point: a genre that
- * refuses to have a foreground gets a room that refuses to have a focus.
+ * No architecture, no proscenium worth the name, and more fog than person.
+ * There is nothing to look at except a projection and whatever the haze is
+ * doing, which is the point: a genre that refuses to have a foreground gets a
+ * room that refuses to have a focus.
+ *
+ * **The audience stands.** It sat on folding chairs for a while, and the chairs
+ * were the wrong idea twice over. An ambient bill in a unit off an industrial
+ * estate is a warehouse night, not a recital — the seated version of this room
+ * is a concert hall that has been painted black. And a seated house is 1.26 m
+ * tall: from the camera's side of the boards, where the crowd is the whole
+ * near foreground, that is a field of low humps in the dark rather than a room
+ * with people in it. Standing costs nothing — `web/concert/stage-audience.ts`
+ * builds either kind from this one flag, and derives the row spacing, the rake
+ * and the depth of the house from it — and it puts person-shaped silhouettes
+ * between the lens and the band, which is what says the room is full.
+ *
+ * The cellar keeps its chairs, and that is not an inconsistency: it has tables
+ * and candles on them, and a jazz club where nobody is sitting at the tables is
+ * a jazz club with the furniture in the way.
  *
  * The palette is nearly monochrome on purpose. Every other room here spends its
  * colour budget on the set; this one spends all of it on the light, because in
@@ -331,7 +346,7 @@ const BLACK_BOX: Room = {
   id: 'black-box',
   names: ['Studio B', 'Hall Four', 'The Annexe', 'Unit 9', 'The Long Room', 'Room 000'],
   width: 9.6, depth: 6.4,
-  audience: { rows: 8, density: 0.46, seated: true },
+  audience: { rows: 8, density: 0.46, seated: false },
   eras: {
     // 1970s–80s tape. Warm even in the dark — sepia, tungsten, a domestic lamp
     // somebody brought from home. This is the one ambient era with a *colour*.

@@ -174,6 +174,33 @@ const LIP_MARGIN = 0.12;
 /** The height the wide shot is aimed at: over the band, under the fly bar. */
 const WIDE_AIM_Y = 1.45;
 
+/**
+ * How far round the side of a shot a drag may take the camera, in radians.
+ *
+ * Every room here is built to be looked at from the house and says so on its
+ * back: the backdrop is a cloth with nothing printed on the reverse, the wings
+ * and the masking are single-sided planes, the arch has no behind, and the
+ * band's own stations are dressed for the front. Yaw was not clamped at all, so
+ * two seconds of dragging put the lens backstage, where the show is a handful
+ * of one-sided surfaces seen from the wrong side and the room is simply not
+ * there.
+ *
+ * There were two ways out of that — build the back of every venue, or stop the
+ * camera getting to it — and the second is the right one for more than the
+ * obvious reason that it is free. A gallery camera does not go backstage
+ * mid-number either. And the one room that *is* built for all sides (the
+ * pavilion, with its sky dome and a back wall you can walk behind) is no better
+ * seen from behind than from the front: what is back there is the reverse of a
+ * band.
+ *
+ * 1.0 rad is a shade under 60°, which is most of what the drag was for — enough
+ * to look past the front line at whoever is standing behind it, enough to
+ * change the angle on a soloist — and being under a right angle it can never
+ * reach the plane of the band, because the lens stays downstage of whatever it
+ * is pointed at for the whole of its travel.
+ */
+const YAW_LIMIT = 1.0;
+
 export function createDirector(reducedMotion = false): CameraDirector {
   const camera = new PerspectiveCamera(BASE_FOV, 1, 0.1, 120);
   const subjects = new Map<string, Object3D>();
@@ -441,6 +468,30 @@ export function createDirector(reducedMotion = false): CameraDirector {
   }
 
   /**
+   * How far round the side the drag may go *in this room*, at this radius.
+   *
+   * The same argument the pitch limits make, one axis over: an angle is not a
+   * position, and the position a given angle produces depends entirely on how
+   * far out the camera is standing. 57° on a close-up three metres from a
+   * player is a step to one side; 57° on a wide shot ten metres out is four
+   * metres the far side of the wall, filming the room through it. The house
+   * walls are single-sided, so that degrades gracefully rather than to a black
+   * screen — but "gracefully" is still the room disappearing, which is the
+   * thing the yaw limit exists to prevent.
+   *
+   * So the ceiling on the angle is whatever keeps the lens inside the walls at
+   * this radius, and the floor under it is there because a soloist standing
+   * near the side of the stage would otherwise pin the camera dead ahead: a
+   * drag that does nothing reads as a broken control, where a short one reads
+   * as a small room.
+   */
+  function yawLimit(r: number, cx: number): number {
+    const halfX = (metrics?.houseWidth ?? (venue?.width ?? 10) + 4) / 2;
+    const room = Math.max(0, halfX - Math.abs(cx)) / Math.max(r, 0.1);
+    return Math.max(0.35, Math.min(YAW_LIMIT, Math.asin(Math.min(1, room))));
+  }
+
+  /**
    * How far back the camera may stand before it is outside the building.
    *
    * Derived from the house rather than guessed: the audience occupies roughly a
@@ -660,6 +711,15 @@ export function createDirector(reducedMotion = false): CameraDirector {
           Math.asin(Math.max(-1, Math.min(1, (y - wantedFocus.y) / Math.max(r, 0.1))));
         const hi = arc(ceiling());
         const p = Math.max(Math.min(pitch, hi), Math.min(arc(houseFloor()), hi));
+        /**
+         * And yaw by the walls, at the radius this shot is being held at. The
+         * clamp is written back rather than applied on the way past, so that a
+         * drag which ran into the wall on a wide shot does not have to be
+         * unwound before the picture moves again — the same reason `orbit`
+         * clamps `pitch` where it accumulates.
+         */
+        const lim = yawLimit(r, wantedFocus.x);
+        yaw = Math.max(-lim, Math.min(lim, yaw));
         wanted.set(
           wantedFocus.x + Math.sin(yaw) * Math.cos(p) * r,
           wantedFocus.y + Math.sin(p) * r,
@@ -689,7 +749,11 @@ export function createDirector(reducedMotion = false): CameraDirector {
 
     orbit(dx, dy) {
       orbitFor = HANDBACK_SECONDS;
-      yaw -= dx * 0.005;
+      // The hard stop. `update` narrows it further to whatever the room allows
+      // at the radius the current shot is standing at; this is the limit that
+      // holds when the room does not bind — a close-up in a hall, where there
+      // is no wall in the way and the reason to stop is the show itself.
+      yaw = Math.max(-YAW_LIMIT, Math.min(YAW_LIMIT, yaw - dx * 0.005));
       pitch = Math.max(-0.35, Math.min(0.9, pitch + dy * 0.004));
     },
 
