@@ -529,11 +529,27 @@ function bowContactAt(mount: Matrix4, z: number, lift: number): Contact {
       z + Math.sin(t) * STICK_Y + Math.cos(t) * FROG_Z,
     ).applyMatrix4(mount),
     normal: arcNormal(z).transformDirection(mount),
-    // Down the stick: a bow hold spaces the fingers along it, thumb at the frog.
-    // It is also the axis the runtime runs the *stroke* along, which is the
-    // whole reason a bow that is not parallel to anything on the player still
-    // draws instead of skewing. See `BOW_LEAN`.
-    along: new Vector3(0, -Math.sin(t), Math.cos(t)).transformDirection(mount),
+    /**
+     * Down the stick **toward the tip**, and the direction is the half of this
+     * that was wrong.
+     *
+     * A bow hold spaces the fingers along the stick, so this is the hand's
+     * knuckle axis as well as the axis the runtime runs the stroke along — and
+     * a knuckle axis is a *signed* thing even though a stroke is not. It was
+     * `+z`, which on this instrument is the side the frog is on, so the fingers
+     * were laid out running back off the end of the bow and the whole hand came
+     * out turned through half a circle: knuckles where the palm should be, the
+     * thumb on the wrong side of the frog. The cello publishes the same local
+     * expression and reads correctly, because its frog is at `−z` — the two
+     * models agreed about the axis and disagreed about the bow.
+     *
+     * Flipping it flips the stroke with it, which is why `placeBow` slides the
+     * bow by `−lean`: the runtime moves the hand along this vector and the model
+     * moves the bow along its own, and the two have to be the same vector or the
+     * hand walks off the frog. Which way a down-bow travels is arbitrary — they
+     * alternate — but the two of them agreeing is not.
+     */
+    along: new Vector3(0, Math.sin(t), -Math.cos(t)).transformDirection(mount),
   };
 }
 
@@ -913,11 +929,13 @@ export const buildViolin: InstrumentBuilder = (opts) => {
     // hand the runtime has displaced along this same axis by this same number
     // is on the frog by construction rather than by agreement.
     //
-    // The pivot's `+z`, which is exactly the `along` the contact publishes —
-    // *not* the direction the frog happens to lie in. The two are the same here
-    // and opposite on the cello, whose frog is at `−z`, and taking the frog's
-    // side would have sent that bow the other way from its own hand.
-    bow.position.set(0, 0, lean);
+    // The pivot's `−z`, which is exactly the `along` the contact publishes —
+    // *not* the direction the frog happens to lie in. The negation is the whole
+    // agreement: the runtime displaces the hand along the published axis and
+    // this displaces the bow along the same one, so the frog stays under the
+    // hand by construction rather than by luck. See `bowContactAt`, which turned
+    // that axis round so the hand holding the frog faces the right way.
+    bow.position.set(0, 0, -lean);
 
     // And then, if the player is standing down, none of the above: the bow is
     // in their hand rather than on their instrument. It is still computed

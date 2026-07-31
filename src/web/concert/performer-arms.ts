@@ -236,7 +236,15 @@ const RIB_STEP = 0.125;
  * a fourth from being spent chasing a millimetre.
  */
 const RIB_PASSES = 3;
-const RIB_SLACK = 0.02;
+const RIB_SLACK = 0.004;
+
+/**
+ * Where the arm starts easing into its own reach rather than hitting it.
+ *
+ * Below this fraction of the reach the solve is exact; above it the span the
+ * elbow is solved for approaches the reach asymptotically. See `update`.
+ */
+const SOFT_FROM = 0.88;
 
 /**
  * The body an elbow may not be inside, above the chest: how wide the neck and
@@ -491,10 +499,13 @@ export function buildArms(
     if (h < 1e-4) return;
     const u2 = upperL * upperL;
     const k = foreL * foreL - u2;
-    const want = Math.abs(k) < 1e-6
+    const solved = Math.abs(k) < 1e-6
       ? span * 0.5
       : (-u2 * span + Math.sqrt(Math.max(0, u2 * span * span * (u2 + k) - k * k * h * h))) / k;
-    if (!(want > 0) || want > span * 1.5) return;
+    if (!Number.isFinite(solved)) return;
+    // Clamped rather than refused. A bail-out is a step, and a step in where the
+    // elbow sits is exactly the flicker this whole pass is chasing out.
+    const want = solved < 0 ? 0 : solved > span * 1.5 ? span * 1.5 : solved;
     // `SAMPLE` is still the offset from the line, so the elbow keeps exactly the
     // clearance the guard just bought it and only slides along the arm.
     e.copy(a).addScaledVector(OUT, want).add(SAMPLE);
@@ -619,7 +630,21 @@ export function buildArms(
       // not have one. An arm 30 % long reads as a long arm. An arm of the right
       // length with a forearm 90 % long reads as a broken one, and that is what
       // leaving the elbow at its unstretched distance would draw.
-      const d = Math.min(span, reach * 0.999);
+      // `d` is the span the elbow is solved *for*, and it approaches the arm's
+      // own reach without ever arriving. A hard `min(span, reach)` is the
+      // obvious version and it has a square root in it that flattens to zero
+      // exactly there — so an arm at full stretch, which is where a violinist's
+      // bow hand idles, swings its elbow through centimetres for a millimetre
+      // of body sway and reads as a glitch. `performer-legs.ts` names the same
+      // trap at a knee. Easing into the limit instead leaves a hand's width of
+      // bend at full stretch, which a real arm has too — nobody reaches with a
+      // locked elbow — and makes the whole approach smooth in the first
+      // derivative rather than infinite in it.
+      const near = span / reach;
+      const soft = near < SOFT_FROM
+        ? near
+        : SOFT_FROM + (1 - SOFT_FROM) * (1 - Math.exp(-(near - SOFT_FROM) / (1 - SOFT_FROM)));
+      const d = soft * reach;
       const along = (d * d + upperL * upperL - foreL * foreL) / (2 * d);
       const bulge = Math.sqrt(Math.max(0, upperL * upperL - along * along));
       E.copy(A).addScaledVector(D, span > d ? along * (span / d) : along)
