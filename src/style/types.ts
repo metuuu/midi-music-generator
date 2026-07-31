@@ -10,6 +10,7 @@ import type {
   DrumSource, DrumVoice, Effects, LayerId, SectionKind, SequencedLayer, Space,
 } from '../core/types.js';
 import type { InstrumentId } from './instruments.js';
+import type { FeelId } from './feel.js';
 import type { Chord } from '../core/chord.js';
 import type { Pc } from '../core/pitch.js';
 import type { Mode, Scale } from '../core/scale.js';
@@ -490,6 +491,24 @@ export interface Style {
    */
   scaleForChord?(tonic: Pc, mode: Mode, chord: Chord): Scale;
   /**
+   * How this style's sections may be *felt*, weighted, drawn once per section.
+   * Overrides the genre's table where present. See `style/feel.ts`.
+   *
+   * Absent is not the same statement as `[['straight', 1]]`, and the difference
+   * is the one constraint this whole mechanism has to respect. A style that
+   * names `straight` alone has thought about it and said no; a style with no
+   * table has not been asked, **draws nothing**, and generates the song it
+   * generated before feels existed, bit for bit. That is not tidiness — the
+   * `drumSource` note in `generate/song.ts` records what one number taken out of
+   * a shared stream costs, which was every song in every genre and a check
+   * dropping from 66% to 59%.
+   *
+   * Two styles carry one today. Six feels applied liberally across four genres
+   * would make everything sound like the same band, and the way to find that out
+   * is to enable two and listen rather than to fill the tables in.
+   */
+  feels?: (readonly [FeelId, number])[];
+  /**
    * Bars per chorus when the form is built on a fixed chorus length rather
    * than eight-bar units. 12 for the blues.
    */
@@ -630,4 +649,15 @@ export interface Mood {
   leap: number;
   /** Bias on how often the arrangement drops to a sparse texture. */
   restraint: number;
+  /**
+   * Multipliers on the per-section feel draw, exactly as `styleBias` already
+   * works over the era's style weights.
+   *
+   * A mood biases how a passage is felt; it cannot introduce a feel the style
+   * has not named, because the style's table is the list of things this band
+   * would do and a mood is not entitled to add to it. Partial rather than
+   * complete — a mood with an opinion about one feel should not have to restate
+   * 1.0 for every other, and the library is expected to grow.
+   */
+  feelBias?: Partial<Record<FeelId, number>>;
 }

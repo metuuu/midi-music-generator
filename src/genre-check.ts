@@ -255,6 +255,199 @@ const bossaVal = generateSong({ seed: 'bo', genre: 'jazz', style: 'bossa' }).met
 check('swing has a triplet feel', swingVal > 0.3, `swing = ${swingVal}`);
 check('bossa nova is straight, not swung', bossaVal === 0, `swing = ${bossaVal}`);
 
+/**
+ * ## The per-section feel — `style/feel.ts`
+ *
+ * Every measurement below generates the same song twice: once as the style's
+ * table says, and once with the table taken away. That is the only way to ask
+ * the question, because there is no `--feel none` and because the claim being
+ * tested is about the *call site* rather than about `applyFeel` — handing the
+ * function a probe melody would prove nothing about whether the section loop
+ * hands it one. Taking the table away removes the draw and nothing else, since
+ * the draw has its own namespaced stream, so the second song is what this style
+ * generated before feels existed.
+ *
+ * What that cannot assert, and what therefore is not asserted here: that the
+ * *rest* of the catalogue is unmoved. That is a statement about two versions of
+ * the repo rather than about one run of it, and pinning it would mean checking a
+ * hash of every song in the project into the repo. It was measured instead —
+ * every genre × style over twenty seeds in two passes, hashed with the change
+ * and without it, with exactly `jazz/blues` and `jazz/fusion` moving — and the
+ * property that makes it hold is the one asserted below: a style with no table
+ * draws nothing.
+ */
+const feltStyles = ['blues', 'fusion'] as const;
+const jazzStyles = getGenre('jazz').styles;
+const feelPairs: { style: string; seed: string; felt: Song; plain: Song }[] = [];
+for (const styleId of feltStyles) {
+  const style = jazzStyles[styleId]!;
+  const table = style.feels;
+  for (let i = 0; i < 12; i++) {
+    const seed = `fl-${i}`;
+    style.feels = table;
+    const felt = generateSong({ seed, genre: 'jazz', style: styleId });
+    style.feels = undefined;
+    const plain = generateSong({ seed, genre: 'jazz', style: styleId });
+    style.feels = table;
+    feelPairs.push({ style: styleId, seed, felt, plain });
+  }
+}
+
+/** Beats a given feel covers, from the spans the song carries on its IR. */
+const feelBeats = (song: Song, id: string): [number, number][] =>
+  (song.meta.feels ?? []).filter((f) => f.feel.id === id)
+    .map((f) => [f.from * song.meta.beatsPerBar, f.to * song.meta.beatsPerBar]);
+const inside = (beat: number, spans: [number, number][]) =>
+  spans.some(([a, b]) => beat >= a - 1e-9 && beat < b);
+
+{
+  /**
+   * **The pocket exists**, and it is the one thing nothing in this project could
+   * express: `applySwing` shifts offbeats only, uniformly, for the whole song.
+   *
+   * Measured against the same song without the feel rather than against the
+   * grid, because the grid is not where the answer is — a swung offbeat is off
+   * the grid by design and a twelve-millisecond lean is not. The final bar is
+   * excluded on both sides: it is the ending, and `applyFeel` deliberately does
+   * not touch it.
+   */
+  let bassSum = 0; let bassN = 0; let snareSum = 0; let snareN = 0; let hatMoved = 0;
+  let mismatched = 0;
+  for (const { felt, plain } of feelPairs) {
+    const spans = feelBeats(felt, 'pocket');
+    if (!spans.length) continue;
+    const ms = 60000 / felt.meta.bpm;
+    const last = (felt.meta.totalBars - 1) * felt.meta.beatsPerBar;
+
+    const a = felt.tracks.find((t) => t.layer === 'bass');
+    const b = plain.tracks.find((t) => t.layer === 'bass');
+    if (a && b && a.notes.length === b.notes.length) {
+      for (let k = 0; k < a.notes.length; k++) {
+        const from = b.notes[k]!.beat;
+        if (from >= last || !inside(from, spans)) continue;
+        bassSum += (a.notes[k]!.beat - from) * ms; bassN++;
+      }
+    } else if (a || b) mismatched++;
+
+    for (const voice of ['sd', 'hh'] as DrumVoice[]) {
+      const ea = felt.drums.events.filter((e) => e.voice === voice);
+      const eb = plain.drums.events.filter((e) => e.voice === voice);
+      if (ea.length !== eb.length) { mismatched++; continue; }
+      for (let k = 0; k < ea.length; k++) {
+        const from = eb[k]!.beat;
+        if (from >= last || !inside(from, spans)) continue;
+        const moved = (ea[k]!.beat - from) * ms;
+        if (voice === 'sd') { snareSum += moved; snareN++; } else if (Math.abs(moved) > 1e-9) hatMoved++;
+      }
+    }
+  }
+  const bassMs = bassSum / Math.max(1, bassN);
+  const snareMs = snareSum / Math.max(1, snareN);
+  const inBand = (v: number) => Math.abs(v) >= 5 && Math.abs(v) <= 30;
+  check(
+    'the pocket exists: bass ahead, backbeat behind',
+    bassN > 0 && snareN > 0 && bassMs < 0 && snareMs > 0 && inBand(bassMs) && inBand(snareMs)
+      && hatMoved === 0 && mismatched === 0,
+    `bass ${bassMs.toFixed(1)} ms over ${bassN}, snare +${snareMs.toFixed(1)} ms over ${snareN}, hats moved ${hatMoved}`,
+  );
+}
+
+{
+  /**
+   * **The tune was composed, not bent.** The melody and the counter are
+   * auditioned — a set of candidates written, scored and one kept — so a feel
+   * that moved them afterwards would hand back a gesture nobody scored, and
+   * `tune/judge.ts` would never see the result. Note for note, including
+   * velocity: the melodic half of a feel goes into the `Voice` before the
+   * audition, never into the notes after it.
+   *
+   * And the rhythm section: **a feel modifies, it never authors.** The same bag
+   * of pitches on every layer and the same bag of kit voices. Whatever moves,
+   * what is played does not.
+   */
+  let bent = 0; let melodyNotes = 0; let authored = 0; let rhythmNotes = 0;
+  for (const { felt, plain } of feelPairs) {
+    for (const layer of ['melody', 'counter'] as const) {
+      const a = felt.tracks.find((t) => t.layer === layer)?.notes ?? [];
+      const b = plain.tracks.find((t) => t.layer === layer)?.notes ?? [];
+      melodyNotes += b.length;
+      if (a.length !== b.length) { bent += Math.abs(a.length - b.length); continue; }
+      for (let k = 0; k < a.length; k++) {
+        const x = a[k]!; const y = b[k]!;
+        if (Math.abs(x.beat - y.beat) > 1e-9 || Math.abs(x.duration - y.duration) > 1e-9
+          || x.midi !== y.midi || Math.abs(x.velocity - y.velocity) > 1e-9) bent++;
+      }
+    }
+    /**
+     * As multisets, not note for note. A push moves an onset past a neighbour
+     * now and then — a snare eighteen milliseconds late sorts behind the hat it
+     * was struck with, a bass note leaning over a section boundary lands in
+     * front of the one before it — and both are the feel working rather than a
+     * note going missing. What must not change is the bag of notes itself.
+     */
+    for (const layer of ['bass', 'comp', 'pad', 'brass'] as const) {
+      const pitches = (song: Song) => (song.tracks.find((t) => t.layer === layer)?.notes ?? [])
+        .map((n) => n.midi).sort((x, y) => x - y).join(',');
+      rhythmNotes += plain.tracks.find((t) => t.layer === layer)?.notes.length ?? 0;
+      if (pitches(felt) !== pitches(plain)) authored++;
+    }
+    rhythmNotes += plain.drums.events.length;
+    const kit = (song: Song) => song.drums.events.map((e) => e.voice).sort().join(',');
+    if (kit(felt) !== kit(plain)) authored++;
+  }
+  check('a feel never bends the tune', bent === 0, `${bent} of ${melodyNotes} melody and counter notes moved`);
+  check('a feel modifies, it never authors', authored === 0, `${authored} altered parts over ${rhythmNotes} rhythm-section notes`);
+}
+
+{
+  /**
+   * **Intensity still outranks feel.** `applyFeel` runs *before* `applyDynamics`
+   * precisely so that the section's own level is the outermost term: a feel may
+   * change the shape of a section's loudness and never its rank. This is the
+   * check that catches that order being got wrong, and it is written now, while
+   * nothing in a feel touches velocity at all, because the wave that adds
+   * `accent` is the wave that will break it.
+   *
+   * Per layer rather than over the whole band, which is what the plan asked for
+   * and is wrong: the mean over every layer at once moves with which layers are
+   * *playing*, so a chorus carrying more pad — the quietest thing in the mix —
+   * reads as quieter than its verse for reasons that have nothing to do with
+   * dynamics. Measured: 3 of 36 songs fail that way today, before feels do
+   * anything. Per layer it is clean, and it is also the sharper statement, since
+   * `applyDynamics` scales one layer at a time.
+   */
+  let compared = 0; let inverted = 0; let multi = 0;
+  const detail: string[] = [];
+  for (const { style, seed, felt } of feelPairs) {
+    const ids = new Set((felt.meta.feels ?? []).map((f) => f.feel.id));
+    if (ids.size < 2) continue;
+    multi++;
+    const bpb = felt.meta.beatsPerBar;
+    const bars = (kind: string) => felt.sections.filter((s) => s.kind === kind)
+      .map((s) => [s.startBar * bpb, (s.startBar + s.lengthBars) * bpb] as [number, number]);
+    for (const layer of ['bass', 'comp', 'pad'] as const) {
+      const notes = felt.tracks.find((t) => t.layer === layer)?.notes ?? [];
+      const mean = (kind: string) => {
+        const spans = bars(kind);
+        const hit = notes.filter((n) => inside(n.beat, spans));
+        return hit.length ? hit.reduce((sum, n) => sum + n.velocity, 0) / hit.length : NaN;
+      };
+      const chorus = mean('chorus'); const verse = mean('verse');
+      if (Number.isNaN(chorus) || Number.isNaN(verse)) continue;
+      compared++;
+      if (chorus <= verse) {
+        inverted++;
+        if (detail.length < 3) detail.push(`${style}/${seed} ${layer} ${chorus.toFixed(3)} <= ${verse.toFixed(3)}`);
+      }
+    }
+  }
+  check(
+    'intensity outranks feel: the chorus is still the loudest',
+    inverted === 0 && compared > 0,
+    inverted ? detail.join('; ') : `${compared} layer comparisons over ${multi} songs with more than one feel`,
+  );
+}
+
 // --- Walking bass --------------------------------------------------------
 // Only measure songs that actually drew the walking pattern: a two-feel bass
 // leaps by design, and averaging the two together hides both.

@@ -9,6 +9,7 @@
 
 import type { Midi } from './pitch.js';
 import type { Mode } from './scale.js';
+import type { FeelSpan } from '../style/feel.js';
 
 /**
  * Named layers. A game can duck, mute or crossfade these independently, which
@@ -785,6 +786,23 @@ export interface SongMeta {
   totalBars: number;
   /** Swing amount 0..0.33; 0 = straight. */
   swing: number;
+  /**
+   * How each stretch of the song is felt — where the band leans, and how long it
+   * holds a note. See `style/feel.ts`.
+   *
+   * Absent on any song whose style names no feel table, which is all but two of
+   * them: absent means straight throughout and means no draw was made, so a
+   * catalogue that has not opted in is byte-for-byte what it was. Present, the
+   * spans cover the song end to end and are half-open in bars, so anything
+   * reading them can say what is happening at bar 12 the way it already can with
+   * `chordLabels`.
+   *
+   * The import is type-only and stays that way. `core` is the layer everything
+   * else is built on and does not depend on `style` at runtime; the alternative
+   * — a second declaration of the span shape down here — is how two shapes drift
+   * apart.
+   */
+  feels?: FeelSpan[];
   /**
    * Bars of count-in at the very front of the song, before bar 1 of the music.
    *

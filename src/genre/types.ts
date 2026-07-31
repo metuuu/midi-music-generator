@@ -32,6 +32,7 @@ import type {
 import type { RuleOverrides, StrictnessId } from '../core/rules.js';
 import type { HookId } from '../generate/hook.js';
 import type { EraProfile, Mood, Style } from '../style/types.js';
+import type { FeelId } from '../style/feel.js';
 import type { VocalProfile } from '../style/vocals.js';
 import type { FillPalette } from '../generate/fills.js';
 import type { SoloProfile } from '../generate/solo.js';
@@ -145,6 +146,21 @@ export interface Genre {
 
   /** Constraint level that suits the idiom by default. */
   defaultStrictness: StrictnessId;
+
+  /**
+   * How this genre's sections may be felt, weighted — the fallback for styles
+   * that name no table of their own. See `style/feel.ts`.
+   *
+   * The merge order is the established one, `genre ← style ← mood bias`, and a
+   * style's table *replaces* this rather than extending it: a table is a
+   * statement about what this band would do, and a style that has listed two
+   * feels has not implicitly agreed to the genre's third.
+   *
+   * Empty on every genre so far, and that is a real answer rather than a stub.
+   * A genre-wide default is how six feels end up under everything at once, so
+   * the opt-in stays per style until there is evidence about how it sounds.
+   */
+  feels?: (readonly [FeelId, number])[];
 
   /**
    * Repetition level that suits the idiom by default.

@@ -40,6 +40,7 @@ import {
 import type {
   EraProfile, LeftHandMode, Mood, Progression, Style, TwoHandedKeys,
 } from '../style/types.js';
+import { FEELS, type Feel, type FeelLayer, type FeelSpan } from '../style/feel.js';
 import { planRegisters, resolveCollisions } from './arrange.js';
 import { buildAccompaniment, getStrictness, resolveRules, type StrictnessId } from '../core/rules.js';
 import { applyDynamics, sectionIntensity, swell } from './dynamics.js';
@@ -196,6 +197,17 @@ export function generateSong(opts: GenerateOptions = {}): Song {
    * override it generates the song it generated before this existed.
    */
   const scaleForChord = style.scaleForChord ?? genre.scaleForChord;
+  /**
+   * Which feels this band is willing to play, if any. See `style/feel.ts`.
+   *
+   * Resolved once, in the same shape and for the same reason as `scaleForChord`
+   * above: the style's answer beats the genre's, and there is one place to read
+   * it off. **Absent means no draw happens at all** — not a draw that is made
+   * and discarded — which is what keeps every style that has not opted in
+   * bit-identical to what it was. See the note on `Style.feels`, and the
+   * `drumSource` note below for what the alternative cost last time.
+   */
+  const feelTable = style.feels ?? genre.feels;
 
   const rules = resolveRules(genre.ruleOverrides);
   /**
@@ -461,6 +473,12 @@ export function generateSong(opts: GenerateOptions = {}): Song {
    * things the final chorus's key change moves.
    */
   let finalChord: Chord | undefined;
+  /**
+   * How each stretch of the song is felt, collected as it is decided and handed
+   * to the IR at the end. Empty — and therefore omitted from `meta` — for every
+   * style that names no table.
+   */
+  const feels: FeelSpan[] = [];
 
   for (let s = 0; s < sections.length; s++) {
     const section = sections[s]!;
@@ -564,8 +582,8 @@ export function generateSong(opts: GenerateOptions = {}): Song {
       const layers = new Set(section.activeLayers);
       if (solo.layer !== 'drums') layers.add(solo.layer);
       if (solo.layer !== 'melody') layers.delete('melody');
-      if (solo.feel === 'comping' || solo.feel === 'sparse') layers.delete('pad');
-      if (solo.feel === 'sparse') layers.delete('comp');
+      if (solo.whilePlaying === 'comping' || solo.whilePlaying === 'sparse') layers.delete('pad');
+      if (solo.whilePlaying === 'sparse') layers.delete('comp');
       // A drum chorus: the band is not playing quietly, it is not playing.
       if (!solo.soloBars.length) {
         for (const l of ['bass', 'comp', 'pad'] as LayerId[]) layers.delete(l);
@@ -614,6 +632,17 @@ export function generateSong(opts: GenerateOptions = {}): Song {
         lengthBeats: section.lengthBars * style.beatsPerBar,
       },
     );
+
+    /**
+     * Where this section's drumming starts in the running list.
+     *
+     * The kit is the one part not held in a `section…` local: pattern, fill and
+     * drum solo are pushed straight onto the song's own array as they are
+     * written. The per-section passes at the foot of the loop still have to be
+     * able to reach only this section's events, and an index into the array is
+     * the cheapest honest way to say which those are.
+     */
+    const drumsFrom = drumEvents.length;
 
     if (active.has('drums')) {
       /**
@@ -679,7 +708,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
        * Found by counting distinct velocities in a generated box part: three
        * were expected, from `accentOf`, and five turned up.
        */
-      drumEvents.push(...(solo && !machine ? drumsBehindSolo(behind, solo.feel) : behind));
+      drumEvents.push(...(solo && !machine ? drumsBehindSolo(behind, solo.whilePlaying) : behind));
 
       if (kitSolo) {
         drumEvents.push(...generateDrumSolo({
@@ -776,7 +805,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
      */
     if (solo) {
       const backRng = new Rng(`${seed}:solo:${s}:back`);
-      if (solo.feel === 'comping') sectionComp = compBehindSolo(sectionComp, backRng);
+      if (solo.whilePlaying === 'comping') sectionComp = compBehindSolo(sectionComp, backRng);
       if (solo.drumBars.length) {
         const hush = (notes: NoteEvent[]) => notes.filter((n) => !inSpans(n.beat, solo.drumBars));
         sectionBass = hush(sectionBass);
@@ -1274,6 +1303,65 @@ export function generateSong(opts: GenerateOptions = {}): Song {
     }
 
     /**
+     * How this section is felt.
+     *
+     * One draw per section, from its own namespaced stream, and **only where
+     * there is a table to draw from** — a style that has not opted in must not
+     * consume a number here, or every song in the catalogue moves. See
+     * `Style.feels`.
+     *
+     * Per section rather than per song because that is what a feel *is*: a
+     * statement about a passage. Per bar would be a different feature and is
+     * wave 5's; sections change at their boundary, which is where a band changes
+     * anything.
+     *
+     * It runs immediately before the dynamics and that order is load-bearing.
+     * `applyFeel` will eventually multiply velocities, and intensity has to be
+     * the outermost term — a chorus that was louder than its verse before feels
+     * existed stays louder afterwards, whatever the feel says. A feel changes
+     * the shape of a section's loudness and never its rank.
+     *
+     * The melody and the counter are absent from the call and cannot be added:
+     * they were auditioned, and bending the gesture that won hands back one
+     * nobody scored. See `style/feel.ts`.
+     */
+    if (feelTable?.length) {
+      const bias = mood.feelBias;
+      const feel = FEELS[new Rng(`${seed}:feel:${s}`).weighted(
+        feelTable.map(([id, w]) => [id, w * (bias?.[id] ?? 1)] as const),
+      )];
+      feels.push({
+        from: section.startBar,
+        to: section.startBar + section.lengthBars,
+        feel,
+        /**
+         * Whole-hearted, always, for now. A partial amount is how a break eases
+         * in and out of half time, which is wave 5's problem; a section either
+         * is or is not played in the pocket.
+         */
+        amount: 1,
+      });
+      applyFeel({
+        feel,
+        amount: 1,
+        bpm,
+        swing: style.swing,
+        endsAt: (totalBars - 1) * style.beatsPerBar,
+        layers: {
+          bass: sectionBass, comp: sectionComp, pad: sectionPad, brass: sectionBrass,
+        },
+        /**
+         * …and a rhythm box neither leans nor lays back, for the third time in
+         * this file and for the same reason. `canVary` is false for exactly one
+         * source and it takes away exactly what that source cannot do: a Mini
+         * Pops has one pattern per button and a volume knob, and a preset that
+         * dragged its backbeat would be somebody playing it.
+         */
+        ...(canVary(drumSource) ? { drums: drumEvents.slice(drumsFrom) } : {}),
+      });
+    }
+
+    /**
      * Scale the whole section at once. Doing it here rather than inside each
      * part generator is what keeps the parts ignorant of the form: a comp
      * pattern should not have to know whether it is in a bridge.
@@ -1670,6 +1758,9 @@ export function generateSong(opts: GenerateOptions = {}): Song {
       ...(style.groups ? { groups: style.groups } : {}),
       totalBars,
       swing: style.swing,
+      // Omitted rather than empty where the style names no table, so a song that
+      // was never asked the question does not carry an answer to it.
+      ...(feels.length ? { feels } : {}),
     },
     sections,
     tracks,
@@ -2465,6 +2556,129 @@ function expandProgression(prog: Progression, bars: number, mode: Mode): Chord[]
 function transposeChord(chord: Chord, semitones: number): Chord {
   if (!semitones) return chord;
   return { ...chord, root: ((chord.root + semitones) % 12 + 12) % 12 };
+}
+
+/**
+ * Play a stretch of already-written music the way a feel says to.
+ *
+ * The sibling of `applyDynamics`, and it sits beside it for the reason that pass
+ * gives for existing at all: doing this here rather than inside each part
+ * generator is what keeps the parts ignorant of everything above them. A comp
+ * pattern should not have to know whether it is in a bridge, and it should not
+ * have to know whether the band is in the pocket either.
+ *
+ * **Rhythm section only.** The layers are named by the type — see `FeelLayer` —
+ * and the melody and the counter are not among them, because those were
+ * auditioned and moving them afterwards throws the audition away.
+ *
+ * Two fields today, `push` and `articulation`. The rest of `Feel` is declared
+ * and unread; adding one means adding a block here and nothing else.
+ */
+function applyFeel(args: {
+  feel: Feel;
+  /** How far toward the feel this span goes, 0..1. */
+  amount: number;
+  bpm: number;
+  /** The style's swing, needed to move a note without losing it — see below. */
+  swing: number;
+  /**
+   * The downbeat of the final bar. Nothing at or after it is touched.
+   *
+   * The last bar is not a bar of the arrangement, it is the ending — see
+   * `landEnding` — and an ending is the one moment where the whole band lands on
+   * the same beat on purpose. Leaving it out is not tidiness either; it was
+   * measured. A bass onset twelve milliseconds early falls out of the landing
+   * window, so the ending took the *next* pattern note as its landing and struck
+   * it on the downbeat while the early one was held: a doubled attack on the
+   * final chord, in three fusion songs out of forty. The kit had the mirror
+   * fault, since the drums in the final bar are removed by comparing against the
+   * same downbeat, and a snare pushed in front of it survived as a stray hit
+   * under the crash.
+   */
+  endsAt: number;
+  layers: Partial<Record<Exclude<FeelLayer, 'drums'>, NoteEvent[]>>;
+  /** This section's kit events. Absent for a preset rhythm box. */
+  drums?: DrumEvent[];
+}): void {
+  const { feel, amount, bpm, swing } = args;
+  if (amount <= 0) return;
+
+  const ending = (beat: number) => beat >= args.endsAt - 1e-6;
+
+  /**
+   * Milliseconds into beats, which is the conversion this whole field exists to
+   * defer. A push is a fact about a player rather than about a tempo — see
+   * `Feel.push` — so it stays in milliseconds everywhere except the one line
+   * that has the song's tempo to hand, which is this one.
+   */
+  const toBeats = (ms: number) => (ms * bpm) / 60000 * amount;
+
+  /** The second eighth of a beat, which is the only thing `applySwing` moves. */
+  const offbeat = (beat: number) => Math.abs((beat - Math.floor(beat)) - 0.5) < 1e-6;
+
+  for (const [layer, notes] of Object.entries(args.layers) as
+    [Exclude<FeelLayer, 'drums'>, NoteEvent[] | undefined][]) {
+    if (!notes?.length) continue;
+
+    /**
+     * Move the onsets, taking the swing with them.
+     *
+     * The subtlety is worth the three lines. `applySwing` runs at assembly and
+     * finds its offbeats by testing the fraction against exactly 0.5, so a note
+     * this pass has already nudged twelve milliseconds is no longer at 0.5 and
+     * would quietly stop being swung — arriving *earlier* than a straight note
+     * instead of a hair in front of a swung one. That is a groove bug that reads
+     * as sloppiness rather than as a fault, which is the worst kind. So an onset
+     * about to be moved off the grid is swung here first, and assembly then
+     * correctly leaves it alone.
+     *
+     * Neither feel shipped today triggers it in the pattern — a blues snare is
+     * on the beat and fusion is straight — but a blues *fill* puts snares on
+     * offbeats, and the first feel that pushes a comp will hit it everywhere.
+     *
+     * Clamped at zero because the song starts there: a bass leaning into the
+     * first downbeat of the piece has nothing to lean out of.
+     */
+    const offset = toBeats(feel.push?.[layer] ?? 0);
+    if (offset) {
+      for (const n of notes) {
+        if (ending(n.beat)) continue;
+        if (swing > 0 && offbeat(n.beat)) {
+          n.beat += swing * 0.5;
+          n.duration = Math.max(0.05, n.duration - swing * 0.5);
+        }
+        n.beat = Math.max(0, n.beat + offset);
+      }
+    }
+
+    /**
+     * Articulation is interpolated rather than scaled, so that `amount` means
+     * the same thing here as it does for a push: at 0 the feel is not applied,
+     * at 1 it is applied in full, and 0.5 is genuinely half way there. A raw
+     * multiplication by `amount` would make every partial span staccato.
+     */
+    const art = feel.articulation?.[layer];
+    if (art !== undefined && art !== 1) {
+      const factor = 1 + (art - 1) * amount;
+      for (const n of notes) {
+        if (ending(n.beat)) continue;
+        n.duration = Math.max(0.05, n.duration * factor);
+      }
+    }
+  }
+
+  if (args.drums?.length && feel.push) {
+    const kit = toBeats(feel.push.drums ?? 0);
+    for (const e of args.drums) {
+      // The voice wins over the kit: `pocket` drags the snare and leaves the
+      // hats where they were, which is the difference between a band laying
+      // back and a band slowing down.
+      const offset = feel.push[e.voice] !== undefined ? toBeats(feel.push[e.voice]!) : kit;
+      if (!offset || ending(e.beat)) continue;
+      if (swing > 0 && offbeat(e.beat)) e.beat += swing * 0.5;
+      e.beat = Math.max(0, e.beat + offset);
+    }
+  }
 }
 
 /**

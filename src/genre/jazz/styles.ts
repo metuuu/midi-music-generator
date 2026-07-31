@@ -537,6 +537,18 @@ const blues: Style = {
     if (isAlteredDominant(chord.quality)) return makeScale(pc(chord.root + 1), 'melodicMinor');
     return makeScale(tonic, 'blues');
   },
+  /**
+   * Two of the three sections are in the pocket and one is dead straight, and
+   * the difference between those is a shuffle that swings and a shuffle that
+   * marches. A blues is the obvious first place to ask for it: the idiom is a
+   * rhythm section and a soloist, everybody has heard hundreds of them, and the
+   * thing being added is the one people mean when they say a band is *in* it.
+   *
+   * Weighted toward straight rather than at parity, because the point of the
+   * pair is that the sections differ from each other. A table of pocket alone
+   * would be a style change dressed up as a per-section draw.
+   */
+  feels: [['straight', 6], ['pocket', 4]],
   modeWeights: { minor: 0.24, major: 0.76 },
   relativeMajorChorus: 0,
   progressions: {
@@ -1313,6 +1325,14 @@ const fusion: Style = {
    * with the fusion taken out.
    */
   strictness: 'free',
+  /**
+   * The other half of the experiment, and deliberately the opposite case: a
+   * straight-eighths electric band in seven, where the blues is a swung acoustic
+   * one in four. If `pocket` is genuinely genre-neutral it should read as the
+   * same gesture under both, and if it only works under the shuffle then it is a
+   * jazz field wearing a neutral name.
+   */
+  feels: [['straight', 6], ['pocket', 4]],
   modeWeights: { minor: 0.72, major: 0.28 },
   relativeMajorChorus: 0,
   twoHanded: {

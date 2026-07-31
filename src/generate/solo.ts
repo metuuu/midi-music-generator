@@ -184,8 +184,16 @@ export interface SoloChorus {
    * trading fours comps behind the horn exactly as it did on the previous
    * chorus and then stops dead, and losing that distinction would make the
    * trading chorus the one place the pad comes back.
+   *
+   * **This was called `feel` and the name was wrong twice over.** It holds a
+   * `BackingPolicy`, so `solo.feel === 'comping'` read as a category error long
+   * before anything else wanted the word — and now something does: a `Feel` is a
+   * genre-neutral statement about timing and articulation over a span of bars
+   * (`style/feel.ts`), which is a different question from what the rhythm
+   * section is playing behind a soloist. `backing` was the obvious new name and
+   * is taken by the field directly above, for the answer that goes on the IR.
    */
-  feel: BackingPolicy;
+  whilePlaying: BackingPolicy;
   /** Bar spans the named soloist plays. Empty for a drum chorus. */
   soloBars: BarSpan[];
   /** Bar spans the drummer has to themselves. Empty unless trading. */
@@ -265,8 +273,8 @@ export function planSolos(args: {
     previous = layer;
 
     const bars = section.lengthBars;
-    const feel = profile.backing?.[layer] ?? fallback;
-    let backing = feel;
+    const whilePlaying = profile.backing?.[layer] ?? fallback;
+    let backing = whilePlaying;
     let soloBars: BarSpan[] = [[0, bars]];
     let drumBars: BarSpan[] = [];
 
@@ -296,7 +304,7 @@ export function planSolos(args: {
 
     out.set(index, {
       section: index, layer, backing,
-      feel: layer === 'drums' ? 'trade' : feel,
+      whilePlaying: layer === 'drums' ? 'trade' : whilePlaying,
       soloBars, drumBars,
       index: i, total: indices.length,
     });
