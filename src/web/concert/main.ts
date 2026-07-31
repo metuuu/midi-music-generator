@@ -86,6 +86,18 @@ function optionsFromUrl(): ConcertOptions {
   };
 }
 
+/**
+ * `?debug` — label every player with the part they are playing.
+ *
+ * Presence is enough (`?debug`, `?debug=1`), because that is how a flag typed
+ * into an address bar by hand is written. `debug=0` and `debug=false` turn it
+ * off, so a link that carries the flag can be handed back without it.
+ */
+function debugFromUrl(): boolean {
+  const v = new URLSearchParams(location.search).get('debug');
+  return v !== null && v !== '0' && v !== 'false';
+}
+
 if (!canvas) {
   degrade('The page is missing its canvas.');
 } else {
@@ -119,7 +131,7 @@ if (!canvas) {
 
   let show: Show;
   try {
-    show = createShow({ concert: optionsFromUrl(), onState: onState });
+    show = createShow({ concert: optionsFromUrl(), debug: debugFromUrl(), onState: onState });
   } catch (err) {
     degrade(`The show could not be staged: ${String(err)}`);
     throw err;

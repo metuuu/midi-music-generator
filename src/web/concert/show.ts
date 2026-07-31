@@ -59,14 +59,15 @@
  */
 
 import type { Camera, Object3D } from 'three';
-import { Group, Vector3 } from 'three';
+import { Group, Raycaster, Vector2, Vector3 } from 'three';
 
 import { Rng } from '../../core/rng.js';
 import type { LayerId, Song } from '../../core/types.js';
 import { songDurationSeconds } from '../../core/types.js';
 import { buildConcert, revoiceNumber } from '../../concert/index.js';
+import { trackForPart } from '../../concert/choreograph.js';
 import type {
-  Concert, ConcertNumber, ConcertOptions, StageMachine,
+  Concert, ConcertNumber, ConcertOptions, PartRef, Performer, StageMachine,
 } from '../../concert/types.js';
 import { instrumentIdForTrack, specFor } from '../../concert/instruments.js';
 import { getGenre } from '../../genre/index.js';
@@ -75,6 +76,7 @@ import { loadCode, playCode, preloadSounds, startLoaded, stopPlayback } from '..
 
 import { createAnimator, type Animator } from './animate.js';
 import { createDirector, type CameraDirector } from './camera.js';
+import { buildDebugTag, type DebugTag } from './debug-tags.js';
 import { buildDrumMachine, type DrumMachine } from './instruments/drum-machine.js';
 import { aimMachineControls, buildInstrumentFor } from './instruments/index.js';
 import type { InstrumentModel } from './instruments/types.js';
@@ -94,6 +96,14 @@ export interface ShowOptions {
   concert?: ConcertOptions;
   quality?: Quality;
   reducedMotion?: boolean;
+  /**
+   * Label every player with the part they are playing — `?debug` on the page.
+   *
+   * A diagnostic and nothing else: it changes no staging, no timing and no
+   * sound, it only prints what the Song IR already says over the head of the
+   * person the casting gave that track to. See `debug-tags.ts`.
+   */
+  debug?: boolean;
   /** Called whenever the state changes, for the page's status line. */
   onState?: (state: ShowState, show: Show) => void;
 }
@@ -300,6 +310,8 @@ export function createShow(opts: ShowOptions = {}): Show {
    * machine is placed from its own `StageMachine` and ticked with the clock.
    */
   const machines: DrumMachine[] = [];
+  /** Empty unless `opts.debug`. Keyed like `rigs`, and struck with them. */
+  const tags = new Map<string, DebugTag>();
   const subjects = new Map<string, Object3D>();
   let band = new Group();
   band.name = 'band';
@@ -419,6 +431,18 @@ export function createShow(opts: ShowOptions = {}): Show {
       band.add(rig.root);
       rigs.set(performer.id, rig);
       subjects.set(performer.id, rig.root);
+
+      /**
+       * Parented to the rig rather than to the band, so the label rides the
+       * player: a hair over the crown, from the head the posture actually gave
+       * them rather than from a standing height a seated player does not have.
+       */
+      if (opts.debug) {
+        const tag = buildDebugTag();
+        tag.root.position.set(0, rig.proportions.head.y + rig.proportions.headR + 0.12, 0);
+        rig.root.add(tag.root);
+        tags.set(performer.id, tag);
+      }
 
       const track = number.song.tracks.find((t) => t.layer === performer.layer);
       /**
@@ -569,9 +593,11 @@ export function createShow(opts: ShowOptions = {}): Show {
   }
 
   function strikeBand(): void {
+    for (const tag of tags.values()) tag.dispose();
     for (const rig of rigs.values()) rig.dispose();
     for (const model of models.values()) model.dispose();
     for (const machine of machines) machine.dispose();
+    tags.clear();
     rigs.clear();
     models.clear();
     machines.length = 0;
@@ -893,6 +919,112 @@ export function createShow(opts: ShowOptions = {}): Show {
     stageNumber(0);
   });
 
+  // --- Debug labels ------------------------------------------------------
+  //
+  // `?debug`, and nothing here runs without it. What the labels answer is
+  // "which track did casting give this person, and is it sounding *now*" —
+  // both read straight off `current.song`, so a revoiced number (a tomato
+  // lands, `revoiceNumber` writes a new instrument) shows the new instrument
+  // for the same reason the audience hears it.
+
+  /** Scratch for the camera-space test below. One vector, not one per frame. */
+  const tagAt = new Vector3();
+  /** …and for picking one. Both only ever touched under `?debug`. */
+  const tagRay = new Raycaster();
+  const tagNdc = new Vector2();
+
+  /**
+   * The marker in column one. `debug-tags.ts` lights the line that starts
+   * with `>`, so this is also which line is worth looking at.
+   */
+  const mark = (sounding: boolean, silenced: boolean): string =>
+    silenced ? 'x' : sounding ? '>' : '·';
+
+  /**
+   * One line per part this player is minding — the primary, then any doubles,
+   * in the order `Performer.doubles` lists them. A keyboard player covering a
+   * bass line in their left hand is two lines, and which of them is sounding
+   * changes bar by bar.
+   */
+  function tagLines(performer: Performer, beat: number): string[] {
+    const parts: PartRef[] = [performer, ...(performer.doubles ?? [])];
+    return parts.map((ref) => partLine(ref, beat));
+  }
+
+  function partLine(ref: PartRef, beat: number): string {
+    if (ref.layer === 'drums') {
+      const kit = current.song.drums;
+      // A drum event has no duration — it is a hit. So the lamp is a flash of
+      // its own, rather than a note length there is none of.
+      const hit = kit.events.some((e) => beat >= e.beat && beat < e.beat + 0.2);
+      return `${mark(hit, sulking.has('drums'))} drums   ${kit.bank} (${kit.source ?? 'kit'})`;
+    }
+    // The same lookup casting used, so the label cannot disagree with the
+    // player about which of a layer's tracks is theirs. See `trackForPart`.
+    const track = trackForPart(current.song, ref);
+    if (!track) return `· ${ref.layer.padEnd(7)} — no track`;
+    const on = track.notes.some((n) => beat >= n.beat && beat < n.beat + n.duration);
+    // Name and program only. `strudelSound` was here too and is the same fact
+    // said twice — it is `gm_` and the name — and it made every label half as
+    // wide again, which on six players is most of the picture.
+    return `${mark(on, sulking.has(track.layer))} ${track.layer.padEnd(7)} `
+      + `${track.instrument} gm${track.gmProgram}`;
+  }
+
+  function updateTags(beat: number): void {
+    for (const performer of current.cast.performers) {
+      const tag = tags.get(performer.id);
+      if (!tag) continue;
+      tag.set(tagLines(performer, beat));
+      /**
+       * A label is screen-sized (`sizeAttenuation: false`), and three.js gets
+       * that by scaling the sprite by its own view-space depth. Behind the
+       * lens that depth is positive, the scale flips, and the label is drawn
+       * mirrored back into the picture over a player who is not there. The
+       * camera can end up inside the band on a close orbit, so this is worth
+       * a test rather than an assumption.
+       */
+      tag.root.getWorldPosition(tagAt).applyMatrix4(director.camera.matrixWorldInverse);
+      tag.setVisible(tagAt.z < -0.2);
+    }
+  }
+
+  /**
+   * A click on a label copies what it says, and throws nothing.
+   *
+   * Reading an instrument name off the screen and typing it into a bug report
+   * is the one thing anybody does with these, so the label is the button. It
+   * takes the click ahead of the tomatoes because a hit on a label is
+   * unambiguous — it is a small rectangle over somebody's head that is only
+   * there at all because the flag is set.
+   *
+   * `Sprite.raycast` does the awkward half of this: it knows about `center`
+   * and, unlike most of three.js, it knows that an unattenuated sprite's
+   * on-screen size is its scale times its own view depth. Only visible labels
+   * are offered, so one behind the camera cannot be clicked through the back
+   * of the lens.
+   */
+  function copyTagAt(ndcX: number, ndcY: number): boolean {
+    if (!tags.size) return false;
+    const shown = [...tags.values()].filter((t) => t.root.visible);
+    if (!shown.length) return false;
+
+    tagRay.setFromCamera(tagNdc.set(ndcX, ndcY), director.camera);
+    const hit = tagRay.intersectObjects(shown.map((t) => t.root), false)[0];
+    const tag = hit && shown.find((t) => t.root === hit.object);
+    if (!tag) return false;
+
+    const text = tag.text();
+    // `navigator.clipboard` is absent on an insecure origin, which a stage
+    // served over plain http on a LAN is. The label is still on the screen and
+    // the console still has it, so this stays a diagnostic rather than an
+    // error the show has to report.
+    const copy = navigator.clipboard?.writeText(text);
+    if (copy) copy.then(() => tag.flash(), (err) => console.warn('concert: copy failed', err));
+    else console.warn('concert: no clipboard here. The label says:\n' + text);
+    return true;
+  }
+
   // --- The frame ---------------------------------------------------------
 
   function frame(dt: number): void {
@@ -1053,6 +1185,9 @@ export function createShow(opts: ShowOptions = {}): Show {
     for (const model of models.values()) model.update(shown);
     // The clock, not a performer's shown beat: nobody is playing this.
     for (const machine of machines) machine.update(beat);
+    // The same beat the bodies were driven with, so a lit label and a hand
+    // that has arrived are the same moment. Empty unless `?debug`.
+    if (tags.size) updateTags(shown);
   }
 
   const api: Show = {
@@ -1067,6 +1202,9 @@ export function createShow(opts: ShowOptions = {}): Show {
       // Three things a click can mean, and the state decides which. Getting
       // this wrong is what makes tomatoes feel broken.
       if (state === 'bill') return;
+      // Four, under `?debug`: a label copies itself and eats the click, so
+      // reading one does not also pelt the player wearing it.
+      if (copyTagAt(ndcX, ndcY)) return;
       if (state === 'playing' || state === 'count-in') {
         tomatoes.aim(ndcX, ndcY, director.camera);
         tomatoes.throwNow(director.camera);
