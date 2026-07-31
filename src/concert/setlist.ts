@@ -32,6 +32,11 @@
  * thing on the bill. It only ever permutes the middle of the set, because the
  * opener and the closer are the two positions where the plan is load-bearing.
  *
+ * The slots are filled in order of how load-bearing they are, and pointedly not
+ * in the order they are played — see `fillOrder`. Every draw here is without
+ * replacement, so filling left to right was quietly paying the opener out of the
+ * closer's pocket.
+ *
  * ## Contrast is the whole point
  *
  * Four axes, and they are enforced rather than hoped for:
@@ -167,6 +172,16 @@ interface Slot {
  * The middles are the flexible part and they are deliberately not identical —
  * two numbers at the same energy either side of the ballad would make the arc
  * read as a dip rather than as a shape.
+ *
+ * These five numbers are the same in every concert of a genre, which looks like
+ * the determinism `drawPairing` works so hard to avoid and measurably is not.
+ * Jittering them was tried and reverted: ±0.065 and ±0.13 both moved the style
+ * distribution at every slot by less than the run-to-run noise, because `fit` is
+ * linear and shallow while the gaps between styles on the energy axis are a
+ * factor of three or more. Where a slot looks predictable — synth's third number
+ * is `cinematic` four times in five — the cause is that the genre has exactly one
+ * style in the bottom third of its range, and no reweighting of a draw invents a
+ * second one. That is a style table to grow, not a target to wobble.
  */
 function planSlots(count: number, sung: boolean[]): Slot[] {
   // With three numbers "third" is the closer, so the slow one moves to second.
@@ -300,6 +315,36 @@ function pairings(genre: Genre, era: EraProfile): Pairing[] {
 }
 
 /**
+ * The order the slots are *filled* in, which is not the order they are played.
+ *
+ * Drawing without replacement means whoever draws first picks from a clean
+ * catalogue and everyone after them picks from a penalised one. That is a real
+ * advantage and it has to be handed to somebody; the only wrong answer is to
+ * hand it out by array index, which is what filling the set left to right did.
+ *
+ * Iskelmä is where it showed. On bars per minute the valssi is *far* faster than
+ * anything else the genre has — 0.72 to 1.00 of the energy range, with nothing
+ * else above 0.46 — so the opener at 0.78 and the closer at 0.95 are both asking
+ * for the same style, and the one that draws first gets it. Filling left to
+ * right, that was the opener: 133 openers in 200 concerts against 81 closers,
+ * and a measured mean of 48.0 bars per minute at the top of the set against 45.0
+ * at the end of it. The set was arriving at its biggest number and slowing down.
+ *
+ * So the priority is the plan's own, stated in `planSlots` and merely enforced
+ * here: **the closer first**, because "the biggest number last" is the rule the
+ * whole shape hangs off; then the ballad, which is asking from the opposite
+ * extreme and is just as easy to miss; then the opener; then the middles, which
+ * are the flexible part and say so. Equal-priority slots are shuffled before the
+ * sort — `Array.sort` is stable, so the shuffle survives it — because between
+ * two middles there is no principle to appeal to and index order is not one.
+ */
+function fillOrder(slots: Slot[], rng: Rng): number[] {
+  const rank: Record<Role, number> = { closer: 0, slow: 1, opener: 2, middle: 3 };
+  return rng.shuffle(slots.map((_, i) => i))
+    .sort((a, b) => rank[slots[a]!.role] - rank[slots[b]!.role]);
+}
+
+/**
  * Draw a style and mood for one slot.
  *
  * Weighted rather than greedy. Greedy would give the same opener every time a
@@ -314,12 +359,12 @@ function pairings(genre: Genre, era: EraProfile): Pairing[] {
  * styles has to repeat one, and repeating one is better than throwing.
  *
  * The style penalty is severe — a fortieth — because the ends of the energy
- * range are frequently owned by one style and a mild penalty loses to that.
- * Iskelmä is the case: on bars per minute the valssi is *far* faster than
- * anything else the genre has, so "the biggest number last" asks for a valssi,
- * and asks again for the opener, and a set that bookends itself with two
- * waltzes has thrown away its best contrast to gain a few BPM. Better a humppa
- * that is a shade slower than the plan wanted than a second waltz.
+ * range are frequently owned by one style and a mild penalty loses to that. A
+ * set that bookends itself with two waltzes has thrown away its best contrast to
+ * gain a few BPM; better a humppa that is a shade slower than the plan wanted
+ * than a second waltz. It is a penalty and not a bar, so the bookend is still
+ * reachable where the genre leaves no alternative anywhere near the target —
+ * see `fillOrder` for which slot gets to make that trade and which one pays it.
  */
 function drawPairing(
   all: Pairing[], want: number, usedStyles: Set<string>, usedMoods: Set<string>, rng: Rng,
@@ -345,6 +390,13 @@ function drawPairing(
  * Both are forced rather than left to the song, because key contrast is the
  * axis the generator has no way to see: each song is written alone and has no
  * idea what preceded it.
+ *
+ * Whoever draws first picks from the whole weighted table and whoever draws last
+ * picks from what is left, so the draw order is worth something — and unlike the
+ * style draw there is no slot with a claim on it. A ballad does not need a more
+ * idiomatic key than an opener. Left to run in playing order it drifted down the
+ * table: mean rank 2.19, 2.50, 2.64, 2.50 across a four-number iskelmä set, the
+ * back of the bill quietly in the odder keys. The caller shuffles instead.
  */
 function drawKey(
   genre: Genre, style: Style, mood: Mood, used: Set<Pc>, rng: Rng,
@@ -407,14 +459,34 @@ export function buildSetlist(opts: ConcertOptions = {}): Song[] {
   const usedKeys = new Set<Pc>();
   const [shortest, longest] = concertLengths(genre);
 
+  /**
+   * Style and mood first, for the whole set, in priority order. Nothing is
+   * generated inside this loop: the draws are what the arc is made of, and
+   * running them all before any music exists is what lets them be ordered by
+   * how load-bearing a slot is rather than by when it happens to be played.
+   */
+  const picks = new Array<Pairing>(slots.length);
+  for (const i of fillOrder(slots, rng)) {
+    const pick = drawPairing(catalogue, slots[i]!.energy, usedStyles, usedMoods, rng);
+    usedStyles.add(pick.style.id);
+    usedMoods.add(pick.mood.id);
+    picks[i] = pick;
+  }
+
+  /** Keys second, in their own shuffled order. See `drawKey`. */
+  const keys = new Array<{ tonic: Pc; mode: Mode }>(slots.length);
+  for (const i of rng.shuffle(slots.map((_, n) => n))) {
+    const { style, mood } = picks[i]!;
+    const key = drawKey(genre, style, mood, usedKeys, rng);
+    usedKeys.add(key.tonic);
+    keys[i] = key;
+  }
+
   const songs: Song[] = [];
   for (let i = 0; i < slots.length; i++) {
     const slot = slots[i]!;
-    const { style, mood } = drawPairing(catalogue, slot.energy, usedStyles, usedMoods, rng);
-    usedStyles.add(style.id);
-    usedMoods.add(mood.id);
-    const { tonic, mode } = drawKey(genre, style, mood, usedKeys, rng);
-    usedKeys.add(tonic);
+    const { style, mood } = picks[i]!;
+    const { tonic, mode } = keys[i]!;
 
     songs.push(generateSong({
       // A number's seed says which show it belongs to and where in it. That is

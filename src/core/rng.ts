@@ -61,7 +61,20 @@ export class Rng {
       r -= w;
       if (r < 0) return item;
     }
-    return items[items.length - 1]![0];
+    /**
+     * Floating-point residue only: the running subtraction can leave `r` a hair
+     * above zero on the final entry. Falling back to the last *drawable* entry
+     * rather than the last entry in the list, because the two are not the same
+     * thing — a weight of zero means "this band does not play that", and the
+     * tables do carry zeros (a mood whose `styleBias` rules a style out
+     * entirely). Returning one would be the rarest kind of bug: correct almost
+     * always, and silently impossible the rest of the time.
+     */
+    for (let i = items.length - 1; i >= 0; i--) {
+      if (items[i]![1] > 0) return items[i]![0];
+    }
+    // Unreachable: a positive total guarantees a positive weight somewhere.
+    throw new Error('Rng.weighted: no drawable option');
   }
 
   weightedBy<T>(items: readonly T[], weightOf: (item: T) => number): T {
