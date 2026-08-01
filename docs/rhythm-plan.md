@@ -558,3 +558,74 @@ that sounds like the tune's own rhythm section rather than like the time signatu
 tables that have stopped each inventing their own way to say *hit here*. And every style
 that has not opted in byte-for-byte what it was, with the `--hook` A/B control still
 holding at every level.
+
+---
+
+## 13. What was built, and where it differs from the above
+
+Waves 1–4 landed as written. Wave 5 landed in part; the rest is held, and §13.3 says why.
+
+Every wave was measured against a pristine `git archive HEAD` copy rather than reasoned
+about, per the note in `docs/` about which checks flap on a reshuffle. Waves 1 and 3
+moved **nothing** in the catalogue — byte-identical check output — which is the direct
+evidence that the namespaced streams took nothing from the shared one.
+
+### 13.1 Three corrections the implementation forced
+
+- **`Style.vary`, not `Style.variation`.** `GenerateOptions.variation` already exists and
+  means something unrelated — a per-layer re-roll salt. Two fields a letter apart meaning
+  different things is how the wrong one gets read.
+- **The interval is `-2`, not `10`.** §5.3 above proposed the flat seventh as a minor
+  seventh *above* the root. What the old spelling actually sounded is `nearestPc(♭7,
+  root + 2)`, which resolves *below*: the faithful shape is `0, 0, 7, -2`. Spelling it
+  upward moved 14.9% of fusion's bass notes where the bug accounted for 4.2%.
+- **`fill` is refused on an arpeggio.** `generateComp` carries its ladder index across the
+  barline on purpose, so one added onset re-indexes every later bar — a different part
+  from there on rather than a gesture at a phrase end. `push` preserves the onset count
+  and is safe on anything.
+
+### 13.2 One property that cannot be checked where the plan assumed
+
+Check 5 was written as *every varied bar is at a phrase end*, measured over finished
+songs. It is not measurable there: `hitTogether` rewrites a bass bar too — the
+mid-section tutti, on the section's hook — and `landEnding` rewrites the last one. From
+outside, three mechanisms produce one indistinguishable symptom. The placement assertion
+therefore runs against `generateBass` and `generateComp` directly, on a synthetic
+section, where only one thing can have moved anything. The song-level check keeps the
+headline measurement and the structural guards, which is what it can actually support.
+
+### 13.3 Wave 5's widening is held, and this is the evidence
+
+The `shot` palettes from §6.1 were applied to iskelmä and to swing/bebop/blues, and
+**four checks failed**. `break` was not the cause; removing it changed nothing. All four
+are `shot`:
+
+| check | why it fails |
+| --- | --- |
+| `a declared fill palette is the identity` | a shot vetoes the drummer's fill, so an opted-in style's drums move |
+| `a feel modifies, it never authors` | `playShot` replaces a bar after `applyFeel`, legitimately removing notes a feel had added |
+| `the seam plan is on the IR, and only where asked` | "asked" is read as `style.transitions`; a genre-level palette is invisible to it |
+| `the pocket exists` | sample composition moved |
+
+Three of those are arguably check maintenance and one is a real question — *may a
+transition remove what a feel added?* — but answering four invariants in order to ship a
+widening that nobody has listened to is backwards. `transition-plan.md` §10 already gave
+the instruction: *ship with `shot` enabled on `fusion` alone, listen to twenty songs,
+then widen.* That still stands, and it now has a cost attached.
+
+The mechanism that makes widening *safe* is built and measured: on the metre alone the
+busiest metre in the catalogue offers **2** distinct shot figures, and from the band's own
+patterns it offers **25**. Fusion itself is unchanged by that, because its band figure
+thins to `[0, 4, 8]` — exactly its own group heads. The two agreeing is a good sign about
+the fallback and the reason fusion was the right style to ship wave 2 on; it also means
+the band path is not exercised end to end until a 4/4 style opts in.
+
+### 13.4 What is left
+
+- Widen the `shot` palettes, after listening, and settle the four checks above.
+- `thin` and `displace` have no caller. Both are exercised by
+  `the rhythm operators are total`, and `thin` is used by `shotFigures`; `displace` is
+  comp-only by §10 and waits for a style that wants it.
+- Enable `vary` beyond tango and `iskelmapop`, after listening.
+- `transition-plan.md` wave 4 (`elide`) should call `anticipate` and carry the §7.3
+  guard.
