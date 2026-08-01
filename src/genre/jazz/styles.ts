@@ -1410,7 +1410,7 @@ const fusion: Style = {
    */
   feels: [['straight', 5], ['pocket', 3], ['funk', 3]],
   /**
-   * …and the only style in the catalogue that plays a band shot at a seam. See
+   * …and the only style in the catalogue whose band does anything at a seam. See
    * `generate/transition.ts`.
    *
    * One style, on the same instruction `funk` above shipped under: ship it where
@@ -1419,14 +1419,16 @@ const fusion: Style = {
    * metre-derived figure in the case that most needs it. A generic table would
    * put the band on slots 0 and 8 of a fourteen-slot bar, which is the middle of
    * the third group and the last place anybody accents; the grouping puts them
-   * on 0, 4 and 8, which is the character of the bar.
+   * on 0, 4 and 8, which is the character of the bar. A break in seven is worth
+   * hearing for the opposite reason: nothing about stopping is metre-specific,
+   * so if it reads here it reads anywhere.
    *
-   * **`fill` and `shot` only.** The plan's palette for this style is
-   * `fill 5, shot 3, break 2, elide 2`, and the two missing kinds are not an
-   * omission: `applyTransitions` does nothing for them yet, and drawing one
-   * would take the drummer's fill away — the veto reads the *kind*, not whether
-   * anything was played — and put nothing in its place. A seam that arrives on
-   * silence is a worse answer than the one this catalogue has always given.
+   * **The plan's own numbers, less the kind that is not built.** The table there
+   * is `fill 5, shot 3, break 2, elide 2`; `elide` is missing rather than
+   * re-weighted, because drawing it would take the drummer's fill away — the
+   * veto reads the *kind*, not whether anything was played — and put nothing in
+   * its place. The remaining three keep their weights against each other, so
+   * adding `break` costs `shot` a fifth of its draws and nothing else moves.
    *
    * **And no `shots` table**, deliberately. Authoring one here would be the
    * feature shipping with its fallback never having sounded, and the fallback is
@@ -1434,7 +1436,7 @@ const fusion: Style = {
    * being written first. If the derived figure is wrong anywhere it is wrong
    * here, in seven, where it is loudest.
    */
-  transitions: [['fill', 5], ['shot', 3]],
+  transitions: [['fill', 5], ['shot', 3], ['break', 2]],
   modeWeights: { minor: 0.72, major: 0.28 },
   relativeMajorChorus: 0,
   twoHanded: {

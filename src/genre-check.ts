@@ -2331,14 +2331,22 @@ console.log('\nTransitions');
   );
 
   /**
-   * The rate limiter, and the box gate, over a catalogue talked into shots.
+   * The rate limiter, the box gate, and stop-time's one invariant, over a
+   * catalogue talked into gestures.
    *
-   * Every style is handed `fill 1, shot 3` for the length of this block —
-   * ambient included, which is not an endorsement but the point: what is being
-   * measured is the limiter, and it has to hold whatever a palette asks for. The
-   * raw draw is three seams in four; the plan allows one gesture per four seams
-   * and none at the first, and the bound that falls out of stating both as one
-   * rule is strictly under a quarter.
+   * Every style is handed `fill 1, shot 2, break 2` for the length of this block
+   * — ambient included, which is not an endorsement but the point: what is being
+   * measured is the machinery, and it has to hold whatever a palette asks for.
+   * The raw draw is four seams in five; the plan allows one gesture per four
+   * seams and none at the first, and the bound that falls out of stating both as
+   * one rule is strictly under a quarter.
+   *
+   * **Both non-`fill` kinds in one table rather than one check each**, because
+   * the limiter does not know which kind it is holding back: `spent` is set by
+   * any gesture and read by every gesture, so a second table would re-measure the
+   * same expression against a second sample and call it a second assertion.
+   * Splitting the count in the message is what actually adds information — it
+   * says the break arm is being exercised, which a bare percentage cannot.
    *
    * A preset box gets `fill` and nothing else in the same sweep. `canVary` is
    * false for exactly one source and it already takes away the fill, the drum
@@ -2349,10 +2357,12 @@ console.log('\nTransitions');
   for (const gid of GENRE_IDS) {
     for (const style of Object.values(getGenre(gid).styles)) {
       saved.set(style, style.transitions);
-      style.transitions = [['fill', 1], ['shot', 3]];
+      style.transitions = [['fill', 1], ['shot', 2], ['break', 2]];
     }
   }
   let seamsSeen = 0, gestures = 0, atFirst = 0, boxSongs = 0, boxGestures = 0, handSongs = 0;
+  let shots = 0, breaks = 0, silentBreaks = 0, alone = 0, untouched = 0;
+  const holes: string[] = [];
   for (const gid of GENRE_IDS) {
     for (let i = 0; i < 40; i++) {
       const song = generateSong({ seed: `rate-${gid}-${i}`, genre: gid });
@@ -2361,16 +2371,65 @@ console.log('\nTransitions');
       const nonFill = plan.filter((s) => s.kind !== 'fill').length;
       seamsSeen += plan.length;
       gestures += nonFill;
+      shots += plan.filter((s) => s.kind === 'shot').length;
       if (plan[0] && plan[0].kind !== 'fill') atFirst++;
       if (box) { boxSongs++; boxGestures += nonFill; } else if (nonFill) handSongs++;
+
+      /**
+       * …and every span the plan calls a break still has somebody in it.
+       *
+       * The one thing stop-time can get wrong that a listener would call a bug
+       * rather than a taste: a bar with the band taken out and nobody left over
+       * it is not a break, it is a hole. Read off the finished arrangement and
+       * not off the pass, so it holds whether the edit ran or stood itself down.
+       *
+       * **Sounding and not struck**, which is the plan's word and had to be taken
+       * at it. Counting onsets flagged one ambient bar in 160 songs where a pad
+       * holds across the whole span and nothing is attacked inside it — the pass
+       * had declined, the bar was untouched, and the arrangement was doing
+       * exactly what ambient is for. A note ringing through a bar is a layer
+       * sounding in it, and a test that says otherwise is measuring attacks.
+       *
+       * The split is worth printing. `alone` is a break that happened — one layer
+       * struck and no kit, which is what stop-time *is* — and `untouched` is one
+       * the edit declined, where nothing in the bar covered enough of it to carry
+       * the gesture and the seam was left as it was. Only the first number is
+       * under test; the second is the honest cost of drawing the kind before the
+       * notes exist, and it is here so that it cannot drift without being seen.
+       */
+      const bpb = song.meta.beatsPerBar;
+      for (const seam of plan) {
+        if (seam.kind !== 'break') continue;
+        breaks++;
+        const from = (seam.bar - 1) * bpb, to = seam.bar * bpb;
+        const sounding = song.tracks.some((t) => t.notes.some(
+          (n) => n.beat < to - 1e-6 && n.beat + n.duration > from + 1e-6,
+        ));
+        const struck = new Set(song.tracks
+          .filter((t) => t.notes.some((n) => n.beat >= from - 1e-6 && n.beat < to - 1e-6))
+          .map((t) => t.layer));
+        const kit = song.drums.events.some((e) => e.beat >= from - 1e-6 && e.beat < to - 1e-6);
+        if (!sounding && !kit) {
+          silentBreaks++;
+          if (holes.length < 3) holes.push(`${gid} rate-${gid}-${i} bar ${seam.bar - 1}`);
+        } else if (struck.size === 1 && !kit) alone++;
+        else untouched++;
+      }
     }
   }
   for (const [style, table] of saved) style.transitions = table;
 
   check(
     'a gesture waits four seams, and never opens',
-    seamsSeen > 0 && gestures / seamsSeen < 0.25 && atFirst === 0,
-    `${gestures} of ${seamsSeen} seams (${(gestures / seamsSeen * 100).toFixed(1)}%) drawn from a 75% table, ${atFirst} at the first seam`,
+    seamsSeen > 0 && gestures / seamsSeen < 0.25 && atFirst === 0 && shots > 0 && breaks > 0,
+    `${gestures} of ${seamsSeen} seams (${(gestures / seamsSeen * 100).toFixed(1)}%) drawn from an 80% table — ${shots} shots, ${breaks} breaks — and ${atFirst} at the first seam`,
+  );
+  check(
+    'a break leaves someone playing',
+    silentBreaks === 0 && alone > 0,
+    silentBreaks
+      ? `${silentBreaks} break bars with nothing sounding in them — ${holes.join(', ')}`
+      : `${alone} of ${breaks} break bars carried by one voice with the kit out, ${untouched} left alone as too thin to break`,
   );
   check(
     'a preset box only ever fills',

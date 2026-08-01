@@ -579,9 +579,16 @@ export function generateSong(opts: GenerateOptions = {}): Song {
    *
    * **Absent means no draw at all** — see `planTransitions`, which is where that
    * is enforced and argued.
+   *
+   * The solo plan comes with it, and only for its drum bars. A `break` may not
+   * land on a bar the drummer already has to themselves — the band is out and
+   * the gesture has already happened — and `Section.solo` is the obvious place
+   * to read that from and does not exist yet, since it is written inside the
+   * loop below. `soloPlan` is the same answer, three hundred lines earlier.
    */
   const seams: Seam[] = planTransitions({
     sections, seed, palette: transitionTable, metre: style, drums: drumSource,
+    drumBars: new Map([...soloPlan].map(([at, chorus]) => [at, chorus.drumBars])),
   });
 
   /**

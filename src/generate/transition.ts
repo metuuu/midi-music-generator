@@ -37,7 +37,8 @@
  *  - **`shot`** — replace what every layer holds in the last bar with a shared
  *    figure. `hitTogether` below is that edit, and it lives here rather than in
  *    `song.ts` because two callers now share it.
- *  - **`break`** — delete events in a span from every layer but one. *(wave 3)*
+ *  - **`break`** — delete events in a span from every layer but one.
+ *    `playBreak` below.
  *  - **`elide`** — move the first onset of each layer at the seam backwards by
  *    an eighth and clip what it lands on. *(wave 4)*
  *
@@ -73,13 +74,43 @@
  * in the bar being replaced — which are hook-invariant precisely because the
  * assertion above says they are.
  *
+ * ## Wave 3 is `break`, and the whole of it is who is left
+ *
+ * Stop-time. The band stops for the last bar before a seam and one voice carries
+ * it, and the contrast is the gesture — the oldest way in this repertoire to
+ * make an arrival land, and the cheapest thing in this file to build, because a
+ * deletion composes nothing.
+ *
+ * The kit stops with everyone else, and that is the decision the gesture turns
+ * on. A break the drummer plays through is not a break; it is the band resting
+ * while the time goes on, which is a different and much quieter effect. So the
+ * bar is emptied of kit outright and the drummer comes back in on the downbeat
+ * they were aiming at — which has to be written here for the same reason
+ * `playShot` writes it: the fill is vetoed at a seam that drew a gesture, and
+ * `landing()` is only ever reached by `generateDrums` when it has written one.
+ *
+ * Deleting kit events is free of the hook guarantee by construction: nothing is
+ * *derived*, so nothing can be derived from the tune. The one drum event this
+ * adds is the same cymbal `playShot` adds, from the same input — the loudest
+ * velocity the kit already plays in the bar it lands on — and it is hook-
+ * invariant for the same reason, which is that the assertion in `genre-check.ts`
+ * says the kit is.
+ *
+ * **A break is the one kind with a floor**, and `layersFor` is why. It decides
+ * which layers exist before any of this runs, so a break dropped into a section
+ * that is already two players is not a gesture, it is a bar where the music
+ * thins out. `MIN_BREAK_LAYERS` is that floor, and it is applied at the *draw*
+ * rather than at the edit — a break talked out of it late has already cost the
+ * drummer the fill, which is the one way this mechanism can leave a seam worse
+ * than it found it.
+ *
  * See `docs/transition-plan.md`.
  */
 
 import { Rng } from '../core/rng.js';
 import { canVary } from '../core/types.js';
 import type {
-  DrumEvent, DrumSource, NoteEvent, Section, Song,
+  DrumEvent, DrumSource, LayerId, NoteEvent, Section, Song, Track,
 } from '../core/types.js';
 import { landing } from './fills.js';
 import { metricStrength, SLOTS_PER_BEAT } from './rhythm.js';
@@ -238,6 +269,23 @@ export function shotFigures(metre: ShotSource): readonly (readonly [number[], nu
  * here rather than at the edit, because the drummer's fill is vetoed off the
  * back of this answer and a seam that lost its fill to a shot the kit could not
  * play would arrive with nothing at all.
+ *
+ * ## …and two more that only a `break` has to get past
+ *
+ * **The floor**, from `MIN_BREAK_LAYERS`, read off the departing section's
+ * `activeLayers`. **And the arriving section has to have been heard before**,
+ * which is the third of the plan's rate rules and the one that only applies to
+ * the kinds that take something away: a break is a comment on what is coming,
+ * and a comment on a section nobody has heard yet is just a hole.
+ *
+ * Both are here rather than at the edit, and that placement is the whole reason
+ * a rejected break costs nothing. The drummer's fill is vetoed off `kind` in the
+ * section loop, so a break talked out of it *there* still takes the fill with it
+ * and leaves the join announced by nobody. Talked out of it here, the seam is a
+ * `fill` before the loop ever reads it and the song is the song it always was.
+ * The floor is therefore stated against the layer plan rather than against the
+ * notes — the honest number is not knowable until assembly, and by then it is
+ * too late to be worth knowing.
  */
 export function planTransitions(args: {
   sections: readonly Section[];
@@ -248,8 +296,18 @@ export function planTransitions(args: {
   metre: ShotSource;
   /** What is making the drum sound. A preset box gets `fill` and nothing else. */
   drums: DrumSource;
+  /**
+   * Bars each section hands to the drummer alone, `[from, to)` and relative to
+   * the section, keyed by section index. Only traded and full drum choruses have
+   * any; everything else is absent from the map.
+   *
+   * Read from the solo *plan* rather than from `Section.solo`, which is the same
+   * information and does not exist yet: the IR field is written inside the
+   * section loop, and this runs before it. See `breakable`.
+   */
+  drumBars?: ReadonlyMap<number, readonly (readonly [number, number])[]>;
 }): Seam[] {
-  const { sections, palette, seed, metre, drums } = args;
+  const { sections, palette, seed, metre, drums, drumBars } = args;
   const boxed = !canVary(drums);
   const seams: Seam[] = [];
   /**
@@ -265,6 +323,7 @@ export function planTransitions(args: {
     const rng = palette?.length ? new Rng(`${seed}:transition:${s}`) : undefined;
     let kind: TransitionKind = rng ? rng.weighted(palette!) : 'fill';
     if (kind !== 'fill' && (boxed || s - spent < SEAMS_BETWEEN_GESTURES)) kind = 'fill';
+    if (kind === 'break' && !breakable(sections, s, drumBars?.get(s))) kind = 'fill';
     if (kind !== 'fill') spent = s;
     // Drawn from the same per-seam stream, and after the rate limit rather than
     // before it, so a seam that was talked out of a gesture leaves the draw
@@ -288,6 +347,83 @@ export function planTransitions(args: {
  * that is meant to be listened to rather than reasoned about further.
  */
 const SEAMS_BETWEEN_GESTURES = 4;
+
+/**
+ * Layers a section needs before its seam may draw a break.
+ *
+ * Three, from the plan's §10, where it is named as the mitigation for the one
+ * risk this kind carries: a break *silences layers*, and `layersFor` has already
+ * decided which layers a section has, so a break dropped into a duo is not the
+ * band stopping, it is the arrangement getting thinner for a bar.
+ *
+ * **And it has never once fired**, which is the finding rather than a
+ * disappointment. Measured over 202 break candidates spanning every genre and
+ * style with the palette forced, the smallest `activeLayers` at a candidate seam
+ * was three and the distribution ran 3:14 4:40 5:101 6:38 7:9. `layersFor` does
+ * not write two-layer sections at the kind of seam that can draw one, so the
+ * guard as the plan specified it is inert.
+ *
+ * It is kept anyway, for two reasons and not out of deference. It is the only
+ * statement in the file of *why* thinness matters, and deleting it would mean
+ * re-deriving that argument the first time a genre ships a sparser chart —
+ * ambient and `berlin` are exactly that, and wave 5 is where they get palettes.
+ * And it costs one array length.
+ *
+ * What the plan got wrong is not the number, it is the population. The layer
+ * plan is a claim about a whole section; the risk lives in one *bar* of it, and
+ * a layer listed for the section can be resting in its last bar — measured, the
+ * last bar before a seam has fewer than three layers sounding in it about a
+ * quarter of the time, in a catalogue where the plan says three or more every
+ * time. `playBreak` is where that gets answered, and it answers a different
+ * question rather than this one restated. See the note there.
+ */
+const MIN_BREAK_LAYERS = 3;
+
+/**
+ * May this seam take the band out for a bar?
+ *
+ * Two questions, both answerable from the form alone and neither of them about
+ * notes, which is what lets them be asked here — see `planTransitions` for why
+ * asking late would be worse than not asking.
+ */
+function breakable(
+  sections: readonly Section[], s: number,
+  drumBars: readonly (readonly [number, number])[] | undefined,
+): boolean {
+  const leaving = sections[s]!;
+  const arriving = sections[s + 1]!;
+  // Thin already: see `MIN_BREAK_LAYERS`.
+  if (leaving.activeLayers.length < MIN_BREAK_LAYERS) return false;
+  /**
+   * …and the drummer does not already own the bar.
+   *
+   * Where a traded section hands the kit its last bars the band is already out
+   * and the drummer is already alone in them: the break has happened, written by
+   * somebody else, and there is nothing left for this to take away. `playBreak`
+   * refuses the same case at the edit and has to — it deletes drum events, and
+   * that one would be deleting a drum solo — but refusing it *here* is what makes
+   * the refusal free. Measured over 200 fusion songs it was thirteen of the
+   * eighteen breaks that were drawn and then did not happen, and each of those
+   * had spent the song's one gesture on a bar where nothing could change.
+   */
+  const lastBar = leaving.lengthBars - 1;
+  if (drumBars?.some(([a, b]) => lastBar >= a && lastBar < b)) return false;
+  /**
+   * …and the section being delivered has to be one the listener knows.
+   *
+   * The plan's third rate rule, and the same sentence the mid-section tutti in
+   * `song.ts` already lives by: *reserved for a chorus that has already been
+   * stated once, because the gesture is a comment on something the listener
+   * knows*. Stopping the band to announce a section nobody has heard is a
+   * stumble — there is nothing yet for the silence to be about.
+   *
+   * By kind rather than by identity, because that is what "stated" means here:
+   * the second chorus is the same chorus coming round, and the form is a
+   * sequence of kinds. Counted over everything up to and including the section
+   * being left, so the arriving one is not allowed to count itself.
+   */
+  return sections.slice(0, s + 1).some((x) => x.kind === arriving.kind);
+}
 
 /**
  * Edit the assembled song at its seams.
@@ -347,7 +483,9 @@ export function applyTransitions(song: Song, seams: readonly Seam[]): void {
       case 'shot':
         if (seam.figure?.length) playShot(song, seam, seam.figure);
         break;
-      case 'break':  // wave 3 — stop-time, with a three-layer floor
+      case 'break':
+        playBreak(song, seam);
+        break;
       case 'elide':  // wave 4 — the seam-crosser, with the key-change guard
         break;
       default: {
@@ -458,23 +596,308 @@ function playShot(song: Song, seam: Seam, figure: readonly number[]): void {
     kept.push({ beat, voice: 'sd', velocity });
   }
 
-  /**
-   * …and the cymbal on the downbeat it was aiming at.
-   *
-   * `arrival` is read off the kit in the bar it lands on rather than passed in,
-   * because the section's intensity is a section-loop local and this pass runs
-   * long after it. The loudest thing the drummer plays on arriving is
-   * `accentOf × intensity × jitter` with the accent at or near 1, so it is the
-   * same number to within the jitter — and, unlike the intensity itself, it is
-   * made of drum events, which is the one kind of value this function is allowed
-   * to derive a drum event from.
-   */
+  song.drums.events = markTheLanding(kit, kept, to, bpb);
+}
+
+/**
+ * The cymbal on the downbeat the gesture was aiming at.
+ *
+ * Both kinds that rewrite a bar of kit need this and need it for the same
+ * reason: the drummer's fill is vetoed at any seam that drew a gesture, and the
+ * crash belongs to `landing()` in `fills.ts`, which `generateDrums` only reaches
+ * when it has written one. A shot that took the fill away and the cymbal with
+ * it, or a break that stopped the band and brought them back in on nothing,
+ * would each arrive quieter than the plainest seam in the catalogue.
+ *
+ * `arrival` is read off the kit in the bar it lands on rather than passed in,
+ * because the section's intensity is a section-loop local and this pass runs
+ * long after it. The loudest thing the drummer plays on arriving is
+ * `accentOf × intensity × jitter` with the accent at or near 1, so it is the
+ * same number to within the jitter — and, unlike the intensity itself, it is
+ * made of drum events, which is the one kind of value this file is allowed to
+ * derive a drum event from.
+ */
+function markTheLanding(
+  kit: readonly DrumEvent[], kept: DrumEvent[], to: number, bpb: number,
+): DrumEvent[] {
   const arriving = kit.filter((e) => e.beat >= to - 1e-6 && e.beat < to + bpb - 1e-6);
   const arrival = arriving.length ? Math.max(...arriving.map((e) => e.velocity)) : 0;
   const marked = kept.some((e) => e.voice === 'cr' && Math.abs(e.beat - to) < 1e-6);
   if (arrival > 0 && !marked) kept.push(landing(to, Math.min(1, arrival)));
+  return kept.sort((a, b) => a.beat - b.beat);
+}
 
-  song.drums.events = kept.sort((a, b) => a.beat - b.beat);
+/**
+ * Stop-time: the band out for the bar before a seam, one voice carrying it.
+ *
+ * Every other kind in this file is a rewrite. This one is a deletion, and it is
+ * the oldest gesture in the repertoire because it costs a band nothing and
+ * costs a listener their footing — the time keeps going in their head and there
+ * is nothing under it, so the downbeat that ends it lands harder than any fill
+ * could make it land.
+ *
+ * ## Who carries it, in order, and why the list ends where it does
+ *
+ * **The soloist first**, where the departing section has one, because handing a
+ * player the bar alone is what a break has always been *for*. **Then the tune,
+ * then the answering line** — the plan's "lead layer", spelled out, since the
+ * lead is a section-loop local that no longer exists by the time this runs and
+ * re-deriving it from `activeLayers` would be re-deriving a guess.
+ *
+ * **Then the bass, and that is the answer to the section whose melody is
+ * silent.** The plan did not have one and the case is not rare: measured over
+ * 1093 fusion seams the tune has no onset in the last bar at roughly one seam in
+ * five. A bass break is completely idiomatic — the band stops and the bass walks
+ * the bar on its own — and it is the last voice in the band that can state time
+ * unaccompanied, which is the property the carrier actually needs.
+ *
+ * The list stops there on purpose. A comp or a pad alone is not a voice carrying
+ * a break, it is a chord hanging in the air; nothing about it says *the band
+ * stopped*, and a break nobody can hear as one is worse than the plain cut this
+ * seam would otherwise have got. Where none of the four plays in the bar, this
+ * does nothing at all, which is the one honest answer available at this point in
+ * the pipeline.
+ *
+ * ## And the kit stops with everybody else
+ *
+ * The gesture does not survive a drummer keeping time through it — that is the
+ * band resting, not the band stopping. So the bar is emptied outright, crashes
+ * excepted, on exactly the reasoning `playShot` gives about the same bar: a
+ * cymbal is the drummer *marking* something and everything else in there is
+ * keeping time. In practice a section's last bar carries a crash only where the
+ * section is one bar long and the crash belongs to the seam *before* this one,
+ * which is a landing this pass has no business deleting.
+ */
+function playBreak(song: Song, seam: Seam): void {
+  const bpb = song.meta.beatsPerBar;
+  const from = (seam.bar - 1) * bpb;
+  const to = seam.bar * bpb;
+
+  /**
+   * The drummer keeps their own bar, and here that ends the matter rather than
+   * half of it.
+   *
+   * Where a traded section hands the kit the last bar the band is already out
+   * and the drummer is already alone in it — the break has happened, written by
+   * somebody else — and running this over the top would delete the drum ending
+   * and leave the bar genuinely empty.
+   *
+   * `breakable` refuses the same case at the *draw*, which is where the cost is
+   * saved rather than the damage prevented, so in practice this never fires
+   * today. It stays because the two are answering different questions: that one
+   * is deciding whether to spend a gesture, and this one is refusing to delete a
+   * drum solo. A pass that edits a `Song` should be safe against the plan it is
+   * handed rather than trusting that the plan was made here.
+   */
+  const section = song.sections[seam.section];
+  const lastBar = (section?.lengthBars ?? 0) - 1;
+  if (section?.solo?.blocks?.drumBars.some(([a, b]) => lastBar >= a && lastBar < b)) return;
+
+  const struckIn = (n: NoteEvent) => n.beat >= from - 1e-6 && n.beat < to - 1e-6;
+
+  /**
+   * What survives the break on a given layer, which is not the same as what is
+   * written on it.
+   *
+   * Two qualifications, and the second was a measured bug rather than a
+   * precaution. Not a sequencer, for the reason `Track.machine` gives everywhere
+   * else — nobody's hands are on it, so it neither stops nor plays a break;
+   * nothing in the one style that draws these has a machine in it, and the rule
+   * is here so that widening the palette does not quietly ask a sequencer to
+   * perform.
+   *
+   * And **not the left hand**, which is the one that bit. A two-handed lead is a
+   * single track whose comping is marked and is silenced below along with the
+   * rest of the band, so a bar where the pianist's right hand rests and only the
+   * left hand moves reads as *the tune is playing* to anything that counts onsets
+   * on the track, and comes out empty once the break has run. Six break bars in
+   * 200 fusion songs were exactly that, and every one of them was a hole rather
+   * than a break — the failure check 7 exists to catch, arrived at from the one
+   * direction the check could not have predicted.
+   */
+  const heard = (t: Track) => (n: NoteEvent) => !(t.twoHanded && n.hand === 'left');
+  const onLayer = (layer: LayerId) => song.tracks
+    .filter((t) => t.layer === layer && !t.machine)
+    .flatMap((t) => t.notes.filter(heard(t)));
+
+  /**
+   * Who is left, and the test is whether they are *carrying* the bar rather than
+   * merely present in it.
+   *
+   * The plan says the lead layer and stops there, and a first pass took it at its
+   * word: the highest-priority layer with any onset in the span. That is the rule
+   * that produced the worst bar this wave generated — a break whose surviving
+   * bass plays one 32nd note 0.03 beats before the arriving downbeat, over an
+   * otherwise empty bar. Nothing about it is stop-time. It is a bar of silence
+   * with a pickup on the end, and it is exactly the "reads as a dropout" failure
+   * that decides whether this kind is worth shipping.
+   *
+   * So a candidate has to hold the bar for `MIN_BREAK_COVER` of its length, and
+   * the priority list runs over the candidates that do. Sounding time and not
+   * onsets, because the two answers differ in both directions and only one of
+   * them is what a listener hears: a single held note across the bar is a break
+   * anybody would recognise, and four thirty-seconds bunched under the barline is
+   * not, whatever the onset count says.
+   *
+   * **The soloist first**, where the departing section has one, because handing a
+   * player the bar alone is what a break has always been *for*. **Then the tune,
+   * then the answering line** — the plan's "lead layer", spelled out, since the
+   * lead is a section-loop local that no longer exists by the time this runs and
+   * re-deriving it from `activeLayers` would be re-deriving a guess.
+   *
+   * **Then the bass, and that is the answer to the section whose melody is
+   * silent.** The plan did not have one, and the case is not the exception — it
+   * is the common one. Over 200 fusion songs the bass carries 37 of the 59
+   * breaks that happen, against 13 for the tune and 9 for the answering line,
+   * because a tune ending a section has usually finished its phrase and the bass
+   * has not. A bass break is completely idiomatic, and the bass is the last voice
+   * in the band that can state time unaccompanied, which is the property a
+   * carrier actually needs and the reason the fallback is not a consolation.
+   *
+   * The list stops there on purpose. A comp or a pad alone is not a voice
+   * carrying a break, it is a chord hanging in the air; nothing about it says
+   * *the band stopped*.
+   */
+  const soloist = section?.solo && section.solo.layer !== 'drums' ? section.solo.layer : undefined;
+  const carrier = ([...(soloist ? [soloist] : []), 'melody', 'counter', 'bass'] as LayerId[])
+    .find((layer) => {
+      const notes = onLayer(layer);
+      return notes.some(struckIn) && covers(notes, from, to) >= MIN_BREAK_COVER;
+    });
+  if (!carrier) return;
+
+  /**
+   * The singer goes with the tune, because the singer *is* the tune.
+   *
+   * `vocal` is the melody line doubled after swing — see the caller in
+   * `song.ts` — so silencing it under a melody break would take the voice off
+   * the one line that is meant to be exposed, and keeping it under any other
+   * carrier is moot, since it has no onset the melody did not have.
+   */
+  const carried = (t: Track) => t.layer === carrier || (carrier === 'melody' && t.layer === 'vocal');
+
+  const kit = song.drums.events;
+  const inBar = (e: DrumEvent) => e.beat >= from - 1e-6 && e.beat < to - 1e-6;
+  /**
+   * …and there has to be a band to take out.
+   *
+   * **Not `MIN_BREAK_LAYERS` again**, and the difference is the correction wave 3
+   * had to make to its own plan. The floor is a rule about *drawing* a break —
+   * "at least three sounding layers before drawing one" — and it is applied where
+   * drawing happens, in `planTransitions`, because that is the only point at
+   * which rejecting is free. Repeating the same number here, against the notes,
+   * looked like the same rule stated honestly and was in fact a second and much
+   * harsher gate: it stood down two breaks in five over 200 fusion songs, and
+   * every one of those seams had already given up its fill to a gesture that then
+   * did not happen.
+   *
+   * What is left is the invariant rather than the taste: a break must take
+   * something away and leave somebody. One other voice struck in the bar — a
+   * layer or the kit — is exactly that, and it is not a weaker version of the
+   * floor, it is the other question. A bar with the bass and the drummer in it
+   * becomes a bar with the bass alone, and a listener hears the drummer stop,
+   * which is the gesture. A bar with nobody but the carrier in it becomes the
+   * same bar, and the pass leaves it untouched.
+   *
+   * Struck rather than sounding, for the same reason the carrier has to be:
+   * cutting a pad that was already decaying is not what anybody means by the
+   * band stopping.
+   */
+  const taken = new Set<LayerId>(song.tracks
+    .filter((t) => !t.machine && !carried(t) && t.notes.some((n) => heard(t)(n) && struckIn(n)))
+    .map((t) => t.layer));
+  if (kit.some(inBar)) taken.add('drums');
+  if (!taken.size) return;
+
+  for (const track of song.tracks) {
+    if (track.machine) continue;
+    /**
+     * The carrier's own left hand is part of the band that stopped.
+     *
+     * A two-handed lead is one track — `generateLeftHand` writes the comping
+     * into the melody part and marks it — so a break that spared the whole track
+     * would leave the pianist comping underneath their own break, which is the
+     * one thing nobody does. The mark is read rather than `melodicLine`'s gap
+     * inference, deliberately: the inference is documented as fragile, and here
+     * it would be guessing which notes to *delete*.
+     */
+    track.notes = carried(track)
+      ? (track.twoHanded ? hush(track.notes, from, to, (n) => n.hand !== 'left') : track.notes)
+      : hush(track.notes, from, to);
+  }
+
+  song.drums.events = markTheLanding(kit, kit.filter((e) => !inBar(e) || e.voice === 'cr'), to, bpb);
+}
+
+/**
+ * How much of a break bar its surviving voice has to be sounding for.
+ *
+ * A third, and it is the number that decides whether this kind is a gesture or a
+ * dropout. A break is silence with a voice in it; past some point it stops being
+ * that and becomes silence with a *decoration* in it, and the pass has no way to
+ * tell the difference except by asking how long the voice is actually there.
+ *
+ * A third is low on purpose. Measured over 200 fusion songs the lead layer covers
+ * 64% of an ordinary bar and this is meant to reject the tail rather than
+ * legislate a density: the bars it stands a break down over are the ones covered
+ * 0–20%, which are a pickup under the barline or a single short note, and both of
+ * those are what the failure sounded like. Raising it to a half would also reject
+ * a held note with air on either side of it, which is the most idiomatic break in
+ * the repertoire.
+ */
+const MIN_BREAK_COVER = 1 / 3;
+
+/**
+ * How much of a span a part is sounding for, 0..1.
+ *
+ * Sounding rather than struck, and the union rather than the sum, because the
+ * question is what a listener hears: two notes overlapping is one continuous
+ * sound and a chord is one sound, and a count of onsets says three where the
+ * answer is one. Clamped to the span at both ends, so a note that started before
+ * it counts for the part inside and a note ringing past the barline does not
+ * borrow the next bar's time.
+ */
+function covers(notes: readonly NoteEvent[], from: number, to: number): number {
+  const spans = notes
+    .map((n) => [Math.max(from, n.beat), Math.min(to, n.beat + n.duration)] as const)
+    .filter(([a, b]) => b > a)
+    .sort((a, b) => a[0] - b[0]);
+  let total = 0;
+  let end = from;
+  for (const [a, b] of spans) {
+    if (b <= end) continue;
+    total += b - Math.max(a, end);
+    end = b;
+  }
+  return to > from ? total / (to - from) : 0;
+}
+
+/**
+ * Take a part out for a span.
+ *
+ * Two edits and not one, because a rest is not the absence of an onset — it is
+ * the absence of *sound*. Dropping what is struck inside the span leaves
+ * anything that was already ringing sounding straight through it, and a pad
+ * holding a whole note across the break is the difference between the band
+ * stopping and the band merely not playing anything new. So the held note is cut
+ * at the barline, which is where the player would have lifted.
+ *
+ * Shortening a note is still an edit rather than a composition — nothing is
+ * written that was not going to exist, and the note's own end moves earlier,
+ * never later, so nothing downstream inherits an overlap it did not have.
+ */
+function hush(
+  notes: NoteEvent[], from: number, to: number, spare: (n: NoteEvent) => boolean = () => false,
+): NoteEvent[] {
+  const out: NoteEvent[] = [];
+  for (const n of notes) {
+    if (spare(n)) out.push(n);
+    else if (n.beat >= from - 1e-6 && n.beat < to - 1e-6) continue;
+    else if (n.beat < from - 1e-6 && n.beat + n.duration > from + 1e-6) {
+      out.push({ ...n, duration: from - n.beat });
+    } else out.push(n);
+  }
+  return out;
 }
 
 function median(values: number[]): number {
