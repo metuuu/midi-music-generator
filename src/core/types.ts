@@ -188,20 +188,45 @@ export interface NoteEvent {
 /**
  * Consonant classes, by how they are made rather than by letter.
  *
- * Each is a manner of articulation, and the point of grouping them this way is
- * that a manner is *synthesisable* where a letter is not: a stop is a burst of
- * noise and a sudden vowel, a nasal is a soft rise with no burst at all. Four
- * classes plus bare vowel onset is enough to stop every syllable sounding like
- * the last one, which is the entire job here — nobody is going to mistake this
- * for language, and it should not try to be.
+ * Manner **and place**, because manner alone turned out not to be enough. Four
+ * manners is four sounds, two of which (nasal and liquid) have no noise in them
+ * at all and differed only in how fast the vowel arrived — so a line came out
+ * with one audible consonant and three shades of soft entry, which is exactly
+ * how it was reported. Place is what separates /p/ from /t/ from /k/, and it is
+ * as synthesisable as manner is: a burst has a centre frequency and a width, and
+ * the tract has a resonance it is passing through on the way to the vowel.
  *
- *   none       a vowel with no attack consonant — "ah"
- *   stop       t d k p b — a click, then the vowel arrives instantly
- *   fricative  s sh f — a longer rush of noise leading into the vowel
- *   nasal      m n — no burst, the voice swells in through the nose
- *   liquid     l r — no burst either, but quicker than a nasal
+ * That second one — the **locus** — is the part worth naming. Delattre's finding
+ * is that place is carried less by the burst than by where the formants are
+ * *coming from* as the vowel begins: labials transition up out of a low F2,
+ * alveolars down out of a high one, velars out of an F2 and F3 pinched together.
+ * It costs nothing here because the tract is already a cascade being automated,
+ * and without it a burst is a click with no address.
+ *
+ * The four original names are kept and now mean their commonest place, so every
+ * table written against them still says what it said.
+ *
+ *   none          a vowel with no attack consonant — "ah"
+ *   stop          t d — a sharp high click, then the vowel instantly
+ *   stop-p        p b — a low, diffuse click; the quietest of the three
+ *   stop-k        k g — a compact mid burst, and the velar pinch behind it
+ *   fricative     s z — the long high rush of a sibilant
+ *   fricative-sh  š — a sibilant an octave lower, and broader
+ *   fricative-f   f v — weak and broadband; noise with no centre to it
+ *   fricative-h   h — aspiration, barely filtered at all
+ *   nasal         n — murmur with the anti-resonance high
+ *   nasal-m       m — murmur with the anti-resonance low; the darker hum
+ *   liquid        l — lateral, F3 held high
+ *   liquid-r      r — the same but F3 dropped, which is the whole of /r/
+ *   glide         j w — vowel-like, no noise, the fastest onset there is
  */
-export type Consonant = 'none' | 'stop' | 'fricative' | 'nasal' | 'liquid';
+export type Consonant =
+  | 'none'
+  | 'stop' | 'stop-p' | 'stop-k'
+  | 'fricative' | 'fricative-sh' | 'fricative-f' | 'fricative-h'
+  | 'nasal' | 'nasal-m'
+  | 'liquid' | 'liquid-r'
+  | 'glide';
 
 /**
  * The vowels a renderer is expected to be able to produce.

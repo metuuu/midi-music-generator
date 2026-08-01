@@ -65,7 +65,7 @@
 import type { Consonant, Vowel } from '../core/types.js';
 import type { Delivery } from '../style/delivery.js';
 import type { VoiceSignature } from '../style/voices.js';
-import { CONSONANTS, VOWEL_FORMANTS } from '../style/vocals.js';
+import { CONSONANTS, VOWEL_FORMANTS, type ConsonantShape } from '../style/vocals.js';
 
 /** One syllable to be sung, in seconds relative to the start of the utterance. */
 export interface SynthEvent {
@@ -76,6 +76,8 @@ export interface SynthEvent {
   velocity: number;
   vowel: Vowel;
   consonant: Consonant;
+  /** The consonant closing the syllable, articulated at the end of this event. */
+  coda: Consonant;
   /** Continues the previous syllable: no onset, no re-attack, glide the pitch. */
   tie: boolean;
   /** Runs into the next event with no silence — dip and rise instead of stop and start. */
@@ -623,12 +625,15 @@ export class VoiceSynth {
       bandwidth: BANDWIDTHS[i]! * sig.formantScale,
     }));
     const nasal = new Ramp(nasalZero.gain, t0);
+    const nasalAt = new Ramp(nasalZero.frequency, t0);
     const effortRamp = new Ramp(effort.gain, t0);
 
     const scale = sig.formantScale;
     let previous: SynthEvent | undefined;
 
-    for (const e of events) {
+    for (let i = 0; i < events.length; i++) {
+      const e = events[i]!;
+      const next = events[i + 1];
       const t = t0 + e.time;
       const freq = 440 * 2 ** ((e.midi - 69) / 12);
       const level = Math.max(0.02, e.velocity);
@@ -642,15 +647,16 @@ export class VoiceSynth {
       const attack = Math.max(0.002, shape.attack * (del.attack / 0.015));
 
       scheduleTract(tract, e, freq, scale, t, del.glide);
-      scheduleNasalZero(nasal, e, t, del.glide);
+      scheduleNasalZero(nasal, nasalAt, e, scale, t, del.glide);
       // Effort tracks velocity around a neutral of 0.75, so an accented
       // syllable opens up and an unaccented one closes down.
       effortRamp.glide(clamp((level - 0.75) * 16, -7, 7), t - del.glide * 0.4, del.glide / 2);
 
       if (e.tie) {
-        // Melisma. The pitch glides and nothing else happens — no onset, no
-        // re-attack, the same vowel carried onto a new note. This is the one
-        // gesture that is unambiguously singing rather than speech.
+        // Melisma, or the second half of a long vowel. The pitch glides and
+        // nothing else happens — no onset, no re-attack, the same vowel carried
+        // onto a new note. This is the one gesture that is unambiguously
+        // singing rather than speech.
         pitch.glide(freq, t, Math.max(0.012, del.glide * 0.5));
         envRamp.to(voiceLevel * del.sustain, t + 0.04);
       } else {
@@ -665,7 +671,42 @@ export class VoiceSynth {
       }
 
       if (!e.tie && shape.burstFreq > 0) {
-        this.burst(e, shape.burstFreq * scale, shape.burstDecay, t, level * patch.consonantGain, out);
+        this.burst(shape, shape.burstFreq * scale, t, level * patch.consonantGain, out);
+      }
+
+      /**
+       * The consonant that closes the syllable.
+       *
+       * Symmetric with the onset and cheaper, because there is no envelope to
+       * negotiate: the tract moves to the coda's own place while the vowel is
+       * still sounding, and the noise (if it has any) arrives on top. That
+       * order is the right one — a closing /s/ or /n/ is heard first as the
+       * vowel bending toward it and only then as the consonant itself, which is
+       * exactly why a coda makes a word sound longer rather than merely busier.
+       */
+      if (e.coda !== 'none') {
+        const codaShape = CONSONANTS[e.coda];
+        const tEnd = t + e.duration;
+        // The tract has to be back out of the way before the next syllable
+        // starts steering it, or the two gestures collapse into each other.
+        const room = next ? t0 + next.time - del.glide * 0.5 : Infinity;
+        const tc = Math.min(tEnd - Math.min(0.07, e.duration * 0.4), room);
+        if (tc > t + attack + 0.01) {
+          if (codaShape.locus) {
+            const tau = Math.max(0.006, del.glide / 4);
+            codaShape.locus.forEach((hz, k) => moveBand(tract[k], hz * scale, tc, tau));
+          }
+          if (codaShape.nasalZero > 0) {
+            nasalAt.set(codaShape.nasalZero * scale, tc);
+            nasal.glide(-14, tc, 0.014);
+            // Closed again before the next syllable can want it, because a
+            // murmur left hanging open reads as the *next* vowel being nasal.
+            nasal.glide(0, Math.min(tEnd + 0.02, room), 0.03);
+          }
+        }
+        if (codaShape.burstFreq > 0) {
+          this.burst(codaShape, codaShape.burstFreq * scale, tEnd, level * patch.consonantGain * 0.8, out);
+        }
       }
 
       previous = e;
@@ -697,22 +738,29 @@ export class VoiceSynth {
   }
 
   /**
-   * The noise transient at the front of a stop or a fricative.
+   * The noise transient of a stop or a fricative.
    *
    * Routed past the formant cascade rather than through it. A real burst is
    * shaped by the tract too, but it is shaped by the tract in its *closed*
    * position, which is a different filter from the vowel about to follow — and
    * running it through the vowel's formants is audibly worse than running it
    * through none, because it colours every /t/ with the vowel behind it.
+   *
+   * Width and level come from the consonant rather than being fixed, and that
+   * is the difference between an inventory and a single sound. Every burst used
+   * to be a Q of 1.4 at whatever centre, so /s/ and /f/ and /h/ were one hiss
+   * at three frequencies; the real distinction is that a sibilant is a focused,
+   * loud band and the others are quiet noise with no centre to speak of.
    */
   private burst(
-    e: SynthEvent, freq: number, decay: number, t: number, level: number, dest: AudioNode,
+    shape: ConsonantShape, freq: number, t: number, level: number, dest: AudioNode,
   ): void {
     const { ctx } = this;
     // A fricative leads its vowel — the noise is most of the sound and it
     // happens before the folds start. A stop is simultaneous: the release of
     // the closure *is* the start of the vowel.
-    const start = Math.max(ctx.currentTime, t - (decay > 0.05 ? 0.05 : 0));
+    const start = Math.max(ctx.currentTime, t - shape.burstLead);
+    const decay = shape.burstDecay;
 
     const src = ctx.createBufferSource();
     src.buffer = this.noise;
@@ -721,11 +769,15 @@ export class VoiceSynth {
     const band = ctx.createBiquadFilter();
     band.type = 'bandpass';
     band.frequency.value = freq;
-    band.Q.value = 1.4;
+    band.Q.value = shape.burstQ;
 
     const gain = ctx.createGain();
+    // A broad band passes far more of a flat noise spectrum than a narrow one,
+    // so the level has to be divided back out or /f/ arrives louder than the
+    // /s/ it is meant to be a quiet cousin of. √Q is the power relationship.
+    const peak = level * shape.burstGain * Math.sqrt(shape.burstQ);
     gain.gain.setValueAtTime(0, start);
-    gain.gain.linearRampToValueAtTime(level, start + 0.002);
+    gain.gain.linearRampToValueAtTime(peak, start + 0.002);
     gain.gain.exponentialRampToValueAtTime(1e-4, start + 0.002 + decay);
 
     src.connect(band).connect(gain).connect(dest);
@@ -755,10 +807,15 @@ export class VoiceSynth {
  * The glide starts *before* the syllable does, because the mouth does:
  * anticipatory coarticulation is why "coo" and "key" have audibly different /k/
  * sounds, and it is a large part of why connected speech sounds connected
- * rather than concatenated. A consonant that shapes the tract gets an
- * intermediate target first — the murmur of a nasal, the low F3 of a liquid —
- * and then glides on into the vowel, which is exactly what those consonants
- * *are*: not events, but places the tract passes through.
+ * rather than concatenated. The consonant gets an intermediate target first —
+ * its locus — and the tract then glides on into the vowel, which is exactly
+ * what a consonant *is* here: not an event, but a place the tract passes
+ * through on its way somewhere.
+ *
+ * Every consonant with a place now gets one, where before only nasals and
+ * liquids did. That is what makes the three stops three sounds instead of one
+ * click at three brightnesses: the burst is a moment and the transition out of
+ * it lasts fifty milliseconds, so the transition is most of what is heard.
  */
 function scheduleTract(
   tract: FormantBand[], e: SynthEvent, freq: number, scale: number, t: number, glide: number,
@@ -782,35 +839,37 @@ function scheduleTract(
   const lead = t - glide * 0.4;
 
   if (!e.tie) {
-    if (e.consonant === 'nasal') {
-      // The murmur: sound comes out of the nose, the mouth is closed, and the
-      // tract is a fixed shape with a low first resonance and little above it.
-      moveBand(tract[0], 260 * scale, lead - 0.05, 0.015);
-      moveBand(tract[1], 1100 * scale, lead - 0.05, 0.015);
-      moveBand(tract[2], 2400 * scale, lead - 0.05, 0.015);
-    } else if (e.consonant === 'liquid') {
-      // /l/ and /r/ between them: a low F2 and a distinctly lowered F3, which
-      // is the single cue that makes an English /r/ recognisable.
-      moveBand(tract[1], 1000 * scale, lead - 0.03, 0.012);
-      moveBand(tract[2], 2000 * scale, lead - 0.03, 0.012);
-    }
+    const locus = CONSONANTS[e.consonant].locus;
+    // Far enough ahead of the vowel's own glide that the tract genuinely
+    // arrives at the consonant's place first and moves off it afterwards. Set
+    // both at the same instant and there is no transition, only an average.
+    if (locus) locus.forEach((hz, i) => moveBand(tract[i], hz * scale, lead - 0.045, 0.014));
   }
 
   targets.forEach((target, i) => moveBand(tract[i], target, lead, tau));
 }
 
 /**
- * Open and close the nasal anti-resonance.
+ * Open and close the nasal anti-resonance, at the place the nasal is made.
  *
  * The murmur begins slightly before the syllable does and clears just after
  * it — the velum is a slow flap and it is still coming back up as the vowel
  * starts, which is why the vowel after a nasal is itself faintly nasalised.
  * Modelling that is free here and is one of the cues that makes /m/ read as a
  * consonant rather than as a soft entry.
+ *
+ * The *frequency* moves too, and that is the whole of /m/ against /n/. Both are
+ * a closed mouth hanging off the nasal tract; the mouth is simply longer for
+ * /m/, so it traps and cancels a lower band. Around 850 Hz against 1700 — a
+ * clean octave, and audible as one.
  */
-function scheduleNasalZero(nasal: Ramp, e: SynthEvent, t: number, glide: number): void {
+function scheduleNasalZero(
+  nasal: Ramp, freq: Ramp, e: SynthEvent, scale: number, t: number, glide: number,
+): void {
   if (e.tie) return;
-  if (e.consonant === 'nasal') {
+  const zero = CONSONANTS[e.consonant].nasalZero;
+  if (zero > 0) {
+    freq.set(zero * scale, t - 0.065);
     nasal.glide(-16, t - 0.06, 0.012);
     nasal.glide(0, t + 0.05, 0.045);
   } else {
@@ -888,8 +947,9 @@ function scheduleOnset(
 ): void {
   // A stop *is* a silence followed by a release. Without the closure it is only
   // a click, and a click at the start of a note is a synthesiser artefact
-  // rather than a consonant.
-  if (e.consonant === 'stop') {
+  // rather than a consonant. True of all three places — the closure is the
+  // manner, and the place is what happens on the way out of it.
+  if (e.consonant.startsWith('stop')) {
     env.to(0, t - 0.028);
     env.set(0, t - 0.003);
   } else if (previous?.legatoToNext) {

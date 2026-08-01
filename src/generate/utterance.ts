@@ -23,6 +23,14 @@
  *     difference. It goes on stressed syllables, because that is where a singer
  *     puts it — the emphasis is what earns the extra notes.
  *
+ *  4. **How long each syllable is entitled to be.** A heavy syllable — a long
+ *     vowel, a diphthong, or one a consonant closes — takes two slots where a
+ *     light one takes one. Without this every syllable was the same length, so
+ *     a ten-letter word and a two-letter word came out three notes and one, and
+ *     the long word did not sound long. It is the same mechanism melisma
+ *     already used: the second slot is a tie, so the vowel is *held* across it
+ *     rather than restruck, which is what a long vowel is.
+ *
  * Pitch comes out fractional on purpose. A recited line does not sit on
  * semitones, and rounding it to them is audible as a tune that nobody intended
  * to sing.
@@ -33,7 +41,7 @@ import type { Consonant, Vowel } from '../core/types.js';
 import type { Delivery } from '../style/delivery.js';
 import type { VoiceSignature } from '../style/voices.js';
 import { octaveFoldFor } from '../style/voices.js';
-import type { PhoneticWord } from './phonetics.js';
+import { syllableWeight, type PhoneticWord } from './phonetics.js';
 
 /** A rest at least this long ends a phrase, and is therefore where breath goes. */
 const PHRASE_GAP_BEATS = 1;
@@ -56,6 +64,12 @@ export interface SungSyllable {
   velocity: number;
   vowel: Vowel;
   consonant: Consonant;
+  /**
+   * The consonant that closes the syllable, sounded at the end of this event.
+   * Only ever set on the *last* event of a syllable — a heavy one spans two, and
+   * a coda belongs at the end of the vowel rather than in the middle of it.
+   */
+  coda: Consonant;
   /** Continues the previous syllable: no consonant, no re-attack, glide the pitch. */
   tie: boolean;
   /** Runs into the next event with no silence between them. */
@@ -106,14 +120,49 @@ export function layOutUtterance(opts: UtteranceOptions): SungSyllable[] {
   if (!slots.length) return [];
 
   const stream = flattenWords(words);
-  const total = opts.loopText === false ? Math.min(slots.length, stream.length) : slots.length;
 
   const out: SungSyllable[] = [];
   let cursor = 0;
+  /** Slots the syllable being sung still owes itself — see `syllableWeight`. */
+  let owed = 0;
+  /** Its closing consonant, waiting for the last of those slots. */
+  let pendingCoda: Consonant = 'none';
 
-  for (let i = 0; i < total; i++) {
+  for (let i = 0; i < slots.length; i++) {
     const slot = slots[i]!;
     const previous = out[out.length - 1];
+
+    if (opts.loopText === false && owed === 0 && cursor >= stream.length) break;
+
+    /**
+     * The second half of a heavy syllable. Same vowel, no re-attack, and the
+     * coda (if any) lands here rather than on the first slot, because that is
+     * where a mouth puts it: `suus` is a long /u/ *then* the /s/.
+     *
+     * A phrase break cancels it. The voice stops for breath at a phrase
+     * boundary and holding a vowel across the gap would mean it did not.
+     */
+    if (owed > 0 && previous && !slot.phraseStart) {
+      owed--;
+      out.push({
+        ...previous,
+        beat: slot.beat,
+        duration: slot.span,
+        midi: slot.midi,
+        velocity: previous.velocity * 0.97,
+        consonant: 'none',
+        coda: owed === 0 ? pendingCoda : 'none',
+        tie: true,
+        legatoToNext: true,
+      });
+      if (owed === 0) pendingCoda = 'none';
+      continue;
+    }
+    // A cancelled hold gives its coda to the syllable that already sounded,
+    // rather than dropping it: the word is still spelled the way it is spelled.
+    if (owed > 0 && previous) previous.coda = pendingCoda;
+    owed = 0;
+    pendingCoda = 'none';
 
     /**
      * Melisma: hold the previous syllable across this slot instead of taking a
@@ -121,8 +170,12 @@ export function layOutUtterance(opts: UtteranceOptions): SungSyllable[] {
      * pitch actually moves — holding a vowel across two identical pitches is
      * not a melisma, it is a note that failed to re-attack — and never across a
      * breath, because the whole point of a phrase break is that the voice stops.
+     *
+     * Never across a coda either. The syllable has already closed; carrying it
+     * on would be singing through a consonant that has been pronounced.
      */
     const canTie = previous !== undefined
+      && previous.coda === 'none'
       && !slot.phraseStart
       && Math.abs(slot.midi - (previous.midi - 0)) > 0.01
       && delivery.melisma > 0;
@@ -137,6 +190,7 @@ export function layOutUtterance(opts: UtteranceOptions): SungSyllable[] {
         midi: slot.midi,
         velocity: previous!.velocity * 0.94,
         consonant: 'none',
+        coda: 'none',
         tie: true,
         legatoToNext: true,
       });
@@ -145,6 +199,8 @@ export function layOutUtterance(opts: UtteranceOptions): SungSyllable[] {
 
     const entry = stream[cursor % stream.length]!;
     cursor++;
+    owed = syllableWeight(entry.syllable) - 1;
+    pendingCoda = entry.syllable.coda;
 
     out.push({
       beat: slot.beat,
@@ -153,6 +209,7 @@ export function layOutUtterance(opts: UtteranceOptions): SungSyllable[] {
       velocity: slot.velocity,
       vowel: entry.syllable.vowel,
       consonant: entry.syllable.onset,
+      coda: owed === 0 ? pendingCoda : 'none',
       tie: false,
       legatoToNext: false,
       stress: entry.syllable.stress,
@@ -160,6 +217,7 @@ export function layOutUtterance(opts: UtteranceOptions): SungSyllable[] {
       wordIndex: entry.wordIndex,
       syllableIndex: entry.syllableIndex,
     });
+    if (owed === 0) pendingCoda = 'none';
   }
 
   applyPitch(out, slots, delivery, signature);

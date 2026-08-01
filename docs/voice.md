@@ -89,16 +89,43 @@ there — the word already contains vowels. So it does both:
    syllable's vowel is heavily penalised, so a word never comes out as one vowel
    repeated — whatever the letters and the hash between them wanted.
 
-The `spelling` slider runs from pure hash (0) to letters-dominate (1). Syllable
-count comes from the word's own vowel-letter runs, so longer words get more
-syllables. Word-initial consonants come from the word's actual first letter
-(`moon` hums, `tale` clicks) — and a word starting with a vowel letter gets a
-bare onset, because inventing a consonant that is not there is audible as the
-wrong word.
+The `spelling` slider runs from pure hash (0) to letters-dominate (1).
 
-Consonants are deliberately thin: they are synthesised as *manner* rather than as
-phonemes, so one on every syllable reads as clatter, and vowel-to-vowel motion is
-what makes a line float. Two density knobs — high at word onsets, low inside.
+### Consonants
+
+Thirteen of them, by **manner and place**: three stops (`t` `p` `k`), four
+fricatives (`s` `š` `f` `h`), two nasals (`n` `m`), two liquids (`l` `r`), a
+glide, and bare onset. Manner alone was four sounds, two of which had no noise
+in them at all and differed only in how fast the vowel arrived — so a page of
+text came out with one audible consonant on it.
+
+Place is as synthesisable as manner. A burst has a width and a level as well as
+a centre (a sibilant is loud and focused; `f` and `h` are quiet noise with no
+centre), a nasal murmur has an anti-resonance whose frequency is the whole of
+`m` against `n`, and every consonant has a **locus** — where the tract sits
+while it is being made, which the vowel then transitions out of. That last one
+does most of the work: the ear reads `b` `d` `g` apart mostly from which way the
+formants move, not from the click.
+
+Every syllable takes its consonants from its own letters now, not just the first
+— `moon` hums, `tale` clicks, `ranta` rolls, and a word starting with a vowel
+letter gets a bare onset, because inventing a consonant that is not there is
+audible as the wrong word. A palette that has no `š` falls back to a weighted
+draw rather than to silence. Three density knobs: word onset, inside a word, and
+the closing consonant.
+
+### Length
+
+A syllable is **light or heavy**, and heavy takes two slots. Heavy means a long
+vowel, a diphthong, or a syllable a consonant closes — `kuu`, `jai`, `il`. Every
+one of those used to flatten to a plain short CV, so `hiljaisuus` and `ja` came
+out three notes and one when they should be six and one; measured across the
+sample corpus, sung length now tracks letter count at r = 0.95.
+
+The second slot is a tie, so the vowel is *held* rather than restruck — the same
+mechanism melisma uses, which is what a long vowel is. Whether the closing
+consonant actually sounds is a separate roll (`codaDensity`), so turning codas
+down gives a floating held vowel rather than a shorter word.
 
 ### Reading the vowel-space chart
 
@@ -118,16 +145,15 @@ An unlit dot is a vowel the palette allows and the text never reaches.
 
 Two different words sometimes land on the same syllables, and the reading panel
 outlines them in blue when they do. This is the price of the constraints rather
-than a fault in them: with four consonant manners and a nine-vowel palette a
-two-syllable word has a few hundred possible sounds, so a page of text collides
-occasionally exactly as the birthday problem says it must — and real languages
-are full of homophones for the same reason.
+than a fault in them: a two-syllable word has a bounded number of possible
+sounds, so a page of text collides occasionally exactly as the birthday problem
+says it must — and real languages are full of homophones for the same reason.
 
-Measured over 46 words: `bright` and `wide` collide once, `finnish` twice,
-`open` and `dark` three times, `nasal` five. It is surfaced rather than fixed
-because the remedy is a decision — widen the palette, allow more consonants, or
-accept it — and because it is the one failure mode that looks like the mapping
-is broken when it is working correctly.
+Far rarer than it was, because widening the consonant table and giving syllables
+a length and a coda multiplied the space a word can land in. It is surfaced
+rather than fixed because the remedy is a decision — widen the palette, allow
+more consonants, or accept it — and because it is the one failure mode that
+looks like the mapping is broken when it is working correctly.
 
 ## The synth
 
@@ -252,10 +278,14 @@ Also here and not in the Strudel path:
 - **Anticipatory coarticulation** — the formants start moving *before* the
   syllable does, because the mouth does. Most of why connected speech sounds
   connected rather than concatenated.
-- **Consonants as places the tract passes through** rather than as events. A
-  nasal is a murmur (F1 ≈ 260, little above it) that glides into the vowel; a
-  liquid is a lowered F3; a stop is a real closure — 28 ms of silence — and then
-  a release.
+- **Consonants as places the tract passes through** rather than as events. Every
+  one with a place gets a locus the tract visits before the vowel: a nasal is a
+  murmur (F1 ≈ 260) plus an anti-resonance at 850 Hz for `m` or 1700 for `n`;
+  `l` is a low F2 with F3 held high and `r` is the same with F3 dropped to 1600;
+  a stop is a real closure — 28 ms of silence — then a release, transitioning up
+  out of 800 Hz for `p`, down out of 1800 for `t`, out of a pinched F2/F3 for
+  `k`. A coda does the same thing at the end of the syllable, which is why a
+  closed syllable reads as longer rather than merely busier.
 - **The articulation dip.** A syllable inside a word does not begin from silence.
   The level drops a few dB as the tract constricts and comes back as it opens,
   and that dip *is* the perceptual event.

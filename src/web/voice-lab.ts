@@ -26,7 +26,7 @@ import { degreeToMidi, makeScale, type Mode } from '../core/scale.js';
 import { keyLabel } from '../core/pitch.js';
 import type { Consonant, Vowel } from '../core/types.js';
 import {
-  PHONETIC_STYLES, PHONETIC_STYLE_ORDER, pronounce, spellSyllables,
+  PHONETIC_STYLES, PHONETIC_STYLE_ORDER, pronounce, spellSyllables, wordWeight,
   type PhoneticStyle, type PhoneticWord,
 } from '../generate/phonetics.js';
 import {
@@ -296,7 +296,10 @@ const PHONETIC_SLIDERS: SliderSpec[] = [
   { key: 'separation', label: 'vowel separation', min: 0, max: 0.7, step: 0.01, key_: true },
   { key: 'onsetDensity', label: 'consonant: word', min: 0, max: 1, step: 0.02 },
   { key: 'interiorDensity', label: 'consonant: inside', min: 0, max: 1, step: 0.02 },
-  { key: 'maxSyllables', label: 'max syllables', min: 1, max: 6, step: 1, format: (v) => String(Math.round(v)) },
+  // Only ever consulted where the spelling closes a syllable, so it cannot
+  // invent a consonant — at 0 the syllable keeps its length as a held vowel.
+  { key: 'codaDensity', label: 'consonant: closing', min: 0, max: 1, step: 0.02, key_: true },
+  { key: 'maxSyllables', label: 'max syllables', min: 1, max: 8, step: 1, format: (v) => String(Math.round(v)) },
 ];
 
 const TUNE_SLIDERS: SliderSpec[] = [
@@ -379,8 +382,10 @@ interface Line {
 
 function buildLine(s: Settings, text = s.text): Line {
   const words = pronounce(text, s.palette);
-  const syllableCount = words.reduce((n, w) => n + w.syllables.length, 0);
-  if (!syllableCount) return { words, syllables: [], tune: [] };
+  // Slots rather than syllables: a heavy syllable takes two of them, so a text
+  // of long words needs half again as much tune as counting syllables suggests.
+  const slotCount = words.reduce((n, w) => n + wordWeight(w), 0);
+  if (!slotCount) return { words, syllables: [], tune: [] };
 
   // Enough tune to carry every syllable, with a little slack — the layout
   // stops at whichever runs out first and a text cut off mid-phrase is a
@@ -388,7 +393,7 @@ function buildLine(s: Settings, text = s.text): Line {
   const perSyllable = s.delivery.timing === 'speech'
     ? (s.tune.bpm / 60) / Math.max(0.5, s.delivery.syllableRate)
     : s.delivery.syllableBeats;
-  const targetBeats = syllableCount * perSyllable * 1.35 + 4;
+  const targetBeats = slotCount * perSyllable * 1.35 + 4;
 
   const tune = makeTune(s, targetBeats);
   const syllables = layOutUtterance({
@@ -413,6 +418,7 @@ function toEvents(line: SungSyllable[], bpm: number): SynthEvent[] {
     velocity: s.velocity,
     vowel: s.vowel,
     consonant: s.consonant,
+    coda: s.coda,
     tie: s.tie,
     legatoToNext: s.legatoToNext,
   }));
@@ -454,8 +460,20 @@ function setStatus(text: string, error = false): void {
 
 // --- readout --------------------------------------------------------------
 
+/**
+ * The timeline names consonants by letter and place, not by manner.
+ *
+ * "stop" in a column was fine when there was one stop; with three of them the
+ * column has to say which, or the panel cannot answer the question it is there
+ * for — whether the line is actually reaching the whole inventory.
+ */
 const ONSET_MARK: Record<Consonant, string> = {
-  none: '–', stop: 'stop', fricative: 'fric', nasal: 'nasal', liquid: 'liquid',
+  none: '–',
+  stop: 't', 'stop-p': 'p', 'stop-k': 'k',
+  fricative: 's', 'fricative-sh': 'š', 'fricative-f': 'f', 'fricative-h': 'h',
+  nasal: 'n', 'nasal-m': 'm',
+  liquid: 'l', 'liquid-r': 'r',
+  glide: 'j',
 };
 
 /**
@@ -528,12 +546,13 @@ function renderReadout(line: Line): void {
       s.tie ? '–' : s.word,
       s.vowel,
       s.tie ? '–' : ONSET_MARK[s.consonant],
-      s.tie ? 'melisma' : (s.legatoToNext ? 'joined' : ''),
+      s.coda === 'none' ? '' : ONSET_MARK[s.coda],
+      s.tie ? 'held' : (s.legatoToNext ? 'joined' : ''),
     ];
     cells.forEach((text, i) => {
       const td = document.createElement('td');
       td.textContent = text;
-      if (s.tie && (i === 3 || i === 6)) td.className = 'tie';
+      if (s.tie && (i === 3 || i === 7)) td.className = 'tie';
       tr.append(td);
     });
     body.append(tr);
@@ -541,16 +560,26 @@ function renderReadout(line: Line): void {
 
   const ties = line.syllables.filter((s) => s.tie).length;
   const joined = line.syllables.filter((s) => s.legatoToNext).length;
+  const struck = line.syllables.length - ties;
   const onsets = line.syllables.filter((s) => !s.tie && s.consonant !== 'none').length;
+  const codas = line.syllables.filter((s) => s.coda !== 'none').length;
+  // How much of the inventory the line actually reaches. The number this panel
+  // exists to raise: a line using three of thirteen is the "one consonant"
+  // failure however varied the palette's weights nominally are.
+  const distinct = new Set(
+    line.syllables.flatMap((s) => [s.tie ? 'none' : s.consonant, s.coda]).filter((c) => c !== 'none'),
+  ).size;
   const beats = line.syllables.length
     ? (line.syllables[line.syllables.length - 1]!.beat + line.syllables[line.syllables.length - 1]!.duration)
     : 0;
   const clashes = findHomophones(line.words).size;
   els.readingSummary.textContent = line.syllables.length
-    ? `${line.syllables.length} syllables over ${beats.toFixed(1)} beats `
+    ? `${struck} syllables over ${beats.toFixed(1)} beats `
       + `(${(beats * 60 / settings.tune.bpm).toFixed(1)}s) · `
-      + `${ties} held across a note · ${joined} run into the next with no gap · `
-      + `${Math.round((onsets / Math.max(1, line.syllables.length - ties)) * 100)}% have a consonant`
+      + `${ties} held over a second slot · ${joined} run into the next with no gap · `
+      + `${Math.round((onsets / Math.max(1, struck)) * 100)}% open on a consonant, `
+      + `${Math.round((codas / Math.max(1, struck)) * 100)}% close on one · `
+      + `${distinct} distinct consonants`
       + (clashes ? ` · ${clashes} sound${clashes > 1 ? 's' : ''} shared by two words (outlined blue)` : '')
     : 'Nothing to sing.';
 }
@@ -687,8 +716,9 @@ function syncPhonetics(): void {
   els.phonetics.value = settings.paletteId;
   const n = settings.palette.vowels.length;
   els.phoneticsGloss.textContent =
-    `${n} vowels, ${settings.palette.consonants.length} consonant manners. `
-    + 'Letters place the syllable in the mouth; the hash chooses within that region.';
+    `${n} vowels, ${settings.palette.consonants.length} consonants. `
+    + 'Letters place the syllable in the mouth and pick its consonants; the hash '
+    + 'chooses within that region. A long vowel or a closed syllable is sung over two slots.';
   buildSliders(els.phoneticSliders, settings.palette as unknown as Record<string, unknown>,
     PHONETIC_SLIDERS, refresh);
 }
