@@ -2,3 +2,6 @@ node_modules/
 out/
 dist/
 .DS_Store
+
+# Ad-hoc probe scripts left at the root by whoever was measuring something.
+.*-tmp.ts
