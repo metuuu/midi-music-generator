@@ -408,6 +408,13 @@ export const buildOrgan: InstrumentBuilder = (opts) => {
     archetype: 'organ',
     root,
 
+    /**
+     * Low on the back of the console, beside the leg. The shell spans z
+     * -0.45..0.17 and its rear face is the one part of this cabinet that is not
+     * either a keyboard, a drawbar or a knee well.
+     */
+    outlet: new Vector3(consoleW * 0.28, 0.40, 0.16),
+
     resolve(point: PlayPoint): Contact | undefined {
       if (point.kind === 'rest') {
         return {

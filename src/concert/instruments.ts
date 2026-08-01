@@ -696,12 +696,31 @@ export interface BoardSpec {
    * this class of bug; this is the same sentence one object further in.
    */
   yaw: number;
+  /**
+   * Radians about the board's own `+x`, sloping its face toward the player.
+   *
+   * Right-handed about `+x` like every other rotation in the renderer, and
+   * **that makes the useful value negative**: the keys run forward into `−z`
+   * toward the player, so a positive angle would drop the far edge and lift the
+   * near one, which is a board tipped away. The tier below is `−0.20` for the
+   * same reason a lectern is not flat.
+   *
+   * The rotation is about the *key line* — the back edge of the playing surface
+   * — and not about the station origin, which is on the floor. Turning a board
+   * about a point a metre under it would swing it bodily toward the player
+   * rather than tilt it. The two numbers that define that line, `keyTopY` and
+   * `keyBackZ`, belong to the keyboard, so this table says the angle and
+   * `placeBoard` in `web/concert/instruments/synth-rig.ts` composes the
+   * transform — one piece of arithmetic shared by the keys and by whatever the
+   * rig builds under them, for the same reason `yaw` is.
+   */
+  pitch: number;
   /** What this board can play. The main one is 88 keys; the extras are 61. */
   range: readonly [Midi, Midi];
 }
 
 /** The board every keyboard player has: 88 keys, square, under the hands. */
-const MAIN_BOARD: BoardSpec = { at: [0, 0, 0], yaw: 0, range: [21, 108] };
+const MAIN_BOARD: BoardSpec = { at: [0, 0, 0], yaw: 0, pitch: 0, range: [21, 108] };
 
 /**
  * The extras, in the order a player would actually add them.
@@ -724,6 +743,20 @@ const MAIN_BOARD: BoardSpec = { at: [0, 0, 0], yaw: 0, range: [21, 108] };
  * clear a hand on the lower board with the same margin `synth-rig-digital.ts`
  * argues for at length, and set back because everything past that is stretch.
  *
+ * **And it slopes.** A second keyboard held dead level is the one thing about a
+ * stack that reads as scenery: nobody bolts the top board of a double stand
+ * flat, because flat is where the player can neither see the panel nor get
+ * their fingers under the black keys from below. Every such stand has a hinge
+ * on the upper arms for exactly this, and 0.20 rad — a little under 12° — is
+ * the middle of what one adjusts through. It is also what recovers the tilt
+ * `synth-rig-digital.ts` used to fake on its scenery keybed and had to give up
+ * when the board became real: the angle belongs here, where the keys read it
+ * too, rather than on a case leaning off the keys it is supposed to hold.
+ *
+ * The wings stay flat. They are at hand height already and are reached across
+ * rather than looked at, so a slope on one would only tip its far end out of
+ * reach.
+ *
  * The wings are toed in half a radian and held at ±0.95, which keeps their
  * inner ends clear of the main board's own 0.61 m half-width in `z` rather than
  * in `x` — they sit 0.21 m further from the player than the main keys end. Half
@@ -737,9 +770,9 @@ const MAIN_BOARD: BoardSpec = { at: [0, 0, 0], yaw: 0, range: [21, 108] };
  * it was wrong here for exactly that reason.
  */
 const EXTRA_BOARDS: readonly BoardSpec[] = [
-  { at: [0, 0.285, 0.24], yaw: 0, range: [36, 96] },
-  { at: [0.95, 0.06, 0.16], yaw: 0.5, range: [36, 96] },
-  { at: [-0.95, 0.06, 0.16], yaw: -0.5, range: [36, 96] },
+  { at: [0, 0.285, 0.24], yaw: 0, pitch: -0.20, range: [36, 96] },
+  { at: [0.95, 0.06, 0.16], yaw: 0.5, pitch: 0, range: [36, 96] },
+  { at: [-0.95, 0.06, 0.16], yaw: -0.5, pitch: 0, range: [36, 96] },
 ];
 
 /**

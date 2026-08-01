@@ -26,7 +26,7 @@ import { buildAcousticGuitar } from './acoustic-guitar.js';
 import { buildCello } from './cello.js';
 import { buildClarinet } from './clarinet.js';
 import { buildDrumkit } from './drumkit.js';
-import { MACHINE_PANEL_W, MACHINE_PANEL_Y, MACHINE_PANEL_Z } from './drum-machine.js';
+import { machinePanel, type MachineKind } from './drum-machine.js';
 import { buildElectricBass } from './electric-bass.js';
 import { buildElectricGuitar } from './electric-guitar.js';
 import { buildElectricPiano } from './electric-piano.js';
@@ -150,6 +150,16 @@ export interface MachinePanel {
   z: number;
   /** The machine's yaw *relative to the model's*, in radians. */
   yaw: number;
+  /**
+   * Which object it is, because the two sizes have their panels in different
+   * places.
+   *
+   * A preset box is 34 cm wide and 21 deep; a programmable one is 50 by 30. The
+   * row therefore sits 4.5 cm further from the player on the larger case and is
+   * 16 cm longer, and a hand aimed with the wrong one lands off the end of the
+   * row or on the lid behind it.
+   */
+  kind: MachineKind;
 }
 
 /**
@@ -192,7 +202,7 @@ export function aimMachineControls(
      * offset along them.
      *
      * `at` runs the way it does on a keyboard's panel — 0 at one end of the row
-     * — and `MACHINE_PANEL_Z` puts the hand on the *front* row rather than in
+     * — and the panel's own `z` puts the hand on the *front* row rather than in
      * the middle of the case, which is 7 cm and the difference between a finger
      * on a button and a palm on a lid.
      */
@@ -200,12 +210,13 @@ export function aimMachineControls(
     const sin = Math.sin(panel.yaw);
     const along = new Vector3(cos, 0, -sin);
     const fwd = new Vector3(sin, 0, cos);
-    const off = (0.5 - Math.max(0, Math.min(1, point.at))) * MACHINE_PANEL_W;
+    const box = machinePanel(panel.kind);
+    const off = (0.5 - Math.max(0, Math.min(1, point.at))) * box.w;
     return {
       position: new Vector3(
-        panel.x + along.x * off + fwd.x * MACHINE_PANEL_Z,
-        panel.y + MACHINE_PANEL_Y,
-        panel.z + along.z * off + fwd.z * MACHINE_PANEL_Z,
+        panel.x + along.x * off + fwd.x * box.z,
+        panel.y + box.y,
+        panel.z + along.z * off + fwd.z * box.z,
       ),
       normal: new Vector3(0, 1, 0),
       along,

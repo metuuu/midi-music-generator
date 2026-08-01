@@ -15,9 +15,9 @@
  */
 
 import {
-  BoxGeometry, type BufferGeometry, CatmullRomCurve3, CylinderGeometry,
+  BoxGeometry, type BufferGeometry, CylinderGeometry,
   ExtrudeGeometry, Group, InstancedMesh, type Material, Matrix4, Mesh,
-  MeshStandardMaterial, Shape, TubeGeometry, Vector3,
+  MeshStandardMaterial, Shape, Vector3,
 } from 'three';
 
 import type { PlayPoint } from '../../../concert/types.js';
@@ -311,26 +311,18 @@ export const buildElectricGuitar: InstrumentBuilder = (opts) => {
     strings.push(m);
   }
 
-  // --- The lead, which hangs in world space rather than in the build frame -
-  {
-    const jack = new Vector3(-0.145, -0.03, -0.10).applyMatrix4(MOUNT);
-    const curve = new CatmullRomCurve3([
-      jack,
-      jack.clone().add(new Vector3(-0.12, -0.22, 0.05)),
-      jack.clone().add(new Vector3(-0.16, -0.58, -0.08)),
-      new Vector3(jack.x - 0.16, 0.022, jack.z - 0.22),
-      new Vector3(jack.x - 0.18, 0.022, jack.z - 0.40),
-    ]);
-    const cable = addTo(root, new Mesh(
-      kit.geo(new TubeGeometry(curve, 14, 0.006, 4, false)),
-      kit.mat(new MeshStandardMaterial({ color: '#15151a', roughness: 0.8 })),
-    ));
-    // Named because it is the one part of this model that is not the guitar:
-    // it reaches the deck, so anything measuring the instrument's size has to
-    // be able to leave it out.
-    cable.name = 'lead';
-    cable.castShadow = true;
-  }
+  /**
+   * The lead is not built here any more.
+   *
+   * This model drew its own — jack to the deck, in the mounted frame, and
+   * correct — from before anything else on the stage was plugged into anything.
+   * Now that `cables.ts` hangs a tail off `outlet` and runs the rest of the way
+   * to the stage box, keeping this one would put two cables on one jack: the
+   * old one stopping dead on the boards, and the new one carrying on to the
+   * box beside it. A guitarist has one lead. `buildTail` is where it is drawn,
+   * for the same reason it is drawn there for the bass — the instrument is
+   * carried, so its lead has to live in the instrument's frame.
+   */
 
   // --- Reaction state ------------------------------------------------------
   const amp = new Float32Array(STRINGS);
@@ -354,6 +346,22 @@ export const buildElectricGuitar: InstrumentBuilder = (opts) => {
     archetype: 'electric-guitar',
     root,
     station,
+
+    /**
+     * The jack, on the lower bout below the bridge — where it is on the
+     * instrument this is a drawing of. `tail` is -0.205 and the bout half-depth
+     * 0.186, so this is on the body and a little in from its edge rather than
+     * floating off the outline.
+     *
+     * A guitar is *carried*, so nothing built in band space can hang off this.
+     * See `buildTail` in `cables.ts`, which is what does.
+     *
+     * **Through `MOUNT`**, because that is the frame everything this file
+     * publishes is in — `contactAt` puts every contact through it. Written raw,
+     * these numbers describe a plank lying along `+x`, and the lead hung off a
+     * guitar that is not there.
+     */
+    outlet: new Vector3(-0.11, -0.05, 0.145).applyMatrix4(MOUNT),
 
     resolve(point: PlayPoint): Contact | undefined {
       if (point.kind === 'rest') {

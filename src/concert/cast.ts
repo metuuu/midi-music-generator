@@ -2807,12 +2807,19 @@ const BUSY_HANDS: Archetype[] = [
  * whatever stage it is on — the same measurement `TABLE_R` states.
  *
  * So: 0.70 to the end of the keys, plus the stand's own half-width, plus
- * daylight. Reach comes out at 0.94 m against the verifier's 1.1 m arm, which
+ * daylight. Reach comes out at 1.01 m against the verifier's 1.1 m arm, which
  * is a lean rather than a stretch — and a lean is what working a box at the end
  * of your keyboard is.
+ *
+ * The half-width is the **larger** case's, not each machine's own. A programmed
+ * machine is 50 cm wide against a preset box's 34 — see `CASE` in
+ * `drum-machine.ts` — and sizing the gap per kind would move a player's whole
+ * station depending on which rhythm box the year happened to allow, which is a
+ * layout that changes for a reason no audience could ever see. Costing the
+ * preset box 8 cm of daylight it does not need is the cheaper mistake.
  */
-const MACHINE_BESIDE = 0.92;
-const MACHINE_STAND_HALF = 0.21;
+const MACHINE_BESIDE = 0.99;
+const MACHINE_STAND_HALF = 0.28;
 
 /**
  * How far downstage of the player the stand sits.

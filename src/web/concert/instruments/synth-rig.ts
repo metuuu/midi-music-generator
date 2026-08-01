@@ -48,8 +48,11 @@
  * instrument looks like is a fact about a decade. See `EraProfile.year`.
  */
 
-import type { BufferGeometry, InstancedMesh, Material, Mesh, Object3D } from 'three';
-import { Group } from 'three';
+import type { BufferGeometry, InstancedMesh, Material, Object3D } from 'three';
+import {
+  BoxGeometry, CylinderGeometry, Group, Matrix4, Mesh, Vector3,
+} from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 import type { BoardSpec } from '../../../concert/instruments.js';
 
@@ -159,6 +162,27 @@ export interface SynthRig {
    */
   react?(force: number, now: number): void;
   /**
+   * Where this rig's lead plugs in, in the model's own frame.
+   *
+   * `InstrumentModel.outlet` for a synthesiser used to be one point written in
+   * `synth.ts` — "out of the back of the rig at knee height, which is true of
+   * all three rigs" — and it was true of none of them. A polysynth at knee
+   * height behind the keys is a hand's width of air between two stand tubes; a
+   * slab is 40 cm higher than that; a modular has a console filling the space,
+   * so the lead started *inside* the cabinet and came out through the side of
+   * it. All three drew a cable that began in mid-air, which is worse than no
+   * cable at all — see the top of `cables.ts`.
+   *
+   * A rig is the only thing that knows where its own back panel is, so a rig is
+   * what answers. `mountOutlet` puts a socket plate there in the same call, so
+   * the point a lead starts from and the object it appears to start from cannot
+   * drift apart: the plate is the reason the number is right.
+   *
+   * Absent falls back to the old point, which is what `buildBareRig` gets and
+   * nothing staged ever does.
+   */
+  outlet?: Vector3;
+  /**
    * Optional per-frame settle, in beats from the one clock — decay whatever
    * `react` displaced. Most rigs have nothing and should omit it.
    */
@@ -168,6 +192,89 @@ export interface SynthRig {
 }
 
 export type SynthRigBuilder = (opts: SynthRigOptions) => SynthRig;
+
+/**
+ * Where a board sits, as one matrix: board-local → the model's own frame.
+ *
+ * Shared for the same reason `BoardSpec` is one table. The keys are placed with
+ * it in `synth.ts` and the case, shelf or arms that hold them up are placed with
+ * it here, so a board and the furniture under it cannot come out at different
+ * angles — which is precisely what a second copy of this composition would
+ * eventually produce.
+ *
+ * The pitch turns about the key line rather than the board's origin, and that is
+ * the whole subtlety of it: a board's frame has its origin on the floor, so a
+ * rotation about `+x` there would swing a keyboard a metre away bodily toward
+ * the player instead of tilting it in place. `keyTopY` and `keyBackZ` are passed
+ * rather than imported because they are the keyboard's measurements and a rig is
+ * handed them for everything else too — see `SynthRigOptions`.
+ *
+ * A board with no pitch composes exactly the matrix this file's callers composed
+ * before the field existed, down to the multiplication, so nothing flat can have
+ * moved.
+ */
+export function placeBoard(
+  board: { at: readonly [number, number, number]; yaw: number; pitch: number },
+  keyTopY: number,
+  keyBackZ: number,
+): Matrix4 {
+  const place = new Matrix4()
+    .makeRotationY(board.yaw)
+    .setPosition(board.at[0], board.at[1], board.at[2]);
+  if (!board.pitch) return place;
+  return place
+    .multiply(new Matrix4().makeTranslation(0, keyTopY, keyBackZ))
+    .multiply(new Matrix4().makeRotationX(board.pitch))
+    .multiply(new Matrix4().makeTranslation(0, -keyTopY, -keyBackZ));
+}
+
+/**
+ * How far the jack barrels stand out of the plate. The lead starts here.
+ *
+ * A socket is a hole and a lead ends in a plug, and the plug is what sticks
+ * out — so the curve has to begin a plug's length clear of the panel or it
+ * starts inside the case and the first centimetre of rubber is invisible.
+ */
+const OUTLET_PROUD = 0.013;
+
+/**
+ * Bolt a socket plate on the back of a case, and say where its lead starts.
+ *
+ * One object for all three rigs, and the reason is the same as `placeBoard`'s:
+ * two copies of "where does a cable leave this thing" is two answers, and the
+ * one nobody checked is the one that draws a lead hanging in the air 8 cm
+ * behind a keyboard. A rig says where its back panel is; this decides what a
+ * socket looks like and how far a plug stands off it.
+ *
+ * `at` is the panel face, in the rig's own frame, and `+z` is out of it —
+ * every rig here is built with the keys at the front and everything else
+ * behind, so the back of a case always faces upstage. Two jacks rather than
+ * one because the instruments in this pool are all stereo or have a phones
+ * socket beside the output, and a lone hole reads as a repair.
+ */
+export function mountOutlet(target: Object3D, mat: Material, at: Vector3): Vector3 {
+  const plate = new BoxGeometry(0.058, 0.036, 0.006);
+  plate.translate(0, 0, 0.002);
+  const barrel = new CylinderGeometry(0.0075, 0.0075, OUTLET_PROUD, 8);
+  const parts: BufferGeometry[] = [plate];
+  for (const side of [1, -1]) {
+    const jack = barrel.clone();
+    jack.rotateX(Math.PI / 2);
+    jack.translate(side * 0.014, 0, OUTLET_PROUD / 2);
+    parts.push(jack);
+  }
+  barrel.dispose();
+  const merged = mergeGeometries(parts, false);
+  for (const p of parts) p.dispose();
+  if (!merged) return at.clone();
+
+  const mesh = new Mesh(merged, mat);
+  mesh.name = 'rig:outlet';
+  mesh.position.copy(at);
+  mesh.castShadow = true;
+  target.add(mesh);
+  return at.clone().add(new Vector3(0, 0, OUTLET_PROUD));
+}
 
 /**
  * Free every geometry and material under a subtree, once each.

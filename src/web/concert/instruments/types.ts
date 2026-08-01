@@ -153,6 +153,33 @@ export interface InstrumentModel {
   /** Where the player stands or sits. */
   station: PlayerStation;
 
+  /**
+   * Where a lead leaves this instrument, in its own frame. Absent on anything
+   * that has never had one, which is most of them.
+   *
+   * ## Why this is allowed to be here
+   *
+   * The rule at the top of this file is that every temptation to widen the seam
+   * is the temptation to let the visuals reach back into the music, and it is
+   * refused. `shift` is the one thing that ever passed, and only because it
+   * says nothing whatever about music — it is geometry the runtime cannot
+   * otherwise see. This passes the same test and for the same reason: where the
+   * socket is on a Rhodes is a fact about the object, no different in kind from
+   * where its keys are, and nothing that reads it learns what a bar is.
+   *
+   * Absent is a real answer and the common one. A cello with a lead running to
+   * the back of the stage would be wrong for every era in the pool, so an
+   * acoustic model simply does not have this and gets no cable — see §8.4 of
+   * `docs/backline-plan.md`.
+   *
+   * Held instruments are the interesting case. A guitar's socket moves with the
+   * guitar, so what hangs off it has to live in this frame too; `buildTail` in
+   * `cables.ts` is that, and the run along the boards starts from the slack at
+   * the player's feet rather than from the jack. That is not an approximation
+   * of a guitar lead — it is what one does.
+   */
+  outlet?: Vector3;
+
   /** Release GPU resources when a number is struck. */
   dispose(): void;
 }

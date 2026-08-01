@@ -103,9 +103,10 @@ import {
 } from 'three';
 
 import { Rng } from '../../../core/rng.js';
-import { createMachineRunner } from './drum-machine.js';
+import { createMachineRunner, liveSteps, VOICE_GLOW } from './drum-machine.js';
 import {
-  disposeTree, type SynthRig, type SynthRigBuilder, type SynthRigOptions,
+  disposeTree, mountOutlet, placeBoard,
+  type SynthRig, type SynthRigBuilder, type SynthRigOptions,
 } from './synth-rig.js';
 import { addTo } from './types.js';
 
@@ -342,9 +343,19 @@ export const buildModularRig: SynthRigBuilder = (opts: SynthRigOptions): SynthRi
   const voiceOffMat = new MeshStandardMaterial({
     color: '#221417', roughness: 0.7, metalness: 0,
   });
-  const voiceOnMat = new MeshStandardMaterial({
-    color: '#ff5a4a', emissive: '#ff3b28', emissiveIntensity: 1.5, roughness: 0.35,
-  });
+  /**
+   * One material per lit voice, because they decay independently.
+   *
+   * The odd one out among the lamp materials here, and deliberately: every
+   * other lamp on this cabinet is either always the same brightness or is one
+   * lamp. These are several, each falling from its own hit — see `level` in
+   * `drum-machine.ts`, which both drawings of that machine now share so that
+   * neither can have its own idea of what a lit lamp looks like.
+   *
+   * Made lazily below, one per bay lamp, so a cabinet with no percussion module
+   * in it builds none.
+   */
+  const voiceOnMats: MeshStandardMaterial[] = [];
 
   // --- Shared primitives ---------------------------------------------------
 
@@ -686,7 +697,17 @@ export const buildModularRig: SynthRigBuilder = (opts: SynthRigOptions): SynthRi
 
   for (const board of opts.extraBoards ?? []) {
     const [bx, by, bz] = board.at;
-    const frame = new Matrix4().makeRotationY(board.yaw).setPosition(bx, kt + by, bz);
+    /**
+     * The board's own frame, with the key plane at its origin so everything
+     * below is written as a depth under the keys.
+     *
+     * `placeBoard` rather than a rotation composed here, because a tier is
+     * pitched toward the player and a shelf built flat under a sloped keyboard
+     * is a wedge of daylight along its front edge.
+     */
+    const frame = placeBoard(board, kt, kb).multiply(new Matrix4().makeTranslation(0, kt, 0));
+    /** The same board *level*, which is what a leg standing on a floor wants. */
+    const flat = new Matrix4().makeRotationY(board.yaw).setPosition(bx, kt + by, bz);
     /**
      * The tray, at the board's own height and a shade under it.
      *
@@ -704,6 +725,13 @@ export const buildModularRig: SynthRigBuilder = (opts: SynthRigOptions): SynthRi
      * assumed: a wing at `by = 0.06` needs a metre of leg and a tier at 0.285
      * needs to reach only as far as the frame under it. Scaling one unit post
      * is what `Bank.box` is for.
+     *
+     * On the `flat` frame, and that is the one place the shelf and its legs part
+     * company: a post takes its angle from the floor it stands on, not from the
+     * tray it holds. Leaning them with a sloped board would walk their feet a
+     * fifth of a radian's worth of a metre out from under it. They meet the
+     * underside 2 cm from the line the tilt turns about, so the joint is a few
+     * millimetres out and inside the tray.
      */
     const drop = kt + by - 0.083;
     if (drop > 0.05) {
@@ -711,7 +739,7 @@ export const buildModularRig: SynthRigBuilder = (opts: SynthRigOptions): SynthRi
         legs.add(new Matrix4()
           .makeTranslation(side * (shelfWide / 2 - 0.07), -0.055 - drop / 2, kb + 0.02)
           .scale(new Vector3(1, drop, 1))
-          .premultiply(frame));
+          .premultiply(flat));
       }
     }
   }
@@ -905,7 +933,11 @@ export const buildModularRig: SynthRigBuilder = (opts: SynthRigOptions): SynthRi
    */
   const runner = opts.machine && stepAt.length
     ? createMachineRunner(
-      opts.machine.events, opts.machine.beatsPerBar, stepAt.length, opts.machine.startedAt)
+      opts.machine.events, opts.machine.beatsPerBar,
+      // The bay counts sixteenths and wraps at the end of its own row, exactly
+      // as the box on a stand does — a narrow module draws fewer lamps, and a
+      // 3/4 bar uses fewer still. See `liveSteps`.
+      liveSteps(stepAt.length, opts.machine.beatsPerBar), opts.machine.startedAt)
     : undefined;
   let stepLit: Mesh | undefined;
   let voiceLit: Mesh[] = [];
@@ -915,13 +947,32 @@ export const buildModularRig: SynthRigBuilder = (opts: SynthRigOptions): SynthRi
     stepLit.matrixAutoUpdate = false;
     stepLit.matrix.copy(stepAt[0]!);
     voiceLit = voiceAt.map((m) => {
-      const lamp = addTo(group, new Mesh(BOX, voiceOnMat));
+      const mat = new MeshStandardMaterial({
+        color: '#ff5a4a', emissive: '#ff3b28', emissiveIntensity: 0, roughness: 0.35,
+      });
+      voiceOnMats.push(mat);
+      const lamp = addTo(group, new Mesh(BOX, mat));
       lamp.matrixAutoUpdate = false;
       lamp.matrix.copy(m);
       lamp.visible = false;
       return lamp;
     });
   }
+
+  /**
+   * The rig's own output, on the back of the console.
+   *
+   * A cabinet full of jacks and not one of them is where the sound leaves: the
+   * patch bay is signal *inside* this instrument, and a lead to the stage box
+   * belongs on the back of the carcass with the mains, which is where a studio
+   * cabinet put it. It is also the only face of this rig a lead can leave from
+   * — the wings stand upstage of the player and the shelf is a keyboard on two
+   * poles, so anything plugged in at the front would run back past a pair of
+   * legs to get anywhere.
+   */
+  const outlet = mountOutlet(
+    group, darkMat, new Vector3(conW * 0.33, conTop - 0.10, conBack),
+  );
 
   legs.build(group, POST, chromeMat, 'modular:legs');
   jacks.build(group, JACK, darkMat, 'modular:jacks');
@@ -944,6 +995,7 @@ export const buildModularRig: SynthRigBuilder = (opts: SynthRigOptions): SynthRi
 
   return {
     group,
+    outlet,
 
     react(force: number, now: number): void {
       const f = force < 0 ? 0 : force > 1 ? 1 : force;
@@ -968,7 +1020,11 @@ export const buildModularRig: SynthRigBuilder = (opts: SynthRigOptions): SynthRi
         stepLit.visible = live;
         if (live) stepLit.matrix.copy(stepAt[runner.step(now)]!);
         for (let i = 0; i < voiceLit.length; i++) {
-          voiceLit[i]!.visible = live && runner.lamp(i, now);
+          // The same decay the box on a stand uses, from the same runner: a
+          // hit's own brightness falling away rather than a lamp switching off.
+          const level = live ? runner.level(i, now) : 0;
+          voiceLit[i]!.visible = level > 0;
+          voiceOnMats[i]!.emissiveIntensity = VOICE_GLOW * level;
         }
       }
       if (!started) { last = now; started = true; }

@@ -43,35 +43,72 @@
  */
 
 import {
-  BoxGeometry, Color, CylinderGeometry, Group, InstancedMesh, Matrix4, Mesh,
-  MeshStandardMaterial,
+  AdditiveBlending, BoxGeometry, Color, CylinderGeometry, DataTexture, Group,
+  InstancedMesh, LinearFilter, Matrix4, Mesh, MeshStandardMaterial, PointLight,
+  RGBAFormat, SRGBColorSpace, Sprite, SpriteMaterial, Vector3,
 } from 'three';
 
 import { Rng } from '../../../core/rng.js';
 import { disposeTree } from './synth-rig.js';
 import { addTo } from './types.js';
 
-/** Case size. A Mini Pops is about 30 × 20 cm and a TR-808 half again as wide. */
-const CASE_W = 0.34;
-const CASE_D = 0.21;
-const CASE_H = 0.075;
+export type MachineKind = 'box' | 'programmed' | 'sequencer';
+
+/**
+ * Case size, per kind — and it is per kind because these are not the same
+ * object at two finishes.
+ *
+ * The comment that used to sit here said "a Mini Pops is about 30 × 20 cm and a
+ * TR-808 half again as wide", and then both kinds were built at 34 × 21: the
+ * distinction was written down, argued for, and never reached the geometry. A
+ * TR-808 is 51 × 30 cm, a LinnDrum 48 × 38, a CR-78 45 × 26. Against a Mini
+ * Pops at 32 × 20 that is not a nuance — the programmable machines are half as
+ * wide again as the preset ones and they read as a different class of object
+ * across a room, which is exactly the distinction §8.0 wants an audience to
+ * make between an organ accessory and a piece of studio equipment.
+ *
+ * The preset box stays where it was, because it was already right.
+ */
+const CASE = {
+  box: { w: 0.34, d: 0.21, h: 0.075 },
+  programmed: { w: 0.50, d: 0.30, h: 0.085 },
+  sequencer: { w: 0.50, d: 0.30, h: 0.085 },
+} as const satisfies Record<MachineKind, { w: number; d: number; h: number }>;
 
 /** How far the panel tilts up toward the player. Enough to read, not a lectern. */
 const TILT = 0.22;
 
-/** Sixteen steps, because that is what a bar of this music is. */
+/** Sixteen steps, because that is what a bar of *this* music usually is. */
 const STEPS = 16;
+
+/** What one step of a step row is worth. A sixteenth, on every machine here. */
+const STEP_BEATS = 0.25;
+
+/**
+ * How many of a row's lamps are in the cycle, given the meter.
+ *
+ * A sixteen-step machine playing a 3/4 bar uses twelve steps and leaves four
+ * dark, because twelve sixteenths is the bar — that is what the hardware does
+ * and what the player programming it would have done. Above sixteen the row
+ * simply runs out and wraps mid-bar, which is also what the hardware does and
+ * is why this caps rather than stretching.
+ */
+export function liveSteps(row: number, beatsPerBar: number): number {
+  return Math.max(1, Math.min(row, Math.round(beatsPerBar / STEP_BEATS)));
+}
 
 /**
  * The row of keys along the front, in the tilted case's own frame: how wide it
  * is, how far up the panel, and how far forward.
  *
- * Module-level because two things need them and one of them is not in this file
- * — see `MACHINE_PANEL_Y` below.
+ * A function of the case rather than three constants, because the case stopped
+ * being one size — and everything downstream of it has to move with it or the
+ * hand lands on a lid.
  */
-const ROW_W = CASE_W - 0.05;
-const ROW_Y = CASE_H + 0.001;
-const ROW_Z = -CASE_D / 2 + 0.045;
+function row(kind: MachineKind): { w: number; y: number; z: number } {
+  const c = CASE[kind];
+  return { w: c.w - 0.05, y: c.h + 0.001, z: -c.d / 2 + 0.045 };
+}
 
 /**
  * Where a hand lands on this object, in its own frame, relative to the top of
@@ -85,26 +122,156 @@ const ROW_Z = -CASE_D / 2 + 0.045;
  * touched — and wrong invisibly, since a hand landing 2 cm off a button looks
  * like a hand on a button.
  *
- * Derived rather than written down, because the case is *tilted*: the row is at
- * `ROW_Y` on a panel turned `TILT` toward the player, and rotating it about `x`
- * drops it 1.3 cm and pulls it 1.7 cm nearer — numbers nobody would guess and
- * nobody would notice being stale.
+ * Derived rather than written down, because the case is *tilted*: the row sits
+ * on a panel turned `TILT` toward the player, and rotating it about `x` drops it
+ * and pulls it nearer by amounts nobody would guess and nobody would notice
+ * being stale.
  *
- * `PANEL_Z` is negative, and that is the row facing its player: the box's local
- * `+z` runs away from them, so its front row is on their side of the case.
+ * `z` is negative, and that is the row facing its player: the box's local `+z`
+ * runs away from them, so its front row is on their side of the case.
+ *
+ * Takes the kind for the reason `row` does. It was three constants while every
+ * machine was one size; a 16 cm difference in width and 9 cm in depth is a hand
+ * placed on the wrong part of the box.
  */
-export const MACHINE_PANEL_W = ROW_W;
-export const MACHINE_PANEL_Y = ROW_Y * Math.cos(TILT) + ROW_Z * Math.sin(TILT);
-export const MACHINE_PANEL_Z = ROW_Z * Math.cos(TILT) - ROW_Y * Math.sin(TILT);
+export function machinePanel(kind: MachineKind): { w: number; y: number; z: number } {
+  const r = row(kind);
+  return {
+    w: r.w,
+    y: r.y * Math.cos(TILT) + r.z * Math.sin(TILT),
+    z: r.z * Math.cos(TILT) - r.y * Math.sin(TILT),
+  };
+}
 
 /**
- * How long a lit step stays lit, in beats.
+ * How fast a struck lamp falls back to dark, in beats, and where it is called
+ * dark enough to stop drawing.
  *
- * Short — a step lamp is a strobe, not a glow. Long enough to survive a frame
- * at 30 fps and a slow tempo, short enough that two adjacent sixteenths do not
- * merge into one smear.
+ * A time constant rather than a window, because a lamp does not switch off. The
+ * first version of this was a window — lit for `FLASH` beats, then not — and it
+ * read as the panel changing texture rather than as anything lighting up, which
+ * is the one thing these lamps exist to do. The rig this machine sometimes
+ * lives inside already knew that and said so in a comment, about its LFO lamp
+ * and not about this.
+ *
+ * Measured in **beats**, so the flashes tighten as the tempo climbs. That is
+ * the right frame for a machine: the thing decaying is the impression of a hit,
+ * and hits arrive in beats.
+ *
+ * `DECAY` is short enough that two sixteenths do not merge and long enough to
+ * survive a frame at 30 fps. `DARK` is four time constants — below it there is
+ * nothing on the screen worth a draw call.
  */
-const FLASH = 0.22;
+const DECAY = 0.17;
+const DARK = 0.02;
+
+/**
+ * How much of a lamp's brightness is the hit landing at all, and how much is
+ * how hard it was hit.
+ *
+ * A ghost note has to be visibly weaker than a downbeat and still visibly
+ * *there* — a lamp that goes to a tenth on a light note has not reported it, it
+ * has hidden it. So velocity moves the top three quarters and the bottom
+ * quarter is the fact of the hit.
+ */
+const FLOOR = 0.25;
+
+/**
+ * What a voice lamp's `emissiveIntensity` is at full level.
+ *
+ * A shade above the 1.5 the old switched lamp sat at, because that value was
+ * every lamp's brightness and this one is only the loudest note's — a pattern
+ * lit at its own velocities is dimmer on average than the same pattern lit flat,
+ * and matching the old peak would have made the panel quieter overall while
+ * claiming to have made it more expressive.
+ */
+export const VOICE_GLOW = 1.9;
+
+/**
+ * The halo over the panel, and the light it throws on what is around it.
+ *
+ * ## Why a panel full of lamps was not enough
+ *
+ * There is no bloom and no tone mapping in this renderer, and no instrument in
+ * the show owns a light — every lamp on every rig is an emissive material,
+ * which here is flat bright colour and nothing else. A lit step is therefore a
+ * few pixels of brighter plastic on a panel that faces its player and tips only
+ * about twelve degrees toward the house. Adding a fourth row of lamps buys
+ * nothing, and the reason is not about the panel:
+ *
+ * > Every other object on this stage is lit by the room and therefore belongs
+ * > to it. The machine was lit by the room and gave nothing back, and an object
+ * > that only receives light is scenery whatever is printed on its front.
+ *
+ * ## Two things, doing two different jobs
+ *
+ * **The halo** is a sprite, so it faces the camera from every seat and never
+ * foreshortens — which a card lying on the tilted panel does to nothing the
+ * moment the director takes a side angle, and side angles are most of the
+ * evening. It is what makes the panel read as *on* from the back of the room.
+ *
+ * **The spill** is a real point light, and it is the half that makes the object
+ * belong: the case, the top of its own stand and the near hand of whoever is
+ * working it pick up the machine's orange and move with the pattern. That is
+ * the thing no amount of emissive can fake, because emissive lights nothing.
+ *
+ * `SPILL_DECAY` is 1, not the physical 2. The lighting rig already takes this
+ * liberty — its warm lamp runs at 0.5 — and the reason is the same: a square
+ * law from a source 15 cm off the case makes a hotspot on the lid and nothing
+ * at the hand 30 cm away, which is a bright bulb rather than a lit corner.
+ * `SPILL_RANGE` then stops it dead before it can reach the player's face or the
+ * boards, so this is a machine glowing at its own gear and not a lamp on stage.
+ */
+const HALO_SIZE = 0.30;
+const HALO_ALPHA = 0.85;
+const SPILL_PEAK = 0.06;
+const SPILL_RANGE = 1.3;
+const SPILL_DECAY = 1;
+
+/**
+ * How much of the glow is simply "this machine is running" and how much is the
+ * pattern hitting.
+ *
+ * Not all pattern, because the step lamp walks the row whether or not anything
+ * lands on it, and that is the light that says *nobody is driving this* — §8.1's
+ * consequence half is a machine running, not a machine responding. A glow that
+ * went fully dark between hits would contradict the one lamp on the panel that
+ * never stops.
+ */
+const GLOW_IDLE = 0.28;
+
+/**
+ * A round soft blob, as bytes rather than through a canvas.
+ *
+ * `DataTexture` for the reason `performer-assets.ts` gives for its splat: it
+ * exists in Node, so building a machine stays possible headlessly. 32 square is
+ * plenty for something that is pure gradient and never seen sharp.
+ */
+function makeHaloTexture(): DataTexture {
+  const N = 32;
+  const data = new Uint8Array(N * N * 4);
+  for (let y = 0; y < N; y++) {
+    for (let x = 0; x < N; x++) {
+      const dx = (x + 0.5) / N - 0.5;
+      const dy = (y + 0.5) / N - 0.5;
+      const r = Math.min(1, Math.sqrt(dx * dx + dy * dy) * 2);
+      // Squared falloff with a hot middle: the same shape a small lamp seen
+      // through air actually has, and it keeps the sprite from having an edge.
+      const a = (1 - r) * (1 - r);
+      const o = (y * N + x) * 4;
+      data[o] = 255;
+      data[o + 1] = Math.round(255 * (0.52 + 0.42 * a));
+      data[o + 2] = Math.round(255 * (0.22 + 0.30 * a));
+      data[o + 3] = Math.round(255 * a);
+    }
+  }
+  const tex = new DataTexture(data, N, N, RGBAFormat);
+  tex.colorSpace = SRGBColorSpace;
+  tex.magFilter = LinearFilter;
+  tex.minFilter = LinearFilter;
+  tex.needsUpdate = true;
+  return tex;
+}
 
 export interface DrumMachineOptions {
   /** Which object. See the note above; it decides the front row and nothing else. */
@@ -162,13 +329,13 @@ export interface DrumMachineOptions {
  * backwards, which is what a number restarting looks like.
  */
 export function createMachineRunner(
-  events: readonly { beat: number; voice?: string }[],
+  events: readonly { beat: number; velocity?: number; voice?: string }[],
   beatsPerBar: number, steps: number,
   /** See `DrumMachineOptions.startedAt`. Absent means "from its own first event". */
   startedAt?: number,
 ): {
   step(now: number): number;
-  lamp(i: number, now: number): boolean;
+  level(i: number, now: number): number;
   running(now: number): boolean;
   lamps: number;
 } {
@@ -189,6 +356,12 @@ export function createMachineRunner(
     .map((e, i) => ({
       beat: e.beat,
       lamp: e.voice === undefined ? i % 3 : LAMP_OF[e.voice] ?? 2,
+      /**
+       * How bright this one lands. Absent velocity is a full hit, which is the
+       * only safe reading: a lamp that assumed silence for want of a number
+       * would go dark on a whole pattern rather than on one note.
+       */
+      peak: FLOOR + (1 - FLOOR) * Math.min(Math.max(e.velocity ?? 1, 0), 1),
     }))
     .sort((a, b) => a.beat - b.beat);
 
@@ -206,17 +379,29 @@ export function createMachineRunner(
   const to = (hits.length ? hits[hits.length - 1]!.beat : 0) + beatsPerBar;
 
   let cursor = 0;
-  const litUntil = [-1e9, -1e9, -1e9];
+  /**
+   * When each lamp was last struck and how hard, which is all a decay needs.
+   *
+   * Two arrays rather than a running level, because a level would have to be
+   * integrated every frame and would therefore depend on how often it was
+   * asked. This way the answer at a given beat is the same answer whether it
+   * was reached at 30 fps, at 120, or by dragging a scrubber.
+   */
+  const struckAt = [-1e9, -1e9, -1e9];
+  const struckAmp = [0, 0, 0];
   let lastNow = -1e9;
 
   const advance = (now: number): void => {
     if (now < lastNow) {
       cursor = 0;
-      litUntil.fill(-1e9);
+      struckAt.fill(-1e9);
+      struckAmp.fill(0);
     }
     lastNow = now;
     while (cursor < hits.length && hits[cursor]!.beat <= now) {
-      litUntil[hits[cursor]!.lamp] = hits[cursor]!.beat + FLASH;
+      const hit = hits[cursor]!;
+      struckAt[hit.lamp] = hit.beat;
+      struckAmp[hit.lamp] = hit.peak;
       cursor++;
     }
   };
@@ -227,15 +412,37 @@ export function createMachineRunner(
      * The position light, which runs whether or not this step has anything in
      * it. That is the difference between a machine *running* and a machine
      * responding, and it is the one that says nobody is driving this.
+     *
+     * **One step is a sixteenth, always.** It used to be "a bar divided by
+     * however many lamps there are", which is right in 4/4 by coincidence and
+     * wrong everywhere else: a sixteen-lamp row spread over a 3/4 bar advances
+     * every three sixteenths of a beat, which is not a subdivision of anything
+     * and does not land on a single note it is supposedly showing. A machine
+     * counts its own clock and wraps at the end of its own row — so in 4/4 it
+     * comes round with the bar, in 3/4 it comes round with the bar because the
+     * caller lit twelve lamps, and in anything else it drifts against the bar
+     * exactly as the hardware does.
      */
     step(now: number): number {
       advance(now);
-      const inBar = ((now % beatsPerBar) + beatsPerBar) % beatsPerBar;
-      return Math.floor((inBar / beatsPerBar) * steps) % steps;
+      const at = Math.floor(now / STEP_BEATS) % steps;
+      return at < 0 ? at + steps : at;
     },
-    lamp(i: number, now: number): boolean {
+    /**
+     * How lit lamp `i` is, 0 to 1: the hit's own brightness falling away
+     * exponentially from the beat it landed on.
+     *
+     * Returning a number rather than a boolean is the whole of the fix. Both
+     * drawings of this machine — the box on its stand and the bay in a modular
+     * cabinet — read this, so neither can hold an opinion about what "lit"
+     * means, and a lamp cannot be crude in one of them and not the other.
+     */
+    level(i: number, now: number): number {
       advance(now);
-      return now < litUntil[i]!;
+      const since = now - struckAt[i]!;
+      if (since < 0) return 0;
+      const lit = struckAmp[i]! * Math.exp(-since / DECAY);
+      return lit < DARK ? 0 : lit;
     },
     running(now: number): boolean {
       return now >= from && now < to;
@@ -245,6 +452,15 @@ export function createMachineRunner(
 
 export interface DrumMachine {
   root: Group;
+  /**
+   * Where its lead leaves the case, in the machine's own frame.
+   *
+   * The same idea as `InstrumentModel.outlet` and deliberately not that type: a
+   * machine is not an `InstrumentModel` and the whole top of this file is about
+   * why. What the two have in common is only that both are objects with a
+   * socket on the back, which is not an interface worth inventing.
+   */
+  outlet: Vector3;
   /** Song position in beats, from the one clock. Do not keep your own. */
   update(now: number): void;
   dispose(): void;
@@ -266,6 +482,8 @@ export function buildDrumMachine(opts: DrumMachineOptions): DrumMachine {
   root.name = `drum-machine-${opts.kind}`;
 
   const preset = opts.kind === 'box';
+  const { w: CASE_W, d: CASE_D, h: CASE_H } = CASE[opts.kind];
+  const { w: ROW_W, y: ROW_Y, z: ROW_Z } = row(opts.kind);
   const caseColour = new Color(
     opts.finish ?? rng.pick(preset ? BOX_SKINS : PROGRAMMED_SKINS),
   );
@@ -290,9 +508,18 @@ export function buildDrumMachine(opts: DrumMachineOptions): DrumMachine {
   const voiceOffMat = new MeshStandardMaterial({
     color: '#4a4a50', roughness: 0.7, metalness: 0,
   });
-  const voiceOnMat = new MeshStandardMaterial({
-    color: '#ff5a4a', emissive: '#ff3b28', emissiveIntensity: 1.5, roughness: 0.35,
-  });
+  /**
+   * A material *per* voice lamp, unlike every other lit thing in this file.
+   *
+   * Three lamps decaying from three different hits at three different rates is
+   * three brightnesses on one frame, and `emissiveIntensity` lives on the
+   * material. Three materials for three 13 mm cubes is a fair price; the shared
+   * one is what forced the old boolean, since the only thing three meshes on one
+   * material can differ in is whether they are drawn at all.
+   */
+  const voiceOnMats = [0, 1, 2].map(() => new MeshStandardMaterial({
+    color: '#ff5a4a', emissive: '#ff3b28', emissiveIntensity: 0, roughness: 0.35,
+  }));
 
   // --- How it is held up ---------------------------------------------------
 
@@ -416,28 +643,49 @@ export function buildDrumMachine(opts: DrumMachineOptions): DrumMachine {
 
   // --- The front row -------------------------------------------------------
 
-  // Hoisted to module scope, because `MACHINE_PANEL_Y` is derived from them and
+  // From `row(kind)`, because `machinePanel` is derived from the same thing and
   // a second copy here would drift the first time the panel moved.
   const panelY = ROW_Y;
   const rowZ = ROW_Z;
 
   /**
-   * Sixteen steps on a programmable machine, and on a preset one the same row
-   * standing in for its rhythm-name buttons.
+   * Sixteen steps on a programmable machine, and on a preset one a row of
+   * rhythm-name buttons that is *not* a step row and no longer pretends to be.
    *
-   * The preset machine gets fewer, wider keys, because that is what those
-   * panels were — a dozen named rhythms in a strip. It still lights them in
-   * time, which is a small lie about a Mini Pops (its lamp was one flashing
-   * tempo light, not a moving position) and the right call anyway: one blinking
-   * lamp at stage distance is invisible, and the thing being communicated —
-   * *this object is producing the beat* — is true of both machines.
+   * The old note here admitted the lie and kept it: a Mini Pops has no moving
+   * position light, it has one selected rhythm and a tempo lamp, and the row
+   * was stepped anyway because "one blinking lamp at stage distance is
+   * invisible". That reason has now been paid off — §8.3 gave this object a
+   * halo and a light of its own, and the halo pulses with the pattern. A single
+   * lamp is no longer invisible, so the preset box can do what the real one
+   * does: light the rhythm somebody chose, and leave it lit.
+   *
+   * Which is also the better *reading*. A preset box has one decision on its
+   * front — which rhythm — and a lamp sitting on `BOSSA NOVA` for four minutes
+   * says that. A position crawling along a row of rhythm names says the
+   * machine is stepping through *the names*, which is not a thing.
    */
   const keys = preset ? 10 : STEPS;
   const keyW = ROW_W / keys * 0.78;
   const keyGeo = new BoxGeometry(keyW, 0.004, 0.016);
+  /**
+   * Step 0 at the player's **left**, which is the case's local `+x`.
+   *
+   * It used to be `-x`, and that put step one under their right hand and ran
+   * the sequence backwards under it. The panel faces local `-z` (see
+   * `machinePanel`), so the person working it stands on the `-z` side looking
+   * toward `+z`; their right is therefore local `-x` and their left is `+x`.
+   * Every step sequencer ever built starts at the operator's left, and the
+   * lamp walking the other way is the one detail that makes the object read as
+   * a prop with lights on rather than as a machine counting.
+   *
+   * From the house it can still run either way, and that is not this file's
+   * business to fix: which side of a player their own box stands on decides it,
+   * and a real stage has exactly the same property.
+   */
   const stepXs: number[] = [];
   for (let i = 0; i < keys; i++) {
-    stepXs.push(-ROW_W / 2 + (ROW_W / keys) * (i + 0.5));
+    stepXs.push(ROW_W / 2 - (ROW_W / keys) * (i + 0.5));
   }
 
   const stepRow = addTo(shell, new InstancedMesh(keyGeo, lampOffMat, keys));
@@ -451,10 +699,25 @@ export function buildDrumMachine(opts: DrumMachineOptions): DrumMachine {
     stepRow.instanceMatrix.needsUpdate = true;
   }
 
-  /** The one that moves. A single mesh reparked each time the step changes. */
+  /**
+   * The one that moves — or on a preset box, the one that does not.
+   *
+   * A single mesh either way: reparked each time the step changes on a machine
+   * that steps, and parked once on the rhythm this box is set to on a machine
+   * that has no steps to walk. Drawn from the seed, so a given box is set to a
+   * given rhythm for the evening rather than choosing again every frame.
+   */
   const lit = addTo(shell, new Mesh(new BoxGeometry(keyW, 0.005, 0.017), lampOnMat));
-  lit.position.set(stepXs[0]!, panelY + 0.001, rowZ);
+  const chosen = preset ? rng.int(0, keys - 1) : 0;
+  lit.position.set(stepXs[chosen]!, panelY + 0.001, rowZ);
   lit.visible = false;
+
+  /**
+   * How many lamps are actually in the cycle. See `liveSteps`.
+   *
+   * A preset box has none — its row is a menu, not a clock.
+   */
+  const cycle = preset ? 0 : liveSteps(keys, opts.beatsPerBar);
 
   /**
    * A short column of voice lamps behind the step row — kick, snare, hat.
@@ -478,19 +741,69 @@ export function buildDrumMachine(opts: DrumMachineOptions): DrumMachine {
     });
     voiceRow.instanceMatrix.needsUpdate = true;
   }
-  const voiceLit: Mesh[] = voiceXs.map((x) => {
-    const lamp = addTo(shell, new Mesh(new BoxGeometry(0.013, 0.005, 0.013), voiceOnMat));
+  const voiceLit: Mesh[] = voiceXs.map((x, i) => {
+    const lamp = addTo(shell, new Mesh(new BoxGeometry(0.013, 0.005, 0.013), voiceOnMats[i]!));
     lamp.position.set(x, panelY + 0.001, voiceZ);
     lamp.visible = false;
     return lamp;
   });
 
+  // --- What it puts back into the room -------------------------------------
+
+  /**
+   * Both parked over the middle of the front row, a hand's depth above it.
+   *
+   * Above rather than on: a halo at the surface is half-buried in the panel it
+   * is supposed to be coming off, and a light at the surface grazes the lid
+   * instead of lighting it. Four centimetres is enough for both and low enough
+   * that neither clears the case when seen from the side.
+   */
+  const haloTex = makeHaloTexture();
+  const haloMat = new SpriteMaterial({
+    map: haloTex,
+    color: '#ff9b3a',
+    transparent: true,
+    blending: AdditiveBlending,
+    depthWrite: false,
+    depthTest: true,
+    fog: false,
+  });
+  const halo = addTo(shell, new Sprite(haloMat));
+  halo.position.set(0, panelY + 0.04, rowZ + 0.02);
+  halo.scale.setScalar(HALO_SIZE);
+  halo.visible = false;
+
+  const spill = addTo(shell, new PointLight('#ff8c2e', 0, SPILL_RANGE, SPILL_DECAY));
+  spill.position.copy(halo.position);
+  // Never. A 4 mm lamp casting shadows of a keyboard player across the boards
+  // is the machine claiming to be a lantern, and it is a shadow map nobody
+  // asked for on the one tier this feature has to survive.
+  spill.castShadow = false;
+
   // --- What it is playing --------------------------------------------------
 
-  const runner = createMachineRunner(opts.events, opts.beatsPerBar, keys, opts.startedAt);
+  const runner = createMachineRunner(
+    opts.events, opts.beatsPerBar, Math.max(1, cycle), opts.startedAt);
+
+  /**
+   * The socket, on the back of the case at the end away from the player.
+   *
+   * Written in the *tilted* case's frame and then rotated out of it, for the
+   * same reason `MACHINE_PANEL_Y` is derived rather than measured: the shell is
+   * turned `TILT` about x, and a number typed straight into the root frame goes
+   * stale the moment that angle changes, invisibly, because a jack 8 mm inside
+   * a case still looks like a jack.
+   */
+  const jack = new Vector3(CASE_W * 0.32, CASE_H * 0.45, CASE_D / 2);
+  const outlet = new Vector3(
+    jack.x,
+    jack.y * Math.cos(TILT) + jack.z * Math.sin(TILT),
+    jack.z * Math.cos(TILT) - jack.y * Math.sin(TILT),
+  );
 
   const machine: DrumMachine = {
     root,
+    outlet,
 
     update(now: number): void {
       if (!Number.isFinite(now)) return;
@@ -505,15 +818,44 @@ export function buildDrumMachine(opts: DrumMachineOptions): DrumMachine {
       if (!runner.running(now)) {
         for (let i = 0; i < VOICE_ROWS; i++) voiceLit[i]!.visible = false;
         lit.visible = false;
+        halo.visible = false;
+        spill.intensity = 0;
         return;
       }
-      for (let i = 0; i < VOICE_ROWS; i++) voiceLit[i]!.visible = runner.lamp(i, now);
-      lit.position.x = stepXs[runner.step(now)]!;
+      let loudest = 0;
+      for (let i = 0; i < VOICE_ROWS; i++) {
+        const level = runner.level(i, now);
+        // Off the screen entirely below the runner's own floor, rather than
+        // drawn at an intensity nothing can see. A dark lamp is not a dim one.
+        voiceLit[i]!.visible = level > 0;
+        voiceOnMats[i]!.emissiveIntensity = VOICE_GLOW * level;
+        if (level > loudest) loudest = level;
+      }
+      // A stepping machine walks its row; a preset one sits on the rhythm it is
+      // set to, and `lit` was parked there at build time.
+      if (cycle) lit.position.x = stepXs[runner.step(now)]!;
       lit.visible = true;
+
+      /**
+       * The loudest lamp, not their sum: a kick and a hat landing together are
+       * one flash of light on the case and not two. Summing made a backbeat
+       * twice as bright as the same backbeat played on its own, which is the
+       * machine reporting its own arrangement rather than its own level.
+       */
+      const glow = GLOW_IDLE + (1 - GLOW_IDLE) * loudest;
+      haloMat.opacity = HALO_ALPHA * glow;
+      // A hit widens the halo as well as brightening it, which is what stops
+      // the flash reading as the same lamp on a dimmer.
+      halo.scale.setScalar(HALO_SIZE * (0.82 + 0.30 * glow));
+      halo.visible = true;
+      spill.intensity = SPILL_PEAK * glow;
     },
 
     dispose(): void {
       disposeTree(root);
+      // Not in the tree's material list — `Material.dispose` leaves its maps
+      // alone, and this one is built per machine rather than shared.
+      haloTex.dispose();
     },
   };
 

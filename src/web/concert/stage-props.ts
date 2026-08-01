@@ -141,6 +141,26 @@ const ALIASES: Record<string, PropName> = {
 
 const KNOWN = new Set<string>(SUPPORTED_PROPS);
 
+/**
+ * The drum riser's footprint, which two files need and only one draws.
+ *
+ * Exported because `show.ts` has to route leads around this platform and a
+ * second copy of `min(2.8, width * 0.32)` over there would be a cable that
+ * cleared the riser until somebody resized it. The prop below is the only thing
+ * that puts a riser on the stage, so this is where the measurement lives.
+ */
+export function riserFootprint(
+  // Narrowed to what it reads, so the check in `concert-check.ts` can ask
+  // without constructing a whole `StageMetrics` out of a venue.
+  m: { width: number; depth: number; backZ?: number },
+): { w: number; d: number; z: number } {
+  const w = Math.min(2.8, m.width * 0.32);
+  const d = Math.min(2.0, m.depth * 0.3);
+  // `backZ` is `-depth / 2` on every stage this builds — see `stage.ts` — so a
+  // caller holding only a venue need not go and construct one to ask.
+  return { w, d, z: (m.backZ ?? -m.depth / 2) + d / 2 + 0.45 };
+}
+
 /** Level case, separators and plurals, then resolve aliases. */
 export function normaliseProp(raw: string): PropName | undefined {
   const key = raw.trim().toLowerCase().replace(/[\s_]+/g, '-');
@@ -1029,19 +1049,41 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
     }
   },
 
-  /** Leads on the boards. Nobody notices them and the stage is wrong without. */
+  /**
+   * Spare cable along the back wall — what a room owns, as opposed to what the
+   * band plugged in tonight.
+   *
+   * **This used to be the stage's only cabling and it was spaghetti**: three
+   * tubes between random points, one of them arriving 1.4 m from the lip. That
+   * worked precisely because it joined nothing to nothing — an eye that has
+   * decided a tube is texture does not follow it anywhere.
+   *
+   * `cables.ts` now runs real leads from real sockets to a stage box, and the
+   * two cannot share a floor: a lead you can trace beside three that wander
+   * off mid-stage makes the traceable one look like a mistake. So this keeps
+   * the job it was actually doing — a bare deck reads as a showroom — and gives
+   * up the half that now belongs to something else. Along the upstage edge,
+   * where a room's own cable lives when nobody is using it, and nowhere near
+   * the playing area.
+   *
+   * It stays deliberately ignorant of where the stage box is. It could derive
+   * that from `c.m` — it is the same arithmetic — and then there would be two
+   * answers on this stage to "where does cabling go", and drift the first time
+   * either moved.
+   */
   cables: (c) => {
     const rng = c.rng('cables');
     const mat = c.kit.solid(shade(c.p.backdrop, 0.7), { rough: 0.9 });
+    const wall = c.m.backZ + 0.22;
     for (let i = 0; i < 3; i++) {
-      const from = new Vector3(rng.float(-c.m.width * 0.4, c.m.width * 0.4), 0.03, c.m.backZ + 0.4);
-      const to = new Vector3(rng.float(-c.m.width * 0.3, c.m.width * 0.3), 0.03, rng.float(-0.5, c.m.lipZ - 1.4));
+      const x0 = rng.float(-c.m.width * 0.34, c.m.width * 0.12);
+      const from = new Vector3(x0, 0.022, wall + rng.float(0, 0.12));
+      const to = new Vector3(x0 + rng.float(0.8, 2.0), 0.022, wall + rng.float(0, 0.16));
       const mid = new Vector3(
-        (from.x + to.x) / 2 + rng.float(-1.2, 1.2), 0.03,
-        (from.z + to.z) / 2 + rng.float(-0.6, 0.6),
+        (from.x + to.x) / 2, 0.022, wall + rng.float(0.10, 0.34),
       );
       const curve = new CatmullRomCurve3([from, mid, to]);
-      const geo = c.kit.own(new TubeGeometry(curve, 18, 0.022, 4, false));
+      const geo = c.kit.own(new TubeGeometry(curve, 14, 0.018, 4, false));
       c.root.add(new Mesh(geo, mat));
     }
   },
@@ -1136,9 +1178,7 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
    * would do with it.
    */
   riser: (c) => {
-    const w = Math.min(2.8, c.m.width * 0.32);
-    const d = Math.min(2.0, c.m.depth * 0.3);
-    const z = c.m.backZ + d / 2 + 0.45;
+    const { w, d, z } = riserFootprint(c.m);
     const deck = new Mesh(
       c.kit.bevelBox(w, 0.4, d, 0.03),
       c.kit.solid(shade(c.p.boards, 0.3), { rough: 0.9 }),

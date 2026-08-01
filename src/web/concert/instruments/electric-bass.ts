@@ -297,6 +297,18 @@ export const buildElectricBass: InstrumentBuilder = (opts) => {
     root,
     station,
 
+    /**
+     * The jack, on the lower bout. `tail` is -0.265 and the bout 0.215.
+     *
+     * **Through `MOUNT`, like every other point this model publishes.** The
+     * numbers above are in the build frame — the plank lying along `+x` with
+     * its face up — and everything that leaves this file is in the frame the
+     * instrument is *carried* in, which is what `contactAt` does for every
+     * contact and what this quietly did not: the lead hung 64 cm off the body,
+     * out in front of the player, in a straight line to nowhere.
+     */
+    outlet: new Vector3(-0.15, -0.055, 0.17).applyMatrix4(MOUNT),
+
     resolve(point: PlayPoint): Contact | undefined {
       if (point.kind === 'rest') {
         return contactAt(IDLE_X, FINGER_HEIGHT + 0.04, stringZ(1, IDLE_X), DOWN_NECK);

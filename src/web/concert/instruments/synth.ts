@@ -31,7 +31,7 @@ import type { GestureKind, PlayPoint, SynthRigId } from '../../../concert/types.
 import { buildDigitalRig } from './synth-rig-digital.js';
 import { buildModularRig } from './synth-rig-modular.js';
 import { buildPolysynthRig } from './synth-rig-polysynth.js';
-import { disposeTree, type SynthRigBuilder } from './synth-rig.js';
+import { disposeTree, placeBoard, type SynthRigBuilder } from './synth-rig.js';
 import {
   addTo, type Contact, type InstrumentBuilder, type InstrumentModel,
 } from './types.js';
@@ -264,13 +264,15 @@ export const buildSynth: InstrumentBuilder = (opts) => {
      * Where this board sits, as one matrix.
      *
      * Board 0 is the identity by construction — `boardsFor` puts it at the
-     * origin with no yaw — so a single-board station composes exactly the
-     * transforms it did before this existed, and nothing about it can have
-     * moved.
+     * origin with no yaw and no pitch — so a single-board station composes
+     * exactly the transforms it did before this existed, and nothing about it
+     * can have moved.
+     *
+     * Composed by the rig contract rather than here, because a tier is tilted
+     * and the case around it has to be tilted by the same arithmetic. See
+     * `placeBoard`.
      */
-    const place = new Matrix4()
-      .makeRotationY(spec.yaw)
-      .setPosition(spec.at[0], spec.at[1], spec.at[2]);
+    const place = placeBoard(spec, KEY_TOP_Y, KEY_BACK_Z);
 
     const whiteMesh = addTo(root, new InstancedMesh(whiteGeo, ivoryMat, whites.length));
     const blackMesh = addTo(root, new InstancedMesh(blackGeo, ebonyMat, blacks.length));
@@ -309,6 +311,22 @@ export const buildSynth: InstrumentBuilder = (opts) => {
   const model: InstrumentModel = {
     archetype: 'synth',
     root,
+
+    /**
+     * Wherever the rig says its socket is — see `SynthRig.outlet`.
+     *
+     * This used to be the one point below, on the grounds that a lead leaves a
+     * keyboard stand from behind and below whatever is standing on it. That is
+     * true of a *stand* and says nothing about a case: at knee height behind
+     * the keys a polysynth has two chrome tubes and a metre of air, a slab has
+     * air all the way down, and a modular has the front of its console, so the
+     * lead started inside the cabinet. Three rigs, three cables beginning in
+     * nothing.
+     *
+     * The fallback stays for `buildBareRig`, which is never staged, so that a
+     * rig failing to load cannot take the keyboard down with it.
+     */
+    outlet: rig.outlet?.clone() ?? new Vector3(BOARD_W * 0.28, 0.26, KEY_BACK_Z + 0.28),
 
     resolve(point: PlayPoint): Contact | undefined {
       if (point.kind === 'rest') {
@@ -370,9 +388,14 @@ export const buildSynth: InstrumentBuilder = (opts) => {
           black ? BLACK_TOP_Y : KEY_TOP_Y,
           black ? BLACK_TOUCH_Z : WHITE_TOUCH_Z,
         ).applyMatrix4(board.place),
-        // Turned with the board: a wing is toed in half a radian, so "up off
-        // the keys" and "along the knuckles" are not the model's axes there.
-        normal: UP.clone().applyAxisAngle(yAxis, board.spec.yaw),
+        // Turned with the board: a wing is toed in half a radian and a tier
+        // slopes a fifth of one, so "up off the keys" and "along the knuckles"
+        // are not the model's axes there. The pitch is about the knuckle line
+        // itself, which is why only the normal feels it — rotating `+x` about
+        // `+x` is the identity, and writing it out would say so twice.
+        normal: UP.clone()
+          .applyAxisAngle(xAxis, board.spec.pitch)
+          .applyAxisAngle(yAxis, board.spec.yaw),
         along: ACROSS.clone().applyAxisAngle(yAxis, board.spec.yaw),
       };
     },

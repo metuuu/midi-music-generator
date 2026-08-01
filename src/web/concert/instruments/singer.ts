@@ -291,6 +291,14 @@ export const buildSinger: InstrumentBuilder = (opts: InstrumentBuildOptions): In
   return {
     archetype: 'singer',
     root,
+
+    /**
+     * Where the static run already stops, which until now was "off toward the
+     * wings" and joined nothing. The mic lead was the one honest cable in the
+     * show and it still ended in mid-air; this is the end of it, handed on so
+     * the run continues to the same box everything else goes to.
+     */
+    outlet: new Vector3(-0.400, 0.010, -0.190),
     station: {
       // Just behind the stand, facing out. Close enough that the rig's head
       // lands on the capsule without the body intersecting the shaft.

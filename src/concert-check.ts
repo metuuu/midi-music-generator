@@ -29,6 +29,8 @@ import {
   ARCHETYPES, ARCHETYPE_OF, SYNTH_RIGS, archetypeForTrack, trackCanReach,
 } from './concert/instruments.js';
 import { buildConcert, soundingEffectors } from './concert/index.js';
+import { routeOnDeck, stageBoxAt, type Obstacle } from './web/concert/cables.js';
+import { riserFootprint } from './web/concert/stage-props.js';
 import type { Gesture, SynthRigId } from './concert/types.js';
 
 /**
@@ -608,6 +610,159 @@ check('visemes exist exactly when there is a voice', visemeGaps === 0,
     doubled || piled
       ? `${doubled} players minding two, ${piled} pairs within ${MACHINE_APART} m: ${notes.join('; ')}`
       : `${machines} machine numbers, one box per pair of hands`);
+}
+
+/**
+ * No lead crosses anything a lead cannot cross.
+ *
+ * The one assertion in this file that reaches into the renderer, and it earns
+ * the exception. Everything else here is a claim about the IR and needs no
+ * eyes; whether a cable reads at concert distance is not a claim about the IR
+ * and no assertion is going to settle it. But a lead *through the drum riser*
+ * is not a matter of taste, and it is the specific way §8.4 of
+ * `docs/backline-plan.md` fails: the old `cables` prop got away with random
+ * spaghetti because it joined nothing to nothing, and the moment a lead starts
+ * at a real socket it becomes something an eye will follow.
+ *
+ * `routeOnDeck` is pure geometry, so this costs nothing but the import.
+ *
+ * **Two holes in that routine are what this is actually watching**, and neither
+ * is theoretical. It evicts obstacles in list order, so on overlapping
+ * obstacles the last eviction can push a point back inside the one before it.
+ * And it only ever tests its own sample points, so a corner can be cut between
+ * two of them. This walks the segments rather than the vertices, which is the
+ * only way to see either.
+ *
+ * The runs it checks are a **superset** of the real ones — every player and
+ * every machine to the box, rather than only the electric gear that gets a
+ * lead — because which archetypes own an outlet is a fact about the models and
+ * this file has no business building twenty of them per number. A superset is
+ * the right side to err on: it asserts the router copes with worse than it will
+ * be given.
+ */
+{
+  /**
+   * How close a lead may come to a solid before it counts as through it.
+   *
+   * A lead's own half-thickness and a little, and deliberately **not** the
+   * `MARGIN` the router aims for. Asserting the aim would be asserting the
+   * router's own constant back at it: a run passing a foot at 9 cm has not
+   * failed at anything, it has simply used some of the clearance it was given —
+   * and the obstacle it is clearing is a 30 cm circle standing in for a pair of
+   * shoes about 12 cm across. What is being claimed here is that no cable goes
+   * *through* anything, which is the thing an audience would see.
+   */
+  const CLEAR = 0.02;
+  /** Steps per metre when walking a segment. Finer than the router's own sampling. */
+  const WALK = 40;
+  /** How far outside `o` a point is. Negative inside — the same shape `cables.ts` uses. */
+  const obstacleGap = (p: { x: number; z: number }, o: Obstacle): number => {
+    if (o.kind === 'circle') return Math.hypot(p.x - o.x, p.z - o.z) - o.r;
+    const dx = Math.abs(p.x - o.x) - o.halfX;
+    const dz = Math.abs(p.z - o.z) - o.halfZ;
+    return dx > 0 || dz > 0 ? Math.hypot(Math.max(dx, 0), Math.max(dz, 0)) : Math.max(dx, dz);
+  };
+  let crossed = 0;
+  let dropped = 0;
+  let leads = 0;
+  let indoors = 0;
+  let worst = Infinity;
+  const notes: string[] = [];
+  for (const gid of CHECKED_GENRES) {
+    for (let i = 0; i < 4; i++) {
+      const concert = buildConcert({ seed: `cable-${gid}-${i}`, genre: gid });
+      const metrics = { width: concert.venue.width, backZ: -concert.venue.depth / 2 };
+      const riser = riserFootprint({ width: concert.venue.width, depth: concert.venue.depth });
+      const box = stageBoxAt(metrics, riser);
+      for (const number of concert.numbers) {
+        /**
+         * Tagged with whose feet they are, because a lead leaving somebody's
+         * own gear passes their own feet by definition and that is not a
+         * crossing. In the show the run starts at a socket on the gear, which
+         * is a third of a metre from the body wearing it; here the start point
+         * *is* the body, so its own circle has to come out or every player
+         * fails against themselves.
+         */
+        const obstacles: (Obstacle & { owner?: string })[] = [];
+        if (number.cast.performers.some((p) => p.station.riser > 0)) {
+          obstacles.push({
+            kind: 'box', x: 0, z: riser.z, halfX: riser.w / 2 + 0.05, halfZ: riser.d / 2 + 0.05,
+          });
+        }
+        for (const p of number.cast.performers) {
+          obstacles.push({
+            kind: 'circle', x: p.station.position[0], z: p.station.position[2], r: 0.3,
+            owner: p.id,
+          });
+        }
+        /**
+         * Behind each player rather than on them, which is where `show.ts`
+         * starts the run for carried gear and roughly where a keyboard's own
+         * socket is. A start point *on* a body is inside its own feet and
+         * inside the riser it is standing on, and asking the router to leave a
+         * solid it was pinned inside tests nothing but the pin.
+         */
+        const from: { what: string; owner?: string; x: number; z: number }[] = [
+          ...number.cast.performers.map((p) => ({
+            what: p.id,
+            owner: p.id,
+            x: p.station.position[0] - Math.sin(p.station.facing) * 0.38,
+            z: p.station.position[2] - Math.cos(p.station.facing) * 0.38,
+          })),
+          ...(number.cast.machines ?? []).filter((mc) => mc.mount !== 'bay').map((mc) => ({
+            what: mc.id, x: mc.position[0], z: mc.position[2],
+          })),
+        ];
+        for (const start of from) {
+          const against = obstacles.filter((o) => o.owner !== start.owner);
+          /**
+           * A start that is already inside something is a fact about where the
+           * cast put the gear, not about the router. The drummer on a riser is
+           * the honest example, and in the show they get no lead at all — an
+           * acoustic kit has no socket.
+           */
+          if (against.some((o) => obstacleGap(start, o) < 0)) { indoors++; continue; }
+          leads++;
+          const path = routeOnDeck(start, { x: box.x, z: box.z }, against);
+          if (!path) {
+            dropped++;
+            if (notes.length < 3) notes.push(`${gid}#${i} ${start.what} unroutable`);
+            continue;
+          }
+          for (let s = 1; s < path.length; s++) {
+            const a = path[s - 1]!;
+            const b = path[s]!;
+            const steps = Math.max(2, Math.ceil(Math.hypot(b.x - a.x, b.z - a.z) * WALK));
+            for (let k = 0; k <= steps; k++) {
+              const t = k / steps;
+              const p = { x: a.x + (b.x - a.x) * t, z: a.z + (b.z - a.z) * t };
+              for (const o of against) {
+                const gap = obstacleGap(p, o);
+                if (gap < worst) worst = gap;
+                if (gap < CLEAR) {
+                  crossed++;
+                  if (notes.length < 3) {
+                    notes.push(`${gid}#${i} ${start.what} ${gap.toFixed(3)} m into ${o.kind}`);
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  /**
+   * Only crossings fail. A dropped run is the router doing what §8.4 tells it
+   * to when there is no gap to thread, and the count is printed rather than
+   * asserted so that a change which quietly stopped drawing most of the
+   * cabling is visible here instead of silent.
+   */
+  check('no lead crosses anything solid', crossed === 0,
+    crossed
+      ? `${crossed} crossings: ${notes.join('; ')}`
+      : `${leads - dropped} of ${leads} runs drawn, ${dropped} with no gap to thread, `
+        + `${indoors} starting inside something; tightest clearance ${worst.toFixed(2)} m`);
 }
 
 /**

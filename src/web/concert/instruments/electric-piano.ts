@@ -261,6 +261,13 @@ export const buildElectricPiano: InstrumentBuilder = (opts) => {
     archetype: 'electric-piano',
     root,
 
+    /**
+     * Under the back edge of the keybed tray, off to one side — which is where
+     * a Rhodes' output actually is, and the only part of this case a lead could
+     * leave from without coming out of the lid.
+     */
+    outlet: new Vector3(shellW * 0.30, KEY_TOP_Y - 0.15, KEY_BACK_Z - 0.02),
+
     resolve(point: PlayPoint): Contact | undefined {
       if (point.kind === 'rest') {
         return {

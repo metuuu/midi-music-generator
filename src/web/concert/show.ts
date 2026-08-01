@@ -76,7 +76,12 @@ import { loadCode, playCode, preloadSounds, startLoaded, stopPlayback } from '..
 
 import { createAnimator, type Animator } from './animate.js';
 import { createDirector, type CameraDirector } from './camera.js';
+import {
+  buildCabling, buildStageBox, buildTail, DECK, stageBoxAt, stageBoxSocket,
+  type Cabling, type CableRun, type Obstacle, type StageBox,
+} from './cables.js';
 import { buildDebugTag, type DebugTag } from './debug-tags.js';
+import { riserFootprint } from './stage-props.js';
 import { buildDrumMachine, type DrumMachine } from './instruments/drum-machine.js';
 import { aimMachineControls, buildInstrumentFor } from './instruments/index.js';
 import type { InstrumentModel } from './instruments/types.js';
@@ -312,6 +317,26 @@ export function createShow(opts: ShowOptions = {}): Show {
   const machines: DrumMachine[] = [];
   /** Empty unless `opts.debug`. Keyed like `rigs`, and struck with them. */
   const tags = new Map<string, DebugTag>();
+  /**
+   * The same, for the things with no performer to key on.
+   *
+   * A separate map rather than a shared one because a machine's line is written
+   * from a `StageMachine` and not from a `Performer`, and the spec is carried
+   * along here so the label does not have to go looking for it every frame.
+   */
+  const machineTags = new Map<string, { tag: DebugTag; spec: StageMachine }>();
+  /**
+   * The leads, the box they run to, and the tails hanging off carried gear.
+   *
+   * Kept here rather than under the objects they join because a lead belongs to
+   * neither end of itself — see `cables.ts`. The tails are the exception and are
+   * parented to their instruments; they are listed only so they get disposed
+   * with everything else rather than riding a model that is about to be thrown
+   * away.
+   */
+  let cabling: Cabling | undefined;
+  let stageBox: StageBox | undefined;
+  const tails: { root: Object3D; dispose(): void }[] = [];
   const subjects = new Map<string, Object3D>();
   let band = new Group();
   band.name = 'band';
@@ -401,6 +426,40 @@ export function createShow(opts: ShowOptions = {}): Show {
    */
   function stageBand(number: ConcertNumber): void {
     strikeBand();
+
+    /**
+     * Where every lead on this stage is heading, decided before anything is
+     * placed, because each piece of gear hands over its run as it goes down.
+     *
+     * Beside the riser rather than behind it: a hub the drummer's platform
+     * hides is a hub nobody can see leads converging on, and the converging is
+     * the entire point — see §8.4 of `docs/backline-plan.md`. Clamped inside
+     * the boards so a narrow room does not put it in the wings.
+     */
+    const m = stage.metrics;
+    const riser = riserFootprint(m);
+    const boxAt = stageBoxAt(m, riser);
+    const boxSocket = stageBoxSocket(boxAt, 0);
+    const runs: CableRun[] = [];
+    /**
+     * What a lead may not cross, which is a shorter list than it looks.
+     *
+     * The riser, because a cable does not climb a 40 cm platform, and it is the
+     * one obstacle whose failure would be unmistakable. And feet, because a
+     * lead at 8 mm and a shoe occupy the same air — but only barely, so the
+     * circle is a shoe pair and not a personal space. Nothing else: a lead
+     * passing under a keyboard stand or between a piano's legs is not a defect,
+     * it is what the floor of a stage looks like.
+     */
+    const obstacles: Obstacle[] = [];
+    if (number.cast.performers.some((p) => p.station.riser > 0)) {
+      obstacles.push({
+        kind: 'box', x: 0, z: riser.z, halfX: riser.w / 2 + 0.05, halfZ: riser.d / 2 + 0.05,
+      });
+    }
+    for (const p of number.cast.performers) {
+      obstacles.push({ kind: 'circle', x: p.station.position[0], z: p.station.position[2], r: 0.3 });
+    }
 
     /**
      * The platform only stands when somebody is standing on it.
@@ -500,6 +559,30 @@ export function createShow(opts: ShowOptions = {}): Show {
           .negate()
           .setY(-model.station.offset.y - rig.proportions.hipY);
         model.root.rotation.y = -model.station.facing;
+
+        /**
+         * A guitar's lead is two objects, and that is not a compromise.
+         *
+         * The tail hangs off the jack and is built in the *instrument's* frame,
+         * so it moves with the guitar for free — anything in band space would
+         * detach the first time the player swayed into a phrase, and rebuilding
+         * a tube every frame to avoid that is a lot of geometry for 60 cm of
+         * rubber. The run along the boards then starts from the slack behind
+         * their feet rather than from the socket.
+         *
+         * Which is what a guitar lead does. There is always a loop of it on the
+         * deck, and the loop is the reason the player can move at all.
+         */
+        if (model.outlet) {
+          const tail = buildTail(model.outlet, 0.55);
+          model.root.add(tail.root);
+          tails.push(tail);
+          const back = new Vector3(0, 0, -0.38).applyAxisAngle(UP, performer.station.facing);
+          runs.push({
+            from: new Vector3(x + back.x, DECK, z + back.z),
+            to: boxSocket,
+          });
+        }
       } else {
         /**
          * A floor instrument is not always square to the player who stands at
@@ -526,6 +609,16 @@ export function createShow(opts: ShowOptions = {}): Show {
         );
         band.add(model.root);
 
+        // Gear that stands on the floor keeps its own socket, so its lead can
+        // start where the socket actually is. Band space, because a cable joins
+        // two objects and cannot belong to either one's frame.
+        if (model.outlet) {
+          runs.push({
+            from: model.outlet.clone().applyAxisAngle(UP, yaw).add(model.root.position),
+            to: boxSocket,
+          });
+        }
+
         /**
          * …and now this player's instrument can answer for the boxes beside it.
          *
@@ -548,6 +641,9 @@ export function createShow(opts: ShowOptions = {}): Show {
             const dx = m.position[0] - model.root.position.x;
             const dz = m.position[2] - model.root.position.z;
             return {
+              // Which object it is, because a programmable machine is half as
+              // wide again as a preset one and its row sits deeper on the case.
+              kind: m.kind,
               x: dx * cos + dz * sin,
               y: m.position[1] - model.root.position.y,
               z: -dx * sin + dz * cos,
@@ -583,6 +679,83 @@ export function createShow(opts: ShowOptions = {}): Show {
       machine.root.rotation.y = spec.facing;
       band.add(machine.root);
       machines.push(machine);
+
+      /**
+       * The machine's lead goes to its owner's rig, not to the stage box.
+       *
+       * Electrically that is a small lie — the real object goes to the mixer
+       * with everything else — and it is the right lie, because it is the one
+       * thing on this stage that says *this box and that keyboard are one
+       * person's corner*. §8.0 has been making that argument in prose for three
+       * revisions and paying for it with a purpose-built stand; a short lead
+       * into the rig beside it says the same thing in something an audience can
+       * actually see, which a stand cannot.
+       *
+       * With no tender there is nothing to belong to, and it takes the long run
+       * to the box like everything else.
+       */
+      /**
+       * …and only where the host's own frame is the band's.
+       *
+       * Casting never gives a machine to somebody carrying their instrument —
+       * `placeMachines` excludes `held` archetypes, because a machine needs a
+       * free hand — so this is presently always true. It is checked rather than
+       * assumed because a carried model's root is *torso-local*, so the day
+       * that rule is relaxed the lead would be drawn to a point measured from
+       * somebody's hip in a frame where that means the middle of the stage.
+       * Silent, and wrong by metres.
+       */
+      const tender = spec.tendedBy
+        ? number.cast.performers.find((p) => p.id === spec.tendedBy)
+        : undefined;
+      const host = tender && !specFor(tender.archetype).held
+        ? models.get(tender.id)
+        : undefined;
+      runs.push({
+        from: machine.outlet.clone()
+          .applyAxisAngle(UP, spec.facing)
+          .add(machine.root.position),
+        to: host ? host.root.position.clone().setY(DECK) : boxSocket,
+      });
+
+      /**
+       * A machine gets a label too, and it is the only part of the evening
+       * that had none.
+       *
+       * Casting makes no performer for a machine-played track, so the debug
+       * pass over `cast.performers` could never reach one: the drum part of a
+       * `box` number was floating over nobody's head, which is the same
+       * complaint as the one §8.3 is about, in the one view whose whole job is
+       * to say where a part went.
+       *
+       * A hand's height over the case, which is where a head would be if this
+       * object had one.
+       */
+      if (opts.debug) {
+        const tag = buildDebugTag();
+        tag.root.position.set(0, 0.24, 0);
+        machine.root.add(tag.root);
+        machineTags.set(spec.id, { tag, spec });
+      }
+    }
+
+    /**
+     * The leads, once everything they join has been placed.
+     *
+     * Built last because a lead is the only thing on this stage that is a fact
+     * about two objects rather than about one, so it cannot be built until both
+     * of them have stopped moving.
+     *
+     * **No electric gear, no box.** An acoustic jazz trio with a stage box and
+     * nothing plugged into it is a prop, and this whole section exists to stop
+     * objects standing about unexplained.
+     */
+    if (runs.length) {
+      const box = buildStageBox(boxAt, 0);
+      band.add(box.root);
+      stageBox = box;
+      cabling = buildCabling({ runs, obstacles });
+      band.add(cabling.root);
     }
 
     director.setSubjects(subjects);
@@ -594,10 +767,18 @@ export function createShow(opts: ShowOptions = {}): Show {
 
   function strikeBand(): void {
     for (const tag of tags.values()) tag.dispose();
+    for (const { tag } of machineTags.values()) tag.dispose();
     for (const rig of rigs.values()) rig.dispose();
     for (const model of models.values()) model.dispose();
     for (const machine of machines) machine.dispose();
+    for (const tail of tails) tail.dispose();
+    cabling?.dispose();
+    stageBox?.dispose();
+    cabling = undefined;
+    stageBox = undefined;
+    tails.length = 0;
     tags.clear();
+    machineTags.clear();
     rigs.clear();
     models.clear();
     machines.length = 0;
@@ -971,7 +1152,35 @@ export function createShow(opts: ShowOptions = {}): Show {
       + `${track.instrument} gm${track.gmProgram}`;
   }
 
+  /**
+   * What a machine is running, in the same shape as a player's line.
+   *
+   * `StageMachine.bank` is already the renderer's answer to "what is this
+   * playing" — a drum bank for the two percussion kinds, an instrument name for
+   * a sequencer — so the label prints it rather than re-deriving one. The
+   * marker is the same lamp for the same reason: the question being asked of a
+   * machine is exactly the question asked of a player, and a machine is not
+   * more trustworthy for having no face.
+   */
+  function machineLine(spec: StageMachine, beat: number): string {
+    if (!spec.layer) {
+      const kit = current.song.drums;
+      const hit = kit.events.some((e) => beat >= e.beat && beat < e.beat + 0.2);
+      return `${mark(hit, sulking.has('drums'))} ${spec.kind.padEnd(7)} ${spec.bank}`;
+    }
+    const track = current.song.tracks.find((t) => t.layer === spec.layer);
+    if (!track) return `· ${spec.layer.padEnd(7)} — no track`;
+    const on = track.notes.some((n) => beat >= n.beat && beat < n.beat + n.duration);
+    return `${mark(on, sulking.has(track.layer))} ${track.layer.padEnd(7)} `
+      + `${track.instrument} gm${track.gmProgram}`;
+  }
+
   function updateTags(beat: number): void {
+    for (const [, { tag, spec }] of machineTags) {
+      tag.set([machineLine(spec, beat), `  (machine, ${spec.tendedBy ?? 'untended'})`]);
+      tag.root.getWorldPosition(tagAt).applyMatrix4(director.camera.matrixWorldInverse);
+      tag.setVisible(tagAt.z < -0.2);
+    }
     for (const performer of current.cast.performers) {
       const tag = tags.get(performer.id);
       if (!tag) continue;
@@ -1005,8 +1214,9 @@ export function createShow(opts: ShowOptions = {}): Show {
    * of the lens.
    */
   function copyTagAt(ndcX: number, ndcY: number): boolean {
-    if (!tags.size) return false;
-    const shown = [...tags.values()].filter((t) => t.root.visible);
+    if (!tags.size && !machineTags.size) return false;
+    const all = [...tags.values(), ...[...machineTags.values()].map((m) => m.tag)];
+    const shown = all.filter((t) => t.root.visible);
     if (!shown.length) return false;
 
     tagRay.setFromCamera(tagNdc.set(ndcX, ndcY), director.camera);
@@ -1187,7 +1397,7 @@ export function createShow(opts: ShowOptions = {}): Show {
     for (const machine of machines) machine.update(beat);
     // The same beat the bodies were driven with, so a lit label and a hand
     // that has arrived are the same moment. Empty unless `?debug`.
-    if (tags.size) updateTags(shown);
+    if (tags.size || machineTags.size) updateTags(shown);
   }
 
   const api: Show = {
