@@ -593,6 +593,11 @@ const berlin: Style = {
  * separate arranged part punctuating them.
  */
 const cinematic: Style = {
+  /**
+   * An arrival exists in this music; a break does not, and a band shot needs a
+   * band. What a sequencer sequence can do at a join is get there early.
+   */
+  transitions: [['fill', 4], ['elide', 1]],
   id: 'cinematic',
   label: 'Cinematic',
   description:
@@ -1347,6 +1352,11 @@ const machine: Style = {
  * came from a section in the room or from a Prophet.
  */
 const cosmic: Style = {
+  /**
+   * An arrival exists in this music; a break does not, and a band shot needs a
+   * band. What a sequencer sequence can do at a join is get there early.
+   */
+  transitions: [['fill', 4], ['elide', 1]],
   id: 'cosmic',
   label: 'Cosmic disco',
   description:

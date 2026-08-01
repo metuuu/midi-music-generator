@@ -58,6 +58,21 @@ export const iskelma: Genre = {
   ending: 'button',
   countIn: true,
 
+  /**
+   * The band leans into the chorus, and it is not a jazz import.
+   *
+   * The tango's drag into the downbeat and the humppa's tutti stop are this
+   * genre's own gestures — it is the repertoire most built on them. `break` is
+   * the one kind left out: a pavilion band stopping dead empties the floor,
+   * which is the same reason `soloBacking` is `full` and `tutti` is weighted
+   * down in `arrangement` below.
+   *
+   * Genre-level rather than per style because it is true of the whole
+   * repertoire; a style that disagrees overrides it, which is what
+   * `transitionTable` in `song.ts` resolves.
+   */
+  transitions: [['fill', 6], ['shot', 2], ['elide', 2]],
+
   defaultStrictness: 'standard',
   // Verse/chorus pop: the chorus is supposed to be the same tune each time, and
   // for most of this repertoire that is the entire point of the chorus.

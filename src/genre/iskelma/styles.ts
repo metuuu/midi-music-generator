@@ -542,6 +542,18 @@ const jenkka: Style = {
  * and jazz guitar live here.
  */
 const foksi: Style = {
+  /**
+   * A foxtrot bass turning the phrase over, which is what the style is for.
+   *
+   * The same instinct `feels: [['straight', 6], ['pocket', 4]]` below already
+   * declares — this band leans — carried from *how* it plays into *what* it
+   * plays at the phrase end. Both its bass figures can take the gesture.
+   *
+   * `humppa`, `jenkka` and `beguine` are deliberately absent despite being just
+   * as eligible: the first two are relentless on purpose and the third's bass is
+   * the 3-3-2 itself, where a push blurs the figure the style is named after.
+   */
+  vary: { bass: 0.3 },
   id: 'foksi',
   label: 'Foksi (foxtrot)',
   description:

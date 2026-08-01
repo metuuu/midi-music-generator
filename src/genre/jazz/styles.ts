@@ -31,6 +31,12 @@ import type { Style } from '../../style/types.js';
  * downbeat. Harmony is ii–V–I and its endless variations.
  */
 const swing: Style = {
+  /**
+   * Shots, breaks and stop-time are native vocabulary here, and the plan's table
+   * gives these three the full set. `elide` arrived last of the four and is the
+   * quietest of them: the band a beat ahead of its own barline.
+   */
+  transitions: [['fill', 5], ['shot', 3], ['break', 2], ['elide', 2]],
   id: 'swing',
   label: 'Medium swing',
   description:
@@ -165,6 +171,12 @@ const swing: Style = {
  * it — policing them would produce something politely wrong.
  */
 const bebop: Style = {
+  /**
+   * Shots, breaks and stop-time are native vocabulary here, and the plan's table
+   * gives these three the full set. `elide` arrived last of the four and is the
+   * quietest of them: the band a beat ahead of its own barline.
+   */
+  transitions: [['fill', 5], ['shot', 3], ['break', 2], ['elide', 2]],
   id: 'bebop',
   label: 'Bebop',
   description:
@@ -285,6 +297,12 @@ const bebop: Style = {
  * melody that leaves as much silence as sound. Brushes rather than sticks.
  */
 const ballad: Style = {
+  /**
+   * A ballad does not break and a modal tune arriving on a tutti shot has
+   * stopped being modal. What is left is the one gesture that takes nothing
+   * away and announces nothing — the band a beat early into the next section.
+   */
+  transitions: [['fill', 8], ['elide', 1]],
   id: 'ballad',
   label: 'Ballad',
   description:
@@ -403,6 +421,20 @@ const ballad: Style = {
  * onto the and-of-two, and the comping syncopates against it.
  */
 const bossa: Style = {
+  /**
+   * The idiom is anticipation, so the rhythm section may anticipate.
+   *
+   * `melody.syncopation` is 0.65 here — the highest in the catalogue, and the
+   * note beside it says a bossa *anticipates almost everything*. A bass that
+   * never did was the tune and the band disagreeing about the style.
+   */
+  vary: { bass: 0.3 },
+  /**
+   * A ballad does not break and a modal tune arriving on a tutti shot has
+   * stopped being modal. What is left is the one gesture that takes nothing
+   * away and announces nothing — the band a beat early into the next section.
+   */
+  transitions: [['fill', 8], ['elide', 1]],
   id: 'bossa',
   label: 'Bossa nova',
   description:
@@ -509,6 +541,12 @@ const bossa: Style = {
  * throughout, which is why the blues scale clashes so productively with it.
  */
 const blues: Style = {
+  /**
+   * Shots, breaks and stop-time are native vocabulary here, and the plan's table
+   * gives these three the full set. `elide` arrived last of the four and is the
+   * quietest of them: the band a beat ahead of its own barline.
+   */
+  transitions: [['fill', 5], ['shot', 3], ['break', 2], ['elide', 2]],
   id: 'blues',
   label: 'Blues',
   description:
@@ -702,6 +740,12 @@ const blues: Style = {
  * ambiguity is what keeps a motionless chord interesting.
  */
 const modal: Style = {
+  /**
+   * A ballad does not break and a modal tune arriving on a tutti shot has
+   * stopped being modal. What is left is the one gesture that takes nothing
+   * away and announces nothing — the band a beat early into the next section.
+   */
+  transitions: [['fill', 8], ['elide', 1]],
   id: 'modal',
   label: 'Modal',
   description:
@@ -829,6 +873,11 @@ const modal: Style = {
  * chords rather than the ii–V world.
  */
 const gypsy: Style = {
+  /**
+   * Lower than the others: *la pompe* is relentless by design and the bass under
+   * it is a two-feel, so the gesture is a comma rather than a habit.
+   */
+  vary: { bass: 0.25 },
   id: 'gypsy',
   label: 'Gypsy jazz',
   description:
@@ -956,6 +1005,11 @@ const gypsy: Style = {
  *    thing three times. The form is repetitive enough on its own.
  */
 const trio: Style = {
+  /**
+   * Three players listening to each other is the whole proposition, and the
+   * bassist turning a phrase over is the audible half of it.
+   */
+  vary: { bass: 0.3 },
   id: 'trio',
   label: 'Piano trio',
   description:

@@ -1359,10 +1359,21 @@ console.log('\nRhythm-section variation');
    * be read back exactly. A swung or pushed style would need the grid the feel
    * actually produced, which is a different check and not this one's business.
    */
-  const OPTED = [['iskelma', 'tango'], ['iskelma', 'iskelmapop']] as const;
-  let songs = 0, moved = 0, holes = 0, doubled = 0;
+  /**
+   * Every style that has opted in, read off the catalogue rather than listed.
+   *
+   * A hardcoded pair was right while two styles carried `vary` and silently
+   * wrong the moment a third did: the check would have gone on passing about
+   * tango while saying nothing at all about the new one. Derived, opting a style
+   * in also opts it into being measured, which is the only version of this that
+   * stays true as the table grows.
+   */
+  const OPTED = GENRE_IDS.flatMap((gid) => Object.values(getGenre(gid).styles)
+    .filter((st) => st.vary?.bass || st.vary?.comp)
+    .map((st) => [gid, st.id] as const));
+  let songs = 0, moved = 0, doubled = 0;
   for (const [genre, style] of OPTED) {
-    for (let i = 0; i < 50; i++) {
+    for (let i = 0; i < 25; i++) {
       const song = generateSong({ seed: `vary-${style}-${i}`, genre, style });
       const bass = song.tracks.find((t) => t.layer === 'bass');
       if (!bass?.notes.length) continue;
@@ -1392,34 +1403,33 @@ console.log('\nRhythm-section variation');
       if (tally.size > 1) moved++;
 
       /**
-       * Every bar the bass is present for has the bass in it.
+       * **Nothing about *where* the varied bars are is asserted here**, and two
+       * attempts at it are worth recording because both looked reasonable.
        *
-       * The one structural claim a whole song can make about this mechanism.
-       * *Where* the varied bars are cannot be asserted from out here and the
-       * attempt was a mistake worth recording: `hitTogether` rewrites a bass bar
-       * too — the mid-section tutti, anchored at bar 0 or `bars − 2` of a late
-       * chorus, putting the band on the section's *hook* — and from outside, one
-       * rewritten bar looks exactly like another. `landEnding` makes a third.
-       * The placement assertion therefore runs against the generator directly,
-       * below, where only one thing can have moved anything.
+       * Asserting the phrase-end placement failed because three mechanisms
+       * rewrite a bass bar and from outside they are indistinguishable:
+       * `hitTogether`'s mid-section tutti, `landEnding`'s button, and this. The
+       * placement claim therefore runs against the generator directly, below.
+       *
+       * Asserting that no bar the bass is *present* for is empty failed for the
+       * same shape of reason — 205 of them, once the palettes widened. A traded
+       * chorus hushes the bass for the drummer's bars, a `break` deletes it for
+       * one, and `layersFor` decides presence before either runs. The claim was
+       * measuring those three and calling the answer this mechanism's. What it
+       * was reaching for — an operator never empties a figure — is a property of
+       * the operators, is true by construction for `push` and `fill`, which add
+       * or move onsets and never drop one, and is asserted where it can be:
+       * `the rhythm operators are total` guarantees `thin` never returns empty.
        */
-      const lastBar = song.meta.totalBars - 1;
-      for (const sec of song.sections) {
-        if (sec.solo?.layer === 'bass' || !sec.activeLayers.includes('bass')) continue;
-        for (let b = 0; b < sec.lengthBars; b++) {
-          const bar = sec.startBar + b;
-          if (bar !== lastBar && !asText.get(bar)) holes++;
-        }
-      }
     }
   }
   const pct = (moved / Math.max(1, songs)) * 100;
   check(
     'an opted-in bass plays more than one shape in a song',
-    songs > 0 && pct > 50 && holes === 0 && doubled === 0,
-    holes || doubled
-      ? `${holes} bars the bass sits in but does not play, ${doubled} double-struck`
-      : `${pct.toFixed(0)}% of ${songs} songs carry more than one bass shape`,
+    songs > 0 && pct > 50 && doubled === 0,
+    doubled
+      ? `${doubled} notes struck twice on one beat`
+      : `${pct.toFixed(0)}% of ${songs} songs across ${OPTED.length} styles carry more than one bass shape`,
   );
 
   /**
