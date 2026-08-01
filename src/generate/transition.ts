@@ -113,7 +113,7 @@ import type {
   DrumEvent, DrumSource, LayerId, NoteEvent, Section, Song, Track,
 } from '../core/types.js';
 import { landing } from './fills.js';
-import { metricStrength, SLOTS_PER_BEAT, thin } from './rhythm.js';
+import { anticipate, metricStrength, SLOTS_PER_BEAT, thin } from './rhythm.js';
 
 /**
  * What happens at one join.
@@ -389,6 +389,7 @@ export function planTransitions(args: {
     let kind: TransitionKind = rng ? rng.weighted(palette!) : 'fill';
     if (kind !== 'fill' && (boxed || s - spent < SEAMS_BETWEEN_GESTURES)) kind = 'fill';
     if (kind === 'break' && !breakable(sections, s, drumBars?.get(s))) kind = 'fill';
+    if (kind === 'elide' && !elidable(sections, s)) kind = 'fill';
     if (kind !== 'fill') spent = s;
     // Drawn from the same per-seam stream, and after the rate limit rather than
     // before it, so a seam that was talked out of a gesture leaves the draw
@@ -491,6 +492,29 @@ function breakable(
 }
 
 /**
+ * May the band arrive early into this join?
+ *
+ * One rule, and it is about *harmony* rather than about rhythm. An elide moves
+ * the arriving section's downbeat back an eighth, so the note sounds over the
+ * departing section's last chord. Inside a key that is exactly what an
+ * anticipation is and is the whole reason the gesture works: the new harmony
+ * takes an eighth off the old one and the ear hears it arriving.
+ *
+ * Across the final chorus's semitone lift it is something else entirely — an
+ * unprepared semitone clash, on the loudest bar of the song. That is the worst
+ * bar this mechanism could produce and it costs one comparison to refuse.
+ *
+ * Here rather than at the edit, for the reason `breakable` gives at length: a
+ * gesture talked out of it late has already cost the drummer the fill, and the
+ * seam arrives announced by nobody.
+ */
+function elidable(sections: readonly Section[], s: number): boolean {
+  const leaving = sections[s];
+  const arriving = sections[s + 1];
+  return !!leaving && !!arriving && leaving.transpose === arriving.transpose;
+}
+
+/**
  * Edit the assembled song at its seams.
  *
  * ## Where this runs, which is the least obvious thing in the design
@@ -539,7 +563,16 @@ function breakable(
  * The `never` in the default is what makes a fifth kind a compile error here
  * rather than a silent omission.
  */
-export function applyTransitions(song: Song, seams: readonly Seam[]): void {
+export function applyTransitions(
+  song: Song,
+  seams: readonly Seam[],
+  /**
+   * The swing in force at a given beat, so an elide can find the eighth *as it
+   * sounds*. Defaults to straight, which is what every caller but `song.ts`
+   * wants and what a test rig means when it says nothing.
+   */
+  swingAt: (beat: number) => number = () => 0,
+): void {
   for (const seam of seams) {
     switch (seam.kind) {
       case 'fill':
@@ -551,8 +584,21 @@ export function applyTransitions(song: Song, seams: readonly Seam[]): void {
       case 'break':
         playBreak(song, seam);
         break;
-      case 'elide':  // wave 4 — the seam-crosser, with the key-change guard
+      case 'elide': {
+        const landing = seam.bar * song.meta.beatsPerBar;
+        /**
+         * The eighth as it sounds, not as the grid draws it.
+         *
+         * `applySwing` moves an offbeat *later* by half the swing, so in a
+         * shuffled style the note before a downbeat sits closer to it than a
+         * plain eighth. Taking 0.5 regardless would put the band's push a
+         * triplet away from the drummer's, which reads as sloppiness rather
+         * than as a push — and is the entire reason this pass runs last.
+         */
+        const swing = Math.max(0, swingAt(landing - 0.5));
+        playElide(song, seam, 0.5 * (1 - swing));
         break;
+      }
       default: {
         const unreachable: never = seam.kind;
         return unreachable;
@@ -963,6 +1009,70 @@ function hush(
     } else out.push(n);
   }
   return out;
+}
+
+/**
+ * The band arrives an eighth early and holds through the downbeat it left.
+ *
+ * The one kind that touches notes on both sides of a join, and the one the plan
+ * put last for that reason. It is still an *edit*: the note already existed, on
+ * the beat it was written for, and what changes is when it is struck. Nothing is
+ * composed across the seam and the two rules that forbid that stand untouched.
+ *
+ * ## `anticipate` does the work, and there is exactly one of it
+ *
+ * A seam elide and a phrase-end bass push are the same gesture at two scales —
+ * arrive early, hold through — so they share one implementation in
+ * `generate/rhythm.ts` rather than two that agree today. Two would drift, and
+ * the way they would drift is a bar containing both, an eighth apart, which is
+ * mush rather than two gestures.
+ *
+ * **They cannot in fact collide, and that is structural rather than lucky.** An
+ * elide moves the arriving downbeat back into the *departing section's last
+ * bar*, and `figureFor` in `generate/parts.ts` refuses to vary a section's last
+ * bar — it is left to the drummer's fill and to this. So the guard the plan
+ * asked for is already paid for by a rule written for another reason. Asserted
+ * in `genre-check.ts` rather than assumed, because it is a property of two files
+ * that do not know about each other.
+ *
+ * ## The kit does not move
+ *
+ * A drummer who anticipated with the band would be moving the barline, which is
+ * a metric modulation and not an anticipation — the gesture *is* the band
+ * arriving over a downbeat the kit still states. Leaving the kit alone also
+ * keeps this trivially clear of the hook guarantee: no drum event is derived
+ * from anything here, because no drum event is touched.
+ *
+ * A sequencer does not move either, for the reason `Track.machine` gives
+ * everywhere else in this file: nobody's hands are on it.
+ */
+function playElide(song: Song, seam: Seam, eighth: number): void {
+  if (eighth <= 0) return;
+  const landing = seam.bar * song.meta.beatsPerBar;
+  /**
+   * How near the downbeat a note has to be to count as *on* it.
+   *
+   * Not an equality test, because a feel has already leaned on this layer by the
+   * time this runs — `Feel.push` moves a whole layer by milliseconds — and a
+   * downbeat eleven milliseconds early is still the downbeat. Comfortably under
+   * the eighth being travelled, so nothing else in the bar can be mistaken for
+   * it.
+   */
+  const NEAR = 0.125;
+
+  for (const track of song.tracks) {
+    if (track.machine) continue;
+    const attack = new Set(track.notes.filter((n) => Math.abs(n.beat - landing) < NEAR));
+    if (!attack.size) continue;
+    const moved = anticipate(
+      // Snapped to the downbeat so the whole attack moves as one, which is what
+      // `anticipate` means by an attack and what keeps a chord a chord. The lean
+      // the feel put on it is spent: the note is being re-timed anyway.
+      track.notes.map((n) => ({ at: attack.has(n) ? landing : n.beat, dur: n.duration, note: n })),
+      { target: landing, by: eighth },
+    );
+    track.notes = moved.map((h) => ({ ...h.note, beat: h.at, duration: h.dur }));
+  }
 }
 
 function median(values: number[]): number {

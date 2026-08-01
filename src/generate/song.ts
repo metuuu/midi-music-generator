@@ -2327,7 +2327,9 @@ export function generateSong(opts: GenerateOptions = {}): Song {
    * A no-op today: `fill` is the only kind a palette can draw and the drummer
    * has already played it.
    */
-  applyTransitions(song, seams);
+  applyTransitions(song, seams, (beat) => (
+    typeof swingPlan === 'number' ? swingPlan : swingPlan(beat)
+  ));
 
   landEnding(song, genre.ending, finalChord);
 

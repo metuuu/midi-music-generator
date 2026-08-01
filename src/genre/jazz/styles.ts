@@ -1423,12 +1423,12 @@ const fusion: Style = {
    * hearing for the opposite reason: nothing about stopping is metre-specific,
    * so if it reads here it reads anywhere.
    *
-   * **The plan's own numbers, less the kind that is not built.** The table there
-   * is `fill 5, shot 3, break 2, elide 2`; `elide` is missing rather than
-   * re-weighted, because drawing it would take the drummer's fill away — the
-   * veto reads the *kind*, not whether anything was played — and put nothing in
-   * its place. The remaining three keep their weights against each other, so
-   * adding `break` costs `shot` a fifth of its draws and nothing else moves.
+   * **The plan's own numbers, complete.** `fill 5, shot 3, break 2, elide 2` —
+   * and `elide` was the last of the four to arrive because it is the only kind
+   * that touches notes on both sides of a join, which is the easiest thing here
+   * to get subtly wrong. It is the quietest of the three gestures and the one
+   * this style has most use for: fusion arrives at a section rather than
+   * starting one, and an eighth of anticipation is how.
    *
    * **And no `shots` table**, deliberately. Authoring one here would be the
    * feature shipping with its fallback never having sounded, and the fallback is
@@ -1436,7 +1436,7 @@ const fusion: Style = {
    * being written first. If the derived figure is wrong anywhere it is wrong
    * here, in seven, where it is loudest.
    */
-  transitions: [['fill', 5], ['shot', 3], ['break', 2]],
+  transitions: [['fill', 5], ['shot', 3], ['break', 2], ['elide', 2]],
   modeWeights: { minor: 0.72, major: 0.28 },
   relativeMajorChorus: 0,
   twoHanded: {

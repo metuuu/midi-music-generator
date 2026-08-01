@@ -2405,6 +2405,64 @@ console.log('\nTransitions');
   );
 
   /**
+   * An elide arrives an eighth early, and takes nobody with it who should stay.
+   *
+   * Three claims, and the first is the one that stops this being the worst bar
+   * in the catalogue. An anticipation sounds the arriving chord over the
+   * departing one, which is what the gesture *is* inside a key and is an
+   * unprepared semitone clash across the final chorus's lift — so `elidable`
+   * refuses that seam at the draw, and this says it stayed refused.
+   *
+   * The second is that somebody actually moved: an eighth before the downbeat,
+   * exactly, on a track with hands on it. Measured against the swung eighth
+   * rather than the drawn one, because `applySwing` has already run by then —
+   * fusion is straight so the two agree here, and the expression is written the
+   * way it is so that a swung style opting in later is measured correctly rather
+   * than passing by accident.
+   *
+   * The third is that the write-back did not strand a note behind its own
+   * neighbour. `anticipate` guarantees it and `the rhythm operators are total`
+   * asserts it on figures; this asserts it on the finished song, where the
+   * mapping back into `NoteEvent` is the part that could get it wrong.
+   *
+   * The kit is deliberately not asserted to be identical, because it is not
+   * *touched* — `playElide` never reads `song.drums`, which is a stronger
+   * statement than any sample could make and is why the hook guarantee needs no
+   * new clause for this kind.
+   */
+  {
+    let elides = 0, wrongKey = 0, noneEarly = 0, outOfOrder = 0;
+    for (let i = 0; i < 60; i++) {
+      const song = generateSong({ seed: `elide-${i}`, genre: 'jazz', style: 'fusion' });
+      const bpb = song.meta.beatsPerBar;
+      const eighth = 0.5 * (1 - Math.max(0, song.meta.swing));
+      for (const track of song.tracks) {
+        for (let j = 1; j < track.notes.length; j++) {
+          if (track.notes[j]!.beat < track.notes[j - 1]!.beat - 1e-6) outOfOrder++;
+        }
+      }
+      for (const seam of song.meta.transitions ?? []) {
+        if (seam.kind !== 'elide') continue;
+        elides++;
+        const leaving = song.sections[seam.section];
+        const arriving = song.sections[seam.section + 1];
+        if (leaving && arriving && leaving.transpose !== arriving.transpose) wrongKey++;
+        const early = seam.bar * bpb - eighth;
+        const arrivedEarly = song.tracks.some((t) => !t.machine
+          && t.notes.some((n) => Math.abs(n.beat - early) < 1e-6));
+        if (!arrivedEarly) noneEarly++;
+      }
+    }
+    check(
+      'an elide arrives exactly an eighth early, and never over a key change',
+      elides > 0 && wrongKey === 0 && noneEarly === 0 && outOfOrder === 0,
+      wrongKey || noneEarly || outOfOrder
+        ? `${wrongKey} over a key change, ${noneEarly} with nobody early, ${outOfOrder} notes out of order`
+        : `${elides} elides over 60 fusion songs, all an eighth early, none over a lift`,
+    );
+  }
+
+  /**
    * The same guarantee over the *whole* kit, on the one style that can break it.
    *
    * `hook leaves form, key, tempo, instruments and drums alone` already compares
