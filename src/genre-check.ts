@@ -322,7 +322,8 @@ const withoutVoice = <T>(run: () => T): T => {
 const feelPairs: { style: string; seed: string; felt: Song; plain: Song }[] = withoutVoice(() => {
   const pairs: { style: string; seed: string; felt: Song; plain: Song }[] = [];
   for (const [genreId, styleId] of feltStyles) {
-    const style = getGenre(genreId).styles[styleId]!;
+    const genre = getGenre(genreId);
+    const style = genre.styles[styleId]!;
     const table = style.feels;
     /**
      * The seams are held out of both sides, for the whole of this fixture.
@@ -341,7 +342,13 @@ const feelPairs: { style: string; seed: string; felt: Song; plain: Song }[] = wi
      * comparison. What a shot does is asserted in `Transitions` below.
      */
     const seams = style.transitions;
+    const genreSeams = genre.transitions;
+    // Both, because `transitionTable` resolves `style ?? genre`: silencing only
+    // the style leaves a genre-level palette drawing in its place, which is how
+    // `foksi` — an iskelmä style with no table of its own — kept producing the
+    // 0.94-against-0.25 ghost this fixture exists to prevent.
     style.transitions = undefined;
+    genre.transitions = undefined;
     for (let i = 0; i < 12; i++) {
       const seed = `fl-${i}`;
       style.feels = table;
@@ -352,6 +359,7 @@ const feelPairs: { style: string; seed: string; felt: Song; plain: Song }[] = wi
       pairs.push({ style: `${genreId}/${styleId}`, seed, felt, plain });
     }
     style.transitions = seams;
+    genre.transitions = genreSeams;
   }
   return pairs;
 });
@@ -397,6 +405,48 @@ const inside = (beat: number, spans: [number, number][]) =>
  */
 const PAIR_TOLERANCE = 0.2;
 interface Timed { beat: number; velocity: number }
+/**
+ * Run something with every transition palette in the catalogue silenced.
+ *
+ * `applyTransitions` runs **last** — after the feel, after the dynamics, after
+ * swing — and it moves, deletes and replaces notes that already existed. Any
+ * check that compares two things differing in *one* axis therefore finds the
+ * transition's edit sitting in the difference and blames the axis under test.
+ *
+ * Four checks failed exactly that way when the palettes were widened, and each
+ * was right about its own claim and wrong about whose fault the difference was:
+ * an elide moves a bass note, the pairing reports the old position lost and the
+ * new one added at full velocity, and `a ghost stays a ghost` calls a relocated
+ * note a shouted ghost.
+ *
+ * **Held out rather than measured around**, which is the rule `feelPairs`
+ * already states and which was arrived at again the hard way here. Measuring
+ * around it looks tractable and is not: an elide before one chorus and not
+ * another moves that chorus's first note *out of its own span*, so no filter
+ * applied per section can be symmetric between the two being compared. Silencing
+ * the palette is one line and is exactly true.
+ *
+ * Both levels, because `transitionTable` in `song.ts` resolves
+ * `style.transitions ?? genre.transitions` — silencing only the style leaves a
+ * genre-level palette answering in its place.
+ */
+function withoutSeams<T>(run: () => T): T {
+  const saved: [{ transitions?: TransitionPalette }, TransitionPalette | undefined][] = [];
+  for (const gid of GENRE_IDS) {
+    const genre = getGenre(gid);
+    for (const holder of [genre, ...Object.values(genre.styles)]) {
+      saved.push([holder, holder.transitions]);
+      holder.transitions = undefined;
+    }
+  }
+  try {
+    return run();
+  } finally {
+    for (const [holder, table] of saved) holder.transitions = table;
+  }
+}
+
+
 function pairUp<T extends Timed>(
   felt: readonly T[], plain: readonly T[], key: (e: T) => number | string,
 ): { pairs: [T, T][]; added: T[]; lost: T[] } {
@@ -1915,7 +1965,10 @@ console.log('\nHook');
     return shared / Math.max(1, Math.min(xs.length, ys.size));
   };
 
-  const recallProfile = (level: HookId, kind: string) => {
+  // Seams held out for the whole fixture — see `withoutSeams`. A gesture on one
+  // statement of a chorus and not another makes the two differ, which is the
+  // transition doing its job rather than the chorus failing to come back.
+  const recallProfile = (level: HookId, kind: string) => withoutSeams(() => {
     let pairs = 0, recalled = 0, notes = 0, songs = 0;
     for (let i = 0; i < 40; i++) {
       const song = generateSong({ seed: `hk-${i}`, hook: level });
@@ -1942,7 +1995,7 @@ console.log('\nHook');
       }
     }
     return { pct: (recalled / Math.max(1, pairs)) * 100, pairs, notesPerSong: notes / Math.max(1, songs) };
-  };
+  });
 
   const off = recallProfile('through', 'chorus');
   const mid = recallProfile('standard', 'chorus');
@@ -2241,7 +2294,8 @@ console.log('\nTransitions');
   for (const [gid, sid] of [
     ['iskelma', 'tango'], ['jazz', 'fusion'], ['synth', 'berlin'], ['ambient', 'drone'],
   ] as const) {
-    const style = getGenre(gid).styles[sid]!;
+    const genre = getGenre(gid);
+    const style = genre.styles[sid]!;
     const table = style.transitions;
     const run = () => [...Array(SEEDS).keys()].map(
       (i) => generateSong({ seed: `tr-${i}`, genre: gid, style: sid }),
@@ -2250,11 +2304,21 @@ console.log('\nTransitions');
     // palette and the claim under test is about the two statements a style can
     // make *here*: nothing at all, against `[['fill', 1]]`. Read off whatever
     // the style happens to say today it would be testing that instead.
+    //
+    // **And the genre's table has to come off with it.** `transitionTable` in
+    // `song.ts` resolves `style.transitions ?? genre.transitions`, so silencing
+    // only the style leaves a genre-level palette answering in its place — the
+    // "silent" run then draws shots and this check compares a gesture against a
+    // fill and reports the difference as a regression. It is the control that
+    // stops being a control, which is the failure mode a control has.
+    const genreTable = genre.transitions;
+    genre.transitions = undefined;
     style.transitions = undefined;
     const silent = run();
     style.transitions = [['fill', 1]];
     const declared = run();
     style.transitions = table;
+    genre.transitions = genreTable;
 
     for (let i = 0; i < SEEDS; i++) {
       const a = silent[i]!, b = declared[i]!;
