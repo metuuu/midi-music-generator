@@ -156,6 +156,36 @@ export interface Instrument {
   effects?: Effects;
   /** Suggested octave centre for this instrument's part. */
   centre: number;
+  /**
+   * Where it sits when it is carrying the *tune*, if that is somewhere else.
+   *
+   * `centre` is a **section** register — where an instrument sits playing a part
+   * in an arrangement — and it was being read as a lead register too. For most
+   * of the catalogue those are the same note and the field is absent. For
+   * thirteen entries they were not, and every one of them was a horn, a guitar
+   * or a keyboard parked at middle C: the value a catalogue gives an instrument
+   * it has no strong opinion about.
+   *
+   * The cost was not in the tune, which sounded fine an octave low. It was in
+   * **the piano behind it**. The arranger reserves the lead's tessitura and puts
+   * the accompaniment underneath, so the comp's ceiling lands around
+   * `leadCentre - 5`; and a four-note guide voicing cannot exist below about 66,
+   * because under C4 the low-interval limits forbid the spacing. A lead at 60
+   * therefore leaves a comper nowhere to play, and it showed: measured across
+   * forty blues songs, a comp under a tenor sax averaged **2.74 voices** against
+   * **3.73** under a clarinet — a whole voice, decided by nothing but which
+   * instrument the palette happened to deal.
+   *
+   * The idea is not new here, only its scope. `HandSpec.lead` has always said
+   * this about two-handed keyboards — a piano is a piano wherever it is playing,
+   * and a piano *fronting a trio* is a piano an octave higher — and the two
+   * agree on 72 rather than competing.
+   *
+   * Not a correction to `centre`, and the distinction matters: a tenor comping
+   * behind a singer really does sit where it always did. This is only consulted
+   * for the player holding the line. See `chooseInstruments`.
+   */
+  lead?: number;
   /** How its music is shaped. See `Idiom`. */
   idiom: Idiom;
   /**
@@ -188,6 +218,9 @@ const I = (
   agility = 0.7, idiom: Idiom = 'vocal',
 ): Instrument => ({ name, gm, strudel, centre, idiom, agility });
 
+/** The same instrument, up where it plays a tune. See `Instrument.lead`. */
+const L = (instrument: Instrument, lead: number): Instrument => ({ ...instrument, lead });
+
 /** An instrument that does not ring the way its idiom rings. */
 const E = (instrument: Instrument, envelope: Partial<Envelope>): Instrument =>
   ({ ...instrument, envelope });
@@ -219,9 +252,12 @@ export const INSTRUMENTS = {
   accordion: I('accordion', 21, 'gm_accordion', 72, 0.8, 'reed'),
   bandoneon: I('bandoneon', 23, 'gm_bandoneon', 72, 0.8, 'reed'),
   harmonica: I('harmonica', 22, 'gm_harmonica', 72, 0.6, 'wind'),
-  piano: I('piano', 0, 'gm_piano', 60, 1.0, 'keyboard'),
-  epiano1: I('electric piano', 4, 'gm_epiano1', 60, 1.0, 'keyboard'),
-  epiano2: I('electric piano 2', 5, 'gm_epiano2', 60, 1.0, 'keyboard'),
+  // 72 for the tune, and it is the number `HANDS` already uses: a pianist
+  // fronting a group plays an octave above where they comp, whether or not the
+  // style has told them to use both hands.
+  piano: L(I('piano', 0, 'gm_piano', 60, 1.0, 'keyboard'), 72),
+  epiano1: L(I('electric piano', 4, 'gm_epiano1', 60, 1.0, 'keyboard'), 72),
+  epiano2: L(I('electric piano 2', 5, 'gm_epiano2', 60, 1.0, 'keyboard'), 72),
   // Fingered like a piano and strung like nothing else: a rubber tangent strikes
   // the string and a yarn damper stops it the instant the key comes up. That is
   // why a clavinet riff is heard as rhythm and a Rhodes chord as harmony. The
@@ -247,23 +283,27 @@ export const INSTRUMENTS = {
   // is in the sample, where it belongs; the envelope describes what is left once
   // it has gone, and what is left is an organ.
   percussiveOrgan: E(I('percussive organ', 17, 'gm_percussive_organ', 60, 0.9, 'keyboard'), ORGAN),
-  nylonGuitar: I('nylon guitar', 24, 'gm_acoustic_guitar_nylon', 60, 0.8, 'plucked'),
-  steelGuitar: I('steel guitar', 25, 'gm_acoustic_guitar_steel', 60, 0.8, 'plucked'),
-  jazzGuitar: I('jazz guitar', 26, 'gm_electric_guitar_jazz', 60, 0.85, 'plucked'),
-  cleanGuitar: I('clean electric guitar', 27, 'gm_electric_guitar_clean', 60, 0.8, 'plucked'),
+  // A guitar comps in first position and plays a single-line head up the neck,
+  // which is the same instrument in two places and exactly what `lead` is for.
+  nylonGuitar: L(I('nylon guitar', 24, 'gm_acoustic_guitar_nylon', 60, 0.8, 'plucked'), 71),
+  steelGuitar: L(I('steel guitar', 25, 'gm_acoustic_guitar_steel', 60, 0.8, 'plucked'), 71),
+  jazzGuitar: L(I('jazz guitar', 26, 'gm_electric_guitar_jazz', 60, 0.85, 'plucked'), 71),
+  cleanGuitar: L(I('clean electric guitar', 27, 'gm_electric_guitar_clean', 60, 0.8, 'plucked'), 71),
   // Palm-muted: the string is damped by the hand that struck it.
-  mutedGuitar: E(I('muted guitar', 28, 'gm_electric_guitar_muted', 60, 0.8, 'plucked'),
-    { decay: 0.25 }),
+  mutedGuitar: L(E(I('muted guitar', 28, 'gm_electric_guitar_muted', 60, 0.8, 'plucked'),
+    { decay: 0.25 }), 71),
   // Overdrive is a clean note pushed into an amplifier that has run out of
   // headroom. The string still decays like a string, so this takes the plucked
   // envelope untouched.
-  overdriveGuitar: I('overdriven guitar', 29, 'gm_overdriven_guitar', 60, 0.8, 'plucked'),
+  // Same neck as the clean one, so the same 71. An amplifier does not move where
+  // a guitarist plays a lead.
+  overdriveGuitar: L(I('overdriven guitar', 29, 'gm_overdriven_guitar', 60, 0.8, 'plucked'), 71),
   // Distortion is the same process taken far enough to compress, and compression
   // is what abolishes the decay: the note holds at level until the player damps
   // it. Two and a half seconds against the plucked default's one is the whole
   // difference between a chord and a power chord.
-  distortionGuitar: E(I('distortion guitar', 30, 'gm_distortion_guitar', 60, 0.8, 'plucked'),
-    { decay: 2.6 }),
+  distortionGuitar: L(E(I('distortion guitar', 30, 'gm_distortion_guitar', 60, 0.8, 'plucked'),
+    { decay: 2.6 }), 71),
   acousticBass: I('upright bass', 32, 'gm_acoustic_bass', 40, 0.7, 'plucked'),
   fingerBass: I('electric bass', 33, 'gm_electric_bass_finger', 40, 0.75, 'plucked'),
   pickBass: I('picked bass', 34, 'gm_electric_bass_pick', 40, 0.75, 'plucked'),
@@ -284,14 +324,20 @@ export const INSTRUMENTS = {
   synthStrings: I('synth strings', 50, 'gm_synth_strings_1', 72, 0.5, 'bowed'),
   synthStrings2: I('synth strings 2', 51, 'gm_synth_strings_2', 72, 0.5, 'bowed'),
   trumpet: I('trumpet', 56, 'gm_trumpet', 72, 0.45, 'brass'),
-  trombone: I('trombone', 57, 'gm_trombone', 60, 0.4, 'brass'),
+  // The most conservative lift in the table, and deliberately so. A trombone
+  // section part sits at middle C and a trombone *solo* sits around B♭3–B♭4 —
+  // which is a fifth up, not an octave. Pushing it further would buy the comp
+  // another half-voice by writing for an instrument nobody plays.
+  trombone: L(I('trombone', 57, 'gm_trombone', 60, 0.4, 'brass'), 67),
   mutedTrumpet: I('muted trumpet', 59, 'gm_muted_trumpet', 72, 0.45, 'brass'),
   brassSection: I('brass section', 61, 'gm_brass_section', 72, 0.4, 'brass'),
   synthBrass: I('synth brass', 62, 'gm_synth_brass_1', 72, 0.6, 'brass'),
   synthBrass2: I('synth brass 2', 63, 'gm_synth_brass_2', 72, 0.6, 'brass'),
   sopranoSax: I('soprano sax', 64, 'gm_soprano_sax', 76, 0.6, 'wind'),
   altoSax: I('alto sax', 65, 'gm_alto_sax', 72, 0.6, 'wind'),
-  tenorSax: I('tenor sax', 66, 'gm_tenor_sax', 60, 0.6, 'wind'),
+  // The head sits around D4–D5. Middle C is the bottom of the horn's useful
+  // voice, not the middle of it — the alto next to it was already at 72.
+  tenorSax: L(I('tenor sax', 66, 'gm_tenor_sax', 60, 0.6, 'wind'), 72),
   baritoneSax: I('baritone sax', 67, 'gm_baritone_sax', 48, 0.5, 'wind'),
   clarinet: I('clarinet', 71, 'gm_clarinet', 72, 0.65, 'wind'),
   flute: I('flute', 73, 'gm_flute', 84, 0.7, 'wind'),
