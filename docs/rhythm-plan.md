@@ -559,7 +559,10 @@ holding at every level.
 
 ## 13. What was built, and where it differs from the above
 
-Waves 1–4 landed as written. Wave 5 landed in part; the rest is held, and §13.3 says why.
+All five waves landed. Waves 1–4 went as written; wave 5 was held back once and then
+completed — §13.3 records what it cost, which is the most useful thing in this document.
+What exists is described in [`rhythm.md`](rhythm.md); this stays as the record of the
+reasoning, including the parts that were wrong.
 
 Every wave was measured against a pristine `git archive HEAD` copy rather than reasoned
 about, per the note in `docs/` about which checks flap on a reshuffle. Waves 1 and 3
@@ -590,11 +593,12 @@ therefore runs against `generateBass` and `generateComp` directly, on a syntheti
 section, where only one thing can have moved anything. The song-level check keeps the
 headline measurement and the structural guards, which is what it can actually support.
 
-### 13.3 Wave 5's widening is held, and this is the evidence
+### 13.3 Wave 5's widening cost four checks, and here is what they were
 
 The `shot` palettes from §6.1 were applied to iskelmä and to swing/bebop/blues, and
 **four checks failed**. `break` was not the cause; removing it changed nothing. All four
-are `shot`:
+were `shot`, and the widening was held for one round on that evidence before being
+completed. The four turned out to be **two mistakes, not four**:
 
 | check | why it fails |
 | --- | --- |
@@ -603,11 +607,23 @@ are `shot`:
 | `the seam plan is on the IR, and only where asked` | "asked" is read as `style.transitions`; a genre-level palette is invisible to it |
 | `the pocket exists` | sample composition moved |
 
-Three of those are arguably check maintenance and one is a real question — *may a
-transition remove what a feel added?* — but answering four invariants in order to ship a
-widening that nobody has listened to is backwards. `transition-plan.md` §10 already gave
-the instruction: *ship with `shot` enabled on `fusion` alone, listen to twenty songs,
-then widen.* That still stands, and it now has a cost attached.
+**Mistake one: a control that was not a control.** Two of them nulled
+`style.transitions` and not `genre.transitions`, and `transitionTable` in `song.ts`
+resolves `style ?? genre` — so the "silent" run still drew shots and the check compared a
+gesture against a fill. Two lines each.
+
+**Mistake two: measuring around a transition instead of holding it out.** The other two
+pair two songs differing in one axis, and `applyTransitions` runs last, so the edit sits
+in the difference and the axis gets the blame. Filtering the edited bars looked tractable
+and is not: an elide before one chorus and not another moves that chorus's *first note
+out of its own span*, so no per-section filter can be symmetric between the two being
+compared. `withoutSeams` silences the palette for the fixture instead, which is the rule
+`feelPairs` already stated — *held out rather than measured around* — and which this
+arrived at again the hard way. A `gestureSpans` helper was written, used, and deleted.
+
+So the answer to *may a transition remove what a feel added?* is yes, and it was never
+really the question: the checks were not defending an invariant about feels, they were
+failing to say which of two mechanisms they were looking at.
 
 The mechanism that makes widening *safe* is built and measured: on the metre alone the
 busiest metre in the catalogue offers **2** distinct shot figures, and from the band's own
@@ -619,7 +635,10 @@ the band path is not exercised end to end until a 4/4 style opts in.
 ### 13.4 What is left
 
 - Widen the `shot` palettes, after listening, and settle the four checks above.
-- Nothing here. The list is done — see §13.5.
+- Nothing. `vary` reaches six styles of twenty-nine and the `shot` palettes are on
+  across iskelmä, six jazz styles and two synth styles — both were the listening
+  decision, and both have been taken. What remains is listening to the result and moving
+  the numbers, which is tuning rather than work.
 - Enable `vary` beyond tango and `iskelmapop`, after listening.
 - `transition-plan.md` wave 4 (`elide`) should call `anticipate` and carry the §7.3
   guard.
