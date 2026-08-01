@@ -23,9 +23,28 @@
  * available lever is to put the biggest number in the era where `cinematic` is
  * most likely to be drawn, which is `polysynth`, and that is what happens below.
  *
- * **The `brass` layer is not vestigial here**, unlike in ambient. A synth-brass
- * stab is a first-class sound of this music rather than an orchestral hangover,
- * and the palettes are written to be used.
+ * **The `brass` layer is not vestigial here**, unlike in ambient — but it is not
+ * universal either, and the palettes below are read by two styles out of five
+ * rather than by all of them. That is worth being exact about, because the
+ * claim used to be made without the count and the count was one.
+ *
+ * A synth-brass stab is a first-class sound of this music rather than an
+ * orchestral hangover, and what the layer writes is two gestures: a swell that
+ * arrives with a held melody note and leaves with it, and a stab pushed off the
+ * barline into a gap in the tune. `cinematic` takes the first — the swell under
+ * a long CS-80 line, which is the other half of the lifted final chorus that
+ * `keyChangeChance` above is set up for — and `cosmic` takes the second, which
+ * is the horn punch behind a disco chorus. Those are the two styles the
+ * palettes here are written for.
+ *
+ * The other three exclude the layer and `src/genre/synth/styles.ts` argues it at
+ * each site, but none of them is refusing the *timbre*: `synthBrass` and
+ * `synthBrass2` sit in the `melody` palettes below, so `berlin` and `machine`
+ * reach a synth-brass lead without a brass layer existing. What they refuse is a
+ * separate arranged part punctuating them — `berlin` because its lead's gaps are
+ * already full of two sequencers, `machine` and `stalker` because both are
+ * `earworm` styles whose sections come back identical and the brass is the one
+ * layer written fresh every time.
  */
 
 import type { EraProfile } from '../../style/types.js';

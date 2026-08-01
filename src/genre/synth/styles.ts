@@ -77,6 +77,17 @@ const berlin: Style = {
   modeWeights: { minor: 0.8, major: 0.2 },
   relativeMajorChorus: 0,
   requireLayers: ['comp'],
+  /**
+   * No brass, and the argument is about texture rather than about palette.
+   *
+   * The brass layer looks for a hole in the tune and stabs into it, and the
+   * holes in this style's tune are not empty: a sixteenth-note sequence runs
+   * through them and a second sequence phases against that. A stab placed there
+   * is a third thing arriving on top of two that never stop, not an answer to
+   * anything. What announces a section here is the filter opening across
+   * sixteen bars, which is the one gesture this style was built to make and the
+   * one a horn would be competing with.
+   */
   excludeLayers: ['brass'],
   /**
    * The second sequencer. Not a reply — it runs whether or not the lead is
@@ -324,6 +335,27 @@ const berlin: Style = {
  * table. It has the only long-breathed melodic vocabulary in the genre — cells
  * of a whole bar, `syncopation` at 0.12, a nineteen-semitone span — which is
  * exactly what a soloist needs and exactly what `machine` refuses to have.
+ *
+ * **There is no `excludeLayers` here, and three of the other four styles
+ * exclude `brass`.** That absence is the point. What the brass layer writes is
+ * two gestures — a swell that arrives with a held melody note and leaves with
+ * it, and a stab pushed off the barline into a hole in the tune — and the first
+ * of them is this style: a synth-brass swell coming up under a long CS-80 line
+ * is what the `polysynth` era's brass palette was written for, and it is the
+ * half of the lifted final chorus that `keyChangeChance` cannot supply by
+ * itself. The tone up is the modulation; the brass and the choir arriving on
+ * top of it are the arrival.
+ *
+ * It lands here more often than it could anywhere else in the genre, and the
+ * reason is mechanical rather than a matter of taste — which is why this is the
+ * style to put it on. `generateBrass` swells under notes of two beats or more
+ * that start near the barline, and `melodyCells` below is whole bars. Nothing
+ * else in the catalogue hands it that many long notes to swell under.
+ *
+ * The three that exclude it argue it at each site, and none of them is refusing
+ * the *timbre*: `synthBrass` sits in the era `melody` palettes, so a style with
+ * no brass layer can still have a synth-brass lead. What they refuse is a
+ * separate arranged part punctuating them.
  */
 const cinematic: Style = {
   id: 'cinematic',
@@ -337,7 +369,6 @@ const cinematic: Style = {
   modeWeights: { minor: 0.55, major: 0.45 },
   relativeMajorChorus: 0,
   requireLayers: ['pad'],
-  excludeLayers: ['brass'],
   /**
    * A beat between answering notes. The gaps this lead leaves are bars long, and
    * an eighth-note reply to a four-second held note is a different piece of
@@ -562,6 +593,22 @@ const machine: Style = {
   relativeMajorChorus: 0,
   hook: 'earworm',
   requireLayers: ['bass'],
+  /**
+   * No brass, and this is the style where that needs saying, because a blunt
+   * chord punch is very much its sound.
+   *
+   * It already has one. `eighth-stabs` is the comp — whole chords struck on
+   * every eighth and released — so a brass layer stabbing into the gaps in the
+   * tune would double an accent the arrangement is already making rather than
+   * add a part to it. The synth-brass *sound* is not being refused either: it is
+   * in the `polysynth` and `digital` melody palettes, and in this style the tune
+   * is where it belongs.
+   *
+   * `hook: 'earworm'` is the second half. What comes back here comes back note
+   * for note, and only the melody and the harmony are remembered across
+   * sections — the brass is written fresh in every one of them, so it is the
+   * single layer that could not come back.
+   */
   excludeLayers: ['brass'],
   drumFills: false,
   filter: { depth: 0.3, shape: 'step' },
@@ -749,6 +796,14 @@ const machine: Style = {
  * either a vocoder or a session singer with a lyric, neither of which this
  * generator has. Fills stay on: this is arrival music, and the crash into the
  * chorus is the arrival.
+ *
+ * **It does not name `brass`**, and that is the other half of the same thought.
+ * Three styles in this file exclude that layer; this one and `cinematic` take
+ * it, and they take opposite halves of it. `cinematic` gets the swell under a
+ * held note; this style has no held notes to speak of, so what it gets is the
+ * other gesture — a stab pushed off the barline into a gap in the tune, which
+ * is the horn punch every record of this kind put behind the chorus, whether it
+ * came from a section in the room or from a Prophet.
  */
 const cosmic: Style = {
   id: 'cosmic',
@@ -950,6 +1005,10 @@ const stalker: Style = {
   hook: 'earworm',
   drumFills: false,
   requireLayers: ['bass'],
+  /** No brass, for the reason the whole style exists: one man at one keyboard,
+   *  and a section arriving to punctuate him is a band. `earworm` again as
+   *  well — the horror is the repetition, and the brass is the one layer that
+   *  is not remembered from section to section. */
   excludeLayers: ['brass'],
   /** Two beats between answering notes. What replies to an ostinato is a shape
    *  in the distance, not a second line. */
