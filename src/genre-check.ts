@@ -10,7 +10,9 @@
  */
 
 import { generateSong } from './generate/song.js';
-import { generateBass, generateDrums, generateLeftHand, planKitVariation } from './generate/parts.js';
+import {
+  generateBass, generateComp, generateDrums, generateLeftHand, planFigureVariation, planKitVariation,
+} from './generate/parts.js';
 import { anticipate, displace, subdivide, thin } from './generate/rhythm.js';
 import { getGenre, GENRE_IDS } from './genre/index.js';
 import { composeSectionTune } from './tune/adapt.js';
@@ -1422,7 +1424,64 @@ console.log('\nRhythm-section variation');
         }
       }
     }
+    for (const pattern of style.comp) {
+      if (pattern.cycle) continue;
+      const ctx = () => ({
+        chords: eight, beatsPerBar: 4, startBeat: 0, rng: new Rng('place'), style,
+      });
+      const plainShapes = shapesOf(generateComp(ctx(), pattern, 60));
+      // `fill` is unreachable on an arpeggio and is not asserted there — see the
+      // separate guard below, which is what makes that statement true rather
+      // than assumed.
+      const kinds = pattern.arpeggio ? (['push'] as const) : (['push', 'fill'] as const);
+      for (const at of pattern.hits.map((h) => h.at)) {
+        for (const kind of kinds) {
+          placements++;
+          const shapes = shapesOf(
+            generateComp(ctx(), pattern, 60, undefined, {}, undefined, { kind, at }),
+          );
+          for (let b = 0; b < 8; b++) {
+            if (shapes.get(b) === plainShapes.get(b)) continue;
+            if (b !== 3) misplaced.push(`${sid}/${pattern.name} ${kind}@${at} moved bar ${b}`);
+          }
+        }
+      }
+    }
   }
+
+  /**
+   * …and `fill` is never drawn for a figure that counts its own onsets.
+   *
+   * The placement property above is only true for an arpeggio because the
+   * planner refuses to add a note to one. Asserted at the planner rather than
+   * inferred from the placement passing, because the two would fail together and
+   * only this one says which.
+   */
+  let arpFills = 0, arpDraws = 0;
+  for (const gid of GENRE_IDS) {
+    for (const style of Object.values(getGenre(gid).styles)) {
+      for (const pattern of style.comp) {
+        if (!pattern.arpeggio || pattern.cycle) continue;
+        for (let i = 0; i < 200; i++) {
+          const v = planFigureVariation(pattern, {
+            chance: 1, rng: new Rng(`arp-${style.id}-${pattern.name}-${i}`),
+            slotsPerBar: style.beatsPerBar * 4,
+            ...(style.groups ? { groups: style.groups } : {}),
+          });
+          if (!v) continue;
+          arpDraws++;
+          if (v.kind === 'fill') arpFills++;
+        }
+      }
+    }
+  }
+  check(
+    'a sequenced figure is never handed an extra note',
+    arpDraws > 0 && arpFills === 0,
+    arpFills
+      ? `${arpFills} of ${arpDraws} arpeggio draws came back as a fill`
+      : `${arpDraws} draws over every arpeggio in the catalogue, all pushes`,
+  );
   check(
     'a phrase-end gesture lands only on a phrase end',
     placements > 0 && misplaced.length === 0,

@@ -1055,14 +1055,19 @@ export function generateSong(opts: GenerateOptions = {}): Song {
      * with the band walks the bass first, the bass follows the tune, and the tune
      * is exactly what `--hook` moves.
      */
-    const bassVariation = style.vary?.bass
-      ? planFigureVariation(bassPattern, {
-        chance: style.vary.bass,
-        rng: new Rng(`${seed}:vary:bass:${s}${salt('bass')}`),
+    const varyFor = (
+      layer: 'bass' | 'comp',
+      pattern: { hits: readonly { at: number; dur: number }[]; cycle?: number; arpeggio?: boolean },
+    ) => (style.vary?.[layer]
+      ? planFigureVariation(pattern, {
+        chance: style.vary[layer]!,
+        rng: new Rng(`${seed}:vary:${layer}:${s}${salt(layer)}`),
         slotsPerBar: style.beatsPerBar * 4,
         ...(style.groups ? { groups: style.groups } : {}),
       })
-      : undefined;
+      : undefined);
+    const bassVariation = varyFor('bass', bassPattern);
+    const compVariation = varyFor('comp', compPattern);
 
     // Keep this section's accompaniment to hand: the melody is written last, so
     // it can be checked against what the band is actually holding underneath.
@@ -1082,6 +1087,9 @@ export function generateSong(opts: GenerateOptions = {}): Song {
         // playing a figure on purpose — a sequence, a riff — and the whole point
         // of those is that they do not vary. See `Genre.comping`.
         genre.comping,
+        // …and the phrase-end gesture is the comp's alone for the same reason,
+        // which is why it is passed here and not at the counter's call below.
+        compVariation,
       )
       : [];
     let sectionPad = active.has('pad')

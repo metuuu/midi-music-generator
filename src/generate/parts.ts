@@ -99,7 +99,12 @@ const PHRASE_BARS = 4;
  * number taken out of a shared stream cost the last time.
  */
 export function planFigureVariation(
-  pattern: { hits: readonly BassHit[]; cycle?: number },
+  pattern: {
+    hits: readonly { at: number; dur: number }[];
+    cycle?: number;
+    /** See the `fill` guard below. */
+    arpeggio?: boolean;
+  },
   opts: { chance: number; rng: Rng; slotsPerBar: number; groups?: readonly number[] },
 ): FigureVariation | undefined {
   const { chance, rng, slotsPerBar, groups } = opts;
@@ -118,7 +123,17 @@ export function planFigureVariation(
   );
   if (!strong.length) return undefined;
 
-  const fillable = strong.filter((h) => h.dur >= 2);
+  /**
+   * `fill` adds an onset, and an arpeggio counts them.
+   *
+   * `generateComp` carries `step` across the barline on purpose — the figure and
+   * the bar drifting out of phase is the whole appeal of a sequenced pattern —
+   * so one extra note at bar three re-indexes the ladder for bars four to eight.
+   * That is a different part from there on rather than a gesture at a phrase
+   * end, and it would make the placement this function exists to guarantee
+   * false. `push` moves an onset without adding one and is safe on anything.
+   */
+  const fillable = pattern.arpeggio ? [] : strong.filter((h) => h.dur >= 2);
   const kind: FigureVariation['kind'] = fillable.length && rng.chance(0.4) ? 'fill' : 'push';
   const pool = kind === 'fill' ? fillable : strong;
   return { kind, at: rng.pick(pool).at };
@@ -453,6 +468,15 @@ export function generateComp(
   limits: { ceiling?: Midi; clarity?: number } = {},
   /** How far this player departs from the figure. Absent means they do not. */
   comping?: CompingProfile,
+  /**
+   * What this section's comper does at its phrase ends. See `FigureVariation`.
+   *
+   * Read in both places the figure is walked, and it has to be: the first builds
+   * the set of slots the pattern occupies so an anticipated chord does not land
+   * on one twice, and a set built from the plain figure would be wrong about the
+   * varied one — which is a flam rather than a rounding error.
+   */
+  variation?: FigureVariation,
 ): NoteEvent[] {
   const { chords, beatsPerBar, startBeat, rng } = ctx;
   const slotsPerBar = beatsPerBar * SLOTS_PER_BEAT;
@@ -578,8 +602,9 @@ export function generateComp(
    */
   const occupied = new Set<number>();
   if (plan) {
-    for (const { slot } of cycleHits(pattern.hits, {
+    for (const { slot } of figureHits(pattern.hits, {
       cycle: pattern.cycle ?? slotsPerBar, bars: chords.length, slotsPerBar,
+      ...(variation ? { variation } : {}),
     })) occupied.add(slot);
   }
   if (plan) {
@@ -605,8 +630,9 @@ export function generateComp(
   // whole section — which is the entire reason `step` survives the barline.
   const ladders = pattern.arpeggio ? voicings.map((v) => arpLadder(v, pattern)) : [];
 
-  for (const { hit, bar, slot } of cycleHits(pattern.hits, {
+  for (const { hit, bar, slot } of figureHits(pattern.hits, {
     cycle: pattern.cycle ?? slotsPerBar, bars: chords.length, slotsPerBar,
+    ...(variation ? { variation } : {}),
   })) {
     const voicing = voicings[bar]!;
     const ladder = ladders[bar];

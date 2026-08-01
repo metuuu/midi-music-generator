@@ -156,8 +156,15 @@ const tango: Style = {
    * downbeats because that is what a tango is"* — and until now the rhythm
    * section underneath it could not join in. High, because on this style the
    * gesture is not a decoration.
+   *
+   * The comper joins at a lower weight. A tango's chords are stabs on the
+   * offbeat and pushing one into the barline is the same gesture the bass is
+   * making, which is the argument for it and also the argument for not matching
+   * the weight: two players leaning on the same beat every phrase is one player
+   * too many. `iskelmapop` is left bass-only on purpose, so there is something
+   * to hear this against.
    */
-  vary: { bass: 0.45 },
+  vary: { bass: 0.45, comp: 0.3 },
   /**
    * Two hands **if the palette happens to deal them**, which is the weaker claim
    * and the one that is true of this style.
