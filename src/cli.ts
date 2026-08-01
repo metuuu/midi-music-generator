@@ -78,7 +78,7 @@ Music generator — iskelmä, jazz and ambient
                       how much the song repeats itself. Independent of
                       --strictness: one asks whether a note is wrong, the
                       other whether it is familiar. Default is per genre.
-      --vocals        double the melody with a wordless sung line. The seed
+      --vocals        double the melody with a sung line. The seed
                       still fixes the instrumental parts exactly, so the same
                       seed with and without this is the same arrangement.
       --quiet         no per-song output

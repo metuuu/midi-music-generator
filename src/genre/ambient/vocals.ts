@@ -57,6 +57,11 @@ export const VOCALS: VocalProfile = {
     ['fricative-h', 1.5], ['fricative-f', 1], ['fricative', 1],
   ],
   words: WORD_STYLES.airy!,
+  // A treble line, joined the whole way through, barely any contour — which is
+  // `chant`, and it is the delivery this profile has been describing in prose
+  // since it was written.
+  signature: 'high-female',
+  delivery: 'chant',
   // Higher than the other two profiles. Choral ambient sits where a treble line
   // sits, not where a crooner does.
   centre: 62,

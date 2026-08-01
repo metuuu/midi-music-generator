@@ -73,6 +73,7 @@ import { instrumentIdForTrack, specFor } from '../../concert/instruments.js';
 import { getGenre } from '../../genre/index.js';
 import { renderStrudel } from '../../render/strudel.js';
 import { loadCode, playCode, preloadSounds, startLoaded, stopPlayback } from '../audio.js';
+import { createSungVoice, withoutSungVoice } from '../sung-voice.js';
 
 import { createAnimator, type Animator } from './animate.js';
 import { createDirector, type CameraDirector } from './camera.js';
@@ -294,6 +295,14 @@ export function createShow(opts: ShowOptions = {}): Show {
   const director = createDirector(reducedMotion);
   director.room(stage.metrics);
   const transport = createTransport();
+  /**
+   * The singer, taken out of the pattern and given her own voice.
+   *
+   * One per show rather than one per number: she owns a reverb impulse and a
+   * noise buffer, and rebuilding those between numbers would be a lot of
+   * garbage for a stage that changes song every few minutes.
+   */
+  const voice = createSungVoice();
   const animator = createAnimator();
   const tomatoes = createTomatoes(root, { seed: concert.seed });
 
@@ -938,7 +947,8 @@ export function createShow(opts: ShowOptions = {}): Show {
 
   async function sound(song: Song): Promise<void> {
     try {
-      await playCode(renderStrudel(audible(song)));
+      await playCode(renderStrudel(withoutSungVoice(audible(song))));
+      voice.begin(audible(song));
     } catch (err) {
       // A pattern that will not evaluate is a bug worth seeing, but it must not
       // take the stage down with it — the visuals are driven by the IR and will
@@ -1013,7 +1023,8 @@ export function createShow(opts: ShowOptions = {}): Show {
       // Stop before loading. See the module note: a running cycle counter
       // would start this song somewhere in its middle.
       await stopPlayback();
-      await loadCode(renderStrudel(audible(song)));
+      voice.end();
+      await loadCode(renderStrudel(withoutSungVoice(audible(song))));
       loaded = song;
     } catch (err) {
       console.error('concert: Strudel could not evaluate the pattern', err);
@@ -1039,8 +1050,12 @@ export function createShow(opts: ShowOptions = {}): Show {
       await loading;
       // A pattern that failed to load — or one a tomato replaced while the
       // curtain was travelling — is compiled here instead, late but audible.
-      if (loaded === current.song) await startLoaded();
-      else await sound(current.song);
+      if (loaded === current.song) {
+        await startLoaded();
+        // After the scheduler, never before: every phrase is placed by the
+        // scheduler's own clock and there is no clock until it starts.
+        voice.begin(audible(current.song));
+      } else await sound(current.song);
     } catch (err) {
       console.error('concert: the number could not be started', err);
     }
@@ -1049,7 +1064,11 @@ export function createShow(opts: ShowOptions = {}): Show {
   function endNumber(): void {
     // The clock stops; the sound does not. The last bar is a held chord and
     // Strudel's stop only halts the scheduler, so it rings out over the first
-    // seconds of the applause exactly as it would in a room.
+    // seconds of the applause exactly as it would in a room. The singer is the
+    // exception and has to be told: her phrases are scheduled ahead of the
+    // playhead, so anything already handed over would sing on into the
+    // applause over a band that has stopped.
+    voice.end();
     void stopPlayback();
     transport.end();
     clockLive = false;
@@ -1535,6 +1554,7 @@ export function createShow(opts: ShowOptions = {}): Show {
     },
 
     dispose() {
+      voice.end();
       void stopPlayback();
       animator.end();
       strikeBand();

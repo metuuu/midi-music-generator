@@ -796,6 +796,11 @@ export class VoiceSynth {
     this.active = [];
   }
 
+  /** The clock everything here is scheduled against. */
+  get context(): AudioContext {
+    return this.ctx;
+  }
+
   get busy(): boolean {
     return this.active.some((u) => u.end > this.ctx.currentTime);
   }

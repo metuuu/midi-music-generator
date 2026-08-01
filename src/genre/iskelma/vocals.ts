@@ -57,6 +57,11 @@ export const VOCALS: VocalProfile = {
     ['fricative', 1.2], ['fricative-f', 1], ['stop-p', 1],
   ],
   words: WORD_STYLES.finnish!,
+  // A crooner: a long tract, a soft source, and the biggest scoop in the
+  // project. `ballad` rather than `sung` because iskelmä phrases one line to a
+  // breath and holds the ends of them.
+  signature: 'low-male',
+  delivery: 'ballad',
   // A baritone. Iskelmä is a low-voiced music, and the melody instrument the
   // voice doubles is frequently an octave or more above anything singable.
   centre: 57,

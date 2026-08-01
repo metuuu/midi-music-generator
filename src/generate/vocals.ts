@@ -78,6 +78,15 @@ interface Syllable {
   phraseStart: boolean;
 }
 
+/** What the line hands back for one slot of the melody. */
+interface Sung {
+  phoneme: Phoneme;
+  /** A continuation of the syllable before it rather than a fresh one. */
+  tie: boolean;
+  /** Which word it belongs to. Only ever compared with its neighbour's. */
+  word: number;
+}
+
 /** Where the song's sections are, so a line can be given to one. */
 export interface LyricContext {
   sections: Section[];
@@ -92,22 +101,57 @@ export function generateVocalTrack(
 ): Track | undefined {
   if (!melody.length) return undefined;
 
-  const shift = octaveFold(melody, profile);
-  const syllables = syllabify(melody, shift, profile);
+  const line = oneNoteAtATime(melody);
+  const shift = octaveFold(line, profile);
+  const syllables = syllabify(line, shift, profile);
   const write = writer(profile, lyric, rng);
 
   const notes: NoteEvent[] = [];
-  for (const syl of syllables) {
-    const phoneme = write(syl);
+  const sung = syllables.map(write);
+  const joined: boolean[] = [];
+
+  syllables.forEach((syl, i) => {
+    const s = sung[i]!;
+    const next = sung[i + 1];
+    /**
+     * Joined to the next note when the next note is part of the same word, and
+     * only then. That is the rule the whole vocal layer turns on: silence goes
+     * between words, never inside one, and a listener reads a silence inside a
+     * word as a word boundary — so a line with silence everywhere is heard as a
+     * line of one-syllable words however good the vowels are.
+     *
+     * A phrase break wins over it. The next syllable beginning after a breath
+     * is a new word by construction, but the melody can also simply stop, and
+     * two notes a bar apart are not legato whatever the words say.
+     */
+    joined[i] = next !== undefined
+      && next.word === s.word
+      && syllables[i + 1]!.beat - syl.beat < PHRASE_GAP_BEATS + 1e-6;
+
+    /**
+     * A tie only counts if the note before it actually runs into it.
+     *
+     * The line hands out the second half of a long vowel as soon as the next
+     * slot comes round, and the melody decides when that is — which can be two
+     * beats and a rest later, if the tune is sparse. Holding a vowel across
+     * that is not a long vowel, it is a portamento with a gap in the middle, so
+     * the mark comes off and what is left is an ordinary syllable that happens
+     * to repeat the vowel.
+     */
+    const held = s.tie && joined[i - 1] === true;
+
     notes.push({
       beat: syl.beat,
       duration: syl.duration,
       midi: syl.midi,
       velocity: syl.velocity,
-      vowel: phoneme.vowel,
-      consonant: phoneme.onset,
+      vowel: s.phoneme.vowel,
+      consonant: s.phoneme.onset,
+      ...(s.phoneme.coda !== 'none' ? { coda: s.phoneme.coda } : {}),
+      ...(held ? { tie: true as const } : {}),
+      ...(joined[i] ? { legatoToNext: true as const } : {}),
     });
-  }
+  });
 
   return {
     layer: 'vocal',
@@ -116,8 +160,35 @@ export function generateVocalTrack(
     strudelSound: profile.strudel,
     notes,
     gain: profile.gain,
-    voice: profile.voice,
+    // The song has to carry its own voice: a renderer is handed a `Song` and
+    // nothing else, so a tract it would have to look up by genre is a tract it
+    // cannot reconstruct.
+    voice: { ...profile.voice, signature: profile.signature, delivery: profile.delivery },
   };
+}
+
+/**
+ * One note at a time, because that is how many a person can sing.
+ *
+ * The melody track is not always a melody. A two-handed player's accompaniment
+ * rides on it under `hand: 'left'` — `melodicLine` strips that, and the caller
+ * has already done so — but a lead can still be doubled at the octave on
+ * purpose (`doubling: 'lead'`), and some genres write the tune in stacked
+ * notes. Every one of those arrives here as two or three notes on the same
+ * beat, and the voice was singing all of them: three syllables at beat 0, then
+ * three more at beat 2, consuming the words three times faster than the tune
+ * moves and scrambling the line into something with no word boundaries in it.
+ *
+ * The top note, because the tune is the one on top — the same rule
+ * `melodicLine` uses to pick a right hand out of a keyboard part.
+ */
+function oneNoteAtATime(melody: NoteEvent[]): NoteEvent[] {
+  const top = new Map<number, NoteEvent>();
+  for (const n of melody) {
+    const at = top.get(n.beat);
+    if (!at || n.midi > at.midi) top.set(n.beat, n);
+  }
+  return [...top.values()].sort((a, b) => a.beat - b.beat);
 }
 
 /**
@@ -253,17 +324,16 @@ function phoneticsFor(profile: VocalProfile): PhoneticStyle {
     onsetDensity: w.onsetDensity,
     interiorDensity: w.interiorDensity,
     /**
-     * No codas. A `NoteEvent` has one consonant and it is the onset, so there
-     * is nowhere to put a closing one — and a coda that cannot be articulated
-     * would be a silent shortening of the word rather than a consonant.
+     * Codas are written onto the note and sounded by whoever can.
      *
-     * Nothing is lost from the *length*: a closed syllable is still heavy and
-     * still sung over two slots, so it arrives as a held vowel instead. That is
-     * the floating version of the same word, which is the version this project
-     * has always wanted. See `PhoneticStyle.codaDensity`, and turn it up on the
-     * day the voice goes through `web/voice-synth.ts`, which can close one.
+     * `NoteEvent.coda` carries it; the Web Audio voice articulates it at the
+     * end of the syllable, and Strudel — one attack per event, no way to put a
+     * consonant at the far end of one — ignores it and hears the syllable's
+     * length without its closing consonant. Both are real pronunciations of the
+     * same word, and the one that loses the consonant is the floating one this
+     * project has always wanted, so nothing has to be decided here.
      */
-    codaDensity: 0,
+    codaDensity: w.codaDensity,
     maxSyllables: w.maxSyllables,
   };
 }
@@ -344,7 +414,7 @@ function spansOf(lyric: LyricContext): Span[] {
  */
 function writer(
   profile: VocalProfile, lyric: LyricContext, rng: Rng,
-): (syl: Syllable) => Phoneme {
+): (syl: Syllable) => Sung {
   const phonetics = phoneticsFor(profile);
   const lexicon = inventLexicon(profile.words, phonetics, rng.fork('lexicon'), LEXICON_SIZE);
   const spans = spansOf(lyric);
@@ -373,8 +443,17 @@ function writer(
   /** Slots the syllable being sung still owes itself, because it is heavy. */
   let owed = 0;
   let last: Phoneme = fallback;
+  /**
+   * Which word is being sung, counting up and never reset.
+   *
+   * Only ever compared for equality with its neighbour, which is all
+   * `legatoToNext` needs: the syllables of one word run together and the space
+   * between two words is where the silence goes. Counting rather than naming
+   * keeps the words out of the `Track` — see the note at the top of the file.
+   */
+  let word = 0;
 
-  return (syl: Syllable): Phoneme => {
+  return (syl: Syllable): Sung => {
     // Sections are in order and so are the notes, so this only ever walks
     // forward — but it is written as a search so that a melody starting before
     // the first section or running past the last still lands somewhere.
@@ -388,7 +467,7 @@ function writer(
       // that ran across one would be a word straddling a key change.
       owed = 0;
     }
-    if (!line.length) return fallback;
+    if (!line.length) return { phoneme: fallback, tie: false, word };
 
     /**
      * The second slot of a heavy syllable — a long vowel or a closed one.
@@ -400,7 +479,13 @@ function writer(
      */
     if (owed > 0) {
       owed--;
-      return { ...last, onset: 'none' };
+      // The coda waits for the last slot of the syllable, because that is where
+      // a mouth puts it: `suus` is a long /u/ and *then* the /s/.
+      return {
+        phoneme: { ...last, onset: 'none', coda: owed === 0 ? last.coda : 'none' },
+        tie: true,
+        word,
+      };
     }
 
     // A phrase begins on a word, never in the middle of one. The breath is
@@ -414,6 +499,11 @@ function writer(
     cursor++;
     owed = syllableWeight(beat.syllable) - 1;
     last = beat.syllable;
-    return beat.syllable;
+    if (beat.wordStart) word++;
+    return {
+      phoneme: owed === 0 ? beat.syllable : { ...beat.syllable, coda: 'none' },
+      tie: false,
+      word,
+    };
   };
 }

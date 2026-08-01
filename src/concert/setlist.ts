@@ -189,9 +189,10 @@ function planSlots(count: number, sung: boolean[], rng: Rng): Slot[] {
  * instrumental and the staging, the lighting and the bill all have to work with
  * no singer present.
  *
- * The voice stays wordless — vowels and manner-of-articulation consonants, no
- * language. That is a property of `generate/vocals.ts` and this file does not
- * get a vote, which is exactly how it should stay.
+ * The voice sings an invented language rather than a real one, and nobody ever
+ * sees the words — a lexicon per song, spelled to that genre's phonotactics and
+ * heard only as syllables. That is a property of `generate/vocals.ts` and this
+ * file does not get a vote, which is exactly how it should stay.
  */
 function planVocals(count: number, policy: VocalPolicy, rng: Rng): boolean[] {
   if (policy === 'instrumental') return new Array<boolean>(count).fill(false);

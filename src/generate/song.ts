@@ -25,7 +25,7 @@ import { Rng } from '../core/rng.js';
 import { makeScale, stepInScale, type Mode } from '../core/scale.js';
 import {
   DEFAULT_DRUM_MIX, DEFAULT_SPACE, SEQUENCER_FROM, canVary, eligibleDrumSources,
-  isPlayedByHand,
+  isPlayedByHand, melodicLine,
   type DrumEvent, type DrumTrack, type Effects, type LayerId, type NoteEvent,
   type Section, type SectionKind, type SequencedLayer, type Song, type Space,
   type Track,
@@ -92,8 +92,12 @@ export interface GenerateOptions {
    */
   hook?: HookId | number;
   /**
-   * Add a wordless sung line doubling the melody. Off by default — the station
-   * is instrumental.
+   * Add a sung line doubling the melody. Off by default — the station is
+   * instrumental.
+   *
+   * It sings words, in an invented language nobody ever sees: `generate/vocals.ts`
+   * makes up a lexicon per song and hands each section a line of it. Nothing
+   * reaches the `Song` but syllables.
    *
    * This draws from its own RNG stream, so a seed produces the identical
    * instrumental arrangement whether or not vocals are on. That is what makes
@@ -2149,7 +2153,10 @@ export function generateSong(opts: GenerateOptions = {}): Song {
       // same line every time it comes round, and that is the only thing making
       // a refrain a refrain. See `generate/vocals.ts`.
       const vocal = generateVocalTrack(
-        melodyTrack.notes, genre.vocals, new Rng(`${seed}:vocal`),
+        // `melodicLine`, not `notes`: where the lead is a two-handed player the
+        // track carries their accompaniment too, and a singer does not sing the
+        // left hand.
+        melodicLine(melodyTrack), genre.vocals, new Rng(`${seed}:vocal`),
         { sections, beatsPerBar: style.beatsPerBar },
       );
       if (vocal) tracks.push(vocal);

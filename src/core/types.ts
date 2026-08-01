@@ -10,6 +10,8 @@
 import type { Midi } from './pitch.js';
 import type { Mode } from './scale.js';
 import type { FeelSpan } from '../style/feel.js';
+import type { DeliveryId } from '../style/delivery.js';
+import type { VoiceSignatureId } from '../style/voices.js';
 import type { Seam } from '../generate/transition.js';
 
 /**
@@ -24,7 +26,7 @@ export type LayerId =
   | 'melody'    // the "vocal" line, played by an instrument
   | 'counter'   // answering phrases in the melody's gaps
   | 'brass'     // section stabs and swells
-  | 'vocal';    // wordless sung line doubling the melody
+  | 'vocal';    // sung line doubling the melody
 
 export const LAYER_ORDER: LayerId[] = [
   'drums', 'bass', 'comp', 'pad', 'brass', 'counter', 'melody', 'vocal',
@@ -131,6 +133,43 @@ export interface NoteEvent {
   vowel?: Vowel;
   /** How the syllable is started. Only the `vocal` layer sets it. */
   consonant?: Consonant;
+  /**
+   * How the syllable is *closed*, if it is. Only the `vocal` layer sets it.
+   *
+   * Optional and one-sided like `hand` and `doubling` above, and for the third
+   * time for the same reason: an open syllable is the ordinary case and should
+   * not have to declare itself. A renderer that cannot articulate a coda —
+   * Strudel, which has one attack per event and no way to put a consonant at
+   * the far end of one — ignores it, and what it then hears is the syllable's
+   * length without its closing consonant, which is a real pronunciation rather
+   * than a broken one.
+   */
+  coda?: Consonant;
+  /**
+   * This note continues the syllable before it: no onset, no fresh attack, the
+   * same vowel carried onto a new pitch. The second half of a long vowel, or a
+   * melisma.
+   *
+   * Every renderer can do *something* with it and only one can do it properly.
+   * Strudel re-attacks — one independent sampler voice per event is the whole of
+   * its scheduling model — so a tie arrives there as a repeat with no consonant
+   * on it, which reads as one syllable held rather than two struck. The Web
+   * Audio voice glides the pitch under a level that never drops, which is what a
+   * held vowel actually is.
+   */
+  tie?: true;
+  /**
+   * Runs into the next note with no silence between them — the syllables of one
+   * word, which a mouth does not separate.
+   *
+   * `duration` stays what it always was: the *written* sounding length, with the
+   * gap after it that a re-attacking renderer needs. This says that gap is an
+   * artefact of that renderer rather than a fact about the line, and a voice
+   * that can join the two syllables should. The relationship is the one
+   * `brightness` has to `Track.effects.lowpass`: the note says what the music
+   * wants, the renderer says what it can do about it.
+   */
+  legatoToNext?: true;
   /**
    * How far open the filter is on this note, 0..1. Absent means "all the way",
    * which is what every note in the project was until this existed.
@@ -270,6 +309,23 @@ export type Vowel =
  * its controls; a native engine reads the same numbers.
  */
 export interface VoiceSettings {
+  /**
+   * Which vocal tract this is, and how it is being performed — ids into
+   * `style/voices.ts` and `style/delivery.ts`.
+   *
+   * Only a renderer with a tract to configure reads them, which today means
+   * `web/voice-synth.ts` alone: Strudel has a fixed filter bank and one
+   * envelope, so there is nothing for a tract length or a legato setting to
+   * mean there. They live on the track rather than being looked up from the
+   * genre because the `Song` has to be self-describing — a renderer is given a
+   * song and nothing else, and a voice it cannot reconstruct is a voice it
+   * cannot sing.
+   *
+   * Optional so that a `Song` written before they existed, or by hand, still
+   * reads back; the voice falls back to a neutral pair.
+   */
+  signature?: VoiceSignatureId;
+  delivery?: DeliveryId;
   /**
    * How often the mouth re-opens, in beats. A note longer than this is
    * re-attacked for as long as it lasts instead of being held.

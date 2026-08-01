@@ -80,6 +80,12 @@ export const VOCALS: VocalProfile = {
     ['nasal-m', 1], ['liquid', 1], ['liquid-r', 1],
   ],
   words: WORD_STYLES.machine!,
+  // Deliberately neither male nor female: a vocoder has no larynx to have a
+  // size, and `androgynous` is the signature that declines to pick. `syllabic`
+  // for the same reason — a vocoder tracks a talker one frame at a time and
+  // has no breath to phrase with.
+  signature: 'androgynous',
+  delivery: 'syllabic',
   // Middle C, and the field means less here than anywhere else. `centre` is
   // documented as the pitch the voice is *not* straining at, which presumes a
   // voice that can strain. With `formantTrack` at 0 nothing is measured from

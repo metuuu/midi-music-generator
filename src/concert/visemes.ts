@@ -24,10 +24,11 @@
  * √2 ≈ 1.41 — /a/ at (1.00, 0.00, 0.00), /u/ at (0.16, 0.94, 0.00), /i/ at
  * (0.10, 0.00, 1.00). They are very nearly the corners of the triangle.
  *
- * The one thing this file does *not* do is put words in the mouth. The voice is
- * wordless by design (§5) and the face must not drift toward mouthing language
- * it is not singing — which it cannot, because the only inputs are a vowel, a
- * manner of articulation and a rate.
+ * The one thing this file does *not* do is put words in the mouth. The voice
+ * does sing words now, in an invented language — but the face must not drift
+ * toward mouthing a *real* one, and it cannot, because the only inputs here are
+ * a vowel, a consonant and a rate. A mouth shape is a picture of a sound; what
+ * the sound spells is not on offer and was never wanted.
  */
 
 import { quantise } from '../core/grid.js';
@@ -183,11 +184,19 @@ const INHALE_SECONDS: [number, number] = [0.28, 0.6];
  * first-class mode rather than a degraded one (§5). A number with no vocal
  * track has no singer on stage and nothing here to do.
  *
- * One viseme per sung note, no more and no fewer — `npm run concert` asserts
- * both directions. That is exact rather than approximate because the vocal
- * track's notes *are* the syllables: `generate/vocals.ts` has already cut every
- * held note into `syllableBeats` pieces and clipped each to `blipBeats`, so
- * there is nothing left here to re-derive and no opportunity to disagree.
+ * One viseme per **struck** syllable, no more and no fewer — `npm run concert`
+ * asserts both directions. That is exact rather than approximate because the
+ * vocal track's notes *are* the syllables: `generate/vocals.ts` has already cut
+ * every held note into `syllableBeats` pieces and clipped each to `blipBeats`,
+ * so there is nothing left here to re-derive and no opportunity to disagree.
+ *
+ * The one note that gets no viseme of its own is a **tie** — the second half of
+ * a long vowel, or a melisma. It is the same vowel as the note before it, so
+ * the mouth is already in the right shape and has nothing to do but stay there;
+ * closing and reopening on an identical shape is a flutter with no sound under
+ * it. So a tie extends its predecessor's hold instead, which is right for both
+ * renderers at once: the Web Audio voice genuinely never re-attacks, and
+ * Strudel's re-attack has no consonant on it and does not move the jaw either.
  */
 export function visemesFor(song: Song, performerId: string): VisemeTrack | undefined {
   const track = song.tracks.find((t) => t.layer === 'vocal' && t.voice);
@@ -201,6 +210,15 @@ export function visemesFor(song: Song, performerId: string): VisemeTrack | undef
   for (let i = 0; i < notes.length; i++) {
     const note = notes[i]!;
     const beat = quantise(note.beat);
+
+    // A tie holds the mouth where it already is. Reach back and lengthen rather
+    // than adding a shape identical to the one still on the face.
+    const held = visemes[visemes.length - 1];
+    if (note.tie && held) {
+      const to = quantise(note.beat + note.duration);
+      held.holdBeats = round3(Math.max(held.holdBeats, to - held.beat));
+      continue;
+    }
     /**
      * A vowel is always present on this layer — the generator sets one on every
      * note it writes. `uh` is the neutral fallback rather than a throw: a face
@@ -221,7 +239,11 @@ export function visemesFor(song: Song, performerId: string): VisemeTrack | undef
      * it the re-attacks smear back into the drone they were meant to break up,
      * and the face does the same thing.
      */
-    const nextBeat = i + 1 < notes.length ? quantise(notes[i + 1]!.beat) : Infinity;
+    // The next *struck* syllable, since a tie will not close the mouth and so
+    // does not claim the room before it.
+    let n = i + 1;
+    while (n < notes.length && notes[n]!.tie) n++;
+    const nextBeat = n < notes.length ? quantise(notes[n]!.beat) : Infinity;
     const hold = Math.max(
       MIN_HOLD_BEATS,
       Math.min(track.voice.blipBeats, note.duration, nextBeat - beat - closeBeats),

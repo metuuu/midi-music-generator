@@ -12,6 +12,8 @@
  */
 
 import type { Consonant, VoiceSettings, Vowel } from '../core/types.js';
+import type { DeliveryId } from './delivery.js';
+import type { VoiceSignatureId } from './voices.js';
 
 /**
  * What each consonant does to the start of a syllable.
@@ -372,10 +374,12 @@ export interface WordStyle {
   /**
    * Letters that may close one.
    *
-   * A coda does two things and only one of them survives into the song today:
-   * it makes the syllable **heavy**, so it is sung over two slots, and it wants
-   * a closing consonant, which the Song IR has nowhere to put. So this is
-   * currently a length device — see `codaDensity` in `generate/vocals.ts`.
+   * A coda does two things, and which of them a listener gets depends on the
+   * renderer: it makes the syllable **heavy**, so it is sung over two slots,
+   * and it asks for a closing consonant, which only a voice that can articulate
+   * one will sound. Through Strudel a closed syllable therefore arrives as a
+   * held vowel — the floating version of the same word rather than a shorter
+   * one — and through `web/voice-synth.ts` it arrives closed.
    */
   codas: readonly string[];
   /**
@@ -409,6 +413,12 @@ export interface WordStyle {
   onsetDensity: number;
   /** Chance a later one does. */
   interiorDensity: number;
+  /**
+   * Chance a syllable the spelling closes actually sounds its closing
+   * consonant. Only a renderer that can articulate a coda hears the difference;
+   * for the rest the syllable keeps its length as a held vowel either way.
+   */
+  codaDensity: number;
   /** Cap on syllables per word. */
   maxSyllables: number;
 }
@@ -444,6 +454,7 @@ export const WORD_STYLES: Record<string, WordStyle> = {
     // of the words was more consonant *variety*, not less consonant, so it sits
     // where the density is unchanged and only the choice of consonant has moved.
     interiorDensity: 0.8,
+    codaDensity: 0.45,
     maxSyllables: 4,
   },
 
@@ -467,6 +478,7 @@ export const WORD_STYLES: Record<string, WordStyle> = {
     spelling: 0.7,
     onsetDensity: 0.98,
     interiorDensity: 0.85,
+    codaDensity: 0.4,
     maxSyllables: 3,
   },
 
@@ -490,6 +502,7 @@ export const WORD_STYLES: Record<string, WordStyle> = {
     // nasal or a liquid. That is what "almost no attack of any kind" means when
     // it is a number.
     interiorDensity: 0.5,
+    codaDensity: 0.2,
     maxSyllables: 3,
   },
 
@@ -509,6 +522,7 @@ export const WORD_STYLES: Record<string, WordStyle> = {
     spelling: 0.6,
     onsetDensity: 0.95,
     interiorDensity: 0.8,
+    codaDensity: 0.55,
     maxSyllables: 4,
   },
 };
@@ -565,6 +579,18 @@ export interface VocalProfile {
   consonants: (readonly [Consonant, number])[];
   /** The invented language this voice sings. Nobody ever sees the words. */
   words: WordStyle;
+  /**
+   * Who is singing and how they are performing it — read only by the Web Audio
+   * voice, which is the only renderer with a vocal tract to configure.
+   *
+   * Two ids rather than two tables, because `style/voices.ts` and
+   * `style/delivery.ts` already hold seven of each and the whole point of
+   * keeping them apart is that a genre picks a pair rather than writing one.
+   * Strudel ignores both: it has a fixed filter bank and one envelope, so there
+   * is nothing for a tract length or a legato setting to mean.
+   */
+  signature: VoiceSignatureId;
+  delivery: DeliveryId;
   /**
    * Where this voice sits most comfortably. Vowel modification is measured
    * from here — this is the pitch the voice is *not* straining at.

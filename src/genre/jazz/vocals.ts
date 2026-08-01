@@ -37,6 +37,11 @@ export const VOCALS: VocalProfile = {
     ['stop-k', 1.5], ['liquid-r', 1], ['fricative-f', 0.8],
   ],
   words: WORD_STYLES.scat!,
+  // Scat is sung, not crooned, and it is articulated to the syllable — the
+  // consonants are the rhythm section of the line and a legato that smeared
+  // them would take the idiom away.
+  signature: 'male',
+  delivery: 'sung',
   centre: 58,
   // C3 to A4. A little higher and wider than the iskelmä voice — scat sits up
   // where the syllables cut through the rhythm section.

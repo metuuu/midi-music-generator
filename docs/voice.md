@@ -4,10 +4,10 @@
 
 A bench for the vocal work. Type text, hear it sung or spoken, and see exactly
 why it sounds the way it does. The lab has its own Web Audio synth and its own
-palettes; the Radio page's vocal layer still renders through Strudel, so the
-sound that already works stays available to compare against. What the two now
-share is `phonetics.ts` — the song sings invented words through the same
-machinery, which is [the last section](#the-song-sings-words-now).
+palettes, and the song now uses both: the vocal layer has left the Strudel
+pattern entirely and is sung by the lab's own synth. So this file describes one
+voice in two places rather than two voices — see [the song sings
+words](#the-song-sings-words-now) and [the bridge](#and-the-singer-is-the-labs-voice).
 
 Three questions it exists to answer, none of which can be settled by reading a
 table:
@@ -331,12 +331,60 @@ Nothing is displayed, serialised, or put on the `Song`: the track carries
 syllables, exactly as it did. Sample output, iskelmä — `upuurus` `mäshör`
 `hurarrase` `piilhömön` `raheerhir`; scat — `waa` `daan` `bup` `šaam` `nooti`.
 
-Two things the Strudel path still cannot take from the lab. **Codas**: a
-`NoteEvent` carries one consonant and it is the onset, so a closed syllable
-arrives as a held vowel instead of a closed one — the floating version of the
-same word rather than a shorter one. And **ties**: a heavy syllable's second
-slot is a re-attack with no onset rather than a genuine hold, because Strudel
-schedules one independent event per note and has no portamento. Both turn on
-when the vocal layer goes through `web/voice-synth.ts` instead, which needs a
-scheduling bridge onto Strudel's clock and three more optional fields on
-`NoteEvent` — `coda`, `tie`, `legatoToNext`.
+## And the singer is the lab's voice
+
+The vocal layer no longer plays through Strudel at all. It is lifted out of the
+pattern and sung by [`src/web/voice-synth.ts`](../src/web/voice-synth.ts), with
+[`src/web/sung-voice.ts`](../src/web/sung-voice.ts) as the bridge.
+
+Three things move the moment it does, and all three were impossible before:
+
+- **Legato.** Strudel schedules one independent event per note, each with its own
+  envelope, so two syllables of one word could not be run together. Inside a word
+  a mouth does not stop — the level dips as the tract constricts and comes back —
+  and replacing that dip with a gap is what makes a line read as a row of
+  one-syllable words.
+- **Ties.** A long vowel is now genuinely held across the pitch change instead of
+  restruck.
+- **Codas.** `NoteEvent.coda` had been written since the words landed and nothing
+  had ever sounded one. Now `hil` closes on its `l`.
+
+`NoteEvent` gains `coda`, `tie` and `legatoToNext`, all optional and one-sided
+like `hand` and `doubling` — the ordinary case does not declare itself.
+`duration` keeps its old meaning, the *written* length with the gap a
+re-attacking renderer needs; `legatoToNext` says that gap is an artefact of the
+renderer rather than a fact about the line. `VoiceSettings` gains a `signature`
+and a `delivery` id so the `Song` stays self-describing: a renderer is handed a
+song and nothing else, and a voice it would have to look up by genre is a voice
+it cannot reconstruct. Iskelmä sings `low-male`/`ballad`, jazz `male`/`sung`,
+ambient `high-female`/`chant`, synth `androgynous`/`syllabic`.
+
+### The clock
+
+Strudel schedules a hap at cycle `c` for audio time `t(c) = (c − C0)/cps + T0 +
+latency`. [`concert/transport.ts`](../src/web/concert/transport.ts) inverts that
+to answer "what beat is it"; the bridge runs it *forwards* to answer "when does
+this beat happen" — the same equation, so exact by construction rather than
+approximate. `speak()` lays out a whole utterance in one go, which is what makes
+legato possible and what stops it being a per-event callback, so the line is cut
+into phrases at the breaths and a pump hands each one over about 0.8 s early.
+
+Measured live against a playing band: twelve phrases, each recovered beat
+matching its written phrase start to **0.0000 beats**.
+
+### One thing this fixed on the way
+
+The voice was singing the melody track's *left hand*. Where the lead is a
+two-handed player the track carries their accompaniment too, and every stacked
+onset became its own syllable — three at beat 0, three more at beat 2, eating the
+vocabulary three times faster than the tune moved. `melodicLine` strips the
+marked left hand and the vocal generator keeps only the top note of whatever
+remains, because that is how many notes a person can sing at once.
+
+### Still open
+
+The two voices are mixed by constants rather than by measurement — the Strudel
+path scaled the voice as five stacked patterns and none of that arithmetic
+applies to one signal through one cascade. And a coda does not yet close the
+mouth on the 3D singer: visemes read the onset only, so a closed syllable looks
+open.

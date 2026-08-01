@@ -10,6 +10,7 @@
  */
 
 import { initAudio, playCode, preloadSounds, stopPlayback } from './audio.js';
+import { createSungVoice, withoutSungVoice } from './sung-voice.js';
 
 import { generateSong, type GenerateOptions } from '../generate/song.js';
 import { renderStrudel } from '../render/strudel.js';
@@ -192,9 +193,20 @@ function describe(song: Song): void {
   els.code.textContent = renderStrudel(song);
 }
 
+/**
+ * The vocal layer, sung rather than played.
+ *
+ * One for the page rather than one per song: it holds an `AudioContext` and a
+ * reverb impulse, and building those per track would be a lot of garbage for a
+ * radio that never stops changing tracks.
+ */
+const voice = createSungVoice();
+
 async function play(song: Song): Promise<void> {
   const generation = ++playGeneration;
-  const code = renderStrudel(audible(song));
+  // The vocal layer leaves the pattern and is sung by `web/voice-synth.ts`
+  // instead — see `sung-voice.ts` for why it cannot stay in it.
+  const code = renderStrudel(withoutSungVoice(audible(song)));
   try {
     /**
      * Get the instruments onto the machine before the downbeat, not on it.
@@ -211,6 +223,7 @@ async function play(song: Song): Promise<void> {
     // Whoever bumped the generation has already said what the status is.
     if (generation !== playGeneration) return;
     await playCode(code);
+    voice.begin(audible(song));
     playing = true;
     els.play.textContent = 'Stop ■';
     setStatus('Playing.');
@@ -225,6 +238,7 @@ async function play(song: Song): Promise<void> {
 
 function stop(): void {
   playGeneration += 1;
+  voice.end();
   void stopPlayback();
   playing = false;
   els.play.textContent = 'Play ▶';
