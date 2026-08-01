@@ -183,6 +183,12 @@ export function buildFill(opts: FillOptions): Fill {
  * beat, and its weight comes from that section rather than from the one just
  * finished. A fill into something quiet gets an open hat instead, because a
  * crash into a hushed verse announces the wrong thing.
+ *
+ * Separate enough that a second caller found it: a seam `shot` vetoes the fill
+ * and then wants this anyway, because the cymbal marks the *arrival* and the
+ * fill was only ever one way of getting to it. See `playShot` in
+ * `generate/transition.ts`, which reads `arrival` off the kit rather than being
+ * handed it.
  */
 export function landing(beat: number, arrival: number): DrumEvent {
   return {

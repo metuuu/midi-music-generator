@@ -46,7 +46,7 @@ import { buildAccompaniment, getStrictness, resolveRules, type StrictnessId } fr
 import { applyDynamics, sectionIntensity, swell } from './dynamics.js';
 import { applyFilter } from './filter.js';
 import { DEFAULT_FILLS } from './fills.js';
-import { applyTransitions, planTransitions, type Seam } from './transition.js';
+import { applyTransitions, hitTogether, planTransitions, type Seam } from './transition.js';
 import { getHook, RECALL_BIAS, type HookId } from './hook.js';
 import { composeSectionTune } from '../tune/adapt.js';
 import { planKeys } from '../tune/keyplan.js';
@@ -479,24 +479,6 @@ export function generateSong(opts: GenerateOptions = {}): Song {
   const counterInBand = sections.some((s) => (s.kind === 'verse' || s.kind === 'chorus')
     && s.activeLayers.includes('counter'));
 
-  /**
-   * What happens at each section join, settled before a note is written.
-   *
-   * Up here with `soloPlan` and `keys` rather than beside `applyTransitions`,
-   * which is where it started, and the move is not tidiness: the section loop
-   * has to be able to read it. A `fill` *is* the drummer's fill, and that is
-   * written inside `generateDrums` while the section is being made — so the only
-   * way a seam that has drawn something else can stop two arrangements
-   * announcing the same downbeat is for `fillAtEnd` below to see the answer. A
-   * plan resolved after the loop would leave wave 2 trying to unpick fill events
-   * out of a merged `drumEvents` array, which is the shape of a bug rather than
-   * of a pass.
-   *
-   * **Absent means no draw at all** — see `planTransitions`, which is where that
-   * is enforced and argued.
-   */
-  const seams: Seam[] = planTransitions({ sections, seed, palette: transitionTable });
-
   // ---- Parts -----------------------------------------------------------
   const byLayer = new Map<LayerId, NoteEvent[]>();
   /**
@@ -575,6 +557,33 @@ export function generateSong(opts: GenerateOptions = {}): Song {
       ? era.drumSources?.filter(([source]) => source !== 'box')
       : era.drumSources,
   ));
+
+  /**
+   * What happens at each section join, settled before a note is written.
+   *
+   * Up here with `soloPlan` and `keys` rather than beside `applyTransitions`,
+   * which is where it started, and the move is not tidiness: the section loop
+   * has to be able to read it. A `fill` *is* the drummer's fill, and that is
+   * written inside `generateDrums` while the section is being made — so the only
+   * way a seam that has drawn something else can stop two arrangements
+   * announcing the same downbeat is for `fillAtEnd` below to see the answer. A
+   * plan resolved after the loop would leave the shot pass trying to unpick fill
+   * events out of a merged `drumEvents` array, which is the shape of a bug
+   * rather than of a pass.
+   *
+   * …and *below* `drumSource` rather than above it, which is the second half of
+   * the same argument. A preset box gets `fill` and nothing else — it has one
+   * pattern per button and no hands to play a figure — and that answer has to be
+   * settled here, before the veto is read, rather than at the edit. Moving this
+   * line down is free: nothing between the two touches a stream.
+   *
+   * **Absent means no draw at all** — see `planTransitions`, which is where that
+   * is enforced and argued.
+   */
+  const seams: Seam[] = planTransitions({
+    sections, seed, palette: transitionTable, metre: style, drums: drumSource,
+  });
+
   /**
    * The second sequencer, where the style has one — fixed for the song like
    * every other rhythm-section figure, because a machine that changed its
@@ -1675,6 +1684,14 @@ export function generateSong(opts: GenerateOptions = {}): Song {
        * what would make this gesture land hardest, and it is not worth turning the
        * repetition axis back into a reroll to get it. The rhythm section hitting a
        * figure while the kit keeps time is its own real sound.
+       *
+       * **A seam `shot` does have the kit on it, and this caller stays as it is.**
+       * The cost above is paid by *this* gesture and not by the mechanism: a shot
+       * takes its figure from the style or the metre, which cannot move with the
+       * tune, so the drummer is free there — see `generate/transition.ts`. The
+       * function is shared and the two callers are not, because the band catching
+       * the tune and the band playing its own figure are two different things a
+       * group does, with two different drum answers. Collapsing them loses one.
        */
       const onsets = sectionHook?.onsets ?? [];
       const figure = has(chart, 'tutti') && ordinal >= 1 && onsets.length
@@ -2651,41 +2668,6 @@ function tradedPhrase(
   return { from, to: from + p.bars * beatsPerBar };
 }
 
-/**
- * Replace whatever a part was playing in one bar with the band's figure.
- *
- * The pitches are the part's own — a bass hit is still the bass note it would have
- * played, a comp hit is still that bar's voicing — because a tutti is a rhythmic
- * event, not a harmonic one. What changes is *when*, and that everyone changes it
- * together.
- */
-function hitTogether(
-  notes: NoteEvent[], from: number, to: number, beats: readonly number[],
-): NoteEvent[] {
-  const inBar = notes.filter((n) => n.beat >= from - 1e-6 && n.beat < to - 1e-6);
-  if (inBar.length < 2) return notes;
-  const kept = notes.filter((n) => n.beat < from - 1e-6 || n.beat >= to - 1e-6);
-
-  // One onset's worth of pitches per hit, taken from what the part was already
-  // holding, so a chord stays a chord and a bass line stays one note.
-  const groups = new Map<number, NoteEvent[]>();
-  for (const n of inBar) {
-    const at = groups.get(n.beat) ?? [];
-    at.push(n);
-    groups.set(n.beat, at);
-  }
-  const voicings = [...groups.values()];
-
-  const hits: NoteEvent[] = [];
-  beats.forEach((beat, i) => {
-    const next = beats[i + 1] ?? to;
-    for (const n of voicings[Math.min(i, voicings.length - 1)]!) {
-      hits.push({ ...n, beat, duration: Math.min(n.duration, Math.max(0.25, next - beat)), velocity: Math.min(1, n.velocity + 0.12) });
-    }
-  });
-  return [...kept, ...hits].sort((a, b) => a.beat - b.beat);
-}
-
 function push(map: Map<LayerId, NoteEvent[]>, layer: LayerId, notes: NoteEvent[]): void {
   const arr = map.get(layer);
   if (arr) arr.push(...notes);
@@ -2845,7 +2827,19 @@ function chooseInstruments(rng: Rng, era: EraProfile, style: Style) {
     ids[layer] = id;
     return INSTRUMENTS[id];
   };
-  const drawn = pick('melody', era.palette.melody);
+  /**
+   * Drawn, and then moved to where this instrument plays a *tune*.
+   *
+   * The one place the distinction can be applied, because it is the one place
+   * that knows which instrument is holding the line rather than filling a part.
+   * A tenor sax on the counter-melody keeps the centre the catalogue gave it;
+   * the same horn on the melody plays where a tenor plays a head. See
+   * `Instrument.lead` for what the difference was costing — mostly not the tune,
+   * which sounded fine an octave low, but the comp underneath it, which had
+   * nowhere left to voice a chord.
+   */
+  const drawnRaw = pick('melody', era.palette.melody);
+  const drawn = drawnRaw.lead !== undefined ? { ...drawnRaw, centre: drawnRaw.lead } : drawnRaw;
   /**
    * The two-handed lead is drawn here, before the rest of the band, so that it
    * can be *taken*.

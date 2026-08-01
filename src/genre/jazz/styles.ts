@@ -1409,6 +1409,32 @@ const fusion: Style = {
    * funk at the top would be a style change wearing a per-section draw.
    */
   feels: [['straight', 5], ['pocket', 3], ['funk', 3]],
+  /**
+   * …and the only style in the catalogue that plays a band shot at a seam. See
+   * `generate/transition.ts`.
+   *
+   * One style, on the same instruction `funk` above shipped under: ship it where
+   * it can be listened to, then widen. Fusion is the right one and not merely
+   * the available one — the bar is 2+2+3, so a shot here exercises the
+   * metre-derived figure in the case that most needs it. A generic table would
+   * put the band on slots 0 and 8 of a fourteen-slot bar, which is the middle of
+   * the third group and the last place anybody accents; the grouping puts them
+   * on 0, 4 and 8, which is the character of the bar.
+   *
+   * **`fill` and `shot` only.** The plan's palette for this style is
+   * `fill 5, shot 3, break 2, elide 2`, and the two missing kinds are not an
+   * omission: `applyTransitions` does nothing for them yet, and drawing one
+   * would take the drummer's fill away — the veto reads the *kind*, not whether
+   * anything was played — and put nothing in its place. A seam that arrives on
+   * silence is a worse answer than the one this catalogue has always given.
+   *
+   * **And no `shots` table**, deliberately. Authoring one here would be the
+   * feature shipping with its fallback never having sounded, and the fallback is
+   * the reason the other seventeen styles can opt in without eighteen tables
+   * being written first. If the derived figure is wrong anywhere it is wrong
+   * here, in seven, where it is loudest.
+   */
+  transitions: [['fill', 5], ['shot', 3]],
   modeWeights: { minor: 0.72, major: 0.28 },
   relativeMajorChorus: 0,
   twoHanded: {

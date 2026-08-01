@@ -510,6 +510,28 @@ export interface Style {
    */
   transitions?: TransitionPalette;
   /**
+   * Figures the whole band hits together, in sixteenth slots from the top of the
+   * bar, weighted. `[[[0, 6, 10], 3]]` is the anticipated-two shot every dance
+   * band in this catalogue has played.
+   *
+   * Absent means derived from `groups` and `metricStrength` — the group heads,
+   * and the same heads with the last one anticipated by an eighth. Serviceable
+   * everywhere and exactly right in an asymmetric metre, where a 2+2+3 shot on
+   * slots 0, 4, 8 is the whole character of the bar and no generic table would
+   * find it. The same argument `Voice.accents` makes about itself: authoring
+   * eighteen styles' tables before a single seam can be heard is how this does
+   * not get built.
+   *
+   * **Read only by `shot`, and the reason the kit is allowed to play it.** The
+   * mid-section tutti takes its figure from the tune, so the drummer has to sit
+   * it out — `--hook` is an A/B control that leaves drums alone, and a kit
+   * catching the tune would turn it back into a reroll. A table is static and a
+   * metre is a property of the bar; both are hook-invariant by construction, so
+   * a seam shot drawn from here may have the whole band on it. See
+   * `generate/transition.ts`.
+   */
+  shots?: (readonly [number[], number])[];
+  /**
    * Beats between successive notes of a counter-melody figure. Defaults to
    * 0.5 — an eighth note, which is right for anything danced to.
    *

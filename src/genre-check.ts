@@ -24,6 +24,7 @@ import { Rng } from './core/rng.js';
 import { BANK_VOICES, resolveVoice } from './render/drum-banks.js';
 import { HANDS, IDIOMS, type Idiom, type IdiomProfile } from './style/instruments.js';
 import type { Style } from './style/types.js';
+import type { TransitionPalette } from './generate/transition.js';
 import { FEELS, type FeelId } from './style/feel.js';
 
 const problems: string[] = [];
@@ -320,6 +321,24 @@ const feelPairs: { style: string; seed: string; felt: Song; plain: Song }[] = wi
   for (const [genreId, styleId] of feltStyles) {
     const style = getGenre(genreId).styles[styleId]!;
     const table = style.feels;
+    /**
+     * The seams are held out of both sides, for the whole of this fixture.
+     *
+     * Every check built on these pairs asks what a *feel* did, and answers it by
+     * pairing each note with the note it became. A seam `shot` replaces a whole
+     * bar of every layer with one figure, and it does so out of what the layer
+     * was holding — so the two songs get different shots, the pairing sees a
+     * bass note added and another lost, and the check reports the feel doing
+     * something it did not do. `fusion` is the only style that draws one and it
+     * is also the probe style for `pocket` and `funk`, so this is not
+     * hypothetical: it read as a 0.94-velocity ghost against a 0.25 cap.
+     *
+     * Held out rather than measured around, because a transition is a third
+     * thing happening at the same moment and these checks are a two-way
+     * comparison. What a shot does is asserted in `Transitions` below.
+     */
+    const seams = style.transitions;
+    style.transitions = undefined;
     for (let i = 0; i < 12; i++) {
       const seed = `fl-${i}`;
       style.feels = table;
@@ -329,6 +348,7 @@ const feelPairs: { style: string; seed: string; felt: Song; plain: Song }[] = wi
       style.feels = table;
       pairs.push({ style: `${genreId}/${styleId}`, seed, felt, plain });
     }
+    style.transitions = seams;
   }
   return pairs;
 });
@@ -1863,6 +1883,11 @@ console.log('\nTransitions');
     const run = () => [...Array(SEEDS).keys()].map(
       (i) => generateSong({ seed: `tr-${i}`, genre: gid, style: sid }),
     );
+    // Both sides are set rather than one, because `fusion` now declares a real
+    // palette and the claim under test is about the two statements a style can
+    // make *here*: nothing at all, against `[['fill', 1]]`. Read off whatever
+    // the style happens to say today it would be testing that instead.
+    style.transitions = undefined;
     const silent = run();
     style.transitions = [['fill', 1]];
     const declared = run();
@@ -1899,6 +1924,114 @@ console.log('\nTransitions');
     recorded || misplaced || notFill || leaked
       ? `${recorded} songs recorded no plan, ${misplaced} seams misindexed, ${notFill} not a fill, ${leaked} unasked songs carrying one`
       : `${drawn} seams, each naming the section it leaves and the bar it lands on`,
+  );
+
+  /**
+   * The claim the whole of `shot` rests on, asserted at its source.
+   *
+   * `hook leaves form, key, tempo, instruments and drums alone` above already
+   * compares drum events byte for byte, and it is the gate. It is also a *sample*
+   * — twenty unpinned seeds, of which roughly one is a fusion song — so it can
+   * only catch a leak by luck. This pins the style that has shots and reads the
+   * figures straight off the IR at every hook level: if a shot's rhythm ever
+   * came from the tune, the figure lists differ here, on the cause, rather than
+   * three layers downstream in a JSON compare of a finished kit part.
+   *
+   * The kit is compared too, over the bars a shot rewrites and the downbeat it
+   * lands on, because the figure being stable is necessary and not sufficient:
+   * the level a shot is played at is read off the kit's own velocities and the
+   * bar comes from the section boundaries, so all three have to hold and only
+   * one of them is obviously so.
+   *
+   * **Those bars and not the whole part**, which is a narrowing with a reason
+   * rather than a convenience. Comparing the entire kit fails here, and it fails
+   * identically with every shot removed: `funk` — which only `fusion` may
+   * play — walks the *bass* for ghost candidates before the snare, from one
+   * stream, so a tune that puts a different number of onsets under the bass
+   * moves every snare ghost after it. That is a real breach of the same
+   * guarantee, it predates this file, and the twenty unpinned seeds the gate
+   * above uses catch it only if one of them lands on fusion. Fixing it belongs
+   * to `applyFeel`; asserting it here would report someone else's bug against
+   * this one's name.
+   */
+  const HOOKS = ['through', 'loose', 'standard', 'catchy', 'earworm'] as const;
+  let pinned = 0, figuresMoved = 0, kitMoved = 0, shotBars = 0;
+  for (let i = 0; i < 20; i++) {
+    const at = HOOKS.map((hook) => generateSong({
+      seed: `shot-${i}`, genre: 'jazz', style: 'fusion', hook,
+    }));
+    const shots = (song: Song) => (song.meta.transitions ?? []).filter((s) => s.kind === 'shot');
+    const figuresOf = (song: Song) => JSON.stringify(shots(song).map((s) => [s.bar, s.figure]));
+    // The rewritten bar, up to and including the cymbal on the downbeat it aims
+    // at. Nothing else in the song is this pass's to answer for.
+    const kitOf = (song: Song) => {
+      const bpb = song.meta.beatsPerBar;
+      const spans = shots(song).map((s) => [(s.bar - 1) * bpb, s.bar * bpb] as const);
+      return JSON.stringify(song.drums.events.filter((e) => spans.some(
+        ([from, to]) => e.beat >= from - 1e-6 && e.beat <= to + 1e-6,
+      )));
+    };
+    shotBars += shots(at[0]!).length;
+    pinned++;
+    for (const song of at.slice(1)) {
+      if (figuresOf(song) !== figuresOf(at[0]!)) figuresMoved++;
+      if (kitOf(song) !== kitOf(at[0]!)) kitMoved++;
+    }
+  }
+  check(
+    'a shot is the same figure at every hook level',
+    figuresMoved === 0 && kitMoved === 0 && shotBars > 0,
+    figuresMoved || kitMoved
+      ? `${figuresMoved} figure lists and ${kitMoved} shot bars of kit moved with --hook`
+      : `${shotBars} shots over ${pinned} fusion songs, identical across all ${HOOKS.length} levels, kit included`,
+  );
+
+  /**
+   * The rate limiter, and the box gate, over a catalogue talked into shots.
+   *
+   * Every style is handed `fill 1, shot 3` for the length of this block —
+   * ambient included, which is not an endorsement but the point: what is being
+   * measured is the limiter, and it has to hold whatever a palette asks for. The
+   * raw draw is three seams in four; the plan allows one gesture per four seams
+   * and none at the first, and the bound that falls out of stating both as one
+   * rule is strictly under a quarter.
+   *
+   * A preset box gets `fill` and nothing else in the same sweep. `canVary` is
+   * false for exactly one source and it already takes away the fill, the drum
+   * solo and the response to intensity; a band figure is the same capability,
+   * and a machine with one pattern per button cannot play one.
+   */
+  const saved = new Map<Style, TransitionPalette | undefined>();
+  for (const gid of GENRE_IDS) {
+    for (const style of Object.values(getGenre(gid).styles)) {
+      saved.set(style, style.transitions);
+      style.transitions = [['fill', 1], ['shot', 3]];
+    }
+  }
+  let seamsSeen = 0, gestures = 0, atFirst = 0, boxSongs = 0, boxGestures = 0, handSongs = 0;
+  for (const gid of GENRE_IDS) {
+    for (let i = 0; i < 40; i++) {
+      const song = generateSong({ seed: `rate-${gid}-${i}`, genre: gid });
+      const plan = song.meta.transitions ?? [];
+      const box = !canVary(song.drums.source ?? 'kit');
+      const nonFill = plan.filter((s) => s.kind !== 'fill').length;
+      seamsSeen += plan.length;
+      gestures += nonFill;
+      if (plan[0] && plan[0].kind !== 'fill') atFirst++;
+      if (box) { boxSongs++; boxGestures += nonFill; } else if (nonFill) handSongs++;
+    }
+  }
+  for (const [style, table] of saved) style.transitions = table;
+
+  check(
+    'a gesture waits four seams, and never opens',
+    seamsSeen > 0 && gestures / seamsSeen < 0.25 && atFirst === 0,
+    `${gestures} of ${seamsSeen} seams (${(gestures / seamsSeen * 100).toFixed(1)}%) drawn from a 75% table, ${atFirst} at the first seam`,
+  );
+  check(
+    'a preset box only ever fills',
+    boxSongs > 0 && boxGestures === 0 && handSongs > 0,
+    `${boxGestures} band figures across ${boxSongs} box songs, against ${handSongs} played ones that got at least one`,
   );
 }
 
