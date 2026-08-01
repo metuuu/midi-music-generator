@@ -73,10 +73,9 @@ function* cycleHits<T extends { at: number }>(
  *
  * Two gestures rather than four, and the two the operator library offers that a
  * *bass player* actually reaches for: arrive early and hold, or put two notes
- * where the figure has one. `thin` and `displace` exist in `generate/rhythm.ts`
- * and are not drawn here — thinning belongs to how loud a section is rather than
- * to where a phrase turns over, and displacing a bass is the bass resigning from
- * stating the harmony. See `docs/rhythm-plan.md` §10.
+ * where the figure has one. `thin` exists in `generate/rhythm.ts` and is not
+ * drawn here — thinning belongs to how loud a section is rather than to where a
+ * phrase turns over, and `shotFigures` is the caller that wanted it.
  */
 export interface FigureVariation {
   kind: 'push' | 'fill';

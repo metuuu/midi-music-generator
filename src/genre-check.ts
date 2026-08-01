@@ -13,7 +13,7 @@ import { generateSong } from './generate/song.js';
 import {
   generateBass, generateComp, generateDrums, generateLeftHand, planFigureVariation, planKitVariation,
 } from './generate/parts.js';
-import { anticipate, displace, subdivide, thin } from './generate/rhythm.js';
+import { anticipate, subdivide, thin } from './generate/rhythm.js';
 import { getGenre, GENRE_IDS } from './genre/index.js';
 import { composeSectionTune } from './tune/adapt.js';
 import { getHook } from './generate/hook.js';
@@ -1231,10 +1231,10 @@ console.log('\nRhythm operators');
       const slotsPerBar = style.beatsPerBar * 4;
       const groups = style.groups;
       const figuresOf = [
-        ...style.bass.map((p) => ({ n: `${style.id}/${p.name}`, hits: p.hits, span: p.cycle ?? slotsPerBar })),
-        ...style.comp.map((p) => ({ n: `${style.id}/${p.name}`, hits: p.hits, span: p.cycle ?? slotsPerBar })),
+        ...style.bass.map((p) => ({ n: `${style.id}/${p.name}`, hits: p.hits })),
+        ...style.comp.map((p) => ({ n: `${style.id}/${p.name}`, hits: p.hits })),
       ];
-      for (const { n, hits, span } of figuresOf) {
+      for (const { n, hits } of figuresOf) {
         figures++;
         const before = bag(hits);
         const ats = new Set(hits.map((h) => h.at));
@@ -1273,14 +1273,6 @@ console.log('\nRhythm operators');
           const thinned = thin(hits, { slotsPerBar, groups, keepAbove });
           if (!thinned.length) fault(`${n}: thin left a hole at keepAbove ${keepAbove}`);
           if (thinned.some((h) => !ats.has(h.at))) fault(`${n}: thin invented an onset`);
-        }
-
-        for (const by of [1, 2, 3, span - 1]) {
-          cases++;
-          const moved = displace(hits, { by, span });
-          if (moved.length !== hits.length) fault(`${n}: displace changed the onset count`);
-          if (bag(moved) !== before) fault(`${n}: displace altered a payload`);
-          if (moved.some((h) => h.at < 0 || h.at >= span)) fault(`${n}: displace left the span`);
         }
       }
     }

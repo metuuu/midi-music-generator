@@ -23,7 +23,7 @@
  * the same object in all four.
  *
  * What is added below is a vocabulary over those onsets: move one, drop some,
- * split one, rotate the lot. Deliberately **not** a library of figures.
+ * split one. Deliberately **not** a library of figures.
  * `style/feel.ts` wrote the rule and the reason —
  *
  * > A proposal that needs its own bass figure is a style, and that line is the
@@ -312,26 +312,4 @@ export function subdivide<T extends Timed>(
     out.push({ ...h, dur: half }, { ...h, at: h.at + half, dur: h.dur! - half });
   }
   return out.sort((a, b) => a.at - b.at);
-}
-
-/**
- * Rotate the whole figure, wrapping.
- *
- * The least safe of these and the one to reach for last. Moving a figure off the
- * downbeat is exactly how a comp stops agreeing with itself bar after bar, and
- * exactly how a **bass** stops stating the harmony — the root on beat one is the
- * one job the bass has, and a displaced bass figure has resigned from it. Comp
- * and counter figures are where this belongs; see `docs/rhythm-plan.md` §10.
- *
- * `span` is the figure's own length, not the bar's, so a pattern carrying a
- * `cycle` rotates within its cycle and keeps the drift that is the point of it.
- */
-export function displace<T extends Onset>(
-  hits: readonly T[],
-  opts: { by: number; span: number },
-): T[] {
-  const span = Math.max(1, Math.round(opts.span));
-  return hits
-    .map((h) => ({ ...h, at: (((h.at + opts.by) % span) + span) % span }))
-    .sort((a, b) => a.at - b.at);
 }

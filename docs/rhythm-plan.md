@@ -196,11 +196,6 @@ export function thin<T extends Onset>(hits: readonly T[], opts: {
 export function subdivide<T extends Onset & { dur?: number }>(hits: readonly T[], opts: {
   slot: number;
 }): T[];
-
-/** Rotate the whole figure by `by` sixteenths, wrapping. Guarded — see §10. */
-export function displace<T extends Onset>(hits: readonly T[], opts: {
-  by: number; slotsPerBar: number;
-}): T[];
 ```
 
 Every one reads `metricStrength`, which already knows about `groups` and is therefore
@@ -516,15 +511,16 @@ established.
   answer and `varyPattern` sets the precedent by working on the pattern rather than on
   the events.
 - **`displace` breaking harmonic clarity.** Rotating a bass figure moves the root off
-  the downbeat, which is the one thing the bass is for. It is the least safe of the four
-  operators and should be comp-only until something demonstrates otherwise.
+  the downbeat, which is the one thing the bass is for. Written and then **removed** —
+  see §13.5. `CompingProfile.displace` already does this for the one layer it is safe
+  on, and does it better.
 
 ---
 
 ## 11. Work breakdown
 
-**Wave 1 — the operator layer.** `Onset`, `anticipate`, `thin`, `subdivide`, `displace`
-in `generate/rhythm.ts`. **No callers.** Pure functions over the existing metric
+**Wave 1 — the operator layer.** `Onset`, `anticipate`, `thin`, `subdivide` in
+`generate/rhythm.ts`. **No callers.** Pure functions over the existing metric
 utilities. Check 1 is the gate and it is trivially met, because nothing calls them.
 
 **Wave 2 — the bass states a shape.** `BassTone` gains the numeric form, `generateBass`
@@ -623,9 +619,34 @@ the band path is not exercised end to end until a 4/4 style opts in.
 ### 13.4 What is left
 
 - Widen the `shot` palettes, after listening, and settle the four checks above.
-- `thin` and `displace` have no caller. Both are exercised by
-  `the rhythm operators are total`, and `thin` is used by `shotFigures`; `displace` is
-  comp-only by §10 and waits for a style that wants it.
+- Nothing here. The list is done — see §13.5.
 - Enable `vary` beyond tango and `iskelmapop`, after listening.
 - `transition-plan.md` wave 4 (`elide`) should call `anticipate` and carry the §7.3
   guard.
+
+### 13.5 The rest of the list, and one thing deleted
+
+`elide` and `anchor: 'inside'` both landed, on `fusion` only, the way `shot` and `break`
+did. Two things came out of building them that the plan had not seen:
+
+- **The double-push guard §7.3 asked for turns out to be unnecessary**, and structurally
+  so. An elide moves the arriving downbeat into the *departing section's last bar*, and
+  `figureFor` refuses to vary a section's last bar — a rule written for an unrelated
+  reason, that the drummer's fill is already there. The two files do not know about each
+  other, so it is asserted rather than assumed.
+- **`anchor: 'inside'` is not the one-field change §8 predicted.** `fillAtEnd` vetoes the
+  drummer's fill wherever a seam drew anything but `fill`, which is right while every
+  gesture lands on the join. A shot aimed two bars earlier announces nothing, so the veto
+  would have taken the fill and given nothing back, and the seam would have arrived on
+  silence — a failure invisible to any check that counts shots. The veto now reads the
+  anchor. `inside` also takes `bars - 2` only, not the bar-0-or-`bars - 2` pair the
+  mid-section tutti draws between: the tutti can use bar 0 because it is bass and comp,
+  and this one has the kit on it, where bar 0 is the downbeat the previous seam just
+  delivered.
+
+**`displace` was deleted rather than shipped.** It never found a caller, and the reason is
+that it already had one: `CompingProfile.displace` displaces a comp figure per bar,
+refuses the downbeat — *"a stab pushed onto beat one is not a displaced comp, it is a
+different figure"* — and checks the slot is free first. The operator was a strictly worse
+duplicate with no occupancy guard, kept alive only by the check exercising it. Three
+operators have callers; the fourth was surface area.
