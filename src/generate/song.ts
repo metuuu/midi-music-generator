@@ -1606,10 +1606,23 @@ export function generateSong(opts: GenerateOptions = {}): Song {
      * actually sit.
      */
     comp: 0.72,
-    // was 0.45, then 0.44 — the fonts sit on the median, so this is +1.5 dB of
-    // the same opinion and no more: a pad *is* a bed, and the only claim here
-    // is that a bed 13 dB down is furniture rather than a bed.
-    pad: 0.52,
+    /**
+     * was 0.45, then 0.44, then 0.52 — the fonts sit on the median, so that was
+     * +1.5 dB of the same opinion the comp got and no more: a pad *is* a bed,
+     * and the only claim was that a bed 13 dB down is furniture rather than a
+     * bed.
+     *
+     * It did not go far enough. At 0.52 the pad came out 8.3 dB under the tune
+     * in iskelmä and 8.7 in jazz — under the comp, under the answering line, and
+     * in jazz under the *ride cymbal*, which is how a string section ends up
+     * inaudible behind a drum machine. The strings are the only sustained thing
+     * in these arrangements and everything over them is transient, so they lose
+     * every masking argument they are in; a bed has to be a couple of decibels
+     * louder than the arithmetic suggests before it reads as one. +2 dB, which
+     * lands it around 6.5 dB down — still unmistakably behind the comp, and now
+     * present when the tune leaves a gap.
+     */
+    pad: 0.66,
     // was 0.85 — melody fonts run 1.12× *hot*, so this one goes up
     melody: 0.95,
     counter: 0.56,

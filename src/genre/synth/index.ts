@@ -282,12 +282,20 @@ export const synth: Genre = {
    * where the lead is supposed to be uncomfortably in front. Above 1 is not a
    * mistake: a fader is not a ceiling, and the fonts underneath it peak around
    * 0.3.
+   *
+   * The pad moves with the default rather than away from it — it was never an
+   * opinion of this genre's, only the shared bed re-centred on a pool of synth
+   * strings, and when that bed came up 2 dB this one had to follow or the
+   * calibration would have turned into a mix decision by neglect. It is the
+   * furthest back of anywhere here even so, at 0.63 under a lead at 1.27, which
+   * is the genre stating that its pad is a wash behind the tune and not a
+   * string section.
    */
   mix: {
     melody: 1.27,
     comp: 0.57,
     bass: 0.82,
-    pad: 0.50,
+    pad: 0.63,
     counter: 0.50,
     drums: 0.55,
   },

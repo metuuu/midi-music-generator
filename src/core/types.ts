@@ -368,10 +368,23 @@ export type DrumVoice =
  * applies — see `render/source-levels.ts`. Left as it was when that landed, on
  * purpose: it was settled by ear and a measurement of a different thing has no
  * standing to overwrite it.
+ *
+ * ## The ride
+ *
+ * `rd` was 0.5, which put the largest cymbal on the kit *above* the closed hat —
+ * and the paragraph above is the argument for why that cannot be right. A ride
+ * takes a stick tip the same way a hat does, is four times the metal, and then
+ * rings for a second and a half afterwards. Measured over 120 songs it landed
+ * 2.6 dB over the hat in iskelmä and 3.0 in jazz, where it is also the busiest
+ * voice in the kit at 3.5 strokes a bar — and 1.9 dB over the string pad, so the
+ * timekeeping cymbal was louder than the band's whole bed. Synth, the one genre
+ * that wrote a full `drumMix` of its own rather than inheriting this one, had
+ * already put its ride under its hat — 0.35 against 0.4. This is the default
+ * arriving at the same conclusion.
  */
 export const DEFAULT_DRUM_MIX: Record<DrumVoice, number> = {
   bd: 1.0, sd: 0.85, rim: 0.7, hh: 0.45, oh: 0.5, cp: 0.7,
-  lt: 0.7, mt: 0.7, ht: 0.7, cr: 0.55, rd: 0.5, perc: 0.6, cb: 0.5, sh: 0.4,
+  lt: 0.7, mt: 0.7, ht: 0.7, cr: 0.55, rd: 0.34, perc: 0.6, cb: 0.5, sh: 0.4,
 };
 
 /**
