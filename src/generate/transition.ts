@@ -168,6 +168,21 @@ export interface Seam {
    * downstream in a JSON compare of the finished kit part.
    */
   figure?: number[];
+  /**
+   * Where a `shot` lands. Absent means at the seam, which is what a transition
+   * is and what every other kind can only be.
+   *
+   * `inside` is the answer to *this could happen in the middle too*, and it is
+   * one field rather than new machinery: the same edit, aimed two bars earlier.
+   * It does **not** make this stop being a seam — the seam is still what drew
+   * it and still what spends the song's gesture — but the drummer keeps their
+   * fill, because the join is no longer the thing being announced. See
+   * `fillAtEnd` in `song.ts`.
+   *
+   * Only a `shot` has one. A break in the middle of a section is a hole rather
+   * than stop-time, and an elide needs a join to arrive early at.
+   */
+  anchor?: 'inside';
 }
 
 /**
@@ -396,11 +411,28 @@ export function planTransitions(args: {
     // unmade. Nothing else reads this namespace, so either order is safe; this
     // one is honest.
     const figure = kind === 'shot' ? rng!.weighted(shotFigures(metre)) : undefined;
+    /**
+     * …and whether it is aimed at the join or into the section behind it.
+     *
+     * Drawn for every shot rather than only where it can be honoured, so the
+     * stream does not depend on how long a section happens to be. Rare on
+     * purpose: the seam is this gesture's home and the middle of a section is
+     * the variation on it, not the other way round.
+     *
+     * Four bars is the floor because below it `bars - 2` is the bar before the
+     * join or the section's own first bar, and both of those are already spoken
+     * for.
+     */
+    let anchor: Seam['anchor'];
+    if (kind === 'shot' && rng!.chance(0.25) && (sections[s]?.lengthBars ?? 0) >= 4) {
+      anchor = 'inside';
+    }
     seams.push({
       section: s,
       bar: sections[s + 1]!.startBar,
       kind,
       ...(figure ? { figure: [...figure] } : {}),
+      ...(anchor ? { anchor } : {}),
     });
   }
   return seams;
@@ -651,8 +683,22 @@ export function applyTransitions(
 function playShot(song: Song, seam: Seam, figure: readonly number[]): void {
   const bpb = song.meta.beatsPerBar;
   const slotsPerBar = Math.round(bpb * SLOTS_PER_BEAT);
-  const from = (seam.bar - 1) * bpb;
-  const to = seam.bar * bpb;
+  const section = song.sections[seam.section];
+  /**
+   * The bar the band hits, which is the one before the join unless it was aimed
+   * elsewhere.
+   *
+   * `bars - 2` for an `inside` shot, and *not* the bar-0-or-`bars - 2` pair the
+   * mid-section tutti in `song.ts` draws between. The tutti can take bar 0
+   * because it is bass and comp only; this one has the kit on it, and the first
+   * bar of a section is the downbeat the previous seam just delivered — a shot
+   * with a cymbal there is two arrivals in one bar.
+   */
+  const shotBar = seam.anchor === 'inside' && section
+    ? section.startBar + Math.max(0, section.lengthBars - 2)
+    : seam.bar - 1;
+  const from = shotBar * bpb;
+  const to = from + bpb;
   const beats = figure
     .filter((slot) => slot >= 0 && slot < slotsPerBar)
     .map((slot) => from + slot / SLOTS_PER_BEAT);
@@ -675,9 +721,10 @@ function playShot(song: Song, seam: Seam, figure: readonly number[]): void {
    * level up. The band above is unaffected: it was hushed for those bars, so
    * `hitTogether` found nothing to move.
    */
-  const section = song.sections[seam.section];
-  const lastBar = (section?.lengthBars ?? 0) - 1;
-  if (section?.solo?.blocks?.drumBars.some(([a, b]) => lastBar >= a && lastBar < b)) return;
+  const barInSection = shotBar - (section?.startBar ?? 0);
+  if (section?.solo?.blocks?.drumBars.some(([a, b]) => barInSection >= a && barInSection < b)) {
+    return;
+  }
 
   const kit = song.drums.events;
   const inBar = (e: DrumEvent) => e.beat >= from - 1e-6 && e.beat < to - 1e-6;

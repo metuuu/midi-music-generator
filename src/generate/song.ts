@@ -958,9 +958,13 @@ export function generateSong(opts: GenerateOptions = {}): Song {
          * whose last section is not an outro is delivering the ending rather
          * than a section, and nothing here is entitled to take it away.
          */
+        // …and a gesture aimed *into* the section rather than at the join takes
+        // nothing away, because the join is not what it is announcing. Without
+        // this the drummer loses the fill to a shot two bars earlier and the
+        // seam arrives with nobody on it. See `Seam.anchor`.
         fillAtEnd: !machine && section.kind !== 'outro'
           && style.drumFills !== false && !lastBarIsSolo
-          && (seams[s]?.kind ?? 'fill') === 'fill',
+          && ((seams[s]?.kind ?? 'fill') === 'fill' || seams[s]?.anchor === 'inside'),
         intensity,
         arrival,
         machine,

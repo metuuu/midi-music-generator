@@ -2405,6 +2405,47 @@ console.log('\nTransitions');
   );
 
   /**
+   * A shot aimed into the section leaves the join to the drummer.
+   *
+   * The one interaction `anchor` had to get right, and it is easy to get wrong
+   * silently. `fillAtEnd` vetoes the drummer's fill wherever the seam drew
+   * anything other than a `fill`, which is correct while every gesture lands on
+   * the join — two arrangements announcing one downbeat is the thing it exists
+   * to prevent. An `inside` shot lands two bars earlier and announces nothing,
+   * so the veto would have taken the fill and put nothing in its place, and the
+   * seam would arrive on silence. That failure is inaudible in any check that
+   * counts shots.
+   *
+   * So: an inside shot puts the kit in the bar it was aimed at, and the join it
+   * was drawn from still gets a cymbal. The handful that do not are the seams a
+   * fill was never going to reach anyway — an outro, a traded last bar — which
+   * is why the claim is stated as *most* rather than *all*.
+   */
+  {
+    let inside = 0, keptTheJoin = 0, playedInside = 0;
+    for (let i = 0; i < 60; i++) {
+      const song = generateSong({ seed: `anchor-${i}`, genre: 'jazz', style: 'fusion' });
+      const bpb = song.meta.beatsPerBar;
+      for (const seam of song.meta.transitions ?? []) {
+        if (seam.kind !== 'shot' || seam.anchor !== 'inside') continue;
+        const section = song.sections[seam.section];
+        if (!section) continue;
+        inside++;
+        const bar = section.startBar + section.lengthBars - 2;
+        if (song.drums.events.some((e) => e.voice === 'cr'
+          && Math.abs(e.beat - seam.bar * bpb) < 1e-6)) keptTheJoin++;
+        if (song.drums.events.some((e) => e.beat >= bar * bpb - 1e-6
+          && e.beat < (bar + 1) * bpb - 1e-6)) playedInside++;
+      }
+    }
+    check(
+      'a shot aimed inside leaves the join its cymbal',
+      inside > 0 && playedInside === inside && keptTheJoin >= inside - 2,
+      `${inside} inside shots, ${playedInside} with kit in the bar, ${keptTheJoin} whose join kept a crash`,
+    );
+  }
+
+  /**
    * An elide arrives an eighth early, and takes nobody with it who should stay.
    *
    * Three claims, and the first is the one that stops this being the worst bar
