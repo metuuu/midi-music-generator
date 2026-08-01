@@ -2953,7 +2953,7 @@ function placeMachines(song: Song, slots: Slot[], venue: Venue): StageMachine[] 
     slots.filter((s) => s.rig === 'modular'),
     slots.filter((s) => s.rig !== 'modular' && GEAR.includes(s.archetype)),
     /**
-     * …and only then anybody else standing at something, minus the two who
+     * …and only then anybody else standing at something, minus the five who
      * cannot possibly work a machine.
      *
      * `held: false` was doing this job alone and let in exactly the wrong
@@ -2966,7 +2966,49 @@ function placeMachines(song: Song, slots: Slot[], venue: Venue): StageMachine[] 
     slots.filter((s) => !GEAR.includes(s.archetype)
       && !specFor(s.archetype).held
       && !BUSY_HANDS.includes(s.archetype)),
+    /**
+     * …and failing all of that, somebody who has to put their instrument down
+     * for a moment.
+     *
+     * The tier the header describes as "whoever is there" and that was never
+     * written, which is why the header's next sentence was false: a stage with
+     * *nobody eligible* fell through the same hole as a stage with nobody on
+     * it. Ambient's `aquatic` style casts an upright bass, a harp, a violin and
+     * a cello over a programmed part — no rig, no free hands, and a rhythm box
+     * — so the box took the empty-stage fallback with four people standing in
+     * front of it. That fallback leaves `tendedBy` off because the type is
+     * saying there is genuinely nobody; here it said it in front of a quartet,
+     * and what it put on the boards was the unexplained table this whole
+     * routine exists to avoid.
+     *
+     * A violinist who lowers the bow for a bar to press start is a compromise.
+     * A case on an occupied stage that belongs to none of them is not a
+     * compromise, it is the failure. `BUSY_HANDS` still holds the line: the
+     * five above genuinely cannot let go, and the sort below picks whichever of
+     * the rest the box's own bars leave the most room.
+     */
+    slots.filter((s) => !BUSY_HANDS.includes(s.archetype)),
   ];
+
+  /**
+   * And for the percussion alone, past even that.
+   *
+   * The one machine that has no acceptable second answer. A sequencer whose
+   * figure is left with no object is a pitched line playing from a rig
+   * somewhere, and `castSong` has already made sure nobody is miming it; the
+   * audience is short an explanation and no worse off than at any concert with
+   * a backing track. Drums arriving from an empty stage is the failure §8.1
+   * was written for, and a rhythm box parked where none of the four people on
+   * stage is standing is that failure wearing a case.
+   *
+   * So where every tier above is empty and there is anybody at all — a stage of
+   * nothing but a harpist and a cellist — the box goes to the one of them with
+   * the most rests, hands full or not. `wanted` puts the percussion first, so
+   * it asks this question of an untouched roster and the sequencers behind it
+   * never reach here.
+   */
+  const anybody = (kind: StageMachine['kind']): Slot[][] =>
+    kind === 'sequencer' ? tiers : [...tiers, slots];
 
   /** Which bars each player's hands are down in — their own line and any they double. */
   const struck = new Map<Slot, Set<number>>(slots.map((s) => [
@@ -2993,8 +3035,8 @@ function placeMachines(song: Song, slots: Slot[], venue: Venue): StageMachine[] 
    * is the tie-break behind it, and the tier order is the tie-break behind that.
    */
   const taken = new Set<Slot>();
-  const hostFor = (runs: Set<number>): Slot | undefined => {
-    for (const tier of tiers) {
+  const hostFor = (kind: StageMachine['kind'], runs: Set<number>): Slot | undefined => {
+    for (const tier of anybody(kind)) {
       const free = tier.filter((s) => !taken.has(s));
       if (!free.length) continue;
       const busyIn = (s: Slot): number => {
@@ -3038,12 +3080,22 @@ function placeMachines(song: Song, slots: Slot[], venue: Venue): StageMachine[] 
      * already run out of people. Percussion — the part that arrives from
      * nowhere loudest, and the reason §8.1 exists — always gets the first host.
      */
-    const tender = hostFor(want.runs);
+    const tender = hostFor(want.kind, want.runs);
 
     if (!tender) {
-      // Nobody on stage at all — an ambient number of tape and voices. It goes
-      // where the kit would have been, and the type says it has no tender.
-      if (out.length) return;
+      /**
+       * Nobody on stage at all — an ambient number of tape and voices. It goes
+       * where the kit would have been, and the type says it has no tender.
+       *
+       * `slots.length` is the whole condition and it used to be missing, which
+       * is what let an occupied stage take the empty stage's answer. There is
+       * no tender to be had here in either sense — a percussion box has already
+       * been offered every pair of hands in the room, so a machine still
+       * without one on an occupied stage is a sequencer, and a sequencer with
+       * nowhere to go is not staged rather than parked at the back untended.
+       * An unexplained case is worse than one part fewer with an object.
+       */
+      if (out.length || slots.length) return;
       out.push({
         id: want.id,
         kind: want.kind,
