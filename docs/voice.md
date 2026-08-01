@@ -3,9 +3,11 @@
 `npm run dev` → [localhost:5178/voice.html](http://localhost:5178/voice.html)
 
 A bench for the vocal work. Type text, hear it sung or spoken, and see exactly
-why it sounds the way it does. Nothing here touches the song generator — the
-Strudel-based vocal layer on the Radio page is unchanged, so the sound that
-already works stays available to compare against.
+why it sounds the way it does. The lab has its own Web Audio synth and its own
+palettes; the Radio page's vocal layer still renders through Strudel, so the
+sound that already works stays available to compare against. What the two now
+share is `phonetics.ts` — the song sings invented words through the same
+machinery, which is [the last section](#the-song-sings-words-now).
 
 Three questions it exists to answer, none of which can be settled by reading a
 table:
@@ -290,12 +292,51 @@ Also here and not in the Strudel path:
   The level drops a few dB as the tract constricts and comes back as it opens,
   and that dip *is* the perceptual event.
 
-## What this does not do yet
+## The song sings words now
 
-The song generator still uses the old path: `generateVocalTrack` in
-[`src/generate/vocals.ts`](../src/generate/vocals.ts) doubles the melody with
-wordless syllables, holds one vowel across a phrase, and renders through Strudel
-with a gap after every syllable. Porting the lab's findings across means giving
-`VocalProfile` a signature, a delivery and a word source, and teaching the
-Strudel renderer to approximate ties — which it can only approximate, since it
-has no portamento.
+`generateVocalTrack` in [`src/generate/vocals.ts`](../src/generate/vocals.ts)
+still doubles the melody and still renders through Strudel, but the vowels and
+consonants no longer come from a weighted draw per syllable. They come from
+**invented words that nobody ever sees**.
+
+The distinction is not cosmetic. A weighted draw produces a sequence with no
+memory — every syllable as likely as every other, so no figure ever comes back
+and the line is heard as texture. No choice of weights fixes that, because the
+problem is the independence rather than the distribution. Language is not
+distributed that way: it is a small vocabulary, reused, and the reuse is what a
+listener hears first.
+
+So each song gets a lexicon of **20 invented words** and a line per section.
+Every chorus is handed the same line, so the refrain comes back on the same
+handful of words — verbatim where two choruses got the same number of syllables
+out of the tune, on the same vocabulary at a different offset where they did
+not. Choruses draw shorter lines than verses, because a hook has to come round
+inside its own section to be recognised.
+
+`WordStyle` in [`src/style/vocals.ts`](../src/style/vocals.ts) says how a word is
+spelled, one per genre: `finnish`, `scat`, `airy`, `machine`. Two rules do most
+of the work. **Vowel harmony** — Finnish never mixes `a o u` with `ä ö y` inside
+a word, `e` and `i` go with either — is most of what separates a word that sounds
+Finnish from a word that sounds like nothing; measured over 500 invented words,
+zero mix the two sets. And **geminates fall out for free**: a closed syllable
+followed by an onset writes two consonants in a row, and `kk tt ll nn` are what
+Finnish is made of. Nothing had to be added for either.
+
+The words are spelled as *letters* and handed back through `pronounceWord`
+rather than built as syllables directly. That is what makes the same invented
+word identical in every chorus without anything arranging for it — one set of
+rules instead of two, and a word stable under its own hash like any other.
+
+Nothing is displayed, serialised, or put on the `Song`: the track carries
+syllables, exactly as it did. Sample output, iskelmä — `upuurus` `mäshör`
+`hurarrase` `piilhömön` `raheerhir`; scat — `waa` `daan` `bup` `šaam` `nooti`.
+
+Two things the Strudel path still cannot take from the lab. **Codas**: a
+`NoteEvent` carries one consonant and it is the onset, so a closed syllable
+arrives as a held vowel instead of a closed one — the floating version of the
+same word rather than a shorter one. And **ties**: a heavy syllable's second
+slot is a re-attack with no onset rather than a genuine hold, because Strudel
+schedules one independent event per note and has no portamento. Both turn on
+when the vocal layer goes through `web/voice-synth.ts` instead, which needs a
+scheduling bridge onto Strudel's clock and three more optional fields on
+`NoteEvent` — `coda`, `tie`, `legatoToNext`.
