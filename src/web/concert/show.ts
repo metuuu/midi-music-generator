@@ -77,7 +77,7 @@ import { loadCode, playCode, preloadSounds, startLoaded, stopPlayback } from '..
 import { createAnimator, type Animator } from './animate.js';
 import { createDirector, type CameraDirector } from './camera.js';
 import {
-  buildCabling, buildStageBox, buildTail, DECK, stageBoxAt, stageBoxSocket,
+  buildCabling, buildStageBox, buildTail, cableBounds, DECK, stageBoxAt, stageBoxSocket,
   type Cabling, type CableRun, type Obstacle, type StageBox,
 } from './cables.js';
 import { buildDebugTag, type DebugTag } from './debug-tags.js';
@@ -438,8 +438,20 @@ export function createShow(opts: ShowOptions = {}): Show {
      */
     const m = stage.metrics;
     const riser = riserFootprint(m);
-    const boxAt = stageBoxAt(m, riser);
-    const boxSocket = stageBoxSocket(boxAt, 0);
+    const boxAt = stageBoxAt(m);
+    /**
+     * The next free jack on the box, handed out as gear goes down.
+     *
+     * A function rather than the one point it used to be: every lead landed on
+     * the centre of the face, so the last half-metre of all of them was one
+     * line drawn eight times over. They arrive at their own sockets now, in the
+     * order the band is dressed, which is also the order the row is drawn in —
+     * see `stageBoxSocket`. Counted separately from `runs` because a machine's
+     * lead usually goes to its tender's rig instead and must not eat a jack it
+     * never arrives at.
+     */
+    let sockets = 0;
+    const boxSocket = (): Vector3 => stageBoxSocket(boxAt, 0, sockets++);
     const runs: CableRun[] = [];
     /**
      * What a lead may not cross, which is a shorter list than it looks.
@@ -574,13 +586,23 @@ export function createShow(opts: ShowOptions = {}): Show {
          * deck, and the loop is the reason the player can move at all.
          */
         if (model.outlet) {
-          const tail = buildTail(model.outlet, 0.55);
+          /**
+           * Leaning back and down, in the guitar's own frame.
+           *
+           * A carried instrument's frame cannot say where the stage box is —
+           * it is torso-local and turns with the player — so this one gets a
+           * fixed lean rather than an aim. It costs nothing: the tail is the
+           * only lead on the stage that is not required to meet anything, and
+           * a loop of slack at a guitarist's feet has no direction to be wrong
+           * about.
+           */
+          const tail = buildTail(model.outlet, 0.55, new Vector3(0, 0, -1));
           model.root.add(tail.root);
           tails.push(tail);
           const back = new Vector3(0, 0, -0.38).applyAxisAngle(UP, performer.station.facing);
           runs.push({
             from: new Vector3(x + back.x, DECK, z + back.z),
-            to: boxSocket,
+            to: boxSocket(),
           });
         }
       } else {
@@ -609,13 +631,49 @@ export function createShow(opts: ShowOptions = {}): Show {
         );
         band.add(model.root);
 
-        // Gear that stands on the floor keeps its own socket, so its lead can
-        // start where the socket actually is. Band space, because a cable joins
-        // two objects and cannot belong to either one's frame.
+        /**
+         * Gear that stands on the floor drops its own lead to the boards, and
+         * the run to the box starts where that lands.
+         *
+         * The drop used to be two points inside `leadCurve`, in band space, and
+         * it showed: the whole descent from a socket 80 cm up was squeezed into
+         * one bend, so the cable left the case like a diving board and met the
+         * deck at a corner — at the one point along its length where it is
+         * nearest the camera. Building it in the model's own frame and handing
+         * the run its *foot* makes the drop and the run one cable, and lets the
+         * drop flatten over its last quarter the way a real one does.
+         *
+         * Aimed along the way the run leaves, so the two do not meet at an
+         * angle. Skipped where the socket is already on the boards: the
+         * singer's mic lead gets itself down there under its own steam.
+         */
         if (model.outlet) {
+          const start = model.outlet.clone();
+          const drop = start.y - DECK;
+          /**
+           * One socket, claimed once and used twice.
+           *
+           * `boxSocket()` hands out the *next* one each time it is called, so
+           * asking it for the direction to aim the drop and then asking it
+           * again for where the run lands gives one instrument two sockets and
+           * aims its lead at the wrong one — burning a slot on the box for
+           * every piece of gear on the stage, and pointing the only part of the
+           * cable anybody is close enough to read at a socket it does not go
+           * to.
+           */
+          const target = boxSocket();
+          if (drop > 0.05) {
+            const along = new Vector3(
+              target.x - model.root.position.x, 0, target.z - model.root.position.z,
+            ).applyAxisAngle(UP, -yaw);
+            const tail = buildTail(start, drop, along);
+            model.root.add(tail.root);
+            tails.push(tail);
+            start.copy(tail.foot);
+          }
           runs.push({
-            from: model.outlet.clone().applyAxisAngle(UP, yaw).add(model.root.position),
-            to: boxSocket,
+            from: start.applyAxisAngle(UP, yaw).add(model.root.position).setY(DECK),
+            to: target,
           });
         }
 
@@ -711,11 +769,34 @@ export function createShow(opts: ShowOptions = {}): Show {
       const host = tender && !specFor(tender.archetype).held
         ? models.get(tender.id)
         : undefined;
+      const lands = host ? host.root.position.clone().setY(DECK) : boxSocket();
+      /**
+       * …and it climbs down the stand first, in the machine's own frame.
+       *
+       * The longest drop on the stage: this socket is on the back of a case
+       * held most of a metre up on four tubes, so a lead that fell from it in
+       * band space was a straight rod from the box to the boards standing
+       * beside the stand it is supposed to be running down. Its own frame is
+       * also the right one on the merits — the stand and the case are one
+       * object, and what hangs off the back of them belongs to it.
+       *
+       * Local `y` is measured from the top of the stand, so the drop to the
+       * boards is the stand's own height plus however far the socket sits above
+       * it.
+       */
+      const jack = machine.outlet.clone();
+      const fall = machine.root.position.y + jack.y - DECK;
+      if (fall > 0.05) {
+        const along = new Vector3(lands.x - mx, 0, lands.z - mz)
+          .applyAxisAngle(UP, -spec.facing);
+        const tail = buildTail(jack, fall, along);
+        machine.root.add(tail.root);
+        tails.push(tail);
+        jack.copy(tail.foot);
+      }
       runs.push({
-        from: machine.outlet.clone()
-          .applyAxisAngle(UP, spec.facing)
-          .add(machine.root.position),
-        to: host ? host.root.position.clone().setY(DECK) : boxSocket,
+        from: jack.applyAxisAngle(UP, spec.facing).add(machine.root.position).setY(DECK),
+        to: lands,
       });
 
       /**
@@ -751,10 +832,31 @@ export function createShow(opts: ShowOptions = {}): Show {
      * objects standing about unexplained.
      */
     if (runs.length) {
-      const box = buildStageBox(boxAt, 0);
+      /**
+       * …and one cable out of the back of it, under the masking.
+       *
+       * Everything on this stage runs *to* the box and nothing ran out of it,
+       * which made a hub that swallows leads — and §8.4's case for a hub over
+       * cables disappearing into the wings only holds if the hub is a
+       * break-out. One multicore going where the desk is says that, and it is
+       * the one run allowed to leave: it is what the other eight are for.
+       *
+       * It ends *on* the last two centimetres of the boards rather than past
+       * them: the wall stands 25 cm behind that edge and the drape 10 cm, so
+       * from every seat in the house the end is against whichever this room
+       * has and the cable reads as going under it. Two centimetres further and
+       * it would be a tube hanging over the void behind the deck.
+       *
+       * Angled toward the wing rather than straight back, because that is where
+       * a multicore goes, and clamped inside the boards because a narrow room
+       * puts the box within half a metre of the edge already.
+       */
+      const box = buildStageBox(boxAt, 0, new Vector3(
+        Math.max(boxAt.x - 0.62, -m.width / 2 + 0.12), 0, m.backZ + 0.02,
+      ));
       band.add(box.root);
       stageBox = box;
-      cabling = buildCabling({ runs, obstacles });
+      cabling = buildCabling({ runs, obstacles, bounds: cableBounds(m) });
       band.add(cabling.root);
     }
 

@@ -195,10 +195,16 @@ function evict(p: Point2, o: Obstacle): void {
  */
 export function routeOnDeck(
   from: Point2, to: Point2, obstacles: readonly Obstacle[],
+  /**
+   * The boards. Omitted, a run may go anywhere — which is what it used to do,
+   * including behind the backdrop whenever a bow was wide enough to take it
+   * there and out again.
+   */
+  bounds?: Bounds,
 ): Point2[] | undefined {
   if (!obstacles.length) {
-    const open = settle(from, to, obstacles, 0);
-    return open && lay(open, obstacles);
+    const open = settle(from, to, obstacles, 0, bounds);
+    return open && lay(open, obstacles, bounds);
   }
   /**
    * Straight first, then bowed one way and the other, wider each time.
@@ -214,8 +220,8 @@ export function routeOnDeck(
    * Widths in metres, alternating sides so the shortest workable detour wins.
    */
   for (const bow of [0, 0.7, -0.7, 1.5, -1.5]) {
-    const path = settle(from, to, obstacles, bow);
-    if (path) return lay(path, obstacles);
+    const path = settle(from, to, obstacles, bow, bounds);
+    if (path) return lay(path, obstacles, bounds);
   }
   return undefined;
 }
@@ -251,7 +257,7 @@ function hashEnds(a: Point2, b: Point2): number {
  * defect §8.4 calls worse than no lead at all. A wander that will not settle is
  * dropped and the taut route kept — the run is already known good.
  */
-function lay(path: Point2[], obstacles: readonly Obstacle[]): Point2[] {
+function lay(path: Point2[], obstacles: readonly Obstacle[], bounds?: Bounds): Point2[] {
   const first = path[0]!;
   const last = path[path.length - 1]!;
   const dx = last.x - first.x;
@@ -276,6 +282,15 @@ function lay(path: Point2[], obstacles: readonly Obstacle[]): Point2[] {
     return { x: p.x + nx * swing, z: p.z + nz * swing };
   });
 
+  /**
+   * The slack has to survive the same two tests the route did.
+   *
+   * Obstacles were always re-checked here — swinging a settled run 13 cm sideways
+   * can obviously push it into something it had cleared. The boards were not,
+   * and that is how a lead ended up *through the back wall*: a run hugging the
+   * backdrop is exactly the case where the wander has nowhere to go but
+   * upstage, and nothing here was looking.
+   */
   let settled = true;
   for (let round = 0; round < SETTLE; round++) {
     settled = true;
@@ -283,9 +298,16 @@ function lay(path: Point2[], obstacles: readonly Obstacle[]): Point2[] {
       for (const o of obstacles) {
         if (clearance(out[i]!, o) < MARGIN) { evict(out[i]!, o); settled = false; }
       }
+      if (bounds) {
+        const x = Math.min(Math.max(out[i]!.x, bounds.minX), bounds.maxX);
+        const z = Math.min(Math.max(out[i]!.z, bounds.minZ), bounds.maxZ);
+        if (x !== out[i]!.x || z !== out[i]!.z) { out[i]!.x = x; out[i]!.z = z; settled = false; }
+      }
     }
     if (settled) break;
   }
+  // Unsettled means the slack could not be given anywhere legal, and the taut
+  // route it was decorating is still a perfectly good lead.
   return settled ? out : path;
 }
 
@@ -295,7 +317,24 @@ function lay(path: Point2[], obstacles: readonly Obstacle[]): Point2[] {
  */
 function settle(
   from: Point2, to: Point2, obstacles: readonly Obstacle[], bow: number,
+  bounds?: Bounds,
 ): Point2[] | undefined {
+  /**
+   * Back onto the boards, and applied everywhere a point has just been moved.
+   *
+   * The ends are exempt by construction — they are never passed through this,
+   * because a jack is where the gear put it and a box that has been placed
+   * half a centimetre outside the strip should not drag its own sockets.
+   */
+  const hold = (p: Point2): boolean => {
+    if (!bounds) return false;
+    const x = Math.min(Math.max(p.x, bounds.minX), bounds.maxX);
+    const z = Math.min(Math.max(p.z, bounds.minZ), bounds.maxZ);
+    if (x === p.x && z === p.z) return false;
+    p.x = x;
+    p.z = z;
+    return true;
+  };
   const dx = to.x - from.x;
   const dz = to.z - from.z;
   const span = Math.hypot(dx, dz) || 1;
@@ -308,7 +347,9 @@ function settle(
     // Zero at both ends, widest in the middle — the ends are jacks and do not
     // move to make routing easier.
     const out = bow * Math.sin(t * Math.PI);
-    pts.push({ x: from.x + dx * t + nx * out, z: from.z + dz * t + nz * out });
+    const p = { x: from.x + dx * t + nx * out, z: from.z + dz * t + nz * out };
+    if (i > 0 && i < SAMPLES - 1) hold(p);
+    pts.push(p);
   }
   if (!obstacles.length) return pts;
 
@@ -325,6 +366,7 @@ function settle(
       const b = pts[i + 1]!;
       pts[i]!.x += ((a.x + b.x) / 2 - pts[i]!.x) * RELAX;
       pts[i]!.z += ((a.z + b.z) / 2 - pts[i]!.z) * RELAX;
+      hold(pts[i]!);
     }
   }
   /**
@@ -365,6 +407,10 @@ function settle(
       for (const o of obstacles) {
         if (clearance(pts[i]!, o) < MARGIN) { evict(pts[i]!, o); settled = false; }
       }
+      // A point evicted off the boards is not settled either: pulling it back
+      // may put it inside the thing it was just pushed out of, and the next
+      // round has to be allowed to see that rather than call the route done.
+      if (hold(pts[i]!)) settled = false;
     }
   }
   if (!settled) return undefined;
@@ -409,6 +455,8 @@ function leadCurve(run: CableRun, path: readonly Point2[]): CatmullRomCurve3 {
 export interface CablingOptions {
   runs: readonly CableRun[];
   obstacles: readonly Obstacle[];
+  /** The boards. Without it a bow is free to swing a lead behind the backdrop. */
+  bounds?: Bounds;
   /** Rubber. Dark, and never quite black — a black lead is a hole in the deck. */
   colour?: string;
 }
@@ -432,6 +480,7 @@ export function buildCabling(opts: CablingOptions): Cabling {
   for (const run of opts.runs) {
     const path = routeOnDeck(
       { x: run.from.x, z: run.from.z }, { x: run.to.x, z: run.to.z }, opts.obstacles,
+      opts.bounds,
     );
     if (!path) continue;
     const curve = leadCurve(run, path);
@@ -539,12 +588,44 @@ const TRUNK_RADIUS = RADIUS * 3;
  * this — a check that no lead crosses anything — reads it from the same place
  * the show does.
  */
-export function stageBoxAt(
-  m: { width: number; backZ: number }, riser: { w: number },
-): Vector3 {
-  return new Vector3(
-    -Math.min(riser.w / 2 + 0.75, m.width / 2 - 0.5), 0, m.backZ + 0.4,
-  );
+export function stageBoxAt(m: { width: number; backZ: number }): Vector3 {
+  return new Vector3(-(m.width / 2 - BOX_INSET), 0, m.backZ + BOX_INSET);
+}
+
+/**
+ * How far off the two walls the box sits, and the strip of boards a lead is
+ * allowed to lie on.
+ *
+ * The box used to stand a comfortable distance out from the riser, on the
+ * reasoning that a hub the drummer's platform hides is a hub nobody sees leads
+ * converge on. True, and it put the thing a metre and a half into open floor
+ * with cables fanning across the middle of the stage to reach it — and because
+ * nothing stopped a route going *upstage* of the backdrop, the wide bows that
+ * get a lead round a group of players were free to swing behind the back wall
+ * and come out again.
+ *
+ * The corner fixes both. Leads run to the back and then along it, which is
+ * where cable goes on a real stage and is also the shortest way to keep it out
+ * from underfoot; and `BOUND` is the strip they may do it in — inside the side
+ * walls, downstage of the backdrop, and well upstage of the lip. Convergence
+ * survives, because eight leads arriving at one corner converge exactly as much
+ * as eight arriving anywhere else.
+ */
+const BOX_INSET = 0.7;
+const BOUND_SIDE = 0.25;
+const BOUND_UP = 0.14;
+const BOUND_DOWN = 0.5;
+
+/** The strip of boards a routed lead may lie on. */
+export interface Bounds { minX: number; maxX: number; minZ: number; maxZ: number }
+
+export function cableBounds(m: { width: number; backZ: number; lipZ: number }): Bounds {
+  return {
+    minX: -(m.width / 2 - BOUND_SIDE),
+    maxX: m.width / 2 - BOUND_SIDE,
+    minZ: m.backZ + BOUND_UP,
+    maxZ: m.lipZ - BOUND_DOWN,
+  };
 }
 
 /**
@@ -689,23 +770,67 @@ export function buildStageBox(at: Vector3, facing: number, trunkTo?: Vector3): S
  * does. There is always a loop of slack at a guitarist's feet, and the slack is
  * the reason they can move at all.
  */
-export function buildTail(from: Vector3, drop: number, colour = '#1b1b1f'): {
-  root: Group; dispose(): void;
-} {
+export function buildTail(
+  from: Vector3,
+  drop: number,
+  /**
+   * Which way the run carries on once it reaches the boards, in the same frame
+   * as `from`. Need not be normalised; `y` is ignored.
+   *
+   * This is the whole of what stops the lead having a corner in it. A drop that
+   * lands wherever the model's own axes happen to point, and a deck run that
+   * leaves toward a box somewhere else entirely, meet at the boards in a kink —
+   * and a kink at the one place a cable is *closest to the camera* is exactly
+   * where the eye goes. Landing the drop already pointing the right way makes
+   * the two one cable.
+   */
+  along: Vector3,
+  colour = '#1b1b1f',
+): { root: Group; foot: Vector3; dispose(): void } {
   const root = new Group();
   root.name = 'lead-tail';
   const mat = new MeshStandardMaterial({ color: colour, roughness: 0.88, metalness: 0.04 });
+
+  /**
+   * The direction the cable leans as it falls, and how far out it gets.
+   *
+   * A lead does not hang plumb from a socket and it does not fall in a straight
+   * line to the floor: it leaves the jack roughly along its own axis, sags, and
+   * then flattens out over the last stretch so that it arrives at the boards
+   * *lying on them* rather than stabbing into them. The flattening is the point.
+   * Reach is proportional to the drop, because a socket 40 cm up has less room
+   * to make that shape than one at shoulder height and should not be drawn as
+   * if it had more.
+   */
+  const dir = new Vector3(along.x, 0, along.z);
+  if (dir.lengthSq() < 1e-9) dir.set(0, 0, 1);
+  dir.normalize();
+  const reach = Math.max(0.16, drop * 0.55);
+
+  const at = (out: number, down: number): Vector3 => new Vector3(
+    from.x + dir.x * reach * out, from.y - drop * down, from.z + dir.z * reach * out,
+  );
+
+  /**
+   * Four points, and the spacing is the shape: barely out and a third down
+   * while it is still falling, then most of the way out over the last quarter
+   * of the drop, so the curve leaves the socket steep and meets the deck flat.
+   */
+  const foot = at(1, 1);
   const curve = new CatmullRomCurve3([
     from.clone(),
-    from.clone().add(new Vector3(-0.05, -drop * 0.30, 0.04)),
-    from.clone().add(new Vector3(-0.02, -drop * 0.72, 0.11)),
-    from.clone().add(new Vector3(0.06, -drop, 0.13)),
+    at(0.16, 0.34),
+    at(0.55, 0.78),
+    at(0.92, 0.97),
+    foot.clone(),
   ]);
-  const mesh = addTo(root, new Mesh(new TubeGeometry(curve, 16, RADIUS, 5, false), mat));
+  const mesh = addTo(root, new Mesh(new TubeGeometry(curve, 20, RADIUS, 5, false), mat));
   mesh.castShadow = true;
 
   return {
     root,
+    /** Where it reaches the boards, in `from`'s frame. The deck run starts here. */
+    foot,
     dispose(): void {
       mesh.geometry.dispose();
       mat.dispose();

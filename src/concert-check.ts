@@ -29,7 +29,7 @@ import {
   ARCHETYPES, ARCHETYPE_OF, SYNTH_RIGS, archetypeForTrack, trackCanReach,
 } from './concert/instruments.js';
 import { buildConcert, soundingEffectors } from './concert/index.js';
-import { routeOnDeck, stageBoxAt, type Obstacle } from './web/concert/cables.js';
+import { cableBounds, routeOnDeck, stageBoxAt, type Obstacle } from './web/concert/cables.js';
 import { riserFootprint } from './web/concert/stage-props.js';
 import type { Gesture, SynthRigId } from './concert/types.js';
 
@@ -663,6 +663,7 @@ check('visemes exist exactly when there is a voice', visemeGaps === 0,
     return dx > 0 || dz > 0 ? Math.hypot(Math.max(dx, 0), Math.max(dz, 0)) : Math.max(dx, dz);
   };
   let crossed = 0;
+  let offBoards = 0;
   let dropped = 0;
   let leads = 0;
   let indoors = 0;
@@ -673,7 +674,8 @@ check('visemes exist exactly when there is a voice', visemeGaps === 0,
       const concert = buildConcert({ seed: `cable-${gid}-${i}`, genre: gid });
       const metrics = { width: concert.venue.width, backZ: -concert.venue.depth / 2 };
       const riser = riserFootprint({ width: concert.venue.width, depth: concert.venue.depth });
-      const box = stageBoxAt(metrics, riser);
+      const box = stageBoxAt(metrics);
+      const bounds = cableBounds({ ...metrics, lipZ: concert.venue.depth / 2 });
       for (const number of concert.numbers) {
         /**
          * Tagged with whose feet they are, because a lead leaving somebody's
@@ -723,7 +725,7 @@ check('visemes exist exactly when there is a voice', visemeGaps === 0,
            */
           if (against.some((o) => obstacleGap(start, o) < 0)) { indoors++; continue; }
           leads++;
-          const path = routeOnDeck(start, { x: box.x, z: box.z }, against);
+          const path = routeOnDeck(start, { x: box.x, z: box.z }, against, bounds);
           if (!path) {
             dropped++;
             if (notes.length < 3) notes.push(`${gid}#${i} ${start.what} unroutable`);
@@ -736,6 +738,33 @@ check('visemes exist exactly when there is a voice', visemeGaps === 0,
             for (let k = 0; k <= steps; k++) {
               const t = k / steps;
               const p = { x: a.x + (b.x - a.x) * t, z: a.z + (b.z - a.z) * t };
+              /**
+               * …and it stays on the boards.
+               *
+               * The other half of "crosses something solid", and the half that
+               * shipped broken: the bows that take a lead round a group of
+               * players were free to swing it *behind the backdrop* and bring
+               * it out again, because the only things a route knew about were
+               * the obstacles standing on the stage and the back wall is not
+               * one of them. A tolerance because the run is clamped to the
+               * strip and the straight line between two clamped samples can
+               * still bulge a hair past it.
+               *
+               * The two end segments are exempt, and have to be: a jack is
+               * where the gear was put, and gear standing hard against the back
+               * wall has a socket legitimately upstage of any strip a *cable*
+               * is asked to keep to. The claim is that the router does not take
+               * a run out there, not that no socket is out there.
+               */
+              const routed = s > 1 && s < path.length - 1;
+              if (routed && (p.z < bounds.minZ - 0.02 || p.z > bounds.maxZ + 0.02
+                || p.x < bounds.minX - 0.02 || p.x > bounds.maxX + 0.02)) {
+                offBoards++;
+                if (notes.length < 3) {
+                  notes.push(`${gid}#${i} ${start.what} off the boards at `
+                    + `${p.x.toFixed(2)},${p.z.toFixed(2)}`);
+                }
+              }
               for (const o of against) {
                 const gap = obstacleGap(p, o);
                 if (gap < worst) worst = gap;
@@ -758,9 +787,9 @@ check('visemes exist exactly when there is a voice', visemeGaps === 0,
    * asserted so that a change which quietly stopped drawing most of the
    * cabling is visible here instead of silent.
    */
-  check('no lead crosses anything solid', crossed === 0,
-    crossed
-      ? `${crossed} crossings: ${notes.join('; ')}`
+  check('no lead crosses anything solid', crossed === 0 && offBoards === 0,
+    crossed || offBoards
+      ? `${crossed} crossings, ${offBoards} off the boards: ${notes.join('; ')}`
       : `${leads - dropped} of ${leads} runs drawn, ${dropped} with no gap to thread, `
         + `${indoors} starting inside something; tightest clearance ${worst.toFixed(2)} m`);
 }
