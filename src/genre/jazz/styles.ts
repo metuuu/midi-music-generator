@@ -1324,7 +1324,7 @@ const odd: Style = {
 };
 
 /**
- * FUSION — seven eighths, grouped three-three-two, and nothing swings.
+ * FUSION — seven eighths, grouped two-two-three, and nothing swings.
  *
  * The style the whole rhythm rewrite was for. Everything in it is a thing the
  * generator could not previously express:
@@ -1351,7 +1351,7 @@ const fusion: Style = {
   id: 'fusion',
   label: 'Fusion',
   description:
-    'Seven eighths grouped three-three-two, straight, electric. Ostinato bass, quartal harmony that refuses to resolve, and a lead playing two-handed octaves over the top.',
+    'Seven eighths grouped two-two-three, straight, electric. Ostinato bass, quartal harmony that refuses to resolve, and a lead playing two-handed octaves over the top.',
   beatsPerBar: 3.5,
   beatUnit: 8,
   /** 2+2+3 eighths, in sixteenths. The defining fact about the style. */

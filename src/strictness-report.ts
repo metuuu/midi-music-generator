@@ -19,17 +19,8 @@ import {
   buildAccompaniment, RULES, STRICTNESS_LEVELS, violationsOf,
   type Accompaniment, type NoteContext,
 } from './core/rules.js';
+import { metricStrength, SLOTS_PER_BEAT } from './generate/rhythm.js';
 import { generateSong } from './generate/song.js';
-
-const SLOTS_PER_BEAT = 4;
-
-function metricStrength(slot: number, slotsPerBar: number): number {
-  if (slot === 0) return 4;
-  if (slotsPerBar % 2 === 0 && slot === slotsPerBar / 2) return 3;
-  if (slot % SLOTS_PER_BEAT === 0) return 2;
-  if (slot % 2 === 0) return 1;
-  return 0;
-}
 
 interface Measurement {
   violations: Record<string, number>;
@@ -48,7 +39,7 @@ function measure(song: Song, m: Measurement): void {
   if (!mel) return;
   m.songs++;
 
-  const { beatsPerBar, mode, tonic } = song.meta;
+  const { beatsPerBar, groups, mode, tonic } = song.meta;
   const slotsPerBar = beatsPerBar * SLOTS_PER_BEAT;
 
   // Rebuild harmony and accompaniment exactly as the generator saw them.
@@ -93,7 +84,7 @@ function measure(song: Song, m: Measurement): void {
     if (!chord || !scale) continue;
 
     const slot = Math.round((n.beat - bar * beatsPerBar) * SLOTS_PER_BEAT);
-    const strength = metricStrength(slot, slotsPerBar);
+    const strength = metricStrength(slot, slotsPerBar, groups);
 
     if (strength >= 2) {
       m.beatNotes++;
