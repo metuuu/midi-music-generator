@@ -11,6 +11,7 @@
 
 import { generateSong } from './generate/song.js';
 import { generateBass, generateDrums, generateLeftHand, planKitVariation } from './generate/parts.js';
+import { anticipate, displace, subdivide, thin } from './generate/rhythm.js';
 import { getGenre, GENRE_IDS } from './genre/index.js';
 import { composeSectionTune } from './tune/adapt.js';
 import { getHook } from './generate/hook.js';
@@ -1192,6 +1193,102 @@ console.log('\nBass shapes');
     wrongInterval || flattened
       ? `${wrongInterval} notes off their declared interval, ${flattened} bars flattened`
       : `${shapeNotes} notes over ${patterns} figure(s) × ${QUALITIES.length} qualities, exact`,
+  );
+}
+
+// --- Rhythm operators ----------------------------------------------------
+console.log('\nRhythm operators');
+{
+  /**
+   * The operators are total, and they hand back what they were given.
+   *
+   * Nothing calls them yet — this wave is the vocabulary rather than its use —
+   * so this is the whole of their verification, and it is run over the
+   * *catalogue's own figures* rather than over invented ones on purpose. Every
+   * metre in the project goes through them, including the 7/8 whose grouping is
+   * the only reason `thin` is metric rather than positional, and including every
+   * pattern carrying a `cycle`, where `at` runs past the end of its bar.
+   *
+   * These four properties are what a caller is entitled to assume without
+   * checking first. That is what "total" buys, and it is what makes a chain of
+   * operators degrade to identity rather than to nonsense when one of them is
+   * handed something it cannot do.
+   */
+  const strip = (h: { at: number; dur?: number }) => {
+    const { at: _at, dur: _dur, ...rest } = h;
+    return JSON.stringify(rest);
+  };
+  const bag = (hs: readonly { at: number; dur?: number }[]) => hs.map(strip).sort().join('|');
+  const total = (hs: readonly { dur?: number }[]) => hs.reduce((n, h) => n + (h.dur ?? 0), 0);
+  const faults: string[] = [];
+  const fault = (m: string) => { if (!faults.includes(m)) faults.push(m); };
+  let figures = 0, cases = 0;
+
+  for (const gid of GENRE_IDS) {
+    for (const style of Object.values(getGenre(gid).styles)) {
+      const slotsPerBar = style.beatsPerBar * 4;
+      const groups = style.groups;
+      const figuresOf = [
+        ...style.bass.map((p) => ({ n: `${style.id}/${p.name}`, hits: p.hits, span: p.cycle ?? slotsPerBar })),
+        ...style.comp.map((p) => ({ n: `${style.id}/${p.name}`, hits: p.hits, span: p.cycle ?? slotsPerBar })),
+      ];
+      for (const { n, hits, span } of figuresOf) {
+        figures++;
+        const before = bag(hits);
+        const ats = new Set(hits.map((h) => h.at));
+
+        for (const target of hits.map((h) => h.at)) {
+          cases++;
+          const pushed = anticipate(hits, { target });
+          if (pushed.length !== hits.length) fault(`${n}: anticipate changed the onset count`);
+          if (bag(pushed) !== before) fault(`${n}: anticipate altered a payload`);
+          // Non-decreasing, not increasing: a figure may legitimately sound two
+          // notes on one slot, which is what caught `anticipate` splitting a
+          // drone's root from its octave.
+          for (let i = 1; i < pushed.length; i++) {
+            if (pushed[i]!.at < pushed[i - 1]!.at) fault(`${n}: anticipate reordered the figure`);
+          }
+          const out = new Set(pushed.map((h) => h.at));
+          const gone = [...ats].filter((v) => !out.has(v));
+          const born = [...out].filter((v) => !ats.has(v));
+          if (gone.length > 1 || born.length > 1) fault(`${n}: anticipate moved more than one onset`);
+          if (gone.length === 1 && born.length === 1 && gone[0]! - born[0]! !== 2) {
+            fault(`${n}: anticipate pushed by ${gone[0]! - born[0]!} rather than an eighth`);
+          }
+
+          const voices = hits.filter((h) => h.at === target).length;
+          const split = subdivide(hits, { target });
+          if (split.length !== hits.length && split.length !== hits.length + voices) {
+            fault(`${n}: subdivide split part of an attack rather than all or none`);
+          }
+          if (split.length > hits.length && total(split) !== total(hits)) {
+            fault(`${n}: subdivide changed the figure's total length`);
+          }
+        }
+
+        for (const keepAbove of [0, 1, 2, 3, 4]) {
+          cases++;
+          const thinned = thin(hits, { slotsPerBar, groups, keepAbove });
+          if (!thinned.length) fault(`${n}: thin left a hole at keepAbove ${keepAbove}`);
+          if (thinned.some((h) => !ats.has(h.at))) fault(`${n}: thin invented an onset`);
+        }
+
+        for (const by of [1, 2, 3, span - 1]) {
+          cases++;
+          const moved = displace(hits, { by, span });
+          if (moved.length !== hits.length) fault(`${n}: displace changed the onset count`);
+          if (bag(moved) !== before) fault(`${n}: displace altered a payload`);
+          if (moved.some((h) => h.at < 0 || h.at >= span)) fault(`${n}: displace left the span`);
+        }
+      }
+    }
+  }
+  check(
+    'the rhythm operators are total and preserve their payload',
+    faults.length === 0,
+    faults.length
+      ? faults.slice(0, 3).join('; ')
+      : `${cases} applications over ${figures} figures across every metre in the catalogue`,
   );
 }
 
