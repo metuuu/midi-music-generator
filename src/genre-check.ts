@@ -1292,6 +1292,146 @@ console.log('\nRhythm operators');
   );
 }
 
+// --- Rhythm-section variation --------------------------------------------
+console.log('\nRhythm-section variation');
+{
+  /**
+   * The bass stops playing one bar a hundred times.
+   *
+   * This is the measurement the whole plan is for, so it is stated as the thing
+   * being complained about rather than as a proxy: *within a single song*, how
+   * many different shapes does the bass play? The answer was one, in every song
+   * in the catalogue, in every genre — the figure was drawn once and applied to
+   * every bar, and only the pitches moved underneath it.
+   *
+   * The second half is the guard that keeps the first half from being noise. A
+   * bass that varied wherever it felt like would score well here and sound like
+   * a mistake, so every bar that differs must differ *at a phrase end* — the
+   * fourth bar of a four-bar group, and never the section's last, where the
+   * drummer's fill and the seam already are. `planFigureVariation` decides once
+   * per section and `figureFor` places it; this is what says so from outside.
+   *
+   * Both styles are on the sixteenth grid with no `feels`, so a bar's onsets can
+   * be read back exactly. A swung or pushed style would need the grid the feel
+   * actually produced, which is a different check and not this one's business.
+   */
+  const OPTED = [['iskelma', 'tango'], ['iskelma', 'iskelmapop']] as const;
+  let songs = 0, moved = 0, holes = 0, doubled = 0;
+  for (const [genre, style] of OPTED) {
+    for (let i = 0; i < 50; i++) {
+      const song = generateSong({ seed: `vary-${style}-${i}`, genre, style });
+      const bass = song.tracks.find((t) => t.layer === 'bass');
+      if (!bass?.notes.length) continue;
+      songs++;
+      const bpb = song.meta.beatsPerBar;
+
+      const shape = new Map<number, number[]>();
+      const struck = new Set<string>();
+      for (const n of bass.notes) {
+        const bar = Math.floor(n.beat / bpb + 1e-6);
+        const slot = Math.round((n.beat - bar * bpb) * 4);
+        (shape.get(bar) ?? shape.set(bar, []).get(bar)!).push(slot);
+        // A dyad is two pitches on one slot and is legal; the same pitch twice
+        // is one attack written down twice, which no operator may produce.
+        const key = `${n.beat.toFixed(4)}:${n.midi}`;
+        if (struck.has(key)) doubled++;
+        struck.add(key);
+      }
+      const asText = new Map<number, string>();
+      for (const [bar, slots] of shape) asText.set(bar, [...new Set(slots)].sort((a, b) => a - b).join('.'));
+
+      // The figure as written is whatever most bars play; anything else is the
+      // gesture.
+      const tally = new Map<string, number>();
+      for (const t of asText.values()) tally.set(t, (tally.get(t) ?? 0) + 1);
+      const plain = [...tally.entries()].sort((a, b) => b[1] - a[1])[0]![0];
+      if (tally.size > 1) moved++;
+
+      /**
+       * Every bar the bass is present for has the bass in it.
+       *
+       * The one structural claim a whole song can make about this mechanism.
+       * *Where* the varied bars are cannot be asserted from out here and the
+       * attempt was a mistake worth recording: `hitTogether` rewrites a bass bar
+       * too — the mid-section tutti, anchored at bar 0 or `bars − 2` of a late
+       * chorus, putting the band on the section's *hook* — and from outside, one
+       * rewritten bar looks exactly like another. `landEnding` makes a third.
+       * The placement assertion therefore runs against the generator directly,
+       * below, where only one thing can have moved anything.
+       */
+      const lastBar = song.meta.totalBars - 1;
+      for (const sec of song.sections) {
+        if (sec.solo?.layer === 'bass' || !sec.activeLayers.includes('bass')) continue;
+        for (let b = 0; b < sec.lengthBars; b++) {
+          const bar = sec.startBar + b;
+          if (bar !== lastBar && !asText.get(bar)) holes++;
+        }
+      }
+    }
+  }
+  const pct = (moved / Math.max(1, songs)) * 100;
+  check(
+    'an opted-in bass plays more than one shape in a song',
+    songs > 0 && pct > 50 && holes === 0 && doubled === 0,
+    holes || doubled
+      ? `${holes} bars the bass sits in but does not play, ${doubled} double-struck`
+      : `${pct.toFixed(0)}% of ${songs} songs carry more than one bass shape`,
+  );
+
+  /**
+   * …and the gesture lands where the phrase turns over, asserted at the source.
+   *
+   * One pattern, one variation, a synthetic eight-bar section: nothing else in
+   * the pipeline is running, so a bar that differs differs because of this and
+   * nothing else. That is the whole reason it is here rather than folded into
+   * the song measurement above, which cannot tell this mechanism from the two
+   * others that also rewrite a bass bar.
+   *
+   * Eight bars puts the only eligible phrase end at bar 3 — bar 7 is the
+   * section's last and is left to the drummer's fill and the seam. A four-bar
+   * section has no eligible bar at all, which is the intro and the outro, and is
+   * correct: one phrase has no phrase end inside it.
+   */
+  const bar4 = (n: { beat: number }) => Math.floor(n.beat / 4 + 1e-6);
+  const shapesOf = (ns: readonly { beat: number }[]) => {
+    const m = new Map<number, string>();
+    for (const n of ns) m.set(bar4(n), `${m.get(bar4(n)) ?? ''},${Math.round((n.beat - bar4(n) * 4) * 4)}`);
+    return m;
+  };
+  const eight: Chord[] = Array.from({ length: 8 }, () => (
+    { root: 9, quality: 'min7', label: 'i7', dominantFunction: false }
+  ));
+  let placements = 0;
+  const misplaced: string[] = [];
+  for (const [gid, sid] of OPTED) {
+    const style = getGenre(gid).styles[sid]!;
+    for (const pattern of style.bass) {
+      if (pattern.cycle || pattern.walking) continue;
+      const ctx = () => ({
+        chords: eight, beatsPerBar: 4, startBeat: 0, rng: new Rng('place'), style,
+      });
+      const plainShapes = shapesOf(generateBass(ctx(), pattern));
+      for (const at of pattern.hits.map((h) => h.at)) {
+        for (const kind of ['push', 'fill'] as const) {
+          placements++;
+          const shapes = shapesOf(generateBass(ctx(), pattern, { variation: { kind, at } }));
+          for (let b = 0; b < 8; b++) {
+            if (shapes.get(b) === plainShapes.get(b)) continue;
+            if (b !== 3) misplaced.push(`${sid}/${pattern.name} ${kind}@${at} moved bar ${b}`);
+          }
+        }
+      }
+    }
+  }
+  check(
+    'a phrase-end gesture lands only on a phrase end',
+    placements > 0 && misplaced.length === 0,
+    misplaced.length
+      ? misplaced.slice(0, 3).join('; ')
+      : `${placements} placements over ${OPTED.length} styles, every change in bar 3 of 8`,
+  );
+}
+
 // --- Chord-scale ---------------------------------------------------------
 console.log('\nChord-scale mapping');
 const jazz = getGenre('jazz');

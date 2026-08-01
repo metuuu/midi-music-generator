@@ -63,7 +63,7 @@ import {
 import { generateVocalTrack } from './vocals.js';
 import {
   generateBass, generateBrass, generateComp, generateCounter, generateDrums,
-  generateLeftHand, generatePad, planKitVariation,
+  generateLeftHand, generatePad, planFigureVariation, planKitVariation,
   type PartContext, undoubleAgainst } from './parts.js';
 
 export interface GenerateOptions {
@@ -1037,12 +1037,35 @@ export function generateSong(opts: GenerateOptions = {}): Song {
       ...(plan.ceiling[layer] !== undefined ? { ceiling: plan.ceiling[layer]! } : {}),
     });
 
+    /**
+     * What the bass does differently at this section's phrase ends.
+     *
+     * **Its own stream, and that is the whole of why this is additive.** A style
+     * that declares no `vary` never gets here, constructs no `Rng` and draws no
+     * number, so its songs are what they were. A style that does draws from a
+     * namespace nothing else reads — the lesson `drumSource` records above, and
+     * the one `applyFeel` learned again more sharply: a per-section stream shared
+     * with the band walks the bass first, the bass follows the tune, and the tune
+     * is exactly what `--hook` moves.
+     */
+    const bassVariation = style.vary?.bass
+      ? planFigureVariation(bassPattern, {
+        chance: style.vary.bass,
+        rng: new Rng(`${seed}:vary:bass:${s}${salt('bass')}`),
+        slotsPerBar: style.beatsPerBar * 4,
+        ...(style.groups ? { groups: style.groups } : {}),
+      })
+      : undefined;
+
     // Keep this section's accompaniment to hand: the melody is written last, so
     // it can be checked against what the band is actually holding underneath.
     // A soloist's own layer is skipped here — a bass taking a chorus is not
     // also walking behind it, and a pianist soloing is not also comping.
     let sectionBass = active.has('bass') && soloLayer !== 'bass'
-      ? generateBass(ctxFor('bass'), bassPattern) : [];
+      ? generateBass(ctxFor('bass'), bassPattern, {
+        ...(bassVariation ? { variation: bassVariation } : {}),
+      })
+      : [];
     let sectionComp = active.has('comp') && soloLayer !== 'comp'
       ? generateComp(
         ctxFor('comp'), compPattern, instruments.comp.centre,

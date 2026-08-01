@@ -150,6 +150,15 @@ const tango: Style = {
     } },
   ],
   /**
+   * The drag into the downbeat, which is what a tango *is*.
+   *
+   * `melody.syncopation` already says this about the tune — *"a tango pushes its
+   * downbeats because that is what a tango is"* — and until now the rhythm
+   * section underneath it could not join in. High, because on this style the
+   * gesture is not a decoration.
+   */
+  vary: { bass: 0.45 },
+  /**
    * Two hands **if the palette happens to deal them**, which is the weaker claim
    * and the one that is true of this style.
    *
@@ -869,6 +878,13 @@ const iskelmapop: Style = {
       hh: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
     } },
   ],
+  /**
+   * A bass guitar turning a phrase over, which is most of what an eighties
+   * arrangement does to keep eight bars of one figure from being eight bars of
+   * one figure. Lower than the tango's: here it is a detail rather than the
+   * subject.
+   */
+  vary: { bass: 0.3 },
   /**
    * A radio-era electric piano has the same two hands the accordion had, and it
    * uses them the way the decade did: chords with the line, or in the holes.

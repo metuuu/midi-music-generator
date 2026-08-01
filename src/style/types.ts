@@ -470,6 +470,26 @@ export interface Style {
   comp: CompPattern[];
   drums: DrumPattern[];
   /**
+   * How often the rhythm section plays its own figure differently at the end of
+   * a phrase, per layer, 0..1. Absent means never, which is what every style did
+   * before this existed and what most of them still do.
+   *
+   * **Not a chance of drawing a different pattern.** The pattern is the band's
+   * identity and is fixed for the whole song — `song.ts` says why, and it is
+   * right: a band that changed its comping figure every eight bars would sound
+   * like a compilation. This is the chance that the identity is *played*
+   * differently, which is a thing a rhythm section does constantly and which
+   * only the drummer could do here, through `planKitVariation`.
+   *
+   * Named `vary` rather than `variation` because `GenerateOptions.variation`
+   * already means something else — a per-layer re-roll salt — and two fields a
+   * letter apart meaning unrelated things is how the wrong one gets read.
+   *
+   * The gesture lands at phrase ends and never on the section's last bar, where
+   * the drummer's fill and the seam already live. See `planFigureVariation`.
+   */
+  vary?: Partial<Record<'bass' | 'comp', number>>;
+  /**
    * Layers this style never uses, regardless of arrangement density. A drone
    * has no drum kit and no brass section, and no amount of density should
    * conjure one.

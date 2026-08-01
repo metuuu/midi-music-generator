@@ -20,9 +20,9 @@ import { scaleStepsBetween, stepInScale, type Scale } from '../core/scale.js';
 import { buildFill, DEFAULT_FILLS, landing, type FillPalette } from './fills.js';
 import { IDIOMS, type HandSpec, type IdiomProfile } from '../style/instruments.js';
 import type {
-  BassPattern, CompHit, CompingProfile, CompPattern, DrumPattern, LeftHandMode, Style,
+  BassHit, BassPattern, CompHit, CompingProfile, CompPattern, DrumPattern, LeftHandMode, Style,
 } from '../style/types.js';
-import { metricStrength, SLOTS_PER_BEAT } from './rhythm.js';
+import { anticipate, metricStrength, SLOTS_PER_BEAT, subdivide } from './rhythm.js';
 
 export interface PartContext {
   chords: Chord[];
@@ -68,7 +68,113 @@ function* cycleHits<T extends { at: number }>(
   }
 }
 
-export function generateBass(ctx: PartContext, pattern: BassPattern): NoteEvent[] {
+/**
+ * What a player does differently at the end of a phrase.
+ *
+ * Two gestures rather than four, and the two the operator library offers that a
+ * *bass player* actually reaches for: arrive early and hold, or put two notes
+ * where the figure has one. `thin` and `displace` exist in `generate/rhythm.ts`
+ * and are not drawn here — thinning belongs to how loud a section is rather than
+ * to where a phrase turns over, and displacing a bass is the bass resigning from
+ * stating the harmony. See `docs/rhythm-plan.md` §10.
+ */
+export interface FigureVariation {
+  kind: 'push' | 'fill';
+  /** The onset it happens to, in sixteenths from the top of the bar. */
+  at: number;
+}
+
+/**
+ * Bars per phrase. Four, which is what every form in the catalogue is built from.
+ */
+const PHRASE_BARS = 4;
+
+/**
+ * What this section's player does, or nothing.
+ *
+ * The same shape as `planKitVariation` immediately below it, and drawn the same
+ * way: once per section, from a stream of its own. A style that declares no
+ * `vary` never reaches this and never constructs the stream, which is what keeps
+ * the change additive — see the note on `drumSource` in `song.ts` for what one
+ * number taken out of a shared stream cost the last time.
+ */
+export function planFigureVariation(
+  pattern: { hits: readonly BassHit[]; cycle?: number },
+  opts: { chance: number; rng: Rng; slotsPerBar: number; groups?: readonly number[] },
+): FigureVariation | undefined {
+  const { chance, rng, slotsPerBar, groups } = opts;
+  // A figure that carries a cycle is *supposed* to drift against the bar, and
+  // bending one bar of it fights the thing it was written to do. `Cycle` in
+  // `style/types.ts` makes the same argument from the other side.
+  if (chance <= 0 || pattern.cycle) return undefined;
+  if (!rng.chance(chance)) return undefined;
+
+  // Never the downbeat: pushing bar one's first note means writing into the bar
+  // before it, which is composition across a barline and is not this function's
+  // business. Otherwise a gesture lands on something the ear was already waiting
+  // for, which is what `metricStrength` is for.
+  const strong = pattern.hits.filter(
+    (h) => h.at > 0 && metricStrength(h.at, slotsPerBar, groups) >= 2,
+  );
+  if (!strong.length) return undefined;
+
+  const fillable = strong.filter((h) => h.dur >= 2);
+  const kind: FigureVariation['kind'] = fillable.length && rng.chance(0.4) ? 'fill' : 'push';
+  const pool = kind === 'fill' ? fillable : strong;
+  return { kind, at: rng.pick(pool).at };
+}
+
+/**
+ * The figure as this bar plays it.
+ *
+ * Phrase ends only, and never the section's last bar — that one already has the
+ * drummer's fill on it and is where a seam transition lands, and three gestures
+ * in one bar is not an arrangement. A four-bar intro therefore gets nothing at
+ * all, which is correct: an intro is one phrase and has no phrase end inside it.
+ */
+function figureFor<T extends { at: number; dur?: number }>(
+  hits: readonly T[],
+  bar: number,
+  bars: number,
+  v: FigureVariation,
+): readonly T[] {
+  if ((bar + 1) % PHRASE_BARS !== 0 || bar >= bars - 1) return hits;
+  return v.kind === 'push'
+    ? anticipate(hits, { target: v.at })
+    : subdivide(hits, { target: v.at });
+}
+
+/**
+ * Every slot the figure lands on, varied where the phrase turns over.
+ *
+ * Delegates to `cycleHits` untouched when nothing is varying, which is what
+ * makes a style that declares no `vary` byte-identical rather than merely
+ * similar. The bar walk below and `cycleHits` agree exactly when the cycle is
+ * the bar, and `planFigureVariation` guarantees that by declining to vary a
+ * pattern that carries one.
+ */
+function* figureHits<T extends { at: number; dur?: number }>(
+  hits: readonly T[],
+  opts: {
+    cycle: number; bars: number; slotsPerBar: number; variation?: FigureVariation;
+  },
+): Generator<{ hit: T; bar: number; slot: number }> {
+  if (!opts.variation) {
+    yield* cycleHits(hits, opts);
+    return;
+  }
+  for (let bar = 0; bar < opts.bars; bar++) {
+    for (const hit of figureFor(hits, bar, opts.bars, opts.variation)) {
+      yield { hit, bar, slot: bar * opts.slotsPerBar + hit.at };
+    }
+  }
+}
+
+export function generateBass(
+  ctx: PartContext,
+  pattern: BassPattern,
+  opts: { variation?: FigureVariation } = {},
+): NoteEvent[] {
   if (pattern.walking) return generateWalkingBass(ctx);
   const { chords, beatsPerBar, startBeat, rng } = ctx;
   const slotsPerBar = beatsPerBar * SLOTS_PER_BEAT;
@@ -94,8 +200,11 @@ export function generateBass(ctx: PartContext, pattern: BassPattern): NoteEvent[
     { lo: 0, hi: 0 },
   );
 
-  for (const { hit, bar, slot } of cycleHits(pattern.hits, {
-    cycle: pattern.cycle ?? slotsPerBar, bars: chords.length, slotsPerBar,
+  for (const { hit, bar, slot } of figureHits(pattern.hits, {
+    cycle: pattern.cycle ?? slotsPerBar,
+    bars: chords.length,
+    slotsPerBar,
+    ...(opts.variation ? { variation: opts.variation } : {}),
   })) {
     const chord = chords[bar]!;
     const next = chords[bar + 1] ?? chords[0]!;
