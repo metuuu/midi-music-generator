@@ -899,11 +899,30 @@ const cosmic: Style = {
       { at: 10, dur: 1, tone: 'fifth', vel: 0.86 },
       { at: 14, dur: 1, tone: 'root', vel: 0.84 },
     ] },
+    /**
+     * Written as intervals, and the only figure outside `fusion` in the
+     * catalogue that needs to be.
+     *
+     * A sequencer plays a *shape*: the steps are set once and the pattern is
+     * re-rooted as the harmony moves under it. Spelled as chord functions the
+     * last step asked the chord what its seventh was, and this style is the one
+     * synth style whose vamps carry both `maj7` and `min7` — so the step came out
+     * a semitone apart depending on which chord it landed on, which is not what a
+     * sequencer does and not what anybody programmed.
+     *
+     * The other four synth styles were checked and left alone: `machine` and
+     * `stalker` produce nothing but triads, so their `seventh` already resolves
+     * through the `root + 10` fallback and is a flat seventh every time. Changing
+     * those would have been churn dressed up as a fix.
+     *
+     * `7` and `-2` are the intervals the old spelling already sounded — see
+     * `BassTone`, and `seven-riff` in the jazz table, which had the same bug.
+     */
     { name: 'driving-quarters', weight: 3, hits: [
-      { at: 0, dur: 3, tone: 'root', vel: 0.96 },
-      { at: 4, dur: 3, tone: 'root', vel: 0.84 },
-      { at: 8, dur: 3, tone: 'fifth', vel: 0.9 },
-      { at: 12, dur: 3, tone: 'seventh', vel: 0.82 },
+      { at: 0, dur: 3, tone: 0, vel: 0.96 },
+      { at: 4, dur: 3, tone: 0, vel: 0.84 },
+      { at: 8, dur: 3, tone: 7, vel: 0.9 },
+      { at: 12, dur: 3, tone: -2, vel: 0.82 },
     ] },
   ],
   comp: [
