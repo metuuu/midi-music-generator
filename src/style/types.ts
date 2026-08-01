@@ -36,7 +36,36 @@ export interface Progression {
   note?: string;
 }
 
-export type BassTone = 'root' | 'fifth' | 'third' | 'seventh' | 'octave' | 'approach';
+/**
+ * Where a bass note is, relative to the chord under it.
+ *
+ * The six names are *chord functions*: each asks the harmony what to play and
+ * gets a different answer as the quality changes. `seventh` is +11 over a
+ * `maj9`, +10 over a `min11` or a `dom7` and +9 over a `dim7` — which is correct,
+ * and is what a walking line and an oom-pah both want, because both are
+ * outlining the chord they are standing on.
+ *
+ * A **number is semitones from the chord root, taken literally**, negative for
+ * below it, and it exists because a riff is not an outline. `-2` is a flat
+ * seventh under a major ninth as readily as under a dominant: the figure is a
+ * shape, and a shape that renegotiated with each chord would be a different
+ * shape. Fusion's own table
+ * said exactly this in prose for as long as it had no way to say it in data —
+ * *"a shape, re-rooted every time the harmony moves"* — and then wrote
+ * `tone: 'seventh'`, which is the one spelling that guarantees the shape moves.
+ * Its vamps run through `bIImaj9` and `bVImaj9`, so the riff's last note was a
+ * major seventh in about a third of the bars it played.
+ *
+ * Chord-root-relative rather than key-relative, matching the same sentence:
+ * *re-rooted*. A figure that ignores the harmony altogether is a pedal, and
+ * `BassPattern.sustain` already says that.
+ *
+ * Placement, not clamping, is what keeps the shape intact at the top of the
+ * range — see `generateBass`.
+ */
+export type BassTone =
+  | 'root' | 'fifth' | 'third' | 'seventh' | 'octave' | 'approach'
+  | number;
 
 export interface BassHit {
   /** Slot index within the bar, in sixteenths. */

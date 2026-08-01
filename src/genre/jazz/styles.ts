@@ -1535,15 +1535,28 @@ const fusion: Style = {
   ],
   bass: [
     /**
-     * The riff, on the grouping: root, root, the flat seventh where the short
-     * group starts. This is what a fusion bassist plays and it is nothing like a
+     * The riff, on the grouping: root, root, the fifth at the head of the long
+     * group, and the flat seventh a tone *below* the root arriving under the
+     * barline. This is what a fusion bassist plays and it is nothing like a
      * walk — it is a shape, re-rooted every time the harmony moves.
+     *
+     * **Written as intervals, which is the only spelling under which the
+     * sentence above is true.** As chord functions the last note was `seventh`,
+     * and this style's vamps run through `bIImaj9`, `bVImaj9` and `bVIImaj9`,
+     * where the chord's seventh is *major*. The figure therefore came out a
+     * semitone different in a third of the bars it played, which is not a
+     * re-rooted shape — it is a second shape nobody wrote.
+     *
+     * The intervals are the ones the old spelling *sounded*, not a new line:
+     * `nearestPc` put the fifth above the root and the seventh below it, so
+     * `7` and `-2` are what a correct bar already played. Only the wrong bars
+     * move. See `BassTone`.
      */
     { name: 'seven-riff', weight: 6, hits: [
-      { at: 0, dur: 3, tone: 'root', vel: 0.98 },
-      { at: 4, dur: 3, tone: 'root', vel: 0.86 },
-      { at: 8, dur: 3, tone: 'fifth', vel: 0.9 },
-      { at: 12, dur: 2, tone: 'seventh', vel: 0.8 },
+      { at: 0, dur: 3, tone: 0, vel: 0.98 },
+      { at: 4, dur: 3, tone: 0, vel: 0.86 },
+      { at: 8, dur: 3, tone: 7, vel: 0.9 },
+      { at: 12, dur: 2, tone: -2, vel: 0.8 },
     ] },
     { name: 'seven-octaves', weight: 4, hits: [
       { at: 0, dur: 2, tone: 'root', vel: 0.98 },

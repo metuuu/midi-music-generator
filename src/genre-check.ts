@@ -10,13 +10,13 @@
  */
 
 import { generateSong } from './generate/song.js';
-import { generateDrums, generateLeftHand, planKitVariation } from './generate/parts.js';
+import { generateBass, generateDrums, generateLeftHand, planKitVariation } from './generate/parts.js';
 import { getGenre, GENRE_IDS } from './genre/index.js';
 import { composeSectionTune } from './tune/adapt.js';
 import { getHook } from './generate/hook.js';
 import { comfortableLeap, EMPTY_ACCOMPANIMENT, RULES } from './core/rules.js';
 import type { HookId } from './generate/hook.js';
-import { chordPcs, parseRoman, type Chord } from './core/chord.js';
+import { chordPcs, parseRoman, CHORD_INTERVALS, type Chord, type ChordQuality } from './core/chord.js';
 import { makeScale } from './core/scale.js';
 import { pc } from './core/pitch.js';
 import { canVary, melodicLine, type DrumVoice, type Song } from './core/types.js';
@@ -1119,6 +1119,81 @@ for (let i = 0; i < 25; i++) {
 }
 const stepPct = (steps / Math.max(1, moves)) * 100;
 check('walking bass moves mostly by step', stepPct > 55, `${stepPct.toFixed(1)}% stepwise over ${walkingSongs} songs`);
+
+// --- Bass shapes ---------------------------------------------------------
+console.log('\nBass shapes');
+{
+  /**
+   * A riff is a shape, and stays one whatever chord it is standing on.
+   *
+   * This assertion could not previously have been written, because the claim
+   * could not be made. A bass figure was a list of *chord functions*, so
+   * `seventh` meant +10 under a `min11` and +11 under a `maj9`, and fusion's
+   * table saying *"a shape, re-rooted every time the harmony moves"* was
+   * describing something the type would not do — its vamps run through
+   * `bIImaj9` and `bVImaj9`, so the riff's last note was a semitone out in a
+   * third of its bars. `BassTone` now takes a number; this is what holds the
+   * number to its word.
+   *
+   * Run over every quality in `CHORD_INTERVALS` rather than over the styles'
+   * own progressions, because the property is a fact about the spelling rather
+   * than about one vamp. A check that only saw the chords fusion happens to play
+   * would go quiet the moment some other style with a numeric figure drew a
+   * diminished seventh.
+   *
+   * Two assertions, and the second is the one that catches the near miss.
+   * Pitch class says the interval is the declared one. The **span** says nothing
+   * was flattened getting there: `clampToRange` at the top of the bass range
+   * folds two shape notes onto one pitch, which preserves every pitch class and
+   * destroys the figure. That is what the octave placement in `generateBass`
+   * exists to prevent, and this is what would notice if it stopped.
+   */
+  const QUALITIES = Object.keys(CHORD_INTERVALS) as ChordQuality[];
+  // Roots in fourths, so the placement is exercised across the range rather
+  // than in one corner of it.
+  const chords: Chord[] = QUALITIES.map((quality, i) => ({
+    root: pc(i * 5), quality, label: quality, dominantFunction: false,
+  }));
+  let patterns = 0, shapeNotes = 0, wrongInterval = 0, flattened = 0;
+  for (const gid of GENRE_IDS) {
+    for (const style of Object.values(getGenre(gid).styles)) {
+      for (const pattern of style.bass) {
+        const tones = pattern.hits.map((h) => h.tone);
+        // Whole shapes only. A pattern mixing intervals with chord functions is
+        // legal and is not what this measures, and a `cycle` puts a different
+        // slice of the figure in each bar so the span would be a moving target.
+        if (pattern.cycle || !tones.every((t): t is number => typeof t === 'number')) continue;
+        patterns++;
+        const declaredSpan = Math.max(...tones) - Math.min(...tones);
+        const hits = pattern.hits.slice().sort((a, b) => a.at - b.at);
+        const out = generateBass({
+          chords, beatsPerBar: style.beatsPerBar, startBeat: 0,
+          rng: new Rng(`shape:${gid}:${style.id}:${pattern.name}`), style,
+        }, pattern);
+        for (let bar = 0; bar < chords.length; bar++) {
+          const inBar = out
+            .filter((n) => Math.floor(n.beat / style.beatsPerBar) === bar)
+            .sort((a, b) => a.beat - b.beat);
+          if (inBar.length !== hits.length) continue;
+          inBar.forEach((n, j) => {
+            shapeNotes++;
+            if (pc(n.midi - chords[bar]!.root) !== pc(hits[j]!.tone as number)) wrongInterval++;
+          });
+          const span = Math.max(...inBar.map((n) => n.midi))
+            - Math.min(...inBar.map((n) => n.midi));
+          if (span !== declaredSpan) flattened++;
+        }
+      }
+    }
+  }
+  check(
+    'a riff is the same shape over every chord quality',
+    patterns > 0 && wrongInterval === 0 && flattened === 0,
+    wrongInterval || flattened
+      ? `${wrongInterval} notes off their declared interval, ${flattened} bars flattened`
+      : `${shapeNotes} notes over ${patterns} figure(s) × ${QUALITIES.length} qualities, exact`,
+  );
+}
 
 // --- Chord-scale ---------------------------------------------------------
 console.log('\nChord-scale mapping');

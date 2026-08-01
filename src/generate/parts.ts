@@ -74,35 +74,83 @@ export function generateBass(ctx: PartContext, pattern: BassPattern): NoteEvent[
   const slotsPerBar = beatsPerBar * SLOTS_PER_BEAT;
   const out: NoteEvent[] = [];
 
+  /**
+   * How far above and below the root this figure's shape notes reach.
+   *
+   * Both zero for every pattern written in chord functions, which is what makes
+   * the placement below free for them: the loops are entered and immediately not
+   * taken, and the root is the root it has always been.
+   *
+   * A shape needs more than clamping. `clampToRange` applied to the top note of
+   * a riff *flattens* it — two notes land on the same pitch and the figure the
+   * numeric spelling exists to protect is gone. So the root moves by an octave
+   * instead and the shape arrives whole, which is what `arpOctaves` already does
+   * to a voicing that will not fit above the line. See `BassTone`.
+   */
+  const shape = pattern.hits.reduce(
+    (span, h) => (typeof h.tone === 'number'
+      ? { lo: Math.min(span.lo, h.tone), hi: Math.max(span.hi, h.tone) }
+      : span),
+    { lo: 0, hi: 0 },
+  );
+
   for (const { hit, bar, slot } of cycleHits(pattern.hits, {
     cycle: pattern.cycle ?? slotsPerBar, bars: chords.length, slotsPerBar,
   })) {
     const chord = chords[bar]!;
     const next = chords[bar + 1] ?? chords[0]!;
     const pcs = chordPcs(chord);
-    const rootMidi = clampToRange(nearestPc(chord.root, 40), BASS_RANGE[0], BASS_RANGE[1]);
+    let rootMidi = clampToRange(nearestPc(chord.root, 40), BASS_RANGE[0], BASS_RANGE[1]);
+    /**
+     * The octave repair, and it is a safety net rather than a working part.
+     *
+     * `nearestPc(root, 40)` lands within a tritone of 40, so a shape reaching
+     * from −6 to +6 of its root always fits `BASS_RANGE` and neither loop is
+     * entered. Nothing in the catalogue reaches further than that and the check
+     * in `genre-check.ts` says so by measuring the span.
+     *
+     * A wider figure would otherwise be *flattened* by the clamp below — two
+     * shape notes folded onto one pitch, every pitch class intact and the figure
+     * gone — and moving the root by an octave is the lesser damage. It is real
+     * damage: a riff an octave under the bar before it has come apart between
+     * the bars even though each bar is right. Which is why the right answer for
+     * a shape that needs this is a narrower shape, and why this stays a net.
+     */
+    while (rootMidi + shape.hi > BASS_RANGE[1] && rootMidi - 12 + shape.lo >= BASS_RANGE[0]) {
+      rootMidi -= 12;
+    }
+    while (rootMidi + shape.lo < BASS_RANGE[0] && rootMidi + 12 + shape.hi <= BASS_RANGE[1]) {
+      rootMidi += 12;
+    }
 
     {
       let midi: Midi;
-      switch (hit.tone) {
-        case 'root':
-          midi = rootMidi;
-          break;
-        case 'fifth':
-          midi = nearestPc(pc(chord.root + 7), rootMidi + 2);
-          break;
-        case 'third':
-          midi = nearestPc(pcs[1] ?? chord.root, rootMidi + 2);
-          break;
-        case 'seventh':
-          midi = nearestPc(pcs[3] ?? pc(chord.root + 10), rootMidi + 2);
-          break;
-        case 'octave':
-          midi = rootMidi + 12;
-          break;
-        case 'approach':
-          midi = approachNote(rootMidi, next.root, rng);
-          break;
+      if (typeof hit.tone === 'number') {
+        // A shape, not an outline: the interval *is* the figure, and the chord
+        // does not get a say in it. The root was placed above so this arrives
+        // whole rather than clamped. See `BassTone`.
+        midi = rootMidi + hit.tone;
+      } else {
+        switch (hit.tone) {
+          case 'root':
+            midi = rootMidi;
+            break;
+          case 'fifth':
+            midi = nearestPc(pc(chord.root + 7), rootMidi + 2);
+            break;
+          case 'third':
+            midi = nearestPc(pcs[1] ?? chord.root, rootMidi + 2);
+            break;
+          case 'seventh':
+            midi = nearestPc(pcs[3] ?? pc(chord.root + 10), rootMidi + 2);
+            break;
+          case 'octave':
+            midi = rootMidi + 12;
+            break;
+          case 'approach':
+            midi = approachNote(rootMidi, next.root, rng);
+            break;
+        }
       }
       midi = clampToRange(midi, BASS_RANGE[0], BASS_RANGE[1]);
       out.push({
