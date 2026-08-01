@@ -303,7 +303,7 @@ export interface ArmAnchors {
 export function buildArms(
   root: Object3D, anchors: ArmAnchors, p: Proportions, look: Look, l: Leases,
 ): ArmsRig {
-  const cloth = clothSurface(l, look.outfit.jacket);
+  const cloth = clothSurface(l, look.outfit.jacket, look.outfit.fabric);
 
   // Slender, and deliberately: these hands are cartoon-huge, and a forearm
   // scaled to match one would be a leg. A sleeve about two thirds of a palm

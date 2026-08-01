@@ -8,22 +8,61 @@
  * watching in the first second, from the room.
  *
  * So: **genre dresses the room, era shifts the palette and the fixtures.** The
- * genre decides which of three rooms it is, because a genre is a place before it
- * is a set of chords. The era decides what colour the paint is and what the
- * lights are made of, which is exactly the distinction the era tables already
- * draw everywhere else in this project — `EraProfile` decides the production,
- * never the notes.
+ * genre decides which room it is, because a genre is a place before it is a set
+ * of chords. The era decides what colour the paint is and what the lights are
+ * made of, which is exactly the distinction the era tables already draw
+ * everywhere else in this project — `EraProfile` decides the production, never
+ * the notes.
+ *
+ * ## The rooms live in the genres now — a change of owner, not of rule
+ *
+ * The sentence above is unchanged. What changed is *who writes it down*: the
+ * pavilion, the cellar and the black box used to be declared in this file, in a
+ * `Record` keyed by genre id, and they now live in the genres that stage in them
+ * — `Genre.staging.room`, see `genre/types.ts` for the argument at length.
+ *
+ * It is worth being exact about why that was right to invert, because the old
+ * shape was not a mistake. Three rooms in one file are *comparable*, and every
+ * per-entry comment in them was written for a reader looking at all three at
+ * once. Sixteen would not be: a table every genre author has to edit is a
+ * registry rather than a table, and this file would have become the place where
+ * sixteen parallel authors met. The symptom is that it had already started —
+ * `synth` was added and staged in `HOUSE`, because nobody adding a genre thinks
+ * to come here.
+ *
+ * What stays is everything that is genuinely the *stage's*: the prop vocabulary
+ * below, the sizing argument, the RNG discipline, and `HOUSE` — the room for a
+ * genre that has declared nothing.
  *
  * ## The prop vocabulary is a contract
  *
  * `Venue.props` is typed `string[]` in the frozen contract, which is right —
- * the IR should stay printable and a renderer should be able to ignore a prop
- * it has not modelled yet. But two systems have to agree on the spelling or the
- * agreement is silent and wrong: this file emits the names and
+ * the IR should stay printable, and *some* renderer, one day, should be able to
+ * ignore a prop it has not modelled. But two systems have to agree on the
+ * spelling or the agreement is silent and wrong: the rooms name the props and
  * `web/concert/stage.ts` places them. The full vocabulary is therefore declared
- * here as a union and exported as `PROPS`, so the stage builder can switch
- * exhaustively over it and a prop invented in a hurry is a compile error rather
- * than a piece of scenery that never appears.
+ * here, so a prop invented in a hurry is a compile error rather than a piece of
+ * scenery that never appears. That is now doing more work than it was: the
+ * rooms have moved out to the genres, so `PropName` is what a genre author
+ * picks from, and it is the reason a new room is a new *dressing* rather than a
+ * request for new scenery.
+ *
+ * **One list, and the renderer reads it.** `web/concert/stage-props.ts` used to
+ * declare the same names over again as `SUPPORTED_PROPS` and derive its own
+ * `PropName` from them; nothing imported the list below, so the two agreed by
+ * inspection rather than by the compiler, and the claim below that this list
+ * *is* the stage's vocabulary was an aspiration rather than a fact. The
+ * renderer imports this one now and re-exports it under the old name, so its
+ * own callers never noticed.
+ *
+ * The direction was the only one available. `concert/` is the IR and
+ * `web/concert/` renders it — the vocabulary may not depend on the thing that
+ * draws it, or the IR stops being printable without a WebGL context. What the
+ * inversion buys is not tidiness but a compile error: `BUILDERS` over there is
+ * a total `Record<PropName, …>`, so a name added here with no geometry added
+ * there fails `npm run typecheck` rather than becoming scenery that never
+ * appears. Adding a prop is a two-file change by construction, and the compiler
+ * names the second file.
  *
  * **One prop is furniture a performer stands at, and is therefore owned
  * twice.** `riser` is placed by the stage builder, while `cast.ts`
@@ -44,6 +83,27 @@
  * stands, no instruments: those belong to the instrument models, which know
  * where the hands go.
  *
+ * **An orchestra does not change that, and it is the case worth writing down**
+ * because it is the one that looks as though it should. A hundred music stands
+ * are not furniture a player happens to touch, they are the classical
+ * silhouette — you can read *orchestra* off the stands alone, at a distance
+ * where no instrument is legible. The argument for making them a prop is far
+ * better than the argument for a microphone stand, and it still fails, on the
+ * same sentence `gear-table` failed on: the stage builder cannot see the cast.
+ * A stand's position is a function of where a player is standing and of nothing
+ * else, so thirty of them placed blind is the gear-table bug thirty times over;
+ * and the rule that keeps the renderer's floor props honest — in the wings,
+ * upstage of the backline, or downstage of the lip — is exactly the rule a
+ * music stand has to break in order to be a music stand. A stand nobody could
+ * read from is a lectern. They belong wherever the hands are, which is
+ * `cast.ts` and the instrument models, and if an orchestra ever wants them that
+ * is where the work is.
+ *
+ * A conductor's podium is the same mistake with one person on it. `riser` is
+ * what it costs to put a platform under somebody honestly — fixed constants in
+ * two files, a switch so it is struck when nobody is standing on it — and one
+ * of those is enough.
+ *
  * ## Sizes
  *
  * Stage dimensions are worst-case rather than characteristic. `chooseVenue`
@@ -53,10 +113,17 @@
  * trio; ours takes an octet, and the intimacy is carried by the room around the
  * stage (rows, tables, ceiling) rather than by cramping the band. See
  * `cast.ts`, which is what has to fit inside these numbers.
+ *
+ * That paragraph is now advice to somebody writing a room in a genre folder
+ * rather than a description of a table in this file, and it is the one rule a
+ * new room can get wrong invisibly: a stage too small does not fail, it produces
+ * a solver that spreads the band to the edges and a picture with somebody
+ * standing behind a tormentor. Nothing below 8.5 m wide has been tried.
  */
 
 import { Rng } from '../core/rng.js';
 import { GENRES } from '../genre/index.js';
+import type { StageRoom } from '../genre/types.js';
 import type { EraProfile } from '../style/types.js';
 import type { Venue } from './types.js';
 
@@ -65,18 +132,31 @@ import type { Venue } from './types.js';
 // ---------------------------------------------------------------------------
 
 /**
- * Every piece of set dressing this file can ask for.
+ * Every piece of set dressing a room can ask for.
  *
- * **This list is not ours alone.** `web/concert/stage.ts` is the thing that
- * places these, and it recognises exactly these twenty-eight names (matched
- * case-, space- and plural-insensitively, so near-misses resolve). A name
- * outside the list is silently ignored — which is a safe failure and a useless
- * one, so the union below *is* the stage's vocabulary rather than a wish list
- * that happens to overlap with it. Declaring it as a type means a prop invented
- * in a hurry fails `npm run typecheck` instead of quietly never appearing.
+ * **This list is not ours alone, and it is no longer copied.**
+ * `web/concert/stage-props.ts` imports it and carries one builder per name, so
+ * the union below *is* the stage's vocabulary rather than a wish list that
+ * happens to overlap with it — a name here with no geometry there fails
+ * `npm run typecheck`, and a room asking for a name that is not here fails it
+ * too. The IR stays as printable as it ever was, because `Venue.props` is still
+ * `string[]`; what has gone is any way for something inside this repo to ask
+ * for scenery that quietly never appears.
+ *
+ * **Thirty-nine names, and the count is the point rather than an apology.**
+ * Sixteen genres stage in rooms this generator has never built — a hall, an
+ * arena, a warehouse, a dancehall, a honky-tonk, a barn, a courtyard, a
+ * carpeted recital floor — and what separates two of them is rarely the
+ * dimensions. It is one or two objects. A backline and a PA stack are both
+ * walls of speaker boxes and only one of them makes a rock stage; a barn and a
+ * warehouse are the same roof over different floors, and the floor is the
+ * whole difference. Each addition below has to be *the* object somebody would
+ * name if asked what room they were looking at. Nothing here is atmosphere.
  *
  * Four of them change how the room is *built* rather than adding an object, and
- * are emitted deliberately, one per room:
+ * are emitted deliberately, at most one per room — a room that names none of
+ * them gets the plain proscenium, which is what the house and the synth hall
+ * both are:
  *   `open-air`     no walls; a pavilion is a roof on posts, open to the night
  *   `brick`        a low brick room close around the band
  *   `black-box`    matte black on every surface, no architecture at all
@@ -95,333 +175,103 @@ import type { Venue } from './types.js';
  *   `mirror-ball`     above the dance floor
  *   `chandelier`      the one piece of grandeur a gilt room has
  *
- * The club:
+ * The club, and with it the honky-tonk and the dancehall — one room with a bar
+ * in it, three ways:
  *   `tables`          small round tables, right up to the stage
  *   `candles`         one per table, and the only warm light in a cellar
  *   `low-ceiling`     a lid a metre above the players' heads
  *   `bar`             bottles on shelves, lit from behind
  *   `posters`         past bills pasted on the wall
  *   `rug`             a worn rug under the gear or the front line
+ *   `neon`            tube signage on the back wall and in the wings. The one
+ *                     thing that says *bar* from across a dark room.
  *
- * The black box:
+ * The black box, and the synth hall, which is dressed out of the same four:
  *   `projection`      a lit rectangle upstage; ambient's only scenery
  *   `flight-case`     the boxes it all arrived in, still on stage
  *   `cables`          gaffered runs across the boards
  *   `drapes`          black masking where a wall would be
  *
+ * The concert hall:
+ *   `stalls`          raked rows of seats in the house — a hall's audience is
+ *                     furniture, where a club's is people at tables
+ *   `organ-pipes`     a fan of front pipes on the back wall, above the band
+ *   `carpet`          the floor covered wall to wall, for a band that sits on
+ *                     it. Not `rug`, which is a worn thing under the gear.
+ *
+ * The barn and the warehouse, which are one roof over two floors:
+ *   `beams`           exposed roof timbers across the room, well overhead
+ *   `hay`             bales, out in the house, where people sit on them
+ *
+ * The courtyard:
+ *   `arches`          an arcade across the back wall. A riad, a cloister, a
+ *                     hall with Moorish arcading.
+ *
+ * The arena:
+ *   `truss`           flown lighting lattice over the stage
+ *   `screen`          an LED wall behind the band. Not `projection`, which is
+ *                     film on a cloth and belongs to a different decade.
+ *   `crowd-barrier`   the steel rail across the pit, and the gap in front of
+ *                     it. Not `railing`, which stands on the stage.
+ *
  * Any stage:
- *   `pa-stack`        speakers, flown or on poles
+ *   `pa-stack`        speakers, flown or on poles, facing the house
+ *   `backline`        the band's own amplifiers, in a wall along the back wall
+ *                     facing the other way. The defining object of a rock stage.
  *   `wedges`          floor monitors facing the band
  *   `riser`           the drum platform. See `cast.ts` — its size and height
  *                     are fixed, and `Station.riser` has to agree with them.
  */
-export type PropName =
+export const PROPS = [
   // Room modifiers
-  | 'open-air' | 'brick' | 'black-box' | 'haze'
-  // Pavilion
-  | 'bunting' | 'fairy-lights' | 'paper-lanterns' | 'moths' | 'birch' | 'lake'
-  | 'flowers' | 'railing' | 'dance-floor' | 'mirror-ball' | 'chandelier'
-  // Club
-  | 'tables' | 'candles' | 'low-ceiling' | 'bar' | 'posters' | 'rug'
-  // Black box
-  | 'projection' | 'flight-case' | 'cables' | 'drapes'
-  // Any stage
-  | 'pa-stack' | 'wedges' | 'riser';
-
-/** The vocabulary as data, for an exhaustive switch on the renderer side. */
-export const PROPS: readonly PropName[] = [
   'open-air', 'brick', 'black-box', 'haze',
+  // Pavilion
   'bunting', 'fairy-lights', 'paper-lanterns', 'moths', 'birch', 'lake',
   'flowers', 'railing', 'dance-floor', 'mirror-ball', 'chandelier',
-  'tables', 'candles', 'low-ceiling', 'bar', 'posters', 'rug',
+  // Club, honky-tonk, dancehall
+  'tables', 'candles', 'low-ceiling', 'bar', 'posters', 'rug', 'neon',
+  // Black box
   'projection', 'flight-case', 'cables', 'drapes',
-  'pa-stack', 'wedges', 'riser',
-];
+  // Concert hall
+  'stalls', 'organ-pipes', 'carpet',
+  // Barn and warehouse
+  'beams', 'hay',
+  // Courtyard
+  'arches',
+  // Arena
+  'truss', 'screen', 'crowd-barrier',
+  // Any stage
+  'pa-stack', 'backline', 'wedges', 'riser',
+] as const;
+
+/**
+ * The same list as a type.
+ *
+ * Derived rather than written out, which is the smallest version of the whole
+ * argument above: two declarations of one vocabulary drift, and they drift
+ * silently, because agreeing today is what they are best at.
+ */
+export type PropName = (typeof PROPS)[number];
 
 // ---------------------------------------------------------------------------
-// Rooms
+// The house room
 // ---------------------------------------------------------------------------
-
-/**
- * What an era does to a room.
- *
- * One of these per genre-era pair, plus a fallback per room. Everything an era
- * touches is here so the differences between two decades of the same room can
- * be read side by side, which is the only way to tell whether they are actually
- * different.
- */
-interface Dressing {
-  palette: Venue['palette'];
-  /** Always present. */
-  props: PropName[];
-  /** Present with the given probability. Where the room stops being a diagram. */
-  maybe?: (readonly [PropName, number])[];
-  fog: number;
-  /** Added to the room's base size, in metres. Later eras built bigger stages. */
-  grow?: readonly [number, number];
-}
-
-interface Room {
-  id: string;
-  /** Names the room can have. The label is where the era shows in words. */
-  names: string[];
-  width: number;
-  depth: number;
-  audience: Venue['audience'];
-  eras: Record<string, Dressing>;
-  fallback: Dressing;
-}
-
-/**
- * THE PAVILION — iskelmä.
- *
- * A Finnish tanssilava: a roofed wooden dance floor at the edge of a lake, open
- * on all sides, hot in July and full of insects. The audience is *dancing*,
- * which is the single most important fact about this room and the reason
- * `seated` is false — a tanssilava crowd facing the band in rows would be a
- * different kind of evening entirely.
- */
-const PAVILION: Room = {
-  id: 'pavilion',
-  names: ['Koivulahti', 'Kesäranta', 'Kaislaranta', 'Peurasaari', 'Ilolahti', 'Sorsaniemi'],
-  width: 10, depth: 6,
-  audience: { rows: 10, density: 0.82, seated: false },
-  eras: {
-    // 1960s–70s. Painted cream timber, tungsten everything, and the beams full
-    // of moths — which are not decoration. A warm lamp outdoors at midnight in
-    // July has insects in it, and their absence is one of those things nobody
-    // can name but everybody notices.
-    tanssilava: {
-      palette: {
-        boards: '#c99b5c',
-        backdrop: '#1b2a45',
-        curtain: '#8f2f2c',
-        proscenium: '#e8dfc8',
-        ambient: '#ffd9a0',
-      },
-      props: [
-        'open-air', 'birch', 'lake', 'railing', 'dance-floor',
-        'fairy-lights', 'paper-lanterns', 'moths', 'riser',
-      ],
-      maybe: [['flowers', 0.6], ['chandelier', 0.2]],
-      fog: 0.1,
-    },
-    // 1980s. The same building, re-varnished, with a mirror ball bolted to the
-    // roof beams and a par can rig that arrived on a trailer. The era's own
-    // tables say `keyChangeChance: 0.7` and `density: 0.78`; this is what that
-    // sounds like as a room.
-    eighties: {
-      palette: {
-        boards: '#a9793f',
-        backdrop: '#141d33',
-        curtain: '#a8246b',
-        proscenium: '#d9d2c2',
-        ambient: '#ffcf9a',
-      },
-      props: [
-        'open-air', 'birch', 'lake', 'railing', 'dance-floor',
-        'fairy-lights', 'mirror-ball', 'moths', 'riser', 'pa-stack', 'wedges',
-      ],
-      maybe: [['flowers', 0.3], ['haze', 0.4]],
-      fog: 0.16,
-      grow: [0.6, 0.3],
-    },
-  },
-  fallback: {
-    palette: {
-      boards: '#c08a4e', backdrop: '#1b2a45', curtain: '#8f2f2c',
-      proscenium: '#e0d6c0', ambient: '#ffd6a0',
-    },
-    props: ['open-air', 'birch', 'lake', 'dance-floor', 'fairy-lights', 'moths', 'riser'],
-    fog: 0.12,
-  },
-};
-
-/**
- * THE CELLAR — jazz.
- *
- * Low, brick, and smaller than the band deserves. Tables right up to the stage
- * and candles on them, which is the only warm light in the room and therefore
- * the thing the whole palette is built around. Smoke is `fog`, not a prop: it
- * is a volume the beams pass through, and the beams are what a jazz room is
- * for.
- */
-const CELLAR: Room = {
-  id: 'jazz-cellar',
-  names: ['The Blue Alcove', 'Cellar Nine', 'Club Meridian', 'The Ivy Room', 'The Vault', 'Room Twelve'],
-  width: 8.8, depth: 5.4,
-  audience: { rows: 6, density: 0.86, seated: true },
-  eras: {
-    // 1930s–40s. Gilt, burgundy and tungsten; the one era here that still has
-    // some money in the room.
-    swingera: {
-      palette: {
-        boards: '#5b4632',
-        backdrop: '#4a2b23',
-        curtain: '#5c1a1f',
-        proscenium: '#b08a3e',
-        ambient: '#ffb46b',
-      },
-      props: [
-        'low-ceiling', 'brick', 'tables', 'candles', 'bar', 'haze',
-        'chandelier', 'riser',
-      ],
-      maybe: [['posters', 0.5], ['rug', 0.3]],
-      fog: 0.32,
-    },
-    // 1950s–60s. Darker, smokier, and stripped of the gilt. Bop happened in
-    // rooms nobody had decorated since the war.
-    bop: {
-      palette: {
-        boards: '#4a3b2c',
-        backdrop: '#3d2a26',
-        curtain: '#4a1520',
-        proscenium: '#8f7238',
-        ambient: '#ffc07a',
-      },
-      props: [
-        'low-ceiling', 'brick', 'tables', 'candles', 'bar', 'haze',
-        'posters', 'riser',
-      ],
-      maybe: [['rug', 0.4], ['flight-case', 0.25]],
-      fog: 0.42,
-    },
-    // 1960s–70s. Cooler and greyer, hard-edged par cans, and the smoke starts
-    // to thin because the room is now a listening room rather than a bar.
-    modern: {
-      palette: {
-        boards: '#3f3a33',
-        backdrop: '#33302c',
-        curtain: '#2e3a3a',
-        proscenium: '#6f6a5e',
-        ambient: '#ffd0a0',
-      },
-      props: [
-        'low-ceiling', 'brick', 'tables', 'candles', 'bar', 'posters',
-        'rug', 'riser', 'wedges',
-      ],
-      maybe: [['haze', 0.6], ['pa-stack', 0.4]],
-      fog: 0.3,
-      grow: [0.4, 0.2],
-    },
-  },
-  fallback: {
-    palette: {
-      boards: '#4a3b2c', backdrop: '#3d2a26', curtain: '#4a1520',
-      proscenium: '#8f7238', ambient: '#ffc07a',
-    },
-    props: ['low-ceiling', 'brick', 'tables', 'candles', 'bar', 'haze', 'riser'],
-    fog: 0.35,
-  },
-};
-
-/**
- * THE BLACK BOX — ambient.
- *
- * No architecture, no proscenium worth the name, and more fog than person.
- * There is nothing to look at except a projection and whatever the haze is
- * doing, which is the point: a genre that refuses to have a foreground gets a
- * room that refuses to have a focus.
- *
- * **The audience stands.** It sat on folding chairs for a while, and the chairs
- * were the wrong idea twice over. An ambient bill in a unit off an industrial
- * estate is a warehouse night, not a recital — the seated version of this room
- * is a concert hall that has been painted black. And a seated house is 1.26 m
- * tall: from the camera's side of the boards, where the crowd is the whole
- * near foreground, that is a field of low humps in the dark rather than a room
- * with people in it. Standing costs nothing — `web/concert/stage-audience.ts`
- * builds either kind from this one flag, and derives the row spacing, the rake
- * and the depth of the house from it — and it puts person-shaped silhouettes
- * between the lens and the band, which is what says the room is full.
- *
- * The cellar keeps its chairs, and that is not an inconsistency: it has tables
- * and candles on them, and a jazz club where nobody is sitting at the tables is
- * a jazz club with the furniture in the way.
- *
- * The palette is nearly monochrome on purpose. Every other room here spends its
- * colour budget on the set; this one spends all of it on the light, because in
- * a black box the light *is* the set.
- */
-const BLACK_BOX: Room = {
-  id: 'black-box',
-  names: ['Studio B', 'Hall Four', 'The Annexe', 'Unit 9', 'The Long Room', 'Room 000'],
-  width: 9.6, depth: 6.4,
-  audience: { rows: 8, density: 0.46, seated: false },
-  eras: {
-    // 1970s–80s tape. Warm even in the dark — sepia, tungsten, a domestic lamp
-    // somebody brought from home. This is the one ambient era with a *colour*.
-    tape: {
-      palette: {
-        boards: '#2a2724',
-        backdrop: '#191b1e',
-        curtain: '#241f1b',
-        proscenium: '#2c2f33',
-        ambient: '#c9a37a',
-      },
-      props: [
-        'black-box', 'drapes', 'projection', 'cables',
-        'flight-case', 'rug',
-      ],
-      maybe: [['pa-stack', 0.5]],
-      fog: 0.68,
-    },
-    // 1990s sampler. Cold cyan, hard beams, and the most fog of anywhere in the
-    // project. This is the Fallout end of the genre — the era whose own effects
-    // table filters the drum kit down to 1.4 kHz so the beat arrives through a
-    // wall, and the room should agree with that.
-    sampler: {
-      palette: {
-        boards: '#232528',
-        backdrop: '#14171b',
-        curtain: '#1a1f26',
-        proscenium: '#2a2f36',
-        ambient: '#7fa8c8',
-      },
-      props: [
-        'black-box', 'projection', 'cables', 'flight-case',
-        'pa-stack', 'wedges', 'haze',
-      ],
-      maybe: [['drapes', 0.35]],
-      fog: 0.85,
-    },
-    // 2000s hybrid. Grey, even, and clean — flat LED light on a room with
-    // nothing in it. The era where the sources became real instruments again,
-    // so the room stops pretending to be a machine.
-    hybrid: {
-      palette: {
-        boards: '#26262a',
-        backdrop: '#17181b',
-        curtain: '#1e2024',
-        proscenium: '#31333a',
-        ambient: '#9aa6b2',
-      },
-      props: [
-        'black-box', 'drapes', 'projection', 'cables', 'rug',
-      ],
-      maybe: [['flight-case', 0.4], ['pa-stack', 0.3]],
-      fog: 0.72,
-      grow: [0.3, 0.2],
-    },
-  },
-  fallback: {
-    palette: {
-      boards: '#26262a', backdrop: '#17181b', curtain: '#1e2024',
-      proscenium: '#31333a', ambient: '#9aa6b2',
-    },
-    props: ['black-box', 'drapes', 'projection', 'cables'],
-    fog: 0.7,
-  },
-};
 
 /**
  * THE HOUSE — anything else.
  *
- * A plain proscenium theatre for a genre this file has never heard of. It
- * exists so that adding a genre stages *badly* rather than crashing, and it is
- * deliberately dull: a fourth room that looked good would be a reason not to
- * write the third one properly.
+ * A plain proscenium theatre for a genre that has declared no room of its own.
+ * It exists so that adding a genre stages *badly* rather than crashing, and it
+ * is deliberately dull: a house room that looked good would be a reason never to
+ * write the real one.
+ *
+ * The one room left in this file, and it is here rather than in a genre folder
+ * because it belongs to no genre — it is the floor under all of them. Its
+ * dullness is the same argument `cast.ts` makes for `PLAIN`, and it should stay
+ * legible as a stub: three names, no eras, one dressing, and a stage nobody
+ * chose.
  */
-const HOUSE: Room = {
+const HOUSE: StageRoom = {
   id: 'house',
   names: ['The Playhouse', 'The Grand', 'The Empire'],
   width: 9.4, depth: 6,
@@ -437,12 +287,6 @@ const HOUSE: Room = {
   },
 };
 
-const ROOMS: Record<string, Room> = {
-  iskelma: PAVILION,
-  jazz: CELLAR,
-  ambient: BLACK_BOX,
-};
-
 // ---------------------------------------------------------------------------
 
 /**
@@ -451,25 +295,31 @@ const ROOMS: Record<string, Room> = {
  * Deterministic in `seed`: the same concert always plays the same venue with
  * the same optional dressing in it. The genre and era are folded into the
  * stream tag rather than into the seed itself so that one concert seed
- * auditioned across three genres gives three genuinely different rooms instead
- * of the same dice roll wearing different paint.
+ * auditioned across several genres gives that many genuinely different rooms
+ * instead of the same dice roll wearing different paint.
  *
- * `id` names the *room*, not the room-and-era: there are three buildings here
- * and nine dressings of them, and the stage builder should have three models to
- * write rather than nine. Everything the era changes arrives through `palette`,
+ * `id` names the *room*, not the room-and-era: four buildings and twelve
+ * dressings of them, and the stage builder should have four models to write
+ * rather than twelve. Everything the era changes arrives through `palette`,
  * `props`, `fog` and the size.
+ *
+ * The room comes from the genre and the fallback stays: `GENRES[genre]` is
+ * `undefined` for a genre id that does not exist, and a genre that exists and
+ * has declared no `staging.room` is the same case as far as this is concerned.
+ * Both get the house, which is what "stages badly and obviously" means in
+ * practice.
  */
 export function chooseVenue(genre: string, era: string, seed: string): Venue {
   const rng = new Rng(`${seed}:venue:${genre}:${era}`);
-  const room = ROOMS[genre] ?? HOUSE;
+  const room = GENRES[genre]?.staging?.room ?? HOUSE;
   const dressing = room.eras[era] ?? room.fallback;
   const eraProfile: EraProfile | undefined = GENRES[genre]?.eras[era];
 
-  const props: PropName[] = [...dressing.props];
-  // Bunting is the one prop that belongs to the *genre* rather than to either
-  // era of it: a tanssilava has pennants strung across the front whether it is
-  // 1968 or 1985, and the eighties table would otherwise have had to repeat it.
-  if (room === PAVILION) props.push('bunting');
+  // The era's props, then the ones that belong to the genre whatever the decade
+  // — a tanssilava has bunting strung across the front whether it is 1968 or
+  // 1985, and every era table would otherwise have had to repeat it. Before the
+  // optional draws, so the certain scenery is always at the front of the list.
+  const props: PropName[] = [...dressing.props, ...(room.props ?? [])];
   for (const [prop, chance] of dressing.maybe ?? []) {
     if (rng.chance(chance)) props.push(prop);
   }

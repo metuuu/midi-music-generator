@@ -60,6 +60,7 @@ import { Rng } from '../core/rng.js';
 import type { LayerId, Song } from '../core/types.js';
 import { LAYER_ORDER, isPlayedByHand } from '../core/types.js';
 import { GENRES } from '../genre/index.js';
+import type { Wardrobe } from '../genre/types.js';
 import type { EraProfile } from '../style/types.js';
 /**
  * Two questions about hands, asked of the file that owns them.
@@ -75,7 +76,7 @@ import {
   specFor,
 } from './instruments.js';
 import type {
-  Accessory, Archetype, ArchetypeSpec, Cast, HairStyle, Look, PartRef, Performer,
+  Accessory, Archetype, ArchetypeSpec, Cast, Look, PartRef, Performer,
   Posture, StageMachine, Station, SynthRigId, Venue,
 } from './types.js';
 
@@ -337,230 +338,24 @@ const SKIN = [
 ];
 
 /**
- * What the cloth is, as distinct from what colour it is.
+ * A plain concert dress for a genre or era that has declared none.
  *
- * Colour alone cannot say "sequins", and a renderer asked to infer sheen from
- * saturation ends up deciding that any loud colour is shiny — which makes a
- * bright red wool jacket glitter and a silver knit jumper look like a mirror.
- * Fabric is a wardrobe decision and it belongs on this side of the line with
- * the rest of them.
- *
- * Declared locally only until the same union lands in `concert/types.ts`; the
- * string values are the ones the rig expects, verbatim, so the import is a
- * one-line swap.
- */
-type Fabric =
-  | 'wool' | 'sequin' | 'satin' | 'velvet' | 'corduroy'
-  | 'denim' | 'leather' | 'knit' | 'nylon';
-
-/**
- * A genre-and-era's clothes.
- *
- * The rule the plan sets is the hard part: recognisable at a glance, and not a
- * costume party. Two devices do most of that work here.
- *
- * **A band dresses alike.** `uniform` is the chance a given player wears the
- * band's jacket and trousers rather than their own. High for a dance band and a
- * swing group, because they genuinely wore matching suits; near zero for
- * ambient, where the absence of a uniform *is* the uniform.
- *
- * **One person is allowed to be loud.** `spotlight` is the chance the lead gets
- * the sequinned jacket. Everybody in sequins is a pantomime; one person in
- * sequins in front of five in cream is a Finnish dance band.
- */
-interface Wardrobe {
-  jackets: string[];
-  shirts: string[];
-  trousers: string[];
-  /** The one loud colour: a tie, a scarf, a lining, sequins. */
-  accents: string[];
-  /** Worn by the lead when they get the spotlight jacket. */
-  loud: string[];
-  hair: string[];
-  hairStyles: (readonly [HairStyle, number])[];
-  /** Probability each accessory appears, before the era's density scales it. */
-  accessories: (readonly [Accessory, number])[];
-  /**
-   * What the band's clothes are made of, weighted.
-   *
-   * `sequin` never appears here and that is the point: it is reachable only
-   * through `loudFabric`, and only by the one person fronting the number. A
-   * band in sequins is a pantomime; one person in sequins in front of five in
-   * wool is a Finnish dance band.
-   */
-  fabrics: (readonly [Fabric, number])[];
-  /** What the lead's loud jacket is made of, when they get one. */
-  loudFabric: Fabric;
-  /** …and how often that loud jacket is actually the sequinned one. */
-  sequinChance: number;
-  /** Chance trousers match the jacket rather than being drawn separately. */
-  matched: number;
-  uniform: number;
-  spotlight: number;
-}
-
-const WARDROBE: Record<string, Wardrobe> = {
-  /**
-   * 1960s–70s tanssilava. Pale summer suits, an enormous amount of hair, and
-   * one person in sequins. The era's own table is full of accordions and
-   * tremolo guitar; this is that in cloth.
-   */
-  'iskelma:tanssilava': {
-    jackets: ['#efe6d2', '#bcd0e0', '#cfe0c8', '#d8d2c4', '#e6cfae', '#c8b9d6'],
-    shirts: ['#ffffff', '#fdf6e3', '#f6ead6'],
-    trousers: ['#2f3345', '#4a4436', '#6a6357'],
-    accents: ['#c62828', '#ffb300', '#00897b', '#8e24aa', '#e91e63'],
-    loud: ['#c0c0c0', '#d4af37', '#e8a0c0'],
-    hair: ['#2b1b12', '#4a2f1b', '#6b4423', '#8d6a3f', '#c9a86a', '#a83e2b', '#d9d4cc'],
-    hairStyles: [['beehive', 4], ['bob', 3], ['long', 3], ['slick', 4], ['curls', 3], ['short', 2]],
-    accessories: [['tie', 0.7], ['moustache', 0.3], ['earrings', 0.25], ['glasses', 0.15], ['bowtie', 0.12]],
-    fabrics: [['wool', 7], ['satin', 2], ['velvet', 1]],
-    loudFabric: 'sequin', sequinChance: 0.35,
-    matched: 0.7, uniform: 0.75, spotlight: 0.8,
-  },
-  /**
-   * 1980s iskelmäpop. The same pavilion, lit by par cans, and the palette goes
-   * saturated: white, electric blue, magenta. Bigger hair than the sixties,
-   * which takes some doing.
-   */
-  'iskelma:eighties': {
-    jackets: ['#e8e6e1', '#1f6fb2', '#c2185b', '#00838f', '#f4a3c1', '#3c3f58'],
-    shirts: ['#ffffff', '#ffe9f2', '#dff3ff'],
-    trousers: ['#1c1c22', '#e8e6e1', '#3c3f58'],
-    accents: ['#00e5ff', '#ff2d95', '#ffe000', '#7cff5a'],
-    loud: ['#c0c0c0', '#ff2d95', '#ffe000'],
-    hair: ['#101010', '#2b1b12', '#6b4423', '#c9a86a', '#e8dcae', '#a83e2b', '#d9d4cc'],
-    hairStyles: [['long', 5], ['curls', 5], ['bob', 3], ['slick', 2], ['short', 2], ['beehive', 1]],
-    accessories: [['earrings', 0.45], ['sunglasses', 0.3], ['tie', 0.3], ['moustache', 0.2]],
-    // The decade of the shiny shirt. Satin overtakes wool, and the jacket is
-    // as likely to be leather as to be tailored.
-    fabrics: [['satin', 5], ['wool', 3], ['velvet', 2], ['leather', 1]],
-    loudFabric: 'sequin', sequinChance: 0.45,
-    matched: 0.35, uniform: 0.5, spotlight: 0.85,
-  },
-
-  /**
-   * 1930s–40s swing. Dark suits and a tie on everybody, hair oiled flat. The
-   * most uniform band in the project, because that is what a swing group in a
-   * gilt room was — a *section*, dressed as one.
-   */
-  'jazz:swingera': {
-    jackets: ['#20242e', '#2b2b2b', '#3b3226', '#4a4f5c', '#e9e6dd'],
-    shirts: ['#ffffff', '#fdf9ee'],
-    trousers: ['#20242e', '#2b2b2b', '#3b3226'],
-    accents: ['#7b1e2b', '#1b4d3e', '#8a6d3b', '#2f3e7a'],
-    loud: ['#e9e6dd', '#8a6d3b'],
-    hair: ['#101010', '#22160f', '#3a2416', '#5c4025', '#cfcac2'],
-    hairStyles: [['slick', 6], ['short', 4], ['curls', 1], ['bald', 1]],
-    accessories: [['tie', 0.85], ['moustache', 0.25], ['glasses', 0.2], ['bowtie', 0.2], ['porkpie', 0.15]],
-    // Wool, and very nearly only wool. That is the genre, in three eras.
-    fabrics: [['wool', 9], ['satin', 1]],
-    loudFabric: 'satin', sequinChance: 0,
-    matched: 0.85, uniform: 0.85, spotlight: 0.3,
-  },
-  /**
-   * 1950s–60s bop. The suits stay dark and the ties get narrow; glasses and a
-   * porkpie appear, and so does the first facial hair in the genre. A quintet
-   * in a room nobody had redecorated since the war.
-   */
-  'jazz:bop': {
-    jackets: ['#1c1f27', '#262626', '#333a33', '#3a3340', '#454b57'],
-    shirts: ['#ffffff', '#f2f2ee', '#d8dbe0'],
-    trousers: ['#1c1f27', '#262626', '#2e2e2e'],
-    accents: ['#8e2b2b', '#1f5c4a', '#b08a3e', '#2f3e7a', '#5a3d7a'],
-    loud: ['#b08a3e', '#d8dbe0'],
-    hair: ['#101010', '#22160f', '#3a2416', '#5c4025', '#cfcac2'],
-    hairStyles: [['short', 5], ['slick', 4], ['bald', 2], ['curls', 2]],
-    accessories: [['tie', 0.8], ['glasses', 0.35], ['porkpie', 0.3], ['beard', 0.3], ['sunglasses', 0.12]],
-    fabrics: [['wool', 9], ['satin', 1]],
-    loudFabric: 'wool', sequinChance: 0,
-    matched: 0.8, uniform: 0.72, spotlight: 0.25,
-  },
-  /**
-   * 1960s–70s modern. Where the suit comes off: polo necks, earth colours, a
-   * flat cap, and the band stops matching. The era's palette is Rhodes and
-   * flute rather than trumpet and clarinet, and this is the same loosening.
-   */
-  'jazz:modern': {
-    jackets: ['#2f3a33', '#3a3630', '#232323', '#4a3f52', '#5c4a34'],
-    shirts: ['#1c1c1c', '#5c5347', '#7a6f5e', '#c9bfa8'],
-    trousers: ['#2b2b2b', '#3c3a33', '#4a4438'],
-    accents: ['#c56a2b', '#3f7a6a', '#8a5a9e', '#b8a13c'],
-    loud: ['#c56a2b', '#b8a13c'],
-    hair: ['#101010', '#22160f', '#3a2416', '#5c4025', '#8d6a3f', '#cfcac2'],
-    hairStyles: [['curls', 4], ['short', 4], ['long', 3], ['bald', 2], ['slick', 1]],
-    accessories: [['sunglasses', 0.35], ['beard', 0.35], ['tie', 0.25], ['flatcap', 0.2], ['scarf', 0.15]],
-    // The suit comes apart here along with everything else: corduroy, knit and
-    // the occasional velvet jacket, and wool stops being the whole answer.
-    fabrics: [['wool', 5], ['corduroy', 3], ['knit', 2], ['velvet', 1], ['denim', 1]],
-    loudFabric: 'velvet', sequinChance: 0,
-    matched: 0.45, uniform: 0.4, spotlight: 0.2,
-  },
-
-  /**
-   * 1970s–80s tape. Corduroy, knitwear and an anorak, in the colours of a
-   * decade that had not invented saturation. Hoods up, nobody matching, and the
-   * one place in this project where the *absence* of stage clothes is the
-   * costume: these are people who came to operate equipment.
-   */
-  'ambient:tape': {
-    jackets: ['#5a4a35', '#4a5240', '#6b5b4a', '#3d4450', '#7a6a58'],
-    shirts: ['#8a7a63', '#6f7d6a', '#9a8f7a', '#a89b84'],
-    trousers: ['#3a3a3a', '#4b4438', '#55503f'],
-    accents: ['#b4653a', '#5f7d8c', '#8a7a2b'],
-    loud: ['#b4653a'],
-    hair: ['#22160f', '#3a2416', '#5c4025', '#8d6a3f', '#a83e2b', '#cfcac2'],
-    hairStyles: [['hood', 4], ['long', 4], ['short', 3], ['curls', 2], ['bald', 1]],
-    accessories: [['beard', 0.4], ['glasses', 0.35], ['scarf', 0.3], ['headphones', 0.3]],
-    // Nothing that catches light, in any ambient era. Half the point of that
-    // room is that nobody in it is trying to be seen.
-    fabrics: [['knit', 5], ['corduroy', 4], ['nylon', 3], ['denim', 2], ['wool', 1]],
-    loudFabric: 'knit', sequinChance: 0,
-    matched: 0.2, uniform: 0.08, spotlight: 0.05,
-  },
-  /**
-   * 1990s sampler. Black and grey cagoules, hoods, headphones. The era whose
-   * own effects table filters the drum kit to 1.4 kHz so the beat arrives
-   * through a wall; the people should be about as visible as the beat is.
-   */
-  'ambient:sampler': {
-    jackets: ['#1f2124', '#2b2f33', '#3a3f45', '#26302b', '#2e2a33'],
-    shirts: ['#3a3f45', '#4a4f55', '#2b2f33'],
-    trousers: ['#1a1c1f', '#2b2f33', '#33383d'],
-    accents: ['#4a9ec9', '#7a8f3c', '#b0562b'],
-    loud: ['#4a9ec9'],
-    hair: ['#101010', '#22160f', '#3a2416', '#5c4025', '#cfcac2'],
-    hairStyles: [['hood', 6], ['short', 4], ['long', 2], ['bald', 2]],
-    accessories: [['headphones', 0.45], ['glasses', 0.3], ['beard', 0.3], ['scarf', 0.15]],
-    fabrics: [['nylon', 6], ['knit', 4], ['denim', 2], ['wool', 1]],
-    loudFabric: 'nylon', sequinChance: 0,
-    matched: 0.35, uniform: 0.12, spotlight: 0.05,
-  },
-  /**
-   * 2000s hybrid. Greys, knitwear and a scarf — the era where the sources went
-   * back to being real strings and real voices, so the people look like players
-   * again rather than like operators.
-   */
-  'ambient:hybrid': {
-    jackets: ['#2c2e33', '#3d4046', '#4a4a4a', '#3a4440', '#55545a'],
-    shirts: ['#6a6e74', '#8a8d92', '#4a4d52', '#b3b0a8'],
-    trousers: ['#232529', '#33363b', '#42454a'],
-    accents: ['#8a6b4a', '#4a7a8a', '#7a5a8a'],
-    loud: ['#8a6b4a'],
-    hair: ['#101010', '#22160f', '#3a2416', '#5c4025', '#8d6a3f', '#cfcac2'],
-    hairStyles: [['short', 5], ['hood', 3], ['long', 3], ['bald', 2], ['curls', 2]],
-    accessories: [['scarf', 0.35], ['glasses', 0.35], ['beard', 0.3], ['headphones', 0.2]],
-    fabrics: [['knit', 5], ['wool', 3], ['nylon', 3], ['denim', 1]],
-    loudFabric: 'knit', sequinChance: 0,
-    matched: 0.4, uniform: 0.15, spotlight: 0.08,
-  },
-};
-
-/**
- * A plain concert dress for a genre or era this file has never met.
- *
- * Dull on purpose, for the same reason `venue.ts` keeps a fourth room: an
+ * Dull on purpose, for the same reason `venue.ts` keeps the house room: an
  * unknown genre should stage badly and obviously, not adequately.
+ *
+ * **The clothes that are not dull are no longer in this file.** Eight wardrobes
+ * were declared here, keyed `genre:era`, and the key is the reason they left: it
+ * made this file a registry every genre author had to edit, and the newest genre
+ * proved the point by never being added to it. Each genre carries its own now —
+ * `Genre.staging.wardrobe`, in the genre's own folder, with the per-era comments
+ * that argue them intact — and the `Wardrobe` shape sits in `genre/types.ts`
+ * beside the rest of that contract.
+ *
+ * What stays here is the part that is the stage's rather than any genre's: this
+ * dress, the rule about what cannot be worn at once, and `makeLook`, which is
+ * where a wardrobe becomes a person. `Fabric` left as well — it was declared
+ * locally with a note saying it was a duplicate "only until the same union lands
+ * in `concert/types.ts`", it has, and the nine values matched verbatim.
  */
 const PLAIN: Wardrobe = {
   jackets: ['#2b2f36', '#3a3f47', '#4a4438'],
@@ -580,37 +375,52 @@ const PLAIN: Wardrobe = {
  * Accessories that cannot be worn together.
  *
  * One hat, one thing on the eyes, one thing round the neck, one arrangement of
- * facial hair. Without this the probabilities compound and a fifth of the band
- * ends up in a porkpie *and* a flat cap *and* a bow tie *and* a scarf, which is
- * the exact costume-party failure the plan warns about.
+ * facial hair, one pair of ears. Without this the probabilities compound and a
+ * fifth of the band ends up in a porkpie *and* a flat cap *and* a bow tie *and*
+ * a scarf, which is the exact costume-party failure the plan warns about.
+ *
+ * **The groups are places on a body, not a list of lookalikes**, and that is
+ * what makes them safe to extend. The hat group went from two members to seven
+ * when fifteen genres arrived wanting a ball cap, a beanie, a cowboy hat, a
+ * bandana and a turban — none of which resembles a porkpie, all of which occupy
+ * the same head. A grouping written around resemblance would have let every one
+ * of them through.
+ *
+ * `headphones` is deliberately *not* in the hat group. A tender at a rig in a
+ * beanie and cans is a real photograph of the sampler era, and the one place
+ * where two things on a head is the correct answer.
+ *
+ * A value added to `Accessory` without a group here is a player in a cowboy hat
+ * and a beanie. There is no compiler check for that — the union is in
+ * `concert/types.ts` and this is a plain array — so it is worth saying out loud:
+ * adding to that union means adding to this.
  */
 const EXCLUSIVE: Accessory[][] = [
-  ['porkpie', 'flatcap'],
-  ['glasses', 'sunglasses'],
-  ['tie', 'bowtie', 'scarf'],
+  ['porkpie', 'flatcap', 'ballcap', 'beanie', 'cowboyhat', 'bandana', 'turban'],
+  ['glasses', 'sunglasses', 'wraparounds'],
+  ['tie', 'bowtie', 'scarf', 'towel', 'chain'],
   ['beard', 'moustache'],
+  // Studs and hoops are the same ears.
+  ['earrings', 'hoops'],
 ];
 
 /** Three is a look. Five is a fancy-dress shop. */
 const MAX_ACCESSORIES = 3;
 
 /**
- * The era a genre falls back to when it is handed one it does not have.
+ * What this band is wearing tonight.
  *
- * Better than dropping straight to `PLAIN`: an iskelmä band in an unknown era
- * should still be an iskelmä band. The default in each case is the era the
- * genre is most itself in.
+ * Three steps down, and the middle one is the one worth keeping. A genre handed
+ * an era it has no clothes for falls back to *its own* default era rather than
+ * straight to the plain dress — an iskelmä band in an unknown decade should
+ * still be an iskelmä band — and only a genre that has said nothing at all ends
+ * up in the house's concert black. See `Staging.defaultEra`.
  */
-const DEFAULT_ERA: Record<string, string> = {
-  iskelma: 'tanssilava',
-  jazz: 'bop',
-  ambient: 'tape',
-};
-
 function wardrobeFor(genre: string, era: string): Wardrobe {
-  return WARDROBE[`${genre}:${era}`]
-    ?? WARDROBE[`${genre}:${DEFAULT_ERA[genre] ?? ''}`]
-    ?? PLAIN;
+  const staging = GENRES[genre]?.staging;
+  const table = staging?.wardrobe;
+  if (!table) return PLAIN;
+  return table[era] ?? table[staging?.defaultEra ?? ''] ?? PLAIN;
 }
 
 /**
@@ -684,9 +494,11 @@ function makeLook(args: {
   }
 
   const hairStyle = rng.weighted(w.hairStyles);
-  // Built as a variable rather than inline so the pending `fabric` field can be
-  // emitted before `Look.outfit` in the frozen contract declares it. Remove
-  // this note when the type lands.
+  // One fabric for the whole outfit, drawn once. A satin shirt over a wool suit
+  // is not expressible, and that is a wardrobe decision nobody has asked for
+  // rather than an oversight — the renderer applies this to jacket, shirt,
+  // lapels, sleeves and trousers alike, and `clothSurface` says why it declines
+  // to invent a second value of its own.
   const outfit = { jacket, shirt, trousers, accent, fabric };
   return {
     skin: rng.pick(SKIN),

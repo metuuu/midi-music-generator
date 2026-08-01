@@ -5,11 +5,16 @@
  *
  * Nothing here chooses anything. The genre and the era decided the sequinned
  * jacket and the beehive long before this file ran — see `concert/cast.ts` —
- * and the job here is to render the eight hair styles and the eleven
+ * and the job here is to render the sixteen hair styles and the twenty
  * accessories the contract names, not to have opinions about which suits a
  * trombonist. Every branch below is a `switch` over a frozen union, which is
  * deliberate: adding a hair style to `concert/types.ts` should fail the build
- * here rather than quietly produce a bald accordionist.
+ * here rather than quietly produce a bald accordionist. That is now enforced
+ * rather than hoped for — each switch ends in a `never` assignment, because a
+ * `switch` in a function returning `void` will otherwise accept a missing case
+ * in silence, which is exactly the failure the paragraph above claims cannot
+ * happen: a silhouette a genre's wardrobe asks for every night and which never
+ * once appears on stage.
  *
  * ## The local frame, and the one thing that is easy to get backwards
  *
@@ -380,25 +385,39 @@ export function fitLimb(mesh: Mesh, a: Vector3, b: Vector3, radius: number): voi
  * in the jacket colour, a soft shirt front proud of it, two lapels, and
  * whatever the accent lands on. The seated postures get a lap, which is added
  * to the root rather than the torso because a thigh does not follow a lean.
+ *
+ * One fabric is also a shape here, and exactly one — see the `brocade` note
+ * below for why that is not the beginning of a fabric-by-fabric wardrobe. The
+ * other fourteen are reflectance, and reflectance is `clothSurface`'s.
  */
 export function dressTorso(
   torso: Group, look: Look, p: Proportions, l: Leases,
 ): Mesh {
-  const { jacket, shirt, trousers } = look.outfit;
+  const { jacket, shirt, trousers, fabric } = look.outfit;
 
-  const body = new Mesh(torsoShell(l), clothSurface(l, jacket));
+  const body = new Mesh(torsoShell(l), clothSurface(l, jacket, fabric));
   body.scale.set(p.torsoW, p.torsoH, p.torsoD);
   body.castShadow = true;
   torso.add(body);
 
   // Shirt front — a soft mass sitting proud of the jacket, so the two read as
   // layers rather than as a decal.
-  const front = new Mesh(orb(l), clothSurface(l, shirt));
+  //
+  // It takes the outfit's fabric like everything else, because the IR carries
+  // exactly one: `Look.outfit.fabric` is drawn once per player. Giving the shirt
+  // a matte value of its own here would stop a sequinned lead from glittering at
+  // the collar, which is tempting and is the renderer inventing wardrobe policy
+  // — the thing this file is otherwise careful never to do. If a satin shirt
+  // over a wool suit is wanted, that is a second field in the wardrobe, decided
+  // by the genre that owns the clothes. Note that `satin`'s own doc comment
+  // already describes it as a shirt fabric, so the single value is not obviously
+  // the wrong reading of what the tables mean today.
+  const front = new Mesh(orb(l), clothSurface(l, shirt, fabric));
   front.scale.set(p.torsoW * 0.34, p.torsoH * 0.48, p.torsoD * 0.34);
   front.position.set(0, p.torsoH * 0.74, p.torsoD * 0.34);
   torso.add(front);
 
-  const lapelMat = clothSurface(l, shade(jacket, -0.07));
+  const lapelMat = clothSurface(l, shade(jacket, -0.07), fabric);
   for (const s of [SIDE.left, SIDE.right]) {
     const lapel = new Mesh(slab(l), lapelMat);
     lapel.scale.set(p.torsoW * 0.13, p.torsoH * 0.36, p.torsoD * 0.10);
@@ -411,11 +430,38 @@ export function dressTorso(
   // to be wide and deep enough to bury the top of each one — see the socket in
   // `performer-legs.ts`, which sits at 30 % of the shoulder width and is inside
   // this by a comfortable margin.
-  const hips = new Mesh(orb(l), clothSurface(l, trousers));
+  const hips = new Mesh(orb(l), clothSurface(l, trousers, fabric));
   hips.scale.set(p.torsoW * 0.88, p.torsoH * 0.34, p.torsoD * 0.98);
   hips.position.set(0, -p.torsoH * 0.05, 0);
   hips.castShadow = true;
   torso.add(hips);
+
+  /**
+   * Embroidery, which is the one thing a fabric can be that a material cannot.
+   *
+   * Every other value in `Fabric` is a statement about *reflectance* — what a
+   * follow spot does when it crosses the cloth — and a shader is the right place
+   * for all of them. `brocade` is not that. It is a woven pattern with metal
+   * thread in it, and the thing that says so from row twenty is neither sheen
+   * nor colour but a *band*: a placket down the front of the coat and a border
+   * round the hem, brighter than the cloth they are on. Sherwani, folk waistcoat
+   * and court coat are all that band in different proportions, which is why one
+   * pair of shapes serves four genres, and why this is geometry rather than a
+   * number handed to `clothSurface`.
+   */
+  if (look.outfit.fabric === 'brocade') {
+    const thread = surface(l, look.outfit.accent, { roughness: 0.42, metalness: 0.35 });
+    // Proud of the shirt front by a centimetre — it is on the coat, over the
+    // shirt, and buried in it at any depth less than this.
+    const placket = new Mesh(slab(l), thread);
+    placket.scale.set(p.torsoW * 0.13, p.torsoH * 0.78, p.torsoD * 0.10);
+    placket.position.set(0, p.torsoH * 0.52, p.torsoD * 0.52);
+    torso.add(placket);
+    const hem = new Mesh(tube(l), thread);
+    hem.scale.set(p.torsoW * 0.80, p.torsoH * 0.07, p.torsoD * 0.82);
+    hem.position.set(0, p.torsoH * 0.16, 0);
+    torso.add(hem);
+  }
 
   // There were two stand-in thighs here for the seated postures: capsules
   // parented to the root at a fixed angle, which did not move, did not reach
@@ -432,17 +478,28 @@ export function dressTorso(
 // ---------------------------------------------------------------------------
 
 /**
- * Eight styles, all built from the same three primitives.
+ * Sixteen styles, nearly all built from the same three primitives.
  *
  * Two of them are load-bearing. The crown is an ellipsoid pushed back and up
  * so the hairline clears the brows, and it is all a short style needs. The
  * shell is a whole head of hair for the styles that hang: everything with
- * length — a bob's wings, a curtain, the fall down the nape — grows out of
- * that rather than being asked to cover the skull as well as reach. A
- * beehive's tower and seven curls still sit on the crown. `hood` is the odd
- * one out: it is
- * jacket-coloured outerwear, not hair, and it needs an open shell so the face
- * is a hole in the geometry rather than a hole in a texture.
+ * length — a bob's wings, a curtain, the fall down the nape, a rope — grows out
+ * of that rather than being asked to cover the skull as well as reach. A
+ * beehive's tower and seven curls still sit on the crown. `hood` and `wrap` are
+ * the odd ones out: they are cloth rather than hair, and both need an open shell
+ * so the face is a hole in the geometry rather than a hole in a texture.
+ *
+ * ## The one number every style here is written against
+ *
+ * The face lives between `z +0.76R` and `z +1.03R` — brow, eye, cheek, nose,
+ * lip, in that order outward — and hair is seen *along* that axis from the
+ * house. So the recurring question below is not how long a style is but how far
+ * forward it comes at the height of the eyes, and almost every position in this
+ * function is the answer to it. Mass that reaches the face does not sit beside
+ * it; it is drawn over the whole of it. An afro is a case in point: it is a
+ * 42-centimetre ellipsoid and the only reason it is not a helmet is that its
+ * centre is `0.85R` behind the skull's, which buys back everything the width
+ * costs at eye level and nothing at all at the crown.
  */
 export function buildHair(
   head: Object3D, look: Look, p: Proportions, l: Leases, rng: Rng,
@@ -568,6 +625,179 @@ export function buildHair(
       break;
     }
 
+    case 'mane': {
+      // `long` with more of it would be a synonym, so this is not that. Two
+      // things separate them and both are about where the hair *ends* rather
+      // than how much there is. It falls past the shoulder blades rather than
+      // to the shoulder line, which is the difference between a haircut and a
+      // mass; and a pair of locks come forward over the collarbones, which is
+      // the thing `long`'s curtains never do — they stop at the jaw and leave
+      // the shoulders bare. A head bent over a guitar should disappear into
+      // this, and the front locks are most of why it does.
+      crown(2.08, 1.18, 2.08, 0.52, -0.20);
+      shell();
+      for (const s of [SIDE.left, SIDE.right]) {
+        const fall = new Mesh(orb(l), mat);
+        fall.scale.set(R * 0.92, R * 4.40, R * 1.34);
+        fall.position.set(s * R * 0.94, -R * 1.75, -R * 0.26);
+        fall.castShadow = true;
+        head.add(fall);
+        // Forward of the ear and nowhere near the cheek: the front edge lands
+        // at z +0.61R, still well behind the brow line.
+        const front = new Mesh(orb(l), mat);
+        front.scale.set(R * 0.62, R * 2.10, R * 0.62);
+        front.position.set(s * R * 0.80, -R * 1.40, R * 0.30);
+        front.castShadow = true;
+        head.add(front);
+      }
+      const back = new Mesh(orb(l), mat);
+      back.scale.set(R * 2.15, R * 4.60, R * 1.10);
+      back.position.set(0, -R * 1.85, -R * 0.78);
+      back.castShadow = true;
+      head.add(back);
+      break;
+    }
+
+    case 'mullet': {
+      // Short from the front and long from the side, which is the entire joke
+      // and also the entire geometry. There is deliberately nothing beside the
+      // face — a mullet with curtains is `long` — so the crown is the one from
+      // `short`, the tail hangs off the occiput alone, and the two flicks over
+      // the ears exist only so the tail has somewhere to have come from.
+      crown(2.08, 1.16, 2.08, 0.54, -0.18);
+      const tail = new Mesh(orb(l), mat);
+      tail.scale.set(R * 1.44, R * 2.60, R * 1.05);
+      tail.position.set(0, -R * 1.10, -R * 0.78);
+      tail.castShadow = true;
+      head.add(tail);
+      for (const s of [SIDE.left, SIDE.right]) {
+        const flick = new Mesh(orb(l), mat);
+        flick.scale.set(R * 0.70, R * 0.85, R * 1.30);
+        flick.position.set(s * R * 0.92, -R * 0.30, -R * 0.42);
+        head.add(flick);
+      }
+      break;
+    }
+
+    case 'dreadlocks': {
+      // Ropes, and the reason they are ten separate meshes rather than one
+      // shaped mass is that they are the only hair in this file with *gaps* in
+      // it. A back light goes between them, the silhouette is a comb rather
+      // than a slab, and a head turn moves them at slightly different times.
+      // A single ellipsoid does none of that and reads as `long` in a wig.
+      shell();
+      const n = 10;
+      for (let i = 0; i < n; i++) {
+        // Round the head from the right temple, backwards, to the left, with
+        // the front 90° left out — a lock over the nose is not a hairstyle.
+        const a = Math.PI * (0.75 + (i / (n - 1)) * 1.50);
+        const half = R * rng.float(0.95, 1.42);
+        const lock = new Mesh(pill(l), mat);
+        lock.scale.set(R * 0.30, half, R * 0.30);
+        const x = Math.cos(a) * R * 0.90;
+        lock.position.set(x, R * 0.14 - half, Math.sin(a) * R * 0.86 - R * 0.14);
+        // Flared out at the tip, away from whichever side it grew on.
+        lock.rotation.z = (x >= 0 ? 1 : -1) * rng.float(0.06, 0.18);
+        lock.castShadow = true;
+        head.add(lock);
+      }
+      break;
+    }
+
+    case 'braids': {
+      // A tight scalp and one heavy plait behind it. Cornrows themselves are a
+      // pattern rather than a shape and there is no honest way to build one
+      // here — a row is an arc over a curved skull and a straight capsule laid
+      // across it is buried at the crown and floating at both ends — so what is
+      // built is what a row of them *becomes*, which is the plait, and which is
+      // also the Nordic and the country one. The five knots are the read: a
+      // braid is a segmented rope and a smooth one is a ponytail.
+      crown(2.04, 1.10, 2.06, 0.52, -0.20);
+      for (let i = 0; i < 5; i++) {
+        const knot = new Mesh(orb(l), mat);
+        const w = R * (0.66 - 0.07 * i);
+        knot.scale.set(w, w * 1.10, w);
+        knot.position.set(
+          // Alternating sides by a few millimetres, which is what makes the
+          // stack a plait instead of a string of beads.
+          (i % 2 === 0 ? 1 : -1) * R * 0.08,
+          -R * 0.55 * i,
+          -R * (0.98 + 0.04 * i),
+        );
+        knot.castShadow = true;
+        head.add(knot);
+      }
+      break;
+    }
+
+    case 'mohawk': {
+      // The only style here that is mostly skull, and it has no crown at all
+      // for that reason: shaved sides mean the head's own skin is the hair.
+      // Eight cones rather than one fin, because the fin has to *follow* the
+      // skull and a straight ridge cannot — its height is solved per cone from
+      // the skull's own ellipse, so the crest grows out of the head at the
+      // hairline and again at the nape without a number being tuned.
+      const n = 8;
+      for (let i = 0; i < n; i++) {
+        const t = i / (n - 1);
+        const z = R * (0.68 - 1.44 * t);
+        const skull = R * 1.05 * Math.sqrt(Math.max(0, 1 - (z / (R * 0.95)) ** 2));
+        const h = R * (0.55 + 1.20 * Math.sin(Math.PI * t));
+        const fin = new Mesh(spike(l), mat);
+        // Bases wider than the spacing, so the crest is continuous.
+        fin.scale.set(R * 0.44, h, R * 0.54);
+        fin.position.set(0, skull + h * 0.42, z);
+        fin.castShadow = true;
+        head.add(fin);
+      }
+      break;
+    }
+
+    case 'afro': {
+      // See the header: the width is free and the depth is not. The halo's
+      // centre sits 0.85R behind the skull's, which puts its front edge at
+      // z +0.59R at eye level and z +0.69R at the brow — behind the face
+      // everywhere it matters — while costing nothing at the crown, where there
+      // is no face to clear. The crown underneath is not decoration; without it
+      // a hairline of bare scalp shows between the forehead and the halo.
+      crown(2.02, 1.14, 2.04, 0.52, -0.18);
+      const halo = new Mesh(orb(l), mat);
+      halo.scale.set(R * 3.30, R * 2.95, R * 3.10);
+      halo.position.set(0, R * 0.55, -R * 0.85);
+      halo.castShadow = true;
+      head.add(halo);
+      // Seven lumps on the silhouette itself. An ellipsoid this size has a
+      // perfect edge and nothing else in the room does; these break it.
+      for (let i = 0; i < 7; i++) {
+        const a = Math.PI * (-0.14 + (i / 6) * 1.28) + rng.float(-0.12, 0.12);
+        const bump = new Mesh(bead(l), mat);
+        bump.scale.setScalar(R * rng.float(0.52, 0.82));
+        bump.position.set(
+          Math.cos(a) * R * 1.60,
+          R * 0.55 + Math.sin(a) * R * 1.42,
+          -R * 0.85,
+        );
+        head.add(bump);
+      }
+      break;
+    }
+
+    case 'updo': {
+      // The least geometry of any style here, and that is what it is for. A
+      // platform player's hair is *controlled* — the shape is the absence of
+      // one — so it is a smooth crown and a knot, and the only thing carrying
+      // it is the surface: pinned hair runs a single band of light round the
+      // skull the way `slick` does, where a matte crown would read as short.
+      const c = crown(2.02, 1.08, 2.04, 0.52, -0.22);
+      c.material = surface(l, look.hair, { roughness: 0.34, metalness: 0.10 });
+      const bun = new Mesh(orb(l), c.material);
+      bun.scale.set(R * 1.22, R * 1.10, R * 1.12);
+      bun.position.set(0, -R * 0.10, -R * 1.18);
+      bun.castShadow = true;
+      head.add(bun);
+      break;
+    }
+
     case 'curls': {
       crown(1.94, 1.02, 1.94, 0.50, -0.20);
       // Seeded, so the same performer has the same head of hair every show.
@@ -599,6 +829,37 @@ export function buildHair(
       head.add(shell);
       break;
     }
+
+    case 'wrap': {
+      // The same open shell as a hood and three deliberate differences from
+      // one, because at ten metres those are the whole distinction. It is cut
+      // to the skull rather than standing off it, so it is a covered head and
+      // not a garment with a head somewhere inside; it takes the accent colour
+      // rather than the jacket's, because a scarf over the hair is the one
+      // loud thing a player in an otherwise plain outfit is wearing; and it
+      // falls onto the shoulders, where a hood hangs behind them.
+      const cloth = surface(l, look.outfit.accent, {
+        roughness: 0.90, metalness: 0.04, doubleSide: true,
+      });
+      const cover = new Mesh(hoodShell(l), cloth);
+      cover.scale.set(R * 2.32, R * 2.44, R * 2.40);
+      cover.position.set(0, R * 0.02, -R * 0.16);
+      cover.castShadow = true;
+      head.add(cover);
+      for (const s of [SIDE.left, SIDE.right]) {
+        const fall = new Mesh(orb(l), cloth);
+        fall.scale.set(R * 0.86, R * 2.10, R * 1.20);
+        fall.position.set(s * R * 0.88, -R * 0.85, -R * 0.34);
+        fall.castShadow = true;
+        head.add(fall);
+      }
+      break;
+    }
+
+    default:
+      // See the header. Not reachable, and that is the point: a new value in
+      // `HairStyle` fails here rather than walking on stage bald.
+      assertBuilt(style);
   }
 }
 
@@ -613,7 +874,7 @@ export interface Attachments {
   neckY: number;
 }
 
-/** Eleven of them, each one built where it belongs and never anywhere else. */
+/** Twenty of them, each one built where it belongs and never anywhere else. */
 export function buildAccessories(
   at: Attachments, look: Look, p: Proportions, l: Leases,
 ): void {
@@ -667,6 +928,26 @@ function buildAccessory(
       break;
     }
 
+    case 'wraparounds': {
+      // One band, not two discs, and that is the only reason this is not
+      // `sunglasses` in a different frame. A single ellipsoid does it: wide
+      // enough to pass outboard of both temples, shallow enough in `y` to be a
+      // visor rather than a mask, and it curves round the face for free because
+      // that is what an ellipsoid does.
+      const lens = surface(l, '#101014', { roughness: 0.10, metalness: 0.72 });
+      const visor = new Mesh(orb(l), lens);
+      visor.scale.set(R * 1.92, R * 0.58, R * 1.16);
+      visor.position.set(0, R * 0.14, R * 0.44);
+      head.add(visor);
+      for (const s of [SIDE.left, SIDE.right]) {
+        const arm = new Mesh(slab(l), lens);
+        arm.scale.set(R * 0.07, R * 0.07, R * 0.80);
+        arm.position.set(s * R * 0.94, R * 0.18, R * 0.42);
+        head.add(arm);
+      }
+      break;
+    }
+
     case 'porkpie': {
       const felt = surface(l, shade(look.outfit.jacket, -0.16), { roughness: 0.95 });
       const crown = new Mesh(tube(l), felt);
@@ -698,6 +979,131 @@ function buildAccessory(
       peak.position.set(0, R * 0.44, R * 0.86);
       peak.rotation.x = -0.16;
       head.add(peak);
+      break;
+    }
+
+    case 'ballcap': {
+      // Backwards, and that is a decision rather than a shortcut. `flatcap`
+      // already covers a soft cap with the peak the right way round, so a
+      // second forward-peaked cap would be one hat with two names; and a peak
+      // over the brows puts the whole face in shadow under a follow spot, which
+      // is a real cost on the one player most likely to be wearing it. In the
+      // accent colour, because a cap is a statement where a flat cap is part of
+      // the suit.
+      const cloth = surface(l, accent, { roughness: 0.85 });
+      const dome = new Mesh(orb(l), cloth);
+      dome.scale.set(R * 2.22, R * 1.42, R * 2.26);
+      dome.position.set(0, R * 0.58, -R * 0.16);
+      dome.castShadow = true;
+      head.add(dome);
+      const peak = new Mesh(orb(l), cloth);
+      peak.scale.set(R * 1.55, R * 0.18, R * 1.30);
+      peak.position.set(0, R * 0.42, -R * 1.16);
+      // Tipped up at the far end, which is what a peak does when the head it
+      // is sitting on slopes away underneath it.
+      peak.rotation.x = 0.20;
+      head.add(peak);
+      const button = new Mesh(bead(l), cloth);
+      button.scale.setScalar(R * 0.20);
+      button.position.set(0, R * 1.28, -R * 0.16);
+      head.add(button);
+      break;
+    }
+
+    case 'beanie': {
+      // A dome and a rolled hem, and the hem is the whole silhouette — without
+      // it this is a swimming cap. The roll is the fat torus the scarf uses,
+      // laid flat round the skull at brow height, which is exactly where a
+      // beanie is pulled down to and just clear of the top of the eyes.
+      const knit = surface(l, shade(look.outfit.jacket, -0.12), { roughness: 0.98 });
+      const dome = new Mesh(orb(l), knit);
+      dome.scale.set(R * 2.24, R * 1.45, R * 2.26);
+      dome.position.set(0, R * 0.66, -R * 0.20);
+      dome.castShadow = true;
+      head.add(dome);
+      const roll = new Mesh(collar(l), knit);
+      roll.scale.set(R * 2.30, R * 2.30, R * 0.90);
+      roll.rotation.x = Math.PI / 2;
+      roll.position.set(0, R * 0.50, -R * 0.14);
+      head.add(roll);
+      break;
+    }
+
+    case 'cowboyhat': {
+      // The one hat in the union that is read from its *outline* rather than
+      // from its colour: a brim two and a half heads across, and a crown twice
+      // the height of the porkpie's. The two turned edges are what stop it
+      // being a lampshade — a flat disc that wide reads as a table.
+      const felt = surface(l, shade(look.outfit.jacket, -0.14), { roughness: 0.96 });
+      const crown = new Mesh(tube(l), felt);
+      crown.scale.set(R * 1.96, R * 1.55, R * 1.90);
+      crown.position.set(0, R * 1.42, -R * 0.12);
+      crown.castShadow = true;
+      head.add(crown);
+      const brim = new Mesh(tube(l), felt);
+      brim.scale.set(R * 3.60, R * 0.10, R * 3.20);
+      brim.position.set(0, R * 0.66, -R * 0.12);
+      brim.castShadow = true;
+      head.add(brim);
+      for (const s of [SIDE.left, SIDE.right]) {
+        const curl = new Mesh(slab(l), felt);
+        curl.scale.set(R * 0.40, R * 0.44, R * 2.60);
+        curl.position.set(s * R * 1.70, R * 0.80, -R * 0.12);
+        curl.rotation.z = -s * 0.55;
+        head.add(curl);
+      }
+      const band = new Mesh(tube(l), surface(l, accent, { roughness: 0.7 }));
+      band.scale.set(R * 2.01, R * 0.22, R * 1.95);
+      band.position.set(0, R * 0.82, -R * 0.12);
+      head.add(band);
+      break;
+    }
+
+    case 'bandana': {
+      // Tied at the brow rather than perched on the crown, which is the tell:
+      // it sits lower than any hat here and covers the hairline entirely. The
+      // knot and the two tails behind are what separate it from a swim cap, and
+      // they are the part that shows when the player is facing the drummer.
+      const cloth = surface(l, accent, { roughness: 0.92 });
+      const cap = new Mesh(orb(l), cloth);
+      cap.scale.set(R * 2.12, R * 1.20, R * 2.16);
+      cap.position.set(0, R * 0.54, -R * 0.22);
+      cap.castShadow = true;
+      head.add(cap);
+      const knot = new Mesh(bead(l), cloth);
+      knot.scale.setScalar(R * 0.44);
+      knot.position.set(0, R * 0.06, -R * 1.06);
+      head.add(knot);
+      for (const s of [SIDE.left, SIDE.right]) {
+        const tail = new Mesh(slab(l), cloth);
+        tail.scale.set(R * 0.26, R * 1.05, R * 0.10);
+        tail.position.set(s * R * 0.20, -R * 0.55, -R * 1.10);
+        tail.rotation.z = s * 0.16;
+        head.add(tail);
+      }
+      break;
+    }
+
+    case 'turban': {
+      // Bulk *above* the skull with a brow band under it, which is the shape
+      // wrapped cloth actually takes and the reason this is an accessory rather
+      // than a hairstyle: hair shows below it. That is also what earns it twice
+      // over — over a shaved head or an updo it is a turban, and over
+      // `dreadlocks` it is the tam, which is the same object from the stalls.
+      const cloth = surface(l, accent, { roughness: 0.88, metalness: 0.05 });
+      const bulk = new Mesh(orb(l), cloth);
+      bulk.scale.set(R * 2.46, R * 1.90, R * 2.46);
+      bulk.position.set(0, R * 1.00, -R * 0.14);
+      bulk.castShadow = true;
+      head.add(bulk);
+      for (let i = 0; i < 2; i++) {
+        const k = 2.30 - i * 0.28;
+        const wind = new Mesh(collar(l), cloth);
+        wind.scale.set(R * k, R * k, R * 0.80);
+        wind.rotation.x = Math.PI / 2;
+        wind.position.set(0, R * (0.52 + i * 0.52), -R * 0.14);
+        head.add(wind);
+      }
       break;
     }
 
@@ -745,6 +1151,46 @@ function buildAccessory(
       break;
     }
 
+    case 'towel': {
+      // A scarf is worn and this is *used*, which is a distinction the eye
+      // makes instantly and which lives in two numbers: it is off-white
+      // towelling rather than the accent colour — the one thing on a performer
+      // that is not part of an outfit — and it hangs in two even falls rather
+      // than one thrown tail, because it was put there straight and nobody has
+      // arranged it since.
+      const terry = surface(l, '#e6e2d8', { roughness: 1 });
+      const loop = new Mesh(collar(l), terry);
+      loop.scale.set(p.torsoW * 0.80, p.torsoW * 0.80, p.torsoD * 1.10);
+      loop.rotation.x = Math.PI / 2;
+      loop.position.set(0, at.neckY, 0);
+      torso.add(loop);
+      for (const s of [SIDE.left, SIDE.right]) {
+        const fall = new Mesh(slab(l), terry);
+        fall.scale.set(p.torsoW * 0.20, p.torsoH * 0.46, p.torsoD * 0.10);
+        fall.position.set(s * p.torsoW * 0.17, at.neckY - p.torsoH * 0.25, p.torsoD * 0.50);
+        fall.rotation.z = s * 0.05;
+        torso.add(fall);
+      }
+      break;
+    }
+
+    case 'chain': {
+      // No rotation, for the reason the headphone band carries the note: a
+      // torus already lies in the `xy` plane, and that is the plane a chain
+      // hangs in against a chest. Turned flat like the scarf's loop it would be
+      // a ring round the neck seen edge-on, which from the house is a line.
+      const metal = surface(l, accent, { roughness: 0.16, metalness: 0.95 });
+      const loop = new Mesh(hoop(l), metal);
+      loop.scale.set(p.torsoW * 0.44, p.torsoH * 0.28, p.torsoD * 0.30);
+      loop.position.set(0, at.neckY - p.torsoH * 0.18, p.torsoD * 0.44);
+      torso.add(loop);
+      const pendant = new Mesh(bead(l), metal);
+      pendant.scale.setScalar(p.torsoW * 0.09);
+      pendant.position.set(0, at.neckY - p.torsoH * 0.32, p.torsoD * 0.48);
+      torso.add(pendant);
+      break;
+    }
+
     case 'beard': {
       const hair = hairSurface(l, look.hair);
       const chin = new Mesh(orb(l), hair);
@@ -776,6 +1222,26 @@ function buildAccessory(
       break;
     }
 
+    case 'hoops': {
+      // Hung from the same lobe the stud sits on, and in the `xy` plane for the
+      // same reason the chain is: a hoop turned front-to-back is edge-on to
+      // every seat in the house and reads as a scratch on the jaw. This one is
+      // a ring below the jawline that catches the key light and swings with a
+      // head turn, which is the entire point of the shape.
+      const metal = surface(l, accent, { roughness: 0.18, metalness: 0.9 });
+      for (const s of [SIDE.left, SIDE.right]) {
+        const lobe = new Mesh(bead(l), metal);
+        lobe.scale.setScalar(R * 0.15);
+        lobe.position.set(s * R * 0.99, -R * 0.30, R * 0.04);
+        head.add(lobe);
+        const ring = new Mesh(hoop(l), metal);
+        ring.scale.set(R * 0.66, R * 0.66, R * 0.44);
+        ring.position.set(s * R * 0.97, -R * 0.62, R * 0.06);
+        head.add(ring);
+      }
+      break;
+    }
+
     case 'headphones': {
       const shell = surface(l, '#20202a', { roughness: 0.5, metalness: 0.2 });
       const band = new Mesh(hoop(l), shell);
@@ -797,10 +1263,29 @@ function buildAccessory(
       }
       break;
     }
+
+    default:
+      assertBuilt(a);
   }
 }
 
 // ---------------------------------------------------------------------------
+
+/**
+ * The compile-time half of "every value in the union is built here".
+ *
+ * A `switch` over a union in a function returning `void` is not checked for
+ * exhaustiveness by anything — TypeScript is perfectly happy for a case to be
+ * missing, and the result is not an error but a wardrobe entry that draws
+ * nothing: a genre asks for a cowboy hat every night of the run and the player
+ * walks on bare-headed. Narrowing the argument to `never` in the default branch
+ * is what turns that into a build failure, which is what the header claims.
+ *
+ * It is never called. If it ever is, the union has grown a value at runtime
+ * that the type system did not know about, and doing nothing quietly is still
+ * the right answer on stage.
+ */
+function assertBuilt(_unbuilt: never): void { /* see above */ }
 
 function clamp(v: number, lo: number, hi: number): number {
   return v < lo ? lo : v > hi ? hi : v;

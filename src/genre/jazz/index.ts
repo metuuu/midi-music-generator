@@ -19,6 +19,7 @@ import { ERAS } from './eras.js';
 import { MOODS } from './moods.js';
 import { VOCALS } from './vocals.js';
 import { generateTitle } from './titles.js';
+import { STAGING } from './staging.js';
 
 /**
  * Head–solos–head. `verse` is the A section and `bridge` is the B, so an AABA
@@ -259,4 +260,7 @@ export const jazz: Genre = {
   fills: [
     ['cymbal', 6], ['snare-roll', 3], ['lead-in', 3], ['drop', 2], ['snare-toms', 1],
   ],
+
+  /** The cellar, the dark suits and the club card. See `staging.ts`. */
+  staging: STAGING,
 };

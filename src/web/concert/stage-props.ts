@@ -5,47 +5,54 @@
  *
  * `Venue.props` is a `string[]` and the plan calls it "free-form,
  * genre-specific", which makes this file the *reader* of a vocabulary written
- * somewhere else (`src/concert/venue.ts`). Two rules follow, and they are the
- * only reason two agents can write the two halves without meeting:
+ * somewhere else — and, until recently, the author of a second copy of it.
+ * `SUPPORTED_PROPS` used to be declared here, name for name alongside the union
+ * in `src/concert/venue.ts`, agreeing by inspection rather than by the
+ * compiler. It is one list now, and it lives on the IR side, because
+ * `web/concert/` renders `concert/` and not the other way round.
+ *
+ * That inversion is what makes the seam load-bearing rather than merely tidy.
+ * `BUILDERS` at the bottom is a total `Record<PropName, …>` over the imported
+ * list, so a genre author adding a name to the vocabulary and nothing else gets
+ * a failed `npm run typecheck` naming this file, instead of a room that quietly
+ * comes up short one object. Sixteen genre authors can dress rooms this file
+ * has never heard of, and the compiler is the only meeting any of them need.
+ *
+ * Two rules survive from when the lists were separate, and one of them shrank:
  *
  * 1. **An unrecognised string is ignored, silently.** A venue that asks for a
  *    thing this file has never heard of gets a stage without it, not an
- *    exception in the middle of a show. `unknownProps()` reports what was
- *    skipped so the two vocabularies can be reconciled deliberately rather
- *    than by watching for crashes.
- * 2. **The names are normalised before matching.** Case, spaces and
- *    underscores are levelled, plurals and obvious synonyms are aliased. If
- *    the other side says `"paper lanterns"`, `"paper_lanterns"` or
- *    `"lanterns"`, all three light up.
+ *    exception in the middle of a show. Nothing inside the repo can produce one
+ *    now — `StageDressing.props` is `PropName[]` — but the IR is `string[]` on
+ *    purpose and a concert can arrive from a file. `unknownProps()` reports
+ *    what was skipped.
+ * 2. **The names are levelled before matching.** Case, spaces, underscores and
+ *    a trailing plural, and nothing else at all. The table of synonyms that
+ *    used to sit here went with the second list; see `normaliseProp` for why
+ *    it could not survive the vocabulary growing.
  *
  * ## The vocabulary
  *
- * Anything in `SUPPORTED_PROPS` is recognised. Grouped by the room it belongs
- * to, though nothing stops a venue mixing them:
- *
- * **Lakeside dance pavilion (iskelmä)** — `bunting`, `fairy-lights`,
- * `paper-lanterns`, `moths`, `birch`, `lake`, `open-air`, `flowers`,
- * `railing`, `dance-floor`, `mirror-ball`, `chandelier`
- *
- * **Low brick room (jazz)** — `brick`, `tables`, `candles`, `low-ceiling`,
- * `bar`, `posters`, `haze`, `rug`
- *
- * **Black box (ambient)** — `black-box`, `projection`, `flight-case`,
- * `cables`, `drapes`
- *
- * **Any stage** — `pa-stack`, `wedges`, `riser`
+ * In `src/concert/venue.ts`, one line of argument each, grouped by the room it
+ * dresses. Deliberately not restated here — a second copy of the list is the
+ * thing this file has just stopped keeping, and a prose copy of it drifts in
+ * exactly the same way for exactly the same reason.
  *
  * Four of them are architectural rather than dressing — `black-box`, `brick`,
  * `open-air` and `haze` change how the room itself is built, so `stage.ts`
- * reads those directly and the handlers here are deliberately empty.
+ * reads those directly and the handlers here are deliberately empty. There are
+ * still four. Anything that would have been a fifth belongs in `stage.ts` next
+ * to the other four rather than here as an object pretending to be a room.
  *
  * ## Where props are allowed to stand
  *
  * The cast is placed by `concert/cast.ts` and this file cannot see it, so
  * everything here keeps out of the playing area: floor props sit within a
  * metre of the wings, upstage of the backline, or downstage of the lip. The
- * three exceptions are underfoot on purpose — `rug`, `cables` and `riser` —
- * and `riser` is the one to watch, because `Station.riser` says a performer is
+ * four exceptions are underfoot on purpose — `rug`, `carpet`, `cables` and
+ * `riser` — the first three because a floor covering a band avoids is not a
+ * floor covering, and they are all flat enough to be walked over. `riser` is
+ * the one to watch, because `Station.riser` says a performer is
  * standing on a platform and this places one. Its top is at **0.4 m**, centred
  * at **(0, -1.15 m upstage of centre)**, 2.8 m wide by 2.0 m deep.
  *
@@ -68,15 +75,17 @@
  */
 
 import {
-  AdditiveBlending, BufferGeometry, CatmullRomCurve3, Color,
+  AdditiveBlending, BoxGeometry, BufferGeometry, CatmullRomCurve3, Color,
   ConeGeometry, CylinderGeometry, DoubleSide, Float32BufferAttribute, Group,
   IcosahedronGeometry, InstancedMesh, Line, LineBasicMaterial, Material, Mesh,
-  Object3D, PlaneGeometry, ShaderMaterial, SphereGeometry, TorusGeometry,
-  TubeGeometry, Vector3,
+  MeshBasicMaterial, Object3D, PlaneGeometry, ShaderMaterial, SphereGeometry,
+  TorusGeometry, TubeGeometry, Vector3,
 } from 'three';
 
 import { Rng } from '../../core/rng.js';
 import type { Venue } from '../../concert/types.js';
+import { PROPS, type PropName } from '../../concert/venue.js';
+import { rowGap } from './stage-audience.js';
 import {
   blend, cellPlane, HEAD_BAND, houseLid, hueShift, LENS_GAP, LOW_CEILING, playingArea, sagLine,
   shade, STAGE_SOFFIT, tint,
@@ -87,59 +96,24 @@ import {
 // The vocabulary
 // ---------------------------------------------------------------------------
 
-/** Everything `stage.ts` will act on. Aliases resolve into these. */
-export const SUPPORTED_PROPS = [
-  // architectural — handled in stage.ts
-  'black-box', 'brick', 'open-air', 'haze',
-  // pavilion
-  'bunting', 'fairy-lights', 'paper-lanterns', 'moths', 'birch', 'lake',
-  'flowers', 'railing', 'dance-floor', 'mirror-ball', 'chandelier',
-  // club
-  'tables', 'candles', 'low-ceiling', 'bar', 'posters', 'rug',
-  // black box
-  'projection', 'flight-case', 'cables', 'drapes',
-  // any stage
-  'pa-stack', 'wedges', 'riser',
-] as const;
+/**
+ * Everything `stage.ts` will act on, under the name its callers already know.
+ *
+ * An alias for `PROPS` in `concert/venue.ts` rather than a list. The old name
+ * is kept because `stage.ts` re-exports it as part of this directory's public
+ * surface and there is no reason to make the renderer's consumers learn that
+ * the vocabulary moved house; what matters is that there is nothing here left
+ * to disagree with.
+ *
+ * `dressStage` iterates it, so the order the props are declared in `venue.ts`
+ * is the order they are built in here. That ordering is grouped by room, which
+ * is the right thing for a reader and means nothing to the scene graph — every
+ * builder below places itself in y and z rather than relying on being late.
+ */
+export { PROPS as SUPPORTED_PROPS };
+export type { PropName };
 
-export type PropName = (typeof SUPPORTED_PROPS)[number];
-
-/** Spellings the other side might reasonably use. */
-const ALIASES: Record<string, PropName> = {
-  blackbox: 'black-box', 'black-boxes': 'black-box', studio: 'black-box',
-  'brick-wall': 'brick', brickwork: 'brick', bricks: 'brick',
-  outdoor: 'open-air', outdoors: 'open-air', openair: 'open-air',
-  smoke: 'haze', fog: 'haze', mist: 'haze',
-  pennants: 'bunting', flags: 'bunting', garland: 'bunting',
-  'string-lights': 'fairy-lights', festoon: 'fairy-lights',
-  lights: 'fairy-lights', 'festoon-lights': 'fairy-lights',
-  lanterns: 'paper-lanterns', 'paper-lantern': 'paper-lanterns',
-  moth: 'moths', insects: 'moths',
-  birches: 'birch', trees: 'birch', 'birch-trees': 'birch',
-  water: 'lake', 'lake-view': 'lake',
-  plants: 'flowers', flowerpots: 'flowers', 'flower-pots': 'flowers',
-  rail: 'railing', balustrade: 'railing', fence: 'railing',
-  parquet: 'dance-floor', dancefloor: 'dance-floor',
-  glitterball: 'mirror-ball', 'disco-ball': 'mirror-ball', mirrorball: 'mirror-ball',
-  chandeliers: 'chandelier',
-  'cabaret-tables': 'tables', 'small-tables': 'tables', 'cafe-tables': 'tables',
-  candle: 'candles', tealights: 'candles',
-  ceiling: 'low-ceiling', 'low-roof': 'low-ceiling',
-  counter: 'bar', 'bar-counter': 'bar',
-  poster: 'posters', bills: 'posters', playbills: 'posters',
-  carpet: 'rug', rugs: 'rug',
-  projections: 'projection', film: 'projection', slides: 'projection',
-  video: 'projection', 'projection-screen': 'projection',
-  'flight-cases': 'flight-case', 'road-case': 'flight-case', cases: 'flight-case',
-  cabling: 'cables', leads: 'cables', 'cable-runs': 'cables',
-  pa: 'pa-stack', speakers: 'pa-stack', 'speaker-stack': 'pa-stack',
-  amps: 'pa-stack', 'pa-stacks': 'pa-stack', stacks: 'pa-stack',
-  monitors: 'wedges', 'floor-monitors': 'wedges', wedge: 'wedges',
-  'black-drapes': 'drapes', legs: 'drapes', masking: 'drapes', tabs: 'drapes',
-  'drum-riser': 'riser', platform: 'riser', risers: 'riser', rostrum: 'riser',
-};
-
-const KNOWN = new Set<string>(SUPPORTED_PROPS);
+const KNOWN = new Set<string>(PROPS);
 
 /**
  * The drum riser's footprint, which two files need and only one draws.
@@ -161,15 +135,38 @@ export function riserFootprint(
   return { w, d, z: (m.backZ ?? -m.depth / 2) + d / 2 + 0.45 };
 }
 
-/** Level case, separators and plurals, then resolve aliases. */
+/**
+ * Level case, separators and a trailing plural. Nothing else.
+ *
+ * There were sixty-odd synonyms here — `lanterns`, `amps`, `carpet`, `flags`,
+ * `platform`, `video` — and they existed because two files kept two lists and
+ * the *other side* might reasonably have spelled a name differently. There is
+ * no other side now. Every room in this repo is typed `PropName[]`, so a
+ * synonym is unreachable from the only path that produces a `Venue`, and a
+ * table nobody can reach is at best dead weight.
+ *
+ * It is worse than dead weight, and that is the part worth keeping. A synonym
+ * is not a spelling, it is a claim about what a word means *given the rest of
+ * the list* — and the list just grew by eleven names chosen precisely because
+ * they were the distinctions the old vocabulary could not draw. `amps` meant
+ * the PA when the PA was the only amplification in the world, and means
+ * `backline` now. `carpet` was a small worn rug and is now the opposite of one.
+ * `flags` was bunting, and a courtyard asking for flags wants neither.
+ * `projection-screen` resolved to film on a cloth, which is the one thing a
+ * `screen` is not. Every one of those would have gone on quietly resolving to
+ * the answer that was correct before, in the rooms least able to notice —
+ * fifteen new ones, written by people who never saw the old list.
+ *
+ * What is left cannot go wrong that way, because it never changes which *word*
+ * was said. `"Paper Lanterns"`, `"paper_lanterns"` and `"paper-lanterns"` are
+ * one word typed by three people, and forgiving that much is all a `string[]`
+ * arriving from a file has ever needed.
+ */
 export function normaliseProp(raw: string): PropName | undefined {
   const key = raw.trim().toLowerCase().replace(/[\s_]+/g, '-');
   if (KNOWN.has(key)) return key as PropName;
-  const alias = ALIASES[key];
-  if (alias) return alias;
   const singular = key.replace(/s$/, '');
-  if (KNOWN.has(singular)) return singular as PropName;
-  return ALIASES[singular];
+  return KNOWN.has(singular) ? (singular as PropName) : undefined;
 }
 
 /** Which of a venue's props this stage understands. Order preserved, deduped. */
@@ -274,7 +271,7 @@ export function dressStage(o: PropOptions): PropRig {
 
   const wanted = readProps(o.venue.props);
   const placed: PropName[] = [];
-  for (const name of SUPPORTED_PROPS) {
+  for (const name of PROPS) {
     if (!wanted.has(name)) continue;
     BUILDERS[name](ctx);
     placed.push(name);
@@ -991,6 +988,105 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
     rug.rotation.x = -Math.PI / 2;
   },
 
+  /**
+   * Tube signage: the one prop here that is a *word* and cannot spell one.
+   *
+   * A honky-tonk, a dancehall and a basement club are the same room with three
+   * different names over the bar, and the name is the whole of the difference —
+   * which is a problem, because there is no text anywhere in this renderer and
+   * adding a font to draw one word would cost more than the entire stage. So
+   * this draws the *shape* of a sign rather than a sign: a bent tube inside a
+   * rectangle, which is what a neon reads as from the back of a dark room long
+   * before anybody makes out what it says. Unlit, like the bulbs and the
+   * candles, because a sign is a light and not a thing lit by one.
+   *
+   * The script is one `TubeGeometry` along a fixed curve, cached and hung three
+   * times — the back wall and both wings — rather than three curves, because a
+   * bar's signs are made by the same person and match. The wing pair is at the
+   * `posters` position for the same reason `posters` is there: offstage, seen
+   * through the opening at an angle, so a wide shot has something bright in the
+   * dark either side of the arch.
+   *
+   * And one of them flickers, which is the whole reason the back-wall sign gets
+   * a material of its own. A neon that never falters is a lightbox. The stutter
+   * is two sines beating against each other rather than a random draw, so it is
+   * the same on every machine and needs no stream of its own, and it stops
+   * entirely under reduced motion — a flickering sign is exactly the thing that
+   * setting is for.
+   */
+  neon: (c) => {
+    const W = 1.5;
+    const H = 0.62;
+    const script = c.kit.geometry('neon-script', () => {
+      const pts: Vector3[] = [];
+      for (let i = 0; i <= 10; i++) {
+        const t = i / 10;
+        pts.push(new Vector3(
+          (t - 0.5) * W * 0.84,
+          Math.sin(t * Math.PI * 2.6) * H * 0.28 - (t > 0.55 ? H * 0.07 : 0),
+          0,
+        ));
+      }
+      return new TubeGeometry(new CatmullRomCurve3(pts), 28, 0.028, 5, false);
+    });
+    // The surround is one closed tube rather than four bars, which is both a
+    // quarter of the draw calls and the better object: a neon border is a
+    // single bent length of glass with rounded corners, and four butted boxes
+    // is a picture frame.
+    const border = c.kit.geometry('neon-border', () => {
+      const pts: Vector3[] = [];
+      const per = 4;
+      const corners = [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const;
+      for (let i = 0; i < 4; i++) {
+        const [ax, ay] = corners[i]!;
+        const [bx, by] = corners[(i + 1) % 4]!;
+        for (let s = 0; s < per; s++) {
+          const t = s / per;
+          pts.push(new Vector3(
+            ((ax + (bx - ax) * t) * W) / 2, ((ay + (by - ay) * t) * H) / 2, 0,
+          ));
+        }
+      }
+      return new TubeGeometry(new CatmullRomCurve3(pts, true), 44, 0.022, 4, true);
+    });
+    const hot = tint(hueShift(c.accent, 150, 0.55), 0.18);
+    const frame = c.kit.basic(tint(hueShift(c.p.ambient, -45, 0.5), 0.12));
+
+    /** One sign, built flat in xy and pointed wherever it is hung. */
+    const sign = (tag: string, scale: number): { node: Group; tube: MeshBasicMaterial } => {
+      const tube = c.kit.material(`neon|${tag}`, () => new MeshBasicMaterial({ color: hot }));
+      const node = new Group();
+      node.scale.setScalar(scale);
+      node.add(new Mesh(script, tube));
+      node.add(new Mesh(border, frame));
+      c.root.add(node);
+      return { node, tube };
+    };
+
+    // Over the band, high enough to be a sign on a wall rather than a hazard at
+    // head height, and upstage of the backline besides.
+    const back = sign('back', 1);
+    back.node.position.set(
+      -c.m.openingWidth * 0.2,
+      Math.min(c.m.openingHeight - 0.5, Math.max(HANG_FLOOR + 0.4, c.m.openingHeight * 0.6)),
+      c.m.backZ + 0.16,
+    );
+    for (const side of [-1, 1]) {
+      const wing = sign('wing', 0.78);
+      wing.node.position.set(
+        side * (c.m.openingWidth / 2 + 0.85), 1.85, c.m.curtainZ - 1.5,
+      );
+      wing.node.rotation.y = (side * -Math.PI) / 2;
+    }
+
+    const lit = new Color(hot);
+    c.tick((t) => {
+      const beat = Math.sin(t * 11.3) * Math.sin(t * 3.1);
+      const dip = beat > 0.86 && c.idle > 0.5 ? 0.32 : 1;
+      back.tube.color.copy(lit).multiplyScalar(dip * (0.94 + 0.06 * Math.sin(t * 2.3)));
+    });
+  },
+
   // -- the black box -------------------------------------------------------
 
   /**
@@ -1116,6 +1212,553 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
     }
   },
 
+  // -- the concert hall ----------------------------------------------------
+
+  /**
+   * Rows of seats in the house, which is a hall's audience and not a club's.
+   *
+   * The distinction the name is drawing is `tables`: both put furniture among
+   * the crowd, and they are opposite claims about what the crowd is *for*. A
+   * table says people came to sit round something and the band is at the end of
+   * the room; a rank of identical seats all pointing the same way says everyone
+   * came to face one direction, which is the entire social fact of a concert
+   * hall and is legible from the stage before you see a single face.
+   *
+   * The seats are built for the room rather than for the people in it, and that
+   * is deliberate: `audience.density` leaves gaps on purpose, and a gap in a
+   * hall should be an empty seat. It was the one thing this could add that the
+   * crowd could not — a thinned house over bare floor reads as a room that was
+   * never full, and a thinned house over rows of seats reads as a room that did
+   * not sell out. Same geometry, and only one of them is a concert.
+   *
+   * ## Two files place one row, again
+   *
+   * Where the rows are is `stage-audience.ts`'s decision, and a seat back that
+   * disagrees with it is a plank through somebody's chest. Most of the answer
+   * comes back through the metrics — `crowd.frontZ` is the front of row zero
+   * and `rowGap` is exported precisely so a second file can ask — but the seat
+   * pitch, the rake and the half-pitch stagger on alternate rows are private
+   * over there, and are restated here rather than exported. That is the
+   * `HEAD_BAND` bargain: importing them would be the tighter coupling and this
+   * is the one whose failure is visible in the first frame.
+   *
+   * A pane per seat rather than a rail per row, because a continuous board at
+   * chest height across a room is a fence, and 480 double-sided planes are two
+   * triangles each in a single draw call. No shadows: the house is silhouette,
+   * and furniture in it that caught the one shadow-casting lantern would be the
+   * only lit thing among a hundred unlit people.
+   */
+  stalls: (c) => {
+    const seated = c.venue.audience.seated;
+    const rows = Math.max(1, Math.min(16, Math.round(c.venue.audience.rows)));
+    /** `stage-audience.ts`'s `ROW` and `spacing`. See the note above. */
+    const SEAT = 0.66;
+    const rake = seated ? 0.1 : 0.05;
+    const gap = rowGap(seated);
+    const perRow = Math.max(3, Math.min(30, Math.floor(c.m.houseWidth / SEAT)));
+    const backs = new InstancedMesh(
+      c.kit.geometry('seat-back', () => new PlaneGeometry(SEAT - 0.11, 0.5)),
+      c.kit.solid(shade(blend(c.p.curtain, c.p.backdrop, 0.35), 0.3), { rough: 0.95, side: DoubleSide }),
+      rows * perRow,
+    );
+    const dummy = new Object3D();
+    let i = 0;
+    for (let row = 0; row < rows; row++) {
+      // Behind the row's own occupants — a seat back is the thing the person in
+      // front of you is leaning on, so from the stage it fills the gaps.
+      const z = c.m.crowd.frontZ + 0.35 + row * gap + 0.24;
+      const y = c.m.houseY + row * rake + 0.66;
+      const stagger = (row % 2) * SEAT * 0.5;
+      for (let s = 0; s < perRow; s++) {
+        dummy.position.set((s - (perRow - 1) / 2) * SEAT + stagger, y, z);
+        dummy.rotation.set(0, 0, 0);
+        dummy.scale.setScalar(1);
+        dummy.updateMatrix();
+        backs.setMatrixAt(i++, dummy.matrix);
+      }
+    }
+    c.root.add(backs);
+  },
+
+  /**
+   * The front pipes of an organ, high on the back wall.
+   *
+   * One genre's prop, like `lake` and `birch` before it, and worth the same
+   * defence: a hall is otherwise a big proscenium, and a big proscenium is what
+   * the house room already is. This is the object that makes it a *hall* — a
+   * church, a Konserttitalo, the back of any room built before amplification —
+   * and it does it from a distance at which nothing else on stage is legible.
+   *
+   * Above the band by construction rather than by luck. The feet sit at
+   * `HANG_FLOOR` or at 0.44 of the opening, whichever is higher, and the whole
+   * run is upstage of the backline, so it clears the sightline rule twice over
+   * — which matters more here than for most props, because a fan of bright
+   * vertical metal directly behind a row of heads is the single worst backdrop
+   * a face can have.
+   *
+   * A three-peak front, tall at the ends and in the middle, which is what an
+   * organ case does and is also the only profile that survives being drawn with
+   * seventeen cylinders. The case underneath is not decoration: it is what the
+   * pipes stand on, and this file has learned twice that an object with nothing
+   * under it reads as an object floating rather than as an object high up.
+   */
+  'organ-pipes': (c) => {
+    const n = c.quality === 'low' ? 11 : 17;
+    const foot = Math.max(HANG_FLOOR, c.m.openingHeight * 0.44);
+    const top = Math.max(foot + 1.2, c.m.openingHeight - 0.3);
+    const runW = Math.min(c.m.openingWidth * 0.8, c.m.width - 1.4);
+    const pipes = new InstancedMesh(
+      c.kit.geometry('front-pipe', () => new CylinderGeometry(0.078, 0.078, 1, 7)),
+      c.kit.solid(tint(c.p.proscenium, 0.4), { metal: 0.8, rough: 0.26 }),
+      n,
+    );
+    const dummy = new Object3D();
+    for (let i = 0; i < n; i++) {
+      const t = i / (n - 1);
+      const h = (top - foot) * (0.34 + 0.66 * (1 - Math.abs(Math.sin(t * Math.PI * 2))));
+      dummy.position.set((t - 0.5) * runW, foot + h / 2, c.m.backZ + 0.26);
+      dummy.rotation.set(0, 0, 0);
+      dummy.scale.set(1, h, 1);
+      dummy.updateMatrix();
+      pipes.setMatrixAt(i, dummy.matrix);
+    }
+    c.root.add(pipes);
+    // The case they stand in, and its back face is on the wall plane so the
+    // loft dies into the cloth rather than ending in mid-air.
+    put(c, c.kit.bevelBox(runW + 0.55, 0.32, 0.44, 0.04),
+      c.kit.solid(shade(c.p.boards, 0.4), { rough: 0.65 }),
+      0, foot - 0.16, c.m.backZ + 0.2);
+  },
+
+  /**
+   * The floor covered, corner to corner. Not a bigger `rug`.
+   *
+   * The two are opposite objects that happen to be made the same way. A rug is
+   * a worn thing thrown under the gear, off centre, smaller than the stage, and
+   * what it says is that somebody put it there. A carpet is the deck itself
+   * gone soft: no boards visible, no edge inside the frame, and a band that
+   * *sits on it* — which is a Hindustani recital, a qawwali party, and any room
+   * where the floor is where the music happens rather than where it stands.
+   *
+   * So it is the fourth thing allowed underfoot, and the least dangerous of the
+   * four. Eight millimetres of textile is not an obstacle at any camera height,
+   * and it is laid *under* the rug's twelve so a room asking for both gets a
+   * worn rug on a carpet, which is a real room, rather than z-fighting.
+   *
+   * A border, in a second plane, and it is not a flourish. A field of jittered
+   * cells with a raw edge is the boards with the colour changed; the same field
+   * inside a plain band is a made object with a maker, and the whole difference
+   * costs one draw call.
+   */
+  carpet: (c) => {
+    const rng = c.rng('carpet');
+    const w = Math.min(c.m.width - 1.0, 7.4);
+    const d = Math.min(c.m.depth - 0.9, 5.0);
+    const z = (c.m.backZ + c.m.lipZ) / 2 - 0.2;
+    const border = put(c,
+      c.kit.geometry(`carpet-edge|${w.toFixed(2)}|${d.toFixed(2)}`, () => new PlaneGeometry(w, d)),
+      c.kit.solid(shade(hueShift(c.accent, 24, 0.3), 0.5), { rough: 0.98 }),
+      0, 0.006, z, true);
+    border.rotation.x = -Math.PI / 2;
+    const field = put(c,
+      c.kit.own(cellPlane({
+        width: w - 0.5, height: d - 0.5,
+        cols: 14, rows: 10,
+        colour: shade(hueShift(c.accent, -16, 0.35), 0.28), jitter: 0.16, rng,
+      })),
+      c.kit.solid('#ffffff', { vertexColors: true, rough: 0.98 }),
+      0, 0.009, z, true);
+    field.rotation.x = -Math.PI / 2;
+  },
+
+  // -- the barn and the warehouse ------------------------------------------
+
+  /**
+   * Exposed roof timbers, across the whole room.
+   *
+   * A barn and a warehouse are the same building to a camera — one big volume
+   * with a band at one end — and the two props that separate them are this and
+   * `hay`. This is the shared half: a roof you can see the structure of, which
+   * is what every room that was built to store something rather than to listen
+   * in has instead of a ceiling.
+   *
+   * **They run past both walls, and that is the whole trick.** `low-ceiling`
+   * learned it first: an edge in mid-air reads as a mistake and the only cure
+   * is for every edge to die into something. A tie beam ending a metre short of
+   * a wall is a plank hanging in a room. Six metres of overrun puts both ends
+   * outside anything a lens can frame, in a room that may not have walls at all.
+   *
+   * The height is a camera constant, not a taste. `camera.ts` lifts the wide
+   * shot to 3.6 m at distance and `LENS_GAP` wants 0.6 m of air above that, so
+   * 4.3 m is the lowest a beam can hang and still be a beam rather than a bar
+   * ruled across the picture — the exact failure the cellar's service pipes had.
+   * Where the room does have a lid, the timbers go under it instead, and a room
+   * that names both this and `low-ceiling` is describing a contradiction that
+   * only the room can settle.
+   *
+   * No shadows. The one shadow-casting lantern is hung below these, and a
+   * timber lit from underneath casting up onto nothing costs a depth pass for a
+   * shadow no camera in this show can see.
+   */
+  beams: (c) => {
+    const roof = Number.isFinite(c.m.headroom)
+      ? c.m.headroom - 0.22
+      : Math.max(4.3, c.m.openingHeight - 0.3);
+    const y = Math.max(HANG_FLOOR + 0.2, roof);
+    const span = c.m.houseWidth + 6;
+    const from = c.m.backZ - 0.6;
+    const to = c.m.lipZ + c.m.houseDepth + 1;
+    const n = Math.max(4, Math.min(14, Math.round((to - from) / 2.3)));
+    const timber = c.kit.solid(shade(hueShift(c.p.boards, -8, 0.08), 0.42), { rough: 0.96 });
+    const ties = new InstancedMesh(c.kit.bevelBox(span, 0.24, 0.28, 0.03), timber, n);
+    const dummy = new Object3D();
+    for (let i = 0; i < n; i++) {
+      dummy.position.set(0, y, from + ((i + 0.5) * (to - from)) / n);
+      dummy.rotation.set(0, 0, 0);
+      dummy.scale.setScalar(1);
+      dummy.updateMatrix();
+      ties.setMatrixAt(i, dummy.matrix);
+    }
+    c.root.add(ties);
+    // Purlins over the ties, running the other way, so the roof is a structure
+    // rather than a row of unrelated planks.
+    const purlin = c.kit.bevelBox(0.2, 0.22, to - from, 0.03);
+    for (const side of [-1, 1]) {
+      put(c, purlin, timber, side * c.m.houseWidth * 0.26, y + 0.23, (from + to) / 2);
+    }
+  },
+
+  /**
+   * Bales, out in the house rather than on the boards.
+   *
+   * The other half of the barn, and the half that decides which building it is:
+   * `beams` over a bare floor is a warehouse, and `beams` over this is a barn
+   * dance. One prop, and the room changes century.
+   *
+   * They are in the *house* on purpose, and it took working out why the obvious
+   * placement was wrong. A bale in the wings is set dressing nobody uses, in the
+   * half-metre of board between the playing area and the edge, competing for the
+   * one spot the flight cases and the amps already want. A bale in the room is
+   * furniture: it is what people at a barn dance sit on, it is at the edge of
+   * the floor where the crowd is, and it needs no clearance from anything
+   * because nothing else this file builds goes there.
+   *
+   * Stacked in pairs about half the time, because two bales is a seat with a
+   * back and a stack of identical boxes at identical heights is a warehouse
+   * again.
+   */
+  hay: (c) => {
+    const rng = c.rng('hay');
+    const straw = c.kit.solid(tint(hueShift(c.p.boards, 24, 0.22), 0.3), { rough: 1 });
+    const bale = c.kit.bevelBox(0.92, 0.44, 0.46, 0.05);
+    const placed: { x: number; y: number; z: number; yaw: number }[] = [];
+    for (let i = 0; i < 6; i++) {
+      const side = i % 2 === 0 ? -1 : 1;
+      const x = side * (c.m.width / 2 + rng.float(0.6, 1.9));
+      const z = c.m.lipZ + rng.float(0.7, 3.6);
+      const yaw = rng.float(-0.45, 0.45) + (side < 0 ? Math.PI : 0);
+      placed.push({ x, y: c.m.houseY + 0.22, z, yaw });
+      if (rng.chance(0.45)) {
+        placed.push({
+          x: x + rng.float(-0.08, 0.08), y: c.m.houseY + 0.66,
+          z: z + rng.float(-0.06, 0.06), yaw: yaw + rng.float(-0.3, 0.3),
+        });
+      }
+    }
+    const bales = new InstancedMesh(bale, straw, placed.length);
+    const dummy = new Object3D();
+    for (let i = 0; i < placed.length; i++) {
+      const b = placed[i]!;
+      dummy.position.set(b.x, b.y, b.z);
+      dummy.rotation.set(0, b.yaw, 0);
+      dummy.scale.setScalar(1);
+      dummy.updateMatrix();
+      bales.setMatrixAt(i, dummy.matrix);
+    }
+    bales.castShadow = true;
+    c.root.add(bales);
+  },
+
+  // -- the courtyard -------------------------------------------------------
+
+  /**
+   * An arcade across the back wall — a riad, a cloister, a patio.
+   *
+   * The one piece of architecture in this file that is not a modifier, and the
+   * line it stays the right side of is worth naming, because `stage.ts` owns
+   * how a room is built and is not mine to change. An arcade *in front of* the
+   * back wall is an object standing on the boards: it does not alter a surface,
+   * a colour or a dimension, and a room that drops it is the same room with a
+   * plain cloth behind the band. Arcading the side walls of the house would not
+   * be — that is a wall, and it would belong next to `brick`.
+   *
+   * Horseshoe rather than semicircular: the arc runs a touch past a half turn
+   * so the springing tucks back in under itself, which is the difference
+   * between Córdoba and a railway viaduct and costs nothing but one constant.
+   * Odd number of bays, so one arch is on the centre line and the band stands
+   * in front of it rather than in front of a pier.
+   *
+   * The lintel across the top is doing the same job as the organ's case: an
+   * arcade is a *wall with holes in it*, and a row of freestanding hoops with
+   * open sky above them is a croquet lawn. The whole run is upstage of the
+   * backline and clears the riser's front face by 70 mm, which is the tightest
+   * clearance in this file and the reason the depth is 0.32 and not 0.4.
+   */
+  arches: (c) => {
+    const stone = c.kit.solid(tint(blend(c.p.proscenium, c.p.backdrop, 0.35), 0.22), { rough: 0.92 });
+    let bays = Math.max(3, Math.round(c.m.openingWidth / 2));
+    if (bays % 2 === 0) bays += 1;
+    const bay = c.m.openingWidth / bays;
+    const pierW = Math.min(0.42, bay * 0.3);
+    const r = (bay - pierW) / 2;
+    /** Above the tallest player, and upstage of them all in any case. */
+    const spring = Math.max(HEAD_BAND.hi - 0.15, 2.1);
+    const z = c.m.backZ + 0.22;
+    /** Past a half turn, which is what makes it a horseshoe. */
+    const ARC = Math.PI * 1.16;
+
+    const dummy = new Object3D();
+    const piers = new InstancedMesh(c.kit.bevelBox(pierW, spring, 0.32, 0.03), stone, bays + 1);
+    for (let i = 0; i <= bays; i++) {
+      dummy.position.set((i - bays / 2) * bay, spring / 2, z);
+      dummy.rotation.set(0, 0, 0);
+      dummy.scale.setScalar(1);
+      dummy.updateMatrix();
+      piers.setMatrixAt(i, dummy.matrix);
+    }
+    piers.castShadow = true;
+    c.root.add(piers);
+
+    const rings = new InstancedMesh(
+      c.kit.geometry(`arch|${r.toFixed(3)}`, () => new TorusGeometry(r, 0.16, 4, 10, ARC)),
+      stone, bays,
+    );
+    for (let i = 0; i < bays; i++) {
+      dummy.position.set((i - (bays - 1) / 2) * bay, spring, z);
+      // The arc starts at angle zero, so swing it back by half the overshoot to
+      // stand it symmetrically on its own two piers.
+      dummy.rotation.set(0, 0, Math.PI / 2 - ARC / 2);
+      dummy.scale.setScalar(1);
+      dummy.updateMatrix();
+      rings.setMatrixAt(i, dummy.matrix);
+    }
+    rings.castShadow = true;
+    c.root.add(rings);
+    put(c, c.kit.bevelBox(c.m.openingWidth + pierW, 0.36, 0.34, 0.03), stone,
+      0, spring + r + 0.36, z, true);
+  },
+
+  // -- the arena -----------------------------------------------------------
+
+  /**
+   * Lighting lattice over the stage — flown, and it has to be.
+   *
+   * A truss is a goalpost in the mind's eye: two towers and a beam. It cannot
+   * be one here, and the reason is a number rather than an opinion. The
+   * proscenium opening is 0.94 of the stage width, so the strip of board that
+   * is both inside the opening and outside the playing area is about a
+   * *handspan* on a nine-metre stage and narrower on a wide one. A tower with
+   * its feet in that strip is invisible behind the arch leg; a tower wide
+   * enough to read is standing where the guitarist is. There is nowhere on
+   * these boards for a ground support to stand.
+   *
+   * Flown is not a consolation prize — it is what an arena rig actually is, and
+   * it solves the sightline for free by living above everything. Two runs, one
+   * over the fly bar and one upstage over the backline, because a single bar
+   * reads as a scaffolding pole and two parallel ones read as a rig. The ends
+   * overrun the opening so they die behind the masking, and each end has a
+   * short vertical stub going up out of frame, which is where the motors would
+   * be: a truss with nothing above it is hanging from the sky.
+   *
+   * Under a lid it tucks up under the plaster instead of going through it. A
+   * cellar asking for a truss is a room describing itself oddly, and the
+   * renderer's job there is to make an odd room rather than a broken one.
+   *
+   * ## The one place in this file that does not use `bevelBox`
+   *
+   * Fifty-two diagonal braces at 108 triangles each is 5.6k triangles of bevel,
+   * which was more than the entire pavilion and more than twice the next most
+   * expensive prop. A bevel is the house style because it catches a highlight
+   * along an edge and stops a box reading as a rendering; a 32 mm strut seen
+   * from six metres has no edge to catch anything on, and the rounding is a
+   * cost with no picture attached. Plain boxes, and the prop drops to a tenth
+   * of what it was.
+   *
+   * Everything repeated is instanced for the same reason — the chords, the
+   * braces and the motor drops are three draw calls between them rather than
+   * fourteen meshes, which is what the rest of this file does everywhere it
+   * places more than two of a thing.
+   */
+  truss: (c) => {
+    const steel = c.kit.solid(shade(tint(c.p.proscenium, 0.3), 0.35), { metal: 0.75, rough: 0.4 });
+    const y = Number.isFinite(c.m.headroom)
+      ? Math.max(HANG_FLOOR + 0.3, c.m.headroom - 0.28)
+      : c.m.flyY + 0.34;
+    const len = c.m.openingWidth + 1.8;
+    /** Half the truss section. A 0.34 m square is a light-duty rigging truss. */
+    const S = 0.17;
+    /** Up to the plaster, or out of the top of the frame. */
+    const rise = Math.max(0.3,
+      (Number.isFinite(c.m.headroom) ? c.m.headroom : c.m.openingHeight + 1.2) - y - S);
+    const runs = [c.m.curtainZ - 1.1, c.m.backZ + 0.9];
+    const perRun = Math.max(6, Math.round(len / 0.5));
+
+    const chords = new InstancedMesh(
+      c.kit.geometry(`truss-chord|${len.toFixed(2)}`,
+        () => new CylinderGeometry(0.035, 0.035, len, 6)),
+      steel, runs.length * 4,
+    );
+    const braces = new InstancedMesh(
+      c.kit.geometry('truss-brace', () => new BoxGeometry(0.032, 0.42, 0.032)),
+      steel, runs.length * perRun,
+    );
+    const drops = new InstancedMesh(
+      c.kit.geometry(`truss-drop|${rise.toFixed(2)}`,
+        () => new CylinderGeometry(0.035, 0.035, rise, 6)),
+      steel, runs.length * 2,
+    );
+
+    const dummy = new Object3D();
+    let ci = 0;
+    let bi = 0;
+    let di = 0;
+    for (const z of runs) {
+      for (const dy of [-S, S]) {
+        for (const dz of [-S, S]) {
+          dummy.position.set(0, y + dy, z + dz);
+          dummy.rotation.set(0, 0, Math.PI / 2);
+          dummy.scale.setScalar(1);
+          dummy.updateMatrix();
+          chords.setMatrixAt(ci++, dummy.matrix);
+        }
+      }
+      for (let i = 0; i < perRun; i++) {
+        dummy.position.set((i - (perRun - 1) / 2) * (len / perRun), y, z - S);
+        dummy.rotation.set(0, 0, i % 2 === 0 ? 0.72 : -0.72);
+        dummy.scale.setScalar(1);
+        dummy.updateMatrix();
+        braces.setMatrixAt(bi++, dummy.matrix);
+      }
+      for (const side of [-1, 1]) {
+        dummy.position.set((side * len) / 2, y + S + rise / 2, z);
+        dummy.rotation.set(0, 0, 0);
+        dummy.scale.setScalar(1);
+        dummy.updateMatrix();
+        drops.setMatrixAt(di++, dummy.matrix);
+      }
+    }
+    c.root.add(chords);
+    c.root.add(braces);
+    c.root.add(drops);
+  },
+
+  /**
+   * An LED wall behind the band. The `projection` of a different forty years.
+   *
+   * They are not the same object and the room can tell. `projection` is a lamp
+   * throwing soft light onto a cloth: additive, vignetted, edgeless, and the
+   * whole reason it suits ambient is that you cannot say where it stops. A
+   * screen is the opposite in every one of those — a hard rectangle in a frame,
+   * bright enough to silhouette the people standing in front of it, made of
+   * panels you can count. Handing a hip-hop stage the film projector would be
+   * the same category of wrong as handing a 1968 jazz cellar a video wall.
+   *
+   * Panels rather than pixels: `cellPlane` with half-metre cells and a hard
+   * jitter is a wall of tiles at slightly different brightnesses, which is what
+   * a real one looks like at any distance a camera stands. The cells are white
+   * and all the colour arrives through `material.color`, which multiplies them
+   * — so the drift over the show is one `Color.lerp` a frame instead of
+   * rewriting a vertex buffer, and the wall still takes the room's palette.
+   *
+   * Unlit, because it emits. This is the case the low ceiling's emissive
+   * experiment was *not*: a ceiling is a surface that reflects the room's light
+   * and faking that with emissive breaks in every cue, whereas a screen is a
+   * light source, goes on being a light source in a blackout, and would be
+   * wrong to dim with the lanterns.
+   */
+  screen: (c) => {
+    const rng = c.rng('screen');
+    const w = Math.min(c.m.width * 0.88, c.m.openingWidth * 0.92);
+    const h = Math.min(w * 0.5, c.m.openingHeight * 0.66);
+    const y = Math.max(h / 2 + 0.35, c.m.openingHeight * 0.5);
+    // Behind it, so the edge of the picture is a bezel rather than a cut-out.
+    put(c, c.kit.bevelBox(w + 0.24, h + 0.24, 0.12, 0.03),
+      c.kit.solid(shade(c.p.backdrop, 0.75), { rough: 0.8 }), 0, y, c.m.backZ - 0.02);
+    const mat = c.kit.material('led-wall', () => new MeshBasicMaterial({ vertexColors: true }));
+    put(c, c.kit.own(cellPlane({
+      width: w, height: h,
+      cols: Math.max(8, Math.round(w / 0.5)),
+      rows: Math.max(5, Math.round(h / 0.5)),
+      colour: '#ffffff', jitter: 0.22, rng,
+    })), mat, 0, y, c.m.backZ + 0.05);
+    const a = new Color(tint(c.p.ambient, 0.1));
+    const b = new Color(hueShift(c.p.curtain, 40, 0.25));
+    c.tick((t) => {
+      mat.color.copy(a).lerp(b, 0.5 + 0.5 * Math.sin(t * 0.19 * c.idle));
+    });
+  },
+
+  /**
+   * The steel across the pit, and the gap of empty floor in front of it.
+   *
+   * `railing` does not already cover this, and the two are worth keeping apart
+   * because they are in different rooms. `railing` is a wooden rail on the
+   * *stage*, along the lip, and what it says is that the boards are a platform
+   * in the open air with a dance floor beyond — a tanssilava. This stands in
+   * the *house*, a metre downstage of the lip, and what it says is that a crowd
+   * is pressing forward hard enough to need holding back. Give an arena the
+   * pavilion's rail and you have put a garden fence on the stage.
+   *
+   * The gap is the prop as much as the steel is. A barrier flush against the
+   * front row would be a handrail; the empty metre between it and the boards is
+   * the photograph — it is where the security stand, and it is the only piece of
+   * floor in an arena nobody is allowed on. So it sits at `lipZ + 0.82` with
+   * its feet pointing upstage into that gap, which also clears the front row's
+   * bodies by 0.15 m rather than by luck.
+   */
+  'crowd-barrier': (c) => {
+    const steel = c.kit.solid(shade(tint(c.p.proscenium, 0.3), 0.42), { metal: 0.65, rough: 0.42 });
+    const span = c.m.houseWidth * 0.92;
+    const n = Math.max(4, Math.round(span / 1.18));
+    const seg = span / n;
+    const z = c.m.lipZ + 0.82;
+    // Bevel on the rail, which is the one part at hand height and the only part
+    // a light ever runs along; a flat panel and a foot on the floor get plain
+    // boxes and a plane. See the note on `truss` — the same arithmetic, and
+    // this was the second most expensive prop in the room before it.
+    const rail = new InstancedMesh(c.kit.bevelBox(seg - 0.05, 0.08, 0.08, 0.035), steel, n);
+    const panel = new InstancedMesh(
+      c.kit.geometry(`barrier-panel|${seg.toFixed(3)}`, () => new PlaneGeometry(seg - 0.09, 0.62)),
+      c.kit.solid(shade(c.p.backdrop, 0.62), { metal: 0.4, rough: 0.7, side: DoubleSide }), n,
+    );
+    const feet = new InstancedMesh(
+      c.kit.geometry('barrier-foot', () => new BoxGeometry(0.12, 0.06, 0.66)), steel, n + 1);
+    const dummy = new Object3D();
+    for (let i = 0; i < n; i++) {
+      const x = (i - (n - 1) / 2) * seg;
+      dummy.rotation.set(0, 0, 0);
+      dummy.scale.setScalar(1);
+      dummy.position.set(x, c.m.houseY + 1.08, z);
+      dummy.updateMatrix();
+      rail.setMatrixAt(i, dummy.matrix);
+      dummy.position.set(x, c.m.houseY + 0.66, z);
+      dummy.updateMatrix();
+      panel.setMatrixAt(i, dummy.matrix);
+    }
+    for (let i = 0; i <= n; i++) {
+      dummy.rotation.set(0, 0, 0);
+      dummy.scale.setScalar(1);
+      dummy.position.set((i - n / 2) * seg, c.m.houseY + 0.03, z - 0.28);
+      dummy.updateMatrix();
+      feet.setMatrixAt(i, dummy.matrix);
+    }
+    rail.castShadow = true;
+    panel.castShadow = true;
+    c.root.add(rail);
+    c.root.add(panel);
+    c.root.add(feet);
+  },
+
   // -- any stage -----------------------------------------------------------
 
   'pa-stack': (c) => {
@@ -1133,6 +1776,96 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
       d2.rotation.x = Math.PI / 2;
       d2.scale.setScalar(0.62);
     }
+  },
+
+  /**
+   * The band's own amplifiers, in a wall along the back.
+   *
+   * `pa-stack` is not this and the difference is which way the boxes point.
+   * A PA faces the house: it is the building's, it is up on poles or flown at
+   * the sides, and it is what the *audience* hears. A backline stands on the
+   * deck behind the band facing the same way the band does, it belongs to the
+   * five people playing through it, and it is what *they* hear. Every rock,
+   * metal, funk and country stage that has ever been photographed has a row of
+   * cabinets across the back of it, and no amount of PA makes that picture.
+   *
+   * It is a row rather than a pair for the same reason. Two stacks at the
+   * corners is a sound system; an unbroken line of boxes the full width of the
+   * stage is a wall, and the wall is the object — it is the thing the band is
+   * standing in front of, the reason the back of the stage is dark, and the
+   * scale reference that makes the players look small.
+   *
+   * The whole run is upstage of the backline margin and stops 70 mm short of
+   * the riser's front face, which is at `backZ + 0.45` on every stage this
+   * builds by construction — see `riserFootprint`, where the drum platform's
+   * depth cancels out of that sum. Not a coincidence worth relying on silently,
+   * so: if the riser ever moves downstage, this collides, and the number to
+   * change is `CAB_D`.
+   *
+   * Heads on most of the stacks and doubles on about half, from the venue's own
+   * stream. A row of identical boxes at one height is a shipping container.
+   */
+  backline: (c) => {
+    const rng = c.rng('backline');
+    const CAB_W = 0.78;
+    const CAB_H = 0.72;
+    const CAB_D = 0.32;
+    const z = c.m.backZ + 0.2;
+    const n = Math.max(3, Math.min(9, Math.round(c.m.width / 1.15)));
+    const stacks = Array.from({ length: n }, (_, i) => ({
+      x: (i - (n - 1) / 2) * (c.m.width / n),
+      tall: rng.chance(0.55),
+      head: rng.chance(0.7),
+    }));
+
+    const boxes = stacks.reduce((k, s) => k + (s.tall ? 2 : 1), 0);
+    const heads = stacks.reduce((k, s) => k + (s.head ? 1 : 0), 0);
+    const cabs = new InstancedMesh(
+      c.kit.bevelBox(CAB_W, CAB_H, CAB_D, 0.03),
+      c.kit.solid(shade(c.p.backdrop, 0.62), { rough: 0.88 }), boxes,
+    );
+    const cloth = new InstancedMesh(
+      c.kit.geometry('cab-grille', () => new PlaneGeometry(CAB_W - 0.12, CAB_H - 0.14)),
+      c.kit.solid(shade(c.p.backdrop, 0.84), { rough: 0.98 }), boxes,
+    );
+    const tops = new InstancedMesh(
+      c.kit.bevelBox(CAB_W - 0.06, 0.19, CAB_D - 0.03, 0.02),
+      c.kit.solid(shade(c.p.proscenium, 0.55), { metal: 0.5, rough: 0.5 }), Math.max(1, heads),
+    );
+
+    const dummy = new Object3D();
+    let b = 0;
+    let t = 0;
+    for (const s of stacks) {
+      const high = s.tall ? 2 : 1;
+      for (let level = 0; level < high; level++) {
+        const y = CAB_H / 2 + level * CAB_H;
+        dummy.rotation.set(0, 0, 0);
+        dummy.scale.setScalar(1);
+        dummy.position.set(s.x, y, z);
+        dummy.updateMatrix();
+        cabs.setMatrixAt(b, dummy.matrix);
+        // The grille sits on the downstage face, which is the one face of this
+        // whole wall anybody ever sees.
+        dummy.position.set(s.x, y, z + CAB_D / 2 + 0.006);
+        dummy.updateMatrix();
+        cloth.setMatrixAt(b, dummy.matrix);
+        b++;
+      }
+      if (s.head) {
+        dummy.rotation.set(0, 0, 0);
+        dummy.scale.setScalar(1);
+        dummy.position.set(s.x, high * CAB_H + 0.1, z);
+        dummy.updateMatrix();
+        tops.setMatrixAt(t++, dummy.matrix);
+      }
+    }
+    tops.count = t;
+    cabs.castShadow = true;
+    tops.castShadow = true;
+    c.root.add(cabs);
+    c.root.add(cloth);
+    c.root.add(tops);
   },
 
   /** Wedges along the lip, angled back at the band. */

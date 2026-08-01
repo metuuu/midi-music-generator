@@ -327,6 +327,12 @@ class Board {
  */
 const KIT: Record<DrumVoice, { sweep: number; tier: number }> = {
   cp: { sweep: 0.02, tier: 0 },
+  /**
+   * Clamped to the hi-hat stand's upper rod: a shade outboard of the hats and a
+   * head-height above them, which is where a drummer bolts one and which is why
+   * it files between the clap pad and the hats rather than beside the crash.
+   */
+  tb: { sweep: 0.04, tier: 1 },
   hh: { sweep: 0.06, tier: 1 },
   oh: { sweep: 0.06, tier: 1 },
   cr: { sweep: 0.18, tier: 1 },
@@ -340,6 +346,30 @@ const KIT: Record<DrumVoice, { sweep: number; tier: number }> = {
   perc: { sweep: 0.70, tier: 1 },
   lt: { sweep: 0.78, tier: 0 },
   rd: { sweep: 0.90, tier: 1 },
+  /**
+   * The hand drum, standing outboard of the floor tom — and three sweeps three
+   * hundredths of the arc apart, which is the only thing about these entries
+   * that matters.
+   *
+   * They are one drum. The strokes are the middle of the head, the near edge and
+   * the far one, they interleave at sixteenth-note speed, and the two hands
+   * never leave the skin. Filing them at separate places on the arc, the way the
+   * toms are, would charge a full windup for every doum-tek in the bar and
+   * produce a player waving at their own drum. The order is the order of the
+   * strike points in the model — near edge, centre, far edge — for the reason
+   * the header gives: this table and the geometry have to agree about which side
+   * of a body a surface is on.
+   *
+   * That said, this table is the wrong home for them and should one day lose
+   * them. A hand drum is not a kit piece and the person playing one is not a
+   * drummer with a fifth limb — see the note on `DrumSource` in `core/types.ts`,
+   * which says what has to exist before that can be staged honestly. These are
+   * here so the record stays total and so a genre that writes `lp`/`mp`/`hp`
+   * gets sane prep times rather than a type error; no era draws them today.
+   */
+  mp: { sweep: 0.82, tier: 0 },
+  lp: { sweep: 0.85, tier: 0 },
+  hp: { sweep: 0.88, tier: 0 },
 };
 
 /** Sweep across the kit, plus a lift between the heads and the cymbals. */

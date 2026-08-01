@@ -196,6 +196,31 @@ const LAYOUT: Record<DrumVoice, { at: readonly [number, number, number]; up: rea
   perc: { at: [-0.26, 1.103, 0.234], up: [0, 0.92, -0.40] },
   /** Cowbell, on the same bracket, struck on the shoulder. */
   cb: { at: [0.02, 1.160, 0.242], up: [0, 0.80, -0.60] },
+  /**
+   * Tambourine, clamped to the upper rod of the hi-hat stand and struck on its
+   * head — outboard of the hats and a hand's width above them, which is where
+   * it goes on a real stand and keeps it clear of the cymbals' swing.
+   */
+  tb: { at: [0.58, 1.060, -0.40], up: [0.10, 0.98, -0.14] },
+  /**
+   * The hand drum's three strokes: the middle of the head, the near edge, and
+   * the far edge.
+   *
+   * **There is no hand drum in this model.** These are the points a hand would
+   * go to if one stood where an auxiliary drum stands — just past the floor tom,
+   * head about fourteen centimetres above it, at the same reach as the clap pad
+   * on the other side. They exist so this record stays total and so `resolve`
+   * has an answer, and no era writes `lp`/`mp`/`hp` today.
+   *
+   * The day one does, the kit is the wrong object to grow: a darbuka player is
+   * not a drummer's fifth limb, and the note on `DrumSource` in `core/types.ts`
+   * lists what has to exist first — a source, an archetype, and a model with a
+   * drum in it. Until then a stroke written here reaches into empty air, which
+   * is a thing to fix before shipping a genre rather than a thing to hide.
+   */
+  lp: { at: [-0.80, 0.800, -0.42], up: [-0.06, 0.99, -0.13] },
+  mp: { at: [-0.74, 0.793, -0.47], up: [-0.02, 0.98, -0.19] },
+  hp: { at: [-0.86, 0.793, -0.47], up: [-0.10, 0.98, -0.19] },
 };
 
 /**

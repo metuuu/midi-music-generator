@@ -2,7 +2,7 @@
 
 `src/core/rules.ts` · full rule list in [rules.md](rules.md)
 
-Writing rules for what *should* happen only gets you so far. Much of what makes generated melody sound wrong is a short list of specific, nameable faults — an augmented second, a tritone leap, a leading tone left hanging. **19 of them are encoded as rules**, and a smoothness level decides how hard each is policed.
+Writing rules for what *should* happen only gets you so far. Much of what makes generated melody sound wrong is a short list of specific, nameable faults — an augmented second, a tritone leap, a leading tone left hanging. **20 of them are encoded as rules**, and a smoothness level decides how hard each is policed. [rules.md](rules.md) is generated from the table by `npm run rules`, so it is the count to trust.
 
 Each rule has two thresholds: a level where it becomes a scoring **preference**, and a level where it becomes a hard **veto**. Raising smoothness turns preferences into laws.
 
@@ -27,7 +27,7 @@ generateSong({ strictness: 'polished' })
 
 The audition page has a **Smoothness** selector; pin a seed and change it to hear the same song filtered differently.
 
-Precedence: **explicit option → `Style.strictness` → `Genre.defaultStrictness`**. So bebop lands on `free` unless you say otherwise.
+Precedence: **explicit option → `Style.strictness` → `Genre.defaultStrictness`**. So bebop and fusion land on `free` unless you say otherwise.
 
 ## Two things that make it workable
 
@@ -55,7 +55,7 @@ Run `npm run strictness [count] [genre]` for the full per-rule breakdown. One ca
 
 They share the **table**, not the **thresholds**. The rules come from classical voice-leading and general arranging practice. Most transfers — a minor ninth against a held chord tone is sour in any idiom — but some encode conventions jazz does not hold, and enforcing those produces music that is correct and wrong.
 
-A genre declares `ruleOverrides` for what it disagrees with. Jazz overrides six:
+A genre declares `ruleOverrides` for what it disagrees with. Jazz overrides seven:
 
 | Rule | Jazz | Why |
 |---|---|---|
@@ -63,6 +63,7 @@ A genre declares `ruleOverrides` for what it disagrees with. Jazz overrides six:
 | `chromatic-tone` | **off** | Approach notes, enclosures and blue notes are chromatic by definition. |
 | `unprepared-dissonance` | relaxed | Leaping into a non-chord tone is how a bebop line gets anywhere. |
 | `flat-nine` | relaxed | ♭9 over a dominant is the sound of the minor ii–V. |
+| `augmented-second` | relaxed | Still awkward, but less taboo than in a singable idiom — the altered and diminished scales contain them by construction. |
 | `parallel-perfects` | never vetoed | Quartal planing and block-chord writing move in parallel on purpose. |
 | `avoid-fourth` | **tightened** | The natural 11 over a maj7 is a genuine avoid note here, more than in iskelmä. |
 
@@ -78,7 +79,18 @@ Ambient overrides seven, and the reasoning has a single shape: each of them enco
 | `repeated-note-run` | relaxed | Same pitch four times over sixteen seconds is a pulse, not a stall. |
 | `flat-nine` | relaxed | A ♭II leaning on a drone from a semitone above is the wasteland sound; the ♭9 against the pedal is the point. |
 
-Defaults: iskelmä `standard` (singability is what the genre lives on), jazz `light` (the rules stop a line wandering; jazz wanders on purpose), bebop `free`, ambient `standard` — a note that lasts four seconds is exposed in a way a passing eighth never is, so its drone and choral styles go further to `strict`, while `wasteland` drops to `light` because the sour intervals are what it is for.
+Synth overrides five, and the interesting part is the one it does **not** override:
+
+| Rule | Synth | Why |
+|---|---|---|
+| `parallel-perfects` | **off** | Planed synth brass is the sound. So is the fifths lead, which bakes the interval into the patch and would route around the rule anyway. |
+| `avoid-fourth` | **off** | sus2 and sus4 are the harmony here rather than a suspension inside it. |
+| `unresolved-seventh` | relaxed | A maj7 pad held for four bars is a colour. Softened rather than disabled: a seventh in a *moving* line still owes something. |
+| `static-repetition` | relaxed | A Kraftwerk melody repeats one note more than any rule expects. |
+| `repeated-note-run` | relaxed | The same, one rule over. |
+| `unresolved-leading-tone` | **left on** | In major these songs cadence and a hanging leading tone is a fault exactly as it is in iskelmä. In minor the rule is simply inert, because the scale rule never produces a raised seventh for it to catch — which is a better way to be modal than switching the rule off. |
+
+Defaults: iskelmä `standard` (singability is what the genre lives on), jazz `light` (the rules stop a line wandering; jazz wanders on purpose), bebop and fusion `free`, synth `standard`, ambient `standard` — a note that lasts four seconds is exposed in a way a passing eighth never is, so its drone and choral styles go further to `strict`, while `wasteland` drops to `light` because the sour intervals are what it is for.
 
 ## Does it know about instruments?
 

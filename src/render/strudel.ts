@@ -47,7 +47,7 @@ export function renderStrudel(song: Song, opts: StrudelRenderOptions = {}): stri
   lines.push('');
 
   if (opts.includePrebake) {
-    lines.push(`await samples('${DRUM_SAMPLES_URL}');`);
+    for (const url of SAMPLE_MANIFESTS) lines.push(`await samples('${url}');`);
     lines.push('');
   }
 
@@ -182,6 +182,59 @@ export function renderStrudel(song: Song, opts: StrudelRenderOptions = {}): stri
 /** Drum-machine sample set used by the audition render (verified reachable). */
 export const DRUM_SAMPLES_URL =
   'https://raw.githubusercontent.com/felixroos/dough-samples/main/tidal-drum-machines.json';
+
+/**
+ * The Versilian Community Sample Library: 128 sets of real instruments,
+ * recorded rather than synthesised.
+ *
+ * Two things in it that nothing else here can supply. **Percussion that is not a
+ * drum machine** — darbuka, framedrum, conga, bongo, cajon, agogo, cabasa,
+ * clave, guiro, cowbell, tambourine, shakers, vibraslap, woodblock, timpani,
+ * gongs — which is the entire auxiliary rack that `tidal-drum-machines` does
+ * not have, because a 1982 rhythm box did not have it either. And **acoustic
+ * instruments a soundfont approximates badly**, which is the other half of why
+ * this is being registered now: the melodic catalogue can point entries at these
+ * names and get a recording instead of a 1990s soundcard's idea of one.
+ *
+ * Sample names here are bare — `darbuka`, `tambourine2`, `snare_modern` — with
+ * no bank prefix, which is the opposite convention to the drum-machine pack and
+ * is why the two cannot collide.
+ */
+export const VCSL_SAMPLES_URL =
+  'https://raw.githubusercontent.com/felixroos/dough-samples/main/vcsl.json';
+
+/**
+ * Thirteen mridangam strokes, recorded on a real mridangam.
+ *
+ * `gumki ka nam ta ki dhin na chaapu dhum ardha thom dhi tha` — a Carnatic
+ * drummer's own vocabulary, recorded stroke by stroke, which is the thing
+ * `DrumVoice`'s `lp`/`mp`/`hp` are an abstraction *of*. Nothing else loaded here
+ * has a South Indian drum in it at all.
+ *
+ * 4.8 kB of manifest for a genre that does not exist yet, which is the whole
+ * argument for registering it now: an Indian style written against the three
+ * strokes has somewhere real to land, and the cost of it being there in the
+ * meantime is one small fetch.
+ */
+export const MRIDANGAM_SAMPLES_URL =
+  'https://raw.githubusercontent.com/felixroos/dough-samples/main/mridangam.json';
+
+/**
+ * Every sample manifest the audition loads, in the order it loads them.
+ *
+ * One `samples()` call each, all three awaited together — see `web/audio.ts`.
+ * They are separate constants above rather than a bare list because each one is
+ * a different *kind* of thing and the reason it is here is not guessable from
+ * the URL.
+ *
+ * Registering a manifest costs a JSON fetch and nothing else: `samples()` reads
+ * a map of names to URLs and does not touch a single WAV until a pattern
+ * triggers one. The three are 121 kB, 180 kB and 4.8 kB of *index*, fetched
+ * together once at boot; the sounds nobody plays cost nothing at all.
+ */
+export const SAMPLE_MANIFESTS: readonly string[] = [
+  DRUM_SAMPLES_URL, VCSL_SAMPLES_URL, MRIDANGAM_SAMPLES_URL,
+];
 
 /**
  * The note's amplitude shape, as superdough controls.

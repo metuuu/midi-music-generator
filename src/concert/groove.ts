@@ -45,6 +45,7 @@ import { SLOTS_PER_BEAT, quantise, slotOf } from '../core/grid.js';
 import { Rng } from '../core/rng.js';
 import type { DrumVoice, LayerId, Section, Song } from '../core/types.js';
 import { sectionIntensity } from '../generate/dynamics.js';
+import { GENRES } from '../genre/index.js';
 import { playerFor } from './cast.js';
 import type {
   Cast, GrooveBehaviour, GroovePart, GrooveScore, Performer, Span,
@@ -111,19 +112,25 @@ const PHASE_JITTER = 0.35;
 const AMPLITUDE_FLOOR = 0.18;
 
 /**
- * How much body each genre has.
+ * How much body a genre has, when it has not said.
  *
- * This is staging, not mixing, and it is the same axis §8.4 dresses the band
- * on: a tanssilava band is playing for a full dance floor, a jazz quintet is
- * playing for people at tables, and half an ambient act is behind a table not
- * making eye contact. Applied as a multiplier so the *shape* of the energy
- * curve survives — an ambient chorus is still bigger than an ambient intro.
+ * The number itself is staging rather than mixing, and it is the same axis §8.4
+ * dresses the band on: a tanssilava band is playing for a full dance floor, a
+ * jazz quintet is playing for people at tables, and half an ambient act is
+ * behind a table not making eye contact. Applied as a multiplier so the *shape*
+ * of the energy curve survives — an ambient chorus is still bigger than an
+ * ambient intro.
+ *
+ * Which is exactly why the per-genre numbers are not here any more. They were a
+ * four-entry `Record` keyed by genre id, and a genre added without an entry took
+ * this default silently — the number below is a shade under a dance band, so an
+ * unstated genre moves like iskelmä with the volume off rather than like
+ * anything anybody chose. Each genre now states its own: `Staging.body`.
+ *
+ * This stays, and it is not a stub. A genre that has declared no staging at all
+ * should still have bodies on the stage, and a default in the middle is the only
+ * honest answer to "how much does music we know nothing about move".
  */
-const GENRE_BODY: Record<string, number> = {
-  iskelma: 1.0,
-  jazz: 0.85,
-  ambient: 0.4,
-};
 const GENRE_BODY_DEFAULT = 0.9;
 
 /**
@@ -559,7 +566,7 @@ function groovePart(
   const barBeats = song.meta.beatsPerBar;
   const { bpm } = song.meta;
   const rng = new Rng(`${seed}:groove:${performer.id}`);
-  const genreBody = GENRE_BODY[song.meta.genre] ?? GENRE_BODY_DEFAULT;
+  const genreBody = GENRES[song.meta.genre]?.staging?.body ?? GENRE_BODY_DEFAULT;
 
   const jitter = PHASE_JITTER / lane.lanes;
   const phase = (lane.centre + rng.float(-jitter, jitter))

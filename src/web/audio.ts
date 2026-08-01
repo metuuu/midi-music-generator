@@ -38,7 +38,7 @@ import GM_FONTS from '@strudel/soundfonts/gm.mjs';
 
 import type { Envelope, Song } from '../core/types.js';
 import { resolveVoice } from '../render/drum-banks.js';
-import { DRUM_SAMPLES_URL } from '../render/strudel.js';
+import { SAMPLE_MANIFESTS } from '../render/strudel.js';
 
 let instance: StrudelRepl | undefined;
 let booting: Promise<StrudelRepl> | undefined;
@@ -75,7 +75,21 @@ async function boot(): Promise<StrudelRepl> {
 
   registerSynthSounds();
   registerSoundfonts();
-  await samples(DRUM_SAMPLES_URL);
+  /**
+   * All three manifests, together, and all three awaited.
+   *
+   * `samples()` fetches a map of names to URLs and no audio, so this is three
+   * small JSON files in parallel rather than three sample libraries — the WAVs
+   * are still pulled inside the trigger, which is what `preloadSounds` exists to
+   * get ahead of. The wrapper on `samples` is not decoration: passing the
+   * function straight to `map` hands it the array index as its second argument,
+   * which `samples()` reads as a base URL.
+   *
+   * Awaited as a group rather than left to settle, because a manifest that has
+   * not arrived is a `sound not found` at playback for every part that needed
+   * it, and the fetch happens once per page load.
+   */
+  await Promise.all(SAMPLE_MANIFESTS.map((url) => samples(url)));
 
   installLimiter();
 

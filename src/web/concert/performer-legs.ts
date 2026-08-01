@@ -99,7 +99,7 @@ export function buildLegs(
   root: Object3D, anchors: LegAnchors, p: Proportions, look: Look, l: Leases,
 ): LegsRig {
   const seated = p.seatY > 0;
-  const cloth = clothSurface(l, look.outfit.trousers);
+  const cloth = clothSurface(l, look.outfit.trousers, look.outfit.fabric);
 
   // A cartoon leg is thicker than a real one and tapers hard. Build widens the
   // thigh twice as much as the shin, which is where build actually shows.

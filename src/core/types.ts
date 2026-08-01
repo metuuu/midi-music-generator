@@ -419,11 +419,73 @@ export interface DrumEvent {
   velocity: number;
 }
 
+/**
+ * Every sound the percussion can make, as a *role* rather than as an object.
+ *
+ * The first fourteen are a Western kit plus the handful of extras a drum machine
+ * kept beside it, which is exactly what this project needed while it wrote dance
+ * bands, jazz trios and synth records. The last four are what it needs to write
+ * anything else, and both additions rest on the same argument: a voice missing
+ * from here is a part that has to be written on a voice meaning something else,
+ * and the ear hears that substitution long before anyone reads the table.
+ *
+ * The names stay abbreviations of a role — `sd` is the backbeat drum, not a
+ * Ludwig Supraphonic — because a renderer is free to make that role out of
+ * whatever it has. See `render/drum-banks.ts`, which is the whole of what
+ * happens when it has less than the part asked for.
+ */
 export type DrumVoice =
   | 'bd' | 'sd' | 'rim' | 'hh' | 'oh' | 'cp'
   | 'lt' | 'mt' | 'ht' | 'cr' | 'rd' | 'perc' | 'cb'
   /** Shaker — stands in for brushes, which jazz kits need and drum machines lack. */
-  | 'sh';
+  | 'sh'
+  /**
+   * Tambourine. Jingles rather than a drum, and the one voice on this list that
+   * half the repertoire wanted and could not have: the backbeat of soul and
+   * gospel, the sixteenths under a funk chorus, the sleigh-bell shimmer over a
+   * pop bridge, and the riq at the centre of an Arabic takht. It is General MIDI
+   * 54 and it is in 25 of the sample pack's 71 banks, so the only thing it ever
+   * lacked was a name. Written on `sh` — the nearest thing available before —
+   * every one of those parts came out as a dry rush with no metal in it.
+   */
+  | 'tb'
+  /**
+   * The three strokes of a hand drum, low to high — and the reason they are not
+   * called `doum`, `tek` and `ka`.
+   *
+   * Every hand-drum tradition plays *one* drum with *two* hands and gets three
+   * distinct sounds out of it: the darbuka's doum, tek and ka; the tabla's ge on
+   * the bayan against its na and its damped te; the conga's bass, open and slap;
+   * the cajón's centre and corner; the surdo's open stroke and its muffled one.
+   * Musically they are the same three strokes everywhere — a full low tone
+   * struck in the middle of the head, a ringing tone struck at the edge, and a
+   * pinched crack with the hand left lying on the skin — and a pattern that
+   * cannot tell them apart is not a rhythm, it is a pulse. Collapsed onto
+   * `perc`, which is where everything non-Western had to go until now, a maqsum
+   * and a bolero and a keherwa all come out as the same click repeated at the
+   * same pitch.
+   *
+   * **Named for the position, not the instrument**, and that is the whole of the
+   * naming decision. A voice called `tabla` is a lie the first time a latin
+   * style plays congas on it, and it needs a sibling invented for every further
+   * drum — while the same three strokes, given away as low, mid and high, serve
+   * darbuka, tabla, conga, bongo, cajón, surdo and the frame drum without one of
+   * them being named. `lt`/`mt`/`ht` is the precedent and this is deliberately
+   * the same shape one family over: three voices, one instrument, ordered by
+   * where on it the hand lands.
+   *
+   * The ladder is brightness as much as pitch, and the two orderings agree —
+   * doum under tek under ka, bass under open under slap — so a table written
+   * against these reads in the direction a player counts them.
+   *
+   * They are emphatically **not toms**. A tom is one stick, one pitch, one drum,
+   * and three of them standing in a row; this is one drum and two hands, where
+   * the strokes interleave at sixteenth-note speed and the hand that plays the
+   * low one plays the high one a moment later. Nor can the low stroke be `bd`:
+   * a bass drum is a foot on a different object, and a doum is the pulse of the
+   * bar played by the same hand as everything else in it.
+   */
+  | 'lp' | 'mp' | 'hp';
 
 /**
  * Relative level of each drum voice within the kit, 0..1.
@@ -456,10 +518,32 @@ export type DrumVoice =
  * that wrote a full `drumMix` of its own rather than inheriting this one, had
  * already put its ride under its hat — 0.35 against 0.4. This is the default
  * arriving at the same conclusion.
+ *
+ * ## The hand drum, and the tambourine
+ *
+ * The four newest voices are set by the same curve and not by how hard the
+ * instrument is hit, which is worth saying because for these the two disagree
+ * loudly. A slap is the *hardest* stroke on a hand drum and it gets the
+ * smallest fader on it, because a slap is a 4 kHz crack and a doum is a 90 Hz
+ * thump, and the ear does the rest — the same trade already made between `bd`
+ * at 1.0 and `hh` at 0.45.
+ *
+ * `lp` at 0.8 is a fifth under the kick and above the toms, because in the
+ * music these exist for it is neither an accent nor a fill: it *is* the pulse,
+ * the way a kick is, played on a smaller drum with no sub under it. `mp` lands
+ * on `perc`'s own 0.6, since a bank with no hand drum resolves it there and the
+ * balance should not move when it does. `hp` at 0.5 sits with the cowbell —
+ * bright, dry, and heard whether or not it is loud.
+ *
+ * `tb` takes 0.45, the hi-hat's number, for the plainest possible reason: it
+ * lives in the same octave, it keeps time the same way, and a tambourine mixed
+ * as a feature is the sound of a demo. On the backbeat it will be heard at this
+ * level; in sixteenths, at anything higher, it is all anyone hears.
  */
 export const DEFAULT_DRUM_MIX: Record<DrumVoice, number> = {
   bd: 1.0, sd: 0.85, rim: 0.7, hh: 0.45, oh: 0.5, cp: 0.7,
   lt: 0.7, mt: 0.7, ht: 0.7, cr: 0.55, rd: 0.34, perc: 0.6, cb: 0.5, sh: 0.4,
+  tb: 0.45, lp: 0.8, mp: 0.6, hp: 0.5,
 };
 
 /**
@@ -754,6 +838,31 @@ export const SEQUENCER_FROM = 1971;
  * stage a machine miming music it has no mechanism for. So the source is chosen
  * first and **constrains** what may then be written, and casting reads the
  * answer exactly as it reads `Track.voice`.
+ *
+ * ## What is deliberately not here yet: a pair of hands on a hand drum
+ *
+ * `DrumVoice` now carries `lp`/`mp`/`hp`, so a darbuka, a tabla and a set of
+ * congas can be *written*. What produces them is still declared a `kit`, which
+ * is wrong about the object in the room — a percussionist sits behind one drum
+ * with no sticks, no pedals and no cymbals, and neither hand-played value here
+ * describes that.
+ *
+ * It is absent because the answer is not this file's to give alone. Every value
+ * of this type is read twice more before anything reaches a stage:
+ * `concert/cast.ts` asks `isPlayedByHand` and, told yes, drafts a drummer with
+ * the drum-kit archetype and a `${bank} kit` in front of them; told no, hands
+ * the part to `placeMachine` as a box. A fifth value gets one of those two
+ * answers whichever way it is written, so adding it here without an archetype to
+ * go with it either stages a drum kit for a darbuka player or stages a drum
+ * machine for a person — both worse than today's kit, because both look
+ * deliberate.
+ *
+ * What unlocks it is an archetype and a model rather than a union member: a
+ * value here, an archetype in `concert/cast.ts` that maps to it, a `PlayPoint`
+ * resolution over `lp`/`mp`/`hp` in place of the kit's arc, and something for the
+ * hands to stand behind. Whoever writes that should give it `DRUM_SOURCE_FROM`
+ * of 0 — a hand drum is older than every other object on this list by a few
+ * thousand years — and `canVary` of true.
  */
 export type DrumSource =
   /** A drummer, an acoustic kit, a riser. */
@@ -854,7 +963,7 @@ export interface DrumTrack {
    * single gesture: **gated reverb on the snare and nothing else** is the most
    * recognisable production sound of 1984, and applying it to the whole kit
    * puts a two-second tail on the hi-hats, which is a mess rather than a
-   * period. The same argument `voiceGains` already makes — a kit is fourteen
+   * period. The same argument `voiceGains` already makes — a kit is eighteen
    * sources sharing a stand — applied to the other half of the mix.
    */
   voiceEffects?: Partial<Record<DrumVoice, Effects>>;

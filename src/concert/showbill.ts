@@ -19,11 +19,12 @@
  * > **KAKSI VARJOA** · 3:14 · *tango* — "for the last dance of the evening"
  *
  * Nothing in that line is information the show could not survive losing, and it
- * is the only part anybody reads twice. So the blurb tables below are written
- * rather than computed, one per genre, and everything else that a metadata dump
- * would have printed is deliberately absent: **the era belongs in the
- * typography and the paper, not in a caption saying 1974**, and the key and the
- * tempo belong to the band.
+ * is the only part anybody reads twice. So the blurb tables are written rather
+ * than computed, one per genre and kept by the genre — see
+ * `Genre.staging.blurbs` — and everything else that a metadata dump would have
+ * printed is deliberately absent: **the era belongs in the typography and the
+ * paper, not in a caption saying 1974**, and the key and the tempo belong to the
+ * band.
  *
  * Restraint is doing most of the work here. Every line is short, every line is
  * lowercase, and no line explains the music — it either sets an expectation or
@@ -44,126 +45,27 @@
 import { songDurationSeconds, type Song } from '../core/types.js';
 import { Rng } from '../core/rng.js';
 import { GENRES } from '../genre/index.js';
+import type { BlurbSlot } from '../genre/types.js';
 import type { BillEntry } from './types.js';
 
 // ---------------------------------------------------------------------------
 // The copy
 // ---------------------------------------------------------------------------
 
-/** Where in the set a line belongs. Absent means anywhere. */
-type Slot = 'open' | 'close';
-
-interface Blurb {
-  text: string;
-  /** Style ids this line is about. */
-  styles?: string[];
-  /** Mood ids this line is about. */
-  moods?: string[];
-  slot?: Slot;
-}
-
 /**
- * Iskelmä: a tanssilava bill.
+ * Last resort, and it should never be reached — a new genre needs its own table.
  *
- * The register to aim for is the one the genre uses about itself — affectionate
- * and unsentimental at the same time. Finnish popular song is extremely good at
- * being sad on purpose and knows it, so the lines are allowed to be dry about
- * the melancholy without sneering at it. Dance instructions are fair game; the
- * floor is the actual subject of most of this music.
- */
-const ISKELMA: Blurb[] = [
-  { text: 'for the last dance of the evening', styles: ['tango'], moods: ['kaihoisa', 'haikea'], slot: 'close' },
-  { text: 'somebody is not going to be talked out of it', styles: ['tango'] },
-  { text: 'three minutes of magnificent self-pity', styles: ['tango'], moods: ['dramaattinen', 'kaihoisa'] },
-  { text: 'nobody in this one has forgiven anybody', styles: ['tango'] },
-  { text: 'quick, and not gentle about it', styles: ['humppa'] },
-  { text: 'the floor fills whether it wants to or not', styles: ['humppa', 'jenkka'], moods: ['iloinen', 'tanssittava'] },
-  { text: 'two minutes, and every one of them at speed', styles: ['humppa', 'jenkka'] },
-  { text: 'one two three, and do not look at your feet', styles: ['valssi'] },
-  { text: 'three to a bar, and the room goes round with it', styles: ['valssi'] },
-  { text: 'hold on and keep turning', styles: ['valssi'], moods: ['romanttinen'] },
-  { text: 'for the ones who came to sweat', styles: ['jenkka'] },
-  { text: 'smooth, and slightly pleased with itself', styles: ['foksi'] },
-  { text: 'a slow circuit of the floor, and back to your seat', styles: ['foksi'] },
-  { text: 'nobody is in a hurry, least of all the bass player', styles: ['foksi', 'beguine'], moods: ['rento'] },
-  { text: 'a warm night on a borrowed island', styles: ['beguine'] },
-  { text: 'big hair, bigger key change', styles: ['iskelmapop'] },
-  { text: 'wistful in the way that still rhymes', moods: ['haikea'] },
-  { text: 'the long way home, in a minor key', moods: ['kaihoisa'] },
-  { text: 'as remembered, which is not quite as it was', moods: ['nostalginen'] },
-  { text: 'to get everybody up, which is the whole job', moods: ['iloinen', 'tanssittava'], slot: 'open' },
-  { text: 'the one they will hum in the car park', slot: 'close' },
-  { text: 'played every summer since, and not worn out yet' },
-];
-
-/**
- * Jazz: a club card.
+ * **It was being reached.** Three tables lived in this file, one per genre, and a
+ * fourth genre had been added without one, so every synth number in the
+ * catalogue printed this line: the fallback doing precisely its job, and a bill
+ * nobody had written. That is the argument for the copy living where the copy is
+ * about something — `Genre.staging.blurbs`, in the genre folder, next to the
+ * styles and moods each line is tagged against.
  *
- * Understatement, and a house-band's view of the repertoire rather than a
- * critic's. The genre's own jokes are about tempo, about how hard the easy
- * things are, and about the size of the audience — so those are the jokes.
- * Nothing here calls anything "sophisticated", which is what a bill written
- * from outside the music would do.
+ * Everything about *how* a line is chosen stayed here, because none of it is any
+ * one genre's business: the weighting, the spend list, the slot rules and the
+ * argument for all three above.
  */
-const JAZZ: Blurb[] = [
-  { text: 'medium, and it stays medium — that is the hard part', styles: ['swing'] },
-  { text: 'the tempo everyone can play and almost nobody plays well', styles: ['swing'], moods: ['swinging'] },
-  { text: 'the one the whole book is built on', styles: ['swing'] },
-  { text: 'count it in and hold on', styles: ['bebop'] },
-  { text: 'the head twice, then every man for himself', styles: ['bebop'], moods: ['hot'] },
-  { text: 'the one where the drummer picks up the brushes', styles: ['ballad'] },
-  { text: 'take your time. the band certainly will', styles: ['ballad', 'modal'] },
-  { text: 'quiet enough that you can hear the room', styles: ['ballad', 'bossa'] },
-  { text: 'played for about eleven people, all of them listening', styles: ['ballad'], moods: ['smoky'] },
-  { text: 'warm, quiet, and secretly very difficult', styles: ['bossa'] },
-  { text: 'twelve bars. no further questions', styles: ['blues'] },
-  { text: 'the same twelve bars as everyone else, played better', styles: ['blues'], moods: ['bluesy'] },
-  { text: 'two chords and a great deal of nerve', styles: ['modal'] },
-  { text: 'nowhere in particular to be, harmonically', styles: ['modal'], moods: ['dreamy', 'cool'] },
-  { text: 'all downstrokes and no mercy', styles: ['gypsy'] },
-  { text: 'for the last set, once the room has thinned out', moods: ['smoky'] },
-  { text: 'nothing is rushed and nothing is missing', moods: ['cool'] },
-  { text: 'something to play while the room settles', slot: 'open' },
-  { text: 'the one they came for, kept until last', slot: 'close' },
-  { text: 'somebody will take four choruses and nobody will mind' },
-];
-
-/**
- * Ambient: a gallery handout.
- *
- * The trap here is reverence — this music attracts writing that is entirely
- * adjectives, and a bill made of adjectives is unreadable. So the lines are
- * flat, slightly deadpan, and factual about things that are not quite facts.
- * The genre is funnier than its press, and a handout is allowed to know that.
- */
-const AMBIENT: Blurb[] = [
-  { text: 'half-remembered, and not by anyone here', styles: ['hauntology'] },
-  { text: 'taped off the television in about 1979', styles: ['hauntology'], moods: ['warm'] },
-  { text: 'nothing lives here and it is quite beautiful', styles: ['wasteland'] },
-  { text: 'cold, and in no hurry to warm up', styles: ['wasteland'], moods: ['bleak'] },
-  { text: 'the tape kept running after everyone had left', styles: ['wasteland', 'hauntology'] },
-  { text: 'one chord, held until it means something', styles: ['drone'] },
-  { text: 'nothing changes, and then it has', styles: ['drone', 'choral'] },
-  { text: 'it does not begin so much as become audible', styles: ['drone'], moods: ['weightless'], slot: 'open' },
-  { text: 'a sequencer, and a long way to go', styles: ['kosmische'] },
-  { text: 'something is running underneath and it will not stop', styles: ['kosmische'], moods: ['pulse'] },
-  { text: 'voices, and a room that is much too large', styles: ['choral'] },
-  { text: 'for a building that was never built', styles: ['choral'], moods: ['sacred'] },
-  { text: 'heard from underneath', styles: ['aquatic'] },
-  { text: 'everything arrives slightly late and slightly bent', styles: ['aquatic'], moods: ['submerged'] },
-  { text: 'no pulse, and no plans to acquire one', moods: ['weightless'] },
-  { text: 'the room is being tuned rather than the band', slot: 'open' },
-  { text: 'the long one. sit down', slot: 'close' },
-  { text: 'best heard from the back, or from the corridor' },
-];
-
-const BLURBS: Record<string, Blurb[]> = {
-  iskelma: ISKELMA,
-  jazz: JAZZ,
-  ambient: AMBIENT,
-};
-
-/** Last resort, and it should never be reached — a new genre needs its own table. */
 const HOUSE_BLURB = 'a new one, and nobody has decided about it yet';
 
 // ---------------------------------------------------------------------------
@@ -216,10 +118,10 @@ function shortStyle(label: string): string {
 }
 
 function chooseBlurb(song: Song, index: number, total: number, spent: Set<string>): string {
-  const table = BLURBS[song.meta.genre];
+  const table = GENRES[song.meta.genre]?.staging?.blurbs;
   if (!table || !table.length) return HOUSE_BLURB;
 
-  const slot: Slot | undefined = index === 0 ? 'open' : index === total - 1 ? 'close' : undefined;
+  const slot: BlurbSlot | undefined = index === 0 ? 'open' : index === total - 1 ? 'close' : undefined;
   // Spent lines are removed rather than merely discouraged. A weight low enough
   // to make a repeat rare is still a weight, and "rare" over a few hundred
   // shows means somebody will read a bill that says the same thing twice —

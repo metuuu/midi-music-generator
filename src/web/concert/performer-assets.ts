@@ -41,6 +41,7 @@ import {
 } from 'three';
 
 import { Rng } from '../../core/rng.js';
+import type { Fabric } from '../../concert/types.js';
 
 // ---------------------------------------------------------------------------
 // The pool
@@ -280,23 +281,65 @@ export const hairSurface = (l: Leases, colour: string): MeshStandardMaterial =>
   surface(l, colour, { roughness: 0.72, metalness: 0.03 });
 
 /**
- * Cloth, with its sheen derived from how loud the colour is.
+ * What light does to a garment, taken from what the garment is made of.
  *
- * A defensible piece of rendering licence rather than a costume decision: the
- * IR gives four colours and no fabric, and a sequinned tanssilava jacket and a
- * matte wool suit are the same four fields. Saturation is the one signal
- * already in the data that separates them — nobody makes a matte jacket in that
- * pink — so bright colours get a little metalness and dull ones stay flat. The
- * genre still chose the colour; this only decides what light does to it.
+ * This used to derive sheen from how *saturated* the colour was, and the
+ * comment defended it as rendering licence on the grounds that "the IR gives
+ * four colours and no fabric". That was true when it was written and stopped
+ * being true some time ago: `Look.outfit.fabric` has been in the IR all along,
+ * every wardrobe in the project sets it deliberately, and nothing read it.
+ *
+ * The saturation heuristic is not merely a weaker signal than the real one, it
+ * is the specific failure `Fabric` was declared to prevent — its own doc comment
+ * says a renderer asked to infer sheen from saturation "ends up deciding that
+ * any loud colour is shiny, which makes a bright red wool jacket glitter and a
+ * silver knit jumper look like a mirror". Both of those were happening. A
+ * tanssilava band's cream wool suits came out matte because they are pale, and
+ * the one player in sequins came out shiny because sequins are drawn in silver
+ * and gold — so it looked approximately right in the one genre it was tuned
+ * against, and wrong everywhere the colours were loud for another reason.
+ *
+ * `fabric` is required rather than optional, and the saturation path is gone
+ * rather than kept as a fallback. Every one of the six call sites already has
+ * the `Look` in hand, so there is no caller a fallback would serve — and a
+ * required parameter is what makes this change atomic. Torso, sleeves and legs
+ * are one garment, and half-wiring them would open a sheen seam at every
+ * shoulder and hip, which is worse than the uniform wrongness it replaces.
  */
-export function clothSurface(l: Leases, colour: string): MeshStandardMaterial {
-  const hsl = { h: 0, s: 0, l: 0 };
-  new Color(colour).getHSL(hsl);
-  const loud = Math.max(0, hsl.s - 0.25) / 0.75;
-  return surface(l, colour, {
-    roughness: 0.88 - 0.42 * loud,
-    metalness: 0.03 + 0.42 * loud,
-  });
+const FABRIC: Record<Fabric, readonly [roughness: number, metalness: number]> = {
+  // A suit. The reference the rest of the table is read against.
+  wool: [0.88, 0.03],
+  // A thousand separate points of metal. The only entry a lead ever wears.
+  sequin: [0.22, 0.75],
+  satin: [0.26, 0.18],
+  // Deeper than wool and light-absorbing: the pile eats the highlight.
+  velvet: [0.95, 0.02],
+  corduroy: [0.92, 0.02],
+  denim: [0.90, 0.02],
+  leather: [0.42, 0.10],
+  // Nothing reflects. The ambient rooms are built on this row.
+  knit: [0.98, 0],
+  // An anorak: slight sheen, and the wrong kind of sheen.
+  nylon: [0.62, 0.08],
+  // Broad and soft where satin's lustre is a hard bright line.
+  silk: [0.45, 0.06],
+  // Matte, but pale and crisp — it throws light back rather than eating it.
+  linen: [0.94, 0],
+  // Metal thread through the weave, not a coating over it.
+  brocade: [0.50, 0.30],
+  // Lamé: one continuous sheet of metal, where sequin is a thousand points.
+  lame: [0.15, 0.90],
+  // A small hard plastic highlight. Leather's is soft and wide.
+  vinyl: [0.08, 0.25],
+  // No grain at all, where corduroy's ribs catch a rim light in lines.
+  flannel: [1.0, 0],
+};
+
+export function clothSurface(
+  l: Leases, colour: string, fabric: Fabric,
+): MeshStandardMaterial {
+  const [roughness, metalness] = FABRIC[fabric];
+  return surface(l, colour, { roughness, metalness });
 }
 
 /** Shift a colour toward black or white. Returns a hex string, so it pools. */

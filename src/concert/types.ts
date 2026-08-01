@@ -550,11 +550,59 @@ export interface Station {
   riser: number;
 }
 
+/**
+ * What is on a performer's head, as an outline rather than as a haircut.
+ *
+ * The test every value here has to pass is the one an audience applies from row
+ * twenty: no two of these may be the same outline in a different colour. That is
+ * the whole reason there is no shaved-crop value sitting next to `short` — a
+ * number two crop and a short back-and-sides differ by a centimetre of hair that
+ * does not exist at this scale, and a head that is actually shaved is already
+ * `bald`. It is also why `mane` is worth having next to `long`: `long` stops at
+ * the shoulder line and reads as a haircut, `mane` covers the shoulders and
+ * reads as a mass, and one of those is a metal band and the other is not.
+ *
+ * **Two of these are cloth, and they are here rather than in `Accessory` because
+ * they replace the hair.** An accessory is worn *as well as* a hairstyle; a hood
+ * or a headscarf is worn *instead of* one, and putting either in the other union
+ * licenses a beehive under a hijab. A hat that sits on top of whatever is
+ * underneath — a cap, a turban, a tam — is an accessory, and stays one.
+ */
 export type HairStyle =
-  | 'short' | 'slick' | 'beehive' | 'bob' | 'long' | 'curls' | 'bald' | 'hood';
+  // Held close to the skull.
+  | 'short'      // the default, and most of what any band is wearing
+  | 'slick'      // oiled flat with a quiff: swing, rockabilly, a tight band
+  | 'bald'
+  | 'updo'       // pinned and knotted at the nape. The concert platform
+  | 'braids'     // a tight scalp and one heavy plait behind it
+  | 'mohawk'     // shaved to a crest; the one silhouette that is mostly skull
+  // Shaped, with a volume of its own.
+  | 'beehive'    // a tower. Tanssilava, and the sixties everywhere else
+  | 'bob'        // cut off level below the jaw
+  | 'curls'
+  | 'afro'       // half again the width of the head: a volume, not a texture
+  // Hanging.
+  | 'long'       // curtains to the shoulder
+  | 'mane'       // past the shoulder blades, and over the collarbones as well
+  | 'mullet'     // short everywhere the audience can see. Long behind
+  | 'dreadlocks' // ropes, hanging separately and swinging separately
+  // Cloth, worn instead of a hairstyle.
+  | 'hood'       // outerwear, in the jacket's colour
+  | 'wrap';      // cloth over the hair, falling to the shoulders
 
 /**
  * What a garment is made of. Drives sheen, and reads as era as much as genre.
+ *
+ * Each value has to be a different *reflectance*, not a different bolt of
+ * cloth — two fabrics that light behaves identically on are one fabric with two
+ * names, and the wardrobe already has colour for saying the rest. So the
+ * question asked of every entry below is what a follow spot does when it crosses
+ * it: a sharp bright line, a broad soft lustre, a thousand separate points, or
+ * nothing at all.
+ *
+ * `brocade` is the one exception and it is deliberate. It is a *pattern* rather
+ * than a sheen, which is not something a shader can be handed as a number, so it
+ * is the only fabric that reaches the renderer as geometry — see `dressTorso`.
  */
 export type Fabric =
   | 'wool'      // a suit. The default, and most of what a band wears.
@@ -565,11 +613,55 @@ export type Fabric =
   | 'denim'
   | 'leather'
   | 'knit'      // ambient: jumpers, and nothing reflects
-  | 'nylon';    // an anorak. Slight sheen, and the wrong kind of sheen.
+  | 'nylon'     // an anorak. Slight sheen, and the wrong kind of sheen.
+  | 'silk'      // a broad soft lustre that moves with the drape, where satin's is a hard bright line
+  | 'linen'     // matte, but pale and crisp: it throws light back rather than eating it
+  | 'brocade'   // woven pattern and metal thread. The only fabric with a shape
+  | 'lame'      // lamé — one continuous sheet of metal, where sequin is a thousand points of it
+  | 'vinyl'     // a small hard plastic highlight; leather's is soft and wide
+  | 'flannel';  // brushed until it has no grain at all. Corduroy's ribs catch a rim light in lines; this catches nothing
 
+/**
+ * Worn as well as a hairstyle, never instead of one. See `HairStyle`.
+ *
+ * The rule that keeps this list honest is the same ten-metre test, and it prunes
+ * harder here than anywhere else: a nose ring is four pixels under a follow
+ * spot, and a fedora and a porkpie are one felt crown over one round brim with a
+ * crease between them. What survives is what changes an *outline* — a wide brim,
+ * a peak the wrong way round, a band of dark across both eyes instead of two
+ * discs.
+ *
+ * Nothing here can be trusted to appear alone, so nothing here may assume it
+ * does: `cast.ts` draws several and caps them at three, and `EXCLUSIVE` there
+ * groups the ones that cannot physically coexist. A value added to this union
+ * without being added to that table is a player in a cowboy hat and a beanie.
+ */
 export type Accessory =
-  | 'glasses' | 'sunglasses' | 'porkpie' | 'flatcap' | 'tie' | 'bowtie'
-  | 'scarf' | 'beard' | 'moustache' | 'earrings' | 'headphones';
+  // On the eyes. One of these at most.
+  | 'glasses'
+  | 'sunglasses'
+  | 'wraparounds'  // one dark band across both eyes, not two discs
+  // On the head. One of these at most, and none of them with each other.
+  | 'porkpie'
+  | 'flatcap'
+  | 'ballcap'      // worn backwards; `flatcap` is already a peak the right way round
+  | 'beanie'
+  | 'cowboyhat'
+  | 'bandana'      // tied at the brow, knotted behind
+  | 'turban'       // wound bulk above the skull. Also the tam worn over dreadlocks
+  // Round the neck.
+  | 'tie'
+  | 'bowtie'
+  | 'scarf'
+  | 'towel'        // the one thing here that says the performer is working
+  | 'chain'
+  // On the face.
+  | 'beard'
+  | 'moustache'
+  // Everything else.
+  | 'earrings'     // studs
+  | 'hoops'        // and not studs: these swing below the jaw and catch the light
+  | 'headphones';
 
 /**
  * How a performer looks. Deterministic from the concert seed.

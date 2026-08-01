@@ -1,5 +1,5 @@
 /**
- * Four pages, not one.
+ * Five pages, not one.
  *
  * The dev server finds any HTML file by path on its own, so this exists only
  * for `vite build` — which defaults to `index.html` alone and would silently

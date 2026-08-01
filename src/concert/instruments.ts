@@ -1,10 +1,11 @@
 /**
  * Sounds → objects.
  *
- * `style/instruments.ts` is a catalogue of 77 *sounds*, because that is what a
+ * `style/instruments.ts` is a catalogue of 126 *sounds*, because that is what a
  * generator needs. A stage needs a catalogue of *things a person stands
- * behind*, and there are far fewer of those: a soprano and a baritone sax are
- * one model at two sizes, and the eight GM synth pads are one keyboard.
+ * behind*, and there are far fewer of those — twenty, against those 126: a
+ * soprano and a baritone sax are one model at two sizes, and the eight GM synth
+ * pads are one keyboard.
  *
  * Two properties are worth the file existing on its own:
  *
@@ -47,6 +48,38 @@ import type { Archetype, ArchetypeSpec, SynthRigId } from './types.js';
  *    a rendering bug rather than as an orchestra.
  *  - **Synth basses go to `synth`.** A bass line is a bass line; a Minimoog is
  *    still a keyboard.
+ *
+ * ## Borrowed objects
+ *
+ * Fifteen genres' worth of sounds arrived here against a fixed list of
+ * archetypes, and `Archetype` is a closed union with a total `BUILDERS` record
+ * behind it — a new member is a build error until a model exists. So the
+ * newcomers below are mapped onto **the nearest plausible object already on the
+ * stage**, and the mapping is a placeholder in a way the rest of this table is
+ * not: a violist really is holding a violin, but a piper is not holding a
+ * clarinet and a timpanist is not standing at a vibraphone.
+ *
+ * The ones that most want a model of their own, in the order the difference is
+ * visible from the twelfth row:
+ *
+ *  - **bagpipes** — a bag, three drones over the shoulder, and a walking
+ *    player. Staged on a clarinet, which gets only the chanter right.
+ *  - **timpani** — four kettles and a foot on a pedal, staged on `mallets`.
+ *  - **harpsichord** — two manuals, a rose, no pedals, staged on a grand.
+ *  - **pipe organ** — a case of pipes and a pedalboard behind the console,
+ *    where `organ` is a Hammond on a stand.
+ *  - **tuba** and **french horn** — a tuba is played sitting with the bell over
+ *    the shoulder and a horn's bell faces backwards; both are on brass models
+ *    built for a bell facing the house.
+ *  - **kantele**, **koto**, **dan tranh** — three zithers on a concert harp.
+ *  - **banjo** and **strumstick** — a head and a rim, and a three-string stick,
+ *    both currently dreadnoughts.
+ *  - **steel drums**, **melodic tom**, **hammered dulcimer** — three more rows
+ *    of `mallets` that are not rows of bars.
+ *  - **viola**, **piccolo**, **bassoon**, **oboe**, **english horn**,
+ *    **recorder**, **shehnai** — right family, wrong size. These want
+ *    `SCALE_OF` in `web/concert/instruments/index.ts` far more than they want
+ *    new geometry, and that is the cheaper half of the same fix.
  */
 export const ARCHETYPE_OF: Record<InstrumentId, Archetype> = {
   // Electric variants
@@ -67,6 +100,26 @@ export const ARCHETYPE_OF: Record<InstrumentId, Archetype> = {
   electricVibes: 'mallets',
   crushedPad: 'synth',
 
+  // Doubles
+  //
+  // Seven entries that share a General MIDI programme with a canonical one,
+  // because they carry a *sampled* sound the GM soundfont cannot make — a
+  // Steinway against `gm_piano`, a kantele against the orchestral harp, two
+  // organ registrations against GM 19's one. See `Instrument.strudel`, and see
+  // the catalogue entries, which argue each substitution.
+  //
+  // Written before their bases for exactly the reason the electric variants
+  // are, one paragraph up: `ID_BY_GM` is a `Map` and the last writer wins. A
+  // bare `gm 0` arriving with nothing else attached is the plain piano and not
+  // a sampled concert grand; a bare `gm 46` is a harp and not a kantele.
+  steinway: 'grand-piano',
+  balafon: 'mallets',
+  strumstick: 'acoustic-guitar',
+  pipeOrgan: 'organ',
+  pipeOrganQuiet: 'organ',
+  kantele: 'harp',
+  dantranh: 'harp',
+
   // Free reed
   accordion: 'accordion',
   bandoneon: 'accordion',
@@ -80,6 +133,11 @@ export const ARCHETYPE_OF: Record<InstrumentId, Archetype> = {
   // an audience sees behind a Rhodes.
   clavinet: 'electric-piano',
   celesta: 'electric-piano',
+  // A lidded wing on legs with a keyboard in it, sat at. The grand piano is the
+  // silhouette, and the differences an audience could actually name — two
+  // manuals, a rose in the soundboard, no pedals — are the model's business on
+  // the day somebody builds one.
+  harpsichord: 'grand-piano',
   drawbarOrgan: 'organ',
   rockOrgan: 'organ',
   percussiveOrgan: 'organ',
@@ -87,12 +145,27 @@ export const ARCHETYPE_OF: Record<InstrumentId, Archetype> = {
   reedOrgan: 'organ',
 
   // Tuned percussion
+  //
+  // `mallets` is doing more work here than anywhere else in the table, and it
+  // earns it on the thing the audience is watching rather than on the shape of
+  // the object: every one of these is two beaters over a row of pitches, struck
+  // by a standing player. It is the same argument the celesta already makes one
+  // section up. The four newcomers that are *not* a row of bars — the timpani,
+  // the toms, the pans and the dulcimer — are the clearest candidates in this
+  // whole file for a model of their own; see "Borrowed objects" above.
   vibraphone: 'mallets',
   glockenspiel: 'mallets',
   marimba: 'mallets',
   tubularBells: 'mallets',
   musicBox: 'mallets',
   kalimba: 'mallets',
+  xylophone: 'mallets',
+  timpani: 'mallets',
+  dulcimer: 'mallets',
+  steelDrums: 'mallets',
+  agogo: 'mallets',
+  woodblock: 'mallets',
+  melodicTom: 'mallets',
 
   // Plucked
   nylonGuitar: 'acoustic-guitar',
@@ -102,8 +175,26 @@ export const ARCHETYPE_OF: Record<InstrumentId, Archetype> = {
   mutedGuitar: 'electric-guitar',
   overdriveGuitar: 'electric-guitar',
   distortionGuitar: 'electric-guitar',
+  // Still an electric guitar, and it is not even a different technique from the
+  // audience's side: the hand is on the same neck, touching the string instead
+  // of pressing it. Nothing to model.
+  guitarHarmonics: 'electric-guitar',
+  banjo: 'acoustic-guitar',
   harp: 'harp',
   sitar: 'sitar',
+  // **The zithers go to `harp`, not to `sitar`.** The temptation is the other
+  // way — both are eastern, both are plucked, both are played sitting — and it
+  // would be wrong for a mechanical reason as well as a visual one. A sitar is
+  // resolved against four open strings and twenty frets, so a `PlayPoint` on it
+  // is a string and a fret; a koto has one string per note and no stopping hand
+  // at all, which is the harp's resolution model exactly. Staging one on a
+  // fretboard would mean inventing a finger position for a note that is simply
+  // a different string.
+  koto: 'harp',
+  // The exception that proves it: a shamisen *is* a lute, with a neck and a
+  // stopping hand, played sitting with the body on the thigh. That is the sitar
+  // in every respect an audience reads, minus the gourd.
+  shamisen: 'sitar',
 
   // Bass
   acousticBass: 'upright-bass',
@@ -111,6 +202,7 @@ export const ARCHETYPE_OF: Record<InstrumentId, Archetype> = {
   fingerBass: 'electric-bass',
   pickBass: 'electric-bass',
   slapBass: 'electric-bass',
+  slapBass2: 'electric-bass',
   fretlessBass: 'electric-bass',
   synthBass: 'synth',
   synthBass2: 'synth',
@@ -122,13 +214,28 @@ export const ARCHETYPE_OF: Record<InstrumentId, Archetype> = {
   pizzStrings: 'violin',
   strings1: 'violin',
   strings2: 'violin',
+  // One size up, and `SCALE_OF` in `web/concert/instruments/index.ts` is where
+  // that gets said — the saxophones and the two double basses already use it
+  // for the same reason. Until it does, a violist is holding a violin, which is
+  // a smaller error than a cellist would be.
+  viola: 'violin',
   cello: 'cello',
 
   // Brass
   trumpet: 'trumpet',
   mutedTrumpet: 'trumpet',
   brassSection: 'trumpet',
+  // A valve instrument, so `trumpet` rather than `trombone` — which is the
+  // choice between two wrong sizes made on the only fact that shows. The
+  // trombone's extra footprint exists to leave room for a slide the horn does
+  // not have, and a hand on a slide is a different gesture from a hand on
+  // valves. The bell facing backwards is a model's problem.
+  frenchHorn: 'trumpet',
   trombone: 'trombone',
+  // And this one goes the other way for the same reason: the tuba's bulk and
+  // its reach down to E1 both fit the trombone's spec far better than the
+  // trumpet's, even though a tuba's valves are a trumpet's.
+  tuba: 'trombone',
   synthBrass: 'synth',
   synthBrass2: 'synth',
 
@@ -137,10 +244,33 @@ export const ARCHETYPE_OF: Record<InstrumentId, Archetype> = {
   altoSax: 'saxophone',
   tenorSax: 'saxophone',
   baritoneSax: 'saxophone',
+  // Not a clarinet, despite the reed. A bassoon is a long conical tube carried
+  // diagonally across the body on a neck strap, which is a baritone saxophone's
+  // posture and silhouette and nothing like a clarinet's straight stick — and
+  // `saxophone` is already the archetype that knows how to be four sizes.
+  bassoon: 'saxophone',
   clarinet: 'clarinet',
+  // The straight-stick winds. A double reed is not a single one and nobody
+  // watching will mistake a shehnai for a clarinet, but the thing being staged
+  // — a tube held out and down from the mouth, both hands on holes, blown — is
+  // the same object at every one of the points the choreographer resolves.
+  oboe: 'clarinet',
+  englishHorn: 'clarinet',
+  shanai: 'clarinet',
+  // The worst borrow in the table and the least bad one available. A piper's
+  // hands are on a chanter, which really is a tube with finger holes, and the
+  // `clarinet` spec gets the posture, the holes and the blowing right. What it
+  // cannot show is the bag, the three drones over the shoulder, or the fact
+  // that the player is walking. First in the queue for a model.
+  bagpipes: 'clarinet',
   flute: 'flute',
   panFlute: 'flute',
   shakuhachi: 'flute',
+  // A flute held across the face, and a piccolo is the same object at a third
+  // the length — a scale factor rather than a shape. The recorder is not held
+  // across at all, which is the one thing about it worth eventually drawing.
+  piccolo: 'flute',
+  recorder: 'flute',
 
   // Electronic — the ambient shelf, plus every lead and pad
   synthStrings: 'synth',
@@ -172,6 +302,22 @@ export const ARCHETYPE_OF: Record<InstrumentId, Archetype> = {
   choirAahs: 'synth',
   voiceOohs: 'synth',
   synthChoir: 'synth',
+  // Samplers, all six, and that is the honest answer rather than a shrug. An
+  // orchestra hit is not an orchestra: it is one chord off a disc, fired from a
+  // keyboard by a person who is standing at a keyboard, and the same is true of
+  // a reverse cymbal at a section join and of a recording of the sea. Staging
+  // any of them as the thing recorded would put an orchestra on the risers for
+  // four notes, which is the sort of literalism that reads as a bug.
+  //
+  // `synthDrum` joins them because a tuned analogue tom is a circuit, played
+  // from the same board — see the note above about synth basses, which is the
+  // same call one instrument along.
+  orchestraHit: 'synth',
+  synthDrum: 'synth',
+  reverseCymbal: 'synth',
+  seashore: 'synth',
+  birdTweet: 'synth',
+  breathNoise: 'synth',
 };
 
 const S = (spec: ArchetypeSpec): ArchetypeSpec => spec;
@@ -386,8 +532,15 @@ export const ARCHETYPES: Record<Archetype, ArchetypeSpec> = {
  *  - **A sax family spans two octaves between its ends.** Unioning all four into
  *    one archetype range would let a baritone part be written in the soprano
  *    register with nothing objecting.
+ *  - **A borrowed object is the wrong size.** Everything under "the orchestra"
+ *    below is staged on the nearest plausible thing rather than on itself — a
+ *    horn on a trumpet, a bassoon on a saxophone, timpani on a vibraphone — and
+ *    an archetype range is a statement about the *object*, so it would be a
+ *    statement about the wrong instrument. These are the reach of the sound.
  *
- * Anything absent here uses the archetype's own range.
+ * Anything absent here uses the archetype's own range, which is the common case
+ * and stays common: a borrowed archetype only needs an entry when the sound
+ * reaches past it, and most of them fit inside comfortably.
  */
 export const RANGE_OF: Partial<Record<InstrumentId, [Midi, Midi]>> = {
   strings1: [36, 96],
@@ -406,6 +559,34 @@ export const RANGE_OF: Partial<Record<InstrumentId, [Midi, Midi]>> = {
   altoSax: [49, 89],
   tenorSax: [44, 84],
   baritoneSax: [37, 76],
+
+  // The orchestra, on borrowed objects. Each of these is the catalogue's own
+  // number from `INSTRUMENT_RANGE`, restated here because the object it is
+  // staged on is a different instrument and would otherwise answer for it.
+  //
+  // A horn goes eleven semitones below a trumpet's bottom F♯ and a tuba six
+  // below a trombone's; a bassoon reaches under the baritone saxophone that is
+  // standing in for it; and a piccolo's top octave is simply not on a flute.
+  frenchHorn: [41, 77],
+  tuba: [28, 65],
+  bassoon: [34, 75],
+  piccolo: [74, 105],
+  // The C string, which is the whole reason to write a viola part and is a
+  // fifth below anything a violin has.
+  viola: [48, 88],
+  // Both directions off the end of a vibraphone, and in opposite directions.
+  // Timpani live an octave and a quarter *below* the bottom bar; a xylophone
+  // sounds an octave above the written part and runs a fifth past the top one.
+  timpani: [38, 57],
+  xylophone: [65, 108],
+  melodicTom: [36, 67],
+  // A harmonic sounds above the string that makes it, so it is reachable at the
+  // node rather than at the fret — the one place in this table where a range
+  // exceeds an object's because of physics rather than because of size.
+  guitarHarmonics: [64, 96],
+  // The two open drones are a whole tone below a guitar's low E, and they are
+  // most of what a strumstick is.
+  strumstick: [38, 69],
 };
 
 /**

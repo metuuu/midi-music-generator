@@ -47,6 +47,7 @@ import { ERAS } from './eras.js';
 import { MOODS } from './moods.js';
 import { VOCALS } from './vocals.js';
 import { generateTitle } from './titles.js';
+import { STAGING } from './staging.js';
 
 /**
  * The seven-note modes of one tonic, ordered brightest to darkest — each step
@@ -545,4 +546,10 @@ export const synth: Genre = {
     // do not belong.
     return makeScale(tonic, mode === 'minor' ? 'minor' : 'major');
   },
+
+  /**
+   * The hall, the equipment and the programme — the one genre whose staging was
+   * written rather than moved, because it had none. See `staging.ts`.
+   */
+  staging: STAGING,
 };
