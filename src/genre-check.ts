@@ -537,6 +537,8 @@ const levelByBar = (events: readonly Timed[], beatsPerBar: number) => {
    *    it half of a note rather than a new one.
    */
   const cap = 0.35;
+  /** `trimOverlaps`' own floor, below which it deletes rather than clips. */
+  const MIN_AUDIBLE = 0.125;
   let bent = 0; let melodyNotes = 0; let rhythmNotes = 0; let regridded = 0;
   let authored = 0; let lost = 0; let wrongLayer = 0; let tooLoud = 0;
   let ghosts = 0; let splits = 0;
@@ -561,7 +563,53 @@ const levelByBar = (events: readonly Timed[], beatsPerBar: number) => {
       const a = felt.tracks.find((t) => t.layer === layer)?.notes ?? [];
       const b = plain.tracks.find((t) => t.layer === layer)?.notes ?? [];
       melodyNotes += b.length;
-      if (a.length !== b.length) { bent += Math.abs(a.length - b.length); continue; }
+      /**
+       * A re-gridded line may not have the same number of notes, and that is
+       * `trimOverlaps` rather than a bend.
+       *
+       * This check used to read a count difference as proof of a bend, which is
+       * the right instinct and was passing on luck. `Feel.swing` moves an onset
+       * and shortens the note it delays; `trimOverlaps` then runs against a line
+       * whose gaps have changed and *drops* anything left under `MIN_AUDIBLE`.
+       * So the same tune, gridded two ways, can legitimately come out two notes
+       * apart. Found on `jazz/modal` `fl-0`, where `halftime` switches swing off
+       * over bars 12–28 and 60–76: at beat 53.5 the unswung line keeps a note of
+       * 0.15 beats that the swung line pushes to 53.665, clips, and deletes. Two
+       * notes across the catalogue, both of them that.
+       *
+       * The licence is therefore narrowed rather than dropped, because "the tune
+       * has the same number of notes" was never the claim — the claim is that
+       * every note the tune won its audition with is still there, at the grid the
+       * span asks for. A surplus note is forgiven only where it is a note the
+       * *other* grid is entitled to have deleted, and that is arithmetic rather
+       * than a tolerance: `applySwing` delays the second eighth of a beat and
+       * takes `swing / 2` off its length, flooring at 0.05, and `trimOverlaps`
+       * drops whatever is left under `MIN_AUDIBLE`. So the test is whether the
+       * note, swung, would have fallen through that floor — 0.15 beats against
+       * modal's 0.33 swing gives 0.05, and 0.05 is gone. It is licensed in that
+       * direction only: un-swinging *lengthens*, so a note that survives the
+       * swung grid has no excuse for vanishing from the straight one.
+       */
+      const overridden = (felt.meta.feels ?? []).some(
+        (f) => f.feel.swing !== undefined && f.feel.swing !== base);
+      if (a.length !== b.length) {
+        if (!overridden || a.length < b.length) {
+          bent += Math.abs(a.length - b.length);
+          continue;
+        }
+        let unpaired = 0;
+        for (const n of a) {
+          if (b.some((m) => m.midi === n.midi && Math.abs(m.beat - n.beat) < 0.25)) continue;
+          unpaired++;
+          const frac = n.beat - Math.floor(n.beat);
+          const onOffbeat = Math.abs(frac - 0.5) < 1e-6;
+          const swungDuration = Math.max(0.05, n.duration - base * 0.5);
+          if (onOffbeat && swungDuration < MIN_AUDIBLE) regridded++; else bent++;
+        }
+        // The count gap has to be explained by those notes and nothing else.
+        if (unpaired !== a.length - b.length) bent += a.length - b.length;
+        continue;
+      }
       for (let k = 0; k < a.length; k++) {
         const x = a[k]!; const y = b[k]!;
         if (x.midi !== y.midi || Math.abs(x.velocity - y.velocity) > 1e-9) { bent++; continue; }
