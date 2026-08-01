@@ -2,7 +2,7 @@
 
 Vintage electronic music, 1972 to 1990: Vangelis, Jean-Michel Jarre, Kraftwerk, and the Tangerine Dream that had a drum machine.
 
-Organised by *what the machine is doing* rather than by dance or by feel, because that is the only thing these five styles have in common and it is what separates them from each other. A sequencer running the harmony, a sequencer running the bass, a man holding chords, a four-on-the-floor kick under a 16th figure, and one ostinato repeated until it becomes threatening — those are five different pieces of equipment being used five different ways, and everything else follows.
+Organised by *what the machine is doing* rather than by dance or by feel, because that is the only thing these six styles have in common and it is what separates them from each other. A sequencer running the harmony, a sequencer running the bass, a man holding chords, a four-on-the-floor kick under a 16th figure, one ostinato repeated until it becomes threatening, and an arpeggiator on an instrument with no filter — those are six different pieces of equipment being used six different ways, and everything else follows.
 
 **One of these four artists is not in this genre.** `ambient/kosmische` is *Phaedra* and *Rubycon* — one chord for seventeen minutes with a sequencer over it — and it belongs there, because that music answers the question that made `Genre` an abstraction the way the rest of ambient does: the melody comes from the drone. The other four have tunes, keys, cadences and choruses that arrive. The distance between the two shows up as seven fields where this genre states the opposite of what ambient states, and ambient states every one of them on purpose:
 
@@ -24,13 +24,20 @@ That last row is asserted rather than described. `npm run genres` measures both 
 |---|---|---|---|---|
 | **Berlin** | 108–140 | 80% minor | `cycle: 64` comp | The sequencer is the composer. Harmony every 2 bars, so the same 64 steps play over two chords. `filter: ramp` |
 | **Cinematic** | 60–84 | 55% minor | none | Vangelis. maj7 and sus, plagal and mediant motion, a soaring lead. **No `cycle` anywhere, on purpose** |
-| **Machine** | 116–132 | 65% minor | `cycle: 32` bass | Kraftwerk. The bass line is the tune; the melody is five notes repeated exactly. `hook: earworm` |
+| **Machine** | 104–134 | 65% minor | `cycle: 32` bass | Kraftwerk. The bass line is the tune; the melody is five notes repeated exactly. `hook: earworm` |
 | **Cosmic** | 118–130 | 60% **major** | `cycle: 32` comp | Four-on-the-floor under a 16th sequence that drifts against it. Euphoric, instrumental |
 | **Stalker** | 84–104 | 92% minor | `cycle: 20` bass | Carpenter and Goblin. Five beats against a four-beat bar. `bII`, `#IV`, no fills, `hook: earworm` |
+| **Optical** | 96–126 | 55% **major** | `cycle: 32` comp | Late Tangerine Dream and *Rendez-Vous*. Bright arpeggio, a real tune, gated backbeat, **`filter: step` at 0.15** |
 
 Two of these are named for a body of work and it is worth saying which. **Stalker** is *Halloween* and *Escape from New York* — the branch of this music that descends from horror scoring rather than from the cosmos, and the one where the ostinato is the entire composition. **Cinematic** is *Blade Runner*.
 
 `cinematic` having no `cycle` at all is a statement, not an omission: Vangelis is a man holding chords, and an ostinato underneath him turns the style into `berlin` at half speed.
+
+**`optical` is `berlin` with the filter taken away, and that is the whole argument for it being a separate style.** *Optical Race* and *Le Parc* are the same group doing the same job on an instrument that has no cutoff knob, because an FM patch is bright or it is not. Everything that follows from that is a style-level field a table row cannot reach: `filter` goes from `{ ramp, 0.75 }` — where the sixteen-bar opening *is* the composition — to `{ step, 0.15 }`, so the arrival has to be built out of the gated snare and the layers instead; `modeWeights` goes from 80% minor to 55% major, because this half of the repertoire is not dark and no quantity of major progressions rescues a style that draws minor four times in five; and `melody.sequence` drops from 0.6 to 0.4, because by 1988 the tune is a tune rather than a colour drawn over the sequence.
+
+### Rows per style
+
+Each style carries three to seven figures per layer, and the rows are records rather than variations. `machine`'s four bass figures are 1974, 1977, 1981 and 1983 — a flowing four-bar walk, a rolling two-bar train, the hook, and a sixteenth figure with holes cut in it — and the style header names which is which. Measured over 400 songs with `seed: spread-N`, the six styles field **320 distinct rhythm-section shapes** (bass onsets × comp onsets × kit voicing over the first four bars), against 183 for the five styles before this pass. `machine` moved furthest: 0.27 shapes per song to 0.82.
 
 ## The figure that is not the bar
 
@@ -38,7 +45,7 @@ Everything above depends on `cycle` (see `style/types.ts`), which is the length 
 
 - `cycle: 20` against a 4/4 bar is five beats. It arrives on a different beat every bar and comes home every fourth, and that slow disagreement is `stalker`'s whole idea.
 - `cycle: 32` is two bars, which is what a riff is. A Kraftwerk bass line answers its own first half, and a bar-shaped pattern structurally cannot.
-- `cycle: 12`, `20` and `6` run simultaneously in `berlin`'s counter-ostinatos, returning every 3, 5 and 3 bars and never settling together.
+- `cycle: 12`, `20`, `6`, `10`, `14` and `18` are `berlin`'s counter-ostinatos, one drawn per song against whichever comp figure the same song drew. Two of the six are prime against 16 and none shares a useful factor with the four-bar sequence, so the pair never settles inside a section.
 
 **5/4 was considered for `stalker` and rejected.** In 5/4 a cycle of 20 is exactly one bar — the single value at which the figure stops drifting and the effect disappears. 4/4 is what makes 20 interesting.
 
@@ -124,7 +131,7 @@ The technology changed this music more than in any other genre here, so the eras
 
 - **`modular`** (1972–77) — monophonic leads only; polyphony bought from a divide-down string machine or a combo organ, never from a synth. `phaser` 0.65 on the pad, resonance on lead and bass. Preset rhythm boxes.
 - **`polysynth`** (1978–83) — Prophet, CS-80, Jupiter. The vocoder. No phaser and no crush, sitting deliberately between its neighbours' defining effects. `keyChangeChance` 0.3, the highest, because `cinematic` peaks here.
-- **`digital`** (1984–90) — DX7 and Fairlight, `crush: 12` on the sampled layers only, gated snare. `berlin` weighted lowest, argued from hardware: FM has no cutoff knob, so the sixteen-bar filter opening stops being available.
+- **`digital`** (1984–90) — DX7 and Fairlight, `crush: 12` on the sampled layers only, gated snare. `berlin` weighted lowest, argued from hardware: FM has no cutoff knob, so the sixteen-bar filter opening stops being available. `optical` carries the era's heaviest weight for the other half of that sentence — the group did not stop working in 1984, and what they made instead is what that style is.
 
 **`modular` inverts the rule ambient set.** Ambient restricted itself to banks carrying every voice its styles emit, and that cost it the period-correct boxes — Minipops and CompuRhythm 78 were excluded for having no side stick. But a four-sound preset box *is* the 1974 sound, so this era takes them and leans on `resolveVoice`. Stated rather than assumed, because substitution degrades silently: a fill written on three toms and a crash arrives as four snare hits and an open hat, and nothing reports it.
 
@@ -155,20 +162,22 @@ Also `vibDepth: 0` (no diaphragm), `scoop: 0` (an oscillator has no way of being
 60 songs, `npx tsx src/audit.ts 60 synth`:
 
 ```
-chord tone on the beat        63.7%   (want > 70%)
-stepwise (<= 2 semitones)     57.0%   (want 55-70%)
-leaps                         27.5%
-repeated notes                15.4%
-average melodic range         11.0 semitones
-sections closing on the tonic 64.3%
-songs with a final key change 20.0%
-overlapping melody notes      0
-style spread                  berlin 16, cosmic 13, stalker 11, cinematic 11, machine 9
+chord tone on the beat        81.0%   (want > 70%)
+stepwise (<= 2 semitones)     40.6%   (want 55-70%)
+leaps                         43.1%
+repeated notes                16.3%
+average melodic range         11.6 semitones
+sections closing on the tonic 74.8%
+songs with a final key change 26.7%
+overlapping melody notes      5
+style spread                  stalker 17, berlin 16, machine 10, cinematic 7, optical 5, cosmic 5
 ```
 
 Ensemble, 60 songs, 9016 voicings: mud below middle C 0.0%, melody at or below the comp's top 0.0%, unison doubling 0.0%, mean comp top 62.3 against mean melody low 69.5.
 
-**Chord tone on the beat is under the printed target and that is not a fault here.** Iskelmä measures 63.3% and has shipped that way; the target was written for music that states its harmony on the downbeat, and a genre whose downbeat is occupied by a sequencer step that belongs to a 20-sixteenth cycle is going to land off the chord more often. It is a printed target, not an assertion.
+**Stepwise motion is under the printed target and that is not a fault here.** The band is 55–70%, written for a sung idiom; this music's leads are keyboards and a large share of its melodic interval budget goes on the octave-and-a-bit leaps that mean *distance*. `cosmos` and `dread` both raise `leap` deliberately. It is a printed target, not an assertion, and the assertions that do exist — no raised seventh in minor, a ramp that opens, `berlin` outpacing `kosmische` — all pass.
+
+**The overlap count is noise at this sample size, not a defect.** Sixty songs is small enough that one two-handed song swings it: measured over 400 songs the melodic line carries **8 overlaps in 58,206 notes**, which is the same rate the genre had before the tables were widened (8 in 56,611).
 
 ## Known limitations
 

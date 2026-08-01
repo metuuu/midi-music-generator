@@ -22,7 +22,7 @@ Everything is deterministic: **a seed reproduces a song exactly**, so a whole st
 | **Iskelmä** | tango · humppa · valssi · jenkka · foksi · beguine · 1980s iskelmäpop |
 | **Jazz** | medium swing · bebop · ballad · bossa nova · blues · modal · gypsy jazz · piano trio · odd metre · fusion |
 | **Ambient** | hauntology · wasteland · drone · kosmische · choral · aquatic |
-| **Synth** | berlin · cinematic · machine · cosmic · stalker |
+| **Synth** | berlin · cinematic · machine · cosmic · stalker · optical |
 
 Each genre owns its own styles, production eras, moods, song titles, song forms, preferred keys — and its own rule for how melody relates to harmony. There are three genuinely different answers to that last one:
 

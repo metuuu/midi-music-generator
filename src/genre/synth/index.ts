@@ -136,7 +136,7 @@ export const synth: Genre = {
   id: 'synth',
   label: 'Synth',
   description:
-    'Berlin-school sequencers, machine pop, cinematic analogue and cosmic disco — 1972 to 1990.',
+    'Berlin-school sequencers, machine pop, cinematic analogue, cosmic disco and late-digital arpeggios — 1972 to 1990.',
   styles: STYLES,
   eras: ERAS,
   moods: MOODS,
@@ -169,8 +169,8 @@ export const synth: Genre = {
    * statement that the machine was running before the record started and did not
    * stop when it ended. `machine` is the exception in the real world, since
    * Kraftwerk button their songs like the pop records they are, but a genre gets
-   * one answer here and the fade is the one that is right for four styles out of
-   * five.
+   * one answer here and the fade is the one that is right for five styles out of
+   * six.
    */
   ending: 'fade',
 
@@ -214,15 +214,20 @@ export const synth: Genre = {
    * comes back on schedule because it was punched in, not because anybody was
    * listening. It stays available, at a weight that keeps it rare.
    *
-   * **`riff` is raised and barely fires, and that is a fact about the styles rather
-   * than about this table.** Four of the five synth styles carry `excludeLayers:
-   * ['brass']`, so the layer a riff needs is absent from most of the genre and the
-   * weight bites only in the one style that keeps it — measured, 2%. That sits
-   * awkwardly beside `synth/eras.ts`, which says at length that the brass layer is
-   * *not* vestigial here and that a synth-brass stab is a first-class sound of this
-   * music. One of the two is wrong and it is not obviously this one; left as it
-   * stands rather than quietly widening the styles' palettes to make a weight look
-   * effective.
+   * **`riff` is raised and fires rarely, and that is a fact about the styles rather
+   * than about this table.** Three of the six synth styles carry `excludeLayers:
+   * ['brass']`, so the layer a riff needs is absent from half the genre and the
+   * weight bites only in the three that keep it — measured at 2% when there were
+   * two of those, and the count is the only thing that has changed.
+   *
+   * That sat awkwardly beside `synth/eras.ts`, which says at length that the brass
+   * layer is *not* vestigial here and that a synth-brass stab is a first-class
+   * sound of this music. The tension is smaller now and it was resolved from the
+   * side that was actually wrong: the missing style was the late-digital one,
+   * whose whole palette is built on a `synthBrass2` stab, and adding it gave the
+   * era's brass table a reader in the era it belongs to. Still not widened by
+   * decree — the three styles that refuse the layer each argue it, and none of
+   * those arguments has weakened.
    */
   arrangement: { unison: 6, riff: 5, trade: 1 },
 

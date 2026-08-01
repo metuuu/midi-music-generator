@@ -24,7 +24,7 @@
  * most likely to be drawn, which is `polysynth`, and that is what happens below.
  *
  * **The `brass` layer is not vestigial here**, unlike in ambient — but it is not
- * universal either, and the palettes below are read by two styles out of five
+ * universal either, and the palettes below are read by three styles out of six
  * rather than by all of them. That is worth being exact about, because the
  * claim used to be made without the count and the count was one.
  *
@@ -34,8 +34,11 @@
  * barline into a gap in the tune. `cinematic` takes the first — the swell under
  * a long CS-80 line, which is the other half of the lifted final chorus that
  * `keyChangeChance` above is set up for — and `cosmic` takes the second, which
- * is the horn punch behind a disco chorus. Those are the two styles the
- * palettes here are written for.
+ * is the horn punch behind a disco chorus. `optical` takes both and is the
+ * reason the `digital` era's brass palette is finally read by something that
+ * peaks in that era: a `synthBrass2` stab is the most 1987 sound in the
+ * catalogue and until that style existed nothing that lived in 1987 asked for
+ * one.
  *
  * The other three exclude the layer and `src/genre/synth/styles.ts` argues it at
  * each site, but none of them is refusing the *timbre*: `synthBrass` and
@@ -149,8 +152,17 @@ const modular: EraProfile = {
     ],
     brass: [['synthBrass', 4], ['brassSection', 2], ['trombone', 1]],
   },
+  /**
+   * `optical` at 1 rather than 0, and the number is doing real work at that
+   * size. The style is named after a 1988 record and its argument for existing
+   * is that the analogue filter has gone — neither of which was true in 1974, so
+   * a weight that matched the others would be staging a DX7 in a room full of
+   * patch cables. Not struck out altogether, because a bright arpeggio over a
+   * major key is what the *other* half of 1976 sounds like — *Oxygène* is on this
+   * side of the line and it is not a dark record.
+   */
   styleWeights: {
-    berlin: 7, cinematic: 4, machine: 3, cosmic: 2, stalker: 4,
+    berlin: 7, cinematic: 4, machine: 3, cosmic: 2, stalker: 4, optical: 1,
   },
   tempoScale: 1,
   // Low but not zero. The lift belongs to the composed side of this repertoire
@@ -272,8 +284,11 @@ const polysynth: EraProfile = {
     // not a horn substitute. It is what the last eight bars are made of.
     brass: [['synthBrass', 5], ['synthBrass2', 4], ['brassSection', 2], ['padHalo', 1]],
   },
+  /** `optical` at 3 — the transitional weight. A Prophet-5 running an
+   *  arpeggiator under a tune is 1982 as readily as 1988, and the style loses
+   *  only its argument about the missing filter here, not its music. */
   styleWeights: {
-    berlin: 4, cinematic: 7, machine: 6, cosmic: 6, stalker: 5,
+    berlin: 4, cinematic: 7, machine: 6, cosmic: 6, stalker: 5, optical: 3,
   },
   tempoScale: 1,
   // The highest of the three, and the reason is `cinematic`: this is the era
@@ -400,8 +415,20 @@ const digital: EraProfile = {
     ],
     brass: [['synthBrass2', 5], ['synthBrass', 3], ['brassSection', 3], ['padHalo', 1]],
   },
+  /**
+   * The heaviest weight in the table, and it belongs to the style this era was
+   * missing.
+   *
+   * `berlin` sits at 2 here because the sweep it is built on is unavailable on a
+   * DX7 — which correctly describes what the *old* Tangerine Dream could not do
+   * in 1988 and says nothing about what the group actually did instead. What
+   * they did was *Le Parc* and *Optical Race*: the same sequencer, brighter
+   * patches, harmony that moves, and a gated snare where the filter used to be.
+   * Until this style existed the era's answer to "what is this group in 1988"
+   * was `stalker`, which is a different group entirely.
+   */
   styleWeights: {
-    berlin: 2, cinematic: 5, machine: 5, cosmic: 4, stalker: 6,
+    berlin: 2, cinematic: 5, machine: 5, cosmic: 4, stalker: 6, optical: 8,
   },
   tempoScale: 1,
   keyChangeChance: 0.2,

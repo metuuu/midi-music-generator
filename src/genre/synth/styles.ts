@@ -6,8 +6,25 @@
  * Dream side is composed by the sequencer; a Vangelis cue by a player with two
  * hands on a CS-80; a Kraftwerk single by its bass line; a Moroder record by the
  * kick drum; a Carpenter title sequence by one ostinato that never stops. Sort
- * this music by mood or by tempo and the five collapse into two. Sort it by
- * which machine is in charge and they stay five.
+ * this music by mood or by tempo and the six collapse into two. Sort it by
+ * which machine is in charge and they stay six.
+ *
+ * `optical` is the sixth and the one that does not fit that sentence cleanly,
+ * which is why it is argued at length where it is defined rather than here. The
+ * short version: it is composed by the sequencer, exactly as `berlin` is, and it
+ * is a different record because the machine it is running on has no filter to
+ * open. When the genre's signature gesture becomes physically unavailable, what
+ * replaces it is not a variation on the style — it is the next style.
+ *
+ * ## How much of each style is a table row
+ *
+ * Every one of these has three to seven figures per layer, and that is the
+ * deliberate second axis. A style is a claim about *what makes the music*; the
+ * rows underneath it are the records that claim covers, and they are not
+ * interchangeable — `machine`'s four bass figures are 1974, 1977, 1981 and 1983,
+ * and the header on that style names which is which. One figure per layer would
+ * have made every song in a style the same song with a different tune on it,
+ * which is what a generator sounds like when it is caught.
  *
  * Five things separate these tables from the ambient ones next door, and the
  * first two matter more than any progression here:
@@ -25,7 +42,7 @@
  *  - **Sus2, sus4 and the ninth are the vocabulary, not the garnish.** A
  *    triad with the third taken out is the default sound of a polysynth pad,
  *    and every style here reaches for one.
- *  - **Nothing swings.** `swing: 0` on all five. The sequencer is the clock, and
+ *  - **Nothing swings.** `swing: 0` on all six. The sequencer is the clock, and
  *    a triplet feel laid over a sixteenth-note step grid deletes the machine.
  *  - **The chorus never lifts to the relative major.** `relativeMajorChorus: 0`
  *    throughout. That gesture belongs to a dance band with a key-change arranger
@@ -99,43 +116,64 @@ const berlin: Style = {
     intro: [
       { chords: ['i9', 'i9', 'VI', 'VI'], weight: 4 },
       { chords: ['i', 'i', 'VII', 'VII'], weight: 3 },
+      { chords: ['isus2', 'isus2', 'isus2', 'isus2'], weight: 3, note: 'One chord for four bars while the sequence establishes itself — on this side of the repertoire the introduction is a machine being switched on, not a harmony being stated' },
+      { chords: ['iv', 'iv', 'i', 'i'], weight: 2 },
     ],
     verse: [
       { chords: ['i', 'i', 'VII', 'VII', 'VI', 'VI', 'VII', 'VII'], weight: 5, note: 'Aeolian rocking two bars at a time: the seventh is natural, a whole tone below the tonic, and nothing leads anywhere' },
       { chords: ['i9', 'i9', 'VI', 'VI', 'III', 'III', 'VII', 'VII'], weight: 5 },
       { chords: ['i', 'i', 'iv', 'iv', 'VI', 'VI', 'VII', 'VII'], weight: 4 },
       { chords: ['i', 'i', 'III', 'III', 'iv', 'iv', 'VII', 'VII'], weight: 3 },
+      { chords: ['i', 'i', 'i', 'i', 'VII', 'VII', 'VII', 'VII'], weight: 4, note: 'Two chords, four bars each, for eight bars — the whole harmonic content of an *Oxygène* side, and the slowest this style is allowed to move before it becomes ambient' },
+      { chords: ['i9', 'i9', 'iv9', 'iv9', 'i9', 'i9', 'VII', 'VII'], weight: 3, note: 'Plagal rocking with the ninth left on: minor, and still nowhere near a dominant' },
+      { chords: ['i', 'VII', 'VI', 'VII', 'i', 'VII', 'VI', 'VI'], weight: 3, note: 'The one place this style changes chord every bar rather than every two — the descending tetrachord walked at double the usual rate, which is what the long middle of a Berlin side does when it finally moves' },
     ],
     chorus: [
       { chords: ['VI', 'VI', 'VII', 'VII', 'i', 'i', 'i', 'i'], weight: 5, note: '♭VI–♭VII–i, the cadence this whole genre uses where another would put a dominant' },
       { chords: ['iv', 'iv', 'VI', 'VI', 'VII', 'VII', 'i', 'i'], weight: 4 },
       { chords: ['VI', 'VI', 'III', 'III', 'VII', 'VII', 'i9', 'i9'], weight: 3 },
+      { chords: ['III', 'III', 'VII', 'VII', 'VI', 'VI', 'VII', 'VII'], weight: 3, note: 'It arrives on the relative major rather than on the tonic, and never comes home — the section is brighter and the key has not changed' },
+      { chords: ['i', 'i', 'VII', 'VII', 'VI', 'VI', 'III', 'III'], weight: 3 },
     ],
     bridge: [
       { chords: ['iv', 'iv', 'VII', 'VII', 'III', 'III', 'VI', 'VI'], weight: 4 },
       { chords: ['bII', 'bII', 'i', 'i', 'bII', 'bII', 'VII', 'VII'], weight: 3, note: 'The Phrygian ♭II a semitone above the tonic — the darkest chord available without leaving the mode behind entirely' },
+      { chords: ['VI', 'VI', 'iv', 'iv', 'i', 'i', 'i', 'i'], weight: 3 },
+      { chords: ['III', 'III', 'VI', 'VI', 'iv', 'iv', 'VII', 'VII'], weight: 2 },
     ],
     outro: [
       { chords: ['VII', 'VII', 'i', 'i'], weight: 4 },
       { chords: ['i9', 'i9', 'i9', 'i9'], weight: 2 },
+      { chords: ['VI', 'VII', 'i', 'i'], weight: 3 },
+      { chords: ['iv', 'iv', 'i', 'i'], weight: 2 },
     ],
   },
   majorProgressions: {
-    intro: [{ chords: ['I', 'I', 'bVII', 'bVII'], weight: 4 }],
+    intro: [
+      { chords: ['I', 'I', 'bVII', 'bVII'], weight: 4 },
+      { chords: ['Isus2', 'Isus2', 'IVsus2', 'IVsus2'], weight: 3 },
+    ],
     verse: [
       { chords: ['I', 'I', 'bVII', 'bVII', 'IV', 'IV', 'I', 'I'], weight: 5, note: 'The double-plagal I–♭VII–IV–I: mixolydian, and the major-key equivalent of refusing the dominant' },
       { chords: ['vi', 'vi', 'IV', 'IV', 'I', 'I', 'bVII', 'bVII'], weight: 4 },
       { chords: ['I', 'I', 'V', 'V', 'vi', 'vi', 'IV', 'IV'], weight: 3 },
+      { chords: ['I', 'I', 'I', 'I', 'bVII', 'bVII', 'bVII', 'bVII'], weight: 4, note: 'The two-chord rock again, in major. A sequence over one chord for four bars is the sound of the machine being the subject, and the mode is the only thing that decides whether it reads as menace or as weather' },
+      { chords: ['Isus2', 'Isus2', 'iii', 'iii', 'IV', 'IV', 'bVII', 'bVII'], weight: 3 },
     ],
     chorus: [
       { chords: ['IV', 'IV', 'V', 'V', 'I', 'I', 'I', 'I'], weight: 4 },
       { chords: ['bVI', 'bVI', 'bVII', 'bVII', 'I', 'I', 'I', 'I'], weight: 4, note: 'Both chords borrowed out of the parallel minor, which is how a major-key sequence stays cold' },
+      { chords: ['I', 'I', 'IV', 'IV', 'bVII', 'bVII', 'IV', 'IV'], weight: 3 },
     ],
     bridge: [
       { chords: ['bVII', 'bVII', 'IV', 'IV', 'I', 'I', 'I', 'I'], weight: 3 },
       { chords: ['vi', 'vi', 'iii', 'iii', 'IV', 'IV', 'V', 'V'], weight: 3 },
+      { chords: ['IV', 'IV', 'bVI', 'bVI', 'bVII', 'bVII', 'I', 'I'], weight: 2 },
     ],
-    outro: [{ chords: ['bVII', 'bVII', 'I', 'I'], weight: 4 }],
+    outro: [
+      { chords: ['bVII', 'bVII', 'I', 'I'], weight: 4 },
+      { chords: ['IV', 'IV', 'I', 'I'], weight: 3 },
+    ],
   },
   melodyCells: [
     { cell: [8, 8], weight: 5 },
@@ -147,16 +185,38 @@ const berlin: Style = {
     { cell: [12, 4], weight: 3 },
     { cell: [2, 2, 4, 8], weight: 2 },
     { cell: [-4, 4, 4, 4], weight: 2 },
+    { cell: [6, 2, 8], weight: 3 },
+    { cell: [-2, 6, 8], weight: 2 },
+    { cell: [8, 4, 4], weight: 3 },
+    { cell: [4, 12], weight: 2 },
   ],
   cadenceCells: [
     { cell: [16], weight: 6 },
     { cell: [-4, 12], weight: 3 },
     { cell: [8, 8], weight: 2 },
+    { cell: [-8, 8], weight: 2 },
+    { cell: [12, 4], weight: 2 },
   ],
   /**
-   * Bar-shaped, all three, and deliberately so. Everything that drifts in this
-   * style drifts above the bass — the sequence and the counter-sequence — and a
-   * floor that moved with them would leave nothing for them to move *against*.
+   * The floor, and the three that hold still are still the majority of it.
+   *
+   * Everything that drifts in this style drifts above the bass — the sequence and
+   * the counter-sequence — and a floor that moved with them would leave nothing
+   * for them to move *against*. That argument is exactly as good as it ever was
+   * and it is why `eighth-pulse` still carries the most weight here.
+   *
+   * What it does not survive is being read as a claim about the whole school.
+   * The other half of this repertoire hands the bass to the sequencer as well —
+   * *Oxygène*'s low line is a sixteenth-note figure a bar and a half long, not a
+   * pulse — and the era tables have said so all along: `sequenced: { bass: 0.55 }`
+   * means better than half of these songs have nobody playing the bass by hand.
+   * The three cycled figures below are what that number was describing, and
+   * without them a sequenced bass was still a bar-shaped one.
+   *
+   * They are deliberately kept away from the comp's cycle lengths. Sixty-four
+   * against twenty-four is the sequence coming home every fourth pass of the bass
+   * and the bass every eighth pass of the bar, and *neither* of them agreeing
+   * with the harmony, which is three clocks rather than two.
    */
   bass: [
     { name: 'eighth-pulse', weight: 6, hits: [
@@ -173,6 +233,53 @@ const berlin: Style = {
     ] },
     { name: 'pedal', weight: 3, sustain: true, hits: [
       { at: 0, dur: 16, tone: 'root', vel: 0.9 },
+    ] },
+    /**
+     * The bass as a sequencer: twenty-four sixteenths, which is a bar and a half,
+     * so the figure's head alternates between the downbeat and the middle of the
+     * bar and comes home every third one. The *Oxygène* low line, and the one
+     * bass figure in the style that is itself a machine rather than a floor under
+     * one.
+     */
+    { name: 'sequenced-bass', weight: 4, cycle: 24, hits: [
+      { at: 0, dur: 1, tone: 'root', vel: 0.96 },
+      { at: 2, dur: 1, tone: 'root', vel: 0.76 },
+      { at: 4, dur: 1, tone: 'octave', vel: 0.86 },
+      { at: 6, dur: 1, tone: 'root', vel: 0.74 },
+      { at: 8, dur: 1, tone: 'fifth', vel: 0.88 },
+      { at: 10, dur: 1, tone: 'root', vel: 0.74 },
+      { at: 12, dur: 1, tone: 'octave', vel: 0.84 },
+      { at: 16, dur: 1, tone: 'fifth', vel: 0.86 },
+      { at: 18, dur: 1, tone: 'root', vel: 0.74 },
+      { at: 20, dur: 3, tone: 'root', vel: 0.9 },
+    ] },
+    /**
+     * Three beats. The shortest cycle in the style's floor, and the cheapest way
+     * it has of making a four-bar phrase refuse to sit still: the figure lands on
+     * beat 1, then beat 4, then beat 3, then beat 2, and takes three bars to come
+     * back — which is the *Magnetic Fields* pulse, and is a different unease from
+     * `stalker`'s five because it rotates the other way.
+     */
+    { name: 'three-beat', weight: 3, cycle: 12, hits: [
+      { at: 0, dur: 3, tone: 'root', vel: 0.95 },
+      { at: 4, dur: 3, tone: 'root', vel: 0.78 },
+      { at: 8, dur: 3, tone: 'fifth', vel: 0.86 },
+    ] },
+    /**
+     * Two bars that climb. Root and octave in the first, seventh and fifth
+     * falling back through the second, so the halves answer each other the way
+     * `machine`'s hook does — but in eighths and at half the density, because
+     * this style's bass is holding a floor rather than carrying the tune.
+     */
+    { name: 'two-bar-climb', weight: 3, cycle: 32, hits: [
+      { at: 0, dur: 3, tone: 'root', vel: 0.95 },
+      { at: 4, dur: 3, tone: 'root', vel: 0.78 },
+      { at: 8, dur: 3, tone: 'fifth', vel: 0.86 },
+      { at: 12, dur: 3, tone: 'octave', vel: 0.78 },
+      { at: 16, dur: 3, tone: 'seventh', vel: 0.9 },
+      { at: 20, dur: 3, tone: 'fifth', vel: 0.76 },
+      { at: 24, dur: 3, tone: 'third', vel: 0.84 },
+      { at: 28, dur: 3, tone: 'root', vel: 0.78 },
     ] },
   ],
   comp: [
@@ -256,6 +363,65 @@ const berlin: Style = {
       { at: 16, dur: 2, vel: 0.46 }, { at: 18, dur: 2, vel: 0.38 },
       { at: 20, dur: 2, vel: 0.46 }, { at: 22, dur: 2, vel: 0.38 },
     ] },
+    /**
+     * Fourteen steps: seven eighths, which is one eighth short of two bars.
+     *
+     * The oldest trick a step sequencer has and the one this style had no row
+     * for — you set eight knobs, then switch the last step off. The figure walks
+     * an eighth earlier every time it comes round and takes sixteen bars to
+     * return to the downbeat, which is slower drift than anything else in the
+     * comp table and is a different sensation from it: the four-bar sequence
+     * *rotates* and this one *slips*.
+     *
+     * Three voices over two octaves is six rungs, and six against fourteen shares
+     * only a factor of two, so the ladder and the cycle need twenty-one passes to
+     * agree — longer than any section this genre writes.
+     */
+    { name: 'sequence-seven-eighths', weight: 4, voices: 3, arpeggio: true, arpDirection: 'updown', arpOctaves: 2, cycle: 14, hits: [
+      { at: 0, dur: 2, vel: 0.52 }, { at: 2, dur: 2, vel: 0.36 },
+      { at: 4, dur: 2, vel: 0.46 }, { at: 6, dur: 2, vel: 0.36 },
+      { at: 8, dur: 2, vel: 0.46 }, { at: 10, dur: 2, vel: 0.36 },
+      { at: 12, dur: 2, vel: 0.44 },
+    ] },
+    /**
+     * Three bars of sixteenths, falling and then rising. The longest figure in
+     * the genre: forty-eight steps against harmony that moves every two bars
+     * means the sequence and the chords agree only every six, so a sixteen-bar
+     * section never hears the same pass twice.
+     *
+     * `downup` rather than `updown` because a figure this long needs to start
+     * somewhere the ear can find, and the top of a two-octave ladder is the one
+     * place a sixteenth-note stream is unambiguous.
+     */
+    { name: 'sequence-3-bar', weight: 3, voices: 4, arpeggio: true, arpDirection: 'downup', arpOctaves: 2, cycle: 48, hits: [
+      { at: 0, dur: 1, vel: 0.54 }, { at: 1, dur: 1, vel: 0.36 }, { at: 2, dur: 1, vel: 0.42 }, { at: 3, dur: 1, vel: 0.36 },
+      { at: 4, dur: 1, vel: 0.48 }, { at: 5, dur: 1, vel: 0.36 }, { at: 6, dur: 1, vel: 0.42 },
+      { at: 8, dur: 1, vel: 0.48 }, { at: 9, dur: 1, vel: 0.36 }, { at: 10, dur: 1, vel: 0.42 }, { at: 11, dur: 1, vel: 0.36 },
+      { at: 12, dur: 1, vel: 0.48 }, { at: 13, dur: 1, vel: 0.36 }, { at: 14, dur: 1, vel: 0.42 },
+      { at: 16, dur: 1, vel: 0.52 }, { at: 17, dur: 1, vel: 0.36 }, { at: 18, dur: 1, vel: 0.42 }, { at: 19, dur: 1, vel: 0.36 },
+      { at: 20, dur: 1, vel: 0.48 }, { at: 21, dur: 1, vel: 0.36 }, { at: 22, dur: 1, vel: 0.42 }, { at: 23, dur: 1, vel: 0.36 },
+      { at: 24, dur: 1, vel: 0.48 }, { at: 25, dur: 1, vel: 0.36 }, { at: 26, dur: 1, vel: 0.42 },
+      { at: 28, dur: 1, vel: 0.48 }, { at: 29, dur: 1, vel: 0.36 }, { at: 30, dur: 1, vel: 0.42 }, { at: 31, dur: 1, vel: 0.36 },
+      { at: 32, dur: 1, vel: 0.52 }, { at: 33, dur: 1, vel: 0.36 }, { at: 34, dur: 1, vel: 0.42 },
+      { at: 36, dur: 1, vel: 0.48 }, { at: 37, dur: 1, vel: 0.36 }, { at: 38, dur: 1, vel: 0.42 }, { at: 39, dur: 1, vel: 0.36 },
+      { at: 40, dur: 1, vel: 0.48 }, { at: 41, dur: 1, vel: 0.36 }, { at: 42, dur: 1, vel: 0.42 }, { at: 43, dur: 1, vel: 0.36 },
+      { at: 44, dur: 1, vel: 0.48 }, { at: 45, dur: 1, vel: 0.36 }, { at: 46, dur: 1, vel: 0.42 },
+    ] },
+    /**
+     * The one comp in this style that is not a sequence, and the reason it earns
+     * a row is that the style has three bass figures that are.
+     *
+     * Two sequencers running at once is the school's texture; three is porridge.
+     * When the floor has taken the sixteenths — `sequenced-bass`, `three-beat` —
+     * what the chordal part should do is hold still and let the counter figure be
+     * the thing that moves. Whole chords on the eighths, no ladder, no cycle.
+     */
+    { name: 'gate-chords', weight: 2, voices: 4, hits: [
+      { at: 0, dur: 2, vel: 0.46 }, { at: 2, dur: 2, vel: 0.34 },
+      { at: 4, dur: 2, vel: 0.42 }, { at: 6, dur: 2, vel: 0.34 },
+      { at: 8, dur: 2, vel: 0.44 }, { at: 10, dur: 2, vel: 0.34 },
+      { at: 12, dur: 2, vel: 0.42 }, { at: 14, dur: 2, vel: 0.34 },
+    ] },
   ],
   /**
    * The second sequencer, and every one of these is a prime-ish length against
@@ -285,6 +451,42 @@ const berlin: Style = {
     { name: 'phase-6', weight: 3, voices: 3, arpeggio: true, arpDirection: 'down', cycle: 6, hits: [
       { at: 0, dur: 2, vel: 0.42 }, { at: 3, dur: 2, vel: 0.34 },
     ] },
+    /**
+     * Ten sixteenths — two and a half beats — in sixteenths rather than eighths,
+     * so this is the fastest thing in the arrangement and the one that reads as a
+     * shimmer rather than as a line. Two octaves of ladder against five steps
+     * means it needs eight passes to repeat, which is twenty bars.
+     */
+    { name: 'phase-10', weight: 4, voices: 3, arpeggio: true, arpOctaves: 2, cycle: 10, hits: [
+      { at: 0, dur: 1, vel: 0.44 }, { at: 2, dur: 1, vel: 0.34 },
+      { at: 4, dur: 1, vel: 0.4 }, { at: 6, dur: 1, vel: 0.34 },
+      { at: 8, dur: 1, vel: 0.4 },
+    ] },
+    /**
+     * Fourteen against the comp's own fourteen — deliberately the same length,
+     * and the only pair in the style that is.
+     *
+     * Two figures of equal cycle drifting together against the bar is the other
+     * Berlin texture and it is not the same as two figures phasing apart: they
+     * stay locked to each other and the *pair* slips against the barline, which
+     * is what happens when one player patches both sequencers off one clock.
+     * `downup` keeps them from sounding like one part doubled — same length,
+     * opposite contour.
+     */
+    { name: 'phase-14', weight: 3, voices: 4, arpeggio: true, arpDirection: 'downup', cycle: 14, hits: [
+      { at: 0, dur: 2, vel: 0.44 }, { at: 2, dur: 2, vel: 0.34 },
+      { at: 4, dur: 2, vel: 0.4 }, { at: 6, dur: 2, vel: 0.34 },
+      { at: 8, dur: 2, vel: 0.4 }, { at: 10, dur: 2, vel: 0.34 },
+      { at: 12, dur: 2, vel: 0.38 },
+    ] },
+    /** Eighteen: a bar and an eighth, in quarters. The slowest counter figure
+     *  here, for the sections where the main sequence is already in sixteenths
+     *  and a second fast part would only thicken it. */
+    { name: 'phase-18', weight: 2, voices: 3, arpeggio: true, arpOctaves: 2, cycle: 18, hits: [
+      { at: 0, dur: 3, vel: 0.44 }, { at: 4, dur: 3, vel: 0.34 },
+      { at: 8, dur: 3, vel: 0.4 }, { at: 12, dur: 3, vel: 0.34 },
+      { at: 16, dur: 2, vel: 0.38 },
+    ] },
   ],
   drums: [
     { name: 'gated-backbeat', weight: 6, voices: {
@@ -308,6 +510,39 @@ const berlin: Style = {
       bd: [0, 8],
       rim: [4, 12],
       hh: [2, 6, 10, 14],
+    } },
+    /** The clap on the backbeat and the kick pushed off it — the programmed box
+     *  playing what a drummer would not, which is the half of this school that
+     *  arrives once the machine is one you write a bar into rather than one you
+     *  patch. */
+    { name: 'clap-backbeat', weight: 4, voices: {
+      bd: [0, 6, 11],
+      cp: [8],
+      hh: [2, 6, 10, 14],
+      oh: [14],
+    } },
+    /** No kick at all. A sixteenth hat over a sequenced bass has all the pulse it
+     *  needs, and taking the floor out is how the long middle of one of these
+     *  sides gets somewhere without anything being added. */
+    { name: 'no-floor', weight: 3, voices: {
+      rim: [8],
+      hh: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    } },
+    /**
+     * A kit that drifts, which nothing else in the genre's percussion does except
+     * `stalker`'s hat.
+     *
+     * Twenty-four sixteenths is a bar and a half: the kick alternates between the
+     * downbeat and the middle of the bar and the snare answers it a beat late,
+     * so the backbeat lands on 3 and then on 1 and the ear cannot decide which
+     * bar it is in. Weighted low — this is the pattern for one song in eight, not
+     * the house style — but it is the only one here that makes the *machine*
+     * sound uncertain rather than the harmony.
+     */
+    { name: 'drift-kit', weight: 2, cycle: 24, voices: {
+      bd: [0, 12],
+      sd: [8, 20],
+      hh: [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22],
     } },
   ],
   melody: { leap: 0.22, ornament: 0.06, span: 14, sequence: 0.6, syncopation: 0.25 },
@@ -336,7 +571,7 @@ const berlin: Style = {
  * of a whole bar, `syncopation` at 0.12, a nineteen-semitone span — which is
  * exactly what a soloist needs and exactly what `machine` refuses to have.
  *
- * **There is no `excludeLayers` here, and three of the other four styles
+ * **There is no `excludeLayers` here, and three of the other five styles
  * exclude `brass`.** That absence is the point. What the brass layer writes is
  * two gestures — a swell that arrives with a held melody note and leaves with
  * it, and a stab pushed off the barline into a hole in the tune — and the first
@@ -428,23 +663,31 @@ const cinematic: Style = {
       { chords: ['i', 'VII', 'VI', 'VII', 'i', 'VII', 'VI', 'VI'], weight: 4, note: 'The descending aeolian tetrachord walked one chord to the bar, with no leading tone anywhere in it' },
       { chords: ['i9', 'III', 'VII', 'iv9', 'VI', 'III', 'VII', 'i9'], weight: 4, note: 'Mediant motion: the tonic and its relative major traded bar by bar, which is most of what makes this harmony sound like a film rather than a song' },
       { chords: ['isus2', 'isus2', 'IIImaj7', 'IIImaj7', 'VImaj7', 'VImaj7', 'iv9', 'VII'], weight: 3 },
+      { chords: ['i9', 'i9', 'i9', 'i9', 'VImaj7', 'VImaj7', 'VImaj7', 'VImaj7'], weight: 3, note: 'Two chords, four bars each. The slowest this style moves, and where it goes when the line above it is the whole event' },
+      { chords: ['isus4', 'isus2', 'i9', 'i9', 'ivsus4', 'iv9', 'iv9', 'iv9'], weight: 3, note: 'The suspension resolving downward into the chord it was already standing on — a hand on a weighted keyboard letting a finger off, which is the one gesture a sequencer cannot make' },
+      { chords: ['i9', 'i9', 'bIImaj7', 'bIImaj7', 'i9', 'i9', 'VII', 'VII'], weight: 2, note: 'The Neapolitan taken as a major seventh rather than as a triad, which turns Carpenter\'s semitone into something closer to grief than to menace' },
     ],
     chorus: [
       { chords: ['VImaj7', 'VImaj7', 'VII', 'VII', 'i9', 'i9', 'i9', 'i9'], weight: 5 },
       { chords: ['iv9', 'iv9', 'VII', 'VII', 'IIImaj7', 'IIImaj7', 'VImaj7', 'VImaj7'], weight: 4 },
       { chords: ['VI', 'VII', 'i', 'i', 'VI', 'VII', 'III', 'III'], weight: 3 },
+      { chords: ['iv9', 'VII', 'IIImaj7', 'VImaj7', 'iv9', 'VII', 'i9', 'i9'], weight: 3, note: 'The whole aeolian circle in eight bars at a chord a bar — the closest this harmony comes to a sequence going somewhere, and it still arrives plagally' },
+      { chords: ['isus2', 'isus2', 'VII', 'VII', 'VImaj7', 'VImaj7', 'VII', 'VII'], weight: 3 },
     ],
     bridge: [
       { chords: ['IIImaj7', 'IIImaj7', 'VImaj7', 'VImaj7', 'iv9', 'iv9', 'i9', 'i9'], weight: 4 },
       { chords: ['iv9', 'iv9', 'bII', 'bII', 'VI', 'VI', 'VII', 'VII'], weight: 3 },
+      { chords: ['VImaj7', 'VImaj7', 'IIImaj7', 'IIImaj7', 'VII', 'VII', 'iv9', 'iv9'], weight: 3 },
     ],
     solo: [
       { chords: ['i9', 'i9', 'VImaj7', 'VImaj7', 'iv9', 'iv9', 'VII', 'VII'], weight: 5 },
       { chords: ['i9', 'III', 'VII', 'iv9', 'VI', 'III', 'VII', 'i9'], weight: 3 },
+      { chords: ['isus2', 'isus2', 'VImaj7', 'VImaj7', 'isus2', 'isus2', 'iv9', 'iv9'], weight: 3, note: 'The rocking two-chord solo bed. A soloist over a progression that develops has to keep up with it; over this one they are the only thing developing, which is what a lead break in this idiom is for' },
     ],
     outro: [
       { chords: ['iv9', 'VII', 'i9', 'i9'], weight: 4 },
       { chords: ['VImaj7', 'VII', 'i9', 'i9'], weight: 3 },
+      { chords: ['isus4', 'isus2', 'i9', 'i9'], weight: 2 },
     ],
   },
   majorProgressions: {
@@ -457,23 +700,30 @@ const cinematic: Style = {
       { chords: ['Imaj7', 'iii7', 'IVmaj7', 'Isus2', 'vi7', 'iii7', 'IVmaj7', 'IVmaj7'], weight: 4, note: 'Chords a third apart, one to the bar: the mediant chain this composer built half a career on' },
       { chords: ['Isus2', 'Isus2', 'bVImaj7', 'bVImaj7', 'bVIImaj7', 'bVIImaj7', 'Imaj7', 'Imaj7'], weight: 4 },
       { chords: ['Imaj7', 'Imaj7', 'vi7', 'vi7', 'IVsus2', 'IVsus2', 'Isus4', 'Imaj7'], weight: 3, note: 'The suspension resolving into the tonic rather than onto it — sus4 to maj7 with no dominant in between' },
+      { chords: ['Isus2', 'Isus2', 'Isus2', 'Isus2', 'bVIImaj7', 'bVIImaj7', 'bVIImaj7', 'bVIImaj7'], weight: 3, note: 'One chord for four bars and one borrowed chord for four more. Nothing in this style is slower, and it is where the very long lines go' },
+      { chords: ['IVmaj7', 'IVmaj7', 'Imaj7', 'Imaj7', 'bVImaj7', 'bVImaj7', 'bVIImaj7', 'bVIImaj7'], weight: 3 },
     ],
     chorus: [
       { chords: ['IVmaj7', 'IVmaj7', 'Imaj7', 'Imaj7', 'IVmaj7', 'IVmaj7', 'Isus2', 'Imaj7'], weight: 5, note: 'Plagal rocking, which is the *Chariots* cadence and is why that tune sounds like an anthem without ever cadencing' },
       { chords: ['bVImaj7', 'bVImaj7', 'bVIImaj7', 'bVIImaj7', 'Imaj7', 'Imaj7', 'Imaj7', 'Imaj7'], weight: 4 },
       { chords: ['vi7', 'vi7', 'IVmaj7', 'IVmaj7', 'Isus2', 'Isus2', 'V', 'V'], weight: 3 },
+      { chords: ['Imaj7', 'iii7', 'IVmaj7', 'V', 'vi7', 'iii7', 'IVmaj7', 'Imaj7'], weight: 3, note: 'A chord a bar all the way through, which at 66 BPM is still slow enough to feel like weather — this is the anthem shape, and it is the one place the style takes a dominant on the way past' },
+      { chords: ['IVsus2', 'IVsus2', 'bVIImaj7', 'bVIImaj7', 'Imaj7', 'Imaj7', 'Imaj7', 'Imaj7'], weight: 3 },
     ],
     bridge: [
       { chords: ['bVIImaj7', 'bVIImaj7', 'IVmaj7', 'IVmaj7', 'Imaj7', 'Imaj7', 'Imaj7', 'Imaj7'], weight: 4 },
       { chords: ['ii7', 'ii7', 'IVmaj7', 'IVmaj7', 'vi7', 'vi7', 'Vsus4', 'V'], weight: 3 },
+      { chords: ['vi7', 'vi7', 'bVImaj7', 'bVImaj7', 'IVmaj7', 'IVmaj7', 'Isus2', 'Isus2'], weight: 3 },
     ],
     solo: [
       { chords: ['Imaj7', 'Imaj7', 'IVmaj7', 'IVmaj7', 'Imaj7', 'Imaj7', 'bVIImaj7', 'bVIImaj7'], weight: 5 },
       { chords: ['vi7', 'iii7', 'IVmaj7', 'Imaj7', 'vi7', 'iii7', 'IVmaj7', 'IVmaj7'], weight: 3 },
+      { chords: ['Isus2', 'Isus2', 'IVsus2', 'IVsus2', 'Isus2', 'Isus2', 'IVsus2', 'IVsus2'], weight: 3, note: 'Two suspended chords and nothing else for eight bars — the third is missing from both, so the soloist decides what mode the section is in' },
     ],
     outro: [
       { chords: ['IVmaj7', 'IVmaj7', 'Imaj7', 'Imaj7'], weight: 4 },
       { chords: ['IVsus2', 'bVIImaj7', 'Imaj7', 'Imaj7'], weight: 2 },
+      { chords: ['bVImaj7', 'bVIImaj7', 'Imaj7', 'Imaj7'], weight: 3 },
     ],
   },
   /**
@@ -511,12 +761,59 @@ const cinematic: Style = {
       { at: 8, dur: 3, tone: 'fifth', vel: 0.76 },
       { at: 12, dur: 3, tone: 'octave', vel: 0.72 },
     ] },
+    /** The other way. Down from the root through the seventh to the fifth, so
+     *  the floor sinks under a line that is holding still — the cheapest way this
+     *  music has of making a held note feel like it is going somewhere. */
+    { name: 'fall', weight: 3, hits: [
+      { at: 0, dur: 7, tone: 'root', vel: 0.9 },
+      { at: 8, dur: 3, tone: 'seventh', vel: 0.76 },
+      { at: 12, dur: 3, tone: 'fifth', vel: 0.74 },
+    ] },
+    /**
+     * Three notes, and the last one arrives an eighth before the barline it
+     * belongs to. The only anticipated bass in the genre, and it is here rather
+     * than in one of the machine styles for the reason the whole style exists:
+     * a person is playing this, and a person leans into the next bar.
+     */
+    { name: 'lean', weight: 3, hits: [
+      { at: 0, dur: 6, tone: 'root', vel: 0.9 },
+      { at: 8, dur: 4, tone: 'third', vel: 0.74 },
+      { at: 14, dur: 4, tone: 'fifth', vel: 0.8 },
+    ] },
+    /** The octave, struck twice, wide apart. At this tempo two notes a bar is
+     *  already a bass line with an opinion, and the leap is the opinion. */
+    { name: 'octaves', weight: 2, hits: [
+      { at: 0, dur: 7, tone: 'root', vel: 0.92 },
+      { at: 8, dur: 7, tone: 'octave', vel: 0.72 },
+    ] },
   ],
   comp: [
     { name: 'held', weight: 6, voices: 4, sustain: true, hits: [{ at: 0, dur: 16, vel: 0.42 }] },
     { name: 'half-bar-chords', weight: 4, voices: 4, hits: [
       { at: 0, dur: 8, vel: 0.44 },
       { at: 8, dur: 8, vel: 0.38 },
+    ] },
+    /**
+     * The chord arrives on beat 3 and holds through the barline into the next.
+     *
+     * A hand deciding to place a chord *late* is the most audible thing an
+     * accompanist does in this idiom and nothing else in the style's table does
+     * it: `held` and `half-bar-chords` both land on the downbeat, which is where
+     * the melody also is. This one leaves the top of the bar to the lead and
+     * answers it halfway through, which is the accompaniment being a second
+     * voice rather than a bed.
+     */
+    { name: 'late-chord', weight: 3, voices: 4, hits: [
+      { at: 8, dur: 10, vel: 0.44 },
+    ] },
+    /** Quarters, evenly. The pulse under the *Antarctica* end of this
+     *  repertoire — a hand keeping time because there is no drummer to do it,
+     *  which is what half these cues have instead of a kit. */
+    { name: 'quarter-chords', weight: 3, voices: 4, hits: [
+      { at: 0, dur: 4, vel: 0.44 },
+      { at: 4, dur: 4, vel: 0.34 },
+      { at: 8, dur: 4, vel: 0.4 },
+      { at: 12, dur: 4, vel: 0.34 },
     ] },
     /**
      * A broken chord, not a sequence. It arpeggiates within the bar and restarts
@@ -553,6 +850,29 @@ const cinematic: Style = {
       sh: [0, 4, 8, 12],
       rim: [8],
     } },
+    /** The tom procession — three drums walking down the bar with no kick and no
+     *  snare under them. The *Antarctica* and *1492* gesture, and the one drum
+     *  part in this genre that is closer to a timpani than to a kit. */
+    { name: 'procession', weight: 3, voices: {
+      lt: [0, 12],
+      mt: [4],
+      ht: [8],
+    } },
+    /** The big gated backbeat, at half speed. One snare in the middle of the bar
+     *  and nothing else on top of it, which at this tempo is a beat every four
+     *  seconds and is all the arrival a section here needs. */
+    { name: 'gated-half', weight: 3, voices: {
+      bd: [0],
+      sd: [8],
+      cr: [0],
+    } },
+    /** A pulse and a wash. No backbeat at all: the crash on the downbeat is the
+     *  event and the shaker is the clock, which is what a cue does when the
+     *  picture is not cutting. */
+    { name: 'wash', weight: 2, voices: {
+      cr: [0],
+      sh: [0, 2, 4, 6, 8, 10, 12, 14],
+    } },
   ],
   melody: { leap: 0.24, ornament: 0.06, span: 19, sequence: 0.5, syncopation: 0.12 },
 };
@@ -579,6 +899,31 @@ const cinematic: Style = {
  * `motorik` — a kick on every beat, a hat on every eighth, and nothing ever
  * announcing anything — lives here as one drum pattern among four rather than
  * as a style of its own, because motorik is a groove and not a body of work.
+ *
+ * ## The four records this table has to be able to be
+ *
+ * It shipped able to be one of them, and the tempo range is what gave that away.
+ * 116–132 is *The Man-Machine* and *Computer World* exactly, and those two are a
+ * third of the catalogue this style claims. The other two thirds live outside
+ * that band at both ends, and a style whose bpm cannot reach a record cannot
+ * generate it however many patterns are added underneath:
+ *
+ *  - **1974, the long major side.** A twenty-two-minute travelogue at around
+ *    110: flowing eighths, a bass that walks rather than hooks, and harmony that
+ *    is plagal and cheerful and would be a folk tune if a person were singing
+ *    it. `travelling` and the four-bar major tables below.
+ *  - **1975–77, the train.** Minor, static, metallic, a rolling two-bar figure
+ *    with a clatter over it that is doing the job of a hi-hat and sounds like
+ *    couplings. `train`, `train-clatter`, and the one-chord verse.
+ *  - **1978–81, the single.** What this style already was, and it keeps the
+ *    heaviest weights: `the-hook`, `eighth-stabs`, `motorik`.
+ *  - **1983, the breathing one.** Sixteenths with holes cut in them, a hat
+ *    pattern that inhales, and a bass that stops for a beat and a half at a
+ *    time. `breath` and `breath-hats`.
+ *
+ * All four are composed by the bass line, which is why they are one style and
+ * not four. What separates them is the *length and the gait* of that line, and
+ * that is a table row.
  */
 const machine: Style = {
   id: 'machine',
@@ -587,7 +932,12 @@ const machine: Style = {
     'Man-machine pop: a two-bar bass line that is the hook, a tune of four notes repeated exactly, mechanical eighths and a drum machine that never fills.',
   beatsPerBar: 4,
   beatUnit: 4,
-  bpm: [116, 132],
+  /**
+   * Widened at both ends, and neither end is a rounding. 104 is the long 1974
+   * side and 134 is the 1983 one; the 116–132 this used to be is the middle
+   * third of the catalogue mistaken for all of it.
+   */
+  bpm: [104, 134],
   swing: 0,
   modeWeights: { minor: 0.65, major: 0.35 },
   relativeMajorChorus: 0,
@@ -616,43 +966,63 @@ const machine: Style = {
     intro: [
       { chords: ['i', 'i', 'VI', 'VI'], weight: 4 },
       { chords: ['i', 'i', 'i', 'i'], weight: 3 },
+      { chords: ['i', 'i', 'VII', 'VII'], weight: 3 },
     ],
     verse: [
       { chords: ['i', 'i', 'VI', 'VI', 'VII', 'VII', 'i', 'i'], weight: 5, note: 'Four chords, two bars each, round and round: in this style the loop is the form and the bass line is the tune' },
       { chords: ['i', 'i', 'VII', 'VII', 'VI', 'VI', 'VII', 'VII'], weight: 4 },
       { chords: ['i', 'i', 'iv', 'iv', 'VII', 'VII', 'i', 'i'], weight: 4 },
       { chords: ['i', 'i', 'III', 'III', 'VII', 'VII', 'VI', 'VI'], weight: 3 },
+      { chords: ['i', 'i', 'i', 'i', 'i', 'i', 'i', 'i'], weight: 4, note: 'One chord for eight bars. The train side of this catalogue has no harmony at all — the bass figure states the tonic, the percussion states the distance, and a chord change would be a station' },
+      { chords: ['i', 'i', 'i', 'i', 'VI', 'VI', 'VI', 'VI'], weight: 3, note: 'Two chords, four bars each: the same static verse with one thing happening in the middle of it' },
+      { chords: ['i', 'i', 'v', 'v', 'VII', 'VII', 'i', 'i'], weight: 3, note: 'The *minor* v where a dance band would put a major one — this is the genre\'s refusal of the dominant stated positively rather than by omission' },
     ],
     chorus: [
       { chords: ['VI', 'VI', 'VII', 'VII', 'i', 'i', 'i', 'i'], weight: 5 },
       { chords: ['iv', 'iv', 'VI', 'VI', 'VII', 'VII', 'i', 'i'], weight: 4 },
       { chords: ['VI', 'VI', 'III', 'III', 'iv', 'iv', 'VII', 'VII'], weight: 3 },
+      { chords: ['III', 'III', 'VII', 'VII', 'i', 'i', 'i', 'i'], weight: 3 },
+      { chords: ['VII', 'VII', 'VI', 'VI', 'VII', 'VII', 'i', 'i'], weight: 3 },
     ],
     bridge: [
       { chords: ['iv', 'iv', 'VII', 'VII', 'VI', 'VI', 'III', 'III'], weight: 4 },
       { chords: ['bII', 'bII', 'i', 'i', 'bII', 'bII', 'i', 'i'], weight: 2 },
+      { chords: ['VI', 'VI', 'iv', 'iv', 'i', 'i', 'VII', 'VII'], weight: 3 },
     ],
     outro: [
       { chords: ['VII', 'VII', 'i', 'i'], weight: 4 },
       { chords: ['i', 'i', 'i', 'i'], weight: 2 },
+      { chords: ['VI', 'VII', 'i', 'i'], weight: 3 },
     ],
   },
   majorProgressions: {
-    intro: [{ chords: ['I', 'I', 'V', 'V'], weight: 4 }],
+    intro: [
+      { chords: ['I', 'I', 'V', 'V'], weight: 4 },
+      { chords: ['I', 'I', 'IV', 'IV'], weight: 3 },
+    ],
     verse: [
       { chords: ['I', 'I', 'IV', 'IV', 'V', 'V', 'I', 'I'], weight: 5, note: 'A plain major cadence, and the only place in this genre one belongs — Kraftwerk cadences, and the ban on the dominant is a claim about *minor*' },
       { chords: ['I', 'I', 'vi', 'vi', 'IV', 'IV', 'V', 'V'], weight: 4 },
       { chords: ['I', 'I', 'bVII', 'bVII', 'IV', 'IV', 'I', 'I'], weight: 3 },
+      { chords: ['I', 'I', 'I', 'I', 'IV', 'IV', 'IV', 'IV'], weight: 4, note: 'Four bars of each, plagal, and cheerful about it. This is the long 1974 side: a tune that would be a folk song if a person were singing it, over a machine that has no intention of stopping' },
+      { chords: ['I', 'I', 'IV', 'IV', 'I', 'I', 'V', 'V'], weight: 3 },
+      { chords: ['I', 'I', 'iii', 'iii', 'IV', 'IV', 'V', 'V'], weight: 3 },
     ],
     chorus: [
       { chords: ['IV', 'IV', 'V', 'V', 'I', 'I', 'I', 'I'], weight: 5 },
       { chords: ['vi', 'vi', 'IV', 'IV', 'I', 'I', 'V', 'V'], weight: 4 },
+      { chords: ['I', 'I', 'IV', 'IV', 'V', 'V', 'IV', 'IV'], weight: 3, note: 'It leaves on the fourth rather than coming home. The plagal exit is what keeps a long side turning over instead of ending eight times' },
+      { chords: ['IV', 'IV', 'I', 'I', 'V', 'V', 'I', 'I'], weight: 3 },
     ],
     bridge: [
       { chords: ['ii', 'ii', 'V', 'V', 'I', 'I', 'vi', 'vi'], weight: 3 },
       { chords: ['IV', 'IV', 'iv', 'iv', 'I', 'I', 'I', 'I'], weight: 3, note: 'The borrowed minor iv, which is the one wistful chord this style permits itself' },
+      { chords: ['vi', 'vi', 'iii', 'iii', 'IV', 'IV', 'V', 'V'], weight: 2 },
     ],
-    outro: [{ chords: ['V', 'V', 'I', 'I'], weight: 4 }],
+    outro: [
+      { chords: ['V', 'V', 'I', 'I'], weight: 4 },
+      { chords: ['IV', 'IV', 'I', 'I'], weight: 3 },
+    ],
   },
   /**
    * Even, blunt, and few. Nothing dotted, nothing tied, nothing that starts on
@@ -715,6 +1085,89 @@ const machine: Style = {
       { at: 8, dur: 3, tone: 'root', vel: 0.9 },
       { at: 12, dur: 3, tone: 'root', vel: 0.82 },
     ] },
+    /**
+     * The train. Two bars, in sixteenths, with the second and fourth beats of
+     * each bar left empty — so the figure runs, stops, runs, stops, which is
+     * what a bogie crossing a rail joint does and is the entire rhythmic content
+     * of the 1977 side.
+     *
+     * The pitches barely move: root and octave, with one fifth in the second bar
+     * so the two halves are not identical. That restraint is the point — this is
+     * a *distance* figure rather than a hook, and a bass line with a tune in it
+     * would arrive somewhere.
+     */
+    { name: 'train', weight: 5, cycle: 32, hits: [
+      { at: 0, dur: 1, tone: 'root', vel: 0.96 },
+      { at: 1, dur: 1, tone: 'root', vel: 0.7 },
+      { at: 2, dur: 1, tone: 'octave', vel: 0.84 },
+      { at: 3, dur: 1, tone: 'root', vel: 0.7 },
+      { at: 8, dur: 1, tone: 'root', vel: 0.92 },
+      { at: 9, dur: 1, tone: 'root', vel: 0.7 },
+      { at: 10, dur: 1, tone: 'octave', vel: 0.82 },
+      { at: 11, dur: 1, tone: 'root', vel: 0.7 },
+      { at: 16, dur: 1, tone: 'root', vel: 0.96 },
+      { at: 17, dur: 1, tone: 'root', vel: 0.7 },
+      { at: 18, dur: 1, tone: 'octave', vel: 0.84 },
+      { at: 19, dur: 1, tone: 'root', vel: 0.7 },
+      { at: 24, dur: 1, tone: 'fifth', vel: 0.92 },
+      { at: 25, dur: 1, tone: 'fifth', vel: 0.7 },
+      { at: 26, dur: 1, tone: 'root', vel: 0.82 },
+      { at: 27, dur: 1, tone: 'fifth', vel: 0.7 },
+    ] },
+    /**
+     * The 1974 bass: flowing rather than hooked, four bars long, and it goes
+     * somewhere and comes back. Sixty-four sixteenths in eighths, walking up
+     * through the chord and stepping down again — the only figure in this style
+     * whose shape a person could sing, which is what a twenty-two-minute major
+     * side needs under it and what a two-bar hook would exhaust in a minute.
+     *
+     * Four bars against harmony that changes every two means it plays the whole
+     * shape over a chord pair and then over the next pair, so the same notes are
+     * a root over one chord and a third over the other. That is the device the
+     * long side is made of.
+     */
+    { name: 'travelling', weight: 4, cycle: 64, hits: [
+      { at: 0, dur: 3, tone: 'root', vel: 0.94 },
+      { at: 4, dur: 3, tone: 'fifth', vel: 0.78 },
+      { at: 8, dur: 3, tone: 'octave', vel: 0.86 },
+      { at: 12, dur: 3, tone: 'fifth', vel: 0.78 },
+      { at: 16, dur: 3, tone: 'third', vel: 0.9 },
+      { at: 20, dur: 3, tone: 'fifth', vel: 0.76 },
+      { at: 24, dur: 3, tone: 'octave', vel: 0.84 },
+      { at: 28, dur: 3, tone: 'seventh', vel: 0.78 },
+      { at: 32, dur: 3, tone: 'octave', vel: 0.92 },
+      { at: 36, dur: 3, tone: 'fifth', vel: 0.76 },
+      { at: 40, dur: 3, tone: 'third', vel: 0.86 },
+      { at: 44, dur: 3, tone: 'fifth', vel: 0.76 },
+      { at: 48, dur: 3, tone: 'root', vel: 0.9 },
+      { at: 52, dur: 3, tone: 'third', vel: 0.76 },
+      { at: 56, dur: 7, tone: 'fifth', vel: 0.84 },
+    ] },
+    /**
+     * The one that breathes. Sixteenths in bursts with a beat and a half of
+     * nothing after each, over two bars — 1983, and the first bass in this
+     * catalogue whose silences are longer than its notes.
+     *
+     * It is the opposite instruction to `the-hook`, which fires on every eighth
+     * and is therefore always present. What makes this one memorable is where it
+     * *stops*: the ear fills the hole, and a figure the listener is completing is
+     * stickier than one that leaves nothing to do.
+     */
+    { name: 'breath', weight: 4, cycle: 32, hits: [
+      { at: 0, dur: 1, tone: 'root', vel: 0.98 },
+      { at: 1, dur: 1, tone: 'root', vel: 0.74 },
+      { at: 2, dur: 1, tone: 'root', vel: 0.84 },
+      { at: 3, dur: 1, tone: 'octave', vel: 0.74 },
+      { at: 4, dur: 3, tone: 'fifth', vel: 0.9 },
+      { at: 12, dur: 1, tone: 'root', vel: 0.86 },
+      { at: 14, dur: 1, tone: 'seventh', vel: 0.76 },
+      { at: 16, dur: 1, tone: 'root', vel: 0.96 },
+      { at: 17, dur: 1, tone: 'root', vel: 0.74 },
+      { at: 18, dur: 1, tone: 'root', vel: 0.84 },
+      { at: 19, dur: 1, tone: 'octave', vel: 0.74 },
+      { at: 20, dur: 3, tone: 'third', vel: 0.88 },
+      { at: 28, dur: 3, tone: 'fifth', vel: 0.84 },
+    ] },
   ],
   comp: [
     /** Whole chords struck on every eighth and released immediately. Not an
@@ -737,6 +1190,46 @@ const machine: Style = {
       { at: 4, dur: 2, vel: 0.42 }, { at: 6, dur: 2, vel: 0.36 },
       { at: 8, dur: 2, vel: 0.44 }, { at: 10, dur: 2, vel: 0.36 },
       { at: 12, dur: 2, vel: 0.42 }, { at: 14, dur: 2, vel: 0.36 },
+    ] },
+    /**
+     * The chord held for the whole bar and merged across bars where the harmony
+     * has not moved — a vocoder pad, a string machine, a Vako Orchestron, all
+     * three of which this group used for exactly this and none of which anybody
+     * played rhythmically.
+     *
+     * It is here because three of this style's bass figures are now sixteenth
+     * figures with holes in them, and against one of those a chord punched on
+     * every eighth is a second rhythm part rather than an accompaniment. The
+     * whole shape of the 1977 and 1983 records is a busy floor and a still
+     * middle.
+     */
+    { name: 'held-chords', weight: 4, voices: 4, sustain: true, hits: [
+      { at: 0, dur: 16, vel: 0.4 },
+    ] },
+    /** Blocks on the quarters. Between the eighth stabs and the held chord, and
+     *  the one that leaves the most room for a lead in the same register. */
+    { name: 'quarter-blocks', weight: 3, voices: 3, hits: [
+      { at: 0, dur: 3, vel: 0.46 },
+      { at: 4, dur: 3, vel: 0.36 },
+      { at: 8, dur: 3, vel: 0.42 },
+      { at: 12, dur: 3, vel: 0.36 },
+    ] },
+    /**
+     * Two bars of stabs that are not the same bar twice: the first is on the
+     * beat and the second is pushed onto the offbeats, so the pair reads as a
+     * question and an answer.
+     *
+     * The comp's only `cycle`, and it exists because everything else here is
+     * bar-shaped over bass figures that are two and four bars long. One element
+     * agreeing with the *hook*'s length rather than with the bar is what makes a
+     * two-bar bass line sound like a two-bar phrase instead of like the same bar
+     * played twice.
+     */
+    { name: 'two-bar-stabs', weight: 3, voices: 3, cycle: 32, hits: [
+      { at: 0, dur: 1, vel: 0.5 }, { at: 4, dur: 1, vel: 0.4 },
+      { at: 8, dur: 1, vel: 0.46 }, { at: 12, dur: 1, vel: 0.4 },
+      { at: 18, dur: 2, vel: 0.44 }, { at: 22, dur: 2, vel: 0.38 },
+      { at: 26, dur: 2, vel: 0.44 }, { at: 30, dur: 2, vel: 0.38 },
     ] },
   ],
   drums: [
@@ -768,6 +1261,54 @@ const machine: Style = {
       sd: [8],
       cb: [0, 3, 6, 9, 12],
       hh: [4, 12],
+    } },
+    /**
+     * The rail joints. Two bars, and the percussion is the only thing in it that
+     * is not on a grid of four: a rim shot on every third sixteenth against a
+     * cowbell on the beats, so the two agree at the top of each bar and nowhere
+     * else inside it.
+     *
+     * Cycled to two bars rather than one because a clatter that repeats every
+     * four beats is a groove and a clatter that repeats every eight is a
+     * *journey*. Pairs with `train`, and no fill will ever interrupt it —
+     * `drumFills: false` is on the style.
+     */
+    { name: 'train-clatter', weight: 4, cycle: 32, voices: {
+      bd: [0, 8, 16, 24],
+      rim: [3, 6, 9, 12, 19, 22, 25, 28],
+      cb: [0, 4, 8, 12, 16, 20, 24, 28],
+      sd: [24],
+    } },
+    /**
+     * The hi-hat that inhales. Sixteenths on the first half of each beat and
+     * nothing on the second, so the pattern is four short bursts rather than a
+     * continuous stream, and the open hat lands in one of the gaps.
+     *
+     * This is 1983, and it is the one kit in the style that has a *gait* rather
+     * than a pulse. The kick sits under the second and fourth bursts rather than
+     * on all four beats, which is what stops it turning back into motorik.
+     */
+    { name: 'breath-hats', weight: 4, voices: {
+      bd: [0, 6, 8, 14],
+      cp: [8],
+      hh: [0, 1, 4, 5, 8, 9, 12, 13],
+      oh: [6, 14],
+    } },
+    /** Almost nothing: a kick, a clap and a shaker. The verse of a record whose
+     *  bass line is the arrangement, and the pattern that makes the loud kits
+     *  above sound like a decision. */
+    { name: 'bare-box', weight: 3, voices: {
+      bd: [0, 8],
+      cp: [8],
+      sh: [4, 12],
+    } },
+    /** The snare on 4 alone, with the kick doubling the eighths under it. The
+     *  half-time march — 1974 again, where the kit is a metronome with one
+     *  accent in it rather than a backbeat. */
+    { name: 'march', weight: 3, voices: {
+      bd: [0, 4, 8, 12],
+      sd: [12],
+      hh: [2, 6, 10, 14],
     } },
   ],
   melody: { leap: 0.1, ornament: 0.02, span: 7, sequence: 0.9, syncopation: 0.05 },
@@ -828,40 +1369,61 @@ const cosmic: Style = {
     intro: [
       { chords: ['I', 'I', 'IV', 'IV'], weight: 4 },
       { chords: ['Imaj7', 'Imaj7', 'vi7', 'vi7'], weight: 3 },
+      { chords: ['I', 'I', 'I', 'I'], weight: 3, note: 'One chord while the kick and the sequence establish. On a record whose form is a build, the introduction has no harmony to state yet' },
     ],
     verse: [
       { chords: ['I', 'I', 'vi', 'vi', 'IV', 'IV', 'V', 'V'], weight: 5, note: 'The disco round: four chords, two bars each, and the arrival is the fourth one' },
       { chords: ['Imaj7', 'Imaj7', 'IVmaj7', 'IVmaj7', 'Imaj7', 'Imaj7', 'IVmaj7', 'IVmaj7'], weight: 4 },
       { chords: ['vi7', 'vi7', 'IV', 'IV', 'I', 'I', 'V', 'V'], weight: 4 },
       { chords: ['I', 'I', 'bVII', 'bVII', 'IV', 'IV', 'I', 'I'], weight: 3 },
+      { chords: ['I', 'I', 'I', 'I', 'IV', 'IV', 'IV', 'IV'], weight: 3, note: 'Four bars each. "I Feel Love" has two chords in it and neither is in a hurry — when the sequencer is the event, harmony that moved every two bars would be competing with it' },
+      { chords: ['vi7', 'vi7', 'vi7', 'vi7', 'V', 'V', 'V', 'V'], weight: 3, note: 'Starting on the relative minor and leaving on the dominant, so the eight bars are entirely a run-up and the chorus is where the tonic finally arrives' },
+      { chords: ['Imaj7', 'Imaj7', 'iii7', 'iii7', 'vi7', 'vi7', 'IV', 'IV'], weight: 3 },
     ],
     chorus: [
       { chords: ['IV', 'IV', 'V', 'V', 'I', 'I', 'I', 'I'], weight: 5, note: 'The arrival. Everything before it in the form is a run-up, and it is the one cadence this genre takes at face value' },
       { chords: ['IV', 'IV', 'I', 'I', 'IV', 'IV', 'V', 'V'], weight: 4 },
       { chords: ['vi7', 'vi7', 'V', 'V', 'IV', 'IV', 'I', 'I'], weight: 3 },
+      { chords: ['I', 'V', 'vi7', 'IV', 'I', 'V', 'IV', 'IV'], weight: 3, note: 'A chord a bar — twice the usual rate, which is how this style makes a chorus feel faster than the verse without the tempo moving' },
+      { chords: ['IV', 'IV', 'V', 'V', 'vi7', 'vi7', 'IV', 'IV'], weight: 3, note: 'The deceptive one: everything points at the tonic and it never comes, which is what keeps a twelve-inch turning over' },
     ],
     bridge: [
       { chords: ['ii7', 'ii7', 'V', 'V', 'vi7', 'vi7', 'IV', 'IV'], weight: 4 },
       { chords: ['bVI', 'bVI', 'bVII', 'bVII', 'I', 'I', 'I', 'I'], weight: 3 },
+      { chords: ['IV', 'IV', 'iii7', 'iii7', 'vi7', 'vi7', 'V', 'V'], weight: 3 },
     ],
     outro: [
       { chords: ['IV', 'V', 'I', 'I'], weight: 4 },
       { chords: ['I', 'I', 'I', 'I'], weight: 2 },
+      { chords: ['vi7', 'IV', 'I', 'I'], weight: 3 },
     ],
   },
   minorProgressions: {
-    intro: [{ chords: ['i', 'i', 'VI', 'VI'], weight: 4 }],
+    intro: [
+      { chords: ['i', 'i', 'VI', 'VI'], weight: 4 },
+      { chords: ['i', 'i', 'i', 'i'], weight: 3 },
+    ],
     verse: [
       { chords: ['i', 'i', 'VI', 'VI', 'III', 'III', 'VII', 'VII'], weight: 5 },
       { chords: ['i9', 'i9', 'VII', 'VII', 'VI', 'VI', 'VII', 'VII'], weight: 4 },
       { chords: ['i', 'i', 'iv', 'iv', 'VII', 'VII', 'i', 'i'], weight: 3 },
+      { chords: ['i', 'i', 'i', 'i', 'VII', 'VII', 'VII', 'VII'], weight: 3 },
+      { chords: ['i9', 'i9', 'III', 'III', 'iv9', 'iv9', 'VII', 'VII'], weight: 3 },
     ],
     chorus: [
       { chords: ['VI', 'VI', 'VII', 'VII', 'i', 'i', 'i', 'i'], weight: 5, note: 'Modal even here: the euphoria comes from the kick and the filter opening, not from a chord that wants to resolve' },
       { chords: ['III', 'III', 'VII', 'VII', 'VI', 'VI', 'i', 'i'], weight: 3 },
+      { chords: ['iv', 'iv', 'VII', 'VII', 'III', 'III', 'VI', 'VI'], weight: 3 },
+      { chords: ['i', 'VII', 'VI', 'VII', 'i', 'VII', 'VI', 'VI'], weight: 3 },
     ],
-    bridge: [{ chords: ['iv', 'iv', 'VI', 'VI', 'VII', 'VII', 'III', 'III'], weight: 4 }],
-    outro: [{ chords: ['VII', 'VII', 'i', 'i'], weight: 4 }],
+    bridge: [
+      { chords: ['iv', 'iv', 'VI', 'VI', 'VII', 'VII', 'III', 'III'], weight: 4 },
+      { chords: ['VI', 'VI', 'III', 'III', 'VII', 'VII', 'i', 'i'], weight: 3 },
+    ],
+    outro: [
+      { chords: ['VII', 'VII', 'i', 'i'], weight: 4 },
+      { chords: ['iv', 'VII', 'i', 'i'], weight: 3 },
+    ],
   },
   melodyCells: [
     { cell: [4, 4, 4, 4], weight: 5 },
@@ -905,15 +1467,20 @@ const cosmic: Style = {
      *
      * A sequencer plays a *shape*: the steps are set once and the pattern is
      * re-rooted as the harmony moves under it. Spelled as chord functions the
-     * last step asked the chord what its seventh was, and this style is the one
-     * synth style whose vamps carry both `maj7` and `min7` — so the step came out
-     * a semitone apart depending on which chord it landed on, which is not what a
-     * sequencer does and not what anybody programmed.
+     * last step asked the chord what its seventh was, and this style's vamps
+     * carry both `maj7` and `min7` — so the step came out a semitone apart
+     * depending on which chord it landed on, which is not what a sequencer does
+     * and not what anybody programmed.
      *
-     * The other four synth styles were checked and left alone: `machine` and
-     * `stalker` produce nothing but triads, so their `seventh` already resolves
-     * through the `root + 10` fallback and is a flat seventh every time. Changing
-     * those would have been churn dressed up as a fix.
+     * Every other synth style was checked and left alone, for two different
+     * reasons. `machine`, `stalker` and `berlin` produce nothing but triads and
+     * ninths, so their `seventh` already resolves through the `root + 10`
+     * fallback and is a flat seventh every time; changing those would have been
+     * churn dressed up as a fix. `optical` does carry both qualities and is still
+     * spelled in chord functions on purpose — its bass is an *outline* rather
+     * than a shape, and an outline is supposed to renegotiate with the chord it
+     * is standing on. `walking-eighths`, two rows below this one, makes the same
+     * distinction from the other side and in this style.
      *
      * `7` and `-2` are the intervals the old spelling already sounded — see
      * `BassTone`, and `seven-riff` in the jazz table, which had the same bug.
@@ -923,6 +1490,60 @@ const cosmic: Style = {
       { at: 4, dur: 3, tone: 0, vel: 0.84 },
       { at: 8, dur: 3, tone: 7, vel: 0.9 },
       { at: 12, dur: 3, tone: -2, vel: 0.82 },
+    ] },
+    /**
+     * Sixteenths, two bars, and the octave arriving a sixteenth early every other
+     * beat. The bass as the second sequencer — "I Feel Love" has no bass player
+     * in it, it has a Moog running the same figure the top line is running, an
+     * octave down and slightly out of step with itself.
+     *
+     * Two bars against a one-bar kick, which is this style's whole mechanism
+     * stated a second time in a second layer: everything else agrees with the
+     * barline and these two do not.
+     */
+    { name: 'sixteenth-octaves', weight: 4, cycle: 32, hits: [
+      { at: 0, dur: 1, tone: 'root', vel: 0.96 },
+      { at: 2, dur: 1, tone: 'octave', vel: 0.74 },
+      { at: 3, dur: 1, tone: 'root', vel: 0.68 },
+      { at: 4, dur: 1, tone: 'root', vel: 0.88 },
+      { at: 6, dur: 1, tone: 'octave', vel: 0.74 },
+      { at: 8, dur: 1, tone: 'root', vel: 0.92 },
+      { at: 10, dur: 1, tone: 'octave', vel: 0.74 },
+      { at: 11, dur: 1, tone: 'root', vel: 0.68 },
+      { at: 12, dur: 1, tone: 'root', vel: 0.88 },
+      { at: 14, dur: 1, tone: 'octave', vel: 0.74 },
+      { at: 16, dur: 1, tone: 'root', vel: 0.96 },
+      { at: 18, dur: 1, tone: 'octave', vel: 0.74 },
+      { at: 19, dur: 1, tone: 'root', vel: 0.68 },
+      { at: 20, dur: 1, tone: 'fifth', vel: 0.9 },
+      { at: 22, dur: 1, tone: 'octave', vel: 0.74 },
+      { at: 24, dur: 1, tone: 'seventh', vel: 0.9 },
+      { at: 26, dur: 1, tone: 'octave', vel: 0.74 },
+      { at: 27, dur: 1, tone: 'seventh', vel: 0.68 },
+      { at: 28, dur: 1, tone: 'fifth', vel: 0.86 },
+      { at: 30, dur: 1, tone: 'octave', vel: 0.74 },
+    ] },
+    /**
+     * The one that plays a *line* rather than a pulse: root, seventh, fifth,
+     * third down through the bar in eighths, which is the Philadelphia bass under
+     * a European sequencer and is what the players brought when a producer hired
+     * players.
+     *
+     * Written as chord functions rather than as intervals on purpose, and this is
+     * the pattern that makes the argument in `driving-quarters` above legible by
+     * contrast: an outline *should* renegotiate with each chord, because that is
+     * what outlining is. A shape should not. The two sit next to each other here
+     * doing opposite things correctly.
+     */
+    { name: 'walking-eighths', weight: 3, hits: [
+      { at: 0, dur: 1, tone: 'root', vel: 0.94 },
+      { at: 2, dur: 1, tone: 'root', vel: 0.74 },
+      { at: 4, dur: 1, tone: 'seventh', vel: 0.86 },
+      { at: 6, dur: 1, tone: 'root', vel: 0.72 },
+      { at: 8, dur: 1, tone: 'fifth', vel: 0.9 },
+      { at: 10, dur: 1, tone: 'fifth', vel: 0.72 },
+      { at: 12, dur: 1, tone: 'third', vel: 0.84 },
+      { at: 14, dur: 1, tone: 'fifth', vel: 0.72 },
     ] },
   ],
   comp: [
@@ -955,6 +1576,48 @@ const cosmic: Style = {
       { at: 10, dur: 2, vel: 0.46 },
       { at: 14, dur: 2, vel: 0.42 },
     ] },
+    /**
+     * Three bars of sixteenths, rising and falling. Forty-eight steps against a
+     * one-bar kick is the widest disagreement in the style — the sequence comes
+     * home every third bar and the kick every first, so a sixteen-bar section
+     * gets five whole passes and a fragment.
+     *
+     * `updown` doubles a four-note voicing into six rungs, and six against
+     * forty-eight divides exactly — which would normally be a fault. It is not
+     * one here: the ladder resets per *chord* rather than per pass, and the
+     * harmony under this style moves every two bars, so the figure meets a
+     * different voicing on each of its three bars anyway.
+     */
+    { name: 'sequence-3-bar', weight: 4, voices: 4, arpeggio: true, arpDirection: 'updown', cycle: 48, hits: [
+      { at: 0, dur: 1, vel: 0.52 }, { at: 1, dur: 1, vel: 0.36 }, { at: 2, dur: 1, vel: 0.44 }, { at: 3, dur: 1, vel: 0.36 },
+      { at: 4, dur: 1, vel: 0.48 }, { at: 5, dur: 1, vel: 0.36 }, { at: 6, dur: 1, vel: 0.44 }, { at: 7, dur: 1, vel: 0.36 },
+      { at: 8, dur: 1, vel: 0.48 }, { at: 9, dur: 1, vel: 0.36 }, { at: 10, dur: 1, vel: 0.44 }, { at: 11, dur: 1, vel: 0.36 },
+      { at: 12, dur: 1, vel: 0.48 }, { at: 13, dur: 1, vel: 0.36 }, { at: 14, dur: 1, vel: 0.44 }, { at: 15, dur: 1, vel: 0.36 },
+      { at: 16, dur: 1, vel: 0.5 }, { at: 17, dur: 1, vel: 0.36 }, { at: 18, dur: 1, vel: 0.44 }, { at: 19, dur: 1, vel: 0.36 },
+      { at: 20, dur: 1, vel: 0.48 }, { at: 21, dur: 1, vel: 0.36 }, { at: 22, dur: 1, vel: 0.44 }, { at: 23, dur: 1, vel: 0.36 },
+      { at: 24, dur: 1, vel: 0.48 }, { at: 25, dur: 1, vel: 0.36 }, { at: 26, dur: 1, vel: 0.44 }, { at: 27, dur: 1, vel: 0.36 },
+      { at: 28, dur: 1, vel: 0.48 }, { at: 29, dur: 1, vel: 0.36 }, { at: 30, dur: 1, vel: 0.44 }, { at: 31, dur: 1, vel: 0.36 },
+      { at: 32, dur: 1, vel: 0.5 }, { at: 33, dur: 1, vel: 0.36 }, { at: 34, dur: 1, vel: 0.44 }, { at: 35, dur: 1, vel: 0.36 },
+      { at: 36, dur: 1, vel: 0.48 }, { at: 37, dur: 1, vel: 0.36 }, { at: 38, dur: 1, vel: 0.44 }, { at: 39, dur: 1, vel: 0.36 },
+      { at: 40, dur: 1, vel: 0.48 }, { at: 41, dur: 1, vel: 0.36 }, { at: 42, dur: 1, vel: 0.44 }, { at: 43, dur: 1, vel: 0.36 },
+      { at: 44, dur: 1, vel: 0.48 }, { at: 45, dur: 1, vel: 0.36 }, { at: 46, dur: 1, vel: 0.44 }, { at: 47, dur: 1, vel: 0.36 },
+    ] },
+    /** The chop cut to sixteenths — a chord on the last sixteenth of every beat,
+     *  which is the guitar part of this music played by a keyboard that cannot
+     *  scratch. Tighter and further forward than `string-chop`, and the one that
+     *  makes a chorus sound like it is being pushed. */
+    { name: 'sixteenth-chop', weight: 3, voices: 4, hits: [
+      { at: 3, dur: 1, vel: 0.46 },
+      { at: 7, dur: 1, vel: 0.42 },
+      { at: 11, dur: 1, vel: 0.46 },
+      { at: 15, dur: 1, vel: 0.42 },
+    ] },
+    /** Held, and merged where the harmony has not moved. For the verses that are
+     *  four bars of one chord: the sequence is in the bass, the kick is the form,
+     *  and the chordal layer is a pad in everything but name. */
+    { name: 'held-strings', weight: 3, voices: 4, sustain: true, hits: [
+      { at: 0, dur: 16, vel: 0.4 },
+    ] },
   ],
   drums: [
     { name: 'four-floor', weight: 6, voices: {
@@ -978,6 +1641,33 @@ const cosmic: Style = {
       bd: [0, 4, 8, 12],
       sh: [0, 2, 4, 6, 8, 10, 12, 14],
       rim: [4, 12],
+    } },
+    /** The cowbell on the eighths over the floor — Munich, 1977, and the one
+     *  percussion sound of this decade that no producer has ever been able to
+     *  use quietly. */
+    { name: 'cowbell-floor', weight: 4, voices: {
+      bd: [0, 4, 8, 12],
+      cp: [4, 12],
+      cb: [0, 2, 4, 6, 8, 10, 12, 14],
+      oh: [6, 14],
+    } },
+    /** Two claps a beat apart on the backbeat — the double handclap, which is a
+     *  drum machine doing what a room full of people did and is why the sound
+     *  survived into every record that came after. */
+    { name: 'double-clap', weight: 3, voices: {
+      bd: [0, 4, 8, 12],
+      cp: [4, 6, 12, 14],
+      hh: [2, 6, 10, 14],
+    } },
+    /** Toms under the floor instead of hats. The percussion break: nothing on
+     *  top, everything underneath, and the section that follows it lands harder
+     *  for having had its cymbals taken away first. */
+    { name: 'tom-floor', weight: 3, voices: {
+      bd: [0, 4, 8, 12],
+      lt: [2, 10],
+      mt: [6],
+      ht: [14],
+      cp: [12],
     } },
   ],
   melody: { leap: 0.18, ornament: 0.08, span: 12, sequence: 0.6, syncopation: 0.35 },
@@ -1090,19 +1780,25 @@ const stalker: Style = {
       { chords: ['i', 'i', 'i', 'i', 'i', 'i', 'i', 'i'], weight: 4, note: 'One chord for eight bars, which is the one place this genre borrows from ambient: when the ostinato is the composition, a change of harmony is an interruption' },
       { chords: ['i', 'i', 'VI', 'VI', 'i', 'i', 'VII', 'VII'], weight: 4 },
       { chords: ['i', 'i', '#IV', '#IV', 'i', 'i', 'bII', 'bII'], weight: 3, note: 'The tritone: a major triad six semitones above the tonic, which belongs to no mode of the key and is exactly why it is here' },
+      { chords: ['i', 'i', 'i', 'i', 'iv', 'iv', 'i', 'i'], weight: 3, note: 'The minor fourth as the only visitor — Goblin rather than Carpenter, where the second chord is not frightening in itself and is only wrong because something has moved' },
+      { chords: ['i', 'i', 'VI', 'VI', 'i', 'i', 'bII', 'bII'], weight: 3, note: 'Both of the tonic triad\'s neighbours in one progression: ♭VI puts a note a semitone above the fifth and ♭II puts one a semitone above the root, so every strong tone in the key has something leaning on it' },
     ],
     chorus: [
       { chords: ['bII', 'bII', 'i', 'i', 'bII', 'bII', 'i', 'i'], weight: 5 },
       { chords: ['VI', 'VI', 'VII', 'VII', 'i', 'i', 'i', 'i'], weight: 4 },
       { chords: ['iv', 'iv', 'i', 'i', 'bII', 'bII', 'i', 'i'], weight: 3 },
+      { chords: ['i', 'i', 'bII', 'bII', 'i', 'i', '#IV', '#IV'], weight: 3, note: 'It ends on the tritone and stays there. Nothing in this style has to come home, and a section that does not is more frightening than one that does' },
+      { chords: ['VII', 'VII', 'VI', 'VI', 'bII', 'bII', 'i', 'i'], weight: 3 },
     ],
     bridge: [
       { chords: ['iv', 'iv', 'VI', 'VI', 'bII', 'bII', 'i', 'i'], weight: 4 },
       { chords: ['#IV', '#IV', 'bII', 'bII', 'i', 'i', 'i', 'i'], weight: 3 },
+      { chords: ['i', 'i', 'i', 'i', 'i', 'i', 'i', 'i'], weight: 3, note: 'The bridge that goes nowhere, for the songs whose verse already moved. In a style built on repetition the departure is sometimes the *absence* of one' },
     ],
     outro: [
       { chords: ['bII', 'bII', 'i', 'i'], weight: 4 },
       { chords: ['i', 'i', 'i', 'i'], weight: 3 },
+      { chords: ['iv', 'iv', 'i', 'i'], weight: 2 },
     ],
   },
   /**
@@ -1182,6 +1878,43 @@ const stalker: Style = {
       { at: 8, dur: 3, tone: 'root', vel: 0.86 },
       { at: 12, dur: 3, tone: 'root', vel: 0.78 },
     ] },
+    /**
+     * Seven beats. Twenty-eight sixteenths against a four-beat bar takes seven
+     * bars to come home, which is nearly twice as long as `twenty` and is the
+     * slowest rotation in the catalogue.
+     *
+     * The pair is the point, and it is the same argument `four-bar-crawl` makes
+     * from the other end. Five beats is a drift a listener can *feel* inside a
+     * phrase; seven is one they cannot, and a section built on it sounds subtly
+     * wrong for sixteen bars without ever offering a moment where the wrongness
+     * is identifiable. Both are this music. They are not the same fear.
+     */
+    { name: 'twenty-eight', weight: 4, cycle: 28, hits: [
+      { at: 0, dur: 2, tone: 'root', vel: 0.98 },
+      { at: 2, dur: 2, tone: 'root', vel: 0.78 },
+      { at: 6, dur: 2, tone: 'octave', vel: 0.84 },
+      { at: 10, dur: 2, tone: 'root', vel: 0.8 },
+      { at: 14, dur: 2, tone: 'fifth', vel: 0.88 },
+      { at: 18, dur: 2, tone: 'root', vel: 0.78 },
+      { at: 22, dur: 6, tone: 'seventh', vel: 0.82 },
+    ] },
+    /**
+     * Fifteen sixteenths: a bar less one, so the figure arrives a sixteenth
+     * earlier every bar and takes sixteen bars to return.
+     *
+     * The most nearly-right cycle available, and that is what makes it work. At
+     * five beats a listener hears an ostinato in another metre; at fifteen
+     * sixteenths they hear the *same* bar, very slightly hurrying, for a section
+     * at a time — which is the thing this style is trying to do to somebody and
+     * cannot do with a cycle they can count.
+     */
+    { name: 'fifteen', weight: 3, cycle: 15, hits: [
+      { at: 0, dur: 2, tone: 'root', vel: 0.96 },
+      { at: 3, dur: 2, tone: 'root', vel: 0.78 },
+      { at: 6, dur: 2, tone: 'fifth', vel: 0.86 },
+      { at: 9, dur: 2, tone: 'root', vel: 0.78 },
+      { at: 12, dur: 3, tone: 'octave', vel: 0.84 },
+    ] },
   ],
   comp: [
     /** One chord, arriving late in the bar and gone again. Half of what this
@@ -1192,6 +1925,23 @@ const stalker: Style = {
     ] },
     { name: 'held', weight: 5, voices: 3, sustain: true, hits: [{ at: 0, dur: 16, vel: 0.34 }] },
     { name: 'downbeat-only', weight: 3, voices: 4, hits: [{ at: 0, dur: 6, vel: 0.42 }] },
+    /** Two chords a beat apart, in the middle of the bar and nowhere else. The
+     *  double knock: the one comping gesture that sounds like something arriving
+     *  rather than something sustaining. */
+    { name: 'double-knock', weight: 3, voices: 3, hits: [
+      { at: 8, dur: 2, vel: 0.42 },
+      { at: 12, dur: 2, vel: 0.34 },
+    ] },
+    /**
+     * Five sixteenths, as a chord. The only cycled comp in the style, and it is
+     * here so the harmony can drift *with* the bass rather than standing still
+     * over it — five against five is two parts locked to each other and both
+     * loose against the bar, which is a thicker and more disorienting version of
+     * what `twenty` does alone.
+     */
+    { name: 'five-pulse', weight: 2, voices: 3, cycle: 5, hits: [
+      { at: 0, dur: 3, vel: 0.38 },
+    ] },
   ],
   drums: [
     /** No kit at all, and weighted high. The figure and a held chord is the
@@ -1206,6 +1956,19 @@ const stalker: Style = {
       rim: [8],
       sh: [2, 6, 10, 14],
     } },
+    /** Two kicks a beat and a half apart and nothing else — a heartbeat, which
+     *  is the oldest sound in the genre and the only one that does not need a
+     *  cymbal to be percussion. */
+    { name: 'heartbeat', weight: 4, voices: {
+      bd: [0, 3, 8, 11],
+    } },
+    /** A floor tom on the downbeat, alone. Goblin rather than Carpenter: a drum
+     *  that is felt in the chest rather than counted, and no timekeeping voice
+     *  anywhere above it. */
+    { name: 'low-tom', weight: 3, voices: {
+      lt: [0, 10],
+      sh: [4, 12],
+    } },
     /**
      * A three-beat hat cycle under a four-beat bar. It agrees with the barline
      * every fourth bar and with the bass ostinato — five beats long — every
@@ -1219,6 +1982,347 @@ const stalker: Style = {
   melody: { leap: 0.15, ornament: 0.03, span: 10, sequence: 0.7, syncopation: 0.15 },
 };
 
+/**
+ * OPTICAL — the sequencer after the filter went away.
+ *
+ * *Optical Race*, *Underwater Sunlight*, *Le Parc*; *Rendez-Vous* and *Revolutions*
+ * at the other composer's end of it. The same group and the same job as `berlin`
+ * — the sequencer is still what composes the music — and a different record in
+ * every respect that this file can express.
+ *
+ * ## Why it is not a row in the Berlin table
+ *
+ * Because everything separating the two is a property of the *style* rather than
+ * of a pattern, and a table row cannot state any of them:
+ *
+ *  - **`filter`.** `berlin` is `{ depth: 0.75, shape: 'ramp' }` and says at
+ *    length that the sixteen bars in which a closed filter opens *are* the
+ *    composition. A DX7 has no filter, because it has nothing to subtract from;
+ *    an FM patch is bright or it is not. So this style is `step` at 0.15, which
+ *    is barely a filter statement at all, and the thing that has to announce a
+ *    section instead is the arrangement: the gated snare, the counter line
+ *    arriving, the key lifting. That is one field and it is the whole reason the
+ *    late records sound assembled where the early ones sound *opened*.
+ *  - **`modeWeights`.** 0.8 minor against 0.55 major. This half of the
+ *    repertoire is not dark, and no quantity of major progressions added to a
+ *    style that draws minor four times in five will make it sound like 1988.
+ *  - **`bpm`** and **`melody`.** A wider, more ornamented, more syncopated line
+ *    than `berlin`'s stepwise one: by this point the lead is a *tune* played
+ *    over the sequence rather than a colour laid across it, and `sequence: 0.4`
+ *    against `berlin`'s 0.6 is that difference in one number.
+ *
+ * ## What it takes from each neighbour, and what it refuses
+ *
+ * From `berlin`, the arpeggiated comp on a cycle that is not the bar — this is
+ * still sequencer music and `requireLayers: ['comp']` says so. From `cosmic`,
+ * the idea that a chorus *arrives*. From `machine`, nothing: there is no hook
+ * bass here, and the lowest part is a floor rather than a subject.
+ *
+ * `counterMode` stays at the default `answer`, and it is the sharpest small
+ * difference from `berlin`. That style runs two sequencers at once because two
+ * machines phasing is its texture; this one has a second *melodic* part — the
+ * bell echoing the lead a bar later, which is what a digital delay and a spare
+ * multitimbral channel got used for once both existed. An answer, not an
+ * ostinato.
+ *
+ * It keeps the `brass` layer, which three of the five older styles refuse. A
+ * `synthBrass2` stab is the most 1987 sound available and the `digital` era's
+ * brass palette leads with it; this style is where that palette finally gets
+ * read by something other than `cinematic` and `cosmic`.
+ */
+const optical: Style = {
+  id: 'optical',
+  label: 'Optical',
+  description:
+    'Late-digital sequencer music: a bright arpeggio on a cycle of its own, a real tune over it, a gated backbeat, and no filter sweep because the instrument has no filter.',
+  beatsPerBar: 4,
+  beatUnit: 4,
+  bpm: [96, 126],
+  swing: 0,
+  /** Major-leaning, so `progressions` below is the *major* table and
+   *  `minorProgressions` is the override — the same inversion `cosmic` makes,
+   *  for the same reason and about a different decade. */
+  modeWeights: { minor: 0.45, major: 0.55 },
+  relativeMajorChorus: 0,
+  hook: 'catchy',
+  requireLayers: ['comp'],
+  /** Shallow, and stepped rather than swept. See the header: there is no cutoff
+   *  knob on the instrument this style is named after, and pretending otherwise
+   *  would make it `berlin` with brighter patches. */
+  filter: { depth: 0.15, shape: 'step' },
+  progressions: {
+    intro: [
+      { chords: ['Isus2', 'Isus2', 'vi7', 'vi7'], weight: 4 },
+      { chords: ['Imaj7', 'Imaj7', 'IVmaj7', 'IVmaj7'], weight: 3 },
+      { chords: ['I', 'I', 'I', 'I'], weight: 2 },
+    ],
+    verse: [
+      { chords: ['I', 'I', 'V', 'V', 'vi7', 'vi7', 'IV', 'IV'], weight: 5, note: 'The plainest four chords in popular music, and this is the one corner of this genre where they belong — by 1988 these were records with verses in them' },
+      { chords: ['Isus2', 'Isus2', 'bVII', 'bVII', 'IV', 'IV', 'I', 'I'], weight: 4, note: 'The borrowed flat seventh keeps it from resolving too cleanly: bright without being a pop song' },
+      { chords: ['vi7', 'vi7', 'IV', 'IV', 'I', 'I', 'V', 'V'], weight: 4 },
+      { chords: ['I', 'V', 'vi7', 'IV', 'I', 'V', 'IV', 'IV'], weight: 4, note: 'A chord a bar — twice this genre\'s usual rate, and the fastest harmonic motion anywhere in it' },
+      { chords: ['Imaj7', 'Imaj7', 'iii7', 'iii7', 'IVmaj7', 'IVmaj7', 'V', 'V'], weight: 3 },
+      { chords: ['I', 'I', 'iii7', 'iii7', 'vi7', 'vi7', 'IVmaj7', 'IVmaj7'], weight: 3 },
+    ],
+    chorus: [
+      { chords: ['IV', 'IV', 'V', 'V', 'vi7', 'vi7', 'IV', 'IV'], weight: 5, note: 'It lands on the relative minor instead of the tonic. The lift is real and the arrival is withheld, which is how these records keep going for six minutes' },
+      { chords: ['IV', 'V', 'I', 'I', 'IV', 'V', 'vi7', 'vi7'], weight: 4 },
+      { chords: ['I', 'I', 'IV', 'IV', 'V', 'V', 'I', 'I'], weight: 4 },
+      { chords: ['bVI', 'bVI', 'bVII', 'bVII', 'I', 'I', 'I', 'I'], weight: 3, note: 'Both borrowed out of the parallel minor — the one gesture this style keeps from the dark end of the genre' },
+      { chords: ['vi7', 'IV', 'I', 'V', 'vi7', 'IV', 'V', 'V'], weight: 3 },
+    ],
+    bridge: [
+      { chords: ['vi7', 'vi7', 'iii7', 'iii7', 'IVmaj7', 'IVmaj7', 'V', 'V'], weight: 4 },
+      { chords: ['ii7', 'ii7', 'V', 'V', 'Imaj7', 'Imaj7', 'IVmaj7', 'IVmaj7'], weight: 3 },
+      { chords: ['IV', 'IV', 'bVI', 'bVI', 'bVII', 'bVII', 'I', 'I'], weight: 3 },
+    ],
+    solo: [
+      { chords: ['I', 'I', 'V', 'V', 'vi7', 'vi7', 'IV', 'IV'], weight: 5 },
+      { chords: ['Isus2', 'Isus2', 'IVsus2', 'IVsus2', 'Isus2', 'Isus2', 'bVII', 'bVII'], weight: 3 },
+    ],
+    outro: [
+      { chords: ['IV', 'V', 'I', 'I'], weight: 4 },
+      { chords: ['vi7', 'IV', 'I', 'I'], weight: 3 },
+    ],
+  },
+  minorProgressions: {
+    intro: [
+      { chords: ['i9', 'i9', 'VI', 'VI'], weight: 4 },
+      { chords: ['isus2', 'isus2', 'isus2', 'isus2'], weight: 3 },
+    ],
+    verse: [
+      { chords: ['i', 'i', 'VII', 'VII', 'VI', 'VI', 'VII', 'VII'], weight: 5 },
+      { chords: ['i9', 'i9', 'VI', 'VI', 'III', 'III', 'VII', 'VII'], weight: 4 },
+      { chords: ['i', 'VII', 'VI', 'VII', 'i', 'VII', 'VI', 'VI'], weight: 4, note: 'The descending tetrachord at a chord a bar. Minor, and still moving faster than anything in `berlin`, which is what puts this style in the eighties rather than the seventies' },
+      { chords: ['i', 'i', 'iv', 'iv', 'VI', 'VI', 'VII', 'VII'], weight: 3 },
+      { chords: ['i9', 'i9', 'III', 'III', 'VII', 'VII', 'iv9', 'iv9'], weight: 3 },
+    ],
+    chorus: [
+      { chords: ['VI', 'VI', 'VII', 'VII', 'i', 'i', 'i', 'i'], weight: 5 },
+      { chords: ['III', 'III', 'VII', 'VII', 'iv', 'iv', 'VI', 'VI'], weight: 4 },
+      { chords: ['VI', 'VII', 'i', 'i', 'VI', 'VII', 'III', 'III'], weight: 3 },
+      { chords: ['iv', 'iv', 'VI', 'VI', 'VII', 'VII', 'i', 'i'], weight: 3 },
+    ],
+    bridge: [
+      { chords: ['iv', 'iv', 'III', 'III', 'VII', 'VII', 'VI', 'VI'], weight: 4 },
+      { chords: ['VI', 'VI', 'iv', 'iv', 'VII', 'VII', 'i', 'i'], weight: 3 },
+    ],
+    solo: [
+      { chords: ['i', 'i', 'VII', 'VII', 'VI', 'VI', 'VII', 'VII'], weight: 5 },
+      { chords: ['i9', 'i9', 'VI', 'VI', 'III', 'III', 'VII', 'VII'], weight: 3 },
+    ],
+    outro: [
+      { chords: ['VI', 'VII', 'i', 'i'], weight: 4 },
+      { chords: ['iv', 'VII', 'i', 'i'], weight: 3 },
+    ],
+  },
+  /**
+   * Busier than `berlin`'s and less blunt than `machine`'s. Sixteenth pairs and
+   * pickups are the vocabulary here — this lead is a tune somebody wrote at a
+   * keyboard rather than a colour drawn across a sequence, and the difference
+   * shows up as cells that start before the downbeat and subdivide inside it.
+   */
+  melodyCells: [
+    { cell: [4, 4, 8], weight: 5 },
+    { cell: [8, 8], weight: 4 },
+    { cell: [2, 2, 4, 8], weight: 4 },
+    { cell: [-4, 4, 4, 4], weight: 4 },
+    { cell: [4, 4, 4, 4], weight: 4 },
+    { cell: [6, 2, 8], weight: 3 },
+    { cell: [-2, 2, 4, 8], weight: 3 },
+    { cell: [4, 2, 2, 8], weight: 3 },
+    { cell: [16], weight: 3 },
+    { cell: [-8, 4, 4], weight: 3 },
+    { cell: [12, 4], weight: 2 },
+    { cell: [2, 2, 2, 2, 8], weight: 2 },
+  ],
+  cadenceCells: [
+    { cell: [16], weight: 5 },
+    { cell: [8, 8], weight: 4 },
+    { cell: [-4, 12], weight: 3 },
+    { cell: [12, 4], weight: 2 },
+  ],
+  bass: [
+    /** Octave jumps on the eighths — the FM bass of the decade, where the
+     *  attack is the sound and the note underneath it barely matters. */
+    { name: 'octave-eighths', weight: 6, hits: [
+      { at: 0, dur: 3, tone: 'root', vel: 0.96 },
+      { at: 4, dur: 1, tone: 'octave', vel: 0.76 },
+      { at: 6, dur: 1, tone: 'root', vel: 0.72 },
+      { at: 8, dur: 3, tone: 'root', vel: 0.9 },
+      { at: 12, dur: 1, tone: 'octave', vel: 0.76 },
+      { at: 14, dur: 1, tone: 'fifth', vel: 0.74 },
+    ] },
+    /**
+     * Two bars, syncopated, and the second half is the one that moves — the same
+     * design as `machine`'s hook and pointedly not the same music, because here
+     * the figure is a *floor* under an arpeggio and a tune rather than the
+     * subject of the record. It answers itself quietly.
+     */
+    { name: 'two-bar-floor', weight: 5, cycle: 32, hits: [
+      { at: 0, dur: 3, tone: 'root', vel: 0.94 },
+      { at: 6, dur: 2, tone: 'root', vel: 0.76 },
+      { at: 8, dur: 3, tone: 'fifth', vel: 0.86 },
+      { at: 12, dur: 3, tone: 'root', vel: 0.76 },
+      { at: 16, dur: 3, tone: 'root', vel: 0.92 },
+      { at: 22, dur: 2, tone: 'seventh', vel: 0.76 },
+      { at: 24, dur: 3, tone: 'octave', vel: 0.86 },
+      { at: 28, dur: 3, tone: 'fifth', vel: 0.78 },
+    ] },
+    /** Sixteenths, on the root, with the last one of each beat pushed up an
+     *  octave. The driving one, and the closest this style gets to `cosmic`. */
+    { name: 'sixteenth-drive', weight: 4, hits: [
+      { at: 0, dur: 1, tone: 'root', vel: 0.96 },
+      { at: 1, dur: 1, tone: 'root', vel: 0.7 },
+      { at: 2, dur: 1, tone: 'root', vel: 0.8 },
+      { at: 3, dur: 1, tone: 'octave', vel: 0.7 },
+      { at: 4, dur: 1, tone: 'root', vel: 0.88 },
+      { at: 6, dur: 1, tone: 'root', vel: 0.76 },
+      { at: 7, dur: 1, tone: 'octave', vel: 0.7 },
+      { at: 8, dur: 1, tone: 'root', vel: 0.92 },
+      { at: 9, dur: 1, tone: 'root', vel: 0.7 },
+      { at: 10, dur: 1, tone: 'root', vel: 0.8 },
+      { at: 11, dur: 1, tone: 'octave', vel: 0.7 },
+      { at: 12, dur: 1, tone: 'fifth', vel: 0.88 },
+      { at: 14, dur: 1, tone: 'fifth', vel: 0.76 },
+      { at: 15, dur: 1, tone: 'octave', vel: 0.7 },
+    ] },
+    /** Quarters, plain, with the third in it. A bass line that outlines rather
+     *  than pulses — for the choruses where the harmony is moving a chord a bar
+     *  and something has to make that audible down there. */
+    { name: 'outline', weight: 3, hits: [
+      { at: 0, dur: 3, tone: 'root', vel: 0.94 },
+      { at: 4, dur: 3, tone: 'fifth', vel: 0.78 },
+      { at: 8, dur: 3, tone: 'octave', vel: 0.86 },
+      { at: 12, dur: 3, tone: 'third', vel: 0.78 },
+    ] },
+    { name: 'pedal', weight: 3, sustain: true, hits: [
+      { at: 0, dur: 16, tone: 'root', vel: 0.88 },
+    ] },
+  ],
+  comp: [
+    /**
+     * The arpeggio this style is built on: two bars of sixteenths climbing and
+     * falling through two octaves, against harmony that moves every two.
+     *
+     * Thirty-two steps and ten rungs — four voices doubled to eight, folded to
+     * ten by `updown` — share only a factor of two, so the figure needs five
+     * passes to come home and a sixteen-bar section never hears the same
+     * alignment twice. That is the Berlin arithmetic applied to a brighter
+     * instrument, and it is the one thing the two styles genuinely share.
+     */
+    { name: 'arp-two-bar', weight: 6, voices: 4, arpeggio: true, arpDirection: 'updown', arpOctaves: 2, cycle: 32, hits: [
+      { at: 0, dur: 1, vel: 0.54 }, { at: 1, dur: 1, vel: 0.38 }, { at: 2, dur: 1, vel: 0.46 }, { at: 3, dur: 1, vel: 0.38 },
+      { at: 4, dur: 1, vel: 0.5 }, { at: 5, dur: 1, vel: 0.38 }, { at: 6, dur: 1, vel: 0.46 }, { at: 7, dur: 1, vel: 0.38 },
+      { at: 8, dur: 1, vel: 0.5 }, { at: 9, dur: 1, vel: 0.38 }, { at: 10, dur: 1, vel: 0.46 }, { at: 11, dur: 1, vel: 0.38 },
+      { at: 12, dur: 1, vel: 0.5 }, { at: 13, dur: 1, vel: 0.38 }, { at: 14, dur: 1, vel: 0.46 }, { at: 15, dur: 1, vel: 0.38 },
+      { at: 16, dur: 1, vel: 0.54 }, { at: 17, dur: 1, vel: 0.38 }, { at: 18, dur: 1, vel: 0.46 }, { at: 19, dur: 1, vel: 0.38 },
+      { at: 20, dur: 1, vel: 0.5 }, { at: 21, dur: 1, vel: 0.38 }, { at: 22, dur: 1, vel: 0.46 },
+      { at: 24, dur: 1, vel: 0.5 }, { at: 25, dur: 1, vel: 0.38 }, { at: 26, dur: 1, vel: 0.46 }, { at: 27, dur: 1, vel: 0.38 },
+      { at: 28, dur: 1, vel: 0.5 }, { at: 29, dur: 1, vel: 0.38 }, { at: 30, dur: 1, vel: 0.46 },
+    ] },
+    /**
+     * Three beats of eighths, so the figure lands on a different beat every bar
+     * and comes home every third. The shortest cycle here and the one that reads
+     * as a *shimmer* rather than as a part — which is what an arpeggiator set
+     * running while somebody plays chords into it actually sounds like, and by
+     * this era that is how most of these figures were made.
+     */
+    { name: 'arp-three-beat', weight: 4, voices: 3, arpeggio: true, arpOctaves: 2, cycle: 12, hits: [
+      { at: 0, dur: 2, vel: 0.5 }, { at: 2, dur: 2, vel: 0.38 },
+      { at: 4, dur: 2, vel: 0.46 }, { at: 6, dur: 2, vel: 0.38 },
+      { at: 8, dur: 2, vel: 0.46 }, { at: 10, dur: 2, vel: 0.38 },
+    ] },
+    /** Bar-shaped eighths, falling. For the sections where the bass has taken the
+     *  sixteenths and a second drifting figure would be one too many — the same
+     *  reasoning `berlin`'s `gate-chords` makes, answered with an arpeggio
+     *  instead of with chords because this style's comp is never furniture. */
+    { name: 'arp-eighths-down', weight: 4, voices: 4, arpeggio: true, arpDirection: 'down', hits: [
+      { at: 0, dur: 2, vel: 0.5 }, { at: 2, dur: 2, vel: 0.38 },
+      { at: 4, dur: 2, vel: 0.46 }, { at: 6, dur: 2, vel: 0.38 },
+      { at: 8, dur: 2, vel: 0.48 }, { at: 10, dur: 2, vel: 0.38 },
+      { at: 12, dur: 2, vel: 0.46 }, { at: 14, dur: 2, vel: 0.38 },
+    ] },
+    /**
+     * Five sixteenths, sparse, over two octaves — a bell rather than a sequence.
+     * Twenty steps against a sixteen-step bar rotates by a beat a bar, and the
+     * ten-rung ladder needs ten passes to repeat, which is forty bars: longer
+     * than any section, so the figure is never once heard the same way twice.
+     */
+    { name: 'bell-figure', weight: 3, voices: 4, arpeggio: true, arpDirection: 'updown', arpOctaves: 2, cycle: 20, hits: [
+      { at: 0, dur: 3, vel: 0.48 }, { at: 4, dur: 3, vel: 0.36 },
+      { at: 8, dur: 3, vel: 0.44 }, { at: 12, dur: 3, vel: 0.36 },
+      { at: 16, dur: 3, vel: 0.42 },
+    ] },
+    /** Whole chords on the offbeats — the DX brass stab, which by 1987 is doing
+     *  the job a guitar would have done. The one comp here that is not a
+     *  sequence at all. */
+    { name: 'brass-stabs', weight: 3, voices: 4, hits: [
+      { at: 2, dur: 2, vel: 0.48 },
+      { at: 6, dur: 2, vel: 0.42 },
+      { at: 10, dur: 2, vel: 0.48 },
+      { at: 14, dur: 2, vel: 0.42 },
+    ] },
+  ],
+  drums: [
+    /** The gated snare on the backbeat with the kick pushed off it. The sound of
+     *  the decade, and in this style it is what announces a section — the job
+     *  `berlin` gives to the filter. */
+    { name: 'gated-backbeat', weight: 6, voices: {
+      bd: [0, 6, 10],
+      sd: [8],
+      hh: [0, 2, 4, 6, 8, 10, 12, 14],
+      cr: [0],
+    } },
+    { name: 'sixteenth-hats', weight: 5, voices: {
+      bd: [0, 6, 8],
+      sd: [4, 12],
+      hh: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    } },
+    /** Half-time: one snare in the middle of the bar and a kick that fills the
+     *  space it leaves. At the bottom of this style's tempo range it is what
+     *  turns a brisk arpeggio into a slow piece with a fast machine in it. */
+    { name: 'half-time', weight: 4, voices: {
+      bd: [0, 6, 11],
+      sd: [8],
+      oh: [4, 12],
+      hh: [2, 6, 10, 14],
+    } },
+    { name: 'four-floor-light', weight: 4, voices: {
+      bd: [0, 4, 8, 12],
+      cp: [4, 12],
+      hh: [2, 6, 10, 14],
+      oh: [14],
+    } },
+    /** Rim and ride, no snare. The verse kit: something has to keep time while
+     *  the arpeggio does the work, and a backbeat here would be arguing with the
+     *  chorus that is coming. */
+    { name: 'rim-groove', weight: 3, voices: {
+      bd: [0, 8],
+      rim: [4, 12],
+      rd: [0, 2, 4, 6, 8, 10, 12, 14],
+    } },
+    /**
+     * The kit that drifts: a bar and a half, so the backbeat lands on 3 and then
+     * on 1. Weighted low, and it is the one row in the table that remembers this
+     * style came out of the Berlin school — everything else here agrees with the
+     * barline, which is exactly what the older style refuses to do.
+     */
+    { name: 'drift-backbeat', weight: 2, cycle: 24, voices: {
+      bd: [0, 10, 12],
+      sd: [8, 20],
+      hh: [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22],
+    } },
+  ],
+  /**
+   * Wider and more decorated than `berlin`, and much less repetitive than
+   * `machine`. `sequence: 0.4` is the low end of the genre: a tune that restated
+   * its motif exactly would be the sequencer's job, and this is the style where
+   * somebody stopped letting the machine have it.
+   */
+  melody: { leap: 0.28, ornament: 0.12, span: 15, sequence: 0.4, syncopation: 0.4 },
+};
+
 export const STYLES: Record<string, Style> = {
-  berlin, cinematic, machine, cosmic, stalker,
+  berlin, cinematic, machine, cosmic, stalker, optical,
 };
