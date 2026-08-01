@@ -1822,6 +1822,86 @@ console.log("\nThe drummer's hand");
   );
 }
 
+// --- Transitions -----------------------------------------------------------
+// A fill is one of four things that can happen at a section join, and the only
+// one the catalogue can currently draw — see `generate/transition.ts`. Two
+// claims are asserted here, and the second is the one the whole mechanism rests
+// on.
+console.log('\nTransitions');
+{
+  /**
+   * The music of a song, with the seam plan held out.
+   *
+   * Compared as JSON rather than by any measurement, because the claim being
+   * tested is not "similar" — it is that a style which writes out
+   * `[['fill', 1]]` gets back the identical arrangement to one that says nothing
+   * at all, note for note and event for event, while consuming one number per
+   * seam from a stream nothing else reads.
+   *
+   * `meta.transitions` is excluded on purpose: it is the one thing that *is*
+   * supposed to differ, since a song that declared a palette publishes its
+   * answer and a song that was never asked does not.
+   */
+  const music = (song: Song) => JSON.stringify({
+    meta: { ...song.meta, transitions: undefined },
+    sections: song.sections,
+    tracks: song.tracks,
+    drums: song.drums,
+  });
+
+  const SEEDS = 12;
+  let identical = 0, differing = 0, drawn = 0;
+  let recorded = 0, misplaced = 0, notFill = 0, leaked = 0;
+  const offenders: string[] = [];
+  // One style per genre, including ambient — which announces nothing today and
+  // is the genre this field will eventually be used to silence outright.
+  for (const [gid, sid] of [
+    ['iskelma', 'tango'], ['jazz', 'fusion'], ['synth', 'berlin'], ['ambient', 'drone'],
+  ] as const) {
+    const style = getGenre(gid).styles[sid]!;
+    const table = style.transitions;
+    const run = () => [...Array(SEEDS).keys()].map(
+      (i) => generateSong({ seed: `tr-${i}`, genre: gid, style: sid }),
+    );
+    const silent = run();
+    style.transitions = [['fill', 1]];
+    const declared = run();
+    style.transitions = table;
+
+    for (let i = 0; i < SEEDS; i++) {
+      const a = silent[i]!, b = declared[i]!;
+      if (music(a) === music(b)) identical++;
+      else { differing++; if (offenders.length < 3) offenders.push(`${gid}/${sid} tr-${i}`); }
+
+      // A song that was never asked carries no answer.
+      if (a.meta.transitions !== undefined) leaked++;
+
+      const seams = b.meta.transitions;
+      if (!seams || seams.length !== b.sections.length - 1) { recorded++; continue; }
+      drawn += seams.length;
+      seams.forEach((seam, s) => {
+        if (seam.section !== s || seam.bar !== b.sections[s + 1]!.startBar) misplaced++;
+        if (seam.kind !== 'fill') notFill++;
+      });
+    }
+  }
+
+  check(
+    'a declared fill palette is the identity',
+    differing === 0 && identical > 0,
+    differing
+      ? `${differing} of ${identical + differing} songs moved — ${offenders.join(', ')}`
+      : `${identical} songs bit-identical with and without [['fill', 1]], over ${drawn} drawn seams`,
+  );
+  check(
+    'the seam plan is on the IR, and only where asked',
+    recorded === 0 && misplaced === 0 && notFill === 0 && leaked === 0 && drawn > 0,
+    recorded || misplaced || notFill || leaked
+      ? `${recorded} songs recorded no plan, ${misplaced} seams misindexed, ${notFill} not a fill, ${leaked} unasked songs carrying one`
+      : `${drawn} seams, each naming the section it leaves and the bar it lands on`,
+  );
+}
+
 // --- Drum banks ------------------------------------------------------------
 // `render/drum-banks.ts` stands in for voices a bank does not have, and this is
 // the assertion that the substitution table actually covers what gets asked of
@@ -2012,7 +2092,10 @@ console.log('\nTwo hands');
   for (const gid of GENRE_IDS) {
     for (const [sid, style] of Object.entries(getGenre(gid).styles)) {
       if (!style.twoHanded) continue;
-      for (const [id] of style.twoHanded.instruments) {
+      // A style with no list of its own takes whatever the palette gives it, and
+      // whether that instrument has hands is a fact about the catalogue rather
+      // than a claim this table is making. Nothing to check.
+      for (const [id] of style.twoHanded.instruments ?? []) {
         if (!HANDS[id]) missing.push(`${gid}/${sid}: ${id}`);
       }
       const offersOstinato = (style.twoHanded.modes ?? []).some(([m]) => m === 'ostinato');
@@ -2050,7 +2133,7 @@ console.log('\nTwo hands');
   const chords = ['i7', 'iv7', 'bVImaj7', 'V7'].map((label) => parseRoman(label, 'minor'));
   let checked = 0;
   const orphans: string[] = [];
-  for (const mode of ['answer', 'unison', 'block', 'ostinato'] as const) {
+  for (const mode of ['answer', 'unison', 'block', 'ostinato', 'stride'] as const) {
     for (let i = 0; i < 12; i++) {
       const rng = new Rng(`hand-${mode}-${i}`);
       const line = probeLine({
@@ -2080,7 +2163,7 @@ console.log('\nTwo hands');
   check(
     'the left hand never sounds a note by itself',
     orphans.length === 0,
-    orphans.length ? orphans.slice(0, 4).join(', ') : `${checked} left-hand onsets across 4 modes`,
+    orphans.length ? orphans.slice(0, 4).join(', ') : `${checked} left-hand onsets across 5 modes`,
   );
 
   let octaves = 0, chordsPlayed = 0, songs = 0;
@@ -2128,6 +2211,18 @@ console.log('\nTwo hands');
 console.log('\nCounter-melody');
 {
   let steps = 0, thirds = 0, moves = 0, overlap = 0, doubled = 0, multi = 0, figures = 0;
+  /**
+   * The `unison` device, counted apart from the fault it looks identical to.
+   *
+   * An answer note on the tune at the octave is a fault everywhere except where an
+   * arrangement drew `unison` and `joinIn` wrote it, and the only thing telling
+   * those apart is `NoteEvent.doubling`. Checking the mark alone would be circular
+   * — anything could set it — so what is checked is the property the mark is
+   * *claiming*: that this is a phrase and not a collision. Deliberate doublings
+   * come in runs; a fault is one note wide. `joinIn` refuses to write fewer than
+   * three notes, so a run shorter than that means something else set the mark.
+   */
+  let joined = 0, joinRuns = 0, shortRuns = 0;
   /** The `ostinato` half: notes, how many sound under the tune, and stacks. */
   let ostNotes = 0, ostUnder = 0, ostStacked = 0, ostSongs = 0;
   /** The same overlap fraction for the answer, so the contrast is measured
@@ -2142,7 +2237,13 @@ console.log('\nCounter-melody');
       // are a melody, not an answer, and counting them measures the wrong thing.
       const answering = (beat: number) => s.sections.some((sec) => sec.solo?.layer !== 'counter'
         && beat >= sec.startBar * bpb && beat < (sec.startBar + sec.lengthBars) * bpb);
-      const counter = (s.tracks.find((t) => t.layer === 'counter')?.notes ?? [])
+      // The line on this side too, and for the same reason it is the line on the
+      // other. The counter instrument is drawn from a palette full of accordions
+      // and its own left hand now goes into its own track, so `.notes` here was
+      // charging the answer with every left-hand chord tone that happened to sit
+      // an octave off the tune — 346 of 1274 overlaps, none of them an answer.
+      const counterTrack = s.tracks.find((t) => t.layer === 'counter');
+      const counter = (counterTrack ? melodicLine(counterTrack) : [])
         .filter((n) => answering(n.beat)).sort((a, b) => a.beat - b.beat);
       // The line, not the track. On a two-handed lead the track also carries
       // that player's own accompaniment, and an answer landing an octave above a
@@ -2186,6 +2287,8 @@ console.log('\nCounter-melody');
       }
 
       let figure = 0;
+      /** Length of the run of deliberate doublings currently open. */
+      let run = 0;
       for (let j = 0; j < counter.length; j++) {
         const n = counter[j]!;
         const prior = counter[j - 1];
@@ -2198,9 +2301,12 @@ console.log('\nCounter-melody');
           if (d > 0) { moves++; if (d <= 2) steps++; else if (d <= 4) thirds++; }
         }
         const under = melody.find((m) => m.beat <= n.beat + 1e-6 && m.beat + m.duration > n.beat + 1e-6);
-        if (under) { overlap++; if (Math.abs(under.midi - n.midi) % 12 === 0) doubled++; }
+        if (under && !n.doubling) { overlap++; if (Math.abs(under.midi - n.midi) % 12 === 0) doubled++; }
+        if (n.doubling) { joined++; run++; }
+        else if (run) { joinRuns++; if (run < 3) shortRuns++; run = 0; }
       }
       if (figure) { figures++; if (figure > 1) multi++; }
+      if (run) { joinRuns++; if (run < 3) shortRuns++; }
     }
   }
   const stepPct = (steps / Math.max(1, moves)) * 100;
@@ -2216,9 +2322,23 @@ console.log('\nCounter-melody');
     `${((multi / Math.max(1, figures)) * 100).toFixed(0)}% of ${figures} figures have more than one note`,
   );
   check(
-    'the answer never doubles the tune at the unison or octave',
+    'the answer never doubles the tune at the unison or octave by accident',
     doubled === 0,
-    `${doubled} of ${overlap} overlapping notes`,
+    `${doubled} of ${overlap} unmarked overlapping notes`,
+  );
+  /**
+   * …and where it doubles the tune on purpose, it does it for a phrase.
+   *
+   * The claim `NoteEvent.doubling` makes is not "this note is allowed on the tune",
+   * it is "these two players are stating this together" — and that is a property of
+   * a *span*, so it is a span that gets checked. One marked note between unmarked
+   * ones would be exactly the fault above wearing the exemption, which is the only
+   * way the mark could make the music worse.
+   */
+  check(
+    'and where it doubles it on purpose, it does so for a whole phrase',
+    joinRuns > 0 && shortRuns === 0,
+    `${joinRuns} spans, ${joined} notes, ${shortRuns} shorter than three notes`,
   );
   // The second sequencer. Its whole claim is that it is *not* an answer, so the
   // checks are the two properties an answer could never have.
@@ -2354,8 +2474,19 @@ console.log('\nSolos');
           continue;
         }
 
+        /**
+         * The line, not the track — the third place in this file to need saying
+         * so, and the first where the two-handed player is not the lead.
+         *
+         * Every measurement below is about what the soloist *played*: whether
+         * the line lands on the guide tones, whether it leaves room, whether it
+         * builds. A soloist who comps for themselves puts chord tones on the
+         * changes and notes in the holes by construction, so counting the whole
+         * track would mark their own accompaniment as a solo that never rests
+         * and always lands right.
+         */
         const track = song.tracks.find((t) => t.layer === sec.solo!.layer);
-        const notes = (track?.notes ?? [])
+        const notes = (track ? melodicLine(track) : [])
           .filter((n) => n.beat >= from - 1e-6 && n.beat < to - 1e-6)
           .sort((a, b) => a.beat - b.beat);
         if (!notes.length) continue;

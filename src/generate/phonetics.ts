@@ -67,8 +67,8 @@
  */
 
 import type { Consonant, Vowel } from '../core/types.js';
-import { hashString } from '../core/rng.js';
-import { VOWEL_FRONTNESS, VOWEL_OPENNESS } from '../style/vocals.js';
+import { hashString, type Rng } from '../core/rng.js';
+import { VOWEL_FRONTNESS, VOWEL_OPENNESS, type WordStyle } from '../style/vocals.js';
 
 /** One syllable, fully specified. */
 export interface Syllable {
@@ -601,6 +601,95 @@ export function pronounce(text: string, style: PhoneticStyle): PhoneticWord[] {
     .filter(Boolean)
     .map((w) => pronounceWord(w, style))
     .filter((w) => w.syllables.length > 0);
+}
+
+// ---------------------------------------------------------------------------
+// Inventing the words in the first place
+// ---------------------------------------------------------------------------
+
+/**
+ * Make up a word.
+ *
+ * The inverse of everything above, and it lives here for that reason: this file
+ * already owns what a letter means, and a word invented against a different
+ * idea of that would be pronounced by rules it was not built for.
+ *
+ * It writes letters rather than syllables, and that is the whole trick. A
+ * `Syllable` built directly would have to state its own vowel, its own length
+ * and its own consonants, and every one of those decisions would then be made
+ * twice — once here and once in `pronounceWord`, differently. Spelling a string
+ * and handing it back through the front door means there is exactly one set of
+ * rules, the word is stable under its own hash like any other, and the same
+ * invented word sung in two choruses is identical without anyone arranging for
+ * it to be.
+ *
+ * Two things the caller does not have to ask for and gets anyway: **vowel
+ * harmony**, which is most of what makes a fake Finnish word sound Finnish, and
+ * **geminates**, because a closed syllable followed by an onset writes two
+ * consonants in a row and `kk tt ll nn` are what Finnish is made of.
+ */
+export function inventWord(style: WordStyle, rng: Rng): string {
+  const { harmony } = style;
+  // One harmony class per word, chosen once — the point of harmony is that it
+  // holds for the whole word.
+  const useFront = harmony.front.length > 0 && harmony.back.length > 0
+    ? rng.chance(0.5)
+    : harmony.front.length > 0;
+  const pool = [...(useFront ? harmony.front : harmony.back), ...harmony.neutral];
+  if (!pool.length) return 'a';
+
+  const count = Math.max(1, rng.pick(style.lengths));
+  let word = '';
+
+  for (let i = 0; i < count; i++) {
+    // Interior syllables always take an onset. Not a preference — a bare one
+    // runs its vowel into the syllable before it and the two merge into one
+    // long nucleus, so the word would come out shorter than it was built to be.
+    const wantsOnset = i > 0 || rng.chance(style.onsetChance);
+    if (wantsOnset && style.onsets.length) word += rng.pick(style.onsets);
+
+    const vowel = rng.pick(pool);
+    word += rng.chance(style.longChance) ? vowel + vowel : vowel;
+
+    // Never on the last syllable of a word that is about to end on a vowel by
+    // design — but the roll decides, because a word ending in a consonant is
+    // ordinary in every language this is imitating.
+    if (style.codas.length && rng.chance(style.codaChance)) word += rng.pick(style.codas);
+  }
+
+  return word;
+}
+
+/**
+ * A vocabulary for one song.
+ *
+ * Small on purpose. A lyric is not a stream of fresh syllables — it is a
+ * handful of words used over and over, and a listener hears the reuse long
+ * before they would hear the meaning there isn't. Twenty words is enough that
+ * no two lines are identical and few enough that the song sounds like it is
+ * about something.
+ *
+ * Deduplicated by *sound* rather than by spelling: two different strings that
+ * pronounce identically are one word as far as the ear is concerned, and
+ * keeping both would quietly halve the vocabulary.
+ */
+export function inventLexicon(
+  words: WordStyle, phonetics: PhoneticStyle, rng: Rng, size: number,
+): PhoneticWord[] {
+  const out: PhoneticWord[] = [];
+  const heard = new Set<string>();
+  // Bounded rather than looping until it has enough: a tiny palette genuinely
+  // may not have `size` distinct sounds in it, and spinning forever is a worse
+  // answer than a shorter vocabulary.
+  for (let i = 0; i < size * 8 && out.length < size; i++) {
+    const word = pronounceWord(inventWord(words, rng), phonetics);
+    if (!word.syllables.length) continue;
+    const sound = spellSyllables(word);
+    if (heard.has(sound)) continue;
+    heard.add(sound);
+    out.push(word);
+  }
+  return out;
 }
 
 /**

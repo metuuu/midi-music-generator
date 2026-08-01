@@ -7,8 +7,8 @@
  * same line, and the instrument is there to hold the tune up.
  *
  * What this file adds is everything *except* the notes: the octave the line has
- * to be folded into to be singable at all, a vowel for each syllable, and —
- * the part that actually matters — the syllables themselves.
+ * to be folded into to be singable at all, the syllables the melody is cut
+ * into, and the words those syllables come from.
  *
  * Singing is not sustained tone, it is *articulated* tone. Hand a held half
  * note to any synthesised voice and it produces a wordless pad; the ear hears
@@ -20,16 +20,44 @@
  *
  * So a note here is not one sound. It is one *or more* syllables, spaced on the
  * beat grid, each one short enough to leave a gap before the next.
+ *
+ * ### Words
+ *
+ * The vowels and consonants used to be drawn per syllable from the profile's
+ * weights, and they now come from **invented words** that nobody ever sees.
+ *
+ * That distinction is the whole of it. A weighted draw per syllable produces a
+ * sequence with no memory: every syllable is as likely as every other, so no
+ * figure ever comes back and the line is heard as texture. It cannot be fixed
+ * by choosing better weights, because the problem is the independence rather
+ * than the distribution. Language is not distributed that way — it is a small
+ * vocabulary, reused, and the reuse is what a listener hears first.
+ *
+ * So the song gets a lexicon of twenty invented words and a line per section.
+ * Every chorus is handed the *same* line, so the second chorus comes back on
+ * the same handful of words as the first — verbatim where the two choruses got
+ * the same number of syllables out of the tune, and phase-shifted onto the same
+ * vocabulary where they did not. Either way it is recognisably the refrain, and
+ * there is no way at all to get one out of a random draw.
+ *
+ * The words are never rendered, never serialised and never leave this file:
+ * what goes on the `Track` is syllables, as it always was. `generate/phonetics.ts`
+ * carries the rules — vowel harmony, syllable weight, which letters this voice
+ * can say — and `docs/voice.md` the reasoning.
  */
 
 import { Rng } from '../core/rng.js';
-import type { Consonant, NoteEvent, Track, Vowel } from '../core/types.js';
-import { VOWEL_OPENNESS, type VocalProfile } from '../style/vocals.js';
+import type { NoteEvent, Section, SectionKind, Track } from '../core/types.js';
+import type { VocalProfile } from '../style/vocals.js';
+import {
+  inventLexicon, syllableWeight,
+  type PhoneticStyle, type PhoneticWord, type Syllable as Phoneme,
+} from './phonetics.js';
 
 /**
  * A gap this long or longer ends a phrase — which is to say, it is where the
- * breath goes, and therefore where the vowel is allowed to change no matter
- * what the profile's `hold` says.
+ * breath goes, and therefore where the line is made to start a fresh word
+ * rather than continue one across the silence.
  */
 const PHRASE_GAP_BEATS = 1;
 
@@ -50,39 +78,34 @@ interface Syllable {
   phraseStart: boolean;
 }
 
+/** Where the song's sections are, so a line can be given to one. */
+export interface LyricContext {
+  sections: Section[];
+  beatsPerBar: number;
+}
+
 export function generateVocalTrack(
   melody: NoteEvent[],
   profile: VocalProfile,
   rng: Rng,
+  lyric: LyricContext,
 ): Track | undefined {
   if (!melody.length) return undefined;
 
   const shift = octaveFold(melody, profile);
-  const base = weightedMeanOpenness(profile.vowels);
   const syllables = syllabify(melody, shift, profile);
+  const write = writer(profile, lyric, rng);
 
   const notes: NoteEvent[] = [];
-  let vowel: Vowel | undefined;
-  let consonant: Consonant | undefined;
-  let sinceChange = 0;
-
   for (const syl of syllables) {
-    if (vowel === undefined || syl.phraseStart || sinceChange >= profile.hold) {
-      vowel = chooseVowel(syl, base, profile, vowel, rng);
-      sinceChange = 0;
-    }
-    sinceChange++;
-    // A consonant every syllable, unlike the vowel — the onset is what the ear
-    // uses to tell one syllable from the next, so it has to keep moving even
-    // where the vowel is being held across a phrase.
-    consonant = chooseConsonant(profile, consonant, rng);
+    const phoneme = write(syl);
     notes.push({
       beat: syl.beat,
       duration: syl.duration,
       midi: syl.midi,
       velocity: syl.velocity,
-      vowel,
-      consonant,
+      vowel: phoneme.vowel,
+      consonant: phoneme.onset,
     });
   }
 
@@ -181,78 +204,216 @@ function octaveFold(melody: NoteEvent[], profile: VocalProfile): number {
   return best;
 }
 
-/** The openness the profile sits at on average, before pitch and length move it. */
-function weightedMeanOpenness(vowels: (readonly [Vowel, number])[]): number {
-  let total = 0;
-  let sum = 0;
-  for (const [v, w] of vowels) {
-    total += w;
-    sum += VOWEL_OPENNESS[v] * w;
-  }
-  return total > 0 ? sum / total : 0.5;
+
+// ---------------------------------------------------------------------------
+// The words
+// ---------------------------------------------------------------------------
+
+/**
+ * Twenty words per song.
+ *
+ * Enough that no two lines come out identical, few enough that the reuse is
+ * audible — which is the entire reason there are words at all. A vocabulary of
+ * two hundred would be indistinguishable from the random draw this replaced.
+ */
+const LEXICON_SIZE = 20;
+
+/**
+ * Words per line, before the line starts repeating itself inside a section.
+ *
+ * A chorus gets fewer, because a hook is short. That is not a stylistic
+ * preference so much as what the word "hook" means: the figure has to come
+ * round often enough inside its own section to be recognised by the time the
+ * section ends, and a line as long as the section comes round once.
+ */
+const LINE_WORDS: readonly number[] = [4, 5, 5, 6, 6, 7, 8];
+const HOOK_WORDS: readonly number[] = [2, 3, 3, 4];
+
+/**
+ * How this voice pronounces what it just invented.
+ *
+ * The profile already carries two thirds of a `PhoneticStyle` — its vowels and
+ * its consonants are exactly the palettes the pronunciation wants — so this is
+ * mostly a re-labelling. The two fields that are not:
+ */
+function phoneticsFor(profile: VocalProfile): PhoneticStyle {
+  const w = profile.words;
+  return {
+    vowels: profile.vowels,
+    consonants: profile.consonants,
+    spelling: w.spelling,
+    /**
+     * `spread` is this profile's existing statement about how freely its vowels
+     * are allowed to move, and separation is that same statement in the plane
+     * the phonetics measure in. Clamped at the top because the vocoder's 0.9
+     * would ask for a distance no palette contains, at which point the rule
+     * relaxes itself to nothing anyway and the clamp merely says so honestly.
+     */
+    separation: Math.min(0.4, Math.max(0.1, profile.spread)),
+    onsetDensity: w.onsetDensity,
+    interiorDensity: w.interiorDensity,
+    /**
+     * No codas. A `NoteEvent` has one consonant and it is the onset, so there
+     * is nowhere to put a closing one — and a coda that cannot be articulated
+     * would be a silent shortening of the word rather than a consonant.
+     *
+     * Nothing is lost from the *length*: a closed syllable is still heavy and
+     * still sung over two slots, so it arrives as a held vowel instead. That is
+     * the floating version of the same word, which is the version this project
+     * has always wanted. See `PhoneticStyle.codaDensity`, and turn it up on the
+     * day the voice goes through `web/voice-synth.ts`, which can close one.
+     */
+    codaDensity: 0,
+    maxSyllables: w.maxSyllables,
+  };
+}
+
+/** One syllable of a line, with enough context to know where the words begin. */
+interface Beat {
+  syllable: Phoneme;
+  wordStart: boolean;
+}
+
+function flatten(words: PhoneticWord[]): Beat[] {
+  return words.flatMap((w) => w.syllables.map((syllable, i) => ({
+    syllable, wordStart: i === 0,
+  })));
 }
 
 /**
- * Pick a vowel for one note.
+ * A line, drawn from the lexicon.
  *
- * The profile's weights say what this genre sings on; the note says how open it
- * wants to be. Multiplying a gaussian around the target into the weights lets
- * both have a say, rather than the pitch rule overriding the genre outright.
+ * Immediate repetition is discouraged and not forbidden, because a line that
+ * says the same word twice running is a real thing a lyric does and a line that
+ * never can sounds shuffled.
  */
-function chooseVowel(
-  syl: Syllable,
-  base: number,
-  profile: VocalProfile,
-  previous: Vowel | undefined,
-  rng: Rng,
-): Vowel {
-  // Up high everything opens toward /a/, and the effect is asymmetric: a voice
-  // low in its range can still sing a bright closed vowel, so the floor is much
-  // shallower than the ceiling.
-  const pitchLift = clamp((syl.midi - profile.centre) / 12, -0.35, 0.5);
-  // Longer syllables open up too, for the same reason — you cannot hold /i/.
-  const lengthLift = clamp((syl.duration - 0.5) * 0.3, -0.12, 0.3);
-  const target = clamp(base + pitchLift + lengthLift, 0, 1);
+function makeLine(lexicon: PhoneticWord[], rng: Rng, hook: boolean): PhoneticWord[] {
+  const out: PhoneticWord[] = [];
+  const count = rng.pick(hook ? HOOK_WORDS : LINE_WORDS);
+  for (let i = 0; i < count; i++) {
+    const weighted = lexicon.map((w) => [w, w === out[out.length - 1] ? 0.15 : 1] as const);
+    out.push(rng.weighted(weighted));
+  }
+  return out;
+}
 
-  const spread = Math.max(0.05, profile.spread);
-  const weighted = profile.vowels.map(([v, w]) => {
-    const d = (VOWEL_OPENNESS[v] - target) / spread;
-    let weight = w * Math.exp(-0.5 * d * d);
-    // On a scat line, back-to-back identical syllables read as a stutter rather
-    // than as singing. Discourage without forbidding — "doo-doo-ba" is fine.
-    if (v === previous) weight *= 0.25;
-    return [v, weight] as const;
+/**
+ * Which line each section sings.
+ *
+ * Every chorus gets the same one. That is the single decision this whole file
+ * turns on: a chorus repeats a tune, and a chorus that repeats a tune with
+ * different words on it is a verse.
+ *
+ * How exactly it repeats is left to the tune rather than forced here. The line
+ * is laid onto whatever syllable slots the melody offers, so two choruses built
+ * on the same phrases come out identical syllable for syllable, and two that
+ * are varied come out on the same words at a different offset. Forcing the
+ * second case to match would mean constraining the melody from inside the vocal
+ * generator, which is not this file's to do.
+ *
+ * Everything else gets a fresh line per occurrence, for the same reason in
+ * reverse: verses are supposed to differ.
+ */
+function lineKey(kind: SectionKind, nth: number): string {
+  return kind === 'chorus' ? 'chorus' : `${kind}:${nth}`;
+}
+
+/** Beat span of each section, with the line it has been given. */
+interface Span {
+  to: number;
+  key: string;
+}
+
+function spansOf(lyric: LyricContext): Span[] {
+  const seen = new Map<SectionKind, number>();
+  return lyric.sections.map((s) => {
+    const nth = seen.get(s.kind) ?? 0;
+    seen.set(s.kind, nth + 1);
+    return {
+      to: (s.startBar + s.lengthBars) * lyric.beatsPerBar,
+      key: lineKey(s.kind, nth),
+    };
   });
-
-  const total = weighted.reduce((a, [, w]) => a + w, 0);
-  // Every candidate can be vanishingly unlikely if the target sits well outside
-  // the profile's range. Fall back on the nearest rather than dividing by zero.
-  if (total <= 1e-9) {
-    return profile.vowels.reduce((best, [v]) =>
-      Math.abs(VOWEL_OPENNESS[v] - target) < Math.abs(VOWEL_OPENNESS[best] - target) ? v : best,
-    profile.vowels[0]![0]);
-  }
-  return rng.weighted(weighted);
 }
 
 /**
- * Pick how this syllable starts.
+ * A closure that hands out one syllable per slot of the melody.
  *
- * The only rule beyond the genre's weights is that a manner does not repeat
- * immediately. Three /t/ sounds in a row is a stutter, not a word, and the
- * whole reason consonants are here is to stop consecutive syllables sounding
- * identical — letting the same one through twice defeats the point.
+ * Stateful because a line is: where it has got to, and whether the syllable it
+ * is in the middle of is a long one that has not finished yet.
  */
-function chooseConsonant(
-  profile: VocalProfile,
-  previous: Consonant | undefined,
-  rng: Rng,
-): Consonant {
-  const weighted = profile.consonants.map(([c, w]) =>
-    [c, c === previous ? w * 0.15 : w] as const);
-  return rng.weighted(weighted);
-}
+function writer(
+  profile: VocalProfile, lyric: LyricContext, rng: Rng,
+): (syl: Syllable) => Phoneme {
+  const phonetics = phoneticsFor(profile);
+  const lexicon = inventLexicon(profile.words, phonetics, rng.fork('lexicon'), LEXICON_SIZE);
+  const spans = spansOf(lyric);
+  const lines = new Map<string, Beat[]>();
 
-function clamp(v: number, lo: number, hi: number): number {
-  return Math.max(lo, Math.min(hi, v));
+  // A word with nothing behind it, for the degenerate cases: an empty palette,
+  // or a melody running past the last section. A bare `a` is a worse syllable
+  // than any real one and a better outcome than a throw.
+  const fallback: Phoneme = {
+    onset: 'none', vowel: profile.vowels[0]?.[0] ?? 'a',
+    coda: 'none', heavy: false, stress: false,
+  };
+
+  const lineFor = (key: string): Beat[] => {
+    let line = lines.get(key);
+    if (!line) {
+      line = flatten(makeLine(lexicon, rng.fork(`line:${key}`), key === 'chorus'));
+      lines.set(key, line);
+    }
+    return line;
+  };
+
+  let span = -1;
+  let line: Beat[] = [];
+  let cursor = 0;
+  /** Slots the syllable being sung still owes itself, because it is heavy. */
+  let owed = 0;
+  let last: Phoneme = fallback;
+
+  return (syl: Syllable): Phoneme => {
+    // Sections are in order and so are the notes, so this only ever walks
+    // forward — but it is written as a search so that a melody starting before
+    // the first section or running past the last still lands somewhere.
+    let i = 0;
+    while (i < spans.length - 1 && syl.beat >= spans[i]!.to - 1e-6) i++;
+    if (i !== span) {
+      span = i;
+      line = lineFor(spans[i]?.key ?? 'x');
+      cursor = 0;
+      // Whatever was being held is cut off at the section boundary. A syllable
+      // that ran across one would be a word straddling a key change.
+      owed = 0;
+    }
+    if (!line.length) return fallback;
+
+    /**
+     * The second slot of a heavy syllable — a long vowel or a closed one.
+     *
+     * It keeps the vowel and drops the consonant, so what the renderers see is
+     * a re-attack with no onset on the same vowel: audibly one syllable held
+     * rather than two. When the voice goes through `voice-synth.ts` this is the
+     * event that becomes a tie and stops being a re-attack at all.
+     */
+    if (owed > 0) {
+      owed--;
+      return { ...last, onset: 'none' };
+    }
+
+    // A phrase begins on a word, never in the middle of one. The breath is
+    // where a listener hears the boundary, so putting one inside a word is the
+    // fastest way to unmake the word.
+    if (syl.phraseStart) {
+      for (let n = 0; n < line.length && !line[cursor % line.length]!.wordStart; n++) cursor++;
+    }
+
+    const beat = line[cursor % line.length]!;
+    cursor++;
+    owed = syllableWeight(beat.syllable) - 1;
+    last = beat.syllable;
+    return beat.syllable;
+  };
 }

@@ -606,8 +606,30 @@ export const buildCello: InstrumentBuilder = (opts) => {
   /** How far the bow has gone to the hand, and where that hand is. `carryBow`. */
   let carried = 0;
   const carriedHand = new Vector3();
-  /** Set on the beat, never eased — see the note in `violin.ts`. */
+  /**
+   * Which string the hair is on. Set on the beat, never eased — see the note in
+   * `violin.ts` — and a **mean over the chord**, which is why it is not an
+   * integer.
+   *
+   * Two thirds of the notes in a bowed part here are extra voices in a chord:
+   * these parts are string *sections*, and a section plays three-note pads. One
+   * bow cannot be on three strings, and `react` arrives once per note, so this
+   * used to be whichever voice `chooseStops` happened to emit last — the bow sat
+   * on one note of the chord and the other two sounded with nothing on them.
+   * Which one it sat on was gesture order, which is not a musical fact.
+   *
+   * The runtime had already answered: it places the bowing *hand* at the
+   * weighted mean of the batch's contacts, so a bow parked on one voice was
+   * also a frog that was not in the hand holding it. `stringZ` is affine in the
+   * string index, so a mean here is exactly the mean the hand is at, and on the
+   * double stops a player really does play the hair lands between the two
+   * strings, where a bow on a double stop actually sits.
+   */
   let bowString = 1;
+  /** The batch being averaged into it: whose beat, running sum, and count. */
+  let stringAt = Number.NEGATIVE_INFINITY;
+  let stringSum = 0;
+  let stringCount = 0;
   /** `-Infinity`, so the first note is a new beat by the same test as the rest. */
   let strokeAt = Number.NEGATIVE_INFINITY;
   let strokeSpan = 1;
@@ -789,7 +811,11 @@ export const buildCello: InstrumentBuilder = (opts) => {
       // Reverse on anything that is not a slur, which is what `Runtime.stroke`
       // does with the same gestures. See the long note in `violin.ts`.
       turn(kind, f, now, span);
-      bowString = i;
+      // The whole chord, not the last voice of it. See `bowString`.
+      if (now !== stringAt) { stringAt = now; stringSum = 0; stringCount = 0; }
+      stringSum += i;
+      stringCount++;
+      bowString = stringSum / stringCount;
       lift = 0;
       placeBow();
     },

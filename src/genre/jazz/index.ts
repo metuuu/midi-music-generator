@@ -99,6 +99,26 @@ export const jazz: Genre = {
   soloBacking: 'comping',
 
   /**
+   * …and the same word applied to the note level, where it was missing.
+   *
+   * `soloBacking: 'comping'` says the rhythm section changes what it plays when
+   * a soloist stands up. It says nothing about the bar-to-bar behaviour that
+   * gives the word its meaning, and measured against the finished tracks that
+   * behaviour was absent: in a twelve-bar blues, where the chorus repeats a
+   * chord in consecutive bars, the piano played a **note-for-note identical bar
+   * 79% of the time**. The band reacted to the *section* and looped inside it.
+   *
+   * `rest` is the largest of the three and the one that matters most. A comper's
+   * holes are not economy, they are the thing that makes the chords land, and
+   * roughly one bar in five is what it takes to hear it. `anticipate` is the
+   * gesture the idiom is named for after comping itself — the chord arriving
+   * ahead of the barline — and it is flatly unreachable from a figure on a grid.
+   * `displace` is the smallest and does the least on its own; what it buys is
+   * that two bars of the same figure stop being the same bar twice.
+   */
+  comping: { rest: 0.18, anticipate: 0.3, displace: 0.25 },
+
+  /**
    * Improvisation, and the reason the solo engine is worth building.
    *
    * The rotation is the bandstand's: the front-line horn first, then whoever

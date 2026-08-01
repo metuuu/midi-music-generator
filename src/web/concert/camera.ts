@@ -175,31 +175,38 @@ const LIP_MARGIN = 0.12;
 const WIDE_AIM_Y = 1.45;
 
 /**
- * How far round the side of a shot a drag may take the camera, in radians.
+ * How near a surface of the room the lens may come, in metres.
  *
- * Every room here is built to be looked at from the house and says so on its
- * back: the backdrop is a cloth with nothing printed on the reverse, the wings
- * and the masking are single-sided planes, the arch has no behind, and the
- * band's own stations are dressed for the front. Yaw was not clamped at all, so
- * two seconds of dragging put the lens backstage, where the show is a handful
- * of one-sided surfaces seen from the wrong side and the room is simply not
- * there.
+ * The drag used to be answered with an *angle*: yaw stopped a shade under 60°,
+ * which kept the camera out of the one place every venue here is not built for
+ * — behind it, where the backdrop is a cloth with nothing printed on the back
+ * and the wings are single-sided planes. It worked, and it was the wrong shape
+ * of answer. Most of a room is behind you at a concert, and a camera that will
+ * not turn round is a camera on a rail.
  *
- * There were two ways out of that — build the back of every venue, or stop the
- * camera getting to it — and the second is the right one for more than the
- * obvious reason that it is free. A gallery camera does not go backstage
- * mid-number either. And the one room that *is* built for all sides (the
- * pavilion, with its sky dome and a back wall you can walk behind) is no better
- * seen from behind than from the front: what is back there is the reverse of a
- * band.
+ * So the rule is a *place* instead. The lens may go the whole way round, and
+ * what keeps it honest is that it has to stay in the room: inside the walls,
+ * downstage of the backdrop, over a floor and under whatever lid there is.
+ * Where the circle it is travelling on would leave the building, the radius
+ * gives rather than the angle — swinging round the back of a band on a six
+ * metre stage walks the camera in to a metre or so behind them, because that is
+ * where somebody standing there would have to stand.
  *
- * 1.0 rad is a shade under 60°, which is most of what the drag was for — enough
- * to look past the front line at whoever is standing behind it, enough to
- * change the angle on a soloist — and being under a right angle it can never
- * reach the plane of the band, because the lens stays downstage of whatever it
- * is pointed at for the whole of its travel.
+ * That is the whole difference between the two rules. The old one said *you
+ * cannot look from there*; this one says *from there, you are standing this
+ * close*.
  */
-const YAW_LIMIT = 1.0;
+const ROOM_GAP = 0.35;
+
+/**
+ * Nearest the lens may orbit to what it is looking at, in metres.
+ *
+ * The floor under the rule above, for the case where the room has none to give:
+ * upstage of a band on a shallow stage the wall is genuinely a metre away, and
+ * a radius solved purely from the room would keep shrinking until the camera
+ * was inside the person it is pointed at.
+ */
+const ORBIT_MIN = 1.1;
 
 export function createDirector(reducedMotion = false): CameraDirector {
   const camera = new PerspectiveCamera(BASE_FOV, 1, 0.1, 120);
@@ -217,11 +224,16 @@ export function createDirector(reducedMotion = false): CameraDirector {
   let orbitFor = 0;
   let yaw = 0;
   let pitch = 0;
+  /** How far the lens has opened to pay for a walk-in. 1 is the framing's own. */
+  let lens = 1;
 
   const eye = new Vector3();
   const focus = new Vector3();
   const wanted = new Vector3();
   const wantedFocus = new Vector3();
+  /** Scratch for the orbit: the direction it points, and where `reach` looks. */
+  const ray = new Vector3();
+  const probe = new Vector3();
 
   /**
    * The point a shot is *about*, which is never where the performer's origin is.
@@ -382,9 +394,57 @@ export function createDirector(reducedMotion = false): CameraDirector {
     return (metrics?.headroom ?? Infinity) - LENS_GAP;
   }
 
-  /** The lowest. A camera under the floorboards is not a low angle. */
-  function houseFloor(): number {
-    return (metrics?.houseY ?? -0.9) + 0.4;
+  /**
+   * The lowest, at a given depth. A camera under the floorboards is not a low
+   * angle — and which floorboards depends on where it is standing, because the
+   * house floor is a whole stage height below the boards and a lens over the
+   * stage that is allowed down to the house floor is a lens inside the apron.
+   */
+  function floorAt(z: number): number {
+    const onStage = z < (metrics?.lipZ ?? 3);
+    return (onStage ? 0 : metrics?.houseY ?? -0.9) + ROOM_GAP;
+  }
+
+  /** Whether a point is somewhere a camera could actually stand in this room. */
+  function inRoom(v: Vector3): boolean {
+    const lipZ = metrics?.lipZ ?? 3;
+    const onStage = v.z < lipZ;
+    // The boards end where they end; the house is wider than they are, and its
+    // walls stand another 0.6 m outside this.
+    const halfX = (onStage ? metrics?.width ?? 10 : metrics?.houseWidth ?? 14) / 2;
+    return Math.abs(v.x) <= halfX
+      && v.z >= (metrics?.backZ ?? -3) + ROOM_GAP
+      && v.z <= lipZ + (metrics?.houseDepth ?? 8)
+      && v.y >= floorAt(v.z) && v.y <= ceiling();
+  }
+
+  /**
+   * How far along a ray from a point inside the room the room lasts.
+   *
+   * Marched and then bisected rather than solved. The volume is not one box:
+   * the house is wider than the stage and its floor is a stage height lower, so
+   * a ray crossing the lip steps in two of the six surfaces at once, and it can
+   * leave the boards at the side and re-enter the room over the house floor a
+   * metre later. A closed form for that is a case analysis nobody could check
+   * by reading it, where `inRoom` says what a room is in six comparisons and
+   * this asks it politely. Twenty-four samples and eight bisections lands
+   * within a couple of centimetres of the surface, once a frame, and only while
+   * somebody is actually dragging.
+   */
+  function reach(at: Vector3, dir: Vector3, far: number): number {
+    let last = 0;
+    for (let i = 1; i <= 24; i++) {
+      const t = (i / 24) * far;
+      if (inRoom(probe.copy(dir).multiplyScalar(t).add(at))) { last = t; continue; }
+      let lo = last;
+      let hi = t;
+      for (let j = 0; j < 8; j++) {
+        const mid = (lo + hi) / 2;
+        if (inRoom(probe.copy(dir).multiplyScalar(mid).add(at))) lo = mid; else hi = mid;
+      }
+      return lo;
+    }
+    return far;
   }
 
   /**
@@ -407,6 +467,13 @@ export function createDirector(reducedMotion = false): CameraDirector {
    * The ceiling still wins. In a room too low to fly the camera over its own
    * audience the honest answer is a shot with somebody's head in the near
    * foreground, which is a jazz photograph, rather than a lens inside it.
+   *
+   * **The director obeys this and the viewer does not.** It is a rule about
+   * shots the show composes for you, and a drag is not one of those: somebody
+   * who has pulled the camera down into the seats has asked to be in the seats.
+   * Enforcing it there was also what pinned the cellar — a lid at 2.25 m over a
+   * crowd wanting 1.74 left the drag half a metre of travel, and a camera with
+   * half a metre of travel is a camera at a fixed height.
    */
   function clearCrowd(v: Vector3): void {
     const c = metrics?.crowd;
@@ -465,30 +532,6 @@ export function createDirector(reducedMotion = false): CameraDirector {
       if (holds(mid)) hi = mid; else lo = mid;
     }
     return hi;
-  }
-
-  /**
-   * How far round the side the drag may go *in this room*, at this radius.
-   *
-   * The same argument the pitch limits make, one axis over: an angle is not a
-   * position, and the position a given angle produces depends entirely on how
-   * far out the camera is standing. 57° on a close-up three metres from a
-   * player is a step to one side; 57° on a wide shot ten metres out is four
-   * metres the far side of the wall, filming the room through it. The house
-   * walls are single-sided, so that degrades gracefully rather than to a black
-   * screen — but "gracefully" is still the room disappearing, which is the
-   * thing the yaw limit exists to prevent.
-   *
-   * So the ceiling on the angle is whatever keeps the lens inside the walls at
-   * this radius, and the floor under it is there because a soloist standing
-   * near the side of the stage would otherwise pin the camera dead ahead: a
-   * drag that does nothing reads as a broken control, where a short one reads
-   * as a small room.
-   */
-  function yawLimit(r: number, cx: number): number {
-    const halfX = (metrics?.houseWidth ?? (venue?.width ?? 10) + 4) / 2;
-    const room = Math.max(0, halfX - Math.abs(cx)) / Math.max(r, 0.1);
-    return Math.max(0.35, Math.min(YAW_LIMIT, Math.asin(Math.min(1, room))));
   }
 
   /**
@@ -624,7 +667,7 @@ export function createDirector(reducedMotion = false): CameraDirector {
      * player's sternum — so this changes no shot that currently exists, which
      * is exactly what a guard rail should do the day it is installed.
      */
-    wanted.y = Math.max(Math.min(wanted.y, ceiling()), houseFloor());
+    wanted.y = Math.max(Math.min(wanted.y, ceiling()), floorAt(wanted.z));
     clearCrowd(wanted);
   }
 
@@ -643,6 +686,7 @@ export function createDirector(reducedMotion = false): CameraDirector {
       orbitFor = 0;
       yaw = 0;
       pitch = 0;
+      lens = 1;
 
       /**
        * Take up the opening position *now*, not on the first frame with a clock.
@@ -687,48 +731,46 @@ export function createDirector(reducedMotion = false): CameraDirector {
       held = Math.min((beat - shot.beat) / span, 1);
       place(shot, held);
 
+      let squeeze = 1;
       if (orbitFor > 0) {
         // Viewer has the camera. Orbit the *current* focus so letting go does
         // not snap somewhere unrelated.
         const r = wanted.distanceTo(wantedFocus);
-        /**
-         * Pitch is clamped by the room, not by a pair of constants.
-         *
-         * The fixed ±limits could not do this job, because the angle that puts
-         * the lens through the ceiling depends on how far away the camera is
-         * standing: 0.9 rad is a perfectly good high angle on a close-up three
-         * metres out and takes the lens eight metres up on a wide shot. The old
-         * lower limit had the matching fault at the other end — 0.35 rad down
-         * at wide-shot range put the camera two metres *below* the house floor,
-         * looking up at the underside of everything.
-         *
-         * So the limits are solved from the same two surfaces `place` respects,
-         * at this radius. Under an open sky `asin` is handed a number past 1,
-         * clamps, and hands back the vertical — which is to say the pavilion
-         * keeps the old behaviour exactly.
-         */
-        const arc = (y: number): number =>
-          Math.asin(Math.max(-1, Math.min(1, (y - wantedFocus.y) / Math.max(r, 0.1))));
-        const hi = arc(ceiling());
-        const p = Math.max(Math.min(pitch, hi), Math.min(arc(houseFloor()), hi));
-        /**
-         * And yaw by the walls, at the radius this shot is being held at. The
-         * clamp is written back rather than applied on the way past, so that a
-         * drag which ran into the wall on a wide shot does not have to be
-         * unwound before the picture moves again — the same reason `orbit`
-         * clamps `pitch` where it accumulates.
-         */
-        const lim = yawLimit(r, wantedFocus.x);
-        yaw = Math.max(-lim, Math.min(lim, yaw));
-        wanted.set(
-          wantedFocus.x + Math.sin(yaw) * Math.cos(p) * r,
-          wantedFocus.y + Math.sin(p) * r,
-          wantedFocus.z + Math.cos(yaw) * Math.cos(p) * r,
+        ray.set(
+          Math.sin(yaw) * Math.cos(pitch),
+          Math.sin(pitch),
+          Math.cos(yaw) * Math.cos(pitch),
         );
-        // The pitch limits are solved against the room's two surfaces; the
-        // crowd is neither, and swinging round the back of the house at wide
-        // radius is exactly the move that ends up inside it.
-        clearCrowd(wanted);
+        /**
+         * The angle is the viewer's and the distance is the room's.
+         *
+         * Nothing here clamps where the drag may point — round the back, over
+         * the top of the band, in among the tables, all of it is a place a
+         * person could stand and all of it is now reachable. What the room owns
+         * is how far along that line the lens ends up: the shot's own framing
+         * distance where the building has that much to give, and the last point
+         * inside the walls where it does not.
+         *
+         * `ORBIT_MIN` wins over both, so a stage with a metre behind the band
+         * puts you a metre behind the band rather than inside the drummer. It
+         * can push back through a surface in a room that tight, which is why
+         * the height is clamped again below — a lens through a side wall shows
+         * you the room from outside for a moment, and a lens through the lid
+         * shows you the plumbing.
+         */
+        const d = Math.max(ORBIT_MIN, Math.min(r, reach(wantedFocus, ray, r)));
+        wanted.copy(ray).multiplyScalar(d).add(wantedFocus);
+        wanted.y = Math.max(Math.min(wanted.y, ceiling()), floorAt(wanted.z));
+        /**
+         * How much of its framing distance the room took. The lens gives it
+         * back below.
+         *
+         * The crowd is deliberately not fenced off in here, unlike in `place`.
+         * Somebody who has dragged the camera down into the seats has asked to
+         * be in the seats, and a head in the near foreground is a photograph of
+         * a concert rather than a fault.
+         */
+        squeeze = Math.max(1, r / d);
       }
 
       /**
@@ -745,16 +787,43 @@ export function createDirector(reducedMotion = false): CameraDirector {
       focus.lerp(wantedFocus, k);
       camera.position.copy(eye);
       camera.lookAt(focus);
+
+      /**
+       * And the lens follows the walk in, on the same easing as the walk.
+       *
+       * A drag that ends up at a third of its framing distance is holding a
+       * third of what it was framing, and a third of a wide shot from behind a
+       * band on a shallow stage is a shirt. So the field of view opens by the
+       * ratio the radius lost, and `MAX_FOV` stops it where the perspective
+       * starts to bow.
+       *
+       * Eased rather than applied, and eased *out here* rather than inside the
+       * orbit branch, because the two have to move together: the moment the
+       * viewer lets go the position starts a one-second glide back to the
+       * director's shot, and a lens that snapped back on the same frame would
+       * be a zoom the drag never asked for. `place` re-solves the framing from
+       * `BASE_FOV` every frame, so this multiplies a fresh number rather than
+       * compounding its own.
+       */
+      lens += (squeeze - lens) * k;
+      const deg = lens < 1.005 ? camera.fov : Math.min(
+        MAX_FOV, (2 * Math.atan(Math.tan((camera.fov * Math.PI) / 360) * lens) * 180) / Math.PI,
+      );
+      if (Math.abs(camera.fov - deg) > 0.01) {
+        camera.fov = deg;
+        camera.updateProjectionMatrix();
+      }
     },
 
     orbit(dx, dy) {
       orbitFor = HANDBACK_SECONDS;
-      // The hard stop. `update` narrows it further to whatever the room allows
-      // at the radius the current shot is standing at; this is the limit that
-      // holds when the room does not bind — a close-up in a hall, where there
-      // is no wall in the way and the reason to stop is the show itself.
-      yaw = Math.max(-YAW_LIMIT, Math.min(YAW_LIMIT, yaw - dx * 0.005));
-      pitch = Math.max(-0.35, Math.min(0.9, pitch + dy * 0.004));
+      // Yaw runs free and wraps: there is nowhere round the circle the camera
+      // may not point, only distances the room will not lend it. Pitch is
+      // bounded because it is not a circle — over the top and under the floor
+      // are the same picture upside down — and the room takes the rest of it in
+      // `update`, by pulling the lens in rather than by refusing the angle.
+      yaw = (yaw - dx * 0.005) % (Math.PI * 2);
+      pitch = Math.max(-0.5, Math.min(1.0, pitch + dy * 0.004));
     },
 
     shots: () => plan,

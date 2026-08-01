@@ -67,8 +67,15 @@ src/web/concert/ Performance IR -> pixels.     App side. three.js + the Strudel 
 A concert of 3–5 numbers at 2–4 minutes each is a 10-minute experience, and the
 generator produces songs one at a time with no notion of a set. The setlist gets its
 own small system (§8.6) that picks numbers with *contrast* — not five foxtrots in a
-row — and orders them the way a band would: strong opener, ballad third, biggest
-number last. That is programming, not generation, and it is cheap.
+row — by drawing the evening's styles without replacement, and then shuffles them.
+That is programming, not generation, and it is cheap.
+
+It used to order them the way a band would — strong opener, ballad third, biggest
+number last — and that was measurably a mistake. Each position had a target speed,
+each genre has exactly one style at each end of its speed range, so the target named
+the style instead of choosing it: over 250 concerts the iskelmä closer was a valssi
+93% of the time. A programmed arc and a varied catalogue turn out to be the same
+knob, and the catalogue is the one worth having.
 
 ---
 
@@ -534,8 +541,8 @@ out of agreement with the voice — they are driven by the same data.
 
 ### 8.6 Setlist and showbill — `src/concert/setlist.ts`, `src/concert/showbill.ts`
 
-Picks 3–5 numbers with contrast (tempo, mood, style, key), applies the smoothness policy
-(§6) and the vocals policy (§5), orders them like a band would, and writes the bill.
+Picks 3–5 numbers with contrast (style, mood, key), applies the smoothness policy
+(§6) and the vocals policy (§5), shuffles them into a playing order, and writes the bill.
 
 The bill is where the show tells you what it is before a note is played, and it should
 be *fun* rather than a table of metadata. A letterpress programme — the title in a big

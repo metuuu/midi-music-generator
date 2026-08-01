@@ -149,6 +149,28 @@ const tango: Style = {
       hh: [0, 2, 4, 6, 8, 10, 12, 14],
     } },
   ],
+  /**
+   * Two hands **if the palette happens to deal them**, which is the weaker claim
+   * and the one that is true of this style.
+   *
+   * A humppa fixes its lead because a humppa without an accordion is a foxtrot.
+   * A tango does not: the tune belongs to the accordion, the bandoneon, the tenor
+   * saxophone or the strings depending on the night, and naming instruments here
+   * would have delivered a genre of accordion tangos. What is true every time is
+   * narrower and more useful — *on the nights it is the accordion, that
+   * accordion plays its own bass and chords*, because a tanssilava accordionist
+   * has never in the history of the form played the tune with one hand and left
+   * the other in their lap. See `TwoHandedKeys.instruments`.
+   *
+   * `stride` leads, which in a tango is the left hand marking the beat under a
+   * line that is deliberately behind it, and `answer` follows because a tango
+   * melody leaves long holes and a bandoneon fills them. No `block`: locking the
+   * hands together would square up exactly the rhythm this style bends.
+   */
+  twoHanded: {
+    density: 0.7,
+    modes: [['stride', 6], ['answer', 4]],
+  },
   melody: { leap: 0.22, ornament: 0.14, span: 14, sequence: 0.42, syncopation: 0.55 },
 };
 
@@ -277,6 +299,14 @@ const humppa: Style = {
    * accordion carries the tune, and a humppa fronted by a muted trumpet is a foxtrot
    * with the wrong tempo.
    *
+   * `stride` first, and by a distance, because in this style the two words mean the
+   * same thing: the oom-pah *is* the left hand, bass button then chord button, and
+   * for as long as this table said `block` the accordionist was hitting the chord
+   * with the tune and never once playing the bass note the dance is counted on.
+   * `block` and `answer` stay as the other two things the same player does — a
+   * chorus where the hands lock together, a bar where the left one answers a held
+   * note — but they are what the style does *between* oom-pahs.
+   *
    * No `unison`: two hands an octave apart is a virtuoso's gesture and this style's
    * left hand has a job to do. No `ostinato`: the left hand is the oom-pah, and an
    * oom-pah that ignores the harmony is a drone.
@@ -286,7 +316,7 @@ const humppa: Style = {
     // High, because the button side plays on nearly every beat of a humppa. What
     // takes chords away is the right hand being busy, not this number being low.
     density: 0.85,
-    modes: [['block', 6], ['answer', 3]],
+    modes: [['stride', 7], ['block', 3], ['answer', 2]],
   },
   melody: { leap: 0.3, ornament: 0.2, span: 12, sequence: 0.5, syncopation: 0.12 },
 };
@@ -385,6 +415,17 @@ const valssi: Style = {
     { name: 'waltz-light', weight: 5, voices: { bd: [0], sd: [4, 8], hh: [0, 4, 8] } },
     { name: 'waltz-brush', weight: 3, voices: { bd: [0], hh: [0, 2, 4, 6, 8, 10] } },
   ],
+  /**
+   * Oom-pah-pah, which is the same left hand as the humppa's with one more chord
+   * in it and is the reason `stride` reads the metre rather than a fixed pattern.
+   * A waltz bass takes the downbeat and the two chords take the rest; the bass
+   * note itself walks root, fifth, root across bars rather than resetting, which
+   * is the difference between a waltz and a metronome with a chord on it.
+   */
+  twoHanded: {
+    density: 0.8,
+    modes: [['stride', 7], ['answer', 3]],
+  },
   melody: { leap: 0.2, ornament: 0.16, span: 14, sequence: 0.45, syncopation: 0.18 },
 };
 
@@ -465,6 +506,15 @@ const jenkka: Style = {
       bd: [0, 8], sd: [4, 12], hh: [0, 2, 4, 6, 8, 10, 12, 14],
     } },
   ],
+  /**
+   * The bounciest oom-pah in the genre, and the least interested in comping.
+   * A schottische left hand does one thing very fast for the length of the tune,
+   * which is why `stride` takes almost the whole table here.
+   */
+  twoHanded: {
+    density: 0.85,
+    modes: [['stride', 8], ['block', 2]],
+  },
   melody: { leap: 0.28, ornament: 0.22, span: 12, sequence: 0.5, syncopation: 0.3 },
 };
 
@@ -575,6 +625,16 @@ const foksi: Style = {
       bd: [0], rim: [4, 12], rd: [0, 3, 4, 7, 8, 11, 12, 15],
     } },
   ],
+  /**
+   * A slow fox is the one style here where the three things are genuinely even.
+   * The bass-chord alternation is the dance's own pulse, the left hand answers
+   * across the long held notes the tempo leaves room for, and locking the hands
+   * together is what a pianist does to push into the last chorus.
+   */
+  twoHanded: {
+    density: 0.65,
+    modes: [['stride', 4], ['answer', 4], ['block', 3]],
+  },
   melody: { leap: 0.26, ornament: 0.24, span: 15, sequence: 0.35, syncopation: 0.45 },
 };
 
@@ -668,6 +728,19 @@ const beguine: Style = {
       bd: [0, 6, 12], perc: [2, 6, 10, 14], hh: [0, 2, 4, 6, 8, 10, 12, 14],
     } },
   ],
+  /**
+   * The one style in the genre whose left hand is *not* an oom-pah.
+   *
+   * A beguine's pulse is already carried by the bass and the rim, and a bass
+   * note on one and three over the top of it flattens exactly the syncopation
+   * the dance is made of. So no `stride` here — the same accordion that strides
+   * through a jenkka comps through a beguine, which is the point of drawing the
+   * mode per style rather than per instrument.
+   */
+  twoHanded: {
+    density: 0.6,
+    modes: [['answer', 6], ['block', 4]],
+  },
   melody: { leap: 0.24, ornament: 0.18, span: 14, sequence: 0.4, syncopation: 0.6 },
 };
 
@@ -796,6 +869,17 @@ const iskelmapop: Style = {
       hh: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
     } },
   ],
+  /**
+   * A radio-era electric piano has the same two hands the accordion had, and it
+   * uses them the way the decade did: chords with the line, or in the holes.
+   * `stride` is on the table but last — an eighties arrangement reaches for it
+   * as a period gesture rather than as the way the song is held together, and
+   * the bass guitar has the root either way.
+   */
+  twoHanded: {
+    density: 0.6,
+    modes: [['block', 5], ['answer', 4], ['stride', 2]],
+  },
   melody: { leap: 0.24, ornament: 0.12, span: 14, sequence: 0.5, syncopation: 0.4 },
 };
 

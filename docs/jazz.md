@@ -83,7 +83,7 @@ Every bass, comp and drum pattern used to be read as "one bar, repeated", and th
 
 `twoHanded` says the lead is one player using both. The right hand has the tune and the choruses; the left hand is written afterwards, against the finished line, and goes into the *same track* — so the Song IR carries one part with two things happening in it, which is what a piano is. `melodicLine()` takes the line back out again for anything measuring melody.
 
-**What the left hand does** is drawn per section, from four modes, because a hand that only ever answered would be a player with a tic:
+**What the left hand does** is drawn per section, from five modes, because a hand that only ever answered would be a player with a tic:
 
 | Mode | What it plays |
 |---|---|
@@ -91,8 +91,13 @@ Every bass, comp and drum pattern used to be read as "one bar, repeated", and th
 | `unison` | The line itself, doubled an octave down. The Corea gesture, and the one that is not a chord at all. |
 | `block` | A chord struck *with* the line, on its longer and stronger notes. |
 | `ostinato` | A figure that ignores the line completely — the montuno, on its own `cycle`. |
+| `stride` | A bass note, then the chord, then the bass note again. Oom-pah, boom-chuck, the stradella button rows — the only mode that plays a bass line rather than voicing a chord somewhere. |
 
-**Anatomy comes from the instrument, not the style** (`HandSpec` in `style/instruments.ts`). A piano's left hand is a three-note rootless shell an octave below the tune; a vibraphone's is *two mallets* — two notes, a fifth of daylight, and a floor on the instrument rather than eight semitones under it; an accordion's is the button side, a full stradella triad with its own root, below F3 where the choreographer expects the split. An accordion cannot play `unison` at all, and says so with `melodic: false` rather than by drawing the mode and producing nothing.
+**Under a solo, `answer` steps aside.** It is written to fall silent when the right hand is busy, and a chorus is busy from the first bar to the last — so the one section where the player is alone with the rhythm section was the section their other hand was quietest in. Where a solo has any other mode on offer, `answer` is filtered out of the draw the same way `unison` is filtered out for a hand that cannot play a line. And the soloist is not always the lead: iskelmä gives the break to the counter instrument, so the left hand is written for whoever is holding the line in that section, not for the melody layer.
+
+**Anatomy comes from the instrument, not the style** (`HandSpec` in `style/instruments.ts`). A piano's left hand is a three-note rootless shell an octave below the tune, with a bass side an octave under that for striding; a vibraphone's is *two mallets* — two notes, a fifth of daylight, a floor on the instrument rather than eight semitones under it, and no bass side at all, because two mallets cannot leap an octave and a half down and back inside a beat; an accordion's is the button side, a stradella triad with its own root and a bass row beneath it, all below F3 where the choreographer expects the split. An accordion cannot play `unison` at all, and says so with `melodic: false` rather than by drawing the mode and producing nothing; a vibraphone cannot play `stride`, and says so by leaving `bass` unset.
+
+The accordion also carries a `clarity` of its own, and it is the one instrument that needs one. The low-interval limits are a pianist's — no close triad below C3, because a pianist who voices one there has chosen mud. An accordionist has chosen nothing: the button sounds a fixed close triad in a fixed low register. Before that override, four of twenty-six chords voiced in the button window came back with more than one note in them, so the instrument the two-handed machinery was extended for was silent in five bars out of six.
 
 One invariant holds the whole thing together and is asserted by `npm run genres`: **the left hand never sounds a note by itself.** `melodicLine` separates the hands by reading a note sounding alone as the right hand, so a lone accompaniment note is not thin — it is counted as melody. Every mode either sounds two notes or lands on a note of the line, and a hand with no room to voice a chord stays silent, which is what a player does.
 

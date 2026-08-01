@@ -1,17 +1,18 @@
 /**
  * How jazz sings.
  *
- * Scat: a new syllable on every note, which is `hold: 1`. That single number is
- * most of the difference between this and the iskelmä profile — the same melody
- * through the same synthesis reads as a held vocal line at `hold: 5` and as a
- * bebop head sung by a horn player at `hold: 1`.
+ * Scat: a new syllable on every note, and words to match. `WORD_STYLES.scat` is
+ * most of the difference between this and the iskelmä profile — one-syllable
+ * words with hard onsets against three-syllable words with long vowels, run
+ * through the same synthesis at twice the rate.
  *
- * The vowel set is the scat alphabet — doo, dah, bah, bee, dn — minus the
- * consonants, which step one does not model. `u` dominates because "doo" is the
- * default syllable of the idiom.
+ * The vowel set is the scat alphabet — doo, dah, bah, bee, dn — and the words
+ * now supply the consonants that go with it, `š` included, because
+ * "shoo-bee-doo" is real vocabulary rather than an accident. `u` dominates
+ * because "doo" is the default syllable of the idiom.
  */
 
-import type { VocalProfile } from '../../style/vocals.js';
+import { WORD_STYLES, type VocalProfile } from '../../style/vocals.js';
 
 export const VOCALS: VocalProfile = {
   name: 'voice',
@@ -31,9 +32,11 @@ export const VOCALS: VocalProfile = {
   // fricative weight is higher than iskelmä's because "shoo-bee-doo" is a real
   // part of the vocabulary rather than an accident.
   consonants: [
-    ['stop', 6], ['none', 3], ['nasal', 2], ['liquid', 2], ['fricative', 2],
+    ['stop', 6], ['stop-p', 4], ['none', 3], ['fricative-sh', 2.5], ['nasal', 2],
+    ['nasal-m', 2], ['liquid', 2], ['fricative', 2], ['glide', 2],
+    ['stop-k', 1.5], ['liquid-r', 1], ['fricative-f', 0.8],
   ],
-  hold: 1,
+  words: WORD_STYLES.scat!,
   centre: 58,
   // C3 to A4. A little higher and wider than the iskelmä voice — scat sits up
   // where the syllables cut through the rhythm section.

@@ -1,19 +1,18 @@
 /**
  * How iskelmä sings.
  *
- * Legato and dark. The vowel is held across a whole phrase rather than
- * re-chosen every syllable, and the syllables themselves are a beat apart and
- * long — one line per breath, scooped into. The consonant still changes
- * underneath, which is what keeps a held vowel from becoming a drone. Jazz runs
- * the same machinery at twice the rate with the opposite settings, which is the
- * point of having a profile at all.
+ * Legato and dark. The syllables are a beat apart and long — one line per
+ * breath, scooped into — and the long vowels and closed syllables of the
+ * invented Finnish it sings are what hold them out to two beats where the word
+ * asks for it. Jazz runs the same machinery at twice the rate on words half the
+ * length, which is the point of having a profile at all.
  *
  * The vowel set leans on `o`, `oe` and `aa` — ö and å. Finnish is a
  * front-rounded language and its popular singing sits in that colour; a voice
  * built only from the five cardinal vowels sounds Italian.
  */
 
-import type { VocalProfile } from '../../style/vocals.js';
+import { WORD_STYLES, type VocalProfile } from '../../style/vocals.js';
 
 export const VOCALS: VocalProfile = {
   name: 'voice',
@@ -48,13 +47,16 @@ export const VOCALS: VocalProfile = {
   // Sung, legato, Finnish: liquids and nasals dominate — la, na, lo, mi — with
   // stops for the odd consonant that actually bites. Fricatives are rare
   // because a hiss every other syllable reads as noise rather than a singer.
+  //
+  // Near enough the whole table, because the words are spelled in Finnish and a
+  // letter this list omits is a letter the voice cannot say. The weights order
+  // the fallbacks rather than the draw — see `VocalProfile.consonants`.
   consonants: [
-    ['liquid', 5], ['nasal', 4], ['none', 3], ['stop', 3], ['fricative', 1],
+    ['liquid', 5], ['nasal', 4], ['none', 3], ['nasal-m', 3], ['stop', 3],
+    ['liquid-r', 2.5], ['stop-k', 2.5], ['glide', 1.5], ['fricative-h', 1.5],
+    ['fricative', 1.2], ['fricative-f', 1], ['stop-p', 1],
   ],
-  // Roughly a phrase: long enough that the vowel reads as held, short enough
-  // that an eight-bar line is not sung entirely on one syllable. The consonant
-  // still changes every syllable underneath it.
-  hold: 5,
+  words: WORD_STYLES.finnish!,
   // A baritone. Iskelmä is a low-voiced music, and the melody instrument the
   // voice doubles is frequently an octave or more above anything singable.
   centre: 57,

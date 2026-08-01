@@ -844,11 +844,12 @@ const MOUTH_CLOSE_SECONDS = 0.06;
  * what this used to do and which was a trap: `DEFAULT_HAND_POSES` is the rig's
  * table and it grew four entries — `stick`, `bowhold`, `strap`, `press` — the
  * moment somebody improved the hands. A drummer moved from `grip` to `stick`
- * and the equality test silently started answering "no". The rig agent noticed
- * and deliberately left the violin and cello right hands on `grip` rather than
+ * and the equality test silently started answering "no". The rig noticed and
+ * deliberately left the violin and cello right hands on `grip` rather than
  * moving them to the more accurate `bowhold` so as not to break this file;
- * naming the whole category removes the reason for that favour, and a pose id
- * that stops existing is now a compile error rather than a shrug.
+ * naming the whole category removed the reason for that favour, and those two
+ * have since taken the pose that describes them. A pose id that stops existing
+ * is now a compile error rather than a shrug.
  *
  * What the category is *for* is `poses()`: only a hand that is holding
  * something has anything to learn from a gesture kind, because every other
@@ -957,6 +958,22 @@ interface Slot {
   /** Whether the play layer put anything here this frame. */
   played: boolean;
   /**
+   * Whether anything live on this effector is still *before* its beat.
+   *
+   * The one bit that tells an arrival from a departure, and the two are not
+   * symmetric however much `top` makes them look it. See `commitPlay`: a
+   * departing limb has somewhere to go and fades toward it; an arriving one is
+   * already on a curve that starts exactly where it is standing, and fading
+   * *that* toward anything is a teleport.
+   *
+   * Per effector rather than per gesture, and that is sound rather than
+   * convenient: `Placer.place` in `choreograph.ts` trims each follow-through to
+   * the gap left by the next windup, so on one limb a windup and a release are
+   * never live in the same frame. A chord is several gestures sharing one
+   * window, which this reads as the single arrival it is.
+   */
+  winding: boolean;
+  /**
    * The first contact this effector took this frame, and the furthest anything
    * else got from it — the width of the chord under this hand, in metres.
    *
@@ -1041,7 +1058,7 @@ interface Slot {
 function makeSlot(): Slot {
   return {
     px: 0, py: 0, pz: 0, nx: 0, ny: 0, nz: 0, ax: 0, ay: 0, az: 0,
-    weight: 0, top: 0, played: false,
+    weight: 0, top: 0, played: false, winding: false,
     spanRef: new Vector3(), spanMax: 0,
     last: new Vector3(), hasLast: false,
     norm: new Vector3(), hasNorm: false,
@@ -1750,7 +1767,7 @@ class Runtime implements Animator {
       slot.px = 0; slot.py = 0; slot.pz = 0;
       slot.nx = 0; slot.ny = 0; slot.nz = 0;
       slot.ax = 0; slot.ay = 0; slot.az = 0;
-      slot.weight = 0; slot.top = 0; slot.played = false;
+      slot.weight = 0; slot.top = 0; slot.played = false; slot.winding = false;
       slot.spanMax = 0;
     }
     for (let i = 0; i < N_PART; i++) p.busy[i] = false;
@@ -1855,6 +1872,7 @@ class Runtime implements Animator {
         slot.ax += V5.x * w; slot.ay += V5.y * w; slot.az += V5.z * w;
         slot.weight += w;
         if (w > slot.top) slot.top = w;
+        if (tau < 0) slot.winding = true;
         slot.played = true;
         p.busy[PART_OF[target]] = true;
       }
@@ -2482,13 +2500,32 @@ class Runtime implements Animator {
       V1.set(slot.px / w, slot.py / w, slot.pz / w);
       V2.set(slot.nx, slot.ny, slot.nz);
 
-      // Below full authority the gesture is arriving or leaving, and a limb
-      // with a home to go to blends toward it. That crossfade *is* the handover
-      // to the idle layer, so there is no frame where anything snaps. Measured
-      // on `top` rather than on the sum: a triad is three gestures and one
-      // motion, and summing them meant a chord never crossfaded at all.
+      /**
+       * A limb *leaving* a note has a home to go to, and blends toward it as
+       * its authority decays. That crossfade is the handover to the idle layer,
+       * so there is no frame where anything snaps. Measured on `top` rather
+       * than on the sum: a triad is three gestures and one motion, and summing
+       * them meant a chord never crossfaded at all.
+       *
+       * **Only on the way out**, and the missing half of that test is the
+       * tremor. A windup begins at zero authority too, so this used to read a
+       * windup's first frame as "almost entirely idle" and put the hand within
+       * a few percent of `goal` — and by then `goal` is already the note being
+       * wound up *to*, because `p.fingering` moves the moment a gesture's
+       * window opens. So every note went: snap most of the way there, retreat a
+       * third of the distance as authority rose, then arc in properly. Once per
+       * note, on every hand whose fingering is its idle home — a pianist's, a
+       * guitarist's fretting hand, both of a violinist's — which is a hand
+       * shaking rather than a hand playing. On a violin the snap is the whole
+       * of a position shift or a string crossing, which is the same fault big
+       * enough to read as a jump.
+       *
+       * Nothing is needed on the way in, because `arcOf` anchors the windup at
+       * `slot.last` — where this limb actually is — so the arc is already
+       * continuous with whatever put it there. See `Slot.winding`.
+       */
       const side: number = handSideOf(e);
-      if (slot.top < 1 && side >= 0 && p.goalOk[side]!) {
+      if (!slot.winding && slot.top < 1 && side >= 0 && p.goalOk[side]!) {
         V1.lerp(p.goal[side]!, 1 - slot.top);
       }
 

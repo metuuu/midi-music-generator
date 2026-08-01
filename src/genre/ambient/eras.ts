@@ -50,13 +50,17 @@ const tape: EraProfile = {
     ['LinnDrum', 2],
   ],
   /**
-   * A machine, and no drummer at all.
+   * A machine, and no drummer at all — and the one ambient era where that is
+   * the whole answer rather than the older half of it.
    *
-   * This is the one genre where that is not a compromise: `drone` and `choral`
-   * already exclude the kit outright, and where this music has a pulse it is a
-   * box left running in the corner rather than somebody keeping it. A drummer on
-   * a riser in the fog would be the loudest thing in a room built to have no
-   * loudest thing.
+   * The box belongs here and very nearly nowhere else in this genre. 1978 has
+   * no pads to hit: `electronic-kit` is 1981, so the year gate would strike it
+   * out of this table even if it were written in. What is left is a rhythm box
+   * left running in the corner, which is exactly right for the music — `drone`
+   * and `choral` already exclude the kit outright, and a drummer on a riser in
+   * the fog would be the loudest thing in a room built to have no loudest
+   * thing. The two eras below have somewhere else to put a pulse; this one does
+   * not, and does not need one.
    */
   drumSources: [['box', 5], ['programmed', 4]],
   /**
@@ -131,11 +135,22 @@ const sampler: EraProfile = {
     ['RolandR8', 2],
   ],
   /**
-   * Programmed, and nothing else. An SP-12 and an MPC are machines you write
-   * into a bar at a time, and 1993 ambient is the sound of somebody doing that
-   * — there is no preset on any of these boxes and no drummer anywhere near it.
+   * Pads first, the sequencer second.
+   *
+   * By 1993 the electronic kit is a decade old and is the ordinary way this
+   * sound gets made: an Octapad or a set of triggers into the same sampler the
+   * pads are coming out of, played by somebody rather than written in. It is
+   * the machine end of the drum world with a person attached, which is what
+   * this music wants — the hits breathe from bar to bar without a riser and an
+   * acoustic kit arriving in the middle of a Fallout corridor.
+   *
+   * `programmed` stays, because an SP-12 written into a bar at a time is the
+   * other half of the era, but it is no longer the whole story. The preset box
+   * does not appear at all: it is the tape era's object, and by now the choice
+   * to loop something is a choice rather than the only thing the hardware
+   * offered.
    */
-  drumSources: [['programmed', 1]],
+  drumSources: [['electronic-kit', 5], ['programmed', 3]],
   /** Everything on this record came out of a machine, including the bass. */
   sequenced: { bass: 0.5, counter: 0.4 },
   palette: {
@@ -201,15 +216,20 @@ const hybrid: EraProfile = {
     ['KorgT3', 2],
   ],
   /**
-   * Still mostly programmed, and this is the one ambient era where a person
-   * behind a kit is a real possibility rather than a category error. The whole
-   * point of 2000s hybrid is that the sources went back to being played — real
-   * strings, real voices — and a brushed kit under all that is the same move.
-   * It stays the minority because the pulse in this music is usually still a
-   * loop; it is not zero because by now somebody is choosing the loop *over* a
-   * drummer rather than for want of one.
+   * Played, and mostly played on pads.
+   *
+   * The whole point of 2000s hybrid is that the sources went back to being
+   * played — real strings, real voices — and the percussion follows them. Pads
+   * lead because they are the version of that which still sits under a drone:
+   * a struck sound with a person's timing on it and none of an acoustic kit's
+   * volume. The brushed kit is the same move taken all the way and stays a
+   * minority for exactly that reason.
+   *
+   * The sequencer is behind both now, where in the two earlier eras it was in
+   * front. It is not zero: a loop chosen over a drummer is still what a lot of
+   * this music is, and it is the thread back to the tape era.
    */
-  drumSources: [['programmed', 6], ['kit', 3]],
+  drumSources: [['electronic-kit', 6], ['programmed', 3], ['kit', 3]],
   /**
    * The lowest of the six, for the reason the drums are: 2000s hybrid is where
    * the sources went back to being played, and a sequenced bass under a real

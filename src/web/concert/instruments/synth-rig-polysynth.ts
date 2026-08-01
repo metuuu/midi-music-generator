@@ -41,7 +41,9 @@ import {
 } from 'three';
 
 import { Rng } from '../../../core/rng.js';
-import { disposeTree, type SynthRig, type SynthRigBuilder } from './synth-rig.js';
+import {
+  disposeTree, mountOutlet, type SynthRig, type SynthRigBuilder,
+} from './synth-rig.js';
 import { addTo } from './types.js';
 
 /**
@@ -379,6 +381,23 @@ export const buildPolysynthRig: SynthRigBuilder = (opts) => {
   tube(new Vector3(0.30, standTop, zc - 0.22), new Vector3(0.30, standTop, zc + 0.22), chromeMat);
   tube(new Vector3(-0.30, standTop, zc - 0.22), new Vector3(-0.30, standTop, zc + 0.22), chromeMat);
 
+  // --- Sockets -------------------------------------------------------------
+
+  /**
+   * On the back of the tray, at the bass end, under the panel's overhang.
+   *
+   * Which is where they were: a case of this era carries its jacks on the rear
+   * apron, and the sloped panel stands proud above them — so the plate is in
+   * shadow from the house and the lead drops out of it into daylight, which is
+   * exactly the read wanted. The bass end because the player stands at the
+   * treble end of a five-octave board more often than not, and a lead should
+   * leave by the end nobody is working at.
+   */
+  const outlet = mountOutlet(
+    group, slotMat,
+    new Vector3(shellW * 0.32, keyTopY - 0.055, caseZ + caseDepth / 2),
+  );
+
   // --- Response ------------------------------------------------------------
 
   /**
@@ -391,6 +410,7 @@ export const buildPolysynthRig: SynthRigBuilder = (opts) => {
 
   const rig: SynthRig = {
     group,
+    outlet,
 
     react(force: number, now: number): void {
       hitBeat = now;

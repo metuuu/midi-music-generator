@@ -12,42 +12,50 @@
  * musical work stays where it was. What this file adds is the thing a band
  * knows and a track generator cannot: that a set has a shape.
  *
- * ## Programming to an arc rather than sorting afterwards
+ * ## Repertoire first, order last
  *
  * The obvious implementation is to generate six songs, score them, keep four
  * and sort them by tempo. It is also the wrong one — it wastes most of the
  * generation, and it can only order what it happened to be given, so a set with
  * no slow number in it stays a set with no slow number in it.
  *
- * Instead the arc is decided first — strong opener, something slower third, the
- * biggest number last — and each slot is *filled to spec*. The style and mood
- * tables already carry everything needed to hit a target: `Style.bpm` and
- * `Mood.tempo` say how fast a pairing runs, `EraProfile.styleWeights` says
- * whether this band would play it at all, and `Mood.styleBias` says whether the
- * two belong together. Asking for "the slowest thing this band plays that it has
- * not played yet" is a weighted draw over that table, and it always succeeds.
+ * Instead the *repertoire* is decided first: draw as many distinct styles as
+ * there are numbers, from the ones this era actually plays, give each one a mood
+ * it suits — and then shuffle. The set has no programmed shape, and that is a
+ * decision rather than an omission.
  *
- * A short reordering pass afterwards catches the residue — the generator jitters
- * the tempo it was asked for, so occasionally the ballad is not the slowest
- * thing on the bill. It only ever permutes the middle of the set, because the
- * opener and the closer are the two positions where the plan is load-bearing.
+ * It used to have one. An earlier version of this file programmed the arc every
+ * band knows — strong opener, something slower third, the biggest number last —
+ * and filled each position to a target speed drawn from `Style.bpm` and
+ * `Mood.tempo`. It worked exactly as designed, and that was the problem: **a
+ * position with a target is naming a style, not choosing one.** Measured over
+ * 250 concerts a genre, the closer was a valssi 93% of the time, 89% of synth
+ * ballad slots were `cinematic` or `stalker`, and `cinematic` never once opened
+ * a set. Nothing was wrong with the draw. The genre tables put one style at each
+ * end of each speed range — a valssi runs 50–63 bars per minute where nothing
+ * else in iskelmä clears 42.5 — so asking for the fastest thing on the bill has
+ * one answer, and no reweighting of a draw invents a second one.
  *
- * The slots are filled in order of how load-bearing they are, and pointedly not
- * in the order they are played — see `fillOrder`. Every draw here is without
- * replacement, so filling left to right was quietly paying the opener out of the
- * closer's pocket.
+ * Shuffling gives up the shape and gets back the catalogue. Refresh the page
+ * twice and the two evenings are different evenings, which is what a generator
+ * is for; the shape was the same shape every time.
  *
  * ## Contrast is the whole point
  *
- * Four axes, and they are enforced rather than hoped for:
+ * Three axes, and they are enforced rather than hoped for:
  *
- *  - **tempo**, by construction — the slot's target energy drives the draw;
- *  - **style**, by exclusion — a style already used is heavily penalised, so a
- *    tango follows a humppa rather than another tango;
- *  - **mood**, likewise, more gently — moods overlap more than styles do;
+ *  - **style**, by exclusion — the evening's styles are drawn without
+ *    replacement, so a tango follows a humppa rather than another tango;
+ *  - **mood**, by penalty, more gently — moods overlap more than styles do, and
+ *    a genre with five of them owes a five-number set no promise;
  *  - **key**, by exclusion — every number is in a different key. A band that
  *    plays four numbers in A minor sounds like one long number, and this is the
  *    axis an audience notices without being able to name.
+ *
+ * Tempo is no longer on that list and no longer needs to be. Distinct styles
+ * *are* distinct tempos — the styles are where the speed lives — so contrast
+ * along that axis now falls out of the style draw instead of being programmed
+ * on top of it.
  *
  * Genre is *not* an axis. One genre for the whole concert: a band does not
  * change idiom mid-set, and the venue, the clothes and the bill are all built
@@ -140,70 +148,32 @@ function planCount(genre: Genre, rng: Rng): number {
 }
 
 // ---------------------------------------------------------------------------
-// The arc
+// The shape of a number
 // ---------------------------------------------------------------------------
 
-type Role = 'opener' | 'middle' | 'slow' | 'closer';
-
 interface Slot {
-  role: Role;
-  /**
-   * Where this number should sit on the genre's own speed range: 0 is the
-   * slowest, stillest thing this band plays, 1 is the fastest. Relative on
-   * purpose — an ambient concert has an arc too, and it is not measured in the
-   * same BPM as a humppa.
-   */
-  energy: number;
   /** Where in the genre's length band this number sits, 0..1. */
   length: number;
   sung: boolean;
 }
 
 /**
- * The shape of a set, in slots.
+ * What is left of a slot once the arc is gone: how long the number runs, and
+ * whether anybody sings it.
  *
- * Open strong — the first number's job is to get the room's attention, and it
- * is also the number playing while the audience is still deciding whether to
- * watch. Put the slow one third, or as close to third as the set length allows:
- * early enough that the room has not settled into one tempo, late enough that
- * it has earned the change. Finish with the biggest thing on the bill, which is
- * the one rule of set construction that no one argues about.
- *
- * The middles are the flexible part and they are deliberately not identical —
- * two numbers at the same energy either side of the ballad would make the arc
- * read as a dip rather than as a shape.
- *
- * These five numbers are the same in every concert of a genre, which looks like
- * the determinism `drawPairing` works so hard to avoid and measurably is not.
- * Jittering them was tried and reverted: ±0.065 and ±0.13 both moved the style
- * distribution at every slot by less than the run-to-run noise, because `fit` is
- * linear and shallow while the gaps between styles on the energy axis are a
- * factor of three or more. Where a slot looks predictable — synth's third number
- * is `cinematic` four times in five — the cause is that the genre has exactly one
- * style in the bottom third of its range, and no reweighting of a draw invents a
- * second one. That is a style table to grow, not a target to wobble.
+ * Length is drawn per number rather than assigned by position. The old plan gave
+ * the closer 0.72 of the genre's length band and the opener 0.3, because the
+ * closer was the big one and the opener was the hook; with no position claiming
+ * to be either, a length that varies freely is what keeps five numbers from all
+ * running the same three minutes. It stops short of both ends of the band on
+ * purpose: `concertLengths` has already pulled the ceiling in for a set rather
+ * than an album, and a number sitting exactly on its genre's floor is a
+ * fragment.
  */
-function planSlots(count: number, sung: boolean[]): Slot[] {
-  // With three numbers "third" is the closer, so the slow one moves to second.
-  const slowAt = count >= 3 ? Math.min(2, count - 2) : -1;
+function planSlots(count: number, sung: boolean[], rng: Rng): Slot[] {
   const slots: Slot[] = [];
   for (let i = 0; i < count; i++) {
-    const isLast = i === count - 1;
-    const role: Role = i === 0 ? 'opener' : isLast ? 'closer' : i === slowAt ? 'slow' : 'middle';
-    slots.push({
-      role,
-      energy: role === 'opener' ? 0.78
-        : role === 'closer' ? 0.95
-          : role === 'slow' ? 0.08
-            // Middles alternate around the centre so the set breathes rather
-            // than sitting at one speed between its landmarks.
-            : i < slowAt ? 0.52 : 0.66,
-      length: role === 'closer' ? 0.72
-        : role === 'slow' ? 0.52   // a ballad is allowed to take its time
-          : role === 'opener' ? 0.3
-            : 0.42,
-      sung: sung[i] ?? false,
-    });
+    slots.push({ length: rng.float(0.22, 0.78), sung: sung[i] ?? false });
   }
   return slots;
 }
@@ -238,145 +208,67 @@ function planVocals(count: number, policy: VocalPolicy, rng: Rng): boolean[] {
 }
 
 // ---------------------------------------------------------------------------
-// Filling a slot
+// The repertoire
 // ---------------------------------------------------------------------------
 
-interface Pairing {
-  style: Style;
-  mood: Mood;
-  /** Style weight in this era times mood affinity. 0 means "not this band". */
-  affinity: number;
-  /** Felt speed, normalised across everything this band could play, 0..1. */
-  energy: number;
+/**
+ * The evening's styles: as many distinct ones as there are numbers.
+ *
+ * Weighted by the era and by nothing else. Mood affinity deliberately does not
+ * enter here, though it used to: folding `Mood.styleBias` into the style draw
+ * meant a style that happens to suit six of a genre's moods was programmed more
+ * often than one that suits two, which is a fact about how the mood table was
+ * written and not a fact about what the band plays. The era weight is the one
+ * statement in the tables that is actually about repertoire — a zero means the
+ * band does not know the style, and there were no iskelmäpop numbers at a 1968
+ * tanssilava — so it is the only thing consulted.
+ *
+ * Without replacement, so an evening is `count` different things rather than
+ * `count` draws that might collide. The pool refills when it runs dry rather
+ * than throwing: an era that knows four styles and a set that wants five has to
+ * repeat one, and repeating one is better than a short set.
+ *
+ * **The order this returns is not a playing order.** A weighted draw without
+ * replacement tends to surface the heaviest weight first, so using it as-is
+ * would hand the first number to the era's signature style nearly every time —
+ * the same wall in a new place. The caller shuffles.
+ */
+function drawStyles(genre: Genre, era: EraProfile, count: number, rng: Rng): Style[] {
+  const playable = Object.values(genre.styles).filter((s) => (era.styleWeights[s.id] ?? 0) > 0);
+  if (!playable.length) throw new Error(`No style is playable in era "${era.id}"`);
+
+  const out: Style[] = [];
+  let pool = playable;
+  for (let i = 0; i < count; i++) {
+    if (!pool.length) pool = playable;
+    const style = rng.weightedBy(pool, (s) => era.styleWeights[s.id]!);
+    out.push(style);
+    pool = pool.filter((s) => s !== style);
+  }
+  return out;
 }
 
 /**
- * How fast a style/mood pairing *feels*, in bars per minute.
+ * A mood for one style, leaning away from the moods already heard tonight.
  *
- * Two decisions in one small function, both of which matter.
+ * A penalty rather than an exclusion, and a mild one. Moods overlap far more
+ * than styles do — two numbers can both be `kaihoisa` and sound nothing alike if
+ * one is a tango and the other a jenkka — and a genre with five moods owes a
+ * five-number set no promise it can keep.
  *
- * It mirrors `chooseTempo` in `generate/song.ts` minus the jitter, so the
- * target this file aims at is the tempo the generator will actually produce.
- * Duplicating four lines is worth more than exporting them would be: if the
- * tempo rule changes, the arc should be re-derived deliberately rather than
- * silently following.
- *
- * And it divides by `beatsPerBar`, which is the part that is easy to get wrong.
- * A valssi at 170 BPM is three beats to a bar and a humppa at 150 is four, so
- * by the beat the valssi looks half again as fast — while on the floor they are
- * both a brisk dance and the valssi is the one you can talk over. Bars per
- * minute is what a body feels; beats per minute is what a metronome counts.
+ * `styleBias` carries zeros, meaning a pairing the genre does not make. Under
+ * the old draw that only cost the pairing its weight, because style and mood
+ * were drawn together; now the style is already chosen, so a style whose every
+ * mood is ruled out would have no draw at all. It falls back to an unweighted
+ * pick rather than throwing — a pairing the tables never anticipated is a table
+ * to fix, not a concert to cancel.
  */
-function feltTempo(style: Style, mood: Mood, era: EraProfile): number {
-  const [lo, hi] = style.bpm;
-  const mid = (lo + hi) / 2;
-  const half = (hi - lo) / 2;
-  const bpm = clamp((mid + mood.tempo * half) * era.tempoScale, lo, hi);
-  return bpm / style.beatsPerBar;
-}
-
-/**
- * Everything this band could plausibly play tonight, with its speed normalised.
- *
- * Normalising against the genre's own spread rather than against absolute BPM
- * is what lets one arc serve all three genres. An ambient set's "biggest number
- * last" is a kosmische sequence at 114, and its ballad is a drone at 52; the
- * slots ask for 0.95 and 0.08 in both cases and get the right answer in both.
- */
-function pairings(genre: Genre, era: EraProfile): Pairing[] {
+function drawMood(genre: Genre, style: Style, used: Set<string>, rng: Rng): Mood {
   const moods = Object.values(genre.moods);
-  const raw: { style: Style; mood: Mood; affinity: number; felt: number }[] = [];
-  for (const style of Object.values(genre.styles)) {
-    const eraWeight = era.styleWeights[style.id] ?? 0;
-    // An era that gives a style zero is saying the band does not know it —
-    // there were no iskelmäpop numbers at a 1968 tanssilava.
-    if (eraWeight <= 0) continue;
-    for (const mood of moods) {
-      raw.push({
-        style,
-        mood,
-        affinity: eraWeight * (mood.styleBias[style.id] ?? 1),
-        felt: feltTempo(style, mood, era),
-      });
-    }
-  }
-  if (!raw.length) throw new Error(`No style is playable in era "${era.id}"`);
-
-  let lo = Infinity;
-  let hi = -Infinity;
-  for (const p of raw) {
-    if (p.felt < lo) lo = p.felt;
-    if (p.felt > hi) hi = p.felt;
-  }
-  const span = Math.max(hi - lo, 1e-6);
-  return raw.map(({ style, mood, affinity, felt }) => ({
-    style, mood, affinity, energy: (felt - lo) / span,
-  }));
-}
-
-/**
- * The order the slots are *filled* in, which is not the order they are played.
- *
- * Drawing without replacement means whoever draws first picks from a clean
- * catalogue and everyone after them picks from a penalised one. That is a real
- * advantage and it has to be handed to somebody; the only wrong answer is to
- * hand it out by array index, which is what filling the set left to right did.
- *
- * Iskelmä is where it showed. On bars per minute the valssi is *far* faster than
- * anything else the genre has — 0.72 to 1.00 of the energy range, with nothing
- * else above 0.46 — so the opener at 0.78 and the closer at 0.95 are both asking
- * for the same style, and the one that draws first gets it. Filling left to
- * right, that was the opener: 133 openers in 200 concerts against 81 closers,
- * and a measured mean of 48.0 bars per minute at the top of the set against 45.0
- * at the end of it. The set was arriving at its biggest number and slowing down.
- *
- * So the priority is the plan's own, stated in `planSlots` and merely enforced
- * here: **the closer first**, because "the biggest number last" is the rule the
- * whole shape hangs off; then the ballad, which is asking from the opposite
- * extreme and is just as easy to miss; then the opener; then the middles, which
- * are the flexible part and say so. Equal-priority slots are shuffled before the
- * sort — `Array.sort` is stable, so the shuffle survives it — because between
- * two middles there is no principle to appeal to and index order is not one.
- */
-function fillOrder(slots: Slot[], rng: Rng): number[] {
-  const rank: Record<Role, number> = { closer: 0, slow: 1, opener: 2, middle: 3 };
-  return rng.shuffle(slots.map((_, i) => i))
-    .sort((a, b) => rank[slots[a]!.role] - rank[slots[b]!.role]);
-}
-
-/**
- * Draw a style and mood for one slot.
- *
- * Weighted rather than greedy. Greedy would give the same opener every time a
- * given band plays, because the best-fitting pairing for "fast and bright" is a
- * property of the tables and not of the seed — and a concert whose programme is
- * a function of its genre is not worth generating twice. The fit is raised to a
- * power instead, which keeps the draw firmly in the right part of the range
- * while leaving the second and third choices reachable.
- *
- * The repeat penalties are the contrast rule, and they are penalties rather
- * than exclusions on purpose: a five-number set in an era that only knows four
- * styles has to repeat one, and repeating one is better than throwing.
- *
- * The style penalty is severe — a fortieth — because the ends of the energy
- * range are frequently owned by one style and a mild penalty loses to that. A
- * set that bookends itself with two waltzes has thrown away its best contrast to
- * gain a few BPM; better a humppa that is a shade slower than the plan wanted
- * than a second waltz. It is a penalty and not a bar, so the bookend is still
- * reachable where the genre leaves no alternative anywhere near the target —
- * see `fillOrder` for which slot gets to make that trade and which one pays it.
- */
-function drawPairing(
-  all: Pairing[], want: number, usedStyles: Set<string>, usedMoods: Set<string>, rng: Rng,
-): Pairing {
-  const weights = all.map((p) => {
-    const fit = Math.max(1 - Math.abs(p.energy - want), 0.02);
-    let w = p.affinity * fit * fit * fit;
-    if (usedStyles.has(p.style.id)) w *= 0.025;
-    if (usedMoods.has(p.mood.id)) w *= 0.25;
-    return [p, w] as const;
-  });
-  return rng.weighted(weights);
+  const weight = (m: Mood): number =>
+    (m.styleBias[style.id] ?? 1) * (used.has(m.id) ? 0.25 : 1);
+  if (moods.every((m) => weight(m) <= 0)) return rng.pick(moods);
+  return rng.weightedBy(moods, weight);
 }
 
 /**
@@ -392,11 +284,10 @@ function drawPairing(
  * idea what preceded it.
  *
  * Whoever draws first picks from the whole weighted table and whoever draws last
- * picks from what is left, so the draw order is worth something — and unlike the
- * style draw there is no slot with a claim on it. A ballad does not need a more
- * idiomatic key than an opener. Left to run in playing order it drifted down the
- * table: mean rank 2.19, 2.50, 2.64, 2.50 across a four-number iskelmä set, the
- * back of the bill quietly in the odder keys. The caller shuffles instead.
+ * picks from what is left, so the draw order is worth something and no position
+ * has a claim on it. Left to run in playing order it drifted down the table:
+ * mean rank 2.19, 2.50, 2.64, 2.50 across a four-number iskelmä set, the back of
+ * the bill quietly in the odder keys. The caller shuffles instead.
  */
 function drawKey(
   genre: Genre, style: Style, mood: Mood, used: Set<Pc>, rng: Rng,
@@ -427,9 +318,9 @@ export function buildSetlist(opts: ConcertOptions = {}): Song[] {
   /**
    * A number the caller already chose skips everything below.
    *
-   * Not "the arc with one slot" — there is no arc, no draw, no contrast to
-   * enforce and no key to keep clear of, because all four are properties of a
-   * *sequence* and this is one piece of music. Every table below stays out of
+   * Not "the set with one slot" — there is no repertoire to cover, no contrast
+   * to enforce and no key to keep clear of, because all three are properties of
+   * a *sequence* and this is one piece of music. Every table below stays out of
    * it: the song is generated from exactly the options handed in, so it is the
    * same song those options produce anywhere else, note for note.
    */
@@ -451,27 +342,26 @@ export function buildSetlist(opts: ConcertOptions = {}): Song[] {
   const count = opts.numbers === undefined
     ? planCount(genre, rng)
     : Math.max(1, Math.min(6, Math.round(opts.numbers)));
-  const slots = planSlots(count, planVocals(count, opts.vocals ?? 'mixed', rng));
+  const slots = planSlots(count, planVocals(count, opts.vocals ?? 'mixed', rng), rng);
 
-  const catalogue = pairings(genre, era);
-  const usedStyles = new Set<string>();
   const usedMoods = new Set<string>();
   const usedKeys = new Set<Pc>();
   const [shortest, longest] = concertLengths(genre);
 
   /**
-   * Style and mood first, for the whole set, in priority order. Nothing is
-   * generated inside this loop: the draws are what the arc is made of, and
-   * running them all before any music exists is what lets them be ordered by
-   * how load-bearing a slot is rather than by when it happens to be played.
+   * The whole repertoire first, then a mood each. Nothing is generated inside
+   * this loop: the draws are what the evening *is*, and settling them before any
+   * music exists is what lets the style draw see the whole set at once and hand
+   * out `count` different styles rather than `count` independent guesses.
+   *
+   * `drawStyles` returns its own draw order, which is weighted; shuffling is
+   * what turns it into a playing order. See `drawStyles`.
    */
-  const picks = new Array<Pairing>(slots.length);
-  for (const i of fillOrder(slots, rng)) {
-    const pick = drawPairing(catalogue, slots[i]!.energy, usedStyles, usedMoods, rng);
-    usedStyles.add(pick.style.id);
-    usedMoods.add(pick.mood.id);
-    picks[i] = pick;
-  }
+  const picks = rng.shuffle(drawStyles(genre, era, count, rng)).map((style) => {
+    const mood = drawMood(genre, style, usedMoods, rng);
+    usedMoods.add(mood.id);
+    return { style, mood };
+  });
 
   /** Keys second, in their own shuffled order. See `drawKey`. */
   const keys = new Array<{ tonic: Pc; mode: Mode }>(slots.length);
@@ -504,40 +394,10 @@ export function buildSetlist(opts: ConcertOptions = {}): Song[] {
     }));
   }
 
-  return settle(songs, slots);
-}
-
-/**
- * The reordering pass, which almost never has anything to do.
- *
- * `chooseTempo` jitters by up to a quarter of the style's band, so a number
- * planned as the ballad can come out faster than the number planned to sit
- * beside it. When that happens the arc is wrong in the one place an audience
- * would feel it, and the fix costs a swap.
- *
- * Only the middle of the set moves. The opener and the closer were chosen for
- * their positions and a set that reorders them has lost the plot — better a
- * slightly flat middle than a concert that ends on its quietest number.
- */
-function settle(songs: Song[], slots: Slot[]): Song[] {
-  const slowAt = slots.findIndex((s) => s.role === 'slow');
-  if (slowAt < 0) return songs;
-
-  const middles: number[] = [];
-  for (let i = 1; i < songs.length - 1; i++) middles.push(i);
-  if (middles.length < 2) return songs;
-
-  const felt = (i: number): number => {
-    const m = songs[i]!.meta;
-    return m.bpm / m.beatsPerBar;
-  };
-  let slowest = middles[0]!;
-  for (const i of middles) if (felt(i) < felt(slowest)) slowest = i;
-  if (slowest !== slowAt) {
-    const a = songs[slowAt]!;
-    songs[slowAt] = songs[slowest]!;
-    songs[slowest] = a;
-  }
+  // No reordering pass. There used to be one — `chooseTempo` jitters by up to a
+  // quarter of the style's band, so a number planned as the ballad could come
+  // out faster than its neighbour and the swap cost nothing. With no plan for it
+  // to violate, the order the styles were shuffled into is the order they play.
   return songs;
 }
 
@@ -545,10 +405,10 @@ function settle(songs: Song[], slots: Slot[]): Song[] {
  * How long a concert number is allowed to run, as opposed to a radio track.
  *
  * The genre's own band is the floor and most of the ceiling, but the top of it
- * gets pulled in: **a set is not an album.** The closer is the biggest number
- * on the bill, not the longest one, and length is the least interesting way to
- * make a number feel big — the key change, the last chorus and the follow spot
- * all do it better and none of them costs the audience another ninety seconds.
+ * gets pulled in: **a set is not an album.** Length is the least interesting way
+ * to make a number feel big — the key change, the last chorus and the follow
+ * spot all do it better and none of them costs the audience another ninety
+ * seconds.
  *
  * Ambient is the case this exists for, at 190–340 seconds against iskelmä's
  * 105–185. Five ambient numbers at the top of that band is a half-hour show,
@@ -574,8 +434,4 @@ function lookupEra(genre: Genre, id: string): EraProfile {
     );
   }
   return era;
-}
-
-function clamp(v: number, lo: number, hi: number): number {
-  return v < lo ? lo : v > hi ? hi : v;
 }

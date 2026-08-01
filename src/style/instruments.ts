@@ -655,6 +655,47 @@ export interface HandSpec {
   /** How the left hand stacks a chord. */
   voicing: VoicingStyle;
   /**
+   * How strictly the low-interval limits apply to *this hand*, overriding the
+   * style's own `clarity`. See `minInterval`.
+   *
+   * A number about the instrument rather than about the arrangement, and there
+   * is exactly one instrument in the catalogue that needs it. The limits are a
+   * pianist's: no close triad below C3, because a pianist choosing to voice one
+   * there has chosen mud. An accordionist has chosen nothing — a stradella chord
+   * button sounds a fixed close triad in a fixed low register, and the player's
+   * only decision is whether to press it.
+   *
+   * Measured before this existed: of twenty-six chords voiced in the accordion's
+   * button window, **four** came back with more than one note in them. The rest
+   * were single pitches, which `isChord` correctly refuses to treat as a left
+   * hand — so the instrument this whole two-handed apparatus was extended for
+   * was silent in five bars out of six, and had been since it was added.
+   */
+  clarity?: number;
+  /**
+   * The bottom of this hand's *bass side*, if it has one. See `stride`.
+   *
+   * A second register rather than a second number for the same one, and the
+   * distinction is physical. The rest of `HandSpec` describes where the hand
+   * voices a chord; this is where it puts a bass note, which on the two
+   * instruments that matter most is somewhere the chord never goes — the
+   * accordion's bass button row sits below its chord buttons, and a stride
+   * pianist's left hand jumps an octave and a half down to the root and back up
+   * again on every beat. Deriving one from the other would have put the oom in
+   * the middle of the pah.
+   *
+   * The root lives in the octave starting here, so a bass side is always twelve
+   * semitones wide and the pitch class is never folded away. The fifth above it
+   * — the other half of the "oom" — reaches seven higher, which is what sets
+   * these numbers: 33 puts the dyad's top at 51 at the very highest, under the
+   * accordion's button ceiling and well under a pianist's comping floor.
+   *
+   * Absent on a hand that has no bass side at all. Two mallets cannot leap an
+   * octave and a half down and back inside a beat, so a vibraphonist does not
+   * play stride; `chooseLeftHandMode` drops the mode rather than writing one.
+   */
+  bass?: Midi;
+  /**
    * Can this hand play a *line*, or only chords?
    *
    * True of every hand with fingers or mallets on it and false of exactly one
@@ -670,10 +711,12 @@ export interface HandSpec {
 }
 
 export const HANDS: Partial<Record<InstrumentId, HandSpec>> = {
-  // C5 for the tune, a minor seventh of daylight, the rootless shell beneath.
-  piano: { lead: 72, floor: 45, ceiling: 72, window: 14, voices: 3, gap: 10, voicing: 'guide', melodic: true },
-  epiano1: { lead: 72, floor: 45, ceiling: 72, window: 14, voices: 3, gap: 10, voicing: 'guide', melodic: true },
-  epiano2: { lead: 72, floor: 45, ceiling: 72, window: 14, voices: 3, gap: 10, voicing: 'guide', melodic: true },
+  // C5 for the tune, a minor seventh of daylight, the rootless shell beneath —
+  // and a bass side an octave under the shell, which is the reach a stride left
+  // hand actually makes and the reason `bass` is not derived from `floor`.
+  piano: { lead: 72, floor: 45, ceiling: 72, window: 14, voices: 3, gap: 10, voicing: 'guide', bass: 33, melodic: true },
+  epiano1: { lead: 72, floor: 45, ceiling: 72, window: 14, voices: 3, gap: 10, voicing: 'guide', bass: 33, melodic: true },
+  epiano2: { lead: 72, floor: 45, ceiling: 72, window: 14, voices: 3, gap: 10, voicing: 'guide', bass: 33, melodic: true },
   // Two mallets, a fifth of daylight, and a floor on the instrument rather than
   // under it. The narrower gap is not a compromise: a vibraphonist's hands work
   // within arm's reach of each other on one row of bars, where a pianist's are
@@ -681,12 +724,14 @@ export const HANDS: Partial<Record<InstrumentId, HandSpec>> = {
   vibraphone: { lead: 79, floor: 55, ceiling: 72, window: 12, voices: 2, gap: 7, voicing: 'guide', melodic: true },
   marimba: { lead: 79, floor: 55, ceiling: 72, window: 12, voices: 2, gap: 7, voicing: 'guide', melodic: true },
   // The button side: a full triad with its own root, below the split, and an
-  // octave of daylight because that is where the buttons are.
-  accordion: { lead: 74, floor: 41, ceiling: 52, window: 11, voices: 3, gap: 12, voicing: 'tertian', melodic: false },
-  bandoneon: { lead: 74, floor: 41, ceiling: 52, window: 11, voices: 3, gap: 12, voicing: 'tertian', melodic: false },
+  // octave of daylight because that is where the buttons are. `bass` is the
+  // other button row — the one the oom-pah alternates with, and the row this
+  // table had no way to name until there was a mode that used it.
+  accordion: { lead: 74, floor: 41, ceiling: 52, window: 11, voices: 3, gap: 12, voicing: 'tertian', bass: 33, clarity: 0, melodic: false },
+  bandoneon: { lead: 74, floor: 41, ceiling: 52, window: 11, voices: 3, gap: 12, voicing: 'tertian', bass: 33, clarity: 0, melodic: false },
   // A string per note and no fretting hand, so both hands pluck freely. Voiced
   // in fourths, which is the one thing a harp does that a piano has to work at.
-  harp: { lead: 79, floor: 48, ceiling: 67, window: 16, voices: 3, gap: 10, voicing: 'quartal', melodic: true },
+  harp: { lead: 79, floor: 48, ceiling: 67, window: 16, voices: 3, gap: 10, voicing: 'quartal', bass: 36, melodic: true },
   /**
    * The synthesiser's left hand, and it is a *line* rather than a shell.
    *

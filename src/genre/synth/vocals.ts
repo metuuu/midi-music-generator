@@ -28,7 +28,7 @@
  * machine that has been handed a sentence.
  */
 
-import type { VocalProfile } from '../../style/vocals.js';
+import { WORD_STYLES, type VocalProfile } from '../../style/vocals.js';
 
 export const VOCALS: VocalProfile = {
   name: 'vocoder',
@@ -75,12 +75,11 @@ export const VOCALS: VocalProfile = {
   // otherwise pure synthesiser, and it is most of what makes vocoded speech
   // intelligible at all.
   consonants: [
-    ['stop', 5], ['fricative', 4], ['none', 3], ['nasal', 1], ['liquid', 1],
+    ['stop', 5], ['fricative', 4], ['stop-k', 3.5], ['none', 3], ['stop-p', 3],
+    ['fricative-sh', 2], ['fricative-f', 2], ['glide', 1.5], ['nasal', 1],
+    ['nasal-m', 1], ['liquid', 1], ['liquid-r', 1],
   ],
-  // 1 — a fresh vowel on every note, the shortest hold in the project and the
-  // same value jazz uses for scat. A held vowel is a breath being spent; a
-  // vocoder is tracking a talker, and a talker changes vowel constantly.
-  hold: 1,
+  words: WORD_STYLES.machine!,
   // Middle C, and the field means less here than anywhere else. `centre` is
   // documented as the pitch the voice is *not* straining at, which presumes a
   // voice that can strain. With `formantTrack` at 0 nothing is measured from

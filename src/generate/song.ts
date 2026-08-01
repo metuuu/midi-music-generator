@@ -46,10 +46,12 @@ import { buildAccompaniment, getStrictness, resolveRules, type StrictnessId } fr
 import { applyDynamics, sectionIntensity, swell } from './dynamics.js';
 import { applyFilter } from './filter.js';
 import { DEFAULT_FILLS } from './fills.js';
+import { applyTransitions, planTransitions, type Seam } from './transition.js';
 import { getHook, RECALL_BIAS, type HookId } from './hook.js';
 import { composeSectionTune } from '../tune/adapt.js';
 import { planKeys } from '../tune/keyplan.js';
-import { figureSlots, handOff, harmonise, patchBand } from '../tune/band.js';
+import { figureSlots, handOff, harmonise, joinIn, patchBand } from '../tune/band.js';
+import { has, planChart, playing } from './chart.js';
 import { varyRecall } from '../tune/tune.js';
 import type { Signature } from '../tune/judge.js';
 import { chooseMotto } from './motto.js';
@@ -209,6 +211,17 @@ export function generateSong(opts: GenerateOptions = {}): Song {
    */
   const feelTable = style.feels ?? genre.feels;
   /**
+   * …and what this band does at a section join. See `generate/transition.ts`.
+   *
+   * The same override in the same shape for the third time, and it carries the
+   * same absent-means-no-draw rule: a style with no palette resolves to
+   * `DEFAULT_TRANSITIONS` without taking a number, which is what makes wave 1 of
+   * the transition work byte-identical to the catalogue it was written against.
+   * Read in two places — the plan below, and the `meta` at the end, which
+   * publishes the answer only where one was asked for.
+   */
+  const transitionTable = style.transitions ?? genre.transitions;
+  /**
    * What the swing *is* over a span that has an opinion about it.
    *
    * Interpolated from the style's value rather than substituted for it, so that
@@ -275,18 +288,44 @@ export function generateSong(opts: GenerateOptions = {}): Song {
     rng,
   });
 
+  /**
+   * What this arrangement is made of — layers and devices both, drawn once.
+   *
+   * On its own stream so that adding a device cannot reshuffle the tune, the
+   * groove or the instrumentation: the whole value of the chart is that two songs
+   * differ in *what the band does*, and that is worth nothing if turning the knob
+   * also rerolls everything else. See `generate/chart.ts`.
+   */
+  const chart = planChart({
+    rng: new Rng(`${seed}:chart`),
+    style, mood, density,
+    beatsPerBar: style.beatsPerBar,
+    ...(genre.arrangement ? { weights: genre.arrangement } : {}),
+  });
+
   const sections: Section[] = [];
   let bar = 0;
+  const kindSoFar = new Map<SectionKind, number>();
   for (let i = 0; i < steps.length; i++) {
     const step = steps[i]!;
     const transpose = keys.transpose[i] ?? 0;
+    /**
+     * The same layers every time this kind of section comes round.
+     *
+     * Which is the whole point: a chorus that had horns and a repeat that does not
+     * is not an arrangement, and it was happening in half of them. `playing` still
+     * lets a layer *arrive* late — see `Chart.enters` — because horns entering on
+     * the second chorus is a decision, where horns leaving on the third was a coin.
+     */
+    const nth = kindSoFar.get(step.kind) ?? 0;
+    kindSoFar.set(step.kind, nth + 1);
     sections.push({
       kind: step.kind,
       startBar: bar,
       lengthBars: step.bars,
       transpose,
       mode,
-      activeLayers: layersFor(step.kind, style, density, mood, rng),
+      activeLayers: chart.layers[step.kind].filter((l) => playing(chart, step.kind, l, nth)),
       chordLabels: [],
     });
     bar += step.bars;
@@ -388,39 +427,90 @@ export function generateSong(opts: GenerateOptions = {}): Song {
    *
    * The kit is exempt because a drummer is never not playing.
    */
+  const soloistHeads = new Set<number>();
   for (const chorus of soloPlan.values()) {
     const layer: LayerId = chorus.layer;
     if (layer === 'drums') continue;
-    if (sections.some((s) => s.kind !== 'solo' && s.activeLayers.includes(layer))) continue;
-    for (const head of sections) {
-      if (head.kind === 'verse' || head.kind === 'chorus') head.activeLayers.push(layer);
-    }
+    /**
+     * A verse or a chorus, and nothing else counts as being in the band.
+     *
+     * A bridge does not: it is the section the tune drops out of, so a player
+     * down for the bridge and the solo and nothing between them is the very
+     * thing this is here to stop — and `counterInBand` below reads the head the
+     * same way, which is what keeps the two rules from arguing.
+     */
+    const inBand = sections.some((s) => (s.kind === 'verse' || s.kind === 'chorus')
+      && s.activeLayers.includes(layer));
+    sections.forEach((head, i) => {
+      if (head.kind !== 'verse' && head.kind !== 'chorus') return;
+      if (!inBand) head.activeLayers.push(layer);
+      /**
+       * Which heads the soloist has to be audible in — the promoted ones and the
+       * ones they were already down for alike.
+       *
+       * The distinction matters for the answering line and for nothing else, which
+       * is why only the counter is collected: every other layer writes whenever it
+       * is listed, while the answer writes only where the tune leaves it room, so
+       * "listed in the head" and "heard in the head" are the same statement for
+       * the band and two different ones for this player. See where the set is read.
+       */
+      if (layer === 'counter' && head.activeLayers.includes(layer)) soloistHeads.add(i);
+    });
   }
+
+  /**
+   * Whether the answering instrument is in this band or merely passing through.
+   *
+   * Read by `leadLayer` below, and the whole of what stops the bridge fix from
+   * reinventing the fault above it. A bridge is the one section that can ask for
+   * a counter and no melody, so a number whose counter is *only* down for the
+   * bridge would stage a player for eight bars and nothing else — the same
+   * stranger, introduced through a different door. 15 numbers in 240 were like
+   * that, some of them four notes long.
+   *
+   * A bridge belongs to somebody who is already playing. Where nobody is, the
+   * form's coin loses and the section stays as it always was, with the list
+   * corrected at the end to say so.
+   */
+  const counterInBand = sections.some((s) => (s.kind === 'verse' || s.kind === 'chorus')
+    && s.activeLayers.includes('counter'));
+
+  /**
+   * What happens at each section join, settled before a note is written.
+   *
+   * Up here with `soloPlan` and `keys` rather than beside `applyTransitions`,
+   * which is where it started, and the move is not tidiness: the section loop
+   * has to be able to read it. A `fill` *is* the drummer's fill, and that is
+   * written inside `generateDrums` while the section is being made — so the only
+   * way a seam that has drawn something else can stop two arrangements
+   * announcing the same downbeat is for `fillAtEnd` below to see the answer. A
+   * plan resolved after the loop would leave wave 2 trying to unpick fill events
+   * out of a merged `drumEvents` array, which is the shape of a bug rather than
+   * of a pass.
+   *
+   * **Absent means no draw at all** — see `planTransitions`, which is where that
+   * is enforced and argued.
+   */
+  const seams: Seam[] = planTransitions({ sections, seed, palette: transitionTable });
 
   // ---- Parts -----------------------------------------------------------
   const byLayer = new Map<LayerId, NoteEvent[]>();
   /**
-   * The lead keyboard's left hand, held aside rather than pushed into its layer.
+   * The left hands, held aside rather than pushed into their layers.
    *
-   * It belongs in the melody track and ends up there — see the merge after the
-   * section loop — but it cannot go in yet, because the melody layer is put
+   * Each belongs in its own track and ends up there — see the merge after the
+   * section loop — but none can go in yet, because a melodic layer is put
    * through `trimOverlaps` on the way out and that function's whole premise is
    * that the line it is clipping is *monophonic*. Handed a left-hand chord
    * sounding under a right-hand note it would read the two as one voice running
    * into the next and delete the chord, which is precisely the part being added.
-   * Empty for every style whose lead is a horn or a voice.
-   */
-  const leftHand: NoteEvent[] = [];
-  /**
-   * The anatomy of the hand doing it, and what it does with the section.
+   * Empty for every style whose players are horns and voices.
    *
-   * `hands` is absent where the style is not two-handed, and — deliberately —
-   * also where it names a lead the catalogue has no `HandSpec` for. That
-   * combination is a table error rather than a runtime one, so `npm run genres`
-   * asserts against it; here it simply means no second hand, which is the safe
-   * reading.
+   * Keyed by layer, because the lead is not the only person in the band with two
+   * hands: an accordionist on the counter line has the same two, and in this
+   * genre it is that accordionist who takes the break.
    */
-  const hands = instruments.hands;
+  const leftHand = new Map<PlayedLayer, NoteEvent[]>();
   /**
    * Beat spans where a layer is carrying a solo rather than accompanying.
    *
@@ -810,8 +900,25 @@ export function generateSong(opts: GenerateOptions = {}): Song {
         rng: new Rng(`${seed}:kit:${s}${salt('drums')}`),
       });
       const pattern = generateDrums(ctxFor('drums'), drumPattern, {
+        /**
+         * …and the seam plan gets the last word, which is what makes the
+         * drummer's fill the implementation of `fill` rather than a thing that
+         * happens beside it.
+         *
+         * A veto and never a grant: where the plan says `fill` — which is every
+         * seam in the catalogue today, and every seam in any style that has not
+         * declared a palette — this reads exactly as it always did, and the
+         * three existing conditions still decide. Where a later wave draws
+         * `shot`, `break` or `elide`, the kit stops announcing the join twice.
+         *
+         * `?? 'fill'` covers the last section, which has no seam after it. That
+         * is not a fallback dressed as one: a fill in the final bar of a song
+         * whose last section is not an outro is delivering the ending rather
+         * than a section, and nothing here is entitled to take it away.
+         */
         fillAtEnd: !machine && section.kind !== 'outro'
-          && style.drumFills !== false && !lastBarIsSolo,
+          && style.drumFills !== false && !lastBarIsSolo
+          && (seams[s]?.kind ?? 'fill') === 'fill',
         intensity,
         arrival,
         machine,
@@ -866,7 +973,26 @@ export function generateSong(opts: GenerateOptions = {}): Song {
     const isSolo = section.kind === 'solo';
     const soloLayer: Exclude<SoloLayer, 'drums'> | undefined =
       solo && solo.layer !== 'drums' ? solo.layer : undefined;
-    const leadLayer: LayerId = soloLayer ?? 'melody';
+    /**
+     * …and where the form drops the tune but keeps the answer, the answer *is*
+     * the tune.
+     *
+     * A bridge is `drums bass comp pad` plus a coin for the counter (see
+     * `layersFor`), which says outright what a bridge is for: the singer stops
+     * and the second instrument has the section. It never happened. The
+     * answering line is written in the melody branch below, so a bridge that
+     * asked for a counter and had no melody to hang it off wrote nothing at all
+     * — 21 of the 44 sections in 160 numbers whose `activeLayers` claimed a
+     * layer that never sounded, every one of them a bridge, every one of them
+     * eight bars of accompaniment with no line over it.
+     *
+     * Naming the counter as the lead is the whole fix: the section then goes
+     * down the path it should always have taken and is *composed*, in the
+     * counter instrument's own register and idiom, rather than being fitted into
+     * the holes of a tune that is not there.
+     */
+    const leadLayer: LayerId = soloLayer
+      ?? (!active.has('melody') && active.has('counter') && counterInBand ? 'counter' : 'melody');
     const leadInstrument = layerInstruments[leadLayer as PlayedLayer];
 
     /**
@@ -909,6 +1035,10 @@ export function generateSong(opts: GenerateOptions = {}): Song {
         ctxFor('comp'), compPattern, instruments.comp.centre,
         (c) => scaleForChord(localTonic, mode, c),
         limitFor('comp'),
+        // The comp layer only. Where the *counter* plays a chord pattern it is
+        // playing a figure on purpose — a sequence, a riff — and the whole point
+        // of those is that they do not vary. See `Genre.comping`.
+        genre.comping,
       )
       : [];
     let sectionPad = active.has('pad')
@@ -1044,7 +1174,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
       spans.push([from, from + section.lengthBars * style.beatsPerBar]);
       soloSpans.set(soloLayer as PlayedLayer, spans);
       sectionMelody = line;
-    } else if (active.has('melody')) {
+    } else if (active.has(leadLayer)) {
       const range: [number, number] = plan.lead;
       /**
        * The tune.
@@ -1130,9 +1260,20 @@ export function generateSong(opts: GenerateOptions = {}): Song {
        * Freshly written sections only, because the phrase boundaries come from the
        * plan and a recalled tune arrives as notes.
        */
-      const traded = written && active.has('counter') && !counterPattern && !isSolo
+      const traded = written && active.has('counter') && leadLayer !== 'counter'
+        && !counterPattern && !isSolo
         && section.lengthBars >= 8 && written.audition.plan.phrases.length >= 3
-        && new Rng(`${seed}:trade:${s}`).chance(0.45)
+        /**
+         * The chart's decision, at the chart's chosen chorus — not a coin at every
+         * one of them.
+         *
+         * Handing a phrase over is a *surprise*, and the note beside `memory.melody`
+         * below already says so: the gesture only means anything the once. A 45% roll
+         * per section meant a song either never traded or traded three times, and
+         * both of those are the same bug. `tradeAt` names the chorus, so an
+         * arrangement that trades does it once, where it can be heard.
+         */
+        && has(chart, 'trade') && section.kind === 'chorus' && ordinal === chart.tradeAt
         ? tradedPhrase(written.audition.plan.phrases, section, style.beatsPerBar, ctxBase.startBeat,
           new Rng(`${seed}:trade:${s}:where`))
         : undefined;
@@ -1177,7 +1318,9 @@ export function generateSong(opts: GenerateOptions = {}): Song {
         }
       }
 
-      if (!isSolo && active.has('counter')) {
+      // …and not where the counter is the one stating it: a line does not answer
+      // itself. See `leadLayer`.
+      if (!isSolo && active.has('counter') && leadLayer !== 'counter') {
         const counterCtx: PartContext = {
           ...ctxBase,
           rng: new Rng(`${seed}:counter:${s}${salt('counter')}`),
@@ -1237,35 +1380,115 @@ export function generateSong(opts: GenerateOptions = {}): Song {
          * sounds in this repertoire, and the only thing separating it from mud is
          * that it is sustained and parallel rather than momentary and incidental.
          *
-         * Thirds and sixths rather than unisons and octaves, and not out of timidity.
-         * A doubling at the octave *is* one line played twice, which is why the checks
-         * call it a fault. True unison doubling already exists where it belongs — the
-         * `unison` mode of a two-handed player's left hand, which is one instrument
-         * and therefore one voice.
+         * Thirds and sixths here; octaves are `joinIn` below, and the difference
+         * between them is a difference of gesture rather than of nerve. A third is
+         * two lines and an octave is one line with two players on it, so they belong
+         * in different places in a form — this one adds a colour to a chorus already
+         * heard, and that one states the head.
          *
          * One phrase, in a chorus that has been heard before, and never the last two
          * bars: the cadence is where the two parts most need to be two.
          */
-        if (section.kind === 'chorus' && ordinal >= 1 && section.lengthBars >= 8
-          && new Rng(`${seed}:harmony:${s}`).chance(0.55)) {
-          const half = Math.floor(section.lengthBars / 2);
+        /**
+         * `reach` is how much of the section the two of them are on together: one
+         * phrase out of the middle of it, or the whole statement bar the cadence.
+         * The first is the colour this was written for; the second is what a head
+         * arranged for two players sounds like, and it is only asked for where the
+         * phrase window came back empty — see the fallback below.
+         */
+        const withTheTune = (
+          into: NoteEvent[], size: number, reach: 'phrase' | 'statement' = 'phrase',
+        ): NoteEvent[] => {
+          const half = reach === 'phrase' ? Math.floor(section.lengthBars / 2) : 0;
+          const bars = reach === 'phrase'
+            ? Math.min(4, section.lengthBars - half - 2)
+            : Math.max(0, section.lengthBars - 2);
           const from = ctxBase.startBeat + half * style.beatsPerBar;
-          const to = from + Math.min(4, section.lengthBars - half - 2) * style.beatsPerBar;
+          const to = from + bars * style.beatsPerBar;
           const line = harmonise(
-            melody, from, to,
-            new Rng(`${seed}:harmony:${s}:size`).chance(0.65) ? 2 : 5,
-            (midi, steps) => stepInScale(
+            melody, from, to, size,
+            // The chord under *this* note rather than under the start of the span:
+            // a window four bars wide is several chords, and a third measured off
+            // the first of them is a third against the others.
+            (midi, steps, beat) => stepInScale(
               scaleForChord(localTonic, mode, ctxBase.chords[Math.min(
-                ctxBase.chords.length - 1, Math.floor((from - ctxBase.startBeat) / style.beatsPerBar),
+                ctxBase.chords.length - 1,
+                Math.max(0, Math.floor((beat - ctxBase.startBeat) / style.beatsPerBar)),
               )]!),
               midi, steps,
             ),
             plan.counter,
           );
-          if (line.length >= 3) {
-            answer = [...answer.filter((n) => n.beat < from - 1e-6 || n.beat >= to - 1e-6), ...line]
+          if (line.length < 3) return into;
+          return [...into.filter((n) => n.beat < from - 1e-6 || n.beat >= to - 1e-6), ...line]
+            .sort((a, b) => a.beat - b.beat);
+        };
+
+        if (has(chart, 'harmony') && section.kind === 'chorus' && ordinal >= 1
+          && section.lengthBars >= 8) {
+          answer = withTheTune(answer, chart.harmonyBelow);
+        }
+
+        /**
+         * …and where the chart says these two players state the tune *together*.
+         *
+         * The other half of "playing together", and the half this project refused to
+         * write: trumpet and tenor on the head in octaves, nobody harmonising
+         * anybody. `harmonise` above was as close as it could get, and a third is a
+         * genuinely different sound — it is two parts agreeing, where this is one
+         * part with two players on it and twice the weight.
+         *
+         * The first half of the section rather than the second, and every statement
+         * of the head rather than the repeats only. Both follow from what the gesture
+         * is: the head is *stated* in unison and the second player then drops back to
+         * answering, so it belongs at the front, and an arrangement whose horns state
+         * the head together does that every time the head comes round. A version that
+         * appeared in the third chorus and nowhere else would not be this device, it
+         * would be an event.
+         *
+         * `joinIn` marks every note it writes, which is what keeps `undoubleAgainst`
+         * and `npm run genres` from treating the arrangement as the fault they were
+         * built to catch. See `NoteEvent.doubling`.
+         */
+        if (has(chart, 'unison') && !traded && !isSolo && section.lengthBars >= 8
+          && (section.kind === 'chorus' || section.kind === 'verse')) {
+          const half = Math.floor(section.lengthBars / 2);
+          const from = ctxBase.startBeat;
+          const to = from + half * style.beatsPerBar;
+          const both = joinIn(melody, from, to, chart.unisonOctave, plan.counter);
+          if (both.length >= 3) {
+            answer = [...answer.filter((n) => n.beat < from - 1e-6 || n.beat >= to - 1e-6), ...both]
               .sort((a, b) => a.beat - b.beat);
           }
+        }
+
+        /**
+         * …and where the tune leaves the answer nowhere to speak, it plays the tune.
+         *
+         * Only in a head the soloist has to be heard in — `soloistHeads` — and that
+         * limit is the point. Everywhere else an answering line with nothing to say
+         * says nothing, which is correct: it lives in the holes of the tune, and a
+         * section with no holes in it is a section where a second line would be in
+         * the way. But a player who is about to take a chorus cannot be introduced by
+         * three minutes of standing still, and a tune dense enough to shut the answer
+         * out of every head puts them straight back to being a guest.
+         *
+         * So the fallback is the other thing two melodic players do, and it is
+         * already written: the same phrase in thirds or sixths, in the same half of
+         * the section, off the cadence. A horn playing the head with the singer is
+         * what the head sounds like on these records anyway.
+         *
+         * And if that window comes back empty too — `harmonise` wants three notes in
+         * it and a ballad's half-phrase can hold two — the two of them take the whole
+         * statement instead. A head arranged for two players is not a smaller version
+         * of this gesture, it is the larger one, so widening is the right way to fail.
+         * Over 240 numbers this catches 40 heads: 39 of them from the phrase window
+         * and one that needed the whole statement, and none left silent.
+         */
+        if (!answer.length && soloistHeads.has(s)) {
+          const size = new Rng(`${seed}:counter:${s}:join`).chance(0.65) ? 2 : 5;
+          answer = withTheTune(answer, size);
+          if (!answer.length) answer = withTheTune(answer, size, 'statement');
         }
 
         /**
@@ -1293,21 +1516,32 @@ export function generateSong(opts: GenerateOptions = {}): Song {
     }
 
     /**
-     * The other hand, where the style says the lead has one.
+     * The other hand, wherever the person holding the line has one.
      *
      * Written last of everything on this layer and against the finished line,
      * because that is the order the playing happens in: the left hand answers
      * what the right hand did, so it cannot be written until the right hand has
-     * done it. It goes in for the head and for the pianist's own chorus alike —
+     * done it. It goes in for the head and for the player's own chorus alike —
      * a trio pianist comps for themselves in both, and the difference between a
      * stated melody and an improvised one is the right hand's business.
      *
-     * `leadLayer === 'melody'` is doing real work rather than restating the
-     * type. A bass solo also fills `sectionMelody`, and a piano left hand under
-     * a bass chorus would be both the wrong instrument and — since the piano is
-     * not sounding in that section at all — a track playing by itself.
+     * **`leadLayer`, not `'melody'`.** This used to be pinned to the melody
+     * layer, which was right about the piano trio it was written for and wrong
+     * about every genre where the break belongs to somebody else. Iskelmä hands
+     * the chorus to the *counter* instrument, and that instrument is an
+     * accordion about a third of the time: the one section in the song where
+     * that player is on their own, and the one section where they were playing
+     * with one hand. What replaces the layer test is the thing the layer test
+     * was standing in for — *does the instrument on this layer have two hands* —
+     * which `handsFor` answers directly and which no longer accidentally
+     * excludes the accordionist taking a solo.
+     *
+     * The bass keeps its exemption, and it is the same exemption as before: a
+     * bassist's chorus fills `sectionMelody` too, and nothing about a bass is
+     * two-handed in this sense.
      */
-    if (style.twoHanded && hands && leadLayer === 'melody' && sectionMelody.length) {
+    const leadHands = leadLayer === 'bass' ? undefined : instruments.handsFor[leadLayer as PlayedLayer];
+    if (style.twoHanded && leadHands && sectionMelody.length) {
       /**
        * Drawn per section, on its own stream.
        *
@@ -1318,15 +1552,19 @@ export function generateSong(opts: GenerateOptions = {}): Song {
        * be a player who cannot decide.
        */
       const left = generateLeftHand(ctxFor('comp'), sectionMelody, {
-        mode: chooseLeftHandMode(new Rng(`${seed}:hand:${s}`), style.twoHanded, hands),
-        spec: hands,
+        mode: chooseLeftHandMode(
+          new Rng(`${seed}:hand:${s}`), style.twoHanded, leadHands, isSolo,
+        ),
+        spec: leadHands,
         density: style.twoHanded.density,
         scaleFor: (c) => scaleForChord(localTonic, mode, c),
         clarity,
         ...(style.twoHanded.ostinato ? { ostinato: style.twoHanded.ostinato } : {}),
       });
       applyDynamics(left, 'comp', intensity, genre.layerPlan?.response);
-      leftHand.push(...left);
+      const held = leftHand.get(leadLayer as PlayedLayer) ?? [];
+      held.push(...left);
+      leftHand.set(leadLayer as PlayedLayer, held);
     }
 
     /**
@@ -1361,6 +1599,31 @@ export function generateSong(opts: GenerateOptions = {}): Song {
           }
           : {}),
       };
+    }
+
+    /**
+     * The horns, against the finished tune.
+     *
+     * Written here rather than after `resolveCollisions`, which is where it was and
+     * which made the `brass` entry in that pass's layer map dead: the array handed
+     * over was still the empty one this section started with, so the one layer whose
+     * whole job is to sound *around* the tune was the one layer never checked against
+     * it. Harmless while the horns fired two stabs a song into whatever hole they
+     * found; not harmless now that `riff` can put a fixed figure in every second bar,
+     * which is a figure that no longer moves out of the way by construction.
+     *
+     * It also has to precede the tutti below, because a band figure that the horns sit
+     * out is a rhythm section figure.
+     */
+    if (active.has('brass')) {
+      sectionBrass = generateBrass(ctxFor('brass'), instruments.brass.centre, limitFor('brass'), {
+        melody: sectionMelody,
+        intensity,
+        // Both from the chart, so the horns play the same figure in the same way all
+        // the way through a song rather than reinventing themselves every eight bars.
+        ...(has(chart, 'riff') ? { figure: chart.riff, every: chart.riffEvery } : {}),
+        ...(has(chart, 'swell') ? { swell: true } : {}),
+      });
     }
 
     /**
@@ -1410,7 +1673,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
        * figure while the kit keeps time is its own real sound.
        */
       const onsets = sectionHook?.onsets ?? [];
-      const figure = ordinal >= 1 && onsets.length && bandRng.chance(0.45)
+      const figure = has(chart, 'tutti') && ordinal >= 1 && onsets.length
         ? figureSlots(onsets, Math.round(style.beatsPerBar * SLOTS_PER_BEAT))
         : [];
       if (figure.length >= 2) {
@@ -1421,6 +1684,15 @@ export function generateSong(opts: GenerateOptions = {}): Song {
 
         sectionBass = hitTogether(sectionBass, from, to, beats);
         sectionComp = hitTogether(sectionComp, from, to, beats);
+        /**
+         * …and the horns, where there are any.
+         *
+         * The layer this gesture was named after. A shout chorus is a *horn* figure
+         * that the rhythm section joins, and it had been implemented as a rhythm
+         * section figure the horns sat out — which is the one arrangement of those
+         * three parts nobody has ever written.
+         */
+        sectionBrass = hitTogether(sectionBrass, from, to, beats);
       }
     }
 
@@ -1435,12 +1707,6 @@ export function generateSong(opts: GenerateOptions = {}): Song {
       floor: instruments.bass.centre + 10,
     });
 
-    if (active.has('brass')) {
-      sectionBrass = generateBrass(ctxFor('brass'), instruments.brass.centre, limitFor('brass'), {
-        melody: sectionMelody,
-        intensity,
-      });
-    }
 
     /**
      * The other half of the feel drawn at the top of the loop: what the *played*
@@ -1697,18 +1963,19 @@ export function generateSong(opts: GenerateOptions = {}): Song {
   }
 
   /**
-   * And now the left hand, into the melody layer it belongs to.
+   * And now the left hands, into the layers they belong to.
    *
    * After the trim rather than before it, for the reason `leftHand` is declared
-   * separately at all: this is the point at which the melody track stops being
-   * one voice, and everything above assumes it is one. Swung on its own — the
-   * stabs land on eighths and a left hand swings with the band — and merged by
-   * beat so the track stays sorted, which `render/strudel.ts` and the
-   * choreographer both read it as being.
+   * separately at all: this is the point at which a track stops being one voice,
+   * and everything above assumes it is one. Swung on its own — the stabs land on
+   * eighths and a left hand swings with the band — and merged by beat so the
+   * track stays sorted, which `render/strudel.ts` and the choreographer both
+   * read it as being.
    */
-  if (leftHand.length) {
-    const line = byLayer.get('melody') ?? [];
-    byLayer.set('melody', [...line, ...applySwing(leftHand.filter((n) => n.beat >= 0), swingPlan)]
+  for (const [layer, notes] of leftHand) {
+    if (!notes.length) continue;
+    const line = byLayer.get(layer) ?? [];
+    byLayer.set(layer, [...line, ...applySwing(notes.filter((n) => n.beat >= 0), swingPlan)]
       .sort((a, b) => a.beat - b.beat || a.midi - b.midi));
   }
 
@@ -1858,8 +2125,8 @@ export function generateSong(opts: GenerateOptions = {}): Song {
       // Said out loud, because from here on nothing can tell by looking: a
       // pianist's two hands and a four-part comp are both just simultaneous
       // notes. See `melodicLine`, which is what the declaration is for.
-      ...(layer === 'melody' && hands && leftHand.length
-        ? { twoHanded: { gap: hands.gap } }
+      ...(leftHand.get(layer)?.length && instruments.handsFor[layer]
+        ? { twoHanded: { gap: instruments.handsFor[layer]!.gap } }
         : {}),
       /**
        * …and the same kind of declaration for a part nobody is touching.
@@ -1878,7 +2145,13 @@ export function generateSong(opts: GenerateOptions = {}): Song {
   if (opts.vocals) {
     const melodyTrack = tracks.find((t) => t.layer === 'melody');
     if (melodyTrack) {
-      const vocal = generateVocalTrack(melodyTrack.notes, genre.vocals, new Rng(`${seed}:vocal`));
+      // The sections come with it because the words do: a chorus sings the
+      // same line every time it comes round, and that is the only thing making
+      // a refrain a refrain. See `generate/vocals.ts`.
+      const vocal = generateVocalTrack(
+        melodyTrack.notes, genre.vocals, new Rng(`${seed}:vocal`),
+        { sections, beatsPerBar: style.beatsPerBar },
+      );
       if (vocal) tracks.push(vocal);
     }
   }
@@ -1938,6 +2211,12 @@ export function generateSong(opts: GenerateOptions = {}): Song {
       // Omitted rather than empty where the style names no table, so a song that
       // was never asked the question does not carry an answer to it.
       ...(feels.length ? { feels } : {}),
+      // The same rule for the seams, and the same sentence: `seams` is populated
+      // on every song — every join resolves to something — but a song whose
+      // style declared no palette resolved it without drawing, and publishing an
+      // answer it was never asked would put a field on the whole catalogue in
+      // the one wave whose deliverable is that nothing changed.
+      ...(transitionTable ? { transitions: seams } : {}),
     },
     sections,
     tracks,
@@ -1945,7 +2224,58 @@ export function generateSong(opts: GenerateOptions = {}): Song {
     space,
   };
 
+  /**
+   * The band's answer to the seams, as an edit over the finished arrangement.
+   *
+   * Here rather than inside the section loop because a transition is not a
+   * composition: by this line every layer is one array in one coordinate space,
+   * on its sounding grid, and both sides of every join are in it — so moving,
+   * deleting or replacing what is already there needs no knowledge a part
+   * generator would have had to be given. `generate/transition.ts` argues that
+   * at length, including why it dissolves the two sealed-seam rules rather than
+   * relaxing them.
+   *
+   * After the tracks are built, because that is where the last `applySwing` runs
+   * — there are four of them and this is downstream of all four. Before
+   * `landEnding`, because the ending is not negotiable by an arrangement.
+   *
+   * A no-op today: `fill` is the only kind a palette can draw and the drummer
+   * has already played it.
+   */
+  applyTransitions(song, seams);
+
   landEnding(song, genre.ending, finalChord);
+
+  /**
+   * `activeLayers` was a plan; now that the parts exist it is a claim, and a
+   * claim has to be true.
+   *
+   * Two things make the plan optimistic, and only one of them was a bug. The
+   * bug — a bridge asking for a counter and getting nothing — is fixed where
+   * `leadLayer` is decided. What is left is the answering line doing exactly
+   * what it is meant to: it speaks in the holes of the tune, one bar at a time,
+   * and a section whose tune leaves no hole is a section where it has nothing to
+   * say. Measured over 160 numbers, the sections it stayed out of averaged 1.3
+   * bars with room in them against 4.7 for the sections it played.
+   *
+   * Silence there is the right answer musically and a lie in the IR, and
+   * everything downstream reads the IR: the groove tells a player who is not
+   * listed to move *more*, on the reasoning that they are not playing, and a
+   * player listed but silent therefore mimes. Filtering here costs nothing —
+   * not a note changes — and leaves the list saying what the number does.
+   *
+   * Onsets rather than sounding time, matching `soundsIn` in the concert
+   * camera: a chord still ringing from the section before is not this section
+   * playing.
+   */
+  for (const section of song.sections) {
+    const from = section.startBar * style.beatsPerBar;
+    const to = from + section.lengthBars * style.beatsPerBar;
+    section.activeLayers = section.activeLayers.filter((layer) => (layer === 'drums'
+      ? song.drums.events.some((e) => e.beat >= from - 1e-6 && e.beat < to - 1e-6)
+      : song.tracks.some((t) => t.layer === layer
+        && t.notes.some((n) => n.beat >= from - 1e-6 && n.beat < to - 1e-6))));
+  }
   return song;
 }
 
@@ -2496,13 +2826,19 @@ function chooseTempo(rng: Rng, style: Style, mood: Mood, era: EraProfile): numbe
  */
 function chooseInstruments(rng: Rng, era: EraProfile, style: Style) {
   const taken = new Set<string>();
-  const pick = (list: (readonly [InstrumentId, number])[]): Instrument => {
+  const ids = {} as Record<PlayedLayer, InstrumentId>;
+  const pickId = (list: (readonly [InstrumentId, number])[]): InstrumentId => {
     const free = list.filter(([id]) => !taken.has(INSTRUMENTS[id].name));
-    const instrument = INSTRUMENTS[rng.weighted(free.length ? free : list)];
-    taken.add(instrument.name);
-    return instrument;
+    const id = rng.weighted(free.length ? free : list);
+    taken.add(INSTRUMENTS[id].name);
+    return id;
   };
-  const drawn = pick(era.palette.melody);
+  const pick = (layer: PlayedLayer, list: (readonly [InstrumentId, number])[]): Instrument => {
+    const id = pickId(list);
+    ids[layer] = id;
+    return INSTRUMENTS[id];
+  };
+  const drawn = pick('melody', era.palette.melody);
   /**
    * The two-handed lead is drawn here, before the rest of the band, so that it
    * can be *taken*.
@@ -2512,14 +2848,40 @@ function chooseInstruments(rng: Rng, era: EraProfile, style: Style) {
    * `taken` set exists to prevent and could not, because by the time the lead
    * was known the other five had already been picked around a lead that turned
    * out not to be playing. Order matters here and nowhere else in the function.
+   *
+   * A style with no list of its own draws nothing here and takes the lead the
+   * palette already gave it. That costs no random number, so a table that adds
+   * `twoHanded` without naming instruments does not reshuffle a single seed —
+   * it only decides that the hands the drawn instrument has get used.
    */
-  const lead = style.twoHanded ? rng.weighted(style.twoHanded.instruments) : undefined;
+  const lead = style.twoHanded?.instruments
+    ? rng.weighted(style.twoHanded.instruments)
+    : undefined;
   if (lead) taken.add(INSTRUMENTS[lead].name);
-  const bass = pick(era.palette.bass);
-  const comp = pick(era.palette.comp);
-  const pad = pick(era.palette.pad);
-  const counter = pick(era.palette.counter);
-  const brass = pick(era.palette.brass);
+  const bass = pick('bass', era.palette.bass);
+  const comp = pick('comp', era.palette.comp);
+  const pad = pick('pad', era.palette.pad);
+  const counter = pick('counter', era.palette.counter);
+  const brass = pick('brass', era.palette.brass);
+
+  /**
+   * Who, of the whole band, has a second hand — not only the one out front.
+   *
+   * The lead was the only entry here for as long as the left hand was the lead's
+   * private business, and that was wrong about the one section where two hands
+   * matter most. In iskelmä the break belongs to the *counter* instrument, which
+   * is drawn from a palette full of accordions; an accordion taking a chorus and
+   * playing a single line with its right hand is not an accordion break, it is
+   * half of one. See where `generateLeftHand` is called for what is done with
+   * this.
+   */
+  const handsFor: Partial<Record<PlayedLayer, HandSpec>> = {};
+  if (style.twoHanded) {
+    for (const [layer, id] of Object.entries(ids) as [PlayedLayer, InstrumentId][]) {
+      const spec = HANDS[id];
+      if (spec) handsFor[layer] = spec;
+    }
+  }
 
   /**
    * A style that names its own leads overrides the draw *after* it has happened,
@@ -2536,37 +2898,81 @@ function chooseInstruments(rng: Rng, era: EraProfile, style: Style) {
    * *fronting a trio* is a piano an octave higher, and a vibraphone fronting one
    * is higher again, because the two instruments do not sit in the same place.
    */
-  if (!lead) return { melody: drawn, counter, comp, pad, bass, brass, hands: undefined };
+  /**
+   * The drawn lead gets the same lift a named one would.
+   *
+   * `HandSpec.lead` is not a preference about register, it is the room the left
+   * hand needs: an accordion playing the tune where the catalogue puts it leaves
+   * `handWindow` a couple of semitones to voice in, and a couple of semitones is
+   * no window at all — the hand would fall silent through most of the song and
+   * the style would look like it had merely asked for a sparse one. So the lift
+   * travels with the hands rather than with the way they were chosen.
+   */
+  if (!lead) {
+    return {
+      melody: handsFor.melody ? { ...drawn, centre: handsFor.melody.lead } : drawn,
+      counter, comp, pad, bass, brass, handsFor,
+    };
+  }
+  // The named lead replaces the drawn one, so its hands replace the drawn one's
+  // too — including when it has none, which is the table error `npm run genres`
+  // reports and which must not leave the thrown-away instrument's spec behind.
   const hands = HANDS[lead];
+  if (hands) handsFor.melody = hands;
+  else delete handsFor.melody;
   return {
     melody: { ...INSTRUMENTS[lead], ...(hands ? { centre: hands.lead } : {}) },
-    counter, comp, pad, bass, brass, hands,
+    counter, comp, pad, bass, brass, handsFor,
   };
 }
 
 /**
  * What the left hand does in this section.
  *
- * Two things get filtered out before the draw rather than after, because a mode
- * that was chosen and then silently produced nothing would look — in the audit,
- * in the report, on the stage — exactly like a style whose left hand is meant to
- * be sparse:
+ * Three things get filtered out before the draw rather than after, because a
+ * mode that was chosen and then silently produced nothing would look — in the
+ * audit, in the report, on the stage — exactly like a style whose left hand is
+ * meant to be sparse:
  *
  *  - **`unison` needs a hand that can play a line.** An accordion's cannot; the
  *    button side sounds fixed chords. See `HandSpec.melodic`.
  *  - **`ostinato` needs a figure.** A style that offers the mode without writing
  *    one has a table error, which `npm run genres` reports; dropping it here is
  *    what keeps the song generating in the meantime.
+ *  - **`stride` needs somewhere to put the bass note.** See `HandSpec.bass`, and
+ *    the vibraphone, whose two mallets cannot be in two octaves at once.
  *
  * Filtering before the draw also keeps the weights meaning what they say. A
  * table asking for equal parts unison and answer on an accordion gets all
  * answer, not half a part missing.
+ *
+ * ## And a fourth filter, which is about the section rather than the hand
+ *
+ * `answer` is written to fall silent under a busy right hand — deliberately, and
+ * correctly, because that is what a pianist's left hand does through a running
+ * passage. A solo is a running passage from the first bar to the last, so a
+ * chorus accompanied by `answer` is a chorus barely accompanied at all: the one
+ * section where the player is alone with the rhythm section is the section their
+ * other hand was quietest in. So where a solo has any other mode on offer,
+ * `answer` steps aside for it — the vamp, the oom-pah and the locked chord all
+ * keep playing regardless of how busy the line above them gets, which is the
+ * whole reason a soloing pianist reaches for them.
+ *
+ * Not a re-weighting, because a re-weighting would be a taste. This is a mode
+ * that cannot do the job the section needs, filtered the same way as the three
+ * above it, and a style offering nothing else still gets it.
  */
-function chooseLeftHandMode(rng: Rng, keys: TwoHandedKeys, spec: HandSpec): LeftHandMode {
+function chooseLeftHandMode(
+  rng: Rng, keys: TwoHandedKeys, spec: HandSpec, solo = false,
+): LeftHandMode {
   const offered = keys.modes ?? [['answer', 1] as const];
   const eligible = offered.filter(([mode]) =>
-    (mode !== 'unison' || spec.melodic) && (mode !== 'ostinato' || keys.ostinato));
-  return eligible.length ? rng.weighted(eligible) : 'answer';
+    (mode !== 'unison' || spec.melodic)
+    && (mode !== 'ostinato' || keys.ostinato)
+    && (mode !== 'stride' || spec.bass !== undefined));
+  const holdsUp = solo ? eligible.filter(([mode]) => mode !== 'answer') : eligible;
+  const draw = holdsUp.length ? holdsUp : eligible;
+  return draw.length ? rng.weighted(draw) : 'answer';
 }
 
 function buildForm(rng: Rng, genre: Genre, style: Style, bpm: number, targetSeconds: number): FormStep[] {
@@ -2632,41 +3038,6 @@ function buildForm(rng: Rng, genre: Genre, style: Style, bpm: number, targetSeco
     steps.splice(idx, 1);
   }
   return steps;
-}
-
-function layersFor(kind: SectionKind, style: Style, density: number, mood: Mood, rng: Rng): LayerId[] {
-  const base: Record<SectionKind, LayerId[]> = {
-    intro: ['drums', 'bass', 'comp'],
-    verse: ['drums', 'bass', 'comp', 'melody'],
-    chorus: ['drums', 'bass', 'comp', 'pad', 'melody'],
-    bridge: ['drums', 'bass', 'comp', 'pad'],
-    solo: ['drums', 'bass', 'comp', 'pad', 'melody'],
-    outro: ['drums', 'bass', 'comp', 'pad'],
-  };
-  const layers = new Set(base[kind]);
-
-  const add = (layer: LayerId, p: number) => { if (rng.chance(p)) layers.add(layer); };
-
-  if (kind === 'verse') add('pad', density * 0.7);
-  if (kind === 'chorus') { add('brass', density * 0.8); add('counter', density * 0.7); }
-  if (kind === 'verse') add('counter', density * 0.45);
-  if (kind === 'bridge') add('counter', density * 0.5);
-  if (kind === 'intro') { add('pad', density); add('melody', 0.35); }
-  if (kind === 'outro') { add('melody', 0.5); add('brass', density * 0.4); }
-
-  // Restrained moods thin the texture out.
-  if (mood.restraint > 0 && rng.chance(mood.restraint * 0.35)) {
-    for (const candidate of ['brass', 'counter', 'pad'] as LayerId[]) {
-      if (layers.has(candidate)) { layers.delete(candidate); break; }
-    }
-  }
-
-  // The style's own veto and guarantee, applied last so they always win — and
-  // applied after every `rng` draw above, so adding them to a style cannot
-  // shift the stream for any style that does not use them.
-  for (const layer of style.excludeLayers ?? []) layers.delete(layer);
-  for (const layer of style.requireLayers ?? []) layers.add(layer);
-  return [...layers];
 }
 
 /**

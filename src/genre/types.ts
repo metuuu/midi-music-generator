@@ -22,6 +22,7 @@
  * that sounds like a very slow ballad.
  */
 
+import type { Device } from '../generate/chart.js';
 import type { Chord } from '../core/chord.js';
 import type { Pc } from '../core/pitch.js';
 import type { Rng } from '../core/rng.js';
@@ -31,10 +32,11 @@ import type {
 } from '../core/types.js';
 import type { RuleOverrides, StrictnessId } from '../core/rules.js';
 import type { HookId } from '../generate/hook.js';
-import type { EraProfile, Mood, Style } from '../style/types.js';
+import type { CompingProfile, EraProfile, Mood, Style } from '../style/types.js';
 import type { FeelId } from '../style/feel.js';
 import type { VocalProfile } from '../style/vocals.js';
 import type { FillPalette } from '../generate/fills.js';
+import type { TransitionPalette } from '../generate/transition.js';
 import type { SoloProfile } from '../generate/solo.js';
 
 export interface FormStep {
@@ -182,6 +184,38 @@ export interface Genre {
   fills?: FillPalette;
 
   /**
+   * What this idiom does at a section join, weighted — the fallback for styles
+   * that name no palette of their own. See `generate/transition.ts`.
+   *
+   * The same merge order as `feels` and `fills` above, and a style's palette
+   * *replaces* this rather than extending it, for the same reason: a palette is
+   * a statement about what this band would do at a seam, and a style that has
+   * listed two kinds has not implicitly agreed to the genre's third.
+   *
+   * Empty on every genre, and here that is a stronger claim than it is for
+   * `feels`. Absent means `DEFAULT_TRANSITIONS`, which is `fill` alone, which is
+   * what every genre has always done — and it means **no draw is made**, so
+   * declaring one is the difference between a genre being additive and it
+   * rewriting the whole catalogue. The genre this field is eventually *for* is
+   * ambient, which wants an empty palette so that nothing announces anything;
+   * see `drumFills`, which already says the same sentence about the kit.
+   */
+  transitions?: TransitionPalette;
+
+  /**
+   * Which arrangement devices this idiom uses, as weight overrides on the shared
+   * pool. A zero rules one out; omitting the field takes the pool as it stands.
+   *
+   * A genre statement rather than a style one, because the devices are about what
+   * *kind of ensemble* this is rather than about what it is playing. Handing a
+   * phrase from one player to another and the whole band catching a figure are
+   * both things a band does and neither is something a piece of ambient does — an
+   * ambient record has no players in it in the sense the gesture needs, and a
+   * tutti hit would be a door slamming. See `generate/chart.ts`.
+   */
+  arrangement?: Partial<Record<Device, number>>;
+
+  /**
    * What the band plays underneath a solo section. Defaults to `full`.
    *
    * Whether the rhythm section carries on unchanged, thins out and answers, or
@@ -298,6 +332,23 @@ export interface Genre {
      */
     response?: Partial<Record<LayerId, number>>;
   };
+
+  /**
+   * How far the chordal player departs from the figure in front of them.
+   *
+   * A genre's statement rather than a style's, because it is a fact about the
+   * *instrument's job* in this music and not about any one rhythm. Every jazz
+   * style comps: a ballad comper is sparser than a bebop comper and both of them
+   * leave holes, anticipate the barline and refuse to play the same bar twice.
+   * Every iskelmä style does the opposite, and that is equally uniform — a
+   * tanssilava band's chords are how the floor knows where beat one is, and a
+   * guitarist who started varying them would be making the dance harder.
+   *
+   * Absent means the figure is played as written, which is what it was
+   * everywhere before this existed. See `CompingProfile` for what the numbers
+   * do and for what they measured before they were there.
+   */
+  comping?: CompingProfile;
 
   /** Length in seconds a track of this genre should aim for. */
   duration: [number, number];

@@ -203,6 +203,50 @@ function stack(pcs: Pc[], bottom: Midi, hi: Midi, clarity: number): Midi[] | und
   return out;
 }
 
+/**
+ * The same stack, with the upper voices free to arrive in any order.
+ *
+ * `stack` walks the tones in the order it is handed them, so a rotation fixes
+ * not just the bass note but the whole ascent: from a G the next voice must be
+ * the B♭ and then the E, whatever that costs. Under a low ceiling it costs
+ * everything. G2–E3–B♭3 is an ordinary rootless voicing that no rotation of
+ * `[3rd, 5th, 7th]` can express, so the search would find nothing, drop a voice,
+ * find nothing again, and hand back the bare guide-tone pair.
+ *
+ * That was not a thin voicing, it was a *missing* one, and it was the whole
+ * reason a comp under a low tune stopped playing chords: measured across forty
+ * blues songs, 19% of the piano's comp onsets sounded a single note and the mean
+ * was 2.6 voices where every pattern in the style asks for four. With a ceiling
+ * at 58 the ordered search cannot place three voices at all; this places them at
+ * the first attempt.
+ *
+ * Greedy, taking the tone whose lowest legal note is smallest at each step,
+ * which is exactly the right rule when the binding constraint is a ceiling: it
+ * spends as little of the remaining headroom as possible on every voice. It is
+ * not a general improvement on `stack` and is not used as one — see
+ * `voiceChord`, which reaches for this only once the ordered search has failed,
+ * so every voicing that already worked comes back unchanged.
+ */
+function stackFree(pcs: Pc[], bottom: Midi, hi: Midi, clarity: number): Midi[] | undefined {
+  const out: Midi[] = [bottom];
+  const rest = pcs.slice(1);
+  while (rest.length) {
+    const prev = out[out.length - 1]!;
+    const floor = prev + minInterval(prev, clarity);
+    let pick = -1;
+    let pickNote = Infinity;
+    for (let i = 0; i < rest.length; i++) {
+      let note = Math.floor(floor / 12) * 12 + rest[i]!;
+      while (note < floor) note += 12;
+      if (note < pickNote) { pick = i; pickNote = note; }
+    }
+    if (pick < 0 || pickNote > hi) return undefined;
+    out.push(pickNote);
+    rest.splice(pick, 1);
+  }
+  return out;
+}
+
 /** Total motion from one voicing to another, voice by voice from the top down. */
 function motion(from: readonly Midi[], to: readonly Midi[]): number {
   if (!from.length) return 0;
@@ -278,9 +322,36 @@ export function voiceChord(chord: Chord, opts: VoicingOptions): Midi[] {
 
   if (best) return best;
 
-  // Nothing fit — the window is narrower than the chord needs. Drop a voice and
-  // try again rather than emitting a cluster, and fall back to a bare stack of
-  // whatever fits if even that fails.
+  /**
+   * Nothing fit in order. Before giving a voice up, try letting the upper voices
+   * arrive in whatever order the ceiling allows — see `stackFree`.
+   *
+   * Here rather than in the loop above on purpose. A free-order voicing is a
+   * real voicing but it is not a *better* one, and offering it as a candidate
+   * everywhere would have it win on span or motion in windows where the ordered
+   * stack was perfectly good, quietly re-voicing the whole catalogue. Reached
+   * only once the ordered search has come back empty, it can add chords where
+   * there were none and cannot change a chord that already existed.
+   */
+  for (let rot = 0; rot < tones.length; rot++) {
+    const rotated = [...tones.slice(rot), ...tones.slice(0, rot)];
+    for (let octave = Math.floor(lo / 12) * 12; octave <= hardHi; octave += 12) {
+      const bottom = octave + rotated[0]!;
+      if (bottom < lo || bottom > hardHi) continue;
+      const placed = stackFree(rotated, bottom, hardHi, effectiveClarity);
+      if (!placed) continue;
+      const top = placed[placed.length - 1]!;
+      let score = motion(previous, placed) * 1.6;
+      score += Math.abs((bottom + top) / 2 - centre) * 0.5;
+      score += Math.abs(top - bottom - (spread ? 19 : 12)) * (spread ? 0.35 : 0.25);
+      if (score < bestScore) { bestScore = score; best = placed; }
+    }
+  }
+  if (best) return best;
+
+  // Still nothing — the window is narrower than the chord needs. Drop a voice
+  // and try again rather than emitting a cluster, and fall back to a bare stack
+  // of whatever fits if even that fails.
   if (voices > 2) return voiceChord(chord, { ...opts, voices: voices - 1 });
   const pcs = chordPcs(chord);
   return [lo + ((pcs[0]! - lo) % 12 + 12) % 12];

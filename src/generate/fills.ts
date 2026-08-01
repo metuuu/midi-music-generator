@@ -34,7 +34,15 @@ export type FillShape =
   | 'lead-in'     // two or three hits on the last beat, and nothing else
   | 'drop';       // the kit stops; the silence is the fill
 
-/** Weighted fill vocabulary. */
+/**
+ * Weighted fill vocabulary.
+ *
+ * One level below `TransitionPalette` in `generate/transition.ts`, which asks
+ * *whether the drummer is the one announcing this join at all* — a fill is one
+ * of four things that can happen at a seam, and the other three belong to the
+ * band. This table is consulted only once that one has said `fill`, which for
+ * every style in the catalogue is always.
+ */
 export type FillPalette = (readonly [FillShape, number])[];
 
 export const DEFAULT_FILLS: FillPalette = [

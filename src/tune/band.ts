@@ -156,28 +156,100 @@ export function figureSlots(
  * and the only thing separating it from mud is that it is sustained and parallel
  * rather than momentary and incidental.
  *
- * Thirds and sixths rather than unisons and octaves, and that is not timidity. A
- * doubling at the octave *is* one line played twice, which is why the checks call it
- * a fault; a third is two lines. True unison doubling already exists in this project
- * where it belongs — the `unison` mode of a two-handed player's left hand, which is
- * one instrument and therefore one voice.
+ * Thirds and sixths rather than unisons and octaves — which is a statement about
+ * *this* device rather than about doubling in general. A third is two lines and an
+ * octave is one line played twice, so the two are different gestures and want
+ * different rules; the octave one is `joinIn` below, and it has to declare itself.
  */
 export function harmonise(
   melody: readonly NoteEvent[],
   from: number,
   to: number,
   below: number,
-  step: (midi: number, steps: number) => number,
+  /**
+   * The note's own beat is handed to the caller because the harmony has to be
+   * measured against the chord sounding *there*: a span four bars wide is
+   * several chords, and a third taken off the first of them is not a third
+   * against the rest.
+   */
+  step: (midi: number, steps: number, beat: number) => number,
   [lo, hi]: [number, number],
 ): NoteEvent[] {
   const out: NoteEvent[] = [];
   for (const n of melody) {
     if (n.beat < from - 1e-6 || n.beat >= to - 1e-6) continue;
-    const midi = step(n.midi, -below);
+    const midi = step(n.midi, -below, n.beat);
     if (midi < lo || midi > hi) continue;
     out.push({ beat: n.beat, duration: n.duration, midi, velocity: n.velocity * 0.82 });
   }
   return out;
+}
+
+/**
+ * Two players on the same line.
+ *
+ * `harmonise` above is the arranger's other answer to "what do the two horns do
+ * together", and for a long time it was the only one this project would allow: a
+ * doubling at the octave is one line played twice, the checks call that a fault,
+ * and so the head was never once stated the way this repertoire actually states
+ * heads — trumpet and tenor on the tune, in octaves, nobody harmonising anybody.
+ *
+ * The objection was aimed at the wrong thing. What makes an octave doubling mud is
+ * that it is *incidental*: one note of an answering line landing on the tune,
+ * fusing two parts into one for a beat and then separating again, which the ear
+ * reads as a mistake because it is one. A whole phrase in octaves is not that. It
+ * has a beginning, it has both players arriving on it together, and the ear reads
+ * it as weight rather than as blur.
+ *
+ * Hence the two conditions this function enforces and `undoubleAgainst` trusts:
+ * it takes a *span* rather than notes, and every note it returns carries
+ * `doubling: 'lead'`. An unmarked note on the tune is still a fault everywhere it
+ * was before. A marked one is the arrangement.
+ *
+ * The octave is chosen away from the line's own register rather than fixed, so a
+ * counter instrument sitting under the lead doubles below it and one sitting above
+ * doubles above, instead of both being dragged to the same octave as the tune —
+ * which would be the one case where this really is one line played twice.
+ */
+export function joinIn(
+  melody: readonly NoteEvent[],
+  from: number,
+  to: number,
+  atOctave: boolean,
+  [lo, hi]: [number, number],
+): NoteEvent[] {
+  const taken = melody.filter((n) => n.beat >= from - 1e-6 && n.beat < to - 1e-6);
+  if (taken.length < 3) return [];
+
+  /**
+   * Which octave, decided by what fits rather than by arithmetic on the mean.
+   *
+   * The first version computed one transposition from the average pitch and
+   * dropped the whole span if any single note fell outside the second player's
+   * range — which discarded most of them, because a tune's mean sits comfortably
+   * inside a window that its highest note does not. Searching instead costs three
+   * comparisons and is also the more honest model: a player asked to take the head
+   * with somebody picks the octave they can actually play it in.
+   *
+   * Order of preference is the device's own. At pitch is the tightest version and
+   * the one that most sounds like one instrument, so `atOctave` false tries it
+   * first; either way the fallbacks are ±1 before ±2, because a tune two octaves
+   * off is no longer the same line in a second voice, it is a piccolo part.
+   */
+  const wanted = atOctave ? [-1, 1, 0, -2, 2] : [0, -1, 1, -2, 2];
+  const low = Math.min(...taken.map((n) => n.midi));
+  const high = Math.max(...taken.map((n) => n.midi));
+  const octaves = wanted.find((o) => low + o * 12 >= lo && high + o * 12 <= hi);
+  if (octaves === undefined) return [];
+
+  return taken.map((n) => ({
+    ...n,
+    midi: n.midi + octaves * 12,
+    // Under the lead rather than beside it: the tune is still the tune, and the
+    // second player is agreeing with it rather than competing to state it.
+    velocity: n.velocity * 0.88,
+    doubling: 'lead' as const,
+  }));
 }
 
 /**

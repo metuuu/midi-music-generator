@@ -61,9 +61,13 @@
  *    where `EXTRA_BOARDS[0]` says, because the choreographer budgets a hand's
  *    travel against that same table and the two must not disagree. What this
  *    file owns is the shell that goes round it.
- *  - **It is level.** It used to tilt back a fifth of a radian, which is a nice
- *    detail on a box of moulding and a lie under keys somebody plays: the keys
- *    come from the board's own frame, which has a yaw and no pitch.
+ *  - **Nor is the slope.** The tier tilts a fifth of a radian toward the player
+ *    because `EXTRA_BOARDS[0].pitch` says so, and the keys tilt with it — which
+ *    is the only arrangement in which a slope is honest. This file used to tilt
+ *    a keybed of scenery by that much on its own authority and had to give the
+ *    detail up when the board became real, because a case leaning off keys that
+ *    stayed flat is worse than a flat stack. `placeBoard` composes the one
+ *    transform both of them get.
  *  - **A stack of one is a slab on a stand.** With no upper board there is no
  *    upper tier and the columns stop at the arms under the one keyboard —
  *    rather than a second keybed nobody can touch, which is where this started.
@@ -92,7 +96,9 @@ import {
 } from 'three';
 
 import { Rng } from '../../../core/rng.js';
-import { disposeTree, type SynthRig, type SynthRigBuilder } from './synth-rig.js';
+import {
+  disposeTree, mountOutlet, placeBoard, type SynthRig, type SynthRigBuilder,
+} from './synth-rig.js';
 import { addTo } from './types.js';
 
 /**
@@ -123,6 +129,9 @@ const UP_PANEL_D = 0.155;
 
 /** Depth of the steel arms the upper keyboard rests on, top to bottom. */
 const ARM_H = 0.026;
+
+/** Side of the square tube the columns are cut from. */
+const COL_W = 0.040;
 
 /** Resting glow of the LCD backlight, and how much a note may add to it. */
 const LCD_BASE = 0.62;
@@ -385,7 +394,8 @@ export const buildDigitalRig: SynthRigBuilder = (opts) => {
    * **How much daylight the stack ends up with**, since this file no longer
    * chooses it: the board's keys are 0.285 m above the lower board's, its case
    * hangs `UP_CASE_H` under its own key tops and the arms `ARM_H` under that,
-   * which leaves about 0.18 m of air. A hand playing the lower board keeps its
+   * which leaves about 0.18 m of air — 0.17 at the front lip, which the slope
+   * dips 3 cm and gives back behind. A hand playing the lower board keeps its
    * wrist around 8 cm above the keys and the knuckles rise another 4 or 5 on a
    * lifted attack, so 13 cm is the tallest a hand ever gets and 0.18 clears it
    * outright — where the tier this file used to place for itself sat *at* 0.13
@@ -404,6 +414,13 @@ export const buildDigitalRig: SynthRigBuilder = (opts) => {
   /** Where the stand's uprights are, which both tiers hang off. */
   const xPost = Math.min(0.40, boardWidth * 0.28);
 
+  /**
+   * How far behind the keys the columns stand — argued with the rest of the
+   * stand below, and needed up here because a sloped tier's arms are at a
+   * different height at every `z` and this is the one the column meets them at.
+   */
+  const colZ = keyBackZ + 0.27;
+
   /** Y of the underside of the arms under the upper slab. Absent with no tier. */
   let tierArmBotY: number | undefined;
 
@@ -411,14 +428,16 @@ export const buildDigitalRig: SynthRigBuilder = (opts) => {
     /**
      * The tier group carries the board's own placement and nothing else, so
      * everything inside it is written in the same coordinates as the lower
-     * slab — and lands wherever `synth.ts` put the keys, because that is the
-     * transform the keys got too. A yaw is honoured for form's sake; the tier
-     * this rig is given has none, and a wing is a modular's problem.
+     * slab — and lands wherever `synth.ts` put the keys, because it is the same
+     * matrix the keys got, from `placeBoard` rather than from a second copy of
+     * the composition. That is what makes the slope safe: the case cannot lean
+     * off the keys, because neither of them is told the angle separately.
      */
+    const place = placeBoard(host, keyTopY, keyBackZ);
     const tier = addTo(group, new Group());
     tier.name = 'digital:upper-tier';
-    tier.position.set(host.at[0], host.at[1], host.at[2]);
-    tier.rotation.y = host.yaw;
+    tier.matrixAutoUpdate = false;
+    tier.matrix.copy(place);
 
     const up = slab(tier, caseMat, {
       boardWidth: host.width, keyTopY, keyBackZ, whiteLength,
@@ -483,7 +502,18 @@ export const buildDigitalRig: SynthRigBuilder = (opts) => {
       arm.castShadow = true;
     }
 
-    tierArmBotY = host.at[1] + up.botY - ARM_H;
+    /**
+     * Where the column stops, which is under the arm at the column's own `z`.
+     *
+     * A level tier could say `host.at[1] + up.botY - ARM_H` and be right along
+     * the whole length of the bracket. A sloped one has a different underside
+     * at every `z`, so the height is measured at the only `z` that matters, by
+     * the same matrix the arm itself was placed with. Half the column's depth
+     * comes off after that, so the post tucks a few millimetres into the
+     * bracket rather than showing daylight under its downhill corner.
+     */
+    const meet = new Vector3(0, up.botY - ARM_H, colZ - host.at[2]).applyMatrix4(place);
+    tierArmBotY = meet.y - (COL_W / 2) * Math.abs(Math.sin(host.pitch));
   }
 
   // --- The stand -----------------------------------------------------------
@@ -496,7 +526,6 @@ export const buildDigitalRig: SynthRigBuilder = (opts) => {
    * forward — the front lip of the case is the furthest anything reaches toward
    * them, and their standing position is another 27 cm beyond that.
    */
-  const colZ = keyBackZ + 0.27;
   const runnerFront = keyBackZ - whiteLength + 0.010;
   const runnerBack = keyBackZ + 0.42;
   const runnerD = runnerBack - runnerFront;
@@ -512,7 +541,7 @@ export const buildDigitalRig: SynthRigBuilder = (opts) => {
    */
   const colTopY = tierArmBotY ?? caseBotY;
   const colBotY = 0.044;
-  const colGeo = new BoxGeometry(0.040, colTopY - colBotY, 0.040);
+  const colGeo = new BoxGeometry(COL_W, colTopY - colBotY, COL_W);
 
   const lowArmFront = keyBackZ - whiteLength + 0.040;
   const lowArmBack = keyBackZ + 0.300;
@@ -553,6 +582,26 @@ export const buildDigitalRig: SynthRigBuilder = (opts) => {
     feet.instanceMatrix.needsUpdate = true;
   }
 
+  // --- Sockets -------------------------------------------------------------
+
+  /**
+   * On the back of the lower slab, and never on the upper one.
+   *
+   * A stack is two instruments and the top one has its own jacks, but a lead
+   * from up there would cross the frame's own arms and columns on its way down
+   * — three collisions the router cannot see, because none of this rig's steel
+   * is an obstacle in the xz plane it works in. The lower case is 40 cm off the
+   * boards with nothing under it, so a lead leaves it and falls to the deck
+   * through clear air.
+   *
+   * `panelDepth` rather than a number: the slab's back face is wherever this
+   * build put it, and this rig varies that depth per instrument.
+   */
+  const outlet = mountOutlet(
+    group, bezelMat,
+    new Vector3(shellW * 0.34, caseBotY + CASE_H * 0.45, keyBackZ + panelDepth),
+  );
+
   // --- The one thing that moves --------------------------------------------
 
   /**
@@ -571,6 +620,7 @@ export const buildDigitalRig: SynthRigBuilder = (opts) => {
 
   const rig: SynthRig = {
     group,
+    outlet,
 
     react(force: number, now: number): void {
       flickerBeat = now;

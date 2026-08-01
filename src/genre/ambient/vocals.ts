@@ -2,10 +2,11 @@
  * How ambient sings.
  *
  * This profile sits at the far end of an axis the other two genres share. Jazz
- * changes syllable on every note, iskelmä holds a vowel across a phrase, and
- * ambient holds one for longer still and articulates it about as softly as the
- * machinery permits — a slow choral line, no text, arriving on the note rather
- * than being struck onto it.
+ * puts a hard syllable on every note, iskelmä sings words with long vowels in
+ * them, and ambient sings words that are very nearly *only* long vowels —
+ * `WORD_STYLES.airy` writes a doubled vowel more often than not and opens
+ * barely half its syllables on anything at all. A slow choral line arriving on
+ * the note rather than being struck onto it.
  *
  * It is worth being explicit about the tension, because it is real. The whole
  * syllable mechanism exists to stop a synthesised voice becoming a pad; ambient
@@ -22,7 +23,7 @@
  * voice simply leans in — which is why they carry nearly the whole weight here.
  */
 
-import type { VocalProfile } from '../../style/vocals.js';
+import { WORD_STYLES, type VocalProfile } from '../../style/vocals.js';
 
 export const VOCALS: VocalProfile = {
   name: 'voice',
@@ -52,11 +53,10 @@ export const VOCALS: VocalProfile = {
   // a bare vowel onset has none either — between them that is 90% of the
   // weight. The occasional fricative is breath rather than a consonant.
   consonants: [
-    ['nasal', 5], ['none', 5], ['liquid', 3], ['fricative', 1],
+    ['nasal', 5], ['none', 5], ['nasal-m', 4], ['liquid', 3], ['liquid-r', 2],
+    ['fricative-h', 1.5], ['fricative-f', 1], ['fricative', 1],
   ],
-  // Twice the iskelmä hold. A whole phrase on one vowel is what choral writing
-  // does with a single syllable of text.
-  hold: 10,
+  words: WORD_STYLES.airy!,
   // Higher than the other two profiles. Choral ambient sits where a treble line
   // sits, not where a crooner does.
   centre: 62,

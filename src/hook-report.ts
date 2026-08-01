@@ -158,7 +158,10 @@ function measure(song: Song, m: Measurement): void {
     if (!track) continue;
     const from = sec.startBar * beatsPerBar;
     const to = from + sec.lengthBars * beatsPerBar;
-    const inSection = track.notes
+    // The line, not the track, on whichever layer it turned out to be: the
+    // soloist has two hands as often as the lead does, and a signature taken
+    // over their comping would call two identical choruses different.
+    const inSection = melodicLine(track)
       .filter((n) => n.beat >= from && n.beat < to)
       .sort((a, b) => a.beat - b.beat);
     if (!inSection.length) continue;

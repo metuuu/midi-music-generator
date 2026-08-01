@@ -38,6 +38,23 @@
  * So the unit of this page is an *exhibit* — one buildable object — and the
  * archetype is only one of the things that decides which.
  *
+ * The same argument reaches past the rig id, which is why the synthesiser now
+ * takes several rows on the grid rather than three. A digital slab with a
+ * second board over it is not the same object as a slab: the upper case, its
+ * stand and the arm that carries it are geometry that exists only when
+ * `Performer.boards` is 2, and the bench could not be made to draw any of it. A
+ * modular is the same story three times over — a tier and two toed-in wings —
+ * and a modular with the band's rhythm machine *in* it has a faceplate no other
+ * exhibit here has. Every one of those is built by a branch that shipped
+ * unseen, which is the exact gap this page was made for.
+ *
+ * Where a variant is reachable on a real stage and where it is only buildable
+ * is worth keeping straight, and the bench deliberately does not: it shows what
+ * the models can be asked for. A player is capped at two lines today, so
+ * `cast.ts` never asks for a third or fourth board — while `SYNTH_RIGS.modular`
+ * says four, because four is what a frame holds. The wings are drawn either
+ * way, and a wing nobody has ever looked at is worse than a wing nobody stages.
+ *
  * The player can be put in either of the two poses that matter: waiting at the
  * instrument, and playing it. Both come from the model's own `resolve`, so a
  * hand that lands in the wrong place here lands in the wrong place on stage.
@@ -49,7 +66,7 @@ import {
   WebGLRenderer,
 } from 'three';
 
-import { ARCHETYPES, specFor } from '../../concert/instruments.js';
+import { ARCHETYPES, SYNTH_RIGS, specFor } from '../../concert/instruments.js';
 import type {
   Archetype, ArchetypeSpec, Effector, Look, Performer, PlayPoint, SynthRigId,
 } from '../../concert/types.js';
@@ -86,8 +103,22 @@ interface Entry {
   archetype?: Archetype;
   /** Which synthesiser, where the archetype is `synth`. From `Performer.rig`. */
   rig?: SynthRigId;
+  /**
+   * How many keyboards this station stands at. Absent means one.
+   *
+   * From `Performer.boards`, and it is the rig's geometry that changes: the
+   * boards themselves are `synth.ts`'s and are laid out by `boardsFor` either
+   * way, but the shelf, the posts and the arm holding each of them up are built
+   * by whichever rig was asked to carry them.
+   */
+  boards?: number;
   /** A drummer on pads rather than an acoustic kit. From the number's `DrumSource`. */
   electronic?: boolean;
+  /**
+   * The band's machine as a *module in this rig*, rather than as its own
+   * object. See `StageMachine.mount`, and `machine` for the standalone one.
+   */
+  bay?: DrumMachineOptions['kind'];
   machine?: DrumMachineOptions['kind'];
 }
 
@@ -104,13 +135,60 @@ const RIG_LABEL: Record<SynthRigId, string> = {
   digital: 'digital slab',
 };
 
+/**
+ * The rig that has somewhere to put a machine, and what each module looks like.
+ *
+ * Only the modular has a bay, and that is `cast.ts`'s rule rather than this
+ * page's: a machine is mounted `'bay'` where its tender stands at a modular and
+ * `'stand'` everywhere else, because a cabinet of modules is the one object a
+ * rhythm machine can honestly be *inside*. The two kinds build different
+ * faceplates — a step row with three voice lamps, or the same row under a knob
+ * per step — so both are exhibits. `box` is not: a preset box and a programmed
+ * one reach the same percussion module, and the cream-and-wood case that tells
+ * those two apart on a stand is the half of the object a bay does not have.
+ */
+const BAY_MODULES: readonly (readonly [DrumMachineOptions['kind'], string])[] = [
+  ['programmed', 'rhythm module'],
+  ['sequencer', 'step sequencer'],
+];
+
 function entries(): Entry[] {
   const out: Entry[] = [];
   for (const id of Object.keys(ARCHETYPES) as Archetype[]) {
     const { label } = ARCHETYPES[id];
     if (id === 'synth') {
       for (const rig of Object.keys(RIG_LABEL) as SynthRigId[]) {
-        out.push({ id: `synth:${rig}`, label: `${label}, ${RIG_LABEL[rig]}`, archetype: id, rig });
+        const name = `${label}, ${RIG_LABEL[rig]}`;
+        /**
+         * One exhibit per board count the object can hold.
+         *
+         * `SYNTH_RIGS[rig].maxBoards` and not `Performer.boards`, because this
+         * is a page about objects: the ceiling is what the rig could carry, and
+         * how many a player actually stands at is a fact about their music that
+         * no bench has. A polysynth's is 1 and this loop runs once for it,
+         * which is the answer — a Prophet with a second keyboard on it is not a
+         * variant of a Prophet, it is two stations.
+         */
+        for (let boards = 1; boards <= SYNTH_RIGS[rig].maxBoards; boards++) {
+          out.push({
+            id: boards === 1 ? `synth:${rig}` : `synth:${rig}:${boards}`,
+            label: boards === 1 ? name : `${name}, ${boards} keyboards`,
+            archetype: id,
+            rig,
+            ...(boards > 1 ? { boards } : {}),
+          });
+        }
+        if (rig === 'modular') {
+          for (const [kind, module] of BAY_MODULES) {
+            out.push({
+              id: `synth:${rig}:${kind}`,
+              label: `${name}, ${module}`,
+              archetype: id,
+              rig,
+              bay: kind,
+            });
+          }
+        }
       }
     } else if (id === 'drumkit') {
       out.push({ id, label, archetype: id });
@@ -204,6 +282,7 @@ function performerFor(entry: Entry, archetype: Archetype): Performer {
       position: [0, 0, 0], facing: 0, posture: ARCHETYPES[archetype].posture, riser: 0,
     },
     ...(entry.rig ? { rig: entry.rig } : {}),
+    ...(entry.boards ? { boards: entry.boards } : {}),
   };
 }
 
@@ -235,6 +314,36 @@ for (let i = 0; i < MACHINE_BEATS_PER_BAR * 2; i++) {
   MACHINE_PATTERN.push({ beat, voice: 'hh', velocity: 0.6 });
   if (i % 4 === 0) MACHINE_PATTERN.push({ beat, voice: 'bd', velocity: 1 });
   if (i % 4 === 2) MACHINE_PATTERN.push({ beat, voice: 'sd', velocity: 0.9 });
+}
+
+/** Bars of it a bay gets. An hour of them at the bench's beat-a-second clock. */
+const BAY_BARS = 900;
+
+/**
+ * The same bar, written out for as long as anybody looks at one exhibit.
+ *
+ * A machine in a cabinet cannot have the trick the standalone ones get. Those
+ * are handed a clock wrapped to the bar — a machine on a stand is the only
+ * thing on its own exhibit, so rewinding it every four beats costs nothing and
+ * is a path the object already has. A bay is half of a rig that is animating
+ * off the *same* number, and a clock jumping backwards every four seconds is a
+ * wall of lamps that stutters and an LFO that never gets anywhere.
+ *
+ * So the clock stays monotonic and the pattern is what repeats. The runner
+ * stops a bar after its last event — see `createMachineRunner` — and it starts
+ * at its first, which is why the figure is laid down from the bar the page is
+ * *already* in rather than from zero: an exhibit picked twenty minutes in has
+ * to be running when it appears, and on the same grid the step row walks.
+ */
+function bayPattern(): DrumEvent[] {
+  const bar0 = Math.floor(performance.now() / 1000 / MACHINE_BEATS_PER_BAR);
+  const out: DrumEvent[] = [];
+  for (let bar = bar0; bar < bar0 + BAY_BARS; bar++) {
+    for (const e of MACHINE_PATTERN) {
+      out.push({ ...e, beat: bar * MACHINE_BEATS_PER_BAR + e.beat });
+    }
+  }
+  return out;
 }
 
 // --- poses ---------------------------------------------------------------
@@ -475,6 +584,13 @@ function build(which: Entry[]): void {
     const model = buildInstrumentFor(
       performer, undefined, undefined, undefined,
       entry.electronic ? 'electronic-kit' : undefined,
+      // The same bar the standalone machines run, for the same reason: a bay
+      // whose step row never lights is a rack panel, and the row is the half of
+      // that module worth coming here to see. See `bayPattern` for why it is
+      // written out rather than looped.
+      entry.bay
+        ? { kind: entry.bay, events: bayPattern(), beatsPerBar: MACHINE_BEATS_PER_BAR }
+        : undefined,
     );
     let rig: PerformerRig | undefined;
 

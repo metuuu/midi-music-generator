@@ -20,7 +20,7 @@ import { scaleStepsBetween, stepInScale, type Scale } from '../core/scale.js';
 import { buildFill, DEFAULT_FILLS, landing, type FillPalette } from './fills.js';
 import { IDIOMS, type HandSpec, type IdiomProfile } from '../style/instruments.js';
 import type {
-  BassPattern, CompHit, CompPattern, DrumPattern, LeftHandMode, Style,
+  BassPattern, CompHit, CompingProfile, CompPattern, DrumPattern, LeftHandMode, Style,
 } from '../style/types.js';
 import { metricStrength, SLOTS_PER_BEAT } from './rhythm.js';
 
@@ -294,6 +294,8 @@ export function generateComp(
   scaleFor?: (chord: Chord) => Scale,
   /** Register discipline from the arranger — see `generate/arrange.ts`. */
   limits: { ceiling?: Midi; clarity?: number } = {},
+  /** How far this player departs from the figure. Absent means they do not. */
+  comping?: CompingProfile,
 ): NoteEvent[] {
   const { chords, beatsPerBar, startBeat, rng } = ctx;
   const slotsPerBar = beatsPerBar * SLOTS_PER_BEAT;
@@ -339,6 +341,108 @@ export function generateComp(
     voicings.push(voicing);
     previous = voicing;
   }
+  /**
+   * What the comper does with the figure, bar by bar. See `CompingProfile`.
+   *
+   * Drawn up front, one set of decisions per bar, for the same reason the
+   * voicings are: these are choices a *player* makes about a bar, and drawing
+   * them inside the hit loop would make them choices about a hit — two stabs in
+   * the same bar, one anticipated and one not, which is not a comper varying
+   * their figure, it is two compers.
+   *
+   * Never on an arpeggiated pattern. Those are sequencer figures whose whole
+   * appeal is that they do not vary — a resting bar in a Berlin-school sequence
+   * is a fault, not a gesture — and no style that has one declares a profile
+   * anyway. The guard is here so that stays true if one ever does.
+   */
+  const plan = comping && !pattern.arpeggio
+    ? chords.map((_, bar) => ({
+      /**
+       * …except the bar the section lands on, which is never dropped.
+       *
+       * A comper leaves holes in the middle of a chorus and is *there* for the
+       * cadence — the last bar is where the section arrives, and a rhythm
+       * section that sat it out would sound like it had lost its place rather
+       * than like it was leaving space.
+       *
+       * It also keeps this gesture out of the ending's way, which is not a
+       * coincidence but the same fact seen from the other end. The final bar of
+       * the piece is not a bar of the arrangement at all — see `EndingStyle` —
+       * and the button is built by recalling whatever the layer was last
+       * holding. Resting there changed which note that was, and under a feel
+       * that lengthens notes it became one already ringing through the landing,
+       * which suppresses the recall: the band's last chord came out as a single
+       * held note. `npm run genres` caught it as a feel losing four notes.
+       */
+      rest: bar < chords.length - 1 && rng.chance(comping.rest),
+      anticipate: rng.chance(comping.anticipate),
+      /**
+       * Which way, decided once for the bar. Zero leaves the figure alone.
+       *
+       * **A whole beat, not an eighth**, and that is not a musical preference —
+       * it is the rule `Feel.displace` already writes down for itself. An offbeat
+       * eighth is the one position `applySwing` moves; nudge a stab off it and
+       * the note stops being swung, so whether it is swung now depends on which
+       * feel is in force. Measured with an eighth: four comp notes went missing
+       * between a felt song and its plain twin, and `npm run genres` reports that
+       * as a feel losing notes, which is exactly what it should report.
+       *
+       * A beat keeps the parity — an offbeat stab stays an offbeat stab — and it
+       * is the better gesture anyway. Half an eighth either way is a nudge nobody
+       * hears; the same stab arriving on the and of one instead of the and of two
+       * is a comper playing a different bar.
+       */
+      displace: rng.chance(comping.displace) ? (rng.chance(0.5) ? SLOTS_PER_BEAT : -SLOTS_PER_BEAT) : 0,
+    }))
+    : undefined;
+
+  /**
+   * The slots an anticipation has taken over, so the figure can leave them free.
+   *
+   * The last eighth of a bar is where a comp pattern most often already has a
+   * hit — `shuffle-stabs` and every other charleston-shaped figure put one on
+   * the "and of four" — so an anticipation added there would sound the previous
+   * bar's chord and the next bar's chord together, which is not a push, it is
+   * two chords at once. Working the slots out before either pass runs is what
+   * lets the hit loop simply skip them.
+   */
+  const anticipated = new Set<number>();
+  /** Downbeats the anticipation has already stated, so the bar does not restate them. */
+  const landed = new Set<number>();
+  /**
+   * Every slot the figure already lands on, so a displacement cannot land on one.
+   *
+   * Two hits moved onto the same slot are two chords struck together — the same
+   * chord twice, since they share the bar's voicing — which is a duplicated note
+   * at every pitch rather than a variation. It is inaudible as a gesture and very
+   * audible downstream: the duplicates travel through the feel passes as one
+   * onset group, and a felt song ended up with fewer notes than its plain twin,
+   * which `npm run genres` reports as a feel losing notes.
+   */
+  const occupied = new Set<number>();
+  if (plan) {
+    for (const { slot } of cycleHits(pattern.hits, {
+      cycle: pattern.cycle ?? slotsPerBar, bars: chords.length, slotsPerBar,
+    })) occupied.add(slot);
+  }
+  if (plan) {
+    for (let bar = 1; bar < chords.length; bar++) {
+      const play = plan[bar]!;
+      if (play.rest || !play.anticipate) continue;
+      anticipated.add(bar * slotsPerBar - SLOTS_PER_BEAT / 2);
+      /**
+       * …and the downbeat itself, which is the half of the gesture that is easy
+       * to forget. A chord *anticipated* has arrived; a comper who pushes it
+       * ahead of the barline and then hits it again on beat one has not
+       * anticipated anything, they have played it twice. On a charleston-shaped
+       * figure that is exactly what happened — the push rang into an identical
+       * restrike, which the ensemble audit reported as voices doubled at the
+       * unison and which is audible as a flam.
+       */
+      landed.add(bar * slotsPerBar);
+    }
+  }
+
   // Built per bar because the voicing is, but the *length* is a property of the
   // pattern rather than of the harmony, so the walk keeps its phase across the
   // whole section — which is the entire reason `step` survives the barline.
@@ -350,13 +454,65 @@ export function generateComp(
     const voicing = voicings[bar]!;
     const ladder = ladders[bar];
     const sounding = ladder ? [ladder[step++ % ladder.length]!] : voicing;
+    const play = plan?.[bar];
+    // A bar the comper sits out. Taken before the hit is placed rather than by
+    // filtering afterwards, so a rested bar costs no other decision.
+    if (play?.rest) continue;
+    // Ceded to the next bar's anticipation — see below. The old chord does not
+    // get played *and* pushed aside; the whole gesture is that the new harmony
+    // takes that eighth off it.
+    if (anticipated.has(slot) || landed.has(slot)) continue;
+
+    let at = slot;
+    if (play?.displace && slot % slotsPerBar !== 0) {
+      // Moved, but it stays in its own bar and never lands on the downbeat: a
+      // stab pushed onto beat one is not a displaced comp, it is a different
+      // figure, and one pushed into the next bar is the wrong harmony.
+      const moved = slot + play.displace;
+      const bar0 = bar * slotsPerBar;
+      const free = !occupied.has(moved) && !anticipated.has(moved) && !landed.has(moved);
+      if (moved > bar0 && moved < bar0 + slotsPerBar && free) at = moved;
+    }
+
     for (const midi of sounding) {
       out.push({
-        beat: startBeat + slot / SLOTS_PER_BEAT,
+        beat: startBeat + at / SLOTS_PER_BEAT,
         duration: hit.dur / SLOTS_PER_BEAT,
         midi,
         velocity: (hit.vel ?? 0.65) * rng.float(0.92, 1.0),
       });
+    }
+  }
+
+  /**
+   * The anticipations, added rather than moved.
+   *
+   * An anticipation is *this* bar's harmony sounding at the end of the bar
+   * before it, and that is a chord the figure does not contain — so nudging an
+   * existing hit cannot produce one. The first attempt did exactly that, moving
+   * a downbeat hit an eighth earlier, and it fired on almost nothing: the blues
+   * patterns this was written for state their hits on the second and fourth
+   * offbeats and have no downbeat hit to move. A pattern's own rhythm is not
+   * where the gesture lives.
+   *
+   * Placed on the last eighth and held through the barline, which is what makes
+   * it read as a push rather than as a stab in a hole. A shade louder for the
+   * same reason.
+   *
+   * Never before bar zero: that lands in the previous section, where the comp
+   * from *that* section is still sounding and nothing downstream would clear the
+   * overlap. Only the lead layer writes backwards across a seam — see the pickup
+   * rules in `generateSong`.
+   */
+  for (const at of anticipated) {
+    const voicing = voicings[Math.round((at + SLOTS_PER_BEAT / 2) / slotsPerBar)]!;
+    if (!voicing || voicing.length < 2) continue;
+    const velocity = 0.62 * rng.float(0.94, 1.06);
+    for (const midi of voicing) {
+      // Through the barline and a little past it. An eighth that let go before
+      // the bar arrived would be a grace note rather than a push; a whole beat
+      // rings into the figure's own next hit and thickens into it.
+      out.push({ beat: startBeat + at / SLOTS_PER_BEAT, duration: 0.75, midi, velocity });
     }
   }
   out.sort((a, b) => a.beat - b.beat || a.midi - b.midi);
@@ -372,14 +528,19 @@ export function generateComp(
  * layer as the line, so the Song IR carries one track with two things happening
  * in it at once, which is what a piano is.
  *
- * ## Four things, not one
+ * ## Five things, not one
  *
  * This function had one behaviour for as long as there was one style using it,
  * and the behaviour was good enough that it took a second instrument to notice
  * it was also the *only* one. A left hand that exclusively answers in the holes
  * is a real and recognisable sound — it is post-war comping — but a player who
  * did nothing else for four minutes would sound like a player with a tic. See
- * `LeftHandMode` for what the four are and why they are drawn per section.
+ * `LeftHandMode` for what the five are and why they are drawn per section.
+ *
+ * Four of them voice a chord somewhere and the fifth plays a bass line, which
+ * is the split worth knowing: `stride` is the only one that reaches below the
+ * hand's comping floor, and the only one whose left hand can carry a section
+ * with no bass player in it.
  *
  * ## What every mode has in common
  *
@@ -412,6 +573,7 @@ export function generateLeftHand(
       case 'unison': return unisonHand(ctx, line, opts);
       case 'block': return blockHand(ctx, line, opts);
       case 'ostinato': return ostinatoHand(ctx, opts);
+      case 'stride': return strideHand(ctx, line, opts);
       default: return answeringHand(ctx, line, opts);
     }
   })();
@@ -421,7 +583,7 @@ export function generateLeftHand(
    * *Being the left hand* is what this function returns, not something any one
    * mode decides — a montuno and a block chord are different gestures and equally
    * the left hand. Marking at the boundary means a mode added later is marked
-   * before it is written, which is the failure the four modes have already had in
+   * before it is written, which is the failure the earlier modes have already had in
    * a different form: `ostinato` shipped playing single notes and was silently
    * counted as melody for as long as it took someone to notice the jazz line's
    * mean had dropped four semitones. See `NoteEvent.hand`.
@@ -443,6 +605,9 @@ export interface LeftHandOptions {
    * dropped out for one bar in five is not a sparser unison, it is a mistake,
    * and the same is true of a vamp with holes in it. Sparseness in those two is
    * a property of the figure, which is where it belongs.
+   *
+   * `stride` reads it for half of itself. The chords thin out; the bass notes
+   * never do, for the same reason the vamp does not — see `strideHand`.
    */
   density: number;
   /** Needed where the genre voices from the chord scale. */
@@ -498,13 +663,17 @@ function isChord(voicing: readonly Midi[]): boolean {
 function handVoicing(
   chord: Chord, [lo, hi]: [Midi, Midi], opts: LeftHandOptions, previous?: Midi[],
 ): Midi[] {
+  // The hand's own clarity wins over the style's where it has one, because it is
+  // a fact about the buttons rather than a preference about the arrangement. See
+  // `HandSpec.clarity`.
+  const clarity = opts.spec.clarity ?? opts.clarity;
   return voiceChord(chord, {
     voices: opts.spec.voices,
     centre: Math.round((lo + hi) / 2),
     lo,
     hi,
     style: opts.spec.voicing,
-    ...(opts.clarity !== undefined ? { clarity: opts.clarity } : {}),
+    ...(clarity !== undefined ? { clarity } : {}),
     ...(opts.scaleFor ? { scale: opts.scaleFor(chord) } : {}),
     ...(previous ? { previous } : {}),
   });
@@ -812,6 +981,148 @@ function ostinatoHand(ctx: PartContext, opts: LeftHandOptions): NoteEvent[] {
 }
 
 /**
+ * STRIDE — the bass note, then the chord, then the bass note again.
+ *
+ * The oom-pah. The stradella button side, the stride pianist's left hand, the
+ * boom-chuck under every dance band that ever played a hall — one gesture with
+ * four names, and the only mode here that plays a *bass line*. Every other one
+ * finds a chord and puts it somewhere; this one alternates two different things
+ * in two different registers, which is why it needed a second register on the
+ * instrument (`HandSpec.bass`) before it could exist at all.
+ *
+ * ## Why it is the mode a solo wants
+ *
+ * `answer` and `block` are both written against the line, and both correctly
+ * thin out as the line fills up — a pianist's left hand really does go quiet
+ * through a busy passage. A solo is a busy passage from end to end, so a break
+ * accompanied by those two is a break accompanied by almost nothing, which is
+ * the opposite of what the left hand is for when the right one is improvising.
+ * Stride does not read the line. It keeps the time and states the harmony while
+ * the right hand does whatever it likes on top, which is exactly the division of
+ * labour that lets one player sound like two.
+ *
+ * ## The oom is a dyad, not a note
+ *
+ * The root with its fifth on top. Musically it is the plainest bass gesture
+ * there is — a bare fifth is the "oom" of every polka ever charted — and it is
+ * also load-bearing: a left hand sounding a *single* note in a hole is read as
+ * the melody by the rule `melodicLine` falls back on, so a lone bass note would
+ * not merely be thin, it would be counted as the tune. See `isChord`, which is
+ * the same fact arriving from the other direction, and `npm run genres`, which
+ * asserts it across every mode.
+ *
+ * ## Which beats are oom and which are pah
+ *
+ * Two, and the metre picks between them. In four, the bass takes one and three
+ * and the chord takes two and four — the humppa, the foxtrot, the march. In
+ * three, the bass takes the downbeat alone and the chords take the rest, which
+ * is the waltz and is not the same pattern with a beat removed. Everything else
+ * alternates from the downbeat and lands somewhere reasonable.
+ */
+function strideHand(
+  ctx: PartContext, line: readonly NoteEvent[], opts: LeftHandOptions,
+): NoteEvent[] {
+  const bassFloor = opts.spec.bass;
+  if (bassFloor === undefined) return [];
+
+  const { chords, beatsPerBar, startBeat, rng } = ctx;
+  const out: NoteEvent[] = [];
+  const sorted = line.slice().sort((a, b) => a.beat - b.beat);
+  const beats = Math.max(1, Math.round(beatsPerBar));
+  let previous: Midi[] | undefined;
+  /**
+   * Root, fifth, root, fifth — across the whole section, not the bar.
+   *
+   * The alternation is what stops a bass line being a pedal, and it belongs to
+   * the *hand* rather than to the bar: a player who reset to the root at every
+   * barline would be playing root-fifth-root-fifth in four and root-root-root
+   * in three, where what a waltz bass actually does is walk root, fifth, root
+   * across three bars. Carried past the barline, like `step` in the comp.
+   */
+  let alternate = 0;
+
+  for (let bar = 0; bar < chords.length; bar++) {
+    const chord = chords[bar]!;
+    const barStart = startBeat + bar * beatsPerBar;
+    const barEnd = barStart + beatsPerBar;
+    const inBar = sorted.filter((n) => n.beat < barEnd && n.beat + n.duration > barStart);
+
+    /**
+     * From where the line is, exactly as the answering hand does it.
+     *
+     * The chord half still has to keep out of the right hand's way — the daylight
+     * rule is not relaxed for a mode that also plays a bass note — and the bass
+     * half is below the chord by construction, so one window does for both.
+     */
+    const lineFloor = inBar.length ? Math.min(...inBar.map((n) => n.midi)) : opts.spec.lead;
+    const window = handWindow(opts.spec, lineFloor);
+    if (!roomToVoice(window)) continue;
+
+    const voicing = handVoicing(chord, window, opts, previous);
+    previous = voicing;
+    /**
+     * A bar whose chord will not voice still gets its bass line.
+     *
+     * Every other mode returns nothing here and is right to — a hand with
+     * nowhere to put a chord has nothing to say. This one does: the bass note is
+     * not a voicing and does not need room to be one, and a player whose chord
+     * button is unreachable keeps marking the beat with the other row. Written
+     * as a `continue` on the chord half rather than on the bar because the
+     * accordion needs it in about one bar in three, and an oom-pah that stopped
+     * dead in those bars would not be sparse, it would be broken.
+     */
+    const pah = isChord(voicing) ? voicing : undefined;
+
+    for (let beat = 0; beat < beats; beat++) {
+      const at = barStart + beat;
+      if (at >= barEnd - 1e-6) break;
+      const bass = beats === 3 ? beat === 0 : beat % 2 === 0;
+
+      if (bass) {
+        /**
+         * The root in the hand's own bass octave, and the fifth seven above it.
+         *
+         * `clampToRange` over exactly twelve semitones, so the pitch class always
+         * survives — a narrower window folds to whatever is nearest and hands
+         * back the wrong note, which on a bass line is not a voicing detail but a
+         * wrong chord. That is also why the dyad is not pushed below the chord it
+         * alternates with: squeezing it under a voicing that has already been
+         * placed leaves too little room to keep the octave honest, and on the
+         * accordion no room at all. `HandSpec.bass` puts the root under the
+         * chord's floor by construction and lets the fifth sit where it likes,
+         * which is what the button rows actually do.
+         */
+        const tone = alternate++ % 2 === 0 ? chord.root : pc(chord.root + 7);
+        const root = clampToRange(nearestPc(tone, bassFloor + 6), bassFloor, bassFloor + 11);
+        const fifth = root + 7;
+        const velocity = 0.6 * rng.float(0.94, 1.04);
+        for (const midi of [root, fifth]) {
+          out.push({ beat: at, duration: Math.min(0.9, barEnd - at), midi, velocity });
+        }
+        continue;
+      }
+
+      /**
+       * The chord, on the offbeat of the pair, and shorter than the bass.
+       *
+       * Short is the whole character: the "pah" is a stab that gets out of the
+       * way before the next bass note, and a chord held to the following beat
+       * turns an oom-pah into a pad with a bass line under it. `density` takes
+       * the odd one away — the bass never goes, because a bass line with holes
+       * in it is a mistake rather than a sparser bass line, which is the same
+       * argument `unison` and `ostinato` make about themselves.
+       */
+      if (!pah || !rng.chance(opts.density)) continue;
+      const velocity = 0.46 * rng.float(0.9, 1.06);
+      for (const midi of pah) {
+        out.push({ beat: at, duration: Math.min(0.55, barEnd - at), midi, velocity });
+      }
+    }
+  }
+  return out.sort((a, b) => a.beat - b.beat || a.midi - b.midi);
+}
+
+/**
  * Sustained chords, merged across repeated harmony so the pad breathes.
  *
  * Voiced `spread` rather than close. A pad in close position occupies the same
@@ -895,6 +1206,27 @@ export function generateBrass(
     melody?: readonly NoteEvent[];
     /** How busy this section is; drives how often the brass speaks at all. */
     intensity?: number;
+    /**
+     * The section's riff, as beat offsets inside a bar, from `Chart.riff`.
+     *
+     * When the arrangement drew the `riff` device this replaces the search for a
+     * hole: the horns play the *same* figure every `every` bars, which is the
+     * whole difference between a section that has a horn part and one where a
+     * horn section keeps having ideas. Empty means the old behaviour, which is
+     * still the right answer for an arrangement whose horns are punctuation.
+     */
+    figure?: readonly number[];
+    /** How often the figure comes round, in bars. */
+    every?: number;
+    /**
+     * Whether this arrangement swells under the tune's long notes.
+     *
+     * Gated rather than always-on because it is a *device*, drawn per song in
+     * `planChart`. Horns that both punctuate and swell in every number are horns
+     * with no character; horns that only ever swell are a string section, and
+     * that is a describable arrangement rather than an accident.
+     */
+    swell?: boolean;
   } = {},
 ): NoteEvent[] {
   const { chords, beatsPerBar, startBeat, rng } = ctx;
@@ -923,16 +1255,79 @@ export function generateBrass(
     };
 
     if (isLast) {
-      // Punctuation into whatever comes next — the one gesture worth keeping.
-      sound(barStart + beatsPerBar - 1, 0.75, 0.7 * intensity);
+      /**
+       * Punctuation into whatever comes next — the one gesture worth keeping.
+       *
+       * Held rather than clipped where the arrangement swells, and that is the
+       * same decision as the swell itself rather than a second one: a horn section
+       * whose vocabulary is long notes ends a section by leaning into the seam,
+       * and one whose vocabulary is stabs ends it by hitting the seam and
+       * stopping. Both are punctuation. They are different punctuation.
+       */
+      const length = opts.swell ? beatsPerBar * 0.9 : 0.75;
+      sound(barStart + beatsPerBar - Math.min(2, length), length, 0.7 * intensity);
       continue;
     }
 
     // Where is the tune resting, and where is it holding?
     const inBar = melody.filter((n) => n.beat < barEnd && n.beat + n.duration > barStart);
-    const held = inBar.find((n) => n.duration >= 2 && n.beat <= barStart + 1);
+    /**
+     * A note long enough to be worth growing underneath, wherever in the bar it
+     * starts.
+     *
+     * It used to have to begin in the bar's first beat, which meant the tune had to
+     * hold from the downbeat before the horns would answer it — and the note this
+     * gesture is *for* is the one a singer lands on at the end of a phrase, three
+     * beats in. Half the swells in the repertoire were unreachable.
+     */
+    const held = inBar.find((n) => n.duration >= 1.5 && n.beat + n.duration >= barStart + 2);
 
-    if (held && rng.chance(0.45 * intensity)) {
+    /**
+     * The riff, where the arrangement has one.
+     *
+     * Played on its own schedule rather than wherever the tune leaves a hole,
+     * because that is what makes it recognisable as the same figure coming
+     * round — a riff that moved to fit each bar's gaps would be a well-behaved
+     * accompaniment and nobody would be able to hum it.
+     *
+     * What it does yield is *which* of its attacks sound. A horn section playing a
+     * figure under a singer who is in the middle of a line drops the notes that
+     * would land on top of them and plays the rest, and the figure survives that
+     * intact — a riff is recognised from its shape, and three attacks with the
+     * second one missing is still the same three attacks.
+     *
+     * A moving melody note is what gets yielded to; a *held* one is not. The horns
+     * playing a figure underneath a long note is the whole gesture, not a
+     * collision, and treating those two cases alike is what made this land on the
+     * tune a third of the time in the first version.
+     */
+    const figure = opts.figure ?? [];
+    if (figure.length && bar % Math.max(1, opts.every ?? 2) === 0) {
+      let played = 0;
+      figure.forEach((offset, i) => {
+        const at = barStart + offset;
+        if (at >= barEnd - 0.05) return;
+        const next = figure[i + 1] !== undefined ? barStart + figure[i + 1]! : barEnd;
+        const duration = Math.min(0.75, next - at);
+        const moving = melody.some((n) => n.duration < 1
+          && n.beat < at + duration - 1e-6 && n.beat + n.duration > at + 1e-6);
+        if (moving) return;
+        const under = inBar.some((n) => n.beat <= at + 1e-6 && n.beat + n.duration > at + 1e-6);
+        sound(at, duration, (under ? 0.58 : 0.74) * intensity);
+        played++;
+      });
+      if (played) continue;
+    }
+
+    /**
+     * The inner coin is high because the outer gate now carries the decision.
+     *
+     * At 0.45 this was one of two independent rolls — the layer's, and the bar's —
+     * which is the stacking the chart exists to remove. An arrangement that drew
+     * `swell` has *said* its horns hold under the tune; the only question left is
+     * whether this particular long note wants it, and the answer is usually yes.
+     */
+    if (opts.swell && held && rng.chance(0.8 * intensity)) {
       /**
        * A swell under a held note. Length follows the note it is supporting,
        * so the brass arrives with the tune's long note and leaves with it —
@@ -957,7 +1352,18 @@ export function generateBrass(
     }
     if (barEnd - cursor > gapLen) { gapLen = barEnd - cursor; gapStart = cursor; }
 
-    if (gapLen < 0.75 || !rng.chance(0.4 * intensity)) continue;
+    /**
+     * A section whose horns swell does not also pepper the bar with stabs.
+     *
+     * The stab is the default gesture and the right one for an arrangement whose
+     * horns are punctuation. Where the chart drew `swell` instead, it is a
+     * *fallback* — the bars with no long note in them — and a horn section that
+     * spends the held notes growing underneath the tune and every other bar
+     * jabbing at it has no character at all, it has both characters. Halved rather
+     * than removed, because a section of pure sustain with nothing ever articulated
+     * is a string pad, and these are horns.
+     */
+    if (gapLen < 0.75 || !rng.chance((opts.swell ? 0.18 : 0.4) * intensity)) continue;
 
     /**
      * Place the stab off the beat where there is room for it. A brass hit on
@@ -1256,6 +1662,13 @@ function avoidClash(
  * Repaired through the *scale* rather than by a semitone, and downward first — an
  * answer sits under the tune where it can, so the first place to look for room is
  * below.
+ *
+ * Notes carrying `doubling: 'lead'` are left exactly where they are. That mark is
+ * only ever set by `joinIn`, over a whole phrase, by an arrangement that drew the
+ * `unison` device — so it means "the two players are stating this together", and
+ * repairing it would be this pass overruling the arranger. Everything unmarked is
+ * treated as it always was, which is the point of marking the exception rather
+ * than the rule.
  */
 export function undoubleAgainst(
   counter: NoteEvent[],
@@ -1282,6 +1695,7 @@ export function undoubleAgainst(
   };
 
   return counter.map((n) => {
+    if (n.doubling) return n;
     const under = sounding(n.beat);
     if (!under || Math.abs(under.midi - n.midi) % 12 !== 0) return n;
     for (let d = 1; d <= 6; d++) {

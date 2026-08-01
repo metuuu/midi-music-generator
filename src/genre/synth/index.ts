@@ -201,6 +201,32 @@ export const synth: Genre = {
   defaultHook: 'catchy',
 
   /**
+   * The octave-doubled lead is this decade's signature, and trading is not.
+   *
+   * A synth lead stacked with itself an octave down is so nearly universal in this
+   * music that a generator producing it a third of the time is producing something
+   * else — hence `unison` at double weight, and it lands in about 28% of numbers,
+   * which is as far as a weight can carry it while the device also needs a counter
+   * layer to live on.
+   *
+   * `trade` is the odd one out. Handing a phrase over is a gesture between two
+   * people who can hear each other, and this repertoire is overdubbed — the answer
+   * comes back on schedule because it was punched in, not because anybody was
+   * listening. It stays available, at a weight that keeps it rare.
+   *
+   * **`riff` is raised and barely fires, and that is a fact about the styles rather
+   * than about this table.** Four of the five synth styles carry `excludeLayers:
+   * ['brass']`, so the layer a riff needs is absent from most of the genre and the
+   * weight bites only in the one style that keeps it — measured, 2%. That sits
+   * awkwardly beside `synth/eras.ts`, which says at length that the brass layer is
+   * *not* vestigial here and that a synth-brass stab is a first-class sound of this
+   * music. One of the two is wrong and it is not obviously this one; left as it
+   * stands rather than quietly widening the styles' palettes to make a weight look
+   * effective.
+   */
+  arrangement: { unison: 6, riff: 5, trade: 1 },
+
+  /**
    * Where this genre disagrees with the shared rule table.
    *
    * The interesting entry is the one that is *absent*.

@@ -10,6 +10,7 @@
 import type { Midi } from './pitch.js';
 import type { Mode } from './scale.js';
 import type { FeelSpan } from '../style/feel.js';
+import type { Seam } from '../generate/transition.js';
 
 /**
  * Named layers. A game can duck, mute or crossfade these independently, which
@@ -183,6 +184,24 @@ export interface NoteEvent {
    * what it is than for four separate places to keep the inference safe.
    */
   hand?: 'left';
+  /**
+   * Set on notes that are sounding the lead's own line *on purpose*, and on
+   * nothing else.
+   *
+   * The same shape as `hand` above and for the same reason: the exception
+   * identifies itself. Every other note in the project is written to stay off the
+   * tune, `undoubleAgainst` moves any that ends up on it, and `npm run genres`
+   * asserts the answer never doubles it at the unison or the octave. All of that
+   * is right about an accident and wrong about a decision — two horns stating a
+   * head in octaves is not a fault, it is the most recognisable sound in the
+   * repertoire, and the only thing separating it from mud is that it is a whole
+   * phrase rather than a note that happened to collide.
+   *
+   * So the mark is what the repair passes and the checks read to tell the two
+   * apart. Without it there is no way to permit the gesture without also
+   * permitting the fault, which is why the project had ruled the gesture out.
+   */
+  doubling?: 'lead';
 }
 
 /**
@@ -841,6 +860,25 @@ export interface SongMeta {
    * apart.
    */
   feels?: FeelSpan[];
+  /**
+   * What happens at each section join. See `generate/transition.ts`.
+   *
+   * The sibling of `feels` above and carried for the same reason: a seam plan is
+   * IR rather than a private detail of the generator, so `score.ts` and the
+   * showbill can say *what the band does at bar 32* the way they can already say
+   * what chord is there. Indexed by the section being left, so an entry per join
+   * and none after the last bar.
+   *
+   * Absent on any song whose style names no transition palette, which is all of
+   * them today — and absent is the same statement it is for `feels`: the
+   * question was never asked, no draw was made, and the song is byte-for-byte
+   * what it was. It would have been easy to emit this unconditionally, since
+   * every song has seams and every seam resolves to `fill`; that was rejected
+   * because it would put an answer on three hundred songs that were not asked,
+   * and because the wave that introduced it is the one whose entire deliverable
+   * is that nothing changed, which a raw JSON compare can then prove.
+   */
+  transitions?: Seam[];
   /**
    * Bars of count-in at the very front of the song, before bar 1 of the music.
    *

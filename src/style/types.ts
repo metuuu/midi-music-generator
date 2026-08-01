@@ -18,6 +18,7 @@ import type { VoicingStyle } from '../core/voicing.js';
 import type { StrictnessId } from '../core/rules.js';
 import type { HookId } from '../generate/hook.js';
 import type { FillPalette } from '../generate/fills.js';
+import type { TransitionPalette } from '../generate/transition.js';
 
 /** One bar of melodic rhythm. `[6, 2, 8]` = dotted quarter, eighth, half. */
 export type RhythmCell = number[];
@@ -78,6 +79,48 @@ export interface CompHit {
   at: number;
   dur: number;
   vel?: number;
+}
+
+/**
+ * How far the comper departs from the figure they are playing.
+ *
+ * Every chordal part in this generator is a `CompPattern` — a figure, stated and
+ * repeated — and for a dance band that is not an approximation, it is the job. A
+ * humppa piano plays the oom-pah on every bar of every chorus and a tango guitar
+ * plays the same two stabs all night, because what those parts are *for* is a
+ * floor full of people knowing where beat one is.
+ *
+ * A jazz comper is the opposite instrument. Measured before this existed: where
+ * a blues chorus repeats a chord in consecutive bars, the piano played a
+ * **note-for-note identical bar 79% of the time**, and a twelve-bar section
+ * averaged 2.24 distinct bar-rhythms. That is not a sparse comper or a tasteful
+ * one, it is a loop — and a comper who never varies is more audible as a machine
+ * than any wrong note would be.
+ *
+ * So this is the amount of *not playing the figure*, and it is absent by default
+ * because absent is correct for most of the catalogue. Three gestures, and each
+ * one is a thing a comper does rather than a knob:
+ *
+ *  - **Rest.** The most important and the least obvious. A comper who plays every
+ *    bar is accompanying nothing; the holes are what make the chords land.
+ *  - **Anticipate.** The chord arrives an eighth before the barline and rings
+ *    through it — the single most characteristic gesture in the idiom, and the
+ *    one thing a figure repeated on the grid can never produce.
+ *  - **Displace.** An offbeat stab nudged an eighth either way, so two bars of
+ *    the same figure are not the same bar twice.
+ *
+ * Not line-aware, deliberately. The comp is written before the melody — see the
+ * order in `generateSong` — so it cannot answer a phrase it has not heard. What
+ * reacts to the finished tune is `patchBand` and the solo backing policy, which
+ * already exist and already do that job.
+ */
+export interface CompingProfile {
+  /** Chance a bar is left out altogether, 0..1. */
+  rest: number;
+  /** Chance a bar's chord also sounds an eighth ahead of its own barline. */
+  anticipate: number;
+  /** Chance an offbeat hit in a bar is nudged an eighth either way. */
+  displace: number;
 }
 
 export interface CompPattern {
@@ -197,7 +240,7 @@ export interface DrumPattern {
  *
  * The first version of this had one behaviour and no name for it, which is the
  * usual shape of a missing abstraction: the left hand answered in the holes the
- * right hand left, always, and that is one of the four things a two-handed
+ * right hand left, always, and that is one of the five things a two-handed
  * player does rather than the definition of playing two-handed. A pianist who
  * only ever answered would be a pianist with a tic.
  *
@@ -237,7 +280,28 @@ export type LeftHandMode =
    * line entirely — which is exactly why it works under a busy one, where
    * `answer` correctly falls silent and leaves the texture thin.
    */
-  | 'ostinato';
+  | 'ostinato'
+  /**
+   * A bass note, then the chord, then the bass note again.
+   *
+   * Stride, oom-pah, the stradella button side, boom-chuck — the same left hand
+   * under four names, and the only one of these modes that plays a **bass line**
+   * rather than voicing a chord somewhere. It is what a pianist does when there
+   * is nobody else to state the root and what an accordionist does whether there
+   * is or not: the bass buttons and the chord buttons are two different rows,
+   * and playing them alternately is the instrument's entire left-hand idiom.
+   *
+   * Missing for as long as this list had four entries, and the absence was
+   * loudest on the two instruments most associated with it. A humppa accordion
+   * comping in the holes is a jazz pianist's left hand on the wrong instrument;
+   * the oom-pah is not a decoration on that style, it is the style.
+   *
+   * Like `unison` it needs something from the instrument that not every hand has
+   * — somewhere to put the bass note, `HandSpec.bass` — and like `unison` it is
+   * filtered out of the draw where that is missing rather than chosen and then
+   * quietly producing nothing.
+   */
+  | 'stride';
 
 /**
  * The lead is a keyboard — or a vibraphone, or an accordion — and it plays with
@@ -267,7 +331,7 @@ export type LeftHandMode =
  * head and in a ballad alike. Those live in `HandSpec`, keyed by instrument, in
  * `style/instruments.ts`. What is left here is what genuinely is the style's
  * business: which instruments are eligible, how much the left hand speaks, and
- * which of the four things it does.
+ * which of the five things it does.
  */
 export interface TwoHandedKeys {
   /**
@@ -280,8 +344,17 @@ export interface TwoHandedKeys {
    *
    * Every id listed must have a `HandSpec`, or there is no left hand to write.
    * `npm run genres` asserts it.
+   *
+   * **Optional, and the empty case is the commoner one.** A style that omits it
+   * says something weaker and much more widely true: *whoever ends up playing,
+   * if they have two hands, they use them.* A tango is not defined by having an
+   * accordion out front the way a piano trio is defined by the piano — the
+   * palette may hand it a saxophone — but on the nights it does draw the
+   * accordion, that accordion plays its own bass and chords, because that is
+   * what the instrument does. Seizing the palette to get the left hand would
+   * have meant a genre of accordion tangos and nothing else.
    */
-  instruments: (readonly [InstrumentId, number])[];
+  instruments?: (readonly [InstrumentId, number])[];
   /** Chance the left hand speaks at any given opportunity, 0..1. */
   density: number;
   /**
@@ -415,6 +488,27 @@ export interface Style {
    * see `generate/fills.ts`.
    */
   fills?: FillPalette;
+  /**
+   * What this band does at a section join, weighted, drawn once per seam.
+   * Overrides the genre's palette where present. See `generate/transition.ts`.
+   *
+   * A fill is one entry here rather than the whole vocabulary, which is the
+   * point: today every section boundary in the catalogue is announced by the
+   * drummer and nobody else, and `shot`, `break` and `elide` are the three
+   * things the rest of the band does about a join.
+   *
+   * **Absent means `DEFAULT_TRANSITIONS` and means no draw**, exactly as `feels`
+   * below documents at length and for exactly the same cost — and here the two
+   * statements a palette can make are unusually close together, because
+   * `[['fill', 1]]` *is* `DEFAULT_TRANSITIONS`. A style that writes it out has
+   * thought about its seams and said "the drummer, as ever"; a style with no
+   * palette has not been asked, and generates the song it generated before this
+   * file mentioned transitions, bit for bit. Both produce identical music. Only
+   * the second one takes no number out of the stream, and that is the one that
+   * matters — see the `drumSource` note in `generate/song.ts` for what one
+   * consumed draw cost the last time.
+   */
+  transitions?: TransitionPalette;
   /**
    * Beats between successive notes of a counter-melody figure. Defaults to
    * 0.5 — an eighth note, which is right for anything danced to.

@@ -69,6 +69,18 @@ export const iskelma: Genre = {
   soloBacking: 'full',
 
   /**
+   * A written horn figure and a sax answering the singer are what this music is
+   * arranged out of; a shout chorus is not.
+   *
+   * `riff` and `harmony` up, because both are audible on almost every record in the
+   * repertoire — the brass stab that comes round every second bar, and the thirds
+   * behind the second half of the chorus. `tutti` down for the reason `soloBacking`
+   * is `full` two lines above: the band stopping to hit a figure together empties
+   * the floor, and this band does not empty the floor.
+   */
+  arrangement: { riff: 6, harmony: 5, tutti: 2 },
+
+  /**
    * The instrumental break — which is not improvisation, and pretending
    * otherwise would be wrong about the genre.
    *

@@ -837,8 +837,24 @@ export const buildViolin: InstrumentBuilder = (opts) => {
    * they are together, and a G-to-E crossing swings the frog eighteen
    * centimetres. Whatever the model eases, it must not be the part the hand has
    * already committed to.
+   *
+   * It is also a **mean over the chord**, which is why it is not an integer.
+   * Two thirds of the notes in a bowed part here are extra voices in a chord —
+   * these parts are string *sections*, and a section plays three-note pads —
+   * and `react` arrives once per note, so this used to be whichever voice
+   * `chooseStops` emitted last: the bow sat on one note and the other two
+   * sounded with nothing on them, the choice made by gesture order rather than
+   * by anything musical. The same clause above says why it cannot differ from
+   * the hand, and the hand is at the weighted mean of the batch, so the mean is
+   * the answer that keeps the frog in it. `stringZ` is affine in the index, so
+   * the two agree exactly, and on a real double stop the hair lands between the
+   * two strings, which is where a bow on a double stop sits.
    */
   let bowString = 1;
+  /** The batch being averaged into it: whose beat, running sum, and count. */
+  let stringAt = Number.NEGATIVE_INFINITY;
+  let stringSum = 0;
+  let stringCount = 0;
   /**
    * When the current stroke started. `-Infinity` rather than 0 so that the
    * first note of a number is a new beat by the same test every later one uses.
@@ -1133,8 +1149,12 @@ export const buildViolin: InstrumentBuilder = (opts) => {
        */
       turn(kind, f, now, span);
       // The string and the lift are set, not eased. The stroke is not: it picks
-      // up from where it already was, which is the point.
-      bowString = i;
+      // up from where it already was, which is the point. The string is also
+      // the whole chord rather than its last voice — see `bowString`.
+      if (now !== stringAt) { stringAt = now; stringSum = 0; stringCount = 0; }
+      stringSum += i;
+      stringCount++;
+      bowString = stringSum / stringCount;
       lift = 0;
       placeBow();
     },

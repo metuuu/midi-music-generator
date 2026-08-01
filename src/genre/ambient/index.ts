@@ -134,6 +134,34 @@ export const ambient: Genre = {
   defaultHook: 'catchy',
 
   /**
+   * Ambient has no band in it, so most of the arrangement devices have nothing to
+   * happen between.
+   *
+   * `trade` and `tutti` are both gestures *players* make at each other — one stops
+   * so another can speak, or five of them agree to hit the same thing. This music
+   * has no players in that sense: it has layers that were already sounding when
+   * the piece started. A tutti hit in the middle of a drone is a door slamming.
+   * `riff` goes for the same reason a rhythm is not the point here.
+   *
+   * What is left is the two that are about *sound* rather than about conversation.
+   * Two pads an octave apart is a real ambient texture and one of the few things
+   * in that list this music does more of than any other genre here, so `unison` is
+   * weighted up rather than merely left in.
+   *
+   * `swell` is not listed, and not because it would be wrong — a chord growing
+   * under a held note is the most ambient gesture in the whole table. It needs the
+   * `brass` layer, every one of the six styles below excludes that layer, and the
+   * note at the top of `ambient/eras.ts` says the brass palette here is vestigial
+   * on purpose. A weight would read as an intention the styles have already
+   * refused; the honest version is to leave it at the pool default, where it is
+   * simply never available.
+   *
+   * The practical consequence is that about two thirds of ambient pieces draw no
+   * device at all. That is the correct answer for this music rather than a gap.
+   */
+  arrangement: { trade: 0, tutti: 0, riff: 0, unison: 6, harmony: 2 },
+
+  /**
    * Where ambient disagrees with the shared rule table.
    *
    * The table was written from classical voice-leading and general arranging

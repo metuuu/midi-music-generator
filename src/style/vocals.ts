@@ -341,6 +341,178 @@ export function vowelDistance(a: Vowel, b: Vowel): number {
   );
 }
 
+/**
+ * The invented language this voice sings in.
+ *
+ * Two halves, and they are separate on purpose. The first says how a *word* is
+ * spelled — which letters may open a syllable, which may close one, how the
+ * vowels behave. The second says how the resulting string is pronounced, and is
+ * handed straight to `generate/phonetics.ts`.
+ *
+ * **Nobody ever sees the words.** They exist because random syllables are not a
+ * lyric: what makes a line sound like language is a small vocabulary reused
+ * across a song, the same invented word coming back in the same place. Hashing
+ * a *word* is what buys that — identity for free, identical in every chorus.
+ * Generate syllables directly and you lose the one thing that makes it sound
+ * intentional.
+ *
+ * Two details in the spelling half are load-bearing rather than decorative:
+ *
+ *  - **Vowel harmony.** Finnish never mixes `a o u` with `ä ö y` inside a word;
+ *    `e` and `i` go with either. One rule, and it is most of what separates a
+ *    word that sounds Finnish from a word that sounds like nothing. Languages
+ *    without it put every vowel in `neutral` and the same code runs.
+ *  - **Geminates fall out for free.** A closed syllable followed by an onset
+ *    puts two consonants together, and `kk tt pp ll mm nn ss rr` are exactly the
+ *    doubled consonants Finnish is full of. Nothing had to be added for that.
+ */
+export interface WordStyle {
+  /** Letters that may open a syllable. Drawn from flat — the palette weights. */
+  onsets: readonly string[];
+  /**
+   * Letters that may close one.
+   *
+   * A coda does two things and only one of them survives into the song today:
+   * it makes the syllable **heavy**, so it is sung over two slots, and it wants
+   * a closing consonant, which the Song IR has nowhere to put. So this is
+   * currently a length device — see `codaDensity` in `generate/vocals.ts`.
+   */
+  codas: readonly string[];
+  /**
+   * The two vowel sets that may not meet inside a word, and the ones that go
+   * with either. A language with no harmony leaves `back` and `front` empty.
+   */
+  harmony: {
+    back: readonly string[];
+    front: readonly string[];
+    neutral: readonly string[];
+  };
+  /**
+   * Chance the *first* syllable of a word opens on a consonant. Interior
+   * syllables always do, and that is not a stylistic choice: a bare interior
+   * syllable runs its vowel into the one before it, and the two merge into a
+   * single long nucleus. The word would silently come out a syllable shorter
+   * than it was built to be.
+   */
+  onsetChance: number;
+  /** Chance a syllable is closed. */
+  codaChance: number;
+  /** Chance a syllable's vowel is written twice — a long vowel. */
+  longChance: number;
+  /** Syllables per word, drawn from flat. Repeat an entry to weight it. */
+  lengths: readonly number[];
+
+  // --- and how the result is pronounced; see `PhoneticStyle` ---------------
+  /** 0 = the letters are ignored and it is a pure hash; 1 = they decide. */
+  spelling: number;
+  /** Chance a word's first syllable sounds its consonant. */
+  onsetDensity: number;
+  /** Chance a later one does. */
+  interiorDensity: number;
+  /** Cap on syllables per word. */
+  maxSyllables: number;
+}
+
+/**
+ * One per genre, named rather than inlined into the profiles.
+ *
+ * A `VocalProfile` inlines everything else about a voice, and these are the
+ * exception because they are the only part that is a *language* rather than a
+ * setting — four tables that four profiles point at, instead of four tables
+ * written out four times with the vowel harmony subtly different in each.
+ */
+export const WORD_STYLES: Record<string, WordStyle> = {
+  /**
+   * Finnish, near enough. Consonants in roughly the frequency order of the real
+   * inventory, no initial clusters (native Finnish words have none), and codas
+   * from the five consonants that actually close a Finnish syllable.
+   */
+  finnish: {
+    onsets: ['k', 't', 's', 'l', 'm', 'n', 'v', 'r', 'h', 'j', 'p'],
+    codas: ['n', 's', 't', 'l', 'r'],
+    harmony: { back: ['a', 'o', 'u'], front: ['ä', 'ö', 'y'], neutral: ['e', 'i'] },
+    // A quarter of words open on a vowel, which is true of the language and is
+    // where `ilta`, `aamu` and `onni` come from.
+    onsetChance: 0.75,
+    codaChance: 0.35,
+    longChance: 0.3,
+    lengths: [2, 2, 3, 3, 3, 4],
+    spelling: 0.9,
+    onsetDensity: 0.92,
+    // Measured: this lands 69% of struck syllables on a consonant at 0.7 and
+    // 78% at 0.8, against the 81% the wordless draw used to produce. The point
+    // of the words was more consonant *variety*, not less consonant, so it sits
+    // where the density is unchanged and only the choice of consonant has moved.
+    interiorDensity: 0.8,
+    maxSyllables: 4,
+  },
+
+  /**
+   * Scat. Not a language and not pretending to be one — a syllabary, and a
+   * famously small one: doo, bah, dat, shoo, ba-doo-ba. Short words, hard
+   * onsets, and `š` because "shoo-bee-doo" is real vocabulary rather than an
+   * accident.
+   */
+  scat: {
+    // `j` rather than `y` for the "ya-" onset: `y` is a vowel letter here, so
+    // spelling it that way makes a diphthong rather than a glide, and `yazo`
+    // comes out `ya-zo` in two syllables instead of `ya-zo` in two sounds.
+    onsets: ['d', 'b', 't', 'š', 'w', 'j', 'n', 'm', 'l', 'p', 'k', 'z'],
+    codas: ['t', 'n', 'p', 'm'],
+    harmony: { back: [], front: [], neutral: ['a', 'o', 'u', 'e', 'i'] },
+    onsetChance: 0.95,
+    codaChance: 0.3,
+    longChance: 0.35,
+    lengths: [1, 1, 2, 2, 3],
+    spelling: 0.7,
+    onsetDensity: 0.98,
+    interiorDensity: 0.85,
+    maxSyllables: 3,
+  },
+
+  /**
+   * Choral ambient. Almost no attack of any kind and long vowels everywhere —
+   * the words are mostly an excuse for the syllable to be held, which is what
+   * this voice does with a phrase.
+   */
+  airy: {
+    onsets: ['m', 'n', 'l', 'h', 'v', 'r'],
+    codas: ['n', 'm'],
+    harmony: { back: [], front: [], neutral: ['a', 'o', 'u', 'e', 'ö'] },
+    onsetChance: 0.6,
+    codaChance: 0.15,
+    longChance: 0.55,
+    lengths: [2, 2, 3],
+    spelling: 0.85,
+    onsetDensity: 0.7,
+    // The softest in the project by a distance — a bit over half the struck
+    // syllables open on anything at all, and most of what they open on is a
+    // nasal or a liquid. That is what "almost no attack of any kind" means when
+    // it is a number.
+    interiorDensity: 0.5,
+    maxSyllables: 3,
+  },
+
+  /**
+   * A vocoder is tracking a talker, and a talker says anything. The widest
+   * inventory here, the shortest words, and the most closed syllables — the
+   * consonants are the part a vocoder renders best.
+   */
+  machine: {
+    onsets: ['t', 'k', 's', 'd', 'g', 'p', 'b', 'z', 'r', 'l', 'n', 'm', 'v', 'f'],
+    codas: ['t', 'k', 's', 'n', 'r'],
+    harmony: { back: [], front: [], neutral: ['a', 'e', 'i', 'o', 'u', 'ü', 'ö'] },
+    onsetChance: 0.9,
+    codaChance: 0.5,
+    longChance: 0.2,
+    lengths: [1, 2, 2, 3],
+    spelling: 0.6,
+    onsetDensity: 0.95,
+    interiorDensity: 0.8,
+    maxSyllables: 4,
+  },
+};
+
 export interface VocalProfile {
   /** Track name, shown in the UI and written into the MIDI track title. */
   name: string;
@@ -377,21 +549,22 @@ export interface VocalProfile {
   /** Vowels this genre sings on, weighted. */
   vowels: (readonly [Vowel, number])[];
   /**
-   * How this genre starts its syllables, weighted.
+   * Which consonants this voice can make at all, weighted.
    *
    * This is what stops the line being one syllable repeated. A voice with no
    * consonants sings "duu duu duu" no matter how carefully the vowels are
    * chosen, because the ear separates syllables by their *onsets* far more than
    * by their vowels.
+   *
+   * It used to be a draw and is now mostly a **permission list**: the word's own
+   * letters choose its consonants, and the weights are consulted only where the
+   * spelling asks for something this voice does not have — a `š` in a palette
+   * with no sibilant. So a letter missing from here is a letter the voice
+   * cannot say, which is the useful thing to be able to state.
    */
   consonants: (readonly [Consonant, number])[];
-  /**
-   * How many notes a vowel survives before another is chosen. 1 is scat — a
-   * fresh syllable on every note. Higher values hold one vowel across a phrase,
-   * which is what a sustained ballad line does. A phrase break always forces a
-   * new choice regardless, because that is where the breath goes.
-   */
-  hold: number;
+  /** The invented language this voice sings. Nobody ever sees the words. */
+  words: WordStyle;
   /**
    * Where this voice sits most comfortably. Vowel modification is measured
    * from here — this is the pitch the voice is *not* straining at.
@@ -403,9 +576,19 @@ export interface VocalProfile {
    */
   range: [number, number];
   /**
-   * How loosely the openness target is followed, in openness units. Small
-   * values track pitch and note length closely and can sound mechanical; large
-   * values fall back on the raw weights.
+   * How freely this voice's vowels move between neighbouring syllables, as a
+   * distance in the openness/frontness plane.
+   *
+   * It used to be the width of a gaussian around a per-note openness target,
+   * and that target is gone: the vowel now comes from the word, and a word
+   * whose vowels are rewritten by the note they land on is not a word. What is
+   * left is the same claim about this voice's appetite for vowel motion, read
+   * by the phonetics as `separation`.
+   *
+   * Small values let consecutive syllables sit on near-identical vowels, which
+   * is the "duu du du" failure; large ones force every syllable somewhere else
+   * in the mouth, until the palette runs out of legal moves and the rule
+   * relaxes itself rather than failing.
    */
   spread: number;
   /** Articulation. */

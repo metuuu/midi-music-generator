@@ -260,17 +260,20 @@ export const HAND_POSES: Record<HandPoseId, HandPose> = {
  * wherever the instrument is asymmetric, which is most of them — a guitarist's
  * left hand is spread across a fretboard and their right is picking.
  *
- * ## `grip` is load-bearing outside this file
+ * ## "This hand is holding something" is load-bearing outside this file
  *
- * `animate.ts` reads this table and treats `grip` as meaning "this hand is
- * *holding* something", which is what lets it blend a bowed player's right hand
- * toward `pluck` for a pizzicato section and leave every other hand alone. So a
- * hand whose default is changed away from `grip` silently loses that blend.
- * That is why the violin and cello right hands stay `grip` rather than moving
- * to the more accurate `bowhold` — the improvement is not worth breaking a
- * behaviour in a file this one does not own. The accordion's left hand does
- * move, to `strap`, because an accordion emits no `pluck` gestures at all and
- * there is nothing there to lose.
+ * `animate.ts` reads this table to decide which hands are *holding* something,
+ * which is what lets it blend a bowed player's right hand toward `pluck` for a
+ * pizzicato section and leave every other hand alone. That test used to be an
+ * equality against `grip`, so a default changed away from `grip` silently lost
+ * the blend — which is why the violin and cello right hands sat in a closed
+ * fist long after `bowhold` existed to describe them.
+ *
+ * It is `HOLDING_POSES` over there now, a named set with `bowhold` in it, so
+ * the favour is no longer owed and the two string players hold their bows the
+ * way a bow is held: draped off the frog, thumb bent underneath, little finger
+ * curved on top. A fist round a bow is the single most visible thing wrong with
+ * a string player, because the bow arm is the one an audience watches.
  */
 export const DEFAULT_HAND_POSES: Record<Archetype, { left: HandPoseId; right: HandPoseId }> = {
   drumkit: { left: 'stick', right: 'stick' },
@@ -286,8 +289,8 @@ export const DEFAULT_HAND_POSES: Record<Archetype, { left: HandPoseId; right: Ha
   'electric-bass': { left: 'spread', right: 'pluck' },
   harp: { left: 'pluck', right: 'pluck' },
   sitar: { left: 'spread', right: 'pluck' },
-  violin: { left: 'spread', right: 'grip' },
-  cello: { left: 'spread', right: 'grip' },
+  violin: { left: 'spread', right: 'bowhold' },
+  cello: { left: 'spread', right: 'bowhold' },
   mallets: { left: 'stick', right: 'stick' },
   trumpet: { left: 'grip', right: 'keys' },
   trombone: { left: 'grip', right: 'grip' },
@@ -359,9 +362,18 @@ interface ImplementSpec {
 }
 
 const IMPLEMENTS: Record<HeldImplement, ImplementSpec> = {
-  /** Hickory, a third of the way up from the butt, acorn tip. */
+  /**
+   * Hickory, a third of the way up from the butt, acorn tip — and now really a
+   * third, where it used to say 0.28 and mean a shade over a quarter.
+   *
+   * The fulcrum is where a drummer's grip *is*, so it was worth correcting on
+   * its own, but it also pays for itself twice over: everything in front of it
+   * is reach the rig spends parking the fist behind the contact, so a couple of
+   * centimetres moved behind the hand is a couple of centimetres the fist does
+   * not have to take out of the drummer's own chest. See `IMPLEMENT_AIM`.
+   */
   drumstick: {
-    length: 5.60, grip: 0.28, thick: 0.24, bead: 0.16,
+    length: 5.60, grip: 0.33, thick: 0.24, bead: 0.16,
     shaft: '#c6a068', head: '#c6a068', headRough: 0.45,
   },
   /** Rattan and wound yarn, held nearer the butt and much softer on the end. */
@@ -377,23 +389,44 @@ const IMPLEMENTS: Record<HeldImplement, ImplementSpec> = {
  *
  * A matched grip lies diagonally: in at the heel of the hand on the little
  * finger's side, out between the thumb pad and the first joint of the index. So
- * the aim is mostly forward with a lean toward the thumb (`x` is signed by the
- * side, which is what makes a drummer's two tips converge rather than run
- * parallel) and a third of a right angle down, because the head being struck is
- * below the hand and the palm stays flat to it.
+ * the fulcrum sits **against the underside of the palm** rather than in the
+ * middle of it, and the aim runs mostly forward with a lean toward the thumb
+ * (`x` is signed by the side, which is what makes a drummer's two tips converge
+ * rather than run parallel) and only a little way down.
  *
- * **Both angles are really a statement about where the fists end up**, and the
- * fists are the constraint. The rig places a hand by the end of what it holds,
- * so a stick that ran straight out of the knuckles would park the drummer's
- * hand a stick's length back along the kit's own forward — which, for a snare
- * that sits between the player's knees by definition, is inside the player.
- * Measured against the torso: at 25° down and 9° across, a hand crossing to the
- * snare came out three centimetres inside the belly. At these it clears, the
- * tips converge the way a matched grip's do, and the whole thing is still a
- * stick angled gently at the drum rather than stabbed at it.
+ * **A stick barely leaves the palm's plane, and that is the whole of the fix.**
+ * The shaft used to run a third of a right angle below it, which is roughly the
+ * angle a stick makes with a *drum head* — and it is why nobody was holding
+ * one and why every stick pointed at the floor. Both follow from the same
+ * mistake: the aim is written in the hand's frame, so an angle put here is an
+ * angle between the stick and the palm, not between the stick and the drum.
+ *
+ * What it cost, in order. A shaft at thirty degrees to a palm this size has to
+ * enter the hand somewhere and leave it somewhere: it went in through the back
+ * of the wrist and out through the middle of the palm's underside, in front of
+ * the fingers, so the stick was skewered through the fist rather than gripped
+ * by it, with four fingers curled shut under it round nothing. And it stacked:
+ * the hand is *already* pitched at the kit by `followForearm`, about twenty
+ * degrees of it at a snare, because the shoulder is above and behind the hand
+ * and the wrist breaks to meet it. Thirty more on top left a stick stabbing
+ * down at half a right angle from a hand that was not aligned with it.
+ *
+ * So the angle at the drum is the *arm's*, and it is left to the arm. What is
+ * here is the five degrees a matched grip really has, and the fulcrum sits
+ * against the underside of the palm at the little-finger side of the heel so
+ * that the shaft runs along the palm and out through the curled fingers between
+ * the thumb pad and the first joint of the index, which is where a stick goes.
+ *
+ * The lean across is untouched at twenty degrees, because it answers to
+ * something else: `x` is signed by the side, so it is what makes a drummer's
+ * two tips converge rather than run parallel, and it is also most of the
+ * clearance the fists have. The rig places a hand by the end of what it holds,
+ * so this direction is where the fist ends up — a stick straight out of the
+ * knuckles would park the hand a stick's length back along the kit's own
+ * forward, and a snare sits between the player's knees by definition.
  */
-const IMPLEMENT_AT = { x: 0.10, y: -0.20, z: 0.24 } as const;
-const IMPLEMENT_AIM = { x: 0.30, y: -0.50, z: 0.81 } as const;
+const IMPLEMENT_AT = { x: 0.25, y: -0.54, z: 0.15 } as const;
+const IMPLEMENT_AIM = { x: 0.34, y: -0.09, z: 0.94 } as const;
 
 /** `rod` and `bone` both run along `+y`; this is what aims one somewhere else. */
 const UP = new Vector3(0, 1, 0);
@@ -750,7 +783,18 @@ export function buildHand(
     // Eased like everything else, so a hand crossfading from a fist round a
     // stick to fingers on a key bed slides its contact point across rather
     // than teleporting the whole hand a finger's length on one frame.
-    step('touch');
+    //
+    // **Both of them**, and `tool` is the one that was missing. `current` is
+    // born a copy of `relax`, so a channel no step ever touches is a channel
+    // pinned at `relax`'s value for the life of the hand — every pose's `tool`
+    // read as 0, `aimTouch`'s lerp out along the shaft never ran, and a hand
+    // holding a stick was placed by its palm. That put the drummer's fists flat
+    // on the heads with a stick's length of hickory continuing on through the
+    // drum and out the far side, which is a stick pointing the wrong way for
+    // exactly as long as it takes to notice the hand is where the bead should
+    // be. The two fields are one journey in two stages — palm to fingertip,
+    // fingertip to bead; see `HandPose.tool` — so they step together.
+    step('touch'); step('tool');
     // On the same clock as the fingers, and that is the point of easing it here
     // rather than reading the target: the elbow of a player coming off a bow
     // hold is halfway out of bow-arm discipline exactly when the hand is
