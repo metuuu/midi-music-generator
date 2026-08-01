@@ -364,8 +364,9 @@ export function voiceChord(chord: Chord, opts: VoicingOptions): Midi[] {
  * eight or sixteen bars at a time, tertian voicings become monotonous fast;
  * fourths are ambiguous enough to keep a static chord interesting.
  *
- * The stack is built by taking every other scale degree twice over (a fourth is
- * three scale steps), which keeps it diatonic instead of parallel-chromatic.
+ * The stack is built by stepping the same number of scale degrees each time,
+ * which keeps it diatonic instead of parallel-chromatic. How many degrees that
+ * is depends on the scale — see `stepsNearest`.
  */
 function voiceQuartal(
   chord: Chord,
@@ -377,10 +378,11 @@ function voiceQuartal(
   const startPc = tones[0] ?? chord.root;
   let cursor = snapToScale(scale, nearest(startPc, centre - 4));
 
+  const step = stepsNearest(scale, 5); // a perfect fourth
   const out: Midi[] = [];
   for (let i = 0; i < voices; i++) {
     out.push(cursor);
-    cursor = stepInScale(scale, cursor, 3); // a fourth, diatonically
+    cursor = stepInScale(scale, cursor, step);
   }
 
   // Slide the whole stack into the register window rather than clamping each
@@ -391,6 +393,36 @@ function voiceQuartal(
   while (top + shift > hi) shift -= 12;
   while (bottom + shift < lo) shift += 12;
   return out.map((m) => m + shift).sort((a, b) => a - b);
+}
+
+/**
+ * How many scale steps come nearest to `semitones` in this scale.
+ *
+ * "A fourth is three scale steps" is true of a seven-note scale and of nothing
+ * else, and the quartal stack is the one place in the engine that counted on it.
+ * Three steps of `blues` is a fifth, three of either pentatonic is a fifth, and
+ * three of `wholeTone` is a tritone — the stack stayed perfectly even, so
+ * nothing looked wrong, and it was not made of fourths.
+ *
+ * So derive the count from the interval instead of writing it down. A scale of
+ * `len` notes averages `12 / len` semitones to the step, and the count whose
+ * average lands nearest the target is the one to take. Ties go to the smaller
+ * count, which puts the stack under the interval rather than over it: whole tone
+ * contains no fourth at all, and a major third below is a smaller lie than a
+ * tritone above.
+ *
+ * Seven notes give 3 and eight give 3, so every scale the engine voices
+ * quartally today keeps exactly the stack it had.
+ */
+function stepsNearest(scale: Scale, semitones: number): number {
+  const len = scale.pcs.length;
+  let best = 1;
+  let bestErr = Infinity;
+  for (let steps = 1; steps < len; steps++) {
+    const err = Math.abs((steps * 12) / len - semitones);
+    if (err < bestErr) { bestErr = err; best = steps; }
+  }
+  return best;
 }
 
 function nearest(target: Pc, reference: Midi): Midi {

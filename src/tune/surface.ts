@@ -549,10 +549,28 @@ function reflect(midi: Midi, lo: Midi, hi: Midi): Midi {
   return clampToRange(m, lo, hi);
 }
 
-/** Pull a note onto the section's degree subset, by the smallest move available. */
+/**
+ * Pull a note onto the section's degree subset, by the smallest move available.
+ *
+ * The subsets in `voice.ts` are written as indices into a seven-degree mode,
+ * because every scale that reached here used to have seven degrees. Against a
+ * shorter scale the degrees have to be *dropped* rather than wrapped: `d % len`
+ * turned degree 5 of a pentatonic into degree 0, so a subset chosen as a colour
+ * silently became a different colour with the tonic counted twice. A degree the
+ * scale does not have is not a degree, and the subset is the ones it does have.
+ *
+ * Which is also why the "not really a subset" guard counts the degrees that
+ * survived rather than the ones that were asked for. Written against
+ * `subset.length` it fired on every subset in the table once the scale was five
+ * or six notes long, and the feature turned itself off exactly where the wrap
+ * had already corrupted it. The floor underneath it is the other end of the same
+ * question: two pitch classes is not a colour, it is a drone, and a line that
+ * snapped into one would stop being a line.
+ */
 export function snapToSubset(scale: Scale, subset: readonly number[], midi: Midi): Midi {
-  if (subset.length >= scale.pcs.length) return midi;
-  const allowed = new Set(subset.map((d) => scale.pcs[d % scale.pcs.length]!));
+  const allowed = new Set<Pc>();
+  for (const d of subset) if (d < scale.pcs.length) allowed.add(scale.pcs[d]!);
+  if (allowed.size >= scale.pcs.length || allowed.size < 3) return midi;
   if (allowed.has(pc(midi))) return midi;
   for (let d = 1; d <= 2; d++) {
     if (allowed.has(pc(midi - d))) return midi - d;
