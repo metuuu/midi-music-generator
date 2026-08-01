@@ -1987,6 +1987,38 @@ console.log('\nTransitions');
   );
 
   /**
+   * The same guarantee over the *whole* kit, on the one style that can break it.
+   *
+   * `hook leaves form, key, tempo, instruments and drums alone` already compares
+   * drum events byte for byte — but over twenty songs drawn from the whole
+   * catalogue, and the only feel that writes a drum event is `funk`, which only
+   * `fusion` may play. So the general check sampled the failure at a few percent
+   * and passed on luck for two waves, exactly the way the genre-wide leading-tone
+   * assertion did before it was pinned to a style.
+   *
+   * Pinning it to fusion is what makes it a check rather than a lottery: every
+   * song here is one that actually draws ghosts. It is what caught `applyFeel`
+   * drawing its snare ghosts from the stream the bass had already walked — see
+   * `kitRng` in `generate/song.ts` for why that is a hook dependency and not a
+   * detail of ordering.
+   */
+  let kitDiffered = 0;
+  for (let i = 0; i < 24; i++) {
+    const at = HOOKS.map((hook) => generateSong({
+      seed: `fk-${i}`, genre: 'jazz', style: 'fusion', hook,
+    }));
+    const kit = (song: Song) => JSON.stringify(song.drums.events);
+    if (at.slice(1).some((song) => kit(song) !== kit(at[0]!))) kitDiffered++;
+  }
+  check(
+    'the kit is deaf to the tune, on the one style that could hear it',
+    kitDiffered === 0,
+    kitDiffered
+      ? `${kitDiffered} of 24 fusion songs changed their drums with --hook`
+      : '24 fusion songs, drum events identical across all 5 hook levels',
+  );
+
+  /**
    * The rate limiter, and the box gate, over a catalogue talked into shots.
    *
    * Every style is handed `fill 1, shot 3` for the length of this block —

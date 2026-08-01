@@ -1772,6 +1772,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
          * does, which is none.
          */
         rng: new Rng(`${seed}:feel:${s}:play`),
+        kitRng: new Rng(`${seed}:feel:${s}:kit`),
         endsAt: (totalBars - 1) * style.beatsPerBar,
         layers: {
           bass: sectionBass, comp: sectionComp, pad: sectionPad, brass: sectionBrass,
@@ -3161,6 +3162,28 @@ function applyFeel(args: {
   /** Its own stream. Drawn from only by the blocks that are actually present. */
   rng: Rng;
   /**
+   * The kit's stream, and it has to be a second one.
+   *
+   * Everything this function does to the band is allowed to depend on the band.
+   * Nothing it does to the *kit* is, because `npm run genres` asserts that drum
+   * events are byte-identical at every `--hook` level — see `docs/hook.md`, and
+   * see the same constraint stated at length on the shot figure in
+   * `generate/transition.ts`.
+   *
+   * One stream broke that, and the path is worth recording because it is not
+   * visible from either end. The ghost block walks the bass first and the snare
+   * second; how many times it draws on the bass depends on how many bass onsets
+   * clear the guards; the bass follows the tune, through `patchBand`; and the
+   * tune is exactly what `--hook` moves. So a hook level that shifted one bass
+   * note shifted every snare ghost after it, and the kit came out different
+   * having been given no reason to. Only `funk` declares a ghost and only
+   * `fusion` may play it, which is why twenty unpinned seeds never found it.
+   *
+   * A second stream is the whole fix: the kit's draws are then a function of the
+   * seed and the section, and of nothing that the tune can reach.
+   */
+  kitRng: Rng;
+  /**
    * The downbeat of the final bar. Nothing at or after it is touched.
    *
    * The last bar is not a bar of the arrangement, it is the ending — see
@@ -3532,7 +3555,10 @@ function applyFeel(args: {
           if (barOf(at) !== barOf(e.beat)) continue;
           // The weak sixteenths only. A ghost on a beat is a quiet backbeat.
           if (slotOf(at) % 2 === 0) continue;
-          if (!rng.chance(chance)) continue;
+          // `kitRng`, not `rng` — see the field. A snare that drew after the bass
+          // inherited the bass's position in the stream, and the bass follows the
+          // tune.
+          if (!args.kitRng.chance(chance)) continue;
           struck.add(key);
           // Onto the song's list, not onto the window — see `drums` above. The
           // whole list is sorted once at assembly, so the tail is the right place.
