@@ -27,7 +27,7 @@ import { Rng } from './core/rng.js';
 import { BANK_VOICES, resolveVoice } from './render/drum-banks.js';
 import { HANDS, IDIOMS, type Idiom, type IdiomProfile } from './style/instruments.js';
 import type { Style } from './style/types.js';
-import type { TransitionPalette } from './generate/transition.js';
+import { shotFigures, type TransitionPalette } from './generate/transition.js';
 import { FEELS, type FeelId } from './style/feel.js';
 
 const problems: string[] = [];
@@ -2355,6 +2355,53 @@ console.log('\nTransitions');
     figuresMoved || kitMoved
       ? `${figuresMoved} figure lists and ${kitMoved} shot bars of kit moved with --hook`
       : `${shotBars} shots over ${pinned} fusion songs, identical across all ${HOOKS.length} levels, kit included`,
+  );
+
+  /**
+   * …and two styles that share a metre no longer share a shot.
+   *
+   * This is the check that stops `shot` from being widened into a new sameness.
+   * The metre fallback is right where a bar has a distinctive grouping and
+   * generic everywhere else, and most of the catalogue is 4/4 with no `groups` —
+   * so on the fallback alone, a tango, a foksi, a bossa and a swing would all hit
+   * the *same two figures*, which is the complaint `docs/rhythm-plan.md` opens
+   * with arriving inside a new feature.
+   *
+   * `ShotSource.band` is what prevents it, and the two numbers below are the
+   * before and after: how many distinct figures the busiest metre in the
+   * catalogue would produce from the bar alone, against how many it produces
+   * from the bands that actually play in it. Measured over every bass × comp
+   * pairing a style can draw, because that pair is what a song fixes.
+   */
+  const spread = (useBand: boolean) => {
+    const byMetre = new Map<string, Set<string>>();
+    for (const gid of GENRE_IDS) {
+      for (const style of Object.values(getGenre(gid).styles)) {
+        const key = `${style.beatsPerBar}:${(style.groups ?? []).join('.')}`;
+        const seen = byMetre.get(key) ?? byMetre.set(key, new Set()).get(key)!;
+        for (const b of style.bass) {
+          for (const c of style.comp) {
+            const band = [
+              ...(b.cycle ? [] : b.hits.map((h) => h.at)),
+              ...(c.cycle ? [] : c.hits.map((h) => h.at)),
+            ];
+            for (const [figure] of shotFigures({
+              beatsPerBar: style.beatsPerBar,
+              ...(style.groups ? { groups: style.groups } : {}),
+              ...(useBand && band.length ? { band } : {}),
+            })) seen.add(figure.join('.'));
+          }
+        }
+      }
+    }
+    return [...byMetre.values()].reduce((most, s) => Math.max(most, s.size), 0);
+  };
+  const fromMetre = spread(false);
+  const fromBand = spread(true);
+  check(
+    'styles sharing a metre do not share a shot',
+    fromBand > fromMetre * 3,
+    `the busiest metre offers ${fromBand} distinct figures from the band, against ${fromMetre} from the bar alone`,
   );
 
   /**

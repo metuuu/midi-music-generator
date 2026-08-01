@@ -586,8 +586,30 @@ export function generateSong(opts: GenerateOptions = {}): Song {
    * to read that from and does not exist yet, since it is written inside the
    * loop below. `soloPlan` is the same answer, three hundred lines earlier.
    */
+  /**
+   * The figure the rhythm section is already playing, for a seam shot to hit.
+   *
+   * Hook-invariant by construction, which is the whole permission: these two
+   * patterns were drawn above, before `hookRng` exists and before the section
+   * loop, and the running stream inside that loop is deliberately kept aligned
+   * across hook levels. A bass pattern cannot move when the tune does, so the
+   * kit is free to play a figure made of one. See `ShotSource.band`.
+   *
+   * A cycled pattern is left out rather than folded in. Its slots are relative
+   * to the figure and not to the bar — see `Cycle` in `style/types.ts` — so
+   * reading them as bar positions would be arithmetic on two different
+   * coordinate systems, and the metre is a better answer than a wrong one.
+   */
+  const bandFigure = [
+    ...(bassPattern.cycle ? [] : bassPattern.hits.map((h) => h.at)),
+    ...(compPattern.cycle ? [] : compPattern.hits.map((h) => h.at)),
+  ];
   const seams: Seam[] = planTransitions({
-    sections, seed, palette: transitionTable, metre: style, drums: drumSource,
+    sections,
+    seed,
+    palette: transitionTable,
+    metre: { ...style, ...(bandFigure.length ? { band: bandFigure } : {}) },
+    drums: drumSource,
     drumBars: new Map([...soloPlan].map(([at, chorus]) => [at, chorus.drumBars])),
   });
 

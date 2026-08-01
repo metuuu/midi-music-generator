@@ -113,7 +113,7 @@ import type {
   DrumEvent, DrumSource, LayerId, NoteEvent, Section, Song, Track,
 } from '../core/types.js';
 import { landing } from './fills.js';
-import { metricStrength, SLOTS_PER_BEAT } from './rhythm.js';
+import { metricStrength, SLOTS_PER_BEAT, thin } from './rhythm.js';
 
 /**
  * What happens at one join.
@@ -181,6 +181,30 @@ export interface ShotSource {
   groups?: readonly number[];
   /** Authored figures, weighted. See `Style.shots`. */
   shots?: readonly (readonly [number[], number])[];
+  /**
+   * The onsets the rhythm section is already playing — the drawn bass and comp
+   * patterns' own slots. Preferred over the metre, outranked by a table.
+   *
+   * **Hook-invariant, which is the only reason the kit may play it.** The three
+   * pattern draws happen before `hookRng` exists and before the section loop,
+   * and the running stream inside that loop is deliberately kept aligned across
+   * hook levels — `pickProgression` is drawn and thrown away rather than skipped
+   * for exactly this reason. So a bass pattern cannot move when `--hook` moves,
+   * and a figure derived from one has the same standing as a static table.
+   *
+   * **And it is the better figure.** The metre fallback is right where a bar has
+   * a distinctive grouping and generic everywhere else: a tango, a foksi, a
+   * bossa and a swing are all 4/4 with no `groups`, so all four would draw the
+   * same two figures out of it. Widening `shot` across the catalogue on the
+   * fallback alone would ship a new sameness into eighteen styles — the thing
+   * `docs/rhythm-plan.md` exists to remove, arriving inside a new feature. The
+   * band's own figure cannot do that, because it is different per style by
+   * construction.
+   *
+   * It is also what the plan asked for in the first place: *a fusion break is
+   * the rhythm section's own figure, and the horn plays over it or stops.*
+   */
+  band?: readonly number[];
 }
 
 /**
@@ -210,16 +234,8 @@ export function shotFigures(metre: ShotSource): readonly (readonly [number[], nu
   if (metre.shots?.length) return metre.shots;
 
   const slotsPerBar = Math.round(metre.beatsPerBar * SLOTS_PER_BEAT);
-  const heads: number[] = [];
-  for (let slot = 0; slot < slotsPerBar; slot++) {
-    // 3 is "group head", 4 is the downbeat. Below that is a beat or weaker, and
-    // a figure on every beat is not a shot, it is time-keeping with the band's
-    // name on it.
-    if (metricStrength(slot, slotsPerBar, metre.groups) >= 3) heads.push(slot);
-  }
-  // Only reachable for a bar of a single beat, which nothing in the catalogue
-  // has. Two hits is the floor for a figure — one is an accent.
-  if (heads.length < 2) heads.push(Math.max(1, slotsPerBar - SLOTS_PER_BEAT));
+  const heads = bandHeads(metre.band, slotsPerBar, metre.groups)
+    ?? metreHeads(slotsPerBar, metre.groups);
 
   const pushed = heads.slice();
   const last = pushed.length - 1;
@@ -229,6 +245,55 @@ export function shotFigures(metre: ShotSource): readonly (readonly [number[], nu
   return pushed[last] === heads[last]
     ? [[heads, 1]]
     : [[heads, 2], [pushed, 3]];
+}
+
+/** The group heads of the bar, which is what a band with nothing to say hits. */
+function metreHeads(slotsPerBar: number, groups?: readonly number[]): number[] {
+  const heads: number[] = [];
+  for (let slot = 0; slot < slotsPerBar; slot++) {
+    // 3 is "group head", 4 is the downbeat. Below that is a beat or weaker, and
+    // a figure on every beat is not a shot, it is time-keeping with the band's
+    // name on it.
+    if (metricStrength(slot, slotsPerBar, groups) >= 3) heads.push(slot);
+  }
+  // Only reachable for a bar of a single beat, which nothing in the catalogue
+  // has. Two hits is the floor for a figure — one is an accent.
+  if (heads.length < 2) heads.push(Math.max(1, slotsPerBar - SLOTS_PER_BEAT));
+  return heads;
+}
+
+/**
+ * The band's own figure, thinned until it is a shot rather than the part.
+ *
+ * A rhythm section's pattern is four to eight onsets and a shot is two to four:
+ * the whole band playing a comp pattern in unison is not a shot, it is the band
+ * playing. `thin` from `generate/rhythm.ts` is exactly the reduction wanted —
+ * drop what the ear expects least, keep what it was already leaning on — and it
+ * is metric rather than positional, so a 2+2+3 thins to its group heads instead
+ * of to every other sixteenth.
+ *
+ * Returns nothing rather than a bad figure when the band has under two onsets to
+ * offer, and the metre answers instead. A drone's bass is one note a bar.
+ */
+function bandHeads(
+  band: readonly number[] | undefined,
+  slotsPerBar: number,
+  groups?: readonly number[],
+): number[] | undefined {
+  if (!band?.length) return undefined;
+  const unique = [...new Set(
+    band.map((s) => ((Math.round(s) % slotsPerBar) + slotsPerBar) % slotsPerBar),
+  )].sort((a, b) => a - b);
+  if (unique.length < 2) return undefined;
+
+  let figure = unique;
+  for (let keepAbove = 1; figure.length > 4 && keepAbove <= 4; keepAbove++) {
+    const kept = thin(figure.map((at) => ({ at })), { slotsPerBar, groups, keepAbove })
+      .map((h) => h.at);
+    if (kept.length < 2) break;
+    figure = kept;
+  }
+  return figure.length >= 2 ? figure : undefined;
 }
 
 /**
