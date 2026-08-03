@@ -51,12 +51,15 @@ The era decides *production*, not notes. The same tango sounds like 1968 or 1985
 A mood does not pick notes; it biases choices the generator was making anyway. Measured over 200 songs each (`npm run moods`):
 
 ```
-kaihoisa      minor  98%  avg 114 BPM  | tango 53%, valssi 24%
-haikea        minor  88%  avg 116 BPM  | tango 48%, valssi 19%
-dramaattinen  minor  88%  avg 126 BPM  | tango 42%, iskelmapop 25%
-nostalginen   minor  64%  avg 131 BPM  | valssi 25%, tango 21%
-rento         minor  54%  avg 121 BPM  | beguine 23%, valssi 20%
-romanttinen   minor  52%  avg 128 BPM  | valssi 26%, tango 20%
-tanssittava   minor  41%  avg 138 BPM  | foksi 19%, beguine 16%
-iloinen       minor  15%  avg 147 BPM  | humppa 26%, iskelmapop 15%
+kaihoisa      minor  98%  avg 114 BPM  | tango 56%, valssi 25%, iskelmapop 7%
+dramaattinen  minor  90%  avg 125 BPM  | tango 40%, iskelmapop 22%, valssi 16%
+haikea        minor  87%  avg 122 BPM  | tango 36%, valssi 28%, beguine 16%
+nostalginen   minor  62%  avg 127 BPM  | tango 27%, beguine 19%, valssi 16%
+neutraali     minor  54%  avg 130 BPM  | tango 25%, beguine 16%, valssi 14%
+romanttinen   minor  52%  avg 127 BPM  | valssi 25%, tango 23%, foksi 18%
+rento         minor  50%  avg 120 BPM  | beguine 22%, tango 21%, foksi 19%
+tanssittava   minor  41%  avg 141 BPM  | humppa 23%, tango 14%, iskelmapop 14%
+iloinen       minor   9%  avg 150 BPM  | humppa 30%, jenkka 17%, valssi 14%
 ```
+
+`neutraali` is the fallback every song with no mood specified draws, so it is close to the genre's own centre of gravity by construction — and it has to be the *last* entry in the table, which `npm run genres` asserts of every genre. A genre that ships without one makes whichever mood happens to sit last into the default, and every symptom of that points at the style weights instead.

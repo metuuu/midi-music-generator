@@ -23,8 +23,12 @@ The engine as it stands has no level between the note and the section. Rhythm is
 one bar at a time from a bag of cells that must exactly fill a bar
 ([`fitCell`](../src/generate/rhythm.ts)); pitch is then a first-order weighted walk that
 sees `prev`, `prevInterval`, one chord and one height target
-([`choosePitch`](../src/generate/melody.ts)). Above that there is verbatim replay, and
+(`choosePitch` in `generate/melody.ts`). Above that there is verbatim replay, and
 nothing else.
+
+*(`generate/melody.ts` is referred to throughout in the present tense and no longer
+exists — §12 deleted it. It is left unlinked rather than rewritten, because the whole
+point of this document is what the engine was before.)*
 
 A first-order chooser with a soft height pull can only avoid mistakes. It cannot mean
 anything, because meaning in melody is hierarchy: notes serve a figure, figures serve a
@@ -43,7 +47,7 @@ characterless, and now also rhythmically shapely.
 
 Each is checkable, and each one dies in this plan.
 
-1. **Every phrase has the same contour.** [`melody.ts`](../src/generate/melody.ts) —
+1. **Every phrase has the same contour.** `melody.ts` —
    `arc()` rises to a peak at 0.55–0.72 of the phrase and falls away, in every phrase of
    every section of every song, jittered by `rng.float`. One bump shape. A real tune has
    *one* peak per section and its arrival is the hook.

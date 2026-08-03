@@ -87,3 +87,115 @@ Genres that disagree with a threshold adjust it rather than forking the table.
 | `static-repetition` | strict | never |
 | `repeated-note-run` | polished | never |
 | `chromatic-leading-tone-in-minor` | light | light |
+
+### Reggae
+
+| Rule | Prefers from | Forbids from |
+|---|---|---|
+| `augmented-second` | never | never |
+| `parallel-perfects` | polished | never |
+| `repeated-note-run` | polished | never |
+| `chromatic-leading-tone-in-minor` | light | light |
+
+### Indian
+
+| Rule | Prefers from | Forbids from |
+|---|---|---|
+| `augmented-second` | never | never |
+| `unresolved-leading-tone` | never | never |
+| `unprepared-dissonance` | strict | never |
+| `non-chord-tone-on-strong-beat` | polished | never |
+| `flat-nine` | polished | never |
+| `semitone-clash` | polished | never |
+| `avoid-fourth` | never | never |
+| `tritone-leap` | light | strict |
+| `static-repetition` | polished | never |
+| `repeated-note-run` | polished | never |
+
+### Arabic
+
+| Rule | Prefers from | Forbids from |
+|---|---|---|
+| `augmented-second` | never | never |
+| `flat-nine` | polished | never |
+| `avoid-fourth` | never | never |
+| `parallel-perfects` | never | never |
+| `unresolved-leading-tone` | strict | never |
+| `unprepared-dissonance` | strict | polished |
+| `non-chord-tone-on-strong-beat` | polished | never |
+| `static-repetition` | polished | never |
+
+### Funk
+
+| Rule | Prefers from | Forbids from |
+|---|---|---|
+| `augmented-second` | never | never |
+| `chromatic-tone` | never | never |
+| `unresolved-seventh` | polished | never |
+| `static-repetition` | polished | never |
+| `repeated-note-run` | polished | never |
+| `avoid-fourth` | polished | never |
+| `parallel-perfects` | polished | never |
+| `wide-leap` | strict | polished |
+
+### Classical
+
+| Rule | Prefers from | Forbids from |
+|---|---|---|
+| `augmented-second` | light | polished |
+| `parallel-perfects` | strict | polished |
+| `non-chord-tone-on-strong-beat` | never | never |
+
+### Metal
+
+| Rule | Prefers from | Forbids from |
+|---|---|---|
+| `tritone-leap` | never | never |
+| `augmented-second` | never | never |
+| `flat-nine` | polished | never |
+| `repeated-note-run` | polished | never |
+| `unprepared-dissonance` | strict | polished |
+| `parallel-perfects` | polished | never |
+| `wide-leap` | standard | strict |
+
+### Rock
+
+| Rule | Prefers from | Forbids from |
+|---|---|---|
+| `augmented-second` | never | never |
+| `unprepared-dissonance` | strict | never |
+| `non-chord-tone-on-strong-beat` | polished | never |
+| `semitone-clash` | polished | never |
+| `parallel-perfects` | polished | never |
+| `repeated-note-run` | strict | never |
+| `unresolved-leading-tone` | strict | never |
+| `unresolved-seventh` | strict | never |
+| `chromatic-tone` | polished | never |
+| `chromatic-leading-tone-in-minor` | light | light |
+
+### Finnish folk
+
+| Rule | Prefers from | Forbids from |
+|---|---|---|
+| `augmented-second` | never | never |
+| `parallel-perfects` | polished | never |
+| `avoid-fourth` | never | never |
+| `static-repetition` | strict | never |
+| `repeated-note-run` | polished | never |
+
+### Country
+
+| Rule | Prefers from | Forbids from |
+|---|---|---|
+| `augmented-second` | never | never |
+| `wide-leap` | standard | polished |
+| `non-chord-tone-on-strong-beat` | polished | never |
+| `repeated-note-run` | strict | never |
+
+### Latin
+
+| Rule | Prefers from | Forbids from |
+|---|---|---|
+| `augmented-second` | never | never |
+| `parallel-perfects` | polished | never |
+| `repeated-note-run` | polished | never |

@@ -4,8 +4,9 @@ A rule-based generator for **instrumental iskelmä, jazz, ambient and vintage sy
 
 ```bash
 npm install
-npm run dev                                    # audition page at localhost:5178
-                                               # voice lab at  localhost:5178/voice.html
+npm run dev                                    # audition page at localhost:5173
+                                               # concert   at  localhost:5173/concert.html
+                                               # voice lab at  localhost:5173/voice.html
 npm run gen -- -n 12 --genre jazz --mood smoky --out ./out
 npm run gen -- -n 12 --genre iskelma --mood kaihoisa --strictness strict
 npm run gen -- -n 12 --genre ambient --style wasteland --out ./out
@@ -95,9 +96,13 @@ Plus a **motto** — one rhythm and one contour chosen per song and quoted throu
 
 ## Vocals
 
-`--vocals` adds a **wordless sung line** doubling the melody — no lyrics, no language, no localisation. The melody is folded by whole octaves into the voice's range and each note is sung on a vowel chosen from the pitch, the note length and the genre. Held notes and high notes open toward `a`; short ones close toward `u` and `i`.
+`--vocals` adds a **sung line** doubling the melody. It sings **invented words** — no real language, no lyrics, nothing to localise. The melody is folded by whole octaves into the voice's range and cut into syllables; the words those syllables come from are never displayed, never serialised and never reach the `Song`.
 
-How often the vowel changes is most of the difference between the genres. Iskelmä holds one across roughly five notes — legato, one line per breath. Jazz changes on every note, which is scat. Ambient holds one across ten and re-attacks once every two beats, which at these tempos is one syllable every two seconds — slower than any language, and about the rate a choir sings a held Latin vowel. The `choral` style is the one written for it.
+**A weighted draw per syllable has no memory**, which is why there are words at all. Every syllable as likely as every other means no figure ever comes back and the line is heard as texture — and no choice of weights fixes that, because the problem is the independence rather than the distribution. Language is a small vocabulary, reused, and the reuse is what a listener hears first. So each song gets a lexicon of **twenty invented words** and a line per section, and every chorus is handed the same line: the refrain comes back on the same handful of words.
+
+How those words are spelled, and how fast they arrive, is most of the difference between the genres. `WordStyle` gives each one its own spelling — `finnish`, `scat`, `airy`, `machine`. Vowel harmony does most of the work in the first: Finnish never mixes `a o u` with `ä ö y` inside a word, and observing that is most of what separates an invented word that sounds Finnish from one that sounds like nothing. Geminates (`kk tt ll nn`) fall out for free, because a closed syllable followed by an onset writes two consonants in a row.
+
+The syllable rate carries the rest. Iskelmä takes one a beat — legato, one line per breath. Jazz takes two, which is scat. Ambient takes one every two beats, which at these tempos is one syllable every two seconds — slower than any language, and about the rate a choir sings a held Latin vowel. The `choral` style is the one written for it.
 
 ```bash
 npm run gen -- --genre jazz --seed 42 --vocals
@@ -108,21 +113,23 @@ Vocals draw from their own RNG stream, so **a seed produces the identical instru
 
 **Singing is articulated tone, not sustained tone.** That is the whole trick, and everything else here is detail. A melody note is not one sound — it is one *or more* syllables, spaced on the beat grid, each short enough to leave a gap before the next. A four-beat held note becomes four syllables in iskelmä and eight in jazz. The gap is the mouth closing, and without it the ear hears an instrument. It is also why Undertale and Animal Crossing work: the voice reads as a voice because it is *chopped*, not because the timbre is convincing.
 
-**Each syllable gets a consonant**, chosen by manner rather than by letter — stop, fricative, nasal, liquid, or none. A manner is synthesisable where a letter is not: a stop is a 20 ms noise click and then the vowel arrives in 3 ms, a nasal has no burst at all and the voice leans in over 70. Two numbers per syllable — how fast the vowel comes in, and what noise precedes it — are enough to turn "duu duu duu" into something closer to `le-she-ne-lo-to-no-fo-ny-dy-my-re-de-me`. Nobody will mistake it for language, and it should not try to be.
+**Each syllable takes its consonants from its own letters**, and they are described by **manner and place** rather than by letter — thirteen of them: three stops (`t` `p` `k`), four fricatives (`s` `š` `f` `h`), two nasals, two liquids, a glide, and a bare onset. That is what is synthesisable where a letter is not: a stop is a real closure and then a release, a nasal has no burst at all but an anti-resonance whose frequency is the whole of `m` against `n`, and every consonant with a place has a **locus** — where the tract sits while it is made, which the vowel then transitions out of. `moon` hums, `tale` clicks, `ranta` rolls. Nobody will mistake it for language, and it should not try to be.
 
-The rest is a small formant synth: a sawtooth for the glottal source, an unfiltered **body** band carrying the harmonic series, a **resonant lowpass at F1** for chest, and **bandpasses at F2 and F3** for the vowel. Vibrato is nearly off. MIDI ships the same line as GM 52/53 (choir aahs / voice oohs) — static next to the preview, but recognisably a voice.
+A syllable is also **light or heavy**, and heavy takes two slots — a long vowel, a diphthong, or a syllable a consonant closes. The second slot is a tie, so the vowel is *held* rather than restruck, which is what a long vowel actually is.
 
-Five things went wrong on the way here, all of which produce a voice you cannot hear or cannot believe:
+**Three renderings, one line.** In the browser the voice is sung by the project's own Web Audio formant synth — `web/voice-synth.ts`, the all-pole cascade described under [the voice lab](#the-voice-lab) — with `web/sung-voice.ts` bridging it onto Strudel's clock. That is what makes legato, held vowels and closing consonants possible at all: Strudel schedules one independent event per note, so two syllables of one word could never be run together. An exported `.strudel.js` still sings through the formant bank in `render/strudel.ts`, which is the older sound and the one the lessons below were learned on. MIDI ships the same line as GM 52/53 (choir aahs / voice oohs) — static next to either, but recognisably a voice.
+
+Five things went wrong on the way to that formant bank, all of which produce a voice you cannot hear or cannot believe:
 
 - **Strudel's `.vowel()` is unusable on pitched material.** It assigns each formant's *bandwidth in Hz* straight into the filter's Q — but Q is a ratio, not a width, so an 80 Hz bandwidth at 660 Hz becomes a slit about 8 Hz wide. On the sustained noisy source its documentation demonstrates it on, that survives. On a pitched one it does not: whether a note sounds depends on whether one of its harmonics lands inside the slit. Across eight adjacent notes the output swung **27 dB**. Passing the proper Q (centre ÷ bandwidth) brings that to **9 dB**.
 - **Formants cannot be the whole signal.** Three parallel bandpasses keep three slices of the spectrum and discard the rest, so the result is thin and far too quiet — no makeup gain restores spectrum that is gone. A vocal tract is *resonant*: peaks on a full spectrum, troughs attenuated but present. Hence the resonant lowpass at F1 rather than a fourth bandpass.
 - **A choir patch cannot be made to sing.** Swapping the source to a sampled `gm_voice_oohs` fixed the level and sounded like a voice, but GM choir patches are *pads* — sustained, ensemble-detuned, built to sit behind an arrangement. With vibrato on top it was a wobbling ghost. The fix was not a better sample; it was syllables.
 - **Loudness is spectral, not RMS.** The clearest lesson here. A voice can measure *the same RMS as the melody* and be inaudible next to it: measured at one point, the vocal had **0.1% of its energy above 1.5 kHz against the melody's 17%**, because every formant of a dark vowel sits below 1.5 kHz and hearing is most sensitive well above it. Turning the gain up does nothing — it makes a dark sound louder and still buried. What fixed it was spectrum: a full-spectrum body band, a wider F3 acting as a singer's formant, consonant bursts at 3–6 kHz, and dropping F1 *below* unity because a resonant lowpass passes everything under it and drowns the rest. If the voice ever sounds quiet again, look at `FORMANT_GAINS` and `burstGain` before touching `gain`.
-- **The renderer's sixteenth grid can quantise the gap away.** A 0.38-beat syllable at 0.5-beat spacing rounds to a full eighth note and the silence disappears, leaving a line that is re-articulated on paper and seamless to the ear. `blipBeats` is chosen per genre to survive the grid. The MIDI render keeps exact durations and does not have this problem.
+- **A sixteenth grid can quantise the gap away.** A 0.38-beat syllable at 0.5-beat spacing rounds to a full eighth note and the silence disappears, leaving a line that is re-articulated on paper and seamless to the ear. `blipBeats` is chosen per genre to survive the grid. Only the Strudel path has this problem: MIDI keeps exact durations, and the browser voice lays out a whole utterance in seconds rather than slots.
 
 ### The voice lab
 
-Everything above describes the **wordless** line the song generator ships today. A separate bench at [localhost:5178/voice.html](http://localhost:5178/voice.html) explores what comes after it: **words**, **talk-singing**, and **voice signatures**. It does not touch the song path, so the sound that already works stays available to compare against.
+A bench at [localhost:5173/voice.html](http://localhost:5173/voice.html) for the vocal work: type text, hear it sung or spoken, and see why it sounds the way it does. It is where **words**, **talk-singing** and **voice signatures** were built, and the song path now uses two of the three — the words above, and the lab's own synth as the singer. So it is one voice in two places rather than two voices, and every preset stays available to compare against.
 
 ```bash
 npm run dev   # then open /voice.html
@@ -132,33 +139,61 @@ Four things it separates, and keeps separate:
 
 - **Signature** — *who is singing*: `low-male` … `child`, seven of them. One number does most of the work — a vocal tract is a tube and a shorter tube resonates higher, so every formant scales by (reference length ÷ this tract's length): 1.17 for a female tract, 0.90 for a low male. Pitch and tract length stay independent, which is exactly what transposing a sample fails to do and why that sounds like a chipmunk instead of a woman.
 - **Delivery** — *how they perform*: `sung`, `ballad`, `syllabic`, `talk-sing`, `spoken`, `chant`, `whisper`. What separates talking from singing is not pitch — a monotone chant is unmistakably singing. It is **where the silence goes** (between words, not between syllables), **whether a syllable may outlast its note** (melisma), and **how much of the written tune survives**. `syllabic` is the current song-engine sound, kept as a preset so it can be A/B'd.
-- **Phonetics** — *what a word sounds like*, as a pure function of the word. The word's own vowel letters choose a region of the openness/frontness plane, a hash picks the vowel within that region, and a minimum-distance rule then guarantees neighbouring syllables never land on nearly the same mouth shape. So `kuutamo` is dark, `hiljaisuus` is bright, the same word is always identical, and no dictionary is needed for text that might be Finnish, English or invented. Consonants stay thin on purpose: word-initial usually, word-interior rarely, because vowel-to-vowel motion is what floats.
+- **Phonetics** — *what a word sounds like*, as a pure function of the word. The word's own vowel letters choose a region of the openness/frontness plane, a hash picks the vowel within that region, and a minimum-distance rule then guarantees neighbouring syllables never land on nearly the same mouth shape. So `kuutamo` is dark, `hiljaisuus` is bright, the same word is always identical, and no dictionary is needed for text that might be Finnish, English or invented. How consonantal a voice is comes from three density knobs — word onset, word interior, and the closing consonant — set per word style: `finnish` articulates nearly every syllable (0.92 / 0.8 / 0.45), `airy` stays sparse (0.7 / 0.5 / 0.2), because vowel-to-vowel motion is what floats.
 - **The synth** — an all-pole cascade formant model in plain Web Audio, MIT, no Strudel. One oscillator and one filter chain for a whole utterance rather than one per note, which is what makes legato and melisma expressible at all. **A vowel is not where the spectrum peaks, it is where it falls**: five resonant lowpasses in series, each unity below its resonance and falling at 12 dB/octave above it, so the response between two formants *descends* — a real /i/ has a canyon 30 dB deep between 300 Hz and 2 kHz, and neither parallel bandpasses nor a bank of boosts can dig one. Driven by a sawtooth, because what excites the tract is the glottal flow's derivative with lip radiation folded in (-6 dB/octave, not the -12 of the flow itself).
 
 The page shows the syllables each word hashes to, the timeline the layout produced, and a vowel-space chart with the path the line actually walked — so "why does everything sound the same" has a number next to it rather than an opinion. See [docs/voice.md](docs/voice.md).
 
 Measured at E3, peaking cascade → all-pole cascade: tract response span for /a/ 3.8 → 80 dB, spectral distance between cardinal vowels 4.0–8.3 → 10.9–18.3 dB, and — the one that matters — the /a/–/i/ difference in the 600–1500 Hz band, where the body of the voice is, under 4 dB → **27.5 dB**.
 
+## The concert
+
+A band walks out on a 3D stage and plays the set — visibly. Hands hit the drums the drums are actually being hit on, the follow spot finds whoever is soloing, and the programme tells you what you are about to hear.
+
+```bash
+npm run dev        # then open /concert.html
+npm run concert    # assert the hands, the staging and the light cues
+```
+
+**It is a third renderer of the Song IR, not a feature of the audio player.** `src/concert/` turns a `Song` into a **Performance IR** — who is on stage, what every limb does at which beat, what the lights do, what the programme says — as plain data, with no access to three.js, Strudel or the DOM. The three.js runtime under `src/web/concert/` plays that.
+
+Three things follow, and all three are the point. The visuals **cannot cheat**: a choreographer that can only see `NoteEvent[]` has no path by which a nice-looking animation quietly changes what is heard. It **ports**, because a native engine consuming the same IR gets the staging for free — and a concert is the most demanding test there is of whether the IR carries enough to drive something that is not audio. And it is **testable without eyes**: `npm run concert` asserts that no hand teleports, that every sounding note has exactly one gesture on the audio grid, that no two players are standing in the same place, and that ambient never uses a follow spot.
+
+The audition page's **Watch on stage** button hands the stage the song you are already listening to, rather than programming a new set. See [docs/concert.md](docs/concert.md).
+
 ## Documentation
 
-- [docs/voice.md](docs/voice.md) — the voice lab: signatures, delivery, word→syllable hashing, the formant synth
+Start at [docs/README.md](docs/README.md), which indexes the lot and says which files describe what exists and which are the reasoning behind it.
+
+**What exists**
+
+- [docs/architecture.md](docs/architecture.md) — layout, the three renderers, adding a genre, producing audio
 - [docs/iskelma.md](docs/iskelma.md) — the iskelmä ruleset: dances, harmony, form, eras, moods
 - [docs/jazz.md](docs/jazz.md) — the jazz ruleset: styles, chord-scale mapping, walking bass, quartal voicings
 - [docs/ambient.md](docs/ambient.md) — the ambient ruleset: the drone rule, sustain, arpeggios, the inverted mix, effects
 - [docs/synth.md](docs/synth.md) — the synth ruleset: cycles that are not the bar, the filter as arrangement, electric instruments
-- [docs/smoothness.md](docs/smoothness.md) — the constraint system and what each level costs
-- [docs/hook.md](docs/hook.md) — the repetition system: section recall, rhythm lock, vocabulary
 - [docs/arrangement.md](docs/arrangement.md) — the vertical, phrase rhythm, and the motto
+- [docs/rhythm.md](docs/rhythm.md) — what the rhythm section plays, and how it stopped being one bar repeated
+- [docs/smoothness.md](docs/smoothness.md) — the constraint system and what each level costs
+- [docs/hook.md](docs/hook.md) — the repetition system: section recall, harmonic simplicity, what it costs
+- [docs/voice.md](docs/voice.md) — the voice: signatures, delivery, word→syllable hashing, the formant synth
+- [docs/concert.md](docs/concert.md) — the stage: the Performance IR, gestures, groove, lighting
 - [docs/rules.md](docs/rules.md) — every rule and its thresholds (generated from the code)
-- [docs/architecture.md](docs/architecture.md) — layout, adding a genre, producing audio
+
+**Why it is like that** — build plans, kept for the reasoning and annotated with what landed
+
+- [docs/tune-plan.md](docs/tune-plan.md) · [docs/concert-plan.md](docs/concert-plan.md) · [docs/backline-plan.md](docs/backline-plan.md) · [docs/rhythm-plan.md](docs/rhythm-plan.md) · [docs/feel-plan.md](docs/feel-plan.md) · [docs/transition-plan.md](docs/transition-plan.md)
 
 ## Verifying
 
 ```bash
-npm run verify      # typecheck + genre checks + notation validity + musical audit
+npm run verify      # everything below that asserts: typecheck, rules, genres,
+                    # notation validity, the concert, the audit and the ensemble
 npm run ensemble    # how the layers sound together: voicings and register separation
 npm run score -- 7 iskelma tango   # read one song bar by bar, every layer
 npm run genres      # asserts what defines each genre
+npm run concert     # asserts the hands, the staging and the light cues
+npm run tune        # the tune engine alone: one melody over I–vi–IV–V, no band
 npm run strictness  # rule violations and musical cost at each smoothness level
 npm run hook        # how much the music repeats itself at each hook level
 npm run moods       # what each mood does to key, tempo and style choice
@@ -173,7 +208,7 @@ For ambient it also asserts the negative claims, which are the ones that quietly
 
 **Strudel only runs in a browser.** It is a live-coding library built on Web Audio, so it cannot be the playback layer anywhere else. It is used here as a *composition and audition* tool. The shipping path is MIDI → rendered audio.
 
-**Strudel is AGPL-3.0-or-later**, so it is quarantined. `src/web/audio.ts` is the only file that imports it — verify with `grep -rn "@strudel" src --include="*.ts" | grep import`. Everything else, including `render/strudel.ts` (which emits Strudel code as text but never imports it), is MIT and dependency-free. Delete `src/web/` and you lose the browser preview and nothing else.
+**Strudel is AGPL-3.0-or-later**, so it is quarantined inside `src/web/`. Verify with `grep -rn "@strudel" src --include="*.ts" | grep -v "^src/web/" | grep import`, which should print one line: a type-only import in `src/types/strudel.d.ts`, a declaration file with no runtime link. Three files import it: `web/audio.ts` owns the transport, `web/sung-voice.ts` borrows the audio context and the clock to sing over it, and `web/concert/transport.ts` inverts that clock to ask what beat it is. Everything else, including `render/strudel.ts` (which emits Strudel code as text but never imports it), is MIT and dependency-free. Delete `src/web/` and you lose the browser preview and nothing else.
 
 ### Licence
 
@@ -188,5 +223,6 @@ Two runtime assets the preview downloads are **not** covered by this repo: the [
 - **Two effects do not survive to MIDI.** Reverb send and pan are GM level 1 (CC91, CC10) and ship everywhere; lowpass and resonance are GM2/GS (CC74, CC71) and need a synth that honours them, such as FluidSynth. **Delay, highpass, drive, crush and phaser have no GM controller at all** and exist only in the audition render — inventing a CC for them would produce a `.mid` that plays back correctly on exactly the synth it was tested against. A native engine reads all of them from the IR. A filter *sweep* does survive, as a CC74 stream, because CC74 is defined relative to the patch's own filter and brightness only ever closes it.
 - **Jazz drums in the preview are drum machines.** No acoustic kit samples are available to it. MIDI output is unaffected.
 - **Soundfonts stream from a public CDN** in the browser preview. Use `setSoundfontUrl()` to self-host.
-- **The voice sings the melody's notes, not a singer's.** It gets one vowel per note and no consonants, so it reads as a vocal *timbre* rather than as phrasing — no syllable structure, no melisma, no breath. Adding those is what would make it sound sung rather than merely voiced.
+- **The voice sings the melody's notes, not a singer's.** It has syllables, words, consonants and held vowels now, but the *line* is still the lead instrument's — folded into range and cut up, never written for a voice. A singer would phrase it differently, breathe elsewhere, and not attempt some of it at all.
+- **The two voices are mixed by constants rather than by measurement.** The Strudel path scaled the voice as five stacked patterns, and none of that arithmetic applies to one signal through one cascade.
 - **A jazz melody is not always singable.** The line is written for an instrument, and a violin part can span two octaves where a voice has an octave and a half. Octave-folding places the line as well as it can and the median song strays outside the comfortable range on ~1% of its notes, but the worst seeds reach several semitones over on a fifth of them. Iskelmä barely shows the problem (0.5% of notes, never more than a tone over) because its melodies are already written to be sung.

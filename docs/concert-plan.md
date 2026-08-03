@@ -6,8 +6,12 @@ Then you throw tomatoes at them.
 
 This document is the build plan. It settles the contracts first so that the systems
 underneath can be built independently and in parallel, and it says what each of them
-owns. When the thing is built, this file becomes `docs/concert.md` and describes what
-exists rather than what is intended.
+owns.
+
+**It is built.** [`concert.md`](concert.md) describes what exists; this file is kept for
+the reasoning behind it — the alternatives that were rejected, and why each contract is
+shaped the way it is. Where the two disagree, `concert.md` is the one that was checked
+against the code.
 
 ---
 

@@ -1,6 +1,6 @@
 # The voice lab
 
-`npm run dev` → [localhost:5178/voice.html](http://localhost:5178/voice.html)
+`npm run dev` → [localhost:5173/voice.html](http://localhost:5173/voice.html)
 
 A bench for the vocal work. Type text, hear it sung or spoken, and see exactly
 why it sounds the way it does. The lab has its own Web Audio synth and its own
@@ -295,9 +295,10 @@ Also here and not in the Strudel path:
 ## The song sings words now
 
 `generateVocalTrack` in [`src/generate/vocals.ts`](../src/generate/vocals.ts)
-still doubles the melody and still renders through Strudel, but the vowels and
-consonants no longer come from a weighted draw per syllable. They come from
-**invented words that nobody ever sees**.
+still doubles the melody, but the vowels and consonants no longer come from a
+weighted draw per syllable. They come from **invented words that nobody ever
+sees**. (Who sings them changed too, and afterwards — see [the
+bridge](#and-the-singer-is-the-labs-voice) below.)
 
 The distinction is not cosmetic. A weighted draw produces a sequence with no
 memory — every syllable as likely as every other, so no figure ever comes back

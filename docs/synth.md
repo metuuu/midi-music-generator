@@ -147,7 +147,7 @@ Two genre-specific behaviours: **`leap` runs opposite to tempo**, because fast m
 
 ## Constraint and repetition defaults
 
-`standard` strictness and a `catchy` hook, with `machine` and `stalker` at `earworm`. Overrides: `parallel-perfects` and `avoid-fourth` off — planed synth brass and sus chords are the sound; `unresolved-seventh` and `static-repetition` softened, because a Kraftwerk melody repeats one note more than any rule expects.
+`standard` strictness and a `catchy` hook, with `machine` and `stalker` at `earworm`. Five overrides: `parallel-perfects` and `avoid-fourth` off — planed synth brass and sus chords are the sound; `unresolved-seventh`, `static-repetition` and `repeated-note-run` softened, because a Kraftwerk melody repeats one note more than any rule expects.
 
 `unresolved-leading-tone` is deliberately **not** overridden. In major these songs cadence and a hanging leading tone is a fault exactly as it is in iskelmä. In minor the rule is simply inert, because the scale rule never produces a raised seventh for it to catch — which is a much better way to be modal than switching the rule off.
 
