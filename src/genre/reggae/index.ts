@@ -1,0 +1,678 @@
+/**
+ * Reggae — Jamaica, 1958 to 1990, and everything that came off the island with it.
+ *
+ * Mento, ska, rocksteady, roots, dub, lovers rock, two-tone, rub-a-dub and the
+ * digital riddim: twenty-one styles across four eras, held together by one idea
+ * that none of the other genres in this project has any use for.
+ *
+ * ## The idea is that beat one is empty
+ *
+ * Every other repertoire here is built on stating the downbeat. A tanssilava
+ * guitarist chops the chord on the beat so that the floor knows where it is; a
+ * jazz bass walks a root onto every bar; a sequencer clocks the whole texture from
+ * the top of the bar outward. `CompingProfile` in `style/types.ts` puts it
+ * exactly: *what those parts are for is a floor full of people knowing where beat
+ * one is.*
+ *
+ * This music tells the floor where beat one is **by refusing to play there**. The
+ * guitar chops the offbeats and nothing else; the drummer puts the kick and the
+ * cross-stick together on beat three and leaves the downbeat completely alone; and
+ * the bass, which everywhere else in this project is the instrument that states
+ * the root on the barline, is here a lead instrument playing a written figure with
+ * rests in it that frequently does not begin until after the bar has started. The
+ * ear locates the downbeat by triangulating from three parts that are all
+ * elsewhere, and the result is a groove that leans without ever falling over.
+ *
+ * That is not a variation on a dance band. It is the negative of one, and three
+ * fields below say so in a way nothing else in the repo does — the mix, where the
+ * bass is level with the tune; `transitions`, which admits `break`, the one
+ * gesture iskelmä explicitly rules out; and the absence of `comping`, argued at
+ * its own field.
+ *
+ * ## What this genre does not claim
+ *
+ * It is not a fifth answer to the chord-scale question. `scaleForChord` below is
+ * a close relative of synth's and a first cousin of iskelmä's, and the honest
+ * thing is to say so here rather than let somebody discover the resemblance and
+ * conclude the genre was a mistake. All three follow the *key*. Where this one
+ * differs from iskelmä is the single line iskelmä spends on harmonic minor, and
+ * where it differs from synth is which way it bends when the key alone will not
+ * hold the chord — both are argued at the function.
+ *
+ * Everything that makes this sound like reggae rather than like modal pop is in
+ * the styles: three figures, and where they are in the bar.
+ */
+
+import { chordPcs } from '../../core/chord.js';
+import { makeScale, type ScaleName } from '../../core/scale.js';
+import { RULE_DISABLED } from '../../core/rules.js';
+import type { Genre, FormStep } from '../types.js';
+import { STYLES } from './styles.js';
+import { ERAS } from './eras.js';
+import { MOODS } from './moods.js';
+import { VOCALS } from './vocals.js';
+import { generateTitle } from './titles.js';
+import { STAGING } from './staging.js';
+
+/**
+ * The modes this genre's melody may live in, minor first and major second.
+ *
+ * Short lists, and the shortness is the claim. Synth searches six modes of the
+ * tonic because its harmony genuinely wanders that far; this one has two chords in
+ * most of its verses and does not need a ladder. In minor the tune is aeolian and
+ * bends to dorian when the riddim puts a major IV underneath it — the "Real Rock"
+ * sixth, the brightest note in the genre — and it bends no further than phrygian.
+ * In major it is major and bends to mixolydian for the borrowed ♭VII, which is
+ * where this music puts the chord another idiom would call a dominant.
+ *
+ * **Harmonic minor is absent, and that absence is the genre's central negative
+ * claim** — the same one synth makes, arrived at from a different decade and a
+ * different island. iskelmä's rule is otherwise exactly this one plus a line:
+ *
+ *     if (mode === 'minor' && chord.dominantFunction)
+ *       return makeScale(tonic, 'harmonicMinor');     // iskelmä does this
+ *
+ * Harmonic minor exists to manufacture a leading tone under a dominant, and this
+ * music has no dominant in minor to manufacture one for. Where a dance band writes
+ * `V`, every minor table in `styles.ts` writes `VII` or `v` — a flat seventh a
+ * whole tone below the tonic, or a *minor* five — and the seventh stays natural.
+ * A raised seventh in a minor-key reggae song would sound like a foxtrot band had
+ * walked into the yard.
+ */
+const MINOR_LADDER: ScaleName[] = ['minor', 'dorian', 'phrygian'];
+const MAJOR_LADDER: ScaleName[] = ['major', 'mixolydian', 'dorian'];
+
+/**
+ * Forms.
+ *
+ * Four, and the last two are the ones that could not have been written for any
+ * other genre here.
+ *
+ * A Jamaican single has a **version** on the B side: the same tape, mixed again
+ * with the singer taken off, running for as long as the engineer felt like. On the
+ * A side that shows up as a long instrumental stretch after the second chorus,
+ * which is a `solo` section by every definition the engine has even though nobody
+ * in this repertoire would call it one — the melodica, the organ or the horn line
+ * is not improvising over the changes, it is occupying the space the voice left.
+ *
+ * The last form is the dub proper: two statements and then four sections of the
+ * same thing with different things missing from it. It has no chorus in it at all,
+ * which is why it is a real fourth entry rather than the third with the bars moved
+ * around.
+ */
+const FORMS: (readonly [FormStep[], number])[] = [
+  // The single. Verse, chorus, verse, chorus, the version, and out.
+  [[
+    { kind: 'intro', bars: 4 },
+    { kind: 'verse', bars: 16 }, { kind: 'chorus', bars: 8 },
+    { kind: 'verse', bars: 16 }, { kind: 'chorus', bars: 8 },
+    { kind: 'solo', bars: 16 }, { kind: 'chorus', bars: 8 },
+    { kind: 'outro', bars: 8 },
+  ], 5],
+  // With a bridge instead of the version — the lovers rock and rocksteady shape,
+  // which is a soul record's form played at reggae's tempo.
+  [[
+    { kind: 'intro', bars: 4 },
+    { kind: 'verse', bars: 16 }, { kind: 'chorus', bars: 8 },
+    { kind: 'verse', bars: 16 }, { kind: 'chorus', bars: 8 },
+    { kind: 'bridge', bars: 8 }, { kind: 'chorus', bars: 8 },
+    { kind: 'outro', bars: 8 },
+  ], 4],
+  // The instrumental. A riddim stated, worked over twice, and left running — no
+  // singer ever turned up for this one, which is what half the Studio One
+  // catalogue is.
+  [[
+    { kind: 'intro', bars: 8 },
+    { kind: 'verse', bars: 16 }, { kind: 'solo', bars: 16 },
+    { kind: 'verse', bars: 16 }, { kind: 'solo', bars: 16 },
+    { kind: 'outro', bars: 8 },
+  ], 4],
+  // The version. The same sixteen bars four times with different things taken out
+  // of them; the arrangement is the composition and there is nothing to return to.
+  [[
+    { kind: 'intro', bars: 8 },
+    { kind: 'verse', bars: 16 }, { kind: 'verse', bars: 16 },
+    { kind: 'solo', bars: 16 }, { kind: 'verse', bars: 16 },
+    { kind: 'outro', bars: 16 },
+  ], 3],
+];
+
+export const reggae: Genre = {
+  /**
+   * Direct, never prepared — the same negative claim as the missing harmonic minor.
+   *
+   * `keyChangeChance` is small in every era here and zero in none of them, and the
+   * few lifts that do happen arrive without being announced. An applied dominant
+   * in front of one would put a leading tone in a minor-key song, which is the one
+   * thing this genre asserts never happens; and it would announce a modulation in
+   * music whose whole proposition is that the riddim is the same riddim. See
+   * `tune/keyplan.ts`.
+   */
+  preparedModulation: false,
+  id: 'reggae',
+  label: 'Reggae',
+  description:
+    'Mento, ska, rocksteady, the one drop, dub, lovers rock and the digital riddim — Jamaica, 1958 to 1990, with the downbeat left empty on purpose.',
+  styles: STYLES,
+  eras: ERAS,
+  moods: MOODS,
+  vocals: VOCALS,
+  title: generateTitle,
+  forms: FORMS,
+
+  /**
+   * Guitar and bass keys, and the bass is the one that decides.
+   *
+   * Everywhere else in this project the key table is chosen for singers or for
+   * fingering. Here the constraint is that the *lowest note of the riff* has to
+   * be felt: a reggae bass line is a written figure that spends most of its time
+   * between the open E and the fifth fret of the A string, which is roughly 82 to
+   * 165 Hz, and a figure sitting an octave above that stops being the floor. A
+   * minor, D minor and G minor put a riff exactly there, which is why they carry
+   * the weight; F and B♭ minor are here because the horn eras genuinely lived in
+   * flat keys and a ska number in B♭ is a ska number played by people reading
+   * parts.
+   */
+  keys: {
+    minor: [[9, 6], [2, 5], [7, 4], [4, 4], [0, 3], [11, 2], [5, 2], [10, 2]],
+    major: [[7, 5], [0, 5], [2, 4], [9, 4], [5, 3], [10, 3], [4, 2]],
+  },
+
+  /**
+   * It fades, and the reason is on the other side of the record.
+   *
+   * A Jamaican single does not end. It is turned down while the rhythm carries on,
+   * because the rhythm does carry on — into the version on the B side, into the
+   * next cut of the same riddim, into somebody else's record next month. A button
+   * would be the band agreeing that this particular song was the point, and the
+   * whole economy of this music is built on the opposite claim.
+   *
+   * That sits slightly awkwardly beside `countIn` below, and the awkwardness is
+   * real: a band on a stage counts in and then fades out, which is what a band on
+   * a stage playing this music actually does when the selector takes the record
+   * off.
+   */
+  ending: 'fade',
+
+  /**
+   * Somebody counts it in.
+   *
+   * Three of the four eras here are a room with a drummer in it, and a drummer
+   * starting a one drop has a specific problem that no other genre in this project
+   * has: the first thing the band plays is *nothing*, on the beat everybody else
+   * would use to come in together. Four clicks is not a formality there, it is the
+   * only way the downbeat gets established before it stops being played.
+   *
+   * The digital era is the exception and it is outvoted. A genre gets one answer,
+   * and the answer that is right for the drummer is right for three eras out of
+   * four.
+   */
+  countIn: true,
+
+  /**
+   * `standard`, with the overrides below doing the work.
+   *
+   * The lines here are exposed in the way loop music always is — a riddim comes
+   * round forty times and a wrong note in the hook is heard forty times — but the
+   * idiom is modal, parallel and pentatonic in places, and the strictest settings
+   * would file all three of those off.
+   */
+  defaultStrictness: 'standard',
+
+  /**
+   * Riddim music, and it should sound like it.
+   *
+   * `catchy` locks the rhythm and recalls each section, which is the honest
+   * setting for a genre whose commercial logic is that the same two bars can carry
+   * thirty different songs. `ragga` pushes it to `earworm` and is the only style
+   * that does.
+   */
+  defaultHook: 'catchy',
+
+  /**
+   * The horn section plays a figure, restated, and it is the whole of what a horn
+   * section does here.
+   *
+   * `riff` and `swell` up, `tutti` and `trade` down, and every one of those four is
+   * the same argument from a different side. A Jamaican horn arrangement is three
+   * players reading one line that comes round every second bar until it is part of
+   * the riddim — at which point somebody can version it, which is the point of
+   * everything in this genre. A fresh stab thrown into each gap in the tune is a
+   * rock arranger's gesture and it makes a part nobody could reuse.
+   *
+   * `tutti` is down for the reason iskelmä's is: the band stopping to hit a figure
+   * together empties a floor. `trade` is down for a different one — handing a
+   * phrase between two players is a conversation, and these horns are a *section*,
+   * which is the distinction `horns` in `styles.ts` exists to make against `ska`.
+   * Neither is zero, because ska is exactly where both do happen.
+   */
+  arrangement: { riff: 6, swell: 5, harmony: 4, tutti: 2, trade: 1 },
+
+  /**
+   * Where this genre disagrees with the shared rule table.
+   *
+   * Four entries, and the last one is the one that enforces the genre's central
+   * claim against the only part of the pipeline that could break it.
+   */
+  ruleOverrides: {
+    /**
+     * `augmented-second` off, and it costs nothing anywhere it is not needed.
+     *
+     * The rule vetoes a one-step three-semitone move from strictness 1 upward,
+     * which is correct in harmonic minor, where the interval is the accident of
+     * reaching for a raised seventh. **It is inert in every seven-note mode this
+     * genre uses** — aeolian, dorian, phrygian, major and mixolydian all step by
+     * ones and twos and none of them contains such a gap — so switching it off
+     * changes nothing at all for nineteen of the twenty-one styles.
+     *
+     * What it buys is the other two. `dub` and `nyabinghi` are pentatonic, and the
+     * tonic-to-♭3 of a minor pentatonic and the third-to-fifth of a major one are
+     * exactly the interval being vetoed. Left on, the generator refuses every
+     * characteristic move those scales exist to make, and what comes back is a
+     * five-note scale being used as a badly behaved seven-note one.
+     */
+    'augmented-second': { minLevel: RULE_DISABLED, vetoLevel: RULE_DISABLED },
+
+    /**
+     * The skank planes, and so does the horn line.
+     *
+     * A guitarist chopping triads through `i–VII–VI` is moving three voices in
+     * parallel by construction — that is what a chop *is*, one shape carried up
+     * and down the neck — and a three-horn arrangement voiced in fourths and
+     * fifths over a two-chord riddim does the same. The rule is a choral
+     * prohibition about independent lines and there are no independent lines here.
+     * Softened rather than disabled: the melody and the counter are two players
+     * who can hear each other, and at the top level the fault is still a fault.
+     */
+    'parallel-perfects': { minLevel: 4, vetoLevel: RULE_DISABLED, penalty: 0.6 },
+
+    /**
+     * A hook in this music repeats one note more than any rule expects.
+     *
+     * Softened, not disabled, and the distinction matters: the rule exists to
+     * catch a line that has stalled, and a reggae line can absolutely stall. It
+     * just does it later than a line in any other genre here, because a melody
+     * written against a bar with a hole in it gets a great deal of its interest
+     * from *where* the repeated note lands rather than from the note changing.
+     */
+    'repeated-note-run': { minLevel: 4, vetoLevel: RULE_DISABLED, penalty: 0.85 },
+
+    /**
+     * And this is the one that actually enforces the claim at the top of the file.
+     *
+     * `scaleForChord` never producing a raised seventh is a fact about the *chord
+     * scale* and not about the music, and synth learned that the expensive way:
+     * nothing that decorates a line asks the chord scale for permission. The
+     * soloist's `chromatic` appetite offers the semitone either side of wherever
+     * it is, and one of those is the leading tone — so seventeen songs in two
+     * hundred came out with one in a minor key while the tables stayed innocent
+     * and the assertion passed on luck.
+     *
+     * This genre has a `solo` profile and a version section for it to live in, so
+     * the same hole is open here. Vetoed from the first level rather than
+     * penalised, because this is not a matter of taste that gets stricter with the
+     * setting: the note is either in this music or it is not, and it is not.
+     * `chromatic` stays low but non-zero — a horn player bending into a note is
+     * real, and there are eleven other semitones to do it with.
+     */
+    'chromatic-leading-tone-in-minor': { minLevel: 1, vetoLevel: 1 },
+  },
+
+  /**
+   * The bass is level with the tune, and that single number is the genre.
+   *
+   * The shared defaults put the bass at 0.63 and the melody at 0.95, which is
+   * correct for every other repertoire here — a bass is the floor and the tune is
+   * the thing the floor is under. In this music the bass *is* the lead: it plays
+   * the figure people whistle, it is the part the record is remembered by, and on
+   * a sound system it is being reproduced by a stack of speakers built for nothing
+   * else. 0.94 against a melody at 0.84 puts them within a decibel of each other,
+   * with the melody very slightly behind, which is where these mixes actually sit.
+   *
+   * The comp goes the other way, from 0.72 down to 0.55, and that is not the skank
+   * being unimportant. It is the skank being *short*: a chop is 80 ms of chord and
+   * damping, so its perceived level runs well ahead of its peak, and a chop mixed
+   * at conversational level with the bass turns into the loudest thing in the bar.
+   * The pad is furthest back of anything in the project, because an organ pad in
+   * this music is a wash somebody added at the desk rather than a bed the
+   * arrangement was written over.
+   *
+   * Drums up, from 0.59 to 0.72. The other half of "drum and bass" is not a
+   * metaphor here: these are the two parts that survive into the version, and a
+   * mix where they are accompaniment is a mix of some other record.
+   */
+  mix: {
+    bass: 0.94,
+    drums: 0.72,
+    melody: 0.84,
+    comp: 0.55,
+    pad: 0.38,
+    counter: 0.5,
+    brass: 0.62,
+  },
+
+  /**
+   * The kit, mixed as the drum half of drum-and-bass.
+   *
+   * `rim` at 0.82 is the number that matters and it is a large move: the shared
+   * default is 0.7, below the snare's 0.85, because in every other genre here a
+   * cross-stick is a decoration a drummer reaches for in a quiet passage. Here it
+   * is the backbeat — it is what lands on beat three of a one drop, it is the only
+   * thing besides the kick that lands there at all, and a mix that treats it as an
+   * accent has buried the one event the bar is organised around.
+   *
+   * The kick stays at 1.0 and the cymbals come down. A one drop kick is a large
+   * felt-damped drum with the front head on, tuned low and gated short; the ear
+   * needs all of it. The hats and ride are keeping time in the band a human ear is
+   * most sensitive to, and in a room this size they take care of themselves.
+   *
+   * The hand drums are up rather than at the default, and `lp` at 0.92 is nearly
+   * the kick's own number. In `nyabinghi` and `mento` there is no kick at all, so
+   * the low stroke of the hand drum is not an accent on a kit — it is the pulse of
+   * the bar, played by the same hands as everything else in it, and it has to
+   * carry the floor on its own.
+   */
+  drumMix: {
+    bd: 1.0, sd: 0.82, rim: 0.82, hh: 0.4, oh: 0.52, cp: 0.68,
+    lt: 0.7, mt: 0.68, ht: 0.66, cr: 0.42, rd: 0.32, perc: 0.6, cb: 0.5,
+    sh: 0.42, tb: 0.45, lp: 0.92, mp: 0.66, hp: 0.55,
+  },
+
+  /**
+   * The chop sits above the bass and well below the tune, and it barely moves.
+   *
+   * `offsets` is a register statement rather than a level one, and the comp's is
+   * the one this genre needs. A guitar chop in this music is played on the top
+   * three strings around the fifth fret with the bass rolled off it entirely — it
+   * is a thin bright object deliberately parked in a band nothing else occupies,
+   * because the bass has taken everything under 200 Hz and the tune has taken the
+   * top. The default −0 would voice it in the melody's own octave, where two
+   * things in one register fuse and the ear picks whichever is louder.
+   *
+   * `response` is where the genre says its rhythm section does not swell. A dance
+   * band leans into a chorus; a riddim does not, because the riddim is a fixed
+   * object that a chorus happens over. The bass at 0.2 is the strongest statement
+   * of that — the figure is played at one weight from the first bar to the last,
+   * and everything that arrives, arrives by something else joining.
+   */
+  layerPlan: {
+    offsets: { comp: -2, pad: -8 },
+    response: { bass: 0.2, comp: 0.3, drums: 0.55 },
+  },
+
+  /**
+   * There is no `comping` profile, and the absence is a claim.
+   *
+   * `CompingProfile` is three gestures a chordal player makes when their job is to
+   * accompany: leave a bar out, anticipate the barline, nudge an offbeat stab. All
+   * three are right for jazz and all three are catastrophic here, and it is the
+   * middle one that shows why. Anticipating the barline means arriving an eighth
+   * *early* — which in this idiom is exactly where the previous bar's fourth
+   * offbeat already is, so the gesture does not add a syncopation, it fills in the
+   * one place the figure was leaving empty. Do it often enough and the skank
+   * becomes a chord on every eighth, which is a completely different instrument.
+   *
+   * Iskelmä states the same absence for a related reason — the chords are how the
+   * floor knows where beat one is — and this genre's version is the sharper one:
+   * the chops are how the floor knows where beat one *is not*, and they can only
+   * do that by never moving.
+   */
+
+  /**
+   * A big spring, and a dotted-eighth echo.
+   *
+   * The delay length is a convention rather than a preference and it is the same
+   * one ambient and synth both state: three sixteenths against a four-beat bar
+   * never lands where the beat does. What is different here is the *feedback*.
+   * 0.55 means a single snare hit comes back six or seven times, which is well
+   * past the point where an effect stops being an effect — and that is the correct
+   * setting, because in this music it is not one. A dub echo is a second drummer,
+   * and the engineer riding the feedback control is the only member of the band
+   * playing anything different in the second chorus.
+   *
+   * The eras narrow it: `ska` cuts the size to a third of this and `digital` runs
+   * dry and short. Only `roots` opens it past what is written here.
+   */
+  space: {
+    reverbSize: 0.68,
+    delayBeats: 0.75,
+    delayFeedback: 0.55,
+  },
+
+  /**
+   * Standing production notes, refined by each era.
+   *
+   * **The bass is dark and dry, and both halves are non-negotiable.** 900 Hz is not
+   * a mix taste, it is the instrument: flatwound strings, foam under them at the
+   * bridge, the tone control shut, and a small amp with no tweeter — the whole
+   * signal is fundamental and second harmonic, and everything above the fifth is
+   * absent from the source rather than filtered off it. Dry for the reason ambient
+   * gives about its own: reverb on a sustained low note arrives while the note is
+   * still sounding and the two beat against each other. In a dub mix that is not a
+   * theory, it is the reason the bass is the one channel with no send on it while
+   * everything above it dissolves.
+   *
+   * The comp is the wet one. A skank through a plate is the sound; run dry it is a
+   * correct figure that nobody would recognise.
+   */
+  effects: {
+    bass: { reverb: 0.02, lowpass: 900 },
+    drums: { reverb: 0.28, lowpass: 5200 },
+    comp: { reverb: 0.4, delay: 0.28, lowpass: 6500 },
+    brass: { reverb: 0.4, delay: 0.2, lowpass: 7000 },
+    melody: { reverb: 0.42, delay: 0.3, lowpass: 7500 },
+    counter: { reverb: 0.45, delay: 0.35, lowpass: 7000 },
+    pad: { reverb: 0.5, lowpass: 4600 },
+    vocal: { reverb: 0.38, delay: 0.28, lowpass: 6500 },
+  },
+
+  /**
+   * The filter moves, and it moves under somebody's hand rather than across a
+   * section.
+   *
+   * Present for one style. `applyFilter` is a no-op unless both the genre and the
+   * style have declared something, so this profile costs nothing on the twenty
+   * styles that name no sweep and the notes come back with no `brightness` field
+   * at all — which is the right artefact, and the reason the check next door
+   * asserts that genres without a profile emit nothing rather than emitting a grid
+   * of ones.
+   *
+   * `dub` is the style that declares one, and there the filter genuinely is the
+   * arrangement: a dub mix is a high-pass opened across sixteen bars until the
+   * drums come back, and no amount of level work reproduces it. The `response`
+   * table is where this differs from synth's: there the sweep belongs to the
+   * sequencer, here it belongs to the *drums and the comp*, because those are the
+   * two channels a dub engineer's hands are actually on. The bass is at 0.05 and
+   * effectively pinned — the one channel that never gets filtered, for the reason
+   * given two fields up.
+   *
+   * `kind` states only the disagreements. The verse sits lower than the default
+   * because a version arrives dark and opens; the outro closes hard, because these
+   * records end by being taken away rather than by stopping.
+   */
+  filter: {
+    kind: { intro: 0.3, verse: 0.5, chorus: 1, bridge: 0.72, solo: 0.85, outro: 0.2 },
+    response: { drums: 0.9, comp: 0.85, melody: 0.5, counter: 0.7, pad: 0.6, bass: 0.05 },
+    build: 0.25,
+  },
+
+  /**
+   * The band does not get out of the way, and it is a different argument from
+   * everyone else's.
+   *
+   * Jazz thins out under a soloist because comping is a conversation. Iskelmä
+   * refuses to because the floor is full. Here the riddim carries on for the
+   * reason that it is the record: the horn line or the melodica in the version
+   * section is not being accompanied, it is being *allowed on*, and a rhythm
+   * section that dropped back would have removed the thing the soloist is a guest
+   * of. `full` everywhere, and no trading — four bars of drums alone in a reggae
+   * arrangement is a mix move, not a spot, and the drummer would not thank you.
+   */
+  soloBacking: 'full',
+  solo: {
+    /**
+     * Mostly the answering instrument, because that is who is actually free.
+     *
+     * In three of the four eras the melody layer is a singer's line played by an
+     * instrument, and what takes the version section is whoever was answering it
+     * — the melodica, the trombone, the organ. `comp` is in the rotation at a real
+     * weight and it is not a fallback: an organ player taking sixteen bars over
+     * their own bubble is a specific and common record.
+     */
+    rotation: [['counter', 5], ['melody', 4], ['comp', 3]],
+    tradeFours: 0,
+    /**
+     * High, and higher than jazz's or synth's. The version is the same song with
+     * the singer removed, and a soloist who never touched the tune would be
+     * asserting that it was a different piece — which is precisely what a version
+     * is not.
+     */
+    quoteMotto: 0.6,
+    backing: { counter: 'full', melody: 'full', comp: 'full' },
+    vocabulary: {
+      // A quarter-note gait. Every horn line in this genre is written as a
+      // *figure* rather than as a stream, and a run of eighths over a one drop
+      // reads as somebody who has not noticed where the bar is.
+      gait: 0.65,
+      doubleTime: 0.06,
+      /**
+       * The lowest offbeat-accent number in the project, and it looks like the
+       * wrong way round until you count what is already there.
+       *
+       * The whole rhythm section is on the offbeat: four chops, four hats, and a
+       * bass figure that starts after the downbeat. A soloist adding offbeat
+       * accents on top of that is not syncopating against anything — everything
+       * is already there — and the only remaining way to be interesting is to
+       * land somewhere the band has left empty, which is the beat.
+       */
+      offbeatAccent: 0.1,
+      enclosure: 0.08,
+      // Almost none, and the rule table vetoes the one semitone that would
+      // matter. There is no dominant here for a chromatic approach to approach.
+      chromatic: 0.06,
+      ornament: 0.3,
+      // High. A line over a two-chord riddim has nothing to develop against
+      // except itself, and a solo that keeps inventing over a fixed loop is noise
+      // on top of a pattern rather than a line through it.
+      develop: 0.8,
+      displace: 0.2,
+      // The most space of any soloist here. What a melodica does over sixteen
+      // bars of dub is play four notes and let the echo have the rest, and a
+      // soloist who filled that would be competing with the delay.
+      space: 0.42,
+      climb: 2,
+      paraphrase: 0.4,
+      /**
+       * Low, and it is the one place this genre disagrees with every other solo
+       * profile in the project.
+       *
+       * `liftIntoReturn` is the run up into the last chorus — the gesture iskelmä
+       * gives 0.85 and synth 0.7, because in both of those the final statement is
+       * an arrival being delivered. A version does not deliver anything. It stops
+       * being the version and the singer comes back, and the way that happens on
+       * these records is that everything drops out for a bar. Building into it
+       * would be an announcement, and the drop is the announcement.
+       */
+      liftIntoReturn: 0.2,
+    },
+  },
+
+  // Two and a half to five minutes. A Jamaican single is short — under three
+  // minutes, most of them — and the top of this band is the extended cut with the
+  // version left running on the end, which is what the fourth form is.
+  duration: [150, 300],
+
+  /**
+   * The kit announces the join, and then sometimes the whole band refuses to.
+   *
+   * `break` is the entry that matters, and it is the one iskelmä explicitly rules
+   * out: a pavilion band stopping dead empties the floor. In this music it fills
+   * it. The drop — everything out for a bar, and the whole room waiting for the
+   * one that is not going to be played — is the single most reliable gesture in a
+   * reggae arrangement and it is the live-band ancestor of what a dub engineer
+   * does with a mute button.
+   *
+   * `shot` is here at a real weight because the styles have written their own
+   * `shots` tables and those tables are all offbeat; the derived default would have
+   * put the band together on the group heads, which are the four beats this genre
+   * is organised around not playing.
+   */
+  transitions: [['fill', 5], ['break', 3], ['shot', 3], ['elide', 1]],
+
+  /**
+   * The drummer's vocabulary, and it is short on toms.
+   *
+   * `snare-toms` and `drop` lead it. A reggae fill is a snare figure with the
+   * toms answering off it — a flurry across the last two beats and a landing on
+   * three of the next bar, not a descending roll to a crash — and the reason is
+   * that there is nothing on the downbeat for a crash to land on. `drop` is
+   * weighted as heavily as any roll for the same reason `break` is in the
+   * transitions above: the most effective fill in this idiom is frequently no fill
+   * at all.
+   *
+   * `rim` is in the palette, which only two genres in the project can honestly
+   * say. `tom-roll` is present and last: it is a dance-band gesture and it does
+   * happen here, mostly on the ska and two-tone end where the band is playing to a
+   * different room.
+   */
+  fills: [
+    ['snare-toms', 5], ['drop', 4], ['lead-in', 3], ['rim', 3],
+    ['snare-roll', 2], ['tom-roll', 2],
+  ],
+
+  /**
+   * The scale rule: follow the key, bend one step, and never raise the seventh.
+   *
+   * Rooted on the tonic and searched outward from the key's own mode so that the
+   * smallest possible change is made to admit whatever chord has arrived. What
+   * falls out is the harmonic behaviour this music has:
+   *
+   *     IV major under a minor key  →  dorian       (the "Real Rock" natural sixth)
+   *     bII under a minor key       →  phrygian     (rare, and only in a bridge)
+   *     bVII under a major key      →  mixolydian   (the borrowed flat seventh)
+   *     v minor under a minor key   →  aeolian, unchanged — which is the point
+   *
+   * ## Where this differs from its two relatives
+   *
+   * From **iskelmä**: one line, and it is the missing one. iskelmä substitutes
+   * harmonic minor the moment a dominant-function chord arrives, and there is no
+   * such chord in a minor table anywhere in this genre to substitute under. The
+   * seventh stays natural, and `preparedModulation: false` above closes the other
+   * door the raised seventh could have come through.
+   *
+   * From **synth**: the ladder is three modes long rather than six, and the
+   * direction of the search is fixed rather than leaning with the mode. Synth's
+   * harmony wanders far enough to need a ladder and a tie-break rule; this one has
+   * two chords in most of its verses, and a search that could reach lydian would
+   * be answering a question the tables never ask. What it *does* need, and what
+   * synth's minor lean would get wrong, is that this genre's minor bends
+   * **brighter** first: dorian before phrygian, because the natural sixth over a
+   * major IV is the most characteristic single note in the repertoire and the flat
+   * second is a colour two bridges use.
+   *
+   * **In major the ban lifts**, and that is a precise claim rather than an
+   * inconsistency. Rocksteady and lovers rock came out of American soul and use a
+   * real dominant with a real leading tone; `lovers` is where the permission is
+   * actually spent, and `styles.ts` says so at that style. The claim this genre
+   * makes is "no dominant in minor", not "no dominant" — which is exactly the line
+   * synth draws, for a different repertoire, in the same words.
+   */
+  scaleForChord: (tonic, mode, chord) => {
+    const ladder = mode === 'minor' ? MINOR_LADDER : MAJOR_LADDER;
+    const tones = chordPcs(chord);
+    for (const name of ladder) {
+      const scale = makeScale(tonic, name);
+      if (tones.every((t) => scale.pcs.includes(t))) return scale;
+    }
+    // No mode on the list holds this chord. Stay in the key rather than modulate
+    // to chase it: a chord tone outside the scale, under a line that did not move
+    // to meet it, is a colour — and it is exactly how this music uses the two or
+    // three chords it has that do not belong.
+    return makeScale(tonic, ladder[0]!);
+  },
+
+  /**
+   * The yard, the speaker stack and the handbill. See `staging.ts`.
+   */
+  staging: STAGING,
+};
