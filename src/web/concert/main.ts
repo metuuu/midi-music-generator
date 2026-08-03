@@ -18,6 +18,7 @@ import type { ConcertOptions } from '../../concert/types.js';
 import { STRICTNESS_LEVELS } from '../../core/rules.js';
 import { HOOK_LEVELS } from '../../generate/hook.js';
 import { initAudio } from '../audio.js';
+import { lightTheRoom } from './performer-assets.js';
 import { createShow, type Show, type ShowState } from './show.js';
 
 const canvas = document.getElementById('stage') as HTMLCanvasElement | null;
@@ -128,6 +129,26 @@ if (!canvas) {
 
   const scene = new Scene();
   scene.background = new Color('#0b0908');
+
+  /**
+   * Something for the metal to reflect, before anything metal is built.
+   *
+   * The stage is full of surfaces whose whole colour is a reflection — cymbals,
+   * a trumpet, a chrome stand, and the sequinned or lamé jacket the wardrobe
+   * reserves for whoever is fronting the number. A `MeshStandardMaterial` at
+   * high metalness has no diffuse response, so without a `scene.environment`
+   * those render as a bright dot on black and the lead is the darkest figure in
+   * the house. `lightTheRoom` generates one; the same call, at the same
+   * intensity, backs both benches, so what is checked on `looks.html` is what
+   * walks on here.
+   *
+   * The handle is held rather than dropped because the render target it owns
+   * outlives the call. This page never tears its renderer down — the tab closing
+   * is the teardown — so nothing calls `dispose`, and that is a decision the
+   * binding makes visible instead of a resource with no owner.
+   */
+  const room = lightTheRoom(renderer, scene);
+  void room;
 
   let show: Show;
   try {

@@ -59,7 +59,20 @@ export interface StageMetrics {
   backZ: number;
   /** y of the house floor. Negative — the boards are raised above it. */
   houseY: number;
-  /** Clear width and height of the proscenium opening. */
+  /**
+   * **The aperture** — clear width and height of the gap the audience sees the
+   * band through, above the boards.
+   *
+   * This meant "the proscenium opening" for as long as every room had a
+   * proscenium. It does not any more, and the definition had to widen rather
+   * than the field split, because every one of the dozen call sites that hangs
+   * something off it in `stage-props.ts` and `lights.ts` wants the same thing
+   * under either reading: bunting spans it, the cyclorama glow fills it, a
+   * lantern hangs inside it. In a theatre it is the arch; in a courtyard it is
+   * the clear span between the walls; in a barn it is the gable. See
+   * `RoomShape` in `rooms/types.ts`, which owns both numbers and states the one
+   * rule — never narrower than the playing area.
+   */
   openingWidth: number;
   openingHeight: number;
   /** z of the curtain line, just upstage of the arch. */
@@ -75,6 +88,14 @@ export interface StageMetrics {
    * sky. The camera stands underneath it — see `camera.ts`.
    */
   headroom: number;
+  /**
+   * y of the lowest thing over the *house* specifically, or `Infinity`.
+   *
+   * The other half of `headroom`, and read through `houseLid()` rather than
+   * directly. See that function for what the two are for and why this had to
+   * become a published number rather than a derived one.
+   */
+  houseLid: number;
   /**
    * How tall the thing behind the band is, measured from the house floor.
    *
@@ -92,6 +113,21 @@ export interface StageMetrics {
    */
   crowd: CrowdExtent;
 }
+
+/**
+ * How far the boards sit above the house floor, in a room that has not said
+ * otherwise.
+ *
+ * `Venue` does not carry a stage height and it does not need to: it is not a
+ * musical decision and nothing else in the show depends on it. It is very much
+ * a decision about what kind of *building* this is, though, so it is a default
+ * here rather than a constant — see `RoomShape.rise`, and `CELLAR_RISE` in
+ * `rooms/proscenium.ts` for the room that spends half of it on headroom.
+ *
+ * Fixed in one place so the audience, the apron and the house floor agree.
+ * 0.9 m is a proscenium house, which puts the band above a standing crowd.
+ */
+export const STAGE_RISE = 0.9;
 
 /**
  * How far above the house floor a low ceiling hangs.
@@ -161,9 +197,23 @@ export const STAGE_SOFFIT = 2.85;
  * height of a ceiling that is somewhere else, and a chandelier 0.35 m below the
  * plaster with a 0.08 m stem is the floating-lamp bug this file has already had
  * once. Ask for the surface you are fixing to.
+ *
+ * **It reads a published number now rather than deriving one.** This used to be
+ * `Number.isFinite(m.headroom) ? m.houseY + LOW_CEILING : Infinity` — i.e. *any
+ * room with something over the stage has a cellar's plaster over its house* —
+ * and that was true for exactly as long as the cellar was the only room with a
+ * lid on it. The first second room to grow a roof breaks it silently and in the
+ * direction nobody checks: a 4.6 m courtyard would have hung its chandelier at
+ * 3.6 m, a metre below its own ceiling, with the arithmetic all correct. The
+ * room states both lids in `RoomShape` and this reads the one it is asked for.
+ *
+ * Kept as a function rather than replaced by the field at every call site so
+ * that `stage-props.ts` and `lights.ts` did not have to change at all, and so
+ * that the pair of them still reads as a question with two answers rather than
+ * as two fields somebody has to remember are related.
  */
 export function houseLid(m: StageMetrics): number {
-  return Number.isFinite(m.headroom) ? m.houseY + LOW_CEILING : Infinity;
+  return m.houseLid;
 }
 
 /**

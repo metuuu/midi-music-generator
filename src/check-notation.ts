@@ -8,9 +8,28 @@
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { generateSong } from './generate/song.js';
+import { DEFAULT_DRUM_MIX } from './core/types.js';
 import { resolveVoice } from './render/drum-banks.js';
 import { renderStrudel } from './render/strudel.js';
 import { GENRE_IDS } from './genre/index.js';
+
+/**
+ * Every drum voice, as a token this file will accept in a drum line.
+ *
+ * Derived rather than written out, and the difference is not tidiness. This was
+ * a literal alternation for as long as the kit had fourteen voices, which is
+ * exactly as long as the kit had fourteen voices: the moment `tb` and the three
+ * hand-drum strokes landed in `DrumVoice`, the list here was silently a
+ * different vocabulary from the one the renderer emits, and the failure mode is
+ * the worst one this file has — a *correct* drum line reported as unparseable
+ * notation, in a check whose whole job is to be believed.
+ *
+ * `DEFAULT_DRUM_MIX` is the source of truth because it is an exhaustive
+ * `Record<DrumVoice, number>`, so the compiler guarantees its keys are the
+ * complete set. A voice added without a level is a build error; a voice added
+ * without a token here is now impossible.
+ */
+const DRUM_VOICE_TOKEN = new RegExp(`^(${Object.keys(DEFAULT_DRUM_MIX).join('|')})$`);
 
 const problems: string[] = [];
 /**
@@ -62,7 +81,7 @@ for (let i = 0; i < 150; i++) {
     // per-note dynamics, and the sung layer writes attack, filter frequency and
     // decay the same way — and they are as much a part of the notation as the
     // note names are.
-    const DRUM = /^(bd|sd|rim|hh|oh|cp|lt|mt|ht|cr|rd|perc|cb|sh)$/;
+    const DRUM = DRUM_VOICE_TOKEN;
     // Noise sources. The sung layer triggers one for each consonant burst.
     const NOISE = /^(white|pink|brown)$/;
     for (const tok of inner.split(/\s+/)) {

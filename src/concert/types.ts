@@ -75,6 +75,7 @@ import type { GenerateOptions } from '../generate/song.js';
  */
 export type Archetype =
   | 'drumkit'
+  | 'handdrum'
   | 'grand-piano'
   | 'electric-piano'
   | 'organ'
@@ -550,11 +551,59 @@ export interface Station {
   riser: number;
 }
 
+/**
+ * What is on a performer's head, as an outline rather than as a haircut.
+ *
+ * The test every value here has to pass is the one an audience applies from row
+ * twenty: no two of these may be the same outline in a different colour. That is
+ * the whole reason there is no shaved-crop value sitting next to `short` — a
+ * number two crop and a short back-and-sides differ by a centimetre of hair that
+ * does not exist at this scale, and a head that is actually shaved is already
+ * `bald`. It is also why `mane` is worth having next to `long`: `long` stops at
+ * the shoulder line and reads as a haircut, `mane` covers the shoulders and
+ * reads as a mass, and one of those is a metal band and the other is not.
+ *
+ * **Two of these are cloth, and they are here rather than in `Accessory` because
+ * they replace the hair.** An accessory is worn *as well as* a hairstyle; a hood
+ * or a headscarf is worn *instead of* one, and putting either in the other union
+ * licenses a beehive under a hijab. A hat that sits on top of whatever is
+ * underneath — a cap, a turban, a tam — is an accessory, and stays one.
+ */
 export type HairStyle =
-  | 'short' | 'slick' | 'beehive' | 'bob' | 'long' | 'curls' | 'bald' | 'hood';
+  // Held close to the skull.
+  | 'short'      // the default, and most of what any band is wearing
+  | 'slick'      // oiled flat with a quiff: swing, rockabilly, a tight band
+  | 'bald'
+  | 'updo'       // pinned and knotted at the nape. The concert platform
+  | 'braids'     // a tight scalp and one heavy plait behind it
+  | 'mohawk'     // shaved to a crest; the one silhouette that is mostly skull
+  // Shaped, with a volume of its own.
+  | 'beehive'    // a tower. Tanssilava, and the sixties everywhere else
+  | 'bob'        // cut off level below the jaw
+  | 'curls'
+  | 'afro'       // half again the width of the head: a volume, not a texture
+  // Hanging.
+  | 'long'       // curtains to the shoulder
+  | 'mane'       // past the shoulder blades, and over the collarbones as well
+  | 'mullet'     // short everywhere the audience can see. Long behind
+  | 'dreadlocks' // ropes, hanging separately and swinging separately
+  // Cloth, worn instead of a hairstyle.
+  | 'hood'       // outerwear, in the jacket's colour
+  | 'wrap';      // cloth over the hair, falling to the shoulders
 
 /**
  * What a garment is made of. Drives sheen, and reads as era as much as genre.
+ *
+ * Each value has to be a different *reflectance*, not a different bolt of
+ * cloth — two fabrics that light behaves identically on are one fabric with two
+ * names, and the wardrobe already has colour for saying the rest. So the
+ * question asked of every entry below is what a follow spot does when it crosses
+ * it: a sharp bright line, a broad soft lustre, a thousand separate points, or
+ * nothing at all.
+ *
+ * `brocade` is the one exception and it is deliberate. It is a *pattern* rather
+ * than a sheen, which is not something a shader can be handed as a number, so it
+ * is the only fabric that reaches the renderer as geometry — see `dressTorso`.
  */
 export type Fabric =
   | 'wool'      // a suit. The default, and most of what a band wears.
@@ -565,11 +614,164 @@ export type Fabric =
   | 'denim'
   | 'leather'
   | 'knit'      // ambient: jumpers, and nothing reflects
-  | 'nylon';    // an anorak. Slight sheen, and the wrong kind of sheen.
+  | 'nylon'     // an anorak. Slight sheen, and the wrong kind of sheen.
+  | 'silk'      // a broad soft lustre that moves with the drape, where satin's is a hard bright line
+  | 'linen'     // matte, but pale and crisp: it throws light back rather than eating it
+  | 'brocade'   // woven pattern and metal thread. The only fabric with a shape
+  | 'lame'      // lamé — one continuous sheet of metal, where sequin is a thousand points of it
+  | 'vinyl'     // a small hard plastic highlight; leather's is soft and wide
+  | 'flannel';  // brushed until it has no grain at all. Corduroy's ribs catch a rim light in lines; this catches nothing
 
+/**
+ * Worn as well as a hairstyle, never instead of one. See `HairStyle`.
+ *
+ * The rule that keeps this list honest is the same ten-metre test, and it prunes
+ * harder here than anywhere else: a nose ring is four pixels under a follow
+ * spot, and a fedora and a porkpie are one felt crown over one round brim with a
+ * crease between them. What survives is what changes an *outline* — a wide brim,
+ * a peak the wrong way round, a band of dark across both eyes instead of two
+ * discs.
+ *
+ * Nothing here can be trusted to appear alone, so nothing here may assume it
+ * does: `cast.ts` draws several and caps them at three, and `EXCLUSIVE` there
+ * groups the ones that cannot physically coexist. A value added to this union
+ * without being added to that table is a player in a cowboy hat and a beanie.
+ */
 export type Accessory =
-  | 'glasses' | 'sunglasses' | 'porkpie' | 'flatcap' | 'tie' | 'bowtie'
-  | 'scarf' | 'beard' | 'moustache' | 'earrings' | 'headphones';
+  // On the eyes. One of these at most.
+  | 'glasses'
+  | 'sunglasses'
+  | 'wraparounds'  // one dark band across both eyes, not two discs
+  // On the head. One of these at most, and none of them with each other.
+  | 'porkpie'
+  | 'flatcap'
+  | 'ballcap'      // worn backwards; `flatcap` is already a peak the right way round
+  | 'beanie'
+  | 'cowboyhat'
+  | 'bandana'      // tied at the brow, knotted behind
+  | 'turban'       // wound bulk above the skull. Also the tam worn over dreadlocks
+  // Round the neck.
+  | 'tie'
+  | 'bowtie'
+  | 'scarf'
+  | 'towel'        // the one thing here that says the performer is working
+  | 'chain'
+  // On the face.
+  | 'beard'
+  | 'moustache'
+  // Everything else.
+  | 'earrings'     // studs
+  | 'hoops'        // and not studs: these swing below the jaw and catch the light
+  | 'headphones';
+
+/**
+ * The *shape* of what a player is wearing, as opposed to its colour.
+ *
+ * Everything else in `Look.outfit` is four colours and a material, and for a
+ * long time that was the whole wardrobe: `dressTorso` built one silhouette — a
+ * capsule, a shirt front, two lapels, a pair of trouser legs — and every
+ * performer in every genre was that object in a different dye. Fourteen genres
+ * and fifty-two eras of it. The complaint that finally landed was the plainest
+ * one available: *arabic does not have arabic clothing*. It was correct, and it
+ * was correct about thirteen other genres too. A thobe, a sherwani, a sari, a
+ * tailcoat, a kaftan and a cassock are not colours of a lounge suit. They differ
+ * in where the hem is, in whether there are trousers at all, in how wide the
+ * sleeve hangs, and in whether the front closes at the centre or wraps.
+ *
+ * ## The test every member has to pass
+ *
+ * The same one `Accessory` and `HairStyle` are held to, and it prunes hard: does
+ * it change the **outline** at ten metres, under a follow spot, with the colour
+ * ignored? That is a deliberately brutal question and it throws out most of what
+ * a costume department would call a garment. A jumpsuit and a matching suit are
+ * one shape with a seam in a different place, and the seam is not visible from
+ * row twenty. An overcoat and a sherwani are one knee-length skirted column. A
+ * bandsman's frogged tunic is a coat plus `brocade`, which the fabric already
+ * draws. None of those earn a member; they earn a colour, a fabric, or nothing.
+ *
+ * What is left is eight silhouettes, and each one is here because it is the only
+ * way to get a shape the others cannot make:
+ *
+ * `suit` is the default and it is **exactly what the renderer drew before any of
+ * this existed** — that is not a coincidence, it is the acceptance test. A
+ * wardrobe that names no garment gets this, and every genre nobody has dressed
+ * yet is unchanged down to the vertex.
+ *
+ * `tails` is the one garment that only exists *behind* the player. Evening dress
+ * is a lounge suit from the front and two panels to the back of the knee from
+ * the side, which makes it the only member here that reads differently depending
+ * on where the audience is sitting — and an orchestral platform is the one place
+ * in the project where the whole band is in it.
+ *
+ * `coat` is a skirted column to the knee over trousers, closing at the centre
+ * with a standing collar instead of lapels. A sherwani, an achkan, a 1720 court
+ * coat and a kurtā are all this shape at slightly different lengths, which is
+ * four genres for one member. The collar is the half that matters: a lapel is a
+ * notch cut out of the neckline and a stand is a ring around it, and that is
+ * legible far past the distance a lapel is.
+ *
+ * `robe` is one garment from shoulder to ankle with nothing under it: a thobe, a
+ * kaftan, a galabeya, a cassock, a choir robe. **A cassock and a thobe are one
+ * member and that is a judgement, not an oversight** — they are a column of
+ * cloth to the floor with the arms hanging out of the sides, and the buttons
+ * that distinguish them are four pixels. This is the member the original
+ * complaint was about.
+ *
+ * `gown` is fitted above the waist and flared to the ankle. It is the only
+ * member whose *width* changes down the body, which is what separates a stage
+ * dress from a robe when both reach the floor.
+ *
+ * `drape` is a length of cloth: a wrapped ankle-length lower half and one band
+ * over one shoulder. It is the only asymmetric thing anywhere in the rig apart
+ * from the hands, and asymmetry is a very cheap and very strong read — a
+ * diagonal across a torso is legible from any angle and at any distance, which
+ * is more than can be said for most of this list.
+ *
+ * `waistcoat` inverts the colour logic instead of adding cloth: the shoulders
+ * and the arms are the *shirt* and a sleeveless body sits over them. The
+ * silhouette that says so is the shoulder — a jacketed shoulder is padded and
+ * square and a shirt shoulder is not — and it serves a folk waistcoat, a western
+ * vest and a 1720 undercoat between them.
+ *
+ * `shirtsleeves` is no jacket at all, with two braces over the shirt. Without
+ * the braces it would be `suit` in another colour and would fail the ten-metre
+ * test outright; with them it is two vertical straps on a pale field, which is
+ * the one silhouette a working band has that a dressed band does not.
+ *
+ * ## What this replaced
+ *
+ * `Look.outfit` carried a `cut?: { lapel, shoulder, flare }` here, whose comment
+ * claimed *"this is where a decade actually lives"*. Nothing ever wrote it and
+ * nothing ever read it — three floats that had been in the IR long enough for
+ * two renderers to be built past them. It is gone, and this is what stands in
+ * its slot. The claim it made was right and the shape of it was wrong: lapel
+ * width and trouser flare are modifiers of *one* silhouette and mean nothing on
+ * six of the eight below, so implementing them would have meant a rule about
+ * which garments they apply to before they could draw a single pixel. A decade
+ * lives in the garment table far better than in three numbers: 1720 drawing
+ * `coat` and 1870 drawing `tails` is a century of orchestral dress, said with a
+ * shape, by the genre that owns the clothes.
+ *
+ * ## Where the drawing lives
+ *
+ * `web/concert/performer-garments.ts`, which is the *only* place any of this is
+ * interpreted. Three files put cloth on a player — the torso, the sleeves and
+ * the legs — and a robe is a robe in all three or it is a floor-length column
+ * with trouser-coloured shins under it. That file holds the one table they all
+ * read, and the switch that draws the rest ends in a `never` assignment for the
+ * reason every switch in that folder does: a `switch` in a `void` function
+ * accepts a missing case in silence, and the result is not a build error but a
+ * genre that asks for a thobe every night and gets a lounge suit.
+ */
+export type Garment =
+  | 'suit'         // hip-length jacket, notched lapels, trousers. The default
+  | 'tails'        // a suit from the front; two panels to the knee from behind
+  | 'coat'         // knee-length skirted coat, standing collar, trousers under
+  | 'robe'         // shoulder to ankle in one column. No trousers, wide sleeves
+  | 'gown'         // fitted above, flared to the ankle. No trousers, bare arms
+  | 'drape'        // wrapped to the ankle, one band over one shoulder
+  | 'waistcoat'    // a sleeveless body over a shirt; the arms are the shirt
+  | 'shirtsleeves';// no jacket at all, and two braces over the shirt
 
 /**
  * How a performer looks. Deterministic from the concert seed.
@@ -604,15 +806,22 @@ export interface Look {
      */
     fabric: Fabric;
     /**
-     * Cut, 0..1 each. Optional: absent means an unremarkable contemporary line.
+     * What *shape* the cloth is cut into. See `Garment`, which argues all of it.
      *
-     * This is where a decade actually lives. Colour and fabric drift slowly and
-     * ambiguously across eras; lapels get wider and then narrower, and trousers
-     * flare and then stop, on a schedule everyone can read at a glance without
-     * being able to date it. A renderer that ignores this loses era legibility
-     * and nothing else, which is why it is optional.
+     * Required rather than optional, and the difference is the whole point. An
+     * optional garment means the renderer supplies a default, which is the
+     * renderer having an opinion about what a player is wearing — the one thing
+     * `web/concert/performer-look.ts`'s header says these files may never do.
+     * The default belongs one layer up, in `cast.ts`, where a wardrobe that
+     * names no garment table yields `'suit'` without spending a draw, so a genre
+     * nobody has dressed is unchanged and the IR still says out loud what walks
+     * on stage.
+     *
+     * This slot held a `cut?: { lapel, shoulder, flare }` that nothing wrote and
+     * nothing read. `Garment`'s docstring argues why a silhouette replaced three
+     * floats rather than joining them.
      */
-    cut?: { lapel: number; shoulder: number; flare: number };
+    garment: Garment;
   };
   accessories: Accessory[];
 }
@@ -881,9 +1090,61 @@ export interface LightingScore {
 // The venue
 // ---------------------------------------------------------------------------
 
+/**
+ * What *kind of building* a room is, as against which room it is.
+ *
+ * The same distinction `Archetype` draws against `InstrumentId`, and for the
+ * same reason: sixty catalogue instruments collapse onto twenty-two models
+ * because a tenor and a baritone saxophone are one object at two sizes, and
+ * fourteen rooms collapse the same way. A ballroom, a dancehall and a salon are
+ * one big room with a floor in it. A barn and a warehouse are one long roof.
+ * `StageRoom.id` names the room; this names the building it is one of.
+ *
+ * The vocabulary lives here rather than in `web/concert/rooms/`, which was the
+ * only direction available and is the same one `PropName` runs in: `concert/` is
+ * the IR and `web/concert/` renders it, so the vocabulary may not depend on the
+ * thing that draws it or the IR stops being printable without a WebGL context.
+ * What the inversion buys is a compile error — `ROOMS` over there is a total
+ * `Record<RoomStyle, RoomBuilder>`, so a name added here with no builder added
+ * there fails `npm run typecheck` rather than becoming a room that quietly
+ * renders as a proscenium. Adding an architecture is a two-file change by
+ * construction, and the compiler names the second file.
+ *
+ * `proscenium` is the floor under all of them: an arch, a curtain, a fly bar and
+ * three walls, with four modifiers reachable through `Venue.props`
+ * (`black-box`, `brick`, `open-air`, `low-ceiling`). It is what a room that has
+ * named nothing gets, and thirteen of the fourteen rooms in the catalogue are
+ * still it.
+ */
+export type RoomStyle =
+  /** An arch, a curtain, a fly tower and three walls. The default. */
+  | 'proscenium'
+  /** A walled court, arcaded, paved, open to the sky. No arch, no cloth. */
+  | 'courtyard'
+  /** A shoebox hall: a raked, tiered house, a recessed platform, no cloth. */
+  | 'concert-hall'
+  /** A log threshing barn: a pitched roof, one floor, no stage and no cloth. */
+  | 'riihi'
+  /** A big dark touring room: a high deck, steel overhead, no arch, no cloth. */
+  | 'circuit'
+  /** A recital hall: warm plaster, a canopy overhead, a step of a dais, no cloth. */
+  | 'sabha';
+
 export interface Venue {
   id: string;
   label: string;
+  /**
+   * Which kind of building to put this room up as. Absent means `proscenium`.
+   *
+   * Typed `string` rather than `RoomStyle`, deliberately and for exactly the
+   * reason `props` is `string[]`: the IR is meant to survive being written to a
+   * file and read back by a build that does not have every room in it. An
+   * architecture the renderer has never heard of stages as a proscenium, the
+   * same way a prop it has never heard of is silently skipped. Nothing inside
+   * this repo can produce one — `StageRoom.architecture` is a `RoomStyle`, so
+   * the compiler catches a typo where it is written.
+   */
+  architecture?: string;
   /** Stage dimensions in metres. Staging must fit the cast inside them. */
   width: number;
   depth: number;

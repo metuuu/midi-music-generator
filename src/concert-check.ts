@@ -26,10 +26,12 @@ import { GENRE_IDS, getGenre } from './genre/index.js';
 import { INSTRUMENTS, type InstrumentId } from './style/instruments.js';
 import { armsKnotted, trackForPart } from './concert/choreograph.js';
 import {
-  ARCHETYPES, ARCHETYPE_OF, SYNTH_RIGS, archetypeForTrack, trackCanReach,
+  ARCHETYPES, ARCHETYPE_OF, SYNTH_RIGS, archetypeForTrack, drumEventsFor,
+  trackCanReach,
 } from './concert/instruments.js';
 import { buildConcert, soundingEffectors } from './concert/index.js';
 import { cableBounds, routeOnDeck, stageBoxAt, type Obstacle } from './web/concert/cables.js';
+import { BUILDERS } from './web/concert/instruments/index.js';
 import { riserFootprint } from './web/concert/stage-props.js';
 import type { Gesture, SynthRigId } from './concert/types.js';
 
@@ -164,6 +166,20 @@ console.log(`        archetypes exercised: ${[...seenArchetypes].sort().join(', 
 // spotlight has a person, and the same seed gives the same evening twice.
 console.log('\nShows');
 
+/**
+ * The four the stage was built against — and it is worth knowing that is all
+ * they are.
+ *
+ * Ten more genres exist and none of them is exercised below. That is how three
+ * hand-drum strokes could resolve to a point in the air beside the floor tom
+ * for a whole release without a single assertion going red: the choreography
+ * was correct, the coverage was exact, and nothing on this list ever played a
+ * bar of arabic. Widening it is the obvious fix and it is not free — the
+ * newcomers fail three of the checks below today, on cable routing and on
+ * staging a polysynth in 1780, neither of which is about percussion. Those want
+ * their own pass. The percussion half of the gap is covered by the section at
+ * the end of this file, which runs over every genre.
+ */
 const CHECKED_GENRES = ['iskelma', 'jazz', 'ambient', 'synth'];
 let shows = 0;
 let gestures = 0;
@@ -206,8 +222,12 @@ for (const gid of CHECKED_GENRES) {
         // tracks' worth of notes and must produce two tracks' worth of gestures.
         // See `Performer.doubles`. This is the assertion that a merged station
         // is really playing both lines rather than dropping one of them.
+        // A percussion part can be over two players — a drummer and a hand
+        // percussionist — and `drumEventsFor` is the one place that says which
+        // voices are whose. Counting the whole stream for each of them would
+        // double every arabic and funk number here.
         const notes = performer.layer === 'drums'
-          ? song.drums.events.length
+          ? drumEventsFor(song.drums.events, performer.archetype).length
           : [performer, ...(performer.doubles ?? [])]
             .reduce((n, ref) => n + (trackForPart(song, ref)?.notes.length ?? 0), 0);
         const sounded = part.gestures.filter(
@@ -1272,6 +1292,88 @@ check('quantise is idempotent', grid.every((b) => quantise(quantise(b)) === quan
 check('quantise lands on a slot boundary',
   grid.every((b) => Math.abs(quantise(b) * 4 - Math.round(quantise(b) * 4)) < 1e-9),
   'sixteenths');
+
+// --- Percussion, over every genre rather than four -----------------------
+//
+// The one assertion in this file that reaches past the IR and asks a *model*
+// where a hand would actually go. Everything above is geometry-free by design,
+// which is the right wall — and it is also precisely why a stick could be sent
+// once a bar to a strike point no object stood at, and be correct at every
+// level this file was able to see. `LAYOUT.tb` named a tambourine nothing had
+// built; `lp`/`mp`/`hp` named a hand drum that did not exist.
+//
+// So: build one of each percussion model and resolve every gesture the
+// choreographer places on one. A `resolve` that answers `undefined` is a hand
+// with nowhere to be. It cannot catch a contact that resolves to thin air —
+// only a human eye can — but it does catch the shape of the bug that produced
+// both of those, which is a voice reaching a station that has no answer for it.
+console.log('\nPercussion');
+
+const percussionModels = new Map<string, ReturnType<typeof BUILDERS['drumkit']>>();
+let drumGestures = 0;
+let drumUnresolved = 0;
+let drumPlayers = 0;
+let drumCoverageOff = 0;
+const airborne = new Map<string, number>();
+
+for (const gid of GENRE_IDS) {
+  for (let i = 0; i < 3; i++) {
+    for (const number of buildConcert({ seed: `percussion-${gid}-${i}`, genre: gid }).numbers) {
+      for (const performer of number.cast.performers) {
+        if (performer.archetype !== 'drumkit' && performer.archetype !== 'handdrum') continue;
+        const part = number.choreography.parts[performer.id];
+        if (!part) continue;
+        drumPlayers++;
+
+        /**
+         * Built with the pieces this part actually calls for, not with the
+         * whole rack — otherwise the omission is the one thing this cannot
+         * see. A kit that drops its tambourine when nothing plays one has to
+         * keep answering for every voice that *is* played, and a derivation
+         * that dropped one voice too many would look identical from here
+         * unless the model is built the way the show builds it.
+         *
+         * Cached on the set rather than on the archetype: there are a handful
+         * of distinct racks across a catalogue, and building a kit per number
+         * is thousands of lathes for nothing.
+         */
+        const owned = drumEventsFor(number.song.drums.events, performer.archetype);
+        const aux = [...new Set(owned.map((e) => e.voice))].sort();
+        const key = `${performer.archetype}:${aux.join(',')}`;
+        let model = percussionModels.get(key);
+        if (!model) {
+          model = BUILDERS[performer.archetype]({ seed: 1, aux });
+          percussionModels.set(key, model);
+        }
+        for (const g of part.gestures) {
+          drumGestures++;
+          if (model.resolve(g.target, g.effector)) continue;
+          drumUnresolved++;
+          const voice = g.target.kind === 'drum' ? g.target.voice : g.target.kind;
+          const key = `${performer.archetype} ${voice}`;
+          airborne.set(key, (airborne.get(key) ?? 0) + 1);
+        }
+
+        // The partition, checked from the other end: two players over one event
+        // stream must between them account for every event exactly once.
+        const sounding = new Set(soundingEffectors(performer.archetype));
+        const owed = owned.length;
+        const made = part.gestures.filter(
+          (g) => sounding.has(g.effector) && g.target.kind !== 'rest'
+            && !silentPedal(g) && !panelTouch(g),
+        ).length;
+        if (owed !== made) drumCoverageOff++;
+      }
+    }
+  }
+}
+
+check('every percussion gesture lands on an object', drumUnresolved === 0,
+  drumUnresolved
+    ? [...airborne].sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ×${n}`).join(', ')
+    : `${drumGestures} gestures by ${drumPlayers} players across ${GENRE_IDS.length} genres`);
+check('a percussion part is shared out exactly once', drumCoverageOff === 0,
+  drumCoverageOff ? `${drumCoverageOff} of ${drumPlayers} players` : `${drumPlayers} players`);
 
 // -------------------------------------------------------------------------
 console.log(

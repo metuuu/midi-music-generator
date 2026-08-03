@@ -54,7 +54,7 @@ import { Rng } from '../core/rng.js';
 import type { DrumEvent, DrumVoice, NoteEvent, Song, Track } from '../core/types.js';
 import { IDIOMS, INSTRUMENTS } from '../style/instruments.js';
 import {
-  boardGap, boardsFor, instrumentIdForTrack, rangeForTrack, specFor,
+  boardGap, boardsFor, drumEventsFor, instrumentIdForTrack, rangeForTrack, specFor,
   type BoardSpec,
 } from './instruments.js';
 import type {
@@ -327,6 +327,12 @@ class Board {
  */
 const KIT: Record<DrumVoice, { sweep: number; tier: number }> = {
   cp: { sweep: 0.02, tier: 0 },
+  /**
+   * Clamped to the hi-hat stand's upper rod: a shade outboard of the hats and a
+   * head-height above them, which is where a drummer bolts one and which is why
+   * it files between the clap pad and the hats rather than beside the crash.
+   */
+  tb: { sweep: 0.04, tier: 1 },
   hh: { sweep: 0.06, tier: 1 },
   oh: { sweep: 0.06, tier: 1 },
   cr: { sweep: 0.18, tier: 1 },
@@ -340,6 +346,25 @@ const KIT: Record<DrumVoice, { sweep: number; tier: number }> = {
   perc: { sweep: 0.70, tier: 1 },
   lt: { sweep: 0.78, tier: 0 },
   rd: { sweep: 0.90, tier: 1 },
+  /**
+   * The three hand-drum strokes, **which no drummer plays and which this table
+   * keeps only because it is a total record.**
+   *
+   * They used to be live entries, on the argument that a genre writing them
+   * needed sane prep times rather than a type error, and with a note saying no
+   * era drew them. Seven genres draw them now, and the prep times were the
+   * least of it: the kit had no hand drum on it, so every one of those strokes
+   * was a windup toward a patch of air past the floor tom.
+   *
+   * They belong to `HAND_REACH` and to `handdrum` now, and `drumStations` sees
+   * to it that `drumPart` is never handed one. `kitDistance` is the only reader
+   * of this table and it is only ever called from there, so these numbers are
+   * unreachable; the record stays total because widening `DrumVoice` should
+   * still be a compile error somebody has to answer for.
+   */
+  mp: { sweep: 0.82, tier: 0 },
+  lp: { sweep: 0.85, tier: 0 },
+  hp: { sweep: 0.88, tier: 0 },
 };
 
 /** Sweep across the kit, plus a lift between the heads and the cymbals. */
@@ -546,6 +571,11 @@ export function soundingEffectors(archetype: Archetype): readonly Effector[] {
   switch (archetype) {
     case 'drumkit':
       return ['left-hand', 'right-hand', 'left-foot', 'right-foot'];
+    // A hand drummer's feet do nothing. `ARCHETYPES.handdrum` has no `pedal` in
+    // its `points` for the same reason, and this is the half of that statement
+    // the coverage assertion reads.
+    case 'handdrum':
+      return ['left-hand', 'right-hand'];
     case 'violin':
     case 'cello':
       return ['bow', 'right-hand'];
@@ -602,8 +632,14 @@ function gesturesFor(
   const rng = new Rng(`${song.meta.seed}:choreo:${performer.id}`);
   const board = new Board(song.meta.bpm, rng.float(0.9, 1.12));
 
-  if (performer.archetype === 'drumkit' || performer.layer === 'drums') {
-    drumPart(song.drums.events, board);
+  if (performer.archetype === 'handdrum') {
+    handPart(drumEventsFor(song.drums.events, 'handdrum'), board);
+  } else if (performer.archetype === 'drumkit' || performer.layer === 'drums') {
+    // Their share of it. A percussion part is one event stream over as many as
+    // two players — see `drumStations` — and the kit's share is everything the
+    // hand drum did not take. When there is no hand drum that is all of it,
+    // which is every number this file was written against.
+    drumPart(drumEventsFor(song.drums.events, 'drumkit'), board);
   } else {
     /**
      * Every line this player is carrying, and there is usually one.
@@ -1826,6 +1862,101 @@ function drumPart(events: DrumEvent[], board: Board): void {
         force: e.velocity,
         targets: [{ kind: 'drum', voice: e.voice }],
       });
+    }
+  }
+}
+
+/**
+ * Where each surface a percussionist owns sits along their own reach, 0..1.
+ *
+ * The hand drum's answer to `KIT`, and a far shorter table because a hand
+ * drummer's world is one skin with a small table beside it. The three strokes
+ * are clustered on purpose: they are three places on one head, four
+ * centimetres apart, and the hands never leave it. Filing them any further
+ * apart would charge a full windup for every *doum-tek* in the bar, which is
+ * the mistake the note on `KIT`'s own `lp`/`mp`/`hp` entries warned about back
+ * when this table did not exist and those three voices had nowhere else to go.
+ *
+ * The trap table is a genuine reach away, and that gap is the whole content of
+ * this table: a *tek* costs almost nothing and picking up a riq costs a real
+ * movement.
+ */
+const HAND_REACH: Partial<Record<DrumVoice, number>> = {
+  mp: 0.30, lp: 0.34, hp: 0.38,
+  cp: 0.55,
+  cb: 0.80, tb: 0.86, sh: 0.92, perc: 0.96,
+};
+
+function handDistance(from: DrumVoice, to: DrumVoice): number {
+  return Math.min(1, Math.abs((HAND_REACH[from] ?? 0.34) - (HAND_REACH[to] ?? 0.34)));
+}
+
+/**
+ * `DrumEvent[] → two hands`, for the player with no sticks.
+ *
+ * Deliberately a tenth of `drumPart`. Almost everything that function does is
+ * about the things a kit has and a hand drum has not: a kick pedal, a hi-hat
+ * whose open and shut states are a *leg position*, a third surface that has to
+ * ride along with a stick already going somewhere, and a sticking plan that
+ * looks at the last stroke of a fill to choose the first. A darbuka has one
+ * skin and two hands on it, and the honest version of that is short.
+ *
+ * What it does have is alternation, and that is what `idle` buys. Nearest-hand
+ * alone would send every stroke to the same hand, because the three strike
+ * points are within four centimetres of each other and the same hand is
+ * therefore always the nearest one — a percussionist playing a whole number
+ * with their left hand parked. The bonus is small enough that it never
+ * overrides the reach to the trap table, which is half the arc away, and large
+ * enough to break the tie between two places on one skin.
+ */
+function handPart(events: DrumEvent[], board: Board): void {
+  const slots = new Map<number, DrumEvent[]>();
+  for (const e of events) {
+    const beat = quantise(e.beat);
+    const at = slots.get(beat);
+    if (at) at.push(e);
+    else slots.set(beat, [e]);
+  }
+
+  const HANDS: Hand[] = ['left-hand', 'right-hand'];
+  /** Where each hand last landed, and when. */
+  const on: Record<Hand, DrumVoice> = { 'left-hand': 'mp', 'right-hand': 'hp' };
+  const since: Record<Hand, number> = { 'left-hand': -1e9, 'right-hand': -1e9 };
+
+  for (const beat of [...slots.keys()].sort((a, b) => a - b)) {
+    // Loudest first, for the reason `drumPart` sorts the same way: when two
+    // strokes compete for one hand, the accent should get the hand that is
+    // already near it and the ghost note should be the one that travels.
+    const all = slots.get(beat)!.slice().sort((a, b) => b.velocity - a.velocity);
+    const taken = new Set<Hand>();
+
+    for (const e of all) {
+      const free = HANDS.filter((h) => !taken.has(h));
+      /**
+       * A third stroke on a two-handed instrument joins a hand that is already
+       * moving, exactly as a clap does on the kit: one physical event, not a
+       * third arm. It is rare here — a hand drum part with three simultaneous
+       * voices is a hand drum part with a mistake in it — but the record has to
+       * be total or a written note produces no gesture at all.
+       */
+      const pool = free.length ? free : HANDS;
+      const score = (h: Hand): number =>
+        handDistance(on[h], e.voice) - Math.min(beat - since[h], 1) * 0.10;
+      const reachable = pool.filter(
+        (h) => board.canReach(h, beat, handDistance(on[h], e.voice), 'strike'),
+      );
+      const hand = (reachable.length ? reachable : pool)
+        .reduce((best, h) => (score(h) < score(best) ? h : best));
+
+      board.place({
+        effector: hand, beat, kind: 'strike',
+        travel: handDistance(on[hand], e.voice),
+        force: e.velocity,
+        targets: [{ kind: 'drum', voice: e.voice }],
+      });
+      on[hand] = e.voice;
+      since[hand] = beat;
+      taken.add(hand);
     }
   }
 }

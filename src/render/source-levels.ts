@@ -262,6 +262,34 @@ export const REGISTER_LEVEL: Record<string, readonly (readonly [Midi, number])[]
  * 0.31 because it is an enormous sample sitting 10 dB above every other snare
  * here. Neither is a statement about how a kit should be balanced — that is
  * `DEFAULT_DRUM_MIX`, and it survives this untouched.
+ *
+ * ## What is measured, and what is therefore silently at unity
+ *
+ * Twenty banks, and fourteen voices in each of them. That was the whole of what
+ * four genres could draw when the pass was run, and it is no longer the whole of
+ * what the project can reach: `render/drum-banks.ts` now registers 55 of the
+ * pack's 71 machines, and `DrumVoice` carries four voices — `tb`, `lp`, `mp`,
+ * `hp` — that were not in the pack's vocabulary when these numbers were taken.
+ *
+ * Everything unlisted gets ×1 from `levelOfDrum`, which is exactly where the
+ * renderer stood before this file existed, and it is worth being blunt about
+ * what that means rather than leaving it to be discovered: **the 35 new banks
+ * play at whatever level the pack captured them at.** The measured twenty span
+ * 13.2 dB on the kick alone, so the unmeasured thirty-five can be assumed to
+ * span something similar, and an era that draws two of them will be two
+ * different arrangements at two different levels — the original complaint, in
+ * the part of the pack nobody has been through yet.
+ *
+ * The tambourine is the one to measure first, since it is the only new voice
+ * with real samples behind it: 23 of the registered banks carry a `tb`, and it
+ * is a bright, long, loud sound in the exact octave `DEFAULT_DRUM_MIX` spends
+ * its care on. `lp`/`mp`/`hp` have no samples anywhere in this pack and always
+ * resolve to something that does, so `levelOfDrum` is keyed to the substitute
+ * and is already right for them — see the note on `levelOfDrum` below.
+ *
+ * Fabricating entries here would be worse than leaving them out. Every number
+ * in this file came off a K-weighted meter and the file is only useful while
+ * that stays true.
  */
 export const DRUM_SAMPLE_LEVEL: Record<string, Partial<Record<DrumVoice, number>>> = {
   AkaiMPC60: { bd: 1.25, sd: 0.31, rim: 1.00, hh: 1.24, oh: 0.79, cp: 0.62, lt: 1.43, mt: 0.92, ht: 0.98, cr: 0.90, rd: 0.80, perc: 0.57 },

@@ -76,6 +76,7 @@ import {
 } from './instruments/drum-machine.js';
 import { buildInstrumentFor } from './instruments/index.js';
 import type { InstrumentModel } from './instruments/types.js';
+import { lightTheRoom } from './performer-assets.js';
 import { buildPerformer, type PerformerRig } from './performer.js';
 
 const canvas = document.getElementById('bench') as HTMLCanvasElement;
@@ -214,6 +215,19 @@ const scene = new Scene();
 scene.background = new Color('#15171a');
 const camera = new PerspectiveCamera(38, 1, 0.05, 200);
 
+/**
+ * The room the chrome reflects.
+ *
+ * Half the catalogue on this bench is metal — a trumpet bell, cymbals, a snare
+ * hoop, hardware — and a `MeshStandardMaterial` at high metalness has no diffuse
+ * term at all, so with no `scene.environment` it renders as a specular dot on
+ * black. The same call and the same intensity as the concert and the costume
+ * bench, so an exhibit here is the object the show draws.
+ */
+const room = lightTheRoom(renderer, scene);
+// Held for the life of the page, which is the life of its renderer.
+void room;
+
 scene.add(new AmbientLight('#8899bb', 1.1));
 const key = new DirectionalLight('#fff3e0', 1.5);
 key.position.set(2.5, 4, 3);
@@ -241,7 +255,10 @@ const LOOK: Look = {
   skin: '#c58b62', hair: '#3a2418', hairStyle: 'short', height: 1.75, build: 0.5,
   outfit: {
     jacket: '#8a8f98', shirt: '#e8e4de', trousers: '#43474d',
-    accent: '#c4623a', fabric: 'wool',
+    // Wool and a plain suit, because this page is about the *instrument*: an
+    // exhibit here is judged on where the bell points and whether the hands
+    // reach, and a robe or a gown would put cloth in front of both.
+    accent: '#c4623a', fabric: 'wool', garment: 'suit',
   },
   accessories: [],
 };

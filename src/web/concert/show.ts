@@ -69,7 +69,7 @@ import { trackForPart } from '../../concert/choreograph.js';
 import type {
   Concert, ConcertNumber, ConcertOptions, PartRef, Performer, StageMachine,
 } from '../../concert/types.js';
-import { instrumentIdForTrack, specFor } from '../../concert/instruments.js';
+import { drumEventsFor, instrumentIdForTrack, specFor } from '../../concert/instruments.js';
 import { getGenre } from '../../genre/index.js';
 import { renderStrudel } from '../../render/strudel.js';
 import { loadCode, playCode, preloadSounds, startLoaded, stopPlayback } from '../audio.js';
@@ -557,6 +557,16 @@ export function createShow(opts: ShowOptions = {}): Show {
             beatsPerBar: number.song.meta.beatsPerBar,
             ...startedAt(number, bay),
           }
+          : undefined,
+        /**
+         * The percussion this player is actually carrying, from the part they
+         * are actually playing — their *share* of it, so a drummer standing
+         * beside a hand percussionist does not grow a tambourine the other
+         * player is holding. Every model but the two percussion ones ignores it.
+         */
+        performer.layer === 'drums'
+          ? [...new Set(drumEventsFor(number.song.drums.events, performer.archetype)
+            .map((e) => e.voice))]
           : undefined,
       );
 

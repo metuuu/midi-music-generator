@@ -159,6 +159,95 @@ export function swell(
   }
 }
 
+/**
+ * Lift the notes that have space around them.
+ *
+ * A player hits a stab harder than a stroke in a stream, and for a reason that
+ * is about the arrangement rather than about the hand: a chord that lands alone
+ * is doing a different job from a chord that is keeping time. It is punctuation,
+ * and punctuation that arrives at the same level as the sentence it punctuates
+ * is not heard as punctuation at all.
+ *
+ * The generator had no way to say this. Accompaniment velocity is a flat
+ * constant per part type — 0.5 for a comp voicing, 0.55 for a shot, 0.65 for a
+ * figure — so a comp playing every eighth and a comp playing one chord a bar
+ * came out at the same level, which is backwards: the second one is rarer and
+ * should therefore be *louder*, not equal.
+ *
+ * ## What "space" is, and why it is measured this way
+ *
+ * The distance to the nearest neighbouring onset, before or after, whichever is
+ * closer. Nearest rather than average, because a chord with a bar of rest ahead
+ * of it and another chord an eighth behind it is the tail of a burst rather than
+ * a stab, and the average would call it isolated. Onsets rather than notes, so
+ * that a four-note voicing counts once — the notes inside a chord are not close
+ * together in the sense that matters here.
+ *
+ * In beats rather than in seconds, because a stab is a metrical category. One
+ * chord a bar is sparse at any tempo, and converting to clock time would make
+ * the same written figure punctuation at 70 BPM and texture at 160.
+ *
+ * ## Where the thresholds come from
+ *
+ * Nearest-neighbour gaps across 12 songs in each of the 14 genres:
+ *
+ * ```
+ *   bass     p50 0.50   p75 1.00   p90 2.00    ≥4 beats  1.6%
+ *   comp     p50 0.50   p75 1.00   p90 1.25    ≥4 beats  2.2%
+ *   counter  p50 0.50   p75 1.00   p90 1.00    ≥4 beats  0.3%
+ *   melody   p50 0.75   p75 1.00   p90 2.00    ≥4 beats  0.7%
+ *   brass    p50 3.50   p75 7.00   p90 12.61   ≥4 beats 47.0%
+ *   pad      p50 4.00   p75 8.00   p90 8.00    ≥4 beats 88.6%
+ * ```
+ *
+ * `NEAR` at one beat is where the stream lives: 70% of comp onsets and 74% of
+ * counter onsets sit under it, and none of them are punctuation. `FAR` at four
+ * is a bar of silence in common time, and it is deliberately past comp's 99th
+ * percentile — the rule should touch the 2% of a comp that genuinely stands
+ * alone and leave the other 98% exactly where it was.
+ *
+ * The two rows at the bottom are why this is a per-layer decision rather than a
+ * global one. Brass is a punctuating layer by nature and gets the lift on about
+ * half its onsets, which is the point. A pad would get it on nine tenths, and a
+ * pad note with space around it is not a stab, it is a long note — which is what
+ * `swell` is already for. So pad, bass, melody and counter are left out: the
+ * first because the rule would misread it, and the rest because they are streams
+ * whose dynamics come from the tune engine and the metre.
+ *
+ * ## How hard, and what it composes with
+ *
+ * A quarter at full space, so a little under 2 dB. Kept small on purpose,
+ * because this is the third thing multiplying a velocity: `metricStrength`
+ * already accents by position and `Feel.accent` lays a grid over the rhythm
+ * section, and a stab that lands on a strong beat inside an accented bar would
+ * otherwise collect three separate boosts for what is arguably one observation.
+ * This one is about spacing, which neither of the others can see.
+ */
+export function punctuate(notes: NoteEvent[], lift = 0.25): void {
+  const NEAR = 1;
+  const FAR = 4;
+  const beats = [...new Set(notes.map((n) => n.beat))].sort((a, b) => a - b);
+  // One onset has no neighbours to be far from, and a part with none has nothing
+  // to be sparse against — in both cases the level is the part's own business.
+  if (beats.length < 2) return;
+
+  const space = new Map<number, number>();
+  for (let i = 0; i < beats.length; i++) {
+    // The edges use the one neighbour they have. A section's first chord really
+    // is preceded by a boundary, and pretending otherwise would lift every
+    // section's opening whether or not anything was played into it.
+    const before = i > 0 ? beats[i]! - beats[i - 1]! : Infinity;
+    const after = i < beats.length - 1 ? beats[i + 1]! - beats[i]! : Infinity;
+    space.set(beats[i]!, Math.min(before, after));
+  }
+
+  for (const n of notes) {
+    const gap = space.get(n.beat) ?? 0;
+    const t = clamp((gap - NEAR) / (FAR - NEAR), 0, 1);
+    n.velocity = clamp(n.velocity * (1 + lift * t), 0.08, 1);
+  }
+}
+
 function clamp(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, v));
 }

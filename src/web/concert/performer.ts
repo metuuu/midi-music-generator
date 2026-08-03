@@ -67,15 +67,17 @@ import { Rng } from '../../core/rng.js';
 import {
   Leases, ball, pill, quad, shade, skinSurface, splatSurface, surface,
 } from './performer-assets.js';
+import { buildAccessories } from './performer-accessories.js';
 import { buildArms, type ArmsRig } from './performer-arms.js';
 import { buildFace, type FaceRig } from './performer-face.js';
+import { buildHair } from './performer-hair.js';
 import {
   DEFAULT_HAND_POSES, HAND_POSES, IMPLEMENT_OF, blendPoses, buildHand,
   type HandBias, type HandPose, type HandPoseId, type HandRig,
 } from './performer-hands.js';
 import { buildLegs, type LegsRig } from './performer-legs.js';
 import {
-  MIN_HAND_GAP, SIDE, buildAccessories, buildHair, dressTorso, proportions,
+  MIN_HAND_GAP, SIDE, dressTorso, proportions,
   restLocals, type BodySide, type Proportions,
 } from './performer-look.js';
 
@@ -630,10 +632,13 @@ class Rig implements PerformerRig {
     this.head.add(skull);
 
     this.face = buildFace(this.head, p.headR, look.skin, this.blown, this.leases, faceRng);
-    buildHair(this.head, look, p, this.leases, hairRng);
+    // Hair first, and the order is now load-bearing rather than incidental: a
+    // hat has to be told what it is going on top of, and the only thing that
+    // knows is the hair that was just built. See `HairProfile`.
+    const hair = buildHair(this.head, look, p, this.leases, hairRng);
     buildAccessories(
       { head: this.head, torso: this.torso, neckY: p.torsoH * 0.99 },
-      look, p, this.leases,
+      look, p, this.leases, hair,
     );
 
     // --- hands ------------------------------------------------------------

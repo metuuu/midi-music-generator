@@ -60,7 +60,7 @@ function parseArgs(argv: string[]): Args {
 
 function usage(): void {
   console.log(`
-Music generator — iskelmä, jazz and ambient
+Music generator — ${Object.values(GENRES).map((g) => g.label).join(', ')}
 
   npm run gen -- [options]
 

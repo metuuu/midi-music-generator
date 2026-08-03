@@ -43,7 +43,7 @@ import type {
 import { FEELS, type Feel, type FeelLayer, type FeelSpan } from '../style/feel.js';
 import { planRegisters, resolveCollisions } from './arrange.js';
 import { buildAccompaniment, getStrictness, resolveRules, type StrictnessId } from '../core/rules.js';
-import { applyDynamics, sectionIntensity, swell } from './dynamics.js';
+import { applyDynamics, punctuate, sectionIntensity, swell } from './dynamics.js';
 import { applyFilter } from './filter.js';
 import { DEFAULT_FILLS } from './fills.js';
 import { applyTransitions, hitTogether, planTransitions, type Seam } from './transition.js';
@@ -1866,6 +1866,12 @@ export function generateSong(opts: GenerateOptions = {}): Song {
     // level is the sound of a patch rather than of a player.
     swell(sectionPad, ctxBase.startBeat, sectionBeats, 0.35);
     swell(sectionComp, ctxBase.startBeat, sectionBeats, 0.12);
+    // And the parts that punctuate get the other half of the same idea: a chord
+    // standing on its own is played harder than one keeping time. Only these two
+    // layers — a pad with space around it is a long note rather than a stab, and
+    // the streams get their shape from the metre. See `punctuate`.
+    punctuate(sectionComp);
+    punctuate(sectionBrass);
 
     push(byLayer, 'counter', filtered(sectionCounter, 'counter'));
     push(byLayer, 'bass', filtered(sectionBass, 'bass'));
@@ -2198,6 +2204,19 @@ export function generateSong(opts: GenerateOptions = {}): Song {
     }
 
     const effects = effectsFor(layer, instrument);
+    /**
+     * The object's own trim, folded in last.
+     *
+     * `gains[layer]` says how far forward this *role* sits and knows nothing
+     * about who is playing it; `Instrument.gain` says how this particular thing
+     * sits whenever it plays. Multiplying rather than replacing keeps both
+     * statements true — a genre that pushes its melody forward still pushes an
+     * accordion forward, it just starts from where accordions start.
+     *
+     * Here rather than in the renderer because it is a musical judgement, so it
+     * has to reach the MIDI too. See `Instrument.gain`.
+     */
+    const voiced = gain * (instrument.gain ?? 1);
     tracks.push({
       layer,
       instrument: instrument.name,
@@ -2205,7 +2224,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
       strudelSound: instrument.strudel,
       // Melodic layers were swung above, before their overlap trim.
       notes: layer === 'melody' || layer === 'counter' ? notes : applySwing(notes, swingPlan),
-      gain,
+      gain: voiced,
       envelope: envelopeFor(instrument),
       ...(effects ? { effects } : {}),
       // Said out loud, because from here on nothing can tell by looking: a

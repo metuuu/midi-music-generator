@@ -16,7 +16,14 @@ import {
 
 const PPQ = 480;
 
-/** Generic drum voices -> GM percussion key numbers (channel 10). */
+/**
+ * Generic drum voices -> GM percussion key numbers (channel 10).
+ *
+ * Every voice gets a key of its own, because on channel 10 a key *is* the
+ * instrument and two voices sharing one are two parts a listener cannot tell
+ * apart in the file that ships. That constraint is what decided the low hand
+ * stroke below, and it is the only interesting decision in the table.
+ */
 const GM_DRUM_MAP: Record<DrumVoice, number> = {
   bd: 36,   // Bass Drum 1
   sd: 38,   // Acoustic Snare
@@ -32,6 +39,29 @@ const GM_DRUM_MAP: Record<DrumVoice, number> = {
   perc: 64, // Low Conga
   cb: 56,   // Cowbell
   sh: 82,   // Shaker — the closest GM voice to a brush
+  tb: 54,   // Tambourine — GM has the real thing
+  /**
+   * The hand drum's three strokes, and the one place this table had to
+   * compromise.
+   *
+   * GM's congas are already a stroke set rather than three drums: 62 is the
+   * muted high conga and 63 the open high one, which is exactly the slap and
+   * the ring of `hp` and `mp`, on the same drum, in the right order. Nothing
+   * needed inventing for those two.
+   *
+   * 64, Low Conga, is the doum — and `perc` has held it since this project's
+   * first commit. Moving `perc` would have been the tidier map and would also
+   * have rewritten the drum track of every .mid this generator has ever
+   * produced, so it stays where it is and the low stroke goes to 87 instead:
+   * Open Surdo, the only other large hand-struck membrane General MIDI names,
+   * and one of the six drums `lp` exists to serve. A surdo is a shade heavier
+   * and slower than a darbuka, which is the wrong end of the trade in Cairo and
+   * the right one in Rio; what matters more is that a pattern using both the
+   * low stroke and the catch-all comes out of the file as two sounds.
+   */
+  lp: 87,   // Open Surdo
+  mp: 63,   // Open High Conga
+  hp: 62,   // Mute High Conga
 };
 
 interface MidiEvent {

@@ -38,6 +38,25 @@ import type { VocalProfile } from '../style/vocals.js';
 import type { FillPalette } from '../generate/fills.js';
 import type { TransitionPalette } from '../generate/transition.js';
 import type { SoloProfile } from '../generate/solo.js';
+/**
+ * Five types the stage owns, borrowed rather than restated.
+ *
+ * The direction of these imports looks wrong for about a second — the genre is
+ * the upstream thing and `concert/` is a renderer of what it produces — and it
+ * is the right way round anyway, because each of them is a *vocabulary the
+ * renderer has to be able to switch on exhaustively*. `HairStyle`, `Fabric`,
+ * `Accessory` and `RoomStyle` are the shapes `web/concert/` has models for, and
+ * `Venue` is the frozen contract the room is emitted as; a genre inventing a
+ * tenth fabric would be inventing a material nothing can draw, and a genre
+ * inventing a fifteenth kind of building would be inventing one nothing can put
+ * up. So the unions stay where the renderer can see them, and a genre picks
+ * from them.
+ *
+ * Type-only, so nothing here exists at runtime and there is no import cycle to
+ * worry about, though `concert/venue.ts` does import the genre registry.
+ */
+import type { Accessory, Fabric, Garment, HairStyle, RoomStyle, Venue } from '../concert/types.js';
+import type { PropName } from '../concert/venue.js';
 
 export interface FormStep {
   kind: SectionKind;
@@ -352,4 +371,302 @@ export interface Genre {
 
   /** Length in seconds a track of this genre should aim for. */
   duration: [number, number];
+
+  /**
+   * What this genre looks like when somebody plays it in front of people.
+   *
+   * The room, the clothes, the programme copy and how much a body moves — see
+   * `Staging` below for the whole argument, including why it is optional and
+   * why it must stay optional. Nothing in `generate/` or `render/` reads it: a
+   * genre with no `staging` sounds exactly the same and only *stages* worse.
+   */
+  staging?: Staging;
+}
+
+// ---------------------------------------------------------------------------
+// What a genre stages
+// ---------------------------------------------------------------------------
+
+/**
+ * The staging contract: a genre's own room, wardrobe, programme and body.
+ *
+ * `src/concert/` remains a *renderer* of the IR and nothing below changes that.
+ * There is no geometry here, nothing that decides where a player stands or what
+ * a light does at bar 33 — only the dressing, which is the half of the picture
+ * that was already genre-shaped. `venue.ts` states the rule this expresses and
+ * it is unchanged: **genre dresses the room, era shifts the palette and the
+ * fixtures.**
+ *
+ * ## Why the tables moved this way round, having been right where they were
+ *
+ * They lived in `concert/`, four of them, each a `Record<string, …>` keyed by
+ * genre id with a silent fallback. With four genres that was the better shape
+ * and it is worth saying so rather than pretending otherwise: three rooms and
+ * eight wardrobes read side by side are *comparable*, and comparison is the only
+ * way to tell whether two decades of the same room are actually different. Every
+ * per-entry comment in the migrated tables was written under that reading and
+ * most of them argue against a neighbour that is now in another folder. That is
+ * the real cost of this change and it is not recovered by anything; the only
+ * mitigation is the instruction at the top of `iskelma/staging.ts` to go and
+ * read the other genres' before writing a new one.
+ *
+ * With sixteen genres it inverts. A table that every author has to edit is not a
+ * table, it is a registry — and a registry inside the renderer means adding a
+ * genre touches four files that belong to nobody, which is four merge conflicts
+ * per genre and no way to write one in a folder of its own.
+ *
+ * The proof that this had already gone wrong is `synth`, the most recent genre:
+ * it appeared in *none* of the four tables. It staged in the generic house, in
+ * the plain concert dress whose own comment says it is dull on purpose, under a
+ * programme line reading "a new one, and nobody has decided about it yet". Every
+ * one of those fallbacks worked exactly as designed, and the result was a genre
+ * nobody had finished.
+ *
+ * ## Every field is optional, and that is load-bearing
+ *
+ * A genre that declares nothing stages in `HOUSE`, wears `PLAIN` and gets
+ * `HOUSE_BLURB`, exactly as before. That is not a leftover: an unknown genre is
+ * *supposed* to stage badly and obviously, because a fallback that looked good
+ * would be a reason never to write the real thing. The fallbacks stay in
+ * `concert/` — they are the renderer's floor, not any genre's opinion — and the
+ * fields below are individually optional too, so a genre may declare a room and
+ * leave its wardrobe to the house.
+ */
+export interface Staging {
+  /**
+   * The room this music happens in, dressed per era.
+   *
+   * Absent means the plain proscenium house. Fourteen rooms exist today and the
+   * sentence that used to be here — that a new room is new *dressing* and not a
+   * new model, because `web/concert/stage.ts` builds the architecture from the
+   * props rather than from `id` — was true, was the reason the tables moved
+   * here, and stopped being enough at about room five. Dressing cannot say
+   * whether there is a roof. See `StageRoom.architecture`, which is where a room
+   * that is a genuinely different building says so.
+   */
+  room?: StageRoom;
+
+  /**
+   * What the band wears, keyed by *era id* — this genre's own eras, not
+   * `genre:era` pairs. The registry that used to hold these was keyed the second
+   * way for the obvious reason, and the key is half the reason it was a registry.
+   */
+  wardrobe?: Record<string, Wardrobe>;
+
+  /**
+   * The era to dress in when handed one this genre has no wardrobe for.
+   *
+   * Better than dropping straight to the house's plain dress: a band in an
+   * unknown era should still be *this genre's* band. Name the era the genre is
+   * most itself in.
+   */
+  defaultEra?: string;
+
+  /** Programme copy, one table per genre. See `Blurb`. */
+  blurbs?: Blurb[];
+
+  /**
+   * How much body this music has, as a multiplier on the groove score, 0..1.
+   *
+   * Staging rather than mixing, and the same axis the wardrobe dresses: a
+   * tanssilava band is playing for a full dance floor (1.0), a jazz quintet for
+   * people at tables (0.85), and half an ambient act is behind a table not
+   * making eye contact (0.4). Applied as a multiplier so the *shape* of the
+   * energy curve survives — a quiet genre's chorus is still bigger than its
+   * intro. Absent takes the house default, which is a shade under a dance band.
+   */
+  body?: number;
+}
+
+/**
+ * What an era does to a room.
+ *
+ * One of these per era the genre has, plus a fallback. Everything an era touches
+ * is in one object so that two decades of the same room can be read side by
+ * side, which is the only way to tell whether they are actually different.
+ */
+export interface StageDressing {
+  palette: Venue['palette'];
+  /** Always present. */
+  props: PropName[];
+  /** Present with the given probability. Where the room stops being a diagram. */
+  maybe?: (readonly [PropName, number])[];
+  fog: number;
+  /** Added to the room's base size, in metres. Later eras built bigger stages. */
+  grow?: readonly [number, number];
+}
+
+export interface StageRoom {
+  /**
+   * The room, not the room-and-era. The stage builder gets one model per
+   * building and everything a decade changes arrives through the dressing.
+   * `web/concert/` also uses it as an RNG tag, so it must be stable.
+   */
+  id: string;
+  /**
+   * What kind of building this room is. **Absent means a proscenium theatre.**
+   *
+   * The field that stopped fourteen rooms being one room in fourteen paint jobs.
+   * Until it existed, everything a room could say was two dimensions, five
+   * colours, a fog number and a list of props — so a concert hall, a walled
+   * courtyard, a threshing barn, an arena and a dancehall came out
+   * architecturally identical, and correctly so, because architecture was not
+   * something the type could express. Ten authors wrote data because data was
+   * all there was.
+   *
+   * ## What you get for free, and what naming one costs
+   *
+   * Leave it out and the room is a proscenium house: an arch, house tabs, a fly
+   * tower, three walls, a boarded house floor. Four of the props change how that
+   * is built rather than what stands in it — `black-box` blacks every surface
+   * and drops the ornament, `brick` bonds the walls and the backdrop, `open-air`
+   * takes the walls away and puts a sky behind, `low-ceiling` fits two lids and
+   * lowers the boards to a kerb. Between them those cover a very great deal, and
+   * a room that is honestly a theatre with different paint should keep taking
+   * them: the fallback is not a booby prize, it is thirteen of the fourteen rooms
+   * and it is why a genre added in a hurry still stages.
+   *
+   * Name one when the *building* is different — when there is no arch, or no
+   * roof, or the roof is the whole point, or the house is not a rectangle of
+   * seats facing a hole in a wall. Then:
+   *
+   *  1. add the name to `RoomStyle` in `concert/types.ts`;
+   *  2. write `web/concert/rooms/<name>.ts` — read `rooms/types.ts` in full
+   *     first, in particular the shadow policy and the RNG tag namespace, and
+   *     read `rooms/courtyard.ts`, which is a worked example of a room that
+   *     shares almost nothing with a proscenium;
+   *  3. register it in `web/concert/rooms/index.ts`, which is one line;
+   *  4. name it here.
+   *
+   * The compiler enforces 1 against 3 — the registry is a total record, so a
+   * style with no builder fails `npm run typecheck` — and 4 against 1, because
+   * this field is the union rather than a string. Nobody else's file is touched
+   * by any of it, which is the entire point of the seam: fourteen rooms are
+   * fourteen files and one line each.
+   *
+   * ## It is not the room id, and the difference will matter
+   *
+   * `id` is which room this is; this is which *kind* of building it is one of.
+   * Two rooms may name the same architecture and should — a `ballroom`, a
+   * `dancehall` and a `salon` are one big room with a floor in it, dressed three
+   * ways, and the alternative is one of them importing another's builder. It is
+   * `Archetype` against `InstrumentId`, exactly: twenty-two models for sixty
+   * catalogue instruments, because a tenor and a baritone saxophone are one
+   * object at two sizes.
+   */
+  architecture?: RoomStyle;
+  /** Names the room can have. The label is where the era shows in words. */
+  names: string[];
+  width: number;
+  depth: number;
+  audience: Venue['audience'];
+  /**
+   * Set dressing that belongs to the *genre* rather than to any era of it, and
+   * is therefore not worth repeating in every dressing below. Emitted after the
+   * era's own props and before its optional ones.
+   */
+  props?: PropName[];
+  eras: Record<string, StageDressing>;
+  fallback: StageDressing;
+}
+
+/**
+ * A genre-and-era's clothes.
+ *
+ * The hard part is the rule: recognisable at a glance, and not a costume party.
+ * Two devices do most of that work.
+ *
+ * **A band dresses alike.** `uniform` is the chance a given player wears the
+ * band's jacket and trousers rather than their own. High for a dance band and a
+ * swing group, because they genuinely wore matching suits; near zero for
+ * ambient, where the absence of a uniform *is* the uniform.
+ *
+ * **One person is allowed to be loud.** `spotlight` is the chance the lead gets
+ * the sequinned jacket. Everybody in sequins is a pantomime; one person in
+ * sequins in front of five in cream is a Finnish dance band.
+ */
+export interface Wardrobe {
+  jackets: string[];
+  shirts: string[];
+  trousers: string[];
+  /** The one loud colour: a tie, a scarf, a lining, sequins. */
+  accents: string[];
+  /** Worn by the lead when they get the spotlight jacket. */
+  loud: string[];
+  hair: string[];
+  hairStyles: (readonly [HairStyle, number])[];
+  /** Probability each accessory appears, before the era's density scales it. */
+  accessories: (readonly [Accessory, number])[];
+  /**
+   * What the band's clothes are made of, weighted.
+   *
+   * `sequin` never appears here and that is the point: it is reachable only
+   * through `loudFabric`, and only by the one person fronting the number. A
+   * band in sequins is a pantomime; one person in sequins in front of five in
+   * wool is a Finnish dance band.
+   */
+  fabrics: (readonly [Fabric, number])[];
+  /**
+   * What shape the clothes are cut into, weighted. Optional — see below.
+   *
+   * The other three weighted tables here say what is on a player's head and what
+   * their cloth does to light. This one says what the cloth *is*: a thobe, a
+   * tailcoat, a sherwani, a folk waistcoat, a stage dress. `Garment` in
+   * `concert/types.ts` argues the eight at length, and the short version is the
+   * complaint that produced them — for fourteen genres and fifty-two eras every
+   * player on every stage was one silhouette in a different colour, and a genre
+   * whose clothes are a robe cannot be dressed by choosing a nicer dye.
+   *
+   * **Absent means `suit`, and absent costs nothing.** `makeLook` skips the draw
+   * entirely when this is missing, so a genre that has not been dressed yet is
+   * not merely *similar* to what it was, it is bit-for-bit what it was: the same
+   * random stream, the same colours, the same geometry. That is deliberate and it
+   * is what makes this safe to roll out one genre at a time. Adding a table here
+   * is the only thing that changes a picture, and it changes exactly one genre's.
+   *
+   * Weights, not probabilities, exactly as `hairStyles` and `fabrics` are, and
+   * they are read the same way: a band is a *draw* from this table and not a
+   * uniform, so a table of `[['tails', 9], ['suit', 1]]` is an orchestra in
+   * evening dress with one player who did not get the memo, and
+   * `[['suit', 5], ['robe', 4]]` is a takht where about half the row is in a
+   * dark suit and the rest are not. There is deliberately no way to say "the
+   * lead wears the good coat" — `loudFabric` and `spotlight` already carry the
+   * one-person-is-allowed-to-be-loud device, and giving the garment its own
+   * version of it would be a second mechanism doing the first one's job. If a
+   * genre needs the front person in a different *shape*, it weights the shape
+   * and accepts that two people get it.
+   */
+  garments?: (readonly [Garment, number])[];
+  /** What the lead's loud jacket is made of, when they get one. */
+  loudFabric: Fabric;
+  /** …and how often that loud jacket is actually the sequinned one. */
+  sequinChance: number;
+  /** Chance trousers match the jacket rather than being drawn separately. */
+  matched: number;
+  uniform: number;
+  spotlight: number;
+}
+
+/** Where in the set a line belongs. Absent means anywhere. */
+export type BlurbSlot = 'open' | 'close';
+
+/**
+ * One line of programme copy.
+ *
+ * A bill that dumps `SongMeta` has told the audience nothing they wanted to
+ * know; what a programme prints is a promise. So these are written rather than
+ * computed, every line is short and lowercase, and no line explains the music —
+ * it either sets an expectation or makes a small joke at the band's expense.
+ * See `concert/showbill.ts`, which draws from them and states the whole
+ * argument, and read the neighbouring genres before writing a table: the
+ * register is affectionate and dry rather than a critic's, and it is a house
+ * voice rather than each genre's own.
+ */
+export interface Blurb {
+  text: string;
+  /** Style ids this line is about. */
+  styles?: string[];
+  /** Mood ids this line is about. */
+  moods?: string[];
+  slot?: BlurbSlot;
 }

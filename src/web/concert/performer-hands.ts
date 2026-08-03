@@ -277,6 +277,15 @@ export const HAND_POSES: Record<HandPoseId, HandPose> = {
  */
 export const DEFAULT_HAND_POSES: Record<Archetype, { left: HandPoseId; right: HandPoseId }> = {
   drumkit: { left: 'stick', right: 'stick' },
+  /**
+   * `flat`, and this is the one archetype where the pose *is* the instrument's
+   * identity. A hand drum is played with the palm and the fingertips — a
+   * percussionist holding two invisible sticks over a darbuka would read as a
+   * drummer whose kit had been taken away. `flat` also puts `tool` at zero, so
+   * the hand is placed by the hand rather than by the end of something it is
+   * holding, which is exactly right when the skin is struck by the hand itself.
+   */
+  handdrum: { left: 'flat', right: 'flat' },
   'grand-piano': { left: 'keys', right: 'keys' },
   'electric-piano': { left: 'keys', right: 'keys' },
   organ: { left: 'keys', right: 'keys' },

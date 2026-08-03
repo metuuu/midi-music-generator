@@ -1,0 +1,333 @@
+/**
+ * What synth stages: a hall, a screen, and a great deal of equipment.
+ *
+ * The other three genres' staging files are a migration — the same rooms and
+ * wardrobes that lived in `concert/`, moved into the folders that own them. This
+ * one is not. Nothing here existed, which is why this genre has been staging in
+ * the generic house, in the plain concert dress whose own comment says it is
+ * dull on purpose, under a programme line reading "a new one, and nobody has
+ * decided about it yet". Three fallbacks doing exactly their job, and a genre
+ * nobody had finished. See `Staging` in `genre/types.ts`, where that is the
+ * evidence for the whole change.
+ *
+ * ## Why a fourth room rather than one of the three
+ *
+ * The three that exist were all rejected for a reason that is about this music
+ * rather than about square metres.
+ *
+ * **The black box was the tempting one and it is the wrong one.** Its own header
+ * says what it is for: "a genre that refuses to have a foreground gets a room
+ * that refuses to have a focus". This genre is the opposite claim — it has a
+ * tune on top, a lead break at the climax, and a final statement lifted a tone
+ * with everything piled on it. A room built to have no focus would be arguing
+ * against the music playing in it. The two are neighbours and it matters that
+ * they look different: `ambient/kosmische` is the sequencer record that belongs
+ * over there, and if the stages matched, nothing on screen would say why the
+ * genres do not.
+ *
+ * **The cellar is too small and the pavilion is the wrong evening.** A wall of
+ * patch cables is 1.7 m of furniture and a Berlin-school set is an hour long;
+ * neither fits between the tables. And a tanssilava is a floor of people
+ * dancing to a band — the one thing this repertoire is *not*, even where it is
+ * danceable, because what they are dancing to is a machine.
+ *
+ * So: a hall. Not a specific building, which is the point of the name list — a
+ * planetarium, a Kunsthalle, a cathedral with a PA flown in it, a municipal
+ * auditorium with a screen. The common denominator across 1972–1990 is a big
+ * civic room, a rectangle of light upstage, and more cable than band. The
+ * architecture is plain proscenium (this room names none of the four building
+ * props) because the room itself is not the attraction: everything the audience
+ * came to look at was carried in on a trolley.
+ */
+
+import type { Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
+
+/**
+ * THE HALL — synth.
+ *
+ * Deep, plain, and lit almost entirely by things that were plugged in. The
+ * projection is the scenery and the cable runs are the set dressing, which is
+ * why they are declared once for the genre rather than in all three eras.
+ *
+ * **The audience stands**, for the reason the black box's does and one of its
+ * own. `web/concert/stage-audience.ts` builds a seated house at 1.26 m, which
+ * from the camera's side of the boards is a field of low humps rather than a
+ * room with people in it — and beyond that, the crowd this music actually drew
+ * was standing in a square in front of a building. A cathedral audience sat on
+ * the floor; nobody in this repertoire's audience was ever in rows of chairs
+ * facing a man behind a Prophet-5.
+ *
+ * As wide as the pavilion and deeper than anything else here, which is not
+ * grandeur. This genre stages the largest objects in the project — see
+ * `SYNTH_RIGS`, where a modular is 1.7 m tall and claims floor accordingly — and
+ * the boards have to hold two of those plus whoever else is playing, upstage of
+ * a front line that is also mostly keyboards. See `cast.ts`, which is what has
+ * to fit inside these numbers.
+ */
+const HALL: StageRoom = {
+  id: 'hall',
+  names: ['The Planetarium', 'Kuppelsaal', 'The Rotunda', 'Halle 7', 'Salle Ovale', 'The Auditorium'],
+  width: 10, depth: 6.6,
+  audience: { rows: 9, density: 0.7, seated: false },
+  /**
+   * The screen, the cable runs and the drum platform, none of which belong to a
+   * decade of this music rather than to all of it. There has been a lit
+   * rectangle upstage and a floor full of gaffered multicore at every one of
+   * these concerts since 1974, and all three era tables would otherwise have had
+   * to repeat them.
+   *
+   * **`riser` is not a taste decision, and drawing for it was the one real
+   * mistake in this file's first draft.** Putting it in the digital era's `maybe`
+   * looks reasonable — by 1987 the drums come out of the same box as everything
+   * else, and a permanent empty platform announces a player who is not coming —
+   * and it is the wrong lever. `cast.ts` pins a hand-played drummer to a platform
+   * 0.4 m up whatever the props say, and the stage builder only builds that
+   * platform if this list asks for it, so half the digital numbers with a kit
+   * would have had one floating in the air. Any room a drummer can appear in
+   * carries a riser. The black box is the only exception in the project and it
+   * earns it by zeroing the drummer's height by hand.
+   *
+   * An empty platform on a night when the drums came out of a box is the
+   * cheaper failure by a distance, and it is not really a failure: a stage set
+   * for a band that turns out to be three people and a sequencer is what most of
+   * these evenings actually looked like.
+   */
+  props: ['projection', 'cables', 'riser'],
+  eras: {
+    /**
+     * 1972–77. A university hall or a cathedral, hired for the night, with two
+     * floods and a dry-ice machine. The green wash is the period's one reliable
+     * colour — a rig of that decade had gels and no console, so a concert was
+     * lit in two or three flat washes that stayed on for twenty minutes at a
+     * time, which is also roughly how long the pieces were.
+     *
+     * This is the era with a drummer in it — `drumSources` puts a kit at 4
+     * against the box's 6, and 1974 is every prog band who owned a Minimoog as
+     * much as it is Tangerine Dream — so the flight cases and the pa are the
+     * dressing of a band's stage rather than of an installation.
+     */
+    modular: {
+      palette: {
+        boards: '#4a4238',
+        backdrop: '#171b21',
+        curtain: '#3a2c46',
+        proscenium: '#7b7466',
+        ambient: '#9fc9a6',
+      },
+      props: [
+        'drapes', 'flight-case', 'pa-stack', 'haze',
+      ],
+      maybe: [['rug', 0.5], ['wedges', 0.35]],
+      fog: 0.55,
+    },
+    /**
+     * 1978–83. The decade the concerts got big. The palette goes cold and
+     * saturated — deep blue, white light, one hard beam — because this is the
+     * era of the outdoor spectacle and the arena, and both are lit by things
+     * pointed at the band rather than by anything in the room.
+     *
+     * The mirror ball is a low-probability joke with a straight face behind it:
+     * `cosmic` is four-on-the-floor disco played on a Jupiter, and one night in
+     * five the hall really was a discotheque with better equipment in it.
+     */
+    polysynth: {
+      palette: {
+        boards: '#3b3b40',
+        backdrop: '#121729',
+        curtain: '#20305e',
+        proscenium: '#8a8fa0',
+        ambient: '#8fb8ff',
+      },
+      props: [
+        'pa-stack', 'wedges', 'flight-case', 'haze', 'drapes',
+      ],
+      maybe: [['mirror-ball', 0.2]],
+      fog: 0.62,
+      grow: [0.3, 0.2],
+    },
+    /**
+     * 1984–90. Cyan and magenta, the most fog of the three, and a stage that has
+     * stopped pretending to be a room at all. The era's own effects table sends
+     * the drums to a reverb at 0.7 and cuts the top off it — the gated snare —
+     * and this is what that sounds like as a building.
+     *
+     * The flight cases go to `maybe` and the rug is gone. By 1987 the gear
+     * arrives in a truck and lives in a rack, and what is on the boards is the
+     * keyboards, the monitors and a great deal of smoke.
+     */
+    digital: {
+      palette: {
+        boards: '#2e3038',
+        backdrop: '#0f1420',
+        curtain: '#2a1140',
+        proscenium: '#6a7080',
+        ambient: '#7fe4d8',
+      },
+      props: [
+        'pa-stack', 'wedges', 'drapes', 'haze',
+      ],
+      maybe: [['flight-case', 0.4], ['mirror-ball', 0.15]],
+      fog: 0.75,
+      grow: [0.6, 0.3],
+    },
+  },
+  fallback: {
+    palette: {
+      boards: '#3b3b40', backdrop: '#121729', curtain: '#20305e',
+      proscenium: '#8a8fa0', ambient: '#8fb8ff',
+    },
+    props: ['pa-stack', 'wedges', 'flight-case', 'haze'],
+    fog: 0.62,
+  },
+};
+
+/**
+ * The clothes, and the one thing to get right about them.
+ *
+ * Nobody in this repertoire is dressed *for the stage* in the way a dance band
+ * or a swing section is, and it took until the middle era for anyone to dress
+ * deliberately at all. So `sequinChance` is 0 in all three and `loudFabric` is
+ * never a spangle: the loud jacket here is white, or oxblood velvet, or black
+ * leather, and the person wearing it is standing behind a keyboard. A sequinned
+ * jacket on a man operating a sequencer is a different genre's photograph.
+ *
+ * The arc across the three is the interesting part, and it is the reverse of
+ * every other genre here. Iskelmä and jazz both start uniformed and come apart;
+ * this one starts as five people who came to move equipment, becomes the most
+ * deliberately dressed band in the project for five years, and then comes apart
+ * again into session players in whatever 1987 was selling.
+ */
+const WARDROBE: Record<string, Wardrobe> = {
+  /**
+   * 1972–77. Denim, corduroy, an enormous amount of hair, and no agreement of
+   * any kind. These are people who arrived in a van with the cabinets, and the
+   * one flourish available is a velvet jacket on whoever is fronting it — which
+   * is the prog end of this era rather than the Berlin end, and is why it is a
+   * jacket rather than anything shinier.
+   */
+  modular: {
+    jackets: ['#4a4034', '#3f4a3d', '#5a4a3a', '#2f3a4a', '#6b5b45'],
+    shirts: ['#c9b48a', '#8a9a86', '#b5a68c', '#7d8a99'],
+    trousers: ['#3a4152', '#4a4238', '#2e3138'],
+    accents: ['#a8482c', '#7a6a2b', '#3f6a5a'],
+    loud: ['#a8482c', '#7d6aa8'],
+    hair: ['#22160f', '#3a2416', '#5c4025', '#8d6a3f', '#a83e2b', '#cfcac2'],
+    hairStyles: [['long', 6], ['curls', 3], ['short', 2], ['slick', 1], ['bald', 1]],
+    accessories: [['beard', 0.45], ['moustache', 0.3], ['glasses', 0.3], ['headphones', 0.15], ['scarf', 0.12]],
+    fabrics: [['denim', 5], ['corduroy', 4], ['knit', 3], ['velvet', 2], ['wool', 1]],
+    loudFabric: 'velvet', sequinChance: 0,
+    matched: 0.25, uniform: 0.1, spotlight: 0.2,
+  },
+  /**
+   * 1978–83. The uniform arrives, and it is the only one in this project that is
+   * an *idea* rather than a habit. A swing section wore matching suits because
+   * that is what a section did; this band wears a red shirt and a black tie
+   * because looking like four identical operators is the argument the music is
+   * making. Hence the second-highest `uniform` in the catalogue and a
+   * `spotlight` that is only moderate — half this repertoire has a man in a
+   * white jacket out in front of it and half of it deliberately has nobody.
+   */
+  polysynth: {
+    jackets: ['#1b1b20', '#e8e6e1', '#8f2027', '#2b3550', '#3f4247'],
+    shirts: ['#ffffff', '#a3232b', '#1b1b20', '#dfe3e8'],
+    trousers: ['#1b1b20', '#2b3550', '#3f4247'],
+    accents: ['#c62222', '#e8e6e1', '#1b1b20'],
+    loud: ['#e8e6e1', '#c62222'],
+    hair: ['#101010', '#22160f', '#3a2416', '#5c4025', '#c9a86a', '#cfcac2'],
+    hairStyles: [['slick', 5], ['short', 5], ['long', 2], ['curls', 2], ['bob', 1]],
+    accessories: [['tie', 0.55], ['glasses', 0.3], ['moustache', 0.2], ['headphones', 0.2]],
+    // Nothing that catches a follow spot except the one white jacket. A vocoder
+    // band in satin would be a showband, which is the failure this whole era's
+    // table is steering around.
+    fabrics: [['wool', 5], ['nylon', 3], ['leather', 2], ['satin', 2], ['knit', 1]],
+    loudFabric: 'satin', sequinChance: 0,
+    matched: 0.7, uniform: 0.65, spotlight: 0.4,
+  },
+  /**
+   * 1984–90. Pastel and grey, a leather jacket, sunglasses indoors, and the hair
+   * that dates a photograph faster than any other object in it. The uniform is
+   * gone because the band is not a band any more — a late-eighties electronic
+   * record is a composer and whoever the studio sent — and the loud jacket is
+   * black leather, which in this decade is what "the one out front" looked like.
+   */
+  digital: {
+    jackets: ['#2a2d33', '#1f5f8a', '#7a2f5e', '#c9c4bb', '#3a3a3a', '#4a6f6a'],
+    shirts: ['#ffffff', '#e8f0f5', '#f4d6e4', '#cfd8dd'],
+    trousers: ['#1f2126', '#33363b', '#c9c4bb'],
+    accents: ['#ff4fa3', '#2fd8d0', '#f2c14e'],
+    loud: ['#ff4fa3', '#c9c4bb', '#2fd8d0'],
+    hair: ['#101010', '#22160f', '#3a2416', '#5c4025', '#c9a86a', '#a83e2b', '#cfcac2'],
+    hairStyles: [['mullet', 5], ['curls', 3], ['long', 3], ['short', 3], ['slick', 2], ['bald', 1]],
+    accessories: [['sunglasses', 0.4], ['earrings', 0.25], ['glasses', 0.2], ['moustache', 0.2], ['headphones', 0.2]],
+    fabrics: [['leather', 4], ['satin', 3], ['nylon', 3], ['denim', 2], ['wool', 2], ['knit', 1]],
+    loudFabric: 'leather', sequinChance: 0,
+    matched: 0.3, uniform: 0.3, spotlight: 0.5,
+  },
+};
+
+/**
+ * Synth: a hall programme, printed on the good paper.
+ *
+ * The register is the house one — dry, affectionate, never a critic's — and the
+ * trap is specific to this genre. Writing about electronic music invites two
+ * kinds of copy, the technical spec and the cosmic reverie, and both are
+ * unreadable on a bill: nobody wants to be told the oscillator count, and
+ * nobody wants to be told about the infinite. So the lines below are about
+ * *equipment behaving like a person* and *people behaving like equipment*, which
+ * is the joke this music has always made about itself and the only one it needs.
+ *
+ * Tagged against the six styles and five moods this genre actually has, and
+ * `slot` is used sparingly. "Started before the lights went up" is only true of
+ * the first number and is a small lie anywhere else.
+ */
+const BLURBS: Blurb[] = [
+  { text: 'sixteen steps, and the rest of the evening', styles: ['berlin'] },
+  { text: 'the filter opens. that is the event', styles: ['berlin'], moods: ['cosmos'] },
+  { text: 'two sequencers, disagreeing politely', styles: ['berlin', 'stalker'] },
+  { text: 'already running when the lights came up', styles: ['berlin'], slot: 'open' },
+  { text: 'the theme, and later the theme with everything on it', styles: ['cinematic'] },
+  { text: 'raining somewhere, on a considerable budget', styles: ['cinematic'], moods: ['neon'] },
+  { text: 'up a tone for the last one, and meant sincerely', styles: ['cinematic'], slot: 'close' },
+  { text: 'the tune is in the bass, where it belongs', styles: ['machine'] },
+  { text: 'four men, no expressions, one very good idea', styles: ['machine'] },
+  { text: 'programmed, and with some affection', styles: ['machine', 'optical'] },
+  { text: 'for dancing to, if you can catch it', styles: ['cosmic'], moods: ['neon'] },
+  { text: 'a kick drum and a sequence that will not agree with it', styles: ['cosmic'] },
+  { text: 'euphoric, and slightly out of breath', styles: ['cosmic'], moods: ['motorway'] },
+  { text: 'five beats to the bar, none of them friendly', styles: ['stalker'] },
+  { text: 'the same eight bars until you believe them', styles: ['stalker'], moods: ['dread'] },
+  { text: 'somebody is behind you in this one', styles: ['stalker'], moods: ['dread'] },
+  { text: 'the same group, brighter, and in a better mood', styles: ['optical'] },
+  { text: 'an arpeggio with somewhere to be', styles: ['optical'], moods: ['motorway'] },
+  { text: 'headlights, and nothing to overtake', moods: ['motorway'] },
+  { text: 'a long way out, and no plans to come back', moods: ['cosmos'] },
+  { text: 'lit entirely from underneath', moods: ['neon'] },
+  { text: 'played on equipment worth more than the hall', },
+  { text: 'it does not stop. somebody turns it down', slot: 'close' },
+];
+
+export const STAGING: Staging = {
+  room: HALL,
+  wardrobe: WARDROBE,
+  /**
+   * Polysynth, when the era is one this genre has no clothes for. 1978–83 is
+   * where this repertoire is most itself — the era with the heaviest style
+   * weights, the highest `keyChangeChance`, the vocoder and the film scores —
+   * and a band from an unknown decade should turn up looking like that one.
+   */
+  defaultEra: 'polysynth',
+  blurbs: BLURBS,
+  /**
+   * Between the jazz quintet and the ambient act, and nearer the quiet end.
+   *
+   * Two facts pulling opposite ways, which is why it is not simply low. There is
+   * a pulse and it is unmissable — a four-on-the-floor under a sixteenth
+   * sequence is the most physical thing in this project after a humppa — so the
+   * bodies cannot be still. But nobody on this stage is *making* that pulse: it
+   * is coming out of a box that will not speed up, slow down or look at anyone,
+   * and a band nodding hard at a machine looks like a band pretending. The lead
+   * player leans into the solo, everyone else keeps time with a machine that
+   * does not need them to.
+   */
+  body: 0.6,
+};

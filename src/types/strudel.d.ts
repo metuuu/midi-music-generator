@@ -23,9 +23,15 @@ declare module '@strudel/core' {
      * when bar 1 happens — see `loadCode`/`startLoaded` in `web/audio.ts`.
      */
     evaluate(code: string, autostart?: boolean, hush?: boolean): Promise<unknown>;
-    /** Start the clock on the loaded pattern, from cycle 0. */
+    /** Start the clock on the loaded pattern, from cycle 0 — or from wherever
+     * `pause` left it, which is the difference between the two ways of
+     * stopping below. */
     start(): Promise<void>;
+    /** Stop and rewind: the scheduler's tick and phase both go back to zero. */
     stop(): void;
+    /** Stop and hold: the timer is cleared and the phase is kept, so `start`
+     * resumes the bar rather than the song. See `pausePlayback`. */
+    pause(): void;
     scheduler: StrudelScheduler;
   }
   /**

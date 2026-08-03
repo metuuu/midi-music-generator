@@ -47,7 +47,7 @@ export function renderStrudel(song: Song, opts: StrudelRenderOptions = {}): stri
   lines.push('');
 
   if (opts.includePrebake) {
-    lines.push(`await samples('${DRUM_SAMPLES_URL}');`);
+    for (const url of SAMPLE_MANIFESTS) lines.push(`await samples('${url}');`);
     lines.push('');
   }
 
@@ -115,17 +115,17 @@ export function renderStrudel(song: Song, opts: StrudelRenderOptions = {}): stri
   }
 
   // Drums: one pattern per voice so the per-voice mix survives.
-  const byVoice = new Map<DrumVoice, number[][]>();
+  const byVoice = new Map<DrumVoice, DrumHit[][]>();
   for (const e of song.drums.events) {
     const bar = Math.floor(e.beat / meta.beatsPerBar);
     const slot = slotOf(e.beat - bar * meta.beatsPerBar);
     if (bar < 0 || bar >= meta.totalBars) continue;
     let grid = byVoice.get(e.voice);
     if (!grid) {
-      grid = Array.from({ length: meta.totalBars }, () => [] as number[]);
+      grid = Array.from({ length: meta.totalBars }, () => [] as DrumHit[]);
       byVoice.set(e.voice, grid);
     }
-    grid[bar]!.push(Math.min(slot, slotsPerBar - 1));
+    grid[bar]!.push({ slot: Math.min(slot, slotsPerBar - 1), velocity: e.velocity });
   }
 
   for (const [voice, grid] of byVoice) {
@@ -136,9 +136,9 @@ export function renderStrudel(song: Song, opts: StrudelRenderOptions = {}): stri
      */
     const sound = resolveVoice(song.drums.bank, voice);
     if (!sound) continue;
-    const bars = grid.map((slots) => {
+    const bars = grid.map((hits) => {
       const row: string[] = Array.from({ length: slotsPerBar }, () => '~');
-      for (const s of slots) row[s] = sound;
+      for (const h of hits) row[h.slot] = sound;
       return row;
     });
     /**
@@ -157,12 +157,19 @@ export function renderStrudel(song: Song, opts: StrudelRenderOptions = {}): stri
      * `render/source-levels.ts`.
      */
     const level = levelOfDrum(song.drums.bank, sound);
+    const gain = song.drums.gain * (song.drums.voiceGains[voice] ?? 1) * level;
+    /**
+     * How hard each stroke was, on the same slots as the strokes themselves —
+     * the drummer's half of the level, where everything above this line is the
+     * engineer's.
+     */
+    const dyn = drumDynamics(grid, slotsPerBar, gain);
     parts.push(
       [
         `  // drums — ${voice}${sound === voice ? '' : ` (as ${sound}: ${song.drums.bank} has no ${voice})`}`,
         `  s(\`${formatGrid(bars)}\`)`,
         `    .bank('${song.drums.bank}')`,
-        `    .gain(${(song.drums.gain * (song.drums.voiceGains[voice] ?? 1) * level).toFixed(3)})`,
+        dyn ? `    .gain(\`${formatGrid(dyn)}\`)` : `    .gain(${gain.toFixed(3)})`,
         ...effectChain(fx, song),
       ].join('\n'),
     );
@@ -182,6 +189,59 @@ export function renderStrudel(song: Song, opts: StrudelRenderOptions = {}): stri
 /** Drum-machine sample set used by the audition render (verified reachable). */
 export const DRUM_SAMPLES_URL =
   'https://raw.githubusercontent.com/felixroos/dough-samples/main/tidal-drum-machines.json';
+
+/**
+ * The Versilian Community Sample Library: 128 sets of real instruments,
+ * recorded rather than synthesised.
+ *
+ * Two things in it that nothing else here can supply. **Percussion that is not a
+ * drum machine** — darbuka, framedrum, conga, bongo, cajon, agogo, cabasa,
+ * clave, guiro, cowbell, tambourine, shakers, vibraslap, woodblock, timpani,
+ * gongs — which is the entire auxiliary rack that `tidal-drum-machines` does
+ * not have, because a 1982 rhythm box did not have it either. And **acoustic
+ * instruments a soundfont approximates badly**, which is the other half of why
+ * this is being registered now: the melodic catalogue can point entries at these
+ * names and get a recording instead of a 1990s soundcard's idea of one.
+ *
+ * Sample names here are bare — `darbuka`, `tambourine2`, `snare_modern` — with
+ * no bank prefix, which is the opposite convention to the drum-machine pack and
+ * is why the two cannot collide.
+ */
+export const VCSL_SAMPLES_URL =
+  'https://raw.githubusercontent.com/felixroos/dough-samples/main/vcsl.json';
+
+/**
+ * Thirteen mridangam strokes, recorded on a real mridangam.
+ *
+ * `gumki ka nam ta ki dhin na chaapu dhum ardha thom dhi tha` — a Carnatic
+ * drummer's own vocabulary, recorded stroke by stroke, which is the thing
+ * `DrumVoice`'s `lp`/`mp`/`hp` are an abstraction *of*. Nothing else loaded here
+ * has a South Indian drum in it at all.
+ *
+ * 4.8 kB of manifest for a genre that does not exist yet, which is the whole
+ * argument for registering it now: an Indian style written against the three
+ * strokes has somewhere real to land, and the cost of it being there in the
+ * meantime is one small fetch.
+ */
+export const MRIDANGAM_SAMPLES_URL =
+  'https://raw.githubusercontent.com/felixroos/dough-samples/main/mridangam.json';
+
+/**
+ * Every sample manifest the audition loads, in the order it loads them.
+ *
+ * One `samples()` call each, all three awaited together — see `web/audio.ts`.
+ * They are separate constants above rather than a bare list because each one is
+ * a different *kind* of thing and the reason it is here is not guessable from
+ * the URL.
+ *
+ * Registering a manifest costs a JSON fetch and nothing else: `samples()` reads
+ * a map of names to URLs and does not touch a single WAV until a pattern
+ * triggers one. The three are 121 kB, 180 kB and 4.8 kB of *index*, fetched
+ * together once at boot; the sounds nobody plays cost nothing at all.
+ */
+export const SAMPLE_MANIFESTS: readonly string[] = [
+  DRUM_SAMPLES_URL, VCSL_SAMPLES_URL, MRIDANGAM_SAMPLES_URL,
+];
 
 /**
  * The note's amplitude shape, as superdough controls.
@@ -397,6 +457,75 @@ function dynamicGrid(
   // above cannot come to disagree about how loud this font is.
   return buildValueGrid(track.notes, totalBars, slotsPerBar,
     (n) => (track.gain * n.velocity * level(n)).toFixed(3));
+}
+
+/** One stroke, placed in its bar. The drum equivalent of a `NoteEvent` onset. */
+interface DrumHit {
+  slot: number;
+  velocity: number;
+}
+
+/**
+ * Per-stroke velocity as a gain grid, or undefined when the part is flat.
+ *
+ * `dynamicGrid`'s twin, and it exists for the same reason: mini-notation has no
+ * inline velocity, so the only way to say that one hit is harder than the next
+ * is a second pattern on the same slots.
+ *
+ * It arrives late. Notes have carried their velocity here since dynamics were
+ * worth carrying, but drums were emitted with a single constant `.gain()` and
+ * the `velocity` the generator computes for every stroke — `accentOf` over the
+ * metre, times the section's intensity, times a little humanising — was read
+ * only by the MIDI renderer and dropped on the floor by this one. So the two
+ * outputs disagreed about the one thing a kit is mostly made of, and the
+ * audition was the one that was wrong.
+ *
+ * What that flattening sounds like is worth naming, because it was mistaken for
+ * a mix fault more than once. `accentOf` returns 1 on the downbeat, 0.85 on a
+ * beat and 0.68 elsewhere — so an unaccented render plays every offbeat stroke
+ * 3.3 dB louder than it was written. On a kick that is barely audible, because
+ * a kick lands on the strong slots anyway. On a ride keeping eighths through a
+ * comp it is the whole difference between a cymbal being played and a cymbal
+ * being triggered, and the ear reads the second one as *too loud* however far
+ * the fader comes down — because what is wrong with it is not its level.
+ *
+ * **This makes the kit quieter, and that is the point.** Every other layer has
+ * been multiplying its level by a velocity below 1 while the drums multiplied
+ * by nothing, which is a systematic couple of dB in the kit's favour on every
+ * song in the catalogue. Removing it moves the balance; `mix.drums` is where to
+ * put it back if a genre now wants it, and that is a taste decision belonging in
+ * a genre table rather than a silent unity here.
+ */
+function drumDynamics(
+  bars: DrumHit[][],
+  slotsPerBar: number,
+  gain: number,
+): string[][] | undefined {
+  const velocities = bars.flat().map((h) => h.velocity);
+  if (velocities.length < 2) return undefined;
+  // The same half-decibel floor the melodic grid uses: a machine kit that plays
+  // every stroke alike should still print one number.
+  if (Math.max(...velocities) - Math.min(...velocities) < 0.06) return undefined;
+
+  // Two strokes on one slot sound as one stroke, and it is the harder of them
+  // that was asked for — the sample grid collapses them silently because there
+  // the duplicates are the same string, and here they are not.
+  const onsets = bars.map((hits) => {
+    const row = new Map<number, number>();
+    for (const h of hits) row.set(h.slot, Math.max(row.get(h.slot) ?? 0, h.velocity));
+    return row;
+  });
+
+  // Whatever the part opens on also fills the bars before it starts, so the
+  // held value is never the placeholder — same rule as `buildValueGrid`.
+  let current = bars.flat()[0]!.velocity;
+  return onsets.map((row) => Array.from({ length: slotsPerBar }, (_unused, slot) => {
+    const found = row.get(slot);
+    if (found !== undefined) current = found;
+    // Slot 0 restates rather than extends: each bar is its own group, and a `_`
+    // at the head of one has nothing inside it to hold.
+    return found !== undefined || slot === 0 ? (gain * current).toFixed(3) : '_';
+  }));
 }
 
 

@@ -29,6 +29,7 @@ import { ERAS } from './eras.js';
 import { MOODS } from './moods.js';
 import { VOCALS } from './vocals.js';
 import { generateTitle } from './titles.js';
+import { STAGING } from './staging.js';
 
 /**
  * The seven-note modes of one tonic, ordered brightest to darkest — which is
@@ -338,4 +339,7 @@ export const ambient: Genre = {
   fills: [
     ['drop', 6], ['lead-in', 3], ['rim', 2],
   ],
+
+  /** The black box, the anoraks and the gallery handout. See `staging.ts`. */
+  staging: STAGING,
 };

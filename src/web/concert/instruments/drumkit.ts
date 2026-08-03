@@ -27,7 +27,7 @@
 
 import {
   BoxGeometry, BufferGeometry, CircleGeometry, CylinderGeometry, Group,
-  InstancedMesh, LatheGeometry, Material, Matrix4, Mesh, MeshStandardMaterial,
+  DoubleSide, InstancedMesh, LatheGeometry, Material, Matrix4, Mesh, MeshStandardMaterial,
   Object3D, Quaternion, SphereGeometry, Vector2, Vector3,
 } from 'three';
 
@@ -123,8 +123,19 @@ const HAT_CHICK_TAU = 0.10;
  * The normals lean back toward the player on the drums the drummer tilts —
  * a snare and a rack tom both face slightly uphill — which is what stops every
  * prep being a vertical lift.
+ *
+ * `Partial`, and it did not use to be. A kit has no hand drum on it, so
+ * `lp`/`mp`/`hp` are missing — see the note where they used to be, at the
+ * bottom. Totality here was quietly buying nothing but the absence of a
+ * compile error, at the price of an answer for three voices this object cannot
+ * play.
  */
-const LAYOUT: Record<DrumVoice, { at: readonly [number, number, number]; up: readonly [number, number, number] }> = {
+interface Placement {
+  at: readonly [number, number, number];
+  up: readonly [number, number, number];
+}
+
+const LAYOUT = {
   /**
    * The pedal board, not the head. A kick is played with a foot.
    *
@@ -196,7 +207,44 @@ const LAYOUT: Record<DrumVoice, { at: readonly [number, number, number]; up: rea
   perc: { at: [-0.26, 1.103, 0.234], up: [0, 0.92, -0.40] },
   /** Cowbell, on the same bracket, struck on the shoulder. */
   cb: { at: [0.02, 1.160, 0.242], up: [0, 0.80, -0.60] },
-};
+  /**
+   * Tambourine, clamped to the upper rod of the hi-hat stand and struck on its
+   * head — outboard of the hats and a hand's width above them, which is where
+   * it goes on a real stand and keeps it clear of the cymbals' swing.
+   */
+  tb: { at: [0.58, 1.060, -0.40], up: [0.10, 0.98, -0.14] },
+  /**
+   * `lp`, `mp` and `hp` are **not here, and their absence is the point.**
+   *
+   * They used to be: three points just past the floor tom, at the same reach as
+   * the clap pad on the other side, with a note saying there was no hand drum
+   * in this model and no era wrote them anyway. Both halves of that stopped
+   * being true. Seven genres write them now, and every one of those strokes
+   * sent a seated drummer's hand to a patch of empty air beside their own kit,
+   * once a bar, exactly as the note predicted it would.
+   *
+   * A hand drum is its own object with its own player — `handdrum`, in
+   * `hand-drum.ts` — and `drumStations` in `concert/instruments.ts` is what
+   * guarantees these three never arrive here. Leaving plausible coordinates in
+   * this table would make that guarantee unfalsifiable: the routing could break
+   * and a hand would go somewhere reasonable-looking instead of nowhere. With
+   * the entries gone, `resolve` returns `undefined`, and `npm run concert`
+   * fails on the spot.
+   */
+} satisfies Partial<Record<DrumVoice, Placement>>;
+
+/**
+ * A voice this kit actually has a surface for.
+ *
+ * `satisfies` above rather than a type annotation, so the keys survive into the
+ * type: `stand` is called with voices written here in this file and should not
+ * have to cope with a `spec` that cannot be missing, while `resolve` is handed
+ * whatever the choreography asks for and must.
+ */
+type StandingVoice = keyof typeof LAYOUT;
+
+const layoutOf = (voice: DrumVoice): Placement | undefined =>
+  (LAYOUT as Partial<Record<DrumVoice, Placement>>)[voice];
 
 /**
  * Sticks at rest, hovering over the middle of the kit.
@@ -304,6 +352,29 @@ class Eased {
 // ---------------------------------------------------------------------------
 // Small geometry helpers
 // ---------------------------------------------------------------------------
+
+/**
+ * How far a full-force hit squashes a head's dome, as a fraction of its height.
+ *
+ * **The one thing this number may not do is reach 1.** At `scale.y = 0` the
+ * head's model matrix is singular, and a singular model matrix has no
+ * inverse-transpose: three.js hands the shader a zero normal matrix, every
+ * vertex normal comes out `(0,0,0)`, and the head renders black or not at all.
+ *
+ * It used to be 2.2, chosen to invert the dome — which is what a struck
+ * membrane genuinely does, and which cannot be expressed this way, because
+ * getting to the other side of zero means passing through it. So any hit over
+ * about half force blinked the head out on the strike; and since `wobble` is an
+ * oscillation that decays rather than a one-shot, it blinked again on every
+ * crossing while the drum rang. That is the flicker: not a dropped frame, a
+ * matrix with no inverse, once per crossing, on the loudest notes in the bar.
+ *
+ * 0.8 keeps `scale.y` in `[0.2, 1.8]`, so the dome flattens most of the way to
+ * its rim under the hardest stroke and swells on the rebound, and the transform
+ * stays invertible at both ends. A head that visibly dishes is worth more than
+ * a head that is briefly, correctly concave and mostly gone.
+ */
+const HEAD_DISH = 0.8;
 
 /** A shallow dome, its rim at the local origin, for a drum head. */
 function headGeometry(radius: number, seg = 16): BufferGeometry {
@@ -447,6 +518,17 @@ export const buildDrumkit: InstrumentBuilder = (opts) => {
    * and it does not shine.
    */
   const pads = opts.electronic === true;
+
+  /**
+   * Which bracket pieces this kit is carrying. See `InstrumentBuildOptions.aux`.
+   *
+   * Omitted means all of them, which is the gallery's answer and was everyone's
+   * until now: a kit shown as an object should be a whole kit. A caller that
+   * passes a list is telling this model what the drummer actually has, and a
+   * piece not on it is not built, not mounted, and not resolvable.
+   */
+  const carries = (voice: 'cb' | 'perc' | 'tb'): boolean =>
+    opts.aux === undefined || opts.aux.includes(voice);
 
   const shellHue = opts.finish ?? rng.pick(pads
     // Simmons sold them in black with one coloured edge, and the black is the
@@ -631,7 +713,7 @@ export const buildDrumkit: InstrumentBuilder = (opts) => {
    * The kick is not in here on purpose: `LAYOUT.bd` is the *pedal board*, not
    * a head, and a kick lies on its side by definition.
    */
-  function stand(g: Object3D, voice: DrumVoice, depth: number): Vector3 {
+  function stand(g: Object3D, voice: StandingVoice, depth: number): Vector3 {
     const spec = LAYOUT[voice];
     const up = new Vector3(spec.up[0], spec.up[1], spec.up[2]).normalize();
     g.quaternion.setFromUnitVectors(yUp, up);
@@ -802,14 +884,24 @@ export const buildDrumkit: InstrumentBuilder = (opts) => {
   const bellHalf = pads ? PAD_DEEP / 2 : 0.05;
   const blockHalf = pads ? PAD_DEEP / 2 : 0.025;
 
-  const bell = addTo(root, new Mesh(
-    pads ? auxPad(0.058) : new BoxGeometry(0.055, 0.10, 0.075), pads ? headMat : brassMat,
-  ));
-  bell.castShadow = true;
-  const block = addTo(root, new Mesh(
-    pads ? auxPad(0.068) : new BoxGeometry(0.16, 0.05, 0.055), pads ? headMat : woodMat,
-  ));
-  block.castShadow = true;
+  // Built only when the part calls for them — see `carries`. Both are still
+  // positioned either way, because their arms are derived from where they
+  // stand and it is cheaper to place an empty group than to fork the bracket
+  // code; an empty group draws nothing and casts no shadow.
+  const bell = addTo(root, new Group());
+  if (carries('cb')) {
+    const mesh = addTo(bell, new Mesh(
+      pads ? auxPad(0.058) : new BoxGeometry(0.055, 0.10, 0.075), pads ? headMat : brassMat,
+    ));
+    mesh.castShadow = true;
+  }
+  const block = addTo(root, new Group());
+  if (carries('perc')) {
+    const mesh = addTo(block, new Mesh(
+      pads ? auxPad(0.068) : new BoxGeometry(0.16, 0.05, 0.055), pads ? headMat : woodMat,
+    ));
+    mesh.castShadow = true;
+  }
 
   /**
    * Both pieces hang the way a drum stands: off the contact that names them.
@@ -844,9 +936,9 @@ export const buildDrumkit: InstrumentBuilder = (opts) => {
    * part from it on the up-swing. Sinking it further than the amplitude means
    * the joint can only ever be tighter than it looks, never open.
    */
-  function underside(mesh: Mesh, halfHeight: number): Vector3 {
-    return mesh.position.clone().add(
-      new Vector3(0, -halfHeight + 0.016, 0).applyEuler(mesh.rotation),
+  function underside(piece: Object3D, halfHeight: number): Vector3 {
+    return piece.position.clone().add(
+      new Vector3(0, -halfHeight + 0.016, 0).applyEuler(piece.rotation),
     );
   }
 
@@ -860,16 +952,145 @@ export const buildDrumkit: InstrumentBuilder = (opts) => {
    * the woodblock is out on a boom from the same clamp with a short riser under
    * it — an L, the shape a percussion arm actually is. Both ends are derived
    * from the mesh transforms above, so moving a piece moves its mount.
+   *
+   * An arm with nothing on the end of it is worse than a missing arm, so each
+   * one goes up only with the piece it holds. The L to the woodblock is two
+   * tubes and both belong to it: leave the riser behind and the kit grows a
+   * spur off the tom post pointing at nothing.
    */
   const POST_TOP = new Vector3(0.02, 1.02, 0.18);
   const blockFoot = underside(block, blockHalf);
   const elbow = new Vector3(blockFoot.x, POST_TOP.y, blockFoot.z);
-  strut(tubeSlots, POST_TOP, underside(bell, bellHalf));
-  strut(tubeSlots, POST_TOP, elbow);
-  strut(tubeSlots, elbow, blockFoot);
-  const aux: Record<'cb' | 'perc', { mesh: Mesh; hit: Hit; base: number }> = {
+  if (carries('cb')) strut(tubeSlots, POST_TOP, underside(bell, bellHalf));
+  if (carries('perc')) {
+    strut(tubeSlots, POST_TOP, elbow);
+    strut(tubeSlots, elbow, blockFoot);
+  }
+  // --- Tambourine, on the hi-hat's pull rod --------------------------------
+
+  /**
+   * `LAYOUT.tb` has named a point since the day the table grew a tambourine,
+   * and until now there was nothing at it.
+   *
+   * That is worse than an omission. A voice with no mesh is not a voice that
+   * goes unseen — `resolve` still answers, so the arm still goes — and where it
+   * went was outboard of the hi-hat at head height, on the audience's right,
+   * with a stick coming down on open air a hand's width past the edge of the
+   * kit. It read as a drummer missing, which is the one thing this model exists
+   * to make impossible. The reach was correct all along; the object was absent.
+   *
+   * Every genre added lately writes `tb` — the arabic, latin and finnfolk
+   * tables lean on it the way a rock table leans on the hats — so what used to
+   * be one stray hit in an old era is now the busiest hand in a bar.
+   */
+  const TAMB_R = 0.115;
+  const tambD = pads ? PAD_DEEP : 0.048;
+  const tamb = addTo(root, new Group());
+  if (!carries('tb')) {
+    // Nothing. See `carries` — a drummer with no tambourine part has no
+    // tambourine, and the empty group keeps the rest of this block's arithmetic
+    // (`stand`, the clamp, the bob) working on one code path rather than two.
+  } else if (pads) {
+    // Same trade as the cowbell and the woodblock: an electronic kit does not
+    // have a tambourine, it has another trigger, and a trigger is a hexagon.
+    addTo(tamb, new Mesh(auxPad(0.10), headMat)).castShadow = true;
+  } else {
+    /**
+     * **Two-sided, unlike anything else on this kit**, and it is the one piece
+     * here that has to be.
+     *
+     * Every other surface on a drum kit is the outside of something solid: a
+     * shell is a closed tube with heads on it, a cymbal is a closed lathe with
+     * an underside of its own. A tambourine is a hoop a centimetre deep with a
+     * skin over one end, and the model of it is a wall with no thickness. With
+     * the default `FrontSide` that wall exists from outside and not from
+     * inside, and the skin exists from above and not from below — so from a
+     * camera at head height the near half of the frame vanished and the head
+     * with it, and what was left was a bright arc of the far rim hanging over
+     * the hi-hat. That is the "mounted weirdly" of it: not the mount, the
+     * missing half.
+     */
+    const tambWood = woodMat.clone();
+    tambWood.side = DoubleSide;
+    const tambSkin = headMat.clone();
+    tambSkin.side = DoubleSide;
+
+    const hoop = addTo(tamb, new Mesh(
+      new CylinderGeometry(TAMB_R, TAMB_R, tambD, 20, 1, true), tambWood,
+    ));
+    hoop.castShadow = true;
+    const skin = addTo(tamb, new Mesh(new CircleGeometry(TAMB_R, 20), tambSkin));
+    skin.rotation.x = -Math.PI / 2;
+    skin.position.y = tambD / 2;
+    skin.receiveShadow = true;
+
+    /**
+     * The jingles, which are the whole read of the thing: without them a
+     * tambourine is a shallow drum, and a shallow drum next to a hi-hat is a
+     * splash cymbal someone got wrong.
+     *
+     * They hang on pins through the hoop, so each disc's axis is *tangential*
+     * — the pair swings in the plane the rim cuts, not across it. One instanced
+     * mesh for all ten, the way the lugs go.
+     *
+     * **Centred on the hoop, not tucked inside it.** They used to sit at
+     * `TAMB_R - JINGLE_R * 0.9`, far enough in that a disc's outer edge merely
+     * touched the frame and the whole of it lay across the head — which is a
+     * tambourine with ten coins on its skin, not a tambourine. On a real one
+     * the frame is slotted and the pair hangs *in* the slot, so the disc
+     * straddles the rim: half inboard, half proud of it, and the outer half is
+     * the part that catches a light and reads as metal from the seats.
+     */
+    const JINGLE_R = 0.024;
+    const pairs = 5;
+    const jingles = addTo(tamb, new InstancedMesh(
+      new CylinderGeometry(JINGLE_R, JINGLE_R, 0.0025, 8), brassMat, pairs * 2,
+    ));
+    const jm = new Matrix4();
+    const jq = new Quaternion();
+    for (let i = 0; i < pairs; i++) {
+      const a = (i / pairs) * TAU + 0.35;
+      const radial = new Vector3(Math.cos(a), 0, Math.sin(a));
+      const tangent = new Vector3(-Math.sin(a), 0, Math.cos(a));
+      jq.setFromUnitVectors(yUp, tangent);
+      for (const side of [1, -1]) {
+        jm.compose(
+          radial.clone().multiplyScalar(TAMB_R)
+            .addScaledVector(tangent, side * 0.011),
+          jq, new Vector3(1, 1, 1),
+        );
+        jingles.setMatrixAt(i * 2 + (side > 0 ? 0 : 1), jm);
+      }
+    }
+    jingles.instanceMatrix.needsUpdate = true;
+  }
+  const tambBase = stand(tamb, 'tb', tambD).y;
+
+  /**
+   * The clamp is on the hi-hat's pull rod, which had to grow to have one: the
+   * stand's tube stopped just under the bottom cymbal, and a rod that ends
+   * there is a hi-hat with no pull in it. It now runs up through both bells,
+   * where a real one does, and the arm comes off its head.
+   *
+   * The arm lands on the underside of the *near* rim rather than the middle of
+   * the hoop, because that is the half of the tambourine a clamp can hold — and
+   * the near rim is derived through the group's own tilt, so raking `LAYOUT.tb`
+   * moves the mount with it.
+   *
+   * The rod stays up whether or not there is anything clamped to it — a pull
+   * rod is part of a hi-hat, not part of a tambourine mount. Only the arm goes.
+   */
+  const HAT_ROD_TOP = new Vector3(HAT_AT[0], HAT_AT[1] + 0.075, HAT_AT[2]);
+  strut(tubeSlots, new Vector3(HAT_AT[0], HAT_AT[1] - 0.02, HAT_AT[2]), HAT_ROD_TOP);
+  if (carries('tb')) {
+    strut(tubeSlots, HAT_ROD_TOP, new Vector3(-TAMB_R * 0.8, -tambD / 2 + 0.012, 0)
+      .applyQuaternion(tamb.quaternion).add(tamb.position));
+  }
+
+  const aux: Record<'cb' | 'perc' | 'tb', { mesh: Object3D; hit: Hit; base: number }> = {
     cb: { mesh: bell, hit: new Hit(), base: bellBase },
     perc: { mesh: block, hit: new Hit(), base: blockBase },
+    tb: { mesh: tamb, hit: new Hit(), base: tambBase },
   };
 
   // --- Pedals --------------------------------------------------------------
@@ -1027,7 +1248,19 @@ export const buildDrumkit: InstrumentBuilder = (opts) => {
     resolve(point: PlayPoint): Contact | undefined {
       switch (point.kind) {
         case 'drum': {
-          const spec = LAYOUT[point.voice];
+          // `undefined` for `lp`/`mp`/`hp`, and deliberately: those belong to a
+          // hand drum and its own player. See the note at the end of `LAYOUT`.
+          //
+          // …and for a bracket piece this kit was not given. `LAYOUT` says where
+          // a cowbell goes; `carries` says whether there is one. A point that
+          // answered from the table alone would send a stick to the coordinates
+          // of an object nobody built, which is the whole failure this file
+          // spent a release removing.
+          const voice = point.voice;
+          if ((voice === 'cb' || voice === 'perc' || voice === 'tb') && !carries(voice)) {
+            return undefined;
+          }
+          const spec = layoutOf(voice);
           return spec ? contact(spec) : undefined;
         }
         case 'pedal':
@@ -1084,14 +1317,14 @@ export const buildDrumkit: InstrumentBuilder = (opts) => {
       const cym = CYMBAL_OF[voice];
       if (cym) cymbals[cym].hit.fire(now, voice === 'hh' ? f * 0.35 : f);
 
-      if (voice === 'cb' || voice === 'perc') aux[voice].hit.fire(now, f);
+      if (voice === 'cb' || voice === 'perc' || voice === 'tb') aux[voice].hit.fire(now, f);
     },
 
     update(now: number): void {
       // Heads dish inward on impact and flutter back. Scaling the dome about
-      // its rim inverts it, which is what a struck head actually does — and the
-      // factor has to stay small, because the dome is only about a centimetre
-      // tall and a large one would drive the head out through the shell.
+      // its rim is what dishing a head *is*, and the factor has to stay small,
+      // because the dome is only about a centimetre tall and a large one would
+      // drive the head out through the shell.
       for (const id of ['kick', 'snare', 'high', 'mid', 'floor', 'pad'] as ShellId[]) {
         const s = shells[id];
         const d = s.hit.wobble(now, 0.22, 3.2);
@@ -1106,7 +1339,7 @@ export const buildDrumkit: InstrumentBuilder = (opts) => {
          */
         if (id === 'pad') s.head.position.y = PAD_AT[1] - d * 0.010;
         else if (pads) s.head.position.y = padRestY[id]! - d * 0.004;
-        else s.head.scale.y = 1 - d * 2.2;
+        else s.head.scale.y = 1 - d * HEAD_DISH;
       }
 
       // Cymbals rock, and they have to rock *visibly* or a struck crash reads
@@ -1148,8 +1381,12 @@ export const buildDrumkit: InstrumentBuilder = (opts) => {
       beater.rotation.x = BEATER_REST
         + (BEATER_STRIKE - BEATER_REST) * kickPedal.hit.decay(now, 0.18);
 
-      aux.cb.mesh.position.y = aux.cb.base - aux.cb.hit.wobble(now, 0.30, 4) * 0.012;
-      aux.perc.mesh.position.y = aux.perc.base - aux.perc.hit.wobble(now, 0.30, 4) * 0.012;
+      // Mounted pieces bob on their brackets. The tambourine gives more than
+      // the two lumps do — it hangs off one clamp with a hoop's worth of
+      // leverage past it, where a cowbell is bolted short.
+      for (const [id, give] of [['cb', 0.012], ['perc', 0.012], ['tb', 0.020]] as const) {
+        aux[id].mesh.position.y = aux[id].base - aux[id].hit.wobble(now, 0.30, 4) * give;
+      }
     },
 
     station: { offset: new Vector3(0, 0, -0.95), facing: 0, posture: 'kit' },

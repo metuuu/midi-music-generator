@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Costume bench — every hair style, hat, fabric and wardrobe</title>
+    <meta
+      name="description"
+      content="A flat elevation of everything a performer can be dressed in — the sixteen hair styles, the twenty accessories, the fifteen fabrics, and every genre's wardrobe as the concert actually casts it."
+    />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#15171a" />
+    <link rel="canonical" href="https://midi.poppodi.click/looks.html" />
+
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Radio — music generator" />
+    <meta property="og:title" content="Costume bench — every hair style, hat, fabric and wardrobe" />
+    <meta
+      property="og:description"
+      content="A flat elevation of everything a performer can be dressed in — the sixteen hair styles, the twenty accessories, the fifteen fabrics, and every genre's wardrobe as the concert actually casts it."
+    />
+    <meta property="og:url" content="https://midi.poppodi.click/looks.html" />
+    <meta property="og:image" content="https://midi.poppodi.click/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Radio — a rule-based generator for iskelmä, jazz and ambient" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <style>
+      :root {
+        --bg: #15171a; --ink: #e8e4de; --dim: #8d8880; --hot: #e0a24a;
+        font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; }
+      body { margin: 0; background: var(--bg); color: var(--ink); overflow: hidden; }
+      #bench { position: fixed; inset: 0; display: block; width: 100%; height: 100%; }
+      #ui {
+        position: fixed; top: 0; left: 0; right: 0; padding: .6rem 1rem; z-index: 3;
+        display: flex; gap: .5rem; align-items: center; flex-wrap: wrap;
+        background: linear-gradient(#15171af0, #15171a00); font-size: .82rem;
+      }
+      select, button {
+        background: #23262b; color: var(--ink); border: 1px solid #3a3e45;
+        border-radius: 6px; padding: .32rem .58rem; font: inherit; cursor: pointer;
+      }
+      button:hover, select:hover { border-color: var(--hot); }
+      button.on { border-color: var(--hot); color: var(--hot); }
+      label { color: var(--dim); display: flex; gap: .35rem; align-items: center; }
+      .gap { width: .6rem; }
+      /*
+        The labels are the point of the page as much as the geometry is: a wrong
+        silhouette has to be traceable to a table entry without reading code. So
+        they live over the canvas rather than in a side panel, one per figure,
+        and they are clickable — that is the whole of "focus this one".
+      */
+      #labels { position: fixed; inset: 0; pointer-events: none; z-index: 2; }
+      .tag {
+        position: absolute; transform: translate(-50%, 0); pointer-events: auto;
+        cursor: pointer; text-align: center; font-size: .62rem; line-height: 1.45;
+        color: var(--dim); white-space: nowrap; text-shadow: 0 1px 2px #000a;
+      }
+      .tag b { color: var(--ink); font-weight: 500; font-size: .72rem; }
+      .tag .v { color: #b9b2a6; }
+      .tag .seed { color: #615c55; font-size: .58rem; }
+      .tag.sel b { color: var(--hot); }
+      .tag:hover b { color: var(--hot); }
+      .sw {
+        display: inline-block; width: .52rem; height: .52rem; border-radius: 2px;
+        border: 1px solid #0006; vertical-align: -1px; margin-right: .1rem;
+      }
+      /* Row headings sit outboard of the leftmost figure, not over it. */
+      .row {
+        position: absolute; transform: translate(0, -50%); pointer-events: none;
+        max-width: 100vw;
+        font-size: .74rem; color: var(--ink); text-align: right;
+        white-space: nowrap; text-shadow: 0 1px 2px #000a;
+      }
+      .row span { display: block; color: var(--dim); font-size: .62rem; }
+      .row .warn { color: #e2705a; }
+      #facts {
+        position: fixed; left: 1rem; bottom: 1rem; right: 1rem; font-size: .74rem;
+        color: var(--dim); line-height: 1.65; pointer-events: none; z-index: 3;
+      }
+      #facts b { color: var(--ink); font-weight: 500; }
+      #facts .warn { color: #e2705a; }
+      #facts .key { color: #615c55; }
+    </style>
+  </head>
+  <body>
+    <canvas id="bench"></canvas>
+    <div id="labels"></div>
+    <div id="ui">
+      <button id="v-wardrobe">wardrobe</button>
+      <button id="v-hair">hair</button>
+      <button id="v-accessories">accessories</button>
+      <button id="v-hats">hats × hair</button>
+      <button id="v-fabric">fabric</button>
+      <span class="gap"></span>
+      <select id="genre"></select>
+      <button id="prev">◂</button>
+      <button id="next">▸</button>
+      <span class="gap"></span>
+      <button id="face-front">front</button>
+      <button id="face-three">¾</button>
+      <button id="face-side">side</button>
+      <button id="face-back">back</button>
+      <span class="gap"></span>
+      <label><input type="checkbox" id="motion" /> groove</label>
+      <label><input type="checkbox" id="tags" checked /> labels</label>
+      <button id="fit">fit</button>
+    </div>
+    <div id="facts"></div>
+    <script type="module" src="/src/web/looks.ts"></script>
+  </body>
+</html>

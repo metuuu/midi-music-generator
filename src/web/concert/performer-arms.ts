@@ -118,7 +118,8 @@ import { Mesh, Object3D, Quaternion, Vector3 } from 'three';
 
 import type { Look } from '../../concert/types.js';
 
-import { Leases, bead, clothSurface, tube } from './performer-assets.js';
+import { Leases, bead, tube } from './performer-assets.js';
+import { sleeveOf } from './performer-garments.js';
 import type { HandRig } from './performer-hands.js';
 import { SIDE, fitLimb, type BodySide, type Proportions } from './performer-look.js';
 
@@ -303,15 +304,31 @@ export interface ArmAnchors {
 export function buildArms(
   root: Object3D, anchors: ArmAnchors, p: Proportions, look: Look, l: Leases,
 ): ArmsRig {
-  const cloth = clothSurface(l, look.outfit.jacket);
+  /**
+   * What this sleeve is made of, and how much of it there is.
+   *
+   * Asked of `performer-garments.ts` rather than read off `look.outfit.jacket`,
+   * which is what this line used to be. A sleeve is not always the jacket: it is
+   * the *shirt* under a waistcoat, it is a bag of cloth on a kaftan, and on a
+   * sleeveless gown it is not cloth at all but the player's own arm — three
+   * cases that this file must not be the one to decide between, since the whole
+   * point of that module is that the torso, the sleeves and the legs cannot each
+   * hold their own opinion about what a robe is.
+   *
+   * The two multipliers land on the radii below rather than replacing them: how
+   * thick a cartoon arm is at a given build is argued here and stays here, and
+   * what a garment gets to say is only whether the cloth hangs off it.
+   */
+  const sleeve = sleeveOf(look, l);
+  const cloth = sleeve.material;
 
   // Slender, and deliberately: these hands are cartoon-huge, and a forearm
   // scaled to match one would be a leg. A sleeve about two thirds of a palm
   // across is the proportion the big-hands art direction actually implies, and
   // it is thin enough for the hand's own cuff to read as a cuff rather than as
   // the place the arm happens to stop.
-  const upperR = p.height * (0.028 + 0.008 * p.build);
-  const foreR = p.height * (0.021 + 0.005 * p.build);
+  const upperR = p.height * (0.028 + 0.008 * p.build) * sleeve.upper;
+  const foreR = p.height * (0.021 + 0.005 * p.build) * sleeve.fore;
   const elbowR = (upperR + foreR) * 0.52;
 
   const upperL = p.height * UPPER_OF_HEIGHT;

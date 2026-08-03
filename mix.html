@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mix lab — solo, mute and ride the faders</title>
+    <meta
+      name="description"
+      content="The bench behind Radio's balance: solo any layer or drum voice, move its fader while the song plays, and paste the result back into the tables."
+    />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#14100e" />
+    <link rel="canonical" href="https://midi.poppodi.click/mix.html" />
+
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Radio — music generator" />
+    <meta property="og:title" content="Mix lab — solo, mute and ride the faders" />
+    <meta
+      property="og:description"
+      content="The bench behind Radio's balance: solo any layer or drum voice, move its fader while the song plays, and paste the result back into the tables."
+    />
+    <meta property="og:url" content="https://midi.poppodi.click/mix.html" />
+    <meta property="og:image" content="https://midi.poppodi.click/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Radio — a rule-based generator for iskelmä, jazz and ambient" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <style>
+      :root {
+        --bg: #14100e;
+        --panel: #1e1917;
+        --edge: #372e29;
+        --ink: #efe6dc;
+        --dim: #a2938a;
+        --hot: #e0a24a;
+        --cool: #79b0c4;
+        font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; min-height: 100vh; background: var(--bg); color: var(--ink);
+        display: flex; justify-content: center; padding: 2rem 1rem;
+      }
+      .wrap { width: 100%; max-width: 1080px; }
+      h1 { font-size: 1.35rem; margin: 0 0 .25rem; letter-spacing: .02em; }
+      h2 {
+        font-size: .74rem; text-transform: uppercase; letter-spacing: .1em;
+        color: var(--dim); margin: 0 0 .8rem; font-weight: 600;
+      }
+      .sub { color: var(--dim); font-size: .85rem; margin-bottom: 1.4rem; }
+      .sub a { color: var(--cool); }
+      .panel {
+        background: var(--panel); border: 1px solid var(--edge);
+        border-radius: 12px; padding: 1.15rem; margin-bottom: 1rem;
+      }
+      .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 1rem; align-items: start; }
+      label { display: block; font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; color: var(--dim); margin-bottom: .35rem; }
+      select, input[type=text] {
+        width: 100%; padding: .5rem .6rem; background: #100d0c; color: var(--ink);
+        border: 1px solid var(--edge); border-radius: 7px; font-size: .9rem; font-family: inherit;
+      }
+      .row { display: flex; gap: .6rem; flex-wrap: wrap; align-items: flex-end; }
+      button {
+        padding: .55rem 1rem; border-radius: 7px; border: 1px solid var(--edge);
+        background: #2a2320; color: var(--ink); font-size: .88rem; cursor: pointer; font-family: inherit;
+      }
+      button:hover:not(:disabled) { border-color: var(--hot); }
+      button.primary { background: var(--hot); color: #17110a; border-color: var(--hot); font-weight: 600; }
+      .status { font-size: .8rem; color: var(--dim); margin-top: .8rem; min-height: 1.2em; }
+      .desc { font-size: .8rem; color: var(--cool); margin-top: .6rem; font-variant-numeric: tabular-nums; }
+
+      .strips { display: grid; gap: .35rem; }
+      .strip {
+        display: grid; grid-template-columns: 9.5rem 1.8rem 1.8rem 1fr 4.6rem;
+        gap: .5rem; align-items: center;
+        padding: .3rem .45rem; border-radius: 7px; border: 1px solid transparent;
+      }
+      .strip.moved { border-color: #4a3a25; background: #221b15; }
+      .strip.silent { opacity: .38; }
+      .strip-name b { display: block; font-size: .82rem; font-weight: 600; }
+      .strip-name span { display: block; font-size: .68rem; color: var(--dim); }
+      .strip-read { text-align: right; font-variant-numeric: tabular-nums; }
+      .strip-read b { display: block; font-size: .78rem; font-weight: 600; }
+      .strip-read span { display: block; font-size: .66rem; color: var(--dim); }
+      .strip input[type=range] { width: 100%; accent-color: var(--hot); }
+      .tog {
+        padding: .2rem 0; font-size: .68rem; font-weight: 700; text-align: center;
+        background: #191413; color: var(--dim);
+      }
+      .tog.on { background: var(--hot); color: #17110a; border-color: var(--hot); }
+      .chip {
+        display: block; margin-top: .18rem; padding: .08rem .35rem; font-size: .64rem;
+        background: #191413; color: var(--dim); border-radius: 5px; width: fit-content;
+        max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      .chip.global { color: var(--cool); border-color: #2f4550; }
+
+      pre {
+        margin: 0; padding: .8rem; background: #100d0c; border: 1px solid var(--edge);
+        border-radius: 8px; font-size: .76rem; line-height: 1.55; overflow: auto;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--ink);
+        max-height: 320px; white-space: pre-wrap;
+      }
+      .note { font-size: .76rem; color: var(--dim); line-height: 1.6; margin: 0 0 .8rem; }
+      .note b { color: var(--ink); font-weight: 600; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>Mix lab</h1>
+      <div class="sub">
+        Solo, mute and ride the faders while it plays ·
+        <a href="/">radio →</a> ·
+        <a href="/voice.html">voice lab →</a> ·
+        <a href="/bench.html">instrument bench →</a>
+      </div>
+
+      <div class="panel">
+        <div class="row">
+          <div style="flex: 1 1 12rem">
+            <label for="genre">Genre</label>
+            <select id="genre"></select>
+          </div>
+          <div style="flex: 1 1 10rem">
+            <label for="seed">Seed</label>
+            <input id="seed" type="text" placeholder="random" />
+          </div>
+          <button id="regen">New song</button>
+          <button id="play" class="primary">Play</button>
+          <button id="stop">Stop</button>
+          <button id="reset">Reset faders</button>
+        </div>
+        <div class="desc" id="desc"></div>
+        <div class="status" id="status">ready</div>
+      </div>
+
+      <div class="cols">
+        <div class="panel">
+          <h2>Layers</h2>
+          <p class="note">
+            Every fader is a <b>trim over what the genre already says</b>, so the middle is
+            "as written" and anything you have touched is lit. Double-click a fader to put
+            it back.
+          </p>
+          <div class="strips" id="layers"></div>
+        </div>
+
+        <div class="panel">
+          <h2>Kit</h2>
+          <p class="note">
+            Only the voices this kit plays, loudest fader first. Where the bank has no such
+            sample the strip says what it answers with instead — a ride played by a crash is
+            loud for reasons no fader can fix. <b>Trim</b> is the measured per-bank
+            correction from <code>source-levels.ts</code>, which these faders do not touch.
+          </p>
+          <div class="strips" id="voices"></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Paste this back</h2>
+        <p class="note">
+          Absolute values for the tables, and only the rows that moved. This page writes
+          nothing to disk on purpose: the mix is read by the MIDI renderer too, so a
+          balance that lived only in the browser would ship the old numbers in the .mid.
+        </p>
+        <div class="row" style="margin-bottom: .7rem">
+          <button id="copy">Copy</button>
+        </div>
+        <pre id="out"></pre>
+      </div>
+    </div>
+    <script type="module" src="/src/web/mix-lab.ts"></script>
+  </body>
+</html>

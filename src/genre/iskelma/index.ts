@@ -13,6 +13,7 @@ import { ERAS } from './eras.js';
 import { MOODS } from './moods.js';
 import { VOCALS } from './vocals.js';
 import { generateTitle } from './titles.js';
+import { STAGING } from './staging.js';
 
 /** Verse/chorus song forms. The final chorus is where the key change lands. */
 const FORMS: (readonly [FormStep[], number])[] = [
@@ -157,4 +158,10 @@ export const iskelma: Genre = {
   fills: [
     ['tom-roll', 5], ['snare-toms', 3], ['snare-roll', 3], ['lead-in', 2], ['drop', 1],
   ],
+
+  /**
+   * The pavilion, the summer suits and the tanssilava bill. See `staging.ts`,
+   * and `Staging` in `../types.ts` for why a genre carries its own.
+   */
+  staging: STAGING,
 };

@@ -36,11 +36,14 @@
 import {
   BoxGeometry, BufferGeometry, CapsuleGeometry, CircleGeometry, Color,
   ConeGeometry, CylinderGeometry, DataTexture, DoubleSide, LatheGeometry,
-  LinearFilter, Material, MeshStandardMaterial, PlaneGeometry, RGBAFormat,
-  SRGBColorSpace, SphereGeometry, TorusGeometry, Vector2,
+  LinearFilter, Material, MeshPhysicalMaterial, MeshStandardMaterial,
+  PMREMGenerator, PlaneGeometry, RGBAFormat, RepeatWrapping, SRGBColorSpace,
+  type Scene, SphereGeometry, TorusGeometry, Vector2, type WebGLRenderer,
 } from 'three';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 
 import { Rng } from '../../core/rng.js';
+import type { Fabric } from '../../concert/types.js';
 
 // ---------------------------------------------------------------------------
 // The pool
@@ -99,9 +102,19 @@ export class Leases {
       if (!entry) continue;
       entry.refs -= n;
       if (entry.refs <= 0) {
-        // The pool made the texture too, so the pool disposes it.
-        const m = entry.value as Material & { map?: { dispose(): void } | null };
+        // The pool made the textures too, so the pool disposes them. Both slots,
+        // because a garment is a colour *and* a weave: `clothSurface` hangs a
+        // generated normal map on corduroy, denim, knit and flannel, and a
+        // release that only knew about `map` would leak one 48 kB texture per
+        // distinct cloth colour for the life of the tab. Each material owns its
+        // own copy rather than sharing one per weave, which is what makes this
+        // one line correct instead of a double free.
+        const m = entry.value as Material & {
+          map?: { dispose(): void } | null;
+          normalMap?: { dispose(): void } | null;
+        };
         m.map?.dispose();
+        m.normalMap?.dispose();
         entry.value.dispose();
         MATERIALS.delete(key);
       }
@@ -236,10 +249,36 @@ export const torsoShell = (l: Leases): LatheGeometry =>
  * `phiLength` short of a full turn is the whole trick — the opening is a hole
  * in the geometry rather than a hole in a texture, which is the only version
  * that survives being lit from the side.
+ *
+ * ## Why `phiStart` is 0.80π and not something rounder
+ *
+ * The bite is the 0.60π that `phiLength` leaves out, and where it lands is
+ * decided entirely by where the swept arc *starts*. three.js builds a sphere as
+ *
+ *     x = −r·cos(phi)·sin(theta)      z = r·sin(phi)·sin(theta)
+ *
+ * — note the minus on `x` — so `phi = 0` is **−x**, the performer's right ear,
+ * and the front of the face is `phi = π/2`. This shell was written with
+ * `phiStart = 0.30π`, which sweeps 0.30π → 1.70π and leaves the gap centred on
+ * `phi = 0`. Every hooded and wrapped player on the project's stage has
+ * therefore been a featureless egg from the front with its face-hole over one
+ * ear, and it went unnoticed because from the stalls an egg with two eyebrows
+ * poking over the rim reads as a person who is merely far away.
+ *
+ * Centring the gap on the face means centring it on π/2, so the arc runs from
+ * `π/2 + 0.30π` to `π/2 + 0.30π + 1.40π` — that is 0.80π through 2.20π, and the
+ * 0.60π it misses is 0.20π…0.80π, symmetric about π/2. Hence 0.80π.
+ *
+ * The tempting near-miss is 0.5π + something, or "just add π/2 to what was
+ * there": `phiStart` names the *edge* of the covered arc, not the centre of the
+ * hole, and the two differ by half the gap. Anything that faces the opening
+ * along ±x or −z is wrong in a way only the bench's front view shows, which is
+ * how the original survived. Turn a hood to `front` and `side` before believing
+ * any arithmetic here, this comment's included.
  */
 export const hoodShell = (l: Leases): SphereGeometry =>
   l.geometry('hood', () => new SphereGeometry(
-    0.5, 16, 12, Math.PI * 0.30, Math.PI * 1.40, 0, Math.PI * 0.78,
+    0.5, 16, 12, Math.PI * 0.80, Math.PI * 1.40, 0, Math.PI * 0.78,
   ));
 
 // ---------------------------------------------------------------------------
@@ -252,25 +291,88 @@ export interface Finish {
   /** For open shells — a hood seen from inside is still a hood. */
   doubleSide?: boolean;
   opacity?: number;
+  /** A generated grain, for the cloths whose identity is a surface. See `WEAVES`. */
+  weave?: WeaveId;
+  /**
+   * Retroreflection off a raised pile, which is a thing `MeshStandardMaterial`
+   * cannot express — asking for it upgrades the material to
+   * `MeshPhysicalMaterial`. Velvet and flannel are what it is here for.
+   */
+  sheen?: number;
 }
 
 function materialKey(colour: string, f: Finish): string {
   return [
     colour, f.roughness ?? 0.8, f.metalness ?? 0, f.doubleSide ? 'd' : 's',
-    f.opacity ?? 1,
+    f.opacity ?? 1, f.weave ?? '-', f.sheen ?? 0,
   ].join('|');
 }
 
+/**
+ * How much brighter a metal's room is than everyone else's.
+ *
+ * A stage is not a physically plausible place. The venue lights in this project
+ * run at intensities of two and three, and every diffuse surface gets all of
+ * that plus an ambient fill; a metal gets none of it, because a metal has no
+ * diffuse term — its colour is only what it reflects. So a room bright enough to
+ * put the sequinned lead level with the wool suits beside her is a room bright
+ * enough to wash the wool suits out, and `scene.environmentIntensity` cannot
+ * tell the two cases apart.
+ *
+ * `envMapIntensity` can: it scales one material's helping of the environment.
+ * Sloping it with `metalness` means the reflection is boosted exactly in
+ * proportion to how much of the surface's appearance it is responsible for, so
+ * `wool` at 0.03 is untouched and `lame` at 0.90 reflects a room some three
+ * times brighter than the one in the render target. That is a licence and worth
+ * naming as one, but the alternative was measured on the bench and it is a lead
+ * singer in lamé who is the darkest object in the house.
+ */
+const METAL_ROOM_GAIN = 3.0;
+
+/**
+ * One material, pooled by every value that went into it.
+ *
+ * The `sheen` branch is the only place in the rig that leaves
+ * `MeshStandardMaterial` behind, and it is deliberately a branch rather than a
+ * blanket upgrade: `MeshPhysicalMaterial` compiles a longer shader and every
+ * skin, hair, lens and drum shell on stage would pay for a term two garments
+ * use. `MeshPhysicalMaterial` extends `MeshStandardMaterial`, so the return type
+ * is honest and no caller has to know which it got.
+ */
 export function surface(l: Leases, colour: string, f: Finish = {}): MeshStandardMaterial {
   const key = materialKey(colour, f);
-  return l.material(key, () => new MeshStandardMaterial({
-    color: new Color(colour),
-    roughness: f.roughness ?? 0.8,
-    metalness: f.metalness ?? 0,
-    ...(f.doubleSide ? { side: DoubleSide } : {}),
-    transparent: (f.opacity ?? 1) < 1,
-    opacity: f.opacity ?? 1,
-  }));
+  return l.material(key, () => {
+    const common = {
+      color: new Color(colour),
+      roughness: f.roughness ?? 0.8,
+      metalness: f.metalness ?? 0,
+      ...(f.doubleSide ? { side: DoubleSide } : {}),
+      transparent: (f.opacity ?? 1) < 1,
+      opacity: f.opacity ?? 1,
+    };
+    const m = f.sheen
+      ? new MeshPhysicalMaterial({
+        ...common,
+        sheen: f.sheen,
+        // Tight rather than broad, so the term lands where a pile actually
+        // catches the light — the grazing edge. At 0.8 it spreads over the whole
+        // garment and does nothing but lift it, which turned velvet, the cloth
+        // that is supposed to be the darkest thing on the stage, into the
+        // lightest one in the dark-coat row.
+        sheenRoughness: 0.40,
+        // Warm-white rather than the garment's own colour: a pile catches the
+        // light rather than the dye, which is why a black velvet lapel has a
+        // grey edge and a black wool one has none.
+        sheenColor: new Color('#d8d2c8'),
+      })
+      : new MeshStandardMaterial(common);
+    m.envMapIntensity = 1 + (f.metalness ?? 0) * METAL_ROOM_GAIN;
+    if (f.weave) {
+      m.normalMap = makeWeaveTexture(f.weave);
+      m.normalScale = new Vector2(WEAVES[f.weave].depth, WEAVES[f.weave].depth);
+    }
+    return m;
+  });
 }
 
 export const skinSurface = (l: Leases, colour: string): MeshStandardMaterial =>
@@ -280,23 +382,440 @@ export const hairSurface = (l: Leases, colour: string): MeshStandardMaterial =>
   surface(l, colour, { roughness: 0.72, metalness: 0.03 });
 
 /**
- * Cloth, with its sheen derived from how loud the colour is.
+ * What light does to a garment, taken from what the garment is made of.
  *
- * A defensible piece of rendering licence rather than a costume decision: the
- * IR gives four colours and no fabric, and a sequinned tanssilava jacket and a
- * matte wool suit are the same four fields. Saturation is the one signal
- * already in the data that separates them — nobody makes a matte jacket in that
- * pink — so bright colours get a little metalness and dull ones stay flat. The
- * genre still chose the colour; this only decides what light does to it.
+ * This used to derive sheen from how *saturated* the colour was, and the
+ * comment defended it as rendering licence on the grounds that "the IR gives
+ * four colours and no fabric". That was true when it was written and stopped
+ * being true some time ago: `Look.outfit.fabric` has been in the IR all along,
+ * every wardrobe in the project sets it deliberately, and nothing read it.
+ *
+ * The saturation heuristic is not merely a weaker signal than the real one, it
+ * is the specific failure `Fabric` was declared to prevent — its own doc comment
+ * says a renderer asked to infer sheen from saturation "ends up deciding that
+ * any loud colour is shiny, which makes a bright red wool jacket glitter and a
+ * silver knit jumper look like a mirror". Both of those were happening. A
+ * tanssilava band's cream wool suits came out matte because they are pale, and
+ * the one player in sequins came out shiny because sequins are drawn in silver
+ * and gold — so it looked approximately right in the one genre it was tuned
+ * against, and wrong everywhere the colours were loud for another reason.
+ *
+ * `fabric` is required rather than optional, and the saturation path is gone
+ * rather than kept as a fallback. Every one of the six call sites already has
+ * the `Look` in hand, so there is no caller a fallback would serve — and a
+ * required parameter is what makes this change atomic. Torso, sleeves and legs
+ * are one garment, and half-wiring them would open a sheen seam at every
+ * shoulder and hip, which is worse than the uniform wrongness it replaces.
  */
-export function clothSurface(l: Leases, colour: string): MeshStandardMaterial {
+interface Cloth {
+  /** Specular lobe width. The axis the table used to be entirely about. */
+  roughness: number;
+  metalness: number;
+  /**
+   * Multiplier on the garment's own lightness, in **sRGB** and not the working
+   * linear space — the point is a perceptual step, and a linear multiply is
+   * roughly half the size it looks like it is asking for.
+   */
+  tone: number;
+  /** Multiplier on saturation. Below 1 for the cloths that scatter their dye. */
+  chroma: number;
+  weave?: WeaveId;
+  sheen?: number;
+}
+
+/**
+ * What light does to a garment, taken from what the garment is made of.
+ *
+ * ## Why the table has five columns and not two
+ *
+ * It had two, and nine of its fifteen rows were the same fabric. `wool velvet
+ * corduroy denim knit nylon silk linen flannel` were all roughness 0.88–1.00 at
+ * metalness ≤ 0.03, which is one grey lit one way; put side by side on the
+ * costume bench's fabric view they were literally indistinguishable, and the
+ * whole reason `Fabric` exists — per its own doc comment, that a wool suit and a
+ * knit jumper are different objects — was not being served by the only file that
+ * reads it.
+ *
+ * Every one of those two-column values was defensible on its own and that was
+ * the trap: roughness is a statement about the *width of a specular highlight*,
+ * and the concert camera sits at `[0, 2.4, 11]`, where a performer's torso is
+ * some tens of pixels across. A highlight two pixels wider than its neighbour's
+ * is not a difference at that distance. So the table now moves the things that
+ * do survive ten metres:
+ *
+ *   - **`tone`** — how light the cloth renders its own dye. This is the load
+ *     bearing column. It is albedo, not a highlight, so it reads at any size,
+ *     and it is not a cheat: a velvet and a linen cut from one bolt of dye are
+ *     genuinely not the same lightness, because a pile traps light between its
+ *     fibres and a smooth crisp weave throws it back.
+ *   - **`chroma`** — how much of the dye survives. Napped and scattering cloths
+ *     go chalky. Invisible on the bench's near-grey control coats, which is
+ *     correct: it is there for the wardrobe view, where jackets are saturated.
+ *   - **`weave`** — a generated normal map, for the four cloths whose identity
+ *     is a surface rather than a sheen. See `WEAVES`.
+ *   - **`sheen`** — retroreflection off a raised pile. It brightens the
+ *     *silhouette*, and a silhouette is the one part of a small figure that is
+ *     guaranteed to be several pixels wide, so of everything here it is the
+ *     effect that degrades most gracefully with distance.
+ *
+ * ## What each row is for, and the pair it was set against
+ *
+ * `tone` runs velvet 0.74 → denim 0.83 → leather 0.88 → knit 0.90 → vinyl 0.94
+ * → corduroy 0.95 → **wool 1.00** → nylon 1.01 → satin 1.02 → flannel 1.05 →
+ * silk 1.09 → linen 1.15, so the matte cluster alone spans two fifths of a stop
+ * and no two neighbours in it are closer than 0.05. Where two rows do sit close
+ * in `tone` they are far apart in gloss, and vice versa — that is the whole
+ * layout of the table:
+ *
+ *   - **wool** is the reference and moves for nobody. 1.00 tone, 1.00 chroma.
+ *   - **velvet / wool** — the pair the old table failed hardest. Velvet is now
+ *     the darkest cloth on the stage (0.74) with a grazing sheen on top, so it
+ *     is a deep body with a lit edge where wool is flat all over. The sheen is
+ *     only 0.35, and the reason is a bench finding: a rounded figure is mostly
+ *     grazing angles, so a larger one lifted the whole garment and made velvet
+ *     the *lightest* thing in the dark-coat row — the opposite of the fault it
+ *     was put there to fix.
+ *   - **flannel / wool** — flannel was `[1.0, 0]` and wool `[0.88, 0.03]`, which
+ *     is nothing. It is now the chalky one: lifted (1.05), badly desaturated
+ *     (0.68), napped, and half a sheen.
+ *   - **flannel / linen** — the two pale ones. Linen is paler still (1.15) but
+ *     *crisp*: roughness 0.90 against flannel's 0.99, no nap, no sheen.
+ *   - **corduroy / velvet** — same pile family, so they are separated by tone
+ *     (0.95 against 0.74) and by corduroy being the only cloth with ribs.
+ *   - **knit / corduroy** — both matte and both textured, so: knit is darker
+ *     (0.90), totally matte (1.00), and lumpy where corduroy is lined.
+ *   - **denim / wool** — denim is deeper (0.83), much more saturated (1.28) and
+ *     glossier (0.80), which together is a hard-wearing dyed twill.
+ *   - **nylon / silk** — the two sheens that are not lustre. Nylon's is small,
+ *     hard and slightly desaturated (0.54 / 0.90); silk's is broad and rich
+ *     (0.34 / 1.10) and it is much the lighter of the two.
+ *   - **silk / satin** — satin keeps its hard bright line: glossier (0.22) and
+ *     properly metallic (0.18) where silk is neither.
+ *   - **leather / vinyl** — unchanged reflectances, separated further by tone:
+ *     leather is a dark hide (0.88), vinyl a lighter plastic (0.94) with a tiny
+ *     mirror highlight.
+ *   - **brocade / satin** — brocade carries metal thread through the weave
+ *     (0.30) and is rougher for it (0.50), plus the extra chroma of a woven
+ *     pattern.
+ *   - **sequin / lamé** — both keep the metalness they always had, because what
+ *     was wrong with them was never that: a metal with no environment to
+ *     reflect renders black, and nothing set one. See `lightTheRoom`. Sequin's
+ *     *roughness* did move, 0.22 → 0.42, and that is the pair's whole
+ *     distinction made honest — a thousand differently-tilted facets average
+ *     to a blurred mirror, one continuous sheet stays a sharp one.
+ *
+ * ## What this replaced
+ *
+ * Before the two-column table there was no table at all: sheen was derived from
+ * how *saturated* the colour was, which is the specific failure `Fabric` was
+ * declared to prevent — a renderer that infers sheen from saturation "ends up
+ * deciding that any loud colour is shiny, which makes a bright red wool jacket
+ * glitter and a silver knit jumper look like a mirror". `fabric` is required
+ * rather than optional and there is no fallback path, because torso, sleeves and
+ * legs are one garment and half-wiring them opens a seam at every shoulder.
+ */
+const FABRIC: Record<Fabric, Cloth> = {
+  // A suit. The reference the rest of the table is read against.
+  wool: { roughness: 0.86, metalness: 0.03, tone: 1.00, chroma: 1.00 },
+  // A thousand separate points of metal, each tilted a different way — which
+  // in aggregate is a *blurred* mirror, not a sharp one. Hence roughness 0.42
+  // against lamé's 0.15: a sharp metal reflects the room's dark corners as
+  // dark patches and the jacket comes out mottled and dim, where a blurred one
+  // samples the room's average and reads as an evenly bright garment. That is
+  // also what it looks like from the stalls.
+  sequin: { roughness: 0.42, metalness: 0.75, tone: 1.00, chroma: 1.00 },
+  satin: { roughness: 0.22, metalness: 0.18, tone: 1.02, chroma: 1.06 },
+  // The pile traps light between its fibres, so it is the darkest cloth here —
+  // and throws it back off the tips at a grazing angle, which is the sheen.
+  velvet: {
+    roughness: 0.96, metalness: 0.02, tone: 0.74, chroma: 1.16, sheen: 0.35,
+  },
+  // The same pile, cut into ribs and one stop lighter for it.
+  corduroy: {
+    roughness: 0.92, metalness: 0.02, tone: 0.95, chroma: 1.08,
+    weave: 'rib', sheen: 0.14,
+  },
+  // Indigo-dyed twill: deeper and louder than wool, and slightly harder.
+  denim: {
+    roughness: 0.80, metalness: 0.02, tone: 0.83, chroma: 1.28, weave: 'twill',
+  },
+  leather: { roughness: 0.42, metalness: 0.10, tone: 0.88, chroma: 1.02 },
+  // Nothing reflects. The ambient rooms are built on this row.
+  knit: {
+    roughness: 1.00, metalness: 0, tone: 0.90, chroma: 0.96,
+    weave: 'loop', sheen: 0.28,
+  },
+  // An anorak: slight sheen, and the wrong kind of sheen.
+  nylon: { roughness: 0.54, metalness: 0.08, tone: 1.01, chroma: 0.90 },
+  // Broad and soft where satin's lustre is a hard bright line.
+  silk: { roughness: 0.34, metalness: 0.06, tone: 1.09, chroma: 1.10 },
+  // Matte, but pale and crisp — it throws light back rather than eating it.
+  linen: { roughness: 0.90, metalness: 0, tone: 1.15, chroma: 0.80 },
+  // Metal thread through the weave, not a coating over it.
+  brocade: { roughness: 0.50, metalness: 0.30, tone: 1.00, chroma: 1.12 },
+  // Lamé: one continuous sheet of metal, where sequin is a thousand points.
+  lame: { roughness: 0.15, metalness: 0.90, tone: 1.00, chroma: 1.00 },
+  // A small hard plastic highlight. Leather's is soft and wide.
+  vinyl: { roughness: 0.08, metalness: 0.25, tone: 0.94, chroma: 1.00 },
+  // Brushed until the nap stands up: pale, chalky and grainless, where
+  // corduroy's ribs catch a rim light in lines.
+  flannel: {
+    roughness: 0.99, metalness: 0, tone: 1.05, chroma: 0.68,
+    weave: 'nap', sheen: 0.40,
+  },
+};
+
+/**
+ * Bend a colour toward what the cloth does to a dye.
+ *
+ * `SRGBColorSpace` on both ends is not decoration. `Color` holds working-space
+ * (linear) values, and `getHSL`/`setHSL` default to that space — a `tone` of
+ * 0.74 applied there is a far bigger jump than 0.74 of perceived lightness, and
+ * the table was tuned by eye against what the bench shows. Asking for sRGB makes
+ * the number in the table mean the thing it is read as meaning.
+ *
+ * Returns a hex string rather than a `Color` so the result still pools: two
+ * players in the same velvet jacket share one material, exactly as they did
+ * before the table grew columns.
+ */
+function dye(colour: string, tone: number, chroma: number): string {
+  if (tone === 1 && chroma === 1) return colour;
+  const c = new Color(colour);
   const hsl = { h: 0, s: 0, l: 0 };
-  new Color(colour).getHSL(hsl);
-  const loud = Math.max(0, hsl.s - 0.25) / 0.75;
-  return surface(l, colour, {
-    roughness: 0.88 - 0.42 * loud,
-    metalness: 0.03 + 0.42 * loud,
+  c.getHSL(hsl, SRGBColorSpace);
+  c.setHSL(
+    hsl.h,
+    Math.min(1, hsl.s * chroma),
+    Math.min(1, Math.max(0, hsl.l * tone)),
+    SRGBColorSpace,
+  );
+  return `#${c.getHexString()}`;
+}
+
+export function clothSurface(
+  l: Leases, colour: string, fabric: Fabric,
+): MeshStandardMaterial {
+  const f = FABRIC[fabric];
+  return surface(l, dye(colour, f.tone, f.chroma), {
+    roughness: f.roughness,
+    metalness: f.metalness,
+    ...(f.weave ? { weave: f.weave } : {}),
+    ...(f.sheen ? { sheen: f.sheen } : {}),
   });
+}
+
+// ---------------------------------------------------------------------------
+// Weaves
+// ---------------------------------------------------------------------------
+
+export type WeaveId = 'rib' | 'twill' | 'loop' | 'nap';
+
+/**
+ * The four cloths that are a *surface* rather than a sheen, as height fields.
+ *
+ * Generated, never loaded: the same argument as the tomato splat one section
+ * down — a `DataTexture` exists in Node, so the whole rig stays probe-able
+ * headlessly, and it is deterministic, so a corduroy jacket has the same ribs in
+ * every run of every show.
+ *
+ * **Every count here is chosen against the ten-metre view and is coarser than
+ * the real cloth.** A torso at the concert camera's distance is a few dozen
+ * pixels across; corduroy's real rib pitch is a few millimetres, which at that
+ * size is a quarter of a pixel and averages to flat grey — or worse, crawls. So
+ * `rib` puts twelve ribs round the whole body, about five across the visible
+ * front, which is the finest thing that still resolves. The others are finer
+ * only because they are not meant to be counted, just to break the surface up.
+ *
+ * `height` is sampled on the unit tile and must be periodic in both axes or the
+ * seam up the back of the torso lathe becomes a visible stripe. `depth` is the
+ * `normalScale`, i.e. how much of the effect survives into the shading.
+ */
+const WEAVES: Record<WeaveId, { depth: number; height(u: number, v: number): number }> = {
+  // Vertical ribs. Twelve round the body, so about five face the audience.
+  rib: { depth: 0.75, height: (u) => Math.cos(u * Math.PI * 2 * 12) },
+  // Diagonal twill. Equal counts in both axes is what makes it run at 45°.
+  twill: {
+    depth: 0.55,
+    height: (u, v) => Math.cos((u * 20 + v * 20) * Math.PI * 2),
+  },
+  // Bobbles. Two cosines multiplied is a grid of rounded lumps, and the counts
+  // differ because a knitted stitch is wider than it is tall.
+  loop: {
+    depth: 0.50,
+    height: (u, v) => Math.cos(u * Math.PI * 2 * 14) * Math.cos(v * Math.PI * 2 * 18),
+  },
+  // Nap: no direction at all, which is the point. Seeded value noise summed
+  // over a few frequencies, so it is grain rather than a pattern.
+  nap: {
+    depth: 0.30,
+    height: (u, v) => napAt(u, v),
+  },
+};
+
+/** How wide the tile is. 64² is 48 kB of normal and finer than the eye needs. */
+const WEAVE_N = 64;
+
+/**
+ * Value noise on a fixed 16×16 lattice, wrapped, so the nap tiles seamlessly.
+ *
+ * A lattice rather than a hash per texel because per-texel noise at this size is
+ * white noise, and white noise in a normal map is a shimmer under a moving
+ * light rather than a fabric. The lattice is built once from a fixed seed for
+ * the same reason the splat is: the same flannel jacket every show.
+ */
+const NAP_LATTICE = 16;
+const NAP: number[] = (() => {
+  const rng = new Rng('flannel-nap');
+  return Array.from({ length: NAP_LATTICE * NAP_LATTICE }, () => rng.float(-1, 1));
+})();
+
+function napAt(u: number, v: number): number {
+  const x = u * NAP_LATTICE;
+  const y = v * NAP_LATTICE;
+  const x0 = Math.floor(x);
+  const y0 = Math.floor(y);
+  const fx = x - x0;
+  const fy = y - y0;
+  // Smoothstep, so the lattice does not show as a grid of diamonds.
+  const sx = fx * fx * (3 - 2 * fx);
+  const sy = fy * fy * (3 - 2 * fy);
+  const at = (i: number, j: number): number =>
+    NAP[((j % NAP_LATTICE) + NAP_LATTICE) % NAP_LATTICE * NAP_LATTICE
+      + (((i % NAP_LATTICE) + NAP_LATTICE) % NAP_LATTICE)]!;
+  const a = at(x0, y0) * (1 - sx) + at(x0 + 1, y0) * sx;
+  const b = at(x0, y0 + 1) * (1 - sx) + at(x0 + 1, y0 + 1) * sx;
+  return a * (1 - sy) + b * sy;
+}
+
+/**
+ * A tangent-space normal map from a height field, by central difference.
+ *
+ * One texture per *material* rather than one per weave, and that is deliberate:
+ * the pool disposes a material's `normalMap` along with it, and a texture shared
+ * between two pooled materials would be freed by whichever died first while the
+ * other was still drawing with it. 48 kB per distinct cloth colour is the price
+ * of that invariant staying a one-liner, and there are perhaps a dozen.
+ */
+function makeWeaveTexture(id: WeaveId): DataTexture {
+  const { height } = WEAVES[id];
+  const N = WEAVE_N;
+  const data = new Uint8Array(N * N * 4);
+  const step = 1 / N;
+  for (let y = 0; y < N; y++) {
+    for (let x = 0; x < N; x++) {
+      const u = (x + 0.5) / N;
+      const v = (y + 0.5) / N;
+      const du = (height(u + step, v) - height(u - step, v)) / (2 * step);
+      const dv = (height(u, v + step) - height(u, v - step)) / (2 * step);
+      // The scale on the slope is what turns "how fast the height changes over
+      // the whole tile" into a normal that leans by a sane number of degrees.
+      const nx = -du * 0.02;
+      const ny = -dv * 0.02;
+      const len = Math.hypot(nx, ny, 1);
+      const o = (y * N + x) * 4;
+      data[o] = Math.round(255 * (nx / len * 0.5 + 0.5));
+      data[o + 1] = Math.round(255 * (ny / len * 0.5 + 0.5));
+      data[o + 2] = Math.round(255 * (1 / len * 0.5 + 0.5));
+      data[o + 3] = 255;
+    }
+  }
+  const tex = new DataTexture(data, N, N, RGBAFormat);
+  // A normal map is a vector, not a colour: it must not be decoded as sRGB.
+  tex.wrapS = RepeatWrapping;
+  tex.wrapT = RepeatWrapping;
+  tex.magFilter = LinearFilter;
+  tex.minFilter = LinearFilter;
+  tex.needsUpdate = true;
+  return tex;
+}
+
+// ---------------------------------------------------------------------------
+// The room every metal reflects
+// ---------------------------------------------------------------------------
+
+/**
+ * How much of the generated room the scene is allowed to see.
+ *
+ * One number, shared by the concert and by both benches, because the entire
+ * value of a bench is that it does not disagree with the stage. Setting it
+ * higher on a bench to "see the fabric better" would mean the fabric table was
+ * tuned against a room the audience never gets.
+ *
+ * 0.45 rather than 1.0 because `RoomEnvironment` is a bright white studio box
+ * and the show is mostly played in dark venues under coloured key lights. At 1.0
+ * the room dominates: every stage light flattens out, the fog stops reading and
+ * a smoky jazz cellar looks like a photographer's cyclorama. At 0.45 the lights
+ * still model the figures and the metals have something to be made of.
+ */
+const ROOM_INTENSITY = 0.45;
+
+/**
+ * Give a scene something for its metals to reflect.
+ *
+ * A `MeshStandardMaterial` at high metalness has, by construction, **no diffuse
+ * response at all** — a metal's colour is entirely the reflection of what is
+ * around it. Direct lights only produce a specular lobe, which is a small bright
+ * spot and nothing else, so with `scene.environment` unset the rest of the
+ * surface falls to black. Nothing in `src/web/concert/` set one, and the
+ * measured consequence was that the *reserved* fabrics were the darkest things
+ * in the house: `lame` (metalness 0.90) rendered charcoal on a pale coat and
+ * near-black on a dark one, `sequin` (0.75) the same, `vinyl` and `brocade`
+ * muddied. Those are exactly the cloths `loudFabric` hands to whoever is
+ * fronting the number — iskelmä, funk in three eras, latin, arabic — so the lead
+ * in the sequinned jacket was the dimmest figure on the stage.
+ *
+ * Generated rather than loaded, for the same reason nothing else here ships an
+ * asset: `RoomEnvironment` is a few boxes and area lights built in code, so
+ * there is no HDR to fetch, no CORS, no licence and no second copy of the show
+ * that only works online.
+ *
+ * ## The disposal, which is the part worth reading
+ *
+ * Three GPU resources exist for a moment here and only one of them survives:
+ *
+ *   - the `RoomEnvironment` scene's own geometry and materials — thrown away as
+ *     soon as it has been photographed, hence `room.dispose()`;
+ *   - the `PMREMGenerator`'s blur materials, LOD meshes and ping-pong target —
+ *     `pmrem.dispose()`, and it is safe here because `fromScene` allocates the
+ *     target it returns *separately* from the ping-pong one it reuses;
+ *   - the cube-UV render target itself, which is what `scene.environment` then
+ *     points at. That one outlives the call, so its `dispose` is what comes
+ *     back to the caller.
+ *
+ * This directory leases everything else it touches — see `Leases` here and `Kit`
+ * in `stage-kit.ts` — and a render target quietly retained for the life of the
+ * tab would be the one exception. Returning a handle keeps it honest: a page
+ * that tears its renderer down has something to call, and a page that does not
+ * has said so by holding the handle for as long as it holds the scene.
+ *
+ * `three/examples/jsm/*` imports `three` by bare specifier, which is why
+ * `vite.config.ts` dedupes it; two copies of three would give the PMREM output a
+ * different `Texture` class from the one the renderer checks for, and the
+ * failure looks like nothing happening.
+ */
+export function lightTheRoom(
+  renderer: WebGLRenderer, scene: Scene,
+): { dispose(): void } {
+  const pmrem = new PMREMGenerator(renderer);
+  const room = new RoomEnvironment();
+  // Blurred, and more than the three.js example uses. The room is a handful of
+  // flat-shaded boxes: reflected sharply, a lamé jacket shows their corners and a
+  // sequinned one comes out mottled with the room's dark patches. A quarter of a
+  // radian of pre-blur is enough that what a metal samples is the room's *average*
+  // brightness, which is the thing a garment at ten metres is actually made of.
+  const target = pmrem.fromScene(room, 0.25);
+  room.dispose();
+  pmrem.dispose();
+
+  scene.environment = target.texture;
+  scene.environmentIntensity = ROOM_INTENSITY;
+
+  return {
+    dispose(): void {
+      if (scene.environment === target.texture) scene.environment = null;
+      target.dispose();
+    },
+  };
 }
 
 /** Shift a colour toward black or white. Returns a hex string, so it pools. */

@@ -538,6 +538,17 @@ const OPENING_ENTRY_SECONDS = 4.0;
  * Every figure below was measured against the body it belongs to. The comments
  * give the resulting bounding box in the player's own frame, y from the
  * boards, for a mean-height cast member.
+ *
+ * ## And the lengths scale with the player
+ *
+ * The angles are angles and belong to every body; the three lengths are metres
+ * measured against **one** body, and `makeLook` draws a height from 1.58 to
+ * 1.92. So they are scaled by the player's own height in `stand`, which leaves a
+ * mean-height cast member exactly where they were measured and stops the ends of
+ * the range drifting: a fixed drop put a 1.92 m violinist's grip 6 cm above
+ * their own hip and a 1.58 m one's 6 cm below it, and since the arm scales too,
+ * that is an arm at 0.80 of its reach on the one and past full stretch on the
+ * other. Scaled, both hold the violin at 0.88–0.93 of a reach, like the mean.
  */
 interface AtEasePose {
   pitch: number;
@@ -587,6 +598,17 @@ interface AtEasePose {
   hands: readonly [number, number];
 }
 
+/**
+ * The body every length in `AT_EASE` was measured against.
+ *
+ * The centre of `makeLook`'s own bell, so the scaling is a correction at the
+ * ends of the cast rather than a change to the middle of it. Written out here
+ * and in the two models that need it — `instruments/mouth.ts` and
+ * `instruments/sitar.ts` — rather than shared, because each is a statement
+ * about a different measurement.
+ */
+const NOMINAL_HEIGHT = 1.75;
+
 const AT_EASE: Partial<Record<Archetype, AtEasePose>> = {
   // Bell to the floor, held in front of the waist: y 0.90–1.40, z 0.17–0.41
   // against a chest front at 0.19. Was y 1.49–1.68 at the lips.
@@ -610,7 +632,7 @@ const AT_EASE: Partial<Record<Archetype, AtEasePose>> = {
   // before, which for a `held` archetype means the harmonica hung at the lips
   // of a player whose hands had both gone to their hips.
   harmonica: { pitch: 0.20, roll: 0.50, drop: 0.42, back: 0.05, hands: [0.05, 0.85] },
-  // Off the chin and hanging straight down by the left hip: y 0.55–1.15.
+  // Off the chin and hanging straight down by the left hip: y 0.37–1.00.
   //
   // ## Why three angles and why these three
   //
@@ -636,19 +658,36 @@ const AT_EASE: Partial<Record<Archetype, AtEasePose>> = {
   // hair off 180°, which is the sense in which this pose is the old one turned
   // over.
   //
-  // The three lengths are read against where that hand goes when it is holding
-  // nothing at all, which is what `restPosition` answers and what the eye
-  // compares it to: about (0.35, 0.93, 0.08) on a mean-height player. Dropping
-  // 0.34 and nothing else left the grip at (0.52, 1.21, 0.39) — seventeen
-  // centimetres out and thirty in front of a hanging arm, so the violinist
-  // spent every rest holding the instrument out in front of them at chest
-  // height. These put it at (0.38, 1.05, 0.14): hand by the waist, elbow bent,
-  // body of the violin swinging beside the thigh. The lengths are unchanged by
-  // the turn above: the rotation is about the grip, so it moves the instrument
-  // around the hand without moving the hand.
+  // ## The lengths, which are the arm's problem and not the violin's
+  //
+  // They are read against where that hand goes when it is holding nothing at
+  // all — `restPosition`, (0.354, 0.910, 0.150) on a mean-height player — because
+  // that is what the eye compares the pose to. Dropping 0.34 and nothing else
+  // left the grip at (0.52, 1.21, 0.39), seventeen centimetres out and thirty in
+  // front of a hanging arm, so the violinist spent every rest holding the
+  // instrument out in front of them at chest height.
+  //
+  // The next set landed it at (0.29, 1.06, 0.07) and that was still 15 cm above
+  // the hand's own resting height, which does not sound like much and is the
+  // whole of the "elbow changes side" report. The hand grips the neck from
+  // behind — the fingers are the contact and the cuff is a hand's length back
+  // along them — so a grip 15 cm high leaves the *wrist* barely a quarter of a
+  // metre below the shoulder, and an arm folded to 0.55 of its reach has to
+  // stand its elbow 23 cm off the shoulder→wrist line. That line is vertical, so
+  // all 23 cm of it goes sideways: the elbow sat 26 cm behind the shoulder and
+  // level with it, which is where a wing goes and not an elbow, and it swung the
+  // whole way round to the front and back again every time the player stood down
+  // and took up again.
+  //
+  // These put the grip within a centimetre of the hip at every height in the
+  // cast — (0.39, 0.88, 0.15) at mean — with the arm at 0.88–0.93 of its reach
+  // against a hanging arm's own 0.91, and the elbow 15 cm behind the shoulder and
+  // 22 cm below it, which is the shape that arm has when it is holding nothing.
+  // The lengths are unchanged by the turn above: the rotation is about the grip,
+  // so it moves the instrument around the hand without moving the hand.
   violin: {
     pitch: 2.83, turn: -0.48, roll: 1.82,
-    drop: 0.48, back: 0.25, across: -0.14, hands: [0.0, 0.85],
+    drop: 0.66, back: 0.15, across: -0.05, hands: [0.0, 0.85],
   },
 };
 
@@ -2016,9 +2055,14 @@ class Runtime implements Animator {
     ));
     root.quaternion.premultiply(Q1);
     root.position.sub(p.carryPivot).applyQuaternion(Q1).add(p.carryPivot);
-    root.position.y -= ease.drop * down;
-    root.position.z -= ease.back * down;
-    if (ease.across) root.position.x += ease.across * down;
+    // The lengths against this player rather than against the one they were
+    // measured on. An angle is the same on everybody; a drop is not, because
+    // what it is being read against — the hip it ends at, the arm that has to
+    // reach it — is a body. See `AT_EASE`.
+    const size = down * p.rig.proportions.height / NOMINAL_HEIGHT;
+    root.position.y -= ease.drop * size;
+    root.position.z -= ease.back * size;
+    if (ease.across) root.position.x += ease.across * size;
   }
 
   /**

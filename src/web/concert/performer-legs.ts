@@ -60,7 +60,8 @@ import { Mesh, Object3D, Vector3 } from 'three';
 
 import type { Look } from '../../concert/types.js';
 
-import { Leases, bead, clothSurface, tube } from './performer-assets.js';
+import { Leases, bead, tube } from './performer-assets.js';
+import { legsOf } from './performer-garments.js';
 import { SIDE, fitLimb, type BodySide, type Proportions } from './performer-look.js';
 
 // Scratch. `update` runs per leg per performer per frame.
@@ -99,12 +100,31 @@ export function buildLegs(
   root: Object3D, anchors: LegAnchors, p: Proportions, look: Look, l: Leases,
 ): LegsRig {
   const seated = p.seatY > 0;
-  const cloth = clothSurface(l, look.outfit.trousers);
+
+  /**
+   * Trousers, or the garment continuing. Asked rather than assumed.
+   *
+   * This was `look.outfit.trousers` outright, which was true for as long as
+   * there was one silhouette. Under a thobe, a cassock or a sari there are no
+   * trousers at all and the leg is the same cloth as the body — so the answer
+   * comes from `performer-garments.ts`, which is also where the skirt that hides
+   * most of it is built, three lines from this decision on purpose. Split across
+   * two files it would have been a floor-length column of cream linen standing
+   * on a pair of charcoal shins, and only from the wings.
+   *
+   * The legs are still built under a full-length skirt, which is not waste. A
+   * standing player's are inside the cloth; a *seated* player's come out from
+   * under it and go to the shoes, which is what a person sitting in a robe looks
+   * like — and the alternative, hiding them, is the failure the header of this
+   * file exists to argue against.
+   */
+  const leg = legsOf(look, l);
+  const cloth = leg.material;
 
   // A cartoon leg is thicker than a real one and tapers hard. Build widens the
   // thigh twice as much as the shin, which is where build actually shows.
-  const thighR = p.height * (0.043 + 0.012 * p.build);
-  const shinR = p.height * (0.032 + 0.006 * p.build);
+  const thighR = p.height * (0.043 + 0.012 * p.build) * leg.girth;
+  const shinR = p.height * (0.032 + 0.006 * p.build) * leg.girth;
   const kneeR = thighR * 1.04;
 
   /**

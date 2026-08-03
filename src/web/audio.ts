@@ -38,7 +38,7 @@ import GM_FONTS from '@strudel/soundfonts/gm.mjs';
 
 import type { Envelope, Song } from '../core/types.js';
 import { resolveVoice } from '../render/drum-banks.js';
-import { DRUM_SAMPLES_URL } from '../render/strudel.js';
+import { SAMPLE_MANIFESTS } from '../render/strudel.js';
 
 let instance: StrudelRepl | undefined;
 let booting: Promise<StrudelRepl> | undefined;
@@ -75,7 +75,21 @@ async function boot(): Promise<StrudelRepl> {
 
   registerSynthSounds();
   registerSoundfonts();
-  await samples(DRUM_SAMPLES_URL);
+  /**
+   * All three manifests, together, and all three awaited.
+   *
+   * `samples()` fetches a map of names to URLs and no audio, so this is three
+   * small JSON files in parallel rather than three sample libraries — the WAVs
+   * are still pulled inside the trigger, which is what `preloadSounds` exists to
+   * get ahead of. The wrapper on `samples` is not decoration: passing the
+   * function straight to `map` hands it the array index as its second argument,
+   * which `samples()` reads as a base URL.
+   *
+   * Awaited as a group rather than left to settle, because a manifest that has
+   * not arrived is a `sound not found` at playback for every part that needed
+   * it, and the fetch happens once per page load.
+   */
+  await Promise.all(SAMPLE_MANIFESTS.map((url) => samples(url)));
 
   installLimiter();
 
@@ -156,6 +170,10 @@ export async function loadCode(code: string): Promise<void> {
  * the concert stops between numbers: `<a b c>` indexes the *global* cycle, so
  * a song evaluated onto a running clock starts somewhere in its middle. See
  * `web/concert/transport.ts`.
+ *
+ * From cycle 0 only after a **stop**. After `pausePlayback` the clock kept its
+ * phase, so this resumes where the music left off — which is the whole of what
+ * makes the pair below a pause rather than a slower stop.
  */
 export async function startLoaded(): Promise<void> {
   const repl = await initAudio();
@@ -164,6 +182,23 @@ export async function startLoaded(): Promise<void> {
 
 export async function stopPlayback(): Promise<void> {
   if (instance) instance.stop();
+}
+
+/**
+ * Hold the clock where it is, to be resumed by `startLoaded`.
+ *
+ * The difference from `stopPlayback` is one line inside Strudel and the whole
+ * difference to a listener: `stop()` resets the scheduler's tick and phase to
+ * zero, `pause()` clears the timer and leaves them. So a stop restarts the song
+ * and a pause holds the bar you were in.
+ *
+ * Which matters for a bench rather than for a player. Judging whether the ride
+ * is too loud means hearing the same eight bars either side of a fader move, and
+ * a transport that can only return to the top makes that comparison a fresh
+ * intro every time.
+ */
+export async function pausePlayback(): Promise<void> {
+  if (instance) instance.pause();
 }
 
 /**

@@ -14,7 +14,7 @@ import { Vector3 } from 'three';
 import { Rng } from '../../../core/rng.js';
 import { ARCHETYPE_OF } from '../../../concert/instruments.js';
 import type { Archetype, Effector, PlayPoint, Performer } from '../../../concert/types.js';
-import type { DrumSource } from '../../../core/types.js';
+import type { DrumSource, DrumVoice } from '../../../core/types.js';
 import type { InstrumentId } from '../../../style/instruments.js';
 
 import type {
@@ -32,6 +32,7 @@ import { buildElectricGuitar } from './electric-guitar.js';
 import { buildElectricPiano } from './electric-piano.js';
 import { buildFlute } from './flute.js';
 import { buildGrandPiano } from './grand-piano.js';
+import { buildHandDrum } from './hand-drum.js';
 import { buildHarmonica } from './harmonica.js';
 import { buildHarp } from './harp.js';
 import { buildMallets } from './mallets.js';
@@ -47,6 +48,7 @@ import { buildViolin } from './violin.js';
 
 export const BUILDERS: Record<Archetype, InstrumentBuilder> = {
   'drumkit': buildDrumkit,
+  'handdrum': buildHandDrum,
   'grand-piano': buildGrandPiano,
   'electric-piano': buildElectricPiano,
   'organ': buildOrgan,
@@ -74,19 +76,58 @@ export const BUILDERS: Record<Archetype, InstrumentBuilder> = {
  * Where a catalogue entry sits within its archetype's size range, 0..1.
  *
  * Only families whose members are genuinely different sizes of one object need
- * an entry — which, in this catalogue, is the saxophones and the two double
- * basses. Everything else is one size and takes the 0.5 default.
+ * an entry; everything else is one size and takes the 0.5 default. That was the
+ * saxophones and the two double basses, then the mallet row, and it is now the
+ * bowed and straight-tube wind families as well — thirty-six catalogue entries
+ * arrived at once, and seven of them are the right family at conspicuously the
+ * wrong size.
  *
  * This is the other half of the decision `ARCHETYPE_OF` makes. Collapsing four
  * saxophones onto one model is only honest if the model can be four sizes;
  * otherwise a baritone part gets played on an alto and the picture is wrong
  * about an instrument the audience can identify by silhouette.
+ *
+ * ## What 0 and 1 mean, now that three more families span something
+ *
+ * The default is 0.5 and it cannot move, which is what fixes both ends: the
+ * standard member of each family — the violin, the concert flute, the Bb
+ * clarinet — is the one with no entry here and never needs one, so 0.5 *is*
+ * that instrument and the ends are the same step below and above it. Every
+ * number below is read off the real instruments' lengths rather than chosen by
+ * feel, which is what makes the ends nameable:
+ *
+ *  - **violin** — 0.5 is a full violin, 35.5 cm in the body. 1 is a 16-inch
+ *    viola at 40.5 cm, the largest thing this archetype will ever stage; 0 is
+ *    the same 15 % the other way, a half-size fiddle nothing casts.
+ *  - **flute** — 0 is the piccolo, which is almost exactly half a concert
+ *    flute's 67 cm and so lands *on* the end rather than near it. 1 is half
+ *    again, the alto and bass flutes the catalogue does not name.
+ *  - **clarinet** — both ends are named instruments: 0 is the shehnai at 45 cm
+ *    and 1 the english horn at 90 cm, an oboe a fifth lower and so half again
+ *    its tube. The Bb clarinet's 66 cm falls within a centimetre of the
+ *    midpoint it already had by default, which is the check that the axis is
+ *    the right one rather than a scale bent to fit.
+ *  - **saxophone** — unchanged. The bassoon does not widen it, and that is the
+ *    point of putting it here.
+ *
+ * Three of those models take `scale` and ignore it today — only `saxophone`,
+ * `upright-bass` and `electric-piano` read it, and a viola is still drawn as a
+ * violin. Writing the sizes down anyway is deliberate: which member of a family
+ * a catalogue entry *is* belongs beside `ARCHETYPE_OF`'s answer to which family
+ * it joined, not inside whichever geometry file eventually learns to stretch.
  */
 const SCALE_OF: Partial<Record<InstrumentId, number>> = {
   sopranoSax: 0.0,
   altoSax: 0.35,
   tenorSax: 0.6,
   baritoneSax: 1.0,
+  // A bassoon is not a saxophone and is staged as one because it is carried
+  // like one; at 1.34 m it is a shade taller than a baritone, which is the
+  // member `memberFor` snaps this to and the silhouette the borrow was made
+  // for. Left at the default it snapped to a tenor instead: 12 cm less body
+  // tube, hanging 11 cm higher, which is the wrong end of the family for the
+  // one thing about a bassoon that reads from the back of the room.
+  bassoon: 1.0,
   // A contrabass is the big one; the jazz upright is the standard size.
   acousticBass: 0.45,
   contrabass: 1.0,
@@ -96,6 +137,25 @@ const SCALE_OF: Partial<Record<InstrumentId, number>> = {
   celesta: 0.2,
   marimba: 0.9,
   tubularBells: 0.8,
+  // One size up from the violin every other bowed entry takes by default. A
+  // viola is 15 % longer in the body and that is very nearly the whole of what
+  // separates the two of them at this distance — which is also why staging a
+  // violist on a violin was called the smaller error, and why it is still an
+  // error.
+  viola: 1.0,
+  // The flutes, by speaking length against the concert flute's 67 cm: a piccolo
+  // is half of it, and a recorder — the alto in F the catalogue means, held
+  // vertically in life and across the face here — about seven tenths.
+  piccolo: 0.0,
+  recorder: 0.2,
+  // The straight-tube reeds, likewise against the Bb clarinet's 66 cm. The
+  // shehnai is two thirds of it and the oboe a few centimetres short of it,
+  // which is a difference nobody would notice if the three were not standing in
+  // the same wind section; the english horn is the one that is unmistakably a
+  // different object, and it is the only one of them that changes a silhouette.
+  shanai: 0.0,
+  oboe: 0.4,
+  englishHorn: 1.0,
 };
 
 /**
@@ -119,6 +179,14 @@ export function buildInstrumentFor(
   drums?: DrumSource,
   /** A machine mounted inside this instrument. See `StageMachine.mount`. */
   machine?: InstrumentBuildOptions['machine'],
+  /**
+   * The auxiliary pieces this number's percussion part calls for.
+   *
+   * Passed straight through; see `InstrumentBuildOptions.aux` for what it is
+   * and why a model is allowed to know it. Omitted means the whole rack, which
+   * is what the gallery asks for and what every caller got before this existed.
+   */
+  aux?: readonly DrumVoice[],
 ): InstrumentModel {
   const build = BUILDERS[performer.archetype];
   const rng = new Rng(`instrument:${performer.id}`);
@@ -130,6 +198,7 @@ export function buildInstrumentFor(
     ...(finish ? { finish } : {}),
     ...(year !== undefined ? { year } : {}),
     ...(drums === 'electronic-kit' ? { electronic: true } : {}),
+    ...(aux ? { aux } : {}),
     ...(performer.rig ? { rig: performer.rig } : {}),
     ...(performer.boards ? { boards: performer.boards } : {}),
     ...(machine ? { machine } : {}),

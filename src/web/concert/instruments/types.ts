@@ -19,6 +19,8 @@
 
 import type { Group, Matrix4, Object3D, Vector3 } from 'three';
 
+import type { DrumVoice } from '../../../core/types.js';
+
 import type {
   Archetype, Effector, GestureKind, PlayPoint, Posture, SynthRigId,
 } from '../../../concert/types.js';
@@ -258,6 +260,31 @@ export interface InstrumentBuildOptions {
    * playing the same kit.
    */
   electronic?: boolean;
+  /**
+   * Which auxiliary pieces this part actually calls for. Percussion only.
+   *
+   * A drummer with no tambourine part does not have a tambourine clamped to
+   * their hi-hat rod. The kit used to grow all three of its bracket pieces —
+   * cowbell, woodblock, tambourine — in every number regardless, so most
+   * drummers sat behind two or three objects nobody would touch all night, and
+   * the tambourine is the conspicuous one: it is the largest of them and it
+   * hangs out over the hats where the eye already is.
+   *
+   * It passes the same narrowness test `electronic` does, and it is worth being
+   * precise about why, because "which voices are in this part" sounds like
+   * exactly the sort of thing this seam refuses. What is passed is not a
+   * pattern, a section, a dynamic or a count — it is the *set of objects the
+   * player has*, which does not vary across a bar or across a number, and which
+   * is the one question a model of a kit is entitled to answer. A caller that
+   * omits it gets the whole rack, which is what the gallery wants: an
+   * instrument shown as an instrument, not as one number's subset of it.
+   *
+   * Absent pieces are absent from `resolve` too. A voice whose object was not
+   * built must answer `undefined`, or the omission becomes a hand reaching for
+   * something that is no longer there — which is the bug this whole corner of
+   * the file exists to make impossible.
+   */
+  aux?: readonly DrumVoice[];
   /**
    * Which synthesiser this is. Keyboards only; every other model ignores it.
    *

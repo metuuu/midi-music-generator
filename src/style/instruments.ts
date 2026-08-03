@@ -211,6 +211,69 @@ export interface Instrument {
    * the bench says otherwise.
    */
   envelope?: Partial<Envelope>;
+  /**
+   * How this instrument sits in a mix, over and above how loud it is. Absent
+   * means 1, which is where every entry starts.
+   *
+   * ## Why this is not `Genre.mix`, and not `SOUNDFONT_LEVEL` either
+   *
+   * There are now three numbers between a part and its level, and keeping them
+   * apart is the whole point of having three:
+   *
+   *  - `SOUNDFONT_LEVEL` — **measured.** What webaudiofont's conversion of this
+   *    program actually outputs, off a K-weighted meter. Audition-only, because
+   *    it is a fact about a sample pack rather than about music, and a `.mid`
+   *    handed to another synth must not carry it.
+   *  - `Genre.mix` — **the role.** How far forward the *tune* sits in this
+   *    genre, whatever is carrying it. A statement about arrangement.
+   *  - this — **the object.** How an accordion sits when an accordion is the
+   *    thing playing, in any genre that deals it.
+   *
+   * The fault that makes the third one necessary is the one `source-levels.ts`
+   * opens by describing, moved up a layer. `mix.melody` has to be simultaneously
+   * right for a trumpet, a harp and a square-wave lead; pulling it down because
+   * *this* song's accordion was hot quietly moves the vibraphone and the
+   * clarinet too, and the next song in the same genre is wrong in the other
+   * direction. A per-instrument trim is the only place that judgement can be
+   * recorded without libelling the rest of the palette.
+   *
+   * ## Global on purpose
+   *
+   * No genre dimension, for the same reason `SOUNDFONT_LEVEL` has none: if an
+   * accordion is hot, it is hot in humppa and in tango and in whatever else
+   * reaches for one. A genre that genuinely wants its accordion further back
+   * than everyone else's is making a statement about the arrangement, and
+   * `Genre.mix` is where arrangement lives.
+   *
+   * ## What it is *not* for
+   *
+   * Three things sound like "this instrument is too loud" and only the third
+   * belongs here.
+   *
+   * An **unmeasured font** — 29 of the catalogue's soundfonts have no entry in
+   * `SOUNDFONT_LEVEL` and play at whatever the pack captured. A number typed
+   * here for one of those is a guess standing in a measurement's place, and it
+   * will be wrong by however much the measurement would have differed.
+   *
+   * An **unmeasured register** — `REGISTER_LEVEL` covers six fonts. An
+   * instrument that is loud in one octave and not another needs a range table,
+   * not a constant: the accordion's own entry says 44% of its notes sit 1.9 to
+   * 3.9 dB under the pitch its trim was taken at, and a flat trim tuned in one
+   * of those zones is wrong in the other.
+   *
+   * What is left after both of those is the real thing: two sources matched to
+   * the same loudness do not sit the same way in a mix. Equal LUFS is not equal
+   * *place* — masking and spectral crowding decide that, and no meter reports
+   * them. That residual is per-instrument, it is global, and it is exactly what
+   * this field is.
+   *
+   * Applied in the generator rather than in `render/strudel.ts`, and that is the
+   * other half of the distinction: this is a musical judgement about balance, so
+   * it belongs in the IR and travels to the MIDI and to any native engine. The
+   * measured trim stays in the renderer, because the next engine will have its
+   * own samples and will need its own measurements.
+   */
+  gain?: number;
 }
 
 const I = (
@@ -228,6 +291,17 @@ const E = (instrument: Instrument, envelope: Partial<Envelope>): Instrument =>
 /** The same instrument through a pickup and an amp. See `Instrument.effects`. */
 const FX = (instrument: Instrument, name: string, effects: Effects): Instrument =>
   ({ ...instrument, name, effects });
+
+/**
+ * The same instrument, sitting where it belongs in a mix. See `Instrument.gain`.
+ *
+ * Unused as this is written, and that is the honest state to leave it in: the
+ * field exists so a judgement made at the mix bench has somewhere to be
+ * recorded, and nobody has made one yet. An entry appearing here later should
+ * be a balance somebody heard, not a measurement somebody skipped.
+ */
+export const G = (instrument: Instrument, gain: number): Instrument =>
+  ({ ...instrument, gain });
 
 /** The idiom's envelope with this instrument's own corrections applied. */
 export function envelopeFor(instrument: Instrument): Envelope {
@@ -337,7 +411,7 @@ export const INSTRUMENTS = {
   altoSax: I('alto sax', 65, 'gm_alto_sax', 72, 0.6, 'wind'),
   // The head sits around D4–D5. Middle C is the bottom of the horn's useful
   // voice, not the middle of it — the alto next to it was already at 72.
-  tenorSax: L(I('tenor sax', 66, 'gm_tenor_sax', 60, 0.6, 'wind'), 72),
+  tenorSax: G(L(I('tenor sax', 66, 'gm_tenor_sax', 60, 0.6, 'wind'), 72), 0.74),
   baritoneSax: I('baritone sax', 67, 'gm_baritone_sax', 48, 0.5, 'wind'),
   clarinet: I('clarinet', 71, 'gm_clarinet', 72, 0.65, 'wind'),
   flute: I('flute', 73, 'gm_flute', 84, 0.7, 'wind'),
@@ -430,6 +504,349 @@ export const INSTRUMENTS = {
   sitar: I('sitar', 104, 'gm_sitar', 60, 0.7, 'plucked'),
   panFlute: I('pan flute', 75, 'gm_pan_flute', 79, 0.6, 'wind'),
   shakuhachi: I('shakuhachi', 77, 'gm_shakuhachi', 74, 0.55, 'wind'),
+
+  // --- The orchestra -------------------------------------------------------
+  // What the catalogue had was a violin, a cello, a flute, a clarinet, a
+  // trumpet and a trombone. That is a dance band with the rhythm section taken
+  // out, and it is missing precisely the middle of an orchestra: the double
+  // reeds that carry a slow movement, the horn that is the hinge between the
+  // woodwind and the brass, the viola that fills the fifth of daylight between
+  // the violin's G string and the cello's A, and the drums that are the only
+  // thing in the room allowed to play two notes all evening.
+  //
+  // Every entry down to `steinway` is a General MIDI programme that Strudel has
+  // always shipped and this project had simply never named. None of them needs
+  // a sample library, and each one is a genre that could not previously be
+  // written rather than a shade on one that could.
+
+  // The instrument the orchestra tunes to, because a reed that narrow cannot be
+  // lipped far enough to hide: an oboe's A is the same A every night. The same
+  // narrowness sets the agility below a flute's — the fingering is full of
+  // forked and half-holed notes, and a player does not take those at speed
+  // across a leap. Sits high because that is where the tune is written for it;
+  // an oboe in its bottom fourth is a goose, and every orchestrator knows it.
+  oboe: I('oboe', 68, 'gm_oboe', 76, 0.55, 'wind'),
+  // An oboe a fifth lower, and the register is the entire reason to write for
+  // one: the Largo of the New World and the shepherd in Act III of Tristan are
+  // both this instrument in the octave where the oboe's edge has gone and
+  // something plainer is left behind. It transposes, and the numbers here are
+  // what is *heard* — like every other number in this table, and worth saying
+  // because a cor anglais part on paper looks a fifth higher than this.
+  englishHorn: I('english horn', 69, 'gm_english_horn', 69, 0.55, 'wind'),
+  // The bass of the woodwind that keeps being asked to be its tenor. `centre`
+  // is the section job — doubling the cellos, under everything — and `lead` is
+  // the other one, and the gap between them is why this entry needs both.
+  //
+  // 66 rather than the 60 the tessitura would suggest, and the repertoire
+  // agrees with the arranger's floor for once: the opening of the Rite is a
+  // bassoon parked at the very top of the instrument, around C4 to C5, whose
+  // midpoint is 66 — which is also, per `Instrument.lead`, the lowest note a
+  // four-note guide voicing can sit under. A lead written at 60 would leave the
+  // comp nowhere to go, and would also not be where anybody writes a solo.
+  bassoon: L(I('bassoon', 70, 'gm_bassoon', 50, 0.5, 'wind'), 66),
+  // The hardest instrument in the orchestra to play accurately, and the agility
+  // is the reason rather than a slur: a horn's harmonics are packed so close
+  // together in its working register that the lip chooses between neighbours
+  // that are a tone apart. That is what a cracked note *is*, and it is why horn
+  // writing is stepwise even when nothing else in the score is.
+  //
+  // The same conservative lift the trombone gets, and for the same argument. A
+  // horn section part sits at middle C; the famous solos — the Mozart concertos,
+  // the Nocturne of the Midsummer Night's Dream — sit around a fifth above it,
+  // not an octave, because the octave above that is where the cracking starts.
+  frenchHorn: L(I('french horn', 60, 'gm_french_horn', 60, 0.45, 'brass'), 67),
+  // The lowest agility in the catalogue, under even the trombone's. A tuba
+  // mouthpiece is the size of a teacup and a leap is not an embouchure change so
+  // much as a different aperture of the whole face; the instrument's literature
+  // is bass lines and pedal notes for exactly that reason.
+  tuba: I('tuba', 58, 'gm_tuba', 40, 0.35, 'brass'),
+  // Sounds an octave above the written part, so 91 is a G6 and it really is
+  // that high. This is the one entry in the table where the `centre` is doing
+  // safety work as well as musical work: a piccolo is the loudest thing in an
+  // orchestra by a wide margin, and a part that strays into its top fifth stops
+  // being a line and becomes an alarm.
+  piccolo: I('piccolo', 72, 'gm_piccolo', 91, 0.7, 'wind'),
+  // Not a large violin, whatever the shape suggests. The C string is the point
+  // of the instrument — it is the only note in the string section between the
+  // violin's floor and the cello's, and a viola part that never goes below G3
+  // is a second violin part that has been transposed. `centre` at 67 rather
+  // than the violin's 76 is what makes it use that string.
+  viola: I('viola', 41, 'gm_viola', 67, 0.55, 'bowed'),
+  // Four drums and a foot, and the *range* is what says so — a nineteen
+  // semitone window is not a restriction on this entry, it is the instrument.
+  // The mallet idiom is right about everything except the arpeggios: what a
+  // timpanist actually plays is tonic, dominant and a roll, and there is no
+  // idiom for that. What the family does get right is `repeat: 1.0`, which is
+  // most of a timpani part, and a struck-and-ringing envelope — lengthened here
+  // because a pedal drum with the head undamped sings for a full bar, which is
+  // three times what a vibraphone bar manages.
+  timpani: E(I('timpani', 47, 'gm_timpani', 45, 0.9, 'mallet'),
+    { decay: 3.2, release: 0.6 }),
+  // Fingered like a piano and voiced like nothing else: a quill plucks the
+  // string and a felt damper on the same jack stops it the moment the key comes
+  // up. The consequences are the two facts every baroque arranger works around
+  // — there are no dynamics, because the pluck is the same however hard the
+  // finger falls, and there is no pedal, because there is nothing to lift. The
+  // keyboard idiom's two-second tail would make this a soft-toned piano;
+  // `sustain: 0` into a fast decay is the plucked string it actually has. The
+  // same override the clavinet takes, from the opposite century.
+  harpsichord: L(E(I('harpsichord', 6, 'gm_harpsichord', 60, 1.0, 'keyboard'),
+    { decay: 0.9, sustain: 0 }), 72),
+  // The alto in F, which is the recorder anybody means by "recorder" once the
+  // music is not for schoolchildren: Telemann and Handel wrote for this one.
+  // `gm_recorder` rather than VCSL's sampled baroque alto on purpose — see the
+  // sampled entries below — because here the General MIDI programme genuinely
+  // *is* the instrument, and a catalogue entry that is silent until another
+  // system lands is a worse trade than a slightly plain sample.
+  recorder: I('recorder', 74, 'gm_recorder', 76, 0.6, 'wind'),
+  // Rosewood with no resonator worth the name: the shortest note in the mallet
+  // family by a long way, and the reason a xylophone reads as articulation
+  // where a marimba reads as harmony. 0.35 against the marimba's 0.9 is the
+  // whole difference, and it is why the same written line sounds like a tune on
+  // one and like a woodblock melody on the other.
+  xylophone: E(I('xylophone', 13, 'gm_xylophone', 84, 1.0, 'mallet'),
+    { decay: 0.35 }),
+  // A whole orchestra playing one chord, sampled, and then played from a
+  // keyboard — which is why it is filed under `brass` rather than `keyboard`.
+  // The idiom is about figuration, and the figuration of an orchestra hit is
+  // four notes and a silence: sparse, narrow, and needing more air than
+  // anything else in the table. It is a stab, and a stab that arpeggiates is a
+  // sample loop.
+  //
+  // The envelope is not the idiom's, because this is a recording of an event
+  // rather than a note anybody is holding. It decays to nothing in half a
+  // second whatever the score says, and pretending otherwise stretches one
+  // orchestral attack across a bar.
+  orchestraHit: E(I('orchestra hit', 55, 'gm_orchestra_hit', 60, 0.6, 'brass'),
+    { attack: 0.004, decay: 0.55, sustain: 0, release: 0.2 }),
+
+  // --- Sampled, rather than synthesised ------------------------------------
+  // The four entries below carry a **VCSL sample-set name** in `strudel` and a
+  // General MIDI programme in `gm`, and that split is the point of the two
+  // fields existing separately. The MIDI file still renders through a soundfont
+  // that every player on earth has; the browser audition gets a recording of the
+  // actual instrument.
+  //
+  // Each one is here because the General MIDI programme is *not the object*.
+  // GM has no kantele and no balafon at all, and its church organ is one
+  // registration of an instrument whose whole art is choosing between them. The
+  // Steinway is the softest case and still a real one: `gm_piano` is a piano,
+  // and a concert grand recorded close in a hall is the piano a classical piece
+  // is written for.
+  //
+  // They are silent in the browser until `web/audio.ts` loads the VCSL
+  // manifest, which is another system's file. The MIDI renderer is unaffected.
+
+  // The Finnish zither, and the instrument an entire genre is built on. VCSL
+  // has no kantele; it has a bowed-and-plucked psaltery, which is the same idea
+  // — a shallow soundbox with a string per note and no stopping hand at all —
+  // and its plucked articulation is the right one. GM 46, the orchestral harp,
+  // is the honest MIDI fallback for the same reason.
+  //
+  // Fifteen strings, G3 to G5, rather than the 38-string concert instrument:
+  // the runo repertoire is the small one, and it is also very nearly what the
+  // sample set covers. The long decay is the fact that matters most and the one
+  // a harp envelope would hide — a kantele has no dampers whatever, so the
+  // strings go on ringing into each other, and that wash is what the sound is.
+  kantele: E(I('kantele', 46, 'psaltery_pluck', 67, 1.0, 'plucked'),
+    { decay: 2.6, release: 0.6 }),
+  // Full plenum: the sound of a building. Against GM 19, which is one sampled
+  // registration standing in for an instrument whose entire art is choosing
+  // between them — which is why there are two of these and only one of most
+  // things. A toccata and a hymn are not the same organ, and until now the
+  // catalogue could only play one of them.
+  pipeOrgan: E(I('pipe organ', 19, 'pipeorgan_loud', 55, 0.7, 'keyboard'), ORGAN),
+  // Eight-foot flutes and nothing else, which is the registration a gospel
+  // organ sits under a singer on and the one a chorale is accompanied with. It
+  // centres an octave above the plenum because a quiet stop is a voice in the
+  // texture rather than the floor of it.
+  pipeOrganQuiet: E(I('pipe organ, soft stops', 19, 'pipeorgan_quiet', 60, 0.7, 'keyboard'),
+    ORGAN),
+  // The concert grand, recorded close. Everything else about it is the piano's
+  // — same reach, same idiom, same two hands, and the `HANDS` entry below is
+  // the piano's numbers restated rather than new ones, because it is the same
+  // anatomy. What differs is a hall and a lid, and those live in the sample.
+  steinway: L(I('concert grand', 0, 'steinway', 60, 1.0, 'keyboard'), 72),
+
+  // --- Outside the western orchestra ---------------------------------------
+  // Four General MIDI programmes in the 104–111 "ethnic" block that the
+  // catalogue has never drawn on, next to the sitar it already had. The block
+  // is a crude gesture at four continents and these are the four entries in it
+  // that are genuinely a *different instrument* rather than a filter on a
+  // guitar, which is why the rest of it stays unused.
+
+  // The shehnai: a conical double reed played at weddings and at dawn, and the
+  // voice of a north Indian film score. Louder and more nasal than an oboe and
+  // played with far more bend between the notes than this project can yet
+  // write, so what it contributes for now is the timbre and the tessitura.
+  shanai: I('shehnai', 111, 'gm_shanai', 72, 0.6, 'wind'),
+  // Struck strings under two hammers, and the ancestor of the piano rather than
+  // a relative of the guitar — which is why it is `mallet` and not `plucked`.
+  // The instrument covers a great deal of ground under one name: the Persian
+  // santur, the Greek santouri, the Hungarian cimbalom and the Appalachian
+  // hammered dulcimer are one design at four sizes, so it is available to the
+  // Arabic palette and to the country one at once.
+  //
+  // No dampers, again, and here it is even more consequential than on the
+  // kantele because the strings are struck: every note of a fast passage is
+  // still sounding when the next arrives, and the resulting haze is the whole
+  // character. 2.4 seconds against the family's 1.6.
+  dulcimer: E(I('hammered dulcimer', 15, 'gm_dulcimer', 67, 1.0, 'mallet'),
+    { decay: 2.4, release: 0.5 }),
+  // Thirteen silk strings over movable bridges, and no stopping hand: the left
+  // hand presses *behind* a bridge to bend a note that is already sounding.
+  // Structurally that makes it a harp rather than a lute, which is what the
+  // idiom and the archetype both say.
+  koto: I('koto', 107, 'gm_koto', 60, 0.8, 'plucked'),
+  // A fretless three-string lute struck with a plectrum the size of a hand,
+  // which lands on the skin belly as well as the string. That percussive slap
+  // is the sound, and the short decay is it: a shamisen note is gone in half a
+  // second and the next one is already on the way.
+  shamisen: E(I('shamisen', 106, 'gm_shamisen', 60, 0.75, 'plucked'),
+    { decay: 0.6 }),
+  // The Vietnamese zither, sampled, against GM 108's koto as the MIDI fallback
+  // — the two are cousins and the substitution is honest. It is here rather
+  // than folded into the koto because sixteen steel strings ring far brighter
+  // and far longer than thirteen silk ones, and because the two traditions
+  // pentatonicise differently; one entry could only have been one of them.
+  dantranh: E(I('dan tranh', 107, 'dantranh', 62, 0.8, 'plucked'),
+    { decay: 1.8, release: 0.4 }),
+
+  // --- The string band, and the pipes --------------------------------------
+
+  // A drum with strings on it, which is not a figure of speech: the head is
+  // mylar over a rim and the bridge stands on it. So the note is gone in half a
+  // second, and that single fact is why bluegrass banjo is played in rolls —
+  // the right hand has to keep filling every eighth or the instrument is
+  // silent. 0.55 against the plucked family's 1.1, and it changes the writing
+  // more than any other override in the table.
+  banjo: L(E(I('banjo', 105, 'gm_banjo', 62, 0.85, 'plucked'), { decay: 0.55 }), 71),
+  // Nine notes. The Great Highland chanter plays G4 to A5 and nothing else —
+  // no octave, no accidentals beyond its own scale, no dynamics — and the range
+  // below is that literal fact rather than a conservative estimate. It is the
+  // narrowest entry in the catalogue by a factor of three, and everything that
+  // sounds like piping follows from it.
+  //
+  // `reed` rather than `wind`, despite the chanter being a double reed and not
+  // a free one, because the idiom is a statement about *behaviour*: the bag
+  // never runs out, so there is no breath and no phrase gap, and the ornaments
+  // are grace notes rather than tonguing. That is the reed profile exactly, and
+  // the wind profile's 0.7 breath would put rests in a tune that physically
+  // cannot have any.
+  bagpipes: I('bagpipes', 109, 'gm_bagpipe', 74, 0.5, 'reed'),
+  // Three strings, diatonic frets, and two of them droning: a strumstick is a
+  // mountain dulcimer built as a stick, and the two low strings are tuned to
+  // the tonic and the fifth and simply left open. Hence the agility — there is
+  // no note between the frets to leap to, so a line that wants a semitone the
+  // instrument does not have has to go somewhere else.
+  //
+  // Sampled, against GM 16 as the fallback: General MIDI files a strumstick and
+  // a hammered dulcimer under the same programme, which is wrong about the
+  // action and right about the family, and it is the closest thing on offer.
+  strumstick: I('strumstick', 15, 'strumstick', 55, 0.6, 'plucked'),
+
+  // --- Tuned percussion the band carries in a case -------------------------
+  // Melodic-bank programmes, not drum voices. GM 114, 115 and 116 are pitched
+  // programmes in the *instrument* bank and are played from a keyboard by
+  // whoever is nearest; the drum kit's own agogo and woodblock live in the
+  // percussion bank and belong to `DrumVoice`, which is a different table in a
+  // different file. An entry here is a line somebody wrote, not a stroke in a
+  // groove.
+
+  // Tuned oil drum. The ring is long and the fundamental is weak, so a pan line
+  // blurs into a wash if it is written like a marimba part — which is why the
+  // agility is a little under a mallet's and the decay a little under the
+  // family's. The lead pan starts at G3 and a soprano tops out around E6.
+  steelDrums: E(I('steel drums', 114, 'gm_steel_drums', 67, 0.9, 'mallet'),
+    { decay: 1.3 }),
+  // Two cowbells welded to a spring, a minor third apart, and pitched high
+  // because that is where the sample lives — pitch this programme down an
+  // octave and it is a cowbell, up an octave and it is a tick. The narrow range
+  // is that statement, and it is the only thing keeping a samba ostinato from
+  // wandering into registers that stop sounding like the object.
+  agogo: E(I('agogo bells', 113, 'gm_agogo', 79, 0.9, 'mallet'), { decay: 0.4 }),
+  // A block of wood. Nothing resonates, so 0.12 seconds — the shortest envelope
+  // in the catalogue, and shorter than the palm-muted guitar by half. What it
+  // buys is a ska and reggae upbeat that reads as an attack rather than a note.
+  woodblock: E(I('woodblock', 115, 'gm_woodblock', 79, 0.9, 'mallet'),
+    { decay: 0.12 }),
+  // Sampled, against GM 13 — General MIDI's marimba is the West African
+  // instrument's own descendant and the name is even borrowed, so the fallback
+  // is honest in a way most substitutions are not. What the sample has and the
+  // soundfont cannot is the buzz: a balafon's gourd resonators are stopped with
+  // spider-silk membranes that rattle on every note, and the bar dies fast
+  // underneath it. 0.7 seconds, half the marimba's.
+  balafon: E(I('balafon', 12, 'balafon', 67, 1.0, 'mallet'), { decay: 0.7 }),
+
+  // --- The rhythm section's edges ------------------------------------------
+
+  // GM 37 is the *pop*, where GM 36 is the thumb — the two halves of one
+  // technique that General MIDI happens to have given two programmes. Same
+  // fingerboard, same four strings and the same reach as every other electric
+  // bass here, for the reason `slapBass` already states: a technique is not a
+  // wider instrument. It earns its row because a funk line alternates the two,
+  // and until now only one of them existed.
+  slapBass2: I('slap bass 2', 37, 'gm_slap_bass_2', 40, 0.75, 'plucked'),
+  // A harmonic is not a fretted note and it is not in the same place. The
+  // string is touched rather than stopped, at a node, and what sounds is a
+  // partial *above* the open string — so this is the one plucked entry whose
+  // ceiling is set by physics rather than by the end of the neck, and the
+  // `RANGE_OF` entry in `concert/instruments.ts` says so against the guitar's
+  // own 22 frets. Long decay, because a node is where the string loses least.
+  guitarHarmonics: E(I('guitar harmonics', 31, 'gm_guitar_harmonics', 79, 0.6, 'plucked'),
+    { decay: 2.2 }),
+
+  // --- Machines ------------------------------------------------------------
+  // Pitched drum programmes, which is a real category and not a contradiction:
+  // an analogue tom with its tuning knob turned during the decay is the sound
+  // of a whole decade, and it is a *note* in a way an acoustic tom is not.
+
+  // The tuned analogue tom — an 808 tom, a Simmons pad. Low, short, and it does
+  // not sustain at all: the envelope is a gate with a click on the front, which
+  // is what the circuit is. Drum and bass builds bass lines out of this.
+  synthDrum: E(I('synth drum', 118, 'gm_synth_drum', 48, 0.9, 'mallet'),
+    { attack: 0.001, decay: 0.65, sustain: 0, release: 0.12 }),
+  // A rack of concert toms, sampled across pitches — the fill instrument, and
+  // the one that makes a drum-and-bass or a disco break sound arranged rather
+  // than programmed. Half a second, because a tom head is damped by the air
+  // inside the shell however hard it is struck.
+  melodicTom: E(I('melodic tom', 117, 'gm_melodic_tom', 50, 0.85, 'mallet'),
+    { decay: 0.5 }),
+  // A crash played backwards, and the envelope is the whole entry: it is the
+  // only sound in the catalogue whose attack is longer than its release. Over a
+  // second of swell, then nothing — because what a reverse cymbal is *for* is
+  // arriving at a downbeat and stopping dead on it, and a tail after that
+  // downbeat would smear the join it exists to sharpen.
+  //
+  // Filed under `mallet` for the figuration and stripped of the family's
+  // envelope entirely, which is the same trade the ambient shelf makes.
+  reverseCymbal: E(I('reverse cymbal', 119, 'gm_reverse_cymbal', 60, 0.4, 'mallet'),
+    { attack: 1.1, decay: 0.05, sustain: 1, release: 0.05 }),
+
+  // --- The sound-effects bank ----------------------------------------------
+  // **A different bank from the ambient shelf above.** GM 96–103 are the eight
+  // *synth* effects — `fxRain` and its neighbours — and they are synthesiser
+  // patches with pitch and a keyboard under them. GM 120–127 are recordings of
+  // things: surf, birds, a breath. The three here are the ones that are a
+  // texture rather than a punchline, which is why `gm_gunshot`, `gm_telephone`,
+  // `gm_helicopter` and `gm_applause` stay unused.
+  //
+  // Their ranges are narrow on purpose and this is the field doing real work.
+  // Pitch on a recording of the sea is a playback rate, not a note: two octaves
+  // up it is static and two octaves down it is a rumble, and neither is the
+  // sound anybody chose. Two octaves total, centred where the sample was made,
+  // keeps the transposition inside what still reads as the thing.
+  seashore: E(I('seashore', 122, 'gm_seashore', 60, 0.4, 'bowed'), PAD),
+  // Not `PAD`, unlike its two neighbours. A pad's third of a second of attack
+  // would file the front off every chirp, and the front of a chirp is all a
+  // chirp has; birds are transients over a silence, which is a mallet's shape
+  // with a longer tail than a bar has.
+  birdTweet: E(I('birdsong', 123, 'gm_bird_tweet', 72, 0.6, 'mallet'),
+    { attack: 0.02, decay: 1.3, sustain: 0, release: 0.5 }),
+  // Breath with no instrument after it. Useful under a wind part, where it is
+  // the noise a flute sample has had polished off it, and useful alone as the
+  // quietest texture the catalogue can produce.
+  breathNoise: E(I('breath noise', 121, 'gm_breath_noise', 60, 0.4, 'wind'), PAD),
 
   // --- Electric variants ---------------------------------------------------
   // An electric violin is not a different instrument. It is a violin — the same
@@ -617,6 +1034,84 @@ export const INSTRUMENT_RANGE: Record<InstrumentId, readonly [Midi, Midi]> = {
   sitar: [48, 80],
   panFlute: [59, 96],
   shakuhachi: [59, 96],
+
+  // The orchestra. Sounding pitch throughout, which is worth saying twice for
+  // the three transposers here: a cor anglais part is written a fifth above
+  // this, a piccolo part an octave below it, and neither of those numbers is
+  // what anyone hears.
+  oboe: [58, 89],
+  englishHorn: [52, 81],
+  bassoon: [34, 75],
+  frenchHorn: [41, 77],
+  tuba: [28, 65],
+  piccolo: [74, 105],
+  viola: [48, 88],
+  // Four pedal drums: a 32-inch down to D2, a 23-inch up to A3. Nineteen
+  // semitones is the whole instrument, and the narrowest range here after the
+  // bagpipes — which is exactly why it is worth writing down. A timpani part
+  // that ranges further is a marimba part with the wrong patch on it.
+  timpani: [38, 57],
+  // A two-manual French double: FF to f''', which is a fifth short of a piano
+  // at the bottom and an octave and a half short at the top. The instrument
+  // stops where it stops, and Bach knew it — nothing in the repertoire asks.
+  harpsichord: [29, 89],
+  recorder: [65, 91],
+  // Sounds an octave above the written part, so the top really is C8. Generous
+  // at the top for the same reason the glockenspiel's is generous at the
+  // bottom: the `centre` keeps parts out of there, and lowering the ceiling
+  // would fold high notes *down* into the middle of the texture.
+  xylophone: [65, 108],
+  orchestraHit: [36, 84],
+  // A fifteen-string folk kantele, G3 to G5, rather than the 38-string concert
+  // instrument — the runo repertoire is played on the small one, and this is
+  // also within a tone of what the sample set actually covers.
+  kantele: [55, 79],
+  pipeOrgan: [24, 96],
+  pipeOrganQuiet: [24, 96],
+  steinway: [21, 108],
+
+  // Outside the western orchestra
+  shanai: [57, 84],
+  dulcimer: [55, 93],
+  koto: [50, 84],
+  // Bounded by the archetype it is staged on rather than by the instrument,
+  // which is honest here: a fretless three-string neck has no hard ceiling, and
+  // the tessitura of the repertoire is inside this anyway.
+  shamisen: [48, 80],
+  dantranh: [48, 84],
+
+  // The string band
+  banjo: [50, 83],
+  // Nine notes, G4 to A5. See the entry above; this is the instrument, not a
+  // cautious estimate of it.
+  bagpipes: [67, 79],
+  // Down to D2, which is below a guitar's low E and is the point: the two open
+  // drone strings are the bottom of the instrument and are never fretted.
+  strumstick: [38, 69],
+
+  // Tuned percussion
+  steelDrums: [55, 88],
+  agogo: [72, 91],
+  woodblock: [67, 91],
+  balafon: [53, 84],
+
+  // The rhythm section's edges
+  slapBass2: [28, 63],
+  // A harmonic sounds above the string that produces it, so the ceiling is a
+  // full fifth past the end of the fingerboard. See the entry.
+  guitarHarmonics: [64, 96],
+
+  // Machines
+  synthDrum: [28, 60],
+  melodicTom: [36, 67],
+  reverseCymbal: [48, 72],
+
+  // The sound-effects bank. Two octaves each, and narrow on purpose: see the
+  // entries. Transposing a recording of the sea is a playback rate.
+  seashore: [48, 72],
+  birdTweet: [60, 84],
+  breathNoise: [48, 72],
+
   // The electric variants take their acoustic base's range exactly. A pickup
   // does not add a string and an amplifier does not add a bar.
   electricViolin: [55, 96],
@@ -763,12 +1258,37 @@ export const HANDS: Partial<Record<InstrumentId, HandSpec>> = {
   piano: { lead: 72, floor: 45, ceiling: 72, window: 14, voices: 3, gap: 10, voicing: 'guide', bass: 33, melodic: true },
   epiano1: { lead: 72, floor: 45, ceiling: 72, window: 14, voices: 3, gap: 10, voicing: 'guide', bass: 33, melodic: true },
   epiano2: { lead: 72, floor: 45, ceiling: 72, window: 14, voices: 3, gap: 10, voicing: 'guide', bass: 33, melodic: true },
+  // The same anatomy as the piano, restated rather than shared, because these
+  // are two objects and a future correction to one need not move the other.
+  steinway: { lead: 72, floor: 45, ceiling: 72, window: 14, voices: 3, gap: 10, voicing: 'guide', bass: 33, melodic: true },
+  /**
+   * The continuo player's left hand, and it is the **opposite** of the piano's.
+   *
+   * Every other keyboard here voices a rootless shell, because a bass player is
+   * standing four feet away whose entire job is the root. A harpsichord in a
+   * baroque ensemble has no such colleague — it *is* the bass, sharing the line
+   * with a cello or a gamba, and the figures over that line are instructions for
+   * realising the chord *above the root it is already playing*. A guide voicing
+   * would produce the one thing figured bass cannot be: a realisation with no
+   * bass under it.
+   *
+   * So `tertian` and a `bass` side, which together are the two halves of what
+   * the left hand actually does — the written line low down, the realisation
+   * stacked on top of it. The ceiling is a third under the piano's because a
+   * harpsichord's tone thins out towards the top and the right hand needs that
+   * register more than the left does.
+   */
+  harpsichord: { lead: 72, floor: 41, ceiling: 69, window: 14, voices: 3, gap: 10, voicing: 'tertian', bass: 33, melodic: true },
   // Two mallets, a fifth of daylight, and a floor on the instrument rather than
   // under it. The narrower gap is not a compromise: a vibraphonist's hands work
   // within arm's reach of each other on one row of bars, where a pianist's are
   // at opposite ends of eighty-eight keys.
   vibraphone: { lead: 79, floor: 55, ceiling: 72, window: 12, voices: 2, gap: 7, voicing: 'guide', melodic: true },
   marimba: { lead: 79, floor: 55, ceiling: 72, window: 12, voices: 2, gap: 7, voicing: 'guide', melodic: true },
+  // Two beaters over one row of bars, so the marimba's numbers apply — with the
+  // window and the floor pulled in to the balafon's three octaves, which is a
+  // smaller instrument than either of the western ones above.
+  balafon: { lead: 74, floor: 53, ceiling: 67, window: 10, voices: 2, gap: 7, voicing: 'guide', melodic: true },
   // The button side: a full triad with its own root, below the split, and an
   // octave of daylight because that is where the buttons are. `bass` is the
   // other button row — the one the oom-pah alternates with, and the row this
@@ -778,6 +1298,24 @@ export const HANDS: Partial<Record<InstrumentId, HandSpec>> = {
   // A string per note and no fretting hand, so both hands pluck freely. Voiced
   // in fourths, which is the one thing a harp does that a piano has to work at.
   harp: { lead: 79, floor: 48, ceiling: 67, window: 16, voices: 3, gap: 10, voicing: 'quartal', bass: 36, melodic: true },
+  /**
+   * The harp's argument on an instrument two octaves shorter, and one field
+   * differs for a reason worth stating: there is no `bass`.
+   *
+   * A kantele's lowest string is G3. There is no octave and a half beneath the
+   * comping register to leap down to, because the whole instrument is the
+   * comping register — so a stride left hand is not a style this object
+   * declines, it is a gesture that has nowhere to land. `chooseLeftHandMode`
+   * drops the mode rather than writing one, exactly as it does for the
+   * vibraphone's two mallets.
+   *
+   * `quartal` is not a modernism here. The traditional accompaniment is a drone
+   * on the open fifth with the melody hand picking above it, and stacking
+   * fourths is the closest this table can come to saying so; a tertian voicing
+   * would put a third in the drone, which is the one interval kantele
+   * accompaniment does not use.
+   */
+  kantele: { lead: 74, floor: 55, ceiling: 67, window: 10, voices: 2, gap: 7, voicing: 'quartal', melodic: true },
   /**
    * The synthesiser's left hand, and it is a *line* rather than a shell.
    *
