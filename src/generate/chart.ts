@@ -26,7 +26,9 @@
  *
  *  - **Which layers play, per section kind.** Not per section. A second chorus may
  *    bring the horns in where the first did not — `enters` says so explicitly, and
- *    that is an arrangement escalating rather than a coin landing differently.
+ *    that is an arrangement escalating rather than a coin landing differently. And
+ *    the list can shorten as well as grow: `exits` takes the colour away for the
+ *    song's last statement, which is the other direction and the commoner gesture.
  *  - **Which devices this arrangement is built from**, as a small subset. Most
  *    songs get two. The ones not drawn do not fire at reduced probability; they do
  *    not fire.
@@ -107,6 +109,40 @@ const POOL: Record<Device, number> = {
  */
 const COUNT: (readonly [number, number])[] = [[0, 1], [1, 3], [2, 5], [3, 4], [4, 2]];
 
+/**
+ * The layers an arrangement is allowed to take away.
+ *
+ * The same three `layersFor` already treats as optional, in the same order, and
+ * that is not a coincidence worth hiding: the restraint clause at the bottom of
+ * this file has been deleting the first of `brass`, `counter`, `pad` that a
+ * section happens to have since before the chart existed. Everything else is the
+ * band. A chart that removes the bass from the last chorus of a tanssilava foksi
+ * has not arranged anything, it has sent someone home; the drums and the comp are
+ * the same argument; and a section with no tune in it is not a thinner section, it
+ * is a different kind of section, which is `layersFor`'s decision and not this
+ * one's.
+ */
+const COLOUR: readonly LayerId[] = ['brass', 'counter', 'pad'];
+
+/**
+ * How often an arrangement strips at all.
+ *
+ * Low on purpose, and for the reason the device pool is small: a gesture that
+ * fires in most songs is the texture of the catalogue rather than a property of
+ * any song in it. At 0.3, 683 of 2800 numbers across fourteen genres — 24.4% —
+ * come out thinner at the end than they went in. The other 2117 are the songs
+ * they already were, to the note.
+ *
+ * The per-genre spread is 6.5% to 35% and every bit of it is earned rather than
+ * declared. Ambient is the floor at 6.5% and indian sits just above it at 10.5%,
+ * both because every style in both writes `requireLayers: ['pad']` — the drone
+ * and the tanpura are the piece and neither can be taken away, so the only thing
+ * either genre can ever drop is an answering line it does not often have. Iskelmä
+ * tops it at 35%, because a humppa has four choruses, a full pavilion band and
+ * something to spare in all of them. Nothing in this file had to know that.
+ */
+const STRIPS = 0.3;
+
 export interface Chart {
   /** Which layers play in each kind of section. Constant across repeats, by design. */
   layers: Record<SectionKind, LayerId[]>;
@@ -116,6 +152,16 @@ export interface Chart {
    * chorus — one of the oldest gestures there is, and previously inexpressible.
    */
   enters: Partial<Record<LayerId, number>>;
+  /**
+   * The ordinal at which a colour layer stops sounding, in the same units as
+   * `enters` and read the same way. Absent means it never stops.
+   *
+   * The two together make `playing` a window rather than a threshold. They cannot
+   * contradict one another because `planExits` never offers an exit to a layer
+   * that has an entry — see the argument there, which is about players and not
+   * about arithmetic.
+   */
+  exits: Partial<Record<LayerId, number>>;
   devices: ReadonlySet<Device>;
   /** Which chorus the phrase is handed over in. Once per song, never twice. */
   tradeAt: number;
@@ -136,10 +182,26 @@ export function has(chart: Chart, device: Device): boolean {
 /**
  * Whether a layer sounds in this section, given the chart and how many sections
  * of the kind have already gone by.
+ *
+ * A window, and it used to be a threshold — `ordinal >= enters`, which is true
+ * forever once it is true at all. That single comparison is why the engine could
+ * build an arrangement and could not strip one.
+ *
+ * **The closing edge is only fitted to a section that states the tune**, and that
+ * is a rule the measurement found rather than one the design foresaw. Dropping
+ * back is a gesture *about* the melody: the band thins and the tune carries on
+ * over the top of it, and the thinness is audible because there is still
+ * something to be thin behind. A bridge or an intro has no tune in it, so taking
+ * its colour away is not a drop-back at all — and in a `Soitto` kantele piece,
+ * where the bass plays eight notes in three minutes and the comp sixteen, it left
+ * a bridge with nothing sounding in it whatsoever. One silent section in 2800
+ * songs, which is one too many: a section is a claim that something happens.
  */
 export function playing(chart: Chart, kind: SectionKind, layer: LayerId, ordinal: number): boolean {
-  if (!chart.layers[kind].includes(layer)) return false;
-  return ordinal >= (chart.enters[layer] ?? 0);
+  const here = chart.layers[kind];
+  if (!here.includes(layer)) return false;
+  if (ordinal < (chart.enters[layer] ?? 0)) return false;
+  return !here.includes('melody') || ordinal < (chart.exits[layer] ?? Infinity);
 }
 
 export function planChart(args: {
@@ -148,10 +210,17 @@ export function planChart(args: {
   mood: Mood;
   density: number;
   beatsPerBar: number;
+  /**
+   * How many sections of each kind the form has. The one thing the chart is told
+   * about the song rather than about the band, and it buys exactly one decision:
+   * an exit is placed at a layer's *last* section rather than at a number drawn
+   * blind. See `planExits`.
+   */
+  counts: Partial<Record<SectionKind, number>>;
   /** Genre-level weight overrides. A zero rules the device out of the idiom. */
   weights?: Partial<Record<Device, number>>;
 }): Chart {
-  const { rng, style, mood, density, beatsPerBar } = args;
+  const { rng, style, mood, density, beatsPerBar, counts } = args;
 
   const kinds: SectionKind[] = ['intro', 'verse', 'chorus', 'bridge', 'solo', 'outro'];
   const layers = {} as Record<SectionKind, LayerId[]>;
@@ -213,7 +282,116 @@ export function planChart(args: {
     unisonOctave: rng.chance(0.6),
     riff: devices.has('riff') ? riffFigure(rng, beatsPerBar) : [],
     riffEvery: rng.weighted([[2, 5], [4, 4]] as const),
+    /**
+     * Last in the literal, and that placement is the whole of why this was safe
+     * to add.
+     *
+     * Object properties evaluate in source order, so every draw `planExits` makes
+     * is taken after every draw the chart already made. A number whose
+     * arrangement does not strip is therefore the number it was before, to the
+     * note — the same layers, the same devices, the same riff — and the diff in
+     * the catalogue is exactly the songs that gained the gesture. `layersFor`
+     * ends with the same trick and says so for the same reason.
+     */
+    exits: planExits({ rng, style, layers, enters, counts }),
   };
+}
+
+/**
+ * Where the arrangement takes something away.
+ *
+ * `enters` gave the chart a direction and it was the wrong one to have on its
+ * own. A layer could hold back and arrive; it could not leave, because `playing`
+ * compared the ordinal against one threshold and a threshold once passed is
+ * passed for the rest of the song. So an arrangement could escalate and could not
+ * strip — and **a last verse that drops back to the tune and the rhythm section
+ * is the commonest arrangement gesture in popular music of any kind**, commoner
+ * by a distance than the horns entering on the second chorus, which was the one
+ * that could be said. A final chorus without the pad, and the whole back half of
+ * a dub, went with it.
+ *
+ * Nobody reported this. Fourteen genres were written against a chart that only
+ * builds, and fourteen authors wrote arrangements that only build, which is the
+ * useful part: a missing direction does not present itself as a wall. It simply
+ * never comes up.
+ *
+ * **This is the fault at the top of this file run backwards, and the difference
+ * is monotonicity.** The measurement there is that the answering line was present
+ * in some choruses and absent from others in 55% of jazz numbers — present,
+ * absent, present — and that is an arrangement forgetting itself. A layer that
+ * goes and stays gone says the opposite thing with the same silence: the song is
+ * thinner at the end than it was at the start, in one direction, on purpose.
+ * Flicker is the fault. A slope is an arrangement.
+ *
+ * **One draw for the whole gesture, not one per layer.** `enters` asks per layer
+ * because arriving is a fact about a player — the horns come in for the second
+ * chorus and the strings were always there. Leaving is a fact about the ending: a
+ * band that drops back drops back together, and it is that dropping back, rather
+ * than any one instrument's absence, that a listener hears. Three independent
+ * coins at this rate would strip something in three songs out of four, which is
+ * the tendency this file was written to stop being.
+ *
+ * **The ordinal is placed rather than drawn.** A blind draw from 1..3 would put
+ * the exit past the end of a short form as often as not, and where it landed it
+ * would mean *the layer played the opening and vanished* as readily as *the layer
+ * sat out the last one* — two different pieces of music from one number. So the
+ * chart is told the form's section counts and each layer leaves at the last
+ * section of whichever tune-bearing kind it appears in most. That has a property
+ * worth having for its own sake: because the count taken is the largest of those,
+ * no kind can lose more than its final occurrence, and every kind the form has
+ * fewer of keeps the layer from first bar to last. An intro and an outro are safe
+ * whatever the form does — a section stated once has no last time to sit out.
+ *
+ * Four things are never taken, and each is a band breaking rather than an
+ * arrangement thinning:
+ *
+ *  - **Anything outside `COLOUR`.** The rhythm section is not decoration and the
+ *    tune is not decoration.
+ *  - **A layer the style requires.** `requireLayers` exists because "the default
+ *    arrangement rules treat `pad` as decoration" is "exactly backwards for music
+ *    where the pad *is* the piece", and a genre that has said so has already
+ *    answered this question. It is why ambient barely does this at all and never
+ *    to the drone — which is right, for an idiom whose whole proposition is that
+ *    sections arrive without being announced. A departure is an announcement.
+ *  - **The pad, where nothing else is comping.** Seven styles across the
+ *    catalogue put `comp` in `excludeLayers`; in those the pad is not colour, it
+ *    is the harmony, and a section with no chord instrument left in it is not an
+ *    arrangement decision.
+ *  - **A layer that holds back.** Entering at the second chorus and leaving
+ *    before the last is a player hired for the middle of the song, and `song.ts`
+ *    already spends thirty lines on why a soloist heard for twelve seconds of
+ *    three minutes is a fault rather than a texture. Forbidding the pair also
+ *    makes `enters[l] < exits[l]` true by construction rather than by assertion:
+ *    where an exit exists there is no entry, and every exit is at least 1.
+ */
+function planExits(args: {
+  rng: Rng;
+  style: Style;
+  layers: Record<SectionKind, LayerId[]>;
+  enters: Partial<Record<LayerId, number>>;
+  counts: Partial<Record<SectionKind, number>>;
+}): Partial<Record<LayerId, number>> {
+  const { rng, style, layers, enters, counts } = args;
+  const exits: Partial<Record<LayerId, number>> = {};
+  if (!rng.chance(STRIPS)) return exits;
+
+  // The kinds an exit can bite in at all — `playing` fits its closing edge only
+  // to a section that states the tune, so counting the others would place the
+  // gesture where nothing would come of it.
+  const kinds = (Object.keys(layers) as SectionKind[]).filter((k) => layers[k].includes('melody'));
+  const required = new Set(style.requireLayers ?? []);
+  const comping = kinds.every((kind) => layers[kind].includes('comp'));
+  for (const layer of COLOUR) {
+    if (required.has(layer) || enters[layer] !== undefined) continue;
+    if (layer === 'pad' && !comping) continue;
+    const most = Math.max(
+      0, ...kinds.filter((kind) => layers[kind].includes(layer)).map((kind) => counts[kind] ?? 0),
+    );
+    // Two is the least a gesture can be built from: one section to be heard in
+    // and one to be missed in. A layer the form states once has no last time.
+    if (most >= 2) exits[layer] = most - 1;
+  }
+  return exits;
 }
 
 /**

@@ -1977,6 +1977,14 @@ const HAND_VOICES: readonly DrumVoice[] = ['rd', 'sh', 'hh', 'oh'];
  *  - **at least four hits**, below which there is nothing to thin. `waltz-light`
  *    rides three quarters over a bar of twelve; halving that is not a sparser
  *    hand, it is a hole.
+ *
+ * **Struck hits only, and `DrumPattern.ghosts` is deliberately not counted.**
+ * The question here is which voice is keeping *time*, and a ghost is not
+ * evidence about the pulse — it is the hand filling in between it, played under
+ * the level precisely so that nobody counts along with it. A snare with six
+ * ghosts under two backbeats is still not the timekeeper, and letting a ghost
+ * list elect the hand would make it one. Whichever voice wins takes its ghosts
+ * with it either way; see `varyPattern`.
  */
 function handOf(pattern: DrumPattern): DrumVoice | undefined {
   const count = (v: DrumVoice) => pattern.voices[v]?.length ?? 0;
@@ -2071,7 +2079,34 @@ function varyPattern(pattern: DrumPattern, v: KitVariation): DrumPattern {
   };
   merge(v.to ?? v.on, hand);
   merge('oh', open);
-  return { ...pattern, voices };
+
+  /**
+   * The hand's ghosts are the hand's, and they go where it goes.
+   *
+   * A varied pattern that silently dropped them would be a bug visible in some
+   * sections and not others, which is the worst shape a bug can have here — but
+   * carrying them is not merely defensive. A hand that has moved to the ride and
+   * left its light strokes on the hat is two hands on two cymbals, and a hand
+   * thinned to eighths under an unthinned row of ghosted sixteenths is a
+   * drummer playing quieter *and* busier, which is nobody.
+   *
+   * **Never opened.** `open` turns a hand hit into an open hat, and an open hat
+   * is the loudest thing that hand does — it is what carries the accent
+   * wherever it collides with a closed one, which is why `oneHatAtATime` in
+   * `song.ts` lets it win. An opened ghost is a contradiction, and it falls out
+   * rather than being guarded: `KitVariation.open` indexes into the hand's
+   * struck hits and there is no index that reaches this list.
+   */
+  const ghosted = pattern.ghosts?.[v.on];
+  if (!ghosted?.length) return { ...pattern, voices };
+  const ghosts: Partial<Record<DrumVoice, number[]>> = { ...pattern.ghosts };
+  delete ghosts[v.on];
+  const moved = v.thin ? ghosted.filter((_, i) => i % 2 === 0) : ghosted;
+  const to = v.to ?? v.on;
+  if (moved.length) {
+    ghosts[to] = [...new Set([...(ghosts[to] ?? []), ...moved])].sort((a, b) => a - b);
+  }
+  return { ...pattern, voices, ghosts };
 }
 
 export function generateDrums(
@@ -2093,6 +2128,18 @@ export function generateDrums(
      * is that bar 64 is bit-identical to bar 1. What survives is `accentOf`,
      * because a preset *pattern* genuinely does accent: a Mini Pops bossa nova
      * has a shape, it just has the same shape every time.
+     *
+     * **And it takes away `DrumPattern.ghosts`**, joining the list `song.ts`
+     * already keeps for a box — the fill, the drum solo, the intensity response
+     * and the drummer's hand. Not for the bit-identity reason — a fixed fraction of a fixed velocity is
+     * as repeatable as anything else on this path — but because the gesture is
+     * a *stick* technique: a stroke let down onto the head from an inch away
+     * with the fingers, at a quarter of the level of the one either side of it.
+     * A Rhythm Ace has one level per voice per step and an accent bit worth a
+     * few per cent; nothing in that box can play a quarter-level snare, and a
+     * box that did would be a sound that never existed. What it plays instead
+     * is the figure with the ghost row taken off, which is precisely the figure
+     * a style author would have written before this field existed.
      */
     machine?: boolean;
     /**
@@ -2127,22 +2174,58 @@ export function generateDrums(
     : undefined;
   const clearFrom = fill ? (bars - 1) * slotsPerBar + fill.fromSlot : Infinity;
 
-  for (const [voice, slots] of Object.entries(figure.voices) as [DrumVoice, number[]][]) {
+  /**
+   * The struck figure, and then the ghosts underneath it.
+   *
+   * One list of rows walked by one loop, rather than a second loop beside the
+   * first, and that is the whole implementation of *"read exactly like
+   * `voices`"* — the cycle walk, the fill's clearing, `accentOf` and the
+   * per-hit jitter reach a ghost because there is no other path for it to take.
+   * A second loop would be four rules restated, and the failure mode of
+   * restating them is a ghosted figure that drifts differently from the figure
+   * it belongs to, which nobody would hear as a bug.
+   *
+   * The struck rows come first and in their original order, so a pattern with
+   * no ghosts draws from `rng` exactly the numbers it always drew, in exactly
+   * the order it always drew them. Every committed style therefore generates
+   * bit-for-bit identical music, which is the acceptance test for this field
+   * rather than a nicety — see the `drumSource` note in `song.ts` for what one
+   * number taken out of a shared stream cost the last time.
+   *
+   * A slot that is both struck and ghosted on the same voice is **struck**. One
+   * hand cannot hit one drum twice at once, and the two events would arrive on
+   * the same beat on the same voice a quarter apart in level, which is the
+   * doubled attack `oneHatAtATime` exists to prevent wearing different clothes.
+   */
+  const rows = (Object.entries(figure.voices) as [DrumVoice, number[]][])
+    .map(([voice, slots]) => ({ voice, slots, ghost: false }));
+  if (figure.ghosts && !opts.machine) {
+    for (const [voice, slots] of Object.entries(figure.ghosts) as [DrumVoice, number[]][]) {
+      const struck = new Set(figure.voices[voice] ?? []);
+      const kept = slots.filter((at) => !struck.has(at));
+      if (kept.length) rows.push({ voice, slots: kept, ghost: true });
+    }
+  }
+
+  for (const { voice, slots, ghost } of rows) {
     for (const { slot } of cycleHits(slots.map((at) => ({ at })), {
       cycle: figure.cycle ?? slotsPerBar, bars, slotsPerBar,
     })) {
       // Clear exactly as much of the bar as the fill actually occupies — which
       // used to be hardcoded to half a bar whatever was played there. The kick
-      // keeps going: a drummer's right foot does not stop for a fill.
+      // keeps going: a drummer's right foot does not stop for a fill. A ghosted
+      // kick keeps going with it — the fill takes the hands away, and the
+      // exemption was always about the foot rather than about how hard it plays.
       if (slot >= clearFrom && voice !== 'bd') continue;
       const inBar = slot % slotsPerBar;
       const strength = accentOf(inBar, slotsPerBar, style.groups);
+      const struck = opts.machine
+        ? strength
+        : Math.min(1, strength * opts.intensity * rng.float(0.92, 1.05));
       out.push({
         beat: startBeat + slot / SLOTS_PER_BEAT,
         voice,
-        velocity: opts.machine
-          ? strength
-          : Math.min(1, strength * opts.intensity * rng.float(0.92, 1.05)),
+        velocity: ghost ? struck * GHOST_LEVEL : struck,
       });
     }
   }
@@ -2172,3 +2255,47 @@ function accentOf(slot: number, slotsPerBar: number, groups?: readonly number[])
   if (strength === 4) return 1;
   return strength >= 2 ? 0.85 : 0.68;
 }
+
+/**
+ * How much of a stroke a ghost is. See `DrumPattern.ghosts`.
+ *
+ * **A fraction of the stroke that would have stood on the same slot**, rather
+ * than a velocity of its own, and the difference is the whole design. Level in
+ * this engine is decided by position, by the section and by the feel; a flat
+ * number written here would be a fourth opinion that outranked all three, and a
+ * ghost would stop responding to the metre in a bar that has one. Scaling the
+ * struck value instead means a ghost accents with `groups`, thins with a quiet
+ * section, jitters like a hand and leans with `Feel.accent`, because it is
+ * arrived at by the same arithmetic and then let down.
+ *
+ * It also fixes the *ratio*, which is what a ghost actually is. A drummer plays
+ * the e and the a at a quarter of the backbeat beside them, not at a quarter of
+ * the loudest thing in the bar — so a flat number would come out relatively
+ * loudest exactly where the figure is quietest, which is backwards.
+ *
+ * ## The number
+ *
+ * `accentOf` gives 1 on the downbeat, 0.85 on a beat or a half-bar and 0.68
+ * elsewhere. On the figure this field exists for — backbeats on 4 and 12, ghosts
+ * on the e and the a — a written ghost therefore lands at 0.68 × 0.28 = **0.190**
+ * of intensity, which is 22% of the 0.85 backbeat beside it and 19% of a downbeat
+ * kick. That is the quarter the repertoire means and a little under the third the
+ * `breakbeat` header in funk asked for, which is the right side to err on: a
+ * ghost that can be heard as a note is not a ghost.
+ *
+ * 0.28 is not a round number because it was solved for rather than picked.
+ * `applyFeel` puts a *drawn* ghost at 0.22 of the mean snare velocity in its
+ * bar, which on that same figure is 0.22 × 0.85 = 0.187 — so at 0.28 the two
+ * mechanisms agree to within 2% on the one figure both of them are aimed at.
+ * A section that has a ghosted figure *and* a ghosting feel therefore has one
+ * ghost level in it rather than two, which is what composing means here.
+ *
+ * The scaling happens after the clamp that `generateDrums` applies, so a ghost
+ * in a section loud enough to push its strokes to the ceiling is 0.28 of the
+ * ceiling rather than 0.28 of a number nobody heard. At the other end the
+ * arrangement's floor intensity of 0.45 puts the quietest written ghost at about
+ * 0.079, a hair under the 0.08 floor `applyFeel`'s accent block clamps kit
+ * velocities to — which is the only thing anywhere that lifts one, and it lifts
+ * it by a thousandth.
+ */
+const GHOST_LEVEL = 0.28;

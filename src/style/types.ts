@@ -226,6 +226,140 @@ export interface DrumPattern {
   /** Slot indices per drum voice, in sixteenths. */
   voices: Partial<Record<DrumVoice, number[]>>;
   /**
+   * The strokes this figure plays *under* the level of the ones above, per
+   * voice, in the same sixteenths.
+   *
+   * A **ghost note** is a stroke played deliberately below audibility — a snare
+   * at roughly a quarter of the backbeat, filling the space between the loud
+   * hits — and it is most of what separates a played groove from a grid with a
+   * snare on it. In a breakbeat, an amen break or a boom-bap kit it is a large
+   * fraction of what is actually being heard.
+   *
+   * ## Why here, when `Feel.ghost` already exists
+   *
+   * Because they are answers to different questions, and it is the same line
+   * `KitVariation` draws in `generate/parts.ts`. A feel saying *this section is
+   * ghosted* is a claim about **how** the band plays; a figure saying *this
+   * pattern has ghosts on the e and the a* is a claim about **what** the band
+   * plays. `Feel` is scoped so that it cannot make the second claim — a ghost
+   * may land only where its layer is already silent, the library is
+   * genre-neutral on purpose, and it is drawn per section, probabilistically —
+   * and that scope is right for a feel and useless for an identity.
+   *
+   * The funk author hit exactly this and wrote it down in the `breakbeat`
+   * header rather than reaching for a feel: *"a break is made of ghost notes at
+   * a third of the level of the accents, and a `DrumPattern` carries slot
+   * indices with no velocity column"*, so those patterns write the loud strokes
+   * and let `metricStrength` accent them. A feel that is drawn sometimes cannot
+   * be the thing a style is recognised by.
+   *
+   * ## Why a second slot list and not a velocity column
+   *
+   * Two reasons, and the second is the load-bearing one.
+   *
+   * A ghost is a **category** rather than a point on a continuum: drummers play
+   * strokes and they play ghosts, and the gradations between are a matter of
+   * the room and the arm rather than of the figure. A second list says which
+   * strokes are which, and stays readable in a table where a nested per-slot
+   * record would not.
+   *
+   * And it **adds no new authority over level**, which a velocity column would.
+   * How hard a kit event lands already has three owners — the metre, through
+   * `accentOf` and `metricStrength`; the section, through `intensity`; and the
+   * performance, through `Feel.accent` — and a number written in a style table
+   * would outrank all three and stay outranking them in every song, which is a
+   * mix decision wearing a figure's clothes. This says one thing only: *these
+   * are the ghosts*. How loud a ghost is stays the engine's business, so a
+   * ghosted stroke still accents with the metre, still thins with a quiet
+   * section and still leans with the feel. See `GHOST_LEVEL` in
+   * `generate/parts.ts` for the fraction and the arithmetic behind it.
+   *
+   * ## How it composes with `Feel.ghost`
+   *
+   * A section can have both — a figure that writes its ghosts, played by a band
+   * that has drawn a ghosting feel — and the two must not come out as two
+   * ghosts a sixteenth apart. They do not, and **no line in `applyFeel` was
+   * needed to arrange that**, because a written ghost is an ordinary event on
+   * the kit by the time that pass runs and the pass already has the guards:
+   *
+   *  - **The slot.** The drawn pass never places a ghost where the snare is
+   *    already sounding. A written ghost is a snare sounding, so it cannot be
+   *    doubled.
+   *  - **The parity.** The drawn pass ghosts the *odd* sixteenths either side
+   *    of a snare stroke — the e and the a, which is where ghosts live and
+   *    therefore where a table writes them. A written ghost on an odd sixteenth
+   *    has two even neighbours, and both are ineligible. So the figure's ghosts
+   *    and the feel's are drawn from the same set, and writing one spends it: a
+   *    figure that ghosts both sides of its backbeat absorbs the drawn ghosting
+   *    entirely, and one that ghosts only the e leaves the a to be drawn, which
+   *    is a feel completing a pair rather than crowding one.
+   *  - **The level.** A drawn ghost is 0.22 of the *mean snare velocity in its
+   *    own bar*, and written ghosts are part of that mean, so writing them also
+   *    lowers what the feel is allowed to add on top.
+   *
+   * Measured on jazz's `seven-straight` — one backbeat on slot 8 of a bar of
+   * fourteen — with `funk` forced on every section over 60 seeds, 7543 bars, the
+   * drawn ghosts isolated by regenerating each song with `Feel.ghost` alone
+   * switched off:
+   *
+   * | written | drawn on 7 | drawn on 9 | mean level of a drawn ghost |
+   * |---|---|---|---|
+   * | *nothing* | 2533 | 2588 | 0.165 |
+   * | `[7, 9]` | 142 | 159 | 0.119 |
+   * | `[7]` | 137 | 2558 | 0.102 |
+   *
+   * The last column is taken over the bars that carry their written ghosts —
+   * the control has none, so its figure is the plain one — and the fall from
+   * 0.165 is the level rule working: what a feel adds beside a written ghost
+   * comes out a third quieter than what it adds where there is nothing.
+   *
+   * With both sides written the drawn ghosting around the backbeat falls by
+   * 94%, and all 301 survivors are in bars where the figure is not the thing
+   * playing: 75 in a section's last bar, where the fill has cleared the
+   * pattern's tail, and 226 in a drum-solo chorus, where `generateDrumSolo`
+   * orchestrates the kit instead. **Nothing was ever drawn onto an occupied
+   * slot, and nothing landed a sixteenth from a written ghost, in any of the
+   * three runs.** With only the e written, the a is untouched: the feel
+   * finishes the pair.
+   *
+   * The residual, named rather than hidden: a ghost written on an *even*
+   * sixteenth — an eighth-note position, where the drawn pass would never have
+   * put one — does open its two odd neighbours as candidates, and `[6]` draws
+   * 6549 of them over the same 7543 bars. What lands there is the level rule's
+   * business, and it holds: 0.105 against the written ghost's own 0.183, so it
+   * is a shadow under the written stroke rather than a second one beside it. A
+   * figure that wants none of it writes both neighbours, and one that wants none
+   * of any of it does not name a ghosting feel.
+   *
+   * ## Read exactly like `voices`, with one exception
+   *
+   * Same cycle, so a ghosted figure drifts with the figure it belongs to; same
+   * clearing where a fill lands; carried through `varyPattern`, so a section
+   * whose hand thins or moves to the ride takes its ghosts with it. A slot that
+   * is both struck and ghosted on the same voice is struck — one hand cannot
+   * hit one drum twice at once.
+   *
+   * The exception is the preset rhythm box, which plays none of them: see
+   * `machine` in `generateDrums`, where it joins the list that already takes
+   * away the fill, the drum solo, the intensity response and the hand.
+   *
+   * ## Worked example
+   *
+   * ```ts
+   * { name: 'boom-bap', weight: 5, voices: {
+   *     bd: [0, 10],
+   *     sd: [4, 12],
+   *     hh: [0, 2, 4, 6, 8, 10, 12, 14],
+   *   },
+   *   ghosts: {
+   *     // The e and the a around each backbeat: the whole figure of the idiom,
+   *     // and the four slots a drawn ghost would otherwise have gone to.
+   *     sd: [3, 5, 11, 13],
+   *   } }
+   * ```
+   */
+  ghosts?: Partial<Record<DrumVoice, number[]>>;
+  /**
    * The length of the repeating figure in sixteenths, where it is not the bar.
    * See `Cycle`.
    */

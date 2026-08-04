@@ -89,12 +89,51 @@
  * `playShot` writes it: the fill is vetoed at a seam that drew a gesture, and
  * `landing()` is only ever reached by `generateDrums` when it has written one.
  *
- * Deleting kit events is free of the hook guarantee by construction: nothing is
- * *derived*, so nothing can be derived from the tune. The one drum event this
- * adds is the same cymbal `playShot` adds, from the same input — the loudest
- * velocity the kit already plays in the bar it lands on — and it is hook-
- * invariant for the same reason, which is that the assertion in `genre-check.ts`
- * says the kit is.
+ * The one drum event this adds is the same cymbal `playShot` adds, from the same
+ * input — the loudest velocity the kit already plays in the bar it lands on —
+ * and it is hook-invariant for the same reason, which is that the assertion in
+ * `genre-check.ts` says the kit is.
+ *
+ * ### The rule above was too weak, and this is the kind that proved it
+ *
+ * *A drum event may not be derived from anything that changes with `--hook`* was
+ * written for `shot`, where the danger is a figure lifted off the tune. It let
+ * this kind straight through, because a break derives nothing — it **deletes**.
+ * A bar of kit that is emptied at one hook level and kept at another is exactly
+ * as much a kit that moved with the tune as one whose figure came from it. So
+ * the honest statement is the wider one:
+ *
+ * > **No drum event may be written, deleted or moved on the strength of anything
+ * > that changes with `--hook`** — and *whether a break happens* is such a
+ * > strength, because it is the thing that empties the bar.
+ *
+ * The first `playBreak` chose its carrier by asking which layer covered the last
+ * bar in sounding time, which in practice asked whether the melody did, and
+ * `--hook` is the one control that rewrites the melody. On a sparse arrangement,
+ * where the tune sits near the threshold, the same seed then broke at one level
+ * and not at another and took the kit with it: measured at 14 seeds in 200 on
+ * arabic `fallahi`, 11 on `dabke`, 9 on `zaffa`, 7 on `longa`, and 0 on jazz
+ * `swing` and `blues`, which are dense enough that the tune cleared the bar
+ * every time. Two genre authors found it independently, and both dropped `break`
+ * from their palettes rather than ship it — which is how the sparsest music in
+ * the project came to have one seam gesture fewer than the densest.
+ *
+ * ### …and what is left to decide from is the plan and the kit, and nothing else
+ *
+ * Not "not the melody". **No layer's notes at all.** `--hook` moves the harmony
+ * as well as the tune — `recall`, `harmonyRecall` and `harmonicSimplicity` are
+ * three of its four levers — and every pitched layer follows the chords: over 40
+ * seeds per style the bass came out different at 39 or 40 of them in each of the
+ * four arabic styles. The bass looks like the safe part to read and is not one.
+ *
+ * What does survive is the form and the arrangement. Measured over 7354 sections
+ * — eleven styles, sixty seeds, all five hook levels — a section's kind, length,
+ * transposition and solo assignment never moved once, and its `activeLayers`
+ * never moved either except for the two layers that are written *against* the
+ * finished tune: `counter`, which answers the melody's gaps, at 286, and `brass`
+ * at 3. A carrier named out of that list is hook-invariant in the same way a
+ * `shot` figure out of a style table is — not because anything checks it, but
+ * because there is nothing in it for the tune to move. See `playBreak`.
  *
  * **A break is the one kind with a floor**, and `layersFor` is why. It decides
  * which layers exist before any of this runs, so a break dropped into a section
@@ -480,7 +519,7 @@ const MIN_BREAK_LAYERS = 3;
 /**
  * May this seam take the band out for a bar?
  *
- * Two questions, both answerable from the form alone and neither of them about
+ * Four questions, all answerable from the form alone and none of them about
  * notes, which is what lets them be asked here — see `planTransitions` for why
  * asking late would be worse than not asking.
  */
@@ -492,6 +531,21 @@ function breakable(
   const arriving = sections[s + 1]!;
   // Thin already: see `MIN_BREAK_LAYERS`.
   if (leaving.activeLayers.length < MIN_BREAK_LAYERS) return false;
+  /**
+   * …and somebody has to be left holding it.
+   *
+   * The carrier is the bass and it is named rather than found, so whether this
+   * section *has* one is a question about the layer plan, and a question about
+   * the layer plan is free here. See `BREAK_CARRIER`.
+   *
+   * It has never fired: over 2300 drawn breaks with the palette forced across
+   * every genre, every departing section had a bass in it. That makes it the
+   * same kind of inert-and-kept as `MIN_BREAK_LAYERS` above, and it is kept for
+   * the same reason — wave 5 is where the sparse genres get palettes, and a
+   * break drawn for a band with no bass in it is a bar of silence that has spent
+   * the seam's fill to get there.
+   */
+  if (!leaving.activeLayers.includes(BREAK_CARRIER)) return false;
   /**
    * …and the drummer does not already own the bar.
    *
@@ -786,7 +840,7 @@ function markTheLanding(
 }
 
 /**
- * Stop-time: the band out for the bar before a seam, one voice carrying it.
+ * Stop-time: the band out for the bar before a seam, the bass carrying it.
  *
  * Every other kind in this file is a rewrite. This one is a deletion, and it is
  * the oldest gesture in the repertoire because it costs a band nothing and
@@ -794,27 +848,79 @@ function markTheLanding(
  * is nothing under it, so the downbeat that ends it lands harder than any fill
  * could make it land.
  *
- * ## Who carries it, in order, and why the list ends where it does
+ * ## The bass carries it — named, rather than found
  *
- * **The soloist first**, where the departing section has one, because handing a
- * player the bar alone is what a break has always been *for*. **Then the tune,
- * then the answering line** — the plan's "lead layer", spelled out, since the
- * lead is a section-loop local that no longer exists by the time this runs and
- * re-deriving it from `activeLayers` would be re-deriving a guess.
+ * One layer, no list, and nothing read off a note. The top of this file argues
+ * why nothing *can* be read off a note; what makes that cheap rather than a
+ * concession is that the question had a better answer anyway.
  *
- * **Then the bass, and that is the answer to the section whose melody is
- * silent.** The plan did not have one and the case is not rare: measured over
- * 1093 fusion seams the tune has no onset in the last bar at roughly one seam in
- * five. A bass break is completely idiomatic — the band stops and the bass walks
- * the bar on its own — and it is the last voice in the band that can state time
- * unaccompanied, which is the property the carrier actually needs.
+ * **"Whoever happened to fill the bar" was already the wrong answer, with no
+ * `--hook` in sight.** A break is the rhythm section stopping and one voice
+ * being left in the open, and which voice that is is a fact about the
+ * arrangement, not about which part had notes in one bar. Deciding it from the
+ * notes gave the same style a bass break in one song, an answering line in the
+ * next and a comp chord in the third, for a reason no listener could name — and
+ * it let a stray pickup win, which is how this kind produced the worst bar of
+ * its own wave: a break carried by one thirty-second note 0.03 beats before the
+ * arriving downbeat. `MIN_BREAK_COVER` was the patch for that, and it is gone
+ * with the rest of the search, because naming the carrier answers the same
+ * failure at the root — the bass either plays the bar or it does not, and it is
+ * hardly ever a decoration in it. Measured over 1359 breaks with palettes forced
+ * across eleven styles, the bass covers a median 75% of the bar it is handed and
+ * sits in the 0–33% band that the old floor existed to reject in 0.4% of them.
  *
- * The list stops there on purpose. A comp or a pad alone is not a voice carrying
- * a break, it is a chord hanging in the air; nothing about it says *the band
- * stopped*, and a break nobody can hear as one is worse than the plain cut this
- * seam would otherwise have got. Where none of the four plays in the bar, this
- * does nothing at all, which is the one honest answer available at this point in
- * the pipeline.
+ * **And it is the voice a break wants.** The bass is the last one in this band
+ * that can state time unaccompanied, which is the property a carrier actually
+ * needs, and it is the one that is genuinely there: the tune covers a median 20%
+ * of the same bars, because a tune ending a section has finished its phrase and
+ * the bass has not. It is also where the old search mostly landed anyway — 585
+ * of those 1359 bars, against 404 for the melody, 118 for the counter and 58 for
+ * the comp — so this is a smaller change in the ear than it is in the diff.
+ *
+ * **The soloist was the plan's first choice and is not here**, which is the one
+ * real loss. Handing a player the bar alone is what a break has always been
+ * *for* — but that is a break the soloist plays *through*, and this engine
+ * cannot write one: the seam plan is settled before a note exists, and the solo
+ * is composed without knowing a break is coming. Over the 531 of those breaks
+ * that end a solo chorus the soloist covers a median 19% of their own last bar,
+ * so handing them the bar hands it to nobody more often than not. It wants the
+ * solo generator told about the seam, which is a `song.ts` change and not this
+ * one.
+ *
+ * ## Three refusals, and all three are about the arrangement
+ *
+ * A break has to take something away and leave somebody, and with the carrier
+ * named rather than found, both halves of that are questions about the plan.
+ * `breakable` asks the first two at the *draw*, where a refusal costs nothing —
+ * `MIN_BREAK_LAYERS` is the coarse form of one and the carrier check is the
+ * other. What is left for here is the same pair put to the arrangement that
+ * actually got made, which is not the one the plan promised: a section listed
+ * with five layers can reach its last bar as a duo, because a solo's backing
+ * policy thinned it on the way. That gap is the whole reason they are worth
+ * re-asking, and the cost is the honest one — the fill has already been vetoed,
+ * so a seam refused here arrives announced by nobody.
+ *
+ *  - **The arrangement still lists the carrier.** Otherwise this is not a break,
+ *    it is a rest with a crash on the end of it.
+ *  - **There is still a band to take away.** `BAND_TAKEN_BY_A_BREAK` is that
+ *    test, and its list is short for a reason given there.
+ *  - **The bass is not the one soloing.** A break under a bass solo is the band
+ *    getting out of the way of a player it is already out of the way of: by the
+ *    last bar the section is the bass and the drummer, and taking the drummer
+ *    out leaves the bar to a soloist who has just finished their chorus. It is
+ *    the refusal `breakable` already makes about a drummer's traded bars —
+ *    somebody else has written this break — and it cannot be made up there,
+ *    because `Section.solo` is written inside the section loop and the plan is
+ *    drawn before it.
+ *
+ * Together they stand down 4.3% of drawn breaks — measured over 2318 of them,
+ * every genre at a forced palette — and take the bars that come out with nothing
+ * sounding in them from 29 to 5. **Those five are real, and
+ * they are all one shape**: a genre whose bass is a drone rather than a
+ * timekeeper — six notes in an eight-bar section, none of them near the seam.
+ * Nothing visible from here separates that bass from a walking one, and the fix
+ * is for a style to be able to say who its break belongs to. See
+ * `docs/engine-gaps.md`.
  *
  * ## And the kit stops with everybody else
  *
@@ -851,184 +957,83 @@ function playBreak(song: Song, seam: Seam): void {
   const lastBar = (section?.lengthBars ?? 0) - 1;
   if (section?.solo?.blocks?.drumBars.some(([a, b]) => lastBar >= a && lastBar < b)) return;
 
-  const struckIn = (n: NoteEvent) => n.beat >= from - 1e-6 && n.beat < to - 1e-6;
+  // The three refusals, in the order they are argued above. Every one of them is
+  // a question about the layer plan and the solo assignment, which is to say
+  // about things `--hook` has been measured not to move.
+  if (!section?.activeLayers.includes(BREAK_CARRIER)) return;
+  if (!section.activeLayers.some((layer) => BAND_TAKEN_BY_A_BREAK.includes(layer))) return;
+  if (section.solo?.layer === BREAK_CARRIER) return;
 
   /**
-   * What survives the break on a given layer, which is not the same as what is
-   * written on it.
+   * Everybody out but the bass — left hand, singer and all.
    *
-   * Two qualifications, and the second was a measured bug rather than a
-   * precaution. Not a sequencer, for the reason `Track.machine` gives everywhere
-   * else — nobody's hands are on it, so it neither stops nor plays a break;
-   * nothing in the one style that draws these has a machine in it, and the rule
-   * is here so that widening the palette does not quietly ask a sequencer to
-   * perform.
+   * **The singer goes with the tune**, because the singer *is* the tune: `vocal`
+   * is the melody line doubled after swing, so it has no onset the melody did not
+   * have and nothing of its own to carry.
    *
-   * And **not the left hand**, which is the one that bit. A two-handed lead is a
-   * single track whose comping is marked and is silenced below along with the
-   * rest of the band, so a bar where the pianist's right hand rests and only the
-   * left hand moves reads as *the tune is playing* to anything that counts onsets
-   * on the track, and comes out empty once the break has run. Six break bars in
-   * 200 fusion songs were exactly that, and every one of them was a hole rather
-   * than a break — the failure check 7 exists to catch, arrived at from the one
-   * direction the check could not have predicted.
+   * **A two-handed lead goes whole.** `generateLeftHand` writes the comping into
+   * the melody part and marks it, so the track is one player doing two jobs and
+   * both of them stop. The old carrier search had to know that — a bar where the
+   * right hand rested and the left hand comped read as *the tune is playing* and
+   * came out empty once the break had run, six bars in 200 fusion songs — and
+   * with nothing being searched for, the trap is gone rather than avoided.
+   *
+   * **A sequencer is skipped rather than stopped**, for the reason
+   * `Track.machine` gives everywhere else in this file: nobody's hands are on it,
+   * so it neither stops nor plays a break. Where a style has one it runs through
+   * the bar and the break is the band dropping out around it, which is what that
+   * music does anyway.
    */
-  const heard = (t: Track) => (n: NoteEvent) => !(t.twoHanded && n.hand === 'left');
-  const onLayer = (layer: LayerId) => song.tracks
-    .filter((t) => t.layer === layer && !t.machine)
-    .flatMap((t) => t.notes.filter(heard(t)));
-
-  /**
-   * Who is left, and the test is whether they are *carrying* the bar rather than
-   * merely present in it.
-   *
-   * The plan says the lead layer and stops there, and a first pass took it at its
-   * word: the highest-priority layer with any onset in the span. That is the rule
-   * that produced the worst bar this wave generated — a break whose surviving
-   * bass plays one 32nd note 0.03 beats before the arriving downbeat, over an
-   * otherwise empty bar. Nothing about it is stop-time. It is a bar of silence
-   * with a pickup on the end, and it is exactly the "reads as a dropout" failure
-   * that decides whether this kind is worth shipping.
-   *
-   * So a candidate has to hold the bar for `MIN_BREAK_COVER` of its length, and
-   * the priority list runs over the candidates that do. Sounding time and not
-   * onsets, because the two answers differ in both directions and only one of
-   * them is what a listener hears: a single held note across the bar is a break
-   * anybody would recognise, and four thirty-seconds bunched under the barline is
-   * not, whatever the onset count says.
-   *
-   * **The soloist first**, where the departing section has one, because handing a
-   * player the bar alone is what a break has always been *for*. **Then the tune,
-   * then the answering line** — the plan's "lead layer", spelled out, since the
-   * lead is a section-loop local that no longer exists by the time this runs and
-   * re-deriving it from `activeLayers` would be re-deriving a guess.
-   *
-   * **Then the bass, and that is the answer to the section whose melody is
-   * silent.** The plan did not have one, and the case is not the exception — it
-   * is the common one. Over 200 fusion songs the bass carries 37 of the 59
-   * breaks that happen, against 13 for the tune and 9 for the answering line,
-   * because a tune ending a section has usually finished its phrase and the bass
-   * has not. A bass break is completely idiomatic, and the bass is the last voice
-   * in the band that can state time unaccompanied, which is the property a
-   * carrier actually needs and the reason the fallback is not a consolation.
-   *
-   * The list stops there on purpose. A comp or a pad alone is not a voice
-   * carrying a break, it is a chord hanging in the air; nothing about it says
-   * *the band stopped*.
-   */
-  const soloist = section?.solo && section.solo.layer !== 'drums' ? section.solo.layer : undefined;
-  const carrier = ([...(soloist ? [soloist] : []), 'melody', 'counter', 'bass'] as LayerId[])
-    .find((layer) => {
-      const notes = onLayer(layer);
-      return notes.some(struckIn) && covers(notes, from, to) >= MIN_BREAK_COVER;
-    });
-  if (!carrier) return;
-
-  /**
-   * The singer goes with the tune, because the singer *is* the tune.
-   *
-   * `vocal` is the melody line doubled after swing — see the caller in
-   * `song.ts` — so silencing it under a melody break would take the voice off
-   * the one line that is meant to be exposed, and keeping it under any other
-   * carrier is moot, since it has no onset the melody did not have.
-   */
-  const carried = (t: Track) => t.layer === carrier || (carrier === 'melody' && t.layer === 'vocal');
+  for (const track of song.tracks) {
+    if (track.machine || track.layer === BREAK_CARRIER) continue;
+    track.notes = hush(track.notes, from, to);
+  }
 
   const kit = song.drums.events;
   const inBar = (e: DrumEvent) => e.beat >= from - 1e-6 && e.beat < to - 1e-6;
-  /**
-   * …and there has to be a band to take out.
-   *
-   * **Not `MIN_BREAK_LAYERS` again**, and the difference is the correction wave 3
-   * had to make to its own plan. The floor is a rule about *drawing* a break —
-   * "at least three sounding layers before drawing one" — and it is applied where
-   * drawing happens, in `planTransitions`, because that is the only point at
-   * which rejecting is free. Repeating the same number here, against the notes,
-   * looked like the same rule stated honestly and was in fact a second and much
-   * harsher gate: it stood down two breaks in five over 200 fusion songs, and
-   * every one of those seams had already given up its fill to a gesture that then
-   * did not happen.
-   *
-   * What is left is the invariant rather than the taste: a break must take
-   * something away and leave somebody. One other voice struck in the bar — a
-   * layer or the kit — is exactly that, and it is not a weaker version of the
-   * floor, it is the other question. A bar with the bass and the drummer in it
-   * becomes a bar with the bass alone, and a listener hears the drummer stop,
-   * which is the gesture. A bar with nobody but the carrier in it becomes the
-   * same bar, and the pass leaves it untouched.
-   *
-   * Struck rather than sounding, for the same reason the carrier has to be:
-   * cutting a pad that was already decaying is not what anybody means by the
-   * band stopping.
-   */
-  const taken = new Set<LayerId>(song.tracks
-    .filter((t) => !t.machine && !carried(t) && t.notes.some((n) => heard(t)(n) && struckIn(n)))
-    .map((t) => t.layer));
-  if (kit.some(inBar)) taken.add('drums');
-  if (!taken.size) return;
-
-  for (const track of song.tracks) {
-    if (track.machine) continue;
-    /**
-     * The carrier's own left hand is part of the band that stopped.
-     *
-     * A two-handed lead is one track — `generateLeftHand` writes the comping
-     * into the melody part and marks it — so a break that spared the whole track
-     * would leave the pianist comping underneath their own break, which is the
-     * one thing nobody does. The mark is read rather than `melodicLine`'s gap
-     * inference, deliberately: the inference is documented as fragile, and here
-     * it would be guessing which notes to *delete*.
-     */
-    track.notes = carried(track)
-      ? (track.twoHanded ? hush(track.notes, from, to, (n) => n.hand !== 'left') : track.notes)
-      : hush(track.notes, from, to);
-  }
-
   song.drums.events = markTheLanding(kit, kit.filter((e) => !inBar(e) || e.voice === 'cr'), to, bpb);
 }
 
 /**
- * How much of a break bar its surviving voice has to be sounding for.
+ * Who is left holding a break.
  *
- * A third, and it is the number that decides whether this kind is a gesture or a
- * dropout. A break is silence with a voice in it; past some point it stops being
- * that and becomes silence with a *decoration* in it, and the pass has no way to
- * tell the difference except by asking how long the voice is actually there.
+ * A layer id and not a search, which is the whole of the fix and is argued at
+ * length in `playBreak`: the musical answer to *who carries the seam* is a role,
+ * the role is the one that can state time on its own, and a role is a property
+ * of the band rather than of one bar's notes. It is also the only kind of answer
+ * available to a pass that may not read a note — see the top of this file.
  *
- * A third is low on purpose. Measured over 200 fusion songs the lead layer covers
- * 64% of an ordinary bar and this is meant to reject the tail rather than
- * legislate a density: the bars it stands a break down over are the ones covered
- * 0–20%, which are a pickup under the barline or a single short note, and both of
- * those are what the failure sounded like. Raising it to a half would also reject
- * a held note with air on either side of it, which is the most idiomatic break in
- * the repertoire.
+ * **It wants to be a `Style` field and is not one yet.** A break in this
+ * repertoire is not always the bass: a taqsim ends on the qanun and a breakdown
+ * belongs to the guitars, and `TransitionPalette` already lets a style name the
+ * vocabulary it draws from without letting it say who plays it. One id on
+ * `Style`, defaulting here, would cost no draw and would give the two genres
+ * that dropped this kind a way to have it back on their own terms. It is not in
+ * this pass because `style/types.ts` is not this pass's file. See
+ * `docs/engine-gaps.md`.
  */
-const MIN_BREAK_COVER = 1 / 3;
+const BREAK_CARRIER: LayerId = 'bass';
 
 /**
- * How much of a span a part is sounding for, 0..1.
+ * The band a break takes something away from, besides the kit and the carrier.
  *
- * Sounding rather than struck, and the union rather than the sum, because the
- * question is what a listener hears: two notes overlapping is one continuous
- * sound and a chord is one sound, and a count of onsets says three where the
- * answer is one. Clamped to the span at both ends, so a note that started before
- * it counts for the part inside and a note ringing past the barline does not
- * borrow the next bar's time.
+ * Four layers rather than "everything else", and the two that are missing are
+ * the point. `counter` and `brass` are the layers written *against* the finished
+ * tune — one answers the melody's gaps, the other is placed around it — so they
+ * are the two whose membership of a section's `activeLayers` moves when `--hook`
+ * does: 286 and 3 of 7354 sections, against zero for every other layer. Counting
+ * them here would make *whether the kit gets emptied* depend on the tune with a
+ * layer plan worn as a disguise, which is precisely the bug this pass exists to
+ * close.
+ *
+ * What is left is the band a listener would miss: the chords, the wash and the
+ * tune. If a section has none of them by its last bar it is a rhythm section
+ * playing on its own, and taking the drummer out of that is not stop-time — it
+ * is the arrangement getting thinner for a bar, which is the failure
+ * `MIN_BREAK_LAYERS` is written against, arriving after the plan promised
+ * otherwise.
  */
-function covers(notes: readonly NoteEvent[], from: number, to: number): number {
-  const spans = notes
-    .map((n) => [Math.max(from, n.beat), Math.min(to, n.beat + n.duration)] as const)
-    .filter(([a, b]) => b > a)
-    .sort((a, b) => a[0] - b[0]);
-  let total = 0;
-  let end = from;
-  for (const [a, b] of spans) {
-    if (b <= end) continue;
-    total += b - Math.max(a, end);
-    end = b;
-  }
-  return to > from ? total / (to - from) : 0;
-}
+const BAND_TAKEN_BY_A_BREAK: LayerId[] = ['comp', 'pad', 'melody', 'vocal'];
 
 /**
  * Take a part out for a span.
@@ -1044,13 +1049,10 @@ function covers(notes: readonly NoteEvent[], from: number, to: number): number {
  * written that was not going to exist, and the note's own end moves earlier,
  * never later, so nothing downstream inherits an overlap it did not have.
  */
-function hush(
-  notes: NoteEvent[], from: number, to: number, spare: (n: NoteEvent) => boolean = () => false,
-): NoteEvent[] {
+function hush(notes: NoteEvent[], from: number, to: number): NoteEvent[] {
   const out: NoteEvent[] = [];
   for (const n of notes) {
-    if (spare(n)) out.push(n);
-    else if (n.beat >= from - 1e-6 && n.beat < to - 1e-6) continue;
+    if (n.beat >= from - 1e-6 && n.beat < to - 1e-6) continue;
     else if (n.beat < from - 1e-6 && n.beat + n.duration > from + 1e-6) {
       out.push({ ...n, duration: from - n.beat });
     } else out.push(n);

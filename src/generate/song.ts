@@ -299,10 +299,19 @@ export function generateSong(opts: GenerateOptions = {}): Song {
    * groove or the instrumentation: the whole value of the chart is that two songs
    * differ in *what the band does*, and that is worth nothing if turning the knob
    * also rerolls everything else. See `generate/chart.ts`.
+   *
+   * It is handed the form's shape as well as the band's, and only for one
+   * decision: a layer that leaves has to leave at its *last* section rather than
+   * at a number drawn without knowing how many there are. `buildForm` has already
+   * run and the counts cost no draw, so the chart stays what it was — a plan made
+   * before a note is written — and the hook cannot reach it, because the form is
+   * hook-invariant and `npm run genres` asserts exactly that.
    */
+  const counts: Partial<Record<SectionKind, number>> = {};
+  for (const step of steps) counts[step.kind] = (counts[step.kind] ?? 0) + 1;
   const chart = planChart({
     rng: new Rng(`${seed}:chart`),
-    style, mood, density,
+    style, mood, density, counts,
     beatsPerBar: style.beatsPerBar,
     ...(genre.arrangement ? { weights: genre.arrangement } : {}),
   });
@@ -314,12 +323,15 @@ export function generateSong(opts: GenerateOptions = {}): Song {
     const step = steps[i]!;
     const transpose = keys.transpose[i] ?? 0;
     /**
-     * The same layers every time this kind of section comes round.
+     * The same layers every time this kind of section comes round, unless the
+     * chart says otherwise in so many words.
      *
      * Which is the whole point: a chorus that had horns and a repeat that does not
-     * is not an arrangement, and it was happening in half of them. `playing` still
-     * lets a layer *arrive* late — see `Chart.enters` — because horns entering on
-     * the second chorus is a decision, where horns leaving on the third was a coin.
+     * was happening in half of them and was nobody's decision. What `playing` reads
+     * now is a window — `Chart.enters` lets a layer arrive late and `Chart.exits`
+     * lets it sit out the last one — and the difference from the fault is that both
+     * run one way only. Horns that enter on the second chorus and horns that lay
+     * out for the last are two arrangements; horns that come and go are neither.
      */
     const nth = kindSoFar.get(step.kind) ?? 0;
     kindSoFar.set(step.kind, nth + 1);
