@@ -26,6 +26,16 @@
 
 import type { Midi } from '../core/pitch.js';
 import type { DrumVoice } from '../core/types.js';
+/**
+ * The one thing this directory reads out of the renderer, and it is a fact about
+ * objects rather than about sound.
+ *
+ * A sampled rack is a stand of hand percussion riding on a machine's kit — see
+ * `SAMPLE_RACKS` — and which pieces are on it decides who is on the stage to
+ * play them. That table is where the measurements live and it may not be copied
+ * over here; see `rackVoices`, which exists to be the question casting asks.
+ */
+import { rackVoices } from '../render/drum-banks.js';
 import type { InstrumentId } from '../style/instruments.js';
 import { INSTRUMENTS } from '../style/instruments.js';
 import type { Archetype, ArchetypeSpec, SynthRigId } from './types.js';
@@ -357,6 +367,26 @@ export const ARCHETYPES: Record<Archetype, ArchetypeSpec> = {
    *
    * `straddle` for the same reason a cello is: the drum is between the knees.
    *
+   * **And `lap`, because half the time the knees are on a carpet.** This is the
+   * archetype the floor posture was written for and the only one that needs both
+   * fields, because it is the only one whose answer genuinely depends on who is
+   * playing it. A conga player stands beside a drum kit in a funk band and a
+   * timbalero stands at a rack; a tabla player, a mridangist and a takht's
+   * darbuka player are cross-legged on the floor. Same object, two traditions,
+   * two postures — see `FLOOR_SEATED` in `cast.ts`, which is the other half.
+   *
+   * `posture` stays the object's own default rather than becoming a third state
+   * meaning "ask somebody": a hand drum with nobody's tradition attached — the
+   * gallery bench, a genre that has said nothing — is a drum between the knees
+   * of somebody on a chair, which is what it was before any of this and is the
+   * commoner picture across the catalogue.
+   *
+   * `workHeight` is the default posture's, and stays 0.72 for the same reason.
+   * It is a statement about the object at the posture this entry names; the
+   * model drops its head to 0.32 m when it is told the player is on the floor,
+   * and nothing reads `workHeight` for a player who cannot host a machine — see
+   * `canWorkAPanel`, which this archetype fails on `points` alone.
+   *
    * `points` has no `pedal`. That is the one line of this entry the
    * choreographer reads before it will place a foot, and a hand drum has
    * nothing for a foot to do.
@@ -366,6 +396,7 @@ export const ARCHETYPES: Record<Archetype, ArchetypeSpec> = {
     hands: 2, posture: 'straddle', points: ['drum', 'rest'],
     // As with the kit: strike points are addressed by voice, never by pitch.
     range: [35, 81],
+    lap: true,
     held: false, footprint: 0.9, workHeight: 0.72,
   }),
 
@@ -488,16 +519,40 @@ export const ARCHETYPES: Record<Archetype, ArchetypeSpec> = {
     hands: 2, posture: 'sit', points: ['string', 'rest'],
     range: [24, 103], held: false, footprint: 1.1, workHeight: 1.2,
   }),
+  /**
+   * The one archetype in the table whose posture is `floor`, and it needs no
+   * `lap` flag because there is no tradition to consult.
+   *
+   * A sitar is played cross-legged with the tumba on the left foot. Not usually,
+   * not in one genre — always, everywhere, by everybody, because the instrument
+   * has no other way of being held: the gourd is a beach ball with no waist for
+   * a thigh and no strap anchor, and the neck is a metre and a half of it that
+   * has to come up across the body to the left shoulder. Standing sitarists
+   * exist in the same sense that standing cellists do.
+   *
+   * So this is the degenerate corner of the two-part rule `lap` documents: where
+   * the object's answer is the same in every tradition, the object simply says
+   * so and `cast.ts` never has to ask. The same test applied to `handdrum` gives
+   * the other answer and that is why the flag exists.
+   *
+   * **The comment this replaces was the bug report.** It read: *0.7 was the
+   * cross-legged player this instrument cannot have: `sit` is a chair, so the
+   * model hangs its bridge off the hip and the strings run from about 0.72 at
+   * the jawari to 1.15 at the nut.* Both numbers were half a metre up in the
+   * air, and `web/concert/instruments/sitar.ts` carried the matching apology
+   * about having had to move its whole mount to compensate. With a floor to sit
+   * on, the geometry that file describes as *the sitar, and right for the
+   * cross-legged player the rest of this file describes* — bridge at 0.42, neck
+   * rising to 0.85 at the nut — is what it builds again, and `workHeight` is the
+   * plane between them.
+   */
   sitar: S({
     id: 'sitar', label: 'sitar', family: 'plucked',
-    hands: 2, posture: 'sit', points: ['string', 'rest'],
+    hands: 2, posture: 'floor', points: ['string', 'rest'],
     // Bounded by its own strings: the lowest opens at 48 and 20 frets from the
     // top course reaches 80. The old [45, 84] was reachable at neither end.
     range: [48, 80], strings: [48, 53, 55, 60], frets: 20,
-    // 0.7 was the cross-legged player this instrument cannot have: `sit` is a
-    // chair, so the model hangs its bridge off the hip and the strings run from
-    // about 0.72 at the jawari to 1.15 at the nut. This is where the hands work.
-    held: true, footprint: 0.9, workHeight: 0.95,
+    held: true, footprint: 0.9, workHeight: 0.6,
   }),
 
   // G3 D4 A4 E5 and C2 G2 D3 A3.
@@ -699,6 +754,10 @@ export const HAND_DRUM_ARCHETYPE: Archetype = 'handdrum';
  * `tb`; with two tiers, that `tb` would have conscripted a full acoustic kit,
  * and the picture would be a drummer sitting behind five drums and three
  * cymbals playing a tambourine on the quarter notes.
+ *
+ * `either` is the tier a sampled rack can settle, and it is the only one — see
+ * `drumStations`. A rack naming `tb` has said which of the two tambourines this
+ * number means, because it is the one whose recording will sound.
  */
 export type DrumStation = 'kit' | 'hand' | 'either';
 
@@ -719,16 +778,46 @@ export const STATION_OF: Record<DrumVoice, DrumStation> = {
  * A part with nothing but auxiliary voices in it gets a kit. That is not a
  * fallback so much as the truth: a jazz brush part is `sh` and nothing else,
  * and brushes are played on a snare drum.
+ *
+ * ## The bank, and why a sample library is allowed a say here
+ *
+ * `bank` is `DrumTrack.bank`, and it is read for exactly one thing: whether it
+ * names a sampled rack — `RolandTR808+darbuka` — and if so which pieces are on
+ * it. See `SAMPLE_RACKS` in `render/drum-banks.ts`, whose closing argument is
+ * that a rack is *additive*: a bank is what the drummer switched to, and a rack
+ * is what the person sitting next to them is playing.
+ *
+ * That makes the rack's contents a casting fact, and not reading them here is
+ * how the sound and the picture come apart. `perc` on a Latin rack is a bongo,
+ * `cb` is the cowbell on that player's own stand and `sh` is a cabasa; those are
+ * one percussionist's station, and leaving them at the `either` tier hands them
+ * to the drummer — who is then seen striking a woodblock on their trap table
+ * while a bongo sounds. So **a voice the rack carries belongs to the rack's
+ * player**, auxiliary or not, and a rack with any of its pieces written puts
+ * that player on the stage.
+ *
+ * **What the bank still may not decide is whether there are hands at all.** That
+ * is `DrumSource`'s, whose own note warns in as many words that reading an
+ * object off a bank name would put an MPC on a swing bandstand — casting gates
+ * this whole question on `isPlayedByHand` before it asks, so a rack riding on a
+ * `programmed` part is samples in a box and stages nobody. The source says
+ * whether anyone is playing; the rack says what they are playing.
+ *
+ * Omitting `bank` gives the answer every caller got before racks existed, which
+ * is also the right answer for a probe holding events and no song — a gallery
+ * bench, `npm run concert`'s model sweep — since a plain machine name carries no
+ * rack anyway and there is nothing for it to change.
  */
 export function drumStations(
-  voices: Iterable<DrumVoice>,
+  voices: Iterable<DrumVoice>, bank?: string,
 ): { kit: boolean; hand: boolean; owns(voice: DrumVoice): DrumStation } {
+  const rack = bank ? rackVoices(bank) : undefined;
   let kit = false;
   let hand = false;
   for (const v of voices) {
     const station = STATION_OF[v];
     if (station === 'kit') kit = true;
-    else if (station === 'hand') hand = true;
+    else if (station === 'hand' || rack?.has(v)) hand = true;
   }
   if (!kit && !hand) kit = true;
   // Auxiliary pieces follow whoever is standing there, and the kit has first
@@ -737,7 +826,21 @@ export function drumStations(
   const auxTo: DrumStation = kit ? 'kit' : 'hand';
   return {
     kit, hand,
-    owns: (voice) => (STATION_OF[voice] === 'either' ? auxTo : STATION_OF[voice]),
+    /**
+     * The rack is asked first, and the loop above is what makes that safe: any
+     * voice on it that this part actually writes has already set `hand`, so
+     * this can never send a piece to a percussionist nobody staged. A voice the
+     * part does not write is not a voice anybody is holding.
+     *
+     * A rack never carries a kit-tier voice — the table forbids it and
+     * `npm run genres` checks it, on the grounds that a rack with a kick in it
+     * is a bank with the wrong addressing — so the two questions cannot fight.
+     */
+    owns: (voice) => (
+      rack?.has(voice) ? 'hand'
+        : STATION_OF[voice] === 'either' ? auxTo
+          : STATION_OF[voice]
+    ),
   };
 }
 
@@ -749,11 +852,16 @@ export function drumStations(
  * The coverage assertion — one sounding gesture per note — is the reason that
  * matters concretely: two players over one event stream must partition it
  * exactly, and a voice counted for both or for neither fails loudly.
+ *
+ * `bank` is passed straight through; see `drumStations`, which is where the
+ * rack it may name is read. Every caller that has a `Song` has it, and should
+ * hand it over — the partition is what decides which pieces each model is built
+ * with, so a caller that drops it builds a percussionist without their cowbell.
  */
 export function drumEventsFor<T extends { voice: DrumVoice }>(
-  events: readonly T[], archetype: Archetype,
+  events: readonly T[], archetype: Archetype, bank?: string,
 ): T[] {
-  const stations = drumStations(events.map((e) => e.voice));
+  const stations = drumStations(events.map((e) => e.voice), bank);
   const want: DrumStation = archetype === HAND_DRUM_ARCHETYPE ? 'hand' : 'kit';
   return events.filter((e) => stations.owns(e.voice) === want);
 }

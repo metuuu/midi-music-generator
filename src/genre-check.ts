@@ -23,8 +23,11 @@ import { chordPcs, parseRoman, CHORD_INTERVALS, type Chord, type ChordQuality } 
 import { makeScale } from './core/scale.js';
 import { pc } from './core/pitch.js';
 import { canVary, melodicLine, type DrumVoice, type Song } from './core/types.js';
+import { drumStations } from './concert/instruments.js';
 import { Rng } from './core/rng.js';
-import { BANK_VOICES, resolveVoice } from './render/drum-banks.js';
+import { BANK_VOICES, readBankName, resolveVoice, SAMPLE_RACKS } from './render/drum-banks.js';
+import { RACK_SAMPLE_LEVEL } from './render/source-levels.js';
+import { renderStrudel } from './render/strudel.js';
 import { HANDS, IDIOMS, type Idiom, type IdiomProfile } from './style/instruments.js';
 import type { Style } from './style/types.js';
 import { shotFigures, type TransitionPalette } from './generate/transition.js';
@@ -2776,6 +2779,14 @@ console.log('\nDrum banks');
    * which is exhaustive over the patterns, plus what real songs add on top of
    * them — fills, their landing cymbal, drum solos — since that is where most
    * of the voices old machines lack come from.
+   *
+   * `ghosts` counts as much as `voices` does. A ghost is an ordinary event on
+   * the kit by the time it reaches a renderer — quieter, and that is all — so a
+   * voice that appears only in a ghost row still has to resolve on every bank
+   * the genre rolls. The static half of this sweep is the half that catches it:
+   * a ghost is the least likely stroke in the pattern to turn up in three
+   * generated songs, since it is also the first thing a fill clears and a box
+   * drops it entirely.
    */
   const emitted = (gid: string): Set<DrumVoice> => {
     const genre = getGenre(gid);
@@ -2783,6 +2794,7 @@ console.log('\nDrum banks');
     for (const style of Object.values(genre.styles)) {
       for (const pattern of style.drums) {
         for (const voice of Object.keys(pattern.voices) as DrumVoice[]) voices.add(voice);
+        for (const voice of Object.keys(pattern.ghosts ?? {}) as DrumVoice[]) voices.add(voice);
       }
     }
     for (const era of Object.keys(genre.eras)) {
@@ -2802,11 +2814,13 @@ console.log('\nDrum banks');
   for (const gid of GENRE_IDS) {
     const voices = emitted(gid);
     for (const era of Object.values(getGenre(gid).eras)) {
-      for (const [bank] of era.drumBanks) {
-        if (!BANK_VOICES[bank]) { unmeasured.push(`${gid}/${era.id}: ${bank}`); continue; }
+      for (const [name] of era.drumBanks) {
+        const { machine, rack } = readBankName(name);
+        if (!BANK_VOICES[machine]) { unmeasured.push(`${gid}/${era.id}: ${machine}`); continue; }
+        if (rack && !SAMPLE_RACKS[rack]) { unmeasured.push(`${gid}/${era.id}: rack ${rack}`); continue; }
         for (const voice of voices) {
           pairs++;
-          if (!resolveVoice(bank, voice)) unplayable.push(`${bank} cannot play ${voice}`);
+          if (!resolveVoice(name, voice)) unplayable.push(`${name} cannot play ${voice}`);
         }
       }
     }
@@ -2834,6 +2848,129 @@ console.log('\nDrum banks');
     ridelessJazz.length === 0,
     ridelessJazz.length ? ridelessJazz.join(', ') : 'no jazz bank falls back to the hat',
   );
+
+  // --- Racks ---------------------------------------------------------------
+  // A sampled rack is not a bank — see `SAMPLE_RACKS` — so "is it in the table"
+  // is the wrong question to ask of one, and these are the four that replace it.
+  // Each is the inverse of something the bank checks assert, which is the point:
+  // if a rack passed the bank rules it would *be* a bank and should be written
+  // as one.
+  const racks = Object.entries(SAMPLE_RACKS);
+
+  /**
+   * A rack rides on a machine and never stands in for one.
+   *
+   * These four are the voices `BANK_VOICES` demands of every machine and the
+   * four `FALLBACK` gives no substitutes to, because every bank has them and a
+   * pattern with no kick is not a thinner arrangement, it is a broken one. A
+   * rack carrying one of them is not a rack; it is a bank with the wrong
+   * addressing, and the fix is to register it as a bank rather than to teach
+   * this side of the file to be a kit.
+   */
+  const kitVoices: DrumVoice[] = ['bd', 'sd', 'hh', 'oh'];
+  const pretenders = racks.flatMap(([rack, voices]) =>
+    kitVoices.filter((v) => voices[v]).map((v) => `${rack} carries ${v}`));
+  check(
+    'a sampled rack is not a kit',
+    pretenders.length === 0 && racks.length > 0,
+    pretenders.length ? pretenders.join(', ') : `${racks.length} racks, all auxiliary voices only`,
+  );
+
+  /**
+   * A name is a machine or a rack, never both.
+   *
+   * `readBankName` splits on the marker and looks each half up in its own table,
+   * so a name in both would resolve differently depending on which side of a `+`
+   * it landed on — and the era table that named it would be right either way.
+   */
+  const clashes = racks.map(([rack]) => rack).filter((rack) => BANK_VOICES[rack]);
+  check(
+    'no rack shares a name with a machine',
+    clashes.length === 0,
+    clashes.length ? clashes.join(', ') : `${racks.length} racks against ${Object.keys(BANK_VOICES).length} machines`,
+  );
+
+  /**
+   * Every rack sample has a measured level, which is stricter than what a
+   * machine is held to and has to be.
+   *
+   * An unlisted machine plays at unity and sounds roughly right, because the
+   * drum pack normalises every sample to full scale. The bare libraries do not:
+   * the racks span 22 dB and one of them 19 dB on its own, so a voice with no
+   * entry in `RACK_SAMPLE_LEVEL` is not slightly wrong, it is missing from the
+   * mix. See that table for the measurement.
+   */
+  const untrimmed = racks.flatMap(([rack, voices]) =>
+    (Object.keys(voices) as DrumVoice[])
+      .filter((v) => RACK_SAMPLE_LEVEL[rack]?.[v] === undefined)
+      .map((v) => `${rack}.${v}`));
+  check(
+    'every rack sample has been levelled',
+    untrimmed.length === 0,
+    untrimmed.length ? untrimmed.join(', ')
+      : `${racks.reduce((n, [, v]) => n + Object.keys(v).length, 0)} samples trimmed`,
+  );
+
+  /**
+   * The three hand-drum strokes are three different recordings.
+   *
+   * This is the whole reason a rack exists rather than another fallback chain.
+   * `FALLBACK` already warns that aiming `lp`, `mp` and `hp` at one sample plays
+   * a doum, a tek and a ka as the same sound three times — *the collapse these
+   * voices exist to undo, arriving one layer lower down* — and a rack is only
+   * an improvement on that while its three are distinct. A folder indexed
+   * carelessly would collapse them again and nothing else would notice.
+   */
+  const collapsed = racks
+    .filter(([, v]) => v.lp && v.mp && v.hp)
+    .filter(([, v]) => new Set([v.lp, v.mp, v.hp].map((s) => s!.join(':'))).size < 3)
+    .map(([rack]) => rack);
+  const handed = racks.filter(([, v]) => v.lp && v.mp && v.hp).length;
+  check(
+    'a rack plays three strokes, not one three times',
+    collapsed.length === 0 && handed === racks.length,
+    collapsed.length ? collapsed.join(', ') : `${handed} racks with a distinct low, mid and high`,
+  );
+
+  /**
+   * And the one that proves the feature is reachable at all, which is what was
+   * actually wrong: both sample libraries have been fetched on every page load
+   * for weeks with no way for a genre to name either.
+   *
+   * Rendered rather than reasoned about, because the bug was in the emitted
+   * text — `.bank('X')` prefixes the sample name at trigger time, so a bare
+   * rack sample emitted with a bank attached looks correct in the IR and
+   * resolves to a sound that does not exist. Forced onto a genre that writes
+   * all three strokes, since no era table names a rack yet.
+   */
+  {
+    // Searched rather than pinned: which figure a seed draws moves whenever
+    // anything upstream touches the `Rng` stream, and a check that names one
+    // seed is a check that fails for a reason that has nothing to do with it.
+    let song: Song | undefined;
+    for (let i = 0; i < 12 && !song; i++) {
+      const s = generateSong({ seed: `rack-${i}`, genre: 'arabic' });
+      const voices = new Set(s.drums.events.map((e) => e.voice));
+      const hand = (['lp', 'mp', 'hp'] as DrumVoice[]).some((v) => voices.has(v));
+      if (hand && kitVoices.some((v) => voices.has(v))) song = s;
+    }
+    const code = song ? renderStrudel({ ...song, drums: { ...song.drums, bank: 'RolandTR808+darbuka' } }) : '';
+    // The rack's names are bare and indexed; the machine's carry its prefix and
+    // never an index; and no `.bank()` anywhere is handed the composite name,
+    // which is the emitted text the whole design turns on.
+    const bare = /\n {2}s\(`[^`]*\bdarbuka\b/.test(code) && /\.n\(\d+\)/.test(code);
+    const machine = code.includes(".bank('RolandTR808')");
+    const clean = !/\.bank\('[^']*\+/.test(code);
+    check(
+      'a genre can name a rack and reach the samples',
+      Boolean(song) && bare && machine && clean,
+      !song ? 'no arabic song in 12 seeds played both a hand drum and a kit'
+        : !bare ? 'the rack emitted no bare, indexed sample'
+          : !machine ? 'the machine under the rack stopped playing'
+            : !clean ? 'a bank prefix was built from the composite name'
+              : 'darbuka over an 808 — bare indexed names on the rack, a prefix on the machine',
+    );
+  }
 }
 
 // --- Metre -----------------------------------------------------------------
@@ -2903,6 +3040,12 @@ console.log('\nMetre');
    * the pattern still plays, it just lands in the same place every bar and
    * sounds like an ordinary riff. So the test is that the figure's onsets, taken
    * modulo the bar, land in more than one place.
+   *
+   * Ghosts drift with the figure they belong to — `DrumPattern.ghosts` says so
+   * in as many words — so they are onsets here like any other. It matters more
+   * than it looks: a figure whose loud strokes are sparse can carry most of its
+   * shape in the quiet ones, and reading only `voices` would measure the drift
+   * of a part nobody is playing.
    */
   {
     const style = getGenre('jazz').styles.fusion!;
@@ -2911,7 +3054,7 @@ console.log('\nMetre');
     const slotsPerBar = style.beatsPerBar * 4;
     const landings = new Set<number>();
     if (drifting) {
-      for (const slots of Object.values(drifting.voices)) {
+      for (const slots of [...Object.values(drifting.voices), ...Object.values(drifting.ghosts ?? {})]) {
         for (const at of slots ?? []) {
           for (let base = 0; base < bars * slotsPerBar; base += drifting.cycle!) {
             const slot = base + at;
@@ -3268,6 +3411,17 @@ console.log('\nSolos');
     consecutive: number; handovers: number;
     /** Drum choruses: distinct kit voices, and whether the hand-off crashed. */
     kitVoices: number[]; kitLandings: number; kitSolos: number;
+    /**
+     * The same three, for a chorus taken on a hand drum.
+     *
+     * Counted apart rather than together because the two are different
+     * instruments and the assertion below is about *orchestration* — how much
+     * of the object in front of the player the solo actually uses. A trap kit
+     * has seven or eight surfaces and a darbuka has three, so one number
+     * covering both would either let a kit solo hide on a single tom or demand
+     * of a goblet drum an instrument that is not on the stage.
+     */
+    handVoices: number[]; handLandings: number; handSolos: number;
     /** Comp onsets per bar, behind a solo and behind the head. */
     compUnderSolo: number; barsUnderSolo: number; compUnderHead: number; barsUnderHead: number;
     /** Named soloists whose instrument does not match a track. */
@@ -3281,6 +3435,7 @@ console.log('\nSolos');
       risingSections: 0, arcSections: 0, identical: 0, pairs: 0,
       layers: new Map(), backings: new Map(),
       consecutive: 0, handovers: 0, kitVoices: [], kitLandings: 0, kitSolos: 0,
+      handVoices: [], handLandings: 0, handSolos: 0,
       compUnderSolo: 0, barsUnderSolo: 0, compUnderHead: 0, barsUnderHead: 0, misnamed: 0,
     };
 
@@ -3336,13 +3491,37 @@ console.log('\nSolos');
         }
 
         if (sec.solo.layer === 'drums') {
-          m.kitSolos++;
           const inSection = song.drums.events.filter((e) => e.beat >= from && e.beat < to);
-          m.kitVoices.push(new Set(inSection.map((e) => e.voice)).size);
-          // The hand-off: a crash on the downbeat the band comes back in on,
-          // which belongs to the section after this one.
-          if (song.drums.events.some((e) => e.voice === 'cr' && Math.abs(e.beat - to) < 0.26)) {
-            m.kitLandings++;
+          const voices = new Set(inSection.map((e) => e.voice));
+          /**
+           * Which object took the chorus, asked the way the stage asks it.
+           *
+           * `drumStations` is the same three-tier `kit`/`hand`/`either` split
+           * `cast.ts` uses to decide who is standing where, and it has to be the
+           * one asked here too — a second answer to "which object does this
+           * voice need" is how the check and the stage come to disagree about
+           * what the audience is looking at. Asked per section rather than per
+           * genre because a genre is not one instrument: arabic's `saidi` and
+           * `zaffa` own a real bass drum, and those choruses are a kit's.
+           */
+          if (drumStations(voices).kit) {
+            m.kitSolos++;
+            m.kitVoices.push(voices.size);
+            // The hand-off: a crash on the downbeat the band comes back in on,
+            // which belongs to the section after this one.
+            if (song.drums.events.some((e) => e.voice === 'cr' && Math.abs(e.beat - to) < 0.26)) {
+              m.kitLandings++;
+            }
+          } else {
+            m.handSolos++;
+            m.handVoices.push(voices.size);
+            // A skin does not ring, so a hand drum cannot land the band on a
+            // cymbal. The doum is what it lands them on instead — the lowest
+            // stroke, on the downbeat, which is the same gesture on the only
+            // surface that can carry it. See `generateDrumSolo`.
+            if (song.drums.events.some((e) => e.voice === 'lp' && Math.abs(e.beat - to) < 0.26)) {
+              m.handLandings++;
+            }
           }
           continue;
         }
@@ -3460,6 +3639,14 @@ console.log('\nSolos');
   const isk = measure('iskelma', 60);
   const jaz = measure('jazz', 40);
   const amb = measure('ambient', 24);
+  /**
+   * The genre that solos on a hand drum, so the claim below has both stations
+   * in front of it. Arabic is the one with the most of them — a darbuka, and no
+   * kit anywhere in the takht — and it is also the genre whose author had to
+   * take drums out of the rotation entirely when the solo generator could only
+   * write for a trap kit.
+   */
+  const arb = measure('arabic', 60);
   const pct = (a: number, b: number) => (a / Math.max(1, b)) * 100;
   const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / Math.max(1, xs.length);
 
@@ -3533,15 +3720,33 @@ console.log('\nSolos');
   // Two claims, and both are about it being a *solo*. A drum solo that stays on
   // one drum is a drum roll, and one that stops rather than handing back sounds
   // like it was interrupted — the hand-off is the part the audience hears.
+  /**
+   * …and it has to be the instrument in front of the player, not a kit.
+   *
+   * This asserted "the kit" for as long as a kit was the only thing
+   * `generateDrumSolo` could write for, and the floor of four was a statement
+   * about a trap kit's seven or eight surfaces rather than about drumming. A
+   * darbuka has three strokes *in the world*: asking a hand drum for four would
+   * demand an instrument that is not on the stage, and letting the kit down to
+   * three would let a chorus hide on the snare and two toms.
+   *
+   * So both floors are the same claim measured against what is actually there —
+   * use most of what you are holding — and neither is a number that would move
+   * if the other one did.
+   */
   check(
-    'a drum solo is orchestrated around the kit',
-    jaz.kitSolos > 0 && Math.min(...jaz.kitVoices) >= 4,
-    `${jaz.kitSolos} drum choruses, ${mean(jaz.kitVoices).toFixed(1)} voices each (fewest ${Math.min(...jaz.kitVoices)})`,
+    'a drum solo is orchestrated around the instrument it is played on',
+    jaz.kitSolos > 0 && Math.min(...jaz.kitVoices) >= 4
+      && arb.handSolos > 0 && Math.min(...arb.handVoices) >= 3,
+    `kit: ${jaz.kitSolos} choruses, ${mean(jaz.kitVoices).toFixed(1)} voices each (fewest ${Math.min(...jaz.kitVoices)}); `
+    + `hand: ${arb.handSolos} choruses, ${mean(arb.handVoices).toFixed(1)} each (fewest ${Math.min(...arb.handVoices)})`,
   );
   check(
     'a drum solo lands the band back in',
-    jaz.kitSolos > 0 && jaz.kitLandings === jaz.kitSolos,
-    `${jaz.kitLandings}/${jaz.kitSolos} ended on a crash on the returning downbeat`,
+    jaz.kitSolos > 0 && jaz.kitLandings === jaz.kitSolos
+      && arb.handLandings === arb.handSolos,
+    `${jaz.kitLandings}/${jaz.kitSolos} ended on a crash on the returning downbeat, `
+    + `${arb.handLandings}/${arb.handSolos} on a doum`,
   );
 
   // --- Comping -------------------------------------------------------------

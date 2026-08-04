@@ -37,7 +37,7 @@ import { getFontBufferSource, registerSoundfonts } from '@strudel/soundfonts';
 import GM_FONTS from '@strudel/soundfonts/gm.mjs';
 
 import type { Envelope, Song } from '../core/types.js';
-import { resolveVoice } from '../render/drum-banks.js';
+import { resolveDrumSample } from '../render/drum-banks.js';
 import { SAMPLE_MANIFESTS } from '../render/strudel.js';
 
 let instance: StrudelRepl | undefined;
@@ -269,16 +269,22 @@ async function warm(song: Song): Promise<void> {
   }
 
   for (const voice of new Set(song.drums.events.map((e) => e.voice))) {
-    // The bank's own substitution, so what gets warmed is the sample that will
-    // actually sound. A voice the bank cannot play at all is dropped from the
-    // pattern by the renderer, and there is nothing to load for it here either.
-    const sound = resolveVoice(song.drums.bank, voice);
-    if (!sound) continue;
-    // `.bank()` is applied by prefixing the name at trigger time, so this is
-    // the key superdough will look up: `linndrum_bd`, not `bd`.
-    const bank = getSound(`${song.drums.bank}_${sound}`)?.data?.samples;
-    if (!bank) continue;
-    loads.push(getSampleBuffer({ s: sound, n: 0 }, bank));
+    // The kit's own substitution, so what gets warmed is the sample that will
+    // actually sound. A voice it cannot play at all is dropped from the pattern
+    // by the renderer, and there is nothing to load for it here either.
+    const played = resolveDrumSample(song.drums.bank, voice);
+    if (!played) continue;
+    /**
+     * The key superdough will look up, which is not the same shape for the two
+     * kinds of percussion: `.bank()` is applied by prefixing the name at trigger
+     * time, so a machine's voice is `linndrum_bd` rather than `bd` — while a
+     * sampled rack's names are bare and the stroke is chosen by index instead.
+     * See `SAMPLE_RACKS` in `render/drum-banks.ts`.
+     */
+    const name = played.bank === undefined ? played.sample : `${played.bank}_${played.sample}`;
+    const set = getSound(name)?.data?.samples;
+    if (!set) continue;
+    loads.push(getSampleBuffer({ s: played.sample, n: played.n ?? 0 }, set));
   }
 
   // Settled rather than all: an instrument that will not load is one that was

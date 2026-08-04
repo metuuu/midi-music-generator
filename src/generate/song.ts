@@ -26,7 +26,7 @@ import { makeScale, stepInScale, type Mode } from '../core/scale.js';
 import {
   DEFAULT_DRUM_MIX, DEFAULT_SPACE, SEQUENCER_FROM, canVary, eligibleDrumSources,
   isPlayedByHand, melodicLine,
-  type DrumEvent, type DrumTrack, type Effects, type LayerId, type NoteEvent,
+  type DrumEvent, type DrumTrack, type DrumVoice, type Effects, type LayerId, type NoteEvent,
   type Section, type SectionKind, type SequencedLayer, type Song, type Space,
   type Track,
 } from '../core/types.js';
@@ -623,6 +623,23 @@ export function generateSong(opts: GenerateOptions = {}): Song {
     metre: { ...style, ...(bandFigure.length ? { band: bandFigure } : {}) },
     drums: drumSource,
     drumBars: new Map([...soloPlan].map(([at, chorus]) => [at, chorus.drumBars])),
+    /**
+     * …and who a `break` leaves holding the bar.
+     *
+     * Read straight off the style with no fallback expressed here, because the
+     * default lives in `transition.ts` beside the argument for it and a second
+     * copy of `'bass'` in this file would be a second place it could drift. The
+     * same value is handed to `applyTransitions` at the bottom of this function:
+     * the plan refuses a carrier the section has not got, the edit refuses one
+     * the arrangement lost on the way, and both have to be asking about the same
+     * player.
+     *
+     * **No draw**, which is what makes it free. `transitions` and `feels` above
+     * each have a paragraph defending the absent case against a number taken out
+     * of a shared stream; there is no number here to take. See
+     * `Style.breakCarrier`.
+     */
+    carrier: style.breakCarrier,
   });
 
   /**
@@ -1011,6 +1028,21 @@ export function generateSong(opts: GenerateOptions = {}): Song {
           blocks: kitSolo,
           rng: new Rng(`${seed}:solo:${s}:kit`),
           intensity,
+          /**
+           * What this band's percussion actually is, so the chorus is
+           * orchestrated around the object rather than around a trap kit.
+           *
+           * **The whole style table, not the section's drawn pattern.** A
+           * variation that omits the toms for eight bars has not wheeled the
+           * kit off the stage, and a solo that read the bar it happens to
+           * follow would lose a drummer half their instrument for the length
+           * of a chorus. `generateDrumSolo` resolves the station from this the
+           * same way `cast.ts` does — through `drumStations`, so the three-tier
+           * kit/hand/either split stays the one answer to which object a voice
+           * needs — and a table that names both tiers solos on the kit, because
+           * those are two players and the chorus belongs to the drummer.
+           */
+          table: style.drums.flatMap((p) => Object.keys(p.voices) as DrumVoice[]),
           // The crash the band comes back in on belongs to whoever is next —
           // unless somebody else is already playing there, in which case the
           // drummer is handing over inside the section rather than out of it.
@@ -2001,15 +2033,27 @@ export function generateSong(opts: GenerateOptions = {}): Song {
   };
 
   /**
-   * Effects are resolved instrument-over-era-over-genre, per layer.
+   * Effects are resolved instrument-over-style-over-era-over-genre, per layer.
    *
    * The genre states what is true of the music whatever decade it claims to be
    * from — ambient's bass is dry and its pad is drenched in 1974 and in 2004
    * alike — and the era says how wet and how dark that decade's records
    * actually were.
    *
+   * **The style goes over the era**, and the two claims are different enough
+   * that the order is not a preference. An era is an average over a decade; a
+   * style that writes effects at all is saying *the treatment is the piece*, and
+   * an average does not overrule a member of itself. Reggae's `dub` is the case
+   * that asked for it — a production rather than a rhythm, the same riddim
+   * drenched — and under the other order the field would do nothing at all for
+   * it, because a dub drawn in the `digital` era would still come out dry, which
+   * is not a dub cut in 1985 but simply not a dub. The safety is in the default
+   * rather than in the order: a style with nothing to say writes nothing, the
+   * era wins as it always did, and that is every style in the catalogue today.
+   * See `Style.effects`, which argues it at length and says why it is per key.
+   *
    * The instrument goes **last**, and it is last rather than first for a reason
-   * the other two do not share: it is not describing the production at all. An
+   * the other three do not share: it is not describing the production at all. An
    * electric violin is a violin with a pickup and an amplifier, and a 1990s
    * mixing desk cannot un-electrify one any more than it can un-tune it. So a
    * catalogue entry that declares `drive` keeps it through every era, while the
@@ -2019,7 +2063,8 @@ export function generateSong(opts: GenerateOptions = {}): Song {
    */
   const effectsFor = (layer: LayerId, instrument?: Instrument): Effects | undefined => {
     const merged = {
-      ...genre.effects?.[layer], ...era.effects?.[layer], ...instrument?.effects,
+      ...genre.effects?.[layer], ...era.effects?.[layer],
+      ...style.effects?.[layer], ...instrument?.effects,
     };
     return Object.keys(merged).length ? merged : undefined;
   };
@@ -2367,7 +2412,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
    */
   applyTransitions(song, seams, (beat) => (
     typeof swingPlan === 'number' ? swingPlan : swingPlan(beat)
-  ));
+  ), style.breakCarrier);
 
   /**
    * The answer against the tune, once nothing else will move either of them.

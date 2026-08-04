@@ -22,6 +22,10 @@
  * Only the Strudel render needs this. MIDI writes to GM channel 10, where every
  * voice in the general MIDI drum map exists by definition.
  *
+ * The second half of the file is about the percussion that is *not* a machine —
+ * a darbuka, a rack of congas, a mridangam — which turns out not to be a bank at
+ * all and is a parallel concept rather than more rows here. See `SAMPLE_RACKS`.
+ *
  * ## Which of the pack's 71 machines are in here, and which are not
  *
  * The table held 20 for as long as four genres needed four decades of European
@@ -41,8 +45,13 @@
  *    companion the 808 was sold beside, a box of congas, bongos, agogos and
  *    whistles meant to be *layered over* a kit rather than to be one. Naming it
  *    as an era's bank would resolve every kick, snare and hat to `undefined` and
- *    stage a song of woodblocks. It stays out until something in this project
- *    can play two banks at once, which is the feature it is actually waiting on.
+ *    stage a song of woodblocks. Two objects can now play at once — see
+ *    `SAMPLE_RACKS` below — so the feature it was waiting on has arrived, and it
+ *    still stays out, for a smaller reason: a rack entry names a *bare* sample,
+ *    and the 727's are prefixed like every other machine's. Admitting it means
+ *    letting a rack carry a `.bank()` of its own, and the payoff for that work
+ *    is two samples that would have to serve as three hand-drum strokes — which
+ *    is the collapse the whole `lp`/`mp`/`hp` split exists to undo.
  *  - `AJKPercusyn`, `EmuModular`, `SergeModular`, `KorgPoly800`, `RolandSH09`,
  *    `RolandMC202`, `RhodesPolaris`, `MoogConcertMateMG1`, `RolandDDR30` and
  *    `SimmonsSDS400` are fragments — one to four samples lifted off a synth or a
@@ -219,22 +228,271 @@ const FALLBACK: Partial<Record<DrumVoice, DrumVoice[]>> = {
 };
 
 /**
- * The voice this bank should actually play for a requested one.
+ * # The percussion that is not a drum machine
  *
- * Returns the voice unchanged when the bank has it, the best substitute when it
+ * Two sample libraries have been loaded on every page for some time and no
+ * genre could name either: the Versilian library's auxiliary rack — darbuka,
+ * frame drum, congas, bongos, cowbell, cabasa, tambourine — and thirteen
+ * mridangam strokes played by a Carnatic drummer. See `VCSL_SAMPLES_URL` and
+ * `MRIDANGAM_SAMPLES_URL` in `render/strudel.ts`. Every genre that wants a hand
+ * drum has therefore been getting a drum machine's floor tom, its spare
+ * percussion sample and its cross-stick standing in for a doum, a tek and a ka,
+ * which is the substitution `FALLBACK` was written to make bearable and never
+ * claimed was good.
+ *
+ * ## Is a bare-named sample set a bank?
+ *
+ * No, and the four reasons are worth stating because the cheap fix — another
+ * row in `BANK_VOICES` — is wrong in all four.
+ *
+ * **A bank name is an address, and a rack has no such address.** `.bank('X')`
+ * is implemented by prefixing: `s('bd').bank('LinnDrum')` looks up
+ * `linndrum_bd`, so a machine's bank name and its voice names *are* its sample
+ * names. Versilian's are bare — `darbuka`, `conga`, `tambourine` — and were
+ * built that way deliberately, which is the one line of `VCSL_SAMPLES_URL`'s
+ * comment that turns out to matter most.
+ *
+ * **A folder there is an instrument, not a voice.** `darbuka` is twenty
+ * recordings: five strokes at two velocities with two round-robins each. `conga`
+ * is thirty-four, across three drums. So the thing a voice maps to is a name
+ * *and an index*, and `BANK_VOICES` — a bank to the list of voices it has — has
+ * nowhere to put the index. That is a shape mismatch rather than a missing row.
+ *
+ * **It fails the membership rule, permanently.** A bank is in the table above if
+ * it has a kick, a snare and both hi-hats, and those four are exactly the four
+ * with no fallbacks. A rack of hand percussion has none of them and never will;
+ * admitting one would mean inventing fallbacks for the four voices the table
+ * explicitly refuses to invent fallbacks for, because inventing them is how a
+ * pattern ends up silent.
+ *
+ * **And a bank is exclusive where a rack is additive.** Naming a bank stages one
+ * object and the drummer plays it. A darbuka is not what the drummer switched
+ * to, it is what the person sitting next to them is playing, and a darbuka over
+ * a TR-808 is a real record rather than a compromise. The `RolandTR727` note
+ * above is the same observation arriving from the other direction: a box that is
+ * voice-for-voice a rack, kept out of a table of machines because the table had
+ * no way to say *beside*.
+ *
+ * So a rack is a parallel concept, and it **rides on a machine rather than
+ * replacing it**. `DrumTrack.bank` holds either a machine name or
+ * `Machine+rack` — `RolandTR808+darbuka` — and everything the rack does not
+ * carry is still the machine's. There is no rack-only form on purpose: a rack
+ * with no kick under it is not an arrangement, and the day a genre wants one is
+ * the day somebody registers Versilian's sampled acoustic kit (`bassdrum1`,
+ * `snare_modern`, `hihat`, `tom_stick`), which has a kick, a snare and both hat
+ * articulations and is therefore a bank in everything but its addressing.
+ *
+ * ## What the rack changes, and what it must not
+ *
+ * The sound, and only the sound. A rack claims the auxiliary voices — the three
+ * hand-drum strokes, the spare percussion, the cowbell, the shaker, the
+ * tambourine — and never `bd`, `sd`, `hh`, `oh`, the toms or the cymbals, which
+ * stay the machine's. Levels are pulled to the same catalogue median so that
+ * turning a rack on moves the timbre and leaves `DEFAULT_DRUM_MIX` in charge of
+ * the balance; see `RACK_SAMPLE_LEVEL` in `render/source-levels.ts`, which also
+ * says why a rack cannot be left unmeasured the way an unlisted machine can.
+ *
+ * MIDI is untouched by all of this. `render/midi.ts` writes GM channel 10,
+ * where all eighteen voices exist by definition, so this is an audition-quality
+ * change and nothing else — the same standing `BANK_VOICES` has.
+ */
+export type RackSample = readonly [sample: string, n: number];
+
+/**
+ * Which recording each rack plays for each voice.
+ *
+ * The index is not a detail. Playing a folder without one gets sample 0, which
+ * across these libraries is reliably the quietest take of the first
+ * articulation — a finger tap where the part wanted a slap. So every entry below
+ * was chosen by measuring the candidates, and the numbers quoted are maximum
+ * momentary loudness on the meter `render/source-levels.ts` describes, plus the
+ * share of spectral energy under 250 Hz and the time to fall 20 dB from the
+ * peak. Those last two are the ladder: `DrumVoice` says of `lp`/`mp`/`hp` that
+ * *the ladder is brightness as much as pitch, and the two orderings agree*, and
+ * a stroke is picked here when it agrees with its neighbours in both.
+ */
+export const SAMPLE_RACKS: Record<string, Partial<Record<DrumVoice, RackSample>>> = {
+  /**
+   * The takht's percussion: a goblet drum, a frame drum and a riq.
+   *
+   * Versilian records the darbuka as five strokes, and the three that matter
+   * separate cleanly — low-band share 99.5%, 79%, 4%, ring 380 ms, 150 ms,
+   * 80 ms. That is a doum, a tek and a ka in the order a player counts them:
+   * a palm in the middle of the head, a ringing finger stroke at the edge, and
+   * a pinched crack with no body left in it at all.
+   *
+   * The one non-monotone number is the spectral centroid, which puts the ka
+   * (1.6 kHz) just under the tek (1.9 kHz) because the ka is a narrow ring on
+   * one partial while the tek spreads across the mids. Low-band share is the
+   * honest reading of *which stroke has the drum in it*, and it is the one that
+   * runs the right way.
+   *
+   * `tb` is the riq — the tambourine at the centre of an Arabic takht, which
+   * `DrumVoice` names as one of the parts that wanted this voice and could not
+   * have it. `perc` is the bendir, the big frame drum, on its open stroke.
+   */
+  darbuka: {
+    lp: ['darbuka', 2],
+    mp: ['darbuka', 14],
+    hp: ['darbuka', 6],
+    perc: ['framedrum', 7],
+    tb: ['tambourine', 1],
+  },
+  /**
+   * The Latin rack, which is one player and several drums.
+   *
+   * Here the ladder really is pitch, and it is the player's own layout rather
+   * than three strokes on one head: measured fundamentals of 138, 164 and
+   * 214 Hz for the tumba, the conga and the quinto, all on the open tone, all
+   * one articulation so the three sound like one pair of hands.
+   *
+   * Named residual: Versilian's conga set has no slap. It records an open tone
+   * and a muted one, so `hp` is the small drum rather than the hard stroke —
+   * which is a real thing a player does and not the thing `hp` most wants to
+   * be. A slap sample would be better and there is not one in the library.
+   *
+   * The rest is what sits on the stand beside them and is the reason funk and
+   * reggae want this rack as much as salsa does: `perc` the high bongo on its
+   * martillo stroke, `cb` the cowbell struck normally rather than muted, `sh`
+   * the cabasa's rub, `tb` the same tambourine the takht uses.
+   */
+  congas: {
+    lp: ['conga', 32],
+    mp: ['conga', 8],
+    hp: ['conga', 18],
+    perc: ['bongo', 4],
+    cb: ['cowbell', 6],
+    sh: ['cabasa', 4],
+    tb: ['tambourine', 1],
+  },
+  /**
+   * One drum, two heads, and the vocabulary `lp`/`mp`/`hp` is an abstraction of.
+   *
+   * The library is thirteen named Carnatic strokes rather than an instrument to
+   * be indexed into, so the mapping is a reading of the tradition and the
+   * measurement is a check on it rather than the source of it: `thom` is the
+   * left-hand bass stroke (94 Hz, centroid 660), `na` the ringing open stroke on
+   * the right head (202 Hz, centroid 1150, and the longest ring of the three at
+   * 290 ms), `ta` the sharp rim stroke that stops dead (360 Hz, centroid 2700,
+   * 30 ms). Monotone in pitch, in brightness, and inverted in ring, which is
+   * what a hand drum sounds like — the open stroke sustains and the two ends of
+   * the ladder do not.
+   *
+   * No `perc`, no `tb`, nothing else: a Carnatic ensemble's other percussion —
+   * the ghatam, the kanjira, the morsing — is not in this library, and a rack
+   * should hold what is actually on the stand.
+   */
+  mridangam: {
+    lp: ['thom', 0],
+    mp: ['na', 1],
+    hp: ['ta', 1],
+  },
+};
+
+/** What separates a machine from a rack in a `DrumTrack.bank`. Reads as "and". */
+const RACK_MARK = '+';
+
+/**
+ * The machine, and the rack riding on it, in a drum track's bank name.
+ *
+ * A plain name is a machine with nothing beside it, which is what every song in
+ * the catalogue is and what every song written before racks existed will stay.
+ */
+export function readBankName(bank: string): { machine: string; rack?: string } {
+  const at = bank.indexOf(RACK_MARK);
+  if (at < 0) return { machine: bank };
+  return { machine: bank.slice(0, at), rack: bank.slice(at + 1) };
+}
+
+/**
+ * What is on the rack's stand — the same table read as a list of objects rather
+ * than as a list of sounds.
+ *
+ * This exists because `SAMPLE_RACKS` turned out to answer two questions, and
+ * they must not be allowed to become two tables. `resolveDrumSample` reads it as
+ * *which recording sounds*; casting and choreography read it as *which pieces
+ * are within one pair of hands' reach*, and the moment those disagree the stage
+ * is asserting something the ear can hear is false — a cowbell that sounds from
+ * the Latin rack and is struck on the drummer's kit, a riq that sounds from the
+ * takht and is played on a tambourine bolted to a hi-hat rod. The whole argument
+ * for a rack being additive rather than a replacement is that somebody is
+ * sitting there playing it, so the list of what they are playing has to be this
+ * one.
+ *
+ * It is here rather than in `concert/instruments.ts` for that reason and for one
+ * more: a rack entry is only ever written next to the measurements that justify
+ * it, and a second list of its contents kept a directory away would be correct
+ * on the day it was copied and wrong on the day somebody adds a piece.
+ *
+ * `undefined` rather than an empty set for a plain machine name, and likewise
+ * for a rack this file has never heard of. Both mean *there is no second player
+ * here*, which is a different statement from a player with an empty stand —
+ * `npm run genres` refuses an unknown rack name outright, so the second case is
+ * a caller holding a string no era table produced.
+ */
+export function rackVoices(bank: string): ReadonlySet<DrumVoice> | undefined {
+  const { rack } = readBankName(bank);
+  const shelf = rack ? SAMPLE_RACKS[rack] : undefined;
+  return shelf ? new Set(Object.keys(shelf) as DrumVoice[]) : undefined;
+}
+
+/**
+ * The voice this kit should actually play for a requested one.
+ *
+ * Returns the voice unchanged when the kit has it, the best substitute when it
  * does not, and `undefined` only when nothing in the chain exists either — in
  * which case the caller should drop the part rather than emit a sound that is
  * not there.
+ *
+ * A rack counts as having a voice for both questions: it satisfies the request
+ * outright, and it also satisfies a fallback, so a machine with no `perc` will
+ * send a cowbell to the rack's conga rather than onward to the hi-hat. Which is
+ * why this stays the answer to *what role sounds* and says nothing about which
+ * object makes it — that is `resolveDrumSample`, and keeping the two apart is
+ * what lets the notation sweep and the mix bench go on asking the old question.
  */
 export function resolveVoice(bank: string, voice: DrumVoice): DrumVoice | undefined {
-  const available = BANK_VOICES[bank];
+  const { machine, rack } = readBankName(bank);
+  const shelf = rack ? SAMPLE_RACKS[rack] : undefined;
+  if (shelf?.[voice]) return voice;
+  const available = BANK_VOICES[machine];
   // An unknown bank is assumed complete: better to emit what was asked for and
   // let it fail loudly than to silently rewrite a pattern for a bank nobody has
   // measured.
   if (!available) return voice;
   if (available.includes(voice)) return voice;
   for (const alt of FALLBACK[voice] ?? []) {
-    if (available.includes(alt)) return alt;
+    if (available.includes(alt) || shelf?.[alt]) return alt;
   }
   return undefined;
+}
+
+/** One sounding drum voice, as the renderer has to spell it. */
+export interface DrumSample {
+  /** The name that goes inside `s()`. */
+  sample: string;
+  /** `.bank()` — a machine's samples are prefixed. Absent on a rack, whose are bare. */
+  bank?: string;
+  /** `.n()` — which recording in the folder. Absent on a machine, which has one per voice. */
+  n?: number;
+  /**
+   * The voice that actually sounds, which is not always the one asked for.
+   * Keyed on by the level tables; see `levelOfDrum`.
+   */
+  voice: DrumVoice;
+}
+
+/**
+ * What to emit for a requested voice: the sample, and how to address it.
+ *
+ * Built on `resolveVoice` rather than beside it, so there is exactly one place
+ * that decides which role sounds and this one only decides who plays it.
+ */
+export function resolveDrumSample(bank: string, voice: DrumVoice): DrumSample | undefined {
+  const sounding = resolveVoice(bank, voice);
+  if (!sounding) return undefined;
+  const { machine, rack } = readBankName(bank);
+  const held = rack ? SAMPLE_RACKS[rack]?.[sounding] : undefined;
+  if (held) return { sample: held[0], n: held[1], voice: sounding };
+  return { sample: sounding, bank: machine, voice: sounding };
 }

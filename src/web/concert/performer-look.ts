@@ -103,8 +103,27 @@ export interface Proportions {
   footL: number;
   footW: number;
   footH: number;
-  /** Seat height, 0 when the player is on their feet. */
+  /**
+   * Seat height, 0 when the player is on their feet — **and also 0 when they
+   * are sitting on the floor**, which is why `seated` exists beside it.
+   *
+   * `seatY > 0` was the test for "is this body's weight off its feet" for as
+   * long as every seat in the union was furniture, and it was a good one: a
+   * bench, a stool and a throne all have a height and a standing player has
+   * none. `floor` broke it by having a perfectly real answer of zero. Three
+   * files were asking the question that way — the hand rests below, the hip
+   * socket in `performer-legs.ts` and the sway damping in `performer.ts` — and
+   * every one of them would have given a cross-legged player a standing body's
+   * answer.
+   */
   seatY: number;
+  /**
+   * Whether the weight is on the seat rather than on the feet.
+   *
+   * The question `seatY > 0` used to stand in for. True for every posture that
+   * is off its feet, including `floor`, whose seat is the boards.
+   */
+  seated: boolean;
   /** Forward pitch of the torso about the hip, radians. */
   lean: number;
   /**
@@ -130,14 +149,32 @@ export function proportions(look: Look, posture: Posture): Proportions {
   const standHipY = height * 0.50;
   const torsoH = standShoulderY - standHipY;
 
-  const seated = posture === 'sit' || posture === 'straddle';
+  const bench = posture === 'sit' || posture === 'straddle';
+  const onFloor = posture === 'floor';
   const seatY =
-    seated ? Math.min(0.47, height * 0.27)
+    bench ? Math.min(0.47, height * 0.27)
       : posture === 'stool' ? height * 0.40
         : posture === 'kit' ? height * 0.33
           : 0;
-  const hipY = seatY > 0 ? seatY + height * 0.055 : standHipY;
-  const lean = posture === 'perch' ? 0.26 : posture === 'kit' ? 0.13 : seated ? 0.05 : 0;
+  /**
+   * The hip rides `0.055 × height` above whatever the player is sitting on, and
+   * for a cross-legged one that surface is the boards.
+   *
+   * The one line that makes `floor` cheap. It is not a new rule — it is the
+   * existing rule with the seat at zero, which is what sitting on the floor
+   * *is*, and it lands the hip at 9.6 cm for a 1.75 m player: about where the
+   * pelvis of somebody cross-legged actually is. Everything above it follows
+   * from the standing torso the way it does for every other posture, so the head
+   * comes out at 0.472 × height and the crown at 0.550, which is the pair of
+   * numbers `headAbove` in `cast.ts` and `rooms/sabha.ts` were both written
+   * against.
+   */
+  const hipY = seatY > 0 || onFloor ? seatY + height * 0.055 : standHipY;
+  const lean = posture === 'perch' ? 0.26 : posture === 'kit' ? 0.13
+    // Between a bench-sitter's and a drummer's. A cross-legged player carries a
+    // straight back — a khyāl singer's is famously vertical — but there is an
+    // instrument in the lap and the eyes go down to it.
+    : onFloor ? 0.08 : bench ? 0.05 : 0;
   /**
    * Knees apart, more so sitting, and much more so round an instrument.
    *
@@ -146,8 +183,16 @@ export function proportions(look: Look, posture: Posture): Proportions {
    * The seated 0.30 is what a pianist does and it is not enough by about ten
    * centimetres a side — the measurement that started this was a right thigh
    * through the ribs of a cello.
+   *
+   * Cross-legged is off the end of that scale and belongs there. A cellist's
+   * knees are turned out *and still forward*; a cross-legged player's have gone
+   * past the hips and down to the floor, so the bend `performer-legs.ts` builds
+   * has to be more lateral than forward — which is what a number over 1 means,
+   * since the bend direction is `(side × splay, 0, 1)` before the leg axis is
+   * taken out of it. 1.6 puts the knee 58° off the body's forward, which with
+   * the feet crossed under the opposite shins is the shape of the posture.
    */
-  const splay = posture === 'straddle' ? 0.75 : seatY > 0 ? 0.30 : 0.11;
+  const splay = onFloor ? 1.6 : posture === 'straddle' ? 0.75 : seatY > 0 ? 0.30 : 0.11;
 
   // The head rides on top of the leaned torso rather than floating where the
   // shoulders would have been. A leaning player whose head stays put is the
@@ -169,6 +214,7 @@ export function proportions(look: Look, posture: Posture): Proportions {
     footW: height * 0.062,
     footH: height * 0.050,
     seatY,
+    seated: seatY > 0 || onFloor,
     lean,
     splay,
   };
@@ -235,7 +281,7 @@ export function restLocals(p: Proportions, posture: Posture, rng: Rng): Record<s
  */
 function handRests(p: Proportions, posture: Posture, rng: Rng): { left: Vector3; right: Vector3 } {
   const h = p.height;
-  const seated = p.seatY > 0;
+  const seated = p.seated;
   const kit = posture === 'kit';
   const outward = p.torsoW * 0.5 + p.handR * (seated ? 1.1 : 1.5);
 
@@ -245,10 +291,14 @@ function handRests(p: Proportions, posture: Posture, rng: Rng): { left: Vector3;
   const handY = kit ? p.hipY + p.torsoH * 0.20
     : seated ? p.hipY + p.torsoH * 0.34
       : p.hipY + p.torsoH * 0.10;
+  // Nearer the body on the floor than on a bench, and the difference is a piece
+  // of furniture: a seated player's hands come forward over the front edge of a
+  // seat, and a cross-legged player's have crossed shins under them instead.
   const handZ = kit ? h * 0.22
     : posture === 'perch' ? h * 0.22
-      : seated ? h * 0.15
-        : h * 0.045;
+      : posture === 'floor' ? h * 0.12
+        : seated ? h * 0.15
+          : h * 0.045;
 
   const lead: BodySide = rng.chance(0.5) ? 'right' : 'left';
   const ahead = h * rng.float(0.028, 0.052);
@@ -337,6 +387,25 @@ function footRests(p: Proportions, posture: Posture): { left: Vector3; right: Ve
       return {
         left: new Vector3(SIDE.left * h * 0.078, p.seatY * 0.42, h * 0.055),
         right: new Vector3(SIDE.right * h * 0.082, y, h * 0.16),
+      };
+    case 'floor':
+      // **Crossed**, and that is the entire read.
+      //
+      // Every other pair in this switch keeps each foot on its own side of the
+      // body; this one puts the left ankle under the right shin and the right
+      // under the left, which is what makes the silhouette sukhāsana rather than
+      // a player who has been sunk into the boards. It is also what drives the
+      // legs: `performer-legs.ts` spans hip → knee → ankle, so an ankle across
+      // the centre line and a knee splayed hard outward (see `Proportions.splay`
+      // — 1.6, over twice a cellist's) give a thigh going out and a shin coming
+      // back in, folded flat. Nothing had to be taught what cross-legged is.
+      //
+      // Forward of the hips by about an eighth of a body, which is where crossed
+      // shins sit, and still not square: the ankles are at different depths for
+      // the reason every other pair here is asymmetric.
+      return {
+        left: new Vector3(SIDE.right * h * 0.040, y, h * 0.120),
+        right: new Vector3(SIDE.left * h * 0.032, y, h * 0.150),
       };
     case 'kit':
       // Both feet occupied, on pedals, well forward of the throne.

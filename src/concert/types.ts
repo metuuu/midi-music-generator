@@ -111,6 +111,46 @@ export type InstrumentFamily =
  * their own shoulders between them, and knees at a pianist's spacing put a
  * thigh straight through it. The difference is a stance, not a seat height, so
  * it belongs here rather than in any one model.
+ *
+ * ## `floor` is not `sit` with a shorter chair
+ *
+ * The union had five ways of being off your feet and every one of them was on
+ * furniture. That is a claim about the world, and for two of the fourteen
+ * genres it is false: a sitar is played with the gourd on the player's left
+ * foot, a mridangam lies across their shins, and a takht was five men on a
+ * carpet. The indian genre's own staging file has said so in prose since it was
+ * written — *`Posture` offers stand, sit, straddle, stool, kit and perch, and
+ * none of them is that — `sit` is a chair* — and the room it stages in lays a
+ * `carpet` over the boards corner to corner to make the best of it.
+ *
+ * The cost of not having this was arithmetic rather than aesthetic, and it is
+ * worth the number: `headAbove` gives `sit` 0.76 × height, which stands a
+ * 1.75 m player's head at 1.33 m. A cross-legged one is at 0.84 m. So a
+ * floor-seated ensemble staged half a metre too high, on chairs nobody drew,
+ * and — because a hand percussionist is on the `drums` layer and the `drums`
+ * layer gets the drum riser — the tabla player was staged half a metre higher
+ * again, sitting on a 2.8 m rock platform.
+ *
+ * It could not be `sit` with the seat lowered, and the reason is the same shape
+ * as `straddle`'s: the difference is a *stance* rather than a seat height.
+ *
+ *  - **The legs are not under the body, they are in front of it and folded flat
+ *    outward.** A cross-legged knee is further out than a cellist's — see
+ *    `Proportions.splay`, where the two are 1.6 against 0.75 — and the feet
+ *    cross the centre line, each tucked under the opposite shin. Nothing else
+ *    in this union crosses its own feet.
+ *  - **There is no seat to be at a height.** A chair's height decides where the
+ *    hips are; here the floor does, and the floor is where the feet are. That is
+ *    why `Proportions` grew a `seated` flag: `seatY > 0` was a perfectly good
+ *    test for "is this player's weight off their feet" while every seat was
+ *    furniture, and a real answer of zero broke it.
+ *  - **The instrument is at lap height rather than at bench height**, which is
+ *    what the whole change is for. A sitar's bridge is at 0.42 m off the boards
+ *    and its nut at 0.85; on a chair those become 0.72 and 1.15 and the player
+ *    is holding it round their own knees.
+ *
+ * Which archetypes take it, and when, is argued in `cast.ts` — it is a fact
+ * about the object *and* about the tradition, and neither half answers alone.
  */
 export type Posture =
   | 'stand'    // guitar, horns, singer
@@ -118,7 +158,8 @@ export type Posture =
   | 'straddle' // a chair, knees turned out round the instrument: cello
   | 'stool'    // upright bass, high stool
   | 'kit'      // behind a drum kit, both feet occupied
-  | 'perch';   // leaning over a table of gear
+  | 'perch'    // leaning over a table of gear
+  | 'floor';   // cross-legged on a carpet, instrument in the lap: sitar, tabla
 
 /**
  * Geometry-free facts about an archetype.
@@ -161,6 +202,35 @@ export interface ArchetypeSpec {
    * their own horn.
    */
   held: boolean;
+  /**
+   * Whether a player sitting on the floor can play this object.
+   *
+   * The archetype's half of the floor-seating decision, and it is only half —
+   * see `FLOOR_SEATED` in `cast.ts`, which holds the other. The question here is
+   * about the *object* and has one answer wherever it is asked: can this thing
+   * be played by somebody cross-legged on a carpet, in their lap or on the
+   * ground in front of them? A hand drum can, and is: a tabla sits on rings on
+   * the floor and a darbuka lies across a thigh. A concert harp cannot, whatever
+   * anybody's tradition — it is a 1.8 m frame standing on a foot, and the fact
+   * that a koto and a kantele are staged on it is a statement about the
+   * catalogue's borrowed objects rather than a licence to put a pedal harp on
+   * the ground.
+   *
+   * **Absent is the answer for almost everything, and for a reason worth stating
+   * before somebody generously adds ten more.** Fifteen of the twenty-three
+   * archetypes reaching a floor-seated genre are borrowed objects — a sarangi
+   * staged as a violin, a santoor as a vibraphone, a harmonium as a Hammond
+   * console, a tanpura as a double bass. Every one of those *originals* is
+   * played on the floor and not one of the *objects* is. Setting a vibraphone
+   * down on a carpet would stage the wrong instrument and put it somewhere it
+   * cannot be played, which is two errors where there was one. The residual is
+   * real and it is the archetype table's to fix, not this flag's.
+   *
+   * An archetype whose `posture` is already `floor` does not need this: it is
+   * the degenerate case where the object's answer settles the question and no
+   * tradition is consulted. The sitar is the only one.
+   */
+  lap?: boolean;
   /**
    * Radius in metres the instrument and its player occupy. Staging keeps these
    * from overlapping; a drum kit needs considerably more room than a flute.

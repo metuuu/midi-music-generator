@@ -15,12 +15,15 @@
  *  - **The frets are tall arcs**, tied on and movable, which is what leaves
  *    room to pull a string sideways. A hard note bends across the fret rather
  *    than just ringing.
- *  - **The gourd hangs at the hip.** A sitar player sits cross-legged with the
- *    tumba on one foot, and `Posture` has no floor to sit on — `sit` is a
- *    chair. So the mount is measured off the player's hip rather than off the
- *    boards, the gourd hangs outboard of the thigh instead of resting on a foot
- *    that is standing on the ground, and the neck goes up across the body to
- *    the left shoulder from there. See `BRIDGE_ABOVE_HIP`.
+ *  - **The gourd rests on the left foot.** A sitar player sits cross-legged with
+ *    the tumba on one foot, and `Posture` now has a floor to sit on:
+ *    `ARCHETYPES.sitar.posture` is `floor`, in every tradition, because there is
+ *    no other way to hold the thing. The mount stays measured off the player's
+ *    *hip* rather than off the boards — see `BRIDGE_ABOVE_HIP`, and see
+ *    `InstrumentBuildOptions.height`, since the whole point of that field is
+ *    that an instrument whose contact height is dictated by the player has to
+ *    ask how tall they are — but a cross-legged hip is 9.6 cm off the deck
+ *    rather than 57, so the geometry lands where the object actually is.
  *
  * Fret positions are the same equal-tempered rule as every fretted instrument
  * here — `SCALE * 2^(-n/12)` from the bridge — which is a simplification a
@@ -104,45 +107,62 @@ function mountBasis(alongStrings: Vector3, faceHint: Vector3, at: Vector3): Matr
 /**
  * The hip this player is sitting on, in metres off the boards.
  *
- * `min(0.47, 0.27 × height)` is the seat `proportions()` puts a `sit` posture
- * on in `performer-look.ts`, and `0.055 × height` is the hip pivot above it.
- * `cello.ts` restates the first half of the same line for the same reason, and
- * the reason is `InstrumentBuildOptions.height`: an instrument whose contact
- * height is dictated by the player rather than by the floor has to ask how tall
- * the player is. A sitar is the clearest case of that in the catalogue and was
- * the last one still ignoring it.
+ * `proportions()` in `performer-look.ts` puts the hip `0.055 × height` above
+ * whatever the player is sitting on, and for `floor` that surface is the boards
+ * — so the whole of it is that one term, and a 1.75 m player's hip is at
+ * 0.096 m. `cello.ts` restates the same line for its own posture and for the
+ * same reason, and the reason is `InstrumentBuildOptions.height`: an instrument
+ * whose contact height is dictated by the player rather than by the floor has to
+ * ask how tall the player is. A sitar is the clearest case of that in the
+ * catalogue and was the last one still ignoring it.
+ *
+ * It read `min(0.47, 0.27 × height) + 0.055 × height` — a chair — until the
+ * archetype had a floor to sit on. The 0.47 was never a claim about a sitar; it
+ * was the seat of the nearest posture the union offered, and everything
+ * downstream of it was compensation. See `BRIDGE_ABOVE_HIP`.
  */
 const NOMINAL_HEIGHT = 1.75;
 function hipHeight(height: number | undefined): number {
-  const h = height ?? NOMINAL_HEIGHT;
-  return Math.min(0.47, h * 0.27) + h * 0.055;
+  return (height ?? NOMINAL_HEIGHT) * 0.055;
 }
 
 /**
  * How far above the hip the jawari sits, and how far outboard of it.
  *
- * The mount used to be three constants measured off the boards, and they were
- * measured off the boards of a player sitting **on them**: gourd on the left
- * foot, bridge at 0.42, neck rising to 0.85 at the nut. That is the sitar, and
- * it is right for the cross-legged player the rest of this file describes — but
- * `Posture` has no floor to sit on, so `sit` is a chair, and the rig's hip
- * lands 0.37 m above where this geometry assumed it. The instrument stayed
- * where the boards were: gourd by the shin, neck across the knees, and both
- * hands playing somewhere around the player's lap.
+ * ## The numbers this file started with were right, and they are back
  *
- * So the two numbers that matter are now measured off the *player*. A hand's
- * span above the hip is where a plucking wrist can sit over the bridge without
- * the elbow having to leave the ribs, and it carries the neck up across the
- * chest so the fretting hand meets the top of it at about shoulder height —
- * which is where a sitar player's left hand is.
+ * The mount used to be three constants measured off the boards — gourd on the
+ * left foot, bridge at 0.42, neck rising to 0.85 at the nut — and the note that
+ * replaced them recorded, correctly, that *that is the sitar, and it is right
+ * for the cross-legged player the rest of this file describes*. What it was
+ * wrong about was fixable somewhere else: `Posture` had no floor to sit on, so
+ * `sit` was a chair, the rig's hip landed 0.37 m above where this geometry
+ * assumed it, and the instrument stayed where the boards were — gourd by the
+ * shin, neck across the knees, both hands somewhere around the player's lap.
+ * The fix at the time was to hang everything off the hip and shrink it to fit a
+ * bench, which put a sitar's bridge at chest height on a chair.
  *
- * `OUTBOARD` is the other half of moving up: the gourd is a beach ball and the
- * player now has a thigh where it used to have air. Clearing it means hanging
- * the tumba beside the hip rather than over the leg, which is where a seated
- * player would have to hold one anyway.
+ * `Posture` has a floor now — see `ARCHETYPES.sitar.posture` — so the hip is at
+ * 0.096 m and the original measurements come back. They stay expressed off the
+ * *player* rather than off the boards, which is the one thing the intervening
+ * version got right and is worth keeping: a 1.58 m player and a 1.92 m one both
+ * put the tumba on their own foot, and a constant measured from the deck would
+ * be correct for the mean and out by four centimetres at each end.
+ *
+ * 0.32 above a 1.75 m player's hip is a bridge at 0.416 and a nut at 0.846,
+ * which is the pair the file opened with. The gourd is what puts it there: a
+ * tumba is a 36 cm sphere resting on the left foot, so its equator — and the
+ * bridge on top of it — sits well above the pelvis, which is why this is twice
+ * a hand's span and not one.
+ *
+ * `OUTBOARD` comes in with it. The reason it was −0.48 was that a bench-seated
+ * player has a thigh where the gourd wants to be, so the tumba had to hang
+ * clear of the leg; cross-legged there is no thigh in the way — the leg is
+ * folded flat and down — and the gourd goes back over the foot where it belongs,
+ * which is much closer to the centre line.
  */
-const BRIDGE_ABOVE_HIP = 0.15;
-const OUTBOARD = -0.48;
+const BRIDGE_ABOVE_HIP = 0.32;
+const OUTBOARD = -0.32;
 
 /** Gourd beside the right hip, neck up across the body to the left shoulder. */
 function mountFor(height: number | undefined): Matrix4 {
@@ -379,7 +399,7 @@ export const buildSitar: InstrumentBuilder = (opts) => {
   const station: PlayerStation = {
     offset: new Vector3(-0.24, 0, -0.30),
     facing: 0.18,
-    posture: 'sit',
+    posture: 'floor',
   };
 
   const model: SitarModel = {

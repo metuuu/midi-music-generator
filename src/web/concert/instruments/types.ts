@@ -327,6 +327,31 @@ export interface InstrumentBuildOptions {
    */
   aux?: readonly DrumVoice[];
   /**
+   * How the player at this object is arranged, from `Station.posture`.
+   *
+   * Omit and a model builds itself for the posture its own `ArchetypeSpec`
+   * declares, which is what every caller got before this existed and what the
+   * gallery bench still wants.
+   *
+   * It passes the narrowness test `year` and `electronic` are held to, and it is
+   * worth saying which sentence of that test it passes on, because "how is the
+   * player sitting" sounds like something about a performance. It is not: it
+   * does not vary across a show, a number or a bar, it says nothing about what
+   * is being played, and it is settled before a single note is looked at. It is
+   * the same kind of fact as `height` two fields up — *how tall is the person
+   * this object has to meet* — asked about the other end of them.
+   *
+   * **Only the two objects whose geometry actually moves read it.** A hand drum
+   * on a carpet has its head at 0.32 m and one between the knees of somebody on
+   * a chair has it at 0.72, and the difference is not a translation of the whole
+   * model: the body has to shorten so its foot still lands on the boards, and
+   * the trap table beside it has to come down with legs to match. That is what
+   * this field buys and it is the whole of what it buys. The sitar needs it even
+   * less — its posture is `floor` in every tradition, so it reads its own spec
+   * and ignores this.
+   */
+  posture?: Posture;
+  /**
    * Which synthesiser this is. Keyboards only; every other model ignores it.
    *
    * From `Performer.rig`, and it replaces the year this model used to branch

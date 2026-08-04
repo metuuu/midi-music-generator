@@ -84,6 +84,7 @@
 
 import type { Midi } from '../core/pitch.js';
 import type { DrumVoice } from '../core/types.js';
+import { readBankName } from './drum-banks.js';
 
 /**
  * Per-soundfont trim, relative to the catalogue median.
@@ -285,7 +286,9 @@ export const REGISTER_LEVEL: Record<string, readonly (readonly [Midi, number])[]
  * is a bright, long, loud sound in the exact octave `DEFAULT_DRUM_MIX` spends
  * its care on. `lp`/`mp`/`hp` have no samples anywhere in this pack and always
  * resolve to something that does, so `levelOfDrum` is keyed to the substitute
- * and is already right for them — see the note on `levelOfDrum` below.
+ * and is already right for them — see the note on `levelOfDrum` below. Where
+ * they have a real instrument behind them it is not from this pack at all, and
+ * is measured separately in `RACK_SAMPLE_LEVEL`.
  *
  * Fabricating entries here would be worse than leaving them out. Every number
  * in this file came off a K-weighted meter and the file is only useful while
@@ -341,13 +344,92 @@ export function levelOfSound(sound: string, midi: Midi): number {
 }
 
 /**
+ * Per-rack, per-voice trim, relative to the catalogue median.
+ *
+ * The twin of `DRUM_SAMPLE_LEVEL` for the sampled racks — see `SAMPLE_RACKS` in
+ * `render/drum-banks.ts` — and it differs from its twin in two ways, both
+ * forced by what a rack is.
+ *
+ * ## Why a rack cannot be left unmeasured
+ *
+ * An unlisted machine gets ×1 and sounds roughly right, because
+ * `tidal-drum-machines` normalises every sample to full scale: the 13 dB the
+ * measured banks span is the difference between a short kick and a long one at
+ * the same peak, which is a real spread and a survivable one. **A bare sample
+ * library is not normalised at all.** The Versilian percussion measured here
+ * runs from −17.0 LUFS on the darbuka's doum to −39.0 on the tumba's open tone,
+ * with 19 dB of that inside the darbuka alone — one instrument, one session, one
+ * afternoon — and the bottom of the range sits 20 dB under the drum pack. A rack
+ * at unity is not a rack that is slightly wrong, it is one whose conga is
+ * inaudible under its own frame drum. Which is why `npm run genres`
+ * refuses a rack voice with no entry here, where it merely notes an unmeasured
+ * machine: the failure is a different size.
+ *
+ * ## Why one target rather than one per voice
+ *
+ * `DRUM_SAMPLE_LEVEL` pulls each machine's voice to the median of *that voice
+ * across banks*, so that `DEFAULT_DRUM_MIX` — an engineer's balance, settled by
+ * ear — is not overwritten by a measurement. A rack has no other rack to be
+ * compared against, and the tempting substitute is the median of the machine
+ * voice it stands in for. That is wrong, and quietly: those medians say a
+ * machine tom is 6.3 dB over a machine's spare percussion, which is a fact about
+ * how Roland recorded toms in 1983 and not about a hand drum. Inheriting it
+ * would import a rhythm box's mastering into an instrument that has nothing to
+ * do with one, and would do it *under* `DEFAULT_DRUM_MIX`'s own 4 dB between
+ * `lp` and `hp`, doubling a gap somebody chose.
+ *
+ * So every rack voice is pulled to the same place — **−18.8 LUFS, the catalogue
+ * median `SOUNDFONT_LEVEL` already centres on** — and the balance between them
+ * is left entirely to `DEFAULT_DRUM_MIX`, which is the table that claims it.
+ * That target is not a third convention arriving: measured on the same meter,
+ * the drum pack's own per-voice medians land at −17.3 (`bd`), −17.8 (`sd`),
+ * −18.5 (`cb`), −17.8 (`sh`), −16.7 (`tb`), so a rack normalised to −18.8
+ * arrives beside the kit rather than in front of it.
+ *
+ * ## How the numbers were made
+ *
+ * The same way as everything else here — ITU-R BS.1770 K-weighting, 400 ms
+ * window, 100 ms hop, maximum momentary — with one difference worth recording:
+ * this pass was run on the decoded samples directly rather than through
+ * superdough, since the drum path emits no envelope and plays each sample at
+ * rate 1, so there is nothing between the file and the meter. It was checked
+ * against the numbers already in this file before being trusted. Reading the
+ * twenty measured banks the same way reproduces them: kick spread 13.0 dB
+ * against the 13.2 recorded above, snare 17.2 against 17.3, the `RolandTR808`
+ * kick 9.0 dB under the median kick — the ×2.8 that the note above says wanted
+ * capping — and the `AkaiMPC60` snare 10.1 dB over, the ×0.31 in the table.
+ *
+ * Every trim below was then checked against the same full-scale cap the machines
+ * get, on the level the sample reaches after `DEFAULT_DRUM_MIX` and the drum
+ * bus. None of them binds; the closest is the darbuka's tek at less than half.
+ */
+export const RACK_SAMPLE_LEVEL: Record<string, Partial<Record<DrumVoice, number>>> = {
+  // The doum is the only sample in any of these racks that was already loud
+  // enough to need trimming down, which is the whole story of a goblet drum:
+  // −17.0 LUFS on the palm stroke against −36.3 on the finger stroke a beat
+  // later. 19 dB of it is the player, and none of it survives to the fader.
+  darbuka: { lp: 0.81, mp: 7.53, hp: 3.57, perc: 2.98, tb: 4.41 },
+  congas: { lp: 10.27, mp: 4.53, hp: 4.32, perc: 2.95, cb: 1.85, sh: 7.43, tb: 4.41 },
+  // The one library here recorded with a mastering engineer in the room: every
+  // stroke peak-normalised to 0.989, and 3.7 dB between the loudest and the
+  // quietest of the three rather than 22.
+  mridangam: { lp: 1.06, mp: 1.56, hp: 1.63 },
+};
+
+/**
  * The trim for one drum sample.
  *
  * Keyed by the voice the bank actually plays, which is what `resolveVoice`
  * returns and not always what the pattern asked for — the trim belongs to the
  * sample that sounds. The mix fader stays keyed to the requested voice, because
  * a tom substituted for another tom is still mixed as the tom it was written as.
+ *
+ * A rack answers first, for exactly the voices it carries, which is the same
+ * order `resolveDrumSample` picks the sample in — so the trim and the sample it
+ * belongs to cannot come from different objects.
  */
 export function levelOfDrum(bank: string, voice: DrumVoice): number {
-  return DRUM_SAMPLE_LEVEL[bank]?.[voice] ?? 1;
+  const { machine, rack } = readBankName(bank);
+  const held = rack ? RACK_SAMPLE_LEVEL[rack]?.[voice] : undefined;
+  return held ?? DRUM_SAMPLE_LEVEL[machine]?.[voice] ?? 1;
 }

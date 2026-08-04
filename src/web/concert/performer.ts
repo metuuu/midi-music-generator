@@ -614,7 +614,10 @@ class Rig implements PerformerRig {
     const p = proportions(look, posture);
     this.proportions = p;
     this.handGap = p.handR * MIN_HAND_GAP;
-    this.shift = p.seatY > 0 ? 0.25 : 1;
+    // A body that is off its feet cannot shift its weight, whether the seat is a
+    // bench or the boards. `p.seated` rather than `p.seatY > 0`, which called a
+    // cross-legged player a standing one — see `Proportions.seatY`.
+    this.shift = p.seated ? 0.25 : 1;
     this.restLocal = restLocals(p, posture, restRng);
 
     this.breathPhase = this.rng.float(0, Math.PI * 2);

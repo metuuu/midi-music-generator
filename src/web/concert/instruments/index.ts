@@ -195,6 +195,11 @@ export function buildInstrumentFor(
     scale: (instrumentId ? SCALE_OF[instrumentId] : undefined) ?? 0.5,
     // A horn is held to a face, and this performer's face is where it is.
     height: performer.look.height,
+    // And a drum is played from wherever this performer is sitting. The cast
+    // decides that — a hand drum is between the knees of somebody on a chair in
+    // a funk band and on the carpet in front of a cross-legged one in a sabhā —
+    // so the model is told rather than assuming its archetype's default.
+    posture: performer.station.posture,
     ...(finish ? { finish } : {}),
     ...(year !== undefined ? { year } : {}),
     ...(drums === 'electronic-kit' ? { electronic: true } : {}),

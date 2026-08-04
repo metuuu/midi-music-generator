@@ -61,6 +61,16 @@ import type { LayerId, Song } from '../core/types.js';
 import { LAYER_ORDER, isPlayedByHand } from '../core/types.js';
 import { GENRES } from '../genre/index.js';
 import type { Wardrobe } from '../genre/types.js';
+/**
+ * `DrumTrack.bank` is not always one name, and this is the only thing here that
+ * may take it apart.
+ *
+ * A composite — `RolandTR808+darbuka` — is a machine and a rack riding on it,
+ * and the two halves are two objects on two stands. Printing the raw string
+ * labelled a player "RolandTR808+darbuka kit", which names nothing that has ever
+ * stood on a stage. See `SAMPLE_RACKS` in `render/drum-banks.ts`.
+ */
+import { readBankName } from '../render/drum-banks.js';
 import type { EraProfile } from '../style/types.js';
 /**
  * Two questions about hands, asked of the file that owns them.
@@ -309,15 +319,119 @@ const PROMINENCE: Record<LayerId, number> = {
  * A head is not on top of a standing body when the body is sitting on a drum
  * throne. These are the numbers the sightline test uses, and they are why the
  * drummer needs a riser at all: a seated player loses close to 40 cm.
+ *
+ * `floor` loses more than twice that, which is why it is the one value here
+ * worth checking rather than reading. It is not guessed: `proportions()` in
+ * `web/concert/performer-look.ts` puts a cross-legged hip at 0.055 × height and
+ * carries the same torso up from it, which lands the head *centre* at 0.472 ×
+ * height and the crown at 0.550. Every other entry in this switch sits about
+ * 0.017 × height above the centre — 0.76 against `sit`'s 0.743 — so the same
+ * offset gives 0.489, and 0.48 is that rounded toward the safer side. The two
+ * independent statements of it agree: the genre author measured 0.48, and
+ * `web/concert/rooms/sabha.ts` dimensioned its canopy and its front row against
+ * *a floor-seated crown of about 0.95 m and a chair-seated one of about 1.45*,
+ * which is 0.550 and 0.822 × 1.75. Both of those rooms were built waiting for
+ * this number and neither has to move.
  */
 function headAbove(posture: Posture, height: number): number {
   switch (posture) {
+    case 'floor': return height * 0.48;
     case 'sit': case 'straddle': return height * 0.76;
     case 'kit': return height * 0.78;
     case 'stool': return height * 0.86;
     case 'perch': return height * 0.94;
     default: return height;
   }
+}
+
+/**
+ * The traditions that play sitting on the floor.
+ *
+ * ## Why the decision is split, and why this half is here
+ *
+ * A sitar is always on the floor, a concert harp never is, and a hand drum is
+ * whichever its tradition says. Those are three different kinds of statement and
+ * pretending they are one produces a wrong answer for at least one of them, so
+ * the rule is a conjunction of two questions asked in two places:
+ *
+ *  - **Can this object be played by somebody on the floor?** A fact about the
+ *    object, with one answer everywhere it is asked, so it lives on the object:
+ *    `ArchetypeSpec.lap`, beside `held` and `blown`, which are the same kind of
+ *    fact about the same body. A sitar's answer is so emphatic that it does not
+ *    need the flag — its `posture` is `floor` outright.
+ *  - **Does this band sit on the floor?** A fact about a *tradition*, which no
+ *    archetype can answer: the object under a funk conga player and the object
+ *    under a tabla player are the same object. That is this table.
+ *
+ * ## Why the tradition half is here rather than in the genres
+ *
+ * It is a registry inside the renderer, which is the shape `venue.ts` and
+ * `genre/types.ts` both argue *against* at length — the rooms, the wardrobes and
+ * the programme copy all left this directory for exactly that reason, and the
+ * proof they were right is that the newest genre had been added to none of the
+ * four tables. So this is a deliberate exception and it is worth being honest
+ * about the size of it: two ids, and it will grow.
+ *
+ * Three reasons it is here anyway, in the order they bind.
+ *
+ * **`web/concert/` may not read a genre id at all.** That is the harder rule and
+ * it is not mine to relax: `venue.ts`'s header says the renderer makes no
+ * decision the IR could have made instead, and `stage-props.ts` and the twelve
+ * room builders are written to it. So wherever this decision lives, its *answer*
+ * has to reach the renderer as posture in the IR — which it does, through
+ * `Station.posture` — and the only question is which side of the IR seam decides
+ * it. Nothing in `web/concert/` was ever a candidate.
+ *
+ * **It is a claim about a body, not about a room.** Everything that migrated out
+ * to `Genre.staging` is dressing: what colour the walls are, what the band is
+ * wearing, what the programme says. This decides where a player's hips are and
+ * therefore where their hands, their head and every sightline in the building
+ * end up — it is the same kind of fact as `ROLE_OF` or `PROMINENCE`, both of
+ * which are tables in this file keyed on something the genre could have owned
+ * and does not.
+ *
+ * **And it is a two-line change either way.** `Staging` is a frozen contract in
+ * `genre/types.ts` with fourteen implementors; adding an optional `floorSeated`
+ * to it would be the right shape, and if this list reaches five entries it
+ * should be done. Two entries is not yet worth widening a contract fourteen
+ * files depend on, and the comparison argument cuts the other way here besides:
+ * *which traditions sit on the floor* is a question you want to see answered in
+ * one place, all at once, precisely so that a fifteenth genre's author can tell
+ * whether theirs belongs.
+ *
+ * ## Why these two, and why the whole genre rather than its eras
+ *
+ * `indian`: the genre's own staging file opens with *this music is performed
+ * sitting on the floor*, and the sabhā lays a carpet corner to corner because
+ * that is what is actually under these players.
+ *
+ * `arabic`: the courtyard's own note is *a carpet laid over the flags for the
+ * players to sit on*, its takht era is *five men on a carpet*, and the genre's
+ * `body` figure is argued down from a dance band's on the grounds that *the
+ * players are sitting cross-legged on a carpet with an instrument in their lap*.
+ *
+ * The era was available — `castSong` has `song.meta.era` — and is deliberately
+ * not used, which is the one judgement here somebody may want to revisit. A
+ * filmī session's string players sat on chairs with music stands and arabic's
+ * firqa era is forty people in black tie; both are true and neither reaches the
+ * only two archetypes this table can move. A tabla player sat on the floor in a
+ * Bombay studio in 1965 exactly as they did in a sabhā, and a darbuka is played
+ * across a thigh in a wedding hall exactly as in a courtyard. Splitting by era
+ * would double the size of the table to change nothing that is staged, and the
+ * first thing it would get wrong is the case it was added for.
+ */
+const FLOOR_SEATED: string[] = ['arabic', 'indian'];
+
+/**
+ * How this player is arranged, once the object and the tradition have both had
+ * their say. See `FLOOR_SEATED`.
+ *
+ * The object goes first and can settle it alone — a sitar is on the floor in a
+ * jazz quintet, if one ever turns up there. Otherwise the two have to agree.
+ */
+function postureFor(spec: ArchetypeSpec, genre: string): Posture {
+  if (spec.posture === 'floor') return 'floor';
+  return spec.lap && FLOOR_SEATED.includes(genre) ? 'floor' : spec.posture;
 }
 
 // ---------------------------------------------------------------------------
@@ -991,6 +1105,11 @@ function roster(
       id, seed, wardrobe, uniform, density,
       isLead: d.layer === leadLayer,
     });
+    // The object's default, unless it is one of the two the tradition sits down
+    // — and everything downstream is derived from the answer rather than from
+    // the spec, because a cross-legged head is half a metre lower and the
+    // sightline pass is the thing that has to know.
+    const posture = postureFor(spec, genre);
     slots.push({
       id,
       layer: d.layer,
@@ -1004,10 +1123,10 @@ function roster(
       r: spec.footprint,
       anchor: 1,
       facing: 0,
-      posture: spec.posture,
+      posture,
       riser: 0,
       locked: false,
-      head: headAbove(spec.posture, look.height),
+      head: headAbove(posture, look.height),
       box: { x0: 0, x1: 0, z0: 0, z1: 0 },
       avoidFrontCentre: false,
       doubles: d.doubles,
@@ -1235,6 +1354,47 @@ function stageBand(slots: Slot[], venue: Venue, seed: string): void {
   for (const s of slots) {
     switch (s.role) {
       case 'kit':
+        /**
+         * Unless they are sitting on the floor, in which case everything this
+         * branch is about is the wrong answer twice over.
+         *
+         * The riser is the first half. `RISER_HEIGHT` is here because a kit is
+         * loud, immovable and hard to see over; a percussionist cross-legged on
+         * a carpet is none of those, and putting one on a 2.8 m rock platform is
+         * the single most conspicuously wrong thing this file was doing in two
+         * genres. It is also arithmetic rather than taste: `headAbove` gives
+         * them 0.84 m, the riser adds 0.4, and the result is a player whose head
+         * is at 1.24 m — lower than a seated pianist and standing on a box.
+         *
+         * The depth is the second half, and it is the half that is not obvious.
+         * The kit goes upstage centre because it can be seen over; this player
+         * is 0.9 m tall on the boards and *cannot*. Height and depth trade off
+         * against each other from a camera 11 m out — a player half a metre
+         * lower has to be that much further downstage to clear the shoulders in
+         * front — so a floor percussionist parked on the back line is a player
+         * the sightline pass then has to rescue from every standing body on the
+         * stage, one pass at a time. They belong level with the comp, which is
+         * also where a tabla player actually sits: beside the soloist, on the
+         * same carpet, a little upstage of the front line.
+         *
+         * They keep `role: 'kit'` and therefore `DRUMMER_CLEARANCE`, which is
+         * the one thing the drummer's treatment gets right about them: the
+         * percussionist is still the easiest player on this stage to lose.
+         */
+        if (s.posture === 'floor') {
+          s.x = FLOOR_PERCUSSION_SIDE * Math.min(1.5, xLimit - s.r);
+          s.z = zMid + 0.3;
+          /**
+           * Heavier than a horn and lighter than the kit. Somebody sitting on
+           * the floor with a drum in their lap does not shuffle aside to let a
+           * trumpeter past — but they are not bolted to a platform either, and
+           * unlike the drummer they *can* move, which is what the sightline
+           * pass needs of them.
+           */
+          s.anchor = 3;
+          s.box = { x0: -xLimit, x1: xLimit, z0: zMid - 0.2, z1: zLipLimit(D, s.r) };
+          break;
+        }
         s.x = 0;
         // Slightly upstage of the riser's centre: a kit is played from its
         // downstage edge, and the drummer is the thing being placed.
@@ -1949,6 +2109,27 @@ const BULKY: Archetype[] = ['grand-piano', 'harp'];
 const PIANO_SIDE = -1;
 
 /**
+ * Which side a floor-seated percussionist sits, and it is not a coin toss
+ * either.
+ *
+ * The same kind of exception `PIANO_SIDE` is, made for a different reason. A
+ * grand is asymmetric and only one mirror image is worth looking at; a tabla
+ * player is symmetrical and the tradition simply has an answer. In a sabhā the
+ * soloist is centre and the percussionist is at their right hand, which from the
+ * front is the audience's left — the same `-x` the piano takes, by the same
+ * convention in `types.ts`. Every photograph of a Hindustani recital is this way
+ * round, and a takht's darbuka sits at the same end of the carpet.
+ *
+ * It shares the piano's side and that is knowingly accepted rather than
+ * overlooked. The two meet in about one number in forty across the two genres
+ * that floor-seat at all, the separator settles it when they do, and the
+ * alternative — mirroring the percussionist to avoid a grand piano that is
+ * usually not there — would be letting the rarer object decide the commoner
+ * one's place.
+ */
+const FLOOR_PERCUSSION_SIDE = -1;
+
+/**
  * How far off centre a piece of furniture sits when it is the whole front line.
  *
  * The harp's number, and the grand piano's until it turned out to be measuring
@@ -2552,7 +2733,18 @@ interface View {
   top: number;
 }
 
-function viewOf(s: Slot): View {
+/** What the camera sees of one player: where they are, how big, how tall. */
+export interface Seen {
+  x: number;
+  z: number;
+  riser: number;
+  /** Crown above the feet — `headAbove`, or a rig taller than the person. */
+  head: number;
+  /** Whether the extra clearance a drummer gets applies. */
+  drums: boolean;
+}
+
+function viewOf(s: Seen): View {
   const dx = s.x - DEFAULT_CAMERA[0];
   const dz = s.z - DEFAULT_CAMERA[2];
   const dist = Math.max(0.5, Math.hypot(dx, dz));
@@ -2561,6 +2753,60 @@ function viewOf(s: Slot): View {
     theta: Math.atan2(dx, -dz),
     half: Math.atan2(SILHOUETTE_R, dist),
     top: Math.atan2(s.riser + s.head - DEFAULT_CAMERA[1], dist),
+  };
+}
+
+/**
+ * Whether the second of these two is stacked behind the first, from the house.
+ *
+ * The predicate `fixSightlines` is built on, lifted out so that something other
+ * than this file can ask. `DEFAULT_CAMERA` has been exported since it was
+ * written, under a comment saying it is *exported so the verifier can assert
+ * against the same camera this file staged for* — and the verifier never could,
+ * because the four numbers that decide what "hidden" means and the head model
+ * that feeds them were all local. Restating any of them in `concert-check.ts`
+ * would be two declarations of one rule, which is the failure `PROPS` and
+ * `RoomStyle` are both arranged to prevent, and it would fail in the direction
+ * that matters: a verifier with its own copy of `headAbove` goes on passing
+ * after this file's copy changes.
+ *
+ * `near` and `far` are named from the camera. Returns false when they are not
+ * one behind the other at all, which is most pairs.
+ */
+export function stacked(near: Seen, far: Seen): boolean {
+  const vn = viewOf(near);
+  const vf = viewOf(far);
+  if (vn.dist >= vf.dist - 0.05) return false;
+  const lo = Math.max(vf.theta - vf.half, vn.theta - vn.half);
+  const hi = Math.min(vf.theta + vf.half, vn.theta + vn.half);
+  if (Math.max(0, hi - lo) / (2 * vf.half) < COVER_LIMIT) return false;
+  return vf.top - vn.top < (far.drums ? DRUMMER_CLEARANCE : HEAD_CLEARANCE);
+}
+
+/**
+ * What the camera makes of a performer once they are in the IR.
+ *
+ * The other half of what a verifier needs, and the half that is easy to get
+ * subtly wrong from outside: `Station` carries a posture and `Look` carries a
+ * height, and turning those two into a crown height is `headAbove`'s business.
+ * A rig taller than its player is not recoverable from the IR at all — see
+ * `assignRigs`, where a 1.72 m cabinet replaces the person in this
+ * calculation — so a wall of modular is restored here rather than being lost.
+ */
+/** The same view of a player mid-solve, where `Slot` already holds the answers. */
+function seenSlot(s: Slot): Seen {
+  return { x: s.x, z: s.z, riser: s.riser, head: s.head, drums: s.role === 'kit' };
+}
+
+export function seenAs(performer: Performer): Seen {
+  const spec = SYNTH_RIGS[performer.rig ?? 'polysynth'];
+  const head = headAbove(performer.station.posture, performer.look.height);
+  return {
+    x: performer.station.position[0],
+    z: performer.station.position[2],
+    riser: performer.station.riser,
+    head: performer.rig ? Math.max(head, spec.height) : head,
+    drums: performer.layer === 'drums',
   };
 }
 
@@ -2594,17 +2840,10 @@ function fixSightlines(slots: Slot[]): boolean {
       if (i === j) continue;
       const near = slots[i]!;
       const far = slots[j]!;
-      const vn = viewOf(near);
-      const vf = viewOf(far);
-      if (vn.dist >= vf.dist - 0.05) continue;
-
-      const lo = Math.max(vf.theta - vf.half, vn.theta - vn.half);
-      const hi = Math.min(vf.theta + vf.half, vn.theta + vn.half);
-      const cover = Math.max(0, hi - lo) / (2 * vf.half);
-      if (cover < COVER_LIMIT) continue;
-
-      const wanted = far.role === 'kit' ? DRUMMER_CLEARANCE : HEAD_CLEARANCE;
-      if (vf.top - vn.top >= wanted) continue;
+      // The predicate is `stacked`, which the verifier reads too. It used to be
+      // written out here, which meant a check outside this file had to restate
+      // four constants and the head model to ask the same question.
+      if (!stacked(seenSlot(near), seenSlot(far))) continue;
 
       /**
        * Slide sideways — and which of the two moves depends on who is stuck.
@@ -2617,9 +2856,18 @@ function fixSightlines(slots: Slot[]): boolean {
        * way — which is also the honest answer, since a singer 40 cm off centre
        * still reads as front and centre and a drummer behind a singer does not
        * read at all.
+       *
+       * A floor-seated percussionist is on the `drums` layer and therefore has
+       * `role: 'kit'`, and none of the sentence above is true of them: there is
+       * no platform, nothing of theirs is `locked`, and they can step aside as
+       * freely as anybody. Asking about the posture rather than the role is what
+       * keeps this branch attached to the fact that justifies it. It is asked
+       * that way round rather than through `locked` because an ambient drummer
+       * is not locked either — ambient never places a riser — and that stage has
+       * been giving its drummer the pinned treatment since before this existed.
        */
+      const kitPinned = far.role === 'kit' && far.posture !== 'floor';
       const dir = far.x >= near.x ? 1 : -1;
-      const kitPinned = far.role === 'kit';
       far.x += dir * (kitPinned ? 0.12 : 0.3);
       near.x -= dir * (kitPinned ? 0.34 : 0.12);
       clampInto(far);

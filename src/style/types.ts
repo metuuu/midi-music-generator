@@ -18,7 +18,7 @@ import type { VoicingStyle } from '../core/voicing.js';
 import type { StrictnessId } from '../core/rules.js';
 import type { HookId } from '../generate/hook.js';
 import type { FillPalette } from '../generate/fills.js';
-import type { TransitionPalette } from '../generate/transition.js';
+import type { BreakCarrier, TransitionPalette } from '../generate/transition.js';
 
 /** One bar of melodic rhythm. `[6, 2, 8]` = dotted quarter, eighth, half. */
 export type RhythmCell = number[];
@@ -693,6 +693,78 @@ export interface Style {
    */
   transitions?: TransitionPalette;
   /**
+   * Who is left holding a `break`. Defaults to the bass — see `BREAK_CARRIER`.
+   *
+   * `transitions` above lets a style name the vocabulary its band draws from at a
+   * seam without letting it say who plays it, and stop-time is the one kind where
+   * that second half is the gesture. A break is *one voice in the open*, and
+   * which voice is a fact about the band: a taqsim ends on the qanun, a breakdown
+   * belongs to the guitars, and a dub drops everything but the bass. The engine
+   * cannot tell those apart, because from where the edit is made a tanpura drone
+   * and a walking line are both `bass` with some notes in them.
+   *
+   * **Read, never drawn, which is the whole reason it is cheap.** No weight, no
+   * table, no stream — `generateSong` reads the field and hands the answer to
+   * `planTransitions` and `applyTransitions`. A style that names one takes no
+   * number out of any stream, so it moves no other style's songs; a style that
+   * names nothing is bit-for-bit what it was. That is a stronger statement than
+   * the one `feels` and `transitions` make, where absence has to be defended
+   * against a draw that would otherwise have happened. Here there is no draw to
+   * avoid.
+   *
+   * **Style-level and not genre-level**, unlike `transitions`, which has a half
+   * on `Genre`. A palette is a claim about a band's vocabulary and travels well;
+   * a carrier is a claim about one piece's texture and does not. Finnish folk is
+   * one genre containing both `hidasvalssi`, a dance band whose bass states every
+   * downbeat, and `piirileikki`, which declares `excludeLayers: ['bass', …]` and
+   * has no bass at all — a genre-level answer would be wrong for one of them
+   * whichever way it was written.
+   *
+   * **And it cannot reintroduce the hook-dependence that named the carrier in the
+   * first place.** The first `break` chose its carrier by asking which layer
+   * covered the last bar, which in practice asked whether the melody did, and
+   * `--hook` is the one control that rewrites the melody — so the same seed broke
+   * at one level and not at another and took the drum part with it. A style table
+   * is a literal: identical at all five hook levels, consulted rather than
+   * computed, and with nothing in it for the tune to move. It has exactly the
+   * standing `shots` has, and `shots` is why the kit is allowed to play a seam
+   * figure at all. The refusals still ask only the layer plan and the solo
+   * assignment, never a note.
+   *
+   * `BreakCarrier` is `LayerId` minus four values rather than `LayerId`, and each
+   * removal is a measured failure made unwritable: the kit, which a break silences
+   * by definition; `counter` and `brass`, the only two layers whose presence in a
+   * section moves with `--hook`; and `vocal`, which never appears in a layer plan
+   * at all and would silently produce a style that never breaks. Name `melody`
+   * for a sung break — the singer stays with the tune.
+   *
+   * ## Worked example
+   *
+   * ```ts
+   * // A rāg. The bass here is the tanpura and it writes six notes into an
+   * // eight-bar section, all of them in the first bar — hand it the break and
+   * // the bar comes out silent. What is actually sounding at the seam is the
+   * // śruti box, which is `pad` in this genre's palette and which nobody in
+   * // this music ever switches off.
+   * transitions: [['fill', 6], ['break', 2]],
+   * breakCarrier: 'pad',
+   * ```
+   *
+   * That is the whole of the fix `docs/engine-gaps.md` §2.7 left open, measured
+   * in `playBreak`: over 10517 drawn breaks with every style's palette forced,
+   * the bars that come out with nothing sounding go 43 → 0 under `pad`, and 43 →
+   * 87 or 1047 under `comp` or `melody`. The engine cannot tell a drone from a
+   * walking line; the table that wrote it can.
+   *
+   * The refusals apply to a declared carrier exactly as they applied to the
+   * default, and one of them stops being nearly inert when it is: `layersFor`
+   * writes a bass into every section it makes and a `pad` or a `melody` into some
+   * section kinds only, so a style naming the wash draws `fill` at two seams in
+   * five. That is settled at the *draw*, before the drummer's fill is vetoed, so
+   * those seams are announced exactly as they always were.
+   */
+  breakCarrier?: BreakCarrier;
+  /**
    * Figures the whole band hits together, in sixteenth slots from the top of the
    * bar, weighted. `[[[0, 6, 10], 3]]` is the anticipated-two shot every dance
    * band in this catalogue has played.
@@ -761,6 +833,82 @@ export interface Style {
    * amplitude rather than filter, and `CompHit.vel` already carries it.
    */
   filter?: { depth: number; shape: 'ramp' | 'step' };
+  /**
+   * Filtering, reverb send and stereo position per layer — merged **over** the
+   * era's, which is merged over the genre's, and under the instrument's.
+   *
+   * ## What kind of claim this is, which is the whole of why it wins
+   *
+   * The order it joins was already argued and the argument is worth keeping in
+   * front of you: a genre says what is true of the music *whatever decade it
+   * claims to be from* — ambient's bass is dry and its pad drenched in 1974 and
+   * in 2004 alike — and an era says **how wet and how dark that decade's records
+   * actually were**. Those are a claim about the music and a claim about the
+   * year, and the year wins because production is mostly a fact about the year.
+   *
+   * A style is a third kind of claim and it is the rarest: *the treatment is the
+   * piece*. Not that this music tends to be reverberant, and not that records cut
+   * in this decade were — that **this thing is made of its production**, and a
+   * version of it without the production is a different piece rather than a
+   * period variant of the same one. That claim outranks the year by construction,
+   * because it is a claim about a piece and the era's is a claim about the
+   * average of a decade, and an average does not get to overrule a member of it.
+   *
+   * The motivating case makes it concrete and is the reason to be sure. Reggae's
+   * `dub` is a *production* rather than a rhythm: the same riddim, drenched, with
+   * the singer pulled off it — King Tubby wrote no dub rhythm, he took somebody
+   * else's tape and mixed it a second time. It had to borrow the `roots` era's
+   * treatment, so a dub drawn in the `digital` era came out **dry** — which is
+   * not a dub cut in 1985, it is simply not a dub. If the era won here the field
+   * would change nothing in the one case that asked for it.
+   *
+   * ## …and absence is what makes that safe
+   *
+   * The obvious objection to style-over-era is that it lets a style stop tracking
+   * the decade, and an era is exactly the thing that should decide how a decade
+   * sounds. That is answered by the default rather than by the order: a style
+   * with nothing to say about production writes nothing, the era wins as it
+   * always did, and every style in the catalogue is in that position today. The
+   * only styles that reach this field are the ones production defines, and for
+   * those the era yielding is the point rather than the cost.
+   *
+   * **Merged per key, not per layer**, exactly as the two under it already are.
+   * A style names the keys its identity actually rests on and keeps tracking the
+   * decade on all the rest: a dub declaring `delay` and `reverb` on the comp
+   * still takes its `lowpass` from whichever era it is drawn in, so it is a 1968
+   * dub or a 1985 one and drenched either way. A style that names a whole layer's
+   * treatment has frozen that layer across every era it can appear in, which is
+   * an era's job taken away; name few keys, and name them because they are the
+   * record.
+   *
+   * The **instrument goes last and still does**, because it is not describing
+   * production at all — an electric violin is a violin with a pickup and an
+   * amplifier, and no mixing desk of any decade can un-electrify one. See
+   * `Instrument.effects`.
+   *
+   * Distinct from `filter` above, which is the same subject at a different tense:
+   * this is the standing treatment, that is the engineer's hand *moving* on it
+   * across a section. Dub wants both and for different reasons.
+   *
+   * **Absent means no draw and no change** — there is nothing here to draw, so
+   * unlike `feels` and `transitions` this needs no defending: a style that says
+   * nothing merges an empty object into the chain and the result is the same
+   * object it was, key for key.
+   *
+   * ## Worked example
+   *
+   * ```ts
+   * // A production rather than a rhythm: this much echo is what the style *is*,
+   * // in whichever decade it is drawn. `lowpass` is deliberately not named —
+   * // how bright the record is stays the era's to say.
+   * effects: {
+   *   comp:   { reverb: 0.5, delay: 0.55 },
+   *   melody: { reverb: 0.6, delay: 0.5 },
+   *   drums:  { reverb: 0.4, delay: 0.3 },
+   * },
+   * ```
+   */
+  effects?: Partial<Record<LayerId, Effects>>;
   /**
    * Override the genre's default constraint level. Bebop wants `free`: the
    * chromatic approach notes and unprepared dissonances the rules exist to

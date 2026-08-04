@@ -99,7 +99,10 @@ export interface LegAnchors {
 export function buildLegs(
   root: Object3D, anchors: LegAnchors, p: Proportions, look: Look, l: Leases,
 ): LegsRig {
-  const seated = p.seatY > 0;
+  // `p.seated` rather than `p.seatY > 0`: a cross-legged player's seat is the
+  // boards, so their seat height is honestly zero and the old test called them a
+  // standing body. See `Proportions.seatY`.
+  const seated = p.seated;
 
   /**
    * Trousers, or the garment continuing. Asked rather than assumed.

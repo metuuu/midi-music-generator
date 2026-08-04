@@ -30,7 +30,7 @@ import {
   MeshStandardMaterial, Object3D, SphereGeometry, Vector2, Vector3,
 } from 'three';
 
-import type { PlayPoint } from '../../../concert/types.js';
+import type { PlayPoint, Posture } from '../../../concert/types.js';
 import { Rng } from '../../../core/rng.js';
 import type { DrumVoice } from '../../../core/types.js';
 import {
@@ -47,13 +47,54 @@ const TAU = Math.PI * 2;
 const HEAD_R = 0.145;
 
 /**
- * The head: where its centre is, and which way "off the skin" points.
+ * How high this object stands, which is a fact about the player and not about
+ * the drum.
+ *
+ * Three heights, because three things have to come down together or the object
+ * pulls itself apart: the head the hands are on, the board the small pieces
+ * stand on, and the point in front of the sternum where two hands meet for a
+ * clap. Everything else in the file is derived from those.
+ *
+ * **A chair and a carpet are not one drum translated.** The body of a goblet
+ * drum runs from the head to the boards — see `bodyLength` — so lowering the
+ * head shortens the instrument rather than sinking it, and the trap table beside
+ * it grows shorter legs rather than shorter ones buried in the deck. That is why
+ * this is a build-time choice rather than a `position.y` on the root, and it is
+ * the whole of what `InstrumentBuildOptions.posture` is for.
+ *
+ * The floor figures are the object at rest on a carpet in front of somebody
+ * cross-legged: a tabla on its ring, a mridangam across the shins, a darbuka
+ * over a thigh — all of them put a head at about a third of a metre. It lines up
+ * with the body it has to meet without either being fitted to the other:
+ * `handRests` in `performer-look.ts` idles a floor-seated player's hands at
+ * `hipY + 0.34 × torsoH`, which is 0.285 m, and the shoulder is at 0.65. A head
+ * at 0.32 is under the hands where they already are.
+ */
+interface Seat {
+  /** The centre of the head. */
+  head: number;
+  /** The top face of the trap table's board. */
+  table: number;
+  /** Where two hands meet for a clap, in front of the sternum. */
+  clap: number;
+}
+
+/** Between the knees of somebody on a chair. The archetype's own posture. */
+const ON_A_CHAIR: Seat = { head: 0.72, table: 0.70, clap: 0.99 };
+/** On the carpet in front of somebody cross-legged. See `Posture.floor`. */
+const ON_THE_FLOOR: Seat = { head: 0.32, table: 0.30, clap: 0.59 };
+
+const seatFor = (posture: Posture | undefined): Seat =>
+  (posture === 'floor' ? ON_THE_FLOOR : ON_A_CHAIR);
+
+/**
+ * Which way "off the skin" points.
  *
  * The tilt is toward the player, as every normal on the kit is, and for the
  * same reason — it is what stops each prep being a vertical lift. On a hand
- * drum it is also simply true: a drum held between the knees leans back.
+ * drum it is also simply true: a drum held between the knees leans back, and one
+ * lying on a carpet in front of crossed legs leans back further if anything.
  */
-const HEAD_AT = new Vector3(0, 0.72, 0);
 const HEAD_UP = new Vector3(0, 0.985, -0.17).normalize();
 
 /**
@@ -71,10 +112,13 @@ const HEAD_ALONG = new Vector3(0, 0, 1)
 /** How far out from the centre an edge stroke lands. */
 const EDGE = HEAD_R * 0.72;
 
-/** The trap table: where its top board sits, and how thick it is. */
-const TABLE_AT = new Vector3(-0.40, 0.70, 0.02);
+/** The trap table: where it stands beside the player, and how thick it is. */
+const TABLE_X = -0.40;
+const TABLE_Z = 0.02;
 const TABLE_THICK = 0.018;
-const TABLE_TOP = TABLE_AT.y + TABLE_THICK / 2;
+
+/** How far behind the head a clap lands. Its height is `Seat.clap`. */
+const CLAP_Z = -0.16;
 
 /**
  * How tall each small piece is, and therefore where its struck face is.
@@ -88,62 +132,91 @@ const TABLE_TOP = TABLE_AT.y + TABLE_THICK / 2;
  */
 const PIECE = { tb: 0.045, sh: 0.110, perc: 0.052, cb: 0.100 } as const;
 
+/** A point on the instrument: where it is, and which way it faces. */
+interface Spot { at: Vector3; up: Vector3 }
+
 /**
- * Where each voice this player can own is struck.
+ * Where each voice this player can own is struck, and where the objects that
+ * carry them stand.
  *
  * One table, read by `resolve` and used to place the geometry, so a hand and
  * the thing it lands on cannot drift apart — the same contract the kit's
- * `LAYOUT` holds itself to.
+ * `LAYOUT` holds itself to. Built per instrument rather than declared once,
+ * because the *height* of every entry in it is the player's rather than the
+ * drum's — see `Seat` — and a second table for the second height is exactly the
+ * duplication this one exists to prevent.
  *
- * It is deliberately *not* total over `DrumVoice`. A hand drummer has no snare,
- * no hi-hat and no kick, and `drumStations` in `concert/instruments.ts` is what
- * guarantees none of those ever reaches this model: kit voices go to a kit, and
- * a part that has any is cast with a drummer behind one. A `Partial` record
- * that says so is more honest than eleven entries pointing at the same skin.
+ * `points` is deliberately *not* total over `DrumVoice`. A hand drummer has no
+ * snare, no hi-hat and no kick, and `drumStations` in `concert/instruments.ts`
+ * is what guarantees none of those ever reaches this model: kit voices go to a
+ * kit, and a part that has any is cast with a drummer behind one. A `Partial`
+ * record that says so is more honest than eleven entries pointing at the same
+ * skin.
  */
-const LAYOUT: Partial<Record<DrumVoice, { at: Vector3; up: Vector3 }>> = {
-  /** *Dum*: the palm in the middle of the head, which is the low one. */
-  lp: { at: HEAD_AT.clone(), up: HEAD_UP.clone() },
-  /** The near rim, under the hand that is already there. */
-  mp: { at: HEAD_AT.clone().addScaledVector(HEAD_ALONG, -EDGE), up: HEAD_UP.clone() },
-  /** *Tek*: the far rim, fingertips, and the high one. */
-  hp: { at: HEAD_AT.clone().addScaledVector(HEAD_ALONG, EDGE), up: HEAD_UP.clone() },
+interface Layout {
+  headAt: Vector3;
+  tableAt: Vector3;
+  tableTop: number;
+  points: Partial<Record<DrumVoice, Spot>>;
+  /** Hands at rest, hovering just off the skin. */
+  rest: Spot;
+}
 
-  /**
-   * The riq, lying on the table where a frame drum lies when it is not in the
-   * air. Arabic writes `tb` in the same bar as every `lp` it writes, and it
-   * means a riq rather than a tambourine bolted to a hi-hat stand — which is
-   * exactly why `STATION_OF` files the auxiliary voices as `either` rather than
-   * as the kit's property.
-   */
-  tb: { at: new Vector3(TABLE_AT.x + 0.06, TABLE_TOP + PIECE.tb, TABLE_AT.z + 0.04), up: new Vector3(0, 1, 0) },
-  sh: { at: new Vector3(TABLE_AT.x - 0.10, TABLE_TOP + PIECE.sh, TABLE_AT.z - 0.08), up: new Vector3(0, 1, 0) },
-  perc: { at: new Vector3(TABLE_AT.x - 0.09, TABLE_TOP + PIECE.perc, TABLE_AT.z + 0.11), up: new Vector3(0, 1, 0) },
-  cb: { at: new Vector3(TABLE_AT.x + 0.04, TABLE_TOP + PIECE.cb, TABLE_AT.z + 0.15), up: new Vector3(0, 1, 0) },
+function layoutFor(seat: Seat): Layout {
+  const headAt = new Vector3(0, seat.head, 0);
+  const tableAt = new Vector3(TABLE_X, seat.table, TABLE_Z);
+  const tableTop = tableAt.y + TABLE_THICK / 2;
+  const flat = () => new Vector3(0, 1, 0);
 
-  /**
-   * A clap, which is the one point on this instrument that is not on an object.
-   *
-   * The kit answers `cp` by growing a rubber pad, because a drummer holding two
-   * sticks has no way to clap. A percussionist has bare hands and needs no
-   * prop, so this is simply where they meet: in front of the sternum, above and
-   * behind the drum, clear of the skin.
-   *
-   * One hand is sent here, not two, and that is a constraint rather than a
-   * preference: `npm run concert` asserts one sounding gesture per written
-   * note, so a clap that moved both arms would count twice and fail. The free
-   * hand is idling on the skin a few centimetres below, which reads as a
-   * percussionist clapping with one hand busy — the same compromise the kit
-   * makes by growing a pad, and visible in the same way.
-   */
-  cp: { at: new Vector3(0, 0.99, -0.16), up: new Vector3(0, 0.64, -0.77) },
-};
+  return {
+    headAt,
+    tableAt,
+    tableTop,
+    points: {
+      /** *Dum*: the palm in the middle of the head, which is the low one. */
+      lp: { at: headAt.clone(), up: HEAD_UP.clone() },
+      /** The near rim, under the hand that is already there. */
+      mp: { at: headAt.clone().addScaledVector(HEAD_ALONG, -EDGE), up: HEAD_UP.clone() },
+      /** *Tek*: the far rim, fingertips, and the high one. */
+      hp: { at: headAt.clone().addScaledVector(HEAD_ALONG, EDGE), up: HEAD_UP.clone() },
 
-/** Hands at rest, hovering just off the skin. */
-const REST = {
-  at: HEAD_AT.clone().addScaledVector(HEAD_UP, 0.11).addScaledVector(HEAD_ALONG, -0.04),
-  up: HEAD_UP.clone(),
-};
+      /**
+       * The riq, lying on the table where a frame drum lies when it is not in
+       * the air. Arabic writes `tb` in the same bar as every `lp` it writes, and
+       * it means a riq rather than a tambourine bolted to a hi-hat stand — which
+       * is exactly why `STATION_OF` files the auxiliary voices as `either`
+       * rather than as the kit's property.
+       */
+      tb: { at: new Vector3(tableAt.x + 0.06, tableTop + PIECE.tb, tableAt.z + 0.04), up: flat() },
+      sh: { at: new Vector3(tableAt.x - 0.10, tableTop + PIECE.sh, tableAt.z - 0.08), up: flat() },
+      perc: { at: new Vector3(tableAt.x - 0.09, tableTop + PIECE.perc, tableAt.z + 0.11), up: flat() },
+      cb: { at: new Vector3(tableAt.x + 0.04, tableTop + PIECE.cb, tableAt.z + 0.15), up: flat() },
+
+      /**
+       * A clap, which is the one point on this instrument that is not on an
+       * object — and therefore the one whose height is unmistakably the
+       * *player's*, since it is in front of their sternum. See `Seat.clap`.
+       *
+       * The kit answers `cp` by growing a rubber pad, because a drummer holding
+       * two sticks has no way to clap. A percussionist has bare hands and needs
+       * no prop, so this is simply where they meet: in front of the sternum,
+       * above and behind the drum, clear of the skin.
+       *
+       * One hand is sent here, not two, and that is a constraint rather than a
+       * preference: `npm run concert` asserts one sounding gesture per written
+       * note, so a clap that moved both arms would count twice and fail. The
+       * free hand is idling on the skin a few centimetres below, which reads as
+       * a percussionist clapping with one hand busy — the same compromise the
+       * kit makes by growing a pad, and visible in the same way.
+       */
+      cp: { at: new Vector3(0, seat.clap, CLAP_Z), up: new Vector3(0, 0.64, -0.77) },
+    },
+    rest: {
+      at: headAt.clone().addScaledVector(HEAD_UP, 0.11).addScaledVector(HEAD_ALONG, -0.04),
+      up: HEAD_UP.clone(),
+    },
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Motion
@@ -252,6 +325,15 @@ export const buildHandDrum: InstrumentBuilder = (opts) => {
   const rng = new Rng(`handdrum:${seed}`);
   const root = new Group();
 
+  /**
+   * How high the whole object stands, and therefore where every point on it is.
+   *
+   * The only thing in this file that reads the player. See `Seat`, and see
+   * `InstrumentBuildOptions.posture` for why a model is allowed to be told.
+   */
+  const seat = seatFor(opts.posture);
+  const L = layoutFor(seat);
+
   const shellMat = new MeshStandardMaterial({
     color: finish ?? ['#6b4a2f', '#7d5334', '#513828', '#8a6a3c'][rng.int(0, 3)]!,
     roughness: 0.62, metalness: 0.06,
@@ -270,20 +352,20 @@ export const buildHandDrum: InstrumentBuilder = (opts) => {
    * thing whose position is fixed and the shell is what has to follow it.
    */
   const drum = addTo(root, new Group());
-  drum.position.copy(HEAD_AT);
+  drum.position.copy(L.headAt);
   drum.quaternion.setFromUnitVectors(new Vector3(0, 1, 0), HEAD_UP);
 
   /**
    * How long the body has to be for its foot to land on the boards.
    *
-   * Not `HEAD_AT.y`, which is the answer for a drum standing straight up. This
+   * Not `L.headAt.y`, which is the answer for a drum standing straight up. This
    * one leans, so its foot ring meets the floor on one edge and the far edge
    * lifts — and a body cut to the head's height instead pushes the near edge
    * about half a centimetre through the deck. Derived from the same `HEAD_UP`
    * the tilt comes from, so leaning the drum further cannot sink it.
    */
   const lean = Math.acos(HEAD_UP.y);
-  const bodyLength = (HEAD_AT.y - HEAD_R * 0.62 * Math.sin(lean)) / Math.cos(lean);
+  const bodyLength = (L.headAt.y - HEAD_R * 0.62 * Math.sin(lean)) / Math.cos(lean);
 
   const body = addTo(drum, new Mesh(bodyGeometry(HEAD_R, bodyLength), shellMat));
   body.position.y = -bodyLength;
@@ -328,14 +410,14 @@ export const buildHandDrum: InstrumentBuilder = (opts) => {
     const table = addTo(root, new Mesh(
       new CylinderGeometry(0.20, 0.20, TABLE_THICK, 16), darkMat,
     ));
-    table.position.copy(TABLE_AT);
+    table.position.copy(L.tableAt);
     table.castShadow = true;
     table.receiveShadow = true;
     for (let i = 0; i < 3; i++) {
       const a = (i / 3) * TAU + 0.6;
-      const leg = addTo(root, new Mesh(new CylinderGeometry(0.010, 0.010, TABLE_AT.y, 8), hoopMat));
+      const leg = addTo(root, new Mesh(new CylinderGeometry(0.010, 0.010, L.tableAt.y, 8), hoopMat));
       leg.position.set(
-        TABLE_AT.x + Math.cos(a) * 0.07, TABLE_AT.y / 2, TABLE_AT.z + Math.sin(a) * 0.07,
+        L.tableAt.x + Math.cos(a) * 0.07, L.tableAt.y / 2, L.tableAt.z + Math.sin(a) * 0.07,
       );
     }
   }
@@ -347,7 +429,7 @@ export const buildHandDrum: InstrumentBuilder = (opts) => {
    * number both ends of it need.
    */
   function place(piece: Object3D, voice: keyof typeof PIECE): number {
-    const spec = LAYOUT[voice]!;
+    const spec = L.points[voice]!;
     piece.quaternion.setFromUnitVectors(new Vector3(0, 1, 0), spec.up.clone().normalize());
     piece.position.copy(spec.at).addScaledVector(spec.up.clone().normalize(), -PIECE[voice] / 2);
     piece.traverse((o) => { (o as Mesh).castShadow = true; });
@@ -428,11 +510,11 @@ export const buildHandDrum: InstrumentBuilder = (opts) => {
           if (point.voice in PIECE && !carries(point.voice as keyof typeof PIECE)) {
             return undefined;
           }
-          const spec = LAYOUT[point.voice];
+          const spec = L.points[point.voice];
           return spec ? contact(spec) : undefined;
         }
         case 'rest':
-          return contact(REST);
+          return contact(L.rest);
         default:
           // No pedals, and `ARCHETYPES.handdrum` says so before anything asks.
           return undefined;
@@ -464,11 +546,28 @@ export const buildHandDrum: InstrumentBuilder = (opts) => {
     },
 
     /**
-     * Close in, and `straddle`: the drum is between the knees, which is the
-     * posture's whole reason for existing. A kit's thirty-odd centimetres of
-     * clearance would put this player an arm's length from their own skin.
+     * Close in, and whichever way this player is sitting.
+     *
+     * `straddle` because the drum is between the knees, which is that posture's
+     * whole reason for existing; `floor` where the tradition puts the player
+     * cross-legged on a carpet with the drum in front of them. Both are close —
+     * a kit's thirty-odd centimetres of clearance would have this player an
+     * arm's length from their own skin — and the floor is six centimetres less
+     * close, for a reason that is a measurement rather than a feeling.
+     *
+     * A `straddle` player's shins go *down* from the knees and take up no floor
+     * in front of them, so the drum can stand where their feet are not. A
+     * cross-legged player's shins are folded flat across the ground and their
+     * shoes reach `0.12 × height` forward — 0.34 m on the tallest player casting
+     * draws — which is exactly where the goblet's flared foot ring was landing.
+     * At 0.40 the ring's near edge clears the longest toe by four centimetres,
+     * and the hands are 0.56 m from the shoulder, which is under the 0.61 m this
+     * archetype already reaches for its own trap table.
      */
-    station: { offset: new Vector3(0, 0, -0.34), facing: 0, posture: 'straddle' },
+    station: {
+      offset: new Vector3(0, 0, opts.posture === 'floor' ? -0.40 : -0.34), facing: 0,
+      posture: opts.posture === 'floor' ? 'floor' : 'straddle',
+    },
 
     dispose(): void {
       disposeTree(root);

@@ -18,7 +18,7 @@
 
 import { SLOTS_PER_BEAT, slotOf } from '../core/grid.js';
 import { midiToNoteName, spellingFor } from '../core/pitch.js';
-import { resolveVoice } from './drum-banks.js';
+import { resolveDrumSample, type DrumSample } from './drum-banks.js';
 import { levelOfDrum, levelOfSound } from './source-levels.js';
 import { sweptCutoff } from '../core/types.js';
 import type {
@@ -133,12 +133,17 @@ export function renderStrudel(song: Song, opts: StrudelRenderOptions = {}): stri
      * Old machines do not have modern kits. Substitute what this bank actually
      * has — see `render/drum-banks.ts` — or drop the part entirely rather than
      * emit a sample name that does not resolve.
+     *
+     * The answer is a sample and an address rather than a voice, because a
+     * hand-percussion rack can be riding on the machine and its samples are
+     * addressed the other way round: bare names picked with `.n()`, where a
+     * machine's are prefixed with `.bank()`. See `SAMPLE_RACKS`.
      */
-    const sound = resolveVoice(song.drums.bank, voice);
-    if (!sound) continue;
+    const played = resolveDrumSample(song.drums.bank, voice);
+    if (!played) continue;
     const bars = grid.map((hits) => {
       const row: string[] = Array.from({ length: slotsPerBar }, () => '~');
-      for (const h of hits) row[h.slot] = sound;
+      for (const h of hits) row[h.slot] = played.sample;
       return row;
     });
     /**
@@ -156,7 +161,7 @@ export function renderStrudel(song: Song, opts: StrudelRenderOptions = {}): stri
      * sounds, because that is the sample whose level was measured. See
      * `render/source-levels.ts`.
      */
-    const level = levelOfDrum(song.drums.bank, sound);
+    const level = levelOfDrum(song.drums.bank, played.voice);
     const gain = song.drums.gain * (song.drums.voiceGains[voice] ?? 1) * level;
     /**
      * How hard each stroke was, on the same slots as the strokes themselves —
@@ -166,9 +171,11 @@ export function renderStrudel(song: Song, opts: StrudelRenderOptions = {}): stri
     const dyn = drumDynamics(grid, slotsPerBar, gain);
     parts.push(
       [
-        `  // drums — ${voice}${sound === voice ? '' : ` (as ${sound}: ${song.drums.bank} has no ${voice})`}`,
+        `  // drums — ${voice}${drumNote(song.drums.bank, voice, played)}`,
         `  s(\`${formatGrid(bars)}\`)`,
-        `    .bank('${song.drums.bank}')`,
+        played.bank !== undefined
+          ? `    .bank('${played.bank}')`
+          : `    .n(${played.n})`,
         dyn ? `    .gain(\`${formatGrid(dyn)}\`)` : `    .gain(${gain.toFixed(3)})`,
         ...effectChain(fx, song),
       ].join('\n'),
@@ -205,7 +212,10 @@ export const DRUM_SAMPLES_URL =
  *
  * Sample names here are bare — `darbuka`, `tambourine2`, `snare_modern` — with
  * no bank prefix, which is the opposite convention to the drum-machine pack and
- * is why the two cannot collide.
+ * is why the two cannot collide. That one difference is also why the percussion
+ * half is reached by a `SAMPLE_RACKS` entry in `render/drum-banks.ts` rather
+ * than by another row in `BANK_VOICES`: a bank name *is* a prefix, and these
+ * names do not have one.
  */
 export const VCSL_SAMPLES_URL =
   'https://raw.githubusercontent.com/felixroos/dough-samples/main/vcsl.json';
@@ -221,7 +231,8 @@ export const VCSL_SAMPLES_URL =
  * 4.8 kB of manifest for a genre that does not exist yet, which is the whole
  * argument for registering it now: an Indian style written against the three
  * strokes has somewhere real to land, and the cost of it being there in the
- * meantime is one small fetch.
+ * meantime is one small fetch. The landing is the `mridangam` rack in
+ * `render/drum-banks.ts`, which reads `thom`, `na` and `ta` off this list.
  */
 export const MRIDANGAM_SAMPLES_URL =
   'https://raw.githubusercontent.com/felixroos/dough-samples/main/mridangam.json';
@@ -457,6 +468,19 @@ function dynamicGrid(
   // above cannot come to disagree about how loud this font is.
   return buildValueGrid(track.notes, totalBars, slotsPerBar,
     (n) => (track.gain * n.velocity * level(n)).toFixed(3));
+}
+
+/**
+ * Why this line of the kit does not say what it was asked for, if it does not.
+ *
+ * Two different things get named, and a reader auditioning a genre needs both:
+ * a substitution is a machine coming up short, and a rack is a second player
+ * arriving — one of them is a compromise and the other is the point.
+ */
+function drumNote(bank: string, voice: DrumVoice, played: DrumSample): string {
+  const swap = played.voice === voice ? '' : ` (as ${played.voice})`;
+  if (played.bank === undefined) return `${swap} — ${played.sample}:${played.n}`;
+  return played.voice === voice ? '' : ` (as ${played.voice}: ${bank} has no ${voice})`;
 }
 
 /** One stroke, placed in its bar. The drum equivalent of a `NoteEvent` onset. */

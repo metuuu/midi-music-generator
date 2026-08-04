@@ -29,6 +29,7 @@ import {
   ARCHETYPES, ARCHETYPE_OF, SYNTH_RIGS, archetypeForTrack, drumEventsFor,
   trackCanReach,
 } from './concert/instruments.js';
+import { seenAs, stacked } from './concert/cast.js';
 import { buildConcert, soundingEffectors } from './concert/index.js';
 import { cableBounds, routeOnDeck, stageBoxAt, type Obstacle } from './web/concert/cables.js';
 import { BUILDERS, buildInstrumentFor } from './web/concert/instruments/index.js';
@@ -632,6 +633,74 @@ check('every solo resolves to a performer', soloWithoutPlayer === 0,
       : `${placements} placements, closest ${closest.toFixed(2)} m (${closestAt})`);
   check('every performer is on the stage', offStage === 0,
     offStage ? `${offStage} off the boards` : `${placements} placements`);
+}
+
+/**
+ * Nobody's silhouette is swallowed by the player in front of them.
+ *
+ * The fourth constraint `cast.ts` claims to solve for, and the only one nothing
+ * has ever checked. `DEFAULT_CAMERA` has been exported since it was written,
+ * under a comment saying it exists *so the verifier can assert against the same
+ * camera this file staged for* — and the verifier could not: the four numbers
+ * deciding what "hidden" means and the head model feeding them were local to
+ * `fixSightlines`. They are `stacked` and `seenAs` now, so this asks the
+ * stager's own question rather than a second copy of it that would go on
+ * passing after the first one changed.
+ *
+ * A rate rather than zero, like the reach and knotted-arms checks and for the
+ * same reason: the solver takes bounded steps and a genuinely over-constrained
+ * stage has to settle somewhere. Measured across fourteen genres, every era, six
+ * seeds and three numbers: 8 of 13446 occluding pairs, 0.06%. It was 20 of
+ * 13328 before floor-seating moved the percussionists out of the back line —
+ * which is the direction a change to this file should move it.
+ */
+{
+  let pairs = 0;
+  let stuck = 0;
+  let onAPlatform = 0;
+  let impossible = 0;
+  let placements = 0;
+  const worst = new Map<string, number>();
+  for (const gid of CHECKED_GENRES) {
+    for (let i = 0; i < 4; i++) {
+      for (const number of buildConcert({ seed: `stage-${gid}-${i}`, genre: gid }).numbers) {
+        const people = number.cast.performers;
+        const seen = people.map(seenAs);
+        placements += people.length;
+        for (const p of people) {
+          const spec = ARCHETYPES[p.archetype];
+          // A cross-legged player on a 0.4 m rock riser is the picture this
+          // posture was added to stop: `headAbove` gives them 0.84 m, so the
+          // platform leaves their head lower than a seated pianist's.
+          if (p.station.posture === 'floor' && p.station.riser > 0) onAPlatform++;
+          // And floor-seating is a conjunction — see `FLOOR_SEATED` in
+          // `cast.ts`. A genre added to that table cannot put a trumpeter or a
+          // pedal harp on the carpet, whatever its tradition does.
+          if (p.station.posture === 'floor'
+            && spec.posture !== 'floor' && !spec.lap) impossible++;
+        }
+        for (let a = 0; a < people.length; a++) {
+          for (let b = 0; b < people.length; b++) {
+            if (a === b) continue;
+            pairs++;
+            if (!stacked(seen[a]!, seen[b]!)) continue;
+            stuck++;
+            const k = `${people[b]!.archetype} behind ${people[a]!.archetype}`;
+            worst.set(k, (worst.get(k) ?? 0) + 1);
+          }
+        }
+      }
+    }
+  }
+  const rate = pairs ? stuck / pairs : 0;
+  check('no player is stacked behind the one in front', rate < 0.001,
+    `${(rate * 100).toFixed(3)}% of ${pairs} occluding pairs`
+      + (stuck ? ` — ${[...worst].sort((a, b) => b[1] - a[1])
+        .map(([k, n]) => `${k} ×${n}`).join(', ')}` : ''));
+  check('a floor-seated player is never on a platform', onAPlatform === 0,
+    onAPlatform ? `${onAPlatform} on a riser` : `${placements} placements`);
+  check('nobody is floor-seated at an instrument that cannot be', impossible === 0,
+    impossible ? `${impossible} on the carpet at a standing object` : `${placements} placements`);
 }
 check('visemes exist exactly when there is a voice', visemeGaps === 0,
   visemeGaps ? `${visemeGaps} mismatches` : 'none');
@@ -1842,12 +1911,20 @@ console.log('\nInstruments');
           // Only a percussionist carries a rack, and only a kit is built
           // differently for a machine-driven part; every other model ignores
           // both, so asking for them elsewhere would key the cache on nothing.
+          //
+          // `posture` leads, and it was missing for as long as no model branched
+          // on one. A hand drum built for a chair and one built for a carpet are
+          // different objects — the goblet body runs from the head to the
+          // boards, so seating it lower shortens the instrument rather than
+          // translating it — and without the posture in this key the two
+          // collided here and only whichever was built first was ever probed.
           const drums = performer.layer === 'drums' ? number.song.drums.source : undefined;
           const aux = performer.layer === 'drums'
             ? [...new Set(drumEventsFor(number.song.drums.events, performer.archetype)
               .map((e) => e.voice))].sort()
             : undefined;
           const key = [
+            performer.station.posture,
             performer.archetype, aux?.join(',') ?? '', performer.rig ?? '',
             performer.boards ?? 1, drums ?? '',
           ].join('|');

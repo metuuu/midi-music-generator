@@ -135,6 +135,14 @@
  * `shot` figure out of a style table is — not because anything checks it, but
  * because there is nothing in it for the tune to move. See `playBreak`.
  *
+ * **And the name is the style's to give.** `Style.breakCarrier` is one optional
+ * layer id, read and never drawn, defaulting to `BREAK_CARRIER`: a taqsim ends
+ * on the qanun and a breakdown belongs to the guitars, and a static literal has
+ * exactly the standing a `shots` table has under the rule above. The two layers
+ * that would put the guarantee back at risk are the two that cannot be written —
+ * `BreakCarrier` takes them out of `LayerId` at the type level, so the mistake
+ * is a compile error rather than a measurement somebody has to remember to make.
+ *
  * **A break is the one kind with a floor**, and `layersFor` is why. It decides
  * which layers exist before any of this runs, so a break dropped into a section
  * that is already two players is not a gesture, it is a bar where the music
@@ -425,8 +433,17 @@ export function planTransitions(args: {
    * section loop, and this runs before it. See `breakable`.
    */
   drumBars?: ReadonlyMap<number, readonly (readonly [number, number])[]>;
+  /**
+   * Who a `break` is handed to. Absent means `BREAK_CARRIER`, which is the bass.
+   *
+   * Read rather than drawn, so a style that names one takes no number out of any
+   * stream and a style that does not plans the seams it always planned. See
+   * `Style.breakCarrier`.
+   */
+  carrier?: BreakCarrier;
 }): Seam[] {
   const { sections, palette, seed, metre, drums, drumBars } = args;
+  const carrier = args.carrier ?? BREAK_CARRIER;
   const boxed = !canVary(drums);
   const seams: Seam[] = [];
   /**
@@ -442,7 +459,7 @@ export function planTransitions(args: {
     const rng = palette?.length ? new Rng(`${seed}:transition:${s}`) : undefined;
     let kind: TransitionKind = rng ? rng.weighted(palette!) : 'fill';
     if (kind !== 'fill' && (boxed || s - spent < SEAMS_BETWEEN_GESTURES)) kind = 'fill';
-    if (kind === 'break' && !breakable(sections, s, drumBars?.get(s))) kind = 'fill';
+    if (kind === 'break' && !breakable(sections, s, drumBars?.get(s), carrier)) kind = 'fill';
     if (kind === 'elide' && !elidable(sections, s)) kind = 'fill';
     if (kind !== 'fill') spent = s;
     // Drawn from the same per-seam stream, and after the rate limit rather than
@@ -526,6 +543,7 @@ const MIN_BREAK_LAYERS = 3;
 function breakable(
   sections: readonly Section[], s: number,
   drumBars: readonly (readonly [number, number])[] | undefined,
+  carrier: BreakCarrier,
 ): boolean {
   const leaving = sections[s]!;
   const arriving = sections[s + 1]!;
@@ -534,18 +552,30 @@ function breakable(
   /**
    * …and somebody has to be left holding it.
    *
-   * The carrier is the bass and it is named rather than found, so whether this
-   * section *has* one is a question about the layer plan, and a question about
-   * the layer plan is free here. See `BREAK_CARRIER`.
+   * The carrier is named rather than found — by the style where it says so and
+   * by `BREAK_CARRIER` where it does not — so whether this section *has* one is
+   * a question about the layer plan, and a question about the layer plan is free
+   * here.
    *
-   * It has never fired: over 2300 drawn breaks with the palette forced across
-   * every genre, every departing section had a bass in it. That makes it the
-   * same kind of inert-and-kept as `MIN_BREAK_LAYERS` above, and it is kept for
-   * the same reason — wave 5 is where the sparse genres get palettes, and a
-   * break drawn for a band with no bass in it is a bar of silence that has spent
-   * the seam's fill to get there.
+   * **It is no longer inert, and it was not the declared carrier that woke it
+   * up.** The note that used to stand here said it had never fired over 2300
+   * drawn breaks; re-measured across every genre and style at a forced palette,
+   * 30 seeds each, it stands down 42 of the 16133 seams that reach it — 0.3%,
+   * and every one of them is finnfolk's `piirileikki`, the one style in the
+   * catalogue that writes `excludeLayers: ['bass', …]`. That is the guard doing
+   * exactly what it was written for, in the sparse repertoire it was kept for.
+   *
+   * A declared carrier makes it the load-bearing one. `layersFor` puts a bass in
+   * every section it writes and puts `pad` and `melody` into some section kinds
+   * and not others, so the same forced sweep stands down 4.0% of seams on the
+   * `comp` — jazz's `odd`, `fusion` and `trio`, where the piano is the lead
+   * rather than the accompaniment — and 38.6% on the `pad`. A style that hands
+   * its break to the wash gets `fill` at two seams in five, which is the right
+   * answer and a cheap one: it is settled at the *draw*, so the drummer keeps a
+   * fill that was never vetoed, and the seam is announced exactly as it always
+   * was.
    */
-  if (!leaving.activeLayers.includes(BREAK_CARRIER)) return false;
+  if (!leaving.activeLayers.includes(carrier)) return false;
   /**
    * …and the drummer does not already own the bar.
    *
@@ -658,6 +688,19 @@ export function applyTransitions(
    * wants and what a test rig means when it says nothing.
    */
   swingAt: (beat: number) => number = () => 0,
+  /**
+   * Who a `break` leaves holding the bar. Defaults to `BREAK_CARRIER`, which is
+   * what every style that has not been asked the question means — see
+   * `Style.breakCarrier`.
+   *
+   * A parameter rather than a field on `Seam`, and the two are not
+   * interchangeable. `figure` is on the IR because it is *drawn* per seam and is
+   * the one value a drum event is derived from, so `genre-check.ts` reads it off
+   * two songs to check the hook guarantee at its source. A carrier is one static
+   * value for the whole song; putting it on every seam would be publishing the
+   * same literal three times and inviting a reader to believe it could differ.
+   */
+  carrier: BreakCarrier = BREAK_CARRIER,
 ): void {
   for (const seam of seams) {
     switch (seam.kind) {
@@ -668,7 +711,7 @@ export function applyTransitions(
         if (seam.figure?.length) playShot(song, seam, seam.figure);
         break;
       case 'break':
-        playBreak(song, seam);
+        playBreak(song, seam, carrier);
         break;
       case 'elide': {
         const landing = seam.bar * song.meta.beatsPerBar;
@@ -840,7 +883,7 @@ function markTheLanding(
 }
 
 /**
- * Stop-time: the band out for the bar before a seam, the bass carrying it.
+ * Stop-time: the band out for the bar before a seam, one named layer carrying it.
  *
  * Every other kind in this file is a rewrite. This one is a deletion, and it is
  * the oldest gesture in the repertoire because it costs a band nothing and
@@ -848,7 +891,7 @@ function markTheLanding(
  * is nothing under it, so the downbeat that ends it lands harder than any fill
  * could make it land.
  *
- * ## The bass carries it — named, rather than found
+ * ## The carrier is named, rather than found
  *
  * One layer, no list, and nothing read off a note. The top of this file argues
  * why nothing *can* be read off a note; what makes that cheap rather than a
@@ -887,6 +930,32 @@ function markTheLanding(
  * solo generator told about the seam, which is a `song.ts` change and not this
  * one.
  *
+ * ## …and the name is the style's to give
+ *
+ * The bass is the right default and it is not the right answer everywhere. A
+ * taqsim ends on the qanun and a breakdown belongs to the guitars, and
+ * `TransitionPalette` already let a style name the vocabulary it draws from
+ * without letting it say who plays it. `Style.breakCarrier` is that second half
+ * and this function's `carrier` argument is where it arrives, resolved
+ * style-over-default in `generateSong` beside `transitions` itself.
+ *
+ * **It cannot reintroduce the hook-dependence the named carrier was written to
+ * remove, and that is worth stating rather than assuming.** The rule at the top
+ * of this file is that no drum event may be written, deleted or moved on the
+ * strength of anything that changes with `--hook`, and *whether a break happens*
+ * is such a strength. A style table is a literal: it is written once, read
+ * rather than drawn, and identical at every one of the five hook levels, so a
+ * carrier taken from one has exactly the standing a `shots` figure has and for
+ * exactly the same reason. It also costs no draw — nothing is weighted, nothing
+ * is picked — so a style that names one does not shift a single number for any
+ * other style, and a style that names nothing generates the song it generated
+ * before this argument existed, bit for bit.
+ *
+ * What *would* break the guarantee is a carrier whose presence in a section
+ * moves with the tune, and there are exactly two of those. They are unnameable:
+ * `BreakCarrier` takes `counter` and `brass` out of `LayerId` at the type level,
+ * on the measurement `BAND_TAKEN_BY_A_BREAK` records below.
+ *
  * ## Three refusals, and all three are about the arrangement
  *
  * A break has to take something away and leave somebody, and with the carrier
@@ -904,23 +973,50 @@ function markTheLanding(
  *    it is a rest with a crash on the end of it.
  *  - **There is still a band to take away.** `BAND_TAKEN_BY_A_BREAK` is that
  *    test, and its list is short for a reason given there.
- *  - **The bass is not the one soloing.** A break under a bass solo is the band
- *    getting out of the way of a player it is already out of the way of: by the
- *    last bar the section is the bass and the drummer, and taking the drummer
+ *  - **The carrier is not the one soloing.** A break under a bass solo is the
+ *    band getting out of the way of a player it is already out of the way of: by
+ *    the last bar the section is the bass and the drummer, and taking the drummer
  *    out leaves the bar to a soloist who has just finished their chorus. It is
  *    the refusal `breakable` already makes about a drummer's traded bars —
  *    somebody else has written this break — and it cannot be made up there,
  *    because `Section.solo` is written inside the section loop and the plan is
- *    drawn before it.
+ *    drawn before it. Stated against the carrier rather than against the bass,
+ *    so a style that hands the break to its guitars stops handing it to a
+ *    guitarist who has just finished soloing on it.
  *
  * Together they stand down 4.3% of drawn breaks — measured over 2318 of them,
  * every genre at a forced palette — and take the bars that come out with nothing
- * sounding in them from 29 to 5. **Those five are real, and
- * they are all one shape**: a genre whose bass is a drone rather than a
- * timekeeper — six notes in an eight-bar section, none of them near the seam.
- * Nothing visible from here separates that bass from a walking one, and the fix
- * is for a style to be able to say who its break belongs to. See
- * `docs/engine-gaps.md`.
+ * sounding in them from 29 to 5. **Those five are real, and they are all one
+ * shape**: a genre whose bass is a drone rather than a timekeeper — six notes in
+ * an eight-bar section, none of them near the seam.
+ *
+ * **A declared carrier fixes them, and which name is declared is the whole of
+ * it.** Re-measured wider — every genre and style at a forced palette, 30 seeds
+ * each, 10517 drawn breaks against the 2318 above — the residual is 43 empty
+ * bars, which is the same rate to within a factor of two and, more usefully, the
+ * same single genre: every one of them is `indian`. The shape is exactly as
+ * reported the first time. The tanpura writes six notes
+ * into an eight-bar section, all of them in its first bar, and by the seam it
+ * stopped three bars ago. What is still sounding there is the *śruti box* —
+ * `pad` in that genre's palette, a reed organ or a string section holding one
+ * note for the whole section — which is both the thing the music actually has
+ * behind it and the thing nobody in this repertoire ever switches off.
+ *
+ * | carrier | empty bars, same sweep |
+ * |---|---|
+ * | `bass` (default) | 43, all `indian` |
+ * | `comp` | 87 |
+ * | `melody` | 1047 |
+ * | `pad` | **0** |
+ *
+ * So the gap closes, and it closes for the whole catalogue rather than for the
+ * genre that reported it — but only under the name that genre would actually
+ * write, and the two names next to it make the count worse. `melody` is the
+ * worst by twenty-four times, for the reason the paragraph above already
+ * measured: a tune that has finished its phrase is precisely what is not there
+ * at a seam. That is the argument for the field rather than against it. Nothing
+ * visible from inside this pass separates a tanpura from a walking bass, and the
+ * style knows which one it wrote.
  *
  * ## And the kit stops with everybody else
  *
@@ -932,7 +1028,7 @@ function markTheLanding(
  * section is one bar long and the crash belongs to the seam *before* this one,
  * which is a landing this pass has no business deleting.
  */
-function playBreak(song: Song, seam: Seam): void {
+function playBreak(song: Song, seam: Seam, carrier: BreakCarrier): void {
   const bpb = song.meta.beatsPerBar;
   const from = (seam.bar - 1) * bpb;
   const to = seam.bar * bpb;
@@ -959,21 +1055,35 @@ function playBreak(song: Song, seam: Seam): void {
 
   // The three refusals, in the order they are argued above. Every one of them is
   // a question about the layer plan and the solo assignment, which is to say
-  // about things `--hook` has been measured not to move.
-  if (!section?.activeLayers.includes(BREAK_CARRIER)) return;
-  if (!section.activeLayers.some((layer) => BAND_TAKEN_BY_A_BREAK.includes(layer))) return;
-  if (section.solo?.layer === BREAK_CARRIER) return;
+  // about things `--hook` has been measured not to move — and the carrier is a
+  // style literal, which cannot move at all.
+  if (!section?.activeLayers.includes(carrier)) return;
+  if (!section.activeLayers.some(
+    (layer) => layer !== carrier && BAND_TAKEN_BY_A_BREAK.includes(layer),
+  )) return;
+  if (section.solo?.layer === carrier) return;
 
   /**
-   * Everybody out but the bass — left hand, singer and all.
+   * Everybody out but the carrier — left hand, singer and all.
    *
    * **The singer goes with the tune**, because the singer *is* the tune: `vocal`
    * is the melody line doubled after swing, so it has no onset the melody did not
    * have and nothing of its own to carry.
    *
-   * **A two-handed lead goes whole.** `generateLeftHand` writes the comping into
-   * the melody part and marks it, so the track is one player doing two jobs and
-   * both of them stop. The old carrier search had to know that — a bar where the
+   * **And the singer stays with the tune**, which is the same sentence read the
+   * other way and the one line a declared carrier needed. A style that hands the
+   * break to `melody` is handing it to the tune, and a vocal hushed off the top
+   * of a melody that is still playing would be the singer stopping mid-phrase
+   * while their own doubling instrument carried on — the one thing `vocal` is
+   * defined as not being. It costs a comparison and it is inert on the default
+   * carrier, where the two go out together as they always did.
+   *
+   * **A two-handed lead goes whole**, in whichever direction the carrier sends
+   * it. `generateLeftHand` writes the comping into the melody part and marks it,
+   * so the track is one player doing two jobs and one decision covers both: they
+   * stop together under a bass break and they carry it together under a `melody`
+   * one, which is what a pianist left alone in a bar actually does. The old
+   * carrier search had to know that — a bar where the
    * right hand rested and the left hand comped read as *the tune is playing* and
    * came out empty once the break had run, six bars in 200 fusion songs — and
    * with nothing being searched for, the trap is gone rather than avoided.
@@ -984,8 +1094,10 @@ function playBreak(song: Song, seam: Seam): void {
    * the bar and the break is the band dropping out around it, which is what that
    * music does anyway.
    */
+  const carried = (layer: LayerId) => layer === carrier
+    || (carrier === 'melody' && layer === 'vocal');
   for (const track of song.tracks) {
-    if (track.machine || track.layer === BREAK_CARRIER) continue;
+    if (track.machine || carried(track.layer)) continue;
     track.notes = hush(track.notes, from, to);
   }
 
@@ -995,7 +1107,43 @@ function playBreak(song: Song, seam: Seam): void {
 }
 
 /**
- * Who is left holding a break.
+ * Who a style may leave holding a break.
+ *
+ * `LayerId` with four values taken out of it, and none of the four is a matter
+ * of taste — each is a failure this file has already measured, made unwritable
+ * rather than documented. The house alternative is a runtime check nobody runs;
+ * a union that will not compile is the same argument the `never` in
+ * `applyTransitions`' default case makes about a fifth `TransitionKind`.
+ *
+ *  - **`drums`** is the layer a break takes away *by definition*. The bar is
+ *    emptied of kit outright and the argument for that is at the top of
+ *    `playBreak`: a break the drummer plays through is the band resting, which
+ *    is a different and much quieter effect. Naming the kit would be asking for
+ *    the gesture and its negation in one word.
+ *  - **`counter` and `brass`** are the two layers whose membership of a
+ *    section's `activeLayers` moves when `--hook` does — 286 and 3 of 7354
+ *    sections, against zero for every other layer, because one answers the
+ *    melody's gaps and the other is placed around it. Every refusal in
+ *    `playBreak` and `breakable` is stated against `activeLayers`, so a carrier
+ *    drawn from those two would put *whether the kit gets emptied* back on the
+ *    wrong side of the guarantee — the exact bug the named carrier was
+ *    introduced to close, returning through the door left open for the fix.
+ *    `BAND_TAKEN_BY_A_BREAK` leaves them out on the same measurement.
+ *  - **`vocal`** is never in `activeLayers` at all: `layersFor` in
+ *    `generate/chart.ts` never puts it there, and the singer is the melody
+ *    doubled after swing rather than a part with onsets of its own. A style
+ *    naming it would get no break for the length of the catalogue while its
+ *    table looked like it was working — the failure mode `TwoHandedKeys.ostinato`
+ *    is asserted against. A style that wants the singer left holding the bar
+ *    names `melody`, and the singer stays with the tune; see `playBreak`.
+ *
+ * What is left is the four parts that can be left alone in a bar and still be
+ * the piece: the bass, the chords, the wash and the tune.
+ */
+export type BreakCarrier = Exclude<LayerId, 'drums' | 'counter' | 'brass' | 'vocal'>;
+
+/**
+ * Who is left holding a break when the style has not said.
  *
  * A layer id and not a search, which is the whole of the fix and is argued at
  * length in `playBreak`: the musical answer to *who carries the seam* is a role,
@@ -1003,37 +1151,45 @@ function playBreak(song: Song, seam: Seam): void {
  * of the band rather than of one bar's notes. It is also the only kind of answer
  * available to a pass that may not read a note — see the top of this file.
  *
- * **It wants to be a `Style` field and is not one yet.** A break in this
- * repertoire is not always the bass: a taqsim ends on the qanun and a breakdown
- * belongs to the guitars, and `TransitionPalette` already lets a style name the
- * vocabulary it draws from without letting it say who plays it. One id on
- * `Style`, defaulting here, would cost no draw and would give the two genres
- * that dropped this kind a way to have it back on their own terms. It is not in
- * this pass because `style/types.ts` is not this pass's file. See
- * `docs/engine-gaps.md`.
+ * The bass, because it is the last voice in this band that can state time
+ * unaccompanied and because it is the one that is genuinely there: over 1359
+ * breaks with palettes forced across eleven styles it covered a median 75% of
+ * the bar it was handed, against the tune's 20%. `Style.breakCarrier` overrides
+ * it and costs no draw to do so, so this is a default in the ordinary sense —
+ * what a band that has not been asked the question does, exactly as
+ * `DEFAULT_TRANSITIONS` is above.
  */
-const BREAK_CARRIER: LayerId = 'bass';
+const BREAK_CARRIER: BreakCarrier = 'bass';
 
 /**
  * The band a break takes something away from, besides the kit and the carrier.
  *
- * Four layers rather than "everything else", and the two that are missing are
+ * Five layers rather than "everything else", and the two that are missing are
  * the point. `counter` and `brass` are the layers written *against* the finished
  * tune — one answers the melody's gaps, the other is placed around it — so they
  * are the two whose membership of a section's `activeLayers` moves when `--hook`
  * does: 286 and 3 of 7354 sections, against zero for every other layer. Counting
  * them here would make *whether the kit gets emptied* depend on the tune with a
  * layer plan worn as a disguise, which is precisely the bug this pass exists to
- * close.
+ * close. It is the same measurement that keeps them out of `BreakCarrier`.
  *
- * What is left is the band a listener would miss: the chords, the wash and the
- * tune. If a section has none of them by its last bar it is a rhythm section
- * playing on its own, and taking the drummer out of that is not stop-time — it
- * is the arrangement getting thinner for a bar, which is the failure
- * `MIN_BREAK_LAYERS` is written against, arriving after the plan promised
- * otherwise.
+ * What is left is the band a listener would miss: the low end, the chords, the
+ * wash and the tune. If a section has none of them by its last bar it is a
+ * rhythm section playing on its own, and taking the drummer out of that is not
+ * stop-time — it is the arrangement getting thinner for a bar, which is the
+ * failure `MIN_BREAK_LAYERS` is written against, arriving after the plan
+ * promised otherwise.
+ *
+ * **The carrier is filtered out at the call site rather than left out of the
+ * list**, which is why `bass` is in it now and was not before. The list is *the
+ * band*, and who is carrying is a separate fact; writing the carrier's absence
+ * into the literal was only correct while there was exactly one carrier it could
+ * be. On the default it is the same four names as ever and the same answer bar
+ * for bar — but a style that hands its break to the `comp` is stopping a bass,
+ * and a test that could not see a bass would have called that section a rhythm
+ * section playing alone and refused the break it had already spent the fill on.
  */
-const BAND_TAKEN_BY_A_BREAK: LayerId[] = ['comp', 'pad', 'melody', 'vocal'];
+const BAND_TAKEN_BY_A_BREAK: LayerId[] = ['bass', 'comp', 'pad', 'melody', 'vocal'];
 
 /**
  * Take a part out for a span.

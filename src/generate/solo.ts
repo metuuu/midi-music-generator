@@ -54,6 +54,14 @@ import { scaleStepsBetween, snapToScale, stepInScale } from '../core/scale.js';
 import type {
   BackingPolicy, DrumEvent, DrumVoice, LayerId, NoteEvent, Section,
 } from '../core/types.js';
+/**
+ * The one thing this file borrows from the stage, and it is a fact about
+ * instruments rather than about staging: which object a drum voice needs
+ * standing under it. A drum solo has to know whether the player is at a kit or
+ * at a hand drum before it can write a note for them, and `STATION_OF` is
+ * already the answer casting and choreography both read. See `generateDrumSolo`.
+ */
+import { drumStations } from '../concert/instruments.js';
 import { IDIOMS, type IdiomProfile } from '../style/instruments.js';
 import {
   comfortableLeap, EMPTY_ACCOMPANIMENT, evaluate as evaluateRules, RULES,
@@ -1370,6 +1378,195 @@ export interface DrumSoloOptions {
    * back in there. False when something else already owns that beat.
    */
   landing: boolean;
+  /**
+   * Every voice the style's own drum table writes, from which the *object* the
+   * solo is played on is read. A caller that names none gets a kit.
+   *
+   * Not the voices the solo may use — the object it is played on, which is a
+   * different and much smaller question. A style's table says what is in the
+   * room; the vocabulary below says what a player does with it, and those two
+   * have always disagreed on purpose. Jazz's `swing` writes `rd hh bd rim sh`
+   * and names neither a snare nor a tom, while a jazz drum solo has stated its
+   * figures on the snare and answered them down three toms since this function
+   * was written — because a drummer sitting at a kit has a snare and toms
+   * whether or not the tune asked for any. The same licence has to survive for
+   * a darbuka: a solo reaching for a stroke the head never used is a soloist,
+   * not a bug.
+   *
+   * So this is read for one bit: whether `drumStations` finds a kit in it. See
+   * `orchestrationFor`.
+   *
+   * Optional, and the default is the one every drum solo in this project got
+   * before the field existed, which is what makes adding it safe: a caller that
+   * has not been taught to pass a table stages exactly the kit it staged
+   * yesterday. `DrumTrack.source` is optional for the same reason and says so.
+   */
+  table?: Iterable<DrumVoice>;
+}
+
+/**
+ * Which voice does which job, once it is known what the player is sitting at.
+ *
+ * This function named a trap kit in literals — snare, three toms, kick, hi-hat,
+ * crash — and the indian author found the cost of that before anybody else did:
+ * they took `drums` out of the solo rotation and set `tradeFours: 0`, which
+ * deletes the *tani āvartanam* — a listed item on a Carnatic programme, where
+ * the mridangam plays alone for ten minutes — and the *sawāl-jawāb*, which
+ * their own note calls one of the two or three moments a live audience comes
+ * for. They did that rather than have a tabla solo come out as a rock drum solo
+ * on instruments that are not in the room, and they were right to: a missing
+ * tani āvartanam is a gap, and one played on a Ludwig is a mistake with a
+ * reason behind it.
+ *
+ * Arabic did not opt out and so it is the measurement. Its rotation carries
+ * `drums: 2` and `tradeFours: 0.3`, and every one of its styles but `saidi` and
+ * `zaffa` writes a table of nothing but `lp`/`hp`/`mp` and a riq on `tb`. A
+ * `dabke` drum chorus at seed `solo-3` came out with eight voices in it —
+ * `sd bd hh ht mt lt cr` and a shaker — sixteen bars of trap kit in a takht,
+ * which then conscripted a full acoustic kit onto the stage to be played,
+ * because `drumStations` reads the events and the events said drum kit.
+ *
+ * ## The tier is not decided here
+ *
+ * `STATION_OF` in `concert/instruments.ts` already answers *which object does
+ * this voice need*, in three tiers — `kit`, `hand`, and the `either` that
+ * covers the tambourine and the shaker sitting at both stations — and inventing
+ * a second answer beside it is how the two would drift. `drumStations` is the
+ * seam casting and choreography already read, this is the third reader, and the
+ * rule it hands back is the same one they use: **the kit has first claim.**
+ *
+ * That decides the case worth being explicit about. A third of the tables that
+ * write hand voices write kit voices in the same bar — funk's `congas`, latin's
+ * `cumbia-kit`, reggae's `roots-rockers` — and those are not one player
+ * choosing an instrument, they are two people. When both are on the stage the
+ * chorus belongs to the drummer at the kit: it is what a funk band does, it is
+ * what `Section.solo.instrument` already claims in as many words, and it leaves
+ * the percussionist doing what a percussionist does behind a drum solo, which
+ * is keep playing. A hand-drum solo happens where there is no kit to hand it
+ * to, which is exactly the room this was broken in.
+ *
+ * ## What generalises, and what does not
+ *
+ * The shapes are not the voices. Four of the five gestures here are about a
+ * *drum* rather than about a kit and survive the move intact:
+ *
+ *  - **State, then answer.** An idea on the ordinary stroke, the same idea with
+ *    its offbeats moved onto other surfaces. Snare answered by toms; open tone
+ *    answered by slap and doum. Identical gesture, different object.
+ *  - **A run down the drum.** `ht`→`mt`→`lt` is three drums in a row and
+ *    `hp`→`mp`→`lp` is three places on one head, and `core/types.ts` says
+ *    outright that the second was named to be the first one family over.
+ *  - **Weight under the phrase.** The kick is a foot on another object and the
+ *    doum is the same hand as everything else, and that difference is real —
+ *    but *dropping weight where the phrase wants it* is the gesture, and both
+ *    instruments have a voice for it. `DEFAULT_DRUM_MIX` puts `lp` a fifth
+ *    under `bd` and above the toms for this exact reason: it is the pulse.
+ *  - **A run-in to the ending.** So the last note is arrived at rather than
+ *    merely struck. A snare roll on a kit; alternating fingers on a hand drum,
+ *    which is what a roll *is* there.
+ *
+ * Two are genuinely kit-only and are simply absent on the other station:
+ *
+ *  - **The left foot on the hi-hat.** Not a timekeeping decision — a *limb*.
+ *    `ARCHETYPES.handdrum` has no `pedal` in its points at all, and
+ *    `concert/choreograph.ts` says a hand drummer's feet do nothing. What keeps
+ *    the form audible instead is the doum on the first of each phrase, which is
+ *    the marker the cycle is counted from in every tradition that plays these
+ *    drums.
+ *  - **The crash.** A cymbal rings and a skin does not, so there is no honest
+ *    substitution for it; a hand drum ends a phrase with its brightest stroke
+ *    and lands the band with its lowest. This is why `a drum solo lands the
+ *    band back in` stays true of every kit style — the crash is still there,
+ *    for everyone who owns one.
+ */
+interface SoloOrchestration {
+  /** The stroke a figure is stated on: neutral, and the one there is most of. */
+  ordinary: DrumVoice;
+  /** The surfaces an answer runs down, high to low. */
+  ladder: readonly DrumVoice[];
+  /** The accent dropped under the phrase where it wants weight. */
+  weight: DrumVoice;
+  /** A spare limb marking two and four, where the player has one to spare. */
+  pulse?: DrumVoice;
+  /** What closes a phrase an eighth before it ends. */
+  punctuation: DrumVoice;
+  /** The run-in to the hand-off, cycled a slot at a time. */
+  roll: readonly DrumVoice[];
+  /**
+   * The hand-off itself, with the levels it is always played at.
+   *
+   * Fixed rather than drawn, because it is a fixed gesture: this is the loudest
+   * moment in the solo and the one the audience is actually waiting for.
+   */
+  land: readonly (readonly [DrumVoice, number])[];
+  /**
+   * Whether two strokes written at one instant are one player or a mistake.
+   *
+   * A kick under a snare is a foot and a hand; a crash over a snare is two
+   * sticks' worth of kit. One skin has neither: two voices at the same instant
+   * there are two hands landing on the same head, which is a flam played by
+   * accident. `handPart` will stage it — it has to, the record is total — and
+   * its own comment says a hand-drum part with simultaneous voices is a part
+   * with a mistake in it. So on one skin the later stroke *replaces* the
+   * earlier rather than joining it, which is also the order a player decides
+   * them in: the figure is what the hands are playing, and an accent is the
+   * decision to play a different stroke at that point instead.
+   */
+  oneSkin: boolean;
+}
+
+const TRAP_KIT: SoloOrchestration = {
+  ordinary: 'sd',
+  ladder: ['ht', 'mt', 'lt'],
+  weight: 'bd',
+  pulse: 'hh',
+  punctuation: 'cr',
+  roll: ['sd'],
+  land: [['cr', 0.95], ['bd', 0.9]],
+  oneSkin: false,
+};
+
+/**
+ * One drum, two hands, three strokes — and the three strokes doing five jobs.
+ *
+ * A hand drum cannot field seven voices and should not be asked to. What it has
+ * is a full low tone in the middle of the head, a ringing tone at the edge and a
+ * pinched crack with the hand left lying on the skin, and the assignment below
+ * is the one every tradition that plays them already made:
+ *
+ *  - **`mp` states.** The open ringing tone is the ordinary stroke of the
+ *    instrument — the tek, the na, the conga's open tone — and it is what most
+ *    of any phrase is made of. Putting the doum here instead was the first
+ *    draft and it is wrong on paper before it is wrong by ear: the figure
+ *    states its strong slots on the ordinary stroke, so a doum there is a bar
+ *    of eight doums and no pulse left to accent.
+ *  - **`hp` answers and punctuates.** The slap is the brightest, driest and
+ *    most cutting of the three, which is what a phrase ending wants — and
+ *    `…ka-TEK | DOUM` across the barline is the commonest close there is.
+ *  - **`lp` carries the weight and lands the band.** The doum is the pulse of
+ *    the bar, so it is both the accent under the phrase and the arrival at the
+ *    end of it, and both of those are one stroke because the instrument only
+ *    has the one.
+ *
+ * The ladder keeps all three. A run down a hand drum uses the whole drum — that
+ * is what makes it a run — and unlike the kit's, where the snare stands outside
+ * the toms, here the ordinary stroke is a rung of the same ladder. It is one
+ * object; that is the entire point of the tier.
+ */
+const HAND_DRUM: SoloOrchestration = {
+  ordinary: 'mp',
+  ladder: ['hp', 'mp', 'lp'],
+  weight: 'lp',
+  punctuation: 'hp',
+  roll: ['mp', 'hp'],
+  land: [['lp', 0.95]],
+  oneSkin: true,
+};
+
+/** Which of the two, from the style's table. See `SoloOrchestration`. */
+function orchestrationFor(table: Iterable<DrumVoice> | undefined): SoloOrchestration {
+  if (!table) return TRAP_KIT;
+  return drumStations(table).kit ? TRAP_KIT : HAND_DRUM;
 }
 
 /**
@@ -1382,18 +1579,24 @@ export interface DrumSoloOptions {
  *  - **Phrases in two- and four-bar units.** The form is still running
  *    underneath even when nothing is spelling it out, and a drummer who loses
  *    it has not soloed, they have stopped playing the tune.
- *  - **Orchestration around the kit.** An idea stated on the snare, answered on
- *    the toms, punctuated on the crash. A drum solo that stays on one drum is a
- *    drum roll.
+ *  - **Orchestration around the drum.** An idea stated on the ordinary stroke,
+ *    answered on the surfaces beside it, punctuated on the brightest thing in
+ *    reach. A drum solo that stays on one voice is a drum roll.
  *  - **A build.** Density and velocity rise across the section, the same arc
  *    the melodic solo takes and for the same reason.
- *  - **An ending that lands.** A crash on the downbeat as the band returns. The
- *    hand-off is the part the audience hears; get it wrong and the solo sounds
- *    like it was interrupted rather than finished.
+ *  - **An ending that lands.** A crash on the downbeat as the band returns, or
+ *    a doum where there is no cymbal. The hand-off is the part the audience
+ *    hears; get it wrong and the solo sounds like it was interrupted rather
+ *    than finished.
  *
- * The hi-hat keeps going under all of it. That is the drummer's left foot
- * marking two and four, it costs one line, and it is the difference between a
- * solo you can still hear the form through and a burst of noise.
+ * Something marks the form under all of it — the drummer's left foot on two and
+ * four, or the doum on the first of each phrase for a player with no feet to
+ * spare. It costs one line either way, and it is the difference between a solo
+ * you can still hear the form through and a burst of noise.
+ *
+ * *Which* drum, and therefore which voices, comes from `opts.table` and is the
+ * whole of `SoloOrchestration`. Everything below is written in terms of jobs —
+ * state, answer, weight, punctuate, land — and none of it names an object.
  */
 export function generateDrumSolo(opts: DrumSoloOptions): DrumEvent[] {
   const { startBeat, beatsPerBar, bars, rng, intensity } = opts;
@@ -1402,12 +1605,30 @@ export function generateDrumSolo(opts: DrumSoloOptions): DrumEvent[] {
   const out: DrumEvent[] = [];
   if (!opts.blocks.length) return out;
 
+  const orch = orchestrationFor(opts.table);
+
+  /**
+   * Where each slot's stroke ended up, so a one-skin station can overwrite it.
+   *
+   * Only kept for a player who has one surface. On a kit the map is never
+   * written and every path below behaves exactly as it did before this
+   * function could be pointed at anything else. See `SoloOrchestration.oneSkin`.
+   */
+  const struck = new Map<number, number>();
+
   const at = (slot: number, voice: DrumVoice, velocity: number) => {
-    out.push({
+    const event: DrumEvent = {
       beat: startBeat + slot / SLOTS_PER_BEAT,
       voice,
       velocity: Math.max(0.05, Math.min(1, velocity)),
-    });
+    };
+    const already = orch.oneSkin ? struck.get(slot) : undefined;
+    if (already !== undefined) {
+      out[already] = event;
+      return;
+    }
+    if (orch.oneSkin) struck.set(slot, out.length);
+    out.push(event);
   };
 
   /** Rising across the whole section, so trading blocks build on each other. */
@@ -1427,19 +1648,20 @@ export function generateDrumSolo(opts: DrumSoloOptions): DrumEvent[] {
       /**
        * State, then answer.
        *
-       * The first phrase of a block invents a figure and plays it on the snare;
-       * the next plays the same figure on the toms. That call-and-response
-       * around the kit is what a drum solo is made of, and it is the same
-       * develop-the-cell idea the melodic solo uses, with orchestration
-       * standing in for pitch.
+       * The first phrase of a block invents a figure and plays it on the
+       * ordinary stroke; the next plays the same figure down the ladder. That
+       * call-and-response around the instrument is what a drum solo is made of,
+       * and it is the same develop-the-cell idea the melodic solo uses, with
+       * orchestration standing in for pitch.
        */
       const running = figure;
       const fresh = running === undefined || rng.chance(0.35);
       figure = fresh ? inventFigure(rng, phraseSlots, energy) : developFigure(running, rng, phraseSlots);
-      const onToms = !fresh;
+      const answering = !fresh;
 
       /**
-       * The snare keeps the beats and the toms take what falls between them.
+       * The ordinary stroke keeps the beats and the ladder takes what falls
+       * between them.
        *
        * Both halves of the call and response are orchestrated, just in
        * different proportions — the statement is snare-led with the toms
@@ -1447,30 +1669,49 @@ export function generateDrumSolo(opts: DrumSoloOptions): DrumEvent[] {
        * wholesale. Before the statement had any toms in it at all, a dense
        * phrase came out as sixteen consecutive snare hits, which is not a drum
        * solo, it is a press roll with gaps in it.
+       *
+       * Read it on a darbuka and it is the same sentence: the statement is
+       * tek-led with the slap and the doum colouring its offbeats, and the
+       * answer moves them onto the whole drum.
        */
-      const toms: DrumVoice[] = ['ht', 'mt', 'lt'];
-      let tom = 0;
+      let rung = 0;
       for (const offset of figure) {
         if (offset >= phraseSlots) break;
         const slot = phraseStart + offset;
         const strong = offset % SLOTS_PER_BEAT === 0;
-        const voice: DrumVoice = !strong && (onToms || rng.chance(0.3))
-          ? toms[tom++ % toms.length]!
-          : 'sd';
+        const voice: DrumVoice = !strong && (answering || rng.chance(0.3))
+          ? orch.ladder[rung++ % orch.ladder.length]!
+          : orch.ordinary;
         at(slot, voice, (0.55 + 0.35 * energy) * intensity * (strong ? 1 : 0.82));
       }
 
-      // The kick punctuates rather than keeps time — a drummer soloing drops
-      // the foot in where the phrase wants weight, not on every beat.
+      // The weight punctuates rather than keeps time — a drummer soloing drops
+      // the foot in where the phrase wants it, not on every beat, and a hand
+      // drummer leans on a doum in the same places for the same reason.
       for (let beat = 0; beat < phraseBars * beatsPerBar; beat++) {
         if (!rng.chance(0.22 + 0.25 * energy)) continue;
-        at(phraseStart + beat * SLOTS_PER_BEAT, 'bd', (0.6 + 0.3 * energy) * intensity);
+        at(phraseStart + beat * SLOTS_PER_BEAT, orch.weight, (0.6 + 0.3 * energy) * intensity);
       }
 
-      // The left foot, marking two and four. This is what keeps the form
-      // audible with nothing else stating it.
-      for (let beat = 1; beat < phraseBars * beatsPerBar; beat += 2) {
-        at(phraseStart + beat * SLOTS_PER_BEAT, 'hh', 0.34 * intensity);
+      /**
+       * The left foot, marking two and four — or, for a player with no feet in
+       * the argument, the first of the phrase.
+       *
+       * This is what keeps the form audible with nothing else stating it, and
+       * the two versions of it are the same claim about different bodies. A
+       * drummer has a limb spare and spends it on the hat every other beat. A
+       * hand drummer has two hands and both are on the skin, so the form is
+       * marked the way these traditions have always marked it: the phrase
+       * begins on the low stroke, and everyone counts from there. It is written
+       * after the weight above so that it cannot be the one that gets dropped —
+       * on one skin the later stroke wins, and this is the stroke that matters.
+       */
+      if (orch.pulse) {
+        for (let beat = 1; beat < phraseBars * beatsPerBar; beat += 2) {
+          at(phraseStart + beat * SLOTS_PER_BEAT, orch.pulse, 0.34 * intensity);
+        }
+      } else {
+        at(phraseStart, orch.weight, (0.6 + 0.3 * energy) * intensity);
       }
 
       /**
@@ -1478,10 +1719,14 @@ export function generateDrumSolo(opts: DrumSoloOptions): DrumEvent[] {
        * never the one immediately before the hand-off. Two crashes half a beat
        * apart do not read as an emphatic ending, they read as a mistake, and
        * the one that matters is the one the band comes back on.
+       *
+       * A skin has nothing that rings, so where there is no cymbal this is the
+       * slap on the last eighth instead: the phrase is closed by the brightest
+       * stroke on the drum, and the next one opens on the lowest.
        */
       const handsOff = closing && opts.landing && toBar === opts.blocks[opts.blocks.length - 1]![1];
       if (!handsOff && (closing || (energy > 0.7 && rng.chance(0.45)))) {
-        at(phraseStart + phraseSlots - 2, 'cr', (0.6 + 0.3 * energy) * intensity);
+        at(phraseStart + phraseSlots - 2, orch.punctuation, (0.6 + 0.3 * energy) * intensity);
       }
     }
   }
@@ -1494,20 +1739,28 @@ export function generateDrumSolo(opts: DrumSoloOptions): DrumEvent[] {
    * is actually waiting for. Placed at the section boundary, which belongs to
    * whatever follows — the same convention `landing()` in `generate/fills.ts`
    * uses, and for the same reason.
+   *
+   * On a hand drum it is a doum in the same place, arrived at by the fingers
+   * rather than by a stick, and it is the only ending available: nothing on the
+   * instrument rings, so the arrival has to be the lowest and loudest stroke on
+   * it rather than a cymbal left to decay under the band.
    */
   if (opts.landing) {
     const end = opts.blocks[opts.blocks.length - 1]![1] * slotsPerBar;
-    // A run-in, so the crash is arrived at rather than merely struck. Whatever
-    // the last phrase left in this beat is replaced: the ending is a fixed
-    // gesture and half of it played twice is a stumble.
+    // A run-in, so the arrival is arrived at rather than merely struck.
+    // Whatever the last phrase left in this beat is replaced: the ending is a
+    // fixed gesture and half of it played twice is a stumble.
     for (let i = out.length - 1; i >= 0; i--) {
       if (out[i]!.beat >= startBeat + (end - SLOTS_PER_BEAT) / SLOTS_PER_BEAT - 1e-6) out.splice(i, 1);
     }
+    // Those indices are now wrong, and nothing below writes a slot twice —
+    // the run-in walks one slot at a time and the arrival is the slot after it.
+    struck.clear();
     for (let s = SLOTS_PER_BEAT; s >= 1; s--) {
-      at(end - s, 'sd', (0.7 + (SLOTS_PER_BEAT - s) * 0.07) * intensity);
+      const rung = (SLOTS_PER_BEAT - s) % orch.roll.length;
+      at(end - s, orch.roll[rung]!, (0.7 + (SLOTS_PER_BEAT - s) * 0.07) * intensity);
     }
-    at(end, 'cr', Math.min(1, 0.95 * intensity));
-    at(end, 'bd', Math.min(1, 0.9 * intensity));
+    for (const [voice, level] of orch.land) at(end, voice, Math.min(1, level * intensity));
   }
   return out.sort((a, b) => a.beat - b.beat);
 }
