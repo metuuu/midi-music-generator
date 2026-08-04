@@ -144,16 +144,33 @@ const stringband: EraProfile = {
       ['piano', 2], ['dulcimer', 1],
     ],
     /**
-     * The pad is people.
+     * The pad is people, and the stage cannot see that.
      *
      * There is no sustaining instrument in a string band — a banjo note is gone in
      * half a second and a plucked guitar in one — so the only thing capable of
      * holding a chord under the tune is the other three members of the quartet
-     * singing it. `choirAahs` and `voiceOohs` at the head of this table are not a
-     * substitution for anything; they are the object.
+     * singing it. `choirAahs` and `voiceOohs` led this table because they are not
+     * a substitution for anything; they are the object. That argument is right
+     * about the music and it is why they are named here at all.
+     *
+     * **What it could not know is what happens to them on the boards.**
+     * `concert/instruments.ts` stages every choir patch as a synthesiser, and it
+     * is right to in the eras it was written for: a choir under a hand in 1985 is
+     * a keyboard, and the catalogue has no archetype for four people round one
+     * microphone. So nine draws in thirteen put a keyboard player behind a rig
+     * that would not be built for thirty years, in the one era on this list whose
+     * own description ends "nobody plugs in". `rigPoolFor` had nothing honest to
+     * hand them and said so; this is the half of that failure that belongs here.
+     *
+     * The pump organ leads instead. It was already third on this list, it is the
+     * only thing a 1932 band could have carried in that holds a note, and a
+     * parlour organ in a string band is a photograph rather than a compromise —
+     * the fiddles doubling long underneath it are the rest of the sustain. What
+     * is genuinely lost is the vocal quartet, and it stays lost until there is an
+     * object to stage it as.
      */
     pad: [
-      ['choirAahs', 5], ['voiceOohs', 4], ['reedOrgan', 3], ['dulcimer', 1],
+      ['reedOrgan', 6], ['strings1', 3], ['tremoloStrings', 2], ['dulcimer', 1],
     ],
     bass: [['acousticBass', 8], ['steelGuitar', 2]],
     /**
@@ -249,8 +266,13 @@ const honkytonk: EraProfile = {
       ['steelGuitar', 6], ['cleanGuitar', 4], ['piano', 4], ['mutedGuitar', 3],
       ['nylonGuitar', 2], ['accordion', 2], ['banjo', 2],
     ],
+    // The Jordanaires are the missing entry here, and they are missing for the
+    // reason set out under `stringband`: a choir patch is staged as a keyboard
+    // and 1955 is eight years before the earliest object in `SYNTH_RIGS`. The
+    // Hammond takes the weight, which is the other thing a honky-tonk band
+    // sustains with and the one that was actually plugged in by this era.
     pad: [
-      ['strings1', 3], ['guitarHarmonics', 3], ['choirAahs', 3], ['drawbarOrgan', 2],
+      ['strings1', 4], ['guitarHarmonics', 3], ['drawbarOrgan', 3],
       ['reedOrgan', 2],
     ],
     bass: [['acousticBass', 7], ['slapBass2', 3], ['pickBass', 2], ['fingerBass', 1]],

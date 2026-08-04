@@ -111,8 +111,21 @@ const conjunto: EraProfile = {
       ['steelGuitar', 5], ['piano', 4], ['nylonGuitar', 4], ['banjo', 2],
       ['accordion', 2], ['jazzGuitar', 1],
     ],
+    /**
+     * The coro is the one thing a conjunto really does sustain with, and it is
+     * the one thing that cannot be written here.
+     *
+     * `choirAahs` used to be at the end of this list for exactly that reason
+     * and it is gone from both of the pre-war eras, because
+     * `concert/instruments.ts` stages every choir patch as a keyboard: a
+     * courtyard septet in 1938 was arriving on the boards with a synthesiser in
+     * it, thirty years early. The catalogue has no object for four people
+     * answering the sonero, so what is left is what a charanga actually
+     * sustains with — two violins, a pump organ, and the accordion the
+     * neighbouring style already plays.
+     */
     pad: [
-      ['strings1', 3], ['reedOrgan', 2], ['accordion', 2], ['choirAahs', 1],
+      ['strings1', 4], ['reedOrgan', 2], ['accordion', 2],
     ],
     bass: [['acousticBass', 8], ['tuba', 2]],
     brass: [
@@ -201,8 +214,12 @@ const orquesta: EraProfile = {
       ['piano', 6], ['steelGuitar', 3], ['nylonGuitar', 2], ['jazzGuitar', 2],
       ['vibraphone', 2], ['accordion', 1],
     ],
+    // `choirAahs` is gone from here for the reason given under `conjunto`: 1953
+    // is still ten years before anything in `SYNTH_RIGS`, and a choir patch is
+    // staged as a keyboard. The saxes and the strings hold the note instead,
+    // which is what an orquesta's own sustain is.
     pad: [
-      ['strings1', 4], ['brassSection', 3], ['strings2', 2], ['choirAahs', 1],
+      ['strings1', 4], ['brassSection', 3], ['strings2', 3],
     ],
     bass: [['acousticBass', 7], ['fingerBass', 2], ['tuba', 1]],
     brass: [

@@ -79,6 +79,15 @@ import type { EraProfile } from '../../style/types.js';
  * do not exclude it and a genre that left the slot empty would get whatever the
  * fallback is; a distant string bed under a drone is at least the *sound* of a
  * room full of ringing strings, which is what a kantele in a wooden house is.
+ *
+ * It used to share the slot with `choirAahs` and `padWarm`, and a warm synth
+ * pad in 1780 is not a substitution anybody would defend — it is a line nobody
+ * re-read after the era was written. The stage is where it showed: both are
+ * staged as a keyboard by `concert/instruments.ts`, so a third of the runo
+ * numbers that drew a pad put a player behind a synthesiser a hundred and
+ * eighty years early, and `rigPoolFor` had no honest rig to hand them. The slot
+ * is all strings now, which is what the paragraph above already said it was
+ * for.
  */
 const runo: EraProfile = {
   id: 'runo',
@@ -104,7 +113,7 @@ const runo: EraProfile = {
       ['kantele', 7], ['harp', 2], ['nylonGuitar', 1],
     ],
     pad: [
-      ['strings1', 3], ['choirAahs', 2], ['padWarm', 1],
+      ['strings1', 3], ['strings2', 2], ['tremoloStrings', 1],
     ],
     bass: [['contrabass', 3], ['acousticBass', 3], ['cello', 2]],
     brass: [['frenchHorn', 2], ['trombone', 1]],

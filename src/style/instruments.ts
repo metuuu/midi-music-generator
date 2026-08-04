@@ -1196,6 +1196,24 @@ export const INSTRUMENT_RANGE: Record<InstrumentId, readonly [Midi, Midi]> = {
  * `ACCORDION_BUTTON_TOP` in `concert/choreograph.ts` — so a left hand placed by
  * daylight alone would be voiced up on the right-hand keyboard, and staged
  * there too, with one player's two hands overlapping on the same manual.
+ *
+ * That split is a *wall*, and the thing worth writing down is what it means for
+ * everything on the other side of it. A piano accordion is two instruments
+ * bolted to the ends of a box of air: 41..52 is one chromatic octave of bass
+ * buttons under a left hand strapped to the far side of the bellows, and 53..93
+ * is a 41-note treble keyboard with narrower keys than a piano's under the right
+ * hand. Nothing crosses. So a chord written above F3 is *one* hand's problem
+ * with no second hand behind it, and any voicing wider than that hand is a
+ * spread the instrument's geometry cannot reach even when the notes are
+ * perfectly reasonable music — 146 of the 152 ungraspable grabs `npm run
+ * concert` found across fourteen genres were exactly this, an accordion comp
+ * asked for fourteen to nineteen semitones in one grab.
+ *
+ * It is not fixed by narrowing anything here, and deliberately: [53 60 67] is a
+ * good voicing and a real accordionist plays it by rolling it. The numbers in
+ * this table describe where a hand sits, and what a hand does when the chord in
+ * front of it will not fit is the choreographer's to say. It says it in
+ * `rolled`.
  */
 export interface HandSpec {
   /**

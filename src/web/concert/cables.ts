@@ -70,13 +70,57 @@ const MARGIN = 0.12;
  * Sampling of a deck run, how hard each smoothing pass pulls it straight, and
  * how many times the two are alternated.
  *
- * `SAMPLES` is dense enough that the straight bits between two samples cannot
- * cut a corner an eye would see: on a five-metre run that is a sample every
- * 8 cm, against a 12 cm clearance.
+ * `SAMPLES` is the *seed* density and nothing more: 64 points ruled along the
+ * straight line, which on a five-metre run is one every 8 cm against a 12 cm
+ * clearance. This comment used to stop there and conclude that the straight
+ * bits between two samples therefore could not cut a corner an eye would see.
+ * That is true of the line this hands to `settle` and false of everything
+ * `settle` gives back. Eviction moves a point radially and the smoothing pass
+ * pulls it toward its neighbours' midpoint; neither preserves spacing, and the
+ * eviction rounds that have the last word do not smooth at all. Measured on the
+ * one run in 1045 that failed: mean segment 13.5 cm, longest **77 cm**, every
+ * point a full margin clear and the chord across that one gap 5.8 cm inside a
+ * performer's circle. See `MAX_STEP`, which is where the claim now lives.
  */
 const SAMPLES = 64;
 const RELAX = 0.28;
 const PASSES = 6;
+
+/**
+ * The longest straight bit a finished route may contain.
+ *
+ * The invariant `SAMPLES` used to assert by arithmetic and could not keep. Both
+ * ends of a segment are a full `MARGIN` clear of everything — that is what
+ * settling means — so the only thing that can put the *line between them*
+ * inside an obstacle is the segment being long enough to sag past it, and the
+ * worst obstacle to sag past is a corner, which has no radius to help. Two
+ * points `MARGIN` from a corner, `s` apart, take the chord to
+ * `√(MARGIN² − (s/2)²)` of it; at `s = 0.20` that is 6.6 cm of daylight, over
+ * half the margin kept and three times what `concert-check.ts` asks for. Round
+ * obstacles are far kinder: 20 cm across a performer's 30 cm circle costs
+ * 1.2 cm of the 12.
+ *
+ * Enforced by subdividing rather than by sampling harder, because the failure
+ * is not a shortage of points — it is that they end up wherever the relaxation
+ * leaves them rather than where they were seeded, and a denser seed is stretched
+ * by the same factor. Splitting the one or two segments that are actually too
+ * long costs a handful of points on a sixty-four-point path; the eight times
+ * `SAMPLES` it would take to get near this worst case costs eight times the
+ * eviction work on every run on the stage, and still leaves the longest stride
+ * a thing that happens to come out small rather than a thing that is bounded.
+ */
+const MAX_STEP = 0.20;
+
+/**
+ * How many rounds of split-then-settle before a route is abandoned.
+ *
+ * Each round halves whatever is still over `MAX_STEP`, so five takes the 77 cm
+ * gap that started this to 2.4 cm and nothing plausible needs more than three.
+ * The bound is here for the same reason `SETTLE` has one: a run that will not
+ * come to rest gets dropped rather than drawn, and §8.4 prefers the missing
+ * lead.
+ */
+const SPLITS = 5;
 
 /**
  * How far a settled run is then allowed to wander off its own route, and how
@@ -174,6 +218,93 @@ function evict(p: Point2, o: Obstacle): void {
   // Leave by the near side, which is the shorter of the two escapes.
   if (Math.abs(outX - p.x) <= Math.abs(outZ - p.z)) p.x = outX;
   else p.z = outZ;
+}
+
+/**
+ * Back onto the boards. `true` when the point had to be moved.
+ *
+ * One clamp shared by the routing and by the slack laid over it, which held two
+ * copies of it — and the second copy was written late, after a lead was found
+ * going *through the back wall* because only the first one existed.
+ *
+ * The ends of a run never come through here, by construction, and that is the
+ * point of it being a function a caller has to reach for rather than something
+ * the loop does to everything: a jack is where the gear put it, and a box
+ * placed half a centimetre outside the strip should not drag its own sockets.
+ */
+function hold(p: Point2, bounds?: Bounds): boolean {
+  if (!bounds) return false;
+  const x = Math.min(Math.max(p.x, bounds.minX), bounds.maxX);
+  const z = Math.min(Math.max(p.z, bounds.minZ), bounds.maxZ);
+  if (x === p.x && z === p.z) return false;
+  p.x = x;
+  p.z = z;
+  return true;
+}
+
+/**
+ * Put a point in the middle of every segment longer than `MAX_STEP`. `true`
+ * when anything was inserted, which is the caller's cue to settle again.
+ *
+ * The midpoint rather than an even re-parameterisation of the whole run,
+ * because there is nothing wrong with the route: six relaxation passes argued
+ * its shape and the only defect is the one gap. Spreading every point evenly
+ * would move all sixty-four to fix two, and the inserted points are the ones
+ * that need evicting in any case — a midpoint over a gap that cut a corner
+ * lands *inside* the thing it cut, which is exactly where the next round of
+ * eviction wants to find it.
+ */
+function split(pts: Point2[]): boolean {
+  const out: Point2[] = [pts[0]!];
+  let cut = false;
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1]!;
+    const b = pts[i]!;
+    if (Math.hypot(b.x - a.x, b.z - a.z) > MAX_STEP) {
+      out.push({ x: (a.x + b.x) / 2, z: (a.z + b.z) / 2 });
+      cut = true;
+    }
+    out.push(b);
+  }
+  if (cut) pts.splice(0, pts.length, ...out);
+  return cut;
+}
+
+/**
+ * Settle a run and keep settling it until it is *both* clear at every point and
+ * fine enough that the lines between those points are clear too. `false` when
+ * either half runs out of rope, which drops the lead.
+ *
+ * The two halves have to alternate rather than run in order, and that is the
+ * whole of why this is a loop. Splitting a gap introduces points inside
+ * whatever the gap was cutting across, so it has to be followed by eviction;
+ * eviction is what opens gaps in the first place, so it has to be followed by
+ * splitting. Ending on the split that finds nothing left to cut is what makes
+ * both invariants true at once — and it is the ordering, not either test, that
+ * this got wrong before: the route was checked for clearance, declared settled,
+ * and handed over with a 77 cm stride in it that nothing had ever looked at.
+ */
+function tauten(
+  pts: Point2[], obstacles: readonly Obstacle[], bounds?: Bounds,
+): boolean {
+  for (let pass = 0; pass < SPLITS; pass++) {
+    let settled = false;
+    for (let round = 0; round < SETTLE && !settled; round++) {
+      settled = true;
+      for (let i = 1; i < pts.length - 1; i++) {
+        for (const o of obstacles) {
+          if (clearance(pts[i]!, o) < MARGIN) { evict(pts[i]!, o); settled = false; }
+        }
+        // A point evicted off the boards is not settled either: pulling it back
+        // may put it inside the thing it was just pushed out of, and the next
+        // round has to be allowed to see that rather than call the route done.
+        if (hold(pts[i]!, bounds)) settled = false;
+      }
+    }
+    if (!settled) return false;
+    if (!split(pts)) return true;
+  }
+  return false;
 }
 
 /**
@@ -283,32 +414,20 @@ function lay(path: Point2[], obstacles: readonly Obstacle[], bounds?: Bounds): P
   });
 
   /**
-   * The slack has to survive the same two tests the route did.
+   * The slack has to survive all three tests the route did.
    *
    * Obstacles were always re-checked here — swinging a settled run 13 cm sideways
    * can obviously push it into something it had cleared. The boards were not,
    * and that is how a lead ended up *through the back wall*: a run hugging the
    * backdrop is exactly the case where the wander has nowhere to go but
-   * upstage, and nothing here was looking.
+   * upstage, and nothing here was looking. Both of those, and the stride
+   * `MAX_STEP` bounds, are `tauten`'s business now — an eviction here opens a
+   * gap exactly as an eviction during routing does, and one copy of the answer
+   * cannot drift from the other.
    */
-  let settled = true;
-  for (let round = 0; round < SETTLE; round++) {
-    settled = true;
-    for (let i = 1; i < out.length - 1; i++) {
-      for (const o of obstacles) {
-        if (clearance(out[i]!, o) < MARGIN) { evict(out[i]!, o); settled = false; }
-      }
-      if (bounds) {
-        const x = Math.min(Math.max(out[i]!.x, bounds.minX), bounds.maxX);
-        const z = Math.min(Math.max(out[i]!.z, bounds.minZ), bounds.maxZ);
-        if (x !== out[i]!.x || z !== out[i]!.z) { out[i]!.x = x; out[i]!.z = z; settled = false; }
-      }
-    }
-    if (settled) break;
-  }
   // Unsettled means the slack could not be given anywhere legal, and the taut
   // route it was decorating is still a perfectly good lead.
-  return settled ? out : path;
+  return tauten(out, obstacles, bounds) ? out : path;
 }
 
 /**
@@ -319,22 +438,6 @@ function settle(
   from: Point2, to: Point2, obstacles: readonly Obstacle[], bow: number,
   bounds?: Bounds,
 ): Point2[] | undefined {
-  /**
-   * Back onto the boards, and applied everywhere a point has just been moved.
-   *
-   * The ends are exempt by construction — they are never passed through this,
-   * because a jack is where the gear put it and a box that has been placed
-   * half a centimetre outside the strip should not drag its own sockets.
-   */
-  const hold = (p: Point2): boolean => {
-    if (!bounds) return false;
-    const x = Math.min(Math.max(p.x, bounds.minX), bounds.maxX);
-    const z = Math.min(Math.max(p.z, bounds.minZ), bounds.maxZ);
-    if (x === p.x && z === p.z) return false;
-    p.x = x;
-    p.z = z;
-    return true;
-  };
   const dx = to.x - from.x;
   const dz = to.z - from.z;
   const span = Math.hypot(dx, dz) || 1;
@@ -348,7 +451,7 @@ function settle(
     // move to make routing easier.
     const out = bow * Math.sin(t * Math.PI);
     const p = { x: from.x + dx * t + nx * out, z: from.z + dz * t + nz * out };
-    if (i > 0 && i < SAMPLES - 1) hold(p);
+    if (i > 0 && i < SAMPLES - 1) hold(p, bounds);
     pts.push(p);
   }
   if (!obstacles.length) return pts;
@@ -366,54 +469,35 @@ function settle(
       const b = pts[i + 1]!;
       pts[i]!.x += ((a.x + b.x) / 2 - pts[i]!.x) * RELAX;
       pts[i]!.z += ((a.z + b.z) / 2 - pts[i]!.z) * RELAX;
-      hold(pts[i]!);
+      hold(pts[i]!, bounds);
     }
   }
   /**
    * Smoothing may have walked a point back inside, so the last word is
-   * eviction with nothing after it — repeated until nothing moves.
+   * eviction with nothing after it — repeated until nothing moves, and
+   * **abandoned if that never happens**. See `tauten`, which owns both that
+   * repetition and the subdivision that goes with it.
    *
-   * The repetition is the whole of it. One pass in list order is what the first
+   * The repetition is half of it. One pass in list order is what the first
    * version did, and on two overlapping obstacles it evicts from the first
    * straight into the second and calls the result clear. That is not a rare
    * arrangement: it is any two players standing closer than a stride, which is
-   * most of a horn section.
+   * most of a horn section. Eviction is local, though, so it cannot solve the
+   * case where there is simply *no gap* — two players half a metre apart, a
+   * point between them that cannot be 12 cm clear of both, bouncing off one
+   * into the other for ever. A cable would not try; it would go round the pair.
+   * Rather than teach a relaxation to plan that, this refuses, which is the
+   * documented policy and not a shortfall: §8.4 says an instrument that cannot
+   * be routed gets no lead, because an audience does not audit a stage for
+   * missing cables and does notice one going through a leg.
+   *
+   * The other half is that "every point is clear" was never the claim worth
+   * making. A point can come to rest a *millimetre* outside the obstacle it was
+   * bounced against and pass any is-it-inside test; settling to a full `MARGIN`
+   * is what leaves room for the line between two of them — but only if that
+   * line is short, and nothing in here was making it short. That is `MAX_STEP`.
    */
-  /**
-   * …repeated until nothing moves, and **abandoned if that never happens**.
-   *
-   * Eviction is local, so it cannot solve the case where there is simply *no
-   * gap*: two players standing half a metre apart overlap as far as this is
-   * concerned, a point between them cannot be 12 cm clear of both, and it
-   * bounces off one into the other for ever. A cable would not try — it would
-   * go round the pair — and rather than teach a relaxation to plan that, this
-   * refuses.
-   *
-   * Refusing is the documented policy and not a shortfall: §8.4 says an
-   * instrument that cannot be routed gets no lead, because an audience does not
-   * audit a stage for missing cables and does notice one going through a leg.
-   *
-   * The test is "did the last round move anything", not "is every point outside
-   * everything". They are not the same and the difference is the whole bug this
-   * replaced: a point can come to rest a *millimetre* outside an obstacle it
-   * was bounced against, pass an is-it-inside test, and still have the straight
-   * line to its neighbour cut the corner off. Settling means every point is a
-   * full `MARGIN` clear, which is what leaves room for the line between them.
-   */
-  let settled = false;
-  for (let round = 0; round < SETTLE && !settled; round++) {
-    settled = true;
-    for (let i = 1; i < pts.length - 1; i++) {
-      for (const o of obstacles) {
-        if (clearance(pts[i]!, o) < MARGIN) { evict(pts[i]!, o); settled = false; }
-      }
-      // A point evicted off the boards is not settled either: pulling it back
-      // may put it inside the thing it was just pushed out of, and the next
-      // round has to be allowed to see that rather than call the route done.
-      if (hold(pts[i]!)) settled = false;
-    }
-  }
-  if (!settled) return undefined;
+  if (!tauten(pts, obstacles, bounds)) return undefined;
 
   const direct = Math.hypot(to.x - from.x, to.z - from.z);
   let walked = 0;

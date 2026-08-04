@@ -1153,17 +1153,30 @@ export function rigPoolFor(
     .map((id) => [id, weights[id]] as const);
 
   /**
-   * A year outside every window stages the plain keyboard rather than nothing.
+   * A year outside every window stages **nothing**, and the caller is meant to
+   * notice.
    *
-   * Unreachable for any era in the project today — `polysynth` spans 1963–1990
-   * and covers every one of them — and kept because a table this small should
-   * not be able to return an empty list. It fired exactly once, when
-   * `polysynth.from` was still 1970 and 1968 fell through it, and the verifier
-   * caught the result as the anachronism it was rather than this quietly
-   * absorbing it. That is the right division of labour and the reason it stays
-   * a last resort rather than a strategy.
+   * This used to return the polysynth, under a comment that called itself
+   * unreachable and gave its purpose as staging "the plain keyboard rather than
+   * nothing". Both halves were wrong at once. It became reachable the moment
+   * finnfolk, country, indian, latin and arabic brought eras before 1963 — 1780
+   * to 1962, none of them on the four-genre list `concert-check.ts` used to
+   * run — and there is no plain keyboard here to stage: every entry in
+   * `SYNTH_RIGS` is a dated object, so *whatever* this returns for a year
+   * outside all three windows is an anachronism by construction. A table of
+   * dated objects has no honest answer for 1780 and should not invent one.
+   * Returning nothing is the only answer that cannot be wrong.
+   *
+   * It is not a silent nothing. `assignRigs` leaves the player unrigged and
+   * `npm run concert` fails `every keyboard player is standing behind
+   * something`, which is the division of labour the old comment argued for and
+   * then undercut — a verifier catching an anachronism beats a pool absorbing
+   * one. What it catches is also the real fault, which was never the rig: a
+   * synthesiser is on the boards in 1952 because a genre asked for a
+   * synthesiser in 1952. The pad palettes in the genres' own `eras.ts` are
+   * where that got said and where it is now unsaid; see the note on `carnatic`.
    */
-  return open.length ? open : [['polysynth', 1] as const];
+  return open;
 }
 
 /**

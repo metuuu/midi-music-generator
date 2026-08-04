@@ -48,7 +48,7 @@
  * (a breath, a bow lift), or by the mechanics of making one (bellows).
  */
 
-import { quantise, quantiseDown } from '../core/grid.js';
+import { quantise, quantiseDown, SLOTS_PER_BEAT } from '../core/grid.js';
 import type { Midi } from '../core/pitch.js';
 import { Rng } from '../core/rng.js';
 import type { DrumEvent, DrumVoice, NoteEvent, Song, Track } from '../core/types.js';
@@ -2134,18 +2134,23 @@ const BOARD_REACH = 1.15;
  *
  * The interesting case is a chord, and the rule is the one a pianist would
  * describe: if the voicing is something one hand *grabs*, one hand takes it; if
- * it is not, it is split at its widest interval and the halves go low-to-left,
- * high-to-right. Measured across all three genres the median voicing this
- * generator writes spans nine semitones in four voices and the widest spans
- * twenty-three, so both branches are live and neither is an edge case.
+ * it is not, it is split and the halves go low-to-left, high-to-right. Measured
+ * across all three genres the median voicing this generator writes spans nine
+ * semitones in four voices and the widest spans twenty-three, so both branches
+ * are live and neither is an edge case.
  *
  * **What counts as a grab is `grabSpan`, not the stretch**, and that distinction
  * is the whole of a fix. See there.
  *
- * Splitting *at the widest interval* rather than in the middle matters: a
- * rootless voicing with the bass an octave below and three close notes on top is
- * one note in the left hand and a grab in the right, which is how it is actually
- * played. Splitting by count would put the hands in two impossible positions.
+ * **Where the split falls is `shareOut`, and that both hands can hold what it
+ * leaves them is the whole of a second one.** Splitting at the widest interval
+ * is a heuristic and was being trusted as a guarantee: a chord is not two hands
+ * wide merely because it has been divided in two, and 152 of these went out with
+ * one hand on more than an octave before anything asked. Where nothing the two
+ * hands can do is enough — an accordion, whose second hand is on buttons and is
+ * not available at all — the hand rolls the chord rather than dropping a note or
+ * inventing a pitch. See `rolled`, and the placement below for which side of the
+ * beat a roll falls on.
  *
  * Both halves then update `at`, which is what makes the assignment stateful
  * rather than a per-chord decision: once a two-handed voicing has put the left
@@ -2267,7 +2272,7 @@ function keyboardPart(
       const hand = chooseHand(board, beat, where, at, opts.kind);
       clusters[hand === 'left-hand' ? 0 : 1] = midis;
     } else {
-      const cut = widestGap(midis);
+      const cut = shareOut(midis, handSpanSemitones(spec.id));
       clusters = [midis.slice(0, cut), midis.slice(cut)];
     }
 
@@ -2282,13 +2287,50 @@ function keyboardPart(
       const where = whereInRange(mean(cluster), reach);
       const to = pickBoard(hand, cluster, beat, where, split);
       const cross = opts.boards ? boardGap(opts.boards, on[hand], to) / BOARD_SPAN_M : 0;
-      board.place({
-        effector: hand, beat, kind: opts.kind,
-        travel: Math.abs(where - at[hand]) + cross,
-        force, sustainBeats: sustain,
-        targets: cluster.map((m) => point(m, air, to)),
-      });
-      at[hand] = where;
+
+      /**
+       * What this hand can hold, and when the rest of it arrives.
+       *
+       * One grab is one `place` at the beat, which is every chord that fits and
+       * is byte-identical to what this did before any of it existed. A share
+       * too wide for the hand is rolled — see `rolled` — and the roll comes in
+       * *ahead* of the beat so that its last grab lands with the sound.
+       * `quantiseDown` states that principle a few files over and it is the same
+       * one: a sixteenth early is a player being ready, and any amount late is a
+       * hand touching a key the audience has already heard.
+       *
+       * Unless the hand is still busy back there, which one shape does: an
+       * electric piano restriking a [46 55 60] shell under a moving tune on
+       * consecutive sixteenths, where the second chord's roll takes the slot the
+       * third one wants. Then the roll goes out after the beat instead, which is
+       * the smaller of the two lies and happened once in 149 rolls here. If the
+       * next chord already owns that slot too there is nowhere left and the grab
+       * stands as written — never taken in the 56 shows the check builds, and a
+       * branch that quietly widened a hand instead would be the worse one.
+       */
+      let roll = rolled(cluster, handSpanSemitones(spec.id));
+      let first = beat - (roll.length - 1) * ROLL_STEP;
+      if (roll.length > 1) {
+        const lead = whereInRange(mean(roll[0]!), reach);
+        if (!board.canReach(hand, first, Math.abs(lead - at[hand]) + cross, opts.kind)) {
+          const next = groups[index + 1];
+          if (next && quantise(next[0]!.beat) <= beat + (roll.length - 1) * ROLL_STEP) {
+            roll = [cluster];
+          }
+          first = beat;
+        }
+      }
+      for (const [step, grab] of roll.entries()) {
+        const spot = whereInRange(mean(grab), reach);
+        board.place({
+          effector: hand, beat: first + step * ROLL_STEP, kind: opts.kind,
+          // The crossing is paid once, by the grab that makes it.
+          travel: Math.abs(spot - at[hand]) + (step === 0 ? cross : 0),
+          force, sustainBeats: sustain,
+          targets: grab.map((m) => point(m, air, to)),
+        });
+        at[hand] = spot;
+      }
       on[hand] = to;
     }
   }
@@ -3064,6 +3106,103 @@ function groupByBeat(notes: NoteEvent[]): NoteEvent[][] {
   }
   return [...by.entries()].sort((a, b) => a[0] - b[0]).map(([, v]) => v);
 }
+
+/**
+ * Where two hands divide an ascending chord, and why the widest interval is
+ * only half of the answer.
+ *
+ * The widest interval is the right *heuristic*, and `widestGap` below is still
+ * the whole of it for two mallets: a rootless voicing with the bass an octave
+ * under three close notes is one note in the left hand and a grab in the right,
+ * which is how it is actually played, where splitting by count would put the
+ * hands in two impossible positions.
+ *
+ * It is not a *guarantee*, and that is the only thing this adds. Widening
+ * `npm run concert` to every genre found 152 chords staged on one hand wider
+ * than the octave a hand has, and the six that were not an accordion were all
+ * this: the split divided the chord and then asked neither half whether it fit
+ * anywhere. A synthesiser's [40 49 54 62] has its widest interval between the 40
+ * and the 49, so the right hand was handed 49 54 62 — a minor ninth, in one
+ * grab, and nothing looked.
+ *
+ * So the cut is chosen by what it costs the hands rather than by width alone:
+ * **the fewest grabs between the two of them, ties to the widest gap.** Where
+ * some cut leaves both shares inside one hand that is two grabs and the widest
+ * such gap wins it, so every chord the heuristic was already right about is cut
+ * exactly where it was — and [40 49 54 62] now goes 40 49 | 54 62, a sixth in
+ * each hand. Where no cut can, because three or more notes are spread
+ * over more than two hands' worth of keyboard, the count picks the division that
+ * leaves the least rolling to do and `rolled` does it.
+ */
+function shareOut(midis: Midi[], span: number): number {
+  let cut = 1;
+  let fewest = Infinity;
+  let widest = -1;
+  for (let i = 1; i < midis.length; i++) {
+    const grabs = rolled(midis.slice(0, i), span).length + rolled(midis.slice(i), span).length;
+    const gap = midis[i]! - midis[i - 1]!;
+    if (grabs < fewest || (grabs === fewest && gap > widest)) {
+      fewest = grabs;
+      widest = gap;
+      cut = i;
+    }
+  }
+  return cut;
+}
+
+/**
+ * A hand's share broken into the grabs it can actually hold, earliest first.
+ *
+ * The case the split has no answer for, and the accordion is 146 of the 152:
+ * its treble manual starts at F3 and everything above that is *one* hand's
+ * problem, because the other hand is on the bass buttons on the far side of the
+ * bellows and cannot be handed a key at all. See `ACCORDION_BUTTON_TOP`, and the
+ * accordion's entry in `HANDS` for the same fact from the generator's side. A
+ * comp voicing of [53 60 67] is fourteen semitones and perfectly reasonable
+ * music; there is simply no second hand in the room to give any of it to, and
+ * with three notes there is no cut that helps either — the widest measured here
+ * is nineteen semitones.
+ *
+ * What a player does with a chord that will not fit is roll it, and of the three
+ * things a player could do it is the only one this IR can say without lying.
+ * **A gesture is a hand arriving at a point.** Dropping a note is one gesture
+ * fewer, and the choreographer does not get to decide the generator wrote a note
+ * too many — `npm run concert` holds a keyboard to every note it is handed, and
+ * dropping the 149 that do not fit reads as an accordion losing 1.5% of its
+ * part. Moving a note an octave is a hand arriving at a pitch nobody wrote, and
+ * the audience is watching the hand while the ear hears the other note. Rolling
+ * is the same points, in the same order, arriving a sixteenth apart instead of
+ * together: the only thing it spends is timing, which was the performer's to
+ * spend.
+ *
+ * Anchored at the *top* and worked down, so the grab that lands on the beat is
+ * the one carrying the top of the chord. Which side of the beat the rest of it
+ * falls on is `keyboardPart`'s decision — see there.
+ */
+function rolled(cluster: Midi[], span: number): Midi[][] {
+  if (!cluster.length || cluster[cluster.length - 1]! - cluster[0]! <= span) return [cluster];
+  const out: Midi[][] = [];
+  let rest = cluster;
+  while (rest.length) {
+    const top = rest[rest.length - 1]!;
+    const take = rest.filter((m) => top - m <= span);
+    out.unshift(take);
+    rest = rest.slice(0, rest.length - take.length);
+  }
+  return out;
+}
+
+/**
+ * How far apart the grabs of a rolled chord land, in beats.
+ *
+ * One slot of the grid every renderer agrees on, because it is the only spacing
+ * the IR has: `npm run concert` asserts that every gesture in every show sits on
+ * a sixteenth, and a hand placed between two of them is a hand no renderer can
+ * put anywhere. At the 128 bpm the electric piano below was measured at it is
+ * 117 ms, which is a spread chord rather than a grace note — slower than a real
+ * roll and the slowest this grid can be wrong by.
+ */
+const ROLL_STEP = 1 / SLOTS_PER_BEAT;
 
 /** Index to split an ascending chord at its widest interval. */
 function widestGap(midis: Midi[]): number {

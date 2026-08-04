@@ -52,20 +52,44 @@ import type { EraProfile } from '../../style/types.js';
  *    this entire music rests on.** A tanpura is four plucked strings with a
  *    thread laid under the bridge — the *jawārī* — which makes each string
  *    sound a whole shimmering column of overtones rather than a pitch, and the
- *    rāga's notes are heard *against that column*. What is used instead is the
- *    pad family, which holds the pitch and loses the buzz, so the drone here is
- *    a sustained chord where it should be a texture with a rāga's worth of
- *    upper partials already in it. `padHalo` and `padWarm` lead because they
- *    are the two with the most motion in them; nothing available is close.
- *  - **The harmonium is not in the catalogue either.** It is a free-reed box
- *    with a bellows the player pumps with one hand while playing with the
- *    other, which makes the accordion its nearest relative by construction
- *    rather than by resemblance — the same reeds, the same air supply, the same
- *    inability to vary a note once it has started. The audible difference is
- *    that an accordion has a vibrato register and a harmonium does not, and
- *    that the harmonium is played one-handed. Neither is expressible here. It
- *    is still the right pick, because every other reed in the catalogue is
- *    blown by a mouth.
+ *    rāga's notes are heard *against that column*. What is used instead is
+ *    **`reedOrgan`**, and it replaces a pad palette — `padHalo`, `padWarm`,
+ *    `padBowed`, `padNewAge` — that was chosen for having the most motion in it
+ *    and was wrong on both counts.
+ *
+ *    It was wrong about the sound, by this file's own complaint: a pad holds
+ *    the pitch and loses the buzz, and what is wanted is a texture with a
+ *    rāga's worth of upper partials already in it. A free-reed drone box has
+ *    them. It is also not a substitution at all but the actual object — when
+ *    there is no tanpura player on the platform, what is droning under a
+ *    Carnatic or Hindustani recital is a śruti box or a harmonium, and has been
+ *    for a century. The `comp` slot below already knew this and had `reedOrgan`
+ *    in it.
+ *
+ *    And it was wrong about the year, which is what forced the correction. The
+ *    pad family is staged as a synthesiser by `concert/instruments.ts`, so a
+ *    1935 sabhā and a 1952 Madras concert season were both putting a keyboard
+ *    player behind a rig that did not exist; `rigPoolFor` has no honest object
+ *    for those years and now returns none, which is what surfaced it. A
+ *    harmonium is `organ` on the boards and needs no window.
+ *  - **The harmonium is not in the catalogue either, and it is answered twice.**
+ *    It is a free-reed box with a bellows the player pumps with one hand while
+ *    playing with the other, which makes the accordion its nearest relative by
+ *    construction rather than by resemblance — the same reeds, the same air
+ *    supply, the same inability to vary a note once it has started. The audible
+ *    difference is that an accordion has a vibrato register and a harmonium does
+ *    not, and that the harmonium is played one-handed. Neither is expressible
+ *    here, and `accordion` stays the pick everywhere the harmonium is *playing*:
+ *    the melodic shadow behind a singer, in `counter` and `comp`.
+ *
+ *    `reedOrgan` is the pick where it is droning, and the split is not a
+ *    hedge — it is the difference between the two jobs. A parlour reed organ is
+ *    pumped with the feet and played with both hands, which is wrong for a
+ *    harmonium accompanist and exactly right for an instrument nobody has to
+ *    hold a tune on. It is also nearer the śruti box, which is the same reeds
+ *    with the keyboard taken off. The sentence this replaces said every other
+ *    reed in the catalogue is blown by a mouth, and it was wrong: this one is
+ *    not, and the `comp` slot below was already drawing it.
  *  - **The bansuri is `shakuhachi`, and not `panFlute`.** Both bamboo, both in
  *    the catalogue, and the choice turns on one thing: a bansuri is a single
  *    tube whose pitch is bent constantly by rolling the embouchure and
@@ -143,8 +167,7 @@ const hindustani: EraProfile = {
       ['reedOrgan', 2],
     ],
     pad: [
-      ['padHalo', 4], ['padWarm', 4], ['padBowed', 3], ['padNewAge', 2],
-      ['strings1', 2], ['padChoir', 1],
+      ['reedOrgan', 6], ['strings1', 4], ['tremoloStrings', 3], ['strings2', 2],
     ],
     bass: [['contrabass', 4], ['cello', 3], ['acousticBass', 2], ['fretlessBass', 1]],
     /**
@@ -249,9 +272,12 @@ const carnatic: EraProfile = {
       ['accordion', 4], ['sitar', 3], ['harp', 2], ['dulcimer', 2],
       ['reedOrgan', 2],
     ],
+    // The śruti box, and then the violin section doubling it. See the tanpura
+    // paragraph under `hindustani`: 1952 is eleven years before the earliest
+    // object in `SYNTH_RIGS`, and this is the era `npm run concert` caught a
+    // polysynth standing in.
     pad: [
-      ['padWarm', 4], ['padHalo', 3], ['padBowed', 3], ['strings1', 2],
-      ['padNewAge', 2], ['choirAahs', 1],
+      ['reedOrgan', 6], ['strings1', 4], ['strings2', 3], ['tremoloStrings', 2],
     ],
     bass: [['contrabass', 4], ['cello', 3], ['acousticBass', 2], ['fretlessBass', 1]],
     brass: [['shanai', 4], ['oboe', 2], ['englishHorn', 2]],
@@ -324,9 +350,13 @@ const filmi: EraProfile = {
       ['accordion', 4], ['piano', 3], ['nylonGuitar', 3], ['harp', 2],
       ['dulcimer', 2], ['epiano1', 1],
     ],
+    // 1962 misses `polysynth.from` by a single year, and the year is right:
+    // there is no synthesiser on a Bombay soundtrack in 1962, so `choirAahs`,
+    // `padWarm` and `synthStrings` come out and the string section — which is
+    // the actual sound of this pad, fifty players in one room — takes their
+    // weight. The harmonium behind them is on these records too.
     pad: [
-      ['strings1', 5], ['strings2', 4], ['tremoloStrings', 3], ['choirAahs', 2],
-      ['padWarm', 2], ['synthStrings', 1],
+      ['strings1', 6], ['strings2', 5], ['tremoloStrings', 4], ['reedOrgan', 2],
     ],
     bass: [['acousticBass', 4], ['contrabass', 3], ['fingerBass', 2], ['cello', 2]],
     brass: [

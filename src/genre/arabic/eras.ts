@@ -111,10 +111,15 @@ const takht: EraProfile = {
       ['dulcimer', 5], ['nylonGuitar', 4], ['accordion', 2], ['harp', 2],
     ],
     // A takht has no pad. What sustains in one is the ensemble holding a note
-    // together, so the entries here are the two string patches that read as
-    // several people rather than as a synthesiser.
+    // together, so the entries here are the string patches that read as several
+    // people rather than as a synthesiser.
+    //
+    // `choirAahs` sat at the end of this list and broke the sentence above:
+    // `concert/instruments.ts` stages a choir patch as a keyboard, so one draw
+    // in ten put a player behind a synthesiser at a 1938 takht. Dropped rather
+    // than reweighted — there is no weight at which that is a takht.
     pad: [
-      ['strings1', 4], ['tremoloStrings', 3], ['strings2', 2], ['choirAahs', 1],
+      ['strings1', 4], ['tremoloStrings', 3], ['strings2', 2],
     ],
     bass: [['contrabass', 4], ['cello', 3], ['acousticBass', 2]],
     // Vestigial except under `zaffa`, which is the one style that keeps the
