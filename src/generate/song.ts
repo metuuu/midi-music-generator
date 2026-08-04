@@ -2038,8 +2038,11 @@ export function generateSong(opts: GenerateOptions = {}): Song {
    * Every earlier check of this ran a section at a time, and a section cannot see
    * what the section after it will write across the seam: a pickup, a variation
    * applied to a recalled chorus, a cadence held past the barline. `undoubleAgainst`
-   * inside the loop catches almost all of it and cannot catch that, so the guarantee
-   * is made here, where both layers are whole and trimmed.
+   * inside the loop catches almost all of it and cannot catch that, so this runs
+   * where both layers are whole and trimmed. It is not the last word either — the
+   * third call, below `applyTransitions`, is — but it is the cheap one: here the
+   * answer is still a bare line, and every repair made here is one that does not
+   * have to be made down there against a finished arrangement.
    */
   {
     const line = byLayer.get('melody') ?? [];
@@ -2353,6 +2356,49 @@ export function generateSong(opts: GenerateOptions = {}): Song {
   applyTransitions(song, seams, (beat) => (
     typeof swingPlan === 'number' ? swingPlan : swingPlan(beat)
   ));
+
+  /**
+   * The answer against the tune, once nothing else will move either of them.
+   *
+   * The pass above was made where both layers were whole, which was true and was
+   * not enough, because a transition re-times what is already written. `playShot`
+   * takes a bar of every part and lands it on one figure — keeping each part's own
+   * pitches, because a tutti is a rhythmic event and not a harmonic one — and two
+   * pitches that were never simultaneous become simultaneous. That is a harmonic
+   * result out of a pass that declines to have harmonic opinions: on metal
+   * `thrash`, seed `cm-26`, it put the answer's D5 onto the tune's D5 on the third
+   * hit of bar 66, which was one note in the 5154 `npm run genres` samples and the
+   * only accidental doubling left in the catalogue.
+   *
+   * So the guarantee is re-made here, and here is the last place it can be made:
+   * after every `applySwing`, after the overlap trim, after each part is folded
+   * into its instrument's range, after the arrangement's own edits. Before
+   * `landEnding`, for the same reason the transitions run before it — a band
+   * landing together on the final chord is a band landing, and moving a note off
+   * that landing would be this pass overruling a full stop.
+   *
+   * The line, not the track: both layers may have a left hand merged into them by
+   * now, and a left-hand chord tone an octave off the tune is neither the tune nor
+   * the answer. `melodicLine` is the same reading `genre-check.ts` measures, and
+   * what comes back is spliced in by identity so nothing else on the track moves.
+   */
+  {
+    const melodyTrack = song.tracks.find((t) => t.layer === 'melody');
+    const counterTrack = song.tracks.find((t) => t.layer === 'counter');
+    const line = melodyTrack ? melodicLine(melodyTrack) : [];
+    const answer = counterTrack ? melodicLine(counterTrack) : [];
+    if (counterTrack && line.length && answer.length) {
+      // The instrument's own range, which by this line every note is already
+      // inside — the fold saw to that — so the window cannot fail to contain the
+      // note being repaired, and no repair can push one back out of it.
+      const repaired = undoubleAgainst(
+        answer, line, makeScale(tonic, mode), rangeOfInstrument(layerInstruments.counter),
+      );
+      const moved = new Map<NoteEvent, NoteEvent>();
+      answer.forEach((n, i) => { const to = repaired[i]!; if (to !== n) moved.set(n, to); });
+      if (moved.size) counterTrack.notes = counterTrack.notes.map((n) => moved.get(n) ?? n);
+    }
+  }
 
   landEnding(song, genre.ending, finalChord);
 

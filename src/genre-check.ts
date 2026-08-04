@@ -3063,6 +3063,16 @@ console.log('\nCounter-melody');
 {
   let steps = 0, thirds = 0, moves = 0, overlap = 0, doubled = 0, multi = 0, figures = 0;
   /**
+   * Which song, so a failure can be reproduced rather than hunted for.
+   *
+   * A count on its own — "1 of 5154" — says a fault exists and nothing about
+   * where, and one note in a corpus this size is a day of bisecting seeds to find
+   * again. What is recorded is everything `npx tsx src/score.ts <seed> <genre>
+   * <style>` needs plus the beat and the two pitches, which between them say
+   * whether the answer moved onto the tune or the tune onto the answer.
+   */
+  let firstDouble = '';
+  /**
    * The `unison` device, counted apart from the fault it looks identical to.
    *
    * An answer note on the tune at the octave is a fault everywhere except where an
@@ -3152,7 +3162,19 @@ console.log('\nCounter-melody');
           if (d > 0) { moves++; if (d <= 2) steps++; else if (d <= 4) thirds++; }
         }
         const under = melody.find((m) => m.beat <= n.beat + 1e-6 && m.beat + m.duration > n.beat + 1e-6);
-        if (under && !n.doubling) { overlap++; if (Math.abs(under.midi - n.midi) % 12 === 0) doubled++; }
+        if (under && !n.doubling) {
+          overlap++;
+          if (Math.abs(under.midi - n.midi) % 12 === 0) {
+            doubled++;
+            if (!firstDouble) {
+              const at = s.sections.find((sec) => n.beat >= sec.startBar * bpb
+                && n.beat < (sec.startBar + sec.lengthBars) * bpb);
+              firstDouble = `; first in cm-${i} ${gid} ${s.meta.style}`
+                + ` ${at?.kind ?? 'nowhere'} bar ${(n.beat / bpb).toFixed(2)}`
+                + ` beat ${n.beat}: counter ${n.midi} on melody ${under.midi}`;
+            }
+          }
+        }
         if (n.doubling) { joined++; run++; }
         else if (run) { joinRuns++; if (run < 3) shortRuns++; run = 0; }
       }
@@ -3175,7 +3197,7 @@ console.log('\nCounter-melody');
   check(
     'the answer never doubles the tune at the unison or octave by accident',
     doubled === 0,
-    `${doubled} of ${overlap} unmarked overlapping notes`,
+    `${doubled} of ${overlap} unmarked overlapping notes${firstDouble}`,
   );
   /**
    * …and where it doubles the tune on purpose, it does it for a phrase.

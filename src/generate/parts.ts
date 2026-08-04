@@ -1841,6 +1841,11 @@ function avoidClash(
  * see everything: a melody note held across a section boundary is not in the notes it
  * was handed, and a recalled tune may be varied after the answer was placed.
  *
+ * Called three times in `song.ts` and the last one is the guarantee — see it. The
+ * two before it exist because a repair made while the answer is still a bare line
+ * is cheaper and better placed than one made against a finished arrangement; what
+ * they cannot see is that a transition re-times both parts after they have run.
+ *
  * Repaired through the *scale* rather than by a semitone, and downward first — an
  * answer sits under the tune where it can, so the first place to look for room is
  * below.
@@ -1856,7 +1861,9 @@ export function undoubleAgainst(
   counter: NoteEvent[],
   melody: readonly NoteEvent[],
   scale: Scale,
-  [lo, hi]: [Midi, Midi],
+  // Readonly because the last caller hands it an instrument's own range straight
+  // out of the table, and a window is read here and never written.
+  [lo, hi]: readonly [Midi, Midi],
 ): NoteEvent[] {
   if (!counter.length || !melody.length) return counter;
   /**
