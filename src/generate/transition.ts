@@ -1092,6 +1092,35 @@ function hush(
  *
  * A sequencer does not move either, for the reason `Track.machine` gives
  * everywhere else in this file: nobody's hands are on it.
+ *
+ * ## Nobody arrives early into a bar they then do not play
+ *
+ * The gesture is the band arriving *over a downbeat the kit still states*, and
+ * the sentence above is load-bearing rather than colour: an anticipation needs
+ * something left on the other side of the barline to be heard against. On every
+ * ordinary section there is — the kit, and the section's own next forty onsets —
+ * so the eighth taken off the front costs nothing.
+ *
+ * On the sparsest styles in the catalogue it is the whole section. A runo
+ * performance or a kantele piece states one chord per section and lets it ring:
+ * the arriving section's *only* attack is the downbeat, and there is no kit
+ * behind it. Moving that one attack an eighth early moves a hundred percent of
+ * the section's onsets into the section before it, and what is left is four bars
+ * that nobody strikes a note in. It still *sounds* — the chord rings across the
+ * join and holds to the end — but the section no longer plays anything, and
+ * `activeLayers` is filtered on onsets at the bottom of `generateSong` precisely
+ * so that it says who is playing. The section came out claiming nobody was.
+ *
+ * `landEnding` cannot repair it and should not try. It finds that chord still
+ * ringing over the final bar and holds it, which is right; the `button` recall
+ * that would otherwise re-strike the band is guarded on `!ringing`, which is
+ * also right, because re-striking a string that has not stopped is a second
+ * attack rather than a landing. Three correct decisions composing into a silent
+ * section is what makes this the place to fix it: here the gesture is degenerate
+ * on its own terms, and everywhere downstream it is merely inconvenient.
+ *
+ * Decided once for the whole band rather than per track, because a comp that
+ * pushed while the bass stayed is not half a gesture, it is two.
  */
 function playElide(song: Song, seam: Seam, eighth: number): void {
   if (eighth <= 0) return;
@@ -1107,6 +1136,15 @@ function playElide(song: Song, seam: Seam, eighth: number): void {
    */
   const NEAR = 0.125;
 
+  /**
+   * The whole edit, computed and not yet applied.
+   *
+   * Prepared rather than performed so the guard below can read the notes *as
+   * they would be* instead of predicting them — `anticipate` is total and
+   * declines the move on its own account when the push will not fit, and a guard
+   * that second-guessed that would be a second copy of its rules.
+   */
+  const edits: { track: Track; notes: NoteEvent[] }[] = [];
   for (const track of song.tracks) {
     if (track.machine) continue;
     const attack = new Set(track.notes.filter((n) => Math.abs(n.beat - landing) < NEAR));
@@ -1118,8 +1156,25 @@ function playElide(song: Song, seam: Seam, eighth: number): void {
       track.notes.map((n) => ({ at: attack.has(n) ? landing : n.beat, dur: n.duration, note: n })),
       { target: landing, by: eighth },
     );
-    track.notes = moved.map((h) => ({ ...h.note, beat: h.at, duration: h.dur }));
+    edits.push({ track, notes: moved.map((h) => ({ ...h.note, beat: h.at, duration: h.dur })) });
   }
+  if (!edits.length) return;
+
+  // Would anyone still be playing in the section being arrived at? Edited tracks
+  // answer from the edit, everyone else from what they already hold, and the kit
+  // counts because it is exactly the downbeat this gesture wants to arrive over.
+  const arriving = song.sections[seam.section + 1];
+  if (arriving) {
+    const to = landing + arriving.lengthBars * song.meta.beatsPerBar;
+    const inSection = (beat: number) => beat >= landing - 1e-6 && beat < to - 1e-6;
+    const edited = new Set(edits.map((e) => e.track));
+    const sounds = song.drums.events.some((e) => inSection(e.beat))
+      || edits.some((e) => e.notes.some((n) => inSection(n.beat)))
+      || song.tracks.some((t) => !edited.has(t) && t.notes.some((n) => inSection(n.beat)));
+    if (!sounds) return;
+  }
+
+  for (const { track, notes } of edits) track.notes = notes;
 }
 
 function median(values: number[]): number {

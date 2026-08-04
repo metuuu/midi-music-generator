@@ -2570,6 +2570,50 @@ console.log('\nTransitions');
   }
 
   /**
+   * Every section has somebody playing in it.
+   *
+   * The floor under the whole arrangement, and nothing asserted it until a
+   * kantele piece produced a four-bar outro that no layer struck a note in —
+   * `activeLayers: []`, which is the IR saying the band left. It sounded, after
+   * a fashion: the chord rang across the join and held to the end. But every
+   * consumer downstream reads the list rather than the audio — the groove tells
+   * a player who is not listed to move *more*, the concert camera has nobody to
+   * point at — so a section that claims an empty band is a hole whatever is
+   * still ringing over it.
+   *
+   * The cause was a seam `elide` on a style sparse enough that the arriving
+   * section's only attack was its downbeat: moving it an eighth early moved
+   * every onset the section had into the section before it. `playElide` now
+   * declines when the move would empty the bar it is arriving at, and this is
+   * the assertion that says it stayed declined.
+   *
+   * **Pinned to `runolaulu` for the reason the fusion checks above are pinned.**
+   * Genre-wide the fault showed up once in 2800 songs — a rate a sweep passes on
+   * luck for two waves and then fails on a seed nobody changed. Sampled on the
+   * style that actually produces it, it was seven in two hundred, which is a
+   * check. The catalogue-wide pass is kept underneath it as the backstop, since
+   * an empty section is a fault anywhere and the next style sparse enough to
+   * find a new route into it has not been written yet.
+   */
+  {
+    let sparse = 0, wide = 0;
+    const empties = (song: Song) => song.sections.filter((s) => !s.activeLayers.length).length;
+    for (let i = 0; i < 200; i++) {
+      sparse += empties(generateSong({ seed: `re-${i}`, genre: 'finnfolk', style: 'runolaulu' }));
+    }
+    for (const id of GENRE_IDS) {
+      for (let i = 0; i < 40; i++) wide += empties(generateSong({ seed: `se-${i}`, genre: id }));
+    }
+    check(
+      'no section plays nothing at all',
+      sparse === 0 && wide === 0,
+      sparse || wide
+        ? `${sparse} empty sections in 200 runo songs, ${wide} across the catalogue`
+        : `200 runo songs and ${GENRE_IDS.length * 40} across the catalogue, every section sounding`,
+    );
+  }
+
+  /**
    * The same guarantee over the *whole* kit, on the one style that can break it.
    *
    * `hook leaves form, key, tempo, instruments and drums alone` already compares
