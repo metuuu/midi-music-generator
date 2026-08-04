@@ -112,6 +112,26 @@ const WARDROBE: Record<string, Wardrobe> = {
     accessories: [['tie', 0.85], ['moustache', 0.25], ['glasses', 0.2], ['bowtie', 0.2], ['porkpie', 0.15]],
     // Wool, and very nearly only wool. That is the genre, in three eras.
     fabrics: [['wool', 9], ['satin', 1]],
+    /**
+     * Nine to one, and the one is the man out front.
+     *
+     * The same shape as `classical:romantic`'s table with the two entries
+     * swapped, and the pair is worth reading together because they are the two
+     * ends of the same argument. An orchestra is forty people who are all the
+     * tailcoat and one deputy who is not; a swing band in a gilt room is
+     * fourteen people who are all the dark suit and one leader who has dressed
+     * for a different evening than the section behind him. `uniform: 0.85` above
+     * says the colours agree, and this says the shapes agree too, except once.
+     *
+     * `tails` is also the only member of the union that is invisible from the
+     * front, which suits this era better than any other in the genre: from a
+     * table on the floor the leader is a dark suit like the rest of the stand,
+     * and it is only when he turns to bring the brass in that the two panels
+     * behind his knees say he is not. That is a fact about how these rooms were
+     * looked at, and it is why the garment gets weighted here rather than in
+     * `bop`, where nobody was looking at the clothes at all.
+     */
+    garments: [['suit', 9], ['tails', 1]],
     loudFabric: 'satin', sequinChance: 0,
     matched: 0.85, uniform: 0.85, spotlight: 0.3,
   },
@@ -130,6 +150,24 @@ const WARDROBE: Record<string, Wardrobe> = {
     hairStyles: [['short', 5], ['slick', 4], ['bald', 2], ['curls', 2]],
     accessories: [['tie', 0.8], ['glasses', 0.35], ['porkpie', 0.3], ['beard', 0.3], ['sunglasses', 0.12]],
     fabrics: [['wool', 9], ['satin', 1]],
+    /**
+     * The suit stays; the jacket comes off in the room the suit is worn in.
+     *
+     * A quintet in a cellar nobody had redecorated since the war is the era
+     * comment's own phrase, and the thing it leaves out is that such a room is
+     * about thirty degrees by the second set. `waistcoat` at 2 is the tenor
+     * player who has hung his jacket on the piano and is playing in the vest and
+     * the tie he had on under it — which is half the photographs anybody has of
+     * this music, and which the wardrobe could not previously say at all.
+     *
+     * It is deliberately the *same* two shapes as `country:honkytonk` three
+     * years earlier and it means something completely different in each: there
+     * it is a road band who have been in a station wagon since Tuesday, here it
+     * is a man who is too hot. A silhouette does not carry a reason, and the
+     * eight in the union are only worth having because each of them can be
+     * borrowed by a genre that means the opposite by it.
+     */
+    garments: [['suit', 8], ['waistcoat', 2]],
     loudFabric: 'wool', sequinChance: 0,
     matched: 0.8, uniform: 0.72, spotlight: 0.25,
   },
@@ -150,6 +188,33 @@ const WARDROBE: Record<string, Wardrobe> = {
     // The suit comes apart here along with everything else: corduroy, knit and
     // the occasional velvet jacket, and wool stops being the whole answer.
     fabrics: [['wool', 5], ['corduroy', 3], ['knit', 2], ['velvet', 1], ['denim', 1]],
+    /**
+     * *Where the suit comes off*, and the third entry is the one to defend.
+     *
+     * The first two are the era comment said plainly. A suit at 5 rather than 9
+     * is a band that has stopped matching — barely ahead of the thing that is
+     * not a suit, which is the narrowest lead any garment holds in this file and
+     * is the point — and `waistcoat` at 4 is the polo neck
+     * and the earth colours arriving as a *shape* rather than as a swatch: the
+     * shell and the sleeves both go to the shirt colour, so a player in this
+     * garment reads as somebody wearing a knitted thing with something over it
+     * instead of a jacket over a white shirt, which is the difference between
+     * 1969 and 1959 in one silhouette.
+     *
+     * `robe` at 2 is the honest one, and it is not a costume. The floor-length
+     * column with wide sleeves is the garment this era's musicians actually put
+     * on when they stopped wearing suits — the same object `arabic:takht` calls
+     * a galabeya and `indian:carnatic` calls a full-cut kurtā, worn on an
+     * American stage from about 1967 as a deliberate statement about where the
+     * music was being traced back to. One in ten, and the number was set on the
+     * bench rather than reasoned to: at 2 this era drew three of them in a
+     * seven-piece and the row stopped being a jazz group and became a costume
+     * party, which is the failure the whole union is supposed to be steering
+     * around. At 1 the same seven-piece draws two, which is a septet with a
+     * couple of people in it who have been to Africa — and nought would have
+     * left the era looking like `bop` in a browner suit.
+     */
+    garments: [['suit', 5], ['waistcoat', 4], ['robe', 1]],
     loudFabric: 'velvet', sequinChance: 0,
     matched: 0.45, uniform: 0.4, spotlight: 0.2,
   },

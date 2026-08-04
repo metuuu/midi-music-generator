@@ -42,6 +42,7 @@ import type { Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
  */
 const BALLROOM: StageRoom = {
   id: 'ballroom',
+  architecture: 'ballroom',
   names: [
     'The Starlite', 'The Crown Ballroom', 'Hall 88', 'The Chevron Room',
     'The Sundown', 'The Aquarius',
@@ -179,6 +180,26 @@ const WARDROBE: Record<string, Wardrobe> = {
       ['towel', 0.15],
     ],
     fabrics: [['wool', 6], ['satin', 3], ['velvet', 1]],
+    /**
+     * A revue band in matching suits, and the two low weights are the revue.
+     *
+     * `uniform: 0.8` above is nearly the swing band's, for the stated reason —
+     * a horn section is a section and dresses as one — so `suit` at 8 is the
+     * only defensible head of this table. What the other two buy is the *format*
+     * rather than the clothes.
+     *
+     * `tails` at 1 is the man who announces the act. Every revue bill of this
+     * kind had one, he was in evening dress, and he is the only reason to weight
+     * a garment that is invisible from the front on a stage where everybody is
+     * facing forward: he is the one person who spends the night turned sideways.
+     *
+     * `shirtsleeves` at 1 is two hours later. `towel` is already in the
+     * accessory table above at 0.15 for exactly this reason and its own note
+     * calls it the one object that says the performer is working; the braces are
+     * the same sentence said by the wardrobe instead of by the props, and a
+     * ninety-minute revue in 1968 ended with somebody's jacket on the floor.
+     */
+    garments: [['suit', 8], ['tails', 1], ['shirtsleeves', 1]],
     loudFabric: 'sequin', sequinChance: 0.35,
     matched: 0.8, uniform: 0.8, spotlight: 0.85,
   },
@@ -206,6 +227,38 @@ const WARDROBE: Record<string, Wardrobe> = {
       ['moustache', 0.3], ['bandana', 0.2], ['towel', 0.2],
     ],
     fabrics: [['satin', 5], ['velvet', 4], ['denim', 2], ['leather', 2], ['vinyl', 1]],
+    /**
+     * Four shapes on one stage, and no two people the same object.
+     *
+     * `uniform: 0.12` above is described as lower than ambient's and the comment
+     * explains why the comparison is not a paradox: an ambient act is not trying
+     * to be seen, and this is nine people all trying to be seen *differently*.
+     * A garment table is the only place in the whole wardrobe where that
+     * sentence can be made literally true, because it is the only field that
+     * changes what a person *is* rather than what colour they are — and this is
+     * the flattest table in the project.
+     *
+     * Every entry is a photograph. `gown` at 2 is fitted and flared and belongs
+     * to the singers. `robe` at 1 is the floor-length column half this band wore
+     * on stage, and is the same member `reggae:roots` leads with in the same
+     * year, from a different continent and the same idea. `shirtsleeves` at 1 is
+     * the rhythm section, who were working. `suit` at 6 is still the commonest
+     * thing on the boards, because the horn players came up through a revue band
+     * and never stopped dressing like it.
+     *
+     * **The tail weights were pulled down from 3 by the bench, and the reason is
+     * worth writing down because it will happen to whoever dresses the next
+     * genre.** `rng.weighted` is exactly fair — checked over a hundred and twenty
+     * seeds, and it reproduces every table in this file to within two points —
+     * but a *row* is eight players drawn at the same index of eight streams
+     * whose seeds differ only in a suffix, and those correlate hard. At 3 this
+     * era drew six robes out of eight and the page showed a choir. Eight people
+     * in one silhouette is the precise opposite of what a table with
+     * `uniform: 0.12` above it is for, so the numbers here are set against what
+     * a *stage* does rather than against what a distribution does, and they are
+     * not the same number.
+     */
+    garments: [['suit', 6], ['gown', 2], ['robe', 1], ['shirtsleeves', 1]],
     loudFabric: 'lame', sequinChance: 0.35,
     matched: 0.25, uniform: 0.12, spotlight: 0.95,
   },
@@ -229,6 +282,26 @@ const WARDROBE: Record<string, Wardrobe> = {
       ['bandana', 0.15], ['towel', 0.15],
     ],
     fabrics: [['satin', 5], ['leather', 4], ['vinyl', 3], ['denim', 2], ['wool', 1]],
+    /**
+     * The stylist arrives, and the first thing a stylist does is take the robes
+     * off.
+     *
+     * The era comment says the band starts matching again — not as a section
+     * this time but as a *look* — and a look is a much narrower thing than a
+     * revue was. `robe` and `shirtsleeves` both drop out entirely five years
+     * after being weighted, which is the sharpest change any genre makes here
+     * and is exactly what happened: 1975 was what nine people owned and 1980 was
+     * what one person chose for them.
+     *
+     * `gown` at 2 survives, because the one part of the picture a stylist did
+     * not simplify is the front of it. `spotlight: 0.9` above is the
+     * second-highest in the project, and the floor-length dress is where it
+     * lands — on one or two people, which is what a front is. See the note on
+     * `pfunk` above for why this is 2 and not 3: at 3 the bench drew six of them
+     * in an eight-piece, and a stylist who put the entire horn section in
+     * evening dresses would have been replaced.
+     */
+    garments: [['suit', 7], ['gown', 2], ['waistcoat', 1]],
     loudFabric: 'lame', sequinChance: 0.45,
     matched: 0.35, uniform: 0.3, spotlight: 0.9,
   },
@@ -252,6 +325,22 @@ const WARDROBE: Record<string, Wardrobe> = {
       ['headphones', 0.15], ['bandana', 0.15],
     ],
     fabrics: [['vinyl', 5], ['leather', 4], ['denim', 3], ['nylon', 2], ['satin', 2]],
+    /**
+     * One idea and three people executing it, so one shape and very little else.
+     *
+     * Eight to two is the tightest table this genre has had since 1968 and it
+     * arrives, as the era comment says, for the opposite reason. In `jb` the
+     * band matched because a bandleader made a section match; here there is no
+     * section — there are three people, two of them behind keyboards, and they
+     * are the same shape because there is nothing to be a different shape *from*.
+     *
+     * `waistcoat` at 2 rather than anything looser, and it is the vinyl doing
+     * the work rather than the cut: the shell and the sleeves go to the shirt
+     * colour and a second dark body sits over them, which under a follow spot on
+     * `vinyl` at weight 5 is a black panel with a highlight running down it.
+     * That is the decade, and it is a shape rather than a swatch.
+     */
+    garments: [['suit', 8], ['waistcoat', 2]],
     loudFabric: 'lame', sequinChance: 0.3,
     matched: 0.5, uniform: 0.35, spotlight: 0.85,
   },

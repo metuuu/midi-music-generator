@@ -131,6 +131,31 @@ const WARDROBE: Record<string, Wardrobe> = {
     // Nothing that catches light, in any ambient era. Half the point of that
     // room is that nobody in it is trying to be seen.
     fabrics: [['knit', 5], ['corduroy', 4], ['nylon', 3], ['denim', 2], ['wool', 1]],
+    /**
+     * The anorak, and it turns out the union already had one.
+     *
+     * `coat` was put in `Garment` for a sherwani and a 1720 court coat, and its
+     * own note describes it as *a skirted column to the knee over trousers,
+     * closing at the centre with a standing collar instead of lapels*. Read that
+     * sentence with a cagoule in mind instead of a court and it does not change
+     * a word. The stand collar is the half that carries it: the one thing an
+     * anorak categorically does not have is a lapel, and every figure in this
+     * genre has been wearing two of them since the renderer was written.
+     *
+     * `waistcoat` is the quilted body warmer over a jumper, which is the same
+     * observation from the other end — the shell and the sleeves go to the
+     * *shirt* colour, so what the eye gets is knitwear with a sleeveless thing
+     * over it rather than a jacket over a shirt. That is the single most
+     * accurate sentence anybody has written about how these people dressed.
+     *
+     * `suit` stays at 3 because somebody in every one of these rooms is a
+     * session player who was booked and turned up in a jacket, and because a
+     * table with no lounge suit in it would be making a claim about the tape era
+     * that the era comment above is careful not to make. Nobody here is *trying*
+     * to look like nobody; they are people who came to operate equipment, and
+     * one of them owns a blazer.
+     */
+    garments: [['coat', 4], ['waistcoat', 3], ['suit', 3]],
     loudFabric: 'knit', sequinChance: 0,
     matched: 0.2, uniform: 0.08, spotlight: 0.05,
   },
@@ -149,6 +174,23 @@ const WARDROBE: Record<string, Wardrobe> = {
     hairStyles: [['hood', 6], ['short', 4], ['long', 2], ['bald', 2]],
     accessories: [['headphones', 0.45], ['glasses', 0.3], ['beard', 0.3], ['scarf', 0.15]],
     fabrics: [['nylon', 6], ['knit', 4], ['denim', 2], ['wool', 1]],
+    /**
+     * *Black and grey cagoules*, says the era comment, and this is that.
+     *
+     * Six to two to two. The steepest weighting in the genre, because this is
+     * the era where the cagoule is not one thing somebody happens to be wearing
+     * but the whole dress code — the hair table already agrees, with `hood` at 6
+     * and nothing else above 4, and a hood and a knee-length nylon column are
+     * one garment that the rig happens to draw in two files.
+     *
+     * The row this produces on the bench is the point: five figures the same
+     * shape and nearly the same value, which is a wardrobe with `uniform: 0.12`
+     * in it looking, from twenty metres, more uniform than the swing band. That
+     * is not a contradiction — `uniform` is about whether the *colours* were
+     * agreed, and nobody agreed anything here. They all just bought the same
+     * coat.
+     */
+    garments: [['coat', 6], ['waistcoat', 2], ['suit', 2]],
     loudFabric: 'nylon', sequinChance: 0,
     matched: 0.35, uniform: 0.12, spotlight: 0.05,
   },
@@ -167,6 +209,24 @@ const WARDROBE: Record<string, Wardrobe> = {
     hairStyles: [['short', 5], ['hood', 3], ['long', 3], ['bald', 2], ['curls', 2]],
     accessories: [['scarf', 0.35], ['glasses', 0.35], ['beard', 0.3], ['headphones', 0.2]],
     fabrics: [['knit', 5], ['wool', 3], ['nylon', 3], ['denim', 1]],
+    /**
+     * The coat comes off, because the players came back.
+     *
+     * `suit` retakes the top of the table for the first and only time in this
+     * genre, and it is the era comment's own sentence said in shapes: the
+     * sources went back to being real strings and real voices, so the room has
+     * people in it who were booked to *play* rather than to operate, and a
+     * booked player owns a jacket. `coat` falls from 6 to 3 and `waistcoat`
+     * holds at 3, which between them are the half of the room that is still the
+     * 1993 wardrobe with the hood down.
+     *
+     * Three entries within one of each other, and that flatness is the accurate
+     * shape for the era rather than an absence of opinion. A 2006 hybrid session
+     * is a cellist in a jacket, a laptop operator in a cagoule and a producer in
+     * a body warmer, all on the same afternoon, and none of them is the odd one
+     * out.
+     */
+    garments: [['suit', 4], ['coat', 3], ['waistcoat', 3]],
     loudFabric: 'knit', sequinChance: 0,
     matched: 0.4, uniform: 0.15, spotlight: 0.08,
   },

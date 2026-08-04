@@ -1139,7 +1139,19 @@ export type RoomStyle =
   /** A big dark touring room: a high deck, steel overhead, no arch, no cloth. */
   | 'circuit'
   /** A recital hall: warm plaster, a canopy overhead, a step of a dais, no cloth. */
-  | 'sabha';
+  | 'sabha'
+  /** A wide low timber hall: a flat lid on posts, a plank floor, a bandstand. */
+  | 'dancehall'
+  /** A portal-framed industrial hall: hard walls, a low deck, visible structure. */
+  | 'shed'
+  /** A fenced patch of open ground: dirt, zinc, a night sky, a rig on towers. */
+  | 'lawn'
+  /** A plastered dance hall: a tiled floor, shuttered openings, fans, no cloth. */
+  | 'salon'
+  /** A wide low civic room: concrete, a beamed slab, a bowed cyc, no cloth. */
+  | 'hall'
+  /** A tired revue theatre: a flat floor, a gallery, a shallow arch, a cloth. */
+  | 'ballroom';
 
 export interface Venue {
   id: string;

@@ -56,6 +56,7 @@ import type { Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
  */
 const DANCE_HALL: StageRoom = {
   id: 'dancehall',
+  architecture: 'dancehall',
   names: [
     'Cedar Hall', 'The Silver Spur', 'Ridgeway Barn', 'Cottonwood Hall',
     'The Wagon Wheel', 'The Boot Heel',

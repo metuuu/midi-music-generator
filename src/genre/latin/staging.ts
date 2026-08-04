@@ -55,6 +55,7 @@ import type { Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
  */
 const SALON: StageRoom = {
   id: 'salon',
+  architecture: 'salon',
   names: [
     'Salón Tropical', 'El Patio', 'La Terraza', 'Club Casino',
     'Salón Colonial', 'La Caseta',
@@ -179,6 +180,27 @@ const WARDROBE: Record<string, Wardrobe> = {
     hairStyles: [['slick', 6], ['short', 5], ['curls', 3], ['updo', 2], ['bald', 1]],
     accessories: [['tie', 0.6], ['flatcap', 0.25], ['moustache', 0.3], ['bowtie', 0.2]],
     fabrics: [['linen', 7], ['wool', 3], ['silk', 2]],
+    /**
+     * The heat, said a second time and in a different vocabulary.
+     *
+     * `linen` at 7 above is the wardrobe's first answer to a hall with no air
+     * conditioning in it, and its note says so: matte, pale, crisp, and what
+     * people actually wore. `shirtsleeves` at 3 is the same fact expressed as a
+     * *shape* rather than as a bolt of cloth, and it is the strongest case for
+     * that member anywhere in the project. Braces over a white shirt is not a
+     * stylisation of a 1938 conjunto; it is the standard photograph of one, and
+     * the man in it has hung his jacket on the back of a chair because it is
+     * thirty-four degrees.
+     *
+     * `suit` still leads at 6 because `uniform: 0.7` says everybody is in white
+     * or cream and the bandleader is wearing a wool one and suffering — the era
+     * comment's own joke, now with somebody in it to be the joke about.
+     *
+     * `waistcoat` at 1 is the *bajo sexto* player, who has kept the waistcoat
+     * and lost the jacket, which is the halfway house between the other two and
+     * appears about that often.
+     */
+    garments: [['suit', 6], ['shirtsleeves', 3], ['waistcoat', 1]],
     loudFabric: 'silk', sequinChance: 0,
     matched: 0.75, uniform: 0.7, spotlight: 0.3,
   },
@@ -207,6 +229,25 @@ const WARDROBE: Record<string, Wardrobe> = {
     hairStyles: [['slick', 7], ['short', 4], ['updo', 3], ['curls', 2], ['bald', 1]],
     accessories: [['bowtie', 0.5], ['tie', 0.4], ['moustache', 0.25], ['earrings', 0.2]],
     fabrics: [['silk', 5], ['wool', 4], ['satin', 3], ['brocade', 2], ['linen', 2]],
+    /**
+     * The block, and the one person allowed to stand in front of it.
+     *
+     * Nine to one, and it is the third table in the project at those two numbers
+     * — `classical:romantic`, `jazz:swingera`, `reggae:ska`, and now this. Four
+     * completely unrelated rooms arriving at the same pair of weights is not a
+     * copy-paste; it is what happens every time a wardrobe is issued rather than
+     * chosen, and this is the tightest of the four. `uniform: 0.85` and
+     * `matched: 0.85` above are the highest in the file for the reason the era
+     * comment gives: eighteen people reading parts off stands in matching
+     * shawl-collar jackets, and the picture only works if it reads as a block.
+     *
+     * `gown` at 1 rather than a second suit, because the singer in front of that
+     * block is the whole of what `spotlight: 0.5` is for, and a shape says it
+     * where a colour cannot — a `lame` jacket on a man in the seventh chair is
+     * a bandleader, and the same fabric on a floor-length dress is the person
+     * the poster is about.
+     */
+    garments: [['suit', 9], ['gown', 1]],
     loudFabric: 'lame', sequinChance: 0.3,
     matched: 0.85, uniform: 0.85, spotlight: 0.5,
   },
@@ -235,6 +276,27 @@ const WARDROBE: Record<string, Wardrobe> = {
     hairStyles: [['afro', 6], ['long', 4], ['short', 3], ['curls', 3], ['slick', 2], ['bald', 1]],
     accessories: [['chain', 0.5], ['moustache', 0.45], ['sunglasses', 0.3], ['hoops', 0.3], ['beard', 0.2]],
     fabrics: [['satin', 4], ['denim', 3], ['leather', 3], ['linen', 3], ['silk', 2], ['corduroy', 1]],
+    /**
+     * *Where the band jacket goes*, and the shapes fall apart before the colours
+     * do.
+     *
+     * `uniform` drops 0.85 to 0.3 in twenty years, the largest fall in the file,
+     * and the era comment calls that the visible half of an eighteen-piece
+     * becoming a nine-piece who all know each other. The garment table is where
+     * it stops being a claim about swatches: the suit goes from 9 to 5, which is
+     * half the stand no longer in one, and it is the same move `rock:hard` makes
+     * in the same three years for the same reason in a different country.
+     *
+     * `waistcoat` at 3 is *the chain over an open shirt* from the comment above,
+     * drawn honestly — the sleeves and the shoulders go to the shirt colour, so
+     * the chain has a shirt to lie on rather than a lapel.
+     *
+     * `shirtsleeves` at 2 is the percussion, and it earns its place on the same
+     * argument `conjunto` makes thirty-seven years earlier: three congas in a
+     * hot room is work, and this genre is the one place in the catalogue where
+     * that member gets to mean the same thing twice.
+     */
+    garments: [['suit', 5], ['waistcoat', 3], ['shirtsleeves', 2]],
     loudFabric: 'satin', sequinChance: 0.15,
     matched: 0.35, uniform: 0.3, spotlight: 0.45,
   },
@@ -258,6 +320,25 @@ const WARDROBE: Record<string, Wardrobe> = {
     hairStyles: [['short', 5], ['slick', 4], ['curls', 3], ['braids', 3], ['bald', 2], ['long', 2], ['updo', 2]],
     accessories: [['chain', 0.4], ['sunglasses', 0.3], ['hoops', 0.3], ['beard', 0.3], ['earrings', 0.2]],
     fabrics: [['silk', 4], ['satin', 3], ['linen', 3], ['leather', 2], ['knit', 2], ['denim', 2]],
+    /**
+     * Two bands in one wardrobe, and the garment table is the average of them
+     * exactly as every other number here is.
+     *
+     * `suit` at 6 is the salsa romántica act — one person in a very good jacket
+     * and a rhythm section behind them in black, which the era comment says is
+     * the decade's whole proposition and which `spotlight: 0.55` is already
+     * carrying. `gown` at 2 is the other half of that front.
+     *
+     * `waistcoat` at 2 is the timba band, who are fourteen people in whatever
+     * they own, and it is deliberately *not* `shirtsleeves` even though the
+     * previous era weights that at 2. The braces are a nineteenth-century object
+     * with a specific century attached, and a 1997 Havana horn section is not
+     * wearing them; a sleeveless thing over a shirt is what fourteen people in
+     * whatever they own actually look like. That distinction is the one this
+     * whole vocabulary lives or dies by — two members that both mean *no jacket*
+     * and are not interchangeable.
+     */
+    garments: [['suit', 6], ['gown', 2], ['waistcoat', 2]],
     loudFabric: 'satin', sequinChance: 0.2,
     matched: 0.4, uniform: 0.35, spotlight: 0.55,
   },

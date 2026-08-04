@@ -203,6 +203,34 @@ const WARDROBE: Record<string, Wardrobe> = {
     hairStyles: [['wrap', 5], ['braids', 5], ['long', 3], ['short', 2], ['updo', 2]],
     accessories: [['beard', 0.45], ['scarf', 0.35], ['moustache', 0.15]],
     fabrics: [['linen', 6], ['wool', 5], ['flannel', 1]],
+    /**
+     * **No `suit`, and this table refuses it harder than any other.**
+     *
+     * `indian:carnatic` is the only other wardrobe in the project that leaves
+     * the lounge suit out, and it does so as a dress code: the platform has one
+     * and a suit is the thing that is not inside it. Here the refusal is older
+     * and simpler. There was no such garment. A runo singer and whoever is
+     * bowing a jouhikko beside her are wearing a long undyed linen shift and
+     * homespun wool, and the two-piece tailored jacket that every other row on
+     * this bench is built out of is four centuries away.
+     *
+     * `robe` at 5 is that shift — one column of cloth from shoulder to ankle
+     * with the arms out of the sides, which `Garment`'s own note lists as
+     * serving a thobe, a cassock and a choir robe and which turns out to serve
+     * this as well without a change to a single vertex. `drape` at 3 is the same
+     * thing with the shawl on, and the shawl is the reason the member exists —
+     * a diagonal band across a torso is the cheapest strong read in the union,
+     * and it lands on the era whose hair table is `wrap` and `braids` at the
+     * top, because a covered head over a wrapped body is one silhouette.
+     *
+     * `waistcoat` at 2 is the man's sleeveless jerkin over a linen shirt, and it
+     * is the earliest thing in the catalogue that member is asked to be — two
+     * hundred years before the court keyboard player in `classical:baroque` who
+     * was previously the earliest. That is not a coincidence about clothes; it
+     * is what a sleeveless body over a shirt has always been, which is why one
+     * member covers a battle jacket, a Nudie-era vest and this.
+     */
+    garments: [['robe', 5], ['drape', 3], ['waistcoat', 2]],
     loudFabric: 'linen', sequinChance: 0,
     matched: 0.25, uniform: 0.05, spotlight: 0.15,
   },
@@ -229,6 +257,31 @@ const WARDROBE: Record<string, Wardrobe> = {
     hairStyles: [['braids', 4], ['short', 4], ['long', 3], ['updo', 3], ['slick', 2], ['wrap', 2]],
     accessories: [['beard', 0.4], ['flatcap', 0.4], ['scarf', 0.3], ['moustache', 0.3]],
     fabrics: [['wool', 6], ['linen', 4], ['brocade', 2], ['flannel', 1]],
+    /**
+     * The good waistcoat, at the head of the table, where the era comment has
+     * been pointing since it was written.
+     *
+     * That comment argues at length that `brocade` exists because it is *a
+     * startlingly exact description of an embroidered folk waistcoat* — a
+     * placket down the front and a border round the hem — and until there were
+     * garments it was drawing that placket down the front of a lounge suit. The
+     * fabric was right and it had nothing correct to sit on. Now the fiddler
+     * being paid is in a sleeveless body over a shirt with a band of gold thread
+     * down it, which is the object the whole `loud`-slot argument above was
+     * built around.
+     *
+     * `shirtsleeves` at 3 is everybody else, and this is the era in the project
+     * where its braces are least of a compromise: two dark straps over a white
+     * shirt is not a stylisation of a nineteenth-century wedding band, it is a
+     * photograph of one. `country:stringband` reaches the same object from
+     * 1930s Appalachia and `arabic:shaabi` from a Cairo wedding in 1988, which
+     * is three genres and one pair of boxes.
+     *
+     * `coat` at 2 is the older man's long parish coat — knee-length, closing at
+     * the centre under a stand collar, which is a *sarkatakki* and is also a
+     * sherwani and is also a 1720 court coat. The member does not care.
+     */
+    garments: [['waistcoat', 5], ['shirtsleeves', 3], ['coat', 2]],
     loudFabric: 'brocade', sequinChance: 0,
     matched: 0.5, uniform: 0.25, spotlight: 0.45,
   },
@@ -258,6 +311,36 @@ const WARDROBE: Record<string, Wardrobe> = {
     hairStyles: [['braids', 5], ['updo', 4], ['short', 3], ['long', 3], ['bob', 2], ['slick', 2]],
     accessories: [['scarf', 0.4], ['beard', 0.35], ['glasses', 0.3], ['earrings', 0.25]],
     fabrics: [['wool', 5], ['linen', 4], ['brocade', 4], ['velvet', 1]],
+    /**
+     * The kansallispuku, and it is the one wardrobe in the project where
+     * `uniform: 0.8` is a statement about *shape* rather than about colour.
+     *
+     * The era comment above makes the distinction that matters: a swing band and
+     * a ska band matched because a bandleader dressed a section, and a Kaustinen
+     * ensemble matches because every player is wearing a garment with a
+     * documented parish pattern. A documented pattern is a cut. So this is the
+     * only table here with no `suit` *and* no member below 2 — three parish
+     * garments and nothing else, which is what a room full of people in the same
+     * documented clothes looks like.
+     *
+     * `coat` at 4 is the men's *sarkatakki*: knee-length, straight, closing at
+     * the centre under a stand collar. `waistcoat` at 3 is the same men with it
+     * off, and with `brocade` at weight 4 in the fabric table above rather than
+     * on the `loud` slot — the era comment's own sentence, *here the embroidered
+     * placket is on all ten of them* — the band of gold thread now lands on both
+     * of those shapes rather than on a lounge jacket.
+     *
+     * `drape` at 3 is the women's half and it is the one judgement call in the
+     * table, so it is worth naming rather than smoothing over. The member was
+     * built for a sari: an ankle-length wrapped lower half with one band of
+     * cloth over one shoulder. A kansallispuku is a long skirt, a sleeved linen
+     * blouse and a shawl, and the shawl is worn folded across the body from one
+     * shoulder about as often as it is worn square. Those are the same three
+     * objects in the same three places, and a ninth member of `Garment` to say
+     * *Finnish* rather than *Indian* about them would be a costume department
+     * making a distinction the outline cannot carry.
+     */
+    garments: [['coat', 4], ['waistcoat', 3], ['drape', 3]],
     loudFabric: 'brocade', sequinChance: 0,
     matched: 0.75, uniform: 0.8, spotlight: 0.35,
   },
@@ -285,6 +368,26 @@ const WARDROBE: Record<string, Wardrobe> = {
     hairStyles: [['long', 4], ['short', 4], ['updo', 3], ['braids', 3], ['bob', 2], ['bald', 1]],
     accessories: [['glasses', 0.4], ['beard', 0.35], ['scarf', 0.25], ['earrings', 0.25]],
     fabrics: [['wool', 4], ['knit', 4], ['denim', 3], ['linen', 3], ['brocade', 1]],
+    /**
+     * The costume comes off, and this is the first `suit` the genre has ever
+     * drawn.
+     *
+     * Four eras, and the lounge jacket does not appear in any of the three above
+     * this one — there was none in 1500, none at a pelimanni wedding, and none
+     * under a parish pattern in 1975. It arrives here at 6, in a single step,
+     * which is the sharpest thing this file says about itself: a folk department
+     * graduate spent their childhood in a kansallispuku at festivals and has
+     * views about it, and what replaces it is what everybody in a conservatoire
+     * wears, which is nothing in particular in dark colours.
+     *
+     * `coat` at 2 keeps one line back to the parish, and it is deliberately the
+     * same member the era above weights at 4 rather than a new one, because the
+     * era comment's point about `brocade` surviving at weight 1 is that somebody
+     * in this band is wearing one embroidered thing *as a quotation*. A
+     * quotation has to be recognisably of something, and a brocade placket down
+     * a long coat is the sentence being quoted.
+     */
+    garments: [['suit', 6], ['coat', 2], ['waistcoat', 2]],
     loudFabric: 'wool', sequinChance: 0,
     matched: 0.4, uniform: 0.15, spotlight: 0.3,
   },

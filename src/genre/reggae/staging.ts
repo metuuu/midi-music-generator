@@ -43,6 +43,7 @@ import type { Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
  */
 const LAWN: StageRoom = {
   id: 'lawn',
+  architecture: 'lawn',
   names: ['Pioneer Lawn', 'The Success Club', 'Jubilee Gardens', 'Maxfield Lawn', 'The Tiles', 'Sunset Yard'],
   width: 11, depth: 6.5,
   audience: { rows: 9, density: 0.9, seated: false },
@@ -177,6 +178,22 @@ const WARDROBE: Record<string, Wardrobe> = {
     hairStyles: [['short', 6], ['slick', 4], ['curls', 2], ['bald', 1]],
     accessories: [['tie', 0.7], ['sunglasses', 0.3], ['porkpie', 0.25], ['moustache', 0.2]],
     fabrics: [['wool', 7], ['satin', 2], ['linen', 2]],
+    /**
+     * Nine to one, and the era comment above earned it.
+     *
+     * *They matched harder than any band in this project except the swing group
+     * in the cellar* — and that band's table, two genres over, is now `suit` at
+     * 9 as well. The two rows sit at opposite ends of the bench and are the same
+     * two numbers, which is the strongest thing the garment vocabulary can say
+     * about a claim the prose was already making: these were men who had been
+     * through a music school and dressed like a section because that is what a
+     * section did, in Kingston in 1963 exactly as in a gilt room in 1938.
+     *
+     * The one is `waistcoat` rather than `tails`, and that is the difference
+     * between the two rooms. A swing band had a leader who dressed for a
+     * different evening; a ska band had a trombone player who was too hot.
+     */
+    garments: [['suit', 9], ['waistcoat', 1]],
     loudFabric: 'satin', sequinChance: 0,
     matched: 0.8, uniform: 0.8, spotlight: 0.35,
   },
@@ -197,6 +214,22 @@ const WARDROBE: Record<string, Wardrobe> = {
     hairStyles: [['short', 5], ['afro', 3], ['slick', 3], ['curls', 2], ['bald', 1]],
     accessories: [['sunglasses', 0.45], ['tie', 0.5], ['porkpie', 0.3], ['moustache', 0.2]],
     fabrics: [['wool', 5], ['satin', 3], ['linen', 3]],
+    /**
+     * The rude boy suit is a *suit*, and this table refuses to pretend otherwise.
+     *
+     * Narrower and sharper is a tailoring note, not a silhouette: a 1967 suit
+     * and a 1963 suit are the same four objects at slightly different widths,
+     * and `Garment`'s own test throws that out on sight. So the honest change
+     * between this row and the one above it is one weight — a suit at 8 rather
+     * than 9 — and everything else the era did is in the colours, the
+     * sunglasses at 0.45 and the `uniform` falling from 0.8 to 0.6.
+     *
+     * That restraint is the point. Two adjacent eras four years apart *should*
+     * be nearly the same row, and a wardrobe that invented a difference to
+     * justify having been edited would be lying about the thing the bench exists
+     * to check.
+     */
+    garments: [['suit', 8], ['waistcoat', 2]],
     loudFabric: 'satin', sequinChance: 0,
     matched: 0.65, uniform: 0.6, spotlight: 0.4,
   },
@@ -228,6 +261,36 @@ const WARDROBE: Record<string, Wardrobe> = {
     hairStyles: [['dreadlocks', 7], ['afro', 4], ['braids', 2], ['short', 2], ['bald', 1], ['long', 1]],
     accessories: [['beard', 0.5], ['turban', 0.45], ['sunglasses', 0.25], ['chain', 0.15]],
     fabrics: [['denim', 4], ['knit', 4], ['linen', 3], ['corduroy', 2], ['wool', 1]],
+    /**
+     * *Where the suit goes*, and this is the row that says it.
+     *
+     * The heading above has claimed since it was written that this era is where
+     * the suit goes, and until there were garments the sentence had nothing but
+     * a khaki palette to carry it — the figures were still five lounge suits,
+     * in olive. `robe` at the head of the table is the sentence arriving: a
+     * floor-length column with wide sleeves, which is the garment worn on a
+     * roots stage by people who had thought hard about what they were wearing
+     * and concluded that a European tailor had nothing to do with it.
+     *
+     * It pairs with the hair table rather than competing with it. That table
+     * weights `dreadlocks` at 7 for the reason its own note gives — ten separate
+     * ropes that backlight passes between — and a comb of hair over a column of
+     * cloth is one silhouette. A suit under the same hair was two good ideas
+     * arguing.
+     *
+     * `waistcoat` at 3 is the knitted sleeveless thing over a shirt, worn by
+     * about half of everybody in a yard in 1975. No `shirtsleeves` anywhere in
+     * this table, and that is a deliberate exclusion rather than an oversight:
+     * its braces are a specific object with a specific century attached to them,
+     * and putting a pair on a roots band would be a costume decision made by the
+     * renderer's convenience rather than by the genre.
+     *
+     * `suit` survives at 3 because a horn player who came up through the ska
+     * bands still owns one and still wears it, and the whole point of a
+     * `uniform: 0.15` band is that the man from 1963 is standing next to the man
+     * who has never owned a jacket.
+     */
+    garments: [['robe', 4], ['waistcoat', 3], ['suit', 3]],
     loudFabric: 'knit', sequinChance: 0,
     matched: 0.25, uniform: 0.15, spotlight: 0.3,
   },
@@ -252,6 +315,23 @@ const WARDROBE: Record<string, Wardrobe> = {
     hairStyles: [['short', 4], ['dreadlocks', 4], ['braids', 3], ['afro', 2], ['bald', 2], ['curls', 1]],
     accessories: [['chain', 0.5], ['wraparounds', 0.35], ['beanie', 0.3], ['beard', 0.25], ['hoops', 0.2]],
     fabrics: [['leather', 4], ['satin', 3], ['denim', 3], ['nylon', 2], ['knit', 1]],
+    /**
+     * The machine wears nothing, so the wardrobe is entirely about the front.
+     *
+     * `spotlight: 0.5` above is the highest in the file and its argument is that
+     * the record is a preset anybody could buy, so the only thing that
+     * distinguishes one release from another is the person on the microphone.
+     * The garment table agrees by putting the only two non-jacket shapes on the
+     * two people most likely to be that person: `gown` for the singer the yard
+     * came to see, `waistcoat` for whoever is toasting beside her.
+     *
+     * `robe` drops out entirely, ten years after leading the table. That is the
+     * era rather than an omission — a dancehall in 1985 is a different building
+     * with a different argument in it, and a garment carried forward out of
+     * politeness would blur the one boundary in this genre that is genuinely
+     * sharp.
+     */
+    garments: [['suit', 6], ['waistcoat', 2], ['gown', 2]],
     loudFabric: 'leather', sequinChance: 0.1,
     matched: 0.3, uniform: 0.2, spotlight: 0.5,
   },

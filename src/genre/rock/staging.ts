@@ -207,6 +207,23 @@ const WARDROBE: Record<string, Wardrobe> = {
     hairStyles: [['short', 6], ['slick', 3], ['bob', 3], ['curls', 2], ['bald', 1]],
     accessories: [['tie', 0.6], ['glasses', 0.15], ['moustache', 0.1]],
     fabrics: [['wool', 6], ['corduroy', 2], ['satin', 2], ['linen', 1]],
+    /**
+     * Nine to one, because the manager bought nine of them.
+     *
+     * `uniform: 0.75` above says a beat group was a product with a suit budget,
+     * and the garment table has nothing to add to that except agreement. The
+     * collarless jacket the era comment names is a lounge suit with the lapels
+     * left off, which is four centimetres of cloth and fails `Garment`'s own
+     * ten-metre test on sight — the union declined to grow a member for it and
+     * that decision is correct here rather than merely convenient.
+     *
+     * The one that is not a suit is `waistcoat`, and it is the rhythm guitarist
+     * in the group photograph who is wearing the waistcoat from a different
+     * suit. Every beat group has one. It is also, deliberately, the same shape
+     * the next two eras build their entire wardrobe out of, so the genre's
+     * arrival at the cut-off has a first appearance rather than a jump cut.
+     */
+    garments: [['suit', 9], ['waistcoat', 1]],
     loudFabric: 'satin', sequinChance: 0,
     matched: 0.75, uniform: 0.75, spotlight: 0.3,
   },
@@ -236,6 +253,29 @@ const WARDROBE: Record<string, Wardrobe> = {
     hairStyles: [['mane', 6], ['long', 5], ['curls', 3], ['afro', 2], ['short', 2], ['bald', 1]],
     accessories: [['moustache', 0.35], ['scarf', 0.35], ['sunglasses', 0.25], ['beard', 0.2]],
     fabrics: [['denim', 4], ['satin', 3], ['velvet', 3], ['corduroy', 2], ['leather', 2]],
+    /**
+     * *Where the suit goes* — one weight down from 9 to 5 in seven years, which
+     * is the largest single move any genre makes in this project.
+     *
+     * `uniform: 0.08` above is the lowest number in the file and it has never
+     * had a shape to be un-uniform *in*: five people in five colours of the same
+     * jacket is a band that matches, whatever the swatches say. This is the row
+     * where that finally stops being true.
+     *
+     * `waistcoat` at 4 is the cut-off, arriving in the genre a decade before
+     * `metal:nwobhm` builds a wardrobe on it and from the same place — a denim
+     * jacket with the sleeves off, which the union already had a member for. It
+     * pairs with `mane` at 6 in the hair table for the reason that table gives
+     * about itself: a mane falls forward over the collarbones, and the thing it
+     * falls over should be a bare shoulder rather than a padded one.
+     *
+     * `robe` at 1 is the kaftan. One man in a five-piece, in 1972, in a garment
+     * that reaches the floor, is not a costume decision — it is the single most
+     * photographed thing about this decade of this music, and the member that
+     * draws it is the same one `arabic:takht` uses for a galabeya, which is
+     * where the fashion came from and is not a coincidence.
+     */
+    garments: [['suit', 5], ['waistcoat', 4], ['robe', 1]],
     loudFabric: 'satin', sequinChance: 0.12,
     matched: 0.2, uniform: 0.08, spotlight: 0.55,
   },
@@ -263,6 +303,22 @@ const WARDROBE: Record<string, Wardrobe> = {
     hairStyles: [['mullet', 5], ['mane', 5], ['long', 3], ['curls', 2], ['short', 2], ['bald', 1]],
     accessories: [['bandana', 0.4], ['wraparounds', 0.35], ['towel', 0.3], ['hoops', 0.22], ['moustache', 0.18]],
     fabrics: [['leather', 4], ['denim', 3], ['satin', 3], ['vinyl', 2], ['nylon', 1]],
+    /**
+     * Six to four, and this row is *supposed* to look like `metal:nwobhm`.
+     *
+     * The two tables are the same two members at the same two weights, and that
+     * is a claim rather than a copy: an arena rock band and a NWOBHM band in
+     * 1982 were wearing the same clothes, played the same buildings, and were
+     * told apart by the tempo. A wardrobe that manufactured a difference here
+     * would be inventing a distinction the photographs do not support, and the
+     * bench is exactly where that lie would have been visible.
+     *
+     * Where they do differ is everything else on the row — this genre's accent
+     * list is magenta and cyan against metal's red and gold, `towel` is weighted
+     * here and nowhere in that file, and `spotlight` is 0.6 against 0.45. The
+     * garment is the one thing 1982 did not let them disagree about.
+     */
+    garments: [['waistcoat', 6], ['suit', 4]],
     loudFabric: 'leather', sequinChance: 0.08,
     matched: 0.15, uniform: 0.05, spotlight: 0.6,
   },
@@ -290,6 +346,27 @@ const WARDROBE: Record<string, Wardrobe> = {
     hairStyles: [['long', 5], ['short', 4], ['mane', 3], ['curls', 2], ['bald', 2], ['mohawk', 1], ['dreadlocks', 1]],
     accessories: [['beanie', 0.35], ['glasses', 0.25], ['beard', 0.3], ['chain', 0.15]],
     fabrics: [['flannel', 5], ['denim', 4], ['knit', 3], ['corduroy', 2], ['leather', 1]],
+    /**
+     * Nobody out front, so nobody in anything.
+     *
+     * `spotlight: 0.15` is the lowest in the project and the era comment says
+     * why: a band with a visibly designated frontman was the thing this music
+     * defined itself against. A garment table is where that is easiest to break
+     * by accident — one `gown` at weight 2 and the row has a singer in it — so
+     * there is not one, and the absence is the entry.
+     *
+     * `coat` at 2 is the charity-shop greatcoat, and it is the only thing in
+     * this table that is here for its own sake. A knee-length skirted column
+     * with a stand collar over trousers is a 1993 object as exactly as it is a
+     * 1720 one, which is the third genre to reach for that member from a
+     * direction none of the others would recognise.
+     *
+     * `waistcoat` at 2 is the open flannel over a t-shirt seen from ten metres
+     * away, which is the distance the union is judged from. It is deliberately
+     * lower than the two eras above it: this decade took the cut-off *off*, and
+     * a genre whose weights only ever rise is not describing anything.
+     */
+    garments: [['suit', 6], ['waistcoat', 2], ['coat', 2]],
     loudFabric: 'denim', sequinChance: 0,
     matched: 0.1, uniform: 0.05, spotlight: 0.15,
   },

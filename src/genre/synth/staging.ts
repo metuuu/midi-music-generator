@@ -35,9 +35,21 @@
  * planetarium, a Kunsthalle, a cathedral with a PA flown in it, a municipal
  * auditorium with a screen. The common denominator across 1972–1990 is a big
  * civic room, a rectangle of light upstage, and more cable than band. The
- * architecture is plain proscenium (this room names none of the four building
- * props) because the room itself is not the attraction: everything the audience
- * came to look at was carried in on a trolley.
+ * architecture is `hall` — see `web/concert/rooms/hall.ts`. It was a plain
+ * proscenium when this file was written, on the reasoning that the room itself
+ * is not the attraction: everything the audience came to look at was carried in
+ * on a trolley. That reasoning survived and the conclusion did not, because a
+ * room can be unremarkable in two different ways. A proscenium is a *theatre*
+ * being modest; what this genre wanted was a big flat civic box that was never
+ * a theatre at all — no rake, no gallery, no moulding, wider than it is tall,
+ * with one bowed cyclorama filling the upstage end.
+ *
+ * The deciding argument turned out to be the fog. This genre carries the
+ * heaviest in the project, rising to 0.75 by 1987, and haze needs two things a
+ * proscenium does not supply: a surface close enough to still read through it,
+ * and a large plain plane for the cyc glow to be light *on* rather than light
+ * in front of. Those are the same requirement stated twice, and they are why
+ * `backdropHeight` is the number that room argues about hardest.
  */
 
 import type { Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
@@ -66,6 +78,7 @@ import type { Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
  */
 const HALL: StageRoom = {
   id: 'hall',
+  architecture: 'hall',
   names: ['The Planetarium', 'Kuppelsaal', 'The Rotunda', 'Halle 7', 'Salle Ovale', 'The Auditorium'],
   width: 10, depth: 6.6,
   audience: { rows: 9, density: 0.7, seated: false },
@@ -215,6 +228,33 @@ const WARDROBE: Record<string, Wardrobe> = {
     hairStyles: [['long', 6], ['curls', 3], ['short', 2], ['slick', 1], ['bald', 1]],
     accessories: [['beard', 0.45], ['moustache', 0.3], ['glasses', 0.3], ['headphones', 0.15], ['scarf', 0.12]],
     fabrics: [['denim', 5], ['corduroy', 4], ['knit', 3], ['velvet', 2], ['wool', 1]],
+    /**
+     * Four entries, none of them agreeing, which is what `uniform: 0.1` means.
+     *
+     * The flattest garment table in the project after `indian:filmi`, and it is
+     * flat for the reason the era comment gives rather than out of indecision:
+     * these are people who arrived in a van with the cabinets and got dressed
+     * separately. A table that named one shape would be claiming somebody had a
+     * say in it.
+     *
+     * `waistcoat` at 3 is the honest middle of the era — the shell and the
+     * sleeves go to the shirt colour, so it draws a man in a knitted thing with
+     * a sleeveless thing over it, standing behind a wall of patch cables, which
+     * is every photograph taken in a British studio in 1974.
+     *
+     * `robe` at 2 is the cape, and it is here rather than in `polysynth` because
+     * this is the prog end of the era and the other is not. A floor-length
+     * column with wide sleeves is what somebody was wearing behind the Mellotron
+     * on at least one night, and the union has no cape and is not getting one:
+     * a cape is a robe with the front open, which is four pixels at the distance
+     * `Garment` judges from. Two in ten puts one in a five-piece.
+     *
+     * `shirtsleeves` at 1 is the technician. Its braces are the only object in
+     * the union that says the wearer is working rather than performing, and half
+     * of what happened on these stages was somebody repatching a module between
+     * pieces with the house lights up.
+     */
+    garments: [['suit', 4], ['waistcoat', 3], ['robe', 2], ['shirtsleeves', 1]],
     loudFabric: 'velvet', sequinChance: 0,
     matched: 0.25, uniform: 0.1, spotlight: 0.2,
   },
@@ -240,6 +280,26 @@ const WARDROBE: Record<string, Wardrobe> = {
     // band in satin would be a showband, which is the failure this whole era's
     // table is steering around.
     fabrics: [['wool', 5], ['nylon', 3], ['leather', 2], ['satin', 2], ['knit', 1]],
+    /**
+     * Eight to two, and the two is the same uniform with the jacket off.
+     *
+     * This is the one era in the project whose uniform is an *argument* — the
+     * era comment says so above — and an argument is not served by variety. Four
+     * identical operators is the claim the music is making, so the table is the
+     * second-tightest in the file after `classical:romantic`'s, and everything
+     * interesting happens in the colours: a red shirt, a black tie, and the same
+     * narrow suit on everybody.
+     *
+     * `waistcoat` rather than `shirtsleeves` for the two, and the choice matters
+     * more here than anywhere else it has been made. Both are the shirt with no
+     * jacket over it; the difference is that one has braces on it and the other
+     * has a fitted body. Braces would have said *this man has been working*,
+     * which is the exact opposite of what a band standing perfectly still behind
+     * four keyboards is saying. The waistcoat keeps the shirt and the tie
+     * showing and adds a second dark shape, so the two players who draw it are
+     * still visibly in the uniform rather than out of it.
+     */
+    garments: [['suit', 8], ['waistcoat', 2]],
     loudFabric: 'satin', sequinChance: 0,
     matched: 0.7, uniform: 0.65, spotlight: 0.4,
   },
@@ -260,6 +320,32 @@ const WARDROBE: Record<string, Wardrobe> = {
     hairStyles: [['mullet', 5], ['curls', 3], ['long', 3], ['short', 3], ['slick', 2], ['bald', 1]],
     accessories: [['sunglasses', 0.4], ['earrings', 0.25], ['glasses', 0.2], ['moustache', 0.2], ['headphones', 0.2]],
     fabrics: [['leather', 4], ['satin', 3], ['nylon', 3], ['denim', 2], ['wool', 2], ['knit', 1]],
+    /**
+     * The band is not a band, so the wardrobe is a composer and whoever the
+     * studio sent.
+     *
+     * `suit` at 7 is the leather jacket, the boxy pastel one and the grey one,
+     * which are three colours of one silhouette and the fabric table above is
+     * where they differ. That is the correct answer rather than a gap — the
+     * eighties did not change the *shape* of a jacket, it changed what the
+     * jacket was made of, and `leather` at the head of the fabrics says that
+     * better than a ninth member of the union could.
+     *
+     * `gown` at 3 is who the studio sent. A late-eighties electronic record has
+     * a hired vocalist on it who was booked for the afternoon and dressed for
+     * the sleeve photograph, and she is the only person in the room who is not
+     * in a jacket. It is the same device `iskelma:eighties` uses two genres over
+     * and for the same decade, which is a small piece of evidence that the
+     * device is about 1985 rather than about Finland.
+     *
+     * Three rather than two, and the reason is the bench rather than the
+     * argument. At 2 this era's five-piece drew nought of them and the row was
+     * five jackets — which is a perfectly possible evening and a useless page,
+     * because a wardrobe nobody can tell from an undressed one has not been
+     * checked, it has only been written. Three is the smallest weight that puts
+     * the person the whole `spotlight: 0.5` is about into a band this size.
+     */
+    garments: [['suit', 6], ['gown', 3], ['waistcoat', 1]],
     loudFabric: 'leather', sequinChance: 0,
     matched: 0.3, uniform: 0.3, spotlight: 0.5,
   },

@@ -55,12 +55,18 @@
 
 import type { RoomStyle } from '../../../concert/types.js';
 
+import { ballroom } from './ballroom.js';
 import { circuit } from './circuit.js';
 import { concertHall } from './concert-hall.js';
 import { courtyard } from './courtyard.js';
+import { dancehall } from './dancehall.js';
+import { hall } from './hall.js';
+import { lawn } from './lawn.js';
 import { proscenium } from './proscenium.js';
 import { riihi } from './riihi.js';
 import { sabha } from './sabha.js';
+import { salon } from './salon.js';
+import { shed } from './shed.js';
 import type { RoomBuilder } from './types.js';
 
 export const ROOMS: Record<RoomStyle, RoomBuilder> = {
@@ -70,6 +76,12 @@ export const ROOMS: Record<RoomStyle, RoomBuilder> = {
   riihi,
   circuit,
   sabha,
+  dancehall,
+  shed,
+  lawn,
+  salon,
+  hall,
+  ballroom,
 };
 
 /**

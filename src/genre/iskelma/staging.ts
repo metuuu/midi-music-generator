@@ -104,6 +104,23 @@ const WARDROBE: Record<string, Wardrobe> = {
     hairStyles: [['beehive', 4], ['bob', 3], ['long', 3], ['slick', 4], ['curls', 3], ['short', 2]],
     accessories: [['tie', 0.7], ['moustache', 0.3], ['earrings', 0.25], ['glasses', 0.15], ['bowtie', 0.12]],
     fabrics: [['wool', 7], ['satin', 2], ['velvet', 1]],
+    /**
+     * A suit band with a woman at the microphone who is not in a suit.
+     *
+     * Eight to two, and the eight is not laziness. The era comment above says
+     * *pale summer suits* and it is right: a tanssilava band in 1968 is five men
+     * in matching cream, and a genre whose whole picture is that should not be
+     * given a costume box just because one exists now. What the garment table
+     * buys here is one figure, and it is the one the room is arranged around —
+     * the singer in a floor-length dress, which is the only silhouette on the
+     * boards that is not a jacket and a pair of trousers.
+     *
+     * `gown` is also the only member that reaches the floor without wide sleeves
+     * or a shoulder band, and that matters at a lakeside pavilion in July: a
+     * robe would have put a Finnish dance-band singer in something with a metre
+     * of cloth hanging off each arm.
+     */
+    garments: [['suit', 8], ['gown', 2]],
     loudFabric: 'sequin', sequinChance: 0.35,
     matched: 0.7, uniform: 0.75, spotlight: 0.8,
   },
@@ -124,6 +141,26 @@ const WARDROBE: Record<string, Wardrobe> = {
     // The decade of the shiny shirt. Satin overtakes wool, and the jacket is
     // as likely to be leather as to be tailored.
     fabrics: [['satin', 5], ['wool', 3], ['velvet', 2], ['leather', 1]],
+    /**
+     * The same two shapes as 1968, plus one man who has had enough.
+     *
+     * `gown` holds at 2 rather than climbing, and holding is the accurate move
+     * even though `spotlight` goes up from 0.8 to 0.85 across these two eras. A
+     * dance band has one singer in both decades; what changed between them is
+     * how much of the lighting rig is pointed at her, and `spotlight` is already
+     * the field that says so. Raising the weight as well would have put five
+     * floor-length dresses in an eight-piece — which is what it did, on the
+     * bench, before this number came back down — and five singers is not a
+     * louder version of one singer, it is a different band.
+     *
+     * `shirtsleeves` at 1, and it is about the room rather than the fashion.
+     * This is the same open-sided wooden building as 1968 — see `PAVILION`, one
+     * room and two eras — in July, with a par can rig on it that the sixties did
+     * not have and a roof full of moths. Somebody has taken their jacket off,
+     * and it is going to be the drummer. One in ten is roughly how often you can
+     * see that in a photograph of the inside of a tanssilava.
+     */
+    garments: [['suit', 7], ['gown', 2], ['shirtsleeves', 1]],
     loudFabric: 'sequin', sequinChance: 0.45,
     matched: 0.35, uniform: 0.5, spotlight: 0.85,
   },

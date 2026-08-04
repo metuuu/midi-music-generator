@@ -58,14 +58,69 @@
  * a colour the outfit already carries.
  */
 
-import { Group, Mesh, MeshStandardMaterial } from 'three';
+import { Color, Group, Mesh, MeshStandardMaterial } from 'three';
 
 import type { Garment, Look } from '../../concert/types.js';
 
 import {
-  Leases, clothSurface, shade, skinSurface, slab, spike, torsoShell, tube,
+  Leases, clothSurface, shade, skinSurface, slab, spike, tube,
 } from './performer-assets.js';
 import { SIDE, assertBuilt, type Proportions } from './performer-look.js';
+
+// ---------------------------------------------------------------------------
+// Contrast that survives the cloth it is cut from
+// ---------------------------------------------------------------------------
+
+/**
+ * A tone the garment's own colour cannot swallow: away from it, not under it.
+ *
+ * Every seam a garment has — a lapel, the split between two tails — is drawn as
+ * cloth in a second shade of the *same* colour, because that is what a seam is:
+ * one bolt, two angles to the light. The obvious way to get the second shade is
+ * `shade(colour, -x)`, and it was what three of these used, and it is wrong in a
+ * way that only shows on half the catalogue. `shade` moves HSL lightness by an
+ * absolute amount and clamps at zero, so on `classical:romantic`'s `#141418` —
+ * lightness 0.07 — every negative shift lands on black, and the notch a lapel is
+ * supposed to cut out of a neckline is black cloth in front of black cloth under
+ * a follow spot. Forty players in evening dress had no lapels at all, and the
+ * bench had been showing that for as long as there had been a bench.
+ *
+ * So the direction is decided by the colour rather than by the caller: down off
+ * anything pale, up off anything dark. It costs a `Color` construction on a path
+ * that already constructs several, and it means a lapel is visible on all
+ * fourteen genres rather than on the four with cream jackets.
+ *
+ * `by` is deliberately much larger than the 0.07 this replaced. That number was
+ * chosen against a near-white tanssilava jacket, where seven points of lightness
+ * is a legible edge; everywhere else it was a rounding error. A seventh of the
+ * range is what it takes for a rim light to find an edge on a mid-tone at ten
+ * metres, which is the distance every silhouette in `Garment` is judged from.
+ */
+export function relief(colour: string, by: number): string {
+  return shade(colour, lightness(colour) > 0.5 ? -by : by);
+}
+
+/**
+ * How pale a colour is, on the same 0–1 scale `shade` moves things along.
+ *
+ * Three lines, factored out of `relief` rather than copied into the braces,
+ * because that scale is the one thing every contrast decision in this file is
+ * arguing about and there should be a single place that reads it.
+ *
+ * **It is not the number a colour picker shows.** `getHSL` with no colour space
+ * asked for reports lightness in the renderer's linear working space, so mid
+ * grey `#808080` is 0.216 here and the whole bottom half of the sRGB range is
+ * squeezed into the first fifth. Every caller has to know that. `relief`'s 0.5
+ * is not a midpoint in this space but a mark well up in the pale end, which is
+ * why it lifts most mid-tone jackets rather than darkening them — no bad thing
+ * for a lapel, and the reason it works — and it is why the braces below measure
+ * their separation from the shirt as a ratio rather than as a subtraction.
+ */
+function lightness(colour: string): number {
+  const hsl = { h: 0, s: 0, l: 0 };
+  new Color(colour).getHSL(hsl);
+  return hsl.l;
+}
 
 // ---------------------------------------------------------------------------
 // The facts
@@ -358,9 +413,16 @@ export function dressGarment(
        * whole garment vanished into the suit it is supposed to be different
        * from. Two shades is enough for the rim light to find the split, which is
        * the same trick the lapels have used since the beginning.
+       *
+       * `relief` rather than `shade` because the first attempt at that fix only
+       * worked on pale cloth, and the one era in the project where every player
+       * on the platform is in tails is `classical:romantic`, whose entire jacket
+       * list is three near-blacks. A tailcoat is the one garment here that has
+       * to read on black, so it is the one that could least afford a shade that
+       * clamps to it.
        */
       for (const s of [SIDE.left, SIDE.right]) {
-        const tail = new Mesh(slab(l), cloth(shade(jacket, -0.09)));
+        const tail = new Mesh(slab(l), cloth(relief(jacket, 0.13)));
         tail.scale.set(p.torsoW * 0.28, -kneeY * 1.22, p.torsoD * 0.11);
         tail.position.set(s * p.torsoW * 0.18, kneeY * 0.61, -p.torsoD * 0.38);
         tail.castShadow = true;
@@ -422,28 +484,65 @@ export function dressGarment(
 
     case 'waistcoat': {
       /**
-       * A body over the shirt, and the shirt is the shell underneath it.
+       * Two front panels over the shirt, and the shirt is the shell under them.
        *
-       * **A second torso lathe, three-quarter height, and not an ellipsoid.** The
-       * first version was an ellipsoid and the bench threw it out immediately:
-       * a torso is *narrowest* at the waist and an ellipsoid is *widest* in the
-       * middle, so the two profiles disagree exactly where a waistcoat is
-       * supposed to be tightest. Every string-band player came out with a
-       * paunch. The same lathe cannot disagree with itself — scaled to 0.78 of
-       * the height it follows the body's own waist, and the point where it
-       * closes over lands at the chest, which is a waistcoat's neckline rather
-       * than an accident.
+       * **Not a second body, and the reason is arithmetic rather than taste.**
+       * Two versions of this were built as one solid scaled down over the torso
+       * and the bench threw out both, for opposite reasons that turn out to be
+       * the same reason.
        *
-       * What is left uncovered is the whole read: the shoulders and the arms
-       * stay the shirt's, because `sleeve: 'shirt'` and `shell: 'shirt'` in the
-       * table above have already made them so. A jacketed shoulder is square and
-       * padded and a shirt shoulder is not, and that survives to the back of a
-       * hall long after a lapel has stopped being a shape.
+       * The first was an ellipsoid: a torso is *narrowest* at the waist and an
+       * ellipsoid is *widest* in the middle, so the two profiles disagree
+       * exactly where a waistcoat is supposed to be tightest, and every
+       * string-band player came out with a paunch. The obvious repair was to
+       * reuse `torsoShell`, which cannot disagree with the body's waist because
+       * it *is* the body's waist — and that is true, and it was still wrong.
+       * A lathe compressed in `y` brings its shoulder flare, the widest part of
+       * the profile by a fifth, down to the wearer's chest, where the body it is
+       * meant to be hugging has narrowed to 86 % of it. The screenshot was worse
+       * than the paunch: a flat-topped box, a centimetre wider at the chest than
+       * the shoulders above it, cut off dead level at the armpit. No scale
+       * repairs it either — hug the chest and the garment sinks inside the body
+       * all the way from the waist down, clear the waist and it is a barrel.
+       *
+       * So it is drawn the way the tails and the braces are, as flat panels on a
+       * body that is already the right shape. Two of them, leaning out at the
+       * top by the same trick and the same sign the lapels use, which makes the
+       * gap between them a V that narrows to a closed front at the waist and
+       * crosses over below it. That V of shirt between two dark panels, under
+       * shirt shoulders and shirt sleeves, *is* the garment.
+       *
+       * They stay inside 0.34 of the shoulder width at their widest, which is
+       * the same constraint the skirt's own note argues at length from the other
+       * end: a flat panel on a round torso whose outer edge passes the body's
+       * silhouette is a plank bolted to a person, and from three-quarters on it
+       * is a plank seen edge-on. The braces get away with 0.21 because they are
+       * straps; this is as wide as the trick goes.
+       *
+       * The back is left as shirt on purpose, and that is a judgement rather
+       * than an omission. Half the waistcoats ever made have a plain back in a
+       * cheaper cloth because nobody was ever going to see it, and a player read
+       * from behind as a shirt is not this garment's failure — a player read
+       * from the front as a barrel was.
        */
-      const vest = new Mesh(torsoShell(l), cloth(jacket));
-      vest.scale.set(p.torsoW * 1.03, p.torsoH * 0.78, p.torsoD * 1.06);
-      vest.castShadow = true;
-      torso.add(vest);
+      const panel = cloth(jacket);
+      for (const s of [SIDE.left, SIDE.right]) {
+        const front = new Mesh(slab(l), panel);
+        front.scale.set(p.torsoW * 0.30, p.torsoH * 0.68, p.torsoD * 0.05);
+        front.position.set(s * p.torsoW * 0.20, p.torsoH * 0.42, p.torsoD * 0.35);
+        // All three angles, and none of them is decoration. `z` is the V. `x`
+        // leans the top forward because a chest is 3 cm deeper than a waist and
+        // a panel that ignores that is a board propped against a person — which
+        // is exactly what the side view showed the first time this was two
+        // upright slabs. `y` swings each outer edge back around the ribs for the
+        // same reason, in the other axis: a flat panel a third of the shoulders
+        // wide, left square to the front, ends in a hard vertical edge standing
+        // off the flank, and the three-quarter view is where the whole rig is
+        // least forgiving of one.
+        front.rotation.set(0.10, s * 0.28, -s * 0.18);
+        front.castShadow = true;
+        torso.add(front);
+      }
       break;
     }
 
@@ -461,8 +560,84 @@ export function dressGarment(
        * are attached to and because the accent is already spoken for — a tie, a
        * scarf and a sash all take it, and a player in a red tie and red braces
        * looks like a uniform nobody ordered.
+       *
+       * ## But they are worn on the shirt
+       *
+       * The colour is owed to the trousers and the *contrast* is owed to the
+       * shirt, and for a long time this line only did the first half. Braces
+       * cross the chest: whatever the cloth they buckle to is doing down at the
+       * waist, the field they are seen against is the shirt. So a fixed drop of
+       * 0.26 off the trousers answers a question nobody asked, and it answers it
+       * wrongly on exactly one shape of wardrobe — the pale one. `latin:conjunto`
+       * is that wardrobe, and it is not an oversight: cream drill trousers under
+       * a white shirt is what the 1938 photograph shows. The strap came out one
+       * step off the trousers and landed a factor of 1.7 from the shirt, which
+       * at row scale on the bench is not a strap, it is a smudge. A shirtsleeved
+       * player whose braces have gone is a torso in a paler colour — the failure
+       * this case exists to prevent, arrived at from the other side.
+       *
+       * The trousers still choose the hue and the saturation, which is the whole
+       * of the argument above and is untouched: `shade` only ever moves
+       * lightness, so a strap off cream drill is still warm and a strap off navy
+       * is still blue. Only the *lightness* is taken off the trousers and handed
+       * to the shirt.
+       *
+       * `relief(trousers, …)` is the tool that looks right here and is not, for
+       * a reason worth naming so it does not get "fixed" back. `relief` asks the
+       * *garment's own* colour which way to go, which is exactly right for a
+       * lapel cut from the jacket it notches — and here it would ask the
+       * trousers, so `country:stringband`'s near-black `#3a3630` would send the
+       * braces *up* and every wardrobe that reads correctly today would go pale
+       * on a pale shirt to rescue the one that does not. The question a brace has
+       * to answer is not what the trousers are, it is what the shirt is.
+       *
+       * ## A ratio, because this scale is linear light
+       *
+       * The distance is a *factor* rather than a number of points, and that is
+       * forced by the scale `shade` and `lightness` work on. With colour
+       * management on, `getHSL` reports lightness in the renderer's linear
+       * working space, where mid grey is 0.216 and not 0.5: subtracting a fixed
+       * amount there is a cosmetic nudge at the top of the range and a cliff into
+       * black at the bottom. Contrast in linear light is a ratio, so this asks
+       * for one — the same shape a display standard uses, flare term and all,
+       * with `lightness` standing in for luminance because that is the measure
+       * this file already has and the difference between them is smaller than
+       * the difference a stage lamp makes.
+       *
+       * 3 is the floor a graphical object is held to rather than a number tuned
+       * against one wardrobe, and the wardrobes that were already right clear it
+       * by a mile: a black strap on a white shirt is 21, and every dark-trouser
+       * genre — `country:stringband`, `arabic:shaabi`, `finnfolk:pelimanni` —
+       * comes out of this arithmetic as the same black it has always been,
+       * because `Math.min` never fires on a strap that is already far away. What
+       * moves is only what was failing: conjunto's cream drill, `funk:pfunk`'s
+       * pale trousers against a yellow shirt at 1.1, `iskelma:eighties`.
+       *
+       * Down wherever the shirt has room under it, because dark straps on a
+       * light field *is* the garment, and up only where it does not — which is
+       * what `under >= 0` tests, and it tests it honestly rather than against a
+       * threshold somebody picked. `country:outlaw` wears a `#2b2b2b` shirt that
+       * no strap can be three times darker than, and black braces on it were as
+       * invisible as cream on cream. That shirt and `indian:fusion`'s dark teal
+       * are the only two cloths in the catalogue this hands a pale strap to, and
+       * both of them were below the floor with a black one.
        */
-      const strap = cloth(shade(trousers, -0.26));
+      const RATIO = 3;
+      const shirtL = lightness(shirt);
+      const trouserL = lightness(trousers);
+      // What the strap is before the shirt has a say: the trousers, one step
+      // darker, which is what a leather brace against its own cloth is. It
+      // stands wherever it is already clear of the shirt, and that is most of
+      // the catalogue.
+      const worn = trouserL - 0.26;
+      // The palest a dark strap may be, and the darkest a pale one. 0.05 is the
+      // flare the ratio is measured through, and it is not decoration: without
+      // it a ratio off a black shirt is satisfied by black, so `under` could
+      // never go negative and the second branch could never happen.
+      const under = (shirtL + 0.05) / RATIO - 0.05;
+      const over = (shirtL + 0.05) * RATIO - 0.05;
+      const strapL = under >= 0 ? Math.min(worn, under) : Math.max(worn, over);
+      const strap = cloth(shade(trousers, strapL - trouserL));
       for (const s of [SIDE.left, SIDE.right]) {
         const brace = new Mesh(slab(l), strap);
         brace.scale.set(p.torsoW * 0.085, p.torsoH * 0.86, p.torsoD * 0.06);

@@ -106,12 +106,14 @@ const HEAD_FIT: Partial<Record<Accessory, HeadFit>> = {
   ballcap: { cap: 1.17, wear: 'perch' },
   // dome, at y 0.66 and 1.45 tall.
   beanie: { cap: 1.385, wear: 'press' },
-  // crown, at y 1.07 and 1.02 tall — still the deepest cavity of the eight and
-  // still the reason a cowboy hat can be set on top of hair nothing else can,
-  // but no longer by the absurd margin it had when the crown was a stovepipe.
-  // The old 2.195 was a hat that never rode anything because nothing in the
-  // union was tall enough to reach the inside of it.
-  cowboyhat: { cap: 1.58, wear: 'perch' },
+  // crown, at y 1.11 and 1.30 tall. The deepest cavity of any hat with a brim,
+  // and that is the reason a cowboy hat can be set on top of hair nothing else
+  // can — but no longer by the absurd margin it had when the crown was a
+  // stovepipe. The old 2.195 was a hat that never rode anything because nothing
+  // in the union was tall enough to reach the inside of it. Only `turban` is
+  // deeper, and a turban is cloth wound *round* hair rather than a shell set
+  // over it, which is why it is the one entry here whose cavity is bulk.
+  cowboyhat: { cap: 1.76, wear: 'perch' },
   // cap, at y 0.44 and 1.04 tall. Tied at the brow: the one hat here that is
   // pulled *down* rather than on, and it flattens the hairline by definition.
   // The shallowest cavity of the eight on purpose — a bandana is cloth on a
@@ -475,10 +477,12 @@ function buildAccessory(
       //
       // A turned brim is continuous: the felt leaves the crown flat, runs out,
       // and rolls up at the rim. Nothing made of boxes can be that, so the rim
-      // is a torus — `hoop`, laid flat and set 0.08 R proud of the plate it
-      // rings, tube scaled round so the roll is a bead of felt rather than a
-      // hoop of wire, and the plate's edge buried inside that tube on every
-      // heading so the two are one surface with no seam to find.
+      // is a torus — `hoop`, laid flat and set proud of the plate it rings, its
+      // tube scaled up so the roll is a body of felt rather than a hoop of wire,
+      // and the plate's edge buried inside that tube on every heading so the two
+      // are one surface with no seam to find. How far proud and how fat the roll
+      // is are the last section's business, because they turn out to be the
+      // whole of whether the crown survives.
       //
       // ## And the ring has to be tilted, which took a second look to see
       //
@@ -491,21 +495,17 @@ function buildAccessory(
       // a gold band 0.20 R tall vanished behind it completely and the first
       // version of this fix put a bare grey chimney on the bench.
       //
-      // Tilting the whole assembly nose-down by 0.15 rad answers both. The near
-      // arc drops 0.22 R, the far arc rises by as much, and the two flanks stay
-      // where they are — which is exactly the shape a cattleman brim has: low at
-      // the face, swept up behind, and standing highest at the two sides. From
-      // the front the top edge of the brim now runs *up* from 0.85 R at the nose
-      // to 1.08 R at the tips, and that rise is the whole silhouette. The band
-      // clears the near arc by sitting above it and is gold again.
+      // Tilting the whole assembly nose-down answers both. The near arc drops a
+      // quarter of a radius, the far arc rises by as much, and the two flanks
+      // stay where they are — which is exactly the shape a cattleman brim has:
+      // low at the face, swept up behind, and standing highest at the two sides.
+      // That rise across the front is the whole silhouette. The band clears the
+      // near arc by sitting above it and is gold again.
       //
       // The plate is tilted with the ring rather than left level, and it has to
       // be: a level plate inside a tilted ring hangs 0.4 R below the roll at the
       // back, and what shows from three-quarters is a hoop floating off the back
       // of a disc — the two-detached-boxes failure over again, one ring later.
-      // The crown then has to start low enough that the *front* of the tilted
-      // plate still meets it, which is what puts its base at 0.56 rather than
-      // at the brim's own height.
       //
       // It costs 140 triangles where the two boxes cost 24, and that is the one
       // place in this file where a fix triples a model's budget. The argument
@@ -513,31 +513,69 @@ function buildAccessory(
       // width alone once the crown is honest, and 24 triangles of paddle were
       // buying a silhouette that was actively wrong rather than merely plain.
       //
-      // The crown comes down to 1.02 R, which is a hat you could put on, and is
-      // still two thirds taller than the porkpie's 0.62 — the pair now differ in
-      // crown height *and* in brim by a factor either one would carry alone.
-      const TILT = 0.15;
+      // ## The ring then ate the crown, which is the failure this last pass is
+      //
+      // Everything above is still true and the hat on the bench was still wrong,
+      // because a roll of felt 0.43 R thick standing at y 0.86 has a *top*, and
+      // that top was at 1.08 R while the crown finished at 1.58. Half a head
+      // radius of crown above a brim nearly four radii across is not a crown, it
+      // is a bump — and the arithmetic that settles it is the porkpie's, which
+      // shows 0.57 R of crown over a brim 1.45 R wide. The hat with the tall
+      // crown was showing *less* crown than the hat named for not having one.
+      // From the stalls on `country:outlaw` it read as a boater; from the fourth
+      // row back on the wardrobe grid it read as the flat disc it was before the
+      // torus, because a brim that hides its own crown is a ring either way.
+      //
+      // So the proportions are redrawn against the skull rather than against the
+      // old numbers, and there are three of them.
+      //
+      // The crown is *wider than the head*. It was 1.90 R across on a skull 2.00
+      // R across — a plug sunk into the brim, with the skull's own outline the
+      // wider of the two at every height below the temples, so what the eye had
+      // to separate crown from head with was nothing at all. 2.10 R puts felt
+      // outboard of skin the whole way round, which is the only reason a hat
+      // ever reads as a thing worn rather than as a shape of head.
+      //
+      // The crown is taller and the brim is lower, and both halves are needed.
+      // The crown finishes at 1.76 R and the roll comes down to a top of 0.96 at
+      // the flanks, so 0.80 R of crown stands clear — forty per cent more than
+      // the porkpie shows, against a brim a third wider than the porkpie's. Each
+      // of those two would carry the distinction alone; together there is no
+      // angle where the pair are the same hat.
+      //
+      // And the roll is flattened in section — 0.46 R across the brim and 0.28
+      // through it, rather than round. A round bead is a hosepipe bent into a
+      // circle; felt rolled over a wire is wider than it is thick, and the
+      // flatter section is what buys back the height the crown needed without
+      // giving up any of the width that says the edge is turned.
+      //
+      // The tilt goes to 0.17 rad, as far as it can before the brim's underside
+      // reaches the top of a pair of sunglasses at z 0.92 — `country:outlaw`
+      // draws both on the same player, and a brim through a lens is a worse
+      // failure than a shallow sweep. From the front the top edge of the brim
+      // now runs up from 0.69 R at the nose to 0.96 at the tips.
+      const TILT = 0.17;
       const felt = surface(l, shade(look.outfit.jacket, -0.14), { roughness: 0.96 });
       const crown = new Mesh(tube(l), felt);
-      crown.scale.set(R * 1.90, R * 1.02, R * 1.84);
-      crown.position.set(0, R * 1.07, -R * 0.12);
+      crown.scale.set(R * 2.10, R * 1.30, R * 2.00);
+      crown.position.set(0, R * 1.11, -R * 0.12);
       crown.castShadow = true;
       head.add(crown);
       const brim = new Mesh(tube(l), felt);
-      brim.scale.set(R * 2.92, R * 0.10, R * 2.68);
-      brim.position.set(0, R * 0.78, -R * 0.12);
+      brim.scale.set(R * 3.06, R * 0.09, R * 2.82);
+      brim.position.set(0, R * 0.70, -R * 0.12);
       brim.rotation.x = TILT;
       brim.castShadow = true;
       head.add(brim);
       const rim = new Mesh(hoop(l), felt);
-      rim.scale.set(R * 3.66, R * 3.38, R * 3.60);
+      rim.scale.set(R * 3.86, R * 3.56, R * 2.30);
       rim.rotation.x = Math.PI / 2 + TILT;
-      rim.position.set(0, R * 0.86, -R * 0.12);
+      rim.position.set(0, R * 0.82, -R * 0.12);
       rim.castShadow = true;
       head.add(rim);
       const band = new Mesh(tube(l), surface(l, accent, { roughness: 0.7 }));
-      band.scale.set(R * 1.95, R * 0.20, R * 1.89);
-      band.position.set(0, R * 0.96, -R * 0.12);
+      band.scale.set(R * 2.16, R * 0.20, R * 2.06);
+      band.position.set(0, R * 0.90, -R * 0.12);
       head.add(band);
       break;
     }

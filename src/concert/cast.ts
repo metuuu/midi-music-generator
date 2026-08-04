@@ -547,6 +547,13 @@ function makeLook(args: {
     ? accessories.filter((a) => !HATS.includes(a))
     : accessories;
 
+  // Drawn here rather than in the returned object literal, which is where they
+  // used to be, and the move is the other half of the note below. A shaved head
+  // still has a colour and a hood has hair under it; the renderer decides
+  // whether either is visible.
+  const skin = rng.pick(SKIN);
+  const hair = rng.pick(w.hair);
+
   /**
    * What shape the cloth is cut into. See `Garment` and `Wardrobe.garments`.
    *
@@ -572,6 +579,24 @@ function makeLook(args: {
    * `PLAIN` is only reached by a genre that declared no wardrobe at all, and the
    * far commoner case is a genre with a perfectly good wardrobe that has not
    * been given clothes-shapes yet.
+   *
+   * ## It was not last, and the two draws it was not last of were the faces
+   *
+   * *Last* was written here as a design note and was false when it was written,
+   * by exactly two calls: `skin` and `hair` were drawn inside the returned
+   * object literal below, which is after this line and is easy to read as not
+   * being a draw at all. So the promise three paragraphs up — *the same faces,
+   * the same colours, the same hats, in different clothes* — was the one thing
+   * this arrangement did not deliver: dressing a genre also re-rolled every
+   * player's skin tone and hair colour, and nothing said so. It was found by
+   * diffing the whole catalogue's cast before and after adding ten garment
+   * tables, which is what the paragraph above is for and is the only way it
+   * could have been found, since every individual picture looked fine.
+   *
+   * Both draws are hoisted above this line now. Everything the note claims is
+   * therefore true rather than intended, and it is worth keeping the two of them
+   * in a `const` up there rather than inline below: the reason they drifted is
+   * that a `rng.pick` in a returned literal does not look like a statement.
    */
   const garment: Garment = w.garments ? rng.weighted(w.garments) : 'suit';
 
@@ -582,10 +607,8 @@ function makeLook(args: {
   // to invent a second value of its own.
   const outfit = { jacket, shirt, trousers, accent, fabric, garment };
   return {
-    skin: rng.pick(SKIN),
-    // A shaved head still has a colour, and a hood has hair under it; the
-    // renderer decides whether either is visible.
-    hair: rng.pick(w.hair),
+    skin,
+    hair,
     hairStyle,
     height,
     build,

@@ -55,6 +55,7 @@ import type { Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
  */
 const SHED: StageRoom = {
   id: 'shed',
+  architecture: 'shed',
   names: [
     'The Marquee', 'The Iron Works', 'Rondo Hall', 'The Old Bus Depot',
     'Vulcan Rooms', 'The Ironmonger',
@@ -210,6 +211,27 @@ const WARDROBE: Record<string, Wardrobe> = {
     hairStyles: [['long', 6], ['mane', 4], ['curls', 3], ['short', 2], ['afro', 1], ['bald', 1]],
     accessories: [['moustache', 0.5], ['beard', 0.3], ['sunglasses', 0.2], ['scarf', 0.2], ['hoops', 0.1]],
     fabrics: [['denim', 5], ['velvet', 4], ['corduroy', 3], ['satin', 2], ['leather', 1]],
+    /**
+     * The cut-off, and it is this genre's garment for the next twenty-three
+     * years.
+     *
+     * `waistcoat` is a sleeveless body over a shirt, which is a sentence about a
+     * folk fiddler in 1850 and a court keyboard player in 1720 and — without
+     * changing a word — about a denim jacket with the sleeves taken off it. That
+     * is the single largest thing the union turned out to be able to do, and it
+     * was not designed for it: the member was put in for `country:stringband`
+     * and `classical:baroque`, and it fits a battle jacket exactly, because the
+     * thing that makes all four read is the *shoulder*. A jacketed shoulder is
+     * padded and square and a shirt shoulder is not, and a cut-off is a garment
+     * whose entire point is the arm coming out of it.
+     *
+     * Four to six against the suit in 1972, which is the right ratio for the
+     * earliest era: `denim` heads the fabric table but the jacket still has
+     * sleeves on it half the time, and `velvet` at 4 is a real tailored jacket
+     * on somebody. The weight climbs in every era after this one, which is the
+     * decade-by-decade shape of the genre said in one number.
+     */
+    garments: [['suit', 6], ['waistcoat', 4]],
     loudFabric: 'velvet', sequinChance: 0,
     matched: 0.2, uniform: 0.08, spotlight: 0.35,
   },
@@ -244,6 +266,24 @@ const WARDROBE: Record<string, Wardrobe> = {
     hairStyles: [['mane', 7], ['long', 4], ['curls', 3], ['mullet', 2], ['short', 2], ['bald', 1]],
     accessories: [['bandana', 0.35], ['chain', 0.3], ['wraparounds', 0.15], ['beard', 0.15], ['hoops', 0.12]],
     fabrics: [['leather', 5], ['denim', 5], ['vinyl', 2], ['satin', 2], ['wool', 1]],
+    /**
+     * The cut-off takes the table, and the fabric list beside it explains why.
+     *
+     * `leather` and `denim` are level at 5 up there, and the object this era is
+     * actually about is both of them at once: a leather jacket with a denim
+     * cut-off over it. The rig cannot layer two garments — there is one `shell`
+     * and one set of sleeves — so the layering is expressed the only way it can
+     * be, by weighting the sleeveless body over the jacket six to four and
+     * letting the fabric draw decide which of the two bolts it came off.
+     *
+     * The other reason this is the right era for it is the hair. `mane` at 7
+     * above is past the shoulder blades and forward over the collarbones, and
+     * the note on it says that is what changes the outline of the *torso* rather
+     * than the head. A bare shoulder under a mane is the NWOBHM silhouette; the
+     * same hair over a suit jacket is a mid-seventies folk-rock group, which is
+     * the failure the hair table's own comment was already worrying about.
+     */
+    garments: [['waistcoat', 6], ['suit', 4]],
     loudFabric: 'satin', sequinChance: 0.12,
     matched: 0.15, uniform: 0.12, spotlight: 0.45,
   },
@@ -272,6 +312,25 @@ const WARDROBE: Record<string, Wardrobe> = {
     hairStyles: [['mane', 6], ['long', 4], ['mullet', 2], ['short', 2], ['curls', 2], ['bald', 1]],
     accessories: [['bandana', 0.3], ['beard', 0.2], ['wraparounds', 0.15], ['beanie', 0.1], ['towel', 0.15]],
     fabrics: [['denim', 5], ['flannel', 3], ['leather', 2], ['nylon', 2], ['knit', 1]],
+    /**
+     * *No jacket at all*, says the era comment, and seven to three is as close
+     * to that as the union goes.
+     *
+     * The highest `waistcoat` weight in the project, and it is not the same
+     * garment the two eras above it are wearing even though it is the same word.
+     * There it is worn *over* something and read as an extra layer; here the
+     * band shirt underneath is the whole outfit and the cut-off is the only
+     * thing on top of it, which is why the weight goes up at the same moment
+     * `leather` falls from 5 to 2. Thrash defined itself against the wardrobe of
+     * 1982, and the way it did that was by removing an item rather than adding
+     * one.
+     *
+     * `suit` survives at 3 and it is the bass player's denim jacket with the
+     * sleeves still attached. A table at ten to nought would be a costume
+     * department's idea of a subculture; three in ten is what a photograph of
+     * five of them looks like.
+     */
+    garments: [['waistcoat', 7], ['suit', 3]],
     loudFabric: 'denim', sequinChance: 0,
     matched: 0.1, uniform: 0.1, spotlight: 0.28,
   },
@@ -300,6 +359,27 @@ const WARDROBE: Record<string, Wardrobe> = {
     hairStyles: [['mane', 6], ['long', 4], ['bald', 3], ['short', 2], ['braids', 1], ['mohawk', 1]],
     accessories: [['beard', 0.4], ['chain', 0.25], ['wraparounds', 0.2], ['bandana', 0.15], ['earrings', 0.15]],
     fabrics: [['leather', 5], ['vinyl', 3], ['denim', 2], ['flannel', 2], ['knit', 1]],
+    /**
+     * The cassock, and it is the one entry in this file that is a costume on
+     * purpose.
+     *
+     * `robe`'s own note in `concert/types.ts` lists what the member is for — *a
+     * thobe, a kaftan, a galabeya, a cassock, a choir robe* — and says out loud
+     * that a cassock and a thobe are one silhouette and that this is a judgement
+     * rather than an oversight. This is the era that collects on it. A black
+     * metal band in 1995 dressed alike on purpose, to the point of it being a
+     * costume, and the costume was frequently a monk's habit; the same member
+     * that puts a takht player in a galabeya puts this band in one, and the two
+     * rows on the bench are unmistakably not each other because everything else
+     * about them differs.
+     *
+     * One in ten rather than more, because `uniform: 0.4` is a claim about the
+     * black t-shirts as much as about the theatrical half of the genre — the era
+     * comment says the two arrive at the same picture from opposite ends of how
+     * much thought went into it. `waistcoat` at 5 is the thoughtless end and
+     * still leads.
+     */
+    garments: [['waistcoat', 5], ['suit', 4], ['robe', 1]],
     loudFabric: 'vinyl', sequinChance: 0,
     matched: 0.4, uniform: 0.4, spotlight: 0.25,
   },

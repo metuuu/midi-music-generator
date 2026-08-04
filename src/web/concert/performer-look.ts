@@ -71,7 +71,7 @@ import type { Rng } from '../../core/rng.js';
 import {
   Leases, clothSurface, orb, shade, slab, surface, torsoShell, tube,
 } from './performer-assets.js';
-import { cutOf, dressGarment } from './performer-garments.js';
+import { cutOf, dressGarment, relief } from './performer-garments.js';
 
 /** Which way `+x` is for each side of the body. See the header. */
 export const SIDE = { left: 1, right: -1 } as const;
@@ -437,11 +437,23 @@ export function dressTorso(
   body.castShadow = true;
   torso.add(body);
 
-  // Shirt front — a soft mass sitting proud of the jacket, so the two read as
-  // layers rather than as a decal. `collar` is the same object pulled up to the
-  // neck and shrunk: a garment with no open front still shows a band of shirt
+  // Shirt front — the strip of shirt an open jacket leaves down the middle,
+  // tucked behind the lapels. `collar` is the same object pulled up to the neck
+  // and cut short: a garment with no open front still shows a band of shirt
   // under the chin, and a garment that is *itself* the shirt shows none, which
   // is what `none` means rather than an omission.
+  //
+  // A `slab` rather than the `orb` this was, and the bench had been complaining
+  // about the `orb` since it was first drawn beside anything. An ellipsoid a
+  // third of the shoulder width across and half the torso tall, sitting proud of
+  // the chest, is not a shirt showing between two lapels — it is an egg on the
+  // front of the jacket, and every survey of this page has called it a bib. The
+  // object it is standing in for is flat and narrow and mostly hidden: what you
+  // see of a shirt under a lounge suit is a placket, which is exactly the shape
+  // the `brocade` block further down already builds for the same reason. Sized
+  // and placed to sit inside the lapels' own V at the top and be overlapped by
+  // them at the bottom, so the three read as layers in the right order rather
+  // than as one mass with two slabs stuck on it.
   //
   // It takes the outfit's fabric like everything else, because the IR carries
   // exactly one: `Look.outfit.fabric` is drawn once per player. Giving the shirt
@@ -454,13 +466,13 @@ export function dressTorso(
   // the wrong reading of what the tables mean today.
   if (cut.chest !== 'none') {
     const wide = cut.chest === 'front';
-    const front = new Mesh(orb(l), clothSurface(l, shirt, fabric));
+    const front = new Mesh(slab(l), clothSurface(l, shirt, fabric));
     front.scale.set(
-      p.torsoW * (wide ? 0.34 : 0.24),
-      p.torsoH * (wide ? 0.48 : 0.22),
-      p.torsoD * (wide ? 0.34 : 0.26),
+      p.torsoW * (wide ? 0.20 : 0.30),
+      p.torsoH * (wide ? 0.38 : 0.10),
+      p.torsoD * (wide ? 0.10 : 0.12),
     );
-    front.position.set(0, p.torsoH * (wide ? 0.74 : 0.90), p.torsoD * (wide ? 0.34 : 0.30));
+    front.position.set(0, p.torsoH * (wide ? 0.75 : 0.93), p.torsoD * 0.40);
     torso.add(front);
   }
 
@@ -468,8 +480,16 @@ export function dressTorso(
   // Everything else here either closes at the centre under a stand collar or
   // does not close at all, and a lapel slab left on a robe is the single most
   // obvious way to make an expensive kaftan look like a dressing gown.
+  //
+  // `relief` rather than `shade(jacket, -0.07)`, which is the other half of the
+  // same complaint the shirt front above answers. Seven points of lightness is a
+  // legible edge on a cream tanssilava jacket and nothing at all anywhere else,
+  // and on the near-black jackets that four genres are almost entirely made of
+  // it clamps to the jacket's own colour — so the one garment feature every
+  // undressed genre in the project had was invisible on most of them. See
+  // `relief`, which argues the direction and the size.
   if (cut.lapels) {
-    const lapelMat = clothSurface(l, shade(jacket, -0.07), fabric);
+    const lapelMat = clothSurface(l, relief(jacket, 0.14), fabric);
     for (const s of [SIDE.left, SIDE.right]) {
       const lapel = new Mesh(slab(l), lapelMat);
       lapel.scale.set(p.torsoW * 0.13, p.torsoH * 0.36, p.torsoD * 0.10);
