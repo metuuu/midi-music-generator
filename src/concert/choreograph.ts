@@ -1988,8 +1988,33 @@ function handPart(events: DrumEvent[], board: Board): void {
        * be total or a written note produces no gesture at all.
        */
       const pool = free.length ? free : HANDS;
+      /**
+       * Alternation, as *which hand went last* rather than as how long each
+       * one has been still.
+       *
+       * This was `min(beat - since[h], 1) * 0.10`, and the cap is what broke
+       * it. Past a single beat both hands are equally rested, so the term took
+       * the same value on both sides of the comparison and cancelled exactly,
+       * leaving bare proximity to decide. Proximity on this instrument never
+       * changes its mind — the three strike points are four centimetres apart,
+       * so whichever hand is nearest stays nearest for the rest of the number
+       * — and the result was a percussionist playing an entire number with one
+       * arm, which is the precise failure this bonus exists to prevent. It
+       * worked only on parts whose strokes fall closer together than a beat,
+       * and said nothing at all about the rest.
+       *
+       * Relative rather than absolute, so it cannot cancel: one hand is always
+       * the more rested of the two, and exactly one bonus is ever paid. The
+       * magnitude is unchanged and still claims what it claimed — 0.10 clears
+       * every distance within the skin, which is 0.08 at its widest, and falls
+       * well short of the reach out to the trap table, which is 0.17 at its
+       * nearest. So alternation still breaks ties on the head and still never
+       * argues with a real movement.
+       */
+      const rested: Hand
+        = since['left-hand'] <= since['right-hand'] ? 'left-hand' : 'right-hand';
       const score = (h: Hand): number =>
-        handDistance(on[h], e.voice) - Math.min(beat - since[h], 1) * 0.10;
+        handDistance(on[h], e.voice) - (h === rested ? 0.10 : 0);
       const reachable = pool.filter(
         (h) => board.canReach(h, beat, handDistance(on[h], e.voice), 'strike'),
       );
