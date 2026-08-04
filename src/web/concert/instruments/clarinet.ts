@@ -45,9 +45,9 @@ import type { Effector, PlayPoint } from '../../../concert/types.js';
 import { Rng } from '../../../core/rng.js';
 import { BLOWN_MOUTH_Y, mouthFor } from './mouth.js';
 import type {
-  Contact, InstrumentBuildOptions, InstrumentBuilder, InstrumentModel,
+  Contact, FingerCurl, InstrumentBuildOptions, InstrumentBuilder, InstrumentModel,
 } from './types.js';
-import { addTo } from './types.js';
+import { addTo, fingersOnStack } from './types.js';
 
 // ---------------------------------------------------------------------------
 // Fingering
@@ -345,6 +345,22 @@ export const buildClarinet: InstrumentBuilder = (opts: InstrumentBuildOptions): 
   }
   const rightContacts: Contact[] = stationY.map((_, i) => contactAt(i, -1));
   const leftContacts: Contact[] = stationY.map((_, i) => contactAt(i, 1));
+
+  /**
+   * Which of each hand's fingers are down, per speaking hole — keyed by the
+   * speaking station, not by the clamped one a hand is standing at. See
+   * `Contact.fingers`, `fingersOnStack`, and the same table on the saxophone
+   * for what keying it the other way costs.
+   *
+   * The stacks are lopsided here, ten below the tenon and nine above it, and
+   * that is a clarinet: nineteen stations do not halve. It costs the pinkies —
+   * the right hand's covers seven stations and rolls on across all of them
+   * where the sax's covers three — which is closer to the truth than the
+   * arithmetic deserves, because the lower joint's pinky keys really are a
+   * cluster of four levers rather than one hole.
+   */
+  const rightFingers = stationY.map((_, s) => fingersOnStack(0, JOINT_SPLIT - 1, s));
+  const leftFingers = stationY.map((_, s) => fingersOnStack(JOINT_SPLIT, STATIONS - 1, s));
   /**
    * Which contact each hand takes. Neither crosses the joint: the right hand
    * stays on the lower six-and-a-bit stations and the left on the upper ones.
@@ -359,13 +375,15 @@ export const buildClarinet: InstrumentBuilder = (opts: InstrumentBuildOptions): 
   const restRight = rightContacts[JOINT_SPLIT - 4]!;
   const restLeft = leftContacts[JOINT_SPLIT + 4]!;
 
-  function copy(c: Contact): Contact {
+  function copy(c: Contact, fingers?: FingerCurl): Contact {
     // Including `along` — dropping it here is what made every knuckle axis in
-    // this directory dead code.
+    // this directory dead code. `fingers` goes by reference: a frozen tuple off
+    // a table, with no in-place transform for a caller to want.
     return {
       position: c.position.clone(),
       normal: c.normal.clone(),
       ...(c.along ? { along: c.along.clone() } : {}),
+      ...(fingers ? { fingers } : {}),
     };
   }
 
@@ -401,8 +419,12 @@ export const buildClarinet: InstrumentBuilder = (opts: InstrumentBuildOptions): 
       if (point.kind === 'rest') return copy(right ? restRight : restLeft);
       if (point.kind !== 'hole') return undefined;
       if (point.midi < LO || point.midi > HI) return undefined;
-      const station = stationFor(fingeringFor(point.midi).station, right);
-      return copy((right ? rightContacts : leftContacts)[station]!);
+      const speaking = fingeringFor(point.midi).station;
+      const station = stationFor(speaking, right);
+      return copy(
+        (right ? rightContacts : leftContacts)[station]!,
+        (right ? rightFingers : leftFingers)[speaking]!,
+      );
     },
 
     react(point: PlayPoint, force: number, _now: number): void {

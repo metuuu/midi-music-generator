@@ -1003,6 +1003,17 @@ export interface StageMachine {
    * Absent on a stage with nobody near it — an ambient number of pure drone and
    * tape where the box is simply running. That is a real arrangement and the
    * renderer must not assume a tender exists.
+   *
+   * **Present is not a promise that they are seen working it.** Casting hands a
+   * machine to somebody who can put a hand on a panel wherever such a person is
+   * standing, and on the stages where nobody is — an ambient quartet of upright
+   * bass, harp, violin and cello over a programmed part — a rhythm box is still
+   * placed, beside the least encumbered of them, because percussion arriving
+   * from an empty stage is the worse failure. There this field says *whose
+   * corner of the boards the box is standing in* and nothing more: the
+   * choreographer writes that player no panel touches, because their archetype
+   * declares no `control` point and nothing on the stage could place one. See
+   * `canWorkAPanel` and `anybody` in `cast.ts`.
    */
   tendedBy?: string;
 }

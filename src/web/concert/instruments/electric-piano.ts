@@ -61,6 +61,23 @@ const WHITE_TOUCH_Z = KEY_BACK_Z - 0.100;
 const BLACK_TOUCH_Z = KEY_BACK_Z - 0.058;
 
 /**
+ * The name rail: the strip standing proud of the lid's front edge, above the
+ * back of the keys.
+ *
+ * Written down once rather than inlined at the mesh, because `resolve` now
+ * answers a `control` point against it and the two must not be able to drift.
+ * A rail nudged a centimetre for looks and a hand left at the old height is a
+ * hand hovering over nothing, and it is the sort of bug that survives review
+ * precisely because both halves look right on their own.
+ */
+const RAIL_H = 0.045;
+const RAIL_D = 0.028;
+const RAIL_Y = KEY_TOP_Y + 0.032;
+const RAIL_Z = KEY_BACK_Z + 0.005;
+/** The ledge the preamp knobs stand on, ~13 mm clear of the lid's front edge. */
+const RAIL_TOP_Y = RAIL_Y + RAIL_H / 2;
+
+/**
  * How long a re-struck key spends letting go and falling again, in beats, and
  * how far up it gets in that time as a fraction of full travel.
  */
@@ -170,13 +187,25 @@ export const buildElectricPiano: InstrumentBuilder = (opts) => {
   lidSlab.castShadow = true;
 
   // Name rail: the one loud colour, and the thing the eye picks the model out by.
-  const rail = addTo(root, new Mesh(new BoxGeometry(shellW, 0.045, 0.028), railMat));
-  rail.position.set(0, KEY_TOP_Y + 0.032, KEY_BACK_Z + 0.005);
+  const rail = addTo(root, new Mesh(new BoxGeometry(shellW, RAIL_H, RAIL_D), railMat));
+  rail.position.set(0, RAIL_Y, RAIL_Z);
   rail.castShadow = true;
 
   const lamp = addTo(root, new Mesh(new CylinderGeometry(0.009, 0.009, 0.012, 8), lampMat));
   lamp.rotation.x = Math.PI / 2;
-  lamp.position.set(shellW / 2 - 0.06, KEY_TOP_Y + 0.032, KEY_BACK_Z - 0.010);
+  lamp.position.set(shellW / 2 - 0.06, RAIL_Y, KEY_BACK_Z - 0.010);
+
+  /**
+   * The preamp: the bass end of the knob row and how far along the rail it runs.
+   *
+   * Not modelled as objects — there is nothing here but the rail and the lamp —
+   * so this is a stated region rather than geometry, and it is stated where the
+   * rail is built so the two are read together. `0.075` clears the cheek at the
+   * end of the case; `0.26` is four knobs' worth of rail, which is more than a
+   * Rhodes has and is the width of the panel one is mounted on.
+   */
+  const preampX = shellW / 2 - 0.075;
+  const preampSpan = 0.26;
 
   // Cheeks, so the keybed has ends rather than trailing off.
   for (const side of [1, -1]) {
@@ -272,6 +301,46 @@ export const buildElectricPiano: InstrumentBuilder = (opts) => {
       if (point.kind === 'rest') {
         return {
           position: new Vector3(0, KEY_TOP_Y + 0.09, WHITE_TOUCH_Z),
+          normal: UP.clone(),
+          along: ACROSS.clone(),
+        };
+      }
+      if (point.kind === 'control') {
+        /**
+         * The preamp, on the name rail — because on this instrument there is
+         * nothing else, and pretending otherwise would be inventing a panel.
+         *
+         * A suitcase Rhodes' whole control surface is a volume and a bass boost
+         * standing up out of the rail at the bass end, which is the end this
+         * model already puts its power lamp on. So `at` runs across that short
+         * row and not across the case. The synthesiser spreads the same
+         * parameter over its full board width and is right to — its panel *is* a
+         * metre of knobs — but doing it here would send a hand the whole 1.16 m
+         * of the case to press a nameplate, and the reach is the tell: the
+         * choreographer sends whichever hand is free and prefers the left, which
+         * on this instrument is the hand already at the bass end.
+         *
+         * The top of the rail, not its front face: the knobs stand up out of it,
+         * and the keybed begins nine millimetres behind that face with the black
+         * keys' tops level with its lower edge, so a contact there is a set of
+         * fingers in the back of the keys.
+         *
+         * The player's *own* panel, always. A point that names a machine beside
+         * them is answered by the show — see `aimMachineControls` in
+         * `./index.ts` — because a box on its own stand is most of a metre away
+         * and only the show knows where it was finally stood. What is left for
+         * this branch is a machine in a bay, a patch change on the rail, and the
+         * gallery; the model is not the place to learn a drum machine exists.
+         *
+         * No `fingers`. A hand on a knob has nothing to say about which of them
+         * is down, and omitting the field is exactly how a `Contact` says "leave
+         * every finger as the pose put it" — see its docblock in `./types.ts`.
+         * That field is for a stack of tone holes, where the fingering is the
+         * model's own and is already written down once.
+         */
+        const at = Math.max(0, Math.min(1, point.at));
+        return {
+          position: new Vector3(preampX - at * preampSpan, RAIL_TOP_Y, RAIL_Z),
           normal: UP.clone(),
           along: ACROSS.clone(),
         };

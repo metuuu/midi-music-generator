@@ -500,6 +500,18 @@ export function oneHanded(archetype: Archetype, notes: readonly NoteEvent[]): bo
  *    nowhere to go. Doing this here means the fingering chooser never has to
  *    fail.
  *
+ * That last clause is load-bearing now rather than a nicety, because
+ * `chooseStops` no longer clamps a note onto the neck when it cannot place it —
+ * it drops it. What makes dropping safe is the guarantee this function gives:
+ * **every pitch in the returned span sits on at least one string.** The two
+ * clamps only pin the ends of it, and the middle is covered because every
+ * tuning in `ARCHETYPES` overlaps: no string sits more than seven semitones
+ * above the one below it and the shortest neck in the table is nineteen frets,
+ * so each string's window opens far inside the window below it. A tuning whose
+ * windows did *not* overlap would leave a hole in the middle of a span this
+ * hands back as reachable, and the honest fix for that would be here, in the
+ * reach, rather than in the hand that has to find somewhere to put the note.
+ *
  * Where the catalogue entry is *wider* than the archetype — a string ensemble
  * voicing down to C2 — the archetype wins, because one violinist is standing in
  * for the whole section and the cellos are not on stage. Those notes fold.
@@ -687,7 +699,12 @@ function gesturesFor(
         only: i === 0 ? 'left-hand' : 'right-hand',
         atBoard: Math.min(i, top),
       }));
-      patchPart(parts, performer, board);
+      // …and the press that changes the sound between them, where the object
+      // has something to press. Only a synthesiser is ever merged today — see
+      // `mergeStations`, which takes no other archetype — so this guard is
+      // stating the rule rather than catching a live case, and it is the same
+      // rule `operatePart` is held to below.
+      if (hasAPanel(spec)) patchPart(parts, performer, board);
     }
   }
 
@@ -699,13 +716,44 @@ function gesturesFor(
    * need a hand which is busy, and operating fills the room that is left. That
    * is the right precedence and it is also what a player does — you play your
    * line and you reach over when you can.
+   *
+   * **And only where the object has a panel to reach for**, which is the whole
+   * of `hasAPanel` and is the second half of the fix `cast.ts` carries. Casting
+   * will not choose a tender who cannot work one, but it will still stand a
+   * rhythm box beside *somebody* on a stage where nobody can — see `anybody`
+   * there, and see §8.1: percussion arriving from an empty stage is the worse
+   * failure, so the box is placed and its `tendedBy` says whose corner of the
+   * boards it is in rather than who is seen starting it. This is the line that
+   * keeps that from turning back into a gesture. Writing one anyway is what
+   * produced 51 panel touches on nine archetypes that never claimed a panel,
+   * and the ones on a carried instrument resolved to nothing at all.
    */
-  if (machines.length) operatePart(song, machines, board);
+  if (machines.length && hasAPanel(spec)) operatePart(song, machines, board);
 
   // Sorted by beat, as `PerformerPart` promises. `Array.prototype.sort` is
   // stable, so gestures placed together in one motion keep the order they were
   // emitted in and the output is byte-identical run to run.
   return board.gestures.sort((a, b) => a.beat - b.beat);
+}
+
+/**
+ * Whether a hand of this player's may be sent to a control surface at all.
+ *
+ * The choreographer's half of `ArchetypeSpec.points`: that list is what a model
+ * of the archetype must resolve, so it is also the only list this file may draw
+ * from. Everywhere else that is automatic — a `drum` point is emitted by
+ * `drumPart` and only a kit is choreographed through it — and the panel is the
+ * one gesture in the file that is written for a *reason outside the part*, so
+ * it is the one that could arrive on a player whose instrument has nothing to
+ * answer with. It did: `operatePart` and `patchPart` between them put `control`
+ * points on clarinets, trombones, guitars, violins and a singer.
+ *
+ * Asked of the spec rather than by naming `synth`, so the day an electric piano
+ * or an organ model grows a `control` branch and its spec says so, both callers
+ * below start working without being edited.
+ */
+function hasAPanel(spec: ArchetypeSpec): boolean {
+  return spec.points.includes('control');
 }
 
 /**
@@ -2559,6 +2607,30 @@ function stringPart(
     const position = open.length ? planPosition(window, open, maxFret) : fretAt;
 
     const stops = chooseStops(midis, open, maxFret, reach, position);
+    /**
+     * Nothing here has an honest fingering, so nobody plays it.
+     *
+     * `chooseStops` returns one stop per note it can place and no stop at all
+     * for a note it cannot, so a chord comes back short and a single note can
+     * come back empty. Short is the ordinary case and everything below already
+     * handles it — the means are over what was placed, and the bow crosses the
+     * strings that are stopped. Empty is the one that needs a decision, and the
+     * decision is to place nothing: `Board.place` with no targets makes no
+     * gestures but still books the limb, which would push the next real note's
+     * windup off a gesture that does not exist. Both hands simply carry on, and
+     * the runtime drifts an effector with nothing to do toward the model's own
+     * `rest` — a player not playing this one, rather than a player playing the
+     * wrong note.
+     *
+     * `lastEnd` deliberately does not move: the bow really is still where the
+     * last sounded note left it, so a long silence still earns its lift.
+     *
+     * With the catalogue as it stands this cannot fire — `reachFor` guarantees
+     * every folded note sits on some string — so it is a guard rather than a
+     * behaviour. It is here because the alternative to the guard is a silent
+     * scheduling fault the first time a tuning changes.
+     */
+    if (!stops.length) continue;
     const gap = beat - lastEnd;
 
     // A bow that has left the string has to come back to it, and a bow that has
@@ -2680,11 +2752,53 @@ function lowestPositionCovering(midis: Midi[], open: Midi[], maxFret: number): n
  * higher. `anchor` is that position; see `planPosition` for how it is chosen and
  * for what went wrong when it was just wherever the hand happened to be last.
  *
- * The fallback exists because a `PlayPoint` must always resolve: a sitar's
- * lowest string is a C3 and its declared range starts a minor third below, so a
- * note can be inside the range, folded into the octave, and still off the end of
- * every string. It gets the nearest string with the fret clamped, which is a
- * finger in a plausible place rather than a hand in mid-air.
+ * **The one thing this function guarantees: `open[string] + fret` is the note
+ * the stop was made for.** A `{kind:'string'}` point that does not sound its own
+ * note is worse than no point at all, because a fingerboard is legible — an
+ * audience cannot hear which of four inner voices is missing but can see a
+ * finger sitting on a fret. So a note that has no honest fingering gets no stop,
+ * and the returned array is shorter than `midis`. `stringPart` handles that.
+ *
+ * That used to be a clamp — nearest free string, `fret` folded into `0..maxFret`
+ * — and the clamp is what this replaces. It was written for a note that no
+ * string could reach at all, which cannot happen any more: `reachFor` bounds
+ * every part by its own strings, and the one instrument whose declared range
+ * really did start below its lowest string (the sitar, a minor third under its
+ * C3) has since been given a range bounded by its own tuning. What the clamp
+ * actually fired on was something else entirely — a chord with more notes than
+ * the instrument has *free* strings — and there `Math.max(0, ...)` landed on
+ * fret 0, an open string, the single most readable hand position there is.
+ * Measured across 42 concerts it put 30.4% of a violinist's left hand on a note
+ * that was not in the chord, and pinned the hand into the bottom twelfth of the
+ * fingerboard for nine tenths of the show.
+ *
+ * Hence two passes:
+ *
+ *  - **Greedy, ascending, cheapest free string.** Untouched, because it is the
+ *    fingering a player thinks in and because it is already right: on six
+ *    strings it strands about one note in a thousand and on the basses and the
+ *    cello it strands none at all.
+ *  - **Then, for whatever it stranded, one augmenting search**: could the notes
+ *    already placed have been fingered differently and still left a string for
+ *    this one? That is the question a player asks when a voicing does not fall
+ *    under the hand, and answering it exactly is what turns a greedy assignment
+ *    into a maximum one. It reshuffles earlier notes, which is why it is a
+ *    second pass and not the first: a chord that the greedy pass placed whole
+ *    never reaches it, so an instrument that never strands a note is fingered
+ *    exactly as it was before any of this.
+ *
+ * What is left after both passes is a section pad with more voices than one
+ * player has strings, and those voices are dropped. That is the honest reading
+ * of the archetype table: `ARCHETYPES.violin` is one violinist standing in for
+ * a whole section, four-part writing does not fit on four strings under one
+ * hand, and the voices that do not fit belong to the players who are not on
+ * stage. Showing three of four is a true statement about one pair of hands.
+ *
+ * Rejected: capping a bowed part at a genuine two-string double stop and
+ * dropping everything above it. More faithful to what a bow can sound at once,
+ * but it throws away voices this instrument demonstrably can hold, and the
+ * "a bow only crosses two strings" simplification is the renderer's to make —
+ * it already spreads one stroke across every string it is handed.
  */
 function chooseStops(
   midis: Midi[], open: Midi[], maxFret: number, reach: [Midi, Midi], anchor: number,
@@ -2693,43 +2807,45 @@ function chooseStops(
   if (!open.length) {
     return midis.map((m) => ({ string: m - reach[0], fret: 0 }));
   }
-  const used = new Set<number>();
-  const out: { string: number; fret: number }[] = [];
-  for (const midi of midis) {
-    let best: { string: number; fret: number } | undefined;
-    let bestCost = Infinity;
+  // Staying in position is the whole cost; the mild bias toward lower strings is
+  // what stacks a chord upward instead of piling it onto the top two wires.
+  const cost = (midi: Midi, s: number): number => Math.abs(midi - open[s]! - anchor) + s * 0.05;
+  /** Every string that can sound `midi`, cheapest fingering first. */
+  const fits = (midi: Midi): number[] => {
+    const ss: number[] = [];
     for (let s = 0; s < open.length; s++) {
-      if (used.has(s)) continue;
       const fret = midi - open[s]!;
-      if (fret < 0 || fret > maxFret) continue;
-      // Staying in position is the whole cost; the mild bias toward lower
-      // strings is what stacks a chord upward instead of piling it onto the top
-      // two wires.
-      const cost = Math.abs(fret - anchor) + s * 0.05;
-      if (cost < bestCost) { bestCost = cost; best = { string: s, fret }; }
+      if (fret >= 0 && fret <= maxFret) ss.push(s);
     }
-    if (!best) {
-      // Nothing in reach on a free string. Take the nearest string that is
-      // still free and clamp the finger onto the neck: the note is a semitone
-      // or two out of where it would really be, which nobody can see, and the
-      // alternative is two fingers on one wire, which everybody can. Only a
-      // chord with more notes than the instrument has strings — a four-part
-      // voicing handed to a violin standing in for a whole section — doubles up,
-      // and then the doubling is the section rather than the player.
-      let nearest = -1;
-      for (let s = 0; s < open.length; s++) {
-        if (used.has(s)) continue;
-        if (nearest < 0 || Math.abs(midi - open[s]!) < Math.abs(midi - open[nearest]!)) nearest = s;
-      }
-      if (nearest < 0) {
-        for (let s = 0; s < open.length; s++) {
-          if (nearest < 0 || Math.abs(midi - open[s]!) < Math.abs(midi - open[nearest]!)) nearest = s;
-        }
-      }
-      best = { string: nearest, fret: Math.max(0, Math.min(maxFret, midi - open[nearest]!)) };
+    return ss.sort((a, b) => cost(midi, a) - cost(midi, b));
+  };
+
+  /** Which note each string is holding, indexed into `midis`, or -1. */
+  const on: number[] = new Array<number>(open.length).fill(-1);
+  const stranded: number[] = [];
+  for (let i = 0; i < midis.length; i++) {
+    const s = fits(midis[i]!).find((c) => on[c]! < 0);
+    if (s === undefined) stranded.push(i);
+    else on[s] = i;
+  }
+
+  /** Seat note `i`, moving whoever is in the way somewhere they also fit. */
+  const reseat = (i: number, tried: boolean[]): boolean => {
+    for (const s of fits(midis[i]!)) {
+      if (tried[s]) continue;
+      tried[s] = true;
+      if (on[s]! < 0 || reseat(on[s]!, tried)) { on[s] = i; return true; }
     }
-    used.add(best.string);
-    out.push(best);
+    return false;
+  };
+  for (const i of stranded) reseat(i, new Array<boolean>(open.length).fill(false));
+
+  // Ascending by pitch, which is the order the caller's targets have always been
+  // in and the order the bow crosses the strings in.
+  const out: { string: number; fret: number }[] = [];
+  for (let i = 0; i < midis.length; i++) {
+    const s = on.indexOf(i);
+    if (s >= 0) out.push({ string: s, fret: midis[i]! - open[s]! });
   }
   return out;
 }

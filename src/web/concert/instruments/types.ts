@@ -53,7 +53,48 @@ export interface Contact {
    * perpendicular. Omit it and the previous behaviour stands.
    */
   along?: Vector3;
+  /**
+   * How far each finger of the hand taking this contact is down: **index,
+   * middle, ring, little — 0 lifted clear of its key, 1 pressed home.**
+   *
+   * ## Why this is allowed to be here
+   *
+   * The rule at the top of this file refuses every widening that lets the
+   * visuals reach back into the music, and this is not one of those. It is the
+   * same kind of fact `along` already is, one step further along the same
+   * thought: `position` says where the hand goes, `along` says which way it
+   * lies there, and this says what it is *doing*. All three answer "what is the
+   * shape of a hand that is here", and nothing but the model can answer it —
+   * the runtime does not learn what a bar is, how loud it is or which section it
+   * is in. It learns that a saxophone shortens its air column from the bell up,
+   * and it learns it as four numbers without ever being told the rule.
+   *
+   * It has to come from this side, because the alternative is a runtime that
+   * knows a clarinet repeats at the twelfth and a trumpet has three valves.
+   * That is the seam inverted. The fingering system belongs to the object and is
+   * already written down once per file, in `fingeringFor`, where `react` reads
+   * it to close the pads — so this is the same answer read a second time, by the
+   * hand instead of by the instrument, which is precisely why the two can never
+   * drift apart.
+   *
+   * `resolve`'s purity is untouched: a fingering is a function of the point and
+   * of nothing else, so every one of these comes off a table built once.
+   *
+   * **The middle of the range means "leave it".** A finger this instrument's
+   * fingering says nothing about — a trumpeter's little finger, which sits in
+   * the ring hook all night — should keep whatever shape the pose put it in, and
+   * `0.5` is how a hand says so. Omit the field entirely and every finger says
+   * it, which is the right answer for a drum, a fretboard and a bow.
+   *
+   * Held as a frozen tuple rather than cloned per call, unlike the vectors
+   * above: a caller has nothing to transform in place here, so there is nothing
+   * for a shared reference to break.
+   */
+  fingers?: FingerCurl;
 }
+
+/** Four closures, index to little. See `Contact.fingers`. */
+export type FingerCurl = readonly [number, number, number, number];
 
 /** Where the player belongs relative to the instrument's own origin. */
 export interface PlayerStation {
@@ -325,4 +366,41 @@ export const NO_UPDATE = (): void => {};
 export function addTo<T extends Object3D>(parent: Object3D, child: T): T {
   parent.add(child);
   return child;
+}
+
+/**
+ * `Contact.fingers` for a hand that owns one stack of holes, given the speaking
+ * hole of the whole instrument.
+ *
+ * Three of the wind models are the same instrument written out three times: a
+ * row of stations up a tube, split into an upper stack the left hand owns and a
+ * lower one the right owns, everything at or above the speaking hole closed and
+ * everything below it open toward the bell. A saxophone, a clarinet and a flute
+ * differ in how many stations there are and where the split falls, and in
+ * nothing else that a finger can see — so the rule is written once and the three
+ * models pass their own numbers to it.
+ *
+ * `lo`..`hi` are that hand's own stations. The **index finger takes the top of
+ * the stack**, middle and ring the two below it, and that is the anatomy on all
+ * three: the finger nearest the mouthpiece is the index, on the sax's B, the
+ * clarinet's B and the flute's first key alike. Whatever is left over goes to
+ * the little finger as a fraction, because whatever is left over *is* the
+ * pinky's — the table of low keys under a saxophone's right hand, the levers
+ * under a clarinet's, the foot keys under a flute's — and a pinky rolling onto
+ * them across three stations reads better than one snapping.
+ *
+ * What it deliberately does not do is follow the hand's own contact. The models
+ * walk a palm down the tube as the line falls, which is a lie they tell on
+ * purpose — see the fingering note at the top of `saxophone.ts` — and it is a
+ * lie about *position*. The fingers stay anchored to the keys, where a real
+ * player's are. Anchoring them to the contact instead collapses the whole
+ * pattern: a hand pinned to the speaking hole has, by construction, exactly one
+ * finger on it and nothing else to say, on every note of the number.
+ */
+export function fingersOnStack(lo: number, hi: number, speaking: number): FingerCurl {
+  const closed = (k: number): number => (Math.max(k, lo) >= speaking ? 1 : 0);
+  let sum = 0;
+  let n = 0;
+  for (let k = lo; k <= hi - 3; k++) { sum += closed(k); n++; }
+  return [closed(hi), closed(hi - 1), closed(hi - 2), n > 0 ? sum / n : closed(lo)];
 }

@@ -444,6 +444,23 @@ export const buildTrumpet: InstrumentBuilder = (opts: InstrumentBuildOptions): I
        * index on the first valve, which is where a trumpeter's index goes.
        */
       along: new Vector3(0, 0, -1).transformDirection(hornMatrix),
+      /**
+       * And which of them are down, which on this instrument needs no
+       * derivation at all: one valve, one finger, in order. See
+       * `Contact.fingers`.
+       *
+       * The little finger is `0.5` — the value that means "leave it where the
+       * pose put it" — because a trumpeter's is not on a button. It sits in the
+       * ring hook above the leadpipe and stays there for the whole number, and
+       * a pinky that pumped along with the other three would be the one finger
+       * on the horn doing something no trumpeter does.
+       */
+      fingers: [
+        combo.includes(1) ? 1 : 0,
+        combo.includes(2) ? 1 : 0,
+        combo.includes(3) ? 1 : 0,
+        0.5,
+      ] as const,
     };
   });
 
@@ -482,11 +499,13 @@ export const buildTrumpet: InstrumentBuilder = (opts: InstrumentBuildOptions): I
   function copy(c: Contact): Contact {
     // `along` is copied, not dropped. The old `copy` rebuilt a contact from
     // `position` and `normal` only, so every `along` in this directory was
-    // computed, stored and then thrown away one call later.
+    // computed, stored and then thrown away one call later. `fingers` rides
+    // along by reference — a frozen tuple, with nothing to transform.
     return {
       position: c.position.clone(),
       normal: c.normal.clone(),
       ...(c.along ? { along: c.along.clone() } : {}),
+      ...(c.fingers ? { fingers: c.fingers } : {}),
     };
   }
 

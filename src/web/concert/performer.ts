@@ -214,6 +214,20 @@ export interface PerformerRig {
    */
   setHandPose(side: BodySide, pose: HandPoseId, weight?: number): void;
 
+  /**
+   * Finger one hand: how far each finger is down, index to little, 0..1.
+   * `undefined` — and the middle of the range, per finger — means the pose
+   * decides, which is what every hand that is not on a wind instrument says.
+   *
+   * A second call rather than a wider `setHandPose`, because it is a second
+   * fact on a second clock. A saxophonist's hand keeps one shape all night and
+   * changes its fingering on every note; folding the two together would put a
+   * vocabulary of named shapes in the position of having to name every
+   * fingering of every instrument. The numbers come from `Contact.fingers`, so
+   * the instrument that closes the pads is the same one that moves the fingers.
+   */
+  setHandFingers(side: BodySide, close: ArrayLike<number> | undefined): void;
+
   /** Jaw opening, lip rounding, lip spreading, each 0..1, straight off `Viseme`. */
   setMouth(open: number, round: number, spread: number): void;
 
@@ -956,6 +970,10 @@ class Rig implements PerformerRig {
     const base = this.handDefaults[side];
     const wanted = HAND_POSES[pose];
     this.hands[side].setPose(weight >= 1 ? wanted : blendPoses(base, wanted, weight));
+  }
+
+  setHandFingers(side: BodySide, close: ArrayLike<number> | undefined): void {
+    this.hands[side].setFingers(close);
   }
 
   /**

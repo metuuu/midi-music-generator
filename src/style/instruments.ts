@@ -318,7 +318,51 @@ export function envelopeFor(instrument: Instrument): Envelope {
  * the same violin.
  */
 const VIOLIN = I('violin', 40, 'gm_violin', 76, 0.6, 'bowed');
-const CELLO = I('cello', 42, 'gm_cello', 52, 0.5, 'bowed');
+/**
+ * A cello comps and doubles the bass down here and sings a single line up the A
+ * string, which is the same instrument in two places and exactly what `lead` is
+ * for — the guitar's argument below, on four strings instead of six.
+ *
+ * The catalogue did not know it, and the omission was total rather than
+ * marginal. Measured over 112 concerts: 28 castings, 24 of them on the bass
+ * layer, and the part tops out at E3. Of 6,966 notes on those castings, 92% are
+ * on the bottom two strings and none of them is on the A string at all. The
+ * fingering chooser was never the fault — hand it a line written at 62–77, as
+ * the classical and arabic counter parts already do, and it shifts into fourth
+ * and seventh position under the same code. A cellist never shifted because a
+ * cellist was never given the tune anywhere that required it.
+ *
+ * **67, and not the 64 the tessitura asks for.** 64 was the obvious answer and
+ * it is the wrong one: it sits under the floor this field's own docstring states
+ * and the bassoon two hundred lines below restates — beneath about 66 a
+ * four-note guide voicing has nowhere to sit, so a lead put there leaves the
+ * comper with no chord to play. That floor is measured rather than inherited.
+ * Across 960 songs in the eight eras whose melody palette can deal a cello, 70
+ * of which did, the comp under a cello lead voiced **1.64 notes against 2.08
+ * under everything else**; at 64 it recovers to 1.75, at 66 to 1.87, at 67 to
+ * 1.96, which is inside the noise. 64 would have fixed a quarter of the fault
+ * the field exists to fix and looked like a fix. 66 and 67 write the *same
+ * tune* — 65 to 74 at the tenth and ninetieth centiles either way — so the
+ * higher one costs nothing and buys the rest of the voice.
+ *
+ * It is also where the other two tenors already are. The trombone and the horn
+ * both carry `lead` 67 over a section centre of 60, for the reason a cello has
+ * in a stronger form: the middle of the texture and the front of it are not the
+ * same register, and the gap is about a fifth. G4 is the first finger in seventh
+ * position, where the thumb comes over the shoulder — a cello's singing note,
+ * not a stunt.
+ *
+ * Nothing is folded away at the top. The A string carries two octaves to A5 and
+ * `INSTRUMENT_RANGE` says so; the tune reaches G5 with a whole tone spare, and 0
+ * of 6,800 notes leave [36, 81] at any candidate tried. 69 saturates it, which
+ * is where the argument stops.
+ *
+ * The electric twin at the foot of the table spreads this object and so shifts
+ * with it. No palette gives that one a melody, so today it changes nothing —
+ * which is the section docstring above being right rather than a reason to pin
+ * the two apart.
+ */
+const CELLO = L(I('cello', 42, 'gm_cello', 52, 0.5, 'bowed'), 67);
 const VIBRAPHONE = I('vibraphone', 11, 'gm_vibraphone', 72, 1.0, 'mallet');
 const PAD_METALLIC = E(I('metallic pad', 93, 'gm_pad_metallic', 60, 0.5, 'bowed'), PAD);
 

@@ -77,6 +77,40 @@ const P_SHARP_Z = -0.40;
 /** How far downstage the whole console sits from the reserved centre. */
 const Z_SHIFT = 0.22;
 
+// --- Drawbars ---
+//
+// Two banks of nine on the face of the tall back, and the console's entire
+// control surface: everything else on this instrument is a key. `resolve`
+// answers `control` points against them, so the numbers live out here where the
+// mesh and the hand read the same ones and cannot come apart.
+
+/** Where each bank's bass-most bar sits, and the pitch of the row. */
+const BAR_BANK_X = [0.30, -0.02] as const;
+const BAR_GAP = 0.026;
+const BAR_LEN = 0.075;
+/** How far the bank leans back from vertical — the face a hand comes at. */
+const BAR_TILT = 0.55;
+/** How far a bar travels when it is drawn out. Cosmetic; never resolved. */
+const BAR_DRAW = 0.030;
+const BAR_Y = 0.945;
+/**
+ * Where the bars are mounted, in z, and it is 28 mm forward of where it was.
+ *
+ * The face of the back panel is at `z = 0.01`, and the bank used to sit at
+ * 0.055: a bar is 75 mm long and leans back, so its near tip came to 0.023 —
+ * thirteen millimetres *inside* the woodwork. The single most recognisable
+ * thing on a Hammond was drawn every frame and could not be seen from any seat
+ * in the house, and only a bar drawn most of the way out ever broke the surface.
+ * At 0.027 the tip clears the face by 15 mm at rest and by 45 at full draw,
+ * which is what a drawbar does: it is a rod that lives in the panel and shows
+ * its coloured end. It matters twice over now — a `control` contact is placed
+ * on that tip, and a hand on a buried bar is a hand inside the cabinet.
+ */
+const BAR_Z = 0.027;
+/** The near end of a bar at rest: the coloured tip a registration is set by. */
+const BAR_TIP_Y = BAR_Y - Math.sin(BAR_TILT) * BAR_LEN / 2;
+const BAR_TIP_Z = BAR_Z - Math.cos(BAR_TILT) * BAR_LEN / 2;
+
 /** Lower manual, then upper: back edge (the pivot) and key-top height. */
 const MANUALS = [
   { backZ: -0.32, whiteY: 0.735 },
@@ -249,16 +283,16 @@ export const buildOrgan: InstrumentBuilder = (opts) => {
    * recognisable thing on the instrument and cost three draw calls.
    */
   const PATTERN = ['brown', 'brown', 'white', 'white', 'black', 'white', 'black', 'black', 'white'] as const;
-  const barGeo = new BoxGeometry(0.020, 0.016, 0.075);
+  const barGeo = new BoxGeometry(0.020, 0.016, BAR_LEN);
   const barSlots: Record<'brown' | 'white' | 'black', Matrix4[]> = { brown: [], white: [], black: [] };
-  const barQuat = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), -0.55);
+  const barQuat = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), -BAR_TILT);
   for (let bank = 0; bank < 2; bank++) {
     for (let i = 0; i < 9; i++) {
       const colour = PATTERN[i]!;
-      const x = (bank === 0 ? 0.30 : -0.02) - i * 0.026;
-      const out = rng.float(0.0, 0.030);   // registration: cosmetic, never resolved
+      const x = BAR_BANK_X[bank]! - i * BAR_GAP;
+      const out = rng.float(0.0, BAR_DRAW);   // registration: cosmetic, never resolved
       const m = new Matrix4().compose(
-        new Vector3(x, 0.945 + out * 0.28, 0.055 - out),
+        new Vector3(x, BAR_Y + out * 0.28, BAR_Z - out),
         barQuat, new Vector3(1, 1, 1),
       );
       barSlots[colour].push(m);
@@ -391,15 +425,35 @@ export const buildOrgan: InstrumentBuilder = (opts) => {
    * to leave to the fallback.
    */
   const ACROSS = new Vector3(1, 0, 0);
+  /**
+   * Out of the drawbar bank: up and toward the player, square to the lean.
+   *
+   * The one contact on this console that is not answered with `UP`, and it has
+   * to be. The bars are set back at `BAR_TILT`, so "away from the instrument" is
+   * 31° off vertical there; a hand told to come straight down arrives on the
+   * *side* of the row with the tips under its wrist, which is not a hand that
+   * could pull one.
+   */
+  const BAR_FACE = new Vector3(0, Math.cos(BAR_TILT), -Math.sin(BAR_TILT));
 
   /**
    * The stop tabs above the drawbars, purely so the console has a face. Chrome
    * because at this distance chrome is the only thing that reads.
+   *
+   * Above, now, and centred — the row used to sit *beside* the bank, starting at
+   * x -0.34 and stepping outward by 0.036. The console is 0.95 wide, so the last
+   * four of the eight hung in the air past its treble end and the cheek at
+   * -0.443 stood in front of the two before them: half a row of chrome floating
+   * off the side of a cabinet. Sideways has nowhere left to go, either. The bank
+   * fills x +0.30 down to -0.228 and a `control` contact lands on those tips, so
+   * beside it there is 180 mm of bare panel for 240 mm of tabs. Over it there is
+   * room: a bar drawn all the way out tops out at y 0.980 and the back panel
+   * runs to 1.05, which puts the row at 1.00 with 20 mm either side of it.
    */
   const tabGeo = new BoxGeometry(0.03, 0.012, 0.03);
   const tabs = addTo(rig, new InstancedMesh(tabGeo, chromeMat, 8));
   for (let i = 0; i < 8; i++) {
-    scratch.makeTranslation(-0.34 - i * 0.036, 0.955, 0.02);
+    scratch.makeTranslation(0.126 - i * 0.036, 1.00, 0.02);
     tabs.setMatrixAt(i, scratch);
   }
   tabs.instanceMatrix.needsUpdate = true;
@@ -420,6 +474,50 @@ export const buildOrgan: InstrumentBuilder = (opts) => {
         return {
           position: new Vector3(0, MANUALS[1].whiteY + 0.085, MANUALS[1].backZ - 0.09 + Z_SHIFT),
           normal: UP.clone(),
+          along: ACROSS.clone(),
+        };
+      }
+      if (point.kind === 'control') {
+        /**
+         * A drawbar. They are what an organist's left hand leaves the lower
+         * manual for, and the only thing on this console that is not a key.
+         *
+         * `at` is **snapped to one of the eighteen** rather than swept along the
+         * bank, because the two banks have 112 mm of bare panel between them and
+         * a linear sweep spends a fifth of its range in that gap — a hand
+         * pressing wood, which is the same failure as a hand in the air with the
+         * check unable to say so. Eighteen positions, every one with a bar under
+         * it, and the row still reads bass-to-treble across `at` because that is
+         * the direction the manuals below it run.
+         *
+         * The near *tip*, not the bar's centre: a drawbar lives in the panel and
+         * shows its coloured end, so most of every bar is inside the cabinet and
+         * a contact at its middle is a hand in the woodwork. Built from the same
+         * constants the bank is, and deliberately *not* from a bar's own `out` —
+         * that is an rng draw and `resolve` is pure, so the hand goes to the row
+         * at rest and lets a drawn bar meet it.
+         *
+         * The player's own console, always: a point naming a machine standing
+         * beside them is answered by the show, which is the only thing that
+         * knows where the box was finally stood — see `aimMachineControls` in
+         * `./index.ts`. This branch is what a bay, a registration change and the
+         * gallery fall through to, and it is why the organ never has to learn
+         * that a drum machine exists.
+         *
+         * No `fingers`: a hand on a drawbar says nothing about which of them are
+         * closed, and an omitted field is how a `Contact` says "leave every
+         * finger as the pose put it" — see its docblock in `./types.ts`. That
+         * field is for a stack of tone holes, where the model owns the fingering.
+         */
+        const at = Math.max(0, Math.min(1, point.at));
+        const bar = Math.round(at * 17);
+        const bank = bar < 9 ? 0 : 1;
+        return {
+          position: new Vector3(
+            BAR_BANK_X[bank]! - (bar - bank * 9) * BAR_GAP,
+            BAR_TIP_Y, BAR_TIP_Z + Z_SHIFT,
+          ),
+          normal: BAR_FACE.clone(),
           along: ACROSS.clone(),
         };
       }

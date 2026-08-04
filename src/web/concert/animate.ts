@@ -893,9 +893,18 @@ const MOUTH_CLOSE_SECONDS = 0.06;
  * What the category is *for* is `poses()`: only a hand that is holding
  * something has anything to learn from a gesture kind, because every other
  * default already describes the action about to happen.
+ *
+ * `cupped` is in and the three new wind shapes are not, which is the same
+ * distinction drawn again. A harmonica player's hands close on the harp and are
+ * holding it; a saxophonist's, a flautist's and a trumpeter's fingering hand are
+ * *working* the instrument and have nothing to learn from a gesture kind,
+ * because the thing they do note by note now arrives through `Contact.fingers`
+ * instead. It is also why `cupped` had to be added here rather than left out:
+ * moving the harmonica off `grip` for a better shape would otherwise have
+ * silently dropped it out of the category, which is exactly the trap above.
  */
 const HOLDING_POSES: ReadonlySet<HandPoseId> = new Set<HandPoseId>([
-  'grip', 'stick', 'bowhold', 'strap', 'fist',
+  'grip', 'stick', 'bowhold', 'strap', 'fist', 'cupped',
 ]);
 
 // ---------------------------------------------------------------------------
@@ -942,17 +951,27 @@ const CONTACT_STRIDE = 9;
 const IDLE_CACHE = 32;
 
 /**
- * Floats per cached idle contact: position, normal, knuckle axis.
+ * Floats per cached idle contact: position, normal, knuckle axis, fingering.
  *
- * The same nine as `CONTACT_STRIDE`, and it has to be the same nine. This
- * cached six for a while and dropped `Contact.along` on the floor, which for
- * the whole wind and brass family meant it was never used at all: a blown
- * instrument's sounding gestures are all on the `mouth`, so the hands have no
- * gestures and are placed *exclusively* through this path. Every saxophone in
- * every show had its fingers across the keys instead of along them, and no
- * amount of the model getting the axis right could have fixed it.
+ * The first nine are `CONTACT_STRIDE`'s, and they have to be. This cached six
+ * for a while and dropped `Contact.along` on the floor, which for the whole
+ * wind and brass family meant it was never used at all: a blown instrument's
+ * sounding gestures are all on the `mouth`, so the hands have no gestures and
+ * are placed *exclusively* through this path. Every saxophone in every show had
+ * its fingers across the keys instead of along them, and no amount of the model
+ * getting the axis right could have fixed it.
+ *
+ * The last four are `Contact.fingers`, and they are here for the same reason
+ * one step on. The axis fixed which way a wind player's fingers pointed; these
+ * are what makes them move at all. They are cached rather than resolved per
+ * frame because they arrive on the same object as everything else and by the
+ * same rule — a fingering is a function of the point — so a second lookup would
+ * be a second cache with the same keys and one more way to disagree.
  */
-const IDLE_STRIDE = 9;
+const IDLE_STRIDE = 13;
+
+/** `Contact.fingers` for a model with no opinion. See that field. */
+const FINGER_NEUTRAL = 0.5;
 
 // ---------------------------------------------------------------------------
 // Scratch. Six players at 60 Hz is not the place to allocate a vector.
@@ -974,6 +993,9 @@ const M1 = new Matrix4();
 
 /** Points fired this beat, for the `react` de-duplication. */
 const FIRED: (PlayPoint | undefined)[] = new Array<PlayPoint | undefined>(24).fill(undefined);
+
+/** One hand's fingering on its way to the rig, which copies it. See `poses`. */
+const FINGERS = new Float32Array(4);
 
 // ---------------------------------------------------------------------------
 // Per-effector state
@@ -1256,6 +1278,19 @@ class Player {
   readonly goalNormal: [Vector3, Vector3] = [new Vector3(), new Vector3()];
   readonly goalAlong: [Vector3, Vector3] = [new Vector3(), new Vector3()];
   readonly goalOk: [boolean, boolean] = [false, false];
+  /**
+   * And what each hand's fingers are doing there: `Contact.fingers`, index to
+   * little, per hand.
+   *
+   * Alongside the other three because it comes off the same contact and answers
+   * the same question — where does this hand go, which way does it lie, what is
+   * it doing — but it is read by `poses` rather than by `commitIdle`, because it
+   * is shape and not placement. Neutral until a model says otherwise, which is
+   * twenty of the twenty-two.
+   */
+  readonly goalFingers: [Float32Array, Float32Array] = [
+    new Float32Array(4).fill(FINGER_NEUTRAL), new Float32Array(4).fill(FINGER_NEUTRAL),
+  ];
 
   /**
    * 0 at ease, 1 at the instrument. See the `ENGAGE_*` block.
@@ -2954,8 +2989,15 @@ class Runtime implements Animator {
       // where they all used to return one contact and leave both palms in the
       // same place.
       const ask: Effector = k === 1 && p.usesBow ? 'bow' : e;
+      // Cleared before the ask rather than after a failure, because the ask has
+      // three ways of declining — no model, no hands, a point the model does not
+      // know — and only one of them is worth a branch here. A hand whose model
+      // said nothing this frame has neutral fingers, which is the same hand it
+      // was before any of this existed.
+      const fingers = p.goalFingers[k]!;
+      fingers.fill(FINGER_NEUTRAL);
       p.goalOk[k] = this.idleContact(
-        p, ask, beat, p.goal[k]!, p.goalNormal[k]!, p.goalAlong[k]!,
+        p, ask, beat, p.goal[k]!, p.goalNormal[k]!, p.goalAlong[k]!, fingers,
       );
     }
     // And the bow hand idles at the frog, which is wherever the stroke left it.
@@ -3041,6 +3083,7 @@ class Runtime implements Animator {
   private idleContact(
     p: Player, e: Effector, beat: number,
     out: Vector3, outNormal?: Vector3, outAlong?: Vector3,
+    outFingers?: Float32Array,
   ): boolean {
     const model = p.model;
     if (!model) return false;
@@ -3084,6 +3127,14 @@ class Runtime implements Animator {
         slot.idleLocal[at + 6] = a ? a.x : 0;
         slot.idleLocal[at + 7] = a ? a.y : 0;
         slot.idleLocal[at + 8] = a ? a.z : 0;
+        // A model that said nothing about the fingers is written as neutral
+        // rather than left as whatever was in the buffer, so the cache's own
+        // recycling — the oldest entry is overwritten, not cleared — cannot
+        // hand a flautist a trumpeter's fingering.
+        const f = c.fingers;
+        for (let n = 0; n < 4; n++) {
+          slot.idleLocal[at + 9 + n] = f ? (f[n] ?? FINGER_NEUTRAL) : FINGER_NEUTRAL;
+        }
       }
     }
     if (slot.idleFlags[hit] !== 1) return false;
@@ -3108,6 +3159,11 @@ class Runtime implements Animator {
         if (shifted) outAlong.applyQuaternion(Q2);
         outAlong.normalize();
       } else outAlong.set(0, 0, 0);
+    }
+    // Untouched by `shift` and by `p.world`, unlike everything above it: a
+    // fingering is a fact about a hand and not a direction in anybody's frame.
+    if (outFingers) {
+      for (let n = 0; n < 4; n++) outFingers[n] = slot.idleLocal[at + 9 + n]!;
     }
     return true;
   }
@@ -3240,6 +3296,16 @@ class Runtime implements Animator {
    *
    * Everything here is blended rather than snapped; the rig eases over about
    * 85 ms on top of it.
+   *
+   * ## And one thing that is not a shape at all
+   *
+   * A wind player's hands are the case the paragraph above is *right* about and
+   * still leaves half-finished: `wrap` really is what a saxophonist's hands look
+   * like and no gesture kind knows better, so nothing here overrides it — and
+   * for a long time that meant nothing here did anything, and the fingers never
+   * moved. The fingering is not a shape and cannot be chosen from the table; it
+   * comes off the contact the model already answered, as `Contact.fingers`, and
+   * goes out on its own call. See the block inside the loop.
    */
   private poses(p: Player, step: number): void {
     /**
@@ -3257,6 +3323,35 @@ class Runtime implements Animator {
       // that holds it. A clarinettist standing at ease with the horn in both
       // hands and both hands in `relax` is not holding anything.
       const down = this.standDown(p, side);
+      const hand: BodySide = side === 0 ? 'left' : 'right';
+
+      /**
+       * The fingering, which is pushed before anything else and outside the
+       * change test below.
+       *
+       * It has to be outside it. That test asks whether the *shape* changed,
+       * and a saxophonist's never does: nothing below claims a wind hand, so it
+       * leaves the loop every frame of every number asking for the same pose id
+       * at the same weight, which resolves to the archetype's own `wrap`. A
+       * fingering folded in behind the test would therefore be sent exactly
+       * once, on the frame the hand was built, and the horn would go back to
+       * being played by nobody. The two are on separate clocks inside the rig
+       * for the same reason they are on separate lines here.
+       *
+       * Standing down scales it toward neutral rather than switching it off,
+       * and it is the same `down` the pose is about to lose to — so a player
+       * letting go of the horn stops fingering it exactly as fast as their hand
+       * stops being a saxophonist's, with no second timer to keep in step. At
+       * `down === 1` every finger is 0.5, which is `relax`'s own shape and
+       * nothing on top of it.
+       */
+      const from = p.goalFingers[side]!;
+      const keep = 1 - down;
+      for (let n = 0; n < 4; n++) {
+        FINGERS[n] = FINGER_NEUTRAL + ((from[n] ?? FINGER_NEUTRAL) - FINGER_NEUTRAL) * keep;
+      }
+      p.rig.setHandFingers(hand, FINGERS);
+
       // Only a hand whose default is `grip` — a hand that is *holding*
       // something — has anything to learn from the gesture kind. Every other
       // default already describes the action about to happen.
@@ -3297,7 +3392,6 @@ class Runtime implements Animator {
       if (q === p.poseWeight[side] && name === p.poseName[side]) continue;
       p.poseWeight[side] = q;
       p.poseName[side] = name;
-      const hand: BodySide = side === 0 ? 'left' : 'right';
       p.rig.setHandPose(hand, name, q);
     }
   }

@@ -374,14 +374,38 @@ export const ARCHETYPES: Record<Archetype, ArchetypeSpec> = {
     hands: 2, posture: 'sit', points: ['key', 'pedal', 'rest'],
     range: [21, 108], held: false, footprint: 1.5, workHeight: 0.72,
   }),
+  /**
+   * `control` because a Rhodes has a name rail and its player has a spare hand.
+   *
+   * The three archetypes that declare `control` are the three whose player
+   * *stands at* an object with a face full of switches and can take a hand off
+   * it between phrases, and that is exactly the test casting uses to decide who
+   * may be handed a drum machine — see `canWorkAPanel` in `cast.ts`. It was
+   * `synth` alone, and casting handed machines to these two anyway: 12 of the
+   * 51 panel touches that no archetype had claimed were an electric piano's or
+   * an organ's. Those two are not the bug the other 39 were — a player standing
+   * at a keyboard with a box at their right hand really does reach over, and
+   * `aimMachineControls` in `show.ts` really does route the touch to the box —
+   * but the spec did not say so, and a spec that does not say so is a list the
+   * choreographer was reading past.
+   *
+   * **The models owe a `control` branch, and until they have one this is a
+   * promise on credit.** `web/concert/instruments/electric-piano.ts` and
+   * `organ.ts` answer `undefined` for a `control` point today; the show never
+   * sees that for a machine on a stand, because the wrapper answers first, but
+   * the bare model is what the gallery probes and what `npm run concert` asks —
+   * and it is what a `mount: 'bay'` machine or a `patchPart` press on the
+   * player's *own* panel would fall through to. The drawbars are the organ's
+   * answer and the preamp rail is the Rhodes's.
+   */
   'electric-piano': S({
     id: 'electric-piano', label: 'electric piano', family: 'keys',
-    hands: 2, posture: 'stand', points: ['key', 'rest'],
+    hands: 2, posture: 'stand', points: ['key', 'control', 'rest'],
     range: [28, 103], held: false, footprint: 0.9, workHeight: 0.95,
   }),
   organ: S({
     id: 'organ', label: 'organ', family: 'keys',
-    hands: 2, posture: 'sit', points: ['key', 'rest'],
+    hands: 2, posture: 'sit', points: ['key', 'control', 'rest'],
     /**
      * Down to C1, because an organist has feet.
      *
@@ -396,9 +420,12 @@ export const ARCHETYPES: Record<Archetype, ArchetypeSpec> = {
   }),
   synth: S({
     id: 'synth', label: 'synthesiser', family: 'electronic',
-    // `control` is the panel, and only this archetype claims it: a synthesiser
-    // is the one object here whose player operates the instrument as well as
-    // playing it. See `PlayPoint`'s `control` member.
+    // `control` is the panel, and this is the archetype it was written for: a
+    // synthesiser is the object here whose player operates the instrument as
+    // well as playing it, and it is the only one whose model answers for one
+    // today. The two keyboards above claim it too — see the note on
+    // `electric-piano` — because the *player* is the same case, standing at a
+    // board with a machine at their elbow. See `PlayPoint`'s `control` member.
     hands: 2, posture: 'stand', points: ['key', 'control', 'rest'],
     range: [21, 108], held: false, footprint: 1.0, workHeight: 0.95,
   }),

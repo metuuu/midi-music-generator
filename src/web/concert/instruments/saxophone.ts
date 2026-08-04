@@ -46,6 +46,16 @@
  * hands in one place, palms in the same direction, is what "a cluster of loose
  * fingers hanging off the instrument" looks like from the stalls.
  *
+ * ## And the fingers themselves
+ *
+ * The twelve pads reconfigure on every note and the hands used to sit above them
+ * in one frozen shape all night, which is the other half of the same complaint:
+ * a saxophone that is visibly being fingered by nobody. `Contact.fingers`
+ * carries the pattern out to the player — the same `station` `react` closes the
+ * pads from, so the pads and the fingers cannot disagree — and `fingersOnStack`
+ * shares it out over one hand's four. See both for the reasoning; what is here
+ * is a table per hand and one extra argument to `copy`.
+ *
  * ## Which side it hangs on
  *
  * `SIDE.right === −1` in `performer-look.ts`, so the player's right is local
@@ -80,9 +90,9 @@ import type { Effector, PlayPoint } from '../../../concert/types.js';
 import { Rng } from '../../../core/rng.js';
 import { BLOWN_MOUTH_Y, mouthFor } from './mouth.js';
 import type {
-  Contact, InstrumentBuildOptions, InstrumentBuilder, InstrumentModel,
+  Contact, FingerCurl, InstrumentBuildOptions, InstrumentBuilder, InstrumentModel,
 } from './types.js';
-import { addTo } from './types.js';
+import { addTo, fingersOnStack } from './types.js';
 
 // ---------------------------------------------------------------------------
 // The family
@@ -552,6 +562,24 @@ export const buildSaxophone: InstrumentBuilder = (opts: InstrumentBuildOptions):
   const leftContacts: Contact[] = HOLE_T.map((_, i) => contactAt(i, 1));
 
   /**
+   * Which of each hand's fingers are down, per speaking hole. See
+   * `Contact.fingers`, and `fingersOnStack` for why the index takes the top of
+   * the stack.
+   *
+   * Keyed by the **speaking** station and not by the contact's, which is the
+   * whole reason this is a second table rather than a field of `contactAt`.
+   * `stationFor` clamps a hand to its own six keys, so the right hand sits at
+   * station 5 both for the F it is playing and for every note above it that
+   * belongs to the left hand — one position, two completely different hands.
+   * Keyed off the clamped station those would be the same four numbers, and a
+   * saxophonist would keep three fingers down through the whole of the upper
+   * register, which is the one part of a saxophone an audience can actually
+   * check: on a high note the right hand comes off the horn.
+   */
+  const rightFingers = HOLE_T.map((_, s) => fingersOnStack(0, STACK_SPLIT - 1, s));
+  const leftFingers = HOLE_T.map((_, s) => fingersOnStack(STACK_SPLIT, STATIONS - 1, s));
+
+  /**
    * Which contact each hand takes for a given speaking hole.
    *
    * The hand that owns the hole is on it; the other sits at the end of its own
@@ -570,15 +598,20 @@ export const buildSaxophone: InstrumentBuilder = (opts: InstrumentBuildOptions):
   const restRight = rightContacts[STACK_SPLIT - 2]!;
   const restLeft = leftContacts[STACK_SPLIT + 2]!;
 
-  function copy(c: Contact): Contact {
+  function copy(c: Contact, fingers?: FingerCurl): Contact {
     // `along` is copied. The previous version rebuilt the contact from
     // `position` and `normal` alone, which quietly discarded every knuckle
     // axis this file computes — the fingers then took whatever roll the
     // fallback produced and lay across the keys instead of down them.
+    //
+    // `fingers` is passed by reference on purpose: it is a frozen tuple off a
+    // table nothing writes to, and there is no in-place transform for a caller
+    // to perform on it the way there is on a vector.
     return {
       position: c.position.clone(),
       normal: c.normal.clone(),
       ...(c.along ? { along: c.along.clone() } : {}),
+      ...(fingers ? { fingers } : {}),
     };
   }
 
@@ -618,7 +651,10 @@ export const buildSaxophone: InstrumentBuilder = (opts: InstrumentBuildOptions):
       if (point.midi < LO || point.midi > HI) return undefined;
       const { station } = fingeringFor(point.midi, member);
       const at = stationFor(station, right);
-      return copy((right ? rightContacts : leftContacts)[at]!);
+      return copy(
+        (right ? rightContacts : leftContacts)[at]!,
+        (right ? rightFingers : leftFingers)[station]!,
+      );
     },
 
     react(point: PlayPoint, force: number, _now: number): void {

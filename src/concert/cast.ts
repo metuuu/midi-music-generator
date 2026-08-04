@@ -2711,6 +2711,11 @@ export function castSong(song: Song, venue: Venue, seed: string): Cast {
  * A keyboard player is the opposite case and is why the distinction is worth a
  * list: they can lift a hand between phrases and the instrument keeps sounding
  * or sits quietly, which is exactly what working a machine requires.
+ *
+ * Read twice, for two different questions. `canWorkAPanel` asks it about hands
+ * that are going to be sent somewhere; `anybody` asks it again, further down,
+ * about which player a box that *nobody* can work should at least be standing
+ * beside. The five below are the wrong answer to both.
  */
 const BUSY_HANDS: Archetype[] = [
   'drumkit', 'harp', 'mallets', 'cello', 'upright-bass',
@@ -2800,11 +2805,16 @@ const MACHINE_TABLE_DROP = 0.08;
  * own legs.
  *
  * **The tender is the point, not a nicety.** A machine is chosen for the person
- * most likely to have switched it on: a keyboard player first, then anybody not
- * holding their instrument, then whoever is there. Only a stage with literally
- * nobody on it falls through, and then the machine stands where the kit would
- * have been — which is the one case where there is genuinely no one to explain
- * it, and the type still says so.
+ * most likely to have switched it on, and "likely" now has a test rather than a
+ * list of intuitions: somebody whose instrument has a panel their hands can
+ * leave — see `canWorkAPanel`. A modular player first, then anybody at a board
+ * on a stand, then an organist. Below that nobody on the stage can be *seen*
+ * working a box, and the percussion alone goes on looking, because a rhythm box
+ * with no object at all is the worse failure; what it finds is a place to stand
+ * rather than a pair of hands. Only a stage with literally nobody on it falls
+ * through even that, and then the machine stands where the kit would have been
+ * — the one case where there is genuinely no one to explain it, and the type
+ * still says so.
  */
 function placeMachines(song: Song, slots: Slot[], venue: Venue): StageMachine[] {
   /** The bars a figure is running across, end to end, gaps included. */
@@ -2862,55 +2872,65 @@ function placeMachines(song: Song, slots: Slot[], venue: Venue): StageMachine[] 
   if (!wanted.length) return [];
 
   /**
+   * Whether a hand of this player's may be sent to a panel at all.
+   *
+   * **Two independent tests, and both of them have to pass.** They ask
+   * different questions and each one let the wrong people through on its own.
+   *
+   * `points.includes('control')` is the *spec's* question: has this object ever
+   * agreed to answer for a hand on a panel? `ArchetypeSpec.points` is the list
+   * a model of that archetype must resolve and therefore the only list the
+   * choreographer may draw from — see `PlayPoint`, where a point a model does
+   * not recognise resolves to `undefined` on purpose, because a hand that
+   * visibly does not know where to go is a bug worth seeing. Handing a machine
+   * to somebody whose spec has no `control` in it is writing a gesture nothing
+   * on the stage can place: 51 of them, measured over 14 genres, and the ones
+   * on a carried instrument genuinely landed nowhere.
+   *
+   * `held` and `BUSY_HANDS` are the *body's* question, and they are still here
+   * because the first test does not imply them. An accordion has registers and
+   * a panel would be a perfectly sensible thing for that model to answer for —
+   * and an accordionist's hands are inside the instrument and are never going
+   * anywhere. A spec may honestly claim a panel that its player cannot leave.
+   */
+  const canWorkAPanel = (s: Slot): boolean => {
+    const spec = specFor(s.archetype);
+    return spec.points.includes('control') && !spec.held
+      && !BUSY_HANDS.includes(s.archetype);
+  };
+
+  /**
    * Who works them, best first.
    *
    * A modular player leads, and not only because a bay is the better-looking
    * answer: a frame full of modules is the object these machines *were* part
    * of, so putting a sequencer in one needs no explaining at all. After that
-   * any player standing behind a board on a stand, then anybody with their
-   * hands free of an instrument. `GEAR` is the same list the arc uses, asked
-   * for a different reason — a player with both hands full of trombone has no
-   * rig to bolt anything to.
+   * any player standing behind a board on a stand, then anybody else whose
+   * instrument has a panel — an organist, whose hands leave the manuals between
+   * phrases and whose drawbars are as much a control surface as a filter row.
+   * `GEAR` is the same list the arc uses, asked for a different reason.
+   *
+   * **The fourth tier is gone, and it was the largest single source of the
+   * fault.** It read "failing all of that, somebody who has to put their
+   * instrument down for a moment", and the compromise it described never
+   * happened: a clarinettist handed a rhythm box got the panel gestures and
+   * nothing else. `show.ts` only wraps a model with `aimMachineControls` in the
+   * branch for players who *stand at* their instrument, so for a carried one
+   * the touch went to the bare model, which has no `control` branch, resolved
+   * to nothing, and the runtime eased the arm back toward the body — a hand
+   * that gives up mid-number in front of the box it is supposed to be starting.
+   * 30 of the 51 undeclared gestures were exactly that: clarinet ×15,
+   * trombone ×8, electric-guitar ×5, violin ×2.
+   *
+   * What that tier was protecting is real and is kept below, in `anybody`: the
+   * ambient quartet with no keyboard on the stage still gets its rhythm box
+   * placed beside somebody. What it does not get any more is a fake gesture.
    */
   const tiers: Slot[][] = [
-    slots.filter((s) => s.rig === 'modular'),
-    slots.filter((s) => s.rig !== 'modular' && GEAR.includes(s.archetype)),
-    /**
-     * …and only then anybody else standing at something, minus the five who
-     * cannot possibly work a machine.
-     *
-     * `held: false` was doing this job alone and let in exactly the wrong
-     * people. A **drummer** is the busiest pair of hands on the stage and has
-     * both feet occupied as well; a **harpist** has both hands on the strings
-     * and a mallet player has a stick in each. Every one of them passes "is not
-     * carrying their instrument" and none of them has a free hand between
-     * downbeats, which is the thing that actually matters.
-     */
-    slots.filter((s) => !GEAR.includes(s.archetype)
-      && !specFor(s.archetype).held
-      && !BUSY_HANDS.includes(s.archetype)),
-    /**
-     * …and failing all of that, somebody who has to put their instrument down
-     * for a moment.
-     *
-     * The tier the header describes as "whoever is there" and that was never
-     * written, which is why the header's next sentence was false: a stage with
-     * *nobody eligible* fell through the same hole as a stage with nobody on
-     * it. Ambient's `aquatic` style casts an upright bass, a harp, a violin and
-     * a cello over a programmed part — no rig, no free hands, and a rhythm box
-     * — so the box took the empty-stage fallback with four people standing in
-     * front of it. That fallback leaves `tendedBy` off because the type is
-     * saying there is genuinely nobody; here it said it in front of a quartet,
-     * and what it put on the boards was the unexplained table this whole
-     * routine exists to avoid.
-     *
-     * A violinist who lowers the bow for a bar to press start is a compromise.
-     * A case on an occupied stage that belongs to none of them is not a
-     * compromise, it is the failure. `BUSY_HANDS` still holds the line: the
-     * five above genuinely cannot let go, and the sort below picks whichever of
-     * the rest the box's own bars leave the most room.
-     */
-    slots.filter((s) => !BUSY_HANDS.includes(s.archetype)),
+    slots.filter((s) => canWorkAPanel(s) && s.rig === 'modular'),
+    slots.filter((s) => canWorkAPanel(s) && s.rig !== 'modular'
+      && GEAR.includes(s.archetype)),
+    slots.filter((s) => canWorkAPanel(s) && !GEAR.includes(s.archetype)),
   ];
 
   /**
@@ -2929,9 +2949,26 @@ function placeMachines(song: Song, slots: Slot[], venue: Venue): StageMachine[] 
    * the most rests, hands full or not. `wanted` puts the percussion first, so
    * it asks this question of an untouched roster and the sequencers behind it
    * never reach here.
+   *
+   * **These two tiers are a placement, not a promise**, and that is the one
+   * thing about them that has changed. `tendedBy` means "whose corner of the
+   * stage this box is standing in" here rather than "who is seen working it":
+   * the archetypes that reach this far cannot take a `control` point — that is
+   * why they fell past every tier above — and `choreograph.ts` writes them
+   * none, so what the audience gets is a box beside a violinist and no account
+   * of who started it. That is the honest version of what this already was.
+   * The alternative is not a better gesture, it is no box at all, and drums
+   * from an empty stage is the failure §8.1 exists for.
+   *
+   * The old fourth tier survives as the first of the two, because whose corner
+   * it is standing in is still worth getting right: a violinist beside a rhythm
+   * box reads better than a harpist with both hands in the strings, even when
+   * neither of them is going to touch it.
    */
   const anybody = (kind: StageMachine['kind']): Slot[][] =>
-    kind === 'sequencer' ? tiers : [...tiers, slots];
+    kind === 'sequencer'
+      ? tiers
+      : [...tiers, slots.filter((s) => !BUSY_HANDS.includes(s.archetype)), slots];
 
   /** Which bars each player's hands are down in — their own line and any they double. */
   const struck = new Map<Slot, Set<number>>(slots.map((s) => [

@@ -11,7 +11,7 @@
  * from the instrument model and the **shape comes from here**: a fist around a
  * stick, a flat palm on a key bed, fingers spread across a fretboard.
  *
- * Thirteen poses, blended rather than switched. A pose is nine numbers — four
+ * Eighteen poses, blended rather than switched. A pose is nine numbers — four
  * finger curls, a second-joint fold, a splay, two thumb values and a palm
  * arch — so blending two poses is `lerp` on each, and asking for "halfway to a
  * fist" is a meaningful request rather than a special case. Two hands never
@@ -19,7 +19,7 @@
  * roughly what a real hand does and is short enough that a sixteenth-note
  * passage still reads.
  *
- * ## Two things on top of the pose, and why they are not poses
+ * ## Three things on top of the pose, and why they are not poses
  *
  * **The wrist follows the arm.** A placed hand takes its whole orientation from
  * the contact normal, which leaves the wrist perfectly square to the instrument
@@ -37,6 +37,17 @@
  * drawn from the performer's id, so "both hands to `stick`" produces two
  * slightly different hands rather than one hand and its mirror. That also
  * cannot be a pose, because it must survive every pose.
+ *
+ * **The fingers play the note.** A pose is the shape of the *job*, held for as
+ * long as the player is doing it: a saxophonist's hands are `wrap` from the
+ * first bar to the last. What they are not is still, and until `setFingers`
+ * they were — one frozen curve over a horn whose twelve pads were reconfiguring
+ * underneath it, which is the "played completely wrong" this channel exists to
+ * answer. It cannot be a pose either, and for the plainest of the three
+ * reasons: there are as many fingerings as there are notes, and a named table
+ * of shapes is a vocabulary rather than a keyboard. So the fingering comes from
+ * the instrument, as `Contact.fingers`, and lands here as four closures added
+ * on top of whatever `curl` the shape asked for. See `FINGER_THROW`.
  *
  * ## Why the fingers are cheap
  *
@@ -74,7 +85,11 @@ export type HandPoseId =
   | 'strap'   // flat under an accordion's bass strap, fingers on the buttons
   | 'pluck'   // thumb and index pinched, the rest folded
   | 'point'   // index out; a cue, a count-in
-  | 'open';   // fingers straight and fanned — a singer's free hand
+  | 'open'    // fingers straight and fanned — a singer's free hand
+  | 'wrap'    // round a vertical tube, fingertips on the far face of it
+  | 'arch'    // over a tube held sideways, thumb underneath
+  | 'valve'   // three fingertips on three buttons, thumb under the leadpipe
+  | 'cupped'; // a shell round the end of a harmonica
 
 export interface HandPose {
   /** Fold at the knuckle, index to little, 0 straight .. 1 into the palm. */
@@ -175,8 +190,8 @@ export interface HandPose {
 }
 
 /**
- * The vocabulary. Thirteen shapes, and the four added last are the four the
- * first nine were quietly approximating.
+ * The vocabulary. Eighteen shapes, and the ones added last are always the ones
+ * the earlier list was quietly approximating.
  *
  *  - **`fist` is not how anyone holds a stick.** A matched grip has the stick
  *    running across the first joint of the index and held against the thumb
@@ -193,6 +208,12 @@ export interface HandPose {
  *    hand look like it was strangling the instrument.
  *  - **`press` is one finger, not five.** A whole hand at `keys` descending on
  *    a key is a hand playing a cluster.
+ *  - **`keys` is not a wind instrument.** It is a hand hovering flat over a
+ *    horizontal bed with the thumb abducted out to the side to play notes with,
+ *    and it was on the saxophone, the clarinet, the flute and the trumpet — four
+ *    instruments with no bed, no horizontal and no thumb that plays anything.
+ *    Every one of them is instead partly *held* by its thumbs, which is what
+ *    `wrap`, `arch` and `valve` are mostly about; see each.
  */
 export const HAND_POSES: Record<HandPoseId, HandPose> = {
   relax: { curl: [0.34, 0.40, 0.43, 0.46], tip: 0.50, spread: 0.18, thumbCurl: 0.30, thumbOut: 0.35, cup: 0.25, wrist: -0.06, touch: 0.35, tool: 0.00, align: 0.00 },
@@ -249,6 +270,101 @@ export const HAND_POSES: Record<HandPoseId, HandPose> = {
   pluck: { curl: [0.84, 0.54, 0.60, 0.66], tip: 0.90, spread: 0.10, thumbCurl: 0.70, thumbOut: 0.50, cup: 0.52, wrist: 0.00, touch: 1.00, tool: 0.00, align: 0.30 },
   point: { curl: [0.00, 1.00, 1.00, 1.00], tip: 1.00, spread: 0.00, thumbCurl: 0.60, thumbOut: 0.18, cup: 0.55, wrist: 0.00, touch: 1.00, tool: 0.00, align: 0.35 },
   open: { curl: [0.05, 0.05, 0.08, 0.10], tip: 0.05, spread: 0.76, thumbCurl: 0.00, thumbOut: 0.82, cup: 0.00, wrist: -0.10, touch: 0.80, tool: 0.00, align: 0.10 },
+  /**
+   * Round a vertical tube, fingertips over the far face of it, thumb behind.
+   *
+   * A saxophone and a clarinet, both hands, and the shape it replaces was
+   * `keys`. On a saxophone there is no key bed and no side to hold a thumb out
+   * to: the tube is near vertical, the pearls are on the face of it aimed at
+   * the house, the fingers come *round* it to reach them, and the thumbs are
+   * the only two digits behind the horn — the right hooked under its rest
+   * carrying most of the weight, the left flat on the octave touch.
+   * `thumbOut: 0.14` against `keys`' 0.62 is the single biggest number in this
+   * entry: a saxophonist's thumbs point at their own chest.
+   *
+   * `spread` is the other half, 0.10 where `keys` is 0.32. Piano fingers fan
+   * across a bed; these are stacked in a column down the tube, one behind the
+   * next, and the rig's own knuckle spacing nearly gets there unaided — `0.46 R`
+   * is 32 mm on a mean player against a tenor's 41 mm stations, so a tenth of
+   * the splay closes the rest of it. Fanned any further the hand reads as laid
+   * *across* the keywork rather than on it, which is the other thing that was
+   * wrong with borrowing a pianist's shape.
+   *
+   * The wrist barely breaks. It cannot do much on this instrument: the contact
+   * normal already turns the palm to face the tube and the arm arrives on its
+   * own side of it, so what is left for the pose to say is that the knuckles
+   * ride a shade above the pearls and the fingers hook down onto them.
+   */
+  wrap: { curl: [0.54, 0.58, 0.60, 0.64], tip: 0.72, spread: 0.10, thumbCurl: 0.45, thumbOut: 0.14, cup: 0.52, wrist: 0.05, touch: 1.00, tool: 0.00, align: 0.35 },
+  /**
+   * Arched over a tube held sideways, thumb underneath taking the weight.
+   *
+   * The flute, both hands — and the two hands of a flautist are famously *not*
+   * alike. The left comes from behind with the forearm supinated hard and the
+   * fingers reaching away from the player; the right stands over the tube from
+   * in front with the fingers curling back toward it. That difference is real,
+   * and it is deliberately not in this table: `flute.ts` already mirrors
+   * `Contact.along` per hand and the rig derives the finger direction from
+   * `along × normal`, so the roll arrives from the geometry. A second pose
+   * asserting the same thing could only ever disagree with it, and the field
+   * that would have to carry it — `wrist` — is a pitch and not a roll, so it
+   * could not carry it anyway.
+   *
+   * What a flute needs from the *shape* is what both its hands share and no
+   * other instrument here does. The fingers come straight down onto a row of
+   * cups from above, so they are flatter than `wrap`'s and far flatter than
+   * `grip`'s; the thumbs are *under* the tube rather than opposing the fingers
+   * across it, so `thumbOut` is nearly nothing; and the palm is a shallow arch
+   * rather than a cup, because there is nothing to close round. A flute is
+   * balanced on three points, not held, and a hand that looked like it had hold
+   * of one would be the wrong instrument.
+   */
+  arch: { curl: [0.40, 0.44, 0.46, 0.50], tip: 0.58, spread: 0.14, thumbCurl: 0.20, thumbOut: 0.08, cup: 0.22, wrist: 0.14, touch: 1.00, tool: 0.00, align: 0.40 },
+  /**
+   * Three fingertips standing on three buttons, thumb hooked under the
+   * leadpipe.
+   *
+   * The trumpet's right hand. `keys` was the nearest thing in the table and
+   * still wrong in the way that shows: a pianist's thumb is abducted out to
+   * play notes with, and a trumpeter's thumb plays nothing whatever. It goes
+   * *under* the leadpipe, between the pipe and the first casing, opposite the
+   * fingers — and it is half of what holds a trumpet up, the left hand round the
+   * casing block being the other half.
+   *
+   * `spread` goes the other way from `wrap`'s and further than `keys`', to
+   * 0.44. The valve buttons are 47 mm apart down the horn where these knuckles
+   * sit about 32 mm apart, so the hand has to open out along the casing block
+   * to stand on all three at once — the one blown instrument here whose keys
+   * are *wider* apart than the fingers that play them.
+   *
+   * The little finger is curled further than the other three and articulates
+   * not at all. It is not on a button: it rests over the hook and stays there,
+   * which is why `trumpet.ts` hands it the neutral 0.5.
+   */
+  valve: { curl: [0.46, 0.48, 0.50, 0.60], tip: 0.66, spread: 0.44, thumbCurl: 0.32, thumbOut: 0.20, cup: 0.34, wrist: 0.06, touch: 1.00, tool: 0.00, align: 0.45 },
+  /**
+   * Two hands closed into a shell round the ends of a harmonica.
+   *
+   * `grip` was near enough to survive a long time, and it is a fist round a
+   * cylinder: fingers folded hard, thumb well out to the side. A harmonica is
+   * not gripped. It is *cupped* — the harp pinched between the left thumb and
+   * the side of the left index, the fingers of both hands closing behind it
+   * into a chamber the player opens and shuts for the wah. So the fingers
+   * barely fold, the thumbs run alongside them rather than out, and the palm
+   * takes the deepest arch in the table, because here the arch is the
+   * instrument's resonating volume rather than a detail of a grip.
+   *
+   * `spread` is the only zero in the table and that is the point: a cup with
+   * gaps in it is a pair of hands waving.
+   *
+   * `touch` stays at 0 exactly as `grip` had it, which is a decision and not an
+   * inheritance. `harmonica.ts` measures its contacts to land the *palm's
+   * surface* on the end plate — see `GRIP_X` there, which is `0.19 R` inside it
+   * for precisely this reason — so a shape that met the world at its fingertips
+   * would take both hands a finger's length off the harp, which is the bug that
+   * file already fixed once.
+   */
+  cupped: { curl: [0.40, 0.44, 0.46, 0.48], tip: 0.52, spread: 0.00, thumbCurl: 0.24, thumbOut: 0.10, cup: 0.85, wrist: -0.05, touch: 0.00, tool: 0.00, align: 0.20 },
 };
 
 /**
@@ -291,7 +407,7 @@ export const DEFAULT_HAND_POSES: Record<Archetype, { left: HandPoseId; right: Ha
   organ: { left: 'keys', right: 'keys' },
   synth: { left: 'keys', right: 'keys' },
   accordion: { left: 'strap', right: 'keys' },
-  harmonica: { left: 'grip', right: 'grip' },
+  harmonica: { left: 'cupped', right: 'cupped' },
   'acoustic-guitar': { left: 'spread', right: 'pluck' },
   'electric-guitar': { left: 'spread', right: 'pluck' },
   'upright-bass': { left: 'spread', right: 'pluck' },
@@ -301,11 +417,29 @@ export const DEFAULT_HAND_POSES: Record<Archetype, { left: HandPoseId; right: Ha
   violin: { left: 'spread', right: 'bowhold' },
   cello: { left: 'spread', right: 'bowhold' },
   mallets: { left: 'stick', right: 'stick' },
-  trumpet: { left: 'grip', right: 'keys' },
+  /**
+   * The blown family, which was six archetypes borrowing two shapes that
+   * describe neither a horn nor a hand on one.
+   *
+   * `keys` — a pianist's — was on the saxophone, the clarinet, the flute and
+   * the trumpet's fingering hand, and `wrap`, `arch` and `valve` are what those
+   * four actually are; each entry in `HAND_POSES` says how it differs and why
+   * it had to. The harmonica's `grip` was a fist round a microphone and is now
+   * `cupped`.
+   *
+   * The trombone keeps `grip` on both hands, and that is the one entry here
+   * left alone on purpose. A trombonist's right hand really is closed round a
+   * slide brace and their left really is closed round the bell tube — a rod and
+   * a pipe, which is what `grip` is for. Both contacts in `trombone.ts` are
+   * measured against `grip`'s `touch: 0` besides, so there is nothing to gain
+   * and a hand's length to lose. It is also the one blown instrument with
+   * nothing to finger, which is why it is the one with no `Contact.fingers`.
+   */
+  trumpet: { left: 'grip', right: 'valve' },
   trombone: { left: 'grip', right: 'grip' },
-  saxophone: { left: 'keys', right: 'keys' },
-  clarinet: { left: 'keys', right: 'keys' },
-  flute: { left: 'keys', right: 'keys' },
+  saxophone: { left: 'wrap', right: 'wrap' },
+  clarinet: { left: 'wrap', right: 'wrap' },
+  flute: { left: 'arch', right: 'arch' },
   // A singer's hands are free, and that is most of what a singer's body says.
   singer: { left: 'relax', right: 'open' },
 };
@@ -512,6 +646,16 @@ export interface HandRig {
   /** Target shape, immediately. For the first frame and for a hard cut. */
   snapPose(pose: HandPose): void;
   /**
+   * How far each finger is down, index to little — `Contact.fingers`, straight
+   * off the instrument. `undefined` means the pose decides, which is what every
+   * hand that is not on a wind instrument says.
+   *
+   * Additive on `HandPose.curl` and eased on its own clock, because it changes
+   * for a different reason and at a different rate: the shape is the job and
+   * the fingering is the note. See `FINGER_THROW`.
+   */
+  setFingers(close: ArrayLike<number> | undefined): void;
+  /**
    * Where the forearm is, as two angles in the hand's own frame — extension
    * and deviation, radians, both clamped internally.
    *
@@ -536,6 +680,34 @@ const WRIST_TAU = 0.12;
 
 /** How far the wrist will break to meet the forearm, radians. */
 const WRIST_LIMIT = 0.42;
+
+/**
+ * How much of the curl range a fingering is allowed to move a finger.
+ *
+ * The pose is the hand at rest over its own keys, and this is what a finger
+ * adds to that going down and takes off it coming up: a fully pressed finger is
+ * half of this more curled than the shape asked for, a lifted one half of it
+ * less. **A swing about the pose, not a range from it** — so a model with
+ * nothing to say about a finger says the middle of it and moves nothing, which
+ * is how a trumpeter's little finger stays in the ring hook while the other
+ * three work. See `Contact.fingers`.
+ *
+ * Under a third of the range, which is about 17° each way at the knuckle and,
+ * once the second joint has multiplied it, a good two centimetres at the
+ * fingertip on a hand this size. A saxophone key lifts four millimetres. This
+ * is the same lie the models tell with their pads and it is told for the same
+ * reason: what is being drawn is not the key travel, it is that a finger moved,
+ * and at ten metres a truthful four millimetres is a still hand.
+ *
+ * It is added *after* `aimTouch` has solved, deliberately — see there.
+ */
+const FINGER_THROW = 0.32;
+
+/** How long a finger takes to arrive. Quicker than the hand: a key is thrown. */
+const FINGER_TAU = 0.045;
+
+/** Neither down nor lifted: the shape the pose already describes. */
+const FINGER_NEUTRAL = 0.5;
 
 /**
  * A per-hand constant offset, applied to every pose this hand ever takes.
@@ -671,6 +843,14 @@ export function buildHand(
   let target: HandPose = HAND_POSES.relax;
   let settled = false;
 
+  // The fingering channel: where each finger is being asked to go, and where it
+  // has got to. Held beside the pose rather than inside it because it is not a
+  // shape — see the header — and initialised to neutral, so a hand nobody ever
+  // calls `setFingers` on is exactly the hand this rig drew before the channel
+  // existed.
+  const fingerTo = [FINGER_NEUTRAL, FINGER_NEUTRAL, FINGER_NEUTRAL, FINGER_NEUTRAL];
+  const fingerAt = [FINGER_NEUTRAL, FINGER_NEUTRAL, FINGER_NEUTRAL, FINGER_NEUTRAL];
+
   // The forearm channel. Held separately from the pose because it changes for a
   // different reason and on a different clock: the pose is a decision, this is
   // a consequence of where the hand was put.
@@ -716,6 +896,20 @@ export function buildHand(
    * `bone` runs along `+y` from its own base and `+π/2` is what lays it along
    * `+z`, so a segment at angle θ about `x` contributes `(0, L cos θ, L sin θ)`
    * and the whole finger is two of those from the knuckle at `z = 0.78 R`.
+   *
+   * ## The fingering is not in here, and that is the whole of why it works
+   *
+   * `FINGER_THROW` moves the drawn index by up to a sixth of the curl range and
+   * this solve deliberately does not see it. The rig places a hand by subtracting
+   * `touchPoint` from the contact, so anything that moves the touch point moves
+   * the *hand*: a saxophonist lifting an index finger off a pearl would have had
+   * the whole hand shunted a finger's length back up the horn to keep the
+   * fingertip on the key it had just come off. Inverted, and every note.
+   *
+   * So the hand is placed by where the model says the *station* is, and the
+   * fingers move relative to that. A pressed finger goes a few millimetres into
+   * the key it is pressing, which is about what a key does, and a lifted one
+   * lifts — which is the only one of the two anybody was ever going to notice.
    */
   function aimTouch(pose: HandPose, cup: number, tip: number): void {
     const curl = clamp((pose.curl[0] ?? 0) + (bias.curl[0] ?? 0), 0, 1);
@@ -748,7 +942,16 @@ export function buildHand(
     for (let i = 0; i < fingers.length; i++) {
       const f = fingers[i];
       if (!f) continue;
-      const curl = clamp((pose.curl[i] ?? 0) + (bias.curl[i] ?? 0), 0, 1);
+      const curl = clamp(
+        (pose.curl[i] ?? 0) + (bias.curl[i] ?? 0)
+          // The fingering, on top of the shape. Toward the palm is toward the
+          // instrument for every hand placed by a contact normal — the palm
+          // faces `-normal` by construction — so one sign is right for a key
+          // cup on the far side of a saxophone, a pad on top of a flute and a
+          // valve button on top of a trumpet alike.
+          + ((fingerAt[i] ?? FINGER_NEUTRAL) - FINGER_NEUTRAL) * FINGER_THROW,
+        0, 1,
+      );
       // `+π/2` lays the bone along `+z`; anything beyond that folds it toward
       // the palm, which is `-y`. One angle does the whole knuckle.
       f.base.rotation.set(
@@ -773,8 +976,13 @@ export function buildHand(
 
   apply(current);
 
-  /** In place, because this runs twelve times a frame with six on stage. */
-  function ease(k: number): number {
+  /**
+   * In place, because this runs twelve times a frame with six on stage.
+   *
+   * Two rates: `k` for the shape and `fk`, the faster, for the fingering. See
+   * `FINGER_TAU`, and the tail of this function for why they share a method.
+   */
+  function ease(k: number, fk: number): number {
     let moved = 0;
     for (let i = 0; i < 4; i++) {
       const to = target.curl[i] ?? 0;
@@ -804,11 +1012,22 @@ export function buildHand(
     // be. The two fields are one journey in two stages — palm to fingertip,
     // fingertip to bead; see `HandPose.tool` — so they step together.
     step('touch'); step('tool');
-    // On the same clock as the fingers, and that is the point of easing it here
+    // On the same clock as the shape, and that is the point of easing it here
     // rather than reading the target: the elbow of a player coming off a bow
     // hold is halfway out of bow-arm discipline exactly when the hand is
     // halfway out of the shape, with no second time constant to keep in step.
     step('align');
+
+    // And the fingering, on `fk` rather than `k`. It is here rather than in its
+    // own method precisely because `moved` is one number: the settle test below
+    // is what stops `apply` running on a hand that has arrived, and a hand whose
+    // shape has arrived while its fingers are still travelling has not arrived.
+    for (let i = 0; i < 4; i++) {
+      const at = fingerAt[i] ?? FINGER_NEUTRAL;
+      const d = ((fingerTo[i] ?? FINGER_NEUTRAL) - at) * fk;
+      fingerAt[i] = at + d;
+      moved += Math.abs(d);
+    }
     return moved;
   }
 
@@ -823,9 +1042,22 @@ export function buildHand(
     },
     snapPose(pose: HandPose): void {
       target = pose;
-      ease(1);
+      ease(1, 1);
       apply(current);
       settled = true;
+    },
+    setFingers(close: ArrayLike<number> | undefined): void {
+      for (let i = 0; i < 4; i++) {
+        const raw = close === undefined ? FINGER_NEUTRAL : close[i];
+        // A non-finite closure has to become neutral rather than propagate: the
+        // ease below is `x += (target − x) * k`, and one NaN in a target is a
+        // finger that is never drawn again for the rest of the show.
+        const want = typeof raw === 'number' && Number.isFinite(raw)
+          ? clamp(raw, 0, 1) : FINGER_NEUTRAL;
+        if (want === fingerTo[i]) continue;
+        fingerTo[i] = want;
+        settled = false;
+      }
     },
     setWrist(e: number, d: number): void {
       wantExtend = clamp(Number.isFinite(e) ? e : 0, -WRIST_LIMIT, WRIST_LIMIT);
@@ -845,7 +1077,7 @@ export function buildHand(
         applyFlex();
         return;
       }
-      const moved = ease(1 - Math.exp(-dt / POSE_TAU));
+      const moved = ease(1 - Math.exp(-dt / POSE_TAU), 1 - Math.exp(-dt / FINGER_TAU));
       apply(current);
       if (moved < 1e-4) settled = true;
     },

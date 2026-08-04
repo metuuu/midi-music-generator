@@ -31,9 +31,9 @@ import {
 } from './concert/instruments.js';
 import { buildConcert, soundingEffectors } from './concert/index.js';
 import { cableBounds, routeOnDeck, stageBoxAt, type Obstacle } from './web/concert/cables.js';
-import { BUILDERS } from './web/concert/instruments/index.js';
+import { BUILDERS, buildInstrumentFor } from './web/concert/instruments/index.js';
 import { riserFootprint } from './web/concert/stage-props.js';
-import type { Gesture, SynthRigId } from './concert/types.js';
+import type { Archetype, Effector, Gesture, SynthRigId } from './concert/types.js';
 
 /**
  * A hi-hat pedal being held down or let up — the one gesture in the IR that is
@@ -167,27 +167,97 @@ console.log(`        archetypes exercised: ${[...seenArchetypes].sort().join(', 
 console.log('\nShows');
 
 /**
- * The four the stage was built against — and it is worth knowing that is all
- * they are.
+ * Every genre — and the four this used to be are the argument for why.
  *
- * Ten more genres exist and none of them is exercised below. That is how three
- * hand-drum strokes could resolve to a point in the air beside the floor tom
- * for a whole release without a single assertion going red: the choreography
- * was correct, the coverage was exact, and nothing on this list ever played a
- * bar of arabic. Widening it is the obvious fix and it is not free — the
- * newcomers fail three of the checks below today, on cable routing and on
- * staging a polysynth in 1780, neither of which is about percussion. Those want
- * their own pass. The percussion half of the gap is covered by the section at
- * the end of this file, which runs over every genre.
+ * It read `['iskelma', 'jazz', 'ambient', 'synth']`, the four the stage was
+ * built against, with a note that said exactly what that cost and then left it
+ * at four anyway: three hand-drum strokes resolved to a point in the air beside
+ * the floor tom for a whole release, because the choreography was correct, the
+ * coverage was exact, and nothing on this list ever played a bar of arabic.
+ *
+ * Then it happened again, and this time it was measured. `chooseStops` places
+ * string notes by maximum bipartite matching — a greedy first fit, and then an
+ * augmenting search for whatever that first pass stranded. The augmenting half
+ * is the delicate half, and deleting it outright costs, in violin drop rate:
+ *
+ *     the four that used to be here    0.2 points
+ *     rock                            12.5
+ *     reggae                          10.9
+ *     latin                            9.5
+ *
+ * The most careful part of that work could have been reverted with every
+ * assertion in this file still green. Three genres would have closed that one
+ * hole; the whole list is here instead, because choosing the three you have
+ * already been told about is the move that shipped the hand drum.
+ *
+ * ## What the sweep found the first time it ran
+ *
+ * Five defects in five places. One is percussion, none of the others is, and no
+ * subset anybody would have guessed contains more than two of them:
+ *
+ *  - **A polysynth on stage in 1780.** `rigPoolFor` falls back to the polysynth
+ *    when no rig's window contains the year, and its own comment calls that
+ *    fallback "unreachable for any era in the project today". It stopped being
+ *    unreachable when finnfolk, country, indian and latin brought eras before
+ *    1963 — four genres, none of them on the old list.
+ *  - **A lead through a player.** One run in 1045, in arabic, 5.8 cm inside a
+ *    performer's circle: the corner-cutting hole the cable section three blocks
+ *    down says it is watching for, seen for the first time.
+ *  - **A hand percussionist playing a whole number with one hand.** `handPart`
+ *    buys alternation with a recency bonus capped at one beat, so on any part
+ *    whose strokes are a beat or more apart both hands are equally rested, the
+ *    bonus cancels, and bare proximity sends every stroke to the same hand
+ *    forever. Its own comment names that as the failure it exists to prevent.
+ *  - **A chord wider than a hand, on one hand.** An accordion grabs up to 19
+ *    semitones and an electric piano 14, because the two-hand split divides the
+ *    chord without bounding either share.
+ *  - **A drum machine nobody is seen starting** — which turned out to be this
+ *    file's mistake rather than the show's. See the panel note there.
+ *
+ * Three more of the reds were this file's own and are fixed in place: that one,
+ * the knot posture asked of a hand drum, and a hand span measured between
+ * whichever two notes of a chord happened to be adjacent.
+ *
+ * ## What it costs, since it is not free
+ *
+ * The show-level checks are the expensive ones — 45 concerts per genre, against
+ * the five per genre the `Instruments` sweep at the foot of this file takes —
+ * so widening from four to fourteen takes `npm run concert` from 27 s to 58 s,
+ * inside `npm run verify`. Thirty seconds for five defects, four of which no
+ * reachable guess would have caught together, is the trade. `Instruments`
+ * already made the same decision on a smaller bill and is the precedent.
+ *
+ * Rejected: adding rock, reggae and latin and stopping there, which is what the
+ * augmenting pass needs and what nothing else here needs. It would have found
+ * one of the five, and it would have rebuilt the list that this note has now
+ * twice had to apologise for.
  */
-const CHECKED_GENRES = ['iskelma', 'jazz', 'ambient', 'synth'];
+const CHECKED_GENRES = GENRE_IDS;
+
+/**
+ * The span of one grab, in semitones, above which it is two hands or a lie.
+ *
+ * An octave: the reach "an octave stretch" refers to, and the same number
+ * `choreograph.ts` holds itself to in `handSpanSemitones`. Kept at twelve for
+ * every archetype rather than widened for the accordion, whose treble manual
+ * has narrower keys than a piano's and whose left hand is on bass buttons and
+ * cannot be handed anything — a real argument, and not one this file gets to
+ * settle by picking a number that clears what it happens to measure. If an
+ * accordion hand is wider than an octave, the place that says so is the
+ * function that already owns the claim.
+ */
+const HAND_SPAN = 12;
 let shows = 0;
 let gestures = 0;
 let soundingNotes = 0;
 let soundingGestures = 0;
+/** Notes owed and gestures made, per archetype. See the coverage check below. */
+const coverage = new Map<Archetype, { notes: number; sounded: number }>();
 let offGrid = 0;
 let overlaps = 0;
 let ungraspable = 0;
+/** Grabs wider than a hand, and the worst of them, per archetype. */
+const wideGrabs = new Map<Archetype, { n: number; worst: number }>();
 let orphanSpots = 0;
 let cuesAfterEnd = 0;
 let ambientSpots = 0;
@@ -236,6 +306,10 @@ for (const gid of CHECKED_GENRES) {
         ).length;
         soundingNotes += notes;
         soundingGestures += sounded;
+        const owed = coverage.get(performer.archetype) ?? { notes: 0, sounded: 0 };
+        owed.notes += notes;
+        owed.sounded += sounded;
+        coverage.set(performer.archetype, owed);
 
         // Physical plausibility, per effector.
         const byEffector = new Map<string, typeof part.gestures[number][]>();
@@ -247,27 +321,48 @@ for (const gid of CHECKED_GENRES) {
           byEffector.set(g.effector, arr);
         }
 
+        /**
+         * Simultaneous gestures on one effector are legitimate — a chord is one
+         * hand on several keys — but only if the hand can actually span them.
+         * Asserting "never in two places at once" without this refinement fails
+         * on every pianist in the catalogue.
+         *
+         * **Measured across the whole grab, which is the fix.** This walked
+         * *adjacent pairs* of the sorted list, and the sort key is the beat
+         * alone — so within one chord the order is the order the choreographer
+         * emitted the notes in, and the widths compared were whatever two
+         * neighbours happened to fall next to each other. A three-note grab of
+         * 53, 62 and 69 was read as a 9 and a 7 and passed; it is a 16, and one
+         * hand is on all of it. Every chord of three notes or more was
+         * under-measured, which is every chord that matters: the accordion goes
+         * from 2 over an octave to 146 the moment the run is measured whole.
+         */
         for (const [, list] of byEffector) {
           list.sort((a, b) => a.beat - b.beat);
-          for (let k = 1; k < list.length; k++) {
-            const prev = list[k - 1]!;
-            const next = list[k]!;
-            if (next.beat === prev.beat) {
-              /**
-               * Simultaneous gestures on one effector are legitimate — a chord
-               * is one hand on several keys — but only if the hand can actually
-               * span them. Asserting "never in two places at once" without this
-               * refinement fails on every pianist in the catalogue.
-               */
-              const a = prev.target;
-              const b = next.target;
-              const span = a.kind === 'key' && b.kind === 'key'
-                ? Math.abs(a.midi - b.midi)
-                : 0;
-              if (span > 12) ungraspable++;
-              continue;
+          for (let k = 0; k < list.length;) {
+            let end = k;
+            let lo = Infinity;
+            let hi = -Infinity;
+            while (end < list.length && list[end]!.beat === list[k]!.beat) {
+              const t = list[end]!.target;
+              if (t.kind === 'key') { lo = Math.min(lo, t.midi); hi = Math.max(hi, t.midi); }
+              end++;
             }
-            if (next.beat - next.prep < prev.beat + prev.release - 1e-6) overlaps++;
+            if (hi - lo > HAND_SPAN) {
+              ungraspable++;
+              const grab = wideGrabs.get(performer.archetype) ?? { n: 0, worst: 0 };
+              grab.n++;
+              grab.worst = Math.max(grab.worst, hi - lo);
+              wideGrabs.set(performer.archetype, grab);
+            }
+            // The last gesture of this grab against the first of the next one,
+            // which is what "consecutive" means once a chord is one event.
+            if (end < list.length) {
+              const prev = list[end - 1]!;
+              const next = list[end]!;
+              if (next.beat - next.prep < prev.beat + prev.release - 1e-6) overlaps++;
+            }
+            k = end;
           }
         }
       }
@@ -290,13 +385,162 @@ for (const gid of CHECKED_GENRES) {
   }
 }
 
-check('every sounding note produces one gesture', soundingNotes === soundingGestures,
-  `${soundingGestures}/${soundingNotes} across ${shows} shows`);
+/**
+ * Every sounding note produces one gesture — per archetype, and bounded rather
+ * than equal.
+ *
+ * This was a plain equality, and it held for exactly as long as `chooseStops`
+ * was willing to lie. A note it could not honestly finger used to be placed
+ * anyway, by clamping the fret into `0..maxFret` — and the clamp lands on 0,
+ * which is an open string: the single most readable hand position on the
+ * instrument, asserted for a pitch that position cannot make. On a violin that
+ * was 44 % of its notes sitting at the nut. The chooser now guarantees
+ * `spec.strings[string] + fret === note` and emits no gesture at all for a voice
+ * no free string can reach, so the equality had come to assert precisely the
+ * assumption that was deliberately removed: that one player standing in for a
+ * whole section sounds every voice of a section pad.
+ *
+ * ## The violin's ceiling is Hall's bound, not last week's number
+ *
+ * `chooseStops` is a maximum bipartite matching — first fit, then one augmenting
+ * pass — so a dropped voice is one that *no* assignment of these notes to these
+ * strings could have held. What makes that bite on a violin is the tuning:
+ * fifths, each string reaching two octaves, so G3 covers 55–79, D4 62–86, A4
+ * 69–93 and E5 76–96. Hall's condition reads straight off that. **At most one
+ * voice below D4, two below A4, three below E5.** A close-position four-part pad
+ * sitting in the violin's lower octave therefore sounds two of its four voices,
+ * and measured over every genre it never sounds fewer than two — the generator
+ * does not voice a whole pad inside one string's exclusive window.
+ *
+ * Two of four is where 50 % comes from. A sample of nothing but low four-part
+ * pads would read exactly that; the mix actually written — 55 % of this
+ * violinist's chords are single notes and 31 % are four-part — reads 28.2 %
+ * here, and 39.0 % on the worst of twenty reshuffles of a sample this shape. So
+ * the ceiling is the geometry's own answer rather than a multiple of today's
+ * figure, it clears the observed spread by eleven points, and it still sits well
+ * under what a regression makes: a chooser that gave up on any chord it could
+ * not place whole reads 63.8 % on this sample, and one that placed a single
+ * voice per chord reads 54.4 %.
+ *
+ * What no rate can catch is the augmenting pass being deleted. First fit alone
+ * costs 0.2 points in these four genres — it is worth 12.5 in rock, 10.9 in
+ * reggae and 9.5 in latin, none of which this loop samples. Widening
+ * `CHECKED_GENRES` is the fix and it is the same widening the note beside that
+ * list already owes; pretending a rate could see 0.2 points would not be.
+ *
+ * ## Everyone else is asserted at zero, and five strings nearly are
+ *
+ * That is a real assertion and not a formality: twenty archetypes place every
+ * note they are handed, 108 000 of them here and 450 000 across all fourteen
+ * genres. The exceptions are all strings, and only one of them is the violin's
+ * reason:
+ *
+ *  - **The sitar** is the violin's problem on a plucked instrument — four
+ *    courses at 48/53/55/60 over twenty frets, two of them a tone apart, so the
+ *    same Hall bound applies and applies harder to its three- and four-voice
+ *    writing. It gets the same ceiling because it is the same statement, not
+ *    because of what it measures: 0 of 22 notes here, 6.0 % on the worst
+ *    reshuffle. A four-string instrument handed chords is a shape, and this is
+ *    the bound on the shape.
+ *  - **The guitars** have six strings and never run out of them. What they run
+ *    out of is *time*: `groupByBeat` groups on the quantised beat, so two strums
+ *    of one chord less than a sixteenth apart arrive as a single motion holding
+ *    eight voices, and the second copy of each note has no second string to sit
+ *    on. That is the right answer — a guitarist strumming a chord twice inside a
+ *    32nd plays it once — and it is bursty rather than steady: 477 notes in
+ *    438 000 across every genre, 466 of which are one reggae skank part. Zero in
+ *    this sample and 0.1 % on the worst reshuffle, so a hundredth is enough for
+ *    one such part to wander into iskelmä without turning this red, and far too
+ *    little for a neck that has started stranding notes by the bar.
+ *  - **The basses** meet that same collision at the bottom of the neck, which is
+ *    the only place they can meet it: 380 of 316 756 bass notes are in a chord
+ *    at all and two of those are unisons. A unison is what strands — two copies
+ *    of one pitch need two strings — and only below A1, where the E string is
+ *    the only one that reaches: `[28,28]` places one of two, `[33,33]` places
+ *    both. Nothing was dropped in the 316 756 measured here, and that one voice
+ *    is what the allowance is for. It is a couple of notes' worth of a sample
+ *    this size, deliberately not a rate with an opinion.
+ *
+ * Rejected: computing the matching bound here and asserting equality against it.
+ * It is the tightest possible check and it would see the augmenting pass go —
+ * and it is forty lines of the choreographer's own algorithm restated, which
+ * makes it a check that agrees with a bug rather than one that catches it.
+ */
+{
+  const DROP_CEILING: Partial<Record<Archetype, number>> = {
+    violin: 0.50,
+    // Four strings in fifths and a part written for a section — the cello is in
+    // the violin's seat and gets the violin's bound. It has never used any of
+    // it: 99.1 % of its groups are single notes and it stranded nothing in 9 766
+    // across fourteen genres. Nor is it cast in any of the four genres below, so
+    // what this entry is really doing is refusing to make the check's silence
+    // about the cello look like a measurement of it.
+    cello: 0.50,
+    sitar: 0.50,
+    'electric-guitar': 0.01,
+    'acoustic-guitar': 0.01,
+    'electric-bass': 0.0005,
+    'upright-bass': 0.0005,
+  };
+
+  /**
+   * And the drop does not vanish.
+   *
+   * A violin reading exactly zero means the clamp is back: with the pads that
+   * are written, four strings cannot hold every voice, so a bound that only had
+   * a ceiling would be passed most comfortably by the bug it exists to catch.
+   *
+   * Deliberately the weakest floor there is — *some* note, not some rate. The
+   * rate is a fact about the writing and legitimately moves between 13.7 % and
+   * 39.0 %, so asserting a floor on it would be asserting that the generator
+   * keeps writing pads. Zero exactly is the clamp's signature and nothing else's.
+   */
+  const MUST_DROP: ReadonlySet<Archetype> = new Set<Archetype>(['violin']);
+
+  const rows = [...coverage]
+    .map(([a, t]) => ({
+      a,
+      notes: t.notes,
+      sounded: t.sounded,
+      drop: t.notes ? (t.notes - t.sounded) / t.notes : 0,
+      ceiling: DROP_CEILING[a] ?? 0,
+    }))
+    .sort((x, y) => y.drop - x.drop);
+  const say = (r: typeof rows[number]) => `${r.a} ${(r.drop * 100).toFixed(1)}% of ${r.notes}`;
+
+  const over = rows.filter((r) => r.drop > r.ceiling);
+  // A surplus is never allowed for anybody. It is the other half of the equality
+  // this replaced and it stays exact: a gesture with no note behind it is a hand
+  // playing something the audience cannot hear.
+  const surplus = rows.filter((r) => r.sounded > r.notes);
+  const dropping = rows.filter((r) => r.drop > 0);
+  check('every sounding note produces one gesture', over.length === 0 && surplus.length === 0,
+    over.length || surplus.length
+      ? [
+        ...over.map((r) => `${say(r)} over its ${(r.ceiling * 100).toFixed(1)}% ceiling`),
+        ...surplus.map((r) => `${r.a} makes ${r.sounded - r.notes} gestures too many`),
+      ].join(', ')
+      : `${soundingGestures}/${soundingNotes} across ${shows} shows — `
+        + dropping.map((r) => `${say(r)} under ${(r.ceiling * 100).toFixed(0)}%`).join(', ')
+        + `${dropping.length ? ', ' : ''}${rows.length - dropping.length} archetypes complete`);
+
+  const whole = rows.filter((r) => MUST_DROP.has(r.a) && r.notes > 0 && r.sounded === r.notes);
+  check('a one-player section cannot sound every voice', whole.length === 0,
+    whole.length
+      ? `${whole.map((r) => `${r.a} placed all ${r.notes}`).join(', ')} — the fret clamp is back`
+      : rows.filter((r) => MUST_DROP.has(r.a))
+        .map((r) => `${r.a} leaves ${r.notes - r.sounded} of ${r.notes} voices`
+          + ' to the players who are not on stage').join(', ') || 'nobody stands in for a section');
+}
 check('every gesture lands on the audio grid', offGrid === 0, `${gestures} gestures`);
 check('no effector is scheduled over its own release', overlaps === 0,
   overlaps ? `${overlaps} overlaps` : 'none');
 check('simultaneous gestures on one effector are graspable', ungraspable === 0,
-  ungraspable ? `${ungraspable} beyond a hand span` : 'none');
+  ungraspable
+    ? `${ungraspable} beyond ${HAND_SPAN} semitones — `
+      + [...wideGrabs].sort((a, b) => b[1].n - a[1].n)
+        .map(([a, g]) => `${a} ×${g.n} worst ${g.worst}`).join(', ')
+    : 'none');
 check('every follow spot names someone on stage', orphanSpots === 0,
   orphanSpots ? `${orphanSpots} orphaned` : 'none');
 check('no light cue after the last note', cuesAfterEnd === 0,
@@ -747,8 +991,17 @@ check('visemes exist exactly when there is a voice', visemeGaps === 0,
           leads++;
           const path = routeOnDeck(start, { x: box.x, z: box.z }, against, bounds);
           if (!path) {
+            /**
+             * Counted, and deliberately not narrated.
+             *
+             * A dropped run is the router doing as it is told and is printed
+             * rather than asserted — see the check itself — so it has no claim
+             * on `notes`, which is the evidence for the *crossings*. Sharing
+             * one buffer meant the first red line this check ever produced
+             * described three runs it had not failed on and said nothing about
+             * the lead that had gone through a violinist.
+             */
             dropped++;
-            if (notes.length < 3) notes.push(`${gid}#${i} ${start.what} unroutable`);
             continue;
           }
           for (let s = 1; s < path.length; s++) {
@@ -809,7 +1062,8 @@ check('visemes exist exactly when there is a voice', visemeGaps === 0,
    */
   check('no lead crosses anything solid', crossed === 0 && offBoards === 0,
     crossed || offBoards
-      ? `${crossed} crossings, ${offBoards} off the boards: ${notes.join('; ')}`
+      ? `${crossed} sampled points inside something, ${offBoards} off the boards, `
+        + `deepest ${worst.toFixed(3)} m, of ${leads} runs: ${notes.join('; ')}`
       : `${leads - dropped} of ${leads} runs drawn, ${dropped} with no gap to thread, `
         + `${indoors} starting inside something; tightest clearance ${worst.toFixed(2)} m`);
 }
@@ -965,12 +1219,28 @@ check('visemes exist exactly when there is a voice', visemeGaps === 0,
            * A machine with no tender at all is somebody else's assertion: it is
            * only reachable on a stage with nobody eligible standing on it, which
            * is what `every sequencer has someone who could work it` is about.
+           *
+           * **And only of a tender who has a panel to reach for**, which is the
+           * clause this was missing and the reason it went red the first time
+           * fourteen genres ran through it. `tendedBy` carries two meanings and
+           * `choreograph.ts` says which is which: casting will not pick a tender
+           * who cannot work a box, but on a stage where nobody can it still
+           * stands the box beside *somebody*, because percussion arriving from
+           * an empty stage is the worse failure — and there `tendedBy` names
+           * whose corner of the boards it is in rather than who is seen starting
+           * it. `operatePart` is then deliberately never called, on the same
+           * `hasAPanel` test as here. Reading the location as a claim of
+           * authorship failed a violinist in indian and a guitarist in metal for
+           * declining to twiddle a knob on an instrument that has none; over
+           * fourteen genres every one of the 51 boxes minded by a player who
+           * *does* have a panel is worked.
            */
-          if (m.tendedBy) {
+          const tender = number.cast.performers.find((p) => p.id === m.tendedBy);
+          if (tender && ARCHETYPES[tender.archetype].points.includes('control')) {
             boxes++;
-            const mine = (number.cast.machines ?? []).filter((x) => x.tendedBy === m.tendedBy);
+            const mine = (number.cast.machines ?? []).filter((x) => x.tendedBy === tender.id);
             const at = mine.indexOf(m);
-            const touched = (number.choreography.parts[m.tendedBy]?.gestures ?? [])
+            const touched = (number.choreography.parts[tender.id]?.gestures ?? [])
               .some((g) => g.target.kind === 'control' && g.target.machine === at);
             if (!touched) {
               idle++;
@@ -979,14 +1249,32 @@ check('visemes exist exactly when there is a voice', visemeGaps === 0,
               }
             }
           }
-          if (m.tendedBy) {
+          /**
+           * Started by a hand, where there is a hand that could start it.
+           *
+           * The same two readings of `tendedBy` as above, guarded the same way,
+           * for the same reason: on a stage where nobody has a panel the box is
+           * still stood beside *somebody* so the sound has a visible source, and
+           * `choreograph.ts` then declines to call `operatePart` for that tender
+           * on purpose. No `control` gesture can exist for them, so asserting one
+           * here demands a touch on an instrument with nothing to touch, and the
+           * only ways to go green would be to fake the gesture or to leave the
+           * percussion off a stage that needs it.
+           *
+           * Green today only because no panel-less tender happens to mind a
+           * machine entering after the first bar — the block above was wrong in
+           * exactly this way and stayed green too, until fourteen genres ran
+           * through it and it failed a violinist in indian and a guitarist in
+           * metal. Guarded before rather than after that happens again.
+           */
+          if (tender && ARCHETYPES[tender.archetype].points.includes('control')) {
             const figure = m.layer
               ? number.song.tracks.find((t) => t.layer === m.layer)?.notes ?? []
               : number.song.drums.events;
             const first = figure[0]?.beat ?? 0;
             if (first >= number.song.meta.beatsPerBar) {
               lateEntries++;
-              const worked = (number.choreography.parts[m.tendedBy]?.gestures ?? [])
+              const worked = (number.choreography.parts[tender.id]?.gestures ?? [])
                 .some((g) => g.target.kind === 'control' && g.beat <= first + 1e-6);
               if (!worked) {
                 lateSilent++;
@@ -1214,6 +1502,30 @@ check('visemes exist exactly when there is a voice', visemeGaps === 0,
  * like when a person plays it. Measured per instant this reads 1.4% and says
  * nothing; measured as a posture the drummer is left holding, it is the thing
  * the eye actually objects to.
+ *
+ * ## The knot is a kit question and is asked only of a kit
+ *
+ * `armsKnotted` reads `KIT`, and `KIT` is a drum kit: the sweep of one player's
+ * furniture from the hats on the left to the ride on the right. Its `mp`, `lp`
+ * and `hp` rows are hand-drum strokes and its own comment says they are dead
+ * weight kept for totality — "`kitDistance` is the only reader of this table".
+ * That stopped being true here, because this block filtered on
+ * `layer === 'drums'` and a hand percussionist is a drummer by that test.
+ *
+ * The two tables do not merely differ, they disagree about the geometry: a hand
+ * drum's places are `HAND_REACH`, where the trap table `cp` sits at 0.55 to the
+ * *right* of the three skin strokes at 0.30–0.38, and `KIT` puts `cp` at 0.02
+ * out past the far side of the hi-hats. So a percussionist with their left hand
+ * on the drum and their right on the trap table — the most ordinary posture
+ * they have — read as fully swapped arms. That was 6.4% of indian's postures
+ * and it was the whole of the failure: over fourteen genres a real kit is
+ * knotted 0.06% of the time.
+ *
+ * A hand drum's arms can knot too and nothing here can see it. Writing the
+ * predicate would mean restating the choreographer's geometry in the file that
+ * checks it, which is refused elsewhere for the same reason and is refused
+ * again: `armsKnotted` is exported precisely so this file asks rather than
+ * re-derives, and the answer to a missing `handsKnotted` is to export one.
  */
 {
   let strokes = 0;
@@ -1221,6 +1533,13 @@ check('visemes exist exactly when there is a voice', visemeGaps === 0,
   let idleHand = 0;
   let states = 0;
   let worst = '';
+  /**
+   * One-armed figures per archetype, which is reporting rather than a second
+   * threshold — this one *is* table-independent, since it asks only whether a
+   * hand kept moving somewhere new while the other stayed down, and that means
+   * the same thing on a skin as on a kit.
+   */
+  const oneArmed = new Map<Archetype, { idle: number; strokes: number }>();
   for (const gid of CHECKED_GENRES) {
     for (let i = 0; i < 4; i++) {
       const concert = buildConcert({ seed: `check-${gid}-${i}`, genre: gid, vocals: 'mixed' });
@@ -1229,6 +1548,9 @@ check('visemes exist exactly when there is a voice', visemeGaps === 0,
           if (performer.layer !== 'drums') continue;
           const part = number.choreography.parts[performer.id];
           if (!part) continue;
+          const onAKit = performer.archetype === 'drumkit';
+          const tally = oneArmed.get(performer.archetype) ?? { idle: 0, strokes: 0 };
+          oneArmed.set(performer.archetype, tally);
           const hits = part.gestures
             .filter((g): g is Gesture & { target: { kind: 'drum'; voice: DrumVoice } } =>
               g.target.kind === 'drum'
@@ -1247,11 +1569,13 @@ check('visemes exist exactly when there is a voice', visemeGaps === 0,
             const other = hand === 'left-hand' ? 'right-hand' : 'left-hand';
             solo = at[hand].beat > at[other].beat && at[hand].voice !== g.target.voice
               ? solo + 1 : 0;
-            if (solo >= 3) { idleHand++; solo = 0; }
+            if (solo >= 3) { idleHand++; tally.idle++; solo = 0; }
             at[hand] = { voice: g.target.voice, beat: g.beat };
             strokes++;
+            tally.strokes++;
             // Both hands have to have played before there is a posture at all.
             if (at[other].beat === -Infinity) continue;
+            if (!onAKit) continue;
             states++;
             const now = armsKnotted(at['left-hand'].voice, at['right-hand'].voice);
             if (now && wasKnotted) {
@@ -1266,10 +1590,15 @@ check('visemes exist exactly when there is a voice', visemeGaps === 0,
   }
   const rate = knotted / Math.max(states, 1);
   check('the drummer\'s arms are never knotted', rate < 0.002,
-    `${(rate * 100).toFixed(2)}% of ${states} postures held${worst ? ` — ${worst}` : ''}`);
+    `${(rate * 100).toFixed(2)}% of ${states} kit postures held${worst ? ` — ${worst}` : ''}`);
   const idle = idleHand / Math.max(strokes, 1);
+  // Split by archetype in the detail whichever way it goes, because one rate
+  // over two instruments is a number that can be moved by either of them.
+  const perHands = [...oneArmed].sort((a, b) => b[1].idle / b[1].strokes - a[1].idle / a[1].strokes)
+    .map(([a, t]) => `${a} ${(100 * t.idle / Math.max(t.strokes, 1)).toFixed(2)}% of ${t.strokes}`)
+    .join(', ');
   check('the drummer plays figures with both hands', idle < 0.004,
-    `${(idle * 100).toFixed(2)}% of ${strokes} strokes begin a one-armed figure`);
+    `${(idle * 100).toFixed(2)}% of ${strokes} strokes begin a one-armed figure — ${perHands}`);
 }
 
 // Determinism — the property the whole repo is built on, at show scale.
@@ -1374,6 +1703,253 @@ check('every percussion gesture lands on an object', drumUnresolved === 0,
     : `${drumGestures} gestures by ${drumPlayers} players across ${GENRE_IDS.length} genres`);
 check('a percussion part is shared out exactly once', drumCoverageOff === 0,
   drumCoverageOff ? `${drumCoverageOff} of ${drumPlayers} players` : `${drumPlayers} players`);
+
+// --- The other twenty archetypes -----------------------------------------
+//
+// The section above is the right question asked of two objects out of
+// twenty-two. Nothing above it can see a `PlayPoint` the choreographer is happy
+// to emit and the model has no branch for: the gesture is on the grid, on a free
+// hand, inside the instrument's range and counted in the coverage — correct at
+// every level this file was able to reach — and the hand still arrives at
+// `undefined`. So the same sweep, over every archetype a stage casts.
+//
+// Three differences from the percussion pass, each of them load-bearing:
+//
+//  - Built through `buildInstrumentFor` rather than `BUILDERS` directly, because
+//    that is the door the show goes through and it wraps `withSoundingContact`
+//    on the way past. Without the wrapper a string model answers the *picking*
+//    hand with the stopping contact — a defined answer, at the wrong end of the
+//    instrument, which is exactly the answer a coverage check must not be
+//    satisfied by. Half the gestures here belong to string archetypes, so
+//    skipping the wrapper would make this section mostly decorative.
+//  - Every genre, not `CHECKED_GENRES`. The note beside that list says what the
+//    four are and what leaving it at four cost; here the whole point is coverage,
+//    and seventy concerts of it cost about six seconds.
+//  - Point kinds the archetype does not declare are counted separately and are
+//    *not* asked of the model, because they are the subject of their own
+//    assertion below and reporting them twice would bury whatever else is
+//    airborne underneath them.
+console.log('\nInstruments');
+
+{
+  /**
+   * How far the share of hands at the nut may run ahead of the share of notes
+   * that genuinely are open strings, in points.
+   *
+   * Read off the instruments rather than chosen. Six of the seven tuned
+   * archetypes sit at or *below* their open-pitch share — the guitars, both
+   * basses, the sitar and the cello, between 5.4 points under and 0.1 over —
+   * because a fingering that stays in position rather than dropping to an open
+   * string is a choice a player makes, and it still puts the finger on the pitch
+   * being heard. The seventh is the violin at 5.7 over, and that much is a
+   * measuring artefact rather than a hand in the wrong place: a four-part section
+   * pad handed to one violinist contains voices no fingering can hold, and where
+   * `chooseStops` places what it can and drops the rest, the notes side of this
+   * ratio still counts the dropped ones. Ten points clears all of that with room
+   * to spare and is a third of what the check is aimed at: a chooser that clamps
+   * the fret instead of dropping the note puts 42.3 % of a violinist's stops at
+   * the nut against 13.9 % of its notes being open pitches — a gap of 28.5, which
+   * is what this measured on the day it was written.
+   *
+   * Only the *excess* is asserted. A shortfall means a hand up the neck making
+   * the right note the harder way, which is a preference; an excess means a hand
+   * at the nut on a note the nut cannot make, which is what a fret clamped into
+   * `0..maxFret` produces and is a lie about where the sound is coming from.
+   * Both directions are reported.
+   */
+  const NUT_SLACK = 0.10;
+
+  /**
+   * Below this many stopped notes a share is noise rather than a measurement.
+   *
+   * Inert today — the thinnest tuned archetype in this sweep places several
+   * hundred — and here so that an instrument the catalogue casts twice a season
+   * cannot turn this check into a coin toss.
+   */
+  const NUT_SAMPLE = 100;
+
+  const HANDS: ReadonlySet<Effector> = new Set<Effector>([
+    'left-hand', 'right-hand', 'bow', 'left-foot', 'right-foot',
+  ]);
+
+  /**
+   * One model per distinct object, not per performer.
+   *
+   * The key is everything a `resolve` is allowed to branch on — the rack a
+   * percussionist is carrying, which synthesiser it is and how many keyboards
+   * are on the stand — and deliberately not the seed, the finish or the
+   * catalogue entry's size. Those move geometry around; they cannot move a point
+   * from having an answer to not having one, and keying on them would build a
+   * thousand instruments to ask each of them the same question.
+   */
+  const models = new Map<string, ReturnType<typeof buildInstrumentFor>>();
+  const airborne = new Map<string, number>();
+  const undeclared = new Map<string, number>();
+  /** Per string archetype: hands at the nut, and notes that are open pitches. */
+  const nut = new Map<string, { atNut: number; stopped: number; open: number; notes: number }>();
+  const tallyFor = (archetype: string) => {
+    const t = nut.get(archetype) ?? { atNut: 0, stopped: 0, open: 0, notes: 0 };
+    nut.set(archetype, t);
+    return t;
+  };
+
+  let players = 0;
+  let asked = 0;
+  let inTheAir = 0;
+  let seen = 0;
+  let undeclaredGestures = 0;
+
+  for (const gid of GENRE_IDS) {
+    for (let i = 0; i < 5; i++) {
+      for (const number of buildConcert({ seed: `hands-${gid}-${i}`, genre: gid }).numbers) {
+        /**
+         * The other half of the nut check, and it comes from the music rather
+         * than from the choreography.
+         *
+         * A `{kind:'string', string, fret}` point claims a pitch —
+         * `spec.strings[string] + fret` — so a hand at fret 0 is claiming an
+         * open string. How often that claim can honestly be made is a property
+         * of the *notes*, not of the hands, which is why it is counted here:
+         * two numbers off the same sample, and a planner that placed every note
+         * at the nut would move only one of them.
+         *
+         * Matched by archetype rather than by performer, so a bass line played
+         * on a keyboard counts toward the bass's open share though no bassist
+         * played it. Measured both ways the two agree within 0.6 points — over
+         * tens of thousands of notes it is the same register either way — and
+         * this is the cheaper one.
+         */
+        for (const track of number.song.tracks) {
+          if (track.voice) continue;
+          const archetype = archetypeForTrack(track);
+          const open = archetype ? ARCHETYPES[archetype].strings : undefined;
+          // A harp has no `strings` and so falls out here, which is correct
+          // rather than convenient: it has a string per note and no fretting
+          // hand at all, `chooseStops` answers `fret: 0` for every note it
+          // places on one, and 100 % at the nut is the truth about the object.
+          if (!archetype || !open?.length) continue;
+          const t = tallyFor(archetype);
+          t.notes += track.notes.length;
+          t.open += track.notes.filter((n) => open.includes(n.midi)).length;
+        }
+
+        for (const performer of number.cast.performers) {
+          const part = number.choreography.parts[performer.id];
+          if (!part) continue;
+          players++;
+          const spec = ARCHETYPES[performer.archetype];
+          const declared = new Set<string>(spec.points);
+          // Only a percussionist carries a rack, and only a kit is built
+          // differently for a machine-driven part; every other model ignores
+          // both, so asking for them elsewhere would key the cache on nothing.
+          const drums = performer.layer === 'drums' ? number.song.drums.source : undefined;
+          const aux = performer.layer === 'drums'
+            ? [...new Set(drumEventsFor(number.song.drums.events, performer.archetype)
+              .map((e) => e.voice))].sort()
+            : undefined;
+          const key = [
+            performer.archetype, aux?.join(',') ?? '', performer.rig ?? '',
+            performer.boards ?? 1, drums ?? '',
+          ].join('|');
+          let model = models.get(key);
+          if (!model) {
+            model = buildInstrumentFor(
+              performer, undefined, undefined, undefined, drums, undefined, aux,
+            );
+            models.set(key, model);
+          }
+
+          for (const g of part.gestures) {
+            seen++;
+            if (!declared.has(g.target.kind)) {
+              undeclaredGestures++;
+              const k = `${performer.archetype} ${g.target.kind}`;
+              undeclared.set(k, (undeclared.get(k) ?? 0) + 1);
+              continue;
+            }
+            // The stopping hand only. The sounding hand carries the same point
+            // — one note, two places — so counting both would say the same
+            // thing twice, and it is the fingering hand that claims a position.
+            if (g.target.kind === 'string' && spec.strings?.length && g.effector === 'left-hand') {
+              const t = tallyFor(performer.archetype);
+              t.stopped++;
+              if (g.target.fret === 0) t.atNut++;
+            }
+            // A mouth, a body and a head are placed on the *player*; only the
+            // limbs that reach for the instrument have anything to resolve
+            // against it.
+            if (!HANDS.has(g.effector)) continue;
+            asked++;
+            if (model.resolve(g.target, g.effector)) continue;
+            inTheAir++;
+            const what = g.target.kind === 'drum' ? g.target.voice : g.target.kind;
+            const k = `${performer.archetype} ${what}/${g.effector}`;
+            airborne.set(k, (airborne.get(k) ?? 0) + 1);
+          }
+        }
+      }
+    }
+  }
+
+  check('every hand and foot lands on its instrument', inTheAir === 0,
+    inTheAir
+      ? [...airborne].sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ×${n}`).join(', ')
+      : `${asked} gestures by ${players} players on ${models.size} objects`
+        + ` across ${GENRE_IDS.length} genres`);
+
+  /**
+   * And the point was one the object had ever agreed to answer for.
+   *
+   * `ArchetypeSpec.points` is the contract between the choreographer and the
+   * models: it is the list a model of that archetype must resolve, and it is
+   * therefore also the list the choreographer may draw from. A gesture outside
+   * it is not a model that forgot a branch — it is a part written for an
+   * instrument that was never asked to have one, and the check above cannot say
+   * so because a `control` point on an organ is caught by the show's own
+   * machine routing before the organ ever sees it. That routing is real and it
+   * works; what it does not do is make the organ's spec true.
+   */
+  const strange = [...undeclared].sort((a, b) => b[1] - a[1]);
+  check('every point kind is one its archetype declares', undeclaredGestures === 0,
+    undeclaredGestures
+      ? `${undeclaredGestures} of ${seen} — `
+        + strange.slice(0, 5).map(([k, n]) => `${k} ×${n}`).join(', ')
+        + (strange.length > 5 ? `, +${strange.length - 5} more` : '')
+      : `${seen} gestures, every kind declared`);
+
+  /**
+   * A stopped note is placed where that note actually is.
+   *
+   * The one assertion here about a hand in a *plausible* wrong place rather than
+   * in no place at all, which is why it has to be a rate rather than a count: the
+   * point resolves, the model answers, and the finger sits on a fret that does
+   * not make the note coming out of the speakers. A `{kind:'string'}` point
+   * claims a pitch — `spec.strings[string] + fret` — and a fingering chooser that
+   * cannot place a note and settles for the nearest position instead breaks that
+   * claim silently. A fret clamped into `0..maxFret` is how it breaks in
+   * practice, because the clamp lands on 0, and fret 0 is an open string: the
+   * most readable hand position on the instrument, asserted for a pitch the open
+   * string cannot make.
+   *
+   * So compare the two shares the sample already contains. They should track each
+   * other; an instrument whose hands sit at the nut far more often than its notes
+   * are open pitches is fingering notes it is not playing.
+   */
+  const scored = [...nut]
+    .filter(([, t]) => t.stopped >= NUT_SAMPLE && t.notes > 0)
+    .map(([a, t]) => ({
+      a, atNut: t.atNut / t.stopped, open: t.open / t.notes,
+      gap: t.atNut / t.stopped - t.open / t.notes,
+    }))
+    .sort((x, y) => y.gap - x.gap);
+  const line = (r: typeof scored[number]) =>
+    `${r.a} ${(r.atNut * 100).toFixed(1)}% at the nut vs ${(r.open * 100).toFixed(1)}% open`;
+  const lying = scored.filter((r) => r.gap > NUT_SLACK);
+  check('a stopped note is placed where that note is', lying.length === 0,
+    lying.length
+      ? lying.map((r) => `${line(r)} (+${(r.gap * 100).toFixed(1)} pts)`).join(', ')
+      : `${scored.length} tuned archetypes, worst ${line(scored[0]!)}`);
+}
 
 // -------------------------------------------------------------------------
 console.log(

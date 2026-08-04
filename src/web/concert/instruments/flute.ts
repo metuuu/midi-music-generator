@@ -49,9 +49,9 @@ import type { Effector, PlayPoint } from '../../../concert/types.js';
 import { Rng } from '../../../core/rng.js';
 import { mouthFor } from './mouth.js';
 import type {
-  Contact, InstrumentBuildOptions, InstrumentBuilder, InstrumentModel,
+  Contact, FingerCurl, InstrumentBuildOptions, InstrumentBuilder, InstrumentModel,
 } from './types.js';
-import { addTo } from './types.js';
+import { addTo, fingersOnStack } from './types.js';
 
 // ---------------------------------------------------------------------------
 // Fingering
@@ -305,6 +305,20 @@ export const buildFlute: InstrumentBuilder = (opts: InstrumentBuildOptions): Ins
   const rightContacts: Contact[] = stationX.map((_, i) => contactAt(i, -1));
   const leftContacts: Contact[] = stationX.map((_, i) => contactAt(i, 1));
 
+  /**
+   * Which of each hand's fingers are down, per speaking hole, keyed by the
+   * speaking station rather than the clamped one. See `Contact.fingers` and
+   * `fingersOnStack`; the saxophone's copy of this table says what keying it
+   * the other way costs.
+   *
+   * A flute has no octave key and no register lever, so this is the *only*
+   * thing on the instrument that moves with the pitch other than the pads and
+   * the roll — which is exactly the reason `react` was already given the roll
+   * to animate. Now the pads have somebody pressing them.
+   */
+  const rightFingers = stationX.map((_, s) => fingersOnStack(0, HAND_SPLIT - 1, s));
+  const leftFingers = stationX.map((_, s) => fingersOnStack(HAND_SPLIT, STATIONS - 1, s));
+
   /** Neither hand crosses to the other's keys. */
   function stationFor(station: number, right: boolean): number {
     return right
@@ -316,12 +330,15 @@ export const buildFlute: InstrumentBuilder = (opts: InstrumentBuildOptions): Ins
   const restRight = rightContacts[HAND_SPLIT - 3]!;
   const restLeft = leftContacts[HAND_SPLIT + 3]!;
 
-  function copy(c: Contact): Contact {
-    // With `along`, which the old copy dropped on the floor.
+  function copy(c: Contact, fingers?: FingerCurl): Contact {
+    // With `along`, which the old copy dropped on the floor. `fingers` is
+    // shared rather than cloned: a frozen tuple off a table, and nothing a
+    // caller can transform in place.
     return {
       position: c.position.clone(),
       normal: c.normal.clone(),
       ...(c.along ? { along: c.along.clone() } : {}),
+      ...(fingers ? { fingers } : {}),
     };
   }
 
@@ -359,8 +376,12 @@ export const buildFlute: InstrumentBuilder = (opts: InstrumentBuildOptions): Ins
       if (point.kind === 'rest') return copy(right ? restRight : restLeft);
       if (point.kind !== 'hole') return undefined;
       if (point.midi < LO || point.midi > HI) return undefined;
-      const station = stationFor(fingeringFor(point.midi).station, right);
-      return copy((right ? rightContacts : leftContacts)[station]!);
+      const speaking = fingeringFor(point.midi).station;
+      const station = stationFor(speaking, right);
+      return copy(
+        (right ? rightContacts : leftContacts)[station]!,
+        (right ? rightFingers : leftFingers)[speaking]!,
+      );
     },
 
     react(point: PlayPoint, force: number, _now: number): void {
