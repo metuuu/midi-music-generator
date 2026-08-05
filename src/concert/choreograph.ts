@@ -642,6 +642,41 @@ function gesturesFor(
   // Deterministic from the song and the performer, so the same seed gives the
   // same show and adding a player cannot reshuffle anyone else's timing.
   const rng = new Rng(`${song.meta.seed}:choreo:${performer.id}`);
+  /**
+   * `meta.bpm` and **not** `songTempo(meta)`, on a song that ramps.
+   *
+   * The tempo stopped being a scalar when `generate/tempo.ts` landed, and this
+   * is the one line in the concert that had to decide what to do about it.
+   * `Board.toBeats` converts a physical fact — an arm crosses this much of its
+   * reach in this many milliseconds — into the beats the schedule is written in,
+   * and under a ramp the right conversion is the *local* tempo: 0.12 s is 0.16
+   * beats at 80 and 0.11 beats at 120, and a board given one number is wrong at
+   * one end of the piece.
+   *
+   * It is given one number anyway, deliberately, and the reason is that the
+   * question is not *what tempo is the piece* but **what tempo is the audience
+   * hearing**. The stage animates against the audition: `web/concert/transport.ts`
+   * derives the sounding beat by inverting Strudel's scheduler equation, and
+   * Strudel's tempo is one global number per pattern — see the note in
+   * `render/strudel.ts`, which sets it out in full. So a ramping song is *played
+   * on this stage at `meta.bpm` throughout*, and windups sized for the tempo map
+   * would be windups sized for a performance nobody in the room is listening to.
+   * A hand taking 0.11 beats to travel during audio that is running at 80 bpm
+   * arrives 40 ms early, on every note, for the second half of the piece.
+   *
+   * The consequence worth naming is that `concert-check`'s travel-speed
+   * assertion keeps meaning exactly what it meant: no hand exceeds human travel
+   * speed *at the tempo this show plays*. Handing the map to `Board` without
+   * also ramping the transport would have made both sides of that comparison
+   * derive from the same wrong number — self-consistently wrong, which is the
+   * one failure a check cannot catch.
+   *
+   * **When the stage can hear a ramp, this is the line that changes**, and
+   * nothing else here: `Board` takes the map, `toBeats` takes the beat it is
+   * converting at, and every call site below already has one to hand. That is
+   * either when the stage plays from the .mid rather than from the audition, or
+   * when Strudel grows tempo automation.
+   */
   const board = new Board(song.meta.bpm, rng.float(0.9, 1.12));
 
   if (performer.archetype === 'handdrum') {

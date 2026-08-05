@@ -11,7 +11,8 @@
  */
 
 import {
-  sweptCutoff, timeSignature, type DrumVoice, type Effects, type Song, type Track,
+  songTempo, sweptCutoff, tempoLabel, timeSignature,
+  type DrumVoice, type Effects, type Song, type Track,
 } from '../core/types.js';
 
 const PPQ = 480;
@@ -77,13 +78,55 @@ export function renderMidi(song: Song): Uint8Array {
 
   // ---- Conductor track -------------------------------------------------
   const conductor: MidiEvent[] = [];
-  const usPerQuarter = Math.round(60_000_000 / meta.bpm);
-  conductor.push({ tick: 0, order: 0, bytes: [0xff, 0x51, 0x03, (usPerQuarter >> 16) & 0xff, (usPerQuarter >> 8) & 0xff, usPerQuarter & 0xff] });
+  /**
+   * The tempo, as a stream of set-tempo events — **the one place a ramp
+   * survives intact**.
+   *
+   * This used to be one event at tick 0 and it was the honest shape for a song
+   * that held one tempo. It is also the reason `docs/engine-gaps.md` §1.1 called
+   * the tempo the largest remaining blocker by blast radius: the tempo reaches
+   * the IR, both renderers and the concert clock, and each of the four had a
+   * different idea of what a tempo *is*.
+   *
+   * This consumer's idea is the one the IR was shaped around. A MIDI file
+   * carries tempo as `set-tempo` meta events at ticks and the tempo is constant
+   * between them, so a tempo map is not something this renderer *approximates* —
+   * it is the same object, written in a different unit. `core/grid.ts` argues
+   * the piecewise-constant choice at length and this is the half of the argument
+   * that is a fact rather than a preference: a DAW that draws a smooth tempo
+   * line exports a staircase, because a staircase is all the format has. Choosing
+   * interpolation in the IR would have meant choosing a semantics the shipping
+   * format has to sample, at a resolution nobody outside the renderer could see.
+   *
+   * So there is no resolution decision here at all, which is the sign it was
+   * made in the right place. `generate/tempo.ts` emits a breakpoint per bar line
+   * where the whole bpm moves, and every one of them becomes exactly one event
+   * at exactly the tick it names. Round-tripping is why `TempoPoint.bpm` is an
+   * integer: 113 goes out as 530973 µs and comes back as 113, where 113.4 comes
+   * back as a number nobody typed.
+   *
+   * On the conductor track and nowhere else, which is what format 1 is for — a
+   * set-tempo on an instrument track is legal to write and undefined to read,
+   * and half the sequencers in the world ignore it.
+   */
+  for (const point of songTempo(meta)) {
+    const usPerQuarter = Math.round(60_000_000 / point.bpm);
+    conductor.push({
+      tick: beatsToTicks(point.beat),
+      order: 0,
+      bytes: [0xff, 0x51, 0x03,
+        (usPerQuarter >> 16) & 0xff, (usPerQuarter >> 8) & 0xff, usPerQuarter & 0xff],
+    });
+  }
   // Written as a notator would rather than as the engine counts. See `timeSignature`.
   const [numerator, denominator] = timeSignature(meta);
   conductor.push({ tick: 0, order: 0, bytes: [0xff, 0x58, 0x04, numerator, Math.log2(denominator), 24, 8] });
   conductor.push({ tick: 0, order: 0, bytes: [0xff, 0x03, ...textBytes(meta.title)] });
-  conductor.push({ tick: 0, order: 0, bytes: [0xff, 0x01, ...textBytes(`${meta.styleLabel} · ${meta.eraLabel} · ${meta.keyLabel} · ${meta.bpm} BPM · seed ${meta.seed}`)] });
+  // `tempoLabel` rather than `meta.bpm`, because this line is what a person
+  // reads in a DAW's file info and "92 BPM" on a piece that ends at 138 is the
+  // header lying about the track it is attached to. It is the exact string for
+  // any song that holds its tempo, which is every song in the catalogue.
+  conductor.push({ tick: 0, order: 0, bytes: [0xff, 0x01, ...textBytes(`${meta.styleLabel} · ${meta.eraLabel} · ${meta.keyLabel} · ${tempoLabel(meta)} BPM · seed ${meta.seed}`)] });
   tracks.push(buildTrack(conductor));
 
   // ---- Instrument tracks ----------------------------------------------

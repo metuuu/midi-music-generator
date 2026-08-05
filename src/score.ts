@@ -10,7 +10,7 @@
 
 import { parseRoman, chordPcs } from './core/chord.js';
 import { pc } from './core/pitch.js';
-import { melodicLine, meterLabel } from './core/types.js';
+import { melodicLine, meterLabel, tempoLabel } from './core/types.js';
 import type { NoteEvent, Song } from './core/types.js';
 import { generateSong } from './generate/song.js';
 
@@ -34,7 +34,10 @@ function main(): void {
   });
   const { beatsPerBar: bpb, tonic, mode } = song.meta;
   console.log(`\n${song.meta.title} — ${song.meta.genreLabel} / ${song.meta.styleLabel} / ${song.meta.eraLabel}`);
-  console.log(`${song.meta.keyLabel}  ${song.meta.bpm} BPM  ${meterLabel(song.meta)}  swing ${song.meta.swing}`);
+  // `tempoLabel` rather than `meta.bpm`: identical for every song that holds a
+  // tempo, and `92→138` for one that does not. A score sheet that names one end
+  // of an accelerando is a score sheet that is wrong about most of the piece.
+  console.log(`${song.meta.keyLabel}  ${tempoLabel(song.meta)} BPM  ${meterLabel(song.meta)}  swing ${song.meta.swing}`);
   console.log(`smoothness ${song.meta.strictness}  hook ${song.meta.hook}  mood ${song.meta.mood}\n`);
 
   const melodyTrack = song.tracks.find((t) => t.layer === 'melody');

@@ -7,6 +7,7 @@
  * interchangeable renderer sitting behind it.
  */
 
+import { flatTempo, secondsAt, tempoRange, type TempoMap } from './grid.js';
 import type { Midi } from './pitch.js';
 import type { Mode } from './scale.js';
 import type { FeelSpan } from '../style/feel.js';
@@ -998,7 +999,53 @@ export interface SongMeta {
   tonic: number;
   mode: Mode;
   keyLabel: string;
+  /**
+   * How fast the piece is, in beats per minute — **and where it starts**, on
+   * the few pieces that do not stay there.
+   *
+   * This field predates `tempo` below by the whole project, twelve files read
+   * it, and most of them are labels and reports that legitimately want one
+   * number. So it keeps the meaning it has always had for a piece at one tempo,
+   * and takes the only honest reading available for a piece that ramps: **the
+   * tempo the band counts off.**
+   *
+   * The alternative was the mean, and it was rejected on what a reader does with
+   * the number. A `.mid` header, a showbill line and the audition's `setcpm` all
+   * put this figure in front of somebody as *the tempo of this music*; the mean
+   * of an accelerando is a speed the band plays for one bar in the middle and
+   * nobody would recognise, whereas the count-off is the speed the piece is in
+   * for its whole first phrase. It is also what makes `render/strudel.ts`'s
+   * fallback defensible rather than arbitrary — see the note there.
+   *
+   * Anything that needs to be right about *when a beat happens* must go through
+   * `songTempo` and `secondsAt` instead of dividing by this. `songDurationSeconds`
+   * is the worked example.
+   */
   bpm: number;
+  /**
+   * Where the piece changes speed, if it does. See `generate/tempo.ts`.
+   *
+   * The fourth sibling of `feels`, `transitions` and `drops`, carried for the
+   * reason all three give — a plan is IR rather than a private detail of the
+   * generator — and absent under the same rule: a style that names no tempo
+   * palette was never asked the question, drew no random number, and serialises
+   * byte-for-byte to what it did before this field existed. That is every style
+   * in the catalogue today.
+   *
+   * It differs from the other three in one way that matters to every reader.
+   * `feels`, `transitions` and `drops` are *descriptive* — a report can ignore
+   * them and still be right about the notes. This one is **constitutive**: a
+   * consumer that ignores it does not lose detail, it plays the piece at the
+   * wrong speed. So the accessor is `songTempo`, which fabricates the one-entry
+   * map when this is absent, and the discipline is that clocks call that rather
+   * than reading either field directly.
+   *
+   * Absolute beats from the top of the file, including any count-in —
+   * `withCountIn` shifts the map with everything else, and puts the counting bar
+   * at the opening tempo, because a drummer counts a band in at the speed the
+   * band is about to play.
+   */
+  tempo?: TempoMap;
   /** Quarter-note beats per bar. Fractional where the metre is written in eighths. */
   beatsPerBar: number;
   /** Which note value gets the beat (4 = quarter). */
@@ -1224,6 +1271,68 @@ export function songDurationBeats(song: Song): number {
   return song.meta.totalBars * song.meta.beatsPerBar;
 }
 
+/**
+ * The piece's tempo, always as a map.
+ *
+ * The one accessor, and the reason there is one: `meta.tempo` is optional and
+ * `meta.bpm` is not, so every consumer that reads the pair itself writes the
+ * same three-line fallback — and the third of them writes it slightly
+ * differently. `sweptCutoff` a few lines up is here for exactly this reason and
+ * says so: two copies of a conversion agree today and drift by the second bug
+ * fixed in one of them.
+ *
+ * The map it fabricates is not stored. That is deliberate rather than lazy: the
+ * absence of `meta.tempo` is a fact about the song — *nobody asked this style to
+ * ramp* — and materialising a one-entry map onto every song in the catalogue
+ * would put an answer on three hundred songs that were not asked, which is the
+ * thing `feels`, `transitions` and `drops` each spend a paragraph refusing.
+ */
+export function songTempo(meta: SongMeta): TempoMap {
+  return meta.tempo ?? flatTempo(meta.bpm);
+}
+
+/**
+ * How long the piece lasts, as written.
+ *
+ * Through the tempo map rather than `beats / bpm × 60`, which is the same
+ * arithmetic for every song that does not ramp and is wrong by up to the whole
+ * ramp for one that does — a piece accelerating from 90 to 120 across its length
+ * runs about an eighth shorter than its opening tempo claims.
+ *
+ * **As written** is load-bearing, and it is the one place a caller has to know
+ * which renderer it is talking about. The `.mid` lasts this long. The Strudel
+ * audition does not: it plays the piece at `meta.bpm` throughout, because
+ * Strudel's tempo is one global number — see the note in `render/strudel.ts` —
+ * so the audition's wall-clock length is `songDurationBeats / meta.bpm × 60` and
+ * is longer. Every caller today wants the written length: `cli.ts` prints the
+ * duration of the file it just wrote, and the showbill prints how long the band
+ * will be on stage.
+ */
 export function songDurationSeconds(song: Song): number {
-  return (songDurationBeats(song) / song.meta.bpm) * 60;
+  return secondsAt(songTempo(song.meta), songDurationBeats(song));
+}
+
+/**
+ * The tempo, for a human — `112`, or `112→148` where it moves.
+ *
+ * A label rather than a number, because the honest answer for a ramping piece is
+ * two numbers and every caller that has one was already printing a string. It
+ * keeps the exact current output for a song with no map, so nothing in the
+ * catalogue's reports moves.
+ *
+ * Endpoints where they differ, because that is what an accelerando *is* and an
+ * arrow says it in one glyph. Where they agree the piece may still have moved —
+ * a drift wanders and comes home — so the extremes are shown in brackets beside
+ * the count-off rather than silently averaged away. A label that reads `92` on a
+ * piece that spent a minute at 104 is the sort of quiet wrongness this project
+ * keeps finding in its own reports.
+ */
+export function tempoLabel(meta: SongMeta): string {
+  const tempo = meta.tempo;
+  if (!tempo) return String(meta.bpm);
+  const first = tempo[0]!.bpm;
+  const last = tempo.at(-1)!.bpm;
+  if (first !== last) return `${first}→${last}`;
+  const [low, high] = tempoRange(tempo);
+  return low === high ? String(first) : `${first} (${low}–${high})`;
 }

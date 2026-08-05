@@ -6,16 +6,16 @@ It is worth reading as a compliment to the abstraction as much as a critique of 
 
 ## Where it stands
 
-Fourteen of the original twenty-three entries are closed, and six new ones have arrived since — pop, rnb and hiphop each brought some. §6 records what was actually built, because in four cases the fix has a different shape from the one this document proposed and the difference is the interesting part.
+Fifteen of the original twenty-three entries are closed, and six new ones have arrived since — pop, rnb and hiphop each brought some. §6 records what was actually built, because in four cases the fix has a different shape from the one this document proposed and the difference is the interesting part.
 
 | | |
 |---|---|
-| **Closed** | ghost notes · layer exits · sub-section drop-out · `Style.effects` · hand-drum staging · floor posture · check coverage · sampled percussion · power chords · hand-drum solos · the hook-dependent break · five scale rows · and four faults found while fixing those |
-| **Open, and blocking** | tempo ramps · bass riff span |
+| **Closed** | ghost notes · layer exits · sub-section drop-out · tempo ramps · `Style.effects` · hand-drum staging · floor posture · check coverage · sampled percussion · power chords · hand-drum solos · the hook-dependent break · five scale rows · and four faults found while fixing those |
+| **Open, and blocking** | bass riff span, and nothing else |
 | **Open, structural** | `applyShot` and the fill vocabulary are still kit-only · no vocal-group archetype · a solo is named after a kit whatever plays it |
 | **Open, per-genre** | everything in §3 and §4 — including six added by the newest three genres, §3.15–3.20 |
 
-**Seventeen genres now exist**, holding 341 styles across 64 eras. `dnb` and `house` are the two never written, and §1.2 closing is what unblocked them.
+**Seventeen genres now exist**, holding 341 styles across 64 eras. `dnb` and `house` are the two never written, and both mechanisms they were waiting on — the drop and the tempo ramp — are now built.
 
 `npm run typecheck`, `npm run genres` and `npm run concert` are all green as of this writing. Four staging failures that stood here for a day — a polysynth in 1952, a hand asked for nineteen semitones, a cable through a player, a one-armed hand drummer — are all in §6.
 
@@ -27,17 +27,17 @@ Fourteen of the original twenty-three entries are closed, and six new ones have 
 
 ## 1. Open, and blocking the work that is still queued
 
-**Three of the five have since been written** — pop, rnb and hiphop — because ghost notes and layer exits closed the two blockers that mattered for them. **`dnb` and `house` remain**, and they are the two that wanted the drop; §1.2 is now closed, so what is left in their way is §1.1.
+**This section is empty of blockers.** Three of the five unwritten genres have been written — pop, rnb and hiphop — and the two mechanisms `dnb` and `house` were waiting on are both built. What is left below is one real ceiling that everybody has learned to write around.
 
-The three that landed brought five new entries with them, in §3. Two clear this document's own bar of having been found independently more than once.
+The three that landed brought six new entries with them, in §3. Two clear this document's own bar of having been found independently more than once.
 
-### 1.1 Nothing ramps the tempo
+### 1.1 Nothing ramps the tempo — **closed**, see §6
 
-`bpm` is a range drawn once per song, at `generate/song.ts:191`, and used as a scalar everywhere after.
+`bpm` was a range drawn once per song and used as a scalar everywhere after. `SongMeta.tempo` is a `TempoMap` now.
 
-**Evidence.** Indian's qawwāli accelerates across its length — that is what the form *is*. Finnish folk has the same problem in the pelimanni repertoire. Both wrote it down as a compromise. The unwritten genres make it worse: a build in house or dnb is a tempo-and-density ramp and half of that is unavailable, and a hip-hop record that drifts is a different thing from one that does not.
+**Evidence, kept because it is what the shape was argued against.** Indian's qawwāli accelerates across its length — that is what the form *is*. Finnish folk has the same problem in the pelimanni repertoire. Both wrote it down as a compromise. A build in house or dnb is a tempo-and-density ramp and half of it was unavailable; a hip-hop record that drifts is a different thing from one that does not.
 
-This is now the largest single blocker, and it is not small — the tempo reaches the IR, both renderers and the concert clock.
+It was the largest item in this document by blast radius, and that was the whole difficulty: the tempo reaches the IR, both renderers and the concert clock, and the four consumers do not agree about what a tempo is.
 
 ### 1.2 Nothing drops out mid-section — **closed**, see §6
 
@@ -245,6 +245,16 @@ The interaction with `Feel.ghost` needed no coordination code, which is the good
 **§ The `break` transition was hook-dependent.** The carrier is named rather than searched. The finding that shaped it: **nothing pitched is hook-invariant** — `--hook` moves the harmony, so every pitched layer follows the chords and the bass differed at 39 of 40 seeds. So no note may be read at all. The musical argument stands on its own: *"whoever filled the bar"* was already wrong with no `--hook` in sight, giving the same style a bass break in one song and an answering line in the next, and once producing a break carried by a single 32nd note 0.03 beats before the downbeat. Unstable seeds **53/1484 → 0**.
 
 `Style.breakCarrier` followed, and closes the five residuals: indian's tanpura writes six notes into eight bars and has stopped three bars before the seam, so 43 of 10517 drawn breaks came out silent. Under `pad` — the śruti box, which is what is still ringing — that is **0**. `melody`, the tempting choice for a taqsim, is 24× worse.
+
+**§ Nothing ramped the tempo.** `SongMeta.tempo` is a `TempoMap` — a list of `(beat, bpm)` breakpoints, **piecewise constant**, with `meta.bpm` kept and now meaning *the tempo the band counts off*. Three alternatives were argued and rejected in `grid.ts`: a function is unserialisable and makes each renderer pick its own sampling rate; linear interpolation turns beats→seconds into a logarithm that two implementations agree on to fourteen digits **and that MIDI cannot express anyway**, since a set-tempo event is a step; and a scalar-plus-ramp-description puts the curve in the reader, so every consumer has to implement the same easing. Piecewise constant is the only shape all four consumers implement identically, and it is what MIDI natively *is*.
+
+The interesting half is the consumers. **MIDI is native and exact** — one set-tempo per breakpoint, 60 IR points → 60 events matching exactly. **Strudel cannot ramp at all**, established by reading the installed package rather than guessing: `setcpm` sets a scheduler global, the `.cpm()` pattern method is deprecated and is a constant time-stretch, and a per-bar `fast` bunches a bar's notes up and leaves a gap. The decisive reason not to attempt a trick is that `web/concert/transport.ts` recovers the sounding beat by inverting Strudel's scheduling equation, which is exact only because `cps` is constant — so a ramping audition would put every hand on the concert stage in the wrong place. A ramping song therefore emits a banner in its own source naming the curve and telling the reader to render the `.mid`. **This is the first shipping-only feature**, the exact mirror of the audition-only effects `midi.ts` has always had.
+
+**The choreographer was deliberately left alone**, and that is the subtlest decision in the change. The stage animates against the audition, and the audition is flat; sizing windups from the tempo map would size them for a performance nobody in the room is hearing. Worse, handing `Board` the map without also ramping the transport would make *both sides* of the travel-speed comparison derive from the same wrong number — self-consistently wrong, which is the one failure a check cannot catch. So `concert-check`'s travel-speed assertion needed nothing and still means what it always meant: no hand exceeds human travel speed *at the tempo this show plays*.
+
+Two shapes plus the identity: `accelerando` (linear) and `gathering` (squared, so half the speed arrives in the last third, because a linear climb has already lost the patient opening a qawwāli is built on). A **build** is left expressible and the reason it could not be built here is concrete — everything in `tempo.ts` runs before the form exists, because `buildForm` divides by the tempo to fit `Genre.duration`, while `planDrop` runs four hundred lines later; a build must arrive *at* the drop, so it wants a second planner appending to the same map, which is what a list-shaped IR was chosen for. **Drift** is fifteen lines and was not built because hiphop named no magnitude and a drift's entire content is its magnitude. A **final ritardando** was written and rejected: the ending already has an owner in `landEnding`, and two passes editing the same bar is how the double-swing bug happened.
+
+Two latent bugs surfaced on the way, both fixed and both bit-identical today: `web/concert/show.ts` computed a number's length as `songDurationSeconds(song) * bpm / 60` — beats to seconds and back to beats — so a ramping number would have ended an eighth early; and `web/main.ts`'s radio auto-advance used the written length rather than the audition's, so it would have clipped every ramping record's ending.
 
 **§ Five scale rows.** `durga`, `malkauns`, `hansadhwani`, `nikriz` proper, and the six-note `majorBlues` that country and rock both wanted and neither could spell. Four more were argued for and **rejected**, which is the more useful half: the altered scale is already melodic minor a semitone up and *"that is how the players think of it"*; nothing in `ChordQuality` could ever select a lydian dominant, so the chord quality would have to come first; `prometheus` is one composer's chord and `wholeTone` already holds that job.
 

@@ -12,7 +12,7 @@ import { join, resolve } from 'node:path';
 import { generateSong, type GenerateOptions } from './generate/song.js';
 import { renderMidi } from './render/midi.js';
 import { renderStrudel } from './render/strudel.js';
-import { meterLabel, songDurationSeconds, type Song } from './core/types.js';
+import { meterLabel, songDurationSeconds, tempoLabel, type Song } from './core/types.js';
 import { GENRES, GENRE_IDS, getGenre } from './genre/index.js';
 import { STRICTNESS_IDS, type StrictnessId } from './core/rules.js';
 import { HOOK_IDS, type HookId } from './generate/hook.js';
@@ -164,7 +164,7 @@ function describe(song: Song): string {
   const lift = song.sections.find((s) => s.transpose > 0);
   return [
     `♪ ${meta.title}  [${meta.genreLabel}]`,
-    `   ${meta.styleLabel} · ${meta.keyLabel} · ${meta.bpm} BPM · ${meterLabel(meta)} · ${Math.floor(mins / 60)}:${String(Math.round(mins % 60)).padStart(2, '0')}`,
+    `   ${meta.styleLabel} · ${meta.keyLabel} · ${tempoLabel(meta)} BPM · ${meterLabel(meta)} · ${Math.floor(mins / 60)}:${String(Math.round(mins % 60)).padStart(2, '0')}`,
     `   ${meta.eraLabel} · drums: ${song.drums.bank}${lift ? ` · key change +${lift.transpose}` : ''}`,
     `   ${song.tracks.map((t) => t.instrument).join(', ')}`,
   ].join('\n');

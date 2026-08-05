@@ -16,11 +16,11 @@
  * keeps the output readable; see `dynamicGrid`.
  */
 
-import { SLOTS_PER_BEAT, slotOf } from '../core/grid.js';
+import { SLOTS_PER_BEAT, slotOf, tempoRange } from '../core/grid.js';
 import { midiToNoteName, spellingFor } from '../core/pitch.js';
 import { resolveDrumSample, type DrumSample } from './drum-banks.js';
 import { levelOfDrum, levelOfSound } from './source-levels.js';
-import { sweptCutoff } from '../core/types.js';
+import { sweptCutoff, tempoLabel } from '../core/types.js';
 import type {
   DrumVoice, Effects, Envelope, NoteEvent, Song, Track, Vowel,
 } from '../core/types.js';
@@ -41,7 +41,7 @@ export function renderStrudel(song: Song, opts: StrudelRenderOptions = {}): stri
   const lines: string[] = [];
 
   lines.push(`// ${meta.title}`);
-  lines.push(`// ${meta.styleLabel} · ${meta.eraLabel} · ${meta.keyLabel} · ${meta.bpm} BPM · mood: ${meta.mood}`);
+  lines.push(`// ${meta.styleLabel} · ${meta.eraLabel} · ${meta.keyLabel} · ${tempoLabel(meta)} BPM · mood: ${meta.mood}`);
   lines.push(`// seed: ${meta.seed}  —  regenerate this exact song with --seed ${meta.seed}`);
   lines.push(`// form: ${song.sections.map((s) => `${s.kind}${s.transpose ? `(+${s.transpose})` : ''}`).join(' → ')}`);
   lines.push('');
@@ -51,6 +51,62 @@ export function renderStrudel(song: Song, opts: StrudelRenderOptions = {}): stri
     lines.push('');
   }
 
+  /**
+   * The tempo — one number, and **the audition cannot ramp**.
+   *
+   * This is the plainest statement in the file and it is here rather than buried
+   * in a report because a silent approximation is the worse failure. Strudel's
+   * tempo is a property of the *scheduler*, not of the pattern:
+   * `setcpm(n)` calls `scheduler.setCps(n / 60)` and that is the whole of the
+   * interface. There is a `.cpm()` pattern method, and it is deprecated and is
+   * `_fast(cpm / 60)` — a constant time-stretch of a pattern's contents, not a
+   * tempo automation. Stretching a bar inside a cycle does not make the cycle
+   * shorter, so a per-bar `fast` would bunch that bar's notes up and leave a gap
+   * at the end of it. That is a rushed bar with a hole in it, which is a worse
+   * lie than a flat playback.
+   *
+   * There is one further reason not to reach for a trick, and it is the decisive
+   * one. `web/concert/transport.ts` finds the beat that is *sounding* by
+   * inverting Strudel's own scheduling equation — `c(t) = C₀ + (t − T₀ − latency)
+   * · cps` — which is exact by construction precisely because `cps` is constant
+   * between tempo changes. Anything that made the audition's tempo move would
+   * make every hand on the concert stage wrong, in a way that reads as "the
+   * animation feels floaty" rather than as a clock bug. The audition and the
+   * stage are one system and they are flat together.
+   *
+   * ## So what a ramping song sounds like here
+   *
+   * It plays at `meta.bpm` throughout, which is defined as the tempo the band
+   * counts off — see the field's own note, where the mean was rejected for this
+   * among other reasons. That makes the fallback *the opening of the piece,
+   * held*, which is the one wrong answer a listener can recognise as an
+   * excerpt rather than as a mistake. It also means the audition runs longer
+   * than the file: `songDurationSeconds` is the written length, and the
+   * audition's is `songDurationBeats / meta.bpm × 60`.
+   *
+   * The `.mid` is where the ramp lives, and that is the right way round. This
+   * renderer already documents the same split in the other direction — delay,
+   * drive, crush and phaser are **audition only** because General MIDI has no
+   * controller for them, and `render/midi.ts` says so. A tempo ramp is the first
+   * thing that is *shipping only*, and it is announced in the emitted source so
+   * that somebody pasting this into strudel.cc and wondering why it does not
+   * accelerate finds the answer in the file they are looking at.
+   */
+  const tempo = meta.tempo;
+  if (tempo) {
+    const [low, high] = tempoRange(tempo);
+    const first = tempo[0]!.bpm;
+    const last = tempo.at(-1)!.bpm;
+    // The extremes only where the endpoints do not already state them, which on
+    // a monotonic ramp they do. A drift that ends where it started needs them.
+    const spread = low === Math.min(first, last) && high === Math.max(first, last)
+      ? '' : ` (${low}–${high})`;
+    lines.push(`// TEMPO RAMP — this audition plays flat at ${meta.bpm} BPM.`);
+    lines.push(`// The piece is written to move ${first}→${last} BPM${spread}`
+      + ` over ${tempo.length} tempo changes.`);
+    lines.push('// Strudel\'s tempo is one global number per pattern, so the ramp cannot be');
+    lines.push('// auditioned here. Render the .mid to hear it — see render/strudel.ts.');
+  }
   // One cycle per bar: cycles-per-minute = beats-per-minute / beats-per-bar.
   lines.push(`setcpm(${(meta.bpm / meta.beatsPerBar).toFixed(4)});`);
   lines.push('');

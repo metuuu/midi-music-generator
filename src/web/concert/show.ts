@@ -63,7 +63,7 @@ import { Group, Raycaster, Vector2, Vector3 } from 'three';
 
 import { Rng } from '../../core/rng.js';
 import type { LayerId, Song } from '../../core/types.js';
-import { songDurationSeconds } from '../../core/types.js';
+import { songDurationBeats } from '../../core/types.js';
 import { buildConcert, revoiceNumber } from '../../concert/index.js';
 import { trackForPart } from '../../concert/choreograph.js';
 import type {
@@ -1464,7 +1464,19 @@ export function createShow(opts: ShowOptions = {}): Show {
         for (const [layer, sulk] of sulking) {
           if (beat >= sulk.until) returnToPlaying(layer, sulk.attempt);
         }
-        const total = songDurationSeconds(current.song) * current.song.meta.bpm / 60;
+        /**
+         * The number's length in **beats**, asked for directly.
+         *
+         * This was `songDurationSeconds(song) * bpm / 60` — beats converted to
+         * seconds and multiplied straight back — which was a correct if
+         * roundabout way to write `songDurationBeats` while there was one tempo,
+         * and became wrong the moment there was not. `songDurationSeconds` now
+         * runs the tempo map, so on a song that ramps the round trip would come
+         * back short by the whole of the ramp and the number would end early —
+         * about an eighth of the way from the finish on a piece rising from 90
+         * to 120. `elapsed` is in beats, so beats is what it wants comparing to.
+         */
+        const total = songDurationBeats(current.song);
         if (elapsed >= total) endNumber();
         // Against the music rather than the pattern: a progress bar that
         // starts a bar before the piece does is wrong by exactly the count-in.

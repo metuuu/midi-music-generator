@@ -52,6 +52,7 @@ import { applyDynamics, punctuate, sectionIntensity, swell } from './dynamics.js
 import { applyFilter } from './filter.js';
 import { DEFAULT_FILLS, seamOrchestration } from './fills.js';
 import { applyDrop, planDrop } from './drop.js';
+import { effectiveBpm, planRamp, rampMap } from './tempo.js';
 import { applyTransitions, hitTogether, planTransitions, type Seam } from './transition.js';
 import { getHook, RECALL_BIAS, type HookId } from './hook.js';
 import { composeSectionTune } from '../tune/adapt.js';
@@ -195,6 +196,39 @@ export function generateSong(opts: GenerateOptions = {}): Song {
     rng.weighted(mode === 'minor' ? genre.keys.minor : genre.keys.major), opts.tonic,
   );
   const bpm = pick(chooseTempo(rng, style, mood, era), opts.bpm);
+  /**
+   * Whether the piece changes speed across its length. See `generate/tempo.ts`.
+   *
+   * Up here beside `bpm` because everything downstream of it needs to be told
+   * how long a bar lasts, starting with `buildForm` twenty lines below — and
+   * that is also the reason it is only half resolved here. The shape is drawn
+   * now; the map is realised after the form, once `totalBars` exists, because
+   * the curve is defined over the piece the form produces. `planRamp` and
+   * `rampMap` are separated for that knot and no other.
+   *
+   * **Absent means no draw at all**, enforced inside `planRamp` before its first
+   * random number, so every style in the catalogue is bit-for-bit what it was.
+   * The stream is its own — `${seed}:tempo`, which nothing else reads, the same
+   * isolation `${seed}:drop` has — so a style that does opt in cannot move
+   * another style's songs, and inside an opted-in song the ramp cannot reshuffle
+   * the tune, the groove or the instrumentation.
+   *
+   * `opts.bpm` still wins outright and the ramp still climbs out of it, which is
+   * correct: a caller naming a tempo is naming the tempo the piece starts at,
+   * which is exactly what `meta.bpm` means on a ramping song.
+   */
+  const ramp = planRamp({
+    rng: new Rng(`${seed}:tempo`),
+    palette: style.tempoRamp,
+    /**
+     * …and how far this band takes it, read straight off the style with no
+     * fallback expressed here — the default lives in the shape's own table
+     * beside the argument for it, and a second copy of `1.5` in this file would
+     * be a second place it could drift. **No draw**, exactly as `dropBars`
+     * takes none. See `Style.tempoRise`.
+     */
+    ...(style.tempoRise !== undefined ? { rise: style.tempoRise } : {}),
+  });
   // Style overrides beat the genre default: bebop turns the rules off entirely.
   const strictness = getStrictness(opts.strictness ?? style.strictness ?? genre.defaultStrictness);
   const hook = getHook(opts.hook ?? style.hook ?? genre.defaultHook);
@@ -279,7 +313,21 @@ export function generateSong(opts: GenerateOptions = {}): Song {
 
   // ---- Form ------------------------------------------------------------
   const steps = buildForm(
-    rng, genre, style, bpm,
+    rng, genre, style,
+    /**
+     * The tempo the *form* is fitted at, which is the drawn one for every song
+     * that holds a tempo and the harmonic mean of the curve for one that does
+     * not.
+     *
+     * `buildForm` divides `Genre.duration` by a seconds-per-bar computed from
+     * this number. Handed the opening tempo of a ramping piece it would fit a
+     * form for a speed the band plays for one bar, and a style rising by half
+     * would come out about a fifth short of the duration its genre asked for —
+     * every time, silently, with the eventual report blaming `Genre.duration`.
+     * See `effectiveBpm`, which draws nothing and is why this can be asked
+     * before the form exists.
+     */
+    ramp ? effectiveBpm(ramp, bpm) : bpm,
     pick(rng.float(genre.duration[0], genre.duration[1]), opts.targetSeconds),
   );
   /**
@@ -353,6 +401,27 @@ export function generateSong(opts: GenerateOptions = {}): Song {
     bar += step.bars;
   }
   const totalBars = bar;
+
+  /**
+   * The ramp, realised over the form that now exists. See `generate/tempo.ts`.
+   *
+   * The second half of the split made at the draw: `planRamp` chose the shape
+   * before `buildForm` because `buildForm` needs the tempo, and the curve needs
+   * `totalBars`, which only `buildForm` can supply. Nothing but arithmetic
+   * happens here — no random number crosses the cut in either direction, so the
+   * placement cannot reshuffle anything the way a second draw would.
+   *
+   * Before the sections are filled rather than after, which is where every other
+   * whole-song fact is settled, and it costs nothing: the map is in absolute
+   * beats and the parts are written in beats, so nothing below this line has to
+   * know the piece accelerates. That is the property that made this feature
+   * affordable at all — **a tempo map changes when a beat happens and never
+   * which beat a note is on**, so every part generator, every swing pass and
+   * every seam edit is untouched by it.
+   */
+  const tempo = ramp
+    ? rampMap({ ramp, bpm, totalBars, beatsPerBar: style.beatsPerBar })
+    : undefined;
 
   /**
    * Which instrument answers for which layer. Needed before the section loop
@@ -2483,6 +2552,13 @@ export function generateSong(opts: GenerateOptions = {}): Song {
       mode,
       keyLabel: keyLabel(tonic, mode),
       bpm,
+      // And the same absent-means-unasked rule a fourth time, with one addition
+      // the other three do not need: `rampMap` also returns nothing where the
+      // curve rounded flat — a rise too small against a form too short for any
+      // bar to earn a different whole bpm. A map that describes one tempo is one
+      // tempo, and saying so in a field would be publishing a decision with no
+      // consequence.
+      ...(tempo ? { tempo } : {}),
       beatsPerBar: style.beatsPerBar,
       beatUnit: style.beatUnit,
       ...(style.groups ? { groups: style.groups } : {}),
@@ -2932,6 +3008,34 @@ export function withCountIn(song: Song): Song {
       ...song.meta,
       totalBars: song.meta.totalBars + COUNT_BARS,
       leadInBars: COUNT_BARS,
+      /**
+       * The tempo map moves with everything else, and the counting bar is
+       * played at the opening tempo.
+       *
+       * Every other coordinate in this function is shifted by `shift`, and a
+       * tempo map is a list of coordinates — leaving it alone would put the
+       * whole curve a bar early, so a piece that starts at 76 would be counted
+       * in at 76 and start the music at 77. The first point stays at beat 0
+       * instead of moving to `shift`, which is what makes the count-in itself
+       * sound at the opening tempo: the head of the map already carries that
+       * tempo, and extending its segment forward by one bar is the same
+       * statement as adding a bar of it at the front.
+       *
+       * That is also the musically correct answer rather than the convenient
+       * one. A drummer counts a band in at the speed the band is about to play
+       * — that is the entire information a count-in delivers, and `withCountIn`
+       * says as much about the metre a few lines up, where an asymmetric bar is
+       * counted in its groups rather than in quarters. A count-in already
+       * accelerating would be counting a tempo nobody is about to play.
+       */
+      ...(song.meta.tempo
+        ? {
+          tempo: [
+            { beat: 0, bpm: song.meta.tempo[0]!.bpm },
+            ...song.meta.tempo.slice(1).map((p) => ({ beat: p.beat + shift, bpm: p.bpm })),
+          ],
+        }
+        : {}),
     },
     sections: [count, ...song.sections.map((s) => ({ ...s, startBar: s.startBar + COUNT_BARS }))],
     tracks: song.tracks.map((t) => ({

@@ -19,6 +19,7 @@ import type { StrictnessId } from '../core/rules.js';
 import type { HookId } from '../generate/hook.js';
 import type { FillPalette } from '../generate/fills.js';
 import type { DropPalette } from '../generate/drop.js';
+import type { TempoPalette } from '../generate/tempo.js';
 import type { BreakCarrier, TransitionPalette } from '../generate/transition.js';
 
 /** One bar of melodic rhythm. `[6, 2, 8]` = dotted quarter, eighth, half. */
@@ -1033,6 +1034,67 @@ export interface Style {
    * ```
    */
   dropBars?: number;
+  /**
+   * Whether this piece changes speed, weighted, drawn **once per song**. See
+   * `generate/tempo.ts`.
+   *
+   * `bpm` above is a range, drawn from once and held for the whole piece, and
+   * `docs/engine-gaps.md` §1.1 was the largest open blocker on that list: a
+   * qawwāli accelerates across its length because that is what the form *is*,
+   * the pelimanni repertoire does the same more modestly, and both genres wrote
+   * the compromise down rather than faking it.
+   *
+   * **Style-level with no genre half**, the same seam `drops` and `breakCarrier`
+   * take rather than the one `feels` and `transitions` take. Whether a piece
+   * gathers speed is a claim about the piece, not about the idiom, and the
+   * counter-example lives inside one genre: indian holds both the qawwāli and
+   * the ālāp, which has no pulse to accelerate. And no mood bias, because
+   * `chooseTempo` already reads `mood.tempo` to push the drawn figure toward one
+   * end of this range — a second mood term here would be the same temperament
+   * spoken twice, and the two would compound.
+   *
+   * **Absent means no draw**, exactly as `drops` and `feels` above document, and
+   * absent is what every style in the catalogue says today. `[['none', 1]]` is a
+   * band that has been asked and declined: same music, one number out of a
+   * stream that a style with no table never opens.
+   *
+   * ## Worked example
+   *
+   * ```ts
+   * // A qawwāli. Patient for the first half and then it goes, ending half
+   * // again as fast as it started. Two numbers in three are the piece this
+   * // style already wrote.
+   * tempoRamp: [['none', 2], ['gathering', 1]],
+   * tempoRise: 1.5,
+   * ```
+   *
+   * A style that opts in is saying that `bpm` above describes **where its music
+   * starts** rather than where it sits, because the ramp climbs out of that
+   * range on purpose — a piece drawn at 76 and rising by half ends at 114
+   * whatever the top of the band says. That is the whole content of opting in,
+   * and a style unwilling to make that claim should not.
+   */
+  tempoRamp?: TempoPalette;
+  /**
+   * How much faster the last bar is than the first, overriding the shape's own.
+   *
+   * The sibling `tempoRamp` needs for the reason `dropBars` is the sibling
+   * `drops` needs, and with the same standing — **read, never drawn**. No
+   * weight, no table, no stream: `generateSong` reads the field and hands it to
+   * `planRamp`, so naming it costs no number and moves nobody else's songs.
+   *
+   * It exists because the amount is the half of this gesture that is a fact
+   * about one band rather than about the shape. A dance band pushing a polska
+   * and a qawwāli party are the same curve at a factor of four apart, and a
+   * library forced to pick one number would be wrong for the other by all of it.
+   *
+   * **Below 1 is a decelerando and works**, since the shapes are curves rather
+   * than directions — `0.9` is a ceremonial piece broadening across its length.
+   * Clamped to 0.5–2 inside `planRamp`, where the reason is argued: past those
+   * the form generator has no single number that describes how long this piece's
+   * bars are, and the duration target stops meaning anything.
+   */
+  tempoRise?: number;
   /**
    * Bars per chorus when the form is built on a fixed chorus length rather
    * than eight-bar units. 12 for the blues.

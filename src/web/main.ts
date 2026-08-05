@@ -15,7 +15,9 @@ import { createSungVoice, withoutSungVoice } from './sung-voice.js';
 import { generateSong, type GenerateOptions } from '../generate/song.js';
 import { renderStrudel } from '../render/strudel.js';
 import { renderMidi } from '../render/midi.js';
-import { meterLabel, songDurationSeconds, type LayerId, type Song } from '../core/types.js';
+import {
+  meterLabel, songDurationBeats, songDurationSeconds, type LayerId, type Song,
+} from '../core/types.js';
 import { GENRES, getGenre } from '../genre/index.js';
 import { STRICTNESS_LEVELS, getStrictness, type StrictnessId } from '../core/rules.js';
 import { HOOK_LEVELS, getHook, type HookId } from '../generate/hook.js';
@@ -259,7 +261,21 @@ const RING_OUT_SECONDS = 1.8;
 function scheduleRadioAdvance(song: Song): void {
   if (radioTimer) clearTimeout(radioTimer);
   if (!radioMode) return;
-  const ms = songDurationSeconds(song) * 1000;
+  /**
+   * How long the **audition** lasts, which is not always how long the piece is.
+   *
+   * `songDurationSeconds` runs the tempo map and is the length of the `.mid`.
+   * What is sounding here is Strudel, whose tempo is one global number per
+   * pattern — so a song that ramps plays flat at `meta.bpm` and runs *longer*
+   * than it is written, by the whole of the ramp. Handing this timer the written
+   * length would cut the last stretch off every ramping record on the station,
+   * which is a bug that would present as "radio mode clips the endings" and take
+   * an afternoon to trace back to a tempo curve. See `render/strudel.ts`.
+   *
+   * Identical arithmetic for every song that holds one tempo, which is all of
+   * them today.
+   */
+  const ms = (songDurationBeats(song) / song.meta.bpm) * 60 * 1000;
   radioTimer = window.setTimeout(() => {
     // Stop at the loop point rather than let the pattern come round again
     // underneath the ring.
