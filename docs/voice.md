@@ -332,6 +332,48 @@ Nothing is displayed, serialised, or put on the `Song`: the track carries
 syllables, exactly as it did. Sample output, iskelmä — `upuurus` `mäshör`
 `hurarrase` `piilhömön` `raheerhir`; scat — `waa` `daan` `bup` `šaam` `nooti`.
 
+### Two of them are not invented
+
+`sargam` and `tarana` are what the Indian repertoire sings on, and between them
+they mark the edge of the wordless proposition rather than crossing it. A swara
+name is not a word — *sa re ga ma pa dha ni* have no referent outside the scale,
+they are the same seven syllables for every singer and every listener, and there
+is nothing in them to localise. They are the one case in this project where the
+syllables genuinely are fixed and finite.
+
+What changes with them is which end of the pipe picks the syllable. **`sargam`
+is bound to the pitch**: `WordStyle.degrees` names the swara of each semitone
+above Sa, and `generate/vocals.ts` — the only place holding a note and a tonic at
+once — reads the name off the note. Twelve entries and no scale, because komal
+and shuddha re are both *re*: the name belongs to the degree, so the map is total
+and the rāga never has to be consulted, and a chromatic passing note has a name
+too. The invented words are not discarded; they keep the half of the job they
+were always better at, which is how many names run together on one breath and
+which of them are held. Measured over three songs, 276 of 276 named syllables
+land on the swara their note asks for.
+
+The pronunciation of the seven does not go through the hash, and that is the one
+concession the fixed set needs: the ordinary path would land *sa* on /so/ about
+once in nine, and a wrong name is heard immediately by anyone who knows the
+syllabary. It is the same rule at its limit rather than a second rule — as
+`spelling` sharpens, the weighted draw converges on the vowel nearest the point
+the letters claim, and `pronounceDegrees` goes straight there.
+
+**`tarana` is the opposite case** and therefore a second entry rather than a mode
+of the first: the vocables are the tabla's own language, a rhythm played on a
+voice, and a bol says which stroke and not which note. Consonant-heavy where
+sargam is vowel-led, and it needed nothing added to the syllabifier — `dirtana`
+falls apart as `dir-ta-na` under the existing cluster rule.
+
+Sample vocabulary, sargam — `nidaapaapi` `saamasaa` `radani` `dasa` `para`;
+tarānā — `tidira` `dima` `tamna` `dato` `morate` `tonna`. And a bound line, sung
+in C, with the held second slots in brackets — `pa (a) sa (a) pa (a) ta (a) ma
+pa pa ta sa re pa`. The stopped consonants are the part `airy` could not reach at
+all. What the inventory still cannot say is aspiration and retroflexion, so a
+tabla's *dha*, *ta* and *ṭa* arrive as one sound and *ga* is *ka*: the names stay
+distinct from each other, and the voice keeps the rhythm while losing the
+drummer's two hands.
+
 ## And the singer is the lab's voice
 
 The vocal layer no longer plays through Strudel at all. It is lifted out of the

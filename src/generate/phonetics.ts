@@ -604,6 +604,82 @@ export function pronounce(text: string, style: PhoneticStyle): PhoneticWord[] {
 }
 
 // ---------------------------------------------------------------------------
+// Names, which are not words
+// ---------------------------------------------------------------------------
+
+/**
+ * The palette vowel nearest a point in the plane, with no draw in it.
+ *
+ * Ties go to whichever the palette lists first, which is arbitrary and stable,
+ * and stability is the only property wanted here.
+ */
+function nearestVowel(style: PhoneticStyle, target: readonly [number, number]): Vowel {
+  let best: Vowel | undefined;
+  let bestDistance = Infinity;
+  for (const [v] of style.vowels) {
+    const d = planeDistance(v, target);
+    if (d < bestDistance) { bestDistance = d; best = v; }
+  }
+  return best ?? style.vowels[0]?.[0] ?? 'a';
+}
+
+/**
+ * Pronounce a closed set of syllables that were not invented here.
+ *
+ * Everything above is built on a word being pronounced by its letters and a
+ * hash, and that is exactly right for a word that exists only to be sung: it
+ * has no correct pronunciation to be wrong about. A *name* does. `sa` has to be
+ * /sa/ in every palette and on every note, and the ordinary path cannot promise
+ * that — the letters pull hard toward /a/ and the hash makes the final draw, so
+ * a palette holding /a/, /aa/, /o/ and /e/ lands one name in nine somewhere it
+ * should not be. Sung once and forgiven; sung as *so re ga ma* for four minutes,
+ * because the hash of a word is fixed, and anyone who knows the syllabary hears
+ * it in the first bar.
+ *
+ * So this is the one function in the file that does not consult the hash for a
+ * vowel. It is not a second set of rules, which would be the expensive way to
+ * say that: `spelling` is already a slider from "the hash decides" to "the
+ * letters decide", weighting each vowel by a gaussian around the point the
+ * letters claim, and sharpening that pull without limit converges on the vowel
+ * nearest the claim. This is that limit, reached directly. Everything else —
+ * which letter is which consonant, where a syllable divides, what a doubled
+ * vowel means — is the machinery above, untouched, because a name is spelled
+ * and pronounced like anything else once there is no question which name it is.
+ *
+ * The consonants still go through the palette's permission list, and that is a
+ * decision rather than an oversight. `VocalProfile.consonants` is a claim about
+ * what this voice can physically make, and a voice with no /s/ should not
+ * acquire one because a syllabary asked for it. What it gets instead is the
+ * ordinary fallback draw, which is at least stable per name and therefore keeps
+ * the names distinct from one another — but a genre that names a syllabary is
+ * the thing responsible for being able to say all of it, and one that cannot
+ * merges two names into one.
+ *
+ * One syllable per name, and only the first if a caller writes more, because
+ * the unit this exists to serve is one note.
+ */
+export function pronounceDegrees(names: readonly string[], style: PhoneticStyle): Syllable[] {
+  return names.map((name) => {
+    const norm = name.toLowerCase().replace(/[^\p{L}]/gu, '');
+    const letters = syllabify(norm)[0]!;
+    const target = letters.nucleus ? groupTarget(letters.nucleus) : undefined;
+    return {
+      onset: letters.onset
+        ? literalConsonant(style, letters.onset[0]!)
+          ?? chooseConsonant(style, undefined, unit(hashString(norm), 1))
+        : 'none',
+      vowel: target ? nearestVowel(style, target) : style.vowels[0]?.[0] ?? 'a',
+      // A closing consonant this voice cannot make is dropped rather than
+      // swapped: an unsayable coda costs the name its length, and a substituted
+      // one costs it its identity — `dir` heard as `dik` is a different bol.
+      coda: letters.coda ? literalConsonant(style, letters.coda[0]!) ?? 'none' : 'none',
+      heavy: letters.nucleus.length >= 2 || letters.coda !== '',
+      stress: false,
+    };
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Inventing the words in the first place
 // ---------------------------------------------------------------------------
 

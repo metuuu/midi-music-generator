@@ -88,17 +88,46 @@ export const VOCALS: VocalProfile = {
    * explains that the word's own spelling chooses these and the weights only
    * settle what an unavailable letter becomes.
    *
-   * Nasals and liquids lead because `airy` is built on them and because the
-   * three commonest sargam syllables — *ni*, *ma*, *re* — are exactly a nasal, a
-   * nasal and a liquid. The stops are listed at low weight rather than omitted:
-   * *ga*, *dha* and *ta* are real syllables in this vocabulary and a voice that
-   * could not make a stop at all could never sing a tarānā even badly.
+   * Nasals and liquids lead because the three commonest sargam syllables —
+   * *ni*, *ma*, *re* — are exactly a nasal, a nasal and a liquid.
+   *
+   * **All seven swara onsets have to be in this list, and two were not.** The
+   * list is a permission list, so a syllable whose consonant is absent does not
+   * come out approximated, it comes out *drawn* — and a drawn onset on a bound
+   * syllable is the one failure this whole mechanism exists to prevent. Without
+   * `fricative` and `stop-p`, *sa* and *pa* would each fall back to a roll of
+   * the dice, and two of the seven names in the scale would stop being names.
+   *
+   * The seven land on seven distinct consonants the inventory has, and no two
+   * differ only by voicing, so the binding is audible in full — which is the
+   * good luck in this repertoire and not a general property. See
+   * `WORD_STYLES.tarana`, whose nine bols collapse onto about five sounds
+   * because the inventory has neither aspiration nor retroflexion, so a
+   * drummer's two hands come out as one.
    */
   consonants: [
-    ['nasal', 5], ['nasal-m', 4], ['liquid-r', 4], ['liquid', 3],
-    ['none', 3], ['fricative-h', 2], ['stop', 1.5], ['stop-k', 1],
+    ['nasal', 5], ['nasal-m', 4], ['liquid-r', 4], ['stop', 3],
+    ['fricative', 3], ['liquid', 2.5], ['stop-k', 2], ['stop-p', 2],
+    ['none', 2], ['fricative-h', 1],
   ],
-  words: WORD_STYLES.airy!,
+  /**
+   * The notes name themselves.
+   *
+   * This was `airy`, and the genre's own header called the absence of sargam
+   * the one thing it could not have: a line here should be sung on *sa re ga ma
+   * pa dha ni*, and `airy` invented a word and hashed it into vowels, so the
+   * syllable and the note it landed on had nothing to do with each other.
+   *
+   * `sargam` inverts which end of the pipe picks the syllable — the pitch does
+   * — and the invented word keeps the half it was always better at: how many
+   * names run together on one breath and which are held. It does not breach the
+   * wordless premise this project is built on, because a swara name has no
+   * referent outside the scale and nothing in it to localise. See
+   * `WordStyle.degrees`, and note the table is twelve entries rather than
+   * seven: komal and shuddha *re* are both *re*, so the name belongs to the
+   * degree and the voice never has to be told which rāga it is in.
+   */
+  words: WORD_STYLES.sargam!,
   /**
    * A high female voice and a legato delivery.
    *

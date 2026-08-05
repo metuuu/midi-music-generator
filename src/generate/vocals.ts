@@ -40,6 +40,22 @@
  * vocabulary where they did not. Either way it is recognisably the refrain, and
  * there is no way at all to get one out of a random draw.
  *
+ * ### Names
+ *
+ * One repertoire inverts all of that, and it is worth saying where. A sargam
+ * line is sung on the note names — *sa re ga ma pa dha ni* — and a name is not
+ * free: *ga* is the third, and a line that sang it on the fifth is wrong in a
+ * way no listener who knows the music could miss. So where a `WordStyle`
+ * carries `degrees`, the *pitch* chooses the syllable, and the invented word is
+ * left holding the half of the job it was always better at — how many names run
+ * together on one breath, and which of them are held. See `swaraTable` below.
+ *
+ * The repetition survives the inversion, which is the part worth checking
+ * before believing any of it: the lexicon existed to make a refrain come back
+ * on the same handful of words, and a bound line gets that from the tune
+ * instead, because two choruses on the same phrase are the same swaras by
+ * construction.
+ *
  * The words are never rendered, never serialised and never leave this file:
  * what goes on the `Track` is syllables, as it always was. `generate/phonetics.ts`
  * carries the rules — vowel harmony, syllable weight, which letters this voice
@@ -50,7 +66,7 @@ import { Rng } from '../core/rng.js';
 import type { NoteEvent, Section, SectionKind, Track } from '../core/types.js';
 import type { VocalProfile } from '../style/vocals.js';
 import {
-  inventLexicon, syllableWeight,
+  inventLexicon, pronounceDegrees, syllableWeight,
   type PhoneticStyle, type PhoneticWord, type Syllable as Phoneme,
 } from './phonetics.js';
 
@@ -91,6 +107,27 @@ interface Sung {
 export interface LyricContext {
   sections: Section[];
   beatsPerBar: number;
+  /**
+   * Pitch class of the song's tonic.
+   *
+   * Optional in a weak sense: every caller knows it, and nothing but a
+   * syllabary style has any use for it, so one that has not been given the line
+   * to pass it goes on generating exactly what it did.
+   *
+   * It is here for sargam. `WordStyle.degrees` names the swara of each semitone
+   * above Sa, and a semitone above Sa is the one thing this file can work out
+   * for itself only if it is told where Sa is. Everything else it needs is
+   * already to hand: `midi` is on the note, and the section's own `transpose`
+   * moves Sa with the key, which it must — a section lifted a tone has lifted
+   * its tonic too, and singing the old names over it would put *sa* on the
+   * second degree of everything, which is precisely the audible error the
+   * binding exists to prevent.
+   *
+   * The octave fold cannot break it, and that is worth one line of reassurance
+   * rather than a test: `octaveFold` moves the whole line by whole octaves, and
+   * a whole octave is zero semitones above Sa.
+   */
+  tonic?: number;
 }
 
 export function generateVocalTrack(
@@ -392,6 +429,8 @@ function lineKey(kind: SectionKind, nth: number): string {
 interface Span {
   to: number;
   key: string;
+  /** Semitones this section is lifted by — where its tonic actually sits. */
+  transpose: number;
 }
 
 function spansOf(lyric: LyricContext): Span[] {
@@ -402,8 +441,42 @@ function spansOf(lyric: LyricContext): Span[] {
     return {
       to: (s.startBar + s.lengthBars) * lyric.beatsPerBar,
       key: lineKey(s.kind, nth),
+      transpose: s.transpose,
     };
   });
+}
+
+// ---------------------------------------------------------------------------
+// Singing the note names
+// ---------------------------------------------------------------------------
+
+/**
+ * The swara of a note, if this voice sings in note names at all.
+ *
+ * Two halves that are worth keeping apart in the head, because they answer
+ * different questions and the whole design turns on their being independent:
+ *
+ *  - **which syllable** comes from the pitch, through `WordStyle.degrees`, and
+ *    from nothing else. That is the fact about this repertoire no existing
+ *    `WordStyle` could state — *sa* is the tonic, *ga* the third — and it is a
+ *    fact a hash cannot be tuned into, because the hash does not know the note.
+ *  - **where the syllables group and how long they are** goes on coming from
+ *    the invented words, exactly as it does in every other genre. `lengths`
+ *    decides how many names run together on one breath, and a heavy syllable
+ *    goes on being sung over two slots. So the word supplies the rhythm and the
+ *    note supplies the identity, and neither has to know about the other.
+ *
+ * The lexicon therefore keeps earning its place even though nothing of it is
+ * heard: what it used to buy — the same handful of words coming back in every
+ * chorus — is now bought outright by the melody, since two choruses on the same
+ * phrase produce the same swaras with nobody arranging it. That is a stronger
+ * version of the property, not a weaker one.
+ */
+function swaraTable(profile: VocalProfile, phonetics: PhoneticStyle): Phoneme[] | undefined {
+  const { degrees } = profile.words;
+  // Twelve or nothing. A shorter table would be silently misindexed by a note
+  // that is chromatic in the key, and every note here is a semitone count.
+  return degrees?.length === 12 ? pronounceDegrees(degrees, phonetics) : undefined;
 }
 
 /**
@@ -419,6 +492,17 @@ function writer(
   const lexicon = inventLexicon(profile.words, phonetics, rng.fork('lexicon'), LEXICON_SIZE);
   const spans = spansOf(lyric);
   const lines = new Map<string, Beat[]>();
+  /**
+   * Undefined for every voice that does not sing note names, and for one that
+   * does when the caller could not say where the tonic is. The second case is
+   * not a failure: the line falls back to pronouncing the words, which for a
+   * syllabary style means the right syllables in an order the notes did not
+   * choose — worse than the binding and better than a throw.
+   *
+   * It costs no random draw either way, which is what makes it safe to have
+   * added: a genre that does not ask for it generates byte for byte what it did.
+   */
+  const swaras = lyric.tonic !== undefined ? swaraTable(profile, phonetics) : undefined;
 
   // A word with nothing behind it, for the degenerate cases: an empty palette,
   // or a melody running past the last section. A bare `a` is a worse syllable
@@ -440,6 +524,8 @@ function writer(
   let span = -1;
   let line: Beat[] = [];
   let cursor = 0;
+  /** Where Sa is, in the section being sung — the tonic as this section has it. */
+  let sa = 0;
   /** Slots the syllable being sung still owes itself, because it is heavy. */
   let owed = 0;
   let last: Phoneme = fallback;
@@ -463,6 +549,7 @@ function writer(
       span = i;
       line = lineFor(spans[i]?.key ?? 'x');
       cursor = 0;
+      sa = (lyric.tonic ?? 0) + (spans[i]?.transpose ?? 0);
       // Whatever was being held is cut off at the section boundary. A syllable
       // that ran across one would be a word straddling a key change.
       owed = 0;
@@ -497,11 +584,34 @@ function writer(
 
     const beat = line[cursor % line.length]!;
     cursor++;
-    owed = syllableWeight(beat.syllable) - 1;
-    last = beat.syllable;
+    /**
+     * The name of the note, where this voice sings in note names.
+     *
+     * The word keeps its weight and its stress and loses its syllable, which is
+     * the division `swaraTable` is built on: those two are the rhythm and the
+     * rhythm is the word's to decide, and everything audible about *which*
+     * syllable it is belongs to the pitch. A held swara is therefore a long
+     * syllable of the invented word with the note's name on it, which is what a
+     * sustained swara is.
+     *
+     * The second slot of a heavy syllable is not re-named — it goes out above,
+     * from `last`, with the vowel held and the onset dropped. That is correct
+     * rather than convenient: a syllable already being sung cannot be renamed
+     * halfway through, and a voice sliding from one swara to the next inside one
+     * held vowel is a meend, which is sung on the name it started from.
+     */
+    const named = swaras
+      ? {
+        ...swaras[(((syl.midi - sa) % 12) + 12) % 12]!,
+        heavy: beat.syllable.heavy,
+        stress: beat.syllable.stress,
+      }
+      : beat.syllable;
+    owed = syllableWeight(named) - 1;
+    last = named;
     if (beat.wordStart) word++;
     return {
-      phoneme: owed === 0 ? beat.syllable : { ...beat.syllable, coda: 'none' },
+      phoneme: owed === 0 ? named : { ...named, coda: 'none' },
       tie: false,
       word,
     };

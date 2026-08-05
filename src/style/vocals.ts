@@ -392,6 +392,38 @@ export interface WordStyle {
     neutral: readonly string[];
   };
   /**
+   * The syllable each note is *named* by, one entry per semitone above the
+   * tonic — or absent, which is every language in this table but one.
+   *
+   * This is the only field here that is not about spelling a word, and the only
+   * place in the whole vocal layer where the *pitch* chooses the syllable
+   * instead of the other way round. It exists for sargam. *Sa re ga ma pa dha
+   * ni* are not words, they are note names: *sa* is the tonic and *ga* is the
+   * third, and a passage that sang *ga* on the fifth would be wrong in a way no
+   * listener who knows this music could miss. Nothing else in the engine can get
+   * that right, and not for want of tuning — a syllable chosen from a word's
+   * letters and a hash is chosen by machinery that does not know, and cannot be
+   * told, what note it is about to land on.
+   *
+   * **Twelve entries, and therefore no scale.** The obvious table is seven long,
+   * one per swara, and it would need the rāga in play to turn a note into a
+   * degree — which the vocal layer does not have and should not acquire. It does
+   * not need it, because the name belongs to the degree and not to the pitch:
+   * komal re and shuddha re are both *re*, komal ga and shuddha ga are both
+   * *ga*, and tīvra ma is still *ma*. So semitone to name is total, fixed, and
+   * the same in every rāga, and writing *re* twice is a much smaller price than
+   * carrying a scale down here. It also means a chromatic passing note has a
+   * name, which under a seven-entry table it would not.
+   *
+   * Read by `generate/vocals.ts`, the one place holding a note and a tonic at
+   * the same moment, and ignored where the caller cannot say where the tonic is
+   * — see `LyricContext.tonic`. A voice that reaches for this must also be able
+   * to *say* it: the seven names are seven different places of articulation, and
+   * a `VocalProfile.consonants` missing one of them merges two swaras into one
+   * syllable.
+   */
+  degrees?: readonly string[];
+  /**
    * Chance the *first* syllable of a word opens on a consonant. Interior
    * syllables always do, and that is not a stylistic choice: a bare interior
    * syllable runs its vowel into the one before it, and the two merge into a
@@ -523,6 +555,134 @@ export const WORD_STYLES: Record<string, WordStyle> = {
     onsetDensity: 0.95,
     interiorDensity: 0.8,
     codaDensity: 0.55,
+    maxSyllables: 4,
+  },
+
+  /**
+   * Sargam — the seven swara names, and the only entry in this table whose
+   * syllables were not invented here.
+   *
+   * That is worth stating plainly, because at first glance it looks like the
+   * thing this file exists not to do. The proposition of the whole vocal layer
+   * is that **nothing models language**: no lyricist, no localisation, no claim
+   * to be saying anything. Sargam does not breach it. A swara name is not a
+   * word — it has no referent outside the scale, it is the same seven syllables
+   * in every performance and for every listener, and there is nothing in it to
+   * translate. What it *is* is the one case in this project where the syllables
+   * genuinely are fixed and finite, so the question the rest of the table
+   * answers — what should this syllable be — is already answered, by the note.
+   *
+   * So why is this a `WordStyle` at all, when `degrees` decides every syllable?
+   * Because the *grouping* is still open, and grouping is most of what this
+   * table has ever been for. `degrees` says which name; `lengths` and
+   * `onsetChance` say how many names are run together on one breath, which is
+   * the whole difference between an ālāp stating one swara at a time and a tān
+   * pouring six of them into a beat. The invented words survive as a rhythm and
+   * a phrasing that nobody hears as words, and the melody supplies the identity
+   * they used to carry. That trade is a straight gain: a lexicon buys repetition
+   * by reusing twenty words, and a bound line gets it exactly and for free,
+   * because two choruses on the same phrase sing the same swaras without
+   * anything having to arrange it.
+   *
+   * **Seven names, seven places.** *s r g m p d n* land on `fricative`,
+   * `liquid-r`, `stop-k`, `nasal-m`, `stop-p`, `stop` and `nasal` — seven
+   * distinct entries of an inventory that has thirteen, and no two swaras that
+   * differ only by the one distinction it drops, which is voicing. The binding
+   * is therefore audible in full. What is lost is aspiration: *dha* is a
+   * breathy voiced stop and arrives as a plain one, so it is *da* rather than
+   * *dhā*. Nothing collides because of it — no other swara opens on a dental
+   * stop — and it costs this entry less than it costs `tarana` below.
+   *
+   * It degrades honestly, too. Where the tonic is unknown the binding cannot
+   * run, the words are pronounced like any other language's, and what comes out
+   * is the right syllabary in the wrong order — *ma-ne-sa*, *ga-sa-ri*. That is
+   * roughly what this genre gets from `airy` today, with the four consonants
+   * `airy` cannot make put back.
+   *
+   * No codas and no clusters, because the syllabary has none: `codas` is empty
+   * rather than merely unlikely, and both densities are 1 because a swara that
+   * drops its consonant is not a quieter name, it is ākār and a different note.
+   */
+  sargam: {
+    onsets: ['s', 'r', 'g', 'm', 'p', 'd', 'n'],
+    codas: [],
+    // Five of the seven names are on /a/, and the letters are drawn from flat,
+    // so the repeats are the weighting — the same trick `onsets` uses.
+    harmony: { back: [], front: [], neutral: ['a', 'a', 'a', 'a', 'e', 'i'] },
+    degrees: ['sa', 're', 're', 'ga', 'ga', 'ma', 'ma', 'pa', 'dha', 'dha', 'ni', 'ni'],
+    onsetChance: 1,
+    codaChance: 0,
+    // A held swara is the form's basic unit, so a third of the syllables are
+    // written long and sung across two slots.
+    longChance: 0.35,
+    // One name alone and a run of four are both real, and the spread between
+    // them is what separates the slow statement from the fast one.
+    lengths: [1, 2, 2, 3, 3, 4],
+    spelling: 1,
+    onsetDensity: 1,
+    interiorDensity: 1,
+    codaDensity: 0,
+    maxSyllables: 4,
+  },
+
+  /**
+   * Tarānā — the other thing this repertoire sings on, and the opposite case in
+   * every respect that matters here.
+   *
+   * A tarānā is sung on the drum's own language: *dir ta na dere tom nom*, the
+   * bols a tabla player recites. They are **not tied to pitch** — there is no
+   * `degrees` here, and that absence is the whole of the difference. A bol says
+   * which stroke, not which note, so binding one to a scale degree would be as
+   * wrong in this direction as leaving sargam unbound is in the other. It is a
+   * rhythm played on a voice, which is why it belongs in the table beside
+   * sargam and not inside it: one entry with a switch would have to carry a
+   * field that is meaningless in half of its own settings, and a piece is one
+   * form or the other rather than one form at two settings.
+   *
+   * Consonant-heavy where sargam is vowel-led, and that is the point of it. The
+   * codas are load-bearing rather than decorative — *dir*, *tom*, *nom* stop the
+   * vowel dead, which is what makes the voice sound struck rather than sung —
+   * so `codaDensity` is the highest in this table. Through a renderer that
+   * cannot articulate a coda they are heard as length instead, which is the
+   * ordinary trade this project makes everywhere and is a worse one here than
+   * usual.
+   *
+   * The syllabifier needed nothing added for it: `dirtana` falls apart as
+   * `dir-ta-na` under the existing rule that the last consonant of a cluster
+   * opens the next syllable, exactly as `ilta` becomes `il-ta`.
+   *
+   * **What the inventory cannot say, and what that costs.** A tabla's
+   * vocabulary is built on precisely the three distinctions this consonant set
+   * drops. *Voicing*: *ta* and *da*, *ka* and *ga* are different strokes and
+   * arrive as one sound each. *Aspiration*: *dha* against *ta* is the bāyāṅ
+   * hand against the dāyāṅ, and there is no aspirated stop at all. *Retroflex*:
+   * *ṭa* against *ta* is most of the rest of the kit, and there is one dental
+   * `stop` for both. So nine written bols collapse onto about five sounds, and
+   * the concrete loss is that the voice keeps the tarānā's rhythm and loses the
+   * drummer's two hands. Fixing it means new members of `Consonant` in
+   * `core/types.ts` — an aspirated stop is a stop with a long voice-onset delay
+   * and a retroflex one is a stop with a low F3 locus, so both are cheap to
+   * synthesise and neither is cheap to add, since every renderer and the
+   * concert visemes read that union.
+   *
+   * The letters that survive the collapse are still written out in full, and
+   * the duplicates are the weighting: stops really are twice as common in this
+   * vocabulary as anything else.
+   */
+  tarana: {
+    onsets: ['d', 't', 'n', 'r', 'd', 't', 'n', 'm', 'k'],
+    codas: ['r', 'm', 'n'],
+    harmony: { back: [], front: [], neutral: ['a', 'a', 'a', 'i', 'i', 'o', 'e'] },
+    onsetChance: 1,
+    codaChance: 0.3,
+    // Short vowels almost throughout. A heavy syllable is sung over two slots,
+    // and a tarānā is the fastest thing this voice does.
+    longChance: 0.08,
+    lengths: [1, 2, 2, 3, 3, 4],
+    spelling: 1,
+    onsetDensity: 1,
+    interiorDensity: 1,
+    codaDensity: 0.85,
     maxSyllables: 4,
   },
 };
