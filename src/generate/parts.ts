@@ -2314,6 +2314,23 @@ export function generateDrums(
      * box never gets one, for the same reason it gets no fill.
      */
     variation?: KitVariation;
+    /**
+     * The percussion bank, so a sampled rack named on it is part of the answer
+     * to which object this fill is played on. `DrumTrack.bank`; see
+     * `seamOrchestration`.
+     *
+     * That function's own note used to say the bank could not change its answer
+     * — measured across every style and every bank the eras could roll, it
+     * never did once — and the measurement was honest and vacuous, because on
+     * the day it was taken no era named a rack at all. The style it warned about
+     * is latin's `joropo`, whose table is `perc sh` and nothing else: two
+     * `either`-tier voices, which read as a kit on their own and as a
+     * percussionist's bongo and cabasa the moment the era's bank says `+congas`.
+     * Without this the solo was orchestrated for the hand drum and the *fills*
+     * for a trap kit, so the same chorus rolled down three toms nobody had
+     * staged.
+     */
+    bank?: string;
   },
 ): DrumEvent[] {
   const { chords, beatsPerBar, startBeat, rng, style } = ctx;
@@ -2338,13 +2355,21 @@ export function generateDrums(
    * **The whole style table, not this section's pattern**, which is the read
    * `generateDrumSolo` already makes and for the same reason: a groove that does
    * not touch the toms for eight bars has not wheeled the kit off the stage.
-   * Derived here rather than taken as an option, so no caller of `generateDrums`
-   * has to be taught anything — `ctx.style` is where a drum vocabulary lives and
-   * it is already in scope. Resolved once because it is wanted twice: the fill
-   * is made of it, and so is the stroke on the downbeat the fill is aimed at.
+   * The vocabulary is derived here rather than taken as an option, because
+   * `ctx.style` is where a drum vocabulary lives and it is already in scope.
+   * Resolved once because it is wanted twice: the fill is made of it, and so is
+   * the stroke on the downbeat the fill is aimed at.
+   *
+   * The **bank** is the one half that has to be handed in, since a style knows
+   * what it plays and only the song knows what it is played on. See
+   * `opts.bank`: a table of nothing but auxiliary voices is a kit or a
+   * percussionist depending entirely on whether the era named a rack, and this
+   * is the site that answered the question wrong for as long as it could not
+   * see one.
    */
   const station = seamOrchestration(
     style.drums.flatMap((p) => Object.keys(p.voices) as DrumVoice[]),
+    opts.bank,
   );
   const fill = opts.fillAtEnd && bars > 0
     ? buildFill({

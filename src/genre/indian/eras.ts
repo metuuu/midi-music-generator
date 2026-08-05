@@ -130,10 +130,10 @@ const hindustani: EraProfile = {
    * is decided by `drumSources` below.
    */
   drumBanks: [
-    ['RolandR8', 4],
-    ['AkaiMPC60', 3],
-    ['SakataDPM48', 3],
-    ['ViscoSpaceDrum', 2],
+    ['RolandR8+mridangam', 4],
+    ['AkaiMPC60+mridangam', 3],
+    ['SakataDPM48+mridangam', 3],
+    ['ViscoSpaceDrum+mridangam', 2],
   ],
   /**
    * A person, with their hands, and nothing else — which is both correct and
@@ -253,10 +253,10 @@ const carnatic: EraProfile = {
   description:
     'The South Indian classical tradition: a composed repertoire, a violin that answers phrase by phrase, and a mridangam composing over the cycle.',
   drumBanks: [
-    ['AkaiMPC60', 4],
-    ['RolandR8', 3],
-    ['EmuSP12', 3],
-    ['YamahaRY30', 2],
+    ['AkaiMPC60+mridangam', 4],
+    ['RolandR8+mridangam', 3],
+    ['EmuSP12+mridangam', 3],
+    ['YamahaRY30+mridangam', 2],
   ],
   drumSources: [['kit', 1]],
   palette: {
@@ -326,10 +326,10 @@ const filmi: EraProfile = {
   description:
     'Bombay playback. A rāga in the tune, a string section behind it, a dholak and a kit under that, and fifty people in one room in one take.',
   drumBanks: [
-    ['RolandCompurhythm1000', 4],
-    ['AkaiMPC60', 3],
-    ['RolandTR626', 3],
-    ['EmuDrumulator', 2],
+    ['RolandCompurhythm1000+mridangam', 4],
+    ['AkaiMPC60+mridangam', 3],
+    ['RolandTR626+mridangam', 3],
+    ['EmuDrumulator+mridangam', 2],
   ],
   // 1962, so the preset box misses its own invention by two years and the gate
   // in `eligibleDrumSources` strikes it whatever this table says. Which is the
@@ -411,10 +411,10 @@ const fusion: EraProfile = {
   description:
     'From 1970: the drone handed to a rhythm section. The classical palette with amplification added rather than replaced.',
   drumBanks: [
-    ['RolandR8', 4],
-    ['AkaiXR10', 3],
-    ['YamahaRY30', 3],
-    ['RolandTR808', 2],
+    ['RolandR8+mridangam', 4],
+    ['AkaiXR10+mridangam', 3],
+    ['YamahaRY30+mridangam', 3],
+    ['RolandTR808+mridangam', 2],
   ],
   /**
    * Mostly hands, and a little programming. A tabla player is on every one of

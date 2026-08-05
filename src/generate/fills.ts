@@ -322,16 +322,28 @@ const HAND_DRUM: SeamOrchestration = {
  * That is what makes adding it safe — an untaught call site stages exactly the
  * kit it staged yesterday.
  *
- * **The bank is optional here where it is not at the solo**, and the difference
- * is the call path rather than a difference of opinion. `applyTransitions` has a
- * whole `Song` and hands it over; `generateDrums` has a `PartContext` and no
- * bank in it, and getting one there would mean a new field on `generateDrums`'
- * options and a line in `generateSong` to fill it. Measured before leaving it
- * out: across all fourteen genres, every style with a drum table and every bank
- * any of their eras can roll, **the bank does not change this answer once** —
- * a rack only ever speaks for `either`-tier voices, and no style in the
- * catalogue writes a table of nothing but those. It is a parameter anyway,
- * because the first style that writes one will not announce itself.
+ * **The bank is optional in the type and is passed at every call site**, which
+ * is not where this started. It used to be genuinely omitted at one of them, on
+ * a measurement: across all fourteen genres, every style with a drum table and
+ * every bank any of their eras could roll, the bank did not change this answer
+ * once. That was true and it was worthless, because on the day it was taken **no
+ * era named a rack at all** — the whole question was being asked of a catalogue
+ * in which the only possible answer was "kit".
+ *
+ * The style it was wrong about is latin's `joropo`, whose table is `perc sh`:
+ * two `either`-tier voices and nothing else, which read as a kit on their own
+ * and as a percussionist's bongo and cabasa the moment latin's eras named
+ * `+congas`. The failure was visible and specific — the *solo* was orchestrated
+ * for a hand drum and the *fills* for a trap kit, so 76 strokes came out on
+ * toms, an open hat and a rim that nobody had been staged to play, and three
+ * choruses ended on a crash. `npm run genres` caught all of it in one line.
+ *
+ * The lesson is worth more than the fix: a claim of the form *this parameter
+ * never changes the answer* is only as good as the corpus it was measured over,
+ * and a corpus that cannot express the case is not evidence. So the parameter is
+ * threaded rather than argued about — `generateDrums` takes a `bank` and
+ * `generateSong` fills it, which is exactly the two-line cost this note once
+ * declined to pay.
  */
 export function seamOrchestration(
   table?: Iterable<DrumVoice>, bank?: string,

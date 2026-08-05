@@ -74,10 +74,18 @@ export interface SoloAssignment {
   /**
    * Human name of the instrument soloing, matching `Track.instrument`.
    *
-   * One exception, and it is unavoidable: a drum kit is a `DrumTrack`, not a
-   * `Track`, so it has no instrument name to match. Drum solos carry
-   * `'drum kit'` — the name a showbill would print. A bank name like
-   * "LinnDrum" would be wrong; that is a sample set, not an instrument.
+   * One exception, and it is unavoidable: percussion is a `DrumTrack`, not a
+   * `Track`, so it has no instrument name to match. What a drum solo carries
+   * instead is the name a showbill would print — `'drum kit'`, or the drum the
+   * chorus was actually written for where that is not a kit: `'darbuka'`,
+   * `'congas'`, `'mridangam'`, and `'hand drum'` where nothing named which. A
+   * bank name like "LinnDrum" would be wrong in every one of those cases; that
+   * is a sample set, not an instrument.
+   *
+   * The distinction is not pedantry. A *tani āvartanam* is ten minutes of
+   * mridangam alone on a stage with no kit anywhere on it, and this field said
+   * `'drum kit'` through all of it — see `generateSong`, where the name is
+   * resolved from the same read that decides what the chorus is written for.
    */
   instrument: string;
   /** What the band plays underneath. */

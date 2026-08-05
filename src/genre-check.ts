@@ -2904,6 +2904,38 @@ console.log('\nDrum banks');
   );
 
   /**
+   * A preset box has no darbuka in it.
+   *
+   * `DrumSource` draws the line this stands on: a `box` is a machine with
+   * fourteen buttons marked *Bossa Nova* and a start button, and its whole
+   * identity is that it plays what is in its ROM. A `programmed` machine is
+   * written into a step at a time, and an MPC with hand percussion chopped into
+   * it is not only possible but is most of what hiphop was made on — so the rule
+   * is about the box alone, and a rack riding on a `programmed` era is fine.
+   *
+   * **It has to be an era-level rule, not a song-level one, and that is the
+   * whole subtlety.** `generateSong` draws the bank and the source from two
+   * independent weightings, so an era offering `box` at any weight will sooner
+   * or later put it under every bank it lists. There is no way to name a rack
+   * "except when the box comes up"; the era either can roll a box or it cannot.
+   * That is why arabic's `shaabi`, funk's `pfunk` and `electro`, latin's
+   * `moderno` and reggae's `digital` have no rack today — each carries a single
+   * unit of `box` weight, and the rack is the thing that gives way.
+   */
+  const boxedRacks = GENRE_IDS.flatMap((gid) =>
+    Object.values(getGenre(gid).eras)
+      .filter((era) => (era.drumSources ?? []).some(([s, w]) => s === 'box' && w > 0))
+      .flatMap((era) => era.drumBanks
+        .filter(([bank]) => readBankName(bank).rack)
+        .map(([bank]) => `${gid}/${era.id}: ${bank}`)));
+  check(
+    'no preset box is loaded with a sampled rack',
+    boxedRacks.length === 0,
+    boxedRacks.length ? boxedRacks.join(', ')
+      : 'every era that names a rack is played by hand or programmed',
+  );
+
+  /**
    * A name is a machine or a rack, never both.
    *
    * `readBankName` splits on the marker and looks each half up in its own table,
@@ -3494,11 +3526,24 @@ console.log('\nSolos');
          * The name has to match the track, because outside the generator that
          * is the only way to find the player. A stage points a follow spot by
          * looking up `Section.solo.instrument` in the cast; a name that matches
-         * nothing lights nobody. The kit is the one exception and it is not a
+         * nothing lights nobody. Percussion is the one exception and it is not a
          * `Track` at all — see the note where `Section.solo` is set.
+         *
+         * So the percussion arm asks the question the stage asks: given the
+         * voices this chorus actually wrote and the bank behind them, is there a
+         * kit under it? A kit chorus is `'drum kit'` and everything else is the
+         * drum it was played on. This used to compare against the literal
+         * `'drum kit'` and therefore could not tell a tani āvartanam from a jazz
+         * chorus — it passed while every hand-drum solo in the project claimed
+         * an instrument that was not on the stage.
          */
         const named = sec.solo.layer === 'drums'
-          ? sec.solo.instrument === 'drum kit'
+          ? sec.solo.instrument === (drumStations(
+            new Set(song.drums.events
+              .filter((e) => e.beat >= from - 1e-6 && e.beat < to - 1e-6)
+              .map((e) => e.voice)),
+            song.drums.bank,
+          ).kit ? 'drum kit' : (readBankName(song.drums.bank).rack ?? 'hand drum'))
           : song.tracks.some((t) => t.layer === sec.solo!.layer && t.instrument === sec.solo!.instrument);
         if (!named) m.misnamed++;
         m.layers.set(sec.solo.layer, (m.layers.get(sec.solo.layer) ?? 0) + 1);
@@ -3726,10 +3771,13 @@ console.log('\nSolos');
     );
   }
 
+  // Arabic joins the two kit genres here because it is the one that solos on a
+  // drum rather than on a kit, and therefore the only one of the four that can
+  // fail the percussion arm above at all.
   check(
     'the named soloist is a player who exists',
-    isk.misnamed === 0 && jaz.misnamed === 0,
-    `${isk.misnamed + jaz.misnamed} of ${isk.sections + jaz.sections} choruses name an instrument no track carries`,
+    isk.misnamed === 0 && jaz.misnamed === 0 && arb.misnamed === 0,
+    `${isk.misnamed + jaz.misnamed + arb.misnamed} of ${isk.sections + jaz.sections + arb.sections} choruses name an instrument no track carries`,
   );
 
   // --- Rotation ------------------------------------------------------------
@@ -3778,6 +3826,79 @@ console.log('\nSolos');
       && arb.handLandings === arb.handSolos,
     `${jaz.kitLandings}/${jaz.kitSolos} ended on a crash on the returning downbeat, `
     + `${arb.handLandings}/${arb.handSolos} on a doum`,
+  );
+
+  /**
+   * …and so do the fill, the shot and the ending.
+   *
+   * One literal in four places, found four times by the genre it was wrong for.
+   * `generateDrumSolo` named a trap kit; then `buildFill`, `landing` and
+   * `playShot` did; then `landEnding` did. Each wave closed one site and the
+   * next sweep found the next, which is the argument for asserting the whole
+   * claim rather than the site: 1804 kit strokes survived the first fix, 98 the
+   * second, and a single crash on a final downbeat survived both because one
+   * stroke at the end of a song is the easiest thing to mistake for the
+   * arrangement rather than for a default.
+   *
+   * **Two claims in one, because they are two ends of the same literal.**
+   *
+   *  - *No chorus taken on a hand drum stages a kit.* Asked with `drumStations`,
+   *    the same three-tier read casting uses to decide who is standing on the
+   *    stage — so this is a question about the picture and not only the sound. A
+   *    chorus of `{cr lp mp hp}` files as a kit chorus, and a full acoustic kit
+   *    is then wheeled on to play one crash.
+   *  - *…and no song on a table with no kit in it writes a kit stroke at all.*
+   *    The wider claim, and the one that can see a fill. The styles carrying
+   *    this vocabulary furthest are finnfolk's and reggae's hand tables, and
+   *    neither ever hands the drummer a chorus, so the first claim is blind to
+   *    them.
+   *
+   * Per style rather than per genre, because a genre is not one instrument:
+   * arabic's `saidi` and `zaffa` own a real bass drum and latin's `chachacha` a
+   * timbale, and those rooms may have whatever they like in them.
+   */
+  const kitChorus: string[] = [];
+  const kitStroke: string[] = [];
+  let handChoruses = 0;
+  let handSongs = 0;
+  for (const gid of ['indian', 'arabic', 'latin', 'finnfolk', 'reggae']) {
+    const genre = getGenre(gid);
+    for (let i = 0; i < 100; i++) {
+      const song = generateSong({ seed: `station-${i}`, genre: gid, strictness: 'strict' });
+      const style = genre.styles[song.meta.style]!;
+      const table = style.drums.flatMap((p) => Object.keys(p.voices) as DrumVoice[]);
+      if (drumStations(table, song.drums.bank).kit) continue;
+      handSongs++;
+
+      for (const e of song.drums.events) {
+        if (STATION_OF[e.voice] !== 'kit') continue;
+        kitStroke.push(`${gid}/${song.meta.style} ${e.voice}`);
+      }
+
+      const bpb = song.meta.beatsPerBar;
+      for (const sec of song.sections) {
+        if (sec.solo?.layer !== 'drums') continue;
+        handChoruses++;
+        const from = sec.startBar * bpb;
+        const to = from + sec.lengthBars * bpb;
+        const voices = new Set(song.drums.events
+          .filter((e) => e.beat >= from - 1e-6 && e.beat < to - 1e-6)
+          .map((e) => e.voice));
+        if (!drumStations(voices, song.drums.bank).kit) continue;
+        kitChorus.push(`${gid}/${song.meta.style} `
+          + `${[...voices].filter((v) => STATION_OF[v] === 'kit').join('+')}`);
+      }
+    }
+  }
+  const strays = (xs: string[]) => [...new Set(xs)].slice(0, 4).join(', ');
+  check(
+    'a hand-drum genre never sends for a kit',
+    handChoruses > 0 && kitChorus.length === 0 && kitStroke.length === 0,
+    kitChorus.length || kitStroke.length
+      ? `${kitChorus.length} of ${handChoruses} choruses stage one (${strays(kitChorus)}); `
+        + `${kitStroke.length} kit strokes (${strays(kitStroke)})`
+      : `${handChoruses} choruses and ${handSongs} songs on tables with no kit in them, `
+        + 'not one kit stroke between them',
   );
 
   // --- Comping -------------------------------------------------------------

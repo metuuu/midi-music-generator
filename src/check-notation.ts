@@ -9,7 +9,7 @@
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { generateSong } from './generate/song.js';
 import { DEFAULT_DRUM_MIX } from './core/types.js';
-import { resolveVoice } from './render/drum-banks.js';
+import { resolveVoice, SAMPLE_RACKS } from './render/drum-banks.js';
 import { renderStrudel } from './render/strudel.js';
 import { GENRE_IDS } from './genre/index.js';
 
@@ -28,8 +28,27 @@ import { GENRE_IDS } from './genre/index.js';
  * `Record<DrumVoice, number>`, so the compiler guarantees its keys are the
  * complete set. A voice added without a level is a build error; a voice added
  * without a token here is now impossible.
+ *
+ * **And the voices are not the whole vocabulary, which is the same lesson a
+ * second time.** A drum line does not carry voice names; it carries whatever
+ * `resolveDrumSample` hands back, and that is the voice only for a machine,
+ * whose samples are prefixed with `.bank()`. A sampled rack's are bare — the
+ * line says `conga`, `cabasa`, `framedrum`, `thom` — so the moment latin's eras
+ * named `+congas` this file called 32865 perfectly good bars unparseable, which
+ * is precisely the failure the paragraph above was written about. The list was
+ * derived from the wrong table rather than written out by hand, and being
+ * derived did not save it.
+ *
+ * So both tables are read, and `SAMPLE_RACKS` is the exhaustive one for its
+ * half: a rack whose sample is not a token here is impossible for the same
+ * reason a voice without a level is.
  */
-const DRUM_VOICE_TOKEN = new RegExp(`^(${Object.keys(DEFAULT_DRUM_MIX).join('|')})$`);
+const RACK_SAMPLE_NAMES = [...new Set(
+  Object.values(SAMPLE_RACKS).flatMap((shelf) => Object.values(shelf).map(([sample]) => sample)),
+)];
+const DRUM_VOICE_TOKEN = new RegExp(
+  `^(${[...Object.keys(DEFAULT_DRUM_MIX), ...RACK_SAMPLE_NAMES].join('|')})$`,
+);
 
 const problems: string[] = [];
 /**

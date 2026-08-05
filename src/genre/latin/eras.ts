@@ -85,11 +85,11 @@ const conjunto: EraProfile = {
   description:
     'A septet in a courtyard: tres, one trumpet, bongó, maracas and claves — and next door a charanga with a flute, two violins and a pair of timbales.',
   drumBanks: [
-    ['AkaiMPC60', 4],
-    ['EmuSP12', 3],
-    ['RolandCompurhythm1000', 3],
-    ['SakataDPM48', 2],
-    ['AlesisSR16', 2],
+    ['AkaiMPC60+congas', 4],
+    ['EmuSP12+congas', 3],
+    ['RolandCompurhythm1000+congas', 3],
+    ['SakataDPM48+congas', 2],
+    ['AlesisSR16+congas', 2],
   ],
   drumSources: [['kit', 1]],
   palette: {
@@ -192,12 +192,12 @@ const orquesta: EraProfile = {
   description:
     'Eighteen people on 53rd Street: four trumpets, four trombones, five saxes and a Cuban rhythm section nobody was allowed to simplify — and a charanga in Havana answering with a flute.',
   drumBanks: [
-    ['AkaiMPC60', 4],
-    ['EmuSP12', 3],
-    ['RolandCompurhythm1000', 3],
-    ['AlesisSR16', 3],
-    ['SakataDPM48', 2],
-    ['AkaiXR10', 2],
+    ['AkaiMPC60+congas', 4],
+    ['EmuSP12+congas', 3],
+    ['RolandCompurhythm1000+congas', 3],
+    ['AlesisSR16+congas', 3],
+    ['SakataDPM48+congas', 2],
+    ['AkaiXR10+congas', 2],
   ],
   drumSources: [['kit', 1]],
   palette: {
@@ -278,12 +278,12 @@ const salsa: EraProfile = {
   description:
     'The Fania nine-piece: two trombones and one trumpet, a Rhodes, an electric bass, and a rhythm section recorded into a desk instead of a room.',
   drumBanks: [
-    ['AkaiMPC60', 4],
-    ['RolandR8', 3],
-    ['EmuSP12', 3],
-    ['AlesisSR16', 3],
-    ['BossDR550', 2],
-    ['LinnDrum', 2],
+    ['AkaiMPC60+congas', 4],
+    ['RolandR8+congas', 3],
+    ['EmuSP12+congas', 3],
+    ['AlesisSR16+congas', 3],
+    ['BossDR550+congas', 2],
+    ['LinnDrum+congas', 2],
   ],
   /**
    * Still hands, and by 1975 that is a choice. The preset box existed and was

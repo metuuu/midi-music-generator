@@ -66,10 +66,10 @@ const ska: EraProfile = {
   description:
     'A big band at speed: four horns out front, a shuffled kit, a walking bass, and piano and guitar chopping the after-beat together.',
   drumBanks: [
-    ['AkaiMPC60', 4],
-    ['AlesisSR16', 3],
-    ['EmuSP12', 3],
-    ['RolandCompurhythm1000', 2],
+    ['AkaiMPC60+congas', 4],
+    ['AlesisSR16+congas', 3],
+    ['EmuSP12+congas', 3],
+    ['RolandCompurhythm1000+congas', 2],
   ],
   drumSources: [['kit', 1]],
   palette: {
@@ -157,10 +157,10 @@ const rocksteady: EraProfile = {
   description:
     'The shuffle gone, the tempo down thirty, the upright bass replaced by a Fender with the tone shut, and a Hammond in the corner.',
   drumBanks: [
-    ['AkaiMPC60', 4],
-    ['AlesisSR16', 3],
-    ['SakataDPM48', 3],
-    ['EmuSP12', 2],
+    ['AkaiMPC60+congas', 4],
+    ['AlesisSR16+congas', 3],
+    ['SakataDPM48+congas', 3],
+    ['EmuSP12+congas', 2],
   ],
   drumSources: [['kit', 1]],
   palette: {
@@ -251,11 +251,11 @@ const roots: EraProfile = {
   description:
     'The one drop, the organ bubble and the arranged horns — and the mixing desk as an instrument: spring reverb, tape echo, and a kit filtered rather than merely turned down.',
   drumBanks: [
-    ['AkaiMPC60', 4],
-    ['EmuSP12', 3],
-    ['AlesisSR16', 3],
-    ['RolandR8', 2],
-    ['SakataDPM48', 2],
+    ['AkaiMPC60+congas', 4],
+    ['EmuSP12+congas', 3],
+    ['AlesisSR16+congas', 3],
+    ['RolandR8+congas', 2],
+    ['SakataDPM48+congas', 2],
   ],
   /**
    * Still a drummer, and by 1975 that is a choice rather than a limitation — the

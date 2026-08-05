@@ -75,10 +75,10 @@ const jb: EraProfile = {
   description:
     'Nine people, one chord, a drummer placing every sixteenth by hand. Fender bass, hollow-body guitar with the tone rolled off, Hammond and four horns.',
   drumBanks: [
-    ['AkaiMPC60', 4],
-    ['RolandR8', 4],
-    ['AlesisSR16', 3],
-    ['YamahaRY30', 2],
+    ['AkaiMPC60+congas', 4],
+    ['RolandR8+congas', 4],
+    ['AlesisSR16+congas', 3],
+    ['YamahaRY30+congas', 2],
   ],
   /**
    * A drummer, and nothing else. Every other era in this project hedges here;
@@ -227,11 +227,11 @@ const boogie: EraProfile = {
   description:
     'A LinnDrum, a slap bass, a synth where the horns were, and the four-on-the-floor kick that disco left behind.',
   drumBanks: [
-    ['LinnLM1', 4],
-    ['LinnLM2', 4],
-    ['OberheimDMX', 3],
-    ['SequentialCircuitsDrumtracks', 2],
-    ['EmuDrumulator', 2],
+    ['LinnLM1+congas', 4],
+    ['LinnLM2+congas', 4],
+    ['OberheimDMX+congas', 3],
+    ['SequentialCircuitsDrumtracks+congas', 2],
+    ['EmuDrumulator+congas', 2],
   ],
   drumSources: [['programmed', 6], ['kit', 4]],
   sequenced: { bass: 0.15 },

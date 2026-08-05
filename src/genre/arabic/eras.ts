@@ -88,10 +88,10 @@ const takht: EraProfile = {
   // the note at the top. The R8 leads because its spare percussion samples are
   // struck skins, which is the nearest thing in the pack to a hand on a head.
   drumBanks: [
-    ['RolandR8', 5],
-    ['AkaiXR10', 3],
-    ['YamahaRY30', 3],
-    ['RolandD110', 2],
+    ['RolandR8+darbuka', 5],
+    ['AkaiXR10+darbuka', 3],
+    ['YamahaRY30+darbuka', 3],
+    ['RolandD110+darbuka', 2],
   ],
   // 1938, so `DRUM_SOURCE_FROM` strikes out everything but the hands before any
   // weight here is read. Written out rather than omitted because in this genre
@@ -182,10 +182,10 @@ const firqa: EraProfile = {
   description:
     'The orchestra: fifteen violins on the line, cellos and electric bass under them, and the oud and qanun still in there somewhere.',
   drumBanks: [
-    ['RolandR8', 4],
-    ['YamahaRY30', 4],
-    ['RolandMT32', 3],
-    ['BossDR550', 2],
+    ['RolandR8+darbuka', 4],
+    ['YamahaRY30+darbuka', 4],
+    ['RolandMT32+darbuka', 3],
+    ['BossDR550+darbuka', 2],
   ],
   /**
    * Still only hands, and by 1968 that is a choice rather than a date.
@@ -364,10 +364,10 @@ const satellite: EraProfile = {
   description:
     'The Beirut and Cairo studios: sampled strings, a programmed darbuka loop with a live riq over it, and a qanun that is a plug-in.',
   drumBanks: [
-    ['RolandMC303', 4],
-    ['YamahaRY30', 3],
-    ['RolandR8', 3],
-    ['AkaiXR10', 2],
+    ['RolandMC303+darbuka', 4],
+    ['YamahaRY30+darbuka', 3],
+    ['RolandR8+darbuka', 3],
+    ['AkaiXR10+darbuka', 2],
   ],
   /**
    * Programmed first and hands still third rather than absent, which is the

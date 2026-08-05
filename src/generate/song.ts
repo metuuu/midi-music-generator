@@ -41,11 +41,16 @@ import type {
   EraProfile, LeftHandMode, Mood, Progression, Style, TwoHandedKeys,
 } from '../style/types.js';
 import { FEELS, type Feel, type FeelLayer, type FeelSpan } from '../style/feel.js';
+// Which object a percussion part needs, asked of the one function casting and
+// choreography ask, so a solo cannot name an instrument the stage will not
+// build. See `drumStations`.
+import { drumStations } from '../concert/instruments.js';
+import { readBankName } from '../render/drum-banks.js';
 import { planRegisters, resolveCollisions } from './arrange.js';
 import { buildAccompaniment, getStrictness, resolveRules, type StrictnessId } from '../core/rules.js';
 import { applyDynamics, punctuate, sectionIntensity, swell } from './dynamics.js';
 import { applyFilter } from './filter.js';
-import { DEFAULT_FILLS } from './fills.js';
+import { DEFAULT_FILLS, seamOrchestration } from './fills.js';
 import { applyTransitions, hitTogether, planTransitions, type Seam } from './transition.js';
 import { getHook, RECALL_BIAS, type HookId } from './hook.js';
 import { composeSectionTune } from '../tune/adapt.js';
@@ -533,6 +538,24 @@ export function generateSong(opts: GenerateOptions = {}): Song {
   const drumPattern = rng.weightedBy(style.drums, (p) => p.weight);
   const drumBank = rng.weighted(era.drumBanks);
   /**
+   * What a drum solo in this song is played on, as a showbill would print it.
+   *
+   * One string, resolved once beside the bank it is read off, because it is the
+   * name every solo section in the song will carry and re-deriving it per
+   * section is how a song comes to claim two different objects. Read from the
+   * style's whole table rather than a section's own bar — the argument is
+   * `DrumSoloOptions.table`'s and is the same one: a variation that leaves the
+   * toms alone for eight bars has not wheeled the kit off the stage.
+   *
+   * `hand drum` where the bank names no rack, which is the same generic casting
+   * falls back to and for the same reason: the number has genuinely not been
+   * told which drum this is. See `Section.solo.instrument`, and `roster` in
+   * `concert/cast.ts`, which is what has to agree with this.
+   */
+  const soloistObject = drumStations(
+    style.drums.flatMap((p) => Object.keys(p.voices) as DrumVoice[]), drumBank,
+  ).kit ? 'drum kit' : (readBankName(drumBank).rack ?? 'hand drum');
+  /**
    * What is making the percussion, as an object. See `DrumSource`.
    *
    * Drawn here with the other rhythm-section decisions and *before* a single
@@ -998,6 +1021,9 @@ export function generateSong(opts: GenerateOptions = {}): Song {
         arrival,
         machine,
         palette: style.fills ?? genre.fills ?? DEFAULT_FILLS,
+        // What the band is playing on, which the style cannot know and the fill
+        // has to. See `generateDrums`' `bank` and `seamOrchestration`.
+        bank: drumBank,
         ...(hand ? { variation: hand } : {}),
       });
 
@@ -1708,8 +1734,23 @@ export function generateSong(opts: GenerateOptions = {}): Song {
          * this to match. `'drum kit'` is the honest human name and the one a
          * showbill would print; a bank name like "LinnDrum" is a sample set
          * rather than an instrument. See the note in `core/types.ts`.
+         *
+         * **And it is not always a kit.** Every drum solo in the project called
+         * itself one, including a *tani āvartanam* in a sabhā where the only
+         * percussion on the stage is a mridangam across somebody's shins —
+         * measured, ten of ten hand-drum choruses in arabic and indian named a
+         * kit that was not there. It went unnoticed because `playerFor` falls
+         * back to the first player on the layer and those stages have exactly
+         * one, so the follow spot landed on the right person for the wrong
+         * reason and would have missed the moment a kit stood beside them.
+         *
+         * Asked of the style table and the bank, which is the same read
+         * `orchestrationFor` used to decide what the chorus was written for —
+         * so the name and the notes cannot disagree — and answered with the
+         * rack where the bank names one, because `darbuka` is what the showbill
+         * prints and `hand drum` is what you write when nobody told you.
          */
-        instrument: soloLayer ? layerInstruments[soloLayer as PlayedLayer].name : 'drum kit',
+        instrument: soloLayer ? layerInstruments[soloLayer as PlayedLayer].name : soloistObject,
         backing: solo.backing,
         // The plan already worked out who has which bars; surfacing it stops
         // every consumer from re-deriving "trading means fours" and being
@@ -2321,9 +2362,34 @@ export function generateSong(opts: GenerateOptions = {}): Song {
         // track carries their accompaniment too, and a singer does not sing the
         // left hand.
         melodicLine(melodyTrack), genre.vocals, new Rng(`${seed}:vocal`),
-        { sections, beatsPerBar: style.beatsPerBar },
+        // The tonic, for a `WordStyle` whose syllables are the degrees rather
+        // than a lexicon — sargam names a note by where it sits, so the writer
+        // needs to know where Sa is. Costs no draw and changes nothing for a
+        // profile that sings words. See `WordStyle.degrees`.
+        { sections, beatsPerBar: style.beatsPerBar, tonic },
       );
-      if (vocal) tracks.push(vocal);
+      /**
+       * The singer gets the room too.
+       *
+       * `effectsFor` was called for every played layer and for the kit, and not
+       * here — so the `vocal` row of every genre and era effects table in the
+       * project was inert, and had been since the first one was written. Thirty
+       * one of them exist across ten genres: ambient asks for `reverb: 0.95` on
+       * a choral piece, arabic walks its singer from a 5.2 kHz lowpass in 1938
+       * to 10 kHz in 2006, country puts a slapback on a honky-tonk vocal. None
+       * of it reached the IR.
+       *
+       * It reads the same table as everything else rather than a special one,
+       * which is the point: a voice is a track like any other once it has been
+       * sung, and the merge order that decides how wet a trumpet is in 1974 is
+       * the one that should decide the singer. `instrument` is deliberately not
+       * passed — the per-instrument tier keyed on `InstrumentId` and a voice is
+       * not in that catalogue; `VocalProfile` carries its own name.
+       */
+      if (vocal) {
+        const vocalEffects = effectsFor('vocal');
+        tracks.push(vocalEffects ? { ...vocal, effects: vocalEffects } : vocal);
+      }
     }
   }
 
@@ -2670,8 +2736,34 @@ function landEnding(song: Song, style: EndingStyle, chord: Chord | undefined): v
    * of hearing.
    */
   if (style === 'button' && hadDrums && canVary(song.drums.source ?? 'kit')) {
-    song.drums.events.push({ beat: at, voice: 'cr', velocity: 0.95 });
-    song.drums.events.push({ beat: at, voice: 'bd', velocity: 0.9 });
+    /**
+     * …and on whatever the four people are actually holding.
+     *
+     * The third site of one literal, and the last. `generateDrumSolo` named a
+     * trap kit, then `buildFill`, `landing` and `playShot` did; each was found
+     * by the genre it was wrong for, and this one survived both sweeps because
+     * a single stroke on the final downbeat is the easiest thing in a song to
+     * mistake for the arrangement rather than for a default. It was 262 crashes
+     * and kicks across 239 songs whose bands own neither.
+     *
+     * A crash is the whole gesture on a kit — the band lands the chord and the
+     * cymbal rings over the top of it — and on a hand drum there is nothing to
+     * ring, so what lands the ending is the lowest stroke, hard. See
+     * `SeamOrchestration.land`, which is the same answer `landing` gives at a
+     * seam, because an ending is a seam with nothing after it.
+     */
+    const station = seamOrchestration(
+      song.drums.events.map((e) => e.voice), song.drums.bank,
+    );
+    song.drums.events.push({ beat: at, voice: station.land, velocity: 0.95 });
+    // The kick under the crash is the *other* hand — two objects struck at
+    // once, which is what makes a button sound like a band rather than a
+    // cymbal. A hand drum has one head and `land` is already the lowest stroke
+    // on it, so a second event here would be two voices at one instant on one
+    // skin, which `oneSkin` calls a flam and this gesture is not.
+    if (station.weight !== station.land) {
+      song.drums.events.push({ beat: at, voice: station.weight, velocity: 0.9 });
+    }
   }
 }
 
