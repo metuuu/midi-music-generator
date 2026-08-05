@@ -187,6 +187,15 @@ export function buildInstrumentFor(
    * is what the gallery asks for and what every caller got before this existed.
    */
   aux?: readonly DrumVoice[],
+  /**
+   * Which drum a hand percussionist is playing, from the rack half of
+   * `DrumTrack.bank`.
+   *
+   * Passed straight through; see `InstrumentBuildOptions.rack`. Omitted means
+   * the goblet drum this archetype was built as, which is what the gallery
+   * wants and what every caller got before racks existed.
+   */
+  rack?: string,
 ): InstrumentModel {
   const build = BUILDERS[performer.archetype];
   const rng = new Rng(`instrument:${performer.id}`);
@@ -204,6 +213,7 @@ export function buildInstrumentFor(
     ...(year !== undefined ? { year } : {}),
     ...(drums === 'electronic-kit' ? { electronic: true } : {}),
     ...(aux ? { aux } : {}),
+    ...(rack ? { rack } : {}),
     ...(performer.rig ? { rig: performer.rig } : {}),
     ...(performer.boards ? { boards: performer.boards } : {}),
     ...(machine ? { machine } : {}),

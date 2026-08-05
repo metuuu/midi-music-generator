@@ -21,6 +21,7 @@
 
 import { quantise } from './core/grid.js';
 import { isPlayedByHand, type DrumVoice } from './core/types.js';
+import { readBankName } from './render/drum-banks.js';
 import { generateSong } from './generate/song.js';
 import { GENRE_IDS, getGenre } from './genre/index.js';
 import { INSTRUMENTS, type InstrumentId } from './style/instruments.js';
@@ -1739,10 +1740,15 @@ for (const gid of GENRE_IDS) {
           number.song.drums.events, performer.archetype, number.song.drums.bank,
         );
         const aux = [...new Set(owned.map((e) => e.voice))].sort();
-        const key = `${performer.archetype}:${aux.join(',')}`;
+        // The rack joins the key for the reason the pieces do: it decides which
+        // object is built, not how it is dressed. See `Shape` in `hand-drum.ts`.
+        const rack = performer.archetype === 'handdrum'
+          ? readBankName(number.song.drums.bank).rack
+          : undefined;
+        const key = `${performer.archetype}:${aux.join(',')}:${rack ?? ''}`;
         let model = percussionModels.get(key);
         if (!model) {
-          model = BUILDERS[performer.archetype]({ seed: 1, aux });
+          model = BUILDERS[performer.archetype]({ seed: 1, aux, ...(rack ? { rack } : {}) });
           percussionModels.set(key, model);
         }
         for (const g of part.gestures) {
@@ -1926,15 +1932,24 @@ console.log('\nInstruments');
               number.song.drums.events, performer.archetype, number.song.drums.bank,
             ).map((e) => e.voice))].sort()
             : undefined;
+          // …and the rack, which is a whole different object rather than a
+          // different dressing of one: a set of congas puts `lp`/`mp`/`hp` on
+          // three drums 30 cm apart where a darbuka puts them on one head. Left
+          // out of the key, only the first rack a genre rolled would ever have
+          // been probed and the other two would have been checked against
+          // somebody else's geometry.
+          const rack = performer.archetype === 'handdrum'
+            ? readBankName(number.song.drums.bank).rack
+            : undefined;
           const key = [
             performer.station.posture,
             performer.archetype, aux?.join(',') ?? '', performer.rig ?? '',
-            performer.boards ?? 1, drums ?? '',
+            performer.boards ?? 1, drums ?? '', rack ?? '',
           ].join('|');
           let model = models.get(key);
           if (!model) {
             model = buildInstrumentFor(
-              performer, undefined, undefined, undefined, drums, undefined, aux,
+              performer, undefined, undefined, undefined, drums, undefined, aux, rack,
             );
             models.set(key, model);
           }

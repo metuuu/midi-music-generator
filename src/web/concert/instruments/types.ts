@@ -327,6 +327,33 @@ export interface InstrumentBuildOptions {
    */
   aux?: readonly DrumVoice[];
   /**
+   * Which drum this percussionist is playing. Hand drum only; every other model
+   * ignores it.
+   *
+   * The rack half of `DrumTrack.bank` — `darbuka`, `congas`, `mridangam` — from
+   * `readBankName`. See `SAMPLE_RACKS` in `render/drum-banks.ts`, which is the
+   * table that names them and measures what each one is.
+   *
+   * It passes the narrowness test the three fields around it are held to, and on
+   * the plainest sentence of it: this is not a fact about a performance at all,
+   * it is *which object is standing there*. It cannot vary across a bar, a
+   * number or a show, because the era drew one bank before a note existed.
+   *
+   * **And it is the field that stops one archetype from being one drum.**
+   * `handdrum` covers a family — a goblet drum between the knees, three barrel
+   * drums on a stand, a two-headed barrel across the shins — and until this
+   * existed a conga player was staged holding a darbuka. That is not a small
+   * licence like a viola drawn as a violin: `SAMPLE_RACKS` says in as many words
+   * that a darbuka's three strokes are three places on *one head* while a
+   * conga's are three *different drums*, so the two are not the same object seen
+   * at different sizes and the hands do not travel the same distances.
+   *
+   * A caller that omits it, or names a rack this file has never heard of, gets
+   * the goblet — the object this archetype was built as and the commonest of the
+   * three across the catalogue.
+   */
+  rack?: string;
+  /**
    * How the player at this object is arranged, from `Station.posture`.
    *
    * Omit and a model builds itself for the posture its own `ArchetypeSpec`

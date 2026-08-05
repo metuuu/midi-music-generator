@@ -241,18 +241,31 @@ Four faults that were shipped and invisible:
 
 ---
 
-## 7. Adoption still owed to the genres
+## 7. Adoption — done
 
-The fields exist; the genres that asked for them have not been edited to use them. Each is a one-line change and each undoes a compromise recorded in a comment.
+This section used to list seven one-line changes owed to the genres that had asked for a field and then not been edited to use it. **All seven have landed**, and they are recorded here rather than deleted because the pattern is worth keeping in view: a field added and not adopted is worse than no field, since the compromise stays in the music while the document says it is fixed.
 
-| genre | change | what it recovers |
+| genre | change | what it recovered |
 |---|---|---|
-| indian | `breakCarrier: 'pad'`, restore `break` to the palette | 43 silent breaks → 0 |
-| indian | re-enable `['drums', 2]` and `tradeFours` | the *tani āvartanam* and *sawāl-jawāb*, deleted outright |
-| arabic | restore `break` to the palette | a gesture dropped to work around the hook bug |
-| metal | `POWER` becomes `{ voices: 2, voicing: 'power' }` | 23.4% tritones and 19.2% register faults |
+| indian | `breakCarrier: 'pad'`, `break` restored to the palette | 43 silent breaks → 0 |
+| indian | `['drums', 2]` and `tradeFours` re-enabled | the *tani āvartanam* and *sawāl-jawāb* |
+| arabic | `break` restored to the palette | a gesture dropped to work around the hook bug |
+| metal | `POWER` is `{ voices: 2, voicing: 'power' }` | 23.4% tritones, 19.2% register faults |
 | metal | `breakCarrier: 'comp'` | a breakdown belongs to the guitars |
-| reggae | `dub` states its own `effects` | a dub in the digital era currently comes out dry |
-| rock | the header reading *"The power chord, which this file cannot spell"* | it is now false |
+| reggae | `dub` states its own `effects` | a dub in the digital era no longer comes out dry |
+| rock | the header claiming the power chord could not be spelled | it was false and is gone |
 
-Genres wanting the **default** `breakCarrier: 'bass'` and needing no change: funk, reggae, latin, country, jazz (its `trio`, `odd` and `fusion` all exclude the comp layer), finnfolk, classical.
+Genres taking the **default** `breakCarrier: 'bass'` and needing no change: funk, reggae, latin, country, jazz (its `trio`, `odd` and `fusion` all exclude the comp layer), finnfolk, classical.
+
+---
+
+## 8. What is actually next
+
+Fourteen genres exist and **five do not** — pop, rnb, hiphop, dnb, house — which is the largest single gap in the project. Two of §1's three blockers have moved since that list was written, so the picture is no longer "all five are blocked":
+
+- **pop, rnb and hiphop are substantially unblocked.** Ghost notes and layer exits both landed, and those were the two that mattered for a programmed kit and a last verse that strips back. Bass riff span is a real ceiling but a workable one — three genres have already written around it.
+- **house and dnb still want the drop**, which is sub-section drop-out (§1.2) and is the one genuinely new axis left.
+
+That makes sub-section drop-out the strategic item rather than merely the next one: it is the same mechanism the layered-ambient goal needs, and the README already describes the playback half of it. Building it for house and dnb builds it for the thing this project is for.
+
+Tempo ramps (§1.1) are the largest remaining blocker by blast radius — the tempo reaches the IR, both renderers and the concert clock — and they are wanted by qawwāli, the pelimanni repertoire and every build in a dance record.

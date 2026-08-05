@@ -1376,44 +1376,63 @@ function stageBand(slots: Slot[], venue: Venue, seed: string): void {
     switch (s.role) {
       case 'kit':
         /**
-         * Unless they are sitting on the floor, in which case everything this
-         * branch is about is the wrong answer twice over.
+         * Unless they are not the drummer, in which case everything this branch
+         * is about is somebody else's answer.
          *
-         * The riser is the first half. `RISER_HEIGHT` is here because a kit is
-         * loud, immovable and hard to see over; a percussionist cross-legged on
-         * a carpet is none of those, and putting one on a 2.8 m rock platform is
-         * the single most conspicuously wrong thing this file was doing in two
-         * genres. It is also arithmetic rather than taste: `headAbove` gives
-         * them 0.84 m, the riser adds 0.4, and the result is a player whose head
-         * is at 1.24 m — lower than a seated pianist and standing on a box.
+         * `role: 'kit'` is the *percussion layer*, and two people can be on it —
+         * see `roster`, and `drumStations`, which is what put them there. Only
+         * one of them is behind a kit. The riser, the lock and the centre line
+         * below are all the drummer's, and every one of them is wrong for the
+         * person sitting beside them.
          *
-         * The depth is the second half, and it is the half that is not obvious.
-         * The kit goes upstage centre because it can be seen over; this player
-         * is 0.9 m tall on the boards and *cannot*. Height and depth trade off
-         * against each other from a camera 11 m out — a player half a metre
-         * lower has to be that much further downstage to clear the shoulders in
-         * front — so a floor percussionist parked on the back line is a player
-         * the sightline pass then has to rescue from every standing body on the
-         * stage, one pass at a time. They belong level with the comp, which is
-         * also where a tabla player actually sits: beside the soloist, on the
-         * same carpet, a little upstage of the front line.
+         * **The riser is the first half.** `RISER_HEIGHT` is there because a kit
+         * is loud, immovable and hard to see over, and a hand percussionist is
+         * none of those. For a floor-seated one it was the single most
+         * conspicuously wrong thing this file did in two genres, and it is
+         * arithmetic rather than taste: `headAbove` gives them 0.84 m, the riser
+         * adds 0.4, and the result is a head at 1.24 m — lower than a seated
+         * pianist and standing on a box.
          *
-         * They keep `role: 'kit'` and therefore `DRUMMER_CLEARANCE`, which is
+         * A conga player is not short, and the riser was still wrong for them,
+         * for the *other* half of the reason: `locked`. Both drums-layer slots
+         * anchored at `x = 0` inside one 2.8 m box that the relaxation may not
+         * widen, so the separator pushed them to the two ends of the platform
+         * and the sightline pass — which moves a pinned player by 0.12 m — could
+         * not get either of them out from behind the front line. Measured on
+         * `stage-funk-2`: the kit at `x = 1.00` behind the clavinet at 0.70 and
+         * the percussionist at `-1.00` behind a synth at `-0.70`, the only two
+         * stacked pairs in 5990 across fourteen genres. A percussionist stands
+         * *beside* the riser on the boards, which is both the fix and where they
+         * actually stand.
+         *
+         * **The depth is the second half, and it is the half that differs
+         * between the two of them.** The kit goes upstage centre because it can
+         * be seen over; a floor-seated player is 0.9 m tall and *cannot*, and
+         * height and depth trade off from a camera 11 m out — so that one comes
+         * down to `zMid`, level with the comp, which is also where a tabla
+         * player actually sits: beside the soloist, on the same carpet. Somebody
+         * upright behind a set of congas has no such problem and belongs on the
+         * back line beside the riser, where the eye reads them as part of the
+         * rhythm section rather than as a front-line player who wandered back.
+         *
+         * Both keep `role: 'kit'` and therefore `DRUMMER_CLEARANCE`, which is
          * the one thing the drummer's treatment gets right about them: the
          * percussionist is still the easiest player on this stage to lose.
          */
-        if (s.posture === 'floor') {
+        if (s.archetype === HAND_DRUM_ARCHETYPE) {
           s.x = FLOOR_PERCUSSION_SIDE * Math.min(1.5, xLimit - s.r);
-          s.z = zMid + 0.3;
+          s.z = s.posture === 'floor' ? zMid + 0.3 : zUp + 0.4;
           /**
-           * Heavier than a horn and lighter than the kit. Somebody sitting on
-           * the floor with a drum in their lap does not shuffle aside to let a
+           * Heavier than a horn and lighter than the kit. Somebody with a drum
+           * in their lap or three on a stand does not shuffle aside to let a
            * trumpeter past — but they are not bolted to a platform either, and
            * unlike the drummer they *can* move, which is what the sightline
            * pass needs of them.
            */
           s.anchor = 3;
-          s.box = { x0: -xLimit, x1: xLimit, z0: zMid - 0.2, z1: zLipLimit(D, s.r) };
+          s.box = s.posture === 'floor'
+            ? { x0: -xLimit, x1: xLimit, z0: zMid - 0.2, z1: zLipLimit(D, s.r) }
+            : { x0: -xLimit, x1: xLimit, z0: zUp - 0.2, z1: zMid };
           break;
         }
         s.x = 0;

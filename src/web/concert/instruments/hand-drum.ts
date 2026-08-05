@@ -1,7 +1,7 @@
 /**
  * SPDX-License-Identifier: AGPL-3.0-or-later
  *
- * The hand drum — one skin, two bare hands, and a tray of small things.
+ * The hand drum — bare hands, a tray of small things, and one to three skins.
  *
  * This is the object that was missing. `DrumVoice` grew `lp`/`mp`/`hp` so that
  * a darbuka, a tabla and a set of congas could be *written*, and for a while
@@ -16,6 +16,13 @@
  * `-x`. The trap table is therefore at `-x`, which is where a percussionist
  * puts one — under the hand that reaches for a tambourine while the other stays
  * on the skin.
+ *
+ * **One archetype, three objects.** The file was built as a darbuka and stayed
+ * one for every rack until latin and funk named `+congas`; it now builds the
+ * goblet drum, a set of congas on a stand, or the mridangam's two-headed barrel,
+ * from the rack the bank names. See `Shape`, where the argument is set out — it
+ * is `SAMPLE_RACKS`' own, and it is that a darbuka's three strokes are three
+ * places on one head while a conga's are three different drums.
  *
  * **What it is not.** Not a smaller drum kit. There are no pedals, no sticks
  * and no cymbals, `ARCHETYPES.handdrum` says `points: ['drum', 'rest']`, and
@@ -43,8 +50,89 @@ const TAU = Math.PI * 2;
 // The layout
 // ---------------------------------------------------------------------------
 
+/**
+ * Which of the family is standing here, and why one archetype is three objects.
+ *
+ * `handdrum` was built as a darbuka and staged as one for every rack, which was
+ * defensible only while no genre named a rack: an unlabelled hand drum is a drum
+ * between somebody's knees and that is the commonest picture. It stopped being
+ * defensible the moment latin and funk named `+congas`, and the reason is in
+ * `SAMPLE_RACKS` rather than in anybody's taste — the darbuka entry describes
+ * `lp`/`mp`/`hp` as *a palm in the middle of the head, a ringing finger stroke
+ * at the edge, and a pinched crack*, three places on one skin, while the conga
+ * entry describes *the tumba, the conga and the quinto, all on the open tone*,
+ * three drums with measured fundamentals 138, 164 and 214 Hz. Those are not one
+ * object at two sizes. The hands travel a hand's breadth in the first case and
+ * most of a metre in the second, and a choreography aimed at one played on the
+ * other is the same class of error as the point in the air beside the floor tom.
+ *
+ *  - `goblet` — the darbuka. One head, three places on it. The default, and
+ *    what an unnamed hand drum has always been.
+ *  - `pair` — the congas. Three drums in a row on a stand, low at the player's
+ *    left, and the only member of the family the player stands up at.
+ *  - `barrel` — the mridangam. One drum lying across the shins with a head at
+ *    each end: the left is the bass `thom`, the right carries `na` and `ta`.
+ *
+ * Named for what the silhouette is rather than for the rack, because the rack is
+ * a sample library and this is a shape. A tabla would be two `barrel`s standing
+ * upright, and a djembe a `goblet` one size up; neither is in the library yet and
+ * both would map here rather than adding a fourth case.
+ */
+type Shape = 'goblet' | 'pair' | 'barrel';
+
+const SHAPE_OF: Record<string, Shape> = {
+  darbuka: 'goblet',
+  congas: 'pair',
+  mridangam: 'barrel',
+};
+
+const shapeFor = (rack: string | undefined): Shape =>
+  (rack ? SHAPE_OF[rack] ?? 'goblet' : 'goblet');
+
 /** Head radius. A goblet drum is narrower than this; a djembe is wider. */
 const HEAD_R = 0.145;
+
+/**
+ * The three conga heads, as a fraction of `HEAD_R` and a step sideways in
+ * metres.
+ *
+ * Real shells, because the ratios are what makes three drums read as three
+ * drums: a tumbadora is 12.5 inches across the head, a conga 11.75 and a quinto
+ * 11, which against the 11.75 this model calls 1.0 is 1.06 and 0.94. They stand
+ * about 32 cm apart on a double stand, which is a shade over one head's width
+ * and is why a player's hands can cross two of them without the elbow moving.
+ *
+ * Low at `+x` and high at `-x`: the player sits at `-z` facing the audience, so
+ * `-x` is their right, and the quinto goes under the strong hand exactly as the
+ * trap table does. `SAMPLE_RACKS` calls the quinto the small drum standing in
+ * for a slap, which is the hand that plays it.
+ */
+const CONGA: Record<'lp' | 'mp' | 'hp', { r: number; x: number }> = {
+  lp: { r: 1.06, x: 0.32 },
+  mp: { r: 1.00, x: 0.00 },
+  hp: { r: 0.94, x: -0.30 },
+};
+
+/**
+ * The mridangam's two heads, along the barrel.
+ *
+ * A concert instrument is about 60 cm end to end, so each head sits some 30 cm
+ * from the middle — which is the whole reason this shape cannot be faked with a
+ * goblet: the left hand and the right hand are at opposite ends of an object
+ * lying across the player, not a palm's width apart on one skin. The right head
+ * is the smaller of the two and carries both `na` and `ta`, the ringing open
+ * stroke and the rim crack, and those two *are* a step across one head.
+ */
+const MRIDANGAM = {
+  /** Half the shell's length: how far each head is from the middle. */
+  reach: 0.29,
+  /** The valanthalai, at the player's right — which is `-x`. See `HEAD_UP`. */
+  rightR: 0.86,
+  /** The thoppi, at their left, and the one with the bass in it. */
+  leftR: 1.02,
+  /** How far in from the rim the `ta` crack lands, as a fraction of the head. */
+  rim: 0.68,
+};
 
 /**
  * How high this object stands, which is a fact about the player and not about
@@ -56,7 +144,7 @@ const HEAD_R = 0.145;
  * clap. Everything else in the file is derived from those.
  *
  * **A chair and a carpet are not one drum translated.** The body of a goblet
- * drum runs from the head to the boards — see `bodyLength` — so lowering the
+ * drum runs from the head to the boards — see `toFloor` — so lowering the
  * head shortens the instrument rather than sinking it, and the trap table beside
  * it grows shorter legs rather than shorter ones buried in the deck. That is why
  * this is a build-time choice rather than a `position.y` on the root, and it is
@@ -112,6 +200,16 @@ const HEAD_ALONG = new Vector3(0, 0, 1)
 /** How far out from the centre an edge stroke lands. */
 const EDGE = HEAD_R * 0.72;
 
+/**
+ * How far off the deck a conga's shell stops and its stand begins.
+ *
+ * The number that keeps three drums at a playable height without three shells a
+ * metre long. A real double stand holds the drums about 20 cm up so a seated
+ * player's hands fall on the heads; the shells above it are then the 75 cm they
+ * actually are rather than being stretched to the floor.
+ */
+const CONGA_STAND = 0.20;
+
 /** The trap table: where it stands beside the player, and how thick it is. */
 const TABLE_X = -0.40;
 const TABLE_Z = 0.02;
@@ -136,6 +234,99 @@ const PIECE = { tb: 0.045, sh: 0.110, perc: 0.052, cb: 0.100 } as const;
 interface Spot { at: Vector3; up: Vector3 }
 
 /**
+ * Which skins each member of the family has, and which strokes are on each.
+ *
+ * The three cases are three readings of `SAMPLE_RACKS`, and the mapping is that
+ * table's own sentences rather than an invention here:
+ *
+ *  - **goblet** — *a palm in the middle of the head, a ringing finger stroke at
+ *    the edge, and a pinched crack*. One skin, three places on it, and the whole
+ *    ladder fits inside a hand's breadth.
+ *  - **pair** — *the tumba, the conga and the quinto, all on the open tone, all
+ *    one articulation so the three sound like one pair of hands*. Three skins,
+ *    one stroke each, low at the player's left.
+ *  - **barrel** — *one drum, two heads*. `thom` is the left-hand bass head;
+ *    `na` and `ta` share the right, which is the one case where a single skin
+ *    carries two of the three and they really are a step apart on it.
+ */
+function headsFor(seat: Seat, shape: Shape): Head[] {
+  const y = seat.head;
+  if (shape === 'pair') {
+    /**
+     * Three drums in a row, and every one of them tilted toward the player for
+     * the same reason the darbuka is: it is what stops each prep being a
+     * vertical lift, and a conga on a stand really does lean back a few degrees.
+     */
+    return (['lp', 'mp', 'hp'] as const).map((voice) => ({
+      at: new Vector3(CONGA[voice].x, y, 0),
+      up: HEAD_UP.clone(),
+      r: HEAD_R * CONGA[voice].r,
+      // One shell each. Unlike the mridangam's, these are three objects.
+      shell: 'conga' as const,
+      of: [voice as DrumVoice],
+    }));
+  }
+  if (shape === 'barrel') {
+    /**
+     * The right head first, because it is the one the hands live on — see
+     * `Layout.rest` — and because the shell is built by whichever head comes
+     * first and there is only one shell between the two.
+     */
+    return [
+      {
+        at: new Vector3(-MRIDANGAM.reach, y, 0),
+        up: new Vector3(-0.62, 0.78, -0.09).normalize(),
+        r: HEAD_R * MRIDANGAM.rightR,
+        shell: 'barrel',
+        of: ['mp', 'hp'],
+      },
+      {
+        at: new Vector3(MRIDANGAM.reach, y, 0),
+        up: new Vector3(0.62, 0.78, -0.09).normalize(),
+        r: HEAD_R * MRIDANGAM.leftR,
+        shell: 'none',
+        of: ['lp'],
+      },
+    ];
+  }
+  return [{
+    at: new Vector3(0, y, 0), up: HEAD_UP.clone(), r: HEAD_R, shell: 'goblet',
+    of: ['lp', 'mp', 'hp'],
+  }];
+}
+
+/**
+ * Where one stroke lands on the skin that carries it.
+ *
+ * Derived from the head rather than written per shape, so moving a drum moves
+ * its strokes — the same rule the file already holds `HEAD_ALONG` to. A head
+ * carrying one voice is struck at the near edge, which is where an open tone is
+ * played and where the hand already is; a head carrying the whole ladder spreads
+ * it across the skin, centre for the low one and the two rims for the others.
+ */
+function strokeOn(head: Head, voice: DrumVoice): Spot {
+  const along = new Vector3(0, 0, 1)
+    .addScaledVector(head.up, -head.up.z).normalize();
+  const edge = head.r * 0.72;
+  const at = head.at.clone();
+  if (head.of.length === 1) {
+    // The open tone: at the rim nearest the player, not in the middle of the
+    // head. A palm in the centre of a conga is a muted bass tone and is not what
+    // `SAMPLE_RACKS` measured.
+    at.addScaledVector(along, -head.r * 0.55);
+  } else if (head.of.length === 2) {
+    // The mridangam's right head. `na` rings in the middle, `ta` cracks on the
+    // rim — the one place in this file where two of the three strokes are a step
+    // across one skin rather than two objects.
+    if (voice === 'hp') at.addScaledVector(along, -head.r * MRIDANGAM.rim);
+  } else {
+    if (voice === 'mp') at.addScaledVector(along, -edge);
+    if (voice === 'hp') at.addScaledVector(along, edge);
+  }
+  return { at, up: head.up.clone() };
+}
+
+/**
  * Where each voice this player can own is struck, and where the objects that
  * carry them stand.
  *
@@ -154,7 +345,15 @@ interface Spot { at: Vector3; up: Vector3 }
  * skin.
  */
 interface Layout {
-  headAt: Vector3;
+  /**
+   * Every skin standing here, in the order the shapes below build them.
+   *
+   * One entry for a darbuka, three for a set of congas, two for the mridangam's
+   * pair of ends. `Head.of` is what closes the loop that the old single-skin
+   * model got for free: a stroke has to squash *the head it landed on*, and with
+   * three drums in a row "the head" is no longer a question with one answer.
+   */
+  heads: Head[];
   tableAt: Vector3;
   tableTop: number;
   points: Partial<Record<DrumVoice, Spot>>;
@@ -162,23 +361,48 @@ interface Layout {
   rest: Spot;
 }
 
-function layoutFor(seat: Seat): Layout {
-  const headAt = new Vector3(0, seat.head, 0);
+/** One skin: where it is, which way it faces, how big it is, what hangs off it. */
+interface Head {
+  at: Vector3;
+  up: Vector3;
+  r: number;
+  /**
+   * The shell under it. `goblet` is a lathed bowl and waist reaching the boards;
+   * `conga` a tapered barrel on a stand; `barrel` is the mridangam's shell,
+   * which is one object between two heads and is therefore built once, by the
+   * *first* of its heads, with the second passing `none`.
+   */
+  shell: 'goblet' | 'conga' | 'barrel' | 'none';
+  /** Which voices land on this skin, so a stroke knows what to move. */
+  of: DrumVoice[];
+}
+
+function layoutFor(seat: Seat, shape: Shape): Layout {
   const tableAt = new Vector3(TABLE_X, seat.table, TABLE_Z);
   const tableTop = tableAt.y + TABLE_THICK / 2;
   const flat = () => new Vector3(0, 1, 0);
+  const heads = headsFor(seat, shape);
+
+  /** Every stroke on every skin, gathered from the heads that carry them. */
+  const skins: Partial<Record<DrumVoice, Spot>> = {};
+  for (const head of heads) for (const voice of head.of) skins[voice] = strokeOn(head, voice);
+
+  /**
+   * Where the hands idle, which is over the drum the player is most often on.
+   *
+   * The middle head: the darbuka's only one, the conga proper between its two
+   * neighbours, and — for the mridangam — the right-hand head, which is the one
+   * carrying two of the three strokes. Backed off the skin so the pose reads as
+   * hovering rather than resting a palm on a live head.
+   */
+  const home = heads[shape === 'barrel' ? 0 : Math.floor(heads.length / 2)]!;
 
   return {
-    headAt,
+    heads,
     tableAt,
     tableTop,
     points: {
-      /** *Dum*: the palm in the middle of the head, which is the low one. */
-      lp: { at: headAt.clone(), up: HEAD_UP.clone() },
-      /** The near rim, under the hand that is already there. */
-      mp: { at: headAt.clone().addScaledVector(HEAD_ALONG, -EDGE), up: HEAD_UP.clone() },
-      /** *Tek*: the far rim, fingertips, and the high one. */
-      hp: { at: headAt.clone().addScaledVector(HEAD_ALONG, EDGE), up: HEAD_UP.clone() },
+      ...skins,
 
       /**
        * The riq, lying on the table where a frame drum lies when it is not in
@@ -212,8 +436,8 @@ function layoutFor(seat: Seat): Layout {
       cp: { at: new Vector3(0, seat.clap, CLAP_Z), up: new Vector3(0, 0.64, -0.77) },
     },
     rest: {
-      at: headAt.clone().addScaledVector(HEAD_UP, 0.11).addScaledVector(HEAD_ALONG, -0.04),
-      up: HEAD_UP.clone(),
+      at: home.at.clone().addScaledVector(home.up, 0.11).addScaledVector(HEAD_ALONG, -0.04),
+      up: home.up.clone(),
     },
   };
 }
@@ -320,6 +544,84 @@ function bodyGeometry(radius: number, height: number): LatheGeometry {
   );
 }
 
+/**
+ * The conga profile: a long shell that swells below the head and draws in to a
+ * narrow foot.
+ *
+ * The same rim-down notation and the same reversal as `bodyGeometry`, because
+ * the lathe wants the same thing of both. What differs is the shape and it is
+ * the shape that carries the identity: a conga's widest point is a hand's
+ * breadth *below* the head rather than at it, which is the belly you see from
+ * the front and the thing that separates the silhouette from a floor tom's
+ * straight cylinder.
+ */
+function congaGeometry(radius: number, height: number): LatheGeometry {
+  const shell: Array<[number, number]> = [
+    [1.00, 1.00], [1.06, 0.90], [1.07, 0.78], [1.04, 0.62],
+    [0.96, 0.44], [0.86, 0.26], [0.78, 0.10], [0.76, 0.02], [0.76, 0.00],
+  ];
+  return new LatheGeometry(
+    shell.reverse().map(([r, y]) => new Vector2(r * radius, y * height)), 20,
+  );
+}
+
+/**
+ * The mridangam's shell: a barrel with a head at each end and a belly in the
+ * middle, lying on its side.
+ *
+ * Lathed along its own axis like everything else here and then laid down by the
+ * caller, rather than modelled horizontally — the lathe only knows how to spin
+ * a profile around `y`, and fighting that would mean writing the profile twice.
+ * The two ends are deliberately different radii: `SAMPLE_RACKS` has the right
+ * head carrying a ringing `na` and a cracking `ta` and the left a bass `thom`,
+ * and the reason those sound the way they do is that the left head is the wider
+ * of the two.
+ */
+function barrelGeometry(left: number, right: number, length: number): LatheGeometry {
+  const belly = Math.max(left, right) * 1.16;
+  const shell: Array<[number, number]> = [
+    [right, 1.00], [right * 1.04, 0.94], [belly, 0.66],
+    [belly, 0.40], [left * 1.04, 0.07], [left, 0.00],
+  ];
+  return new LatheGeometry(
+    shell.map(([r, y]) => new Vector2(r, y * length)), 20,
+  );
+}
+
+/**
+ * The cradle a conga stands in, drawn in the root's frame.
+ *
+ * Three legs and a ring, and it is deliberately *not* parented to the drum: a
+ * stand rests on the boards and the drum rests in the stand, so a leg that
+ * inherited the shell's lean would splay by that lean and stand on one toe. The
+ * ring goes where the shell's foot ends up, which is derived from the same
+ * length the shell was built with rather than measured again.
+ */
+function standUnder(
+  root: Group, head: Head, shellLength: number, lean: number, mat: MeshStandardMaterial,
+): void {
+  const foot = head.at.clone().addScaledVector(head.up, -shellLength);
+  const ring = addTo(root, new Mesh(
+    new CylinderGeometry(head.r * 0.80, head.r * 0.80, 0.014, 14, 1, true), mat,
+  ));
+  ring.position.copy(foot);
+  ring.quaternion.setFromUnitVectors(new Vector3(0, 1, 0), head.up);
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * TAU + 0.5;
+    const leg = addTo(root, new Mesh(
+      new CylinderGeometry(0.009, 0.009, foot.y, 8), mat,
+    ));
+    // Splayed a little, and the splay is the stand's rather than the drum's —
+    // hence `foot` for the top and a plain vertical leg under it.
+    leg.position.set(
+      foot.x + Math.cos(a) * head.r * 0.62,
+      foot.y / 2,
+      foot.z + Math.sin(a) * head.r * 0.62,
+    );
+    leg.rotation.z = Math.sin(a) * 0.05 - lean * 0.2;
+  }
+}
+
 export const buildHandDrum: InstrumentBuilder = (opts) => {
   const { seed, finish } = opts;
   const rng = new Rng(`handdrum:${seed}`);
@@ -332,7 +634,16 @@ export const buildHandDrum: InstrumentBuilder = (opts) => {
    * `InstrumentBuildOptions.posture` for why a model is allowed to be told.
    */
   const seat = seatFor(opts.posture);
-  const L = layoutFor(seat);
+  /**
+   * Which of the family this is, and therefore what gets built.
+   *
+   * The second thing in this file that reads something outside the drum, and it
+   * is a fact about the object rather than about the player — see
+   * `InstrumentBuildOptions.rack`, and `Shape` for why one archetype has to be
+   * three silhouettes.
+   */
+  const shape = shapeFor(opts.rack);
+  const L = layoutFor(seat, shape);
 
   const shellMat = new MeshStandardMaterial({
     color: finish ?? ['#6b4a2f', '#7d5334', '#513828', '#8a6a3c'][rng.int(0, 3)]!,
@@ -344,50 +655,104 @@ export const buildHandDrum: InstrumentBuilder = (opts) => {
   const woodMat = new MeshStandardMaterial({ color: '#8a6a3c', roughness: 0.8, metalness: 0 });
   const darkMat = new MeshStandardMaterial({ color: '#17171a', roughness: 0.7, metalness: 0.1 });
 
-  // --- The drum ------------------------------------------------------------
+  // --- The drums -----------------------------------------------------------
 
   /**
-   * The body hangs off the head rather than the other way round: the head is
-   * the surface every gesture in the choreography is aimed at, so it is the
-   * thing whose position is fixed and the shell is what has to follow it.
-   */
-  const drum = addTo(root, new Group());
-  drum.position.copy(L.headAt);
-  drum.quaternion.setFromUnitVectors(new Vector3(0, 1, 0), HEAD_UP);
-
-  /**
-   * How long the body has to be for its foot to land on the boards.
+   * One of these per skin, and everything about a drum hangs off its head.
    *
-   * Not `L.headAt.y`, which is the answer for a drum standing straight up. This
-   * one leans, so its foot ring meets the floor on one edge and the far edge
-   * lifts — and a body cut to the head's height instead pushes the near edge
-   * about half a centimetre through the deck. Derived from the same `HEAD_UP`
-   * the tilt comes from, so leaning the drum further cannot sink it.
+   * The head is the surface every gesture in the choreography is aimed at, so it
+   * is the thing whose position is fixed and the shell is what has to follow —
+   * which is what the single-drum version of this file already said, and is why
+   * generalising it to three was mostly a matter of putting the same block in a
+   * loop. Each group is *oriented by its own head's normal*, so the squash below
+   * is a scale along local `y` whatever direction that head actually faces: the
+   * mridangam's two heads face outward along `±x` and take exactly the same code
+   * as a darbuka's, which faces the ceiling.
    */
-  const lean = Math.acos(HEAD_UP.y);
-  const bodyLength = (L.headAt.y - HEAD_R * 0.62 * Math.sin(lean)) / Math.cos(lean);
+  const skins: { mesh: Mesh; hit: Hit; of: DrumVoice[] }[] = [];
 
-  const body = addTo(drum, new Mesh(bodyGeometry(HEAD_R, bodyLength), shellMat));
-  body.position.y = -bodyLength;
-  body.castShadow = true;
+  for (const head of L.heads) {
+    const drum = addTo(root, new Group());
+    drum.position.copy(head.at);
+    drum.quaternion.setFromUnitVectors(new Vector3(0, 1, 0), head.up);
 
-  const skin = addTo(drum, new Mesh(headGeometry(HEAD_R), skinMat));
-  skin.receiveShadow = true;
+    /**
+     * How long a standing shell has to be for its foot to land on the boards.
+     *
+     * Not `head.at.y`, which is the answer for a drum standing straight up.
+     * These lean, so the foot ring meets the floor on one edge and the far edge
+     * lifts — and a body cut to the head's height instead pushes the near edge
+     * about half a centimetre through the deck. Derived from the head's own
+     * normal, so leaning a drum further cannot sink it.
+     */
+    const lean = Math.acos(head.up.y);
+    const toFloor = (rise: number): number =>
+      (head.at.y - rise - head.r * 0.62 * Math.sin(lean)) / Math.cos(lean);
 
-  const hoop = addTo(drum, new Mesh(
-    new CylinderGeometry(HEAD_R * 1.03, HEAD_R * 1.03, 0.020, 20, 1, true), hoopMat,
-  ));
-  hoop.position.y = -0.006;
+    if (head.shell === 'goblet') {
+      const length = toFloor(0);
+      const body = addTo(drum, new Mesh(bodyGeometry(head.r, length), shellMat));
+      body.position.y = -length;
+      body.castShadow = true;
+    } else if (head.shell === 'conga') {
+      /**
+       * A conga stands on a stand, not on the deck — which is not decoration:
+       * a shell long enough to reach the boards would put the head at a
+       * seated player's chin. `CONGA_STAND` is where the shell stops and the
+       * legs take over.
+       */
+      const length = toFloor(CONGA_STAND);
+      const body = addTo(drum, new Mesh(congaGeometry(head.r, length), shellMat));
+      body.position.y = -length;
+      body.castShadow = true;
+      standUnder(root, head, length, lean, hoopMat);
+    } else if (head.shell === 'barrel') {
+      /**
+       * The one shell serving two heads, so it is built by the first of them
+       * and laid along `x` rather than dropped down `-y`.
+       *
+       * Built in the *root's* frame instead of this head's, because it does not
+       * belong to this head — it spans both, and hanging it off one of them
+       * would tilt it by that head's normal and pull the other end out of its
+       * own skin.
+       */
+      const other = L.heads.find((h) => h !== head)!;
+      const barrel = addTo(root, new Mesh(
+        barrelGeometry(other.r, head.r, MRIDANGAM.reach * 2), shellMat,
+      ));
+      barrel.position.copy(head.at);
+      // Lathed up `y`, laid down along `+x` toward the far head.
+      barrel.quaternion.setFromUnitVectors(new Vector3(0, 1, 0), new Vector3(1, 0, 0));
+      barrel.castShadow = true;
+      // It is lying on something — the carpet, or the player's shins — and a
+      // barrel drawn resting on nothing rolls in the eye even when it is still.
+      const cradle = addTo(root, new Mesh(
+        new CylinderGeometry(head.r * 0.5, head.r * 0.62, 0.05, 12), darkMat,
+      ));
+      cradle.position.set(0, head.at.y - head.r * 0.92, 0);
+    }
 
-  // The tuning lugs, which are what makes a bare cylinder read as a tensioned
-  // skin. Small enough that six is plenty and instancing would not pay.
-  for (let i = 0; i < 6; i++) {
-    const a = (i / 6) * TAU + 0.4;
-    const lug = addTo(drum, new Mesh(new CylinderGeometry(0.006, 0.006, 0.075, 6), hoopMat));
-    lug.position.set(Math.cos(a) * HEAD_R * 0.99, -0.048, Math.sin(a) * HEAD_R * 0.99);
+    const skin = addTo(drum, new Mesh(headGeometry(head.r), skinMat));
+    skin.receiveShadow = true;
+    skins.push({ mesh: skin, hit: new Hit(), of: head.of });
+
+    const hoop = addTo(drum, new Mesh(
+      new CylinderGeometry(head.r * 1.03, head.r * 1.03, 0.020, 20, 1, true), hoopMat,
+    ));
+    hoop.position.y = -0.006;
+
+    // The tuning lugs, which are what makes a bare cylinder read as a tensioned
+    // skin. Small enough that six is plenty and instancing would not pay.
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * TAU + 0.4;
+      const lug = addTo(drum, new Mesh(new CylinderGeometry(0.006, 0.006, 0.075, 6), hoopMat));
+      lug.position.set(Math.cos(a) * head.r * 0.99, -0.048, Math.sin(a) * head.r * 0.99);
+    }
   }
 
-  const skinHit = new Hit();
+  /** Which skin a voice moves, resolved once rather than searched per stroke. */
+  const skinOf = new Map<DrumVoice, typeof skins[number]>();
+  for (const s of skins) for (const v of s.of) skinOf.set(v, s);
 
   // --- The trap table ------------------------------------------------------
 
@@ -525,12 +890,22 @@ export const buildHandDrum: InstrumentBuilder = (opts) => {
       if (point.kind !== 'drum') return;
       const f = force < 0 ? 0 : force > 1 ? 1 : force;
       const voice = point.voice;
-      if (voice === 'lp' || voice === 'mp' || voice === 'hp') {
-        // An edge stroke is a fingertip and a centre stroke is the whole palm,
-        // so the skin gives far less to a *tek* than to a *dum* at the same
-        // written velocity. That difference is most of what tells the two
-        // apart from the back of a room.
-        skinHit.fire(now, voice === 'lp' ? f : f * 0.45);
+      const struck = skinOf.get(voice);
+      if (struck) {
+        /**
+         * An edge stroke is a fingertip and a centre stroke is the whole palm,
+         * so the skin gives far less to a *tek* than to a *dum* at the same
+         * written velocity. That difference is most of what tells the two apart
+         * from the back of a room.
+         *
+         * Asked of the *stroke's place on its own head* rather than of the
+         * voice, which is the distinction three drums forced. `hp` is a
+         * fingertip on a darbuka's rim and a full open palm on a quinto — the
+         * same name, two hands — so the softening belongs to a stroke that is
+         * sharing a skin with a lower one, not to the letter it is written as.
+         */
+        const centre = struck.of[0] === voice;
+        struck.hit.fire(now, centre ? f : f * 0.45);
         return;
       }
       const a = aux[voice as keyof typeof aux];
@@ -538,7 +913,7 @@ export const buildHandDrum: InstrumentBuilder = (opts) => {
     },
 
     update(now: number): void {
-      skin.scale.y = 1 - skinHit.wobble(now, 0.20, 3.4) * HEAD_DISH;
+      for (const s of skins) s.mesh.scale.y = 1 - s.hit.wobble(now, 0.20, 3.4) * HEAD_DISH;
       for (const id of ['tb', 'sh', 'perc', 'cb'] as const) {
         const a = aux[id];
         a.piece.position.y = a.base - a.hit.wobble(now, 0.30, 4) * 0.012;
@@ -563,10 +938,23 @@ export const buildHandDrum: InstrumentBuilder = (opts) => {
      * At 0.40 the ring's near edge clears the longest toe by four centimetres,
      * and the hands are 0.56 m from the shoulder, which is under the 0.61 m this
      * archetype already reaches for its own trap table.
+     *
+     * **And a conga player is not straddling anything.** Three drums on a stand
+     * are an object the player sits *behind* rather than between, so the shells
+     * need the room the knees were using: `sit` rather than `straddle`, and far
+     * enough back that the middle drum's belly — which is the widest point of
+     * the widest shell, at `HEAD_R × 1.07` — is clear of a knee. The reach to
+     * the outer heads is what sets the number rather than the shell is: the
+     * quinto is 0.30 m across and 0.44 m away on the diagonal, which is inside
+     * the 0.61 m this archetype already asks of its own trap table and is why
+     * three drums do not need a wider stance than one.
      */
     station: {
-      offset: new Vector3(0, 0, opts.posture === 'floor' ? -0.40 : -0.34), facing: 0,
-      posture: opts.posture === 'floor' ? 'floor' : 'straddle',
+      offset: new Vector3(
+        0, 0, shape === 'pair' ? -0.44 : opts.posture === 'floor' ? -0.40 : -0.34,
+      ),
+      facing: 0,
+      posture: shape === 'pair' ? 'sit' : opts.posture === 'floor' ? 'floor' : 'straddle',
     },
 
     dispose(): void {

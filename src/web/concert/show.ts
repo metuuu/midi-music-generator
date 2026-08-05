@@ -71,6 +71,7 @@ import type {
 } from '../../concert/types.js';
 import { drumEventsFor, instrumentIdForTrack, specFor } from '../../concert/instruments.js';
 import { getGenre } from '../../genre/index.js';
+import { readBankName } from '../../render/drum-banks.js';
 import { renderStrudel } from '../../render/strudel.js';
 import { loadCode, playCode, preloadSounds, startLoaded, stopPlayback } from '../audio.js';
 import { createSungVoice, withoutSungVoice } from '../sung-voice.js';
@@ -568,6 +569,13 @@ export function createShow(opts: ShowOptions = {}): Show {
           ? [...new Set(drumEventsFor(
             number.song.drums.events, performer.archetype, number.song.drums.bank,
           ).map((e) => e.voice))]
+          : undefined,
+        // …and which drum it is, where this is the percussionist. One archetype
+        // covers a goblet drum, a set of congas and a mridangam, and only the
+        // bank knows which of them the band brought. See `Shape` in
+        // `instruments/hand-drum.ts`.
+        performer.archetype === 'handdrum'
+          ? readBankName(number.song.drums.bank).rack
           : undefined,
       );
 
