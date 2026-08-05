@@ -74,6 +74,49 @@
  * in the bar being replaced — which are hook-invariant precisely because the
  * assertion above says they are.
  *
+ * ### …and the figure was right while the instruments playing it were not
+ *
+ * `playShot` wrote `bd` + `sd` on every hit and spared a `cr`, in literals, and
+ * `landing()` in `fills.ts` wrote the arrival cymbal in two more. Everything
+ * above about *what* the band hits was station-independent from the first line
+ * — a style table and a metre are facts about a bar, not about an object — and
+ * none of it was worth anything to a band with no kit, because the delivery
+ * named three instruments the music did not have.
+ *
+ * Indian is the measurement and it is the one that names the prize. Five of its
+ * twenty-eight styles declare a transition palette, and `filmi`'s own comment
+ * says why only five: *"`applyShot` writes its figure as a kick, a snare and a
+ * crash, and this is one of the few rooms here that has all three in it."* A
+ * **tihai** — a figure struck three times, calculated backwards so the last of
+ * them lands on sam — is exactly a `shot`, and the twenty-three styles that
+ * could not have one were not short of a figure. `shotFigures` above resolves
+ * the group heads for free. They were short of a drum to play it on.
+ *
+ * So the kit half of `playShot` reads a `SeamOrchestration` now, and so does
+ * every drum event this file writes. **Where it reads it from is the whole of
+ * the change**: `song.drums.events` and `song.drums.bank`, through
+ * `drumStations`, which is the same question `cast.ts` asks of the same two
+ * values to decide who is standing on the stage at all. Not the style table —
+ * this pass has no style, and going to look for one would be a worse answer as
+ * well as a new dependency. A shot is the *band* hitting a figure, so what it
+ * needs to know is who is in the band, and the events are what casting will
+ * read when it decides that.
+ *
+ * **What it comes out as**, measured over 120 songs in each of the five styles:
+ * the shot bar used to contain `{bd hp lp mp sd}` and now contains `{hp lp mp}`,
+ * which is three strokes of one drum, and it still lands on sam every time it
+ * did before — 183/183, 209/209, 189/189, 185/185 and 166/168. The figure did
+ * not move, because the figure never had anything wrong with it.
+ *
+ * **And on its own this change is nearly invisible**, which is worth writing
+ * down because it is the strongest evidence for reading the events. Over 10 760
+ * songs it moves 29 of them, in exactly two styles: reggae's `nyabinghi` and
+ * latin's `columbia`, the only two in the catalogue whose percussion comes out
+ * with no kit voice in it at all while the drummer has never written a fill. In
+ * every other hand-drum song the fill had already put a crash in the bar, so
+ * this read found the kit the fill had conscripted and agreed with it. The two
+ * halves have to land together or neither does.
+ *
  * ## Wave 3 is `break`, and the whole of it is who is left
  *
  * Stop-time. The band stops for the last bar before a seam and one voice carries
@@ -159,7 +202,7 @@ import { canVary } from '../core/types.js';
 import type {
   DrumEvent, DrumSource, LayerId, NoteEvent, Section, Song, Track,
 } from '../core/types.js';
-import { landing } from './fills.js';
+import { landing, seamOrchestration, type SeamOrchestration } from './fills.js';
 import { anticipate, metricStrength, SLOTS_PER_BEAT, thin } from './rhythm.js';
 
 /**
@@ -702,16 +745,34 @@ export function applyTransitions(
    */
   carrier: BreakCarrier = BREAK_CARRIER,
 ): void {
+  /**
+   * What the drummer is sitting at, asked once for the song.
+   *
+   * Off the events and the bank rather than off a table, because that is the
+   * question `cast.ts` asks of the same two values when it decides who is on
+   * the stage — see the note at the top of this file. Once per song rather than
+   * per seam: the percussion of a song is one band, and a pass that answered
+   * this per bar would let the drummer change instrument at the fourth join.
+   *
+   * **Downstream of the drummer's own fills, and deliberately so.** The events
+   * this reads already contain whatever `generateDrums` wrote at every seam that
+   * drew `fill`, which is most of them — so a genre whose fills conscripted a
+   * kit would hand one to the shot as well. That is not a coupling to be broken;
+   * it is the same coupling casting has, and the two agreeing is the property
+   * worth having. Both halves take their station from `generate/fills.ts`, so
+   * there is one table and one answer.
+   */
+  const station = seamOrchestration(song.drums.events.map((e) => e.voice), song.drums.bank);
   for (const seam of seams) {
     switch (seam.kind) {
       case 'fill':
         // Delegated to `generateDrums`. See above.
         break;
       case 'shot':
-        if (seam.figure?.length) playShot(song, seam, seam.figure);
+        if (seam.figure?.length) playShot(song, seam, seam.figure, station);
         break;
       case 'break':
-        playBreak(song, seam, carrier);
+        playBreak(song, seam, carrier, station);
         break;
       case 'elide': {
         const landing = seam.bar * song.meta.beatsPerBar;
@@ -766,6 +827,15 @@ export function applyTransitions(
  * which this seam has just vetoed. A shot that took the fill away and the cymbal
  * with it would arrive on nothing.
  *
+ * **…and what a drummer plays depends on what they are sitting at.** The three
+ * voices in that sentence are `SeamOrchestration.shot` and `.survives`, and on
+ * one head they come out as one stroke and nothing spared: two voices written at
+ * one instant on one skin are a flam played by accident, and a doum in the bar
+ * being replaced is the pulse rather than a marking, so there is nothing in
+ * there that can be told apart from what is going. A tihai is this edit exactly
+ * — the figure struck two or three times in the bar before the join and the
+ * arrival landing on sam, which `markTheLanding` puts there.
+ *
  * **The figure is placed on the straight grid, and that is a live question the
  * moment this widens past `fusion`.** Running after swing is what lets an
  * `elide` land on the eighth the drummer is actually playing; a shot does not
@@ -777,7 +847,9 @@ export function applyTransitions(
  * the *right* way is a listening question, and `fusion` is straight, so it is
  * not yet an answered one.
  */
-function playShot(song: Song, seam: Seam, figure: readonly number[]): void {
+function playShot(
+  song: Song, seam: Seam, figure: readonly number[], station: SeamOrchestration,
+): void {
   const bpb = song.meta.beatsPerBar;
   const slotsPerBar = Math.round(bpb * SLOTS_PER_BEAT);
   const section = song.sections[seam.section];
@@ -844,14 +916,15 @@ function playShot(song: Song, seam: Seam, figure: readonly number[]): void {
   const velocity = Math.min(1, level * 1.12);
 
   // The crash is the only thing that survives the bar: it is the drummer
-  // marking something, and everything else in here is keeping time.
-  const kept = kit.filter((e) => !inBar(e) || e.voice === 'cr');
+  // marking something, and everything else in here is keeping time. On a skin
+  // that distinction has nothing to stand on and the list is empty — see
+  // `SeamOrchestration.survives`.
+  const kept = kit.filter((e) => !inBar(e) || station.survives.includes(e.voice));
   for (const beat of beats) {
-    kept.push({ beat, voice: 'bd', velocity });
-    kept.push({ beat, voice: 'sd', velocity });
+    for (const voice of station.shot) kept.push({ beat, voice, velocity });
   }
 
-  song.drums.events = markTheLanding(kit, kept, to, bpb);
+  song.drums.events = markTheLanding(kit, kept, to, bpb, station);
 }
 
 /**
@@ -874,11 +947,25 @@ function playShot(song: Song, seam: Seam, figure: readonly number[]): void {
  */
 function markTheLanding(
   kit: readonly DrumEvent[], kept: DrumEvent[], to: number, bpb: number,
+  station: SeamOrchestration,
 ): DrumEvent[] {
   const arriving = kit.filter((e) => e.beat >= to - 1e-6 && e.beat < to + bpb - 1e-6);
   const arrival = arriving.length ? Math.max(...arriving.map((e) => e.velocity)) : 0;
-  const marked = kept.some((e) => e.voice === 'cr' && Math.abs(e.beat - to) < 1e-6);
-  if (arrival > 0 && !marked) kept.push(landing(to, Math.min(1, arrival)));
+  /**
+   * …unless the downbeat is already marked, which is asked of the station's own
+   * arrival stroke rather than of a cymbal.
+   *
+   * It is a live question on a hand drum in a way it never was on a kit. A crash
+   * on the first beat of a section could only have come from a landing; a doum
+   * there is also the commonest single event in the whole vocabulary — the
+   * groove's own downbeat, the first stroke of a phrase, the hand-off at the end
+   * of a tani. So this now suppresses the arrival wherever the drummer was
+   * already going to play one, which is the right answer and a much more
+   * frequent one: an arrival is a stroke *placed* on the downbeat, and placing a
+   * second one on top of a stroke that is already there is a flam.
+   */
+  const marked = kept.some((e) => e.voice === station.land && Math.abs(e.beat - to) < 1e-6);
+  if (arrival > 0 && !marked) kept.push(landing(to, Math.min(1, arrival), station));
   return kept.sort((a, b) => a.beat - b.beat);
 }
 
@@ -1027,8 +1114,14 @@ function markTheLanding(
  * keeping time. In practice a section's last bar carries a crash only where the
  * section is one bar long and the crash belongs to the seam *before* this one,
  * which is a landing this pass has no business deleting.
+ *
+ * Which is `SeamOrchestration.survives`, and on a hand drum it is empty — the
+ * bar goes whole. The exception was never about mercy, it was about a stroke
+ * that goes on sounding after the hands have stopped, and a skin has none.
  */
-function playBreak(song: Song, seam: Seam, carrier: BreakCarrier): void {
+function playBreak(
+  song: Song, seam: Seam, carrier: BreakCarrier, station: SeamOrchestration,
+): void {
   const bpb = song.meta.beatsPerBar;
   const from = (seam.bar - 1) * bpb;
   const to = seam.bar * bpb;
@@ -1103,7 +1196,9 @@ function playBreak(song: Song, seam: Seam, carrier: BreakCarrier): void {
 
   const kit = song.drums.events;
   const inBar = (e: DrumEvent) => e.beat >= from - 1e-6 && e.beat < to - 1e-6;
-  song.drums.events = markTheLanding(kit, kit.filter((e) => !inBar(e) || e.voice === 'cr'), to, bpb);
+  song.drums.events = markTheLanding(
+    kit, kit.filter((e) => !inBar(e) || station.survives.includes(e.voice)), to, bpb, station,
+  );
 }
 
 /**

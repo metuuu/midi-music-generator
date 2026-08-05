@@ -17,7 +17,9 @@ import { clampToRange, nearestPc, pc } from '../core/pitch.js';
 import type { Rng } from '../core/rng.js';
 import type { DrumEvent, DrumVoice, NoteEvent } from '../core/types.js';
 import { scaleStepsBetween, stepInScale, type Scale } from '../core/scale.js';
-import { buildFill, DEFAULT_FILLS, landing, type FillPalette } from './fills.js';
+import {
+  buildFill, DEFAULT_FILLS, landing, seamOrchestration, type FillPalette,
+} from './fills.js';
 import { IDIOMS, INSTRUMENT_RANGE, type HandSpec, type IdiomProfile } from '../style/instruments.js';
 import type {
   BassHit, BassPattern, BassTone, CompHit, CompingProfile, CompPattern, DrumPattern, LeftHandMode,
@@ -2329,12 +2331,28 @@ export function generateDrums(
    * still bar-shaped, and the cycle is what has to give way around it.
    */
   const lastBarStart = startBeat + (bars - 1) * beatsPerBar;
+  /**
+   * What the drummer is sitting at, which decides what a fill is made of. See
+   * `SeamOrchestration` in `generate/fills.ts`.
+   *
+   * **The whole style table, not this section's pattern**, which is the read
+   * `generateDrumSolo` already makes and for the same reason: a groove that does
+   * not touch the toms for eight bars has not wheeled the kit off the stage.
+   * Derived here rather than taken as an option, so no caller of `generateDrums`
+   * has to be taught anything — `ctx.style` is where a drum vocabulary lives and
+   * it is already in scope. Resolved once because it is wanted twice: the fill
+   * is made of it, and so is the stroke on the downbeat the fill is aimed at.
+   */
+  const station = seamOrchestration(
+    style.drums.flatMap((p) => Object.keys(p.voices) as DrumVoice[]),
+  );
   const fill = opts.fillAtEnd && bars > 0
     ? buildFill({
       barStart: lastBarStart, beatsPerBar, slotsPerBar, rng,
       intensity: opts.intensity,
       arrival,
       palette: opts.palette ?? DEFAULT_FILLS,
+      station,
     })
     : undefined;
   const clearFrom = fill ? (bars - 1) * slotsPerBar + fill.fromSlot : Infinity;
@@ -2397,7 +2415,7 @@ export function generateDrums(
 
   if (fill) {
     out.push(...fill.events);
-    out.push(landing(lastBarStart + beatsPerBar, arrival));
+    out.push(landing(lastBarStart + beatsPerBar, arrival, station));
   }
   return out.sort((a, b) => a.beat - b.beat);
 }
