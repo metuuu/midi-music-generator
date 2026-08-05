@@ -66,27 +66,74 @@
  *    on stage, and the eras say so once — so a style setting the flag would be
  *    forbidding something that cannot happen. Saying it twice is how the second
  *    statement rots.
+ *  - **No `breakCarrier` on any style, and the default is the answer rather than
+ *    the fallback.** Every style here draws `break` — the palette is on the genre
+ *    — so the field is live for the whole catalogue, and the case for naming the
+ *    guitars is the same one metal makes. It does not survive the measurement.
+ *    With every style's palette forced to `break`, sixty seeds each: under the
+ *    default `bass`, **2343 breaks ran and none of them left a silent bar**; under
+ *    `comp`, 2243 ran, 100 fewer, and four came out empty. Both halves of that are
+ *    the same fact — rock does not declare `requireLayers`, so the arranger is
+ *    free to thin the rhythm guitar out of a quiet section, and a carrier the
+ *    section has not got stands the gesture down. Metal can name its guitars
+ *    because it has made them compulsory; here the bass is the one part that is
+ *    always in the room. It is also the right sound: the stop before the last
+ *    chorus is a bass and a drummer, and then not even the drummer.
  *
- * ## The power chord, which this file cannot spell
+ * ## The power chord, which four styles spell and twenty do not
  *
- * The object every guitar below is actually playing is a root and a fifth with
- * **no third in it**, and there is no way to write that down here. `voices: 2`
- * on a `CompPattern` does not produce it: `chooseTones` drops the fifth first —
+ * This section used to be headed *the power chord, which this file cannot
+ * spell*, and it was true: `chooseTones` drops the fifth before the third —
  * correctly, for an arranger, since the fifth is implied by the root and carries
- * no information — so two voices of a triad are the root and the *third*, which
- * is precisely the note a power chord exists to omit. `sus4` and `sus2` are the
- * only third-less qualities in `ChordQuality` and both add a note the chord does
- * not have.
+ * no information — so two voices of a triad came back as the root and the third,
+ * which is precisely the note a power chord exists to omit. `core/voicing.ts` has
+ * a `'power'` style now that states the root and the fifth and refuses the third
+ * at every voice count, and the interesting half of adopting it is how few styles
+ * here should.
  *
- * So every comp below is a three-voice triad, and the compensation is register
- * rather than spelling: `layerPlan.offsets` in `index.ts` puts the comp low and
- * the genre's `effects` roll the top off it, which is what a barre chord through
- * an overdriven amplifier sounds like — the third is in there, it is just an
- * octave below where a piano would put it and buried under the fifth. That is
- * the closest this engine gets, and it is close enough that the difference is
- * audible only on the two or three styles where the missing third is the point.
- * `stoner` and `riff` are those styles. See the report; it is the one thing in
- * this genre that wants a change nothing here could make.
+ * **The line is not the genre, it is four styles**, and metal is the reason to be
+ * careful rather than the model to copy. Two things separate the catalogues:
+ *
+ *  - **Half of rock's comp layer is not a guitar.** `metal/eras.ts` names an
+ *    overdriven or distorted guitar on 53% to 100% of its comp weight in all four
+ *    eras. Here the 1963–67 palette names **none at all** — a clean guitar, a
+ *    jazz guitar, a muted guitar, two organs, a piano and a steel — and across
+ *    all four eras a distorted or overdriven guitar carries 30% of the comp
+ *    weight, against metal's 77%. A power
+ *    chord is a *guitarist's shape*, two or three strings barred at one fret, and
+ *    a Hammond player asked for one plays something no Hammond player plays.
+ *  - **A Chuck Berry double-stop is not a Sabbath fifth.** Both are two notes on
+ *    two strings, and only one of them is a claim that the chord has no quality.
+ *    Berry's rocks between the fifth and the sixth over a major triad that the
+ *    piano, the horns and the singer are all spelling out; the whole idiom is the
+ *    third being *there* and the guitar declining to state it that bar. `boogie`
+ *    and `bluesrock` keep their triads for that reason and it is not a
+ *    compromise.
+ *
+ * **The four that take it are `hard`, `riff`, `stoner` and `grunge`**, and what
+ * they share is one sentence that appears in three of their own docs in slightly
+ * different words: the guitar figure *is* the harmony, the chord is whatever the
+ * band's notes add up to, and there is no separate progression underneath for the
+ * third to belong to. All four take `pentatonicLead` too — but so do `bluesrock`,
+ * `boogie`, `southern` and `garage`, which keep their thirds, and that mismatch
+ * is the point rather than an inconsistency. `pentatonicLead` is a claim about
+ * the *tune*; this is a claim about the *chord*, and a blues line over a major
+ * triad is the sound of four of these styles.
+ *
+ * **What it changes, measured over the four styles at eight songs each.** The
+ * comp's bottom interval goes from a perfect fifth on 8.3% of onsets to 90.9%,
+ * and the chord's third from sounding on 99.9% to 0.0%. Across the whole
+ * catalogue that is 5.2% to 16.4% and 99.9% to 86.5% — a sixth of the genre
+ * moving, which is what four styles in twenty-four should look like.
+ *
+ * The surprise is the register. **Single-note comp onsets fall from 23.8% to
+ * 4.6%** in those four, because a three-note tertian voicing squeezed between a
+ * low comp offset and the tune's ceiling frequently could not be placed at all
+ * and `voiceChord` dropped a voice, then another. Two pitch classes fit where
+ * three did not. The compensation the old text described — `layerPlan.offsets`
+ * putting the comp low and the genre's `effects` rolling the top off it, so that
+ * the third is buried rather than absent — is still exactly what the other twenty
+ * styles get, and for them it is still right.
  *
  * ## Eight styles override `scaleForChord`, and the count is the claim
  *
@@ -168,6 +215,53 @@ import { makeScale, type Mode, type Scale } from '../../core/scale.js';
  */
 const pentatonicLead = (tonic: Pc, _mode: Mode, _chord: Chord): Scale =>
   makeScale(tonic, 'minorPentatonic');
+
+// ---------------------------------------------------------------------------
+// The two chord shapes
+// ---------------------------------------------------------------------------
+
+/**
+ * What the guitar's hand is doing, handed to a comp factory as one object.
+ *
+ * Every figure below is a *rhythm* — where the strokes fall and how long they
+ * last — and none of them cares whether the chord under it has a third in it.
+ * Chuck Berry's shuffle and Tony Iommi's slab are the same eighth notes on the
+ * page. So the shape is the second argument rather than a second factory, and
+ * the eight styles that spell one differently reach the same `chug` and
+ * `ringingChord` everybody else does. See the file header for where the line
+ * between the two falls and why.
+ */
+type CompShape = Pick<CompPattern, 'voices' | 'voicing'>;
+
+/** Root, third and fifth: an actual chord, and the default everywhere. */
+const TRIAD: CompShape = { voices: 3 };
+
+/** A pad-width version of it — four voices, for the figures that are a wash. */
+const OPEN: CompShape = { voices: 4 };
+
+/**
+ * Root, fifth, octave, and no third — the barre power chord, three strings.
+ *
+ * **Three voices and not metal's two**, and the difference is a fact about the
+ * two bands rather than a setting. `POWER` in `metal/styles.ts` asks for two
+ * because the octave is already in the arrangement: a metal bass plays the guitar
+ * part note for note an octave down, so a third voice would be the band stating
+ * the same doubling twice. Here the bass is playing a *line* — a pushed root, a
+ * boogie shuffle, a melodic figure of its own — under a guitarist barring three
+ * strings, and those three strings are the object.
+ *
+ * **And the third voice is free**, which is not obvious and is why it is measured
+ * rather than asserted. Over the four styles that take this, eight songs each:
+ * the bottom interval is a fifth on 90.9% of onsets at three voices and 91.0% at
+ * two, single-note onsets are 4.6% either way, and comp onsets sounding an octave
+ * from a melody note are 30.4% either way. Nothing moves, because the third voice
+ * is the *root again* — a pitch class already in the chord, so it can collide
+ * with nothing the first two were not already colliding with. What it buys is
+ * something to give up: `resolveCollisions` thins a three-voice power chord in
+ * the tune's way back to a two-voice one, which is still a power chord, where at
+ * two voices the only repair left is displacing the whole shape by an octave.
+ */
+const POWER: CompShape = { voices: 3, voicing: 'power' };
 
 // ---------------------------------------------------------------------------
 // The kit
@@ -499,14 +593,15 @@ const melodicBass = (weight: number): BassPattern => ({
 /**
  * One chord per bar, struck on the downbeat and left to ring.
  *
- * Three voices, for the reason given at the top of the file: a power chord
- * cannot be written down here, and a three-note triad voiced low with the top
- * rolled off is the nearest thing. `dur: 16` so the amplifier is still sounding
- * when the next bar arrives, which is what an overdriven valve amp does and what
- * separates this from a piano playing the same chord.
+ * `TRIAD` by default and `POWER` where a style asks: three voices either way, and
+ * a three-note triad voiced low with the top rolled off is what a barre chord
+ * through an overdriven amplifier sounds like on the twenty styles that keep it.
+ * `dur: 16` so the amplifier is still sounding when the next bar arrives, which
+ * is what an overdriven valve amp does and what separates this from a piano
+ * playing the same chord.
  */
-const ringingChord = (weight: number, voices = 3): CompPattern => ({
-  name: 'ring', weight, voices,
+const ringingChord = (weight: number, shape: CompShape = TRIAD): CompPattern => ({
+  name: 'ring', weight, ...shape,
   hits: [{ at: 0, dur: 16, vel: 0.94 }],
 });
 
@@ -520,8 +615,8 @@ const ringingChord = (weight: number, voices = 3): CompPattern => ({
  * — so the velocities are deliberately almost flat, at 0.9 and 0.86, rather than
  * shaped the way every other comp figure in this project is.
  */
-const downstrokes = (weight: number, voices = 3): CompPattern => ({
-  name: 'downstrokes', weight, voices,
+const downstrokes = (weight: number, shape: CompShape = TRIAD): CompPattern => ({
+  name: 'downstrokes', weight, ...shape,
   hits: [
     { at: 0, dur: 2, vel: 0.94 }, { at: 2, dur: 2, vel: 0.9 },
     { at: 4, dur: 2, vel: 0.9 }, { at: 6, dur: 2, vel: 0.86 },
@@ -539,8 +634,8 @@ const downstrokes = (weight: number, voices = 3): CompPattern => ({
  * rhythm section. Muted eighths under a riff is what the second guitarist plays
  * when the first one is doing something interesting.
  */
-const chug = (weight: number, voices = 3): CompPattern => ({
-  name: 'chug', weight, voices,
+const chug = (weight: number, shape: CompShape = TRIAD): CompPattern => ({
+  name: 'chug', weight, ...shape,
   hits: [
     { at: 0, dur: 1, vel: 0.96 }, { at: 2, dur: 1, vel: 0.76 },
     { at: 4, dur: 1, vel: 0.88 }, { at: 6, dur: 1, vel: 0.76 },
@@ -557,8 +652,8 @@ const chug = (weight: number, voices = 3): CompPattern => ({
  * offbeats, and a bar with a hole that size in it is one an audience fills by
  * clapping — which is exactly what those records were engineered to produce.
  */
-const stomp = (weight: number, voices = 3): CompPattern => ({
-  name: 'stomp', weight, voices,
+const stomp = (weight: number, shape: CompShape = TRIAD): CompPattern => ({
+  name: 'stomp', weight, ...shape,
   hits: [
     { at: 4, dur: 3, vel: 0.98 },
     { at: 12, dur: 3, vel: 0.96 },
@@ -593,8 +688,8 @@ const jangleArp = (weight: number): CompPattern => ({
  * The organ part, and the beat group's rhythm guitar before anybody thought of
  * anything better to do. Deliberately the plainest figure in the file.
  */
-const halfNotes = (weight: number, voices = 3): CompPattern => ({
-  name: 'half-notes', weight, voices,
+const halfNotes = (weight: number, shape: CompShape = TRIAD): CompPattern => ({
+  name: 'half-notes', weight, ...shape,
   hits: [
     { at: 0, dur: 8, vel: 0.94 },
     { at: 8, dur: 8, vel: 0.88 },
@@ -610,8 +705,8 @@ const halfNotes = (weight: number, voices = 3): CompPattern => ({
  * the honest way to write shoegaze is a whole note that never re-attacks —
  * exactly as ambient's pad does, and for the identical reason.
  */
-const wall = (weight: number, voices = 4): CompPattern => ({
-  name: 'wall', weight, voices, sustain: true,
+const wall = (weight: number, shape: CompShape = OPEN): CompPattern => ({
+  name: 'wall', weight, ...shape, sustain: true,
   hits: [{ at: 0, dur: 16, vel: 0.86 }],
 });
 
@@ -1159,6 +1254,13 @@ const boogie: Style = {
  * settings of this.
  *
  * `pentatonicLead`: the tune is the riff, moved up an octave and sung.
+ *
+ * `POWER` on all three comp figures, and the second paragraph is the whole of the
+ * argument for it: if the chord is whatever those four notes add up to, a third
+ * arriving from the chart is the arrangement asserting something nobody played.
+ * This is the earliest style in the file to take it, which is the right place for
+ * the line — 1971 is where the fifth stops being a way of playing a chord and
+ * starts being the chord.
  */
 const hard: Style = {
   id: 'hard',
@@ -1217,7 +1319,7 @@ const hard: Style = {
     { cell: [12, 4], weight: 3 },
   ],
   bass: [pentatonicRiff(6), rootEights(4), rootOctave(3)],
-  comp: [chug(5), ringingChord(4), downstrokes(4)],
+  comp: [chug(5, POWER), ringingChord(4, POWER), downstrokes(4, POWER)],
   drums: [backbeat(6), backbeatOpen(4), fourOnFloor(2)],
   melody: { leap: 0.35, ornament: 0.3, span: 15, sequence: 0.55, syncopation: 0.4 },
 };
@@ -1240,6 +1342,11 @@ const hard: Style = {
  * 'earworm'` is not available to it — the riff is already the hook and doubling
  * the repetition would produce a loop rather than a song — so it takes
  * `standard` and leaves the recurrence to the figure.
+ *
+ * `POWER`, and this style's own description had already written the reason down
+ * before the engine could act on it: *the chord is whatever they add up to*. A ♭V
+ * hammered in unison and a triad voiced over it are two different harmonies, and
+ * only one of them is what the band is playing.
  */
 const riff: Style = {
   id: 'riff',
@@ -1294,7 +1401,7 @@ const riff: Style = {
     { cell: [8, 8], weight: 2 },
   ],
   bass: [tritoneRiff(6), pentatonicRiff(5), rootOctave(2)],
-  comp: [ringingChord(6), chug(4), wall(2)],
+  comp: [ringingChord(6, POWER), chug(4, POWER), wall(2, POWER)],
   drums: [backbeat(5), halftime(4), backbeatOpen(3)],
   melody: { leap: 0.3, ornament: 0.25, span: 12, sequence: 0.6, syncopation: 0.3 },
 };
@@ -1961,10 +2068,22 @@ const motorik: Style = {
  * guitar does not re-strike it, because a chord restruck every bar at 70 BPM is
  * a pulse and what this music wants is a slab.
  *
- * This is one of the two styles where the missing power chord costs something
- * audible. See the file header: a three-voice triad at this register and this
- * much distortion produces intermodulation between the third and the fifth that
- * a real power chord does not have, and there is no way to say so here.
+ * This is the style that reported the missing power chord and it is the clearest
+ * case for the one the engine now has. A three-voice triad at this register and
+ * this much distortion produces intermodulation between the third and the fifth
+ * that a real power chord does not — a cranked amplifier makes a sum and
+ * difference tone for every pair of partials it is fed, and a fifth's line up at
+ * 3:2 where a third's do not. `POWER` says it now.
+ *
+ * It is also the style the shape fits worst, and the number is worth having: the
+ * fifth is on the bottom of 64.4% of onsets here against 90.9% over the four
+ * styles together, and the whole of the remaining 35.6% is the *inversion* — the
+ * fifth underneath the root, which `voiceChord` reaches only once the shape
+ * itself has failed to fit anywhere. Nothing else is in there. The cause is this
+ * style's register: `wall` and `ringingChord` hold whole notes low and slow, the
+ * tune's ceiling comes down on top of them, and the wider shape has nowhere to
+ * go. The same two pitch classes at the wrong end of the neck is a power chord
+ * played in the wrong place; a third would be a different chord.
  */
 const stoner: Style = {
   id: 'stoner',
@@ -2017,7 +2136,7 @@ const stoner: Style = {
     { cell: [8, 8], weight: 2 },
   ],
   bass: [tritoneRiff(5), heldRoot(4), pentatonicRiff(4)],
-  comp: [wall(6), ringingChord(4), chug(2)],
+  comp: [wall(6, POWER), ringingChord(4, POWER), chug(2, POWER)],
   drums: [halftime(6), backbeat(4), backbeatOpen(2)],
   melody: { leap: 0.26, ornament: 0.25, span: 11, sequence: 0.6, syncopation: 0.25 },
 };
@@ -2438,6 +2557,15 @@ const ballad: Style = {
  * `pentatonicLead`: the tune is a riff sung, which is more literally true here
  * than anywhere else in the file — a great many of these vocal lines are the
  * guitar figure with words on it.
+ *
+ * `POWER` follows from that same sentence, and this is the fourth and last style
+ * to take it. The quiet half of the dynamic is the reason it is worth checking
+ * rather than assuming: a clean verse played in fifths is a real 1991 sound
+ * rather than a compromise — the guitar is quiet, not polite — and the loud half
+ * is four tracks of distortion, where a third is the one thing that would not
+ * survive the amplifier. `alt` next door is the style that declines this, and its
+ * own doc says why: overdriven rather than distorted, no riff, and eight bars of
+ * verse rather than a figure.
  */
 const grunge: Style = {
   id: 'grunge',
@@ -2493,7 +2621,7 @@ const grunge: Style = {
     { cell: [8, 8], weight: 3 },
   ],
   bass: [rootEights(6), pentatonicRiff(4), heldRoot(3)],
-  comp: [ringingChord(5), chug(4), wall(4)],
+  comp: [ringingChord(5, POWER), chug(4, POWER), wall(4, POWER)],
   drums: [backbeat(5), halftime(4), backbeatOpen(4)],
   melody: { leap: 0.28, ornament: 0.2, span: 12, sequence: 0.6, syncopation: 0.3 },
 };

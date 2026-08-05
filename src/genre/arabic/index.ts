@@ -331,8 +331,8 @@ export const arabic: Genre = {
   arrangement: { unison: 9, harmony: 1, riff: 5, tutti: 4, trade: 3 },
 
   /**
-   * What the band does at a join. Two kinds, and the two that are missing are
-   * the interesting half.
+   * What the band does at a join. Three kinds now, and the one that is still
+   * missing is the interesting half.
    *
    * `shot` is the **qafla** arriving early — the whole ensemble landing one
    * figure together at the end of a phrase, which is what a taslim does every
@@ -341,39 +341,76 @@ export const arabic: Genre = {
    *
    * `elide` runs one section into the next without a seam, and in a form whose
    * refrain is the point, a mazhab that arrived without being arrived at would
-   * be a mazhab nobody noticed. That one is a taste.
+   * be a mazhab nobody noticed. That one is a taste, and it is the only kind
+   * this genre still refuses.
    *
-   * ## `break` is not a taste, and it is the sharpest thing this genre found
+   * ## `break` is back, and how it came back is the sharpest thing here
    *
    * The drum stopping dead while the singer holds a note over nothing is the
    * single most reliable way this repertoire gets a room to shout, and it is the
-   * gesture this palette most wants. It cannot have it, and the reason is
+   * gesture this palette most wants. It could not have it, and the reason was
    * measurable rather than aesthetic.
    *
-   * `playBreak` chooses who carries the bar by asking which layer *covers*
-   * `MIN_BREAK_COVER` of it in sounding time, and declines outright where nobody
-   * does — a decision taken after the tune is written, from the tune. That is
-   * fine for a band whose melody fills its bars and it is not fine here: this
-   * genre's lines are the sparsest in the project outside ambient, full of
-   * leading rests and single whole-bar notes on purpose, so the coverage of a
-   * section's last bar sits *at* the threshold and crosses it whenever the tune
-   * changes. `--hook` changes the tune, and `npm run genres` asserts that hook
-   * leaves the drums alone.
+   * `playBreak` used to choose who carries the bar by asking which layer
+   * *covers* a third of it in sounding time, and to decline outright where
+   * nobody did — a decision taken after the tune was written, from the tune.
+   * That is fine for a band whose melody fills its bars and it was not fine
+   * here: this genre's lines are the sparsest in the project outside ambient,
+   * full of leading rests and single whole-bar notes on purpose, so the coverage
+   * of a section's last bar sat *at* the threshold and crossed it whenever the
+   * tune changed. `--hook` changes the tune, and `npm run genres` asserts that
+   * hook leaves the drums alone.
    *
-   * Measured, 200 songs per style, comparing the kit at `through` against the
-   * kit at `earworm` with a break in the palette:
+   * Measured then, 200 songs per style, comparing the kit at `through` against
+   * the kit at `earworm` with a break in the palette:
    *
    *   jazz/swing 0 unstable of 200 · jazz/blues 0 · reggae/flyers 0
    *   arabic/dabke 9 · arabic/zaffa 7 · arabic/longa 8 · arabic/fallahi 17
    *
-   * Four other genres declare `break` and none of them moves. This one moves on
-   * every style tried, including the three densest, which is why it is dropped
+   * Four other genres declared `break` and none of them moved. This one moved on
+   * every style tried, including the three densest, which is why it was dropped
    * at the genre level rather than pushed down onto whichever styles could carry
-   * it — there are none. The gesture is real and this generator cannot write it
-   * for this music until the carrier is chosen from something the tune does not
-   * touch.
+   * it — there were none.
+   *
+   * **The carrier is named now instead of found, so no note is read at all** and
+   * the coverage threshold that this music kept falling through no longer
+   * exists. That is not a wider threshold, it is a different question: *who is
+   * the bass player* rather than *did the bass happen to fill this bar*. The
+   * first is a fact about the band and cannot move with the tune; the second was
+   * a fact about one bar of one take. Weight 2 against the qafla's 3 — the
+   * gesture is rarer than the landing and is the one the ensemble saves.
+   *
+   * **And this genre names no carrier**, which is the finding worth writing
+   * down. The default is the bass and the default is right here: the qanun and
+   * the oud are `comp` — `dulcimer` and `nylonGuitar` in `eras.ts` — the ney and
+   * the violin are `melody`, and what the bass palette names in every era is a
+   * contrabass or a cello. A takht stopping dead on a bass holding the tonic is
+   * what the last bar before a mawwāl actually sounds like. Measured over the
+   * whole catalogue with every palette forced, 30 seeds a style: **0 break bars
+   * in arabic came out with nothing sounding in them under the default.** There
+   * is nothing to fix and therefore nothing to declare — and a field named for
+   * symmetry with the genre next door would be a claim about this band that this
+   * band did not make.
+   *
+   * The two names an author is tempted by are both worse, and by different
+   * amounts:
+   *
+   *  - **`melody`, for a taqsim that ends on the qanun, is the worst option
+   *    available.** 48 empty bars in arabic alone against the default's 0, and
+   *    479 across the catalogue. A taqsim ends on the qanun *and then the qanun
+   *    stops*; a seam is precisely the moment the tune has finished its phrase,
+   *    so the layer that most sounds like the right answer is the one least
+   *    likely to be sounding.
+   *  - **`pad` costs half the breaks rather than emptying them.** It is the
+   *    right answer next door in `indian`, where every style writes
+   *    `requireLayers: ['pad']` and the śruti box never stops. Here five styles —
+   *    `malfuf`, `jurjina`, `aqsaq`, `longa`, `dulab` — declare
+   *    `excludeLayers: ['pad']` outright, and `breakable` refuses a seam whose
+   *    section does not list the carrier: 443 drawn breaks fall to 226. A carrier
+   *    a fifth of the catalogue does not have is a palette entry those styles
+   *    silently lose.
    */
-  transitions: [['fill', 7], ['shot', 3]],
+  transitions: [['fill', 7], ['shot', 3], ['break', 2]],
 
   /**
    * The ensemble drops away behind a soloist. See `solo` below.

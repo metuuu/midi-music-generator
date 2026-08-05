@@ -33,10 +33,13 @@
  *    why this genre disables more rules than any other in the project, and why
  *    each of those decisions is argued at `ruleOverrides` rather than listed.
  *
- * The full account of how a two-voice quartal comp expresses this, and precisely
- * what it costs, is at `POWER` in `styles.ts`. The short version: the engine
- * cannot voice a fifth without also voicing a third, and the nearest honest thing
- * is the fifth inverted.
+ * The full account of how the comp expresses this is at `POWER` in `styles.ts`.
+ * The short version: `core/voicing.ts` has a `'power'` style that states the root
+ * and the fifth and refuses the third at every voice count, and the two-voice
+ * comp comes out a perfect fifth on 90% of its onsets. It used to be a quartal
+ * stack — the fifth inverted, the nearest honest thing available before that
+ * style existed — and the table at `POWER` records what those years cost, because
+ * a quarter of it was a tritone nobody asked for.
  *
  * ## What this genre does not claim
  *

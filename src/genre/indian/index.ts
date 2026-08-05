@@ -278,8 +278,12 @@ export const indian: Genre = {
    * and both are supposed to be invariant. A tanpura that got quieter under an
    * improvisation would have stopped being a reference pitch; a tabla that
    * thinned out would have stopped keeping the tāla, which is what the soloist is
-   * counting against. The reaction that does happen is at the note level and is
-   * the drummer's — see `tradeFours` below — rather than an arrangement thinning.
+   * counting against. The reaction that does happen is the drummer's, and it
+   * happens by *taking the bar* rather than by getting quieter in it — see
+   * `tradeFours` below, which is no longer zero. A tani and a sawāl-jawāb are
+   * both `trade`, which is the band stopping dead and coming back on a downbeat;
+   * that is a different gesture from an arrangement thinning, and it is the only
+   * one this music makes.
    */
   soloBacking: 'full',
 
@@ -323,39 +327,122 @@ export const indian: Genre = {
    * rhythmically calculated backwards from sam, which is the thing an audience
    * applauds.
    *
-   * ## The drummer is not in the rotation, and it is the one genuine casualty
+   * ## The drummer is back in the rotation
    *
-   * **`drums` is absent and `tradeFours` is 0**, and both of those delete real
-   * and central things. A *tani āvartanam* is a listed item on a Carnatic
-   * programme — the mridangam plays alone for ten minutes while everybody else
-   * puts their instrument down — and *sawāl-jawāb*, the soloist and the tabla
-   * trading phrases that shorten until they are swapping a cycle each, is one of
-   * the two or three moments a live audience comes for. `tradeFours` describes
-   * the second of those almost exactly.
+   * `drums` was absent and `tradeFours` was 0, and both of those deleted real and
+   * central things. A *tani āvartanam* is a listed item on a Carnatic programme —
+   * the mridangam plays alone for ten minutes while everybody else puts their
+   * instrument down — and *sawāl-jawāb*, the soloist and the tabla trading
+   * phrases that shorten until they are swapping a cycle each, is one of the two
+   * or three moments a live audience comes for. `tradeFours` describes the second
+   * of those almost exactly.
    *
-   * They are off because `generateDrumSolo` is a **kit** generator and cannot be
-   * told otherwise. Read it: it states a figure on the snare, answers it on
-   * three toms, punctuates with the kick, keeps a hi-hat going underneath and
-   * lands a crash — and every one of those five voices is a literal in that
-   * function. Enabled here, a tabla solo comes out as a rock drum solo, on
-   * instruments that are not in the room, in a genre whose entire percussion
-   * vocabulary is three strokes of one drum. A missing tani āvartanam is a gap;
-   * a tani āvartanam played on a Ludwig is a mistake with a reason behind it,
-   * which is worse.
+   * They were off because `generateDrumSolo` was a **kit** generator that could
+   * not be told otherwise: a figure stated on the snare, answered on three toms,
+   * punctuated with the kick, a hi-hat underneath and a crash on the end — five
+   * literals in a genre whose entire percussion vocabulary is three strokes of
+   * one drum. That is fixed. The function now reads the style's own drum table
+   * through `drumStations`, the same three-tier `kit`/`hand`/`either` split
+   * casting uses, and every table in `styles.ts` is `lp`/`mp`/`hp` with a `cp`
+   * in seven of them — all twenty-four that have a drummer read as **hand**, none
+   * as kit. So the chorus comes out orchestrated on the drum that is actually in
+   * the room: **nā states the figure, tin answers and closes the phrase, ge
+   * carries the weight under it and lands the band back in.** Measured the way
+   * `npm run genres` measures arabic's — voices in the section, an `lp` within a
+   * beat of the downbeat the band returns on — a tani here is **three voices,
+   * every time, and lands on a doum 126 times out of 126.** No crash on it,
+   * because a skin does not ring.
    *
-   * What would unlock it is small and is not this genre's to write: the same
-   * orchestration logic taking its voices from the style's own drum table rather
-   * than from a literal, so a solo on a kit uses toms and a solo on a hand drum
-   * uses `lp`/`mp`/`hp`. The three strokes are already a call-and-response
-   * vocabulary — low states, high answers — which is exactly what that function
-   * is doing with snare and toms.
+   * **One kit stroke does get into the chorus, and it is not the solo's.** In
+   * the five styles that set `drumFills: true`, the seam *before* the chorus
+   * lands a `cr` or an `oh` on its first downbeat — `generate/fills.ts` writes
+   * its landing cymbal from a literal, which is the half of the hand-drum work
+   * that `docs/engine-gaps.md` §2.1 still has open. It is one stroke, it is the
+   * arrival of the section rather than anything the drummer plays in it, and
+   * `playBreak` makes the same argument about the same cymbal in the same bar.
+   * It is worth knowing because it is loud in a `drumStations` read: a chorus of
+   * `{cr lp mp hp}` files as a *kit* chorus, 31 of 157 across 400 songs, and a
+   * check that asked this genre for a crash on the way out would find none.
+   *
+   * **`['drums', 2]`, which puts the drummer above the harmonium and below the
+   * sārangī**, and that ordering is the claim rather than the number. The comp in
+   * this music is a reference pitch and takes a chorus almost never; the counter
+   * is a violin or a sārangī shadowing the line and is a soloist in its own
+   * right; the tabla is neither — it is the other half of the performance, which
+   * is the same fact `mix.drums` below is set on. Two of fourteen.
+   *
+   * **Where a tani can land is decided by the form rather than by this number**,
+   * and the three placements that most needed preventing are already prevented
+   * by tables that were here before. `planSolos` will not let the kit open the
+   * blowing — a drum chorus before anyone has stated anything is a solo with
+   * nothing to be a solo *from* — so the drummer is never the first voice heard
+   * improvising. The song shape above, which is the bhajan and the ghazal and
+   * the film number, has no `solo` section at all: **22.2% of songs stop for
+   * nothing**, measured over 1344. And the four drumless styles — `alap`, `jor`,
+   * `alapana`, `tanam`, the expositions that happen before the drummer joins —
+   * declare `excludeLayers: ['drums']`, so an ālāp with no tabla in it cannot be
+   * handed a tabla solo; measured, the four of them take none between them.
+   *
+   * What that leaves is more improvisation than the form table suggests, and it
+   * is worth writing down because it is the number that decides how often this
+   * happens. `buildForm` grows the blowing to reach the target duration and will
+   * stack up to `MAX_SOLOS` **consecutive** choruses; this genre's sections are
+   * four to eight bars where every other genre's are eight to sixteen, so it
+   * reaches that ceiling often — 62% of songs come out with four. The drummer
+   * therefore gets up to three chances at the weight above rather than one.
+   * Measured over 1344 songs, one per style per era: the drummer takes **506 of
+   * 3794 choruses, 13.3%**, which is the 2-in-14 the table asks for; **34.1% of
+   * songs contain a drum chorus**, 12.8% trade, and 4.5% do both. A third of the
+   * items on this programme having a passage where the tabla plays alone is
+   * close to right for a repertoire where the drummer is a co-performer, and it
+   * is the number to revisit first if it turns out not to be.
+   *
+   * **What cannot be said is per-style.** `SoloProfile` hangs off `Genre`, so
+   * this weight is one number for twenty-eight styles: a `kriti` and a `cabaret`
+   * draw the drummer at the same rate, and a film club number occasionally stops
+   * for a tabla chorus that no film club number ever stopped for. The only
+   * style-level lever is `excludeLayers`, which does not mean *this style does not
+   * hand the drummer a chorus*, it means *this style has no drummer* — and
+   * spending it on `filmi` would delete the dholak to prevent a solo. A rotation
+   * on `Style`, merged over the genre's the way `transitions` already is, is the
+   * missing field; the weight above is chosen low partly because it is being
+   * asked to be right for the whole catalogue at once.
+   *
+   * The other thing that cannot be said is what the programme prints.
+   * `Section.solo.instrument` is the literal `'drum kit'` — see its own note in
+   * `core/types.ts`, and §2.3 of `docs/engine-gaps.md` — so every tani generated
+   * here is announced on the showbill as a drum kit. Nothing sounds wrong;
+   * `playerFor` still finds the tabla player and the chorus is still three
+   * strokes of one drum. It is the one number on the bill where the object is
+   * the point, and it is the object the bill gets wrong.
+   *
+   * `tradeFours: 0.5` — as often as not, below jazz's 0.6 and clearly above
+   * arabic's 0.3. The exchange is more central here than in a takht and less
+   * ubiquitous than in a bop set: sawāl-jawāb is the thing the audience is
+   * waiting for, and a performance where it never happens is still a
+   * performance. Half the songs draw it and 12.8% get it, because the draw is
+   * the easy half: trading also needs two choruses and a last one of at least
+   * eight bars, and this genre's bar counts are small enough that most last
+   * choruses are six.
+   * It lands on the last chorus and takes the kit out of the candidates there,
+   * so that chorus is either traded or the drummer's and never both — an earlier
+   * one can still be a tani, and 4.5% of songs get one of each.
    */
   solo: {
-    rotation: [['melody', 8], ['counter', 3], ['comp', 1]],
-    tradeFours: 0,
+    rotation: [['melody', 8], ['counter', 3], ['comp', 1], ['drums', 2]],
+    tradeFours: 0.5,
     quoteMotto: 0.7,
     backing: {
       melody: 'full', counter: 'full', comp: 'full',
+      /**
+       * The one place `soloBacking: 'full'` above is wrong, and it is wrong by
+       * definition: a tani is everybody else putting their instrument down. The
+       * field is a statement rather than a lever — `planSolos` forces `trade` for
+       * a drum chorus whatever this says — and it is written because a table that
+       * left it out would read as *the band plays through the drum solo*, which
+       * is the one thing a tani is not.
+       */
+      drums: 'trade',
     },
     vocabulary: {
       // A note every two mātrās at rest, since one mātrā is an eighth. A taan
@@ -389,8 +476,8 @@ export const indian: Genre = {
   /**
    * **No genre-wide transition palette**, and the absence is a decision rather
    * than an omission — `Genre.transitions` says that absent means
-   * `DEFAULT_TRANSITIONS` *and means no draw is made*, which is the state twenty
-   * of these twenty-eight styles want.
+   * `DEFAULT_TRANSITIONS` *and means no draw is made*, which is the state
+   * twenty-three of these twenty-eight styles want.
    *
    * The gesture this genre wanted is the **tihai**: a figure played three times,
    * spaced so its last stroke lands on sam, with the whole ensemble arriving
@@ -415,18 +502,33 @@ export const indian: Genre = {
    * and lands on it — and a section that started before it would not be an
    * anticipation, it would be a mistake with a name.
    *
-   * **`break` is absent, and it should not have to be.** The tabla dropping out
-   * for a cycle is one of the commonest things in this music and means something
-   * specific — the soloist is going somewhere the cycle cannot follow. It was in
-   * these five palettes and came out again, because `applyBreak` picks the voice
-   * that carries the break by asking whether the **melody** covers a third of
-   * the bar, falling back to the answering line and then the bass — and the
-   * melody is the one part `--hook` is allowed to change. So a break happened at
-   * `through` and did not at `earworm`, on the same seed, and the kit differed
-   * between them. `npm run genres` asserts the opposite in as many words: *the
-   * kit is deaf to the tune.* Three seeds in sixty tripped it, all three on the
-   * same seam, and dropping the kind was the only fix available from inside a
-   * genre folder.
+   * **`break` is back in all five, and the way it came back is the useful
+   * part.** The tabla dropping out for a cycle is one of the commonest things in
+   * this music and means something specific — the soloist is going somewhere the
+   * cycle cannot follow. It was in these five palettes and came out again,
+   * because `applyBreak` used to pick the voice that carries the bar by asking
+   * whether the **melody** covered a third of it, falling back to the answering
+   * line and then the bass; the melody is the one part `--hook` is allowed to
+   * change, so a break happened at `through` and did not at `earworm` on the same
+   * seed, and the kit differed between them. `npm run genres` asserts the
+   * opposite in as many words: *the kit is deaf to the tune.* Three seeds in
+   * sixty tripped it, and dropping the kind was the only fix available from
+   * inside a genre folder.
+   *
+   * **The carrier is named now rather than searched for**, and a name in a style
+   * table is a literal — written once, read rather than drawn, identical at all
+   * five hook levels, with nothing in it for the tune to move. Nothing pitched
+   * was ever hook-invariant, which is why the fix could not be *look harder at
+   * the bar*; it had to be *do not read a note at all*. So the kind is safe here
+   * for the same reason `shot` always was.
+   *
+   * And the name this genre gives is not the default. See `breakCarrier` in
+   * `styles.ts`, where it is set on all twenty-eight: the bass in this music is
+   * a tanpura that stated its six notes in the section's first bar and has been
+   * ringing ever since, so handing it the seam hands the seam to nobody — 9 of
+   * 622 drawn breaks came out with the bar empty, which was nine of the ten the
+   * whole catalogue produced. The śruti box is what is still sounding, `pad` is
+   * where it lives, and under that name the count is 0.
    */
 
   /**

@@ -56,7 +56,7 @@
  * tarānā in teentāl really are accompanied identically — and it means the axis
  * this file claims to sort by is the axis the code is actually built on.
  *
- * ## Four things that are true of every entry
+ * ## Five things that are true of every entry
  *
  *  - **The harmony does not move.** Nearly every style's whole progression is
  *    one chord, stated and held: `Isus4` is Sa–Ma–Pa and `Isus2` is Sa–Re–Pa,
@@ -75,6 +75,30 @@
  *    what the phrase is made of. Every style sets `ornament` between 0.3 and
  *    0.55, against jazz's 0.08 and iskelmä's 0.2, and `leap` sits low to match:
  *    a rāga phrase walks, and the ornament is what happens between the steps.
+ *  - **`breakCarrier: 'pad'` — the śruti box is what is left holding a break.**
+ *    The default is the bass, and the bass here is the tanpura: `tanpura()`
+ *    below writes six notes into an eight-bar section, all of them in its first
+ *    bar, because `sustain: true` means the drone is stated once and left to
+ *    ring. Hand it a seam three bars later and the bar comes out with nothing
+ *    in it at all — 9 of 622 drawn breaks across this catalogue, measured with
+ *    every style's palette forced and 30 seeds each, and 9 of the 10 the whole
+ *    project produced. What is actually still sounding there is the śruti box,
+ *    a reed organ or a harmonium holding one note through the whole section,
+ *    which is `pad` in this genre's palette and is the one thing in this room
+ *    nobody ever switches off. Under `pad` the count is **0**, and `melody` —
+ *    the tempting name for a break at the end of a taan — is 82, nine times
+ *    worse, for the reason `playBreak` gives: a line that has finished its
+ *    phrase is precisely what is not there at a seam.
+ *
+ *    Stated on all twenty-eight rather than on the five that draw seam gestures,
+ *    and the field is free either way — it is read, never drawn, so a style that
+ *    names one takes no number out of any stream. The five with palettes need it
+ *    today. The other twenty-three have no palette because `applyShot` writes a
+ *    kick and a crash they do not own (see `index.ts`), and on the day that is
+ *    fixed and a dhrupad may mark its own seams, the answer to *who is left
+ *    holding the bar* will not have changed: `requireLayers: ['pad']` is on
+ *    every entry here, so the box is always sounding and is always the answer.
+ *    A field that has to be remembered later is a field that will be forgotten.
  */
 
 import type { Pc } from '../../core/pitch.js';
@@ -909,6 +933,7 @@ const alap: Style = {
   drumFills: false,
   excludeLayers: ['drums', 'brass', 'comp'],
   requireLayers: ['pad'],
+  breakCarrier: 'pad',
   // Two beats between answering notes. The counter here is the sārangī shadowing
   // the soloist a moment behind, and at the default eighth it would be a duet.
   counterSpacing: 2,
@@ -945,6 +970,7 @@ const jor: Style = {
   drumFills: false,
   excludeLayers: ['drums', 'brass'],
   requireLayers: ['pad'],
+  breakCarrier: 'pad',
   counterSpacing: 1,
   scaleForChord: raga(BHAIRAV, BHAIRAVI),
   progressions: held('Isus4'),
@@ -977,6 +1003,7 @@ const jhala: Style = {
   drumFills: false,
   excludeLayers: ['brass'],
   requireLayers: ['pad'],
+  breakCarrier: 'pad',
   scaleForChord: raga(BHOOPALI, DHANI),
   progressions: held('I'),
   minorProgressions: held('i'),
@@ -1010,6 +1037,7 @@ const dhrupad: Style = {
   drumFills: false,
   excludeLayers: ['brass', 'comp'],
   requireLayers: ['pad'],
+  breakCarrier: 'pad',
   counterSpacing: 1,
   scaleForChord: raga(BHAIRAV, BHAIRAVI),
   progressions: held('Isus4'),
@@ -1044,6 +1072,7 @@ const vilambit: Style = {
   drumFills: false,
   excludeLayers: ['brass'],
   requireLayers: ['pad'],
+  breakCarrier: 'pad',
   counterSpacing: 1,
   scaleForChord: raga(BILAWAL, KAFI),
   progressions: held('Isus4'),
@@ -1077,6 +1106,7 @@ const bandish: Style = {
   drumFills: false,
   excludeLayers: ['brass'],
   requireLayers: ['pad'],
+  breakCarrier: 'pad',
   scaleForChord: raga(KHAMAJ, ASAVARI),
   melody: { leap: 0.15, ornament: 0.42, span: 16, sequence: 0.55, syncopation: 0.35 },
   progressions: held('Isus4'),
@@ -1111,6 +1141,7 @@ const gat: Style = {
   drumFills: false,
   excludeLayers: ['brass'],
   requireLayers: ['pad'],
+  breakCarrier: 'pad',
   scaleForChord: raga(CHARUKESI, KIRWANI),
   progressions: held('Isus4'),
   melody: { leap: 0.16, ornament: 0.4, span: 17, sequence: 0.55, syncopation: 0.4 },
@@ -1145,6 +1176,7 @@ const tarana: Style = {
   drumFills: false,
   excludeLayers: ['brass'],
   requireLayers: ['pad'],
+  breakCarrier: 'pad',
   scaleForChord: raga(BHOOPALI, DHANI),
   progressions: held('I'),
   minorProgressions: held('i'),
@@ -1180,6 +1212,7 @@ const thumri: Style = {
   drumFills: false,
   excludeLayers: ['brass'],
   requireLayers: ['pad'],
+  breakCarrier: 'pad',
   counterSpacing: 1,
   scaleForChord: raga(KHAMAJ, KAFI),
   progressions: held('Isus4'),
@@ -1213,6 +1246,7 @@ const ghazal: Style = {
   drumFills: false,
   excludeLayers: ['brass'],
   requireLayers: ['pad'],
+  breakCarrier: 'pad',
   counterSpacing: 1,
   scaleForChord: raga(YAMAN, KIRWANI),
   progressions: held('Isus2'),
@@ -1242,6 +1276,7 @@ const bhajan: Style = {
   drumFills: false,
   excludeLayers: ['brass'],
   requireLayers: ['pad'],
+  breakCarrier: 'pad',
   scaleForChord: raga(BILAWAL, BHAIRAVI),
   progressions: held('Isus4'),
   melody: { leap: 0.1, ornament: 0.3, span: 11, sequence: 0.7, syncopation: 0.25 },
@@ -1276,6 +1311,7 @@ const qawwali: Style = {
   drumFills: false,
   excludeLayers: ['brass'],
   requireLayers: ['pad'],
+  breakCarrier: 'pad',
   scaleForChord: raga(BHAIRAV, BHAIRAVI),
   progressions: held('Isus4'),
   melody: { leap: 0.16, ornament: 0.35, span: 16, sequence: 0.6, syncopation: 0.35 },
@@ -1307,6 +1343,7 @@ const dhun: Style = {
   drumFills: false,
   excludeLayers: ['brass'],
   requireLayers: ['pad'],
+  breakCarrier: 'pad',
   counterSpacing: 1,
   scaleForChord: raga(BHOOPALI, DHANI),
   progressions: held('I'),
@@ -1346,6 +1383,7 @@ const alapana: Style = {
   drumFills: false,
   excludeLayers: ['drums', 'brass'],
   requireLayers: ['pad'],
+  breakCarrier: 'pad',
   counterSpacing: 1,
   scaleForChord: raga(CHARUKESI, SIMHENDRA),
   progressions: held('Isus2'),
@@ -1375,6 +1413,7 @@ const tanam: Style = {
   drumFills: false,
   excludeLayers: ['drums', 'brass'],
   requireLayers: ['pad'],
+  breakCarrier: 'pad',
   counterSpacing: 1,
   scaleForChord: raga(BILAWAL, GAURIMANOHARI),
   progressions: held('Isus4'),
@@ -1404,6 +1443,7 @@ const varnam: Style = {
   drumFills: false,
   excludeLayers: ['brass'],
   requireLayers: ['pad'],
+  breakCarrier: 'pad',
   scaleForChord: raga(BILAWAL, KAFI),
   progressions: held('Isus4'),
   melody: { leap: 0.16, ornament: 0.35, span: 17, sequence: 0.65, syncopation: 0.3 },
@@ -1436,6 +1476,7 @@ const kriti: Style = {
   drumFills: false,
   excludeLayers: ['brass'],
   requireLayers: ['pad'],
+  breakCarrier: 'pad',
   scaleForChord: raga(YAMAN, KIRWANI),
   progressions: held('Isus2'),
   melody: { leap: 0.13, ornament: 0.45, span: 16, sequence: 0.6, syncopation: 0.32 },
@@ -1466,6 +1507,7 @@ const tillana: Style = {
   drumFills: false,
   excludeLayers: ['brass'],
   requireLayers: ['pad'],
+  breakCarrier: 'pad',
   scaleForChord: raga(BHAIRAV, BHAIRAVI),
   progressions: held('Isus4'),
   melody: { leap: 0.18, ornament: 0.32, span: 18, sequence: 0.6, syncopation: 0.4 },
@@ -1495,6 +1537,7 @@ const padam: Style = {
   drumFills: false,
   excludeLayers: ['brass'],
   requireLayers: ['pad'],
+  breakCarrier: 'pad',
   counterSpacing: 1,
   scaleForChord: raga(KHAMAJ, BHAIRAVI),
   progressions: held('Isus4'),
@@ -1529,6 +1572,7 @@ const svara: Style = {
   drumFills: false,
   excludeLayers: ['brass'],
   requireLayers: ['pad'],
+  breakCarrier: 'pad',
   scaleForChord: raga(KHAMAJ, ASAVARI),
   progressions: held('Isus4'),
   melody: { leap: 0.2, ornament: 0.3, span: 19, sequence: 0.45, syncopation: 0.42 },
@@ -1567,6 +1611,7 @@ const filmi: Style = {
   relativeMajorChorus: 0,
   hook: 'catchy',
   requireLayers: ['pad'],
+  breakCarrier: 'pad',
   /**
    * A beat between answering notes, where every other film style takes the
    * default eighth. The obbligato on these records — the violin or the flute
@@ -1582,8 +1627,15 @@ const filmi: Style = {
    * has all three in it. A film session had a dholak player and a session
    * drummer sitting next to each other, so a tihai landed by the kit is what
    * these records actually do.
+   *
+   * **`break` is back**, on all five, at a weight below the tihai's. It was
+   * dropped when the carrier was searched for from the finished tune and is
+   * safe now that the style names it — see `index.ts`, and `breakCarrier` above
+   * for who is left holding the bar. Below the shot because a film arranger's
+   * commonest seam gesture is the whole orchestra landing a figure together,
+   * and the drum stopping dead for a cycle is the one they save.
    */
-  transitions: [['shot', 4], ['fill', 3]],
+  transitions: [['shot', 4], ['fill', 3], ['break', 2]],
   scaleForChord: raga(BILAWAL, KIRWANI),
   progressions: {
     intro: [{ chords: ['i', 'i', 'VI', 'V'], weight: 4 }],
@@ -1645,7 +1697,8 @@ const cabaret: Style = {
   strictness: 'light',
   hook: 'catchy',
   requireLayers: ['pad'],
-  transitions: [['shot', 5], ['fill', 3]],
+  breakCarrier: 'pad',
+  transitions: [['shot', 5], ['fill', 3], ['break', 2]],
   scaleForChord: raga(KHAMAJ, ASAVARI),
   progressions: {
     intro: [{ chords: ['i', 'i', 'VII', 'VII'], weight: 4 }],
@@ -1708,6 +1761,7 @@ const mujra: Style = {
   drumFills: false,
   excludeLayers: ['brass'],
   requireLayers: ['pad'],
+  breakCarrier: 'pad',
   scaleForChord: raga(YAMAN, KIRWANI),
   progressions: {
     intro: [{ chords: ['i', 'i', 'V', 'V'], weight: 4 }],
@@ -1767,9 +1821,10 @@ const bhangra: Style = {
   relativeMajorChorus: 0,
   strictness: 'light',
   hook: 'earworm',
-  transitions: [['shot', 4], ['fill', 4]],
+  transitions: [['shot', 4], ['fill', 4], ['break', 2]],
   excludeLayers: ['brass'],
   requireLayers: ['pad'],
+  breakCarrier: 'pad',
   scaleForChord: raga(BILAWAL, KAFI),
   progressions: {
     intro: [{ chords: ['i', 'i', 'i', 'i'], weight: 4 }],
@@ -1828,9 +1883,10 @@ const ragarock: Style = {
   relativeMajorChorus: 0,
   strictness: 'light',
   hook: 'catchy',
-  transitions: [['shot', 4], ['fill', 4]],
+  transitions: [['shot', 4], ['fill', 4], ['break', 2]],
   excludeLayers: ['brass'],
   requireLayers: ['pad'],
+  breakCarrier: 'pad',
   scaleForChord: raga(KHAMAJ, KAFI),
   progressions: held('Isus4'),
   melody: { leap: 0.2, ornament: 0.3, span: 17, sequence: 0.6, syncopation: 0.4 },
@@ -1864,6 +1920,7 @@ const jugalbandi: Style = {
   drumFills: false,
   excludeLayers: ['brass'],
   requireLayers: ['pad', 'counter'],
+  breakCarrier: 'pad',
   scaleForChord: raga(CHARUKESI, SIMHENDRA),
   progressions: held('Isus2'),
   melody: { leap: 0.22, ornament: 0.32, span: 20, sequence: 0.5, syncopation: 0.45 },
@@ -1897,6 +1954,7 @@ const santoor: Style = {
   drumFills: false,
   excludeLayers: ['brass'],
   requireLayers: ['pad'],
+  breakCarrier: 'pad',
   counterSpacing: 1,
   scaleForChord: raga(BILAWAL, GAURIMANOHARI),
   progressions: held('Isus4'),
@@ -1925,9 +1983,10 @@ const fusiongat: Style = {
   relativeMajorChorus: 0,
   strictness: 'light',
   hook: 'through',
-  transitions: [['shot', 5], ['fill', 3]],
+  transitions: [['shot', 5], ['fill', 3], ['break', 2]],
   excludeLayers: ['brass'],
   requireLayers: ['pad'],
+  breakCarrier: 'pad',
   scaleForChord: raga(CHARUKESI, KIRWANI),
   progressions: held('Isus4'),
   melody: { leap: 0.24, ornament: 0.28, span: 20, sequence: 0.5, syncopation: 0.45 },

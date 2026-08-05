@@ -432,6 +432,16 @@ export const reggae: Genre = {
    *
    * The eras narrow it: `ska` cuts the size to a third of this and `digital` runs
    * dry and short. Only `roots` opens it past what is written here.
+   *
+   * **And there is no style tier here, which is the one thing `Style.effects`
+   * did not close.** A style can now say how much of itself it sends to the
+   * echo — `dub` does, and that is what stopped a dub drawn in 1985 arriving dry
+   * — but `Space` has a genre row and an era row and nothing under them, so how
+   * many times a repeat comes *back* is still the decade's to decide. A dub in
+   * `roots` gets 0.62 and one in `digital` gets 0.42: drenched in both, off two
+   * different tape machines. That is the right size of residual to live with,
+   * and it is a smaller error than the one it replaced, but it is an error and
+   * this is where it lives.
    */
   space: {
     reverbSize: 0.68,
@@ -596,6 +606,19 @@ export const reggae: Genre = {
    * `shots` tables and those tables are all offbeat; the derived default would have
    * put the band together on the group heads, which are the four beats this genre
    * is organised around not playing.
+   *
+   * **No style here names a `breakCarrier`, and that is checked rather than
+   * assumed.** The default is `bass`, and in this idiom the default is not a
+   * fallback — the bass carrying the bar alone *is* the thing every one of these
+   * styles is built on, and a drop is where the arrangement finally says out loud
+   * what the empty downbeat has been implying all along. Measured across the
+   * whole catalogue, 21 styles × 4 eras × 40 seeds: **504 drawn breaks, 0 with
+   * nothing sounding.** Over the section-last bars the break draws from, the bass
+   * covers a median 63% of the bar and leaves it empty in 0.1% of 12149, against
+   * `comp` at 25% and 8.2%, and `melody` at 46% and 31.4%. Only `pad` covers more
+   * — 99%, because it is a held wash — and a wash cannot carry a break: the
+   * gesture is the band stopping and one player still stating time, and a
+   * sustained chord states none.
    */
   transitions: [['fill', 5], ['break', 3], ['shot', 3], ['elide', 1]],
 

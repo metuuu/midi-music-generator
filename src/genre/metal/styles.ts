@@ -34,9 +34,11 @@
  *    sixteenths and an eighth — is `[0, 1, 2, 4, 5, 6, …]`. They are not the same
  *    figure backwards; the first pushes and the second drags, and every band that
  *    uses one uses it exclusively.
- *  - **The power chord.** Two voices and no third, argued at `POWER` below,
- *    which is the longest comment in this file because it is the one place the
- *    engine and the genre disagree.
+ *  - **The power chord.** Two voices, root and fifth, and no third, argued at
+ *    `POWER` below. That comment used to be the longest in this file because it
+ *    was the one place the engine and the genre disagreed; `core/voicing.ts` has
+ *    a `'power'` style now and it is still the longest, because what the
+ *    disagreement cost is worth keeping written down.
  *
  * ## What is uniform across the file, and why each is a decision
  *
@@ -53,6 +55,28 @@
  *    guitar has removed the instrument the song is made of. Ambient needed
  *    `requireLayers` for the pad and this genre needs it for the same reason,
  *    one layer to the left.
+ *  - **`breakCarrier: 'comp'` everywhere**, and it is the bullet above that makes
+ *    it safe. A break is the band stopping and one voice left in the open, and in
+ *    this music that voice is the guitars — a breakdown played by the bass is a
+ *    different gesture from a different genre. The engine's default is `bass` and
+ *    it is the right default: it cannot tell a drone from a walking line, and a
+ *    carrier that is not sounding at the seam leaves a silent bar. What makes the
+ *    guitars nameable here is that `requireLayers` puts them in every section of
+ *    every song, so naming them loses no seams at all — measured with every
+ *    style's palette forced to `break`, sixty seeds each, **2101 breaks ran under
+ *    `comp` and 2101 under `bass`**, the same seams to the last one.
+ *
+ *    The cost is two bars in those 2101, both in `heavy`, and they are worth
+ *    knowing about because of *why*. Regenerate either of them at `hook:
+ *    'through'` and the comp plays the bar; at all four levels that quote a
+ *    figure it does not, because the quote rewrites the phrase end and a
+ *    `sustain: true` comp spends the last two bars' chord inside the
+ *    second-to-last bar, leaving the last one to the rest of the band — which the
+ *    break then takes away. Hook-dependent, and harmless to the guarantee that
+ *    made the carrier a table entry in the first place: *whether* a break happens
+ *    and whether the kit is emptied are settled from the plan and the style,
+ *    neither of which the tune can move. It is one bar in a thousand coming out
+ *    quiet, rather than a drum part that changes with `--hook`.
  *  - **No `vary`.** The rhythm section does not play its figure differently at
  *    the end of a phrase. This is stronger than reggae's version of the same
  *    refusal: sixteen bars of identical downpicked sixteenths is not a
@@ -71,12 +95,11 @@
 import type { BassPattern, CompPattern, DrumPattern, Style } from '../../style/types.js';
 
 // ---------------------------------------------------------------------------
-// The power chord, and what the engine will actually give us
+// The power chord
 // ---------------------------------------------------------------------------
 
 /**
- * Two voices, stacked as a fourth, and no third — the nearest thing to a power
- * chord this engine can voice.
+ * Two voices, root and fifth, and no third at any number of them.
  *
  * ## What a power chord is
  *
@@ -97,52 +120,106 @@ import type { BassPattern, CompPattern, DrumPattern, Style } from '../../style/t
  * phrygian and phrygian dominant inside one riff without anything underneath
  * having to agree.
  *
- * ## Why this is written as a quartal voicing and what it costs
+ * That paragraph is about the *chord* and is untouched by how the chord is
+ * spelled. `voicing` is one instrument's way of playing what the chart says: the
+ * chart still says `i`, the bass still spells it, the tune still argues the mode
+ * on its own, and nothing downstream of this line learns anything new about the
+ * harmony. Which is why this is a `VoicingStyle` and not a `ChordQuality`.
  *
- * `chooseTones` in `core/voicing.ts` cannot drop the third. It says so at length
- * and it is right to: *the third and the seventh are what the chord is*, and the
- * measurement behind that sentence — 16% of iskelmä voicings with no quality at
- * all, dominants with no leading tone — is real. A two-voice tertian voicing of
- * `i` therefore comes back as **root and minor third**, which is the one dyad
- * this genre never plays.
+ * ## What this used to say, and what the workaround cost
  *
- * `quartal` is the only `VoicingStyle` that never asks for the third. It stacks
- * scale degrees rather than chord tones, so `voices: 2` gives the chord root and
- * the note three scale steps above it, which in every seven-note mode this genre
- * uses is a perfect fourth — and a fourth is a fifth inverted, the same two pitch
- * classes in the other order. The genre-check next door already knows this: its
- * note on jazz's modal comp says *a fourth turned upside down is a fifth*.
+ * `chooseTones` in `core/voicing.ts` will not drop the third, and it is right not
+ * to: *the third and the seventh are what the chord is*, and the measurement
+ * behind that sentence — 16% of iskelmä voicings with no quality at all,
+ * dominants with no leading tone — is real. For as long as that was the only
+ * routine in the file, the sole escape from it was `voicing: 'quartal'` at
+ * `voices: 2`, which stacks *scale* degrees rather than chord tones and therefore
+ * never asks for a third at all. Three scale steps is a perfect fourth in a
+ * seven-note mode, and a fourth is a fifth inverted — the same two pitch classes
+ * in the other order, which is a power chord played in the wrong place on the
+ * neck. This table took that trade and wrote down what it cost.
  *
- * **The cost is real and it is worth measuring rather than describing.** Over two
- * songs in each of the twenty-four styles, the two-voice comp comes out:
+ * `'power'` now exists and is argued at `powerTones`: root and fifth built from
+ * the chord, through the ordinary inversion, ceiling and voice-leading machinery
+ * that `voiceQuartal` bypasses. Re-measured across this catalogue — twenty-four
+ * styles, eight songs each, about 274,000 comp onsets on each side:
  *
- *     68.2%  a perfect fourth   — the power chord, inverted
- *     26.8%  a tritone
- *      3.0%  a perfect fifth    — the chord as a guitarist would actually play it
- *      1.9%  a third or a sixth — register inversion and collision repair
+ *                             quartal   power
+ *     a perfect fifth            1.5%   90.1%   — the chord as a guitarist plays it
+ *     a perfect fourth          68.5%    7.4%   — the same two notes, inverted
+ *     a tritone                 25.7%    0.1%
+ *     a third or a sixth         4.3%    2.3%   — the four styles that voice triads
+ *     a register-limit fault    16.6%    0.6%
  *
- * Two thirds of it is the intended object with the fifth stated below the root
- * instead of above it, which is a power chord played in the wrong place on the
- * neck. The tritones are not a bug either, though they are further from the
- * target than the doc for this field would like: three scale steps up from a
- * mode's ♭2 or its ♭6 is six semitones rather than five, and `bII` and `VI` are
- * two of the four chords this genre plays most, so a quarter of every comp in the
- * catalogue is the interval the whole style was accused of being about. It is at
- * least an interval this music owns; it is not the one the table asked for.
+ * **The tritones were arithmetic rather than taste**, which is why they came out
+ * at a quarter of the catalogue rather than at a trickle: three scale steps up
+ * from a mode's ♭2 or its ♭6 is six semitones and not seven, and `bII` and `VI`
+ * are two of the four chords this genre plays most. Every one of the 70,000 of
+ * them landed on an ordinary major chord — `VI`, `bII`, `IV`, `bVII` — where the
+ * fifth is perfect and six semitones is simply not the interval that was asked
+ * for. So the genre spent a quarter of its comping on the interval it is most
+ * often accused of being about, in the bars where it had not asked for it.
  *
- * What the numbers say together is that **the third is gone**: under 2% of
- * onsets, all of it arriving after the voicer has finished, from a ceiling
- * pushing a voice into another octave or from `resolveCollisions`. That was the
- * whole point of choosing this. A voicing in the wrong inversion is a
- * recognisable version of the right chord; a voicing with a third in it is a
- * different genre.
+ * **The fourth row is the one nothing in the old table measured.** `voiceQuartal`
+ * is the one routine in `core/voicing.ts` that never consults `minInterval`: it
+ * steps the scale and slides the finished stack into the window, so it does not
+ * merely voice the wrong interval, it voices it anywhere — mostly a fourth
+ * sitting below C3, where the low-interval limit is a fifth and the ear hears a
+ * beating rumble rather than a chord. That is a sixth of every comp onset in the
+ * genre, and going through the ordinary placement machinery is what removes it.
+ *
+ * ## What it still costs
+ *
+ * Three things, and none of them is a residue of the fault above.
+ *
+ *  - **Single-note onsets rise, 0.8% to 3.6%.** Where the comp's window is low
+ *    and its top is not clear of the nearest root by the interval that register
+ *    demands, the shape has nowhere to go and the voicer hands back the root
+ *    alone. Those are the same onsets `quartal` was filling with a fault, and one
+ *    note is a rhythm guitarist playing one string — a fourth at A1 is not a
+ *    thinner power chord, it is a rumble. `minInterval` is not the place to argue
+ *    about a drop-tuned guitar living at C2–G2: all fourteen genres are voiced
+ *    through that table.
+ *  - **The 0.1% of tritones that survive are `techdeath` and are correct.** Every
+ *    one of them is that style's `iio`, whose fifth *is* a tritone; its own
+ *    description says diminished arpeggios and its verse writes the chord on
+ *    purpose. The honest voicing of an altered fifth is the altered fifth —
+ *    `chooseTones` says the same thing two functions up, where a ♭5 is the one
+ *    fifth it refuses to drop — and putting a perfect fifth there instead would
+ *    be a wrong note under a bass and a tune that are both spelling the real
+ *    chord.
+ *  - **The comp collides with the tune more often**, 17.7% to 24.9% of onsets
+ *    sounding an octave from a melody note. The mechanism is not subtle: the
+ *    root and the fifth are the two notes a tune in the key spends most of its
+ *    time on. `resolveCollisions` and the arranger's ceiling are the levers, and
+ *    both are already pulled.
+ *
+ * ## Two voices, because the octave is the bass's
+ *
+ * `powerTones` will double outward as far as it is asked to — three voices adds
+ * the octave, four the octave fifth — and this table asks for two. A third voice
+ * would be the guitar stating a note the arrangement already has: `followRiff`,
+ * `poundBass` and `fifths` next door put the bass on the same root an octave
+ * down, note for note, because in this music the bass plays the guitar part
+ * rather than outlining the harmony.
+ *
+ * **The third voice is not refused because it collides**, and that is worth
+ * saying because it is the obvious guess and it is wrong. Measured over the
+ * catalogue at both settings, comp onsets sounding an octave from a melody note
+ * are 25.2% either way, to the tenth of a point — an octave root is a pitch class
+ * the chord already had, so it can collide with nothing the first two voices were
+ * not colliding with already. What it actually costs is 26% more notes for the
+ * same music, 394k against 496k across the catalogue, all of them a doubling of
+ * a doubling. `rock/styles.ts` takes three for the opposite reason and says so:
+ * there the bass is playing a line rather than the guitar part, so the octave in
+ * the shape is the only one in the band.
  *
  * A handful of styles deliberately do not use this — `glam`, `power`, `gothic`
  * and `symphonic` voice real triads, because those four have a singer on top of a
  * chord that is meant to be major or minor and the ambiguity would cost them the
  * tune. Each says so at its own table.
  */
-const POWER = { voices: 2, voicing: 'quartal' } as const;
+const POWER = { voices: 2, voicing: 'power' } as const;
 
 /**
  * Sixteen downstrokes.
@@ -259,6 +336,13 @@ const stabs = (weight: number): CompPattern => ({
  * "the chord is minor" by omission the way a guitar can. `gothic`, `symphonic`,
  * `power` and `glam` use it, and each of the four has a singer whose line would
  * be sitting over an unresolved question otherwise.
+ *
+ * It stays tertian, and now that is a choice between two spellings rather than
+ * the only one on offer. Nothing about these four was a workaround: they were
+ * written asking for the third and they still are, and the 2.3% of comp onsets
+ * in the catalogue that sound one are almost exactly these tables. The `chug`
+ * and `gallopChop` figures sitting beside them in the same `comp` arrays are
+ * `POWER`, which is what a rhythm guitarist plays under a string section.
  */
 const triads = (weight: number, hits: CompPattern['hits']): CompPattern => ({
   name: 'triads', weight, voices: 3, hits,
@@ -276,8 +360,10 @@ const triads = (weight: number, hits: CompPattern['hits']): CompPattern => ({
  * line wants; a literal semitone count is a *shape*, re-rooted and otherwise left
  * alone. A metal bass line is not outlining harmony, it is playing the guitar
  * part an octave down, and the guitar part is a shape. `0` and `7` below are the
- * root and the fifth taken literally, which is the power chord said by the one
- * instrument in the band that can actually say it.
+ * root and the fifth taken literally, which is the same object `POWER` above now
+ * puts in the guitar's hands — and the reason that one asks for two voices rather
+ * than three. The octave doubling of a power chord is *this line*, and a band has
+ * one of it.
  */
 const followRiff = (weight: number): BassPattern => ({
   name: 'follow', weight,
@@ -600,6 +686,7 @@ const heavy: Style = {
   relativeMajorChorus: 0,
   hook: 'catchy',
   shots: METAL_SHOTS,
+  breakCarrier: 'comp',
   requireLayers: ['comp'],
   excludeLayers: ['brass'],
   progressions: {
@@ -683,6 +770,7 @@ const doom: Style = {
   relativeMajorChorus: 0,
   hook: 'earworm',
   shots: [[[0, 8], 5], [[0, 6, 12], 3]],
+  breakCarrier: 'comp',
   requireLayers: ['comp'],
   excludeLayers: ['brass'],
   progressions: {
@@ -751,6 +839,7 @@ const stoner: Style = {
   relativeMajorChorus: 0,
   hook: 'catchy',
   shots: METAL_SHOTS,
+  breakCarrier: 'comp',
   requireLayers: ['comp'],
   excludeLayers: ['brass'],
   progressions: {
@@ -813,6 +902,7 @@ const sludge: Style = {
   relativeMajorChorus: 0,
   hook: 'loose',
   shots: [[[0, 6, 8], 4], [[0, 3, 6, 10], 3], [[0, 8], 3]],
+  breakCarrier: 'comp',
   requireLayers: ['comp'],
   excludeLayers: ['brass', 'pad'],
   progressions: {
@@ -880,6 +970,7 @@ const nwobhm: Style = {
   relativeMajorChorus: 0.15,
   hook: 'catchy',
   shots: METAL_SHOTS,
+  breakCarrier: 'comp',
   requireLayers: ['comp'],
   progressions: {
     verse: [
@@ -946,6 +1037,7 @@ const speed: Style = {
   relativeMajorChorus: 0.1,
   hook: 'catchy',
   shots: METAL_SHOTS,
+  breakCarrier: 'comp',
   requireLayers: ['comp'],
   excludeLayers: ['brass'],
   progressions: {
@@ -1010,6 +1102,7 @@ const power: Style = {
   relativeMajorChorus: 0.35,
   hook: 'earworm',
   shots: METAL_SHOTS,
+  breakCarrier: 'comp',
   requireLayers: ['comp'],
   progressions: {
     verse: [
@@ -1106,6 +1199,7 @@ const glam: Style = {
   relativeMajorChorus: 0.2,
   hook: 'earworm',
   shots: [[[0, 6, 8], 4], [[0, 4, 8, 12], 4], [[0, 7, 12], 3]],
+  breakCarrier: 'comp',
   requireLayers: ['comp'],
   progressions: {
     verse: [
@@ -1197,6 +1291,7 @@ const shred: Style = {
   relativeMajorChorus: 0,
   hook: 'loose',
   shots: METAL_SHOTS,
+  breakCarrier: 'comp',
   requireLayers: ['comp', 'melody'],
   progressions: {
     verse: [
@@ -1284,6 +1379,7 @@ const thrash: Style = {
   modeWeights: { minor: 0.9, major: 0.1 },
   relativeMajorChorus: 0,
   shots: METAL_SHOTS,
+  breakCarrier: 'comp',
   requireLayers: ['comp'],
   excludeLayers: ['brass', 'pad'],
   progressions: {
@@ -1339,6 +1435,7 @@ const crossover: Style = {
   modeWeights: { minor: 0.85, major: 0.15 },
   relativeMajorChorus: 0,
   shots: [[[0, 4, 8, 12], 5], [[0, 6, 8], 3]],
+  breakCarrier: 'comp',
   requireLayers: ['comp'],
   excludeLayers: ['brass', 'pad'],
   progressions: {
@@ -1402,6 +1499,7 @@ const groove: Style = {
   modeWeights: { minor: 0.88, major: 0.12 },
   relativeMajorChorus: 0,
   shots: [[[0, 7, 10], 5], [[0, 3, 6, 10], 4], [[0, 6, 8], 3]],
+  breakCarrier: 'comp',
   requireLayers: ['comp'],
   excludeLayers: ['brass'],
   progressions: {
@@ -1450,6 +1548,7 @@ const metalcore: Style = {
   relativeMajorChorus: 0,
   transitions: [['break', 5], ['fill', 4], ['shot', 3], ['elide', 1]],
   shots: [[[0, 6, 8], 5], [[0, 3, 6, 10], 4], [[0, 4, 8, 12], 3]],
+  breakCarrier: 'comp',
   requireLayers: ['comp'],
   excludeLayers: ['brass'],
   progressions: {
@@ -1504,6 +1603,7 @@ const industrial: Style = {
   modeWeights: { minor: 0.9, major: 0.1 },
   relativeMajorChorus: 0,
   shots: [[[0, 4, 8, 12], 5], [[0, 6, 8], 3]],
+  breakCarrier: 'comp',
   requireLayers: ['comp'],
   excludeLayers: ['brass'],
   progressions: {
@@ -1563,6 +1663,7 @@ const progressive: Style = {
   modeWeights: { minor: 0.82, major: 0.18 },
   relativeMajorChorus: 0,
   shots: [[[0, 4, 8], 5], [[0, 4, 8, 12], 3], [[0, 6, 8], 2]],
+  breakCarrier: 'comp',
   requireLayers: ['comp'],
   progressions: {
     verse: [
@@ -1705,6 +1806,7 @@ const djent: Style = {
   modeWeights: { minor: 0.9, major: 0.1 },
   relativeMajorChorus: 0,
   shots: [[[0, 7, 14], 5], [[0, 4, 8, 12], 3]],
+  breakCarrier: 'comp',
   requireLayers: ['comp'],
   excludeLayers: ['brass'],
   progressions: {
@@ -1800,6 +1902,7 @@ const techdeath: Style = {
   modeWeights: { minor: 0.94, major: 0.06 },
   relativeMajorChorus: 0,
   shots: [[[0, 8, 12], 5], [[0, 4, 8, 14], 3]],
+  breakCarrier: 'comp',
   requireLayers: ['comp'],
   excludeLayers: ['brass', 'pad'],
   progressions: {
@@ -1905,6 +2008,7 @@ const death: Style = {
   modeWeights: { minor: 0.95, major: 0.05 },
   relativeMajorChorus: 0,
   shots: [[[0, 6, 8], 4], [[0, 4, 8, 12], 4], [[0, 2, 3, 8], 3]],
+  breakCarrier: 'comp',
   requireLayers: ['comp'],
   excludeLayers: ['brass', 'pad'],
   progressions: {
@@ -1969,6 +2073,7 @@ const black: Style = {
   modeWeights: { minor: 0.97, major: 0.03 },
   relativeMajorChorus: 0,
   shots: [[[0, 4, 8, 12], 5], [[0, 6, 8], 3]],
+  breakCarrier: 'comp',
   requireLayers: ['comp'],
   excludeLayers: ['brass', 'pad'],
   progressions: {
@@ -2031,6 +2136,7 @@ const melodeath: Style = {
   modeWeights: { minor: 0.93, major: 0.07 },
   relativeMajorChorus: 0.1,
   shots: METAL_SHOTS,
+  breakCarrier: 'comp',
   requireLayers: ['comp'],
   excludeLayers: ['brass'],
   progressions: {
@@ -2091,6 +2197,7 @@ const symphonic: Style = {
   modeWeights: { minor: 0.78, major: 0.22 },
   relativeMajorChorus: 0.25,
   shots: METAL_SHOTS,
+  breakCarrier: 'comp',
   requireLayers: ['comp', 'pad'],
   progressions: {
     verse: [
@@ -2174,6 +2281,7 @@ const gothic: Style = {
   modeWeights: { minor: 0.88, major: 0.12 },
   relativeMajorChorus: 0.15,
   shots: [[[0, 8], 5], [[0, 6, 12], 3]],
+  breakCarrier: 'comp',
   requireLayers: ['comp', 'pad'],
   progressions: {
     verse: [
@@ -2253,6 +2361,7 @@ const folkmetal: Style = {
   modeWeights: { minor: 0.75, major: 0.25 },
   relativeMajorChorus: 0.2,
   shots: [[[0, 6], 5], [[0, 3, 6, 9], 3], [[0, 4, 6, 10], 2]],
+  breakCarrier: 'comp',
   requireLayers: ['comp'],
   progressions: {
     verse: [
@@ -2364,6 +2473,7 @@ const postmetal: Style = {
   modeWeights: { minor: 0.9, major: 0.1 },
   relativeMajorChorus: 0,
   shots: [[[0, 8], 4], [[0, 6, 12], 3]],
+  breakCarrier: 'comp',
   requireLayers: ['comp'],
   progressions: {
     verse: [

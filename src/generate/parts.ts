@@ -12,15 +12,16 @@
 import type { Chord } from '../core/chord.js';
 import { chordPcs } from '../core/chord.js';
 import { voiceChord } from '../core/voicing.js';
-import type { Midi } from '../core/pitch.js';
+import type { Midi, Pc } from '../core/pitch.js';
 import { clampToRange, nearestPc, pc } from '../core/pitch.js';
 import type { Rng } from '../core/rng.js';
 import type { DrumEvent, DrumVoice, NoteEvent } from '../core/types.js';
 import { scaleStepsBetween, stepInScale, type Scale } from '../core/scale.js';
 import { buildFill, DEFAULT_FILLS, landing, type FillPalette } from './fills.js';
-import { IDIOMS, type HandSpec, type IdiomProfile } from '../style/instruments.js';
+import { IDIOMS, INSTRUMENT_RANGE, type HandSpec, type IdiomProfile } from '../style/instruments.js';
 import type {
-  BassHit, BassPattern, CompHit, CompingProfile, CompPattern, DrumPattern, LeftHandMode, Style,
+  BassHit, BassPattern, BassTone, CompHit, CompingProfile, CompPattern, DrumPattern, LeftHandMode,
+  Style,
 } from '../style/types.js';
 import { anticipate, metricStrength, SLOTS_PER_BEAT, subdivide } from './rhythm.js';
 
@@ -32,7 +33,160 @@ export interface PartContext {
   style: Style;
 }
 
+/**
+ * Where a bass part lives: E1 to E3.
+ *
+ * A *register* rather than an instrument — the two octaves a bass line sits in
+ * so that it sounds like the floor of the arrangement rather than like a cello
+ * with a cold. Every note this file writes for the bass layer is decided against
+ * it, and for an outline that is the whole of the requirement: a root, a fifth,
+ * a third, a walking approach are each chosen by asking the harmony, and any
+ * octave of the answer is still the answer.
+ */
 const BASS_RANGE: [Midi, Midi] = [28, 52];
+
+/**
+ * How far above that register a **shape** may reach, and the number is the
+ * instrument's rather than anybody's taste.
+ *
+ * A shape is the opposite of an outline. The interval *is* the figure — see
+ * `BassTone` — so the octave a note lands in is not free, and a register window
+ * applied to one does not move the note, it deletes the interval: two shape
+ * notes fold onto the same pitch, every pitch class survives, and the riff comes
+ * out with the same one over every chord. `BASS_RANGE` is 24 semitones wide and
+ * an octave of the root has to fit inside it *twice over* for the placement
+ * below to have a free choice, so the widest shape that fitted at every root was
+ * a **thirteenth** — measured, not estimated, and one semitone worse than the
+ * "about a twelfth" this was thought to be. Past that it failed at some roots
+ * and not others, which is worse than a flat restriction because it is
+ * chord-dependent: the same figure is intact in G and folded in B♭.
+ *
+ * Three genres narrowed real figures to live inside that, and a fourth did not
+ * notice it had to. Latin's `tumbao-octava` is the root, the fifth and the
+ * octave *below* — a nineteenth — and `timba-line` reaches a twenty-second;
+ * eight figures across seven styles, all of them folded at five roots in twelve
+ * and none of them ever reported, because they carry a `cycle` and the check in
+ * `genre-check.ts` skips a cycled figure on the perfectly good grounds that its
+ * per-bar span is a moving target. A cycle is not a narrower shape. It was the
+ * measurement that could not see them, not the fault that spared them.
+ *
+ * So a shape gets a second, wider window, and 63 is where the electric bass
+ * stops. `fingerBass`, `pickBass`, `slapBass`, `slapBass2` and `fretlessBass`
+ * all end at D♯4 and they are the shortest instruments an era can hand the bass
+ * layer; every other candidate reaches further — tuba 65, contrabass and the
+ * upright 67, bassoon 75, cello 81 — so a shape kept under 63 is playable by
+ * whoever turns up. Taken from the table rather than typed in, because the day
+ * one of those five is re-ranged this has to move with it.
+ *
+ * There would be no point reaching higher anyway. `generateSong` runs every
+ * finished part through `foldIntoRange` against the instrument it actually drew,
+ * so a note past the ceiling is folded back by an octave — the same flattening
+ * this window exists to prevent, arriving one stage later, with nothing left
+ * that could notice and no shape information left to notice it with.
+ *
+ * **Upward only, and the floor does not move.** 28 is the open E of every bass
+ * in that list and there is nothing underneath it. It is also the right
+ * asymmetry musically: the figure this whole mechanism is for is the
+ * octave-displaced riff, which is rooted at the bottom and reaches up. A bass
+ * figure wanting twenty semitones *below* its root is asking for a root at C4,
+ * which is not a bass part.
+ */
+const SHAPE_CEILING: Midi = Math.min(
+  INSTRUMENT_RANGE.fingerBass[1],
+  INSTRUMENT_RANGE.pickBass[1],
+  INSTRUMENT_RANGE.slapBass[1],
+  INSTRUMENT_RANGE.slapBass2[1],
+  INSTRUMENT_RANGE.fretlessBass[1],
+);
+
+/**
+ * The tones that ask the harmony where they are.
+ *
+ * `BassTone`'s own doc calls its named members chord functions, and four of them
+ * are: `third`, `fifth` and `seventh` each get a different answer as the quality
+ * changes, and `approach` asks the *next* chord. Those four are placed by
+ * `nearestPc` near the root and are free to be folded into the register, because
+ * an octave of a chord tone is the same chord tone.
+ *
+ * The other two names are not questions at all. `root` is the root and `octave`
+ * is the root plus twelve, both computed as literal displacements exactly the
+ * way a number is — which is the distinction this type draws and the one the
+ * generator has to act on, since it is the literal ones that a fold destroys.
+ */
+type ChordTone = Exclude<BassTone, number | 'root' | 'octave'>;
+
+function asksTheChord(tone: BassTone): tone is ChordTone {
+  return typeof tone === 'string' && tone !== 'root' && tone !== 'octave';
+}
+
+/** How far above the root, for the tones that do not ask. */
+function displacementOf(tone: Exclude<BassTone, ChordTone>): number {
+  return tone === 'root' ? 0 : tone === 'octave' ? 12 : tone;
+}
+
+/**
+ * Which octave of the root this bar's figure stands on.
+ *
+ * This replaces two `while` loops that walked the root away from
+ * `nearestPc(root, 40)` an octave at a time and stopped at the first position
+ * the shape fitted in. They were right about the remedy — **move the root, do
+ * not clamp the notes** — and wrong about the search twice over. They only ever
+ * asked *does it fit here*, so where nothing fitted they gave up where they
+ * started and let the clamp fold the figure; and they asked it of one end of the
+ * shape at a time, which is not a question about the shape.
+ *
+ * Which octave a figure fits in is a property of the whole span, so every octave
+ * of the root is scored and the cheapest wins. Three costs, and the order is the
+ * argument:
+ *
+ *  1. **Notes the bass cannot play.** Below `BASS_RANGE[0]` or above
+ *     `SHAPE_CEILING`, which is the only hard wall here — see `SHAPE_CEILING`.
+ *     Anything with a cheaper answer available is not considered further.
+ *  2. **Notes above the register.** A shape may spend the reach, but only when
+ *     it has to. A figure spanning a twelfth fits inside `BASS_RANGE` at every
+ *     root and there is nothing to buy by pushing it up into the cello's
+ *     octave, so it never is: this term is what keeps a bass sounding like one
+ *     and keeps the reach a relief valve rather than a wider range.
+ *  3. **Distance from where the bass already was.** The tie-break, and it is
+ *     what makes this change inaudible where it should be. When several octaves
+ *     cost the same, the one nearest `nearestPc(root, 40)` wins — which is the
+ *     position the old loops would have chosen, so every figure that already
+ *     fitted comes out on exactly the note it came out on before. Measured
+ *     against the whole catalogue: **65 of its 705 bass figures are placed
+ *     differently, and they are precisely the 65 that were folding.** Nothing
+ *     that was intact moved.
+ *
+ * A bar's root can still land an octave from its neighbour's, and that is real
+ * damage rather than a free win — a riff an octave under the bar before it has
+ * come apart between the bars even though each bar is right. It is the lesser
+ * damage, which is the same judgement the loops were making, and the second cost
+ * is what keeps it rare: an octave is only spent to buy a note, never to buy
+ * tidiness.
+ *
+ * Two octaves either side is enough to reach every position: `home` is within a
+ * tritone of 40 and the reach runs 28 to 63, so the five candidates cover it
+ * from anywhere. Nothing here is drawn — the whole decision is arithmetic on the
+ * root and the span — so no figure this touches costs the song a random number.
+ */
+function placeRoot(root: Pc, shape: { lo: number; hi: number }): Midi {
+  const home = nearestPc(root, 40);
+  const cost = (at: Midi): readonly number[] => [
+    Math.max(0, BASS_RANGE[0] - (at + shape.lo)) + Math.max(0, at + shape.hi - SHAPE_CEILING),
+    Math.max(0, at + shape.hi - BASS_RANGE[1]),
+    Math.abs(at - home),
+  ];
+  let best = home;
+  let lowest = cost(home);
+  for (let at = home - 24; at <= home + 24; at += 12) {
+    const c = cost(at);
+    const differs = c.findIndex((v, i) => v !== lowest[i]!);
+    if (differs >= 0 && c[differs]! < lowest[differs]!) {
+      best = at;
+      lowest = c;
+    }
+  }
+  return best;
+}
 
 /**
  * Every slot a repeating figure lands on across a whole section, paired with the
@@ -197,20 +351,45 @@ export function generateBass(
   /**
    * How far above and below the root this figure's shape notes reach.
    *
-   * Both zero for every pattern written in chord functions, which is what makes
-   * the placement below free for them: the loops are entered and immediately not
-   * taken, and the root is the root it has always been.
+   * Both zero for a pattern written entirely in chord functions, which is what
+   * keeps the placement below free for them: every octave of the root scores the
+   * same and the root is the root it has always been.
    *
    * A shape needs more than clamping. `clampToRange` applied to the top note of
    * a riff *flattens* it — two notes land on the same pitch and the figure the
-   * numeric spelling exists to protect is gone. So the root moves by an octave
-   * instead and the shape arrives whole, which is what `arpOctaves` already does
-   * to a voicing that will not fit above the line. See `BassTone`.
+   * numeric spelling exists to protect is gone. So the root is placed to hold
+   * the whole span instead and the shape arrives entire, which is what
+   * `arpOctaves` already does to a voicing that will not fit above the line. See
+   * `BassTone`.
+   *
+   * **`octave` counts, and finding that it did not was the fault's silent
+   * half.** §1.3 of `docs/engine-gaps.md` was reported by three genres who all
+   * wrote their riffs in numbers, and the check measures the numbers, so the
+   * same figure spelled `tone: 'octave'` was folding in the open with nothing
+   * looking at it. Counted over the whole catalogue before this line changed:
+   * **57 figures in nine genres**, every one of them folding at exactly six of
+   * the twelve root positions, because a shape reaching a twelfth needs the root
+   * at or under MIDI 40 and `nearestPc(root, 40)` puts it above that half the
+   * time. In those keys the octave *was the root* — a `boom-run` whose boom and
+   * whose run are one note, a `tumbao-octava` whose two events do not separate in
+   * register, an ambient `drone-octave` sounding one pitch twice. Reggae's
+   * `steppers-octave` writes the same gesture as `tone: 12` and was placed
+   * correctly all along, which is the whole argument: two spellings of one figure
+   * had two behaviours.
+   *
+   * The worst of it was in `sustain` patterns, where the collision also defeated
+   * `mergeHeld`: root and octave landed in one pitch group, their onsets
+   * interleaved, and the end-to-end chain the merge walks was broken at every
+   * join. `ambient/wasteland` came out with **80 re-articulated notes on one
+   * pitch where the figure asks for two held tones** — a pulse where the whole
+   * point of `BassPattern.sustain` is a drone.
    */
   const shape = pattern.hits.reduce(
-    (span, h) => (typeof h.tone === 'number'
-      ? { lo: Math.min(span.lo, h.tone), hi: Math.max(span.hi, h.tone) }
-      : span),
+    (span, h) => {
+      if (asksTheChord(h.tone)) return span;
+      const at = displacementOf(h.tone);
+      return { lo: Math.min(span.lo, at), hi: Math.max(span.hi, at) };
+    },
     { lo: 0, hi: 0 },
   );
 
@@ -223,41 +402,19 @@ export function generateBass(
     const chord = chords[bar]!;
     const next = chords[bar + 1] ?? chords[0]!;
     const pcs = chordPcs(chord);
-    let rootMidi = clampToRange(nearestPc(chord.root, 40), BASS_RANGE[0], BASS_RANGE[1]);
     /**
-     * The octave repair, and it is a safety net rather than a working part.
-     *
-     * `nearestPc(root, 40)` lands within a tritone of 40, so a shape reaching
-     * from −6 to +6 of its root always fits `BASS_RANGE` and neither loop is
-     * entered. Nothing in the catalogue reaches further than that and the check
-     * in `genre-check.ts` says so by measuring the span.
-     *
-     * A wider figure would otherwise be *flattened* by the clamp below — two
-     * shape notes folded onto one pitch, every pitch class intact and the figure
-     * gone — and moving the root by an octave is the lesser damage. It is real
-     * damage: a riff an octave under the bar before it has come apart between
-     * the bars even though each bar is right. Which is why the right answer for
-     * a shape that needs this is a narrower shape, and why this stays a net.
+     * Placed for the whole figure rather than repaired note by note. Nothing
+     * about it is drawn — see `placeRoot`.
      */
-    while (rootMidi + shape.hi > BASS_RANGE[1] && rootMidi - 12 + shape.lo >= BASS_RANGE[0]) {
-      rootMidi -= 12;
-    }
-    while (rootMidi + shape.lo < BASS_RANGE[0] && rootMidi + 12 + shape.hi <= BASS_RANGE[1]) {
-      rootMidi += 12;
-    }
+    const rootMidi = placeRoot(chord.root, shape);
 
     {
       let midi: Midi;
-      if (typeof hit.tone === 'number') {
-        // A shape, not an outline: the interval *is* the figure, and the chord
-        // does not get a say in it. The root was placed above so this arrives
-        // whole rather than clamped. See `BassTone`.
-        midi = rootMidi + hit.tone;
-      } else {
+      if (asksTheChord(hit.tone)) {
+        // An outline. The harmony answers, `nearestPc` puts the answer next to
+        // the root, and the register has the last word — an octave of a chord
+        // tone is the same chord tone, so folding one costs nothing.
         switch (hit.tone) {
-          case 'root':
-            midi = rootMidi;
-            break;
           case 'fifth':
             midi = nearestPc(pc(chord.root + 7), rootMidi + 2);
             break;
@@ -267,15 +424,23 @@ export function generateBass(
           case 'seventh':
             midi = nearestPc(pcs[3] ?? pc(chord.root + 10), rootMidi + 2);
             break;
-          case 'octave':
-            midi = rootMidi + 12;
-            break;
           case 'approach':
             midi = approachNote(rootMidi, next.root, rng);
             break;
         }
+        midi = clampToRange(midi, BASS_RANGE[0], BASS_RANGE[1]);
+      } else {
+        // A shape, not an outline: the interval *is* the figure, and the chord
+        // does not get a say in it. `placeRoot` has already found the octave
+        // that holds the span, so this arrives whole; the clamp is against
+        // `SHAPE_CEILING` rather than the register because a figure the
+        // placement had to spend the reach on must be allowed to *use* it, and
+        // clamping it back would undo the placement in the one bar it was made
+        // for. It remains a net and it still folds a figure wider than two
+        // octaves — which no instrument in the bass palette can play whole, and
+        // which `npm run genres` still reports. See `BassTone`.
+        midi = clampToRange(rootMidi + displacementOf(hit.tone), BASS_RANGE[0], SHAPE_CEILING);
       }
-      midi = clampToRange(midi, BASS_RANGE[0], BASS_RANGE[1]);
       out.push({
         beat: startBeat + slot / SLOTS_PER_BEAT,
         duration: hit.dur / SLOTS_PER_BEAT,

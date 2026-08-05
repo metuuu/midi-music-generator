@@ -8,15 +8,15 @@
  * drop empties the downbeat altogether and lets the bass decide when the bar
  * began; a steppers bar puts a kick on all four and dares you to notice. Sort
  * this music by tempo and you get one long slowdown followed by one long speed-up.
- * Sort it by which beat the band refuses to play on and the twenty-two below stay
- * twenty-two.
+ * Sort it by which beat the band refuses to play on and the twenty-one below stay
+ * twenty-one.
  *
  * ## Three figures are the genre, so they are declared once
  *
  * Every other style table in this project writes its patterns out per style,
  * and that is right where the patterns *are* the style — a humppa oom-pah and a
  * tango's dragged two are two different bands. Here three figures run through
- * the whole catalogue unchanged, and writing them out twenty-two times would say
+ * the whole catalogue unchanged, and writing them out twenty-one times would say
  * the opposite of what is true: that the one drop is a thing `onedrop` happens to
  * do, rather than the thing the genre is.
  *
@@ -64,6 +64,25 @@
  *    swing and set `boxDrums: false` for it, because a shuffle whose character is
  *    the gap between the two hands cannot be expressed as a low weight on a
  *    preset box.
+ *  - **No `ghosts`, on any of the 59 kit patterns in this file**, and it is the
+ *    absence that took the most arguing. `DrumPattern.ghosts` is the right field
+ *    for a boom-bap kit and the wrong one for this genre, because the figure
+ *    here is made of what is *not* struck — a ghost row on a one drop puts
+ *    strokes into precisely the hole the beat is named after. And it could not
+ *    be scoped away from that hole: `oneDrop` and `oneDropOpen` are shared
+ *    factories that **10 of the 21 styles draw**, and they are 77% of
+ *    `rocksteady`'s kit draw and 79% of `onedrop`'s, `roots`'s and `dub`'s, so
+ *    ghosting the two records everybody actually means would ghost eight other
+ *    styles with them. The two candidates that own their patterns outright fail
+ *    on their own tables' arguments: `rubadub` calls itself "the sparsest
+ *    live-band texture in the genre" and would be arguing with itself, and the
+ *    three swung styles have their soft middle stroke as a *triplet*, which a
+ *    sixteenth grid cannot write — the same reason those three set
+ *    `boxDrums: false`. Two facts worth having beside that, both measured: the
+ *    backbeat is `rim` on 32 of the 59 patterns and `sd` on 20, and the drawn
+ *    ghosting pass in `applyFeel` only ever touches `sd`; and this genre names
+ *    **no `feels` at all**, so `Feel.ghost` fires zero times in it — 0 feels
+ *    over 420 songs. Nothing is being composed with here and nothing was lost.
  */
 
 import type { BassPattern, CompPattern, DrumPattern, Style } from '../../style/types.js';
@@ -240,7 +259,7 @@ const afterTheOne = (weight: number): BassPattern => ({
  * with the next section arriving in the hole behind it.
  *
  * Shared rather than repeated because it is a fact about the idiom, not about any
- * one style, and because a table this short would otherwise be copied twenty-two
+ * one style, and because a table this short would otherwise be copied twenty-one
  * times and drift in three of them.
  */
 const OFFBEAT_SHOTS: (readonly [number[], number])[] = [
@@ -1373,9 +1392,9 @@ const roots: Style = {
  * brass layer is refused outright — a horn section arranged across the top is the
  * opposite of a mix that keeps taking things away — and the style declares a
  * `filter` sweep, which is the one gesture in the whole project that says "the
- * engineer's hand is on this". The rest of the drenching lives in `roots`'s era
- * table and in the genre's `effects` and `space`, which is where production
- * belongs.
+ * engineer's hand is on this". **And it declares its own sends**, which is the
+ * half of the drenching that used to be borrowed; see `effects` below for what
+ * that was costing and what is deliberately still the era's.
  *
  * `drumFills: false`, and it is the sharpest thing in this style's table. A dub
  * does not announce a section with a tom roll. It announces one by dropping
@@ -1399,6 +1418,86 @@ const dub: Style = {
   relativeMajorChorus: 0,
   excludeLayers: ['brass'],
   drumFills: false,
+  /**
+   * The drench, stated here because it is the piece rather than the decade.
+   *
+   * This is the one style in the catalogue that `Style.effects` exists for, and
+   * the reason is the sentence at the top of this block: a dub is a *production*.
+   * Take the echo off a rocksteady record and you have a rocksteady record mixed
+   * dry; take it off this and there is nothing left, because the riddim
+   * underneath was somebody else's and the second pass over the tape is the whole
+   * of what King Tubby contributed. An era is an average over a decade and this
+   * is a member of that average; the member wins.
+   *
+   * **What it was costing, measured.** Before this block a dub took its sends
+   * from whichever era it was drawn in, and the `digital` era is dry by
+   * construction and correctly so — a Casiotone riddim has no room in it. So a
+   * dub drawn in 1985 came out with the kit at `reverb 0.08` and **no `delay`
+   * field at all**, against `0.42` and `0.28` for the same style drawn ten years
+   * earlier. That is not a dub cut in 1985, which is a real and famous object
+   * — Scientist and Jammy's were both still working — it is simply not a dub.
+   * The four channels below now resolve **identically in all four eras**, and
+   * the only thing left moving is the `lowpass`: 6500 on the kit in `ska`, 5500
+   * in `rocksteady`, 3200 in `roots`, 9000 in `digital`. Drenched in every
+   * decade, and a different decade's record in each.
+   *
+   * ## Which four, and why the other four are the era's
+   *
+   * The merge is per key, so everything unnamed here goes on tracking the year.
+   * That is the design and it is also the discipline: a dub should state its
+   * echo and let 1963 and 1985 go on deciding how bright the record is.
+   *
+   *  - **`lowpass` is named nowhere.** A 1968 dub and a 1985 dub are both dubs
+   *    and they do not sound alike, and the difference is almost entirely the
+   *    top end — the `ska` table says 6500 on the kit, `roots` 3200 and
+   *    `digital` 9000, and all three are right about their own decade. Naming a
+   *    cutoff here would freeze one of them across the twenty-two years those
+   *    tables span and take an era's job away to no purpose, since brightness is
+   *    not what anybody means by *dub*.
+   *  - **`bass` is named nowhere either, and that silence is the loudest thing
+   *    in the block.** The one channel a dub engineer never sends is the bass:
+   *    reverb on a sustained low note arrives while the note is still sounding
+   *    and the two beat against each other, which is why the floor stays solid
+   *    while the room above it falls apart. All four eras already say `reverb`
+   *    0.02 or 0, and this style agreeing by saying nothing is stronger than
+   *    this style agreeing by saying 0.02 — the latter would also pin the
+   *    `lowpass` argument's twin, the small drift from 900 Hz down to 800 and
+   *    back up to 950 that is the actual history of the instrument.
+   *  - **`pad` is left alone** for a reason of physics rather than taste: an
+   *    echo repeats a transient and a pad has none, so a delay send on the wash
+   *    buys a thicker wash and nothing recognisable. What a dub does to a pad is
+   *    take it away, and taking a layer away is the filter sweep's job and the
+   *    mix's, not a send level's.
+   *  - **`vocal` is left alone** because the definition of the form is that
+   *    there is no singer on it.
+   *
+   * What is left is the four channels the engineer's hands are actually on, and
+   * they keep the ladder every era table already builds — kit driest, tune
+   * wettest — lifted bodily above the wettest of them. The ordering is not a
+   * preference: the kit still has to keep time in a dub, and a rhythm you cannot
+   * locate is a different and much worse record. `counter` is on the list and
+   * looks like the marginal one; it is not. Three of the four era tables say
+   * nothing about that layer at all, so without this it falls all the way back to
+   * the genre's 0.45/0.35 and comes out **wetter than the melody** in `digital`
+   * — the answering fragment louder in the echo than the thing it is answering,
+   * which is backwards.
+   *
+   * ## What this still cannot say
+   *
+   * The send levels are the style's now; the *character* of the echo is not.
+   * How many times a repeat comes back lives in `Space.delayFeedback`, which has
+   * a genre tier and an era tier and no style tier, so a dub in `digital` gets
+   * 0.42 where the same dub in `roots` gets 0.62 — four or five repeats against
+   * seven. The band is drenched in both and the tape machine is a different
+   * machine, which is a smaller wrongness than the one this block fixes and is
+   * the residual worth writing down rather than hiding.
+   */
+  effects: {
+    drums: { reverb: 0.5, delay: 0.45 },
+    comp: { reverb: 0.58, delay: 0.55 },
+    counter: { reverb: 0.62, delay: 0.58 },
+    melody: { reverb: 0.65, delay: 0.6 },
+  },
   filter: { depth: 0.55, shape: 'ramp' },
   shots: OFFBEAT_SHOTS,
   /**

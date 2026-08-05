@@ -213,7 +213,22 @@ const rocksteady: EraProfile = {
  * other era table in the project does. Dub was invented here — not as a style of
  * playing but as a second pass over a finished tape, with a spring reverb, a tape
  * echo and a high-pass filter, and with an engineer taking things out. The genre's
- * `effects` and `space` describe a band; these describe what King Tubby did to one.
+ * `effects` and `space` describe a band; these describe the desk every record in
+ * this decade went through on the way out of the room.
+ *
+ * **The desk, and not the dub.** That distinction is newer than the numbers and
+ * it is worth stating, because these numbers used to do both jobs and it showed:
+ * `dub` had nothing of its own and borrowed the drench from here, so the same
+ * style drawn in `digital` came out dry. It states its own sends now — see
+ * `styles.ts` — and what is left below is a claim about 1975 that the other
+ * fifteen styles drawing in this era were always the ones paying for. **Nothing was
+ * handed back**, and the reason is the same per-key rule that let `dub` state
+ * anything: what it took over is `reverb` and `delay`, and what it deliberately
+ * did *not* take over is `lowpass` — so the 3.2 kHz below is still the number a
+ * roots-era dub is filtered by, and brightening it to "give something back"
+ * would brighten the one style it was supposed to be doing a favour for. The kit
+ * of this decade is dark on a Culture record and on a Burning Spear record, not
+ * only on a version, and 3200 is a fact about the desk rather than a loan.
  *
  * **The kit is filtered rather than merely quiet**, which is the sentence ambient's
  * `sampler` era already writes about itself and which applies here more literally
