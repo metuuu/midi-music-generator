@@ -3030,12 +3030,24 @@ const boogie: Style = {
  * it*, so the parts lock in a way a band cannot — the synth stab lands on the
  * same sixteenth as the snare, every time, because it was quantised there.
  *
- * The second is the famous one: **sometimes there is no bass at all.** The style
- * cannot say that directly — a bass layer is arranged in or out per section by
- * density rather than declared — so what it does instead is write the bass
- * tables as sparsely as this file allows, one or two onsets, low in the bar and
- * out of the way of a synth part that is doing the work an octave up. That is
- * the audible half of the effect and it is reachable.
+ * The second is the famous one: **sometimes there is no bass at all.** That
+ * turns out to be two claims rather than one, and this table now makes both,
+ * which is why neither mechanism replaced the other:
+ *
+ *  - **the bass stops and comes back.** `drops` below, and it is the one this
+ *    style could not make at all — `docs/engine-gaps.md` §1.2 names
+ *    `minneapolis` as one of the two styles that reported the gap, so the header
+ *    you are reading was one of the two pieces of evidence the mechanism was
+ *    argued from.
+ *  - **and when it is there, there is hardly any of it.** The bass tables, one
+ *    or two onsets, low in the bar and out of the way of a synth part doing the
+ *    work an octave up.
+ *
+ * This header used to call the second one "the audible half of the effect", by
+ * which it meant *all of the effect that was reachable*. It stays exactly as it
+ * was, because it was never a fake of the first: a thin bass part and a bass
+ * part that stops are two different sounds, both of them on these records, and
+ * the tables are what the two songs in three that draw `none` are made of.
  *
  * The kit is a LinnDrum with its snare turned into an event: `cp` doubling the
  * backbeat, `rim` where a ghost would be, and no ride anywhere. The genre's own
@@ -3053,6 +3065,54 @@ const minneapolis: Style = {
   modeWeights: { minor: 0.55, major: 0.45 },
   relativeMajorChorus: 0,
   hook: 'earworm',
+  /**
+   * The bass stops and the Linn carries on, which is the record this style is
+   * named after and the thing the tables below could only imitate.
+   *
+   * The gesture is a fader, not an arrangement: the same programmed part, still
+   * running, with two bars of it muted and then back. `dub` is the shape for it
+   * — the bass leaves and the kit keeps time — and the kit is what it is heard
+   * against, which here is stronger than in the idiom the shape is named after.
+   * A LinnDrum does not stop, get quieter or play a fill; the whole point of the
+   * machine is that it is still exactly where it was, so what a listener hears
+   * across these two bars is unambiguously *one channel gone* rather than the
+   * band thinning out.
+   *
+   * ## `dropBars: 2`, and it is the field that makes this real rather than
+   * decorative
+   *
+   * Every section this style builds is **eight bars** — verse, chorus, bridge
+   * and solo alike, measured over 60 songs, with only the odd sixteen-bar chorus
+   * when the form doubles. A drop needs three phrases inside one section, so the
+   * shipped four-bar shape wants twelve, and at four bars this style places
+   * **0 in 200**. That is the failure this project keeps finding: a table that
+   * reads as working and does nothing. At two it places **200 of 200** —
+   * 139 in a chorus, 27 in a verse, 21 in a doubled chorus, 13 in an outro —
+   * which is two bars of band, two with the bass gone, two back, and the last
+   * two left to whatever the seam wants to do.
+   *
+   * `Style.dropBars`' own doc names this style as the case it was written for.
+   * Two bars is not a compromise on four: a phrase here *is* two bars, because
+   * the section is eight and the harmony below moves in fours.
+   *
+   * ## Two to one
+   *
+   * The same arithmetic reggae's `dub` takes and for the same reason — a mute
+   * that arrives every chorus is a texture rather than a gesture — but the
+   * restraint costs less here than it looks, because this style is the one that
+   * is *already* short of bass. One song in three has the fader move; the other
+   * two have `barely-there` at the head of the table.
+   *
+   * **Measured.** Under the weights, over 400 songs: **124**. The bass loses a
+   * median of **4 onsets** across the span and **never zero** — the thinnest
+   * draw loses a single note, which is `barely-there`'s one onset a bar, and
+   * that is still the root of the bar going missing rather than a part getting
+   * sparser. **0 empty sections**, and **0 songs** differed anywhere outside the
+   * span. The 276 that drew `none` are byte-identical to the tree before this
+   * field existed, all 276 of them.
+   */
+  drops: [['none', 2], ['dub', 1]],
+  dropBars: 2,
   progressions: {
     intro: [{ chords: ['i7', 'i7', 'i7', 'i7'], weight: 5 }],
     verse: [
@@ -3097,8 +3157,11 @@ const minneapolis: Style = {
     { cell: [12, 4], weight: 3 },
   ],
   bass: [
-    // One onset. This is as close as the tables can get to a record with no
-    // bass guitar on it at all, and it is close enough to hear.
+    // One onset. This used to be as close as the tables could get to a record
+    // with no bass guitar on it at all; `drops` above is the rest of the way,
+    // and this is still the right head of the table for the songs that do not
+    // draw one. A bass that plays a single note a bar and a bass that stops are
+    // different sounds and this style makes both.
     { name: 'barely-there', weight: 6, hits: [
       { at: 0, dur: 6, tone: 0, vel: 1 },
     ] },

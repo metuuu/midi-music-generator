@@ -1396,6 +1396,13 @@ const roots: Style = {
  * half of the drenching that used to be borrowed; see `effects` below for what
  * that was costing and what is deliberately still the era's.
  *
+ * **And the bass now actually leaves.** Everything in the paragraph above was
+ * written while the one gesture this form is *defined* by — the fader going down
+ * and coming back four bars later — was the thing the table could not say, and
+ * three of those fields were standing in a row where it should have been. See
+ * `drops` below, which is the field that says it and the argument for why none
+ * of the three came out when it arrived.
+ *
  * `drumFills: false`, and it is the sharpest thing in this style's table. A dub
  * does not announce a section with a tom roll. It announces one by dropping
  * everything except the kick for four bars and then throwing the snare into a
@@ -1499,6 +1506,60 @@ const dub: Style = {
     melody: { reverb: 0.65, delay: 0.6 },
   },
   filter: { depth: 0.55, shape: 'ramp' },
+  /**
+   * The bass goes for four bars and the whole band comes back — and this is the
+   * style the mechanism was built for.
+   *
+   * `docs/engine-gaps.md` §1.2 calls it the canonical case and §8 names it the
+   * cheapest adoption there is. Until `generate/drop.ts` existed this table
+   * approximated *bass out, then everything back* three different ways at once,
+   * and the finding worth writing down is that **all three stay**. None of them
+   * was ever this gesture. They are three neighbouring gestures that had lined up
+   * in the gap where the missing one should have been, and taking one out now
+   * would be removing a thing that works because something else finally does:
+   *
+   *  - the **`effects` block above** is a claim about *sends*, and §7 records
+   *    what it recovered — a dub cut in 1985 that came out dry. An echo is not a
+   *    mute. King Tubby did both, on the same pass over the same tape, and the
+   *    engine can now say both.
+   *  - the **`filter` ramp** is a hand on a knob *across* a section, and it is
+   *    continuous. A drop is a channel at zero and then not. Deleting the sweep
+   *    would take away the half of the mix that moves and leave only the half
+   *    that switches.
+   *  - the genre's **`break`**, which `index.ts` calls "the live-band ancestor of
+   *    what a dub engineer does with a mute button". That sentence is exactly
+   *    right and exactly why it is not a substitute: a break is one bar, at a
+   *    seam, and the layer that survives it is the *bass*, which is the layer
+   *    this gesture is about losing. The two also cannot collide — `planDrop`
+   *    ends its span a whole phrase before the section does, so the seam pass and
+   *    this one are structurally incapable of editing the same bar.
+   *
+   * So this is an addition and not a replacement, which is the honest thing a
+   * fourth gesture can be.
+   *
+   * **Two to one, and the arithmetic is the whole claim.** A version does not
+   * pull the bass out of every chorus; `generate/chart.ts` settled that argument
+   * for the engine — *a surprise that arrives on schedule is a texture* — and a
+   * dub whose bass left on a timetable would be an arrangement with holes in it,
+   * which `Chart.layers` can already say and which is not what these sides do.
+   * One song in three is the record having one.
+   *
+   * **Measured**, because a palette that never fires is precisely the failure
+   * `Style.dropBars` was added for and this style is the one that has to be
+   * beyond doubt. Forced to `dub`, it places one in **200 of 200** songs — its
+   * verses are sixteen bars and a four-bar drop needs twelve — landing in the
+   * verse 177 times and the outro 23. Under the weights below, over 400 songs:
+   * **146**, which is the one in three the table says. The bass loses a median
+   * of **16 onsets and never fewer than 8**, so there is no seed where the
+   * gesture is written and inaudible. **0 empty sections**, and **0 songs**
+   * differed anywhere outside the span — the same tune, the same skank, the same
+   * one drop, with a hole in it. The 254 that drew `none` are byte-identical to
+   * the tree before this field existed, all 254 of them.
+   *
+   * No `dropBars`. Four is what the shape says, what the records say, and what
+   * this style's forms are long enough to mean.
+   */
+  drops: [['none', 2], ['dub', 1]],
   shots: OFFBEAT_SHOTS,
   /**
    * Minor pentatonic, and one of two places in this genre where a style takes
