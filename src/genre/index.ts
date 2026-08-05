@@ -24,8 +24,10 @@ import { latin } from './latin/index.js';
 import { pop } from './pop/index.js';
 import { hiphop } from './hiphop/index.js';
 import { rnb } from './rnb/index.js';
+import { dnb } from './dnb/index.js';
+import { house } from './house/index.js';
 
-export const GENRES: Record<string, Genre> = { iskelma, jazz, ambient, synth, reggae, indian, arabic, funk, classical, metal, rock, finnfolk, country, latin, pop, hiphop, rnb };
+export const GENRES: Record<string, Genre> = { iskelma, jazz, ambient, synth, reggae, indian, arabic, funk, classical, metal, rock, finnfolk, country, latin, pop, hiphop, rnb, dnb, house };
 export const GENRE_IDS = Object.keys(GENRES);
 
 export function getGenre(id: string): Genre {

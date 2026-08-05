@@ -15,7 +15,7 @@ Fifteen of the original twenty-three entries are closed, and six new ones have a
 | **Open, structural** | `applyShot` and the fill vocabulary are still kit-only · no vocal-group archetype · a solo is named after a kit whatever plays it |
 | **Open, per-genre** | everything in §3 and §4 — including six added by the newest three genres, §3.15–3.20 |
 
-**Seventeen genres now exist**, holding 341 styles across 64 eras. `dnb` and `house` are the two never written, and both mechanisms they were waiting on — the drop and the tempo ramp — are now built.
+**All nineteen genres now exist**, holding 389 styles across 72 eras. `dnb` and `house` were the last two, and they were written against a §1 with nothing left in it — the first genres in the project for which that was true.
 
 `npm run typecheck`, `npm run genres` and `npm run concert` are all green as of this writing. Four staging failures that stood here for a day — a polysynth in 1952, a hand asked for nineteen semitones, a cable through a player, a one-armed hand drummer — are all in §6.
 
@@ -323,12 +323,21 @@ Genres taking the **default** `breakCarrier: 'bass'` and needing no change: funk
 
 ## 8. What is actually next
 
-**Seventeen genres exist and two do not** — `dnb` and `house`. Pop, rnb and hiphop were written in the same pass that built the drop, which is why this section has shrunk:
+**The genre set is complete.** Nineteen genres, 389 styles, 72 eras. The last two — `dnb` and `house` — were written against a §1 with nothing left in it, and they used what had been built for them immediately: house is `breakdown`'s author at 187–200 of 200 placement across eleven styles, and dnb took it on five more.
 
-- **pop, rnb and hiphop are written.** Ghost notes and layer exits were what unblocked them, and both were used immediately: 20 of rnb's patterns write ghosts, 13 of hiphop's 24 styles do and 11 deliberately do not, and pop measured 30.1% of its arrangements stripping a layer from the last chorus.
-- **house and dnb have the drop now.** Sub-section drop-out (§1.2) landed as `Style.drops` — see §6. It was the one genuinely new axis left, and it was the strategic item rather than merely the next one, because it is the same mechanism the layered-ambient goal needs and the README already described the playback half of it. What those two still want is the *build*, which is half tempo ramp.
+Both **declined the tempo ramp for the same reason**, which is the most useful thing either of them reported: *a record whose tempo moves cannot be beatmatched*. dnb names it on exactly one style, `breakcore`, at one draw in four. That is a better answer than the feature, and it means the build — a ramp arriving at a drop, the one shape §6 left expressible rather than built — is wanted by neither of the two genres it was expected to serve. It should be built when something actually asks for it.
 
-**The drop has two authors**, both of them styles that reported the gap. Reggae `dub` and funk `minneapolis` are in §7. Six more styles were considered and refused, and the refusals are the more useful list — they are in the same table.
+**The drop has twelve authors**: reggae `dub` and funk `minneapolis`, which reported the gap; ten more across house and dnb. The refusals are in §7 and are the more useful list — nine styles were measured, found feasible, and turned down on musical grounds.
+
+### What is left
+
+Nothing blocks a genre now. What remains, in the order it would repay attention:
+
+1. **§2.1** — `applyShot` and the fill vocabulary are still kit-only, so a genre with no kit gets kit strokes in the one place it cannot refuse them. A check for it is already written and was deliberately left out rather than committed red.
+2. **§2.2** — no archetype for a vocal group. It cost country its documented vocal-quartet pad, and it is wanted by gospel, doo-wop and the close-harmony styles rnb and country already write.
+3. **§3.16** — a bass note cannot slide. **Five independent reports across three genres now** (hiphop ×2, house's acid and speed garage, dnb's Reese ×2 and wobble), which makes it the most-reported open entry in this document.
+4. **§3.15** — nothing subdivides below a sixteenth. dnb's note that this removes a *technique* rather than an ornament is the sharpest statement of it: no stutter, no retrigger, no 32nd roll.
+5. **The staging leftovers** in §6 — the house floor in `proscenium.ts` and `courtyard.ts`, and `headphones` wanting to split into a band that rides and cups that stay.
 
 **`breakdown` still has no honest author**, and the measurement explaining why is worth keeping. Its witness is `pad` and it removes `drums` and `bass`, so it needs a dance record with a wash, on a form long enough for three four-bar phrases. The catalogue's dance records are all built on eight-bar sections: **0 of 30 at four bars across all 24 pop styles**. `dancepop` reaches 200/200 at `dropBars: 2`, but two bars of kit-and-bass-gone at 124–132 BPM is under four seconds, and that gap is *already* authored — pop weights the `drop` fill at 4 and its index says "from 1982 onward the commonest thing that happens in the bar before a chorus is that everything stops." Adopting it there would say the same thing twice in two units. The styles that *do* place a four-bar `breakdown` cleanly are latin, classical, synth, indian, arabic and iskelmä, and none of them is a dance record. So it waits for the first house style, which is what it was shaped for.
 
