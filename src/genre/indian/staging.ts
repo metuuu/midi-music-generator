@@ -15,17 +15,24 @@
  * audience close. The difference is that nobody here is drinking, nobody is
  * dancing, and everybody in the front row is counting the tāla on their own knee.
  *
- * ## The posture problem, stated where it is visible
+ * ## The posture, and what the room still has to carry
  *
  * **This music is performed sitting on the floor**, cross-legged, on a carpet,
- * with the instrument in the lap or resting on the boards. That is not a stylistic
- * preference; a sitar is played with its gourd on the left foot and a mridangam
- * lies across the player's shins. `Posture` in `concert/types.ts` offers `stand`,
- * `sit`, `straddle`, `stool`, `kit` and `perch`, and none of them is that — `sit`
- * is a chair. So this genre stages a floor-seated ensemble on furniture, roughly
- * half a metre too high, and the room is dressed to make the best of it: the
- * `carpet` covers the boards corner to corner because that is what is actually
- * under these players, whatever the models put on top of it.
+ * with the instrument in the lap or resting on the boards. That is not a
+ * stylistic preference; a sitar is played with its gourd on the left foot and a
+ * mridangam lies across the player's shins. `Posture` says `floor` now, and it
+ * is a conjunction of two facts held in two places: `ArchetypeSpec.lap` says
+ * the object can be played from a carpet, `FLOOR_SEATED` in `cast.ts` names
+ * this genre as one that sits on one, and `postureFor` is where they meet. The
+ * sitar player and the tabla player are on the boards rather than half a metre
+ * above them on furniture nobody in this tradition owns.
+ *
+ * The `carpet` did not become decoration when that landed, for two reasons. It
+ * is what these players are sitting on, corner to corner. And the flag left a
+ * residue it is honest about — most of the objects that reach this stage are
+ * borrowed ones a floor-seated player could not use, a sarangi staged as a
+ * violin and a santoor as a vibraphone, and those are still standing up. See
+ * `lap` in `concert/types.ts`, which argues at length why they must.
  */
 
 import type { Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
@@ -50,14 +57,37 @@ import type { Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
  * make sense.
  *
  * `carpet` and `riser` are the room's own props rather than any era's, and they
- * are there for opposite reasons. The carpet is the floor of every one of these
- * four eras and repeating it four times would be noise. **The riser is a
- * mistake this room cannot avoid**: `cast.ts` stands a drummer 0.4 m up whenever
- * one is drafted, and every era here draws `kit` as its drum source because a
- * tabla player is a person with hands — so a `maybe` draw would float them half
- * the time. An always-prop is the least wrong option. What a floor-seated
- * ensemble actually wants is a low continuous platform under all four players,
- * which is a different object and not one the stage builder has.
+ * are there for different reasons. The carpet is the floor of every one of these
+ * four eras and repeating it four times would be noise.
+ *
+ * **The riser is not the tabla player's**, and this comment used to say it was —
+ * that `cast.ts` stood every drafted drummer 0.4 m up and a floor-seated
+ * percussionist was therefore stuck on a rock platform. That is fixed:
+ * `handdrum` declares `lap`, this genre is in `FLOOR_SEATED`, and `postureFor`
+ * seats them. The hand drummer is at riser 0 on the carpet, off to one side and
+ * level with the comp rather than on the back line, because a player whose head
+ * is 0.84 m up cannot be seen over the shoulders in front of them and has to
+ * come forward by as much as they have lost in height.
+ *
+ * The platform stays because the two later eras draft a *second* percussionist.
+ * `filmi`, `cabaret`, `bhangra`, `ragarock` and `fusiongat` are the five styles
+ * here that declare `transitions`, and `applyShot` writes its figure as a kick,
+ * a snare and a crash — kit voices, which `drumStations` answers with a kit. So
+ * those numbers stage a session drummer *beside* the dholak player, which is
+ * exactly what `filmi`'s own note says a film session was, and that one goes up.
+ * Roughly two filmī numbers in five and one fusion number in four; hindustani
+ * and carnatic have never produced one, because no style of theirs writes a
+ * voice above the hand tier and the genre declares no palette of its own — see
+ * the note on `transitions` in `index.ts`, which is the same argument from the
+ * composing end.
+ *
+ * On the room rather than on those two era dressings, because the kit is decided
+ * per *number* and not per era, and the mechanism that answers per number
+ * already exists: `showRiser` stands the platform when somebody is on it and
+ * takes it away when nobody is. An era-level riser would still stand empty in
+ * most of the filmī numbers it was written for, so it would buy nothing that
+ * `showRiser` is not already buying — and it would want editing again the first
+ * time a hindustani style grew a `transitions` table.
  */
 const SABHA: StageRoom = {
   id: 'sabha',

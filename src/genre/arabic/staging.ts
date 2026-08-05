@@ -34,10 +34,25 @@ import type { Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
  *
  * `arches` is the one prop that belongs to the *genre* rather than to any era of
  * it, so it lives on the room. `riser` is the other, and it is there for a
- * mechanical reason rather than a scenic one: `cast.ts` stands a drummer 0.4 m
- * up whether or not the room has a platform, so a `riser` drawn from `maybe`
- * would leave the percussion floating half the time. Every era here has a
- * drummer — `drumSources` says so four times over — so the platform is always.
+ * mechanical reason rather than a scenic one: `cast.ts` stands a *kit* drummer
+ * 0.4 m up whether or not the room has a platform, so a `riser` drawn from
+ * `maybe` would leave one floating half the time. Every era here has a drummer —
+ * `drumSources` says so four times over — and every number in this genre that
+ * stages a percussionist at all stages a kit: `index.ts` declares a genre-wide
+ * transition palette, and `applyShot` writes its figure as `bd`, `sd` and a `cr`
+ * on the landing, so `drumStations` finds kit voices in a taqsim as readily as
+ * in a shaabi number. So the platform is always, and `showRiser` takes it away
+ * in the numbers whose drums are a machine.
+ *
+ * **The darbuka player is not on it**, and this note used to imply otherwise by
+ * calling them "the percussion". `handdrum` declares `lap`, this genre is in
+ * `FLOOR_SEATED`, and `postureFor` seats them on the carpet at riser 0, off to
+ * one side. Nearly every number here has both — a kit up on the platform and a
+ * pair of hands down on the floor, which is what a firqa was and, more
+ * arguably, what a 1930s takht was not. Whether a trap kit belongs in a takht
+ * at all is that palette's question rather than this prop's; see the note on
+ * `transitions` in `indian/index.ts`, which refuses the genre-wide draw for
+ * exactly this reason.
  *
  * 11 by 7 metres, which is generous for a takht and necessary for a firqa. The
  * boards have to hold the largest band the genre can produce rather than the
