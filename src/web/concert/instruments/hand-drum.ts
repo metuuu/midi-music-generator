@@ -939,22 +939,32 @@ export const buildHandDrum: InstrumentBuilder = (opts) => {
      * and the hands are 0.56 m from the shoulder, which is under the 0.61 m this
      * archetype already reaches for its own trap table.
      *
-     * **And a conga player is not straddling anything.** Three drums on a stand
-     * are an object the player sits *behind* rather than between, so the shells
-     * need the room the knees were using: `sit` rather than `straddle`, and far
-     * enough back that the middle drum's belly — which is the widest point of
-     * the widest shell, at `HEAD_R × 1.07` — is clear of a knee. The reach to
-     * the outer heads is what sets the number rather than the shell is: the
-     * quinto is 0.30 m across and 0.44 m away on the diagonal, which is inside
-     * the 0.61 m this archetype already asks of its own trap table and is why
-     * three drums do not need a wider stance than one.
+     * **And a conga player needs ten centimetres more of it.** Three drums on a
+     * stand are an object the player sits *behind* rather than between, so the
+     * shells need the room the knees were using — far enough back that the
+     * middle drum's belly, the widest point of the widest shell at
+     * `HEAD_R × 1.07`, is clear of a knee. What sets the number is the reach
+     * rather than the shell: the quinto is 0.30 m across and 0.44 m away on the
+     * diagonal, which is inside the 0.61 m this archetype already asks of its
+     * own trap table, and is why three drums do not need a wider stance.
+     *
+     * The **posture** stays the archetype's for all three, and that is a
+     * deliberate refusal rather than an oversight. A conga player sits rather
+     * than straddles, and this model is not the thing that gets to say so:
+     * nothing reads `InstrumentModel.station.posture`, the body is posed from
+     * `Performer.station.posture`, and that comes from `postureFor` in
+     * `cast.ts` — which reads `ArchetypeSpec` and, by the header of
+     * `concert/instruments.ts`, may not know geometry. Answering `sit` here
+     * would have been a model quietly contradicting the cast about a player it
+     * does not pose. Making it true means teaching `concert/` which racks sit,
+     * which is a table of shapes in a directory that is not allowed one.
      */
     station: {
       offset: new Vector3(
         0, 0, shape === 'pair' ? -0.44 : opts.posture === 'floor' ? -0.40 : -0.34,
       ),
       facing: 0,
-      posture: shape === 'pair' ? 'sit' : opts.posture === 'floor' ? 'floor' : 'straddle',
+      posture: opts.posture === 'floor' ? 'floor' : 'straddle',
     },
 
     dispose(): void {
