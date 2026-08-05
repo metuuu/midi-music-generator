@@ -13,6 +13,7 @@ import type { FeelSpan } from '../style/feel.js';
 import type { DeliveryId } from '../style/delivery.js';
 import type { VoiceSignatureId } from '../style/voices.js';
 import type { Seam } from '../generate/transition.js';
+import type { DropSpan } from '../generate/drop.js';
 
 /**
  * Named layers. A game can duck, mute or crossfade these independently, which
@@ -1051,6 +1052,34 @@ export interface SongMeta {
    * is that nothing changed, which a raw JSON compare can then prove.
    */
   transitions?: Seam[];
+  /**
+   * Where the band drops out mid-section and comes back. See `generate/drop.ts`.
+   *
+   * The third sibling of `feels` and `transitions` and carried for the reason
+   * both of those give — a span is IR rather than a private detail of the
+   * generator, so `score.ts` and the showbill can say *the bass is out from bar
+   * 40 to bar 44* the way they can already say what chord is there and how that
+   * stretch is felt.
+   *
+   * It carries more weight here than for either of those, because this is the
+   * field the layered-ambient goal is waiting on. The README's answer to *how
+   * does music thin out under speech* is **mute layers rather than lower a
+   * master bus**, and the audition page's layer chips already do that at
+   * playback. A mute lane a player can act on has to come from somewhere, and
+   * nothing in the IR could previously say that a layer is meant to be absent
+   * for a stretch shorter than a section. This says it.
+   *
+   * At most one entry today — a drop is drawn once per song, on the reasoning
+   * `generate/chart.ts` gives about devices that arrive on schedule — and an
+   * array rather than a single span because the shape of the statement is *these
+   * bars, these layers*, and a second drop is a change to a draw rather than to
+   * this type.
+   *
+   * Absent on any song whose style names no drop palette, which is all of them
+   * today, and absent is the same statement it is for `feels`: the question was
+   * never asked, no draw was made, and the song is byte-for-byte what it was.
+   */
+  drops?: DropSpan[];
   /**
    * Bars of count-in at the very front of the song, before bar 1 of the music.
    *

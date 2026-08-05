@@ -18,6 +18,7 @@ import type { VoicingStyle } from '../core/voicing.js';
 import type { StrictnessId } from '../core/rules.js';
 import type { HookId } from '../generate/hook.js';
 import type { FillPalette } from '../generate/fills.js';
+import type { DropPalette } from '../generate/drop.js';
 import type { BreakCarrier, TransitionPalette } from '../generate/transition.js';
 
 /** One bar of melodic rhythm. `[6, 2, 8]` = dotted quarter, eighth, half. */
@@ -957,6 +958,81 @@ export interface Style {
    * the reason written beside it.
    */
   feels?: (readonly [FeelId, number])[];
+  /**
+   * Whether this band drops out mid-section, weighted, drawn **once per song**.
+   * See `generate/drop.ts`.
+   *
+   * The one thing the engine could not say at any granularity shorter than a
+   * section: *this layer stops for these four bars and comes back*.
+   * `excludeLayers` above is all-or-nothing for the whole catalogue entry, and
+   * `Chart`'s ordinal is an ordinal over sections and should stay one — so a dub
+   * had to be approximated with a seam `break`, a filter ramp and a mood's
+   * `restraint`, and a drop in a dance record was simply unavailable.
+   *
+   * **Style-level with no genre half**, which is the same seam `breakCarrier`
+   * takes and not the one `feels` and `transitions` take. A palette of fills or
+   * seams is a claim about how a band in this idiom plays and travels across
+   * every style in it; a drop is a claim about *what one piece is made of*. Its
+   * own genre contains `nyabinghi`, which a dub would vandalise. The full
+   * argument is at the top of `generate/drop.ts`.
+   *
+   * **Absent means no draw**, exactly as `feels` above documents at length and
+   * for exactly the same cost, and absent is what every style in the catalogue
+   * says today. `[['none', 1]]` is a different statement — a band that has been
+   * asked and declined — and generates the same music while taking a number out
+   * of a stream that a style with no table never opens at all.
+   *
+   * ## Worked example
+   *
+   * ```ts
+   * // A dub. The bass drops for the penultimate phrase of the last section
+   * // that states the tune, and the whole band is back for the final phrase.
+   * // Three numbers in four are the record this style already made.
+   * drops: [['none', 3], ['dub', 1]],
+   * ```
+   *
+   * A style naming a shape wants to be sure the shape's witness is in its band —
+   * `dub` is heard against the kit and `breakdown` against the pad, and a style
+   * that excludes the layer a shape listens to will simply never place one. That
+   * is a refusal rather than a fault, and it is the same refusal `breakCarrier`
+   * makes when a style names a layer its sections have not got.
+   */
+  drops?: DropPalette;
+  /**
+   * How long the band is out, in bars, overriding the drop shape's own phrase.
+   *
+   * The sibling `drops` needs for the same reason `transitions` needs
+   * `breakCarrier`: a palette names the *vocabulary* and there is exactly one
+   * thing about the gesture it cannot say, which here is how long a phrase is in
+   * this music. And it has the same standing — **read, never drawn**. No weight,
+   * no table, no stream: `generateSong` reads the field and hands the answer to
+   * `planDrop`, so naming it costs no number and moves nobody else's songs.
+   *
+   * It exists because the default is half a claim about the *form the engine
+   * builds* rather than about the idiom, and that half is not the library's to
+   * make. A drop needs three phrases inside one section — a phrase of band, the
+   * drop, a phrase of band back — so the shipped four-bar shapes want a section
+   * of twelve bars or more. Measured by opting styles in one at a time over 200
+   * songs each: reggae `dub` places one in 200 of 200 and jazz `bebop` in 200 of
+   * 200, both on sixteen-bar forms; **funk `minneapolis` places none in 200**,
+   * and neither does iskelmä `humppa`, because every section either of them
+   * builds is eight bars long.
+   *
+   * `minneapolis` is one of the two styles `docs/engine-gaps.md` §1.2 names as
+   * having asked for this and settled for one-onset bass tables. A style writing
+   * `drops` and getting silence would be the exact failure this project keeps
+   * finding — a table that looks like it is working — so a style on an eight-bar
+   * form writes `dropBars: 2` and gets the gesture at the scale its own phrases
+   * are in.
+   *
+   * ```ts
+   * // Eight-bar sections: two bars of band, two bars with the bass gone, two
+   * // bars back, and the last two left to the seam.
+   * drops: [['none', 2], ['dub', 1]],
+   * dropBars: 2,
+   * ```
+   */
+  dropBars?: number;
   /**
    * Bars per chorus when the form is built on a fixed chorus length rather
    * than eight-bar units. 12 for the blues.

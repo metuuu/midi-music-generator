@@ -51,6 +51,7 @@ import { buildAccompaniment, getStrictness, resolveRules, type StrictnessId } fr
 import { applyDynamics, punctuate, sectionIntensity, swell } from './dynamics.js';
 import { applyFilter } from './filter.js';
 import { DEFAULT_FILLS, seamOrchestration } from './fills.js';
+import { applyDrop, planDrop } from './drop.js';
 import { applyTransitions, hitTogether, planTransitions, type Seam } from './transition.js';
 import { getHook, RECALL_BIAS, type HookId } from './hook.js';
 import { composeSectionTune } from '../tune/adapt.js';
@@ -663,6 +664,48 @@ export function generateSong(opts: GenerateOptions = {}): Song {
      * `Style.breakCarrier`.
      */
     carrier: style.breakCarrier,
+  });
+
+  /**
+   * Where the band drops out mid-section and comes back. See `generate/drop.ts`.
+   *
+   * Up here beside the seams and for a related reason, though not the same one:
+   * a `fill` has to be resolved before the loop because the drummer writes it
+   * inside `generateDrums`, and a drop has to be resolved before the loop
+   * because it is the last point at which the section list is the *plan* rather
+   * than a plan two other passes have started editing. Both of those edits are
+   * ones a drop has to be on the far side of:
+   *
+   *  - the **soloist's rewrite** of `activeLayers`, which deletes the lead, the
+   *    pad or the comp from a section according to `whilePlaying`. That is the
+   *    same question this file is answering — what the rest of the band does
+   *    underneath — and two mechanisms subtracting layers from the same bars
+   *    would be arguing. `planDrop` refuses a section with a chorus in it, and
+   *    the refusal is asked of `soloPlan`, which is settled here.
+   *  - the **onset filter** at the bottom of `generateSong`, which turns
+   *    `activeLayers` from a plan into a claim by deleting whatever turned out
+   *    silent. Reading that would make the placement depend on notes, and the
+   *    whole discipline of this feature is that it depends on none — see the
+   *    hook-invariance argument in `planDrop`.
+   *
+   * **Absent means no draw at all**, enforced inside `planDrop` before its first
+   * random number, so every style in the catalogue is bit-for-bit what it was.
+   * The stream is its own and nothing else reads it, so a style that does opt in
+   * cannot move another style's songs either.
+   */
+  const drop = planDrop({
+    rng: new Rng(`${seed}:drop`),
+    palette: style.drops,
+    /**
+     * …and how long a phrase is in this music, read straight off the style with
+     * no fallback expressed here — the default lives in the shape's own table
+     * beside the argument for it, and a second copy of `4` in this file would be
+     * a second place it could drift. **No draw**, exactly as `breakCarrier`
+     * above takes none. See `Style.dropBars`.
+     */
+    ...(style.dropBars !== undefined ? { phrase: style.dropBars } : {}),
+    sections,
+    soloAt: new Set(soloPlan.keys()),
   });
 
   /**
@@ -2454,6 +2497,12 @@ export function generateSong(opts: GenerateOptions = {}): Song {
       // answer it was never asked would put a field on the whole catalogue in
       // the one wave whose deliverable is that nothing changed.
       ...(transitionTable ? { transitions: seams } : {}),
+      // And the same rule a third time. `planDrop` returns nothing at all for a
+      // style with no palette, so the absence here is the absence of a question
+      // rather than of an answer — and a style that has a palette and drew
+      // `none` publishes nothing either, because a band that considered dropping
+      // out and did not is a band that played the section.
+      ...(drop ? { drops: [drop] } : {}),
     },
     sections,
     tracks,
@@ -2482,6 +2531,24 @@ export function generateSong(opts: GenerateOptions = {}): Song {
   applyTransitions(song, seams, (beat) => (
     typeof swingPlan === 'number' ? swingPlan : swingPlan(beat)
   ), style.breakCarrier);
+
+  /**
+   * …and the band's answer to the middle of a section, as the same kind of edit.
+   *
+   * **After the seams, and the order is an argument rather than a preference.**
+   * The two passes cannot in fact touch the same bar — every transition kind
+   * edits the last bar before a join, and `planDrop` ends its span a full phrase
+   * before the section does, precisely so that they never meet. But a shot reads
+   * the kit's *existing* velocities in the bar it replaces and a break reads
+   * which layers are left, so a drop running first would be handing those two
+   * passes a bar the band has already left. Making the seams unnegotiable is the
+   * same sentence `landEnding` gets in the comment below it, one level in: the
+   * join is not a drop's to move.
+   *
+   * A no-op today. No style in the catalogue names a `drops` palette, so `drop`
+   * is `undefined` on every song this engine has ever generated.
+   */
+  if (drop) applyDrop(song, drop);
 
   /**
    * The answer against the tune, once nothing else will move either of them.

@@ -1299,8 +1299,16 @@ const BAND_TAKEN_BY_A_BREAK: LayerId[] = ['bass', 'comp', 'pad', 'melody', 'voca
  * Shortening a note is still an edit rather than a composition — nothing is
  * written that was not going to exist, and the note's own end moves earlier,
  * never later, so nothing downstream inherits an overlap it did not have.
+ *
+ * **Exported for `generate/drop.ts`**, which is the same edit over a span of
+ * bars rather than a bar at a seam. Shared rather than reimplemented for the
+ * reason `anticipate` is shared between the seam elide and the phrase-end bass
+ * push: two copies agree on the day they are written and drift by the second bug
+ * fixed in one of them, and the way *this* one would drift is the held-note cut
+ * above — the half nobody thinks of, and the half that is the difference between
+ * the band stopping and the band merely not playing anything new.
  */
-function hush(notes: NoteEvent[], from: number, to: number): NoteEvent[] {
+export function hush(notes: NoteEvent[], from: number, to: number): NoteEvent[] {
   const out: NoteEvent[] = [];
   for (const n of notes) {
     if (n.beat >= from - 1e-6 && n.beat < to - 1e-6) continue;

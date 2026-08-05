@@ -6,14 +6,16 @@ It is worth reading as a compliment to the abstraction as much as a critique of 
 
 ## Where it stands
 
-Fourteen of the twenty-three entries are closed. §6 records them with what was actually built, because in four cases the fix has a different shape from the one this document proposed and the difference is the interesting part.
+Fourteen of the original twenty-three entries are closed, and six new ones have arrived since — pop, rnb and hiphop each brought some. §6 records what was actually built, because in four cases the fix has a different shape from the one this document proposed and the difference is the interesting part.
 
 | | |
 |---|---|
-| **Closed** | ghost notes · layer exits · `Style.effects` · hand-drum staging · floor posture · check coverage · sampled percussion · power chords · hand-drum solos · the hook-dependent break · five scale rows · and four faults found while fixing those |
-| **Open, and blocking** | tempo ramps · sub-section drop-out · bass riff span |
+| **Closed** | ghost notes · layer exits · sub-section drop-out · `Style.effects` · hand-drum staging · floor posture · check coverage · sampled percussion · power chords · hand-drum solos · the hook-dependent break · five scale rows · and four faults found while fixing those |
+| **Open, and blocking** | tempo ramps · bass riff span |
 | **Open, structural** | `applyShot` and the fill vocabulary are still kit-only · no vocal-group archetype · a solo is named after a kit whatever plays it |
-| **Open, per-genre** | everything in §3 and §4 |
+| **Open, per-genre** | everything in §3 and §4 — including six added by the newest three genres, §3.15–3.20 |
+
+**Seventeen genres now exist**, holding 341 styles across 64 eras. `dnb` and `house` are the two never written, and §1.2 closing is what unblocked them.
 
 `npm run typecheck`, `npm run genres` and `npm run concert` are all green as of this writing. Four staging failures that stood here for a day — a polysynth in 1952, a hand asked for nineteen semitones, a cable through a player, a one-armed hand drummer — are all in §6.
 
@@ -25,7 +27,9 @@ Fourteen of the twenty-three entries are closed. §6 records them with what was 
 
 ## 1. Open, and blocking the work that is still queued
 
-Five genres remain unwritten — pop, rnb, hiphop, dnb, house — and these are what they will hit.
+**Three of the five have since been written** — pop, rnb and hiphop — because ghost notes and layer exits closed the two blockers that mattered for them. **`dnb` and `house` remain**, and they are the two that wanted the drop; §1.2 is now closed, so what is left in their way is §1.1.
+
+The three that landed brought five new entries with them, in §3. Two clear this document's own bar of having been found independently more than once.
 
 ### 1.1 Nothing ramps the tempo
 
@@ -35,11 +39,11 @@ Five genres remain unwritten — pop, rnb, hiphop, dnb, house — and these are 
 
 This is now the largest single blocker, and it is not small — the tempo reaches the IR, both renderers and the concert clock.
 
-### 1.2 Nothing drops out mid-section
+### 1.2 Nothing drops out mid-section — **closed**, see §6
 
-Half of this entry is closed — see §6 — and the harder half is not.
+Both halves now. `Chart.exits` closed the section-shaped one; `Style.drops` and `generate/drop.ts` close this one. The entry is left here with its evidence intact because the evidence is what the shape was argued against.
 
-`excludeLayers` is per-style and all-or-nothing, and `Chart`'s granularity is the section kind. There is no way to say *this layer stops for these four bars and comes back*.
+`excludeLayers` is per-style and all-or-nothing, and `Chart`'s granularity is the section kind. There was no way to say *this layer stops for these four bars and comes back*.
 
 **Evidence.** Reggae's dub is the canonical case: bass out for four bars, then everything back, is the single defining gesture of the idiom, and it was approximated with a `break` transition, a filter ramp and a mood's `restraint`. Funk's `minneapolis` wanted the same and settled for one-onset bass tables. A **drop** in house or dnb is this and the exit rule together — everything leaves, then everything returns.
 
@@ -147,6 +151,38 @@ A Finnish *purpuri* is a wedding suite made of other dances. The hook setting an
 
 So a wrist accessory — studded wristbands, a watch, tape — has nowhere to anchor. Metal and the costume pass both stopped at this rather than thread a new anchor through `performer.ts` and `performer-arms.ts`.
 
+### 3.15 Nothing subdivides below a sixteenth
+
+The grid is sixteenths everywhere, and for eighteen genres that was never a limit worth writing down. A trap or drill hi-hat subdivides *inside* a stroke — triplets, 32nds, the roll that is the whole point of the part. **At 140 BPM a written sixteenth is 107 ms and the roll wants 36.**
+
+Hiphop wrote what it could: the dotted-eighth chain and four consecutive sixteenths on the last beat. The faster rolls are simply absent, and there is no approximation that gets closer.
+
+### 3.16 A bass note cannot slide
+
+`BassHit` is `at`, `dur`, `tone`. A drill 808 and a g-funk bass both *glide* between pitches, and both were written as two struck notes where the record has one that moves.
+
+**Two styles hit this independently in one genre**, which by this document's own standard makes it a gap rather than a taste. It is also the nearest thing in the project to the pedal steel that country could not have (§3.12's neighbour) — the same missing idea, which is a pitch that is a function of time rather than a constant per note.
+
+### 3.17 `Effects` has no envelope follower
+
+So **sidechain compression is unsayable**, and pop's fourth era is named after it — `sidechain`, the recording situation where one layer's gain is a function of another layer's onsets. Nothing in `Effects` relates two layers at all; every field describes one in isolation.
+
+Related and smaller, from rnb: `Style.effects` cannot say *gate*. `synthsoul`'s gated snare is spelled as reverb plus a hard lowpass, which is the right sound arrived at by the wrong mechanism, and `DrumTrack.voiceEffects` already exists to put it on the snare alone.
+
+### 3.18 `swing` delays the eighth, and some idioms swing the sixteenth
+
+`Style.swing` is documented as the shuffle between the two halves of a beat. New jack swing shuffles the **sixteenth**, which is a different subdivision and is the genre's name. Rnb wrote `0.16` as "the nearest honest object" and recorded that it is not the thing.
+
+Adjacent, from the same author: **no per-stroke timing offset.** `Feel.laidback` pushes a whole layer by one amount, but `offgrid`'s actual gesture is the second backbeat dragging *further* than the first. Approximated with slot displacement, which is audibly a different thing.
+
+### 3.19 Compound time cannot be stated
+
+Half the girl-group repertoire is 12/8, and `beatsPerBar` cannot say so without also claiming the bar is a 3/4. Pop approximated it as `swing: 0.28` over 4/4 and admitted the approximation; rnb's `doowop` did the same at `0.33`. Rnb's `gospelsoul` got 6/8 honestly via `beatsPerBar: 3` with `groups: [6, 6]`, which is the shape that works — so this may be a documentation gap as much as a mechanism one.
+
+### 3.20 There is no object for a person holding a microphone
+
+`Genre.vocals` casts the singer as a **doubling of an instrumental line**, so a rapper or a front singer stands in the row with the keyboard players rather than downstage of them. Distinct from §2.2, which wants a vocal *group* as an instrument; this wants the act.
+
 ---
 
 ## 4. Small warts
@@ -179,6 +215,18 @@ It is currently **green**, and it went green without being touched — which is 
 The interaction with `Feel.ghost` needed no coordination code, which is the good part. A written ghost is an ordinary event by the time the drawn pass runs, and that pass already refuses occupied slots, only ghosts odd sixteenths adjacent to a snare, and scales against the bar's mean snare velocity — which written ghosts are part of. So writing one *spends* it. Drawn ghosting around a written backbeat fell 94%, and a figure ghosting only the e leaves the a to be drawn. `GHOST_LEVEL = 0.28` was solved for rather than chosen: it makes a written ghost and a drawn one agree within 2%.
 
 **§ A layer could enter and never leave.** `Chart.exits` alongside `enters`, so `playing()` is a window rather than a threshold. **The ordinal is placed, not drawn** — taken from the form's own section counts — so it consumes no random draw and no stream moved: across 2800 songs, no song came out with the same layers and different notes. It only fires in a section that states the tune, a rule that came out of measurement rather than design: without it a finnfolk kantele piece lost its pad from a melody-less bridge and the section went completely silent. Fires on 24.4% of songs, from 6.5% in ambient (every style writes `requireLayers: ['pad']`) to 35% in iskelmä.
+
+**§ Nothing dropped out mid-section.** `Style.drops`, a weighted palette drawn **once per song**, and `generate/drop.ts`. A `DropSpan` is `FeelSpan`'s shape — half-open absolute bars — and it is IR, on `meta.drops`, because the layered-ambient goal needs the *composition* to be able to say which layers are muted for a stretch, and nothing in the IR could say it.
+
+**Style-level with no genre half**, which is `breakCarrier`'s seam rather than `feels`': a fill palette is a claim about how a band in an idiom plays and travels; a drop is a claim about what one piece is made of, and the same genre holds `dub` and `nyabinghi`.
+
+**The melody guard split in two**, and that is the interesting part. `Chart.exits` reads `here.includes('melody')` — a layer may only be taken away where something else is guaranteed to sound, and the tune was the only guaranteed something available. A drop removes layers for *bars* and may remove several at once, so one rule was doing two jobs. It is now a **named witness** per shape — `dub` is heard against the kit, `breakdown` against the wash — checked against `activeLayers` and named rather than searched for `breakCarrier`'s reason: from a pass that may not read a note, a tanpura drone and a walking bass are both `bass` with notes in it. The tune rule stays beside it doing the *musical* half. 0 empty sections across every style probed.
+
+**Where it may land is placed, not drawn**, so the only random number in the feature is the one that picks the shape. Inside one section; both edges on the phrase grid; a whole phrase of band before it and a whole phrase after. That last rule is the answer to *may the return coincide with a seam* — **no**, because every transition kind edits the last bar before a join and two passes on one bar is the double-swing bug, and because a return landing on a section boundary is inaudible *as a return* when the arrangement changes there anyway.
+
+**Nothing moved.** 807 songs — every style in all fourteen genres at three seeds — byte-identical in MIDI and Strudel against a copy of the live tree with only these hunks reverted. No style opts in, and `planDrop` returns before its first draw when there is no palette.
+
+**One shortfall found by measuring rather than by reasoning, and fixed.** A four-bar drop needs a twelve-bar section, so a style whose sections are all eight bars places none at all — funk `minneapolis` 0/200 and iskelmä `humppa` 0/200, against 200/200 for reggae `dub` and jazz `bebop` on sixteen-bar forms. `minneapolis` is one of the two styles this document names as having asked for the feature, so the shape would have looked like it worked and done nothing. `Style.dropBars` is the fix, standing to `drops` exactly as `breakCarrier` stands to `transitions` — read, never drawn — and at `dropBars: 2` both reach 200/200.
 
 **§ A style could not declare `Effects`.** `Style.effects`, merged `instrument > style > era > genre`, per key. The style goes **over** the era: an era is an average over a decade, a style is a member of that average, and an average does not overrule a member of itself. The decisive test is that under the other order the field would do nothing at all for `dub`, which is the only reason it exists.
 
@@ -261,11 +309,11 @@ Genres taking the **default** `breakCarrier: 'bass'` and needing no change: funk
 
 ## 8. What is actually next
 
-Fourteen genres exist and **five do not** — pop, rnb, hiphop, dnb, house — which is the largest single gap in the project. Two of §1's three blockers have moved since that list was written, so the picture is no longer "all five are blocked":
+**Seventeen genres exist and two do not** — `dnb` and `house`. Pop, rnb and hiphop were written in the same pass that built the drop, which is why this section has shrunk:
 
-- **pop, rnb and hiphop are substantially unblocked.** Ghost notes and layer exits both landed, and those were the two that mattered for a programmed kit and a last verse that strips back. Bass riff span is a real ceiling but a workable one — three genres have already written around it.
-- **house and dnb still want the drop**, which is sub-section drop-out (§1.2) and is the one genuinely new axis left.
+- **pop, rnb and hiphop are written.** Ghost notes and layer exits were what unblocked them, and both were used immediately: 20 of rnb's patterns write ghosts, 13 of hiphop's 24 styles do and 11 deliberately do not, and pop measured 30.1% of its arrangements stripping a layer from the last chorus.
+- **house and dnb have the drop now.** Sub-section drop-out (§1.2) landed as `Style.drops` — see §6. It was the one genuinely new axis left, and it was the strategic item rather than merely the next one, because it is the same mechanism the layered-ambient goal needs and the README already described the playback half of it. What those two still want is the *build*, which is half tempo ramp.
 
-That makes sub-section drop-out the strategic item rather than merely the next one: it is the same mechanism the layered-ambient goal needs, and the README already describes the playback half of it. Building it for house and dnb builds it for the thing this project is for.
+**What the drop has not got is an author.** Nothing in the catalogue writes a `drops` palette, and §7 records at length why a field added and not adopted is worse than no field. The three cheapest adoptions, in order: reggae `dub` (`[['none', 2], ['dub', 1]]`, sixteen-bar forms, 200/200 placement when forced), funk `minneapolis` (`dropBars: 2` — it is one of the two styles that reported the gap, and its eight-bar sections mean the default four-bar shape places nothing at all), and whichever house style is written first, which wants `breakdown`.
 
 Tempo ramps (§1.1) are the largest remaining blocker by blast radius — the tempo reaches the IR, both renderers and the concert clock — and they are wanted by qawwāli, the pelimanni repertoire and every build in a dance record.
