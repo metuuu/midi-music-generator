@@ -645,13 +645,17 @@ function gesturesFor(
   const board = new Board(song.meta.bpm, rng.float(0.9, 1.12));
 
   if (performer.archetype === 'handdrum') {
-    handPart(drumEventsFor(song.drums.events, 'handdrum'), board);
+    handPart(drumEventsFor(song.drums.events, 'handdrum', song.drums.bank), board);
   } else if (performer.archetype === 'drumkit' || performer.layer === 'drums') {
     // Their share of it. A percussion part is one event stream over as many as
     // two players — see `drumStations` — and the kit's share is everything the
     // hand drum did not take. When there is no hand drum that is all of it,
     // which is every number this file was written against.
-    drumPart(drumEventsFor(song.drums.events, 'drumkit'), board);
+    //
+    // The bank goes with it because a sampled rack moves the line: the cowbell
+    // of a `RolandTR909+congas` number is on the percussionist's stand, so it is
+    // their gesture rather than the drummer's reach across the hats.
+    drumPart(drumEventsFor(song.drums.events, 'drumkit', song.drums.bank), board);
   } else {
     /**
      * Every line this player is carrying, and there is usually one.

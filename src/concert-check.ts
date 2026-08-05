@@ -298,7 +298,7 @@ for (const gid of CHECKED_GENRES) {
         // voices are whose. Counting the whole stream for each of them would
         // double every arabic and funk number here.
         const notes = performer.layer === 'drums'
-          ? drumEventsFor(song.drums.events, performer.archetype).length
+          ? drumEventsFor(song.drums.events, performer.archetype, song.drums.bank).length
           : [performer, ...(performer.doubles ?? [])]
             .reduce((n, ref) => n + (trackForPart(song, ref)?.notes.length ?? 0), 0);
         const sounded = part.gestures.filter(
@@ -1735,7 +1735,9 @@ for (const gid of GENRE_IDS) {
          * of distinct racks across a catalogue, and building a kit per number
          * is thousands of lathes for nothing.
          */
-        const owned = drumEventsFor(number.song.drums.events, performer.archetype);
+        const owned = drumEventsFor(
+          number.song.drums.events, performer.archetype, number.song.drums.bank,
+        );
         const aux = [...new Set(owned.map((e) => e.voice))].sort();
         const key = `${performer.archetype}:${aux.join(',')}`;
         let model = percussionModels.get(key);
@@ -1920,8 +1922,9 @@ console.log('\nInstruments');
           // collided here and only whichever was built first was ever probed.
           const drums = performer.layer === 'drums' ? number.song.drums.source : undefined;
           const aux = performer.layer === 'drums'
-            ? [...new Set(drumEventsFor(number.song.drums.events, performer.archetype)
-              .map((e) => e.voice))].sort()
+            ? [...new Set(drumEventsFor(
+              number.song.drums.events, performer.archetype, number.song.drums.bank,
+            ).map((e) => e.voice))].sort()
             : undefined;
           const key = [
             performer.station.posture,

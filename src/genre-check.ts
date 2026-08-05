@@ -23,7 +23,7 @@ import { chordPcs, parseRoman, CHORD_INTERVALS, type Chord, type ChordQuality } 
 import { makeScale } from './core/scale.js';
 import { pc } from './core/pitch.js';
 import { canVary, melodicLine, type DrumVoice, type Song } from './core/types.js';
-import { drumStations } from './concert/instruments.js';
+import { STATION_OF, drumStations } from './concert/instruments.js';
 import { Rng } from './core/rng.js';
 import { BANK_VOICES, readBankName, resolveVoice, SAMPLE_RACKS } from './render/drum-banks.js';
 import { RACK_SAMPLE_LEVEL } from './render/source-levels.js';
@@ -2877,6 +2877,33 @@ console.log('\nDrum banks');
   );
 
   /**
+   * And everything on a rack is within one pair of hands' reach.
+   *
+   * The check above is about the four voices `BANK_VOICES` demands; this one is
+   * about the other six the kit owns — `rim`, the three toms, and the two
+   * cymbals — and it exists because casting now reads a rack's contents as *a
+   * percussionist's instrument list*. See `drumStations`: a voice the rack
+   * carries is played by the rack's player, on the grounds that the recording
+   * which sounds is the one off their stand. A rack carrying a floor tom would
+   * make that sentence false — nobody's bare hands are on a tom, `handdrum` has
+   * no point for one, and the gesture would resolve to thin air, which is the
+   * exact failure the hand drum was built to end.
+   *
+   * `STATION_OF` is asked rather than a list written here, so the two cannot
+   * drift: whatever the kit tier holds is what a rack may not.
+   */
+  const outOfReach = racks.flatMap(([rack, voices]) =>
+    (Object.keys(voices) as DrumVoice[])
+      .filter((v) => STATION_OF[v] === 'kit')
+      .map((v) => `${rack} carries ${v}`));
+  check(
+    'a rack holds only what a percussionist can reach',
+    outOfReach.length === 0,
+    outOfReach.length ? outOfReach.join(', ')
+      : `${racks.length} racks, nothing on them a kit would have to play`,
+  );
+
+  /**
    * A name is a machine or a rack, never both.
    *
    * `readBankName` splits on the marker and looks each half up in its own table,
@@ -3503,8 +3530,12 @@ console.log('\nSolos');
            * what the audience is looking at. Asked per section rather than per
            * genre because a genre is not one instrument: arabic's `saidi` and
            * `zaffa` own a real bass drum, and those choruses are a kit's.
+           *
+           * The bank goes with the voices for the same reason it does at every
+           * other caller: a chorus of nothing but a rack's own pieces was taken
+           * on the rack, and asking without it would file it under the kit.
            */
-          if (drumStations(voices).kit) {
+          if (drumStations(voices, song.drums.bank).kit) {
             m.kitSolos++;
             m.kitVoices.push(voices.size);
             // The hand-off: a crash on the downbeat the band comes back in on,

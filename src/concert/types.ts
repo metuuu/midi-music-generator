@@ -1026,6 +1026,13 @@ export interface StageMachine {
   /**
    * What it is playing, for a renderer that wants to label it: a drum bank for
    * the two percussion kinds, the instrument name for a sequencer.
+   *
+   * `DrumTrack.bank` verbatim, which on the percussion kinds may be a machine
+   * and a sampled rack together — `RolandTR808+darbuka`. That is deliberate and
+   * is the opposite of what casting does with the same string: a rack riding on
+   * a *played* part is a second person at a second stand and gets split, and a
+   * rack riding on a machine is one box with hand percussion loaded into it. See
+   * `placeMachines`, and `SAMPLE_RACKS` in `render/drum-banks.ts`.
    */
   bank: string;
   /**

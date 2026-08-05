@@ -1402,6 +1402,19 @@ export interface DrumSoloOptions {
    * yesterday. `DrumTrack.source` is optional for the same reason and says so.
    */
   table?: Iterable<DrumVoice>;
+  /**
+   * The percussion bank, for the same one bit and no other.
+   *
+   * A bank naming a sampled rack — `RolandTR808+congas` — is the band saying
+   * there is a stand of hand percussion here, and `drumStations` reads that
+   * alongside the table. It matters in exactly one case and it is a case the
+   * table cannot answer on its own: a style writing nothing but auxiliary voices
+   * looks kitless to a three-tier read and falls back to a kit, which is right
+   * for a jazz brush part on `sh` and wrong for a rack's bongo on `perc`. Read
+   * here so the chorus is written for the object casting is about to stage,
+   * rather than for one the two of them have to agree about later.
+   */
+  bank?: string;
 }
 
 /**
@@ -1563,10 +1576,12 @@ const HAND_DRUM: SoloOrchestration = {
   oneSkin: true,
 };
 
-/** Which of the two, from the style's table. See `SoloOrchestration`. */
-function orchestrationFor(table: Iterable<DrumVoice> | undefined): SoloOrchestration {
+/** Which of the two, from the style's table and its bank. See `SoloOrchestration`. */
+function orchestrationFor(
+  table: Iterable<DrumVoice> | undefined, bank: string | undefined,
+): SoloOrchestration {
   if (!table) return TRAP_KIT;
-  return drumStations(table).kit ? TRAP_KIT : HAND_DRUM;
+  return drumStations(table, bank).kit ? TRAP_KIT : HAND_DRUM;
 }
 
 /**
@@ -1605,7 +1620,7 @@ export function generateDrumSolo(opts: DrumSoloOptions): DrumEvent[] {
   const out: DrumEvent[] = [];
   if (!opts.blocks.length) return out;
 
-  const orch = orchestrationFor(opts.table);
+  const orch = orchestrationFor(opts.table, opts.bank);
 
   /**
    * Where each slot's stroke ended up, so a one-skin station can overwrite it.

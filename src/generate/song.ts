@@ -1043,6 +1043,9 @@ export function generateSong(opts: GenerateOptions = {}): Song {
            * those are two players and the chorus belongs to the drummer.
            */
           table: style.drums.flatMap((p) => Object.keys(p.voices) as DrumVoice[]),
+          // …and the bank beside it, because a sampled rack is part of the
+          // answer to which object this is. See `DrumSoloOptions.bank`.
+          bank: drumBank,
           // The crash the band comes back in on belongs to whoever is next —
           // unless somebody else is already playing there, in which case the
           // drummer is handing over inside the section rather than out of it.

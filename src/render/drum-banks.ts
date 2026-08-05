@@ -284,17 +284,31 @@ const FALLBACK: Partial<Record<DrumVoice, DrumVoice[]>> = {
  *
  * ## What the rack changes, and what it must not
  *
- * The sound, and only the sound. A rack claims the auxiliary voices — the three
- * hand-drum strokes, the spare percussion, the cowbell, the shaker, the
+ * The sound, and the person making it. A rack claims the auxiliary voices — the
+ * three hand-drum strokes, the spare percussion, the cowbell, the shaker, the
  * tambourine — and never `bd`, `sd`, `hh`, `oh`, the toms or the cymbals, which
  * stay the machine's. Levels are pulled to the same catalogue median so that
  * turning a rack on moves the timbre and leaves `DEFAULT_DRUM_MIX` in charge of
  * the balance; see `RACK_SAMPLE_LEVEL` in `render/source-levels.ts`, which also
  * says why a rack cannot be left unmeasured the way an unlisted machine can.
  *
+ * **The person is the half that is not optional**, and it follows from the
+ * paragraph above rather than being a second feature. The whole argument for a
+ * rack being additive is that a darbuka is *what the person sitting next to the
+ * drummer is playing*; a stage that heard the argument and staged one drummer
+ * anyway would have them reaching past their own floor tom for a bongo, which is
+ * where this started. So `rackVoices` hands the contents of a rack to
+ * `drumStations` in `concert/instruments.ts`, and every piece on it is that
+ * second player's: the riq is theirs rather than the tambourine on the hi-hat
+ * rod, the cabasa is theirs rather than the drummer's shaker. Nothing here
+ * decides *whether* there is a person, which stays `DrumSource`'s and is the
+ * distinction that keeps a bank name from staging a band — a rack riding on a
+ * `programmed` part is hand percussion loaded into a box, and stages nobody.
+ *
  * MIDI is untouched by all of this. `render/midi.ts` writes GM channel 10,
- * where all eighteen voices exist by definition, so this is an audition-quality
- * change and nothing else — the same standing `BANK_VOICES` has.
+ * where all eighteen voices exist by definition, so as a matter of *sound* this
+ * is an audition-quality change and nothing else — the same standing
+ * `BANK_VOICES` has.
  */
 export type RackSample = readonly [sample: string, n: number];
 

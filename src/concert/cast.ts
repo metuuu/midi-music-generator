@@ -1003,16 +1003,37 @@ function roster(
          * The kit goes first so that it keeps the plain `drums` id when both
          * are present: every look, seed and gesture stream is keyed on that id,
          * and the drummer is the one an audience is used to finding.
+         *
+         * **The bank is the third thing that can put a percussionist here**, and
+         * it arrives by the same door rather than by a new one. A bank naming a
+         * sampled rack — `RolandTR808+congas` — has said there is a stand of
+         * hand percussion in this band, so `drumStations` reads its contents
+         * too: a part of nothing but a bongo and a cowbell is that player's part
+         * and not a drummer's spare hand, because the recording that sounds is
+         * the one off their stand. See `SAMPLE_RACKS`.
          */
-        const stations = drumStations(song.drums.events.map((e) => e.voice));
+        const { machine, rack } = readBankName(song.drums.bank);
+        const stations = drumStations(song.drums.events.map((e) => e.voice), song.drums.bank);
         if (stations.kit) {
           drafts.push({
-            layer, archetype: DRUM_ARCHETYPE, instrument: `${song.drums.bank} kit`, doubles: [],
+            layer, archetype: DRUM_ARCHETYPE, instrument: `${machine} kit`, doubles: [],
           });
         }
         if (stations.hand) {
+          /**
+           * Named by the rack where there is one, because the rack is the only
+           * thing that knows *which* drum this is.
+           *
+           * `handdrum` is one archetype over a family — a darbuka, a set of
+           * congas, a mridangam — and the model is deliberately one goblet drum
+           * and a trap table for all of them. The label is where the difference
+           * survives: "congas" is what a showbill would print, where "hand drum"
+           * is what a stage manager writes down when nobody told them. A number
+           * whose bank names no rack has genuinely not been told, and keeps the
+           * honest generic.
+           */
           drafts.push({
-            layer, archetype: HAND_DRUM_ARCHETYPE, instrument: 'hand drum', doubles: [],
+            layer, archetype: HAND_DRUM_ARCHETYPE, instrument: rack ?? 'hand drum', doubles: [],
           });
         }
       }
@@ -3126,6 +3147,19 @@ function placeMachines(song: Song, slots: Slot[], venue: Venue): StageMachine[] 
   }[] = [];
   const source = song.drums.source ?? 'kit';
   if (song.drums.events.length && !isPlayedByHand(source)) {
+    /**
+     * The whole bank name, rack and all, and this is the one place that wants
+     * it whole.
+     *
+     * Casting splits a composite because it is two objects with two players —
+     * see `roster` — and here there is exactly one object and no player at all.
+     * A box loaded with a sampled darbuka is a box: nobody is sitting behind the
+     * drum, because `isPlayedByHand` has already said nobody is sitting behind
+     * any of this. `RolandTR808+darbuka` is therefore the truthful answer to
+     * what this machine is running, and dropping the rack would delete the only
+     * mention of it from a stage where it is genuinely sounding and genuinely
+     * invisible.
+     */
     wanted.push({
       kind: source === 'box' ? 'box' : 'programmed',
       id: 'machine',

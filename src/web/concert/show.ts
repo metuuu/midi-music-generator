@@ -565,8 +565,9 @@ export function createShow(opts: ShowOptions = {}): Show {
          * player is holding. Every model but the two percussion ones ignores it.
          */
         performer.layer === 'drums'
-          ? [...new Set(drumEventsFor(number.song.drums.events, performer.archetype)
-            .map((e) => e.voice))]
+          ? [...new Set(drumEventsFor(
+            number.song.drums.events, performer.archetype, number.song.drums.bank,
+          ).map((e) => e.voice))]
           : undefined,
       );
 
@@ -1269,7 +1270,12 @@ export function createShow(opts: ShowOptions = {}): Show {
       // A drum event has no duration — it is a hit. So the lamp is a flash of
       // its own, rather than a note length there is none of.
       const hit = kit.events.some((e) => beat >= e.beat && beat < e.beat + 0.2);
-      return `${mark(hit, sulking.has('drums'))} drums   ${kit.bank} (${kit.source ?? 'kit'})`;
+      // The *player's* object rather than the song's bank, which is not the same
+      // string once a bank names a sampled rack: `RolandTR808+darbuka` is two
+      // objects with two people behind them, and printing it whole put the same
+      // label over the drummer and the percussionist. Casting has already split
+      // it — "RolandTR808 kit" and "darbuka" — so this prints what it decided.
+      return `${mark(hit, sulking.has('drums'))} drums   ${ref.instrument} (${kit.source ?? 'kit'})`;
     }
     // The same lookup casting used, so the label cannot disagree with the
     // player about which of a layer's tracks is theirs. See `trackForPart`.
