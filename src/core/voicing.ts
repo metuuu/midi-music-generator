@@ -285,7 +285,8 @@ export function chooseTones(chord: Chord, voices: number, opts: {
  *
  * Whether the line belongs at E2 or a few semitones under it is a fair question,
  * since a drop-tuned guitar plays C2–G2 all night — but it is a question about
- * `minInterval`, and all fourteen genres are voiced through that table. Moving
+ * `minInterval`, and every genre is voiced through that table — fourteen of them
+ * when this was written and **nineteen** now, which only strengthens it. Moving
  * it to suit one style would re-voice every one of them.
  *
  * The cost of leaving it is honest and small. A comp whose window is low, and
@@ -603,8 +604,16 @@ function voiceQuartal(
  * contains no fourth at all, and a major third below is a smaller lie than a
  * tritone above.
  *
- * Seven notes give 3 and eight give 3, so every scale the engine voices
- * quartally today keeps exactly the stack it had.
+ * Seven notes give 3 and eight give 3, so every scale the engine voiced
+ * quartally **at the time this landed** kept exactly the stack it had. That is
+ * no longer the whole catalogue and the sentence is kept in the past tense
+ * rather than deleted, because it is the only thing that says what the change
+ * was measured against. Counted over 40 songs in each of the nineteen genres,
+ * 3,059 chords reach this function: **2,898 over a seven-note scale, 160 over a
+ * five-note one and 1 over a six**. The five-note calls are all hiphop, whose
+ * pentatonic material is now voiced in two steps rather than three — which is
+ * the fault this function was written to fix, arriving in a genre that did not
+ * exist when it was written.
  */
 function stepsNearest(scale: Scale, semitones: number): number {
   const len = scale.pcs.length;

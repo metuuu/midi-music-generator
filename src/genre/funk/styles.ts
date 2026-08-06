@@ -1490,8 +1490,11 @@ const latin: Style = {
  *
  * The kit is Tony Allen's, which means the *kick* is doing the syncopation and
  * the hi-hat is doing something almost but not quite in eighths. Ghosted hats
- * are not expressible per-hit, so the pattern approximates the effect by leaving
- * holes at 5 and 13 — the two slots where his hand is on its way somewhere.
+ * were not expressible per-hit when this was written, so the pattern
+ * approximates the effect by leaving holes at 5 and 13 — the two slots where
+ * his hand is on its way somewhere. `DrumPattern.ghosts` would say it directly
+ * now, on `hh` at those two slots, and this table has not been moved onto it;
+ * the `breakbeat` header carries the count and the argument.
  */
 const afrofunk: Style = {
   id: 'afrofunk',
@@ -1782,12 +1785,27 @@ const funkrock: Style = {
  * and the whole record is remembered for those four bars.
  *
  * The engine can express that: `transitions` weights `break` above everything,
- * and `drop` is the heaviest entry in the fill palette. What it cannot express
- * is per-hit velocity on the kit — a break is *made* of ghost notes at a third
- * of the level of the accents, and a `DrumPattern` carries slot indices with no
- * velocity column. The patterns below therefore write the loud strokes and let
- * `metricStrength` do the rest, which is a fair approximation and is not the
- * thing itself. Noted here rather than worked around.
+ * and `drop` is the heaviest entry in the fill palette. What it could not
+ * express, when this was written, was per-hit velocity on the kit — a break is
+ * *made* of ghost notes at a third of the level of the accents, and a
+ * `DrumPattern` carried slot indices with no velocity column. The patterns
+ * below therefore write the loud strokes and let `metricStrength` do the rest,
+ * which is a fair approximation and is not the thing itself.
+ *
+ * **The premise is still true and the conclusion is not.** `DrumPattern` still
+ * has no velocity column and is not getting one — the field that arrived is
+ * `DrumPattern.ghosts`, a *second slot list* per voice, and `style/types.ts`
+ * argues at length why a ghost is a category rather than a point on a
+ * continuum and why a number in a style table would outrank the metre, the
+ * section and the feel all at once. That doc comment quotes the sentence above
+ * verbatim and names this header as the report it was built from.
+ *
+ * So the gesture is sayable here and is not said: **86 of the catalogue's 389
+ * styles write `ghosts`, across five genres, and none of them is in this
+ * file.** What is below is still the approximation, and it is an unadopted
+ * mechanism now rather than an absent one. Noted here rather than worked
+ * around, which is what the paragraph above always said and is now a choice
+ * instead of a fact.
  *
  * Sixteen hi-hat slots on every pattern, which is the one thing about these
  * records that is *not* an approximation: the hat genuinely never stops.
@@ -1889,8 +1907,10 @@ const breakbeat: Style = {
     ] },
   ],
   drums: [
-    // The one everybody sampled. Ghost notes are not expressible per hit, so
-    // what is written here is where the loud strokes are.
+    // The one everybody sampled. Ghost notes were not expressible per hit when
+    // this was written, so what is here is where the loud strokes are;
+    // `DrumPattern.ghosts` exists now and this table has not been moved onto
+    // it. See the style header.
     { name: 'the-break', weight: 6, voices: {
       bd: [0, 10],
       sd: [4, 12, 14],

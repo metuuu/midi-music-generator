@@ -20,12 +20,22 @@ import type { Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
  *
  * A fenced open yard with a bar along one side, strings of bulbs overhead, and a
  * stack of speaker boxes taller than anybody in the band. It is a **dance**, so
- * `seated` is false and the density is the highest in the project: nine rows at
- * 0.9 is a crowd with no gaps in it, which is what these rooms were and is the
+ * `seated` is false and the density is the third highest in the project: nine rows
+ * at 0.9 is a crowd with no gaps in it, which is what these rooms were and is the
  * single fact the picture has to get right.
  *
- * Eleven metres wide, which is the widest room here, and the reason is the band
- * rather than the audience. A roots line-up is drums, bass, two guitars, an organ,
+ * **That said *the highest* and it is now third.** Metal took 0.94 in the same
+ * commit this file landed in — ten genres written in parallel, so neither author
+ * could see the other's number — and dnb took 0.92 two days later; funk sits level
+ * at 0.9. The sentence is kept because 0.9 is not doing comparative work: a crowd
+ * with no gaps in it is a floor description, and three rooms reaching it is the
+ * expected result rather than a collision.
+ *
+ * Eleven metres wide, which is joint fifth of the nineteen rooms, and the reason
+ * is the band rather than the audience. This read *the widest room here* and was
+ * wrong on arrival for the same parallel-authorship reason: classical and metal
+ * are 12, funk is 11.5, latin is 11.4, and arabic, house, rnb and rock all sit at
+ * 11 alongside this one. A roots line-up is drums, bass, two guitars, an organ,
  * three horns and a singer, and `chooseVenue` runs before the cast exists so the
  * boards have to hold the largest one the genre can produce. Nothing below 8.5 has
  * been tried and this needs more than that.

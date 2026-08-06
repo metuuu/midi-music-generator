@@ -11,7 +11,13 @@
  *
  * ## The words are `scat`, and the name is the wrong thing to read
  *
- * Four invented languages exist in `style/vocals.ts` and none of them is this one.
+ * Four invented languages **used to** exist in `style/vocals.ts` and none of them
+ * was this one. There are six now — `sargam` and `tarana`, both written for the
+ * Indian genre after this paragraph — and the two of them sit on either side of
+ * the fourth bullet below rather than threatening it: `sargam` has no codas at all
+ * and `tarana` closes 0.85 of its syllables, against the 0.4 that is the whole
+ * reason `scat` is here. The count is corrected; the choice is not.
+ *
  * Choosing between them on their names would give `finnish` for being a language
  * and reject `scat` for being jazz; choosing on their *shapes* gives the opposite
  * answer, and the shape is what the renderer actually consumes:
@@ -34,7 +40,8 @@
  * at all — and a reggae line with no consonant that bites is a line with nothing
  * landing where the skank is. The consonant table below leans back toward the
  * softer end to recover some of it, which is the compromise available without
- * writing a fifth language into a file this genre does not own.
+ * writing a seventh language into a file this genre does not own — a fifth when
+ * this was written, and only the number has moved.
  *
  * ## And the delivery is `sung`, not `ballad`
  *

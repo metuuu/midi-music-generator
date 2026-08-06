@@ -21,17 +21,31 @@ import type { Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
  *
  * A flat-floored hall with a stage at one end: the theatre circuit this music
  * toured, the civic halls and armouries it played when it outgrew them, and the
- * one building that plausibly holds all four of these decades. It is the largest
- * room in the project at 11.5 by 7 metres and it needs to be — this genre fields
- * the biggest bands here, nine players and a percussion section, and the
- * paragraph in `venue.ts` about a stage too small producing a solver that spreads
- * the band to the tormentors is a warning written for exactly this case.
+ * one building that plausibly holds all four of these decades. It is 11.5 by 7
+ * metres and it needs to be — this genre fields the biggest bands here, nine
+ * players and a percussion section, and the paragraph in `venue.ts` about a
+ * stage too small producing a solver that spreads the band to the tormentors is
+ * a warning written for exactly this case.
+ *
+ * **It is not the largest room in the project, which this comment claimed and
+ * never measured.** Classical's hall is 12 by 7.5 and metal's is 12 by 7; both
+ * are wider and the hall is 90 m² against this floor's 80.5. All three were
+ * written into the same commit by different authors, so the sentence was wrong
+ * on the day it landed rather than overtaken later — which is the more useful
+ * warning of the two, because ten rooms written in parallel is exactly the
+ * situation in which nobody can see the other nine. What the number here has to
+ * be *large enough for* is the claim that matters and it is unchanged: nine
+ * players and a percussion section is the widest band the venue solver is asked
+ * to seat, and 11.5 m is what that takes.
  *
  * **The audience stands**, and it is not the same standing as ambient's. There
  * the crowd is a field of silhouettes in a black box with nothing to look at;
  * here it is a floor of people dancing at a band that is watching them do it,
  * which is the pavilion's proposition indoors and with a PA. `density: 0.9` is
- * the highest in the project. A funk band in a half-empty room is a soundcheck.
+ * at the top of the project's range — reggae ties it, and metal at 0.94 and dnb
+ * at 0.92 are above it, so the superlative this sentence used to carry has been
+ * taken out rather than renumbered. A funk band in a half-empty room is a
+ * soundcheck, and 0.9 is what that argument actually needs.
  *
  * `backline` in three of the four dressings and `pa-stack` in three: the
  * distinction between the two is the one `venue.ts` draws and it is worth

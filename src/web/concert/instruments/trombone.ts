@@ -530,7 +530,11 @@ export const buildTrombone: InstrumentBuilder = (opts: InstrumentBuildOptions): 
    * ## It was in the middle of the plate, which is inside the instrument
    *
    * `BELL_RISE * 0.55` is halfway up the stay — and the stay is a solid plate
-   * 88 × 100 × 14 mm. A `touch: 0` pose puts the palm's surface 13 mm along the
+   * **88 × 100 × 14 mm**. It is 172 × 100 × 14 now, `geoStay` being
+   * `BELL_X + SLIDE_X + 0.016` wide and `BELL_X` having grown to 0.12 to clear
+   * the player's head; the width is the one dimension of it that ever moved, and
+   * it moved outward, so the hand this paragraph is about was sunk further in
+   * rather than less. A `touch: 0` pose puts the palm's surface 13 mm along the
    * normal from the contact and the palm's centre 43 mm along it, so both ended
    * up *within* the plate: a hand sunk into the brace to the knuckles, which is
    * not a grip either. The tube is the thing a trombonist's left hand actually

@@ -49,7 +49,8 @@
  *
  * ## Two methods, not one
  *
- * `shape()` answers seven numbers and builds nothing. `build()` builds and
+ * `shape()` answers eight numbers and builds nothing — seven when this was
+ * written, and `houseLid` is the eighth. `build()` builds and
  * answers no numbers. The split is the same one `InstrumentModel.resolve` makes
  * against its own geometry, for the same reason: the choreography has to be
  * computable without ever constructing a guitar, and the room's dimensions have
@@ -147,12 +148,17 @@ export interface RoomDatum {
 /**
  * What a room has to tell the rest of the show about itself.
  *
- * Seven numbers, and each of them is somewhere a room that had not thought
+ * Eight numbers — seven when this was written, `houseLid` being the one added
+ * since — and each of them is somewhere a room that had not thought
  * about the question would put something through a wall. They are required —
  * there is no partial form and no merge with a default — because the failure
  * this seam exists to prevent is a room *silently inheriting a proscenium's
- * dimensions*, which is the failure every one of the fourteen rooms is
- * currently suffering from. A room that genuinely is a proscenium says so in
+ * dimensions*, which was **the failure every one of the fourteen rooms was
+ * suffering from** on the day this interface was written. It is nobody's failure
+ * now: twelve builders answer here in full and sixteen of the nineteen genre
+ * rooms name one of them. The sentence is kept in the past tense because the
+ * requiredness is the thing it argues for, and that argument is the reason the
+ * failure went. A room that genuinely is a proscenium says so in
  * one line by calling `prosceniumShape`.
  */
 export interface RoomShape {
@@ -254,7 +260,11 @@ export interface RoomContext extends RoomDatum {
    *
    * Handed over rather than recomputed so that a room cannot disagree with the
    * numbers the rest of the show is already using — if `m.headroom` is not what
-   * `shape()` said, the bug is in `stage.ts` and not in fourteen rooms.
+   * `shape()` said, the bug is in `stage.ts` and not in the rooms. The count
+   * this used to give was fourteen and it is twelve, `ROOMS` being a total
+   * record over the architectures rather than over the catalogue; the point of
+   * the sentence is the direction to look in, and one place is still cheaper to
+   * search than twelve.
    */
   m: StageMetrics;
   quality: Quality;

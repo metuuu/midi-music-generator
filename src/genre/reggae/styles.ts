@@ -54,16 +54,31 @@
  *    dancer is counting from and a guitarist who started decorating them would
  *    be taking the floor away. The drummer's fill at a section end is the whole
  *    of the permitted variation, and several styles below take even that away.
- *  - **`syncopation` is high, 0.5 to 0.75.** The tune is written against a bar
+ *  - **`syncopation` is high, 0.4 to 0.7.** The tune is written against a bar
  *    whose strong beat is missing, so a melody that stayed inside its own bar
- *    would be agreeing with a downbeat nobody is playing.
- *  - **Nothing swings after 1966.** `swing: 0` on everything from `rocksteady`
- *    onward, and that is the actual historical event: rocksteady is ska with the
- *    shuffle taken out, and taking it out is what let the bass become the tune.
- *    The three styles that predate it — `mento`, `shuffle`, `ska` — carry real
+ *    would be agreeing with a downbeat nobody is playing. This read *0.5 to 0.75*
+ *    and both ends were off: nothing in the file reaches 0.75 — `dub`, `dubpoetry`
+ *    and `rubadub` top out at 0.7 — and three styles sit under 0.5, which are
+ *    `mento` at 0.4 and `shuffle` and `nyabinghi` at 0.45. The two that stayed
+ *    lowest are the two oldest things here, which is the right shape: mento
+ *    predates the offbeat the rest of the bullet is about.
+ *  - **The shuffle collapses after 1966 rather than stopping.** `swing: 0` on
+ *    sixteen of the eighteen styles from `rocksteady` onward, and that is the
+ *    actual historical event: rocksteady is ska with the shuffle taken out, and
+ *    taking it out is what let the bass become the tune. The three styles that
+ *    predate it — `mento` at 0.14, `shuffle` at 0.28, `ska` at 0.2 — carry real
  *    swing and set `boxDrums: false` for it, because a shuffle whose character is
  *    the gap between the two hands cannot be expressed as a low weight on a
  *    preset box.
+ *
+ *    **This read *nothing swings after 1966* and two styles do.** `skinhead`
+ *    carries 0.1 and `twotone` 0.05 — a fifth and a sixth of what `shuffle` has,
+ *    which is why they read as zero to anybody grepping for the word rather than
+ *    the number. Both are deliberate and both are the same joke about revival:
+ *    skinhead reggae is the boss sound with the shuffle nearly gone, and two-tone
+ *    is ska played in Coventry in 1979 by people who had the records rather than
+ *    the wrist. `skinhead` sets `boxDrums: false` with the other three; `twotone`
+ *    does not, and at 0.05 it does not need to.
  *  - **No `ghosts`, on any of the 59 kit patterns in this file**, and it is the
  *    absence that took the most arguing. `DrumPattern.ghosts` is the right field
  *    for a boom-bap kit and the wrong one for this genre, because the figure

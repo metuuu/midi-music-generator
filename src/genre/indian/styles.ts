@@ -151,10 +151,27 @@ import type {
  * are absent, and the rāgas that are *mostly* those gestures are absent with
  * them.
  *
- * **Three rāgas named in the brief cannot be built at all**, and the reason is
- * the same one `core/scale.ts` states at the top of its non-Western block: a
- * scale is a `tonic` and a `name` together, and `makeScale` fixes degree 0 at
- * the tonic, so no rotation of an existing entry is reachable.
+ * **Three rāgas named in the brief could not be built at all when this was
+ * written, and all three have rows of their own now.** The reason they could
+ * not is the one `core/scale.ts` still states at the top of its non-Western
+ * block, and it is unchanged: a scale is a `tonic` and a `name` together, and
+ * `makeScale` fixes degree 0 at the tonic, so no rotation of an existing entry
+ * is reachable. The answer was not a mechanism but three more rows —
+ * `durga: [0, 2, 5, 7, 9]`, `malkauns: [0, 3, 5, 8, 10]` and
+ * `hansadhwani: [0, 2, 4, 7, 11]`, which are exactly the three pitch-class sets
+ * listed below. `core/scale.ts` points back at this paragraph by name where it
+ * documents `hansadhwani`, and its `majorPentatonic` docstring records that the
+ * Durga confusion was a mistake *in that comment* which this genre caught.
+ *
+ * **Nothing here has been moved onto them**, which is why the list below is
+ * kept rather than deleted: it is still an accurate account of what this file
+ * plays today. `BHOOPALI` and `DHANI` are named by exactly three styles —
+ * `jhala`, `tarana` and `dhun`, each as `raga(BHOOPALI, DHANI)` — and
+ * Hansadhwani is named by none, so the fourteen in the constant table below is
+ * still fourteen. What has changed is the *kind* of statement this is: an
+ * unadopted row rather than an impossibility. Adopting one changes which notes
+ * three styles sound and wants its own listening pass, which is why it is not
+ * done here.
  *
  *  - **Malkauns** is S g m d n — `[0, 3, 5, 8, 10]`. Its intervals are a
  *    rotation of `minorPentatonic`'s, so the pitch classes exist in the table
@@ -1387,9 +1404,30 @@ const bhajan: Style = {
  * nowhere else.
  *
  * The form accelerates. A qawwāli that ended at the tempo it began at would
- * have failed at its job, and that is the one structural thing here the engine
- * cannot do: `SongMeta.bpm` is a single number and nothing in the pipeline
- * ramps it. What is left is a fast starting tempo and the density.
+ * have failed at its job, and this comment used to end by calling that the one
+ * structural thing here the engine could not do — *`SongMeta.bpm` is a single
+ * number and nothing in the pipeline ramps it* — leaving a fast starting tempo
+ * and the density to stand in for it.
+ *
+ * **Half of that is still true and the half that mattered is not.** `bpm` is
+ * still a single number, drawn once; what arrived beside it is
+ * `SongMeta.tempo`, a `TempoMap`, and `generate/tempo.ts` behind it. This
+ * paragraph is one of the two reports that argument was built on —
+ * `docs/engine-gaps.md` §1.1 names the qawwāli and the pelimanni repertoire as
+ * the pair that made it a gap rather than a taste — and the shape it produced
+ * is `gathering`, whose own description in `generate/tempo.ts` reads *"Patient,
+ * then it goes: half the speed arrives in the last third. What a qawwāli is
+ * built on."* `Style.tempoRamp`'s worked example is this style, in so many
+ * words: `[['none', 2], ['gathering', 1]]` with `tempoRise: 1.5`.
+ *
+ * **It is not adopted here, and that is a decision this table has not made
+ * rather than one it has made against.** Opting in means claiming that `bpm`
+ * above describes where the music *starts* rather than where it sits, and 104
+ * to 148 was drawn as a whole-piece band; a ramp of half again out of the top
+ * of it ends at 222. Somebody adopting this should re-draw the range downward
+ * in the same edit, which is a change to the music and was not this sweep's to
+ * make. What is left meanwhile is still a fast starting tempo and the density —
+ * now as an unadopted mechanism rather than an absent one.
  */
 const qawwali: Style = {
   id: 'qawwali',

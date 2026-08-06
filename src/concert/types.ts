@@ -135,10 +135,13 @@ export type InstrumentFamily =
  * ## `floor` is not `sit` with a shorter chair
  *
  * The union had five ways of being off your feet and every one of them was on
- * furniture. That is a claim about the world, and for two of the fourteen
+ * furniture. That is a claim about the world, and for two of the nineteen
  * genres it is false: a sitar is played with the gourd on the player's left
  * foot, a mridangam lies across their shins, and a takht was five men on a
- * carpet. The indian genre's own staging file has said so in prose since it was
+ * carpet. (*Two of the fourteen* when this was written; the denominator is the
+ * only half that moved — see `FLOOR_SEATED` in `cast.ts`, which is still those
+ * same two ids after five more genres landed.) The indian genre's own staging
+ * file has said so in prose since it was
  * written — *`Posture` offers stand, sit, straddle, stool, kit and perch, and
  * none of them is that — `sit` is a chair* — and the room it stages in lays a
  * `carpet` over the boards corner to corner to make the best of it.
@@ -784,8 +787,17 @@ export type Accessory =
  *
  * `suit` is the default and it is **exactly what the renderer drew before any of
  * this existed** — that is not a coincidence, it is the acceptance test. A
- * wardrobe that names no garment gets this, and every genre nobody has dressed
- * yet is unchanged down to the vertex.
+ * wardrobe that names no garment gets this, and every genre nobody had dressed
+ * yet was unchanged down to the vertex.
+ *
+ * There is no longer any such genre, and the acceptance test is what got them
+ * all dressed: all 71 `genre:era` wardrobe rows across all nineteen genres now
+ * name their garments, so the undressed path is measured at **0 of 72** resolved
+ * pairs. `suit` is far from unused — 68 of those tables list it as a weighted
+ * option — but it is now drawn as somebody's choice rather than as nobody's
+ * answer. The sentence is put in the past tense rather than removed because it
+ * is the only record of what the shape was checked against, and the next
+ * silhouette added to this union will be checked the same way.
  *
  * `tails` is the one garment that only exists *behind* the player. Evening dress
  * is a lounge suit from the front and two panels to the back of the knee from
@@ -1202,11 +1214,20 @@ export interface LightingScore {
  * What *kind of building* a room is, as against which room it is.
  *
  * The same distinction `Archetype` draws against `InstrumentId`, and for the
- * same reason: sixty catalogue instruments collapse onto twenty-two models
- * because a tenor and a baritone saxophone are one object at two sizes, and
- * fourteen rooms collapse the same way. A ballroom, a dancehall and a salon are
- * one big room with a floor in it. A barn and a warehouse are one long roof.
+ * same reason: 126 catalogue instruments collapse onto 24 models because a tenor
+ * and a baritone saxophone are one object at two sizes, and nineteen rooms
+ * collapse the same way. A ballroom, a dancehall and a salon are one big room
+ * with a floor in it. A barn and a warehouse are one long roof.
  * `StageRoom.id` names the room; this names the building it is one of.
+ *
+ * *That sentence read **sixty instruments onto twenty-two models** and
+ * **fourteen rooms**, and all three counts have grown.* Measured: `INSTRUMENTS`
+ * is 126 and `ARCHETYPES` is 24; the registry declares nineteen rooms, one per
+ * genre, over the twelve members of this union. The recount leaves the analogy
+ * standing and sharpens it: the instrument ratio is better than 5:1 where the
+ * sentence claimed under 3:1, and nineteen rooms over twelve buildings is the
+ * collapse this union exists to describe, with `ballroom` and `shed` carrying
+ * three rooms each and `dancehall` two.
  *
  * The vocabulary lives here rather than in `web/concert/rooms/`, which was the
  * only direction available and is the same one `PropName` runs in: `concert/` is
@@ -1221,8 +1242,20 @@ export interface LightingScore {
  * `proscenium` is the floor under all of them: an arch, a curtain, a fly bar and
  * three walls, with four modifiers reachable through `Venue.props`
  * (`black-box`, `brick`, `open-air`, `low-ceiling`). It is what a room that has
- * named nothing gets, and thirteen of the fourteen rooms in the catalogue are
- * still it.
+ * named nothing gets, and three of the nineteen rooms in the catalogue are
+ * still it: iskelmä's `pavilion`, jazz's `jazz-cellar` and ambient's
+ * `black-box`.
+ *
+ * **That read *thirteen of the fourteen*, which is the single most inverted
+ * sentence this sweep found.** It was written when this union was new and
+ * naming a building was the exception; sixteen rooms have since named one, so
+ * the default went from what nearly every room got to what three of them do.
+ * The three are named rather than counted because a bare *three of nineteen*
+ * ages the same way *thirteen of fourteen* did, and because the identity of the
+ * three is the interesting part: they are the three oldest rooms in the
+ * project, the ones that predate `RoomStyle` existing, and every room written
+ * after it has named its building. That is a default nobody is choosing any
+ * more, which is worth knowing before anybody prices work on it.
  */
 export type RoomStyle =
   /** An arch, a curtain, a fly tower and three walls. The default. */

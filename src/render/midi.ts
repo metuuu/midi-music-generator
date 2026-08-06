@@ -125,7 +125,10 @@ export function renderMidi(song: Song): Uint8Array {
   // `tempoLabel` rather than `meta.bpm`, because this line is what a person
   // reads in a DAW's file info and "92 BPM" on a piece that ends at 138 is the
   // header lying about the track it is attached to. It is the exact string for
-  // any song that holds its tempo, which is every song in the catalogue.
+  // any song that holds its tempo, which was every song in the catalogue when
+  // this landed and is now every song but dnb's `breakcore` — the one style that
+  // names a `tempoRamp`, which draws a real map on 44 of 200 songs and is the
+  // only thing in the catalogue this line is doing any work for.
   conductor.push({ tick: 0, order: 0, bytes: [0xff, 0x01, ...textBytes(`${meta.styleLabel} · ${meta.eraLabel} · ${meta.keyLabel} · ${tempoLabel(meta)} BPM · seed ${meta.seed}`)] });
   tracks.push(buildTrack(conductor));
 

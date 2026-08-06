@@ -3,8 +3,13 @@
  *
  * The mallet instrument — a vibraphone.
  *
- * Six catalogue entries land here (vibraphone, glockenspiel, marimba, tubular
- * bells, music box, kalimba) and `ARCHETYPES.mallets` calls the archetype a
+ * **Six catalogue entries land here** (vibraphone, glockenspiel, marimba,
+ * tubular
+ * bells, music box, kalimba) — fifteen, counted off `ARCHETYPE_OF`, the nine
+ * added since being electricVibes, balafon, xylophone, timpani, dulcimer,
+ * steelDrums, agogo, woodblock and melodicTom. Only four of them carry a
+ * `SCALE_OF` entry, so the rest arrive at this model's one size. And
+ * `ARCHETYPES.mallets` calls the archetype a
  * vibraphone, so that is what this is: bars in two rows laid out like a
  * keyboard, a resonator under every one of them, a damper bar and a pedal, and
  * the rotating discs that no other instrument on a stage has.

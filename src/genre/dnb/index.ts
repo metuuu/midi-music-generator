@@ -210,11 +210,24 @@ import { STAGING } from './staging.js';
 /**
  * Forms.
  *
- * **The chorus comes first, and no other genre in this project does that.**
- * Everywhere else the opening statement after the intro is a verse, because
- * everywhere else a song establishes something and then lifts it. A drum and
- * bass record's first event is the *drop*: sixteen bars of drums for the mix,
- * and then the whole arrangement arrives at once. What follows the drop is the
+ * **The chorus comes first, and one other genre in this project does that.**
+ * This note said *no* other genre, and that was wrong when it was written
+ * rather than overtaken later — arabic has opened on its refrain since it was
+ * built, six genres before this one, and nobody checked. Measured over every
+ * style at eight seeds, taking the first section after the `intro`: **dnb
+ * 192/192, arabic 101/168**, and 0 in each of the other seventeen. So the
+ * distinctive fact is not the gesture, it is that this genre never does
+ * anything else; arabic reaches it in two of its four form tables and the
+ * other two open on a ghusn.
+ *
+ * The two arrive at it from opposite ends, which is the part worth keeping.
+ * An Arabic song opens on the **mazhab** because the audience is being handed
+ * the tune, and everything after it is a departure from something they already
+ * have. A drum and bass record's first event is the *drop*: sixteen bars of
+ * drums for the mix, and then the whole arrangement arrives at once — nobody is
+ * being given a tune, they are being given the record. Everywhere else the
+ * opening statement after the intro is a verse, because everywhere else a song
+ * establishes something and then lifts it. What follows the drop here is the
  * roll — which is this genre's verse, a long section where the record simply
  * runs — and the breakdown is a `bridge` in the middle of it.
  *
@@ -225,7 +238,7 @@ import { STAGING } from './staging.js';
  * **The sections below double.** `buildForm` doubles every non-intro, non-outro
  * step where a bar lasts under 1.5 seconds, which at 4/4 means anything above
  * 160 BPM — twenty-one of the twenty-four styles here. So a sixteen-bar chorus
- * written below is a **thirty-two bar** chorus in twenty of the styles and a
+ * written below is a **thirty-two bar** chorus in twenty-one of the styles and a
  * sixteen-bar one in `bleep`, `hardcore` and `darkcore`, whose tempos are lower.
  * That is not an accident being tolerated, it is the right answer twice: the
  * 1992 records phrase in sixteens and the 174 records phrase in thirty-twos, and
@@ -666,7 +679,7 @@ export const dnb: Genre = {
    * threshold.
    *
    * **The other half of that fix was in `styles.ts`, and it is the more honest
-   * one.** Twelve of the twenty-four styles now write `excludeLayers: ['brass']`,
+   * one.** Thirteen of the twenty-four styles now write `excludeLayers: ['brass']`,
    * because they do not have a brass layer in any sense — the object a listener
    * would call a stab in `techstep`, `jungle` or `jumpup` is a **chord**, and a
    * chord is the comp. The eleven that keep it are the ones where a horn section
@@ -678,8 +691,10 @@ export const dnb: Genre = {
   arrangement: { riff: 8, tutti: 6, unison: 3, harmony: 2, trade: 1, swell: 8 },
 
   /**
-   * **The bass and the drums are both above the tune, and this is the only genre
-   * in the project where that is true of both at once.**
+   * **The bass and the drums are both above the tune. Hiphop is the only other
+   * genre in the project where that is true of both at once, and by a much
+   * narrower margin — 0.92 and 0.82 over a 0.78 melody, against 0.94 and 0.9
+   * over 0.66 here.**
    *
    * Every number is stated against the shared defaults rather than against
    * another genre, since those are what an omitted layer gets. `bass` goes from
@@ -694,8 +709,9 @@ export const dnb: Genre = {
    * imply a key, and in the three neuro styles it is a bass patch's upper
    * harmonics wearing a melody layer's clothes.
    *
-   * `pad` at 0.44 is above the five genres that treat the wash as decoration —
-   * funk at 0.34, then finnfolk, reggae, latin and hiphop — and below everything
+   * `pad` at 0.44 is above the seven genres that treat the wash as decoration —
+   * funk at 0.34, then finnfolk, hiphop, latin, reggae, metal and arabic — level
+   * with rock and below everything
    * else, and it is the one number here that goes *up* against hiphop. Six
    * styles in this catalogue are built on a wash, `atmospheric` and `deep`
    * require it outright, and `DROPS.breakdown` listens for it — a pad mixed as

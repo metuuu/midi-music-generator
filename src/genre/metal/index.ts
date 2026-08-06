@@ -284,24 +284,38 @@ export const metal: Genre = {
    * faults that classical and jazz practice agree on, and this idiom agrees with
    * neither about the two intervals it is built from.
    *
-   * It is a *floor* rather than a setting, and six styles raise it. `power`,
-   * `glam`, `symphonic`, `gothic` and `melodeath` sit at `standard`, because
-   * those five are writing singable tunes and the rules describe singable tunes
-   * correctly. `death`, `black` and `techdeath` drop to `free`, which is bebop's
-   * setting for bebop's reason. The spread from `free` to `standard` inside one
+   * It is a *floor* rather than a setting, and **five** styles raise it — eight
+   * override it in all. `power`, `glam`, `symphonic`, `gothic` and `melodeath`
+   * sit at `standard`, because those five are writing singable tunes and the
+   * rules describe singable tunes correctly. `death`, `black` and `techdeath`
+   * drop to `free`, which is bebop's setting for bebop's reason.
+   *
+   * That read *six styles raise it* above a list of five, which is the tell: the
+   * six was the count of everything that moves minus a miscount, not a sixth
+   * style. Counted off the tables, `strictness` is set by exactly eight styles,
+   * five up and three down, and nothing else in the catalogue names it. The spread from `free` to `standard` inside one
    * genre is the widest here, and it is honest — this catalogue contains both a
    * football-terrace chorus and sixteen bars of chromatic tremolo picking.
    */
   defaultStrictness: 'light',
 
   /**
-   * `standard`, with eight styles overriding it in both directions.
+   * `standard`, with nineteen styles overriding it in both directions.
    *
    * The riff is the most repeated object in popular music — four bars, forty
    * times, unchanged — which argues for `earworm` everywhere. What stops it is
-   * that the *songs* are not all built that way: `thrash`, `techdeath`,
-   * `progressive` and `postmetal` are through-composed and state most of their
-   * material once. So the genre sits in the middle and the styles say which kind
+   * that the *songs* are not all built that way: `thrash`, `progressive`,
+   * `techdeath`, `death` and `postmetal` are through-composed and state most of
+   * their material once.
+   *
+   * **Both numbers here were wrong and they were wrong in the same direction.**
+   * This read *eight styles overriding it* and named *four* through-composed
+   * ones. Counted off the tables: nineteen of the twenty-four set `hook`
+   * explicitly — six `earworm`, five `catchy`, five `through` and three `loose`
+   * — so the genre default is what five styles take rather than the sixteen the
+   * old count implied, and `death` was the through-composed style the list
+   * dropped. The paragraph's argument is unaffected and gets sharper: the styles
+   * really do say which kind of band they are, and they say it nearly always. So the genre sits in the middle and the styles say which kind
    * of band they are, which is the distinction that would be lost if this were
    * set at either end.
    */

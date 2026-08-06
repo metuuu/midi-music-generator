@@ -735,8 +735,15 @@ function filterSweep(
  * in the catalogue came out byte for byte as it had. That is no longer the state
  * of the world and the sentence is kept only to explain the guard — hiphop's
  * `drill` and `gfunk` were the first authors, and a bass onset in one of those
- * two now travels 44 % and 35 % of the time. Every other style still writes no
- * bend and still takes the early return.
+ * two travels 42 % and 35 % of the time.
+ *
+ * **Five more styles have adopted it since**, which is the whole of §3.16's
+ * report list arriving: dnb's `techstep`, `neurofunk` and `jumpup` and house's
+ * `acid` and `speedgarage`. Measured over 60 songs each, the share of bass
+ * onsets carrying a bend runs `techstep` 76 %, `neurofunk` 51 %, `jumpup` 23 %,
+ * `acid` 13 %, `speedgarage` 12 % — a Reese really is mostly movement and a 303
+ * really does slide on a minority of its steps. The other 382 styles still write
+ * no bend and still take the early return.
  */
 function pitchSlide(
   track: Track,

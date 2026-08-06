@@ -1,7 +1,7 @@
 /**
  * How this genre sings.
  *
- * The other three sung profiles in the project sit on one axis — how much
+ * The other eighteen sung profiles in the project sit on one axis — how much
  * consonant there is — and this one is off it, because the question that
  * decides an Arabic vocal is not how the syllable starts but **how long it is
  * allowed to last**. A tarab singer takes one line of text and spends ninety
@@ -35,12 +35,14 @@
 /**
  * Type-only, and the one profile here that imports no `WORD_STYLES` entry.
  *
- * The four styles in that table are Finnish, scat, airy and machine, and none
- * of them is a plausible fallback: three of the consonants this voice needs are
- * missing from the Finnish inventory, and the other three are not languages.
+ * The six styles in that table are `finnish`, `scat`, `airy`, `machine`,
+ * `sargam` and `tarana`, and none of them is a plausible fallback: three of the
+ * consonants this voice needs are missing from the Finnish inventory, and the
+ * other five are not languages — two syllabaries, an invented one, a set of
+ * solfège note names and a set of drum bols.
  * So this genre carries its own, on the same argument `Staging` makes about
  * rooms — a language belongs to whoever speaks it rather than to the shared
- * file, and a fifth entry over there would be one more table sixteen genre
+ * file, and a seventh entry over there would be one more table nineteen genre
  * authors have to edit.
  */
 import type { VocalProfile, WordStyle } from '../../style/vocals.js';
@@ -52,7 +54,8 @@ import type { VocalProfile, WordStyle } from '../../style/vocals.js';
  * Roots here are triconsonantal, which is why `lengths` clusters on two and
  * three syllables and `maxSyllables` is four: an Arabic word is a three-letter
  * root poured into a vowel pattern, and both the pattern and the root are short.
- * `codaChance` is the highest of the four styles in `WORD_STYLES` because
+ * `codaChance` is at the top of `WORD_STYLES` — level with `machine`'s 0.5 and
+ * above the other four — because
  * closed syllables are ordinary here in a way they are not in Finnish, and
  * `longChance` is high for the reason the whole profile exists — a long vowel
  * is where the melisma goes, and a language with no long vowels gives it

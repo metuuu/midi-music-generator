@@ -28,10 +28,18 @@
  * ## `rise` — 0.25 m, the lowest in the project, and why not lower
  *
  * `riihi.ts` has already done the arithmetic for zero and it is worth not
- * repeating: the house floor is a plane at `houseY` reaching 4 m upstage of the
- * lip, the boards are a plane at 0, and at `rise` 0 they are coplanar over the
- * whole playing area. Shimmering rectangle, nothing this file can do about it,
- * both planes belong to `stage.ts`. So the question is not whether to have a
+ * repeating: the house floor is a plane at `houseY` reaching past the lip and
+ * past the back wall, the boards are a plane at 0, and at `rise` 0 they are
+ * coplanar over the
+ * whole playing area. Shimmering rectangle — but **nothing this file can do
+ * about it, both planes belong to `stage.ts`** has stopped being true, and it
+ * matters here more than it does in the barn. This file lays its own house
+ * floor, three hundred lines down, and it is sized off the building the way
+ * `salon.ts` argues for — which it was not when this paragraph was written.
+ * The sentence stood here describing the fault *and naming the two rooms that
+ * had been fixed*, which is exactly how the bug survived: a note recording a
+ * known fault stops being read as an outstanding one. Only the boards belong to
+ * `stage.ts`. So the question is not whether to have a
  * dais but how little of one to have.
  *
  * The barn stopped at 0.3 m and had to, because its house is **nine rows
@@ -355,7 +363,26 @@ function build(c: RoomContext): RoomRig {
    * lands on.
    */
   const floorW = m.houseWidth + 8;
-  const floorD = m.houseDepth + 8;
+  /**
+   * Sized off the building, not off the house — and this room *knew*, which is
+   * the part worth recording.
+   *
+   * It was `houseDepth + 8` centred on `lipZ + houseDepth / 2`: a house-shaped
+   * number for a plane that has to reach past the house at both ends, pinning
+   * the upstage edge at `lipZ - 4` and leaving the ground `depth - 4` metres
+   * short of the back wall. The header three hundred lines up has said so in
+   * as many words since it was written — *"still at `houseDepth + 8`"* — and it
+   * stayed true for as long as the note describing it did.
+   *
+   * A comment that records a known fault is not a fix, and after a certain
+   * amount of time it stops being read as one. That is the same failure as a
+   * comment describing a limitation that has since been repaired, running in
+   * the other direction: both end with the code and the prose disagreeing and
+   * a reader trusting the prose.
+   */
+  const floorFrom = m.backZ - 2;
+  const floorTo = m.lipZ + m.houseDepth + 4;
+  const floorD = floorTo - floorFrom;
   const floor = new Mesh(
     c.kit.own(cellPlane({
       width: floorW, height: floorD,
@@ -367,7 +394,7 @@ function build(c: RoomContext): RoomRig {
     c.kit.solid('#ffffff', { vertexColors: true, rough: 0.72 }),
   );
   floor.rotation.x = -Math.PI / 2;
-  floor.position.set(0, m.houseY, m.lipZ + m.houseDepth / 2);
+  floor.position.set(0, m.houseY, (floorFrom + floorTo) / 2);
   floor.receiveShadow = true;
   root.add(floor);
 

@@ -8,7 +8,7 @@
  * the horn's answer and the body's answer differ by 4 cm, the mouthpiece is at
  * the chin and no amount of good geometry rescues it.
  *
- * ## Why this is not seven copies of `0.886`
+ * ## Why this is not seven copies of `0.886` — eight now, with `vocal-group`
  *
  * It is one derivation, written as the arithmetic rather than as a decimal, so
  * that it can be checked against `performer-look.ts` by reading rather than by

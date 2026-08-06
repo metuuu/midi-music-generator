@@ -25,10 +25,18 @@ import type { Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
  * open. Sixty years of this repertoire have their canonical image in a
  * television light entertainment studio: no proscenium, no audience arch, a
  * cyclorama, three cameras on pedestals, marked spots on a painted floor, and a
- * band miming. `RoomStyle` has eleven members and none of them is that, and
- * `StageRoom.architecture` is explicit that adding a twelfth means writing
+ * band miming. `RoomStyle` has **twelve** members and none of them is that, and
+ * `StageRoom.architecture` is explicit that adding a thirteenth means writing
  * `web/concert/rooms/<name>.ts` — which this pass is not doing, and which is the
  * one thing worth asking for if anybody writes another room.
+ *
+ * **That read *eleven* and *a twelfth*, and the way it went wrong is worth one
+ * line, because it is not the usual way.** The twelfth member is `ballroom`,
+ * added the day before this file was written — and it is the one this room
+ * chooses two paragraphs down. So the sentence was never true here: its author
+ * counted the union as it stood in the genre they copied the shape from, while
+ * picking the member that count omits. The lesson is the one `docs/engine-gaps.md`
+ * §7 draws from three authors at once — read the source, not the sibling.
  *
  * ## So: `ballroom`, and against `circuit` on purpose
  *

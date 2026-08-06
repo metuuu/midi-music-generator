@@ -39,17 +39,32 @@
  * in `style/instruments.ts` rather than picked by name, and three of those did
  * real work:
  *
- *  - **`agility`** keeps the tune off instruments that cannot take it. The
- *    french horn is 0.45 and the tuba is 0.35 — the two lowest in the catalogue —
- *    so neither appears on `melody` anywhere, which is why a horn solo in these
- *    eras is a counter-line rather than the tune.
+ *  - **`agility`** keeps the tune off instruments that cannot take it. The tuba
+ *    is 0.35 and never appears on `melody` at all. **Two things this bullet used
+ *    to claim alongside that are false and were checked rather than read.** It
+ *    called 0.45 and 0.35 *the two lowest in the catalogue*: 0.35 is the lowest
+ *    and it is the tuba's alone, but seven instruments sit at 0.4 — the trombone
+ *    and the brass section among them, both in this file's own palettes — so the
+ *    french horn's 0.45 is nowhere near second. And it said neither appears on
+ *    `melody` anywhere, where `romantic`'s melody palette below ends
+ *    `['frenchHorn', 1]`: one entry of nine, one weight of twenty-nine, which is
+ *    a horn taking the tune 3.4% of the time in one era of four — and that is
+ *    the intended reading
+ *    of the field rather than a slip — a horn solo *is* a real thing in 1875 and
+ *    a rare one. The bullet's conclusion holds and its arithmetic did not.
  *  - **`lead` versus `centre`** is why the bassoon is on `counter` and `bass` and
  *    never on `melody`: its section job is at 50 and its solo register is at 66,
  *    and a bassoon written at its section centre with the tune on it disappears
  *    under the cellos it is doubling.
- *  - **`idiom`** is why the harp and the celesta are on `comp` and `counter`
- *    rather than on `pad`. Both are `mallet`, which arpeggiates and does not
- *    sustain, and a pad is by definition a thing that sustains.
+ *  - **`idiom` and the envelope** are why the harp and the celesta are on `comp`
+ *    and `counter` rather than on `pad` — no `pad` palette in this file names
+ *    anything but strings and organ. This bullet said *both are `mallet`*, and
+ *    only the harp is: `celesta` is `'keyboard'` with `agility: 1.0`. What
+ *    disqualifies it from a pad is the other half of its entry, `{ decay: 1.2,
+ *    sustain: 0 }` — a struck bar that rings for a second and then is gone,
+ *    which arrives at the same place by the field next door. A pad is by
+ *    definition a thing that sustains, and a `sustain: 0` instrument says so in
+ *    the one number that cannot be argued with.
  */
 
 import type { EraProfile } from '../../style/types.js';

@@ -48,7 +48,15 @@
  *    version of the style, it is the style with its subject removed. `industrial`
  *    is the exception and it is the exception on purpose — there the machine is
  *    the point, and the two eras that name `box` at all only ever reach it there.
- *  - **`requireLayers: ['comp']` everywhere.** The comp layer is the rhythm
+ *  - **`comp` is required everywhere**, and three styles require a second layer
+ *    beside it. This bullet used to read *`requireLayers: ['comp']` everywhere*
+ *    and the literal array is not what is everywhere: `shred` writes
+ *    `['comp', 'melody']` and `symphonic` and `gothic` both write
+ *    `['comp', 'pad']`. The claim the paragraph is actually making survives all
+ *    three — every one of the twenty-four requires the rhythm guitar, and the
+ *    three exceptions add to it rather than substituting for it, which is why
+ *    `breakCarrier: 'comp'` in the next bullet is still safe on all of them. The
+ *    comp layer is the rhythm
  *    guitar, and the arranger's default treats a chordal part as something added
  *    when there is room. That is right for a dance band and exactly backwards
  *    here: an arrangement of this music that thins out by dropping the rhythm
@@ -1878,8 +1886,11 @@ const djent: Style = {
  * rule table exists to suppress are what this idiom is made of, and a version of
  * it with the faults filtered out is a version with the content filtered out.
  * The genre already disables the two rules that matter most; this style turns off
- * the remaining four as well, and it is the only style in the catalogue that
- * needs to.
+ * the remaining four as well, and it is one of three styles in the catalogue that
+ * do. `death` and `black` also sit at `strictness: 'free'`, which `index.ts` says
+ * in a list this line contradicted by claiming to be alone; the three are the
+ * genre's whole extreme wing and the setting is the thing they have in common
+ * rather than a distinction between them.
  *
  * `groups: [8, 12]` — two and then three, which is the shorter-first grouping and
  * the one that lurches. Jazz's `odd` uses `[12, 8]` and says the long group first

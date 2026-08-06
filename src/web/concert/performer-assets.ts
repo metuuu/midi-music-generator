@@ -133,12 +133,13 @@ export function poolSize(): { geometries: number; materials: number } {
 // ---------------------------------------------------------------------------
 
 /**
- * Sphere of diameter 1, at three resolutions.
+ * Sphere of diameter 1, at **three resolutions** — four, since `pip` was added
+ * between `orb` and `bead` and this paragraph was not.
  *
- * The split is worth the three keys: a head is a silhouette the audience reads
+ * The split is worth the keys: a head is a silhouette the audience reads
  * from the back of the room, a palm is a blob, and an iris is four pixels. At
- * 352 / 192 / 80 triangles they are 5 kB of vertex data between them and they
- * take about 2000 triangles per performer off the frame.
+ * 352 / 192 / **120** / 80 triangles they are a few kB of vertex data between
+ * them and they take about 2000 triangles per performer off the frame.
  */
 export const ball = (l: Leases): SphereGeometry =>
   l.geometry('ball', () => new SphereGeometry(0.5, 16, 12));
@@ -199,7 +200,13 @@ export const pill = (l: Leases): CapsuleGeometry =>
 export const tube = (l: Leases): CylinderGeometry =>
   l.geometry('tube', () => new CylinderGeometry(0.5, 0.5, 1, 14));
 
-/** Cone of diameter 1 and height 1. A beehive is a cone and always was. */
+/**
+ * Cone of diameter 1 and height 1. **A beehive is a cone and always was** —
+ * and is not one any more: `performer-hair.ts` rebuilt the tower out of `orb`
+ * precisely because "a `spike` cannot be blunt, and a beehive that comes to a
+ * point is a party hat". What is left on this geometry is a mohawk's fins and a
+ * flared skirt, which is two callers and both of them want the point.
+ */
 export const spike = (l: Leases): ConeGeometry =>
   l.geometry('spike', () => new ConeGeometry(0.5, 1, 14));
 
@@ -401,9 +408,13 @@ export const hairSurface = (l: Leases, colour: string): MeshStandardMaterial =>
  * against, and wrong everywhere the colours were loud for another reason.
  *
  * `fabric` is required rather than optional, and the saturation path is gone
- * rather than kept as a fallback. Every one of the six call sites already has
+ * rather than kept as a fallback. Every one of the **six call sites** already
+ * has
  * the `Look` in hand, so there is no caller a fallback would serve — and a
- * required parameter is what makes this change atomic. Torso, sleeves and legs
+ * required parameter is what makes this change atomic. It is ten call sites now,
+ * six in `performer-garments.ts` and four in `performer-look.ts`, and the
+ * argument is the one that held: not one of them had to go looking for a
+ * `Fabric` it did not already have. Torso, sleeves and legs
  * are one garment, and half-wiring them would open a sheen seam at every
  * shoulder and hip, which is worse than the uniform wrongness it replaces.
  */

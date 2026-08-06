@@ -19,17 +19,35 @@
  * in Hijazkar where the first half was in Ajam. `relativeMajorChorus` is 0 on
  * every style for exactly the same reason.
  *
- * **There is no bank in the sample pack that is a darbuka**, and pretending
- * otherwise would be worse than saying so. The pack is 71 drum *machines*, and
- * what this genre asks them for is a low hand stroke, a mid one, a high one and
- * a tambourine — `lp`, `mp`, `hp` and `tb`. So the banks below are chosen by
- * what they can *resolve* rather than by period: every one of them carries a
- * floor tom, a spare percussion sample, a rim and a tambourine, which is what
- * sends the three hand strokes to three different surfaces instead of collapsing
- * two of them onto the same `perc`. `render/drum-banks.ts` states the trap and
- * this is the table that has to avoid it — `KorgKR55` has no floor tom, so on it
- * the doum and the tek would both come out as the same click, and a maqsum with
- * one stroke in it is not a maqsum.
+ * **There used to be no bank in the sample pack that was a darbuka**, and the
+ * paragraph this replaces said so at length because pretending otherwise would
+ * have been worse. The pack was 71 drum *machines* and nothing else, and what
+ * this genre asks them for is a low hand stroke, a mid one, a high one and a
+ * tambourine — `lp`,
+ * `mp`, `hp` and `tb`. So the banks were chosen by what they could *resolve*
+ * rather than by period: every one carrying a floor tom, a spare percussion
+ * sample, a rim and a tambourine, which is what sent the three hand strokes to
+ * three different surfaces instead of collapsing two of them onto the same
+ * `perc`. `KorgKR55` has no floor tom, so on it the doum and the tek came out as
+ * the same click, and a maqsum with one stroke in it is not a maqsum.
+ *
+ * **There is one now, and this table has taken it.** `SAMPLE_RACKS.darbuka` in
+ * `render/drum-banks.ts` is a real goblet drum, indexed stroke by stroke against
+ * a measurement rather than approximated — `lp` `mp` `hp` are Versilian's doum,
+ * tek and ka at 99.5%, 79% and 4% low-band share, `tb` is the riq and `perc` the
+ * bendir. A rack rides a machine under the `+` mark and claims exactly the
+ * auxiliary voices, never `bd`, `sd`, `hh` or the cymbals, so the resolution
+ * argument above is not so much answered as made unnecessary: on a racked bank
+ * the doum is a doum rather than a floor tom standing in for one.
+ *
+ * **Twelve of the sixteen bank entries below carry it**, which is three eras of
+ * four — `takht`, `firqa` and `satellite`, every entry in each. `shaabi` is the
+ * exception and it is a statement rather than an oversight: its four banks are
+ * bare `RolandTR808`, `LinnDrum`, `RolandTR626` and `Linn9000`, because in 1988
+ * the box *is* the sound, and putting a sampled goblet drum on a cassette-shop
+ * arrangement would be restoring the instrument the era is defined by having
+ * replaced. `npm run genres` covers the seam directly, as *"darbuka over an 808
+ * — bare indexed names on the rack, a prefix on the machine"*.
  *
  * **The bass palette is an anachronism in the first era and is filled anyway.**
  * A takht has no bass line at all: the lowest sound in the room is the oud's
@@ -122,9 +140,13 @@ const takht: EraProfile = {
       ['strings1', 4], ['tremoloStrings', 3], ['strings2', 2],
     ],
     bass: [['contrabass', 4], ['cello', 3], ['acousticBass', 2]],
-    // Vestigial except under `zaffa`, which is the one style that keeps the
-    // layer. The mizmar leads it, because a procession band is a shawm band
-    // with whatever brass the family could hire standing behind it.
+    // Vestigial except under `zaffa`, `saidi` and `dabke` — the three styles
+    // that keep the layer, all of them outdoor or wedding music. This comment
+    // said `zaffa` was the only one; `styles.ts` has the measurement, which is
+    // 1111 brass notes to zaffa, 700 to saidi and 665 to dabke over forty seeds
+    // each and 0 to the other eighteen. The mizmar leads it, because a
+    // procession band is a shawm band with whatever brass the family could hire
+    // standing behind it.
     brass: [['shanai', 3], ['trumpet', 2], ['trombone', 2]],
   },
   styleWeights: {

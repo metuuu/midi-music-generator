@@ -287,13 +287,23 @@ export const hiphop: Genre = {
   defaultStrictness: 'light',
 
   /**
-   * `earworm`, and this is the only genre in the project whose *default* is the
-   * top of the scale.
+   * `earworm`, and this was the first genre in the project whose *default* is
+   * the top of the scale.
    *
-   * Everywhere else `earworm` is what a style opts into when its whole
-   * proposition is the same bar again — six styles in funk, two in synth. Here it
-   * is the floor: the loop does not develop, and a generator that let the hook
-   * wander would be writing a different piece of music over the same two bars.
+   * Elsewhere `earworm` is what a style opts into when its whole proposition is
+   * the same bar again — nine styles in funk, two in synth. Here it is the
+   * floor: the loop does not develop, and a generator that let the hook wander
+   * would be writing a different piece of music over the same two bars.
+   *
+   * **Two numbers here were wrong and are corrected rather than dropped.**
+   * *Only* became *first*: dnb and house were written after this genre and both
+   * default to `earworm` too, which is three genres of nineteen and is the least
+   * surprising outcome available — they are the two other catalogue entries
+   * built on a loop that does not develop. And funk carries **nine** styles at
+   * `earworm`, not six, which it already did on the day this file was added;
+   * synth's two are right. The claim worth keeping is the one about the *floor*,
+   * and it survives both corrections: three genres of nineteen set it as a
+   * default, and the other sixteen make a style ask.
    * Four styles step *down* to `catchy`, and all four are the ones playing
    * somebody else's changes, where there is a progression underneath for a tune
    * to be about.
@@ -541,15 +551,24 @@ export const hiphop: Genre = {
   arrangement: { riff: 8, tutti: 5, unison: 3, harmony: 3, trade: 2, swell: 2 },
 
   /**
-   * **The bass is louder than the tune, and this is the only genre in the
-   * project where that is true.**
+   * **The bass is louder than the tune, and that is the whole mix statement.**
    *
    * Every number is stated against the shared defaults rather than against
    * another genre, since those are what an omitted layer gets. `bass` goes from
    * 0.63 to 0.92 and `melody` comes *down* from its usual 0.9 to 0.78, and the
    * crossing of those two lines is the whole mix statement. Funk gets close —
    * 0.86 against 0.92 — and stops short, correctly, because a funk record has a
-   * tune on it. Here the melody layer is a fragment: three notes off a record, or
+   * tune on it.
+   *
+   * **This used to claim it was the only genre where the lines cross, and four
+   * others cross them.** Ranked by the margin: dnb +0.28 (0.94 over 0.66),
+   * ambient +0.19 (0.73 over 0.54), **this genre +0.14**, reggae +0.10, house
+   * +0.06. So it is third of five rather than one of one. Four of the five are
+   * genres whose subject really is the bottom of the record, so the company is
+   * the right company and the sentence was wrong about the catalogue rather
+   * than about the music. The ranking is the more useful form anyway: dnb ahead
+   * of this on an axis this genre thought it owned is the fact a reader wants,
+   * and ambient sitting second on it is the one they would never guess. Here the melody layer is a fragment: three notes off a record, or
    * a plucked figure whose job is to imply a chord. The subject of the record is
    * a person who is not in this table at all, and underneath them the loudest
    * thing is the bottom.

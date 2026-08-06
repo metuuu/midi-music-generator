@@ -236,8 +236,14 @@ export function generateSong(opts: GenerateOptions = {}): Song {
    * The same override shape as `strictness` and `hook`, and it is resolved here
    * rather than at each of the seven call sites so that there is one place to
    * read the answer off. The genre states the idiom's mapping; a style is
-   * allowed to disagree about itself, and exactly one does — see
-   * `Style.scaleForChord`.
+   * allowed to disagree about itself, and when this was written **exactly one
+   * did**. Sixty-six do now, across fourteen genres — twenty-eight of them
+   * indian, which is *every* style that genre has, so its genre-level mapping is
+   * a default no style of its own takes; then rock at 8, pop at 7 and a long
+   * tail of ones and twos. The "exactly one" is kept because it is the reason
+   * the field was made an override rather than the primary: the genre answer is
+   * still what 323 styles take, and the seven call sites still read one
+   * resolved function. See `Style.scaleForChord`.
    *
    * A function swap and nothing else: no draw, so every style that does not
    * override it generates the song it generated before this existed.
@@ -1020,9 +1026,12 @@ export function generateSong(opts: GenerateOptions = {}): Song {
      * A sibling of `applyDynamics` and applied alongside it, but the two are
      * independent gestures rather than one gesture in two units: an intro can be
      * quiet and open, and a closed filter over a loud chorus is a different
-     * thing from a quiet one. Where the genre has no filter profile — which is
-     * three of the four — this returns its argument untouched and no note ever
-     * gains a `brightness`. See `generate/filter.ts`.
+     * thing from a quiet one. Where the genre has no filter profile — which was
+     * three of the four and is twelve of the nineteen — this returns its
+     * argument untouched and no note ever gains a `brightness`. The seven that
+     * declare one are synth, reggae, metal, rock, hiphop, dnb and house, which
+     * is the same list `generate/filter.ts` argues from: what they have in
+     * common is a machine somebody's hand is on.
      */
     const filtered = (notes: NoteEvent[], layer: LayerId): NoteEvent[] => applyFilter(
       notes,
@@ -1123,11 +1132,16 @@ export function generateSong(opts: GenerateOptions = {}): Song {
          * drummer's fill the implementation of `fill` rather than a thing that
          * happens beside it.
          *
-         * A veto and never a grant: where the plan says `fill` — which is every
-         * seam in the catalogue today, and every seam in any style that has not
-         * declared a palette — this reads exactly as it always did, and the
-         * three existing conditions still decide. Where a later wave draws
-         * `shot`, `break` or `elide`, the kit stops announcing the join twice.
+         * A veto and never a grant: where the plan says `fill` — which was
+         * every seam in the catalogue when this was written, and is still every
+         * seam in any style that has not declared a palette — this reads
+         * exactly as it always did, and the three existing conditions still
+         * decide. **The later wave arrived**, three of them: 141 styles declare
+         * a palette and 858 of 6287 planned seams across the catalogue draw
+         * `shot`, `break` or `elide`, at which point the kit stops announcing
+         * the join twice. The catalogue-wide half of the claim is kept in the
+         * past tense because the veto's *shape* was chosen while it could never
+         * fire, which is the reason it has needed no change since.
          *
          * `?? 'fill'` covers the last section, which has no seam after it. That
          * is not a fallback dressed as one: a fill in the final bar of a song
@@ -2136,9 +2150,12 @@ export function generateSong(opts: GenerateOptions = {}): Song {
    * song, and only the second half was worth fixing.
    *
    * Measured over the pools iskelmä and jazz actually draw from — the two
-   * genres that use these defaults; ambient and synth re-centre their own in
-   * their own `genre/…/index.ts`. `brass` barely moved (0.994) and is left
-   * alone.
+   * genres that use these defaults, then and still, which is what keeps the
+   * corpus this was measured over the right one. Ambient and synth re-centred
+   * their own in their own `genre/…/index.ts` and **fifteen more genres have
+   * since done the same**: 17 of the 19 state a `mix`, and the two that do not
+   * are exactly the two these numbers were solved for. `brass` barely moved
+   * (0.994) and is left alone.
    */
   /**
    * How hard a part on each layer is played, as the velocity its *typical* note
@@ -2216,9 +2233,14 @@ export function generateSong(opts: GenerateOptions = {}): Song {
    * drenched — and under the other order the field would do nothing at all for
    * it, because a dub drawn in the `digital` era would still come out dry, which
    * is not a dub cut in 1985 but simply not a dub. The safety is in the default
-   * rather than in the order: a style with nothing to say writes nothing, the
-   * era wins as it always did, and that is every style in the catalogue today.
-   * See `Style.effects`, which argues it at length and says why it is per key.
+   * rather than in the order: a style with nothing to say writes nothing and the
+   * era wins as it always did, which was every style in the catalogue on the day
+   * the tier was added and is **374 of the 389 now**. The fifteen that speak are
+   * reggae's `dub`, the style that asked for the field, plus five pop, four
+   * hiphop, two rnb, two house and one dnb — six genres, every one of them a
+   * repertoire where a record is produced rather than merely recorded, which is
+   * the shape the argument above predicted the adopters would have. See
+   * `Style.effects`, which argues it at length and says why it is per key.
    *
    * The instrument goes **last**, and it is last rather than first for a reason
    * the other three do not share: it is not describing the production at all. An
@@ -2498,10 +2520,12 @@ export function generateSong(opts: GenerateOptions = {}): Song {
        * `effectsFor` was called for every played layer and for the kit, and not
        * here — so the `vocal` row of every genre and era effects table in the
        * project was inert, and had been since the first one was written. Thirty
-       * one of them exist across ten genres: ambient asks for `reverb: 0.95` on
-       * a choral piece, arabic walks its singer from a 5.2 kHz lowpass in 1938
-       * to 10 kHz in 2006, country puts a slapback on a honky-tonk vocal. None
-       * of it reached the IR.
+       * one of them existed across ten genres on the day this was wired up, and
+       * there are **64 across seventeen genres now**: ambient asks for
+       * `reverb: 0.95` on a choral piece, arabic walks its singer from a 5.2 kHz
+       * lowpass in 1938 to 10 kHz in 2006, country puts a slapback on a
+       * honky-tonk vocal. None of it reached the IR. The count is kept because
+       * it is what the fault cost — thirty one tables authored against nothing.
        *
        * It reads the same table as everything else rather than a special one,
        * which is the point: a voice is a track like any other once it has been
@@ -2538,7 +2562,11 @@ export function generateSong(opts: GenerateOptions = {}): Song {
      *
      * A genre that states its own drum level keeps it, re-centred and with no
      * opinion of mine on top: ambient and synth both said what they wanted and
-     * were entitled to.
+     * were entitled to. **Sixteen of the nineteen say so now** — the spread runs
+     * from ambient's 0.29 to dnb's 0.9, which is a genuine disagreement about
+     * what a record is rather than sixteen copies of one taste — and the 0.59
+     * below is reached by three: iskelmä, jazz and classical, the three whose
+     * kit is a band's kit in a room rather than a produced one.
      */
     gain: genre.mix?.drums ?? 0.59,
     voiceGains: { ...DEFAULT_DRUM_MIX, ...genre.drumMix },
@@ -2613,8 +2641,16 @@ export function generateSong(opts: GenerateOptions = {}): Song {
    * — there are four of them and this is downstream of all four. Before
    * `landEnding`, because the ending is not negotiable by an arrangement.
    *
-   * A no-op today: `fill` is the only kind a palette can draw and the drummer
-   * has already played it.
+   * **It was a no-op** when it was written: `fill` was the only kind a palette
+   * could draw and the drummer had already played it. Three waves later it edits
+   * one join in seven. `TransitionKind` is four values, 141 of
+   * the 389 styles declare a palette, and over every style in the catalogue at
+   * two seeds — 778 songs, 6287 planned seams — **858 seams come out as
+   * something other than a fill**: 423 `shot`, 242 `elide`, 193 `break`, 13.6%
+   * of every join in the catalogue. The sentence is kept in the past tense
+   * because the *ordering* argument above it was settled while this call did
+   * nothing, and that is why it can be trusted: it was chosen on the shape of
+   * the passes rather than on what happened to move.
    */
   applyTransitions(song, seams, (beat) => (
     typeof swingPlan === 'number' ? swingPlan : swingPlan(beat)
@@ -2633,8 +2669,15 @@ export function generateSong(opts: GenerateOptions = {}): Song {
    * same sentence `landEnding` gets in the comment below it, one level in: the
    * join is not a drop's to move.
    *
-   * A no-op today. No style in the catalogue names a `drops` palette, so `drop`
-   * is `undefined` on every song this engine has ever generated.
+   * **It was a no-op** when the ordering above was settled. No style in the
+   * catalogue named a `drops` palette, so `drop` was `undefined` on every song
+   * the engine had generated to that point — which is exactly why the argument
+   * for running this after the seams is worth trusting: it was made about the
+   * shape of the two passes and could not have been fitted to any output.
+   * Twenty-nine of the 389 styles name one now — reggae's `dub` and funk's
+   * `minneapolis`, plus ten dnb and seventeen house styles — and across those
+   * twenty-nine at twenty seeds each, **231 of 580 songs carry a span**, mean
+   * 5.3 bars. The two passes still never touch the same bar.
    */
   if (drop) applyDrop(song, drop);
 
@@ -3642,8 +3685,15 @@ function applyFeel(args: {
    * clear the guards; the bass follows the tune, through `patchBand`; and the
    * tune is exactly what `--hook` moves. So a hook level that shifted one bass
    * note shifted every snare ghost after it, and the kit came out different
-   * having been given no reason to. Only `funk` declares a ghost and only
-   * `fusion` may play it, which is why twenty unpinned seeds never found it.
+   * having been given no reason to. Only `funk` declares a ghost — still true,
+   * and it is the only `Feel` in the library with the field — and at the time
+   * only `fusion` could play it, which is why twenty unpinned seeds never found
+   * it. **Twenty-four styles across six genres can draw it now**: jazz's
+   * `fusion`, funk's `vamp` and `breakbeat`, latin's `timba`, nine hiphop
+   * styles, two rnb and nine dnb. That is not a new fault — the second stream
+   * below closed it — but it is the useful half of the record, because the same
+   * bug arriving today would be found by the first unpinned sweep somebody ran
+   * rather than hiding behind one style in one genre.
    *
    * A second stream is the whole fix: the kit's draws are then a function of the
    * seed and the section, and of nothing that the tune can reach.

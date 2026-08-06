@@ -22,8 +22,11 @@
  * one and the fifth on three, and the guitar chops the chord on two and four in
  * the holes that leaves. Neither half is the figure. The figure is the
  * interlock, and it is why `boomChuck` and `chuck` below are a matched pair that
- * appear together in fifteen styles and why neither of them ever appears without
- * the other.
+ * appear together in twenty styles. `countrypop` is the single exception in
+ * either direction: it keeps `chuck` and puts `pop-eights` underneath it — a
+ * synth-pop bass on one note — so the guitar chop is there and the half it was
+ * written to answer is not. That is the crossover record, and it is the one
+ * place in the file where the interlock is broken on purpose.
  *
  * The one-player version is here too and is not a fallback: a cajun accordionist
  * has the bass buttons and the chord buttons under the same hand and plays them
@@ -51,7 +54,7 @@
  *
  * ## Which half of the catalogue swings, and it is a clean cut
  *
- * `swing` is a real number on nine styles here and exactly zero on fifteen, and
+ * `swing` is a real number on ten styles here and exactly zero on fourteen, and
  * the line between them is not a matter of taste — it is Bakersfield in about
  * 1963. Everything descended from the dance band swings: the honky-tonk shuffle
  * (0.33, the largest number in the project outside jazz), western swing, the
@@ -375,8 +378,8 @@ const WALTZ_SHOTS: (readonly [number[], number])[] = [
  * Six shared harmonic tables, and the sharing is the claim.
  *
  * Every other style file in this project writes its progressions out per style,
- * and here that would say something false. Ten of the twenty-four styles below
- * have *the same harmony* — I, IV, V, eight bars — and writing ten
+ * and here that would say something false. Eleven of the twenty-four styles below
+ * have *the same harmony* — I, IV, V, eight bars — and writing eleven
  * slightly-different copies of it would be inventing distinctions the repertoire
  * does not contain and then presenting them as research. The plainness is not a
  * limitation of the tables, it is the subject: this is a music where a song is
@@ -505,7 +508,7 @@ const MODAL_CHORDS: Table & { verse: Progression[]; chorus: Progression[] } = {
  * Country in minor, once, for the whole genre.
  *
  * This is the largest shared table here and the one that most needs its argument
- * stated, because on its face it looks like twenty-one styles being lazy. It is
+ * stated, because on its face it looks like seventeen styles being lazy. It is
  * the opposite claim: **country in minor is one thing**, and it is the old modal
  * ballad — the tune that came over with the Scots-Irish, sat in the mountains for
  * two hundred years and turned up on a Bristol wax cylinder in 1927 with a body
@@ -516,13 +519,16 @@ const MODAL_CHORDS: Table & { verse: Progression[]; chorus: Progression[] } = {
  * A honky-tonk shuffle in minor is that ballad played by a bar band, and an
  * alt-country song in minor is that ballad played by people who found it on a
  * reissue. Giving each of them a private minor table would assert that they had
- * each invented one, and none of them did. The three styles that genuinely have
- * their own minor voice — the murder ballad, the outlaw record and alt-country —
- * write it out, and the difference is then legible.
+ * each invented one, and none of them did. Seven styles do write their own minor
+ * out: `murderballad` and `altcountry`, whose primary mode is minor and whose
+ * `progressions` are therefore already the minor table, and `honkytonk`,
+ * `westernswing`, `rockabilly`, `zydeco` and `outlaw`, which carry a private
+ * `minorProgressions`. The difference is then legible.
  *
- * The one place the leading tone is allowed back in is `honkytonk`, and it is
+ * The leading tone is allowed back in on four of those — `honkytonk`,
+ * `westernswing`, `rockabilly` and `zydeco` all write a V7 in minor — and it is
  * allowed back in because a bar band in 1955 in a minor key really did reach for
- * a V7; see that style's own table.
+ * one; see those styles' own tables.
  */
 const MINOR_CHORDS: Table = {
   intro: [
@@ -889,8 +895,9 @@ const cowboy: Style = {
 };
 
 /**
- * MURDER BALLAD — the one style in the file whose primary mode is minor, and the
- * reason `MINOR_CHORDS` exists at all.
+ * MURDER BALLAD — one of the two styles here whose primary mode is minor
+ * (`altcountry` is the other, and says so), and the reason `MINOR_CHORDS` exists
+ * at all.
  *
  * "Pretty Polly", "Knoxville Girl", "Banks of the Ohio", "Little Sadie". These are
  * the tunes that came over from Scotland and Ireland, stopped in the mountains for
@@ -901,8 +908,8 @@ const cowboy: Style = {
  * cadence.
  *
  * It writes its own minor table, which is the point of it. `MINOR_CHORDS` is what
- * happens when the other twenty-one styles borrow this one's harmony; this one has
- * *less* than that, because a real modal ballad frequently has two chords in it
+ * happens when the seventeen styles that take it borrow this one's harmony; this
+ * one has *less* than that, because a real modal ballad frequently has two chords in it
  * and sometimes has one. `hook: 'earworm'` is not a pop setting here — it is the
  * literal structure of a strophic ballad, where every verse is the same tune and
  * the whole form depends on you knowing that by verse three.

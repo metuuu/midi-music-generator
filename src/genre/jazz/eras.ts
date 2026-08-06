@@ -4,8 +4,25 @@
  * A note on the drum banks: every bank available to the browser preview is a
  * drum *machine*, so a swing ride pattern in the preview will sound like a
  * drum machine playing a ride pattern. The banks chosen here are the most
- * acoustic-leaning ones that actually carry a ride cymbal and a shaker
- * (`rd` and `sh`) — without those two voices a jazz kit is not possible at all.
+ * acoustic-leaning ones, and they were picked for carrying a ride cymbal and a
+ * shaker — `rd` and `sh`, the two voices a jazz kit is written on.
+ *
+ * **Two corrections, both of which this paragraph asserted and neither of which
+ * survives a look at `render/drum-banks.ts`.** Nine banks are named across the
+ * four eras below. All nine carry `rd`; eight carry `sh`, and `AkaiMPC60` does
+ * not — it is the swing era's heaviest weight and is drawn in **54 of 400
+ * songs** over the ten styles at forty seeds each. And the closing clause,
+ * *without those two voices a jazz kit is not possible at all*, was true for
+ * one day: this file landed on 2026-07-25 and `FALLBACK` landed on 2026-07-26,
+ * so a missing voice substitutes rather than falling silent. `sh` goes to `hh`
+ * then `oh`, which is the drummer's own answer — a shaker keeping time and a
+ * hat keeping time are the same part — and `rd` would go to `cr`, `oh`, `hh`,
+ * which is a worse trade and is never taken here because every bank has a ride.
+ *
+ * So the substitution is audible rather than fatal: **246 of those 400 songs
+ * write an `sh` event**, and on the MPC60 draws it comes out on the hi-hat.
+ * That is a reason to prefer the other eight banks and not a reason a bank
+ * without a shaker cannot be named, which is what the sentence used to say.
  *
  * This only affects the audition render. MIDI output maps drums to General MIDI
  * channel 10, so a decent soundfont gives real ride cymbals and brushes.

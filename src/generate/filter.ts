@@ -33,10 +33,21 @@
  *     bar opening cannot be written as a per-section constant no matter how
  *     many constants you are allowed.
  *
- * Three of the four genres here say nothing about the filter, and this file
+ * Three of the four genres here said nothing about the filter, and this file
  * says nothing back — see the no-op in `applyFilter`. A quartet, a tanssilava
  * band and a drone are not played on the filter, and a static cutoff is the
  * truth about all three.
+ *
+ * **There are nineteen genres now and the majority still says nothing**, which
+ * is the useful thing to record rather than the count: **seven declare a
+ * profile** — synth, reggae, metal, rock, hiphop, dnb and house — twelve do not,
+ * and 25 of the 389 styles name a sweep. The three named above are still three
+ * of the twelve.
+ * The silence is not neglect in any of them: what the seven have in common is a
+ * machine somebody's hand is on, and what the twelve have in common is that the
+ * cutoff is the microphone, the room and the tape. A genre added later says
+ * nothing here by default and gets a static cutoff, which is the right default
+ * precisely because it is what twelve of nineteen authors have chosen on purpose.
  */
 
 import type { LayerId, NoteEvent, SectionKind } from '../core/types.js';

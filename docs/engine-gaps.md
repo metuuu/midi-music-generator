@@ -137,9 +137,11 @@ A masurkka's weight is on beat two. Finnish folk did it in velocities instead. D
 
 `hook.recall` either replays a phrase or re-composes it. A da capo aria's ornamented repeat is neither.
 
-### 3.10 `WORD_STYLES` has no sargam
+### 3.10 `WORD_STYLES` has no sargam — **closed**
 
-An Indian vocal line should be sung on *sa re ga ma pa dha ni* or on a tarānā's *dir ta na dere*. `airy` was used, which reaches *ma*, *na*, *ni* and *re* and holds its vowels, but cannot say a stopped consonant. The indian author called a `sargam` entry the highest-value single addition for that genre.
+Both halves of it, and the entry stood here stale for long enough to be worth recording as its own small lesson: `style/vocals.ts` has carried a `sargam` entry *and* a `tarana` one for some time, and this document went on listing the want. Found by the sweep rather than by anybody working on vocals — which is the argument for the sweep.
+
+An Indian vocal line should be sung on *sa re ga ma pa dha ni* or on a tarānā's *dir ta na dere*. `airy` was used, which reaches *ma*, *na*, *ni* and *re* and holds its vowels, but cannot say a stopped consonant. The indian author called a `sargam` entry the highest-value single addition for that genre, and was right.
 
 ### 3.11 The Japanese pentatonics still have no rows
 
@@ -200,7 +202,7 @@ Half the girl-group repertoire is 12/8, and `beatsPerBar` cannot say so without 
 - **`drumBanks` is required even for a genre with no percussion.** Classical names `AkaiMPC60` in all four eras purely to satisfy the type; it never plays.
 - **A style with `excludeLayers: ['drums']` still needs a non-empty `drums` table**, because `generateSong` draws the figure before it knows about exclusions and an empty array throws in `rng.weightedBy`. Ambient solved it with a `NO_KIT` placeholder and country copied the trick.
 - **`keyChangeChance` couples two gestures** — a bridge in the dominant with a prepared pivot, and a final section a semitone up. A genre wanting one gets the other at half the rate.
-- **`growForm` only trims to five steps**, so the shortest piece finnfolk can generate is a little over four minutes — too long for a lament.
+- **The form only trims to five steps**, so the shortest piece finnfolk can generate is a little over four minutes — too long for a lament. This entry said `growForm` for months and **there has never been a function of that name**; it is `buildForm`, and the floor is a literal `steps.length > 5` inside it. Caught by the sweep, along with a second citation of the same ghost in `generate/tempo.ts`.
 - **A rāga cannot be left mid-phrase**, which is what a thumrī does.
 - **A sama'i changes metre in its fourth khana**; `beatsPerBar` is song-level.
 

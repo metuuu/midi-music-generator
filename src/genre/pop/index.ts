@@ -80,10 +80,19 @@
  * arrangement follows the desk rather than the other way round. A bass playing a
  * countermelody is only worth writing once twenty-four tracks exist to hear it
  * on. A gated snare is not a mix decision applied to `stadium`, it is what that
- * style is. Four styles here reach `Style.effects` — `girlgroup`, `stadium`,
- * `dreampop` and `newromantic` — which is more than any genre in the catalogue
- * except reggae, and every one of them would be a different piece of music
- * without it.
+ * style is. **Five** styles here reach `Style.effects` — `girlgroup`,
+ * `newromantic`, `stadium`, `jangle` and `dreampop` — which is more than any
+ * other genre in the catalogue, and every one of them would be a different piece
+ * of music without it.
+ *
+ * That read *four … more than any genre except reggae*, and both halves have to
+ * go. `jangle` was left out of the list while declaring a three-layer table of
+ * its own, and reggae has exactly **one** declarer, `dub` — the style the field
+ * was built for, which is presumably how it got remembered as the leader.
+ * Counted across all nineteen genres: pop 5, hiphop 4, rnb and house 2 each,
+ * reggae and dnb 1 each, and **zero** in the other thirteen. This is the field's
+ * heaviest user, which is the stronger version of what the paragraph was
+ * reaching for.
  *
  * ## Where this comes out weaker than expected, stated plainly
  *
@@ -354,10 +363,23 @@ export const pop: Genre = {
    *
    * So the six that go to `earworm` are the six where the loop really is the
    * song — `bubblegum`, `hinrg`, `europop`, `teen`, `dancepop`, `tropical` — and
-   * four go the other way to `standard`, where the craft is that the second half
-   * is not the first half again: `brill`, `baroque`, `chamber` and `torch`. That
-   * spread across five levels within one genre is the widest in the project, and
-   * it is the honest shape of a repertoire that contains both the Archies and
+   * **nine** go the other way to `standard`, where the craft is that the second
+   * half is not the first half again: `brill`, `baroque`, `ballad`, `torch`,
+   * `chamber`, `newromantic`, `jangle`, `dreampop` and `indiepop`. That named
+   * *four* and listed four, and the five it dropped are the ones that make the
+   * claim interesting — `ballad` and `newromantic` are the styles this genre
+   * argues hardest about elsewhere, and `jangle`, `dreampop` and `indiepop` are
+   * the whole of its late-eighties corner. Nine of twenty-four sit at `standard`
+   * against six at `earworm`, so the genre leans away from the loop rather than
+   * toward it, which is the opposite of the shape the old count implied.
+   *
+   * That spread reaches **three** of the axis's five levels — `standard`,
+   * `catchy` and `earworm` — and it is **not** the widest in the project, which
+   * this used to claim. `HookId` has five levels and nothing here touches
+   * `through` or `loose`; classical and metal reach all five, and six other
+   * genres also reach three. The honest version is the one the next clause
+   * already gives without the superlative: a repertoire that contains both the
+   * Archies and
    * Randy Newman.
    */
   defaultHook: 'catchy',
@@ -446,8 +468,12 @@ export const pop: Genre = {
      * genre-level veto cannot say that. What happens instead is what synth's own
      * note describes as the better outcome: in the seventeen modal styles the rule is
      * simply inert, because their chord scale never produces a raised seventh for
-     * it to catch, and in the six functional ones it is doing exactly the job it
-     * was written for.
+     * it to catch, and in the **seven** functional ones it is doing exactly the
+     * job it was written for. Seven, matching the *seven styles* three lines above
+     * and the list `styles.ts` gives in full — `girlgroup`, `brill`, `baroque`,
+     * `ballad`, `torch`, `chamber` and `newromantic`. This read *six*, against its
+     * own paragraph, which is the cheapest kind of wrong number to leave behind
+     * and the easiest to read straight past.
      *
      * The residual is named rather than hidden. The soloist's `chromatic`
      * appetite offers the semitone either side of wherever the line is, so a
@@ -501,7 +527,12 @@ export const pop: Genre = {
    * `tb` at 0.62 is the other one worth naming. The tambourine is a first-class
    * `DrumVoice` now and its own docstring lists "the sleigh-bell shimmer over a
    * pop bridge" as one of the parts that wanted it — this genre is where that
-   * part lives, and eleven of the twenty-four styles write one.
+   * part lives, and thirteen of the twenty-four styles write one — `girlgroup`,
+   * `merseybeat`, `brill`, `bubblegum`, `sunshine`, `discopop`, `powerpop`,
+   * `chamber`, `synthpop`, `jangle`, `teen`, `indiepop` and `tropical`. This said
+   * *eleven*, and the correction strengthens the point rather than denting it:
+   * the tambourine is on a **majority** of this catalogue, which no other genre
+   * here can say.
    */
   drumMix: {
     bd: 0.95, sd: 0.9, rim: 0.6, hh: 0.5, oh: 0.5, cp: 0.85,
@@ -612,7 +643,11 @@ export const pop: Genre = {
   ],
 
   /**
-   * The scale rule: follow the key, and let six styles raise the seventh.
+   * The scale rule: follow the key, and let seven styles raise the seventh.
+   *
+   * Seven rather than the six this line used to say — `scaleForChord: functional`
+   * is set by `girlgroup`, `brill`, `baroque`, `ballad`, `torch`, `chamber` and
+   * `newromantic`, which is the list `styles.ts` gives in full.
    *
    * Two lines, and the second one is the whole of what this genre states at the
    * genre level. Natural minor throughout and plain major in major — which is
@@ -658,7 +693,10 @@ export const pop: Genre = {
   },
 
   /**
-   * Standing production notes, refined by each era and overridden by four styles.
+   * Standing production notes, refined by each era and overridden by five styles.
+   *
+   * Five, not the four this line used to name: `jangle` declares a table too. See
+   * the header, which counts them.
    *
    * Deliberately thin. `Style.effects` merges over the era's, which merges over
    * this, and the argument in that docstring is that a genre says what is true of

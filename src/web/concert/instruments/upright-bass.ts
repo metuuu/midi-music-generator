@@ -18,23 +18,28 @@
  * The rock is in `react`, and it is most of what says "upright" rather than
  * "large cello".
  *
- * ## The bass leans on the player, and `held` says it does not
+ * ## The bass leans on the player, and `held` **said** it does not
  *
- * `ARCHETYPES['upright-bass'].held` is `false`, so `show.ts` stands this model
- * on the deck and leaves it there while the player sways against it — and the
- * hands, which are placed from *this* model's world matrix, stay with the bass
- * and come away from the body. That reads exactly as reported: a bassist waving
+ * **`ARCHETYPES['upright-bass'].held` is `false`**, so `show.ts` stood this
+ * model
+ * on the deck and left it there while the player swayed against it — and the
+ * hands, which are placed from *this* model's world matrix, stayed with the bass
+ * and came away from the body. That read exactly as reported: a bassist waving
  * left and right with their hands nailed to the air in front of them.
  *
- * It should be `true`. A double bass is not furniture; it is balanced against
+ * **It should be `true`.** It is: the flag in `concert/instruments.ts` reads
+ * `held: true` now, with a note giving this paragraph's reasons back in this
+ * paragraph's words. A double bass is not furniture; it is balanced against
  * the player's hip with an arm round it, and it goes where they go. `carry`
  * parents the root to the torso, and because `station.offset.y` is zero the
  * root lands at torso-local `-hipY`, which puts the endpin back on the deck
  * exactly. The one artefact is the endpin sliding a few centimetres with the
  * sway, which is what a real endpin does on a wooden stage.
  *
- * That flag lives in `concert/instruments.ts`, which is not this file's to
- * change. What *is* this file's is that the model works either way: everything
+ * The complaint is kept in the past tense rather than deleted because the
+ * sentence below is the reason it could be granted without this file being
+ * touched, and that is the only interesting thing about it. What *is* this
+ * file's is that the model works either way: everything
  * below the mount hangs off one `rock` pivot at the endpin tip, so the
  * instrument is a single rigid body about the point it actually turns about,
  * and the lean in `update` is a real lean rather than a shiver.

@@ -48,10 +48,16 @@
  *
  * **One rack, in one era.** `AlesisSR16+congas` sits at a low weight in 2002 for
  * one style — `sambass`, whose whole proposition is a batucada overdubbed onto a
- * two-step, and which is the only style in this genre whose drum tables reach
- * the auxiliary voices at all. The residual is named rather than hidden: a rack
- * is drawn per era, so a liquid track drawn in that era occasionally gets a
- * conga beside its break. That is a thing those records did.
+ * two-step, and whose drum tables reach further into the auxiliary voices than
+ * any other in this genre. **This sentence used to say *the only style whose
+ * drum tables reach the auxiliary voices at all*, and twelve of the twenty-four
+ * do**; ten of the twelve reach exactly one voice and five of those spend two
+ * strokes on it, against this style's four voices and 54 strokes — 42% of the
+ * genre's 128. `styles.ts` carries the full count under `sambass`. The residual
+ * is named rather than hidden: a rack is drawn per era, so a liquid track drawn
+ * in that era occasionally gets a conga beside its break. That is a thing those
+ * records did — and it is a smaller accident than the old sentence implied,
+ * because `liquid` writes 4 shaker strokes for it to land on rather than none.
  *
  * ## On `keyChangeChance`, which is 0.01 throughout
  *

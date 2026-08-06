@@ -113,11 +113,20 @@
  *
  * A loop is nearly always two bars rather than one, and `cycle: 32` is how that
  * is said: a figure that answers its own first half, which a bar-shaped pattern
- * structurally cannot do. Nine styles carry one. `cycle: 12` is three beats
- * against four and comes home every three bars — a dotted-eighth hi-hat, which
- * is `drill`'s signature and is inexpressible any other way. `cycle: 24` is a
- * bar and a half, which is what a chopped percussion loop does against a snare
- * that has stayed where it was.
+ * structurally cannot do. **Twenty-two of the twenty-four styles carry one**,
+ * which is the number that makes the point — this is not a device a few styles
+ * reach for, it is what a hip-hop loop *is*, and the two hold-outs are the
+ * interesting ones rather than the twenty-two. It said "nine" for a long time,
+ * and nine is not a count of anything: the bass layer alone carries 21, the
+ * drums 7 and the comp 6.
+ *
+ * `cycle: 12` is three beats against four and comes home every three bars — the
+ * dotted-eighth figure that is `drill`'s signature and is inexpressible any
+ * other way. **It is a comp figure and not a hi-hat**, in all six styles that
+ * write one, `drill`'s being `plucked-phrygian`; this paragraph called it a hat
+ * for as long as it has existed, and the drum tables have never held a 12.
+ * `cycle: 24` is a bar and a half, which is what a chopped percussion loop does
+ * against a snare that has stayed where it was — one style, `bounce`.
  */
 
 import { makeScale } from '../../core/scale.js';
@@ -403,7 +412,16 @@ const electrorap: Style = {
 };
 
 /**
- * MIAMI BASS — 1986, and the fastest thing in the catalogue.
+ * MIAMI BASS — 1986, and the fastest thing hip-hop had yet made.
+ *
+ * **Not the fastest thing in the catalogue**, which is what this line said for
+ * as long as hip-hop was one of the last genres written and nobody had counted.
+ * Jazz's `bebop` runs 196–280, and **54 of the 389 styles have a floor above
+ * this one's ceiling**. The claim the date makes is the one that survives: at
+ * 124–142 this is eighteen clear of anything else the genre had in the eighties,
+ * where `electrorap` tops out at 124 and `oldschool` at 118 — and the three
+ * styles that now beat it, `trap` at 152, `drill` at 148 and `phonk` at 146,
+ * all arrive two decades downstream of it.
  *
  * The 808 kick tuned down until it is a pitch rather than a thump, at 135, with
  * everything else stripped out to leave room for it. This is a *car* record and

@@ -604,9 +604,18 @@ export function soundingEffectors(archetype: Archetype): readonly Effector[] {
     case 'flute':
     case 'harmonica':
     case 'singer':
-    // Four of them, each sounding the whole line rather than a quarter of it —
-    // which is what makes the coverage arithmetic come out. See the note in
-    // `roster` where the group is drafted.
+    // Three or four of them, each sounding the whole line rather than a third
+    // or a quarter of it — which is what makes the coverage arithmetic come
+    // out. See the note in `roster` where the group is drafted.
+    //
+    // This said *four*, and it is the one place in the file where that mattered
+    // enough to correct: the count is a weighted draw, not a constant, and the
+    // lighter arm is not rare. Measured over 1440 staged numbers across all
+    // nineteen genres, 37 vocal groups reach this line and 11 of them — 29.7% —
+    // are trios. The arithmetic below is indifferent to which, and that is the
+    // point of stating the range rather than the mode: `['mouth']` is one
+    // effector per *performer*, so N singers owe N times the notes whatever N
+    // is, and nothing here needs to know.
     case 'vocal-group':
       return ['mouth'];
     default:

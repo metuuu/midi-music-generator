@@ -315,10 +315,20 @@ export interface FeelSpan {
  * Six feels applied liberally across four genres would make everything sound
  * like the same band, which is the one way this idea fails. The mitigation is
  * not a short library — it is that `straight` is the default everywhere and
- * every style opts in by name, so the four added here reach one style each. The
- * entries are named for what they are rather than for a genre, because that is
- * the claim; `funk` is the one that would read as a genre if it were overused,
- * and it is enabled on exactly one style for exactly that reason.
+ * every style opts in by name, so the four added here **reached one style each
+ * on the day they were added**. The entries are named for what they are rather
+ * than for a genre, because that is the claim; `funk` is the one that would read
+ * as a genre if it were overused, and it **was** enabled on exactly one style
+ * for exactly that reason.
+ *
+ * Those two counts are kept in the past tense rather than deleted, because they
+ * are the baseline the restraint has to be judged against and the restraint has
+ * relaxed. Fifteen more genres have been written since, ten of them reaching a
+ * feel table, and the enabling now stands at **`pocket` 45 styles, `laidback`
+ * 32, `driving` 25, `funk` 24, `halftime` 19**, with `straight` named outright
+ * by 85. `funk` is on 24 styles rather than one, and the check on whether that
+ * has made everything sound like the same band is the per-feel measurement in
+ * `npm run genres` rather than this paragraph.
  */
 export const FEELS: Record<FeelId, Feel> = {
   /**

@@ -11,32 +11,36 @@
  *
  * ## The words are `machine`, and the name is the wrong thing to read
  *
- * Four invented languages exist in `style/vocals.ts`. Choosing between them on
- * their names would give the last one a wide berth and reach for `scat`; choosing
+ * Six invented languages exist in `style/vocals.ts`. Choosing between them on
+ * their names would give `machine` a wide berth and reach for `scat`; choosing
  * on their *shapes* gives the opposite answer, and the shape is what the renderer
  * actually consumes. Four properties decide it and three of them point the same
  * way:
  *
- *  - **It is rhotic, and nothing else here is.** `r` appears in `machine`'s onsets
- *    and — uniquely in the whole table — in its **codas**. A southern American
+ *  - **It is rhotic where the alternatives are not.** `r` appears in `machine`'s
+ *    onsets and, unusually, in its **codas** — only `finnish` and `tarana` also
+ *    close a syllable on one, and neither is a candidate here. A southern American
  *    accent pronounces every /r/ it is given and holds the ones at the ends of
  *    words longest of all; "heart", "before", "more" are three of the commonest
  *    rhymes in the repertoire and all three end on one. `scat` has no `r`
  *    anywhere, in onset or coda, which rules it out on its own.
- *  - **The syllables close.** `codaChance: 0.5` and `codaDensity: 0.55`, the
- *    highest in the table. This is the exact opposite of the Jamaican profile next
+ *  - **The syllables close.** `codaChance: 0.5`, the highest in the table, and
+ *    `codaDensity: 0.55`, behind only `tarana`'s 0.85 — and a tarana is a drum
+ *    syllable, so its codas are drum strokes rather than consonants closing a
+ *    word. This is the exact opposite of the Jamaican profile next
  *    door, which drops three fifths of its codas, and the contrast is real: a
  *    country line is sung with the consonants intact because the words are the
  *    point and somebody in the room is following the story.
  *  - **Short words.** One and two syllables mostly, which is what a line of this
  *    verse is made of.
  *
- * The one thing it gets wrong is `longChance: 0.2`, the lowest in the table, where
+ * The one thing it gets wrong is `longChance: 0.2`, the lowest in the table apart
+ * from `tarana`'s 0.08, where
  * this repertoire drawls harder than anything else in the project. That is
  * recovered in the vowel weights below rather than in the word style — `aa` and
  * `ae` between them are a fifth of the draw, so the long vowels arrive from the
  * inventory instead of from the spelling. It is the available fix; the alternative
- * was a fifth language in a file this genre does not own.
+ * was a seventh language in a file this genre does not own.
  *
  * ## And the delivery is `sung`, not `ballad`
  *
@@ -100,7 +104,7 @@ export const VOCALS: VocalProfile = {
    * Liquids at the top, and that is the whole table's argument.
    *
    * `liquid-r` at 4.5 is the highest weight given to that consonant anywhere in
-   * the project, against reggae's 2.5 and iskelmä's lower still. Everything else
+   * the project, against reggae's and iskelmä's 2.5 apiece. Everything else
    * follows the plain English inventory: stops and nasals do most of the work,
    * `fricative-h` stays at a real weight because this accent aspirates where the
    * Jamaican one drops, and `none` is low because a country line opens nearly
@@ -170,9 +174,11 @@ export const VOCALS: VocalProfile = {
     vibRate: 5,
     vibDepth: 0.22,
     /**
-     * A full scoop, held longer than anywhere else in the project.
+     * A full scoop, and a long one.
      *
-     * 0.09 seconds against reggae's 0.06 and iskelmä's less. The slide up onto the
+     * 0.09 seconds against reggae's 0.06 and iskelmä's 0.07; only arabic and
+     * indian hold it longer, at 0.18, and both of those are an ornament rather
+     * than an accent. The slide up onto the
      * pitch is not an artefact of this voice, it is the accent — a country singer
      * reaches a note from a semitone or two underneath and the ear reads the
      * approach as sincerity. It is the single most identifiable thing about the

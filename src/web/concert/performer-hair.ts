@@ -90,9 +90,13 @@ export type HairBearing =
  *
  * Two of them are *measured off the meshes that were built* rather than written
  * down beside them, and that is the part worth defending. A table saying a
- * beehive reaches 2.83 R is true until somebody improves the beehive, and then
+ * beehive reaches **2.83 R** is true until somebody improves the beehive, and
+ * then
  * it is a silently wrong number in a file that person never opened — which is
- * the exact shape of the bug this whole change is about, one level up. A `Box3`
+ * the exact shape of the bug this whole change is about, one level up. Somebody
+ * improved the beehive: it is a blunt ellipsoid rather than a cone now and it
+ * reaches 2.500 R, so the number in this paragraph is the stale table it
+ * predicted, and the profile that hats actually read never noticed. A `Box3`
  * of what was actually built cannot go stale.
  */
 export interface HairProfile {
@@ -145,7 +149,10 @@ const BEARING: Record<HairStyle, HairBearing> = {
   dreadlocks: 'close',
   // The five that stand far enough off the skull for a hat to have to answer.
   // `slick` is in the list on the strength of one mesh: its quiff reaches
-  // 1.48 R, which is higher than the inside of five of the eight hats, and a
+  // 1.48 R — 1.477, measured off the built group — which is higher than the
+  // inside of **five** of the eight hats, and is six of them now that
+  // `cowboyhat`'s crown has stopped being a stovepipe: only that hat, at 1.76,
+  // and `turban`, at 1.93, still clear it. A
   // quiff is exactly the sort of hair a cap flattens.
   slick: 'volume',
   beehive: 'volume',

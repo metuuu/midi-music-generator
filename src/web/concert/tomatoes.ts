@@ -746,7 +746,8 @@ export function createTomatoes(scene: Object3D, opts: TomatoOptions = {}): Tomat
    * upright bass's neck.
    *
    * A tighter collision shape per archetype would fix it properly and costs
-   * twenty-two files this module does not own. The rule that fixes it here is
+   * **twenty-two** files this module does not own — twenty-four, since the
+   * archetype count is what that number is, and it has only ever gone up. The rule that fixes it here is
    * true anyway and needs no per-instrument knowledge: **a player's head is
    * never inside their own instrument.** So where an instrument's footprint is
    * under its player's head, its box is capped just below that head. A cymbal

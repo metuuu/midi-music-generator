@@ -1817,8 +1817,10 @@ const synthpop: Style = {
  *
  * **`functional`, and it is the seventh and most surprising style to take it.**
  * The other six are all pre-1970 and descend visibly from the theatre song; this
- * one is a synthesiser band in 1981 and looks like it belongs with the eighteen
- * modal styles it is surrounded by. It does not, and the tables above are why: a
+ * one is a synthesiser band in 1981 and looks like it belongs with the seventeen
+ * modal styles it is surrounded by — this read *eighteen*, against the
+ * twenty-four-minus-seven this file's own header does correctly twice.
+ * It does not belong with them, and the tables above are why: a
  * `iio` and a major `V` in a minor key are a functional cadence whatever
  * instrument plays them, and this is the corner of the decade whose writers had
  * been to musical theatre and were not embarrassed about it.

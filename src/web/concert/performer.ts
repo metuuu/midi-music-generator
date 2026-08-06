@@ -134,7 +134,8 @@ export interface PerformerRig {
    *
    * Effectors that are not limbs:
    *   - `bow` is the right hand. A bow hold is a hand pose, not a seventh limb.
-   *   - `head` places the head centre, clamped to a head's radius of its rest.
+   *   - `head` places the head centre, clamped to 1.3 head radii of its rest —
+   *     `a head's radius` here until the clamp was widened.
    *   - `mouth` moves the head so the *mouth* lands on the point — a singer
    *     leaning into a microphone. Mouth *shape* is `setMouth`.
    *   - `body` leans the whole torso toward the point, clamped to 0.22 m. This
@@ -904,11 +905,32 @@ class Rig implements PerformerRig {
 
   restPosition(e: Effector, out?: Vector3): Vector3 {
     const v = out ?? new Vector3();
-    const limb: string = e === 'bow' ? 'right-hand' : e;
+    /**
+     * Two aliases, and they are the same idea twice: an effector that drives a
+     * body part the table already has a rest for, in a different way.
+     *
+     * `bow` is the right hand holding something. `eyes` is **gaze only** — the
+     * type doc says it exists so that "eyes closed while the head still nods"
+     * is sayable, after `eyes-shut` and `watch` had to claim `head` and fought
+     * `head-nod` for it — so where a pair of eyes rests is where the head
+     * rests. Routing it onto `head` also puts it in the torso-carried branch
+     * below, which is what it wants for the reason stated there: a bandmate
+     * watching this player should look at where the head *is*.
+     *
+     * `eyes` reached the fallback until this line, and the fallback hands back
+     * the hip. It was found by a sweep rather than by a wrong-looking frame,
+     * because **nothing declares an `eyes` behaviour yet** — the member is in
+     * `EFFECTORS` and `SLOT_OF` in `animate.ts` and in no score. So this is the
+     * quietest possible kind of fault: correct today, wrong on the first day
+     * somebody writes the gesture the union member was added for.
+     */
+    const limb: string = e === 'bow' ? 'right-hand' : e === 'eyes' ? 'head' : e;
     const rest = this.restLocal[limb];
     if (!rest) {
-      // Every member of `Effector` is in the table; this is the branch that
-      // catches a contract change rather than guessing at one.
+      // Unreachable, and now genuinely so: `restLocals` answers seven keys and
+      // the two aliases above cover the other two members of `Effector`. This
+      // is the branch that catches a contract change rather than guessing at
+      // one — a tenth effector lands here rather than anywhere surprising.
       v.set(0, this.proportions.hipY, 0);
     } else if (limb === 'head' || limb === 'mouth') {
       // Carried by the torso, exactly as `liveRest` carries the head node, so
@@ -1309,8 +1331,12 @@ class Rig implements PerformerRig {
    * the arc, the fingers and the wrist, and the cheapest of the four. A hand
    * that was travelling down fast and has stopped has hit something, and a body
    * that absorbs nothing when that happens looks like a body with no mass in
-   * it. So the torso drops seven millimetres and folds a couple of degrees and
-   * recovers over about a sixth of a second.
+   * it. So the torso drops **seven millimetres** and folds a couple of degrees
+   * and
+   * recovers over about a sixth of a second. The drop is `height * 0.007`, so
+   * seven millimetres is the coefficient read as a distance: it is 12.3 mm on a
+   * 1.75 m player and 11.1 to 13.4 mm across the cast's height spread. The fold
+   * and the sixth of a second are exact.
    *
    * Two conditions on the trigger, both learned the hard way:
    *

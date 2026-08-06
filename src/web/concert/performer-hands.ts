@@ -11,9 +11,14 @@
  * from the instrument model and the **shape comes from here**: a fist around a
  * stick, a flat palm on a key bed, fingers spread across a fretboard.
  *
- * Eighteen poses, blended rather than switched. A pose is nine numbers — four
+ * Eighteen poses, blended rather than switched. **A pose is nine numbers** —
+ * four
  * finger curls, a second-joint fold, a splay, two thumb values and a palm
- * arch — so blending two poses is `lerp` on each, and asking for "halfway to a
+ * arch — and is thirteen now: `wrist`, `touch`, `tool` and `align` were added
+ * one at a time, each argued in `HandPose` as the same kind of fact as the nine.
+ * The property is what the count was here to state and it still holds, because
+ * every one of the thirteen went into `blendPoses` — blending two poses is
+ * `lerp` on each, and asking for "halfway to a
  * fist" is a meaningful request rather than a special case. Two hands never
  * snap between shapes; they ease over about a tenth of a second, which is
  * roughly what a real hand does and is short enough that a sixteenth-note
@@ -484,8 +489,11 @@ export type HeldImplement = 'drumstick' | 'mallet';
  *
  * Partial, unlike `DEFAULT_HAND_POSES`, and the asymmetry is deliberate: every
  * archetype needs a hand shape, so a missing entry there is a bug worth a
- * compile error, while holding nothing is what twenty of the twenty-two do and
- * a table of twenty `undefined`s would say nothing.
+ * compile error, while holding nothing is what **twenty of the twenty-two** do
+ * and a table of twenty `undefined`s would say nothing. Two archetypes later it
+ * is twenty-two of the twenty-four, and neither of the two that arrived —
+ * `singer` and `vocal-group` — holds anything either, which is the shape of
+ * every addition this table has ever seen.
  */
 export const IMPLEMENT_OF: Partial<Record<Archetype, HeldImplement>> = {
   drumkit: 'drumstick',
@@ -672,13 +680,17 @@ export interface HandRig {
    * Where the forearm is, as two angles in the hand's own frame — extension
    * and deviation, radians, both clamped internally.
    *
-   * There is no forearm, and that is exactly why this exists. A hand placed on
+   * **There is no forearm, and that is exactly why this exists** — there is one
+   * now, `performer-arms.ts` draws it, and the reason for this method survived
+   * the arm arriving unchanged. A hand placed on
    * a contact takes its whole orientation from the surface normal, so an
    * accordionist reaching across to the bass buttons and a drummer's hand flat
    * on a snare end up with identically axis-aligned wrists — and a wrist that
    * never breaks is the single most puppet-like thing left once the fingers are
-   * right. The rig knows where the shoulder is, so it can say which way the
-   * arm *would* run, and the wrist bends to meet it. It is additive on top of
+   * right. What is asked has moved one joint down with the geometry:
+   * `followForearm` reads `ArmsRig.elbow`, not the shoulder, so the angle is
+   * the real forearm's rather than the direction an arm *would* run. It is
+   * additive on top of
    * `HandPose.wrist`, so a pose's own attitude survives.
    */
   setWrist(extend: number, deviate: number): void;

@@ -96,9 +96,10 @@ export const VOCALS: VocalProfile = {
     ['aa', 5], ['o', 4], ['a', 3.5], ['u', 3], ['uh', 2.5], ['e', 2], ['oe', 1.5], ['i', 1],
   ],
   /**
-   * Almost nothing. Six entries and four of them are nasals or liquids.
+   * Almost nothing. Eight entries and four of them are nasals or liquids.
    *
-   * This is the shortest consonant list any genre in the project declares and it
+   * This is the shortest consonant list any genre in the project declares — level
+   * with ambient's eight and shorter than every other, which run to ten and above — and it
    * is a statement about the edit rather than about the singer. **A sample cut at
    * a plosive clicks.** The producer cutting four bars of somebody's chorus into
    * sixteen pieces puts every cut point on a vowel or a nasal, because those are
@@ -146,7 +147,9 @@ export const VOCALS: VocalProfile = {
     // and a time-stretch, and every one of those takes the top off.
     bodyLpf: 5200,
     /**
-     * 0.35, and it is the lowest transient of any genre in this project. hiphop
+     * 0.35, the lowest transient of any genre in this project, level with
+     * ambient's and reached from the opposite direction — there the consonant is
+     * absent because a choir has none, here because it was cut off. hiphop
      * runs `burstGain: 1.0` on the argument that in that idiom **the consonant is
      * the note**. This is the exact inverse: the consonant is the thing the
      * editor cut *off*, and a hard onset here would sound like the sample
@@ -154,7 +157,8 @@ export const VOCALS: VocalProfile = {
      */
     burstGain: 0.35,
     /**
-     * A syllable every beat and a half. The slowest in the project, and at 174
+     * A syllable every beat and a half. The slowest in the project after
+     * ambient's two, and at 174
      * BPM that is still one every half second — the rate is set by how long a
      * stretched fragment stays convincing rather than by the breath or by the
      * hi-hat.

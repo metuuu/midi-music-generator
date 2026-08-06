@@ -3,7 +3,8 @@
  *
  * The electric piano — a Rhodes/Wurlitzer silhouette on a stand.
  *
- * Three catalogue entries land here (`epiano1`, `epiano2`, `celesta`), and what
+ * **Three catalogue entries land here** (`epiano1`, `epiano2`, `celesta`) —
+ * four, `clavinet` having joined them — and what
  * they have in common is not the sound but the *shape*: a slab with a lid,
  * standing on four splayed legs at playing height, with the player on their
  * feet behind it. That silhouette is the whole job — at stage distance a

@@ -219,9 +219,12 @@ const LAYOUT = {
    * They used to be: three points just past the floor tom, at the same reach as
    * the clap pad on the other side, with a note saying there was no hand drum
    * in this model and no era wrote them anyway. Both halves of that stopped
-   * being true. Seven genres write them now, and every one of those strokes
+   * being true. **Seven genres write them now**, and every one of those strokes
    * sent a seated drummer's hand to a patch of empty air beside their own kit,
-   * once a bar, exactly as the note predicted it would.
+   * once a bar, exactly as the note predicted it would. Counted off the events
+   * rather than off the tables — 30 numbers per era across the catalogue — it is
+   * ten: indian, latin and arabic between them account for 224,449 of the
+   * 287,440, then house, finnfolk, metal, reggae, funk, rnb and hiphop.
    *
    * A hand drum is its own object with its own player — `handdrum`, in
    * `hand-drum.ts` — and `drumStations` in `concert/instruments.ts` is what
@@ -979,9 +982,14 @@ export const buildDrumkit: InstrumentBuilder = (opts) => {
    * kit. It read as a drummer missing, which is the one thing this model exists
    * to make impossible. The reach was correct all along; the object was absent.
    *
-   * Every genre added lately writes `tb` — the arabic, latin and finnfolk
-   * tables lean on it the way a rock table leans on the hats — so what used to
-   * be one stray hit in an old era is now the busiest hand in a bar.
+   * Every genre added lately writes `tb` — **the arabic, latin and finnfolk
+   * tables lean on it the way a rock table leans on the hats** — so what used to
+   * be one stray hit in an old era is now the busiest hand in a bar. Twelve
+   * genres write it and the three named are not the three: measured over 30
+   * numbers per era, arabic is far and away the heaviest at 52,694 strokes in
+   * 103 songs of 120, and the next four are latin, rnb, pop and funk. Finnfolk
+   * writes it in 4 songs of 120. The conclusion is if anything understated —
+   * this is the busiest hand in a bar in more places than it claimed.
    */
   const TAMB_R = 0.115;
   const tambD = pads ? PAD_DEEP : 0.048;

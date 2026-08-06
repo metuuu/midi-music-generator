@@ -1195,8 +1195,13 @@ export interface SongMeta {
    * reason all three give — a plan is IR rather than a private detail of the
    * generator — and absent under the same rule: a style that names no tempo
    * palette was never asked the question, drew no random number, and serialises
-   * byte-for-byte to what it did before this field existed. That is every style
-   * in the catalogue today.
+   * byte-for-byte to what it did before this field existed. That **was** every
+   * style in the catalogue, and the sentence is kept in the past tense rather
+   * than deleted because the rule above is only legible beside a count of who
+   * has not opted in. One style has: dnb's `breakcore`, at
+   * `tempoRamp: [['none', 3], ['accelerando', 1]]`, which carries a map on
+   * **44 of 200 songs**. The other 388 still take the early return and still
+   * serialise byte-for-byte.
    *
    * It differs from the other three in one way that matters to every reader.
    * `feels`, `transitions` and `drops` are *descriptive* — a report can ignore
@@ -1233,8 +1238,11 @@ export interface SongMeta {
    * How each stretch of the song is felt — where the band leans, and how long it
    * holds a note. See `style/feel.ts`.
    *
-   * Absent on any song whose style names no feel table, which is all but two of
-   * them: absent means straight throughout and means no draw was made, so a
+   * Absent on any song whose style names no feel table, which **was** all but
+   * two of them and is now all but 87 of the 389 — measured, `feels` is present
+   * on 153 of 760 songs sampled evenly across the nineteen genres. The original
+   * count is kept rather than deleted because the rule it illustrates has not
+   * moved: absent means straight throughout and means no draw was made, so a
    * catalogue that has not opted in is byte-for-byte what it was. Present, the
    * spans cover the song end to end and are half-open in bars, so anything
    * reading them can say what is happening at bar 12 the way it already can with
@@ -1255,8 +1263,12 @@ export interface SongMeta {
    * what chord is there. Indexed by the section being left, so an entry per join
    * and none after the last bar.
    *
-   * Absent on any song whose style names no transition palette, which is all of
-   * them today — and absent is the same statement it is for `feels`: the
+   * Absent on any song whose style names no transition palette, which **was**
+   * all of them when this landed and is now 38 of the 389 — 141 styles name one
+   * outright and ten genres name one their styles inherit, so 351 reach a
+   * palette and this field is present on **646 of 760** songs sampled evenly
+   * across the nineteen genres. The original count is kept rather than deleted
+   * because absent is the same statement it is for `feels`: the
    * question was never asked, no draw was made, and the song is byte-for-byte
    * what it was. It would have been easy to emit this unconditionally, since
    * every song has seams and every seam resolves to `fill`; that was rejected
@@ -1288,9 +1300,13 @@ export interface SongMeta {
    * bars, these layers*, and a second drop is a change to a draw rather than to
    * this type.
    *
-   * Absent on any song whose style names no drop palette, which is all of them
-   * today, and absent is the same statement it is for `feels`: the question was
-   * never asked, no draw was made, and the song is byte-for-byte what it was.
+   * Absent on any song whose style names no drop palette, which **was** all of
+   * them when this landed. 29 styles name one now, in four genres — reggae,
+   * funk, house and dnb, the two that reported the gap and the two that were
+   * waiting on it — and the field is present on **22 of 760** songs sampled
+   * evenly across the nineteen genres. The original count is kept rather than
+   * deleted because absent is the same statement it is for `feels`: the question
+   * was never asked, no draw was made, and the song is byte-for-byte what it was.
    */
   drops?: DropSpan[];
   /**

@@ -22,8 +22,10 @@
  * ## An archetype is not an object
  *
  * The list used to be `Object.keys(ARCHETYPES)`, which reads as "everything"
- * and is not: three archetypes build genuinely different objects depending on
- * what was decided *before* the renderer was called, and enumerating
+ * and is not: **three** archetypes build genuinely different objects depending
+ * on
+ * what was decided *before* the renderer was called — two, and `entries()`
+ * below special-cases exactly the two the next sentence names — and enumerating
  * archetypes shows one of each and hides the rest. A synthesiser is a modular
  * wall, a polysynth or a digital slab depending on `Performer.rig`; a kit is
  * drums or pads depending on the number's `DrumSource`. Five objects reached

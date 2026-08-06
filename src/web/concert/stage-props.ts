@@ -15,7 +15,8 @@
  * `BUILDERS` at the bottom is a total `Record<PropName, …>` over the imported
  * list, so a genre author adding a name to the vocabulary and nothing else gets
  * a failed `npm run typecheck` naming this file, instead of a room that quietly
- * comes up short one object. Sixteen genre authors can dress rooms this file
+ * comes up short one object. Nineteen genre authors — sixteen when this was
+ * written — can dress rooms this file
  * has never heard of, and the compiler is the only meeting any of them need.
  *
  * Two rules survive from when the lists were separate, and one of them shrank:
@@ -39,10 +40,14 @@
  * exactly the same way for exactly the same reason.
  *
  * Four of them are architectural rather than dressing — `black-box`, `brick`,
- * `open-air` and `haze` change how the room itself is built, so `stage.ts`
- * reads those directly and the handlers here are deliberately empty. There are
- * still four. Anything that would have been a fifth belongs in `stage.ts` next
- * to the other four rather than here as an object pretending to be a room.
+ * `open-air` and `haze` change how the room itself is built, so the handlers
+ * here are deliberately empty. There are still four. What has moved is where
+ * they are read: **`stage.ts` reads those directly** was true of all four and is
+ * true of `haze` alone now, that being the only `props.has` left in the file.
+ * `black-box`, `brick` and `open-air` — and `low-ceiling`, which is architectural
+ * too and does have a handler here — belong to the rooms now. So anything that
+ * would have been a fifth belongs in `rooms/` beside the ones that moved, and
+ * still not here as an object pretending to be a room.
  *
  * ## Where props are allowed to stand
  *
@@ -54,7 +59,13 @@
  * floor covering, and they are all flat enough to be walked over. `riser` is
  * the one to watch, because `Station.riser` says a performer is
  * standing on a platform and this places one. Its top is at **0.4 m**, centred
- * at **(0, -1.15 m upstage of centre)**, 2.8 m wide by 2.0 m deep.
+ * at **(0, -1.15 m upstage of centre)**, 2.8 m wide by 2.0 m deep. Only the
+ * width holds: `riserFootprint` clamps at `min(2.8, width * 0.32)` and every
+ * one of the catalogue's 72 dressings is wide enough, but the depth is
+ * `min(2.0, depth * 0.3)` and reaches the clamp in exactly half of them,
+ * bottoming out at 1.41 m in house's `afterhours`. The z follows the depth off
+ * `backZ + d / 2 + 0.45` and runs from −1.195 to −2.550; no venue produces
+ * −1.15. Ask `riserFootprint` rather than this paragraph.
  *
  * ## Where props are allowed to *hang*
  *
@@ -643,7 +654,9 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
    * it from, and a lit ring seen edge-on with nothing above it does not read as
    * a light fitting. It reads as a small balcony floating in the room.
    *
-   * It was at **camera height**. The wide shot works between 2.1 and 3.6 m and
+   * It was at **camera height**. The wide shot works between **2.1** and 3.6 m —
+   * `wideEye` starts at 2.3, not 2.1, which `stage-kit.ts` states correctly two
+   * files over — and
    * the ring sat at 2.5 m, dead ahead — an object in the lens's own volume,
    * in front of the band, in a band of heights the framing solver sweeps
    * through as the window's aspect changes. That is the "it looks different on
@@ -1795,8 +1808,12 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
    * standing in front of, the reason the back of the stage is dark, and the
    * scale reference that makes the players look small.
    *
-   * The whole run is upstage of the backline margin and stops 70 mm short of
-   * the riser's front face, which is at `backZ + 0.45` on every stage this
+   * The whole run is upstage of the backline margin and stops **70 mm** short of
+   * the riser's front face — 90 mm, measured: the cabinets are centred at
+   * `backZ + 0.2` and `CAB_D` is 0.32, so their downstage face is at
+   * `backZ + 0.36`. 70 mm is `arches`' clearance, which stands 20 mm further
+   * downstage at the same depth. The riser's front face is at `backZ + 0.45` on
+   * every stage this
    * builds by construction — see `riserFootprint`, where the drum platform's
    * depth cancels out of that sum. Not a coincidence worth relying on silently,
    * so: if the riser ever moves downstage, this collides, and the number to

@@ -1244,10 +1244,25 @@ const toccata: Style = {
 /**
  * FRENCH OVERTURE — the dotted grave that opens the evening.
  *
- * Two movements in life, a slow dotted one and a fast fugal one, and this
- * generator has one tempo per song, so this entry is the first of them. That is
- * the right half to keep: the dotted opening is the part anybody would
- * recognise, the fast half is a fugue, and there is already a fugue.
+ * Two movements in life, a slow dotted one and a fast fugal one, and this entry
+ * is the first of them. That is the right half to keep: the dotted opening is
+ * the part anybody would recognise, the fast half is a fugue, and there is
+ * already a fugue.
+ *
+ * **The reason given used to be *this generator has one tempo per song*, and it
+ * no longer has.** `SongMeta.tempo` is a `TempoMap`, `generate/tempo.ts` plans
+ * the ramp, and `Style.tempoRamp` is the field a style opts in with. So the
+ * ceiling this style was written under is gone — and the style stays as it is,
+ * because what is built is a *ramp* and a French overture is a **switch**. The
+ * two shapes on offer are `accelerando`, an even push first bar to last, and
+ * `gathering`, patient and then squared; both are monotonic and both describe a
+ * band drifting or a form arriving. A grave that stops and a fugue that starts
+ * at double the speed on the next downbeat is neither, and `tempo.ts` says in as
+ * many words that the *build* — a ramp that arrives at something — is the shape
+ * it declined to plan. Nothing in `FormStep` can say that a section is in a
+ * different tempo either, which is where the switch would have to live. The
+ * sentence above was true, has stopped being true, and the conclusion it
+ * supported is unchanged for a different and better-argued reason.
  *
  * The dotted figure is the style. Every strong beat is a long note followed by a
  * short one snapped into the next beat — `[6, 2, 6, 2]` and `[3, 1, 4, ...]` in

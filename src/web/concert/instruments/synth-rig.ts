@@ -321,9 +321,17 @@ export const buildBareRig: SynthRigBuilder = () => {
  * discontinuities in what the object looked like rather than round numbers, and
  * a show whose era lands either side of one should stage a different prop.
  *
- * Anything earlier than the first boundary is modular; anything later than the
- * second is digital. Ambient's `tape` era (1978) lands on polysynth and its
- * `hybrid` era (2006) on digital, which is why this is a year and not a switch
+ * **Anything earlier than the first boundary is modular; anything later than
+ * the second is digital.** Neither constant decides anything any more: nothing
+ * in the repo reads either of them. Which rig is built comes off
+ * `Performer.rig`, drawn in `concert/cast.ts` from `SYNTH_RIGS` and
+ * `rigPoolFor` — whose own spans disagree with these two numbers, `polysynth`
+ * running 1963–1990 against `modular`'s 1973–1985 — and `synth.ts`'s `pickRig`
+ * says so in as many words. They are kept because the two dates are the reason
+ * there are three rigs at all, and that argument is upstream of whoever reads
+ * the spans. Ambient's `tape` era (1978) and its
+ * `hybrid` era (2006) are still the pair that shows why this had to be a year
+ * and not a switch
  * over this genre's three era ids.
  */
 export const POLYSYNTH_FROM = 1978;

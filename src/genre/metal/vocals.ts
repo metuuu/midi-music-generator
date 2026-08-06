@@ -34,17 +34,27 @@
  *
  * ## The words are `machine`, and the name is the wrong thing to read
  *
- * Four invented languages exist in `style/vocals.ts` and none of them is this
- * one. Choosing by name gives `machine` to industrial and nothing to anybody
+ * Four invented languages **used to** exist in `style/vocals.ts` and none of them
+ * was this one. There are six — `sargam` and `tarana` were added for the Indian
+ * genre after this was written — and neither is this one either, so `machine`
+ * still wins the genre. One of the three bullets below has to give, though, and
+ * the correction is in it rather than hidden here.
+ *
+ * Choosing by name gives `machine` to industrial and nothing to anybody
  * else; choosing by *shape* — which is what the renderer consumes — gives it to
  * the whole genre, and the shape is right on every count that matters:
  *
  *  - **The shortest words in the file**, one to three syllables at weight, which
  *    is what a line sung at 200 BPM over sixteenth-note guitars has room for.
- *  - **`codaDensity: 0.55`, the highest anywhere.** Metal English closes its
- *    syllables hard and lands the consonant on the beat — the final /t/ of a
- *    shouted word is a rhythmic event, and a language that left it off would be
- *    singing a different music.
+ *  - **`codaDensity: 0.55`, which was the highest anywhere and is now the second
+ *    highest.** `tarana` closes 0.85 of its syllables, because a tabla bol stops
+ *    the vowel dead on purpose; that entry did not exist when this bullet was
+ *    written and it does not compete for this genre, since its inventory is nine
+ *    drum strokes. Against the four languages a singer could plausibly be given,
+ *    0.55 is still the top of the table and the reason stands unchanged: metal
+ *    English closes its syllables hard and lands the consonant on the beat — the
+ *    final /t/ of a shouted word is a rhythmic event, and a language that left it
+ *    off would be singing a different music.
  *  - **The widest onset inventory**, fourteen consonants including the voiced
  *    stops and the sibilants, because there is nothing this delivery avoids.
  *
@@ -52,8 +62,9 @@
  * built for a synthesised talker and its distribution is flatter than a person's.
  * The consonant table below leans it back toward the plosives and the sibilants,
  * which is where a shouted English line actually concentrates, and that is the
- * compromise available without writing a fifth language into a file this genre
- * does not own.
+ * compromise available without writing a seventh language into a file this genre
+ * does not own — a fifth when this was written, and the arithmetic is the only
+ * part of it that moved.
  *
  * ## And the delivery is `syllabic`
  *

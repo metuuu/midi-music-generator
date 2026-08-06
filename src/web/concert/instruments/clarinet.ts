@@ -363,7 +363,11 @@ export const buildClarinet: InstrumentBuilder = (opts: InstrumentBuildOptions): 
   const leftFingers = stationY.map((_, s) => fingersOnStack(JOINT_SPLIT, STATIONS - 1, s));
   /**
    * Which contact each hand takes. Neither crosses the joint: the right hand
-   * stays on the lower six-and-a-bit stations and the left on the upper ones.
+   * stays on the lower **six-and-a-bit** stations and the left on the upper
+   * ones. Ten, not six-and-a-bit: `JOINT_SPLIT` is 10 and the clamp below is
+   * `station..9`. Six-and-a-bit is the saxophone's `STACK_SPLIT`, and the
+   * paragraph two above this one already gives the clarinet's own split
+   * correctly as ten below the tenon and nine above it.
    */
   function stationFor(station: number, right: boolean): number {
     return right

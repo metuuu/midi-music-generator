@@ -159,7 +159,12 @@ export interface TempoPoint {
  */
 export type TempoMap = readonly TempoPoint[];
 
-/** One tempo for the whole piece — what every song in the catalogue is today. */
+/**
+ * One tempo for the whole piece — what every song in the catalogue **was** when
+ * this was written, and what all but one style still is. dnb's `breakcore` is
+ * the only style that names a `tempoRamp`, and it draws a real map on 44 of 200
+ * songs; everything else in the catalogue arrives here through `songTempo`.
+ */
 export function flatTempo(bpm: number): TempoMap {
   return [{ beat: 0, bpm }];
 }

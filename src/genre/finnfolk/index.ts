@@ -424,9 +424,11 @@ export const finnfolk: Genre = {
    * it is the room.
    *
    * Drums down to 0.42 from 0.59, which is the loudest thing this table says.
-   * Sixteen of the twenty-four styles have no percussion at all, and what the
-   * other eight have is mostly one frame drum played with two hands — a drum
-   * mixed as a kit would be a drummer nobody hired.
+   * **Fourteen** of the twenty-four styles have no percussion at all, and what
+   * the other **ten** have is mostly one frame drum played with two hands — a
+   * drum mixed as a kit would be a drummer nobody hired. This said sixteen and
+   * eight; `styles.ts` has the count and the note on where the wrong pair had
+   * spread to.
    */
   mix: {
     melody: 0.92,
@@ -578,9 +580,10 @@ export const finnfolk: Genre = {
    * the beat, not a chromatic approach; that is the whole difference between this
    * and every jazz vocabulary in the repo.
    *
-   * **Never the drums, and there is nothing to argue about.** Sixteen styles have
-   * no percussion; a drum solo in a barn would be a person hitting a frame drum
-   * while a wedding waits.
+   * **Never the drums, and there is nothing to argue about.** Fourteen styles
+   * have no percussion at all and only three write a kit voice; a drum solo in a
+   * barn would be a person hitting a frame drum while a wedding waits. This said
+   * sixteen — see `styles.ts` for where that number had spread to.
    */
   solo: {
     rotation: [['melody', 5], ['counter', 4], ['comp', 2]],
@@ -621,8 +624,8 @@ export const finnfolk: Genre = {
    * has no seam to fill: the A strain ends on the downbeat of the bar the B
    * strain starts on, the fiddler is already playing the first note of it, and a
    * gesture in between would be somebody stopping to think. `fill` is second
-   * rather than absent because eight of these styles have a drum and a frame
-   * drum genuinely does mark the join.
+   * rather than absent because ten of these styles have a drum — this said eight
+   * — and a frame drum genuinely does mark the join.
    *
    * `shot` is small and real — a whole band landing together on the group heads
    * is what a pelimanni ensemble does at the top of the last time round.
@@ -658,9 +661,15 @@ export const finnfolk: Genre = {
    * The top is set by the five-beat styles rather than by any wish for length,
    * and it is worth naming because the number would otherwise look generous. A
    * bar of `itkuvirsi` at 54 bpm is five and a half seconds, the strophic form is
-   * seven steps, and `growForm` will only trim a form down to five — so the
+   * seven steps, and the form builder will only trim a form down to five — so the
    * shortest lament this genre can produce is a little over four minutes and a
    * ceiling below that would be a target nothing could hit.
+   *
+   * **That builder is `buildForm` in `generate/song.ts`, not `growForm`**, which
+   * this note called it and which exists nowhere in the project — the floor is
+   * the literal `steps.length > 5` in its trim loop, and it is worth being
+   * findable because it is the only thing standing between this genre and a
+   * two-minute lament. `docs/engine-gaps.md` §4 carries the same wrong name.
    */
   duration: [100, 235],
 

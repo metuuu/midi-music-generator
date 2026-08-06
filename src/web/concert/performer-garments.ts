@@ -46,9 +46,12 @@
  * feature written as a case in a switch: a genre whose wardrobe names no
  * garments gets `suit` from `cast.ts` without spending a random draw, `suit`
  * takes every field in `CUTS` at the value the renderer used before this file
- * existed, and its case adds no mesh. Ten genres that nobody has dressed are
+ * existed, and its case adds no mesh. **Ten genres that nobody has dressed** are
  * therefore not *approximately* what they were, they are vertex-for-vertex what
- * they were, and that is checkable on the bench rather than a promise.
+ * they were, and that is checkable on the bench rather than a promise. There are
+ * none left: all nineteen carry a `garments` table now, so the guarantee has
+ * been spent rather than broken. It is kept because it is still the acceptance
+ * test — a twentieth genre gets `suit` and gets it exactly.
  *
  * ## Cost
  *
@@ -88,7 +91,8 @@ import { SIDE, assertBuilt, type Proportions } from './performer-look.js';
  * So the direction is decided by the colour rather than by the caller: down off
  * anything pale, up off anything dark. It costs a `Color` construction on a path
  * that already constructs several, and it means a lapel is visible on all
- * fourteen genres rather than on the four with cream jackets.
+ * **fourteen** genres rather than on the four with cream jackets — nineteen, as
+ * of the two that arrived after this was written.
  *
  * `by` is deliberately much larger than the 0.07 this replaced. That number was
  * chosen against a near-white tanssilava jacket, where seven points of lightness

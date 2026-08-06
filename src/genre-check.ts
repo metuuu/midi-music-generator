@@ -106,7 +106,9 @@ check('all style x mode combinations generate', problems.length === 0, `${ok} so
  * another by name — `generateSong` passes it to `lookup` as the fallback, so an
  * unspecified mood does not draw at random. That makes the final entry of every
  * mood table load-bearing in a way nothing about it looks load-bearing, and it
- * is why all four genres end theirs with a neutral entry.
+ * is why every genre ends theirs with a neutral entry — four of them when this
+ * was written, and all nineteen now, which the loop below asserts by walking
+ * `GENRE_IDS` rather than a list written out here.
  *
  * Asserted because the failure is silent and looks like somebody else's fault.
  * `synth` shipped briefly with four strongly-opinionated moods and no neutral
@@ -152,8 +154,12 @@ check('blues choruses are twelve bars', bluesBars.size === 1 && bluesBars.has(12
 /**
  * Blue notes, sampled by the chord sounding underneath them.
  *
- * `blues` is the only style in the catalogue that overrides `Genre.scaleForChord`
- * (see `jazz/styles.ts`), and this is the measurement that forced it. Under the
+ * `blues` **was** the only style in the catalogue that overrides
+ * `Genre.scaleForChord` (see `jazz/styles.ts`), and this is the measurement that
+ * forced it. 66 of the 389 styles override it now — 31 of them indian, where a
+ * rāga is the scale and there is no genre mapping to inherit — and the original
+ * count is kept because it is what this measurement was taken against, not
+ * because it still describes the catalogue. Under the
  * genre's chord-scale mapping every dom7 took mixolydian on its own root, so a
  * blues in F played F mixolydian over I7 and B♭ mixolydian over IV7 — and over
  * 25 major-key blues songs that put the ♭3 on 1.4% of melody notes over I7
@@ -336,9 +342,13 @@ const feelPairs: { style: string; seed: string; felt: Song; plain: Song }[] = wi
      * bar of every layer with one figure, and it does so out of what the layer
      * was holding — so the two songs get different shots, the pairing sees a
      * bass note added and another lost, and the check reports the feel doing
-     * something it did not do. `fusion` is the only style that draws one and it
-     * is also the probe style for `pocket` and `funk`, so this is not
-     * hypothetical: it read as a 0.94-velocity ghost against a 0.25 cap.
+     * something it did not do. `fusion` **was** the only style in `feltStyles`
+     * that drew one and it is also the probe style for `pocket` and `funk`, so
+     * this is not hypothetical: it read as a 0.94-velocity ghost against a 0.25
+     * cap. Four of the six draw shots now — `jazz/blues`, `jazz/fusion` and
+     * `jazz/bebop` at `[['shot', 3]]` and `iskelma/foksi` through its genre's
+     * `[['shot', 2]]` — so the hold-out below covers more of this fixture than
+     * the sentence it was written for, which is the direction that is safe.
      *
      * Held out rather than measured around, because a transition is a third
      * thing happening at the same moment and these checks are a two-way
@@ -874,9 +884,13 @@ const levelByBar = (events: readonly Timed[], beatsPerBar: number) => {
    *
    * Every feel, not just the ones the style ships with, because the gate is
    * `canVary(drumSource)` and it has to hold for whatever a table later names.
-   * Foksi is the probe because it is the only style in the catalogue with both a
-   * feel table and an era that can draw a box — the jazz eras never do, over 60
-   * seeds each.
+   * Foksi is the probe because it **was** the only style in the catalogue with
+   * both a feel table and an era that can draw a box — the jazz eras never do,
+   * over 60 seeds each. Twelve styles qualify now: seven funk styles through
+   * `pfunk` (1975), three latin ones through `moderno`, pop's `softrock` through
+   * `multitrack`, and foksi through `tanssilava` (1968). The probe stays foksi
+   * because the assertion is about `canVary` rather than about a genre, and a
+   * 1968 pavilion box is the oldest and therefore the strictest of the twelve.
    *
    * The assertion is on the kit alone. The band around the box still leans; a
    * bass player does not stop playing in the pocket because the drummer is a

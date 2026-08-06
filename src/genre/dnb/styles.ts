@@ -49,8 +49,8 @@
  * and the space the hats are crossing, and a generator that filled it would
  * produce something perfectly competent that no label has ever pressed.
  *
- * **`cycle: 32` is the norm rather than the exception.** Nine styles in hiphop
- * carry a two-bar cycle; **every one of the twenty-four** carries one here, and
+ * **`cycle: 32` is the norm rather than the exception.** Ten styles in hiphop
+ * carry a two-bar *drum* cycle; **every one of the twenty-four** carries one here, and
  * on the break-based ones it is not an ornament, it is the format. A chopped break is a two-bar
  * object by construction — the second bar is where the edit that makes it a
  * *chop* rather than a *loop* actually lands — and a bar-shaped drum table
@@ -99,13 +99,13 @@
  *    about the metre — the hats still run at 172 — and writing it as a 2/4 would
  *    have halved the hat resolution, which is the one thing that style cannot
  *    afford.
- *  - **`swing` is zero on the programmed sixteen and small on the eight that
+ *  - **`swing` is zero on the programmed eight and small on the sixteen that
  *    sample a break.** 0.06 to 0.12, and what is being described is not a feel
  *    but the source recording's own push: a funk drummer's sixteenths at 136,
  *    resampled to 174, arrive a few milliseconds late relative to a grid and
  *    that residue is audible. A jazz swing of 0.5 would delete the sixteenth
  *    grid this music is written on.
- *  - **Twelve of the twenty-four write `excludeLayers: ['brass']`.** There is no
+ *  - **Thirteen of the twenty-four write `excludeLayers: ['brass']`.** There is no
  *    horn section in most of this music, and the thing a listener would call a
  *    stab in `techstep`, `jungle`, `jumpup` or `drumfunk` is a **chord** — which
  *    in this engine is the comp layer and not the brass one. The eleven that
@@ -941,16 +941,24 @@ const hardstep: Style = {
  * is jungle's, and the difference is four bars of harmony where there had been
  * one chord.
  *
- * **`hook: 'catchy'`**, and it is one of five styles here that step down from
- * the genre's `earworm`. The rule is the one hiphop arrived at from the same
- * direction: a style that repeats its hook exactly is right where the harmony
- * does not move, and wrong where there is a progression for a tune to be about.
- * These four styles have real changes.
+ * **`hook: 'catchy'`**, and it is one of **six** styles here that step down from
+ * the genre's `earworm` — this, `atmospheric`, `intelligent`, `liquid`,
+ * `sambass` and `deep`, against eighteen that write `earworm` out. This note
+ * said five in one sentence and four in the next, and neither was the count. The
+ * rule is the one hiphop arrived at from the same direction: a style that
+ * repeats its hook exactly is right where the harmony does not move, and wrong
+ * where there is a progression for a tune to be about. Those six styles have
+ * real changes.
  *
- * The bass is written with `sustain: true` and it is the only style in this
- * genre that asks for it. Everywhere else the bottom is a synthesiser triggered
- * per note; here it is a *double bass*, walking, and a walking line re-struck on
- * a pitch it is already sounding is a bow change rather than a note.
+ * The bass is written with `sustain: true`. **This note said it is the only
+ * style in this genre that asks for it, and six styles do** — the other five are
+ * `atmospheric`, `drumfunk`, `deep`, `autonomic` and `minimal`, every one of
+ * them a `cycle: 32` row holding a single sub across two bars. That is the same
+ * field for the opposite reason, and the distinction the sentence was reaching
+ * for survives it: everywhere else the bottom is a synthesiser whose note is
+ * *long*, and here it is a *double bass*, walking, where a line re-struck on a
+ * pitch it is already sounding is a bow change rather than a note. This is the
+ * only style in the genre whose sustained bass is a played instrument.
  */
 const jazzstep: Style = {
   id: 'jazzstep',
@@ -2325,9 +2333,21 @@ const dancefloor: Style = {
  * A batucada — surdo, agogô, tamborim, a shaker and a cabasa — laid over a
  * two-step, with a nylon guitar and a major key. It is a genuine and much-loved
  * corner of the genre and it exists in this catalogue for one structural reason
- * as well as a musical one: **it is the only style whose drum tables reach the
- * auxiliary voices at all**, and therefore the only one a `SAMPLE_RACKS` conga
- * rack has anything to attach to.
+ * as well as a musical one: **it is the style whose drum tables reach furthest
+ * into the auxiliary voices**, and therefore the one a `SAMPLE_RACKS` conga rack
+ * has most to attach to.
+ *
+ * **This note said *the only style whose drum tables reach the auxiliary voices
+ * at all*, and it is not.** Counted over every written slot in the genre's drum
+ * tables, **12 of the 24 styles here reach at least one of `lp mp hp perc cb sh
+ * tb`** — but ten of the twelve reach exactly *one* voice, and five of those
+ * ten spend two strokes on it. This style reaches four voices and writes 54
+ * strokes across them, 42% of the genre's 128; `ragga` is the only other
+ * multi-voice table at three voices and 9 strokes. So the structural claim
+ * survives as a matter of degree rather than of kind, and the degree is large
+ * enough that the conclusion is unchanged: a conga rack landing on `perc` alone
+ * in `jungle` is one sample under a break, and a conga rack landing here is a
+ * batucada.
  *
  * `modeWeights` is the most major-leaning in the file after `hardcore`, and it
  * is not a hedge — the source material is Brazilian and the source material is

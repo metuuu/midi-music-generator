@@ -1427,15 +1427,23 @@ const fusion: Style = {
    * same gesture under both, and if it only works under the shuffle then it is a
    * jazz field wearing a neutral name.
    *
-   * **And the only style in the catalogue that may play `funk`.** One style, on
-   * purpose: funk is the feel that reads as a genre if it is overused, so it
-   * ships where it can be listened to rather than spread across the four styles
-   * it would flatter. A straight sixteenth grid is what the stabs and the ghosts
-   * are made of, and a swung style handed the same numbers would be a shuffle
-   * with the eighths chopped out of it. The bar being 2+2+3 rather than
-   * four-four is a feature of the test and not an obstacle: it is what forced
-   * `funk`'s accent array to say something metre-neutral instead of quietly
-   * asserting a backbeat.
+   * **And this was once the only style in the catalogue that could play `funk`.**
+   * One style, on purpose: funk is the feel that reads as a genre if it is
+   * overused, so it shipped where it could be listened to rather than spread
+   * across the four styles it would flatter. A straight sixteenth grid is what
+   * the stabs and the ghosts are made of, and a swung style handed the same
+   * numbers would be a shuffle with the eighths chopped out of it. The bar being
+   * 2+2+3 rather than four-four is a feature of the test and not an obstacle: it
+   * is what forced `funk`'s accent array to say something metre-neutral instead
+   * of quietly asserting a backbeat.
+   *
+   * **The widening happened, which is what "ship it and listen" was for.**
+   * Twenty-four styles across six genres name the feel now — jazz, funk, latin,
+   * hiphop, rnb and dnb — so this entry is the first of twenty-four rather than
+   * the only one. The sentence is kept in the past tense because the *reason* is
+   * still the operative one for anybody adding the twenty-fifth: the objection
+   * was never that the feel is unfinished, it was that a feel which reads as a
+   * genre stops being a feel once every table has it.
    *
    * ## And it is the wrong style, for a reason worth writing down
    *
@@ -1456,7 +1464,25 @@ const fusion: Style = {
    * is the instruction and this is the style named. The listening will show it.
    * The style that would show the whole feel is `blues` or `swing` — both have a
    * comp — and neither is straight, which is the other half of what funk wants.
-   * The catalogue currently has no straight style with a comp layer.
+   *
+   * **The last line of this paragraph used to read "the catalogue currently has
+   * no straight style with a comp layer", and it was never true.** It was
+   * written on 2026-07-31, against a catalogue of four genres that already held
+   * seventeen such styles — six in iskelmä, five in ambient, five in synth, and
+   * **`bossa`, eight hundred lines up this same file**. Today it is **291 of
+   * 389**: styles that are `swing: 0`, carry a `comp` table and do not exclude
+   * the layer. Worth recording as an error rather than as drift, because it is
+   * the one failure mode a comment like this has — a claim about the catalogue,
+   * made from inside one style, checked against memory instead of against the
+   * tables.
+   *
+   * **Nine of the twenty-four styles that name the `funk` feel are among the
+   * 291** — two in funk, five in hiphop, one each in latin and rnb — so the
+   * demonstration this paragraph calls unavailable has been running in four
+   * other genres for some time, and the shortest route to hearing the whole feel
+   * is one of theirs rather than a new jazz style. What stays true is the
+   * jazz-local half, minus its own counter-example: `blues` and `swing` are the
+   * two styles *here* with a comp that would suit the feel, and both swing.
    *
    * Straight still leads, and pocket and funk are level behind it, because the
    * point of a table is that the sections differ from each other. A table with
@@ -1464,12 +1490,15 @@ const fusion: Style = {
    */
   feels: [['straight', 5], ['pocket', 3], ['funk', 3]],
   /**
-   * …and the only style in the catalogue whose band does anything at a seam. See
-   * `generate/transition.ts`.
+   * …and the first style in the catalogue whose band does anything at a seam.
+   * See `generate/transition.ts`.
    *
    * One style, on the same instruction `funk` above shipped under: ship it where
-   * it can be listened to, then widen. Fusion is the right one and not merely
-   * the available one — the bar is 2+2+3, so a shot here exercises the
+   * it can be listened to, then widen. **It widened**: 141 of 389 styles across
+   * twelve genres declare `transitions` now, so *first* is the accurate word
+   * and *only* — which is what this line used to say — has not been true since
+   * the genre count reached double figures. Fusion is the right one and not
+   * merely the available one — the bar is 2+2+3, so a shot here exercises the
    * metre-derived figure in the case that most needs it. A generic table would
    * put the band on slots 0 and 8 of a fourteen-slot bar, which is the middle of
    * the third group and the last place anybody accents; the grouping puts them
@@ -1486,9 +1515,15 @@ const fusion: Style = {
    *
    * **And no `shots` table**, deliberately. Authoring one here would be the
    * feature shipping with its fallback never having sounded, and the fallback is
-   * the reason the other seventeen styles can opt in without eighteen tables
-   * being written first. If the derived figure is wrong anywhere it is wrong
-   * here, in seven, where it is loudest.
+   * the reason a style can opt into `shot` without a table being written for it
+   * first. This line used to put that saving at "the other seventeen styles",
+   * which was the plan's figure on the day it was written — nothing else in the
+   * catalogue had a `transitions` table yet — and the fallback has since carried
+   * far more than seventeen: **76 styles draw `shot`, and 24 of them author no
+   * `shots` table at all**, the four here plus twenty across indian and arabic,
+   * where the derived figure lands on the group heads and the group heads are
+   * the vibhāgs. If the derived figure is wrong anywhere it is wrong here, in
+   * seven, where it is loudest.
    */
   transitions: [['fill', 5], ['shot', 3], ['break', 2], ['elide', 2]],
   modeWeights: { minor: 0.72, major: 0.28 },

@@ -241,8 +241,11 @@
  * corner of the hall with about a metre and a half of air behind it.
  *
  * It is deliberately not fixed here, and the reason is the seam rather than
- * laziness. Six of the ten rooms in this directory now answer `d.width` for the
- * aperture and every one of them has the same gap; building a screen at that x
+ * laziness. **Six of the ten** rooms in this directory answered `d.width` for
+ * the aperture when this was written and it is seven of twelve now — courtyard,
+ * riihi, sabha, dancehall, shed, lawn and this one, measured by calling every
+ * `shape()` rather than by reading them — and every one of them has the same
+ * gap; building a screen at that x
  * to catch a prop would be this file compensating for a placement decision
  * another file owns, which is the direction of dependency the whole split exists
  * to forbid. If it is worth solving it is worth solving in `stage-props.ts`, once,
@@ -274,8 +277,13 @@ import {
  * derivation: this is a platform somebody built out of the same timber as the
  * floor, not a stage a theatre flew scenery onto.
  *
- * It has to survive the densest standing house in the project, though, and that
- * is the half that had to be checked rather than asserted. `stage-audience.ts`
+ * It has to survive **the densest standing house in the project**, though, and
+ * that
+ * is the half that had to be checked rather than asserted. It is not the densest
+ * any more — latin stands at 0.88 against metal's 0.94, dnb's 0.92 and reggae's
+ * and funk's 0.90 — and the check below is unaffected, because it is solved
+ * against a standing crown's *height* and not against how many of them there
+ * are. `stage-audience.ts`
  * puts a standing crown at 1.62 m plus 0.2 m of jitter, bob and applause lift,
  * with the first row's face at `lipZ + 1.0`; at 0.7 m of rise those crowns reach
  * **1.12 m in board space**, which is 0.18 m below `HEAD_BAND.lo` — the chin of
@@ -419,11 +427,12 @@ function shape(d: RoomDatum): RoomShape {
      * whole width, and `RoomShape`'s one hard rule — never narrower than
      * `width - 2 * MARGIN_SIDE` — is satisfied with the entire metre to spare.
      *
-     * Six of the ten rooms in this directory now answer `d.width` here and it is
+     * **Six of the ten** rooms in this directory answered `d.width` here when
+     * this was written; two rooms later it is seven of twelve, and it is
      * worth saying why that is not everybody copying the courtyard. It is what
      * the field *means* once a room has no arch in it: the aperture is the gap
      * the audience looks through, and where nothing masks the band the gap is
-     * the band. What differs between those six is what the number is measured
+     * the band. What differs between those seven is what the number is measured
      * between, and here it is measured between two things that do not exist,
      * which is the strongest form of the same answer.
      *
@@ -578,10 +587,29 @@ function build(c: RoomContext): RoomRig {
    */
   /**
    * The tiling runs the whole plan of the building and then some, which is not
-   * what the other rooms do and is a bug they are all carrying.
+   * what the other rooms did and is a bug they were all carrying.
    *
-   * `proscenium.ts` lays a floor `houseDepth + 8` deep centred on
-   * `lipZ + houseDepth / 2`, and the courtyard copies it. That reaches
+   * **`proscenium.ts` laid a floor `houseDepth + 8` deep centred on
+   * `lipZ + houseDepth / 2`, and the courtyard copied it.** Every room does it
+   * this room's way now — `backZ - 2` to `lipZ + houseDepth + 4`, measured off
+   * the building — and the old shape is named here in the past tense rather
+   * than deleted because the arithmetic below is only legible against the thing
+   * it is arguing with.
+   *
+   * **It took two passes, and the reason is worth more than the fix.** This
+   * paragraph named two rooms, because two rooms are what its author looked at.
+   * Both were repaired and the job was believed done; a later sweep measured the
+   * population instead of reading the sentence and found **three more** —
+   * `concert-hall.ts`, `sabha.ts` and `ballroom.ts`. Since the ballroom dresses
+   * funk, rnb and pop, that is **five more genres**, and the missing ground is
+   * `depth - 4` in each: 3.50 m in classical's hall, the deepest room in the
+   * catalogue, down to 2.40 m in pop's. `sabha.ts` had described its own broken
+   * floor in its header the whole time,
+   * naming the two rooms that had been fixed. A note recording a known fault
+   * stops being read as an outstanding one, which is this codebase's recurring
+   * failure pointed at a bug report rather than at a mechanism.
+   *
+   * That reaches
    * `lipZ - 4` upstage, which in this genre is `z = -0.5` — half a metre
    * *downstage of the middle of the stage*. Everything upstage of that outside
    * the boards has no floor under it at all. In a proscenium nobody ever finds
@@ -800,11 +828,16 @@ function build(c: RoomContext): RoomRig {
    * is very nearly black, so this is also simply what is there.
    *
    * **The leaf** is a louvred shutter, drawn as a `cellPlane` of one column and
-   * fourteen rows with the jitter run up hard. That is the house's own texturing
+   * **fourteen** rows with the jitter run up hard — eighteen, which is what the
+   * `rows` below says and what the triangle count in the next sentence was
+   * written against. That is the house's own texturing
    * trick used for the one thing it is best at — a stack of slats *is* a run of
    * horizontal bands with a crisp seam between each pair, which is precisely
-   * what a non-indexed cell plane gives for forty triangles. Fourteen instanced
-   * leaves at forty triangles is less geometry than one bevelled box, against
+   * what a non-indexed cell plane gives for thirty-six triangles. **Fourteen**
+   * instanced
+   * leaves — sixteen, two per bay and eight bays in all four eras — at
+   * thirty-six
+   * triangles is less geometry than one bevelled box, against
    * the three hundred boxes a real louvre would have been.
    *
    * **The medio punto** is the half-round fanlight over the head, and it is the

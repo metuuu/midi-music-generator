@@ -53,13 +53,25 @@
  *
  * `jazzfunk`. Its changes are the content — a `min11` on the ♭III and a
  * `dom7sus4` on the ♭VII are two colours the player is aiming at, and a tonic
- * pentatonic dragged across both hears neither. It is the mirror image of the
- * only other use of `Style.scaleForChord` in the project: jazz follows the chord
- * and its blues style overrides to a tonic scale; funk follows the tonic and its
- * jazz-funk style overrides to the chord. One field, two genres, opposite
- * directions, one style each. That is what the field is for — a claim a style
- * makes about *itself* rather than about its genre — and widening it to the four
- * or five styles that could half-argue for it would turn a claim into a setting.
+ * pentatonic dragged across both hears neither. It is the mirror image of what
+ * jazz does: jazz follows the chord and its `blues` style overrides to a tonic
+ * scale; funk follows the tonic and its jazz-funk style overrides to the chord.
+ * Two genres, opposite directions, one style each. That is what the field is
+ * for — a claim a style makes about *itself* rather than about its genre — and
+ * widening it to the four or five styles here that could half-argue for it
+ * would turn a claim into a setting.
+ *
+ * **This used to call jazz's the "only other use of `Style.scaleForChord` in
+ * the project", and that stopped being true several genres ago.** Sixty-six
+ * styles across fourteen genres override the field now — indian on all
+ * twenty-eight, because a rāga pair *is* a style-level scale claim; rock on
+ * eight, pop on seven, country on five. The pairing with jazz survives, because
+ * it is a pairing about *direction* and that is still the only one of its kind:
+ * everywhere else the override narrows or colours the genre's rule, and only
+ * these two invert it. The count was never the argument, and it is corrected
+ * rather than deleted because the old sentence read as though the field were
+ * rare — a field a sixth of the catalogue uses is not, and a style author
+ * weighing an override should know that.
  */
 
 import { makeScale } from '../../core/scale.js';

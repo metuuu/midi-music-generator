@@ -590,9 +590,12 @@ export const buildDigitalRig: SynthRigBuilder = (opts) => {
    * A stack is two instruments and the top one has its own jacks, but a lead
    * from up there would cross the frame's own arms and columns on its way down
    * — three collisions the router cannot see, because none of this rig's steel
-   * is an obstacle in the xz plane it works in. The lower case is 40 cm off the
-   * boards with nothing under it, so a lead leaves it and falls to the deck
-   * through clear air.
+   * is an obstacle in the xz plane it works in. **The lower case is 40 cm off
+   * the boards** with nothing under it, so a lead leaves it and falls to the
+   * deck
+   * through clear air. It is 86 cm: `botY` is `keyTopY + 0.004 - CASE_H`, and
+   * `synth.ts` hands this rig `KEY_TOP_Y = 0.95`, the archetype's own
+   * `workHeight`. The conclusion is the same conclusion with more air under it.
    *
    * `panelDepth` rather than a number: the slab's back face is wherever this
    * build put it, and this rig varies that depth per instrument.

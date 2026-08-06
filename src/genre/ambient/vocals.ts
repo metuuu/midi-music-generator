@@ -1,7 +1,7 @@
 /**
  * How ambient sings.
  *
- * This profile sits at the far end of an axis the other two genres share. Jazz
+ * This profile sits at the far end of an axis jazz and iskelmä share. Jazz
  * puts a hard syllable on every note, iskelmä sings words with long vowels in
  * them, and ambient sings words that are very nearly *only* long vowels —
  * `WORD_STYLES.airy` writes a doubled vowel more often than not and opens
@@ -30,7 +30,7 @@ export const VOCALS: VocalProfile = {
   // 52 — Choir Aahs. The one genre where the GM choir patch is not a
   // compromise: a sustained ensemble "aah" is a fair description of the target.
   gm: 52,
-  // A sawtooth, where the other two profiles use a square.
+  // A sawtooth, where iskelmä's and jazz's profiles use a square.
   //
   // That choice was made on crest factor: a square delivers more average level
   // for the same peak, and a pop vocal has to fight drums that already reach
@@ -62,7 +62,7 @@ export const VOCALS: VocalProfile = {
   // since it was written.
   signature: 'high-female',
   delivery: 'chant',
-  // Higher than the other two profiles. Choral ambient sits where a treble line
+  // Higher than iskelmä's or jazz's. Choral ambient sits where a treble line
   // sits, not where a crooner does.
   centre: 62,
   // D3 to C5 — a mixed-voice ensemble rather than one singer, which is what

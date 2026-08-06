@@ -696,8 +696,11 @@ const AT_EASE: Partial<Record<Archetype, AtEasePose>> = {
  * the hand that holds it.
  *
  * Structural, like `HasSoundingContact` in `instruments/index.ts` and for the
- * same reason: two of the twenty-two models have a bow and `InstrumentModel`
- * should not grow a member the other twenty must ignore. See
+ * same reason: two of the **twenty-two** models have a bow and `InstrumentModel`
+ * should not grow a member the other twenty must ignore. Two archetypes later
+ * the numerator is unchanged — the violin and the cello are still the only bows
+ * on the stage — and the denominator is twenty-four, so the members that would
+ * have to ignore it are twenty-two. See
  * `Animator.carryBow`.
  */
 interface CarriesBow {
@@ -1286,7 +1289,10 @@ class Player {
    * the same question — where does this hand go, which way does it lie, what is
    * it doing — but it is read by `poses` rather than by `commitIdle`, because it
    * is shape and not placement. Neutral until a model says otherwise, which is
-   * twenty of the twenty-two.
+   * **twenty of the twenty-two** — and, probed model by model over every point
+   * its archetype declares, twenty of the twenty-four: only the trumpet,
+   * saxophone, clarinet and flute ever return a `Contact.fingers`, and the two
+   * archetypes added since are both voices with no hands at all.
    */
   readonly goalFingers: [Float32Array, Float32Array] = [
     new Float32Array(4).fill(FINGER_NEUTRAL), new Float32Array(4).fill(FINGER_NEUTRAL),
@@ -2965,9 +2971,15 @@ class Runtime implements Animator {
    *
    * The complaint this answers is "the drummer's hands are on top of each
    * other", and there are two things wrong when that happens. The first is that
-   * fourteen of the twenty-two models take no notice of `resolve`'s `effector`
+   * **fourteen of the twenty-two** models take no notice of `resolve`'s
+   * `effector`
    * parameter at all — a drum is struck where it is struck, so they never
-   * needed to — and answer `{kind:'rest'}` with one point for both hands. The
+   * needed to — and answer `{kind:'rest'}` with one point for both hands. It is
+   * nine of the twenty-four now, and the fall is the wind and brass family
+   * growing a second answer rather than the count of models changing: drumkit,
+   * handdrum, grand-piano, electric-piano, organ, synth, mallets, singer and
+   * vocal-group are what is left, and every one of them is still the case this
+   * method was written for. The
    * second is subtler: even pushed apart, one point in front of a drum kit is
    * not where either hand belongs.
    *

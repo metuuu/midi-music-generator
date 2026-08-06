@@ -87,10 +87,18 @@ export type SoloLayer = Extract<LayerId, 'melody' | 'counter' | 'comp' | 'bass' 
  * How a genre's soloist actually talks.
  *
  * Every number here is a dialect knob rather than a quality setting. The two
- * genres that solo at all want opposite things from most of them, which is the
- * point: a jazz chorus is improvisation and an iskelmä break is an ornamented
- * statement of the tune, and generating the second by turning the first down
- * would be wrong about the genre rather than merely tame.
+ * genres that soloed at all wanted opposite things from most of them, which was
+ * the point: a jazz chorus is improvisation and an iskelmä break is an
+ * ornamented statement of the tune, and generating the second by turning the
+ * first down would be wrong about the genre rather than merely tame.
+ *
+ * **Sixteen genres solo now** and the pair is kept because it is still the
+ * clearest statement of the axis — but it is no longer the widest. Only ambient,
+ * classical and house declare no rotation at all, and on `liftIntoReturn` the
+ * two originals have both been overtaken from outside: dnb sits at 0.08 under
+ * jazz's 0.12 and metal and pop at 0.9 over iskelmä's 0.85. That is the
+ * evidence the field was a dialect knob rather than a quality setting, since a
+ * quality setting acquired fourteen more authors would have converged instead.
  */
 export interface SoloVocabulary {
   /** Beats between successive notes at rest. 0.5 is an eighth-note line. */
@@ -135,11 +143,18 @@ export interface SoloVocabulary {
   /**
    * Chance the last solo chorus ends on a rising run into whatever comes back.
    *
-   * The two genres want opposite things from the same bars and both are right.
-   * An iskelmä break exists to *deliver* the final chorus and the run up into
-   * it is the gesture everybody in the hall is waiting for. A jazz chorus hands
-   * back to the head, and the head has a melody of its own that a soloist still
-   * climbing would be playing over — there, the space is the gesture.
+   * The two genres wanted opposite things from the same bars and both were
+   * right. An iskelmä break exists to *deliver* the final chorus and the run up
+   * into it is the gesture everybody in the hall is waiting for. A jazz chorus
+   * hands back to the head, and the head has a melody of its own that a soloist
+   * still climbing would be playing over — there, the space is the gesture.
+   *
+   * Sixteen genres set it now and they fill the range rather than clustering at
+   * the two ends: 0.08 dnb, 0.1 hiphop, 0.12 jazz, 0.15 funk, 0.2 reggae, 0.35
+   * finnfolk, 0.5 rnb, 0.55 indian, 0.7 synth and country, 0.75 latin, 0.85
+   * iskelmä and rock, 0.88 arabic, 0.9 metal and pop. Both of the originals have
+   * been passed from outside, which is the useful confirmation that this is an
+   * axis and not a dial with a correct setting.
    */
   liftIntoReturn: number;
 }
@@ -1423,13 +1438,24 @@ export interface DrumSoloOptions {
  * This function named a trap kit in literals — snare, three toms, kick, hi-hat,
  * crash — and the indian author found the cost of that before anybody else did:
  * they took `drums` out of the solo rotation and set `tradeFours: 0`, which
- * deletes the *tani āvartanam* — a listed item on a Carnatic programme, where
+ * deleted the *tani āvartanam* — a listed item on a Carnatic programme, where
  * the mridangam plays alone for ten minutes — and the *sawāl-jawāb*, which
  * their own note calls one of the two or three moments a live audience comes
  * for. They did that rather than have a tabla solo come out as a rock drum solo
  * on instruments that are not in the room, and they were right to: a missing
  * tani āvartanam is a gap, and one played on a Ludwig is a mistake with a
  * reason behind it.
+ *
+ * **Both are back, and that is what this function was generalised for.** Once
+ * the orchestration resolved from the table instead of naming five objects, the
+ * genre re-enabled what it had given up: indian's rotation carries `drums` at 2
+ * and `tradeFours` is 0.5. Measured over 336 indian songs — every style at
+ * twelve seeds — **113 sections come out as a drum chorus, carrying 6086 drum
+ * events, and not one of them is kit-tier**: the whole vocabulary that appears
+ * is `hp lp mp`, three strokes of one head. The refusal above is kept in the
+ * past tense because it is the only thing that makes the size of the fault
+ * legible — an author deleting a listed item from a concert programme rather
+ * than let the engine mis-stage it.
  *
  * Arabic did not opt out and so it is the measurement. Its rotation carries
  * `drums: 2` and `tradeFours: 0.3`, and every one of its styles but `saidi` and
@@ -1609,9 +1635,14 @@ function orchestrationFor(
  * spare. It costs one line either way, and it is the difference between a solo
  * you can still hear the form through and a burst of noise.
  *
- * *Which* drum, and therefore which voices, comes from `opts.table` and is the
- * whole of `SoloOrchestration`. Everything below is written in terms of jobs —
- * state, answer, weight, punctuate, land — and none of it names an object.
+ * *Which* drum, and therefore which voices, comes from `opts.table` **and
+ * `opts.bank`** and is the whole of `SoloOrchestration`. The table alone was the
+ * original answer and is not sufficient, which `DrumSoloOptions.bank` argues at
+ * length one screen up: latin's `joropo` writes `sh perc`, two `either`-tier
+ * voices and nothing else, and that reads as a kit on its own and as a
+ * percussionist's bongo and cabasa under any of the nine `+congas` banks latin's
+ * eras name. Everything below is written in terms of jobs — state, answer,
+ * weight, punctuate, land — and none of it names an object.
  */
 export function generateDrumSolo(opts: DrumSoloOptions): DrumEvent[] {
   const { startBeat, beatsPerBar, bars, rng, intensity } = opts;

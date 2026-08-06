@@ -47,10 +47,10 @@
  * vocal, a Waylon Jennings guitar figure.
  *
  * The scale it needs is **major pentatonic plus a flat third**: six notes, C D E♭
- * E G A, with both thirds available and the ear choosing. That scale does not exist
- * in `core/scale.ts`, and adding one is not this genre's to do — the catalogue is
- * shared and a sixth-note hybrid invented for one folder would be a scale nobody
- * else could read.
+ * E G A, with both thirds available and the ear choosing. That scale did not exist
+ * in `core/scale.ts` when this was written, and adding one was judged not to be
+ * this genre's to do — the catalogue is shared and a sixth-note hybrid invented for
+ * one folder would be a scale nobody else could read.
  *
  * So the claim is split rather than fudged, which is the more honest of the two
  * available failures. The genre answers with the major pentatonic, and the four
@@ -61,6 +61,28 @@
  * does not use the flat fifth. What is lost is the *mixture* — a phrase with both
  * thirds in it, which is what a real Merle Haggard line does — and there is no way
  * to get that from a five-note table.
+ *
+ * ### The scale exists now, and this genre has not taken it
+ *
+ * `core/scale.ts` carries **`majorBlues: [0, 2, 3, 4, 7, 9]`** — C D E♭ E G A, the
+ * six notes named three paragraphs up, note for note. The reasoning that declined
+ * to invent it turned out to be the reason it got built: rock described the same
+ * scale over eight styles without conferring, two independent reports made it a
+ * gap rather than one folder's hybrid, and the row's own doc comment cites this
+ * header by name for the description and for what the split costs.
+ *
+ * The paragraphs above are kept in place because the split they argue for is still
+ * what ships. **`majorBlues` is named in 0 of this genre's 24 styles**; the four
+ * electric ones still return `minorPentatonic` and the genre still answers
+ * `majorPentatonic`, so what a country line can currently do is unchanged and the
+ * mixture is still absent. What has changed is that its absence is now a decision
+ * with a table sitting next to it rather than a ceiling. Two things a taker would
+ * have to settle first, both already visible in the row's comment: the six notes
+ * keep *both* three-semitone steps, ♮3–5̂ and 6̂–8̂, so `augmented-second` has to
+ * stay off — which this genre has already done at every level, for this reason —
+ * and adjacent semitone degrees mean the generator will *land on* the blue third
+ * and hold it rather than pass through it, which is a different line from the one
+ * a Telecaster plays.
  *
  * ## Two rule overrides are not taste, they are arithmetic
  *
@@ -404,7 +426,8 @@ export const country: Genre = {
   /**
    * What this band arranges with, and two of the weights are unusual.
    *
-   * `harmony` at the top, higher than any other genre gives it, because the
+   * `harmony` at the top of this table, and behind only metal's and R&B's 8
+   * across the project, because the
    * close-harmony third **is** this music's arranging device. A brother duet, a
    * bluegrass chorus, a gospel quartet and a Nashville vocal group are four
    * decades' worth of the same idea, and it is a genre fact rather than a style one:

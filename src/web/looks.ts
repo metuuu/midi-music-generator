@@ -65,9 +65,13 @@
  * about. One body, one skin, one hair colour and one outfit across all sixteen
  * hair styles; one hair style and one outfit across all twenty accessories; one
  * *colour* across all fifteen fabrics, which is the only way a reflectance table
- * can be read at all — `clothSurface` turns `Fabric` into a roughness and a
- * metalness and nothing else, so two fabrics under two colours are not being
- * compared.
+ * can be read at all — **`clothSurface` turns `Fabric` into a roughness and a
+ * metalness and nothing else**, so two fabrics under two colours are not being
+ * compared. It turns it into five things now: a roughness, a metalness, a weave
+ * normal map, a sheen, and a `tone`/`chroma` pair that moves the *colour it was
+ * handed*. That makes holding one colour more necessary rather than less — a
+ * fabric that dyes its own input is exactly the thing two swatches under two
+ * colours cannot separate — and it is why the second row exists.
  *
  * ## Determinism
  *
@@ -167,8 +171,10 @@ const HEAD_WORN: readonly Accessory[] = [
  *
  * `short` and `bald` are the controls — a hat that is wrong over those is wrong
  * full stop — and the other eight are every style with mass above or around the
- * skull, which is where the brim goes. `hood` and `wrap` are in it because they
- * are the two cloth styles: a hat over a hood is a garment over a garment, and
+ * skull, which is where the brim goes. **`hood` and `wrap` are in it because
+ * they are the two cloth styles** — only `hood` is, and the list below has
+ * never carried `wrap`. The argument is right and the row is one figure short of
+ * making it: a hat over a hood is a garment over a garment, and
  * nothing has ever checked that the wardrobe cannot ask for one.
  */
 const VOLUMINOUS: readonly HairStyle[] = [
@@ -186,11 +192,16 @@ const VOLUMINOUS: readonly HairStyle[] = [
  *
  * The hair is a mid brown rather than the near-black most wardrobes draw,
  * because a black mass on a dark background has no silhouette to judge. The
- * jacket is a mid grey for the same reason and because it is what the two hats
+ * jacket is a mid grey for the same reason and because it is what the **two**
+ * hats
  * that shade *from* it — `porkpie`, `flatcap`, `beanie`, `cowboyhat` — are
  * derived from, so a hat that comes out invisible against the coat comes out
- * invisible here too. The accent is warm and loud because five accessories take
- * their whole colour from it.
+ * invisible here too. The list caught up with the count and the count did not:
+ * it is four. The accent is warm and loud because **five** accessories take
+ * their whole colour from it — nine, counted in `performer-accessories.ts`:
+ * `ballcap`, `bandana`, `turban`, `tie`, `bowtie`, `scarf`, `chain`, `earrings`
+ * and `hoops`, with the porkpie's and the cowboy hat's bands taking it for a
+ * part.
  */
 const BASE_LOOK: Look = {
   skin: '#c58b62',
@@ -279,7 +290,9 @@ camera.position.z = 80;
 /**
  * Three lights, all directional, and that is the load-bearing word.
  *
- * `clothSurface` turns a `Fabric` into a roughness and a metalness, and both of
+ * `clothSurface` turns a `Fabric` into a roughness and a metalness — and, since
+ * the table grew columns, a weave and a sheen as well, which are statements
+ * about a highlight too. All of
  * those are statements about a *highlight*. A point light would give the figure
  * at the top of the grid a different one from the figure at the bottom, purely
  * because the two are five metres apart, and the fabric view would be measuring
@@ -347,8 +360,12 @@ let selected: string | undefined;
 /**
  * A performer for a synthetic figure.
  *
- * `singer` because it is the one archetype with no hands to occupy and nothing
- * to hold — see `ARCHETYPES` — so the body stands there and the costume is the
+ * `singer` because it is **the one archetype with no hands** to occupy and
+ * nothing
+ * to hold — see `ARCHETYPES`, where `vocal-group` now declares `hands: 0` too
+ * and says it is for the singer's reason. Either would do and this one is kept
+ * because a bench figure should be one person. So the body stands there and the
+ * costume is the
  * only thing in the frame. The posture is `stand` for the same reason: a bench
  * comparing hair against shoulders wants the shoulders in the place the styles
  * were written against.
@@ -465,9 +482,13 @@ function hatsView(): Row[] {
 /**
  * Fifteen fabrics in one colour.
  *
- * The colour is held because `Fabric` is a reflectance and nothing else: the
- * table in `performer-assets.ts` is fifteen `[roughness, metalness]` pairs, so
- * two of them under two colours are not being compared and two of them under one
+ * The colour is held because **`Fabric` is a reflectance and nothing else: the
+ * table in `performer-assets.ts` is fifteen `[roughness, metalness]` pairs** —
+ * which it was, and it is five columns now, `tone` and `chroma` moving the
+ * colour the caller handed in and `weave` and `sheen` adding a surface. Holding
+ * the colour is the same decision for a stronger reason: a fabric that dyes its
+ * own input is precisely what
+ * two of them under two colours cannot separate, and two of them under one
  * colour either differ or are the same fabric with two names. The second row is
  * the same fifteen against a dark coat, which is where the two ends of the table
  * separate — `flannel` at roughness 1.0 and `vinyl` at 0.08 are almost the same

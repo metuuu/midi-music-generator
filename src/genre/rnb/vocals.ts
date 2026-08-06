@@ -60,10 +60,18 @@
  * a room. One signature covers both, and the male half comes out as a man singing
  * above his break, which is exactly what those sides are.
  *
- * The range is the widest in the project at two and a half octaves, and it is
- * wide for a reason no other genre has: **the gesture this music is built on is
- * crossing the break inside one phrase.** A range that stopped at the top of the
- * chest voice would be a range with the payoff removed.
+ * The range is two and a half octaves, and it is wide for a reason no other genre
+ * has: **the gesture this music is built on is crossing the break inside one
+ * phrase.** A range that stopped at the top of the chest voice would be a range
+ * with the payoff removed.
+ *
+ * That said *the widest in the project* and it is the fifth widest of nineteen.
+ * Measured in semitones: synth 44, metal 41, pop 40, house 33, and this one 30.
+ * The superlative is dropped rather than rewritten because it was never the
+ * argument — *why* the range is wide is, and none of the four above it is wide
+ * for this reason. Synth's is a vocoder's band, metal's and pop's are one profile
+ * stretched over four decades of different singers. This one is a single singer
+ * who has to be able to get to both sides of one break in one phrase.
  */
 
 import { WORD_STYLES, type VocalProfile } from '../../style/vocals.js';
@@ -126,9 +134,11 @@ export const VOCALS: VocalProfile = {
    * produce a comfortable singer, which is the one thing this music never is.
    */
   centre: 64,
-  // E3 to B♭5, two and a half octaves. The widest in the project, because this
-  // line crosses the break inside a phrase and both sides of it have to be
-  // reachable. See the header.
+  // E3 to B♭5, two and a half octaves — thirty semitones, fifth widest of the
+  // nineteen and not the widest, which is what this used to say. Wide because
+  // this line crosses the break inside a phrase and both sides of it have to be
+  // reachable, which is a different reason from any of the four above it. See
+  // the header.
   range: [52, 82],
   /**
    * 0.2 — the tightest in the project, and it is the melisma that forces it.

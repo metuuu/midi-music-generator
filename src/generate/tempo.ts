@@ -12,8 +12,15 @@
  *  - **The pelimanni repertoire does the same thing**, more modestly, and finnish
  *    folk wrote the same comment.
  *  - **A build in house or dnb is a tempo-and-density ramp** with half of it
- *    unavailable, which is one of the two reasons those genres are still
- *    unwritten.
+ *    unavailable, which was one of the two reasons those genres were still
+ *    unwritten when this evidence was collected. **Both have since been
+ *    written**, and their verdict is the more useful half of the entry: they
+ *    declined the ramp, independently and for the same stated reason — a record
+ *    whose tempo moves cannot be beatmatched. House names no palette at all
+ *    across its 24 styles; dnb names one across its 24, `breakcore`, at one draw
+ *    in four. The build argued for below is therefore wanted by neither of the
+ *    two genres it was expected to serve, and should be built when something
+ *    actually asks for it. See `docs/engine-gaps.md` §8.
  *  - **A hip-hop record that drifts is a different record** from one that does
  *    not, which hiphop asked for as a texture rather than as a structure.
  *
@@ -236,9 +243,12 @@ export const RAMPS: Record<RampId, Ramp> = {
  * whole piece; realising it is `rampMap`, which draws nothing.
  *
  * Returns `undefined` — having drawn nothing at all — for a style with no
- * palette, which is every style in the catalogue today. That early return is
- * the whole acceptance criterion of this wave and it is deliberately the first
- * statement in the function.
+ * palette, which **was** every style in the catalogue on the day this shipped
+ * and is 388 of the 389 now. The one adopter is dnb's `breakcore`, at one draw
+ * in four; house, the other genre this was expected to serve, declined it across
+ * all 24 of its styles. That early return is still the whole acceptance
+ * criterion of this wave — 388 styles reach it without ever touching
+ * `${seed}:tempo` — and it is deliberately the first statement in the function.
  *
  * It also returns `undefined` for a drawn `none`, which *has* cost a number.
  * The two absences are indistinguishable downstream and that is correct: a band
@@ -400,13 +410,20 @@ export function effectiveBpm(ramp: Ramp, bpm: number): number {
  *
  * ### A build cannot be planned in this file
  *
- * A build is the gesture `dnb` and `house` are blocked on, and it is *not* a
- * short accelerando. It is a ramp over a fixed number of bars that **arrives at
- * a drop** — the tempo and the density climb together, everything leaves, and
- * the return is the landing. `Drop.removes` already says as much in its own
- * comment: a staggered return is a build, half of a build is a tempo ramp, and
- * writing one there would have been claiming the gesture in the file that cannot
- * finish it.
+ * A build **was** the gesture `dnb` and `house` were expected to be blocked on,
+ * and it is *not* a short accelerando. It is a ramp over a fixed number of bars
+ * that **arrives at a drop** — the tempo and the density climb together,
+ * everything leaves, and the return is the landing. `Drop.removes` already says
+ * as much in its own comment: a staggered return is a build, half of a build is
+ * a tempo ramp, and writing one there would have been claiming the gesture in
+ * the file that cannot finish it.
+ *
+ * **Both genres are written now and neither asked for the build**, which is why
+ * this heading says *not built* rather than *not built yet*. They took the
+ * other half and left this one — 27 of their 48 styles name a `Style.drops`
+ * palette and exactly one names a `tempoRamp` — so what follows is a shape that
+ * is ready rather than a shape that is owed. See the header for the reason they
+ * gave, which is a better answer than the feature and was not anticipated here.
  *
  * This file cannot finish it either, and the reason is an ordering constraint
  * rather than a preference. Everything here runs **before the form exists**,

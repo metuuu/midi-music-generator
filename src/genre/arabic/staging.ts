@@ -45,12 +45,15 @@ import type { Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
  * every number staged a kit: that `index.ts` declares a genre-wide transition
  * palette, and `applyShot` wrote its figure as `bd`, `sd` and a `cr` on the
  * landing, so `drumStations` found kit voices in a taqsim as readily as in a
- * shaabi number. That was true when it was written. It is not true now —
- * `applyShot` and the whole fill vocabulary read a `SeamOrchestration` off the
- * events through the same `drumStations` split casting uses, six of the seven
- * fill shapes generalise, and the seventh, `cymbal`, is re-aimed onto `lead-in`
- * rather than mimed on a skin, because a skin does not ring. See
- * `docs/engine-gaps.md` §2.1 and §6.
+ * shaabi number. That was true when it was written. It is not true now — the
+ * function is **`playShot`**, renamed by the wave that fixed it and findable
+ * under no other name, and it and the whole fill vocabulary read a
+ * `SeamOrchestration` off the events through the same `drumStations` split
+ * casting uses, six of the seven fill shapes generalise, and the seventh,
+ * `cymbal`, is re-aimed onto `lead-in` rather than mimed on a skin, because a
+ * skin does not ring. The old name is kept one line up because that sentence is
+ * about what the code *did*, and `generate/transition.ts` quotes it under the
+ * same name for the same reason. See `docs/engine-gaps.md` §2.1 and §6.
  *
  * So the frequency claim is now false by a wide margin, and the measurement is
  * worth keeping because it is a better description of this band than the

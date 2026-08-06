@@ -298,10 +298,20 @@ const HOUSE: StageRoom = {
  * auditioned across several genres gives that many genuinely different rooms
  * instead of the same dice roll wearing different paint.
  *
- * `id` names the *room*, not the room-and-era: four buildings and twelve
- * dressings of them, and the stage builder should have four models to write
- * rather than twelve. Everything the era changes arrives through `palette`,
+ * `id` names the *room*, not the room-and-era: nineteen rooms and seventy-one
+ * dressings of them, and the stage builder should have twelve models to write
+ * rather than seventy-one. Everything the era changes arrives through `palette`,
  * `props`, `fog` and the size.
+ *
+ * **That read *four buildings and twelve dressings*, and *four models rather
+ * than twelve*, which is now wrong by a factor of five in the direction that
+ * matters.** Measured over the registry: nineteen distinct `StageRoom.id`s, 71
+ * era dressings between them, and twelve `RoomStyle` members with a builder
+ * each — so the saving this sentence describes is no longer twelve-into-four
+ * but seventy-one-into-twelve. The numbers are corrected rather than dropped
+ * because the sentence is a *ratio* argument and the ratio is the thing that
+ * has been vindicated: a `web/concert/rooms/` that had grown one file per
+ * dressing would be seventy-one files today.
  *
  * The room comes from the genre and the fallback stays: `GENRES[genre]` is
  * `undefined` for a genre id that does not exist, and a genre that exists and
@@ -331,8 +341,18 @@ export function chooseVenue(genre: string, era: string, seed: string): Venue {
     /**
      * Which building to put it up as, if the room said. Emitted only when it
      * did — an absent field and the string `'proscenium'` mean the same thing to
-     * the renderer, and an IR that spelled out the default on every room would
-     * be saying it fourteen times to no reader.
+     * the renderer, and an IR that spelled out the default would be saying it
+     * three times to no reader.
+     *
+     * *That number was fourteen*, from the days when this file held the room
+     * table, and it is worth correcting rather than dropping because it has gone
+     * down while the catalogue went up. Measured: nineteen rooms, and only three
+     * of them — `pavilion`, `jazz-cellar`, `black-box` — decline to name a
+     * building. The elision this line performs used to cover almost every room
+     * in the project and now covers three, so what it saves is no longer worth
+     * an argument; what it still buys is that `architecture` in a printed IR
+     * always means *somebody chose this*, which is the property `roomFor` on the
+     * other side is written against.
      */
     ...(room.architecture ? { architecture: room.architecture } : {}),
     label: `${rng.pick(room.names)} · ${eraProfile?.label ?? era}`,

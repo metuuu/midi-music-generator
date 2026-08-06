@@ -578,8 +578,12 @@ function build(c: RoomContext): RoomRig {
    * trade in a room whose whole architecture is the audience arranged in tiers.
    *
    * It is the wrong trade here, and not by a little. This room's audience is
-   * `seated: false, density: 0.9` — the densest in the project — and it is
-   * *dancing*. The rake `stage-audience.ts` applies to a standing house is
+   * `seated: false, density: 0.9` — **the densest in the project** — and it is
+   * *dancing*. Both halves of that have been overtaken by the two genres that
+   * came after it and are kept because the trade is decided by the dancing. It
+   * is funk's house that is `seated: false, density: 0.9`; pop and rnb name this
+   * architecture too and both sit down, at 0.75 and 0.86. And 0.9 is fourth
+   * now — metal 0.94, dnb 0.92, reggae 0.90 — with `shed.ts` holding the title. The rake `stage-audience.ts` applies to a standing house is
    * 0.05 m a row rather than 0.1, which over ten rows is 0.45 m and is a
    * different kind of cheat: it is not a raked floor drawn cheaply, it is a
    * crowd drawn with depth so the back of it does not vanish behind the front.
@@ -606,7 +610,25 @@ function build(c: RoomContext): RoomRig {
    */
   const floorRng = c.rng('housefloor');
   const floorW = m.houseWidth + 8;
-  const floorD = m.houseDepth + 8;
+  /**
+   * Sized off the building, not off the house.
+   *
+   * It was `houseDepth + 8` centred on `lipZ + houseDepth / 2`, which is a
+   * house-shaped number for a plane that has to reach past the house at both
+   * ends: `lipZ` and `backZ` are `±depth / 2`, so the upstage edge sits at
+   * `lipZ - 4` whatever the room is, and the ground stops `depth - 4` metres
+   * short of the back wall. It reads as a black triangle in each bottom corner
+   * of a wide shot.
+   *
+   * **This room has the least masking of the five that carried it**, which is
+   * why it belongs in the set even though it was found last. A proscenium hides
+   * the wedge behind its tormentors and a courtyard behind its walls; a ballroom
+   * is a lit box a camera is meant to swing around the outside of, and the
+   * dancing floor is the thing the room is named for.
+   */
+  const floorFrom = m.backZ - 2;
+  const floorTo = m.lipZ + m.houseDepth + 4;
+  const floorD = floorTo - floorFrom;
   const floor = new Mesh(
     c.kit.own(cellPlane({
       width: floorW,
@@ -620,7 +642,7 @@ function build(c: RoomContext): RoomRig {
     surfaceMat,
   );
   floor.rotation.x = -Math.PI / 2;
-  floor.position.set(0, m.houseY, m.lipZ + m.houseDepth / 2);
+  floor.position.set(0, m.houseY, (floorFrom + floorTo) / 2);
   floor.receiveShadow = true;
   root.add(floor);
 

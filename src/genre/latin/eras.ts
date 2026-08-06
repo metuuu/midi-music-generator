@@ -51,9 +51,20 @@
  * It is the Latin percussion box — congas, bongos, agogôs, whistles — and it
  * looks like it was made for this folder. It carries `perc` and `sh` and nothing
  * else, so an era table naming it would resolve every kick, snare, hat and tom
- * to `undefined` and stage a song of woodblocks. `render/drum-banks.ts` says the
- * same thing at greater length and it is right: the box is a layer, and nothing
- * here can play two banks at once.
+ * to `undefined` and stage a song of woodblocks.
+ *
+ * **The reason it stays out has changed, and this paragraph was still giving the
+ * old one.** It used to end *the box is a layer, and nothing here can play two
+ * banks at once*, citing `render/drum-banks.ts` as saying the same thing. That
+ * file now says the opposite in as many words — *"Two objects can now play at
+ * once — see `SAMPLE_RACKS` below — so the feature it was waiting on has
+ * arrived"* — and a rack playing over a kit is precisely the shape this folder
+ * wanted. The 727 is still out, for a **smaller and more specific** reason that
+ * the same bullet gives: a `SAMPLE_RACKS` entry names a *bare* sample and the
+ * 727's are machine-prefixed, so admitting it means letting a rack carry a
+ * `.bank()` of its own, and the payoff is two samples asked to serve as three
+ * hand-drum strokes — which is the collapse the `lp`/`mp`/`hp` split exists to
+ * undo. A ceiling became a chore, and this file was still calling it a ceiling.
  */
 
 import type { EraProfile } from '../../style/types.js';

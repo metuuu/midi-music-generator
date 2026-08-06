@@ -136,7 +136,8 @@ export interface InstrumentModel {
    *
    * A model with only one answer may ignore the parameter entirely; a drum is
    * struck where it is struck. See `withSoundingContact` in `./index.ts`, which
-   * adapts the string models rather than making all 22 implement this.
+   * adapts the string models rather than making all **22** — twenty-four, since
+   * `singer` and `vocal-group` — implement this.
    */
   resolve(point: PlayPoint, effector?: Effector): Contact | undefined;
 

@@ -26,7 +26,8 @@
  *
  * ## What a drum bank means in a genre with almost no drums
  *
- * Sixteen of the twenty-four styles exclude the kit outright. The banks named
+ * Fourteen of the twenty-four styles exclude the kit outright — this said
+ * sixteen, and `styles.ts` records where that number had spread to. The banks named
  * below are therefore doing one narrow job: standing in for a **frame drum**,
  * which is `lp`/`mp`/`hp` — the three strokes of one drum played with two hands,
  * argued at length on `DrumVoice`. No sample bank in `BANK_VOICES` has those

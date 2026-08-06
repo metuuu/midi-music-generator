@@ -33,8 +33,11 @@
  * not have been recorded in any of these four years, and several styles were: a
  * ballad is a ballad in 1963 and in 2016, and the era decides what it is played
  * on rather than whether it exists. The weights still move by a lot — `hinrg` is
- * at 0.5 in 1965 and 9 in 1985 — but nothing is ever zero, because a zero would
- * be a claim about the repertoire that is false.
+ * at 0.5 in 1965 and 8 in 1985, a factor of sixteen — but nothing is ever zero,
+ * because a zero would be a claim about the repertoire that is false. The 1985
+ * figure read *9*; the table says 8, and the two numbers either side of it are 2
+ * and 2, so the spike is the shape being described and it survives the
+ * correction intact.
  *
  * `keyChangeChance` is the field this genre uses most deliberately and
  * `index.ts` argues it at length: the final-chorus lift is one of the most

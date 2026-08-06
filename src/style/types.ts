@@ -752,9 +752,13 @@ export interface Style {
    * Overrides the genre's palette where present. See `generate/transition.ts`.
    *
    * A fill is one entry here rather than the whole vocabulary, which is the
-   * point: today every section boundary in the catalogue is announced by the
-   * drummer and nobody else, and `shot`, `break` and `elide` are the three
-   * things the rest of the band does about a join.
+   * point: **when this was written** every section boundary in the catalogue was
+   * announced by the drummer and nobody else, and `shot`, `break` and `elide`
+   * are the three things the rest of the band does about a join. The sentence is
+   * kept in the past tense because it is what the vocabulary was argued against,
+   * and the other three are now drawn: measured over 6,710 seams in 760 songs
+   * spanning the nineteen genres, **88.6 % are a fill, 5.5 % a shot, 3.2 % an
+   * elide and 2.7 % a break.**
    *
    * **Absent means `DEFAULT_TRANSITIONS` and means no draw**, exactly as `feels`
    * below documents at length and for exactly the same cost — and here the two
@@ -944,7 +948,11 @@ export interface Style {
    * the decade, and an era is exactly the thing that should decide how a decade
    * sounds. That is answered by the default rather than by the order: a style
    * with nothing to say about production writes nothing, the era wins as it
-   * always did, and every style in the catalogue is in that position today. The
+   * always did, and every style in the catalogue **was** in that position when
+   * this landed. **15 of the 389 are not**, and the shape of that list is the
+   * argument holding: reggae's `dub`, house's `dubtechno` and `frenchtouch`,
+   * dnb's `dubwise`, rnb's `synthsoul` and `bedroom`, four hiphop styles built
+   * on tape and sample damage, and five pop styles named after a studio. The
    * only styles that reach this field are the ones production defines, and for
    * those the era yielding is the point rather than the cost.
    *
@@ -1001,9 +1009,13 @@ export interface Style {
   /**
    * Where this style's melody gets its notes, overriding the genre's answer.
    *
-   * Absent on every style but one, and that is the point: the genre's mapping is
-   * the idiom's mapping, and a style that overrides it is making a claim about
-   * itself rather than about its genre.
+   * Absent on every style but one **when this was written**, and that is still
+   * the point: the genre's mapping is the idiom's mapping, and a style that
+   * overrides it is making a claim about itself rather than about its genre. 66
+   * of the 389 styles make it now, and the distribution is the claim rather than
+   * a dilution of it — **31 of the 66 are indian**, where a rāga *is* the scale
+   * and the genre has no single mapping to inherit, and the rest are ones and
+   * twos inside twelve other genres.
    *
    * The blues is why this exists. Jazz follows the *chord* — each quality implies
    * its own scale and the line re-orients bar by bar — and that is correct for
@@ -1026,11 +1038,14 @@ export interface Style {
    * a shared stream costs, which was every song in every genre and a check
    * dropping from 66% to 59%.
    *
-   * Six styles carry one today, out of twenty-three, and each names at most two
-   * entries beside `straight`. Six feels applied liberally across four genres
-   * would make everything sound like the same band, so the library grew and the
-   * enabling did not: every table is a decision about one style, made once, with
-   * the reason written beside it.
+   * Six styles carried one out of twenty-three **when this was written**, each
+   * naming at most two entries beside `straight`. The counts are kept in the past
+   * tense because they are what the restraint below was measured against, and
+   * both have moved: **87 of the 389 styles carry a table now, in ten of the
+   * nineteen genres, and the widest names four entries.** Six feels applied
+   * liberally across four genres would make everything sound like the same band,
+   * so the library grew and the enabling did not: every table is a decision about
+   * one style, made once, with the reason written beside it.
    */
   feels?: (readonly [FeelId, number])[];
   /**
@@ -1053,9 +1068,11 @@ export interface Style {
    *
    * **Absent means no draw**, exactly as `feels` above documents at length and
    * for exactly the same cost, and absent is what every style in the catalogue
-   * says today. `[['none', 1]]` is a different statement — a band that has been
-   * asked and declined — and generates the same music while taking a number out
-   * of a stream that a style with no table never opens at all.
+   * **said when this landed**. 29 say otherwise now, in the four genres that
+   * asked — reggae, funk, house and dnb. `[['none', 1]]` is a different
+   * statement — a band that has been asked and declined — and generates the same
+   * music while taking a number out of a stream that a style with no table never
+   * opens at all.
    *
    * ## Worked example
    *
@@ -1128,9 +1145,11 @@ export interface Style {
    * spoken twice, and the two would compound.
    *
    * **Absent means no draw**, exactly as `drops` and `feels` above document, and
-   * absent is what every style in the catalogue says today. `[['none', 1]]` is a
-   * band that has been asked and declined: same music, one number out of a
-   * stream that a style with no table never opens.
+   * absent is what every style in the catalogue **said when this landed**. One
+   * says otherwise now — dnb's `breakcore`, the one style in that genre which is
+   * not a DJ tool and may therefore change speed — and it draws a map on 44 of
+   * 200 songs. `[['none', 1]]` is a band that has been asked and declined: same
+   * music, one number out of a stream that a style with no table never opens.
    *
    * ## Worked example
    *

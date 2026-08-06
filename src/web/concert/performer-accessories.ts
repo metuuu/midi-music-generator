@@ -139,10 +139,16 @@ const CLEAR = 0.08;
  * The narrowest hair a hat can be set down on, in head radii.
  *
  * A hat rides hair because the hair is *under* it, holding it up across the
- * whole width of the crown. A mohawk is 0.21 R across — three centimetres of
- * crest — and every other volume in the union is at least 0.99 R, so this is not
- * a fine distinction. Without it, a flat cap over a mohawk is lifted 1.58 R, a
- * whole head clear of the skull, balanced on a fin: it reads as a hat that has
+ * whole width of the crown. **A mohawk is 0.21 R across** and **a flat cap over
+ * one is lifted 1.58 R** were both true of a narrower, taller crest than the one
+ * that is built now. Measured off the group `buildHair` returns, the mohawk
+ * publishes a `halfWidth` of `0.394 R` and a `crown` of `1.984 R`, and against
+ * `flatcap`'s room of `1.09 - CLEAR = 1.01 R` the lift this constant prevents is
+ * `0.974 R`. The distinction is narrower than it was and is still not a fine
+ * one: every other volume in the union publishes at least `0.995 R` of
+ * half-width, so `HOLD` sits in a gap of six tenths of a head radius. Without
+ * it, a flat cap over a mohawk is lifted most of
+ * a head clear of the skull, balanced on a fin: it reads as a hat that has
  * come off, which is worse than either of the honest answers. With it, a crest
  * under a cap is flattened, which is what happens to a crest under a cap.
  */
@@ -812,8 +818,10 @@ function buildAccessory(
       // And it was black. Metalness 0.95 means a material with no diffuse term
       // at all: every photon it shows is a reflection, and in a room with no
       // environment map there are none, so the accent colour was never on
-      // screen. A scene environment is being added elsewhere and will help, but
-      // help is not the same as depending on it — 0.55 keeps the metal reading
+      // screen. A scene environment **is being added elsewhere and will help** —
+      // it landed, as `lightTheRoom` in `performer-assets.ts`, and all three
+      // pages call it — but help is not the same as depending on it, which is
+      // why this number did not go back up afterwards. 0.55 keeps the metal reading
       // as metal while leaving enough diffuse for the key light to find gold.
       // `hoops` stays at 0.9 and is right to: it hangs beside a lit face where
       // the skin bounces into it, and a chain hangs on a chest in its own shade.
@@ -919,9 +927,14 @@ function buildAccessory(
      * two are joined by a slider whose entire purpose is to take up the
      * difference. Lifting the group whole took the cups up with the band, so a
      * player with any real volume of hair wore them on the temples. Over the
-     * union's tallest heads that is `1.0 R` of travel — about eleven centimetres
-     * — which is not a fit that is slightly off, it is the cups above the crown
-     * of the skull.
+     * union's tallest heads that is **`1.0 R` of travel — about eleven
+     * centimetres** — which is not a fit that is slightly off, it is the cups
+     * above the crown of the skull. That figure is low and the number is worth
+     * having right, since everything below is solved against it: measured by
+     * running `seat` over every hair in the union, the tallest is `beehive` at
+     * `2.500 R`, this entry's room is `1.192 - CLEAR = 1.112 R`, and the lift is
+     * **`1.388 R`** — 18.9 cm on a 1.75 m player, whose `headR` is 0.1365 m.
+     * The afro is next at `1.212 R`.
      *
      * So the band rides, the cups stay, and **the ring stretches between them**,
      * which is the slider drawn rather than implied. Its top is `1.48 R` over
@@ -934,7 +947,10 @@ function buildAccessory(
      * The arithmetic is worth one line because it is what makes the stretch the
      * right shape rather than merely a taller ring. The ellipse is `1.225 R`
      * wide, so the band crosses the cup line at `1.175 R` with no lift and at
-     * `1.065 R` at a full `1.0 R` of it — against cups at `1.06 R`. The band
+     * `1.065 R` at `1.0 R` of it — against cups at `1.06 R`. Recomputed at the
+     * real maximum of `1.388 R` it crosses at `1.026 R`, which is 0.034 R
+     * *inboard* of the cup centres and still well inside a cup that spans
+     * `0.89` to `1.23 R`. The band
      * meets the cups across the whole range, and it meets them *closer* the
      * further it has stretched, which is the direction a real slider goes.
      */

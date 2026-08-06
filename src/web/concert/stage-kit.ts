@@ -231,10 +231,14 @@ export function houseLid(m: StageMetrics): number {
  * clear it to look at: a lens 0.3 m under a lid is *at* the lid, the ceiling
  * starts at the top of the picture and stays there, and the shot reads as taken
  * by somebody with their head against the plaster. Twice that much puts the
- * lens at 1.8 m in the cellar — a person standing on the floor of the room
- * rather than pressed into its ceiling — and 1.8 m is still a metre above the
- * back row of a seated house, which is the only clearance the height was ever
- * bought for.
+ * lens at **1.8 m in the cellar** — a person standing on the floor of the room
+ * rather than pressed into its ceiling. That number is the one `LOW_CEILING`
+ * seventy lines up records itself as having replaced: the lid went to 3.6 m and
+ * the boards came down to `CELLAR_RISE`, so the lens gets `STAGE_SOFFIT` less
+ * this, which is **2.25 m in board space**, 2.65 m above the cellar's own floor.
+ * The clearance the height was bought for still holds and is smaller than it was
+ * claimed to be: jazz's seated house tops out at 1.44 m in the same frame, so
+ * the gap is 0.81 m rather than the metre stated here.
  *
  * It costs the dressing nothing to widen: everything hung is built *downward
  * from the ceiling* to fit inside this band, so a deeper band is more room to

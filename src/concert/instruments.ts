@@ -3,9 +3,20 @@
  *
  * `style/instruments.ts` is a catalogue of 126 *sounds*, because that is what a
  * generator needs. A stage needs a catalogue of *things a person stands
- * behind*, and there are far fewer of those — twenty, against those 126: a
+ * behind*, and there are far fewer of those — twenty-four, against those 126: a
  * soprano and a baritone sax are one model at two sizes, and the eight GM synth
  * pads are one keyboard.
+ *
+ * **That number read *twenty* until it was recounted**, and it is corrected in
+ * place rather than deleted because the ratio is the whole argument for the file
+ * and the ratio is the half that moved. Measured: `ARCHETYPES` holds 24 entries
+ * against `ARCHETYPE_OF`'s 126, and casting 360 numbers across all nineteen
+ * genres puts every one of the 24 on a stage, so none of them is a row nobody
+ * reaches. The 126 stayed right on its own; the stage half went stale on its
+ * own — which is exactly the asymmetry this file is exposed to. Adding a *sound*
+ * without an object is a compile error, by the paragraph immediately below.
+ * Adding an *object* is a line in a closed union that nothing forces anybody to
+ * come back and recount.
  *
  * Two properties are worth the file existing on its own:
  *
@@ -319,12 +330,21 @@ export const ARCHETYPE_OF: Record<InstrumentId, Archetype> = {
    * keyboard.
    *
    * This table has no year in it and must not grow one — it is the statement of
-   * what a sound is played on, and 126 of its 129 entries have the same answer
+   * what a sound is played on, and 123 of its 126 entries have the same answer
    * in every decade the project stages. A `gm_choir_aahs` from 1963 onward is a
    * Mellotron tape, then a string machine, then a Prophet patch, then a sample
    * on a slab, and all four of those are a person standing at a keyboard. That
    * is what these three lines say and it is right for the years the catalogue
    * was written for.
+   *
+   * *That pair read **126 of 129** when it was written*, which was the same
+   * arithmetic against a catalogue that has since been recounted: three
+   * exceptions subtracted from the whole table. `INSTRUMENTS` and
+   * `ARCHETYPE_OF` both measure 126 today, so the same sentence is 123 of 126.
+   * The subtraction is left showing rather than replaced by "almost all of
+   * them", because *three* is the number the argument turns on — three
+   * exceptions is what makes a second small table cheaper than a year in this
+   * one, and a reader who cannot see the three cannot check that.
    *
    * **The exception is `EARLY_ARCHETYPE_OF`, one screen down**, which is read by
    * `archetypeForTrack` and by nothing else. Before 1970 no keyboard could make
@@ -364,7 +384,7 @@ export const ARCHETYPE_OF: Record<InstrumentId, Archetype> = {
  * through it would mean a record of functions, or a record of records keyed on a
  * decade, and either one trades that guarantee — the thing the table exists for
  * — against a fact that is true of **three entries out of a hundred and
- * twenty-nine**. A violin was a violin in 1780 and a Fender bass was a Fender
+ * twenty-six**. A violin was a violin in 1780 and a Fender bass was a Fender
  * bass in 1966; there is no year in the mapping because there is almost no year
  * in the world.
  *
@@ -376,10 +396,13 @@ export const ARCHETYPE_OF: Record<InstrumentId, Archetype> = {
  *
  * ## The year was solved for, not chosen
  *
- * `CHOIRS_GET_A_KEYBOARD` is 1970 and the catalogue is what put it there. Every
- * era in every genre that writes one of these three sounds, sorted by year:
+ * `CHOIRS_GET_A_KEYBOARD` is 1970 and the catalogue is what put it there. The
+ * eras either side of the cut, sorted by year:
  *
  * ```
+ *   1932  country stringb. pad choirAahs, voiceOohs
+ *   1938  latin conjunto   pad choirAahs
+ *   1955  country honkyt.  pad choirAahs
  *   1965  rock beat        pad choirAahs        1968  arabic firqa    pad choirAahs
  *   1965  pop twotrack     pad choirAahs        1968  country nashv.  pad choirAahs, voiceOohs
  *   1965  rnb soul         pad choirAahs        ————————————————————————————————
@@ -388,16 +411,40 @@ export const ARCHETYPE_OF: Record<InstrumentId, Archetype> = {
  *                                               1974  rnb philly      pad choirAahs
  * ```
  *
+ * **This table said *every era in every genre* and listed eight.** Recounted
+ * over the whole registry, **41** eras across all nineteen genres write one of
+ * the three, running from 1932 to 2015 — so it was never the enumeration it
+ * claimed to be, and the header is corrected to what it actually is: the
+ * neighbourhood of the cut, which is all the argument below needs. The three
+ * rows added above are the ones the omission cost most, because they are the
+ * only ones the cut moves that the eight did not already cover, and one of them
+ * is the era this whole mechanism was built to give a quartet back to — see
+ * *What this cost*, below, which names country's string band and then left it
+ * out of the evidence.
+ *
+ * Nothing above the cut is listed past 1974 and nothing needs to be: 33 of the
+ * 41 sit at or after 1970 and every one of them resolves to a keyboard by the
+ * flat table, so they are rows this function never reads.
+ *
  * **There are no eras at all between 1968 and 1972**, so any number in that hole
  * makes the same cut, and 1970 is the middle of it — two clear years either side
  * of the nearest era, which is the difference between a threshold and a
  * coincidence. What the cut separates is not arbitrary either. Above it every
  * entry is a keyboard nobody would dispute: a 1972 hard-rock choir is a
  * Mellotron, a 1974 `synthChoir` is a string machine, and by 1985 it is a
- * sample. Below it every entry is people, and four of the five are people the
+ * sample. Below it every entry is people, and four of the eight are people the
  * records are *named after* — the beat group singing its own backing aahs, the
  * girl-group stack, a doo-wop or gospel quartet, and the Nashville Sound, whose
  * defining feature is a vocal quartet standing behind the singer.
+ *
+ * *That read **four of the five***, counting the five rows the table used to
+ * show below the line. Measured against the registry it is **eight of 41 below
+ * the cut and 33 at or above it**, and the correction is worth having in a
+ * sentence about people rather than about arithmetic: the three that were
+ * missing are a 1932 string band, a 1938 conjunto and a 1955 honky-tonk, none of
+ * which is a keyboard by any reading, so widening the count strengthened the
+ * claim it appears in instead of qualifying it. The named four are left at four
+ * because naming the other four is a judgement nobody has made.
  *
  * The musical statement behind the arithmetic is one sentence: the Mellotron is
  * the first keyboard that could make a choir sound and it reached stages at the

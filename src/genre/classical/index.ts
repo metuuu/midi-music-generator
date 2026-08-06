@@ -415,10 +415,15 @@ export const classical: Genre = {
    * it.
    *
    *  - **`shot` at 5**, and it is the tutti chord: the band leaving the texture
-   *    and hitting a figure together. Half the styles here name their own
-   *    `shots` table so that figure is the style's own rhythm rather than the
-   *    metre's default — the overture's dotted snap, the mazurka's second beat,
-   *    the march's four square quarters.
+   *    and hitting a figure together. **Seven of the twenty-six styles** name
+   *    their own `shots` table so that figure is the style's own rhythm rather
+   *    than the metre's default — `gavotte`, `sarabande`, `overture`, `scherzo`,
+   *    `march`, `mazurka`, `polonaise`. This note said *half*, which is thirteen
+   *    and was never the count; the seven are the styles whose cadential figure
+   *    is a fixed rhythm somebody could clap — the overture's dotted snap, the
+   *    mazurka's second beat, the march's four square quarters — and the other
+   *    nineteen take the metre's default because a sarabande's snap is a
+   *    property of the dance and an adagio's cadence is not.
    *  - **`elide` at 4.** The elided cadence — the new phrase beginning on the
    *    bar the old one was resolving to — is a device this repertoire has a name
    *    for and uses constantly, and it is the one transition that makes a form
@@ -439,10 +444,18 @@ export const classical: Genre = {
   /**
    * Where this genre disagrees with the shared rule table.
    *
-   * Three entries, which is the shortest override list in the project, and that
-   * is the claim rather than an economy: the table was codified out of this
-   * repertoire, so a long list here would be evidence that either the table or
-   * the genre was wrong about something.
+   * Three entries, which is the second shortest override list in the project,
+   * and the shortness is the claim rather than an economy: the table was
+   * codified out of this repertoire, so a long list here would be evidence that
+   * either the table or the genre was wrong about something.
+   *
+   * **This said *the shortest*, and pop's two beat it** — `augmented-second` and
+   * `avoid-fourth`, nothing else. Counting override keys across all nineteen
+   * genres: iskelmä declares no `ruleOverrides` block at all, pop 2, this and
+   * latin 3, and the tail runs out at rock and indian on 10. Iskelmä having none
+   * is the sharper version of this paragraph's own point and is where the
+   * argument should have been looking — a genre that overrides nothing is the
+   * strongest available statement that the shared table fits it.
    */
   ruleOverrides: {
     /**
@@ -562,9 +575,16 @@ export const classical: Genre = {
   /**
    * A hall, and a long one.
    *
-   * The largest reverb in the project after ambient's, and unlike ambient's it is
-   * not an effect — it is the room this music was written to be played in, and
-   * every balance decision in the repertoire assumes it. No delay at all: an echo
+   * The largest reverb in the project, and unlike the one behind it it is not an
+   * effect — it is the room this music was written to be played in, and every
+   * balance decision in the repertoire assumes it.
+   *
+   * **This said *the largest after ambient's*, and it is the other way round**:
+   * 0.82 here against ambient's 0.78, with synth third at 0.7 and nothing else
+   * above 0.68. The ranking is worth having the right way up because it is the
+   * only place in the project where the biggest space belongs to a genre that
+   * did not choose it — ambient's is a decision about a record and this is a
+   * measurement of a hall. No delay at all: an echo
    * is a machine, and the only thing repeating in a hall is the reverb tail.
    */
   space: {

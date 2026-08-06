@@ -115,8 +115,14 @@
  * `width + 4` and the walls stand `WALL_OUT` outside that, so the wall is
  * *always* exactly 2.6 m outboard of the edge of the boards whatever the era
  * does, and the roof soffit over the band comes out within 5 cm of the same
- * height in all four. The ridge is the only thing that grows, by 20 cm, over a
- * barn that got 80 cm wider. That is what a real building does.
+ * height in all four. **The ridge is the only thing that grows, by 20 cm** —
+ * which it does not, and has the argument the wrong way round. `RIDGE_RISE` is
+ * a height rather than an angle and `COURSES` is a count rather than a height,
+ * so nothing the ridge is made of can see `width`: measured, it is 5.99 m in
+ * all four eras. What moves is the *soffit*, and downward — 3.744, 3.730, 3.710
+ * and 3.690 m over the boards, 5.4 cm of shallower roof over a barn that got
+ * 80 cm wider. That is still what a real building does, and it is what
+ * `RIDGE_RISE`'s own note says two hundred lines down.
  */
 
 import {
@@ -144,15 +150,22 @@ import {
  * `finnfolk/` is downstream of. So zero was tried first, and it fails twice, in
  * both cases against files this room may not touch.
  *
- * The first is arithmetic and fatal. `stage.ts` lays the house floor as a plane
- * at `houseY` reaching 4 m upstage of the lip — it has to, because the house is
+ * The first is arithmetic and fatal. The house floor is a plane
+ * at `houseY` reaching past the lip and past the back wall — it has to, because
+ * the house is
  * `width + 4` wide and the boards are not, so there is floor either side of the
  * band and floor behind them. At `rise` 0 that plane is at y = 0 and the boards
- * are at y = 0, and the two overlap over a 4 m × 9.6 m rectangle of exactly
- * coplanar geometry. That is z-fighting across the whole playing area: not a
+ * are at y = 0, and the two overlap over the whole playing area of exactly
+ * coplanar geometry. That is z-fighting: not a
  * subtle error, a shimmering rectangle under the band that changes with the
- * camera. Nothing this file can do prevents it, because both planes belong to
- * `stage.ts`. The apron goes the same way for a milder reason — it is built as
+ * camera. **Nothing this file can do prevents it, because both planes belong to
+ * `stage.ts`** — which was true when this was written and is not now. The house
+ * floor is a *room's*, and this file lays its own two hundred lines down; the
+ * boards are still `stage.ts`'s. That makes the coplanarity this room's own to
+ * cause, which strengthens the argument rather than weakening it: `rise` is the
+ * one number that keeps two planes this file can see apart. The reach was
+ * `lipZ - 4` then, and the proscenium has since been fixed to measure from the
+ * building instead. The apron goes the same way for a milder reason — it is built as
  * `bevelBox(width, rise, depth)`, and at zero height that is a flat sheet 6 mm
  * under the boards with no face on it, which is what the apron *is*: the thing
  * that makes the house read as being below the band.
@@ -455,8 +468,12 @@ function build(c: RoomContext): RoomRig {
    * and must.
    *
    * **Cut to the room rather than to the frame**, which is the one thing here
-   * that is not the proscenium's. That floor is `houseWidth + 8` by
-   * `houseDepth + 8`, deliberately, because its walls are one-sided planes the
+   * that is not the proscenium's. That floor is `houseWidth + 8` wide by
+   * **`houseDepth + 8`** deep — the depth half has since been fixed, and reads
+   * `backZ - 2` to `lipZ + houseDepth + 4` now, which for a finnfolk barn is
+   * 22.0 m rather than 17.8 and overruns the walls by more than it used to, not
+   * less. Either way the reason is unchanged and is the reason this room
+   * declines it: the proscenium's walls are one-sided planes the
    * camera can look straight through and there has to be ground behind them out
    * to the edge of frame. These walls are solid logs, so the same overrun is
    * 3.4 m of floorboard sticking out through the side of a barn — invisible from

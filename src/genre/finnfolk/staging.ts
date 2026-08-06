@@ -55,9 +55,13 @@ import type { Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
  *
  * `riser` sits in the room's own props rather than in any era's `maybe`, and it
  * is the one prop here that is not about the room at all: `cast.ts` stands a
- * drummer 0.4 m up whatever the dressing says, six styles have a kit, and a
- * probabilistic riser would leave them floating on the seeds that did not draw
- * it. In a barn it is a plank across two trestles, which is what the stage was
+ * drummer 0.4 m up whatever the dressing says, and a probabilistic riser would
+ * leave them floating on the seeds that did not draw it. **This said six styles
+ * have a kit and three do** — `poljento`, `sahkopelimanni` and `karjalanlaulu`,
+ * the only tables in the genre writing a kit voice; ten styles have percussion
+ * of any kind. The argument is unaffected, because it needs the number to be
+ * greater than zero and less than all of them, which three is more emphatically
+ * than six was. In a barn it is a plank across two trestles, which is what the stage was
  * anyway.
  */
 const RIIHI: StageRoom = {

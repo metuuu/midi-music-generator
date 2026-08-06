@@ -181,10 +181,19 @@ export const DEFAULT_FILLS: FillPalette = [
  * which is what the jazz fill has left once the ringing is taken out of it.
  *
  * **It has never once fired**, which is the finding rather than a
- * disappointment: `cymbal` appears in two palettes in the catalogue, jazz's and
- * metal's, and every table in both is a kit. It is written because the switch is
- * total and because the first hand-drum genre to want a sparse jazz seam should
- * find an answer rather than a crash on a stage with no cymbal on it.
+ * disappointment: `cymbal` appeared in two palettes in the catalogue, jazz's and
+ * metal's, and every table in both was a kit. **There are three now** — rnb
+ * wrote one at weight 1, on metal's reasoning rather than jazz's, and its own
+ * comment says outright that a jazz drummer's fill is not what this stage has —
+ * and the finding survived the arrival intact. Across the 58 styles those three
+ * genres give a drum table, **58 resolve to a kit under every bank their eras
+ * name**, so the fallthrough below is still reached zero times. The count is
+ * kept rather than corrected in place because the shape of it is the point: this
+ * line goes stale by a genre being added, not by the mechanism changing, and the
+ * next author to add a fourth should re-run the same two counts. It is written
+ * because the switch is total and because the first hand-drum genre to want a
+ * sparse jazz seam should find an answer rather than a crash on a stage with no
+ * cymbal on it.
  *
  * ## The kit is unchanged to the bit, and that is the acceptance test
  *

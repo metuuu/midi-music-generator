@@ -730,6 +730,38 @@ const malfuf: Style = {
  * `hook: 'earworm'` and one chord for most of the song, for exactly the reason
  * ambient's drone has them: repetition here is the form rather than a setting
  * applied to it.
+ *
+ * ## The tempo, and a sentence that stopped being true
+ *
+ * The verse table's note used to end *"and the generator cannot change it"*,
+ * about the one thing this style's own header says does change. That was true
+ * when it was written and `Style.tempoRamp` has since been built —
+ * `generate/tempo.ts`, a weighted palette drawn once per song, style-level with
+ * no genre half precisely so that one style in an idiom may accelerate while its
+ * neighbours do not. The clause is gone from the note and the argument is here
+ * instead, because it is longer than a note should be and because the decision
+ * it records is not obvious.
+ *
+ * **The field is not taken, and the reason is that this style refuses events on
+ * principle and a ramp is not one.** `transitions` below turns down `shot` and
+ * `break` on the ground that a zar contains no changes; that argument does not
+ * transfer, because an accelerando is not something that *happens* at a point —
+ * it is a property of the whole, monotonic, and audible only by comparing the
+ * first minute with the last, which is exactly how the ceremony works. Of the
+ * two shapes `gathering` is the closer fit: `rise: 1.5` on a squared curve, half
+ * the climb arriving in the last third, written for a devotional form whose
+ * opening is patient. `accelerando` is a dance band getting faster because the
+ * room is, and nobody in this room is dancing.
+ *
+ * It is left undeclared because the number is not measured. `bpm: [104, 138]` is
+ * a band drawn once and it becomes the tempo of the *first bar*: `rampMap`
+ * computes `bpm * (1 + (rise - 1) * curve(p))`, `planRamp` clamps only the rise
+ * itself into 0.5–2, and the resulting tempo is never clamped back into
+ * `Style.bpm`. A style opting in is leaving its own declared range on purpose,
+ * which that field's doc allows and then requires it to own. A zar drawn at 138
+ * and climbing by half again ends at **207**, and nothing in this folder knows
+ * whether that is the ceremony or a mistake. That is a question for somebody
+ * with a recording, not for a comment sweep.
  */
 const ayyub: Style = {
   id: 'ayyub',
@@ -773,7 +805,7 @@ const ayyub: Style = {
   progressions: {
     intro: [{ chords: ['i', 'i', 'i', 'i'], weight: 5 }],
     verse: [
-      { chords: ['i', 'i', 'i', 'i', 'i', 'i', 'i', 'i'], weight: 6, note: 'Eight bars of one chord. The tempo is the only thing in this style that changes, and the generator cannot change it' },
+      { chords: ['i', 'i', 'i', 'i', 'i', 'i', 'i', 'i'], weight: 6, note: 'Eight bars of one chord. The tempo is the only thing in this style that changes' },
       { chords: ['i', 'i', 'i', 'i', 'iv', 'iv', 'i', 'i'], weight: 3 },
     ],
     chorus: [
@@ -1359,15 +1391,17 @@ const chiftetelli: Style = {
  * not written on `lp`, because a tabl is a different object played by a
  * different person while walking.
  *
- * The only style here that keeps the `brass` layer. A zaffa band is a brass
- * band: the mizmar carries the tune and whatever trumpets the family could
- * afford double it a fourth away, and that is what the layer is for.
+ * The style here that leans hardest on the `brass` layer — this note said *the
+ * only style that keeps it* and there are three, argued with the counts under
+ * `transitions` below. A zaffa band is a brass band: the mizmar carries the tune
+ * and whatever trumpets the family could afford double it a fourth away, and
+ * that is what the layer is for.
  */
 const zaffa: Style = {
   id: 'zaffa',
   label: 'Zaffa',
   description:
-    'The wedding procession. Mizmar and tabl baladi over a heavy four, played standing up and moving — the one number here with brass in it.',
+    'The wedding procession. Mizmar and tabl baladi over a heavy four, played standing up and moving — the loudest brass in the genre.',
   beatsPerBar: 4,
   beatUnit: 4,
   bpm: [100, 128],
@@ -1389,10 +1423,21 @@ const zaffa: Style = {
    * number here that cannot afford it.
    *
    * **The shot is the opposite case and is weighted up rather than merely kept.**
-   * This is the only style in the genre with `brass` in it — the mizmar carries
-   * the tune and whatever trumpets the family could afford double it — and a
-   * band figure landed together is exactly what that ensemble does at a corner
-   * or a doorway. The brass is what proves it: over the same 160 shot bars the
+   * This style has `brass` in it — the mizmar carries the tune and whatever
+   * trumpets the family could afford double it — and a band figure landed
+   * together is exactly what that ensemble does at a corner or a doorway.
+   *
+   * **This note said *the only style in the genre*, and there are three.**
+   * Eighteen of the twenty-one styles here write `excludeLayers: ['brass']`; the
+   * three that do not are this one, `saidi` and `dabke`, which is the same three
+   * that are outdoor or wedding music and for the same reason — a mizmar and a
+   * tabl are what an ensemble sounds like when it has to be heard across a
+   * street. Measured at forty seeds each: **zaffa 1111 brass notes in 27 of 40
+   * songs, saidi 700 in 23, dabke 665 in 24**, and 0 in the other eighteen
+   * styles. So this is the loudest of the three rather than the sole one, which
+   * leaves the argument below intact — the claim it needs is that a shot puts
+   * *these* horns on the same sixteenth as everybody else, not that no other
+   * style owns any. The brass is what proves it: over the same 160 shot bars the
    * brass goes from 0.41 onsets to 1.34, more than trebling, because a shot is
    * the one edit in this file that puts the horns on the same sixteenth as
    * everybody else. The drums drop from 13.94 to 7.36 in the same bar, which is

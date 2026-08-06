@@ -47,9 +47,16 @@
  * handed over whole.
  *
  * A `StageRoom` that names no architecture gets `proscenium`, which is this
- * file as it stood, lifted out unchanged. That fallback is load-bearing:
- * thirteen of the fourteen rooms still use it, and a genre added in a hurry
- * still stages.
+ * file as it stood, lifted out unchanged. That fallback is load-bearing, and it
+ * used to be load-bearing for almost everything: **thirteen of the fourteen
+ * rooms still use it** was true on the day the seam was cut and has been
+ * overtaken twice, by eleven room authors and by five more genres. Counted now,
+ * three of the nineteen genre rooms name no architecture — ambient's black box,
+ * iskelmä's pavilion and jazz's cellar — plus `venue.ts`'s own `HOUSE`, which no
+ * genre reaches. Nine of the catalogue's seventy-two venue dressings come out of
+ * this file. The sentence is kept because the *reason* has not moved an inch: a
+ * genre added in a hurry still stages, and three rooms that never asked for a
+ * builder still get the one they were written against.
  *
  * ## What the show runner drives
  *
@@ -319,8 +326,12 @@ export function buildStage(venue: Venue, opts: StageOptions = {}): StageRig {
    * rest of the show is already using. And its RNG streams are named off
    * `venue.id` in the same flat namespace this file uses — `rooms/types.ts`
    * lists which tags are taken, because keeping `housefloor`, `backdrop` and
-   * `walls` spelled as they always were is the whole reason thirteen rooms come
-   * out unchanged.
+   * `walls` spelled as they always were is the whole reason **thirteen rooms
+   * come out unchanged**. That was the count on the day of the cut and it is
+   * three now, ambient, iskelmä and jazz being the rooms that still name no
+   * architecture; the spellings are kept anyway, because the argument was never
+   * about how many rooms it saved. Reseeding a stream is not a refactor, it is a
+   * different building.
    */
   const built: RoomRig = room.build({
     ...datum,

@@ -327,8 +327,17 @@ const SOUNDING: ReadonlySet<Effector> = new Set<Effector>(['right-hand', 'bow'])
  * eight of them exposed `soundingContact()` alongside the interface instead.
  *
  * Adapting here rather than in each model is the cheaper half of the fix: the
- * interface now carries `effector`, and the fourteen models that have only one
- * answer — a drum is struck where it is struck — go on ignoring it.
+ * interface now carries `effector`, and **the fourteen models that have only
+ * one answer** — a drum is struck where it is struck — go on ignoring it.
+ *
+ * That count is nine. It is not the twenty-four less these eight, because the
+ * wind and brass models went and grew a second answer of their own: accordion,
+ * harmonica, trumpet, trombone, saxophone, clarinet and flute all take
+ * `effector` in `resolve` directly, one hand supporting the instrument and the
+ * other fingering it. Probed by calling every model's `resolve` over every point
+ * its archetype declares, under each effector, the nine that answer the same
+ * thing to all of them are drumkit, handdrum, grand-piano, electric-piano,
+ * organ, synth, mallets, singer and vocal-group.
  */
 interface HasSoundingContact {
   soundingContact(point: PlayPoint): Contact | undefined;

@@ -41,7 +41,15 @@
  *
  * ## The words are `scat`, and the reason is the consonant density
  *
- * Four invented languages exist in `style/vocals.ts` and none is English.
+ * Four invented languages **used to** exist in `style/vocals.ts` and none was
+ * English. There are six, and this sentence was copied from a sibling genre after
+ * `sargam` and `tarana` had already landed, which is the ordinary way a count in a
+ * comment goes wrong. Neither changes the answer, and both are ruled out by the
+ * two numbers this paragraph is actually built on: they open *every* syllable —
+ * `onsetDensity: 1`, past even `scat`'s 0.98 — but `sargam` spends that on
+ * syllables bound to scale degrees, and `tarana` closes 85% of them, which is the
+ * same objection `machine` fails on below and worse.
+ *
  * Choosing on shape rather than on name: `scat`'s one-to-three-syllable words
  * and 98% onset density are what a pop line needs, because a pop syllable
  * *starts* — the whole point of close-miking is that the consonant is audible,
@@ -136,9 +144,18 @@ export const VOCALS: VocalProfile = {
    */
   centre: 66,
   /**
-   * A♭2 to C6. The widest range in the project, and it has to be — this one
-   * profile covers a 1963 contralto singing to a two-track and a 2010 lead
-   * whose top note was written for her by somebody with a keyboard.
+   * A♭2 to C6 — forty semitones, and the widest of any range in this project
+   * belonging to a *person*. It has to be: this one profile covers a 1963
+   * contralto singing to a two-track and a 2010 lead whose top note was written
+   * for her by somebody with a keyboard.
+   *
+   * This read *the widest range in the project* flatly, and two are wider —
+   * synth's 44 semitones and metal's 41. Neither is a counterexample to what the
+   * paragraph is arguing and both are worth the qualifier: synth's profile is a
+   * vocoder, which `synth/vocals.ts` opens by saying is not a human tract at all,
+   * and metal's runs a fifth above every other male lead here on purpose. Among
+   * the sixteen genres describing an ordinary singer, forty semitones is the top
+   * of the table.
    */
   range: [44, 84],
   spread: 0.3,

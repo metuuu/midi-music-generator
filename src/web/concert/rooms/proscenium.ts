@@ -6,8 +6,14 @@
  * This is `stage.ts` as it stood before rooms existed, lifted out whole and
  * changed in nothing but where it lives. That is the point of it: it is the
  * room every genre gets by not choosing one, so it has to be the room every
- * genre already had. Thirteen of the fourteen in the catalogue are still built
- * by this file and are expected to come out of it identical, plank for plank.
+ * genre already had. **Thirteen of the fourteen in the catalogue** were still
+ * built by this file on the day it was lifted out; eleven room authors and five
+ * further genres have happened since, and the count is three of nineteen —
+ * ambient's black box, iskelmä's pavilion and jazz's cellar, plus `venue.ts`'s
+ * own `HOUSE`, which no genre reaches. Measured over venues rather than rooms it
+ * is nine of the catalogue's seventy-two dressings. The obligation is unchanged
+ * and is why the sentence is kept: whatever comes out of here comes out of it
+ * identical, plank for plank.
  *
  * It is also, quietly, four buildings rather than one, and that is worth being
  * exact about because it is the reason a seam was needed at all rather than a
@@ -103,8 +109,10 @@ const CURTAIN_FROM_LIP = 0.45;
 
 /**
  * The proscenium's own numbers, exported so a room that is this room with
- * different walls can say so in one line rather than by copying seven
- * expressions and drifting from them.
+ * different walls can say so in one line rather than by copying eight
+ * expressions and drifting from them. It was seven until `houseLid` stopped
+ * being derived from `headroom` and became a field of its own, which is exactly
+ * the drift this export exists to stop, arriving one level up.
  *
  * Take it and override what differs — `{ ...prosceniumShape(d), rise: 0.45 }`
  * is a legitimate and complete answer for a room whose only architectural claim

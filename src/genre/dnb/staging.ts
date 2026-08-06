@@ -105,10 +105,19 @@ const UNIT: StageRoom = {
      * this room is *is* an unfinished interior, and the absence of a surface
      * treatment is the whole visual proposition.
      *
-     * `fog: 0.5`, above every genre in the project except ambient, house and synth,
-     * and the reason is not atmosphere. A rave is lit with beams and a beam is only
-     * visible in smoke; the haze is not decorating the light, it is the reason
-     * anybody can see there is any.
+     * `fog: 0.5`, and the reason is not atmosphere. A rave is lit with beams and
+     * a beam is only visible in smoke; the haze is not decorating the light, it
+     * is the reason anybody can see there is any.
+     *
+     * **This note said *above every genre except ambient, house and synth*, and
+     * the three names are right about the wrong quantity.** They are exactly the
+     * genres whose *opening* era is foggier than this one — ambient 0.68, house
+     * 0.6, synth 0.55, and this 0.5, fourth of nineteen. They are not the only
+     * genres carrying a bigger number than 0.5: metal's `extreme` writes 0.62
+     * and its `thrash` writes 0.5 flat. Counted the way the `design` era below
+     * counts, which is one number against every other number in the project,
+     * there is a fourth exception. Counted by opening era there is none, and
+     * that is what the sentence had measured without saying so.
      *
      * `mirror-ball` at 0.25 is the one soft object in the era and it is a
      * borrowed one — half of these buildings had been something else, and some
@@ -212,8 +221,15 @@ const WARDROBE: Record<string, Wardrobe> = {
    * way — white, orange and cyan against a brick wall. This is the one era where
    * anybody dressed *up* for it, and what they dressed up in was a shell suit.
    *
-   * `loudFabric: 'nylon'`, which no other genre in the project names for the
-   * loud jacket. `Fabric` describes it as an anorak with a slight sheen and *the
+   * `loudFabric: 'nylon'`. **This note claimed no other genre in the project
+   * names it for the loud jacket, and two do** — ambient's `sampler` wardrobe
+   * and house's `rave` wardrobe. Counted over the 71 wardrobes that name a loud
+   * fabric at all, nylon is 3 of 71. Only three of the fourteen fabrics in use
+   * are rarer — linen and flannel at 1 each, denim at 2 — and knit and wool are
+   * level with it, against `satin` and `lame` at 11 apiece. So it is rare and
+   * it is not sole, and the three uses have nothing in common but the decade —
+   * a bedroom-electronics anorak, a warehouse tracksuit, and this shell suit.
+   * `Fabric` describes it as an anorak with a slight sheen and *the
    * wrong kind of sheen*, which is a criticism everywhere else and is here the
    * exactly correct description of the object: the person at the front is not
    * brighter than everybody else, they are *shinier*, and it is the wrong shine.

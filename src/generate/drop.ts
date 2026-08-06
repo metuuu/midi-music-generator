@@ -198,10 +198,26 @@ export interface Drop {
    *
    * They leave together and they come back together. A staggered return is a
    * *build*, which is a different gesture wanting a different mechanism: half of
-   * a build is a tempo ramp, and `docs/engine-gaps.md` §1.1 records that the
-   * tempo is a scalar drawn once per song and reaches the IR, both renderers and
-   * the concert clock. Writing a half-build here would be claiming the gesture
-   * in the one file that cannot finish it.
+   * a build is a tempo ramp, and `docs/engine-gaps.md` §1.1 recorded that the
+   * tempo **was** a scalar drawn once per song and reached the IR, both
+   * renderers and the concert clock.
+   *
+   * **That half has since been built**, and the sentence is kept in the past
+   * tense because the conclusion outlived its reason. §1.1 is closed;
+   * `SongMeta.tempo` is a `TempoMap`, a list of breakpoints, and `meta.bpm`
+   * means *the tempo the band counts off*. What still stops a build being
+   * written here is an **ordering** constraint rather than an expressiveness
+   * one, and it is the sharper of the two: everything in `generate/tempo.ts`
+   * runs before the form exists, because `buildForm` divides by the tempo to fit
+   * `Genre.duration` — `planRamp` draws, `buildForm` runs, `rampMap` realises
+   * the curve once `totalBars` is known — and `planDrop` runs some three hundred
+   * lines after that, because it has to be on the far side of the soloist's
+   * rewrite of `activeLayers`. A build has to *arrive at* the drop, so it wants
+   * a second planner beside `planDrop` appending points to the map that is by
+   * then already made, which is exactly what a list-shaped IR was chosen for.
+   * Writing a half-build here would still be claiming the gesture in a file that
+   * cannot finish it. See *A build cannot be planned in this file* in
+   * `generate/tempo.ts`, which states the same ordering from the other end.
    */
   removes: readonly DropLayer[];
   /**
@@ -471,7 +487,13 @@ export const DROPS: Record<DropId, Drop> = {
  * levels.
  *
  * Returns `undefined` — having drawn nothing at all — for a style with no
- * palette, which is every style in the catalogue today.
+ * palette, which **was** every style in the catalogue on the day this shipped
+ * and is 360 of the 389 now. The twenty-nine are reggae's `dub` and funk's
+ * `minneapolis`, the two that reported the gap, plus ten dnb styles and
+ * seventeen house ones written later against a mechanism that already existed.
+ * The sentence is kept in the past tense rather than deleted because the
+ * before-the-first-draw `return` above is what the determinism note at the top
+ * of this file is judged on, and the 360 are the ones still proving it.
  */
 export function planDrop(args: {
   rng: Rng;

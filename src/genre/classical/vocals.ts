@@ -17,8 +17,17 @@
  * them*: `Kyrie`, `Agnus`, `Requiem aeternam`, `dona eis`. Almost every syllable
  * opens on a vowel or on a liquid, the codas are nearly all `n`, `s` and `m`, and
  * a doubled vowel is commoner than a closed syllable. That is the same
- * description `airy` was written to, and inventing a fifth word style to say it
- * again would be a new file for a table already in the repo.
+ * description `airy` was written to, and inventing another word style to say it
+ * again would be a new entry for a description already in the table.
+ *
+ * **This said *a fifth word style*, and one would now be the seventh.**
+ * `WORD_STYLES` holds `finnish`, `scat`, `airy`, `machine`, `sargam` and
+ * `tarana`; the last two arrived with indian, which is the genre
+ * `docs/engine-gaps.md` §3.10 was written for. The number is dropped rather than
+ * bumped because it was never the argument — what matters is that `airy`
+ * already says this, not how many neighbours it has — and because a count of a
+ * shared table is exactly the sentence that goes stale without anybody in this
+ * folder touching a line.
  *
  * The one place the two genres part company is the *rate*, and that is set here
  * rather than there. Ambient sings a syllable every two beats, which at 60 BPM is

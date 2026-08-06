@@ -460,8 +460,29 @@ export interface WordStyle {
  *
  * A `VocalProfile` inlines everything else about a voice, and these are the
  * exception because they are the only part that is a *language* rather than a
- * setting — four tables that four profiles point at, instead of four tables
- * written out four times with the vowel harmony subtly different in each.
+ * setting — a table several profiles point at, instead of the same table
+ * written out several times with the vowel harmony subtly different in each.
+ *
+ * ## The count, and why it is no longer written here
+ *
+ * This said *"four tables that four profiles point at"* and was the upstream
+ * source of the single most-copied stale number in the repo: six genres
+ * asserted "four" in their own `vocals.ts`, and **pop's was written after the
+ * sixth table existed and copied the sentence anyway**. There are six —
+ * `finnish`, `scat`, `airy`, `machine`, `sargam`, `tarana` — and nineteen
+ * profiles, and both numbers move whenever a genre or a language lands. Naming
+ * the mechanism rather than counting it is the fix; `Object.keys(WORD_STYLES)`
+ * is one line and cannot go stale.
+ *
+ * **What is worth stating is the shape, which a count hid.** Eighteen of the
+ * nineteen profiles point at one of these; `arabic` is the only genre that
+ * writes its own `words` inline, and does so deliberately. And `tarana` is
+ * pointed at by **nothing** — indian takes `sargam`, and every other reference
+ * to `tarana` in the repo is prose about it. It is a language written for a
+ * repertoire and then not selected by the profile that repertoire uses, which
+ * is the same fault as a field added and never adopted, one level down. Either
+ * indian's tarānā should reach it or it should go; it should not sit here
+ * looking like a sixth option when it is five options and a spare.
  */
 export const WORD_STYLES: Record<string, WordStyle> = {
   /**
@@ -596,8 +617,11 @@ export const WORD_STYLES: Record<string, WordStyle> = {
    * It degrades honestly, too. Where the tonic is unknown the binding cannot
    * run, the words are pronounced like any other language's, and what comes out
    * is the right syllabary in the wrong order — *ma-ne-sa*, *ga-sa-ri*. That is
-   * roughly what this genre gets from `airy` today, with the four consonants
-   * `airy` cannot make put back.
+   * roughly what this genre **used to get** from `airy`, with the four
+   * consonants `airy` cannot make put back — the comparison is kept because it
+   * is what the degraded path was measured against, and it is a comparison
+   * rather than a description now: `genre/indian/vocals.ts` names this entry,
+   * not `airy`.
    *
    * No codas and no clusters, because the syllabary has none: `codas` is empty
    * rather than merely unlikely, and both densities are 1 because a swara that

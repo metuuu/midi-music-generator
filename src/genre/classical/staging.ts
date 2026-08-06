@@ -271,13 +271,22 @@ const WARDROBE: Record<string, Wardrobe> = {
     fabrics: [['wool', 5], ['silk', 3], ['velvet', 2], ['brocade', 2], ['linen', 1]],
     /**
      * *The coat gets shorter*, says the comment above, and this is the decade
-     * where the table can show it: the coat and the suit are level.
+     * where the table can show it: the coat and the suit are within one weight
+     * of each other.
      *
      * That is the whole of what happened between 1720 and 1785 in one line. Half
      * the platform is still in the old skirted line and half of it is in
-     * something recognisably a modern jacket, and neither has won yet. It is the
-     * only era in this file where two garments are equal, which is the right way
-     * for a transition to be written — a decade is a mixture, not a switch.
+     * something recognisably a modern jacket, and neither has won yet.
+     *
+     * **This note said the two were *level* and that this is the only era in the
+     * file where two garments are equal.** Neither is true of the table two
+     * lines down: it is 5 against 4, and no era in this file has two garments at
+     * the same weight — `baroque` is 7/2/1, `romantic` 9/1, `impressionist` 8/2.
+     * The 5:4 is the better number anyway and is why it survived the correction:
+     * a dead heat would say the two coexisted in equal numbers, and what the
+     * decade actually did was tip. Five in eleven against four in eleven is a
+     * transition caught in the act, which is the right way for one to be
+     * written — a decade is a mixture, not a switch.
      */
     garments: [['coat', 5], ['suit', 4], ['waistcoat', 2]],
     loudFabric: 'silk', sequinChance: 0,
@@ -285,9 +294,15 @@ const WARDROBE: Record<string, Wardrobe> = {
   },
   /**
    * 1870. Full evening dress, and the uniform arrives properly: black tailcoat,
-   * white shirt, white tie, and every player identical. `uniform` at 0.9 is the
-   * highest number in the project and it is not an exaggeration — this is the
-   * decade the orchestral dress code was fixed, and it has not moved since.
+   * white shirt, white tie, and every player identical. `uniform` at 0.9 is not
+   * an exaggeration — this is the decade the orchestral dress code was fixed,
+   * and it has not moved since.
+   *
+   * **It is not the highest number in the project, which this note claimed.**
+   * pop's `stadium` writes 0.92 and arabic's `firqa` ties this at 0.9; rnb's
+   * `neosoul` writes 0.88 under a comment claiming the record for itself, so
+   * three files have now made this claim and at most one of them can be right.
+   * The number stands on its own evidence and did not need the ranking.
    *
    * The palette is nearly monochrome, which puts all the colour in the room
    * rather than on the people. That is the same trade the black box makes and it
@@ -414,8 +429,15 @@ export const STAGING: Staging = {
   defaultEra: 'classical',
   blurbs: BLURBS,
   /**
-   * The lowest in the project, and the number is this genre's whole staging
-   * argument in one field.
+   * The second lowest in the project, and the number is this genre's whole
+   * staging argument in one field.
+   *
+   * **This said *the lowest* and the paragraph below it always said otherwise**,
+   * which is the useful thing about the mistake: the opening line and the
+   * sentence four down — *this sits just above ambient* — were in the same
+   * docstring disagreeing with each other, and the sentence with the evidence
+   * attached was the correct one. Ambient is 0.4 and this is 0.45; nothing else
+   * in the project is below 0.55.
    *
    * `body` multiplies the groove score — how much the room and the players move.
    * The yardstick is iskelmä at 1.0, which is a band watching a floor of people
@@ -432,7 +454,7 @@ export const STAGING: Staging = {
    * ambient's own note on the same field; and unlike ambient this music has a
    * conductor's beat in it that every player is visibly on. 0.45 keeps the shape
    * of the energy curve — a tutti is still bigger than a trio — while making the
-   * room the quietest in the project.
+   * room the second quietest in the project, behind the one that has no pulse.
    */
   body: 0.45,
 };

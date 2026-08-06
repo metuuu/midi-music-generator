@@ -1,7 +1,7 @@
 /**
  * Ambient title generation.
  *
- * Ambient titles do something the other two genres do not: they name a *place
+ * Ambient titles do something the other eighteen genres do not: they name a *place
  * or an object* rather than a feeling, and they are usually a noun phrase with
  * no verb in it. "Midnight Blues" tells you how the piece goes; "Sodium
  * Corridor" tells you where you are while it goes.

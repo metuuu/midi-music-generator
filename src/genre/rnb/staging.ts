@@ -30,8 +30,10 @@ import type { Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
  * words that two rooms *should* name the same architecture where the building is
  * the same building, because the alternative is one of them importing the other's
  * geometry. A revue theatre and a civic ballroom are one big room with a stage at
- * one end, dressed two ways, and the eleven room builders exist so that the
- * dressing can carry the difference.
+ * one end, dressed two ways, and the twelve room builders exist so that the
+ * dressing can carry the difference — twelve, not the eleven this said, which is
+ * the count `RoomStyle`'s own docstring gives beside the nineteen rooms standing
+ * on them.
  *
  * **The audience is seated, and that is the whole argument with the neighbour.**
  * Funk's crowd stands at density 0.9 and the comment there says a funk band in a

@@ -420,7 +420,37 @@ function build(c: RoomContext): RoomRig {
    */
   const floorRng = c.rng('housefloor');
   const floorW = m.houseWidth + 8;
-  const floorD = m.houseDepth + 8;
+  /**
+   * Sized off the building, not off the house — the third room to take this fix
+   * and the one that says most about why it was needed three times.
+   *
+   * It was `houseDepth + 8` centred on `lipZ + houseDepth / 2`, a house-shaped
+   * number for a plane that has to reach past the house at *both* ends. Since
+   * `lipZ` and `backZ` are `±depth / 2`, that pins the upstage edge at
+   * `lipZ - 4` in every venue, so the ground runs out **exactly `depth - 4`**
+   * metres short of the back wall — `lipZ` and `backZ` are `±depth / 2`, so the
+   * two halves add — and it renders as a black triangle in each bottom corner
+   * of a wide shot. Classical's hall is the deepest room in the catalogue at
+   * `depth: 7.5`, which makes this the worst instance of it anywhere at
+   * **3.50 m**; the shallowest, house's shed at 5.0, loses 1.00 m.
+   *
+   * Worth stating because the first version of this paragraph got it wrong in
+   * both halves: the hall's `12` is its **width**, and reading it as the depth
+   * turned 3.5 m of missing ground into a claimed 8. A number lifted from the
+   * wrong field of the right object is the failure mode this whole sweep keeps
+   * finding, and writing one into the fix for it is worth leaving on the record.
+   *
+   * The sweep is the point. `salon.ts` found the bug and named `proscenium.ts`
+   * and `courtyard.ts`, those two were fixed, and the fix was believed complete
+   * — because a comment naming two rooms reads as a list of the rooms affected
+   * rather than as the rooms one author happened to look at. Five rooms carried
+   * it. That is this codebase's recurring fault applied to a bug report instead
+   * of to a mechanism, and it is the argument for measuring the population
+   * rather than trusting the sentence that describes it.
+   */
+  const floorFrom = m.backZ - 2;
+  const floorTo = m.lipZ + m.houseDepth + 4;
+  const floorD = floorTo - floorFrom;
   const floor = new Mesh(
     c.kit.own(cellPlane({
       width: floorW, height: floorD,
@@ -432,7 +462,7 @@ function build(c: RoomContext): RoomRig {
     c.kit.solid('#ffffff', { vertexColors: true, rough: 0.94 }),
   );
   floor.rotation.x = -Math.PI / 2;
-  floor.position.set(0, m.houseY, m.lipZ + m.houseDepth / 2);
+  floor.position.set(0, m.houseY, (floorFrom + floorTo) / 2);
   floor.receiveShadow = true;
   root.add(floor);
 

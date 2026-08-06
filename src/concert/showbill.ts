@@ -83,8 +83,17 @@ const HOUSE_BLURB = 'a new one, and nobody has decided about it yet';
  */
 export function buildBill(songs: Song[]): BillEntry[] {
   // Lines already spent. A bill that says "twelve bars, no further questions"
-  // twice reads as a bug, and with sixteen lines per genre against five numbers
-  // there is no reason to allow it.
+  // twice reads as a bug, and with at least eighteen lines per genre against
+  // five numbers there is no reason to allow it.
+  //
+  // That read "sixteen lines per genre", which was true of the tables when they
+  // lived in this file and is short of every one of them now: measured over the
+  // registry, the nineteen genres carry 429 blurbs between them, from ambient's
+  // eighteen to finnfolk's twenty-seven, averaging 22.6. The floor is the number
+  // worth quoting rather than the average, because the argument is about
+  // exhaustion — `fresh` below only falls back to the whole table when the spent
+  // set has eaten it, and eighteen lines against a five-number bill means that
+  // never happens.
   const spent = new Set<string>();
 
   return songs.map((song, i) => {

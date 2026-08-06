@@ -123,8 +123,19 @@ const parkjam: EraProfile = {
   /**
    * A room, and a lot of top. These records were cut fast and loud onto tape
    * with the whole band in one space, and the tape is the only thing rolling
-   * anything off — which is why this is the brightest era in the genre and the
-   * only one whose comp is allowed above 9 kHz.
+   * anything off — which is why the comp is up at 9 kHz here where `golden`
+   * puts it at 6200 with a bit-crusher over it.
+   *
+   * **This used to claim it was the brightest era in the genre and the only one
+   * whose comp is allowed above 9 kHz, and it is neither.** The comp is *at*
+   * 9 kHz rather than above it; `southern` sits at the same 9000; and `modern`
+   * is higher on every one of the four layers this era names — comp 11000
+   * against 9000, melody 12000 against 8500, drums 13000 against 11000, pad
+   * 7000 against 5000. All four eras are in this file and could have been read.
+   * The claim that survives is the local one and it is the one the paragraph
+   * was actually making: **this is the brightest of the two eras that predate
+   * digital**, which is what "the tape is the only thing rolling anything off"
+   * argues, and `golden` at 6200 with a `crush: 12` on it is the contrast.
    */
   effects: {
     comp: { reverb: 0.16, lowpass: 9000 },
@@ -389,7 +400,13 @@ const modern: EraProfile = {
    * as a room but as a *tail*, which is what a plucked bell in eight seconds of
    * silence needs to be audible as an event — while the drums stay bone dry,
    * because a hat pattern with a tail on it is a wash and the pattern is the
-   * point. The bass is at 600 Hz, the darkest number in the project.
+   * point. The bass is at 600 Hz, which was the darkest number in the project
+   * when this was written and is now the second darkest: dnb's `design` era
+   * went to 520 afterwards, and dnb's `studio` ties this at 600. Kept in the
+   * past tense because the *reason* is unchanged and is the interesting half —
+   * 600 Hz is not a taste, it is where a sub stops being a note and starts
+   * being a pressure, and dnb arriving below it from a different decade is
+   * confirmation rather than competition.
    */
   effects: {
     comp: { reverb: 0.34, delay: 0.2, lowpass: 11000 },

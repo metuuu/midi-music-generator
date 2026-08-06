@@ -145,9 +145,12 @@ export const ambient: Genre = {
    * `riff` goes for the same reason a rhythm is not the point here.
    *
    * What is left is the two that are about *sound* rather than about conversation.
-   * Two pads an octave apart is a real ambient texture and one of the few things
-   * in that list this music does more of than any other genre here, so `unison` is
-   * weighted up rather than merely left in.
+   * Two pads an octave apart is a real ambient texture and one of only two things
+   * in that list this music does at all — `trade`, `tutti` and `riff` are zeroed
+   * outright — so `unison` is
+   * weighted up rather than merely left in. Six is not the largest `unison` in
+   * the project; arabic writes 9 and indian 8, and both of those are a band
+   * playing one line rather than two pads an octave apart.
    *
    * `swell` is not listed, and not because it would be wrong — a chord growing
    * under a held note is the most ambient gesture in the whole table. It needs the

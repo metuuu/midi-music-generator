@@ -410,7 +410,12 @@ const RACK_MARK = '+';
  * The machine, and the rack riding on it, in a drum track's bank name.
  *
  * A plain name is a machine with nothing beside it, which is what every song in
- * the catalogue is and what every song written before racks existed will stay.
+ * the catalogue **was** when this landed and what every song written before racks
+ * existed will stay. The sentence is kept in the past tense because it is what
+ * the additive design was argued against, and the eras have since named racks:
+ * measured over 60 songs in each of the nineteen genres, **265 of 1,140 carry
+ * one** — indian 60 of 60 on `mridangam`, rnb 50, arabic 45 on `darbuka`, latin
+ * 41, reggae 37, funk 27 and a handful each in hiphop and dnb, all on `congas`.
  */
 export function readBankName(bank: string): { machine: string; rack?: string } {
   const at = bank.indexOf(RACK_MARK);

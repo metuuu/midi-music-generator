@@ -35,8 +35,11 @@
  * `EARLY_ARCHETYPE_OF`'s own doc argues at length that the two numbers must not be
  * conflated — the first synthesiser existing is a different fact from a choir
  * patch being the ordinary way to get that sound. The gap between them is not
- * academic: country's nashville era is 1968, it stages the Jordanaires on 43 % of
- * its pads, and a reader of this paragraph would have concluded it could not. Staging those four
+ * academic: country's nashville era is 1968, it stages the Jordanaires on **43 %
+ * of
+ * its pads** — 34.8 %, measured over 400 numbers against the palette as it now
+ * stands, 123 vocal groups out of the 353 that had a pad at all — and a reader
+ * of this paragraph would have concluded it could not. Staging those four
  * people at four modern vocal mics would put the anachronism back one object
  * along from where it was just taken out, which is the least useful possible
  * outcome of a fix. What a group sang into in those decades is a ribbon: a flat
@@ -70,7 +73,8 @@
  *
  * ## And they stand back off it
  *
- * `LEAN_IN` is 0.12 m against the soloist's 0.045. A ribbon is live on its face
+ * `LEAN_IN` is 0.11 m against the soloist's 0.045 — the constant below says so;
+ * this said 0.12. A ribbon is live on its face
  * over a wide angle and a group singing into one is blended by the room rather
  * than by the desk, so nobody has their lips on it — and four heads each 4 cm off
  * their own grille is four people leaning in, which is a solo mannerism. It is

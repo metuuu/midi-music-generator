@@ -84,13 +84,27 @@
  * named three instruments the music did not have.
  *
  * Indian is the measurement and it is the one that names the prize. Five of its
- * twenty-eight styles declare a transition palette, and `filmi`'s own comment
- * says why only five: *"`applyShot` writes its figure as a kick, a snare and a
- * crash, and this is one of the few rooms here that has all three in it."* A
- * **tihai** — a figure struck three times, calculated backwards so the last of
+ * twenty-eight styles **declared** a transition palette, and `filmi`'s own
+ * comment said why only five: *"`applyShot` writes its figure as a kick, a snare
+ * and a crash, and this is one of the few rooms here that has all three in it."*
+ * A **tihai** — a figure struck three times, calculated backwards so the last of
  * them lands on sam — is exactly a `shot`, and the twenty-three styles that
  * could not have one were not short of a figure. `shotFigures` above resolves
  * the group heads for free. They were short of a drum to play it on.
+ *
+ * **They have the drum now, and they took the gesture.** A later wave went back
+ * through the genre once the delivery was fixed: **seventeen of the twenty-eight
+ * declare a palette today**, twelve adopted and eleven refused on stated musical
+ * grounds — four tālas with no cycle to land on, three arrivals that belong to
+ * somebody who is not the ensemble, two forms that exist in order not to
+ * display, and dhrupad and vilambit on ektāl, whose sixes give six onsets where
+ * `bandHeads` defines a shot as two to four. The sentence quoted above no longer
+ * exists in `filmi`, because the claim inside it stopped being true.
+ * `indian/staging.ts` holds the other end of the same measurement: 0 of 300
+ * numbers put anybody on the drum riser, which is exactly what this paragraph
+ * predicted would follow from the shot no longer naming three instruments. The
+ * five is kept in the past tense because the argument this whole section makes
+ * is only legible against it.
  *
  * So the kit half of `playShot` reads a `SeamOrchestration` now, and so does
  * every drum event this file writes. **Where it reads it from is the whole of
@@ -160,6 +174,19 @@
  * every time. Two genre authors found it independently, and both dropped `break`
  * from their palettes rather than ship it — which is how the sparsest music in
  * the project came to have one seam gesture fewer than the densest.
+ *
+ * **Both took it back**, once the carrier stopped being searched for and started
+ * being named, and that restoration is what the rest of this section is for. All
+ * seventeen indian palettes weight `break` at 2 or 3, and all twenty-eight of
+ * that genre's styles write `breakCarrier: 'pad'` — the śruti box, which is the
+ * thing still ringing when everything else has stopped. Arabic took it back on
+ * `dabke` alone, at weight 4, because that style's own header says the bass is
+ * the loudest thing in the room. Indian's residual is the number that makes the
+ * field worth having rather than merely safe: a tanpura writes six notes into
+ * eight bars and has usually stopped three bars before the seam, so **43 of
+ * 10517 drawn breaks came out silent** under the default `BREAK_CARRIER` of
+ * `bass`, and 0 do under `pad`. The sentence above is kept because the fault it
+ * records is exactly what `Style.breakCarrier` below was built to answer.
  *
  * ### …and what is left to decide from is the plan and the kit, and nothing else
  *

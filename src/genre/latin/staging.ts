@@ -35,8 +35,16 @@ import type { Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
  * the same fact the pavilion and the lawn both assert, arrived at by a third
  * route.
  *
- * **11.4 metres wide, which is the widest room in the project**, and the reason
- * is entirely the band. `chooseVenue` runs before the cast exists, so the boards
+ * **11.4 metres wide, which is the fourth-widest room in the project**, and the
+ * reason is entirely the band.
+ *
+ * That read *the widest*, and it was wrong on the day it was written rather than
+ * later: classical and metal are both 12 and funk is 11.5, and all four rooms
+ * landed in the same commit, ten genres in parallel with one author each and no
+ * author able to see the other nine. The number is corrected instead of the
+ * sentence being deleted because what it is doing is justifying 11.4 against a
+ * default, and it still does — 11.4 is the fourth of nineteen, and the three
+ * above it hold an orchestra, a metal line-up and a nine-piece funk band. `chooseVenue` runs before the cast exists, so the boards
  * have to hold the largest ensemble the genre can produce — and this genre's
  * middle era is a Palladium orchestra: a full horn section, a piano, a bass, a
  * singer and a percussion bench with three people on it. `cast.ts` puts the

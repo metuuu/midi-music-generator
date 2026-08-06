@@ -22,8 +22,14 @@
  * in any era's, because there has never been a decade of this music where it was
  * absent. A backline faces the *band*: it is a wall of the group's own
  * amplifiers, pointed the wrong way from the audience's point of view, and it is
- * the single object that tells you at a glance which of the eleven rooms in this
- * project you are looking at.
+ * the single object that tells you at a glance which room in this project you are
+ * looking at.
+ *
+ * That read *the eleven rooms*, and neither number the sentence could have meant
+ * is eleven: there are **nineteen** rooms — one `staging.ts` per genre — standing
+ * on **twelve** architectures, which is the count `RoomStyle`'s own docstring
+ * gives. The figure is dropped rather than corrected because the claim is about
+ * what one object does to a picture and the arithmetic was never load-bearing.
  */
 
 import type { Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
@@ -31,8 +37,16 @@ import type { Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
 /**
  * THE SHED — metal.
  *
- * Twelve metres by seven, which is the largest floor in the project, and the
- * reason is the band rather than the audience. A late line-up here is two
+ * Twelve metres by seven, which is the joint-widest floor in the project and not
+ * the largest, and the reason is the band rather than the audience.
+ *
+ * **This said *the largest* and it is not.** Classical is 12 by 7.5 — the same
+ * width and half a metre deeper, 90 m² against 84 — and both files were written
+ * in the same commit by different authors, which is how two rooms came to claim
+ * one superlative. The width half survives: 12 is the widest number in the
+ * catalogue and classical is the only other room at it, with funk's 11.5 and
+ * latin's 11.4 behind. Depth is where the two part, and correctly so — an
+ * orchestra is ranked and a metal band is a line. A late line-up here is two
  * guitarists, a bass, a singer, a kit on a riser and — in the symphonic and
  * gothic styles — a keyboard as well, and `chooseVenue` runs before the cast
  * exists, so the boards have to hold the biggest group the genre can produce

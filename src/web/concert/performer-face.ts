@@ -4,8 +4,11 @@
  * A face, procedurally: two eyes, two brows, a nose and a mouth.
  *
  * No morph targets and no blend shapes, because there is no mesh to morph — the
- * face is eleven small primitives whose transforms are computed every frame
- * from six numbers. That is not a shortcut around a rigging pipeline; it is
+ * face is **eleven small primitives** whose transforms are computed every frame
+ * from **six numbers**. Counted off the built head it is ten, and twelve on a
+ * blower, whose cheeks are the two that come and go; the channels are nine, the
+ * `gaze` pair and `effort` having arrived after this paragraph. That is not a
+ * shortcut around a rigging pipeline; it is
  * what lets the same face be driven by the viseme track, the groove and a
  * tomato at the same time without any of them needing to know about the others.
  *

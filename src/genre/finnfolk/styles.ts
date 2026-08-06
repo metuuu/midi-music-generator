@@ -72,12 +72,20 @@ const drone = (inMinor: ScaleName, inMajor: ScaleName) =>
 /**
  * No kit, said once instead of fourteen times.
  *
- * Sixteen of the twenty-four styles below carry `excludeLayers: ['drums']`, and
- * a style that excludes the kit still has to hand the type a `drums` table —
+ * **Fourteen** of the twenty-four styles below carry `excludeLayers: ['drums']`,
+ * and a style that excludes the kit still has to hand the type a `drums` table —
  * `Style.drums` is not optional, and a style with an empty array would hand
  * `rng.weighted` nothing to draw from. Ambient solved this with a `none` pattern
  * per style; here the same object is shared, because fourteen identical empty
  * tables are not fourteen decisions.
+ *
+ * **The count said sixteen and this docstring said fourteen twice** — in its own
+ * first line and in the sentence above — and fourteen is right. The wrong number
+ * had spread to four files by the time anybody counted: `index.ts` twice,
+ * `eras.ts` once, and here. The companion figures are 10 styles with any
+ * percussion at all and **3** with a kit voice in the table — `poljento`,
+ * `sahkopelimanni` and `karjalanlaulu` — which is the number `staging.ts` and
+ * `vocals.ts` were each calling six.
  *
  * **It is not a quiet kit.** A Finnish pelimanni band is a fiddle, a second
  * fiddle, a clarinet and a bass, and the pulse is a foot on a board — there is

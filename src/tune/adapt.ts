@@ -248,8 +248,20 @@ export interface SectionTune {
  * that wants the offbeats lifted on a voice with no table says it through the
  * door the type already provides, and the metre stays intact on the way through.
  * Every style in the catalogue that can currently draw a feel has a table
- * anyway, derived from its own melody cells by `cellAccents` above; the absent
- * case is the three authored voices and whatever is authored next.
+ * anyway, derived from its own melody cells by `cellAccents` above — 87 styles
+ * can draw a feel and **0 of the 87 arrive here without one**, so the branch
+ * that deliberately does nothing has never once been taken by a feel that could
+ * have used it.
+ *
+ * The absent case was written down as *the three authored voices*. **Two of the
+ * three have since been given an accent table** — tango's dotted lilt and
+ * iskelmäpop's, sixteen slots each — so it is now exactly **one style in 389**:
+ * `berlin`, whose own note says the lead is not the piece and earns its place by
+ * holding still while the machine moves, which is a voice with nothing to lean
+ * on. `DEFAULT_VOICE` carries none either and no style in the catalogue reaches
+ * it — `voiceForStyle` derives one from the cells for every unauthored style.
+ * So the honest statement of the absent case is *an authored voice that has
+ * chosen not to have one*, and whatever is authored next.
  */
 function adaptVoice(
   base: Voice, mood?: { leap: number; ornament: number }, feel?: NonNullable<Feel['voice']>,

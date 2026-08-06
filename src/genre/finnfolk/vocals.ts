@@ -58,8 +58,9 @@ export const VOCALS: VocalProfile = {
   /**
    * A square, for the headroom rather than the timbre, and the argument is
    * iskelmä's — a square delivers about 5 dB more average level than a saw at
-   * the same peak, which matters because six of these styles have a drum kit
-   * that reaches the ceiling on its own. Ambient can afford the saw's richer
+   * the same peak, which matters because three of these styles have a drum kit
+   * that reaches the ceiling on its own — this said six, and `styles.ts` records
+   * where the wrong count had spread to. Ambient can afford the saw's richer
    * spectrum because nothing in an ambient mix is loud; three of these eras are
    * a band in a hall.
    */

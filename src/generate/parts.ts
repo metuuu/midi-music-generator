@@ -243,7 +243,25 @@ export interface FigureVariation {
 }
 
 /**
- * Bars per phrase. Four, which is what every form in the catalogue is built from.
+ * Bars per phrase. Four, which is what nearly every form in the catalogue is
+ * built from — and this line said *every* until a genre arrived whose forms are
+ * not counted in fours.
+ *
+ * Measured over all 649 form steps in the nineteen genres: 375 are eight bars,
+ * 135 sixteen, 100 four, 25 thirty-two, one twenty-four, and **thirteen are
+ * not a multiple of four** — nine six-bar steps and four two-bar ones, every one
+ * of them indian, whose own header says its unit is four to eight bars where
+ * every other genre's is eight to sixteen.
+ *
+ * The consequence is worth being explicit about rather than leaving for
+ * somebody to rediscover, because it is silent: `figureFor` fires where
+ * `(bar + 1) % PHRASE_BARS === 0` and not on the section's last bar, so in a
+ * six-bar section the variation lands on the fourth bar, which is the middle of
+ * the section rather than the turn of a phrase, and in a two-bar section it
+ * never fires at all. Neither is wrong output — a figure varied a bar early is
+ * still a figure — and neither is what the constant claims to be doing. Making
+ * this a property of the section rather than of the file is a real change with a
+ * real blast radius and is not a comment's to make.
  */
 const PHRASE_BARS = 4;
 
@@ -2240,10 +2258,14 @@ export interface KitVariation {
  * table of `lp mp hp tb` has none of the four in it. So this never wrote a kit
  * stroke anywhere and never could — it returned `undefined` for every section
  * of every song in every genre with no kit, and a check that counts wrong
- * strokes cannot see a gesture that never happened. **54 of the 389 styles with
+ * strokes cannot see a gesture that never happened. **54 of the 335 styles with
  * a drum table are hand tables, and all 54 played one figure from the first bar
  * to the last** while every kit style in the catalogue got a verse thinner than
- * its chorus.
+ * its chorus. (The denominator read 389, which is every style in the catalogue
+ * rather than every style with a drum table — the two populations differ by the
+ * styles that write no drum voices at all. The numerator is the
+ * number that carries the argument and it is unaffected: 54, counted with no
+ * bank, which is what `fills.ts` and `docs/engine-gaps.md` both report.)
  *
  * ## What a hand is, stated once and true at both stations
  *
@@ -2363,8 +2385,12 @@ export function handStation(
  * Which voice is keeping time, or nothing if the pattern does not say clearly.
  *
  * Derived rather than declared, because declaring it means authoring a field
- * onto seventy-six table entries to record something every one of them already
- * shows: the hand is the busiest of the voices the station says it may be. The
+ * onto every drum pattern in the catalogue to record something every one of
+ * them already shows: the hand is the busiest of the voices the station says it
+ * may be. That was seventy-six entries when this was written and is **1005
+ * now**, of which the derivation elects a hand for 640 — which is the argument
+ * getting stronger rather than the sentence going stale, since the cost of the
+ * alternative grew by a factor of thirteen and the derivation cost nothing. The
  * two guards are what make the derivation safe rather than merely usually
  * right —
  *

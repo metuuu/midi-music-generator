@@ -391,13 +391,25 @@ function headAbove(posture: Posture, height: number): number {
  * and does not.
  *
  * **And it is a two-line change either way.** `Staging` is a frozen contract in
- * `genre/types.ts` with fourteen implementors; adding an optional `floorSeated`
+ * `genre/types.ts` with nineteen implementors; adding an optional `floorSeated`
  * to it would be the right shape, and if this list reaches five entries it
- * should be done. Two entries is not yet worth widening a contract fourteen
+ * should be done. Two entries is not yet worth widening a contract nineteen
  * files depend on, and the comparison argument cuts the other way here besides:
  * *which traditions sit on the floor* is a question you want to see answered in
- * one place, all at once, precisely so that a fifteenth genre's author can tell
+ * one place, all at once, precisely so that a twentieth genre's author can tell
  * whether theirs belongs.
+ *
+ * **The three counts in that paragraph read *fourteen*, *fourteen* and
+ * *fifteenth*, and every one of them has moved.** Measured, all nineteen genres
+ * in the registry declare a `staging` — room, wardrobe, blurbs and body, with no
+ * genre missing any of the four — so the contract has nineteen implementors and
+ * widening it is a nineteen-file question rather than a fourteen-file one. What
+ * did **not** move is the number this table holds, and that is the finding worth
+ * the recount: five genres landed while it sat at two, and none of them sits on
+ * the floor. The threshold above is deliberately left at five entries rather
+ * than raised in proportion, because the argument for widening the contract was
+ * never about how many genres exist — it is about how many of them have an
+ * answer to give.
  *
  * ## Why these two, and why the whole genre rather than its eras
  *
@@ -678,9 +690,20 @@ function makeLook(args: {
    * Skipped, because `Rng` is a sequence: a draw taken here is a draw not taken
    * by whatever comes next, and a garment table added to arabic would otherwise
    * re-roll the height, the hair and the hat of every player in the other
-   * thirteen genres. The picture would change everywhere and the diff would say
-   * one genre. Ten wardrobes are meant to be untouched by this and the only way
-   * to *prove* they are untouched is for their stream never to move.
+   * eighteen genres. The picture would change everywhere and the diff would say
+   * one genre. Any wardrobe not being dressed that day is meant to be untouched
+   * by it, and the only way to *prove* it is untouched is for its stream never
+   * to move.
+   *
+   * **That last sentence read *Ten wardrobes are meant to be untouched by this*,
+   * and there are none left to be.** Every one of the 71 `genre:era` wardrobe
+   * rows in the registry now carries a `garments` table — 71 of 71, across all
+   * nineteen genres — so the population the sentence was protecting has been
+   * dressed down to the last row and the count is gone rather than corrected to
+   * zero. The *rule* is not gone with it and must not be: the guarantee is what
+   * made dressing nineteen genres one genre at a time safe, and it is the same
+   * guarantee the twentieth genre's first garment table will need. A count of
+   * undressed wardrobes reaching zero is the mechanism succeeding, not expiring.
    *
    * Last, because the same argument applies to the genres that do have a table.
    * A draw appended after everything else cannot disturb anything before it, so
@@ -691,8 +714,22 @@ function makeLook(args: {
    *
    * `'suit'` is the fallback rather than a `PLAIN.garments` entry, because
    * `PLAIN` is only reached by a genre that declared no wardrobe at all, and the
-   * far commoner case is a genre with a perfectly good wardrobe that has not
-   * been given clothes-shapes yet.
+   * commoner case *was* a genre with a perfectly good wardrobe that had not been
+   * given clothes-shapes yet.
+   *
+   * **Neither case is reachable from the catalogue today, and the ternary below
+   * is the better for it rather than dead.** Resolving all 72 `genre:era` pairs
+   * through `wardrobeFor`: `PLAIN` comes back **0 times** — every genre declares
+   * a wardrobe, and the one era with no row of its own, jazz's `electric`, lands
+   * on its `defaultEra` of `bop` — and the `'suit'` arm is taken **0 times**,
+   * because every row that resolves has a `garments` table. The silhouette is
+   * still everywhere: 68 of those 72 tables list `suit` as a weighted option, so
+   * it is drawn as a *choice* now and never as an absence, which is exactly the
+   * difference between a default and a fallback. The tense above is moved to the
+   * past rather than the sentence deleted, because the reason `'suit'` is the
+   * fallback is a claim about which way the file should fail when a row is
+   * missing, and that is as true of a row nobody has written yet as it was of
+   * the ten that were missing when it was written.
    *
    * ## It was not last, and the two draws it was not last of were the faces
    *

@@ -83,12 +83,30 @@
  * has nothing to say by choosing it, *except* in the one place where "the major
  * scale" is genuinely a named maqam being played on purpose.
  *
- * **Absent because the scale table has no row for them.** Nikriz proper
- * (dorian with a raised fourth) and Athar Kurd. `core/scale.ts` files
- * `hungarianMinor` under Nikriz, which is right about its lower jins and one
- * degree out at the top: Nikriz takes a ♮6 and ♭7 above the fifth where that
- * scale takes a ♭6 and ♮7, and the shape it actually spells is **Nawa Athar**.
- * That is what it is called here.
+ * **Absent because the scale table had no row for them.** Athar Kurd, which
+ * still has none, and — when this was written — Nikriz proper, dorian with a
+ * raised fourth. `core/scale.ts` filed `hungarianMinor` under Nikriz, which is
+ * right about its lower jins and one degree out at the top: Nikriz takes a ♮6
+ * and ♭7 above the fifth where that scale takes a ♭6 and ♮7, and the shape it
+ * actually spells is **Nawa Athar**. That is what it is called here.
+ *
+ * **The row landed, and this paragraph is the reason it did.** `core/scale.ts`
+ * carries `nikriz: [0, 2, 3, 6, 7, 9, 10]` now, and its `hungarianMinor` entry
+ * opens by saying in as many words that it is *not* Nikriz — the correction was
+ * made by reading the complaint above. So Nikriz is no longer absent from the
+ * engine; it is absent from **this genre**, which is a choice and is still being
+ * taken. The count is exact rather than sampled, because every scale this folder
+ * can hand the melody is named in a literal: `nikriz` appears in **0 of the 17
+ * seats** — the eight tonics in `MAJOR_MAQAM`, the eight in `MINOR_MAQAM`, and
+ * `taqsim`'s override, which is the only style that overrides at all. No arabic
+ * song has ever been in it.
+ *
+ * Adopting it would not be another `taqsim`-only maqam, which is the interesting
+ * part and the mirror of the paragraph above. Nawa Athar is locked out of the
+ * chorded styles by its ♯4 leaving no triad on the fourth degree; Nikriz shares
+ * that ♯4 and *not* that consequence, because its upper tetrachord is dorian's,
+ * so it keeps dorian's chords everywhere the ♯4 is not involved. It is the one
+ * maqam here that the ensemble could accompany and does not.
  *
  * ## The maqam is chosen by the tonic, which is how they are named
  *

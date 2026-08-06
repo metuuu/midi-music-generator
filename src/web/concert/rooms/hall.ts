@@ -23,7 +23,8 @@
  *
  * ## What this is not, stated first, because it is one of three halls
  *
- * There are now eleven rooms and this one is bracketed by two that could
+ * There were eleven rooms when this was written, there are twelve in `ROOMS`
+ * now, and this one is bracketed by two that could
  * swallow it. Being explicit about the difference is cheaper than discovering it
  * from a screenshot.
  *
@@ -775,8 +776,13 @@ function build(c: RoomContext): RoomRig {
    * the concert hall's coffers run in two. That is not economy, it is the
    * building: a coffered ceiling is a grid of panels and belongs to a room with
    * a plasterer in it, and a concrete civic hall of this period has one-way
-   * downstand beams at two-and-a-half-metre centres because that is how the slab
-   * spans. From the floor of the house it is a ladder of shadowed lines
+   * downstand beams at **two-and-a-half-metre centres** because that is how the
+   * slab
+   * spans. That is the spacing this room was drawn at and it is `RIB_GAP = 2.1`
+   * now — see the constant, which records at length that 2.5 m put one beam in
+   * the visible band and sometimes none. The sentence is kept because the
+   * *reason* for one-way beams is the point of the paragraph and the centres are
+   * an aside; 2.1 m is an entirely ordinary spacing for the same slab. From the floor of the house it is a ladder of shadowed lines
    * receding over the audience toward the stage, and in this room it does a
    * second job the concert hall's coffers never had to: **it is what the haze
    * has for a top**. A beam of light crossing under a ribbed ceiling in smoke

@@ -26,10 +26,14 @@
  *
  * A room could have been looked up by `Venue.id` — the ids are stable, unique
  * and already used as RNG tags, and it would have cost no new field anywhere.
- * It is the wrong key for the reason `ARCHETYPE_OF` exists: sixty catalogue
- * instruments collapse onto twenty-two models because a tenor and a baritone
- * saxophone are one object at two sizes, and fourteen rooms will collapse the
- * same way. A `ballroom`, a `dancehall` and a `salon` are one big room with a
+ * It is the wrong key for the reason `ARCHETYPE_OF` exists: **sixty catalogue
+ * instruments collapse onto twenty-two models** because a tenor and a baritone
+ * saxophone are one object at two sizes, and **fourteen rooms will collapse the
+ * same way**. Both counts have since been overtaken and the prediction has been
+ * paid off, which is the reason to keep them rather than delete them: the
+ * catalogue is 126 sounds on 24 models now, and the collapse it predicted for
+ * the rooms is exactly what happened — 19 genre rooms onto 12 architectures.
+ * A `ballroom`, a `dancehall` and a `salon` are one big room with a
  * floor in it; a `riihi` and a `shed` are one long roof. Keying on the room id
  * would mean writing that room three times or importing one room into another,
  * and the second is how a directory of parallel authors turns back into a file
@@ -94,8 +98,11 @@ export const ROOMS: Record<RoomStyle, RoomBuilder> = {
  * stage badly and obviously in rather than throw on halfway through a show.
  *
  * Absent means the proscenium, and that is the load-bearing half: it is what
- * makes thirteen rooms and every genre added in a hurry keep working without
- * anyone naming anything.
+ * made **thirteen rooms** and every genre added in a hurry keep working without
+ * anyone naming anything. Three still take it — ambient, iskelmä and jazz —
+ * along with `venue.ts`'s `HOUSE`, which no genre reaches. The number fell
+ * because sixteen authors named a room, not because the fallback stopped being
+ * needed, and a genre added in a hurry is still the case it is here for.
  */
 export function roomFor(architecture: string | undefined): RoomBuilder {
   if (architecture && architecture in ROOMS) {

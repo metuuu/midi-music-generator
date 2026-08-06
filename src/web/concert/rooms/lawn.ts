@@ -144,8 +144,12 @@ import {
  *
  * The candidates it sits between are all real and all wrong. `RIIHI_RISE` is
  * 0.3 m — a plank on two blocks, for a room whose whole claim is that there is
- * no stage — and that fails here on the picture: this house is **nine rows
- * standing at density 0.9, the densest crowd in the project**, and a standing
+ * no stage — and that fails here on the picture: this house is nine rows
+ * standing at density 0.9, **the densest crowd in the project** — which it was,
+ * and is third now: metal came in at 0.94 and dnb at 0.92, and funk sits level
+ * with it at 0.90. Nothing about the derivation moves, because a crowd 4 % less
+ * dense is the same wall of heads at the same height and the number below is
+ * solved against the height rather than against the spacing. A standing
  * figure is 1.62 m to the middle of the head. At 0.3 m the front row's crowns
  * would sit 1.32 m above the boards, across a standing bass player's chest,
  * from every camera in the room, permanently, with no gaps in the row to see
