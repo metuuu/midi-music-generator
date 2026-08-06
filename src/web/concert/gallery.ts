@@ -291,7 +291,16 @@ let spin = 0;
 function performerFor(entry: Entry, archetype: Archetype): Performer {
   return {
     id: `bench-${entry.id}`,
-    layer: archetype === 'drumkit' ? 'drums' : archetype === 'singer' ? 'vocal' : 'melody',
+    /**
+     * The layer this exhibit would be cast on, which only three archetypes
+     * disagree about. It seeds nothing and is read by nothing here, but it is
+     * what `Performer` means, and a vocal group on the `vocal` layer would be
+     * the one confusion this archetype exists to prevent: it is an *instrument*
+     * the arranger scored, and it plays the pad.
+     */
+    layer: archetype === 'drumkit' ? 'drums'
+      : archetype === 'singer' ? 'vocal'
+        : archetype === 'vocal-group' ? 'pad' : 'melody',
     archetype,
     instrument: ARCHETYPES[archetype].label,
     look: LOOK,
@@ -486,8 +495,13 @@ function applyPose(item: Exhibit): void {
 
   rig.setPlaying(playing);
   if (!playing) rig.setMouth(0, 0, 0);
+  // The voice family is tested before `blown`, and the order is the bug this
+  // line prevents rather than a preference. Both singers declare `blown`,
+  // because singers breathe, so a family test written second would put a
+  // trumpeter's embouchure on every face that sings. `animate.ts` makes the
+  // same choice in `face` and for the same reason.
+  else if (spec.family === 'voice') rig.setMouth(0.5, 0.15, 0.2);
   else if (spec.blown) rig.setMouth(0.08, 0.65, 0.06);
-  else if (model.archetype === 'singer') rig.setMouth(0.5, 0.15, 0.2);
   else rig.setMouth(0, 0, 0);
 
   rig.root.updateWorldMatrix(true, false);

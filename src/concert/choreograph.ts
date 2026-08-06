@@ -604,6 +604,10 @@ export function soundingEffectors(archetype: Archetype): readonly Effector[] {
     case 'flute':
     case 'harmonica':
     case 'singer':
+    // Four of them, each sounding the whole line rather than a quarter of it —
+    // which is what makes the coverage arithmetic come out. See the note in
+    // `roster` where the group is drafted.
+    case 'vocal-group':
       return ['mouth'];
     default:
       // Keyboards, mallets, harp, accordion: both hands sound, and an organist's
@@ -1239,6 +1243,29 @@ function playPart(
       stringPart(groups, spec, reach, board, false);
       return;
     case 'singer':
+    /**
+     * …and a vocal group, whose members are singing and whose line is not sung.
+     *
+     * The same routine, and the fall-through is the statement rather than a
+     * shortcut: what a mouth does on a note is the same question whether the
+     * note came from `Genre.vocals` or from a choir patch in the arranger's
+     * score. What differs is upstream of here and stays there — the group is
+     * cast off the catalogue rather than off `Track.voice`, and there are three
+     * or four of them.
+     *
+     * `NoteEvent.vowel` is absent on a pitched track, so every syllable falls to
+     * `sungPart`'s `'a'`. That is not a default standing in for a missing
+     * decision; it is the sound. `gm_choir_aahs` is an /a/ by name, and a group
+     * holding a four-bar chord is holding one vowel — the thing a written choir
+     * does *not* have is words, which is exactly what a constant vowel is.
+     *
+     * Note what this does **not** do, because the temptation is right there: it
+     * does not read the catalogue entry to sing `voiceOohs` on a /u/. That would
+     * be the choreographer learning the difference between two GM programmes to
+     * choose a mouth shape, and the honest place for it is `NoteEvent.vowel`,
+     * which is the field that already exists to carry one.
+     */
+    case 'vocal-group':
       sungPart(groups, board);
       return;
     default:

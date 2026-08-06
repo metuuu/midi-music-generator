@@ -2183,19 +2183,44 @@ console.log("\nThe drummer's hand");
   let compared = 0; let moved = 0;
   const detail: string[] = [];
 
+  /**
+   * …and the hand a hand drummer varies, which is the second claim below.
+   *
+   * `planKitVariation` takes the style's whole table now — see `HandStation` —
+   * so the same loop that has always exercised the kit exercises the other
+   * station for free. `handTables` is counted rather than asserted against a
+   * literal because it is a fact about the catalogue and the catalogue grows.
+   */
+  let handTables = 0; let handPlans = 0;
+  const handStyles = new Set<string>();
+  const onTheDrum: string[] = [];
+  const liftedByHand: string[] = [];
+
   for (const gid of GENRE_IDS) {
     for (const style of Object.values(getGenre(gid).styles)) {
+      const table = style.drums.flatMap((p) => Object.keys(p.voices) as DrumVoice[]);
+      const kit = drumStations(table).kit;
+      if (style.drums.length && !kit) handTables++;
       for (const pattern of style.drums) {
         for (const level of LEVELS) {
           for (let k = 0; k < 4; k++) {
             const hand = planKitVariation(pattern, {
               intensity: level, rng: new Rng(`${style.id}:${pattern.name}:${level}:${k}`),
+              table,
             });
             if (!hand) continue;
             planned++;
             if (hand.thin) thinned++;
             if (hand.to === 'rd') rode++;
-            if (hand.open?.length) opened++;
+            if (hand.open?.at.length) opened++;
+            if (!kit) {
+              handPlans++;
+              handStyles.add(`${gid}/${style.id}`);
+              if (STATION_OF[hand.on] === 'hand') onTheDrum.push(`${gid}/${style.id} ${hand.on}`);
+              if (hand.to || hand.open) {
+                liftedByHand.push(`${gid}/${style.id} ${hand.to ?? hand.open?.as}`);
+              }
+            }
 
             const ctx = () => ({
               chords, beatsPerBar: style.beatsPerBar, startBeat: 0, style,
@@ -2206,12 +2231,13 @@ console.log("\nThe drummer's hand");
             const varied = generateDrums(ctx(), pattern, { ...opts, variation: hand });
 
             /**
-             * Everything the hand is not. `oh` is excluded because opening the
-             * hat is the gesture: those hits are hand hits wearing another
+             * Everything the hand is not. The opened voice is excluded because
+             * opening is the gesture: those hits are hand hits wearing another
              * voice, and they came out of the count `on` lost.
              */
             const untouched = (events: typeof plain) => events
-              .filter((e) => e.voice !== hand.on && e.voice !== hand.to && e.voice !== 'oh')
+              .filter((e) => e.voice !== hand.on && e.voice !== hand.to
+                && e.voice !== hand.open?.as)
               .map((e) => `${e.voice}@${e.beat.toFixed(3)}`).join(' ');
             compared++;
             if (untouched(plain) !== untouched(varied)) {
@@ -2233,6 +2259,47 @@ console.log("\nThe drummer's hand");
     'the hand thins, rides and opens',
     thinned > 0 && rode > 0 && opened > 0,
     `${planned} plans: ${thinned} thinned, ${rode} to the ride, ${opened} opened`,
+  );
+
+  /**
+   * …and a hand drummer has one too, on the one thing that is not the drum.
+   *
+   * The last of the four sites `docs/engine-gaps.md` §2.1 named, and the only
+   * one whose symptom was an absence: `HAND_VOICES` was `rd sh hh oh`, `handOf`
+   * needs its winner present, and a table of `lp mp hp tb` has none of the four
+   * in it — so every one of the 54 hand tables in the catalogue played one
+   * figure from the first bar of a song to the last, in the same mechanism that
+   * gives every kit style a verse thinner than its chorus. A check that counts
+   * *wrong strokes* could never have found it; nothing was written at all.
+   *
+   * **Two claims, and the second is the safety rail.**
+   *
+   *  - *Hand tables get a hand.* Some of them: 22 of the 54 carry a piece on the
+   *    stand and 32 are one drum and nothing else. Asserted as "more than none"
+   *    rather than as a fraction, because the fraction is a fact about which
+   *    genres have been written rather than about the mechanism.
+   *  - *…and it is never the drum.* `STATION_OF` says which voices need a hand
+   *    drum under them, and no plan may name one. This is `varying the hand
+   *    moves nothing else` restated for an instrument whose groove and whose
+   *    timekeeping are the same three strokes: take alternate strokes out of a
+   *    tīntāl theka and the result is not a sparser tīntāl, it is not tīntāl.
+   *    The rule that enforces it was written for a hi-hat five genres away —
+   *    the hand must outnumber every voice outside `keeps`, and indian's `jhala`
+   *    writes `lp: 12` against `hp: 8`.
+   *
+   * The third clause is the same claim from the other side: no hand-station plan
+   * may lift or open, because neither gesture exists on a stand. See
+   * `HandStation.lift`, which is optional for exactly this reason.
+   */
+  const few = (xs: string[]) => [...new Set(xs)].slice(0, 4).join(', ');
+  check(
+    'a hand drummer varies too, and never on the drum itself',
+    handPlans > 0 && onTheDrum.length === 0 && liftedByHand.length === 0,
+    onTheDrum.length || liftedByHand.length
+      ? `${onTheDrum.length} plans vary the drum itself (${few(onTheDrum)}); `
+        + `${liftedByHand.length} lift a stand (${few(liftedByHand)})`
+      : `${handPlans} plans over ${handStyles.size} of ${handTables} hand tables, `
+        + 'every one of them thinning a piece on the stand',
   );
 
   /**

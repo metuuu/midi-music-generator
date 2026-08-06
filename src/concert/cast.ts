@@ -1086,8 +1086,46 @@ function roster(
        */
       const archetype = track.voice
         ? VOCAL_ARCHETYPE
-        : (archetypeForTrack(track) ?? 'synth');
-      drafts.push({ layer, archetype, instrument: track.instrument, doubles: [] });
+        : (archetypeForTrack(track, year) ?? 'synth');
+      /**
+       * …and one of them is several people.
+       *
+       * A vocal group is one track played by three or four singers, which is
+       * the second of the two shapes this file already knows. `mergeStations`
+       * is the first read the other way — several lines, one player, a hand
+       * each — and `drumStations` is this one: one event stream, two people,
+       * because a conga player standing beside a drummer has always been two
+       * people rather than a drummer with a fifth limb.
+       *
+       * The difference from `drumStations` is worth naming, because it is why
+       * this cannot go through the same door. That function **partitions**: it
+       * reads which voices are written and hands each of the two players a
+       * disjoint share, and `npm run concert` asserts the two shares cover the
+       * stream exactly once. A vocal group does not partition. Four singers on
+       * a four-part chord are singing the *same track*, all of it, at the same
+       * time — so every one of them is choreographed against the whole line and
+       * every one of them opens their mouth on the chord, which is the picture.
+       * Coverage survives that untouched: `Board.place` emits one gesture per
+       * target, so N performers over one track owe N times the notes and make N
+       * times the gestures, and the ratio the check asserts does not move.
+       *
+       * **Why not one performer with a model of four people.** The seam has no
+       * `Look` in it and should not — see `ARCHETYPES['vocal-group']`, where the
+       * argument is. Three singers built inside a model would be three people
+       * the wardrobe never dressed and the groove never moved.
+       *
+       * The count is drawn on its own stream, so adding this could not reshuffle
+       * anybody else's look, rig or jacket. Four is the default shape — a
+       * barbershop quartet, a doo-wop group, the four voices country's string
+       * band wrote — and three is the gospel trio, which is common enough to be
+       * worth having and rare enough to be the lighter weight.
+       */
+      const voices = archetype === 'vocal-group'
+        ? new Rng(`${seed}:cast:voices:${layer}`).weighted([[4, 5], [3, 3]])
+        : 1;
+      for (let v = 0; v < voices; v++) {
+        drafts.push({ layer, archetype, instrument: track.instrument, doubles: [] });
+      }
     }
   }
 

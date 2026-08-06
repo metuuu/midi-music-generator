@@ -1443,7 +1443,9 @@ class Player {
     const archetype = rig.performer.archetype;
     const spec = ARCHETYPES[archetype];
     this.blown = spec.blown === true;
-    this.singer = archetype === 'singer';
+    // Both voice archetypes. A vocal group's mouths are the whole of what moves
+    // at that station — see `face`, where the two part company.
+    this.singer = spec.family === 'voice';
     this.usesBow = gestures.some((g) => g.effector === 'bow');
     this.sounds = new Set<Effector>(soundingEffectors(archetype));
     this.occupiesHands = spec.hands > 0;
@@ -3210,6 +3212,32 @@ class Runtime implements Animator {
         round = v.round * e;
         spread = v.spread * e;
       }
+    } else if (p.singer && force > 0) {
+      /**
+       * Singing with no viseme track: the vocal group, and only ever it.
+       *
+       * `Number.visemes` is built for the one performer `Genre.vocals` sang,
+       * from words that exist. A vocal group has no words — it is an instrument
+       * the arranger scored, playing a pitched track off the catalogue — so
+       * there is nothing for `visemes.ts` to read and it correctly builds
+       * nothing. The gesture is still there, carrying the beat and the force,
+       * which is exactly the half of a mouth this branch has to supply.
+       *
+       * A held /a/, and it is not a placeholder for a vowel nobody chose: the
+       * sound is `gm_choir_aahs` and the mouth is the aah. What a written choir
+       * lacks against a sung line is *articulation* — the jaw reshaping every
+       * syllable — and a constant open vowel is what that absence looks like on
+       * a face. It is also what four people holding a four-bar chord look like.
+       *
+       * Falling through to the embouchure below was the alternative and it is
+       * badly wrong rather than merely plain: `ArchetypeSpec.blown` is true for
+       * both voice archetypes, because singers breathe, so a group would have
+       * taken the trumpet branch and sung a whole number through a small tight
+       * round aperture. Four of them, in a row, at the front.
+       */
+      open = 0.30 + 0.40 * force;
+      round = 0.16;
+      spread = 0.10;
     } else if (p.blown && blow > 0) {
       // An embouchure: a small, tight, round aperture that firms up as the note
       // starts. Nothing here is a viseme — a trumpeter is not singing a vowel.

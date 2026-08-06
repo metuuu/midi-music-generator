@@ -15,7 +15,10 @@ import { voiceChord } from '../core/voicing.js';
 import type { Midi, Pc } from '../core/pitch.js';
 import { clampToRange, nearestPc, pc } from '../core/pitch.js';
 import type { Rng } from '../core/rng.js';
-import type { DrumEvent, DrumVoice, NoteEvent } from '../core/types.js';
+// The three-tier kit/hand/either split, read here for the same reason the solo
+// generator and the fill vocabulary read it. See `HandStation`.
+import { drumStations } from '../concert/instruments.js';
+import type { DrumEvent, DrumVoice, NoteBend, NoteEvent } from '../core/types.js';
 import { scaleStepsBetween, stepInScale, type Scale } from '../core/scale.js';
 import {
   buildFill, DEFAULT_FILLS, landing, seamOrchestration, type FillPalette,
@@ -388,9 +391,26 @@ export function generateBass(
    */
   const shape = pattern.hits.reduce(
     (span, h) => {
-      if (asksTheChord(h.tone)) return span;
-      const at = displacementOf(h.tone);
-      return { lo: Math.min(span.lo, at), hi: Math.max(span.hi, at) };
+      /**
+       * **A glide destination counts toward the span**, and it has to for the
+       * reason the paragraph above is about: `placeRoot` chooses the octave that
+       * holds the whole figure, and a figure that *travels* to a twelfth reaches
+       * a twelfth whether or not it strikes one. Left out, a `glide: 12` would
+       * be clamped against `SHAPE_CEILING` at exactly the roots where the shape
+       * did not fit — the same silent, chord-dependent fold §1.3 describes, on a
+       * note the ear is following rather than one it is merely hearing.
+       *
+       * Written as a loop over one or two tones rather than as a second reduce so
+       * that a pattern with no glide walks the identical sequence of comparisons
+       * it walked before this existed. See `BassHit.glide`.
+       */
+      let out = span;
+      for (const tone of h.glide === undefined ? [h.tone] : [h.tone, h.glide]) {
+        if (asksTheChord(tone)) continue;
+        const at = displacementOf(tone);
+        out = { lo: Math.min(out.lo, at), hi: Math.max(out.hi, at) };
+      }
+      return out;
     },
     { lo: 0, hi: 0 },
   );
@@ -411,12 +431,35 @@ export function generateBass(
     const rootMidi = placeRoot(chord.root, shape);
 
     {
-      let midi: Midi;
-      if (asksTheChord(hit.tone)) {
+      /**
+       * One table of answers, asked once per pitch this hit names.
+       *
+       * Lifted out of the body it used to be written inline in so that a glide
+       * destination resolves by *exactly* the rules an arrival does — `'fifth'`
+       * asks the harmony where the fifth is whether it is where the note starts
+       * or where it is going, and a number is semitones from the chord root
+       * taken literally in both positions. Two copies of this would have been two
+       * spellings of one figure with two behaviours, which is the fault
+       * `BassTone`'s own note records costing 57 figures in nine genres.
+       */
+      const place = (tone: BassTone): Midi => {
+        if (!asksTheChord(tone)) {
+          // A shape, not an outline: the interval *is* the figure, and the chord
+          // does not get a say in it. `placeRoot` has already found the octave
+          // that holds the span, so this arrives whole; the clamp is against
+          // `SHAPE_CEILING` rather than the register because a figure the
+          // placement had to spend the reach on must be allowed to *use* it, and
+          // clamping it back would undo the placement in the one bar it was made
+          // for. It remains a net and it still folds a figure wider than two
+          // octaves — which no instrument in the bass palette can play whole, and
+          // which `npm run genres` still reports. See `BassTone`.
+          return clampToRange(rootMidi + displacementOf(tone), BASS_RANGE[0], SHAPE_CEILING);
+        }
         // An outline. The harmony answers, `nearestPc` puts the answer next to
         // the root, and the register has the last word — an octave of a chord
         // tone is the same chord tone, so folding one costs nothing.
-        switch (hit.tone) {
+        let midi: Midi;
+        switch (tone) {
           case 'fifth':
             midi = nearestPc(pc(chord.root + 7), rootMidi + 2);
             break;
@@ -430,29 +473,60 @@ export function generateBass(
             midi = approachNote(rootMidi, next.root, rng);
             break;
         }
-        midi = clampToRange(midi, BASS_RANGE[0], BASS_RANGE[1]);
-      } else {
-        // A shape, not an outline: the interval *is* the figure, and the chord
-        // does not get a say in it. `placeRoot` has already found the octave
-        // that holds the span, so this arrives whole; the clamp is against
-        // `SHAPE_CEILING` rather than the register because a figure the
-        // placement had to spend the reach on must be allowed to *use* it, and
-        // clamping it back would undo the placement in the one bar it was made
-        // for. It remains a net and it still folds a figure wider than two
-        // octaves — which no instrument in the bass palette can play whole, and
-        // which `npm run genres` still reports. See `BassTone`.
-        midi = clampToRange(rootMidi + displacementOf(hit.tone), BASS_RANGE[0], SHAPE_CEILING);
-      }
+        return clampToRange(midi, BASS_RANGE[0], BASS_RANGE[1]);
+      };
+
+      const midi = place(hit.tone);
+      const velocity = (hit.vel ?? 0.85) * rng.float(0.94, 1.0);
       out.push({
         beat: startBeat + slot / SLOTS_PER_BEAT,
         duration: hit.dur / SLOTS_PER_BEAT,
         midi,
-        velocity: (hit.vel ?? 0.85) * rng.float(0.94, 1.0),
+        velocity,
+        ...bendOf(hit, midi, place),
       });
     }
   }
   out.sort((a, b) => a.beat - b.beat || a.midi - b.midi);
   return pattern.sustain ? mergeHeld(out) : out;
+}
+
+/**
+ * The travelling half of a hit, or nothing at all.
+ *
+ * Spread into the note rather than assigned, so a hit with no `glide` produces a
+ * `NoteEvent` with no `bend` key on it — not one with `bend: undefined`. That
+ * distinction is invisible to every consumer and visible to `JSON.stringify`,
+ * and this project ships an IR that other things read.
+ *
+ * Two ways a declared glide comes back empty, and both are right:
+ *
+ *  - **The destination resolved to the pitch the note is already on.** A
+ *    `glide: 'fifth'` over a chord whose fifth is where the shape already put
+ *    the note is a note that does not move, and publishing a zero bend to say so
+ *    would put a field on a note to record a decision with no consequence —
+ *    `planRamp` returns `undefined` for a drawn `none` on exactly this argument.
+ *  - **`glideTime` is clamped into `0..1`,** so the bend can never outlive the
+ *    note it is written on. `NoteBend.beats` asks renderers to clamp as well and
+ *    they do, because two later passes shorten notes after this runs; this is the
+ *    near end of the same guarantee, where the figure is still in view.
+ *
+ * The destination is resolved *after* the velocity draw, which is not
+ * housekeeping. `place` reaches `rng` for one tone — `'approach'` — so resolving
+ * a destination can cost a number; taking it after velocity means every hit that
+ * does not glide walks the identical stream it walked before this file changed,
+ * and the cost falls only on the style that asked.
+ */
+function bendOf(
+  hit: BassHit,
+  midi: Midi,
+  place: (tone: BassTone) => Midi,
+): { bend?: NoteBend } {
+  if (hit.glide === undefined) return {};
+  const to = place(hit.glide);
+  if (to === midi) return {};
+  const share = Math.min(1, Math.max(0, hit.glideTime ?? 1));
+  return { bend: { semitones: to - midi, beats: (hit.dur / SLOTS_PER_BEAT) * share } };
 }
 
 /**
@@ -485,7 +559,19 @@ function mergeHeld(notes: NoteEvent[]): NoteEvent[] {
     voice.sort((a, b) => a.beat - b.beat);
     let held: NoteEvent | undefined;
     for (const note of voice) {
-      if (held && Math.abs(held.beat + held.duration - note.beat) < 0.0625) {
+      /**
+       * **A travelling note neither absorbs nor is absorbed.** This merge
+       * matches on written pitch and end-to-end contact, and a note carrying a
+       * `bend` is not on its written pitch when it finishes — extending one
+       * would hold a destination the figure never asked to sustain, and letting
+       * one be swallowed would delete the arrival the glide exists to reach.
+       *
+       * It fires where `sustain` and `glide` meet, which is not a hypothetical
+       * pairing: a Reese is a held bass note that moves, so the first style to
+       * want both is the one this feature was built for.
+       */
+      if (held && !held.bend && !note.bend
+        && Math.abs(held.beat + held.duration - note.beat) < 0.0625) {
         held.duration = note.beat + note.duration - held.beat;
         continue;
       }
@@ -2110,37 +2196,189 @@ export interface KitVariation {
    */
   thin?: boolean;
   /**
-   * Indices into the hand's surviving hits that sound as an open hat instead.
+   * Indices into the hand's surviving hits that sound as something else, and
+   * what that something is.
    *
    * Indices rather than slots because a pattern may carry a `cycle`, in which
    * case its slots are relative to the figure and not to the bar — see `Cycle`.
    * The hand's own hit list is the one space both readings agree on.
+   *
+   * **One object rather than two fields**, and that is the shape of the fix
+   * rather than tidiness. This used to be a bare index list and `varyPattern`
+   * named `oh` for itself — the fourth and last of the hard-coded kit literals
+   * `docs/engine-gaps.md` §2.1 is about. Splitting the voice off into a second
+   * optional field beside it would make "set both or neither" a rule a reader
+   * has to keep; one optional object is the same rule with nowhere left to
+   * break it. The voice comes from `HandStation.lift`.
    */
-  open?: number[];
+  open?: { at: number[]; as: DrumVoice };
 }
 
 /**
- * The voices a hand keeps time on, in the order ties are broken.
+ * What a hand keeps time on, and what a loud section does with it, once it is
+ * known what the drummer is standing at.
  *
- * `rd` first because a pattern carrying both a ride and something else is a
- * jazz pattern and the ride is the pulse of it; `hh` below `sh` because where a
- * brush pattern also has a hat, the hat is the foot.
+ * The third of these tables and the last one §2.1 was waiting on.
+ * `SoloOrchestration` in `generate/solo.ts` answers the question for a chorus
+ * and `SeamOrchestration` in `generate/fills.ts` for a seam; all three resolve
+ * through the one `drumStations` split casting reads, so the sound and the
+ * picture cannot come apart over what is on the stage. Three tables rather than
+ * one for the reason the second states at length: a solo needs a spare limb
+ * keeping the form audible over sixteen bars, a seam needs a piece of wood, and
+ * neither has the least use for a list of candidates.
+ *
+ * ## This site's fault was silence, which is why it outlived the other two
+ *
+ * `playShot` and `buildFill` wrote a kick, a snare and a crash into music with
+ * none of those objects in it, and that is *loud*: 1804 kit strokes across 55
+ * hand-table songs, one of which wheeled a full acoustic kit onto an arabic
+ * stage to play a single crash. Both are fixed and `npm run genres` has held
+ * *a hand-drum genre never sends for a kit* green since.
+ *
+ * It was green with this file untouched, and that is the trap. `HAND_VOICES`
+ * was `rd sh hh oh`; `handOf` needs its winner *present* and busiest, and a
+ * table of `lp mp hp tb` has none of the four in it. So this never wrote a kit
+ * stroke anywhere and never could — it returned `undefined` for every section
+ * of every song in every genre with no kit, and a check that counts wrong
+ * strokes cannot see a gesture that never happened. **54 of the 389 styles with
+ * a drum table are hand tables, and all 54 played one figure from the first bar
+ * to the last** while every kit style in the catalogue got a verse thinner than
+ * its chorus.
+ *
+ * ## What a hand is, stated once and true at both stations
+ *
+ * `keeps` is not a list of the voices that happen to be busy. On a kit it is the
+ * cymbals and the brushes, and it excludes the kick, the snare and the toms,
+ * because thinning a backbeat is not a drummer varying a groove — it is a
+ * second band, which is the whole safety claim `npm run genres` asserts as
+ * *varying the hand moves nothing else*.
+ *
+ * At a hand station the same sentence picks out **the pieces on the stand and
+ * never the drum**. One head carries the figure and the rhythm's identity is in
+ * it: `core/types.ts` says the doum is the pulse of the bar the way a kick is,
+ * and `SeamOrchestration` calls the open tone the stroke a figure is *stated*
+ * on. Take alternate strokes out of a tīntāl theka and the result is not a
+ * sparser tīntāl, it is not tīntāl. The riq counting sixteenths over that figure
+ * is a second pair of hands, and halving it to eighths through an intro is
+ * precisely what that player does.
+ *
+ * **The catalogue says the same thing in numbers**, which is why the rule is
+ * written this way rather than the tempting way. Over the 54 hand tables, a row
+ * of four or more auxiliary strokes is **evenly spaced 40 times out of 50**;
+ * a row of four or more strokes on the skin is evenly spaced **39 times out of
+ * 129**, and averages 3.2 strokes against the auxiliary's 5.2. The piece on the
+ * stand is a subdivision layer and the drum is a figure, in four genres written
+ * by four authors who never discussed it.
+ *
+ * So **22 of the 54 hand tables now get a hand and 32 do not**, and the 32 are
+ * the finding rather than the shortfall: they are every indian theka, every
+ * finnfolk frame drum and reggae's nyabinghi — one drum and nothing beside it,
+ * with nothing on the stage whose removal leaves the rhythm's name intact. A
+ * kit table reaches the same dead end often enough that it needs no special
+ * pleading: `waltz-light` rides three quarters over a bar of twelve and
+ * `handOf` has always declined to thin it.
+ *
+ * ## …and no station but the kit has a loud gesture
+ *
+ * `lift` is optional because the kit is the only object in the catalogue with
+ * anything to lift *to*. Moving to the ride is a second cymbal and opening the
+ * hat is a surface that rings on demand; a riq player at full tilt has neither,
+ * and what they actually do is play harder and add strokes, which is the one
+ * direction this mechanism cannot go — it removes and re-aims, it never adds.
+ * Miming it with a slap would be `cymbal`'s mistake one file over: the same
+ * onsets and none of the reason for them. A hand station therefore thins in the
+ * quiet sections and does nothing in the loud ones, which is one honest gesture
+ * rather than three approximated.
  */
-const HAND_VOICES: readonly DrumVoice[] = ['rd', 'sh', 'hh', 'oh'];
+export interface HandStation {
+  /**
+   * The voices a hand keeps time on, in the order ties are broken.
+   *
+   * On the kit, `rd` first because a pattern carrying both a ride and something
+   * else is a jazz pattern and the ride is the pulse of it; `hh` below `sh`
+   * because where a brush pattern also has a hat, the hat is the foot. At the
+   * hand station, `tb` first for the same reason `rd` leads the kit — a riq is
+   * the pulse of a takht and everything else on the stand is colour beside it.
+   */
+  keeps: readonly DrumVoice[];
+  /**
+   * What a section at full intensity does with the hand, and the one voice it
+   * may do it to. Absent where the station has no such gesture at all.
+   *
+   * One voice rather than a predicate, because the two hand voices the kit
+   * declines are declined for stated reasons: a hand already on the ride has
+   * nowhere to go, and brushes moved to a cymbal are a different pair of sticks
+   * rather than a lift.
+   */
+  lift?: {
+    from: DrumVoice;
+    /** Where the whole hand moves to. */
+    to: DrumVoice;
+    /** …or what one or two of its hits sound as instead. */
+    accent: DrumVoice;
+  };
+}
+
+/** What every section of every song in this project varied, and still does. */
+const TRAP_KIT: HandStation = {
+  keeps: ['rd', 'sh', 'hh', 'oh'],
+  lift: { from: 'hh', to: 'rd', accent: 'oh' },
+};
+
+/**
+ * The percussionist's own stand, and nothing that is the drum.
+ *
+ * `perc` earns its place on a measurement rather than on the tier it sits in:
+ * latin's `bachata` writes `perc: 12` under a bongo figure of four, which is a
+ * güira playing straight sixteenths and is the most obviously thinnable row in
+ * the catalogue. `cp` and `cb` are deliberately out — a clap is a backbeat
+ * marker and a bell plays a bell *pattern*, and both are figures somebody would
+ * miss a stroke of.
+ */
+const HAND_DRUM: HandStation = { keeps: ['tb', 'sh', 'perc'] };
+
+/**
+ * Which of the two, from a drum vocabulary and the bank behind it.
+ *
+ * The same one-line question `seamOrchestration` and `orchestrationFor` ask, in
+ * the same words and with the same default: a caller naming no vocabulary gets
+ * a kit, which is what every call to `planKitVariation` meant before this
+ * existed. That default is what makes the change safe rather than merely
+ * correct — an untaught call site varies exactly the kit it varied yesterday.
+ *
+ * The **bank** is threaded rather than argued about, and `seamOrchestration`'s
+ * own note says why at length: latin's `joropo` is `perc sh` and nothing else,
+ * two `either`-tier voices that read as a kit alone and as a percussionist's
+ * bongo and cabasa the moment an era names `+congas`. A claim that a parameter
+ * cannot change an answer is only as good as the corpus it was measured over.
+ */
+export function handStation(
+  table?: Iterable<DrumVoice>, bank?: string,
+): HandStation {
+  if (!table) return TRAP_KIT;
+  return drumStations(table, bank).kit ? TRAP_KIT : HAND_DRUM;
+}
 
 /**
  * Which voice is keeping time, or nothing if the pattern does not say clearly.
  *
  * Derived rather than declared, because declaring it means authoring a field
  * onto seventy-six table entries to record something every one of them already
- * shows: the hand is the busiest voice on the kit. The two guards are what make
- * the derivation safe rather than merely usually right —
+ * shows: the hand is the busiest of the voices the station says it may be. The
+ * two guards are what make the derivation safe rather than merely usually
+ * right —
  *
- *  - **strictly busier than anything not in `HAND_VOICES`**, which is what
- *    keeps jazz honest. `ride-swing` writes `hh: [4, 12]`, and that is the
- *    *foot* on two and four — the backbeat of the style. Thinning or opening it
- *    would be varying the one thing this must never touch. The ride outnumbers
- *    it four to two and wins.
+ *  - **strictly busier than anything not in `keeps`**, which is what keeps jazz
+ *    honest. `ride-swing` writes `hh: [4, 12]`, and that is the *foot* on two
+ *    and four — the backbeat of the style. Thinning or opening it would be
+ *    varying the one thing this must never touch. The ride outnumbers it four
+ *    to two and wins.
+ *
+ *    The same guard does a second job at the hand station, unaltered: indian's
+ *    `jhala` theka writes `lp: 12` against `hp: 8`, so the doum outnumbers the
+ *    ka and the answer is *no hand at all*. That is right — the tāl is in the
+ *    doum — and it falls out of a rule written for a hi-hat five genres away,
+ *    because both rules are the one sentence about not touching the groove.
  *  - **at least four hits**, below which there is nothing to thin. `waltz-light`
  *    rides three quarters over a bar of twelve; halving that is not a sparser
  *    hand, it is a hole.
@@ -2153,15 +2391,15 @@ const HAND_VOICES: readonly DrumVoice[] = ['rd', 'sh', 'hh', 'oh'];
  * list elect the hand would make it one. Whichever voice wins takes its ghosts
  * with it either way; see `varyPattern`.
  */
-function handOf(pattern: DrumPattern): DrumVoice | undefined {
+function handOf(pattern: DrumPattern, keeps: readonly DrumVoice[]): DrumVoice | undefined {
   const count = (v: DrumVoice) => pattern.voices[v]?.length ?? 0;
   let hand: DrumVoice | undefined;
-  for (const v of HAND_VOICES) {
+  for (const v of keeps) {
     if (count(v) > (hand ? count(hand) : 0)) hand = v;
   }
   if (!hand || count(hand) < 4) return undefined;
   for (const v of Object.keys(pattern.voices) as DrumVoice[]) {
-    if (!HAND_VOICES.includes(v) && count(v) >= count(hand)) return undefined;
+    if (!keeps.includes(v) && count(v) >= count(hand)) return undefined;
   }
   return hand;
 }
@@ -2182,9 +2420,30 @@ function handOf(pattern: DrumPattern): DrumVoice | undefined {
  */
 export function planKitVariation(
   pattern: DrumPattern,
-  opts: { intensity: number; rng: Rng },
+  opts: {
+    intensity: number;
+    rng: Rng;
+    /**
+     * What this band's percussion is, so the hand is the one in front of the
+     * player. See `HandStation`, and `DrumSoloOptions.table`, which takes the
+     * same value for the same reason.
+     *
+     * **The whole style table, not this section's pattern**, which is the read
+     * the solo generator and `generateDrums`' own fill both make: a variation
+     * that leaves the toms alone for eight bars has not wheeled the kit off the
+     * stage, and a station derived from the bar it happens to be varying would
+     * change instrument at the chorus.
+     *
+     * Absent is the trap kit, which is what every caller meant before the field
+     * existed.
+     */
+    table?: Iterable<DrumVoice>;
+    /** The percussion bank, since a sampled rack is half the answer. */
+    bank?: string;
+  },
 ): KitVariation | undefined {
-  const on = handOf(pattern);
+  const station = handStation(opts.table, opts.bank);
+  const on = handOf(pattern, station.keeps);
   if (!on) return undefined;
   const hits = pattern.voices[on]!;
   const { intensity, rng } = opts;
@@ -2199,12 +2458,19 @@ export function planKitVariation(
   if (intensity < 0.72) return { on, thin: true };
 
   /**
-   * Loud ones lift, and only from the closed hat: a hand already on the ride
-   * has nowhere to go, and brushes moved to a cymbal are a different pair of
-   * sticks rather than a lift.
+   * Loud ones lift, and only from the voice the station says can — the closed
+   * hat on a kit, because a hand already on the ride has nowhere to go and
+   * brushes moved to a cymbal are a different pair of sticks rather than a lift.
+   *
+   * A station with no `lift` at all falls straight through to `undefined`, and
+   * takes no random number on the way: `station.lift` is read before `rng` is
+   * touched, so a hand drum that thins in the quiet sections spends nothing in
+   * the loud ones. That is not an optimisation — a draw taken and discarded here
+   * would shift every later number in the stream and hand back a different song.
    */
-  if (intensity > 0.9 && on === 'hh') {
-    if (rng.chance(0.45)) return { on, to: 'rd' };
+  const lift = station.lift;
+  if (intensity > 0.9 && lift && on === lift.from) {
+    if (rng.chance(0.45)) return { on, to: lift.to };
     const offbeats = hits
       .map((slot, i) => [slot, i] as const)
       .filter(([slot]) => slot % SLOTS_PER_BEAT !== 0)
@@ -2214,8 +2480,8 @@ export function planKitVariation(
       // which is a thing to write in a table and not a thing to arrive at by
       // varying something else.
       const wanted = Math.min(offbeats.length, rng.chance(0.4) ? 2 : 1);
-      const open = rng.shuffle(offbeats).slice(0, wanted).sort((a, b) => a - b);
-      return { on, open };
+      const at = rng.shuffle(offbeats).slice(0, wanted).sort((a, b) => a - b);
+      return { on, open: { at, as: lift.accent } };
     }
   }
   return undefined;
@@ -2233,7 +2499,7 @@ function varyPattern(pattern: DrumPattern, v: KitVariation): DrumPattern {
   if (!hits?.length) return pattern;
 
   const kept = v.thin ? hits.filter((_, i) => i % 2 === 0) : hits;
-  const opened = new Set(v.open ?? []);
+  const opened = new Set(v.open?.at ?? []);
   const hand: number[] = [];
   const open: number[] = [];
   kept.forEach((slot, i) => (opened.has(i) ? open : hand).push(slot));
@@ -2245,7 +2511,9 @@ function varyPattern(pattern: DrumPattern, v: KitVariation): DrumPattern {
     voices[voice] = [...new Set([...(voices[voice] ?? []), ...slots])].sort((a, b) => a - b);
   };
   merge(v.to ?? v.on, hand);
-  merge('oh', open);
+  // …and the accented hits onto whatever the station said they sound as, which
+  // is the last voice this file used to name for itself. See `KitVariation.open`.
+  if (v.open) merge(v.open.as, open);
 
   /**
    * The hand's ghosts are the hand's, and they go where it goes.

@@ -6,13 +6,13 @@ It is worth reading as a compliment to the abstraction as much as a critique of 
 
 ## Where it stands
 
-Fifteen of the original twenty-three entries are closed, and six new ones have arrived since — pop, rnb and hiphop each brought some. §6 records what was actually built, because in four cases the fix has a different shape from the one this document proposed and the difference is the interesting part.
+Sixteen of the original twenty-three entries are closed, and six new ones have arrived since — pop, rnb and hiphop each brought some. §6 records what was actually built, because in four cases the fix has a different shape from the one this document proposed and the difference is the interesting part.
 
 | | |
 |---|---|
-| **Closed** | ghost notes · layer exits · sub-section drop-out · tempo ramps · `Style.effects` · hand-drum staging · floor posture · check coverage · sampled percussion · power chords · hand-drum solos · the hook-dependent break · five scale rows · and four faults found while fixing those |
+| **Closed** | ghost notes · layer exits · sub-section drop-out · tempo ramps · `Style.effects` · hand-drum staging · floor posture · check coverage · sampled percussion · power chords · hand-drum solos · hand-drum fills, shots and hands · the hook-dependent break · five scale rows · and four faults found while fixing those |
 | **Open, and blocking** | bass riff span, and nothing else |
-| **Open, structural** | `applyShot` and the fill vocabulary are still kit-only · no vocal-group archetype · a solo is named after a kit whatever plays it |
+| **Open, structural** | no vocal-group archetype · a solo is named after a kit whatever plays it |
 | **Open, per-genre** | everything in §3 and §4 — including six added by the newest three genres, §3.15–3.20 |
 
 **All nineteen genres now exist**, holding 389 styles across 72 eras. `dnb` and `house` were the last two, and they were written against a §1 with nothing left in it — the first genres in the project for which that was true.
@@ -63,15 +63,17 @@ At least it is loud rather than silent: `npm run genres` catches it as *"a riff 
 
 ## 2. Open, and structural
 
-### 2.1 `applyShot` and the fill vocabulary are still kit-only
+### 2.1 `applyShot` and the fill vocabulary were kit-only — **closed**, see §6
 
-Half of §2.6 is closed — `generateDrumSolo` now takes its orchestration from the style's own table — and this half is not.
+All four sites, in two waves. The entry is left here with its evidence intact because the evidence is what the shape was argued against, and because the second wave is the better lesson of the two.
 
-`applyShot` writes `bd` + `sd` + `cr`, hard-coded. `generate/fills.ts` and `KitVariation` are the same. So a genre with no kit gets kit strokes in the one place it cannot refuse them.
+`applyShot` wrote `bd` + `sd` + `cr`, hard-coded. `generate/fills.ts` and `KitVariation` were the same. So a genre with no kit got kit strokes in the one place it could not refuse them.
 
-**Measured**, by the agent that generalised the solo: after its change, kit strokes written inside a hand-table drummer's own solo blocks fell from 2054 to **9** across 120 songs per genre — and all nine survivors are 3 stray `oh` in arabic and 6 stray `cr` in latin, arriving from fills and shots rather than from the solo generator.
+**Measured**, by the agent that generalised the solo: after its change, kit strokes written inside a hand-table drummer's own solo blocks fell from 2054 to **9** across 120 songs per genre — and all nine survivors were 3 stray `oh` in arabic and 6 stray `cr` in latin, arriving from fills and shots rather than from the solo generator. That agent also wrote the check, `a hand-drum genre never sends for a kit`, confirmed it failed on those nine, and left it out rather than commit a red check. It went in with the fill and shot wave and has been green since; it is the check `npm run genres` now runs over 241 songs on tables with no kit in them.
 
-A **tihai** is exactly a `shot`, and `shotFigures`' metre fallback already resolves to the vibhāg heads for free — so indian would get one the moment the delivery stopped naming three instruments that music does not have. That agent also wrote a check for this, `a hand-drum genre never sends for a kit`, confirmed it fails on those nine, and left it out rather than commit a red check. It should go in with the fix.
+A **tihai** is exactly a `shot`, and `shotFigures`' metre fallback already resolves to the vibhāg heads for free — so indian gets one the moment the delivery stops naming three instruments that music does not have. It does: a `shot` in an indian hand-table style now lands **109 doum strokes across 50 shot bars** and not one cymbal. Twenty-three of the twenty-eight styles still decline a transition palette on the grounds that the delivery would be wrong, and that sentence in `src/genre/indian/index.ts` is now out of date rather than the mechanism. **The adoption is one field per style and belongs to that genre's author**, not to the engine.
+
+**The fourth site is why this stayed open after the ninth stray was gone.** `KitVariation` never wrote a wrong stroke — `HAND_VOICES` was `rd sh hh oh` and a table of `lp mp hp tb` has none of the four in it, so `handOf` returned nothing at all. The symptom was silence, in all 54 hand tables, in every section of every song. A check counting wrong voices cannot see a gesture that never happened.
 
 ### 2.2 There is no archetype for a vocal group
 
@@ -242,6 +244,16 @@ The interaction with `Feel.ghost` needed no coordination code, which is the good
 
 **§ `generateDrumSolo` was hard-coded to a trap kit.** Orchestration now resolves from the style's own table through the same `drumStations` split casting uses. Four gestures generalise — state-then-answer, the run down the drum, the weight under the phrase, the run-in to the ending — and two do not: the hi-hat is a **limb** and `ARCHETYPES.handdrum` has no pedal, and a cymbal rings where a skin does not. A darbuka lands the band on a doum instead. A table naming both tiers solos on the kit, because those are two players. Arabic `dabke`, 16-bar chorus: **8 voices of trap kit in a takht → 4**.
 
+**§ `applyShot` and the fill vocabulary were kit-only.** One literal in four places, found four times by the genre it was wrong for, and closed in two waves because each wave's sweep found the next site. `SeamOrchestration` in `generate/fills.ts` is the deliberate twin of the solo's — same `drumStations` read, same *the kit has first claim*, same *a gesture is a job, not an object* — and **six of the seven fill shapes generalise**. The one that does not is `cymbal`, the only shape in the vocabulary named after an object rather than a job, because there the object *is* the gesture: a bebop set-up is the ride ringing across the barline and a skin does not ring, so it is **re-aimed onto `lead-in`** rather than mimed. `snare-roll` needed re-*reading* rather than re-voicing — a kit roll is one surface struck repeatedly, and on a hand drum a roll is a tirakita, where the alternation produces the sustain a stick produces by repetition. Kit strokes in hand-table songs **1804 → 98 → 0**, the middle number being one gesture in a third file (`landEnding`) and the last one a fourth (`playShot`'s level read, which chose *how hard* from `bd` and `sd` and now chooses it from the station's own pulse and stating strokes).
+
+**The fourth site outlived the ninth stray, because its symptom was an absence.** `KitVariation` is the *how it is played* axis against the pattern's *what is played*, and `HAND_VOICES` was `rd sh hh oh`. `handOf` needs its winner **present** and busiest, and a table of `lp mp hp tb` has none of the four in it — so this never wrote a wrong stroke and never could. It returned `undefined` in all 54 hand tables, in every section of every song, while every kit style in the catalogue got a verse thinner than its chorus. A check that counts wrong voices cannot see a gesture that never happened, which is the general lesson: *a hand-drum genre never sends for a kit* was green over this file for a day.
+
+**What a hand is, decided by measurement rather than by taste.** `HandStation.keeps` is the cymbals and the brushes on a kit and never the kick, the snare or the toms, because thinning a backbeat is not a drummer varying a groove — it is a second band. At a hand station the same sentence picks out **the pieces on the stand and never the drum**. The catalogue says so in numbers: over the 54 hand tables, a row of four or more auxiliary strokes is evenly spaced **40 times out of 50**; a row of four or more strokes on the skin, **39 times out of 129**, averaging 3.2 strokes against the auxiliary's 5.2. The piece on the stand is a subdivision layer and the drum is a figure, in four genres written by four authors who never compared notes.
+
+So **22 of the 54 hand tables get a hand and 32 do not**, and the 32 are the finding rather than the shortfall — every indian theka, every finnfolk frame drum, reggae's nyabinghi. Take alternate strokes out of a tīntāl theka and the result is not a sparser tīntāl, it is not tīntāl. The guard that enforces it was written for a hi-hat five genres away and needed no change at all: the hand must outnumber every voice outside `keeps`, and `jhala` writes `lp: 12` against `hp: 8`. **No station but the kit has a loud gesture**, so `lift` is optional: moving to the ride is a second cymbal and opening the hat is a surface that rings on demand, and what a riq player does at full tilt is *add* strokes — the one direction a mechanism that only removes and re-aims cannot go.
+
+**Measured.** Arabic's auxiliary strokes per bar in an intro or outro **4.62 → 2.66**, against 5.25 in every other section, unchanged. 380 songs across all nineteen genres, MIDI and Strudel hashed against a copy of the live tree with only these hunks reverted: **25 differ and every one is a hand-table song** in arabic, indian, latin and finnfolk. Not one of the other fifteen genres moved a bit, which is the acceptance test — their tables never changed, so their music must not. **A genre with no percussion at all gets silence and always did**: `playShot` returns before writing a stroke when the bar has no drums in it, so classical's seam figure is the orchestra landing together and nothing on the `AkaiMPC60` that four eras name and none of them play.
+
 **§ The `break` transition was hook-dependent.** The carrier is named rather than searched. The finding that shaped it: **nothing pitched is hook-invariant** — `--hook` moves the harmony, so every pitched layer follows the chords and the bass differed at 39 of 40 seeds. So no note may be read at all. The musical argument stands on its own: *"whoever filled the bar"* was already wrong with no `--hook` in sight, giving the same style a bass break in one song and an answering line in the next, and once producing a break carried by a single 32nd note 0.03 beats before the downbeat. Unstable seeds **53/1484 → 0**.
 
 `Style.breakCarrier` followed, and closes the five residuals: indian's tanpura writes six notes into eight bars and has stopped three bars before the seam, so 43 of 10517 drawn breaks came out silent. Under `pad` — the śruti box, which is what is still ringing — that is **0**. `melody`, the tempting choice for a taqsim, is 24× worse.
@@ -333,11 +345,10 @@ Both **declined the tempo ramp for the same reason**, which is the most useful t
 
 Nothing blocks a genre now. What remains, in the order it would repay attention:
 
-1. **§2.1** — `applyShot` and the fill vocabulary are still kit-only, so a genre with no kit gets kit strokes in the one place it cannot refuse them. A check for it is already written and was deliberately left out rather than committed red.
-2. **§2.2** — no archetype for a vocal group. It cost country its documented vocal-quartet pad, and it is wanted by gospel, doo-wop and the close-harmony styles rnb and country already write.
-3. **§3.16** — a bass note cannot slide. **Five independent reports across three genres now** (hiphop ×2, house's acid and speed garage, dnb's Reese ×2 and wobble), which makes it the most-reported open entry in this document.
-4. **§3.15** — nothing subdivides below a sixteenth. dnb's note that this removes a *technique* rather than an ornament is the sharpest statement of it: no stutter, no retrigger, no 32nd roll.
-5. **The staging leftovers** in §6 — the house floor in `proscenium.ts` and `courtyard.ts`, and `headphones` wanting to split into a band that rides and cups that stay.
+1. **§2.2** — no archetype for a vocal group. It cost country its documented vocal-quartet pad, and it is wanted by gospel, doo-wop and the close-harmony styles rnb and country already write.
+2. **§3.16** — a bass note cannot slide. **Five independent reports across three genres now** (hiphop ×2, house's acid and speed garage, dnb's Reese ×2 and wobble), which makes it the most-reported open entry in this document.
+3. **§3.15** — nothing subdivides below a sixteenth. dnb's note that this removes a *technique* rather than an ornament is the sharpest statement of it: no stutter, no retrigger, no 32nd roll.
+4. **The staging leftovers** in §6 — the house floor in `proscenium.ts` and `courtyard.ts`, and `headphones` wanting to split into a band that rides and cups that stay.
 
 **`breakdown` still has no honest author**, and the measurement explaining why is worth keeping. Its witness is `pad` and it removes `drums` and `bass`, so it needs a dance record with a wash, on a form long enough for three four-bar phrases. The catalogue's dance records are all built on eight-bar sections: **0 of 30 at four bars across all 24 pop styles**. `dancepop` reaches 200/200 at `dropBars: 2`, but two bars of kit-and-bass-gone at 124–132 BPM is under four seconds, and that gap is *already* authored — pop weights the `drop` fill at 4 and its index says "from 1982 onward the commonest thing that happens in the bar before a chorus is that everything stops." Adopting it there would say the same thing twice in two units. The styles that *do* place a four-bar `breakdown` cleanly are latin, classical, synth, indian, arabic and iskelmä, and none of them is a dance record. So it waits for the first house style, which is what it was shaped for.
 

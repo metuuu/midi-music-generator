@@ -442,6 +442,19 @@ export const DEFAULT_HAND_POSES: Record<Archetype, { left: HandPoseId; right: Ha
   flute: { left: 'arch', right: 'arch' },
   // A singer's hands are free, and that is most of what a singer's body says.
   singer: { left: 'relax', right: 'open' },
+  /**
+   * `relax` on both, where the soloist gets one of each — and the asymmetry is
+   * exactly what a group must not have.
+   *
+   * A singer's open right hand is a gesture: it is the hand that comes up on a
+   * held note, and it reads as *this person is performing*. Three or four people
+   * doing it at once, at the same moment, off the same gesture stream, is a
+   * chorus line rather than a group — the one place on this stage where four
+   * copies of a good idea is worse than four copies of a plain one. A vocal
+   * group stands still and sings, hands down, and the whole of the movement is
+   * in the faces. So both hands take the quiet pose.
+   */
+  'vocal-group': { left: 'relax', right: 'relax' },
 };
 
 // ---------------------------------------------------------------------------

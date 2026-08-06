@@ -910,8 +910,24 @@ function playShot(
    * top of the section's dynamics rather than underneath them — the cost of
    * running last — so it is nudged up and capped, since `intensity` is allowed
    * above 1.0 on a final chorus and anything on top of that clips.
+   *
+   * **Asked of the station rather than of a kit**, which is the last literal in
+   * this file and the quietest of the four §2.1 named. It writes no stroke, so
+   * it could never have staged an instrument or shown up in a count of wrong
+   * voices — it only decided *how hard*. The two voices are `weight` and
+   * `ordinary`, and on a skin they are the doum and the open tone: the pulse of
+   * the bar and the stroke the figure is stated on, which is the same pair of
+   * jobs `bd` and `sd` hold on a kit. What it excludes there is the riq and the
+   * slap, and the sentence above is the reason — a riq median is a timekeeping
+   * level in exactly the way a hat median is. The kit's answer is unchanged to
+   * the bit, because `TRAP_KIT` names those two jobs `bd` and `sd`.
+   *
+   * The fallback to the whole bar carries the case neither pair covers: a
+   * `riq-only` pattern, where the level of the bar is all there is to read.
    */
-  const hits = bar.filter((e) => e.voice === 'bd' || e.voice === 'sd');
+  const hits = bar.filter(
+    (e) => e.voice === station.weight || e.voice === station.ordinary,
+  );
   const level = median((hits.length ? hits : bar).map((e) => e.velocity));
   const velocity = Math.min(1, level * 1.12);
 

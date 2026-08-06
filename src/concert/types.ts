@@ -96,7 +96,27 @@ export type Archetype =
   | 'flute'
   | 'synth'
   | 'sitar'
-  | 'singer';
+  | 'singer'
+  /**
+   * Three or four people singing a written line, which is **not** the singer.
+   *
+   * The distinction is the whole reason this member exists and it is worth
+   * stating before the spec rather than after it. `singer` is the act: it is
+   * cast off `Track.voice`, it sings the `vocal` layer, its notes carry vowels
+   * and consonants the generator chose, and there is exactly one of it. A vocal
+   * group is an **instrument the arranger scored** — it plays the `pad` or the
+   * `brass` layer off an ordinary pitched track drawn from the catalogue, it has
+   * no words, and it is several people because a chord is several people. A
+   * gospel record has both at once and they are not the same object: one is the
+   * person the number is about, the other is the sound behind them.
+   *
+   * It exists because `ARCHETYPE_OF` had nowhere else to put a choir patch and
+   * staged every one of them as a synthesiser, which is right for 1985 and wrong
+   * for 1932 — see the note on `choirAahs` in `concert/instruments.ts`, and see
+   * `archetypeForTrack`, which is where the year finally enters a table that has
+   * none in it.
+   */
+  | 'vocal-group';
 
 export type InstrumentFamily =
   | 'percussion' | 'keys' | 'bowed' | 'plucked'

@@ -202,6 +202,39 @@ export interface NoteEvent {
    */
   brightness?: number;
   /**
+   * This note's pitch is a function of time: it leaves the written pitch and
+   * arrives somewhere else without being struck again. See `NoteBend`.
+   *
+   * The relationship to `Track.effects.glide` is the one `brightness` has to
+   * `Track.effects.lowpass`, and the project now has three rows of it:
+   *
+   *     velocity   : Track.gain
+   *     brightness : Track.effects.lowpass
+   *     bend       : Track.effects.glide
+   *
+   * The track says this instrument has a glide switch and how far it is turned
+   * up; the note says *this* note travels, and where to. Both halves of the pair
+   * earn their place, because the two gestures are not the same one at two
+   * scales. `effects.glide` is a scoop onto every note from a fixed distance
+   * below — a knob in milliseconds, set once, that does not know what note is
+   * coming — which is what a monophonic synthesiser lead is. This is one note
+   * moving to a named destination over its own length, which is what a figure
+   * is, and no setting of the knob produces it.
+   *
+   * **Optional and one-sided**, for the third time in this interface and for
+   * the reason `hand` and `doubling` give: an ordinary note should not have to
+   * declare that its pitch is constant, nothing else in the project has to start
+   * saying anything about itself, and a `Song` written before this existed still
+   * reads back.
+   *
+   * Layer-agnostic on purpose. Only the bass can author one today — see
+   * `BassHit.glide` — but the field is on the note rather than on anything
+   * bass-shaped, because the renderers read notes and a lead portamento is the
+   * same mechanism. The one layer it must never be written on is a **chordal**
+   * one, and that is not a taste: see `NoteBend` for what MIDI does to a chord.
+   */
+  bend?: NoteBend;
+  /**
    * Set on the notes a two-handed player's **left hand** played, and on nothing
    * else. See `Track.twoHanded` for what a track like that is.
    *
@@ -251,6 +284,139 @@ export interface NoteEvent {
    * permitting the fault, which is why the project had ruled the gesture out.
    */
   doubling?: 'lead';
+}
+
+/**
+ * A pitch that moves while the note sounds.
+ *
+ * `docs/engine-gaps.md` §3.16, and the most-reported open entry in that
+ * document: **five independent reports across three genres**, every one of them
+ * making the same substitution and every one of them writing it down.
+ *
+ *  - **hiphop's `drill`** — "a drill 808 does not restrike, it bends from one
+ *    pitch to the next across half a beat, and `BassHit` has an `at`, a `dur`
+ *    and a `tone`."
+ *  - **hiphop's `gfunk`** — "what these lines actually do is *slide* between two
+ *    notes a fifth or an octave apart … two struck notes where the record has
+ *    one note that moves."
+ *  - **house's `acid`** — the slide switch is one of the five controls on a 303,
+ *    and "half of what makes the sound is a note bending into the next one."
+ *  - **dnb's `techstep` and `jumpup`** — "the movement **is** the sound", under
+ *    a table that calls its own Reese "that contour sampled at three points,
+ *    which is the nearest thing `BassHit` can hold."
+ *
+ * One sentence five times over, which is the strongest evidence this project
+ * collects. It is also not a near-miss to be filed under taste: a 303 slide and
+ * two notes a tone apart are different sounds, and a Reese is *defined* by never
+ * re-articulating. What every one of those authors wrote is a contour sampled at
+ * two or three points, and what this holds is the contour.
+ *
+ * ## One gesture, and it is the one they all reported
+ *
+ * There are three things a pitch can do to a note and they are genuinely
+ * different gestures — a **slide into** a note, a **glide across** it, and a
+ * **drop off** the end of it. `generate/tempo.ts` shipped two shapes of three
+ * and `generate/drop.ts` three of four, both on the reasoning that the refusal
+ * is the more useful record, so it is worth saying which this is.
+ *
+ * This is the **glide across the note**, and it is not the shape that covers the
+ * most ground — it is the shape all five reports asked for. Read them again:
+ * *from one pitch to the next*, *between two notes a fifth apart*, *from the
+ * tonic to the ♭2 and back*. In every case the destination is where the author's
+ * second struck note was going to be, so adopting this is not writing something
+ * new, it is **deleting the second hit and naming it as the first one's
+ * destination**. The 808 drop falls out for nothing, as the same object with a
+ * negative `semitones` — the same way `tempoRise` below 1 is a decelerando.
+ *
+ * What is left expressible and is not built is the slide *into* a note, and both
+ * halves of the reason are below.
+ *
+ * ## Why the travel starts at the onset
+ *
+ * Because that is the only placement both renderers agree on, and the
+ * disagreement is not one this project is willing to hide. superdough's pitch
+ * envelope — `penv`/`pattack`, which is what the audition has and the only pitch
+ * modulation a soundfont voice can be given — begins its attack at the note's
+ * own start and has **no delay stage**: `getPitchEnvelope` in
+ * `superdough/helpers.mjs` runs an ADSR whose attack ramps the full distance
+ * from the first sample of the note. A MIDI file has no such constraint, since a
+ * pitch bend is an event at a tick and can be put anywhere.
+ *
+ * So a bend placed at the far end of a note would be a second shipping-only
+ * feature after the tempo ramp, and a much worse one. A ramping song auditions
+ * flat, which is the right notes at one speed and announces itself; a late bend
+ * auditioning early is the *wrong contour*, silently, and a listener has no way
+ * to know. Between a shape both renderers play identically and a shape one of
+ * them lies about, this takes the first.
+ *
+ * That is also what rules out the slide *into* a note as a second field for now.
+ * It is the 303's accent-and-slide: the pitch arrives from the previous step
+ * over a few tens of milliseconds, so the movement is at the *boundary*, which is
+ * the far end of the note before it. It is one line in each renderer the day
+ * somebody asks for it with a number attached — `panchor(1)` instead of
+ * `panchor(0)` in the audition, and the same bend stream running the other way
+ * in the .mid — and until then the note-level version cannot be placed where it
+ * belongs, and `Track.effects.glide` already owns the gesture at the level a
+ * glide switch actually lives at.
+ *
+ * ## What each renderer does with it, and the one thing MIDI cannot say
+ *
+ * Both carry it, which makes this the first thing in the IR since `velocity`
+ * that neither renderer has to apologise for. That was not the expected answer
+ * and it is worth recording how it was established, since guessing would have
+ * got it wrong in both directions:
+ *
+ *  - **The audition can bend.** Strudel registers a `slide` control and it is
+ *    dead — `@strudel/core/controls.mjs` has it under a literal `// TODO: slide
+ *    param for certain synths`, with `portamento` commented out beside it, and
+ *    nothing in superdough reads it outside the `zzfx` toy engine. What is live
+ *    is the **pitch envelope**, and `@strudel/soundfonts/fontloader.mjs` hands
+ *    its buffer source's `detune` straight to `getPitchEnvelope`, so a GM patch
+ *    gets one on the same terms a synthesised voice does. See `render/strudel.ts`
+ *    for the anchoring that turns an envelope into a glide.
+ *  - **The .mid can bend, and it ships.** Pitch bend is 14-bit and is GM level 1,
+ *    as is RPN 0, the per-channel bend range this needs in order to travel
+ *    further than the ±2 semitones a device powers up with. See `render/midi.ts`.
+ *
+ * The one real divergence is that **a MIDI pitch bend addresses a channel, not a
+ * note**. A track has a channel to itself, so on a monophonic part the two are
+ * the same thing; on a part sounding two notes at once they are not, and the
+ * .mid bends the whole chord — a whammy bar rather than a portamento. That is
+ * why `BassHit` is the only place a bend can be authored and `CompHit` is not,
+ * and `render/midi.ts` marks the file rather than emitting the wrong sound
+ * quietly if it is ever handed one anyway.
+ */
+export interface NoteBend {
+  /**
+   * How far the pitch travels, in semitones from this note's own `midi`, signed.
+   *
+   * A destination rather than a depth, which is what makes an adoption a
+   * deletion: the second of the two struck notes an author wrote becomes this
+   * number, and the note that used to be struck at it is gone.
+   *
+   * Not clamped here. A fifth and an octave are both named in the reports and a
+   * dub siren is larger than either; what a *device* will follow is a question
+   * for the renderer that has to declare a bend range, and `render/midi.ts`
+   * answers it in the place where the answer is a fact rather than a taste.
+   */
+  semitones: number;
+  /**
+   * How long the travel takes, in beats, measured from the note's onset. The
+   * pitch holds at the destination for whatever is left of the note.
+   *
+   * In beats because everything else in a `NoteEvent` is, and because the
+   * gesture is proportional to the music rather than to the clock — a Reese
+   * across a half note and a Reese across a quarter are the same gesture, where
+   * a portamento knob is a fixed number of milliseconds and is `effects.glide`.
+   *
+   * **Renderers clamp this to the note's own `duration` and must**, rather than
+   * trusting it, because two later passes shorten notes after they are written:
+   * `generate/transition.ts` truncates a part into a break and `generate/drop.ts`
+   * cuts one at a drop's edge. A bend that outlived its note would be a pitch
+   * still climbing through silence in one renderer and a channel left bent in the
+   * other.
+   */
+  beats: number;
 }
 
 /**

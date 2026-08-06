@@ -45,6 +45,7 @@ import { buildTrombone } from './trombone.js';
 import { buildTrumpet } from './trumpet.js';
 import { buildUprightBass } from './upright-bass.js';
 import { buildViolin } from './violin.js';
+import { buildVocalGroup } from './vocal-group.js';
 
 export const BUILDERS: Record<Archetype, InstrumentBuilder> = {
   'drumkit': buildDrumkit,
@@ -70,6 +71,9 @@ export const BUILDERS: Record<Archetype, InstrumentBuilder> = {
   'clarinet': buildClarinet,
   'flute': buildFlute,
   'singer': buildSinger,
+  // One member's stand, not the group's row: the group is several performers and
+  // casting places them. See the note at the top of `vocal-group.ts`.
+  'vocal-group': buildVocalGroup,
 };
 
 /**

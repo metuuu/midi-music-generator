@@ -124,7 +124,11 @@ for (const gid of GENRE_IDS) {
       for (const track of song.tracks) {
         if (track.voice) continue; // the singer is not drawn from the catalogue
         tracks++;
-        const archetype = archetypeForTrack(track);
+        // The year, because casting passes one and this has to be checking what
+        // is actually staged. Three catalogue entries answer differently before
+        // 1970 — see `EARLY_ARCHETYPE_OF` — and without it this loop would
+        // confirm the coverage of a mapping the stage does not use.
+        const archetype = archetypeForTrack(track, genre.eras[eid]?.year);
         if (!archetype) { missing.add(`${track.instrument} (gm ${track.gmProgram})`); continue; }
         staged++;
         seenArchetypes.add(archetype);

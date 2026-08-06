@@ -76,6 +76,80 @@ export interface BassHit {
   dur: number;
   tone: BassTone;
   vel?: number;
+  /**
+   * Where this note *goes*. It is struck once, at `tone`, and its pitch travels
+   * to here without being struck again.
+   *
+   * `docs/engine-gaps.md` §3.16 — the most-reported open entry in that document,
+   * and the one whose five reports are all the same sentence: *two struck notes
+   * where the record has one that moves*. `NoteBend` in `core/types.ts` collects
+   * them and argues the shape; this is the field a genre author writes.
+   *
+   * ## Adopting it is a deletion
+   *
+   * A `BassTone` and not a number of semitones, deliberately, because the
+   * destination is **the note the author already wrote** and this field's whole
+   * job is to absorb it. A drill 808 written today as
+   *
+   *     { at: 0, dur: 4, tone: 0 }, { at: 4, dur: 4, tone: -5 }
+   *
+   * becomes
+   *
+   *     { at: 0, dur: 8, tone: 0, glide: -5, glideTime: 0.4 }
+   *
+   * — one hit instead of two, spelled in the units the row above it already uses,
+   * and resolved against the chord by exactly the same rules `tone` is. `'fifth'`
+   * asks the harmony where the fifth is when it is a destination for the same
+   * reason it does when it is an arrival, and a number is semitones from the
+   * chord root taken literally in both positions. See `BassTone`; there is one
+   * table of answers, not two.
+   *
+   * A consequence worth stating because it is invisible until it bites: a glide
+   * destination **counts toward the figure's span**, so `placeRoot` leaves room
+   * for it. A riff gliding to `12` reaches an octave whether or not it strikes
+   * one, and the §1.3 fault — a shape folded flat because the placement did not
+   * know how far it reached — would come straight back on the destination alone.
+   * `generateBass` folds both into the same reduce.
+   *
+   * ## What it is not
+   *
+   * Not the slide *into* a note. That is the 303's accent-and-slide, where the
+   * movement sits at the boundary rather than inside the note, and it is argued
+   * and refused in `NoteBend` — briefly, superdough's pitch envelope has no delay
+   * stage, so a bend at the far end of a note would audition in the wrong place
+   * instead of merely auditioning flat. `Style.effects`/`Instrument.effects`
+   * already carry `glide`, which is that gesture at the level a glide switch
+   * really lives at: a knob in milliseconds, set once, applied to every note.
+   *
+   * Not available on `CompHit`, and that is a fact about MIDI rather than a
+   * shortage of ambition — a pitch bend addresses a channel, so bending one note
+   * of a chord bends the chord. Monophonic parts only, which is every part that
+   * asked.
+   */
+  glide?: BassTone;
+  /**
+   * How much of the note is spent travelling, as a fraction of `dur`. Defaults
+   * to all of it. Ignored without a `glide`.
+   *
+   * The travel always begins at the onset — see `NoteBend` for why that is
+   * forced rather than chosen — so this says how fast the note leaves, and the
+   * rest of it sits on the destination.
+   *
+   * It exists because the reports disagree about the speed and agree about
+   * everything else. A Reese is *entirely* movement and wants the default: dnb
+   * says "the movement is the sound", and a Reese that arrives early and waits is
+   * a note with a smear on the front. A drill 808 is the opposite — a long note
+   * that "bends from one pitch to the next across half a beat" and holds, so on a
+   * two-beat note that is a quarter of it. One number is the difference between
+   * those two, and hard-coding either would have been wrong for a named style.
+   *
+   * A fraction rather than sixteenths, which is the unit the rest of this
+   * interface writes in, and the exception is the point: the gesture scales with
+   * the note. `cycleHits` and `figureFor` already re-use one row of a figure at
+   * whatever length the bar hands it, and a glide time in sixteenths would come
+   * out as a different gesture each time.
+   */
+  glideTime?: number;
 }
 
 export interface BassPattern {

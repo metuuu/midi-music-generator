@@ -158,6 +158,15 @@ export function renderStrudel(song: Song, opts: StrudelRenderOptions = {}): stri
      * two `.lpf()` calls on one pattern is the second one winning silently.
      */
     const sweep = filterSweep(track, meta.totalBars, slotsPerBar);
+    /**
+     * And once more for the pitch. Where a part's notes travel, the pitch
+     * envelope becomes a pattern on the note slots — and unlike the two above it
+     * this one is emitted here rather than inside `effectChain`, because a part
+     * can carry a glide without carrying any effects at all and `effectChain`
+     * returns empty for a track with no `Effects`. It suppresses the static
+     * `.penv()` there instead; see `pitchSlide`.
+     */
+    const slide = pitchSlide(track, meta.totalBars, slotsPerBar, meta.bpm);
     parts.push([
       `  // ${track.layer} — ${track.instrument}`,
       `  note(\`${formatGrid(grid)}\`)`,
@@ -166,7 +175,8 @@ export function renderStrudel(song: Song, opts: StrudelRenderOptions = {}): stri
         ? `    .gain(\`${formatGrid(dyn)}\`)`
         : `    .gain(${(track.gain * level(track.notes[0]!)).toFixed(3)})`,
       ...envelopeChain(track.envelope),
-      ...effectChain(track.effects, song, sweep),
+      ...slide,
+      ...effectChain(track.effects, song, sweep, slide.length > 0),
     ].join('\n'));
   }
 
@@ -448,11 +458,14 @@ const SWELL_SECONDS = 1.5;
  *    its bottom `n` octaves below, so the note climbs to the brightness the era
  *    asked for instead of overshooting it into empty spectrum. See `swell`.
  */
-function effectChain(fx: Effects | undefined, song: Song, lpf?: string): string[] {
+function effectChain(fx: Effects | undefined, song: Song, lpf?: string, bent?: boolean): string[] {
   if (!fx) return [];
   const { space, meta } = song;
   const out: string[] = [];
-  if (fx.glide) out.push(`    .penv(${fx.glide.toFixed(2)}).pattack(${GLIDE_SECONDS})`);
+  // The note-by-note glide takes the whole pitch envelope when the part has one,
+  // the same way `lpf` takes the filter — two `.penv()` calls on one pattern is
+  // the second one winning silently. See `pitchSlide` for why the note wins.
+  if (fx.glide && !bent) out.push(`    .penv(${fx.glide.toFixed(2)}).pattack(${GLIDE_SECONDS})`);
   // `lpf` is the note-by-note sweep when the part has one; see `filterSweep`.
   if (lpf !== undefined) out.push(`    .lpf(${lpf})`);
   else if (fx.lowpass !== undefined) out.push(`    .lpf(${Math.round(fx.lowpass)})`);
@@ -645,6 +658,116 @@ function filterSweep(
   if (distinct.size === 1) return only!;
 
   return `\`${formatGrid(buildValueGrid(track.notes, totalBars, slotsPerBar, hzOf))}\``;
+}
+
+/**
+ * A part whose notes travel, as a pitch envelope patterned on the note slots.
+ *
+ * `NoteEvent.bend` is the first thing in the IR that makes a pitch a function of
+ * time — `docs/engine-gaps.md` §3.16, five reports across three genres — and the
+ * question this file had to answer was whether the audition could play it at all.
+ * The tempo ramp's answer was no, and it says so in a banner. This one is yes,
+ * and the difference is worth writing down because it was established by reading
+ * the installed packages rather than by assuming, and assuming would have been
+ * wrong in *both* directions.
+ *
+ * ## What Strudel does not have
+ *
+ * **`slide` is not a slide.** `@strudel/core/controls.mjs` registers one, which
+ * is exactly the kind of thing that ends up in a renderer on the strength of its
+ * name, and the line above it reads `// TODO: slide param for certain synths`
+ * with `portamento` commented out beside it. Nothing in superdough reads it: the
+ * only `slide` in that package is a variable inside `zzfx.mjs`, the toy synth,
+ * which no sound this renderer emits goes anywhere near. An emitted `.slide()`
+ * would have been a control the scheduler carries, no engine consumes, and no
+ * error reports — a silent no-op, which is the failure mode this project spends
+ * whole docstrings avoiding.
+ *
+ * ## What it does have, and why a soundfont can use it
+ *
+ * The **pitch envelope**. `@strudel/soundfonts/fontloader.mjs` hands its buffer
+ * source's `detune` to superdough's `getPitchEnvelope`, so a GM patch gets one on
+ * the same terms a synthesised voice does — the same fact `effectChain` relies on
+ * for `Effects.glide`, in the other anchoring. The algebra in
+ * `superdough/helpers.mjs` is four lines and all of it matters:
+ *
+ *     cents = penv * 100
+ *     min   = -cents * panchor          // where the pitch starts
+ *     max   =  cents * (1 - panchor)    // where the attack lands
+ *
+ * `panchor` defaults to `psustain`, which defaults to 1, giving `min = -cents`
+ * and `max = 0`: the pitch arrives *at* the written note from below. That is a
+ * scoop, it is what `Effects.glide` is, and it is the wrong anchoring here —
+ * a bass note that starts a fifth flat and corrects itself is not a g-funk slide,
+ * it is an out-of-tune bass.
+ *
+ * **`panchor(0)` is the whole trick**: `min` becomes 0 and `max` becomes the
+ * written `penv`, so the note starts dead on its own pitch and travels the
+ * signed distance from there. `psustain` is left at 1 so the sustain level *is*
+ * the top of the attack and the note holds where it arrived rather than sliding
+ * back. `pcurve` is left at its linear default, which is right twice over: linear
+ * in cents is even in musical pitch, and it is what a MIDI bend is too, so the
+ * two renderers draw the same line rather than two curves that agree at the ends.
+ *
+ * That is also why `NoteBend` puts the travel at the note's onset. This envelope
+ * has an attack, a decay, a sustain and a release and **no delay** — the first
+ * sample of the note is the first sample of the movement, and there is no
+ * arrangement of the four that holds a pitch and then leaves it. A bend written
+ * at the far end of a note would play there in the .mid and here at the front,
+ * which is a different contour rather than a missing one.
+ *
+ * ## The two things it gets wrong, stated rather than hidden
+ *
+ *  - **The tail snaps back.** `getParamADSR` finishes with a ramp to `min` over
+ *    `prelease`, and `min` is the written pitch, so the release of a note that has
+ *    just slid down an octave returns through it. It is inside the amp release,
+ *    which for the patches that will use this is short, and the alternative is an
+ *    anchoring that puts the *written* pitch at the end of the glide — which would
+ *    mean the note's `midi`, the thing every check and the concert stage read, is
+ *    not the pitch the note is struck at. Wrong in the IR beats wrong in the tail.
+ *  - **It takes the part's `Effects.glide` with it.** One pitch envelope per
+ *    event, so a part cannot both scoop onto every note and travel off one. The
+ *    note wins, on `filterSweep`'s precedent and for the stronger version of its
+ *    reason: a glide switch is a setting and a bend is material.
+ *
+ * Emitted only where the part actually travels, so every song in the catalogue
+ * comes out byte for byte as it did — no style declares a `BassHit.glide` yet.
+ */
+function pitchSlide(
+  track: Track,
+  totalBars: number,
+  slotsPerBar: number,
+  bpm: number,
+): string[] {
+  if (!track.notes.some((n) => n.bend)) return [];
+
+  // Seconds, because that is what `pattack` is in, from beats, because that is
+  // what the IR is in. `meta.bpm` and not the tempo map: the audition is flat by
+  // construction — see the banner at the top of this file — so the number the
+  // scheduler was given is the number these times have to be computed against,
+  // or a glide on a ramping song would be written for a tempo nothing plays at.
+  const seconds = 60 / bpm;
+  // Clamped against the note here as well as in `render/midi.ts`, because a
+  // later pass can shorten a note after the figure was written. See `NoteBend`.
+  const travel = (n: NoteEvent) => Math.min(n.bend?.beats ?? 0, n.duration);
+
+  const depth = buildValueGrid(track.notes, totalBars, slotsPerBar,
+    (n) => (n.bend?.semitones ?? 0).toFixed(2));
+  const time = buildValueGrid(track.notes, totalBars, slotsPerBar,
+    (n) => (travel(n) * seconds).toFixed(3));
+
+  /**
+   * A note that does not travel writes `penv` 0, which reaches
+   * `getPitchEnvelope` as `cents = 0` and therefore `min = max = 0` — an
+   * envelope that schedules two automation points at the note's own pitch and
+   * moves nothing. Cheaper than the alternative, which is a second pattern
+   * saying which slots are exempt, and identical in sound.
+   */
+  return [
+    `    .penv(\`${formatGrid(depth)}\`)`,
+    `    .pattack(\`${formatGrid(time)}\`)`,
+    `    .panchor(0)`,
+  ];
 }
 
 /**

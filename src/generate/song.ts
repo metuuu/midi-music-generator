@@ -1104,6 +1104,18 @@ export function generateSong(opts: GenerateOptions = {}): Song {
       const hand = machine ? undefined : planKitVariation(drumPattern, {
         intensity,
         rng: new Rng(`${seed}:kit:${s}${salt('drums')}`),
+        /**
+         * …and it is the hand in front of *this* player, which is the third
+         * site to want the same two values. See `HandStation`: a hand keeps
+         * time on the cymbals at a kit and on the pieces on the stand at a hand
+         * drum, and until this was handed over, every one of the 54 hand tables
+         * in the catalogue played one figure from the first bar to the last.
+         *
+         * The whole style table and the song's bank, exactly as the drum solo
+         * and the seam below take them.
+         */
+        table: style.drums.flatMap((p) => Object.keys(p.voices) as DrumVoice[]),
+        bank: drumBank,
       });
       const pattern = generateDrums(ctxFor('drums'), drumPattern, {
         /**

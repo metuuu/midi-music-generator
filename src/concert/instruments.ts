@@ -46,11 +46,15 @@ import type { Archetype, ArchetypeSpec, SynthRigId } from './types.js';
  * A handful of these are judgement calls and are worth stating rather than
  * leaving to be re-derived by whoever next reads the table:
  *
- *  - **Choir and voice patches go to `synth`, not `singer`.** A `gm_choir_aahs`
- *    pad is a keyboard playing a choir patch — that is what it was on the
- *    records and it is what it is here. Staging actual singers would put mute
- *    faces on the stage: those tracks carry no vowels, so there would be
- *    nothing to animate a mouth from. Only the `vocal` layer gets a singer.
+ *  - **Choir and voice patches go to `synth`, and to `vocal-group` before the
+ *    year a keyboard could make that sound.** A `gm_choir_aahs` pad is a
+ *    keyboard playing a choir patch — that is what it was on the records from
+ *    about 1970, and it is what this table says. It is not what a string band in
+ *    1932 or a doo-wop group in 1955 meant by four-part harmony, and saying so
+ *    cost country a documented sound; see the note beside the three entries
+ *    themselves, and see `archetypeForTrack`, which is the only place a year can
+ *    reach this. Still never `singer`: that archetype is the *act*, cast off
+ *    `Track.voice`, and a choir patch carries no vowels.
  *  - **`celesta` goes to `electric-piano`.** It sounds like tuned percussion
  *    and is played from a keyboard, and what the player *does* is the thing an
  *    audience watches.
@@ -310,6 +314,24 @@ export const ARCHETYPE_OF: Record<InstrumentId, Archetype> = {
   leadCharang: 'synth',
   leadFifths: 'synth',
   leadBassLead: 'synth',
+  /**
+   * The three choir patches, and the *default* answer for them is still a
+   * keyboard.
+   *
+   * This table has no year in it and must not grow one — it is the statement of
+   * what a sound is played on, and 126 of its 129 entries have the same answer
+   * in every decade the project stages. A `gm_choir_aahs` from 1963 onward is a
+   * Mellotron tape, then a string machine, then a Prophet patch, then a sample
+   * on a slab, and all four of those are a person standing at a keyboard. That
+   * is what these three lines say and it is right for the years the catalogue
+   * was written for.
+   *
+   * **The exception is `EARLY_ARCHETYPE_OF`, one screen down**, which is read by
+   * `archetypeForTrack` and by nothing else. Before 1970 no keyboard could make
+   * this sound and a written choir is people — the beat group's own backing
+   * aahs, the girl-group stack, a doo-wop quartet, the Jordanaires behind a
+   * Nashville record — and the only object that can play it is a vocal group.
+   */
   choirAahs: 'synth',
   voiceOohs: 'synth',
   synthChoir: 'synth',
@@ -330,6 +352,98 @@ export const ARCHETYPE_OF: Record<InstrumentId, Archetype> = {
   birdTweet: 'synth',
   breathNoise: 'synth',
 };
+
+/**
+ * Where a sound was made by a *different object* before a given year.
+ *
+ * ## Why the year is here and not in `ARCHETYPE_OF`
+ *
+ * `ARCHETYPE_OF` is a flat `Record<InstrumentId, Archetype>` and the flatness is
+ * load-bearing: it is total by construction, so a sound added to the catalogue
+ * without an object is a compile error rather than a grey box. Threading a year
+ * through it would mean a record of functions, or a record of records keyed on a
+ * decade, and either one trades that guarantee — the thing the table exists for
+ * — against a fact that is true of **three entries out of a hundred and
+ * twenty-nine**. A violin was a violin in 1780 and a Fender bass was a Fender
+ * bass in 1966; there is no year in the mapping because there is almost no year
+ * in the world.
+ *
+ * So the year enters where a caller already has one, in `archetypeForTrack`, and
+ * this is the small table it consults first. That is exactly `rigPoolFor`'s
+ * shape and it is the precedent this follows: `SYNTH_RIGS` is a table of dated
+ * objects and `rigPoolFor(year, genre)` is the function that reads the date, and
+ * nothing about a synthesiser's *geometry* had to learn what a decade is.
+ *
+ * ## The year was solved for, not chosen
+ *
+ * `CHOIRS_GET_A_KEYBOARD` is 1970 and the catalogue is what put it there. Every
+ * era in every genre that writes one of these three sounds, sorted by year:
+ *
+ * ```
+ *   1965  rock beat        pad choirAahs        1968  arabic firqa    pad choirAahs
+ *   1965  pop twotrack     pad choirAahs        1968  country nashv.  pad choirAahs, voiceOohs
+ *   1965  rnb soul         pad choirAahs        ————————————————————————————————
+ *                                               1972  metal heavy     pad+brass choirAahs
+ *                                               1974  synth modular   pad synthChoir
+ *                                               1974  rnb philly      pad choirAahs
+ * ```
+ *
+ * **There are no eras at all between 1968 and 1972**, so any number in that hole
+ * makes the same cut, and 1970 is the middle of it — two clear years either side
+ * of the nearest era, which is the difference between a threshold and a
+ * coincidence. What the cut separates is not arbitrary either. Above it every
+ * entry is a keyboard nobody would dispute: a 1972 hard-rock choir is a
+ * Mellotron, a 1974 `synthChoir` is a string machine, and by 1985 it is a
+ * sample. Below it every entry is people, and four of the five are people the
+ * records are *named after* — the beat group singing its own backing aahs, the
+ * girl-group stack, a doo-wop or gospel quartet, and the Nashville Sound, whose
+ * defining feature is a vocal quartet standing behind the singer.
+ *
+ * The musical statement behind the arithmetic is one sentence: the Mellotron is
+ * the first keyboard that could make a choir sound and it reached stages at the
+ * end of the sixties, so from about 1970 a written choir might be either and
+ * before it, it is people.
+ *
+ * **This is deliberately not `SYNTH_RIGS.polysynth.from`**, which is 1963, even
+ * though deriving it would be tidier. The two answer different questions and
+ * agreeing them would be a pun: 1963 is when a keyboard could stand on the
+ * boards *at all* — that entry's own note says "a Farfisa or a Mellotron" and
+ * means the object under the player's hands — and this is when one could make
+ * *this particular sound*. Tying them together would move both the day either
+ * moved, and the sound is not the stand.
+ *
+ * ## What this cost, which is why it exists at all
+ *
+ * A documented loss, and it is the whole evidence for the archetype. Country's
+ * string-band era wrote a vocal-quartet pad with the comment *"the pad is
+ * people"*; when the pre-electronic synth anachronism was fixed and `rigPoolFor`
+ * stopped handing 1952 its nearest rig, the only honest substitute left in the
+ * catalogue was a pump organ. A real intended sound was lost to a correct fix,
+ * and it stayed lost because there was no object to give it back to. See
+ * `docs/engine-gaps.md` §2.2.
+ *
+ * **Three entries and it should stay three.** The temptation is `padChoir` and
+ * `leadVoice`, and they are refused on the same test the rest of this file
+ * applies: those are GM's *synth pad* and *synth lead* rows and their names say
+ * so, so a genre reaching for one has asked for a patch. These three are the
+ * ones whose names describe people singing, and they are the three
+ * `docs/engine-gaps.md` names.
+ */
+const EARLY_ARCHETYPE_OF: Partial<Record<InstrumentId, Archetype>> = {
+  choirAahs: 'vocal-group',
+  voiceOohs: 'vocal-group',
+  synthChoir: 'vocal-group',
+};
+
+/**
+ * The first year a written choir might be a keyboard rather than people.
+ *
+ * A literal, and the measurement that produced it is in `EARLY_ARCHETYPE_OF`
+ * above: the catalogue has no era between 1968 and 1972 that writes any of the
+ * three sounds, so the whole of that hole makes one cut and this is the middle
+ * of it. Read by `archetypeForTrack` and by nothing else.
+ */
+const CHOIRS_GET_A_KEYBOARD = 1970;
 
 const S = (spec: ArchetypeSpec): ArchetypeSpec => spec;
 
@@ -619,6 +733,74 @@ export const ARCHETYPES: Record<Archetype, ArchetypeSpec> = {
     hands: 0, posture: 'stand', points: ['viseme', 'rest'],
     range: [40, 84], blown: true, held: false, footprint: 0.6, workHeight: 1.55,
   }),
+
+  /**
+   * One member of a vocal group, and the entry describes **a person, not the
+   * group**.
+   *
+   * That is the design decision this archetype is, so it goes at the top. A
+   * vocal group is one track played by several people, which is a shape casting
+   * has met before and has answered twice in opposite directions — `keyboardPart`
+   * folds two lines onto one player, and `drumStations` splits one event stream
+   * across two. This is the second shape: `roster` drafts a `Performer` per voice
+   * off one track, so a quartet is four slots the solver places, four `Look`s the
+   * wardrobe dresses, four faces and four mouths.
+   *
+   * **The alternative was one `Performer` whose model drew the other three, and
+   * the seam forbids it.** `InstrumentBuildOptions` carries no `Look` and should
+   * not: a model may know how tall its player is and how they are sitting, and
+   * `web/concert/instruments/types.ts` argues at length that everything beyond
+   * that is the visuals reaching back for something they should have been handed.
+   * So a model that built the other three singers would build them in clothes
+   * nobody chose, with faces nobody drew, standing rigid while the one real
+   * performer beside them breathed — because the groove, the idle and the sway
+   * are `animate.ts`'s and reach a `PerformerRig` through the cast, which those
+   * three would not be in. Four people the cast knows about get all of it free.
+   * The other half of the same argument is `singer.ts`'s own opening line: the
+   * performer rig owns the body, the head, the face and the mouth, and a model
+   * owns the hardware in front of it. Three bodies inside a model inverts that.
+   *
+   * `hands: 0`, like the singer's and for the same reason: the hands are free,
+   * and free hands are most of what a group standing at a row of microphones is
+   * doing with them.
+   *
+   * `range` is the singer's, unchanged, and it means something different. A
+   * soloist's [40, 84] is the union across voice types — one person is a bass or
+   * a soprano, never both. A group's is the same span held *at once*, which is
+   * what makes it a group: a four-part close-harmony chord from a low E to a high
+   * C is exactly this and nothing narrower would admit it. Nothing folds through
+   * it in practice — `sungPart` does no range check, because a viseme has no
+   * pitch in it — so this is a statement for the verifier rather than a clamp.
+   *
+   * `footprint` is **0.52, the smallest on the stage**, and it is the number that
+   * decides whether the picture is a group or a chorus line. `separate` keeps
+   * players two radii apart, so this is 1.04 m centre to centre, against the
+   * singer's own 0.6 and its 1.2 m. It can be this small honestly, which is the
+   * first half of the argument: there is no instrument between the bodies. A
+   * flute player needs 0.7 because there is a flute in it; four people standing
+   * still need the width of four people and the stands they are singing into,
+   * and nothing else.
+   *
+   * **0.52 rather than 0.45, and the four centimetres are the finding.** A group
+   * wants to be tighter than this — a doo-wop quartet stands with its shoulders
+   * about 0.7 m apart — and the stage will not allow it: `npm run concert`
+   * asserts that no two performers come within a metre of each other, on the
+   * grounds that two standing bodies nearer than that are inside one another,
+   * and at 0.45 it fails on exactly this archetype at 0.90 m. That check is
+   * about anatomy and is not this feature's to loosen, so the footprint is set
+   * to the smallest thing it permits with margin: half a metre of personal space
+   * plus two centimetres. The group is as close as the stage can put people, and
+   * it is a little further apart than a real one.
+   *
+   * `blown`, because they breathe, and visibly — the same field the singer sets
+   * and for the same reason. It is the one thing that gives a row of still bodies
+   * a pulse when the line is four whole notes long, which a pad usually is.
+   */
+  'vocal-group': S({
+    id: 'vocal-group', label: 'vocal group', family: 'voice',
+    hands: 0, posture: 'stand', points: ['viseme', 'rest'],
+    range: [40, 84], blown: true, held: false, footprint: 0.52, workHeight: 1.55,
+  }),
 };
 
 // ---------------------------------------------------------------------------
@@ -880,12 +1062,34 @@ export const VOCAL_ARCHETYPE: Archetype = 'singer';
  * can ask for one; a caller that would rather know it has a gap gets to find
  * out. `npm run concert` asserts this never returns `undefined` for any track
  * of any song in any genre.
+ *
+ * ## The year
+ *
+ * Optional, and omitting it gives the answer every caller got before it existed:
+ * `ARCHETYPE_OF`'s own, which is the object the sound was made on for the years
+ * the catalogue was written for. Passing one lets `EARLY_ARCHETYPE_OF` answer
+ * first, and today that table has three entries in it — the choir patches, which
+ * are a keyboard from 1970 and are people before it.
+ *
+ * **This is the only place a year touches the mapping**, and that is deliberate;
+ * see `EARLY_ARCHETYPE_OF` for why the table itself stays flat. It is the same
+ * division `rigPoolFor` makes one section down — a table of objects, and a
+ * function that knows what year it is.
+ *
+ * A year rather than an era id, for the reason `InstrumentBuildOptions.year`
+ * gives: era ids are genre-local, and this file would have to learn nineteen
+ * vocabularies to answer a question about a decade.
  */
 export function archetypeForTrack(
-  track: { gmProgram: number; instrument: string },
+  track: { gmProgram: number; instrument: string }, year?: number,
 ): Archetype | undefined {
   const id = instrumentIdForTrack(track);
-  return id ? ARCHETYPE_OF[id] : undefined;
+  if (!id) return undefined;
+  if (year !== undefined && year < CHOIRS_GET_A_KEYBOARD) {
+    const early = EARLY_ARCHETYPE_OF[id];
+    if (early) return early;
+  }
+  return ARCHETYPE_OF[id];
 }
 
 export function specFor(archetype: Archetype): ArchetypeSpec {
