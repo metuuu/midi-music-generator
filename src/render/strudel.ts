@@ -191,7 +191,11 @@ export function renderStrudel(song: Song, opts: StrudelRenderOptions = {}): stri
       grid = Array.from({ length: meta.totalBars }, () => [] as DrumHit[]);
       byVoice.set(e.voice, grid);
     }
-    grid[bar]!.push({ slot: Math.min(slot, slotsPerBar - 1), velocity: e.velocity });
+    grid[bar]!.push({
+      slot: Math.min(slot, slotsPerBar - 1),
+      velocity: e.velocity,
+      roll: e.roll ?? 1,
+    });
   }
 
   for (const [voice, grid] of byVoice) {
@@ -207,9 +211,70 @@ export function renderStrudel(song: Song, opts: StrudelRenderOptions = {}): stri
      */
     const played = resolveDrumSample(song.drums.bank, voice);
     if (!played) continue;
+    /**
+     * A slot is one stroke, unless the stroke said it was several.
+     *
+     * `DrumEvent.roll` — `docs/engine-gaps.md` §3.15, the trap and drill
+     * retrigger — and this is the audition's whole half of it: a **nested
+     * group**, `[hh*3]` standing where `hh` stood. Mini-notation divides a group
+     * evenly among its slot, so the sixteenth is played three times inside itself
+     * and nothing outside that slot moves by a sample.
+     *
+     * ## Established by querying the installed parser, not by reading about it
+     *
+     * The tempo ramp's answer to this question was *no*, and it says so in a
+     * banner rather than faking one; `NoteBend`'s was *yes*, and only after
+     * finding that the control named `slide` is dead and the live mechanism is a
+     * pitch envelope with the anchor turned round. So the same standard applies
+     * here, and the answer came out of `@strudel/mini` rather than out of a
+     * memory of what mini-notation does. `<[hh hh ~ [hh*3]]>` queried over one
+     * cycle returns five haps:
+     *
+     *     0.0000  0.2500  |  0.7500  0.8333  0.9167
+     *
+     * — the first two sixteenths where they were, a rest, and the fourth slot cut
+     * in three at exactly 1/12 of the bar. `*4` gives 0.7500/0.8125/0.8750/0.9375
+     * and `*6` gives sixths, so the count is a divisor rather than a suggestion,
+     * and the arithmetic is rational rather than sampled — the same property that
+     * made the piecewise-constant tempo map the only shape four consumers could
+     * implement identically.
+     *
+     * ## The velocity grid needed nothing, and that is not luck
+     *
+     * `drumDynamics` emits one number per slot on a parallel pattern, so the
+     * obvious worry is that a slot holding three strokes now wants three numbers
+     * and would have to nest too — at which point a `_` in the next slot stretches
+     * the *group* rather than holding its last value, and the two grids slide
+     * apart by a 32nd. Measured, because that failure would be inaudible in the
+     * text and obvious in the ear: `s("[hh*3] hh ~ hh").gain("0.5 0.9 0.9 0.4")`
+     * queried directly gives all three of the first slot's strokes `gain: 0.5`.
+     * A control pattern is applied **appLeft** — the structure is the sound's and
+     * the value is sampled at each stroke's own onset — so a flat number covering
+     * the slot reaches every stroke standing in it.
+     *
+     * Which is exactly the level rule `DrumEvent.roll` argues for on musical
+     * grounds: every stroke of a roll is the velocity of the stroke it
+     * subdivides, because a retriggered step has one velocity. The renderer wants
+     * the same thing the music wants, so there is no second grid and no `_` to
+     * get wrong.
+     *
+     * **The louder claim wins a shared slot**, which is the rule already sitting
+     * ten lines down in `drumDynamics` — two strokes on one slot sound as one and
+     * it is the harder of them that was asked for. Here the same collision is
+     * between a plain stroke and a rolled one, from a fill landing on a figure's
+     * own sixteenth, and the roll wins for the reason the sample grid is silent
+     * about: the two strings are no longer identical, so somebody has to choose,
+     * and a retrigger flattened back to one stroke is the gap this file is
+     * closing.
+     */
     const bars = grid.map((hits) => {
       const row: string[] = Array.from({ length: slotsPerBar }, () => '~');
-      for (const h of hits) row[h.slot] = played.sample;
+      const rolls = new Map<number, number>();
+      for (const h of hits) rolls.set(h.slot, Math.max(rolls.get(h.slot) ?? 1, h.roll));
+      for (const h of hits) {
+        const roll = rolls.get(h.slot)!;
+        row[h.slot] = roll > 1 ? `[${played.sample}*${roll}]` : played.sample;
+      }
       return row;
     });
     /**
@@ -556,6 +621,8 @@ function drumNote(bank: string, voice: DrumVoice, played: DrumSample): string {
 interface DrumHit {
   slot: number;
   velocity: number;
+  /** How many even strokes fill the slot. 1 is the ordinary one. See `DrumEvent.roll`. */
+  roll: number;
 }
 
 /**

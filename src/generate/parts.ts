@@ -2558,16 +2558,50 @@ function varyPattern(pattern: DrumPattern, v: KitVariation): DrumPattern {
    * rather than being guarded: `KitVariation.open` indexes into the hand's
    * struck hits and there is no index that reaches this list.
    */
+  const varied: DrumPattern = { ...pattern, voices };
   const ghosted = pattern.ghosts?.[v.on];
-  if (!ghosted?.length) return { ...pattern, voices };
-  const ghosts: Partial<Record<DrumVoice, number[]>> = { ...pattern.ghosts };
-  delete ghosts[v.on];
-  const moved = v.thin ? ghosted.filter((_, i) => i % 2 === 0) : ghosted;
-  const to = v.to ?? v.on;
-  if (moved.length) {
-    ghosts[to] = [...new Set([...(ghosts[to] ?? []), ...moved])].sort((a, b) => a - b);
+  if (ghosted?.length) {
+    const ghosts: Partial<Record<DrumVoice, number[]>> = { ...pattern.ghosts };
+    delete ghosts[v.on];
+    const moved = v.thin ? ghosted.filter((_, i) => i % 2 === 0) : ghosted;
+    const to = v.to ?? v.on;
+    if (moved.length) {
+      ghosts[to] = [...new Set([...(ghosts[to] ?? []), ...moved])].sort((a, b) => a - b);
+    }
+    varied.ghosts = ghosts;
   }
-  return { ...pattern, voices, ghosts };
+
+  /**
+   * …and so do the hand's rolls, for the first of the two reasons above and not
+   * for the second.
+   *
+   * A hand that moves to the ride takes its retriggers with it, and a hand
+   * thinned to eighths drops the rolls that stood on the hits it just dropped —
+   * both fall out of walking the **surviving closed hits** rather than the
+   * written ones, so there is no separate rule for either.
+   *
+   * **An opened hit loses its roll**, which is the one place this differs from
+   * the ghosts above, and it is a musical claim rather than an accident of the
+   * indexing. `KitVariation.open` turns a closed stroke into an open hat, and an
+   * open hat is a surface deliberately left ringing; a retrigger is the same
+   * surface re-struck three times inside 107 ms. Asking for both is asking for a
+   * ring that is interrupted twice by its own beginning, which is not a louder
+   * hat and not a busier one — it is a third sound nobody wrote. So `open` is
+   * simply not walked.
+   */
+  const rolled = pattern.rolls?.[v.on];
+  if (!rolled) return varied;
+  const rolls: Partial<Record<DrumVoice, Record<number, number>>> = { ...pattern.rolls };
+  delete rolls[v.on];
+  const onto = v.to ?? v.on;
+  const moved: Record<number, number> = { ...rolls[onto] };
+  for (const slot of hand) {
+    const strokes = rolled[slot];
+    if (strokes !== undefined) moved[slot] = strokes;
+  }
+  if (Object.keys(moved).length) rolls[onto] = moved;
+  varied.rolls = rolls;
+  return varied;
 }
 
 export function generateDrums(
@@ -2603,6 +2637,28 @@ export function generateDrums(
      * a style author would have written before this field existed.
      */
     machine?: boolean;
+    /**
+     * Whether a machine somebody drew this pattern into a step at a time is
+     * playing it — `DrumSource` of `programmed`, and the one source that may
+     * sound `DrumPattern.rolls`.
+     *
+     * A second boolean beside `machine` rather than the `DrumSource` itself,
+     * which is the ugly choice and is the right one. Handing this function the
+     * enum would put the question *what is this source able to do* inside a
+     * pattern generator, where it would be asked again and answered again every
+     * time a value was added; `canVary` and `isPlayedByHand` exist in
+     * `core/types.ts` precisely so that the answer is given a name once and read
+     * everywhere. Both booleans are that read, taken at the call site in
+     * `song.ts` alongside the fill's and the hand's.
+     *
+     * The two are not opposites and must not be collapsed. `machine` says *no
+     * hands*, and it is true of the one source that has a start button and false
+     * of the two that have people behind them **and** of this one. This says *a
+     * programmer, a step at a time*, which is a strictly narrower claim: a preset
+     * box is a machine that cannot roll, because a roll is a step written into a
+     * memory and a Rhythm Ace has no memory to write into.
+     */
+    programmed?: boolean;
     /**
      * What this section's hand is doing. See `KitVariation` — and note that a
      * box never gets one, for the same reason it gets no fill.
@@ -2709,8 +2765,30 @@ export function generateDrums(
     }
   }
 
+  /**
+   * Which written slots are struck more than once. See `DrumPattern.rolls`.
+   *
+   * Read off the *figure* rather than the pattern, so a varied hand's rolls have
+   * already moved with it, and keyed by the figure's own slot rather than by the
+   * absolute one, so a roll in a 48-slot cycle repeats where the cycle repeats
+   * instead of once every three bars. That is `cycleHits` carrying the hit it
+   * came from, which it has always done for the bass and which this is the first
+   * drum row to need.
+   *
+   * The gate is one condition and it is the whole of the mechanism's safety: no
+   * hand and no preset box ever sees this map, so a rolled stroke cannot reach a
+   * staged drummer and `concert/choreograph.ts` needed no change at all.
+   *
+   * It costs no random number, which is the acceptance test rather than a
+   * nicety. `roll` is placed and never drawn, so a style that writes none
+   * generates bit-for-bit what it always did and a style that writes some pulls
+   * exactly the same numbers in the same order as the figure underneath it.
+   */
+  const rolls = opts.programmed ? figure.rolls : undefined;
+
   for (const { voice, slots, ghost } of rows) {
-    for (const { slot } of cycleHits(slots.map((at) => ({ at })), {
+    const rolled = rolls?.[voice];
+    for (const { hit, slot } of cycleHits(slots.map((at) => ({ at })), {
       cycle: figure.cycle ?? slotsPerBar, bars, slotsPerBar,
     })) {
       // Clear exactly as much of the bar as the fill actually occupies — which
@@ -2724,10 +2802,12 @@ export function generateDrums(
       const struck = opts.machine
         ? strength
         : Math.min(1, strength * opts.intensity * rng.float(0.92, 1.05));
+      const roll = rolled?.[hit.at];
       out.push({
         beat: startBeat + slot / SLOTS_PER_BEAT,
         voice,
         velocity: ghost ? struck * GHOST_LEVEL : struck,
+        ...(roll !== undefined && roll > 1 ? { roll } : {}),
       });
     }
   }

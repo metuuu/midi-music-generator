@@ -199,3 +199,61 @@ Genres that disagree with a threshold adjust it rather than forking the table.
 | `augmented-second` | never | never |
 | `parallel-perfects` | polished | never |
 | `repeated-note-run` | polished | never |
+
+### Pop
+
+| Rule | Prefers from | Forbids from |
+|---|---|---|
+| `augmented-second` | polished | never |
+| `avoid-fourth` | strict | never |
+
+### Hiphop
+
+| Rule | Prefers from | Forbids from |
+|---|---|---|
+| `augmented-second` | never | never |
+| `chromatic-tone` | never | never |
+| `static-repetition` | polished | never |
+| `repeated-note-run` | polished | never |
+| `unresolved-seventh` | polished | never |
+| `avoid-fourth` | polished | never |
+| `parallel-perfects` | polished | never |
+| `wide-leap` | strict | polished |
+| `non-chord-tone-on-strong-beat` | polished | never |
+
+### R&B
+
+| Rule | Prefers from | Forbids from |
+|---|---|---|
+| `augmented-second` | never | never |
+| `chromatic-tone` | strict | never |
+| `unresolved-seventh` | strict | never |
+| `avoid-fourth` | strict | never |
+| `parallel-perfects` | strict | never |
+
+### Drum and bass
+
+| Rule | Prefers from | Forbids from |
+|---|---|---|
+| `augmented-second` | never | never |
+| `chromatic-tone` | polished | never |
+| `static-repetition` | polished | never |
+| `repeated-note-run` | polished | never |
+| `unresolved-seventh` | polished | never |
+| `avoid-fourth` | polished | never |
+| `parallel-perfects` | polished | never |
+| `wide-leap` | strict | polished |
+| `non-chord-tone-on-strong-beat` | polished | never |
+
+### House
+
+| Rule | Prefers from | Forbids from |
+|---|---|---|
+| `augmented-second` | never | never |
+| `wide-leap` | strict | polished |
+| `leap-beyond-third` | polished | never |
+| `static-repetition` | polished | never |
+| `repeated-note-run` | polished | never |
+| `avoid-fourth` | never | never |
+| `unresolved-seventh` | polished | never |
+| `parallel-perfects` | polished | never |

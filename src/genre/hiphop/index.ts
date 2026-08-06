@@ -106,13 +106,27 @@
  * octave upward from the root rather than downward from the top. Three other
  * genres wrote around the same wall.
  *
- * **The sub-sixteenth grid.** A trap hi-hat subdivides *inside* a stroke —
- * triplets, then thirty-seconds — and the grid here is sixteenths. At 140 BPM a
- * written sixteenth is 107 ms and the roll wants 36. What is written instead is
+ * **The sub-sixteenth grid, which this genre's report closed.** A trap hi-hat
+ * subdivides *inside* a stroke — triplets, then thirty-seconds — and the grid
+ * here is sixteenths. **At 140 BPM a written sixteenth is 107 ms and the roll
+ * wants 36**: that sentence stood in this header as a compromise for two waves,
+ * was the arithmetic `docs/engine-gaps.md` §3.15 was built on, and is now the
+ * number `DrumPattern.rolls` hits.
+ *
+ * What the grid can address on its own is still here and still doing its job —
  * the dotted-eighth chain (`cycle: 12`, and `cycle: 48` where the kick has to
- * stay put) and four consecutive sixteenths across the last beat, which are the
- * two members of that family the grid can address. The faster rolls are simply
- * absent, and no arrangement of these tables will produce one.
+ * stay put) and four consecutive sixteenths across the last beat. What is added
+ * is that the last two of those four **accelerate**, in `trap` and `drill` only:
+ * 107, 107, 54, 36 ms into the barline. Two of the six drum figures in those two
+ * styles refuse it and say why in their own tables, which is the shape this
+ * document prefers to a genre that sprays a new field across everything it owns.
+ *
+ * The other twenty-two styles here write no roll and are byte-identical to what
+ * they were, because the field is opt-in and costs no random draw. The gate is
+ * the era table rather than the style: a roll is read only where the source is
+ * `programmed`, so the three eras that can draw a drummer or a set of pads play
+ * the figure underneath without it — which is right, because a person behind a
+ * kit does not retrigger a hi-hat thirty times a second.
  */
 
 import { makeScale } from '../../core/scale.js';

@@ -169,12 +169,26 @@
  *
  * ## The ceilings, named because they shaped the tables
  *
- * **Nothing subdivides below a sixteenth** — §3.15. At 174 BPM a written
- * sixteenth is 86 ms and a chopped amen's internal detail wants 43. hiphop hit
- * this first at 140 and this genre hits it harder, because there it removed an
- * ornament and here it removes a *technique*: the stutter, the retriggered
- * fragment and the thirty-second roll into a drop are all simply absent, and no
- * arrangement of these tables produces one.
+ * **Something subdivides below a sixteenth now, and this genre has not taken
+ * it** — §3.15, built as `DrumEvent.roll` and `DrumPattern.rolls`. At 174 BPM a
+ * written sixteenth is 86 ms and a chopped amen's internal detail wants 43,
+ * which is `roll: 2`; hiphop hit this first at 140, filed the arithmetic, and
+ * has adopted it in `trap` and `drill`.
+ *
+ * The sentence that stood here — *the stutter, the retriggered fragment and the
+ * thirty-second roll into a drop are all simply absent, and no arrangement of
+ * these tables produces one* — was true when it was written and the second half
+ * of it is now false. It is kept in view rather than deleted because the reason
+ * this genre has not adopted is a judgement and should be visible as one: a trap
+ * roll is a **hi-hat** run-in inside one sixteenth at the end of a bar, and the
+ * gestures named above are a **snare** stutter and a fragment retriggered across
+ * a whole beat, which is four rolled strokes in a row and a different figure
+ * shape entirely. Writing it by analogy with `trap-kit` would produce something
+ * that satisfies the field and is not this music.
+ *
+ * The gate is no obstacle whenever somebody does it: `rolls` is read only where
+ * the source is `programmed`, and all four eras below are `programmed` at 9 or
+ * 10 out of 10.
  *
  * **A bass note can slide now** — §3.16, and this genre was the strongest
  * evidence the document had: three independent reports inside one genre, against

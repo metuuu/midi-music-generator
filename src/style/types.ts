@@ -436,6 +436,90 @@ export interface DrumPattern {
    */
   ghosts?: Partial<Record<DrumVoice, number[]>>;
   /**
+   * The strokes this figure plays *more than once*, per voice: slot index to how
+   * many even strokes fill it. `{ hh: { 14: 3 } }` is the sixteenth on 14 struck
+   * three times inside itself.
+   *
+   * `docs/engine-gaps.md` §3.15. A trap or drill hi-hat subdivides inside a
+   * stroke and a sixteenth grid cannot say so, and the report came with the
+   * arithmetic attached: **at 140 BPM a written sixteenth is 107 ms and the roll
+   * wants 36**. `trap`'s own drum table records the compromise this replaces, in
+   * a comment over a row of eighths and four consecutive sixteenths — *"the slow
+   * roll"* — which is the nearest a figure could come and is not the gesture.
+   *
+   * See `DrumEvent.roll` for why the count is stated on the stroke rather than
+   * spelled as three onsets a float apart, and for what the two renderers do with
+   * it. This is the authoring end of the same idea.
+   *
+   * ## A number per slot here, where `ghosts` refused one — and the two are
+   * consistent
+   *
+   * The paragraphs above spend most of their length arguing that a `DrumPattern`
+   * must not carry a velocity column, so a `Record<slot, number>` sitting under
+   * the same interface deserves the challenge. It survives it, and the reason is
+   * that the two fields are answering questions with different numbers of owners.
+   *
+   * Level has three: the metre, through `accentOf` and `metricStrength`; the
+   * section, through `intensity`; and the performance, through `Feel.accent`. A
+   * number written in a table would outrank all three and go on outranking them
+   * in every song, which is the whole of that argument, and it is right.
+   *
+   * **Subdivision has none.** Nothing in this engine has an opinion about how
+   * many times a stroke is struck: `metricStrength` says how strong a slot is and
+   * not how divided, `intensity` scales a velocity, `Feel` leans and ghosts and
+   * drags, and `KitVariation` thins a row and moves it to another surface without
+   * ever splitting one of its hits. So a count written here usurps nobody — it is
+   * the only place in the project the number could live, and a generator that
+   * decided it would be inventing an opinion rather than expressing one. The test
+   * `ghosts` applies is *does this outrank an existing owner*, and the answer here
+   * is that there is no incumbent.
+   *
+   * The half that **is** still refused is the one `ghosts` refused: how loud the
+   * extra strokes are. They are the velocity of the stroke they subdivide, and
+   * `DrumEvent.roll` argues both that this is the only answer that leaves level
+   * where it belongs and that it is what a retriggered step actually sounds like.
+   *
+   * ## Read exactly like `voices`, with one gate
+   *
+   * Same slot indices, so a rolled slot is looked up by the number the figure
+   * already wrote; same `cycle`, so a roll in a 48-slot figure drifts with it;
+   * cleared by a fill along with the stroke it belongs to, because it *is* that
+   * stroke; and carried through `varyPattern`, so a hand that moves from the hat
+   * to the ride takes its rolls with it and a hand that thins to eighths drops
+   * the rolls on the hits it dropped.
+   *
+   * The gate is `DrumTrack.source`, and only `programmed` passes it — a machine
+   * somebody drew a pattern into a step at a time, which is what a retrigger
+   * literally is. A preset `box` is refused on exactly the grounds that already
+   * cost it the fill, the drum solo, the intensity response and the ghosts: there
+   * is one level per voice per step and no button marked *stutter*. A `kit` and an
+   * `electronic-kit` are refused because there are hands on them, and the number
+   * that settles it lives in the choreographer and was written years away from
+   * here — a stick's own rebound comes back in 50 ms, and this asks for 36.
+   *
+   * A style may therefore write rolls and hear them in some songs and not others,
+   * exactly as it draws a kit in some songs and a machine in others. That is the
+   * era table doing its job rather than the field failing: a live drummer playing
+   * a trap figure does not retrigger the hat, and the figure underneath is the
+   * one the table already wrote.
+   *
+   * ## Worked example
+   *
+   * ```ts
+   * { name: 'trap-kit', weight: 6, voices: {
+   *     bd: [0, 7, 10],
+   *     sd: [8], cp: [8],
+   *     hh: [0, 2, 4, 6, 8, 10, 12, 13, 14, 15],
+   *   },
+   *   rolls: {
+   *     // The last sixteenth of the bar, tripled: the retrigger the run of
+   *     // four consecutive hits above was standing in for.
+   *     hh: { 15: 3 },
+   *   } }
+   * ```
+   */
+  rolls?: Partial<Record<DrumVoice, Record<number, number>>>;
+  /**
    * The length of the repeating figure in sixteenths, where it is not the bar.
    * See `Cycle`.
    */

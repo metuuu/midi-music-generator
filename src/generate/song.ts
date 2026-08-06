@@ -1091,6 +1091,26 @@ export function generateSong(opts: GenerateOptions = {}): Song {
        * pattern per button and a volume knob.
        */
       const machine = !canVary(drumSource);
+      /**
+       * …and a *retrigger* needs a memory to have been written into.
+       *
+       * `DrumPattern.rolls` is the fourth thing decided here from the source
+       * rather than from the figure, and it is the only one of the four that a
+       * machine can do and a person cannot. The other three ask *is anybody
+       * varying this*; this asks *is anybody stepping it in*, and exactly one
+       * value answers yes to the second and no to the first sense — `programmed`,
+       * whose own doc calls it a machine drawn a step at a time that can play
+       * anything.
+       *
+       * Written out against the value rather than routed through a predicate in
+       * `core/types.ts`, which is the opposite of what `canVary` above does and
+       * is deliberate: `isPlayedByHand` and `canVary` each have two call sites
+       * and exist so the two cannot drift, and a third predicate with one call
+       * site would be a name standing in for an equals sign. If a fifth source
+       * ever lands, the compiler will not point here — but nor would a predicate,
+       * and this at least reads as the enumeration it is.
+       */
+      const programmed = drumSource === 'programmed';
       const kitSolo = !machine && solo?.drumBars.length ? solo.drumBars : undefined;
       const lastBarIsSolo = kitSolo !== undefined
         && kitSolo[kitSolo.length - 1]![1] >= section.lengthBars;
@@ -1158,6 +1178,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
         intensity,
         arrival,
         machine,
+        programmed,
         palette: style.fills ?? genre.fills ?? DEFAULT_FILLS,
         // What the band is playing on, which the style cannot know and the fill
         // has to. See `generateDrums`' `bank` and `seamOrchestration`.

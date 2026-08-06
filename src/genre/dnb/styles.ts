@@ -118,15 +118,23 @@
  *    barline sounds like it was typed in — which is exactly what a chopped
  *    sample never is.
  *
- * ## The two ceilings that shaped these tables, one of which has come down
+ * ## The two ceilings that shaped these tables, both of which have come down
  *
- * **Nothing subdivides below a sixteenth** — `docs/engine-gaps.md` §3.15, found
+ * **Nothing subdivided below a sixteenth** — `docs/engine-gaps.md` §3.15, found
  * first by hiphop and hit far harder here. At 174 BPM a written sixteenth is
- * 86 ms and an amen's internal detail wants 43. What is written instead is the
+ * 86 ms and an amen's internal detail wants 43. What is written below is the
  * sixteenth-note ghost lattice, the two-bar cycle and the displaced snare, which
- * are the three members of that family the grid can address. The thirty-second
- * roll into a drop, the stuttered snare, the reverse cymbal cut into four — all
- * absent, and no arrangement of these tables produces one.
+ * are the three members of that family the grid could address.
+ *
+ * `DrumPattern.rolls` can now address the rest, and **these tables have not been
+ * edited to use it**, which is a decision rather than an oversight and is
+ * recorded here so that the next author can disagree with it cheaply. 43 ms at
+ * this tempo is exactly `roll: 2`, so the arithmetic is already done. What is not
+ * done is the musical half: hiphop's adoption is a hat accelerating into a
+ * barline, and what this genre wants is a **snare** stutter and a fragment
+ * retriggered across a beat — the same field, spent on a different voice in a
+ * different place, and worth writing from the records rather than by analogy with
+ * a trap figure. See `dnb/index.ts` for the longer version.
  *
  * **A bass note can slide, and this genre's three reports are what built the
  * field** — §3.16, now `BassHit.glide`. A Reese *is* a slide: two detuned saws
@@ -564,11 +572,12 @@ const darkcore: Style = {
  * strokes across three figures, second here only to `drumfunk`'s twenty-seven. That is not decoration, it is the break — see the file
  * header on the four loud strokes and the eleven quiet ones.
  *
- * **What cannot be said** is the resolution. The famous chops subdivide inside
- * the sixteenth: a stutter is the same 40 ms fragment triggered four times, and
- * at 168 BPM a written sixteenth is 89 ms. `docs/engine-gaps.md` §3.15 names
- * this and hiphop found it first at a slower tempo; here it removes an entire
- * technique rather than an ornament.
+ * **What could not be said** is the resolution. The famous chops subdivide
+ * inside the sixteenth: a stutter is the same 40 ms fragment triggered four
+ * times, and at 168 BPM a written sixteenth is 89 ms — which is `roll: 2` almost
+ * exactly. `docs/engine-gaps.md` §3.15 is closed and `DrumPattern.rolls` is the
+ * field; this table has not spent it yet, and the genre header says why in the
+ * paragraph on the two ceilings.
  *
  * `drops: dub`. The bass drops for a phrase and the break rolls on alone, and
  * this is the gesture the style inherits directly from the sound systems its

@@ -89,6 +89,24 @@ let dropped = 0;
 let drumParts = 0;
 let bars = 0;
 let songs = 0;
+/**
+ * Slots holding a **nested group** rather than a single stroke.
+ *
+ * `DrumEvent.roll` — `docs/engine-gaps.md` §3.15 — writes `[hh*3]` where a
+ * sixteenth is struck three times inside itself, and the token rule below already
+ * accepted it: `^\[[^\]]+\]$` has been in this file since chords needed it, so a
+ * rolled slot has always been well-formed notation by this check's own grammar.
+ *
+ * Counted anyway, and the reason is the one this project keeps rediscovering: a
+ * feature that emits nothing looks exactly like a feature that works. The
+ * grammar being wide enough to accept a shape is not evidence the shape is being
+ * produced, and the only cheap standing proof that the audition is actually
+ * writing rolls is a number printed by a run somebody already does. If this line
+ * ever reads zero, either the two styles that adopted it have stopped drawing a
+ * programmed source or the emission has quietly broken, and both are worth
+ * hearing about from a check rather than from a listener.
+ */
+let rolledSlots = 0;
 
 // Cover every genre in turn. Each brings something the others never emit: jazz
 // has extended chords and voicings past three notes, and ambient has notes that
@@ -157,6 +175,16 @@ for (let i = 0; i < 150; i++) {
       if (numeric && tok.startsWith('-') && !SIGNED_CONTROLS.has(control)) {
         problems.push(`negative "${tok}" in a ${control || 'nameless'} grid: ${line.slice(0, 50)}`);
       }
+      // A roll: one voice, struck n times inside the slot it stands on. Matched
+      // before the general bracket rule only so it can be counted; both accept it.
+      const roll = tok.match(/^\[([^\]\s*]+)\*(\d+)\]$/);
+      if (roll) {
+        rolledSlots++;
+        if (!DRUM.test(roll[1]!)) {
+          problems.push(`rolled slot on an unknown voice "${tok}" in ${line.slice(0, 50)}`);
+        }
+        if (Number(roll[2]) < 2) problems.push(`a roll of ${roll[2]} is not a roll: ${tok}`);
+      }
       const ok = tok === '~' || tok === '_'
         || numeric
         || DRUM.test(tok) || NOISE.test(tok)
@@ -171,6 +199,7 @@ console.log(`Checked ${bars} bars across ${songs} songs.`);
 console.log(
   `Drum voices: ${drumParts} asked for, ${substituted} substituted, ${dropped} dropped.`,
 );
+console.log(`Rolled slots: ${rolledSlots} struck more than once inside a sixteenth.`);
 // A dropped voice is a part that was written and then silently thrown away. It
 // is tolerable for an ornament and not for the kit's backbone: no bank in the
 // pack lacks a kick, a snare or a hat, so a drop there means the table is wrong.

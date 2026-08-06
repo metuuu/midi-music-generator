@@ -22,7 +22,7 @@ import type { HookId } from './generate/hook.js';
 import { chordPcs, parseRoman, CHORD_INTERVALS, type Chord, type ChordQuality } from './core/chord.js';
 import { makeScale } from './core/scale.js';
 import { pc } from './core/pitch.js';
-import { canVary, melodicLine, type DrumVoice, type Song } from './core/types.js';
+import { canVary, isPlayedByHand, melodicLine, type DrumVoice, type Song } from './core/types.js';
 import { STATION_OF, drumStations } from './concert/instruments.js';
 import { Rng } from './core/rng.js';
 import { BANK_VOICES, readBankName, resolveVoice, SAMPLE_RACKS } from './render/drum-banks.js';
@@ -2349,6 +2349,56 @@ console.log("\nThe drummer's hand");
     'a box keeps one hand on one button',
     varying === 0 && boxes > 0,
     `${varying} of ${boxes} preset-box songs changed kit voices between sections`,
+  );
+
+  /**
+   * …and nobody's hand is ever asked to retrigger.
+   *
+   * `DrumEvent.roll` — `docs/engine-gaps.md` §3.15 — is the one thing in the IR
+   * that a machine can do and a person cannot, and the whole reason
+   * `concert/choreograph.ts` needed no change for it is that a rolled stroke can
+   * never reach a staged pair of hands. That is a guard at one call site in
+   * `song.ts`, which makes it exactly the sort of rule this file exists to hold
+   * down: the day somebody widens it to `canVary` — a one-character mistake, and
+   * the *obvious* predicate, since `programmed` and `electronic-kit` are both
+   * machines — the audition starts playing 36 ms triplets that the drummer on the
+   * stage answers with one stroke, and no check downstream would see it. The
+   * partition check in `concert-check.ts` counts events and would still balance,
+   * because one event is still one gesture; it is the *sound* that would have
+   * three strokes in it and the picture one.
+   *
+   * The number that makes it a musical claim rather than a staging convenience is
+   * in the choreographer and was written years away from this feature:
+   * `REPEAT_SECONDS.floor` is 50 ms between two strokes of one hand, and it is
+   * that short only because the second half of a double is the stick's own
+   * rebound. `trap` and `drill` write rolls of three at 134–152 BPM, which is
+   * 33–37 ms, indefinitely, on one surface. `BURST_SECONDS` puts the sustainable
+   * rate at eight strokes a second; this asks for twenty-eight.
+   *
+   * Asserted over the adopting genre rather than the catalogue, and both halves
+   * of that matter. `rolled > 0` is the half that stops this from being a check
+   * that passes because nothing is happening — the failure §7 keeps naming, where
+   * a field is added, adopted nowhere, and every assertion about it is green.
+   */
+  let rolled = 0; let byHand = 0; let handSongs = 0;
+  for (let i = 0; i < 60; i++) {
+    for (const sid of ['trap', 'drill']) {
+      const song = generateSong({ seed: `roll-${sid}-${i}`, genre: 'hiphop', style: sid });
+      const rolls = song.drums.events.filter((e) => (e.roll ?? 1) > 1).length;
+      rolled += rolls;
+      if (isPlayedByHand(song.drums.source ?? 'kit')) {
+        handSongs++;
+        byHand += rolls;
+      }
+    }
+  }
+  check(
+    'no hand is asked to play a roll',
+    byHand === 0 && rolled > 0,
+    byHand
+      ? `${byHand} rolled strokes reached a drummer over ${handSongs} hand-played songs`
+      : `${rolled} rolled strokes over 120 trap and drill songs, 0 on the ${handSongs}`
+        + ' drawn with a person behind the kit',
   );
 }
 

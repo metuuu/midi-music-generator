@@ -593,6 +593,113 @@ export interface DrumEvent {
   /** Generic drum voice name; renderers map this to samples or GM notes. */
   voice: DrumVoice;
   velocity: number;
+  /**
+   * This stroke, sounded as `roll` even strokes filling the sixteenth it stands
+   * on. Absent means the ordinary single stroke, and so does 1.
+   *
+   * `docs/engine-gaps.md` §3.15, reported by two genres and by both of them as a
+   * *technique* rather than an ornament. hiphop filed the arithmetic — **at 140
+   * BPM a written sixteenth is 107 ms and the roll wants 36** — and dnb filed the
+   * absence: no stutter, no retrigger, no 32nd roll. A trap or drill hi-hat
+   * subdivides *inside* a stroke, and it is not decoration on the part, it is the
+   * part.
+   *
+   * ## Why a mark on the stroke, when the IR could already hold the beats
+   *
+   * `beat` is a plain float and always has been, so three onsets 36 ms apart are
+   * *expressible* here today and were expressible before this field existed. That
+   * is exactly why it took a genre author with a stopwatch to notice that nothing
+   * could **read** them. Every consumer of a drum part collapses a slot, and each
+   * one does it on purpose:
+   *
+   *  - `render/strudel.ts` places each stroke with `slotOf`, which rounds to the
+   *    nearest sixteenth, so three onsets inside one slot become three writes of
+   *    the same string into the same cell — one stroke, silently.
+   *  - `drumDynamics` in the same file says it out loud: *two strokes on one slot
+   *    sound as one stroke, and it is the harder of them that was asked for*.
+   *  - `concert/choreograph.ts` buckets on `quantise(beat)`, so the same three
+   *    onsets arrive as up to three simultaneous strokes on one drum and get
+   *    dealt to two sticks and a foot.
+   *
+   * None of that is a bug to be fixed. Two events a hair apart on one voice is a
+   * *collision*, and absorbing collisions is a service those three passes exist
+   * to provide. A roll is not a collision, and there is no float arrangement that
+   * tells the two apart — so the difference has to be **stated**, by the one
+   * object that knows which it is.
+   *
+   * That is `NoteBend`'s shape a layer down and for the same reason. A glide was
+   * not built as a second note carrying a flag; it is a field on the note saying
+   * *this note travels*, because the second note is exactly what the field
+   * absorbs. This is a field on the stroke saying *this stroke is struck more
+   * than once*, because the extra strokes are exactly what it absorbs.
+   *
+   * ## Why a count, and why the sixteenth is not a parameter
+   *
+   * The unit is the grid's own. `core/grid.ts` defines a slot and this divides
+   * it — so `roll: 3` is a triplet inside a sixteenth, `roll: 2` a pair of 32nds,
+   * `roll: 4` a run of 64ths, and a whole beat of 32nds is four rolled strokes in
+   * a row rather than one long one. The alternatives were both worse in the same
+   * direction:
+   *
+   *  - **A duration in beats** would let a roll outlive its slot and sound
+   *    underneath the stroke after it, which is two events editing one moment and
+   *    is how the double-swing bug happened. Fenced to the slot, a roll cannot
+   *    collide with anything, because the slot is precisely the space this stroke
+   *    already owned.
+   *  - **A rate in hertz** — 28 strokes a second, which is what the report's 36 ms
+   *    is — would make the gesture a property of the clock rather than of the
+   *    music, so the same table would come out as a different figure at the top
+   *    and the bottom of a style's tempo range. `NoteBend.glideTime` draws that
+   *    line in the other direction and for the same reason: a Reese across a half
+   *    note and a Reese across a quarter are the same gesture.
+   *
+   * ## Every stroke of a roll is the velocity of the stroke it subdivides
+   *
+   * No taper, no shape, no second number — and this is `DrumPattern.ghosts`'
+   * argument arriving intact rather than a simplification. Level already has
+   * three owners here, the metre through `accentOf`, the section through
+   * `intensity` and the performance through `Feel.accent`, and a fourth written
+   * anywhere near a figure would outrank all three in every song.
+   *
+   * It is also what the gesture *is*. `genre/hiphop/styles.ts` had already made
+   * the observation, about the eleven styles in that catalogue that write no
+   * ghost row: they are *"drawn into a machine a step at a time, and a step has
+   * one velocity"*. A trap roll is one step retriggered, so an even roll is not a
+   * compromise on the way to a shaped one — a shaped one would be a person
+   * pretending to be a machine, which is the sentence that table already makes.
+   *
+   * The engineering falls out of the music, which is the good kind of luck: the
+   * audition's velocity grid needed no change at all. `.gain()` takes its
+   * structure from the sound pattern, so all of a roll's strokes read the single
+   * number standing on their slot — verified against the installed `@strudel/core`
+   * rather than assumed, and see `render/strudel.ts` for the query.
+   *
+   * ## Nobody's hand ever receives one, and that is a rule rather than a gap
+   *
+   * `DrumPattern.rolls` is read only where `DrumTrack.source` is `programmed` —
+   * *a machine programmed a step at a time; no drummer, and it can play
+   * anything*, which is this file's own description of that value and is a
+   * description of a retrigger. A preset `box` is excluded on the grounds that
+   * already cost it the fill, the drum solo and the ghosts, and a `kit` or an
+   * `electronic-kit` is excluded because there are hands on it.
+   *
+   * The number that settles the hands was written for something else entirely,
+   * two subsystems away, which is the strongest form this project's arguments
+   * come in. `REPEAT_SECONDS.floor` in `concert/choreograph.ts` is **50 ms**: the
+   * physical limit between two strokes of one hand, and it is that short only
+   * because the second half of a double is the stick's own rebound. A roll of
+   * three at 140 BPM asks for 36 ms of it, from one stick, on one surface,
+   * indefinitely. `BURST_SECONDS` puts the *sustainable* rate at eight strokes a
+   * second and this is twenty-eight.
+   *
+   * So the choreographer needed no change and was not merely left alone the way
+   * the tempo ramp left it alone. A ramping song auditions flat and the stage
+   * agrees with the audition by both being wrong; here the stage and the audition
+   * agree because a rolled stroke is structurally unable to reach a staged pair
+   * of hands. `npm run genres` asserts it from the other end, so the rule cannot
+   * quietly stop holding.
+   */
+  roll?: number;
 }
 
 /**

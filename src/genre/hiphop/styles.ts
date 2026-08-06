@@ -2549,18 +2549,30 @@ const phonk: Style = {
  * are heard against the fast pulse and the snare against the slow one, and that
  * disagreement is the whole rhythmic idea.
  *
- * ## The roll that is not here, named rather than faked
+ * ## The roll, which used to be an apology here and is now a row
  *
  * The signature gesture is a hi-hat that subdivides *inside* one stroke —
- * triplets, then thirty-seconds, then back — and the engine's grid is
- * sixteenths. At 140 BPM a written sixteenth is already 107 ms and a
- * thirty-second is 54, which the grid cannot address. What is written below is
- * the nearest true thing: eighths for most of the bar and **four consecutive
- * sixteenths across the last beat**, which is the slowest member of that family
- * of rolls and is on plenty of the records. The faster ones are missing and no
- * arrangement of these tables will produce them. See the genre header, and
- * `docs/engine-gaps.md`, where the sub-bar grid is not currently an open item
- * because until now nothing wanted one.
+ * triplets, then thirty-seconds, then back — and this header carried the
+ * measurement that eventually got it built: **at 140 BPM a written sixteenth is
+ * 107 ms and the roll wants 36**. What the table could say was eighths for most
+ * of the bar and four consecutive sixteenths across the last beat, the slowest
+ * member of that family, and the paragraph that stood here said plainly that the
+ * faster ones were missing and no arrangement of these tables would produce them.
+ *
+ * `DrumPattern.rolls` produces them. The four sixteenths are still written and
+ * are still the shape of the gesture; what has changed is that the last two of
+ * them **accelerate** — slot 14 struck twice inside itself and slot 15 three
+ * times, so the last beat runs 107, 107, 54, 36 ms and arrives at the report's
+ * own number. That is a run-in rather than a burst, which is what a trap hat
+ * actually does at a barline, and it is the one place in this style where
+ * anything happens faster than an eighth.
+ *
+ * **`open-trap` refuses it**, and the refusal is the same sort as the ones
+ * `docs/engine-gaps.md` §6 keeps: that figure's identity is the open hat on the
+ * last eighth, `oneHatAtATime` deletes the closed stroke standing under it, and a
+ * roll leading into a hat that is already ringing is two ideas competing for one
+ * moment. A style that rolled all three of its figures would be the mannerism
+ * this genre's own header warns about two sections up.
  *
  * `melodyCells` lean on `[3, 3, 3, 3, 4]` — a chain of dotted eighths, the one
  * figure that produces a three-against-four feeling on a sixteenth grid. It is
@@ -2653,13 +2665,16 @@ const trap: Style = {
     ] },
   ],
   drums: [
-    /** Eighths, then four sixteenths across the last beat. The slow roll. */
+    /** Eighths, then four sixteenths across the last beat, accelerating out of it. */
     { name: 'trap-kit', weight: 6, voices: {
       bd: [0, 7, 10],
       sd: [8],
       cp: [8],
       hh: [0, 2, 4, 6, 8, 10, 12, 13, 14, 15],
-    } },
+    },
+    // 107, 107, 54, 36 ms at 140. The last two sixteenths of the bar are the
+    // run-in, and they are the whole reason this field exists.
+    rolls: { hh: { 14: 2, 15: 3 } } },
     { name: 'open-trap', weight: 5, voices: {
       bd: [0, 10],
       sd: [8],
@@ -2672,7 +2687,12 @@ const trap: Style = {
       sd: [8, 24],
       cp: [8, 24],
       hh: [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 21, 22, 23, 24, 26, 28, 29, 30, 31],
-    } },
+    },
+    // Two runs of four sixteenths in the two-bar cycle, and the second answers
+    // the first: the mid-phrase run doubles its last stroke, the phrase-end run
+    // takes the full accelerando. A loop where bar two is bigger than bar one,
+    // which is what a `cycle: 32` figure is for.
+    rolls: { hh: { 23: 2, 30: 2, 31: 3 } } },
   ],
   melody: { leap: 0.24, ornament: 0.1, span: 12, sequence: 0.86, syncopation: 0.6 },
 };
@@ -2716,6 +2736,22 @@ const trap: Style = {
  * field is a Reese, which is *entirely* movement and takes the default of 1;
  * this is a sub that arrives somewhere and stays there, and half a beat is the
  * whole of the difference.
+ *
+ * ## Two of the three hat figures roll, and the third refuses on its own terms
+ *
+ * `DrumPattern.rolls` — `docs/engine-gaps.md` §3.15, reported from next door in
+ * `trap` with the arithmetic attached. `drill-kit` takes one stutter on the last
+ * eighth and `late-snare` takes `trap`'s run-in across the four sixteenths it
+ * already writes, both at 136–148 BPM where a tripled sixteenth is 34–37 ms.
+ *
+ * **`dotted-drill` refuses**, and it is the more interesting of the two answers.
+ * That figure is sixteen hats three slots apart across a 48-slot cycle: a dotted
+ * eighth chain, three against four, coming home every three bars, and it is the
+ * one thing in this style that could not be written any other way. A retrigger
+ * inside one of its steps is a second cross-rhythm asking to be counted at the
+ * same time as the first, and the ear resolves that by hearing neither. The
+ * stutter is a gesture *against* a plain pulse; this figure has no plain pulse to
+ * be against, which is its whole point.
  */
 const drill: Style = {
   id: 'drill',
@@ -2829,13 +2865,20 @@ const drill: Style = {
       sd: [8],
       cp: [8],
       hh: [0, 2, 4, 6, 8, 10, 12, 14],
-    } },
+    },
+    // One stutter on the last eighth and nothing else — eight strokes a bar and
+    // one of them is three. The bar is otherwise plain because the dotted kick
+    // above is already saying something against it.
+    rolls: { hh: { 14: 3 } } },
     { name: 'late-snare', weight: 5, voices: {
       bd: [0, 6, 10],
       sd: [9],
       rim: [4],
       hh: [0, 2, 4, 6, 8, 10, 12, 13, 14, 15],
-    } },
+    },
+    // The same run-in `trap-kit` takes, on the same four sixteenths, at 136–148
+    // instead of 134–152. The snare has already arrived late; the hat catches up.
+    rolls: { hh: { 14: 2, 15: 3 } } },
     { name: 'dotted-drill', weight: 4, cycle: 48, voices: {
       bd: [0, 3, 6, 11, 16, 19, 22, 27, 32, 35, 38, 43],
       sd: [8, 24, 40],

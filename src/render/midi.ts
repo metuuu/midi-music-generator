@@ -228,6 +228,19 @@ export function renderMidi(song: Song): Uint8Array {
     for (const [cc, value] of controllersFor(song.drums.effects)) {
       events.push({ tick: 0, order: 0, bytes: [0xb9, cc, value] });
     }
+    /**
+     * A sixteenth, in ticks, and the number that makes `DrumEvent.roll` free
+     * here.
+     *
+     * `PPQ` is 480, so a slot is **120 ticks** and 2, 3, 4, 5, 6, 8, 10 and 12
+     * all divide it exactly. A trap triplet inside a sixteenth is 40 ticks, a
+     * pair of 32nds is 60, a run of 64ths is 30 — integers, every one, with no
+     * rounding and therefore no drift across a four-minute number. This is the
+     * rare case where the shipping file is the *more* faithful of the two
+     * renderers by construction rather than by effort: `beatsToTicks` rounds, and
+     * on these divisions it has nothing to round.
+     */
+    const ROLL_SLOT_TICKS = PPQ / 4;
     for (const e of song.drums.events) {
       const on = beatsToTicks(e.beat);
       const key = GM_DRUM_MAP[e.voice];
@@ -236,8 +249,41 @@ export function renderMidi(song: Song): Uint8Array {
       // it here too is what stops the audition and the shipping file
       // disagreeing about how loud the hats are.
       const vel = clamp7(Math.round(e.velocity * (song.drums.voiceGains[e.voice] ?? 1) * 110) + 10);
-      events.push({ tick: on, order: 1, bytes: [0x99, key, vel] });
-      events.push({ tick: on + PPQ / 8, order: 0, bytes: [0x89, key, 0x40] });
+      /**
+       * The retrigger, and the one thing about it that is not free.
+       *
+       * The gate has always been a flat `PPQ / 8` — a 32nd, long enough to be a
+       * note and short enough never to matter, because on channel 10 a key is a
+       * one-shot and most devices ignore the off entirely. It matters the moment
+       * one key is struck twice inside that window: a roll of three puts the
+       * second stroke 40 ticks in and the first stroke's off at 60, so a reader
+       * that honours note-offs receives on/on/off/off/on and kills the middle
+       * stroke of the roll. Not a wrong sound — a **missing** one, in the file
+       * this feature exists to make correct, and invisible to anything that
+       * counts note-ons.
+       *
+       * So the gate is the spacing where the spacing is shorter, and the ordering
+       * does the rest: `buildTrack` sorts an off before an on at the same tick, so
+       * consecutive strokes hand the key over cleanly instead of overlapping by
+       * one tick. At `roll: 1` this is `Math.min(60, 120)` and the file is
+       * byte-identical to what it always was.
+       *
+       * Every stroke carries the same velocity, for the reason `DrumEvent.roll`
+       * gives at length and the audition arrives at from the other end: a step
+       * drawn into a machine has one level, and a taper written here would be a
+       * fourth opinion about loudness in an engine that already has three.
+       */
+      const strokes = Math.max(1, Math.round(e.roll ?? 1));
+      const step = ROLL_SLOT_TICKS / strokes;
+      // Rounded, because a tick is an integer and the delta encoding has no
+      // fractions in it. `Math.min(60, 120)` on an unrolled stroke is already
+      // one, so no existing file moves a byte.
+      const gate = Math.max(1, Math.round(Math.min(PPQ / 8, step)));
+      for (let k = 0; k < strokes; k++) {
+        const at = on + Math.round(k * step);
+        events.push({ tick: at, order: 1, bytes: [0x99, key, vel] });
+        events.push({ tick: at + gate, order: 0, bytes: [0x89, key, 0x40] });
+      }
     }
     tracks.push(buildTrack(events));
   }
