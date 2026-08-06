@@ -350,12 +350,29 @@ const jackin: Style = {
  * difference being that berlin's sequencer is playing a harmony and this is
  * playing one note repeatedly.
  *
- * **§3.16 bites hardest here.** A 303 line *slides* — the slide switch is one of
- * the five controls on the machine and half of what makes the sound is a note
- * bending into the next one — and `BassHit` is `at`, `dur`, `tone`. Every figure
- * below writes two struck notes where the record has one that moves. Hip-hop
- * found the same wall on the drill 808 and the g-funk bass, which by this
- * document's own standard makes three independent finders.
+ * **§3.16 was reported from here, and the figures below now write it.** A 303
+ * line *slides* — the slide switch is one of the five controls on the machine
+ * and half of what makes the sound is a note bending into the next one — and
+ * for as long as `BassHit` was `at`, `dur` and `tone`, every figure here spelled
+ * that as two struck notes where the record has one that moves. `BassHit.glide`
+ * is the field those five reports got built, two of them from this style and
+ * `speedgarage`, and adopting it is a *deletion*: three pairs across these
+ * tables are one note now, struck at the first pitch and arriving at the second
+ * without a second attack. The attack is the half of it the old spelling got
+ * most wrong. A slid step on a 303 holds its gate open so the following step
+ * never retriggers the envelope, which is why two sixteenths and one slid
+ * sixteenth are different sounds rather than the same sound at two spellings.
+ *
+ * **What is still not the machine is where the movement sits**, and it is worth
+ * saying plainly rather than letting the adoption imply otherwise. The 303
+ * slides at the *step boundary*: the source pitch holds for its whole step and
+ * the travel happens on the way in to the next one. `NoteBend` argues that shape
+ * at length and refuses it — superdough's pitch envelope has no delay stage, so
+ * a bend at the far end of a note would audition in the wrong place instead of
+ * merely auditioning flat — so the travel here starts at the onset and the
+ * destination is reached early. What survives is the chirp and the single
+ * articulation; what is spent is most of the source step. `glideTime` below is
+ * where that trade is priced.
  */
 const acid: Style = {
   id: 'acid',
@@ -431,27 +448,73 @@ const acid: Style = {
      * figure that renegotiated with each chord would be a different figure. The
      * span is a twelfth, which is the ceiling §1.3 records — a thirteenth folds
      * flat at some root positions and three genres have found it independently.
+     *
+     * **Two of the sixteen steps slide**, which is about the density the machine
+     * is actually played at: the slide is a per-step switch, and a line with it
+     * on everywhere has no attacks left in it and stops being sixteenth notes.
+     * The octave chirping down to the ♭7 at step 10 and the ♭3 falling into the
+     * root across the bar line at 14 are the two moves the record is made of,
+     * and each is one note now where it was two.
+     *
+     * **`glideTime: 0.25` is measured rather than picked.** The 303's slide is a
+     * fixed RC time of about **60 ms** and does not scale with the tempo — which
+     * is exactly why a fast acid line sounds smeared and a slow one sounds
+     * stepped — and at this style's 120–132 BPM a sixteenth is 114–125 ms, so a
+     * slid pair is 227–250 ms and a quarter of it is 57–63 ms. That is the
+     * machine's number to within the width of the tempo range. It is also the
+     * one place in this file working *against* the reason `BassHit.glideTime` is
+     * a fraction: the fraction exists so a gesture scales with the note, and a
+     * 303 chases an absolute, so this number is right at the two-step length
+     * these figures use and would want recomputing on a longer one.
+     *
+     * The span is still a twelfth. Both destinations are pitches this figure
+     * already struck somewhere else, so the reduce in `generateBass` that folds
+     * a glide into the shape finds nothing new to fold — which is the general
+     * case rather than luck, because a destination arrived at by deleting a
+     * struck note was, by construction, already in the span.
      */
     { name: '303-sixteenths', weight: 7, hits: [
       { at: 0, dur: 1, tone: 0, vel: 1 }, { at: 1, dur: 1, tone: 0, vel: 0.6 },
       { at: 2, dur: 1, tone: 12, vel: 0.86 }, { at: 3, dur: 1, tone: 0, vel: 0.62 },
       { at: 4, dur: 1, tone: 0, vel: 0.9 }, { at: 6, dur: 1, tone: 10, vel: 0.8 },
       { at: 7, dur: 1, tone: 0, vel: 0.6 }, { at: 8, dur: 1, tone: 0, vel: 0.94 },
-      { at: 10, dur: 1, tone: 12, vel: 0.84 }, { at: 11, dur: 1, tone: 10, vel: 0.66 },
-      { at: 12, dur: 1, tone: 0, vel: 0.88 }, { at: 14, dur: 1, tone: 3, vel: 0.76 },
-      { at: 15, dur: 1, tone: 0, vel: 0.62 },
+      { at: 10, dur: 2, tone: 12, vel: 0.84, glide: 10, glideTime: 0.25 },
+      { at: 12, dur: 1, tone: 0, vel: 0.88 },
+      { at: 14, dur: 2, tone: 3, vel: 0.76, glide: 0, glideTime: 0.25 },
     ] },
+    /**
+     * **No slide in this one, and the refusal is the useful half of the pair.**
+     * Its only two steps that touch are the root at 6 and the ♭7 at 8, and the
+     * root is held for two of them: absorbed, the travel would start at the
+     * onset and the note would spend a sixteenth of its length on the root and
+     * the rest on the arrival, which deletes the held pitch rather than the
+     * restrike. A slide on the machine is a *step-to-step* switch, so the source
+     * of one is a step long by definition, and that is the shape the two figures
+     * around this one adopt. This one is written in held steps and does not have
+     * it. The gap between the two spellings is the whole of why the field is
+     * per-hit and not per-pattern.
+     */
     { name: '303-sparse', weight: 5, hits: [
       { at: 0, dur: 2, tone: 0, vel: 1 }, { at: 3, dur: 1, tone: 12, vel: 0.8 },
       { at: 6, dur: 2, tone: 0, vel: 0.84 }, { at: 8, dur: 1, tone: 10, vel: 0.86 },
       { at: 10, dur: 1, tone: 0, vel: 0.7 }, { at: 12, dur: 2, tone: 0, vel: 0.9 },
       { at: 15, dur: 1, tone: 12, vel: 0.72 },
     ] },
-    /** Fifteen steps against a sixteen-step bar. It arrives a sixteenth earlier
-     *  every bar and comes home after sixteen of them — see `Cycle`. */
+    /**
+     * Fifteen steps against a sixteen-step bar. It arrives a sixteenth earlier
+     * every bar and comes home after sixteen of them — see `Cycle`.
+     *
+     * One slide, at step 2, the root up into the ♭7. Its velocity is the
+     * *arrival's* — 0.82 rather than the 0.66 the root was struck at — because
+     * the pair's accent was on the second step and the second step no longer has
+     * an attack to carry it. There is one envelope now and the accent goes on
+     * it; a slid note quieter than the plain sixteenth before it would read as a
+     * mistake rather than as a machine.
+     */
     { name: 'fifteen-step', weight: 4, cycle: 15, hits: [
-      { at: 0, dur: 1, tone: 0, vel: 1 }, { at: 2, dur: 1, tone: 0, vel: 0.66 },
-      { at: 3, dur: 1, tone: 10, vel: 0.82 }, { at: 5, dur: 1, tone: 0, vel: 0.7 },
+      { at: 0, dur: 1, tone: 0, vel: 1 },
+      { at: 2, dur: 2, tone: 0, vel: 0.82, glide: 10, glideTime: 0.25 },
+      { at: 5, dur: 1, tone: 0, vel: 0.7 },
       { at: 7, dur: 1, tone: 12, vel: 0.86 }, { at: 9, dur: 1, tone: 0, vel: 0.68 },
       { at: 11, dur: 1, tone: 3, vel: 0.8 }, { at: 13, dur: 1, tone: 0, vel: 0.72 },
     ] },
@@ -1307,9 +1370,21 @@ const frenchtouch: Style = {
  * The bass tables are where the whole style is and they are written with numeric
  * `BassTone`, because the figure is a shape rather than an outline: a slide from
  * the root down to the fifth below is the gesture, and re-rooting it per chord
- * would produce a different figure every bar. §3.16 is the ceiling again — the
- * wobble is a *filter* moving under a held note and the nearest thing available
- * is a re-articulation, which is audibly not it.
+ * would produce a different figure every bar.
+ *
+ * **That slide is written now.** This style is one of the five reports behind
+ * `BassHit.glide` — with `acid` two doors up — and `wobble` below takes it: the
+ * drop to the fifth below and the lift to the ♭3 are one note each, struck once
+ * and arriving without a second attack, where the table used to strike both ends
+ * of the movement and hope.
+ *
+ * **What that leaves is a different gap wearing the same complaint's clothes.**
+ * The wobble *proper* is a filter moving under one held pitch, and a pitch that
+ * travels is not a cutoff that does: it is §3.5 — `Genre.filter` moves per
+ * section and this wants it per note — not §3.16, which is closed here. One
+ * sentence in this header used to carry both, which is how a fixed gap can go on
+ * sounding broken: the half that closed had been filed under the half that did
+ * not.
  */
 const speedgarage: Style = {
   id: 'speedgarage',
@@ -1356,15 +1431,47 @@ const speedgarage: Style = {
   ],
   bass: [
     /**
-     * The wobble. Written as a held root re-struck at the octave below and back,
-     * which is the closest a struck-note bass table gets to a filter moving under
-     * one sustained pitch. Numeric tones, because it is a shape.
+     * The wobble. Numeric tones, because it is a shape.
+     *
+     * **Two of its four movements are one note each now.** The root at 4 used to
+     * be answered by a −5 struck at 6, and the root at 12 by a ♭3 struck at 14;
+     * both are a single note that travels. `glideTime: 0.5` is the arithmetic of
+     * that sentence rather than a taste — half of a four-sixteenth note is two
+     * sixteenths, so the destination arrives on exactly the slot the deleted
+     * onset stood on and holds for the rest of the note. **The contour the table
+     * drew is unchanged to the sixteenth; the only thing gone is the second
+     * attack**, which is what a sub in this idiom does and what the two-struck-
+     * note spelling could not say. It is a slower number than `acid`'s 0.25 for
+     * a reason that is about the two records rather than about the field: a 303
+     * slide is an articulation and is over before it is heard as movement, and
+     * this is movement — the whole point of the sub is the ear following it down.
+     *
+     * **The two dips at 3 and 11 stay struck, and that is a refusal worth
+     * recording.** Their shape is a root held for three sixteenths that *then*
+     * drops, so the movement is at the far end of the note — the one placement
+     * `NoteBend` argues about and rejects, because superdough's pitch envelope
+     * has no delay stage. Adopted anyway, the bar would lose its root outright: a
+     * glide starts at the onset, so a note travelling down from slot 0 never sits
+     * on the root, and the root of the bar is what a sub is *for*. Same answer in
+     * `sub-and-skank`, whose one touching pair would put the arrival on beat 3
+     * under the kick, where this bass is anchoring rather than travelling.
+     *
+     * **One thing the glide made visible rather than caused**, worth recording
+     * where the next reader of this table will be standing: `swing: 0.14` pushes
+     * the dips at 3 and 11 late enough to overrun the note behind them, and
+     * `render/midi.ts` marks any file where a bending note overlaps another,
+     * because a pitch bend addresses the channel and would drag the overrun with
+     * it. Measured over 60 songs, this style's bass carried **75 overlapping
+     * pairs before the glide and 79 after** — the collision is the feel pass and
+     * is as old as the table; what changed is that one of the two notes now
+     * travels, so the .mid says so out loud instead of the overlap passing
+     * unremarked. The audition is unaffected: a pitch envelope is per event.
      */
     { name: 'wobble', weight: 7, hits: [
       { at: 0, dur: 3, tone: 0, vel: 1 }, { at: 3, dur: 1, tone: -5, vel: 0.7 },
-      { at: 4, dur: 2, tone: 0, vel: 0.84 }, { at: 6, dur: 2, tone: -5, vel: 0.72 },
+      { at: 4, dur: 4, tone: 0, vel: 0.84, glide: -5, glideTime: 0.5 },
       { at: 8, dur: 3, tone: 0, vel: 0.96 }, { at: 11, dur: 1, tone: -5, vel: 0.7 },
-      { at: 12, dur: 2, tone: 0, vel: 0.86 }, { at: 14, dur: 2, tone: 3, vel: 0.76 },
+      { at: 12, dur: 4, tone: 0, vel: 0.86, glide: 3, glideTime: 0.5 },
     ] },
     { name: 'sub-and-skank', weight: 5, hits: [
       { at: 0, dur: 4, tone: 0, vel: 1 }, { at: 6, dur: 2, tone: 0, vel: 0.76 },

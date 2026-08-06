@@ -744,6 +744,32 @@ const ayyub: Style = {
   relativeMajorChorus: 0,
   excludeLayers: ['brass'],
   hook: 'earworm',
+  /**
+   * The second refusal, and it is the same refusal `hook: 'earworm'` above
+   * already makes with a different field.
+   *
+   * A zar is played for hours without changing. The header three lines up says
+   * repetition here is the form rather than a setting applied to it, and the
+   * verse table says eight bars of one chord and means it. A `shot` and a
+   * `break` are both, definitionally, *something happening* — the one kind of
+   * event this style exists to not contain — and the genre's palette was putting
+   * them in at a rate the ceremony would not recognise: 181 shots and 81 breaks
+   * over 200 songs, 166 and 97 of which edited the bar.
+   *
+   * The break is the one that gives the game away, because the cycle is what it
+   * deletes. Measured against the same seeds with the palette off: the drums in
+   * a break bar fall from 4.99 strokes to 1.67 and the comp from 2.39 to 0.24,
+   * so the doum-tek-doum that the trance is made of stops dead for a bar and
+   * comes back. Somebody dancing to it would have to start again. The shot is
+   * milder and wrong in the same direction — 6.27 strokes down to 2.99, the
+   * cycle swapped for a figure.
+   *
+   * This is the refusal `docs/engine-gaps.md` §7 records against hiphop's
+   * `bounce`, arrived at independently: a style whose whole thesis is one figure
+   * repeated without a single change cannot adopt a mechanism whose entire
+   * content is a change. It is feasible, it was measured, and it is declined.
+   */
+  transitions: [['fill', 1]],
   progressions: {
     intro: [{ chords: ['i', 'i', 'i', 'i'], weight: 5 }],
     verse: [
@@ -1348,6 +1374,31 @@ const zaffa: Style = {
   swing: 0,
   modeWeights: { minor: 0.22, major: 0.78 },
   relativeMajorChorus: 0,
+  /**
+   * The shot stays and the break goes, and the reason is the one thing this
+   * style has that no other style here has: it is moving.
+   *
+   * A zaffa is played walking, in front of a couple, down a street or across a
+   * ballroom, and the header above says so as the first fact about it. Stop-time
+   * is the band stopping dead for a bar. A procession that stops dead for a bar
+   * is a procession that has stopped, and the forty people behind it walk into
+   * each other — the gesture does not fail musically so much as fail to be
+   * available. Measured over 200 seeds with the genre palette: 87 break bars,
+   * all of them edited, the tabl and the riq going from 12.75 strokes to 2.39
+   * and the comp from 6.33 to 0.03. That is the street going quiet, and the one
+   * number here that cannot afford it.
+   *
+   * **The shot is the opposite case and is weighted up rather than merely kept.**
+   * This is the only style in the genre with `brass` in it — the mizmar carries
+   * the tune and whatever trumpets the family could afford double it — and a
+   * band figure landed together is exactly what that ensemble does at a corner
+   * or a doorway. The brass is what proves it: over the same 160 shot bars the
+   * brass goes from 0.41 onsets to 1.34, more than trebling, because a shot is
+   * the one edit in this file that puts the horns on the same sixteenth as
+   * everybody else. The drums drop from 13.94 to 7.36 in the same bar, which is
+   * a tabl playing a figure instead of a groove and not a tabl going away.
+   */
+  transitions: [['fill', 7], ['shot', 4]],
   progressions: {
     intro: [{ chords: ['i', 'i', 'i', 'i'], weight: 4 }],
     verse: [
@@ -1477,6 +1528,32 @@ const dabke: Style = {
   modeWeights: { minor: 0.58, major: 0.42 },
   relativeMajorChorus: 0,
   excludeLayers: ['pad'],
+  /**
+   * The one style here that wants **more** stop-time than the genre gives it,
+   * and it wants it for a reason already written four lines above this.
+   *
+   * The header says the bass is the loudest instrument in the room, because from
+   * 1975 onward the dabke people actually danced to came out of a keyboard with
+   * a very large left hand. `BREAK_CARRIER` is the bass. So a break in a dabke
+   * is not a hole the arrangement has to survive, it is the two seconds where
+   * the loudest thing in the room is the only thing in the room — and a line of
+   * dancers holding shoulders, waiting to stamp, is the most attentive audience
+   * a stop-time bar can have.
+   *
+   * The edit does what the sentence says. Over 200 seeds, 98 break bars, all
+   * edited: the drums fall from 10.51 strokes to 2.03 and the comp from 4.79 to
+   * 0.09, while **the bass does not move at all — 3.94 onsets either way**. That
+   * last number is the whole argument. Everywhere else in this genre a break is
+   * a subtraction; here it is a subtraction that leaves the part the style is
+   * named for standing alone at its normal weight.
+   *
+   * `break` at 4 against the genre's 2, and `shot` kept at 3 rather than raised,
+   * because the leader signalling a change and forty people landing on it
+   * together is real and is the *less* characteristic of the two — a dabke line
+   * knows the tune, so the gesture that tells them something is the one that
+   * takes the ground away rather than the one that hits it.
+   */
+  transitions: [['fill', 6], ['break', 4], ['shot', 3]],
   progressions: {
     intro: [{ chords: ['i', 'i', 'iv', 'i'], weight: 4 }],
     verse: [
@@ -1745,6 +1822,44 @@ const samai: Style = {
   relativeMajorChorus: 0,
   excludeLayers: ['brass'],
   counterSpacing: 1,
+  /**
+   * A khana boundary is not a section join, it is a **qafla**, and the shot is
+   * the only kind in the vocabulary that is one.
+   *
+   * The header above says a sama'i is four khanat separated by a returning
+   * taslim, and that the form tables fit it without modification because a
+   * taslim is a chorus by another name. What the form tables cannot say is how
+   * the taslim is *arrived at*: the ensemble plays a cadential figure together,
+   * lands it, and the refrain starts. That is `shot`'s definition — replace what
+   * every layer holds in the last bar with a shared figure — and it is a rare
+   * case of a transition kind matching a named object in the repertoire rather
+   * than approximating one.
+   *
+   * It works, measured, and the number that shows it is the comp. Over 200 seeds
+   * and 69 shot bars, the comp drops from 12.07 onsets to 7.84 while the melody
+   * rises from 1.39 to 1.62, the pad from 0.30 to 1.07 and the bass from 2.10 to
+   * 2.81: the qanun stops tremoloing and everybody else arrives, which is four
+   * layers converging on one rhythm and is what a qafla sounds like from the
+   * inside. `shot` leads the table rather than merely appearing in it — this is
+   * the only style in the genre that weights it above `fill` — and it needs to,
+   * because a sama'i has the fewest seams of anything here at 5.6 per song
+   * against a longa's 12.6, so a gesture at the genre's 3-in-12 reaches roughly
+   * one khana in four.
+   *
+   * **The break comes out, and that is the refusal rather than the adoption.**
+   * `index.ts` argues for stop-time on the grounds that it is the most reliable
+   * way this repertoire gets a room to shout — the drum stopping dead while the
+   * singer holds a note over nothing. That is a tarab device and it belongs to a
+   * singer and an answering audience. A sama'i is the classical instrumental
+   * form on the bill, at 50–72 BPM, and its own blurb in `staging.ts` is *ten of
+   * them, count if you like, nobody else is*: it is the number the room listens
+   * to rather than shouts at. The 22 break bars in 200 seeds bear the mismatch
+   * out — the comp falls from 11.18 onsets to nothing and the drums from 10.32
+   * to 0.18, leaving the bass alone at 2.05 in a form whose whole interest is
+   * the line, since the note on its verse table says it has no words to carry
+   * any.
+   */
+  transitions: [['shot', 5], ['fill', 4]],
   progressions: {
     intro: [{ chords: ['i', 'i', 'iv', 'i'], weight: 4 }],
     verse: [
@@ -2621,6 +2736,38 @@ const taqsim: Style = {
   strictness: 'free',
   hook: 'through',
   counterSpacing: 2,
+  /**
+   * No seam gesture of any kind, which is the one style here where that is a
+   * statement about the *form* rather than a taste about the band.
+   *
+   * `[['fill', 1]]` is `DEFAULT_TRANSITIONS` written out — see `Style.transitions`,
+   * whose note argues at length that the two ways of saying it are the same
+   * music and different claims. This one is the claim, and there is a second
+   * joke in it: `excludeLayers: ['drums']` and `drumFills: false` mean a `fill`
+   * is already nothing here, so what this table actually says is *nothing
+   * happens at a join in a taqsim*, and it says it in the only vocabulary the
+   * field has.
+   *
+   * **What it is taking away is real, and it was the genre's default doing it.**
+   * Under `index.ts`'s palette, measured over 200 seeds: 74 shot seams and 22
+   * breaks, 43 and 18 of which actually edited the bar they landed on. A shot
+   * replaces what every layer holds in the last bar with a shared figure on the
+   * sixteenth grid, and the effect on a taqsim's seam bar is exactly what that
+   * sentence predicts — the comp goes from 1.05 onsets to 1.76 and the melody
+   * from 1.26 down to 0.95, the improviser's free phrase traded for the band
+   * landing together. This style's own header says there is no drum, no pulse
+   * and no fixed length; a struck ensemble figure is all three arriving at once.
+   *
+   * The break is worse and quieter. It deletes every layer but the carrier, the
+   * carrier here is `BREAK_CARRIER`'s bass, and this style's bass is a drone
+   * that sustains rather than restrikes — so a break bar comes out with the
+   * melody gone from 1.63 onsets to nothing, the comp gone from 0.75 to nothing,
+   * and *no attack at all* in the bar. `a break leaves someone playing` passes
+   * it, correctly, because the drone is sounding through. But the thing that
+   * stopped is the improvisation, and stopping the improvisation at a section
+   * boundary is a decision the improviser makes and the form is named after.
+   */
+  transitions: [['fill', 1]],
   /**
    * The wider table. Minor is Nawa Athar throughout — it is the display maqam,
    * the one a qanun player reaches for when asked to prove something — and major

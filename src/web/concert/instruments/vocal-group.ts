@@ -26,9 +26,17 @@
  *
  * `singer.ts` builds a ball-grille dynamic on a boom clip: a 1960s object, and
  * the right one for the act it stages. This archetype is reached from
- * `EARLY_ARCHETYPE_OF`, which fires only **before 1963** — a country string band
+ * `EARLY_ARCHETYPE_OF`, which fires only **before 1970** — a country string band
  * in 1932, a gospel quartet, a doo-wop group, the years in which a written choir
- * is people because no keyboard could make the sound yet. Staging those four
+ * is people because no keyboard could make the sound yet.
+ *
+ * That year was written here as 1963 and was wrong, which is worth a line because
+ * of *how* it was wrong: 1963 is `SYNTH_RIGS.polysynth.from`, and
+ * `EARLY_ARCHETYPE_OF`'s own doc argues at length that the two numbers must not be
+ * conflated — the first synthesiser existing is a different fact from a choir
+ * patch being the ordinary way to get that sound. The gap between them is not
+ * academic: country's nashville era is 1968, it stages the Jordanaires on 43 % of
+ * its pads, and a reader of this paragraph would have concluded it could not. Staging those four
  * people at four modern vocal mics would put the anachronism back one object
  * along from where it was just taken out, which is the least useful possible
  * outcome of a fix. What a group sang into in those decades is a ribbon: a flat

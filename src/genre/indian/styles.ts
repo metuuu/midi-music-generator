@@ -90,15 +90,24 @@
  *    worse, for the reason `playBreak` gives: a line that has finished its
  *    phrase is precisely what is not there at a seam.
  *
- *    Stated on all twenty-eight rather than on the five that draw seam gestures,
+ *    Stated on all twenty-eight rather than on the ones that draw seam gestures,
  *    and the field is free either way — it is read, never drawn, so a style that
- *    names one takes no number out of any stream. The five with palettes need it
- *    today. The other twenty-three have no palette because `applyShot` writes a
- *    kick and a crash they do not own (see `index.ts`), and on the day that is
- *    fixed and a dhrupad may mark its own seams, the answer to *who is left
- *    holding the bar* will not have changed: `requireLayers: ['pad']` is on
- *    every entry here, so the box is always sounding and is always the answer.
- *    A field that has to be remembered later is a field that will be forgotten.
+ *    names one takes no number out of any stream. **That bet has now paid**:
+ *    when the shot stopped naming a kit the palette went from five styles to
+ *    seventeen, and not one of the twelve that took one needed a line adding
+ *    here, because the answer to *who is left holding the bar* never depended on
+ *    which styles were asking. `requireLayers: ['pad']` is on every entry, so
+ *    the box is always sounding and is always the answer — measured again over
+ *    the whole catalogue with every palette forced, **0 empty break bars out of
+ *    1 912**. A field that has to be remembered later is a field that will be
+ *    forgotten.
+ *  - **Seventeen of the twenty-eight draw a seam gesture, and eleven refuse.**
+ *    The gesture is the *tihai*, and it is a `shot`: see the long note on
+ *    `transitions` in `index.ts` for what the mechanism writes today, which is
+ *    doum strokes on the vibhāg heads and nothing else, and for how the eleven
+ *    were sorted out from the seventeen. Each refusal states its own reason at
+ *    its own entry, because they are eleven different reasons and none of them
+ *    is about the engine any more.
  */
 
 import type { Pc } from '../../core/pitch.js';
@@ -934,6 +943,12 @@ const alap: Style = {
   excludeLayers: ['drums', 'brass', 'comp'],
   requireLayers: ['pad'],
   breakCarrier: 'pad',
+  // No transition palette, and the reason is the first line of the entry above:
+  // there is no tāla. A tihai is an arithmetic gesture against a cycle, and this
+  // form has no cycle, no drum and no sam to land on. Nor is the refusal a
+  // formality — the band half of `playShot` hits the pitched layers whether or
+  // not a drum answers it, and forcing a palette on here moved the tracks in 14
+  // of 40 songs. Something would happen, and it would be wrong.
   // Two beats between answering notes. The counter here is the sārangī shadowing
   // the soloist a moment behind, and at the default eighth it would be a duet.
   counterSpacing: 2,
@@ -971,6 +986,9 @@ const jor: Style = {
   excludeLayers: ['drums', 'brass'],
   requireLayers: ['pad'],
   breakCarrier: 'pad',
+  // No palette. There is a beat here and still nothing to land *on*: the pulse
+  // is the soloist's own and nobody else is counting it, where an ensemble
+  // arrival needs a cycle everybody shares. Forced on, it moved 28 of 40 songs.
   counterSpacing: 1,
   scaleForChord: raga(BHAIRAV, BHAIRAVI),
   progressions: held('Isus4'),
@@ -1004,6 +1022,17 @@ const jhala: Style = {
   excludeLayers: ['brass'],
   requireLayers: ['pad'],
   breakCarrier: 'pad',
+  /**
+   * The jhālā is the one Hindustani form whose whole shape is an approach to a
+   * finish, so a gesture at the seam is not an ornament on the structure, it is
+   * the structure arriving. Teentāl's four vibhāgs come out of `shotFigures` as
+   * `[0,8,16,24]` — a stroke at the head of each, into sam.
+   *
+   * Plain, and right at this speed. At 138–178 a denser figure is a blur, which
+   * is the same argument the five-note rāga pairing above is making about the
+   * melody: what this style needs is fewer things, further apart.
+   */
+  transitions: [['shot', 5], ['fill', 3], ['break', 2]],
   scaleForChord: raga(BHOOPALI, DHANI),
   progressions: held('I'),
   minorProgressions: held('i'),
@@ -1038,6 +1067,14 @@ const dhrupad: Style = {
   excludeLayers: ['brass', 'comp'],
   requireLayers: ['pad'],
   breakCarrier: 'pad',
+  // No palette, and the only refusal left in this genre that is about the engine
+  // rather than about the music. Ektāl's twelve mātrās group in sixes, so
+  // `shotFigures` returns six evenly spaced slots — `[0,4,8,12,16,20]` — and
+  // `bandHeads` in the same file defines a shot as two to four onsets, on the
+  // grounds that more than that is the band playing rather than the band hitting
+  // something. Six across a chautāl is the pakhāwaj marking the vibhāgs it was
+  // already marking. A `shots` table would fix it; see `transitions` in
+  // `index.ts` for why an invented one would be worse than none.
   counterSpacing: 1,
   scaleForChord: raga(BHAIRAV, BHAIRAVI),
   progressions: held('Isus4'),
@@ -1073,6 +1110,11 @@ const vilambit: Style = {
   excludeLayers: ['brass'],
   requireLayers: ['pad'],
   breakCarrier: 'pad',
+  // No palette, for dhrupad's ektāl reason and for one this style owns outright:
+  // at 40–56 a bar is seven to nine seconds long, so a one-bar figure is not a
+  // gesture at a seam, it is a passage. The whole interest of a vilambit khyāl
+  // is what happens between two adjacent swaras, and nothing at a join should be
+  // large enough to compete with that.
   counterSpacing: 1,
   scaleForChord: raga(BILAWAL, KAFI),
   progressions: held('Isus4'),
@@ -1107,6 +1149,17 @@ const bandish: Style = {
   excludeLayers: ['brass'],
   requireLayers: ['pad'],
   breakCarrier: 'pad',
+  /**
+   * The mukhḍā is aimed at sam and so is this. `quoteMotto` at 0.7 and
+   * `liftIntoReturn` at 0.55 in the solo profile are the melodic half of that
+   * gesture; the shot is the percussive half, and teentāl's `[0,8,16,24]` puts a
+   * stroke on the head of each vibhāg of the cycle the phrase is landing out of.
+   *
+   * **`break` is level with `fill` here**, one below the shot, where the film
+   * styles put it two below. A khyāl singer leaving the cycle for a taan while
+   * the tabla waits is not a production effect, it is what the form is for.
+   */
+  transitions: [['shot', 4], ['fill', 3], ['break', 3]],
   scaleForChord: raga(KHAMAJ, ASAVARI),
   melody: { leap: 0.15, ornament: 0.42, span: 16, sequence: 0.55, syncopation: 0.35 },
   progressions: held('Isus4'),
@@ -1142,6 +1195,18 @@ const gat: Style = {
   excludeLayers: ['brass'],
   requireLayers: ['pad'],
   breakCarrier: 'pad',
+  /**
+   * The strongest case in the genre, and the figure is the argument.
+   *
+   * Rupak's seven groups 3+2+2, so `shotFigures` returns `[0,6,10]` — **three**
+   * onsets, which is a tihai spelled rather than approximated, and the last of
+   * them lands on the sam this tāla leaves empty. A chakradār tihai is what a
+   * sitārist plays to finish a gat, and this is the one entry in the file where
+   * the mechanism's free figure and the idiom's own cadence are the same three
+   * strokes. Nothing was authored to make that true; it falls out of the
+   * grouping, which is what the fallback in `shotFigures` is for.
+   */
+  transitions: [['shot', 5], ['fill', 3], ['break', 2]],
   scaleForChord: raga(CHARUKESI, KIRWANI),
   progressions: held('Isus4'),
   melody: { leap: 0.16, ornament: 0.4, span: 17, sequence: 0.55, syncopation: 0.4 },
@@ -1177,6 +1242,18 @@ const tarana: Style = {
   excludeLayers: ['brass'],
   requireLayers: ['pad'],
   breakCarrier: 'pad',
+  /**
+   * A tarānā is already the voice playing percussion, so the whole ensemble
+   * landing a figure together is not an intrusion on the singer — it *is* the
+   * singer, saying the same syllables as the drum at the same instant, which is
+   * the entry's whole thesis.
+   *
+   * Jhaptāl's ten mātrās group 2+3+2+3 and `shotFigures` returns `[0,4,10,14]`:
+   * asymmetric in exactly the way the cycle is, and a figure no generic table
+   * could have found, because there is no formula that recovers 2+3+2+3 from the
+   * number twenty.
+   */
+  transitions: [['shot', 5], ['fill', 3], ['break', 2]],
   scaleForChord: raga(BHOOPALI, DHANI),
   progressions: held('I'),
   minorProgressions: held('i'),
@@ -1213,6 +1290,11 @@ const thumri: Style = {
   excludeLayers: ['brass'],
   requireLayers: ['pad'],
   breakCarrier: 'pad',
+  // No palette. A thumrī's proposition is that the structure is soft — the
+  // singer leans out of the rāga mid-phrase and comes back — and the arrivals
+  // that matter are inside the line rather than at the joins between sections.
+  // The ensemble landing a figure at a seam would announce a boundary this form
+  // spends all its energy blurring, which is a worse fault than an unmarked one.
   counterSpacing: 1,
   scaleForChord: raga(KHAMAJ, KAFI),
   progressions: held('Isus4'),
@@ -1247,6 +1329,12 @@ const ghazal: Style = {
   excludeLayers: ['brass'],
   requireLayers: ['pad'],
   breakCarrier: 'pad',
+  // No palette. The arrival in a ghazal is the radīf coming round again, and it
+  // belongs to the singer alone — the couplet is the unit and its ending is a
+  // *word*. A tabla and a harmonium landing a figure underneath it would be the
+  // accompaniment claiming the one moment the audience came for. This is the
+  // style where `hook: 'catchy'` and a refusal sit together without conflict:
+  // the thing being delivered again is a line of text, not a lick.
   counterSpacing: 1,
   scaleForChord: raga(YAMAN, KIRWANI),
   progressions: held('Isus2'),
@@ -1277,6 +1365,13 @@ const bhajan: Style = {
   excludeLayers: ['brass'],
   requireLayers: ['pad'],
   breakCarrier: 'pad',
+  // No palette, and this is the clearest musical refusal in the file. A tihai is
+  // arithmetic performed at an audience; a bhajan is built so that a room which
+  // has not rehearsed can sing it back. The style's own numbers make the same
+  // argument from the melodic side — the smallest span in the genre, the highest
+  // sequence, and the only `earworm` here — and a calculated cadence landed by
+  // the ensemble would be the one thing in the piece nobody in the room could
+  // join in with.
   scaleForChord: raga(BILAWAL, BHAIRAVI),
   progressions: held('Isus4'),
   melody: { leap: 0.1, ornament: 0.3, span: 11, sequence: 0.7, syncopation: 0.25 },
@@ -1312,6 +1407,21 @@ const qawwali: Style = {
   excludeLayers: ['brass'],
   requireLayers: ['pad'],
   breakCarrier: 'pad',
+  /**
+   * The back row is a section of this ensemble and its entire job is to arrive
+   * together — see `qawwali-clap` in `KEHERWA` above, which puts `cp` on mātrās
+   * 3 and 7 and nowhere else. A gesture that means *everybody hits this at once*
+   * is the one seam gesture this form was always going to want.
+   *
+   * Keherwā gives `[0,8]`: two onsets, the floor a figure can be. That is enough
+   * here for a reason peculiar to the style — the weight is carried by ten men
+   * landing on it rather than by how much is stacked in front of it.
+   *
+   * `break` up level with `fill`, for the same reason it is in the khyāl: the
+   * party dropping to one voice while a lead singer takes a line alone is a set
+   * piece, not a thinning.
+   */
+  transitions: [['shot', 4], ['fill', 3], ['break', 3]],
   scaleForChord: raga(BHAIRAV, BHAIRAVI),
   progressions: held('Isus4'),
   melody: { leap: 0.16, ornament: 0.35, span: 16, sequence: 0.6, syncopation: 0.35 },
@@ -1344,6 +1454,10 @@ const dhun: Style = {
   excludeLayers: ['brass'],
   requireLayers: ['pad'],
   breakCarrier: 'pad',
+  // No palette. The dhun is the item played *after* the display: the rāga rules
+  // relax, the tune came in from a boat song, and everybody in the hall lets go.
+  // Landing a calculated figure on sam is precisely the thing this piece is a
+  // rest from — and it would be the only calculated thing in it.
   counterSpacing: 1,
   scaleForChord: raga(BHOOPALI, DHANI),
   progressions: held('I'),
@@ -1384,6 +1498,11 @@ const alapana: Style = {
   excludeLayers: ['drums', 'brass'],
   requireLayers: ['pad'],
   breakCarrier: 'pad',
+  // No palette, for the ālāp's reason and one of its own. Unmetred, so there is
+  // nothing to land on; and this form is a *conversation* — the violin answers
+  // each phrase — where a moment everybody hits at once is the wrong shape
+  // entirely. The two traditions refuse this for the same reason and it is worth
+  // both entries saying so, because they arrive at it separately.
   counterSpacing: 1,
   scaleForChord: raga(CHARUKESI, SIMHENDRA),
   progressions: held('Isus2'),
@@ -1414,6 +1533,9 @@ const tanam: Style = {
   excludeLayers: ['drums', 'brass'],
   requireLayers: ['pad'],
   breakCarrier: 'pad',
+  // No palette. A pulse without a cycle — see `jor`, which refuses on the same
+  // grounds from the other tradition, and note that both of them have a beat.
+  // A shared beat is not a shared cycle, and only the second one has a sam in it.
   counterSpacing: 1,
   scaleForChord: raga(BILAWAL, GAURIMANOHARI),
   progressions: held('Isus4'),
@@ -1444,6 +1566,16 @@ const varnam: Style = {
   excludeLayers: ['brass'],
   requireLayers: ['pad'],
   breakCarrier: 'pad',
+  /**
+   * Ādi tāla's eight aksharas group 4+2+2 — laghu, drutam, drutam — so
+   * `shotFigures` returns `[0,8,12]`: three onsets on the aṅga heads, which is a
+   * **muktāyi**, the three-fold cadence a Carnatic item closes a section with.
+   * The varṇam is where a student learns to place one.
+   *
+   * And this is the densest writing in the repertoire by design, so a seam that
+   * passed unmarked would be the only quiet thing in the piece.
+   */
+  transitions: [['shot', 5], ['fill', 3], ['break', 2]],
   scaleForChord: raga(BILAWAL, KAFI),
   progressions: held('Isus4'),
   melody: { leap: 0.16, ornament: 0.35, span: 17, sequence: 0.65, syncopation: 0.3 },
@@ -1477,6 +1609,17 @@ const kriti: Style = {
   excludeLayers: ['brass'],
   requireLayers: ['pad'],
   breakCarrier: 'pad',
+  /**
+   * Three strains with improvisation hung off each of them, which means every
+   * one of those joins is a place a mridangam plays a korvai. Ādi's `[0,8,12]`
+   * is that figure's three statements — see `varnam`, which gets the identical
+   * figure and wants it for the opposite reason.
+   *
+   * `break` level with `fill`, as in the khyāl: the accompanist waiting out a
+   * phrase that has left the cycle is the form working rather than the
+   * arrangement thinning.
+   */
+  transitions: [['shot', 4], ['fill', 3], ['break', 3]],
   scaleForChord: raga(YAMAN, KIRWANI),
   progressions: held('Isus2'),
   melody: { leap: 0.13, ornament: 0.45, span: 16, sequence: 0.6, syncopation: 0.32 },
@@ -1508,6 +1651,18 @@ const tillana: Style = {
   excludeLayers: ['brass'],
   requireLayers: ['pad'],
   breakCarrier: 'pad',
+  /**
+   * The closing item of a recital, with the dancer playing the rhythm as well,
+   * so an arrival here is made by feet, drum and voice at once — which is the
+   * definition of the one kind in this project that means *everybody hits this*.
+   *
+   * Misra chāpu counts 3+2+2 and `shotFigures` returns `[0,6,10]`: a korvai as
+   * written. The entry above says a grouping is not a metre and rupak proves it;
+   * this is the other half of the same demonstration. The two tālas have
+   * identical `groups`, so they get the identical figure, and it is a different
+   * gesture in each — because what the last stroke lands on is different.
+   */
+  transitions: [['shot', 5], ['fill', 3], ['break', 2]],
   scaleForChord: raga(BHAIRAV, BHAIRAVI),
   progressions: held('Isus4'),
   melody: { leap: 0.18, ornament: 0.32, span: 18, sequence: 0.6, syncopation: 0.4 },
@@ -1538,6 +1693,11 @@ const padam: Style = {
   excludeLayers: ['brass'],
   requireLayers: ['pad'],
   breakCarrier: 'pad',
+  // No palette. In a padam the drummer's job is to stay out of the dancer's way:
+  // one line of text over several minutes, and every arrival that matters is an
+  // expression rather than a stroke. Khaṇḍa chāpu would hand over `[0,4]` and the
+  // arithmetic is perfectly available — it is the form declining it, not the
+  // metre, which is the distinction this whole sort was made to draw.
   counterSpacing: 1,
   scaleForChord: raga(KHAMAJ, BHAIRAVI),
   progressions: held('Isus4'),
@@ -1573,6 +1733,18 @@ const svara: Style = {
   excludeLayers: ['brass'],
   requireLayers: ['pad'],
   breakCarrier: 'pad',
+  /**
+   * The form is an agreement to land on a nominated akshara and the drummer is
+   * listening for exactly that, which makes this the one style in the genre
+   * where the shot is not an ornament on the seam — it is the thing being
+   * demonstrated.
+   *
+   * Khaṇḍa chāpu's five gives `[0,4]`, the barest figure anywhere in this file:
+   * two strokes. That is right rather than a shortfall. Five does not divide, so
+   * the whole interest of the gesture is in *where* the arrival is, and stacking
+   * onsets in front of it would be answering a question nobody asked.
+   */
+  transitions: [['shot', 5], ['fill', 3], ['break', 2]],
   scaleForChord: raga(KHAMAJ, ASAVARI),
   progressions: held('Isus4'),
   melody: { leap: 0.2, ornament: 0.3, span: 19, sequence: 0.45, syncopation: 0.42 },
@@ -1621,19 +1793,25 @@ const filmi: Style = {
    */
   counterSpacing: 1,
   /**
-   * One of the five styles in the genre that declares a transition palette, and
-   * the reason is stated at length in `index.ts`: `applyShot` writes its figure
-   * as a kick, a snare and a crash, and this is one of the few rooms here that
-   * has all three in it. A film session had a dholak player and a session
-   * drummer sitting next to each other, so a tihai landed by the kit is what
-   * these records actually do.
+   * The first style in the genre to declare a palette, and this note used to
+   * give a reason that was wrong in both halves: that `applyShot` wrote a kick,
+   * a snare and a crash, and that this was one of the few rooms with all three
+   * in it. The delivery is fixed — see `transitions` in `index.ts` — and the
+   * second half was never true anyway. This table is `lp mp hp cp`. There has
+   * never been a kick, a snare or a crash in it, which is precisely why the old
+   * delivery was writing three instruments nobody in the room was holding.
    *
-   * **`break` is back**, on all five, at a weight below the tihai's. It was
-   * dropped when the carrier was searched for from the finished tune and is
-   * safe now that the style names it — see `index.ts`, and `breakCarrier` above
-   * for who is left holding the bar. Below the shot because a film arranger's
-   * commonest seam gesture is the whole orchestra landing a figure together,
-   * and the drum stopping dead for a cycle is the one they save.
+   * **The claim that survives is the musical one.** A film session had a dholak
+   * player and a session drummer sitting next to each other and the whole
+   * orchestra landing a figure together is what these records do at a seam. What
+   * has changed is who delivers it: the dholak, in doum strokes, because that is
+   * what the table says is present.
+   *
+   * **`break` sits below the shot** because a film arranger's commonest seam
+   * gesture is the tutti figure and the drum stopping dead for a cycle is the
+   * one they save. The classical entries above invert that reasoning and raise
+   * it — a khyāl singer leaving the cycle is not a saved effect — which is the
+   * clearest single difference between the two halves of this file.
    */
   transitions: [['shot', 4], ['fill', 3], ['break', 2]],
   scaleForChord: raga(BILAWAL, KIRWANI),
@@ -1754,11 +1932,27 @@ const mujra: Style = {
   modeWeights: { minor: 0.5, major: 0.5 },
   relativeMajorChorus: 0,
   hook: 'catchy',
-  // No fills and no transition palette, alone among the film styles. The
-  // percussion in this scene is a tabla, and every gesture the engine would
-  // reach for at a seam — a tom roll, a crash, a kick-and-snare shot — is on an
-  // instrument the scene does not contain.
+  // No fills, alone among the film styles, and that half of the old refusal
+  // stands on a better footing than it did. It used to say a fill was a tom roll
+  // on an instrument the scene does not contain; a fill on a hand table is hand
+  // strokes now. It stays because of the music: the percussion in this scene is
+  // a tabla, and a tabla player does not thin the theka approaching a join. See
+  // `drumFills` in `index.ts`.
   drumFills: false,
+  /**
+   * A palette, where this entry used to refuse one because the seam gestures
+   * were "a tom roll, a crash, a kick-and-snare shot — on an instrument the
+   * scene does not contain". Two of those three are gone and the third was never
+   * the whole sentence: a shot on this table is doum strokes and a break is
+   * silence, and neither reaches for anything that is not in the room.
+   *
+   * **And it is the film style that wants one most**, because it is the one with
+   * its classical half intact. Teentāl, a tabla, and a dancer whose feet land on
+   * sam — `[0,8,16,24]` is what all three of them are counting, and the string
+   * section arriving on it with them is the tension this entry is named for
+   * rather than a resolution of it.
+   */
+  transitions: [['shot', 4], ['fill', 3], ['break', 3]],
   excludeLayers: ['brass'],
   requireLayers: ['pad'],
   breakCarrier: 'pad',
@@ -1921,6 +2115,19 @@ const jugalbandi: Style = {
   excludeLayers: ['brass'],
   requireLayers: ['pad', 'counter'],
   breakCarrier: 'pad',
+  /**
+   * Two players from rival schools ending an exchange by landing the same tihai
+   * together is the single most characteristic thing this form does, and `shot`
+   * is the only kind in the project that means *everybody hits this at once*.
+   * `trade` in `generate/chart.ts` is building the exchange; this is what the
+   * exchange is built towards, and without it the shortening runs out rather
+   * than arrives.
+   *
+   * Jhaptāl's `[0,4,10,14]`, the same asymmetric figure the tarānā gets — which
+   * is the point of the pairing: ten mātrās is where the arithmetic of an
+   * exchange is hardest, and the figure the metre hands over is itself uneven.
+   */
+  transitions: [['shot', 5], ['fill', 3], ['break', 2]],
   scaleForChord: raga(CHARUKESI, SIMHENDRA),
   progressions: held('Isus2'),
   melody: { leap: 0.22, ornament: 0.32, span: 20, sequence: 0.5, syncopation: 0.45 },
@@ -1955,6 +2162,21 @@ const santoor: Style = {
   excludeLayers: ['brass'],
   requireLayers: ['pad'],
   breakCarrier: 'pad',
+  /**
+   * Ādi's `[0,8,12]` again, at the lower shot weight rather than the varṇam's,
+   * because this entry's thesis is the room around the notes and a style that
+   * marked every seam it was allowed to would be arguing with itself.
+   *
+   * It earns the gesture on the instrument's own terms. A santoor cannot bend a
+   * note and cannot hold one — that is the constraint the whole entry is built
+   * around — but it can strike several at an agreed instant, so the ensemble
+   * arrival is the one gesture the limitation makes *easier* rather than harder.
+   *
+   * `break` level with `fill` for the same reason: a hundred strings decaying
+   * into an empty cycle is the most characteristic sound this instrument makes,
+   * and it is the only place in the file where a break is chosen for its decay.
+   */
+  transitions: [['shot', 4], ['fill', 3], ['break', 3]],
   counterSpacing: 1,
   scaleForChord: raga(BILAWAL, GAURIMANOHARI),
   progressions: held('Isus4'),

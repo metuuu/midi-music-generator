@@ -446,6 +446,7 @@ export const STAGING: Staging = {
    * directions away from it rather than the thing itself.
    */
   defaultEra: 'soul',
+  blurbs: BLURBS,
   /**
    * A shade under the dance band, and above the jazz quintet.
    *

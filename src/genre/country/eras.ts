@@ -144,33 +144,51 @@ const stringband: EraProfile = {
       ['piano', 2], ['dulcimer', 1],
     ],
     /**
-     * The pad is people, and the stage cannot see that.
+     * The pad is people, and the stage can see that now.
      *
      * There is no sustaining instrument in a string band — a banjo note is gone in
      * half a second and a plucked guitar in one — so the only thing capable of
      * holding a chord under the tune is the other three members of the quartet
-     * singing it. `choirAahs` and `voiceOohs` led this table because they are not
-     * a substitution for anything; they are the object. That argument is right
-     * about the music and it is why they are named here at all.
+     * singing it. `choirAahs` and `voiceOohs` lead this table because they are not
+     * a substitution for anything; they are the object. That has been the right
+     * thing to say about this music since the table was first written.
      *
-     * **What it could not know is what happens to them on the boards.**
-     * `concert/instruments.ts` stages every choir patch as a synthesiser, and it
-     * is right to in the eras it was written for: a choir under a hand in 1985 is
-     * a keyboard, and the catalogue has no archetype for four people round one
-     * microphone. So nine draws in thirteen put a keyboard player behind a rig
-     * that would not be built for thirty years, in the one era on this list whose
-     * own description ends "nobody plugs in". `rigPoolFor` had nothing honest to
-     * hand them and said so; this is the half of that failure that belongs here.
+     * **For a while it was the wrong thing to write down.** `concert/instruments.ts`
+     * stages every choir patch as a synthesiser, and it is right to in the eras it
+     * was written for: a choir under a hand in 1985 is a keyboard. With no other
+     * answer in the catalogue, nine draws in thirteen put a keyboard player behind
+     * a rig that would not be built for thirty years, in the one era on this list
+     * whose own description ends "nobody plugs in". The two entries came out and
+     * `reedOrgan` took the weight.
      *
-     * The pump organ leads instead. It was already third on this list, it is the
-     * only thing a 1932 band could have carried in that holds a note, and a
-     * parlour organ in a string band is a photograph rather than a compromise —
-     * the fiddles doubling long underneath it are the rest of the sustain. What
-     * is genuinely lost is the vocal quartet, and it stays lost until there is an
-     * object to stage it as.
+     * **There is an object now and this is it.** `EARLY_ARCHETYPE_OF` maps all
+     * three choir patches to `vocal-group`, and `archetypeForTrack` reads that
+     * table for any year under `CHOIRS_GET_A_KEYBOARD`, which is 1970 — this era
+     * is 1932 and clears it by thirty-eight years. What gets built is
+     * `web/concert/instruments/vocal-group.ts`: three or four people at one ribbon
+     * hung in a chrome yoke, set once at the group's height rather than at
+     * anybody's own, standing back off it because a group blended by the room does
+     * not have its lips on the grille. That is this era's own first sentence with
+     * bodies in it.
+     *
+     * Measured over 400 numbers, of which 211 have a pad at all: the quartet takes
+     * 52% of those and stages 399 singers — 69 numbers as a foursome, 41 as a trio
+     * — and not one of the draws reached a synthesiser.
+     *
+     * **The pump organ keeps a quarter of the table on its own merits**, which is
+     * not deference to the fix that installed it. A parlour organ in a string band
+     * is a photograph rather than a compromise: it is the one thing a 1932 band
+     * could have carried in that holds a note, and the gospel numbers this era
+     * weights at 7 were sung round one in somebody's front room. What gives the
+     * weight back instead is `strings1` and `tremoloStrings`, which were the
+     * emergency sustain and were never as close to this band as the organ — a
+     * sixteen-piece bowed section is a long reach from four people and a fiddle.
+     * They stay at 2 and 1 as what they honestly are, the second fiddle doubling
+     * long underneath, which is a real sound and a small one.
      */
     pad: [
-      ['reedOrgan', 6], ['strings1', 3], ['tremoloStrings', 2], ['dulcimer', 1],
+      ['choirAahs', 6], ['voiceOohs', 4], ['reedOrgan', 5], ['strings1', 2],
+      ['tremoloStrings', 1], ['dulcimer', 1],
     ],
     bass: [['acousticBass', 8], ['steelGuitar', 2]],
     /**
@@ -266,14 +284,35 @@ const honkytonk: EraProfile = {
       ['steelGuitar', 6], ['cleanGuitar', 4], ['piano', 4], ['mutedGuitar', 3],
       ['nylonGuitar', 2], ['accordion', 2], ['banjo', 2],
     ],
-    // The Jordanaires are the missing entry here, and they are missing for the
-    // reason set out under `stringband`: a choir patch is staged as a keyboard
-    // and 1955 is eight years before the earliest object in `SYNTH_RIGS`. The
-    // Hammond takes the weight, which is the other thing a honky-tonk band
-    // sustains with and the one that was actually plugged in by this era.
+    /**
+     * The Jordanaires are back, and this is precisely the table they left.
+     *
+     * They came out for the reason set out at length under `stringband`: a choir
+     * patch was staged as a keyboard, and 1955 is eight years before the earliest
+     * object in `SYNTH_RIGS`. While that was true `strings1` and the Hammond took
+     * a borrowed point each and the third simply left. It is not true any more —
+     * `EARLY_ARCHETYPE_OF` stages all three choir patches as a `vocal-group` below
+     * 1970 and this era clears that by fifteen years — so `choirAahs` comes back
+     * at 3 and the two borrowed points go home. Nothing about the *music* had
+     * changed in between, which is why the right move here is a restoration rather
+     * than a fresh opinion.
+     *
+     * **`choirAahs` alone, and no `voiceOohs`**, which is the one thing this
+     * differs from `nashville` in. The group behind a honky-tonk side is a close
+     * stack of aahs under the last line of a chorus; the ooh is an arranger's
+     * colour and the arranger does not arrive until Chet Atkins in 1962. One entry
+     * is also the honest weight for a decade the group owns only the back half of
+     * — they were behind Eddy Arnold from 1949 and behind everybody by 1957 — and
+     * it leaves the era's own two sustains in front of it, which is right: what
+     * holds a chord in a bar in 1955 is a steel guitar leaning on one, and a
+     * Hammond, and both of those were plugged in.
+     *
+     * Measured over 400 numbers, 340 with a pad: the quartet takes 26% of those
+     * and stages 323 singers, none of whom came out as a keyboard player.
+     */
     pad: [
-      ['strings1', 4], ['guitarHarmonics', 3], ['drawbarOrgan', 3],
-      ['reedOrgan', 2],
+      ['strings1', 3], ['guitarHarmonics', 3], ['choirAahs', 3],
+      ['drawbarOrgan', 2], ['reedOrgan', 2],
     ],
     bass: [['acousticBass', 7], ['slapBass2', 3], ['pickBass', 2], ['fingerBass', 1]],
     brass: [

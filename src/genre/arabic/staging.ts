@@ -36,23 +36,62 @@ import type { Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
  * it, so it lives on the room. `riser` is the other, and it is there for a
  * mechanical reason rather than a scenic one: `cast.ts` stands a *kit* drummer
  * 0.4 m up whether or not the room has a platform, so a `riser` drawn from
- * `maybe` would leave one floating half the time. Every era here has a drummer —
- * `drumSources` says so four times over — and every number in this genre that
- * stages a percussionist at all stages a kit: `index.ts` declares a genre-wide
- * transition palette, and `applyShot` writes its figure as `bd`, `sd` and a `cr`
- * on the landing, so `drumStations` finds kit voices in a taqsim as readily as
- * in a shaabi number. So the platform is always, and `showRiser` takes it away
- * in the numbers whose drums are a machine.
+ * `maybe` would leave one floating in every number that drafted a kit and lost
+ * the coin toss. That argument is about the *draw* being independent of the
+ * cast, and nothing has happened to it.
+ *
+ * **What used to be written underneath it has gone, and it was the half doing
+ * the arguing.** This note said the platform was up in every number because
+ * every number staged a kit: that `index.ts` declares a genre-wide transition
+ * palette, and `applyShot` wrote its figure as `bd`, `sd` and a `cr` on the
+ * landing, so `drumStations` found kit voices in a taqsim as readily as in a
+ * shaabi number. That was true when it was written. It is not true now —
+ * `applyShot` and the whole fill vocabulary read a `SeamOrchestration` off the
+ * events through the same `drumStations` split casting uses, six of the seven
+ * fill shapes generalise, and the seventh, `cymbal`, is re-aimed onto `lead-in`
+ * rather than mimed on a skin, because a skin does not ring. See
+ * `docs/engine-gaps.md` §2.1 and §6.
+ *
+ * So the frequency claim is now false by a wide margin, and the measurement is
+ * worth keeping because it is a better description of this band than the
+ * sentence it replaces. **Two of the twenty-one styles own a kit voice at all**,
+ * and in both it is a single `bd`: `saidi`'s tabl and `zaffa`'s, which that
+ * table is at pains to say is a shoulder-slung drum beaten with a stick by a
+ * different person walking. Over 1260 songs — every style at sixty seeds — 119
+ * come out with a kit in them and **every one of the 119 is a saidi or a
+ * zaffa**; the eighteen hand tables in between wrote 0 kit strokes and 0 stray
+ * `oh` between them, and `taqsim` writes no drums at all. Cast, and asked who is
+ * standing 0.4 m up: **52 numbers out of 840**, 26 of 40 in each of those two
+ * styles, the fourteen missing from each being the ones whose drums are a
+ * machine.
+ *
+ * The platform therefore stays on the room and stands empty in fifteen numbers
+ * out of sixteen, which is not a waste but the thing `showRiser` exists to do —
+ * it raises the dais when somebody is on it and takes it away when nobody is,
+ * per number, so the cost of declaring it always is one prop that is usually
+ * hidden and never one that is usually wrong.
  *
  * **The darbuka player is not on it**, and this note used to imply otherwise by
  * calling them "the percussion". `handdrum` declares `lap`, this genre is in
  * `FLOOR_SEATED`, and `postureFor` seats them on the carpet at riser 0, off to
- * one side. Nearly every number here has both — a kit up on the platform and a
- * pair of hands down on the floor, which is what a firqa was and, more
- * arguably, what a 1930s takht was not. Whether a trap kit belongs in a takht
- * at all is that palette's question rather than this prop's; see the note on
- * `transitions` in `indian/index.ts`, which refuses the genre-wide draw for
- * exactly this reason.
+ * one side. What used to follow — *nearly every number here has both* — went
+ * with the paragraph above it. The ordinary number in this genre is a pair of
+ * hands on a carpet and nobody on the platform at all; a kit beside them is
+ * `saidi` and `zaffa` and nothing else. That is a better picture of a takht than
+ * the one this file used to draw, and it arrived by the engine being fixed
+ * rather than by anybody restaging the room.
+ *
+ * The old note sent the reader to `transitions` in `indian/index.ts` for the
+ * question of whether a trap kit belongs in a takht at all, and that
+ * cross-reference has stopped carrying weight from both ends. This genre does
+ * not refuse the genre-wide draw and has not since the hook bug was fixed —
+ * `index.ts` declares `[['fill', 7], ['shot', 3], ['break', 2]]` — and the
+ * refusal it pointed at was made on the grounds that the delivery would name
+ * three instruments the music does not have, which is precisely what §2.1
+ * closed. The question the sentence was really asking is answered in this folder
+ * now: five styles in `styles.ts` state their own seam vocabulary, and the two
+ * that refuse every gesture refuse it for reasons about the *form* rather than
+ * about which drum would be delivering it.
  *
  * 11 by 7 metres, which is generous for a takht and necessary for a firqa. The
  * boards have to hold the largest band the genre can produce rather than the
@@ -386,6 +425,7 @@ export const STAGING: Staging = {
    * is of, and the other three eras are things that happened to it.
    */
   defaultEra: 'takht',
+  blurbs: BLURBS,
   /**
    * Between jazz and iskelmä, and the number is a compromise between two true
    * things. The rhythms are dance rhythms and half the styles here exist to

@@ -118,7 +118,7 @@
  *    barline sounds like it was typed in — which is exactly what a chopped
  *    sample never is.
  *
- * ## The two ceilings that shaped these tables, named rather than hidden
+ * ## The two ceilings that shaped these tables, one of which has come down
  *
  * **Nothing subdivides below a sixteenth** — `docs/engine-gaps.md` §3.15, found
  * first by hiphop and hit far harder here. At 174 BPM a written sixteenth is
@@ -128,13 +128,22 @@
  * roll into a drop, the stuttered snare, the reverse cymbal cut into four — all
  * absent, and no arrangement of these tables produces one.
  *
- * **A bass note cannot slide** — §3.16, and this genre is the strongest evidence
- * yet for it. A Reese *is* a slide: two detuned saws beating against each other
- * while the pitch moves under a filter, and the movement is the sound. A wobble
- * is the same statement with an LFO instead of a hand. Both are written below as
- * struck notes a semitone or a minor third apart, which is the right *contour*
- * arrived at by the wrong mechanism, and `techstep`, `neurofunk` and `jumpup`
- * each say so in their own header.
+ * **A bass note can slide, and this genre's three reports are what built the
+ * field** — §3.16, now `BassHit.glide`. A Reese *is* a slide: two detuned saws
+ * beating against each other while the pitch moves under a filter, and the
+ * movement is the sound. A wobble is the same statement with an LFO instead of a
+ * hand. Both were written below as struck notes a semitone or a fifth apart —
+ * the right *contour* arrived at by the wrong mechanism — and `techstep`,
+ * `neurofunk` and `jumpup` now write notes that travel instead. **Forty-three
+ * written bass onsets across the three styles became thirty-eight, and sixteen
+ * of the thirty-eight move.** None of them writes a `glideTime`: the default is
+ * the whole note, which is the one thing every author here agrees a Reese wants.
+ *
+ * Two things about it are still out of reach and both are recorded where they
+ * bite rather than here. A glide cannot *begin late*, so a note that holds and
+ * then lifts costs two notes — see `techstep`'s `held-reese`. And a glide is one
+ * leg, so a contour that turns costs one re-gate at the turning point, which is
+ * the trade `techstep`'s `reese` takes and `neurofunk`'s `talking` refuses.
  */
 
 import { makeScale } from '../../core/scale.js';
@@ -1444,15 +1453,17 @@ const drumfunk: Style = {
  * what a film composer does with a low string cluster, on equipment that could
  * only make one note at a time.
  *
- * ## What the Reese is, and what the table can say about it
+ * ## What the Reese is, and what the table says about it now
  *
  * Two detuned sawtooths beating against each other while the pitch moves under a
- * filter. **The movement is the sound**, and `BassHit` is `at`, `dur`, `tone` —
- * `docs/engine-gaps.md` §3.16. What is written below is the right *contour*
- * arrived at by the wrong mechanism: struck notes a semitone or a minor third
- * apart, where the record has one note that travels between them. `neurofunk`
- * and `jumpup` say the same thing about the same field, which makes this genre
- * three independent reports on one gap.
+ * filter. **The movement is the sound** — and the table says so, because this
+ * style is one of the five reports that got `BassHit.glide` built and is now one
+ * of the styles spending it. What stood below was the right *contour* arrived at
+ * by the wrong mechanism: struck notes a semitone or a minor third apart, the
+ * record's one travelling note sampled at the points where it changed direction.
+ * The sampled points are gone. `neurofunk` and `jumpup` reported the same thing
+ * about the same field and adopted in the same pass, which is the whole of this
+ * genre's §3.16 evidence spent rather than restated.
  *
  * `drops: breakdown`. Everything leaves, a filtered pad holds eight bars, and
  * the whole record arrives at once — which is what the second drop of one of
@@ -1512,27 +1523,79 @@ const techstep: Style = {
   ],
   bass: [
     /**
-     * The Reese as struck notes. The record has one note travelling from the
-     * tonic to the ♭2 and back under a filter; this is that contour sampled at
-     * three points, which is the nearest thing `BassHit` can hold.
+     * The Reese, and the first row in this genre whose pitch moves without being
+     * struck again.
+     *
+     * What stood here until `BassHit.glide` existed was the record's contour
+     * *sampled*: six struck notes across two bars stating tonic, ♭2, tonic,
+     * tonic, ♭3, ♭2 — the right sequence of pitches played by the wrong
+     * instrument. A Reese is two detuned sawtooths whose pitch is a function of
+     * time, and re-articulating is the one thing it never does.
+     *
+     * **Adopting the field deleted two of the six**, and the four that remain
+     * are each a *leg*: struck at one pitch, arriving at the next, with the note
+     * that used to state the arrival now written as a destination rather than a
+     * hit. Read the four as pitch alone and the two bars are unbroken — 0 → ♭2
+     * across beats one and two, ♭2 → 0 across three and four, 0 → ♭3 through the
+     * first half of bar two and ♭3 → ♭2 through the second — because each row
+     * starts on the pitch its predecessor reached. The only place the pitch
+     * jumps is the loop back to the downbeat. Four amplitude re-gates on one
+     * continuous contour is what a Reese under a gate is; six struck pitches was
+     * a synthesiser playing a tune.
+     *
+     * That is the answer to the three-point contour this row used to apologise
+     * for. `glide` holds one leg, a three-point arc is two legs, and spending
+     * two notes on it costs exactly one re-gate at the turning point — which is
+     * not a re-articulation *of the pitch*, because the second note begins where
+     * the first one arrived. Collapsing to a single leg was the alternative and
+     * it throws the return away.
+     *
+     * **No `glideTime` anywhere in this genre**, which is the default and is the
+     * argument for having the field default that way. `BassHit.glideTime` quotes
+     * this style — "the movement is the sound" — and a Reese that arrives early
+     * and waits is a note with a smear on the front. hiphop's `drill` is the
+     * other case and writes a number.
      */
     { name: 'reese', weight: 7, cycle: 32, hits: [
-      { at: 0, dur: 8, tone: 0, vel: 1 },
-      { at: 8, dur: 4, tone: 1, vel: 0.84 },
-      { at: 12, dur: 4, tone: 0, vel: 0.88 },
-      { at: 16, dur: 8, tone: 0, vel: 0.94 },
-      { at: 24, dur: 4, tone: 3, vel: 0.82 },
-      { at: 28, dur: 4, tone: 1, vel: 0.8 },
+      { at: 0, dur: 8, tone: 0, glide: 1, vel: 1 },
+      { at: 8, dur: 8, tone: 1, glide: 0, vel: 0.84 },
+      { at: 16, dur: 8, tone: 0, glide: 3, vel: 0.94 },
+      { at: 24, dur: 8, tone: 3, glide: 1, vel: 0.82 },
     ] },
+    /**
+     * The same object with a leap in it, which is why one note here stays
+     * struck.
+     *
+     * The arc is two legs as above — out to the ♭2 and back across the first
+     * three beats, the second leg arriving on the tonic exactly where the third
+     * note begins. Then the figure jumps to the ♭7, ten semitones in one step,
+     * and that note is *articulated somewhere else*: a leap does not become a
+     * slide by being written with a `glide`, and ten semitones travelled across
+     * a quarter of a bar is a dive-bomb, which is a different record. The table
+     * can tell the two gestures apart now, so this row says which of them it is
+     * playing and where it changes its mind.
+     */
     { name: 'stepped-reese', weight: 5, hits: [
-      { at: 0, dur: 6, tone: 0, vel: 1 },
-      { at: 6, dur: 2, tone: 1, vel: 0.76 },
-      { at: 8, dur: 4, tone: 0, vel: 0.9 },
+      { at: 0, dur: 6, tone: 0, glide: 1, vel: 1 },
+      { at: 6, dur: 6, tone: 1, glide: 0, vel: 0.76 },
       { at: 12, dur: 4, tone: 10, vel: 0.78 },
     ] },
+    /**
+     * Hold, then move — the one shape in this style that a single note cannot
+     * say, and the two notes are how it is said anyway.
+     *
+     * `NoteBend` forces the travel to begin at the onset, because superdough's
+     * pitch envelope has no delay stage and a bend written late would audition
+     * in the wrong place rather than merely audition flat. So no one note sits
+     * on the tonic for three beats and lifts through the fourth. Two do: the
+     * first is the pedal and carries no bend at all, the second is the leg. Both
+     * onsets are where they were before this row changed and the second is still
+     * struck on the tonic, so the rhythm is untouched; what changed is that the
+     * ♭2 is no longer hit, it is arrived at, over the last four sixteenths.
+     */
     { name: 'held-reese', weight: 4, hits: [
       { at: 0, dur: 12, tone: 0, vel: 1 },
-      { at: 12, dur: 4, tone: 1, vel: 0.72 },
+      { at: 12, dur: 4, tone: 0, glide: 1, vel: 0.72 },
     ] },
   ],
   comp: [
@@ -1639,29 +1702,70 @@ const neurofunk: Style = {
   ],
   bass: [
     /**
-     * The talking bass. Six onsets in two bars, all of them inside a minor
-     * third, because what changes between them is the filter and the formant and
-     * not the pitch — which is the half of this object the tables can hold.
+     * The talking bass, and the row that shows adopting `BassHit.glide` is not
+     * always a deletion.
+     *
+     * Seven onsets in two bars, all of them inside a minor third, because what
+     * changes between them is the filter and the formant rather than the pitch.
+     * That was written when the tables could hold only half of this object, and
+     * the half they can hold now is the half this row wanted least. **The rests
+     * here are a gate, not a sampling artefact.** `techstep`'s Reese collapses
+     * six struck notes into four because its notes are contiguous and the
+     * strikes were the compromise; every stroke here is fenced by a silence
+     * somebody switched on, so merging two of them into one travelling note
+     * would delete the thing the style is made of. The onset count and every
+     * `at` below are exactly what they were.
+     *
+     * So the field is spent *inside* strokes instead, on three of the seven: the
+     * ♭3 on beat three of bar one smears down to the root, the ♭2 on the
+     * and-of-two of bar two does the same, and the six-sixteenth tail from the
+     * and-of-three climbs a minor third into the loop, which is the rising
+     * inflection that makes this patch read as speech. Each of the first two
+     * leaves the next stroke re-gating on the pitch that arrived rather than
+     * jumping to it, so the pitch is continuous across four of the six joins
+     * where it used to be continuous across two.
      */
     { name: 'talking', weight: 7, cycle: 32, hits: [
       { at: 0, dur: 3, tone: 0, vel: 1 },
       { at: 4, dur: 2, tone: 0, vel: 0.8 },
-      { at: 8, dur: 3, tone: 3, vel: 0.9 },
+      { at: 8, dur: 3, tone: 3, glide: 0, vel: 0.9 },
       { at: 14, dur: 2, tone: 0, vel: 0.76 },
       { at: 16, dur: 4, tone: 0, vel: 0.96 },
-      { at: 22, dur: 2, tone: 1, vel: 0.78 },
-      { at: 26, dur: 6, tone: 0, vel: 0.84 },
+      { at: 22, dur: 2, tone: 1, glide: 0, vel: 0.78 },
+      { at: 26, dur: 6, tone: 0, glide: 3, vel: 0.84 },
     ] },
+    /**
+     * The same patch with the gate opening off the beat, and a hold and a leg on
+     * beat one: the first stroke sits on the root for three sixteenths, the
+     * second leaves on the last sixteenth of the beat and climbs a minor third,
+     * and the stroke on the and-of-two re-gates at the top of that climb and
+     * falls back. Five contiguous sixteenths, one rise and fall, two gate
+     * openings — and the root on the and-of-three re-gates the pitch the fall
+     * arrived at instead of jumping to it. The ♭7 at the end is a leap and stays
+     * struck, for the reason `techstep`'s `stepped-reese` gives.
+     */
     { name: 'syncopated-patch', weight: 5, hits: [
       { at: 0, dur: 3, tone: 0, vel: 1 },
-      { at: 3, dur: 3, tone: 0, vel: 0.72 },
-      { at: 6, dur: 2, tone: 3, vel: 0.84 },
+      { at: 3, dur: 3, tone: 0, glide: 3, vel: 0.72 },
+      { at: 6, dur: 2, tone: 3, glide: 0, vel: 0.84 },
       { at: 10, dur: 2, tone: 0, vel: 0.78 },
       { at: 14, dur: 2, tone: 10, vel: 0.74 },
     ] },
+    /**
+     * Two long strokes and nothing else, which was two statements of the root
+     * and is now one arc: up a minor third across the first half of the bar,
+     * back down across the second, with the gate shut for the two sixteenths in
+     * between and the descent starting on the pitch the ascent reached.
+     *
+     * Nothing is deleted here, because there was never a second struck pitch to
+     * absorb. This is the row where the field is not tidying up a compromise but
+     * saying something the tables could not say at all — a bass note whose pitch
+     * is a function of time — and it is the shape neurofunk's own header is
+     * about, a patch resampled and re-pitched until it stops being a note.
+     */
     { name: 'long-patch', weight: 4, hits: [
-      { at: 0, dur: 8, tone: 0, vel: 1 },
-      { at: 10, dur: 6, tone: 0, vel: 0.82 },
+      { at: 0, dur: 8, tone: 0, glide: 3, vel: 1 },
+      { at: 10, dur: 6, tone: 3, glide: 0, vel: 0.82 },
     ] },
   ],
   comp: [
@@ -1938,13 +2042,16 @@ const rollers: Style = {
  * style here and the least respectable, which is a combination this project has
  * met before in `humppa` and `crunk`.
  *
- * **The wobble is the third report on §3.16.** What the bass does is move
- * continuously between two pitches under an LFO; what is written is a pair of
- * struck notes a fifth apart, alternating. That gets the *shape* and loses the
- * thing that makes it recognisable, and no arrangement of `at`/`dur`/`tone`
- * recovers it. `techstep` and `neurofunk` above make the same complaint about
- * the Reese; three styles independently in one genre is what
- * `docs/engine-gaps.md` calls the difference between a gap and a taste.
+ * **The wobble was the third report on §3.16 and now spends the field it asked
+ * for.** What the bass does is move continuously between two pitches under an
+ * LFO; what was written was a pair of struck notes a fifth apart, alternating,
+ * which is the *shape* without the thing that makes it recognisable. The pair is
+ * one note now — struck on the fifth and arriving at the root without being hit
+ * again — so the sweep is in the file rather than in this paragraph. `techstep`
+ * and `neurofunk` above made the same complaint about the Reese and adopted in
+ * the same pass. Three styles independently in one genre is what
+ * `docs/engine-gaps.md` calls the difference between a gap and a taste, and all
+ * three of them are spent.
  *
  * No ghosts. The kit is four samples with a limiter across them.
  */
@@ -1997,18 +2104,39 @@ const jumpup: Style = {
   ],
   bass: [
     /**
-     * The wobble as two struck notes. A fifth apart and alternating, which is
-     * the contour of an LFO sweeping a filter over one held note — see the
-     * header on §3.16, and note that the vertical span stays at seven semitones
-     * so the figure survives every root position.
+     * The wobble as one note that moves, which is what a wobble is.
+     *
+     * Five struck notes became three. The two that stated the root after each
+     * fifth are gone and each fifth *arrives* there instead: a four-sixteenth
+     * sweep across beat two, and a six-sixteenth one from the and-of-three into
+     * the bar line — where the next bar strikes the root the sweep has just
+     * reached, so the loop point is a re-gate rather than a jump. Two sweeps to
+     * the bar at 175 BPM is about 1.5 Hz, which is where an LFO is set when the
+     * point of it is that a listener can hear it move. The stroke on beat one
+     * carries no bend, because in this style beat one is the thing the whole
+     * record exists to make findable.
+     *
+     * The vertical span is still seven semitones and every destination sits
+     * inside it, which is deliberate and is §1.3: `generateBass` folds glide
+     * destinations into the same reduce as the struck tones, so a figure
+     * travelling outside its own span would move the octave the whole shape is
+     * placed in and could fold it flat at some roots. Nothing here reaches
+     * further than it did before.
      */
     { name: 'wobble', weight: 7, hits: [
       { at: 0, dur: 3, tone: 0, vel: 1 },
-      { at: 4, dur: 2, tone: 7, vel: 0.82 },
-      { at: 6, dur: 2, tone: 0, vel: 0.88 },
-      { at: 10, dur: 2, tone: 7, vel: 0.8 },
-      { at: 12, dur: 4, tone: 0, vel: 0.9 },
+      { at: 4, dur: 4, tone: 7, glide: 0, vel: 0.82 },
+      { at: 10, dur: 6, tone: 7, glide: 0, vel: 0.8 },
     ] },
+    /**
+     * The bounce, and it stays struck on purpose. What this row does is *leap* —
+     * up an octave, up a ♭7, up a fifth, back to the root each time, across
+     * rests — and a leap written as a glide is a dive-bomb rather than a bounce.
+     * The other half of jump-up is the sweep above; now that the table can say
+     * both, it is worth one row saying which of the two it is, especially this
+     * one, whose twelve-semitone span is the widest bass shape in the genre and
+     * has no room for a destination outside it anyway.
+     */
     { name: 'bouncing', weight: 6, cycle: 32, hits: [
       { at: 0, dur: 3, tone: 0, vel: 1 },
       { at: 4, dur: 2, tone: 12, vel: 0.78 },

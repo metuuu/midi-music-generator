@@ -730,8 +730,13 @@ function filterSweep(
  *    note wins, on `filterSweep`'s precedent and for the stronger version of its
  *    reason: a glide switch is a setting and a bend is material.
  *
- * Emitted only where the part actually travels, so every song in the catalogue
- * comes out byte for byte as it did — no style declares a `BassHit.glide` yet.
+ * Emitted only where the part actually travels, which is what let this ship
+ * inert: on the day it landed no style declared a `BassHit.glide` and every song
+ * in the catalogue came out byte for byte as it had. That is no longer the state
+ * of the world and the sentence is kept only to explain the guard — hiphop's
+ * `drill` and `gfunk` were the first authors, and a bass onset in one of those
+ * two now travels 44 % and 35 % of the time. Every other style still writes no
+ * bend and still takes the early return.
  */
 function pitchSlide(
   track: Track,

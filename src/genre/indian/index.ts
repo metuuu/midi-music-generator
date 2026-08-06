@@ -185,10 +185,22 @@ export const indian: Genre = {
    * definition in `EndingStyle` — everybody hits the downbeat — and it was the
    * obvious pick. Two things took it back out.
    *
-   * **What a button adds is a cymbal and a kick**, hard-coded in the ending
-   * pass, and neither instrument exists in this music. A tihai delivered by a
-   * crash is not a landing rendered imperfectly, it is a different band walking
-   * on for one beat.
+   * **What a button used to add was a cymbal and a kick**, hard-coded in the
+   * ending pass, and neither instrument exists in this music. A tihai delivered
+   * by a crash is not a landing rendered imperfectly, it is a different band
+   * walking on for one beat.
+   *
+   * **That reason has since evaporated and is kept because the second one has
+   * not.** `landEnding` resolves its strokes through `seamOrchestration` now,
+   * the same `drumStations` read the shot and the fill take, so a button on
+   * these tables lands on a doum: measured over every style in this genre at
+   * eight seeds, `land` and `weight` both come back `lp` **192 times out of
+   * 192**, and the remaining 32 draws have no drums at all. The literal that
+   * made this paragraph true was the fourth and last site of the fault
+   * `docs/engine-gaps.md` §2.1 tracks, and it is gone.
+   *
+   * The ending stays `fade` regardless, on the argument below, which never
+   * depended on the delivery.
    *
    * **And the tanpura does not stop.** This is the part that makes `fade` right
    * rather than merely less wrong: the item ends, the soloist and the drum
@@ -353,16 +365,21 @@ export const indian: Genre = {
    * every time, and lands on a doum 126 times out of 126.** No crash on it,
    * because a skin does not ring.
    *
-   * **One kit stroke does get into the chorus, and it is not the solo's.** In
-   * the five styles that set `drumFills: true`, the seam *before* the chorus
-   * lands a `cr` or an `oh` on its first downbeat — `generate/fills.ts` writes
-   * its landing cymbal from a literal, which is the half of the hand-drum work
-   * that `docs/engine-gaps.md` §2.1 still has open. It is one stroke, it is the
-   * arrival of the section rather than anything the drummer plays in it, and
-   * `playBreak` makes the same argument about the same cymbal in the same bar.
-   * It is worth knowing because it is loud in a `drumStations` read: a chorus of
-   * `{cr lp mp hp}` files as a *kit* chorus, 31 of 157 across 400 songs, and a
-   * check that asked this genre for a crash on the way out would find none.
+   * **One kit stroke used to get into the chorus, and it was not the solo's.**
+   * In the five styles with fills, the seam *before* a chorus landed a `cr` or
+   * an `oh` on its first downbeat, because `generate/fills.ts` wrote its landing
+   * cymbal from a literal. That was loud in a `drumStations` read — a chorus of
+   * `{cr lp mp hp}` filed as a *kit* chorus, 31 of 157 across 400 songs — and it
+   * is the half of the hand-drum work `docs/engine-gaps.md` §2.1 had open.
+   *
+   * **It is closed.** `landing()` takes a `SeamOrchestration` now and answers
+   * `lp` on a skin, and the same 400-song probe run again says: 168 choruses,
+   * **0 filed as a kit chorus**, three voices in every one of them, and the band
+   * landed back in on a doum **168 times out of 168**. The voices on the
+   * returning downbeat across all of them are `lp` 323, `mp` 85, `hp` 18 — three
+   * strokes of one drum, and nothing that rings. Nought kit strokes anywhere in
+   * the 400 songs, which is the number the `transitions` note below re-measures
+   * from the other end.
    *
    * **`['drums', 2]`, which puts the drummer above the harmonium and below the
    * sārangī**, and that ordering is the claim rather than the number. The comp in
@@ -474,38 +491,105 @@ export const indian: Genre = {
   },
 
   /**
-   * **No genre-wide transition palette**, and the absence is a decision rather
-   * than an omission — `Genre.transitions` says that absent means
-   * `DEFAULT_TRANSITIONS` *and means no draw is made*, which is the state
-   * twenty-three of these twenty-eight styles want.
+   * **No genre-wide transition palette**, and the absence is still a decision
+   * rather than an omission — `Genre.transitions` says that absent means
+   * `DEFAULT_TRANSITIONS` *and means no draw is made*. It is per style here
+   * because the eleven styles that refuse a gesture refuse it for eleven
+   * different reasons, and a genre-level table would have to be argued down
+   * eleven times instead of up seventeen.
    *
-   * The gesture this genre wanted is the **tihai**: a figure played three times,
-   * spaced so its last stroke lands on sam, with the whole ensemble arriving
-   * together. That is a `shot` — and `shotFigures` even resolves to the right
-   * figure for free here, because a bar with no authored table falls back to its
-   * group heads and in this genre the group heads *are the vibhāgs*, which is
-   * why no `shots` tables are authored anywhere in `styles.ts`.
+   * The gesture this genre wanted is the **tihai**: a figure spaced so its last
+   * stroke lands on sam, with the whole ensemble arriving together. That is a
+   * `shot` — and `shotFigures` resolves the figure for free here, because a bar
+   * with no authored table falls back to its group heads and in this genre the
+   * group heads *are the vibhāgs*, which is why no `shots` tables are authored
+   * anywhere in `styles.ts`.
    *
-   * What stops it being declared genre-wide is the other end of the same pass.
-   * `applyShot` in `generate/transition.ts` writes the figure onto the kit as
-   * **`bd` and `sd`, hard-coded, with a `cr` on the landing** — three voices
-   * that do not exist in this music. So the palette is declared on the five
-   * styles that genuinely have a kick, a snare and a cymbal in the room — the
-   * filmī numbers and the two electric ones — and nowhere else. In a dhrupad, a
-   * tihai delivered by a crash would be the loudest possible way of getting it
-   * wrong; better that the seam passes without comment, which is at least what a
-   * tabla player who was not going to mark it would have done.
+   * ## The delivery was wrong for three years and is not wrong now
    *
-   * **`elide` is absent from those five too, and that absence is the strongest
+   * This comment used to say the palette could only be declared on five styles,
+   * because `applyShot` wrote its figure as `bd` + `sd` with a `cr` on the
+   * landing — three voices that do not exist in this music. That was true when
+   * it was written. It is false now: the function is `playShot`, it resolves
+   * `SeamOrchestration` from `song.drums.events` through `drumStations`, and on
+   * a hand table the shot voice is `['lp']` and the survives list is empty.
+   *
+   * **Measured before a line of this was changed**, because the document that
+   * recorded the fix is not the source and this project has been caught
+   * believing it before. Every one of the twenty-eight styles, palette forced to
+   * a single kind, sixty seeds each:
+   *
+   *  - `shot` — 3 246 shot bars, **0 kit strokes anywhere in any of them**.
+   *  - `fill` — every seam a fill in all twenty-eight, **0 kit strokes**. The
+   *    strokes that do arrive are `lp mp hp`, plus `cp` where the theka has a
+   *    clap in it and `perc` from the percussionist's own stand — all hand or
+   *    `either` tier, none of which can conscript a kit.
+   *  - `break` — 1 912 break bars, **0 kit strokes**, and **0 of them empty**,
+   *    which is the number `breakCarrier: 'pad'` was set for and which has not
+   *    moved.
+   *
+   * A shot bar contains exactly `{lp}` — the doum, three or four of them,
+   * nothing else. Over 120 seeds: bandish 121 pure-doum bars out of 137,
+   * jugalbandī 323 of 333, filmī 307 of 319. **The bars that are not pure are
+   * not impure**: they are the ones where the drummer already had that bar as a
+   * tani āvartanam block, and `playShot` reads `solo.blocks.drumBars` and
+   * returns rather than write a band figure over a chorus. And **the landing is
+   * intact** — 100% of shot bars are followed by a stroke on the arriving
+   * downbeat. The figure lands on sam, which is the only thing about a tihai
+   * that is not negotiable.
+   *
+   * ## Which twelve of the twenty-three, and why not the other eleven
+   *
+   * The adoption is one field per style and the sort is a musical judgement, so
+   * it is made at the entries rather than here; each of the twenty-three says
+   * its own sentence in `styles.ts`. What the sort turns on is one question —
+   * **does this form land a figure with the whole ensemble at a structural
+   * join** — and the four shapes of *no* are worth naming together, because
+   * three of them are about the music and one is about the mechanism:
+   *
+   *  - **There is no cycle to land on.** `alap`, `jor`, `alapana` and `tanam`
+   *    are unmetred and have no drum. A shot there is not a no-op — the band
+   *    half of `playShot` still hits the pitched layers, and it moved the tracks
+   *    in 14, 28, 23 and 32 of 40 songs when it was tried — so the refusal is
+   *    load-bearing rather than tidy.
+   *  - **The arrival belongs to somebody who is not the ensemble.** `ghazal`
+   *    gives it to the radīf, `padam` to the dancer, `thumri` to the bend inside
+   *    the phrase.
+   *  - **The form exists in order not to display.** `bhajan` is sung back by a
+   *    room that has not rehearsed and `dhun` is the item everybody relaxes to.
+   *    A tihai is arithmetic performed at an audience.
+   *  - **And the one mechanical refusal left**, which is the only place this
+   *    genre still wants something the engine does not do: `dhrupad` and
+   *    `vilambit` are on ektāl, whose twelve mātrās group 2+2+2+2+2+2, so
+   *    `metreHeads` returns **six** slots — `[0,4,8,12,16,20]`. `bandHeads` in
+   *    the same file defines a shot as two to four onsets and says why: more
+   *    than that is the band playing rather than the band hitting something.
+   *    Six evenly spaced strokes across a chautāl is the pakhāwaj marking the
+   *    vibhāgs it is already marking. A `shots` literal would fix it — the field
+   *    exists and takes a table — but the honest figure to put in one is a real
+   *    chautāl tihai and neither of us has measured what that should be, so it
+   *    stays unwritten rather than invented.
+   *
+   * **`elide` is absent from all seventeen, and that absence is the strongest
    * statement here.** An elide arrives an eighth early. Sam is not negotiable —
    * the whole architecture of a tāla is that everybody knows where beat one is
    * and lands on it — and a section that started before it would not be an
    * anticipation, it would be a mistake with a name.
    *
-   * **`break` is back in all five, and the way it came back is the useful
+   * **And `drumFills: false` stays on every style that is not a film number**,
+   * which reads like a leftover and is the opposite. It was set when a fill
+   * meant a tom roll; the fill vocabulary was generalised in the same wave as
+   * the shot and a fill on a hand table is hand strokes now. It stays because of
+   * what it says about this music rather than about the engine: **the gesture a
+   * tabla player makes at a seam is a figure landed on sam, not a run into it.**
+   * The theka does not thin out approaching a join. So `fill` in these palettes
+   * is the weight on *nothing happening*, which is the correct third option and
+   * the commonest thing that happens at a seam in a recital.
+   *
+   * **`break` is in all seventeen, and the way it came back is the useful
    * part.** The tabla dropping out for a cycle is one of the commonest things in
    * this music and means something specific — the soloist is going somewhere the
-   * cycle cannot follow. It was in these five palettes and came out again,
+   * cycle cannot follow. It was in the original five palettes and came out again,
    * because `applyBreak` used to pick the voice that carries the bar by asking
    * whether the **melody** covered a third of it, falling back to the answering
    * line and then the bass; the melody is the one part `--hook` is allowed to

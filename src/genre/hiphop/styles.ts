@@ -38,6 +38,15 @@
  * a low root rather than as `-12` from a high one, and `npm run genres` catches
  * the mistake as *"a riff is the same shape over every chord quality"*.
  *
+ * Six of those rows — three under `drill` and three under `gfunk` — reach part of
+ * their span by **gliding** to it rather than by striking it, and that changes
+ * nothing about this ceiling. `generateBass` folds a destination into the same
+ * reduce as an arrival, so a `glide: 12` spends an octave of headroom whether or
+ * not an octave is ever struck; a table that adopted the field by widening its
+ * figures would have walked straight back into the fold this paragraph is about.
+ * Neither style widened anything. Both were already writing the destination as a
+ * second struck note, so every span below is the number it was.
+ *
  * **The hole is bigger here than in funk, and it is bigger on purpose.** A JB
  * bar has six onsets in sixteen slots; a trap bar has three, and one of them is
  * three beats long. The sparsest tables below — `trap`, `drill`, `cloud`,
@@ -1599,11 +1608,26 @@ const party: Style = {
  * *travel* — a whine that sits inside a fifth is a drone, and what makes the
  * gesture recognisable is a long descent from the top of the register.
  *
- * The bass figure is where the engine's ceiling shows most clearly and the
- * compromise is worth naming: what these lines actually do is *slide* between
- * two notes a fifth or an octave apart, and `BassHit` has no way to say that a
- * note arrives by glissando. The rows below use two struck notes where the record
- * has one note that moves, which is the right shape at the wrong articulation.
+ * The bass figure is where this style's one complaint was, and the rows below
+ * now say what the record says: these lines *slide* between two notes a fifth or
+ * an octave apart. `BassHit.glide` was built on five reports and this was one of
+ * them — the same sentence `drill` filed, from a different decade, which is what
+ * made it a gap rather than a taste — and adopting it took a note out of each of
+ * the three figures rather than adding anything to them. The second of the two
+ * struck notes was never a second note; it was the name of where the first one
+ * was going, and it is spelled as that now.
+ *
+ * `glideTime` is **0.4** here against `drill`'s 0.25, and the distance between
+ * those two numbers is the distance between a sub and a keyboard player. At
+ * 90–102 BPM a beat is about 620 ms, so 0.4 of the 1.5- and 2-beat notes below is
+ * 375–500 ms of travel — which is where a Minimoog's glide knob actually sits for
+ * this record, and long enough that a fifth or an octave is heard as a swoop
+ * rather than as a click on the front of the note. A drill 808 bends and gets out
+ * of the way; this one is rubber, and the rubber is the part that is supposed to
+ * be audible. It stops short of the default of 1 all the same, because every one
+ * of these destinations is a chord tone and the majority of the note should be
+ * sitting on it — a line that never stops moving is a Reese, which is a different
+ * genre's sound.
  */
 const gfunk: Style = {
   id: 'gfunk',
@@ -1654,25 +1678,39 @@ const gfunk: Style = {
   ],
   bass: [
     /**
-     * Two struck notes where the record has one that slides. See the header —
-     * the engine has no glissando and this is the honest approximation of it.
+     * One slide per figure, and each one is a pair the table had already written
+     * end to end — the merge fills no rest and reaches no further than the two
+     * notes reached between them. See the header for why 0.4 and not the
+     * default, and `BassHit.glide` for why a destination spelled as a `BassTone`
+     * is answered by the harmony on exactly the terms an arrival is.
      */
     { name: 'rubber', weight: 6, hits: [
       { at: 0, dur: 5, tone: 0, vel: 1 },
       { at: 6, dur: 2, tone: 7, vel: 0.7 },
-      { at: 10, dur: 2, tone: 0, vel: 0.78 },
-      { at: 12, dur: 4, tone: 10, vel: 0.66 },
+      // Up a minor seventh into the last beat, where a two-sixteenth root and a
+      // struck ♭7 used to sit on either side of slot 12. This is the gesture the
+      // style is named for and it was the one thing the table could not write.
+      { at: 10, dur: 6, tone: 0, vel: 0.78, glide: 10, glideTime: 0.4 },
     ] },
     { name: 'octave-slide', weight: 5, hits: [
       { at: 0, dur: 6, tone: 0, vel: 1 },
-      { at: 8, dur: 4, tone: 12, vel: 0.72 },
-      { at: 12, dur: 4, tone: 7, vel: 0.68 },
+      // The name was always a description of the record and never of the row:
+      // the octave is struck and then falls a fourth to the fifth, one note,
+      // half a second of travel. It used to be two.
+      { at: 8, dur: 8, tone: 12, vel: 0.72, glide: 7, glideTime: 0.4 },
     ] },
     { name: 'two-bar-bounce', weight: 4, cycle: 32, hits: [
       { at: 0, dur: 4, tone: 0, vel: 1 },
       { at: 6, dur: 2, tone: 3, vel: 0.64 },
-      { at: 10, dur: 2, tone: 5, vel: 0.68 },
-      { at: 12, dur: 4, tone: 7, vel: 0.7 },
+      /**
+       * Fourth to fifth across beat 4, arriving in time to be sitting on the
+       * fifth when the second bar's downbeat root is struck under it. The pair
+       * on the other side of that downbeat — the fifth and the root at 16 — is
+       * the wider slide and was deliberately left alone: absorbing it would have
+       * taken the attack off the strongest note in a two-bar figure, and this
+       * figure's own header is a bounce that has to keep landing.
+       */
+      { at: 10, dur: 6, tone: 5, vel: 0.68, glide: 7, glideTime: 0.4 },
       { at: 16, dur: 4, tone: 0, vel: 0.88 },
       { at: 22, dur: 2, tone: 10, vel: 0.66 },
       { at: 26, dur: 6, tone: 7, vel: 0.68 },
@@ -2640,11 +2678,26 @@ const trap: Style = {
  * available over it. `synth/stalker` calls the same interval "the Carpenter
  * semitone" and reaches it the same way.
  *
- * The **slide** is the other half of the identity and the engine cannot say it.
- * A drill 808 does not restrike, it bends from one pitch to the next across half
- * a beat, and `BassHit` has an `at`, a `dur` and a `tone`. Two struck notes is
- * what is written; `gfunk` has the same complaint from a different decade, which
- * is two genres independently, which is what makes it a gap rather than a taste.
+ * The **slide** is the other half of the identity and the table below now says
+ * it. This style is one of the five reports that got `BassHit.glide` built, and
+ * the sentence it filed — *a drill 808 does not restrike, it bends from one
+ * pitch to the next across half a beat* — is a description of a deletion rather
+ * than of a new gesture. Each of the three figures had a second struck note
+ * standing in for where the first one was going; that note is gone and its pitch
+ * is now the first one's destination, so the count of onsets in this table fell
+ * by three and the count of notes the ear can follow did not fall at all.
+ *
+ * `glideTime` is **0.25** on every one of them, which is this style's number and
+ * not a default. At 136–148 BPM a beat is about 420 ms, so a quarter of the
+ * two-beat note under `slide-seventh` is 210 ms of travel and 630 ms sitting on the
+ * arrival — *bends, and then holds*, which is what the report asked for and what
+ * separates a sub from a smear. The other two figures are 1.75 and 2 beats long
+ * and land at 185 and 210 ms for the same fraction, which is the argument for a
+ * fraction: the gesture scales with the note where a count of sixteenths would
+ * have made the short one twice as fast as the long one. The far end of the same
+ * field is a Reese, which is *entirely* movement and takes the default of 1;
+ * this is a sub that arrives somewhere and stays there, and half a beat is the
+ * whole of the difference.
  */
 const drill: Style = {
   id: 'drill',
@@ -2701,22 +2754,41 @@ const drill: Style = {
     { cell: [-8, 8], weight: 5 },
   ],
   bass: [
-    // Two struck notes where the record has one that slides. See the header.
-    { name: 'slide-down', weight: 6, hits: [
-      { at: 0, dur: 6, tone: 0, vel: 1 },
-      { at: 6, dur: 2, tone: 10, vel: 0.6 },
+    /**
+     * One 808 that moves, in each of the three. The pairs that were merged were
+     * already written end to end — no rest was filled and no note was lengthened
+     * past where the pair already reached — so what changed is the articulation
+     * and only the articulation, which is exactly the thing that was wrong.
+     */
+    { name: 'slide-seventh', weight: 6, hits: [
+      // Struck once on the downbeat at full weight and travelling a minor
+      // seventh. The two-sixteenth ♭7 that used to be struck at slot 6 is where
+      // this arrives, 210 ms in, and it holds there for the rest of the note.
+      { at: 0, dur: 8, tone: 0, vel: 1, glide: 10, glideTime: 0.25 },
       { at: 10, dur: 6, tone: 0, vel: 0.74 },
     ] },
     { name: 'slide-up', weight: 5, hits: [
       { at: 0, dur: 8, tone: 0, vel: 1 },
-      { at: 9, dur: 1, tone: 3, vel: 0.6 },
-      { at: 10, dur: 6, tone: 5, vel: 0.72 },
+      /**
+       * The ♭3 was a one-sixteenth grace before the fourth, which is how a
+       * table with no glide spells a note that leaves. It is one note now, and
+       * it takes the arrival's velocity rather than the grace's 0.6: a single
+       * attack carries the whole gesture, and the loud end of the gesture was
+       * always the note it was going to.
+       */
+      { at: 9, dur: 7, tone: 3, vel: 0.72, glide: 5, glideTime: 0.25 },
     ] },
     { name: 'two-bar-slide', weight: 4, cycle: 32, hits: [
       { at: 0, dur: 8, tone: 0, vel: 1 },
       { at: 11, dur: 5, tone: 0, vel: 0.72 },
-      { at: 16, dur: 7, tone: 1, vel: 0.8 },
-      { at: 23, dur: 1, tone: 0, vel: 0.56 },
+      /**
+       * The ♭2 on the second downbeat, sliding a semitone back to the tonic.
+       * This is the figure the header's whole scale override exists for, and it
+       * used to end in a one-sixteenth root at 0.56 — a note nobody plays as a
+       * statement, written only to name where the ♭2 went. It is the
+       * destination now.
+       */
+      { at: 16, dur: 8, tone: 1, vel: 0.8, glide: 0, glideTime: 0.25 },
       { at: 26, dur: 6, tone: 8, vel: 0.7 },
     ] },
   ],

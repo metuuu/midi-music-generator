@@ -123,6 +123,12 @@ const HEAD_FIT: Partial<Record<Accessory, HeadFit>> = {
   turban: { cap: 1.93, wear: 'perch' },
   // The band's *inner* arc: `hoop` is a torus of outer radius 0.5 and tube 0.06,
   // so the hole reaches 0.38 of the scale, and the band is 2.40 tall at y 0.28.
+  //
+  // `perch` is right for the band and would be a lie about the whole object, and
+  // that is the one place this table's two columns are not the entire story: a
+  // hat perches as one piece, and headphones perch at the crown while staying put
+  // at the ears. The case that builds them is the only one here that reads how
+  // far it is being lifted, and it is where the split is argued.
   headphones: { cap: 1.192, wear: 'perch' },
 };
 
@@ -179,13 +185,24 @@ export function buildAccessories(
   for (const a of look.accessories) {
     const fit = HEAD_FIT[a];
     if (!fit) {
-      buildAccessory(a, at, look, p, l);
+      buildAccessory(a, at, look, p, l, 0);
       continue;
     }
     const worn = new Group();
     at.head.add(worn);
-    buildAccessory(a, { ...at, head: worn }, look, p, l);
-    worn.position.y = seat(fit, hair, p.headR);
+    /**
+     * Solved before the object is built rather than after, which is the whole of
+     * what let `headphones` stop being wrong — see its case below. Nothing else
+     * reads it and nothing else should: a hat is rigid, so being told how high it
+     * is about to be set is of no use to it whatever.
+     *
+     * `seat` compresses the hair as a side effect and is still the only caller,
+     * so moving the call earlier changes the order of nothing — the hair group is
+     * not this group and neither reads the other.
+     */
+    const lift = seat(fit, hair, p.headR);
+    buildAccessory(a, { ...at, head: worn }, look, p, l, lift);
+    worn.position.y = lift;
   }
 }
 
@@ -235,6 +252,18 @@ function seat(fit: HeadFit, hair: HairProfile, R: number): number {
 
 function buildAccessory(
   a: Accessory, at: Attachments, look: Look, p: Proportions, l: Leases,
+  /**
+   * How far this object's own group is about to be raised off the skull, in
+   * metres — `seat`'s answer, and zero for the twelve accessories that are not
+   * head furniture at all.
+   *
+   * Nineteen of the twenty ignore it, and are right to: a hat is one rigid shell,
+   * a lift is a translation, and a translation applied to the group is the same
+   * picture as a translation applied to every mesh in it. It is here for the one
+   * object in the union that is **sprung** rather than rigid, which is a fact
+   * about the thing and not a special case invented for the renderer.
+   */
+  lift: number,
 ): void {
   const R = p.headR;
   const { head, torso } = at;
@@ -879,23 +908,60 @@ function buildAccessory(
       break;
     }
 
+    /**
+     * The one piece of head furniture that is not a rigid shell, and the only
+     * case in this file that reads `lift`.
+     *
+     * Every hat here rides tall hair by being picked up whole, because that is
+     * what a hat does — the crown clears the hair and the brim comes with it.
+     * Headphones are the exception in the wardrobe and in the world: the band
+     * goes *over* whatever is on the head and the cups go *on the ears*, and the
+     * two are joined by a slider whose entire purpose is to take up the
+     * difference. Lifting the group whole took the cups up with the band, so a
+     * player with any real volume of hair wore them on the temples. Over the
+     * union's tallest heads that is `1.0 R` of travel — about eleven centimetres
+     * — which is not a fit that is slightly off, it is the cups above the crown
+     * of the skull.
+     *
+     * So the band rides, the cups stay, and **the ring stretches between them**,
+     * which is the slider drawn rather than implied. Its top is `1.48 R` over
+     * centre and goes up with the lift; its bottom is `-0.92 R` and does not
+     * move, so it still passes outside the ears at every height. That is a
+     * half-height of `(2.40 R + lift) / 2` about a centre of `0.28 R + lift / 2`,
+     * and at `lift = 0` both reduce to exactly the numbers that were here before
+     * — the unhatted picture is untouched by construction rather than by luck.
+     *
+     * The arithmetic is worth one line because it is what makes the stretch the
+     * right shape rather than merely a taller ring. The ellipse is `1.225 R`
+     * wide, so the band crosses the cup line at `1.175 R` with no lift and at
+     * `1.065 R` at a full `1.0 R` of it — against cups at `1.06 R`. The band
+     * meets the cups across the whole range, and it meets them *closer* the
+     * further it has stretched, which is the direction a real slider goes.
+     */
     case 'headphones': {
       const shell = surface(l, '#20202a', { roughness: 0.5, metalness: 0.2 });
       const band = new Mesh(hoop(l), shell);
-      band.scale.set(R * 2.45, R * 2.40, R * 2.40);
+      band.scale.set(R * 2.45, R * 2.40 + lift, R * 2.40);
       // No rotation, and that is the fix rather than an omission. A
       // `TorusGeometry` already lies in the `xy` plane, which for a head is the
       // ear-over-crown-to-ear arc a headband actually takes. The quarter turn
       // that used to be here stood the ring up in `yz` instead — over the face
       // and down the back of the skull — while the cups stayed at `±x`, so the
       // band and the things it is supposed to join were at right angles.
-      band.position.set(0, R * 0.28, -R * 0.06);
+      //
+      // The `y` here is inside the group the lift is applied to, so it carries
+      // the ride back out: `0.28 R + lift / 2` in the head's own frame, which is
+      // what pins the bottom of the ring while the top of it climbs.
+      band.position.set(0, R * 0.28 - lift / 2, -R * 0.06);
       head.add(band);
       for (const s of [SIDE.left, SIDE.right]) {
         const cup = new Mesh(tube(l), shell);
         cup.scale.set(R * 0.92, R * 0.34, R * 0.92);
         cup.rotation.z = Math.PI / 2;
-        cup.position.set(s * R * 1.06, -R * 0.06, -R * 0.04);
+        // Undoing the lift exactly, so the cup lands at `-0.06 R` off head
+        // centre whatever is under the band. An ear does not move when its owner
+        // backcombs.
+        cup.position.set(s * R * 1.06, -R * 0.06 - lift, -R * 0.04);
         head.add(cup);
       }
       break;

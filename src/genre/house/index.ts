@@ -309,14 +309,44 @@
  *
  * # What the engine could not express
  *
- * Five things, four already on the list and one new.
+ * Five things, four already on the list and one new — and the second of them is
+ * now written rather than missing. It is kept here with an account of what
+ * adopting it cost and what it did not reach, because a list that quietly
+ * deletes its closed entries stops being a record of anything, and because §7 of
+ * `docs/engine-gaps.md` is about the opposite failure: a field built for a genre
+ * and never adopted by it, which leaves the compromise in the music while the
+ * document says it is fixed.
  *
  *  1. **Sidechain** (§3.17), above. The pad cannot pump.
- *  2. **A bass note cannot slide** (§3.16). `acid`'s 303 has a slide switch and
- *     half of what the machine sounds like is a note bending into the next one;
- *     `speedgarage`'s wobble is a filter moving under one held pitch. Both are
- *     written as two struck notes. Hip-hop found the same wall on the drill 808
- *     and the g-funk bass, so this is now four styles in two genres.
+ *  2. **A bass note can slide, and both styles that asked for it now do**
+ *     (§3.16 — closed here). `BassHit.glide` was built on five reports across
+ *     three genres and two of them came from this file. `acid` takes three
+ *     slides across two of its three 303 figures at `glideTime: 0.25`, which is
+ *     the machine's own 60 ms measured against a sixteenth at 120–132 BPM;
+ *     `speedgarage`'s `wobble` drops to the fifth below and lifts to the ♭3 on
+ *     one note each at 0.5, which puts the arrival on the exact sixteenth the
+ *     struck note it replaced stood on. **Adopting it was a deletion**: five
+ *     struck notes are gone from the genre and their pitches are now where the
+ *     notes that remain are travelling to. Measured over 200 songs per style on
+ *     two independent seed sets, which agree to a tenth of a point: **12.4–12.6%
+ *     of `acid`'s bass onsets carry a bend and 18.1–18.2% of `speedgarage`'s**,
+ *     1.97% across the genre — which is what two adopting styles out of
+ *     twenty-four looks like from the outside. Per song rather than per onset it
+ *     is a pattern draw: 131 of 200 `acid` songs and 88 of 200 `speedgarage`
+ *     songs carry at least one, and those are the weights of the figures that
+ *     have a slide in them (11 of 16, and 7 of 16) rather than a rate that needs
+ *     explaining.
+ *
+ *     Three things the adoption did *not* get, none of them this field's fault.
+ *     The 303 slides at the **step boundary** and this travels from the onset,
+ *     so the destination arrives early — argued and refused in `NoteBend`, and
+ *     priced in `acid`'s own table. `303-sparse` and `sub-and-skank` hold their
+ *     source pitch and drop at the far end, which is the same refusal from the
+ *     other side, so both keep their second attack. And `speedgarage`'s wobble
+ *     *proper* was never this gap at all: a filter moving under one held pitch
+ *     is §3.5, a wah wanting to move faster than a section, and one sentence in
+ *     that style's header used to carry both halves — which is how the fixable
+ *     half stayed broken for as long as it did.
  *  3. **`swing` delays the eighth and three styles here shuffle the sixteenth**
  *     (§3.18). `ukgarage` is the worst case in the project: 2-step *is* a
  *     sixteenth shuffle, and 0.3 on the eighth produces a lollop where the record

@@ -409,6 +409,39 @@ export const arabic: Genre = {
    *    section does not list the carrier: 443 drawn breaks fall to 226. A carrier
    *    a fifth of the catalogue does not have is a palette entry those styles
    *    silently lose.
+   *
+   * ## Five styles now say something more specific, and sixteen do not
+   *
+   * This table is the genre's answer and it stays the answer for most of the
+   * bill, because a fill palette is a claim about how a band in an idiom plays
+   * and that travels. What it cannot say is that a khana boundary and a
+   * procession are different seams. Five styles override it in `styles.ts`, each
+   * with its measurement, and the split is worth reading as a list because the
+   * refusals outnumber the adoptions three to two:
+   *
+   *  - **`samai`** takes `[['shot', 5], ['fill', 4]]` — the only style here that
+   *    weights a gesture above the drummer. A taslim is arrived at by a qafla,
+   *    which is what a `shot` is, and a sama'i has the fewest seams in the genre
+   *    to spend one on.
+   *  - **`dabke`** raises `break` to 4. Its bass is the loudest thing in the room
+   *    and `BREAK_CARRIER` is the bass, so stop-time there subtracts everything
+   *    except the part the style is named for — 3.94 bass onsets in the break
+   *    bar against 3.94 without it.
+   *  - **`zaffa`** drops `break` and raises `shot`. A procession cannot stop, and
+   *    it is the one style with brass to land a figure with.
+   *  - **`taqsim`** and **`ayyub`** refuse every kind, from opposite directions:
+   *    a taqsim has no pulse for an ensemble figure to land on, and a zar's
+   *    entire content is that nothing changes.
+   *
+   * The sixteen that keep this table keep it on purpose rather than by not having
+   * been asked. `longa` was the closest to a sixth: it is a rondo whose refrain
+   * returns unchanged, which argues for a shot in front of it, and it draws the
+   * most gestures of anything here at 218 shots and 107 breaks per 200 songs
+   * purely by having the most seams. It was left alone because at 150–190 BPM a
+   * break bar is under a second and a shot at that tempo is indistinguishable
+   * from the fill it replaced — the gesture is real and the metre is too fast to
+   * hear it as one, which is a reason to leave a style on the default rather than
+   * a reason to give it a table saying the same thing.
    */
   transitions: [['fill', 7], ['shot', 3], ['break', 2]],
 

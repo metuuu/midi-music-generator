@@ -50,6 +50,31 @@ const DRUM_VOICE_TOKEN = new RegExp(
   `^(${[...Object.keys(DEFAULT_DRUM_MIX), ...RACK_SAMPLE_NAMES].join('|')})$`,
 );
 
+/**
+ * The controls whose grids may legitimately carry a negative number.
+ *
+ * Every other numeric grid in the audition is a magnitude — a gain, an attack in
+ * seconds, a filter frequency in hertz, a decay — and a negative one of those is
+ * a bug that renders as silence or as a thrown parse rather than as a wrong
+ * sound. So the minus sign is not simply allowed through: it is allowed through
+ * *where it means something*, and stays an error everywhere else.
+ *
+ * `penv` is the pitch envelope, in semitones, and it is the whole of the list.
+ * `pitchSlide` in `render/strudel.ts` writes one value per note from
+ * `NoteEvent.bend.semitones`, which is a **destination and not a depth** — a
+ * drill 808 falling a fourth is `-5.00`, and there is no other way to say it.
+ *
+ * This is the third time this file has had a vocabulary narrower than the one the
+ * renderer emits, and the third time the symptom was the worst one available: a
+ * *correct* line reported as unparseable, in a check whose whole job is to be
+ * believed. The drum voices were a literal that went stale twice — see
+ * `DRUM_VOICE_TOKEN` — and this was a `\d` where the grammar wanted a sign. The
+ * lesson each time is the same, so it is worth stating once more: what belongs in
+ * a line is a question for whatever writes the line, and every table here that
+ * answers it independently is a table that will disagree eventually.
+ */
+const SIGNED_CONTROLS = new Set(['penv']);
+
 const problems: string[] = [];
 /**
  * Drum voices asked for that the chosen bank does not have.
@@ -87,9 +112,23 @@ for (let i = 0; i < 150; i++) {
     else if (resolved !== voice) substituted++;
   }
 
+  /**
+   * Which control the bars being read belong to.
+   *
+   * `formatGrid` writes a grid as `.name(\`<` on one line and then one `[...]`
+   * per bar under it, so the enclosing control is simply the last one named
+   * before the run started. That is the only context a line-at-a-time reader can
+   * have, and it is exactly enough for the one question worth asking about a
+   * number — whether a minus sign in front of it is music or a fault.
+   */
+  let control = '';
   for (const raw of code.split('\n')) {
     const line = raw.trim();
-    if (!line.startsWith('[') || !line.endsWith(']')) continue;
+    if (!line.startsWith('[') || !line.endsWith(']')) {
+      const named = line.match(/\.([a-z][a-zA-Z]*)\(/);
+      if (named) control = named[1]!;
+      continue;
+    }
     bars++;
     const inner = line.slice(1, -1).trim();
     if (/^_/.test(inner)) problems.push(`bar starts with a sustain marker: ${line.slice(0, 70)}`);
@@ -104,11 +143,19 @@ for (let i = 0; i < 150; i++) {
     // Noise sources. The sung layer triggers one for each consonant burst.
     const NOISE = /^(white|pink|brown)$/;
     for (const tok of inner.split(/\s+/)) {
-      const numeric = /^\d+(\.\d+)?$/.test(tok);
+      const numeric = /^-?\d+(\.\d+)?$/.test(tok);
       // A control value far outside the plausible range is a bug that would
-      // otherwise render as silence or as clipping rather than as an error.
-      if (numeric && Number(tok) > 20000) {
+      // otherwise render as silence or as clipping rather than as an error. On
+      // the magnitude, now that a value can be signed: a filter an octave *below*
+      // audible is the same fault as one above it, and reading `-30000` as small
+      // would be the check disarming itself.
+      if (numeric && Math.abs(Number(tok)) > 20000) {
         problems.push(`implausible control value "${tok}" in ${line.slice(0, 60)}`);
+      }
+      // A minus sign only means something in a grid that can express direction.
+      // See `SIGNED_CONTROLS`.
+      if (numeric && tok.startsWith('-') && !SIGNED_CONTROLS.has(control)) {
+        problems.push(`negative "${tok}" in a ${control || 'nameless'} grid: ${line.slice(0, 50)}`);
       }
       const ok = tok === '~' || tok === '_'
         || numeric

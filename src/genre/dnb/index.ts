@@ -176,19 +176,25 @@
  * fragment and the thirty-second roll into a drop are all simply absent, and no
  * arrangement of these tables produces one.
  *
- * **A bass note cannot slide** — §3.16, and this genre is the strongest evidence
- * the document has. A Reese moves in pitch under a filter; a wobble moves under
- * an LFO; both *are* the movement. `techstep`, `neurofunk` and `jumpup` each
- * write struck notes where the record has one note that travels, and each says
- * so in its own header. Three independent reports inside one genre, against a
- * document whose own standard is two.
+ * **A bass note can slide now** — §3.16, and this genre was the strongest
+ * evidence the document had: three independent reports inside one genre, against
+ * a document whose own standard is two. A Reese moves in pitch under a filter, a
+ * wobble moves under an LFO, and both *are* the movement. `techstep`,
+ * `neurofunk` and `jumpup` wrote struck notes where the record has one note that
+ * travels; all three write `BassHit.glide` instead, sixteen of their thirty-eight
+ * bass onsets travel, and not one of them writes a `glideTime`. The default is
+ * the whole note, and a Reese that arrives early and waits is a note with a
+ * smear on the front. `styles.ts` has the two things the field still cannot do.
  *
  * **The bass fold** — §1.3. `generateBass` places the root within a tritone of
  * MIDI 40 and repairs only by whole octaves, so a figure spanning more than
  * about a twelfth folds flat at some root positions. The obvious gesture here —
  * the sub dropping an octave under the drop — is exactly that figure. Every bass
  * row in `styles.ts` stays inside twelve semitones and writes its octave upward
- * from the root. Four genres have now written round this wall.
+ * from the root, **and that now includes where a note travels to**: a glide
+ * destination goes into the same span reduce as a struck tone, so no row here
+ * reaches anywhere it did not already reach. Four genres have now written round
+ * this wall.
  */
 
 import { makeScale } from '../../core/scale.js';

@@ -46,7 +46,15 @@
  * `cast.ts` reads the events and the events said drum kit. With the station read
  * the same sweep is **98**, and all 98 are one gesture in a third file — the
  * `cr` + `bd` `landEnding` strikes on a button ending in `song.ts`, which is
- * this same literal written a third time and is not this wave's to move.
+ * this same literal written a third time and was not this wave's to move.
+ *
+ * **A later wave moved it**, and the sentence is kept in the past tense rather
+ * than deleted because the count above is only legible beside it. `landEnding`
+ * calls `seamOrchestration` and writes `station.land` and `station.weight`, so
+ * on a table with no kit in it a button now lands on the drum: across every
+ * indian style at eight seeds, both come back `lp` **192 times of 192**. That
+ * closed the 98 and, with `playShot`'s level read after it, took the whole
+ * fault to zero — see `docs/engine-gaps.md` §2.1.
  *
  * See `SeamOrchestration` for what the answer is, and for which six of the seven
  * shapes below survive the move.

@@ -113,19 +113,38 @@ const conjunto: EraProfile = {
     ],
     /**
      * The coro is the one thing a conjunto really does sustain with, and it is
-     * the one thing that cannot be written here.
+     * back at the head of the table.
      *
-     * `choirAahs` used to be at the end of this list for exactly that reason
-     * and it is gone from both of the pre-war eras, because
-     * `concert/instruments.ts` stages every choir patch as a keyboard: a
-     * courtyard septet in 1938 was arriving on the boards with a synthesiser in
-     * it, thirty years early. The catalogue has no object for four people
-     * answering the sonero, so what is left is what a charanga actually
-     * sustains with — two violins, a pump organ, and the accordion the
-     * neighbouring style already plays.
+     * Nothing else in this room holds a note, which is the header's argument one
+     * section up read forwards: a tres is three courses of doubled steel hit
+     * with a pick and the note stops almost as soon as it starts, the bass is
+     * plucked, the trumpet is a lead and the bongó is a conversation. Four
+     * people around one microphone answering the sonero are the only sustained
+     * harmony a septet in a courtyard has ever had — that is what a montuno is
+     * built out of — and it is why this entry outweighs `strings1`. The two
+     * violins belong to the *charanga* next door, and this era is named after
+     * the band that has none.
+     *
+     * `choirAahs` was taken out of this palette and out of `orquesta`'s once,
+     * and the note here used to explain why: `concert/instruments.ts` staged
+     * every choir patch as a keyboard, so a courtyard septet in 1938 arrived on
+     * the boards with a synthesiser in it, thirty years early. That is no longer
+     * true. There is a `vocal-group` archetype now and `archetypeForTrack`
+     * weighs the era's year against `CHOIRS_GET_A_KEYBOARD`, which is 1970 and
+     * which 1938 clears by thirty-two years, so what stands here is three or
+     * four singers at one microphone rather than a player at a board.
+     *
+     * **Measured, because a name in a palette is not a sound and a sound is not
+     * an object.** Over 400 songs the coro wins the pad slot in 88 of the 244
+     * that write one — 36.1% — and all 88 stage as a vocal group and none as a
+     * synthesiser: 318 singers, four voices in 54 numbers and three in 34. The
+     * cost is bodies and it is the right cost, a mean cast of 10.4 on a number
+     * with a coro against 6.9 on one without. The pump organ and the accordion
+     * keep their weights, because the charanga and the vallenato trio are in
+     * this decade too and neither of them sings this.
      */
     pad: [
-      ['strings1', 4], ['reedOrgan', 2], ['accordion', 2],
+      ['choirAahs', 5], ['strings1', 4], ['reedOrgan', 2], ['accordion', 2],
     ],
     bass: [['acousticBass', 8], ['tuba', 2]],
     brass: [
@@ -214,10 +233,39 @@ const orquesta: EraProfile = {
       ['piano', 6], ['steelGuitar', 3], ['nylonGuitar', 2], ['jazzGuitar', 2],
       ['vibraphone', 2], ['accordion', 1],
     ],
-    // `choirAahs` is gone from here for the reason given under `conjunto`: 1953
-    // is still ten years before anything in `SYNTH_RIGS`, and a choir patch is
-    // staged as a keyboard. The saxes and the strings hold the note instead,
-    // which is what an orquesta's own sustain is.
+    /**
+     * No coro here, and that is now a decision rather than the leftover of the
+     * one under `conjunto`.
+     *
+     * The archetype that palette was waiting for exists, and 1953 clears
+     * `CHOIRS_GET_A_KEYBOARD` by seventeen years, so this era could have three
+     * or four people at a microphone for the price of one entry in this list and
+     * has been refused them. The reason is the clause the old note ended on,
+     * which was right about the music and wrong only about the mechanism: an
+     * orquesta's own sustain is what the arranger wrote for the sections.
+     *
+     * **This is the first era in the genre with anything that can hold a note.**
+     * The septet above has nothing, which is exactly why its coro is not
+     * decoration but the only harmony in the room. This band has five
+     * saxophones and four trombones whose whole function in a chart is the held
+     * chord under the mambo, and the charanga's violins under a bolero.
+     * `strings1`, `brassSection` and `strings2` are those sections. Standing
+     * singers in front of them would say the eighteen people the era is named
+     * for are not the thing sustaining, on the one bandstand in this folder
+     * where they demonstrably are.
+     *
+     * **What the refusal costs, because it costs something.** `chachacha` is the
+     * joint-heaviest style here at 9 and its defining feature is sung — Jorrín
+     * had Orquesta América's violinists sing the refrain in unison so the
+     * dancers could hear the words — and Machito's mambo sides have a coro on
+     * them as well. Neither is staged and both are real. What both of them are,
+     * though, is an answer shouted in unison between the band's own entries,
+     * not a chord held under the number, and `pad` is the wrong slot for an
+     * answer: the layer that draws from this list plays for whole sections. The
+     * conjunto's coro fits it because a montuno's response *is* the harmony for
+     * bars at a time. An orquesta's is four bars of interjection, and it wants a
+     * call-and-response figure this engine cannot write yet.
+     */
     pad: [
       ['strings1', 4], ['brassSection', 3], ['strings2', 3],
     ],

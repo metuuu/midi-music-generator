@@ -69,25 +69,33 @@ import type { Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
  * is 0.84 m up cannot be seen over the shoulders in front of them and has to
  * come forward by as much as they have lost in height.
  *
- * The platform stays because the two later eras draft a *second* percussionist.
- * `filmi`, `cabaret`, `bhangra`, `ragarock` and `fusiongat` are the five styles
- * here that declare `transitions`, and `applyShot` writes its figure as a kick,
- * a snare and a crash — kit voices, which `drumStations` answers with a kit. So
- * those numbers stage a session drummer *beside* the dholak player, which is
- * exactly what `filmi`'s own note says a film session was, and that one goes up.
- * Roughly two filmī numbers in five and one fusion number in four; hindustani
- * and carnatic have never produced one, because no style of theirs writes a
- * voice above the hand tier and the genre declares no palette of its own — see
- * the note on `transitions` in `index.ts`, which is the same argument from the
- * composing end.
+ * **The platform is empty, and this comment used to explain why it was not.**
+ * It said that `filmi`, `cabaret`, `bhangra`, `ragarock` and `fusiongat` were
+ * the five styles declaring `transitions`, that `applyShot` wrote its figure as
+ * a kick, a snare and a crash, and that `drumStations` therefore answered *kit*
+ * and stood a session drummer beside the dholak player in roughly two filmī
+ * numbers in five. Every step of that is now false. The shot resolves its voices
+ * from the events instead of naming three, so on these tables it writes doum
+ * strokes; the events stay `lp mp hp cp perc`, all hand or `either` tier; and
+ * `drumStations` answers *hand*. **Measured: 0 of 300 numbers put any performer
+ * on the riser** — and seventeen styles declare `transitions` now, not five, so
+ * it is not for want of gestures being drawn.
  *
- * On the room rather than on those two era dressings, because the kit is decided
- * per *number* and not per era, and the mechanism that answers per number
- * already exists: `showRiser` stands the platform when somebody is on it and
- * takes it away when nobody is. An era-level riser would still stand empty in
- * most of the filmī numbers it was written for, so it would buy nothing that
- * `showRiser` is not already buying — and it would want editing again the first
- * time a hindustani style grew a `transitions` table.
+ * The prop stays anyway, and the reason it stays is the reason it was put on the
+ * room rather than on an era in the first place: `showRiser` stands the platform
+ * when somebody is on it and takes it away when nobody is, so an unoccupied
+ * riser costs nothing and an era-level one would have had to be edited every
+ * time the composing side changed its mind — which it has now done twice. What
+ * would put a drummer back up there is a style writing a kit voice into its own
+ * *table*, which is a claim about what is in the room and is the only kind of
+ * claim that should be able to stage an instrument. No style here makes one.
+ *
+ * That is worth stating as a loss as well as a fix. `filmi`'s note says a film
+ * session had a dholak player and a session drummer sitting next to each other,
+ * and the stage no longer shows the second man. It showed him for the wrong
+ * reason — a seam gesture conscripting an instrument nobody had cast — and the
+ * right way to get him back is four voices in `KEHERWA`, not a delivery that
+ * guesses.
  */
 const SABHA: StageRoom = {
   id: 'sabha',

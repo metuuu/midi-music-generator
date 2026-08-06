@@ -174,7 +174,38 @@ function build(c: RoomContext): RoomRig {
    */
   const floorRng = c.rng('housefloor');
   const floorW = m.houseWidth + 8;
-  const floorD = m.houseDepth + 8;
+  /**
+   * Sized off the building, not off the house — which is a bug fix rather than
+   * a tidy-up, and the salon found it rather than this room.
+   *
+   * It was `houseDepth + 8` centred on `lipZ + houseDepth / 2`: a house-shaped
+   * number for a plane that has to reach past the house at *both* ends. That
+   * pins the upstage edge at `lipZ - 4` no matter what the room is, and since
+   * `lipZ` and `backZ` are `±depth / 2`, the ground runs out `depth - 4` metres
+   * short of the back wall in **every venue deeper than four metres — which is
+   * all thirteen dressings this room and the courtyard are ever asked for**:
+   * 1.40 m in jazz's club, 2.30–2.60 m in iskelmä and ambient, 3.60 m in
+   * arabic's widest court. The house floor sits a stage height *below* the
+   * boards, so what goes missing is the ground beside and behind the stage, and
+   * it renders as a black triangle in each bottom corner of a wide shot.
+   *
+   * A proscenium is the hardest room in the set to catch it in, and that is why
+   * it survived here: the tormentors two hundred lines down exist to stop "a
+   * wide shot seeing past the arch into nothing", and the wedge they cover is
+   * exactly this one. But they are front-on geometry standing at `archZ`, and
+   * orbit yaw is not clamped anywhere in this renderer — the courtyard says so
+   * in its own wall comment, that swinging round the outside is something a
+   * viewer does in the first ten seconds. Masked from one angle is not the same
+   * as present, and a floor is cheaper than an argument about camera limits.
+   *
+   * Upstage it goes 2 m past `backZ`, which is behind the backdrop and
+   * therefore never seen; downstage it keeps the reach it already had, because
+   * that end was never the fault and moving it would change every shot of the
+   * crowd for nothing.
+   */
+  const floorFrom = m.backZ - 2;
+  const floorTo = m.lipZ + m.houseDepth + 4;
+  const floorD = floorTo - floorFrom;
   const houseFloor = new Mesh(
     c.kit.own(cellPlane({
       width: floorW, height: floorD,
@@ -186,7 +217,7 @@ function build(c: RoomContext): RoomRig {
     c.kit.solid('#ffffff', { vertexColors: true, rough: 0.95 }),
   );
   houseFloor.rotation.x = -Math.PI / 2;
-  houseFloor.position.set(0, m.houseY, m.lipZ + m.houseDepth / 2);
+  houseFloor.position.set(0, m.houseY, (floorFrom + floorTo) / 2);
   houseFloor.receiveShadow = true;
   root.add(houseFloor);
 

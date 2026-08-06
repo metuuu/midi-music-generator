@@ -189,7 +189,30 @@ function build(c: RoomContext): RoomRig {
    * under the crowd rather than competing with the band.
    */
   const floorW = m.houseWidth + 8;
-  const floorD = m.houseDepth + 8;
+  /**
+   * Paved from wall to wall, which it was not — and this room is where that
+   * mattered most.
+   *
+   * The depth was `houseDepth + 8` centred on `lipZ + houseDepth / 2`, copied
+   * from the proscenium along with the cell trick and the stream name. See that
+   * room for the arithmetic; the short version is that it fixes the upstage
+   * edge at `lipZ - 4` regardless of the building, so any venue deeper than
+   * four metres has unpaved ground behind the dais. **All four of arabic's
+   * dressings are, by 3.00 to 3.60 m** — and the walls this room raises
+   * immediately below run the full plan, from `backZ - 0.1` to `houseBackZ`. So
+   * the flagstones stopped three and a half metres inside a court that is
+   * closed on all four sides, and the gap was between its own walls.
+   *
+   * A proscenium gets away with the same fault because its tormentors mask that
+   * wedge front-on. **A courtyard has no masking anywhere** — its own wall
+   * comment is written around a viewer swinging outside the room in the first
+   * ten seconds — so here the black wedge is simply in the shot. Measured from
+   * the building instead: 2 m past the rear wall of the stage, and the reach it
+   * already had at the house end, which was never the part that was wrong.
+   */
+  const floorFrom = m.backZ - 2;
+  const floorTo = m.lipZ + m.houseDepth + 4;
+  const floorD = floorTo - floorFrom;
   const flags = new Mesh(
     c.kit.own(cellPlane({
       width: floorW, height: floorD,
@@ -201,7 +224,7 @@ function build(c: RoomContext): RoomRig {
     c.kit.solid('#ffffff', { vertexColors: true, rough: 0.93 }),
   );
   flags.rotation.x = -Math.PI / 2;
-  flags.position.set(0, m.houseY, m.lipZ + m.houseDepth / 2);
+  flags.position.set(0, m.houseY, (floorFrom + floorTo) / 2);
   flags.receiveShadow = true;
   root.add(flags);
 
