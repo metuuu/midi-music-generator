@@ -425,13 +425,20 @@ export const indian: Genre = {
    * missing field; the weight above is chosen low partly because it is being
    * asked to be right for the whole catalogue at once.
    *
-   * The other thing that cannot be said is what the programme prints.
-   * `Section.solo.instrument` is the literal `'drum kit'` — see its own note in
-   * `core/types.ts`, and §2.3 of `docs/engine-gaps.md` — so every tani generated
-   * here is announced on the showbill as a drum kit. Nothing sounds wrong;
-   * `playerFor` still finds the tabla player and the chorus is still three
-   * strokes of one drum. It is the one number on the bill where the object is
-   * the point, and it is the object the bill gets wrong.
+   * **What the programme prints was the other thing that could not be said, and
+   * it can be said now.** `Section.solo.instrument` was the literal
+   * `'drum kit'`, so every tani generated here was announced on the showbill as
+   * a drum kit — the one number on the bill where the object is the point, and
+   * the object the bill got wrong. It is resolved from the style's own table
+   * and the bank now, and measured over this genre's catalogue every drum solo
+   * prints `mridangam`. See its note in `core/types.ts`, and §2.3 of
+   * `docs/engine-gaps.md`, which is closed.
+   *
+   * One residue, and it belongs to the machine rather than to the drum: where
+   * an era draws a programmed source there is no tabla player on the stage at
+   * all, and the bill names the box — `RolandTR808+mridangam` — because that is
+   * the only object in the room. Which is right, and is worth reading twice
+   * before anyone decides it is a bug.
    *
    * `tradeFours: 0.5` — as often as not, below jazz's 0.6 and clearly above
    * arabic's 0.3. The exchange is more central here than in a takht and less

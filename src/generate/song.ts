@@ -614,24 +614,6 @@ export function generateSong(opts: GenerateOptions = {}): Song {
   const drumPattern = rng.weightedBy(style.drums, (p) => p.weight);
   const drumBank = rng.weighted(era.drumBanks);
   /**
-   * What a drum solo in this song is played on, as a showbill would print it.
-   *
-   * One string, resolved once beside the bank it is read off, because it is the
-   * name every solo section in the song will carry and re-deriving it per
-   * section is how a song comes to claim two different objects. Read from the
-   * style's whole table rather than a section's own bar — the argument is
-   * `DrumSoloOptions.table`'s and is the same one: a variation that leaves the
-   * toms alone for eight bars has not wheeled the kit off the stage.
-   *
-   * `hand drum` where the bank names no rack, which is the same generic casting
-   * falls back to and for the same reason: the number has genuinely not been
-   * told which drum this is. See `Section.solo.instrument`, and `roster` in
-   * `concert/cast.ts`, which is what has to agree with this.
-   */
-  const soloistObject = drumStations(
-    style.drums.flatMap((p) => Object.keys(p.voices) as DrumVoice[]), drumBank,
-  ).kit ? 'drum kit' : (readBankName(drumBank).rack ?? 'hand drum');
-  /**
    * What is making the percussion, as an object. See `DrumSource`.
    *
    * Drawn here with the other rhythm-section decisions and *before* a single
@@ -668,6 +650,70 @@ export function generateSong(opts: GenerateOptions = {}): Song {
       ? era.drumSources?.filter(([source]) => source !== 'box')
       : era.drumSources,
   ));
+
+  /**
+   * What a drum solo in this song is played on, as a showbill would print it.
+   *
+   * One string, resolved once beside the bank and the source it is read off,
+   * because it is the name every solo section in the song will carry and
+   * re-deriving it per section is how a song comes to claim two different
+   * objects. Read from the style's whole table rather than a section's own bar
+   * — the argument is `DrumSoloOptions.table`'s and is the same one: a
+   * variation that leaves the toms alone for eight bars has not wheeled the kit
+   * off the stage.
+   *
+   * ## The first question is whether anybody is playing it
+   *
+   * It has to be asked here, below `drumSource`, and that is the whole reason
+   * this declaration sits after a draw it does not use. `drumStations` answers
+   * *which objects would a pair of hands need*, which is a different question
+   * from *are there any hands*, and asking only the first named an object on
+   * every stage that has nobody standing at it. Measured over 100 seeds in each
+   * of the nineteen genres: **33 of 150 drum solos — 22% — were announced as an
+   * object with no player**, across six genres, funk 12 and dnb 8 of them. A
+   * Roland TR-909 chorus was a "drum kit". A Linn 9000 was a "hand drum". An
+   * 808 running a sampled mridangam was a "mridangam", which names an
+   * instrument nobody in the building is touching and is the worst of the three
+   * because it is the most specific.
+   *
+   * That is §2.3's own sentence — *a drum solo is named after a kit whatever
+   * plays it* — surviving the change that closed the hand-drum half of it. The
+   * hand-drum half only ever asked the object question, and there was no reason
+   * it should have noticed this one: `drumStations` is right about darbukas and
+   * mridangams and was never wrong here, it was simply answering a question
+   * nobody should have been asking yet.
+   *
+   * So a machine is named as the machine, with **the whole bank string, rack
+   * and all**. That is not a second decision: it is exactly the string
+   * `placeMachine` puts on the object it stands on the boards, and the argument
+   * for keeping the rack is that function's — a box loaded with a sampled
+   * darbuka is a box, nobody is sitting behind the drum, and dropping the rack
+   * would delete the only mention of something genuinely sounding and genuinely
+   * invisible. The bill and the stage then name one object instead of two.
+   *
+   * **`electronic-kit` stays a kit**, which is the same question answered the
+   * other way rather than an exception to it: a Simmons is pads that a drummer
+   * hits, `isPlayedByHand` says so, and there is a person behind them.
+   *
+   * Nothing downstream moves. `playerFor` falls back to the first player on the
+   * layer when the name does not match, so a changed string could only ever
+   * redirect a follow spot where two percussionists are staged — and this
+   * branch fires only where **zero** are, so `resolveSolos` drops the spot
+   * exactly as it already did. This changes what the number is called and
+   * nothing else.
+   *
+   * `hand drum` where the bank names no rack, which is the same generic casting
+   * falls back to and for the same reason: the number has genuinely not been
+   * told which drum this is. See `Section.solo.instrument`, and `roster` and
+   * `placeMachine` in `concert/cast.ts`, which are what have to agree with this.
+   */
+  const soloistObject = !isPlayedByHand(drumSource)
+    ? drumBank
+    : drumStations(
+      style.drums.flatMap((p) => Object.keys(p.voices) as DrumVoice[]), drumBank,
+    ).kit
+      ? 'drum kit'
+      : (readBankName(drumBank).rack ?? 'hand drum');
 
   /**
    * What happens at each section join, settled before a note is written.

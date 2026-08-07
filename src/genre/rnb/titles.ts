@@ -53,7 +53,9 @@
  * exactly the axis `moods.ts` sorts on. So the invitation families are struck
  * under `ache` and `smoulder`, and the plea families are struck under `sweet`,
  * with tempo used only for the one case where it genuinely is the deciding
- * fact — nothing under 76 BPM invites anybody to dance.
+ * fact — nothing under 76 beats a minute invites anybody to dance. **Beats, not
+ * `bpm`**; see `felt` below, which is the difference between those two and was
+ * calling a 6/8 hymn an invitation until somebody measured it.
  *
  * Nothing here reproduces an actual title. Every vocabulary is deliberately one
  * word to the side of the famous ones — the neighbouring endearment, the
@@ -164,6 +166,25 @@ function hook(rng: Rng): string {
   ] as const);
 }
 
+/**
+ * The pulse anybody in the room would count off, which is not always `bpm`.
+ *
+ * `Style.bpm` counts quarter notes, always — the engine has no other beat. In a
+ * compound metre the felt beat is a dotted quarter, so the number in the field
+ * is half again too large: `gospelsoul` says 70–96 and is counted at 47–64, and
+ * `doowop` and `deepsoul` say 96–126 and 78–105 since they stopped spelling
+ * their 12/8 as a swung 4/4. Handed the raw field, the test below decided that a
+ * deep-soul ballad at fifty-eight was an invitation to dance, which is the
+ * opposite of every record in it, and had been quietly deciding the same thing
+ * about the hymn for as long as the hymn has existed.
+ *
+ * `groups[0]` is one felt beat in sixteenths, which is the whole conversion: six
+ * for a dotted quarter, four for a plain one. A bar with no grouping is counted
+ * in quarters and the number is already the right one.
+ */
+const felt = (ctx: TitleContext): number =>
+  (ctx.style.groups?.length ? (ctx.bpm * 4) / ctx.style.groups[0]! : ctx.bpm);
+
 export function generateTitle(rng: Rng, ctx: TitleContext): string {
   /**
    * Who is being addressed, which is the axis this genre's moods sort on and
@@ -175,7 +196,7 @@ export function generateTitle(rng: Rng, ctx: TitleContext): string {
    * an arranged radio single is, so both families thin out under it rather than
    * one of them winning.
    */
-  const inviting = ctx.mood.id !== 'ache' && ctx.mood.id !== 'smoulder' && ctx.bpm >= 76;
+  const inviting = ctx.mood.id !== 'ache' && ctx.mood.id !== 'smoulder' && felt(ctx) >= 76;
   const pleading = ctx.mood.id !== 'sweet';
 
   const pattern = rng.weighted([

@@ -78,16 +78,32 @@ export interface SoloAssignment {
    *
    * One exception, and it is unavoidable: percussion is a `DrumTrack`, not a
    * `Track`, so it has no instrument name to match. What a drum solo carries
-   * instead is the name a showbill would print — `'drum kit'`, or the drum the
+   * instead is the name a showbill would print, and it is answered in two
+   * steps because a stage answers it in two steps.
+   *
+   * **Is anybody playing?** Where the source is a box or a programmed machine
+   * nobody is: `roster` stages no percussionist at all and `placeMachine`
+   * stands the machine on the boards instead. Then the machine *is* the object
+   * and the field carries its whole bank string — `'RolandTR909'`,
+   * `'RolandTR808+mridangam'` — which is exactly the label the staged machine
+   * already wears, rack included, because a box loaded with a sampled darbuka
+   * is a box and the rack is the only mention of something sounding and
+   * invisible.
+   *
+   * **Then: which object would the hands need?** `'drum kit'`, or the drum the
    * chorus was actually written for where that is not a kit: `'darbuka'`,
    * `'congas'`, `'mridangam'`, and `'hand drum'` where nothing named which. A
-   * bank name like "LinnDrum" would be wrong in every one of those cases; that
-   * is a sample set, not an instrument.
+   * bank name is wrong in every one of *those* cases — there it is a sample set
+   * loaded into an instrument somebody is holding, not the instrument.
    *
-   * The distinction is not pedantry. A *tani āvartanam* is ten minutes of
-   * mridangam alone on a stage with no kit anywhere on it, and this field said
-   * `'drum kit'` through all of it — see `generateSong`, where the name is
-   * resolved from the same read that decides what the chorus is written for.
+   * The distinction is not pedantry, and both halves of it were learned the
+   * same way. A *tani āvartanam* is ten minutes of mridangam alone on a stage
+   * with no kit anywhere on it, and this field said `'drum kit'` through all of
+   * it. Then it said `'mridangam'` through a chorus whose mridangam was a
+   * sample inside an 808, in 22% of drum solos, because knowing which object a
+   * pair of hands would need is not the same as knowing there are hands. See
+   * `generateSong`, where the name is resolved from the same reads that decide
+   * what the chorus is written for and who, if anyone, is playing it.
    */
   instrument: string;
   /** What the band plays underneath. */

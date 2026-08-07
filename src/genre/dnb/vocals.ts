@@ -5,15 +5,22 @@
  * ## There are two voices in this music and the engine can only be one of them
  *
  * **The MC** is a person with a microphone talking over a record in a room. They
- * are not on the record — they are on the *night* — and there is no object for
- * them anywhere in this project: `Genre.vocals` casts a singer as a doubling of
- * an instrumental line, and there is no `Archetype` for somebody holding a
- * microphone and nothing else. `docs/engine-gaps.md` §3.20 states the want and
- * hiphop reported it first about a rapper. This genre's version is worse in one
- * specific respect and better in another: worse because the MC is a *live-only*
- * role, so a genre that generates records rather than nights loses them
- * entirely; better because a drum and bass record with no MC on it is the normal
- * object rather than the B-side.
+ * are not on the record — they are on the *night*.
+ *
+ * This used to say there was no object for them anywhere in the project, and
+ * that there was no `Archetype` for somebody holding a microphone and nothing
+ * else. **Both halves were wrong**, and `docs/engine-gaps.md` §3.20 was filed on
+ * them and has been withdrawn: `ARCHETYPES.singer` is a microphone, a stand and
+ * a cable with the hands deliberately free, and a sung number stands its singer
+ * downstage centre with the band stepped back behind them.
+ *
+ * **The real gap is the one that has nothing to do with objects.** An MC is a
+ * *live-only* role: a genre that generates records rather than nights has
+ * nothing in its IR that could produce one, whatever the stage could draw. That
+ * is a want about what a `Song` contains, not about what a stage owns, and it is
+ * why this genre's version of it is worse than hiphop's — and better in one
+ * respect, because a drum and bass record with no MC on it is the normal object
+ * rather than the B-side.
  *
  * **The other voice is a sampled soul vocal, chopped into vowels.** A phrase is
  * lifted off a seventies record, cut at the syllable, pitched to the key and

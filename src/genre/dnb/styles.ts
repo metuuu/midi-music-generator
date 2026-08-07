@@ -31,16 +31,28 @@
  * `BassTone` argues the same thing from the other end; funk and hiphop both say
  * it too.
  *
- * **No figure spans more than a twelfth**, which is a ceiling rather than a
- * taste and is the one in `docs/engine-gaps.md` §1.3. `generateBass` places the
- * root within a tritone of MIDI 40 and repairs only by whole octaves, so a wider
- * shape folds flat at some root positions and comes out as two notes on one
- * pitch. The obvious gesture in this music — the sub dropping an octave under
- * the drop — is exactly that figure. Every row below stays inside twelve
- * semitones and writes its octave **upward from the root as `12`** rather than
- * downward from the top, and `npm run genres` catches the mistake as *"a riff is
- * the same shape over every chord quality"*. Four genres have now written round
- * this wall.
+ * **No figure spans more than a twelfth, and that is the music rather than a
+ * ceiling.** It was written here as a ceiling — `docs/engine-gaps.md` §1.3, the
+ * one six genres found by ear and narrowed their figures to fit — and the
+ * number in that sentence was wrong. It has since been measured: `placeRoot`
+ * scores every octave of the root against the whole span, the reach is
+ * `SHAPE_CEILING - BASS_RANGE[0]` = 35 semitones, and **every span up to 24 —
+ * two octaves exactly — stands at all twelve roots**. See `unplaceableRoots`
+ * for the derivation and `npm run genres` for the assertion, which is total over
+ * all 1,034 bass figures in the project.
+ *
+ * These rows were re-read against the real number and none of them wanted the
+ * width. A sub-bass is one register: the obvious gesture in this music is the
+ * octave under the drop, which is twelve semitones from whichever end it is
+ * written, and a figure reaching a nineteenth would have stopped being a sub and
+ * started being a bassline. **Which end it is written from is not free, and it
+ * is why every row below still writes its octave upward from the root as `12`.**
+ * Written up, `placeRoot` puts the root at MIDI 29–40 across the twelve roots
+ * and the answer above it; written down as `-12`, the root has to climb to 40–51
+ * to leave room underneath. The sub is the bottom note, so the bottom note is
+ * the root. `npm run genres` still catches a genuinely folded figure as *"a riff
+ * is the same shape over every chord quality"*, and now as *"every bass figure
+ * has an octave it fits in"* as well.
  *
  * **The hole is enormous and it is the point.** A jungle bar has two kicks, one
  * snare and a bass note that lasts three and a half beats. The sparsest tables
@@ -371,8 +383,10 @@ const hardcore: Style = {
     { cell: [-4, 12], weight: 3 },
   ],
   bass: [
-    // The rave octave, written upward. Twelve semitones exactly and it never
-    // folds — see the header on `generateBass`.
+    // The rave octave, written upward so the root sits at the bottom of the
+    // register rather than on top of the leap — see the header. Twelve
+    // semitones exactly, which is half of what would place cleanly and all of
+    // what this gesture is.
     { name: 'rave-octave', weight: 6, hits: [
       { at: 0, dur: 3, tone: 0, vel: 1 },
       { at: 4, dur: 2, tone: 12, vel: 0.7 },
@@ -2239,11 +2253,13 @@ const jumpup: Style = {
      * record exists to make findable.
      *
      * The vertical span is still seven semitones and every destination sits
-     * inside it, which is deliberate and is §1.3: `generateBass` folds glide
-     * destinations into the same reduce as the struck tones, so a figure
-     * travelling outside its own span would move the octave the whole shape is
-     * placed in and could fold it flat at some roots. Nothing here reaches
-     * further than it did before.
+     * inside it, which is deliberate: `generateBass` folds glide destinations
+     * into the same reduce as the struck tones, so a figure travelling outside
+     * its own span moves the octave the whole shape is placed in. That is worth
+     * knowing rather than worth fearing — the wall is 24 semitones and seven is
+     * nowhere near it, see `unplaceableRoots` — so keeping the destinations
+     * inside the span is a decision about where the sweep sits in the register,
+     * not a way round §1.3. Nothing here reaches further than it did before.
      */
     { name: 'wobble', weight: 7, hits: [
       { at: 0, dur: 3, tone: 0, vel: 1 },
@@ -2256,8 +2272,9 @@ const jumpup: Style = {
      * rests — and a leap written as a glide is a dive-bomb rather than a bounce.
      * The other half of jump-up is the sweep above; now that the table can say
      * both, it is worth one row saying which of the two it is, especially this
-     * one, whose twelve-semitone span is the widest bass shape in the genre and
-     * has no room for a destination outside it anyway.
+     * one, whose twelve-semitone span is the widest bass shape in the genre —
+     * with a dozen semitones of room still under the wall, now that the wall has
+     * been measured at 24 rather than guessed at 12.
      */
     { name: 'bouncing', weight: 6, cycle: 32, hits: [
       { at: 0, dur: 3, tone: 0, vel: 1 },

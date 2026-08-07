@@ -302,15 +302,18 @@
  * the whole note, and a Reese that arrives early and waits is a note with a
  * smear on the front. `styles.ts` has the two things the field still cannot do.
  *
- * **The bass fold** — §1.3. `generateBass` places the root within a tritone of
- * MIDI 40 and repairs only by whole octaves, so a figure spanning more than
- * about a twelfth folds flat at some root positions. The obvious gesture here —
- * the sub dropping an octave under the drop — is exactly that figure. Every bass
- * row in `styles.ts` stays inside twelve semitones and writes its octave upward
- * from the root, **and that now includes where a note travels to**: a glide
- * destination goes into the same span reduce as a struck tone, so no row here
- * reaches anywhere it did not already reach. Four genres have now written round
- * this wall.
+ * **The bass fold, which was never where this file said it was** — §1.3, and
+ * closed. `placeRoot` scores every octave of the root against the whole span,
+ * the reach is 35 semitones, and every span up to **24** stands at all twelve
+ * roots; the twelfth this header used to quote was six genres' shared guess and
+ * it was half the real number. Nothing in `styles.ts` moved, because nothing in
+ * it wanted to: the gesture here is the sub dropping an octave under the drop,
+ * that is twelve semitones from either end, and the octave is still written
+ * upward from the root so the root stays on the bottom note where a sub belongs.
+ * **Where a note travels to counts the same way**: a glide destination goes into
+ * the same span reduce as a struck tone, so no row here reaches anywhere it did
+ * not already reach. See `unplaceableRoots`, which is where the number comes
+ * from, and which `npm run genres` now asserts over every figure in the project.
  */
 
 import { makeScale } from '../../core/scale.js';

@@ -451,8 +451,14 @@ const acid: Style = {
      * Written with numeric `BassTone` rather than chord functions, for
      * `BassTone`'s own stated reason: this is a **shape**, not an outline, and a
      * figure that renegotiated with each chord would be a different figure. The
-     * span is a twelfth, which is the ceiling §1.3 records — a thirteenth folds
-     * flat at some root positions and three genres have found it independently.
+     * span is a twelfth, and this comment used to call that the ceiling §1.3
+     * records. It is not: the ceiling has since been measured at **24 semitones,
+     * every span up to which stands at all twelve roots** — see
+     * `unplaceableRoots`. A twelfth is what this figure is rather than what it
+     * was allowed. The machine's keyboard is one octave and its octave switch is
+     * a per-step transpose that an acid pattern spends on a step or two, so a
+     * line inside an octave with a note thrown over the top *is* the repertoire,
+     * and the row is left where it stands on purpose.
      *
      * **Two of the sixteen steps slide**, which is about the density the machine
      * is actually played at: the slide is a per-step switch, and a line with it
@@ -472,11 +478,13 @@ const acid: Style = {
      * 303 chases an absolute, so this number is right at the two-step length
      * these figures use and would want recomputing on a longer one.
      *
-     * The span is still a twelfth. Both destinations are pitches this figure
-     * already struck somewhere else, so the reduce in `generateBass` that folds
-     * a glide into the shape finds nothing new to fold — which is the general
-     * case rather than luck, because a destination arrived at by deleting a
-     * struck note was, by construction, already in the span.
+     * The span is still a twelfth, and with the wall at 24 that is now a
+     * statement about the figure rather than about the headroom. Both
+     * destinations are pitches this figure already struck somewhere else, so the
+     * reduce in `generateBass` that folds a glide into the shape finds nothing
+     * new to fold — which is the general case rather than luck, because a
+     * destination arrived at by deleting a struck note was, by construction,
+     * already in the span.
      */
     { name: '303-sixteenths', weight: 7, hits: [
       { at: 0, dur: 1, tone: 0, vel: 1 }, { at: 1, dur: 1, tone: 0, vel: 0.6 },

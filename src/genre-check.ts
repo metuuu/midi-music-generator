@@ -13,6 +13,7 @@ import { generateSong } from './generate/song.js';
 import { renderMidi } from './render/midi.js';
 import {
   generateBass, generateComp, generateDrums, generateLeftHand, planFigureVariation, planKitVariation,
+  unplaceableRoots,
 } from './generate/parts.js';
 import { anticipate, subdivide, thin } from './generate/rhythm.js';
 import { getGenre, GENRE_IDS } from './genre/index.js';
@@ -1365,6 +1366,75 @@ console.log('\nBass shapes');
     wrongInterval || flattened
       ? `${wrongInterval} notes off their declared interval, ${flattened} bars flattened`
       : `${shapeNotes} notes over ${patterns} figure(s) × ${QUALITIES.length} qualities, exact`,
+  );
+
+  /**
+   * And every figure has an octave it fits in — including the ones the check
+   * above cannot look at.
+   *
+   * The check above is a *measurement*: it generates bars and compares their
+   * span to a declared one. That is the stronger evidence where it applies, and
+   * it applies to 287 of the catalogue's 497 shaped figures, because a `cycle`
+   * puts a different slice of the figure in each bar and a chord function mixed
+   * in among the numbers has no declared interval to be off. Both exclusions are
+   * correct for what it measures. Neither is a reason the *figure* is safe.
+   *
+   * This one is an *assertion about the table*, so it is total. It asks
+   * `unplaceableRoots`, which asks `spanOf`, which is the arithmetic
+   * `generateBass` itself runs — so a cycled figure, a mixed figure, a
+   * `tone: 'octave'` and a glide destination are all weighed here exactly as
+   * they are weighed when the note is placed. No bars are generated and no
+   * random numbers are drawn; the answer is a property of the spelling.
+   *
+   * **It is worth having because the silence was the fault.** §1.3 of
+   * `docs/engine-gaps.md` was found independently by six genres, every one of
+   * them by ear, and every one of them responded by narrowing a figure it wanted
+   * wide: reggae gave up a fifth below the root, metal gave up an octave, funk
+   * moved its ♭7 to the other side of the root and thirteen more funk figures
+   * copied the spelling without recording why, while dnb, hiphop and house wrote
+   * the ceiling into a file header. The measured ceiling is 24 — see
+   * `unplaceableRoots` for the derivation — so the catalogue had been writing to
+   * half of the available width, and the thing that made that happen is that
+   * nobody was ever told a number.
+   *
+   * **Told it, three genres took their note back**: metal's `fifths` at 17,
+   * reggae's `steppers-octave` at 17 and funk's `octave-drop` at 14, verified
+   * here rather than by ear. The other three re-read their tables and moved
+   * nothing, which is the same answer arrived at deliberately — a sub, an 808
+   * and a 303 line are each one register wide, and none of them was being held
+   * there by the engine. **215 figures still sit at exactly 12**, down from 228,
+   * and that number is now a fact about the music rather than about the wall.
+   *
+   * Latin is the case that proves it is the silence rather than the wall.
+   * Its tumbaos span 19 and `timba-line` spans 22, all of them cycled, all of
+   * them invisible to the check above, and all of them perfectly placed — latin
+   * is the only genre that wrote what it wanted, and the only one that never
+   * discovered there was a limit. It was right by luck, and this is what turns
+   * that into a guarantee.
+   */
+  let figures = 0, unplaceable = 0;
+  const folded: string[] = [];
+  for (const gid of GENRE_IDS) {
+    for (const style of Object.values(getGenre(gid).styles)) {
+      for (const pattern of style.bass) {
+        // A walking pattern's `hits` are never read — `generateBass` hands it
+        // straight to `generateWalkingBass`, which places every note itself.
+        if (pattern.walking) continue;
+        figures++;
+        const roots = unplaceableRoots(pattern.hits);
+        if (roots.length > 0) {
+          unplaceable++;
+          folded.push(`${gid}/${style.id}/${pattern.name} at ${roots.length} of 12 roots`);
+        }
+      }
+    }
+  }
+  check(
+    'every bass figure has an octave it fits in',
+    figures > 0 && unplaceable === 0,
+    unplaceable
+      ? `${unplaceable} too wide to place: ${folded.slice(0, 3).join('; ')}`
+      : `${figures} figures, none folds at any of the 12 roots`,
   );
 }
 
@@ -3782,21 +3852,42 @@ console.log('\nSolos');
          * nothing lights nobody. Percussion is the one exception and it is not a
          * `Track` at all — see the note where `Section.solo` is set.
          *
-         * So the percussion arm asks the question the stage asks: given the
-         * voices this chorus actually wrote and the bank behind them, is there a
-         * kit under it? A kit chorus is `'drum kit'` and everything else is the
-         * drum it was played on. This used to compare against the literal
-         * `'drum kit'` and therefore could not tell a tani āvartanam from a jazz
-         * chorus — it passed while every hand-drum solo in the project claimed
-         * an instrument that was not on the stage.
+         * So the percussion arm asks the question the stage asks, and it asks it
+         * in two parts because the stage does. **First: is anybody playing?**
+         * `roster` stages a percussionist only where `isPlayedByHand`, so a box
+         * or a programmed machine puts no drummer on the boards at all and
+         * `placeMachine` stands the machine there instead, labelled with the
+         * whole bank string. A chorus running off a machine is therefore named
+         * after the machine, because that is the only object in the room.
+         * **Then, and only then: which object would the hands need?** A kit
+         * chorus is `'drum kit'` and everything else is the drum it was played
+         * on.
+         *
+         * Both halves were learned the same way. This used to compare against
+         * the literal `'drum kit'` and could not tell a tani āvartanam from a
+         * jazz chorus — it passed while every hand-drum solo in the project
+         * claimed an instrument that was not on the stage. It was then given
+         * `drumStations` and still could not tell a drummer from a Linn 9000,
+         * because `drumStations` answers *which objects would a pair of hands
+         * need* and nobody had asked whether there are any hands. This is the
+         * third site of that one question, after the generator and the solo
+         * writer; the point of restating it here rather than importing the
+         * generator's answer is that a check which reads the code it is checking
+         * asserts nothing at all.
          */
-        const named = sec.solo.layer === 'drums'
-          ? sec.solo.instrument === (drumStations(
+        const source = song.drums.source ?? 'kit';
+        const object = !isPlayedByHand(source)
+          ? song.drums.bank
+          : drumStations(
             new Set(song.drums.events
               .filter((e) => e.beat >= from - 1e-6 && e.beat < to - 1e-6)
               .map((e) => e.voice)),
             song.drums.bank,
-          ).kit ? 'drum kit' : (readBankName(song.drums.bank).rack ?? 'hand drum'))
+          ).kit
+            ? 'drum kit'
+            : (readBankName(song.drums.bank).rack ?? 'hand drum');
+        const named = sec.solo.layer === 'drums'
+          ? sec.solo.instrument === object
           : song.tracks.some((t) => t.layer === sec.solo!.layer && t.instrument === sec.solo!.instrument);
         if (!named) m.misnamed++;
         m.layers.set(sec.solo.layer, (m.layers.get(sec.solo.layer) ?? 0) + 1);

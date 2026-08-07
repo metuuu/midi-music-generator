@@ -95,12 +95,44 @@ const functional = (tonic: Pc, mode: Mode, chord: Chord): Scale =>
  * Functional harmony and a real dominant — see `functional` above. These are
  * Brill Building songs sung by teenagers, and the writers had all been taught.
  *
- * **The 12/8 that is not here.** Half this repertoire is in compound time, and
- * `beatsPerBar` cannot say so without also saying that a bar is 12 sixteenths,
- * which is a 3/4 bar and a different dance. What is written instead is a
- * triplet-leaning `swing: 0.28` over a straight 4/4, which is the same lilt in
- * the one place the engine can put it, and is honest about being an
- * approximation.
+ * ## The 12/8 that is not here, and the three measurements that keep it out
+ *
+ * What stood here was that half this repertoire is in compound time and that
+ * `beatsPerBar` could not say so without also claiming the bar was a 3/4, so
+ * `swing: 0.28` was "the same lilt in the one place the engine can put it".
+ * **The second half of that sentence was wrong on the day it was written.**
+ * `beatsPerBar: 6` at `beatUnit: 8` with `groups: [6, 6, 6, 6]` is twenty-four
+ * sixteenths in four dotted-quarter groups, `timeSignature` writes it into the
+ * MIDI header as a literal 12/8, and `classical`'s `nocturne` and `lacrimosa`
+ * had been shipping in exactly that metre for two days before this file existed.
+ * `rnb`'s `doowop` and `deepsoul` said the same thing and have since converted.
+ *
+ * `swing: 0.28` stays here anyway, and this is the one style in the two genres
+ * where that is the right answer. Three numbers say why.
+ *
+ *  - **0.28 is not a triplet and was not trying to be.** A quarter is 472.4 ms
+ *    at the middle of this range; `swing` delays the second eighth by half its
+ *    value, so 0.28 puts that eighth at **302.4 ms** and a true compound third
+ *    wants **315.0**. Doo-wop's author wrote `0.33` and landed 1.4 ms off the
+ *    triplet. Whoever wrote this one wrote 0.28 and landed 12.6 ms short of it,
+ *    which is a shuffle and not a compound bar — and a shuffle is what a room
+ *    full of session players does to a straight eighth, which is what the
+ *    records are.
+ *  - **A twelfth of what this style plays has no compound address.** Across
+ *    forty generated songs, 7.9% of all onsets sit on a straight sixteenth:
+ *    42.7% of the snare, which is `blaine`'s ghost row at 7, 11 and 15, and 9.2%
+ *    of the comp, which is `triplet-piano`'s 3 and 11. A straight sixteenth
+ *    lands *exactly halfway* between two positions of a compound grid — 39.4 ms
+ *    from either — so those are not notes that shift a little under conversion,
+ *    they are notes with nowhere to land. Doo-wop's figure was 0.69%, and that
+ *    is the whole reason doo-wop converted and this does not.
+ *  - **The repertoire really is two metres, and a `Style` holds one.** The
+ *    Blaine figure below is a straight four with castanets on the eighths and it
+ *    is the record this style is named for; the compound half is a different set
+ *    of singles cut by the same producer in the same room. The gap that leaves
+ *    is real and it is not the one this comment used to name: what is missing is
+ *    not a way to state compound time, it is a way for one style to be in two
+ *    metres. §3.19 of `docs/engine-gaps.md` now says so.
  */
 const girlgroup: Style = {
   id: 'girlgroup',

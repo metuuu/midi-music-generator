@@ -215,20 +215,45 @@ const vamp: Style = {
      * anything that looks at it, including `npm run genres`, which measures the
      * declared span against what came out.
      *
-     * The ♭7 sits *above* the root at 10 rather than below it at −2, and that is
-     * arithmetic as much as taste: `generateBass` places the root within a
-     * tritone of MIDI 40 and repairs by whole octaves, so a shape spanning more
-     * than an octave from −2 to +12 has one root position — F, at 41 — where
-     * neither direction fits and the top note is clamped. A clamped note is a
-     * *flattened* figure, which is the one damage the numeric spelling exists to
-     * prevent. Twelve semitones is the widest a riff can be here and still
-     * always arrive whole.
+     * **The ♭7 is back below the root at −2**, where `the-one` above puts it and
+     * where the gesture is: the drop off the root, not a note in the octave over
+     * it. It sat at 10 from the day this table was written, and that was
+     * arithmetic rather than taste:
+     * a shape from −2 to +12 spans fourteen, and the placement of the day put
+     * the root within a tritone of MIDI 40 and repaired by whole octaves, so
+     * there was one root position — F, at 41 — where neither direction fitted
+     * and the top note was clamped. A clamped note is a *flattened* figure,
+     * which is the one damage the numeric spelling exists to prevent.
+     *
+     * That placement is gone. `placeRoot` scores every octave of the root
+     * against the whole span, the reach it scores against is 35 semitones, and
+     * **every span up to 24 stands at all twelve roots** — see
+     * `unplaceableRoots` for the derivation and `npm run genres` for the
+     * assertion over all 1,034 bass figures. Fourteen is not close to the wall.
+     *
+     * **The thirteen other funk figures that write the ♭7 at 10 keep it**, and
+     * that is the half of this worth recording, because a spelling shared with a
+     * workaround is not itself a workaround. Nine of them — `octave-riff`,
+     * `moog-riff`, `disco-riff`, `thumb-and-pop`, `hammer`, `thumbed-riff`,
+     * `slap-boogie`, `synth-riff` and `eighths` — reach the ♭7 as a step in a
+     * line that also touches the octave, seven of them coming down off it and
+     * two climbing to it, so the note is a passing tone up there rather than a
+     * drop from underneath. The other four — `boogaloo`, `tumbao`,
+     * `sequenced-two-bar` and `synth-bass` — never touch the octave at all and
+     * span 10 apiece, nowhere near any ceiling anybody wrote about, so nothing
+     * was traded away to get them.
+     *
+     * Thirteen rather than the eleven §1.3 credits, which is worth one line on
+     * its own: the entry was written by reading for a *comment* saying why, and
+     * the two it missed have no comment because they never needed one. A count
+     * of workarounds taken from prose undercounts by however many authors had
+     * nothing to apologise for.
      */
     { name: 'octave-drop', weight: 5, hits: [
       { at: 0, dur: 2, tone: 0, vel: 1 },
       { at: 2, dur: 2, tone: 12, vel: 0.6 },
       { at: 6, dur: 2, tone: 0, vel: 0.72 },
-      { at: 10, dur: 2, tone: 10, vel: 0.75 },
+      { at: 10, dur: 2, tone: -2, vel: 0.75 },
       { at: 14, dur: 2, tone: 0, vel: 0.68 },
     ] },
     /**

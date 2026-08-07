@@ -403,22 +403,35 @@ const gallopBass = (weight: number): BassPattern => ({
 });
 
 /**
- * Root, the fifth below and the fifth above — the power chord played as a line,
- * and the one bass figure in this project that is a *chord* rather than a
- * melody.
+ * Root, the fifth below, the fifth above and the octave — the power chord
+ * played as a line, and the one bass figure in this project that is a *chord*
+ * rather than a melody.
  *
  * `-5` is the fifth below rather than a fourth above, and the sign is the whole
  * point: the open A string under an E is where a bass player goes for this, and
  * the same interval taken upward would put the figure in the guitar's register
  * and turn a foundation into a countermelody.
  *
- * The span is a twelfth and it is capped there deliberately. An earlier version
- * reached the octave above as well, which is a nineteenth end to end, and
- * `clampToRange` at the top of the bass's range folded two of the shape's notes
- * onto one pitch — every pitch class preserved and the figure destroyed. That is
- * exactly the near miss `a riff is the same shape over every chord quality`
- * exists to catch, and it caught it: 8 bars flattened per style, on eleven
- * styles, with nothing else reporting anything wrong.
+ * **The octave on the last slot is the note this figure was written without,**
+ * and the span is seventeen semitones with it. It was cut to twelve for a wall
+ * that is not there. An earlier version reached past the octave —
+ * nineteen semitones end to end — and `clampToRange` at the top of the bass's
+ * range folded two of the shape's notes onto one pitch, every pitch class
+ * preserved and the figure destroyed. `a riff is the same shape over every chord
+ * quality` caught it at 8 bars flattened per style, on eleven styles, with
+ * nothing else reporting anything wrong, and the response was to narrow the
+ * figure until it stopped.
+ *
+ * The clamp was the fault and the cut was a workaround for it. `placeRoot`
+ * scores every octave of the root against the whole span now, and the reach it
+ * scores against is 35 semitones, so **every span up to 24 stands at all twelve
+ * roots** — see `unplaceableRoots`, which is where that number is derived and
+ * which `npm run genres` asserts over the whole catalogue. Seventeen is inside
+ * it with room to spare, and so was the nineteenth. Root, fifth below, fifth
+ * above, octave above is the power chord with all three of its voices, which is
+ * what a figure named `fifths` was for; ending the bar on the octave also drops
+ * a full octave into the downbeat that restates the root, which is the gesture
+ * the guitars are making over the top of it.
  */
 const fifths = (weight: number): BassPattern => ({
   name: 'fifths', weight,
@@ -428,7 +441,7 @@ const fifths = (weight: number): BassPattern => ({
     { at: 6, dur: 2, tone: 0, vel: 0.88 },
     { at: 8, dur: 4, tone: 0, vel: 0.96 },
     { at: 12, dur: 2, tone: 7, vel: 0.84 },
-    { at: 14, dur: 2, tone: 0, vel: 0.86 },
+    { at: 14, dur: 2, tone: 12, vel: 0.88 },
   ],
 });
 

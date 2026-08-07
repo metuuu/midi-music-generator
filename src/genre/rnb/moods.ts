@@ -101,8 +101,10 @@ const moods: Mood[] = [
     density: -0.1,
     /**
      * The highest number in the project, by a distance, and it is not a taste in
-     * ornamentation. At 58 BPM one written quarter note is a second long, and
-     * what a deep-soul singer does with a second is the entire performance —
+     * ornamentation. At fifty-eight dotted quarters a minute one beat is a
+     * second long — `deepsoul`'s `bpm` field says 78–105 because it counts
+     * quarters and that style is in 12/8 — and what a deep-soul singer does with
+     * a second is the entire performance:
      * every note is approached from below, bent through, and left by a different
      * route than it arrived. A generator that sang this mood plainly would be
      * generating the sheet music rather than the record.

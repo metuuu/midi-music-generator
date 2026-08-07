@@ -96,15 +96,20 @@
  * and its jazz-funk style overrides to the chord. Three fields, three genres,
  * one style each, and that is what stops a claim becoming a setting.
  *
- * ## Two ceilings, named because they shaped the tables
+ * ## Two ceilings, named because they shaped the tables — and both are gone
  *
- * **The bass fold.** `generateBass` places the root within a tritone of MIDI 40
- * and repairs only by whole octaves, so a figure spanning more than about a
- * twelfth comes out flattened at some root positions. The single most obvious
- * gesture in this genre — an 808 that drops an octave — is exactly that figure.
- * Every bass row in `styles.ts` stays inside twelve semitones and writes its
- * octave upward from the root rather than downward from the top. Three other
- * genres wrote around the same wall.
+ * **The bass fold — and this one was never where the header said.** It used to
+ * say a figure spanning more than about a twelfth comes out flattened at some
+ * root positions, which was six genres' shared guess at §1.3 and was half the
+ * real number. `placeRoot` scores every octave of the root against the whole span,
+ * the reach is 35 semitones, and **every span up to 24 stands at all twelve
+ * roots** — see `unplaceableRoots`, which `npm run genres` asserts over every
+ * bass figure in the project. Nothing in `styles.ts` widened, because the single
+ * most obvious gesture in this genre is an 808 moving by an octave and that is
+ * twelve semitones from either end. The octave is still written upward from the
+ * root rather than downward from the top, and that part was always about the
+ * register: it keeps the root on the bottom note instead of hoisting it an
+ * octave to make room underneath.
  *
  * **The sub-sixteenth grid, which this genre's report closed.** A trap hi-hat
  * subdivides *inside* a stroke — triplets, then thirty-seconds — and the grid

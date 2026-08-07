@@ -334,8 +334,9 @@ export const rnb: Genre = {
    * `catchy` locks the rhythm and recalls each section, which is what a verse and
    * chorus song *is*, and this genre is more comfortable with it than anything
    * else in the project — five styles push further to `earworm`, and only
-   * `deepsoul` goes the other way, because at 58 BPM the singer has run out of
-   * words and what is left is not a tune being restated.
+   * `deepsoul` goes the other way, because at fifty-eight dotted quarters a
+   * minute the singer has run out of words and what is left is not a tune being
+   * restated.
    */
   defaultHook: 'catchy',
 

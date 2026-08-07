@@ -589,12 +589,41 @@ const stax: Style = {
  * which is why it is here at all with a 1960 date on it — leave it out and the
  * catalogue starts in the middle of its own story.
  *
- * `swing: 0.33` is a full triplet and it is not a shuffle. The engine swings by
- * delaying the second eighth of each beat, which turns a straight eighth pair
- * into a triplet quarter and a triplet eighth — and that *is* 12/8, exactly and
- * not approximately. Four styles in this file use it and this is the one where
- * the equivalence is cleanest, because a doo-wop ballad has nothing on the
- * sixteenths at all.
+ * ## The twelve-eight is declared, and this comment used to argue it could not be
+ *
+ * What stood here was `swing: 0.33` over a 4/4 and the claim that the engine's
+ * swing *is* 12/8 — delay the second eighth by a third of a beat and a straight
+ * pair becomes a triplet quarter and a triplet eighth. At this tempo that claim
+ * is very nearly true, and the measurement is the reason it survived so long:
+ * a quarter is 810.8 ms at the middle of this range, `0.33` puts the second
+ * eighth at **539.2 ms** into the beat and a true triplet wants **540.5**, and
+ * 1.4 ms is not a musical fact.
+ *
+ * It is a true claim about *two* notes and a silent one about the third, which
+ * is the note this style is made of. `applySwing` moves the second eighth and
+ * nothing else, so the **middle** triplet — 270.3 ms into the beat — has no slot
+ * to stand on: the nearest a sixteenth grid offers is 202.7 ms, **67.6 ms
+ * early**, and no value of `swing` moves it, because `swing` is not applied to
+ * the sixteenths at all. That is why `triplet-piano` below used to play a
+ * long-short pair. A long-short pair is a shuffle. A doo-wop piano plays all
+ * three.
+ *
+ * So the bar is stated instead, in the shape `gospelsoul` reached for its 6/8
+ * and `classical`'s `nocturne` and `lacrimosa` were already using for exactly
+ * this metre: `beatsPerBar: 6` at `beatUnit: 8` with `groups: [6, 6, 6, 6]` is
+ * twenty-four sixteenths in four dotted-quarter groups, which `timeSignature`
+ * writes into the MIDI header as **12/8** instead of the 4/4 this style used to
+ * declare to every notation program that opened it. A compound eighth is then a
+ * pair of slots, the three inside a beat are exactly even because they are
+ * merely slots, and `metricStrength` reads `groups` and puts the accent on the
+ * four dotted quarters rather than on an arithmetic half-bar that this metre
+ * does not have.
+ *
+ * **`bpm` counts quarters and the pulse here is the dotted quarter**, so the
+ * range is multiplied by 1.5: `[96, 126]` is the same 64–84 anybody in the room
+ * would count off, and a bar is the same 3243 ms it was before. That is the one
+ * price of the shape, it is a labelling price rather than a musical one, and
+ * `gospelsoul` has been paying it quietly since the day it was written.
  *
  * **The kit is barely there.** Brushes, which in this pack is `sh`, a kick on one
  * and three, and the backbeat on the rim. What is holding time on these records is
@@ -606,12 +635,18 @@ const doowop: Style = {
   label: 'Doo-wop',
   description:
     'Twelve-eight, four chords and five people round one microphone: a triplet piano, brushes, and the backbeat on the rim.',
-  beatsPerBar: 4,
-  beatUnit: 4,
-  bpm: [64, 84],
-  // A full triplet. See the header — with the engine's swing this is 12/8 rather
-  // than an approximation of it.
-  swing: 0.33,
+  beatsPerBar: 6,
+  beatUnit: 8,
+  // Four dotted quarters, twenty-four sixteenths. See the header — this is the
+  // whole of the 12/8, and it cannot be derived from the number 6: without it
+  // `metricStrength` would find a half-bar at slot 12 and quarter-note beats at
+  // 4, 8, 16 and 20, which is a 6/4 and a different record.
+  groups: [6, 6, 6, 6],
+  // Quarters, not the felt pulse. 96–126 quarters is 64–84 dotted quarters,
+  // which is the tempo this style has always been counted at.
+  bpm: [96, 126],
+  // Nothing to bend. The metre states the triplet now.
+  swing: 0,
   modeWeights: { minor: 0.15, major: 0.85 },
   relativeMajorChorus: 0,
   hook: 'earworm',
@@ -646,19 +681,28 @@ const doowop: Style = {
     solo: [{ chords: ['i', 'VI', 'iv', 'V', 'i', 'VI', 'iv', 'V'], weight: 5 }],
     outro: [{ chords: ['iv', 'V', 'i', 'i'], weight: 4 }],
   },
+  // Twenty-four sixteenths a bar, and every long note is a dotted one. A `6` is
+  // a dotted quarter and the beat of this metre; a `12` is a half bar. Nothing
+  // here is a quarter, because there are no quarters in a 12/8 — that is what
+  // makes the tune sit on the same grid as the piano under it.
   melodyCells: [
-    { cell: [8, 8], weight: 5 },
-    { cell: [4, 4, 8], weight: 5 },
-    { cell: [-4, 4, 8], weight: 4 },
-    { cell: [8, 4, 4], weight: 4 },
-    { cell: [4, 4, 4, 4], weight: 3 },
-    { cell: [-8, 4, 4], weight: 3 },
-    { cell: [12, 4], weight: 2 },
+    { cell: [12, 12], weight: 5 },
+    { cell: [6, 6, 12], weight: 5 },
+    { cell: [-6, 6, 12], weight: 4 },
+    { cell: [12, 6, 6], weight: 4 },
+    { cell: [6, 6, 6, 6], weight: 3 },
+    { cell: [-12, 6, 6], weight: 3 },
+    { cell: [18, 6], weight: 2 },
+    // The lilt inside the beat, and the one cell that could not be written at
+    // all until the metre was declared: a triplet quarter and a triplet eighth,
+    // which under `swing` was something the engine did *to* a straight pair
+    // rather than something a tune could ask for.
+    { cell: [4, 2, 12, 6], weight: 3 },
   ],
   cadenceCells: [
-    { cell: [16], weight: 6 },
-    { cell: [-8, 8], weight: 4 },
-    { cell: [12, 4], weight: 3 },
+    { cell: [24], weight: 6 },
+    { cell: [-12, 12], weight: 4 },
+    { cell: [18, 6], weight: 3 },
   ],
   bass: [
     // Two notes a bar, and on the real records it is a voice rather than an
@@ -667,53 +711,68 @@ const doowop: Style = {
       name: 'bass-voice',
       weight: 6,
       hits: [
-        { at: 0, dur: 8, tone: 'root', vel: 1 },
-        { at: 8, dur: 8, tone: 'fifth', vel: 0.8 },
+        { at: 0, dur: 12, tone: 'root', vel: 1 },
+        { at: 12, dur: 12, tone: 'fifth', vel: 0.8 },
       ],
     },
     {
       name: 'triplet-walk',
       weight: 4,
       hits: [
-        { at: 0, dur: 4, tone: 'root', vel: 1 },
-        { at: 4, dur: 4, tone: 'third', vel: 0.75 },
-        { at: 8, dur: 4, tone: 'fifth', vel: 0.82 },
-        { at: 12, dur: 4, tone: 'approach', vel: 0.72 },
+        { at: 0, dur: 6, tone: 'root', vel: 1 },
+        { at: 6, dur: 6, tone: 'third', vel: 0.75 },
+        { at: 12, dur: 6, tone: 'fifth', vel: 0.82 },
+        { at: 18, dur: 6, tone: 'approach', vel: 0.72 },
       ],
     },
   ],
   comp: [
-    // The triplet piano, which is the timekeeper. Every beat, subdivided by the
-    // swing into the long-short pair that is the whole style.
+    /**
+     * The triplet piano, which is the timekeeper, and now the reason the metre
+     * is declared at all.
+     *
+     * Twelve strokes: all three eighths of all four dotted-quarter beats. Under
+     * `swing` this table had eight, because the middle one of each three sits
+     * 270.3 ms into an 810.8 ms beat and the sixteenth grid's nearest offer was
+     * 202.7 ms — 67.6 ms early, which at this tempo is not a lean, it is a
+     * different note. The beat is loudest, the third eighth answers it, and the
+     * middle one is the quietest of the three because that is how a hand plays a
+     * triplet it is going to play four hundred times.
+     */
     {
       name: 'triplet-piano',
       weight: 7,
       voices: 4,
       hits: [
-        { at: 0, dur: 2, vel: 0.7 }, { at: 2, dur: 2, vel: 0.55 },
-        { at: 4, dur: 2, vel: 0.72 }, { at: 6, dur: 2, vel: 0.55 },
-        { at: 8, dur: 2, vel: 0.7 }, { at: 10, dur: 2, vel: 0.55 },
-        { at: 12, dur: 2, vel: 0.72 }, { at: 14, dur: 2, vel: 0.55 },
+        { at: 0, dur: 2, vel: 0.7 }, { at: 2, dur: 2, vel: 0.48 }, { at: 4, dur: 2, vel: 0.55 },
+        { at: 6, dur: 2, vel: 0.72 }, { at: 8, dur: 2, vel: 0.48 }, { at: 10, dur: 2, vel: 0.55 },
+        { at: 12, dur: 2, vel: 0.7 }, { at: 14, dur: 2, vel: 0.48 }, { at: 16, dur: 2, vel: 0.55 },
+        { at: 18, dur: 2, vel: 0.72 }, { at: 20, dur: 2, vel: 0.48 }, { at: 22, dur: 2, vel: 0.55 },
       ],
     },
     {
       name: 'held-chords',
       weight: 3,
       voices: 4,
-      hits: [{ at: 0, dur: 8, vel: 0.6 }, { at: 8, dur: 8, vel: 0.55 }],
+      hits: [{ at: 0, dur: 12, vel: 0.6 }, { at: 12, dur: 12, vel: 0.55 }],
     },
   ],
   drums: [
-    // Brushes and a rim. Nothing here is trying to be heard.
+    // Brushes and a rim. Nothing here is trying to be heard. The swirl is the
+    // full twelve — a brush in a slow compound bar plays the subdivision, which
+    // is what it is for.
     {
       name: 'brushes',
       weight: 6,
-      voices: { bd: [0, 8], rim: [4, 12], sh: [0, 2, 4, 6, 8, 10, 12, 14] },
+      voices: { bd: [0, 12], rim: [6, 18], sh: [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22] },
     },
+    // The shuffle ride, kept beside the swirl on purpose: first and third eighth
+    // of each beat and nothing in between, which is the figure `swing: 0.33` used
+    // to produce for every table in this style whether it wanted it or not.
     {
       name: 'shuffle-kit',
       weight: 4,
-      voices: { bd: [0, 8], sd: [4, 12], hh: [0, 2, 4, 6, 8, 10, 12, 14] },
+      voices: { bd: [0, 12], sd: [6, 18], hh: [0, 4, 6, 10, 12, 16, 18, 22] },
     },
   ],
   melody: { leap: 0.2, ornament: 0.28, span: 11, sequence: 0.45, syncopation: 0.25 },
@@ -881,6 +940,14 @@ const girlgroup: Style = {
  * the argument about where the line between country and soul actually runs is an
  * argument about exactly this number.
  *
+ * That first clause is now the reason this style stayed in 4/4 while `doowop`
+ * and `deepsoul` went to a declared 12/8. A quarter is 697.7 ms in the middle of
+ * this range; `0.16` puts the second eighth at **404.7 ms**, and the two
+ * positions a compound bar offers anywhere near it are 348.8 and 465.1 — **55.8
+ * and 60.5 ms away on either side**. It is not near a triplet, it is not on the
+ * grid, and it is not supposed to be: it is a drummer leaning, which is a thing
+ * `swing` is genuinely for and `groups` cannot express at all.
+ *
  * The `minor plagal` in the outro tables — `IV iv I` — is worth naming because it
  * turns up in four styles here and nowhere else in the project. Borrowing the
  * minor fourth on the way to the tonic is the church's cadence, it is what a
@@ -1032,6 +1099,30 @@ const southern: Style = {
  * that matters: the slowest, the most decorated, the least harmonic movement per
  * bar, and the one style where the singer is audibly not following the chart.
  *
+ * ## Twelve-eight, and the bar says so now
+ *
+ * This style has said "twelve-eight" in its own description since the day it was
+ * written and then spelled it `beatsPerBar: 4` with `swing: 0.33`, which is the
+ * compromise §3.19 of `docs/engine-gaps.md` was opened for. The number was very
+ * nearly right and that is exactly why it lasted: at 61 quarters a minute a beat
+ * is 983.6 ms, `0.33` puts the second eighth at 654.1 and a true triplet wants
+ * 655.7, and 1.6 ms is not something anybody hears.
+ *
+ * What it could not do is the *middle* of the triplet. That note wants 327.9 ms
+ * and the sixteenth grid can only offer 245.9 — **82.0 ms early, and the largest
+ * miss anywhere in this file**, because this is the slowest style in it and the
+ * slower the beat the further apart its thirds sit. `swing` never touches a
+ * sixteenth, so there was no number to tune.
+ *
+ * So the bar is stated: `beatsPerBar: 6` at `beatUnit: 8` with
+ * `groups: [6, 6, 6, 6]` — the shape `gospelsoul` reaches for two styles down,
+ * at twice the length. `bpm` counts quarters while the pulse is the dotted
+ * quarter, so `[78, 105]` is the same 52–70 the description means by *fifty-eight
+ * a minute*, and a bar lasts exactly as long as it did before. What changed
+ * audibly is below: `triplet-church-piano` plays twelve strokes where it played
+ * eight, and the ghost has come off the straight sixteenth onto the last eighth
+ * of the beat, which is where a drummer at this tempo actually puts it.
+ *
  * ## Why it overrides `scaleForChord`, and which direction
  *
  * The genre's rule re-orients onto a chord that has left the key and stays in the
@@ -1060,10 +1151,15 @@ const deepsoul: Style = {
   label: 'Deep soul',
   description:
     'Fifty-eight a minute in twelve-eight: one singer, a band told to wait, and a fixed blues scale dragged across every borrowed chord underneath.',
-  beatsPerBar: 4,
-  beatUnit: 4,
-  bpm: [52, 70],
-  swing: 0.33,
+  beatsPerBar: 6,
+  beatUnit: 8,
+  // Four dotted quarters. See the header — and see `gospelsoul`, which needs the
+  // same declaration for the same reason: `metricStrength` reads the grouping
+  // and would otherwise accent a half-bar this metre does not have.
+  groups: [6, 6, 6, 6],
+  // Quarters. The pulse is the dotted quarter, so this is 52–70 counted.
+  bpm: [78, 105],
+  swing: 0,
   modeWeights: { minor: 0.3, major: 0.7 },
   relativeMajorChorus: 0,
   /**
@@ -1078,7 +1174,10 @@ const deepsoul: Style = {
   // and what is left is the singer.
   hook: 'loose',
   transitions: [['fill', 4], ['break', 4], ['shot', 2]],
-  shots: [[[0], 5], [[0, 8], 3], [[0, 6], 2]],
+  // Slots in a twenty-four-sixteenth bar: the downbeat alone, the downbeat with
+  // the half bar, and the downbeat with the last eighth of the second beat —
+  // which was `[0, 6]` when a beat was four slots and is the same gesture.
+  shots: [[[0], 5], [[0, 12], 3], [[0, 10], 2]],
   progressions: {
     intro: [{ chords: ['I', 'I', 'IV', 'iv'], weight: 5 }, { chords: ['I', 'I', 'I', 'I'], weight: 3 }],
     verse: [
@@ -1108,75 +1207,99 @@ const deepsoul: Style = {
     solo: [{ chords: ['i', 'i', 'i', 'i', 'iv', 'iv', 'i', 'i'], weight: 5 }],
     outro: [{ chords: ['iv', 'i', 'i', 'i'], weight: 4 }],
   },
+  // Twenty-four sixteenths, and the whole-bar note at the top is now a `24`.
+  // A `6` is one dotted quarter: this singer holds one note across a beat and a
+  // half more often than they change one, which is what the weights say.
   melodyCells: [
-    { cell: [16], weight: 5 },
-    { cell: [8, 8], weight: 5 },
-    { cell: [-4, 12], weight: 4 },
-    { cell: [4, 4, 8], weight: 4 },
-    { cell: [-8, 8], weight: 4 },
-    { cell: [12, 4], weight: 3 },
-    { cell: [-4, 4, 8], weight: 3 },
-    { cell: [4, 4, 4, 4], weight: 2 },
+    { cell: [24], weight: 5 },
+    { cell: [12, 12], weight: 5 },
+    { cell: [-6, 18], weight: 4 },
+    { cell: [6, 6, 12], weight: 4 },
+    { cell: [-12, 12], weight: 4 },
+    { cell: [18, 6], weight: 3 },
+    { cell: [-6, 6, 12], weight: 3 },
+    { cell: [6, 6, 6, 6], weight: 2 },
   ],
   cadenceCells: [
-    { cell: [16], weight: 7 },
-    { cell: [-8, 8], weight: 4 },
-    { cell: [-4, 12], weight: 3 },
+    { cell: [24], weight: 7 },
+    { cell: [-12, 12], weight: 4 },
+    { cell: [-6, 18], weight: 3 },
   ],
   bass: [
     // One note a bar and a long one. What this player is contributing is the
-    // decision not to fill any of it.
+    // decision not to fill any of it — three beats of root, and the approach on
+    // the last eighth of the fourth.
     {
       name: 'held-root',
       weight: 6,
-      hits: [{ at: 0, dur: 12, tone: 'root', vel: 1 }, { at: 14, dur: 2, tone: 'approach', vel: 0.68 }],
+      hits: [{ at: 0, dur: 18, tone: 'root', vel: 1 }, { at: 22, dur: 2, tone: 'approach', vel: 0.68 }],
       sustain: true,
     },
+    // Named for the metre since it was written, and in it since the conversion:
+    // the fifth is the last eighth of the second beat rather than a straight
+    // sixteenth leaning at it.
     {
       name: 'twelve-eight-walk',
       weight: 4,
       hits: [
-        { at: 0, dur: 4, tone: 'root', vel: 1 },
-        { at: 6, dur: 2, tone: 'fifth', vel: 0.7 },
-        { at: 8, dur: 4, tone: 'octave', vel: 0.8 },
-        { at: 12, dur: 4, tone: 'fifth', vel: 0.72 },
+        { at: 0, dur: 6, tone: 'root', vel: 1 },
+        { at: 10, dur: 2, tone: 'fifth', vel: 0.7 },
+        { at: 12, dur: 6, tone: 'octave', vel: 0.8 },
+        { at: 18, dur: 6, tone: 'fifth', vel: 0.72 },
       ],
     },
   ],
   comp: [
+    // Twelve strokes, three to a beat. Under `swing` this table had eight and the
+    // middle of each triplet was 82 ms out of reach; see the header. The beat is
+    // loudest and the one in the middle is the quietest, because a church pianist
+    // playing this for four minutes leans on the beat and lets the other two
+    // through.
     {
       name: 'triplet-church-piano',
       weight: 6,
       voices: 4,
       hits: [
-        { at: 0, dur: 2, vel: 0.68 }, { at: 2, dur: 2, vel: 0.5 },
-        { at: 4, dur: 2, vel: 0.7 }, { at: 6, dur: 2, vel: 0.5 },
-        { at: 8, dur: 2, vel: 0.68 }, { at: 10, dur: 2, vel: 0.5 },
-        { at: 12, dur: 2, vel: 0.7 }, { at: 14, dur: 2, vel: 0.5 },
+        { at: 0, dur: 2, vel: 0.68 }, { at: 2, dur: 2, vel: 0.44 }, { at: 4, dur: 2, vel: 0.5 },
+        { at: 6, dur: 2, vel: 0.7 }, { at: 8, dur: 2, vel: 0.44 }, { at: 10, dur: 2, vel: 0.5 },
+        { at: 12, dur: 2, vel: 0.68 }, { at: 14, dur: 2, vel: 0.44 }, { at: 16, dur: 2, vel: 0.5 },
+        { at: 18, dur: 2, vel: 0.7 }, { at: 20, dur: 2, vel: 0.44 }, { at: 22, dur: 2, vel: 0.5 },
       ],
     },
     {
       name: 'organ-wash',
       weight: 5,
       voices: 4,
-      hits: [{ at: 0, dur: 16, vel: 0.5 }],
+      hits: [{ at: 0, dur: 24, vel: 0.5 }],
       sustain: true,
       voicing: 'spread',
     },
   ],
   drums: [
     // Nothing but the backbeat and a soft kick. At this tempo the kit's job is to
-    // say where the bar is and then get out.
+    // say where the bar is and then get out — and the hat says it in triplets,
+    // which is the one thing the old swung 4/4 could not write down.
     {
       name: 'twelve-eight',
       weight: 6,
-      voices: { bd: [0, 8], sd: [4, 12], hh: [0, 2, 4, 6, 8, 10, 12, 14] },
-      ghosts: { sd: [7, 15] },
+      voices: {
+        bd: [0, 12],
+        sd: [6, 18],
+        hh: [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22],
+      },
+      // The last eighth before the beat, not the sixteenth before it. At 983 ms
+      // to the beat those are 82 ms apart and only one of them is a drummer.
+      ghosts: { sd: [10, 22] },
     },
     {
       name: 'toms-under',
       weight: 3,
-      voices: { bd: [0, 8], sd: [4, 12], lt: [6, 14], sh: [0, 2, 4, 6, 8, 10, 12, 14] },
+      voices: {
+        bd: [0, 12],
+        sd: [6, 18],
+        lt: [10, 22],
+        sh: [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22],
+      },
     },
   ],
   melody: { leap: 0.3, ornament: 0.7, span: 14, sequence: 0.15, syncopation: 0.35 },

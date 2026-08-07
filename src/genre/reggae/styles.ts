@@ -1141,20 +1141,29 @@ const steppers: Style = {
       { at: 12, dur: 3, tone: 7, vel: 0.88 },
     ] },
     /**
-     * An octave and back, and it stops there.
+     * An octave up, and out on the fifth *below* the root — which is where a
+     * steppers bass often goes, and is the note this figure was written
+     * without.
      *
-     * The obvious fourth note is a fifth *below* the root, which is where a
-     * steppers bass often goes — and written that way the figure spans
-     * seventeen semitones, which is more than the placement in `generateBass`
-     * can hold at the top of the range. It folds two of the notes onto one
-     * pitch, and a shape with two of its four notes on the same note is not the
-     * shape any more. Twelve is what survives; `npm run genres` is what noticed.
+     * Written that way it spans seventeen semitones, and seventeen used to fold
+     * two of the four notes onto one pitch at the top of the range. A shape with
+     * two of its four notes on the same note is not the shape any more, so the
+     * fourth note was moved to the fifth *above* and the span cut to twelve.
+     * `npm run genres` is what noticed, and it was right about the damage.
+     *
+     * It was the clamp rather than a ceiling. `placeRoot` moves the root to hold
+     * the whole span now, and the measured wall is **24 semitones — every span
+     * up to it stands at all twelve roots**, derived in `unplaceableRoots` and
+     * asserted over the whole catalogue by the same check. So the fifth below
+     * comes back: the last onset lands under the root instead of over it, and
+     * the next downbeat climbs back up onto the root — which is the walk a
+     * steppers player makes and is why the note was wanted in the first place.
      */
     { name: 'steppers-octave', weight: 4, hits: [
       { at: 0, dur: 3, tone: 0, vel: 1 },
       { at: 6, dur: 2, tone: 12, vel: 0.8 },
       { at: 8, dur: 3, tone: 0, vel: 0.94 },
-      { at: 14, dur: 2, tone: 7, vel: 0.82 },
+      { at: 14, dur: 2, tone: -5, vel: 0.82 },
     ] },
     { name: 'steppers-pedal', weight: 3, sustain: true, hits: [
       { at: 0, dur: 8, tone: 'root', vel: 1 },

@@ -27,15 +27,23 @@
  * with a microphone, and a speaker stack that costs more than everything else in
  * the building. Exactly one of those three is expressible here.
  *
- * **What the engine could not be told.** The person at the front is the act, and
- * this project has no object for them — `Genre.vocals` produces a `vocal` layer
- * that doubles the melody, so a front person casts as a *doubling of an
- * instrumental line* and stands in the row with the keyboard players.
- * `docs/engine-gaps.md` §3.20 records the want and hiphop reported it first. The
- * version of it here is sharper in one respect: an MC is a **live-only** role.
- * They are not on the record at all, so a genre that stages the band it *records*
- * with does not merely mis-place them, it has no reason to know they exist. The
- * stage below is therefore dressed for a room that has, most nights, one person
+ * **What the engine could not be told, corrected — because half of what this
+ * comment used to claim was wrong, and the wrong half is the one that got
+ * written into the gaps list.** It said a front person *"casts as a doubling of
+ * an instrumental line and stands in the row with the keyboard players"*. They
+ * do not, and never did: `ROLE_OF.vocal` is `front`, `PROMINENCE.vocal` is the
+ * lowest in the table, and `layoutFrontLine` puts the singer downstage centre
+ * and steps everybody else back 0.7 m. Measured across this genre's sung
+ * numbers, the singer stands at exactly `lip − 0.950 m` with nobody downstage of
+ * them and nobody level with them. There is an object too — `ARCHETYPES.singer`
+ * is a microphone, a stand and a cable. `docs/engine-gaps.md` §3.20 quoted this
+ * sentence, and it is withdrawn there.
+ *
+ * **What is actually missing here is sharper than that and survives it: an MC is
+ * a live-only role.** They are not on the record at all, so a genre that stages
+ * the band it *records* has no reason to know they exist — the gap is not where
+ * the front person stands, it is that nothing in the IR produces one. The stage
+ * below is therefore dressed for a room that has, most nights, one person
  * standing in it, and the difference between that and what the photographs
  * contain is the whole of what a drum and bass night looks like.
  *

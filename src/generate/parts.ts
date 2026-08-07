@@ -130,6 +130,75 @@ function displacementOf(tone: Exclude<BassTone, ChordTone>): number {
 }
 
 /**
+ * How far above and below the root a figure's shape notes reach.
+ *
+ * Both zero for a pattern written entirely in chord functions, which is what
+ * keeps the placement below free for them: every octave of the root scores the
+ * same and the root is the root it has always been.
+ *
+ * A shape needs more than clamping. `clampToRange` applied to the top note of a
+ * riff *flattens* it — two notes land on the same pitch and the figure the
+ * numeric spelling exists to protect is gone. So the root is placed to hold the
+ * whole span instead and the shape arrives entire, which is what `arpOctaves`
+ * already does to a voicing that will not fit above the line. See `BassTone`.
+ *
+ * **`octave` counts, and finding that it did not was the fault's silent half.**
+ * §1.3 of `docs/engine-gaps.md` was reported by three genres who all wrote their
+ * riffs in numbers, and the check measures the numbers, so the same figure
+ * spelled `tone: 'octave'` was folding in the open with nothing looking at it.
+ * Counted over the whole catalogue before this line changed: **57 figures in
+ * nine genres**, every one of them folding at exactly six of the twelve root
+ * positions, because a shape reaching a twelfth needs the root at or under MIDI
+ * 40 and `nearestPc(root, 40)` puts it above that half the time. In those keys
+ * the octave *was the root* — a `boom-run` whose boom and whose run are one
+ * note, a `tumbao-octava` whose two events do not separate in register, an
+ * ambient `drone-octave` sounding one pitch twice. Reggae's `steppers-octave`
+ * writes the same gesture as `tone: 12` and was placed correctly all along,
+ * which is the whole argument: two spellings of one figure had two behaviours.
+ *
+ * The worst of it was in `sustain` patterns, where the collision also defeated
+ * `mergeHeld`: root and octave landed in one pitch group, their onsets
+ * interleaved, and the end-to-end chain the merge walks was broken at every
+ * join. `ambient/wasteland` came out with **80 re-articulated notes on one pitch
+ * where the figure asks for two held tones** — a pulse where the whole point of
+ * `BassPattern.sustain` is a drone.
+ *
+ * Lifted out of `generateBass`, where it was written inline, so that
+ * `unplaceableRoots` can ask the question the generator asks rather than a
+ * paraphrase of it. That is the same argument that lifted `place` out of the
+ * loop further down, and it avoids the same fault: two copies of this would be
+ * two spellings of one figure with two behaviours, which is precisely the fault
+ * whose cost `BassTone`'s own note records at 57 figures in nine genres.
+ */
+function spanOf(hits: readonly BassHit[]): { lo: number; hi: number } {
+  return hits.reduce(
+    (span, h) => {
+      /**
+       * **A glide destination counts toward the span**, and it has to for the
+       * reason the paragraph above is about: `placeRoot` chooses the octave that
+       * holds the whole figure, and a figure that *travels* to a twelfth reaches
+       * a twelfth whether or not it strikes one. Left out, a `glide: 12` would
+       * be clamped against `SHAPE_CEILING` at exactly the roots where the shape
+       * did not fit — the same silent, chord-dependent fold §1.3 describes, on a
+       * note the ear is following rather than one it is merely hearing.
+       *
+       * Written as a loop over one or two tones rather than as a second reduce so
+       * that a pattern with no glide walks the identical sequence of comparisons
+       * it walked before this existed. See `BassHit.glide`.
+       */
+      let out = span;
+      for (const tone of h.glide === undefined ? [h.tone] : [h.tone, h.glide]) {
+        if (asksTheChord(tone)) continue;
+        const at = displacementOf(tone);
+        out = { lo: Math.min(out.lo, at), hi: Math.max(out.hi, at) };
+      }
+      return out;
+    },
+    { lo: 0, hi: 0 },
+  );
+}
+
+/**
  * Which octave of the root this bar's figure stands on.
  *
  * This replaces two `while` loops that walked the root away from
@@ -191,6 +260,59 @@ function placeRoot(root: Pc, shape: { lo: number; hi: number }): Midi {
     }
   }
   return best;
+}
+
+/**
+ * The roots at which a figure has nowhere to stand.
+ *
+ * Empty for every one of the catalogue's 1,034 bass figures — 497 of which
+ * carry a shape at all — and that emptiness is the entire point of asking.
+ *
+ * §1.3 of `docs/engine-gaps.md` was reported by genres who never compared
+ * notes, and every one of them found it the same way: write a figure, hear it
+ * come out flat in some keys and not others, narrow the figure until it stops.
+ * Reggae's `steppers-octave` gave up a fifth below the root, metal's `fifths`
+ * gave up the octave above — folding 8 bars per style across 11 styles on the
+ * way to finding out — and funk's `octave-drop` moved its ♭7 to the far side of
+ * the root to save two semitones. **All three have the note back**, at spans of
+ * 17, 17 and 14, and the thirteen further funk figures that share the ♭7
+ * spelling — §1.3 counted eleven, because it counted the ones with a comment —
+ * were re-read one at a time and kept, because none of them is that gesture.
+ * Latin never found out at all — its tumbaos carry a `cycle`, the check skips a
+ * cycled figure, and `timba-line` has been the widest shape in the project at 22
+ * semitones with nothing watching it.
+ *
+ * **The wall is real, and it is nowhere near where they were told.** The reach
+ * is `SHAPE_CEILING - BASS_RANGE[0]`, 35 semitones, and the candidate placements
+ * `placeRoot` scores are an octave apart — so a shape spanning `S` may stand
+ * anywhere in a window `35 - S` wide, and a window 11 wide or more always
+ * contains one of them. Every span up to **24 — two octaves exactly** — fits at
+ * all twelve roots. Past that the failure arrives one root at a time: 25 folds
+ * at one root in twelve, 30 at six, 36 nowhere at all. Measured across every
+ * lo/hi split the catalogue writes, the curve is identical, because only the
+ * width enters the arithmetic and never where the shape sits around its root.
+ *
+ * That gradual onset is why this is a check and not a comment. The first figure
+ * over the line is intact in eleven keys and broken in the twelfth, which is
+ * exactly the fault an author auditions past.
+ *
+ * Asked of the hits through `spanOf`, so it is the generator's own question
+ * rather than a paraphrase: a `cycle`, a chord function mixed in among the
+ * numbers, a `tone: 'octave'` and a glide destination all count here because
+ * they all count there. **That totality is the whole of the fix.** The check
+ * that came first — *"a riff is the same shape over every chord quality"* —
+ * compares rendered bars against a declared span, which it can only do for a
+ * figure that is uncycled and numeric throughout: 287 of the 497. The 210 it
+ * skips include all eight of the widest in the project.
+ */
+export function unplaceableRoots(hits: readonly BassHit[]): readonly Pc[] {
+  const shape = spanOf(hits);
+  const out: Pc[] = [];
+  for (let root = 0; root < 12; root++) {
+    const at = placeRoot(root, shape);
+    if (at + shape.lo < BASS_RANGE[0] || at + shape.hi > SHAPE_CEILING) out.push(root);
+  }
+  return out;
 }
 
 /**
@@ -453,66 +575,14 @@ export function generateBass(
   const out: NoteEvent[] = [];
 
   /**
-   * How far above and below the root this figure's shape notes reach.
+   * How far above and below the root this figure reaches — see `spanOf`.
    *
-   * Both zero for a pattern written entirely in chord functions, which is what
-   * keeps the placement below free for them: every octave of the root scores the
-   * same and the root is the root it has always been.
-   *
-   * A shape needs more than clamping. `clampToRange` applied to the top note of
-   * a riff *flattens* it — two notes land on the same pitch and the figure the
-   * numeric spelling exists to protect is gone. So the root is placed to hold
-   * the whole span instead and the shape arrives entire, which is what
-   * `arpOctaves` already does to a voicing that will not fit above the line. See
-   * `BassTone`.
-   *
-   * **`octave` counts, and finding that it did not was the fault's silent
-   * half.** §1.3 of `docs/engine-gaps.md` was reported by three genres who all
-   * wrote their riffs in numbers, and the check measures the numbers, so the
-   * same figure spelled `tone: 'octave'` was folding in the open with nothing
-   * looking at it. Counted over the whole catalogue before this line changed:
-   * **57 figures in nine genres**, every one of them folding at exactly six of
-   * the twelve root positions, because a shape reaching a twelfth needs the root
-   * at or under MIDI 40 and `nearestPc(root, 40)` puts it above that half the
-   * time. In those keys the octave *was the root* — a `boom-run` whose boom and
-   * whose run are one note, a `tumbao-octava` whose two events do not separate in
-   * register, an ambient `drone-octave` sounding one pitch twice. Reggae's
-   * `steppers-octave` writes the same gesture as `tone: 12` and was placed
-   * correctly all along, which is the whole argument: two spellings of one figure
-   * had two behaviours.
-   *
-   * The worst of it was in `sustain` patterns, where the collision also defeated
-   * `mergeHeld`: root and octave landed in one pitch group, their onsets
-   * interleaved, and the end-to-end chain the merge walks was broken at every
-   * join. `ambient/wasteland` came out with **80 re-articulated notes on one
-   * pitch where the figure asks for two held tones** — a pulse where the whole
-   * point of `BassPattern.sustain` is a drone.
+   * Asked through the same helper `unplaceableRoots` asks, so the wall a figure
+   * is measured against at authoring time is the wall it is placed against here.
+   * A second copy of this arithmetic would be two spellings of one figure with
+   * two behaviours, which is the fault that cost 57 figures in nine genres.
    */
-  const shape = pattern.hits.reduce(
-    (span, h) => {
-      /**
-       * **A glide destination counts toward the span**, and it has to for the
-       * reason the paragraph above is about: `placeRoot` chooses the octave that
-       * holds the whole figure, and a figure that *travels* to a twelfth reaches
-       * a twelfth whether or not it strikes one. Left out, a `glide: 12` would
-       * be clamped against `SHAPE_CEILING` at exactly the roots where the shape
-       * did not fit — the same silent, chord-dependent fold §1.3 describes, on a
-       * note the ear is following rather than one it is merely hearing.
-       *
-       * Written as a loop over one or two tones rather than as a second reduce so
-       * that a pattern with no glide walks the identical sequence of comparisons
-       * it walked before this existed. See `BassHit.glide`.
-       */
-      let out = span;
-      for (const tone of h.glide === undefined ? [h.tone] : [h.tone, h.glide]) {
-        if (asksTheChord(tone)) continue;
-        const at = displacementOf(tone);
-        out = { lo: Math.min(out.lo, at), hi: Math.max(out.hi, at) };
-      }
-      return out;
-    },
-    { lo: 0, hi: 0 },
-  );
+  const shape = spanOf(pattern.hits);
 
   for (const { hit, bar, slot } of figureHits(pattern.hits, {
     cycle: pattern.cycle ?? slotsPerBar,
@@ -550,8 +620,15 @@ export function generateBass(
           // placement had to spend the reach on must be allowed to *use* it, and
           // clamping it back would undo the placement in the one bar it was made
           // for. It remains a net and it still folds a figure wider than two
-          // octaves — which no instrument in the bass palette can play whole, and
-          // which `npm run genres` still reports. See `BassTone`.
+          // octaves — which no instrument in the bass palette can play whole.
+          //
+          // Nothing reaching this line should ever be folding, and that is now
+          // asserted rather than hoped: `npm run genres` names any figure the
+          // placement cannot hold before it is ever generated. It did not used
+          // to. The check it used to be left to skips a cycled or mixed figure,
+          // which is 210 of the catalogue's 497 shapes and every one of the
+          // widest eight. See `unplaceableRoots`, which is also where the number
+          // two octaves is derived rather than guessed. See `BassTone`.
           return clampToRange(rootMidi + displacementOf(tone), BASS_RANGE[0], SHAPE_CEILING);
         }
         // An outline. The harmony answers, `nearestPc` puts the answer next to

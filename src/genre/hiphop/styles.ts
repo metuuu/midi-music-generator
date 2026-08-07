@@ -29,23 +29,28 @@
  * shape that renegotiates with the harmony has stopped being one. `BassTone`
  * argues the same thing from the other end and funk's table says it too.
  *
- * **No figure spans more than a twelfth**, and that is a ceiling rather than a
- * taste. `generateBass` places the root within a tritone of MIDI 40 and repairs
- * only by whole octaves, so a wider shape folds flat at some root positions and
- * comes out as two notes on one pitch. The obvious 808 gesture — the root, then
- * the same note an octave down — is exactly the figure that hits it. Every row
- * below stays inside twelve semitones, the octave leaps are written as `12` from
- * a low root rather than as `-12` from a high one, and `npm run genres` catches
- * the mistake as *"a riff is the same shape over every chord quality"*.
+ * **No figure spans more than a twelfth, and it is an 808 that says so rather
+ * than the engine.** This paragraph used to name a ceiling — §1.3, the wall six
+ * genres found by ear — and the number in it was half the real one. Measured
+ * since: `placeRoot` scores every octave of the root against the whole span, the
+ * reach is 35 semitones, and **every span up to 24 stands at all twelve roots**.
+ * See `unplaceableRoots`, asserted by `npm run genres` over all 1,034 bass
+ * figures in the project. The rows below were re-read against that and none of
+ * them moved, because the obvious 808 gesture — the root, then the same note an
+ * octave away — is twelve semitones from whichever end it is written and an 808
+ * that ranged further would be a bass guitar part. What the direction still buys
+ * is the register: the leaps are written as `12` from a low root rather than as
+ * `-12` from a high one, which leaves the root at MIDI 29–40 with the answer
+ * above it instead of pushing it up to 40–51 to make room underneath.
  *
  * Six of those rows — three under `drill` and three under `gfunk` — reach part of
  * their span by **gliding** to it rather than by striking it, and that changes
- * nothing about this ceiling. `generateBass` folds a destination into the same
- * reduce as an arrival, so a `glide: 12` spends an octave of headroom whether or
- * not an octave is ever struck; a table that adopted the field by widening its
- * figures would have walked straight back into the fold this paragraph is about.
- * Neither style widened anything. Both were already writing the destination as a
- * second struck note, so every span below is the number it was.
+ * nothing about any of the above. `generateBass` folds a destination into the
+ * same reduce as an arrival, so a `glide: 12` spends an octave of headroom
+ * whether or not an octave is ever struck — which is why the span is a property
+ * of the table and not of what the ear counts. Neither style widened anything.
+ * Both were already writing the destination as a second struck note, so every
+ * span below is the number it was.
  *
  * **The hole is bigger here than in funk, and it is bigger on purpose.** A JB
  * bar has six onsets in sixteen slots; a trap bar has three, and one of them is
@@ -351,7 +356,9 @@ const electrorap: Style = {
   ],
   bass: [
     // The sequenced octave, and the only shape on the machine. Twelve semitones
-    // exactly, written upward from the root — see the header on the fold.
+    // exactly, written upward from the root to keep the root on the bottom note
+    // — see the header, where both halves of that are the register rather than
+    // the wall.
     { name: 'sequenced-octave', weight: 6, hits: [
       { at: 0, dur: 2, tone: 0, vel: 1 },
       { at: 3, dur: 1, tone: 0, vel: 0.6 },
