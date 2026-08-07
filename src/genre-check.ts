@@ -95,6 +95,54 @@ function pitchedDoubleOnsets(bytes: Uint8Array): number {
 }
 
 /**
+ * The lowest CC11 value on each channel of a rendered file, or nothing where a
+ * channel never writes one.
+ *
+ * `Effects.duck` is the only thing in the project that writes expression, so
+ * the deepest value on a channel is the bottom of that part's duck — which is
+ * the number the audition has to agree with. Read off the file rather than
+ * recomputed, for `pitchedDoubleOnsets`' reason directly above: the emission is
+ * what ships, and a check that recomputes the intent cannot see the emission
+ * dropping it.
+ */
+function lowestExpression(bytes: Uint8Array): Map<number, number> {
+  const out = new Map<number, number>();
+  let p = 14;
+  while (p < bytes.length - 8) {
+    if (bytes[p] !== 0x4d || bytes[p + 1] !== 0x54 || bytes[p + 2] !== 0x72 || bytes[p + 3] !== 0x6b) break;
+    const len = (bytes[p + 4]! << 24) | (bytes[p + 5]! << 16) | (bytes[p + 6]! << 8) | bytes[p + 7]!;
+    let q = p + 8;
+    const end = q + len;
+    let running = 0;
+    while (q < end) {
+      let b: number;
+      do { b = bytes[q++]!; } while (b & 0x80);
+      let status = bytes[q]!;
+      if (status & 0x80) { running = status; q++; } else status = running;
+      if (status === 0xff) {
+        q++;
+        let l = 0, c: number;
+        do { c = bytes[q++]!; l = (l << 7) | (c & 0x7f); } while (c & 0x80);
+        q += l;
+        continue;
+      }
+      const kind = status & 0xf0;
+      if (kind === 0xb0) {
+        const cc = bytes[q]!, value = bytes[q + 1]!;
+        q += 2;
+        if (cc === 11) {
+          const ch = status & 0x0f;
+          out.set(ch, Math.min(out.get(ch) ?? 127, value));
+        }
+      } else if (kind === 0xc0 || kind === 0xd0) q += 1;
+      else q += 2;
+    }
+    p = end;
+  }
+  return out;
+}
+
+/**
  * One melodic line, with everything but the thing under test held fixed.
  *
  * The instrument checks below have to compare lines that differ *only* in agility or
@@ -4240,6 +4288,104 @@ console.log('\nInstrument awareness');
  * reason `DrumEvent.roll`'s gate can be a flat 32nd. 693 double note-ons live
  * there and are inaudible.
  */
+/**
+ * The sidechain, asserted at both ends of the pipe.
+ *
+ * `Effects.duck` — `docs/engine-gaps.md` §3.17 — is the first field in the IR
+ * that relates two layers, and it is checked here rather than trusted for the
+ * reason this file keeps rediscovering: **a feature that emits nothing looks
+ * exactly like a feature that works.** Three separate things could go silently
+ * wrong, and all three would sound like a record that simply does not pump.
+ *
+ *  - **The field could be written and never resolved.** `Style.effects` merges
+ *    per key over three other tiers and then has one key deleted from it by
+ *    `DUCK_FROM`, so an off-by-one in the year gate would silently disarm every
+ *    adopting style. Asserted as an equality rather than a rate: *every* song
+ *    of an adopting style drawn in the era that names the technique ducks its
+ *    pad, and no song drawn before 1993 ducks anything at all.
+ *  - **The audition could lose it.** The duck rides on the kick's own pattern,
+ *    and a bank with no kick drops that pattern entirely — so the check
+ *    requires an orbit and a `duckorbit` in the emitted source together, which
+ *    is the pair that makes a sidechain rather than either half of it.
+ *  - **The two renderers could disagree about how deep.** This is the one worth
+ *    the machinery. The audition sets `duckdepth` and superdough turns it into
+ *    a floor of `1 − √depth`; the .mid sets CC11 and a device turns it into
+ *    `40·log₁₀(cc/127)` dB. Neither number resembles the other and neither
+ *    resembles the decibels the style table wrote, so the only way to know they
+ *    land in the same place is to convert both back and compare. Read off the
+ *    emitted file and the emitted source, not from `Effects`.
+ */
+console.log('\nSidechain');
+{
+  const DUCKING = ['dancepop', 'europop', 'electropop', 'tropical'];
+  let modern = 0, duckedPad = 0, early = 0, earlyDucked = 0;
+  let paired = 0, orbits = 0, worstDb = 0, compared = 0;
+  const strays: string[] = [];
+  for (const style of DUCKING) {
+    for (let i = 0; i < 60; i++) {
+      const song = generateSong({ seed: `duck-${style}-${i}`, genre: 'pop', style });
+      const targets = song.tracks.filter((t) => t.effects?.duck);
+      if (song.meta.era !== 'sidechain') {
+        early++;
+        if (targets.length) earlyDucked++;
+        continue;
+      }
+      modern++;
+      if (targets.some((t) => t.layer === 'pad')) duckedPad++;
+      const code = renderStrudel(song);
+      const hasOrbit = /\n\s*\.orbit\(\d+\)/.test(code);
+      const hasDuck = /\n\s*\.duckorbit\(/.test(code);
+      if (hasOrbit && hasDuck) paired++;
+      orbits += (code.match(/\n\s*\.orbit\(\d+\)/g) ?? []).length;
+      if (orbits && targets.length !== (code.match(/\n\s*\.orbit\(\d+\)/g) ?? []).length) {
+        strays.push(`${style}#${i}`);
+      }
+      if (i >= 4) continue;
+      /**
+       * Both floors, in decibels, from the two emitted artefacts.
+       *
+       * The .mid is read per channel and channels are handed out in
+       * `song.tracks` order, so the nth ducked track is found by counting
+       * tracks — the same ordering `renderMidi` walks. Tolerance is a third of
+       * a decibel, which is what the controller's own 7-bit resolution costs at
+       * these depths and is well under anything audible.
+       */
+      const lows = lowestExpression(renderMidi(song));
+      const depths = [...(code.match(/\.duckdepth\(`?([\d.:]+)`?\)/) ?? [])[1]?.split(':') ?? []]
+        .map(Number);
+      let seen = 0;
+      for (let t = 0; t < song.tracks.length; t++) {
+        if (!song.tracks[t]!.effects?.duck) continue;
+        const channel = t < 9 ? t : t + 1;
+        const midiDb = 40 * Math.log10((lows.get(channel) ?? 127) / 127);
+        const strudelDb = 20 * Math.log10(1 - Math.sqrt(depths[seen++] ?? 0));
+        compared++;
+        worstDb = Math.max(worstDb, Math.abs(midiDb - strudelDb));
+      }
+    }
+  }
+  check(
+    'every dance-pop record in the sidechain era ducks its pad',
+    modern > 0 && duckedPad === modern,
+    `${duckedPad} of ${modern} sidechain-era songs across ${DUCKING.length} styles`,
+  );
+  check(
+    'nothing ducks before there was a channel to key it off',
+    earlyDucked === 0,
+    `${earlyDucked} of ${early} songs drawn before ${'1993'} carried a duck`,
+  );
+  check(
+    'the audition names a bus and a kick to duck it',
+    paired === modern && strays.length === 0,
+    `${paired} of ${modern} songs pair .orbit with .duckorbit; ${orbits} buses, ${strays.length} unmatched`,
+  );
+  check(
+    'the two renderers duck by the same number of decibels',
+    compared > 0 && worstDb < 0.34,
+    `${compared} ducked parts compared, worst disagreement ${worstDb.toFixed(3)} dB`,
+  );
+}
+
 console.log('\nRendered files');
 {
   let doubles = 0;

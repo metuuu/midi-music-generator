@@ -20,7 +20,9 @@ import { SLOTS_PER_BEAT, slotOf, tempoRange } from '../core/grid.js';
 import { midiToNoteName, spellingFor } from '../core/pitch.js';
 import { resolveDrumSample, type DrumSample } from './drum-banks.js';
 import { levelOfDrum, levelOfSound } from './source-levels.js';
-import { sweptCutoff, tempoLabel } from '../core/types.js';
+import {
+  DUCK_BEATS, DUCK_ONSET_SECONDS, duckFloor, kickOnsets, sweptCutoff, tempoLabel,
+} from '../core/types.js';
 import type {
   DrumVoice, Effects, Envelope, NoteEvent, Song, Track, Vowel,
 } from '../core/types.js';
@@ -114,6 +116,20 @@ export function renderStrudel(song: Song, opts: StrudelRenderOptions = {}): stri
   const parts: string[] = [];
 
   const spelling = spellingFor(meta.tonic, meta.mode);
+  const ducked = duckPlan(song);
+  /**
+   * Which bus each ducked part ended up on, assigned as the parts are actually
+   * emitted rather than planned in advance.
+   *
+   * The ordering has to be this way round because a track can be planned and
+   * then not written: the grid check a few lines below drops any part whose
+   * notes all fall outside the song's own bars, and a bus number handed to a
+   * part that never appears is a kick ducking an orbit that does not exist —
+   * which superdough logs as an error and plays through, so the record comes
+   * out sounding merely un-pumped. Numbering from 2 leaves superdough's default
+   * orbit 1 to everything else.
+   */
+  const orbits = new Map<Track, number>();
 
   for (const track of song.tracks) {
     const grid = buildNoteGrid(track.notes, song.meta.totalBars, slotsPerBar, spelling);
@@ -167,7 +183,7 @@ export function renderStrudel(song: Song, opts: StrudelRenderOptions = {}): stri
      * `.penv()` there instead; see `pitchSlide`.
      */
     const slide = pitchSlide(track, meta.totalBars, slotsPerBar, meta.bpm);
-    parts.push([
+    const part = [
       `  // ${track.layer} — ${track.instrument}`,
       `  note(\`${formatGrid(grid)}\`)`,
       `    .sound('${track.strudelSound}')`,
@@ -177,7 +193,18 @@ export function renderStrudel(song: Song, opts: StrudelRenderOptions = {}): stri
       ...envelopeChain(track.envelope),
       ...slide,
       ...effectChain(track.effects, song, sweep, slide.length > 0),
-    ].join('\n'));
+      /**
+       * The sidechain's target end: a bus of its own for the kick to reach.
+       *
+       * A duck is the one effect in this renderer that is not a property of the
+       * part at all — it is something done *to* the part by another part — so
+       * it is the one that cannot be written in the effect chain above. See
+       * `duckPlan`.
+       */
+      ...(ducked.targets.has(track) ? [`    .orbit(${orbits.size + 2})`] : []),
+    ].join('\n');
+    if (ducked.targets.has(track)) orbits.set(track, orbits.size + 2);
+    parts.push(part);
   }
 
   // Drums: one pattern per voice so the per-voice mix survives.
@@ -309,6 +336,9 @@ export function renderStrudel(song: Song, opts: StrudelRenderOptions = {}): stri
           : `    .n(${played.n})`,
         dyn ? `    .gain(\`${formatGrid(dyn)}\`)` : `    .gain(${gain.toFixed(3)})`,
         ...effectChain(fx, song),
+        // The sidechain's source end, on the kick and only on the kick. See
+        // `duckPlan`; `kickOnsets` argues why it is `bd` by name.
+        ...(voice === 'bd' ? ducked.controls(orbits) : []),
       ].join('\n'),
     );
   }
@@ -561,6 +591,177 @@ function effectChain(fx: Effects | undefined, song: Song, lpf?: string, bent?: b
     );
   }
   return out;
+}
+
+/**
+ * The sidechain, as an orbit per ducked part and a set of controls on the kick.
+ *
+ * `docs/engine-gaps.md` §3.17 says sidechain compression is unsayable and that
+ * the engine has no envelope follower. **The audition has had one the whole
+ * time**, and it is not an approximation of the technique — Strudel's own
+ * documentation for the control calls it *"a 'sidechain' like effect"*. Like
+ * `NoteBend` before it, the answer came out of reading the installed packages
+ * rather than out of a memory of what Strudel can do, and reading them was
+ * worth it in both directions: the obvious candidate is dead and the live one
+ * was not on the list.
+ *
+ * ## What does not work, checked first
+ *
+ * **`.compressor()` cannot do this and never could.** superdough builds a
+ * `DynamicsCompressorNode` for it, and a Web Audio compressor has exactly one
+ * input — there is nowhere to put a key signal. `voiceDefinition` below already
+ * records the other half of that node's uselessness here, measured at a 33 dB
+ * drop with no makeup gain. A compressor is the *device* a sidechain is built
+ * out of and it is not the mechanism.
+ *
+ * **`.tremolosync()` is the near miss, and it is the interesting refusal.**
+ * superdough will run an LFO on a part's amplitude at a rate given in cycles,
+ * with `tremoloskew` to make it a sawtooth rather than a sine — which is a pad
+ * pumping four times a bar, in one line, with no orbits and no second part
+ * involved. It is refused because **an LFO is not keyed to anything**. It would
+ * be right for the styles whose kick is on all four beats and wrong for every
+ * other one in the same table: pop's own `kick-gap` figure puts the kick on
+ * slots 0, 3, 6, 8 and 11, and a four-per-bar sine under that is a pulse that
+ * agrees with the drums twice a bar and argues with them three times. A duck
+ * that lands where the kick is not is worse than no duck, because it is a
+ * *wrong* contour rather than a missing one — which is the exact distinction
+ * the tempo ramp's banner turns on.
+ *
+ * ## What works
+ *
+ * `duckorbit`. An orbit is superdough's mixer bus: every part carrying
+ * `.orbit(n)` sums into it, and a hap carrying `.duckorbit(n)` schedules a
+ * ramp on **that bus's output gain** at its own onset time. So the kick reaches
+ * across and pulls the pad down, which is the mechanism spelled exactly as the
+ * gap entry describes it — *"one layer's gain is a function of another layer's
+ * onsets"*.
+ *
+ * Three things make it the right shape rather than merely an available one:
+ *
+ *  - **It is not a `.gain()`, so the held note is not the limit.** A control
+ *    pattern is applied appLeft — the fact `drumDynamics` relies on — so a
+ *    pad's gain is sampled once at its onset and a supersaw held for four bars
+ *    cannot pump inside it. That is exactly what `pop/index.ts` and
+ *    `house/index.ts` both record as the reason the velocity workaround gets
+ *    the comp and cannot get the pad. The duck runs on the bus, downstream of
+ *    every note, and does not care whether anything was struck.
+ *  - **It fires on the kick's real onsets**, including the strokes inside a
+ *    `DrumEvent.roll`, because a rolled slot is a nested group and each stroke
+ *    is a hap.
+ *  - **It ducks the reverb too.** The ramp is on `Orbit.output`, which is
+ *    downstream of the orbit's own reverb and delay sum — so a pad's tail
+ *    breathes with the pad rather than filling in the hole the duck just made.
+ *    That is what a sidechain across a bus does and what a per-voice gain
+ *    cannot.
+ *
+ * ## What it costs, stated rather than discovered later
+ *
+ * An orbit owns its reverb and its delay. Moving a part onto orbit 2 therefore
+ * gives it a *second* reverb node built to the same `roomsize` rather than a
+ * send into the shared one, and `reverbGen` fills its impulse response with
+ * `Math.random()`, so the two halls are the same size and not the same room.
+ * `Space`'s docstring says one hall and each player further back in it, and
+ * this is the first thing to bend that: a ducked part stands in an identical
+ * room next door. It is the price of the bus and it is the same price a mixing
+ * desk charges — a sidechained group goes through its own send.
+ *
+ * Orbit numbers start at 2 because superdough's default is 1, so **a song with
+ * nothing ducked emits nothing at all** and is byte-identical to what it was.
+ *
+ * ## Depth, in superdough's units
+ *
+ * `duckdepth` is not a gain and not a ratio. superdough's floor works out to
+ * `clamp(1 − √depth, 0.01, …)`, so the field is inverted, square-law, and has
+ * no unit anybody sets a compressor in. `Effects.duck` is in decibels for that
+ * reason and this is where the conversion happens — `(1 − floor)²` lands the
+ * bus exactly on `duckFloor`, which is the same number `render/midi.ts` writes
+ * into CC11. Neither renderer owns the arithmetic.
+ *
+ * ## Two parts are refused as targets
+ *
+ * **The kit itself**, because a kick keyed off its own bus is a compressor with
+ * its output in its own sidechain, which oscillates rather than pumps.
+ * `Effects.duck` says so and this is where it is enforced.
+ *
+ * **A sung part**, because the sung path emits five patterns — a body, three
+ * formant bands and a consonant burst — that are one voice only by virtue of
+ * summing at the output, and putting them on a bus would be four `.orbit()`
+ * calls to say one thing. The musical answer agrees with the mechanical one and
+ * is the reason it is not worth building: in this repertoire the vocal is what
+ * the duck makes room *for*. A record that ducks its own singer under its own
+ * kick has the compressor patched backwards.
+ */
+function duckPlan(song: Song): {
+  targets: Map<Track, { depth: string; attack: string }>;
+  controls: (orbits: Map<Track, number>) => string[];
+} {
+  const targets = new Map<Track, { depth: string; attack: string }>();
+  const empty = { targets, controls: () => [] };
+  /**
+   * No kick, no duck, and no silent success. A style whose table has no `bd` in
+   * it — or a bank with no kick to substitute — has nothing to key the
+   * compressor off, and the honest result is a song with no sidechain in it
+   * rather than one where the field was read and did nothing. `npm run check`
+   * counts the parts that do duck for exactly this reason.
+   */
+  if (!kickOnsets(song.drums).length) return empty;
+  if (!resolveDrumSample(song.drums.bank, 'bd')) return empty;
+
+  for (const track of song.tracks) {
+    const depth = track.effects?.duck;
+    if (!depth || track.voice) continue;
+    targets.set(track, {
+      depth: ((1 - duckFloor(depth)) ** 2).toFixed(3),
+      // Seconds, because `duckattack` is in seconds, from beats, because the IR
+      // is. `meta.bpm` and not the tempo map, for `pitchSlide`'s reason: the
+      // audition is flat by construction, so a recovery written against a tempo
+      // nothing plays at would be the wrong length of hole.
+      attack: ((track.effects?.duckBeats ?? DUCK_BEATS) * 60 / song.meta.bpm).toFixed(3),
+    });
+  }
+  if (!targets.size) return empty;
+
+  /**
+   * The controls, built from the buses that were actually handed out.
+   *
+   * A function of the emitted orbits rather than of the plan, because the two
+   * can differ: `renderStrudel` drops a part whose notes all fall outside the
+   * song's bars, and a duck aimed at a part that was dropped is a `duckorbit`
+   * pointing at an orbit nothing created. superdough logs that and carries on,
+   * so the symptom would be a record that simply does not pump — which is
+   * exactly the class of silent failure this whole feature had to be checked
+   * for. Reading the map back means the ducker can only ever name buses that
+   * exist.
+   */
+  return {
+    targets,
+    controls: (orbits) => {
+      const live = [...orbits.keys()];
+      if (!live.length) return [];
+      /**
+       * One value or a `:` list, which is superdough's own form for addressing
+       * several orbits from one ducker — and it is a real list rather than a
+       * string it splits later. The `:` is mini-notation's `op_tail`, which
+       * folds its operand into an **array** (`@strudel/mini/mini.mjs`), and
+       * `SuperdoughAudioController.duck` opens with `[targetOrbits].flat()` and
+       * indexes the depth and attack lists alongside it. So `duckorbit("2:3")`
+       * with `duckdepth("0.7:0.5")` is two buses at two depths from one kick,
+       * which is two compressors and is what a desk would have.
+       *
+       * The single case is written as a bare number rather than as a
+       * one-element list so that the commonest song emits code a reader
+       * recognises, and so that it does not depend on the transpiler turning a
+       * string into mini-notation to mean anything at all.
+       */
+      const list = (xs: string[]) => (xs.length === 1 ? xs[0]! : `\`${xs.join(':')}\``);
+      return [
+        `    .duckorbit(${list(live.map((t) => String(orbits.get(t))))})`,
+        `    .duckdepth(${list(live.map((t) => targets.get(t)!.depth))})`,
+        `    .duckonset(${DUCK_ONSET_SECONDS})`
+        + `.duckattack(${list(live.map((t) => targets.get(t)!.attack))})`,
+      ];
+    },
+  };
 }
 
 /**

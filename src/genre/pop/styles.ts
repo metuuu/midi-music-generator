@@ -2453,6 +2453,19 @@ const dreampop: Style = {
  * `hook: 'earworm'`. This is the only style in the file where that setting is not
  * an exaggeration in any direction — the whole design of a eurodance record is
  * that the four bars come round twenty-eight times.
+ *
+ * **It ducks, and the comp is why rather than the pad.** Both drum figures are
+ * four on the floor, so the default three-quarter-beat recovery lands where it
+ * does in `dancepop`; at 128–144 BPM that is 313–352 ms. `pad` takes 8 dB, a
+ * shade under the style the era is named after, because a eurodance record's
+ * pad is a bed under the hook rather than the hook itself. `comp` takes 5,
+ * which is the entry `dancepop` refuses — and the reason the two disagree is a
+ * table fact rather than a preference: `held-supersaw` is one onset covering
+ * sixteen slots at weight 4, so on four songs in ten the comp of this style is
+ * a chord struck once a bar with nothing between, which is precisely the shape
+ * a velocity cannot pump and precisely what `stab-offbeats` is not. Where
+ * `stab-offbeats` wins the draw the duck costs almost nothing, because its
+ * onsets sit in the gaps at slots 2, 6, 10 and 14.
  */
 const europop: Style = {
   id: 'europop',
@@ -2465,6 +2478,10 @@ const europop: Style = {
   bpm: [128, 144],
   hook: 'earworm',
   modeWeights: { minor: 0.75, major: 0.25 },
+  effects: {
+    pad: { duck: 8 },
+    comp: { duck: 5 },
+  },
   relativeMajorChorus: 0.5,
   progressions: {
     intro: [
@@ -2670,13 +2687,42 @@ const teen: Style = {
  * 2010, and the style the era below is named after. Sidechain compression is a
  * mixing technique that became a compositional one: the whole track is pulled
  * down on every kick and released across the beat, so the *pulse* is carried by
- * the pad breathing rather than by anything struck. That is not something this
- * engine can render — `Effects` has no envelope follower — and saying so is
- * better than pretending, which is why the note is in `index.ts` under what the
- * engine cannot express.
+ * the pad breathing rather than by anything struck.
  *
- * What this style *can* say is the rest of it: a chorus that is a hook played by
- * a synthesiser rather than sung, a bass that is a held sub, and a `pad`
+ * **This style now says that, and it is the first in the project to.**
+ * `Effects.duck` — `docs/engine-gaps.md` §3.17, which this style's own header
+ * reported — is a depth in decibels of gain reduction under the kick, and the
+ * two numbers below are the whole of the adoption. Every drum figure here is
+ * four on the floor, so the kick spacing is exactly one beat and the default
+ * `DUCK_BEATS` of three quarters recovers with a quarter beat of full level to
+ * spare: at 124–132 BPM that is a 341–363 ms release, which is where a producer
+ * sets one.
+ *
+ * **9 dB on the pad, and it is the deepest number in the catalogue** because
+ * this is the style the technique is named after and because the pad here is
+ * `requireLayers` — the sustained supersaw is the record, and a record whose
+ * pad does not breathe is a record with no pulse in it. What made this
+ * unreachable before is `held-sub` and `supersaw-halves` on the facing page: a
+ * gain is sampled at a note's onset, and a figure with one onset per bar has
+ * nowhere to put four of them.
+ *
+ * **6 dB on the bass, recovering in half a beat rather than three quarters**,
+ * which is the finer half of the setting. The low end has to be back before the
+ * offbeat or the groove goes soft, and a sub that is still climbing when the
+ * next note arrives reads as a weak mix rather than as a pump. It also means
+ * the two figures that are *not* held cost nothing: `offbeat-sub` and
+ * `quarters` put their onsets at the half-beat and on the beat, where the duck
+ * has recovered or is about to be re-triggered anyway — so the field bites
+ * exactly where velocity could not reach and is nearly inert where it could.
+ *
+ * The comp is deliberately left out. `supersaw-halves` is held for half a bar
+ * and would take it well, but `piano-offbeats` and `pluck-eighths` already
+ * write their own rise across the beat, and stacking a duck on top of a
+ * velocity shape that says the same thing is the double-swing mistake in a
+ * different unit.
+ *
+ * The rest of what this style says is unchanged: a chorus that is a hook played
+ * by a synthesiser rather than sung, a bass that is a held sub, and a `pad`
  * required in every section because the sustained supersaw is the record.
  *
  * **`requireLayers: ['pad']` is the only one in the genre, and it costs
@@ -2696,6 +2742,10 @@ const dancepop: Style = {
   bpm: [124, 132],
   hook: 'earworm',
   requireLayers: ['pad'],
+  effects: {
+    pad: { duck: 9 },
+    bass: { duck: 6, duckBeats: 0.5 },
+  },
   modeWeights: { minor: 0.68, major: 0.32 },
   relativeMajorChorus: 0.45,
   progressions: {
@@ -2804,6 +2854,25 @@ const dancepop: Style = {
  * whatever the chord quality turns out to be, and re-rooting it as `'seventh'`
  * would let the figure change shape when the harmony moves — which is precisely
  * what a riff must not do.
+ *
+ * **It ducks the pad and only the pad, at 6 dB — the shallowest adoption in the
+ * genre — and the bass refusal is the point.** Ducking the bass is what
+ * `dancepop` does and it would be wrong here for the reason the paragraph above
+ * gives: there the bass is a floor, and here it is the hook. Pulling a riff
+ * down on every kick would put a hole in the middle of the tune, which is the
+ * opposite of what a sidechain is for — the technique exists to make room for
+ * the kick in a layer nobody is listening to melodically.
+ *
+ * The 6 dB has the same origin. Only one of three drum figures here is four on
+ * the floor; the pulse of this record is carried by the saw riff and the
+ * sixteenth hats, so the pad breathing is a texture rather than the beat, and a
+ * 9 dB duck would put the record's weight on the wrong layer.
+ *
+ * `duckBeats: 0.5`, solved for the figure rather than taken from the default:
+ * `electro-backbeat` and `sixteenth-hats` both put a kick on the second half of
+ * beat two, half a beat after the one before it, and a three-quarter-beat
+ * recovery on a half-beat gap never reaches full level. That is not a pump, it
+ * is the layer being quiet.
  */
 const electropop: Style = {
   id: 'electropop',
@@ -2815,6 +2884,9 @@ const electropop: Style = {
   swing: 0,
   bpm: [118, 134],
   modeWeights: { minor: 0.74, major: 0.26 },
+  effects: {
+    pad: { duck: 6, duckBeats: 0.5 },
+  },
   relativeMajorChorus: 0.4,
   filter: { depth: 0.5, shape: 'step' },
   progressions: {
@@ -3068,6 +3140,20 @@ const indiepop: Style = {
  * `swing: 0.18` is the other half. The whole rhythmic identity of this style is a
  * dotted, half-swung sixteenth grid borrowed from dancehall, and a straight
  * version of it is a house record.
+ *
+ * **7 dB on the pad, recovering in half a beat.** Of the four styles in this
+ * genre that duck, this is the one where the technique is most audible on the
+ * actual records and least about four-on-the-floor: `tropical-kick` is the
+ * heaviest figure at weight 6 and it is a dancehall kick, 0 / 1½ / 2 / 3½, so
+ * the gaps alternate between a beat and a half and half a beat. The recovery is
+ * solved for the *tightest* of those, which at 98–116 BPM is 259–306 ms — long
+ * enough to be a swell under a slow record and short enough that the pair of
+ * kicks a beat apart each get their own hole rather than one long one.
+ *
+ * The pluck is deliberately not ducked even though it is the hook, and the
+ * reason is in the header above: this style's chorus is a *marimba figure*, and
+ * a plucked instrument has no held notes in it for a duck to reach. The layer
+ * that holds is the pad, and it is the only one here that does.
  */
 const tropical: Style = {
   id: 'tropical',
@@ -3080,6 +3166,9 @@ const tropical: Style = {
   bpm: [98, 116],
   hook: 'earworm',
   modeWeights: { minor: 0.5, major: 0.5 },
+  effects: {
+    pad: { duck: 7, duckBeats: 0.5 },
+  },
   relativeMajorChorus: 0.35,
   progressions: {
     intro: [

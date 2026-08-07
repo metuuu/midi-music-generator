@@ -11,6 +11,7 @@
  */
 
 import {
+  DUCK_BEATS, DUCK_ONSET_SECONDS, duckDepthDb, kickOnsets,
   songTempo, sweptCutoff, tempoLabel, timeSignature,
   type DrumVoice, type Effects, type Song, type Track,
 } from '../core/types.js';
@@ -153,6 +154,9 @@ export function renderMidi(song: Song): Uint8Array {
     }
     for (const [tick, value] of brightnessSweep(track)) {
       events.push({ tick, order: 0, bytes: [0xb0 | ch, 74, value] });
+    }
+    for (const [tick, value] of duckStream(track, song)) {
+      events.push({ tick, order: 0, bytes: [0xb0 | ch, 11, value] });
     }
 
     const bend = bendStream(track);
@@ -394,6 +398,203 @@ function brightnessSweep(track: Track): [tick: number, value: number][] {
     last = value;
     out.push([beatsToTicks(note.beat), value]);
   }
+  return out;
+}
+
+/**
+ * How coarse the duck staircase is allowed to be, in decibels and in ticks.
+ *
+ * The same two-limit structure `BEND_STEP_CENTS` and `BEND_STEP_TICKS` use
+ * below, and for the identical reason: a level ramp in a .mid is a staircase,
+ * and a step is heard as a step when the jump is large *and* the dwell is long,
+ * so bounding one alone bounds nothing.
+ *
+ *  - **A decibel and a half.** The just-noticeable level change is about 1 dB on
+ *    an isolated tone and nearer 2 on programme material in a mix, and this is a
+ *    step *inside a level that is already moving*, where it is further masked —
+ *    the same allowance `BEND_STEP_CENTS` takes when it sets a quarter tone
+ *    against a pitch JND ten times finer. It makes the stream as long as the
+ *    duck is *deep* rather than as long as the note, which is `rampMap`'s
+ *    argument transplanted a second time: a 6 dB duck is four steps down and
+ *    four back, a 12 dB duck is eight. At 1 dB the .mid was half again as large
+ *    and the recovery moved 25 times a second instead of 17, which is past the
+ *    point where anything is listening.
+ *  - **A thirty-second note**, which is the longest a single step may last, in a
+ *    note value rather than in milliseconds so that it means the same thing at
+ *    every tempo. It is what would catch a very slow shallow recovery that the
+ *    decibel bound sleeps through; on everything the catalogue actually writes
+ *    the decibel bound is the tighter of the two and this one never fires.
+ *
+ * The cost is real and is stated here rather than found later. Measured on a
+ * 128-bar dance-pop record ducking two layers at four kicks to the bar: the
+ * expression streams are the largest single thing in the file after the notes.
+ * It is the same price `BEND_STEP_CENTS` charges for the same reason — a
+ * continuous parameter in a format built for discrete ones — and a duck, unlike
+ * a glide, is on every beat of every bar by definition. A record that pumps is
+ * asking for an automation lane and should expect to be charged like one.
+ */
+const DUCK_STEP_DB = 1.5;
+const DUCK_STEP_TICKS = PPQ / 8;
+
+/**
+ * The part's sidechain as a stream of CC11 changes.
+ *
+ * `docs/engine-gaps.md` §3.17 — *"`Effects` has no envelope follower, so
+ * sidechain compression is unsayable"* — and this is the shipping half of the
+ * answer. It came out the same way round as `NoteBend` rather than the same way
+ * round as the tempo ramp, which was not obvious in advance and is the finding
+ * worth stating: **both renderers play this contour, and neither has to lie
+ * about it.** The audition has a real bus-level duck keyed off the kick's own
+ * events (see `duckPlan` in `render/strudel.ts`); this file has an automation
+ * lane. They are different mechanisms drawing the same line, which is the
+ * standard §6 sets — *between a shape both renderers play identically and a
+ * shape one of them lies about, take the first.*
+ *
+ * ## CC11, and why it is the right controller rather than merely a free one
+ *
+ * **Expression is GM level 1**, which puts it in the small set with reverb send
+ * and pan rather than with CC74 and CC71 — every device that plays a .mid at
+ * all implements it. That matters more here than it did for the filter sweep,
+ * because a device that ignores a brightness stream plays a slightly wrong
+ * *timbre* while a device that ignored this would play a record with its pulse
+ * missing.
+ *
+ * **And it is defined as a percentage of channel volume, not as a replacement
+ * for it.** CC7 already carries `track.gain` — the layer's mix level, written
+ * once at tick 0 — and a duck written there would have to know that number and
+ * multiply it, so a later change to the mix would silently change how deep the
+ * record pumps. Expression rides underneath: this stream is *the duck and
+ * nothing else*, and the fader stays the fader. That is the same separation
+ * `dynamicGrid` keeps in the audition between the engineer's level and the
+ * player's, one layer further down.
+ *
+ * ## The curve, which is superdough's and not this file's
+ *
+ * The audition ramps the bus with `exponentialRampToValueAtTime`, and an
+ * exponential ramp in amplitude is a **straight line in decibels** — so the
+ * contour is: fall from 0 dB to `−duck` over `DUCK_ONSET_SECONDS`, climb back
+ * to 0 over `duckBeats`, hold. Sampled here at `DUCK_STEP_DB`, which makes this
+ * a staircase on a line the other renderer draws continuously, exactly as the
+ * pitch bend is a staircase on a line the pitch envelope draws continuously.
+ *
+ * A kick arriving before the recovery has finished **restarts the fall from
+ * wherever the level had climbed to**, because that is what
+ * `cancelScheduledValues` followed by a fresh ramp does in the audition. It is
+ * not a detail: it is what makes a busy kick figure sound compressed rather
+ * than sound like a sequence of separate dips.
+ *
+ * ## Decibels to a controller value, which is a decision and not a conversion
+ *
+ * MIDI's volume and expression controllers are not linear in amplitude. The MMA
+ * curve, which is also SoundFont 2.04's default modulator for both CC7 and
+ * CC11, is `attenuation dB = 40·log₁₀(cc/127)` — amplitude proportional to the
+ * *square* of the controller. So a −9 dB duck is cc 76 and not cc 45, and
+ * writing the naive linear value would produce a duck half as deep in dB as the
+ * one the audition plays. FluidSynth implements the standard curve; a device
+ * that uses a linear taper instead will duck by half the written depth, which
+ * is a shallower version of the right gesture rather than a wrong one.
+ *
+ * ## One thing it does that the audition does not
+ *
+ * Expression scales the voice, so the signal *entering* the reverb ducks and
+ * the tail already ringing in it does not. The audition ducks the orbit's
+ * output, which is downstream of that orbit's reverb, so its tail breathes too.
+ * A wetter part therefore pumps very slightly less here than it does in the
+ * audition. It is a difference in how much of the hole the room fills in, not a
+ * difference in where the hole is, and there is no message in the format that
+ * would close it — the reverb is the synth's single global unit and CC91 is a
+ * send level into it.
+ */
+function duckStream(track: Track, song: Song): [tick: number, value: number][] {
+  /**
+   * A sung part is never a duck target, and the guard is here as well as in the
+   * audition rather than only where it is convenient. `duckPlan` refuses one
+   * because the sung path emits five patterns that are one voice only by
+   * summing, and because in this repertoire the vocal is what the duck makes
+   * room *for*. This file has neither constraint — a voice is a channel like
+   * any other here — so without this line a genre writing `vocal: { duck }`
+   * would get a pumping singer in the `.mid` and a still one in the audition,
+   * which is the exact disagreement both renderers are written to avoid.
+   */
+  if (!track.effects?.duck || track.voice) return [];
+  const kicks = kickOnsets(song.drums);
+  if (!kicks.length) return [];
+
+  /**
+   * The depth, through the shared clamp rather than read from the field.
+   *
+   * It looks like a detour and it is the thing that keeps the two renderers
+   * equal at the extremes: `duckDepthDb` bounds at 40 dB, because that is where
+   * MIDI's expression controller runs out and where superdough's own
+   * `clamp(…, 0.01, …)` stops. Reading `effects.duck` raw here would mean a
+   * table writing 60 got 43 dB in the file and 40 in the audition. The audition
+   * reaches the same bound through `duckFloor`, which is the same function one
+   * step further on, so neither renderer can be clamped differently from the
+   * other because there is only one clamp.
+   */
+  const depth = duckDepthDb(track.effects.duck);
+  const onsetBeats = (DUCK_ONSET_SECONDS * song.meta.bpm) / 60;
+  const release = track.effects?.duckBeats ?? DUCK_BEATS;
+
+  /**
+   * `127 · 10^(dB/40)`, which is the MMA curve inverted. The multiplier is 127
+   * rather than 128 so that 0 dB lands exactly on 127: a part that ducks must
+   * return to precisely the level a part that does not ducks from, or every
+   * pumping layer in the catalogue would ship a fraction of a decibel quiet.
+   */
+  const cc = (db: number): number => clamp7(127 * 10 ** (db / 40));
+
+  const out: [number, number][] = [];
+  let last = 127;
+  const push = (beat: number, db: number) => {
+    const value = cc(db);
+    if (value === last) return;
+    last = value;
+    out.push([beatsToTicks(beat), value]);
+  };
+  /**
+   * One straight line in decibels, sampled. Both limits apply and the finer of
+   * the two wins — see `DUCK_STEP_DB`. The head of a segment is not emitted,
+   * because it is the tail of the one before it.
+   */
+  const ramp = (from: number, to: number, at: number, beats: number) => {
+    if (beats <= 0) return;
+    const steps = Math.max(
+      1,
+      Math.ceil(Math.abs(to - from) / DUCK_STEP_DB),
+      Math.ceil(beatsToTicks(beats) / DUCK_STEP_TICKS),
+    );
+    for (let k = 1; k <= steps; k++) push(at + (k * beats) / steps, from + ((to - from) * k) / steps);
+  };
+
+  /**
+   * The two segments, per kick, each clipped at the next kick.
+   *
+   * Sampling the window as one run was the first version and it was wrong in a
+   * way the emitted file showed and the code did not: the fall is a fiftieth of
+   * the recovery's length, so a step size that reads the whole window steps
+   * clean over it and the .mid drops 9 dB in a single message. That is the
+   * click `DUCK_ONSET_SECONDS` exists to prevent, written by the renderer that
+   * was supposed to be honouring it.
+   */
+  let level = 0;
+  for (let i = 0; i < kicks.length; i++) {
+    const start = kicks[i]!;
+    const until = (kicks[i + 1] ?? Infinity) - start;
+    const fall = Math.min(onsetBeats, until);
+    // A kick landing inside the previous fall takes the level it had reached.
+    const bottom = level + ((-depth - level) * fall) / onsetBeats;
+    ramp(level, bottom, start, fall);
+    level = bottom;
+    const climb = Math.min(release, until - fall);
+    if (climb <= 0) continue;
+    const top = bottom + ((0 - bottom) * climb) / release;
+    ramp(bottom, top, start + fall, climb);
+    level = top;
+  }
+  // Back to unity at the end, so a file that stops mid-recovery does not leave
+  // the channel attenuated for whatever plays after it.
+  if (last !== 127) push(kicks[kicks.length - 1]! + onsetBeats + release, 0);
   return out;
 }
 

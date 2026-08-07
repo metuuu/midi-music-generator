@@ -179,13 +179,18 @@ const chicago: Style = {
      * The offbeat chord — an organ or a Juno held for an eighth, four times a
      * bar, in the same gaps the bass is in.
      *
-     * **This is where the sidechain lives, and it is a figure rather than a
-     * process.** `Effects` has no envelope follower, so the pumping duck that
-     * defines this music cannot be *stated*; what can be stated is the shape it
-     * produces, which is a chord that is quiet just after a kick and loudest just
-     * before the next one. The velocities below are that shape written down. See
-     * `index.ts` for what it costs, which is that the pad — the layer where the
-     * duck matters most — has no onsets to put it on.
+     * **This is where the sidechain lives, and here it is a figure rather than
+     * a process — on purpose, now that it could be either.** `Effects.duck`
+     * exists and three styles in this genre take it; this one does not, because
+     * what it would duck is already ducked. The velocities below are the shape a
+     * compressor produces, written down: a chord quiet just after a kick and
+     * loudest just before the next one. Stating it twice, once as a velocity
+     * curve and once as a gain envelope, would double the gesture rather than
+     * strengthen it.
+     *
+     * That is only a safe refusal because every comp figure in this style is
+     * *struck*. See `index.ts` for the two styles where it is not, which is
+     * where the field earns its place.
      */
     { name: 'offbeat-stab', weight: 7, voices: 3, hits: [
       { at: 2, dur: 2, vel: 0.62 }, { at: 6, dur: 2, vel: 0.72 },
@@ -1288,7 +1293,18 @@ const frenchtouch: Style = {
    */
   effects: {
     comp: { phaser: 0.55, reverb: 0.34, drive: 0.28 },
-    pad: { phaser: 0.4, reverb: 0.6 },
+    /**
+     * **8 dB under the kick**, and the comp deliberately not with it. Both of
+     * this style's comp figures are struck — `loop-chords` three times a bar and
+     * `chank-loop` eight — so the pump is already in their velocities, which is
+     * what `index.ts` describes the whole genre as doing. The pad is the layer
+     * that could not be reached, and it is reached now.
+     *
+     * Shallower than `trance` and `progressive` because of what this record is
+     * made of: the filtered disco loop is the pulse here, and a duck deep enough
+     * to be the pulse would be competing with it rather than sitting under it.
+     */
+    pad: { phaser: 0.4, reverb: 0.6, duck: 8 },
     melody: { phaser: 0.3, reverb: 0.4, drive: 0.2 },
   },
   progressions: {
@@ -1744,6 +1760,35 @@ const progressive: Style = {
   breakCarrier: 'pad',
   transitions: [['fill', 3], ['break', 4], ['elide', 2]],
   drops: [['none', 2], ['breakdown', 3]],
+  /**
+   * The duck, on the two layers that could not be reached by a velocity.
+   *
+   * `index.ts` calls this the genre the gap was actually about and names this
+   * style and `trance` as the two whose washes *"sit still where the record has
+   * them breathing four times a bar"*. `Effects.duck` is the field that closes
+   * it — see `docs/engine-gaps.md` §3.17 — and all three drum figures here are
+   * four on the floor, so the default three-quarter-beat recovery lands with a
+   * quarter of a beat of full level before the next kick: 341–363 ms at
+   * 124–132 BPM.
+   *
+   * **The comp is in, and finding out why corrected the genre's own note.**
+   * `index.ts` says every comp table in the house half writes the pumped shape
+   * in `CompHit.vel`, and that is true of the struck figures and *not* of the
+   * held ones — `long-chords` is the heaviest figure at weight 6 and its two
+   * velocities are 0.6 and 0.58, which is flat. So on more than half the songs
+   * of this style the comp had exactly the pad's problem and the workaround
+   * everyone believed was covering it never applied. `pumped-eighths` and
+   * `ten-cycle-arp` do write it, and on those the duck costs almost nothing
+   * because their onsets sit off the kick.
+   *
+   * 9 and 6 rather than one number, because a wash and a chord are not the same
+   * distance behind the beat: the pad is the thing that breathes and the comp is
+   * the thing that has to stay a chord while it does.
+   */
+  effects: {
+    pad: { duck: 9 },
+    comp: { duck: 6 },
+  },
   modeWeights: { minor: 0.82, major: 0.18 },
   relativeMajorChorus: 0,
   progressions: {
@@ -1866,6 +1911,28 @@ const trance: Style = {
   breakCarrier: 'pad',
   transitions: [['fill', 4], ['break', 5]],
   drops: [['none', 1], ['breakdown', 3]],
+  /**
+   * **10 dB — the deepest duck in the project, and this is the style that earns
+   * it.** A trance record's pulse *is* the pad opening and closing; the kick is
+   * what triggers it rather than what carries it, which is why the breakdown
+   * works at all — take the drums away and the wash stops breathing, and that
+   * absence is the eight bars this style's description is about.
+   *
+   * `requireLayers: ['pad']` is what makes the number safe to write this large.
+   * The layer is guaranteed present in every section, so there is no song where
+   * the duck lands on nothing and none where it is the only thing keeping a
+   * thin arrangement alive.
+   *
+   * The comp takes 6 for `progressive`'s reason and its own table proves the
+   * same point: `held-supersaw` is the heaviest figure at weight 6 and its
+   * velocities are 0.66 and 0.64 — flat, twice a bar, and unreachable by any
+   * shape written on an onset. `gated-chords` is the one that does write the
+   * pump, and its eight sixteenths sit clear of the kick.
+   */
+  effects: {
+    pad: { duck: 10 },
+    comp: { duck: 6 },
+  },
   modeWeights: { minor: 0.7, major: 0.3 },
   relativeMajorChorus: 0,
   counterMode: 'ostinato',

@@ -251,30 +251,56 @@
  * ramping song says so in its own emitted source. Since nothing here ramps, that
  * banner never appears in this genre — which is one small mercy of the refusal.
  *
- * # Sidechain, which is unsayable
+ * # Sidechain, which is sayable now
  *
- * `docs/engine-gaps.md` §3.17: *"`Effects` has no envelope follower, so sidechain
- * compression is unsayable… Nothing in `Effects` relates two layers at all; every
- * field describes one in isolation."* Pop named an era after the gap. **This is
- * the genre the gap is actually about** — the pumping duck under a
- * four-on-the-floor kick is most of what this music sounds like from about 1994
- * onward, and there is no field for it.
+ * `docs/engine-gaps.md` §3.17 used to read *"`Effects` has no envelope follower,
+ * so sidechain compression is unsayable… Nothing in `Effects` relates two layers
+ * at all; every field describes one in isolation."* Pop named an era after the
+ * gap and **this is the genre the gap was actually about** — the pumping duck
+ * under a four-on-the-floor kick is most of what this music sounds like from
+ * about 1994 onward. `Effects.duck` is the field, in decibels of gain reduction
+ * under the kick, and three styles here take it.
  *
- * What was done instead is written into the **figures**, and it is worth being
- * precise about how far that goes. Sidechain produces a chord that is quiet
- * immediately after a kick and loudest immediately before the next one, so every
- * comp table in the house half of `styles.ts` writes that shape with `CompHit.vel`
- * — `pumped-sixteenths`, `chank-sixteenths`, `pumped-eighths`, `gated-chords`, and
+ * **What was done instead is still there, and it is still right.** Sidechain
+ * produces a chord that is quiet immediately after a kick and loudest
+ * immediately before the next one, and every *struck* comp figure in the house
+ * half of `styles.ts` writes that shape with `CompHit.vel` —
+ * `pumped-sixteenths`, `chank-sixteenths`, `pumped-eighths`, `gated-chords` and
  * the offbeat stabs, all of which rise across each beat and reset on the kick.
+ * Those are not ducked, because saying the same thing in two units is how the
+ * double-swing bug happened.
  *
- * **It gets the comp and it cannot get the pad**, which is the layer where the
- * effect matters most. A `pad` in this music is a held supersaw with one onset
- * every four bars; the duck is a thing that happens to it *between* its onsets,
- * and a velocity is attached to an onset. So the trance and progressive washes
- * sit still where the record has them breathing four times a bar, and there is no
- * approximation that gets closer — this is the same shape of limit §3.15 records
- * about the trap hi-hat, where the grid cannot subdivide below what the part
- * needs. Naming it is better than pretending.
+ * **The paragraph this replaces was wrong about its own tables in one place,
+ * and that is worth keeping.** It said the workaround *"gets the comp and cannot
+ * get the pad"*. It gets the comp where the comp is struck. Where it is held it
+ * gets nothing at all, and the two heaviest comp figures in the two styles this
+ * section names are exactly that: `held-supersaw` in `trance` at weight 6, two
+ * onsets a bar at 0.66 and 0.64, and `long-chords` in `progressive` at weight 6,
+ * 0.6 and 0.58. Flat. So on more than half the songs of those styles the
+ * mitigation everybody believed was covering the comp had never applied to it —
+ * found by reading the table rather than the note, which is §7's own lesson
+ * about briefs.
+ *
+ * **Three adopt and twenty-one do not.** `trance` takes 10 dB on the pad, the
+ * deepest number in the project, because a trance record's pulse *is* the wash
+ * opening and closing; `progressive` takes 9; `frenchtouch` takes 8 on the pad
+ * alone, because its filtered disco loop is already the pulse. All three are
+ * four on the floor in every drum figure they own, so the recovery is the
+ * default three quarters of a beat.
+ *
+ * The refusals come in three shapes. **The warehouse half is gated by the
+ * calendar**: `DUCK_FROM` is 1993 and `chicago`, `jackin`, `acid`, `piano`,
+ * `garage`, `ghetto` and `disco` are mostly drawn in an era whose year is 1988,
+ * where the kick and the pad were on the same piece of tape. **Six have no
+ * layer that holds** — `minimal`, `microhouse`, `techhouse`, `hardgroove`,
+ * `bleep` and `newbeat` are built out of short events, and a duck on a part
+ * with nothing sustaining is a compressor working on silence. And **`dubtechno`
+ * refuses on the strongest grounds of the three**: the space between its chords
+ * is already owned, by a delay with 0.62 feedback that its own `effects` table
+ * calls the piece — *"one chord, and everything that happens to it happens in
+ * the delay."* A duck would be a second thing shaping the same gap, and the
+ * audition's duck runs on the orbit output, *after* that delay, so it would
+ * chop the echoes the style exists for.
  *
  * # `Chart.exits`, which is half of what an arrangement here is
  *

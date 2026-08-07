@@ -342,13 +342,34 @@ const gated: EraProfile = {
  * and lets it back up across it, so the *pulse* of a modern pop record is
  * carried by a pad breathing rather than by anything struck.
  *
- * **This engine cannot render that**, and `index.ts` lists it under what could
- * not be expressed. `Effects` has filtering, reverb, delay and drive and no
- * envelope follower, and there is no way to say that one layer's gain is a
- * function of another layer's onsets. What is here instead is the rest of the
- * situation — the highest density in the genre, a `pad` palette built on
- * sustained saws, a bass palette that is three kinds of sub, and drum banks that
- * are the 909, the 808 and a sampler.
+ * **The engine can render that now, and this era is the reason it can.**
+ * `Effects.duck` is a depth in decibels of gain reduction under the kick —
+ * `docs/engine-gaps.md` §3.17, reported by this table and by house — and it is
+ * the first field in that interface that relates two layers rather than
+ * describing one in isolation. It is not an envelope follower and did not need
+ * to be: a follower listens, and this generator already knows where every kick
+ * is before a renderer starts.
+ *
+ * **The field is not written here, and that is the decision worth recording.**
+ * An era is an average over a decade and this one runs from 1993 to now, so it
+ * carries `ballad` at weight 6, `chamber` at 4 and `indiepop` at 7 — a torch
+ * ballad cut in 2005 is in this era and does not pump, and putting a duck in
+ * this table would give it one. Four styles name it in `styles.ts` instead:
+ * `dancepop`, `europop`, `electropop` and `tropical`, which are the four dance
+ * records in the genre. That is `Style.effects` outranking the era doing
+ * exactly the job it was added for, one tier lower than the case that asked for
+ * it.
+ *
+ * What is here instead is the rest of the situation — the highest density in
+ * the genre, a `pad` palette built on sustained saws, a bass palette that is
+ * three kinds of sub, and drum banks that are the 909, the 808 and a sampler.
+ *
+ * **`DUCK_FROM` is 1993 and it is this label made enforceable.** A style whose
+ * home is 2010 can also be drawn in `twotrack`, and a two-track record cannot
+ * sidechain at all — the kick and the pad are on the same piece of tape. So the
+ * gate is a fact about the medium rather than a taste, and it is why `dancepop`
+ * ducks on 167 songs of 200 and not 200: the other 33 were cut in 1963, 1972
+ * and 1985.
  *
  * `keyChangeChance: 0.08` is the lowest by a distance and it is a real
  * observation rather than a shrug. The final-chorus lift very nearly died: a

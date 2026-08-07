@@ -939,6 +939,75 @@ export interface Effects {
    * holding a key down.
    */
   swell?: number;
+  /**
+   * How far under the kick this layer is pushed, in **decibels of gain
+   * reduction**. The sidechain duck.
+   *
+   * This is the first field in this interface that is not about one part in
+   * isolation, and that is the whole of what it adds. `docs/engine-gaps.md`
+   * §3.17 states the gap in exactly those terms — *"nothing in `Effects`
+   * relates two layers at all"* — and pop's fourth era is **named** `sidechain`
+   * after the technique it could not say. A compressor keyed off the kick drum
+   * pulls the rest of the record down on every beat and lets it back up across
+   * it, so the pulse of a dance record is carried by a pad *breathing* rather
+   * than by anything struck.
+   *
+   * ## It is not an envelope follower, and it did not need to be
+   *
+   * The gap asks for a follower, which is a runtime device: it listens to one
+   * signal and derives a gain from it. Nothing here listens, because nothing
+   * here has to — **this generator knows every kick onset at compose time**, so
+   * the follower's whole job is already done before a renderer starts. What is
+   * left is a declaration: *this layer ducks, this deep, recovering this fast*,
+   * and the trigger is the kick because in this repertoire it is always the
+   * kick. Named rather than searched, on `Style.breakCarrier`'s reasoning one
+   * level down: *"whoever is loudest in the bar"* would hand the same style a
+   * kick-keyed duck in one song and a clap-keyed one in the next.
+   *
+   * ## Decibels, because that is the unit the two renderers can agree in
+   *
+   * Neither renderer's own unit is shareable. superdough's `duckdepth` is a
+   * number whose floor works out to `1 − √depth`, and MIDI's expression
+   * controller is a 0–127 integer on a square-law curve; a field carrying
+   * either one would be a field that means something in one output and has to
+   * be converted *back* for the other. Decibels of gain reduction is what a
+   * producer sets on the compressor and what both ends convert *to*, so the
+   * arithmetic lives in `duckFloor` below and neither renderer owns it. That is
+   * `sweptCutoff`'s argument and it is here for the same reason.
+   *
+   * Small numbers. **6 dB is the duck you feel and 12 dB is the duck you
+   * hear**, and past about 15 the layer is gone rather than ducked — at 18 dB
+   * the pad is at an eighth of its amplitude and what is left between kicks is
+   * a swell rather than a chord. Nothing in the catalogue writes more than 11.
+   *
+   * Inert on the kit's own `effects`, and it has to be: a kick keyed off itself
+   * is a compressor with its own output in the sidechain, which is not a pump
+   * but an oscillation. Renderers ignore it there.
+   */
+  duck?: number;
+  /**
+   * How long the duck takes to come back, in **beats**. Inert without `duck`.
+   *
+   * In beats rather than milliseconds for `NoteBend.beats`' reason and
+   * `Space.delayBeats`': the gesture is proportional to the music. A pump that
+   * recovers over three quarters of a beat is the same gesture at 124 BPM and
+   * at 174, where a compressor's release knob in milliseconds is a different
+   * gesture at every tempo — and this catalogue's dance styles span 90 to 174.
+   *
+   * The number that matters is its ratio to the **kick spacing**, because a
+   * duck that has not finished recovering when the next kick lands never
+   * reaches full level and the pump flattens into a general quietening. On
+   * four-on-the-floor the spacing is one beat, so `DUCK_BEATS` is 0.75 — the
+   * gain is back at unity for the last quarter of every beat, which is the
+   * sound of the record and also why a sidechained pad sounds *rhythmic*
+   * rather than merely modulated. A style whose kick is sparser can afford
+   * longer and one whose kick is busier must take less.
+   *
+   * The *fall* is not a field. It is `DUCK_ONSET_SECONDS` in both renderers,
+   * for `GLIDE_SECONDS`' reason: a compressor's attack is a knob in
+   * milliseconds on a physical box and does not know how long the bar is.
+   */
+  duckBeats?: number;
 }
 
 /**
@@ -1102,6 +1171,31 @@ export type SequencedLayer = 'bass' | 'counter';
  * distinction `SYNTH_RIGS.modular.from` had to be corrected for.
  */
 export const SEQUENCER_FROM = 1971;
+
+/**
+ * The year a record could duck under its own kick. See `Effects.duck`.
+ *
+ * Gated hard and separately from any era weighting, exactly as `SEQUENCER_FROM`
+ * and `DRUM_SOURCE_FROM` are, and for a reason that is a fact about the medium
+ * rather than a taste: **you cannot sidechain on two-track.** A compressor keyed
+ * off the kick needs the kick on a channel of its own, so the technique is not
+ * merely unfashionable before multitrack — it is unavailable, in the same way a
+ * sequencer is unavailable before there is one.
+ *
+ * 1993 rather than the year the first key input shipped, on the same
+ * distinction `SEQUENCER_FROM` had to be corrected for: the gear is older and
+ * the *sound* is not. Ducking as a compositional device — a record whose pulse
+ * is a pad breathing rather than anything struck — is a nineties dance-music
+ * idea, and pop's era table already dates it, naming its fourth era `sidechain`
+ * and labelling it *1993–now*. This is that label made enforceable, so that a
+ * style whose home is 2010 and which can also be drawn in 1963 does not arrive
+ * in 1963 pumping.
+ *
+ * It separates pop's `gated` era from its `sidechain` one and nothing else in
+ * the catalogue, which is the shape a gate written from one genre's evidence
+ * should have.
+ */
+export const DUCK_FROM = 1993;
 
 /**
  * What is producing the percussion — as an object in a room, not as a sound.
@@ -1554,6 +1648,109 @@ const SWEEP_OCTAVES = 4;
  */
 export function sweptCutoff(lowpass: number, brightness: number | undefined): number {
   return Math.round(lowpass * 2 ** (-SWEEP_OCTAVES * (1 - (brightness ?? 1))));
+}
+
+/**
+ * How long the duck takes to fall, in seconds, and how long it recovers over by
+ * default, in beats. See `Effects.duck`.
+ *
+ * **Ten milliseconds down.** Fixed rather than declared, exactly as
+ * `GLIDE_SECONDS` and `PHASER_RATE` are, and for the same reason: a
+ * compressor's attack is a knob on a box in milliseconds and knows nothing
+ * about the tempo. It is also the smallest number that is not a fault —
+ * superdough ramps the orbit's gain with `exponentialRampToValueAtTime`, and
+ * Strudel's own `duckonset` documentation demonstrates the zero case as
+ * *"clicks"* against 0.01 as *"no clicks"*, because an instantaneous jump in a
+ * gain node is a step discontinuity in the waveform. The .mid has the same
+ * problem from the other side, where a single expression message between two
+ * ticks is as sharp as the file can be.
+ *
+ * It is short enough to be the gesture. A 909 kick's own transient is over
+ * inside 15 ms, so at 10 ms the hole is open before the beater sound has
+ * finished — which is what makes the two read as one event rather than as a
+ * drum followed by a dip.
+ *
+ * `DUCK_BEATS` is argued in `Effects.duckBeats`. It is a default rather than a
+ * constant because the right value is a ratio to the kick spacing, and that is
+ * a property of the figure rather than of the technique.
+ */
+export const DUCK_ONSET_SECONDS = 0.01;
+export const DUCK_BEATS = 0.75;
+
+/**
+ * The gain a ducked layer falls to, as an amplitude 0..1, from its depth in dB.
+ *
+ * Here rather than in either renderer for the reason `sweptCutoff` gives
+ * directly above, and the case for it is stronger: the two consumers do not
+ * merely need the same *number*, they need the same number expressed in two
+ * units that are related by nothing obvious. superdough wants `1 − √depth` to
+ * land on this value and MIDI wants `127·√` of it, and if the dB→amplitude step
+ * were written twice, the audition and the shipping file would duck by
+ * different amounts and nothing would report it.
+ *
+ * Floored at −40 dB rather than at zero, which is where MIDI's expression
+ * controller runs out: the standard curve is `40·log₁₀(cc/127)`, so cc = 1 is
+ * about −43 dB and cc = 0 is silence. A duck that asked for silence would be a
+ * gate, and a gate is a different gesture with a different name. It is also
+ * within a decibel of where superdough stops on its own, since `Orbit.duck`
+ * clamps its floor to 0.01.
+ *
+ * The clamp is a separate exported function rather than an expression inside
+ * this one, and that is not tidiness. `render/midi.ts` needs the *depth* and
+ * `render/strudel.ts` needs the *floor*, so only one of them can call this —
+ * and the renderer that could not would have to either write the bound again or
+ * take the depth back out through a logarithm. Both were tried. The second
+ * round-trips 9 dB into 8.999999999999998 and moves a handful of controller
+ * values by one, which is inaudible and is still two renderers disagreeing
+ * about a number they are supposed to share.
+ */
+export const DUCK_MAX_DB = 40;
+
+export function duckDepthDb(depthDb: number): number {
+  return Math.max(0, Math.min(DUCK_MAX_DB, depthDb));
+}
+
+export function duckFloor(depthDb: number): number {
+  return 10 ** (-duckDepthDb(depthDb) / 20);
+}
+
+/**
+ * The beats a duck fires on: every kick stroke in the song, in order.
+ *
+ * **The kick and nothing else.** A sidechain in this repertoire is keyed off
+ * the bass drum — that is what the technique is, and it is why the hole in the
+ * record lands exactly where the beat is. Reading "whatever is loudest in the
+ * bar" was rejected on `Style.breakCarrier`'s finding one level up: a rule that
+ * searches for its trigger hands the same style a kick-keyed duck in one song
+ * and a clap-keyed one in the next, and the listener hears an inconsistent
+ * record rather than a rule.
+ *
+ * **A roll counts as its strokes, and that is forced rather than chosen.** The
+ * audition attaches its duck to the kick's own pattern, where a `DrumEvent.roll`
+ * is a nested group and superdough fires the duck once per hap — so three
+ * strokes inside a sixteenth trigger three ducks whatever this function thinks.
+ * The .mid has no such constraint and would happily duck once, which is exactly
+ * the shape of disagreement `sweptCutoff` exists to prevent. So the expansion
+ * lives here and both renderers read it.
+ *
+ * **Velocity is not read**, and the omission is the interesting one, because a
+ * real compressor absolutely does duck less on a softer kick. Neither renderer
+ * can express that: superdough's `duckdepth` is a per-event constant on the
+ * orbit's gain, and matching it in the .mid would mean the audition and the
+ * file disagreeing about how deep every ghosted kick goes. It is also what
+ * `DrumEvent.roll` decided about level from the other direction — *a step drawn
+ * into a machine has one velocity* — and this music's kick is drawn into a
+ * machine.
+ */
+export function kickOnsets(drums: DrumTrack): number[] {
+  const out: number[] = [];
+  for (const e of drums.events) {
+    if (e.voice !== 'bd') continue;
+    const strokes = Math.max(1, Math.round(e.roll ?? 1));
+    // A sixteenth, in beats — the slot a roll subdivides. See `DrumEvent.roll`.
+    for (let k = 0; k < strokes; k++) out.push(e.beat + (k * 0.25) / strokes);
+  }
+  return out.sort((a, b) => a - b);
 }
 
 export function songDurationBeats(song: Song): number {

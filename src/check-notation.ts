@@ -107,6 +107,32 @@ let songs = 0;
  * hearing about from a check rather than from a listener.
  */
 let rolledSlots = 0;
+/**
+ * Parts riding a sidechain bus, and kicks reaching across to duck them.
+ *
+ * `Effects.duck` — `docs/engine-gaps.md` §3.17 — emits no notation at all: it is
+ * an `.orbit()` on the ducked part and a `.duckorbit()` on the kick, both of
+ * which this file's bar reader skips over as ordinary control lines. So the
+ * grammar above can never say anything about it, which is exactly the condition
+ * under which `rolledSlots` was added — **a feature that emits nothing looks
+ * exactly like a feature that works**, and this one is invisible in the text by
+ * construction rather than by accident.
+ *
+ * Counted as a **pair**, because either half alone is silent. A bus with nobody
+ * ducking it is a part in its own reverb at full level; a kick ducking a bus
+ * nothing is on logs an error inside superdough and plays normally. So the two
+ * are asserted against each other rather than against a threshold, which is the
+ * only claim this sweep can make honestly: **the number here is small and is
+ * expected to be small.** Seven styles in two genres duck, of 389, and this file
+ * draws one song per genre in rotation — so a run meets one or two of them, and
+ * the standing count is 2 buses from 1 kick rather than the hundreds
+ * `rolledSlots` reports. The population claim lives in `npm run genres`, which
+ * generates 240 songs of the adopting styles on purpose; what is worth having
+ * here is the *pairing*, because that is a property of the emitter rather than
+ * of the catalogue and one song is enough to see it.
+ */
+let duckBuses = 0;
+let duckers = 0;
 
 // Cover every genre in turn. Each brings something the others never emit: jazz
 // has extended chords and voicings past three notes, and ambient has notes that
@@ -122,6 +148,8 @@ for (let i = 0; i < 150; i++) {
   const song = generateSong({ seed: `notation-${i}`, genre, vocals: i % 3 === 0 });
   songs++;
   const code = renderStrudel(song, { includePrebake: true });
+  duckBuses += (code.match(/\n\s*\.orbit\(\d+\)/g) ?? []).length;
+  duckers += (code.match(/\n\s*\.duckorbit\(/g) ?? []).length;
 
   for (const voice of new Set(song.drums.events.map((e) => e.voice))) {
     drumParts++;
@@ -200,6 +228,11 @@ console.log(
   `Drum voices: ${drumParts} asked for, ${substituted} substituted, ${dropped} dropped.`,
 );
 console.log(`Rolled slots: ${rolledSlots} struck more than once inside a sixteenth.`);
+console.log(`Sidechain: ${duckBuses} parts on a duck bus, ducked from ${duckers} kicks.`);
+// A kick ducking nothing, or a bus nobody ducks. Both play, neither pumps.
+if ((duckBuses > 0) !== (duckers > 0)) {
+  problems.push(`sidechain half-emitted: ${duckBuses} buses against ${duckers} duckers`);
+}
 // A dropped voice is a part that was written and then silently thrown away. It
 // is tolerable for an ornament and not for the kit's backbone: no bank in the
 // pack lacks a kick, a snare or a hat, so a drop there means the table is wrong.

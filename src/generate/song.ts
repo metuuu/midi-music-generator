@@ -24,7 +24,7 @@ import { keyLabel, type Pc } from '../core/pitch.js';
 import { Rng } from '../core/rng.js';
 import { makeScale, stepInScale, type Mode } from '../core/scale.js';
 import {
-  DEFAULT_DRUM_MIX, DEFAULT_SPACE, SEQUENCER_FROM, canVary, eligibleDrumSources,
+  DEFAULT_DRUM_MIX, DEFAULT_SPACE, DUCK_FROM, SEQUENCER_FROM, canVary, eligibleDrumSources,
   isPlayedByHand, melodicLine,
   type DrumEvent, type DrumTrack, type DrumVoice, type Effects, type LayerId, type NoteEvent,
   type Section, type SectionKind, type SequencedLayer, type Song, type Space,
@@ -2273,10 +2273,29 @@ export function generateSong(opts: GenerateOptions = {}): Song {
    * `drive` and `phaser`. See `Instrument.effects`.
    */
   const effectsFor = (layer: LayerId, instrument?: Instrument): Effects | undefined => {
-    const merged = {
+    const merged: Effects = {
       ...genre.effects?.[layer], ...era.effects?.[layer],
       ...style.effects?.[layer], ...instrument?.effects,
     };
+    /**
+     * The one key in `Effects` with a date on it.
+     *
+     * Every other field describes a treatment that has always been available to
+     * somebody — a room, a filter, a tape machine driven hard — so the era table
+     * is allowed to be the whole of the answer. A duck is not: it needs the kick
+     * on a channel of its own and a compressor with a key input, and
+     * `DUCK_FROM` says when that room existed. Applied here rather than in a
+     * renderer because the year is a fact about the *recording situation*, which
+     * is the generator's business, and neither renderer knows what decade it is.
+     *
+     * Deleted rather than clamped, so a style drawn in the wrong decade comes
+     * out exactly as it would if the field had never been written — no orbit, no
+     * expression stream, no byte.
+     */
+    if (era.year < DUCK_FROM) {
+      delete merged.duck;
+      delete merged.duckBeats;
+    }
     return Object.keys(merged).length ? merged : undefined;
   };
   const space: Space = { ...DEFAULT_SPACE, ...genre.space, ...era.space };
