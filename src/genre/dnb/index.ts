@@ -169,26 +169,128 @@
  *
  * ## The ceilings, named because they shaped the tables
  *
- * **Something subdivides below a sixteenth now, and this genre has not taken
+ * **Something subdivides below a sixteenth now, and three styles have taken
  * it** — §3.15, built as `DrumEvent.roll` and `DrumPattern.rolls`. At 174 BPM a
  * written sixteenth is 86 ms and a chopped amen's internal detail wants 43,
  * which is `roll: 2`; hiphop hit this first at 140, filed the arithmetic, and
- * has adopted it in `trap` and `drill`.
+ * adopted it in `trap` and `drill`.
  *
  * The sentence that stood here — *the stutter, the retriggered fragment and the
  * thirty-second roll into a drop are all simply absent, and no arrangement of
- * these tables produces one* — was true when it was written and the second half
- * of it is now false. It is kept in view rather than deleted because the reason
- * this genre has not adopted is a judgement and should be visible as one: a trap
- * roll is a **hi-hat** run-in inside one sixteenth at the end of a bar, and the
- * gestures named above are a **snare** stutter and a fragment retriggered across
- * a whole beat, which is four rolled strokes in a row and a different figure
- * shape entirely. Writing it by analogy with `trap-kit` would produce something
- * that satisfies the field and is not this music.
+ * these tables produces one* — has now come apart into three claims with three
+ * different answers, and that is the most useful thing this entry can record.
  *
- * The gate is no obstacle whenever somebody does it: `rolls` is read only where
- * the source is `programmed`, and all four eras below are `programmed` at 9 or
- * 10 out of 10.
+ * **The stutter is written.** `jungle`, `drumfunk` and `breakcore` roll —
+ * **117,408 rolled strokes over 600 songs of those three, against 0 over the
+ * other twenty-one styles' 4,200 and 0 reaching a pair of hands anywhere.** The
+ * gate was no obstacle, exactly as this paragraph predicted: `rolls` is read
+ * only where the source is `programmed`, all four eras below are `programmed` at
+ * 9 or 10 out of 10, and the 2 to 8% of these three styles' songs that draw the
+ * `electronic-kit` instead simply hear the figure underneath — which is the era
+ * table doing its job rather than the field failing, and is the same sentence
+ * `DrumPattern.rolls` writes about a live drummer playing a trap figure.
+ * `styles.ts` carries the arithmetic; the short version is that a sixteenth here
+ * is 86 ms against trap's 107, so `roll: 2` reaches 43 ms where hiphop needed
+ * `roll: 3` to reach 36.
+ *
+ * The standing proof is thinner than it should be and is worth saying so.
+ * `npm run check` prints a rolled-slot count over the whole catalogue and this
+ * adoption moved it from 235 to 323, so a silent regression here would show up
+ * there. But `npm run genres`' *"no hand is asked to play a roll"* is scoped to
+ * `trap` and `drill` by name, and its own comment explains why it was written
+ * that way — a check that passes because nothing is happening is the failure §7
+ * keeps naming. It now under-covers: nothing asserts that this genre's 117,408
+ * strokes exist or that none of them reaches a drummer, and widening that loop
+ * to the adopting styles is a change to `src/genre-check.ts` rather than to
+ * anything under `genre/dnb`.
+ *
+ * **The retriggered fragment is written, and it is not trap's figure.** A trap
+ * roll is a hi-hat run-in inside one sixteenth at the end of a bar. What is
+ * written below is a snare covering a **whole beat** — four consecutive
+ * sixteenths, each a pair of 32nds, eight strokes across 345 ms — which is the
+ * shape the field spells as four rolled strokes in a row rather than as one
+ * `roll: 4`, and which cost both adopting figures four new written snare hits to
+ * carry. That is the difference between a change to the part and an ornament on
+ * it, and it is why writing this by analogy with `trap-kit` would have satisfied
+ * the field and not the music.
+ *
+ * `drumfunk`'s `edit` takes a third shape that hiphop structurally could not
+ * have reported: **two of its eleven ghosts are rolled**, 20,557 strokes at a
+ * measured mean velocity of 0.16 against the struck rush's 0.58–0.94. The
+ * subdivision happens *under* audibility, which is where most of a chopped break
+ * lives, and `trap` and `drill` write no ghost row at all — there was nothing
+ * quiet next door to subdivide.
+ *
+ * **The thirty-second roll into a drop is still absent, and the reason has
+ * moved.** It is no longer that nothing subdivides below a sixteenth; it is that
+ * the gesture is a *fill* and a fill cannot carry the field. `generate/fills.ts`
+ * builds `snare-roll` by stepping one or two whole slots at a time — sixteenths
+ * and eighths, nothing shorter — and no `FillShape` in that file writes
+ * `DrumEvent.roll` at all, so the eight bars before a drop still accelerate only
+ * as far as the grid goes.
+ *
+ * A `DrumPattern` cannot stand in for it either: a figure repeats, and a build
+ * is by definition the bar that does not. Two refusals already documented above
+ * meet here — `generate/tempo.ts` cannot ramp into a drop, and `generate/drop.ts`
+ * will not mark the return — and this is the third face of the same missing
+ * gesture rather than a fourth problem. Nothing in `genre/dnb` can fix it.
+ *
+ * ### Twenty-one styles refuse, and the line they draw is not the ghost line
+ *
+ * Three of twenty-four, where hiphop took two of twelve, and the refusals are
+ * worth as much as the adoptions — `docs/engine-gaps.md` §7 spends a section on
+ * exactly this, where a mechanism sprayed across the styles that never asked for
+ * it becomes a mannerism. The line here is **whose hands are on the sampler**:
+ * the retrigger goes to the three styles where the break is being *operated* in
+ * front of you, and it stops there.
+ *
+ * That is nearly, but not quite, the `boxDrums: false` line, and the near-miss
+ * is instructive. `hardstep` writes `boxDrums: false` for the same reason
+ * `drumfunk` does and still refuses, because its proposition is the opposite
+ * one: the chop has been thrown out and what is left is one kick and one snare
+ * layered until they land like furniture. A stutter is the chop coming back.
+ *
+ * Seven of the twenty-one are worth naming, because each is a style somebody
+ * would reasonably have expected to adopt:
+ *
+ *  - **`techstep`, `neurofunk` and `jumpup`** — the three styles that reported
+ *    §3.16 and spent it, so they are demonstrably not shy of a new field. They
+ *    refuse this one for the reason `styles.ts` already gives for their empty
+ *    ghost rows: a techstep snare is one sample triggered once at one velocity,
+ *    and a second copy of it 43 ms later is not a subdivision, it is a second
+ *    snare. Everything these styles retrigger, they retrigger on the bass, which
+ *    is where their edits have always been.
+ *  - **`jazzstep`** — the most interesting refusal, and it is about the field's
+ *    shape rather than the style's. What a jazz drummer plays fast is a *press
+ *    roll*: a buzz that swells and decays, shaped stroke by stroke. `DrumEvent.roll`
+ *    refuses shape on purpose and at length — every stroke is the velocity of the
+ *    stroke it subdivides, because a retriggered step has one level. So the one
+ *    fast gesture this style wants is precisely the one the field declines to
+ *    spell, and an even eight-stroke burst in its place would be a machine
+ *    imitating a brush.
+ *  - **`halftime`** — where the analogy would have been easiest and therefore
+ *    proves least. Its own header says it is a trap beat with a drum and bass hat
+ *    over it, and its `dotted-hat` is `cycle: 12`, which is `hiphop/drill`'s
+ *    `dotted-drill` note for note. That figure refused a roll next door on the
+ *    ground that a retrigger inside a dotted-eighth chain is a second
+ *    cross-rhythm asking to be counted alongside the first; the same sentence
+ *    holds here, and rolling the plain figure beside it would be importing
+ *    `trap-kit` under a different style name.
+ *  - **`ragga`** — the same break as `jungle` with a dancehall bassline on it,
+ *    and its own header says the one respect in which it differs is the bass. So
+ *    the edit belongs to the entry above; a second copy of it here would add no
+ *    claim, and adding no claim is the definition of the mannerism.
+ *  - **`rollers`** — named for a groove rather than a drum roll, and its thesis
+ *    is a figure that does not change for four minutes. A stutter is a change.
+ *
+ * The remaining fourteen fall into two groups and neither needs an argument
+ * longer than a sentence. `bleep`, `hardcore` and `darkcore` predate the edit —
+ * in 1992 the break is sampled whole, pitched up and looped, which is the era
+ * table's own description, and there is no operator to hear. `atmospheric`,
+ * `intelligent`, `liquid`, `deep`, `dubwise`, `autonomic`, `minimal`,
+ * `dancefloor`, `sambass`, `hardstep` and `revival` are styles where the drums
+ * keep time under something else — a pad, a Rhodes, a bassline, a desk, a
+ * batucada — and a retrigger is the drums asking to be listened to.
  *
  * **A bass note can slide now** — §3.16, and this genre was the strongest
  * evidence the document had: three independent reports inside one genre, against

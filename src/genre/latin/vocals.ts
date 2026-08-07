@@ -16,15 +16,13 @@
  * ## The words are `scat`, and again the name is the wrong thing to read
  *
  * Four invented languages **used to** exist in `style/vocals.ts` and none of them
- * was Spanish. There are six: `sargam` and `tarana` were written for the Indian
- * genre after this paragraph was, and the count is corrected here rather than the
- * conclusion, because neither of them is Spanish either and both lose on the same
- * axis the list below is built from. `sargam` is the closer of the two and is out
- * on the one field `scat` does not have: its syllables are *bound to scale
- * degrees*, so it names the note rather than singing a word, and its
- * `onsetDensity` is 1 against a language that opens a quarter of its syllables on
- * a vowel. `tarana` is a drum's stroke vocabulary at `codaDensity: 0.85`, which is
- * the opposite of the open syllable the third bullet below is chosen for.
+ * was Spanish. There are five: `sargam` was written for the Indian genre after
+ * this paragraph was, and the count is corrected here rather than the conclusion,
+ * because it is not Spanish either and it loses on the same axis the list below
+ * is built from. It is out on the one field `scat` does not have: its syllables
+ * are *bound to scale degrees*, so it names the note rather than singing a word,
+ * and its `onsetDensity` is 1 against a language that opens a quarter of its
+ * syllables on a vowel.
  *
  * Choosing on their names would take `finnish` for being a language;
  * choosing on their *shapes* — which is what the renderer consumes — gives the

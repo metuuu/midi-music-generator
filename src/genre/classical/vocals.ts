@@ -20,14 +20,15 @@
  * description `airy` was written to, and inventing another word style to say it
  * again would be a new entry for a description already in the table.
  *
- * **This said *a fifth word style*, and one would now be the seventh.**
- * `WORD_STYLES` holds `finnish`, `scat`, `airy`, `machine`, `sargam` and
- * `tarana`; the last two arrived with indian, which is the genre
- * `docs/engine-gaps.md` §3.10 was written for. The number is dropped rather than
- * bumped because it was never the argument — what matters is that `airy`
- * already says this, not how many neighbours it has — and because a count of a
- * shared table is exactly the sentence that goes stale without anybody in this
- * folder touching a line.
+ * **This said *a fifth word style*, then *a seventh*, and one would now be the
+ * sixth.** `WORD_STYLES` holds `finnish`, `scat`, `airy`, `machine` and `sargam`;
+ * the last arrived with indian, which is the genre `docs/engine-gaps.md` §3.10
+ * was written for. The number is dropped rather than bumped because it was never
+ * the argument — what matters is that `airy` already says this, not how many
+ * neighbours it has — and because a count of a shared table is exactly the
+ * sentence that goes stale without anybody in this folder touching a line. It has
+ * now gone stale twice, once as the table grew and once as it shrank, which is
+ * the claim demonstrated rather than refuted.
  *
  * The one place the two genres part company is the *rate*, and that is set here
  * rather than there. Ambient sings a syllable every two beats, which at 60 BPM is

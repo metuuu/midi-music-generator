@@ -315,13 +315,13 @@ not. Choruses draw shorter lines than verses, because a hook has to come round
 inside its own section to be recognised.
 
 `WordStyle` in [`src/style/vocals.ts`](../src/style/vocals.ts) says how a word is
-spelled, one per genre: `finnish`, `scat`, `airy`, `machine`. Two rules do most
-of the work. **Vowel harmony** — Finnish never mixes `a o u` with `ä ö y` inside
-a word, `e` and `i` go with either — is most of what separates a word that sounds
-Finnish from a word that sounds like nothing; measured over 500 invented words,
-zero mix the two sets. And **geminates fall out for free**: a closed syllable
-followed by an onset writes two consonants in a row, and `kk tt ll nn` are what
-Finnish is made of. Nothing had to be added for either.
+spelled, one per genre: `finnish`, `scat`, `airy`, `machine`, `sargam`. Two rules
+do most of the work. **Vowel harmony** — Finnish never mixes `a o u` with `ä ö y`
+inside a word, `e` and `i` go with either — is most of what separates a word that
+sounds Finnish from a word that sounds like nothing; measured over 500 invented
+words, zero mix the two sets. And **geminates fall out for free**: a closed
+syllable followed by an onset writes two consonants in a row, and `kk tt ll nn`
+are what Finnish is made of. Nothing had to be added for either.
 
 The words are spelled as *letters* and handed back through `pronounceWord`
 rather than built as syllables directly. That is what makes the same invented
@@ -332,16 +332,16 @@ Nothing is displayed, serialised, or put on the `Song`: the track carries
 syllables, exactly as it did. Sample output, iskelmä — `upuurus` `mäshör`
 `hurarrase` `piilhömön` `raheerhir`; scat — `waa` `daan` `bup` `šaam` `nooti`.
 
-### Two of them are not invented
+### One of them is not invented
 
-`sargam` and `tarana` are what the Indian repertoire sings on, and between them
-they mark the edge of the wordless proposition rather than crossing it. A swara
-name is not a word — *sa re ga ma pa dha ni* have no referent outside the scale,
-they are the same seven syllables for every singer and every listener, and there
-is nothing in them to localise. They are the one case in this project where the
-syllables genuinely are fixed and finite.
+`sargam` is what the Indian repertoire sings on, and it marks the edge of the
+wordless proposition rather than crossing it. A swara name is not a word — *sa re
+ga ma pa dha ni* have no referent outside the scale, they are the same seven
+syllables for every singer and every listener, and there is nothing in them to
+localise. They are the one case in this project where the syllables genuinely are
+fixed and finite.
 
-What changes with them is which end of the pipe picks the syllable. **`sargam`
+What changes with it is which end of the pipe picks the syllable. **`sargam`
 is bound to the pitch**: `WordStyle.degrees` names the swara of each semitone
 above Sa, and `generate/vocals.ts` — the only place holding a note and a tonic at
 once — reads the name off the note. Twelve entries and no scale, because komal
@@ -359,20 +359,32 @@ syllabary. It is the same rule at its limit rather than a second rule — as
 `spelling` sharpens, the weighted draw converges on the vowel nearest the point
 the letters claim, and `pronounceDegrees` goes straight there.
 
-**`tarana` is the opposite case** and therefore a second entry rather than a mode
-of the first: the vocables are the tabla's own language, a rhythm played on a
-voice, and a bol says which stroke and not which note. Consonant-heavy where
-sargam is vowel-led, and it needed nothing added to the syllabifier — `dirtana`
-falls apart as `dir-ta-na` under the existing cluster rule.
+**A `tarana` entry stood beside it and does not now**, and the reason is worth
+keeping here because it is a limit of the engine rather than a tidy-up. A tarānā
+is sung on the tabla's own bols — a rhythm played on a voice, where a bol says
+which stroke and not which note — so the table was consonant-heavy where sargam
+is vowel-led. Nothing ever pointed at it: a tarānā is a `Style` of the indian
+genre and `Genre.vocals` is one profile per genre, so it was addressed to a
+selector that does not exist. It was deleted rather than wired, on the musical
+half of the argument: the consonant inventory has neither aspiration nor
+retroflexion and puts `d` and `t` both on `stop`, which are precisely the three
+distinctions a tabla's vocabulary is built on. Measured over the same 142,535
+sung syllables, its nine written bols came out as **five** distinct sounded
+onsets where vowel-led `sargam` came out as **seven** — less differentiated than
+the entry it was written to contrast with. The argument in full, with what would
+have to change to reverse it, is in
+[`src/genre/indian/vocals.ts`](../src/genre/indian/vocals.ts).
 
-Sample vocabulary, sargam — `nidaapaapi` `saamasaa` `radani` `dasa` `para`;
-tarānā — `tidira` `dima` `tamna` `dato` `morate` `tonna`. And a bound line, sung
-in C, with the held second slots in brackets — `pa (a) sa (a) pa (a) ta (a) ma
-pa pa ta sa re pa`. The stopped consonants are the part `airy` could not reach at
-all. What the inventory still cannot say is aspiration and retroflexion, so a
-tabla's *dha*, *ta* and *ṭa* arrive as one sound and *ga* is *ka*: the names stay
-distinct from each other, and the voice keeps the rhythm while losing the
-drummer's two hands.
+Sample vocabulary, sargam — `nidaapaapi` `saamasaa` `radani` `dasa` `para`. And a
+bound line, sung in C, with the held second slots in brackets — `pa (a) sa (a) pa
+(a) ta (a) ma pa pa ta sa re pa`. The seven names land on seven distinct places
+of articulation and the voice sounds all seven, which is four consonants more
+than `airy` — nasals and liquids only — could reach at all. What is lost is
+aspiration: *dha* is a breathy voiced stop and arrives as a plain one, so it is
+*da* rather than *dhā*. Nothing collides because of it, since no other swara
+opens on a dental stop, and that is the whole of the damage — much smaller than
+the same gap was for the bols, which is why one of these two survived and the
+other did not.
 
 ## And the singer is the lab's voice
 

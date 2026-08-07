@@ -19,11 +19,12 @@
  * ## The words are `scat`, and the reason is not the jazz association
  *
  * Four invented languages **used to** exist in `style/vocals.ts` and none of them
- * was English. There are six — `sargam` and `tarana` came with the Indian genre
- * after this was written — and both fail here for a sharper version of the reason
- * `machine` does two paragraphs down: `tarana` is at `codaDensity: 0.85` where
- * `machine`'s 0.55 was already too closed, and `sargam` is at 0 with its syllables
- * pinned to scale degrees. The count was wrong; the answer was not.
+ * was English. There are five — `sargam` came with the Indian genre after this was
+ * written — and it fails here from the far side of the reason `machine` does two
+ * paragraphs down: `machine`'s `codaDensity: 0.55` is already too closed, and
+ * `sargam` is at 0 with its syllables pinned to scale degrees, which is a note
+ * being named rather than a vowel being held. The count was wrong; the answer was
+ * not.
  *
  * Choosing on their names would give nothing usable and reject `scat`
  * for being a jazz technique; choosing on their *shapes* — which is what the
@@ -44,7 +45,7 @@
  * and a fourteen-consonant inventory make every syllable a closed one, which is
  * a talker rather than a singer. The consonant weights below lean the draw back
  * toward the stops and the sibilants and away from the aspirate, which is the
- * available correction without writing a seventh language into a file this genre
+ * available correction without writing a sixth language into a file this genre
  * does not own — a fifth when this was written, and the number is the only part
  * that aged.
  *

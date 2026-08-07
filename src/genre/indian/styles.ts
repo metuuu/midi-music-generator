@@ -1239,9 +1239,14 @@ const gat: Style = {
  * percussion. Jhaptāl's ten beats, because a tarānā wants a cycle short enough
  * to feel like a wheel.
  *
- * The vocal profile in `vocals.ts` cannot say any of those syllables — see the
- * note there about `WORD_STYLES` — which is the largest single thing this genre
- * asked the engine for and did not get.
+ * What the singer actually sings here is **sargam**, and that is a knowing
+ * substitution rather than an oversight. `Genre.vocals` is one profile for the
+ * whole genre, so no `Style` can choose its own syllabary — and the bols would
+ * not survive the choice if one could. The consonant list in `vocals.ts` holds
+ * every letter a bol needs and puts *d* and *t* on the same sound, so a
+ * syllabary of nine comes out as five where sargam's seven come out as seven:
+ * the drum keeps its two hands and the voice does not. `vocals.ts` has the
+ * measurement and the two changes that would reverse it.
  */
 const tarana: Style = {
   id: 'tarana',

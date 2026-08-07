@@ -10,6 +10,7 @@
  */
 
 import { generateSong } from './generate/song.js';
+import { renderMidi } from './render/midi.js';
 import {
   generateBass, generateComp, generateDrums, generateLeftHand, planFigureVariation, planKitVariation,
 } from './generate/parts.js';
@@ -38,6 +39,60 @@ const check = (label: string, pass: boolean, detail: string) => {
   console.log(`  ${pass ? 'ok  ' : 'FAIL'}  ${label.padEnd(42)} ${detail}`);
   if (!pass) problems.push(label);
 };
+
+/**
+ * Note-ons arriving on a pitched key that is already sounding, read back out of
+ * the emitted bytes.
+ *
+ * Deliberately a **parser and not a look at the IR**, because the fault it hunts
+ * is one a renderer introduces: the IR held two perfectly good notes and the
+ * file merged them into one truncated one. Checking the structure the generator
+ * produced would prove nothing about the file that ships. It is the same
+ * argument `check-notation.ts` makes for parsing the emitted mini-notation
+ * rather than the events behind it.
+ *
+ * Running status is handled because `buildTrack` uses it; a meta event's
+ * variable-length payload is skipped rather than interpreted. Channel 9 is
+ * ignored — see the caller for why that is a decision rather than an omission.
+ */
+function pitchedDoubleOnsets(bytes: Uint8Array): number {
+  let p = 14;
+  let doubles = 0;
+  while (p < bytes.length - 8) {
+    if (bytes[p] !== 0x4d || bytes[p + 1] !== 0x54 || bytes[p + 2] !== 0x72 || bytes[p + 3] !== 0x6b) break;
+    const len = (bytes[p + 4]! << 24) | (bytes[p + 5]! << 16) | (bytes[p + 6]! << 8) | bytes[p + 7]!;
+    let q = p + 8;
+    const end = q + len;
+    let running = 0;
+    const open = new Map<number, number>();
+    while (q < end) {
+      let b: number;
+      do { b = bytes[q++]!; } while (b & 0x80);
+      let status = bytes[q]!;
+      if (status & 0x80) { running = status; q++; } else status = running;
+      if (status === 0xff) {
+        q++;
+        let l = 0, c: number;
+        do { c = bytes[q++]!; l = (l << 7) | (c & 0x7f); } while (c & 0x80);
+        q += l;
+        continue;
+      }
+      const kind = status & 0xf0;
+      if (kind === 0x90 || kind === 0x80) {
+        const key = bytes[q]!, vel = bytes[q + 1]!;
+        q += 2;
+        if ((status & 0x0f) === 9) continue;
+        if (kind === 0x90 && vel > 0) {
+          if ((open.get(key) ?? 0) > 0) doubles++;
+          open.set(key, (open.get(key) ?? 0) + 1);
+        } else open.set(key, Math.max(0, (open.get(key) ?? 0) - 1));
+      } else if (kind === 0xc0 || kind === 0xd0) q += 1;
+      else q += 2;
+    }
+    p = end;
+  }
+  return doubles;
+}
 
 /**
  * One melodic line, with everything but the thing under test held fixed.
@@ -2380,16 +2435,35 @@ console.log("\nThe drummer's hand");
    * that passes because nothing is happening — the failure §7 keeps naming, where
    * a field is added, adopted nowhere, and every assertion about it is green.
    */
-  let rolled = 0; let byHand = 0; let handSongs = 0;
-  for (let i = 0; i < 60; i++) {
-    for (const sid of ['trap', 'drill']) {
-      const song = generateSong({ seed: `roll-${sid}-${i}`, genre: 'hiphop', style: sid });
-      const rolls = song.drums.events.filter((e) => (e.roll ?? 1) > 1).length;
-      rolled += rolls;
-      if (isPlayedByHand(song.drums.source ?? 'kit')) {
-        handSongs++;
-        byHand += rolls;
+  /**
+   * **Every style in the catalogue, rather than the ones that adopted first.**
+   *
+   * This named `trap` and `drill` in a literal, which was true and complete on
+   * the day it was written and stopped being either as soon as dnb's `jungle`,
+   * `drumfunk` and `breakcore` took the field — 117,408 rolled strokes with the
+   * hand-safety property entirely unasserted, in the check written to assert it.
+   * A list of adopters inside a guard is a stale count with consequences, and
+   * this suite spent a day finding the harmless kind.
+   *
+   * Sweeping every style also makes `rolled > 0` mean what it is for. Under a
+   * named list that clause only proved the named styles still roll; over the
+   * catalogue it proves the mechanism is alive *somewhere*, which is the half
+   * that stops this being green in a world where the field was quietly dropped.
+   */
+  let rolled = 0; let byHand = 0; let handSongs = 0; let rollingStyles = 0;
+  for (const gid of GENRE_IDS) {
+    for (const sid of Object.keys(getGenre(gid).styles)) {
+      let here = 0;
+      for (let i = 0; i < 4; i++) {
+        const song = generateSong({ seed: `roll-${gid}-${sid}-${i}`, genre: gid, style: sid });
+        const rolls = song.drums.events.filter((e) => (e.roll ?? 1) > 1).length;
+        rolled += rolls; here += rolls;
+        if (isPlayedByHand(song.drums.source ?? 'kit')) {
+          handSongs++;
+          byHand += rolls;
+        }
       }
+      if (here > 0) rollingStyles++;
     }
   }
   check(
@@ -2397,7 +2471,7 @@ console.log("\nThe drummer's hand");
     byHand === 0 && rolled > 0,
     byHand
       ? `${byHand} rolled strokes reached a drummer over ${handSongs} hand-played songs`
-      : `${rolled} rolled strokes over 120 trap and drill songs, 0 on the ${handSongs}`
+      : `${rolled} rolled strokes across ${rollingStyles} styles, 0 on the ${handSongs}`
         + ' drawn with a person behind the kit',
   );
 }
@@ -4130,6 +4204,70 @@ console.log('\nInstrument awareness');
     'comfortable leap scales with agility',
     comfortableLeap(0.4) < comfortableLeap(1.0),
     `${comfortableLeap(0.4)} vs ${comfortableLeap(1.0)} semitones`,
+  );
+}
+
+/**
+ * No pitched channel is asked to hold one key twice at once.
+ *
+ * A MIDI note-on for a key that is already sounding, followed by a single
+ * note-off, is a truncated note on every retriggering synthesiser — and the
+ * failure is the class this suite exists for, because the file looks correct
+ * and the *sound* goes missing. It was measured at **2,214 double note-ons over
+ * 228 songs**, median cost 20% of the second note's written length, and the
+ * worst case was hiphop's `crunk`: an 808 pedal written 25% longer than its own
+ * spacing, shipping as a stutter at 40% duty.
+ *
+ * **The decisive fact is that the two renderers disagreed and the `.mid` was the
+ * one lying.** `buildNoteGrid` in `render/strudel.ts` writes a sustain marker
+ * only into a slot still holding a rest, so a re-onset of the same pitch takes
+ * its slot and the note before it simply stops there — the audition has always
+ * played the hand-over correctly. That is why the fix went in `render/midi.ts`
+ * alone and why `generate/` was left untouched: shortening a note there would be
+ * a second pass editing a bar the feel pass already edited, which is how the
+ * double-swing bug happened.
+ *
+ * **Asserted equal rather than bounded**, which is the part worth keeping. The
+ * residue is not noise to be tolerated under a threshold — it is exactly the
+ * unisons where two voices of one chord land on one pitch at the *same* tick,
+ * which no renderer can hand over because there is no gap to hand over in. That
+ * is a voicing question for `generate/`, it is countable from the IR, and so the
+ * two numbers must match to the unit. A threshold here would quietly re-admit
+ * the bug it was written to catch.
+ *
+ * Channel 10 is excluded on purpose and not for convenience: a drum key is a
+ * one-shot and most devices ignore its note-off entirely, which is the same
+ * reason `DrumEvent.roll`'s gate can be a flat 32nd. 693 double note-ons live
+ * there and are inaudible.
+ */
+console.log('\nRendered files');
+{
+  let doubles = 0;
+  let unisons = 0;
+  let songs = 0;
+  let notes = 0;
+  for (const genre of GENRE_IDS) {
+    for (let i = 0; i < 6; i++) {
+      const song = generateSong({ seed: `midi-${genre}-${i}`, genre, vocals: i % 3 === 0 });
+      songs++;
+      // The IR's own count of what cannot be handed over: same track, same
+      // pitch, same instant. Computed here rather than trusted from the file.
+      for (const track of song.tracks) {
+        notes += track.notes.length;
+        const seen = new Map<string, number>();
+        for (const n of track.notes) {
+          const key = `${n.midi}@${n.beat.toFixed(6)}`;
+          seen.set(key, (seen.get(key) ?? 0) + 1);
+        }
+        for (const n of seen.values()) if (n > 1) unisons += n - 1;
+      }
+      doubles += pitchedDoubleOnsets(renderMidi(song));
+    }
+  }
+  check(
+    'no pitched key is struck while it is already sounding',
+    doubles === unisons,
+    `${doubles} double note-ons over ${songs} songs, ${notes} notes; ${unisons} same-tick unisons in the IR`,
   );
 }
 

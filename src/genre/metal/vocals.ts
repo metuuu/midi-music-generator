@@ -35,23 +35,27 @@
  * ## The words are `machine`, and the name is the wrong thing to read
  *
  * Four invented languages **used to** exist in `style/vocals.ts` and none of them
- * was this one. There are six — `sargam` and `tarana` were added for the Indian
- * genre after this was written — and neither is this one either, so `machine`
- * still wins the genre. One of the three bullets below has to give, though, and
- * the correction is in it rather than hidden here.
+ * was this one. There are five — `sargam` was added for the Indian genre after
+ * this was written, and a `tarana` beside it was added and then deleted again —
+ * and it is not this one either, so `machine` still wins the genre. Worth
+ * recording that the count in this paragraph has now been wrong in **both**
+ * directions: too low while the table grew, too high after it shrank. That is
+ * the argument for `Object.keys(WORD_STYLES)` over a number in prose, and it is
+ * why the bullets below name the mechanism where they can.
  *
  * Choosing by name gives `machine` to industrial and nothing to anybody
  * else; choosing by *shape* — which is what the renderer consumes — gives it to
  * the whole genre, and the shape is right on every count that matters:
  *
- *  - **The shortest words in the file**, one to three syllables at weight, which
- *    is what a line sung at 200 BPM over sixteenth-note guitars has room for.
- *  - **`codaDensity: 0.55`, which was the highest anywhere and is now the second
- *    highest.** `tarana` closes 0.85 of its syllables, because a tabla bol stops
- *    the vowel dead on purpose; that entry did not exist when this bullet was
- *    written and it does not compete for this genre, since its inventory is nine
- *    drum strokes. Against the four languages a singer could plausibly be given,
- *    0.55 is still the top of the table and the reason stands unchanged: metal
+ *  - **Short words**, one to three syllables at weight, which is what a line sung
+ *    at 200 BPM over sixteenth-note guitars has room for. This claimed *the
+ *    shortest in the file* and that was never true at any size the file has been:
+ *    `scat` draws the same one to three and weights them shorter, a mean of 1.8
+ *    syllables a word against `machine`'s 2.0. Second is enough here — the bullet
+ *    is about fitting the bar, not about winning the comparison.
+ *  - **`codaDensity: 0.55`, the highest in the table.** It briefly was not, and
+ *    the entry that had displaced it is gone, so the bullet is back to what it
+ *    first said. The reason never depended on the rank: metal
  *    English closes its syllables hard and lands the consonant on the beat — the
  *    final /t/ of a shouted word is a rhythmic event, and a language that left it
  *    off would be singing a different music.
@@ -62,7 +66,7 @@
  * built for a synthesised talker and its distribution is flatter than a person's.
  * The consonant table below leans it back toward the plosives and the sibilants,
  * which is where a shouted English line actually concentrates, and that is the
- * compromise available without writing a seventh language into a file this genre
+ * compromise available without writing a sixth language into a file this genre
  * does not own — a fifth when this was written, and the arithmetic is the only
  * part of it that moved.
  *

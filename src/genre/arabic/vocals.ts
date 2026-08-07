@@ -35,14 +35,14 @@
 /**
  * Type-only, and the one profile here that imports no `WORD_STYLES` entry.
  *
- * The six styles in that table are `finnish`, `scat`, `airy`, `machine`,
- * `sargam` and `tarana`, and none of them is a plausible fallback: three of the
- * consonants this voice needs are missing from the Finnish inventory, and the
- * other five are not languages — two syllabaries, an invented one, a set of
- * solfège note names and a set of drum bols.
+ * The five styles in that table are `finnish`, `scat`, `airy`, `machine` and
+ * `sargam`, and none of them is a plausible fallback: three of the consonants
+ * this voice needs are missing from the Finnish inventory, and the other four
+ * are not languages — two syllabaries, an invented one and a set of solfège
+ * note names.
  * So this genre carries its own, on the same argument `Staging` makes about
  * rooms — a language belongs to whoever speaks it rather than to the shared
- * file, and a seventh entry over there would be one more table nineteen genre
+ * file, and a sixth entry over there would be one more table nineteen genre
  * authors have to edit.
  */
 import type { VocalProfile, WordStyle } from '../../style/vocals.js';

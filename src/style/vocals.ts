@@ -468,21 +468,40 @@ export interface WordStyle {
  * This said *"four tables that four profiles point at"* and was the upstream
  * source of the single most-copied stale number in the repo: six genres
  * asserted "four" in their own `vocals.ts`, and **pop's was written after the
- * sixth table existed and copied the sentence anyway**. There are six —
- * `finnish`, `scat`, `airy`, `machine`, `sargam`, `tarana` — and nineteen
- * profiles, and both numbers move whenever a genre or a language lands. Naming
- * the mechanism rather than counting it is the fix; `Object.keys(WORD_STYLES)`
- * is one line and cannot go stale.
+ * sixth table existed and copied the sentence anyway**. Naming the mechanism
+ * rather than counting it is the fix; `Object.keys(WORD_STYLES)` is one line
+ * and cannot go stale, and every count written into prose elsewhere is one
+ * language away from being wrong again.
  *
- * **What is worth stating is the shape, which a count hid.** Eighteen of the
- * nineteen profiles point at one of these; `arabic` is the only genre that
- * writes its own `words` inline, and does so deliberately. And `tarana` is
- * pointed at by **nothing** — indian takes `sargam`, and every other reference
- * to `tarana` in the repo is prose about it. It is a language written for a
- * repertoire and then not selected by the profile that repertoire uses, which
- * is the same fault as a field added and never adopted, one level down. Either
- * indian's tarānā should reach it or it should go; it should not sit here
- * looking like a sixth option when it is five options and a spare.
+ * **What is worth stating is the shape, which a count hid.** Every profile but
+ * one points at an entry here; `arabic` is the only genre that writes its own
+ * `words` inline, and does so deliberately. Nothing else in the table is
+ * unreached — which is a property this file has to be *kept* at, because it
+ * lost it once.
+ *
+ * ## The entry that was here and is not
+ *
+ * A `tarana` table stood below `sargam` for as long as `sargam` has: the
+ * tabla's bols — *dir ta na dere tom nom* — written for the Hindustani form
+ * that is sung on them. It was pointed at by **nothing** on the day it landed
+ * and every day after. That was not an oversight anybody could have fixed here.
+ * A tarānā is a `Style` of the indian genre, not a genre; `Genre.vocals` is one
+ * `VocalProfile` per genre, read once in `generate/song.ts`; and no `Style` has
+ * any field that reaches a word style. The table was addressed to a selector
+ * that does not exist.
+ *
+ * It was deleted rather than wired, and the reason is musical rather than
+ * bookkeeping — **the engine cannot pronounce the thing that makes a tarānā a
+ * tarānā.** Its nine written onsets are six letters, and the consonant
+ * inventory has neither aspiration nor retroflexion, so they arrive as five
+ * sounds; *d* and *t* together are four of the nine and come out as one `stop`,
+ * which is 44% of every onset the voice actually sounds. Measured over 142,535
+ * sung syllables of indian's tarānā and tillānā, the consonant-heavy table
+ * produced **five** distinct sounded onsets where vowel-led `sargam` produced
+ * **seven**. A drummer's two hands came out as one hand hitting harder, and the
+ * form is the two hands. The full argument, with what would have to change to
+ * reverse it, is in `genre/indian/vocals.ts` — beside the repertoire it is
+ * about, which is where the useful half of this always belonged.
  */
 export const WORD_STYLES: Record<string, WordStyle> = {
   /**
@@ -609,10 +628,18 @@ export const WORD_STYLES: Record<string, WordStyle> = {
    * `liquid-r`, `stop-k`, `nasal-m`, `stop-p`, `stop` and `nasal` — seven
    * distinct entries of an inventory that has thirteen, and no two swaras that
    * differ only by the one distinction it drops, which is voicing. The binding
-   * is therefore audible in full. What is lost is aspiration: *dha* is a
-   * breathy voiced stop and arrives as a plain one, so it is *da* rather than
-   * *dhā*. Nothing collides because of it — no other swara opens on a dental
-   * stop — and it costs this entry less than it costs `tarana` below.
+   * is therefore audible in full — measured, and not merely counted off the
+   * table: over 142,535 sung syllables the voice sounded seven distinct onsets
+   * and no eighth, which is the seven names arriving as seven names.
+   *
+   * What is lost is aspiration: *dha* is a breathy voiced stop and arrives as a
+   * plain one, so it is *da* rather than *dhā*. Nothing collides because of it
+   * — no other swara opens on a dental stop. That is the whole of the damage
+   * here, and it is worth noticing how much smaller it is than the same gap was
+   * for the tabla's bols, where aspiration and retroflexion are two of the
+   * three distinctions the vocabulary is *built* on. Sargam survives an
+   * inventory that drops them because it happens not to lean on them; a tarānā
+   * did not, and is why there is no tarānā table. See `genre/indian/vocals.ts`.
    *
    * It degrades honestly, too. Where the tonic is unknown the binding cannot
    * run, the words are pronounced like any other language's, and what comes out
@@ -649,66 +676,6 @@ export const WORD_STYLES: Record<string, WordStyle> = {
     maxSyllables: 4,
   },
 
-  /**
-   * Tarānā — the other thing this repertoire sings on, and the opposite case in
-   * every respect that matters here.
-   *
-   * A tarānā is sung on the drum's own language: *dir ta na dere tom nom*, the
-   * bols a tabla player recites. They are **not tied to pitch** — there is no
-   * `degrees` here, and that absence is the whole of the difference. A bol says
-   * which stroke, not which note, so binding one to a scale degree would be as
-   * wrong in this direction as leaving sargam unbound is in the other. It is a
-   * rhythm played on a voice, which is why it belongs in the table beside
-   * sargam and not inside it: one entry with a switch would have to carry a
-   * field that is meaningless in half of its own settings, and a piece is one
-   * form or the other rather than one form at two settings.
-   *
-   * Consonant-heavy where sargam is vowel-led, and that is the point of it. The
-   * codas are load-bearing rather than decorative — *dir*, *tom*, *nom* stop the
-   * vowel dead, which is what makes the voice sound struck rather than sung —
-   * so `codaDensity` is the highest in this table. Through a renderer that
-   * cannot articulate a coda they are heard as length instead, which is the
-   * ordinary trade this project makes everywhere and is a worse one here than
-   * usual.
-   *
-   * The syllabifier needed nothing added for it: `dirtana` falls apart as
-   * `dir-ta-na` under the existing rule that the last consonant of a cluster
-   * opens the next syllable, exactly as `ilta` becomes `il-ta`.
-   *
-   * **What the inventory cannot say, and what that costs.** A tabla's
-   * vocabulary is built on precisely the three distinctions this consonant set
-   * drops. *Voicing*: *ta* and *da*, *ka* and *ga* are different strokes and
-   * arrive as one sound each. *Aspiration*: *dha* against *ta* is the bāyāṅ
-   * hand against the dāyāṅ, and there is no aspirated stop at all. *Retroflex*:
-   * *ṭa* against *ta* is most of the rest of the kit, and there is one dental
-   * `stop` for both. So nine written bols collapse onto about five sounds, and
-   * the concrete loss is that the voice keeps the tarānā's rhythm and loses the
-   * drummer's two hands. Fixing it means new members of `Consonant` in
-   * `core/types.ts` — an aspirated stop is a stop with a long voice-onset delay
-   * and a retroflex one is a stop with a low F3 locus, so both are cheap to
-   * synthesise and neither is cheap to add, since every renderer and the
-   * concert visemes read that union.
-   *
-   * The letters that survive the collapse are still written out in full, and
-   * the duplicates are the weighting: stops really are twice as common in this
-   * vocabulary as anything else.
-   */
-  tarana: {
-    onsets: ['d', 't', 'n', 'r', 'd', 't', 'n', 'm', 'k'],
-    codas: ['r', 'm', 'n'],
-    harmony: { back: [], front: [], neutral: ['a', 'a', 'a', 'i', 'i', 'o', 'e'] },
-    onsetChance: 1,
-    codaChance: 0.3,
-    // Short vowels almost throughout. A heavy syllable is sung over two slots,
-    // and a tarānā is the fastest thing this voice does.
-    longChance: 0.08,
-    lengths: [1, 2, 2, 3, 3, 4],
-    spelling: 1,
-    onsetDensity: 1,
-    interiorDensity: 1,
-    codaDensity: 0.85,
-    maxSyllables: 4,
-  },
 };
 
 export interface VocalProfile {

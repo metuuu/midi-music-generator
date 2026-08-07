@@ -1,6 +1,6 @@
 /**
- * How this genre sings — which is a bigger question here than in the other four,
- * because this is the only one of the five where the voice is the *senior*
+ * How this genre sings — which is a bigger question here than anywhere else in
+ * the project, because this is the only genre where the voice is the *senior*
  * instrument.
  *
  * Everything else in this project treats singing as a thing added to a band. In
@@ -11,29 +11,78 @@
  * highest praise available. So the profile below is not a decoration on the
  * genre; it is the thing the genre's melody layer is imitating.
  *
- * ## The one thing this could not have and most needed
+ * ## The two closed syllabaries, and why only one of them is here
  *
- * A vocal line here should be sung on **sargam** — sa, re, ga, ma, pa, dha, ni,
- * the solfège, which in this music is not a teaching device but a performance
- * vocabulary: a khyāl singer improvises out loud in note names for minutes at a
- * time, and a tarānā is sung entirely on the tabla's own syllables, *dir ta na
- * dere*. Both are closed sets of about eight syllables with a very specific
- * shape: single consonant, single short vowel, no clusters, no codas at all.
+ * This repertoire sings on fixed sets of syllables rather than on words, and it
+ * is the only one in the project that does. **Sargam** is the solfège — sa, re,
+ * ga, ma, pa, dha, ni — which in this music is not a teaching device but a
+ * performance vocabulary: a khyāl singer improvises out loud in note names for
+ * minutes at a time. A **tarānā** is sung on the tabla's own strokes, *dir ta
+ * na dere tom nom*, with the Carnatic tillānā doing the same thing further
+ * south. Both are closed sets of about eight syllables with the same shape —
+ * single consonant, single short vowel, no clusters — and this profile once
+ * asked the engine for both.
  *
- * That is a `WordStyle`, and `WORD_STYLES` lives in `style/vocals.ts`, which is
- * outside this genre's folder. So the nearest of the four available is used —
- * `airy`, the choral-ambient one — and it is nearer than it has any right to
- * be. Its onsets are `m n l h v r`, which reaches *ma*, *na*, *ni*, *re* and
- * *ha*; it doubles its vowel more often than not, which is what ākār is; and it
- * closes almost nothing, which matches a syllabary with no codas in it. What it
- * cannot do is *dha*, *ga*, *ta*, *dir* or *dere* — the stopped consonants,
- * which are exactly the ones a tarānā is made of, and the ones that make the
- * voice sound like a drum.
+ * It got sargam; `words` below names it and explains what the binding buys.
+ * This section is about the other one, where the answer is **no**. A refusal
+ * that has been measured is worth keeping, because the alternative is that
+ * somebody writes the table again.
  *
- * A `sargam` word style would be seven onsets and five vowels and would be the
- * single highest-value thing anybody could add for this genre. Written down
- * here rather than done, because a new entry in that table is a change to a
- * shared file.
+ * ## Why there is no tarānā voice
+ *
+ * A `tarana` entry stood in `style/vocals.ts` from the same commit as `sargam`
+ * until it was deleted, and in all that time nothing pointed at it. Two things
+ * were wrong with it, and only the first is plumbing.
+ *
+ * **Nothing can select it.** A tarānā is a `Style` here — see `styles.ts`, and
+ * `tillana` beside it — while `Genre.vocals` is one `VocalProfile` for the
+ * whole genre, read once in `generate/song.ts`. There is no per-style vocal
+ * override, and no field on `Style` reaches a word style, so the table was
+ * addressed to a selector that has never existed. Nothing in this folder could
+ * have supplied one: the field belongs in `style/types.ts` and the read in
+ * `generate/song.ts`.
+ *
+ * **And the voice cannot say it anyway**, which is the half that decides it. A
+ * tabla's vocabulary is built on exactly the three distinctions `Consonant`
+ * drops. *Voicing*: *ta* and *da* are different strokes and `LETTER_ONSET` puts
+ * both on `stop`. *Aspiration*: *dha* against *ta* is the bāyāṅ hand against
+ * the dāyāṅ, and there is no aspirated stop at all. *Retroflex*: *ṭa* against
+ * *ta* is most of the rest of the kit, and there is one dental stop for both.
+ * The deleted table wrote nine onset slots over six letters; the inventory
+ * makes five sounds of them, and *d* and *t* alone are four of the nine.
+ *
+ * Measured over 142,535 sung syllables of this genre's tarānā and tillānā with
+ * that table swapped in behind the profile: **five** distinct sounded onsets
+ * against sargam's **seven** on the same songs, with `stop` taking 44% of every
+ * onset the voice sounded. The consonant-heavy syllabary came out *less*
+ * differentiated than the vowel-led one it was written to contrast with, and
+ * the reason is the form's own: a tarānā is a drummer's two hands, and both
+ * hands arrived as one hand hitting harder.
+ *
+ * Its codas do not rescue it either, and the entry's own claim for them was the
+ * thing least true about it. It offered `r m n` — a liquid and two nasals, not
+ * one stop among them — so a syllable it closed did not stop dead, it hummed.
+ * They reached 17.9% of syllables through `web/voice-synth.ts`, the only
+ * renderer that articulates a coda; through Strudel a closed syllable is a held
+ * vowel by construction, so there the figure is zero.
+ *
+ * **What adopting it would have cost**, had it been reachable: the binding.
+ * `tarana` had no `degrees`, and correctly so — a bol names a stroke, not a
+ * note — so those two styles would have gone back to a hashed lexicon whose
+ * syllables have nothing to do with the pitches under them, which is the exact
+ * defect `sargam` was introduced to remove. Ākār goes with it: 87.3% of sung
+ * syllables land on /a/ today, and 48.4% would, with /i/ and /e/ taking 41.3%
+ * between them.
+ *
+ * **What would reverse this.** Two changes, neither of them here, and the first
+ * is the one that matters: aspirated and retroflex members of `Consonant` in
+ * `core/types.ts` — an aspirated stop is a stop with a long voice-onset delay
+ * and a retroflex one is a stop with a low F3 locus, so both are cheap to
+ * synthesise and neither is cheap to add, since every renderer and the concert
+ * visemes read that union. With those, nine bols would land on nine sounds and
+ * the argument above stops holding. Then, and only then, is a per-style word
+ * style worth building. The table itself was nine lines and can be written
+ * again from this paragraph; the measurement is the part that was expensive.
  *
  * ## Ākār, and why the vowels are so few
  *
@@ -44,7 +93,7 @@
  * present at the bottom of the table only because a syllabary that contained no
  * /i/ could not say *ni* or *dir*.
  *
- * ## Where this sits against the other four profiles
+ * ## Where this sits against the other profiles
  *
  * Between iskelmä and ambient, and closer to ambient. A syllable every beat
  * rather than ambient's every two: this voice articulates far more than a choir
@@ -100,10 +149,13 @@ export const VOCALS: VocalProfile = {
    *
    * The seven land on seven distinct consonants the inventory has, and no two
    * differ only by voicing, so the binding is audible in full — which is the
-   * good luck in this repertoire and not a general property. See
-   * `WORD_STYLES.tarana`, whose nine bols collapse onto about five sounds
-   * because the inventory has neither aspiration nor retroflexion, so a
-   * drummer's two hands come out as one.
+   * good luck in this repertoire and not a general property. The tarānā's nine
+   * bols are the same list under a worse star: they collapse onto five sounds
+   * against these seven, because the inventory has neither aspiration nor
+   * retroflexion and a drummer's two hands come out as one. Every letter a bol
+   * needs is in the list below — *d* and *t* on `stop`, *n* on `nasal`, *r*,
+   * *m* and *k* each on their own — which is why the failure is not a missing
+   * permission and cannot be fixed by adding one. See the header.
    */
   consonants: [
     ['nasal', 5], ['nasal-m', 4], ['liquid-r', 4], ['stop', 3],

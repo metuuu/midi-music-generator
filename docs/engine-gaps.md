@@ -137,11 +137,15 @@ A masurkka's weight is on beat two. Finnish folk did it in velocities instead. D
 
 `hook.recall` either replays a phrase or re-composes it. A da capo aria's ornamented repeat is neither.
 
-### 3.10 `WORD_STYLES` has no sargam — **closed**
+### 3.10 `WORD_STYLES` has no sargam — **closed**, and the other half deliberately abandoned
 
-Both halves of it, and the entry stood here stale for long enough to be worth recording as its own small lesson: `style/vocals.ts` has carried a `sargam` entry *and* a `tarana` one for some time, and this document went on listing the want. Found by the sweep rather than by anybody working on vocals — which is the argument for the sweep.
+An Indian vocal line should be sung on *sa re ga ma pa dha ni* or on a tarānā's *dir ta na dere*. `airy` was used, which reaches *ma*, *na*, *ni* and *re* and holds its vowels, but cannot say a stopped consonant. The indian author called a `sargam` entry the highest-value single addition for that genre, and was right — it binds syllables to scale degrees, which is the defect `airy` had.
 
-An Indian vocal line should be sung on *sa re ga ma pa dha ni* or on a tarānā's *dir ta na dere*. `airy` was used, which reaches *ma*, *na*, *ni* and *re* and holds its vowels, but cannot say a stopped consonant. The indian author called a `sargam` entry the highest-value single addition for that genre, and was right.
+**The tarānā half was built, measured and deleted, and that sequence is the useful part.** A `tarana` table existed for some time, was pointed at by nothing, and could not have been: a tarānā is a `Style`, `Genre.vocals` is one profile per genre, and no field on `Style` reaches a word style. So the first finding was that the entry had been written for a selector that never existed — this document's own recurring fault, one level down from a field nobody adopts.
+
+The second finding is why it was deleted rather than plumbed. Swapped in behind indian's profile over **142,535 sung syllables**, its nine written onsets collapse onto **five sounded ones**: `LETTER_ONSET` puts `d` and `t` both on `stop`, and there is no aspirated or retroflex stop in `Consonant` at all — which are exactly the three distinctions a tabla's vocabulary is built on. The consonant-heavy table came out *less* differentiated than the vowel-led one it was written to contrast with, 5 distinct onsets against `sargam`'s 7, with `stop` alone taking 44% of every onset. Its own headline claim was the least true thing about it: it said its codas stop the vowel dead and offered `r m n`, a liquid and two nasals with no stop among them. And adopting it would have cost the `degrees` binding — correctly, since a bol names a stroke and not a note — returning those styles to a hashed lexicon whose syllables have nothing to do with their pitches, which is the defect `sargam` exists to remove.
+
+What would reverse it is now written down in `indian/vocals.ts`: aspirated and retroflex members of `Consonant` in `core/types.ts` **first**, a per-style word style only after. Until then the entry was five sounds pretending to be nine.
 
 ### 3.11 The Japanese pentatonics still have no rows
 
@@ -374,7 +378,9 @@ So the band rides, the cups stay, and **the ring stretches between them** — th
 ### Found while fixing the above
 
 - **`Fabric` was inert.** `clothSurface` derived sheen from colour *saturation* and never read `Look.outfit.fabric` — precisely the failure that field's doc says it exists to prevent. Wired at all six call sites with `fabric` required and the saturation path deleted.
-- **Quartal voicings and degree subsets assumed seven notes.** Three scale steps is a fourth only in a heptatonic scale; over the six-note `blues` it was already stacking fifths.
+- **Quartal voicings and degree subsets assumed seven notes.** Three scale steps is a fourth only in a heptatonic scale. This entry said the six-note `blues` was "already stacking fifths" and that was never measured: its three-step intervals are `[TT M3 P4 TT m6 P5]` — a **tritone on average**, with exactly one fifth in six. The fix was right and its stated reason was wrong, which is the more embarrassing of the two ways to be wrong.
+
+  **Re-measured since, and the generalisation is better than the fix that prompted it.** Over 3,059 quartal voicings, the 160 built on a five-note scale — all hiphop — come out **97.5% perfect fourths**, against the old three-step path's 0% fourths and 61% fifths. That makes the pentatonic path the *cleanest* quartal in the engine: the seven-note path every other genre uses runs 84.9% fourths and 15.1% tritones, because a diatonic fourth on one degree of a major scale genuinely is a tritone. One case is accepted and unfixable — `majorPentatonic` has no perfect fourth above its tonic, so 43% of its stacks are major thirds; at three voices that is C–E–A, which is a C6 and the So What chord's own proportions. A rival implementation measuring semitones rather than counting steps was written and tested: **identical on all 161 non-heptatonic calls**, and worse on 739 seven-note ones, so `stepsNearest` keeps its name and its behaviour.
 - **`check-notation.ts` duplicated the drum vocabulary as a string literal** and would have rejected `tb`, `lp`, `mp` and `hp` the first time a style emitted one. Now derived from `DEFAULT_DRUM_MIX`, whose keys the compiler guarantees complete.
 - **`performer-look.ts` claimed a missing case was a compile error.** A `switch` in a `void` function is not checked for exhaustiveness, so a new hair style would have produced exactly the silent silhouette the header said was impossible. Both switches now end in a `never` assignment.
 - **Two scale rows were mislabelled** — `hungarianMinor` as Maqam Nikriz (it is Nawa Athar) and `majorPentatonic` as rāg Durga (it is Bhoopali). Both caught by the genres that use those scales daily.

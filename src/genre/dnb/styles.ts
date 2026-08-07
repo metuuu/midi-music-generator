@@ -122,19 +122,37 @@
  *
  * **Nothing subdivided below a sixteenth** — `docs/engine-gaps.md` §3.15, found
  * first by hiphop and hit far harder here. At 174 BPM a written sixteenth is
- * 86 ms and an amen's internal detail wants 43. What is written below is the
+ * 86 ms and an amen's internal detail wants 43. What was written below was the
  * sixteenth-note ghost lattice, the two-bar cycle and the displaced snare, which
  * are the three members of that family the grid could address.
  *
- * `DrumPattern.rolls` can now address the rest, and **these tables have not been
- * edited to use it**, which is a decision rather than an oversight and is
- * recorded here so that the next author can disagree with it cheaply. 43 ms at
- * this tempo is exactly `roll: 2`, so the arithmetic is already done. What is not
- * done is the musical half: hiphop's adoption is a hat accelerating into a
- * barline, and what this genre wants is a **snare** stutter and a fragment
- * retriggered across a beat — the same field, spent on a different voice in a
- * different place, and worth writing from the records rather than by analogy with
- * a trap figure. See `dnb/index.ts` for the longer version.
+ * `DrumPattern.rolls` addresses the rest and **three tables now spend it**:
+ * `jungle`, `drumfunk` and `breakcore`, at 33,546, 45,405 and 38,457 rolled
+ * strokes over 200 songs each, against 0 over the other twenty-one styles' 4,200
+ * and 0 reaching a pair of hands anywhere. Those refusals are argued in
+ * `dnb/index.ts`; what belongs here is the arithmetic, because the arithmetic is
+ * what makes this genre's answer different from hiphop's rather than a copy of
+ * it.
+ *
+ * **A sixteenth at these tempos is 86 ms at 174 and 75 at 200, where trap's is
+ * 107 at 140.** So the same integers buy different music. `roll: 2` here is
+ * 42.6–45.7 ms — the 43 the paragraph above measured off the records, arrived at
+ * by dividing a slot in two rather than in three, where hiphop needed `roll: 3`
+ * to reach 36. `roll: 3` here is 28.4–30.5 ms, which is 33 to 35 strokes a
+ * second and faster than anything in `trap`. `roll: 4` is 21 ms in most of the
+ * genre and **18.8 at `breakcore`'s 200, which is 53 Hz and therefore a pitch**
+ * rather than a rhythm. That last number is why the count that reads as a stutter
+ * here is 2, where next door it is 3: the tempo already did a third of the work.
+ *
+ * The shape differs too, and it is the reason this was a separate job rather
+ * than a table edit. A trap roll subdivides the last sixteenth or two before a
+ * barline, so it is spelled `{ 14: 2, 15: 3 }` and it is over. This genre's
+ * gesture is a snare covering a **whole beat**, which `DrumEvent.roll` spells as
+ * four rolled strokes in a row — `{ 16: 2, 17: 2, 18: 2, 19: 2 }`, eight strokes
+ * filling 345 ms — because a roll is fenced to the slot it stands on and a beat
+ * is four slots. Both figures that take the rush had to grow four written snare
+ * hits to carry it, which is the honest sign that this is a change to the part
+ * and not an ornament on it.
  *
  * **A bass note can slide, and this genre's three reports are what built the
  * field** — §3.16, now `BassHit.glide`. A Reese *is* a slide: two detuned saws
@@ -572,12 +590,30 @@ const darkcore: Style = {
  * strokes across three figures, second here only to `drumfunk`'s twenty-seven. That is not decoration, it is the break — see the file
  * header on the four loud strokes and the eleven quiet ones.
  *
- * **What could not be said** is the resolution. The famous chops subdivide
- * inside the sixteenth: a stutter is the same 40 ms fragment triggered four
- * times, and at 168 BPM a written sixteenth is 89 ms — which is `roll: 2` almost
- * exactly. `docs/engine-gaps.md` §3.15 is closed and `DrumPattern.rolls` is the
- * field; this table has not spent it yet, and the genre header says why in the
- * paragraph on the two ceilings.
+ * **What could not be said** was the resolution, and this table now says it. The
+ * famous chops subdivide inside the sixteenth: a stutter is the same 40 ms
+ * fragment triggered four times, and at 168 BPM a written sixteenth is 89 ms —
+ * which is `roll: 2` almost exactly. `docs/engine-gaps.md` §3.15 is closed,
+ * `DrumPattern.rolls` is the field, and this is the style that spends it first,
+ * because it is the style the whole gesture belongs to.
+ *
+ * Two of the three figures take it and they take different halves of it.
+ * `chopped-amen` doubles one stroke — the displaced snare at the end of bar two,
+ * 43 ms at 174, and nothing else in the bar moves. `edit-heavy` takes the
+ * **rush**: four consecutive sixteenths on the snare, each a pair of 32nds, so
+ * eight strokes fill a beat rather than ornament one of its sixteenths. That is
+ * the shape of the thing and it is *not* trap's shape — a trap roll accelerates
+ * a hi-hat into a barline inside one slot, and this is a snare covering a beat
+ * flat out, which the field spells as four rolled strokes in a row.
+ *
+ * **`rolling-break` refuses**, and it is the more interesting of the two answers
+ * here. Its open hat on 22 is the figure's one ornament, and a rush underneath a
+ * hat that is already ringing is two ideas competing for one moment — which is
+ * word for word why `hiphop/trap`'s `open-trap` refused, arrived at from a
+ * different genre and a different voice. It is also the figure carrying the
+ * `dub` drop below, where the bass leaves and the break rolls on alone for eight
+ * bars: the one place in this style where the break is supposed to sound like a
+ * loop nobody is touching.
  *
  * `drops: dub`. The bass drops for a phrase and the break rolls on alone, and
  * this is the gesture the style inherits directly from the sound systems its
@@ -677,7 +713,12 @@ const jungle: Style = {
       bd: [0, 10, 16, 22],
       sd: [8, 24, 30],
       hh: [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30],
-    }, ghosts: { sd: [3, 5, 7, 9, 13, 19, 23, 27] } },
+    }, ghosts: { sd: [3, 5, 7, 9, 13, 19, 23, 27] },
+    // The displaced snare, struck twice inside itself: 43 ms at 174, which is the
+    // number the header measured off the records. One stroke of thirty-two, and
+    // the rest of the figure is the break as recorded — the hand on the sampler
+    // touches the edit and nothing else.
+    rolls: { sd: { 30: 2 } } },
     { name: 'rolling-break', weight: 5, cycle: 32, voices: {
       bd: [0, 10, 16, 26],
       sd: [8, 24],
@@ -686,10 +727,25 @@ const jungle: Style = {
     }, ghosts: { sd: [3, 7, 11, 15, 19, 27, 31] } },
     { name: 'edit-heavy', weight: 4, cycle: 32, voices: {
       bd: [0, 6, 10, 16, 20, 28],
-      sd: [8, 14, 24],
+      sd: [8, 14, 15, 16, 17, 18, 24],
       hh: [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30],
       perc: [12, 26],
-    }, ghosts: { sd: [5, 9, 13, 19, 21, 25, 29, 31] } },
+    }, ghosts: { sd: [5, 9, 13, 19, 21, 25, 29, 31] },
+    // The rush: four sixteenths in a row, each of them a pair of 32nds, so eight
+    // strokes 43 ms apart cover 345 ms and the beat is *filled* rather than
+    // decorated. Written as four rolled strokes rather than one `roll: 4`,
+    // because that is the count `DrumEvent.roll` defines — a roll is fenced to
+    // the slot it stands on, and a gesture a beat long is four of them.
+    //
+    // It starts on 15 and lands across the barline, which is where the run has
+    // to be and is not an alignment this table could have chosen freely: the
+    // four free sixteenths in this figure are 15, 16, 17 and 18, because 19 is
+    // already a ghost and the lattice underneath is not negotiable. That it
+    // comes out crossing the bar is the style's own argument arriving from the
+    // other side — `syncopation: 0.7` up there says a chopped break starts
+    // wherever the source bar happened to be cut, and a rush that respected the
+    // barline would be the one thing a sampler operator never does.
+    rolls: { sd: { 15: 2, 16: 2, 17: 2, 18: 2 } } },
   ],
   melody: { leap: 0.26, ornament: 0.14, span: 12, sequence: 0.85, syncopation: 0.7 },
 };
@@ -1331,6 +1387,26 @@ const intelligent: Style = {
  * *never repeats*, and a preset box is the one drum source in the project that
  * structurally cannot vary.
  *
+ * ## The retrigger, which this style needed more than `jungle` did
+ *
+ * `DrumPattern.rolls` — `docs/engine-gaps.md` §3.15. `jungle` above is where the
+ * gesture comes from and this is where it goes furthest, because there the edit
+ * is an event in a loop and here there is no loop for it to be an event in.
+ *
+ * `stuttered` was a figure named after something it could not do, and now does
+ * it: four sixteenths of snare across beat one of bar two, each a pair of 32nds,
+ * eight strokes 43 ms apart at 172. `edit` takes the other half and it is the
+ * half no other genre can take — **two of its eleven ghosts are doubled**, so
+ * the subdivision happens at a quarter of the backbeat's level, underneath the
+ * part rather than on top of it. `hiphop` reported §3.15 first and could not
+ * have reported that: `trap` and `drill` write no ghost row, and a style with
+ * nothing quiet in it has nothing quiet to subdivide.
+ *
+ * **`sparse-edit` refuses.** It is the one figure here that thins — a ride
+ * instead of the hat, four kicks instead of six, and seven ghosts where `edit`
+ * has eleven. What it is for is the bar where the operator stops, and a stutter
+ * written into it would leave this style with no such bar anywhere.
+ *
  * ## The break this style wants and cannot have
  *
  * `drops: dub` gets the bass out of the way for eight bars, which is most of the
@@ -1429,13 +1505,42 @@ const drumfunk: Style = {
       bd: [0, 6, 11, 16, 21, 27],
       sd: [8, 14, 24, 30],
       hh: [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30],
-    }, ghosts: { sd: [1, 5, 7, 9, 13, 17, 19, 23, 25, 29, 31] } },
+    }, ghosts: { sd: [1, 5, 7, 9, 13, 17, 19, 23, 25, 29, 31] },
+    // Two of the eleven ghosts doubled, and this is the one thing in the
+    // project's whole use of this field that happens *below* audibility.
+    //
+    // `generateDrums` builds the ghost row and the struck row into one list and
+    // looks the roll map up per voice and per written slot, so a ghosted slot
+    // takes a roll exactly as a struck one does and every stroke of it keeps the
+    // quarter-level the ghost already had. That is the genre header's sentence
+    // with the arithmetic in it — an amen's internal detail wants 43 ms — and it
+    // is the half of §3.15 `hiphop` structurally could not report, because
+    // `trap` and `drill` write no ghost row at all and had nothing quiet to
+    // subdivide.
+    //
+    // Slots 9 and 25 are the ghosts immediately after the two backbeats, which
+    // is where the break's fastest detail sits and is the one place an operator
+    // reaches for when the loop is already this dense. Measured at a mean
+    // velocity of 0.16, against 0.58 to 0.94 for the struck rush in the figure
+    // below — a quarter of the level, which is `GHOST_LEVEL` doing exactly what
+    // it does to every other stroke on this row.
+    rolls: { sd: { 9: 2, 25: 2 } } },
     { name: 'stuttered', weight: 5, cycle: 32, voices: {
       bd: [0, 3, 10, 16, 19, 26],
-      sd: [8, 24, 28],
+      sd: [8, 16, 17, 18, 19, 24, 28],
       hh: [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30],
       perc: [12, 20],
-    }, ghosts: { sd: [5, 7, 9, 11, 15, 21, 23, 25, 31] } },
+    }, ghosts: { sd: [5, 7, 9, 11, 15, 21, 23, 25, 31] },
+    // The figure is named for this and could not previously play it. Beat one of
+    // bar two, all four sixteenths, each a pair of 32nds: eight strokes 43 ms
+    // apart at 172, landing on the downbeat rather than leading to it.
+    //
+    // Aligned to the beat where `jungle`'s crosses the barline, and the
+    // difference is the two styles' whole relationship. There the edit is a
+    // hand catching the loop late; here the break *is* the composition and the
+    // bar is where the composer starts a figure, so the rush begins where the
+    // bar does and the kick underneath it at 16 and 19 begins with it.
+    rolls: { sd: { 16: 2, 17: 2, 18: 2, 19: 2 } } },
     { name: 'sparse-edit', weight: 4, cycle: 32, voices: {
       bd: [0, 12, 16, 22],
       sd: [8, 20, 24],
@@ -2505,6 +2610,21 @@ const sambass: Style = {
  * length, which at 186 is a piece that ends near 208. Modest on purpose: this is
  * a curve rather than a stunt, and `planRamp` clamps anything past 2 anyway.
  *
+ * ## The tempo is also why this is the one style that rolls the *kick*
+ *
+ * `DrumPattern.rolls` — `docs/engine-gaps.md` §3.15. Everywhere else in this
+ * genre the retrigger is a snare gesture, and here it is a snare gesture too:
+ * `mangled` triples its last stroke, 25 ms at 200, because that figure has a
+ * snare on sixteen of its thirty-two slots and no room left to run along.
+ *
+ * `doubled` is the departure. Its four kick pairs were written as the nearest a
+ * sixteenth grid could come to the header's own claim — *the kick doubled and
+ * tripled until it is a tone* — and a `roll: 4` at 180 to 200 BPM is a
+ * repetition rate of 48 to 53 Hz, which is not near a tone, it **is** one. That
+ * sentence turns out to have been a measurement nobody had taken, and the reason
+ * it lands in this table and no other is the twenty BPM at the top of the range
+ * that only this style is allowed to have.
+ *
  * **The audition plays it flat.** `generate/tempo.ts` established by reading the
  * installed package that Strudel cannot ramp at all, so a ramping song renders
  * correctly to `.mid` and comes out of the browser at a constant tempo, with a
@@ -2595,13 +2715,33 @@ const breakcore: Style = {
       bd: [0, 2, 6, 10, 12, 16, 18, 22, 26, 28],
       sd: [4, 8, 14, 20, 24, 30],
       hh: [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30],
-    }, ghosts: { sd: [1, 5, 7, 11, 13, 17, 19, 23, 27, 31] } },
+    }, ghosts: { sd: [1, 5, 7, 11, 13, 17, 19, 23, 27, 31] },
+    // There is no room for a run in this figure — sixteen of the thirty-two
+    // slots already carry a snare, struck or ghosted — so the subdivision goes
+    // *down* instead of along. The last struck snare in the cycle, tripled, is
+    // 25.0 ms at 200 and 27.8 at 180: forty strokes a second, where `trap`'s own
+    // accelerando bottoms out at thirty-six ms, and this style is the only place
+    // in the catalogue that number would not be an exaggeration.
+    rolls: { sd: { 30: 3 } } },
     { name: 'doubled', weight: 5, cycle: 32, voices: {
       bd: [0, 1, 8, 9, 16, 17, 24, 25],
       sd: [4, 12, 20, 28],
       hh: [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30],
       cr: [0, 16],
-    }, ghosts: { sd: [3, 7, 11, 15, 19, 23, 27, 31] } },
+    }, ghosts: { sd: [3, 7, 11, 15, 19, 23, 27, 31] },
+    // The header's sentence, made arithmetic: *the kick doubled and tripled
+    // until it is a tone.* The four kick pairs were the nearest the sixteenth
+    // grid could come to it and are now the frame for the real thing — the
+    // second of each pair subdivides, twice in bar one and four times in bar
+    // two.
+    //
+    // Four at this tempo is 18.8 ms at 200 and 20.8 at 180, which is a
+    // **repetition rate of 48 to 53 Hz**, and that is the point rather than a
+    // side effect: 53 Hz is a pitch — G♯1, an octave below the bottom line of
+    // the bass clef — so bar two of this figure stops being a rhythm and becomes
+    // a low buzz on the kick drum. Nowhere else in the project does a drum row
+    // cross that line, and no other style here reaches 200 BPM to cross it with.
+    rolls: { bd: { 1: 2, 9: 2, 17: 4, 25: 4 } } },
     { name: 'plain-amen', weight: 3, voices: {
       bd: [0, 10],
       sd: [4, 12],
@@ -2960,6 +3100,18 @@ const autonomic: Style = {
  * from hiphop — a dotted-eighth chain against a four-beat bar, arriving on a
  * different sixteenth every bar and coming home every three. `hiphop/drill` says
  * the same thing about the same number, and it is inexpressible any other way.
+ *
+ * **And it is the reason this style writes no `DrumPattern.rolls`**, which is
+ * the refusal a reader arrives here expecting not to find. `hiphop/drill`'s
+ * `dotted-drill` is the same `cycle: 12` chain and refused a roll on the ground
+ * that a retrigger inside a dotted-eighth figure is a second cross-rhythm asking
+ * to be counted alongside the first, and the ear resolves that by hearing
+ * neither. That argument is not weakened by being made in another genre. The
+ * plain sixteenth hat in `halftime-trap` beside it could take one, and taking it
+ * would be importing `trap-kit` under a different style name — which is the one
+ * thing three styles of this genre spent a pass proving it did not have to do.
+ * See `dnb/index.ts` for the three that adopted and the reasons the other
+ * twenty-one did not.
  *
  * **No `drops`, and the refusal is the interesting one.** A halftime record
  * genuinely does drop the kit and the sub for a phrase — but its section is

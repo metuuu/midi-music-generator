@@ -42,13 +42,13 @@
  * ## The words are `scat`, and the reason is the consonant density
  *
  * Four invented languages **used to** exist in `style/vocals.ts` and none was
- * English. There are six, and this sentence was copied from a sibling genre after
- * `sargam` and `tarana` had already landed, which is the ordinary way a count in a
- * comment goes wrong. Neither changes the answer, and both are ruled out by the
- * two numbers this paragraph is actually built on: they open *every* syllable —
- * `onsetDensity: 1`, past even `scat`'s 0.98 — but `sargam` spends that on
- * syllables bound to scale degrees, and `tarana` closes 85% of them, which is the
- * same objection `machine` fails on below and worse.
+ * English. There are five, and this sentence was copied from a sibling genre after
+ * `sargam` had already landed, which is the ordinary way a count in a comment goes
+ * wrong. It does not change the answer. `sargam` is ruled out by the very number
+ * that makes it look like a rival: it opens *every* syllable — `onsetDensity: 1`,
+ * past even `scat`'s 0.98 and now the only entry in the table at 1 — but it
+ * spends that on syllables **bound to scale degrees**, so the opening consonant
+ * is chosen by the note rather than by the word, and a pop hook is a word.
  *
  * Choosing on shape rather than on name: `scat`'s one-to-three-syllable words
  * and 98% onset density are what a pop line needs, because a pop syllable

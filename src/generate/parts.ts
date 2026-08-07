@@ -243,27 +243,103 @@ export interface FigureVariation {
 }
 
 /**
- * Bars per phrase. Four, which is what nearly every form in the catalogue is
- * built from — and this line said *every* until a genre arrived whose forms are
- * not counted in fours.
+ * The phrase length this file *prefers*, which for eighteen genres out of
+ * nineteen is simply the answer.
  *
  * Measured over all 649 form steps in the nineteen genres: 375 are eight bars,
  * 135 sixteen, 100 four, 25 thirty-two, one twenty-four, and **thirteen are
  * not a multiple of four** — nine six-bar steps and four two-bar ones, every one
  * of them indian, whose own header says its unit is four to eight bars where
- * every other genre's is eight to sixteen.
- *
- * The consequence is worth being explicit about rather than leaving for
- * somebody to rediscover, because it is silent: `figureFor` fires where
- * `(bar + 1) % PHRASE_BARS === 0` and not on the section's last bar, so in a
- * six-bar section the variation lands on the fourth bar, which is the middle of
- * the section rather than the turn of a phrase, and in a two-bar section it
- * never fires at all. Neither is wrong output — a figure varied a bar early is
- * still a figure — and neither is what the constant claims to be doing. Making
- * this a property of the section rather than of the file is a real change with a
- * real blast radius and is not a comment's to make.
+ * every other genre's is eight to sixteen. So four is a preference rather than a
+ * fact, and `phraseBars` below is what turns it into one section's answer.
  */
 const PHRASE_BARS = 4;
+
+/**
+ * How many bars **this section** turns over in.
+ *
+ * A phrase-end gesture is a boundary marker, and the whole of its meaning is
+ * that the ear was already arriving somewhere and the player agreed with it. So
+ * there is exactly one requirement on this number: the section has to divide by
+ * it. A gesture on bar four of a six-bar section — which is what a constant
+ * produced — marks nothing, because bar four is not a boundary of anything. It
+ * is a figure varied in the middle of a phrase, which is not wrong output and is
+ * not the gesture either.
+ *
+ * Hence **the longest phrase no longer than four that the section divides
+ * into**: four wherever four divides it, which is every form step in the
+ * catalogue but thirteen; three in a six-bar section; two in a two-bar one.
+ *
+ * Longest rather than shortest, because a phrase end is meant to be rare. Six
+ * divides by two as well as by three, and in twos it would put two gestures
+ * inside a six-bar section; in threes it puts one, on the section's own
+ * midpoint, which is the strongest division a six-bar section has and the only
+ * one a listener is counting toward.
+ *
+ * ## Both refusals are the rule that is already there
+ *
+ * `figureFor` declines the section's last bar, and that one clause answers both
+ * awkward lengths without a second guard being written for either:
+ *
+ *  - **A two-bar section gets nothing.** Its phrase is two, so its only phrase
+ *    end is bar two, which is the last bar. That is the sentence `figureFor`
+ *    already writes about a four-bar intro — one phrase, no phrase end inside
+ *    it — arriving at a different length, and it is the right answer on the
+ *    music. A two-bar intro is a single gesture; varying its opening bar would
+ *    be varying the figure before it has finished being stated, and firing once
+ *    in two bars is worse than not firing.
+ *  - **A section that no phrase divides gets nothing.** A length that is prime
+ *    and over four returns itself, so its one candidate is again the last bar.
+ *    No form in the catalogue is such a length; what matters is that the
+ *    fallback is silence rather than an invented division.
+ *
+ * ## Why this is derived where `Style.dropBars` is declared
+ *
+ * The drop gesture asks what looks like the same question and answers it the
+ * other way, so the difference is worth stating rather than leaving as an
+ * inconsistency somebody has to reconcile. A drop is a **span**: four bars is
+ * what a dub is on the records whether the section around it is eight bars or
+ * sixteen, so its length is half a statement about the idiom, and the idiom half
+ * is not derivable from anything the engine knows — which is exactly why
+ * `dropBars` had to be a field.
+ *
+ * This is not a span, it is a **position**, and a position is right precisely
+ * when it lands on a boundary the section has. That is arithmetic on a number
+ * the caller already passes, so a declared phrase here would add a second table
+ * to go stale beside a fact the section is already carrying, and could only ever
+ * be wrong in a way nothing would catch.
+ *
+ * ## Blast radius, measured
+ *
+ * Every multiple of four returns four, so nothing that phrases in fours moves —
+ * and measured over 7,435 sections generated across the nineteen genres, **every
+ * section that can reach this function is a multiple of four**. The 213 that are
+ * not (177 six-bar, 36 two-bar) are all indian, and no indian style declares
+ * `vary`, so `planFigureVariation` returns nothing for them and `figureHits`
+ * delegates to `cycleHits` without ever calling here. Confirmed rather than
+ * argued: 760 songs across the nineteen genres, MIDI and Strudel hashed either
+ * side of this function, **all 760 byte-identical**.
+ *
+ * So what this removes is a fault that is latent, and the measurement that shows
+ * it is worth keeping because nothing else can see it. Forcing `vary` on for
+ * every style in every genre and generating the same 760 songs, `figureFor`
+ * fires 81,720 times, and exactly one line of the tally moves: the **60
+ * variations that land in six-bar sections go from bar four to bar three**, off
+ * the middle of the section and onto its midpoint. Eight-, twelve-, sixteen-,
+ * twenty-four-, thirty-two- and forty-eight-bar sections keep every landing they
+ * had, down to the count; three indian songs change bytes and no song in any
+ * other genre does. Two-bar sections fire zero times before and zero after —
+ * unchanged output, for a changed reason, which is the point of the two-bar
+ * paragraph above.
+ *
+ * That is the argument for making the change now rather than later: the fault is
+ * reachable only through a table edit, and it is cheaper to remove while nothing
+ * is standing on it.
+ */
+function phraseBars(bars: number): number {
+  for (let n = PHRASE_BARS; n >= 2; n--) if (bars % n === 0) return n;
+  return bars;
+}
 
 /**
  * What this section's player does, or nothing.
@@ -322,6 +398,11 @@ export function planFigureVariation(
  * drummer's fill on it and is where a seam transition lands, and three gestures
  * in one bar is not an arrangement. A four-bar intro therefore gets nothing at
  * all, which is correct: an intro is one phrase and has no phrase end inside it.
+ *
+ * How long a phrase is comes from `phraseBars`, off the section's own length, so
+ * the sentence above holds at every length rather than only at the one the
+ * catalogue mostly uses — a two-bar intro is one phrase too, and gets nothing
+ * for the same reason and through the same clause.
  */
 function figureFor<T extends { at: number; dur?: number }>(
   hits: readonly T[],
@@ -329,7 +410,7 @@ function figureFor<T extends { at: number; dur?: number }>(
   bars: number,
   v: FigureVariation,
 ): readonly T[] {
-  if ((bar + 1) % PHRASE_BARS !== 0 || bar >= bars - 1) return hits;
+  if ((bar + 1) % phraseBars(bars) !== 0 || bar >= bars - 1) return hits;
   return v.kind === 'push'
     ? anticipate(hits, { target: v.at })
     : subdivide(hits, { target: v.at });
