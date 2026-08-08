@@ -132,7 +132,15 @@ A maqam's *sayr* is its habitual path, and a long piece modulates to a neighbour
 
 ### 3.4 `Effects` has no bell filter
 
-Only low-pass and high-pass. Metal's 800 Hz mid-scoop — arguably *the* production signature of 1988 — is unrepresentable, and it was written into `eras.ts` rather than faked. Now that `Style.effects` exists this is the remaining half of the same want.
+Only low-pass and high-pass. Metal's 800 Hz mid-scoop — arguably *the* production signature of 1988 — is unrepresentable, and it was written into `eras.ts` rather than faked.
+
+**Re-measured, and this entry blamed the wrong thing.** Its closing line used to say that now `Style.effects` exists, the tier is the remaining half of the same want. It is not: **metal writes `Style.effects` on 0 of its 24 styles, correctly**, because a mid-scoop is a fact about 1986–92 and `eras.ts` is where a fact about a decade belongs. The tier was never the problem. (21 styles across 6 genres do write it — pop 9, hiphop 4, house 4, rnb 2, reggae 1, dnb 1.)
+
+**Neither renderer can play a bell**, which is the real reason and is worth the entry more than the field is. Of the **370 controls `@strudel/core` registers, none matches `peak|bell|shelf|notch|eq`**; superdough only ever sets a filter type of `lowpass`, `highpass` or `bandpass`, plus one `notch` hard-wired inside the phaser at a fixed centre. A serial low-pass into a high-pass is an *intersection* and cannot cut a hole. MIDI is worse: `controllersFor` documents that CC74 and CC71 are GM2 and defined relative to the patch's own filter, so the render "only ever uses it to darken".
+
+**There is one mechanism that would work, and it is already in the file for something else.** A scoop is a *parallel* low-pass plus high-pass summed, and `voiceParts` in `render/strudel.ts` already binds one note grid and emits it four times — a body plus three formant bands, each filtered, summed in the stack. Its own docstring argues the mirror case out loud: a vocal tract puts *peaks* on a full spectrum rather than deleting the troughs. A scoop is that machinery used subtractively, and it would be audition-only, joining the six fields already marked so.
+
+**Left open with the finding attached rather than built.** The doubled part costs a second summed copy of every comp note, with a phase interaction in the crossover region, to express something the `.mid` must stay silent about — a worse trade than the duck's, which both renderers play to 0.075 dB. Metal's thrash-era comment is already an honest statement of the compromise.
 
 ### 3.5 `Genre.filter` moves per section; a wah moves per note
 
@@ -142,17 +150,33 @@ Funk declared no `filter` profile at all rather than fake an envelope filter as 
 
 Djent is hands on the bar and feet on a seven. Metal carried the seven on the guitar and bass (`cycle: 7`) and had the kit state the grouping instead.
 
-### 3.7 `metricStrength` always calls slot 0 the strongest
+### 3.7 `metricStrength` always calls slot 0 the strongest — **withdrawn**
 
 A masurkka's weight is on beat two. Finnish folk did it in velocities instead. Distinct from `groups`, which the same genre used successfully for the polska's uneven three — `[5, 3, 4]`, a 40:25:35 division matching the Nordic fiddle recordings to the nearest sixteenth.
+
+**Literally true and withdrawn anyway, which is a distinction this document should make more often.** `rhythm.ts` returns 4 for slot 0 *before* it consults `groups`, and a group head only ever earns 3 — so the entry describes today's code exactly, at every metre, with or without a grouping. What it does not have is a second reporter.
+
+Finnish folk, the one genre that filed it, has since withdrawn it in its own prose: *"`metricStrength` will still call slot 0 the strongest slot in the bar, because it is… that is enough, because a mazurka is recognised by what the band plays and not by where the barline is drawn."* And the obvious second reporter is not one — **reggae's one drop is the same musical shape**, accent on three with slot 0 deliberately empty, and it solves the whole thing in its tables without mentioning `metricStrength` once.
+
+By this document's own bar — *found independently by two or more genres* — that makes it a taste rather than a gap. It also barely touches its own complainant: `masurkka` excludes drums, so `accentOf` never runs for it, and it declares `shots` explicitly, so the `metricStrength >= 3` fallback is bypassed too.
+
+If anyone revives it, the honest framing is not *slot 0 is hard-coded* but *a style cannot say which slot is its strongest* — and it needs a second genre to ask.
 
 ### 3.8 No rubato
 
 `Feel`'s `push` is a fixed millisecond offset per layer — a groove, not a phrase that stretches and gives the time back. Classical left `feels` absent rather than approximate it.
 
-### 3.9 No "the same tune, decorated"
+### 3.9 No "the same tune, decorated" — **closed**, and it never existed
 
 `hook.recall` either replays a phrase or re-composes it. A da capo aria's ornamented repeat is neither.
+
+**Except that it is, and had been for four days when this was filed.** `varyRecall` in `tune/tune.ts` is the third option, and its own docstring is this entry's title: *the same tune, with one thing changed.* It landed in `215c6f4`, **`Let a recalled chorus come back varied`, on 2026-07-30**; classical's `aria` header wrote *"there is no third option"* in `4229741` on 2026-08-03, and this entry copied that sentence. Every recalled tune goes through it and there is no code path that pastes a recall verbatim — so the style whose comment declared it impossible has been doing it since the day it was written. **Measured over 200 seeds: 300 of 363 recalled sections come back decorated, 83%.**
+
+**This is the fifth entry to describe code that had already changed, and the worst of the five**, because the other four were at least describing a wall that had once existed. Here the mechanism was already running on the complaining genre's own output. §1.3 quoted funk's comment, §3.19 said compound time was unsayable while classical shipped it, §3.20 named a missing object that was on a bench — and all of them, including this one, were caught by reading source rather than by anybody noticing.
+
+**What is genuinely short is the depth, and it is arithmetic.** `varyRecall` moves `max(1, round(amount × 2.4))` notes against an `amount` capped at 0.9, so it is one note or two and never three: **2.8% of the line at a typical draw and 5.0% at the cap**, where a baroque division redecorates every long note in the phrase. And the depth is not authorable — `amount` is a hard-coded expression in `generate/song.ts` that no `Style` field reaches, so `aria`'s `melody.ornament: 0.42`, the highest in its file and written expressly for this, does not touch it. Three operators exist (`liftPeak`, `ornamentLongest`, `holdLast`) and one of them changes only duration.
+
+So the honest remaining want is *a style-side depth and a wider operator table*, which is a much smaller entry than the one it replaces and belongs to `src/tune/`.
 
 ### 3.10 `WORD_STYLES` has no sargam — **closed**, and the other half deliberately abandoned
 

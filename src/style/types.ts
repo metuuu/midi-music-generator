@@ -1097,9 +1097,18 @@ export interface Style {
    * the point: the genre's mapping is the idiom's mapping, and a style that
    * overrides it is making a claim about itself rather than about its genre. 66
    * of the 389 styles make it now, and the distribution is the claim rather than
-   * a dilution of it — **31 of the 66 are indian**, where a rāga *is* the scale
-   * and the genre has no single mapping to inherit, and the rest are ones and
-   * twos inside twelve other genres.
+   * a dilution of it — **28 of the 66 are indian**, which is every style that
+   * genre has, because a rāga *is* the scale and there is no single mapping to
+   * inherit. The other 38 are spread over thirteen genres, and they are not the
+   * ones and twos this sentence used to claim: **rock writes 8 and pop 7**, then
+   * country 5, finnfolk 4, rnb 4, and a tail of ones and twos through nine more.
+   *
+   * Both wrong numbers are worth leaving on the record, because they are the two
+   * ways a count in a comment rots. 31 was never right — it was a guess at
+   * indian's catalogue that overshot by three. *Ones and twos in twelve genres*
+   * was right when it was written and stopped being right when rock and pop
+   * adopted; the correct figures were sitting in `generate/song.ts` 860 lines
+   * away the whole time, and the two comments disagreed until somebody counted.
    *
    * The blues is why this exists. Jazz follows the *chord* — each quality implies
    * its own scale and the line re-orients bar by bar — and that is correct for

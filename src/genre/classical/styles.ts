@@ -1389,10 +1389,28 @@ const overture: Style = {
  * Formally a da capo aria is ABA with the A repeated *ornamented*, which is the
  * one place in this repertoire where a performer is expected to invent. That is
  * `melody.ornament` at 0.42, the highest in the file: a plain restatement of the
- * A section is the mistake the form is defined against. What the engine cannot
- * do is ornament the *repeat specifically* — `hook.recall` replays a section or
- * writes a fresh one, and there is no third option that means "the same tune,
- * decorated".
+ * A section is the mistake the form is defined against.
+ *
+ * **This said the engine could not ornament the repeat specifically — that
+ * `hook.recall` replays a section or writes a fresh one and there is no third
+ * option. The third option had shipped four days earlier.** `varyRecall` in
+ * `tune/tune.ts` is that option and its own docstring is this paragraph's title:
+ * *the same tune, with one thing changed.* It landed in `215c6f4`, *Let a
+ * recalled chorus come back varied*, on 2026-07-30; this file was written on
+ * 2026-08-03. Every recalled tune goes through it — there is no path that
+ * pastes a recall verbatim — so this style has been doing the thing its own
+ * header called impossible since the day it was written. **Measured over 200
+ * seeds: 300 of 363 recalled sections come back decorated, 83%.**
+ *
+ * What is *actually* short of a da capo is the depth, and it is arithmetic
+ * rather than taste. `varyRecall` moves `max(1, round(amount × 2.4))` notes
+ * against an `amount` capped at 0.9, so it is one note or two and never three —
+ * **2.8% of the line at a typical draw, 5.0% at the cap**, where a baroque
+ * division redecorates every long note in the phrase. And the depth is not
+ * authorable: `amount` is a hard-coded expression in `generate/song.ts` that no
+ * `Style` field reaches, so `melody.ornament: 0.42` above — written expressly
+ * for this — does not touch it. That is the honest entry, and it is a much
+ * smaller one than the sentence it replaces.
  */
 const aria: Style = {
   id: 'aria',
