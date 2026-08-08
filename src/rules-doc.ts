@@ -1,15 +1,27 @@
 /**
  * Generate the rule reference.
  *
- *   npm run rules
+ *   npm run rules          — write docs/rules.md
+ *   npm run rules:check    — fail if docs/rules.md is not what we would write
  *
  * Writes docs/rules.md from the rule table itself, so the reference cannot
  * drift from the code. Every rule already carries its own description and
  * thresholds; restating them by hand would only create a second thing to keep
  * true.
+ *
+ * **The generated file is checked in, so "cannot drift" needs enforcing rather
+ * than asserting.** `verify` used to run the writing mode, which is the one
+ * arrangement that never catches anything: writing always succeeds, so the
+ * pipeline passed whatever the state of the doc, and its only signal was a
+ * modified file in a tree nobody was looking at. It missed 58 stale lines —
+ * five genres added to the registry, none of them appearing in the overrides
+ * section — across four commits. Regenerating on demand is a convenience for
+ * whoever changed a rule; the pipeline wants the assertion, so `--check`
+ * compares and exits 1 without touching the file, alongside every other step
+ * in `verify`.
  */
 
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { RULES, RULE_DISABLED, STRICTNESS_LEVELS } from './core/rules.js';
 import { GENRE_IDS, getGenre } from './genre/index.js';
 
@@ -72,5 +84,36 @@ if (overridden.length) {
 }
 
 const out = lines.join('\n');
-writeFileSync(new URL('../docs/rules.md', import.meta.url), out);
-console.log(`docs/rules.md — ${RULES.length} rules across ${byCategory.size} categories`);
+const target = new URL('../docs/rules.md', import.meta.url);
+const tally = `${RULES.length} rules across ${byCategory.size} categories`;
+
+if (process.argv.includes('--check')) {
+  let current: string | null;
+  try {
+    current = readFileSync(target, 'utf8');
+  } catch {
+    current = null;
+  }
+  if (current !== out) {
+    // Report the size of the drift rather than the drift itself. A diff belongs
+    // to the tool that can colour it; what the pipeline owes the reader is that
+    // something is stale, how stale, and the one command that fixes it.
+    // Count the way `wc -l` does — the doc ends in a newline, so the naive
+    // split leaves an empty final segment and every number in the message
+    // would sit one above whatever the reader measures for themselves.
+    const countLines = (s: string) => s.split('\n').length - (s.endsWith('\n') ? 1 : 0);
+    const was = current === null ? 0 : countLines(current);
+    const now = countLines(out);
+    console.log(
+      current === null
+        ? '\ndocs/rules.md is missing.'
+        : `\ndocs/rules.md is stale — ${was} lines checked in, ${now} generated from source.`,
+    );
+    console.log('Run `npm run rules` and commit the result.\n');
+    process.exit(1);
+  }
+  console.log(`docs/rules.md is up to date — ${tally}`);
+} else {
+  writeFileSync(target, out);
+  console.log(`docs/rules.md — ${tally}`);
+}
