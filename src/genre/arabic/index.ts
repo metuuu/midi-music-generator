@@ -127,7 +127,7 @@
 
 import { makeScale, type ScaleName } from '../../core/scale.js';
 import { RULE_DISABLED } from '../../core/rules.js';
-import type { Genre, FormStep } from '../types.js';
+import type { Genre, FormStep, TitleContext } from '../types.js';
 import { STYLES } from './styles.js';
 import { ERAS } from './eras.js';
 import { MOODS } from './moods.js';
@@ -181,6 +181,71 @@ const MINOR_MAQAM: Record<number, ScaleName> = {
   7: 'minor',           // nawa — Farahfaza, with jins Kurd above the fifth
   10: 'minor',
 };
+
+/**
+ * Which maqam a piece is in, as a `ScaleName`. The two tables above, read.
+ *
+ * Extracted so that the melody and the programme ask the same question of the
+ * same rows. `scaleForChord` below is one caller and `maqamOf` is the other,
+ * and the whole point of the second one is that it cannot disagree with the
+ * first: a title that named the maqam off a private copy of these tables would
+ * be right until somebody edited one of them.
+ */
+const maqamScale = (tonic: number, mode: 'major' | 'minor'): ScaleName => (mode === 'minor'
+  ? MINOR_MAQAM[tonic] ?? 'harmonicMinor'
+  : MAJOR_MAQAM[tonic] ?? 'phrygianDominant');
+
+/**
+ * What each of them is called, which is the half of the header's table the
+ * engine never needed until a title could say it.
+ *
+ * Eight rows for eight scales, and the mapping is one-to-one in *this genre
+ * only* — `phrygianDominant` is Hijaz here and Basant Mukhari in indian, which
+ * is why this is a local table rather than something on `ScaleName`. A scale is
+ * a set of intervals; a maqam is a set of intervals with a tradition attached to
+ * it, and the tradition is what a programme prints.
+ */
+const MAQAM_NAMES: Record<ScaleName, string> = {
+  phrygianDominant: 'Hijaz',
+  doubleHarmonic: 'Hijazkar',
+  harmonicMinor: 'Nahawand',
+  minor: 'Farahfaza',
+  phrygian: 'Kurd',
+  hungarianMinor: 'Nawa Athar',
+  harmonicMajor: 'Shawq Afza',
+  major: 'Ajam',
+} as Record<ScaleName, string>;
+
+/**
+ * The maqam this song is in, by name, for the announcement.
+ *
+ * **`style ?? genre` and not the genre alone**, which is the same resolution
+ * `generateSong` makes when it decides which hook the melody gets, and the
+ * reason it has to be made twice is `taqsim`: it is the one style here that
+ * overrides `scaleForChord`, it is a *form* and therefore a style whose title
+ * announces one, and the two maqamat it reaches — Nawa Athar and Shawq Afza —
+ * are exactly the ones the genre tables cannot produce. Announcing a taqsim as
+ * Nahawand because the genre's rows say so would be the wrong-label failure this
+ * whole mechanism exists to avoid, arrived at from the inside.
+ *
+ * The chord handed to the override is a formality and is documented as one on
+ * both sides: this genre's rule reads two arguments and *pointedly not* the
+ * third, because the piece is in one maqam and the chord underneath has no vote.
+ * The tonic triad is the honest thing to pass — it is the chord the piece both
+ * starts and ends on — and any other would produce the identical answer.
+ */
+function maqamOf(ctx: TitleContext): string {
+  const { tonic, mode, style } = ctx;
+  const name = style.scaleForChord
+    ? style.scaleForChord(tonic, mode, {
+      root: tonic,
+      quality: mode === 'minor' ? 'min' : 'maj',
+      label: mode === 'minor' ? 'i' : 'I',
+      dominantFunction: false,
+    }).name
+    : maqamScale(tonic, mode);
+  return MAQAM_NAMES[name] ?? 'Hijaz';
+}
 
 /**
  * The refrain comes first, and it is the shape of the repertoire rather than a
@@ -243,7 +308,15 @@ export const arabic: Genre = {
   eras: ERAS,
   moods: MOODS,
   vocals: VOCALS,
-  title: generateTitle,
+  /**
+   * The maqam is resolved here and handed down, rather than looked up there.
+   *
+   * `titles.ts` is imported by this file, so it cannot import back without a
+   * cycle — and the tables the answer comes from are the ones `scaleForChord`
+   * uses fifty lines below, which is exactly where they should stay. So this
+   * file answers the question and the title generator spells it. See `maqamOf`.
+   */
+  title: (rng, ctx) => generateTitle(rng, ctx, maqamOf(ctx)),
   forms: FORMS,
 
   /**
@@ -792,12 +865,7 @@ export const arabic: Genre = {
    * because `keys` above only ever draws the eight pitch classes the tables
    * carry. A forced key from the audition page is the one path to them.
    */
-  scaleForChord: (tonic, mode) => makeScale(
-    tonic,
-    mode === 'minor'
-      ? MINOR_MAQAM[tonic] ?? 'harmonicMinor'
-      : MAJOR_MAQAM[tonic] ?? 'phrygianDominant',
-  ),
+  scaleForChord: (tonic, mode) => makeScale(tonic, maqamScale(tonic, mode)),
 
   /** The courtyard, the tarboosh and the shouting. See `staging.ts`. */
   staging: STAGING,

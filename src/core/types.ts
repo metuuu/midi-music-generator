@@ -37,6 +37,35 @@ export const LAYER_ORDER: LayerId[] = [
 export type SectionKind = 'intro' | 'verse' | 'chorus' | 'bridge' | 'solo' | 'outro';
 
 /**
+ * How the last bar of a piece lands.
+ *
+ * A generated form runs out of bars; that is not the same thing as ending, and
+ * the difference is the most audible unfinished edge this generator had. The
+ * final bar used to be an ordinary bar of the pattern, cut wherever the loop
+ * point fell — a comp figure sliced mid-figure, a tune left on whatever note
+ * the phrase happened to be passing through.
+ *
+ * So the last bar is not a bar of the arrangement any more. It is the ending,
+ * and there are exactly two of them in this repertoire:
+ *
+ *   button  everybody lands the final chord together on the downbeat and holds
+ *           it, with a cymbal under it. What a dance band does, what a jazz
+ *           head does on the way out, and what an audience claps at.
+ *   fade    the chord that is already sounding is simply held and let go, with
+ *           nothing struck on top of it. Ambient does not finish, it stops
+ *           being there, and a crash on the end of a drone is a joke.
+ *
+ * **It lives here, one level below both of the tables that name it.** `Genre`
+ * has always carried it and `Style` carries it now, and `style/types.ts` cannot
+ * reach `genre/types.ts` — the dependency runs the other way, because a genre is
+ * a collection of styles. Two vocabularies in this file are here for exactly the
+ * same reason and neither has anything else in common with this one: `LayerId`
+ * is the alphabet the arrangement is written in, and `SectionKind` is the one
+ * the form is. A word both halves of a seam have to say belongs under the seam.
+ */
+export type EndingStyle = 'button' | 'fade';
+
+/**
  * What the rest of the band does underneath a solo.
  *
  * A band that drops out under every solo sounds like a demo, and in most of

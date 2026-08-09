@@ -314,12 +314,23 @@ export const classical: Genre = {
    * *cadence*, the arrival the whole piece has been organised around, and a
    * cadence that faded out would be the one gesture this music cannot make.
    *
-   * **Two styles want `fade` and cannot have it, and it is worth naming which.**
-   * A nocturne ends by being let go of rather than landed on, and an
-   * impressionist prelude does not cadence at all — its own tables end on a chord
-   * with a ninth in it precisely so that nothing resolves. `ending` is a genre
-   * field and there is one of it, so twenty-four styles get the right answer and
-   * two get a chord struck where the sound should have been allowed to stop.
+   * **Two styles want `fade` and now have it.** A nocturne ends by being let go
+   * of rather than landed on, and an impressionist prelude does not cadence at
+   * all — its own tables end on a chord with a ninth in it precisely so that
+   * nothing resolves. `Style.ending` overrides this field, both of them write
+   * `fade`, and the other twenty-four inherit the house answer by saying
+   * nothing.
+   *
+   * **The split is 24 against 2 and the songs are 90.3% against 9.7%** — 29 of
+   * 300 draws, `prelude` 16 and `nocturne` 13. That gap is the argument for the
+   * field being an override rather than a per-style requirement: the exception
+   * is real and it is small, and a table that made all twenty-six styles restate
+   * the obvious would be twenty-four opportunities to get it wrong.
+   *
+   * Neither of the two ever got the cymbal this field is named for — both
+   * exclude the drums — so what the wrong answer cost them was 6.2 and 4.9 notes
+   * per song re-struck on the final downbeat, and an invented attack on 7 and 12
+   * songs in 40. See the headers in `styles.ts`.
    */
   ending: 'button',
 

@@ -2269,10 +2269,18 @@ const march: Style = {
  * compound metre is what makes the left hand roll rather than march, and it is
  * the difference between this and an adagio with a piano on it.
  *
- * `ending: 'fade'` would be the right answer for this style specifically, and
- * `EndingStyle` is a genre-level field. See the note in `index.ts`, which picks
- * `button` for the twenty-four pieces that end on a chord everyone plays
- * together and records the two that do not.
+ * **It fades, and it is the loudest of the six styles in the project that
+ * wanted to.** `Style.ending` exists now; the note in `index.ts` picks `button`
+ * for the twenty-four pieces that end on a chord everyone plays together, and
+ * this is one of the two that do not. What the button was doing here was never
+ * the crash — `excludeLayers: ['drums']` meant no cymbal was ever struck — it
+ * was **6.2 notes per song re-articulated on the final downbeat with their
+ * velocity lifted**, measured over 40 seeds against the same seeds fading, the
+ * largest figure of the six because a nocturne has both hands and a singing
+ * line in the last bar and the button collects all three. On 7 of those 40 it
+ * also invented one: a hand that had come off the keys was re-struck by the
+ * recall branch, which is the opposite of the gesture. A nocturne is let go of,
+ * not landed on.
  */
 const nocturne: Style = {
   id: 'nocturne',
@@ -2287,6 +2295,9 @@ const nocturne: Style = {
   modeWeights: { minor: 0.48, major: 0.52 },
   relativeMajorChorus: 0.35,
   excludeLayers: ['drums'],
+  // See the header. The left hand is still rolling when the piece stops being
+  // there, which is the whole gesture and is not a chord struck on the beat.
+  ending: 'fade',
   progressions: {
     intro: [
       { chords: ['I', 'I', 'V7', 'I'], weight: 4 },
@@ -3248,7 +3259,15 @@ const lacrimosa: Style = {
  *  - **Ninths and sevenths on everything, and no resolution.** `Imaj9` and
  *    `IVmaj7` sit where a triad would, and the piece ends on one.
  *
- * `ending` for this style should be `fade` and cannot be — see `index.ts`.
+ * **`ending: 'fade'`, which this style has wanted since it was written.** The
+ * last bullet above is the argument in one line: the piece ends on `Imaj9` on
+ * purpose, and a button re-strikes that chord on the downbeat with its velocity
+ * lifted, turning a harmony that declines to resolve into one that arrives.
+ * 4.9 notes per song over 40 seeds, and **the highest manufacturing rate of the
+ * six styles that took `fade` — 12 songs in 40 gained an attack that the
+ * arrangement had not written at all**, because a texture built out of planed
+ * chords and stopped cadences is exactly the texture whose layers have nothing
+ * left on the last downbeat for the recall branch to find.
  */
 const prelude: Style = {
   id: 'prelude',
@@ -3262,6 +3281,9 @@ const prelude: Style = {
   modeWeights: { minor: 0.42, major: 0.58 },
   relativeMajorChorus: 0.1,
   excludeLayers: ['drums'],
+  // See the header. A harmony that stops rather than resolving cannot be landed
+  // on, and the last chord in the tables below has a ninth in it for that reason.
+  ending: 'fade',
   // No cadence to repeat and no refrain to recall. `through` is the one style in
   // the file that takes it: a prelude of this kind states an image and leaves,
   // and a section that came back would be a different aesthetic entirely.

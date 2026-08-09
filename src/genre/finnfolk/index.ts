@@ -246,7 +246,7 @@ export const finnfolk: Genre = {
   },
 
   /**
-   * A button, and it costs the archaic half of the genre something real.
+   * A button, and the archaic half no longer pays for it.
    *
    * A pelimanni dance tune ends the way a dance ends: the band lands the last
    * chord together on the downbeat and the floor stops. That is `button`, it is
@@ -258,30 +258,46 @@ export const finnfolk: Genre = {
    * finishes and there is a silence nobody fills — a runo performance ends when
    * the poem does, and a kantele piece is over when the last string has stopped
    * ringing, which is two and a half seconds after the player let go. `fade` is
-   * the right ending for all four and they are not getting it, because
-   * `EndingStyle` is genre-wide.
+   * the right ending for all four and **they have it**: `Style.ending` overrides
+   * this field, `runolaulu`, `itkuvirsi`, `karjanhuuto` and `konserttikantele`
+   * each write it, and the other twenty inherit the dance answer by saying
+   * nothing.
    *
-   * The cost, named: those four styles land a struck final chord on a piece that
-   * had no downbeat to strike it on. It is audibly a decision somebody made and
-   * it is the wrong one for about a sixth of what this genre generates. The
-   * trade is that the alternative — `fade` genre-wide — is the wrong one for two
-   * thirds of it, and wrong in a way that undoes the dance rather than merely
-   * over-punctuating a lament.
+   * **The share is worth stating exactly, because two files disagreed about it
+   * and one of them was this one.** Four of twenty-four styles is a sixth of the
+   * catalogue; the draw is weighted and lands higher, at **71 of 300 songs,
+   * 23.7%** — `runolaulu` 31, `itkuvirsi` 18, `konserttikantele` 12,
+   * `karjanhuuto` 10. `docs/engine-gaps.md` said "roughly a quarter" and this
+   * comment said "about a sixth"; both were describing something true and
+   * neither said which, and the difference between a catalogue share and a draw
+   * rate is the whole of it.
+   *
+   * What it recovers, each style generated twice at the same seed with only the
+   * ending flipped, 40 seeds each: **2.0 notes per song** re-struck on
+   * `konserttikantele`'s final downbeat with the velocity lifted, 1.8 on
+   * `runolaulu`, 1.6 on `itkuvirsi`, 0.9 on `karjanhuuto` — on four styles that
+   * all exclude the kit and so were never getting the cymbal the gesture is
+   * named for. The recall branch, which invents an attack where a layer had
+   * none, fired on 5 songs out of 160.
    */
   ending: 'button',
 
   /**
    * Somebody stamps.
    *
-   * The same asymmetry as `ending` and settled the same way. A pelimanni counts
-   * in with a boot on the floor — four stamps, which is exactly what a count-in
-   * is — and it is how a band with no conductor and no drummer starts together.
-   * A runo singer does not count anything in; they start, and the seconder joins
-   * on the second line.
+   * The same asymmetry as `ending` and now settled the same way. A pelimanni
+   * counts in with a boot on the floor — four stamps, which is exactly what a
+   * count-in is — and it is how a band with no conductor and no drummer starts
+   * together. A runo singer does not count anything in; they start, and the
+   * seconder joins on the second line.
    *
-   * True, therefore, and wrong in the same sixth of the catalogue. `withCountIn`
-   * only applies this in front of a live performance anyway, which is where the
-   * boot actually is.
+   * True here, therefore, and `false` on the same four styles that take `fade`.
+   * **Nothing audible moves**, and the reason is worth keeping: `withCountIn`
+   * leaves any number with no kit in it alone, and all four exclude the drums,
+   * so no clicks were ever going to sound. What the override reaches is the
+   * stage — `counted()` in `show.ts` — where the leader was beating four in
+   * front of a lament. The boot is real and it is on eleven dance floors, not in
+   * front of a poem.
    */
   countIn: true,
 

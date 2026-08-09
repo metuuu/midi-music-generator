@@ -28,7 +28,7 @@ import type { Pc } from '../core/pitch.js';
 import type { Rng } from '../core/rng.js';
 import type { Mode, Scale } from '../core/scale.js';
 import type {
-  BackingPolicy, DrumVoice, Effects, LayerId, SectionKind, Space,
+  BackingPolicy, DrumVoice, Effects, EndingStyle, LayerId, SectionKind, Space,
 } from '../core/types.js';
 import type { RuleOverrides, StrictnessId } from '../core/rules.js';
 import type { HookId } from '../generate/hook.js';
@@ -64,25 +64,12 @@ export interface FormStep {
 }
 
 /**
- * How the last bar of a piece lands.
- *
- * A generated form runs out of bars; that is not the same thing as ending, and
- * the difference is the most audible unfinished edge this generator had. The
- * final bar used to be an ordinary bar of the pattern, cut wherever the loop
- * point fell — a comp figure sliced mid-figure, a tune left on whatever note
- * the phrase happened to be passing through.
- *
- * So the last bar is not a bar of the arrangement any more. It is the ending,
- * and there are exactly two of them in this repertoire:
- *
- *   button  everybody lands the final chord together on the downbeat and holds
- *           it, with a cymbal under it. What a dance band does, what a jazz
- *           head does on the way out, and what an audience claps at.
- *   fade    the chord that is already sounding is simply held and let go, with
- *           nothing struck on top of it. Ambient does not finish, it stops
- *           being there, and a crash on the end of a drone is a joke.
+ * How the last bar of a piece lands — `core/types.ts` owns the vocabulary now,
+ * because `Style` names it too and cannot import from here. Re-exported rather
+ * than moved out of sight: `Genre.ending` below is still the field most callers
+ * mean, and `genre/index.ts` has published this name since it existed.
  */
-export type EndingStyle = 'button' | 'fade';
+export type { EndingStyle } from '../core/types.js';
 
 /**
  * What the piece turned out to be, so that its title can avoid claiming
@@ -95,12 +82,36 @@ export type EndingStyle = 'button' | 'fade';
  * announcement at all: a bossa called a swing reads as a mistake, not as a
  * poetic liberty. So the word pools are filtered against the piece before
  * anything is drawn from them.
+ *
+ * ## The key, added late and asked for by three genres independently
+ *
+ * `style`, `mood` and `bpm` were the whole of this for a long time, and three
+ * genres wrote down the same missing field rather than guessing at it. Arabic
+ * names an instrumental piece **form plus maqam** — *Longa Nahawand* — and the
+ * maqam is a function of the tonic. Indian announces the **rāga**, and which of
+ * a style's two rāgas a song is in is decided by the mode and by nothing else.
+ * Classical names the key outright, which is what half the real titles in that
+ * repertoire do. All three fell back to imagery or to the form alone, and all
+ * three said so in a comment, which is the bar this project sets for a gap
+ * being real rather than a taste.
+ *
+ * **The tonic and the mode, and not a label.** Classical's objection to the
+ * field was that it *"would put a spelling decision (is it C♯ or D♭?) into a
+ * type"*, and the answer is that the type declines to make one: two numbers go
+ * in, and `keyLabel` in `core/pitch.ts` — which has been deciding exactly that
+ * question for every song in the project since before the objection was written,
+ * and which `generateSong` calls three lines below the call to this function —
+ * decides it for anybody who wants a label. A genre that wants a maqam or a rāga
+ * instead wants neither spelling.
  */
 export interface TitleContext {
   style: Style;
   mood: Mood;
   /** The tempo actually chosen, not the style's band. */
   bpm: number;
+  /** The key the song is in. See the header — a number, not a spelling. */
+  tonic: Pc;
+  mode: Mode;
 }
 
 export interface Genre {
@@ -146,7 +157,16 @@ export interface Genre {
     major: (readonly [Pc, number])[];
   };
 
-  /** How a piece in this genre finishes. See `EndingStyle`. */
+  /**
+   * How a piece in this genre finishes, unless the style says otherwise. See
+   * `EndingStyle`, and `Style.ending`, which overrides this.
+   *
+   * Required rather than optional, and it stays required now that the style may
+   * override it: every genre in the catalogue has a house ending, and the two
+   * that hold both kinds hold them in a known handful of styles rather than in
+   * an even split. Making this optional would let a genre decline to say, which
+   * is a claim none of the nineteen wants to make.
+   */
   ending: EndingStyle;
 
   /**
@@ -162,6 +182,9 @@ export interface Genre {
    * False for music that has no pulse to count. An ambient piece does not
    * begin, it is found already happening, and four clicks in front of it would
    * be four clicks in front of the wrong music.
+   *
+   * The genre's answer, and `Style.countIn` overrides it — for the case a genre
+   * holds a dance band and an unmetred lament in the same catalogue.
    */
   countIn: boolean;
 

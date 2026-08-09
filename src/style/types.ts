@@ -7,7 +7,8 @@
  */
 
 import type {
-  DrumSource, DrumVoice, Effects, LayerId, SectionKind, SequencedLayer, Space,
+  DrumSource, DrumVoice, Effects, EndingStyle, LayerId, SectionKind,
+  SequencedLayer, Space,
 } from '../core/types.js';
 import type { InstrumentId } from './instruments.js';
 import type { FeelId } from './feel.js';
@@ -1105,6 +1106,77 @@ export interface Style {
    * of a music whose whole value proposition is never playing it twice.
    */
   hook?: HookId;
+  /**
+   * How this piece finishes, overriding the genre's answer. See `EndingStyle`.
+   *
+   * **A genre-wide field that two genres could not answer once.** Classical
+   * buttons — a concert piece arrives at a cadence and the room claps — except
+   * that a nocturne is let go of rather than landed on and an impressionist
+   * prelude does not cadence at all, its own tables ending on a chord with a
+   * ninth in it precisely so that nothing resolves. Finnish folk is the same
+   * shape and sharper: eleven pelimanni dance styles land the last chord
+   * together because that is what stops a floor, and four archaic ones have no
+   * downbeat to land on — an itkuvirsi *stops*, a runo performance ends when the
+   * poem does, a kantele piece is over when the last string has stopped ringing.
+   * Both genres wrote the compromise down in prose and took the answer that was
+   * wrong for the smaller half.
+   *
+   * **What the wrong ending costs is not the cymbal, and the first measurement
+   * of it was of the wrong number.** All six of those styles carry
+   * `excludeLayers: ['drums', …]`, so `landEnding`'s crash-and-kick branch never
+   * fires for any of them and never did — 0 drum events in 12 of 12 songs on
+   * each. The whole cost is the pitched half, and it has three parts of very
+   * different sizes. Every onset inside `LAND_WINDOW` is **re-articulated on the
+   * downbeat with its velocity lifted 15% and a further 0.06**; a few are
+   * *moved* there from inside the window; and where a layer had nothing on the
+   * landing at all, a recall branch re-strikes the last voicing it held, which
+   * **manufactures an attack** on a bar the music meant to leave ringing.
+   *
+   * Generating each style twice at the same seed with only this field flipped,
+   * 40 seeds each — notes lifted per song, then notes manufactured:
+   *
+   *   classical `nocturne` 6.2, 0.45 on 7 songs in 40
+   *   classical `prelude`  4.9, 0.78 on 12 songs in 40
+   *   finnfolk `konserttikantele` 2.0, 0.05 on 1
+   *   finnfolk `runolaulu` 1.8, 0.03 on 1
+   *   finnfolk `itkuvirsi` 1.6, 0.07 on 3
+   *   finnfolk `karjanhuuto` 0.9, none in 40
+   *
+   * The classical pair is the loud one because a piano piece has both hands and
+   * a singing line in the last bar and the button collects all three. Counting
+   * *notes on the final downbeat* instead — which is the obvious measurement and
+   * the one taken first — reads the same order of magnitude and attributes it
+   * wrongly, because most of those notes were already there: the button's work
+   * is the velocity and the re-articulation, not the position.
+   *
+   * **Absent means the genre's answer, and costs nothing** — no weight, no
+   * table, no draw, in the sense `drops` and `feels` document at length. This is
+   * read once by `generateSong` and handed to `landEnding`, so a style that says
+   * nothing generates the song it generated before the field existed, bit for
+   * bit.
+   */
+  ending?: EndingStyle;
+  /**
+   * Whether a live band counts *this* music in, overriding the genre's answer.
+   *
+   * The staging half of `ending` above, and it splits the same catalogue along
+   * the same line. A pelimanni counts in with a boot on the floor — four stamps,
+   * which is exactly what a count-in is, and it is how a band with no conductor
+   * and no drummer starts together. A runo singer counts nothing: they start,
+   * and the seconder joins on the second line.
+   *
+   * **It is legible only on a stage, and that is the whole of its effect.**
+   * `withCountIn` is applied by the concert and by nothing else — the radio
+   * plays records and a record that counted itself in would be a demo — and it
+   * returns early on any number with no kit in it, which is every style that has
+   * so far wanted to say `false` here. So the clicks were never going to sound
+   * either way. What this field actually reaches is `show.ts`'s `counted()`,
+   * which decides whether the leader gives the four before the first note: a
+   * visual cue, given by whoever the band would take it from. Turning it off is
+   * a lament beginning because the singer began, which is what the genre's own
+   * comment says happens and could not until now say in a table.
+   */
+  countIn?: boolean;
   /**
    * Where this style's melody gets its notes, overriding the genre's answer.
    *

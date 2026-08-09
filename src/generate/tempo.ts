@@ -470,7 +470,8 @@ export function effectiveBpm(ramp: Ramp, bpm: number): number {
  * deceleration; what this rejects is the *final* slow-down over the last few
  * bars.
  *
- * **The ending already has an owner.** `Genre.ending` and `landEnding` decide
+ * **The ending already has an owner.** `Genre.ending`, `Style.ending` over it,
+ * and `landEnding` decide
  * what happens in the last bar — a button struck on the downbeat, or a fade —
  * and `generate/transition.ts` and `generate/drop.ts` both refuse to touch a bar
  * another pass is editing, citing the same precedent: two passes editing the

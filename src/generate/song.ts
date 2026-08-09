@@ -27,8 +27,8 @@ import {
   DEFAULT_DRUM_MIX, DEFAULT_SPACE, DUCK_FROM, SEQUENCER_FROM, canVary, eligibleDrumSources,
   isPlayedByHand, melodicLine,
   type DrumEvent, type DrumTrack, type DrumVoice, type Effects, type LayerId, type NoteEvent,
-  type Section, type SectionKind, type SequencedLayer, type Song, type Space,
-  type Track,
+  type Section, type SectionKind, type SequencedLayer, type Song, type SongMeta,
+  type Space, type Track,
 } from '../core/types.js';
 import {
   GENRES, getGenre, type EndingStyle, type FormStep, type Genre,
@@ -2789,7 +2789,18 @@ export function generateSong(opts: GenerateOptions = {}): Song {
   const song: Song = {
     meta: {
       seed,
-      title: genre.title(rng, { style, mood, bpm }),
+      /**
+       * The title, and it is the last thing this generator draws.
+       *
+       * Worth stating because it is what makes the key safe to hand over. A
+       * genre that changes what its title function draws — and three did, the
+       * day `tonic` and `mode` arrived here — moves the stream for everything
+       * downstream of it, and downstream of this line there is nothing: no `rng`
+       * reference survives between here and the end of `generateSong`, so a
+       * re-weighted title pool moves that genre's titles and not one note of
+       * anybody's music.
+       */
+      title: genre.title(rng, { style, mood, bpm, tonic, mode }),
       style: style.id,
       styleLabel: style.label,
       era: era.id,
@@ -2937,7 +2948,17 @@ export function generateSong(opts: GenerateOptions = {}): Song {
     }
   }
 
-  landEnding(song, genre.ending, finalChord);
+  /**
+   * The ending, and the style gets the last word on which one it is.
+   *
+   * `Genre.ending` is the house answer and `Style.ending` overrides it, in the
+   * order every other paired field in this engine resolves — the same
+   * `style ?? genre` line `scaleForChord` takes 2,700 lines above, and for the
+   * same reason: the genre states what this music does and the style is entitled
+   * to be the exception. Six styles in two genres are, and both genres had
+   * written the compromise into prose first. See `Style.ending`.
+   */
+  landEnding(song, style.ending ?? genre.ending, finalChord);
 
   /**
    * `activeLayers` was a plan; now that the parts exist it is a claim, and a
@@ -3186,6 +3207,30 @@ function landEnding(song: Song, style: EndingStyle, chord: Chord | undefined): v
 const COUNT_BARS = 1;
 
 /**
+ * Whether *this* number is counted in — the style's answer where it has one,
+ * and the genre's otherwise.
+ *
+ * A function rather than two copies of `?? `, because there are exactly two
+ * callers and they are in different halves of the project: `withCountIn` below,
+ * which decides whether four clicks go in front of the pattern, and `counted()`
+ * in `web/concert/show.ts`, which decides whether the leader gives the count
+ * where there is nothing to click. Those two have to agree — a band that gets no
+ * visual cue and no clicks starts on nothing, and one that gets both starts
+ * twice — and they agreed for free while the answer was one field on the genre.
+ * The moment a style could override it they stopped agreeing for free, so the
+ * question is asked in one place and both of them ask it.
+ *
+ * It reads `SongMeta` rather than a `Style`, because that is what both callers
+ * have: the concert holds finished songs, and `withCountIn` is applied to a song
+ * long after the style that made it went out of scope. `meta.style` is the id,
+ * and the genre's own table is where it came from.
+ */
+export function countsItselfIn(meta: SongMeta): boolean {
+  const genre = getGenre(meta.genre);
+  return genre.styles[meta.style]?.countIn ?? genre.countIn;
+}
+
+/**
  * The same song with the drummer counting it in.
  *
  * **Staging, not composition, which is why it is a separate call.** A record
@@ -3215,7 +3260,7 @@ const COUNT_BARS = 1;
  */
 export function withCountIn(song: Song): Song {
   if (song.meta.leadInBars) return song;
-  if (!getGenre(song.meta.genre).countIn) return song;
+  if (!countsItselfIn(song.meta)) return song;
   if (!song.drums.events.length) return song;
   /**
    * A machine does not count anybody in — somebody presses start.

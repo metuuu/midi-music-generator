@@ -70,7 +70,7 @@ import type {
   Concert, ConcertNumber, ConcertOptions, PartRef, Performer, StageMachine,
 } from '../../concert/types.js';
 import { drumEventsFor, instrumentIdForTrack, specFor } from '../../concert/instruments.js';
-import { getGenre } from '../../genre/index.js';
+import { countsItselfIn } from '../../generate/song.js';
 import { readBankName } from '../../render/drum-banks.js';
 import { renderStrudel } from '../../render/strudel.js';
 import { loadCode, playCode, preloadSounds, startLoaded, stopPlayback } from '../audio.js';
@@ -1135,14 +1135,23 @@ export function createShow(opts: ShowOptions = {}): Show {
   /**
    * Whether this music is counted in at all.
    *
-   * The genre's answer rather than `leadInBeats() > 0`, and the difference is
+   * The written answer rather than `leadInBeats() > 0`, and the difference is
    * the number with no kit on it: there is nothing to click, so the song
    * carries no lead-in bar, and the leader's cue is then the *only* count
    * there is. Ambient is the other way round — it is not counted in by
    * anybody, with or without a drummer.
+   *
+   * **And that is exactly the case a style is now allowed to answer for
+   * itself.** `countsItselfIn` is the style's word over the genre's, shared with
+   * `withCountIn` rather than restated here, because the two decisions have to
+   * come out the same: a number whose kit is silent gets no clicks, so this
+   * function is the only count it will ever have, and finnfolk's four archaic
+   * styles are precisely the numbers that should not have one. A runo singer
+   * starts and the seconder joins on the second line; nobody beats four at them
+   * first.
    */
   function counted(): boolean {
-    return getGenre(current.song.meta.genre).countIn;
+    return countsItselfIn(current.song.meta);
   }
 
   /**

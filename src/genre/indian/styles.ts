@@ -214,6 +214,49 @@ const SIMHENDRA: Raga = 'hungarianMinor';   // Simhendramadhyamam. Tīvra Ma and
 const DHANI: Raga = 'minorPentatonic';      // S g m P n. What Malkauns is not.
 
 /**
+ * What each rāga is **called**, in each tradition, so that a title can announce
+ * one.
+ *
+ * The constants above are named for the interval set, and the comment beside
+ * each already carries the other tradition's name for the same set — this table
+ * is those comments, made reachable. `titles.ts` is the only consumer; the
+ * melody has never needed a rāga to have a name, which is exactly why the names
+ * sat in comments for as long as they did.
+ *
+ * **Two columns, because the same seven notes are two different rāgas to say out
+ * loud.** A kṛti announced as *Rāg Yaman* is a Carnatic item introduced with a
+ * Hindustani name, which is the mislabelled-record failure `TitleContext` exists
+ * to prevent, arrived at from an angle nobody expected. `titles.ts` already
+ * splits its `TALA` table along the same line — ādi tāla and the chāpu tālas
+ * against teentāl and ektāl — so half the vocabulary was tradition-aware there
+ * before all of it was here.
+ *
+ * Where a row's two entries are identical the rāga genuinely carries one name in
+ * both: Charukesi, Gaurimanohari and Simhendramadhyamam are Carnatic melakartas
+ * that Hindustani music borrowed later and borrowed the names with, which the
+ * `alapana` header below says in as many words. **The two pentatonics have a
+ * Hindustani name only**, and that costs nothing, because no Carnatic style
+ * draws either — `jhala`, `tarana` and `dhun` are the three built on
+ * `BHOOPALI`/`DHANI` and all three are in the Hindustani block.
+ */
+export const RAGA_NAMES: Partial<Record<Raga, { north: string; south: string }>> = {
+  lydian: { north: 'Yaman', south: 'Kalyani' },
+  major: { north: 'Bilawal', south: 'Shankarabharanam' },
+  mixolydian: { north: 'Khamaj', south: 'Harikambhoji' },
+  doubleHarmonic: { north: 'Bhairav', south: 'Mayamalavagowla' },
+  harmonicMajor: { north: 'Charukesi', south: 'Charukesi' },
+  phrygianDominant: { north: 'Basant Mukhari', south: 'Vakulabharanam' },
+  majorPentatonic: { north: 'Bhoopali', south: 'Bhoopali' },
+  dorian: { north: 'Kafi', south: 'Kharaharapriya' },
+  minor: { north: 'Asavari', south: 'Natabhairavi' },
+  phrygian: { north: 'Bhairavi', south: 'Hanumatodi' },
+  harmonicMinor: { north: 'Kirwani', south: 'Keeravani' },
+  melodicMinor: { north: 'Gaurimanohari', south: 'Gaurimanohari' },
+  hungarianMinor: { north: 'Simhendramadhyamam', south: 'Simhendramadhyamam' },
+  minorPentatonic: { north: 'Dhani', south: 'Dhani' },
+};
+
+/**
  * A style's rāga pair, resolved by mode.
  *
  * **`mode` is the only thing the hook is given that varies from song to song**,

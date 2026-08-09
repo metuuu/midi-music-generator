@@ -33,19 +33,52 @@
  * else is counted in quarters. Every style in the catalogue is one of those
  * three, and the fallback is the quarter.
  *
- * ## What is deliberately absent
+ * ## The key, and the objection that turned out to be answered already
  *
- * **The key.** Half the real titles in this repertoire name one — *Prelude in
- * C minor* — and `TitleContext` carries `style`, `mood` and `bpm` and not the
- * tonic. That is a gap in the context rather than in the pool, and it is not
- * worth widening a shared interface for: a title that names the wrong key would
- * be worse than one that names none, and adding the field would put a spelling
- * decision (is it C♯ or D♭?) into a type that has managed four genres without
- * one.
+ * **A large share of the real titles in this repertoire name one** — *Prelude in
+ * C minor*, *Nocturne in E-flat major, Op. 27 No. 2* — and this file used to say
+ * the field was not worth widening a shared interface for, because *"adding the
+ * field would put a spelling decision (is it C♯ or D♭?) into a type that has
+ * managed four genres without one."*
+ *
+ * That was wrong when it was written, and it was wrong about code that already
+ * existed. `spellingFor` in `core/pitch.ts` has decided sharp-or-flat for every
+ * key in this project since long before this genre was added — it is what stops
+ * a tango in F♯ minor being rendered in flats — and `keyLabel` wraps it.
+ * `generateSong` calls `keyLabel(tonic, mode)` for every song in the catalogue
+ * **three lines below the call into this file**. So the decision was not being
+ * avoided; it was being made a few microseconds later, by a function that has
+ * always been the one place it is made, and the type carries two numbers and no
+ * spelling at all.
+ *
+ * What is genuinely this file's decision is *typography*, and it is a different
+ * question: `keyLabel` prints `Eb minor`, which is right for a filename and
+ * wrong on a programme. `keyName` below spells the accidental out. The rule
+ * about which accidental stays in `core/pitch.ts`; only the hyphen is local.
+ *
+ * **131 of 300 songs name their key now, and 131 of the 131 name it correctly.**
+ * All twenty-four keys were spelled out and checked one at a time rather than
+ * sampled, because the two string replacements `keyName` makes are exactly the
+ * kind that work on twenty-three keys and mangle the twenty-fourth.
  */
 
 import type { Rng } from '../../core/rng.js';
 import type { TitleContext } from '../types.js';
+import { keyLabel, type Pc } from '../../core/pitch.js';
+import type { Mode } from '../../core/scale.js';
+
+/**
+ * The key as a printed title says it: *E-flat major*, *C-sharp minor*.
+ *
+ * `keyLabel` decides the spelling and this decides the orthography — the two are
+ * not the same call, and keeping them apart is the whole answer to the objection
+ * in the header. The replacements are safe over all twenty-four keys because
+ * `keyLabel` capitalises only the letter name, so the lower-case `b` this looks
+ * for is always the flat and never the note B.
+ */
+function keyName(tonic: Pc, mode: Mode): string {
+  return keyLabel(tonic, mode).replace('#', '-sharp').replace('b ', '-flat ');
+}
 
 /**
  * The form's own name, keyed by style id. Every style has one; that is what
@@ -160,11 +193,14 @@ function tempoWord(ctx: TitleContext): string {
   return 'Grave';
 }
 
-type Pattern = 'form' | 'form-opus' | 'form-opus-no' | 'marking' | 'form-marking';
+type Pattern =
+  | 'form' | 'form-key' | 'form-key-opus'
+  | 'form-opus' | 'form-opus-no' | 'marking' | 'form-marking';
 
 export function generateTitle(rng: Rng, ctx: TitleContext): string {
   const form = FORMS[ctx.style.id] ?? 'Piece';
   const tempo = tempoWord(ctx);
+  const key = keyName(ctx.tonic, ctx.mode);
   const character = rng.pick(CHARACTERS[ctx.mood.id] ?? CHARACTERS.ordinario!);
 
   /**
@@ -173,12 +209,23 @@ export function generateTitle(rng: Rng, ctx: TitleContext): string {
    * *Sarabande* is a complete title and always has been — it is what is printed
    * over the movement in a suite, and adding an opus number to it would be
    * claiming the piece is a standalone publication rather than the fourth
-   * movement of one.
+   * movement of one. It keeps its 5.
+   *
+   * **The key takes 10 of 25 and it takes it from the opus numbers**, which is
+   * where it should come from: *Nocturne, Op. 27 No. 2* is not a title anybody
+   * prints, because a catalogue number without a key is how a publisher's ledger
+   * refers to a piece rather than how a programme announces one. The bare opus
+   * shapes drop to 2 and 1 and stay in the pool for the movements that really are
+   * cited that way. The character markings are untouched at 4 and 3, because a
+   * marking is the *other* register this repertoire names itself in and a
+   * marking with a key in it would be two conventions at once.
    */
   const patterns: (readonly [Pattern, number])[] = [
     ['form', 5],
-    ['form-opus', 4],
-    ['form-opus-no', 3],
+    ['form-key', 6],
+    ['form-key-opus', 4],
+    ['form-opus', 2],
+    ['form-opus-no', 1],
     ['marking', 4],
     ['form-marking', 3],
   ];
@@ -186,6 +233,14 @@ export function generateTitle(rng: Rng, ctx: TitleContext): string {
   switch (rng.weighted(patterns)) {
     case 'form':
       return form;
+    // *Prelude in C minor.* The commonest title in the repertoire and, until
+    // `TitleContext` carried a key, the one shape this file could not write.
+    case 'form-key':
+      return `${form} in ${key}`;
+    // *Nocturne in D-flat major, Op. 27 No. 2* — the full publisher's citation,
+    // which is a citation precisely because the key is in it.
+    case 'form-key-opus':
+      return `${form} in ${key}, Op. ${opus(rng)} No. ${rng.int(1, 6)}`;
     case 'form-opus':
       return `${form}, Op. ${opus(rng)}`;
     case 'form-opus-no':

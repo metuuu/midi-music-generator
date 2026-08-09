@@ -154,6 +154,27 @@ const runolaulu: Style = {
   excludeLayers: ['drums', 'brass'],
   requireLayers: ['comp'],
   drumFills: false,
+  /**
+   * A runo performance ends when the poem ends, and the kantele is still
+   * sounding when it does.
+   *
+   * The first of the four archaic styles to take the pair, and the argument for
+   * all four is in `index.ts` beside the genre's own `button`. What it takes
+   * away here is measured against the same 40 seeds fading: **1.8 notes per song
+   * re-struck on the final downbeat with the velocity lifted** — no cymbal,
+   * because `excludeLayers` above has had the kit out since this style was
+   * written, just the drone and the tune agreeing to arrive somewhere the poem
+   * was not going. The recall branch fired once in 40, which is as rare as it is
+   * anywhere: a drone is always still sounding, and a layer that is ringing is
+   * the one case the recall declines to invent for.
+   *
+   * And nobody counts it in. The singer starts and the seconder joins on the
+   * second line; there is no kit here, so the four clicks were never audible
+   * either way, and what `countIn: false` actually removes is the leader beating
+   * four at a room before an unmetred poem. See `Style.countIn`.
+   */
+  ending: 'fade',
+  countIn: false,
   counterSpacing: 1,
   scaleForChord: drone('dorian', 'mixolydian'),
   progressions: {
@@ -298,6 +319,22 @@ const itkuvirsi: Style = {
   excludeLayers: ['drums', 'brass', 'pad'],
   requireLayers: ['melody'],
   drumFills: false,
+  /**
+   * A lament *stops*. The crying finishes and there is a silence nobody fills,
+   * and the one thing that cannot happen at the end of it is everybody arriving
+   * together on a beat.
+   *
+   * The header above spends a paragraph on there being no pulse in this music at
+   * all — the phrase is as long as the breath — and a button is the engine
+   * asserting a downbeat in the last bar to land on. 1.6 notes per song over 40
+   * seeds, which is a small number for the most wrongly-punctuated style in the
+   * genre, and small because the fall onto the tonic has usually already
+   * happened by then: what the button caught was the drone and whatever the
+   * counter was still holding. Three songs in 40 also gained an attack nobody
+   * played. See `runolaulu` for the pair.
+   */
+  ending: 'fade',
+  countIn: false,
   counterSpacing: 2,
   scaleForChord: drone('phrygian', 'mixolydian'),
   progressions: {
@@ -578,6 +615,20 @@ const karjanhuuto: Style = {
   excludeLayers: ['drums', 'brass', 'comp', 'pad', 'bass'],
   requireLayers: ['melody'],
   drumFills: false,
+  /**
+   * Every phrase is held until the breath goes, and the last one is no
+   * different. Two voices across a pasture do not land a chord together.
+   *
+   * The smallest number of the six styles that took `fade` — **0.9 notes per
+   * song over 40 seeds, and not one manufactured attack in the whole sweep** —
+   * and it is small for the reason the `excludeLayers` line above states: there
+   * are only two layers here to catch. Under one note is also exactly what makes
+   * it worth taking, because that note was the call itself, re-struck and leaned
+   * on at the end of a phrase that is supposed to be held until the breath goes.
+   * See `runolaulu` for the pair.
+   */
+  ending: 'fade',
+  countIn: false,
   counterSpacing: 2,
   scaleForChord: drone('minorPentatonic', 'majorPentatonic'),
   progressions: {
@@ -2248,6 +2299,21 @@ const konserttikantele: Style = {
   excludeLayers: ['drums', 'brass'],
   requireLayers: ['comp'],
   drumFills: false,
+  /**
+   * A kantele piece is over when the last string has stopped ringing, which is
+   * two and a half seconds after the player let go.
+   *
+   * The one of the four with a stage, a stand and a trained player, and the one
+   * where a reader might reasonably expect the concert answer — so it is worth
+   * saying that the instrument decides this rather than the room. Thirty-six
+   * strings and levers do not change what happens when the hands come off: the
+   * sound is still in the box. **2.0 notes per song** over 40 seeds, the highest
+   * of the four, because this is the only one of them whose harmony moves and
+   * therefore the only one with a real chord in the last bar for the button to
+   * find. See `runolaulu` for the pair.
+   */
+  ending: 'fade',
+  countIn: false,
   counterSpacing: 1,
   /**
    * The same instrument and a different player. `soitto` vamps because a
