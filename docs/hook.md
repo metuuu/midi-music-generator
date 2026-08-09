@@ -1,5 +1,7 @@
 # Hook
 
+*Reference, written 2026-07-25 and last revised 2026-08-03. Describes the repetition axis as it works today — the five levels, the recall mechanism and the trade — and nothing has replaced it. Trustworthy.*
+
 **How much the song repeats itself.**
 
 Hook is the axis that decides whether a listener could hum the thing afterwards. It is a level setting from 0 to 4, like [smoothness](smoothness.md), and it is deliberately independent of it.

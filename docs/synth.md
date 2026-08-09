@@ -1,5 +1,7 @@
 # Synth — the ruleset
 
+*Reference, written 2026-07-28 and revised 2026-08-01. Its six styles, three eras and five moods were re-checked against `src/genre/synth/` on 2026-08-09 and match exactly. Trustworthy. One number stated elsewhere about this genre has drifted — synth now declares six `ruleOverrides`, not the five [smoothness.md](smoothness.md) reports.*
+
 Vintage electronic music, 1972 to 1990: Vangelis, Jean-Michel Jarre, Kraftwerk, and the Tangerine Dream that had a drum machine.
 
 Organised by *what the machine is doing* rather than by dance or by feel, because that is the only thing these six styles have in common and it is what separates them from each other. A sequencer running the harmony, a sequencer running the bass, a man holding chords, a four-on-the-floor kick under a 16th figure, one ostinato repeated until it becomes threatening, and an arpeggiator on an instrument with no filter — those are six different pieces of equipment being used six different ways, and everything else follows.

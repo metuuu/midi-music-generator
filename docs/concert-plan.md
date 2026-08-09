@@ -1,5 +1,7 @@
 # The Concert — plan
 
+*Plan, written 2026-07-27 and last annotated 2026-08-03. It describes what was **intended**, not what is. **Built** — the result is described by [concert.md](concert.md), which is the page to trust. This plan predates the two largest changes to the renderer since: the staging tables moved out of `concert/` into each genre's own `staging.ts`, and rooms became one `RoomBuilder` per architecture rather than one parameterised box. Read it for the reasoning and the contracts, not as a reference.*
+
 A third page. The generator writes a set of numbers, a band walks out on a 3D stage,
 and plays them — visibly. Hands hit the drums the drums are actually being hit on.
 Then you throw tomatoes at them.

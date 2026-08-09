@@ -1,5 +1,7 @@
 # The voice lab
 
+*Reference, and the most current page in this directory after [engine-gaps.md](engine-gaps.md) — last updated 2026-08-07, against work that landed the same week. Describes the lab and the vocal machinery as they are. Trustworthy.*
+
 `npm run dev` → [localhost:5173/voice.html](http://localhost:5173/voice.html)
 
 A bench for the vocal work. Type text, hear it sung or spoken, and see exactly

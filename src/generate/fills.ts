@@ -86,8 +86,15 @@ export type FillShape =
  * One level below `TransitionPalette` in `generate/transition.ts`, which asks
  * *whether the drummer is the one announcing this join at all* — a fill is one
  * of four things that can happen at a seam, and the other three belong to the
- * band. This table is consulted only once that one has said `fill`, which for
- * every style in the catalogue is always.
+ * band. This table is consulted only once that one has said `fill`.
+ *
+ * **Which used to be always, and is now most of the time.** That sentence was
+ * true when no style declared a palette and every seam fell through to the
+ * drummer; 141 styles declare one today, 351 reach one counting the ten genre
+ * defaults, and **13.0% of planned seams come out as something other than a
+ * fill** — 354 shots, 218 elides and 170 breaks across 5,712 seams. So this
+ * table is still the common path and no longer the only one, and a reader
+ * counting fills against seams should expect the two numbers to differ.
  */
 export type FillPalette = (readonly [FillShape, number])[];
 

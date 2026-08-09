@@ -1,5 +1,7 @@
 # The Backline — plan
 
+*Plan, written 2026-07-29 and annotated through 2026-08-01. It describes what was **intended**, not what is. **Built, in annotated waves** — each wave records what it proved wrong on the way, which is the reason this file is kept. The result is on the stage; [concert.md](concert.md) is the page to trust for current behaviour. Read this for the reasoning, not as a reference.*
+
 What gear is on the stage, who is standing behind it, and what plays itself.
 
 This document settles the contracts for four connected changes: which synthesiser each

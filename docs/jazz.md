@@ -1,5 +1,7 @@
 # Jazz — the ruleset
 
+*Reference, written 2026-07-25 and substantively revised through 2026-08-01. All ten style ids, four eras and eight moods were re-checked against `src/genre/jazz/` on 2026-08-09 and match, and the chord-scale argument here is still the genre's actual mechanism. Trustworthy — with the caveat that a `Style` may now override `scaleForChord` itself, which this file predates.*
+
 Organised by feel rather than by dance, because that is how the music is actually grouped: a rhythm section asks "medium swing or bossa?", not "which dance?".
 
 Three things separate the jazz tables from the iskelmä ones, and they matter more than any individual progression.

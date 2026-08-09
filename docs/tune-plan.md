@@ -1,5 +1,7 @@
 # The Tune — plan
 
+*Plan, written 2026-07-29 and last annotated 2026-08-03. It describes what was **intended**, not what is. **Mostly built** — phases 0 through 8 shipped and the result is `src/tune/`, which is the thing to read for current behaviour; phase 9 is still open. The closing section on what the plan got wrong is the most valuable part and is the only part written after the code. Read it for reasoning, not for reference.*
+
 How a melody gets composed rather than sampled.
 
 This document settles the contracts for one change, and it is the largest one in the

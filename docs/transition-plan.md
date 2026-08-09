@@ -1,5 +1,7 @@
 # Transitions — plan
 
+*Plan, written 2026-07-31 and untouched since. It describes what was **intended**, not what is. **Built** — the result is `src/generate/transition.ts`, which is the thing to read for current behaviour. The plan predates two things that now sit beside it: `TransitionPalette` is declarable on a `Genre` as well as a `Style`, and hand-drum genres have since adopted it. Read this for the reasoning, not as a reference.*
+
 What happens at the seam between two sections, and what the band does about it.
 
 This document settles the contracts for one change: giving the whole band a vocabulary

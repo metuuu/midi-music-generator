@@ -1,5 +1,7 @@
 # Feel — plan
 
+*Plan, written 2026-07-31 and untouched since. It describes what was **intended**, not what is. **Built** — the result is `src/style/feel.ts`, which is the thing to read for current behaviour. Both halves of what it proposed exist: a style may disagree with its genre about where melody notes come from, and `FeelSpan` says how a passage is felt. Read this for the reasoning and the rejected alternatives, not as a reference.*
+
 How the band plays what it is already playing, and why the blues currently doesn't
 sound like one.
 

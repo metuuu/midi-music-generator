@@ -1,5 +1,7 @@
 # Iskelmä — the ruleset
 
+*Reference, written 2026-07-25 and lightly revised 2026-08-03 — one of the two oldest pages here, from when the project had two genres. Its seven styles, two eras and nine moods were re-checked against `src/genre/iskelma/` on 2026-08-09 and match exactly. Trustworthy, and worth reading even for another genre: iskelmä is the genre the shared rule table was calibrated against, and it is still the only one of the nineteen that declares no `ruleOverrides` at all.*
+
 Finnish dance-pavilion pop. What follows is what the generator actually encodes, and why.
 
 Iskelmä is unusually *codifiable*. It is not one groove — it is the repertoire of the Finnish dance pavilion, organised by **dance**. A band rotates tango, humppa, valssi, jenkka, foksi and a latin number, each with its own tempo band, comping figure and harmonic habits. Modelling those as separate styles is what makes the output recognisable rather than generically "sad European pop".

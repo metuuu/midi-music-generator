@@ -1,5 +1,7 @@
 # Rhythm — plan
 
+*Plan, written and annotated across 2026-08-01. It describes what was **intended**, not what is. **Built** — the result is described by [rhythm.md](rhythm.md), which is the page to trust, and §13 here records where the plan and the code diverged. That section is the reason this file is kept. Read it for reasoning, not for reference.*
+
 What the rhythm section plays, why every style's version of it sounds like every other
 style's, and the one vocabulary that four separate tables have each been spelling out
 by hand.

@@ -1,5 +1,7 @@
 # Ambient — the ruleset
 
+*Reference, written 2026-07-26 and untouched since — the oldest file in this directory, from when ambient was the third genre of four. Its style, era and mood tables were re-checked against `src/genre/ambient/` on 2026-08-09 and match exactly, so **trust the tables**. What has aged is the surrounding framing: it argues against iskelmä and jazz as though those were the only neighbours, and the engine has since grown a great deal it predates. See [engine-gaps.md](engine-gaps.md) for what was added after it.*
+
 Organised by *what the music is made of* rather than by feel or by dance, because ambient has no shared repertoire to sort. There is no standard, no dance floor and no chorus. What distinguishes one kind from another is material: a tape loop, a drone, a sequencer, a choir, a dub chord.
 
 Four things separate these tables from the iskelmä and jazz ones, and they matter far more than any individual progression.

@@ -1,5 +1,7 @@
 # Smoothness
 
+*Reference, written 2026-07-25 and last revised 2026-08-03. The constraint system itself is current and the rule count is right — 20, re-derived 2026-08-09. **The per-genre override section has drifted**: it documents three genres of the eighteen that now carry a `ruleOverrides` table, and one of its three numbers is stale — synth overrides six rules today, not the five stated below. Jazz's seven and ambient's seven are still correct. Trust the levels and the mechanism; check any genre's overrides against `src/genre/<id>/index.ts`.*
+
 `src/core/rules.ts` · full rule list in [rules.md](rules.md)
 
 Writing rules for what *should* happen only gets you so far. Much of what makes generated melody sound wrong is a short list of specific, nameable faults — an augmented second, a tritone leap, a leading tone left hanging. **20 of them are encoded as rules**, and a smoothness level decides how hard each is policed. [rules.md](rules.md) is generated from the table by `npm run rules`, so it is the count to trust.
