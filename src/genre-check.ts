@@ -3472,40 +3472,136 @@ console.log('\nMetre');
   }
 
   /**
-   * A cycle that is not the bar has to actually drift.
+   * A cycle that is not the bar has to actually drift — **per voice**, over the
+   * whole catalogue, and measured in the events rather than in the table.
    *
    * The whole point of `cycle` is that the figure and the barline disagree, and
    * the failure mode if the generators ever go back to walking bars is silent:
    * the pattern still plays, it just lands in the same place every bar and
-   * sounds like an ordinary riff. So the test is that the figure's onsets, taken
-   * modulo the bar, land in more than one place.
+   * sounds like an ordinary riff.
+   *
+   * ## Two clauses, because no single measurement of drift is both sharp and
+   * true of every row in the catalogue
+   *
+   * *"A cycled row lands in more slots of the bar than it wrote"* is false of
+   * synth's `drift-kit`, whose hat is eight even sixteenths on a cycle of 24:
+   * every stroke moves by eight and the **set** maps onto itself, so a row that
+   * drifts perfectly reports no drift. *"A cycled row's bars differ"* is false of
+   * jazz's `hat-against-five` — four sixteenths in a twenty-sixteenth bar, which
+   * fits five times exactly — and of jazz's own `ride-drift`, whose two ride
+   * strokes inside a cycle of 4 come back onto each other's slots every bar of
+   * 14. Even *"the row repeats at `lcm(cycle, bar)` and never sooner"*, which is
+   * the arithmetic upper bound, is beaten by both of those: a written row with a
+   * symmetry in it comes home early and is entitled to.
+   *
+   * So the sharp clause is stated over the **slots**, and the liveness clause is
+   * stated over the **catalogue**:
+   *
+   *  - **Every row plays exactly `{ base + at }`** for `base` stepping by that
+   *    row's own resolved cycle, `at` its written slots, struck and ghosted
+   *    alike. Absolute slots over sixteen bars, compared set to set. This is
+   *    the whole of what walking cycles per voice means, it is impossible to
+   *    satisfy by walking bars for any row whose cycle is not the bar, and it
+   *    fails on the *snare* the moment a per-voice cycle is smeared across a kit.
+   *  - **The catalogue still contains rows that outlive their bar**, and at
+   *    least one pattern in which one voice does and another does not — which is
+   *    hands on the bar and feet on a seven, asserted as a property of the
+   *    emitted events rather than of the table that asked for it.
+   *
+   * The first reproduces `cycleHits`' arithmetic on purpose, which is the
+   * opposite of what the old version of this check did with the same lines —
+   * see below.
    *
    * Ghosts drift with the figure they belong to — `DrumPattern.ghosts` says so
    * in as many words — so they are onsets here like any other. It matters more
    * than it looks: a figure whose loud strokes are sparse can carry most of its
    * shape in the quiet ones, and reading only `voices` would measure the drift
-   * of a part nobody is playing.
+   * of a part nobody is playing. `generateDrums` puts them in the same row list
+   * as the strokes, so they arrive here without being asked for.
+   *
+   * ## Two things about this were wrong, and both are the same wrongness
+   *
+   * It read `d.cycle` off one pinned pattern in one style and **re-derived the
+   * drift from the table with its own copy of `cycleHits`, then asserted a
+   * property of its own derivation** — that the arithmetic of 4 against 14
+   * produces more than two landings, which is true of arithmetic and says
+   * nothing whatever about `generateDrums`, a function it never called. The
+   * exact fault it was written to catch — the generator going back to walking
+   * bars — would have left it green, because the loop it checks is the one
+   * inside the check. Deriving the expected slots and comparing them against
+   * emitted ones uses the same arithmetic to the opposite end, which is why the
+   * clause above is allowed to look like the thing this paragraph complains
+   * about. `generateDrums` is now run, with the fill off so that nothing but the
+   * cycle walk can move a slot.
+   *
+   * And `DrumPattern.cycles` names a length per **voice**, so a check reading
+   * `d.cycle` is blind to a kit whose kick drifts under a snare that does not —
+   * which is the entire feature. Every voice of every pattern in the catalogue
+   * is resolved the way the generator resolves it: `cycles` first, then the
+   * pattern's own `cycle`, then the bar.
    */
   {
-    const style = getGenre('jazz').styles.fusion!;
-    const drifting = style.drums.find((d) => d.cycle);
-    const bars = 8;
-    const slotsPerBar = style.beatsPerBar * 4;
-    const landings = new Set<number>();
-    if (drifting) {
-      for (const slots of [...Object.values(drifting.voices), ...Object.values(drifting.ghosts ?? {})]) {
-        for (const at of slots ?? []) {
-          for (let base = 0; base < bars * slotsPerBar; base += drifting.cycle!) {
-            const slot = base + at;
-            if (slot < bars * slotsPerBar) landings.add(slot % slotsPerBar);
+    const BARS = 16;
+    const chords = Array.from({ length: BARS }, () => parseRoman('i', 'minor'));
+    let rows = 0, roaming = 0, adopting = 0, twoClocks = 0;
+    const wrong: string[] = [];
+    for (const gid of GENRE_IDS) {
+      for (const [sid, style] of Object.entries(getGenre(gid).styles)) {
+        const slotsPerBar = style.beatsPerBar * 4;
+        const total = BARS * slotsPerBar;
+        for (const pattern of style.drums) {
+          if (pattern.cycles) adopting++;
+          const events = generateDrums(
+            { chords, beatsPerBar: style.beatsPerBar, startBeat: 0, style, rng: new Rng(`cyc:${sid}`) },
+            pattern, { fillAtEnd: false, intensity: 1 },
+          );
+          const voices = new Set([
+            ...Object.keys(pattern.voices), ...Object.keys(pattern.ghosts ?? {}),
+          ] as DrumVoice[]);
+          const moving = new Set<DrumVoice>();
+          let sounding = 0;
+          for (const voice of voices) {
+            const written = [...new Set([
+              ...(pattern.voices[voice] ?? []), ...(pattern.ghosts?.[voice] ?? []),
+            ])];
+            if (!written.length) continue;
+            rows++; sounding++;
+            const cycle = Math.max(1, Math.round(
+              pattern.cycles?.[voice] ?? pattern.cycle ?? slotsPerBar,
+            ));
+            const want = new Set<number>();
+            for (let base = 0; base < total; base += cycle) {
+              for (const at of written) if (base + at < total) want.add(base + at);
+            }
+            const got = new Set(events.filter((e) => e.voice === voice)
+              .map((e) => Math.round(e.beat * 4)));
+            const where = `${gid}/${sid} ${pattern.name} ${voice} cycle=${cycle}`;
+            if (got.size !== want.size || [...want].some((s) => !got.has(s))) {
+              wrong.push(`${where}: ${got.size} strokes where the cycle wants ${want.size}`);
+            }
+            // Does this row outlive its bar? Bar one against bar zero, off the
+            // slots that were actually played, because a written row with a
+            // symmetry in it comes home sooner than `lcm(cycle, bar)` says and
+            // is entitled to — jazz's `ride-drift` and `hat-against-five` both do.
+            const inBar = (b: number) => [...got].filter((s) => Math.floor(s / slotsPerBar) === b)
+              .map((s) => s % slotsPerBar).sort((x, y) => x - y).join(',');
+            if (inBar(0) !== inBar(1)) { roaming++; moving.add(voice); }
           }
+          // Two clocks: at least one row outlives its bar and at least one does
+          // not. Counted against the rows that actually sound, so a voice
+          // declared with an empty slot list cannot make a one-clock pattern
+          // look like a two-clock one.
+          if (pattern.cycles && moving.size && moving.size < sounding) twoClocks++;
         }
       }
     }
     check(
-      'a figure on its own cycle drifts against the bar',
-      landings.size > 2,
-      drifting ? `${drifting.name} lands on ${landings.size} slots of ${slotsPerBar}` : 'no cycled pattern',
+      'every drum row walks its own cycle',
+      wrong.length === 0 && rows > 0 && adopting > 0 && twoClocks > 0,
+      wrong.length ? wrong.slice(0, 3).join('; ')
+        : `${rows} rows over the catalogue, ${roaming} outlive their bar;`
+          + ` ${adopting} pattern(s) name a cycle per voice, ${twoClocks} with`
+          + ' one voice drifting under another that does not',
     );
   }
 }

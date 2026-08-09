@@ -2545,12 +2545,21 @@ export function handStation(
  * Derived rather than declared, because declaring it means authoring a field
  * onto every drum pattern in the catalogue to record something every one of
  * them already shows: the hand is the busiest of the voices the station says it
- * may be. That was seventy-six entries when this was written and is **1005
+ * may be. That was seventy-six entries when this was written and is **951
  * now**, of which the derivation elects a hand for 640 — which is the argument
  * getting stronger rather than the sentence going stale, since the cost of the
- * alternative grew by a factor of thirteen and the derivation cost nothing. The
- * two guards are what make the derivation safe rather than merely usually
- * right —
+ * alternative grew by a factor of twelve and a half and the derivation cost
+ * nothing. (The count read 1005 here and in `docs/rhythm.md` until §3.6
+ * re-measured it. **1005 was right when it was written**, and it was not a
+ * double count: the 54 placeholder drum tables were deleted one commit earlier
+ * — each a single row that existed only so `rng.weightedBy` would not throw —
+ * and 1005 − 54 is 951. The re-measurement was correct about the number and
+ * wrong about the cause, which is worth leaving here because *falsified by the
+ * commit before* and *always wrong* want different responses: the first needs
+ * the number re-run, the second needs the method distrusted. 640 was
+ * re-measured at the same time and is unchanged.) The two guards are what make
+ * the derivation safe rather than
+ * merely usually right —
  *
  *  - **strictly busier than anything not in `keeps`**, which is what keeps jazz
  *    honest. `ride-swing` writes `hh: [4, 12]`, and that is the *foot* on two
@@ -2682,6 +2691,39 @@ function varyPattern(pattern: DrumPattern, v: KitVariation): DrumPattern {
   const hits = pattern.voices[v.on];
   if (!hits?.length) return pattern;
 
+  /**
+   * A hand on its own clock keeps it, and cannot be poured into a row that has
+   * another one. See `DrumPattern.cycles`.
+   *
+   * Thinning is safe at any cycle — half the strokes of a seven is still a seven
+   * — so the only question this asks is about the two gestures that *move*
+   * hits: a lift to the ride, and an open hat. Both merge one row into another,
+   * and two figures of different lengths summed into one row is not a hand
+   * varying a groove, it is a third pattern with a beat frequency in it.
+   *
+   * Declined rather than repaired, and rather than guarded further upstream. The
+   * plan has already been drawn by the time this runs, so returning the pattern
+   * unvaried costs no random number and hands back exactly the figure the plan
+   * was made against — the same thing this function already does when the hand
+   * turns out to have no hits. Repairing it would mean choosing which of the two
+   * clocks the merged row is on, and there is no answer to that question: the
+   * style wrote both of them on purpose.
+   *
+   * `pattern.cycle` is the comparison's floor on both sides, so a voice that
+   * names nothing is compared at the kit's own length and a kit that names
+   * nothing compares `undefined` to `undefined`. A destination that is neither
+   * struck nor named in `cycles` has no clock to disagree with and simply takes
+   * the hand's; a destination named in `cycles` and struck nowhere is a table
+   * typo, and it is cheaper to let it refuse the lift than to let the merge be
+   * the first place it means anything.
+   */
+  const clockOf = (voice: DrumVoice) => pattern.cycles?.[voice] ?? pattern.cycle;
+  const occupied = (voice: DrumVoice) =>
+    Boolean(pattern.voices[voice]?.length) || pattern.cycles?.[voice] !== undefined;
+  const dests = [v.to ?? v.on, ...(v.open ? [v.open.as] : [])];
+  if (pattern.cycles && dests.some((d) => d !== v.on && occupied(d)
+    && clockOf(d) !== clockOf(v.on))) return pattern;
+
   const kept = v.thin ? hits.filter((_, i) => i % 2 === 0) : hits;
   const opened = new Set(v.open?.at ?? []);
   const hand: number[] = [];
@@ -2717,6 +2759,7 @@ function varyPattern(pattern: DrumPattern, v: KitVariation): DrumPattern {
    * struck hits and there is no index that reaches this list.
    */
   const varied: DrumPattern = { ...pattern, voices };
+
   const ghosted = pattern.ghosts?.[v.on];
   if (ghosted?.length) {
     const ghosts: Partial<Record<DrumVoice, number[]>> = { ...pattern.ghosts };
@@ -2727,6 +2770,24 @@ function varyPattern(pattern: DrumPattern, v: KitVariation): DrumPattern {
       ghosts[to] = [...new Set([...(ghosts[to] ?? []), ...moved])].sort((a, b) => a - b);
     }
     varied.ghosts = ghosts;
+  }
+
+  /**
+   * …and so does the hand's clock, for the first of the two reasons above.
+   *
+   * A hand that has moved to the ride and left its own figure length behind on
+   * the hat is playing a different figure on a different cymbal, which is the
+   * two-hands-on-two-cymbals fault two paragraphs up wearing a `cycle`. The
+   * guard at the top of this function has already refused the only case where
+   * the destination could disagree, so this is a move rather than a merge and
+   * there is nothing here to reconcile. See `DrumPattern.cycles`.
+   */
+  const clock = pattern.cycles?.[v.on];
+  if (clock !== undefined) {
+    const cycles: Partial<Record<DrumVoice, number>> = { ...pattern.cycles };
+    delete cycles[v.on];
+    for (const d of dests) if (voices[d]?.length) cycles[d] = clock;
+    varied.cycles = cycles;
   }
 
   /**
@@ -2952,14 +3013,37 @@ export function generateDrums(
 
   for (const { voice, slots, ghost } of rows) {
     const rolled = rolls?.[voice];
+    /**
+     * How long *this row's* figure is. See `DrumPattern.cycles`.
+     *
+     * The whole of that feature is this expression, and the reason it is one
+     * expression is that `rows` above is already a list of one row per voice —
+     * a ghost row carries the voice it belongs to, so it resolves to the same
+     * number as the strokes it sits under and drifts with them, which is what
+     * `ghosts` promises in as many words.
+     *
+     * Three fallbacks rather than two, and the order is the claim: a voice that
+     * names its own length gets it, a kit that names one length gets that, and
+     * everything else is the bar. So a pattern writing no `cycles` hands this
+     * loop the identical number it was handed before the field existed, at every
+     * voice of every figure in the catalogue.
+     */
+    const cycle = figure.cycles?.[voice] ?? figure.cycle ?? slotsPerBar;
     for (const { hit, slot } of cycleHits(slots.map((at) => ({ at })), {
-      cycle: figure.cycle ?? slotsPerBar, bars, slotsPerBar,
+      cycle, bars, slotsPerBar,
     })) {
       // Clear exactly as much of the bar as the fill actually occupies — which
       // used to be hardcoded to half a bar whatever was played there. The kick
       // keeps going: a drummer's right foot does not stop for a fill. A ghosted
       // kick keeps going with it — the fill takes the hands away, and the
       // exemption was always about the foot rather than about how hard it plays.
+      //
+      // A foot on its own `cycles` entry needs exactly this and gets it for
+      // free: a drifting figure that stopped for the fill and restarted after it
+      // would come back in the wrong phase, and would come back in a *different*
+      // wrong phase in every section, which is the one thing a two-clock kit
+      // cannot survive. The voice this field was asked for is the voice that has
+      // been exempt since before it existed.
       if (slot >= clearFrom && voice !== 'bd') continue;
       const inBar = slot % slotsPerBar;
       const strength = accentOf(inBar, slotsPerBar, style.groups);

@@ -522,9 +522,142 @@ export interface DrumPattern {
   rolls?: Partial<Record<DrumVoice, Record<number, number>>>;
   /**
    * The length of the repeating figure in sixteenths, where it is not the bar.
-   * See `Cycle`.
+   * See `Cycle`, and `cycles` below where one voice disagrees with the rest of
+   * the kit about the answer.
    */
   cycle?: number;
+  /**
+   * …and the length of *one voice's* figure, where that voice is on a different
+   * clock from the others. Overrides `cycle` for the rows it names and for
+   * nothing else.
+   *
+   * `docs/engine-gaps.md` §3.6. **Djent is hands on the bar and feet on a
+   * seven**: the drummer keeps an ordinary 4/4 backbeat over a riff seven
+   * sixteenths long, and the kick runs with the riff rather than with the
+   * backbeat. One number for the whole kit cannot say that, and metal's `djent`
+   * header wrote the compromise down in exactly the shape of the thing it
+   * wanted — *"the kick would have to carry a cycle of 7 while the snare carried
+   * 16, and that is two patterns."* It is one pattern with two clocks in it,
+   * which is what this field is. The seven was carried by the guitar and the
+   * bass instead, and the kit stated the grouping and stayed bar-shaped.
+   *
+   * ## The third field of this shape, and that is the argument for it
+   *
+   * `ghosts` and `rolls` are both `Partial<Record<DrumVoice, …>>` hung beside
+   * `voices`, read off the same slot indices, and carried through `varyPattern`
+   * with the hand. This is the same thing a third time, and the repetition is
+   * the evidence rather than a smell: a `DrumPattern` is already **a set of
+   * rows, one per voice**, and every property a figure has turns out to be a
+   * property of a row. `generateDrums` builds that list of rows explicitly and
+   * walks it once, so the whole of the implementation here is which number the
+   * walk is handed — `figure.cycles?.[voice] ?? figure.cycle ?? slotsPerBar`,
+   * one expression, in the one place a cycle was ever read for the kit.
+   *
+   * The thing that made `cycle` a whole-kit number was never a musical claim,
+   * and the history says so plainly: `cycleHits` and the drum generator's one
+   * read of `cycle` both landed in `95b3120` on **2026-07-28**, and the row list
+   * they now walk arrived seven days later in `ebdcf02`, built for `ghosts`. The
+   * cycle was whole-kit because when it was written there was nothing smaller
+   * for it to belong to.
+   *
+   * ## What stays whole-kit, and why each one is right
+   *
+   *  - **The bar.** `Cycle` already lists the three things a drifting figure
+   *    does not move — chords change on the barline, voicings are led per bar,
+   *    and a fill belongs to the last *bar*. None of them become per-voice here,
+   *    because none of them are properties of a voice.
+   *  - **The accent.** `accentOf` reads `slot % slotsPerBar` and keeps doing so,
+   *    so a drifting kick takes the weight of wherever in the bar it lands
+   *    rather than carrying its own downbeat around with it. That is what a
+   *    drummer's foot does against a metre the hands are still stating, and it
+   *    is the half of this that a per-voice `groups` would get wrong.
+   *  - **The fill.** The clear loop already exempts the kick — *a drummer's
+   *    right foot does not stop for a fill* — which was written for a bar-shaped
+   *    kick and is exactly what a drifting one needs. A foot that stopped and
+   *    restarted at the fill would come back in the wrong phase, and the one
+   *    voice this field was asked for is the one voice already exempt.
+   *
+   * ## What the catalogue says about the whole-kit number
+   *
+   * **103 of the 951 drum patterns carry a `cycle`, and 9 of them drift.** The
+   * other 94 are `cycle: 32` against a sixteen-slot bar — two-bar figures, where
+   * every onset lands on the same slot of the bar every time — which is the
+   * field being used to write a longer pattern rather than a disagreeing one.
+   * The nine that genuinely land in more than one place are jazz's `ride-drift`,
+   * synth's `drift-kit`, `hat-against-four` and `drift-backbeat`, hiphop's
+   * `walking-percussion`, dnb's `dotted-hat`, house's `twelve-perc` and
+   * `twentyfour-perc`, and jazz's `hat-against-five`.
+   *
+   * **Seven of the nine are named after a single voice**, and what they had to
+   * do about it is the whole argument for this field, in three shapes:
+   *
+   *  - **Two are that voice and nothing else.** `dotted-hat` and
+   *    `hat-against-four` write `hh` and no other row, so a section that draws
+   *    one plays **hats alone, with no kick and no snare at all** — measured,
+   *    not inferred, and `dotted-hat` is 6 of 18 in dnb's `halftime`, a third of
+   *    its sections. That is the price of drifting one row when the cycle is
+   *    whole-kit: delete the rest of the kit.
+   *  - **Two are two hand voices and no drum.** `ride-drift` and
+   *    `hat-against-five` are `rd` and `hh` together — the pattern is entirely
+   *    the pair that was supposed to drift, and the backbeat is simply absent.
+   *  - **Three drag a kick along.** `walking-percussion`, `twelve-perc` and
+   *    `twentyfour-perc` each write `bd` beside the percussion row they are
+   *    named for, so the foot is on 12 or 24 because the güira is.
+   *
+   * The two that are not named after a voice — `drift-kit` and `drift-backbeat`
+   * — say `kit` and mean it. So **seven of the nine patterns in this project
+   * that use `cycle` for drift wrote a per-voice intention into a whole-kit
+   * number**, across five genres, and paid for it in deleted rows. They are
+   * deliberately **left alone**: they are tables somebody tuned by ear and they
+   * sound like what they sound like. The next one has somewhere to put it.
+   *
+   * ## …and where the analogy with those two stops: there is no source gate
+   *
+   * `ghosts` is refused to a preset box and `rolls` is allowed only to a
+   * `programmed` machine, both because they are claims about a *technique* — a
+   * stick let down from an inch away, a step retriggered inside itself — and a
+   * box has no button for either. A cycle is not a technique. It is how long the
+   * figure is, and **a step sequencer with a settable pattern length is the most
+   * literal machine there is for playing one**: a seven-step pattern running
+   * against a four-four song is what that control was put on the front panel to
+   * do. So every source plays this, and djent's own output already exercises it:
+   * of five seeds probed, three drew the drifting figure, and **one of those
+   * three came out `programmed` while the other two came out `kit`** — all three
+   * drift, and the kick falls from 4.96 strokes a bar to 4.56–4.59 in every one
+   * of them.
+   *
+   * ## `varyPattern` moves it with the hand
+   *
+   * A hand that thins stays on its own clock; a hand that moves to the ride
+   * takes its clock with it, for the same reason it takes its ghosts and its
+   * rolls. The one case that cannot be carried is a merge onto a row that is
+   * already on a different clock — two figures of different lengths summed into
+   * one row is not a varied hand, it is a third pattern — and the variation is
+   * **declined** there rather than approximated. It costs no random number:
+   * `planKitVariation` has already drawn by then, and declining returns the
+   * pattern the plan was made against.
+   *
+   * The realistic use never reaches any of that. A hand is only ever elected
+   * from `HandStation.keeps`, which is the cymbals and the brushes on a kit and
+   * the pieces on the stand at a hand station, and the kick and the snare are in
+   * neither — so feet on a seven and hands on the bar, the case this was built
+   * for, cannot meet the merge at all.
+   *
+   * ## Worked example
+   *
+   * ```ts
+   * { name: 'seven-foot', weight: 6, voices: {
+   *     // The riff's own accent, two strokes inside a seven, and it keeps
+   *     // running when the bar turns over.
+   *     bd: [0, 3],
+   *     // The backbeat, which is in 4/4 and stays there.
+   *     sd: [4, 12],
+   *     hh: [0, 2, 4, 6, 8, 10, 12, 14],
+   *   },
+   *   cycles: { bd: 7 } }
+   * ```
+   */
+  cycles?: Partial<Record<DrumVoice, number>>;
 }
 
 /**
@@ -557,6 +690,13 @@ export interface DrumPattern {
  *
  * Absent means the figure is the bar, which is what almost every dance rhythm
  * in the catalogue actually is. Leave it absent unless the drift is the idea.
+ *
+ * **On a kit it is a default rather than the answer.** A drum figure is a set of
+ * rows and the rows may disagree — hands on the bar and feet on a seven is a
+ * whole idiom — so `DrumPattern.cycles` names a length per voice and this is
+ * what the voices it does not name get. Nothing above changes: a per-voice
+ * cycle still takes the chord it lands in, still gives way to the fill in the
+ * last bar, and still accents with the bar it is drifting against.
  */
 
 /**

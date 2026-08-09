@@ -1802,15 +1802,45 @@ const progressive: Style = {
  * makes the figure actually drift rather than merely be written down as if it
  * did.
  *
- * ## What could not be expressed
+ * ## The kit does both halves now — `docs/engine-gaps.md` §3.6
  *
- * The kit cannot do both halves. `DrumPattern.cycle` is one number for the whole
- * pattern, so a drummer with hands on the bar and feet on the seven — which is
- * precisely what these records have — is inexpressible: the kick would have to
- * carry a cycle of 7 while the snare carried 16, and that is two patterns. The
- * kit below therefore stays bar-shaped and states the grouping instead, and the
- * seven is carried by the guitar and the bass, which is where a listener locates
- * it anyway.
+ * This header used to end with what could not be expressed, and it was right:
+ * `DrumPattern.cycle` was one number for the whole pattern, so a drummer with
+ * hands on the bar and feet on the seven — which is precisely what these records
+ * have — needed the kick to carry a cycle of 7 while the snare carried 16, *and
+ * that is two patterns*. The kit stayed bar-shaped and stated the grouping, and
+ * the seven was carried by the guitar and the bass alone.
+ *
+ * `DrumPattern.cycles` is a length per **voice**, and `seven-foot` below is one
+ * pattern with two clocks in it: `bd: [0, 3]` on `cycles: { bd: 7 }`, under a
+ * backbeat on 4 and 12 and eighths on the hat that are still in 4/4.
+ *
+ * **The row this replaces was the drift written out for one bar.** It was
+ * `bd: [0, 3, 7, 10, 14]`, which is `[0, 3]` stepped by seven — 0, 3, 7, 10, 14
+ * — and then stopped at the barline and started again. So the first bar of every
+ * section is unchanged, note for note, and what the field bought is bars two
+ * onwards: the foot goes to 1, 5, 8, 12, 15, then 3, 6, 10, 13, and comes home
+ * at bar seven, which is the same 112 sixteenths the guitar takes. **Over seven
+ * bars the kick uses all sixteen slots of the bar, against five before.**
+ *
+ * **And the foot and the guitar agree rather than fight**, which was the thing
+ * worth measuring before writing it. Both cycles are phased from the top of the
+ * section and both step by seven, so 0 and 3 are the same 0 and 3 the chug plays
+ * every time: **37 of 37 kick onsets land on a guitar onset over eight bars,
+ * against 35 of 40 for the bar-shaped row.** The five that used to miss were the
+ * barline reset, which is the whole of what was wrong with it.
+ *
+ * One consequence, named because it is audible and is not a fault: `accentOf` is
+ * bar-shaped and stays that way, so a drifting kick takes the weight of wherever
+ * in the bar it lands rather than carrying its own downbeat around. The mean
+ * kick velocity falls from 0.803 to 0.726 across those eight bars — the foot
+ * spends less of its time on a group head, because it is no longer pinned to
+ * one. That is a drummer's foot running against a metre the hands are still
+ * stating, which is the sound this style is named for.
+ *
+ * `half-time` and `double-kick`, the other two rows in the table, are shared
+ * with the rest of the genre and stay bar-shaped. The two clocks are what
+ * `seven-foot` is for, and it is the heaviest weight of the three.
  */
 const djent: Style = {
   id: 'djent',
@@ -1879,11 +1909,15 @@ const djent: Style = {
     downpick(2),
   ],
   drums: [
-    { name: 'grouping-kit', weight: 6, voices: {
-      bd: [0, 3, 7, 10, 14],
+    // Hands on the bar, foot on the seven. The kick is the riff's own two
+    // accents inside a cycle of seven and keeps running when the bar turns
+    // over; the snare and the hat are in 4/4 and stay there. See the header,
+    // and `DrumPattern.cycles`.
+    { name: 'seven-foot', weight: 6, voices: {
+      bd: [0, 3],
       sd: [4, 12],
       hh: [0, 2, 4, 6, 8, 10, 12, 14],
-    } },
+    }, cycles: { bd: 7 } },
     halfTime(4),
     doubleKick(3),
   ],
