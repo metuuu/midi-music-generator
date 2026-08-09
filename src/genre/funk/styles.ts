@@ -217,13 +217,13 @@ const vamp: Style = {
      *
      * **The ♭7 is back below the root at −2**, where `the-one` above puts it and
      * where the gesture is: the drop off the root, not a note in the octave over
-     * it. It sat at 10 from the day this table was written, and that was
-     * arithmetic rather than taste:
-     * a shape from −2 to +12 spans fourteen, and the placement of the day put
-     * the root within a tritone of MIDI 40 and repaired by whole octaves, so
-     * there was one root position — F, at 41 — where neither direction fitted
-     * and the top note was clamped. A clamped note is a *flattened* figure,
-     * which is the one damage the numeric spelling exists to prevent.
+     * it. It sat at 10 from the day this table was written and that was
+     * arithmetic rather than taste: a shape from −2 to +12 spans fourteen, and
+     * the placement of the day put the root within a tritone of MIDI 40 and
+     * repaired by whole octaves, so there was one root position — F, at 41 —
+     * where neither direction fitted and the top note was clamped. A clamped
+     * note is a *flattened* figure, which is the one damage the numeric
+     * spelling exists to prevent.
      *
      * That placement is gone. `placeRoot` scores every octave of the root
      * against the whole span, the reach it scores against is 35 semitones, and
