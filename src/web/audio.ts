@@ -207,8 +207,7 @@ export async function pausePlayback(): Promise<void> {
  * A bound rather than a promise, because a stalled CDN must not hold the
  * curtain: an opening bar that is thin is a disappointment, a stage that never
  * starts is a bug. Generous enough that it only ever catches a black hole and
- * never a merely slow link — a whole band is well under a megabyte, fetched in
- * parallel — and the loads that miss it are not cancelled, they simply stop
+ * never a merely slow link — and the loads that miss it are not cancelled, they simply stop
  * being waited for and arrive during the first bars.
  */
 const PRELOAD_SECONDS = 6;
@@ -218,10 +217,23 @@ const PRELOAD_SECONDS = 6;
  *
  * **Nothing in Strudel loads a sound until a hap triggers it.**
  * `registerSoundfonts` registers a callback and no audio; `samples()` fetches
- * the map of URLs and no audio. The instrument itself — 25 to 200 kB per
- * soundfont, one WAV per drum voice — is fetched *inside* the trigger, on the
- * beat it is first needed. So the opening of a number arrives while its band is
- * still on the wire, and what is heard depends on which requests won the race.
+ * the map of URLs and no audio. The instrument itself is fetched *inside* the
+ * trigger, on the beat it is first needed. So the opening of a number arrives
+ * while its band is still on the wire, and what is heard depends on which
+ * requests won the race.
+ *
+ * **How much is on that wire, measured rather than guessed.** This said "25 to
+ * 200 kB per soundfont" and that a whole band is "well under a megabyte". Over
+ * the 115 bank-0 fonts the catalogue actually reaches: median **71 kB**, mean
+ * 151 kB, from 2.7 kB for `gm_synth_drum` to **1,338 kB** for `gm_harpsichord`
+ * — 27 of the 115 are over 200 kB, so the stated range holds for barely half of
+ * them. Per song the melodic band runs to a median of **696 kB** and a p90 of
+ * 1.5 MB, with **29% of songs over a megabyte** before a single drum, and the
+ * kit adds a median eight voices at roughly 118 kB each. A typical number is
+ * about 1.6 MB of assets and the worst is near 4 MB.
+ *
+ * That is not an argument against the preload — it is the argument *for* it,
+ * and for anything downstream that has to budget rather than shrug.
  *
  * The two loaders lose that race differently and both badly. The soundfont one
  * awaits the fetch and then calls `start()` with a time that has long since
@@ -258,11 +270,28 @@ async function warm(song: Song): Promise<void> {
   const loads: Promise<unknown>[] = [];
 
   for (const track of song.tracks) {
-    // Bank 0 rather than a choice: the renderer never emits `.n()`, so that is
-    // the one the trigger will pick. No entry at all means this part is not a
-    // soundfont — a sung line rides an oscillator, which needs no loading.
+    /**
+     * Bank 0 rather than a choice: the renderer never emits `.n()`, so that is
+     * the one the trigger will pick.
+     *
+     * **No entry does not mean no audio, which is what this comment used to
+     * say.** It read *"a sung line rides an oscillator, which needs no
+     * loading"*, and that is true of the sung line and of nothing else:
+     * **seven of the 126 catalogue instruments have no GM font** — `kantele`,
+     * `pipeOrgan`, `pipeOrganQuiet`, `steinway`, `dantranh`, `strumstick` and
+     * `balafon` — and every one of them is a VCSL *sample* name that plays
+     * perfectly well. They were skipped here, so they alone were never
+     * preloaded and lost the race on the downbeat that this whole function
+     * exists to win. `samples()` has already registered them by the time this
+     * runs, so warming them is the same call with a name instead of a font.
+     */
     const font = GM_FONTS[track.strudelSound]?.[0];
-    if (!font) continue;
+    if (!font) {
+      // A registered sample name. `getSound` resolves it the way the trigger
+      // will, and touching it is enough to start the fetch.
+      loads.push(Promise.resolve(getSound(track.strudelSound)).catch(() => undefined));
+      continue;
+    }
     for (const midi of new Set(track.notes.map((n) => n.midi))) {
       loads.push(getFontBufferSource(font, { note: midi }, ctx));
     }

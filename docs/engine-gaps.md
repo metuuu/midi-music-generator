@@ -336,6 +336,37 @@ It is quoted rather than deleted, because it is the third entry in this one pass
 
 **Nothing was built for this and nothing should have been.** The whole cost of the entry was a list saying the stage could not do something it has been doing in every sung number in the catalogue — and, at the top of this document, a "tail" that was one item longer than it really was.
 
+### 3.21 The audition strikes a drone once a bar, and every entry above was heard through it
+
+**A new kind of entry, and the reason it is worth its own number.** Everything else in this document is something a genre author could not *say*. This is something the engine says correctly and **the audition discards on the way to the speaker** — so it is invisible from inside the tables, and it has been sitting under every by-ear judgement anyone has made about this catalogue.
+
+`buildNoteGrid` cannot open a bar group with a sustain marker, because that is a parse error in mini-notation. So a note crossing a barline is **re-stated** at the barline instead of continued. Verified against emitted output rather than reasoned about: `ambient`/`drone` at seed `padproof` holds one pad chord for **64 beats** in the IR, and the audition emits
+
+```
+[[b2,d4,a4] _ _ _ _ _ _ _ _ _ _ _ _ _ _ _]
+[[b2,d4,a4] _ _ _ _ _ _ _ _ _ _ _ _ _ _ _]
+…
+```
+
+— **sixteen attacks, each with its own envelope, where the IR says one held drone.**
+
+**Measured over 380 songs, by layer.** The audition changes the sounding length of **37.7% of all notes** (mean error 0.071 beats), because `end = slotOf(beat + duration)` rounds every duration to a sixteenth. Split by whether the instrument sustains, it is 49.7% against 22.6%. And the re-articulation:
+
+| layer | notes | length changed | re-attacked at a barline |
+|---|---|---|---|
+| pad | 50,623 | **95.7%** | **50.5%** |
+| melody | 84,374 | 90.3% | 8.5% |
+| comp | 368,045 | 22.3% | 2.9% |
+| bass | 152,497 | 19.4% | 2.0% |
+
+Across 30 ambient songs the audition fires **1.34× more attacks than the IR has notes**.
+
+**The layer the layered-ambient goal is built on is the layer the audition is least faithful to.** `.mid` has the exact lengths and always has, so this is a disagreement between renderers rather than a fault in the music — which is precisely why nobody found it: every check in the suite reads the IR or the emitted text, and both are correct.
+
+**It cannot be fixed inside `render/strudel.ts`**, and that is the finding rather than a caveat. The constraint is mini-notation's, not this project's. It is the single strongest argument for the native player scoped in `docs/architecture.md`, and it comes with a free acceptance test: a 64-beat drone must sound **once**.
+
+One accidental mercy worth recording before it is lost. Because the audition re-attacks the pad at every barline, the audition page's layer chips — which mute by re-rendering — currently land within a bar, 2.03 to 4.36 seconds in ambient. **Fixing the fidelity makes that strictly worse**, up to 64 beats, so the runtime gain path and the faithful player have to arrive together.
+
 ---
 
 ## 4. Small warts
