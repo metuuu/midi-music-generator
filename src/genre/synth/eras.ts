@@ -306,25 +306,34 @@ const polysynth: EraProfile = {
     // held-chord half of this repertoire: a string patch that arrives at its
     // brightness rather than starting there is the difference between a pad
     // entering and a pad being switched on.
-    pad: { reverb: 0.75, lowpass: 6000, swell: 1.2 },
+    pad: { reverb: 0.75, lowpass: 6000, filterEnv: { octaves: 1.2, shape: 'swell' } },
     comp: { reverb: 0.55, lowpass: 6500 },
     /**
      * The CS-80 line, in the two numbers the instrument is actually remembered
      * for. `glide` is the ribbon controller under the keyboard — the slide onto
      * the note that is the single most identifiable gesture in this era's film
-     * writing — and `swell` is per-key aftertouch, which no other synthesiser
-     * of the decade had and which is why leaning on a held note here opens it
-     * up instead of merely sustaining it.
+     * writing — and `filterEnv`'s `swell` shape is per-key aftertouch, which no
+     * other synthesiser of the decade had and which is why leaning on a held
+     * note here opens it up instead of merely sustaining it.
      *
-     * Both land on the whole era rather than on `cinematic`, because effects
-     * live on eras and styles have no `effects` of their own. That is the same
-     * limitation `keyChangeChance` runs into above and it is handled the same
-     * way — put the number where the style is most likely to be drawn. The
-     * spill is not damaging: `berlin`'s lead is a polysynth in 1981 too, and a
-     * two-and-a-half semitone slide at eighty milliseconds is a slur rather
-     * than a siren.
+     * Both land on the whole era rather than on `cinematic`, and **that is now
+     * a choice rather than a wall.** This paragraph used to say styles have no
+     * `effects` of their own and to file it beside `keyChangeChance` as a
+     * limitation worked around by putting the number where the style is most
+     * likely to be drawn. `Style.effects` has existed for some time and the
+     * sentence went stale where it stood. The numbers stay here anyway, because
+     * that field's own docstring draws the line in the right place: a style
+     * reaches for it when *the treatment is the piece*, and a ribbon controller
+     * and per-key aftertouch are neither a treatment nor a piece — they are two
+     * things that are true of the keyboards on the stand between 1977 and 1983,
+     * which is exactly what an era is for. The spill is not damaging either:
+     * `berlin`'s lead is a polysynth in 1981 too, and a two-and-a-half semitone
+     * slide at eighty milliseconds is a slur rather than a siren.
      */
-    melody: { reverb: 0.6, delay: 0.3, lowpass: 8000, resonance: 0.22, glide: 2.5, swell: 2 },
+    melody: {
+      reverb: 0.6, delay: 0.3, lowpass: 8000, resonance: 0.22, glide: 2.5,
+      filterEnv: { octaves: 2, shape: 'swell' },
+    },
     counter: { reverb: 0.65, delay: 0.4, lowpass: 7000, resonance: 0.2 },
     bass: { reverb: 0.08, lowpass: 1000, resonance: 0.18 },
     drums: { reverb: 0.35, lowpass: 3600 },

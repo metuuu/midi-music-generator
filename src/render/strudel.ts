@@ -514,6 +514,36 @@ const GLIDE_SECONDS = 0.08;
 const SWELL_SECONDS = 1.5;
 
 /**
+ * How fast a wah snaps open and how fast it shuts, in seconds.
+ *
+ * The other end of the same envelope, and the numbers are a physical box's
+ * rather than a bar's — `GLIDE_SECONDS`' argument and `DUCK_ONSET_SECONDS`'. A
+ * Mu-Tron III has no tempo control; it has a threshold and a peak switch, and
+ * what it does to the eighth note at 92 BPM it does to the sixteenth at 126.
+ *
+ * **10 ms up**, against superdough's own filter default of 5. The gesture is the
+ * *attack* — it has to land inside the note's own transient or the filter opens
+ * after the ear has already decided what the note sounds like — and the reason
+ * to be a little slower than the default is that the filter is downstream of a
+ * *sampled* note whose transient is already recorded, so a step that fast is a
+ * second attack rather than a shape on the first. It costs nothing: funk
+ * generates 67–127 BPM, where a sixteenth runs 118–224 ms, so ten milliseconds
+ * is under a twelfth of the shortest note in the genre.
+ *
+ * **140 ms down**, which is superdough's default decay exactly, and that is not
+ * a coincidence worth hiding: the 150 ms open-and-shut that `SWELL_SECONDS`'
+ * companions exist to *suppress* is a factory envelope filter. It also lands
+ * where the music does. Against that same 118–224 ms sixteenth the filter is
+ * home again by the next one, so the bar gets a separate event on every onset —
+ * which is what makes this per note rather than a section sweep with a faster
+ * clock. A note shorter than the two together gets the front of the shape and no
+ * more, because `getParamADSR` squeezes the envelope into the note's own length,
+ * and that is what the pedal does to a ghost note too.
+ */
+const WAH_ATTACK_SECONDS = 0.01;
+const WAH_DECAY_SECONDS = 0.14;
+
+/**
  * Effects, as superdough controls.
  *
  * Reverb and delay are *sends*: the size of the room and the length of the echo
@@ -552,7 +582,7 @@ const SWELL_SECONDS = 1.5;
  *
  * ## The two envelopes, and why they reach a soundfont at all
  *
- * `glide` and `swell` are the only things in this chain that modulate a note
+ * `glide` and `filterEnv` are the only things in this chain that modulate a note
  * *while it sounds*, and the reason they can is worth stating because it is not
  * obvious from the outside: `@strudel/soundfonts` looks like a closed sampler,
  * but its `registerSound` hands its buffer source's `detune` to superdough's
@@ -567,14 +597,23 @@ const SWELL_SECONDS = 1.5;
  *    the note, which is what the field says. `pcurve` is left at its linear
  *    default: an exponential ramp in cents cannot pass through zero, and zero
  *    is where every one of these has to finish.
- *  - **`.lpenv(n)` is in octaves, and needs three companions to be a swell
- *    rather than a blip.** superdough's filter ADSR defaults to `sustain: 0`,
+ *  - **`.lpenv(n)` is in octaves, and the companions are what pick the
+ *    gesture.** superdough's filter ADSR defaults to `[0.005, 0.14, 0, 0.1]`,
  *    so `lpenv` alone opens the filter and shuts it again inside 150 ms.
- *    `lpsustain(1)` is what makes it stay open; the decay is set short and
- *    harmless because with full sustain it has nothing to do. `fanchor(1)` is
- *    the load-bearing one: it puts the sweep's *top* at the written cutoff and
- *    its bottom `n` octaves below, so the note climbs to the brightness the era
- *    asked for instead of overshooting it into empty spectrum. See `swell`.
+ *    `FilterEnvelope` has two shapes and this is exactly the knob between them.
+ *    `lpsustain(1)` is what makes a **swell** stay open, and its decay is set
+ *    short and harmless because with full sustain it has nothing to do;
+ *    `lpsustain(0)` and a short attack are what make a **wah**, which is that
+ *    same default said out loud rather than suppressed. `fanchor(1)` is the
+ *    load-bearing one for both: it puts the envelope's *top* at the written
+ *    cutoff and its bottom `n` octaves below, so the note reaches the brightness
+ *    the era asked for instead of overshooting it into empty spectrum.
+ *
+ *    Emitted as **one line whichever shape it is**, and that is the point rather
+ *    than a saving: superdough has one filter envelope per part, and a chain
+ *    that could write two `.lpenv()` calls would be a chain where the second
+ *    silently wins. See `FilterEnvelope` for why the IR makes that
+ *    unrepresentable a level up.
  */
 function effectChain(fx: Effects | undefined, song: Song, lpf?: string, bent?: boolean): string[] {
   if (!fx) return [];
@@ -589,11 +628,13 @@ function effectChain(fx: Effects | undefined, song: Song, lpf?: string, bent?: b
   else if (fx.lowpass !== undefined) out.push(`    .lpf(${Math.round(fx.lowpass)})`);
   // Inert without a cutoff to open from, and superdough builds no filter at all
   // in that case — so this is skipped rather than emitted and ignored.
-  if (fx.swell && (lpf !== undefined || fx.lowpass !== undefined)) {
-    out.push(
-      `    .lpenv(${fx.swell.toFixed(2)}).lpattack(${SWELL_SECONDS})`
-      + `.lpdecay(0.01).lpsustain(1).fanchor(1)`,
-    );
+  if (fx.filterEnv?.octaves && (lpf !== undefined || fx.lowpass !== undefined)) {
+    const { octaves, shape } = fx.filterEnv;
+    out.push(shape === 'swell'
+      ? `    .lpenv(${octaves.toFixed(2)}).lpattack(${SWELL_SECONDS})`
+        + `.lpdecay(0.01).lpsustain(1).fanchor(1)`
+      : `    .lpenv(${octaves.toFixed(2)}).lpattack(${WAH_ATTACK_SECONDS})`
+        + `.lpdecay(${WAH_DECAY_SECONDS}).lpsustain(0).fanchor(1)`);
   }
   if (fx.highpass !== undefined) out.push(`    .hpf(${Math.round(fx.highpass)})`);
   if (fx.resonance !== undefined) out.push(`    .resonance(${(fx.resonance * 20).toFixed(1)})`);

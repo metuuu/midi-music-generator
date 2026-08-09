@@ -2018,6 +2018,76 @@ console.log('\nSynth');
     `${stray} of ${strayNotes} notes carried one`);
 
   /**
+   * 2b. The wah is on the bass, in the two eras that own it, and nowhere else.
+   *
+   * Read out of the **emitted audition** rather than off `Track.effects`, for
+   * the reason §3.18a cost this project a day: a check that reads the intention
+   * is not a check. What has to be true is that a `.lpenv()` line with
+   * `.lpsustain(0)` on it reaches the file, on the layer that declared it, in
+   * the years that declared it — and `effectChain` skips the whole envelope when
+   * the part has no cutoff to open toward, which is a silent no-op that reading
+   * the IR would never see.
+   *
+   * Both directions, because only one of them rots quietly. `pfunk` and
+   * `boogie` must carry it on every song — a genre-level table change or a
+   * palette losing its `lowpass` would take the gesture off 46% of this genre
+   * without failing anything else — and `jb` and `electro` must carry none,
+   * because the date argument in `eras.ts` is the entire justification for the
+   * field being there rather than on `Genre`.
+   *
+   * The second assertion is the structural one: **no part may emit two
+   * `.lpenv()` calls**. superdough has one filter envelope per part,
+   * `render/strudel.ts` documents that the second call of one control silently
+   * wins, and `FilterEnvelope` is one key precisely so that cannot be written.
+   * This checks the property rather than the type, so it still holds the day
+   * somebody adds a second door to the same node.
+   *
+   * It is counted over the songs that **have** an envelope rather than over a
+   * plain rotation, and that is the whole difference between a check and a
+   * green light. Both writers of this field are era-gated — synth's polysynth
+   * and funk's two middle eras — so nineteen genres at two seeds apiece yields
+   * three parts carrying one, and *0 of 3* is indistinguishable from a renderer
+   * that had stopped emitting it. Forcing the three eras puts the denominator
+   * where the feature is.
+   */
+  let wahEras = 0, wahSongs = 0, wahOffBass = 0, quietEras = 0, doubleEnv = 0, envParts = 0;
+  const scanEnvelopes = (song: Song): { part: string; line: string }[] => {
+    const out: { part: string; line: string }[] = [];
+    const perPart = new Map<string, number>();
+    let part = '';
+    for (const l of renderStrudel(song).split('\n')) {
+      if (l.startsWith('  // ') && l.includes('—')) part = l.slice(5).split(' —')[0]!.trim();
+      if (l.includes('.lpenv(')) { out.push({ part, line: l }); perPart.set(part, (perPart.get(part) ?? 0) + 1); }
+    }
+    for (const n of perPart.values()) { envParts++; if (n > 1) doubleEnv++; }
+    return out;
+  };
+  for (const era of ['pfunk', 'boogie'] as const) {
+    for (let i = 0; i < 4; i++) {
+      const wah = scanEnvelopes(generateSong({ seed: `wah-${era}-${i}`, genre: 'funk', era }))
+        .filter((e) => e.line.includes('.lpsustain(0)'));
+      wahEras++;
+      if (wah.length > 0) wahSongs++;
+      wahOffBass += wah.filter((e) => e.part !== 'bass').length;
+    }
+  }
+  for (const era of ['jb', 'electro'] as const) {
+    for (let i = 0; i < 4; i++) {
+      quietEras += scanEnvelopes(generateSong({ seed: `wah-${era}-${i}`, genre: 'funk', era }))
+        .filter((e) => e.line.includes('.lpsustain(0)')).length;
+    }
+  }
+  for (let i = 0; i < 4; i++) {
+    scanEnvelopes(generateSong({ seed: `swell-${i}`, genre: 'synth', era: 'polysynth' }));
+  }
+  for (const gid of GENRE_IDS) scanEnvelopes(generateSong({ seed: `env-${gid}`, genre: gid }));
+  check('funk plays its wah where the era says',
+    wahSongs === wahEras && wahOffBass === 0 && quietEras === 0,
+    `${wahSongs}/${wahEras} in 1975 and 1980, ${quietEras} in 1968 and 1984, ${wahOffBass} off the bass`);
+  check('no part carries two filter envelopes', doubleEnv === 0,
+    `${doubleEnv} of ${envParts} parts carrying one`);
+
+  /**
    * 3. `berlin` and `ambient/kosmische` are different music.
    *
    * They describe the same instrument doing two different jobs — a sequencer

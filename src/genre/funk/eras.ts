@@ -194,6 +194,57 @@ const pfunk: EraProfile = {
   tempoScale: 1,
   keyChangeChance: 0.03,
   density: 0.68,
+  /**
+   * The envelope filter, and this is the era it arrives in.
+   *
+   * `docs/engine-gaps.md` §3.5 is this genre's entry: it declined `Genre.filter`
+   * outright rather than fake a wah as a section sweep, and it was right to —
+   * that field moves once per section and this moves on every note. It is the
+   * only thing in this file that changes *while a note is sounding*, and this
+   * era's opening paragraph is what it is for. A Bootsy line has more onsets than a JB
+   * one and covers a wider span, *because a synthesiser has no fret hand and an
+   * envelope filter makes every note an event* — that sentence is already in
+   * `styles.ts` twice, on `pfunk`'s header and on its `sixteenth` figure, and
+   * until now nothing behind it was true.
+   *
+   * **Dated rather than genre-wide, which is the whole of why it is here and not
+   * in `index.ts`.** The Mu-Tron III is a 1972 box. In 1968 it does not exist and
+   * the bass is a Precision through an Ampeg, which is why `jb` says nothing;
+   * by 1984 the bass is entered on a grid — `electro` writes `sequenced: { bass: 0.4 }` —
+   * and an envelope filter with no player's attack driving it is a filter
+   * envelope on a sequencer, which is a different record and a different genre's
+   * gesture. The gap between those two dates is exactly this era and the next.
+   *
+   * **Two octaves, measured against the number above it rather than chosen.**
+   * The genre's `effects.bass` cutoff is 1600 Hz, and `FilterEnvelope` opens
+   * *up* to the part's cutoff rather than past it — so two octaves rests the
+   * filter at 400 Hz and snaps it to 1600. Both ends land inside a Mu-Tron III's
+   * own sweep, which is the reason this number is 2 and not 3: three octaves
+   * would rest at 200 Hz, which is below the box, and on the median bass note
+   * here — MIDI 41, an F at 87 Hz — would leave two harmonics where the pedal
+   * leaves four. Opened, that note has eighteen. Four harmonics to eighteen and
+   * back, inside 150 ms, is the quack.
+   *
+   * **And it fires.** 22,934 bass notes across 71 songs in 300, median length
+   * 294 ms against an envelope 150 ms long — so the filter is home again with a
+   * third of the note left to sound on it, and the 8.5% of notes shorter than
+   * the envelope get the front of the shape, which is what the pedal does to a
+   * ghost note too.
+   *
+   * **The comp is deliberately not here**, and the arithmetic is the argument.
+   * A wah pedal's own range tops out around 2.2 kHz; the comp sits at 9000 Hz,
+   * so reaching a pedal's territory under it takes four and a half octaves,
+   * which would rest a palm-muted chank at 400 Hz — and that is not a darker
+   * chank, it is no chank at all, fourteen times a bar. The bass's 1600 Hz is
+   * the one ceiling in this genre's table that a pedal fits underneath. That is
+   * `LAYER_RESPONSE` in `generate/filter.ts` read backwards: it puts the bass
+   * last because a lowpass closing on a part already below the cutoff removes
+   * it, and the same fact is what makes the bass the only part here with room
+   * for a filter to move *in*.
+   */
+  effects: {
+    bass: { filterEnv: { octaves: 2, shape: 'wah' } },
+  },
 };
 
 /**
@@ -273,6 +324,28 @@ const boogie: EraProfile = {
   tempoScale: 1,
   keyChangeChance: 0.12,
   density: 0.7,
+  /**
+   * The same box, five years on and turned down.
+   *
+   * 1.5 rather than the 1975 era's 2, and the reason is in the palette four
+   * lines up: the slap goes to the top here, `slapBass` at 5 and `slapBass2` at
+   * 4, and a popped string already *is* a transient. A full-travel envelope on
+   * top of one is two attacks on the same note — the filter opening a second
+   * time after the string has already cracked — where in 1975 the fingered
+   * Precision and the Minimoog underneath it needed the pedal to supply the
+   * event. 1.5 octaves rests at 566 Hz against 1975's 400, which on the median
+   * note is six harmonics rather than four: the same gesture, half a pedal
+   * stroke shallower, which is where a player sets it when the technique is
+   * doing part of the work.
+   *
+   * It is still the same date argument, running out. Musitronics is gone by the
+   * turn of this decade, and what replaces the box on these records is a
+   * synthesiser's own contour on a bass patch — a shallower thing set from a
+   * panel rather than a pedal pushed to the end of its travel.
+   */
+  effects: {
+    bass: { filterEnv: { octaves: 1.5, shape: 'wah' } },
+  },
 };
 
 /**

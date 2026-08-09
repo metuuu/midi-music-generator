@@ -48,6 +48,18 @@
  * cutoff is the microphone, the room and the tape. A genre added later says
  * nothing here by default and gets a static cutoff, which is the right default
  * precisely because it is what twelve of nineteen authors have chosen on purpose.
+ *
+ * **There is a third tier under this one now, and funk is why.** The track says
+ * where the instrument sits in the decade; this file says where the section and
+ * the note sit inside that — and both are decided *before* the note sounds.
+ * `Effects.filterEnv` is the one that moves while it is sounding: a swell
+ * leaning open across a held lead, or a wah snapping open on every onset and
+ * shutting behind it. Funk declined this file's field outright rather than fake
+ * an envelope filter as a section sweep, which was the right call and remains
+ * one — it is a genre with a per-note gesture and no per-section one, and it
+ * still writes no profile here. Nothing in this file changed for it. The tiers
+ * meet in the renderer, where the note's `brightness` sets the cutoff the
+ * envelope opens toward.
  */
 
 import type { LayerId, NoteEvent, SectionKind } from '../core/types.js';

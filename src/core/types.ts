@@ -952,6 +952,131 @@ export const DEFAULT_DRUM_MIX: Record<DrumVoice, number> = {
 };
 
 /**
+ * The filter envelope on every note: how far under the part's own cutoff the
+ * note begins, and what the filter does from there.
+ *
+ * ## One field, because it is one node
+ *
+ * A subtractive synthesiser has *one* filter envelope, and so does the
+ * audition: `createFilter` in `superdough/helpers.mjs` builds a single ADSR onto
+ * a single filter's frequency parameter, and `lpenv`, `lpattack`, `lpdecay`,
+ * `lpsustain` and `fanchor` are five knobs on that one envelope. Two of this
+ * repertoire's gestures are that envelope with the knobs in different places —
+ * a **swell** leans open across a held note and stays there, a **wah** quacks
+ * open on the attack and shuts again behind it — and nothing about them is
+ * independent. You cannot have both any more than a Minimoog can have two
+ * contour generators on one filter.
+ *
+ * They were nearly built as two fields and that would have been a fault waiting
+ * to be found. `render/strudel.ts` documents the mechanism: two calls of one
+ * control on one pattern means **the second silently wins**, and `effectsFor` in
+ * `generate/song.ts` merges genre under era under style under instrument **per
+ * key** — so an era declaring a swell on the melody and a style declaring a wah
+ * on it would have produced an object carrying both, one `.lpenv()` line for
+ * each, and a lead that plays whichever the emitter happened to write last. One
+ * key makes that unrepresentable rather than merely unlikely: the later table
+ * replaces the earlier one whole, and exactly one gesture survives the merge.
+ * That is the whole reason this is an object and not two numbers.
+ *
+ * ## Below rather than above, for both shapes
+ *
+ * `octaves` is a distance *under* `Effects.lowpass` so the era's cutoff stays
+ * what it has always been — the brightness this instrument arrives at in this
+ * decade — and this field only says how far under it the note begins. The other
+ * direction was tried first and is the wrong one: opening *upward* from a cutoff
+ * already set at 8 kHz sweeps a range with almost nothing in it, so the gesture
+ * is inaudible unless every era table is darkened to make room for it. It is
+ * also the rule `NoteEvent.brightness` states in its own words — a part may not
+ * out-bright its decade — and a filter envelope is not the place to break it.
+ *
+ * `fanchor(1)` is what makes that true in the audition rather than merely
+ * intended: it puts the envelope's *top* at the written cutoff and its bottom
+ * `octaves` below, instead of overshooting into empty spectrum.
+ *
+ * ## Why the wah is an envelope and not a pedal, which was measured
+ *
+ * A rocked pedal is the other thing the word means, and the audition can very
+ * nearly do it. superdough gives every filter a cycle-synced LFO beside the
+ * ADSR — `lprate`, `lpsync`, `lpdepth`, `lpshape`, `lpskew`, all registered
+ * controls in `@strudel/core` and all live — and it is genuinely a *pedal*
+ * rather than a per-note retrigger: `lpsync` sets `rate = cps * sync`, the
+ * worklet takes its phase from `time = cycle / cps`, so the movement is
+ * continuous across the bar and every note in it reads the pedal wherever the
+ * pedal happens to be. That is exactly the gesture funk's `wah-chank` figure is
+ * currently writing in *velocities*.
+ *
+ * It is refused here for two reasons found by reading the worklet rather than
+ * the documentation, and the second is the one that decides it:
+ *
+ *  - **It has no anchor.** `createFilter` reads `anchor` only inside its
+ *    envelope branch, and the LFO is summed onto the cutoff symmetrically about
+ *    it — with `lpdepth(1)` the sweep runs from half the cutoff to one and a
+ *    half times it. Half of every rock would be brighter than the decade.
+ *  - **It is linear in hertz and the ear is not.** `lfo-processor` computes
+ *    `(waveshape + dcoffset) * depth` and adds it to a frequency parameter, with
+ *    `curve` fixed at 1 by `createFilter`. A triangle is uniform in time, so
+ *    across a wah pedal's own two and a half octaves it spends **70% of every
+ *    rock in the upper half of the travel** measured in octaves, which is where
+ *    the ear measures. The envelope path has no such problem: `createFilter`
+ *    calls `getParamADSR` with `'exponential'`, which ramps linearly in log
+ *    frequency and is the reason a filter envelope sounds even.
+ *
+ * So the shape that ships is the one both the ear and the invariant agree with,
+ * and the pedal is left described rather than half-built. The device this *is*
+ * is the envelope filter — a Mu-Tron III, 1972, and the sound of every funk bass
+ * line after it — where the player's own attack opens the filter and it shuts
+ * behind them. `Effects.duck` made the same move for the same reason: the
+ * follower is a runtime device, and this generator already knows every onset.
+ *
+ * ## Audition only, and the .mid says nothing rather than something else
+ *
+ * MIDI's CC74 is GM2, is defined *relative* to the patch's own filter, and the
+ * render therefore only ever uses it to darken. A per-note quack could be
+ * approximated as a burst of CC74 around each onset, and it would be a
+ * half-truth twice over: the resting point would have to sit below the era's own
+ * cutoff, so every `.mid` carrying one would play darker than the same song does
+ * today even between the quacks, and a GM1 device ignoring CC74 would drop the
+ * gesture while keeping the darkening. `NoteBend`'s rule applies — *between a
+ * shape both renderers play identically and a shape one of them lies about, take
+ * the first* — and where neither is available, say which renderer carries it.
+ * This one is the audition's, and it joins the six fields already marked so.
+ */
+export interface FilterEnvelope {
+  /**
+   * How many octaves below `Effects.lowpass` the note begins.
+   *
+   * Small numbers, and the right ones depend on where the part's cutoff already
+   * is, which is the point of measuring it against a real table rather than
+   * picking a feel. Funk's bass sits at 1600 Hz, so two octaves rests it at
+   * 400 Hz and opens it to 1600 — both ends inside a Mu-Tron III's own sweep,
+   * which is roughly 200 Hz to 2 kHz on a bass. The same two octaves
+   * on a comp at 9000 Hz is a sweep from 2250 Hz upward, which is a bright
+   * instrument getting brighter and is not the same gesture at all.
+   */
+  octaves: number;
+  /**
+   * What the filter does after the attack.
+   *
+   *   swell   opens slowly across the note and stays open. Aftertouch: the
+   *           CS-80 is the only synthesiser of its decade with per-key
+   *           pressure, and leaning into a held note is why that lead sounds
+   *           like someone playing rather than someone holding a key down.
+   *   wah     snaps open on the onset and shuts again behind it, back to where
+   *           it started. An envelope filter, and it is per note by
+   *           construction — every onset is an event.
+   *
+   * The times are not fields, for `GLIDE_SECONDS`' reason and `Effects.duck`'s:
+   * both devices are knobs in seconds on a physical box that does not know how
+   * long the bar is. See `SWELL_SECONDS`, `WAH_ATTACK_SECONDS` and
+   * `WAH_DECAY_SECONDS` in `render/strudel.ts`, and note that the wah's two are
+   * within a whisker of superdough's own filter defaults — the 150 ms
+   * open-and-shut that the swell writes companions to *suppress* is precisely
+   * the thing this shape wants.
+   */
+  shape: 'swell' | 'wah';
+}
+
+/**
  * Per-track effects.
  *
  * These are a *mix* decision rather than a musical one everywhere except
@@ -960,9 +1085,13 @@ export const DEFAULT_DRUM_MIX: Record<DrumVoice, number> = {
  * the piece. That is the same argument as "the pad is the piece", and it is why
  * this sits in the IR rather than in a renderer.
  *
- * Only what survives to a real delivery format is expressed here. Two fields
- * are audition-only and say so — a native engine is free to implement them, and
- * MIDI simply has nowhere to put them.
+ * Only what survives to a real delivery format is expressed here. **Seven
+ * fields are audition-only and say so** — `delay`, `highpass`, `drive`,
+ * `crush`, `phaser`, `glide` and `filterEnv` — and a native engine is free to
+ * implement them, because MIDI simply has nowhere to put them. The count said
+ * two for a long time after it had stopped being two, which is worth one line:
+ * a marker on the field is the thing that has to be right, and a total in a
+ * header is a second copy of it that nothing updates.
  */
 export interface Effects {
   /** Send to the song's reverb, 0..1. MIDI CC91 — GM level 1, universal. */
@@ -1036,17 +1165,9 @@ export interface Effects {
    */
   glide?: number;
   /**
-   * How many octaves *below* `lowpass` a note starts before opening up to it,
-   * across the note and staying open. **Audition only**, and inert without a
-   * `lowpass` to open toward.
-   *
-   * Written as a distance below rather than above so that the era's `lowpass`
-   * stays what it has always been — the brightness this instrument arrives at
-   * in this decade — and this field only says how far under it the note begins.
-   * The other direction was tried first and is the wrong one: opening *upward*
-   * from a cutoff already set at 8 kHz sweeps a range with almost nothing in
-   * it, so the gesture is inaudible unless every era table is darkened to make
-   * room for it.
+   * The filter envelope: how many octaves *below* `lowpass` a note starts, and
+   * what the filter does across the rest of it. **Audition only**, and inert
+   * without a `lowpass` to open toward. See `FilterEnvelope`.
    *
    * `NoteEvent.brightness` already says where a note sits in its instrument's
    * range, and the section-long `filter` ramp already says where the section
@@ -1054,13 +1175,11 @@ export interface Effects {
    * anything while it is sounding — so a four-second held chord under a lead
    * is, timbrally, four seconds of nothing happening.
    *
-   * This is the third one: the note gets brighter as it is held. On the
-   * instrument that matters it was aftertouch — the CS-80 is the only
-   * synthesiser of its decade with per-key pressure, and leaning into a held
-   * note is why that lead sounds like someone playing rather than someone
-   * holding a key down.
+   * This is the one that moves while the note is sounding, and there are two
+   * shapes of it because there are two devices. One field rather than two, for
+   * a reason that is structural rather than tidy: see `FilterEnvelope`.
    */
-  swell?: number;
+  filterEnv?: FilterEnvelope;
   /**
    * How far under the kick this layer is pushed, in **decibels of gain
    * reduction**. The sidechain duck.

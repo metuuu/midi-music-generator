@@ -373,6 +373,16 @@
  *     is §3.5, a wah wanting to move faster than a section, and one sentence in
  *     that style's header used to carry both halves — which is how the fixable
  *     half stayed broken for as long as it did.
+ *
+ *     **§3.5 has since closed and this is the half it left open**, which is
+ *     worth reading before anybody adopts it here. `Effects.filterEnv` moves the
+ *     filter per *note*, keyed off the onset — a Mu-Tron, and funk's gesture. A
+ *     wobble is keyed off nothing: it is a free-running LFO under one held pitch,
+ *     which is the shape §6 measured and refused, because superdough's filter LFO
+ *     sums onto the cutoff linearly in hertz with no anchor, so it brightens past
+ *     the era and spends 70% of every cycle in the top half of its travel. The
+ *     controls exist and are live; what is missing is a shape worth shipping.
+ *     This style should ask again when somebody has a figure for one.
  *  3. **`swing` delays the eighth and three styles here shuffle the sixteenth**
  *     (§3.18). `ukgarage` is the worst case in the project: 2-step *is* a
  *     sixteenth shuffle, and 0.3 on the eighth produces a lollop where the record

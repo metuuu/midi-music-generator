@@ -77,7 +77,9 @@ Two smaller vocabulary additions carry more than their size: `VoicingStyle: 'pow
 
 `Track.effects`, `DrumTrack.effects` and `Song.space` are part of the IR, not of a renderer. Reverb and delay are modelled as **sends into one shared space** — the room has a size, each track has a distance — because that is how a mixing desk works and how MIDI works, where CC91 is a send to the synth's single global reverb.
 
-Only what a delivery format can carry is expressed. `reverb` and `pan` are GM level 1; `lowpass` and `resonance` are GM2/GS and documented as such; `delay`, `highpass`, `drive`, `crush`, `phaser`, `glide` and `swell` have no GM controller and are marked audition-only rather than smuggled through an arbitrary CC.
+Only what a delivery format can carry is expressed. `reverb` and `pan` are GM level 1; `lowpass` and `resonance` are GM2/GS and documented as such; `delay`, `highpass`, `drive`, `crush`, `phaser`, `glide` and `filterEnv` have no GM controller and are marked audition-only rather than smuggled through an arbitrary CC.
+
+`filterEnv` is one field holding two gestures — a **swell** that leans open across a held note and a **wah** that quacks open on the onset and shuts behind it — because superdough gives a part exactly one filter envelope, and two fields writing `lpenv` would have merged into an object carrying both with the second silently winning. Making them one key is what makes that unrepresentable rather than merely unlikely. See `FilterEnvelope` for why the rocked-pedal LFO beside it was measured and refused.
 
 Levels come from `Genre.mix` (per layer, `drums` included) and `Genre.drumMix` (per voice inside the kit, merged over `DEFAULT_DRUM_MIX`). The per-voice table used to live in the Strudel renderer, where MIDI could not see it; both renderers apply it now, so the audition and the shipping file agree about how loud the hats are. A kit shares one MIDI channel, so per-voice level goes into note velocity there.
 
