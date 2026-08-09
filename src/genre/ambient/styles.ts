@@ -388,10 +388,43 @@ const drone: Style = {
     ] },
     { name: 'held', weight: 3, voices: 4, sustain: true, hits: [{ at: 0, dur: 16, vel: 0.38 }] },
   ],
-  // Never reached — `excludeLayers` removes the drums entirely — but the type
-  // requires a table and an empty one would be a trap for anyone who later
-  // removes the exclusion.
-  drums: [{ name: 'none', weight: 1, voices: {} }],
+  /**
+   * No percussion, said plainly — and this is where the placeholder used to be.
+   *
+   * This line read `[{ name: 'none', weight: 1, voices: {} }]` under a comment
+   * saying it was never reached, which was true and was not the point: the row
+   * existed because `generateSong` drew the song's drum figure *before* it
+   * consulted `excludeLayers`, and `rng.weightedBy` throws `total weight must
+   * be > 0` on a table with nothing in it. So a genre with no drummer had to
+   * write a drummer down anyway. Ambient was the first genre in the project to
+   * hit that, and country copied the trick from here into a named `NO_KIT` for
+   * seven of its styles.
+   *
+   * The draw is guarded now, so the empty table is the honest statement it
+   * always wanted to be. **It is not free.** The guard skips the draw rather
+   * than throwing its result away, and `rng.weightedBy` consumes exactly one
+   * `next()` whatever it returns, so the stream behind it shifts onto the drum
+   * bank and then onto the section progressions — of which this style has two
+   * to three per section kind, so the harmony re-rolls and the notes over it
+   * follow. This style and `choral` below generate different music from the
+   * same seed than they did yesterday: measured over 8 seeds each, **16 of 16
+   * songs moved** in both renderers, with the same sections, layers and
+   * instruments. Meanwhile `hauntology`, `wasteland`, `kosmische` and
+   * `aquatic` did not move at all, because their tables are real and merely
+   * *include* a `none` row among the figures that play — 16 of this genre's 48
+   * sampled songs moved, and they are all in these two styles.
+   *
+   * The cost is not universal, which is the other half worth recording:
+   * indian's four unmetred styles and arabic's taqsim lost the same
+   * placeholder and came out byte-identical, because a piece over a drone has
+   * one progression per section and the shifted stream has nothing to choose
+   * differently. Ambient has choices; that is why ambient pays.
+   *
+   * That distinction is the one to keep hold of when reading this file: a `none`
+   * row inside a table of four is a style that sometimes lets a bar go by, and
+   * it stays. An empty table is a band with nobody at the back.
+   */
+  drums: [],
   melody: { leap: 0.12, ornament: 0.02, span: 14, sequence: 0.5, syncopation: 0.2 },
 };
 
@@ -619,7 +652,8 @@ const choral: Style = {
       { at: 8, dur: 4, vel: 0.4 },
     ] },
   ],
-  drums: [{ name: 'none', weight: 1, voices: {} }],
+  /** Nobody at the back, and the placeholder that used to say so is gone — see `drone`. */
+  drums: [],
   melody: { leap: 0.14, ornament: 0.05, span: 13, sequence: 0.55, syncopation: 0.3 },
 };
 

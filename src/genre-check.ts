@@ -3187,8 +3187,15 @@ console.log('\nDrum banks');
    * scoping this to the drawable set would leave the forced pairing broken and
    * the check green. A style that excludes the drums layer is exempt and that is
    * not a loophole: exclusion is what stops the events from being written, which
-   * is the same thing an empty `drums` table does, and the 54 placeholder styles
-   * in the catalogue are exactly the population that relies on it.
+   * is the same thing an empty `drums` table does.
+   *
+   * That exemption used to describe **54 placeholder styles** — the population
+   * carrying a `drums` table whose one row had empty `voices`, purely so the
+   * draw would not throw. They were deleted once the guard landed and the
+   * population is **0** today: the 54 now carry a genuinely empty table and
+   * reach this exemption by the honest route rather than by a decoy row. The
+   * exemption is worth keeping for exactly the reason it is worth stating —
+   * a style that excludes drums has nothing to sound, whichever way it says so.
    */
   const bankless: string[] = [];
   for (const gid of GENRE_IDS) {

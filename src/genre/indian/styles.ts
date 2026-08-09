@@ -366,8 +366,6 @@ const harmonium = (bar: number): CompPattern[] => [
   },
 ];
 
-const NO_DRUMS: DrumPattern[] = [{ name: 'none', weight: 1, voices: {} }];
-
 // ---------------------------------------------------------------------------
 // The tālas
 // ---------------------------------------------------------------------------
@@ -959,7 +957,56 @@ const FREE: Tala = {
   ],
   bass: tanpura(16),
   comp: harmonium(16),
-  drums: NO_DRUMS,
+  /**
+   * No drum, written as no drum — which took a guard in `generateSong` to be
+   * allowed to say.
+   *
+   * This field read `NO_DRUMS`, a file-level constant holding one row named
+   * `none` with an empty `voices` map, and it was the only thing that constant
+   * was for. It was never drawn from in any audible sense: `FREE` is spread
+   * into `alap`, `jor`, `alapana` and `tanam`, all four of which declare
+   * `excludeLayers: ['drums', …]`, so the layer is gone before a stroke is
+   * placed. It existed because the engine drew the drum figure *before* it read
+   * the exclusions, and `rng.weightedBy` throws on a table with nothing in it.
+   *
+   * **Read this next to the nine thekas above, because they are the opposite
+   * case and the one that matters in this genre.** A tabla or mridangam table
+   * written on `lp`/`mp`/`hp` is a real drum part with no `bd` anywhere in it,
+   * and the test for a placeholder is an empty `voices` map, never the absence
+   * of a kick. Twenty-four of this genre's twenty-eight styles play percussion;
+   * these four are the quarter of the repertoire that has no metre at all, and
+   * they are the only four here that lose the table.
+   *
+   * **The re-roll this was expected to cost never arrived, and why not is
+   * worth more than the saving.** Skipping the draw does shift the stream —
+   * `rng.weightedBy` costs one `next()` whatever it returns — and the shift
+   * lands on the very next line of `generateSong`, which draws the drum
+   * machine. So these four songs are now issued a different `drums.bank` than
+   * they used to be. Nothing else moves at all: measured over 8 seeds in each
+   * of the four styles, **0 of 32 songs differ by a byte** of MIDI or of
+   * Strudel, and 22 of the 32 changed the bank string.
+   *
+   * Two things have to hold at once for that, and both are properties of this
+   * repertoire rather than luck. A bank with no events on it is never emitted
+   * — both renderers write the machine's name only inside `if
+   * (song.drums.events.length)`, and `concert/cast.ts` puts nobody on the
+   * stand for the same reason — so the one field that moved is one nobody can
+   * hear. It is not quite invisible: `cli.ts` prints the bank into its
+   * manifest unconditionally, so an ālāp's manifest may now name a different
+   * silent machine than it did. And the notes cannot move, because every part
+   * is drawn from a stream namespaced off the seed rather than off the main
+   * one, which leaves the section tables as the only route from a shifted
+   * stream to a different note — and these four styles have **exactly one
+   * progression per section kind**. The harmony of an unmetred piece over a
+   * drone is `i i i i` and there is nothing to choose, so every draw the shift
+   * reaches returns what it returned before.
+   *
+   * Country and ambient deleted the same placeholder and did move — 72 of 72
+   * songs — because their progression tables offer two to five options per
+   * section. That is the contrast worth keeping: this cost is paid by the
+   * genres that had a choice to make, and this one does not make any.
+   */
+  drums: [],
 };
 
 // ---------------------------------------------------------------------------

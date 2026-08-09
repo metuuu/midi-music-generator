@@ -2902,9 +2902,43 @@ const taqsim: Style = {
     { name: 'held', weight: 7, voices: 3, sustain: true, hits: [{ at: 0, dur: 16, vel: 0.3 }] },
     { name: 'quartal-held', weight: 3, voices: 3, voicing: 'quartal', sustain: true, hits: [{ at: 0, dur: 16, vel: 0.28 }] },
   ],
-  // Never reached — `excludeLayers` takes the kit away — and the type wants a
-  // table. An empty one would be a trap for whoever later removes the exclusion.
-  drums: [{ name: 'none', weight: 1, voices: {} }],
+  /**
+   * The one style in this genre with no percussion, and it can now say so.
+   *
+   * This read `[{ name: 'none', weight: 1, voices: {} }]` under a comment
+   * explaining that it was never reached and that the type wanted a table
+   * anyway. Both halves were true; the second stopped being a reason. The row
+   * existed because `generateSong` drew the drum figure before it read
+   * `excludeLayers`, and `rng.weightedBy` throws on an empty table — so a
+   * taqsim, which is by definition an unmetred solo improvisation with nobody
+   * else in the room, had to name a percussion figure to be generated at all.
+   *
+   * **One of twenty-one, and that ratio is the caution worth leaving here.**
+   * Every other style in this file plays an iqa' on `lp`/`mp`/`hp` — the doum
+   * and the tak of a darbuka, riqq and tabl baladi — and a hand table has no
+   * `bd` in it by design. The test for a placeholder was an empty `voices` map
+   * and nothing else; anybody sweeping this genre for tables to delete on the
+   * strength of a missing kick would take twenty real iqa'at with them.
+   *
+   * **The deletion was expected to re-roll this style and does not**, which
+   * was measured rather than waved through in either direction. An absent
+   * table skips the draw instead of discarding its result, so the stream does
+   * shift — but the next line of `generateSong` draws the drum machine, and
+   * that is the whole of what changes here. Over 8 seeds: 0 songs differ by a
+   * byte of MIDI or of Strudel, and 6 of the 8 came out with a different
+   * `drums.bank`. A bank with no events on it is never emitted by either
+   * renderer or staged by `concert/cast.ts`, all three of which read it only
+   * inside a `song.drums.events.length` guard.
+   *
+   * The notes are safe because parts are drawn from streams namespaced off the
+   * seed, so the only route from a shifted stream to a different note is a
+   * section table — and a taqsim has **one progression per section kind**,
+   * `I I I I` over a drone, with nothing to choose. Country's seven and
+   * ambient's two moved, all 72 songs of them, on tables that offer two to
+   * five progressions a section. The other twenty styles in this file are
+   * byte-identical, as is every one of the other eighteen genres.
+   */
+  drums: [],
   melody: { leap: 0.16, ornament: 0.62, span: 20, sequence: 0.15, syncopation: 0.45 },
 };
 

@@ -70,29 +70,60 @@ const drone = (inMinor: ScaleName, inMajor: ScaleName) =>
   (tonic: Pc, mode: Mode): Scale => makeScale(tonic, mode === 'minor' ? inMinor : inMajor);
 
 /**
- * No kit, said once instead of fourteen times.
+ * No kit, said once instead of fourteen times — and now said by saying nothing.
  *
  * **Fourteen** of the twenty-four styles below carry `excludeLayers: ['drums']`,
- * and a style that excludes the kit still has to hand the type a `drums` table —
- * `Style.drums` is not optional, and a style with an empty array would hand
- * `rng.weighted` nothing to draw from. Ambient solved this with a `none` pattern
- * per style; here the same object is shared, because fourteen identical empty
- * tables are not fourteen decisions.
+ * and this is the table all fourteen point at. It is empty, and the emptiness is
+ * the statement: there is no percussion figure here, not one that is never
+ * drawn.
  *
- * **The count said sixteen and this docstring said fourteen twice** — in its own
- * first line and in the sentence above — and fourteen is right. The wrong number
- * had spread to four files by the time anybody counted: `index.ts` twice,
- * `eras.ts` once, and here. The companion figures are 10 styles with any
- * percussion at all and **3** with a kit voice in the table — `poljento`,
- * `sahkopelimanni` and `karjalanlaulu` — which is the number `staging.ts` and
- * `vocals.ts` were each calling six.
+ * **It used to hold a row.** `[{ name: 'none', weight: 1, voices: {} }]` — a
+ * pattern with no voices in it, whose only job was to be countable. `Style.drums`
+ * is not optional and `generateSong` drew from it *before* it consulted
+ * `excludeLayers`, so an empty array reached `rng.weightedBy` and threw
+ * `total weight must be > 0`; a style could not decline the kit without first
+ * handing the draw something to decline. Fifty-four styles across the catalogue
+ * carried that row, all fifty-four of them excluding drums, and fourteen of the
+ * fifty-four were these. `song.ts` now guards the draw on `style.drums.length`,
+ * so the row has no job left and is gone.
+ *
+ * **The re-roll is the price and it was measured, not waved at.** The guard
+ * *skips* the draw rather than discarding it, and `rng.weightedBy` consumes one
+ * `next()` whichever way it goes — so every song built from an empty table now
+ * reads the stream one step earlier than it did, and everything behind that read
+ * re-rolls. Hashed with the title stripped (both renderers embed it) across all
+ * nineteen genres at five seeds, 1945 songs: **59 of the 70 songs on these
+ * fourteen styles moved**, 13 of the 14 styles among them, and **0 of the other
+ * 1875** — 0 in finnfolk's own ten drummed styles and 0 in the other eighteen
+ * genres. That second number is the one that matters: the shift stops at the
+ * styles whose table changed.
+ *
+ * **What moved is the draw, not the arrangement.** Across those 59: sections
+ * identical in all 59, bars, bpm and key identical in all 59 — those are read
+ * before the drum line and cannot move — and **zero drum events in all 70**,
+ * which was the point of the exercise. Three songs lost their `counter` line,
+ * which is re-roll and not damage: counter presence already varies seed to seed
+ * on the same style, 2 of 5 seeds on `runolaulu` before any of this. Forty-one
+ * drew a different `drumBank`, and 11 songs are byte-identical *despite* one —
+ * `karjanhuuto` is all five of them, being melody-and-maybe-counter with nothing
+ * for the stream shift to reach. A bank name over an empty event list is a
+ * sampler nobody switched on. Different tunes, same silence.
  *
  * **It is not a quiet kit.** A Finnish pelimanni band is a fiddle, a second
  * fiddle, a clarinet and a bass, and the pulse is a foot on a board — there is
  * no percussionist in the room to be turned down. Where percussion *is* right,
- * it is a frame drum or a pair of hands, and those styles write real tables.
+ * it is a frame drum or a pair of hands, and those styles write real tables. The
+ * companion figures are 10 styles with any percussion at all and **3** with a
+ * kit voice in the table — `poljento`, `sahkopelimanni` and `karjalanlaulu`.
+ *
+ * **Count them before quoting them.** This docstring once said sixteen while
+ * saying fourteen twice in its own body, and the wrong number had reached four
+ * files before anybody walked the catalogue: `index.ts` twice, `eras.ts` once,
+ * and here. The three-with-a-kit figure was being called six in `staging.ts` and
+ * in `vocals.ts` for the same reason. Every number above was re-derived by
+ * walking `GENRES` rather than by trusting the sentence it replaced.
  */
-const SILENT: DrumPattern[] = [{ name: 'none', weight: 1, voices: {} }];
+const SILENT: DrumPattern[] = [];
 
 // ---------------------------------------------------------------------------
 // The archaic layer

@@ -321,19 +321,49 @@ const trainKit = (weight: number): DrumPattern => ({
 });
 
 /**
- * No kit at all, for the seven styles that have none.
+ * The seven styles with no kit now write `drums: []`, and there used to be a
+ * placeholder here so that they could not.
  *
- * A table with nothing in it is not an option: `generateSong` draws the song's
- * drum figure before it knows which layers are excluded, and an empty array throws
- * on the weighted draw. Ambient hit the same wall and answered it the same way, and
- * its comment is worth restating rather than referencing — this entry is **never
- * reached**, because `excludeLayers: ['drums']` removes the layer entirely, and it
- * exists so that the one draw the engine insists on has something to land on. An
- * empty `voices` map rather than a quiet pattern, so that anybody who later lifts
- * the exclusion gets silence and goes looking, rather than getting a plausible
- * backbeat behind a 1928 string band and never noticing.
+ * `NO_KIT` stood at this point in the file — one row named `none` with an empty
+ * `voices` map — and it was spread into breakdown, bluegrass, bluegrasswaltz,
+ * gospel, cowboy, murderballad and newgrass. It was never *reached*: every one
+ * of those seven also declares `excludeLayers: ['drums']`, so the layer is gone
+ * long before a stroke is placed. It existed for exactly one line in
+ * `generateSong`, which drew the song's drum figure before it knew which layers
+ * were excluded and threw `total weight must be > 0` on an empty table. Ambient
+ * hit the same wall and answered it the same way, with two inline copies rather
+ * than a constant, and its two comments are where the argument was first made.
+ *
+ * That draw is guarded now — `style.drums.length > 0 ? … : undefined` — so an
+ * empty table says what it means and the workaround is gone.
+ *
+ * **The cost is not zero, and it is the part worth writing down.** The guard
+ * *skips* the draw rather than discarding its result, and `rng.weightedBy`
+ * costs exactly one `next()` whatever it returns, so the draw that lands next
+ * is the drum machine and the ones behind that are the section progressions —
+ * which in this genre is a table of two to five options per section kind, so
+ * the harmony re-rolls and the notes written over it follow. All 7 of these
+ * styles generate different music from the same seed than they did before.
+ * Measured over 8 seeds per style rather than assumed: **56 of 56 songs moved**
+ * in MIDI and in Strudel, with the same sections, the same layer sets and the
+ * same instruments — one seed of `newgrass` drew a counter line it had not
+ * drawn before, which the style permits and which is exactly what a different
+ * draw looks like. Nothing else in the catalogue moved with them: 0 of the 17
+ * country styles that own a kit, and 0 of the 3,040 songs the sweep generated
+ * outside these seven and ambient's two, across all nineteen genres.
+ *
+ * That is a re-roll and not a fault, and it is permitted because this project
+ * does not preserve generated music across a change. It is also not universal:
+ * indian's four and arabic's one lost the same placeholder and did not move a
+ * byte, because an unmetred piece over a drone has one progression per section
+ * and nothing for the shifted stream to choose differently. See the note on
+ * `FREE` in `genre/indian/styles.ts` for that half of the measurement.
+ *
+ * What the deletion does *not* lose is the one thing the empty `voices` map was
+ * good for: a reader who later lifts the exclusion still gets silence and goes
+ * looking, rather than a plausible backbeat behind a 1928 string band that
+ * nobody ever notices.
  */
-const NO_KIT: DrumPattern[] = [{ name: 'none', weight: 1, voices: {} }];
 
 /** Three to the bar, and a kick only on the one. */
 const waltzKit = (weight: number): DrumPattern => ({
@@ -662,7 +692,7 @@ const breakdown: Style = {
   ],
   bass: [boomChuck(6), boomRun(4)],
   comp: [chuck(6), roll(5), chop(3)],
-  drums: NO_KIT,
+  drums: [],
   melody: { leap: 0.3, ornament: 0.3, span: 12, sequence: 0.62, syncopation: 0.15 },
 };
 
@@ -709,7 +739,7 @@ const bluegrass: Style = {
   cadenceCells: PLAIN_CADENCES,
   bass: [boomChuck(6), boomRun(5)],
   comp: [roll(7), chop(6), chuck(4), reverseRoll(3)],
-  drums: NO_KIT,
+  drums: [],
   melody: { leap: 0.32, ornament: 0.28, span: 14, sequence: 0.6, syncopation: 0.18 },
 };
 
@@ -762,7 +792,7 @@ const bluegrasswaltz: Style = {
       { at: 8, dur: 1, vel: 0.92 },
     ],
   }],
-  drums: NO_KIT,
+  drums: [],
   melody: { leap: 0.26, ornament: 0.25, span: 12, sequence: 0.58, syncopation: 0.12 },
 };
 
@@ -812,7 +842,7 @@ const gospel: Style = {
       { at: 12, dur: 3, vel: 0.88 },
     ],
   }],
-  drums: NO_KIT,
+  drums: [],
   /**
    * The piano is the band, so the piano gets both hands.
    *
@@ -890,7 +920,7 @@ const cowboy: Style = {
       { at: 12, dur: 2, vel: 0.6 },
     ],
   }],
-  drums: NO_KIT,
+  drums: [],
   melody: { leap: 0.42, ornament: 0.22, span: 16, sequence: 0.5, syncopation: 0.1 },
 };
 
@@ -982,7 +1012,7 @@ const murderballad: Style = {
       { at: 8, dur: 6, vel: 0.7 },
     ],
   }],
-  drums: NO_KIT,
+  drums: [],
   melody: { leap: 0.2, ornament: 0.3, span: 10, sequence: 0.7, syncopation: 0.08 },
 };
 
@@ -1029,7 +1059,7 @@ const newgrass: Style = {
     ],
   }],
   comp: [roll(6), chop(6), reverseRoll(4), chuck(3)],
-  drums: NO_KIT,
+  drums: [],
   melody: { leap: 0.36, ornament: 0.25, span: 15, sequence: 0.45, syncopation: 0.3 },
 };
 

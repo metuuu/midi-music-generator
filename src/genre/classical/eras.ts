@@ -27,11 +27,29 @@
  * the fields that exist. A hi-hat on every eighth of a sarabande is not, and it
  * is the single most out-of-place sound this generator can make.
  *
- * The consequence is that `drumBanks` below is a required field naming a machine
- * that is never switched on. It is the same value in all four eras, and the
- * choice is the least meaningless one available: a sampler is the one entry in
- * the table that is not a *sound* — it plays whatever was loaded into it, and
- * here nothing was.
+ * The consequence is that all four eras below name **no drum bank at all**, and
+ * the empty `drumBanks` is the sampler being wheeled off the platform rather
+ * than a field left blank.
+ *
+ * It could not always say that. `rng.weighted` throws on a table summing to
+ * zero, so this file carried a constant it honestly called `SILENT_BANK` —
+ * `[['AkaiMPC60', 1]]`, shared by all four — and an Akai MPC60 is a 1988
+ * sampling drum machine standing on a concert platform in 1720 to satisfy a
+ * required field. That was not an inert lie: `concert/cast.ts` reads
+ * `DrumTrack.bank` to decide what is on the stage. The draw is guarded now and
+ * falls back to `''`, which the three readers all handle — `readBankName('')`
+ * splits to a machine named `''`, `drumStations` puts nobody on the stand, and
+ * `resolveDrumSample` is never asked because no style here writes a drum event
+ * to resolve. `npm run genres` holds the other end with *an era that names no
+ * drum bank has no style that plays one*, which is what makes the empty table
+ * safe rather than merely quiet; classical satisfies it trivially, since all
+ * twenty-six styles carry `drums: []`.
+ *
+ * **Removing it re-rolled the genre**, because a skipped draw shifts the stream
+ * rather than leaving a hole in it. The measurement is at the head of
+ * `styles.ts`: 215 of 220 classical renders came out different music, no render
+ * in the other eighteen genres moved, and the drum event count was 0 on both
+ * sides of all 220.
  *
  * ## Reading a palette
  *
@@ -70,17 +88,6 @@
 import type { EraProfile } from '../../style/types.js';
 
 /**
- * The bank nothing plays.
- *
- * Shared by all four eras. `npm run genres` asserts that every bank an era names
- * has been measured, so it has to be a real entry in `BANK_VOICES`; it does not
- * have to be one anybody hears, and this one is not, because no style in this
- * genre lets the drum layer exist. Declared once rather than four times so that
- * the joke is only made once.
- */
-const SILENT_BANK: (readonly [string, number])[] = [['AkaiMPC60', 1]];
-
-/**
  * BAROQUE — a small band round a keyboard, about 1720.
  *
  * Eight to twenty players and a continuo group at the centre of them: a
@@ -105,7 +112,7 @@ const baroque: EraProfile = {
   label: 'Baroque, c. 1720',
   description:
     'A small band round a continuo keyboard. Harpsichord and chamber organ, strings, oboes and bassoon, natural trumpets and timpani.',
-  drumBanks: SILENT_BANK,
+  drumBanks: [],
   palette: {
     melody: [
       ['violin', 5], ['oboe', 4], ['recorder', 3], ['flute', 3],
@@ -182,7 +189,7 @@ const classical: EraProfile = {
   label: 'Classical, c. 1785',
   description:
     'The standard orchestra. Fortepiano, strings in four parts, pairs of flutes, oboes, clarinets, bassoons and horns, trumpets and timpani.',
-  drumBanks: SILENT_BANK,
+  drumBanks: [],
   palette: {
     melody: [
       ['violin', 5], ['clarinet', 4], ['flute', 3], ['oboe', 3],
@@ -238,7 +245,7 @@ const romantic: EraProfile = {
   label: 'Romantic, c. 1870',
   description:
     'The full nineteenth-century orchestra and the concert grand. Cor anglais, tuba, harp, divided strings and a brass section with a floor.',
-  drumBanks: SILENT_BANK,
+  drumBanks: [],
   palette: {
     melody: [
       ['violin', 5], ['steinway', 4], ['cello', 4], ['englishHorn', 3],
@@ -305,7 +312,7 @@ const impressionist: EraProfile = {
   label: 'Impressionist, c. 1910',
   description:
     'The orchestra as a box of colours. Flute and cor anglais in front, harp and celesta structural, muted strings and no weight on the bar.',
-  drumBanks: SILENT_BANK,
+  drumBanks: [],
   palette: {
     melody: [
       ['flute', 5], ['steinway', 4], ['oboe', 3], ['englishHorn', 3],

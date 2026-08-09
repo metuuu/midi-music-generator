@@ -15,9 +15,9 @@
  * ## The four facts that separate this file from every other styles.ts here
  *
  * **There is no drum kit, anywhere, in any style.** Every entry below carries
- * `excludeLayers: ['drums']` and a single empty drum pattern that exists only
- * because the field is required. This is not squeamishness about percussion —
- * the orchestra has percussion, and it is in the era palettes as `timpani`, on
+ * `excludeLayers: ['drums']` and `drums: []`, and the empty table is the
+ * statement rather than an omission. This is not squeamishness about percussion
+ * — the orchestra has percussion, and it is in the era palettes as `timpani`, on
  * the `brass` layer, where a pitched instrument that plays the tonic and the
  * dominant under a tutti belongs. What it does not have is a *kit*: a hi-hat on
  * every eighth, a backbeat on two and four, and a tom roll into a crash to
@@ -26,6 +26,32 @@
  * sound this generator can make. Ambient reaches the same place from the other
  * direction and says so at length; the difference is that ambient has styles
  * with a kit in them and this genre has none at all.
+ *
+ * Those tables were not always empty. `generateSong` drew the drum figure before
+ * it read `excludedLayers`, and `rng.weightedBy` throws on a table with nothing
+ * in it, so all twenty-six carried a shared `NO_KIT` constant — one row named
+ * `none` whose `voices` was `{}` — purely to be non-empty. `eras.ts` carried the
+ * same trick for the same reason and its own note records that half. Both draws
+ * are guarded now, so the workaround is gone and the field says what is true.
+ *
+ * **It was not free**, and the cost is worth writing down, because the guard
+ * *skips* the draw rather than discarding its result: two `next()` fewer on the
+ * song's stream re-rolls everything behind them. Measured across 220 classical
+ * renders — 12 free draws, 26 styles x 4 seeds, and all 26 x 4 forced style/era
+ * pairings — **215 came out different music and 5 were bit-identical**, the
+ * latter being songs whose progression draws happened to land on the same rows
+ * of tables that are one to four entries wide. The other eighteen genres did not
+ * move at all: 1,668 renders, every MIDI and every Strudel body byte-identical.
+ *
+ * It is a re-roll and not a fault, and that was checked field by field rather
+ * than inferred from the hashes. **Style, era, mood, key, tempo and form were
+ * identical in all 220** — every one of those is drawn upstream of the two
+ * guarded lines. What moved is what the harmony draws feed: the notes, in 211 of
+ * the 220, by 39 notes on average. Eighteen songs also gained or lost the
+ * `counter` layer, which is the arrangement coin landing the other way and not a
+ * layer becoming unavailable. And the number these tables were ever really
+ * claiming is unchanged: **0 drum events before, 0 after, in every one of the
+ * 220.**
  *
  * **Nothing here is a groove, so nothing here varies.** `vary` is absent on all
  * twenty-six, and that absence is the strongest single claim in the file. Its
@@ -85,18 +111,6 @@
  */
 
 import type { Style } from '../../style/types.js';
-import type { DrumPattern } from '../../style/types.js';
-
-/**
- * The kit that is never struck.
- *
- * `Style.drums` is required and every style here excludes the layer, so this is
- * one object shared by all twenty-six rather than the same three lines written
- * out twenty-six times. Ambient does the same thing per style and its own
- * comment says why it is unreachable; here it is unreachable everywhere, which
- * is the whole genre's position rather than one style's.
- */
-const NO_KIT: DrumPattern[] = [{ name: 'none', weight: 1, voices: {} }];
 
 // ---------------------------------------------------------------------------
 // The baroque suite — dances that stopped being danced
@@ -238,7 +252,7 @@ const minuet: Style = {
       { at: 8, dur: 3, vel: 0.52 },
     ] },
   ],
-  drums: NO_KIT,
+  drums: [],
   melody: { leap: 0.24, ornament: 0.3, span: 14, sequence: 0.62, syncopation: 0.08 },
 };
 
@@ -367,7 +381,7 @@ const gavotte: Style = {
     ] },
     { name: 'held', weight: 2, voices: 4, hits: [{ at: 0, dur: 16, vel: 0.45 }] },
   ],
-  drums: NO_KIT,
+  drums: [],
   melody: { leap: 0.26, ornament: 0.28, span: 14, sequence: 0.58, syncopation: 0.35 },
 };
 
@@ -475,7 +489,7 @@ const sarabande: Style = {
     ] },
     { name: 'held', weight: 3, voices: 4, hits: [{ at: 0, dur: 12, vel: 0.5 }] },
   ],
-  drums: NO_KIT,
+  drums: [],
   melody: { leap: 0.18, ornament: 0.38, span: 13, sequence: 0.5, syncopation: 0.12 },
 };
 
@@ -590,7 +604,7 @@ const gigue: Style = {
     ] },
     { name: 'held', weight: 2, voices: 4, hits: [{ at: 0, dur: 12, vel: 0.45 }] },
   ],
-  drums: NO_KIT,
+  drums: [],
   melody: { leap: 0.3, ornament: 0.22, span: 16, sequence: 0.68, syncopation: 0.2 },
 };
 
@@ -709,7 +723,7 @@ const passacaglia: Style = {
       { at: 8, dur: 3, vel: 0.54 },
     ] },
   ],
-  drums: NO_KIT,
+  drums: [],
   melody: { leap: 0.2, ornament: 0.3, span: 15, sequence: 0.55, syncopation: 0.15 },
 };
 
@@ -824,7 +838,7 @@ const chaconne: Style = {
       { at: 8, dur: 3, vel: 0.54 },
     ] },
   ],
-  drums: NO_KIT,
+  drums: [],
   melody: { leap: 0.24, ornament: 0.32, span: 16, sequence: 0.52, syncopation: 0.18 },
 };
 
@@ -969,7 +983,7 @@ const fugue: Style = {
       { at: 12, dur: 3, vel: 0.46 },
     ] },
   ],
-  drums: NO_KIT,
+  drums: [],
   melody: { leap: 0.26, ornament: 0.24, span: 17, sequence: 0.66, syncopation: 0.25 },
 };
 
@@ -1097,7 +1111,7 @@ const chorale: Style = {
     ] },
     { name: 'held', weight: 3, voices: 4, hits: [{ at: 0, dur: 16, vel: 0.48 }] },
   ],
-  drums: NO_KIT,
+  drums: [],
   melody: { leap: 0.14, ornament: 0.12, span: 12, sequence: 0.45, syncopation: 0.05 },
 };
 
@@ -1214,7 +1228,7 @@ const toccata: Style = {
       { at: 14, dur: 1, vel: 0.46 }, { at: 15, dur: 1, vel: 0.42 },
     ] },
   ],
-  drums: NO_KIT,
+  drums: [],
   /**
    * The instrument this style *is*.
    *
@@ -1373,7 +1387,7 @@ const overture: Style = {
     ] },
     { name: 'held', weight: 2, voices: 4, hits: [{ at: 0, dur: 16, vel: 0.55 }] },
   ],
-  drums: NO_KIT,
+  drums: [],
   melody: { leap: 0.28, ornament: 0.2, span: 15, sequence: 0.5, syncopation: 0.1 },
 };
 
@@ -1505,7 +1519,7 @@ const aria: Style = {
       { at: 14, dur: 2, vel: 0.48 },
     ] },
   ],
-  drums: NO_KIT,
+  drums: [],
   melody: { leap: 0.22, ornament: 0.42, span: 16, sequence: 0.5, syncopation: 0.2 },
 };
 
@@ -1616,7 +1630,7 @@ const pavane: Style = {
       { at: 12, dur: 3, vel: 0.46 },
     ] },
   ],
-  drums: NO_KIT,
+  drums: [],
   melody: { leap: 0.16, ornament: 0.18, span: 13, sequence: 0.5, syncopation: 0.1 },
 };
 
@@ -1784,7 +1798,7 @@ const sonata: Style = {
     ] },
     { name: 'held', weight: 2, voices: 4, hits: [{ at: 0, dur: 16, vel: 0.48 }] },
   ],
-  drums: NO_KIT,
+  drums: [],
   melody: { leap: 0.3, ornament: 0.24, span: 17, sequence: 0.6, syncopation: 0.18 },
 };
 
@@ -1896,7 +1910,7 @@ const rondo: Style = {
       { at: 4, dur: 3, vel: 0.52 },
     ] },
   ],
-  drums: NO_KIT,
+  drums: [],
   melody: { leap: 0.3, ornament: 0.26, span: 14, sequence: 0.62, syncopation: 0.2 },
 };
 
@@ -2014,7 +2028,7 @@ const adagio: Style = {
       { at: 8, dur: 4, vel: 0.44 }, { at: 12, dur: 4, vel: 0.4 },
     ] },
   ],
-  drums: NO_KIT,
+  drums: [],
   melody: { leap: 0.2, ornament: 0.36, span: 16, sequence: 0.48, syncopation: 0.22 },
 };
 
@@ -2121,7 +2135,7 @@ const scherzo: Style = {
     ] },
     { name: 'held', weight: 3, voices: 4, hits: [{ at: 0, dur: 12, vel: 0.52 }] },
   ],
-  drums: NO_KIT,
+  drums: [],
   melody: { leap: 0.34, ornament: 0.16, span: 18, sequence: 0.6, syncopation: 0.28 },
 };
 
@@ -2245,7 +2259,7 @@ const march: Style = {
       { at: 12, dur: 3, vel: 0.62 },
     ] },
   ],
-  drums: NO_KIT,
+  drums: [],
   melody: { leap: 0.28, ornament: 0.14, span: 15, sequence: 0.58, syncopation: 0.12 },
 };
 
@@ -2388,7 +2402,7 @@ const nocturne: Style = {
     ] },
     { name: 'held', weight: 3, voices: 4, hits: [{ at: 0, dur: 24, vel: 0.44 }] },
   ],
-  drums: NO_KIT,
+  drums: [],
   /**
    * One player, two hands, and the left one is the accompaniment.
    *
@@ -2508,7 +2522,7 @@ const waltz: Style = {
     ] },
     { name: 'held', weight: 2, voices: 4, hits: [{ at: 0, dur: 12, vel: 0.48 }] },
   ],
-  drums: NO_KIT,
+  drums: [],
   /**
    * Oom-pah-pah is a left hand, whoever is playing it. No `instruments` list —
    * a concert waltz is as likely to be an orchestra as a piano, and this is the
@@ -2627,7 +2641,7 @@ const mazurka: Style = {
     ] },
     { name: 'held', weight: 2, voices: 4, hits: [{ at: 0, dur: 12, vel: 0.5 }] },
   ],
-  drums: NO_KIT,
+  drums: [],
   melody: { leap: 0.26, ornament: 0.3, span: 15, sequence: 0.55, syncopation: 0.32 },
 };
 
@@ -2748,7 +2762,7 @@ const polonaise: Style = {
       { at: 8, dur: 3, vel: 0.58 },
     ] },
   ],
-  drums: NO_KIT,
+  drums: [],
   twoHanded: {
     density: 0.75,
     modes: [['stride', 5], ['block', 4], ['answer', 2]],
@@ -2859,7 +2873,7 @@ const barcarolle: Style = {
     ] },
     { name: 'held', weight: 3, voices: 4, hits: [{ at: 0, dur: 12, vel: 0.46 }] },
   ],
-  drums: NO_KIT,
+  drums: [],
   twoHanded: {
     density: 0.78,
     modes: [['stride', 6], ['block', 3], ['answer', 2]],
@@ -2959,7 +2973,7 @@ const berceuse: Style = {
     ] },
     { name: 'held', weight: 3, voices: 4, hits: [{ at: 0, dur: 12, vel: 0.42 }] },
   ],
-  drums: NO_KIT,
+  drums: [],
   twoHanded: {
     instruments: [['steinway', 7], ['piano', 2], ['harp', 2]],
     density: 0.85,
@@ -3087,7 +3101,7 @@ const etude: Style = {
     ] },
     { name: 'held', weight: 2, voices: 4, hits: [{ at: 0, dur: 16, vel: 0.44 }] },
   ],
-  drums: NO_KIT,
+  drums: [],
   twoHanded: {
     instruments: [['steinway', 8], ['piano', 2]],
     density: 0.85,
@@ -3223,7 +3237,7 @@ const lacrimosa: Style = {
       { at: 18, dur: 5, vel: 0.48 },
     ] },
   ],
-  drums: NO_KIT,
+  drums: [],
   melody: { leap: 0.18, ornament: 0.22, span: 15, sequence: 0.5, syncopation: 0.15 },
 };
 
@@ -3376,7 +3390,7 @@ const prelude: Style = {
       { at: 12, dur: 2, vel: 0.42 }, { at: 14, dur: 2, vel: 0.4 },
     ] },
   ],
-  drums: NO_KIT,
+  drums: [],
   twoHanded: {
     instruments: [['steinway', 7], ['harp', 3], ['piano', 2]],
     density: 0.7,

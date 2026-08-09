@@ -630,20 +630,46 @@ export function generateSong(opts: GenerateOptions = {}): Song {
    * `excludeLayers: ['drums']` also generated 0 of 20 — the exclusion is a
    * statement about the arrangement and this draw happens in front of it.
    *
-   * So 54 of the 389 styles in the catalogue carry a table that exists only to
-   * be non-empty: one row named `none` or `NO_KIT` whose `voices` is `{}`, and
-   * every one of those 54 also declares `excludeLayers: ['drums']`. The
-   * placeholder is a workaround for this line and nothing else.
+   * So 54 of the 389 styles **used to** carry a table that existed only to be
+   * non-empty: one row named `none` or `NO_KIT` whose `voices` was `{}`, and
+   * every one of the 54 also declared `excludeLayers: ['drums']`. The
+   * placeholder was a workaround for this line and nothing else.
    *
-   * **The guard is on emptiness and not on the exclusion**, and that is the
-   * whole of why no existing song moves. `rng.weightedBy` consumes exactly one
-   * `next()` whatever it returns, so reading `excludedLayers` here would skip a
-   * draw for all 54 of those styles and reshuffle every number behind it — the
-   * failure the `drumSource` note below records in detail. No style in the
-   * catalogue has an empty table today, so this branch is unreachable for
-   * everything that exists and the stream is untouched. Verified rather than
-   * assumed: MIDI and Strudel hashed for 570 songs across all nineteen genres,
-   * every one byte-identical.
+   * **They are gone — the population is 0 today**, and the guard above is what
+   * let them go. Removing one is not free, which is worth saying because it
+   * looks free: an absent table skips this draw, so the stream shifts and every
+   * decision downstream re-rolls. Measured over the six genres that carried
+   * them, style, era, mood, key, tempo and form came through identical in every
+   * song — all of those are drawn upstream of this line — and what moved was
+   * the note content and the odd arrangement coin. That is the whole reason
+   * this draw sits where it does, and the reason a guard was the right fix
+   * rather than moving the draw behind the exclusion set.
+   *
+   * **The guard is on emptiness and not on the exclusion**, and the difference
+   * is that emptiness is something an author *writes* where exclusion is
+   * something they already wrote for another reason. `rng.weightedBy` consumes
+   * exactly one `next()` whatever it returns, so reading `excludedLayers` here
+   * would skip a draw for every style that excludes drums — including the ones
+   * that still carry a real table — and couple two independent fields through
+   * the random stream. Guarding on emptiness leaves that entirely in the
+   * author's hands: write `drums: []` and the draw goes away, keep a table and
+   * it does not.
+   *
+   * **This paragraph used to end by saying the branch was unreachable**, since
+   * no style had an empty table on the day the guard landed, and that 570 songs
+   * hashed byte-identical across all nineteen genres. Both were true and the
+   * next commit made them false: the 54 placeholder tables the guard existed to
+   * retire were emptied, so this is now the live path for all of them and the
+   * stream does shift behind it. Measured per genre rather than claimed —
+   * classical 215 of 220 songs, finnfolk 59 of 70, country 56 of 192, ambient
+   * 16 of 48, and nothing at all outside the six.
+   *
+   * **Indian and arabic emptied five tables between them and did not move one
+   * song**, which is the most useful number here. The stream *does* shift —
+   * their next draw, the bank, comes out different in 28 of 40 — and it reaches
+   * nothing, because a bank with no events is never emitted and because those
+   * five styles declare exactly one progression per section kind. A shifted
+   * stream can only change a decision that had an alternative.
    *
    * A table whose rows sum to zero still throws, deliberately. That is not an
    * absent percussion section, it is a table of figures none of which may be
@@ -657,12 +683,14 @@ export function generateSong(opts: GenerateOptions = {}): Song {
    * …and an era with no drum machines in it may likewise name none.
    *
    * The era-side twin of the above, with the same measurement behind it:
-   * emptying classical's `drumBanks` generated 0 of 20 songs. Classical names
-   * `AkaiMPC60` in all four of its eras through a constant its own file calls
-   * `SILENT_BANK`, and it is the only genre in the catalogue with no drum voice
-   * in any of its 26 styles — so that name is a sampler wheeled onto a concert
-   * platform purely to satisfy a required field, and `concert/cast.ts` reads
-   * `DrumTrack.bank` to decide what is standing on the stage.
+   * emptying classical's `drumBanks` generated 0 of 20 songs. Classical **used
+   * to name** `AkaiMPC60` in all four of its eras through a constant its own
+   * file called `SILENT_BANK`, and it is the only genre in the catalogue with
+   * no drum voice in any of its 26 styles — so that name was a sampler wheeled
+   * onto a concert platform purely to satisfy a required field, and
+   * `concert/cast.ts` reads `DrumTrack.bank` to decide what is standing on the
+   * stage. **`SILENT_BANK` is deleted and all four eras carry `drumBanks: []`**,
+   * so the platform is empty; the `''` fallback below is what they get.
    *
    * **The fallback is the empty string, which is a claim and not a placeholder.**
    * `DrumTrack.bank` is a required `string`, so something has to go there, and
