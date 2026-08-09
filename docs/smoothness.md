@@ -1,6 +1,6 @@
 # Smoothness
 
-*Reference, written 2026-07-25 and last revised 2026-08-03. The constraint system itself is current and the rule count is right — 20, re-derived 2026-08-09. **The per-genre override section has drifted**: it documents three genres of the eighteen that now carry a `ruleOverrides` table, and one of its three numbers is stale — synth overrides six rules today, not the five stated below. Jazz's seven and ambient's seven are still correct. Trust the levels and the mechanism; check any genre's overrides against `src/genre/<id>/index.ts`.*
+*Reference, written 2026-07-25 and last revised 2026-08-09. The constraint system and the rule count are current — 20 rules, re-derived 2026-08-09, and the three genre override tables below were re-counted the same day: jazz 7, ambient 7, synth 6. **What this file does not attempt is the other fifteen.** Eighteen of nineteen genres carry a `ruleOverrides` table — iskelmä is the sole exception, being the genre the shared table was calibrated against — and three of them are documented here because each is a distinct argument rather than a catalogue. Check any other genre's against `src/genre/<id>/index.ts`, which is the source and cannot go stale.*
 
 `src/core/rules.ts` · full rule list in [rules.md](rules.md)
 
@@ -81,7 +81,7 @@ Ambient overrides seven, and the reasoning has a single shape: each of them enco
 | `repeated-note-run` | relaxed | Same pitch four times over sixteen seconds is a pulse, not a stall. |
 | `flat-nine` | relaxed | A ♭II leaning on a drone from a semitone above is the wasteland sound; the ♭9 against the pedal is the point. |
 
-Synth overrides five, and the interesting part is the one it does **not** override:
+Synth overrides six, and the interesting one runs the other way — five loosen a rule and the sixth switches a disabled rule **on**:
 
 | Rule | Synth | Why |
 |---|---|---|
@@ -90,7 +90,12 @@ Synth overrides five, and the interesting part is the one it does **not** overri
 | `unresolved-seventh` | relaxed | A maj7 pad held for four bars is a colour. Softened rather than disabled: a seventh in a *moving* line still owes something. |
 | `static-repetition` | relaxed | A Kraftwerk melody repeats one note more than any rule expects. |
 | `repeated-note-run` | relaxed | The same, one rule over. |
-| `unresolved-leading-tone` | **left on** | In major these songs cadence and a hanging leading tone is a fault exactly as it is in iskelmä. In minor the rule is simply inert, because the scale rule never produces a raised seventh for it to catch — which is a better way to be modal than switching the rule off. |
+| `unresolved-leading-tone` | **left on** | In major these songs cadence and a hanging leading tone is a fault exactly as it is in iskelmä. |
+| `chromatic-leading-tone-in-minor` | **on**, veto at level 1 | Off by default, because most idioms here raise the seventh in minor on purpose. Synth's identity is the opposite claim: where another idiom writes `V` this writes `♭VII`, and a leading tone in a minor-key song sounds like a dance band walked in. |
+
+**This table used to say the rule was inert in minor, and that argument was measured false.** It read: *the scale rule never produces a raised seventh for it to catch — which is a better way to be modal than switching the rule off.* The first half is true and the second does not follow. **Nothing that decorates a line asks the chord scale for permission**: a soloist with any appetite for notes outside it is offered the semitone either side of wherever it is, and one of those is the leading tone. **Seventeen songs in two hundred had one, on four of synth's five styles.**
+
+So the rule exists, is off everywhere else, and synth turns it on — scoped to notes *outside* the prevailing scale so it can never contradict `scaleForChord`. Where a genre's own chord scale contains the leading tone, that is the genre saying it wants it, and a rule is not the place to argue.
 
 Defaults: iskelmä `standard` (singability is what the genre lives on), jazz `light` (the rules stop a line wandering; jazz wanders on purpose), bebop and fusion `free`, synth `standard`, ambient `standard` — a note that lasts four seconds is exposed in a way a passing eighth never is, so its drone and choral styles go further to `strict`, while `wasteland` drops to `light` because the sour intervals are what it is for.
 
