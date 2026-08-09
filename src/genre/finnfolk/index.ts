@@ -569,6 +569,30 @@ export const finnfolk: Genre = {
   soloBacking: 'full',
 
   /**
+   * **The strain is ornamented too, and this is the only genre that says so.**
+   *
+   * Everything below about `solo` was true and was reaching one strain in four.
+   * The profile said in as many words that a pelimanni's whole test is whether
+   * their version of a tune everybody knows is worth hearing, set the highest
+   * solo `ornament` figure in the project to say it, and then — because ornaments
+   * lived inside `generateSolo` and nowhere else — handed a bare tune to the three
+   * arrangements that have no `solo` section at all. A fiddler who decorates only
+   * when the band stops is not a fiddler.
+   *
+   * `0.45` rather than the break's `0.6`, and the gap is the one real difference
+   * between the two situations: a strain played *with* the band has a second
+   * fiddle and a clarinet in it, and a first fiddle decorating every long note
+   * over the top of them is a thicker texture than a wedding wants. Alone, they
+   * open up. The break keeps its higher figure and this sits under it.
+   *
+   * At this rate a strain of eight bars carries three or four figures, which is
+   * about what the Kaustinen recordings do: a grace note into the phrase, a
+   * mordent on the long note in the middle, and the third beat filled in — the
+   * three gestures the `solo` note below already names.
+   */
+  decorate: 0.45,
+
+  /**
    * The strain, played by one person, with more notes in it.
    *
    * **This is not improvisation and calling it a solo is the engine's word rather

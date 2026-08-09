@@ -16,7 +16,7 @@
  * keeps the output readable; see `dynamicGrid`.
  */
 
-import { SLOTS_PER_BEAT, slotOf, tempoRange } from '../core/grid.js';
+import { SLOTS_PER_BEAT, quantise, slotOf, tempoRange } from '../core/grid.js';
 import { midiToNoteName, spellingFor } from '../core/pitch.js';
 import { resolveDrumSample, type DrumSample } from './drum-banks.js';
 import { levelOfDrum, levelOfSound } from './source-levels.js';
@@ -132,16 +132,20 @@ export function renderStrudel(song: Song, opts: StrudelRenderOptions = {}): stri
   const orbits = new Map<Track, number>();
 
   for (const track of song.tracks) {
-    const grid = buildNoteGrid(track.notes, song.meta.totalBars, slotsPerBar, spelling);
+    const { grid, divided } = buildNoteGrid(
+      track.notes, song.meta.totalBars, slotsPerBar, spelling,
+    );
     if (!grid.some((bar) => bar.some((slot) => slot !== '~'))) continue;
 
     // A sung track is bound to a name above the stack and then filtered three
     // times, so the note grid is written once rather than once per formant.
     if (track.voice) {
-      lines.push(...voiceDefinition(track, formatGrid(grid), meta.totalBars, slotsPerBar));
+      lines.push(...voiceDefinition(
+        track, formatGrid(grid), meta.totalBars, slotsPerBar, meta.bpm, divided,
+      ));
       lines.push('');
       parts.push(...voiceParts(track, meta.totalBars, slotsPerBar));
-      const burst = consonantBurst(track, meta.totalBars, slotsPerBar);
+      const burst = consonantBurst(track, meta.totalBars, slotsPerBar, meta.bpm, divided);
       if (burst) parts.push(burst);
       continue;
     }
@@ -183,6 +187,13 @@ export function renderStrudel(song: Song, opts: StrudelRenderOptions = {}): stri
      * `.penv()` there instead; see `pitchSlide`.
      */
     const slide = pitchSlide(track, meta.totalBars, slotsPerBar, meta.bpm);
+    /**
+     * And where the notes fall between the slots. Unlike the three above it this
+     * one carries no musical decision of its own — it is the correction for what
+     * `slotOf` rounded away, and a part written exactly on the grid emits none.
+     * See `timingNudge`.
+     */
+    const nudged = timingNudge(track, meta.totalBars, slotsPerBar, meta.bpm, divided);
     const part = [
       `  // ${track.layer} — ${track.instrument}`,
       `  note(\`${formatGrid(grid)}\`)`,
@@ -192,6 +203,7 @@ export function renderStrudel(song: Song, opts: StrudelRenderOptions = {}): stri
         : `    .gain(${(track.gain * level(track.notes[0]!)).toFixed(3)})`,
       ...envelopeChain(track.envelope),
       ...slide,
+      ...nudged,
       ...effectChain(track.effects, song, sweep, slide.length > 0),
       /**
        * The sidechain's target end: a bus of its own for the kick to reach.
@@ -218,10 +230,15 @@ export function renderStrudel(song: Song, opts: StrudelRenderOptions = {}): stri
       grid = Array.from({ length: meta.totalBars }, () => [] as DrumHit[]);
       byVoice.set(e.voice, grid);
     }
+    const placed = Math.min(slot, slotsPerBar - 1);
     grid[bar]!.push({
-      slot: Math.min(slot, slotsPerBar - 1),
+      slot: placed,
       velocity: e.velocity,
       roll: e.roll ?? 1,
+      // Against the slot the stroke was actually filed under, including the clamp
+      // above: a hit that rounded past the barline is played at the end of the bar
+      // it belongs to, and the correction has to describe where it really went.
+      nudge: (e.beat - bar * meta.beatsPerBar) - placed / SLOTS_PER_BEAT,
     });
   }
 
@@ -327,6 +344,11 @@ export function renderStrudel(song: Song, opts: StrudelRenderOptions = {}): stri
      * engineer's.
      */
     const dyn = drumDynamics(grid, slotsPerBar, gain);
+    /**
+     * And where each of them landed, which for a ride is most of what the part
+     * is saying. See `drumNudge`.
+     */
+    const shift = drumNudge(grid, slotsPerBar, meta.bpm);
     parts.push(
       [
         `  // drums — ${voice}${drumNote(song.drums.bank, voice, played)}`,
@@ -335,6 +357,7 @@ export function renderStrudel(song: Song, opts: StrudelRenderOptions = {}): stri
           ? `    .bank('${played.bank}')`
           : `    .n(${played.n})`,
         dyn ? `    .gain(\`${formatGrid(dyn)}\`)` : `    .gain(${gain.toFixed(3)})`,
+        ...(shift ? [`    .nudge(\`${formatGrid(shift)}\`)`] : []),
         ...effectChain(fx, song),
         // The sidechain's source end, on the kick and only on the kick. See
         // `duckPlan`; `kickOnsets` argues why it is `bd` by name.
@@ -824,6 +847,13 @@ interface DrumHit {
   velocity: number;
   /** How many even strokes fill the slot. 1 is the ordinary one. See `DrumEvent.roll`. */
   roll: number;
+  /**
+   * Beats between the slot this stroke was filed under and where it actually
+   * falls. Signed, and never more than half a slot because `slotOf` rounds. See
+   * `timingNudge` for why this is a control rather than a finer grid — a swung
+   * ride and a dragged backbeat are the drummer's half of that entry.
+   */
+  nudge: number;
 }
 
 /**
@@ -886,6 +916,47 @@ function drumDynamics(
     // Slot 0 restates rather than extends: each bar is its own group, and a `_`
     // at the head of one has nothing inside it to hold.
     return found !== undefined || slot === 0 ? (gain * current).toFixed(3) : '_';
+  }));
+}
+
+/**
+ * Where each stroke actually falls, or undefined when the voice is on the grid.
+ *
+ * `timingNudge`'s drum half, and the half that carries the swing: the ride is
+ * the instrument stating the feel, and a swung ride flattened to a dotted eighth
+ * is a different genre. Same argument, same mechanism, and the same early return
+ * so a machine kit programmed on the grid prints no second pattern.
+ *
+ * **The later stroke wins a shared slot**, where `drumDynamics` takes the louder
+ * and the sample grid takes either. None of the three is arbitrary: two strokes
+ * on one slot sound as one, so the level asked for is the harder, the sample is
+ * whichever they agree on, and the placement is the one that is still moving —
+ * a fill landing on a pattern's own sixteenth is the fill's timing, because the
+ * fill is the gesture and the pattern is the floor under it.
+ */
+function drumNudge(
+  bars: DrumHit[][],
+  slotsPerBar: number,
+  bpm: number,
+): string[][] | undefined {
+  if (!bars.flat().some((h) => Math.abs(h.nudge) > 0.05 / SLOTS_PER_BEAT)) return undefined;
+
+  const seconds = 60 / bpm;
+  const onsets = bars.map((hits) => {
+    const row = new Map<number, number>();
+    for (const h of hits) row.set(h.slot, h.nudge);
+    return row;
+  });
+
+  // Whatever the part opens on also fills the bars before it starts, so the held
+  // value is never the placeholder — same rule as `buildValueGrid`.
+  let current = bars.flat()[0]!.nudge;
+  return onsets.map((row) => Array.from({ length: slotsPerBar }, (_unused, slot) => {
+    const found = row.get(slot);
+    if (found !== undefined) current = found;
+    // Slot 0 restates rather than extends: each bar is its own group, and a `_`
+    // at the head of one has nothing inside it to hold.
+    return found !== undefined || slot === 0 ? nudgeToken(current, seconds) : '_';
   }));
 }
 
@@ -1051,16 +1122,153 @@ function pitchSlide(
 }
 
 /**
+ * Where the note actually falls, for a notation that can only write sixteenths.
+ *
+ * **The grid is not the music, and until this existed the renderer thought it
+ * was.** Every onset went through `slotOf`, which *rounds*, and whatever it
+ * rounded away was gone. Measured across nineteen genres, 19 % of all onsets sit
+ * off the sixteenth grid — so nearly a fifth of every song was being moved to
+ * somewhere nobody wrote before it was played.
+ *
+ * The worst of it was swing, because swing is not a rounding error, it is the
+ * genre. `applySwing` delays the second eighth of a beat by `swing / 2` and
+ * bakes that into `NoteEvent.beat`; a medium-swing jazz song therefore writes its
+ * offbeats at beat fraction 0.665, and `slotOf(0.665 * 4)` is slot 3, which is
+ * 0.750. **Triplet swing came out as a dotted-eighth shuffle**, on all 903 swung
+ * events of the song this was measured on, and 0.665 and 0.750 collapsed to the
+ * same token so the notation could not even express the difference. §3.19 records
+ * pop approximating 12/8 as `swing: 0.28` and rnb's `doowop` as `0.33`, so the
+ * flattening reached those too — an approximation, itself approximated away.
+ *
+ * `npm run genres` passed throughout, because it asserts `meta.swing > 0.3` — a
+ * number on the metadata object, which was always right. Nothing was reading the
+ * output.
+ *
+ * ## Why this is a control and not a finer grid
+ *
+ * The obvious repair is to subdivide, and it is the wrong one. Those 19 % are
+ * mostly *microtiming* — `Feel.push`, `laidback`, the drag on a backbeat — and
+ * the commonest offsets measured are 0.20, 0.10 and 0.92 of a slot, which are
+ * not subdivisions of anything. Writing them as notated tuplets would claim the
+ * music divides the beat in ways it does not, and would multiply every grid in
+ * the file to say it. **A performer's placement is not a smaller note value**, and
+ * the notation should keep saying sixteenth while the playback says otherwise.
+ *
+ * `nudge` is exactly that: superdough reads it as `start(eventTime + nudge)` —
+ * seconds, added at scheduling, with no effect on the pattern's structure. So the
+ * grid stays legible, the parallel grids stay column-aligned, and the offset is
+ * exact rather than rounded to any resolution at all.
+ *
+ * This leaves a clean division of labour with `DrumEvent.roll` and its melodic
+ * twin: **subdivision says how many events share a slot, and nudge says when each
+ * one happens.** A slot that is subdivided writes nudge 0 and lets the group place
+ * its strokes, which is right because a roll is even by construction.
+ *
+ * Bounded by construction: `slotOf` rounds, so the correction is never more than
+ * half a slot — an eighth of a beat, 49 ms at 153 BPM — and it is as often
+ * negative as positive. Strudel schedules with lookahead, so pulling an event
+ * that far earlier is still comfortably in the future when superdough sees it.
+ */
+function timingNudge(
+  track: Track,
+  totalBars: number,
+  slotsPerBar: number,
+  bpm: number,
+  divided: ReadonlySet<number>,
+  indent = '    ',
+): string[] {
+  const moved = (n: NoteEvent) => offGrid(n.beat) && !divided.has(slotOf(n.beat));
+  if (!track.notes.some(moved)) return [];
+
+  // Seconds, because that is what `nudge` is in, from beats, because that is what
+  // the IR is in — and `meta.bpm` rather than the tempo map for `pitchSlide`'s
+  // reason: the audition plays flat, so these offsets have to be computed against
+  // the tempo the scheduler was actually given.
+  const seconds = 60 / bpm;
+  const grid = buildValueGrid(track.notes, totalBars, slotsPerBar,
+    (n) => (moved(n) ? nudgeToken(n.beat - quantise(n.beat), seconds) : '0'));
+  return [`${indent}.nudge(\`${formatGrid(grid)}\`)`];
+}
+
+/**
+ * Far enough off the grid to be worth a correction.
+ *
+ * A twentieth of a slot is about 3 ms at 153 BPM, which is below anything a
+ * listener resolves and below the scheduler's own jitter. The threshold is here
+ * so that a part whose onsets are all exact takes the early return and prints no
+ * grid at all — the same readability rule `dynamicGrid` and `filterSweep` apply.
+ */
+function offGrid(beat: number): boolean {
+  return Math.abs(beat - quantise(beat)) > 0.05 / SLOTS_PER_BEAT;
+}
+
+/**
+ * One nudge value, in seconds, as short as it can be written.
+ *
+ * A part carries this grid because *some* of its notes are off the grid, and the
+ * rest of them still need a slot each saying they are not — so the commonest
+ * token by far is zero, and writing that as `0.0000` costs five characters per
+ * slot to say nothing. The audition is meant to be read as well as played; the
+ * same argument `dynamicGrid` makes for not emitting a flat grid at all applies
+ * inside one that has to exist.
+ */
+function nudgeToken(beats: number, seconds: number): string {
+  const value = beats * seconds;
+  // Below the threshold `offGrid` already called inaudible, so it rounds to a
+  // bare zero rather than to four decimal places of one.
+  if (Math.abs(value) < 5e-5) return '0';
+  return value.toFixed(4).replace(/0+$/, '').replace(/\.$/, '');
+}
+
+/** A note grid, and which of its slots hold more than one stroke. */
+interface NoteGrid {
+  grid: string[][];
+  /**
+   * Absolute slot indices that were cut up. `timingNudge` writes zero for these:
+   * the group already places its strokes, and a nudge on top would move all of
+   * them together — which on a trill is the one thing that would be heard, since
+   * every stroke after the first would arrive at the wrong time relative to it.
+   */
+  divided: Set<number>;
+}
+
+/**
  * Lay notes onto a per-bar sixteenth grid.
+ *
  * Simultaneous notes become a mini-notation chord `[c3,e3,g3]`; sustained notes
  * fill later slots with `_`.
+ *
+ * ## A slot may also hold more than one stroke
+ *
+ * This is `docs/engine-gaps.md` §3.15's melodic half, and it arrives long after
+ * the drum half — `DrumEvent.roll` closed that side with `[hh*3]`, and the reason
+ * it could is that a kit's grid is one voice per pattern, so a subdivided slot is
+ * one sample struck n times and needs no second opinion about pitch. A melodic
+ * line's does: a trill is two *different* notes alternating, so the group has to
+ * name each stroke rather than multiply one. `[c4 d4]` where `c4` stood, and
+ * `[c4 d4 c4 d4]` for twice the rate.
+ *
+ * **Read off `NoteEvent.trill` rather than inferred from the note positions**, and
+ * the difference matters. Inference was tried first and is wrong in two directions
+ * at once, both caused by `slotOf` rounding: a stroke exactly half a slot along
+ * rounds *up* and lands in the next slot instead of the one it was filling, and a
+ * stroke half a slot early rounds up into its principal's slot where the only
+ * position left to give it is a late one. A declaration has neither problem
+ * because there is nothing to recover — the count and the neighbour are stated,
+ * and this function does arithmetic rather than archaeology.
+ *
+ * The division stays even, which is what mini-notation does to a group and what a
+ * trill is anyway. Uneven placement belongs to `nudge`, which is exact at any
+ * offset and costs no notation. The two mechanisms divide the work cleanly —
+ * subdivision says *how many* strokes share a slot, nudge says *when* a stroke
+ * happens — and neither can express the other's half.
  */
 function buildNoteGrid(
   notes: NoteEvent[],
   totalBars: number,
   slotsPerBar: number,
   spelling: 'sharp' | 'flat',
-): string[][] {
+): NoteGrid {
   const grid: string[][] = Array.from({ length: totalBars }, () =>
     Array.from({ length: slotsPerBar }, () => '~'),
   );
@@ -1074,6 +1282,8 @@ function buildNoteGrid(
    */
   const reonsets = new Map<number, string[]>();
   const holds = new Set<number>();
+  /** Slot → the alternation filling it, already written out. */
+  const trilled = new Map<number, string>();
 
   const addTo = (map: Map<number, string[]>, slot: number, name: string) => {
     const arr = map.get(slot) ?? [];
@@ -1085,25 +1295,46 @@ function buildNoteGrid(
     const start = slotOf(n.beat);
     if (start < 0 || start >= totalSlots) continue;
     const name = midiToNoteName(n.midi, spelling);
-    addTo(onsets, start, name);
-
     const end = Math.min(totalSlots, Math.max(start + 1, slotOf(n.beat + n.duration)));
+
+    /**
+     * A trill occupies every slot the note covers, including the first — so it
+     * replaces the onset and the holds behind it rather than decorating them. A
+     * note trilled for its whole length has no plain stroke anywhere in it, which
+     * is what distinguishes this from a mordent written as three short notes.
+     *
+     * `strokes` is clamped rather than trusted, per `NoteTrill`: a count under two
+     * is not an alternation, and the note falls through to the ordinary path. So is
+     * the note's remaining length — a later pass may have cut it below the two
+     * strokes it was written for, and `strokesOf` in `render/midi.ts` declines on
+     * exactly this arithmetic so the two renderers strike the same notes.
+     */
+    const strokes = n.trill ? Math.round(n.trill.strokes) : 0;
+    if (n.trill && strokes >= 2
+      && Math.round(n.duration * SLOTS_PER_BEAT * strokes) >= 2) {
+      const other = midiToNoteName(n.midi + n.trill.semitones, spelling);
+      const group = `[${Array.from({ length: strokes },
+        (_unused, i) => (i % 2 ? other : name)).join(' ')}]`;
+      for (let s = start; s < end; s++) trilled.set(s, group);
+      continue;
+    }
+
+    addTo(onsets, start, name);
     for (let s = start + 1; s < end; s++) {
       if (s % slotsPerBar === 0) addTo(reonsets, s, name);
       else holds.add(s);
     }
   }
 
-  const write = (slot: number, names: string[]) => {
-    const bar = Math.floor(slot / slotsPerBar);
-    const col = slot % slotsPerBar;
+  const put = (slot: number, names: string[]) => {
     const unique = [...new Set(names)];
-    grid[bar]![col] = unique.length === 1 ? unique[0]! : `[${unique.join(',')}]`;
+    grid[Math.floor(slot / slotsPerBar)]![slot % slotsPerBar] =
+      unique.length === 1 ? unique[0]! : `[${unique.join(',')}]`;
   };
 
-  for (const [slot, names] of reonsets) write(slot, names);
+  for (const [slot, names] of reonsets) put(slot, names);
   // Real onsets win over re-articulations at the same slot.
-  for (const [slot, names] of onsets) write(slot, names);
+  for (const [slot, names] of onsets) put(slot, names);
 
   for (const slot of holds) {
     const bar = Math.floor(slot / slotsPerBar);
@@ -1111,7 +1342,14 @@ function buildNoteGrid(
     if (grid[bar]![col] === '~') grid[bar]![col] = '_';
   }
 
-  return grid;
+  // Last, so a trill owns its slots outright: an ordinary note may legitimately
+  // sustain into one — the tune underneath does not stop — and a `_` left on top
+  // of a group stretches the group rather than holding a pitch.
+  for (const [slot, group] of trilled) {
+    grid[Math.floor(slot / slotsPerBar)]![slot % slotsPerBar] = group;
+  }
+
+  return { grid, divided: new Set(trilled.keys()) };
 }
 
 /** Name the sung pattern is bound to above the stack. */
@@ -1126,7 +1364,8 @@ const VOICE_BINDING = 'voice';
  * cues that do most of the work — vibrato and the scoop into the note.
  */
 function voiceDefinition(
-  track: Track, noteGrid: string, totalBars: number, slotsPerBar: number,
+  track: Track, noteGrid: string, totalBars: number, slotsPerBar: number, bpm: number,
+  divided: ReadonlySet<number>,
 ): string[] {
   const v = track.voice!;
   const attacks = buildValueGrid(track.notes, totalBars, slotsPerBar,
@@ -1151,6 +1390,15 @@ function voiceDefinition(
     // holding the envelope's sustain high, which raises the average without
     // touching the peak.
     `  .vib(${v.vibRate}).vibmod(${v.vibDepth})`,
+    /**
+     * The singer swings with the band. This is on the binding rather than on the
+     * four patterns below it, because the body and the three formant bands are
+     * all derived from `voice` and a correction applied here reaches every one of
+     * them — where four copies could drift apart by a rounding digit and smear
+     * the vowel across its own onset. `consonantBurst` is the one that has to
+     * repeat it, being a pattern of its own rather than a filter of this one.
+     */
+    ...timingNudge(track, totalBars, slotsPerBar, bpm, divided, '  '),
     // `panchor(1)` puts the written note at the *top* of the pitch envelope, so
     // the voice starts `scoop` semitones underneath and arrives at the note
     // rather than beginning on it.
@@ -1168,7 +1416,8 @@ function voiceDefinition(
  * nasal, a liquid or a bare vowel produce no burst and simply rest here.
  */
 function consonantBurst(
-  track: Track, totalBars: number, slotsPerBar: number,
+  track: Track, totalBars: number, slotsPerBar: number, bpm: number,
+  divided: ReadonlySet<number>,
 ): string | undefined {
   const shapeOf = (n: NoteEvent) => CONSONANTS[n.consonant ?? 'none'];
   const voiced = track.notes.filter((n) => shapeOf(n).burstFreq > 0);
@@ -1187,6 +1436,10 @@ function consonantBurst(
     `    .bpf(\`${formatGrid(freqs)}\`).bandq(1.6)`,
     `    .attack(0.001).decay(\`${formatGrid(decays)}\`).sustain(0).release(0.01)`,
     `    .gain(${(track.gain * VOICE_MIX * track.voice!.burstGain).toFixed(3)})`,
+    // A pattern of its own, so it does not inherit the binding's correction and
+    // has to repeat it. A /t/ landing a sixteenth away from the vowel it opens is
+    // not a consonant, it is a second event.
+    ...timingNudge(track, totalBars, slotsPerBar, bpm, divided),
   ].join('\n');
 }
 

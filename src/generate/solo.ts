@@ -1313,15 +1313,56 @@ function context(args: {
 }
 
 /**
- * Grace notes and mordents.
+ * How far in front of its note a grace note sits, as a fraction of a sixteenth.
  *
- * The entire content of an iskelmä instrumental break, and near-absent from a
- * jazz one — a bebop player's decoration is chromatic approach, not a crushed
- * note before the beat. Both are made by *splitting* a note rather than adding
- * one, so the line keeps its onsets and its phrasing and simply arrives with
- * more in front of it.
+ * **Just over half, and the "just over" is the whole of it.** `render/strudel.ts`
+ * files every onset with `slotOf`, which rounds, so an ornament closer than half a
+ * slot to its principal rounds *into* the principal's own cell and the two come
+ * out as a two-note chord — the ornament and the note it decorates struck
+ * together, which is the one thing a grace note must never be. At 0.55 it keeps a
+ * cell of its own, and `timingNudge` then places it exactly where it was written.
+ *
+ * That is a renderer's constraint leaking into the generator, and it is the good
+ * kind: it costs nothing musically. 0.55 of a sixteenth is 54 ms at 153 BPM and
+ * 82 ms at 100 — inside the range a fiddler's crush actually occupies, where the
+ * sixteenth this used to be was 250 ms and was simply another melody note.
  */
-function ornament(
+const GRACE_SLOTS = 0.55;
+
+/**
+ * The shortest note worth trilling, in beats.
+ *
+ * A trill needs room to be heard as an alternation rather than as a mordent that
+ * would not stop, and below a beat there is none: at `strokes: 2` a half-beat note
+ * holds four strokes, which is the mordent this function already writes and writes
+ * better, because a mordent lands back on its principal and a truncated trill does
+ * not.
+ */
+const TRILL_BEATS = 1;
+
+/**
+ * Grace notes, mordents and trills.
+ *
+ * The entire content of an iskelmä instrumental break and of a Finnish folk
+ * strain, and near-absent from a jazz one — a bebop player's decoration is
+ * chromatic approach, not a crushed note before the beat.
+ *
+ * The first two are made by *splitting* a note rather than adding one, so the line
+ * keeps its onsets and its phrasing and simply arrives with more in front of it.
+ * The trill is the exception and is not a split at all: it is a property of the
+ * note, `NoteEvent.trill`, left for the renderers to strike out. That is the only
+ * way it could work — a trill written here as struck notes would be a dozen
+ * sixteenths that the audition's grid would then have to recognise as a gesture
+ * again, and `buildNoteGrid` says at length why that recovery is not possible.
+ *
+ * **Exported because the strain wants it as much as the break does.** For most of
+ * this project's life that was untrue by construction: ornaments were reachable
+ * only through `generateSolo`, so a genre got them in the one section in four that
+ * had a solo and nowhere else. In a genre whose whole proposition is that one
+ * player decorates a tune everybody already knows, that is not a shortfall, it is
+ * the wrong instrument. See `Genre.decorate`.
+ */
+export function ornament(
   notes: NoteEvent[],
   scaleFor: (chord: Chord) => Scale,
   chordAt: (slot: number) => Chord,
@@ -1329,11 +1370,30 @@ function ornament(
   [lo, hi]: [Midi, Midi],
   rng: Rng,
   amount: number,
+  /**
+   * Whether this line may be *trilled*, as opposed to merely graced.
+   *
+   * Off by default, and the default is the safe one because a trill is the only
+   * figure here that cannot be checked by looking at the line it is written on.
+   * `NoteTrill` requires a monophonic voice — the strokes are struck notes, so a
+   * key already sounding underneath one is struck twice — and a solo line is
+   * monophonic when it is written and stops being so the moment it is pushed into
+   * a track that also holds a comp. `npm run genres` found that as a `latin`
+   * soloist on an electric piano: twelve double note-ons against eleven unisons in
+   * the IR, which is the check doing exactly its job.
+   *
+   * So the caller decides, because only the caller knows what track the line ends
+   * up on. Grace notes and mordents need no such permission: they are ordinary
+   * notes spliced into the line, and a line that can hold its own notes can hold
+   * theirs.
+   */
+  trill = false,
 ): void {
-  const grace = 1 / SLOTS_PER_BEAT;
+  const slot1 = 1 / SLOTS_PER_BEAT;
+  const grace = slot1 * GRACE_SLOTS;
   for (let i = notes.length - 1; i >= 0; i--) {
     const note = notes[i]!;
-    if (note.duration < grace * 2.5 || !rng.chance(amount)) continue;
+    if (note.duration < slot1 * 2.5 || !rng.chance(amount)) continue;
     /**
      * Never crush the note in front.
      *
@@ -1348,27 +1408,51 @@ function ornament(
     const slot = Math.round((note.beat - startBeat) * SLOTS_PER_BEAT);
     const scale = scaleFor(chordAt(Math.max(0, slot)));
 
+    /**
+     * A long note is trilled instead, and it is the same decision a player makes:
+     * the figure that fits a held note is not the figure that fits a passing one.
+     * Tried first, so that a note long enough for a trill is not spent on a
+     * mordent — the reverse order would leave trills to whatever the coin missed.
+     */
+    if (trill && note.duration >= TRILL_BEATS && rng.chance(0.5)) {
+      const upper = clampToRange(stepInScale(scale, note.midi, 1), lo, hi);
+      if (upper === note.midi) continue;
+      note.trill = { semitones: upper - note.midi, strokes: 2 };
+      continue;
+    }
+
     if (rng.chance(0.55)) {
       // Grace: a crushed note a step away, immediately before the beat.
       const from = clampToRange(stepInScale(scale, note.midi, rng.chance(0.6) ? 1 : -1), lo, hi);
       if (from === note.midi) continue;
       notes.splice(i, 0, {
         beat: note.beat - grace,
-        duration: grace * 0.9,
+        // Shorter than the gap it sits in, so the crush is heard as an attack and
+        // not as a pitch: it stops before its principal starts rather than running
+        // into it.
+        duration: grace * 0.8,
         midi: from,
         velocity: note.velocity * 0.72,
       });
     } else {
-      // Mordent: the note, its upper neighbour, the note again. Three
-      // sixteenths out of the front of a note that had room for them.
+      /**
+       * Mordent: the note, its upper neighbour, the note again. Three sixteenths
+       * out of the front of a note that had room for them.
+       *
+       * A whole slot each, where the grace above takes barely half of one, and the
+       * difference is not a detail. These are three *struck notes* and the ear
+       * counts them; crush them together and they land in one cell of the grid and
+       * come out as a chord. A grace note can be squeezed because it is an attack
+       * on the note behind it — a mordent cannot, because it is the melody.
+       */
       const upper = clampToRange(stepInScale(scale, note.midi, 1), lo, hi);
       if (upper === note.midi) continue;
-      const held = note.duration - grace * 2;
-      note.beat += grace * 2;
+      const held = note.duration - slot1 * 2;
+      note.beat += slot1 * 2;
       note.duration = held;
       notes.splice(i, 0,
-        { beat: note.beat - grace * 2, duration: grace * 0.9, midi: note.midi, velocity: note.velocity },
-        { beat: note.beat - grace, duration: grace * 0.9, midi: upper, velocity: note.velocity * 0.85 },
+        { beat: note.beat - slot1 * 2, duration: slot1 * 0.9, midi: note.midi, velocity: note.velocity },
+        { beat: note.beat - slot1, duration: slot1 * 0.9, midi: upper, velocity: note.velocity * 0.85 },
       );
     }
   }

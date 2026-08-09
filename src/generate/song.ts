@@ -64,7 +64,7 @@ import type { Signature } from '../tune/judge.js';
 import { chooseMotto } from './motto.js';
 import { SLOTS_PER_BEAT, trimOverlaps } from './rhythm.js';
 import {
-  compBehindSolo, drumsBehindSolo, generateDrumSolo, generateSolo, planSolos,
+  compBehindSolo, drumsBehindSolo, generateDrumSolo, generateSolo, ornament, planSolos,
   type BarSpan, type SoloLayer,
 } from './solo.js';
 import { generateVocalTrack } from './vocals.js';
@@ -1758,6 +1758,69 @@ export function generateSong(opts: GenerateOptions = {}): Song {
         ? full.filter((n) => n.beat < traded.from - 1e-6 || n.beat >= traded.to - 1e-6)
         : full;
 
+      /**
+       * The tune, decorated — for the genres where that is what playing it means.
+       *
+       * Here rather than inside the tune engine, and that is a real decision: the
+       * engine writes a section two dozen times and keeps the one its judge scores
+       * highest, and a judge scoring ornamented lines would be scoring the
+       * ornaments. The line is chosen first and decorated after, which is also the
+       * order the music happens in — a pelimanni plays a tune everybody knows and
+       * the decoration is what makes their reading of it worth hearing.
+       *
+       * After the trade split, so a phrase handed to the counter is not decorated
+       * on its way out of a part that no longer plays it. Before `applyDynamics`,
+       * so an added grace note is shaped by the section's arc like every other
+       * note rather than arriving at whatever velocity it was born with.
+       *
+       * Only the lead: a counter-line ornamenting itself under a decorated melody
+       * is two people decorating at once, which is what the second fiddle in a
+       * pelimanni band is specifically not doing. See `Genre.decorate`.
+       */
+
+      /**
+       * What this section will be *remembered* as, taken before the decoration and
+       * not after it.
+       *
+       * `ornament` splices into the array it is given, and the array it is given is
+       * the one `memory.melody` stores a few dozen lines below. Without the copy the
+       * tune would go into memory already decorated, come back through `varyRecall`
+       * still decorated, and be decorated a second time on top — ornaments on
+       * ornaments, compounding with every recall.
+       *
+       * It is also the musically right answer, which is the part worth keeping
+       * whatever the second pass would have sounded like. A pelimanni playing the
+       * strain a second time
+       * does not reproduce the ornaments of the first — the tune is what is
+       * remembered and the decoration is what is *done* to it, freshly, every time
+       * round. Storing the plain line is what lets the recall differ from its
+       * original in the one way this repertoire actually differs.
+       *
+       * Aliased rather than copied where nothing decorates, so every other genre in
+       * the catalogue renders byte for byte as it did.
+       */
+      const plainTune = genre.decorate && !isSolo ? full.map((n) => ({ ...n })) : full;
+
+      if (genre.decorate && !isSolo) {
+        ornament(
+          melody,
+          (chord: Chord) => scaleHere(localTonic, mode, chord),
+          (slot: number) => ctxBase.chords[Math.min(ctxBase.chords.length - 1,
+            Math.max(0, Math.floor(slot / (style.beatsPerBar * SLOTS_PER_BEAT))))]!,
+          ctxBase.startBeat,
+          range,
+          new Rng(`${seed}:decorate:${s}${salt('melody')}`),
+          Math.min(1, genre.decorate * mood.ornament),
+          /**
+           * Trills only where the lead is genuinely one voice. A two-handed part
+           * merges a left hand into this same track further down, and a trill
+           * struck over a held chord tone is the same key twice — see the
+           * parameter's own note in `ornament`.
+           */
+          !style.twoHanded,
+        );
+      }
+
       // Only freshly written material joins the comparison set. A recalled chorus
       // resembling the chorus it recalls is the point of recalling it.
       if (written) stated.push(written.audition.signature);
@@ -1787,7 +1850,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
         // The *whole* tune, including any phrase handed away: a recalled chorus that
         // inherited the hole would trade in every chorus at once, and the gesture
         // only means anything the once.
-        memory.melody = full.map((n) => ({ ...n, beat: n.beat - ctxBase.startBeat }));
+        memory.melody = plainTune.map((n) => ({ ...n, beat: n.beat - ctxBase.startBeat }));
         if (sectionHook) {
           memory.hook = sectionHook.contour.slice();
           memory.figure = sectionHook.onsets.slice();

@@ -283,6 +283,42 @@ export interface Genre {
   solo?: SoloProfile;
 
   /**
+   * How heavily the *tune itself* is decorated, 0..1. Absent means not at all,
+   * which is the right answer for most of the catalogue.
+   *
+   * ## Why this is not `solo.vocabulary.ornament`
+   *
+   * It looks like a duplicate of that field and it is the opposite of one. That
+   * one says how a **break** is decorated, and it is only reachable through
+   * `generateSolo` — so a genre that set it got ornaments in the sections that
+   * have a soloist and in no others. For jazz that is exactly right: the head is
+   * played straight and the chorus is where the language lives.
+   *
+   * For a genre built on one player decorating a tune everybody knows, it is the
+   * wrong shape entirely. Finnish folk has a `solo` section in one arrangement in
+   * four and its own profile says the word is the engine's rather than the
+   * music's — *there is no such thing as a blowing chorus in Finnish folk music* —
+   * so under the old arrangement three strains in four came out bare, which is
+   * not a pelimanni playing quietly, it is a different instrument. The gap was
+   * found by asking whether the fiddle could trill and discovering that the
+   * question had no answer outside a break.
+   *
+   * ## What the number means
+   *
+   * The chance that any given note long enough to hold one is given a figure —
+   * a grace note, a mordent, or on a note of a beat or more a trill. It is applied
+   * to the finished section melody, after the tune engine has been judged and
+   * before the dynamics, so the ornaments ride the line the judge actually chose
+   * rather than competing with it. See `ornament` in `generate/solo.ts`, which
+   * both paths now share.
+   *
+   * Scaled by the mood's own `ornament` multiplier at the call site, so a
+   * `haikea` reading of a tune is decorated less than an `iloinen` one without
+   * either of them having to state it twice.
+   */
+  decorate?: number;
+
+  /**
    * Which scale the melody should draw on for a given chord.
    * Key-relative for iskelmä, chord-relative for jazz, drone-relative for
    * ambient.

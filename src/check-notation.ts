@@ -59,21 +59,61 @@ const DRUM_VOICE_TOKEN = new RegExp(
  * sound. So the minus sign is not simply allowed through: it is allowed through
  * *where it means something*, and stays an error everywhere else.
  *
- * `penv` is the pitch envelope, in semitones, and it is the whole of the list.
- * `pitchSlide` in `render/strudel.ts` writes one value per note from
- * `NoteEvent.bend.semitones`, which is a **destination and not a depth** — a
- * drill 808 falling a fourth is `-5.00`, and there is no other way to say it.
+ * `penv` is the pitch envelope, in semitones. `pitchSlide` in
+ * `render/strudel.ts` writes one value per note from `NoteEvent.bend.semitones`,
+ * which is a **destination and not a depth** — a drill 808 falling a fourth is
+ * `-5.00`, and there is no other way to say it.
  *
- * This is the third time this file has had a vocabulary narrower than the one the
- * renderer emits, and the third time the symptom was the worst one available: a
+ * `nudge` is seconds against the slot the note is written on, and it is signed
+ * for a plainer reason than `penv`: `slotOf` **rounds**, so half of everything it
+ * moves it moves forward, and the correction that undoes that is negative. A
+ * swung eighth is the ordinary case — written on the third sixteenth, played 33 ms
+ * before it — so a nudge grid with no minus signs in it would mean the swing had
+ * gone missing again. See `timingNudge`.
+ *
+ * This is the fourth time this file has had a vocabulary narrower than the one the
+ * renderer emits, and the fourth time the symptom was the worst one available: a
  * *correct* line reported as unparseable, in a check whose whole job is to be
  * believed. The drum voices were a literal that went stale twice — see
- * `DRUM_VOICE_TOKEN` — and this was a `\d` where the grammar wanted a sign. The
+ * `DRUM_VOICE_TOKEN` — and `penv` was a `\d` where the grammar wanted a sign. The
  * lesson each time is the same, so it is worth stating once more: what belongs in
  * a line is a question for whatever writes the line, and every table here that
  * answers it independently is a table that will disagree eventually.
  */
-const SIGNED_CONTROLS = new Set(['penv']);
+const SIGNED_CONTROLS = new Set(['penv', 'nudge']);
+
+/**
+ * A bar's slots, with a nested group kept whole.
+ *
+ * Splitting on whitespace was enough for as long as every slot was one word, and
+ * `DrumEvent.roll` kept it that way by accident: `[hh*3]` is a group with no space
+ * in it. A melodic alternation cannot be written that way — `[e5 f#5]` is two
+ * different pitches and mini-notation separates them with a space — so a naive
+ * split tore each trill into `[e5` and `f#5]` and reported both halves as
+ * unrecognised. Which is the failure this file has now had five times: **a
+ * vocabulary narrower than the one the renderer emits, reporting correct output as
+ * broken.** See `SIGNED_CONTROLS` for the other four.
+ *
+ * Depth-counted rather than regex-matched, so nesting deeper than one level costs
+ * nothing to support and cannot be the sixth.
+ */
+function slotsOf(inner: string): string[] {
+  const out: string[] = [];
+  let depth = 0;
+  let current = '';
+  for (const ch of inner) {
+    if (ch === '[') depth++;
+    else if (ch === ']') depth--;
+    if (/\s/.test(ch) && depth === 0) {
+      if (current) out.push(current);
+      current = '';
+      continue;
+    }
+    current += ch;
+  }
+  if (current) out.push(current);
+  return out;
+}
 
 const problems: string[] = [];
 /**
@@ -107,6 +147,13 @@ let songs = 0;
  * hearing about from a check rather than from a listener.
  */
 let rolledSlots = 0;
+/**
+ * Slots holding a melodic alternation, for the same standing-proof reason as
+ * `rolledSlots` above and with the same failure mode if it reads zero: either
+ * finnfolk has stopped decorating its strain or `buildNoteGrid` has stopped
+ * emitting the group, and neither should first be noticed by a listener.
+ */
+let trilledSlots = 0;
 /**
  * Parts riding a sidechain bus, and kicks reaching across to duck them.
  *
@@ -188,7 +235,7 @@ for (let i = 0; i < 150; i++) {
     const DRUM = DRUM_VOICE_TOKEN;
     // Noise sources. The sung layer triggers one for each consonant burst.
     const NOISE = /^(white|pink|brown)$/;
-    for (const tok of inner.split(/\s+/)) {
+    for (const tok of slotsOf(inner)) {
       const numeric = /^-?\d+(\.\d+)?$/.test(tok);
       // A control value far outside the plausible range is a bug that would
       // otherwise render as silence or as clipping rather than as an error. On
@@ -213,6 +260,26 @@ for (let i = 0; i < 150; i++) {
         }
         if (Number(roll[2]) < 2) problems.push(`a roll of ${roll[2]} is not a roll: ${tok}`);
       }
+      /**
+       * A trill: the roll's melodic twin, and written out rather than multiplied
+       * because the strokes are two different pitches. See `NoteTrill`.
+       *
+       * Checked for what the type promises and not merely for shape. Two distinct
+       * pitches, because three is a turn and one is the roll notation above; a step
+       * apart, because a trill against an interval is an arpeggio; and alternating,
+       * because `a b b a` is not an alternation however many notes it has.
+       */
+      const trill = tok.match(/^\[([a-g][#b]?-?\d+(?:\s+[a-g][#b]?-?\d+)+)\]$/);
+      if (trill) {
+        trilledSlots++;
+        const strokes = trill[1]!.split(/\s+/);
+        const pitches = [...new Set(strokes)];
+        if (pitches.length !== 2) {
+          problems.push(`a trill alternates two notes, not ${pitches.length}: ${tok}`);
+        } else if (strokes.some((s, i) => s !== strokes[i % 2]!)) {
+          problems.push(`trill strokes do not alternate: ${tok}`);
+        }
+      }
       const ok = tok === '~' || tok === '_'
         || numeric
         || DRUM.test(tok) || NOISE.test(tok)
@@ -228,6 +295,7 @@ console.log(
   `Drum voices: ${drumParts} asked for, ${substituted} substituted, ${dropped} dropped.`,
 );
 console.log(`Rolled slots: ${rolledSlots} struck more than once inside a sixteenth.`);
+console.log(`Trilled slots: ${trilledSlots} alternating two pitches inside a sixteenth.`);
 console.log(`Sidechain: ${duckBuses} parts on a duck bus, ducked from ${duckers} kicks.`);
 // A kick ducking nothing, or a bus nobody ducks. Both play, neither pumps.
 if ((duckBuses > 0) !== (duckers > 0)) {

@@ -294,6 +294,27 @@ export interface NoteEvent {
    */
   bend?: NoteBend;
   /**
+   * This note is not struck once: it alternates with a neighbour for its whole
+   * length. A trill, and on a short note a mordent. See `NoteTrill`.
+   *
+   * **Declared rather than written out**, which is the one design decision here
+   * and it is `DrumEvent.roll`'s. The alternative is to emit the strokes as
+   * ordinary notes and let the renderers work out that they belong together, and
+   * that fails in both directions: the sixteenth grid rounds, so strokes meant for
+   * one slot land in two and a stroke half a slot early reads as one half a slot
+   * late, while the MIDI — which has no grid at all — would be carrying a figure
+   * nothing downstream could recognise as a single gesture again. A count and a
+   * neighbour is what the music means, and each renderer expands it the way its
+   * own medium can.
+   *
+   * Optional and one-sided, like `bend` above it and for the same reason: an
+   * ordinary note should not have to declare that it is struck once.
+   *
+   * Never on a chordal layer, and for a plainer reason than `bend`'s: a trill is
+   * a thing a *finger* does, and there is only one of them per voice.
+   */
+  trill?: NoteTrill;
+  /**
    * Set on the notes a two-handed player's **left hand** played, and on nothing
    * else. See `Track.twoHanded` for what a track like that is.
    *
@@ -476,6 +497,48 @@ export interface NoteBend {
    * other.
    */
   beats: number;
+}
+
+/**
+ * A note struck over and over against a neighbour, for as long as it lasts.
+ *
+ * `NoteEvent.roll` would have been the honest name — this is `DrumEvent.roll`
+ * with a pitch attached, and the two should be read together — but a roll on a
+ * drum is one surface struck repeatedly and this is two notes alternating, which
+ * is a different gesture with an older name.
+ *
+ * ## Why a count per sixteenth rather than a rate in hertz
+ *
+ * A real trill is measured in strokes per second and speeds up as it goes, and
+ * neither renderer can say that: the audition's grid is sixteenths and the MIDI
+ * would need the figure written out. A count per slot is what both of them *can*
+ * hold — mini-notation nests a group inside a slot and divides it evenly, and the
+ * MIDI writer expands the same arithmetic into struck notes — so the two agree by
+ * construction rather than by a tolerance, which is the property `DrumEvent.roll`
+ * was built on and `check-notation.ts` compares them for.
+ *
+ * The cost is that a trill is tempo-locked, and it is worth saying out loud what
+ * that means musically: at 120 BPM `strokes: 2` is 8 a second, which is a fast
+ * mordent, and `strokes: 4` is 16 a second, which is faster than most players
+ * trill. The useful range is small and the table should stay inside it.
+ */
+export interface NoteTrill {
+  /**
+   * The other note, in semitones from this one's `midi`, signed. Almost always
+   * `+1` or `+2` — a trill is to the note above in every idiom this project has —
+   * but signed because a mordent proper goes *down* and the field should not have
+   * an opinion the music does not.
+   */
+  semitones: number;
+  /**
+   * Strokes per sixteenth, counting both notes. Two is the alternation `a b`
+   * filling a sixteenth; four is `a b a b`.
+   *
+   * A whole number, because the audition divides a mini-notation group evenly and
+   * cannot place a fractional stroke. Renderers clamp rather than trust: a count
+   * below 2 is not a trill and is played as the plain note.
+   */
+  strokes: number;
 }
 
 /**

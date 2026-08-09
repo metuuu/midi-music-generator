@@ -13,8 +13,10 @@
 import {
   DUCK_BEATS, DUCK_ONSET_SECONDS, duckDepthDb, kickOnsets,
   songTempo, sweptCutoff, tempoLabel, timeSignature,
-  type DrumVoice, type Effects, type Song, type Track,
+  type DrumVoice, type Effects, type NoteEvent, type Song, type Track,
 } from '../core/types.js';
+import { SLOTS_PER_BEAT } from '../core/grid.js';
+import type { Midi } from '../core/pitch.js';
 
 const PPQ = 480;
 
@@ -207,8 +209,9 @@ export function renderMidi(song: Song): Uint8Array {
       }
     }
 
-    const handOver = handOverTicks(track);
-    for (const note of track.notes) {
+    const struck = { ...track, notes: track.notes.flatMap(strokesOf) };
+    const handOver = handOverTicks(struck);
+    for (const note of struck.notes) {
       const key = clamp7(note.midi);
       const on = beatsToTicks(note.beat);
       const written = Math.max(on + 1, beatsToTicks(note.beat + note.duration));
@@ -705,6 +708,61 @@ function duckStream(track: Track, song: Song): [tick: number, value: number][] {
  * long as it was. It is written down so that the next person to read this
  * paragraph knows it is a decision and not an oversight.
  */
+/**
+ * A trilled note, written out as the notes that are actually struck.
+ *
+ * `NoteTrill` is a declaration — a neighbour and a count per sixteenth — and each
+ * renderer expands it in whatever its own medium can hold. The audition nests a
+ * mini-notation group inside the slot and lets the parser divide it; a .mid has no
+ * grid to nest inside, so the strokes have to become note-ons, and this is where
+ * that happens. Both do the same arithmetic, which is the point of stating the
+ * gesture as a count rather than as a rate: `npm run check` compares the two
+ * renderers and they have to agree on where every stroke went.
+ *
+ * Everything else about the note carries through untouched — velocity, hand,
+ * layer — except `bend`, which is dropped: a pitch envelope belongs to one struck
+ * note travelling somewhere, and a trill is the note being struck again. Nothing
+ * writes both today, and if something does the trill is the louder statement.
+ *
+ * An untrilled note is returned as itself, in a one-element array, so the caller
+ * is one `flatMap` and not a branch.
+ */
+function strokesOf(note: NoteEvent): NoteEvent[] {
+  const trill = note.trill;
+  if (!trill || trill.strokes < 2) return [note];
+
+  const each = 1 / (SLOTS_PER_BEAT * Math.round(trill.strokes));
+  /**
+   * A note with no room left for two strokes is played plain.
+   *
+   * `ornament` only ever trills a note of a beat or more, so this is not about the
+   * generator's taste — it is about what happens to the note *afterwards*.
+   * `trimOverlaps` shortens a line's notes to clear its seams and both
+   * `generate/transition.ts` and `generate/drop.ts` cut one at an edge, exactly as
+   * `NoteBend.beats` warns they do. A trill that kept its stroke count through that
+   * would run past the note it belongs to and strike the key again underneath
+   * whatever came next — which `npm run genres` sees as a double note-on the IR
+   * cannot account for, because in the IR a trill is still one note.
+   *
+   * `render/strudel.ts` declines on the same arithmetic, and it has to: the two
+   * renderers are compared stroke for stroke.
+   */
+  const count = Math.round(note.duration / each);
+  if (count < 2) return [note];
+
+  return Array.from({ length: count }, (_unused, i) => {
+    const { trill: _dropped, bend: _also, ...rest } = note;
+    return {
+      ...rest,
+      beat: note.beat + i * each,
+      // The last stroke takes whatever rounding left over, so the figure ends
+      // where the note it replaced ended rather than a few ticks inside it.
+      duration: i === count - 1 ? Math.max(each, note.beat + note.duration - (note.beat + i * each)) : each,
+      midi: (i % 2 ? note.midi + trill.semitones : note.midi) as Midi,
+    };
+  });
+}
+
 function handOverTicks(track: Track): Map<number, Map<number, number>> {
   const onsets = new Map<number, Set<number>>();
   for (const note of track.notes) {
