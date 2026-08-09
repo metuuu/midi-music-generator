@@ -3159,6 +3159,56 @@ console.log('\nDrum banks');
     unplayable.length ? [...new Set(unplayable)].join(', ') : `${pairs} bank x voice pairs, substitutions included`,
   );
 
+  /**
+   * An era may now name no bank at all, and this is the invariant that makes
+   * that safe.
+   *
+   * `generateSong` used to throw `Rng.weighted: total weight must be > 0` on an
+   * empty `drumBanks`, which meant classical named `AkaiMPC60` in all four of
+   * its eras through a constant its own file calls `SILENT_BANK` — a sampler
+   * wheeled onto a concert platform purely to satisfy a required field. The
+   * guard there lets the table say nothing and falls back to `''`, which every
+   * reader handles correctly *provided nothing asks it to make a sound*:
+   * `readBankName('')` splits to a machine named `''`, `drumStations` puts
+   * nobody on the stand, and `resolveDrumSample` is never called because there
+   * is no event to resolve.
+   *
+   * That proviso is the whole of this check. `drumBanks` and a style's `drums`
+   * are independent fields and nothing pairs them, so a table author who empties
+   * the first and forgets the second gets a renderer emitting `.bank('')` — a
+   * Strudel body that loads no samples and plays silence where a drum part was
+   * written. The guard is not a validator and deliberately says so; this is the
+   * validator, and it is here rather than there because a generator that
+   * inspected every style before drawing a bank would be doing this job once per
+   * song instead of once per catalogue.
+   *
+   * **Every style in the genre, not only the ones the era weights.** `--style x
+   * --era y` reaches any pairing from the CLI whatever `styleWeights` says, so
+   * scoping this to the drawable set would leave the forced pairing broken and
+   * the check green. A style that excludes the drums layer is exempt and that is
+   * not a loophole: exclusion is what stops the events from being written, which
+   * is the same thing an empty `drums` table does, and the 54 placeholder styles
+   * in the catalogue are exactly the population that relies on it.
+   */
+  const bankless: string[] = [];
+  for (const gid of GENRE_IDS) {
+    const g = getGenre(gid);
+    for (const era of Object.values(g.eras)) {
+      if (era.drumBanks.length > 0) continue;
+      for (const style of Object.values(g.styles)) {
+        if ((style.excludeLayers ?? []).includes('drums')) continue;
+        const voices = new Set(style.drums.flatMap((p) => Object.keys(p.voices)));
+        if (voices.size) bankless.push(`${gid}/${era.id} names no bank but ${style.id} plays ${[...voices].join(' ')}`);
+      }
+    }
+  }
+  check(
+    'an era that names no drum bank has no style that plays one',
+    bankless.length === 0,
+    bankless.length ? bankless.join(', ')
+      : `${GENRE_IDS.length} genres, and every era that could name nothing has nothing to play`,
+  );
+
   // Substitution is acceptable for every voice but this one. A ride standing in
   // as a closed hat is fine in iskelmä, where it is decoration; in jazz the ride
   // *is* the pulse, and a bank without its own would pass the check above while

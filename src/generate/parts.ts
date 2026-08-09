@@ -2886,6 +2886,12 @@ export function generateDrums(
       arrival,
       palette: opts.palette ?? DEFAULT_FILLS,
       station,
+      // The fill is entitled to the same fact the figure above it already has.
+      // `buildFill` reads it nowhere yet, so this changes no note in any genre
+      // and `npm run genres` staying green is the expected result rather than
+      // evidence of anything. See `FillOptions.programmed` for what it is for
+      // and what it deliberately is not.
+      programmed: opts.programmed,
     })
     : undefined;
   const clearFrom = fill ? (bars - 1) * slotsPerBar + fill.fromSlot : Infinity;

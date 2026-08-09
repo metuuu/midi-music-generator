@@ -2382,13 +2382,23 @@ const postpunk: Style = {
  * hats are in sixteenths because they finally have their own microphone, and the
  * chorus has four voices on it because there is a desk with enough channels.
  *
- * **The gated snare is this era's signature and this genre cannot express it.**
- * `DrumTrack.voiceEffects` is the field that exists for exactly this — its own
- * doc names gated reverb on the snare and nothing else as the most recognisable
- * production sound of 1984 — and nothing in `generate/` populates it. A genre
- * can state `effects.drums` and that lands on the whole kit, hats included,
- * which its doc correctly calls a mess rather than a period. See the report; the
- * era table asks for as much of it as it can.
+ * **The gated snare is this era's signature and this genre could not express
+ * it.** `DrumTrack.voiceEffects` is the field that exists for exactly this — its
+ * own doc names gated reverb on the snare and nothing else as the most
+ * recognisable production sound of 1984 — and for a long time nothing in
+ * `generate/` populated it, so a genre could only state `effects.drums`, which
+ * lands on the whole kit, hats included, and which its doc correctly calls a
+ * mess rather than a period.
+ *
+ * `EraProfile.voiceEffects` now carries it, and the `arena` **era** is where it
+ * is written rather than here: every band recording in 1984 gated the snare,
+ * which makes it a date and not a dance. This style is why `Style` has the field
+ * too — a style that is `hard`'s chords at `hard`'s tempo and is a separate
+ * style solely because of what was done to one drum is the case an override
+ * exists for — but it declares nothing, because the era already says it and a
+ * second statement of one fact is the one that rots. The half still missing is
+ * the gate itself: the plate is on the snare and nothing stops it, because
+ * `Effects` has no decay.
  *
  * `pushedRoot` in the bass, because at this tempo with a drummer playing
  * sixteenths there is nowhere left to be busy. The one note off the grid is the

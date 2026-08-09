@@ -51,8 +51,28 @@ export interface KeyPlan {
 
 export interface KeyPlanOptions {
   kinds: readonly SectionKind[];
-  /** The era's appetite for a key change at all. */
+  /** The era's appetite for the final lift. */
   chance: number;
+  /**
+   * The era's appetite for a bridge that goes somewhere, separately.
+   *
+   * This was `chance * 0.5` and the multiplier was the whole problem: one field
+   * fired two gestures, so a genre that wanted the gear change got a bridge
+   * modulation at half the rate as a side effect, and a genre that wanted the
+   * bridge could only ask for it by also asking for the lift. They are not
+   * related events — the bridge leaves and comes back, the last chorus leaves
+   * and stays — and nothing but the shape of the old code tied them.
+   *
+   * Absent keeps the 0.5, which is the current behaviour rather than a chosen
+   * default, and the substitution is exact rather than approximate: `rng.chance`
+   * costs one `next()` whatever it returns and both draws below are
+   * unconditional, so an era that declines this field draws the same numbers in
+   * the same order and produces the same bytes. Measured over 570 songs in all
+   * nineteen genres before this landed, and no era declares it yet — the field
+   * is here so that a table *can* say it, which is the gap `docs/engine-gaps.md`
+   * §4 recorded.
+   */
+  bridgeChance?: number;
   /**
    * May a change be announced by the dominant of the key it is going to?
    *
@@ -90,8 +110,12 @@ export function planKeys(opts: KeyPlanOptions): KeyPlan {
    * different gestures and a song may have both: the bridge leaves and comes back,
    * the last chorus leaves and stays. Skipped where the bridge is the final section,
    * since a bridge that never returns is an outro.
+   *
+   * *Rarer* is now the default rather than the rule — see `bridgeChance`, which a
+   * table may set to say how often this happens without also saying how often the
+   * final chorus lifts.
    */
-  if (rng.chance(opts.chance * 0.5)) {
+  if (rng.chance(opts.bridgeChance ?? opts.chance * 0.5)) {
     const at = kinds.indexOf('bridge');
     if (at > 0 && at < transpose.length - 1) {
       const by = rng.weighted([[5, 3], [7, 2]] as const) as Relation;

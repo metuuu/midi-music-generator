@@ -29,17 +29,24 @@
  * and `styles.ts` says why: a style forbidding something no era offers is a
  * second statement of one fact, and the second one is the one that rots.
  *
- * ## The one thing these tables cannot say
+ * ## The one thing these tables could not say — half of it now closed
  *
- * **Gated reverb on the snare, and nothing else.** `DrumTrack.voiceEffects`
- * exists for precisely this — its own doc names it as the most recognisable
- * production sound of 1984 and explains that applying it to the whole kit puts a
- * two-second tail on the hi-hats, which is a mess rather than a period — and
- * nothing in `generate/` populates the field. An era can state `effects.drums`
- * and that is the whole kit. So the `arena` table below asks for the largest
- * plausible whole-kit reverb and pulls the low-pass down to keep the hats out of
- * it, which is an approximation of a gate by other means and is audibly not one.
- * See the report.
+ * **Gated reverb on the snare, and nothing else.** `DrumTrack.voiceEffects` has
+ * always existed for precisely this — its own doc names it as the most
+ * recognisable production sound of 1984 and explains that applying it to the
+ * whole kit puts a two-second tail on the hi-hats, which is a mess rather than a
+ * period — and for a long time nothing in `generate/` populated it, so an era
+ * could only state `effects.drums` and that is the whole kit. The `arena` table
+ * below asked for the largest plausible whole-kit reverb and pulled the low-pass
+ * down to keep the hats out of it, which was an approximation of a gate by other
+ * means and audibly not one.
+ *
+ * `EraProfile.voiceEffects` is the door, `arena` is the catalogue's first and
+ * only table to walk through it, and the compensation above has been undone
+ * rather than left standing next to the real thing. **Half of the gesture is
+ * still missing and it is worth naming which half**: `Effects` has a reverb and
+ * has no decay, so the plate now lands on the snare alone and nothing chops it.
+ * The tail is right; the stop is not expressible.
  */
 
 import type { EraProfile } from '../../style/types.js';
@@ -325,14 +332,31 @@ const arena: EraProfile = {
   keyChangeChance: 0.08,
   density: 0.74,
   /**
-   * Everything wet, and the kit wettest.
+   * Everything wet, and the *snare* wettest — which is a sentence this table
+   * could not write until `EraProfile.voiceEffects` existed.
    *
-   * 0.5 on the drums is the largest number in the genre and it is a substitute
-   * for a gate rather than a taste — see the header. The 5.5 kHz ceiling under
-   * it is the compensation: with the whole kit going to the same reverb, pulling
-   * the top down keeps the tail off the hats, at the cost of a snare that is
-   * duller than the real thing. A gate would have let the snare stay bright and
-   * simply stop.
+   * What stood here was 0.5 on the whole kit under a 5.5 kHz ceiling, and both
+   * numbers were compensation rather than taste: 0.5 was the largest in the
+   * genre because it was standing in for a gate, and the low ceiling was what
+   * kept that tail off the hi-hats, at the cost of a snare duller than the real
+   * thing and sixteenths on the hat that this era's whole rhythmic idea depends
+   * on being audible. The header said so, and so did `arena` in `styles.ts`.
+   * Both paragraphs have been rewritten, because the compensation is gone.
+   *
+   * So the kit comes back to 0.3 and 8.5 kHz, which is between `hard`'s
+   * 0.38/7500 and `alt`'s 0.36/9000 and is a drum kit in a big room — a little
+   * drier than either neighbour precisely because the tail has moved off the kit
+   * and onto one voice, and brighter than both because nothing is being held
+   * down any more. The reverb the era is actually about goes on `sd` alone, at
+   * 0.9: nearly twice the largest number this table ever dared and half again
+   * the wettest thing in the genre, which is the measure of how much the old
+   * field was costing. It was unaskable while it landed on the hats.
+   *
+   * **The gate itself is still not expressible and this does not pretend
+   * otherwise.** `Effects` has reverb and it has no decay, so what this writes
+   * is the plate on the snare and nothing else — the half of the gesture that
+   * was impossible. The chop, which is the other half and the reason the sound
+   * has the name it has, still needs a field nobody has built.
    *
    * The bass goes the other way and stays almost dry, which is the one
    * production value this decade shares with every other era here. A reverb on a
@@ -340,7 +364,7 @@ const arena: EraProfile = {
    * against each other; it is true in a dub mix and it is true in a stadium.
    */
   effects: {
-    drums: { reverb: 0.5, lowpass: 5500 },
+    drums: { reverb: 0.3, lowpass: 8500 },
     bass: { reverb: 0.05, lowpass: 2200 },
     comp: { reverb: 0.3, delay: 0.16, lowpass: 7000 },
     melody: { reverb: 0.42, delay: 0.28, lowpass: 8000 },
@@ -348,6 +372,24 @@ const arena: EraProfile = {
     brass: { reverb: 0.4, lowpass: 7500 },
     pad: { reverb: 0.55, lowpass: 6000 },
     vocal: { reverb: 0.45, delay: 0.24, lowpass: 7500 },
+  },
+  /**
+   * The era's signature, on the one voice it belongs to. See `effects` above.
+   *
+   * This is the only entry of its kind in the catalogue, deliberately: the field
+   * exists so that a table *can* say this, and a field adopted everywhere at
+   * once is a field nobody has tested against a single case. `sd` and nothing
+   * else — not `rim`, which is a different stick on a different part of the head
+   * and was never gated, and not the toms, whose 1980s treatment is a real thing
+   * and a separate argument somebody should make with their own numbers.
+   *
+   * `lowpass: 6000` under a `reverb: 0.9` and *not* the 8500 the kit now has:
+   * the plate on those records is darker than the drum going into it, which is
+   * what a spring-and-plate chain does to a transient. The kit's own ceiling is
+   * the one that came up; this one is the one that was always meant to be down.
+   */
+  voiceEffects: {
+    sd: { reverb: 0.9, lowpass: 6000 },
   },
   space: { reverbSize: 0.85, delayBeats: 0.75, delayFeedback: 0.34 },
 };

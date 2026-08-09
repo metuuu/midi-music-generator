@@ -348,6 +348,13 @@ export function generateSong(opts: GenerateOptions = {}): Song {
   const keys = planKeys({
     kinds: steps.map((step) => step.kind),
     chance: era.keyChangeChance,
+    // Spread rather than passed, so an era that says nothing hands `planKeys`
+    // no key at all and gets its own `?? chance * 0.5` — one place decides what
+    // silence means, rather than this line deciding it a second time and the
+    // two drifting. See `EraProfile.bridgeKeyChangeChance`.
+    ...(era.bridgeKeyChangeChance !== undefined
+      ? { bridgeChance: era.bridgeKeyChangeChance }
+      : {}),
     ...(genre.preparedModulation === false ? { prepared: false } : {}),
     rng,
   });
@@ -611,8 +618,70 @@ export function generateSong(opts: GenerateOptions = {}): Song {
   // its comping pattern every eight bars.
   const bassPattern = rng.weightedBy(style.bass, (p) => p.weight);
   const compPattern = rng.weightedBy(style.comp, (p) => p.weight);
-  const drumPattern = rng.weightedBy(style.drums, (p) => p.weight);
-  const drumBank = rng.weighted(era.drumBanks);
+  /**
+   * …and a band with no percussion section may say so by writing nothing.
+   *
+   * An empty `drums` table used to be unrepresentable rather than unusual:
+   * `rng.weightedBy` throws `Rng.weighted: total weight must be > 0` on a table
+   * with nothing in it, and this line runs *before* anything consults
+   * `excludedLayers`, which is built 150 lines above and never read here.
+   * Measured both ways before the guard went in: a style with `drums: []`
+   * generated 0 of 20 songs, and a style with `drums: []` **and**
+   * `excludeLayers: ['drums']` also generated 0 of 20 — the exclusion is a
+   * statement about the arrangement and this draw happens in front of it.
+   *
+   * So 54 of the 389 styles in the catalogue carry a table that exists only to
+   * be non-empty: one row named `none` or `NO_KIT` whose `voices` is `{}`, and
+   * every one of those 54 also declares `excludeLayers: ['drums']`. The
+   * placeholder is a workaround for this line and nothing else.
+   *
+   * **The guard is on emptiness and not on the exclusion**, and that is the
+   * whole of why no existing song moves. `rng.weightedBy` consumes exactly one
+   * `next()` whatever it returns, so reading `excludedLayers` here would skip a
+   * draw for all 54 of those styles and reshuffle every number behind it — the
+   * failure the `drumSource` note below records in detail. No style in the
+   * catalogue has an empty table today, so this branch is unreachable for
+   * everything that exists and the stream is untouched. Verified rather than
+   * assumed: MIDI and Strudel hashed for 570 songs across all nineteen genres,
+   * every one byte-identical.
+   *
+   * A table whose rows sum to zero still throws, deliberately. That is not an
+   * absent percussion section, it is a table of figures none of which may be
+   * drawn, and a style author who writes one has made a mistake worth hearing
+   * about.
+   */
+  const drumPattern = style.drums.length > 0
+    ? rng.weightedBy(style.drums, (p) => p.weight)
+    : undefined;
+  /**
+   * …and an era with no drum machines in it may likewise name none.
+   *
+   * The era-side twin of the above, with the same measurement behind it:
+   * emptying classical's `drumBanks` generated 0 of 20 songs. Classical names
+   * `AkaiMPC60` in all four of its eras through a constant its own file calls
+   * `SILENT_BANK`, and it is the only genre in the catalogue with no drum voice
+   * in any of its 26 styles — so that name is a sampler wheeled onto a concert
+   * platform purely to satisfy a required field, and `concert/cast.ts` reads
+   * `DrumTrack.bank` to decide what is standing on the stage.
+   *
+   * **The fallback is the empty string, which is a claim and not a placeholder.**
+   * `DrumTrack.bank` is a required `string`, so something has to go there, and
+   * the three readers all do the right thing with nothing: `readBankName('')`
+   * splits to a machine named `''`, `drumStations` is handed an events array
+   * that is empty in the only case that reaches here and puts nobody on the
+   * stand, and `resolveDrumSample` is never asked because there is no event to
+   * resolve. Naming a real machine instead is exactly the lie this guard exists
+   * to let a genre stop telling, and `''` is falsy where a sentinel like
+   * `'none'` would be one more name to look up and miss.
+   *
+   * What it does **not** do: check that an era naming no bank has no style that
+   * plays a drum voice. Those two are independent fields and nothing pairs
+   * them, so a table author who empties one and not the other gets a renderer
+   * emitting `.bank('')`. That belongs in `genre-check.ts` beside the three
+   * checks that already walk `drumBanks`, and it is not written here because a
+   * guard is not a validator.
+   */
+  const drumBank = era.drumBanks.length > 0 ? rng.weighted(era.drumBanks) : '';
   /**
    * What is making the percussion, as an object. See `DrumSource`.
    *
@@ -1102,7 +1171,11 @@ export function generateSong(opts: GenerateOptions = {}): Song {
      */
     const drumsFrom = drumEvents.length;
 
-    if (active.has('drums')) {
+    // `drumPattern` is absent only for a style whose `drums` table is empty,
+    // which is a band with no percussion section rather than a section that
+    // has nothing to play this time. No style in the catalogue is one today;
+    // see the draw itself for why the test is emptiness and not exclusion.
+    if (active.has('drums') && drumPattern) {
       /**
        * A fill is a delivery, so how big it is belongs to the section it is
        * delivering rather than to the one just finishing. The largest fill in a
@@ -2318,31 +2391,79 @@ export function generateSong(opts: GenerateOptions = {}): Song {
    * all of it, since eras speak in `reverb` and `lowpass` and this speaks in
    * `drive` and `phaser`. See `Instrument.effects`.
    */
-  const effectsFor = (layer: LayerId, instrument?: Instrument): Effects | undefined => {
-    const merged: Effects = {
-      ...genre.effects?.[layer], ...era.effects?.[layer],
-      ...style.effects?.[layer], ...instrument?.effects,
-    };
-    /**
-     * The one key in `Effects` with a date on it.
-     *
-     * Every other field describes a treatment that has always been available to
-     * somebody — a room, a filter, a tape machine driven hard — so the era table
-     * is allowed to be the whole of the answer. A duck is not: it needs the kick
-     * on a channel of its own and a compressor with a key input, and
-     * `DUCK_FROM` says when that room existed. Applied here rather than in a
-     * renderer because the year is a fact about the *recording situation*, which
-     * is the generator's business, and neither renderer knows what decade it is.
-     *
-     * Deleted rather than clamped, so a style drawn in the wrong decade comes
-     * out exactly as it would if the field had never been written — no orbit, no
-     * expression stream, no byte.
-     */
+  /**
+   * The one key in `Effects` with a date on it.
+   *
+   * Every other field describes a treatment that has always been available to
+   * somebody — a room, a filter, a tape machine driven hard — so the era table
+   * is allowed to be the whole of the answer. A duck is not: it needs the kick
+   * on a channel of its own and a compressor with a key input, and `DUCK_FROM`
+   * says when that room existed. Applied here rather than in a renderer because
+   * the year is a fact about the *recording situation*, which is the
+   * generator's business, and neither renderer knows what decade it is.
+   *
+   * Deleted rather than clamped, so a style drawn in the wrong decade comes out
+   * exactly as it would if the field had never been written — no orbit, no
+   * expression stream, no byte.
+   *
+   * A named function with two callers rather than a tail on one of them, and
+   * that is the whole of why `voiceEffects` cannot be used to get round it. The
+   * gate is about the year and not about the layer, so per-voice treatment goes
+   * through the identical line: without this, a table could put a duck on a
+   * 1952 bandstand by writing it on `sd` instead of on `drums`, and the second
+   * copy of the rule is always the one that rots.
+   */
+  const dated = (merged: Effects): Effects | undefined => {
     if (era.year < DUCK_FROM) {
       delete merged.duck;
       delete merged.duckBeats;
     }
     return Object.keys(merged).length ? merged : undefined;
+  };
+  const effectsFor = (layer: LayerId, instrument?: Instrument): Effects | undefined => dated({
+    ...genre.effects?.[layer], ...era.effects?.[layer],
+    ...style.effects?.[layer], ...instrument?.effects,
+  });
+  /**
+   * The same chain, one drum voice at a time — genre under era under style.
+   *
+   * The field this fills has been readable since the kit was split into one
+   * pattern per voice and writable by nothing: `render/strudel.ts` merges
+   * `DrumTrack.voiceEffects` over `DrumTrack.effects` per voice and no table
+   * could reach it, so the most recognisable production sound of 1984 was a
+   * documented capability with no door. Rock's `eras.ts` and its `arena` style
+   * each carry a paragraph naming the field and saying the genre cannot express
+   * it, and `arena` compensated by asking for the largest plausible whole-kit
+   * reverb with the low-pass pulled down to keep the hats out of it — an
+   * approximation of a gate by other means, and audibly not one.
+   *
+   * **Per voice and then per key**, which is the same rule `effectsFor` follows
+   * per layer: an era naming `sd` and a style naming `sd` merge key by key, and
+   * an era naming `bd` that the style does not mention survives untouched. The
+   * voice set is the union of the three tables rather than of any one of them,
+   * so a style may treat a voice its era never mentioned.
+   *
+   * Absent everywhere gives `undefined` rather than `{}`, so every song written
+   * before a table adopted this carries no field at all — the same
+   * absent-means-unasked rule `effects`, `tempo` and `space` already keep, and
+   * the reason adding this moved no byte in any of the nineteen genres.
+   */
+  const voiceEffectsFor = (): Partial<Record<DrumVoice, Effects>> | undefined => {
+    const voices = new Set<DrumVoice>([
+      ...Object.keys(genre.voiceEffects ?? {}),
+      ...Object.keys(era.voiceEffects ?? {}),
+      ...Object.keys(style.voiceEffects ?? {}),
+    ] as DrumVoice[]);
+    if (voices.size === 0) return undefined;
+    const out: Partial<Record<DrumVoice, Effects>> = {};
+    for (const voice of voices) {
+      const merged = dated({
+        ...genre.voiceEffects?.[voice], ...era.voiceEffects?.[voice],
+        ...style.voiceEffects?.[voice],
+      });
+      if (merged) out[voice] = merged;
+    }
+    return Object.keys(out).length ? out : undefined;
   };
   const space: Space = { ...DEFAULT_SPACE, ...genre.space, ...era.space };
 
@@ -2629,6 +2750,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
 
   drumEvents.sort((a, b) => a.beat - b.beat);
   const drumEffects = effectsFor('drums');
+  const drumVoiceEffects = voiceEffectsFor();
   const drums: DrumTrack = {
     bank: drumBank,
     source: drumSource,
@@ -2657,6 +2779,11 @@ export function generateSong(opts: GenerateOptions = {}): Song {
     gain: genre.mix?.drums ?? 0.59,
     voiceGains: { ...DEFAULT_DRUM_MIX, ...genre.drumMix },
     ...(drumEffects ? { effects: drumEffects } : {}),
+    // Spread rather than assigned, so a song from a genre that says nothing
+    // about a single drum voice carries no key at all — which is what every
+    // song written before this door existed carries, and is why opening it
+    // moved nothing. See `voiceEffectsFor`.
+    ...(drumVoiceEffects ? { voiceEffects: drumVoiceEffects } : {}),
   };
 
   const song: Song = {

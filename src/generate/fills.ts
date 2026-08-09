@@ -396,6 +396,33 @@ export interface FillOptions {
    * existed.
    */
   station?: SeamOrchestration;
+  /**
+   * Whether a machine somebody drew this pattern into a step at a time is
+   * playing the fill. `DrumSource` of `programmed`; see the field of the same
+   * name on `generateDrums`' options, which is where the argument lives.
+   *
+   * **It is read by nothing in this file yet, and that is the point.** The two
+   * booleans this palette is entitled to know were already split in
+   * `generate/parts.ts` — `machine` says *no hands*, `programmed` says *a
+   * programmer, a step at a time* — and only the first of them was ever handed
+   * down here. So a fill written by a drum machine has been indistinguishable
+   * from one played with sticks since the day `DrumSource` landed, in 34 era
+   * `drumSources` entries across 17 of the 19 genres. `machine` is
+   * `!canVary(source)`, which is `source === 'box'`, so these sources *do* get
+   * fills today — they get fills that cannot know what is playing them.
+   *
+   * What it deliberately does not do is add a rolled shape to the palette, and
+   * that was refused with numbers rather than left for later. A roll is a
+   * retrigger inside one sixteenth, so its stroke interval is set by the tempo:
+   * `roll: 2` is 43 ms at dnb's 174 BPM and 123 ms at the 54–66 BPM of hiphop's
+   * `chopped`, against the 50 ms floor `render/midi.ts` holds the second stroke
+   * to. One palette serves all nineteen genres and cannot see a tempo, so it
+   * cannot choose the count, and a fixed count is a machine-gun snare in one
+   * genre and two lazy flams in another. Only `snare-roll` wants one at all.
+   *
+   * This is the wire for whoever revisits that with a tempo in hand.
+   */
+  programmed?: boolean;
 }
 
 export interface Fill {

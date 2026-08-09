@@ -1078,6 +1078,21 @@ export interface Style {
    */
   effects?: Partial<Record<LayerId, Effects>>;
   /**
+   * The same, one drum voice at a time. The top of the merge — over the era's,
+   * which is over the genre's — and merged over `effects.drums` by the renderer.
+   *
+   * A style is entitled to this and is not the expected author of it. See
+   * `EraProfile.voiceEffects` for why the date usually owns the answer; the case
+   * that earns a style the field is `arena` in `genre/rock/styles.ts`, which is
+   * `hard`'s chords at `hard`'s tempo and is a different style solely because of
+   * what was done to the snare.
+   *
+   * Per voice and not per key: a style naming `sd` replaces the era's `sd`
+   * treatment key by key and leaves the era's `bd` entirely alone, which is the
+   * same rule `effects` follows per layer.
+   */
+  voiceEffects?: Partial<Record<DrumVoice, Effects>>;
+  /**
    * Override the genre's default constraint level. Bebop wants `free`: the
    * chromatic approach notes and unprepared dissonances the rules exist to
    * suppress are precisely what the idiom is made of.
@@ -1385,6 +1400,31 @@ export interface EraProfile {
   tempoScale: number;
   /** How likely the final chorus lifts by a semitone or tone. */
   keyChangeChance: number;
+  /**
+   * How likely the bridge goes to the subdominant or the dominant and comes back.
+   *
+   * A second field because the two are different gestures and one number was
+   * making them the same one. `planKeys` fires the lift on `keyChangeChance`
+   * and the bridge on half of it, so an era that wanted a lot of one got a
+   * proportional amount of the other whether it wanted any or not — and the
+   * proportion is not a musical fact, it is the constant `0.5` written into
+   * `tune/keyplan.ts`. Pop's `keyChangeChance: 0.34` is a deliberate statement
+   * about the truck-driver's gear change and says nothing at all about how its
+   * bridges behave; metal's 0.02 silences a bridge modulation it never asked to
+   * silence.
+   *
+   * Absent means *half of `keyChangeChance`*, which is exactly what every era
+   * gets today, so declining this field is not a default — it is the current
+   * behaviour spelled out. That matters more than it usually does: `rng.chance`
+   * consumes one `next()` whatever it returns and both draws in `planKeys` are
+   * unconditional, so an era that leaves this alone generates bit-identical
+   * music rather than merely similar music. Verified across 570 songs in all
+   * nineteen genres, MIDI and Strudel hashed, every one unchanged.
+   *
+   * Zero is a real value and means *never*, which is the reason this is
+   * `?? chance * 0.5` at the call site rather than `|| chance * 0.5`.
+   */
+  bridgeKeyChangeChance?: number;
   /** Overall arrangement density 0..1, nudges how many layers play at once. */
   density: number;
   /**
@@ -1401,6 +1441,34 @@ export interface EraProfile {
    * their choice of patches.
    */
   effects?: Partial<Record<LayerId, Effects>>;
+  /**
+   * The same, one drum voice at a time. Merged over the genre's and under the
+   * style's, and merged over `effects.drums` by the renderer.
+   *
+   * **The era is the natural owner, and the reason is that this field's whole
+   * motivating case is a date rather than a repertoire.** Gated reverb on the
+   * snare and nothing else is 1984 — a plate, a noise gate keyed off the snare
+   * channel, and a desk with enough sends to do it to one voice — and every band
+   * recording that year did it whatever they were playing. `effects` already
+   * makes this argument for the layer version and it is stronger here: how wet
+   * one drum is belongs in the same sentence as which drum machine, and the era
+   * is the only table that says which drum machine.
+   *
+   * `Style` carries the field too, and that is not hedging. Rock's `arena` is a
+   * style whose own doc says that everything characteristic about it is a
+   * production decision rather than a musical one — same chords as `hard`, same
+   * tempo, and a snare with a second and a half on it — so a style has to be
+   * able to say more than its era. It is an override for the case where the
+   * production *is* the style, not the default home.
+   *
+   * The `duck` date gate applies here exactly as it does to `effects`. See
+   * `effectsFor` in `generate/song.ts`: a duck needs a compressor with a key
+   * input, `DUCK_FROM` says when that room existed, and the year does not care
+   * which drum voice the field was written on. Without the shared gate this
+   * would be the hole that lets a table smuggle a 1970s duck into a 1952
+   * bandstand by writing it on `sd` instead of on `drums`.
+   */
+  voiceEffects?: Partial<Record<DrumVoice, Effects>>;
 }
 
 export interface Mood {

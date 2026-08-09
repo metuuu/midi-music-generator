@@ -296,6 +296,26 @@ export interface Genre {
   effects?: Partial<Record<LayerId, Effects>>;
 
   /**
+   * The same, one drum voice at a time. Merged under the era's and the style's,
+   * and merged *over* whatever `effects.drums` said.
+   *
+   * `DrumTrack.voiceEffects` has existed since the split that gave the kit
+   * per-voice gains, and until now nothing in `generate/` populated it — the
+   * renderer read a field no table could write. So a genre wanting gated reverb
+   * on the snare and nothing else could only say `effects.drums`, which is the
+   * whole kit, and `DrumTrack.voiceEffects`' own doc calls the result what it
+   * is: a two-second tail on the hi-hats, a mess rather than a period. Rock's
+   * `eras.ts` and its `arena` style both carry a paragraph saying exactly that,
+   * and this is the door those paragraphs were waiting on.
+   *
+   * A genre-wide statement is the *rarest* of the three homes and is here for
+   * completeness rather than because it is expected: which voice gets treated
+   * how is nearly always a date. See `EraProfile.voiceEffects`, which argues
+   * why the era owns this.
+   */
+  voiceEffects?: Partial<Record<DrumVoice, Effects>>;
+
+  /**
    * How this genre's filter moves, and which layers move most.
    *
    * Absent means it does not move at all — three of the four genres here are
