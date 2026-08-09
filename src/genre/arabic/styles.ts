@@ -2761,6 +2761,32 @@ const dulab: Style = {
  * `Style.scaleForChord` says a style that overrides it is making a claim about
  * itself rather than about its genre. The claim here is that this style is the
  * one with nothing underneath it.
+ *
+ * ## And it does not take the sayr, which is the awkward one
+ *
+ * The genre adopted the fourth argument to `scaleForChord` so that a piece can
+ * leave for a neighbouring maqam on the ghusn and come back on the mazhab — see
+ * `SAYR` in `index.ts`. A taqsim is the form that wants that most: an
+ * improvisation through a maqam *is* its sayr, out to the next jins and home,
+ * and it is what the word describes.
+ *
+ * It refuses anyway, and the reason is granularity rather than taste. **A taqsim
+ * has no bar lines.** `bpm` here is nominal and the comment beside it says
+ * nothing is counting; the sections this engine hands it are a rendering grid
+ * and not musical joins, because there is no ensemble arriving on them and no
+ * cycle turning over. The genre's other twenty styles have a real seam at the
+ * mazhab — the whole takht lands the qafla and the refrain begins — so a
+ * departure placed there is placed where the music already has a boundary. Here
+ * the same code would move the maqam at bar 8 of a form with no bar 8, and the
+ * modulation a taqsim actually makes happens inside a phrase: the player rests
+ * on a tone, edges onto the neighbouring jins, and is somewhere else before the
+ * phrase has ended.
+ *
+ * That is the same refusal indian records for the thumrī, arrived at from a
+ * different genre, and it is worth two of them agreeing: **a section argument
+ * moves the scale at a section boundary, and a gesture that lives inside the
+ * line is not served by it.** The honest position is that this style still wants
+ * something the engine does not do, and it is a smaller want than it was.
  */
 const taqsim: Style = {
   id: 'taqsim',

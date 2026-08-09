@@ -22,7 +22,7 @@
 import { CHORD_INTERVALS, parseRoman, type Chord } from '../core/chord.js';
 import { keyLabel, type Pc } from '../core/pitch.js';
 import { Rng } from '../core/rng.js';
-import { makeScale, stepInScale, type Mode } from '../core/scale.js';
+import { makeScale, stepInScale, type Mode, type Scale } from '../core/scale.js';
 import {
   DEFAULT_DRUM_MIX, DEFAULT_SPACE, DUCK_FROM, SEQUENCER_FROM, canVary, eligibleDrumSources,
   isPlayedByHand, melodicLine,
@@ -967,6 +967,26 @@ export function generateSong(opts: GenerateOptions = {}): Song {
     const localTonic = ((tonic + section.transpose) % 12 + 12) % 12;
 
     /**
+     * The scale hook with this section's place in the form already bound in.
+     *
+     * All seven readers below sit inside this loop and every one of them wanted
+     * the same fourth argument, so it is bound once here rather than threaded
+     * seven times — and binding it *here* is what keeps the pass-through
+     * consumers out of it. `generateSolo`, `composeSectionTune` and the two
+     * `scaleFor` callbacks take a three-argument function and still do; they are
+     * handed this closure and never learn that a fourth argument exists. That is
+     * four files that did not have to change for a feature none of them has an
+     * opinion about.
+     *
+     * **No draw and no branch.** `section.kind` was decided by the form hundreds
+     * of lines above, before a single melodic random number was spent, so a
+     * genre that ignores the argument — eighteen of the nineteen — generates
+     * what it generated before. See `Style.scaleForChord`.
+     */
+    const scaleHere = (t: Pc, m: Mode, c: Chord): Scale =>
+      scaleForChord(t, m, c, section.kind);
+
+    /**
      * How this section is felt. Drawn here, applied in two places and at two
      * different moments, and the split is the load-bearing part of the design.
      *
@@ -1458,7 +1478,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
     let sectionComp = active.has('comp') && soloLayer !== 'comp'
       ? generateComp(
         ctxFor('comp'), compPattern, instruments.comp.centre,
-        (c) => scaleForChord(localTonic, mode, c),
+        (c) => scaleHere(localTonic, mode, c),
         limitFor('comp'),
         // The comp layer only. Where the *counter* plays a chord pattern it is
         // playing a figure on purpose — a sequence, a riff — and the whole point
@@ -1559,7 +1579,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
         range,
         tonic: localTonic,
         mode,
-        scaleForChord,
+        scaleForChord: scaleHere,
         vocabulary: genre.solo.vocabulary,
         blocks: solo.soloBars,
         chorus: solo.index,
@@ -1627,7 +1647,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
           tonic: localTonic,
           mode,
           range,
-          scaleForChord,
+          scaleForChord: scaleHere,
           tag: `${seed}:tune:${s}${salt('melody')}`,
           strictness: strictness.level,
           rules,
@@ -1772,13 +1792,13 @@ export function generateSong(opts: GenerateOptions = {}): Song {
         let answer = counterPattern
           ? generateComp(
             counterCtx, counterPattern, instruments.counter.centre,
-            (c) => scaleForChord(localTonic, mode, c),
+            (c) => scaleHere(localTonic, mode, c),
             limitFor('counter'),
           )
           : generateCounter(counterCtx, withTail(byLayer, 'melody', ctxBase.startBeat, melody), instruments.counter.centre, {
             range: plan.counter,
             idiom: IDIOMS[instruments.counter.idiom],
-            scaleFor: (c) => scaleForChord(localTonic, mode, c),
+            scaleFor: (c) => scaleHere(localTonic, mode, c),
             // The section's own figure, so the answer can quote the song rather than
             // echo the last four notes it heard. See `generateCounter`.
             ...(hookContour ? { quote: hookContour } : {}),
@@ -1839,7 +1859,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
             // a window four bars wide is several chords, and a third measured off
             // the first of them is a third against the others.
             (midi, steps, beat) => stepInScale(
-              scaleForChord(localTonic, mode, ctxBase.chords[Math.min(
+              scaleHere(localTonic, mode, ctxBase.chords[Math.min(
                 ctxBase.chords.length - 1,
                 Math.max(0, Math.floor((beat - ctxBase.startBeat) / style.beatsPerBar)),
               )]!),
@@ -1985,7 +2005,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
         ),
         spec: leadHands,
         density: style.twoHanded.density,
-        scaleFor: (c) => scaleForChord(localTonic, mode, c),
+        scaleFor: (c) => scaleHere(localTonic, mode, c),
         clarity,
         ...(style.twoHanded.ostinato ? { ostinato: style.twoHanded.ostinato } : {}),
       });

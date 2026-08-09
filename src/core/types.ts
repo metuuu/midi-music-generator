@@ -160,7 +160,21 @@ export interface Section {
   lengthBars: number;
   /** Semitone transposition applied to this section relative to the base key. */
   transpose: number;
-  /** Local mode — choruses frequently lift into the relative major. */
+  /**
+   * Local mode — choruses frequently lift into the relative major.
+   *
+   * **Not the seam for a per-section scale change**, which is what it looks like
+   * and what it has been mistaken for. `Mode` decides how the roman numerals are
+   * read, so moving this moves the *chords*: it is the harmonic axis. A genre
+   * that wants the melody's scale to move while the tonic and the chords stand
+   * still — arabic's *sayr* — takes the fourth argument to `scaleForChord`
+   * instead, and the argument for keeping the two apart is written out there.
+   *
+   * Written in two places, both from the song's own mode, and so far never
+   * anything else; `relativeMajorChorus` gets its lift by biasing *progressions*
+   * rather than by setting this. One reader, `concert/lighting.ts`, which cools
+   * the wash on a minor section.
+   */
   mode: Mode;
   /** Which layers sound in this section. Drives the arrangement dynamics. */
   activeLayers: LayerId[];

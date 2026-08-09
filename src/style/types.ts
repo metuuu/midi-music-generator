@@ -1203,8 +1203,43 @@ export interface Style {
    * fixed tonic scale dragged across moving changes. A blues line that
    * re-orients onto each dominant is a bebop line over blues changes, which is a
    * real and different music.
+   *
+   * ## `section`, and why it is a fourth argument rather than a field
+   *
+   * The fourth argument is **where in the form this chord is**, and it exists
+   * for one musical shape: a maqam's *sayr* is its habitual path, and a long
+   * piece leaves for a neighbouring maqam and comes back. Before it, the hook's
+   * only piece-invariant inputs were the tonic and the mode, so a genre whose
+   * scale is a function of the key — arabic, indian — returned **one scale for
+   * the whole song and could not return two**. Measured over 40 seeds each:
+   * arabic and indian reached exactly 1 distinct scale per song, against jazz's
+   * 5, latin's 5 and classical's 6. The engine was never rigid — the scale
+   * moved freely with the chord — it simply had no way to move *by section*.
+   *
+   * **`Section.mode` is not this field's other half, and the difference is the
+   * argument for adding an argument at all.** `core/types.ts` has carried a
+   * per-section `mode` since long before this, written in exactly two places
+   * and never anything but the song's own mode, and it looks like a dead slot of
+   * the right shape. It is a live slot of the wrong one. `Mode` decides how the
+   * roman numerals are read, so moving it moves the *chords*: on arabic's
+   * canonical tonic of D, `major` is Hijaz and `minor` is Kurd, and the only
+   * pitch class that differs between them is the **third** — the note in every
+   * tonic triad in the section. Arabic's own header rejects that by name, that
+   * a Hijaz piece written in minor spends the whole song a semitone from the
+   * maqam's third. So a mode flip is a harmonic change wearing a melodic
+   * change's clothes, and §3.3 wants the opposite: the scale moving while the
+   * tonic and the chords stand still. Two questions, not one field.
+   *
+   * **Optional, and absent means the answer the style already gave.** 323
+   * styles never see it; the 66 that override this hook are free to ignore it,
+   * and every one of them that does generates the song it generated before the
+   * parameter existed, bit for bit — no draw is added, and a `SectionKind` is
+   * decided by the form long before any random number is spent on the melody.
+   * The argument is `SectionKind` rather than the whole `Section` deliberately:
+   * a hook that could read `activeLayers` would make the melody's scale depend
+   * on who is in the room that chorus, which is a coupling nobody asked for.
    */
-  scaleForChord?(tonic: Pc, mode: Mode, chord: Chord): Scale;
+  scaleForChord?(tonic: Pc, mode: Mode, chord: Chord, section?: SectionKind): Scale;
   /**
    * How this style's sections may be *felt*, weighted, drawn once per section.
    * Overrides the genre's table where present. See `style/feel.ts`.

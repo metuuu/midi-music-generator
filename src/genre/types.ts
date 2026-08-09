@@ -286,8 +286,15 @@ export interface Genre {
    * Which scale the melody should draw on for a given chord.
    * Key-relative for iskelmä, chord-relative for jazz, drone-relative for
    * ambient.
+   *
+   * `section` says where in the form the chord sits, and is the seam a maqam's
+   * *sayr* needs: the piece states its maqam on the refrain, leaves for a
+   * neighbour, and comes back. Optional, and a genre that ignores it — which is
+   * eighteen of the nineteen — answers exactly as it did before the argument
+   * existed. See `Style.scaleForChord` for the full argument, including why
+   * `Section.mode` is not the same question.
    */
-  scaleForChord(tonic: Pc, mode: Mode, chord: Chord): Scale;
+  scaleForChord(tonic: Pc, mode: Mode, chord: Chord, section?: SectionKind): Scale;
 
   /**
    * Per-layer mix overrides, 0..1, `drums` included. Omitted layers keep the

@@ -127,6 +127,7 @@
 
 import { makeScale, type ScaleName } from '../../core/scale.js';
 import { RULE_DISABLED } from '../../core/rules.js';
+import type { SectionKind } from '../../core/types.js';
 import type { Genre, FormStep, TitleContext } from '../types.js';
 import { STYLES } from './styles.js';
 import { ERAS } from './eras.js';
@@ -215,6 +216,97 @@ const MAQAM_NAMES: Record<ScaleName, string> = {
   harmonicMajor: 'Shawq Afza',
   major: 'Ajam',
 } as Record<ScaleName, string>;
+
+/**
+ * The **sayr**: where each maqam goes when it leaves, and it always comes back.
+ *
+ * A maqam is not a scale, it is a scale plus a habitual path through it, and the
+ * largest thing on that path is the departure — the piece settles into its home
+ * jins, moves to a neighbouring one for a stretch, and returns. Until
+ * `scaleForChord` was given a fourth argument this genre could not express it at
+ * all: the hook's only piece-invariant inputs were the tonic and the mode, both
+ * fixed for the song, so **every arabic song reached exactly one scale**,
+ * measured at 1 of 1 over 40 seeds against jazz's 5 and classical's 6.
+ *
+ * ## Every row moves exactly one degree, and that is the whole design rule
+ *
+ * A modulation in this tradition is not a new key, it is **one jins swapped for
+ * its neighbour** — the tonic does not move and most of the scale does not
+ * either. So each row here differs from its home by a single pitch class, and
+ * the degree that moves is named:
+ *
+ * | home | leaves for | degree | what actually changes |
+ * |---|---|---|---|
+ * | **Hijaz** | Hijazkar | ♭7 → ♮7 | jins Hijaz above the fifth as well as below |
+ * | **Hijazkar** | Hijaz | ♮7 → ♭7 | the upper Hijaz relaxes back |
+ * | **Nahawand** | Farahfaza | ♮7 → ♭7 | jins Kurd replaces jins Hijaz above the fifth |
+ * | **Farahfaza** | Nahawand | ♭7 → ♮7 | the same exchange, run the other way |
+ * | **Kurd** | Farahfaza | ♭2 → ♮2 | jins Nahawand replaces jins Kurd on the tonic |
+ *
+ * **The table closes on itself and needed no new scale and no new name.** Every
+ * destination is one of the five maqamat the seat tables already produce, which
+ * is the strongest evidence that the pairs are real rather than convenient: the
+ * neighbour relation the tradition describes is the same relation that put these
+ * scales in one genre in the first place. Nahawand and Farahfaza were already
+ * documented above as *the same maqam family split by what sits above the fifth*
+ * — the sayr is that sentence used as a verb.
+ *
+ * Two of the pairs are mutual and one is one-way, which is a fact rather than an
+ * omission: Kurd leaves for Farahfaza, but Farahfaza leaves for Nahawand,
+ * because Farahfaza's characteristic move is the leading tone and not the
+ * second.
+ *
+ * **Five rows and not eight**, which is the other half of the same discipline.
+ * `MAQAM_NAMES` above has eight entries because a title has to be able to print
+ * the two maqamat `taqsim` reaches and the one it shares; this table has five
+ * because those three arrive only through `taqsim`'s own override, and `taqsim`
+ * does not depart — see the refusal recorded beside it in `styles.ts`. A row for
+ * Nawa Athar that nothing could ever read would be a claim about the tradition
+ * with no music behind it.
+ *
+ * ## Where it happens, which the form already decided
+ *
+ * The genre's own form comment says an Arabic song opens on its **mazhab**,
+ * states it, goes out into a **ghusn** and comes back — so the departure had a
+ * name here long before it had a mechanism. `verse` is the ghusn and leaves.
+ * `solo` is a taqsim, which is an exploration of the sayr by definition, and
+ * leaves. `bridge` is the furthest point from a refrain in any form that has one
+ * and leaves.
+ *
+ * The three that stay are each held home by something already written down.
+ * `intro` is the **dulab**, four bars whose entire job is to announce the maqam,
+ * and a dulab that announced the wrong one would be worse than none. `chorus` is
+ * the mazhab, which is the maqam by definition. `outro` is the **qafla**, the
+ * closing formula that descends to the tonic in unison — the moment the piece
+ * confirms where it has been.
+ *
+ * And **the title still names the home maqam**, because `maqamOf` asks this hook
+ * without a section and an absent section is home. That is the right answer and
+ * not a lucky one: a programme prints the maqam a piece is *in*, and the ghusn's
+ * visit to the neighbour is a departure from that name rather than a second one.
+ */
+const SAYR: Partial<Record<ScaleName, ScaleName>> = {
+  phrygianDominant: 'doubleHarmonic',  // Hijaz → Hijazkar
+  doubleHarmonic: 'phrygianDominant',  // Hijazkar → Hijaz
+  harmonicMinor: 'minor',              // Nahawand → Farahfaza
+  minor: 'harmonicMinor',              // Farahfaza → Nahawand
+  phrygian: 'minor',                   // Kurd → Farahfaza
+};
+
+/** The sections that leave. See the table above for why these three. */
+const GHUSN = new Set<SectionKind>(['verse', 'solo', 'bridge']);
+
+/**
+ * The maqam a given section is in: home, or the neighbour the sayr leaves for.
+ *
+ * A pure function of the tonic, the mode and the form — no draw, nothing
+ * remembered between sections — so the piece returns to precisely the maqam it
+ * left, which is the half of a sayr that makes it a path rather than a drift.
+ */
+const sayrScale = (tonic: number, mode: 'major' | 'minor', section?: SectionKind): ScaleName => {
+  const home = maqamScale(tonic, mode);
+  return section && GHUSN.has(section) ? SAYR[home] ?? home : home;
+};
 
 /**
  * The maqam this song is in, by name, for the announcement.
@@ -852,20 +944,30 @@ export const arabic: Genre = {
   duration: [150, 265],
 
   /**
-   * The maqam rule.
+   * The maqam rule, and now the path through it.
    *
-   * Two arguments read and one pointedly not taken. There is no search, no
-   * nearest-mode fallback and no bending: the piece is in one maqam, the maqam
-   * is rooted on the tonic, and the chord underneath has no vote. See the header
-   * for why the tonic is what chooses it and for the three separate reasons a
-   * maqam might be missing from the tables above.
+   * **Three arguments read and one still pointedly not taken.** The chord
+   * underneath has no vote and never will: there is no search, no nearest-mode
+   * fallback and no bending, because a maqam is chosen by its tonic and a `iv`
+   * arriving under bar five does not change what the piece is in. What the
+   * fourth argument adds is orthogonal to that refusal rather than a softening
+   * of it — *where in the form* this bar sits, which is the one thing a sayr
+   * needs and the one thing the hook could not see. See `SAYR` above.
+   *
+   * The tonic does not move and the chords do not move; only the melody's scale
+   * does, by one degree, for the length of a ghusn. That is the distinction the
+   * whole feature rests on, and it is why this is not `EraProfile.keyChangeChance`
+   * quietly reintroduced: that field is 0 on all four eras because a key change
+   * moves the tonic and moving the tonic changes the maqam behind the tables'
+   * back. Here the tonic is exactly where it was and the piece is still in the
+   * maqam its title names.
    *
    * The fallbacks are Hijaz in major and Nahawand in minor — the two the
    * tradition would name first — and they are unreachable from a generated song,
    * because `keys` above only ever draws the eight pitch classes the tables
    * carry. A forced key from the audition page is the one path to them.
    */
-  scaleForChord: (tonic, mode) => makeScale(tonic, maqamScale(tonic, mode)),
+  scaleForChord: (tonic, mode, _chord, section) => makeScale(tonic, sayrScale(tonic, mode, section)),
 
   /** The courtyard, the tarboosh and the shouting. See `staging.ts`. */
   staging: STAGING,
