@@ -511,6 +511,8 @@ function shape(d: RoomDatum): RoomShape {
      * the air off nothing that this field was added after.
      */
     backdropHeight: h.lid,
+    /** Already solved, because this room needed it for itself. See `Hall`. */
+    wallX: h.wallX,
   };
 }
 
@@ -860,11 +862,20 @@ function build(c: RoomContext): RoomRig {
    * beam is loaded and because the depth is what shows: from anywhere in the
    * room you see the soffit and one cheek, and a square section would read as a
    * duct.
+   *
+   * **Dropped 0.02 m**, so the beam's top is under the boarding rather than in
+   * it. `postH` is `h.lid - beamH`, so a beam sitting square on its posts has its
+   * top face at `m.houseY + h.lid`, which is `lidY` — the plane of the ceiling,
+   * drawn `DoubleSide` and therefore drawn from below as well. Both runs the
+   * length of the room, so it was three square metres of ceiling flickering
+   * over the two things the eye follows in this room. The 2 cm comes off the
+   * top and is taken up at the bottom, where the beam simply overlaps the head
+   * of its post: nothing opens, and no post loses its bearing.
    */
   const beamGeo = c.kit.bevelBox(0.2, beamH, roomLen, 0.025);
   for (const side of [-1, 1]) {
     const beam = new Mesh(beamGeo, timber);
-    beam.position.set(side * postX, m.houseY + postH + beamH / 2, (frontZ + backZ) / 2);
+    beam.position.set(side * postX, m.houseY + postH + beamH / 2 - 0.02, (frontZ + backZ) / 2);
     beam.receiveShadow = true;
     root.add(beam);
   }

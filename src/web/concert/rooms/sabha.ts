@@ -282,6 +282,8 @@ function shape(d: RoomDatum): RoomShape {
      * behind it or the glow is a lit rectangle hanging in the dark.
      */
     backdropHeight: CANOPY + PLASTER_OVER + rise,
+    /** The arcade's inner face. See `halfX` in `build`. */
+    wallX: d.houseWidth / 2 + WALL_OUT,
   };
 }
 
@@ -784,6 +786,10 @@ function build(c: RoomContext): RoomRig {
    * claimed — and a domestic pendant in front of a theatre lantern is also the
    * right way round to look at, since the pendant is the thing that is really
    * lighting the room.
+   *
+   * That offset is why each flex is two instances and not one: it moved the
+   * lamps off the batten and left the drops beginning in mid-air until the spur
+   * below was added. See `lampZ`.
    */
   const flyBar = new Group();
   flyBar.name = 'fly-bar';
@@ -807,15 +813,57 @@ function build(c: RoomContext): RoomRig {
   /**
    * Five of them, staggered off the six pars `lights.ts` runs along the same
    * bar. The pars land at ±1, ±0.6 and ±0.2 of `openingWidth / 2 − 0.8`; these
-   * land on the halves, so the nearest approach is 0.6 m in x on top of the
-   * 0.22 m in z.
+   * land on the halves, so the nearest approach is 0.6 m in x.
+   *
+   * The x is what does the work, and it is worth saying which way round that
+   * is: the lamps' 0.22 m in z is clearance to look at, not clearance to rely
+   * on, because the spur runs back to z = 0.045 and passes within a fingerwidth
+   * of the pars' own plane at z = 0. Under a par it would foul the yoke; 0.6 m
+   * away in x it cannot, in any era, since both sets are laid out as fractions
+   * of the same `openingWidth` and the stagger is scale-free.
    */
   const lampN = 5;
   const flexTop = -0.05;
   const shadeR = 0.15;
+  /**
+   * How far downstage of the bar's centre line the whole pendant sits — one
+   * number rather than the four copies of `0.22` this loop used to carry,
+   * because the two places that have to agree about it are the lamp and the
+   * flex that reaches it, and they stopped agreeing once already.
+   *
+   * That is the bug this spur exists to fix. The batten is 0.11 m deep, so its
+   * front face is at z = 0.055; a plumb cylinder dropped at `lampZ` starts
+   * 0.165 m in front of the wood with nothing whatever above it. The offset was
+   * introduced later, to clear the pars, and the flex's anchor was never
+   * re-solved — so all five lamps in all four eras hung on air. From the wide
+   * shot the coincidence covers it (the eye is capped at `headroom − 0.6` and
+   * the sightline climbs about 0.006 m across the gap, so the ray lands on the
+   * batten's 0.10 m front face and the flex reads as attached); from the
+   * `front` framing, or from any viewer orbit toward the side, the gap is seen
+   * in profile and they are five cables beginning under a plank.
+   *
+   * So the flex turns the corner instead. `spurZ` starts it 0.010 m *inside*
+   * the face rather than flush on it, because the batten's bottom-front edge is
+   * bevelled 0.02 and a tube ending on the round of that bevel reads as a cable
+   * stopped short of the timber; buried, it reads as a flex stapled to the
+   * underside and turned over the front edge, which is what it is.
+   *
+   * Both inputs are this room's own constants and neither scales with the
+   * house, so the one spur length is right in every era — `openingWidth` grows
+   * 10 → 10.8 and `battenW` moves with the cloth, but only the lamps' x moves
+   * and the spur rides at its own lamp's x. Nothing here reads a lid, so it is
+   * equally correct under a finite one and under `Infinity`, and nothing moves
+   * down, so `HANG_FLOOR` is untouched.
+   */
+  const lampZ = 0.22;
+  const spurZ = 0.045;
+  const spur = lampZ - spurZ;
+  /**
+   * Two instances a lamp: 0…lampN−1 are the drops, lampN…2·lampN−1 the spurs.
+   */
   const flexes = new InstancedMesh(
     c.kit.geometry('lamp-flex', () => new CylinderGeometry(0.008, 0.008, 1, 4)),
-    c.kit.solid(shade(p.backdrop, 0.4), { rough: 0.9 }), lampN);
+    c.kit.solid(shade(p.backdrop, 0.4), { rough: 0.9 }), lampN * 2);
   /**
    * Open-ended, and double-sided because of it: a cone stands point-up with its
    * wide end down, which is already a pendant shade, and the face anybody in
@@ -842,17 +890,34 @@ function build(c: RoomContext): RoomRig {
     const yaw = fanRng.float(0, Math.PI);
     dummy.rotation.set(0, yaw, 0);
     dummy.scale.set(1, flex, 1);
-    dummy.position.set(x, flexTop - flex / 2, 0.22);
+    dummy.position.set(x, flexTop - flex / 2, lampZ);
     dummy.updateMatrix();
     flexes.setMatrixAt(i, dummy.matrix);
     dummy.scale.setScalar(1);
-    dummy.position.set(x, flexTop - flex - 0.075, 0.22);
+    dummy.position.set(x, flexTop - flex - 0.075, lampZ);
     dummy.updateMatrix();
     shades.setMatrixAt(i, dummy.matrix);
     dummy.rotation.set(0, 0, 0);
-    dummy.position.set(x, flexTop - flex - 0.115, 0.22);
+    dummy.position.set(x, flexTop - flex - 0.115, lampZ);
     dummy.updateMatrix();
     bulbs.setMatrixAt(i, dummy.matrix);
+    /**
+     * The spur, written last on purpose: the bulb above has already put
+     * `dummy.rotation` back to zero and the shade put the scale back to one, so
+     * laying the cylinder down here disturbs neither the shade's `yaw` nor the
+     * drop's stretch on the next pass.
+     *
+     * The cylinder's axis is y, so a quarter turn about x lays it along z. The
+     * 0.008 m tube then spans y −0.058…−0.042 and z 0.045…0.220: it is inside
+     * the batten (y ≥ −0.05, z ≤ 0.055) at one end and swallows the drop's top
+     * cap at the other, so batten, spur, drop, shade and bulb are one solid,
+     * and that solid is already tied to the canopy through the straps.
+     */
+    dummy.rotation.set(Math.PI / 2, 0, 0);
+    dummy.scale.set(1, spur, 1);
+    dummy.position.set(x, flexTop, (spurZ + lampZ) / 2);
+    dummy.updateMatrix();
+    flexes.setMatrixAt(lampN + i, dummy.matrix);
   }
   flyBar.add(flexes, shades, bulbs);
   root.add(flyBar);

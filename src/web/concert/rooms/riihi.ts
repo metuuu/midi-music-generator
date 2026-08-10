@@ -384,6 +384,8 @@ function shape(d: RoomDatum): RoomShape {
      * which is the tanssilava bug this field exists to have fixed.
      */
     backdropHeight: b.ridge,
+    /** The log wall, a handspan outside the last person in each row. */
+    wallX: d.houseWidth / 2 + WALL_OUT,
   };
 }
 
@@ -830,7 +832,10 @@ function build(c: RoomContext): RoomRig {
         [m.houseY + 0.42, 0], [m.houseY + DOOR_H - 0.28, 0],
         [m.houseY + DOOR_H / 2, Math.atan2(DOOR_H - 0.9, leafW)],
       ] as const) {
-        dummy.position.set(x, y, z);
+        // The diagonal stands 0.03 proud of the two ledges it crosses. Flush
+        // put its face on theirs at both crossings, on the one door in this
+        // room the camera looks straight at.
+        dummy.position.set(x, y, tilt === 0 ? z : z + facing * 0.03);
         dummy.rotation.set(0, facing > 0 ? 0 : Math.PI, tilt === 0 ? 0 : -facing * tilt);
         dummy.scale.set(tilt === 0 ? leafW : Math.hypot(leafW, DOOR_H - 0.9), 1, 1);
         dummy.updateMatrix();

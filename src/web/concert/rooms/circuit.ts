@@ -371,6 +371,15 @@ function shape(d: RoomDatum): RoomShape {
      * plaster instead of stopping in front of it.
      */
     backdropHeight: club ? LOW_CEILING : openingHeight + rise + 2.0,
+    /**
+     * The brick, and in an arena it is a long way out.
+     *
+     * `HALL_OUT` is the 3.5 m this room spends to say the crowd is not the edge
+     * of the building, and it is the widest answer in the directory — which is
+     * exactly why `RoomShape.wallX` had to become a published number rather
+     * than something a prop guessed at `houseWidth / 2 + 0.55`.
+     */
+    wallX: d.houseWidth / 2 + (club ? 0.6 : HALL_OUT),
   };
 }
 

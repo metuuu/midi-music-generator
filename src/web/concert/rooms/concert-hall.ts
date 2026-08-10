@@ -337,6 +337,8 @@ function shape(d: RoomDatum): RoomShape {
      * there is nothing hung in this room, and the organ stands against it.
      */
     backdropHeight: recessHead(d.width),
+    /** The minimum, as the side walls in `build` take it. */
+    wallX: d.houseWidth / 2 + 0.6,
   };
 }
 
@@ -646,7 +648,16 @@ function build(c: RoomContext): RoomRig {
    * received would be lighting its own reveal against the wall it stands on.
    */
   const orderFrom = GALLERY_SOFFIT + GALLERY_FACE;
-  const orderH = hallY - orderFrom;
+  /**
+   * 0.03 m past the plaster, not up to it.
+   *
+   * `hallY` is the lid, the lid is one `DoubleSide` plane, and an order whose
+   * height is exactly `hallY - orderFrom` puts the top face of every pilaster
+   * in the room on that plane — a ring of flickering caps round three walls at
+   * the height the eye goes to. Running them past it buries the face instead,
+   * which is what a pilaster dying into a ceiling does anyway.
+   */
+  const orderH = hallY - orderFrom + 0.03;
   const bays = Math.max(2, Math.round(sideDepth / 2.6));
   const bay = sideDepth / bays;
   const pilasterW = Math.min(0.62, bay * 0.3);
@@ -655,7 +666,7 @@ function build(c: RoomContext): RoomRig {
     const order3 = new InstancedMesh(
       c.kit.bevelBox(pilasterW, orderH, 0.3, 0.04),
       orderMat,
-      (bays + 1) * 2 + rearBays + 1,
+      bays * 2 + rearBays + 1,
     );
     const dummy = new Object3D();
     let i = 0;
@@ -666,8 +677,10 @@ function build(c: RoomContext): RoomRig {
       dummy.updateMatrix();
       order3.setMatrixAt(i++, dummy.matrix);
     };
+    // `b < bays`: the bay at the back wall is the corner, and the rear run's
+    // own end pilaster is already standing in it.
     for (const side of [-1, 1]) {
-      for (let b = 0; b <= bays; b++) place(side * (halfX - 0.15), mouthZ + b * bay, Math.PI / 2);
+      for (let b = 0; b < bays; b++) place(side * (halfX - 0.15), mouthZ + b * bay, Math.PI / 2);
     }
     for (let b = 0; b <= rearBays; b++) {
       place(-halfX + (b * halfX * 2) / rearBays, houseBackZ - 0.15, 0);
@@ -696,15 +709,25 @@ function build(c: RoomContext): RoomRig {
    * have to be thrown upward.
    */
   const galleries = twoTiers ? [GALLERY_SOFFIT, GALLERY_SOFFIT + GALLERY_STEP] : [GALLERY_SOFFIT];
+  /**
+   * The side runs stop where the back run starts.
+   *
+   * The back one is `GALLERY_DEEP` deep and goes wall to wall, so it holds both
+   * back corners already; a side run carried the full `sideDepth` put a second
+   * box of the same section at the same height inside it, and the two shared a
+   * soffit, a top and a face over the whole 1.6 m corner — in a two-tier hall,
+   * twice over.
+   */
+  const gallerySide = sideDepth - GALLERY_DEEP;
   for (const soffit of galleries) {
     if (soffit + GALLERY_FACE > hallY - 0.4) continue;
     for (const side of [-1, 1]) {
       const run = new Mesh(
-        c.kit.bevelBox(sideDepth, GALLERY_FACE, GALLERY_DEEP, 0.05), orderMat);
+        c.kit.bevelBox(gallerySide, GALLERY_FACE, GALLERY_DEEP, 0.05), orderMat);
       run.position.set(
         side * (halfX - GALLERY_DEEP / 2),
         soffit + GALLERY_FACE / 2,
-        mouthZ + sideDepth / 2,
+        mouthZ + gallerySide / 2,
       );
       run.rotation.y = Math.PI / 2;
       run.receiveShadow = true;
@@ -761,8 +784,18 @@ function build(c: RoomContext): RoomRig {
   {
     const across = new InstancedMesh(
       c.kit.bevelBox(halfX * 2, 0.3, 0.26, 0.04), coffer, acrossN + 1);
+    /**
+     * The `along` run is 0.04 shallower and hung 0.01 higher, which is what
+     * makes it the secondary beam rather than a clone of the primary.
+     *
+     * Two identical sections at one `ribY` share a soffit *and* a top at every
+     * crossing, and a coffered ceiling is nothing but crossings — a hundred and
+     * more of them in a hall this size, each a 0.26 m square of flicker
+     * directly overhead. Real coffering has the same hierarchy for the same
+     * reason it is drawn here: one run carries and the other ties.
+     */
     const along = new InstancedMesh(
-      c.kit.bevelBox(0.26, 0.3, lidD, 0.04), coffer, alongN + 1);
+      c.kit.bevelBox(0.26, 0.26, lidD, 0.04), coffer, alongN + 1);
     const dummy = new Object3D();
     for (let i = 0; i <= acrossN; i++) {
       dummy.position.set(0, ribY, mouthZ + (i * lidD) / acrossN);
@@ -772,7 +805,7 @@ function build(c: RoomContext): RoomRig {
       across.setMatrixAt(i, dummy.matrix);
     }
     for (let i = 0; i <= alongN; i++) {
-      dummy.position.set(-halfX + (i * halfX * 2) / alongN, ribY, mouthZ + lidD / 2);
+      dummy.position.set(-halfX + (i * halfX * 2) / alongN, ribY + 0.01, mouthZ + lidD / 2);
       dummy.rotation.set(0, 0, 0);
       dummy.scale.setScalar(1);
       dummy.updateMatrix();
@@ -978,8 +1011,12 @@ function build(c: RoomContext): RoomRig {
     cheeks.castShadow = true;
     root.add(cheeks);
 
+    // 0.3 of projection, not 0.26. `caseZ` is `m.backZ - 0.02` and the recess
+    // ribs are 0.22 deep on `m.backZ`, so at 0.26 the band's downstage face —
+    // the face the whole house sees — landed on exactly the ribs' own, 0.65 m²
+    // of it, right behind the band.
     const band = new Mesh(
-      c.kit.bevelBox(backW * 0.94, 0.34, 0.26, 0.05), orderMat);
+      c.kit.bevelBox(backW * 0.94, 0.34, 0.3, 0.05), orderMat);
     band.position.set(0, corniceY, caseZ);
     band.castShadow = true;
     root.add(band);

@@ -83,6 +83,19 @@
  * that span the opening do both. `swag()` is where the arithmetic lives —
  * a run is tied off at whatever height its own sag and its own flag drop
  * require, rather than at a fraction that happens to work in a ten-metre room.
+ *
+ * ## And what they are allowed to hang *from*
+ *
+ * The third question, and the one this file kept answering with a constant. A
+ * clearance is a distance from a face; a fixing is a distance from a *surface*,
+ * and the surface has to exist. Measured across every room: a mirror ball on a
+ * 0.6 m rod stopping half a metre under the beams it is bolted to, a lantern on
+ * 0.9 m of string ending in open air, two festoons and a truss reaching for the
+ * top of an aperture that is a wall in a theatre and nothing at all in the nine
+ * rooms whose "opening" is the clear span of the building. `rigHeight()` is the
+ * answer for anything hung over the boards, `houseLid()` for anything over the
+ * house, and `StageMetrics.headroom` for the steel; a builder that solves a
+ * length instead of solving a drop from one of those is the bug, every time.
  */
 
 import {
@@ -235,6 +248,17 @@ interface Ctx extends PropOptions {
   tick(fn: (t: number, dt: number) => void): void;
   /** Set by `BUILDERS.riser` so `showRiser` has something to hide. */
   riser?: Group;
+  /**
+   * Where `BUILDERS.tables` put its tops, so `candles` can stand on one.
+   *
+   * The second thing published across this record and for the same reason as
+   * `riser`: two builders were computing one layout and only one of them was
+   * right by construction. `PROPS` in `venue.ts` lists `tables` before
+   * `candles` and `dressStage` iterates `PROPS`, so this is always written
+   * before it is read; absent means the venue asked for candles and no tables,
+   * which is a real dressing (a riihi, a sabha, a courtyard) and not an error.
+   */
+  tables?: { x: number; z: number }[];
 }
 
 /**
@@ -245,6 +269,41 @@ interface Ctx extends PropOptions {
  * somebody's head still reads as being on their head.
  */
 const HANG_FLOOR = HEAD_BAND.hi + 0.25;
+
+/**
+ * The height a hanging run may be tied off *to* — the lowest real surface or
+ * pipe over the boards.
+ *
+ * `swag` used to solve against `openingHeight` alone, which is the height of
+ * the *aperture* and is a surface in a theatre and nowhere else. Seven of the
+ * twelve rooms answer `openingWidth`/`openingHeight` with the clear span of the
+ * building, so a run tied off "a hand's breadth under the header" was tied off
+ * a hand's breadth under nothing at all — and in the lawn, whose aperture is
+ * 4.64 m and whose only bar is at 3.45 m, it hung the festoon and both bunting
+ * runs *above* the one thing in the room they could have been tied to.
+ *
+ * So: the plaster over the stage if the room has one, and the fly bar if the
+ * sky is open. It is the rule `chandelier` already uses one storey up
+ * (`Number.isFinite(lid) ? lid : c.m.flyY`) applied to the stage lid instead of
+ * the house lid.
+ *
+ * Deliberately *not* `min(openingHeight, …)`, which is the version that reads
+ * right and hangs wrong. A salon's aperture is its cornice soffit at 4.55 m and
+ * its ceiling is at 5.00 m; the cornice is a moulding round the edge of the
+ * room and the ceiling is a plane over all of it, so a run whose ends are 0.6 m
+ * outboard of the aperture finds the ceiling there and finds no cornice at all.
+ * The aperture bounds where a run may *hang* — that clamp stays, in `swag`,
+ * because a run above the opening is a run the audience cannot see — but it is
+ * not a thing anything can be tied to.
+ *
+ * In the open-air rooms it is the bar, and the bar is a pipe rather than a
+ * plane: a tie landing at bar height but 0.24 m outboard of the bar's own span
+ * still ends in air. That is the room's to close by publishing a wider bar, and
+ * bar height is the closest this file can honestly get.
+ */
+function rigHeight(c: Ctx): number {
+  return Number.isFinite(c.m.headroom) ? c.m.headroom : Math.min(c.m.openingHeight, c.m.flyY);
+}
 
 /**
  * Tie a hanging run off high enough that nothing on it reaches a face.
@@ -258,11 +317,22 @@ const HANG_FLOOR = HEAD_BAND.hi + 0.25;
  * So: solve for the ends. If the sag will not fit under the header, the sag
  * gives rather than the clearance — a taut run of bunting is a look, and a run
  * of bunting through a trumpeter's face is not.
+ *
+ * `hang` comes back with the answer because a run also has to be *attached* at
+ * both ends, and only the caller knows where its ends are. The `- 0.12` here
+ * was always trying to say "a hand's breadth under the thing overhead"; it
+ * never checked that anything was overhead, and the callers never drew the last
+ * hand's breadth. Both are fixed at once: see `rigHeight` for the height, and
+ * `bunting`/`fairy-lights` for the vertical tie that now closes the gap.
  */
-function swag(c: Ctx, wantSag: number, drop: number): { y: number; sag: number } {
-  const top = c.m.openingHeight - 0.12;
+function swag(c: Ctx, wantSag: number, drop: number): { y: number; sag: number; hang: number } {
+  const hang = rigHeight(c);
+  // Under the aperture as well as under the thing it is tied to: a run hung
+  // above the opening is a run the house cannot see. In the nine rooms where
+  // the aperture is the lower of the two this is the number it always was.
+  const top = Math.min(hang, c.m.openingHeight) - 0.12;
   const sag = Math.max(0.15, Math.min(wantSag, top - drop - HANG_FLOOR));
-  return { y: Math.min(top, HANG_FLOOR + sag + drop), sag };
+  return { y: Math.min(top, HANG_FLOOR + sag + drop), sag, hang };
 }
 
 export function dressStage(o: PropOptions): PropRig {
@@ -342,6 +412,17 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
    * the thing that has to clear a head — see `swag`. The upstage run is also
    * pushed behind the backline: at `backZ + 0.5` it was tied off exactly on the
    * cast's upstage margin and sagged into the drummer.
+   *
+   * And both runs are tied off *upward*, which they were not. A run 0.4 m past
+   * the aperture on each side ended in mid-air in every room whose aperture is
+   * not an arch: measured at the end points, the pavilion's upstage run found
+   * nothing within 0.35 m of either end and the lawn's pair hung 0.33 m above
+   * the only bar in the field. The scanner never said so because in a dancehall
+   * the flags top out 0.12 m under the plaster and it counts that as hung, and
+   * because the open-air rooms union everything into the sky dome. A short
+   * vertical from each end up to `rigHeight` is the whole fix — four cords, one
+   * per end of each run, and in the tall rooms it reads as what it is, a run
+   * dropped off the ceiling rather than nailed to a header that is not there.
    */
   bunting: (c) => {
     const rng = c.rng('bunting');
@@ -349,6 +430,7 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
     const drop = 0.33;
     const front = swag(c, 0.8, drop);
     const back = swag(c, 0.6, drop);
+    const hang = front.hang;
     const runs = [
       { y: front.y, z: c.m.curtainZ - 0.35, sag: front.sag, n: 20 },
       { y: back.y, z: c.m.backZ + 0.25, sag: back.sag, n: 16 },
@@ -361,6 +443,11 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
         run.sag, run.n,
       );
       cord(c, pts, shade(c.p.proscenium, 0.5));
+      // Inside the loop, so the upstage run gets its pair too — it is the one
+      // the pavilion had nothing under at all.
+      for (const end of [pts[0]!, pts[run.n]!]) {
+        cord(c, [end, new Vector3(end.x, hang, end.z)], shade(c.p.proscenium, 0.5));
+      }
       const pos: number[] = [];
       const col: number[] = [];
       const tmp = new Color();
@@ -385,7 +472,20 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
     }
   },
 
-  /** A festoon of warm bulbs. Unlit material — they are the light source. */
+  /**
+   * A festoon of warm bulbs. Unlit material — they are the light source.
+   *
+   * The run is `openingWidth + 1.2`, so each end sits 0.6 m outboard of the
+   * aperture on the faith that a proscenium wall is there to bury it in. Seven
+   * of the twelve rooms publish the clear span of the building as their
+   * aperture, and in those there is no wall at that x: measured at the end
+   * points, the salon's run stops 2.00 m short of its own side wall and the
+   * courtyard's finds nothing within 0.35 m. The width is left alone — a
+   * festoon that stops short of the wing is a festoon, and shortening it would
+   * pull the brightest object in the frame in off the edges — and the ends are
+   * tied up to `rigHeight` instead, which is a hanging point in every room and
+   * is the last thing `swag`'s own `- 0.12` was already assuming.
+   */
   'fairy-lights': (c) => {
     const rng = c.rng('fairy');
     const w = c.m.openingWidth + 1.2;
@@ -401,6 +501,9 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
       line.sag, n,
     );
     cord(c, pts, shade(c.p.proscenium, 0.6));
+    for (const end of [pts[0]!, pts[n]!]) {
+      cord(c, [end, new Vector3(end.x, line.hang, end.z)], shade(c.p.proscenium, 0.6));
+    }
     const warm = tint(hueShift(c.p.ambient, 20, 0.2), 0.55);
     const bulbs = new InstancedMesh(
       c.kit.geometry('bulb', () => new IcosahedronGeometry(0.05, 0)),
@@ -440,6 +543,19 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
    *
    * Both halves of the fix, because either alone leaves a camera angle that
    * still finds it: upstage of the backline, *and* clear of `HANG_FLOOR`.
+   *
+   * ## And the cord goes somewhere now
+   *
+   * The body's height is solved against `HANG_FLOOR` and the aperture, and the
+   * thing it hung *from* was then a constant: `y + 0.9`, 0.9 m above a height
+   * that was itself derived, with no relationship to any ceiling, beam or bar.
+   * Probed in all four venues that carry the prop, nothing was within 0.35 m of
+   * the top of any cord — the pavilion's stopped 0.02 m *past* its fly bar, the
+   * lawn's 0.62 m above the only bar in the field, the salon's 0.78 m below its
+   * own ceiling. `chandelier`'s note cites this prop as an example of a fitting
+   * that says what it hangs from, which it was not. It is `rigHeight` now, the
+   * same height `swag` ties its runs to, so the cord is as long as the room
+   * makes it: 0.28 m in the lawn, 1.27 m in the salon.
    */
   'paper-lanterns': (c) => {
     const rng = c.rng('lanterns');
@@ -448,25 +564,35 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
     const group = new Group();
     c.root.add(group);
     const swings: { node: Object3D; phase: number; rate: number }[] = [];
-    // The body is 0.19 × 0.85 tall, and the swing is a 0.05 rad tilt on a 0.9 m
-    // cord, so the lowest the paper ever gets is the centre less 0.17 m.
+    /** The ceiling, the bar or the top of the aperture — whatever is lowest. */
+    const hang = rigHeight(c);
+    // The body is 0.19 × 0.85 tall, and the swing is a 0.05 rad tilt, so the
+    // lowest the paper ever gets is the centre less 0.17 m. That 0.17 is the
+    // body's half-height and not a cord term, which is why a cord that is now
+    // 0.28–1.27 m rather than a flat 0.9 m does not disturb it: a tilt swings
+    // the body sideways by `0.05 · L` and *lifts* it by `L · (1 − cos 0.05)`,
+    // 6 cm across and 2 mm up on the longest of them.
     const lowest = HANG_FLOOR + 0.17;
     for (let i = 0; i < 5; i++) {
       const x = (i - 2) * (c.m.openingWidth / 5.5);
       const y = Math.min(
         c.m.openingHeight - 0.4,
+        // Under what it hangs from, which `openingHeight - 0.4` does not
+        // guarantee on its own. Inert in all four venues that carry the prop —
+        // the shortest cord it produces is 0.28 m on a lawn.
+        hang - 0.12,
         Math.max(lowest, c.m.openingHeight * 0.72) + rng.float(-0.06, 0.06),
       );
       // Behind the backline at `play.backZ`, and far enough off the backdrop
       // (which sits at `backZ - 0.1`) that a 0.19 m body does not go into it.
       const z = c.m.backZ + 0.3 + rng.float(-0.12, 0.12);
       const node = new Group();
-      node.position.set(x, y + 0.9, z);
+      node.position.set(x, hang, z);
       const body = new Mesh(geo, c.kit.basic(warm));
-      body.position.y = -0.9;
+      body.position.y = y - hang;
       body.scale.y = 0.85;
       node.add(body);
-      cord(c, [new Vector3(x, y + 0.9, z), new Vector3(x, y, z)], shade(c.p.proscenium, 0.7));
+      cord(c, [new Vector3(x, hang, z), new Vector3(x, y, z)], shade(c.p.proscenium, 0.7));
       group.add(node);
       swings.push({ node, phase: rng.float(0, 6.28), rate: rng.float(0.35, 0.6) });
     }
@@ -622,20 +748,85 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
     floor.rotation.x = -Math.PI / 2;
   },
 
-  /** Slowly turning, faceted, and entirely an era signal. */
+  /**
+   * Slowly turning, faceted, and entirely an era signal — on a rod as long as
+   * the room needs rather than a rod of one length.
+   *
+   * The builder used to have exactly one height in it and it was the wrong
+   * quantity: the ball at `openingHeight * 0.82` and a fixed 0.6 m rod above
+   * it, so the tip landed at a hard `0.82 h + 0.8` and nothing here ever read
+   * `headroom`, `houseLid` or `flyY`. `0.82 h + 0.8 = h` has one root,
+   * `h = 0.8 / 0.18 = 4.444`, so the rod met the top of a 4.44 m aperture and
+   * missed everywhere else — and the top of the aperture is not a surface at
+   * this z anyway, the arch standing 1.7 m downstage of the ball.
+   *
+   * Measured against the lid each room actually publishes: 0.51 m short in the
+   * hall, 0.51 in every salon era, 1.26 below the ballroom's own grid batten,
+   * and 2.5 m of open air above it in a circuit. The shed is the tell that this
+   * is one bug rather than several — it is the only room where
+   * `headroom == openingHeight`, so it is the only one where the 4.44 m root
+   * nearly holds, and its rod stops 0.058 m short, which is the only reason the
+   * float scan did not report it.
+   *
+   * So the rod is solved as a drop from the thing it is fixed to, the shape
+   * `chandelier` and `truss` already use: the plaster over the boards, or the
+   * grid `truss` reaches for where there is none. `hang - 0.8` is today's 0.6 m
+   * rod kept as a floor, so no room gets a stubbier one than it has now, and
+   * the `min` only bites in the dancehall — the ball's centre does not move by
+   * a millimetre in the other eight architectures, which is what keeps every
+   * clearance another file solved against it (ballroom's `FLY_TRIM`, hall's
+   * `BRIDGE_FROM_CURTAIN`, shed's fly-bar z, lawn's `BAR_UPSTAGE`) exactly as
+   * measured.
+   *
+   * And where it bites, it bites the whole prop. Below the 4.44 m root the old
+   * arithmetic ran the rod *into* the ceiling and dragged the ball down with
+   * it: in a 2.85 m dancehall the ball occupied 2.00–2.68 m dead centre over
+   * the playing area — 0.65 m below `HANG_FLOOR`, chin-to-crown height, in
+   * front of the band rather than above the top of the frame. A room that
+   * cannot hang a 0.68 m sphere clear of everybody does not get one. Skipping
+   * is the answer rather than shrinking it (half the radius still leaves the
+   * bottom at 2.16 m) or moving it out over the dance floor (`ballroom.ts`
+   * hangs it over the *stage* on purpose, and that is not this builder's
+   * decision to reverse). The guard draws it iff `hang >= 0.8 + 0.34 +
+   * HANG_FLOOR` = 3.79 m, which every reachable venue clears except the
+   * dancehall and a cellar-height shed or circuit.
+   *
+   * Three residuals, named here rather than left to be re-found:
+   *   - ballroom: the tip lands level with the grid batten at exactly
+   *     `openingHeight + 1.2` and 0.02 m downstage of its face. Ballroom is the
+   *     only room that has built a real object at that height, which is why
+   *     copying `truss`'s expression is right rather than inventing one.
+   *   - shed: `headroom` there is the rafter soffit over the *edge* of the
+   *     boards while the sheeting above centre starts 0.054 m higher, and the
+   *     shed sits only 0.058 m off the `hang - 0.8` clamp — so it is the room
+   *     to re-check if that soffit ever moves.
+   *   - circuit, proscenium, courtyard, lawn: nothing is modelled at
+   *     `openingHeight + 1.2`, so the rod ends where `truss`'s motor drops end,
+   *     which is this file's existing answer for hanging from the sky. Putting
+   *     a real object there is those rooms' business under `RoomRig.flyBar`.
+   */
   'mirror-ball': (c) => {
+    /** What the rod is fixed to: the plaster over the boards, or the grid. */
+    const hang = Number.isFinite(c.m.headroom) ? c.m.headroom : c.m.openingHeight + 1.2;
+    const y = Math.min(c.m.openingHeight * 0.82, hang - 0.8);
+    if (y - 0.34 < HANG_FLOOR) return;
     const ball = new Mesh(
       c.kit.geometry('ball', () => new IcosahedronGeometry(0.34, 1)),
       c.kit.solid(tint(c.p.ambient, 0.8), { metal: 0.95, rough: 0.14, flat: true }),
     );
     const node = new Group();
-    node.position.set(0, c.m.openingHeight * 0.82, c.m.lipZ - 1.4);
+    node.position.set(0, y, c.m.lipZ - 1.4);
     node.add(ball);
+    // 0.2 keeps the foot buried in the ball, as it always was. Keyed by length
+    // because this is a per-room geometry now: one ball is built per stage so a
+    // fixed key cannot alias today, but `Kit` is shared with the rooms and
+    // every other variable-length geometry in this file keys by size.
+    const drop = hang - y - 0.2;
     const rod = new Mesh(
-      c.kit.geometry('ballrod', () => new CylinderGeometry(0.02, 0.02, 0.6, 5)),
+      c.kit.geometry(`ballrod|${drop.toFixed(2)}`, () => new CylinderGeometry(0.02, 0.02, drop, 5)),
       c.kit.solid(shade(c.p.proscenium, 0.6)),
     );
-    rod.position.y = 0.5;
+    rod.position.y = 0.2 + drop / 2;
     node.add(rod);
     c.root.add(node);
     c.tick((t, dt) => { ball.rotation.y += dt * 0.35 * c.idle; void t; });
@@ -741,7 +932,14 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
 
   // -- the club ------------------------------------------------------------
 
-  /** Small round tables among the crowd, which is what makes it a club. */
+  /**
+   * Small round tables among the crowd, which is what makes it a club.
+   *
+   * The layout is published on `Ctx` because `candles` needs it and had been
+   * *reproducing* it: the same `±rng.float(1.2, houseWidth * 0.4)` and the same
+   * `lipZ + 1.9 + row * 1.9` written out a second time, off a second stream.
+   * See `BUILDERS.candles` for the three ways that came apart.
+   */
   tables: (c) => {
     const rng = c.rng('tables');
     const n = c.quality === 'low' ? 4 : 8;
@@ -754,11 +952,17 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
       c.kit.solid(shade(c.p.proscenium, 0.6)), n,
     );
     const dummy = new Object3D();
+    const spots: { x: number; z: number }[] = [];
     for (let i = 0; i < n; i++) {
       const row = Math.floor(i / 2);
-      const x = (i % 2 === 0 ? -1 : 1) * rng.float(1.2, c.m.houseWidth * 0.4);
-      const z = c.m.lipZ + 1.9 + row * 1.9 + rng.float(-0.2, 0.2);
-      dummy.position.set(x, c.m.houseY + 0.74, z);
+      spots.push({
+        x: (i % 2 === 0 ? -1 : 1) * rng.float(1.2, c.m.houseWidth * 0.4),
+        z: c.m.lipZ + 1.9 + row * 1.9 + rng.float(-0.2, 0.2),
+      });
+    }
+    for (let i = 0; i < n; i++) {
+      const s = spots[i]!;
+      dummy.position.set(s.x, c.m.houseY + 0.74, s.z);
       dummy.rotation.set(0, 0, 0);
       dummy.updateMatrix();
       tops.setMatrixAt(i, dummy.matrix);
@@ -768,12 +972,44 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
     }
     c.root.add(tops);
     c.root.add(stems);
+    c.tables = spots;
   },
 
-  /** Tealights. Unlit material, and the flame flickers on its own scale. */
+  /**
+   * Tealights. Unlit material, and the flame flickers on its own scale.
+   *
+   * `venue.ts` defines this as "one per table", and it was one per nothing.
+   * This builder used to reproduce `BUILDERS.tables`' arithmetic verbatim —
+   * same `±rng.float(1.2, houseWidth * 0.4)`, same `lipZ + 1.9 + row * 1.9` —
+   * and land nowhere near a table, for three independent reasons, any one of
+   * which alone would have been fatal:
+   *
+   * 1. **A different seed.** `':prop:tables'` and `':prop:candles'` are
+   *    unrelated sequences.
+   * 2. **A different draw arity.** Even on one seed they part after the first
+   *    item: a table draws two floats, a candle drew four.
+   * 3. **A different count.** 8 tables against 10 candles, so `floor(i / 2)`
+   *    gave the candles a fifth row where the tables had four — 1.9 m
+   *    downstage of the last table and, in a jazz cellar, behind the bar.
+   *
+   * The y is what proves the x and z had drifted rather than the height: the
+   * tabletop's surface is `houseY + 0.765` and the wax's base is `houseY +
+   * 0.765`, flush to the millimetre. That is the 0.74–0.77 m gap the float scan
+   * kept reporting — a candle sitting on the exact plane a tabletop would
+   * occupy, with the tabletop somewhere else in the room. Asked directly, eight
+   * of ten touched nothing in jazz/swingera and ten of ten in rnb/neo.
+   *
+   * So it reads the layout instead, as `showRiser` already reads `Ctx.riser`,
+   * and the count follows from it — which fixes the fifth row for free. Four
+   * venues ask for candles with no tables at all (a riihi, a sabha, a
+   * courtyard, a sabha again); there the scatter stays and the tealight goes on
+   * the floor, half its own height above it, rather than at the height of a
+   * table that is not there.
+   */
   candles: (c) => {
     const rng = c.rng('candles');
-    const n = c.quality === 'low' ? 5 : 10;
+    const on = c.tables;
+    const n = on ? on.length : (c.quality === 'low' ? 5 : 10);
     const wax = new InstancedMesh(
       c.kit.geometry('wax', () => new CylinderGeometry(0.035, 0.04, 0.11, 6)),
       c.kit.solid(tint(c.p.boards, 0.55)), n,
@@ -785,11 +1021,15 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
     flames.frustumCulled = false;
     const spots: { x: number; y: number; z: number; ph: number; r: number }[] = [];
     for (let i = 0; i < n; i++) {
+      const spot = on?.[i];
       const row = Math.floor(i / 2);
       spots.push({
-        x: (i % 2 === 0 ? -1 : 1) * rng.float(1.2, c.m.houseWidth * 0.4),
-        y: c.m.houseY + 0.82,
-        z: c.m.lipZ + 1.9 + row * 1.9 + rng.float(-0.2, 0.2),
+        // On a table: 0.74 + 0.05 / 2 + 0.11 / 2 = 0.82 was always the
+        // tabletop's answer, so the height is unchanged and only the x and z
+        // stop being invented. On bare floor: half the wax, and no more.
+        x: spot ? spot.x : (i % 2 === 0 ? -1 : 1) * rng.float(1.2, c.m.houseWidth * 0.4),
+        y: c.m.houseY + (spot ? 0.82 : 0.055),
+        z: spot ? spot.z : c.m.lipZ + 1.9 + row * 1.9 + rng.float(-0.2, 0.2),
         ph: rng.float(0, 6.28),
         r: rng.float(5, 11),
       });
@@ -979,13 +1219,74 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
       0, c.m.houseY + 1.08, back);
   },
 
+  /**
+   * Old bills pasted up the side wall of the wing — and pasted up the *wall*,
+   * which is a datum this prop did not have.
+   *
+   * ## The aperture is not a wall
+   *
+   * Three bills at `openingWidth / 2 + 0.9` is an inch of paste on a
+   * proscenium tormentor, and it was written when every room had one. Seven of
+   * the twelve answer `openingWidth: d.width`, so that x is 0.9 m outboard of
+   * the *boards*, over open house floor, with the side wall a further 1.4–3.65
+   * m out. Rebuilt and measured, the air behind each bill: 1.96 m in a
+   * proscenium, 1.91 in a ballroom, 1.70 in a salon and a riihi, 1.67 on a
+   * lawn, 1.40 in a courtyard, 1.74–2.85 in a dancehall. Nothing under them
+   * either — the deck stops at `width / 2`, so the nearest surface below is the
+   * house floor a metre and a half down, which is the gap the float scan
+   * reported. Only the shed was right, and only because `shed.ts` builds a
+   * black flat whose inner face lands 0.02 m behind these bills *because* this
+   * prop assumed a tormentor was there. Two room authors had already written
+   * the defect down and both said the same thing: it is one number, and it
+   * belongs here.
+   *
+   * ## `houseWidth / 2 + 0.57`
+   *
+   * Every room stands its side walls at `houseWidth / 2 + WALL_OUT`, and
+   * `WALL_OUT >= 0.6` is a stated contract — `proscenium.ts` takes 0.6 and
+   * `circuit.ts`, `dancehall.ts` and `hall.ts` each restate it as the minimum a
+   * room may take. Seven of the nine architectures that name this prop take
+   * exactly 0.6, verified by rebuilding and measuring the first surface
+   * outboard: proscenium 7.00, ballroom 8.35, salon 8.45, riihi 7.65–7.88, shed
+   * 8.60, the courtyard's arcade piers 0.03–0.05 m proud, the lawn's zinc fence
+   * at `houseWidth / 2 + 0.57..0.62`.
+   *
+   * The 3 cm is load-bearing twice, which is why it is 0.57 and not 0.60: the
+   * bill is a single-sided plane and the wall in five of those rooms is also a
+   * plane at exactly that x, so 3 cm keeps them off each other's depth values;
+   * and it lands the lawn's bill on the face of the zinc rather than inside it.
+   * `neon`'s wing pair takes 0.55 off the same datum for the same reason — see
+   * the note there, which carries the argument for both.
+   *
+   * ## `m.wallX`, which is the change the paragraph above asked for
+   *
+   * The constant closed seven rooms and left three named residues: the
+   * dancehall's `WALL_OUT = 1.75` left the bills 1.15 m off the boarding, the
+   * arena's `HALL_OUT = 3.5` left them with nothing within 2.9 m of any x this
+   * prop could compute, and the shed's flats ended up masking two of them. That
+   * paragraph closed by saying the only change that closes all twelve is
+   * `RoomShape` publishing the x of the first inward-facing surface beside the
+   * stage. It publishes it now — see `RoomShape.wallX` — so the estimate is
+   * gone and the three residues with it.
+   *
+   * The 3 cm survives the change intact and for both of its original reasons: a
+   * single-sided plane 3 cm off a plane wall keeps the two out of each other's
+   * depth values, and it lands the lawn's bill on the face of the zinc rather
+   * than inside it. What it is measured from is the only thing that moved.
+   *
+   * No wall, no bill. A pavilion is a roof on posts and the whole point of it is
+   * that there is nothing at the sides; three sheets of paper pasted to the air
+   * where a wall would have been is the defect this is fixing, not a version of
+   * it that is allowed because the paper is thin.
+   */
   posters: (c) => {
+    if (!Number.isFinite(c.m.wallX)) return;
     const rng = c.rng('posters');
     const geo = c.kit.geometry('poster', () => new PlaneGeometry(0.7, 1));
     for (let i = 0; i < 3; i++) {
       const side = i === 1 ? -1 : 1;
       const m = put(c, geo, c.kit.solid(hueShift(c.accent, rng.float(-90, 90), 0.1), { rough: 0.95 }),
-        side * (c.m.openingWidth / 2 + 0.9), 1.7 + rng.float(-0.3, 0.5), c.m.curtainZ - 0.9 - i * 1.4);
+        side * (c.m.wallX - 0.03), 1.7 + rng.float(-0.3, 0.5), c.m.curtainZ - 0.9 - i * 1.4);
       m.rotation.y = side * -Math.PI / 2;
     }
   },
@@ -1019,6 +1320,40 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
    * `posters` position for the same reason `posters` is there: offstage, seen
    * through the opening at an angle, so a wide shot has something bright in the
    * dark either side of the arch.
+   *
+   * ## All three of them were hung off the wrong datum, in two directions
+   *
+   * The wings shared `posters`' aperture-relative x and therefore shared its
+   * bug — read the argument for `houseWidth / 2 + 0.57` there, because the two
+   * props share a datum and should share one explanation of it. This is the
+   * worse of the two to look at, for two reasons this docstring already
+   * supplies. The border is one closed tube with nothing inside it, so unlike a
+   * poster the sign does not hide its own float: you saw the wall *through* the
+   * middle of the frame, 1.4–2.9 m behind it. And it is `MeshBasicMaterial`,
+   * because a sign is a light — so it is the brightest object in a dark corner
+   * and the first thing the eye goes to. Measured air behind each wing sign:
+   * 1.96 m in a ballroom, 1.79–2.90 in a dancehall, 1.73 on a lawn, 1.40 in a
+   * courtyard, 0.80 in a circuit; the shed alone was right, on the flat it
+   * built for this prop.
+   *
+   * 0.55 rather than the poster's 0.57 because the sign is a *sign* and not a
+   * decal: the wing group is scaled 0.78 and the border tube's radius is 0.022,
+   * so at −0.05 off the minimum wall offset the outermost glass stands 0.028 m
+   * proud of the plaster — a sign on standoffs, and inside the 0.06 m the float
+   * scan treats as touching, so the cluster grounds. It carries the same three
+   * pieces of residue as `posters` and for the same reasons.
+   *
+   * The back sign was 0.26 m off the wall in every one of the seven
+   * architectures, uniformly, because `backZ` is the upstage edge of the
+   * *boards* and not the wall: every room sets its cloth or plaster 0.10 m
+   * upstage of it (0.12 in the dancehall) so that nobody standing on the back
+   * of the boards is inside it. A 1.5 × 0.62 m open frame with no back, no
+   * raceway and no bracket, a quarter of a metre off the plaster. `backZ −
+   * 0.05` puts the script tube's glass at `backZ − 0.078`: 0.022 m off the
+   * plaster in the seven, 0.042 in the dancehall, and inside the wall in none
+   * of them, which is the depth of a real sign's fixings. Only the y is left as
+   * it was — a bare 1.85 in board space is 2.85 m above a ballroom's house
+   * floor and 2.15 m above a riihi's, and that is fine for a sign.
    *
    * And one of them flickers, which is the whole reason the back-wall sign gets
    * a material of its own. A neon that never falters is a lightbox. The stutter
@@ -1082,14 +1417,34 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
     back.node.position.set(
       -c.m.openingWidth * 0.2,
       Math.min(c.m.openingHeight - 0.5, Math.max(HANG_FLOOR + 0.4, c.m.openingHeight * 0.6)),
-      c.m.backZ + 0.16,
+      c.m.backZ - 0.05,
     );
-    for (const side of [-1, 1]) {
-      const wing = sign('wing', 0.78);
-      wing.node.position.set(
-        side * (c.m.openingWidth / 2 + 0.85), 1.85, c.m.curtainZ - 1.5,
-      );
-      wing.node.rotation.y = (side * -Math.PI) / 2;
+    /**
+     * And one on each side wall — asked for, not guessed at.
+     *
+     * This hung the wings at `houseWidth / 2 + 0.55`, which is not where any
+     * wall is. `houseWidth / 2` is where the *house floor* stops; the wall
+     * stands outboard of that by an amount only the room knows, and the rooms
+     * answer 0.6, 0.9, 1.75 and 3.5 m. So the constant was right to within a
+     * handspan in the five rooms taking the minimum and wrong by 1.2 m in the
+     * dancehall and 2.95 m in the arena, where both signs hung in clear air a
+     * couple of metres inboard of the brick with the glass facing a wall it
+     * never reached. `RoomShape.wallX` is published for this.
+     *
+     * `0.06` off the face, because a neon sign stands on brackets: flush would
+     * put the border tube's own 22 mm of glass through the plaster, and the
+     * back of the frame is not a face anybody sees.
+     *
+     * No wall, no sign. A tanssilava and an open lawn have nothing at the sides
+     * on purpose, and two signs floating where the wall would have been is the
+     * exact defect this is fixing — one room further out.
+     */
+    if (Number.isFinite(c.m.wallX)) {
+      for (const side of [-1, 1]) {
+        const wing = sign('wing', 0.78);
+        wing.node.position.set(side * (c.m.wallX - 0.06), 1.85, c.m.curtainZ - 1.5);
+        wing.node.rotation.y = (side * -Math.PI) / 2;
+      }
     }
 
     const lit = new Color(hot);
@@ -1147,12 +1502,44 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
     const rng = c.rng('cases');
     const body = c.kit.solid(shade(c.p.backdrop, 0.6), { rough: 0.7 });
     const edge = c.kit.solid(tint(c.p.proscenium, 0.2), { metal: 0.6, rough: 0.4 });
+    /**
+     * Where the cases already down this wall are, so the next one clears them.
+     *
+     * Two of the three are drawn on the same side from the same 0.6 m band of x
+     * and 1.3 m band of z, which puts them in the same place often enough to
+     * see: two boxes standing in each other, and — because both stand on the
+     * boards — with their lids and their bases on shared planes. The draws are
+     * left exactly as they were and the clash is walked out of afterwards, so
+     * no other prop's stream moves.
+     */
+    const down: { x: number; z: number; w: number }[] = [];
+    /**
+     * And the PA is already parked here, on the seeds that have one.
+     *
+     * `pa-stack` stands a 1.0 by 0.7 cabinet at `±(width/2 - 0.7)` on
+     * `backZ + 1.3` — dead inside the band this file draws from — so on any
+     * venue naming both, a case ended up standing in a speaker. Two files, one
+     * patch of floor, and neither could see the other; stating the one
+     * footprint here is cheaper than a shared occupancy map for two props.
+     */
+    if (readProps(c.venue.props).has('pa-stack')) {
+      for (const side of [-1, 1]) {
+        down.push({ x: side * (c.m.width / 2 - 0.7), z: c.m.backZ + 1.3, w: 1.0 });
+      }
+    }
     for (let i = 0; i < 3; i++) {
       const side = i === 1 ? 1 : -1;
       const w = rng.float(0.7, 1.1);
       const h = rng.float(0.45, 0.75);
       const x = side * (c.m.width / 2 - rng.float(0.5, 1.1));
-      const z = c.m.backZ + rng.float(0.5, 1.8);
+      let z = c.m.backZ + rng.float(0.5, 1.8);
+      for (let guard = 0; guard < 4; guard++) {
+        const clash = down.some((d) => d.x * side > 0
+          && Math.abs(d.x - x) < (d.w + w) / 2 && Math.abs(d.z - z) < 0.7);
+        if (!clash) break;
+        z += 0.75;
+      }
+      down.push({ x, z, w });
       put(c, c.kit.bevelBox(w, h, 0.6, 0.04), body, x, h / 2, z, true);
       put(c, c.kit.bevelBox(w + 0.04, 0.05, 0.64, 0.02), edge, x, h - 0.03, z);
     }
@@ -1206,6 +1593,24 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
    * reached 0.85 m into the playing area and a player at the x limit stood
    * inside it. Anchoring the inner *edge* rather than the centre keeps the
    * overlap that makes it mask and loses the overlap that makes it clip.
+   *
+   * ## And the leg has to be standing on something
+   *
+   * `openingWidth` may be *wider* than the boards — `hall` by `2 · MASK_OUT`,
+   * `circuit` by `2 · WING` — and the aperture is not a floor. In `hall` that
+   * put `inner` at `width / 2 + 0.20`, so the whole 1.69 × 4.70 m cloth was
+   * outboard of the deck with its hem at deck level and the house floor a metre
+   * below it: the largest single floater on any of these stages, one each side,
+   * framing the wide shot with a metre of lit concrete showing under the hem.
+   * `concert-hall` has the same 0.15 m overrun and escaped only because a flat
+   * at x 6.55 happens to intersect the cloth. So the inner edge is clamped to
+   * the boards as well as to the band, and the two clamps are opposite ends of
+   * the same sentence: never inside the playing area, never off the deck.
+   *
+   * What is *not* a defect and must not be "fixed": the 1.2–1.4 m of leg that
+   * overhangs the lip in every room, hem at deck level. A masking leg is hung
+   * from a bar and trimmed to the deck, and its hem staying level past the edge
+   * of the stage is what cloth does.
    */
   drapes: (c) => {
     const cloth = c.kit.solid(shade(c.p.curtain, 0.55), { rough: 0.98, side: DoubleSide });
@@ -1213,8 +1618,10 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
     const halfW = 0.9;
     const angle = 0.35;
     const geo = c.kit.geometry(`drape|${h}`, () => new PlaneGeometry(halfW * 2, h));
-    // Inside the opening if there is room for it, and never inside the band.
-    const inner = Math.max(c.play.halfX, c.m.openingWidth / 2 - 0.25);
+    // Inside the opening if there is room for it, on the boards either way, and
+    // never inside the band. `put` places the panel at `inner + halfW·cos`, so
+    // `inner` is the cloth's inboard edge rather than its centre.
+    const inner = Math.max(c.play.halfX, Math.min(c.m.width / 2 - 0.15, c.m.openingWidth / 2 - 0.25));
     for (const side of [-1, 1]) {
       for (let i = 0; i < 2; i++) {
         const m = put(c, geo, cloth,
@@ -1468,7 +1875,23 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
     for (let i = 0; i < 6; i++) {
       const side = i % 2 === 0 ? -1 : 1;
       const x = side * (c.m.width / 2 + rng.float(0.6, 1.9));
-      const z = c.m.lipZ + rng.float(0.7, 3.6);
+      /**
+       * Pushed clear of any bale already down this side of the floor.
+       *
+       * Three draws from a 2.9 m range put two of them within a bale's own
+       * length of each other about a third of the time, and two bales in one
+       * place is not a near miss — they are the same box at the same height, so
+       * their tops are one plane and the seat flickers. A bale is 0.92 long, so
+       * 1.15 m of clearance is one bale and a gap; walking the draw forward in
+       * whole steps keeps it deterministic and keeps it on the same floor.
+       */
+      let z = c.m.lipZ + rng.float(0.7, 3.6);
+      for (let guard = 0; guard < 6; guard++) {
+        const clash = placed.some((b) => b.x * side > 0
+          && Math.abs(b.x - x) < 1.15 && Math.abs(b.z - z) < 1.15);
+        if (!clash) break;
+        z += 1.2;
+      }
       const yaw = rng.float(-0.45, 0.45) + (side < 0 ? Math.PI : 0);
       placed.push({ x, y: c.m.houseY + 0.22, z, yaw });
       if (rng.chance(0.45)) {
@@ -1527,13 +1950,55 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
     /** Above the tallest player, and upstage of them all in any case. */
     const spring = Math.max(HEAD_BAND.hi - 0.15, 2.1);
     const z = c.m.backZ + 0.22;
-    /** Past a half turn, which is what makes it a horseshoe. */
-    const ARC = Math.PI * 1.16;
+    /**
+     * Past a half turn in a riad; a true half turn in a ballroom.
+     *
+     * The horseshoe was a constant, and a constant is what made it wrong twice.
+     *
+     * **It landed nowhere.** Sweeping to 208.8° puts the arch's two *ends* below
+     * the line the piers were solved against — `r · sin(14.4°)` = 0.163 m below
+     * it in the salon — so every arch stopped 0.16 m short of its own pier,
+     * springing out of the side of the column with bare stone left above it and
+     * the tucked end hanging free into the opening. The x was never wrong: the
+     * rings sit on the pier midpoints to the millimetre. It was the overshoot,
+     * and only the overshoot. At `Math.PI` exactly the ends land at `y = spring`
+     * and `x = ±r`, which is the pier's top and its inner face — the arch sits
+     * on the impost, which is what an arch does.
+     *
+     * **It was in the wrong building.** A horseshoe is Andalusian, and this prop
+     * was written for the courtyard: a riad, a cloister, a patio. `latin` names
+     * `arches` on the salón genre-wide, so a Havana ballroom was being given a
+     * Córdoba arcade, and it read as exactly that to the first person who looked
+     * at it. A Spanish colonial hall has an arcade; it does not have that arcade.
+     *
+     * So the courtyard keeps its overshoot and everyone else gets the half turn
+     * that fits their piers. Keying on the architecture rather than a prop flag is
+     * deliberate: the horseshoe is a fact about the *building*, and `RoomStyle`
+     * is where this file can read one without a genre inventing a name for it.
+     */
+    const ARC = Math.PI * (c.venue.architecture === 'courtyard' ? 1.16 : 1);
+
+    /**
+     * The impost — where the pier stops and the arch takes over.
+     *
+     * Not `spring`, and the difference is the whole of what was wrong with the
+     * horseshoe. `spring` is the *centre* of the ring; the arch's two ends are
+     * `r · sin(overshoot)` below it, because sweeping past a half turn is
+     * exactly what carries them down there. Standing the piers up to `spring`
+     * therefore built a column that finished 0.163 m above the thing it was
+     * supposed to be carrying, and left the arch's tucked end hanging over the
+     * opening with bare stone above it.
+     *
+     * Solved rather than trimmed by a constant, so it stays right at any bay
+     * width, and so it is identically zero for a half turn — every semicircular
+     * room lands on `spring` exactly as before and nothing here has to branch.
+     */
+    const impost = spring - r * Math.sin(Math.max(0, (ARC - Math.PI) / 2));
 
     const dummy = new Object3D();
-    const piers = new InstancedMesh(c.kit.bevelBox(pierW, spring, 0.32, 0.03), stone, bays + 1);
+    const piers = new InstancedMesh(c.kit.bevelBox(pierW, impost, 0.32, 0.03), stone, bays + 1);
     for (let i = 0; i <= bays; i++) {
-      dummy.position.set((i - bays / 2) * bay, spring / 2, z);
+      dummy.position.set((i - bays / 2) * bay, impost / 2, z);
       dummy.rotation.set(0, 0, 0);
       dummy.scale.setScalar(1);
       dummy.updateMatrix();
@@ -1564,12 +2029,13 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
   // -- the arena -----------------------------------------------------------
 
   /**
-   * Lighting lattice over the stage — flown, and it has to be.
+   * Lighting lattice over the stage — flown where the room has a roof over the
+   * boards, and standing on its own legs where it has not.
    *
    * A truss is a goalpost in the mind's eye: two towers and a beam. It cannot
-   * be one here, and the reason is a number rather than an opinion. The
-   * proscenium opening is 0.94 of the stage width, so the strip of board that
-   * is both inside the opening and outside the playing area is about a
+   * be one *in a theatre*, and the reason is a number rather than an opinion.
+   * The proscenium opening is 0.94 of the stage width, so the strip of board
+   * that is both inside the opening and outside the playing area is about a
    * *handspan* on a nine-metre stage and narrower on a wide one. A tower with
    * its feet in that strip is invisible behind the arch leg; a tower wide
    * enough to read is standing where the guitarist is. There is nowhere on
@@ -1578,43 +2044,183 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
    * Flown is not a consolation prize — it is what an arena rig actually is, and
    * it solves the sightline for free by living above everything. Two runs, one
    * over the fly bar and one upstage over the backline, because a single bar
-   * reads as a scaffolding pole and two parallel ones read as a rig. The ends
-   * overrun the opening so they die behind the masking, and each end has a
-   * short vertical stub going up out of frame, which is where the motors would
-   * be: a truss with nothing above it is hanging from the sky.
+   * reads as a scaffolding pole and two parallel ones read as a rig.
    *
-   * Under a lid it tucks up under the plaster instead of going through it. A
-   * cellar asking for a truss is a room describing itself oddly, and the
-   * renderer's job there is to make an odd room rather than a broken one.
+   * ## What each end is held up by, and the three answers the room gives
+   *
+   * This used to be one answer — a stub of `Math.max(0.3, …)` at each end,
+   * "going up out of frame, which is where the motors would be" — and the
+   * arithmetic under it was wrong in every branch at once. Measured:
+   *
+   * **Under a lid** the 0.3 m floor silently overrode the tuck. `y` is
+   * `headroom - 0.28`, so the honest reach is `0.28 - S = 0.11 m`, always less
+   * than 0.3, so the floor always won and every stub stood `headroom + 0.19`
+   * proud of the ceiling it was supposed to die into — 4.822 against a
+   * courtyard awning at 4.632, 3.420 against a dancehall's plaster at 3.15,
+   * with the chord itself already 5 mm through that one. Nobody can get above
+   * the lid to see it, which is why this is the branch the other two are built
+   * on rather than the one that looked broken. So the clauses are split: `y` is
+   * clamped so the chord's own 35 mm radius never crosses the lid, and the rise
+   * is exactly what is left. Under 0.05 m there is no drop at all — at a 3.15 m
+   * ceiling a truss is bolted to the roof steel and has no motors, which is
+   * true of every real room that low.
+   *
+   * **Inside a building with no lid over the boards** — a fly tower, which is
+   * why `headroom` is honestly `Infinity` there and `houseLid` is not — the
+   * stub reaches `openingHeight + 1.2`, and `ballroom.ts` has built a real
+   * timber grid batten at exactly that height *because* this expression reaches
+   * for it. It missed it twice. In x, `len / 2` put the drop 0.10 m outboard of
+   * a batten that is `openingWidth + 1.6` wide, so a ray up from the top chord
+   * hit nothing; the pick is 0.4 m in from the tip now, which lands 0.30 m
+   * inside the timber in every ballroom venue and still 0.5 m outboard of the
+   * opening, so it dies behind the masking as before. In z the batten is on the
+   * fly bar, over `runs[0]` only, so the upstage pair rose 1.27 m with nothing
+   * above them anywhere — that run gets no drops. `houseLid` cannot rescue it
+   * and tucking under it would be wrong: that plane is built over the *house*,
+   * and over the boards there is a tower.
+   *
+   * **Under open sky** the prop must stop inventing a height. In a circuit
+   * `openingHeight + 1.2` is 7.95 m against roof steel the room really models
+   * at 9.77–10.53, so the stub ended with two and a half metres of air over it
+   * — in the one room with no proscenium header, where `ceiling()` is
+   * `Infinity` and the viewer's orbit can be flown up to the girders. The room
+   * refuses to publish that roof for good reasons of its own, so the honest
+   * answer is the other one: a leg to the floor. That is what an arena rig is,
+   * it is the same three draw calls, and the feet land 1.45 m outboard of the
+   * boards on the arena floor, well inside the hall.
+   *
+   * ## Length, and the one room the overrun ran out of
+   *
+   * The ends overrun the opening by 0.9 m so they die behind the masking —
+   * true in a theatre, and in a barn it ran them out through the roof.
+   * `riihi`'s `headroom` is the gable *soffit*, not the sheeting: the roof
+   * falls 0.375 m/m from a 5.45 m ridge, so a 12.20 m truss in a 10.40 m barn
+   * put the last 0.70 m of each end above the boarding and both motor stubs
+   * outside the building, where a `DoubleSide` roof shows them against the sky.
+   * So under a lid the length is capped at the room's own width: a room with a
+   * roof over its boards has no roof wider than its boards, `shed` and `riihi`
+   * being the two that prove it. The cap is deliberately *not* applied in the
+   * open-air branch, where there is no roof to run through and where taking it
+   * would cost the ballroom most of its 0.9 m of masking overrun and pull the
+   * motor picks inside the aperture.
    *
    * ## The one place in this file that does not use `bevelBox`
    *
-   * Fifty-two diagonal braces at 108 triangles each is 5.6k triangles of bevel,
-   * which was more than the entire pavilion and more than twice the next most
-   * expensive prop. A bevel is the house style because it catches a highlight
-   * along an edge and stops a box reading as a rendering; a 32 mm strut seen
-   * from six metres has no edge to catch anything on, and the rounding is a
-   * cost with no picture attached. Plain boxes, and the prop drops to a tenth
-   * of what it was.
+   * A hundred and eight diagonal braces at 108 triangles each is 11.7k
+   * triangles of bevel — it was 52 braces and 5.6k when only one face of the
+   * truss was laced, which was itself the defect below. A bevel is the house
+   * style because it catches a highlight along an edge and stops a box reading
+   * as a rendering; a 32 mm strut seen from six metres has no edge to catch
+   * anything on, and the rounding is a cost with no picture attached. Plain
+   * boxes, and the prop stays at a tenth of what it would be.
    *
-   * Everything repeated is instanced for the same reason — the chords, the
-   * braces and the motor drops are three draw calls between them rather than
-   * fourteen meshes, which is what the rest of this file does everywhere it
-   * places more than two of a thing.
+   * The count doubled because the lacing was only ever on one face. Every brace
+   * went to `z - S`, so the two chords at `z + S` were a rigid pair joined to
+   * nothing — and since `runs[0]` is `curtainZ - 1.1`, the bare pair was the
+   * one pointing at the audience: from the house, the front of the downstage
+   * truss was two 70 mm pipes 0.34 m apart with the lacing visible behind them,
+   * 2.78 m over a dancehall's band. That unattached pair is what the float scan
+   * was reporting as a one-part cluster in shed, dancehall, salon and courtyard
+   * — those rooms' drops do reach the lid, and it was one chord pair adrift.
+   * Both faces are laced now and the zig-zag is mirrored, so the section reads
+   * as a box rather than as a parallelogram. That argument was about bevelling
+   * and not about lacing, so it survives; only its arithmetic needed restating.
+   *
+   * Everything repeated is instanced — the chords, the braces and the verticals
+   * are three draw calls between them rather than fourteen meshes, which is
+   * what the rest of this file does everywhere it places more than two of a
+   * thing.
    */
   truss: (c) => {
     const steel = c.kit.solid(shade(tint(c.p.proscenium, 0.3), 0.35), { metal: 0.75, rough: 0.4 });
-    const y = Number.isFinite(c.m.headroom)
-      ? Math.max(HANG_FLOOR + 0.3, c.m.headroom - 0.28)
-      : c.m.flyY + 0.34;
-    const len = c.m.openingWidth + 1.8;
     /** Half the truss section. A 0.34 m square is a light-duty rigging truss. */
     const S = 0.17;
-    /** Up to the plaster, or out of the top of the frame. */
-    const rise = Math.max(0.3,
-      (Number.isFinite(c.m.headroom) ? c.m.headroom : c.m.openingHeight + 1.2) - y - S);
-    const runs = [c.m.curtainZ - 1.1, c.m.backZ + 0.9];
+    /** The lid over the *boards*. `Infinity` under a fly tower or the sky. */
+    const lid = c.m.headroom;
+    const lidded = Number.isFinite(lid);
+    const y = lidded
+      ? Math.max(
+        // Never low enough to put the bottom chord's own surface into the
+        // clearance the head band is owed. Under about 2.9 m of lid nothing can
+        // be both under the ceiling and over everybody — the section alone is
+        // 0.41 m — and going up through plaster that no camera under it can see
+        // is the right way to fail that.
+        HANG_FLOOR + S + 0.035,
+        // `- S - 0.035` keeps the top chord's own surface under the lid; the
+        // `- 0.28` trim is what it takes when the room is tall enough to give
+        // it. The old `max(0.3, …)` on the rise below was written for the
+        // open-air clause and silently won this one instead.
+        Math.min(lid - S - 0.035, Math.max(HANG_FLOOR + 0.3, lid - 0.28)),
+      )
+      : c.m.flyY + 0.34;
+    const len = lidded ? Math.min(c.m.openingWidth + 1.8, c.m.width) : c.m.openingWidth + 1.8;
+    /**
+     * Two runs where both can be held up, one where only one can.
+     *
+     * The two-run rule is in the docstring above and it is right: a single bar
+     * reads as a scaffolding pole and two parallel ones read as a rig. It was
+     * being applied one step too early. In a stage-house room — `headroom`
+     * `Infinity` over the boards with a real plaster ceiling over the house —
+     * the only thing in that dark void is the room's own grid batten, and the
+     * batten is on the fly bar's line. The upstage run had nothing over it at
+     * any x, so it was built and then given no verticals, and 29 pieces of
+     * lattice hung in the ballroom's void with a 2.61 m gap under them.
+     *
+     * Dropping the run is the fix rather than raising verticals off it, because
+     * verticals off it would end in the same void 1.27 m higher up — the defect
+     * moved rather than solved, and moved to the one place a camera pitching up
+     * over the header is looking. One run that is held is a rig; two runs where
+     * one is flying is a mistake with a second copy of itself in it.
+     */
+    const runs = lidded || !Number.isFinite(houseLid(c.m))
+      ? [c.m.curtainZ - 1.1, c.m.backZ + 0.9]
+      : [c.m.curtainZ - 1.1];
     const perRun = Math.max(6, Math.round(len / 0.5));
+    /**
+     * Where a vertical member stands: 0.4 m in from the tip, over a chord.
+     *
+     * Two per end rather than one, because a pick on the truss's centre z — one
+     * pipe up the middle, which is what this drew — touches neither chord. It
+     * is 0.10 m clear of both, so each face of the lattice was left hanging on
+     * nothing while a pole rose between them. `z ± S` puts each vertical on the
+     * top chord it is picking, buried 35 mm into it, and from the house the two
+     * overlap in screen space and read as one.
+     *
+     * The one clearance this costs is at the far end, and it is small: the
+     * ballroom's grid batten is 0.22 m deep, so a vertical at `z ± S` lands
+     * 0.025 m off the timber's face rather than through its middle. A quarter
+     * of a handspan, six metres up behind the header, against a lattice that is
+     * actually attached to itself.
+     */
+    const pick = len / 2 - 0.4;
+
+    /** How long the vertical is, where its centre sits, and which runs get one. */
+    let holdH: number;
+    let holdY: number;
+    let holdAt: readonly number[];
+    if (lidded) {
+      holdH = Math.max(0, lid - (y + S));
+      holdY = y + S + holdH / 2;
+      holdAt = runs;
+    } else if (Number.isFinite(houseLid(c.m))) {
+      // A roofed building whose stage is under a tower: the grid is up there
+      // even where the room has not modelled one, and only the fly bar's run
+      // has anything over it — which is why `runs` above is one run here, and
+      // why every run there is gets held.
+      holdH = Math.max(0, c.m.openingHeight + 1.2 - (y + S));
+      holdY = y + S + holdH / 2;
+      holdAt = runs;
+    } else {
+      // Open sky. The foot goes on whichever surface is under the pick — the
+      // boards if the truss is narrower than they are, the house floor if it
+      // overhangs them, which it does in both rooms that reach this today.
+      const foot = pick <= c.m.width / 2 ? 0 : c.m.houseY;
+      holdH = Math.max(0, y - S - foot);
+      holdY = (y - S + foot) / 2;
+      holdAt = runs;
+    }
+    /** Below this there is nothing to draw: the steel is already on the lid. */
+    const holds = holdH >= 0.05 ? holdAt.length * 4 : 0;
 
     const chords = new InstancedMesh(
       c.kit.geometry(`truss-chord|${len.toFixed(2)}`,
@@ -1623,18 +2229,12 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
     );
     const braces = new InstancedMesh(
       c.kit.geometry('truss-brace', () => new BoxGeometry(0.032, 0.42, 0.032)),
-      steel, runs.length * perRun,
-    );
-    const drops = new InstancedMesh(
-      c.kit.geometry(`truss-drop|${rise.toFixed(2)}`,
-        () => new CylinderGeometry(0.035, 0.035, rise, 6)),
-      steel, runs.length * 2,
+      steel, runs.length * perRun * 2,
     );
 
     const dummy = new Object3D();
     let ci = 0;
     let bi = 0;
-    let di = 0;
     for (const z of runs) {
       for (const dy of [-S, S]) {
         for (const dz of [-S, S]) {
@@ -1645,24 +2245,41 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
           chords.setMatrixAt(ci++, dummy.matrix);
         }
       }
-      for (let i = 0; i < perRun; i++) {
-        dummy.position.set((i - (perRun - 1) / 2) * (len / perRun), y, z - S);
-        dummy.rotation.set(0, 0, i % 2 === 0 ? 0.72 : -0.72);
-        dummy.scale.setScalar(1);
-        dummy.updateMatrix();
-        braces.setMatrixAt(bi++, dummy.matrix);
-      }
-      for (const side of [-1, 1]) {
-        dummy.position.set((side * len) / 2, y + S + rise / 2, z);
-        dummy.rotation.set(0, 0, 0);
-        dummy.scale.setScalar(1);
-        dummy.updateMatrix();
-        drops.setMatrixAt(di++, dummy.matrix);
+      for (const face of [-S, S]) {
+        for (let i = 0; i < perRun; i++) {
+          const tilt = i % 2 === 0 ? 0.72 : -0.72;
+          dummy.position.set((i - (perRun - 1) / 2) * (len / perRun), y, z + face);
+          // Mirrored on the downstage face, so the two zig-zags meet at the
+          // chords and the section reads as a box seen from any angle.
+          dummy.rotation.set(0, 0, face === S ? -tilt : tilt);
+          dummy.scale.setScalar(1);
+          dummy.updateMatrix();
+          braces.setMatrixAt(bi++, dummy.matrix);
+        }
       }
     }
     c.root.add(chords);
     c.root.add(braces);
-    c.root.add(drops);
+
+    if (holds === 0) return;
+    const posts = new InstancedMesh(
+      c.kit.geometry(`truss-post|${holdH.toFixed(2)}`,
+        () => new CylinderGeometry(0.035, 0.035, holdH, 6)),
+      steel, holds,
+    );
+    let pi = 0;
+    for (const z of holdAt) {
+      for (const side of [-1, 1]) {
+        for (const face of [-S, S]) {
+          dummy.position.set(side * pick, holdY, z + face);
+          dummy.rotation.set(0, 0, 0);
+          dummy.scale.setScalar(1);
+          dummy.updateMatrix();
+          posts.setMatrixAt(pi++, dummy.matrix);
+        }
+      }
+    }
+    c.root.add(posts);
   },
 
   /**
@@ -1728,6 +2345,51 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
    * floor in an arena nobody is allowed on. So it sits at `lipZ + 0.82` with
    * its feet pointing upstage into that gap, which also clears the front row's
    * bodies by 0.15 m rather than by luck.
+   *
+   * ## One datum, three heights, two gaps
+   *
+   * Every piece here is solved against `c.m.houseY` and that is right — the
+   * barrier stands in the house, and the feet prove it: a 0.06 m box centred at
+   * `houseY + 0.03` has its underside dead on the floor, which is why the float
+   * scan never reported *them*. The defect was entirely internal. The three
+   * heights were each picked alone and none of them met the next:
+   *
+   *     feet    houseY + 0.00 .. + 0.06
+   *     panel   houseY + 0.35 .. + 0.97      0.35 m of air under it
+   *     rail    houseY + 1.04 .. + 1.12      and a 0.07 m slot over it
+   *
+   * — a barrier in three floating layers, identical to the millimetre in all
+   * sixteen shows that carry it. Mostly screened by the front row's bodies, but
+   * plainly visible in four ways: on a lawn the rail tops out 0.33 m *above*
+   * the deck, so both slots are silhouetted against the lit stage face; from
+   * any lens the viewer has dragged down into the pit, which `camera.ts`
+   * explicitly permits and which is the one metre of floor this comment calls
+   * the photograph; from an elevated house shot tilted down into it; and in
+   * shadow, since both the rail and the panel cast and the wash threw a barrier
+   * shadow with a break in it and nothing joining it to its feet.
+   *
+   * The panel is the piece that moves, and it has to be the panel: `houseY +
+   * 1.08` is quoted as a fixed cross-file number by three rooms — `lawn.ts`
+   * chose `LAWN_RISE` from it, `circuit.ts` chose `DECK_MAX` from it, and
+   * `dancehall.ts` fits its corner steps into the 0.31 m it leaves — and the
+   * panel is the only piece nothing outside this builder reads. So it grows to
+   * meet both: 1.04 m tall centred at `houseY + 0.52`, floor to rail underside,
+   * both contacts exact rather than within a tolerance.
+   *
+   * Rejected: stopping it at the top of the feet (0.98 tall at `+ 0.55`) closes
+   * the visible break and leaves a 60 mm slot of lit floor running the whole
+   * 15–17 m, which from a lens in the pit is a bright line and not a kick
+   * space. A real pit barrier is a continuous sheet to the deck with the plate
+   * on the ground, so the sheet goes to the deck.
+   *
+   * Two consequences, stated rather than discovered later. Where `dance-floor`
+   * is also named the parquet sits at `houseY + 0.02` across the middle 70% of
+   * the house, so the panel's lowest 20 mm is *under* the parquet there and
+   * above bare floor at the ends — buried, which is the right failure direction
+   * and the reason not to split the difference at `+ 0.02`. And each panel's
+   * ends land 15 mm inside their foot box, which is interpenetration inside
+   * opaque steel with no coplanar pair; trimming the panel to `seg - 0.12`
+   * instead would make those two faces coplanar, which is worse.
    */
   'crowd-barrier': (c) => {
     const steel = c.kit.solid(shade(tint(c.p.proscenium, 0.3), 0.42), { metal: 0.65, rough: 0.42 });
@@ -1741,7 +2403,7 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
     // this was the second most expensive prop in the room before it.
     const rail = new InstancedMesh(c.kit.bevelBox(seg - 0.05, 0.08, 0.08, 0.035), steel, n);
     const panel = new InstancedMesh(
-      c.kit.geometry(`barrier-panel|${seg.toFixed(3)}`, () => new PlaneGeometry(seg - 0.09, 0.62)),
+      c.kit.geometry(`barrier-panel|${seg.toFixed(3)}`, () => new PlaneGeometry(seg - 0.09, 1.04)),
       c.kit.solid(shade(c.p.backdrop, 0.62), { metal: 0.4, rough: 0.7, side: DoubleSide }), n,
     );
     const feet = new InstancedMesh(
@@ -1754,7 +2416,7 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
       dummy.position.set(x, c.m.houseY + 1.08, z);
       dummy.updateMatrix();
       rail.setMatrixAt(i, dummy.matrix);
-      dummy.position.set(x, c.m.houseY + 0.66, z);
+      dummy.position.set(x, c.m.houseY + 0.52, z);
       dummy.updateMatrix();
       panel.setMatrixAt(i, dummy.matrix);
     }

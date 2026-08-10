@@ -456,6 +456,8 @@ function shape(d: RoomDatum): RoomShape {
      * from the other end.
      */
     backdropHeight: w.cellar ? LOW_CEILING : w.ridge,
+    /** The boarding, at the minimum: a shed is not a big room. */
+    wallX: d.houseWidth / 2 + WALL_OUT,
   };
 }
 

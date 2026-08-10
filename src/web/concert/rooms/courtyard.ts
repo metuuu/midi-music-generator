@@ -155,6 +155,8 @@ function shape(d: RoomDatum): RoomShape {
      * over, it is the side of a building.
      */
     backdropHeight: wallH,
+    /** Open to the sky and still walled on both sides — a courtyard is. */
+    wallX: d.houseWidth / 2 + WALL_OUT,
   };
 }
 
@@ -359,15 +361,27 @@ function build(c: RoomContext): RoomRig {
     /** Centred on the run, so a corner pier lands within a few centimetres. */
     const mid = (run.from + run.to) / 2;
     const y0 = m.houseY;
+    /**
+     * The runs along z stand 0.02 m taller, which is the lintel's step again.
+     *
+     * "A corner pier lands within a few centimetres" is the comment above and
+     * it is true — but the two piers that land there are the same box at the
+     * same height, so their caps were one plane and the corner of the arcade
+     * flickered at 1.8 m, which is eye level for a camera down in the yard. One
+     * run coursed over the other settles it at the pier the same way it settles
+     * it at the lintel, and the cap disappears into the ring above it either
+     * way.
+     */
+    const overrun = run.along === 'z' ? 0.02 : 0;
     for (let i = 0; i <= run.bays; i++) {
       const along = mid + dir * (i - run.bays / 2) * bay;
       dummy.position.set(
         run.along === 'z' ? run.at + run.face * 0.2 : along,
-        y0 + spring / 2,
+        y0 + (spring + overrun) / 2,
         run.along === 'z' ? along : run.at + run.face * 0.2,
       );
       dummy.rotation.set(0, run.along === 'z' ? Math.PI / 2 : 0, 0);
-      dummy.scale.setScalar(1);
+      dummy.scale.set(1, (spring + overrun) / spring, 1);
       dummy.updateMatrix();
       piers.setMatrixAt(pi++, dummy.matrix);
     }
@@ -403,9 +417,18 @@ function build(c: RoomContext): RoomRig {
   for (const run of plan) {
     const span = Math.abs(run.to - run.from) + pierW;
     const lintel = new Mesh(c.kit.bevelBox(span, 0.32, 0.36, 0.03), stone);
+    /**
+     * The runs along z sit 0.02 m higher than the runs along x.
+     *
+     * Where two runs meet at a corner of the yard their lintels cross, and at
+     * one height with one section they crossed *inside* each other — a shared
+     * soffit and a shared top over the full 0.36 m square, at the corner, which
+     * is where the arcade is most often seen against the sky. One lintel
+     * passing over the other is how the corner of a real arcade is coursed.
+     */
     lintel.position.set(
       run.along === 'z' ? run.at + run.face * 0.2 : (run.from + run.to) / 2,
-      lintelY,
+      lintelY + (run.along === 'z' ? 0.02 : 0),
       run.along === 'z' ? (run.from + run.to) / 2 : run.at + run.face * 0.2,
     );
     lintel.rotation.y = run.along === 'z' ? Math.PI / 2 : 0;

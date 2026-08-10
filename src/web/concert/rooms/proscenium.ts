@@ -144,6 +144,16 @@ export function prosceniumShape(d: RoomDatum): RoomShape {
     houseLid: lowCeiling ? -rise + LOW_CEILING : Infinity,
     /** A cloth indoors; a low wall you are meant to see over, outdoors. */
     backdropHeight: openAir ? 2.4 : openingHeight + 2.2,
+    /**
+     * The house walls, and `Infinity` when the room opts out of having any.
+     *
+     * The same `openAir` branch the walls themselves are built behind: a
+     * tanssilava is a roof on posts at the edge of a lake and the entire point
+     * of it is that there is nothing at the sides. A prop asking for a wall to
+     * screw a sign to gets told there is none, rather than a number naming a
+     * plane no geometry stands on.
+     */
+    wallX: openAir ? Infinity : d.houseWidth / 2 + 0.6,
   };
 }
 
@@ -399,6 +409,8 @@ function build(c: RoomContext): RoomRig {
   const archZ = m.lipZ + 0.28;
   const legW = 0.62;
   const legH = openingHeight + 1.1 + rise;
+  /** The masking flats' section. `above` takes this plus 0.06 — see below. */
+  const torDeep = 0.3;
 
   for (const side of [-1, 1]) {
     const x = side * (openingWidth / 2 + legW / 2);
@@ -407,29 +419,64 @@ function build(c: RoomContext): RoomRig {
     leg.castShadow = false;
     root.add(leg);
     if (!blackBox) {
+      /**
+       * Set 0.015 m in from the leg's own cheek rather than flush with it.
+       *
+       * Flush was `legW / 2 - 0.08`, which put the moulding's outer face on
+       * exactly the same plane as the leg's — two surfaces, same colour family,
+       * same depth, four metres tall — and the depth buffer cannot separate
+       * them: the whole cheek of the arch flickers between the two as the
+       * camera moves. A moulding is a length screwed onto a face and it always
+       * stops short of the arris; stopping short is also the whole of the fix.
+       */
       const mould = new Mesh(c.kit.bevelBox(0.16, legH - 0.4, 0.66, 0.05), mouldMat);
-      mould.position.set(x - side * (legW / 2 - 0.08), legH / 2 - 0.2 - rise, archZ);
+      mould.position.set(x - side * (legW / 2 - 0.095), legH / 2 - 0.2 - rise, archZ);
       root.add(mould);
     }
     // Tormentors — flat panels running out to the edge of frame, so a wide shot
     // cannot see past the arch into nothing.
     const torW = 4;
-    const tor = new Mesh(c.kit.bevelBox(torW, legH + 3, 0.3, 0.04), c.kit.solid(shade(archColour, 0.7)));
+    const tor = new Mesh(c.kit.bevelBox(torW, legH + 3, torDeep, 0.04), c.kit.solid(shade(archColour, 0.7)));
     tor.position.set(side * (openingWidth / 2 + legW + torW / 2 - 0.05), (legH + 3) / 2 - rise, archZ + 0.1);
     root.add(tor);
   }
 
+  /**
+   * The header, and every number in the next four objects is a *relief*.
+   *
+   * All five members of the arch sit on the one centre line `archZ`, which is
+   * what makes them read as one surround. Giving any two of them the same
+   * section as well puts two faces on the same plane wherever they overlap —
+   * and they all overlap, because a surround is a frame whose members run into
+   * one another at the corners. The leg and the header shared a 0.55 m section
+   * and fought across the whole 0.62 by 1.0 m corner where they meet; the two
+   * mouldings shared 0.66. So the sections step: 0.55 for the legs, 0.58 for
+   * the header standing slightly proud of them as an entablature does, 0.66 for
+   * the leg moulding and 0.70 for the header's. Nothing here is an epsilon —
+   * the smallest step is 15 mm and every one of them is a step a joiner would
+   * have cut anyway.
+   */
   const headerH = 1.0;
-  const header = new Mesh(c.kit.bevelBox(openingWidth + legW * 2 + 0.2, headerH, 0.55, 0.06), archMat);
+  const header = new Mesh(c.kit.bevelBox(openingWidth + legW * 2 + 0.2, headerH, 0.58, 0.06), archMat);
   header.position.set(0, openingHeight + headerH / 2, archZ);
   root.add(header);
   if (!blackBox) {
-    const headerMould = new Mesh(c.kit.bevelBox(openingWidth + legW * 2 + 0.3, 0.16, 0.66, 0.05), mouldMat);
-    headerMould.position.set(0, openingHeight + 0.08, archZ);
+    // 0.02 m below the header's soffit rather than flush with it, for the same
+    // reason: flush is two down-facing faces on one plane over the full 5 m run.
+    const headerMould = new Mesh(c.kit.bevelBox(openingWidth + legW * 2 + 0.3, 0.16, 0.7, 0.05), mouldMat);
+    headerMould.position.set(0, openingHeight + 0.06, archZ);
     root.add(headerMould);
   }
-  // Masking above the header, up out of frame.
-  const above = new Mesh(c.kit.bevelBox(openingWidth + legW * 2 + 9, 4, 0.3, 0.04), c.kit.solid(shade(archColour, 0.72)));
+  /**
+   * Masking above the header, up out of frame.
+   *
+   * 0.36 deep against the tormentors' 0.3, both centred on `archZ + 0.1`. They
+   * were the same section, which put 12 m² of flat masking on exactly the same
+   * plane as the tormentor beside it — the largest single fight in the room and
+   * the one that flickers across half the frame in a black box, where these two
+   * panels are most of what there is to look at.
+   */
+  const above = new Mesh(c.kit.bevelBox(openingWidth + legW * 2 + 9, 4, torDeep + 0.06, 0.04), c.kit.solid(shade(archColour, 0.72)));
   above.position.set(0, openingHeight + headerH + 2, archZ + 0.1);
   root.add(above);
 

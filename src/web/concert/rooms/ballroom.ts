@@ -122,9 +122,28 @@
  * and the two things this file is made of — the gallery and the lid — are
  * exactly what it would delete.
  *
- * `low-ceiling` is also a different building. A ballroom is defined by the
- * volume over its floor; put a 3.6 m lid on it and it is a function suite, which
- * is a real room somebody should write and is not this one.
+ * `low-ceiling` **is answered**, and the paragraph that used to stand here
+ * refusing it is worth keeping the shape of, because the refusal was reasonable
+ * and was still wrong. It said: a ballroom is defined by the volume over its
+ * floor, put a 3.6 m lid on it and it is a function suite, which is a real room
+ * somebody should write and is not this one.
+ *
+ * All of that is true about the *architecture* and none of it was ever a
+ * decision this file got to make. `rnb/staging.ts` names `low-ceiling` on its
+ * 1998 dressing — deliberately, at length, because that end of the repertoire
+ * went back into a small room with candles on the tables — and a room cannot
+ * decline a prop. `stage-props.ts` draws the two lids either way. What a refusal
+ * bought was not a ballroom, it was a ballroom with a plaster ceiling drawn
+ * across it at 3.6 m that nothing in the show had been told about: the camera
+ * took its wide shot from 3.6 m, *above the lid*, filming the band through
+ * whatever the ceiling did not occlude; the follow spot hung at 5.75 m, inside
+ * the same plaster; and the gallery and the cove went on being built above both.
+ *
+ * So the room answers it, and answering it is five numbers and three omissions
+ * — see `CLUB_RISE`, `shape`, and the three `club` branches in `build`. The
+ * function suite the paragraph asked for is exactly what comes out, which is the
+ * point: under the lid this is not a ballroom any more, and the file's job is to
+ * stop drawing the parts of one that are now behind plaster.
  *
  * `brick` is a material claim about a building that is plastered by definition.
  * The plaster is not a finish here, it is what the mouldings are made of.
@@ -144,7 +163,9 @@ import {
 } from 'three';
 
 import { buildCurtain } from '../stage-curtain.js';
-import { blend, cellPlane, shade, tint } from '../stage-kit.js';
+import {
+  blend, cellPlane, LOW_CEILING, shade, STAGE_SOFFIT, tint,
+} from '../stage-kit.js';
 import {
   type RoomBuilder, type RoomContext, type RoomDatum, type RoomRig, type RoomShape,
 } from './types.js';
@@ -174,6 +195,37 @@ import {
  * photograph the genre's own staging note asks for.
  */
 const BALLROOM_RISE = 1.0;
+
+/**
+ * And how far they stand above it once the room has been ceilinged — a kerb, and
+ * the one number in this file that was *solved* rather than argued.
+ *
+ * A metre of stage cannot survive `low-ceiling`, and it fails twice. The prop
+ * hangs its house plaster at `houseY + LOW_CEILING` and steps down to
+ * `STAGE_SOFFIT` over the boards with a fascia joining the two, so a rise of
+ * 1.0 m puts the house lid at 2.6 m and the stage soffit at 2.85 m — the step
+ * upside down, no fascia drawn, and a 0.25 m slot at the lip with the whole
+ * stage house visible through it. That is the void the prop's own docstring was
+ * written to close. The fascia needs `LOW_CEILING - rise > STAGE_SOFFIT`, so the
+ * rise has to come below 0.75 m.
+ *
+ * The other end is the camera, and it is the tighter of the two. `camera.ts`
+ * caps the lens at `STAGE_SOFFIT - LENS_GAP` — 2.25 m over the boards, wherever
+ * the boards are — and wants to stand 0.3 m over `crowd.topY`. This house is
+ * twelve rows seated, which `crowdExtent` puts at `houseY + 2.44`, so the two
+ * meet at a rise of 0.49 m and below that every wide shot in the era is a lens
+ * inside the back row's heads with the ceiling refusing to lift it out.
+ *
+ * So the window is 0.49 m to 0.75 m, and it is narrow because both walls of it
+ * are the prop's: this is a metre-high variety stage being asked to fit under a
+ * suspended ceiling, and there is not much room in which both can be true.
+ * 0.55 m sits inside it at both ends — 0.20 m of fascia at the lip, 0.06 m of
+ * air between the lens and its own ceiling — and it is not a new invention: it
+ * is `dancehall.ts`'s bandstand to the centimetre, which is the platform a small
+ * room builds when it wants the band visible and has no height to put them above
+ * the crowd with. Which is the 1998 room exactly.
+ */
+const CLUB_RISE = 0.55;
 
 /**
  * How much of the stage's width the arch takes back, per side.
@@ -391,30 +443,117 @@ function ceilingHeight(width: number): number {
  * pyramid of ninety on risers, and a tall arch over a wide flat band is a lot of
  * empty plaster with a follow spot wandering about in it.
  *
- * The floor of 4.4 m is not architectural, it is the mirror ball. `BUILDERS
- * ['mirror-ball']` hangs its rod from `openingHeight · 0.82 + 0.8`, so below
- * 4.44 m of arch the rod's tip comes out through the soffit into the header —
- * which nobody can see from the front, and which would be found by the first
- * person to orbit the camera round to the side. At 4.4 the tip sits 0.03 m under
- * the soffit in the smallest era and 0.11 m under it in the largest.
+ * ## The floor of 4.4 m is architecture, and the reason that used to be written
+ * here was not
+ *
+ * It said the floor was *not* architectural: it was the mirror ball. `BUILDERS
+ * ['mirror-ball']` hung its rod from `openingHeight · 0.82 + 0.8`, so below
+ * 4.44 m of arch the tip came out through the soffit into the header — invisible
+ * from the front, and waiting for the first person to orbit the camera round to
+ * the side. That is recorded rather than deleted, because it was wrong in two
+ * different ways and both of them are the kind of thing that gets re-derived by
+ * the next author who finds a bare number.
+ *
+ * **It sat on the wrong side of its own break-even.** Having named 4.44 as the
+ * crossing it picked 4.4, where the tip works out at `4.4 · 0.82 + 0.8 = 4.408`
+ * — 8 mm *above* the head of the opening, not the "0.03 m under the soffit" the
+ * same paragraph claimed one sentence later. A floor that fails the test it is
+ * justified by is pinning nothing.
+ *
+ * **And there was no soffit over the rod to come through.** The ball hangs at
+ * `lipZ - 1.4`; the only wall a header can belong to is this room's end wall at
+ * `lipZ + WALL_FROM_LIP`, 1.7 m downstage of the rod, with the open stage house
+ * in between. Sweeping everything whose footprint covers the rod finds two
+ * objects and no plaster: the `truss` prop's upper chord, which the tip ends
+ * *inside* and which is the intersection `FLY_TRIM` names and deliberately
+ * refuses, and this room's own grid batten 1.15 m above that — the structure a
+ * ball in a hall is hung from in the first place.
+ *
+ * ## What 4.4 is
+ *
+ * The shortest arch this room will draw, as a claim about the picture. The 0.40
+ * above is a *ratio*, and a ratio applied to the smallest halls that name this
+ * architecture makes an opening whose head comes down toward the equipment
+ * standing under it, because none of that equipment scales with the floor:
+ * `HANG_FLOOR` is a fixed 2.65 m wherever the boards are, a player is
+ * `HEAD_BAND.hi` tall in a 10 m room and in a 12.7 m one, and the bar with
+ * everything on it trims off the arch. Below about 4.4 the storey over the band
+ * stops being the empty plaster the letterbox argument is spending width on and
+ * starts being a lid resting on the rig.
+ *
+ * So it binds only in the small rooms and only just: pop's 1965 and 1975 houses
+ * at 10.0 and 10.6 m of stage, which want 4.00 and 4.24, and rnb's 1998 one at
+ * 10.2 m, which wants 4.08; pop's 1985 and rnb's 1965 rooms land on 4.4 exactly
+ * at 11.0 m, and everything wider takes the ratio. What it costs is the
+ * proportion, in the one room that can afford to pay: at 10 m of stage the
+ * opening goes from 2.5 : 1 to 2.27 : 1, which is the smallest house here still
+ * reading as a proscenium rather than as a hatch.
+ *
+ * The 5.2 at the other end is a guard rather than a shape — the widest room this
+ * architecture is given is 12.7 m, which wants 5.08 — and it is left in place so
+ * that a genre arriving with a 14 m stage does not get a two-storey arch by
+ * arithmetic.
+ *
+ * The mechanical bottom is written down so that nobody mistakes this for one
+ * again. Both solves at `FLY_TRIM` bottom out around 3.4 m of arch: the truss's
+ * lower chord meets the mirror ball's crown at `0.06 · openingHeight = 0.205`,
+ * i.e. 3.42, and the pars reach `HANG_FLOOR` within a few centimetres of the
+ * same number. There is a metre of margin under 4.4, and a future room that
+ * wants a shorter arch should be re-measuring those two rather than this.
  */
 function archHeight(width: number): number {
   return Math.max(4.4, Math.min(width * 0.4, 5.2));
 }
 
+/**
+ * Whether `stage-props.ts` is about to ceil this room for us.
+ *
+ * One question in one place, because eight decisions hang off it — five numbers
+ * in `shape` and three omissions in `build` — and a room that asked it eight
+ * times is a room that will one day answer it seven ways. See the header for
+ * why it is asked at all.
+ */
+function lidded(props: ReadonlySet<string>): boolean {
+  return props.has('low-ceiling');
+}
+
 function shape(d: RoomDatum): RoomShape {
   const openingHeight = archHeight(d.width);
   const ceiling = ceilingHeight(d.width);
+  const club = lidded(d.props);
+  const rise = club ? CLUB_RISE : BALLROOM_RISE;
   return {
-    rise: BALLROOM_RISE,
+    rise,
     openingWidth: d.width - 2 * ARCH_REVEAL,
+    /**
+     * The arch keeps its full height under the lid, and it is not a contradiction
+     * that the soffit is 1.55 m below the top of it.
+     *
+     * `proscenium.ts` does the same thing in the cellar and for the same reason:
+     * the opening is what the *building* has, the lid is what has since been put
+     * across it, and the prop's fascia hides the difference from every seat in
+     * the room. Shrinking it here would move the arch, the architrave and the
+     * cheeks — the objects the fascia is drawn in front of — to fit a ceiling
+     * that is a suspended one.
+     */
     openingHeight,
     curtainZ: d.lipZ - CURTAIN_FROM_LIP,
-    flyY: openingHeight * FLY_TRIM,
+    /**
+     * Under the plaster, though, because a lantern is not dressing.
+     *
+     * `FLY_TRIM` puts the bar in the head of the arch at 3.87 m, which under a
+     * lid is 1.02 m inside the ceiling: the whole rig would light the stage from
+     * a position the room does not contain, and the beams would begin in mid-air
+     * below it. `proscenium.ts` and `shed.ts` both drop to `STAGE_SOFFIT - 0.13`
+     * in their cellars and this is the same 0.13 m — the depth of the pipe plus
+     * the shackle that holds it up.
+     */
+    flyY: club ? STAGE_SOFFIT - 0.13 : openingHeight * FLY_TRIM,
     /**
      * **`Infinity` over the boards, with a plaster ceiling 7.6 m over the house
      * six metres away, and that is the honest answer rather than a convenient
-     * one.**
+     * one** — in the three eras with nothing overhead. Under `low-ceiling` it is
+     * the prop's soffit, which is genuinely the lowest thing over the band.
      *
      * This field is not a description of the ceiling — `RoomShape` says what it
      * is for in two clauses, that the camera keeps `LENS_GAP` under it and every
@@ -443,19 +582,31 @@ function shape(d: RoomDatum): RoomShape {
      * real and low and over the band; this room's stage house is real and high
      * and empty.
      *
-     * ## The cost, stated
+     * ## The cost, paid off
      *
-     * `camera.ts` derives the drag ceiling from this field and nothing else, so
-     * a viewer who pitches the camera all the way up can pass through the
-     * plaster over the house. That is the one honest defect in this room, it is
-     * shared with every `Infinity` room in the directory, and it cannot be fixed
-     * from here: `houseLid` is published on the line below and there is no
-     * consumer that reads it for a lens. It costs a viewer who has gone looking
-     * for it a view of the top of a ceiling; publishing the alternative costs
-     * every viewer of three eras the sight of the rig.
+     * This used to end by naming a defect: `camera.ts` derived the drag ceiling
+     * from this field and nothing else, so a viewer who pitched the camera all
+     * the way up passed through the plaster over the house — *and it cannot be
+     * fixed from here, because `houseLid` is published on the line below and
+     * there is no consumer that reads it for a lens.* There is one now.
+     * `camera.ts` takes the lower of the two lids, so the drag is held under the
+     * house plaster in every era while the rig over the boards still hangs in
+     * clear air. Nothing about the number changed; something finally read the
+     * other one.
      */
-    headroom: Infinity,
-    houseLid: ceiling - BALLROOM_RISE,
+    headroom: club ? STAGE_SOFFIT : Infinity,
+    /**
+     * And the plaster over the house, which is the room's own in three eras and
+     * the prop's in the fourth.
+     *
+     * `LOW_CEILING` rather than `LOW_CEILING - rise` inverted: both are measured
+     * from the boards, and the prop hangs its lid at `houseY + LOW_CEILING`, so
+     * this is that same plane written the way `RoomShape` wants it. Getting it
+     * from the room's own 7.6 m ceiling instead would put the follow spot and
+     * the chandeliers three metres above a lid they are supposed to be bolted
+     * to, which is the bug `lights.ts` describes at `roomLid`.
+     */
+    houseLid: (club ? LOW_CEILING : ceiling) - rise,
     /**
      * The wall behind the band, measured from the floor like a wall — and it is
      * the same height as the room, because it *is* the room. The stage is an
@@ -470,8 +621,15 @@ function shape(d: RoomDatum): RoomShape {
      * would put a hard-edged lit rectangle in the air above it attached to
      * nothing — the failure the field was written after. At 7.6 m against a
      * 4.9 m glow there is no argument to have.
+     *
+     * Under the lid it is the lid: a wall carried on up to 7.6 m behind a
+     * ceiling at 3.6 is four metres of plaster in a roof void, and the glow that
+     * gets clamped to it is 1.4 m of light on the far side of the soffit. The
+     * clamp still binds the right way round — 3.5 m of glow on a 3.6 m wall.
      */
-    backdropHeight: ceiling,
+    backdropHeight: club ? LOW_CEILING : ceiling,
+    /** The plaster the side walls stand on. See `halfX` in `build`. */
+    wallX: d.houseWidth / 2 + 0.6,
   };
 }
 
@@ -479,6 +637,21 @@ function build(c: RoomContext): RoomRig {
   const p = c.venue.palette;
   const m = c.m;
   const rise = -m.houseY;
+  /**
+   * Under the prop's plaster, three things stop being built: the ceiling, the
+   * gallery with the storey above it, and — at the fly bar, where it has its own
+   * paragraph — the grid batten. See the header for why the question is asked.
+   *
+   * The ceiling is the one that has to go: `stage-props.ts` lays its lid at
+   * exactly `m.houseLid` now, so this room's own coved plaster would be a second
+   * surface on the same plane across the whole house — z-fighting the width of
+   * the room, which is the failure `dancehall.ts` names as *two lids 10 cm apart
+   * is two buildings*. The gallery and the storey above it are the cheaper half
+   * of the decision: their lowest member is `GALLERY_SOFFIT` at 4.15 m, the
+   * plaster is at 3.05 m, and there is no camera position under a lid from which
+   * a single triangle of either is visible.
+   */
+  const club = lidded(c.props);
 
   /** Inner faces of the side walls, and the outer edge of everything. */
   const halfX = m.houseWidth / 2 + 0.6;
@@ -763,8 +936,17 @@ function build(c: RoomContext): RoomRig {
   }
   const headerH = lidY - m.openingHeight;
   if (headerH > 0.05) {
+    /**
+     * 0.012 m downstage of the cheeks, because it laps them by 0.2 m a side.
+     *
+     * Three planes, one `wallZ`, and the header's ends inside the cheeks' near
+     * edges: the lap fought over its whole height directly above the opening,
+     * which is the middle of every wide shot this room is ever framed in. The
+     * lap itself is wanted — a butt joint between two cell planes shows as a
+     * seam — so what moves is the depth, not the width.
+     */
     const header = panel(m.openingWidth + 0.4, headerH, plaster);
-    header.position.set(0, m.openingHeight + headerH / 2, wallZ);
+    header.position.set(0, m.openingHeight + headerH / 2, wallZ + 0.012);
     header.receiveShadow = true;
     root.add(header);
   }
@@ -816,8 +998,18 @@ function build(c: RoomContext): RoomRig {
     jamb.position.set(side * (halfOpening + bandW / 2), jambH / 2 - rise, archZ);
     root.add(jamb);
   }
+  /**
+   * 0.24 of relief against the jambs' 0.22, so the head stands 10 mm proud.
+   *
+   * Equal sections put the head's face on the jambs' face, and the band laps
+   * the jambs by its own width at both top corners — 0.4 m square of mitre,
+   * flickering, at the two corners of the arch. A head standing slightly proud
+   * of what it lands on is how the member is cast anyway. The extra 0.02 of
+   * length is the same fix on the other axis: at exactly `bandW * 2` over the
+   * opening the head's ends died on the jambs' outer faces.
+   */
   const archHead = new Mesh(
-    c.kit.bevelBox(m.openingWidth + bandW * 2, bandW, 0.22, 0.05), ornamentMat);
+    c.kit.bevelBox(m.openingWidth + bandW * 2 + 0.02, bandW, 0.24, 0.05), ornamentMat);
   archHead.position.set(0, m.openingHeight + bandW / 2, archZ);
   root.add(archHead);
 
@@ -826,308 +1018,337 @@ function build(c: RoomContext): RoomRig {
   cartouche.position.set(0, m.openingHeight + bandW + 0.35, archZ + 0.02);
   root.add(cartouche);
 
-  // --- the gallery ---------------------------------------------------------
-  /**
-   * A balcony round three sides: a soffit you see the underside of, a panelled
-   * front, a capping rail, and a strip of moulding at every bay.
-   *
-   * Cantilevered, with nothing under it, and the reason is the same one
-   * `concert-hall.ts` gives — half the rooms of the period are on iron
-   * stanchions and half are not, and the ones that are would stand a colonnade
-   * in the middle of the dance floor at exactly the height a camera dragged down
-   * into the crowd looks along. The other half is free, and this room needs its
-   * floor clear more than any other room in the catalogue does.
-   *
-   * **One tier, always.** The hall grows a second gallery above 12.5 m of
-   * platform because a nineteenth-century public hall genuinely did, and its
-   * eras cross that line. This room's four sizes all sit inside 11.5–12.7 m and
-   * a ballroom does not have an upper circle in any of them: two tiers is a
-   * theatre built for sightlines, and this building was built for a floor with a
-   * shelf round it. A switch here would have been a switch with nothing on the
-   * far side of it.
-   *
-   * ## Where it is, and how it was proved to be out of the way
-   *
-   * See `GALLERY_SOFFIT`, which carries the argument and the numbers. In one
-   * line: its underside is 0.55 m above the highest the director's lens can ever
-   * get, so it is on the far side of the horizon from every player and cannot
-   * cross one in any window; and separately its inner edge is 6.75–7.35 m off the
-   * centre line where the wide shot's frame is 4.11 m wide at the proscenium and
-   * 6.32 m at the plane it is aimed at, so it is outside the frustum
-   * horizontally along its whole run in every era and at every aspect ratio the
-   * camera will accept.
-   *
-   * Neither casts nor receives. Every fixture in the rig hangs below it and the
-   * one shadow-casting light is pointed down at the stage from in front, so a
-   * shadow onto this would have to be thrown upward from the crowd.
-   */
-  const galleryFrom = wallZ;
-  const galleryRun = houseBackZ - galleryFrom;
-  const railTop = GALLERY_SOFFIT + GALLERY_FACE + GALLERY_RAIL;
-  const soffitGeo = c.kit.geometry(
-    `gal-soffit|${galleryRun.toFixed(2)}`, () => new PlaneGeometry(galleryRun, GALLERY_DEEP));
-  const soffitMat = c.kit.solid(shade(plaster, 0.3), { rough: 0.95 });
+  // --- the gallery, and the storey above it --------------------------------
+  // Both are behind the prop's plaster in the 1998 room. See `club`.
+  if (!club) {
+    /**
+     * A balcony round three sides: a soffit you see the underside of, a panelled
+     * front, a capping rail, and a strip of moulding at every bay.
+     *
+     * Cantilevered, with nothing under it, and the reason is the same one
+     * `concert-hall.ts` gives — half the rooms of the period are on iron
+     * stanchions and half are not, and the ones that are would stand a colonnade
+     * in the middle of the dance floor at exactly the height a camera dragged down
+     * into the crowd looks along. The other half is free, and this room needs its
+     * floor clear more than any other room in the catalogue does.
+     *
+     * **One tier, always.** The hall grows a second gallery above 12.5 m of
+     * platform because a nineteenth-century public hall genuinely did, and its
+     * eras cross that line. This room's four sizes all sit inside 11.5–12.7 m and
+     * a ballroom does not have an upper circle in any of them: two tiers is a
+     * theatre built for sightlines, and this building was built for a floor with a
+     * shelf round it. A switch here would have been a switch with nothing on the
+     * far side of it.
+     *
+     * ## Where it is, and how it was proved to be out of the way
+     *
+     * See `GALLERY_SOFFIT`, which carries the argument and the numbers. In one
+     * line: its underside is 0.55 m above the highest the director's lens can ever
+     * get, so it is on the far side of the horizon from every player and cannot
+     * cross one in any window; and separately its inner edge is 6.75–7.35 m off the
+     * centre line where the wide shot's frame is 4.11 m wide at the proscenium and
+     * 6.32 m at the plane it is aimed at, so it is outside the frustum
+     * horizontally along its whole run in every era and at every aspect ratio the
+     * camera will accept.
+     *
+     * Neither casts nor receives. Every fixture in the rig hangs below it and the
+     * one shadow-casting light is pointed down at the stage from in front, so a
+     * shadow onto this would have to be thrown upward from the crowd.
+     */
+    const galleryFrom = wallZ;
+    const galleryRun = houseBackZ - galleryFrom;
+    /**
+     * How far the two side runs actually go, which is not to the back wall.
+     *
+     * The back run is `GALLERY_DEEP` deep and spans the full width of the room,
+     * so it already covers both back corners. A side run carried the whole way
+     * laid a second soffit plane, a second fascia and a second capping rail
+     * across the same 1.6 m square — same heights, same sections, so all six
+     * surfaces were coplanar with their opposite number and 2.5 m² of gallery
+     * underside flickered at each corner. Stopping the sides at the back run's
+     * face is both the fix and how the joinery goes together.
+     */
+    const sideRun = galleryRun - GALLERY_DEEP;
+    const sideMid = galleryFrom + sideRun / 2;
+    const railTop = GALLERY_SOFFIT + GALLERY_FACE + GALLERY_RAIL;
+    const soffitMat = c.kit.solid(shade(plaster, 0.3), { rough: 0.95 });
 
-  /**
-   * One run of gallery underside, facing down.
-   *
-   * The Euler is spelled out rather than composed, because a plane's default
-   * normal is `+z` and getting it to `-y` *and* getting its long axis onto the
-   * right wall are two different rotations that do not commute in three.js's
-   * `XYZ` order. `(π/2, 0, 0)` alone points the normal at the floor with the
-   * length running along world x, which is the back run; the side runs need the
-   * extra `π/2` about the local z to swing that length round onto world z. Doing
-   * it by writing `rotation.y` afterwards produces neither, and the symptom is a
-   * gallery standing on edge in the middle of the room.
-   */
-  const galleryRunAt = (length: number, x: number, z: number, alongZ: boolean): void => {
-    const under = new Mesh(
-      length === galleryRun
-        ? soffitGeo
-        : c.kit.geometry(`gal-soffit|${length.toFixed(2)}`,
+    /**
+     * One run of gallery underside, facing down.
+     *
+     * The Euler is spelled out rather than composed, because a plane's default
+     * normal is `+z` and getting it to `-y` *and* getting its long axis onto the
+     * right wall are two different rotations that do not commute in three.js's
+     * `XYZ` order. `(π/2, 0, 0)` alone points the normal at the floor with the
+     * length running along world x, which is the back run; the side runs need the
+     * extra `π/2` about the local z to swing that length round onto world z. Doing
+     * it by writing `rotation.y` afterwards produces neither, and the symptom is a
+     * gallery standing on edge in the middle of the room.
+     */
+    const galleryRunAt = (length: number, x: number, z: number, alongZ: boolean): void => {
+      const under = new Mesh(
+        c.kit.geometry(`gal-soffit|${length.toFixed(2)}`,
           () => new PlaneGeometry(length, GALLERY_DEEP)),
-      soffitMat,
-    );
-    under.position.set(x, GALLERY_SOFFIT, z);
-    under.rotation.set(Math.PI / 2, 0, alongZ ? Math.PI / 2 : 0);
-    root.add(under);
-  };
-
-  const bayStrip = c.kit.bevelBox(0.14, GALLERY_FACE - 0.16, 0.05, 0.02);
-  const strips: { x: number; z: number; yaw: number }[] = [];
-
-  for (const side of [-1, 1]) {
-    galleryRunAt(
-      galleryRun, side * (halfX - GALLERY_DEEP / 2), galleryFrom + galleryRun / 2, true,
-    );
-    const face = new Mesh(
-      c.kit.bevelBox(galleryRun, GALLERY_FACE, 0.2, 0.04), fasciaMat);
-    face.position.set(
-      side * (halfX - GALLERY_DEEP), GALLERY_SOFFIT + GALLERY_FACE / 2,
-      galleryFrom + galleryRun / 2,
-    );
-    face.rotation.y = Math.PI / 2;
-    root.add(face);
-
-    const rail = new Mesh(
-      c.kit.bevelBox(galleryRun, GALLERY_RAIL, 0.32, 0.05), ornamentMat);
-    rail.position.set(
-      side * (halfX - GALLERY_DEEP), railTop - GALLERY_RAIL / 2,
-      galleryFrom + galleryRun / 2,
-    );
-    rail.rotation.y = Math.PI / 2;
-    root.add(rail);
-
-    const bays = Math.max(2, Math.round(galleryRun / 2.1));
-    for (let i = 0; i <= bays; i++) {
-      strips.push({
-        x: side * (halfX - GALLERY_DEEP - 0.09),
-        z: galleryFrom + (i * galleryRun) / bays,
-        yaw: Math.PI / 2,
-      });
-    }
-  }
-
-  const backRun = halfX * 2;
-  galleryRunAt(backRun, 0, houseBackZ - GALLERY_DEEP / 2, false);
-  {
-    const face = new Mesh(
-      c.kit.bevelBox(backRun, GALLERY_FACE, 0.2, 0.04), fasciaMat);
-    face.position.set(0, GALLERY_SOFFIT + GALLERY_FACE / 2, houseBackZ - GALLERY_DEEP);
-    root.add(face);
-    const rail = new Mesh(
-      c.kit.bevelBox(backRun, GALLERY_RAIL, 0.32, 0.05), ornamentMat);
-    rail.position.set(0, railTop - GALLERY_RAIL / 2, houseBackZ - GALLERY_DEEP);
-    root.add(rail);
-    const bays = Math.max(2, Math.round(backRun / 2.1));
-    for (let i = 0; i <= bays; i++) {
-      strips.push({
-        x: -halfX + (i * backRun) / bays,
-        z: houseBackZ - GALLERY_DEEP - 0.09,
-        yaw: 0,
-      });
-    }
-  }
-
-  {
-    const panels = new InstancedMesh(bayStrip, ornamentMat, strips.length);
-    const dummy = new Object3D();
-    for (let i = 0; i < strips.length; i++) {
-      const s = strips[i]!;
-      dummy.position.set(s.x, GALLERY_SOFFIT + GALLERY_FACE / 2, s.z);
-      dummy.rotation.set(0, s.yaw, 0);
-      dummy.scale.setScalar(1);
-      dummy.updateMatrix();
-      panels.setMatrixAt(i, dummy.matrix);
-    }
-    root.add(panels);
-  }
-
-  // --- the storey above it -------------------------------------------------
-  /**
-   * Pilasters between the capping rail and the cove, and a continuous band
-   * along the top of them.
-   *
-   * A repeated vertical rhythm is the strongest single cue that a wall belongs
-   * to a building rather than to a box, and it goes here rather than below the
-   * gallery for the reason `concert-hall.ts` gives about its own order: the wall
-   * under a gallery is behind a hundred and fifty silhouettes and nothing on it
-   * is ever seen. This room's crowd is denser than the hall's, so the argument is
-   * stronger, not weaker.
-   *
-   * Where it differs is the **band**. The hall's order runs from the gallery
-   * clean to the ceiling with nothing across the top of it, which is a giant
-   * order and is correct for a hall. A ballroom's upper wall is a defined
-   * storey: pilasters carrying an entablature, with the cove springing off the
-   * band. That horizontal is what closes the storey, and it is also the only
-   * member in the room that runs continuously round all three walls — which is
-   * what makes the gallery, the wall and the ceiling read as one piece of
-   * plasterwork rather than as three surfaces that happen to meet.
-   *
-   * One module for the whole room, taken from the side walls, because bays that
-   * change width as the wall turns a corner is the one thing about an order that
-   * anybody notices.
-   */
-  const orderFrom = railTop + 0.12;
-  const orderTo = lidY - COVE;
-  const orderH = orderTo - orderFrom - 0.22;
-  if (orderH > 0.35) {
-    const bays = Math.max(2, Math.round(galleryRun / 2.1));
-    const bay = galleryRun / bays;
-    const rearBays = Math.max(2, Math.round((halfX * 2) / bay));
-    const pilaster = new InstancedMesh(
-      c.kit.bevelBox(Math.min(0.55, bay * 0.28), orderH, 0.16, 0.04),
-      ornamentMat,
-      (bays + 1) * 2 + rearBays + 1,
-    );
-    const dummy = new Object3D();
-    let i = 0;
-    const place = (x: number, z: number, yaw: number): void => {
-      dummy.position.set(x, orderFrom + orderH / 2, z);
-      dummy.rotation.set(0, yaw, 0);
-      dummy.scale.setScalar(1);
-      dummy.updateMatrix();
-      pilaster.setMatrixAt(i++, dummy.matrix);
+        soffitMat,
+      );
+      /**
+       * 0.02 m above `GALLERY_SOFFIT`, which is where the fascia's bottom is.
+       *
+       * The fascia is a box whose underside sits on `GALLERY_SOFFIT` exactly, so
+       * the soffit plane ran through it edge-on — a down-facing plane and a
+       * down-facing face, 0.2 m by the whole run of the gallery, on one plane and
+       * fighting the length of three walls. Lifting the plane leaves the fascia
+       * with a 2 cm return under the ceiling, which is what a boarded gallery
+       * front has anyway, and it is the direction that adds clearance rather than
+       * taking it — see `GALLERY_SOFFIT` for why that matters here.
+       */
+      under.position.set(x, GALLERY_SOFFIT + 0.02, z);
+      under.rotation.set(Math.PI / 2, 0, alongZ ? Math.PI / 2 : 0);
+      root.add(under);
     };
+
+    const bayStrip = c.kit.bevelBox(0.14, GALLERY_FACE - 0.16, 0.05, 0.02);
+    const strips: { x: number; z: number; yaw: number }[] = [];
+
     for (const side of [-1, 1]) {
-      for (let b = 0; b <= bays; b++) {
-        place(side * (halfX - 0.08), galleryFrom + b * bay, Math.PI / 2);
+      galleryRunAt(sideRun, side * (halfX - GALLERY_DEEP / 2), sideMid, true);
+      const face = new Mesh(
+        c.kit.bevelBox(sideRun, GALLERY_FACE, 0.2, 0.04), fasciaMat);
+      face.position.set(
+        side * (halfX - GALLERY_DEEP), GALLERY_SOFFIT + GALLERY_FACE / 2, sideMid,
+      );
+      face.rotation.y = Math.PI / 2;
+      root.add(face);
+
+      const rail = new Mesh(
+        c.kit.bevelBox(sideRun, GALLERY_RAIL, 0.32, 0.05), ornamentMat);
+      rail.position.set(
+        side * (halfX - GALLERY_DEEP), railTop - GALLERY_RAIL / 2, sideMid,
+      );
+      rail.rotation.y = Math.PI / 2;
+      root.add(rail);
+
+      const bays = Math.max(2, Math.round(sideRun / 2.1));
+      for (let i = 0; i <= bays; i++) {
+        strips.push({
+          x: side * (halfX - GALLERY_DEEP - 0.09),
+          z: galleryFrom + (i * sideRun) / bays,
+          yaw: Math.PI / 2,
+        });
       }
     }
-    for (let b = 0; b <= rearBays; b++) {
-      place(-halfX + (b * halfX * 2) / rearBays, houseBackZ - 0.08, 0);
-    }
-    root.add(pilaster);
 
-    /** The entablature the cove springs off. Three members, one height. */
-    const bandY = orderTo - 0.11;
-    for (const side of [-1, 1]) {
-      const run = new Mesh(
-        c.kit.bevelBox(galleryRun, 0.22, 0.26, 0.05), ornamentMat);
-      run.position.set(side * (halfX - 0.13), bandY, galleryFrom + galleryRun / 2);
-      run.rotation.y = Math.PI / 2;
-      root.add(run);
+    const backRun = halfX * 2;
+    galleryRunAt(backRun, 0, houseBackZ - GALLERY_DEEP / 2, false);
+    {
+      const face = new Mesh(
+        c.kit.bevelBox(backRun, GALLERY_FACE, 0.2, 0.04), fasciaMat);
+      face.position.set(0, GALLERY_SOFFIT + GALLERY_FACE / 2, houseBackZ - GALLERY_DEEP);
+      root.add(face);
+      const rail = new Mesh(
+        c.kit.bevelBox(backRun, GALLERY_RAIL, 0.32, 0.05), ornamentMat);
+      rail.position.set(0, railTop - GALLERY_RAIL / 2, houseBackZ - GALLERY_DEEP);
+      root.add(rail);
+      const bays = Math.max(2, Math.round(backRun / 2.1));
+      for (let i = 0; i <= bays; i++) {
+        strips.push({
+          x: -halfX + (i * backRun) / bays,
+          z: houseBackZ - GALLERY_DEEP - 0.09,
+          yaw: 0,
+        });
+      }
     }
-    const rearBand = new Mesh(
-      c.kit.bevelBox(halfX * 2, 0.22, 0.26, 0.05), ornamentMat);
-    rearBand.position.set(0, bandY, houseBackZ - 0.13);
-    root.add(rearBand);
+
+    {
+      const panels = new InstancedMesh(bayStrip, ornamentMat, strips.length);
+      const dummy = new Object3D();
+      for (let i = 0; i < strips.length; i++) {
+        const s = strips[i]!;
+        dummy.position.set(s.x, GALLERY_SOFFIT + GALLERY_FACE / 2, s.z);
+        dummy.rotation.set(0, s.yaw, 0);
+        dummy.scale.setScalar(1);
+        dummy.updateMatrix();
+        panels.setMatrixAt(i, dummy.matrix);
+      }
+      root.add(panels);
+    }
+
+    // --- the storey above it -----------------------------------------------
+    /**
+     * Pilasters between the capping rail and the cove, and a continuous band
+     * along the top of them.
+     *
+     * A repeated vertical rhythm is the strongest single cue that a wall belongs
+     * to a building rather than to a box, and it goes here rather than below the
+     * gallery for the reason `concert-hall.ts` gives about its own order: the wall
+     * under a gallery is behind a hundred and fifty silhouettes and nothing on it
+     * is ever seen. This room's crowd is denser than the hall's, so the argument is
+     * stronger, not weaker.
+     *
+     * Where it differs is the **band**. The hall's order runs from the gallery
+     * clean to the ceiling with nothing across the top of it, which is a giant
+     * order and is correct for a hall. A ballroom's upper wall is a defined
+     * storey: pilasters carrying an entablature, with the cove springing off the
+     * band. That horizontal is what closes the storey, and it is also the only
+     * member in the room that runs continuously round all three walls — which is
+     * what makes the gallery, the wall and the ceiling read as one piece of
+     * plasterwork rather than as three surfaces that happen to meet.
+     *
+     * One module for the whole room, taken from the side walls, because bays that
+     * change width as the wall turns a corner is the one thing about an order that
+     * anybody notices.
+     */
+    const orderFrom = railTop + 0.12;
+    const orderTo = lidY - COVE;
+    const orderH = orderTo - orderFrom - 0.22;
+    if (orderH > 0.35) {
+      const bays = Math.max(2, Math.round(galleryRun / 2.1));
+      const bay = galleryRun / bays;
+      const rearBays = Math.max(2, Math.round((halfX * 2) / bay));
+      const pilaster = new InstancedMesh(
+        c.kit.bevelBox(Math.min(0.55, bay * 0.28), orderH, 0.16, 0.04),
+        ornamentMat,
+        bays * 2 + rearBays + 1,
+      );
+      const dummy = new Object3D();
+      let i = 0;
+      const place = (x: number, z: number, yaw: number): void => {
+        dummy.position.set(x, orderFrom + orderH / 2, z);
+        dummy.rotation.set(0, yaw, 0);
+        dummy.scale.setScalar(1);
+        dummy.updateMatrix();
+        pilaster.setMatrixAt(i++, dummy.matrix);
+      };
+      // `b < bays`, not `b <= bays`: the last side bay lands in the corner the
+      // rear run's end pilaster already occupies, and two pilasters in one corner
+      // is two sets of faces on each other's planes.
+      for (const side of [-1, 1]) {
+        for (let b = 0; b < bays; b++) {
+          place(side * (halfX - 0.08), galleryFrom + b * bay, Math.PI / 2);
+        }
+      }
+      for (let b = 0; b <= rearBays; b++) {
+        place(-halfX + (b * halfX * 2) / rearBays, houseBackZ - 0.08, 0);
+      }
+      root.add(pilaster);
+
+      /** The entablature the cove springs off. Three members, one height. */
+      const bandY = orderTo - 0.11;
+      // Stopping at the rear band's face, for the reason the gallery below stops
+      // at its own: two 0.26 m runs at one height crossing in a corner share a
+      // top and a soffit over the whole crossing.
+      const bandRun = galleryRun - 0.26;
+      for (const side of [-1, 1]) {
+        const run = new Mesh(
+          c.kit.bevelBox(bandRun, 0.22, 0.26, 0.05), ornamentMat);
+        run.position.set(side * (halfX - 0.13), bandY, galleryFrom + bandRun / 2);
+        run.rotation.y = Math.PI / 2;
+        root.add(run);
+      }
+      const rearBand = new Mesh(
+        c.kit.bevelBox(halfX * 2, 0.22, 0.26, 0.05), ornamentMat);
+      rearBand.position.set(0, bandY, houseBackZ - 0.13);
+      root.add(rearBand);
+    }
   }
 
   // --- the ceiling ---------------------------------------------------------
-  /**
-   * A coved lid with a rose in the middle of it, and it is a cove rather than
-   * coffers on purpose.
-   *
-   * `concert-hall.ts` hangs two instanced runs of beams a third of a metre below
-   * its plaster, which from the floor of a hall is a grid of shadowed squares
-   * thirty feet up and is the most legible thing about a ceiling of that period.
-   * A ballroom does not have that. What it has is a **cove** — the curved sweep
-   * where the wall turns into the ceiling, which is the thing that makes a room
-   * of this kind feel soft-edged and enclosed rather than boxy — and a flat
-   * middle with a rose in it.
-   *
-   * The cove is four canted solids rather than four canted planes, and the
-   * thickness is the point: a plane at 45° between two other planes takes one
-   * value of light and reads as a chamfer somebody drew on. A 0.1 m solid has
-   * its own two edges, catches the top light along the upper one and throws a
-   * line of shadow under the lower one, and that pair of lines is the whole of
-   * what says "coved" from six metres below. They overlap in the four corners,
-   * which is a mitre nobody will ever be close enough to fault and is better
-   * than the triangular hole the alternative leaves.
-   *
-   * The lid itself is one plane with cells in it, `DoubleSide`, unlit by the
-   * shadow. All three of those were settled by the courtyard and the arguments
-   * carry over unchanged: a hemisphere lights a flat plane to exactly one number
-   * so a ceiling whose normal never varies reads as a hole; a single-sided one
-   * is a ceiling the room cannot see; and a shadow on it would have to be cast
-   * upward.
-   *
-   * ## The rose is where the mirror ball is not
-   *
-   * A plaster rose in the centre of a ballroom ceiling is a ventilation grille
-   * and a light fitting and, in exactly these buildings, the thing a mirror ball
-   * was hung from when the room still ran dances. It is not hung from one here:
-   * `mirror-ball` is a prop and `stage-props.ts` hangs it over the *stage* at
-   * `lipZ - 1.4`, because by 1975 the show is the band and not the floor. So the
-   * rose sits over the middle of the dance floor with nothing on it, which is a
-   * joke the room is making at its own expense and costs two draw calls.
-   *
-   * It is placed at `houseDepth · 0.3` downstage, which is the same z
-   * `stage-props.ts` hangs its chandeliers at — they go at ±17 % of the house
-   * width and this has a 1.1 m radius, so a room that rolls the chandelier gets
-   * a pair of fittings flanking a rose rather than three objects fighting for
-   * the centre line.
-   */
-  const lidRng = c.rng('ceiling');
-  const lidD = houseBackZ - wallZ;
-  const lid = new Mesh(
-    c.kit.own(cellPlane({
-      width: halfX * 2,
-      height: lidD,
-      cols: Math.max(4, Math.round((halfX * 2) / 1.5)),
-      rows: Math.max(4, Math.round(lidD / 1.5)),
-      colour: lidColour,
-      jitter: 0.09,
-      rng: lidRng,
-    })),
-    c.kit.solid('#ffffff', { vertexColors: true, rough: 0.98, side: DoubleSide }),
-  );
-  lid.rotation.x = -Math.PI / 2;
-  lid.position.set(0, lidY, wallZ + lidD / 2);
-  root.add(lid);
-
-  const coveMat = c.kit.solid(shade(blend(lidColour, ornament, 0.4), 0.1), { rough: 0.92 });
-  const coveSpan = COVE * Math.SQRT2;
-  for (const side of [-1, 1]) {
-    const run = new Mesh(c.kit.bevelBox(coveSpan, 0.1, lidD, 0.03), coveMat);
-    run.position.set(side * (halfX - COVE / 2), lidY - COVE / 2, wallZ + lidD / 2);
-    run.rotation.z = side * -Math.PI / 4;
-    root.add(run);
-  }
-  for (const [z, sign] of [[houseBackZ - COVE / 2, 1], [wallZ + COVE / 2, -1]] as const) {
-    const run = new Mesh(c.kit.bevelBox(halfX * 2, 0.1, coveSpan, 0.03), coveMat);
-    run.position.set(0, lidY - COVE / 2, z);
-    run.rotation.x = (sign * Math.PI) / 4;
-    root.add(run);
-  }
-
-  {
-    const roseZ = m.lipZ + m.houseDepth * 0.3;
-    const outer = new Mesh(
-      c.kit.geometry('rose-outer', () => new TorusGeometry(1.1, 0.09, 4, 24)),
-      c.kit.solid(tint(lidColour, 0.1), { rough: 0.9 }),
+  // The room's own, and only where the props have not laid one. See `club`.
+  if (!club) {
+    /**
+     * A coved lid with a rose in the middle of it, and it is a cove rather than
+     * coffers on purpose.
+     *
+     * `concert-hall.ts` hangs two instanced runs of beams a third of a metre below
+     * its plaster, which from the floor of a hall is a grid of shadowed squares
+     * thirty feet up and is the most legible thing about a ceiling of that period.
+     * A ballroom does not have that. What it has is a **cove** — the curved sweep
+     * where the wall turns into the ceiling, which is the thing that makes a room
+     * of this kind feel soft-edged and enclosed rather than boxy — and a flat
+     * middle with a rose in it.
+     *
+     * The cove is four canted solids rather than four canted planes, and the
+     * thickness is the point: a plane at 45° between two other planes takes one
+     * value of light and reads as a chamfer somebody drew on. A 0.1 m solid has
+     * its own two edges, catches the top light along the upper one and throws a
+     * line of shadow under the lower one, and that pair of lines is the whole of
+     * what says "coved" from six metres below. They overlap in the four corners,
+     * which is a mitre nobody will ever be close enough to fault and is better
+     * than the triangular hole the alternative leaves.
+     *
+     * The lid itself is one plane with cells in it, `DoubleSide`, unlit by the
+     * shadow. All three of those were settled by the courtyard and the arguments
+     * carry over unchanged: a hemisphere lights a flat plane to exactly one number
+     * so a ceiling whose normal never varies reads as a hole; a single-sided one
+     * is a ceiling the room cannot see; and a shadow on it would have to be cast
+     * upward.
+     *
+     * ## The rose is where the mirror ball is not
+     *
+     * A plaster rose in the centre of a ballroom ceiling is a ventilation grille
+     * and a light fitting and, in exactly these buildings, the thing a mirror ball
+     * was hung from when the room still ran dances. It is not hung from one here:
+     * `mirror-ball` is a prop and `stage-props.ts` hangs it over the *stage* at
+     * `lipZ - 1.4`, because by 1975 the show is the band and not the floor. So the
+     * rose sits over the middle of the dance floor with nothing on it, which is a
+     * joke the room is making at its own expense and costs two draw calls.
+     *
+     * It is placed at `houseDepth · 0.3` downstage, which is the same z
+     * `stage-props.ts` hangs its chandeliers at — they go at ±17 % of the house
+     * width and this has a 1.1 m radius, so a room that rolls the chandelier gets
+     * a pair of fittings flanking a rose rather than three objects fighting for
+     * the centre line.
+     */
+    const lidRng = c.rng('ceiling');
+    const lidD = houseBackZ - wallZ;
+    const lid = new Mesh(
+      c.kit.own(cellPlane({
+        width: halfX * 2,
+        height: lidD,
+        cols: Math.max(4, Math.round((halfX * 2) / 1.5)),
+        rows: Math.max(4, Math.round(lidD / 1.5)),
+        colour: lidColour,
+        jitter: 0.09,
+        rng: lidRng,
+      })),
+      c.kit.solid('#ffffff', { vertexColors: true, rough: 0.98, side: DoubleSide }),
     );
-    outer.position.set(0, lidY - 0.07, roseZ);
-    outer.rotation.x = Math.PI / 2;
-    root.add(outer);
-    const inner = new Mesh(
-      c.kit.geometry('rose-inner', () => new TorusGeometry(0.52, 0.07, 4, 18)),
-      coveMat,
-    );
-    inner.position.set(0, lidY - 0.09, roseZ);
-    inner.rotation.x = Math.PI / 2;
-    root.add(inner);
+    lid.rotation.x = -Math.PI / 2;
+    lid.position.set(0, lidY, wallZ + lidD / 2);
+    root.add(lid);
+
+    const coveMat = c.kit.solid(shade(blend(lidColour, ornament, 0.4), 0.1), { rough: 0.92 });
+    const coveSpan = COVE * Math.SQRT2;
+    for (const side of [-1, 1]) {
+      const run = new Mesh(c.kit.bevelBox(coveSpan, 0.1, lidD, 0.03), coveMat);
+      run.position.set(side * (halfX - COVE / 2), lidY - COVE / 2, wallZ + lidD / 2);
+      run.rotation.z = side * -Math.PI / 4;
+      root.add(run);
+    }
+    for (const [z, sign] of [[houseBackZ - COVE / 2, 1], [wallZ + COVE / 2, -1]] as const) {
+      const run = new Mesh(c.kit.bevelBox(halfX * 2, 0.1, coveSpan, 0.03), coveMat);
+      run.position.set(0, lidY - COVE / 2, z);
+      run.rotation.x = (sign * Math.PI) / 4;
+      root.add(run);
+    }
+
+    {
+      const roseZ = m.lipZ + m.houseDepth * 0.3;
+      const outer = new Mesh(
+        c.kit.geometry('rose-outer', () => new TorusGeometry(1.1, 0.09, 4, 24)),
+        c.kit.solid(tint(lidColour, 0.1), { rough: 0.9 }),
+      );
+      outer.position.set(0, lidY - 0.07, roseZ);
+      outer.rotation.x = Math.PI / 2;
+      root.add(outer);
+      const inner = new Mesh(
+        c.kit.geometry('rose-inner', () => new TorusGeometry(0.52, 0.07, 4, 18)),
+        coveMat,
+      );
+      inner.position.set(0, lidY - 0.09, roseZ);
+      inner.rotation.x = Math.PI / 2;
+      root.add(inner);
+    }
   }
 
   // --- what the lamps hang on ----------------------------------------------
@@ -1152,14 +1373,78 @@ function build(c: RoomContext): RoomRig {
    * has always been reaching, and the result is that funk's truss lands with its
    * legs on the grid instead of ending in mid-air.
    *
-   * Both are masked from the house by the header, which is checked rather than
-   * hoped: a ray from the wide shot's lens at 3.60 m to the batten at 5.80 m
-   * crosses the plane of the proscenium wall at 5.44 m, and the header occupies
-   * 4.60–6.59 m there. What the audience sees is a truss whose legs go up and
-   * disappear behind the arch, which is what a truss in a theatre looks like.
+   * ## The grid spans the stage house, and for most of this file's life it did
+   * not span anything
+   *
+   * The height was right and the **length** was wrong, and the length is what
+   * made the paragraph above a wish rather than a fact until it was fixed. The
+   * batten was `openingWidth + 1.6` long — `width / 2 + 0.59` a side — against
+   * side walls at `halfX` = `width / 2 + 2.6`, so it stopped 2.010 m short of the
+   * plaster at each end, identically in all eleven non-club shows, because both
+   * terms scale with the width and the difference between them does not. The
+   * object whose whole job is to be *the thing the rig hangs from* was therefore
+   * the largest floating body in the catalogue: 12.68 m of timber at 5.72–5.88 m
+   * in the 1968 room, carrying the pipe, both drop lines, all six pars and —
+   * where the era has them — the truss and the mirror ball, with two metres of
+   * daylight past each end and open air above.
+   *
+   * And it missed the truss it was built for. `BUILDERS.truss` puts its legs at
+   * `±(openingWidth / 2 + 0.9)`, which is 0.10 m *outside* `openingWidth + 1.6`;
+   * a Ø0.07 m tube cleared the timber by 0.065 m and hung there on its own. That
+   * near miss is the proof the number was an oversight rather than a decision —
+   * lengthening to `+ 1.8` would have caught the legs and left the batten itself
+   * floating, so it is not the fix either.
+   *
+   * The fix is `halfX * 2 + 0.12`: one baulk across the stage house bearing on
+   * the plaster at both ends, which is what a grid in a hall physically is. The
+   * side wall runs from `m.houseY` to the ceiling, so everything under here is
+   * now hung off something standing on the floor, and the truss's legs land
+   * 1.97 m inside the ends with their tops buried in the middle of the 0.16 m
+   * section.
+   *
+   * The `+ 0.12` is 0.06 m of embedment a side and is not an epsilon. `halfX * 2`
+   * exactly puts the batten's two end faces on the *same planes* as the side-wall
+   * panels — the coplanar pair this file refuses at the architrave head and at
+   * the header, for the same reason. The 0.06 m of timber outside the plaster is
+   * unreachable: `camera.ts` clamps the lens to `width / 2` over the boards and
+   * `houseWidth / 2` in the house, both of them well inside `halfX`, and the wall
+   * panels are single-sided facing in.
+   *
+   * **Not a drop to `houseLid`, which is finite in this room and looks like an
+   * invitation.** The lid mesh is laid from `wallZ` downstage only, and the
+   * batten sits at `curtainZ - 1.1`, 1.85 m upstage of `wallZ` — a wire to
+   * `houseLid` would reach a plane that stops short of it. `headroom: Infinity`
+   * is honest: the stage house has no roof, which is exactly why the grid has to
+   * find its bearing sideways.
+   *
+   * The batten and the legs are masked from the house by the header, which is
+   * checked rather than hoped: a ray from the wide shot's lens at 3.60 m to the
+   * batten at 5.80 m crosses the plane of the proscenium wall at 5.44 m, and the
+   * header occupies 4.60–6.59 m there. What the audience sees is a truss whose
+   * legs go up and disappear behind the arch, which is what a truss in a theatre
+   * looks like. The new length is masked by *more* wall rather than less:
+   * everything outside the opening is behind a cheek, and a cheek is a
+   * full-height panel running out to `halfX + 2.6`.
+   *
+   * What is not masked is the viewer's own drag, and that is how the floating
+   * slab was reported rather than measured. `camera.ts` takes its ceiling from
+   * `min(headroom, houseLid) - LENS_GAP`, which in the 1968 room is 5.99 m —
+   * 0.11 m above the batten's own top, over a floor the lens may stand anywhere
+   * on. Pitch up from there and the grid is the whole picture, which is a good
+   * argument for it being a piece of the building.
    *
    * `lights.ts` then does `flyBar.add(rig)` and spreads its pars along the bar's
    * local x without knowing any of this, which is the point of the contract.
+   *
+   * ## And under a lid there is no grid, because there is nowhere to put one
+   *
+   * The batten is a metre above an arch that is now a metre inside the ceiling,
+   * so the object that made this a rig rather than a floating pipe has to be the
+   * *plaster* instead: two short drops from the soffit to the bar, which is how
+   * a bar is hung in every low room that ever had one. `shape` has already
+   * brought `flyY` down to `STAGE_SOFFIT - 0.13`, so the drops are 0.13 m of
+   * steel and the geometry says the same thing the tall version says — the bar
+   * is held up by something the room contains.
    */
   const flyBar = new Group();
   flyBar.name = 'fly-bar';
@@ -1171,7 +1456,9 @@ function build(c: RoomContext): RoomRig {
   flyBar.add(pipe);
 
   const battenY = m.openingHeight + 1.2 - m.flyY;
-  const lineH = Math.max(0.1, battenY - 0.08);
+  const lineH = club
+    ? Math.max(0.06, m.headroom - m.flyY - 0.045)
+    : Math.max(0.1, battenY - 0.08);
   for (const side of [-1, 1]) {
     const line = new Mesh(
       c.kit.bevelBox(0.04, lineH, 0.04, Math.min(0.016, lineH * 0.3)),
@@ -1180,12 +1467,14 @@ function build(c: RoomContext): RoomRig {
     line.position.set(side * (m.openingWidth / 2 - 0.9), lineH / 2, 0);
     flyBar.add(line);
   }
-  const batten = new Mesh(
-    c.kit.bevelBox(m.openingWidth + 1.6, 0.16, 0.22, 0.03),
-    c.kit.solid(shade(blend(p.boards, p.backdrop, 0.4), 0.5), { rough: 0.95 }),
-  );
-  batten.position.set(0, battenY, 0);
-  flyBar.add(batten);
+  if (!club) {
+    const batten = new Mesh(
+      c.kit.bevelBox(halfX * 2 + 0.12, 0.16, 0.22, 0.03),
+      c.kit.solid(shade(blend(p.boards, p.backdrop, 0.4), 0.5), { rough: 0.95 }),
+    );
+    batten.position.set(0, battenY, 0);
+    flyBar.add(batten);
+  }
   root.add(flyBar);
 
   // --- the cloth -----------------------------------------------------------

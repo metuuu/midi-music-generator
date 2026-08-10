@@ -500,6 +500,8 @@ function shape(d: RoomDatum): RoomShape {
      * `projection` prop's shader field — happens on it.
      */
     backdropHeight: soffit + RIB_DEEP,
+    /** Nearly the minimum, deliberately. See `WALL_OUT`. */
+    wallX: d.houseWidth / 2 + WALL_OUT,
   };
 }
 
@@ -814,9 +816,21 @@ function build(c: RoomContext): RoomRig {
       c.kit.solid(ribColour, { rough: 0.94 }),
       bays + 1,
     );
+    /**
+     * Let 0.02 m up into the slab, not butted to its underside.
+     *
+     * `slabY` is `soffitY + RIB_DEEP` by definition, so a rib sitting on
+     * `soffitY` has its top face on exactly the plane of the slab — and the
+     * slab is `DoubleSide`, so the underside of it is drawn there too. Every
+     * rib in the room therefore shared 3.5 m² of plane with the ceiling it
+     * hangs from, which is a ladder of flickering bars over the whole house.
+     * Raising them buries the top face instead, and it moves the *published*
+     * lowest thing overhead — `m.houseLid` — 2 cm further away rather than
+     * nearer, which is the safe direction for a number the camera solves to.
+     */
     const dummy = new Object3D();
     for (let i = 0; i <= bays; i++) {
-      dummy.position.set(0, soffitY + RIB_DEEP / 2, cycDeepZ + (i * lidD) / bays);
+      dummy.position.set(0, soffitY + RIB_DEEP / 2 + 0.02, cycDeepZ + (i * lidD) / bays);
       dummy.rotation.set(0, 0, 0);
       dummy.scale.setScalar(1);
       dummy.updateMatrix();

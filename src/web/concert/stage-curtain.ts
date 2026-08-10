@@ -177,7 +177,17 @@ export interface CurtainOptions {
   /** Where the curtain line sits, in stage coordinates. */
   z: number;
   colour: string;
-  /** A pelmet across the top, hiding the track. Off for a black box. */
+  /**
+   * A pelmet across the top. Off for a black box.
+   *
+   * This said "hiding the track" for as long as there was no track to hide —
+   * see the board in `buildCurtain`. There is one now, and the correction is
+   * worth stating rather than quietly editing away: what the pelmet covers is
+   * the carriers and the cloth's top edge hanging off them. It does not cover
+   * the board, which stands 0.29 m above the pelmet's own top edge and is the
+   * thing that masks the head of the opening. Turning this off loses the frill
+   * and keeps the board.
+   */
   valance?: boolean;
   reducedMotion?: boolean;
   /** Fewer segments on weak hardware. Fixed at build; see `StageRig`. */
@@ -252,8 +262,79 @@ export function buildCurtain(o: CurtainOptions): CurtainRig {
     root.add(half);
   }
 
+  /**
+   * The track the cloth hangs from, which until now was not there at all.
+   *
+   * `CurtainOptions.valance` has described the pelmet as "hiding the track"
+   * since the day it was written, and no track was ever built. `root` sits at
+   * the head of the opening, both halves hang from local y = 0, and local y = 0
+   * was empty air: a neighbour probe over every show that builds a pelmet found
+   * it touching nothing — no bar, no board, no arch member, and not even the
+   * cloth it laps, which hangs 0.12 m upstage of it. So the head of the curtain
+   * was a 0.74 m strip of velvet with daylight over it, and a viewer who
+   * dragged the lens above the arch — 5.99 m of drag ceiling against a 4.60 m
+   * soffit in the 1968 ballroom — looked straight down at it.
+   *
+   * It is not only a drag bug, which is why the fix is a board rather than a
+   * pipe nobody would see. Solving the composed shots against the lowest
+   * downstage edge of the surround — the ballroom's architrave head at
+   * `openingHeight`, the proscenium's header mould 0.02 m under it — puts the
+   * top of frame between `openingHeight + 0.124` and `openingHeight + 0.278` at
+   * the curtain's own plane across the eighteen shows that build a pelmet, the
+   * worst of them jazz/modern's wide shot on the near-square pane `camera.ts`
+   * documents. Against a pelmet whose top edge is at local +0.04 that is a
+   * strip of unmasked void across the full width of the opening at the top of
+   * frame; in the ballroom the rays through it clear the 6.59 m backdrop and
+   * leave through the open top of the stage house, so what shows is the fogged
+   * background — a black line above a lit pelmet, dead centre.
+   *
+   * 0.36 tall centred at +0.15 spans `height - 0.03 .. height + 0.33`. The top
+   * is what closes that slot, with 0.05 m over the worst of the eighteen
+   * framings. The bottom laps the cloth's top edge by 0.03 m so the join cannot
+   * open a hairline, and it is the only part of this that reaches down into the
+   * opening at all: 3.57 m over the boards in the shallowest arch either room
+   * can build, which is 0.92 m clear of `HANG_FLOOR` and nowhere near anybody.
+   *
+   * 0.26 deep at local z = +0.08 spans -0.05..0.21, and that is two solves. The
+   * back face is upstage of the cloth plane, so the halves hang from under the
+   * board rather than beside it and the three pieces are one object. The front
+   * face has to stand proud of the pelmet, and the pelmet is not flat: its fold
+   * depth is `0.075 · (0.72 + 0.5v)`, so over the 0.07 m of it that laps the
+   * board the deepest crest reaches 0.179. At 0.21 the cloth dies against a
+   * face 0.03 m in front of it. At the 0.17 that a 0.22 m board would give, the
+   * two are within 0.004 m and fight along the whole width of the opening,
+   * which is trading one visible defect for another.
+   *
+   * `width + 2.0` is what a house tab track is anyway — the cloth has to be
+   * able to dead-hang off-stage — and it is also the measured requirement. The
+   * board stands 0.63–0.96 m upstage of the reveal, so the opening projects
+   * wider than the board at the board's own plane, and the worst overrun a
+   * composed shot asks for is 0.95 m. At +1.0 a side both ends die behind the
+   * cheeks in every framing; `width + 1.6` leaves 0.35 m of board end showing
+   * in the widest of them.
+   *
+   * `kit.solid` rather than the curtain material, which would run the
+   * displacement shader over a plank. It is a board covered in the same velvet
+   * as the tabs, which is what a pelmet board is.
+   *
+   * And it is built whether or not there is a valance over it. The pelmet is
+   * decoration and a black box does without it; the track is structure, and
+   * cloth hanging from nothing is wrong in a black box too. The three black
+   * boxes escaped the report rather than the defect — their slot happens to
+   * show a black backdrop through black masking.
+   */
+  const board = new Mesh(
+    kit.bevelBox(o.width + 2.0, 0.36, 0.26, 0.04),
+    kit.solid(o.colour, { rough: 0.95 }),
+  );
+  board.position.set(0, 0.15, 0.08);
+  board.renderOrder = 2;
+  root.add(board);
+
   // The valance is the same cloth permanently gathered: it never travels, so
   // its own uniforms hold uOpen at zero and lean on the resting pleat instead.
+  // Its top edge sits 0.07 m inside the board above it, so the tack line is
+  // covered from every angle rather than being a free edge in the air.
   if (o.valance !== false) {
     const v = curtainMaterial(kit, o.colour);
     v.uniforms.uHalfW.value = o.width;

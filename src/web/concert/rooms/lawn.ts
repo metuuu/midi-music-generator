@@ -491,6 +491,12 @@ function shape(d: RoomDatum): RoomShape {
     headroom: Infinity,
     houseLid: Infinity,
     backdropHeight: BACKDROP_H,
+    /**
+     * The fence, not a wall — and it is a surface all the same, which is what
+     * this field is asked about. See `halfX` in `build`: a yard is exactly as
+     * big as the fence somebody put round it.
+     */
+    wallX: d.houseWidth / 2 + 0.6,
   };
 }
 
@@ -685,7 +691,48 @@ function build(c: RoomContext): RoomRig {
     return { run, span, sheets };
   });
   const fluteCount = plan.reduce((sum, r) => sum + r.sheets * FLUTES, 0);
-  const postCount = plan.reduce((sum, r) => sum + Math.floor(r.sheets / POST_EVERY) + 1, 0);
+  /**
+   * How many instances each mesh needs, and only the second one is hard.
+   *
+   * `fluteCount` is exact by construction — the loop writes `FLUTES` instances
+   * per sheet and nothing else, so summing `sheets * FLUTES` is the same
+   * traversal written twice, and it has never been wrong.
+   *
+   * `postCount` was, and the correction is worth stating rather than quietly
+   * applying. The loop stands a post at every `s` in `[0, sheets)` satisfying
+   * `s % POST_EVERY === 0`, plus one at the far end of the run. The number of
+   * such `s` is `Math.ceil(sheets / POST_EVERY)`; this line said `Math.floor`,
+   * and **the two are the same number only when the sheet count divides by
+   * three**, so a `floor` is short by exactly one on two runs out of every
+   * three. Nothing in this file gets to arrange which: no sheet count is
+   * chosen, each falls out of `Math.round(span / SHEET_W)` on a span the room
+   * hands over, and the five spans are four yard sides and a backing width.
+   *
+   * What it cost is worth writing down too, because it is not the harm you
+   * would guess from "the buffer is one short". `si` runs on across all five
+   * runs in order, so the indices that fall off the end are always the *last*
+   * ones written, and the last run in `runs` is the backing behind the band —
+   * the one piece of zinc dead centre in every wide shot. In `ska` five of its
+   * seven posts went (two in `digital`, three in `roots`), leaving post heads
+   * along the stage-right third and a bald top edge across the rest, on the
+   * object at `BACKDROP_H` whose posts stand `POST_PROUD` proud against the
+   * night sky. And they did not merely go missing: `setMatrixAt` past the end
+   * of a `Float32Array` is silently dropped, then `posts.count = si` below told
+   * three to draw them anyway, so `computeBoundingBox` read sixteen
+   * `undefined`s per tail instance and produced an all-NaN box, and the draw
+   * fetched instance attributes past the end of the buffer.
+   *
+   * Two other fixes were available and both are worse. `posts.count =
+   * Math.min(si, postCount)` silences the NaN and keeps the bug — it drops the
+   * same posts on purpose instead of by accident. Counting by running the
+   * placement loop twice would also work and buys nothing over a closed form
+   * that is exact for every `sheets >= 1`, which the `Math.max(1, ...)` above
+   * guarantees. Exact rather than merely sufficient is the point: it makes
+   * `posts.count = si` below an assertion instead of a correction, and it holds
+   * for any span, so a sixth run added to `runs` is allocated right without
+   * anybody rechecking this line.
+   */
+  const postCount = plan.reduce((sum, r) => sum + Math.ceil(r.sheets / POST_EVERY) + 1, 0);
 
   /**
    * Weathered galvanised sheet, and the era picks how weathered.

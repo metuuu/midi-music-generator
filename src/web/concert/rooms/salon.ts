@@ -532,6 +532,8 @@ function shape(d: RoomDatum): RoomShape {
      * lands on the wall under the cornice instead of being clipped by it.
      */
     backdropHeight: hallH,
+    /** The minimum, as the side walls in `build` take it. */
+    wallX: d.houseWidth / 2 + WALL_OUT,
   };
 }
 
@@ -693,12 +695,71 @@ function build(c: RoomContext): RoomRig {
 
   const wallH = hallH;
   const sideDepth = houseBackZ - m.backZ;
+
+  /**
+   * The bays, hoisted above the wall because the wall now has to know them.
+   *
+   * Everything articulated in this room is set out from one module, worked out
+   * once from the long side wall and then used on the downstage wall too, for
+   * the reason `courtyard.ts` gives about its own arcade: a room whose pilasters
+   * change width as the wall turns a corner is the one thing about the order
+   * that anybody notices. About 2.35 m of bay is what these buildings use — wide
+   * enough for a pair of doors and a pier, narrow enough that eight of them fit
+   * down an eighteen metre room.
+   */
+  const bays = Math.max(4, Math.round(sideDepth / 2.35));
+  const bay = sideDepth / bays;
+  const openW = Math.max(0.9, bay - PILASTER_W - 0.5);
+  /** Half-round glass over the head, and the transom bar under it. */
+  const fanR = openW / 2;
+  const transomY = m.houseY + DOOR_H;
+
+  /**
+   * The long walls, and there are holes in them.
+   *
+   * This was one unbroken sheet of plaster per side, and everything downstream
+   * behaved as though it were not. The shutters swing open at 2.15 rad, the
+   * fanlights are glazed over the transoms, and a `reveals` panel is set 0.15 m
+   * outboard of the plaster to be the dark recess you see *through* the opening
+   * — the whole apparatus of a door. There was no door. The wall had nothing cut
+   * in it, so all sixteen reveals sat behind an opaque plane where no camera in
+   * the room could ever reach them, and what the house actually saw was a
+   * shutter standing open against blank whitewash. The rear wall's own note two
+   * paragraphs down calls itself "the one wall with nothing cut into it", which
+   * says plainly what these two were supposed to be and never were.
+   *
+   * So the wall is built as the solid parts of a wall: a pier of plaster between
+   * each pair of openings, half a pier at each end, and a header over every
+   * opening from the transom to the cornice. The fanlight is *not* cut — it is
+   * glass set in the wall, and glass in a wall is a surface rather than a hole.
+   * What is cut is the doorway, `openW` by `DOOR_H`, which is precisely the
+   * rectangle `reveals` already draws; the recess lines up with the hole because
+   * both are solved from the same two numbers rather than from each other.
+   *
+   * Three geometries and not seventeen meshes a side: the middles are all one
+   * width, the headers are all one width, and only the two end pieces differ.
+   * `render` is still what makes them, so a strip is the same mottled plaster
+   * the sheet was — the jitter now repeats per strip instead of running the
+   * length of the hall, which at 0.045 is not a pattern anybody can see.
+   */
+  const midW = bay - openW;
+  const endW = midW / 2;
+  const headerH = wallH - DOOR_H;
   for (const side of [-1, 1]) {
-    const mesh = render(sideDepth, wallH, wallColour);
-    mesh.position.set(side * halfX, m.houseY + wallH / 2, m.backZ + sideDepth / 2);
-    mesh.rotation.y = side * -Math.PI / 2;
-    mesh.receiveShadow = true;
-    root.add(mesh);
+    const put = (mesh: Mesh, y: number, z: number): void => {
+      mesh.position.set(side * halfX, y, z);
+      mesh.rotation.y = side * -Math.PI / 2;
+      mesh.receiveShadow = true;
+      root.add(mesh);
+    };
+    // Half a pier against the back wall and another against the front.
+    put(render(endW, wallH, wallColour), m.houseY + wallH / 2, m.backZ + endW / 2);
+    put(render(endW, wallH, wallColour), m.houseY + wallH / 2, houseBackZ - endW / 2);
+    for (let i = 0; i < bays; i++) {
+      const zc = m.backZ + (i + 0.5) * bay;
+      if (i < bays - 1) put(render(midW, wallH, wallColour), m.houseY + wallH / 2, zc + bay / 2);
+      put(render(openW, headerH, wallColour), transomY + headerH / 2, zc);
+    }
   }
 
   /**
@@ -753,23 +814,8 @@ function build(c: RoomContext): RoomRig {
   root.add(back);
 
   // --- the order: pilasters, openings, fanlights, cornice ------------------
-  /**
-   * The bays.
-   *
-   * Everything articulated in this room is set out from one module, worked out
-   * once from the long side wall and then used on the downstage wall too, for
-   * the reason `courtyard.ts` gives about its own arcade: a room whose pilasters
-   * change width as the wall turns a corner is the one thing about the order
-   * that anybody notices. About 2.35 m of bay is what these buildings use — wide
-   * enough for a pair of doors and a pier, narrow enough that eight of them fit
-   * down an eighteen metre room.
-   */
-  const bays = Math.max(4, Math.round(sideDepth / 2.35));
-  const bay = sideDepth / bays;
-  const openW = Math.max(0.9, bay - PILASTER_W - 0.5);
-  /** Half-round glass over the head, and the transom bar under it. */
-  const fanR = openW / 2;
-  const transomY = m.houseY + DOOR_H;
+  // The bays themselves are worked out above, where the wall reads them to
+  // decide where to stop being a wall.
 
   const stoneColour = tint(p.proscenium, 0.16);
   const stone = c.kit.solid(stoneColour, { rough: 0.86 });
@@ -855,6 +901,8 @@ function build(c: RoomContext): RoomRig {
    * avoid.
    */
   const openings = bays * 2;
+  /** How far a shutter leaf hangs off the wall it is hung on. See below. */
+  const LEAF_PROUD = 0.02;
   const revealMat = c.kit.solid(shade(blend(p.backdrop, p.proscenium, 0.12), 0.25), { rough: 0.98 });
   const reveals = new InstancedMesh(
     c.kit.geometry(`salon-reveal|${openW.toFixed(3)}`, () => new BoxGeometry(openW, DOOR_H, 0.02)),
@@ -919,9 +967,22 @@ function build(c: RoomContext): RoomRig {
       dummy.updateMatrix();
       reveals.setMatrixAt(oi, dummy.matrix);
 
+      /**
+       * 0.02 m off the plaster, and the shut leaf is what the number is for.
+       *
+       * Without it the closed leaf's x is `side * halfX` exactly — which is the
+       * side wall's own plane, to the last bit. Two full-height panels on one
+       * plane is the worst case the depth buffer has: a shut shutter tore into
+       * horizontal bands of plaster and louvre that swapped over as the camera
+       * moved, and with eight bays a side it did it down the whole hall. The
+       * open leaf never had the problem, because `sin(2.15)` swings it 0.6 m
+       * into the room; it takes the same standoff so that both states are one
+       * expression, and 2 cm of proud shutter is what a leaf hung on pintles
+       * actually stands anyway.
+       */
       dummy.rotation.set(0, yaw - a, 0);
       dummy.position.set(
-        side * halfX - side * h * Math.sin(a),
+        side * (halfX - LEAF_PROUD) - side * h * Math.sin(a),
         m.houseY + DOOR_H / 2,
         zc - side * h + side * h * Math.cos(a),
       );
@@ -951,12 +1012,22 @@ function build(c: RoomContext): RoomRig {
       dummy.scale.set(1, openW / fanR, 1);
       dummy.updateMatrix();
       bars.setMatrixAt(bi++, dummy.matrix);
+      /**
+       * The three ribs are stepped 3 mm apart in depth, because all three run
+       * out of the same hub.
+       *
+       * At one depth they overlap each other over the whole width of the bar
+       * where they cross at the springing point — three faces on one plane, at
+       * the one spot in the fanlight the eye actually goes to. Leaded work is
+       * built this way anyway: the bars do not intersect, one is laid over the
+       * next.
+       */
       dummy.scale.setScalar(1);
       for (let k = 0; k < 3; k++) {
         const ang = ((k + 1) / 4) * Math.PI;
         dummy.rotation.set(0, yaw, Math.PI / 2 - ang);
         dummy.position.set(
-          side * (halfX - 0.03),
+          side * (halfX - 0.03 - k * 0.003),
           transomY + 0.09 + Math.sin(ang) * fanR / 2,
           zc - side * Math.cos(ang) * fanR / 2,
         );
@@ -987,9 +1058,20 @@ function build(c: RoomContext): RoomRig {
    */
   const corniceMat = c.kit.solid(tint(stoneColour, 0.08), { rough: 0.78 });
   const corniceY0 = corniceY + CORNICE_H / 2;
+  /**
+   * The side runs stop where the end runs start, rather than running past them.
+   *
+   * All four lengths are one section at one height, so a side run carried to
+   * the corner lies *inside* the end run there — same soffit, same top, same
+   * plane, 0.16 by 0.16 of flicker at each of the four corners of the room.
+   * Mitred is also how a cornice is actually fitted: the end runs are already
+   * `CORNICE_OUT * 2` deep at each end of the hall, so the sides give up
+   * exactly that much at both ends and nothing is left short.
+   */
+  const corniceRun = sideDepth - CORNICE_OUT * 4;
   for (const side of [-1, 1]) {
     const run = new Mesh(
-      c.kit.bevelBox(sideDepth, CORNICE_H, CORNICE_OUT * 2, 0.03), corniceMat);
+      c.kit.bevelBox(corniceRun, CORNICE_H, CORNICE_OUT * 2, 0.03), corniceMat);
     run.position.set(side * (halfX - CORNICE_OUT), corniceY0, m.backZ + sideDepth / 2);
     run.rotation.y = Math.PI / 2;
     run.castShadow = true;
@@ -1060,9 +1142,20 @@ function build(c: RoomContext): RoomRig {
     ribs.setMatrixAt(i, dummy.matrix);
   }
   root.add(ribs);
+  /**
+   * The two spines are 4 cm shallower than the cross ribs and hung to the same
+   * soffit is *not* what they do — they are let up into them.
+   *
+   * Identical sections at an identical height meant every one of the two dozen
+   * crossings had both its top and its soffit on the plane of the rib passing
+   * through it. Beams that cross are never the same depth anyway: the run that
+   * spans carries, the run that ties does not, and the tie is let into the
+   * carrier. So the spine sits 0.035 up inside the rib and stops 0.005 short of
+   * its back — still buried in the plaster above, and on no plane the rib is on.
+   */
   for (const side of [-1, 1]) {
-    const spine = new Mesh(c.kit.bevelBox(lidD, 0.17, 0.22, 0.02), ribMat);
-    spine.position.set(side * lidW * 0.26, lidY + 0.085, (m.backZ + houseBackZ) / 2);
+    const spine = new Mesh(c.kit.bevelBox(lidD, 0.13, 0.22, 0.02), ribMat);
+    spine.position.set(side * lidW * 0.26, lidY + 0.1, (m.backZ + houseBackZ) / 2);
     spine.rotation.y = Math.PI / 2;
     root.add(spine);
   }
