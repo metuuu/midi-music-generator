@@ -138,6 +138,23 @@
         <div class="status" id="status">ready</div>
       </div>
 
+      <div class="panel">
+        <h2>Native player <span class="note">— proving demo, engine-gaps §3.21</span></h2>
+        <p class="note">
+          The audition cannot hold a note across a barline, so it re-states one instead:
+          <b>50.5% of pad notes are struck again at the bar</b>, and a 64-beat drone comes
+          out as sixteen attacks. This plays the same song straight onto Web Audio with no
+          mini-notation in between. Two questions: does the drone sound <b>once</b>, and
+          does a fader move a layer that is <b>already ringing</b>?
+        </p>
+        <div class="row">
+          <button id="np-play" class="primary">Play natively</button>
+          <button id="np-stop">Stop</button>
+          <span class="status" id="np-status">idle</span>
+        </div>
+        <div class="strips" id="np-layers"></div>
+      </div>
+
       <div class="cols">
         <div class="panel">
           <h2>Layers</h2>

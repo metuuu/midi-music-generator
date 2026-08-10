@@ -50,6 +50,7 @@ import { DEFAULT_DRUM_MIX, type DrumVoice, type LayerId, type Song } from '../co
 import { INSTRUMENTS } from '../style/instruments.js';
 import { resolveVoice } from '../render/drum-banks.js';
 import { levelOfDrum, REGISTER_LEVEL, SOUNDFONT_LEVEL } from '../render/source-levels.js';
+import { NativePlayer } from './native-player.js';
 
 const $ = <T extends HTMLElement>(id: string): T => {
   const el = document.getElementById(id);
@@ -70,7 +71,78 @@ const els = {
   layers: $<HTMLDivElement>('layers'),
   voices: $<HTMLDivElement>('voices'),
   out: $<HTMLPreElement>('out'),
+  npPlay: $<HTMLButtonElement>('np-play'),
+  npStop: $<HTMLButtonElement>('np-stop'),
+  npStatus: $<HTMLSpanElement>('np-status'),
+  npLayers: $<HTMLDivElement>('np-layers'),
 };
+
+/**
+ * The native player, and why it sits on this page rather than its own.
+ *
+ * This page already holds a song, a transport and a row of faders, and the one
+ * thing the native player has to demonstrate is a fader that reaches a note
+ * which is *already sounding*. Putting it anywhere else would mean building all
+ * three again to ask one question. See `native-player.ts` for what it is and
+ * what it deliberately is not.
+ *
+ * Constructed lazily, because `getAudioContext()` wants a user gesture behind
+ * it and this module is imported at page load.
+ */
+let native: NativePlayer | undefined;
+
+async function nativePlay(): Promise<void> {
+  if (!song) return;
+  native ??= new NativePlayer();
+  native.stop();
+  els.npStatus.textContent = 'loading…';
+  const staged = mixed(song);
+  await native.load(staged);
+  native.start();
+  paintNativeLayers();
+  els.npStatus.textContent = 'playing — move a fader while it rings';
+  // A handle for the bench and for a browser session checking the acceptance
+  // criteria. This page is a lab; the concert pages do not do this.
+  (window as unknown as { nativePlayer?: NativePlayer }).nativePlayer = native;
+}
+
+/**
+ * One fader per layer, and it is the demonstration rather than a control.
+ *
+ * Deliberately a plain 0..1 gain and not a trim over the written level, unlike
+ * every other fader on this page: the claim being tested is *this reaches a
+ * sounding note*, and a trim would put a re-render between the gesture and the
+ * ear, which is exactly the thing this exists to avoid.
+ */
+function paintNativeLayers(): void {
+  if (!native) return;
+  els.npLayers.replaceChildren();
+  for (const layer of native.layerIds()) {
+    const strip = document.createElement('label');
+    strip.className = 'strip';
+    const name = document.createElement('span');
+    name.className = 'name';
+    name.textContent = layer;
+    const slider = document.createElement('input');
+    slider.type = 'range';
+    slider.min = '0';
+    slider.max = '1';
+    slider.step = '0.01';
+    slider.value = String(native.layerGain(layer));
+    const read = document.createElement('span');
+    read.className = 'read';
+    read.textContent = '1.00';
+    slider.addEventListener('input', () => {
+      const g = Number(slider.value);
+      // 1.5 seconds, which is the acceptance criterion's own number: a fade
+      // that lands over a bar and a half is a fade you can hear travel.
+      native?.setLayerGain(layer, g, 1.5);
+      read.textContent = g.toFixed(2);
+    });
+    strip.append(name, slider, read);
+    els.npLayers.append(strip);
+  }
+}
 
 /**
  * A trim rather than a level, and that is the whole ergonomics of the page.
@@ -492,6 +564,21 @@ els.genre.replaceChildren(...GENRE_IDS.map((id) => {
 }));
 
 els.regen.onclick = () => { els.seed.value = ''; regenerate(); };
+/**
+ * Applying the genre and the seed, which nothing did.
+ *
+ * `regenerate` has always read both fields, and the only control that called it
+ * was **New song**, which clears the seed on the way past. So the seed box could
+ * be typed into and never took effect, and changing the genre did nothing until
+ * you pressed a button that randomised the seed — which made the one thing the
+ * field exists for, *play me that song again*, unreachable from this page.
+ *
+ * Found while trying to reach `ambient`/`drone`/`padproof` for the native
+ * player below, which is a fair summary of how this class of gap gets found:
+ * not by reading the handler, but by wanting the thing it was supposed to do.
+ */
+els.genre.onchange = () => regenerate();
+els.seed.onchange = () => regenerate();
 els.play.onclick = () => {
   if (transport === 'playing') {
     void pausePlayback();
@@ -518,6 +605,15 @@ els.copy.onclick = () => {
   void navigator.clipboard.writeText(els.out.textContent ?? '');
   els.copy.textContent = 'copied';
   window.setTimeout(() => { els.copy.textContent = 'Copy'; }, 1200);
+};
+els.npPlay.onclick = () => {
+  void nativePlay().catch((err) => {
+    els.npStatus.textContent = `native player failed: ${String(err)}`;
+  });
+};
+els.npStop.onclick = () => {
+  native?.stop();
+  els.npStatus.textContent = 'stopped';
 };
 
 /**
