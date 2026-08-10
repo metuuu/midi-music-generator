@@ -17,6 +17,8 @@ import type { Archetype, Effector, PlayPoint, Performer } from '../../../concert
 import type { DrumSource, DrumVoice } from '../../../core/types.js';
 import type { InstrumentId } from '../../../style/instruments.js';
 
+import { trimRest } from '../at-ease.js';
+
 import type {
   Contact, InstrumentBuilder, InstrumentBuildOptions, InstrumentModel,
 } from './types.js';
@@ -203,7 +205,12 @@ export function buildInstrumentFor(
 ): InstrumentModel {
   const build = BUILDERS[performer.archetype];
   const rng = new Rng(`instrument:${performer.id}`);
-  return withSoundingContact(build({
+  // `trimRest` outside `withSoundingContact`, so the bow and the right hand are
+  // already routed to whichever contact is theirs before either is corrected —
+  // otherwise a guitarist's picking-hand trim would land on the fretting hand's
+  // answer. See `REST_TRIM`, and `gallery.ts`, which is where the numbers in it
+  // are found.
+  return trimRest(withSoundingContact(build({
     seed: rng.int(0, 0xffff),
     scale: (instrumentId ? SCALE_OF[instrumentId] : undefined) ?? 0.5,
     // A horn is held to a face, and this performer's face is where it is.
@@ -221,7 +228,7 @@ export function buildInstrumentFor(
     ...(performer.rig ? { rig: performer.rig } : {}),
     ...(performer.boards ? { boards: performer.boards } : {}),
     ...(machine ? { machine } : {}),
-  }));
+  })));
 }
 
 /**

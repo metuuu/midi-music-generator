@@ -50,6 +50,44 @@
       button:hover, select:hover { border-color: var(--hot); }
       button.on { border-color: var(--hot); color: var(--hot); }
       label { color: var(--dim); display: flex; gap: .35rem; align-items: center; }
+      input[type="range"] { width: 7rem; cursor: grab; accent-color: var(--hot); }
+      /* The tuner. Right-hand column, because the turntable is the left two thirds. */
+      #tuner {
+        position: fixed; top: 3.2rem; right: .8rem; bottom: .8rem; width: 19rem;
+        display: flex; flex-direction: column; gap: .5rem; padding: .7rem;
+        background: #1b1e22e8; border: 1px solid #3a3e45; border-radius: 8px;
+        font-size: .76rem; overflow: hidden;
+      }
+      #tuner[hidden] { display: none; }
+      #tunerHead { color: var(--dim); line-height: 1.5; }
+      #tunerHead b { color: var(--ink); font-weight: 500; }
+      #tunerHead .edited { color: var(--hot); }
+      #tunerRows { overflow-y: auto; flex: 1; }
+      #tunerRows h4 {
+        margin: .7rem 0 .3rem; font-size: .72rem; font-weight: 500; color: var(--hot);
+        text-transform: lowercase; letter-spacing: .04em;
+      }
+      #tunerRows h4:first-child { margin-top: 0; }
+      #tunerRows .row {
+        display: grid; grid-template-columns: 3.4rem 1fr 3.2rem; gap: .4rem;
+        align-items: center; color: var(--dim); margin: .12rem 0;
+      }
+      #tunerRows .row input { width: 100%; }
+      #tunerRows .row b { color: var(--ink); font-weight: 400; text-align: right; }
+      #tunerRows .row.moved b { color: var(--hot); }
+      #tunerRows .note { color: var(--dim); line-height: 1.5; }
+      #tuner .buttons { display: flex; gap: .4rem; flex-wrap: wrap; align-items: center; }
+      #tuner .buttons button { padding: .28rem .5rem; font-size: .74rem; }
+      #tuner .buttons button.primary { border-color: var(--hot); color: var(--hot); }
+      #tuner .buttons button:disabled { opacity: .35; cursor: default; }
+      #tuner .buttons button:disabled:hover { border-color: #3a3e45; }
+      #tunerHint { color: var(--dim); font-size: .72rem; line-height: 1.4; }
+      #tunerOut {
+        margin: 0; max-height: 11rem; overflow: auto; white-space: pre;
+        background: #101215; border: 1px solid #3a3e45; border-radius: 6px;
+        padding: .5rem; font-size: .7rem; color: var(--ink); user-select: all;
+      }
+      #tunerOut[hidden] { display: none; }
       #facts {
         position: fixed; left: 1rem; bottom: 1rem; font-size: .76rem;
         color: var(--dim); line-height: 1.7; white-space: pre; pointer-events: none;
@@ -66,12 +104,34 @@
       <button id="next">▸</button>
       <button id="idle">idle</button>
       <button id="play">playing</button>
+      <label>stand down
+        <input type="range" id="stood" min="0" max="1" step="0.01" value="1" />
+        <b id="stoodv">1.00</b>
+      </label>
       <label><input type="checkbox" id="player" checked /> performer</label>
       <label><input type="checkbox" id="contacts" /> contacts</label>
       <label><input type="checkbox" id="spin" checked /> turntable</label>
       <button id="all">grid of everything</button>
+      <button id="tune">tune idle</button>
     </div>
     <div id="facts"></div>
+    <div id="tuner" hidden>
+      <div id="tunerHead"></div>
+      <div class="buttons" id="tunerPick"></div>
+      <div class="buttons">
+        <button id="gizmoMove">move</button>
+        <button id="gizmoTurn">turn</button>
+      </div>
+      <div id="tunerHint"></div>
+      <div id="tunerRows"></div>
+      <div class="buttons">
+        <button id="tunerSave" class="primary">save to file</button>
+        <button id="tunerCopy">copy</button>
+        <button id="tunerReset">reset this</button>
+        <button id="tunerClear">reset all</button>
+      </div>
+      <pre id="tunerOut" hidden></pre>
+    </div>
     <script type="module" src="/src/web/concert/gallery.ts"></script>
   </body>
 </html>

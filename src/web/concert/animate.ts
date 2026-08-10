@@ -68,7 +68,8 @@
  * either way and a second source of truth would be worse.
  */
 
-import { Box3, Euler, Matrix4, Quaternion, Vector3 } from 'three';
+import { Matrix4, Quaternion, Vector3 } from 'three';
+import type { Box3 } from 'three';
 
 import { soundingEffectors } from '../../concert/choreograph.js';
 import { ARCHETYPES } from '../../concert/instruments.js';
@@ -81,6 +82,10 @@ import { Rng } from '../../core/rng.js';
 import {
   apexOf, bounce, clamp01, coverOf, hop, liftCeiling, reach, smooth, snapOf,
 } from './animate-arc.js';
+import {
+  AT_EASE, COINCIDENT, IDLE_HOVER, ZONE_PULL, escapeFrom, keepOutParts, letGo,
+  lowerAtEase, type AtEasePose, type CarriesBow,
+} from './at-ease.js';
 import type { InstrumentModel } from './instruments/types.js';
 import {
   DEFAULT_HAND_POSES, type BodySide, type HandPoseId, type PerformerRig,
@@ -232,6 +237,14 @@ export function createAnimator(options: AnimatorOptions = {}): Animator {
 const LIFT: Record<GestureKind, readonly [base: number, byForce: number, byTravel: number]> = {
   strike: [0.035, 0.075, 0.150],
   pluck: [0.010, 0.018, 0.050],
+  // The one right hand with a real lift in it: the arm comes up off the strings
+  // between strokes and that rise is most of what reads as strumming from the
+  // back of a room. Travel is near zero on purpose — see `PREP_SECONDS`.
+  strum: [0.026, 0.048, 0.010],
+  thumb: [0.018, 0.034, 0.030],
+  // Deliberately the smallest non-zero entry in the table. A fingerpicking hand
+  // that lifted would be a hand that had let go of its strings.
+  fingers: [0.005, 0.008, 0.012],
   press: [0.009, 0.014, 0.040],
   // A bow does not leave the string, and a stroke that hopped would be a
   // spiccato nobody wrote.
@@ -247,6 +260,11 @@ const LIFT: Record<GestureKind, readonly [base: number, byForce: number, byTrave
 const REBOUND: Record<GestureKind, number> = {
   strike: 0.62, // a stick bounces, and it bounces higher off a hard hit
   pluck: 0.45,
+  // The follow-through *is* the gesture: a strum that stopped at the bottom
+  // string would be a hand that had nowhere to come back from.
+  strum: 0.70,
+  thumb: 0.55,
+  fingers: 0.20,
   press: 0.16, // a finger leaves a key; it does not leap off it
   bow: 0.25,
   blow: 0,
@@ -496,280 +514,6 @@ const ENGAGE_GAP_SECONDS = 4.0;
  */
 const OPENING_ENTRY_SECONDS = 4.0;
 
-/**
- * Where a carried instrument goes when its player stands down.
- *
- * Angles are in the *torso's* frame — the one frame that means the same thing
- * for every model, since a trumpet, a violin and a Telecaster do not agree
- * about which way their own local axes point and do agree about which way is
- * down. `pitch` is about the player's lateral axis, so a bell swings down;
- * `roll` is about their forward axis, so an instrument held across the body
- * tips and hangs; `turn` is about their up axis. `drop` and `back` then move
- * the whole thing, in metres.
- *
- * All three are needed or none are. Two angles reach only a surface of
- * orientations, and which surface depends on where the instrument started — for
- * anything lowered straight down the front of the body that is plenty, and for
- * the one instrument that starts on a shoulder it is not. See `violin` below,
- * where the missing axis was the difference between a violin hanging face-out
- * and the same violin hanging face-in.
- *
- * ## The pivot, which is the part that was wrong
- *
- * The rotation is about **the point the player holds the instrument by** —
- * `resolve({kind:'rest'})`, which is where the model says a hand goes. That is
- * not a refinement: rotating about the model's own origin instead put the
- * pivot on the boards, because `show.ts` stages a carried model with its
- * origin at floor level and only the geometry up at chest height. Pitching
- * 0.8 rad about a point a metre and a half below the horn threw a trumpet
- * **1.2 m downstage** — measured — so the band stood at ease with their
- * instruments hanging in the air out over the front row.
- *
- * ## Why a table and not a formula
- *
- * Because "at ease" is a different physical act per instrument and the picture
- * is the only judge. A trumpet comes down to the waist with the bell toward
- * the floor. A saxophone barely moves — it is on a neck strap, and all that
- * changes is that the mouthpiece leaves the lips. A violin comes off the chin
- * and hangs from the left hand by the hip, which is a roll rather than a
- * pitch. Anything carried on a strap and *not* here — a guitar, a bass, an
- * accordion — stays exactly where it hangs, because that is what those do.
- *
- * Every figure below was measured against the body it belongs to. The comments
- * give the resulting bounding box in the player's own frame, y from the
- * boards, for a mean-height cast member.
- *
- * ## And the lengths scale with the player
- *
- * The angles are angles and belong to every body; the three lengths are metres
- * measured against **one** body, and `makeLook` draws a height from 1.58 to
- * 1.92. So they are scaled by the player's own height in `stand`, which leaves a
- * mean-height cast member exactly where they were measured and stops the ends of
- * the range drifting: a fixed drop put a 1.92 m violinist's grip 6 cm above
- * their own hip and a 1.58 m one's 6 cm below it, and since the arm scales too,
- * that is an arm at 0.80 of its reach on the one and past full stretch on the
- * other. Scaled, both hold the violin at 0.88–0.93 of a reach, like the mean.
- */
-interface AtEasePose {
-  pitch: number;
-  roll: number;
-  /**
-   * Yaw, about the player's up axis. Optional: it is the middle term of the
-   * `ZYX` Euler below, which was written as a literal zero because nothing
-   * needed it until an instrument had to be turned over rather than tipped.
-   */
-  turn?: number;
-  drop: number;
-  back: number;
-  /**
-   * How far it also moves along the player's lateral axis, positive to their
-   * left. Optional, because only one instrument is not carried in front of the
-   * body.
-   *
-   * `drop` and `back` are the whole motion for anything held at the chest and
-   * lowered to the waist — a trumpet, a flute, a clarinet all come straight
-   * down the front. A violin does not start there: it is up on the *left
-   * shoulder*, so the hand holding its neck begins half a metre out from the
-   * player's midline, and lowering it in `y` and `z` alone leaves that arm held
-   * out to the side for the length of the rest. Coming down means coming in as
-   * well, and there was no axis to say so in.
-   */
-  across?: number;
-  /**
-   * How far each hand lets go of the instrument, `[left, right]`: 0 stays on
-   * it, 1 goes to the hip.
-   *
-   * The instrument coming down and the hands going to the hips were two
-   * independent motions, and an instrument nobody is holding is what that looks
-   * like — a flute floating down to the waist while both hands set off for the
-   * pockets, arriving at neither the flute nor the body on the way. Something
-   * has to be carrying it.
-   *
-   * So each pose says which hands stay. A clarinet, a flute and a saxophone are
-   * held in *both* hands at rest, near enough where they play; a trumpet and a
-   * trombone hang from the hand that was already taking their weight while the
-   * other arm drops; a violin hangs from the left hand by its neck with the bow
-   * arm down. The small non-zero values on the two-handed ones are the fingers
-   * coming off the keys without the hands leaving the instrument.
-   *
-   * Anything not in this table is unchanged — both hands go to the hips, which
-   * is right for a guitar or an accordion on a strap.
-   */
-  hands: readonly [number, number];
-}
-
-/**
- * The body every length in `AT_EASE` was measured against.
- *
- * The centre of `makeLook`'s own bell, so the scaling is a correction at the
- * ends of the cast rather than a change to the middle of it. Written out here
- * and in the two models that need it — `instruments/mouth.ts` and
- * `instruments/sitar.ts` — rather than shared, because each is a statement
- * about a different measurement.
- */
-const NOMINAL_HEIGHT = 1.75;
-
-const AT_EASE: Partial<Record<Archetype, AtEasePose>> = {
-  // Bell to the floor, held in front of the waist: y 0.90–1.40, z 0.17–0.41
-  // against a chest front at 0.19. Was y 1.49–1.68 at the lips.
-  // The left hand keeps the casing; the right comes off the valves.
-  trumpet: { pitch: 1.35, roll: 0, drop: 0.42, back: 0.14, hands: [0.08, 0.75] },
-  // Long, so it needs the room: bell down by the shin, slide up at the chest.
-  // y 0.40–1.30. The left hand is the one holding it and always was.
-  trombone: { pitch: 1.10, roll: 0, drop: 0.44, back: 0.06, hands: [0.08, 0.70] },
-  // On its strap, and that is the whole point — it hangs where it hangs and
-  // only comes off the face. Ten centimetres of daylight under the lips.
-  saxophone: { pitch: 0.38, roll: 0, drop: 0.10, back: 0, hands: [0.18, 0.18] },
-  // Straight down the front of the body, tight in: z 0.16–0.23.
-  clarinet: { pitch: 0.55, roll: 0, drop: 0.22, back: 0.02, hands: [0.18, 0.18] },
-  // Off the lip plate and down to the waist: y 1.06–1.28, from 1.57–1.69.
-  flute: { pitch: 0.60, roll: 0, drop: 0.46, back: 0.02, hands: [0.20, 0.20] },
-  // A harp weighs nothing and comes down in one hand, so this is mostly the
-  // 42 cm from the lips to the waist: y ~1.49 to ~1.07 on a mean-height cast
-  // member. The roll is the shape of that — the pivot is the left hand on the
-  // low end, so the far end dips under it and the thing reads as *held* rather
-  // than as a level object translated downward. Nothing at all was here
-  // before, which for a `held` archetype means the harmonica hung at the lips
-  // of a player whose hands had both gone to their hips.
-  harmonica: { pitch: 0.20, roll: 0.50, drop: 0.42, back: 0.05, hands: [0.05, 0.85] },
-  // Off the chin and hanging straight down by the left hip: y 0.37–1.00.
-  //
-  // ## Why three angles and why these three
-  //
-  // A violin at rest turns rather than tips: the pivot is the hand on the neck
-  // and the body swings down under it, which is only true if that hand is still
-  // on the neck — so it is the one that does not let go.
-  //
-  // Turning it *far enough* took the third axis. The instrument has to end up
-  // with two things true at once, and with `turn` pinned at zero only the first
-  // was reachable: the scroll points **up**, because the hand holds the neck
-  // and the body is the heavy end, and the belly faces **out**, away from the
-  // player. The second is not a detail about the pretty side of the wood. The
-  // contact normal is the belly's, so it is also which side of the neck the
-  // hand is on: face-in put the hand between the violin and the thigh with the
-  // palm turned outward, which is an arm held in supination for the whole rest.
-  // Face-out is the hand outboard, palm in, arm hanging.
-  //
-  // So the target is stated as a basis and the angles are solved for it, rather
-  // than dialled in: the build frame's `+x` (bridge → nut) onto the player's
-  // `+y`, its `+y` (out of the belly) onto the player's `+x`. That is a proper
-  // rotation — the third axis falls out as the player's `−z` — and decomposing
-  // `[ŷ x̂ −ẑ] · Mᵀ` in `ZYX` gives exactly the numbers below. The pitch is a
-  // hair off 180°, which is the sense in which this pose is the old one turned
-  // over.
-  //
-  // ## The lengths, which are the arm's problem and not the violin's
-  //
-  // They are read against where that hand goes when it is holding nothing at
-  // all — `restPosition`, (0.354, 0.910, 0.150) on a mean-height player — because
-  // that is what the eye compares the pose to. Dropping 0.34 and nothing else
-  // left the grip at (0.52, 1.21, 0.39), seventeen centimetres out and thirty in
-  // front of a hanging arm, so the violinist spent every rest holding the
-  // instrument out in front of them at chest height.
-  //
-  // The next set landed it at (0.29, 1.06, 0.07) and that was still 15 cm above
-  // the hand's own resting height, which does not sound like much and is the
-  // whole of the "elbow changes side" report. The hand grips the neck from
-  // behind — the fingers are the contact and the cuff is a hand's length back
-  // along them — so a grip 15 cm high leaves the *wrist* barely a quarter of a
-  // metre below the shoulder, and an arm folded to 0.55 of its reach has to
-  // stand its elbow 23 cm off the shoulder→wrist line. That line is vertical, so
-  // all 23 cm of it goes sideways: the elbow sat 26 cm behind the shoulder and
-  // level with it, which is where a wing goes and not an elbow, and it swung the
-  // whole way round to the front and back again every time the player stood down
-  // and took up again.
-  //
-  // These put the grip within a centimetre of the hip at every height in the
-  // cast — (0.39, 0.88, 0.15) at mean — with the arm at 0.88–0.93 of its reach
-  // against a hanging arm's own 0.91, and the elbow 15 cm behind the shoulder and
-  // 22 cm below it, which is the shape that arm has when it is holding nothing.
-  // The lengths are unchanged by the turn above: the rotation is about the grip,
-  // so it moves the instrument around the hand without moving the hand.
-  violin: {
-    pitch: 2.83, turn: -0.48, roll: 1.82,
-    drop: 0.66, back: 0.15, across: -0.05, hands: [0.0, 0.85],
-  },
-};
-
-/**
- * A model whose bow is held rather than parked, and can therefore be handed to
- * the hand that holds it.
- *
- * Structural, like `HasSoundingContact` in `instruments/index.ts` and for the
- * same reason: two of the **twenty-two** models have a bow and `InstrumentModel`
- * should not grow a member the other twenty must ignore. Two archetypes later
- * the numerator is unchanged — the violin and the cello are still the only bows
- * on the stage — and the denominator is twenty-four, so the members that would
- * have to ignore it are twenty-two. See
- * `Animator.carryBow`.
- */
-interface CarriesBow {
-  carryBow(down: number, hand: Vector3): void;
-}
-
-/**
- * How far an at-ease hand may be pulled back to get out of the instrument.
- *
- * The body's own idle puts a standing player's hands a few centimetres in
- * front of their hips, which is where hands go and is *inside the key bed* for
- * anybody standing at a keyboard: measured, a synth player's right hand rests
- * 5 cm inside the model and an electric piano's left hand 8 cm. So an at-ease
- * hand backs up until it is clear of the thing it is standing at.
- *
- * Capped, and deliberately not a collision system. It resolves along one axis,
- * against one box, for players who are standing at something in front of them.
- * A seated pianist's hands land in their lap and a drummer's inside a cubic
- * metre of mostly air, and pulling either of those backwards would be worse
- * than the overlap — so neither is asked.
- */
-const KEEP_OUT_PUSH = 0.18;
-/** Clearance to leave once out, so a hand does not graze the case. */
-const KEEP_OUT_MARGIN = 0.03;
-/**
- * How far into the stand-down the escape reaches full strength.
- *
- * A hand that is still playing must never be pushed off what it is playing —
- * a contact sits on the surface and therefore inside the mesh's box — so the
- * correction ramps in rather than switching on. Short, because the first tenth
- * of a stand-down is also the last tenth of a note and neither wants to wait.
- */
-const KEEP_OUT_GATE = 0.10;
-
-/**
- * How close two idle answers have to be before the runtime decides the model
- * gave it one answer twice rather than two answers that happen to be near.
- *
- * Deliberately tiny. The condition being detected is not "these hands are
- * close", it is "this model ignored the `effector` parameter and built the same
- * contact twice", which comes back as the identical floats and a distance of
- * exactly zero. Four millimetres is slack for two separately constructed
- * vectors and nothing else.
- *
- * A larger threshold would be the more *helpful*-looking number and would be
- * wrong: an instrument whose two hands genuinely sit two centimetres apart has
- * an opinion, and overriding it puts a flautist's hands on the wrong sides of
- * the tube. Every string model has answered per hand since `withSoundingContact`
- * and every wind, brass and free-reed model now does too, so the set this
- * catches is exactly the models that never needed to choose — a drum is struck
- * where it is struck.
- */
-const COINCIDENT = 0.004;
-
-/**
- * How far a hand is pulled from the model's rest toward the part of the
- * instrument that hand actually plays, when the model gave one answer for both.
- *
- * This is the other half of "the drummer's hands are on top of each other", and
- * the half that makes the result look deliberate rather than merely
- * non-overlapping. A drum kit's `rest` is one point in front of the drummer;
- * pushing two hands apart from it puts them somewhere neither of them plays. But
- * the runtime already knows where each hand plays — it has been resolving that
- * hand's contacts all number — so the mean of them is available for free, and it
- * is exactly "over the part of it that hand plays": the left stick hovers over
- * the snare and hats, the right over the ride and toms.
- */
-const ZONE_PULL = 0.75;
-
 /** Contacts a hand must have resolved before its play zone is trusted. */
 const ZONE_MIN = 3;
 
@@ -781,9 +525,6 @@ const ZONE_MIN = 3;
  * solo idles over the ride within a few bars.
  */
 const ZONE_MEMORY = 48;
-
-/** How far a hand hovers off a surface it plays but is not playing now, metres. */
-const IDLE_HOVER = 0.05;
 
 /**
  * How wide the thing under a hand has to be, in metres, before the hand is
@@ -988,9 +729,7 @@ const V5 = new Vector3();
 const V6 = new Vector3();
 const V7 = new Vector3();
 const V8 = new Vector3();
-const Q1 = new Quaternion();
 const Q2 = new Quaternion();
-const E1 = new Euler();
 /** `InstrumentModel.shift`'s answer, and its rotation, for this frame. */
 const M1 = new Matrix4();
 
@@ -1240,6 +979,19 @@ class Player {
 
   /** The bow's stroke: +1 or −1, reversed by every `bow`, held through `hold`. */
   stroke = 1;
+  /**
+   * The strumming hand's stroke: +1 down, −1 up, reversed by every `strum`.
+   *
+   * The bow's contract on a different limb — see `GestureKind.strum` — and
+   * separate state because a player can hold both: a guitarist doubling on a
+   * bowed instrument across a set is one `Player` object, and one flag would
+   * have the two hands turning each other round.
+   *
+   * Unlike `stroke` there is no travel to track. A bow is a finite length of
+   * hair and running out of it is a real event `bowLean` has to model; a strum
+   * has nothing to run out of, so the direction is the whole of the state.
+   */
+  strum = 1;
   /**
    * And where along that stroke the hand is: the two ends of the run currently
    * under way, when it started and how long it lasts. See `BOW_TRAVEL`.
@@ -2083,29 +1835,10 @@ class Runtime implements Animator {
     // Which those are, and what they do, is `AT_EASE`.
     const ease = p.atEase;
     if (!ease || !p.hasCarry || !p.model) return;
-    const root = p.model.root;
-    root.position.copy(p.carryPos);
-    root.quaternion.copy(p.carryQuat);
-    const down = 1 - p.engage;
-    if (down <= 0) return;
-
-    // Turn about the grip, then move the grip. Expanding "rotate a rigid body
-    // about a point that is not its origin" gives the position as the pivot
-    // plus the rotated offset from it — which is the whole of the fix for an
-    // origin that sits on the boards.
-    Q1.setFromEuler(E1.set(
-      ease.pitch * down, (ease.turn ?? 0) * down, ease.roll * down, 'ZYX',
-    ));
-    root.quaternion.premultiply(Q1);
-    root.position.sub(p.carryPivot).applyQuaternion(Q1).add(p.carryPivot);
-    // The lengths against this player rather than against the one they were
-    // measured on. An angle is the same on everybody; a drop is not, because
-    // what it is being read against — the hip it ends at, the arm that has to
-    // reach it — is a body. See `AT_EASE`.
-    const size = down * p.rig.proportions.height / NOMINAL_HEIGHT;
-    root.position.y -= ease.drop * size;
-    root.position.z -= ease.back * size;
-    if (ease.across) root.position.x += ease.across * size;
+    lowerAtEase(
+      p.model.root, ease, 1 - p.engage, p.rig.proportions.height,
+      p.carryPos, p.carryQuat, p.carryPivot,
+    );
   }
 
   /**
@@ -2124,22 +1857,12 @@ class Runtime implements Animator {
   }
 
   /**
-   * How far this hand has let go of the instrument, 0..1.
-   *
-   * `1 - engage` says how far the *player* has stood down; this says how much
-   * of that applies to one hand. A flautist at ease is still holding the flute
-   * and a violinist is still holding the violin by its neck, so those hands
-   * ride the instrument down instead of setting off for a hip — see
-   * `AtEasePose.hands`. Everything with no at-ease pose keeps the whole
-   * stand-down, which is the behaviour a guitarist on a strap wants.
-   *
-   * `side` is 0 for the left hand and 1 for the right, matching `handSideOf`.
+   * How far this hand has let go of the instrument, 0..1. See `letGo`, which
+   * is the arithmetic; `1 - engage` is how far the *player* has stood down and
+   * this is how much of that applies to one hand.
    */
   private standDown(p: Player, side: number): number {
-    const down = 1 - p.engage;
-    if (down <= 0) return 0;
-    const hands = p.atEase?.hands;
-    return hands ? down * (hands[side] ?? 1) : down;
+    return letGo(p.atEase, 1 - p.engage, side);
   }
 
   /**
@@ -2175,60 +1898,14 @@ class Runtime implements Animator {
 
   /**
    * Push a world point out of whatever part of the instrument it is inside.
+   * See `escapeFrom`, which is the geometry; this is the player it belongs to.
    *
-   * Applied to the *blended* position rather than only to the at-ease target,
-   * which is the difference between guarding a destination and guarding a
-   * journey. A cellist's right hand leaves the strings and arrives beside
-   * their hip, and both ends are fine; the straight line between them goes
-   * through the front of the cello, and it is on that line for the better part
-   * of two seconds. Correcting only the endpoint left that untouched.
-   *
-   * `gate` is how far this hand has stood down, and it exists so that a hand
-   * *playing* the instrument is never pushed off it. A contact is on the
-   * surface by definition and often just inside a mesh's box; shoving it out
-   * would be this file breaking the one invariant it has. It ramps in over the
-   * first fraction of the stand-down, so there is no frame where it switches
-   * on.
+   * `p.worldInv` is the conversion every cached contact goes through, so the
+   * boxes are read in the frame they were measured in even for a model that has
+   * since been moved.
    */
   private escape(p: Player, point: Vector3, gate: number): Vector3 {
-    const parts = p.keepOut;
-    if (!parts || gate <= 0) return point;
-    // Into the instrument's own frame, which is the only one the boxes mean
-    // anything in. `toLocal` is the same conversion every cached contact goes
-    // through, so it is already correct for a model that has been moved.
-    this.toLocal(p, point, V4);
-    const out = point;
-
-    // Out along the player's own backward, expressed in the instrument's
-    // frame. Horizontal only: a hand pushed up goes into the keys and a hand
-    // pushed down goes through the boards, and neither is an escape.
-    V5.set(0, 0, -1).applyQuaternion(p.rigQuat);
-    V8.copy(V5).applyQuaternion(p.worldQuatInv);
-
-    // The furthest any one part demands, so a hand between two of them leaves
-    // both. Taking the first, or the nearest, moves it out of one and leaves
-    // it in the next.
-    let push = 0;
-    for (let i = 0; i < parts.length; i++) {
-      const box = parts[i]!;
-      if (!box.containsPoint(V4)) continue;
-      let exit = Number.POSITIVE_INFINITY;
-      if (Math.abs(V8.x) > 1e-6) {
-        exit = Math.min(exit, (V8.x > 0 ? box.max.x - V4.x : box.min.x - V4.x) / V8.x);
-      }
-      if (Math.abs(V8.z) > 1e-6) {
-        exit = Math.min(exit, (V8.z > 0 ? box.max.z - V4.z : box.min.z - V4.z) / V8.z);
-      }
-      if (Number.isFinite(exit) && exit > push) push = exit;
-    }
-    if (push <= 0) return out;
-
-    // Capped rather than guaranteed. Some instruments wrap further round their
-    // player than a hand can back out of, and half a metre of reversing would
-    // put the hands behind the body, which is a worse picture than a hand
-    // brushing the thing it belongs to.
-    const ramp = gate < KEEP_OUT_GATE ? gate / KEEP_OUT_GATE : 1;
-    return out.addScaledVector(V5, Math.min(push + KEEP_OUT_MARGIN, KEEP_OUT_PUSH) * ramp);
+    return escapeFrom(p.keepOut, point, gate, p.rigQuat, p.worldQuatInv, p.worldInv);
   }
 
   /**
@@ -2261,6 +1938,7 @@ class Runtime implements Animator {
     let fired = 0;
     let batch = Number.NaN;
     let turned = false;
+    let swept = false;
 
     while (p.fire < gs.length && gs[p.fire]!.beat <= beat) {
       const at = p.fire;
@@ -2309,6 +1987,25 @@ class Runtime implements Animator {
        * home to the middle of the hair rather than freezing it out at the end
        * of the stroke it happened to stop on.
        */
+      /**
+       * The strumming hand turns round, on the same terms the bow does.
+       *
+       * Once per frame like the bow's flip and for the identical reason: a
+       * strum is one motion carrying every string of the chord, so `react`
+       * arrives once per *point* and flipping per point would make the
+       * direction depend on how many notes are in the voicing — a triad would
+       * reverse and a four-note chord would not. `swept` is a second flag
+       * rather than a share of `turned` because a player can be handed both
+       * limbs and the two must not gate each other.
+       *
+       * A rest is the hand coming off the strings and is not a stroke, which is
+       * the one clause this borrows from the bow verbatim.
+       */
+      if (!swept && voice.kind === 'strum' && g.target.kind !== 'rest') {
+        swept = true;
+        p.strum = -p.strum;
+      }
+
       if (!turned && voice.effector === 'bow') {
         turned = true;
         const rest = g.target.kind === 'rest';
@@ -2535,13 +2232,31 @@ class Runtime implements Animator {
     // limb has to get back down from wherever it went.
     const ceiling = liftCeiling(((1 - apex) * g.prep) / this.beatsPerSecond);
     if (lift > ceiling) lift = ceiling;
+    /**
+     * A strum comes from one side of the strings and leaves out the other, and
+     * which side alternates. See `GestureKind.strum` for the contract; this is
+     * the renderer keeping it.
+     *
+     * Expressed as the **sign of the lift** rather than as a lateral offset,
+     * which is the cheap trick and also the true one: `V2` is the normal the
+     * limb winds up along, so a downstroke is a hand that rose above the strings
+     * and fell through them, and an upstroke is the same arc reflected — the
+     * hand dips under and comes back up. One number, no new geometry, and the
+     * two strokes are visibly different from the back of a room because they
+     * approach from opposite sides.
+     *
+     * The rebound below inherits the sign for free, and it must: a hand that
+     * swept downward and then bounced upward off the strings would be a hand
+     * that had changed its mind mid-stroke.
+     */
+    if (g.kind === 'strum') lift *= p.strum;
 
     if (tau < 0) {
       // The windup: out and up while the limb is high, a hang at the apex, then
       // a fall that is still accelerating when it arrives.
       const s = g.prep > 0 ? clamp01(1 + tau / g.prep) : 1;
       V4.lerpVectors(V3, V1, reach(s, apex, coverOf(g.kind), snapOf(g.kind, g.force)));
-      if (lift > 0) V4.addScaledVector(V2, lift * hop(s, apex));
+      if (lift !== 0) V4.addScaledVector(V2, lift * hop(s, apex));
       return;
     }
 
@@ -2556,8 +2271,8 @@ class Runtime implements Animator {
       // is a lift rather than a bounce — a finger leaves a key, it is not
       // thrown off it.
       const tail = (u - SUSTAIN_HOLD) / (1 - SUSTAIN_HOLD);
-      if (tail > 0 && rebound > 0) V4.addScaledVector(V2, rebound * smooth(clamp01(tail)));
-    } else if (rebound > 0) {
+      if (tail > 0 && rebound !== 0) V4.addScaledVector(V2, rebound * smooth(clamp01(tail)));
+    } else if (rebound !== 0) {
       V4.addScaledVector(V2, rebound * bounce(u));
     }
   }
@@ -3501,57 +3216,6 @@ class Runtime implements Animator {
  * authority for most of its release, because a finger stays on the key; a
  * ballistic one lets go across the whole bounce.
  */
-/** How far above and below the resting hands a part still counts, in metres. */
-const KEEP_OUT_BAND = 0.28;
-
-/**
- * The parts of an instrument that an at-ease hand could end up inside, each as
- * a box in the model's **own** frame.
- *
- * `Box3.setFromObject` cannot be used for any of this: it answers in world
- * space, and a world box of a turned model is already inflated before anything
- * else touches it. So each mesh's own geometry box is carried up through the
- * transforms *between that mesh and the model root* — the mesh's world matrix
- * with the root's taken back off — where everything is axis-aligned and tight.
- *
- * Then thrown away unless it is near the hands. That prune is what makes a
- * per-mesh test affordable at all, and it is honest rather than merely cheap:
- * a hand at ease sits at one height, and a cymbal a metre above it or a
- * pedalboard a metre below it can never be the thing it is inside.
- *
- * Once per performer per number, at bind time.
- */
-function keepOutParts(model: InstrumentModel, rig: PerformerRig): Box3[] | undefined {
-  const root = model.root;
-  root.updateWorldMatrix(true, true);
-  const inv = new Matrix4().copy(root.matrixWorld).invert();
-
-  // The band, from where this body's own hands actually come to rest.
-  const left = rig.restPosition('left-hand', new Vector3()).applyMatrix4(inv);
-  const right = rig.restPosition('right-hand', new Vector3()).applyMatrix4(inv);
-  const lo = Math.min(left.y, right.y) - KEEP_OUT_BAND;
-  const hi = Math.max(left.y, right.y) + KEEP_OUT_BAND;
-
-  const parts: Box3[] = [];
-  const rel = new Matrix4();
-  root.traverse((o) => {
-    const mesh = o as {
-      isMesh?: boolean;
-      geometry?: { boundingBox: Box3 | null; computeBoundingBox(): void };
-      matrixWorld: Matrix4;
-    };
-    if (!mesh.isMesh || !mesh.geometry) return;
-    if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
-    const g = mesh.geometry.boundingBox;
-    if (!g) return;
-    rel.multiplyMatrices(inv, mesh.matrixWorld);
-    const box = g.clone().applyMatrix4(rel);
-    if (box.isEmpty() || box.max.y < lo || box.min.y > hi) return;
-    parts.push(box);
-  });
-  return parts.length ? parts : undefined;
-}
-
 function weightOf(g: Gesture, tau: number): number {
   if (tau < 0) {
     if (g.prep <= 0) return 0;

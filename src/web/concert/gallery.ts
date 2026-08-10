@@ -63,8 +63,9 @@
  */
 
 import {
-  AmbientLight, AxesHelper, Box3, Color, DirectionalLight, Group, GridHelper, Mesh,
-  MeshBasicMaterial, PerspectiveCamera, Quaternion, Scene, SphereGeometry, Vector3,
+  AgXToneMapping, AmbientLight, AxesHelper, Box3, Color, DirectionalLight, Euler,
+  Group, GridHelper, Matrix4, Mesh, MeshBasicMaterial, Object3D, PCFSoftShadowMap,
+  PerspectiveCamera, Quaternion, Raycaster, Scene, SphereGeometry, Vector2, Vector3,
   WebGLRenderer,
 } from 'three';
 
@@ -73,11 +74,20 @@ import type {
   Archetype, ArchetypeSpec, Effector, Look, Performer, PlayPoint, SynthRigId,
 } from '../../concert/types.js';
 import type { DrumEvent } from '../../core/types.js';
+import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
+
+import {
+  AT_EASE, COINCIDENT, IDLE_HOVER, NOMINAL_HEIGHT, REST_TRIM, ZONE_PULL, escapeFrom,
+  keepOutParts, letGo, lowerAtEase, type AtEasePose, type CarriesBow, type RestTrim,
+} from './at-ease.js';
+import {
+  AT_EASE_FILE, SAVE_ROUTE, easeEntrySource, keyOf, trimEntrySource, type Tuning,
+} from './at-ease-edit.js';
 import {
   buildDrumMachine, type DrumMachine, type DrumMachineOptions,
 } from './instruments/drum-machine.js';
 import { buildInstrumentFor } from './instruments/index.js';
-import type { InstrumentModel } from './instruments/types.js';
+import type { Contact, InstrumentModel } from './instruments/types.js';
 import { lightTheRoom } from './performer-assets.js';
 import { buildPerformer, type PerformerRig } from './performer.js';
 
@@ -89,6 +99,15 @@ const showContacts = document.getElementById('contacts') as HTMLInputElement;
 const spinning = document.getElementById('spin') as HTMLInputElement;
 const idleButton = document.getElementById('idle') as HTMLButtonElement;
 const playButton = document.getElementById('play') as HTMLButtonElement;
+const stoodSlider = document.getElementById('stood') as HTMLInputElement;
+const stoodValue = document.getElementById('stoodv')!;
+const tuneButton = document.getElementById('tune') as HTMLButtonElement;
+const tuner = document.getElementById('tuner') as HTMLDivElement;
+const tunerHead = document.getElementById('tunerHead')!;
+const tunerRows = document.getElementById('tunerRows')!;
+const tunerOut = document.getElementById('tunerOut') as HTMLPreElement;
+const moveButton = document.getElementById('gizmoMove') as HTMLButtonElement;
+const turnButton = document.getElementById('gizmoTurn') as HTMLButtonElement;
 
 /**
  * One buildable object. See the note at the top of the file.
@@ -213,6 +232,10 @@ for (const e of NAMES) pick.append(new Option(`${e.label} — ${e.id}`, e.id));
 
 const renderer = new WebGLRenderer({ canvas, antialias: true });
 renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = PCFSoftShadowMap;
+/** The stage's curve, so an exhibit here is the object the show draws. */
+renderer.toneMapping = AgXToneMapping;
+renderer.toneMappingExposure = 1.0;
 const scene = new Scene();
 scene.background = new Color('#15171a');
 const camera = new PerspectiveCamera(38, 1, 0.05, 200);
@@ -230,8 +253,10 @@ const room = lightTheRoom(renderer, scene);
 // Held for the life of the page, which is the life of its renderer.
 void room;
 
-scene.add(new AmbientLight('#8899bb', 1.1));
-const key = new DirectionalLight('#fff3e0', 1.5);
+/** Low, for the reason spelled out on the costume bench: ambient describes no
+ * shape, and an exhibit is nothing but shape. */
+scene.add(new AmbientLight('#8899bb', 0.6));
+const key = new DirectionalLight('#fff3e0', 1.9);
 key.position.set(2.5, 4, 3);
 key.castShadow = true;
 scene.add(key);
@@ -283,11 +308,67 @@ interface Exhibit {
   group: Group;
   playing: Stance;
   waiting: Stance;
+  /**
+   * Where a carried model was staged, and scratch for the grip it turns about.
+   *
+   * Read once, before anything has moved it, exactly as `Player` reads it at
+   * bind time — the pose is a rigid motion *from* the staged transform, so it
+   * has to be the staged transform every frame and not wherever the last frame
+   * left the model. The pivot is scratch rather than a captured value because
+   * the tuner can move it: it is `resolve({kind:'rest'})`, and a left-hand trim
+   * is a change to exactly that. See `applyPose`.
+   */
+  carry?: { pos: Vector3; quat: Quaternion; pivot: Vector3 };
+  /** Parts of a floor instrument an at-ease hand could end up inside. */
+  keepOut?: readonly Box3[];
+  /**
+   * The at-ease pose itself, as an object the gizmo can be attached to.
+   *
+   * Carried by the torso, like the instrument, so it is in the frame
+   * `AtEasePose`'s angles are stated in — and standing at **the grip**, which
+   * is the point the pose turns about. A gizmo attached to the model root would
+   * turn it about the model's own origin, which for a carried instrument is
+   * down by the player's feet: swinging a trumpet round that is not a pose, it
+   * is a throw. Attached here, the handles sit where the hand is and the horn
+   * turns under it.
+   *
+   * Its transform and the seven numbers are the same thing said twice, and
+   * `syncEase`/`readEase` are the two directions of that. Absent unless this
+   * exhibit is a carried instrument with a player.
+   */
+  easeNode?: Object3D;
+  /**
+   * Where each hand plays, in the model's own frame — left, then right.
+   *
+   * The stand-in for the running mean `animate.ts` keeps over a whole number,
+   * and the only part of the stage's idle this page approximates rather than
+   * shares. It is used for the same thing and in the same place: where a model
+   * answers one rest contact for both hands, each hand is pulled toward the
+   * part of the instrument it actually plays. A bench has no bar to average, so
+   * the one representative moment in `playStance` stands for it — which for a
+   * kit is the snare and the hats, and is what the mean converges to anyway.
+   */
+  zones: readonly (Contact | undefined)[];
+  /** Whether the right hand holds a bow. `spec.family`, since there is no part. */
+  usesBow: boolean;
 }
 
 let live: Exhibit[] = [];
 let mode: 'one' | 'grid' = 'one';
 let pose: 'idle' | 'play' = 'play';
+/**
+ * How far into the stand-down an idle player is, 0..1.
+ *
+ * The bench used to have two states and the stage has three, which is why the
+ * poses on this page could look right and be wrong. `1 - engage` in
+ * `animate.ts`: at 0 the player is **waiting at the instrument** with their
+ * hands on its own rest contacts, and at 1 they are **at ease** — the
+ * instrument lowered by `AT_EASE`, the hands blended to the hips, backed out of
+ * whatever they were standing inside. Everything between is a real frame of a
+ * real show, and half of what looks wrong looks wrong on the way rather than at
+ * either end, so it is a slider and not a third button.
+ */
+let stood = 1;
 let spin = 0;
 
 function performerFor(entry: Entry, archetype: Archetype): Performer {
@@ -386,6 +467,25 @@ function bayPattern(): DrumEvent[] {
 // with a representative point for playing, `resolve({kind:'rest'})` for idle.
 // Nothing is dialled in by eye, so a model that places a hand wrongly places it
 // wrongly here too, which is the whole reason the page exists.
+//
+// ## And then the idle pose was still not the stage's
+//
+// That paragraph was written about a page with two states, and the stage has
+// three. `resolve({kind:'rest'})` is where a hand goes while its player is
+// **waiting at the instrument** — between phrases, still engaged. It is not
+// where anything ends up when the player actually stands down, which on a stage
+// is five further things: the carried instrument swings about its grip and
+// drops (`AT_EASE`), each hand blends from that rest contact toward the body's
+// own hip rest by however much of the instrument it has let go of (`letGo`),
+// the blended point backs out of whatever it is inside (`escapeFrom`), the
+// wrist turns toward the body's resting attitude, and a bow is handed to the
+// hand holding it (`CarriesBow`).
+//
+// So a pose could look right here and be wrong in the show, which is exactly
+// the gap this page exists to close and is why the idle poses went untuned for
+// as long as they did. Everything below now drives the same functions the
+// runtime does, out of the same table — see `at-ease.ts`. Only one thing is a
+// stand-in rather than shared, and it is named where it is used: `Exhibit.zones`.
 
 /** Where each limb goes, as points the model has to be able to resolve. */
 type Stance = readonly (readonly [Effector, PlayPoint])[];
@@ -478,12 +578,42 @@ function restStance(spec: ArchetypeSpec): Stance {
 const P = new Vector3();
 const N = new Vector3();
 const A = new Vector3();
+const HIP = new Vector3();
+const AXIS = new Vector3();
+const MID = new Vector3();
 const QUAT = new Quaternion();
-/** Effectors a model may answer for both hands at once. See `separateRest`. */
-const HANDS: ReadonlySet<Effector> = new Set<Effector>(['left-hand', 'right-hand', 'bow']);
+const QUAT_INV = new Quaternion();
+const RIG_QUAT = new Quaternion();
+const MODEL_INV = new Matrix4();
 
 /**
- * Put one exhibit's rig where the stance says, in world space.
+ * One hand's idle answer, held while the other is asked.
+ *
+ * Both have to be resolved before either is committed, because the first thing
+ * done with them is a comparison: two hands sent to the same point are a model
+ * that declined to choose, and what happens next depends on that. Two objects
+ * for the life of the page rather than per exhibit — the exhibits are posed one
+ * after another and nothing survives the call.
+ */
+interface HandGoal {
+  effector: Effector;
+  ok: boolean;
+  position: Vector3;
+  normal: Vector3;
+  along: Vector3;
+  hasAlong: boolean;
+}
+const GOALS: readonly HandGoal[] = [0, 1].map(() => ({
+  effector: 'left-hand' as Effector,
+  ok: false,
+  position: new Vector3(),
+  normal: new Vector3(),
+  along: new Vector3(),
+  hasAlong: false,
+}));
+
+/**
+ * Put one exhibit's rig where the pose says, in world space.
  *
  * `Contact` is in the model's own local frame and `setEffector` wants world, so
  * everything goes through the model's world matrix — which for a carried
@@ -493,7 +623,9 @@ function applyPose(item: Exhibit): void {
   const { model, rig } = item;
   if (!rig || !model) return;
   const playing = pose === 'play';
+  const down = playing ? 0 : stood;
   const spec = specFor(model.archetype);
+  const ease = AT_EASE[model.archetype];
 
   rig.setPlaying(playing);
   if (!playing) rig.setMouth(0, 0, 0);
@@ -506,17 +638,58 @@ function applyPose(item: Exhibit): void {
   else if (spec.blown) rig.setMouth(0.08, 0.65, 0.06);
   else rig.setMouth(0, 0, 0);
 
+  // The instrument before the hands, because the hands are placed against where
+  // it ended up.
+  //
+  // The pivot is re-read here rather than captured with the transform beside
+  // it, which is the one place this page deliberately does more work than
+  // `animate.ts`: the runtime resolves the grip once at bind time because
+  // nothing can move it inside a number, and the whole point of the tuner is
+  // that a left-hand trim moves it. Once per exhibit per frame, on a page
+  // showing one.
+  if (item.carry && ease) {
+    // Held where a hand gizmo is being dragged, which is the one case that
+    // would otherwise chase itself: the grip *is* the left hand's rest contact,
+    // so trimming that hand moves the pivot, which moves the instrument, which
+    // moves the contact the drag is being measured against. Frozen for the
+    // length of the drag, the drag is a straight line; it catches up on release.
+    if (!(gizmoDragging && selected?.kind === 'hand')) {
+      const grip = model.resolve(REST, 'left-hand');
+      if (grip) {
+        item.carry.pivot.copy(grip.position)
+          .applyQuaternion(item.carry.quat).add(item.carry.pos);
+      } else item.carry.pivot.copy(item.carry.pos);
+    }
+    lowerAtEase(
+      model.root, ease, down, rig.proportions.height,
+      item.carry.pos, item.carry.quat, item.carry.pivot,
+    );
+  }
+
   rig.root.updateWorldMatrix(true, false);
   model.root.updateWorldMatrix(true, false);
   model.root.getWorldQuaternion(QUAT);
+  QUAT_INV.copy(QUAT).invert();
+  MODEL_INV.copy(model.root.matrixWorld).invert();
+  rig.root.getWorldQuaternion(RIG_QUAT);
 
-  for (const [effector, point] of playing ? item.playing : item.waiting) {
+  // A singer's hands are free, so the one effector they rest is the mouth, and
+  // there is nothing below for it. Everything else goes through the hands.
+  if (playing || spec.hands === 0) {
+    commandStance(item, playing ? item.playing : item.waiting);
+    return;
+  }
+  restPose(item, ease, down);
+}
+
+/** Command a whole stance as it stands: the play pose, and a singer's rest. */
+function commandStance(item: Exhibit, stance: Stance): void {
+  const { model, rig } = item;
+  if (!model || !rig) return;
+  for (const [effector, point] of stance) {
     const contact = model.resolve(point, effector);
     if (!contact) continue;
     P.copy(contact.position).applyMatrix4(model.root.matrixWorld);
-    // A rest is often one point for both hands — a kit's, a horn's, a
-    // microphone's — and sending both there puts one inside the other.
-    if (!playing && HANDS.has(effector)) rig.separateRest(effector, P, P);
     rig.setEffector(
       effector,
       P,
@@ -526,7 +699,117 @@ function applyPose(item: Exhibit): void {
   }
 }
 
+/**
+ * Both hands of a player who is not playing, `down` of the way to at ease.
+ *
+ * The same four steps `Runtime.idleGoals` and `Runtime.hands` take, in the same
+ * order and out of the same table. Read them together: anything that is true
+ * there and not here is a way this page can lie about a pose, which is the
+ * fault it was rebuilt to stop telling.
+ */
+function restPose(item: Exhibit, ease: AtEasePose | undefined, down: number): void {
+  const { model, rig } = item;
+  if (!model || !rig) return;
+
+  for (let k = 0; k < 2; k++) {
+    const goal = GOALS[k]!;
+    // A bowed player's right hand idles where the bow lives, not where a
+    // pizzicato finger would. Asked once per hand, which is what `resolve`'s
+    // `effector` parameter is for: every wind and brass model answers the two
+    // differently, one supporting the instrument and the other fingering it.
+    goal.effector = k === 0 ? 'left-hand' : item.usesBow ? 'bow' : 'right-hand';
+    const contact = model.resolve(REST, goal.effector);
+    goal.ok = contact !== undefined;
+    if (!contact) continue;
+    goal.position.copy(contact.position).applyMatrix4(model.root.matrixWorld);
+    goal.normal.copy(contact.normal).applyQuaternion(QUAT);
+    goal.hasAlong = contact.along !== undefined;
+    if (contact.along) goal.along.copy(contact.along).applyQuaternion(QUAT);
+  }
+
+  const left = GOALS[0]!;
+  const right = GOALS[1]!;
+  // **A model that answered the two hands differently has already decided, and
+  // nothing in this block runs.** Separating a pair along the performer's
+  // lateral axis assumes nobody had a better idea, and on a flute somebody did.
+  if (left.ok && right.ok && left.position.distanceTo(right.position) < COINCIDENT) {
+    for (let k = 0; k < 2; k++) {
+      const zone = item.zones[k];
+      const goal = GOALS[k]!;
+      if (!zone) continue;
+      P.copy(zone.position).applyMatrix4(model.root.matrixWorld);
+      N.copy(zone.normal).applyQuaternion(QUAT);
+      // A hand at a drum head's contact point is half inside the drum, so it
+      // hovers off the surface it plays rather than resting on it.
+      if (N.lengthSq() > 1e-6) {
+        N.normalize();
+        P.addScaledVector(N, IDLE_HOVER);
+        goal.normal.copy(N);
+      }
+      goal.position.lerp(P, ZONE_PULL);
+    }
+    // Whatever the zones did or did not manage, two hands may not occupy one
+    // point — and how far apart "not one point" is depends on how big this
+    // performer's hands are, which is the rig's business and not this file's.
+    MID.addVectors(left.position, right.position).multiplyScalar(0.5);
+    rig.separateRest('left-hand', MID, P);
+    rig.separateRest(right.effector, MID, A);
+    if (left.position.distanceTo(right.position) < P.distanceTo(A)) {
+      left.position.copy(P);
+      right.position.copy(A);
+    }
+  }
+
+  for (let k = 0; k < 2; k++) {
+    const goal = GOALS[k]!;
+    if (!goal.ok) continue;
+    // Per hand, because a hand still holding the instrument has not stood down
+    // at all — it has come down *with* it, and the model's own rest contact has
+    // already moved to where the instrument now is.
+    const go = letGo(ease, down, k);
+    if (go > 0.001) {
+      escapeFrom(
+        item.keepOut, rig.restPosition(goal.effector, HIP), 1,
+        RIG_QUAT, QUAT_INV, MODEL_INV,
+      );
+      goal.position.lerp(HIP, go);
+      // And the blended point, not just its destination: a cellist's right hand
+      // is fine at both ends and goes through the front of the cello between.
+      escapeFrom(item.keepOut, goal.position, go, RIG_QUAT, QUAT_INV, MODEL_INV);
+      // A hand released from a key bed that keeps the key bed's normal arrives
+      // at the hip palm-down and rigid.
+      goal.normal.lerp(AXIS.set(0, 1, 0).applyQuaternion(RIG_QUAT), go).normalize();
+      if (goal.hasAlong) {
+        goal.along.lerp(AXIS.set(1, 0, 0).applyQuaternion(RIG_QUAT), go).normalize();
+      }
+    }
+    rig.setEffector(
+      goal.effector, goal.position, goal.normal, goal.hasAlong ? goal.along : undefined,
+    );
+  }
+
+  // The bow is the one thing on this stage that belongs to the player rather
+  // than to the instrument, and the scene graph says the opposite — so a
+  // violinist standing down takes it with the violin unless the runtime hands
+  // it over. Anything with no bow to carry costs one property lookup.
+  const bowed = model as Partial<CarriesBow>;
+  if (typeof bowed.carryBow === 'function') {
+    bowed.carryBow(
+      letGo(ease, down, 1),
+      right.ok ? right.position : rig.restPosition('right-hand', HIP),
+    );
+  }
+}
+
 function clear(): void {
+  // Before the objects go: the gizmo holds a reference to whatever it is
+  // attached to, and an exhibit is rebuilt on every switch of the picker.
+  gizmo.detach();
+  gizmo.getHelper().visible = false;
+  selected = undefined;
+  gizmoDragging = false;
+  focused = false;
+  for (const handle of handles) handle.visible = false;
   for (const item of live) {
     item.model?.dispose();
     item.machine?.dispose();
@@ -574,6 +857,58 @@ function markContacts(model: InstrumentModel, into: Group): void {
   }
 }
 
+/**
+ * Everything an exhibit needs to be able to stand down, read once at build.
+ *
+ * The same three things `Player`'s constructor reads and for the same reasons:
+ * where a carried model was staged before anything moved it, which parts of a
+ * floor model a hand could end up inside, and where each hand plays. All three
+ * are settled by the time the model is on the bench and none of them changes
+ * while it is standing there.
+ *
+ * A model shown without its player has nowhere for any of it to go, and neither
+ * does a machine — both come back empty rather than absent, which is what keeps
+ * `Exhibit` a total shape.
+ */
+function standDownState(
+  model: InstrumentModel, rig: PerformerRig | undefined, spec: ArchetypeSpec,
+  playing: Stance,
+): Pick<Exhibit, 'carry' | 'keepOut' | 'zones' | 'easeNode'> {
+  if (!rig) return { zones: [] };
+  const zones = [0, 1].map((k) => {
+    // The effector this hand plays with, which for a bowed part is the bow. The
+    // stage takes a running mean of these; see `Exhibit.zones`.
+    const want: readonly Effector[] = k === 0
+      ? ['left-hand'] : spec.family === 'bowed' ? ['bow', 'right-hand'] : ['right-hand'];
+    for (const [effector, point] of playing) {
+      if (!want.includes(effector)) continue;
+      const contact = model.resolve(point, effector);
+      if (contact) return contact;
+    }
+    return undefined;
+  });
+  if (spec.held) {
+    const easeNode = new Object3D();
+    rig.carry(easeNode);
+    return {
+      carry: {
+        pos: model.root.position.clone(),
+        quat: model.root.quaternion.clone(),
+        // Filled every frame, because the tuner can move it. See `applyPose`.
+        pivot: new Vector3(),
+      },
+      easeNode,
+      zones,
+    };
+  }
+  // A held instrument has no keep-out: it is on the player and moves with them,
+  // so there is nothing standing still for a hand to reverse out of.
+  return {
+    ...(spec.hands > 0 ? { keepOut: keepOutParts(model, rig) ?? undefined } : {}),
+    zones,
+  };
+}
+
 function build(which: Entry[]): void {
   clear();
   const cols = Math.ceil(Math.sqrt(which.length));
@@ -604,7 +939,9 @@ function build(which: Entry[]): void {
       machine.root.position.y = MACHINE_HEIGHT;
       group.add(machine.root);
       if (which.length > 1) group.add(new AxesHelper(0.3));
-      live.push({ entry, machine, group, playing: [], waiting: [] });
+      live.push({
+        entry, machine, group, playing: [], waiting: [], zones: [], usesBow: false,
+      });
       return;
     }
 
@@ -646,13 +983,17 @@ function build(which: Entry[]): void {
     if (showContacts.checked) markContacts(model, model.root);
     if (which.length > 1) group.add(new AxesHelper(0.3));
     const spec = specFor(archetype);
+    const playing = playStance(spec);
     live.push({
-      entry, model, rig, group, playing: playStance(spec), waiting: restStance(spec),
+      entry, model, rig, group, playing, waiting: restStance(spec),
+      usesBow: spec.family === 'bowed',
+      ...standDownState(model, rig, spec, playing),
     });
   });
 
   frameAll(which);
   describe(which);
+  drawTuner();
 }
 
 /**
@@ -764,13 +1105,713 @@ idleButton.onclick = () => setPose('idle');
 playButton.onclick = () => setPose('play');
 setPose(pose);
 
+const setStood = (next: number): void => {
+  stood = Math.max(0, Math.min(1, next));
+  stoodSlider.value = String(stood);
+  stoodValue.textContent = stood.toFixed(2);
+};
+stoodSlider.oninput = () => {
+  setStood(Number(stoodSlider.value));
+  // Moving it is a statement about the idle pose, so it says which pose it is
+  // about rather than leaving a slider that is visibly doing nothing.
+  setPose('idle');
+};
+setStood(stood);
+
+// --- the gizmo -----------------------------------------------------------
+//
+// Handles in the viewport, over the same two tables the sliders write. Which
+// one you reach for is a question about what you are judging: a slider is how
+// you say "two centimetres further back", and a gizmo is how you find out that
+// two centimetres further back is what you wanted.
+//
+// Both edit the tables directly and neither owns them, so a number dragged here
+// moves the slider and a slider moves the handle.
+
+const gizmo = new TransformControls(camera, canvas);
+gizmo.setSize(0.72);
+scene.add(gizmo.getHelper());
+gizmo.getHelper().visible = false;
+
+/**
+ * A ball on each hand's rest contact — **the contact, not where the hand ends
+ * up**, and the difference is the whole reason it is drawn.
+ *
+ * What a trim moves is the model's answer to `resolve({kind:'rest'})`. Where
+ * the hand actually is at any moment is that answer blended some way toward the
+ * player's hip, so a handle drawn on the *hand* would be a handle that stops
+ * responding as you stand the player down, and would sit on their thigh at
+ * full ease with a gizmo that still edited the instrument. This one is always
+ * the thing being edited.
+ *
+ * `depthTest: false`, because half of them are inside the instrument — which is
+ * frequently the fault being looked at.
+ */
+const HANDLE_GEO = new SphereGeometry(0.026, 14, 10);
+const handles = ['#e0a24a', '#4ad0e0'].map((color) => {
+  const h = new Mesh(HANDLE_GEO, new MeshBasicMaterial({
+    color, depthTest: false, transparent: true, opacity: 0.85,
+  }));
+  h.renderOrder = 999;
+  h.visible = false;
+  scene.add(h);
+  return h;
+});
+
+type Selection = { kind: 'hand'; index: 0 | 1 } | { kind: 'instrument' };
+let selected: Selection | undefined;
+let gizmoMode: 'translate' | 'rotate' = 'translate';
+let gizmoDragging = false;
+let focused = false;
+
+/** The drag's own frame: where it started, and the model's rotation then. */
+const DRAG_FROM = new Vector3();
+const DRAG_QUAT_INV = new Quaternion();
+let dragTrim: readonly [number, number, number] = [0, 0, 0];
+
+const EASE_EULER = new Euler();
+const FOCUS = new Vector3();
+const ray = new Raycaster();
+const ndc = new Vector2();
+
+/** The one exhibit the tuner works on. The grid is for looking, not editing. */
+function tunedItem(): Exhibit | undefined {
+  const item = live.length === 1 ? live[0] : undefined;
+  return item?.model && item.rig ? item : undefined;
+}
+
+/** Where the seven numbers put the grip, into `easeNode`. */
+function syncEase(item: Exhibit, down: number): void {
+  const { model, rig, carry, easeNode } = item;
+  if (!easeNode || !carry || !rig || !model) return;
+  const e = AT_EASE[model.archetype];
+  easeNode.position.copy(carry.pivot);
+  if (!e) { easeNode.quaternion.identity(); return; }
+  const size = down * rig.proportions.height / NOMINAL_HEIGHT;
+  easeNode.quaternion.setFromEuler(EASE_EULER.set(
+    e.pitch * down, (e.turn ?? 0) * down, e.roll * down, 'ZYX',
+  ));
+  easeNode.position.y -= e.drop * size;
+  easeNode.position.z -= e.back * size;
+  if (e.across) easeNode.position.x += e.across * size;
+}
+
+/**
+ * And back: `easeNode` read as the seven numbers.
+ *
+ * The exact inverse of `syncEase`, which is what makes the gizmo trustworthy
+ * rather than approximately right — drag it, and the pose the table produces on
+ * the next frame is the pose the handles are already showing. Only ever read at
+ * full stand-down: the table says where an instrument goes when it is *down*,
+ * and solving it from a half-lowered one divides by the fraction and turns the
+ * last centimetre of a drag into a large number.
+ */
+function readEase(item: Exhibit): void {
+  const { model, rig, carry, easeNode } = item;
+  if (!easeNode || !carry || !rig || !model) return;
+  const e = easeEntry(model.archetype);
+  const size = rig.proportions.height / NOMINAL_HEIGHT;
+  EASE_EULER.setFromQuaternion(easeNode.quaternion, 'ZYX');
+  e.pitch = EASE_EULER.x;
+  e.turn = EASE_EULER.y;
+  e.roll = EASE_EULER.z;
+  e.across = (easeNode.position.x - carry.pivot.x) / size;
+  e.drop = (carry.pivot.y - easeNode.position.y) / size;
+  e.back = (carry.pivot.z - easeNode.position.z) / size;
+}
+
+/** Both balls onto the contacts they stand for, and out of the way otherwise. */
+function syncHandles(item: Exhibit | undefined): void {
+  const shown = !tuner.hidden && pose === 'idle' && item?.model !== undefined;
+  for (let k = 0; k < 2; k++) {
+    const handle = handles[k]!;
+    // Never while the gizmo has it: this is the drag, and re-reading the
+    // contact under it would fight the pointer.
+    if (gizmoDragging && selected?.kind === 'hand' && selected.index === k) continue;
+    const model = item?.model;
+    const contact = shown && model
+      ? model.resolve(REST, k === 0 ? 'left-hand' : item.usesBow ? 'bow' : 'right-hand')
+      : undefined;
+    handle.visible = contact !== undefined;
+    if (contact && model) {
+      handle.position.copy(contact.position).applyMatrix4(model.root.matrixWorld);
+    }
+  }
+}
+
+function select(next: Selection | undefined): void {
+  const item = tunedItem();
+  selected = item ? next : undefined;
+  gizmo.detach();
+  gizmo.getHelper().visible = false;
+  if (!selected || !item) { focused = false; paintGizmoButtons(); drawTuner(); return; }
+
+  // Everything the gizmo edits is about a player who is not playing.
+  setPose('idle');
+  if (selected.kind === 'instrument') {
+    if (!item.easeNode || !item.model) { selected = undefined; drawTuner(); return; }
+    // At full stand-down, because that is the pose the table states. See `readEase`.
+    setStood(1);
+    easeEntry(item.model.archetype);
+    syncEase(item, 1);
+    gizmo.attach(item.easeNode);
+    gizmo.setMode(gizmoMode);
+  } else {
+    syncHandles(item);
+    gizmo.attach(handles[selected.index]!);
+    gizmo.setMode('translate');
+  }
+  gizmo.getHelper().visible = true;
+  paintGizmoButtons();
+  drawTuner();
+}
+
+gizmo.addEventListener('dragging-changed', (e) => {
+  gizmoDragging = e.value === true;
+  const item = tunedItem();
+  if (!item?.model) return;
+  if (gizmoDragging && selected?.kind === 'hand') {
+    DRAG_FROM.copy(handles[selected.index]!.position);
+    item.model.root.getWorldQuaternion(DRAG_QUAT_INV);
+    DRAG_QUAT_INV.invert();
+    dragTrim = REST_TRIM[item.model.archetype]?.[handOf(item, selected.index)] ?? [0, 0, 0];
+  }
+  if (!gizmoDragging) { saveTuning(); drawTuner(); }
+});
+
+/** Which effector a hand index names on this exhibit. See `restPose`. */
+function handOf(item: Exhibit, index: 0 | 1): 'left-hand' | 'right-hand' | 'bow' {
+  return index === 0 ? 'left-hand' : item.usesBow ? 'bow' : 'right-hand';
+}
+
+gizmo.addEventListener('objectChange', () => {
+  const item = tunedItem();
+  if (!item?.model || !selected) return;
+  if (selected.kind === 'instrument') readEase(item);
+  else {
+    // The world delta, turned into the model's own frame — the frame a trim is
+    // written in, and taken from the rotation the drag started with so that an
+    // instrument moving under the hand cannot bend the line being dragged.
+    const local = P.copy(handles[selected.index]!.position).sub(DRAG_FROM)
+      .applyQuaternion(DRAG_QUAT_INV);
+    const trim: RestTrim = REST_TRIM[item.model.archetype] ?? (REST_TRIM[item.model.archetype] = {});
+    trim[handOf(item, selected.index)] = [
+      dragTrim[0] + local.x, dragTrim[1] + local.y, dragTrim[2] + local.z,
+    ];
+  }
+  repaintRows();
+});
+
+function pickAt(ev: PointerEvent): void {
+  const item = tunedItem();
+  if (tuner.hidden || !item?.model) return;
+  const box = canvas.getBoundingClientRect();
+  ndc.set(
+    ((ev.clientX - box.left) / box.width) * 2 - 1,
+    -((ev.clientY - box.top) / box.height) * 2 + 1,
+  );
+  ray.setFromCamera(ndc, camera);
+  const onHandle = ray.intersectObjects(handles.filter((h) => h.visible), false)[0];
+  const index = onHandle ? handles.findIndex((h) => h === onHandle.object) : -1;
+  if (index >= 0) {
+    select({ kind: 'hand', index: index as 0 | 1 });
+    return;
+  }
+  // Anywhere on the instrument selects the instrument, which is the only other
+  // thing on this page with a pose.
+  if (item.easeNode && ray.intersectObject(item.model.root, true).length) {
+    select({ kind: 'instrument' });
+    return;
+  }
+  select(undefined);
+}
+
+/**
+ * The mode buttons, showing what the gizmo is actually doing.
+ *
+ * Only the instrument can be turned. A hand's rest contact is a *point* — the
+ * model says which way the palm faces there and that is the model's to say — so
+ * `turn` is not a mode a hand has rather than one it declines, and a button
+ * left lit over a gizmo showing three arrows is the panel lying about itself.
+ */
+function paintGizmoButtons(): void {
+  const turnable = selected?.kind === 'instrument';
+  turnButton.disabled = !turnable;
+  const effective = turnable ? gizmoMode : 'translate';
+  moveButton.classList.toggle('on', effective === 'translate');
+  turnButton.classList.toggle('on', effective === 'rotate');
+}
+
+function setGizmoMode(next: 'translate' | 'rotate'): void {
+  gizmoMode = next;
+  if (selected?.kind === 'instrument') gizmo.setMode(next);
+  paintGizmoButtons();
+}
+moveButton.onclick = () => setGizmoMode('translate');
+turnButton.onclick = () => setGizmoMode('rotate');
+
+// --- the idle tuner ------------------------------------------------------
+//
+// Sliders over the two tables in `at-ease.ts`, and a button that prints what
+// you moved as source to paste back.
+//
+// It writes into the imported tables directly rather than keeping a shadow copy
+// beside them, which is the whole reason a pose dialled in here is a pose the
+// show takes: there is one set of numbers, the runtime reads it live, and there
+// is no second version to fall out of agreement. What that costs is that the
+// page is now *lying* about the source until you paste — so the head says how
+// many archetypes are edited, and `reset` puts any of them back.
+//
+// It does not write files. A dev server that patched TypeScript from a browser
+// would be a considerably larger thing than this page, and the numbers are two
+// table entries: the print is a paste, not a workaround for a missing feature.
+
+type EaseKey = 'pitch' | 'roll' | 'turn' | 'drop' | 'back' | 'across' | 'hands0' | 'hands1';
+type TrimHand = 'left-hand' | 'right-hand' | 'bow';
+
+type Knob =
+  | { kind: 'ease'; key: EaseKey; label: string; min: number; max: number; step: number }
+  | { kind: 'trim'; hand: TrimHand; axis: 0 | 1 | 2; label: string };
+
+const EASE_KNOBS: readonly Knob[] = [
+  // Angles first, in the order `AtEasePose` declares them, and over the whole
+  // half-turn each: `violin` uses 2.83 rad, so a range that stopped at π/2
+  // would be a slider that could not reach the one pose already in the table.
+  { kind: 'ease', key: 'pitch', label: 'pitch', min: -3.2, max: 3.2, step: 0.01 },
+  { kind: 'ease', key: 'roll', label: 'roll', min: -3.2, max: 3.2, step: 0.01 },
+  { kind: 'ease', key: 'turn', label: 'turn', min: -3.2, max: 3.2, step: 0.01 },
+  // Then the lengths, in metres against a 1.75 m body. A metre of drop is a
+  // bell on the boards, which is past anything and short of absurd.
+  { kind: 'ease', key: 'drop', label: 'drop', min: -0.3, max: 1, step: 0.005 },
+  { kind: 'ease', key: 'back', label: 'back', min: -0.4, max: 0.6, step: 0.005 },
+  { kind: 'ease', key: 'across', label: 'across', min: -0.5, max: 0.5, step: 0.005 },
+  { kind: 'ease', key: 'hands0', label: 'let go L', min: 0, max: 1, step: 0.01 },
+  { kind: 'ease', key: 'hands1', label: 'let go R', min: 0, max: 1, step: 0.01 },
+];
+
+/** How far a trim slider reaches, either way, in metres. A hand's whole span. */
+const TRIM_REACH = 0.35;
+const TRIM_STEP = 0.002;
+
+function trimKnobs(hand: TrimHand): Knob[] {
+  return ([0, 1, 2] as const).map((axis) => ({
+    kind: 'trim' as const, hand, axis, label: 'xyz'[axis]!,
+  }));
+}
+
+/**
+ * `AT_EASE` as the file has it, snapshotted before anything can edit it.
+ *
+ * Taken at module load and above `restoreTuning`, which is load-bearing rather
+ * than tidy: it is what `reset` puts back and what "edited" is measured
+ * against, and a snapshot taken after the stored overrides had been applied
+ * would call an edited table pristine and have nothing to restore it to.
+ * `REST_TRIM` needs no equivalent — empty is its source state and its reset.
+ */
+const SOURCE_AT_EASE = JSON.parse(JSON.stringify(AT_EASE)) as Partial<Record<Archetype, AtEasePose>>;
+
+/** What a missing entry answers, per knob. See `easeEntry`. */
+function easeValue(e: AtEasePose | undefined, key: EaseKey): number {
+  if (!e) return key === 'hands0' || key === 'hands1' ? 1 : 0;
+  switch (key) {
+    case 'pitch': return e.pitch;
+    case 'roll': return e.roll;
+    case 'turn': return e.turn ?? 0;
+    case 'drop': return e.drop;
+    case 'back': return e.back;
+    case 'across': return e.across ?? 0;
+    case 'hands0': return e.hands[0];
+    case 'hands1': return e.hands[1];
+  }
+}
+
+/**
+ * This archetype's at-ease entry, made if it has none.
+ *
+ * A fresh one is a no-op by construction — no rotation, no movement, and both
+ * hands letting go completely — which is exactly what an archetype with no
+ * entry already does. So creating one on the first touch of a slider changes
+ * nothing until a slider is actually moved, and the half of the catalogue that
+ * hangs where its strap left it can be given a pose without the table having to
+ * be edited by hand first.
+ */
+function easeEntry(a: Archetype): AtEasePose {
+  const cur = AT_EASE[a];
+  if (cur) return cur;
+  const fresh: AtEasePose = { pitch: 0, roll: 0, drop: 0, back: 0, hands: [1, 1] };
+  AT_EASE[a] = fresh;
+  return fresh;
+}
+
+function readKnob(a: Archetype, knob: Knob): number {
+  if (knob.kind === 'ease') return easeValue(AT_EASE[a], knob.key);
+  return REST_TRIM[a]?.[knob.hand]?.[knob.axis] ?? 0;
+}
+
+function writeKnob(a: Archetype, knob: Knob, v: number): void {
+  if (knob.kind === 'trim') {
+    const trim: RestTrim = REST_TRIM[a] ?? (REST_TRIM[a] = {});
+    const cur = trim[knob.hand] ?? [0, 0, 0];
+    const next: [number, number, number] = [cur[0]!, cur[1]!, cur[2]!];
+    next[knob.axis] = v;
+    trim[knob.hand] = next;
+    return;
+  }
+  const e = easeEntry(a);
+  switch (knob.key) {
+    case 'pitch': e.pitch = v; break;
+    case 'roll': e.roll = v; break;
+    case 'turn': e.turn = v; break;
+    case 'drop': e.drop = v; break;
+    case 'back': e.back = v; break;
+    case 'across': e.across = v; break;
+    case 'hands0': e.hands = [v, e.hands[1]]; break;
+    case 'hands1': e.hands = [e.hands[0], v]; break;
+  }
+}
+
+/** Knob by knob rather than by structural comparison: key order differs. */
+function easeEdited(a: Archetype): boolean {
+  const cur = AT_EASE[a];
+  const src = SOURCE_AT_EASE[a];
+  if (!cur && !src) return false;
+  return EASE_KNOBS.some((k) => k.kind === 'ease'
+    && Math.abs(easeValue(cur, k.key) - easeValue(src, k.key)) > 1e-9);
+}
+
+function trimEdited(a: Archetype): boolean {
+  const trim = REST_TRIM[a];
+  if (!trim) return false;
+  return (['left-hand', 'right-hand', 'bow'] as const)
+    .some((h) => (trim[h] ?? []).some((v) => Math.abs(v) > 1e-9));
+}
+
+function tuned(): Archetype[] {
+  const seen = new Set<Archetype>([
+    ...Object.keys(AT_EASE), ...Object.keys(SOURCE_AT_EASE), ...Object.keys(REST_TRIM),
+  ] as Archetype[]);
+  return [...seen].filter((a) => easeEdited(a) || trimEdited(a)).sort();
+}
+
+/**
+ * What a save would write, as the file would have it.
+ *
+ * The same functions the dev server uses — see `at-ease-edit.ts` — so the box
+ * under the buttons is not a preview of the save, it is the save's own output.
+ * There is nowhere for the two to disagree.
+ */
+function tunerSource(): string {
+  const list = tuned();
+  if (!list.length) return 'Nothing edited.';
+  const ease = list.flatMap((a) => {
+    const e = AT_EASE[a];
+    return e ? [`  ${keyOf(a)}: ${easeEntrySource(e)},`] : [];
+  });
+  const trim = list.flatMap((a) => {
+    const t = REST_TRIM[a];
+    const text = t ? trimEntrySource(t) : '';
+    return text ? [`  ${keyOf(a)}: ${text},`] : [];
+  });
+  const out: string[] = [];
+  if (ease.length) out.push(`// AT_EASE — ${AT_EASE_FILE}`, ...ease);
+  if (trim.length) {
+    if (out.length) out.push('');
+    out.push(
+      `// REST_TRIM — ${AT_EASE_FILE}`,
+      '// Better applied at source, in each model\'s own rest contact.',
+      ...trim,
+    );
+  }
+  return out.join('\n');
+}
+
+/** Everything edited, as the save route wants it. See `at-ease-edit.ts`. */
+function tuningBody(): Tuning {
+  const body: Tuning = { atEase: {}, restTrim: {} };
+  for (const a of tuned()) {
+    const e = AT_EASE[a];
+    if (e && easeEdited(a)) body.atEase[a] = e;
+    const t = REST_TRIM[a];
+    if (t && trimEdited(a)) body.restTrim[a] = t;
+  }
+  return body;
+}
+
+/**
+ * Write the tables, through the dev server.
+ *
+ * On success the page reloads rather than carrying on, and the stored overrides
+ * go with it: the numbers are in the file now, so a page still holding them as
+ * *overrides* would show the same pose and lie about where it came from — the
+ * head would say `edited, not in source` about a table that is exactly the
+ * source. A reload is also the only honest confirmation available, since what
+ * comes back up is read from the file that was just written.
+ */
+async function saveTables(): Promise<void> {
+  const list = tuned();
+  if (!list.length) {
+    tunerOut.textContent = 'Nothing edited.';
+    tunerOut.hidden = false;
+    return;
+  }
+  tunerOut.textContent = `saving ${list.length}…`;
+  tunerOut.hidden = false;
+  try {
+    const res = await fetch(SAVE_ROUTE, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(tuningBody()),
+    });
+    const answer = await res.json() as { ok?: boolean; error?: string };
+    if (!res.ok || !answer.ok) throw new Error(answer.error ?? `HTTP ${res.status}`);
+    localStorage.removeItem(STORE_KEY);
+    location.reload();
+  } catch (e) {
+    tunerOut.textContent = [
+      `Could not save: ${String(e)}`,
+      '',
+      'The route is the dev server\'s and exists only under `npm run dev`.',
+      'Paste this instead:',
+      '',
+      tunerSource(),
+    ].join('\n');
+  }
+}
+
+const STORE_KEY = 'models.idle-tuning';
+
+function saveTuning(): void {
+  const state = {
+    atEase: {} as Record<string, AtEasePose>,
+    restTrim: {} as Record<string, RestTrim>,
+  };
+  for (const a of tuned()) {
+    const e = AT_EASE[a];
+    if (e && easeEdited(a)) state.atEase[a] = e;
+    const t = REST_TRIM[a];
+    if (t && trimEdited(a)) state.restTrim[a] = t;
+  }
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify(state));
+  } catch { /* a page that cannot write its scratch pad still tunes. */ }
+}
+
+function restoreTuning(): void {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (!raw) return;
+    const state = JSON.parse(raw) as {
+      atEase?: Record<string, AtEasePose>; restTrim?: Record<string, RestTrim>;
+    };
+    Object.assign(AT_EASE, state.atEase ?? {});
+    Object.assign(REST_TRIM, state.restTrim ?? {});
+  } catch { /* and one that cannot read it starts clean rather than not at all. */ }
+}
+
+function resetTuning(only?: Archetype): void {
+  for (const a of only ? [only] : tuned()) {
+    const src = SOURCE_AT_EASE[a];
+    if (src) AT_EASE[a] = JSON.parse(JSON.stringify(src)) as AtEasePose;
+    else delete AT_EASE[a];
+    delete REST_TRIM[a];
+  }
+  saveTuning();
+  drawTuner();
+}
+
+/**
+ * The head alone.
+ *
+ * Its own function because a slider must be able to refresh the edited count
+ * without rebuilding the panel underneath the pointer that is dragging it.
+ */
+function drawHead(subject: string): void {
+  const count = tuned().length;
+  tunerHead.innerHTML = count
+    ? `${subject} · <span class="edited">${count} archetype${count === 1 ? '' : 's'} edited, not in source</span>`
+    : subject;
+}
+
+/**
+ * Every slider's own repaint, for when something *else* moved its number.
+ *
+ * Which is the gizmo, and it is the reason these are kept rather than the rows
+ * being rebuilt: a panel replaced under a pointer that is mid-drag loses the
+ * drag. So dragging a handle repaints the numbers in place and the rows stay.
+ */
+let rowPainters: (() => void)[] = [];
+function repaintRows(): void {
+  for (const paint of rowPainters) paint();
+}
+
+/**
+ * What the gizmo can be put on, as buttons.
+ *
+ * Clicking the thing itself works and is the better gesture, and it is not
+ * enough on its own: a trumpet is four millimetres of tube on screen and the
+ * balls on its contacts are smaller than that. A list also answers the question
+ * a viewport cannot, which is *what is there to edit here* — a drum kit has two
+ * hands and no instrument pose, and nothing about the picture says so.
+ */
+function drawPicker(item: Exhibit | undefined): void {
+  const picker = document.getElementById('tunerPick')!;
+  picker.replaceChildren();
+  if (!item?.model) return;
+  const options: [string, Selection | undefined][] = [];
+  if (item.easeNode) options.push(['instrument', { kind: 'instrument' }]);
+  if (specFor(item.model.archetype).hands > 0) {
+    options.push(['left hand', { kind: 'hand', index: 0 }]);
+    options.push([item.usesBow ? 'bow hand' : 'right hand', { kind: 'hand', index: 1 }]);
+  }
+  options.push(['none', undefined]);
+  for (const [label, target] of options) {
+    const button = document.createElement('button');
+    button.textContent = label;
+    const on = target === undefined
+      ? selected === undefined
+      : target.kind === 'instrument'
+        ? selected?.kind === 'instrument'
+        : selected?.kind === 'hand' && selected.index === target.index;
+    button.classList.toggle('on', on);
+    button.onclick = () => select(target);
+    picker.append(button);
+  }
+}
+
+/** What the keys do, once there is something for them to do it to. */
+function drawHint(): void {
+  const hint = document.getElementById('tunerHint')!;
+  hint.textContent = selected
+    ? 'drag the handles · F frames it · G moves, R turns · Esc clears'
+    : 'pick one above, or click it on the model';
+}
+
+function drawTuner(): void {
+  if (tuner.hidden) return;
+  tunerRows.replaceChildren();
+  rowPainters = [];
+  const item = tunedItem();
+  drawPicker(item);
+  drawHint();
+  const model = item?.model;
+
+  if (!model || !item?.rig) {
+    drawHead(live.length === 1 ? 'no performer — turn one on' : 'pick one exhibit');
+    return;
+  }
+  const a = model.archetype;
+  const spec = specFor(a);
+  drawHead(`<b>${a}</b> — keyed by archetype, so every exhibit of one shares these`);
+
+  const section = (title: string): void => {
+    const h = document.createElement('h4');
+    h.textContent = title;
+    tunerRows.append(h);
+  };
+  const add = (knob: Knob): void => {
+    const min = knob.kind === 'ease' ? knob.min : -TRIM_REACH;
+    const max = knob.kind === 'ease' ? knob.max : TRIM_REACH;
+    const step = knob.kind === 'ease' ? knob.step : TRIM_STEP;
+    const row = document.createElement('label');
+    row.className = 'row';
+    const name = document.createElement('span');
+    name.textContent = knob.label;
+    const slider = document.createElement('input');
+    slider.type = 'range';
+    slider.min = String(min);
+    slider.max = String(max);
+    slider.step = String(step);
+    const shown = document.createElement('b');
+    const digits = step < 0.005 ? 3 : 2;
+    const paint = (): void => {
+      const v = readKnob(a, knob);
+      slider.value = String(v);
+      shown.textContent = v.toFixed(digits);
+      row.classList.toggle('moved', Math.abs(v) > 1e-9);
+    };
+    slider.oninput = () => {
+      writeKnob(a, knob, Number(slider.value));
+      paint();
+      saveTuning();
+      // The head carries the edited count, and this may be the edit that
+      // changed it. The model itself redraws on the next frame by itself.
+      drawHead(`<b>${a}</b> — keyed by archetype, so every exhibit of one shares these`);
+    };
+    paint();
+    rowPainters.push(paint);
+    row.append(name, slider, shown);
+    tunerRows.append(row);
+  };
+
+  if (spec.held) {
+    section('at ease — where the instrument goes');
+    EASE_KNOBS.forEach(add);
+  } else {
+    section('at ease');
+    const note = document.createElement('div');
+    note.className = 'note';
+    note.textContent = 'Stands on the floor — nothing to lower. '
+      + 'The hands still stand down, to the hips and out of the case.';
+    tunerRows.append(note);
+  }
+
+  if (spec.hands > 0) {
+    for (const hand of ['left-hand', item.usesBow ? 'bow' : 'right-hand'] as const) {
+      // A model that answers nothing for this hand has nothing to trim, and a
+      // slider that moves a number nobody reads is worse than no slider.
+      if (!model.resolve(REST, hand)) continue;
+      section(`rest trim — ${hand}`);
+      trimKnobs(hand).forEach(add);
+    }
+  }
+}
+
+tuneButton.onclick = () => {
+  tuner.hidden = !tuner.hidden;
+  tuneButton.classList.toggle('on', !tuner.hidden);
+  tunerOut.hidden = true;
+  if (tuner.hidden) select(undefined);
+  drawTuner();
+};
+document.getElementById('tunerSave')!.onclick = () => void saveTables();
+document.getElementById('tunerCopy')!.onclick = () => {
+  const text = tunerSource();
+  tunerOut.textContent = text;
+  tunerOut.hidden = false;
+  void navigator.clipboard?.writeText(text).catch(() => {});
+};
+document.getElementById('tunerReset')!.onclick = () => {
+  const a = tunedItem()?.model?.archetype;
+  if (a) resetTuning(a);
+};
+document.getElementById('tunerClear')!.onclick = () => resetTuning();
+setGizmoMode(gizmoMode);
+
 let dragging = false;
 let yaw = 0;
 let pitch = 0.15;
-canvas.addEventListener('pointerdown', (e) => { dragging = true; canvas.setPointerCapture(e.pointerId); });
-canvas.addEventListener('pointerup', () => { dragging = false; });
+/** How far the pointer travelled while down, so a click is not a small orbit. */
+let travelled = 0;
+/** A click has to be a click. Below this, it selects; above, it turned the view. */
+const CLICK_SLOP = 4;
+
+canvas.addEventListener('pointerdown', (e) => {
+  // `gizmo.axis` is set while the pointer is over one of its handles, which is
+  // the cheapest honest test for "the gizmo is about to take this".
+  if (gizmo.axis) return;
+  travelled = 0;
+  dragging = true;
+  canvas.setPointerCapture(e.pointerId);
+});
+canvas.addEventListener('pointerup', (e) => {
+  const wasDragging = dragging;
+  dragging = false;
+  if (wasDragging && travelled <= CLICK_SLOP) pickAt(e);
+});
 canvas.addEventListener('pointermove', (e) => {
   if (!dragging) return;
+  travelled += Math.abs(e.movementX) + Math.abs(e.movementY);
+  if (travelled <= CLICK_SLOP) return;
   yaw -= e.movementX * 0.006;
   pitch = Math.max(-0.4, Math.min(1.2, pitch + e.movementY * 0.004));
 });
@@ -779,8 +1820,21 @@ canvas.addEventListener('wheel', (e) => {
   zoom = Math.max(0.3, Math.min(3, zoom * Math.exp(e.deltaY * 0.0012)));
 }, { passive: false });
 window.addEventListener('keydown', (e) => {
+  // A slider has the arrow keys while it has the focus, and taking them would
+  // switch exhibits out from under somebody nudging a number by a hundredth.
+  if (e.target instanceof HTMLInputElement) return;
   if (e.key === 'ArrowRight') (document.getElementById('next') as HTMLButtonElement).click();
   if (e.key === 'ArrowLeft') (document.getElementById('prev') as HTMLButtonElement).click();
+  if (e.key === 'f' || e.key === 'F') {
+    // Frames what is selected, and only what is selected: there is nothing to
+    // focus on otherwise, and resetting the camera would be a different key.
+    if (!selected) return;
+    focused = true;
+    zoom = 0.45;
+  }
+  if (e.key === 'g' || e.key === 'G') setGizmoMode('translate');
+  if (e.key === 'r' || e.key === 'R') setGizmoMode('rotate');
+  if (e.key === 'Escape') { focused = false; zoom = 1; select(undefined); }
 });
 
 function resize(): void {
@@ -799,14 +1853,10 @@ let last = performance.now();
 function frame(now: number): void {
   const dt = Math.min((now - last) / 1000, 0.1);
   last = now;
-  if (spinning.checked && !dragging) spin += dt * 0.35;
+  // The turntable stops for a selection. A gizmo is a handle in a fixed place
+  // and the thing it is attached to walking out from under it is not editing.
+  if (spinning.checked && !dragging && !selected) spin += dt * 0.35;
   stand.rotation.y = spin + yaw;
-  camera.position.set(
-    0,
-    Math.max(0.3, (mode === 'grid' ? 8 : 1.5) + pitch * 2),
-    dist * zoom,
-  );
-  camera.lookAt(0, mode === 'grid' ? 0 : 1.0, 0);
   // Models settle against the one clock in the show; here, wall time will do.
   // The rig wants the same clock in seconds, and it wants it *after* the
   // frame's `setEffector` calls — the arrangement `animate.ts` keeps.
@@ -825,9 +1875,42 @@ function frame(now: number): void {
     item.machine?.update((now / 1000) % MACHINE_BEATS_PER_BAR);
     item.rig?.update(now / 1000, dt);
   }
+
+  // After the poses, because both of these stand on where a pose put something.
+  // The gizmo's own node is left alone while it is being dragged — that is the
+  // one direction the table and the transform disagree, and `readEase` has
+  // already taken the transform's side.
+  const editable = tunedItem();
+  syncHandles(editable);
+  if (editable && !(gizmoDragging && selected?.kind === 'instrument')) {
+    syncEase(editable, pose === 'play' ? 0 : stood);
+  }
+
+  // Framed on the selection, recomputed rather than remembered: the turntable
+  // moves the whole exhibit, so a focus point frozen at the keypress would slide
+  // off the thing it was pointed at the moment anything turned.
+  const target = focusPoint(FOCUS) ?? FOCUS.set(0, mode === 'grid' ? 0 : 1.0, 0);
+  camera.position.set(
+    target.x,
+    Math.max(0.3, target.y + (mode === 'grid' ? 8 : 0.5) + pitch * 2),
+    target.z + dist * zoom,
+  );
+  camera.lookAt(target);
+
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
 
+/** What `F` framed, in world space, or nothing where the camera is at rest. */
+function focusPoint(out: Vector3): Vector3 | undefined {
+  if (!focused || !selected) return undefined;
+  if (selected.kind === 'hand') return out.copy(handles[selected.index]!.position);
+  const node = tunedItem()?.easeNode;
+  return node ? node.getWorldPosition(out) : undefined;
+}
+
+// Before the first build, so the exhibit that comes up already has whatever was
+// being dialled in when the page was last closed. See `restoreTuning`.
+restoreTuning();
 showOne();
 requestAnimationFrame(frame);
