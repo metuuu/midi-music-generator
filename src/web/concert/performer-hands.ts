@@ -302,22 +302,23 @@ export const HAND_POSES: Record<HandPoseId, HandPose> = {
    */
   wrap: { curl: [0.54, 0.58, 0.60, 0.64], tip: 0.72, spread: 0.10, thumbCurl: 0.45, thumbOut: 0.14, cup: 0.52, wrist: 0.05, touch: 1.00, tool: 0.00, align: 0.35 },
   /**
-   * Arched over a tube held sideways, thumb underneath taking the weight.
+   * Arched *up* over a tube held sideways, thumb underneath taking the weight.
    *
    * The flute, both hands — and the two hands of a flautist are famously *not*
-   * alike. The left comes from behind with the forearm supinated hard and the
-   * fingers reaching away from the player; the right stands over the tube from
-   * in front with the fingers curling back toward it. That difference is real,
-   * and it is deliberately not in this table: `flute.ts` already mirrors
-   * `Contact.along` per hand and the rig derives the finger direction from
-   * `along × normal`, so the roll arrives from the geometry. A second pose
-   * asserting the same thing could only ever disagree with it, and the field
-   * that would have to carry it — `wrist` — is a pitch and not a roll, so it
-   * could not carry it anyway.
+   * alike. They are on opposite sides of the pipe: the left in front of it with
+   * the palm turned back at the player, the right behind it with the palm turned
+   * out at the room, both reaching up and curling over the top. That difference
+   * is real, and it is deliberately not in this table: `flute.ts` mirrors both
+   * `Contact.along` and `Contact.normal` per hand and the rig derives the finger
+   * direction from `along × normal`, so the roll arrives from the geometry. A
+   * second pose asserting the same thing could only ever disagree with it, and
+   * the field that would have to carry it — `wrist` — is a pitch and not a roll,
+   * so it could not carry it anyway.
    *
    * What a flute needs from the *shape* is what both its hands share and no
-   * other instrument here does. The fingers come straight down onto a row of
-   * cups from above, so they are flatter than `wrap`'s and far flatter than
+   * other instrument here does. The fingers come up from underneath and lay
+   * their pads over the top of a row of cups, an arch across a 19 mm pipe rather
+   * than a grip on it, so they are flatter than `wrap`'s and far flatter than
    * `grip`'s; the thumbs are *under* the tube rather than opposing the fingers
    * across it, so `thumbOut` is nearly nothing; and the palm is a shallow arch
    * rather than a cup, because there is nothing to close round. A flute is

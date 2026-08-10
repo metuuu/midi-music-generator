@@ -10,9 +10,10 @@
  * mistake in this family that is visible from the back row.
  *
  * Everything else follows from the sideways hold. The player's head turns; the
- * left arm crosses the body; the fingers run *away* from the audience rather
- * than down; and the instrument catches the light along its whole length,
- * which is why it is the one wind here worth making properly silver.
+ * left arm crosses the body; both hands hang *under* the tube with the fingers
+ * reaching up and curling over it; and the instrument catches the light along
+ * its whole length, which is why it is the one wind here worth making properly
+ * silver.
  *
  * ## Which way is out
  *
@@ -118,24 +119,21 @@ const LIP_X = HALF - 0.165;
 /**
  * Swing of the far end toward the audience, and its droop.
  *
- * The swing was 0.30 and is 0.70 — 17° and 40°, and 40° is what a flautist
- * actually stands at. The old angle held the tube almost across the shoulders,
- * which put the *left* hand out past the player's right shoulder with nothing in
- * front of the chest, and left the left arm reaching it straight through the
- * ribs: at that angle there is no elbow anywhere that both bends and stays out
- * of the body. Swung forward, the two hands sit in front of the chest instead of
- * beside it, and the left arm crosses in front of the player the way an arm
- * crossing a body does. See `performer-arms.ts`, which can keep an elbow out of
- * a chest but cannot move the hand that put it there.
+ * **A flute is played square across the player, not aimed at the house.** The
+ * swing was 0.70 — 40°, a quarter-turn's worth — and it was there to pay for a
+ * mistake in the hands rather than for anything about a flute: both palms were
+ * being laid on *top* of the tube, which parks two forearms and two elbows in
+ * the chest unless the whole instrument is swung out of the way first. The hands
+ * hang under the tube now, where they belong, and the swing has nothing left to
+ * buy. See `contactAt`.
  *
- * It does not go further, and the reason is this file's own first paragraph: a
- * flute is the one *horizontal* in the wind section, and past about 50° it stops
- * running across the frame and starts pointing at the camera. Left arm and
- * silhouette are traded against each other here, and the silhouette wins the
- * last 10° — the left arm on a low note still reaches nearly straight across the
- * chest, which is the honest cost.
+ * 0.24 is 14°, which is the few degrees of forward angle a flautist really does
+ * carry — enough that the foot joint clears the right shoulder and the crown
+ * stays out of the player's own cheek — and it leaves the tube reading as what
+ * this file's first paragraph says it is: the one horizontal in the wind
+ * section, running across the frame rather than pointing at the camera.
  */
-const SWING = 0.70;
+const SWING = 0.24;
 const DROOP = 0.14;
 /** Keys run between these x, from just past the head joint out to the foot. */
 const FIRST_KEY_X = 0.02;
@@ -265,26 +263,48 @@ export const buildFlute: InstrumentBuilder = (opts: InstrumentBuildOptions): Ins
    * pipe.
    */
   /**
-   * ## The two hands are rolled opposite ways, and that is a flute
+   * ## Nobody plays a flute from above
    *
-   * Everything above the keys is symmetric — one tube, one row of cups — so it
-   * is easy to give both hands one answer and separate them along the tube.
-   * That was this, and it makes a flautist look like someone carrying a tray:
-   * the rig derives the fingers from `along × normal`, so one `along` points
-   * both sets of fingers the same way over the tube and puts both wrists on the
-   * same side of it.
+   * Everything here was written as if the tube were a keyboard: `normal` was
+   * `+y`, so both palms lay on top of the pipe with the fingers hanging *down*
+   * the far side of it. That is a hand on a piano, moved sideways. On a flute
+   * **both hands hang underneath and the fingers point up**, arching over the
+   * tube so the pads come down on the cups from the near side — which is why a
+   * flautist's knuckles are the part of them an audience sees and why the wrists
+   * sit a hand's depth below the instrument, not on it.
    *
-   * A flute is the one instrument in this family where that asymmetry is
-   * unmistakable from the stalls. The **left** hand comes from behind — thumb
-   * on the B key at the back, fingers arching over the top and pointing away
-   * from the player, forearm tucked in and supinated. The **right** hand comes
-   * from in front and below — thumb underneath, fingers curling back over the
-   * top toward the player, elbow up and out. Two hands doing visibly opposite
-   * things to one tube.
+   * ## Which side of the tube each hand is on
    *
-   * `side` is `+1` for the left hand and `−1` for the right, which is also the
-   * end of the tube each one lives on: local `+x` is the crown, where the left
-   * hand is, and `−x` the foot.
+   * Not the same side, and the difference is the whole of how a flute is held
+   * up. It balances on three points — the chin against the lip plate pushing
+   * *out*, the base of the left index finger pushing *back*, and the right thumb
+   * underneath — so the two hands come at the tube from opposite sides:
+   *
+   *  - **Left**, at the crown end: in front of the tube, on the audience's side
+   *    of it. Palm turned back toward the player, fingers reaching up and
+   *    curling *toward* the player over the top, thumb reaching under and round
+   *    to the B key at the back. This is the hand the flute leans on, and the
+   *    bent wrist that costs is the most recognisable thing about a flautist.
+   *  - **Right**, at the foot: behind the tube, on the player's side. Palm
+   *    turned out at the room, fingers up and curling *away* over the top, thumb
+   *    under the pipe holding it out against the chin.
+   *
+   * `side` is `+1` for the left hand and `−1` for the right, and it signs both
+   * vectors below, so the two hands are one mirror pair about the tube's axis.
+   *
+   * ## Reading the two vectors
+   *
+   * The rig takes `normal` as the **back** of the hand and lays the knuckle line
+   * along `along`; the fingers come out of the pair as `along × normal`, and the
+   * palm faces `−normal`. So neither of these is written in the direction it
+   * reads — a palm turned toward the player is a `normal` pointing away from
+   * them, and the fingers point up because the two vectors are both horizontal.
+   * Local `+z` is out toward the audience, local `−x` is the foot.
+   *
+   * The small `−y` in `normal` is the last of it: it tips each palm a few
+   * degrees up toward the pipe it is under, which is what puts the knuckles a
+   * finger's width to their own side of the tube instead of directly beneath it,
+   * and so what makes the fingers *arch* rather than stand straight up.
    */
   const HAND = 0.032;
 
@@ -292,27 +312,15 @@ export const buildFlute: InstrumentBuilder = (opts: InstrumentBuildOptions): Ins
     return {
       position: new Vector3(stationX[station]! + side * HAND, 0.017, -0.004)
         .applyMatrix4(fluteMatrix),
-      // Down onto the keys from above, and then leaned — which is the roll
-      // difference between the two hands made into a place to put a palm.
-      //
-      // **The sign is the back of the hand, not the palm.** `normal` is where
-      // the hand comes *from*; the palm faces the other way, so a lean written
-      // here turns the palm the opposite way round. Both hands had it backwards
-      // and both were 180° out on the axis an audience reads first: the left
-      // palm faced out at the room and the right faced back at the player, when
-      // a flautist's left palm turns *toward* their own chest — the tube rests
-      // in the crook at the base of that index finger — and the right hand
-      // arrives from in front and below with its palm turned out.
-      //
-      // Local +z is out toward the audience once `SWING` has been applied, so
-      // the left hand's `+` leans its palm back at the player and the right
-      // hand's `−` turns its palm away. The left is the larger of the two
-      // because a flautist's left forearm really is supinated the harder.
-      normal: new Vector3(0, 1, side > 0 ? 0.42 : -0.30).normalize()
+      normal: new Vector3(0, -0.09, side).normalize()
         .transformDirection(fluteMatrix),
-      // The keys run the length of the tube, so the knuckles do too — and the
-      // sign is what rolls the hand onto its own side. See above.
-      along: new Vector3(side, 0, 0).transformDirection(fluteMatrix),
+      // Knuckles across the tube, index toward the crown on both hands — which
+      // is the order `fingersOnStack` hands out, the index taking the topmost
+      // station of the pair's block. The rig seats the index next to the thumb
+      // at local `−x` on a left hand and `+x` on a right, so the sign is `−side`
+      // for both and not the `side` it read before: the two hands were each
+      // fingering their own block backwards, little finger up at the crown.
+      along: new Vector3(-side, 0, 0).transformDirection(fluteMatrix),
     };
   }
   const rightContacts: Contact[] = stationX.map((_, i) => contactAt(i, -1));
