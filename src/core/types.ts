@@ -1587,6 +1587,33 @@ export function canVary(source: DrumSource): boolean {
 }
 
 /**
+ * Whether a machine may make the percussion at all. Off, for now.
+ *
+ * `box` and `programmed` are the two sources with nobody behind them, and a
+ * stage carrying one is worse to look at than the same number with a drummer
+ * playing it: the machine is a small case on a stand at the edge of somebody's
+ * keyboard, and the whole apparatus that gives it an owner — the tender, the
+ * stand, the reach across to the start switch — buys an explanation for an
+ * object that was never worth explaining. A drummer is. So the two machine
+ * sources are struck from the draw and every number gets hands on the kit.
+ *
+ * **Struck at the draw, not out of the catalogue.** `DrumSource` keeps all four
+ * values; every era table keeps its `drumSources` weights exactly as written;
+ * `canVary`, `placeMachines` in `concert/cast.ts` and the model in
+ * `web/concert/instruments/drum-machine.ts` are all still here and all still
+ * correct. Flipping this to `true` puts the machines back with no other edit,
+ * which is the point of gating one funnel rather than pruning twenty tables.
+ *
+ * `electronic-kit` is unaffected and that is not an oversight: a Simmons is
+ * pads a drummer hits, `isPlayedByHand` says so, and there is a person behind
+ * them. This gate is about the empty stage, not the electronic sound.
+ *
+ * A sequencer running a *pitched* figure is a different object with a different
+ * gate — see `SEQUENCER_FROM` and `Era.sequenced` — and is left alone.
+ */
+export const DRUM_MACHINES = false;
+
+/**
  * The sources an era may actually draw from, weighted, after the year gate.
  *
  * Returns the list rather than the answer so the draw itself happens in
@@ -1594,16 +1621,18 @@ export function canVary(source: DrumSource): boolean {
  * one place a seed can be traced through.
  *
  * An era that names no sources gets a kit, and so does one whose entire table
- * was gated away. Both fallbacks are deliberate: a kit is what every song in
- * this project staged before this field existed, so the quiet answer is also the
- * backwards-compatible one.
+ * was gated away — by the year, or by `DRUM_MACHINES` being off, which is what
+ * empties an all-machine table like ambient's sampler era. Both fallbacks are
+ * deliberate: a kit is what every song in this project staged before this field
+ * existed, so the quiet answer is also the backwards-compatible one.
  */
 export function eligibleDrumSources(
   year: number,
   weights: readonly (readonly [DrumSource, number])[] | undefined,
 ): (readonly [DrumSource, number])[] {
   const open = (weights ?? []).filter(
-    ([source, weight]) => weight > 0 && year >= DRUM_SOURCE_FROM[source],
+    ([source, weight]) => weight > 0 && year >= DRUM_SOURCE_FROM[source]
+      && (DRUM_MACHINES || isPlayedByHand(source)),
   );
   return open.length ? open : [['kit', 1] as const];
 }

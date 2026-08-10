@@ -1545,10 +1545,25 @@ check('visemes exist exactly when there is a voice', visemeGaps === 0,
  * Two rules, and they are one decision seen twice rather than two that have to
  * be kept in step. Back centre is the drum riser — 2.8 m wide, and the
  * drummer's box is `locked` so nothing will ever move it — so a modular may
- * only take the centre when the riser is empty, which is exactly when the
- * percussion source came back a machine. And two of them flank rather than
- * pile up, because two objects this size on one side of a stage means one of
- * them is behind the other.
+ * only take the centre when the riser is empty. And two of them flank rather
+ * than pile up, because two objects this size on one side of a stage means one
+ * of them is behind the other.
+ *
+ * **"The riser is empty" is asked of the riser, not of the cast list**, and the
+ * difference is not pedantry — it is two genres wide. The obvious phrasing is
+ * *is anybody on the drums layer*, and it agreed with this one for as long as a
+ * drummerless stage was the only way to empty the riser. Two things make it
+ * disagree. `stageAmbient` sets `riser = 0` on every player it stages including
+ * a kit, on the grounds that nothing in that room is elevated — so an ambient
+ * drummer stands on the boards in the scatter and back centre is as free as it
+ * ever was. And a hand percussionist carries `role: 'kit'` while standing
+ * *beside* the platform, which is `stageBand`'s own distinction. Asking the
+ * cast list counts both as an occupied riser and fails a stage picture that is
+ * correct.
+ *
+ * The failure it hid until `DRUM_MACHINES` went off is the one worth recording:
+ * ambient's modular numbers had drawn a machine every time, so the coarse
+ * question and the exact one never came apart in the corpus.
  */
 {
   const CENTRE = 0.9;
@@ -1564,7 +1579,9 @@ check('visemes exist exactly when there is a voice', visemeGaps === 0,
       for (const number of concert.numbers) {
         const walls = number.cast.performers.filter((p) => p.rig === 'modular');
         if (!walls.length) continue;
-        const drummer = number.cast.performers.some((p) => p.layer === 'drums');
+        const drummer = number.cast.performers.some(
+          (p) => p.layer === 'drums' && p.station.riser > 0,
+        );
         const xs = walls.map((p) => p.station.position[0]);
         if (walls.length >= 2) {
           flanking++;

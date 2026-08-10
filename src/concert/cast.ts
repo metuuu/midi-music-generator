@@ -1862,10 +1862,16 @@ function layoutFrontLine(
  * **One of them takes the centre — but only if the riser is empty.** Back centre
  * is the drum riser: 2.8 m wide, and the drummer's box is `locked` so the solver
  * will never move it. So the centre is available exactly when there is no
- * drummer, which is exactly when the percussion source came back a machine. One
- * player, a wall of cabinets dead centre, and a rhythm box running: that is the
- * Jarre photograph, and it falls out of a decision that was already made rather
- * than being a rule that has to be kept in step with one.
+ * drummer, and it falls out of a decision that was already made rather than
+ * being a rule that has to be kept in step with one.
+ *
+ * That used to read *which is exactly when the percussion source came back a
+ * machine* — one player, a wall of cabinets dead centre, and a rhythm box
+ * running, the Jarre photograph. `DRUM_MACHINES` is off, so on a band stage
+ * there is now always a drummer and this branch is reached only by a number
+ * with no percussion at all. The rule is unchanged and so is the code; what has
+ * gone is the case that made it common. Turning the machines back on brings the
+ * photograph back with them.
  *
  * Where there is a drummer and only one wall, it takes a side. Half a stage
  * picture is better than a modular growing out of a drum riser.

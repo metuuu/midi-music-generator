@@ -25,7 +25,7 @@ import { chordPcs, parseRoman, CHORD_INTERVALS, type Chord, type ChordQuality } 
 import { makeScale } from './core/scale.js';
 import { pc } from './core/pitch.js';
 import {
-  canVary, isPlayedByHand, melodicLine, type DrumVoice, type PlayedLayer, type Song,
+  DRUM_MACHINES, canVary, isPlayedByHand, melodicLine, type DrumVoice, type PlayedLayer, type Song,
 } from './core/types.js';
 import { STATION_OF, drumStations } from './concert/instruments.js';
 import { Rng } from './core/rng.js';
@@ -43,6 +43,31 @@ const check = (label: string, pass: boolean, detail: string) => {
   console.log(`  ${pass ? 'ok  ' : 'FAIL'}  ${label.padEnd(42)} ${detail}`);
   if (!pass) problems.push(label);
 };
+
+/**
+ * A check whose subject is switched off — reported, and counted as neither.
+ *
+ * Every box check below ends in a clause like `boxes > 0`, and that clause is
+ * the rule this whole file is built on: a sample of nothing must never read as
+ * a pass. `DRUM_MACHINES` is off, so four of them have no sample to have, and
+ * both of the two available answers are lies — a red tick for a fault nobody
+ * introduced, or a green one for evidence nobody gathered. This is the third
+ * answer: the check is named, its subject is named as absent, and the run's
+ * exit status does not move either way.
+ *
+ * **It is spelled `off` and not `skip` because of what may be passed to it.**
+ * The argument is a *reason the subject cannot occur*, never a result — the
+ * assertion is deleted from this run, not evaluated leniently. So an empty box
+ * sample with the machines back **on** is still a `FAIL`, which is the bug this
+ * state exists not to swallow: the four checks come back the moment the flag
+ * does, with their teeth, and nothing has to be remembered to bring them.
+ */
+const off = (label: string, reason: string) => {
+  console.log(`  off   ${label.padEnd(42)} ${reason}`);
+};
+
+/** Why the box checks have nothing to look at. One sentence, said four times. */
+const NO_BOXES = 'no preset box is drawn — DRUM_MACHINES is off';
 
 /**
  * Note-ons arriving on a pitched key that is already sounding, read back out of
@@ -1025,11 +1050,14 @@ const levelByBar = (events: readonly Timed[], beatsPerBar: number) => {
     }
   }
   style.feels = table;
-  check(
-    'a box does not groove',
-    moved === 0 && felt > 0,
-    `${moved} kit events altered over ${boxed} preset-box songs across ${Object.keys(FEELS).length} feels`,
-  );
+  if (!DRUM_MACHINES) off('a box does not groove', NO_BOXES);
+  else {
+    check(
+      'a box does not groove',
+      moved === 0 && felt > 0,
+      `${moved} kit events altered over ${boxed} preset-box songs across ${Object.keys(FEELS).length} feels`,
+    );
+  }
 }
 
 {
@@ -2591,11 +2619,14 @@ console.log("\nThe drummer's hand");
       if (new Set(sets).size > 1) varying++;
     }
   }
-  check(
-    'a box keeps one hand on one button',
-    varying === 0 && boxes > 0,
-    `${varying} of ${boxes} preset-box songs changed kit voices between sections`,
-  );
+  if (!DRUM_MACHINES) off('a box keeps one hand on one button', NO_BOXES);
+  else {
+    check(
+      'a box keeps one hand on one button',
+      varying === 0 && boxes > 0,
+      `${varying} of ${boxes} preset-box songs changed kit voices between sections`,
+    );
+  }
 
   /**
    * …and nobody's hand is ever asked to retrigger.
@@ -2657,14 +2688,29 @@ console.log("\nThe drummer's hand");
       if (here > 0) rollingStyles++;
     }
   }
-  check(
-    'no hand is asked to play a roll',
-    byHand === 0 && rolled > 0,
-    byHand
-      ? `${byHand} rolled strokes reached a drummer over ${handSongs} hand-played songs`
-      : `${rolled} rolled strokes across ${rollingStyles} styles, 0 on the ${handSongs}`
-        + ' drawn with a person behind the kit',
-  );
+  /**
+   * Off with the boxes, because a roll is only ever written for one of them.
+   *
+   * This one reads as a check about hands and is not: `rolls` is handed to
+   * `drumEvents` under `opts.programmed` and nowhere else — see `generate/
+   * parts.ts` — so with the machines off the corpus holds no rolled stroke at
+   * all and `byHand === 0` is true of nothing. That is the `rolled > 0` clause
+   * doing exactly its job, and the reason it is stated as `off` rather than
+   * loosened: the assertion is worth keeping whole for the day a hand-played
+   * source can roll, and a green tick now would be the thing that quietly
+   * retires it.
+   */
+  if (!DRUM_MACHINES) off('no hand is asked to play a roll', 'no roll is written — DRUM_MACHINES is off');
+  else {
+    check(
+      'no hand is asked to play a roll',
+      byHand === 0 && rolled > 0,
+      byHand
+        ? `${byHand} rolled strokes reached a drummer over ${handSongs} hand-played songs`
+        : `${rolled} rolled strokes across ${rollingStyles} styles, 0 on the ${handSongs}`
+          + ' drawn with a person behind the kit',
+    );
+  }
 }
 
 // --- Transitions -----------------------------------------------------------
@@ -3145,11 +3191,14 @@ console.log('\nTransitions');
       ? `${silentBreaks} break bars with nothing sounding in them — ${holes.join(', ')}`
       : `${alone} of ${breaks} break bars carried by one voice with the kit out, ${untouched} left alone as too thin to break`,
   );
-  check(
-    'a preset box only ever fills',
-    boxSongs > 0 && boxGestures === 0 && handSongs > 0,
-    `${boxGestures} band figures across ${boxSongs} box songs, against ${handSongs} played ones that got at least one`,
-  );
+  if (!DRUM_MACHINES) off('a preset box only ever fills', NO_BOXES);
+  else {
+    check(
+      'a preset box only ever fills',
+      boxSongs > 0 && boxGestures === 0 && handSongs > 0,
+      `${boxGestures} band figures across ${boxSongs} box songs, against ${handSongs} played ones that got at least one`,
+    );
+  }
 }
 
 // --- Drum banks ------------------------------------------------------------
