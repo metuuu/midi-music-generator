@@ -705,8 +705,9 @@ shot on a stage this detailed wastes everything built for it.
 An automatic director cutting on musical boundaries: wide for the head, push in on the
 soloist for a solo chorus, a low shot on the kit for a drum fill or a traded four, back
 to wide for the last chorus. Cuts land on section boundaries and downbeats, never
-mid-phrase. Held shots, not constant motion. A manual override — drag to orbit — that
-returns to the director after a few seconds of no input.
+mid-phrase. Held shots, not constant motion. A manual override — drag to orbit — that the
+director takes back on its next cut, not on a timer: the viewer keeps the angle they
+chose until the picture was going to change anyway.
 
 The rule that keeps it from being nauseating: **cut, don't fly.** Two or three fixed
 camera positions per stage plus a slow push is more convincing than any amount of

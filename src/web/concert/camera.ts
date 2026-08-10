@@ -79,14 +79,11 @@ export interface CameraDirector {
   setSubjects(subjects: Map<string, Object3D>): void;
   /** One call per frame, with the beat from the one clock. */
   update(beat: number, dt: number): void;
-  /** Drag to orbit. Hands control to the viewer until they stop. */
+  /** Drag to orbit. Hands control to the viewer until the next cut. */
   orbit(dx: number, dy: number): void;
   /** The planned list, for verification and for the record. */
   shots(): readonly Shot[];
 }
-
-/** Seconds of no input before the director takes the camera back. */
-const HANDBACK_SECONDS = 4;
 
 /**
  * How high above a performer's feet a shot is aimed, in metres.
@@ -219,9 +216,26 @@ export function createDirector(reducedMotion = false): CameraDirector {
   /** Beats into the current shot, for the push. */
   let held = 0;
 
-  // Viewer control. `orbitFor` counts down; while it is positive the director
-  // keeps its hands off.
-  let orbitFor = 0;
+  /**
+   * Viewer control. While it is set the director keeps its hands off, and the
+   * *cut* is what takes the camera back.
+   *
+   * It used to be a four-second timer, which is the obvious rule and the wrong
+   * one. Letting go of a camera is not a request to have it taken away: a
+   * viewer who has swung round to watch the drummer's left hand is watching the
+   * drummer's left hand, and four seconds later the picture slid off it for no
+   * reason they could see, in the middle of a shot nothing else about the show
+   * had finished with. The complaint that reads as *the camera keeps snapping
+   * back* is that timer and nothing else.
+   *
+   * So the handback happens at the moment the camera was going to move anyway.
+   * The director gets it back on its next cut — a boundary the viewer can hear
+   * coming, because it lands on the music — and until then the angle is
+   * theirs. `begin` counts as one: a new number is a new shot list, and holding
+   * a drag across the end of a piece would be holding it across a cut nobody
+   * planned.
+   */
+  let viewerHas = false;
   let yaw = 0;
   let pitch = 0;
   /** How far the lens has opened to pay for a walk-in. 1 is the framing's own. */
@@ -389,9 +403,30 @@ export function createDirector(reducedMotion = false): CameraDirector {
     return Math.min(2.3 + Math.min(d * 0.11, 1.3), ceiling());
   }
 
-  /** The highest the lens may go in this room. See `wideEye`. */
+  /**
+   * The highest the lens may go in this room. See `wideEye`.
+   *
+   * **Both lids, not just `headroom`.** That field is documented as the worse
+   * of the two so that one number can answer for the whole room, and it is —
+   * in every room where the *stage* is the enclosed half. The shape it cannot
+   * describe is the opposite one: a theatre with a fly tower over the boards
+   * and plaster over the audience publishes `Infinity` overhead, honestly,
+   * because there genuinely is nothing above the band to hang from or duck
+   * under — and a lens solved against that alone walks up through the house
+   * ceiling the moment it stands in the house, which is where every wide shot
+   * stands. `ballroom.ts` names this as its one honest defect and says it
+   * cannot be fixed from there because nothing reads `houseLid` for a lens.
+   * This is that consumer.
+   *
+   * It changes no room that was already right: everywhere else the pair is
+   * either equal or `headroom` is the lower, so the `min` picks what was
+   * picked before.
+   */
   function ceiling(): number {
-    return (metrics?.headroom ?? Infinity) - LENS_GAP;
+    return Math.min(
+      metrics?.headroom ?? Infinity,
+      metrics?.houseLid ?? Infinity,
+    ) - LENS_GAP;
   }
 
   /**
@@ -683,7 +718,7 @@ export function createDirector(reducedMotion = false): CameraDirector {
       plan = planShots(song, cast, solos, seed, reducedMotion);
       index = -1;
       held = 0;
-      orbitFor = 0;
+      viewerHas = false;
       yaw = 0;
       pitch = 0;
       lens = 1;
@@ -714,14 +749,33 @@ export function createDirector(reducedMotion = false): CameraDirector {
     },
 
     update(beat, dt) {
-      if (orbitFor > 0) orbitFor -= dt;
-
       // Advance to the last shot whose cut has passed. A loop rather than a
       // single step so that a dropped frame or a seek cannot leave the camera
       // one shot behind for the rest of the number.
       let next = index;
       while (next + 1 < plan.length && plan[next + 1]!.beat <= beat) next++;
-      if (next !== index) { index = next; held = 0; }
+      /**
+       * The cut is also the handback, and a handback has to be a cut.
+       *
+       * A drag can leave the lens anywhere in the building — behind the band,
+       * down among the tables, a metre off a side wall — and the ordinary
+       * between-shot easing would then spend a second crossing the room to get
+       * back to the director's framing. That is the flight this whole file
+       * refuses, arriving by the one route nobody had closed. So the frame the
+       * viewer's angle is given up on snaps, whatever else is going on: it is
+       * the one moment the picture is *meant* to change discontinuously.
+       */
+      const handback = next !== index && viewerHas;
+      if (next !== index) {
+        index = next;
+        held = 0;
+        // And the angle goes back to neutral with the camera. Leaving it where
+        // the drag left it means the next nudge of the mouse teleports the lens
+        // back to a position the viewer abandoned two shots ago.
+        viewerHas = false;
+        yaw = 0;
+        pitch = 0;
+      }
 
       const shot = plan[Math.max(index, 0)];
       if (!shot) return;
@@ -732,8 +786,8 @@ export function createDirector(reducedMotion = false): CameraDirector {
       place(shot, held);
 
       let squeeze = 1;
-      if (orbitFor > 0) {
-        // Viewer has the camera. Orbit the *current* focus so letting go does
+      if (viewerHas) {
+        // Viewer has the camera. Orbit the *current* focus so the handback does
         // not snap somewhere unrelated.
         const r = wanted.distanceTo(wantedFocus);
         ray.set(
@@ -781,8 +835,11 @@ export function createDirector(reducedMotion = false): CameraDirector {
        * not to do. Everything after that frame is a slow lerp, which is what
        * makes the push read as a camera operator leaning in rather than as a
        * dolly on rails.
+       *
+       * `handback` is the second frame that has to snap, and for the stronger
+       * version of the same reason: see where it is set.
        */
-      const k = held === 0 ? 1 : Math.min(dt * 2.5, 1);
+      const k = held === 0 || handback ? 1 : Math.min(dt * 2.5, 1);
       eye.lerp(wanted, k);
       focus.lerp(wantedFocus, k);
       camera.position.copy(eye);
@@ -798,12 +855,13 @@ export function createDirector(reducedMotion = false): CameraDirector {
        * starts to bow.
        *
        * Eased rather than applied, and eased *out here* rather than inside the
-       * orbit branch, because the two have to move together: the moment the
-       * viewer lets go the position starts a one-second glide back to the
-       * director's shot, and a lens that snapped back on the same frame would
-       * be a zoom the drag never asked for. `place` re-solves the framing from
-       * `BASE_FOV` every frame, so this multiplies a fresh number rather than
-       * compounding its own.
+       * orbit branch, on the same `k` as the position, because the two have to
+       * move together. While the drag is live that keeps the zoom on the walk
+       * in; at the handback `k` is 1 and the lens comes back on the same frame
+       * the position does, which is what makes it a cut instead of a cut with a
+       * zoom trailing it. `place` re-solves the framing from `BASE_FOV` every
+       * frame, so this multiplies a fresh number rather than compounding its
+       * own.
        */
       lens += (squeeze - lens) * k;
       const deg = lens < 1.005 ? camera.fov : Math.min(
@@ -816,7 +874,7 @@ export function createDirector(reducedMotion = false): CameraDirector {
     },
 
     orbit(dx, dy) {
-      orbitFor = HANDBACK_SECONDS;
+      viewerHas = true;
       // Yaw runs free and wraps: there is nowhere round the circle the camera
       // may not point, only distances the room will not lend it. Pitch is
       // bounded because it is not a circle — over the top and under the floor
