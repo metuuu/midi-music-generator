@@ -132,7 +132,10 @@ export const buildPolysynthRig: SynthRigBuilder = (opts) => {
 
   // --- Case ----------------------------------------------------------------
 
-  const tray = addTo(group, new Mesh(new BoxGeometry(shellW, 0.11, caseDepth), chassisMat));
+  // 4 mm narrower than the shell, so the cheeks that cap the ends own the outer
+  // face of the instrument on their own. At full `shellW` the tray and the
+  // cheek shared it down the whole side of the case.
+  const tray = addTo(group, new Mesh(new BoxGeometry(shellW - 0.004, 0.11, caseDepth), chassisMat));
   tray.position.set(0, keyTopY - 0.062, caseZ);
   tray.castShadow = true;
   tray.receiveShadow = true;
@@ -142,7 +145,11 @@ export const buildPolysynthRig: SynthRigBuilder = (opts) => {
    * of the case. They frame the keybed rather than covering it, and they are
    * the thing that makes this silhouette not a slab.
    */
-  const cheekGeo = new BoxGeometry(CHEEK_W, 0.13, caseDepth);
+  // `caseDepth + 0.006`, so the cheeks stand 3 mm proud of the tray at both
+  // ends of the case. At exactly `caseDepth` the cheek's front and back faces
+  // were on the tray's own, and the front of a synth case is dead centre of
+  // frame for a player stood behind it.
+  const cheekGeo = new BoxGeometry(CHEEK_W, 0.13, caseDepth + 0.006);
   const cheekX = shellW / 2 - CHEEK_W / 2;
   for (const side of [1, -1]) {
     const cheek = addTo(group, new Mesh(cheekGeo, woodMat));
@@ -172,7 +179,9 @@ export const buildPolysynthRig: SynthRigBuilder = (opts) => {
   const FACE = 0.0175;
 
   /** The wood carries on up the sides of the panel, standing a centimetre proud. */
-  const panelCheekGeo = new BoxGeometry(CHEEK_W, 0.045, 0.31);
+  // 4 mm narrower than the case cheek below it, so the two do not share the
+  // outer face of the instrument down its whole side.
+  const panelCheekGeo = new BoxGeometry(CHEEK_W - 0.004, 0.045, 0.31);
   for (const side of [1, -1]) {
     const flank = addTo(panel, new Mesh(panelCheekGeo, woodMat));
     flank.position.set(side * cheekX, 0.005, 0.152);

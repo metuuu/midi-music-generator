@@ -497,7 +497,9 @@ export const buildGrandPiano: InstrumentBuilder = (opts) => {
   slip.castShadow = true;
   for (const side of [1, -1]) {
     const cheek = addTo(root, new Mesh(new BoxGeometry(0.055, 0.10, WHITE_L + 0.03), caseMat));
-    cheek.position.set(side * (BOARD_W / 2 + 0.03), KEY_TOP_Y + 0.02, KEY_BACK_Z - WHITE_L / 2 - 0.015);
+    // 4 mm behind the keyslip's front face rather than flush with it: flush put
+    // the cheek block's face on the slip's, right at the front of the keyboard.
+    cheek.position.set(side * (BOARD_W / 2 + 0.03), KEY_TOP_Y + 0.02, KEY_BACK_Z - WHITE_L / 2 - 0.011);
     cheek.castShadow = true;
   }
   const fall = addTo(root, new Mesh(new BoxGeometry(BOARD_W + 0.12, 0.075, 0.05), caseMat));

@@ -792,7 +792,12 @@ function buildAccessory(
       for (const s of [SIDE.left, SIDE.right]) {
         const fall = new Mesh(slab(l), terry);
         fall.scale.set(p.torsoW * 0.20, p.torsoH * 0.46, p.torsoD * 0.10);
-        fall.position.set(s * p.torsoW * 0.17, at.neckY - p.torsoH * 0.25, p.torsoD * 0.50);
+        // `0.56` of the torso depth rather than `0.50`, which is where the
+        // drape's sash lies and where a garment band goes generally. Both were
+        // the same 0.10 slab on the same plane, so a towel over a drape put two
+        // pieces of cloth in one place across the whole chest. A towel is *laid
+        // on top of* what somebody is wearing, so the depth says so.
+        fall.position.set(s * p.torsoW * 0.17, at.neckY - p.torsoH * 0.25, p.torsoD * 0.56);
         fall.rotation.z = s * 0.05;
         torso.add(fall);
       }

@@ -262,7 +262,9 @@ export const buildAcousticGuitar: InstrumentBuilder = (opts) => {
   // --- Neck, fretboard, frets ---------------------------------------------
   const neckGeo = kit.geo(new BoxGeometry(SCALE - 0.245, 0.024, 0.058));
   const neck = addTo(inst, new Mesh(neckGeo, neckMat));
-  neck.position.set((SCALE + 0.245) / 2, -0.020, 0);
+  // 1 mm lower than the soundboard slice above, not 0.15 mm — the heel laps the
+  // top where it meets the body and the two faces were close enough to swap.
+  neck.position.set((SCALE + 0.245) / 2, -0.021, 0);
   neck.castShadow = true;
 
   const boardGeo = kit.geo(new BoxGeometry(SCALE - 0.055, 0.008, 0.062));

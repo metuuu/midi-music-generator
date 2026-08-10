@@ -210,7 +210,11 @@ export const buildElectricPiano: InstrumentBuilder = (opts) => {
 
   // Cheeks, so the keybed has ends rather than trailing off.
   for (const side of [1, -1]) {
-    const cheek = addTo(root, new Mesh(new BoxGeometry(0.045, 0.085, WHITE_L + 0.08), caseMat));
+    // 0.04 wide, not 0.045: at 0.045 the cheek's outer face landed half a
+    // millimetre off the name rail's end, which is inside what the depth buffer
+    // can tell apart at playing distance and flickers along the whole end of
+    // the case. 2 mm inset is invisible and unambiguous.
+    const cheek = addTo(root, new Mesh(new BoxGeometry(0.04, 0.085, WHITE_L + 0.08), caseMat));
     cheek.position.set(side * (shellW / 2 - 0.022), KEY_TOP_Y + 0.014, KEY_BACK_Z - WHITE_L / 2 - 0.02);
     cheek.castShadow = true;
   }

@@ -665,10 +665,22 @@ export const buildModularRig: SynthRigBuilder = (opts: SynthRigOptions): SynthRi
     new Matrix4(), 0, 0.0275, (conFront + conBack) / 2 + 0.02,
     conW - 0.06, 0.055, conBack - conFront - 0.08,
   );
+  /**
+   * The end cheeks sit 3 mm inside the carcass top and bottom and 3 mm proud of
+   * its front and back, rather than matching it on all four.
+   *
+   * They are *inside* the carcass in x — a 22 mm strip of walnut let into the
+   * end of an 880 mm case — so an identical height and depth put four of the
+   * cheek's faces on four of the carcass's, down the full metre of the console
+   * side. That is the largest fight on any instrument in the catalogue and it
+   * is on the object a synth player stands behind all night. Cheeks are the
+   * outer skin anyway: 2 mm proud at the end and at the face, short of the
+   * arrises.
+   */
   for (const side of [1, -1]) {
     wood.box(
       new Matrix4(), side * (conW / 2 - 0.011), (0.055 + conTop) / 2, (conFront + conBack) / 2,
-      0.022, conTop - 0.055, conBack - conFront,
+      0.026, conTop - 0.055 - 0.006, conBack - conFront + 0.006,
     );
   }
   // The riser that carries the shelf. Without it the keyboard hangs in the air

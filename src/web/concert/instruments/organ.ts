@@ -258,7 +258,10 @@ export const buildOrgan: InstrumentBuilder = (opts) => {
   riser.castShadow = true;
 
   // The tall back, which carries the drawbars and hides the works.
-  const back = addTo(rig, new Mesh(new BoxGeometry(consoleW, 0.30, 0.16), woodMat));
+  // 8 mm narrower than the console, because the riser under it is `consoleW`
+  // and the two shared the end face of the instrument where they overlap. The
+  // ends are behind the cheeks in any case, so nothing is lost by insetting.
+  const back = addTo(rig, new Mesh(new BoxGeometry(consoleW - 0.008, 0.30, 0.16), woodMat));
   back.position.set(0, 0.90, 0.09);
   back.castShadow = true;
 
