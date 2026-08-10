@@ -108,6 +108,14 @@ export interface StageMetrics {
    */
   backdropHeight: number;
   /**
+   * x of the inner face of the side wall, or `Infinity` where there is none.
+   *
+   * Read it before mounting anything to the side of the room: `houseWidth / 2`
+   * is where the *house floor* stops and the wall stands somewhere outboard of
+   * that, by an amount only the room knows. See `RoomShape.wallX`.
+   */
+  wallX: number;
+  /**
    * The volume the audience fills, for anything solved from framing rather
    * than from the room. See `crowdExtent` in `stage-audience.ts`.
    */
@@ -420,6 +428,28 @@ export class Kit {
         flatShading: o.flat ?? false,
         vertexColors: o.vertexColors ?? false,
       });
+      /**
+       * Hold the chrome still while the room goes dark.
+       *
+       * `scene.environment` came down from 0.45 to 0.16 because it was the
+       * flattest source on the stage — see `ROOM_INTENSITY` in
+       * `performer-assets.ts`. A cymbal, a trumpet bell and a mic stand are
+       * exactly the surfaces that cut hurts most: at high `metalness` a
+       * `MeshStandardMaterial` has no diffuse term, so the environment is not
+       * part of their appearance, it *is* their appearance, and nothing else
+       * in the scene would have lit them back up.
+       *
+       * The slope pays it back in proportion to how much of the surface is
+       * reflection. A full metal at 0.90 gets `1 + 0.9 x 2` = 2.8, and
+       * `0.16 x 2.8` is the 0.45 it had before — chrome unchanged. Paint at 0
+       * gets 1.0 and takes the cut in full, which is the point.
+       *
+       * The wardrobe runs a steeper version of the same slope for a different
+       * target; see `METAL_ROOM_GAIN`, which is documented against the same
+       * arithmetic.
+       */
+      const metal = o.metal ?? 0;
+      if (metal > 0) mat.envMapIntensity = 1 + metal * 2;
       if (o.side !== undefined) mat.side = o.side;
       return mat;
     });

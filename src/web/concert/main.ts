@@ -12,7 +12,9 @@
  * The state machine, and every decision in it, lives in `show.ts`.
  */
 
-import { Color, Fog, PCFShadowMap, Scene, WebGLRenderer } from 'three';
+import {
+  AgXToneMapping, Color, FogExp2, PCFSoftShadowMap, Scene, WebGLRenderer,
+} from 'three';
 
 import type { ConcertOptions } from '../../concert/types.js';
 import { STRICTNESS_LEVELS } from '../../core/rules.js';
@@ -111,7 +113,39 @@ if (!canvas) {
   }
 
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = PCFShadowMap;
+  renderer.shadowMap.type = PCFSoftShadowMap;
+
+  /**
+   * The transfer curve, and the reason the stage stopped looking like a
+   * photocopy of itself.
+   *
+   * Without this the renderer is on `NoToneMapping`, which is not "no curve" —
+   * it is a hard clamp at 1.0. Every fixture in `lights.ts` is tuned to land a
+   * lit surface near 1.0 on its own, so anywhere two of them overlapped, the
+   * result clipped: a face under the key and the wash came out the same flat
+   * white as the face beside it under the key and the back light. There was no
+   * gradient left in the top of the image to be lit *by*.
+   *
+   * AgX rather than ACES because this show is lit through gels. ACES walks
+   * saturated colour toward the achromatic axis as it brightens, so a deep
+   * blue wash at full turns pale and slightly cyan — the rig's own palette
+   * tables stop meaning what they say. AgX desaturates too, but along a much
+   * longer path, so a saturated lantern at full reads as a bright version of
+   * its own colour instead of a wash of white.
+   *
+   * Numbers, on a surface at albedo 0.6 under a mid-level cue: linear 1.0 now
+   * lands at 0.79 display instead of 1.0, 2.0 at 0.87 and 4.0 at 0.93. The
+   * highlights compress into a ramp rather than a plateau, which is what
+   * restores the modelling — and it is why every gain in `lights.ts` was
+   * re-derived against this curve rather than left where it was.
+   *
+   * Exposure stays at 1.0. The place to make the show darker is the rig, where
+   * a level means something to the score; a global exposure trim would darken
+   * the cyclorama card and the emissive lamp lenses along with it, and those
+   * are the two things that must not move.
+   */
+  renderer.toneMapping = AgXToneMapping;
+  renderer.toneMappingExposure = 1.0;
 
   /**
    * Arm the audio stack now.
@@ -158,7 +192,30 @@ if (!canvas) {
     throw err;
   }
   scene.add(show.root);
-  scene.fog = new Fog(new Color(show.concert.venue.palette.ambient).getHex(), 12, 40);
+  /**
+   * Air, rather than a ramp.
+   *
+   * Linear `Fog` does nothing at all for twelve metres and then climbs on a
+   * straight line, which reads as a grey curtain hung at a fixed distance —
+   * the near half of the room gets no depth cue and the far half gets a
+   * uniform one. `FogExp2` starts immediately and falls off the way scattering
+   * actually does, so distance is carried by a gradient across the whole
+   * depth of the house instead of an edge partway into it.
+   *
+   * 0.035 is the linear pair transcribed: about 19% at the old near plane and
+   * 90% at the old far one, so a room's sense of size does not change — only
+   * the shape of the falloff between them.
+   *
+   * The colour is shaded because the fog is the one surface in the scene that
+   * is not lit by the rig. At the palette's own `ambient` it was brighter than
+   * the boards it hung in front of once the fills came down, which put the
+   * back of every room in a haze paler than the stage — an unlit surface has
+   * no business being the brightest thing upstage.
+   */
+  scene.fog = new FogExp2(
+    new Color(show.concert.venue.palette.ambient).multiplyScalar(0.55).getHex(),
+    0.035,
+  );
 
   function onState(state: ShowState): void {
     boot.style.opacity = state === 'bill' ? '0' : '1';

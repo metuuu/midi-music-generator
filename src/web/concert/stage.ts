@@ -271,6 +271,7 @@ export function buildStage(venue: Venue, opts: StageOptions = {}): StageRig {
     headroom: shape.headroom,
     houseLid: shape.houseLid,
     backdropHeight: shape.backdropHeight,
+    wallX: shape.wallX,
     crowd: crowdExtent(venue.audience, -rise, depth / 2),
   };
 
@@ -287,7 +288,22 @@ export function buildStage(venue: Venue, opts: StageOptions = {}): StageRig {
       width, height: depth, cols: planks, rows: 1,
       colour: p.boards, jitter: 0.085, rng: boardRng,
     })),
-    kit.solid('#ffffff', { vertexColors: true, rough: 0.86 }),
+    /**
+     * Sealed timber, not chalk.
+     *
+     * At 0.86 the deck had no specular lobe worth the name, so the largest
+     * surface in every shot returned nothing but flat diffuse — the same value
+     * whichever fixture was up and wherever the camera stood. A stage floor is
+     * varnished or sealed, and the smeared reflection of the rig along it is
+     * one of the few cues in a concert image that says the lights are *in* the
+     * room rather than painted onto the people.
+     *
+     * 0.52 is broad enough to stay a sheen rather than a mirror: the boards
+     * pick up the key, the back light and the follow spot as soft elongated
+     * pools, and pick up the environment barely at all now that it is at 0.16.
+     * The apron below keeps its 0.9 — that face is painted, and usually black.
+     */
+    kit.solid('#ffffff', { vertexColors: true, rough: 0.52 }),
   );
   boards.rotation.x = -Math.PI / 2;
   boards.receiveShadow = true;

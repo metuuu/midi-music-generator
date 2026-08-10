@@ -85,9 +85,9 @@
  */
 
 import {
-  AmbientLight, BufferAttribute, BufferGeometry, Color, DirectionalLight, Group,
-  LineBasicMaterial, LineSegments, OrthographicCamera, Scene, Vector3,
-  WebGLRenderer,
+  AgXToneMapping, AmbientLight, BufferAttribute, BufferGeometry, Color,
+  DirectionalLight, Group, LineBasicMaterial, LineSegments, OrthographicCamera,
+  Scene, Vector3, WebGLRenderer,
 } from 'three';
 
 import { castSong } from '../concert/cast.js';
@@ -277,6 +277,14 @@ interface Figure {
 // ---------------------------------------------------------------------------
 
 const renderer = new WebGLRenderer({ canvas, antialias: true });
+/**
+ * The same curve the concert renders through, for the same reason the room
+ * intensity is shared: a bench whose transfer function differs from the stage's
+ * is a bench measuring a swatch nobody will ever see. See `main.ts` for what
+ * AgX does and why it is AgX. The fabric table's whole job is to be trusted.
+ */
+renderer.toneMapping = AgXToneMapping;
+renderer.toneMappingExposure = 1.0;
 const scene = new Scene();
 scene.background = new Color('#15171a');
 
@@ -326,8 +334,18 @@ const room = lightTheRoom(renderer, scene);
 // target has an owner rather than being a resource nobody can name.
 void room;
 
-scene.add(new AmbientLight('#8899bb', 1.0));
-const key = new DirectionalLight('#fff3e0', 2.1);
+/**
+ * The fill floor, and it is deliberately low.
+ *
+ * An `AmbientLight` adds the same irradiance to every normal in the scene, so
+ * every unit of it is a unit that cannot describe a shape. It was at 1.0, which
+ * against a 2.1 key put the shaded side of a coat within a third of a stop of
+ * the lit side — a swatch with no fold in it. At 0.55 against a 2.4 key the
+ * bench shows the same lit-to-shaded ratio the stage now does, which is the
+ * only condition under which a fabric judged here means anything there.
+ */
+scene.add(new AmbientLight('#8899bb', 0.55));
+const key = new DirectionalLight('#fff3e0', 2.4);
 key.position.set(0.5, 0.75, 1.0);
 scene.add(key);
 const fill = new DirectionalLight('#9fb4d8', 0.55);

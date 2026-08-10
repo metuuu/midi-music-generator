@@ -329,12 +329,27 @@ function materialKey(colour: string, f: Finish): string {
  * `envMapIntensity` can: it scales one material's helping of the environment.
  * Sloping it with `metalness` means the reflection is boosted exactly in
  * proportion to how much of the surface's appearance it is responsible for, so
- * `wool` at 0.03 is untouched and `lame` at 0.90 reflects a room some three
- * times brighter than the one in the render target. That is a licence and worth
- * naming as one, but the alternative was measured on the bench and it is a lead
- * singer in lamé who is the darkest object in the house.
+ * `wool` at 0.03 is barely touched and `lame` at 0.90 reflects a much brighter
+ * room than the one in the render target. That is a licence and worth naming as
+ * one, but the alternative was measured on the bench and it is a lead singer in
+ * lamé who is the darkest object in the house.
+ *
+ * ## Why 7.5 and not 3.0
+ *
+ * This number is a counterweight, so it only means anything paired with the
+ * `ROOM_INTENSITY` it is pulling against — and that came down from 0.45 to
+ * 0.16 to stop the environment flattening the stage. Held at 3.0, the cut
+ * would have taken the metals with it and undone exactly the bug this constant
+ * exists for.
+ *
+ * 7.5 is what keeps the two moving independently. A full metal at 0.90 sees
+ * `0.16 x (1 + 0.9 x 7.5)` = 1.24 against the 1.67 it saw before: three
+ * quarters of its reflection kept. Wool at 0.03 sees `0.16 x 1.23` = 0.20
+ * against 0.49, barely a third. Which is the shape of the whole change — the
+ * diffuse world gets dark enough for the lanterns to model it, and the cloths
+ * that have nothing *but* reflection stay lit.
  */
-const METAL_ROOM_GAIN = 3.0;
+const METAL_ROOM_GAIN = 7.5;
 
 /**
  * One material, pooled by every value that went into it.
@@ -752,13 +767,28 @@ function makeWeaveTexture(id: WeaveId): DataTexture {
  * higher on a bench to "see the fabric better" would mean the fabric table was
  * tuned against a room the audience never gets.
  *
- * 0.45 rather than 1.0 because `RoomEnvironment` is a bright white studio box
- * and the show is mostly played in dark venues under coloured key lights. At 1.0
- * the room dominates: every stage light flattens out, the fog stops reading and
- * a smoky jazz cellar looks like a photographer's cyclorama. At 0.45 the lights
- * still model the figures and the metals have something to be made of.
+ * `RoomEnvironment` is a bright white studio box, and an environment is the
+ * most directionless light there is: a diffuse surface gets very nearly the
+ * same helping of it whichever way it faces. Every unit here is therefore a
+ * unit that actively erases modelling, and it is spent before a single lantern
+ * has been turned on.
+ *
+ * 0.45 was picked as "less than 1.0" and it was still too much. Measured
+ * against the rig it was competing with, on a surface at albedo 0.6 under a
+ * mid-level cue, the environment was contributing about 0.27 of diffuse — more
+ * than the key light's 0.17 and the hemisphere's 0.12. The brightest,
+ * flattest, most shadowless source in the scene was the one nothing in
+ * `lights.ts` could see or control, and it was winning. That is the whole
+ * reason a dark venue rendered as an evenly lit grey room.
+ *
+ * 0.16 leaves the environment doing the one job only it can do — filling the
+ * shadow side with something other than black, and giving a metal a world to
+ * be made of — and hands the rest of the stage back to the fixtures. The
+ * metals do not go down with it: see `METAL_ROOM_GAIN`, which was re-derived
+ * against this number so that a lamé jacket keeps three quarters of its
+ * reflection while the wool beside it loses two thirds of its fill.
  */
-const ROOM_INTENSITY = 0.45;
+const ROOM_INTENSITY = 0.16;
 
 /**
  * Give a scene something for its metals to reflect.

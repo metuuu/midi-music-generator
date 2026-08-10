@@ -95,7 +95,7 @@ import {
   type FixtureState, type Timeline,
 } from './lights-cues.js';
 import { FollowSpot, OPERATOR, STEADY } from './lights-follow.js';
-import { houseLid, Kit, shade, tint, type Quality } from './stage-kit.js';
+import { HEAD_BAND, houseLid, Kit, shade, tint, type Quality } from './stage-kit.js';
 import type { StageRig } from './stage.js';
 
 export type { Quality } from './stage-kit.js';
@@ -259,18 +259,48 @@ export interface LightRig {
  * times hotter than the back of it for no reason anybody in the room would
  * recognise. The gains absorb the resulting scale, which is why the two
  * punctual numbers look nothing like the rest.
+ *
+ * ## The split inside `wash`, which is the whole look
+ *
+ * `wash` is one number in the score and two fixtures in the rig: a hemisphere
+ * probe for cover and a soft top light for modelling. How its energy divides
+ * between them is not a detail — it is the difference between a lit stage and
+ * a flat one, because the probe reaches every normal equally and the top light
+ * only reaches the ones facing it.
+ *
+ * It used to sit at 1.30 probe against 0.55 top: seven parts cover to three
+ * parts shape. Measured on a surface at albedo 0.6 under a mid cue, that plus
+ * the environment put the *shaded* side of a face at 0.394 linear against
+ * 0.591 lit — a ratio of 1.5 to 1, which is about the contrast of an overcast
+ * afternoon and is what "bright and flat" actually was.
+ *
+ * The split is now inverted, 0.55 probe against 1.30 top, and the fills behind
+ * it are down. Same surface, same cue: 0.149 shaded against 0.484 lit, a ratio
+ * of 3.25 to 1. The score's `wash` level still means the same thing — how much
+ * cover is up — but the light arrives from somewhere now.
+ *
+ * `key` and `back` climbed with it. They are the two fixtures that carry
+ * direction, so they are the two that had to grow once the directionless
+ * sources shrank; leaving them alone would have produced a darker flat stage
+ * rather than a lit one.
  */
 const GAIN = {
-  washHemi: 1.30,
-  washTop: 0.55,
-  key: 1.75,
-  back: 1.95,
-  foot: 0.90,
+  washHemi: 0.55,
+  washTop: 1.30,
+  key: 2.60,
+  back: 2.40,
+  foot: 1.05,
   spot: 26,
   warm: 2.0,
   /** The cyc is a card, not a lantern; this is its alpha rather than a candela. */
   cyc: 0.9,
-  house: 2.40,
+  /**
+   * The house is the one fixture allowed to be flat — a room with the working
+   * light on genuinely is — so this stays a probe. It comes down only because
+   * everything around it did, and a house light that still read as full would
+   * now be brighter than the show.
+   */
+  house: 1.60,
 } as const;
 
 /**
@@ -295,8 +325,11 @@ const SPOT_ANGLE = 0.09;
  * is a follow spot with a soft edge, which is exactly the thing `FixtureId`
  * says this fixture must not be.
  *
- * So the light is a **point source hung over the player**: a bare warm lamp on
- * a drop, which is a thing a black box with a projection in it actually has. A
+ * So the light is a **point source hung over the player**: a bare warm lamp of
+ * the kind a black box with a projection in it actually has. It used to say *on
+ * a drop* here, and that was the whole of the authority for hanging the drawn
+ * lantern a third of a metre upstage of its own bar — there was never a drop,
+ * and the fixture is clamped to the pipe with the pars now. See `warmPos`. A
  * point light has no edge to fall outside of, so "it never isolates" is
  * structural rather than tuned — no amount of retuning can turn it into a
  * follow spot, because it has no beam to narrow. `decay` is cut to 0.5 so the
@@ -443,6 +476,22 @@ export function buildLightRig(
   const roomLid = houseLid(m);
 
   /**
+   * How far a can slings below the pipe, and under a soffit it slings less.
+   *
+   * The bar is now a handspan under the plaster, so the old 0.24 m yoke drop
+   * put the bottom of every can at 2.32 m — 0.08 m *inside* `HEAD_BAND.hi`,
+   * which is a par on the scroll of a double bass on the riser. Short-yoked at
+   * 0.10 m it sits at 2.49 m and clears, and clamped tight to the pipe is how a
+   * rig bolted to a ceiling looks anyway: there is no room to sling anything.
+   *
+   * It lives up here rather than beside the par loop because it is now every
+   * can on the bar's, the warm's included, and `warmPos` twenty lines down is
+   * solved from it. Nothing else changed with the move — it reads `stageLid`
+   * and nothing else, as it always did.
+   */
+  const barDrop = Number.isFinite(stageLid) ? -0.10 : -0.24;
+
+  /**
    * The follow spot lives front of house, above and behind the audience, which
    * is where a follow spot has always lived: it is the only position from which
    * a beam can find a face without the beam itself being in the shot.
@@ -450,6 +499,16 @@ export function buildLightRig(
    * In the cellar it comes down to a bracket under the house plaster, which
    * flattens its angle onto the stage — and that is what a follow spot in a
    * basement actually looks like. There is no rostrum to put it on.
+   *
+   * **The bracket is drawn now**, and until it was this paragraph was the only
+   * place it existed: the fixture was a can, a lens and a hook with nothing
+   * above the hook. Measured air between the top of that hook and the nearest
+   * thing over it — 0.09 m in the salon, 0.10 in the sabha and the riihi, 0.11
+   * in the dancehall, 0.15 in the shed — which is close enough that the gap
+   * reads as a mistake rather than as distance, and those are the low rooms
+   * where the fixture is 6 to 20° off the lens axis in the wide shot. In the
+   * four rooms with no plaster at all it was a lantern six metres up in open
+   * sky. See the stem by `lantern` at the bottom of this section.
    */
   const fohPos = new Vector3(
     0,
@@ -457,7 +516,34 @@ export function buildLightRig(
     m.lipZ + Math.max(2.6, m.houseDepth * 0.42),
   );
 
-  const warmPos = new Vector3(flyWorld.x, flyWorld.y - 0.12, flyWorld.z - 0.35);
+  /**
+   * The warm lantern, on the bar with the pars.
+   *
+   * This was `flyWorld.z - 0.35` with no comment defending the number, and the
+   * fixture was detached from its own bar in all twelve architectures — 0.17 to
+   * 0.21 m of clear air between the can and the nearest member of the pipe it
+   * is supposed to be clamped to, which is the 0.35 less the can's 0.12 half
+   * depth less half the pipe's. The yoke hook made it worse rather than better:
+   * on a 0.24 m can its top stands 0.24 m over the body, which put it at
+   * `flyY + 0.12` — 0.07 m *above* the top of the pipe it is meant to clamp to,
+   * so the fixture read as a can gripping air a handspan from the bar. Two
+   * architectures escaped by luck — `hall`'s ladder truss has an upstage chord
+   * the can happened to intersect, and `dancehall`'s bar sits close enough
+   * under the plaster that the hook nearly touched it.
+   *
+   * Two ways to close it: draw the drop the note on `WARM_LAMP_HEIGHT` used to
+   * promise, or hang the lantern where the same note *also* says it is — "the
+   * lantern on the bar". Nothing in the file ever argued for the offset, so it
+   * goes, and the can takes `barDrop` at local x and z of zero like every par.
+   * The centre of the pipe is free to take it: `parSpan` is 3.34 m in the
+   * narrowest opening in the set, so the nearest par centre is 0.2 of that
+   * away — 0.67 m, against the 0.22 m the two cans need between them.
+   *
+   * Only `warmBeam.aim` reads this, so the beam's origin comes 0.35 m
+   * downstage with the body. It is a 0.5 rad column pointed straight down; the
+   * move is not visible in it.
+   */
+  const warmPos = new Vector3(flyWorld.x, flyWorld.y + barDrop, flyWorld.z);
 
   /** Where a beam points when nothing has told it to point anywhere. */
   const park = new Vector3(0, aimHeight, -0.3);
@@ -546,7 +632,29 @@ export function buildLightRig(
     spot.castShadow = wants === 'spot';
 
     if (key.castShadow) {
-      const reach = Math.max(m.width, m.depth) / 2 + 4;
+      /**
+       * Spend the one map on the only place anything casts.
+       *
+       * The frustum was sized from the *room* — `max(width, depth) / 2 + 4` —
+       * which in a large hall is a 28 m square rendered into 2048 px: about 73
+       * texels per metre, so a forearm is six texels across and a hand is two.
+       * That is why the one shadow in the show read as a soft grey bruise
+       * rather than as a person. Almost all of that square was house floor,
+       * and the house floor has nothing standing on it.
+       *
+       * Sizing it to the playing area instead — the opening's width by the
+       * boards' depth, plus enough margin for a shadow to fall downstage of
+       * whoever throws it — roughly halves the edge and so quadruples the
+       * texel density on the only geometry that casts. `Math.min` is the
+       * guarantee that this can only ever tighten the frustum: a room whose
+       * stage genuinely is the whole floor keeps what it had.
+       *
+       * Outside the frustum is unshadowed, not wrongly shadowed — three's
+       * `frustumTest` returns full light past the edge — so the audience loses
+       * shadows it did not have and gains no artefact.
+       */
+      const playing = Math.max(m.openingWidth, Math.abs(m.lipZ - m.backZ));
+      const reach = Math.min(Math.max(m.width, m.depth) / 2 + 4, playing / 2 + 3.5);
       const cam = key.shadow.camera;
       cam.left = -reach;
       cam.right = reach;
@@ -557,7 +665,10 @@ export function buildLightRig(
       cam.updateProjectionMatrix();
       key.shadow.mapSize.set(size, size);
       key.shadow.bias = -0.0008;
-      key.shadow.normalBias = 0.03;
+      // A texel covers less ground than it did, so the offset that stopped the
+      // surface shadowing itself can shrink with it. Left at 0.03 against the
+      // tighter map it lifts the shadow off the foot that casts it.
+      key.shadow.normalBias = 0.02;
     }
     if (spot.castShadow) {
       spot.shadow.camera.near = 1;
@@ -620,23 +731,15 @@ export function buildLightRig(
   }
 
   // Fly bar: the pars. Local coordinates, because they are children of the bar.
+  // How far under the pipe they hang is `barDrop`, up by the lids, because the
+  // warm hangs off the same number.
   const parSpan = Math.max(1, m.openingWidth / 2 - 0.8);
-  /**
-   * How far a can slings below the pipe, and under a soffit it slings less.
-   *
-   * The bar is now a handspan under the plaster, so the old 0.24 m yoke drop
-   * put the bottom of every can at 2.32 m — 0.08 m *inside* `HEAD_BAND.hi`,
-   * which is a par on the scroll of a double bass on the riser. Short-yoked at
-   * 0.10 m it sits at 2.49 m and clears, and clamped tight to the pipe is how a
-   * rig bolted to a ceiling looks anyway: there is no room to sling anything.
-   */
-  const parDrop = Number.isFinite(stageLid) ? -0.10 : -0.24;
   const parLocal: Vector3[] = [];
   const parWorld: Vector3[] = [];
   const parTarget: Vector3[] = [];
   for (let i = 0; i < MAX_PARS; i++) {
     const f = (i / (MAX_PARS - 1)) * 2 - 1;
-    const local = new Vector3(f * parSpan, parDrop, 0);
+    const local = new Vector3(f * parSpan, barDrop, 0);
     parLocal.push(local);
     const world = stage.flyBar.localToWorld(local.clone());
     parWorld.push(world);
@@ -645,17 +748,94 @@ export function buildLightRig(
     lantern(flyRig, local, target, 0.2, parLens);
   }
 
-  // Upstage back light: two lanterns high behind the band — under the soffit
-  // where there is one, since "high" upstage is still inside the room.
+  /**
+   * Upstage back light: two lanterns high behind the band, on sidearms off the
+   * wall — and the sidearm is the fix.
+   *
+   * `lantern()` draws a can, a lens and a yoke hook and nothing else, so for as
+   * long as these were dropped straight into `root` they were two cans in open
+   * air with no parent geometry anywhere near them. Measured to the nearest
+   * surface in *any* direction: 0.55 m in the hall, 0.50 in the circuit and the
+   * ballroom, 0.34 in the salon, 0.27 in the concert hall, 0.21 in the
+   * proscenium and on the lawn, 0.14 in the courtyard; in the four that came
+   * out at 0.00–0.01 what they were touching was a roof-tie prop only some eras
+   * draw. They are the most visible of this rig's floating parts — 5 to 19°
+   * above the lens axis and 11 to 17° off centre in the wide shot, directly
+   * over the band, in every architecture.
+   *
+   * The arm is 0.80 m and it is *buried* 0.2 m in the wall rather than butted
+   * to it, because the wall's downstage face lands anywhere from `backZ - 0.17`
+   * to `backZ + 0.10` depending on the room: an arm cut exactly at `backZ` ends
+   * in air in half of them, and one that overshoots is hidden by the thing it
+   * pierces. Its downstage end dies inside the can for the same reason — an
+   * overlapping join is a join at any float precision. Where a room hangs a
+   * cloth upstage (`backZ + 0.25` in the proscenium and on the lawn, `+ 0.39`
+   * in the courtyard and the sabha) or an arcade across the back wall, the arm
+   * goes through that too, which is what a bracket behind a border looks like.
+   *
+   * That last 0.11 m inside the can is also the only part of the arm that
+   * crosses `playingArea().backZ`, and it does so in the five low-ceiling
+   * dressings where the *can* already crosses it by 0.30 m: at a 2.85 m soffit
+   * the fixture lands at 2.35 m with its lens at 2.19, which is 0.21 m under
+   * `HEAD_BAND.hi`. That is the room being 2.85 m tall and not this bracket —
+   * the fixture cannot both clear a head and stay under that ceiling at this z,
+   * and moving it upstage far enough to clear the band in z instead would walk
+   * it into the drapes and the arcade the paragraph above is already dodging.
+   *
+   * `backY` gets a third clamp and it is the one that does the work. The soffit
+   * term has never once bound — `openingHeight - 0.5` wins in all twelve, by
+   * 0.15 m in the dancehall and 0.55 in the hall — so "under the soffit where
+   * there is one" described a guard rather than a decision, and the fixture was
+   * parked half a metre under the top of the arch whether or not the wall
+   * behind it reached that high. `m.backdropHeight` is measured from the *house
+   * floor*, which is why it takes `+ m.houseY` to compare with anything else
+   * here; in board space the walls run 0.5 m (concert hall, courtyard,
+   * dancehall) to 3.2 m (jazz cellar) above the fixture and the clamp is idle,
+   * except on the lawn, where the zinc backing tops out at 3.55 m against a
+   * fixture at 3.90 and the arm would otherwise be a bracket into the sky.
+   *
+   * Where even the clamped height is under `HANG_FLOOR` the bodies are not
+   * built at all, and the pavilion is the room that means: its back wall is a
+   * 1.5 m thing you are meant to see over, there is no roof and nothing else
+   * upstage of the band, and lowering a lantern to 1.25 m to meet the wall
+   * would put it behind the drummer's head instead of over it. The two beams
+   * still throw. A cone coming out of the dark above an open-air stage reads as
+   * a lamp out of frame, which is honest; a can nailed to the night sky reads
+   * as broken. Same call as the follow spot's below, for the same reason.
+   */
   const backPos: Vector3[] = [];
   const backTarget: Vector3[] = [];
-  const backY = Math.min(m.openingHeight - 0.5, stageLid - 0.35);
+  /** Board space; see above. `backdropHeight` is measured from the ground. */
+  const backWall = m.backdropHeight + m.houseY;
+  /**
+   * `stage-props.ts`'s `HANG_FLOOR`, which is private to that file. Restated
+   * from the constant it is itself derived from, for the same reason
+   * `HEAD_BAND` is restated from `cast.ts`: it is one addition either way, and
+   * the alternative is this file importing the dressing.
+   *
+   * The lids twenty lines up say a lantern does not answer to `HANG_FLOOR`, and
+   * that still holds — this asks it of the **wall**, not of the fixture. Can
+   * this room carry a lantern above the band's heads at all? Where it cannot
+   * there is nothing to bolt to, which is a different question from how low a
+   * bolted fixture may hang.
+   */
+  const hangFloor = HEAD_BAND.hi + 0.25;
+  const onWall = backWall - 0.25 >= hangFloor;
+  const backY = Math.min(
+    m.openingHeight - 0.5,
+    stageLid - 0.35,
+    onWall ? backWall - 0.25 : Infinity,
+  );
   for (const side of [-1, 1]) {
     const at = new Vector3(side * m.width * 0.3, backY, m.backZ + 0.6);
     const to = new Vector3(side * m.width * 0.12, 0.1, m.lipZ * 0.25);
     backPos.push(at);
     backTarget.push(to);
+    if (!onWall) continue;
     lantern(root, at, to, 0.22, backLens);
+    const arm = new Mesh(kit.bevelBox(0.06, 0.06, 0.8, 0.02), yoke);
+    arm.position.set(at.x, backY, m.backZ + 0.2);
+    root.add(arm);
   }
 
   // Footlights: bulbs in a row along the lip.
@@ -672,14 +852,43 @@ export function buildLightRig(
     root.add(shell);
   }
 
-  lantern(root, fohPos, park, 0.3, spotLens);
-  lantern(
-    flyRig,
-    new Vector3(warmPos.x - flyWorld.x, warmPos.y - flyWorld.y, warmPos.z - flyWorld.z),
-    new Vector3(warmPos.x, 0, warmPos.z),
-    0.24,
-    warmLens,
-  );
+  /**
+   * The follow spot's body, and the stem that carries it — see `fohPos`.
+   *
+   * `roomLid + 0.6` rather than `roomLid`, and the overshoot is load-bearing
+   * rather than slack: `houseLid` is the *clear* height, not the plaster. The
+   * hall publishes 5.10 because its ribs hang to 5.12, while the slab behind
+   * them is at 5.52 and the ribs are a rib-gap apart, so a stem cut to the lid
+   * ends 0.42 m short of anything wherever it lands between two of them. A stem
+   * buried in a ceiling is invisible from below; a stem cut short is the bug
+   * being fixed. It comes to exactly 0.90 m wherever `roomLid - 0.3` picks the
+   * height — the cellars, the dancehall, the riihi, the sabha, the salon, the
+   * shed, the hall, the roofed courtyard — and where `openingHeight + 1.35`
+   * wins instead it is 1.05 to 1.55 m in the ballroom and 2.99 m in the concert
+   * hall, against a 9.24 m plaster. The long one is a drop pipe, which is what
+   * a follow spot under a very high ceiling actually hangs on.
+   *
+   * With no plaster there is nothing to draw and nothing to draw it *to*, so
+   * the can is not built either. `spot` and `spotBeam` read `fohPos` directly
+   * and neither of them cares, so what an open-sky room loses is one body it
+   * had no business hanging: six metres up over the audience with 0.99 m of air
+   * to the nearest object in the circuit, 2.41 m in the proscenium, 4.93 on the
+   * lawn and 5.24 in the courtyard. Putting it on structure the room does have
+   * — the `chandelier` precedent in `stage-props.ts`, fly height when the sky
+   * is open — was the other candidate, and it buys a fixture at the wrong angle
+   * to be a follow spot at all.
+   */
+  if (Number.isFinite(roomLid)) {
+    lantern(root, fohPos, park, 0.3, spotLens);
+    const stem = roomLid + 0.6 - fohPos.y;
+    const drop = new Mesh(kit.bevelBox(0.07, stem, 0.07, 0.02), yoke);
+    drop.position.set(fohPos.x, fohPos.y + stem / 2, fohPos.z);
+    root.add(drop);
+  }
+
+  // The warm, on the pipe at centre. `warmPos` is the same point in world
+  // space, for the beam.
+  lantern(flyRig, new Vector3(0, barDrop, 0), new Vector3(warmPos.x, 0, warmPos.z), 0.24, warmLens);
 
   // --- beams --------------------------------------------------------------
 
