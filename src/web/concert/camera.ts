@@ -755,17 +755,20 @@ export function createDirector(reducedMotion = false): CameraDirector {
       let next = index;
       while (next + 1 < plan.length && plan[next + 1]!.beat <= beat) next++;
       /**
-       * The cut is also the handback, and a handback has to be a cut.
+       * The cut is also the handback, and it travels the way every other change
+       * of shot travels.
        *
-       * A drag can leave the lens anywhere in the building — behind the band,
-       * down among the tables, a metre off a side wall — and the ordinary
-       * between-shot easing would then spend a second crossing the room to get
-       * back to the director's framing. That is the flight this whole file
-       * refuses, arriving by the one route nobody had closed. So the frame the
-       * viewer's angle is given up on snaps, whatever else is going on: it is
-       * the one moment the picture is *meant* to change discontinuously.
+       * This was briefly a hard snap, on the argument that a drag can leave the
+       * lens anywhere in the building and a second spent crossing the room to
+       * get back is the flight this file refuses. The argument is about the
+       * *plan* and this is not the plan: a viewer who has moved the camera is
+       * already off the shot list, and dumping them back on it in one frame
+       * reads as the picture breaking rather than as a cut. It also made the
+       * handback the only movement in the show that does not ease, which is
+       * what it looked like. So it eases — same `k`, same curve as the push and
+       * as every shot change — and the return is something the eye can follow
+       * back to where the director was.
        */
-      const handback = next !== index && viewerHas;
       if (next !== index) {
         index = next;
         held = 0;
@@ -835,11 +838,8 @@ export function createDirector(reducedMotion = false): CameraDirector {
        * not to do. Everything after that frame is a slow lerp, which is what
        * makes the push read as a camera operator leaning in rather than as a
        * dolly on rails.
-       *
-       * `handback` is the second frame that has to snap, and for the stronger
-       * version of the same reason: see where it is set.
        */
-      const k = held === 0 || handback ? 1 : Math.min(dt * 2.5, 1);
+      const k = held === 0 ? 1 : Math.min(dt * 2.5, 1);
       eye.lerp(wanted, k);
       focus.lerp(wantedFocus, k);
       camera.position.copy(eye);
@@ -855,13 +855,13 @@ export function createDirector(reducedMotion = false): CameraDirector {
        * starts to bow.
        *
        * Eased rather than applied, and eased *out here* rather than inside the
-       * orbit branch, on the same `k` as the position, because the two have to
-       * move together. While the drag is live that keeps the zoom on the walk
-       * in; at the handback `k` is 1 and the lens comes back on the same frame
-       * the position does, which is what makes it a cut instead of a cut with a
-       * zoom trailing it. `place` re-solves the framing from `BASE_FOV` every
-       * frame, so this multiplies a fresh number rather than compounding its
-       * own.
+       * orbit branch, because the two have to move together: at the handback
+       * the position starts easing back toward the director's shot, and a lens
+       * that snapped back on the same frame would be a zoom the drag never
+       * asked for. Same `k`, so the walk out and the lens close on the same
+       * curve they opened on. `place` re-solves the framing from `BASE_FOV`
+       * every frame, so this multiplies a fresh number rather than compounding
+       * its own.
        */
       lens += (squeeze - lens) * k;
       const deg = lens < 1.005 ? camera.fov : Math.min(
