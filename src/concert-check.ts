@@ -269,6 +269,20 @@ let cuesAfterEnd = 0;
 let ambientSpots = 0;
 let visemeGaps = 0;
 let soloWithoutPlayer = 0;
+/**
+ * The right hand keeps its grid; the left hand does not follow it there.
+ *
+ * A dead stroke is a damped string — see `NoteEvent.dead` — so the two hands
+ * disagree about it on purpose, and that disagreement is the one thing about
+ * this feature a picture would show and no audio check can. The striking hand
+ * must move, because the strokes that sound nothing are what make a strumming
+ * arm read as keeping time. The fretting hand must **not**, because a finger
+ * placed on a fret to sound a note nobody plays is exactly the fault
+ * `chooseStops` was rewritten to remove, arriving by a new door.
+ */
+let mutes = 0;
+let frettedMutes = 0;
+let struckMutes = 0;
 
 for (const gid of CHECKED_GENRES) {
   for (let i = 0; i < 4; i++) {
@@ -316,6 +330,29 @@ for (const gid of CHECKED_GENRES) {
         owed.notes += notes;
         owed.sounded += sounded;
         coverage.set(performer.archetype, owed);
+
+        /**
+         * Only a player carrying one part, because the question is about which
+         * of *this* player's hands moved and a doubling keyboard's gestures are
+         * two parts merged into one list — a left hand comping under a bass line
+         * would read here as a fretting hand that had followed a mute.
+         */
+        if (!performer.doubles?.length) {
+          const track = trackForPart(song, performer);
+          if (track?.technique) {
+            const slot = (beat: number) => Math.round(beat * 4);
+            const damped = new Set<number>();
+            const sounded16 = new Set<number>();
+            for (const n of track.notes) (n.dead ? damped : sounded16).add(slot(n.beat));
+            for (const b of sounded16) damped.delete(b);
+            mutes += damped.size;
+            for (const g of part.gestures) {
+              if (!damped.has(slot(g.beat)) || g.target.kind === 'rest') continue;
+              if (g.effector === 'left-hand') frettedMutes++;
+              else if (sounding.has(g.effector)) struckMutes++;
+            }
+          }
+        }
 
         // Physical plausibility, per effector.
         const byEffector = new Map<string, typeof part.gestures[number][]>();
@@ -538,6 +575,10 @@ for (const gid of CHECKED_GENRES) {
         .map((r) => `${r.a} leaves ${r.notes - r.sounded} of ${r.notes} voices`
           + ' to the players who are not on stage').join(', ') || 'nobody stands in for a section');
 }
+check('a muted stroke is struck and not fretted', frettedMutes === 0 && struckMutes >= mutes,
+  mutes === 0
+    ? 'no dead stroke reached a stage'
+    : `${mutes} damped beats: ${struckMutes} struck, ${frettedMutes} fretted`);
 check('every gesture lands on the audio grid', offGrid === 0, `${gestures} gestures`);
 check('no effector is scheduled over its own release', overlaps === 0,
   overlaps ? `${overlaps} overlaps` : 'none');

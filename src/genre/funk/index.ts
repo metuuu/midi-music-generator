@@ -582,6 +582,28 @@ export const funk: Genre = {
    * wash of chords and the sixteenths vanish into each other. The drums take the
    * same treatment for the same reason.
    */
+  /**
+   * The chank, which is the one guitar sound this genre cannot be without.
+   *
+   * A funk guitarist's hand runs sixteenths continuously and lets most of them
+   * land on damped strings; the two or three that ring are the part. That is
+   * `strum` with the fast hand — hence the profile correction, which is the
+   * case `TECHNIQUES.strum` names in its own comment as the reason a genre must
+   * be able to say this. `muted` sits under it for the single-note and
+   * double-stop parts, which are the other half of the idiom.
+   *
+   * Genre-wide rather than per style, because it is true of all twenty-two of
+   * them — see `Genre.techniques`. `slap` is not here and is deliberately left
+   * to the instruments: a slap bass slaps because it is a slap bass, and the one
+   * style whose *identity* is the technique says so itself.
+   */
+  techniques: {
+    comp: [['strum', 6], ['muted', 4], ['plectrum', 2]],
+  },
+  techniqueProfiles: {
+    // Sixteenths, and half the empty ones touched: the hand is a hi-hat.
+    strum: { dead: { step: 1, chance: 0.5, level: 0.16, length: 1 } },
+  },
   effects: {
     comp: { reverb: 0.08, lowpass: 9000 },
     bass: { reverb: 0.02, lowpass: 1600 },

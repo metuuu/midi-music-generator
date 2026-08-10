@@ -653,6 +653,25 @@ export const country: Genre = {
    * in all four eras. It has a slapback on it and almost no room, because the
    * words are the point and a reverberant voice is a less intelligible one.
    */
+  /**
+   * Three right hands, and this genre is the one place all three are ordinary.
+   *
+   * Flatpicking for the lead and the boom-chick, fingerstyle for everything
+   * descended from Travis and Atkins, and the open strum behind a singer. The
+   * weights are close together on purpose: unlike funk or metal, no one of these
+   * is what country guitar *means*, and a genre that picked one would be naming
+   * a sub-idiom.
+   *
+   * What this cannot reach is the figuration — a Travis pattern is a thumb
+   * alternating a bass note under fingers on the offbeats, and that is a
+   * decision about which notes, which `generate/technique.ts` may not make. So
+   * `fingerstyle` here buys the articulation, the ring and the hand, on a figure
+   * the style drew. The header of that file argues why, and this is the entry it
+   * had in mind.
+   */
+  techniques: {
+    comp: [['strum', 5], ['fingerstyle', 4], ['plectrum', 3]],
+  },
   effects: {
     bass: { reverb: 0.05, lowpass: 1400 },
     drums: { reverb: 0.18, lowpass: 6800 },

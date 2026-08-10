@@ -15,6 +15,7 @@ import type { DeliveryId } from '../style/delivery.js';
 import type { VoiceSignatureId } from '../style/voices.js';
 import type { Seam } from '../generate/transition.js';
 import type { DropSpan } from '../generate/drop.js';
+import type { Technique } from '../generate/technique.js';
 
 /**
  * Named layers. A game can duck, mute or crossfade these independently, which
@@ -33,6 +34,19 @@ export type LayerId =
 export const LAYER_ORDER: LayerId[] = [
   'drums', 'bass', 'comp', 'pad', 'brass', 'counter', 'melody', 'vocal',
 ];
+
+/**
+ * The layers an instrument is drawn for.
+ *
+ * Drums are a kit rather than an entry in the catalogue, and the vocal is a
+ * voice, so neither takes an `Instrument` and neither has a palette. Everything
+ * that does is here.
+ *
+ * Lived in `generate/song.ts` until a second file needed to name the same set:
+ * `Style.instruments` says which players a style brings with it, and the layers
+ * it may speak about are exactly the layers that have a player to name.
+ */
+export type PlayedLayer = Exclude<LayerId, 'drums' | 'vocal'>;
 
 export type SectionKind = 'intro' | 'verse' | 'chorus' | 'bridge' | 'solo' | 'outro';
 
@@ -314,6 +328,29 @@ export interface NoteEvent {
    * a thing a *finger* does, and there is only one of them per voice.
    */
   trill?: NoteTrill;
+  /**
+   * A stroke on a damped string: an attack with no pitch worth hearing.
+   *
+   * The hand keeping its grid between the notes that sound — a slap bass's
+   * sixteenths, a funk guitar's chank — and the reason it is a flag rather than
+   * simply a very quiet short note is that **nothing downstream could tell
+   * otherwise**, which is the same argument `Track.machine` and `hand` make. A
+   * consumer that reads this list as music has to be able to skip it: an
+   * interval to a dead stroke is not a melodic interval, a dead stroke on a
+   * fingerboard is not a fingering, and a part's note count is not its stroke
+   * count. `melodicLine` filters them, and so does every report that measures a
+   * line.
+   *
+   * `midi` is still honest — it is the string the hand is over, and a renderer
+   * has to send *something* — but it carries no harmonic intent, and a check
+   * that reads it as a chord tone is reading a click.
+   *
+   * **Optional and one-sided**, like `bend` and `trill` above and for the same
+   * reason: an ordinary note should not have to declare that it sounds.
+   *
+   * Written only by `applyTechnique`. See `generate/technique.ts`.
+   */
+  dead?: true;
   /**
    * Set on the notes a two-handed player's **left hand** played, and on nothing
    * else. See `Track.twoHanded` for what a track like that is.
@@ -1388,6 +1425,21 @@ export interface Track {
    * row that means a bar of this music rather than an arbitrary window.
    */
   machine?: { cycle: number };
+  /**
+   * What the player's right hand is doing. See `generate/technique.ts`.
+   *
+   * The fourth declaration in this interface and the same kind as the other
+   * three: once the notes exist, nothing can tell by looking whether they were
+   * slapped, picked or strummed, and three consumers need to know — the
+   * renderers, which shape the note; `concert/choreograph.ts`, which moves the
+   * hand; and the reports, which should not call a dead stroke a note.
+   *
+   * Absent on every part played with a bow, a reed, a keyboard or a mouth, which
+   * is most of them. That is the field working rather than the field missing:
+   * a technique here is a hand on a string, and an organist has no right-hand
+   * technique in this sense however busy their right hand is.
+   */
+  technique?: Technique;
 }
 
 /**
@@ -1813,15 +1865,29 @@ export interface Song {
  * and must not be quietly filtered away.
  */
 export function melodicLine(track: Track): NoteEvent[] {
-  const gap = track.twoHanded?.gap;
-  if (gap === undefined) return track.notes;
+  /**
+   * A dead stroke is never part of the line, whoever is playing it.
+   *
+   * First, and above the two-handed question, because it is the more basic one:
+   * the split below asks *which hand played this note*, and a damped string is
+   * not a note at all. It carries a pitch only because a renderer has to be sent
+   * one — see `NoteEvent.dead` — so a consumer measuring intervals, tessitura or
+   * note counts against it is measuring a click. A singer doubling a line must
+   * not sing one either, which is the path this actually reached first.
+   */
+  const sounding = track.notes.some((n) => n.dead)
+    ? track.notes.filter((n) => !n.dead)
+    : track.notes;
 
-  if (track.notes.some((n) => n.hand === 'left')) {
-    return track.notes.filter((n) => n.hand !== 'left');
+  const gap = track.twoHanded?.gap;
+  if (gap === undefined) return sounding;
+
+  if (sounding.some((n) => n.hand === 'left')) {
+    return sounding.filter((n) => n.hand !== 'left');
   }
 
   const groups = new Map<number, NoteEvent[]>();
-  for (const n of track.notes) {
+  for (const n of sounding) {
     const at = groups.get(n.beat);
     if (at) at.push(n);
     else groups.set(n.beat, [n]);

@@ -7,7 +7,7 @@
  */
 
 import type {
-  DrumSource, DrumVoice, Effects, EndingStyle, LayerId, SectionKind,
+  DrumSource, DrumVoice, Effects, EndingStyle, LayerId, PlayedLayer, SectionKind,
   SequencedLayer, Space,
 } from '../core/types.js';
 import type { InstrumentId } from './instruments.js';
@@ -21,6 +21,7 @@ import type { HookId } from '../generate/hook.js';
 import type { FillPalette } from '../generate/fills.js';
 import type { DropPalette } from '../generate/drop.js';
 import type { TempoPalette } from '../generate/tempo.js';
+import type { Technique, TechniqueProfile } from '../generate/technique.js';
 import type { BreakCarrier, TransitionPalette } from '../generate/transition.js';
 
 /** One bar of melodic rhythm. `[6, 2, 8]` = dotted quarter, eighth, half. */
@@ -1553,6 +1554,77 @@ export interface Style {
    * a voice, which is most of them — see `TwoHandedKeys`.
    */
   twoHanded?: TwoHandedKeys;
+  /**
+   * Players this style's own tables presuppose, weighted, per layer.
+   *
+   * `TwoHandedKeys.instruments` generalised off the lead, and for the reason
+   * that field already argues: a style may seize the palette where the style
+   * *is* the instrument. Funk's `slap` is that case written down twice and
+   * wired up neither time — the figures carry a thumb on the downbeat and a
+   * popped octave between, the style's own comment names `slapBass` as the
+   * thumb and `slapBass2` as the finger, and then `chooseInstruments` drew the
+   * bass out of the era palette without ever reading any of it. Measured over
+   * 200 songs of `funk`/`slap`, 182 of which landed in an era that owns a slap
+   * bass: **113 of those 182 put the thumb-and-pop figure on a patch with no
+   * thumb in it** — a fretless, a finger bass, a Minimoog. The inverse ran
+   * everywhere else in the genre, a slap patch playing the ballad.
+   *
+   * ## Preference, not seizure
+   *
+   * **Intersected with the era's palette, and the era wins.** The list here is
+   * read as *which of the instruments this band could own does this music want*,
+   * so a style whose preference the era cannot supply takes the palette's own
+   * draw untouched. That is not politeness, it is the only thing that keeps the
+   * anachronism gate working: funk draws `slap` at weight 1 in `jb`, which is
+   * **1968**, two years before Larry Graham; `jb`'s bass palette is a Fender and
+   * an upright and says so deliberately. A field that overrode the era would
+   * have put a slap bass behind James Brown to satisfy a table.
+   *
+   * So an era admits the technique by listing its instrument, exactly as it
+   * already admits a Minimoog or a LinnDrum, and this field only decides between
+   * things the era has already allowed.
+   *
+   * ## It costs no random number
+   *
+   * One `rng.weighted` per layer either way — the list it reads changes, its
+   * length does not. A style that declines this field generates bit-identical
+   * music, and a style that adopts it moves its own songs and nobody else's.
+   */
+  instruments?: Partial<Record<PlayedLayer, (readonly [InstrumentId, number])[]>>;
+  /**
+   * What the right hand does, weighted, per layer. See `Technique`.
+   *
+   * The sibling of `instruments` above and the third of the same intersection:
+   * the instrument says what it can be played with, `TechniqueProfile.layers`
+   * says where each technique belongs, and this says which of the survivors this
+   * music wants. A style asking for something the drawn instrument cannot do
+   * takes the instrument's own list, exactly as an era out-ranks a style's
+   * instrument preference — see `chooseTechnique`.
+   *
+   * **Absent is the ordinary case and means something real**, not merely
+   * "unspecified": *whoever is playing, they play it the way that instrument is
+   * usually played.* A guitar in a tango is strummed because guitars are
+   * strummed, and the tango has no opinion. Only a style whose identity is in
+   * the hand — a slap feature, a palm-muted riff, a genre built on a skank —
+   * has a reason to speak here, and the rest of the catalogue is louder for
+   * staying quiet.
+   */
+  techniques?: Partial<Record<PlayedLayer, (readonly [Technique, number])[]>>;
+  /**
+   * Corrections to a technique's own profile, for this style only.
+   *
+   * The escape hatch `TECHNIQUES.strum` names in its own comment, and the reason
+   * it has to exist: one `strum` entry serves nineteen genres, so its stroke
+   * grid is set at eighths, which is right for a country back-beat and a folk
+   * waltz and wrong for a funk chank. A genre that wants the faster hand says so
+   * here rather than by splitting the technique in two, because a `strum` that
+   * runs sixteenths is not a different technique — it is the same technique at
+   * a different speed, and two entries would be two names for one hand.
+   *
+   * Shallow-merged over `TECHNIQUES[t]`, so a style naming `dead` replaces the
+   * whole `dead` block and a style naming nothing changes nothing.
+   */
+  techniqueProfiles?: Partial<Record<Technique, Partial<TechniqueProfile>>>;
   /** Melodic character knobs. */
   melody: {
     /** Probability of a leap (>2 semitones) at any given non-cadential note. */

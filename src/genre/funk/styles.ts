@@ -2790,6 +2790,27 @@ const slap: Style = {
   beatUnit: 4,
   bpm: [100, 122],
   swing: 0,
+  /**
+   * The paragraph above says `slapBass` is the thumb and `slapBass2` is the
+   * finger; this is the line that makes it true. Until it existed the sentence
+   * was a comment and the bass came out of the era palette without consulting
+   * it: over 200 songs of this style, 113 of the 182 drawn in an era that owns
+   * a slap bass played the thumb-and-pop figure on something else — a Minimoog,
+   * a fretless, a finger bass. Those 182 are now all thumb, and the other 18
+   * are unchanged, note for note.
+   *
+   * Only the two, because the figures below are unplayable any other way: eight
+   * onsets a bar with the octave popped between the thumb strokes is not a line
+   * a finger player is choosing, it is a description of the technique. The
+   * variety this style has is the two GM programmes, which are genuinely
+   * different samples, plus the two figures.
+   *
+   * Nothing here reaches `jb`. That era is 1968 and its palette says a Fender
+   * and an upright; the intersection in `chooseInstruments` is empty there and
+   * the era wins, which is the whole reason it is an intersection. See
+   * `Style.instruments`.
+   */
+  instruments: { bass: [['slapBass', 6], ['slapBass2', 4]] },
   modeWeights: { minor: 0.6, major: 0.4 },
   relativeMajorChorus: 0,
   transitions: [['fill', 4], ['break', 4], ['shot', 2]],

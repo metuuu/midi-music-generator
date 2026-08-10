@@ -65,6 +65,16 @@ export function smooth(s: number): number {
 const SNAP: Record<GestureKind, number> = {
   strike: 1,
   pluck: 0.8,
+  // A strum is a whole arm rather than a finger, and an arm cannot whip: the
+  // hand accelerates into the strings and keeps going. Between a pluck and the
+  // weight of a `press`, and nearer the pluck because it is still an attack.
+  strum: 0.6,
+  // The thumb is the most violent of the three — a slap is a percussion stroke
+  // by intent — so it takes `strike`'s character rather than a pluck's.
+  thumb: 0.95,
+  // Fingers on their own strings barely move at all, and what movement there is
+  // is a release rather than an arrival.
+  fingers: 0.55,
   press: 0.45,
   bow: 0.15,
   blow: 0,

@@ -22,11 +22,13 @@
 import { CHORD_INTERVALS, parseRoman, type Chord } from '../core/chord.js';
 import { keyLabel, type Pc } from '../core/pitch.js';
 import { Rng } from '../core/rng.js';
+import { applyTechnique, chooseTechnique, TECHNIQUES } from './technique.js';
 import { makeScale, stepInScale, type Mode, type Scale } from '../core/scale.js';
 import {
   DEFAULT_DRUM_MIX, DEFAULT_SPACE, DUCK_FROM, SEQUENCER_FROM, canVary, eligibleDrumSources,
   isPlayedByHand, melodicLine,
   type DrumEvent, type DrumTrack, type DrumVoice, type Effects, type LayerId, type NoteEvent,
+  type PlayedLayer as CorePlayedLayer,
   type Section, type SectionKind, type SequencedLayer, type Song, type SongMeta,
   type Space, type Track,
 } from '../core/types.js';
@@ -132,8 +134,11 @@ export interface GenerateOptions {
  * Layers that draw an instrument from the era palette. Drums have their own
  * track shape, and the voice takes its sound from the genre rather than the
  * era — nobody's grandmother sang through a LinnDrum.
+ *
+ * Moved to `core/types.ts` once `Style.instruments` needed to name the same set;
+ * re-exported under the local name because this file reads it 40 times.
  */
-type PlayedLayer = Exclude<LayerId, 'drums' | 'vocal'>;
+type PlayedLayer = CorePlayedLayer;
 
 /**
  * What an earlier section of a given kind left behind for later ones to recall.
@@ -2656,6 +2661,34 @@ export function generateSong(opts: GenerateOptions = {}): Song {
     return slots ? slots / SLOTS_PER_BEAT : style.beatsPerBar;
   };
 
+  /**
+   * The right hand's own stream, off the seed rather than off the band's — and
+   * **one per layer**, which is the half that was not optional.
+   *
+   * Derived rather than forked for `generateVocalTrack`'s reason: a `Rng` built
+   * from a seed string costs the main stream nothing, so an instrument acquiring
+   * a `techniques` list does not reshuffle a single song that has none. Proven
+   * rather than asserted — with every list removed from the catalogue, all 389
+   * genre/style pairs hash exactly as they did before `technique.ts` existed.
+   *
+   * ## Why per layer, and the fault it fixes
+   *
+   * This started as one stream for the whole band, and that is the same bug
+   * `applyFeel`'s `kitRng` exists to prevent, arriving by the same path: dead
+   * strokes are drawn per eligible slot, so **how many numbers the bass consumes
+   * depends on the bass's own notes** — and a feel changes those. So a feel
+   * moved the stream on, the melody drew a different technique, and the melody's
+   * note *durations* came out different in a song where nothing had touched the
+   * tune. `npm run genres` found it immediately: `a feel never bends the tune`
+   * went from 0 to **301 of 24,263** melody and counter notes, and `a feel
+   * modifies, it never authors` reported **11 notes lost** where a layer drew a
+   * technique with dead strokes in one run and one without in the other.
+   *
+   * A stream per layer makes each hand a function of the seed and of the layer's
+   * name, and of nothing any other part can reach.
+   */
+  const techniqueRng = (layer: PlayedLayer) => new Rng(`${seed}:technique:${layer}`);
+
   const tracks: Track[] = [];
   for (const [layer, instrument] of Object.entries(layerInstruments) as [PlayedLayer, Instrument][]) {
     const notes = byLayer.get(layer) ?? [];
@@ -2771,7 +2804,67 @@ export function generateSong(opts: GenerateOptions = {}): Song {
       for (const n of notes) n.velocity = clamp(n.velocity / loudest * 0.82, 0.08, 1);
     }
 
+    /**
+     * …and then play it the way the hand plays it.
+     *
+     * Here, at the far end of the layer's own block, because everything a
+     * technique measures against has to have happened already: the level
+     * normalisation above, the solo ride, the machine flattening. A dead stroke
+     * is a fraction of the part's median velocity — see `DeadStrokes.level` —
+     * and a fraction taken before those three is a fraction of a number that no
+     * longer exists by the time anyone hears it.
+     *
+     * Before `applySwing` in the push below, so a stroke that lands on an
+     * offbeat swings with the rest of the part rather than sitting square
+     * against it. That ordering is the whole reason this is not simply the last
+     * line of the loop.
+     *
+     * A sequenced layer is skipped, and not as an oversight: `Track.machine`
+     * already says there is nobody with hands on this part, and a sequencer with
+     * a strumming technique would be the same contradiction the choreographer
+     * refuses when it declines to write playing gestures for one.
+     */
+    const hand = techniqueRng(layer);
+    const technique = isMachine ? undefined : chooseTechnique({
+      rng: hand,
+      layer,
+      offered: instrument.techniques,
+      // Style over genre, the order `effectsFor` resolves in. The genre is the
+      // usual home — see `Genre.techniques` for why this pair sits the opposite
+      // way round from `instruments` — and a style overrides it outright rather
+      // than merging, because a table of weights half-replaced is neither.
+      wanted: style.techniques?.[layer] ?? genre.techniques?.[layer],
+    });
+    if (technique) {
+      const correction = { ...genre.techniqueProfiles?.[technique], ...style.techniqueProfiles?.[technique] };
+      applyTechnique({
+        notes,
+        technique,
+        layer,
+        rng: hand,
+        beatsPerBar: style.beatsPerBar,
+        endsAt: (totalBars - 1) * style.beatsPerBar,
+        ...(Object.keys(correction).length
+          ? { profile: { ...TECHNIQUES[technique], ...correction } }
+          : {}),
+      });
+    }
+
     const effects = effectsFor(layer, instrument);
+    /**
+     * The chain with the hand on the end of it, or nothing at all.
+     *
+     * Merged last, past the instrument and therefore past the style, the era and
+     * the genre — see `TechniqueProfile.effects` for the argument. Kept
+     * `undefined` when the result is empty rather than published as `{}`, which
+     * is the same care `dated` takes one screen up and for the same reason: this
+     * project ships an IR that other things read, and an empty object is a
+     * statement where absence is the truth.
+     */
+    const handEffects = ((): Effects | undefined => {
+      const merged = { ...effects, ...(technique ? TECHNIQUES[technique].effects : {}) };
+      return Object.keys(merged).length ? merged : undefined;
+    })();
     /**
      * The object's own trim, folded in last.
      *
@@ -2793,8 +2886,17 @@ export function generateSong(opts: GenerateOptions = {}): Song {
       // Melodic layers were swung above, before their overlap trim.
       notes: layer === 'melody' || layer === 'counter' ? notes : applySwing(notes, swingPlan),
       gain: voiced,
-      envelope: envelopeFor(instrument),
-      ...(effects ? { effects } : {}),
+      /**
+       * The idiom's envelope, the instrument's corrections, and then the hand's.
+       *
+       * Innermost-last, which is the order `effectsFor` already merges in and
+       * the order the argument runs: a family rings a certain way, this object
+       * departs from its family, and what the player is doing right now departs
+       * from the object. A palm mute is not a different guitar.
+       */
+      envelope: { ...envelopeFor(instrument), ...(technique ? TECHNIQUES[technique].envelope : {}) },
+      ...(handEffects ? { effects: handEffects } : {}),
+      ...(technique ? { technique } : {}),
       // Said out loud, because from here on nothing can tell by looking: a
       // pianist's two hands and a four-part comp are both just simultaneous
       // notes. See `melodicLine`, which is what the declaration is for.
@@ -3184,6 +3286,7 @@ function landEnding(song: Song, style: EndingStyle, chord: Chord | undefined): v
      */
     let landAt = Number.POSITIVE_INFINITY;
     for (const note of track.notes) {
+      if (note.dead) continue;
       if (note.beat < at - EPS || note.beat > at + LAND_WINDOW + EPS) continue;
       if (note.beat < landAt) landAt = note.beat;
     }
@@ -3210,6 +3313,26 @@ function landEnding(song: Song, style: EndingStyle, chord: Chord | undefined): v
       // infinite, a part whose only note there is halfway through it: the band
       // landed on the downbeat and that note would be playing after the end.
       if (!Number.isFinite(landAt) || note.beat > landAt + EPS) {
+        dropped.push(note);
+        continue;
+      }
+      /**
+       * A damped string is not part of the landing, whatever else is.
+       *
+       * The band arrives on a chord; a muted click is the hand keeping time
+       * between chords, and there is nothing left to keep time for. Dropped
+       * rather than kept, which is what the final bar does with everything that
+       * is not the ending anyway.
+       *
+       * It also *had* to be excluded, because a button ending is the one place
+       * in the pipeline that raises a velocity — `x 1.15 + 0.06` — and a dead
+       * stroke promoted through that comes out at 0.177 against a part sitting
+       * at 0.38, which is a click louder relative to its music than the
+       * technique ever asked for. 23 of 5,643 strokes, all of them in a final
+       * bar, and `a dead stroke stays under the music it sits in` is the check
+       * that named them.
+       */
+      if (note.dead) {
         dropped.push(note);
         continue;
       }
@@ -3701,8 +3824,24 @@ function chooseInstruments(rng: Rng, era: EraProfile, style: Style) {
     taken.add(INSTRUMENTS[id].name);
     return id;
   };
+  /**
+   * What this style wants for a layer, narrowed to what this era can supply.
+   *
+   * See `Style.instruments`. The intersection is the whole mechanism: the era
+   * decides what the band owns and the style decides which of those it reaches
+   * for, so a preference the era has never heard of resolves to the era's own
+   * list rather than overriding it. Empty and absent are the same answer here —
+   * a slap style in 1968 draws the Fender that `jb` was always going to hand it.
+   */
+  const wanted = (layer: PlayedLayer, list: (readonly [InstrumentId, number])[]) => {
+    const asked = style.instruments?.[layer];
+    if (!asked) return list;
+    const owned = new Set(list.map(([id]) => id));
+    const shared = asked.filter(([id]) => owned.has(id));
+    return shared.length ? shared : list;
+  };
   const pick = (layer: PlayedLayer, list: (readonly [InstrumentId, number])[]): Instrument => {
-    const id = pickId(list);
+    const id = pickId(wanted(layer, list));
     ids[layer] = id;
     return INSTRUMENTS[id];
   };

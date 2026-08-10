@@ -648,6 +648,23 @@ export const metal: Genre = {
    * it in front of a kit with a large one is the standing production of this
    * entire genre.
    */
+  /**
+   * Palm-muted downstrokes, which is what distorted rhythm guitar *is*.
+   *
+   * A compressed note that never decays has to be stopped by the hand or the
+   * riff becomes one long chord — `distortionGuitar`'s own catalogue entry makes
+   * the same argument about its 2.6-second decay. So the mute is the ordinary
+   * case here and the open strum is the chorus, which is the reverse of every
+   * other genre in the project.
+   *
+   * No dead strokes fall out of this: `muted` adds none. That is correct rather
+   * than a shortfall — a palm mute is heard in the *length* of the notes that
+   * sound, not in strokes between them, and a metal riff with mutes filling its
+   * rests would be a different and much busier piece of music.
+   */
+  techniques: {
+    comp: [['muted', 8], ['plectrum', 3], ['strum', 2]],
+  },
   effects: {
     comp: { reverb: 0.14, lowpass: 6000 },
     melody: { reverb: 0.28, delay: 0.16, lowpass: 6600 },

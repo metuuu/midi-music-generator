@@ -28,8 +28,9 @@ import type { Pc } from '../core/pitch.js';
 import type { Rng } from '../core/rng.js';
 import type { Mode, Scale } from '../core/scale.js';
 import type {
-  BackingPolicy, DrumVoice, Effects, EndingStyle, LayerId, SectionKind, Space,
+  BackingPolicy, DrumVoice, Effects, EndingStyle, LayerId, PlayedLayer, SectionKind, Space,
 } from '../core/types.js';
+import type { Technique, TechniqueProfile } from '../generate/technique.js';
 import type { RuleOverrides, StrictnessId } from '../core/rules.js';
 import type { HookId } from '../generate/hook.js';
 import type { CompingProfile, EraProfile, Mood, Style } from '../style/types.js';
@@ -380,6 +381,38 @@ export interface Genre {
    * why the era owns this.
    */
   voiceEffects?: Partial<Record<DrumVoice, Effects>>;
+
+  /**
+   * What the right hand does, weighted, per layer — for the whole genre.
+   *
+   * `Style.techniques` under `Style.instruments`, and this is that pair's genre
+   * half, resolved the way `effects` is: **genre first, style over it**, with the
+   * instrument's own list the floor under both.
+   *
+   * The genre is the right home for this and the style is usually not, which is
+   * the opposite of where `instruments` sits, and the asymmetry is real. Which
+   * *object* a band owns is a decade and an arrangement — a fact about one
+   * number. How the object is *played* is nearly always a fact about the whole
+   * idiom: every funk guitarist chanks, in every one of that genre's twenty-two
+   * styles, and saying so twenty-two times would be twenty-two chances to
+   * disagree about what funk guitar is. `funk`/`slap` remains the counter-example
+   * in both directions — it names its bass instruments *and* its bass technique,
+   * because that one style genuinely is the hand.
+   *
+   * Absent means the instrument's own weights stand, which is what nineteen
+   * genres said when this landed and what most of them still say.
+   */
+  techniques?: Partial<Record<PlayedLayer, (readonly [Technique, number])[]>>;
+
+  /**
+   * Corrections to a technique's profile, genre-wide. See `Style.techniqueProfiles`.
+   *
+   * The field the shared `strum` entry was designed to need: one strumming hand
+   * serves the whole catalogue, so its stroke grid is set at eighths, which is a
+   * country back-beat and a folk waltz and is not a funk chank. A genre that runs
+   * the faster hand says so once, here.
+   */
+  techniqueProfiles?: Partial<Record<Technique, Partial<TechniqueProfile>>>;
 
   /**
    * How this genre's filter moves, and which layers move most.

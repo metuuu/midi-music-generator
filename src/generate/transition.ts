@@ -1505,8 +1505,27 @@ function median(values: number[]): number {
 export function hitTogether(
   notes: NoteEvent[], from: number, to: number, beats: readonly number[],
 ): NoteEvent[] {
-  const inBar = notes.filter((n) => n.beat >= from - 1e-6 && n.beat < to - 1e-6);
+  /**
+   * Sounding notes only, and the mutes in this bar go.
+   *
+   * A shot is the whole band hitting a figure together, and it is built out of
+   * *what the part was already holding* — so a damped string offered as a
+   * voicing is the band landing on a click. Two things went wrong at once when
+   * this did not filter, and the second is the one that would have survived a
+   * listen: `{ ...n }` copies `dead`, and `velocity + 0.12` then promoted a
+   * stroke written at 0.057 to 0.177 while it still called itself a mute. Four
+   * notes in a humppa, and `a dead stroke stays under the music it sits in` is
+   * what found them.
+   *
+   * Dropping them from the bar rather than keeping them around the shot is the
+   * same call `landEnding` makes about the final bar: a dead stroke is the hand
+   * keeping time between the chords, and a bar that has been replaced by three
+   * accents has no time left to keep.
+   */
+  const inBar = notes.filter((n) => !n.dead && n.beat >= from - 1e-6 && n.beat < to - 1e-6);
   if (inBar.length < 2) return notes;
+  // Outside the bar, untouched — mutes included. Only the ones *inside* it are
+  // dropped, and they are dropped by being in neither list.
   const kept = notes.filter((n) => n.beat < from - 1e-6 || n.beat >= to - 1e-6);
 
   // One onset's worth of pitches per hit, taken from what the part was already

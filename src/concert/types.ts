@@ -443,7 +443,44 @@ export type Effector =
 /** What the effector is doing when it arrives. Drives the easing and the pose. */
 export type GestureKind =
   | 'strike'   // stick, mallet, hand — ballistic, and it bounces
-  | 'pluck'    // finger or plectrum, small and quick
+  | 'pluck'    // a plectrum on one string: small, quick, and it comes back
+  /**
+   * A sweep across the strings, and specifically a *change of direction*.
+   *
+   * `bow` below argues this contract at length and this is the same one, which
+   * is the reason it is spelled the same way: there is no down/up field, the
+   * renderer alternates on each `strum`, and a hand that is keeping a stroke
+   * grid therefore comes out down-up-down-up without anyone writing it down.
+   *
+   * What makes the alternation trustworthy is `NoteEvent.dead`. A strumming hand
+   * does not stop between chords — it keeps sweeping and lets some strokes land
+   * on damped strings — so the events the choreographer sees are the whole grid
+   * rather than only the chords, and alternating per event is then simply true.
+   * Before dead strokes existed the same rule would have been a guess: a figure
+   * that plays on one and three would have come out down, up, down, up when a
+   * player's hand is down, down, down, down with two mutes between.
+   */
+  | 'strum'
+  /**
+   * The thumb strikes, rather than a finger or a plectrum.
+   *
+   * A slap, and the Motown mute — the two techniques where the striking digit is
+   * the thumb, moving through the string rather than off it. It is a rotation of
+   * the forearm rather than a flex of a finger, which is why it is a kind and
+   * not a `pluck` with a different force: nothing about the arm is in the same
+   * place.
+   */
+  | 'thumb'
+  /**
+   * Fingers on separate strings, and almost no travel at all.
+   *
+   * The opposite end of the same axis `strum` sits on: one hand, several strings,
+   * and the hand does not move across them because each finger already has one.
+   * A fingerpicked part is the stillest right hand on the stage, and staging it
+   * as a sequence of plucks was the specific thing that read wrong — a hand
+   * hopping between strings it never leaves.
+   */
+  | 'fingers'
   | 'press'    // a key, weight rather than speed
   /**
    * A bow stroke, and specifically a *change of direction*.

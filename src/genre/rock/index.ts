@@ -653,6 +653,17 @@ export const rock: Genre = {
    * brighter, it sounds like a distorted *sample*, which is the single most
    * common way a synthesised rock arrangement gives itself away.
    */
+  /**
+   * The riff hand and the open hand, and rock is where they are evenly matched.
+   *
+   * A palm mute drives a verse and an open strum lifts a chorus, and both are
+   * ordinary here in a way they are not in metal — which is the same two
+   * techniques weighted 8 to 2 rather than 5 to 4, and the difference between
+   * those two ratios is most of the difference between the genres.
+   */
+  techniques: {
+    comp: [['muted', 5], ['strum', 4], ['plectrum', 3]],
+  },
   effects: {
     bass: { reverb: 0.04, lowpass: 1800 },
     drums: { reverb: 0.32, lowpass: 8000 },

@@ -465,6 +465,18 @@ export const reggae: Genre = {
    * The comp is the wet one. A skank through a plate is the sound; run dry it is a
    * correct figure that nobody would recognise.
    */
+  /**
+   * The skank: a chop on the offbeat that is over before the beat arrives.
+   *
+   * `muted` ahead of `strum` because the defining thing about a skank is how
+   * *short* it is — the chord is released the instant it sounds, which is
+   * exactly what `TECHNIQUES.muted` does with its 0.34 length and nothing else
+   * in the table does at all. The strum under it is the bubble and the rare
+   * ringing chorus chord.
+   */
+  techniques: {
+    comp: [['muted', 6], ['strum', 4]],
+  },
   effects: {
     bass: { reverb: 0.02, lowpass: 900 },
     drums: { reverb: 0.28, lowpass: 5200 },

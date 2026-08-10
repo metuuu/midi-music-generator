@@ -11,6 +11,7 @@
 
 import type { Midi } from '../core/pitch.js';
 import type { Effects, Envelope } from '../core/types.js';
+import type { Technique } from '../generate/technique.js';
 import type { VoicingStyle } from '../core/voicing.js';
 
 /**
@@ -274,12 +275,81 @@ export interface Instrument {
    * own samples and will need its own measurements.
    */
   gain?: number;
+  /**
+   * How this thing can be struck, weighted. See `Technique`.
+   *
+   * **The right hand, where `idiom` is the left one.** An idiom says how the
+   * line is shaped and this says how the string is set moving, and the two are
+   * genuinely independent: a nylon guitar and a slap bass share `plucked` and
+   * have nothing whatever in common at the other end.
+   *
+   * **Absent means the instrument has no right-hand technique**, and absent is
+   * the commoner answer — a horn, an organ, a bowed string and a drum are all
+   * played with something that is not a hand on a string, and none of them
+   * should acquire a field saying so. That is also what keeps the axis from
+   * spreading: a technique here has to be a thing a plectrum, a thumb or four
+   * fingers do, so an instrument with no strings has nothing to declare.
+   *
+   * The weights are read *after* two filters — the technique's own layer list,
+   * and the style's preference where it has one — so an entry here is a claim
+   * about the object and not about any music. A guitar can be strummed, picked
+   * and muted; whether tonight's number wants the mute is nothing to do with the
+   * guitar. See `chooseTechnique`.
+   */
+  techniques?: (readonly [Technique, number])[];
 }
 
 const I = (
   name: string, gm: number, strudel: string, centre: number,
   agility = 0.7, idiom: Idiom = 'vocal',
 ): Instrument => ({ name, gm, strudel, centre, idiom, agility });
+
+/**
+ * A hand on a string, and the four sets the plucked catalogue actually needs.
+ *
+ * Named rather than written out at each entry because the sets repeat — every
+ * six-string guitar in the catalogue offers the same three things — and because
+ * a set spelled out twenty-one times is twenty-one chances for two guitars to
+ * disagree about what a guitar is. Same argument as `VIOLIN` below.
+ */
+const HAND = {
+  /**
+   * A guitar. Strummed most nights, picked when it has a line, muted when the
+   * music wants the strings stopped — and the weights say which is ordinary.
+   *
+   * `fingerstyle` is in every guitar's list at a low weight rather than in the
+   * nylon's alone, which is a deliberate refusal to be tidy: classical guitar is
+   * the obvious fingerstyle instrument and Wes Montgomery, Mark Knopfler and
+   * every country player who ever put a thumbpick on played fingerstyle on
+   * everything else in this list.
+   */
+  guitar: [['strum', 6], ['plectrum', 4], ['muted', 2], ['fingerstyle', 2]],
+  /** A bass played with the fingers, which is what a bass mostly is. */
+  bass: [['fingers', 7], ['plectrum', 2], ['muted', 2]],
+  /**
+   * A bass the catalogue has already named for its technique.
+   *
+   * GM gave three of them their own programme — slap 1, slap 2 and pick — so
+   * the technique is not a draw on those: the patch *is* the answer, and a
+   * `slapBass` playing anything but a slap would be the incoherence
+   * `Style.instruments` was written to remove, arriving from the other side.
+   */
+  slapped: [['slap', 1]],
+  picked: [['plectrum', 1]],
+  /**
+   * Everything plucked that is neither a guitar nor a bass — a sitar, a koto, a
+   * kantele, a harp's near neighbours. Fingers or a plectrum, and the plectrum
+   * is doing real work here: a sitar's mizrab and a shamisen's bachi are both
+   * worn or held, and neither instrument is ever strummed in the sense this
+   * catalogue means.
+   */
+  other: [['fingers', 5], ['plectrum', 3]],
+} as const satisfies Record<string, readonly (readonly [Technique, number])[]>;
+
+/** The same instrument, with a right hand on it. See `Instrument.techniques`. */
+const H = (
+  instrument: Instrument, techniques: readonly (readonly [Technique, number])[],
+): Instrument => ({ ...instrument, techniques: [...techniques] });
 
 /** The same instrument, up where it plays a tune. See `Instrument.lead`. */
 const L = (instrument: Instrument, lead: number): Instrument => ({ ...instrument, lead });
@@ -403,39 +473,62 @@ export const INSTRUMENTS = {
   percussiveOrgan: E(I('percussive organ', 17, 'gm_percussive_organ', 60, 0.9, 'keyboard'), ORGAN),
   // A guitar comps in first position and plays a single-line head up the neck,
   // which is the same instrument in two places and exactly what `lead` is for.
-  nylonGuitar: L(I('nylon guitar', 24, 'gm_acoustic_guitar_nylon', 60, 0.8, 'plucked'), 71),
-  steelGuitar: L(I('steel guitar', 25, 'gm_acoustic_guitar_steel', 60, 0.8, 'plucked'), 71),
-  jazzGuitar: L(I('jazz guitar', 26, 'gm_electric_guitar_jazz', 60, 0.85, 'plucked'), 71),
-  cleanGuitar: L(I('clean electric guitar', 27, 'gm_electric_guitar_clean', 60, 0.8, 'plucked'), 71),
+  nylonGuitar: H(L(I('nylon guitar', 24, 'gm_acoustic_guitar_nylon', 60, 0.8, 'plucked'), 71),
+    // The one guitar in the catalogue whose ordinary hand is fingers: nylon
+    // strings are strung for them, and a plectrum on nylon is the exception a
+    // flamenco player makes rather than the rule.
+    [['fingerstyle', 6], ['strum', 4], ['plectrum', 1]]),
+  steelGuitar: H(L(I('steel guitar', 25, 'gm_acoustic_guitar_steel', 60, 0.8, 'plucked'), 71), HAND.guitar),
+  jazzGuitar: H(L(I('jazz guitar', 26, 'gm_electric_guitar_jazz', 60, 0.85, 'plucked'), 71),
+    // A hollow-body comps in four with a plectrum — Freddie Green, and it is the
+    // one guitar sound in this catalogue that is a *rhythm* before it is a
+    // texture. Strumming is there for the nights it is a texture.
+    [['plectrum', 6], ['strum', 3], ['fingerstyle', 2], ['muted', 1]]),
+  cleanGuitar: H(L(I('clean electric guitar', 27, 'gm_electric_guitar_clean', 60, 0.8, 'plucked'), 71),
+    HAND.guitar),
   // Palm-muted: the string is damped by the hand that struck it.
-  mutedGuitar: L(E(I('muted guitar', 28, 'gm_electric_guitar_muted', 60, 0.8, 'plucked'),
-    { decay: 0.25 }), 71),
+  // …and the technique is not drawn for, because the programme *is* the
+  // technique. Same argument as `slapBass` below: GM named a hand, the catalogue
+  // inherited it as an instrument, and a muted guitar ringing on would be the
+  // patch and the part disagreeing about what the hand is doing.
+  mutedGuitar: H(L(E(I('muted guitar', 28, 'gm_electric_guitar_muted', 60, 0.8, 'plucked'),
+    { decay: 0.25 }), 71), [['muted', 1]]),
   // Overdrive is a clean note pushed into an amplifier that has run out of
   // headroom. The string still decays like a string, so this takes the plucked
   // envelope untouched.
   // Same neck as the clean one, so the same 71. An amplifier does not move where
   // a guitarist plays a lead.
-  overdriveGuitar: L(I('overdriven guitar', 29, 'gm_overdriven_guitar', 60, 0.8, 'plucked'), 71),
+  overdriveGuitar: H(L(I('overdriven guitar', 29, 'gm_overdriven_guitar', 60, 0.8, 'plucked'), 71),
+    // An amplifier at the edge of breakup is a riff instrument, and a riff is
+    // downstrokes with the heel of the hand on the strings.
+    [['muted', 5], ['plectrum', 4], ['strum', 3]]),
   // Distortion is the same process taken far enough to compress, and compression
   // is what abolishes the decay: the note holds at level until the player damps
   // it. Two and a half seconds against the plucked default's one is the whole
   // difference between a chord and a power chord.
-  distortionGuitar: L(E(I('distortion guitar', 30, 'gm_distortion_guitar', 60, 0.8, 'plucked'),
+  distortionGuitar: H(L(E(I('distortion guitar', 30, 'gm_distortion_guitar', 60, 0.8, 'plucked'),
     { decay: 2.6 }), 71),
-  acousticBass: I('upright bass', 32, 'gm_acoustic_bass', 40, 0.7, 'plucked'),
-  fingerBass: I('electric bass', 33, 'gm_electric_bass_finger', 40, 0.75, 'plucked'),
-  pickBass: I('picked bass', 34, 'gm_electric_bass_pick', 40, 0.75, 'plucked'),
+    // The palm mute is *most* of what distorted rhythm guitar is — a compressed
+    // note that never decays has to be stopped by the hand or the riff is one
+    // long chord. Strumming an open chord through this is the chorus, not the
+    // verse, and the weights say so.
+    [['muted', 7], ['plectrum', 3], ['strum', 2]]),
+  // Fingers, and only fingers: nobody takes a plectrum to a double bass, and a
+  // palm mute needs a bridge the hand can rest on.
+  acousticBass: H(I('upright bass', 32, 'gm_acoustic_bass', 40, 0.7, 'plucked'), [['fingers', 1]]),
+  fingerBass: H(I('electric bass', 33, 'gm_electric_bass_finger', 40, 0.75, 'plucked'), HAND.bass),
+  pickBass: H(I('picked bass', 34, 'gm_electric_bass_pick', 40, 0.75, 'plucked'), HAND.picked),
   // The same fingerboard, the same four strings and the same reach as
   // `fingerBass`: thumb and popping finger are a technique, not a wider
   // instrument. What makes it 1983 is in the sample, not in these numbers.
-  slapBass: I('slap bass', 36, 'gm_slap_bass_1', 40, 0.75, 'plucked'),
+  slapBass: H(I('slap bass', 36, 'gm_slap_bass_1', 40, 0.75, 'plucked'), HAND.slapped),
   synthBass: E(I('synth bass', 38, 'gm_synth_bass_1', 40, 0.85, 'keyboard'), SYNTH_BASS),
   violin: VIOLIN,
   fiddle: I('fiddle', 110, 'gm_fiddle', 76, 0.65, 'bowed'),
   tremoloStrings: I('tremolo strings', 44, 'gm_tremolo_strings', 72, 0.5, 'bowed'),
   // Plucked with a fingertip and stopped by the next bow stroke: very short.
-  pizzStrings: E(I('pizzicato strings', 45, 'gm_pizzicato_strings', 60, 0.8, 'plucked'),
-    { decay: 0.5 }),
+  pizzStrings: H(E(I('pizzicato strings', 45, 'gm_pizzicato_strings', 60, 0.8, 'plucked'),
+    { decay: 0.5 }), [['fingers', 1]]),
   harp: I('harp', 46, 'gm_orchestral_harp', 72, 1.0, 'mallet'),
   strings1: I('string ensemble', 48, 'gm_string_ensemble_1', 72, 0.5, 'bowed'),
   strings2: I('string ensemble 2', 49, 'gm_string_ensemble_2', 72, 0.5, 'bowed'),
@@ -545,7 +638,7 @@ export const INSTRUMENTS = {
   contrabass: I('contrabass', 43, 'gm_contrabass', 40, 0.45, 'bowed'),
   // Sympathetic strings and a drone string of its own — the one plucked
   // instrument that already behaves like a pad.
-  sitar: I('sitar', 104, 'gm_sitar', 60, 0.7, 'plucked'),
+  sitar: H(I('sitar', 104, 'gm_sitar', 60, 0.7, 'plucked'), HAND.other),
   panFlute: I('pan flute', 75, 'gm_pan_flute', 79, 0.6, 'wind'),
   shakuhachi: I('shakuhachi', 77, 'gm_shakuhachi', 74, 0.55, 'wind'),
 
@@ -692,8 +785,8 @@ export const INSTRUMENTS = {
   // sample set covers. The long decay is the fact that matters most and the one
   // a harp envelope would hide — a kantele has no dampers whatever, so the
   // strings go on ringing into each other, and that wash is what the sound is.
-  kantele: E(I('kantele', 46, 'psaltery_pluck', 67, 1.0, 'plucked'),
-    { decay: 2.6, release: 0.6 }),
+  kantele: H(E(I('kantele', 46, 'psaltery_pluck', 67, 1.0, 'plucked'),
+    { decay: 2.6, release: 0.6 }), [['fingers', 1]]),
   // Full plenum: the sound of a building. Against GM 19, which is one sampled
   // registration standing in for an instrument whose entire art is choosing
   // between them — which is why there are two of these and only one of most
@@ -741,20 +834,21 @@ export const INSTRUMENTS = {
   // hand presses *behind* a bridge to bend a note that is already sounding.
   // Structurally that makes it a harp rather than a lute, which is what the
   // idiom and the archetype both say.
-  koto: I('koto', 107, 'gm_koto', 60, 0.8, 'plucked'),
+  koto: H(I('koto', 107, 'gm_koto', 60, 0.8, 'plucked'), HAND.other),
   // A fretless three-string lute struck with a plectrum the size of a hand,
   // which lands on the skin belly as well as the string. That percussive slap
   // is the sound, and the short decay is it: a shamisen note is gone in half a
   // second and the next one is already on the way.
-  shamisen: E(I('shamisen', 106, 'gm_shamisen', 60, 0.75, 'plucked'),
-    { decay: 0.6 }),
+  // The bachi is a plectrum the size of a hand and it is never not in use.
+  shamisen: H(E(I('shamisen', 106, 'gm_shamisen', 60, 0.75, 'plucked'),
+    { decay: 0.6 }), [['plectrum', 1]]),
   // The Vietnamese zither, sampled, against GM 108's koto as the MIDI fallback
   // — the two are cousins and the substitution is honest. It is here rather
   // than folded into the koto because sixteen steel strings ring far brighter
   // and far longer than thirteen silk ones, and because the two traditions
   // pentatonicise differently; one entry could only have been one of them.
-  dantranh: E(I('dan tranh', 107, 'dantranh', 62, 0.8, 'plucked'),
-    { decay: 1.8, release: 0.4 }),
+  dantranh: H(E(I('dan tranh', 107, 'dantranh', 62, 0.8, 'plucked'),
+    { decay: 1.8, release: 0.4 }), [['fingers', 1]]),
 
   // --- The string band, and the pipes --------------------------------------
 
@@ -764,7 +858,10 @@ export const INSTRUMENTS = {
   // the right hand has to keep filling every eighth or the instrument is
   // silent. 0.55 against the plucked family's 1.1, and it changes the writing
   // more than any other override in the table.
-  banjo: L(E(I('banjo', 105, 'gm_banjo', 62, 0.85, 'plucked'), { decay: 0.55 }), 71),
+  // Fingers and picks worn on them — a five-string is rolled, not strummed, and
+  // the frailing hand that does strum it is striking downward with a nail.
+  banjo: H(L(E(I('banjo', 105, 'gm_banjo', 62, 0.85, 'plucked'), { decay: 0.55 }), 71),
+    [['fingerstyle', 6], ['strum', 3], ['plectrum', 1]]),
   // Nine notes. The Great Highland chanter plays G4 to A5 and nothing else —
   // no octave, no accidentals beyond its own scale, no dynamics — and the range
   // below is that literal fact rather than a conservative estimate. It is the
@@ -787,7 +884,8 @@ export const INSTRUMENTS = {
   // Sampled, against GM 16 as the fallback: General MIDI files a strumstick and
   // a hammered dulcimer under the same programme, which is wrong about the
   // action and right about the family, and it is the closest thing on offer.
-  strumstick: I('strumstick', 15, 'strumstick', 55, 0.6, 'plucked'),
+  // Three strings tuned to a chord, and the name is the technique.
+  strumstick: H(I('strumstick', 15, 'strumstick', 55, 0.6, 'plucked'), [['strum', 5], ['fingers', 2]]),
 
   // --- Tuned percussion the band carries in a case -------------------------
   // Melodic-bank programmes, not drum voices. GM 114, 115 and 116 are pitched
@@ -830,15 +928,17 @@ export const INSTRUMENTS = {
   // bass here, for the reason `slapBass` already states: a technique is not a
   // wider instrument. It earns its row because a funk line alternates the two,
   // and until now only one of them existed.
-  slapBass2: I('slap bass 2', 37, 'gm_slap_bass_2', 40, 0.75, 'plucked'),
+  slapBass2: H(I('slap bass 2', 37, 'gm_slap_bass_2', 40, 0.75, 'plucked'), HAND.slapped),
   // A harmonic is not a fretted note and it is not in the same place. The
   // string is touched rather than stopped, at a node, and what sounds is a
   // partial *above* the open string — so this is the one plucked entry whose
   // ceiling is set by physics rather than by the end of the neck, and the
   // `RANGE_OF` entry in `concert/instruments.ts` says so against the guitar's
   // own 22 frets. Long decay, because a node is where the string loses least.
-  guitarHarmonics: E(I('guitar harmonics', 31, 'gm_guitar_harmonics', 79, 0.6, 'plucked'),
-    { decay: 2.2 }),
+  // A harmonic is a fingertip resting over a node while the other hand plucks:
+  // whatever else the right hand can do, it is not damping and not strumming.
+  guitarHarmonics: H(E(I('guitar harmonics', 31, 'gm_guitar_harmonics', 79, 0.6, 'plucked'),
+    { decay: 2.2 }), [['fingerstyle', 3], ['fingers', 2]]),
 
   // --- Machines ------------------------------------------------------------
   // Pitched drum programmes, which is a real category and not a contradiction:

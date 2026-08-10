@@ -24,13 +24,16 @@ import type { HookId } from './generate/hook.js';
 import { chordPcs, parseRoman, CHORD_INTERVALS, type Chord, type ChordQuality } from './core/chord.js';
 import { makeScale } from './core/scale.js';
 import { pc } from './core/pitch.js';
-import { canVary, isPlayedByHand, melodicLine, type DrumVoice, type Song } from './core/types.js';
+import {
+  canVary, isPlayedByHand, melodicLine, type DrumVoice, type PlayedLayer, type Song,
+} from './core/types.js';
 import { STATION_OF, drumStations } from './concert/instruments.js';
 import { Rng } from './core/rng.js';
 import { BANK_VOICES, readBankName, resolveVoice, SAMPLE_RACKS } from './render/drum-banks.js';
 import { RACK_SAMPLE_LEVEL } from './render/source-levels.js';
 import { renderStrudel } from './render/strudel.js';
-import { HANDS, IDIOMS, type Idiom, type IdiomProfile } from './style/instruments.js';
+import { HANDS, IDIOMS, INSTRUMENTS, type Idiom, type IdiomProfile } from './style/instruments.js';
+import { TECHNIQUES } from './generate/technique.js';
 import type { Style } from './style/types.js';
 import { shotFigures, type TransitionPalette } from './generate/transition.js';
 import { FEELS, type FeelId } from './style/feel.js';
@@ -3713,6 +3716,44 @@ console.log('\nTwo hands');
   );
 
   /**
+   * `Style.instruments` is a preference intersected with the era's palette, and
+   * the failure mode of an intersection is that it is empty everywhere — a table
+   * that reads like a decision and changes nothing. That is not hypothetical: an
+   * id misspelt, or an instrument the genre's eras never actually list, produces
+   * exactly the behaviour the field exists to remove, silently, because falling
+   * back to the era's own list is also what the field does when it is working.
+   *
+   * So the assertion is *reachability*, per layer and not per id: at least one
+   * era this style can be drawn in must own at least one instrument it asks for.
+   * Per-id would be wrong — a style is entitled to name a slap bass that only
+   * the later eras have, which is what `funk`/`slap` does — and `styleWeights`
+   * is what says which eras those are, so an era that has weighted the style to
+   * zero does not get to satisfy it.
+   */
+  const unreachable: string[] = [];
+  for (const gid of GENRE_IDS) {
+    const genre = getGenre(gid);
+    for (const [sid, style] of Object.entries(genre.styles)) {
+      if (!style.instruments) continue;
+      const eras = Object.values(genre.eras).filter((e) => (e.styleWeights[sid] ?? 0) > 0);
+      for (const [layer, asked] of Object.entries(style.instruments)) {
+        const reachable = eras.some((era) => {
+          const owned = new Set(era.palette[layer as keyof typeof era.palette].map(([id]) => id));
+          return asked.some(([id]) => owned.has(id));
+        });
+        if (!reachable) unreachable.push(`${gid}/${sid}: ${layer}`);
+      }
+    }
+  }
+  check(
+    'a style that names its players can be handed one',
+    unreachable.length === 0,
+    unreachable.length
+      ? unreachable.join('; ')
+      : 'every declared player is in some era that draws the style',
+  );
+
+  /**
    * The invariant, tested at the source rather than on the finished track.
    *
    * It cannot be checked downstream, and that is the whole difficulty: once the
@@ -4728,6 +4769,115 @@ console.log('\nRendered files');
     'no pitched key is struck while it is already sounding',
     doubles === unisons,
     `${doubles} double note-ons over ${songs} songs, ${notes} notes; ${unisons} same-tick unisons in the IR`,
+  );
+}
+
+/**
+ * The right hand.
+ *
+ * `generate/technique.ts` claims a boundary in its own header — *it modifies, it
+ * never composes* — and the boundary is exactly the one `applyFeel` claims, so
+ * it is asserted in the same terms `a feel modifies, it never authors` uses. A
+ * technique adds events, which looks like composing and is not: a dead stroke is
+ * a damped string, carries no pitch class the part did not already have, and
+ * sits far below the level of the music around it. Those three are the whole
+ * claim, and each of them is a line below.
+ *
+ * The fourth is the one that would be invisible in the ear and loud in every
+ * report: a dead stroke must never reach `melodicLine`. A part whose note count
+ * includes its own mutes is a part every melodic measurement in this file is
+ * quietly wrong about.
+ */
+console.log('\nRight hand');
+{
+  const cap = 0.35;
+  let strokes = 0, tooLoud = 0, foreign = 0, inLine = 0, tracks = 0;
+  let deadTracks = 0, pitchless = 0;
+  const loud: string[] = [];
+  for (const gid of GENRE_IDS) {
+    for (const sid of Object.keys(getGenre(gid).styles)) {
+      for (let s = 0; s < 2; s++) {
+        const song = generateSong({ seed: `hand-${s}`, genre: gid, style: sid });
+        for (const track of song.tracks) {
+          if (!track.technique) continue;
+          tracks++;
+          const dead = track.notes.filter((n) => n.dead);
+          if (!dead.length) continue;
+          deadTracks++;
+
+          /**
+           * Against the *sounding* notes of the same part, not against the whole
+           * list — a level that included the mutes would be dragged down by
+           * them, and the cap would then certify anything.
+           */
+          const sung = track.notes.filter((n) => !n.dead);
+          const levels = sung.map((n) => n.velocity).sort((a, b) => a - b);
+          const median = levels[Math.floor(levels.length / 2)] ?? 0;
+          const classes = new Set(sung.map((n) => n.midi % 12));
+          for (const n of dead) {
+            strokes++;
+            if (!(median > 0 && n.velocity <= median * cap)) {
+              tooLoud++;
+              if (loud.length < 3) {
+                loud.push(`${gid}/${sid} ${track.layer} ${n.velocity.toFixed(3)} vs ${(median * cap).toFixed(3)}`);
+              }
+            }
+            if (!classes.has(n.midi % 12)) foreign++;
+            // A dead stroke is a stroke, so it may not be longer than one.
+            if (n.duration > 0.25) pitchless++;
+          }
+          for (const n of melodicLine(track)) if (n.dead) inLine++;
+        }
+      }
+    }
+  }
+  check(
+    'a dead stroke stays under the music it sits in',
+    tooLoud === 0 && strokes > 0,
+    !strokes
+      ? 'no dead stroke was drawn at all'
+      : tooLoud
+        ? `${tooLoud} of ${strokes} over ${cap} of their part — ${loud.join(', ')}`
+        : `${strokes} dead strokes across ${deadTracks} of ${tracks} played parts, all under ${cap} of their part`,
+  );
+  check(
+    'a technique modifies, it never composes',
+    foreign === 0 && pitchless === 0 && strokes > 0,
+    `${foreign} strokes on a pitch class the part did not already have, ${pitchless} longer than a sixteenth`,
+  );
+  check(
+    'a dead stroke is never part of the line',
+    inLine === 0 && strokes > 0,
+    `${inLine} of ${strokes} dead strokes survived melodicLine`,
+  );
+
+  /**
+   * The same reachability argument `a style that names its players can be handed
+   * one` makes, one axis over. A style naming a technique no instrument its eras
+   * can deal is able to play reads as a decision and silently changes nothing,
+   * because falling back to the instrument's own list is also what the field does
+   * when it is working. Asserted per layer, and against the eras that can
+   * actually draw the style.
+   */
+  const stranded: string[] = [];
+  for (const gid of GENRE_IDS) {
+    const genre = getGenre(gid);
+    for (const [sid, style] of Object.entries(genre.styles)) {
+      if (!style.techniques) continue;
+      const eras = Object.values(genre.eras).filter((e) => (e.styleWeights[sid] ?? 0) > 0);
+      for (const [layer, asked] of Object.entries(style.techniques)) {
+        const reachable = eras.some((era) => era.palette[layer as PlayedLayer].some(([id]) =>
+          (INSTRUMENTS[id].techniques ?? []).some(([t]) =>
+            TECHNIQUES[t].layers.includes(layer as PlayedLayer)
+            && asked.some(([want]) => want === t))));
+        if (!reachable) stranded.push(`${gid}/${sid}: ${layer}`);
+      }
+    }
+  }
+  check(
+    'a style that names a technique has hands that can play it',
+    stranded.length === 0,
+    stranded.length ? stranded.join('; ') : 'every declared technique is reachable in some era that draws the style',
   );
 }
 

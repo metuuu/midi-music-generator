@@ -53,6 +53,7 @@ import type { Midi } from '../core/pitch.js';
 import { Rng } from '../core/rng.js';
 import type { DrumEvent, DrumVoice, NoteEvent, Song, Track } from '../core/types.js';
 import { IDIOMS, INSTRUMENTS } from '../style/instruments.js';
+import type { Technique } from '../generate/technique.js';
 import {
   boardGap, boardsFor, drumEventsFor, instrumentIdForTrack, rangeForTrack, specFor,
   type BoardSpec,
@@ -83,6 +84,23 @@ import type {
 const PREP_SECONDS: Record<GestureKind, readonly [base: number, travel: number, lift: number]> = {
   strike: [0.06, 0.22, 0.10],
   pluck: [0.04, 0.12, 0.03],
+  /**
+   * A strum costs the most of any right hand and almost none of it is travel.
+   *
+   * The arm is already swinging — that is what a strum *is* — so where on the
+   * fingerboard it happens is nearly free, and the base carries the whole
+   * gesture. The `lift` term is the largest here after `strike` because a hard
+   * strum genuinely does start from further back, which is the difference
+   * between a chorus and a verse on the same chords.
+   */
+  strum: [0.07, 0.04, 0.09],
+  // A rotation of the forearm rather than a flex of a finger, so it costs more
+  // than a pluck to start and no more to move: the thumb lives on the low
+  // string and the string it wants is usually the one it is on.
+  thumb: [0.06, 0.06, 0.05],
+  // The stillest hand on the stage. Each finger already has its own string, so
+  // travel is nearly meaningless and the whole gesture is a small base.
+  fingers: [0.03, 0.03, 0.02],
   press: [0.05, 0.18, 0.04],
   // A bow reverses rather than arrives; most of the cost is the direction
   // change itself, and almost none of it is where along the string it happens.
@@ -102,6 +120,11 @@ const PREP_SECONDS: Record<GestureKind, readonly [base: number, travel: number, 
 const RELEASE_SECONDS: Record<GestureKind, readonly [base: number, byForce: number]> = {
   strike: [0.06, 0.14], // the rebound, and it is bigger off a hard hit
   pluck: [0.05, 0.06],
+  // The hand carries past the strings and has to come back for the next one, so
+  // this is the longest follow-through of the three and the most force-sensitive.
+  strum: [0.07, 0.09],
+  thumb: [0.06, 0.07],
+  fingers: [0.04, 0.03],
   press: [0.04, 0.04],
   bow: [0.06, 0.04],
   blow: [0.04, 0.03],
@@ -1242,14 +1265,14 @@ function playPart(
       // A pizzicato string part is staged on a violin but is not bowed. The
       // catalogue already knows — `pizzStrings` carries the `plucked` idiom —
       // and putting a bow on it would be visibly wrong for a whole section.
-      stringPart(groups, spec, reach, board, idiomOf(track) !== 'plucked');
+      stringPart(groups, spec, reach, board, idiomOf(track) !== 'plucked', track.technique);
       return;
     case 'acoustic-guitar':
     case 'electric-guitar':
     case 'upright-bass':
     case 'electric-bass':
     case 'sitar':
-      stringPart(groups, spec, reach, board, false);
+      stringPart(groups, spec, reach, board, false, track.technique);
       return;
     case 'singer':
     /**
@@ -2715,12 +2738,23 @@ function bellowsPart(groups: NoteEvent[][], board: Board): number[] {
  */
 function stringPart(
   groups: NoteEvent[][], spec: ArchetypeSpec, reach: [Midi, Midi],
-  board: Board, bowed: boolean,
+  board: Board, bowed: boolean, technique?: Technique,
 ): void {
   const open = spec.strings ?? [];
   const maxFret = spec.frets ?? UNFRETTED_STOPS;
   const stringSpan = Math.max(1, open.length - 1);
   const sounding: Effector = bowed ? 'bow' : 'right-hand';
+  /**
+   * What the sounding hand does when it is not a bow. See `RIGHT_HAND`.
+   *
+   * Resolved once rather than per note, because it is a fact about the player
+   * and the instrument and neither changes inside a number. A part with no
+   * technique keeps `pluck`, which is what every plucked player did before any
+   * of this existed.
+   */
+  const stroke: GestureKind = technique
+    ? RIGHT_HAND[technique][open.length <= BASS_STRINGS ? 'bass' : 'guitar']
+    : 'pluck';
 
   let fretAt = 0;
   let stringAt = stringSpan / 2;
@@ -2728,14 +2762,51 @@ function stringPart(
   let bowBeats = 0;
   let lastEnd = -Infinity;
 
+  /**
+   * A dead stroke is a stroke and not a note. See `NoteEvent.dead`.
+   *
+   * Dropped from the pitch fold and from everything downstream of it, because
+   * every consumer below asks a question a damped string cannot answer: which
+   * fret stops this pitch, how far the hand shifts to reach it, whether it is in
+   * the instrument's range. The pitch on a dead stroke is the string the hand
+   * happened to be over — see `applyTechnique` — and planning a fingering
+   * against it would put a finger on a fret to sound a note nobody plays, which
+   * is the exact fault `chooseStops` opens by describing.
+   *
+   * The right hand still moves for it, further down. That is the whole point of
+   * the technique: the strokes that sound nothing are what makes the hand read
+   * as keeping time rather than as hopping between chords.
+   */
+  const played = groups.map((g) => g.filter((n) => !n.dead));
+
   // Folded once, up front, because the position planner reads ahead into them.
-  const pitches = groups.map(
+  const pitches = played.map(
     (g) => g.map((n) => foldIntoReach(n.midi, reach)).sort((a, b) => a - b),
   );
 
   for (let i = 0; i < groups.length; i++) {
-    const group = groups[i]!;
-    const beat = quantise(group[0]!.beat);
+    const group = played[i]!;
+    const beat = quantise(groups[i]![0]!.beat);
+    /**
+     * A group with nothing sounding in it: the hand strokes damped strings.
+     *
+     * The right hand alone, at the string it is already over, and no fretting —
+     * which is what a player's left hand is doing at that moment, resting on the
+     * strings to stop them. Booking the limb matters as much as the picture: the
+     * next real note's windup is timed off the gesture before it, so a stroke
+     * that moved the hand and was never written down would let the following
+     * chord be grabbed out of thin air.
+     */
+    if (!group.length) {
+      board.place({
+        effector: sounding, beat, kind: stroke,
+        travel: 0,
+        force: Math.max(...groups[i]!.map((n) => n.velocity)),
+        sustainBeats: 0,
+        targets: [{ kind: 'string', string: Math.round(stringAt), fret: 0 }],
+      });
+      continue;
+    }
     const sustain = Math.max(...group.map((n) => n.duration));
     const force = Math.max(...group.map((n) => n.velocity));
     const midis = pitches[i]!;
@@ -2781,8 +2852,8 @@ function stringPart(
     // under one stroke is a `hold`, which is how a slur reaches the renderer.
     // `Gesture` has no field for *which* direction, so the renderer alternates
     // on each `bow` and continues through each `hold` — see the report.
-    const stroke: GestureKind = bowed && gap <= 0.25 && bowBeats <= 4 ? 'hold' : 'bow';
-    if (bowed) bowBeats = stroke === 'bow' ? sustain : bowBeats + sustain;
+    const bowStroke: GestureKind = bowed && gap <= 0.25 && bowBeats <= 4 ? 'hold' : 'bow';
+    if (bowed) bowBeats = bowStroke === 'bow' ? sustain : bowBeats + sustain;
 
     // The bow lifts, visibly, when the line rests for more than a bar's worth.
     if (bowed && gap > 2 && Number.isFinite(lastEnd)) {
@@ -2802,7 +2873,7 @@ function stringPart(
       force, sustainBeats: sustain, targets,
     });
     board.place({
-      effector: sounding, beat, kind: bowed ? stroke : 'pluck',
+      effector: sounding, beat, kind: bowed ? bowStroke : stroke,
       travel: Math.abs(stringMean - stringAt) / stringSpan,
       force, sustainBeats: sustain, targets,
     });
@@ -2812,6 +2883,48 @@ function stringPart(
     lastEnd = beat + sustain;
   }
 }
+
+/**
+ * The most strings anything in the catalogue calls a bass. See `RIGHT_HAND`.
+ *
+ * Six, because a six-string bass exists and a seven-string guitar does not
+ * appear here; the boundary is drawn where the two families actually separate in
+ * `ArchetypeSpec.strings` rather than at the four a Fender has.
+ */
+const BASS_STRINGS = 6;
+
+/**
+ * What the striking hand does, per technique, on each of the two families.
+ *
+ * **Two columns and not one**, and the split is the whole reason this table
+ * exists rather than a `gesture` field on `TechniqueProfile`. One technique
+ * genuinely is two different motions depending on what it is done to:
+ *
+ *  - **`muted`** on a bass is the side of the thumb, moving through the string
+ *    with the palm resting behind it — Motown, and Carol Kaye played it with a
+ *    pick, but the thumb is the image. On a guitar it is a plectrum downstroke
+ *    with the heel of the hand parked at the bridge, and the striking digit has
+ *    not changed at all. Staging both as `thumb` put a bassist's forearm rotation
+ *    on every palm-muted metal riff in the catalogue.
+ *
+ * The generator cannot make that distinction and should not try: `technique.ts`
+ * knows what the hand is doing and has no opinion about how many strings are
+ * under it. Here, the archetype is already in hand. So the mapping lives on this
+ * side of the seam, and `TechniqueProfile` carries no visual field at all.
+ *
+ * A part with **no** technique does not come through this table at all: it keeps
+ * `pluck`, which is what every plucked player in the catalogue did before any of
+ * this existed. So a stage moves only where an instrument has opted in, and the
+ * sitar, the pizzicato section and the harp are untouched.
+ */
+const RIGHT_HAND: Record<Technique, { bass: GestureKind; guitar: GestureKind }> = {
+  fingers: { bass: 'fingers', guitar: 'fingers' },
+  plectrum: { bass: 'pluck', guitar: 'pluck' },
+  muted: { bass: 'thumb', guitar: 'pluck' },
+  slap: { bass: 'thumb', guitar: 'thumb' },
+  strum: { bass: 'strum', guitar: 'strum' },
+  fingerstyle: { bass: 'fingers', guitar: 'fingers' },
+};
 
 /**
  * How many frets one hand covers without shifting.
