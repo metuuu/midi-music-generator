@@ -424,9 +424,9 @@ const bossa: Style = {
   /**
    * The idiom is anticipation, so the rhythm section may anticipate.
    *
-   * `melody.syncopation` is 0.65 here — the highest in the catalogue, and the
-   * note beside it says a bossa *anticipates almost everything*. A bass that
-   * never did was the tune and the band disagreeing about the style.
+   * `melody.syncopation` is 0.65 here, and at that setting the tune leans off
+   * the beat as a matter of course rather than as an event. A bass that never
+   * did was the tune and the band disagreeing about the style.
    */
   vary: { bass: 0.3 },
   /**

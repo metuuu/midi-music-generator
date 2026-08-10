@@ -332,14 +332,16 @@ export function renderMidi(song: Song): Uint8Array {
  *    patch's own filter, with 64 meaning "as the patch has it", which is why
  *    the mapping below only ever darkens and never brightens: claiming to open
  *    a filter we did not close would change every patch differently.
- *  - **Delay, highpass, drive, crush and phaser have no GM controller at all**
+ *  - **The fields `Effects` marks audition only have no GM controller at all**
  *    and are simply absent here. Inventing a CC for them would produce a .mid
  *    that plays back correctly on exactly the synth it was tested against — and
  *    the undefined controllers are not free real estate either, since a
- *    manufacturer is entitled to map them to anything at all. All five are
- *    marked **audition only** in the IR for this reason; the .mid is the dry
- *    performance, and a driven, bit-crushed, phased version of it is a mix that
- *    happens downstream of this file.
+ *    manufacturer is entitled to map them to anything at all. Which fields those
+ *    are is written on the fields themselves, in `core/types.ts`, and is not
+ *    listed again here: a second copy of the membership in this docstring is a
+ *    copy nothing updates, and it spent a long release saying five. The .mid is
+ *    the dry performance, and a driven, bit-crushed, phased version of it is a
+ *    mix that happens downstream of this file.
  */
 function controllersFor(fx: Effects | undefined): [number, number][] {
   if (!fx) return [];
