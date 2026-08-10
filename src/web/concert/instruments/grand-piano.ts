@@ -175,6 +175,69 @@ function disposeTree(root: Object3D): void {
 }
 
 // ---------------------------------------------------------------------------
+// Case outline
+// ---------------------------------------------------------------------------
+
+/** A closed `Shape` through a list of corners. */
+function shapeOf(pts: ReadonlyArray<readonly [number, number]>): Shape {
+  const shape = new Shape();
+  shape.moveTo(pts[0]![0], pts[0]![1]);
+  for (const [x, y] of pts.slice(1)) shape.lineTo(x, y);
+  shape.closePath();
+  return shape;
+}
+
+/**
+ * A closed band `w` wide centred on an open polyline: up one side and back down
+ * the other. A bridge is a rail along a curve, and a curve is not a shape until
+ * it has two edges.
+ */
+function ribbon(
+  pts: ReadonlyArray<readonly [number, number]>, w: number,
+): Array<[number, number]> {
+  const n = pts.length;
+  const side = (sign: number): Array<[number, number]> => pts.map((p, i) => {
+    const a = pts[Math.max(0, i - 1)]!;
+    const b = pts[Math.min(n - 1, i + 1)]!;
+    const dx = b[0] - a[0], dy = b[1] - a[1];
+    const l = Math.hypot(dx, dy) || 1;
+    return [p[0] + sign * dy / l * w / 2, p[1] - sign * dx / l * w / 2];
+  });
+  return [...side(1), ...side(-1).reverse()];
+}
+
+/**
+ * The outline walked `t` inward: every edge slides along its inward normal and
+ * each corner moves to where its two slid edges cross.
+ *
+ * This is what turns the case from a block into a rim. It is also how the panels
+ * that close the cavity are cut, one wall thickness less a few millimetres, so
+ * their edges end up buried in the wood rather than exactly on its inner face —
+ * two surfaces in the same plane is a seam of z-fighting all the way round.
+ *
+ * The outline is wound clockwise, so an edge's inward normal is its right.
+ */
+function insetOutline(
+  pts: ReadonlyArray<readonly [number, number]>, t: number,
+): Array<[number, number]> {
+  const n = pts.length;
+  return pts.map((p, i) => {
+    const a = pts[(i + n - 1) % n]!;
+    const b = pts[(i + 1) % n]!;
+    const ax = p[0] - a[0], ay = p[1] - a[1];
+    const bx = b[0] - p[0], by = b[1] - p[1];
+    const la = Math.hypot(ax, ay), lb = Math.hypot(bx, by);
+    const oax = ay / la * t, oay = -ax / la * t;
+    const obx = by / lb * t, oby = -bx / lb * t;
+    const cross = ax * by - ay * bx;
+    // Straight through: the two edges are one line and their offsets coincide.
+    if (Math.abs(cross) < 1e-9) return [p[0] + oax, p[1] + oay];
+    const s = ((obx - oax) * by - (oby - oay) * bx) / cross;
+    return [p[0] + oax + s * ax, p[1] + oay + s * ay];
+  });
+}
+
+// ---------------------------------------------------------------------------
 // The builder
 // ---------------------------------------------------------------------------
 
@@ -208,15 +271,36 @@ export const buildGrandPiano: InstrumentBuilder = (opts) => {
    * nothing at all above them; the case begins where the keyboard ends.
    */
   const CASE_FRONT_Z = -0.775;
-  const outline = new Shape();
   const rim: Array<[number, number]> = [
     [0.725, CASE_FRONT_Z], [0.725, 0.905], [0.40, 0.925], [0.10, 0.865],
     [-0.20, 0.700], [-0.44, 0.420], [-0.58, 0.050], [-0.665, -0.400],
     [-0.700, CASE_FRONT_Z],
   ];
-  outline.moveTo(rim[0]![0], -rim[0]![1]);
-  for (const [x, z] of rim.slice(1)) outline.lineTo(x, -z);
-  outline.closePath();
+  /** The same corners in the shape's own plane, where the second axis is `-z`. */
+  const plan = rim.map(([x, z]) => [x, -z] as [number, number]);
+  const outline = shapeOf(plan);
+
+  /**
+   * **The case is a rim, not a block.** It was extruded solid, and a solid case
+   * has a lid over the strings whether or not the lid is open: the soundboard
+   * and the strings were both *inside* the slab, a couple of centimetres under a
+   * top face that read as a closed piano. Propping the lid revealed a shelf.
+   *
+   * So the outline gets a hole one wall thickness in, and the harp moves down
+   * into the cavity that opens up. What the lid uncovers now is the plate, the
+   * strings above it, and 10 cm of rim standing over both.
+   *
+   * **The hole is wound backwards on purpose.** `ExtrudeGeometry` only checks a
+   * hole's winding when it has had to reverse the contour first, and this
+   * contour is already clockwise — so a hole wound the same way as the outline
+   * is never corrected. Its walls then come out facing away from the cavity,
+   * with the bevel flared the wrong way as well, and since back faces are
+   * culled you look from inside the open case straight through the rim.
+   */
+  const WALL = 0.036;
+  const cavity = insetOutline(plan, WALL);
+  const caseShape = shapeOf(plan);
+  caseShape.holes.push(shapeOf([...cavity].reverse()));
 
   /**
    * The underside of the rim. Everything else on the case is measured off the
@@ -231,7 +315,7 @@ export const buildGrandPiano: InstrumentBuilder = (opts) => {
   const CASE_BOTTOM = 0.545;
   const CASE_TOP = CASE_BOTTOM + 0.274;
 
-  const caseGeo = new ExtrudeGeometry(outline, {
+  const caseGeo = new ExtrudeGeometry(caseShape, {
     depth: 0.26, bevelEnabled: true, bevelThickness: 0.014, bevelSize: 0.014, bevelSegments: 1,
   });
   caseGeo.rotateX(-Math.PI / 2);
@@ -241,29 +325,105 @@ export const buildGrandPiano: InstrumentBuilder = (opts) => {
   body.castShadow = true;
   body.receiveShadow = true;
 
-  // Soundboard and plate, visible under the open lid and worth the two meshes.
-  const boardGeo = new ExtrudeGeometry(outline, { depth: 0.012, bevelEnabled: false });
-  boardGeo.rotateX(-Math.PI / 2);
-  const soundboard = addTo(root, new Mesh(boardGeo, plateMat));
-  soundboard.position.y = CASE_TOP - 0.029;
-  soundboard.scale.set(0.94, 1, 0.94);
+  // The two panels that close the cavity: the plate the strings lie over, and
+  // the board under it, which is only ever seen from below but is the difference
+  // between a piano and a bucket. Both are cut a few millimetres wide of the
+  // hole so their edges sit in the rim rather than on it.
+  const PLATE_TOP = CASE_TOP - 0.10;
+  const panelGeo = new ExtrudeGeometry(shapeOf(insetOutline(plan, WALL - 0.006)), {
+    depth: 0.012, bevelEnabled: false,
+  });
+  panelGeo.rotateX(-Math.PI / 2);
+  const plate = addTo(root, new Mesh(panelGeo, plateMat));
+  plate.position.y = PLATE_TOP - 0.012;
+  plate.receiveShadow = true;
+  const board = addTo(root, new Mesh(panelGeo, caseMat));
+  board.position.y = CASE_BOTTOM;
 
-  // Strings: one instanced sliver, fanning from the bass corner to the tail.
+  /** How far back the case reaches at `x`: the tail behind, the bentside beside. */
+  function backOfCase(x: number): number {
+    let z = -Infinity;
+    for (let i = 0; i < rim.length; i++) {
+      const [x0, z0] = rim[i]!;
+      const [x1, z1] = rim[(i + 1) % rim.length]!;
+      if ((x0 <= x && x <= x1) || (x1 <= x && x <= x0)) {
+        z = Math.max(z, x1 === x0 ? Math.max(z0, z1) : z0 + (x - x0) / (x1 - x0) * (z1 - z0));
+      }
+    }
+    return z;
+  }
+
+  /**
+   * Strings: one instanced sliver, fanning from the bass corner to the tail.
+   *
+   * Their lengths are read off the same outline the case is cut from, reaching
+   * 0.72 of the way to it, because the bentside is exactly what makes a treble
+   * string short on a real grand. They used to ramp linearly from 1.55 m to
+   * 0.60 m, which ran the top of the fan out through the bentside and left the
+   * tail bare — invisible while the case was a solid block, and the first thing
+   * you would see once it was not.
+   *
+   * The remaining 28% is not slack: the bridge is a rail 48 mm wide standing on
+   * the far ends, and it is that rail, not the strings, that has to stay off the
+   * rim. Widen the fan and the bass end of the bridge sinks into the spine.
+   */
+  const STRING_FRONT_Z = -0.70;
+  const STRING_Y = PLATE_TOP + 0.035;
   const stringGeo = new BoxGeometry(0.004, 0.002, 1);
   const strings = addTo(root, new InstancedMesh(stringGeo, brassMat, 34));
+  /** Both ends of every string, in the shape plane: the pins and the bridge. */
+  const pinAt: Array<[number, number]> = [];
+  const tipAt: Array<[number, number]> = [];
   {
     const m = new Matrix4();
     const q = new Quaternion();
+    const half = new Vector3();
     for (let i = 0; i < 34; i++) {
       const t = i / 33;
-      const x = 0.64 - t * 1.26;
-      const len = 1.55 - t * 0.95;
-      const skew = (0.5 - t) * 0.22;
+      const x = 0.58 - t * 1.06;
+      const len = (backOfCase(x) - STRING_FRONT_Z) * 0.72;
+      const skew = (0.5 - t) * 0.10;
       q.setFromAxisAngle(new Vector3(0, 1, 0), skew);
-      m.compose(new Vector3(x, CASE_TOP - 0.012, -0.70 + len / 2), q, new Vector3(1, 1, len));
+      const mid = new Vector3(x, STRING_Y, STRING_FRONT_Z + len / 2);
+      m.compose(mid, q, new Vector3(1, 1, len));
       strings.setMatrixAt(i, m);
+      half.set(0, 0, len / 2).applyQuaternion(q);
+      pinAt.push([mid.x - half.x, -(mid.z - half.z)]);
+      tipAt.push([mid.x + half.x, -(mid.z + half.z)]);
     }
     strings.instanceMatrix.needsUpdate = true;
+  }
+
+  /**
+   * What the strings are stretched between. Without these they are 34 slivers
+   * hanging in mid-air over the plate, which is what a hollow case exposed.
+   *
+   * The pinblock is a straight bar across the front, at the keyboard end where
+   * the tuning pins go on a real grand, and the bridge is a rail bent along the
+   * far ends of the fan. Both stand tall enough that the last centimetre of
+   * every string is inside them rather than stopping short in the open air.
+   */
+  const pinblock = addTo(root, new Mesh(new BoxGeometry(1.40, 0.028, 0.09), caseMat));
+  pinblock.position.set(0.015, PLATE_TOP + 0.014, STRING_FRONT_Z - 0.012);
+  pinblock.castShadow = true;
+  const bridge = addTo(root, new Mesh(
+    new ExtrudeGeometry(shapeOf(ribbon(tipAt, 0.048)), { depth: 0.045, bevelEnabled: false }),
+    caseMat,
+  ));
+  bridge.geometry.rotateX(-Math.PI / 2);
+  bridge.position.y = PLATE_TOP;
+  bridge.castShadow = true;
+
+  // A pin for every string, standing in the block with the string dead centre.
+  const pinGeo = new CylinderGeometry(0.006, 0.006, 0.026, 6);
+  const pins = addTo(root, new InstancedMesh(pinGeo, brassMat, pinAt.length));
+  {
+    const m = new Matrix4();
+    for (const [i, [x, y]] of pinAt.entries()) {
+      m.makeTranslation(x, STRING_Y + 0.003, -y);
+      pins.setMatrixAt(i, m);
+    }
+    pins.instanceMatrix.needsUpdate = true;
   }
 
   // --- Keybed --------------------------------------------------------------
@@ -343,9 +503,12 @@ export const buildGrandPiano: InstrumentBuilder = (opts) => {
   const fall = addTo(root, new Mesh(new BoxGeometry(BOARD_W + 0.12, 0.075, 0.05), caseMat));
   fall.position.set(0, KEY_TOP_Y + 0.03, KEY_BACK_Z + 0.03);
   fall.castShadow = true;
+  // The music desk leans *away* from the player: the player is at `-z`, so the
+  // top edge goes to `+z` and the reading face turns back toward the keyboard.
+  // A negative angle tilts it the other way and hands the music to the audience.
   const desk = addTo(root, new Mesh(new BoxGeometry(0.70, 0.26, 0.018), caseMat));
   desk.position.set(0, KEY_TOP_Y + 0.20, KEY_BACK_Z + 0.10);
-  desk.rotation.x = -0.28;
+  desk.rotation.x = 0.28;
 
   // --- Lid -----------------------------------------------------------------
 
@@ -363,11 +526,24 @@ export const buildGrandPiano: InstrumentBuilder = (opts) => {
   lidPivot.rotation.z = -rng.float(0.68, 0.86);
   const lid = addTo(lidPivot, new Mesh(lidGeo, caseMat));
   lid.castShadow = true;
+  /**
+   * The prop stick. Its foot stands on the bentside rim, on the treble side
+   * where the cup is screwed on a real piano — it used to stand at `(0.10,
+   * 0.10)`, which is the middle of the harp, so the lid was held up by a pole
+   * rising out of the strings.
+   *
+   * The head is the point on the lid square above that foot, so the stick meets
+   * the lid at a right angle and stays in compression whatever angle the lid
+   * happened to open to.
+   */
   const prop = addTo(root, new Mesh(new CylinderGeometry(0.012, 0.012, 1, 6), caseMat));
   {
-    const foot = new Vector3(0.10, CASE_TOP + 0.008, 0.10);
-    const head = new Vector3(0.725, CASE_TOP + 0.008, 0.10).add(
-      new Vector3(Math.cos(lidPivot.rotation.z) * -0.66, Math.sin(-lidPivot.rotation.z) * 0.66, 0),
+    const open = -lidPivot.rotation.z;
+    const foot = new Vector3(-0.62, CASE_TOP, -0.25);
+    const hinge = new Vector3(0.725, CASE_TOP + 0.008, foot.z);
+    const along = (hinge.x - foot.x) * Math.cos(open) + (foot.y - hinge.y) * Math.sin(open);
+    const head = new Vector3(
+      hinge.x - along * Math.cos(open), hinge.y + along * Math.sin(open), foot.z,
     );
     const mid = foot.clone().add(head).multiplyScalar(0.5);
     const dir = head.clone().sub(foot);
