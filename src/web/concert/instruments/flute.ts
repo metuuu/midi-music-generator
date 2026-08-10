@@ -292,10 +292,23 @@ export const buildFlute: InstrumentBuilder = (opts: InstrumentBuildOptions): Ins
     return {
       position: new Vector3(stationX[station]! + side * HAND, 0.017, -0.004)
         .applyMatrix4(fluteMatrix),
-      // Down onto the keys from above. The left hand leans back over the tube
-      // toward the player and the right hand stands over it, which is the roll
-      // difference between the two made into a place to put a palm.
-      normal: new Vector3(0, 1, side > 0 ? -0.42 : 0.06).normalize()
+      // Down onto the keys from above, and then leaned — which is the roll
+      // difference between the two hands made into a place to put a palm.
+      //
+      // **The sign is the back of the hand, not the palm.** `normal` is where
+      // the hand comes *from*; the palm faces the other way, so a lean written
+      // here turns the palm the opposite way round. Both hands had it backwards
+      // and both were 180° out on the axis an audience reads first: the left
+      // palm faced out at the room and the right faced back at the player, when
+      // a flautist's left palm turns *toward* their own chest — the tube rests
+      // in the crook at the base of that index finger — and the right hand
+      // arrives from in front and below with its palm turned out.
+      //
+      // Local +z is out toward the audience once `SWING` has been applied, so
+      // the left hand's `+` leans its palm back at the player and the right
+      // hand's `−` turns its palm away. The left is the larger of the two
+      // because a flautist's left forearm really is supinated the harder.
+      normal: new Vector3(0, 1, side > 0 ? 0.42 : -0.30).normalize()
         .transformDirection(fluteMatrix),
       // The keys run the length of the tube, so the knuckles do too — and the
       // sign is what rolls the hand onto its own side. See above.
