@@ -414,6 +414,44 @@ const STOP_FADE_SECONDS = 0.9;
  */
 const COUNT_NOD = 0.55;
 
+/**
+ * How early a head may come round to the player who is about to solo, and how
+ * long it stays there afterwards. Both in seconds, and both drawn per player.
+ *
+ * Turning *before* the first note is the whole charm of the gesture — the band
+ * knows what is coming and the audience finds out by watching them find out —
+ * but it is a cue, not a countdown, and its length has to be a fixed number of
+ * seconds rather than whatever falls out of the score's span geometry. The
+ * amplitude curve is stepped per *section*, and `amplitude` lerps between span
+ * centres, so a `watch` read that way starts rising at the middle of the
+ * preceding section: half a verse of the band staring at a player who has not
+ * moved yet. Hence `watching`, which steps instead of lerping and takes its
+ * lead from here.
+ *
+ * The range is what makes it a band rather than a chorus line. Six heads coming
+ * round on the same frame is a Busby Berkeley number; spread over 1.4 s they
+ * arrive the way people do, and the earliest one is the tell that the others
+ * pick up on. The floor is several head-servo constants — 0.24 s, see
+ * `trackGaze` — so even the last to move is settled before the note lands.
+ */
+const WATCH_LEAD_MIN_SECONDS = 0.8;
+const WATCH_LEAD_MAX_SECONDS = 2.2;
+const WATCH_HOLD_MIN_SECONDS = 0.5;
+const WATCH_HOLD_MAX_SECONDS = 1.8;
+
+/**
+ * What a solo that has already finished is worth, against one that has not.
+ *
+ * `groove` arbitrates between two `watch` behaviours by amplitude, and a band
+ * trading fours has one still in its hold while the next is already in its
+ * lead. Undiscounted the outgoing soloist wins that argument — the score ramps
+ * a solo's energy upward across its length, so the player who just stopped is
+ * the loudest thing in the list — and the whole band turns to the new soloist a
+ * bar late. Anything under half is enough to settle it the other way, and the
+ * lingering look is unaffected where there is nothing to linger against.
+ */
+const WATCH_HOLD_WEIGHT = 0.5;
+
 // ---------------------------------------------------------------------------
 // At ease, and coming back up
 // ---------------------------------------------------------------------------
@@ -970,6 +1008,9 @@ class Player {
   phase = 0;
   looseness = 0;
   drift = 0;
+  /** This player's own head start on a solo, and their own lingering. Seconds. */
+  watchLead = 0;
+  watchHold = 0;
 
   // Visemes.
   readonly visemes: readonly Viseme[];
@@ -1265,6 +1306,12 @@ class Player {
     // A few percent of drift, so no two players are exactly on the beat with
     // each other. `GroovePart.looseness` says how much; the id says which way.
     this.drift = new Rng(`${id}#drift`).float(0, Math.PI * 2);
+
+    // How early this one looks at a soloist, and how long they keep looking.
+    // Its own stream, so adding a draw here does not move anybody's nod.
+    const watch = new Rng(`${id}#watch`);
+    this.watchLead = watch.float(WATCH_LEAD_MIN_SECONDS, WATCH_LEAD_MAX_SECONDS);
+    this.watchHold = watch.float(WATCH_HOLD_MIN_SECONDS, WATCH_HOLD_MAX_SECONDS);
 
     const strokes = new Rng(`${id}#stroke`);
     for (let i = 0; i < n; i++) this.vary[i] = strokes.float(-1, 1);
@@ -2471,8 +2518,18 @@ class Runtime implements Animator {
 
     for (let b = 0; b < p.behaviours.length; b++) {
       const behaviour = p.behaviours[b]!;
+
+      // Off the span edges rather than off the interpolated curve, and before
+      // the amplitude gate, because a head turn is a cue and not a motion: it
+      // has an instant it happens at, which `watching` decides.
+      if (behaviour.kind === 'watch') {
+        const amp = this.watching(p, b, beat) * p.gain;
+        if (amp > watchAmp) { watchAmp = amp; watch = behaviour; }
+        continue;
+      }
+
       const amp = this.amplitude(p, b, beat) * p.gain;
-      if (amp <= 0.0005 && behaviour.kind !== 'watch') continue;
+      if (amp <= 0.0005) continue;
 
       const phase = this.phaseOf(p, behaviour, beat);
       switch (behaviour.kind) {
@@ -2510,9 +2567,6 @@ class Runtime implements Animator {
           p.busy[PART_OF.body] = true;
           break;
         }
-        case 'watch':
-          if (amp > watchAmp) { watchAmp = amp; watch = behaviour; }
-          break;
       }
     }
 
@@ -3209,6 +3263,50 @@ class Runtime implements Animator {
     const c1 = centreOf(next);
     const t = clamp01((beat - c0) / Math.max(c1 - c0, 1e-6));
     return here.value + (next.value - here.value) * t;
+  }
+
+  /**
+   * A `watch` behaviour's amplitude at `beat`, stepped, with a head start.
+   *
+   * The one behaviour that must *not* go through `amplitude`. Everything else
+   * there is a continuous motion whose size is being read off a curve, and
+   * lerping between span centres is exactly right for it. A `watch` is not a
+   * size, it is a decision — `groove` uses it to pick one person to look at and
+   * throws the number away — so the only thing the interpolation contributes is
+   * an onset that creeps in from the middle of the *previous* section. On a
+   * sixteen-bar verse that is the band turning to stare at the soloist eight
+   * bars before they play, which is the fault this exists to fix.
+   *
+   * So: the span the beat is in, plus any span starting inside this player's own
+   * lead, plus any that ended inside their own hold. Both windows are seconds
+   * converted here rather than beats, because what makes an early turn read as
+   * anticipation instead of as a mistake is how long the audience sits with it,
+   * and that does not change with the tempo.
+   *
+   * The cursor is this behaviour's alone — one behaviour, one index, one kind —
+   * so it can be stepped by span start here even though `amplitude` steps it by
+   * centre. It only ever walks forward; a transport that has been scrubbed
+   * backwards is caught by the reset, same as there.
+   */
+  private watching(p: Player, index: number, beat: number): number {
+    const spans = p.behaviours[index]!.amplitude;
+    if (!spans.length) return 0;
+    let i = p.spanCursor[index]!;
+    if (i >= spans.length || spans[i]!.fromBeat > beat) i = 0;
+    while (i + 1 < spans.length && spans[i + 1]!.fromBeat <= beat) i++;
+    p.spanCursor[index] = i;
+
+    const lead = beat + p.watchLead * this.beatsPerSecond;
+    const hold = beat - p.watchHold * this.beatsPerSecond;
+    let v = spans[i]!.value;
+    for (let j = i + 1; j < spans.length && spans[j]!.fromBeat <= lead; j++) {
+      if (spans[j]!.value > v) v = spans[j]!.value;
+    }
+    for (let j = i - 1; j >= 0 && spans[j]!.toBeat >= hold; j--) {
+      const past = spans[j]!.value * WATCH_HOLD_WEIGHT;
+      if (past > v) v = past;
+    }
+    return v;
   }
 
   /**
