@@ -33,7 +33,7 @@ import { Box3, Euler, Matrix4, Object3D, Quaternion, Vector3 } from 'three';
 
 import type { Archetype, Effector } from '../../concert/types.js';
 
-import type { InstrumentModel } from './instruments/types.js';
+import type { Contact, InstrumentModel } from './instruments/types.js';
 import type { PerformerRig } from './performer.js';
 
 /**
@@ -282,11 +282,37 @@ export interface CarriesBow {
  * is found, not where it is meant to live forever. See `gallery.ts`, which
  * prints entries ready to paste.
  */
+/**
+ * One hand's correction: where it goes, and which way it is turned there.
+ *
+ * **Both, because a rest is a pose and not a point.** `position` fixes where a
+ * palm is and says nothing about which way it faces, and half the faults worth
+ * fixing here are the second kind — see the two commits before this one, `Hang
+ * the flautist's hands under the flute, not on top of it` and `Turn the
+ * flautist's left palm toward the player, not the room`. Neither of those moved
+ * a hand a centimetre; both turned one over. A trim that could only translate
+ * would have been unable to express either of the last two things anybody
+ * actually wanted to change.
+ */
+export interface HandTrim {
+  /** Metres in the model's own frame, added to `Contact.position`. */
+  move?: readonly [number, number, number];
+  /**
+   * Radians, `XYZ`, turning `Contact.normal` and `Contact.along` — the way the
+   * palm faces and the line the knuckles run along — in the model's own frame.
+   *
+   * The normal and the knuckle axis and not the position: a hand turning is a
+   * hand turning *where it is*, which is what a wrist does. Anything that also
+   * needs to move is two corrections and this table has room for both.
+   */
+  turn?: readonly [number, number, number];
+}
+
 export interface RestTrim {
-  'left-hand'?: readonly [number, number, number];
-  'right-hand'?: readonly [number, number, number];
+  'left-hand'?: HandTrim;
+  'right-hand'?: HandTrim;
   /** The bow hand, where the model answers it separately. */
-  bow?: readonly [number, number, number];
+  bow?: HandTrim;
 }
 
 export const REST_TRIM: Partial<Record<Archetype, RestTrim>> = {};
@@ -300,7 +326,7 @@ export const REST_TRIM: Partial<Record<Archetype, RestTrim>> = {};
  * grille is the singer model's business and has never been the thing anyone
  * complained about.
  */
-function trimFor(trim: RestTrim, effector: Effector | undefined): readonly number[] | undefined {
+function trimFor(trim: RestTrim, effector: Effector | undefined): HandTrim | undefined {
   if (effector === 'right-hand') return trim['right-hand'];
   if (effector === 'bow') return trim.bow ?? trim['right-hand'];
   if (effector === undefined || effector === 'left-hand') return trim['left-hand'];
@@ -332,11 +358,17 @@ export function trimRest(model: InstrumentModel): InstrumentModel {
     if (!contact || point.kind !== 'rest') return contact;
     const trim = REST_TRIM[model.archetype];
     const d = trim && trimFor(trim, effector);
-    if (!d) return contact;
-    return {
-      ...contact,
-      position: contact.position.clone().add(SCRATCH.d.set(d[0]!, d[1]!, d[2]!)),
-    };
+    if (!d || (!d.move && !d.turn)) return contact;
+    const out: Contact = { ...contact };
+    if (d.move) {
+      out.position = contact.position.clone().add(SCRATCH.d.set(d.move[0], d.move[1], d.move[2]));
+    }
+    if (d.turn) {
+      SCRATCH.e.set(d.turn[0], d.turn[1], d.turn[2], 'XYZ');
+      out.normal = contact.normal.clone().applyEuler(SCRATCH.e);
+      if (contact.along) out.along = contact.along.clone().applyEuler(SCRATCH.e);
+    }
+    return out;
   };
   return model;
 }

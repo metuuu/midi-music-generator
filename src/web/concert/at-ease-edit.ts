@@ -74,14 +74,26 @@ export function easeEntrySource(e: AtEasePose): string {
   return `{ ${parts.join(', ')} }`;
 }
 
-/** One `REST_TRIM` value, or empty where every axis of every hand is zero. */
+/** The two things a hand's trim can say, in the order `HandTrim` declares them. */
+export const TRIM_FIELDS = ['move', 'turn'] as const;
+
+function moved(v: readonly number[] | undefined): boolean {
+  return v !== undefined && v.some((n) => Math.abs(n) > 1e-9);
+}
+
+/** One `REST_TRIM` value, or empty where nothing on any hand has moved. */
 export function trimEntrySource(trim: RestTrim): string {
-  const parts = TRIM_HANDS.flatMap((h) => {
+  const hands = TRIM_HANDS.flatMap((h) => {
     const d = trim[h];
-    if (!d || !d.some((v) => Math.abs(v) > 1e-9)) return [];
-    return [`'${h}': [${d.map(num).join(', ')}]`];
+    if (!d) return [];
+    // A hand that was dragged and put back says nothing, rather than saying
+    // three zeros: an entry here is a claim that the model got it wrong.
+    const fields = TRIM_FIELDS.flatMap((f) => (
+      moved(d[f]) ? [`${f}: [${d[f]!.map(num).join(', ')}]`] : []
+    ));
+    return fields.length ? [`'${h}': { ${fields.join(', ')} }`] : [];
   });
-  return parts.length ? `{ ${parts.join(', ')} }` : '';
+  return hands.length ? `{ ${hands.join(', ')} }` : '';
 }
 
 // --- reading the file ------------------------------------------------------
@@ -253,6 +265,27 @@ function triple(v: unknown, what: string): [number, number, number] {
 }
 
 /**
+ * A plain object with no key this version has not heard of.
+ *
+ * The rejection that matters is the *old shape*, not the malicious one. A page
+ * left open across a change to these tables posts what it was written to post,
+ * and the tolerant reading of that — pick out the fields I recognise, ignore
+ * the rest — is a save that silently drops half the work and reports success.
+ * An array is refused for the same reason and is the concrete case: `HandTrim`
+ * used to be a bare `[x, y, z]`, which is an object to `typeof` and has none of
+ * the keys, so it would have written an empty trim over a real one.
+ */
+function fields(v: unknown, allowed: readonly string[], what: string): Record<string, unknown> {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) throw new Error(`${what}: not an object`);
+  for (const k of Object.keys(v)) {
+    if (!allowed.includes(k)) throw new Error(`${what}: unknown field '${k}'`);
+  }
+  return v as Record<string, unknown>;
+}
+
+const POSE_FIELDS = ['pitch', 'roll', 'turn', 'drop', 'back', 'across', 'hands'];
+
+/**
  * A posted body, rebuilt as a `Tuning` — or an exception naming what was wrong.
  *
  * Deliberately total rather than tolerant: an unknown field is a version skew
@@ -267,8 +300,7 @@ export function readTuning(body: unknown): Tuning {
 
   for (const [k, v] of Object.entries((raw.atEase ?? {}) as Record<string, unknown>)) {
     const key = archetypeKey(k);
-    if (!v || typeof v !== 'object') throw new Error(`${key}: not a pose`);
-    const p = v as Record<string, unknown>;
+    const p = fields(v, POSE_FIELDS, key);
     const hands = p['hands'];
     if (!Array.isArray(hands) || hands.length !== 2) throw new Error(`${key}: bad hands`);
     atEase[key] = {
@@ -284,12 +316,18 @@ export function readTuning(body: unknown): Tuning {
 
   for (const [k, v] of Object.entries((raw.restTrim ?? {}) as Record<string, unknown>)) {
     const key = archetypeKey(k);
-    if (!v || typeof v !== 'object') throw new Error(`${key}: not a trim`);
-    const t = v as Record<string, unknown>;
+    const t = fields(v, TRIM_HANDS, key);
     const built: RestTrim = {};
     for (const hand of TRIM_HANDS) {
       if (t[hand] === undefined) continue;
-      built[hand] = triple(t[hand], `${key}.${hand}`);
+      const where = `${key}.${hand}`;
+      const said = fields(t[hand], TRIM_FIELDS, where);
+      const one: { move?: [number, number, number]; turn?: [number, number, number] } = {};
+      for (const field of TRIM_FIELDS) {
+        if (said[field] === undefined) continue;
+        one[field] = triple(said[field], `${where}.${field}`);
+      }
+      built[hand] = one;
     }
     restTrim[key] = built;
   }

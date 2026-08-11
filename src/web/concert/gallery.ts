@@ -63,10 +63,10 @@
  */
 
 import {
-  AgXToneMapping, AmbientLight, AxesHelper, Box3, Color, DirectionalLight, Euler,
-  Group, GridHelper, Matrix4, Mesh, MeshBasicMaterial, Object3D, PCFSoftShadowMap,
-  PerspectiveCamera, Quaternion, Raycaster, Scene, SphereGeometry, Vector2, Vector3,
-  WebGLRenderer,
+  AgXToneMapping, AmbientLight, AxesHelper, Box3, Color, CylinderGeometry,
+  DirectionalLight, Euler, Group, GridHelper, Matrix4, Mesh, MeshBasicMaterial,
+  Object3D, PCFSoftShadowMap, PerspectiveCamera, Quaternion, Raycaster, Scene,
+  SphereGeometry, Vector2, Vector3, WebGLRenderer,
 } from 'three';
 
 import { ARCHETYPES, SYNTH_RIGS, specFor } from '../../concert/instruments.js';
@@ -78,7 +78,8 @@ import { TransformControls } from 'three/examples/jsm/controls/TransformControls
 
 import {
   AT_EASE, COINCIDENT, IDLE_HOVER, NOMINAL_HEIGHT, REST_TRIM, ZONE_PULL, escapeFrom,
-  keepOutParts, letGo, lowerAtEase, type AtEasePose, type CarriesBow, type RestTrim,
+  keepOutParts, letGo, lowerAtEase, type AtEasePose, type CarriesBow, type HandTrim,
+  type RestTrim,
 } from './at-ease.js';
 import {
   AT_EASE_FILE, SAVE_ROUTE, easeEntrySource, keyOf, trimEntrySource, type Tuning,
@@ -1134,7 +1135,51 @@ scene.add(gizmo.getHelper());
 gizmo.getHelper().visible = false;
 
 /**
- * A ball on each hand's rest contact — **the contact, not where the hand ends
+ * Handles that point the way they mean, and nothing else.
+ *
+ * `TransformControls` draws each translate axis twice — an arrow at `+0.5` and
+ * a mirrored one at `−0.5` — plus three plane squares and a centre octahedron.
+ * That is eleven handles to say "three axes", and on an object the size of a
+ * trumpet they meet in the middle of the thing being looked at. The mirrored
+ * half carries no information a single arrow does not: the axis is a line and
+ * dragging back along it is what negative is.
+ *
+ * **Removed rather than hidden**, because `TransformControlsGizmo` sets
+ * `visible = true` on every handle at the top of each `updateMatrixWorld` and
+ * then decides for itself which to hide — so anything switched off here would
+ * come back on the next frame. The pickers go with them, or the arrows would be
+ * gone and still draggable, which is worse than the clutter.
+ *
+ * By name for the compound handles, and **by where each part's geometry
+ * actually is** for the mirrored arms — both halves of an axis carry that
+ * axis's name, so the name cannot tell them apart. Not by `position` either:
+ * `setupGizmo` bakes each handle's offset into its vertices and resets the
+ * object to the origin, so every one of them reports `(0, 0, 0)` and a test on
+ * that matches nothing at all. The bounding box is where the thing is.
+ *
+ * The axis shafts survive on the same test, and correctly: `lineGeometry2` runs
+ * from the centre to `+0.5` and has no negative half to lose.
+ *
+ * If a three upgrade renames or re-centres them this finds nothing and the
+ * gizmo is merely busy again.
+ */
+const GIZMO_CLUTTER = new Set(['XY', 'YZ', 'XZ', 'XYZ', 'E', 'XYZE']);
+const spare: Object3D[] = [];
+const middle = new Vector3();
+// Collected first and removed after, because detaching mid-traversal skips the
+// sibling that shuffles into the freed slot.
+gizmo.getHelper().traverse((o) => {
+  if (GIZMO_CLUTTER.has(o.name)) { spare.push(o); return; }
+  const geometry = (o as Partial<Mesh>).geometry;
+  if (!geometry) return;
+  if (!geometry.boundingBox) geometry.computeBoundingBox();
+  geometry.boundingBox?.getCenter(middle);
+  if (middle.x < -0.2 || middle.y < -0.2 || middle.z < -0.2) spare.push(o);
+});
+for (const o of spare) o.removeFromParent();
+
+/**
+ * A marker on each hand's rest contact — **the contact, not where the hand ends
  * up**, and the difference is the whole reason it is drawn.
  *
  * What a trim moves is the model's answer to `resolve({kind:'rest'})`. Where
@@ -1144,19 +1189,52 @@ gizmo.getHelper().visible = false;
  * full ease with a gizmo that still edited the instrument. This one is always
  * the thing being edited.
  *
- * `depthTest: false`, because half of them are inside the instrument — which is
- * frequently the fault being looked at.
+ * ## It is a frame and not a ball
+ *
+ * A contact is a position, a normal and a knuckle axis, and the trim can turn
+ * the last two. A sphere cannot show a rotation — spin one and nothing happens
+ * — so the marker carries the two directions it is about to let you drag: a
+ * stick out of the palm along the **normal**, and a shorter one across it along
+ * **`along`**, the line the fingers lie on. Turning the handle turns those, and
+ * you can see which way the palm ends up facing.
+ *
+ * The ball is the only pickable part. The sticks are what it is saying.
+ *
+ * `depthTest: false` throughout, because half of these sit inside the
+ * instrument — which is frequently the fault being looked at.
  */
-const HANDLE_GEO = new SphereGeometry(0.026, 14, 10);
-const handles = ['#e0a24a', '#4ad0e0'].map((color) => {
-  const h = new Mesh(HANDLE_GEO, new MeshBasicMaterial({
-    color, depthTest: false, transparent: true, opacity: 0.85,
-  }));
-  h.renderOrder = 999;
-  h.visible = false;
-  scene.add(h);
-  return h;
-});
+const HANDLE_BALL = new SphereGeometry(0.022, 14, 10);
+/** Out of the palm, and across the knuckles. Long enough to read, short enough
+ *  not to become the thing you are looking at. */
+const NORMAL_LENGTH = 0.11;
+const ALONG_LENGTH = 0.07;
+const NORMAL_GEO = new CylinderGeometry(0.005, 0.001, NORMAL_LENGTH, 8);
+const ALONG_GEO = new CylinderGeometry(0.004, 0.004, ALONG_LENGTH, 6);
+
+function buildHandle(color: string): Mesh {
+  const flat = (c: string): MeshBasicMaterial => new MeshBasicMaterial({
+    color: c, depthTest: false, transparent: true, opacity: 0.9,
+  });
+  const ball = new Mesh(HANDLE_BALL, flat(color));
+  ball.renderOrder = 999;
+  ball.visible = false;
+  // The marker's own axes are the contact's: **+y is the normal, +x is
+  // `along`**. Every read and write of a hand's attitude goes through that one
+  // sentence — `syncHandles` builds the quaternion from it and `readTurn`
+  // takes it apart again — so the sticks are drawn along those axes rather than
+  // placed by eye.
+  const out = new Mesh(NORMAL_GEO, flat(color));
+  out.position.y = NORMAL_LENGTH / 2;
+  out.renderOrder = 999;
+  ball.add(out);
+  const across = new Mesh(ALONG_GEO, flat('#e8e4de'));
+  across.rotation.z = Math.PI / 2;
+  across.renderOrder = 999;
+  ball.add(across);
+  return ball;
+}
+const handles = ['#e0a24a', '#4ad0e0'].map(buildHandle);
+for (const h of handles) scene.add(h);
 
 type Selection = { kind: 'hand'; index: 0 | 1 } | { kind: 'instrument' };
 let selected: Selection | undefined;
@@ -1166,10 +1244,21 @@ let focused = false;
 
 /** The drag's own frame: where it started, and the model's rotation then. */
 const DRAG_FROM = new Vector3();
+const DRAG_TURN = new Quaternion();
+const DRAG_QUAT = new Quaternion();
 const DRAG_QUAT_INV = new Quaternion();
-let dragTrim: readonly [number, number, number] = [0, 0, 0];
+let dragMove: readonly [number, number, number] = [0, 0, 0];
+/** The trim's `turn` when the drag started, as a rotation to compose onto. */
+const DRAG_TRIM_TURN = new Quaternion();
 
 const EASE_EULER = new Euler();
+const TURN_EULER = new Euler();
+const SPIN = new Quaternion();
+const SPARE_QUAT = new Quaternion();
+const UP = new Vector3();
+const SIDE = new Vector3();
+const FWD = new Vector3();
+const BASIS = new Matrix4();
 const FOCUS = new Vector3();
 const ray = new Raycaster();
 const ndc = new Vector2();
@@ -1220,7 +1309,16 @@ function readEase(item: Exhibit): void {
   e.back = (carry.pivot.z - easeNode.position.z) / size;
 }
 
-/** Both balls onto the contacts they stand for, and out of the way otherwise. */
+/**
+ * Both markers onto the contacts they stand for, and out of the way otherwise.
+ *
+ * The attitude is built from the contact's own two directions, in the frame the
+ * marker declares: `+y` the normal, `+x` `along`. A model that answers no
+ * `along` — a drum, where a fist round a stick looks the same at any roll — has
+ * no opinion about the third axis, so any perpendicular will do and the one
+ * chosen is stable frame to frame rather than drawn fresh, or the knuckle stick
+ * would spin on its own.
+ */
 function syncHandles(item: Exhibit | undefined): void {
   const shown = !tuner.hidden && pose === 'idle' && item?.model !== undefined;
   for (let k = 0; k < 2; k++) {
@@ -1230,12 +1328,24 @@ function syncHandles(item: Exhibit | undefined): void {
     if (gizmoDragging && selected?.kind === 'hand' && selected.index === k) continue;
     const model = item?.model;
     const contact = shown && model
-      ? model.resolve(REST, k === 0 ? 'left-hand' : item.usesBow ? 'bow' : 'right-hand')
+      ? model.resolve(REST, handOf(item, k as 0 | 1))
       : undefined;
     handle.visible = contact !== undefined;
-    if (contact && model) {
-      handle.position.copy(contact.position).applyMatrix4(model.root.matrixWorld);
-    }
+    if (!contact || !model) continue;
+    handle.position.copy(contact.position).applyMatrix4(model.root.matrixWorld);
+    model.root.getWorldQuaternion(QUAT);
+    UP.copy(contact.normal).applyQuaternion(QUAT).normalize();
+    if (contact.along) SIDE.copy(contact.along).applyQuaternion(QUAT);
+    else SIDE.set(1, 0, 0).applyQuaternion(QUAT);
+    // Orthogonalised against the normal, exactly as `Contact.along` promises it
+    // will be — the model is allowed to hand over an axis that is only roughly
+    // perpendicular.
+    SIDE.addScaledVector(UP, -SIDE.dot(UP));
+    if (SIDE.lengthSq() < 1e-8) SIDE.set(0, 0, 1).applyQuaternion(QUAT).addScaledVector(UP, 0);
+    SIDE.normalize();
+    FWD.crossVectors(SIDE, UP);
+    BASIS.makeBasis(SIDE, UP, FWD);
+    handle.quaternion.setFromRotationMatrix(BASIS);
   }
 }
 
@@ -1259,7 +1369,7 @@ function select(next: Selection | undefined): void {
   } else {
     syncHandles(item);
     gizmo.attach(handles[selected.index]!);
-    gizmo.setMode('translate');
+    gizmo.setMode(gizmoMode);
   }
   gizmo.getHelper().visible = true;
   paintGizmoButtons();
@@ -1268,15 +1378,29 @@ function select(next: Selection | undefined): void {
 
 gizmo.addEventListener('dragging-changed', (e) => {
   gizmoDragging = e.value === true;
+  // One drag, one undo step — the same rule the sliders keep. Taken before the
+  // `item` test, so a drag on an exhibit that has gone away still closes its
+  // step rather than leaving one open across the next edit.
+  if (gizmoDragging) beginEdit();
   const item = tunedItem();
   if (!item?.model) return;
   if (gizmoDragging && selected?.kind === 'hand') {
-    DRAG_FROM.copy(handles[selected.index]!.position);
-    item.model.root.getWorldQuaternion(DRAG_QUAT_INV);
-    DRAG_QUAT_INV.invert();
-    dragTrim = REST_TRIM[item.model.archetype]?.[handOf(item, selected.index)] ?? [0, 0, 0];
+    // Everything a hand drag is measured against, frozen at the first frame of
+    // it: where the marker was, how it was turned, and how the model was —
+    // because both of the first two move as the trim being written takes
+    // effect, and a ruler that moves with the thing it is measuring reads zero.
+    const handle = handles[selected.index]!;
+    DRAG_FROM.copy(handle.position);
+    DRAG_TURN.copy(handle.quaternion);
+    item.model.root.getWorldQuaternion(DRAG_QUAT);
+    DRAG_QUAT_INV.copy(DRAG_QUAT).invert();
+    const was = handTrim(item, selected.index);
+    dragMove = was.move ?? [0, 0, 0];
+    DRAG_TRIM_TURN.setFromEuler(
+      TURN_EULER.set(was.turn?.[0] ?? 0, was.turn?.[1] ?? 0, was.turn?.[2] ?? 0, 'XYZ'),
+    );
   }
-  if (!gizmoDragging) { saveTuning(); drawTuner(); }
+  if (!gizmoDragging) { commitEdit(); drawTuner(); }
 });
 
 /** Which effector a hand index names on this exhibit. See `restPose`. */
@@ -1284,20 +1408,36 @@ function handOf(item: Exhibit, index: 0 | 1): 'left-hand' | 'right-hand' | 'bow'
   return index === 0 ? 'left-hand' : item.usesBow ? 'bow' : 'right-hand';
 }
 
+/** This hand's entry, made if the table has none. */
+function handTrim(item: Exhibit, index: 0 | 1): HandTrim {
+  const a = item.model!.archetype;
+  const trim: RestTrim = REST_TRIM[a] ?? (REST_TRIM[a] = {});
+  const hand = handOf(item, index);
+  return trim[hand] ?? (trim[hand] = {});
+}
+
 gizmo.addEventListener('objectChange', () => {
   const item = tunedItem();
   if (!item?.model || !selected) return;
-  if (selected.kind === 'instrument') readEase(item);
-  else {
+  if (selected.kind === 'instrument') { readEase(item); repaintRows(); return; }
+
+  const handle = handles[selected.index]!;
+  const trim = handTrim(item, selected.index);
+  if (gizmoMode === 'rotate') {
+    // The turn the drag has put on the marker, carried from world into the
+    // model's frame — `q_model⁻¹ · Δ · q_model` — and composed onto whatever
+    // the trim already said. Left-composed, because `trimRest` applies the
+    // stored rotation *to* the model's normal, so a new turn happens after it.
+    SPIN.copy(handle.quaternion).multiply(SPARE_QUAT.copy(DRAG_TURN).invert());
+    SPIN.premultiply(DRAG_QUAT_INV).multiply(DRAG_QUAT).multiply(DRAG_TRIM_TURN);
+    TURN_EULER.setFromQuaternion(SPIN, 'XYZ');
+    trim.turn = [TURN_EULER.x, TURN_EULER.y, TURN_EULER.z];
+  } else {
     // The world delta, turned into the model's own frame — the frame a trim is
     // written in, and taken from the rotation the drag started with so that an
     // instrument moving under the hand cannot bend the line being dragged.
-    const local = P.copy(handles[selected.index]!.position).sub(DRAG_FROM)
-      .applyQuaternion(DRAG_QUAT_INV);
-    const trim: RestTrim = REST_TRIM[item.model.archetype] ?? (REST_TRIM[item.model.archetype] = {});
-    trim[handOf(item, selected.index)] = [
-      dragTrim[0] + local.x, dragTrim[1] + local.y, dragTrim[2] + local.z,
-    ];
+    const local = P.copy(handle.position).sub(DRAG_FROM).applyQuaternion(DRAG_QUAT_INV);
+    trim.move = [dragMove[0] + local.x, dragMove[1] + local.y, dragMove[2] + local.z];
   }
   repaintRows();
 });
@@ -1326,25 +1466,17 @@ function pickAt(ev: PointerEvent): void {
   select(undefined);
 }
 
-/**
- * The mode buttons, showing what the gizmo is actually doing.
- *
- * Only the instrument can be turned. A hand's rest contact is a *point* — the
- * model says which way the palm faces there and that is the model's to say — so
- * `turn` is not a mode a hand has rather than one it declines, and a button
- * left lit over a gizmo showing three arrows is the panel lying about itself.
- */
+/** The mode buttons, showing what the gizmo is actually doing. */
 function paintGizmoButtons(): void {
-  const turnable = selected?.kind === 'instrument';
-  turnButton.disabled = !turnable;
-  const effective = turnable ? gizmoMode : 'translate';
-  moveButton.classList.toggle('on', effective === 'translate');
-  turnButton.classList.toggle('on', effective === 'rotate');
+  turnButton.disabled = selected === undefined;
+  moveButton.disabled = selected === undefined;
+  moveButton.classList.toggle('on', selected !== undefined && gizmoMode === 'translate');
+  turnButton.classList.toggle('on', selected !== undefined && gizmoMode === 'rotate');
 }
 
 function setGizmoMode(next: 'translate' | 'rotate'): void {
   gizmoMode = next;
-  if (selected?.kind === 'instrument') gizmo.setMode(next);
+  if (selected) gizmo.setMode(next);
   paintGizmoButtons();
 }
 moveButton.onclick = () => setGizmoMode('translate');
@@ -1371,7 +1503,7 @@ type TrimHand = 'left-hand' | 'right-hand' | 'bow';
 
 type Knob =
   | { kind: 'ease'; key: EaseKey; label: string; min: number; max: number; step: number }
-  | { kind: 'trim'; hand: TrimHand; axis: 0 | 1 | 2; label: string };
+  | { kind: 'trim'; hand: TrimHand; field: 'move' | 'turn'; axis: 0 | 1 | 2; label: string };
 
 const EASE_KNOBS: readonly Knob[] = [
   // Angles first, in the order `AtEasePose` declares them, and over the whole
@@ -1389,13 +1521,15 @@ const EASE_KNOBS: readonly Knob[] = [
   { kind: 'ease', key: 'hands1', label: 'let go R', min: 0, max: 1, step: 0.01 },
 ];
 
-/** How far a trim slider reaches, either way, in metres. A hand's whole span. */
+/** How far a trim slider reaches, either way. A hand's whole span, and a wrist's. */
 const TRIM_REACH = 0.35;
 const TRIM_STEP = 0.002;
+const TURN_REACH = Math.PI;
+const TURN_STEP = 0.01;
 
-function trimKnobs(hand: TrimHand): Knob[] {
+function trimKnobs(hand: TrimHand, field: 'move' | 'turn'): Knob[] {
   return ([0, 1, 2] as const).map((axis) => ({
-    kind: 'trim' as const, hand, axis, label: 'xyz'[axis]!,
+    kind: 'trim' as const, hand, field, axis, label: 'xyz'[axis]!,
   }));
 }
 
@@ -1445,16 +1579,17 @@ function easeEntry(a: Archetype): AtEasePose {
 
 function readKnob(a: Archetype, knob: Knob): number {
   if (knob.kind === 'ease') return easeValue(AT_EASE[a], knob.key);
-  return REST_TRIM[a]?.[knob.hand]?.[knob.axis] ?? 0;
+  return REST_TRIM[a]?.[knob.hand]?.[knob.field]?.[knob.axis] ?? 0;
 }
 
 function writeKnob(a: Archetype, knob: Knob, v: number): void {
   if (knob.kind === 'trim') {
     const trim: RestTrim = REST_TRIM[a] ?? (REST_TRIM[a] = {});
-    const cur = trim[knob.hand] ?? [0, 0, 0];
+    const hand: HandTrim = trim[knob.hand] ?? (trim[knob.hand] = {});
+    const cur = hand[knob.field] ?? [0, 0, 0];
     const next: [number, number, number] = [cur[0]!, cur[1]!, cur[2]!];
     next[knob.axis] = v;
-    trim[knob.hand] = next;
+    hand[knob.field] = next;
     return;
   }
   const e = easeEntry(a);
@@ -1482,8 +1617,11 @@ function easeEdited(a: Archetype): boolean {
 function trimEdited(a: Archetype): boolean {
   const trim = REST_TRIM[a];
   if (!trim) return false;
-  return (['left-hand', 'right-hand', 'bow'] as const)
-    .some((h) => (trim[h] ?? []).some((v) => Math.abs(v) > 1e-9));
+  return (['left-hand', 'right-hand', 'bow'] as const).some((h) => {
+    const hand = trim[h];
+    return hand !== undefined && (['move', 'turn'] as const)
+      .some((f) => (hand[f] ?? []).some((v) => Math.abs(v) > 1e-9));
+  });
 }
 
 function tuned(): Archetype[] {
@@ -1609,12 +1747,101 @@ function restoreTuning(): void {
 }
 
 function resetTuning(only?: Archetype): void {
+  beginEdit();
   for (const a of only ? [only] : tuned()) {
     const src = SOURCE_AT_EASE[a];
     if (src) AT_EASE[a] = JSON.parse(JSON.stringify(src)) as AtEasePose;
     else delete AT_EASE[a];
     delete REST_TRIM[a];
   }
+  commitEdit();
+  drawTuner();
+}
+
+// --- undo ------------------------------------------------------------------
+//
+// Whole-state snapshots rather than a log of what changed, because the state is
+// two small objects of numbers and the alternative is an inverse operation per
+// kind of edit — one for a slider, one for each gizmo mode, one for each reset
+// — every one of which is a second description of the edit that can disagree
+// with the first. Copying the tables costs a few microseconds on a page where
+// the only thing that writes them is a person.
+//
+// **What an undo step is, is a gesture and not a value.** A slider dragged
+// across its range fires `input` on every pixel and a gizmo fires
+// `objectChange` on every frame of a drag; pushing each one would make Ctrl+Z
+// replay the drag backwards a hundredth at a time. So the snapshot is taken
+// when a gesture starts and pushed when it ends, and `beginEdit` is idempotent
+// so the hundred `input` events in the middle are one step.
+
+interface Snapshot {
+  atEase: Partial<Record<Archetype, AtEasePose>>;
+  restTrim: Partial<Record<Archetype, RestTrim>>;
+}
+
+/** Deep enough, and the reason it can be this blunt: it is all numbers. */
+function snapshot(): Snapshot {
+  return JSON.parse(JSON.stringify({ atEase: AT_EASE, restTrim: REST_TRIM })) as Snapshot;
+}
+
+function restore(state: Snapshot): void {
+  // Emptied in place rather than reassigned: `at-ease.ts` exports the tables and
+  // every reader — the show included — holds the object, not a reference this
+  // file could swap.
+  for (const k of Object.keys(AT_EASE)) delete AT_EASE[k as Archetype];
+  for (const k of Object.keys(REST_TRIM)) delete REST_TRIM[k as Archetype];
+  Object.assign(AT_EASE, state.atEase);
+  Object.assign(REST_TRIM, state.restTrim);
+}
+
+/** Far past anything a session does by hand, and short of holding a session. */
+const UNDO_DEPTH = 200;
+const past: Snapshot[] = [];
+const future: Snapshot[] = [];
+let pending: Snapshot | undefined;
+
+/** The state before this gesture. Idempotent — see the note above. */
+function beginEdit(): void {
+  pending ??= snapshot();
+}
+
+function commitEdit(): void {
+  if (!pending) return;
+  // A gesture that changed nothing is not a step. `reset all` with nothing
+  // edited, or a slider dragged out and back — both end where they began, and
+  // an undo that visibly does nothing is worse than no undo, because it eats a
+  // press somebody meant for the edit before it.
+  if (JSON.stringify(pending) === JSON.stringify(snapshot())) { pending = undefined; return; }
+  past.push(pending);
+  if (past.length > UNDO_DEPTH) past.shift();
+  pending = undefined;
+  // A new edit is a new branch: whatever was undone past this point is gone,
+  // which is what every editor does and what stops redo replaying a history
+  // that no longer leads anywhere.
+  future.length = 0;
+  saveTuning();
+  // The hint carries the depth, and a step just landed on it. Not the whole
+  // panel: a `change` fires the moment a slider is released and rebuilding the
+  // rows under the pointer would take the next drag with it.
+  drawHint();
+}
+
+function undo(): void {
+  const step = past.pop();
+  if (!step) return;
+  future.push(snapshot());
+  restore(step);
+  pending = undefined;
+  saveTuning();
+  drawTuner();
+}
+
+function redo(): void {
+  const step = future.pop();
+  if (!step) return;
+  past.push(snapshot());
+  restore(step);
+  pending = undefined;
   saveTuning();
   drawTuner();
 }
@@ -1681,9 +1908,12 @@ function drawPicker(item: Exhibit | undefined): void {
 /** What the keys do, once there is something for them to do it to. */
 function drawHint(): void {
   const hint = document.getElementById('tunerHint')!;
-  hint.textContent = selected
+  const undoable = past.length
+    ? ` · ⌘Z undoes ${past.length}${future.length ? `, ⇧⌘Z redoes ${future.length}` : ''}`
+    : '';
+  hint.textContent = (selected
     ? 'drag the handles · F frames it · G moves, R turns · Esc clears'
-    : 'pick one above, or click it on the model';
+    : 'pick one above, or click it on the model') + undoable;
 }
 
 function drawTuner(): void {
@@ -1709,9 +1939,11 @@ function drawTuner(): void {
     tunerRows.append(h);
   };
   const add = (knob: Knob): void => {
-    const min = knob.kind === 'ease' ? knob.min : -TRIM_REACH;
-    const max = knob.kind === 'ease' ? knob.max : TRIM_REACH;
-    const step = knob.kind === 'ease' ? knob.step : TRIM_STEP;
+    const turning = knob.kind === 'trim' && knob.field === 'turn';
+    const reach = turning ? TURN_REACH : TRIM_REACH;
+    const min = knob.kind === 'ease' ? knob.min : -reach;
+    const max = knob.kind === 'ease' ? knob.max : reach;
+    const step = knob.kind === 'ease' ? knob.step : turning ? TURN_STEP : TRIM_STEP;
     const row = document.createElement('label');
     row.className = 'row';
     const name = document.createElement('span');
@@ -1730,13 +1962,16 @@ function drawTuner(): void {
       row.classList.toggle('moved', Math.abs(v) > 1e-9);
     };
     slider.oninput = () => {
+      // One drag, one undo step. `input` fires per pixel and per arrow key;
+      // `change` fires once at the end of either, which is where it is pushed.
+      beginEdit();
       writeKnob(a, knob, Number(slider.value));
       paint();
-      saveTuning();
       // The head carries the edited count, and this may be the edit that
       // changed it. The model itself redraws on the next frame by itself.
       drawHead(`<b>${a}</b> — keyed by archetype, so every exhibit of one shares these`);
     };
+    slider.onchange = commitEdit;
     paint();
     rowPainters.push(paint);
     row.append(name, slider, shown);
@@ -1759,9 +1994,20 @@ function drawTuner(): void {
     for (const hand of ['left-hand', item.usesBow ? 'bow' : 'right-hand'] as const) {
       // A model that answers nothing for this hand has nothing to trim, and a
       // slider that moves a number nobody reads is worse than no slider.
-      if (!model.resolve(REST, hand)) continue;
-      section(`rest trim — ${hand}`);
-      trimKnobs(hand).forEach(add);
+      const contact = model.resolve(REST, hand);
+      if (!contact) continue;
+      section(`${hand} — where it sits`);
+      trimKnobs(hand, 'move').forEach(add);
+      section(`${hand} — which way it faces`);
+      trimKnobs(hand, 'turn').forEach(add);
+      // A model with no knuckle axis has no opinion about roll, and the third
+      // slider is turning something the hand rig is free to ignore.
+      if (!contact.along) {
+        const note = document.createElement('div');
+        note.className = 'note';
+        note.textContent = 'This model gives no knuckle axis, so roll is the rig’s to pick.';
+        tunerRows.append(note);
+      }
     }
   }
 }
@@ -1820,6 +2066,26 @@ canvas.addEventListener('wheel', (e) => {
   zoom = Math.max(0.3, Math.min(3, zoom * Math.exp(e.deltaY * 0.0012)));
 }, { passive: false });
 window.addEventListener('keydown', (e) => {
+  /**
+   * Undo first, and above the slider guard rather than below it.
+   *
+   * A slider owns the arrow keys while it has the focus — taking those would
+   * switch exhibits out from under somebody nudging a number by a hundredth —
+   * and it owns nothing else. `Ctrl+Z` in a focused range input does nothing at
+   * all natively, so the guard that protects the arrows would swallow the undo
+   * of the very edit that focused it.
+   *
+   * `metaKey` as well as `ctrl`, because this is a Mac and `⌘Z` is the muscle
+   * memory. Both spellings of redo: `⇧⌘Z` and `Ctrl+Y`.
+   */
+  const accel = e.ctrlKey || e.metaKey;
+  const key = e.key.toLowerCase();
+  if (accel && (key === 'z' || key === 'y')) {
+    e.preventDefault();
+    if (key === 'y' || e.shiftKey) redo(); else undo();
+    return;
+  }
+  if (accel) return;
   // A slider has the arrow keys while it has the focus, and taking them would
   // switch exhibits out from under somebody nudging a number by a hundredth.
   if (e.target instanceof HTMLInputElement) return;
