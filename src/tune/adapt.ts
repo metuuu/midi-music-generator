@@ -172,6 +172,41 @@ export function repetitionFor(hook: HookLevel, kind: SectionKind): number {
   return clamp01(shape.repetition * (0.4 + 0.9 * (hook.level / 4)));
 }
 
+/**
+ * The lead window, moved to where this kind of section actually sings.
+ *
+ * **`SectionShape.register` was authored six times and read by nothing** — the
+ * same failure `melody.sequence` had before `adapt.ts` existed, and the type says
+ * plainly what it is for: *semitones the lead window moves for this kind of
+ * section*. A chorus that sits two semitones above the verse and a bridge that
+ * sits between them is the most audible register contrast in popular music and
+ * costs nothing to state; without it every section of every song was written in
+ * one band, which is a large part of why `SectionShape` could describe a chorus as
+ * denser and more repetitive and still not make one sound like a chorus.
+ *
+ * It also does something no single section can do for itself. `planRegisters`
+ * hands the melody a window the width of the style's declared span and the tune
+ * fills most of it; the *song's* range can only be wider than one section's if the
+ * sections sit at different heights. Measured across the catalogue, the median
+ * song covered thirteen semitones and the median section twelve — the whole piece
+ * was one section's worth of register.
+ *
+ * Bounded by what the instrument can play, because the shift is a musical
+ * preference and the horn's top note is not. A window that would end up too narrow
+ * to hold an octave is refused outright, for the reason `planRegisters` gives: the
+ * cadence machinery needs every pitch class inside the range or it stops landing
+ * on the tonic.
+ */
+export function registerFor(
+  kind: SectionKind, range: [Midi, Midi], playable: readonly [Midi, Midi],
+): [Midi, Midi] {
+  const shift = sectionShape(kind).register;
+  if (!shift) return range;
+  const lo = Math.max(playable[0], range[0] + shift);
+  const hi = Math.min(playable[1], range[1] + shift);
+  return hi - lo >= 12 ? [lo, hi] : range;
+}
+
 export interface SectionTuneOptions {
   style: Style;
   hook: HookLevel;

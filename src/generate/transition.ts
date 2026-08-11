@@ -1538,10 +1538,30 @@ export function hitTogether(
   }
   const voicings = [...groups.values()];
 
+  /**
+   * A hit may not land on a key that is already being struck there.
+   *
+   * `kept` is everything outside the shot bar, and "outside" is decided by the
+   * *onset* — so a note whose onset sits on the far boundary is kept, and a shot
+   * figure whose last entry lands on that same boundary writes the same pitch at
+   * the same instant a second time. That is a MIDI note-on for a key already
+   * sounding, which `npm run genres` forbids outright in the bass and which every
+   * retriggering synthesiser turns into a truncated note rather than an accent.
+   *
+   * Two of them across 925 songs, and it stayed hidden because it needs a bass
+   * note to fall exactly on a boundary a shot also names — rare while the parts
+   * around it were sparser, and not rare enough once they were not. The shot gives
+   * way, because the note that was already there is the part playing and this one
+   * is an accent on it.
+   */
+  const struck = new Set(kept.map((n) => `${n.beat.toFixed(4)}:${n.midi}`));
   const hits: NoteEvent[] = [];
   beats.forEach((beat, i) => {
     const next = beats[i + 1] ?? to;
     for (const n of voicings[Math.min(i, voicings.length - 1)]!) {
+      const key = `${beat.toFixed(4)}:${n.midi}`;
+      if (struck.has(key)) continue;
+      struck.add(key);
       hits.push({ ...n, beat, duration: Math.min(n.duration, Math.max(0.25, next - beat)), velocity: Math.min(1, n.velocity + 0.12) });
     }
   });

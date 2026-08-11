@@ -1094,6 +1094,8 @@ function operatePart(song: Song, machines: StageMachine[], board: Board): void {
 
     /** How many of this machine's moments actually got a hand. */
     let touches = 0;
+    /** …and whether the one that has to precede its sound was one of them. */
+    let started = false;
 
     for (const moment of moments) {
       /**
@@ -1136,6 +1138,37 @@ function operatePart(song: Song, machines: StageMachine[], board: Board): void {
         const hand = freeHand(board, beat);
         if (!hand) continue;
         panelTouch(board, hand, beat, moment.at, index);
+        touches++;
+        if (moment.start) started = true;
+        break;
+      }
+    }
+
+    /**
+     * A machine that comes in mid-number is started before it speaks, even when
+     * the eight beats in front of it are full.
+     *
+     * The walk above stops at eight because past that "the gesture has stopped
+     * belonging to the entrance", and that is right about a box entering at the
+     * top of a chorus. It is not right about one entering forty bars in, which
+     * is a different thing wearing the same shape: nobody reaches over on the
+     * beat there either, they set it running when they have a hand and it comes
+     * round. So where the near search finds nothing, this asks the same question
+     * the untouched-machine walk below asks — half a bar at a time, any free hand
+     * — and asks it *backwards*, because a start is the one gesture in this file
+     * that causes its sound rather than accompanying it.
+     *
+     * It only fires where a hand is genuinely blocked for two full bars, which is
+     * a busy part rather than a rare one: a sequenced counter entering at bar 41
+     * under a melodist playing sixteenths had every candidate in the near window
+     * taken, and the box came in with nobody near it.
+     */
+    if (!started && first >= song.meta.beatsPerBar) {
+      const step = song.meta.beatsPerBar / 2;
+      for (let beat = quantiseDown(first - step); beat >= 0; beat -= step) {
+        const hand = freeHand(board, quantiseDown(beat));
+        if (!hand) continue;
+        panelTouch(board, hand, quantiseDown(beat), 0.12, index);
         touches++;
         break;
       }

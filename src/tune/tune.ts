@@ -26,7 +26,7 @@ import { EMPTY_ACCOMPANIMENT, RULES, type Accompaniment, type Rule } from '../co
 import type { NoteEvent } from '../core/types.js';
 import { describePhrases, planPhrases } from './grammar.js';
 import { judge, signatureOf, type Signature, type Verdict } from './judge.js';
-import { NEUTRAL_IDIOM, applyOps, motifFamily } from './motif.js';
+import { NEUTRAL_IDIOM, applyOps, motifFamily, tileTo } from './motif.js';
 import { describeSkeleton, planArc, skeletonFor } from './skeleton.js';
 import { realisePhrase } from './surface.js';
 import type {
@@ -130,8 +130,11 @@ export function composeTune(opts: TuneOptions): Tune {
   let bar = 0;
   let previous: Midi | undefined;
   for (const phrase of phrases) {
-    const figure = figures.get(phrase.id);
-    if (!figure) { bar += phrase.bars; continue; }
+    const stated = figures.get(phrase.id);
+    if (!stated) { bar += phrase.bars; continue; }
+    // A phrase longer than the figure's canvas gets the figure again, rather than
+    // the figure and then silence. See `tileTo`.
+    const figure = tileTo(stated, phrase.bars * slotsPerBar);
 
     const chords = ctx.chords.slice(bar, bar + phrase.bars);
     while (chords.length < phrase.bars) chords.push(chords[chords.length - 1] ?? ctx.chords[0]!);

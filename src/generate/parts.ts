@@ -2071,9 +2071,24 @@ export function generateCounter(
     const barEnd = barStart + beatsPerBar;
     const inBar = sortedMelody.filter((n) => n.beat >= barStart && n.beat < barEnd);
 
-    // Find the largest silent window in this bar.
+    /**
+     * Find the largest silent window in this bar.
+     *
+     * The cursor starts wherever the *previous* bar's music stops rather than at
+     * the barline, and the difference is a note held across it. `inBar` cannot see
+     * one — it selects on the onset — so a tune sustaining into this bar left the
+     * whole span before its next onset counted as silence, and the answer was
+     * written straight underneath it. Rare while melody notes mostly ended where
+     * the next one began; not rare once figures could hold over a barline, which
+     * is when it showed up as 58% of answer notes sounding under the tune against
+     * 52% before, with the answer doing nothing different.
+     */
     let cursor = barStart;
-    let bestStart = barStart;
+    for (const n of sortedMelody) {
+      if (n.beat < barStart && n.beat + n.duration > cursor) cursor = n.beat + n.duration;
+    }
+    cursor = Math.min(cursor, barEnd);
+    let bestStart = cursor;
     let bestLen = 0;
     for (const n of inBar) {
       const gap = n.beat - cursor;

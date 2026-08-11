@@ -61,6 +61,23 @@ export function planArc(
    * hears are the distances between structural notes, and those come from the arc.
    * Polished music stays in a narrower band, which is both true of it and the reason
    * this works.
+   *
+   * **The two fractions look like the place to widen a tune's range and they are
+   * not**, which is worth recording because it is the obvious move and it is wrong.
+   *
+   * Raised to 0.9 and 0.8 — enough to lift the arc by a third — the catalogue's
+   * median section span moved from 12.5 semitones to 12.6, and doubling them moved
+   * it to 12.8. The arc was never what bound the range: `planRegisters` was handing
+   * the melody a window narrower than the style's own declared span, and no amount
+   * of arc fits in a window that is not there. The range came back when the window
+   * did, and again when `SectionShape.register` was finally read.
+   *
+   * What the raise *did* do was measurable and unwanted. Anchors further apart
+   * leave `fitSegment` more distance to spill into the body of every figure, so
+   * both a mallet and a flute play more thirds — and the mallet, which was already
+   * playing them, gains proportionally less. `npm run genres` reads that directly:
+   * the gap between the two idioms fell from 32% against 23% to 30% against 26%,
+   * which is instrument character being spent to buy two tenths of a semitone.
    */
   const lift = Math.min(compass * 0.7, (hi - lo) * 0.6) * (1 - strictness * 0.045);
   const base = centre - lift * 0.42;

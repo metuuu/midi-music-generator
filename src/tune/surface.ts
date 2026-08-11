@@ -81,12 +81,70 @@ export function realisePhrase(opts: SurfaceOptions): NoteEvent[] {
   // another doing it. Cheap, and a no-op whenever they behaved.
   capLeaps(opts, midis);
 
+  const placed = midis.map((m) => clampToRange(m, range[0], range[1]));
   return onsets.map((onset, i) => ({
     beat: opts.startBeat + onset.at / SLOTS_PER_BEAT,
     duration: sounding(Math.max(1, onset.dur) / SLOTS_PER_BEAT, opts.idiom.detache),
-    midi: clampToRange(midis[i]!, range[0], range[1]),
-    velocity: 0.5 + onset.accent * 0.4,
+    midi: placed[i]!,
+    velocity: strikeOf(onsets, placed, i, opts),
   }));
+}
+
+/**
+ * How hard this note is struck.
+ *
+ * It was `0.5 + accent * 0.4`, and since the accent template runs 0.08..1 that is
+ * a band from 0.71 to 0.90 — **a dynamic range of a fifth of the available
+ * scale**, laid flat across every note of every phrase. Section dynamics
+ * (`generate/dynamics.ts`) then scaled the whole block, so a song had loud
+ * sections and quiet ones and no shape whatever *inside* one: measured across the
+ * catalogue, melody velocity had a standard deviation of 0.07 to 0.12 within a
+ * section, most of it the metre ticking. A part with no shape under the phrase is
+ * the sound of a sequencer, and it is what "the melodies feel flat" means before
+ * anybody has worked out which axis is missing.
+ *
+ * Three things move it, and they are the three a player actually does.
+ *
+ * **Height.** A singer leans into the top of a phrase — the effort is literal, and
+ * every wind and bowed instrument does the same thing for the same reason. Measured
+ * against the phrase rather than the section, because the question is what this
+ * line is reaching for now, and the section's own arc is already carried by
+ * `sectionIntensity`.
+ *
+ * **Length.** A note held longer than its neighbours is a note being leaned on.
+ * `accentuate` already lifts the *figure's* longest note; this is the same fact
+ * about the note as realised, which after `augment`, `diminish` and the tiling may
+ * be a different note entirely.
+ *
+ * **Arrival.** The last note of a phrase settles rather than lands, which is what
+ * separates an ending from an interruption. Not applied where the phrase carries
+ * the section's high point at its end, because that note is the one thing in the
+ * section everything else was built to reach.
+ */
+function strikeOf(
+  onsets: Motif['gesture']['onsets'], midis: Midi[], i: number, opts: SurfaceOptions,
+): number {
+  const onset = onsets[i]!;
+  // Wider at the bottom than the old band, so that an unaccented passing note is
+  // genuinely quieter than the note it passes to rather than three percent under.
+  // The accent's own scale is left alone: `strengthOf` reads it to decide which
+  // notes the rule table polices, so widening it there would quietly change how
+  // much of the line is checked. This is an output and can say what it means.
+  let v = 0.30 + onset.accent * 0.70;
+
+  const top = Math.max(...midis);
+  const floor = Math.min(...midis);
+  if (top > floor) v *= 0.84 + ((midis[i]! - floor) / (top - floor)) * 0.30;
+
+  const mean = onsets.reduce((a, o) => a + o.dur, 0) / onsets.length;
+  if (onset.dur > mean * 1.5) v *= 1.07;
+  else if (onset.dur < mean * 0.6) v *= 0.94;
+
+  const last = i === onsets.length - 1;
+  const peakAt = opts.skeleton.targets.find((t) => t.role === 'peak')?.at;
+  if (last && peakAt !== onset.at) v *= 0.90;
+
+  return Math.max(0.08, Math.min(1, v));
 }
 
 /**
@@ -152,7 +210,7 @@ function walk(
   const first = anchors[0]!;
   for (let i = first - 1; i >= 0; i--) {
     const step = figure.contour[i + 1] ?? 0;
-    midis[i] = reflect(stepInScale(scaleFor(i), midis[i + 1]!, -step), lo, hi);
+    midis[i] = reflect(stepInScale(scaleFor(i), midis[i + 1]!, -step), lo, hi, scaleFor(i));
   }
 
   // Between anchors.
@@ -168,7 +226,7 @@ function walk(
     let cursor = midis[from]!;
     for (let i = from + 1; i < to; i++) {
       const step = fitted[i - from - 1] ?? 0;
-      cursor = reflect(stepInScale(scaleFor(i), cursor, step), lo, hi);
+      cursor = reflect(stepInScale(scaleFor(i), cursor, step), lo, hi, scaleFor(i));
       midis[i] = unstall(snapToSubset(scaleFor(i), opts.subset, cursor), midis[i - 1]!, step, scaleFor(i), lo, hi);
     }
   }
@@ -178,7 +236,7 @@ function walk(
   let cursor = midis[last]!;
   for (let i = last + 1; i < onsets.length; i++) {
     const step = figure.contour[i] ?? 0;
-    cursor = reflect(stepInScale(scaleFor(i), cursor, step), lo, hi);
+    cursor = reflect(stepInScale(scaleFor(i), cursor, step), lo, hi, scaleFor(i));
     midis[i] = unstall(snapToSubset(scaleFor(i), opts.subset, cursor), midis[i - 1]!, step, scaleFor(i), lo, hi);
   }
 
@@ -537,8 +595,20 @@ function nearChordTone(
  * ceiling comes back an octave lower, and the listener hears a twelve-semitone leap
  * in the middle of a stepwise idea. Reflecting keeps the *size* of the motion, which
  * is what the shape is made of, and reverses only its direction.
+ *
+ * **Reflection is the one operation here that does not preserve the pitch class,**
+ * which is exactly why it takes the scale. Mirroring a note about the top of the
+ * range moves it by twice its overshoot, and twice a scale step is not a scale
+ * step: the note comes back chromatic. Nothing downstream caught it — `snapToSubset`
+ * hands the note straight back when the section's subset is the full diatonic,
+ * because there is no subset to snap to, and the pickup path does not go through it
+ * at all. It surfaced as two raised sevenths in 4,518 notes of minor-key synth,
+ * against a check that asserts zero and had been reading zero: rare enough to have
+ * hidden for the life of the engine, and a wrong note in a modal genre whenever it
+ * fired. A line may leave the scale by decision — `resolveDissonances` is the pass
+ * that decides — but never by arithmetic.
  */
-function reflect(midi: Midi, lo: Midi, hi: Midi): Midi {
+function reflect(midi: Midi, lo: Midi, hi: Midi, scale?: Scale): Midi {
   if (midi >= lo && midi <= hi) return midi;
   if (hi <= lo) return lo;
   let m = midi;
@@ -546,7 +616,10 @@ function reflect(midi: Midi, lo: Midi, hi: Midi): Midi {
     if (m < lo) m = lo + (lo - m);
     if (m > hi) m = hi - (m - hi);
   }
-  return clampToRange(m, lo, hi);
+  const landed = clampToRange(m, lo, hi);
+  if (!scale || scale.pcs.includes(pc(landed))) return landed;
+  const snapped = snapToScale(scale, landed);
+  return snapped >= lo && snapped <= hi ? snapped : landed;
 }
 
 /**

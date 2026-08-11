@@ -3980,8 +3980,28 @@ console.log('\nCounter-melody');
         }
         continue;
       }
-      ansNotes += counter.length;
-      for (const n of counter) {
+      /**
+       * Deliberate doublings are not counted, and leaving them in was measuring
+       * the opposite of what this pair is for.
+       *
+       * The contrast below asks whether the answer *works around* the tune where a
+       * sequencer ignores it. A `unison` span is the arrangement deciding that
+       * these two players state the head together — every note of it sounds under
+       * the tune by construction, because it is the tune — so counting those notes
+       * charges the answer with overlap it was drawn to produce, and the check two
+       * assertions above already holds them to their own standard.
+       *
+       * The confound is large and it moves with the melody's density, which is how
+       * it was found. Over the same 760 songs: with the doublings counted, 52% of
+       * answer notes sound under the tune, and 34% of those overlaps sit *inside* a
+       * sustained melody note — the answer genuinely buried. With them excluded it
+       * is 40%. A denser melody then moved the first number to 57% while the second
+       * fell to 39% and the buried share fell to 1%, so the answer got measurably
+       * more independent and the ratio read as a regression.
+       */
+      const own = counter.filter((n) => !n.doubling);
+      ansNotes += own.length;
+      for (const n of own) {
         if (melody.some((m) => m.beat <= n.beat + 1e-6 && m.beat + m.duration > n.beat + 1e-6)) ansUnder++;
       }
 

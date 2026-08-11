@@ -161,7 +161,25 @@ export function planRegisters(args: {
    * The floor is capped short of the lead's centre so a high-voiced comp cannot
    * squeeze the melody into a sliver at the top of its range.
    */
-  const cap = Math.round(leadCentre - span * 0.3);
+  /**
+   * …and the cap is what the tune actually gets, so it has to be at least the span
+   * the style asked for.
+   *
+   * The accompaniment's ceiling lands near `leadCentre - span × 0.35 + overlap`,
+   * which is above this line in the ordinary case — so this cap, not the
+   * accompaniment and not `leadCentre - span × 0.6` above it, is the melody's floor
+   * in almost every song. At 0.3 that made the window `span × 0.9`: a style
+   * declaring fourteen semitones of melodic span was handed twelve to write in, and
+   * `planArc` then took a fraction of *that*. Measured across the catalogue the
+   * median section covered ten semitones and the median whole song twelve, and
+   * widening the arc alone moved it by two tenths of a semitone — because the arc
+   * was never the thing binding.
+   *
+   * At 0.4 the window is the declared span exactly, which is the least this number
+   * can mean. The melody's floor drops about a tenth of a span into the comp's
+   * register and `resolveCollisions` below already runs on precisely that overlap.
+   */
+  const cap = Math.round(leadCentre - span * 0.4);
   const floor = Math.min(Math.max(Math.round(leadCentre - span * 0.6), highest), cap);
   /**
    * A tune needs an octave, and it needs a *whole* one.

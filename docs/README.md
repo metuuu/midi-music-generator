@@ -34,6 +34,7 @@ Start with the [README](../README.md) for what the project is. This directory is
 | [rhythm-plan.md](rhythm-plan.md) | the rhythm section → [rhythm.md](rhythm.md) | yes, §13 records the differences |
 | [feel-plan.md](feel-plan.md) | `style/feel.ts` — how a passage is *felt* | yes |
 | [transition-plan.md](transition-plan.md) | `generate/transition.ts` — what the band does at a seam | yes |
+| [voices-plan.md](voices-plan.md) | giving 389 styles a melodic voice, and giving the music a second one | no — nothing built |
 
 A plan and its "what exists" page can disagree, because a plan is a record of intent and is not rewritten when the code moves. Where they do, the page in the first table is the one to trust.
 

@@ -57,7 +57,7 @@ import { applyDrop, planDrop } from './drop.js';
 import { effectiveBpm, planRamp, rampMap } from './tempo.js';
 import { applyTransitions, hitTogether, planTransitions, type Seam } from './transition.js';
 import { getHook, RECALL_BIAS, type HookId } from './hook.js';
-import { composeSectionTune } from '../tune/adapt.js';
+import { composeSectionTune, registerFor } from '../tune/adapt.js';
 import { planKeys } from '../tune/keyplan.js';
 import { figureSlots, handOff, harmonise, joinIn, patchBand } from '../tune/band.js';
 import { has, planChart, playing } from './chart.js';
@@ -1656,7 +1656,10 @@ export function generateSong(opts: GenerateOptions = {}): Song {
       soloSpans.set(soloLayer as PlayedLayer, spans);
       sectionMelody = line;
     } else if (active.has(leadLayer)) {
-      const range: [number, number] = plan.lead;
+      // …moved to where this kind of section sings. See `registerFor`.
+      const range = registerFor(
+        section.kind, plan.lead, rangeOfInstrument(leadInstrument),
+      );
       /**
        * The tune.
        *
