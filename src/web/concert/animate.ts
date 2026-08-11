@@ -2517,6 +2517,30 @@ class Runtime implements Animator {
     }
 
     /**
+     * And the one head that is not free: a mouthpiece against the lips.
+     *
+     * A horn is parented to the torso, so it takes the sway and the lean with
+     * the player — but it does *not* take the nod, because the head moves
+     * alone. Half a radian of nod and a centimetre of bob slide the lips about
+     * 3 cm along a mouthpiece that stayed exactly where it was, which reads as
+     * a trumpeter blowing into their own chin on every beat.
+     *
+     * `performer.ts` makes the same argument about the yaw and answers it by
+     * turning from the waist — see `MOUTHPIECE_TURN`. There is no equivalent
+     * answer here: pitching the torso instead would take the bell down with it,
+     * and a horn dipping at the pulse is a worse picture than a horn player who
+     * holds their head still while they are playing. Which is also what they
+     * do. The sway is still theirs, and it is enough.
+     *
+     * On `engage` rather than on whether a note is sounding, because the horn
+     * stays up through the rests inside a phrase: a head that nodded between
+     * two notes a beat apart would be exactly the fault this prevents. Standing
+     * down hands the nod straight back, which is when a player nods along
+     * anyway.
+     */
+    if (p.blown && p.carried) nod *= 1 - p.engage;
+
+    /**
      * The count-in, which overrides all of the above for as long as it lasts.
      *
      * The leader beats time — one nod per beat, in the tempo the number is

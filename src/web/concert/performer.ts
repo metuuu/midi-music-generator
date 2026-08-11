@@ -427,6 +427,41 @@ const MOUTHPIECE_IDLE_TURN = 0.10;
 const IDLE_TURN = 0.30;
 
 /**
+ * How hard a player's *part* makes them concentrate, as opposed to how hard it
+ * makes them work.
+ *
+ * `effort` is exertion, and the face has spent it on one thing: the cheeks of
+ * somebody blowing. A cellist has no cheeks to puff and got 0.16 of a furrow
+ * out of it, which is a person thinking about nothing in particular — while
+ * carrying the tune on a fretless fingerboard, where every note is an intonation
+ * decision and the bow arm is a second one. That is the most visibly
+ * concentrated job on the stage and it had the blankest face on the stage.
+ *
+ * So the brow takes a share of the effort, and how big a share is a property of
+ * the part: `FOCUS_BROW` for a bowed player on a line of their own, `IDLE_BROW`
+ * for everybody else, including the same cellist when they are sitting under
+ * the arrangement holding whole notes. A furrow that never lifts is a scowl,
+ * not concentration — it has to be the difference between two passages for an
+ * audience to read it as either.
+ *
+ * The squint is small on purpose. Eyes are the one part of this face with no
+ * detail to lose, and past about a fifth shut a focused player looks tired.
+ */
+const IDLE_BROW = 0.22;
+const FOCUS_BROW = 0.85;
+const FOCUS_SQUINT = 0.18;
+
+/**
+ * The parts that count as a line of one's own.
+ *
+ * `melody` is the tune and `counter` is the other tune; both are single lines
+ * with somewhere to go, which is what makes a player follow them. A bowed part
+ * on `bass` or `pad` is sustain underneath somebody else's phrase and wants the
+ * ordinary face.
+ */
+const LEAD_LAYERS: ReadonlySet<string> = new Set(['melody', 'counter']);
+
+/**
  * How far a player turns their chest toward their own hands, and how fast.
  *
  * `TWIST_SHARE` is the fraction of the angle to the hands that the waist takes;
@@ -523,6 +558,13 @@ class Rig implements PerformerRig {
    */
   private readonly mouthpiece: boolean;
   /**
+   * How much of this player's work shows on their face. See `FOCUS_BROW`.
+   *
+   * A constant for the life of the rig, because a performer plays one part.
+   */
+  private readonly browShare: number;
+  private readonly squint: number;
+  /**
    * How much of the groove's sway this player's *hips* are allowed to take.
    *
    * One for a player on their feet, who shifts their weight from one to the
@@ -602,6 +644,9 @@ class Rig implements PerformerRig {
     const spec = ARCHETYPES[performer.archetype];
     this.blown = spec.blown === true;
     this.mouthpiece = this.blown && spec.held;
+    const focused = spec.family === 'bowed' && LEAD_LAYERS.has(performer.layer);
+    this.browShare = focused ? FOCUS_BROW : IDLE_BROW;
+    this.squint = focused ? FOCUS_SQUINT : 0;
 
     this.rng = new Rng(`${performer.id}#rig`);
     const faceRng = new Rng(`${performer.id}#face`);
@@ -1263,8 +1308,12 @@ class Rig implements PerformerRig {
       Math.max(this.mouthRound, bias.mouthRound),
       Math.max(this.mouthSpread, bias.mouthSpread),
     );
-    this.face.eyes(Math.max(this.eyesClosed, bias.eyesClosed));
-    this.face.brow(bias.browRaise, Math.max(bias.browFurrow, this.effort * 0.22));
+    // The squint rides `effort` like the brow does, so it arrives with the
+    // first note and goes when the player stops rather than being a face this
+    // performer wears all night. It loses to `eyes-shut` and to a reaction,
+    // both of which are larger and both of which mean something else.
+    this.face.eyes(Math.max(this.eyesClosed, bias.eyesClosed, this.effort * this.squint));
+    this.face.brow(bias.browRaise, Math.max(bias.browFurrow, this.effort * this.browShare));
     this.face.effort(this.effort);
     this.face.update(now, step);
 
