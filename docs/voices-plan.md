@@ -1,6 +1,6 @@
 # Voices — plan
 
-*Plan, written 2026-08-11. It describes what is **intended**, not what is. **Nothing here is built.** Every number in §2 was measured on the working tree the day this was written; the commands are named beside them. Read it for reasoning, and check the numbers before acting on them.*
+*Plan, written 2026-08-11 and annotated the same day. **Part A wave 1 is built** — `44e9940`, `28e7e0a`, `193adf5` — and §7 records what the plan got wrong. Part B is not started. Every number in §2 was measured before any of it; the commands are named beside them. Read it for reasoning, and check the numbers before acting on them.*
 
 Two gaps, one cause. A style cannot say what its melodies are made of, and no style can
 say that its music has a second voice in it. Both are the tables being silent, and the
@@ -388,7 +388,7 @@ it is the cheapest of the four absences and the most audible.
 
 | | | depends on |
 |---|---|---|
-| A1 | nineteen `Genre.voice`s | — |
+| A1 | nineteen `Genre.voice`s — **built**, `193adf5` | — |
 | B1 | the vocal stack (§4.5) | — |
 | B2 | `Style.harmony` / `Genre.harmony` as a standing property (§4.3) | — |
 | B3 | the chord-aware harmony pass (§4.4) | B2 |
@@ -421,3 +421,47 @@ checked afterwards.
   irrelevant. If `cellAccents` turns out to be doing more work than
   `cellDensity` — and it may, since it is the one derived field nobody has complained
   about — then the cells are load-bearing after all and wave 3 is not optional either.
+
+---
+
+## 7. What the plan got wrong — written after wave 1
+
+Four things, and the largest was not in the document at all.
+
+**The cache was handing one style's voice to another, and this plan never saw it.**
+`voiceForStyle` memoised on `style.id`, and a style id is not unique: 365 distinct ids
+over 389 styles, 19 shared across genres, `ballad` by six. So in any process touching
+more than one genre — every batch, every report, every check — whichever style derived
+first supplied the voice for every later style with its name. `house/bleep` declares the
+widest span in the catalogue and was playing `dnb/bleep`'s. Fixed in `28e7e0a` with a
+`WeakMap` on the object, which makes the collision unsayable rather than handled.
+**§3.4's whole premise — that authoring per-style voices is the wave-2 win — was resting
+on a mechanism that silently discarded per-style differences**, and neither §3 nor §6
+suspected it. The lesson is §3.5's, arrived at from the other end: before authoring
+against a derivation, check that the derivation is reaching the thing it derives from.
+
+**§3.2's resolution order could not be implemented where it said.** `voiceForStyle` takes
+a `Style` and there is no style→genre lookup anywhere; the genre's voice has to be
+threaded from `generateSong` through `SectionTuneOptions`. The plan asserted a call
+shape without checking that the caller had the argument.
+
+**§3.1 miscounted its own list** — "good answers for four of them" followed by six — and
+overstated the case besides. Derivation *does* produce `archetypes`, `subsets` and `ops`;
+what it cannot do is produce them *well*. "Cannot reach" should have read "answers
+generically for every style at once", which is the real complaint.
+
+**§4.3's `Genre.harmony` is on thinner ice than it was given.** `drops`, `dropBars`,
+`tempoRamp` and `breakCarrier` are all style-only, each with a paragraph arguing that a
+claim about what one piece is made of does not travel to a genre, and an `amount` is
+that kind of claim. It is built, as a fallback under `arrangement` where the genre
+already speaks about the harmony device, and the counterargument is recorded beside it.
+Part B should test it rather than assume it.
+
+**What the plan got right and is worth keeping.** The two-tier split survived contact:
+every numeric field varies 16–37% *inside* a genre, so a genre-level number would have
+flattened a real distinction, and holding the genre tier to `archetypes`, `subsets` and
+`ops` was the decision that made nineteen parallel authors safe. And §4.2's casting
+argument, which §6 flagged as the weakest thing in the document, turned out to be
+stronger than its own reasoning: casting drafts one player per *track*, already stages
+two on one layer in production, and the id-uniquing for a doubled layer was written
+years before anybody needed it.
