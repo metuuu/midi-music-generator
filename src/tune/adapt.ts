@@ -52,22 +52,42 @@ import { SUBSETS, getVoice, hasVoice, sectionShape } from './voice.js';
 const ATTEMPTS = 24;
 
 /**
- * Keyed on `style.id`, and it holds the **derived** voice only — never a voice
- * with a genre or style delta folded into it.
+ * Keyed on the `Style` **object**, and it holds the **derived** voice only —
+ * never a voice with a genre or style delta folded into it.
  *
- * That is the whole reason the derivation is a separate function below. A cache
- * of finished voices would bake whichever genre asked first into an object every
- * later caller reads, and the tier would silently stop working.
+ * The second half is the whole reason the derivation is a separate function
+ * below. A cache of finished voices would bake whichever genre asked first into
+ * an object every later caller reads, and the tier would silently stop working.
  *
- * **`style.id` is not unique across the catalogue and this key is therefore
- * wrong** — 19 ids are shared by two or more genres (`ballad` by six, `minimal`
- * by three), 365 distinct ids over 389 styles, and all 19 derive genuinely
- * different voices. In any process that generates more than one genre the second
- * `ballad` gets the first one's density and leap. It is left alone here because
- * fixing it moves 23 styles' output, which is a change to make on its own and
- * measure, not a side effect of adding a field nothing declares yet.
+ * ## The first half was a live bug, and the key is the fix rather than a repair
+ *
+ * This was keyed on `style.id`, and **a style id is not unique**: 365 distinct
+ * ids over 389 styles, 19 of them shared by two or more genres — `ballad` by
+ * six (jazz, funk, rock, country, pop, rnb), `minimal` by three, `deep`,
+ * `bleep`, `garage`, `chicago`, `girlgroup` and thirteen more by two. Every one
+ * of those pairs derives a genuinely different voice, so in any process that
+ * touches more than one genre — which is every batch, every report and every
+ * check in this project — whichever style derived first handed its voice to all
+ * the others wearing its name. `house/bleep` declares a span of 24 semitones and
+ * a leap appetite of 0.6, the widest in the catalogue, and was playing
+ * `dnb/bleep`'s 16 and 0.42; `house/minimal` asks for a syncopation of 0.15 and
+ * was given `hiphop/minimal`'s 0.55.
+ *
+ * **A `WeakMap` on the object makes the collision unsayable rather than
+ * handled.** The alternative — a composite string key of id and tables — fixes
+ * the same 43 styles and leaves the shape that caused it in place, so the next
+ * field added to `Style` is a chance to forget it. Style objects are
+ * module-level singletons in each genre's `styles.ts`, so identity is stable; a
+ * caller that builds a `Style` on the fly simply misses the cache and derives
+ * again, which costs a few microseconds and cannot be wrong.
+ *
+ * Renaming the colliding styles was the other candidate and is worse: the ids
+ * are what `--style` takes, what the manifests carry and what every seed in
+ * every report is written against, and `pop/ballad` and `rnb/ballad` are both
+ * correctly named. The id was never meant to be a global key; the cache was
+ * wrong to use it as one.
  */
-const CACHE = new Map<string, Voice>();
+const CACHE = new WeakMap<Style, Voice>();
 
 /**
  * The voice for a style: authored where one exists, declared where a genre or a
@@ -142,7 +162,7 @@ function mergeArchetypes(
 }
 
 function derivedVoice(style: Style): Voice {
-  const cached = CACHE.get(style.id);
+  const cached = CACHE.get(style);
   if (cached) return cached;
 
   const slotsPerBar = Math.round(style.beatsPerBar * SLOTS_PER_BEAT);
@@ -169,7 +189,7 @@ function derivedVoice(style: Style): Voice {
       expand: 0.6 + m.leap * 2,
     },
   };
-  CACHE.set(style.id, derived);
+  CACHE.set(style, derived);
   return derived;
 }
 
