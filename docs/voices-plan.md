@@ -1,6 +1,6 @@
 # Voices — plan
 
-*Plan, written 2026-08-11 and annotated the same day. **Part A wave 1 is built** — `44e9940`, `28e7e0a`, `193adf5` — and §7 records what the plan got wrong. Part B is not started. Every number in §2 was measured before any of it; the commands are named beside them. Read it for reasoning, and check the numbers before acting on them.*
+*Plan, written 2026-08-11 and annotated through 2026-08-12. **Built in full** — Part A wave 1 in `44e9940`/`28e7e0a`/`193adf5`, Part B and wave A2 in `9d1cd04`; wave A3 closed without work, see §8. §7 records what the plan got wrong. Every number in §2 was measured before any of it; §8 has the after. Read it for reasoning, and check the numbers before acting on them.*
 
 Two gaps, one cause. A style cannot say what its melodies are made of, and no style can
 say that its music has a second voice in it. Both are the tables being silent, and the
@@ -389,12 +389,12 @@ it is the cheapest of the four absences and the most audible.
 | | | depends on |
 |---|---|---|
 | A1 | nineteen `Genre.voice`s — **built**, `193adf5` | — |
-| B1 | the vocal stack (§4.5) | — |
-| B2 | `Style.harmony` / `Genre.harmony` as a standing property (§4.3) | — |
-| B3 | the chord-aware harmony pass (§4.4) | B2 |
-| B4 | a second `Track` on `melody` for a second lead (§4.2) | B2, B3, casting |
-| A2 | style deltas | A1, and the report in §3.5 |
-| A3 | the `melodyCells` question | A2, and it may close without work |
+| B1 | the vocal stack (§4.5) — **built**, `9d1cd04` | — |
+| B2 | `Style.harmony` / `Genre.harmony` (§4.3) — **built** | — |
+| B3 | the chord-aware harmony pass (§4.4) — **built** | B2 |
+| B4 | a second `Track` on `melody` (§4.2) — **built**, and needed neither casting nor stage work | B2, B3 |
+| A2 | style deltas — **built** | A1 |
+| A3 | the `melodyCells` question — **closed without work**, see §8 | A2 |
 
 ---
 
@@ -465,3 +465,46 @@ argument, which §6 flagged as the weakest thing in the document, turned out to 
 stronger than its own reasoning: casting drafts one player per *track*, already stages
 two on one layer in production, and the id-uniquing for a doubled layer was written
 years before anybody needed it.
+
+---
+
+## 8. After — what the whole thing came to
+
+**Part A.** 389 styles had three authored voices; all nineteen genres now declare
+archetypes, subsets and ops, and 24 styles carry a delta of their own. Genres became
+measurably more distinguishable — mean pairwise melodic distance 0.385 → **0.419**, and the
+near-indistinguishable pairs fell from six to four. `ambient/dnb`, `finnfolk/latin` and
+`jazz/classical` separated; `reggae/indian`, `reggae/rnb`, `finnfolk/pop` and `dnb/house`
+remain and are the next list.
+
+**Part B.** A harmony line reached 0.73% of melody bars and no sung song had a second
+singer. 28 styles now declare one — 16 sung, 9 on the answering line, 3 as a second lead —
+and the gesture arrives in **26 of 28**, over 18,374 harmony notes, **none of them on the
+tune**. Nine genres decline, which is the tables working rather than a gap.
+
+**§3.4's wave 3 closed without work, and the reason is worth keeping.** The plan called the
+`melodyCells` duration histogram "an artefact" — 2.1% sixteenths across a catalogue holding
+bebop, drum and bass and thrash — and expected either a rewrite or a demonstration that the
+cells no longer mattered. Neither happened, because the premise was wrong in a third way:
+
+- `cellDensity` predicts what a style actually plays at **r = 0.883**, median error 0.44
+  onsets a bar. It is a good derivation and always was.
+- **120 of 389 styles now realise over 25% sixteenths** from cells that contain 2.1%.
+
+The cells were never the wrong table. They were being read for a question they do not
+answer — *how fast does this style move* — and once `Pace` existed in `motif.ts` the
+duration mix stopped coming from the cells' literal contents. What the cells give is density
+and accent position, and they give both well. **A table can be wrong, or it can be right and
+asked the wrong question, and this document could not tell the two apart from the outside.**
+
+**The methodological finding, which cost the most and is the most reusable.** Three separate
+measurements built for this work were wrong on the first attempt, in three different ways:
+the wave-2 outlier report was confounded by note density, then by sample size, and even
+corrected clustered by genre and flagged styles that were already authored; a per-style
+table read `Track.notes` instead of `melodicLine`, counting a bandoneon player's left hand
+as melodic leaps; and the harmony-arrival metric compared a vocal stack against the
+instrumental melody rather than the sung line it is twinned with, hiding three quarters of
+the feature. Every one looked plausible until it was checked against something independent.
+`docs/README.md` already says claims carry numbers; the corollary this wave earned is that
+**a number needs a second, differently-shaped measurement before it is allowed to direct
+work** — the first three would each have sent authors after phantoms.
