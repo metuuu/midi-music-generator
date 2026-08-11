@@ -33,12 +33,30 @@ import type {
 import type { Technique, TechniqueProfile } from '../generate/technique.js';
 import type { RuleOverrides, StrictnessId } from '../core/rules.js';
 import type { HookId } from '../generate/hook.js';
-import type { CompingProfile, EraProfile, Mood, Style } from '../style/types.js';
+import type { CompingProfile, EraProfile, HarmonyProfile, Mood, Style } from '../style/types.js';
 import type { FeelId } from '../style/feel.js';
 import type { VocalProfile } from '../style/vocals.js';
 import type { FillPalette } from '../generate/fills.js';
 import type { TransitionPalette } from '../generate/transition.js';
 import type { SoloProfile } from '../generate/solo.js';
+/**
+ * The engine's own noun for what a melody is made of, borrowed rather than
+ * restated — and `Idiom` is the precedent that looks like it applies and does
+ * not.
+ *
+ * `tune/types.ts` declares `Idiom` for itself under a comment about keeping a
+ * one-way door onto the tables, and that is right *because `adapt.ts` translates
+ * it* out of `IdiomProfile`: the two are genuinely different types that happen
+ * to look alike, and restating one is not duplicating the other. `Voice` is not
+ * translated anywhere. It is the object the engine consumes, handed straight
+ * through, so a second declaration of it here could only drift out of step with
+ * the first.
+ *
+ * The door itself is unbothered. It stops `tune/` reading the tables, and this
+ * points the other way; type-only, so nothing exists at runtime to cycle, and
+ * nothing under `src/tune/` imports `genre/` at all.
+ */
+import type { Voice } from '../tune/types.js';
 /**
  * Five types the stage owns, borrowed rather than restated.
  *
@@ -259,6 +277,31 @@ export interface Genre {
   arrangement?: Partial<Record<Device, number>>;
 
   /**
+   * How much of this genre's melodic writing is two-voiced, and how.
+   *
+   * Absent means the device draw above decides, which is what all 389 styles do
+   * today. That draw is a good arrangement gesture and a bad standing property:
+   * `harmony` comes out of a pool of six at roughly two draws a song, only where
+   * a `counter` layer exists, only in a `chorus` past the first, and then the
+   * window is `Math.min(4, lengthBars - half - 2)` — two bars of a normal eight.
+   * Measured over 570 songs it reaches **0.73% of melody bars, one in 137**, and
+   * 16.1% of songs at all. Nothing in that can say *this music is two voices*.
+   *
+   * Beside `arrangement` because that is where the genre already speaks about
+   * this: rnb and metal weight the `harmony` device at 8, country and pop at 7,
+   * and indian sets it to 0 deliberately. Those are genre facts about what kind
+   * of ensemble this is, and so is whether it sings in thirds by default.
+   *
+   * The counterargument is on the record. `drops`, `dropBars`, `tempoRamp` and
+   * `breakCarrier` are all style-only, each with a paragraph saying that a claim
+   * about *what one piece is made of* does not travel to the genre — and an
+   * `amount` is exactly that kind of claim. So the genre half is the fallback
+   * and nothing more: a genre that is two-voiced in general still expects the
+   * styles that are not to say so.
+   */
+  harmony?: HarmonyProfile;
+
+  /**
    * What the band plays underneath a solo section. Defaults to `full`.
    *
    * Whether the rhythm section carries on unchanged, thins out and answers, or
@@ -318,6 +361,29 @@ export interface Genre {
    * either of them having to state it twice.
    */
   decorate?: number;
+
+  /**
+   * What this genre's melodies are made of, before a style has its say.
+   *
+   * Everything absent is *derived* from the style's own cells and its five
+   * `melody` numbers by `voiceForStyle`, which fills all ten fields of `Voice`
+   * and has an argument for six of them. The other three are the ones that
+   * decide what the tune *is*, and each is currently a guess: `archetypes` is
+   * four sentences read off density and `sequence`, `ops` is two numbers spread
+   * over eleven operators, and `subsets` is the same six weighted defaults for
+   * every unauthored style in the catalogue — **386 of 389**.
+   *
+   * Genre-level because those three are genre-wide and the six scalars are not.
+   * Derived density spreads 2.1 to 9.3 onsets a bar *inside* classical alone,
+   * 1.4 to 6.4 inside metal; a genre voice that stated a density would flatten
+   * that, which is a regression rather than an opinion. So a genre says which
+   * kinds of tune, which degrees, and what it does to a figure, and leaves the
+   * counting where the style already does it.
+   *
+   * Shallow over the derived voice, except that `ops` and `archetypes` merge by
+   * key — see `voiceForStyle` for why the merge and not a replacement.
+   */
+  voice?: Partial<Voice>;
 
   /**
    * Which scale the melody should draw on for a given chord.

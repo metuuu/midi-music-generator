@@ -35,6 +35,7 @@ import { renderStrudel } from './render/strudel.js';
 import { HANDS, IDIOMS, INSTRUMENTS, type Idiom, type IdiomProfile } from './style/instruments.js';
 import { TECHNIQUES } from './generate/technique.js';
 import type { Style } from './style/types.js';
+import type { Voice } from './tune/types.js';
 import { shotFigures, type TransitionPalette } from './generate/transition.js';
 import { FEELS, type FeelId } from './style/feel.js';
 
@@ -192,8 +193,16 @@ const probeLine = (args: {
   strictness: number;
   agility: number;
   idiom?: IdiomProfile;
+  /**
+   * `Genre.voice`, because the style alone is no longer the whole of what the
+   * tune engine is told. A probe that skipped it would hold fixed a thing the
+   * real generator varies, and the instrument comparison below would be run
+   * against a style the catalogue does not contain.
+   */
+  genreVoice?: Partial<Voice>;
 }) => composeSectionTune({
   style: args.style,
+  genreVoice: args.genreVoice,
   hook: getHook('standard'),
   kind: 'verse',
   chords: args.chords,
@@ -3817,7 +3826,8 @@ console.log('\nTwo hands');
    * as an accompaniment; landing on the line puts a melody note above it to be
    * recovered. One note in a hole is neither, and is the case that broke.
    */
-  const style = getGenre('jazz').styles.trio!;
+  const jazz = getGenre('jazz');
+  const style = jazz.styles.trio!;
   const spec = HANDS.piano!;
   const chords = ['i7', 'iv7', 'bVImaj7', 'V7'].map((label) => parseRoman(label, 'minor'));
   let checked = 0;
@@ -3827,6 +3837,7 @@ console.log('\nTwo hands');
       const rng = new Rng(`hand-${mode}-${i}`);
       const line = probeLine({
         style, chords, tag: `hand-line-${i}`, range: [65, 84], strictness: 1, agility: 1,
+        genreVoice: jazz.voice,
       });
       if (!line.length) continue;
       const onLine = new Set(line.map((n) => n.beat.toFixed(4)));
@@ -4597,13 +4608,18 @@ console.log('\nSolos');
 // different styles, and the style's own leap character swamps the instrument's.
 console.log('\nInstrument awareness');
 {
-  const style = getGenre('iskelma').styles.tango!;
+  // `tango` is one of the three authored voices, so `Genre.voice` is passed and
+  // then ignored — `voiceForStyle` returns the authored one before it looks. Passed
+  // anyway so the probe does not depend on which style it happens to hold fixed.
+  const iskelma = getGenre('iskelma');
+  const style = iskelma.styles.tango!;
   const chords = ['i', 'iv', 'V7', 'i', 'i', 'iv', 'V7', 'i'].map((l) => parseRoman(l, 'minor'));
   const leapProfile = (agility: number) => {
     let wide = 0, moves = 0, widest = 0;
     for (let s2 = 0; s2 < 60; s2++) {
       const notes = probeLine({
         style, chords, tag: `ag-${s2}`, range: [60, 79], strictness: 2, agility,
+        genreVoice: iskelma.voice,
       });
       for (let i = 1; i < notes.length; i++) {
         const d = Math.abs(notes[i]!.midi - notes[i - 1]!.midi);
@@ -4645,7 +4661,7 @@ console.log('\nInstrument awareness');
     for (let s2 = 0; s2 < 60; s2++) {
       const notes = probeLine({
         style, chords, tag: `id-${s2}`, range: [60, 79], strictness: 2,
-        agility: 0.9, idiom: inst,
+        agility: 0.9, idiom: inst, genreVoice: iskelma.voice,
       });
       bars += 8;
       for (let i = 1; i < notes.length; i++) {

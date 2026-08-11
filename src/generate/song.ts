@@ -1693,6 +1693,10 @@ export function generateSong(opts: GenerateOptions = {}): Song {
           // scales, holds one note, or has to stop and breathe.
           agility: leadInstrument.agility,
           idiom: IDIOMS[leadInstrument.idiom],
+          // What the genre says its melodies are made of. Undefined on all
+          // nineteen as this is written, and `voiceForStyle` then hands back the
+          // derived voice by identity.
+          genreVoice: genre.voice,
           // Everything the song has already stated, so this section can be told
           // apart from it. Without this the freshness term has nothing to measure
           // and a verse and a chorus may legitimately converge on one tune.

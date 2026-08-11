@@ -23,6 +23,13 @@ import type { DropPalette } from '../generate/drop.js';
 import type { TempoPalette } from '../generate/tempo.js';
 import type { Technique, TechniqueProfile } from '../generate/technique.js';
 import type { BreakCarrier, TransitionPalette } from '../generate/transition.js';
+// The engine's own noun for what a melody is made of, borrowed rather than
+// restated. `Idiom` is restated inside `tune/types.ts` and that is right, because
+// `adapt.ts` *translates* it out of `IdiomProfile` — the two only look alike.
+// `Voice` is translated nowhere: it is the object the engine consumes, so a
+// second declaration could only drift. Type-only, so there is nothing at runtime
+// to cycle, and nothing under `src/tune/` imports `style/` except that one door.
+import type { Voice } from '../tune/types.js';
 
 /** One bar of melodic rhythm. `[6, 2, 8]` = dotted quarter, eighth, half. */
 export type RhythmCell = number[];
@@ -1647,6 +1654,75 @@ export interface Style {
      */
     syncopation?: number;
   };
+  /**
+   * …and where this style disagrees with its genre about what its tunes are made
+   * of. See `Genre.voice`, which is the tier that carries the weight.
+   *
+   * Applied over `Genre.voice`, which is applied over the derived voice, and
+   * both shallow except that `ops` and `archetypes` merge by key. So a style
+   * that agrees with its genre writes nothing and generates exactly what it
+   * generates today, and a style that differs in one archetype weight says that
+   * one weight and inherits the rest.
+   *
+   * A second tier rather than a genre alone because the spread *inside* a genre
+   * is real — classical runs 2.1 to 9.3 derived onsets a bar — and because the
+   * three fields a genre is for are not the three a style usually disagrees on.
+   */
+  voice?: Partial<Voice>;
+  /**
+   * How much of this style's melodic writing is two-voiced, and how. See
+   * `HarmonyProfile`; `Genre.harmony` is the fallback.
+   */
+  harmony?: HarmonyProfile;
+}
+
+/**
+ * A second voice as a standing property of the music, rather than as an event in
+ * one chorus.
+ *
+ * `Device.harmony` stays and keeps doing its job — a harmony phrase arriving in
+ * a repeat chorus is a real arrangement gesture. What it cannot express is a
+ * style whose *sound is* two voices: an Everly Brothers duet, a girl-group
+ * stack, an iskelmä duetto, a string section's second violin. Absent means the
+ * device draw decides, which is what all 389 styles do today and what produces
+ * a harmony line in 0.73% of melody bars.
+ */
+export interface HarmonyProfile {
+  /** Share of sections that carry a second voice, 0..1. */
+  amount: number;
+  /**
+   * Scale steps from the tune to the second part, **signed** — positive is above
+   * — and weighted.
+   *
+   * Signed because the alternative is what exists: `Chart.harmonyBelow` is one
+   * unsigned number and `harmonise` writes `step(n.midi, -below, beat)`, so
+   * every harmony line the project has ever produced sits underneath the tune.
+   * A descant is not a special case of that, it is the other sign of it.
+   *
+   * Weighted for the second half of the same argument. A style prefers thirds
+   * and still reaches for a sixth at a cadence; one number has to pick, and
+   * `harmonyBelow` picks by coin flip per song — 0.65 thirds, 0.35 sixths — so
+   * the choice belongs to no style in particular.
+   */
+  intervals: readonly (readonly [number, number])[];
+  /**
+   * Who is singing or playing it, which is a different question from where the
+   * notes go.
+   *
+   * `melody` is a second lead — a harmony guitar, a second violin — and it means
+   * a second `Track` on the melody layer, which the IR already allows and no
+   * song has yet used. `counter` hands it to the answering instrument, which is
+   * what the device does today.
+   *
+   * `vocal` is not the same kind of value as those two and the type cannot say
+   * so: `vocal` is a `LayerId` but is excluded from `PlayedLayer` and never
+   * appears in a layer plan. It names a *generator* — `generateVocalTrack`
+   * writes a second line over the same syllables — rather than a layer to cast a
+   * player onto. That is what makes stemmalaulu sayable at all.
+   */
+  on: 'melody' | 'vocal' | 'counter';
+  /** Sections it belongs in. Absent means every section the lead sings in. */
+  kinds?: readonly SectionKind[];
 }
 
 export interface EraProfile {

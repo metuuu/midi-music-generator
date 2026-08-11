@@ -51,19 +51,97 @@ import { SUBSETS, getVoice, hasVoice, sectionShape } from './voice.js';
  */
 const ATTEMPTS = 24;
 
+/**
+ * Keyed on `style.id`, and it holds the **derived** voice only — never a voice
+ * with a genre or style delta folded into it.
+ *
+ * That is the whole reason the derivation is a separate function below. A cache
+ * of finished voices would bake whichever genre asked first into an object every
+ * later caller reads, and the tier would silently stop working.
+ *
+ * **`style.id` is not unique across the catalogue and this key is therefore
+ * wrong** — 19 ids are shared by two or more genres (`ballad` by six, `minimal`
+ * by three), 365 distinct ids over 389 styles, and all 19 derive genuinely
+ * different voices. In any process that generates more than one genre the second
+ * `ballad` gets the first one's density and leap. It is left alone here because
+ * fixing it moves 23 styles' output, which is a change to make on its own and
+ * measure, not a side effect of adding a field nothing declares yet.
+ */
 const CACHE = new Map<string, Voice>();
 
 /**
- * The voice for a style: authored where one exists, derived where it does not.
+ * The voice for a style: authored where one exists, declared where a genre or a
+ * style has an opinion, derived for the rest.
  *
  * Deriving is not a placeholder that sounds like nothing. It reads the style's own
  * numbers and its own cells, so an unauthored jenkka is snappier than an unauthored
  * valssi for the same reason the old engine's were — the tables say so. What it
  * cannot do is have an *opinion*, which is what the authored three have and the
- * other seventeen are owed. See `docs/tune-plan.md` §13.
+ * other seventeen are owed. See `docs/tune-plan.md` §13 and `docs/voices-plan.md`
+ * §3.2.
+ *
+ * Three tiers, and the second is usually empty:
+ *
+ * 1. **An authored `Voice` registered by id** wins outright and is not merged
+ *    into. `tango`, `iskelmapop` and `berlin` are whole statements; a genre
+ *    default reaching into one would be overruling the more specific claim.
+ * 2. **`{ ...derived, ...genreVoice, ...style.voice }`**, shallow — so a genre
+ *    that states the three fields derivation cannot reach leaves the six it can
+ *    exactly where they were, per style.
+ * 3. **`ops` and `archetypes` merge by key** instead of replacing. Both are
+ *    tables over a closed vocabulary, and a genre that wants chants twice as
+ *    likely is saying one thing about one entry, not silently ruling out the
+ *    five it did not name. Replacement would make the shortest useful
+ *    declaration the most destructive one.
+ *
+ * With nothing declared anywhere — which is the whole catalogue as this is
+ * written — the cached derived object is returned by identity and no note moves.
  */
-export function voiceForStyle(style: Style): Voice {
+export function voiceForStyle(style: Style, genreVoice?: Partial<Voice>): Voice {
   if (hasVoice(style.id)) return getVoice(style.id);
+  const derived = derivedVoice(style);
+  const delta = style.voice;
+  if (!genreVoice && !delta) return derived;
+  return {
+    ...derived,
+    ...genreVoice,
+    ...delta,
+    // The style's own name, not a genre's. `Partial<Voice>` cannot forbid `id`
+    // and a delta that set one would rename every style in the genre at once —
+    // `tune-lab` writes its files by this.
+    id: derived.id,
+    archetypes: mergeArchetypes(derived.archetypes, genreVoice?.archetypes, delta?.archetypes),
+    ops: { ...derived.ops, ...genreVoice?.ops, ...delta?.ops },
+  };
+}
+
+/**
+ * A partial archetype table applied over a full one: named ids take the declared
+ * weight, unnamed ids keep the derived one.
+ *
+ * **In the base table's order, and the order is load-bearing.** `Rng.weighted`
+ * walks the array subtracting as it goes, so where two entries sit decides which
+ * one a given draw lands on even when the weights are identical. Rebuilding in
+ * the declaration's order would make the order a genre happened to type its
+ * overrides in a hidden weight, and would move every style in that genre for a
+ * reason nobody wrote down.
+ */
+function mergeArchetypes(
+  base: readonly (readonly [ArchetypeId, number])[],
+  ...deltas: (readonly (readonly [ArchetypeId, number])[] | undefined)[]
+): readonly (readonly [ArchetypeId, number])[] {
+  const named = new Map<ArchetypeId, number>();
+  for (const d of deltas) for (const [id, w] of d ?? []) named.set(id, w);
+  if (named.size === 0) return base;
+  const merged = base.map(([id, w]) => [id, named.get(id) ?? w] as const);
+  // Every archetype is already in the derived table, so this appends nothing
+  // today. It is here so that adding a seventh `ArchetypeId` cannot silently
+  // drop a genre's weight for it while the derivation is being taught the new one.
+  const seen = new Set(base.map(([id]) => id));
+  return [...merged, ...[...named].filter(([id]) => !seen.has(id))];
+}
+
+function derivedVoice(style: Style): Voice {
   const cached = CACHE.get(style.id);
   if (cached) return cached;
 
@@ -226,6 +304,18 @@ export interface SectionTuneOptions {
   agility: number;
   /** What the instrument actually plays. Mapped from `style/instruments.ts`. */
   idiom?: IdiomProfile;
+  /**
+   * `Genre.voice` — what the genre says its melodies are made of, under the
+   * style's own delta and over the derived voice. See `voiceForStyle`.
+   *
+   * The voice and not the genre, and that is the smaller of the two ways to get
+   * this here. `voiceForStyle` reads one optional field of `Genre`, so taking
+   * the whole interface would buy nothing and would cost the first import of
+   * `genre/` anywhere under `src/tune/` — the door this file's header is about.
+   * It also lets `genre-check`'s instrument probes, which hold a style fixed and
+   * are not generating a song, pass a voice without inventing a genre.
+   */
+  genreVoice?: Partial<Voice>;
   /** The song's other sections, so this one can be told apart from them. */
   avoid?: readonly Signature[];
   attempts?: number;
@@ -324,7 +414,7 @@ function adaptVoice(
 
 /** Write one section's tune. */
 export function composeSectionTune(opts: SectionTuneOptions): SectionTune {
-  const base = voiceForStyle(opts.style);
+  const base = voiceForStyle(opts.style, opts.genreVoice);
   const shape = sectionShape(opts.kind);
   const voice = adaptVoice(base, opts.mood, opts.feel);
 
