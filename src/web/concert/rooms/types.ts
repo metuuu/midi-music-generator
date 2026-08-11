@@ -245,15 +245,20 @@ export interface RoomShape {
    * x of the inner face of the side wall, or `Infinity` where there is no wall.
    *
    * The last field, and it is here for the reason the header gives for all of
-   * them: something outside this directory has an opinion about it. `neon` hangs
-   * a sign on each side of the stage, and a sign is a thing screwed to a wall —
-   * it cannot be placed by a prop that can only see `width` and `houseWidth`,
-   * because where the wall stands off the house is each room's own decision and
-   * the spread is not small. The rooms answer 0.6, 0.9, 1.75 and 3.5 m outboard
-   * of `houseWidth / 2`, and the prop was guessing 0.55 for all of them: right
-   * to within a handspan in the five rooms that use the minimum, 1.2 m short in
-   * the dancehall and 2.95 m short in the arena, where the signs floated in
-   * mid-air a couple of metres inboard of the brick.
+   * them: something outside this directory has an opinion about it. `posters`
+   * pastes three bills up the side of the stage, and a bill is a thing stuck to
+   * a wall — it cannot be placed by a prop that can only see `width` and
+   * `houseWidth`, because where the wall stands off the house is each room's own
+   * decision and the spread is not small. The rooms answer 0.6, 0.9, 1.75 and
+   * 3.5 m outboard of `houseWidth / 2`, and the props were guessing one constant
+   * for all of them: right to within a handspan in the five rooms that use the
+   * minimum, 1.2 m short in the dancehall and 2.95 m short in the arena, where
+   * the dressing floated in mid-air a couple of metres inboard of the brick.
+   *
+   * `neon` was the second consumer and the one this field was originally added
+   * for — a lit sign on each side wall. That pair is gone; the sign hangs on the
+   * back wall now, where the room put a wall anyway. The field stays because the
+   * argument was never about which prop asked.
    *
    * `Infinity` for the same reason `headroom` uses it and read the same way: a
    * courtyard's fourth side, a lawn and an arena's far reaches have no wall at

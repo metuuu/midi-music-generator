@@ -183,8 +183,12 @@ import type { Venue } from './types.js';
  *   `bar`             bottles on shelves, lit from behind
  *   `posters`         past bills pasted on the wall
  *   `rug`             a worn rug under the gear or the front line
- *   `neon`            tube signage on the back wall and in the wings. The one
- *                     thing that says *bar* from across a dark room.
+ *   `neon`            one tube sign on the back wall. The one thing that says
+ *                     *bar* from across a dark room — so name it in a dressing
+ *                     that has a `bar` in it, and nowhere else. It hung three
+ *                     copies and was named by nine dressings with no bar under
+ *                     them, and the two together are why a lit sign read as
+ *                     something this generator puts in every room.
  *
  * The black box, and the synth hall, which is dressed out of the same four:
  *   `projection`      a lit rectangle upstage; ambient's only scenery

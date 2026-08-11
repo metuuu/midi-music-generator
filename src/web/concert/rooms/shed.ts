@@ -81,13 +81,13 @@
  * the slab, the walls, the frame, the roof, the shutter, the duct, the stage's
  * side masking and the bar the lamps hang off.
  *
- * Two of those props are the reason the side masking exists at all rather than
+ * One of those props is the reason the side masking exists at all rather than
  * being scenery for its own sake — `posters` hangs three sheets facing inward at
- * `±(openingWidth / 2 + 0.9)` and `neon` hangs its wing signs at
- * `±(openingWidth / 2 + 0.85)`, both of them assuming a proscenium's tormentor
- * is standing there. In a room with nothing at the sides they are three posters
- * and two lit signs floating in mid-air a metre and a half short of the wall,
- * in three of this genre's four eras. See `sideFlats`.
+ * `±(openingWidth / 2 + 0.9)`, assuming a proscenium's tormentor is standing
+ * there. In a room with nothing at the sides they are three posters floating in
+ * mid-air a metre and a half short of the wall, in three of this genre's four
+ * eras. `neon` used to be the second one and is not any more — it hangs a
+ * single sign on the back wall now. See `sideFlats`.
  *
  * ## The eras: two buildings, not four
  *
@@ -1006,15 +1006,15 @@ function build(c: RoomContext): RoomRig {
    * measured reason rather than for atmosphere.
    *
    * **`stage-props.ts` assumes there is a surface at the side of the stage.**
-   * `posters` puts three sheets facing inward at `±(openingWidth / 2 + 0.9)` and
-   * `neon` puts its two wing signs at `±(openingWidth / 2 + 0.85)`, and both were
-   * written for a proscenium, where the tormentor is a 4 m flat spanning from
-   * 0.2 m to 4.2 m outside the opening and catches them exactly. This room has
-   * no arch and therefore nothing there, and the side wall is 2.6 m further out
-   * — so without these, metal's three poster eras hang three posters in mid-air
-   * and 1982 hangs two lit signs beside them. The inner face lands at
-   * `width / 2 + 0.92`, two centimetres behind the posters and seven behind the
-   * signs.
+   * `posters` puts three sheets facing inward at `±(openingWidth / 2 + 0.9)`,
+   * and it was written for a proscenium, where the tormentor is a 4 m flat
+   * spanning from 0.2 m to 4.2 m outside the opening and catches them exactly.
+   * This room has no arch and therefore nothing there, and the side wall is
+   * 2.6 m further out — so without these, metal's three poster eras hang three
+   * posters in mid-air. The inner face lands at `width / 2 + 0.92`, two
+   * centimetres behind them. `neon` was the second prop this paragraph named,
+   * with a lit sign on each side at `±(openingWidth / 2 + 0.85)`; it hangs one
+   * sign on the back wall now and asks nothing of the sides.
    *
    * They are also what a stage in a shed actually has. There is no arch to mask
    * with, so the wings get closed off with black ply on a scaffold frame: it

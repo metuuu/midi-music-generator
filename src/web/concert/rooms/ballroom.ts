@@ -113,8 +113,8 @@
  * Where the two have to agree about a *number* there are three places, and all
  * three are measured rather than assumed: the mirror ball against the fly trim
  * (see `FLY_TRIM`), the truss's drop legs against the grid batten (see the fly
- * bar in `build`), and the offstage reach of `drapes`, `posters` and `neon`
- * against the side walls (see the walls in `build`).
+ * bar in `build`), and the offstage reach of `drapes` and `posters` against the
+ * side walls (see the walls in `build`).
  *
  * ## The five modifiers, and why this room answers none of them
  *
@@ -836,13 +836,14 @@ function build(c: RoomContext): RoomRig {
    * the walls are *tight*: the crowd at the edges is against the plaster, and
    * the gallery overhead is 1.6 m of it.
    *
-   * ## The offstage has to be wide enough for three props, and it was checked
+   * ## The offstage has to be wide enough for the props, and it was checked
    *
-   * `drapes` hangs its four panels out to ±7.64 m in the largest era, `posters`
-   * pins three sheets at ±7.04 and the `neon` wing signs at ±6.99, all of them
-   * upstage of the proscenium wall and facing inward — that is, in the offstage
-   * space this wall encloses. At ±8.95 there is a metre and a third to spare
-   * behind the furthest of them. A room that pulled its walls in to the stage
+   * `drapes` hangs its four panels out to ±7.64 m in the largest era and
+   * `posters` pins three sheets at ±7.04, both of them upstage of the
+   * proscenium wall and facing inward — that is, in the offstage space this
+   * wall encloses. At ±8.95 there is a metre and a third to spare behind the
+   * furthest of them. `neon` was the third and hung a lit sign at ±6.99 on each
+   * side; it hangs one on the back wall now and is no longer offstage at all. A room that pulled its walls in to the stage
    * edge, which is what a stage house of the boards' own width would be, would
    * hang four two-storey cloths and three posters in mid-air outside the
    * building.

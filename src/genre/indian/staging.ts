@@ -164,7 +164,7 @@ const SABHA: StageRoom = {
         ambient: '#ffc48a',
       },
       props: ['drapes', 'stalls', 'pa-stack', 'chandelier', 'flowers'],
-      maybe: [['neon', 0.25], ['candles', 0.2]],
+      maybe: [['candles', 0.2]],
       fog: 0.28,
       grow: [0.8, 0.4],
     },

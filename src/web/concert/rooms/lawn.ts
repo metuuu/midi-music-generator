@@ -411,10 +411,10 @@ function shape(d: RoomDatum): RoomShape {
      *
      * Half a metre in from the lip, which is `circuit.ts`'s number for the same
      * reason: `stage-props.ts` hangs the `truss` downstage run at
-     * `curtainZ - 1.1`, `neon`'s side signs at `curtainZ - 1.5` and the two
-     * festoon runs at `curtainZ - 0.35` and `curtainZ - 0.15`, so this is "the
-     * line across the front of the room" rather than a track, and it has to sit
-     * where a line across the front of the room would.
+     * `curtainZ - 1.1` and the two festoon runs at `curtainZ - 0.35` and
+     * `curtainZ - 0.15`, so this is "the line across the front of the room"
+     * rather than a track, and it has to sit where a line across the front of
+     * the room would.
      */
     curtainZ: d.lipZ - 0.5,
     /**

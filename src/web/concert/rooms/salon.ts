@@ -231,25 +231,28 @@
  * tiles in the middle of a hall is exactly what these rooms had, and the tile
  * border showing round three sides of it is what tells you so.
  *
- * ## One thing this room owes the props and does not pay
+ * ## One thing this room owed the props, and the props paid it
  *
- * `neon` and `posters` both hang at `±(openingWidth / 2 + 0.9)`, and the neon's
- * own comment says why: *offstage, seen through the opening at an angle, so a
+ * `neon` and `posters` both hung at `±(openingWidth / 2 + 0.9)`, and the neon's
+ * own comment said why: *offstage, seen through the opening at an angle, so a
  * wide shot has something bright in the dark either side of the arch.* In a
  * proscenium that x lands on a tormentor. Here the aperture is the full stage
- * width and the side walls are 2.6 m further out, so a 1975 poster hangs in the
+ * width and the side walls are 2.6 m further out, so a 1975 poster hung in the
  * corner of the hall with about a metre and a half of air behind it.
  *
- * It is deliberately not fixed here, and the reason is the seam rather than
- * laziness. **Six of the ten** rooms in this directory answered `d.width` for
+ * It was deliberately not fixed here, and the reason was the seam rather than
+ * laziness: **six of the ten** rooms in this directory answered `d.width` for
  * the aperture when this was written and it is seven of twelve now — courtyard,
  * riihi, sabha, dancehall, shed, lawn and this one, measured by calling every
- * `shape()` rather than by reading them — and every one of them has the same
- * gap; building a screen at that x
- * to catch a prop would be this file compensating for a placement decision
- * another file owns, which is the direction of dependency the whole split exists
- * to forbid. If it is worth solving it is worth solving in `stage-props.ts`, once,
- * against `houseWidth` — and it is not this file's call to make.
+ * `shape()` rather than by reading them — and every one of them had the same
+ * gap; building a screen at that x to catch a prop would be this file
+ * compensating for a placement decision another file owns, which is the
+ * direction of dependency the whole split exists to forbid. The paragraph
+ * closed by saying that if it was worth solving it was worth solving in
+ * `stage-props.ts`, once, and it was solved there twice over: `posters`
+ * measures off `RoomShape.wallX` now, and `neon`'s wing pair — the half of this
+ * that was framing rather than dressing — is gone, leaving one sign on the back
+ * wall. Nothing here changed, which was the point.
  */
 
 import {
@@ -454,9 +457,9 @@ function shape(d: RoomDatum): RoomShape {
      * There is no cloth in this building and there never was, so this is the
      * other thing the field means: the line across the front of the room that
      * everything downstage-most is tied off on. `stage-props.ts` hangs the
-     * bunting 0.35 m upstage of it, the fairy lights 0.15 m, the neon and the
-     * posters in the corners beside it, and the fly bar rides 1.1 m upstage of
-     * it by the convention every room here keeps.
+     * bunting 0.35 m upstage of it, the fairy lights 0.15 m, the posters in the
+     * corners beside it, and the fly bar rides 1.1 m upstage of it by the
+     * convention every room here keeps.
      *
      * 0.62 m in from the lip, and the constraint is at the other end. `flowers`
      * is the one prop that lands *downstage* of this line, at `curtainZ + 0.27`,

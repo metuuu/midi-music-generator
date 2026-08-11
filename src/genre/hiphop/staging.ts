@@ -172,7 +172,7 @@ const CLUB: StageRoom = {
         ambient: '#cfe6ff',
       },
       props: ['truss', 'screen', 'crowd-barrier', 'wedges', 'flight-case'],
-      maybe: [['haze', 0.7], ['neon', 0.3]],
+      maybe: [['haze', 0.7]],
       fog: 0.44,
       grow: [1.1, 0.5],
     },

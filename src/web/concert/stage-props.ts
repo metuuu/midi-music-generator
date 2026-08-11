@@ -1255,8 +1255,9 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
    * bill is a single-sided plane and the wall in five of those rooms is also a
    * plane at exactly that x, so 3 cm keeps them off each other's depth values;
    * and it lands the lawn's bill on the face of the zinc rather than inside it.
-   * `neon`'s wing pair takes 0.55 off the same datum for the same reason — see
-   * the note there, which carries the argument for both.
+   * `neon` used to take 0.55 off the same datum for its wing pair and shared
+   * this argument; the wings are gone (see the note there) and this prop is the
+   * only side-wall dressing left.
    *
    * ## `m.wallX`, which is the change the paragraph above asked for
    *
@@ -1314,36 +1315,33 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
    * before anybody makes out what it says. Unlit, like the bulbs and the
    * candles, because a sign is a light and not a thing lit by one.
    *
-   * The script is one `TubeGeometry` along a fixed curve, cached and hung three
-   * times — the back wall and both wings — rather than three curves, because a
-   * bar's signs are made by the same person and match. The wing pair is at the
-   * `posters` position for the same reason `posters` is there: offstage, seen
-   * through the opening at an angle, so a wide shot has something bright in the
-   * dark either side of the arch.
+   * ## One sign, because a bar has one sign
    *
-   * ## All three of them were hung off the wrong datum, in two directions
+   * This hung three of them — the back wall and one on each side wall, the
+   * wing pair at the `posters` position — and the third copy was the one thing
+   * here that was never a fact about the room. The argument for it was framing:
+   * offstage, seen through the opening at an angle, *so a wide shot has
+   * something bright in the dark either side of the arch*. That is scenery
+   * placed for the lens rather than for the building, and it costs exactly what
+   * placing scenery for the lens always costs — the object stops meaning
+   * anything. Three identical signs 17 m apart is not a bar with a sign in it,
+   * it is a livery; and because the pair sits at the house edges at 1.85 m,
+   * every angle the camera can take has one in it. A room dressed with `neon`
+   * read as *the neon room* rather than as a room with a neon in it, which is
+   * the note that got this cut.
    *
-   * The wings shared `posters`' aperture-relative x and therefore shared its
-   * bug — read the argument for `houseWidth / 2 + 0.57` there, because the two
-   * props share a datum and should share one explanation of it. This is the
-   * worse of the two to look at, for two reasons this docstring already
-   * supplies. The border is one closed tube with nothing inside it, so unlike a
-   * poster the sign does not hide its own float: you saw the wall *through* the
-   * middle of the frame, 1.4–2.9 m behind it. And it is `MeshBasicMaterial`,
-   * because a sign is a light — so it is the brightest object in a dark corner
-   * and the first thing the eye goes to. Measured air behind each wing sign:
-   * 1.96 m in a ballroom, 1.79–2.90 in a dancehall, 1.73 on a lawn, 1.40 in a
-   * courtyard, 0.80 in a circuit; the shed alone was right, on the flat it
-   * built for this prop.
+   * What the wings were compensating for is real and is somebody else's:
+   * a wide shot of a dark room wants something bright at the edges, and the
+   * things that legitimately supply it are the fixtures — see `lights.ts`.
    *
-   * 0.55 rather than the poster's 0.57 because the sign is a *sign* and not a
-   * decal: the wing group is scaled 0.78 and the border tube's radius is 0.022,
-   * so at −0.05 off the minimum wall offset the outermost glass stands 0.028 m
-   * proud of the plaster — a sign on standoffs, and inside the 0.06 m the float
-   * scan treats as touching, so the cluster grounds. It carries the same three
-   * pieces of residue as `posters` and for the same reasons.
+   * So: one sign, over the band, on the wall the room actually built. The two
+   * geometries stay in the kit's cache rather than being built inline, which
+   * buys nothing at one instance and is how every other prop in this file is
+   * written; the sign is the object that changed, not the machinery.
    *
-   * The back sign was 0.26 m off the wall in every one of the seven
+   * ## The back sign was hung off the wrong datum
+   *
+   * It was 0.26 m off the wall in every one of the seven
    * architectures, uniformly, because `backZ` is the upstage edge of the
    * *boards* and not the wall: every room sets its cloth or plaster 0.10 m
    * upstage of it (0.12 in the dancehall) so that nobody standing on the back
@@ -1400,58 +1398,24 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
     const hot = tint(hueShift(c.accent, 150, 0.55), 0.18);
     const frame = c.kit.basic(tint(hueShift(c.p.ambient, -45, 0.5), 0.12));
 
-    /** One sign, built flat in xy and pointed wherever it is hung. */
-    const sign = (tag: string, scale: number): { node: Group; tube: MeshBasicMaterial } => {
-      const tube = c.kit.material(`neon|${tag}`, () => new MeshBasicMaterial({ color: hot }));
-      const node = new Group();
-      node.scale.setScalar(scale);
-      node.add(new Mesh(script, tube));
-      node.add(new Mesh(border, frame));
-      c.root.add(node);
-      return { node, tube };
-    };
-
     // Over the band, high enough to be a sign on a wall rather than a hazard at
     // head height, and upstage of the backline besides.
-    const back = sign('back', 1);
-    back.node.position.set(
+    const tube = c.kit.material('neon|back', () => new MeshBasicMaterial({ color: hot }));
+    const node = new Group();
+    node.add(new Mesh(script, tube));
+    node.add(new Mesh(border, frame));
+    node.position.set(
       -c.m.openingWidth * 0.2,
       Math.min(c.m.openingHeight - 0.5, Math.max(HANG_FLOOR + 0.4, c.m.openingHeight * 0.6)),
       c.m.backZ - 0.05,
     );
-    /**
-     * And one on each side wall — asked for, not guessed at.
-     *
-     * This hung the wings at `houseWidth / 2 + 0.55`, which is not where any
-     * wall is. `houseWidth / 2` is where the *house floor* stops; the wall
-     * stands outboard of that by an amount only the room knows, and the rooms
-     * answer 0.6, 0.9, 1.75 and 3.5 m. So the constant was right to within a
-     * handspan in the five rooms taking the minimum and wrong by 1.2 m in the
-     * dancehall and 2.95 m in the arena, where both signs hung in clear air a
-     * couple of metres inboard of the brick with the glass facing a wall it
-     * never reached. `RoomShape.wallX` is published for this.
-     *
-     * `0.06` off the face, because a neon sign stands on brackets: flush would
-     * put the border tube's own 22 mm of glass through the plaster, and the
-     * back of the frame is not a face anybody sees.
-     *
-     * No wall, no sign. A tanssilava and an open lawn have nothing at the sides
-     * on purpose, and two signs floating where the wall would have been is the
-     * exact defect this is fixing — one room further out.
-     */
-    if (Number.isFinite(c.m.wallX)) {
-      for (const side of [-1, 1]) {
-        const wing = sign('wing', 0.78);
-        wing.node.position.set(side * (c.m.wallX - 0.06), 1.85, c.m.curtainZ - 1.5);
-        wing.node.rotation.y = (side * -Math.PI) / 2;
-      }
-    }
+    c.root.add(node);
 
     const lit = new Color(hot);
     c.tick((t) => {
       const beat = Math.sin(t * 11.3) * Math.sin(t * 3.1);
       const dip = beat > 0.86 && c.idle > 0.5 ? 0.32 : 1;
-      back.tube.color.copy(lit).multiplyScalar(dip * (0.94 + 0.06 * Math.sin(t * 2.3)));
+      tube.color.copy(lit).multiplyScalar(dip * (0.94 + 0.06 * Math.sin(t * 2.3)));
     });
   },
 

@@ -138,7 +138,7 @@ function shape(d: RoomDatum): RoomShape {
     openingHeight,
     /**
      * Where a cloth would be if there were one, and `stage-props.ts` hangs
-     * neon, drapes, a truss and a mirror ball off it, so it has to be the front
+     * drapes, a truss and a mirror ball off it, so it has to be the front
      * of the room rather than a token. The dais has no lip moulding to clear
      * and no footlight trough behind it, so it sits a little further downstage
      * than a theatre's tabs: half a metre in from the front edge, which is

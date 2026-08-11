@@ -108,7 +108,7 @@ const BALLROOM: StageRoom = {
         ambient: '#ffb8e0',
       },
       props: ['backline', 'pa-stack', 'truss', 'mirror-ball', 'dance-floor', 'wedges'],
-      maybe: [['haze', 0.7], ['neon', 0.3]],
+      maybe: [['haze', 0.7]],
       fog: 0.45,
       grow: [0.5, 0.2],
     },
@@ -128,8 +128,7 @@ const BALLROOM: StageRoom = {
         ambient: '#ff9ad0',
       },
       props: [
-        'backline', 'pa-stack', 'truss', 'mirror-ball', 'dance-floor',
-        'neon', 'wedges',
+        'backline', 'pa-stack', 'truss', 'mirror-ball', 'dance-floor', 'wedges',
       ],
       maybe: [['haze', 0.5], ['crowd-barrier', 0.4]],
       fog: 0.35,
@@ -151,8 +150,7 @@ const BALLROOM: StageRoom = {
         ambient: '#7fe6ff',
       },
       props: [
-        'pa-stack', 'truss', 'screen', 'crowd-barrier', 'dance-floor',
-        'neon', 'wedges',
+        'pa-stack', 'truss', 'screen', 'crowd-barrier', 'dance-floor', 'wedges',
       ],
       maybe: [['haze', 0.6], ['flight-case', 0.3]],
       fog: 0.42,

@@ -181,7 +181,7 @@ const COURTYARD: StageRoom = {
         ambient: '#ffb35c',
       },
       props: ['open-air', 'fairy-lights', 'tables', 'pa-stack', 'wedges', 'cables'],
-      maybe: [['mirror-ball', 0.45], ['neon', 0.35], ['flowers', 0.3]],
+      maybe: [['mirror-ball', 0.45], ['flowers', 0.3]],
       fog: 0.26,
       grow: [0.4, 0.2],
     },

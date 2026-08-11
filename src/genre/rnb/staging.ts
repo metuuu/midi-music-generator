@@ -141,7 +141,7 @@ const THEATRE: StageRoom = {
         ambient: '#ff8fd0',
       },
       props: [
-        'pa-stack', 'truss', 'crowd-barrier', 'dance-floor', 'neon', 'wedges',
+        'pa-stack', 'truss', 'crowd-barrier', 'dance-floor', 'wedges',
         'flight-case',
       ],
       maybe: [['haze', 0.65], ['screen', 0.35], ['mirror-ball', 0.2]],
