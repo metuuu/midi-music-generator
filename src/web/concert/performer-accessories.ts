@@ -216,7 +216,7 @@ export function buildAccessories(
  * Where the hat ends up, and — the other half of the same decision — whether the
  * hair is still the shape it was built.
  *
- * The whole arbitration, and it is deliberately not eight cases or sixteen. Hair
+ * The whole arbitration, and it is deliberately not eight cases or seventeen. Hair
  * that fits under the crown is left alone and the hat does not move, which is
  * every close cut under every hat and is the common path. Hair that does not fit
  * **gives** what it can, and the hat then **rides** whatever is left over — by

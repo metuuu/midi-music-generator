@@ -1,7 +1,7 @@
 /**
  * SPDX-License-Identifier: AGPL-3.0-or-later
  *
- * Sixteen heads of hair.
+ * Seventeen heads of hair.
  *
  * This was the middle third of `performer-look.ts`, and it moved out for a
  * reason that is about people rather than about code: the hair models and the
@@ -13,7 +13,7 @@
  *
  * Nothing here chooses anything. The genre and the era decided the beehive long
  * before this file ran — see `concert/cast.ts` — and the job here is to render
- * the sixteen styles the contract names, not to have opinions about which suits
+ * the seventeen styles the contract names, not to have opinions about which suits
  * a trombonist. The switch below is over a frozen union and ends in a `never`
  * assignment, which is deliberate: a `switch` in a function returning `void`
  * will otherwise accept a missing case in silence, and the result is not an
@@ -85,7 +85,7 @@ export type HairBearing =
  * What head furniture needs to know about the head under it, and nothing more.
  *
  * The alternative is `performer-accessories.ts` reading `Look.hairStyle` and
- * carrying a case per pair, which is sixteen times eight branches and puts
+ * carrying a case per pair, which is seventeen times eight branches and puts
  * wardrobe knowledge in the file that draws felt. This is three facts.
  *
  * Two of them are *measured off the meshes that were built* rather than written
@@ -113,7 +113,7 @@ export interface HairProfile {
    * Squash what was built until the crown reaches no higher than `to`.
    *
    * One uniform scale on the group, which is the whole implementation and is
-   * deliberately not sixteen per-style answers. Hair pulled into a beanie loses
+   * deliberately not seventeen per-style answers. Hair pulled into a beanie loses
    * height and width together — the width matters, because eight curls that are
    * merely shorter still break out of the sides — and a *uniform* scale is also
    * the only kind allowed on a node with children by the rule at the top of
@@ -147,6 +147,13 @@ const BEARING: Record<HairStyle, HairBearing> = {
   mane: 'close',
   mullet: 'close',
   dreadlocks: 'close',
+  // Close, and the fringe is why it is worth saying rather than assuming. What
+  // `emo` puts anywhere near a hat is a cap over a skull with a `bob`'s shell on
+  // it; everything that makes the style is *below* the brim and in front of the
+  // face, where nothing on a head can reach it. A beanie pulled over one and a
+  // fringe still hanging out from under it is the correct picture, and `close`
+  // is what draws it.
+  emo: 'close',
   // The five that stand far enough off the skull for a hat to have to answer.
   // `slick` is in the list on the strength of one mesh: its quiff reaches
   // 1.48 R — 1.477, measured off the built group — which is higher than the
@@ -169,7 +176,7 @@ const BEARING: Record<HairStyle, HairBearing> = {
 // ---------------------------------------------------------------------------
 
 /**
- * Sixteen styles, nearly all built from the same three primitives.
+ * Seventeen styles, nearly all built from the same three primitives.
  *
  * Two of them are load-bearing. The crown is an ellipsoid pushed back and up
  * so the hairline clears the brows, and it is all a short style needs. The
@@ -192,7 +199,12 @@ const BEARING: Record<HairStyle, HairBearing> = {
  * centre is `0.85R` behind the skull's, which buys back everything the width
  * costs at eye level and nothing at all at the crown.
  *
- * ## Why it is a group and not sixteen meshes on the head
+ * **`emo` is the one style that spends this rather than obeying it**, and it is
+ * an exception rather than a hole in the rule: a fringe sweeping across the brow
+ * is drawn over half of a face on purpose, and the numbers there are about
+ * exactly which half. Everything else keeps clear.
+ *
+ * ## Why it is a group and not seventeen meshes on the head
  *
  * Everything is built into a group of its own and the group is added to the head
  * last. That is what makes both contracts in the header cheap rather than
@@ -327,7 +339,7 @@ export function buildHair(
       // `settle` cut them where it cuts everything that hangs — 1.49 R, which is
       // to the millimetre where `long`'s curtains end. A bob and a curtain were
       // therefore the same length, the same width to within a centimetre, and
-      // hung off the same shell, and the union was spending two of its sixteen
+      // hung off the same shell, and the union was spending two of its seventeen
       // names on one picture. The jaw is at −1.05 R and the shoulder line is at
       // −1.29 R, so stopping at −1.15 R is below the one and clear of the other:
       // the wings now keep their own hem instead of being given the common one,
@@ -339,6 +351,100 @@ export function buildHair(
         wing.castShadow = true;
         hair.add(wing);
         falls(wing, 'shoulder');
+      }
+      break;
+    }
+
+    case 'emo': {
+      // The one head of hair in the file that is allowed in front of the face,
+      // and the note at the top of this function is what licenses it rather than
+      // what it breaks. The rule there is that mass reaching the face does not
+      // sit beside it — it is drawn over the whole of it — and every other style
+      // is written to keep clear. This one is written to spend that: a fringe
+      // swept across the brow, one eye behind it, and the other eye left alone.
+      //
+      // What makes it worth spending is the ten-metre test the union is judged
+      // by. Take the fringe away and this is a `bob` with a longer front, which
+      // is the same outline in the same colour and would not be worth a name. A
+      // dark diagonal across a face is not something any other style here can
+      // produce, and it survives the back row better than anything that depends
+      // on the shape of a mass above the skull.
+      //
+      // **"Partly" is the whole specification, and it is a measurement.** At eye
+      // level — y +0.14 R — hair runs unbroken from the near temple in to
+      // x −0.05, so the swept eye is behind about a centimetre of it; then
+      // there is nothing in front of the face at all from x −0.20 to −0.40,
+      // which is exactly where the other eye is; then from x −0.55 outward the
+      // far temple is hair again. A fringe over both eyes is a bag over the
+      // head, and one that stops at the part is a side parting, which is not a
+      // silhouette.
+      crown(2.08, 1.18, 2.08, 0.52, -0.20);
+      shell();
+      // Which side it is swept to. One draw, off the performer's own stream, so
+      // a player wears the same fringe every night of the run.
+      const s = rng.chance(0.5) ? SIDE.left : SIDE.right;
+
+      // The fringe, and it is two rotations because a sheet of hair laid across
+      // a face is doing two things at once.
+      //
+      // `rotation.z` is the sweep — the root ends up high at the part on the far
+      // side, at x −0.27 R, y 0.84 R, and the tip low at the near cheekbone, at
+      // x +0.87 R, y −0.28 R. `rotation.x` is the small lean that keeps the top
+      // of it against the crown while the bottom stands off; it is +0.06 rather
+      // than negative, which is the sign that took a probe to settle, because a
+      // fringe hangs *away* from the head as it falls and the tip needs to come
+      // back rather than reach further out.
+      //
+      // Euler order is `XYZ`, so `z` is applied to the mesh first and the lean
+      // is then taken about the head's own lateral axis rather than about the
+      // already-tilted hair. Written the other way round the sheet corkscrews
+      // off the temple, which looks like a mistake rather than like hair.
+      //
+      // The thickness is 0.42 R — not quite six centimetres — and it is not
+      // padding. The front of an eye is not the white, which stops at z +0.89 R,
+      // but the iris standing proud of it at z +0.945 R, and a fringe that only
+      // reached the white would have an eye looking through it. This reaches
+      // z +1.01 R over the swept eye. Its frontmost point is z +1.03 R, as far
+      // forward as the tip of the nose gets — and it is up at y +0.39 R, brow
+      // height, where there is no nose to meet.
+      const fringe = new Mesh(orb(l), mat);
+      fringe.scale.set(R * 0.92, R * 1.60, R * 0.42);
+      fringe.position.set(s * R * 0.30, R * 0.28, R * 0.82);
+      fringe.rotation.z = s * 0.80;
+      fringe.rotation.x = 0.06;
+      fringe.castShadow = true;
+      hair.add(fringe);
+
+      // The short side of the part: what is left over when the rest goes the
+      // other way. It reaches the outer end of the open brow and stops — the
+      // nearest corner of that eye is a third of this ellipsoid's own radius
+      // outside it — so it frames the eye rather than joining in covering it.
+      // Without it the part has hair on one side and a bare temple on the other,
+      // which is a comb-over rather than a fringe.
+      const shortSide = new Mesh(orb(l), mat);
+      shortSide.scale.set(R * 0.60, R * 1.04, R * 0.30);
+      shortSide.position.set(-s * R * 0.52, R * 0.46, R * 0.68);
+      shortSide.rotation.z = -s * 0.60;
+      shortSide.rotation.x = -0.06;
+      shortSide.castShadow = true;
+      hair.add(shortSide);
+
+      // Two panels down the sides of the face, and the near one is the reason
+      // the fringe does not end in mid-air. The shell hangs to the jaw beside
+      // the ear, but its front is a long way back — z +0.39 R at the cheek — so
+      // a fringe leaving the face at the far cheekbone had nothing to arrive in.
+      // These stand forward of it to z +0.79 R, which puts the fringe's tip
+      // inside the near one rather than a millimetre off it, and they carry the
+      // cut down past the jaw to y −1.10 R: below the chin, above the shoulder
+      // line at −1.29 R. So this is a face framed rather than a curtain hung,
+      // and `settle` leaves both alone.
+      for (const side of [SIDE.left, SIDE.right]) {
+        const panel = new Mesh(orb(l), mat);
+        panel.scale.set(R * 0.62, R * 1.40, R * 1.16);
+        panel.position.set(side * R * 0.86, -R * 0.40, R * 0.22);
+        panel.castShadow = true;
+        hair.add(panel);
+        falls(panel, 'shoulder');
       }
       break;
     }
@@ -915,12 +1021,12 @@ const CLEAR = 0.08;
  * A cap rather than a solve, because the solve has no upper bound: a mass whose
  * tip starts close under the chin needs most of a right angle to get outside a
  * torso, and hair standing out horizontally is a worse picture than hair with
- * its tip in a jacket. Nothing in the sixteen currently reaches it.
+ * its tip in a jacket. Nothing in the seventeen currently reaches it.
  */
 const SWING = 0.55;
 
 /**
- * Put every hanging mass where the body is not. The rule, once, for all sixteen.
+ * Put every hanging mass where the body is not. The rule, once, for all seventeen.
  *
  * A mass whose lowest point is above the shoulder line is left alone, which is
  * most of the hair in this file and costs an if.
@@ -1010,7 +1116,7 @@ function swing(
     const { y, z } = mesh.position;
     mesh.position.setY(y * cos - z * sin).setZ(y * sin + z * cos);
     // Composed onto whatever the style already set rather than assigned. No
-    // hanging mass in the sixteen has a lateral tilt of its own today, and a
+    // hanging mass in the seventeen has a lateral tilt of its own today, and a
     // future one that did would otherwise have it silently thrown away.
     mesh.rotation.x += theta;
   }

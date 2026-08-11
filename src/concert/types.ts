@@ -698,6 +698,14 @@ export interface Station {
  * or a headscarf is worn *instead of* one, and putting either in the other union
  * licenses a beehive under a hijab. A hat that sits on top of whatever is
  * underneath — a cap, a turban, a tam — is an accessory, and stays one.
+ *
+ * **One of them covers part of the face, and it is the only one allowed to.**
+ * Everything else here is hair around a head; `emo` is a fringe swept across it,
+ * and one eye is behind that fringe. That is a rule broken on purpose rather
+ * than an oversight — the ten-metre test is what licenses it, because a diagonal
+ * drawn across a face is the single most legible thing in the union, and without
+ * it the style would be a `bob` with a longer front and would fail the test
+ * outright.
  */
 export type HairStyle =
   // Held close to the skull.
@@ -717,6 +725,7 @@ export type HairStyle =
   | 'mane'       // past the shoulder blades, and over the collarbones as well
   | 'mullet'     // short everywhere the audience can see. Long behind
   | 'dreadlocks' // ropes, hanging separately and swinging separately
+  | 'emo'        // a fringe swept across the face, with one eye behind it
   // Cloth, worn instead of a hairstyle.
   | 'hood'       // outerwear, in the jacket's colour
   | 'wrap';      // cloth over the hair, falling to the shoulders

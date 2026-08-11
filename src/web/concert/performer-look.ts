@@ -4,7 +4,7 @@
  * `Look` and `Posture` made physical: proportions, the frame, and the clothes.
  *
  * This file used to be three files' worth of work in one, and the third that is
- * left is the third the other two are written *against*. The sixteen hair styles
+ * left is the third the other two are written *against*. The seventeen hair styles
  * are `performer-hair.ts` and the twenty accessories are
  * `performer-accessories.ts`; what stayed is `Proportions` — where the head, the
  * shoulders, the hips and the feet are — together with `dressTorso`, which is

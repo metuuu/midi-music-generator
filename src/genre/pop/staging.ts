@@ -352,7 +352,24 @@ const WARDROBE: Record<string, Wardrobe> = {
     accents: ['#00e5ff', '#ff1744', '#c0c0c0', '#76ff03'],
     loud: ['#c0c0c0', '#d4af37', '#ffffff'],
     hair: ['#101010', '#1a1a1a', '#22160f', '#3a2416', '#c9a86a', '#b0b0b0'],
-    hairStyles: [['long', 5], ['bob', 4], ['updo', 3], ['short', 3], ['slick', 3], ['braids', 2], ['bald', 1]],
+    /**
+     * `emo` at 2, and it is in a *pop* table because the two genres it belongs
+     * to stop before it happens. The style is a 2003 object — a flat-ironed
+     * fringe swept over one eye — and rock's last era ends in 1997 and metal's
+     * in 2000. Several tables here do reach the 2000s, but they are dnb, house,
+     * hiphop, ambient and arabic satellite pop, and none of those rooms is one
+     * this haircut ever stood in. What is left is the bill that takes whatever
+     * is on the radio, which is what this genre is for.
+     *
+     * A weight of 2 against a table of 23 is about one player in twelve: a bill
+     * with somebody on it rather than a bill *about* it. The first two hair
+     * colours are `#101010` and `#1a1a1a` already, so the dye job needs nothing
+     * added — this era's palette was black before the fringe arrived.
+     */
+    hairStyles: [
+      ['long', 5], ['bob', 4], ['updo', 3], ['short', 3], ['slick', 3],
+      ['braids', 2], ['emo', 2], ['bald', 1],
+    ],
     accessories: [
       ['earrings', 0.35], ['wraparounds', 0.3], ['headphones', 0.25], ['chain', 0.2],
       ['ballcap', 0.15], ['hoops', 0.2],

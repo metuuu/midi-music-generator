@@ -343,7 +343,26 @@ const WARDROBE: Record<string, Wardrobe> = {
     accents: ['#b8452b', '#d4a72b', '#3f7a5a'],
     loud: ['#b8452b', '#d4a72b'],
     hair: ['#0d0d0d', '#1c1209', '#2e1d10', '#4a3018', '#6b4423', '#a8863f'],
-    hairStyles: [['long', 5], ['short', 4], ['mane', 3], ['curls', 2], ['bald', 2], ['mohawk', 1], ['dreadlocks', 1]],
+    /**
+     * `emo` at 2, and the name on the value is six years ahead of this era
+     * while the *picture* is not.
+     *
+     * What the renderer draws is a fringe swept across the face with one eye
+     * behind it, and on a 1991 stage that is shoegaze — the genre is named after
+     * what a band does with its head, and `styleWeights` puts it at 7 here,
+     * level with `indie`. Dating a wardrobe to the year is not what these tables
+     * do anyway; `metal:thrash` puts `flannel` in two years before anybody in
+     * Seattle made it famous and says so. A haircut whose whole argument is that
+     * the player is not looking at you belongs on the one bill in the project
+     * with `spotlight: 0.15`.
+     *
+     * At 2 against a table of 20 it is one player in ten, which is a guitarist
+     * at stage left and never the band.
+     */
+    hairStyles: [
+      ['long', 5], ['short', 4], ['mane', 3], ['curls', 2], ['bald', 2],
+      ['emo', 2], ['mohawk', 1], ['dreadlocks', 1],
+    ],
     accessories: [['beanie', 0.35], ['glasses', 0.25], ['beard', 0.3], ['chain', 0.15]],
     fabrics: [['flannel', 5], ['denim', 4], ['knit', 3], ['corduroy', 2], ['leather', 1]],
     /**

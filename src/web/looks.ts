@@ -7,7 +7,7 @@
  * built, asserted against and shipped with no way to *look* at any of them, and
  * a trumpet whose bell pointed at the ceiling survived that for as long as no
  * show happened to feature a trumpet in a close shot. The same thing has now
- * happened one layer in: `HairStyle` went from eight values to sixteen,
+ * happened one layer in: `HairStyle` went from eight values to seventeen,
  * `Accessory` from eleven to twenty and `Fabric` from nine to fifteen, all in
  * one pass, all verified against "no NaN transform, no empty branch", and not
  * one of them ever looked at. A cowboy hat whose turned brim is two rotated
@@ -62,7 +62,7 @@
  * wearing the same clothes.
  *
  * The synthetic views hold everything constant except the one axis they are
- * about. One body, one skin, one hair colour and one outfit across all sixteen
+ * about. One body, one skin, one hair colour and one outfit across all seventeen
  * hair styles; one hair style and one outfit across all twenty accessories; one
  * *colour* across all fifteen fabrics, which is the only way a reflectance table
  * can be read at all — **`clothSurface` turns `Fabric` into a roughness and a
@@ -131,7 +131,7 @@ function allOf<T extends string>(order: Record<T, null>): readonly T[] {
 const HAIR = allOf<HairStyle>({
   short: null, slick: null, bald: null, updo: null, braids: null, mohawk: null,
   beehive: null, bob: null, curls: null, afro: null,
-  long: null, mane: null, mullet: null, dreadlocks: null,
+  long: null, mane: null, mullet: null, dreadlocks: null, emo: null,
   hood: null, wrap: null,
 });
 
@@ -240,8 +240,8 @@ const ROW_PITCH = 2.60;
  *
  * `id` is the seed as well as the name — see the header — so two figures that
  * differ only in the value being exhibited still get different draws for the
- * things `Look` leaves open, which is what stops sixteen heads of curls being
- * one head of curls drawn sixteen times.
+ * things `Look` leaves open, which is what stops seventeen heads of curls being
+ * one head of curls drawn seventeen times.
  */
 interface Cell {
   id: string;
@@ -405,19 +405,25 @@ function baseSwatches(look: Look): readonly (readonly [string, string])[] {
 }
 
 /**
- * Sixteen styles on one head.
+ * Seventeen styles on one head.
  *
- * Two rows of eight rather than four of four, because the comparison that
- * matters most is between neighbours and `HairStyle`'s own grouping — held close
- * to the skull, shaped, hanging, cloth — puts the styles that could be confused
- * for each other next to each other. `long` beside `mane` is the pair the union
- * itself argues about.
+ * Two rows rather than four of four, because the comparison that matters most is
+ * between neighbours and `HairStyle`'s own grouping — held close to the skull,
+ * shaped, hanging, cloth — puts the styles that could be confused for each other
+ * next to each other. `long` beside `mane` is the pair the union itself argues
+ * about.
+ *
+ * The break is at that grouping's own boundary rather than at the halfway mark,
+ * which is what the two labels have always claimed and what a `length / 2` was
+ * only accidentally doing. It stopped being true the moment the union stopped
+ * being even: at seventeen, halving puts `afro` — a mass with no length at all —
+ * in the row headed *hanging*.
  */
 function hairView(): Row[] {
-  const half = Math.ceil(HAIR.length / 2);
+  const split = HAIR.indexOf('long');
   return [0, 1].map((r) => ({
     label: r === 0 ? 'close & shaped' : 'hanging & cloth',
-    cells: HAIR.slice(r * half, (r + 1) * half).map((style) => {
+    cells: (r === 0 ? HAIR.slice(0, split) : HAIR.slice(split)).map((style) => {
       const look = dressed({ hairStyle: style });
       return {
         id: `hair:${style}`,
@@ -603,7 +609,7 @@ function wardrobeView(id: string): Row[] {
 /** What the facts line says the view is for. */
 const BLURB: Record<ViewId, string> = {
   wardrobe: 'every genre’s wardrobe as <b>castSong</b> actually draws it — one number per era, vocals on so the lead can get the loud jacket',
-  hair: 'all sixteen <b>HairStyle</b> values on one body, one skin, one hair colour',
+  hair: 'all seventeen <b>HairStyle</b> values on one body, one skin, one hair colour',
   accessories: 'all twenty <b>Accessory</b> values, one at a time, over short hair',
   hats: 'everything worn on a head × every head — the grid the intersections are in',
   fabric: 'all fifteen <b>Fabric</b> values in one colour, under one directional key',
