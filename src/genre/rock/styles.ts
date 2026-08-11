@@ -216,6 +216,75 @@ import { makeScale, type Mode, type Scale } from '../../core/scale.js';
 const pentatonicLead = (tonic: Pc, _mode: Mode, _chord: Chord): Scale =>
   makeScale(tonic, 'minorPentatonic');
 
+/**
+ * The genre's melodic subsets, respelled in the five degrees these styles have.
+ *
+ * `Genre.voice.subsets` measured this against itself and named this field as the
+ * fix: *"On the eight `pentatonicLead` styles the top row truncates, and that is a
+ * known defect rather than a feature … the leading row losing the ♭3 is the one
+ * worth naming: it is the note the `augmented-second` override, the header's first
+ * line and the whole blues overlay exist for, gone from 36% of sections on the
+ * styles built on it. The fix is one line of `Style.voice` on each of those
+ * eight."* This is that line, written once because seven of the eight share a
+ * scale.
+ *
+ * **What the genre's rows become here.** `snapToSubset` keeps only `d <
+ * scale.pcs.length` and returns the note untouched once the survivors cover the
+ * scale, so against 1 ♭3 4 5 ♭7: `[0,2,3,4,6]` → **1 4 5 ♭7 at weight 5**, the ♭3
+ * deleted; the full diatonic at 5 and `[0,1,2,3,4,6]` at 2 → no-ops, all five
+ * notes; `[0,1,3,4,6]` → 1 ♭3 5 ♭7 at 2. So the ♭3 is absent from 5 of 14 weight
+ * and compulsory in the other 9, and the file's own first line — *"**This is the
+ * flat third over a major chord**, which is wrong by every rule in
+ * `core/rules.ts` and is the sound of the entire genre"* — is the claim that
+ * arithmetic deletes.
+ *
+ * Three rows, in the degrees the scale actually has. The ♭3 survives 9 of 11
+ * rather than 9 of 14, and the genre's no-third colour keeps the weight of 2 the
+ * genre gave it instead of arriving as the leading row by accident.
+ *
+ * `subsets` replaces wholesale rather than merging by key, which is why this is
+ * one field on each style and not four overrides.
+ */
+const PENTATONIC_SUBSETS = [
+  // All five, as `pentatonicLead` hands them over — a no-op in `snapToSubset`.
+  [[0, 1, 2, 3, 4], 5],
+  // 1 ♭3 5 ♭7 — the four notes a riff is made of, and the ♭3 is in them.
+  [[0, 1, 3, 4], 4],
+  // 1 4 5 ♭7 — the genre's no-third row, at the genre's own weight for it.
+  [[0, 2, 3, 4], 2],
+] as const;
+
+/**
+ * The same repair for the one of the eight whose scale is six notes.
+ *
+ * The genre's paragraph says *"the eight `pentatonicLead` styles"* and its
+ * arithmetic is the five-note arithmetic; `bluesrock` is the eighth style that
+ * overrides `scaleForChord` and it takes `blues` instead, so it truncates
+ * differently and worse. Against 1 ♭3 4 ♭5 5 ♭7 the genre's rows come out as
+ * `[0,2,3,4,6]` → **1 4 ♭5 5** at weight 5, `[0,1,3,4,6]` → 1 ♭3 ♭5 5 at 2 and
+ * `[0,1,2,3,4,6]` → 1 ♭3 4 ♭5 5 at 2: **the ♭7 is gone from 9 of 14 weight**, and
+ * the ♭5 is a structural member of 7 of 14.
+ *
+ * Both of those are this style's own sentences inverted. The description is
+ * *"dominant sevenths throughout"* and every progression in the style is a
+ * twelve-bar of `I7`, `IV7` and `V7`; a tune set with no ♭7 in it over an `I7` is
+ * the one interval the form is made of. And `core/scale.ts` is quoted above
+ * saying the ♭5 is a note you slide *through* — this style takes the six-note
+ * scale precisely because *"a British blues guitarist in 1967 holds the flat five,
+ * bends it, and sits on it while the band waits"*, which is a thing done
+ * sometimes and not in half of all sections.
+ *
+ * So: the ♭7 in every row, and the ♭5 a member of 4 of 11 rather than 7 of 14.
+ */
+const BLUES_SUBSETS = [
+  // 1 ♭3 4 5 ♭7 — the pentatonic inside the blues scale, the ♭5 left to be passed through.
+  [[0, 1, 2, 4, 5], 5],
+  // All six — the ♭5 in the set, which is what this style asked the scale for.
+  [[0, 1, 2, 3, 4, 5], 4],
+  // 1 ♭3 5 ♭7 — the four-note core.
+  [[0, 1, 4, 5], 2],
+] as const;
+
 // ---------------------------------------------------------------------------
 // The two chord shapes
 // ---------------------------------------------------------------------------
@@ -873,6 +942,13 @@ const garage: Style = {
   comp: [downstrokes(6), ringingChord(3), chug(2)],
   drums: [backbeat(6), tambourineBeat(3), trainBeat(2)],
   melody: { leap: 0.28, ornament: 0.14, span: 10, sequence: 0.6, syncopation: 0.3 },
+  /**
+   * The genre's subsets are written in seven degrees and this style's scale has
+   * five. See `PENTATONIC_SUBSETS` — the row the genre leads with deletes the ♭3
+   * from 36% of sections, and *"a garage singer shouts five notes"* is a claim
+   * about which five.
+   */
+  voice: { subsets: PENTATONIC_SUBSETS },
 };
 
 /**
@@ -1158,6 +1234,12 @@ const bluesrock: Style = {
   comp: [ringingChord(5), chug(4), downstrokes(3)],
   drums: [shuffleKit(6), backbeat(4), backbeatOpen(2)],
   melody: { leap: 0.34, ornament: 0.4, span: 15, sequence: 0.45, syncopation: 0.4 },
+  /**
+   * Six degrees, not seven and not five. See `BLUES_SUBSETS`: against the genre's
+   * table this style's tune loses the ♭7 in 9 of 14 weight, under a description
+   * that reads *"dominant sevenths throughout"*.
+   */
+  voice: { subsets: BLUES_SUBSETS },
 };
 
 /**
@@ -1235,6 +1317,13 @@ const boogie: Style = {
   comp: [chug(6), downstrokes(4), ringingChord(2)],
   drums: [shuffleKit(6), backbeat(4), backbeatOpen(2)],
   melody: { leap: 0.3, ornament: 0.3, span: 13, sequence: 0.6, syncopation: 0.35 },
+  /**
+   * Five degrees, and the genre's rows are written in seven. See
+   * `PENTATONIC_SUBSETS`. The file header keeps this style's triads *"the third
+   * being **there** and the guitar declining to state it that bar"* — which is a
+   * sentence about the tune having the ♭3 that the chord has not.
+   */
+  voice: { subsets: PENTATONIC_SUBSETS },
 };
 
 /**
@@ -1322,6 +1411,17 @@ const hard: Style = {
   comp: [chug(5, POWER), ringingChord(4, POWER), downstrokes(4, POWER)],
   drums: [backbeat(6), backbeatOpen(4), fourOnFloor(2)],
   melody: { leap: 0.35, ornament: 0.3, span: 15, sequence: 0.55, syncopation: 0.4 },
+  /**
+   * Five degrees, and the genre's rows are written in seven. See
+   * `PENTATONIC_SUBSETS`.
+   *
+   * Sharpest here of the four `POWER` styles: the comp refuses the third at every
+   * voice count, so the ♭3 in the tune is the only third anywhere in the
+   * arrangement — and it is the note the genre's leading row deletes from 36% of
+   * sections. *"The tune is the riff, moved up an octave and sung"*, and a riff
+   * without its flat third is a different riff.
+   */
+  voice: { subsets: PENTATONIC_SUBSETS },
 };
 
 /**
@@ -1404,6 +1504,12 @@ const riff: Style = {
   comp: [ringingChord(6, POWER), chug(4, POWER), wall(2, POWER)],
   drums: [backbeat(5), halftime(4), backbeatOpen(3)],
   melody: { leap: 0.3, ornament: 0.25, span: 12, sequence: 0.6, syncopation: 0.3 },
+  /**
+   * Five degrees, and the genre's rows are written in seven. See
+   * `PENTATONIC_SUBSETS`. `POWER` on all three comp figures means the ♭3 the
+   * genre's leading row deletes is the only third the arrangement has.
+   */
+  voice: { subsets: PENTATONIC_SUBSETS },
 };
 
 /**
@@ -1617,6 +1723,44 @@ const southern: Style = {
   relativeMajorChorus: 0,
   vary: { bass: 0.1, comp: 0.12 },
   scaleForChord: pentatonicLead,
+  /**
+   * The device this style exists for, taken out of the draw and made the sound.
+   *
+   * `Genre.arrangement` puts `harmony` at 6 where the shared pool says 4 — of 28
+   * against 25 — and its own note says it was pushed there for this style. What
+   * that buys is still a *device*: `chart.ts` draws 2.2 of them a song, and the
+   * one that lands is one phrase out of the middle of a repeat chorus of eight
+   * bars or more, never the cadence, which came out at 0.73% of melody bars over
+   * 570 songs. That is the right shape for a twin lead arriving in the last
+   * chorus of somebody else's single, and the wrong one for the style whose
+   * label and description both say *two guitars a third apart*. A declaration
+   * replaces the draw rather than adding to it, so this trades a chance of one
+   * phrase for three sections in five stated in two parts throughout.
+   *
+   * `on: 'counter'` because the second guitarist is already in the arrangement
+   * and is already this layer: `solo.rotation` in `index.ts` calls `melody` and
+   * `counter` a choice of *which* guitar rather than of soloist. The header
+   * above is the pass in one sentence — the answering line stops answering and
+   * joins the tune.
+   *
+   * **Below the tune, and that is the layer rather than the taste.** `counterOf`
+   * in `arrange.ts` gives the answer the lead's floor minus 4 and the lead's
+   * ceiling minus 3, and `writeLine` drops a note outside that window rather
+   * than folding it — so a third over a tune that reaches its own ceiling has
+   * nowhere to sound, while the four semitones underneath are room this part
+   * genuinely has. A descant wants `on: 'melody'`, a second track on the lead
+   * layer, which is not built.
+   *
+   * 8:2 rather than the device's 0.65/0.35 coin flip, because the third is what
+   * the description says twice and the sixth is not a second colour: −5 is −2's
+   * note an octave down, which is the pair with the guitars swapped over.
+   *
+   * 0.6 and not more because a `solo` section skips this pass outright — see
+   * `isSolo` in `song.ts` — so the number is spent entirely on the sung ones,
+   * and a second guitar that never once answers is not a band, it is one part
+   * with two players on it.
+   */
+  harmony: { amount: 0.6, intervals: [[-2, 8], [-5, 2]], on: 'counter' },
   progressions: {
     verse: [
       { chords: ['I', 'I', 'bVII', 'bVII', 'IV', 'IV', 'I', 'I'], weight: 5 },
@@ -1660,6 +1804,13 @@ const southern: Style = {
   comp: [ringingChord(5), downstrokes(4), chug(3)],
   drums: [shuffleKit(5), backbeat(5), backbeatOpen(2)],
   melody: { leap: 0.36, ornament: 0.35, span: 16, sequence: 0.5, syncopation: 0.4 },
+  /**
+   * Five degrees, and the genre's rows are written in seven. See
+   * `PENTATONIC_SUBSETS`. *"`pentatonicLead` all the same: the tune is a guitar
+   * line"* — and `harmony` above states that line twice, so a subset that deletes
+   * the ♭3 deletes it from both guitars at once.
+   */
+  voice: { subsets: PENTATONIC_SUBSETS },
 };
 
 /**
@@ -2139,6 +2290,32 @@ const stoner: Style = {
   comp: [wall(6, POWER), ringingChord(4, POWER), chug(2, POWER)],
   drums: [halftime(6), backbeat(4), backbeatOpen(2)],
   melody: { leap: 0.26, ornament: 0.25, span: 11, sequence: 0.6, syncopation: 0.25 },
+  /**
+   * The scale, and the one number in this genre that is furthest from its own
+   * table.
+   *
+   * `subsets`: five degrees against the genre's seven, see `PENTATONIC_SUBSETS`.
+   * `POWER` here too, so the ♭3 the genre's leading row deletes is the only third
+   * in the arrangement.
+   *
+   * **`density`: this style declares 2.00 onsets a bar and plays 2.87.** +44%, the
+   * largest overshoot in `rock` and one of only two styles in the genre that come
+   * out busier than they declare at all — the other is `shoegaze`, and
+   * `Genre.voice` already names this exact pair as *"the only two styles whose
+   * `melodyCells` genuinely lead with `[16]` and `[8,8]`"*, on the argument that
+   * the derivation was making the held-note claim for them per style. It is not.
+   *
+   * Against the paragraphs above that is not a rounding error. At 64–94 BPM, 2.87
+   * onsets a bar is a note every 0.6 to 0.9 seconds, and the sustain this whole
+   * style is named for *"takes about a second to establish, and is why nothing
+   * here goes faster than 92"*. The amplifier never gets there.
+   *
+   * `density` and not an archetype weight, because it is the field that decides
+   * how long a note is as well as how many there are: `makeGesture` takes
+   * `slotsPerBar / density` as the duration its menu is drawn around. 1.4 is 2.00
+   * divided by the 1.44 this style measures at.
+   */
+  voice: { subsets: PENTATONIC_SUBSETS, density: 1.4 },
 };
 
 // ---------------------------------------------------------------------------
@@ -2417,6 +2594,37 @@ const arena: Style = {
   modeWeights: { minor: 0.4, major: 0.6 },
   relativeMajorChorus: 0,
   vary: { bass: 0.08, comp: 0.1 },
+  /**
+   * The four voices in the description, as far as two singers reach.
+   *
+   * This is the only style in the file whose own sentence states a headcount,
+   * and `vocals.ts` has already ruled on the same question from the other side:
+   * it takes `gm: 54`, Voice Oohs, over 52's Choir Aahs *because the unit is one
+   * person*, and says the choir patch would stage a backing group "that the
+   * arena era has and the other three do not". This style is 9 of that era's
+   * weight and 0 of the beat era's, so the exception and the style are the same
+   * object — which is also why the declaration is here and not on the genre.
+   *
+   * `kinds: ['chorus']` is the description again with nothing added: a verse is
+   * one strained tenor at the top of his range, and the desk with enough
+   * channels is only ever pointed at the hook. Two voices rather than four,
+   * because `VocalStack.steps` carries one number per section on purpose — this
+   * is the audible half of the claim and not all of it.
+   *
+   * **Above, which no harmony line in this project has ever been.** `harmoniseWith`
+   * is signed precisely so a descant can exist, and a stadium chorus is the case:
+   * the third over the lead is the part twenty thousand people sing back. There
+   * is room for it — `vocals.ts` centres this singer at 62 in a range topping out
+   * at 81 — and the stack keeps an out-of-range note rather than dropping it,
+   * since a hole inside a word is the worse fault. `-5` at 2 is the same pitch
+   * class an octave down, the voice stacked *under* the lead, which the same desk
+   * also has.
+   *
+   * 0.9 rather than 1: the record whose first chorus is the singer alone and
+   * whose second is not is the oldest build in the era, and `layerPlan.response`
+   * — drums at 0.85 into a chorus — is the rest of that gesture already written.
+   */
+  harmony: { amount: 0.9, intervals: [[2, 8], [-5, 2]], on: 'vocal', kinds: ['chorus'] },
   progressions: {
     verse: [
       { chords: ['I', 'I', 'bVII', 'bVII', 'IV', 'IV', 'I', 'I'], weight: 5 },
@@ -2634,6 +2842,14 @@ const grunge: Style = {
   comp: [ringingChord(5, POWER), chug(4, POWER), wall(4, POWER)],
   drums: [backbeat(5), halftime(4), backbeatOpen(4)],
   melody: { leap: 0.28, ornament: 0.2, span: 12, sequence: 0.6, syncopation: 0.3 },
+  /**
+   * Five degrees, and the genre's rows are written in seven. See
+   * `PENTATONIC_SUBSETS`. *"The tune is a riff sung, which is more literally true
+   * here than anywhere else in the file"* — and with `POWER` on the comp, the ♭3
+   * the genre's leading row deletes from 36% of sections is the only third either
+   * the guitar or the singer has.
+   */
+  voice: { subsets: PENTATONIC_SUBSETS },
 };
 
 /**
@@ -2882,6 +3098,26 @@ const shoegaze: Style = {
   comp: [wall(7), jangleArp(3), ringingChord(2)],
   drums: [backbeat(5), backbeatSixteens(4), halftime(3)],
   melody: { leap: 0.18, ornament: 0.2, span: 8, sequence: 0.7, syncopation: 0.25 },
+  /**
+   * Declared 1.91 onsets a bar, played 2.61.
+   *
+   * +37%, and with `stoner` one of only two styles in the genre that come out
+   * busier than they declare — the pair `Genre.voice` singles out as *"the only
+   * two styles whose `melodyCells` genuinely lead with `[16]` and `[8,8]`"* and
+   * then leaves to the derivation. Every other field on this style is the same
+   * sentence: `wall` at the head of the comp table with `sustain: true`,
+   * `heldRoot` in the bass, a pad required, and a singer whose answer to being
+   * buried is, in the paragraph above, to *"stop moving"*. A tune with a third
+   * more onsets in it than its own cell table asks for is the one thing this
+   * arrangement cannot carry, because there is nothing else moving for it to be
+   * heard against.
+   *
+   * `density` rather than `leap` or `ornament`, which are 0.18 and 0.2 — the
+   * lowest and near-lowest in the file — and are read straight off `melody` above
+   * either way. What is wrong is the count, and `density` is the field that sets
+   * it: 1.91 ÷ 1.37 = 1.4.
+   */
+  voice: { density: 1.4 },
 };
 
 // ---------------------------------------------------------------------------

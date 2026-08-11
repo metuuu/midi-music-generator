@@ -1698,6 +1698,34 @@ const fusion: Style = {
     } },
   ],
   melody: { leap: 0.4, ornament: 0.16, span: 24, sequence: 0.45, syncopation: 0.6 },
+  /**
+   * The one field where this style's own prose and its derived voice say
+   * opposite things.
+   *
+   * `melodyCells` above claims "at these tempos the sixteenth is the fusion
+   * unit: this is the one style here whose melodies are genuinely faster than
+   * its beat", and `twoHanded` below writes an ostinato because "a vamp under a
+   * busy right hand is a pulse rather than a part". Derivation says otherwise.
+   * `cellDensity` averages the top-weighted `[2,2,2,2,2,2,2]` — a note on every
+   * one of the seven eighths — against `[10,4]` and `[6,4,4]` and lands on
+   * **4.42 onsets a bar, which over a 3.5-quarter bar is 1.26 a beat: below
+   * `swing`'s 1.38 and well below `bebop`'s 1.77.** Measured over three seeds
+   * the realised line is 3.54 onsets a bar and **46% of its onset gaps are a
+   * dotted eighth or longer against 15% at a sixteenth** — slower than its beat
+   * more often than faster, and fourth in the genre rather than first.
+   *
+   * 7 is not a guess at the gap, it is the style's own densest cell read
+   * straight: one onset per eighth of the bar. It measures back at **5.36
+   * onsets a bar — 1.53 a beat, ahead of bebop's 1.29 — with 80% of the gaps at
+   * the eighth or shorter and 33% at the sixteenth**, which is the ordering the
+   * sentence asserts and the unit it names. The other nine styles are
+   * bit-identical across the same three seeds.
+   *
+   * Nothing else moves. The archetypes, subsets and ops jazz declares are all
+   * arguments about *what shape* a line is, and this style has no quarrel with
+   * any of them; its quarrel is with how many notes are in it.
+   */
+  voice: { density: 7 },
 };
 
 export const STYLES: Record<string, Style> = {

@@ -566,6 +566,50 @@ export const hiphop: Genre = {
    * ballad device and this catalogue has no ballad; handing a phrase from one
    * player to another is a conversation, and the two objects on this stage are a
    * machine and a person who is not in the layer plan.
+   *
+   * ## `harmony` stays a draw: no style here declares `Style.harmony`
+   *
+   * It is 3 of this bag's 23 — 13%, under funk's 4 of 25 and a third of pop's 7
+   * of 17 — so a second voice turns up here as the two-bar colour the device
+   * writes, and never as a property of the music. Three reasons, and the last two
+   * are arithmetic rather than taste.
+   *
+   * **The tune is not a part.** `mix` below calls the melody layer *a fragment:
+   * three notes off a record, or a plucked figure whose job is to imply a chord*,
+   * and `trap`'s comp row says it from the other side — *it is the whole of the
+   * harmony and it is one note at a time*. Where this music genuinely is several
+   * voices moving together they are inside one recording, which is what
+   * `parallel-perfects` above is about, and they arrive already harmonised in
+   * `comp`. A second melody track would spell out the chord the one line was
+   * standing in for, in the layer that is not the one doing it.
+   *
+   * **A step count does not name an interval in a five-note scale.**
+   * `HarmonyProfile.intervals` is in scale steps and `scaleForChord` below hands
+   * out `minorPentatonic`, 0 3 5 7 10. One step is a major second on three of its
+   * five degrees; two steps is a perfect fourth on four of five; three steps is a
+   * perfect fifth on four of five. No number in this scale comes out as the
+   * thirds and sixths the field was built to say — `Chart.harmonyBelow`'s own
+   * 0.65/0.35 split is thirds against sixths — and `writeLine`'s second rule
+   * cannot rescue it, for the reason it names about the fixed-interval caller:
+   * one tonic scale, stepped inside itself, so the parallel note is already in
+   * the prevailing scale at every note and nothing moves it.
+   *
+   * **`on: 'vocal'` is refused by a second sum.** This is the only genre in the
+   * project at `delivery: 'talk-sing'`, whose `flatten` is 0.5, and `applyPitch`
+   * in `generate/utterance.ts` blends `midi × (1 − flatten) + centre × flatten` —
+   * so a written interval sounds at half its size and the two-step fourth above
+   * arrives as two and a half semitones. What is left is the intonation contour,
+   * a function of the stress and the syllable index, which a stack shares with
+   * its lead by construction and which therefore puts none of it back.
+   * `vocals.ts` sets twenty-one semitones round a speaking centre; there is no
+   * room above the line and nothing up there to sing.
+   *
+   * **What would have to be true.** A style whose lead is played rather than
+   * found and whose sound is two of it. `gfunk` is the only candidate — it is the
+   * one style in the catalogue where the melody is played — and its own header
+   * says the signature is a single whine that has to travel. `party` is the
+   * nearer miss and the clearer refusal: its table is holes left for a room to
+   * shout into, and a standing second part on the `counter` fills them.
    */
   arrangement: { riff: 8, tutti: 5, unison: 3, harmony: 3, trade: 2, swell: 2 },
 

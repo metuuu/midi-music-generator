@@ -393,13 +393,20 @@ export const pop: Genre = {
   /**
    * What a pop arrangement is built from.
    *
-   * `harmony` highest of anything in the project, and it is the genre's own
-   * device: a line in thirds under the second half of the chorus is on a
-   * genuinely enormous fraction of these records, from the girl groups through
-   * the Beach Boys through every eighties duo to a stacked vocal in 2010. Nothing
-   * else here can claim it that hard — iskelmä puts it at 5 and says it is on
-   * almost every record in *its* repertoire, which is the right neighbour to be
-   * a step above.
+   * `harmony` at the top of this table, and it is the genre's own device: a line
+   * in thirds under the second half of the chorus is on a genuinely enormous
+   * fraction of these records, from the girl groups through the Beach Boys
+   * through every eighties duo to a stacked vocal in 2010.
+   *
+   * This read *highest of anything in the project*, with iskelmä's 5 named as
+   * the neighbour a step below, and neither half survives a count: rnb and metal
+   * write 8 and country writes 7. What the draw reads is this row's share of a
+   * bag that carries the six `POOL` defaults alongside these four, and on that
+   * measure the genre is fifth of nineteen — 7 of 28, which over `COUNT`'s mean
+   * of 2.2 draws puts `harmony` in **51.2%** of pop arrangements, against
+   * finnfolk's 65.6% and inside two points of country, rnb and ambient. Heavily
+   * drawn whichever way it is counted, which is what the last section of this
+   * block is spending.
    *
    * `riff` is next, because the answering figure that comes round every second
    * bar is how a pop arrangement fills the holes the singer leaves. `unison` is
@@ -415,6 +422,51 @@ export const pop: Genre = {
    * `tutti` is left at the pool's default rather than weighted, because `shots`
    * in `transitions` above already gives the band a way to hit a figure together
    * and two mechanisms doing one job is how the wrong one gets tuned.
+   *
+   * ## Twenty-one styles keep the device; three replace it
+   *
+   * `Style.harmony` says *this music is two voices* and **replaces** this draw
+   * rather than adding to it, so a declaration spends the 51.2% above. What that
+   * buys is worth stating before anyone spends it: one phrase, in one repeat
+   * chorus, on the counter — 0.73% of melody bars across the catalogue, which is
+   * a colour arriving in an arrangement, and is word for word the sentence the
+   * first paragraph of this block already writes.
+   *
+   * **No `Genre.harmony`.** The fallback would replace the draw on all
+   * twenty-four, and five of them say in their own headers that there is nobody
+   * to sing it: `torch` is *one singer, one accompanist*, `tropical` is *nobody
+   * sings over it*, `hinrg`'s tune is *shouted over* the track rather than sung
+   * across it, `dancepop`'s chorus is *played rather than sung*, and `chamber`
+   * spends a paragraph holding its counter at `answer` because a second written
+   * line replying in the singer's gaps is the whole style. An `amount` is a
+   * claim about what one piece is made of, and this file already puts that class
+   * of claim on the style: `drops`, `dropBars`, `tempoRamp` and `breakCarrier`
+   * are style-only, and `ballad` is the genre's worked example of the last.
+   *
+   * **The three that declare are the three whose own blocks put more than one
+   * person at the microphone**: `girlgroup`, whose label and whose three named
+   * acts are groups; `sunshine`, whose header calls the style *a stack of four
+   * people singing a chord*; and `discopop`, whose centre is ABBA. All three
+   * take `on: 'vocal'`, which is the only honest layer here — every witness in
+   * the first paragraph above is a voice, and `mix` below is this genre alone in
+   * putting the singer over the arrangement. `on: 'counter'` is refused for
+   * iskelmä's reason, and it binds harder here: `solo.rotation` hands the
+   * counter the entire break and `riff: 5` above is the answering figure filling
+   * the holes the singer leaves, so a standing part in thirds would occupy the
+   * one thing that layer is for.
+   *
+   * **The cost, named rather than hidden.** `vocals` is off by default, so an
+   * instrumental rendering of those three loses the device and puts nothing in
+   * its place. That is the trade iskelmä declined with one baritone profile and
+   * no duetto; it is worth making on three styles where the second voice is a
+   * person and on none of the other twenty-one.
+   *
+   * `merseybeat`, `powerpop`, `teen` and `indiepop` are the near misses and stay
+   * on the device deliberately. Beat-group thirds, a Big Star chorus, four
+   * Backstreet Boys and a Belle and Sebastian record are all real; none of those
+   * four tables says so, and each argues instead about a guitar, a chord or
+   * where the kick sits. A declaration wants a claim in the table it is written
+   * on.
    */
   arrangement: { harmony: 7, riff: 5, unison: 4, trade: 1 },
 

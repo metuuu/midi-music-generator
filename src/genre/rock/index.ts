@@ -299,6 +299,15 @@ export const rock: Genre = {
    * half of `hard`. Neither gesture is available to a band with one chordal
    * player, which is why the shared odds treat them as one of six.
    *
+   * **`southern` has since stopped drawing the one it is named for**, and the 6
+   * is what covers the other twenty-three. A device is an event — one phrase of
+   * one repeat chorus — and `Style.harmony` on that style says the two guitars
+   * are the music instead; a declaration *replaces* this draw for whoever writes
+   * one, so nothing here is spent twice. `half of hard` is the sentence this
+   * weight is now entirely for, and it is the right half: a hard rock second
+   * guitarist doubles the riff (`unison`, at 7) and harmonises the tune when the
+   * arrangement reaches for it.
+   *
    * `tutti` stays high. The whole band stopping to hit the hook's rhythm is the
    * stop-time before the last chorus, and it is a rock gesture in a way it is not
    * a reggae one — iskelmä rules it down because a band stopping dead empties a

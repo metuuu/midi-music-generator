@@ -30,7 +30,9 @@ import {
 } from './core/types.js';
 import { STATION_OF, drumStations } from './concert/instruments.js';
 import { Rng } from './core/rng.js';
-import { BANK_VOICES, readBankName, resolveVoice, SAMPLE_RACKS } from './render/drum-banks.js';
+import {
+  BANK_VOICES, HAND_STROKES, readBankName, resolveDrumSample, resolveVoice, SAMPLE_RACKS,
+} from './render/drum-banks.js';
 import { RACK_SAMPLE_LEVEL } from './render/source-levels.js';
 import { renderStrudel } from './render/strudel.js';
 import { HANDS, IDIOMS, INSTRUMENTS, type Idiom, type IdiomProfile } from './style/instruments.js';
@@ -3265,7 +3267,9 @@ console.log('\nDrum banks');
 
   const unmeasured: string[] = [];
   const unplayable: string[] = [];
+  const mimed: string[] = [];
   let pairs = 0;
+  let hands = 0;
   for (const gid of GENRE_IDS) {
     const voices = emitted(gid);
     for (const era of Object.values(getGenre(gid).eras)) {
@@ -3276,6 +3280,13 @@ console.log('\nDrum banks');
         for (const voice of voices) {
           pairs++;
           if (!resolveVoice(name, voice)) unplayable.push(`${name} cannot play ${voice}`);
+          if (!HAND_STROKES.includes(voice)) continue;
+          hands++;
+          // A machine's samples are addressed with `.bank()` and a rack's are
+          // bare, so a `bank` on the answer *is* the failure: it means the sound
+          // came out of the box while the stage showed a pair of hands.
+          const played = resolveDrumSample(name, voice);
+          if (played?.bank) mimed.push(`${gid}/${era.id}: ${name} plays ${voice} as ${played.sample}`);
         }
       }
     }
@@ -3289,6 +3300,29 @@ console.log('\nDrum banks');
     'every voice a genre plays resolves on all its banks',
     unplayable.length === 0,
     unplayable.length ? [...new Set(unplayable)].join(', ') : `${pairs} bank x voice pairs, substitutions included`,
+  );
+
+  /**
+   * The one substitution that is visible from the stalls.
+   *
+   * `lp`, `mp` and `hp` are hand-tier in `STATION_OF`, so writing any of them
+   * stages a percussionist at a goblet drum whatever the bank says — and until
+   * `DEFAULT_HAND_RACK` landed, a bank naming no rack sent all three back
+   * through `FALLBACK` to the machine's floor tom, spare percussion and
+   * cross-stick. The player struck one skin with their palms and the room heard
+   * a cowbell-ish clank off a LinnDrum. Every other substitution in this file is
+   * an argument about timbre; this one is the picture and the sound
+   * contradicting each other, which is the failure `SAMPLE_RACKS` is written to
+   * make impossible everywhere else.
+   *
+   * Read off the era tables rather than off generated songs on purpose: the
+   * fault was in a *bank*, and a genre that writes a hand stroke in one style at
+   * one weight would need a lot of seeds to turn it up.
+   */
+  check(
+    'a staged hand drum sounds like one',
+    mimed.length === 0,
+    mimed.length ? [...new Set(mimed)].join(', ') : `${hands} bank x hand-stroke pairs, all off a rack`,
   );
 
   /**
@@ -3993,8 +4027,20 @@ console.log('\nCounter-melody');
         continue;
       }
       /**
-       * Deliberate doublings are not counted, and leaving them in was measuring
-       * the opposite of what this pair is for.
+       * Deliberate second parts are not counted, and leaving them in was
+       * measuring the opposite of what this pair is for.
+       *
+       * Two marks, one argument. A `unison` span states the head *with* the tune
+       * and a `harmony` span moves *with* it a third or a sixth away — the first
+       * sounds under the melody because it is the melody, the second because
+       * sharing the lead's onsets is the whole definition of the gesture. Both
+       * are the arrangement doing what it was drawn to do, and neither is the
+       * answer failing to find a gap, which is what the ratio below asks about.
+       *
+       * The `harmony` half was added before any table declared one, on the
+       * prediction that it would otherwise read as a regression the first time a
+       * style did — the same confound as `doubling`, one gesture over. See
+       * `NoteEvent.harmony`.
        *
        * The contrast below asks whether the answer *works around* the tune where a
        * sequencer ignores it. A `unison` span is the arrangement deciding that
@@ -4011,7 +4057,7 @@ console.log('\nCounter-melody');
        * fell to 39% and the buried share fell to 1%, so the answer got measurably
        * more independent and the ratio read as a regression.
        */
-      const own = counter.filter((n) => !n.doubling);
+      const own = counter.filter((n) => !n.doubling && !n.harmony);
       ansNotes += own.length;
       for (const n of own) {
         if (melody.some((m) => m.beat <= n.beat + 1e-6 && m.beat + m.duration > n.beat + 1e-6)) ansUnder++;
@@ -4629,9 +4675,23 @@ console.log('\nMelodic voices');
   for (const gid of GENRE_IDS) {
     const genre = getGenre(gid);
     if (!genre.voice) { voiceless.push(gid); continue; }
-    // A style of this genre that has no authored voice of its own, since those
-    // three refuse the genre tier by rule and would report a false failure.
-    const style = Object.values(genre.styles).find((s) => !hasVoice(s.id));
+    /**
+     * A style that neither has an authored `Voice` nor states a delta of its own.
+     *
+     * Both exclusions are the tiers working rather than exceptions to them.
+     * `tango`, `iskelmapop` and `berlin` refuse the genre tier by rule, and a
+     * style carrying a `Style.voice` **overrides** the genre on exactly the
+     * fields it names — so resolving through either and then asserting the
+     * genre's number survives is asking the resolution order to be something it
+     * is documented not to be. This check fired on three of them the day wave 2
+     * landed (`arabic/long-note` 2.5 resolving to 1, `finnfolk/chant` 2.5 to 5,
+     * `country/descending-sequence` 1.5 to 2.9) and every one was a style delta
+     * doing its job.
+     *
+     * What is still checked is what the claim was always about: that a genre's
+     * declaration reaches the engine *where nothing more specific has spoken*.
+     */
+    const style = Object.values(genre.styles).find((s) => !hasVoice(s.id) && !s.voice);
     if (!style) continue;
     const resolved = voiceForStyle(style, genre.voice);
 

@@ -131,6 +131,17 @@ export function renderStrudel(song: Song, opts: StrudelRenderOptions = {}): stri
    */
   const orbits = new Map<Track, number>();
 
+  /**
+   * How many sung tracks have been written, which is what names the next one.
+   *
+   * Counted here rather than taken from the track's index in `song.tracks`,
+   * because the two must agree with what is actually emitted: the grid check
+   * below drops a track whose notes all fall outside the song's bars, and a
+   * gap in the numbering would be harmless while a name claimed by a dropped
+   * track would not.
+   */
+  let sungTracks = 0;
+
   for (const track of song.tracks) {
     const { grid, divided } = buildNoteGrid(
       track.notes, song.meta.totalBars, slotsPerBar, spelling,
@@ -138,13 +149,17 @@ export function renderStrudel(song: Song, opts: StrudelRenderOptions = {}): stri
     if (!grid.some((bar) => bar.some((slot) => slot !== '~'))) continue;
 
     // A sung track is bound to a name above the stack and then filtered three
-    // times, so the note grid is written once rather than once per formant.
+    // times, so the note grid is written once rather than once per formant. The
+    // name belongs to the track and not to the renderer — a style singing in
+    // harmony arranges two of these, and one shared name is a redeclaration that
+    // stops the whole pattern parsing. See `voiceBinding`.
     if (track.voice) {
+      const binding = voiceBinding(sungTracks++);
       lines.push(...voiceDefinition(
-        track, formatGrid(grid), meta.totalBars, slotsPerBar, meta.bpm, divided,
+        track, binding, formatGrid(grid), meta.totalBars, slotsPerBar, meta.bpm, divided,
       ));
       lines.push('');
-      parts.push(...voiceParts(track, meta.totalBars, slotsPerBar));
+      parts.push(...voiceParts(track, binding, meta.totalBars, slotsPerBar));
       const burst = consonantBurst(track, meta.totalBars, slotsPerBar, meta.bpm, divided);
       if (burst) parts.push(burst);
       continue;
@@ -1393,8 +1408,23 @@ function buildNoteGrid(
   return { grid, divided: new Set(trilled.keys()) };
 }
 
-/** Name the sung pattern is bound to above the stack. */
-const VOICE_BINDING = 'voice';
+/**
+ * Name the nth sung pattern is bound to above the stack.
+ *
+ * A function of the track's position and not one fixed name, because a style
+ * with `harmony.on: 'vocal'` puts a second singer over the first and both tracks
+ * carry a `Track.voice` — so a single name means two `const voice` declarations
+ * at top level. That is not a wrong sound but a dead file: `SyntaxError:
+ * Identifier 'voice' has already been declared`, thrown before a note plays, in
+ * the `.strudel.js` the CLI writes, the code the web page offers for copy-paste
+ * and the pattern mix-lab actually evaluates. Measured across the 16 styles that
+ * declare it, 62 of 64 songs failed to parse.
+ *
+ * The first singer keeps the bare name, so the ordinary one-voice audition —
+ * every other style, and the great majority of the output — reads exactly as it
+ * did before.
+ */
+const voiceBinding = (index: number) => (index === 0 ? 'voice' : `voice${index + 1}`);
 
 
 /**
@@ -1405,8 +1435,8 @@ const VOICE_BINDING = 'voice';
  * cues that do most of the work — vibrato and the scoop into the note.
  */
 function voiceDefinition(
-  track: Track, noteGrid: string, totalBars: number, slotsPerBar: number, bpm: number,
-  divided: ReadonlySet<number>,
+  track: Track, binding: string, noteGrid: string, totalBars: number, slotsPerBar: number,
+  bpm: number, divided: ReadonlySet<number>,
 ): string[] {
   const v = track.voice!;
   const attacks = buildValueGrid(track.notes, totalBars, slotsPerBar,
@@ -1414,7 +1444,7 @@ function voiceDefinition(
   return [
     `// ${track.layer} — ${track.instrument}. The source carries the body; the`,
     '// vowel is the three formant bands stacked on top of it below.',
-    `const ${VOICE_BINDING} = note(\`${noteGrid}\`)`,
+    `const ${binding} = note(\`${noteGrid}\`)`,
     `  .sound('${track.strudelSound}')`,
     // Attack is patterned, not fixed: it is half of what makes a syllable's
     // consonant. A stop arrives in 3 ms and a nasal leans in over 70, and that
@@ -1434,7 +1464,7 @@ function voiceDefinition(
     /**
      * The singer swings with the band. This is on the binding rather than on the
      * four patterns below it, because the body and the three formant bands are
-     * all derived from `voice` and a correction applied here reaches every one of
+     * all derived from it and a correction applied here reaches every one of
      * them — where four copies could drift apart by a rounding digit and smear
      * the vowel across its own onset. `consonantBurst` is the one that has to
      * repeat it, being a pattern of its own rather than a filter of this one.
@@ -1455,6 +1485,10 @@ function voiceDefinition(
  * and it sits at 3–6 kHz where hearing is most sensitive, so it cuts through an
  * arrangement that the voice itself has to fight. Syllables that begin on a
  * nasal, a liquid or a bare vowel produce no burst and simply rest here.
+ *
+ * Takes no binding name, unlike `voiceDefinition` and `voiceParts`: it is built
+ * from the track's own notes rather than from the sung pattern, so it names
+ * nothing and two singers' bursts cannot collide.
  */
 function consonantBurst(
   track: Track, totalBars: number, slotsPerBar: number, bpm: number,
@@ -1503,7 +1537,9 @@ function consonantBurst(
  * output swung 27 dB. Passing the proper Q — centre over bandwidth — brings
  * that to 9 dB, which is what lets the emphasis track the line evenly.
  */
-function voiceParts(track: Track, totalBars: number, slotsPerBar: number): string[] {
+function voiceParts(
+  track: Track, binding: string, totalBars: number, slotsPerBar: number,
+): string[] {
   // The band levels below are a balance between themselves; `VOICE_MIX` is what
   // turns that balance into a level against the rest of the arrangement.
   const gain = track.gain * VOICE_MIX;
@@ -1516,7 +1552,7 @@ function voiceParts(track: Track, totalBars: number, slotsPerBar: number): strin
   // the harmonic series the peaks are supposed to be sitting *on*.
   const parts = [[
     '  // body — the raw harmonic series the formants ride on',
-    `  ${VOICE_BINDING}.lpf(${v.bodyLpf}).gain(${(gain * v.bodyGain).toFixed(3)})`,
+    `  ${binding}.lpf(${v.bodyLpf}).gain(${(gain * v.bodyGain).toFixed(3)})`,
   ].join('\n')];
 
   parts.push(...FORMANT_BANDWIDTHS.map((bandwidth, i) => {
@@ -1536,7 +1572,7 @@ function voiceParts(track: Track, totalBars: number, slotsPerBar: number): strin
       return [
         `  // formant 1 — resonant lowpass at F1: the body of the voice.`,
         `  // ${bandwidth} Hz wide, Q ≈ ${restQ.toFixed(1)} on /a/`,
-        `  ${VOICE_BINDING}`,
+        `  ${binding}`,
         `    .lpf(\`${formatGrid(grid.freqs)}\`)`,
         `    .resonance(\`${formatGrid(grid.qs)}\`)`,
         `    .gain(${level})`,
@@ -1544,7 +1580,7 @@ function voiceParts(track: Track, totalBars: number, slotsPerBar: number): strin
     }
     return [
       `  // formant ${i + 1} — ${bandwidth} Hz wide, Q ≈ ${restQ.toFixed(1)} on /a/`,
-      `  ${VOICE_BINDING}`,
+      `  ${binding}`,
       `    .bpf(\`${formatGrid(grid.freqs)}\`)`,
       `    .bandq(\`${formatGrid(grid.qs)}\`)`,
       `    .gain(${level})`,

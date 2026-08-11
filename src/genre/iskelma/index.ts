@@ -93,6 +93,29 @@ export const iskelma: Genre = {
    * behind the second half of the chorus. `tutti` down for the reason `soloBacking`
    * is `full` two lines above: the band stopping to hit a figure together empties
    * the floor, and this band does not empty the floor.
+   *
+   * **`harmony: 5` is the whole of this genre's answer, and there is no
+   * `HarmonyProfile` beside it — here or on any of the seven styles.** The
+   * sentence above already names the device's own scope: *the second half of the
+   * chorus* is one phrase of one chorus, which is where `Device.harmony` places
+   * itself and nowhere else. A declaration replaces that draw rather than adding
+   * to it, so writing one would spend this weight to say a vaguer version of
+   * what it already says exactly.
+   *
+   * The layer decides the rest. A declaration in this genre lands on `counter`,
+   * and the counter here is the *answering* voice — `solo.rotation` below hands
+   * it the entire break, and the `voice` block argues `long-note` up on the
+   * grounds that if the sax answers the singer then the tune is the call and
+   * leaves the holes. A standing second part in thirds occupies those holes for
+   * the length of the statement, which is the one thing the answer is for. Nor do
+   * the style tables ask for it: seven `twoHanded` blocks, every one of them about
+   * one player's two hands; a tango whose tune goes to the accordion, bandoneon,
+   * tenor or strings *depending on the night*, one per night; and one baritone in
+   * `vocals.ts`, `centre: 57`, working to G4. The duetto is what would change
+   * this, and it needs a second `VocalProfile` to sing against before `on:
+   * 'vocal'` describes anything — with `vocals: false` the default, declaring it
+   * today would suppress the device on every instrumental rendering and put
+   * nothing in its place.
    */
   arrangement: { riff: 6, harmony: 5, tutti: 2 },
 

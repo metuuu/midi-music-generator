@@ -93,6 +93,53 @@ export const jazz: Genre = {
   // consistency without locking rhythms or narrowing the vocabulary.
   defaultHook: 'loose',
 
+  /**
+   * No `harmony`, and no `arrangement` either — **jazz is the one genre of the
+   * nineteen that overrides neither**, so its second voice arrives from the
+   * shared pool at `harmony: 4` and from nowhere else. Against rnb and metal at
+   * 8, country and pop at 7, indian at 0, this genre has never had an opinion
+   * about the device in either direction, and 4 out of a pool of six is the
+   * colour the device was built to be: a harmony phrase in a repeat chorus,
+   * 0.73% of melody bars. A standing property says something much stronger —
+   * *this music is two voices for the length of the statement* — and jazz says
+   * the opposite wherever it has said anything at all.
+   *
+   * **Where it writes a second voice it writes the octave.** The three styles
+   * with one to write are the `twoHanded` ones, and all three rank `unison`:
+   * `fusion` first at 6 of 15, because "a fusion head *is* the two hands playing
+   * the same line an octave apart", `trio` and `odd` at 2 of 11 and 2 of 12,
+   * where the entry calls it a departure and says every section would be a
+   * mannerism. An octave inside a harmony line is the fault the pass exists to
+   * repair, so the most two-voiced writing in the catalogue is the writing a
+   * declaration here would contradict.
+   *
+   * **And the harmonised line it does hold is already written, elsewhere.**
+   * `block` — locked hands, the chord struck *with* the tune — is a
+   * `LeftHandMode` drawn once per section on all three, which is the same scope
+   * a declaration would claim, on the player whose hands it actually is. `trio`
+   * then puts `counter` in `excludeLayers`, so `on: 'counter'` is unsayable on
+   * the style that harmonises most.
+   *
+   * The other seven decline on their own terms. `bebop` runs 7.07 onsets a bar
+   * at 196–280 and calls a recalled phrase the one thing the idiom refuses; a
+   * second horn tracking that in parallel thirds is a Supersax arrangement, not
+   * a quintet. `modal` hands eight bars of one chord to a line that "has to
+   * carry everything" and `ballad` builds one "as much from silence as from
+   * notes" — both thin on purpose, and a parallel part thickens. The swing era's
+   * written harmony is already declared and is not a melody: four sections on
+   * the `pad` holding a median 3.95 beats a note under somebody's solo, which is
+   * how 1938 scored it. `on: 'vocal'` fails on the profile — one scat singer,
+   * `signature: 'male'`, a syllable every half beat, "a member of the band" —
+   * and the close-harmony quartet is refused two files along as a group that
+   * took *a chorus* and sat down, which is an event and so is the device draw.
+   *
+   * What would change this is a hard-bop entry: a two-horn Blue Note head
+   * harmonised end to end through the statement, which is a genuine standing
+   * property and has no style among the ten. That is a `styles.ts` decision
+   * before it is a field here, and it would be declared on that style rather
+   * than on the genre.
+   */
+
   // The rhythm section reacts to a soloist rather than running its pattern at
   // them. This is what "comping" means and it is not optional in the idiom —
   // a jazz band that plays the head arrangement under a blowing chorus is a

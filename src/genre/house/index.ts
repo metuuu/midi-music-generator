@@ -667,6 +667,68 @@ export const house: Genre = {
    * green at 19–20% against a >20% bar "on the same afternoon in both directions".
    * A genre with a thousand short brass notes in it moves that number for
    * everybody, which is worth knowing about rather than shrugging at.
+   *
+   * ## Nothing here declares `Style.harmony`, and `harmony: 2` under `unison: 3`
+   * is the short version
+   *
+   * The standing property beside the device says *this music is two voices* for a
+   * whole statement rather than for one phrase of one repeat chorus. No style in
+   * this folder declares one and neither does this genre. The row is the
+   * second-lowest non-zero in the catalogue, level with ambient's and dnb's —
+   * arabic writes 1, indian 0, synth omits it, rnb and metal are at 8 — and 2 of
+   * 23 by weight is the size of the thing a house record actually does with a
+   * second line.
+   *
+   * **Where this music sounds harmonised it is one object rather than two
+   * players**, and the `parallel-perfects` override below already argues it for a
+   * different purpose: a sampled orchestra hit, a hoover and a detuned supersaw
+   * stab are *single objects that happen to contain several pitches, and they are
+   * supposed to fuse*. A declaration is the opposite claim — its checks demand no
+   * unison, no octave and no crossing, two parts that stay audibly two — and the
+   * several pitches here belong to the comp, which is why `mix` puts that layer at
+   * 0.6 under a melody at 0.86.
+   *
+   * **What these tables do thicken a line with is the octave, which the field
+   * cannot name.** `piano`'s own description is *an octave piano vamp* and its
+   * heaviest bass figure is `octave-piano-left`; `disco`'s is `disco-octaves`. An
+   * octave inside a declared harmony line is not the gesture, it is the fault
+   * `undoubleAgainst` repairs — so the one doubling interval in this file is the
+   * one interval a `HarmonyProfile` is forbidden to say, and `unison: 3` above
+   * `harmony: 2` is that preference already written down.
+   *
+   * **And the lead is too still for a parallel line to read as a second part.**
+   * `voice.archetypes` below spends 58% of its draw on `chant` and `long-note`,
+   * the twenty-four styles derive 1.00 to 3.63 onsets a bar, and `minimal` weights
+   * `[16]` at 8 — one note, held, for the bar. A fixed interval hung on one
+   * repeated note over a kick for a thirty-two-bar statement is a dyad rather than
+   * a duet, and a dyad is a chord, which is the layer that already has one.
+   *
+   * The two available carriers then fail on their own ground:
+   *
+   *  - **`on: 'counter'`** lands on the layer this genre defines as *not* the
+   *    tune's shadow. `acid` and `trance` both write `counterMode: 'ostinato'` for
+   *    "a second line running continuously alongside the first, not answering it",
+   *    `trade` is 0 above — the first strike in the project — and the `voice` block
+   *    gives the reason: nobody is listening for a reply. A part in thirds on the
+   *    lead's own onsets would replace the only second-line idea in the file with
+   *    a transposed copy of the first.
+   *  - **`on: 'vocal'`** has a real candidate in `garage`, whose header calls it
+   *    the one style here where the vocal is the record, and it fails on *phase*
+   *    rather than on interval. Item 5 of the header is this genre's own report
+   *    about its second voice and what it asks for is a cycle, not a third: the
+   *    sung phrase is two bars against an eight-bar chord cycle, deliberately out
+   *    of phase, where a declared stack sings the lead's own onsets and is as in
+   *    phase as two lines get. `vocals.ts` picks GM 53 over a choir patch and says
+   *    why — *"53 is one voice, open, on a vowel, which is the honest
+   *    description"* — and a 1990 a cappella that was stacked in the studio
+   *    arrives on this record as one sample, which is the melody layer and the
+   *    supersaw argument for the third time.
+   *
+   * What would change it is `garage` with the singer in the room instead of on
+   * somebody else's tape: a hook stated by two overdubs, `kinds: ['chorus']`, and
+   * the third *above* rather than below, since `vocals.ts` centres that contralto
+   * at 69 with the top of her range real and the gospel high part sits over her.
+   * It becomes writable when a vocal can carry its own cycle and not before.
    */
   arrangement: { riff: 5, tutti: 6, unison: 3, harmony: 2, trade: 0, swell: 7 },
 

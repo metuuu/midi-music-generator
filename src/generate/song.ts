@@ -19,7 +19,7 @@
  *    genre's eras set their own probability.
  */
 
-import { CHORD_INTERVALS, parseRoman, type Chord } from '../core/chord.js';
+import { CHORD_INTERVALS, chordPcs, parseRoman, type Chord } from '../core/chord.js';
 import { keyLabel, type Pc } from '../core/pitch.js';
 import { Rng } from '../core/rng.js';
 import { applyTechnique, chooseTechnique, TECHNIQUES } from './technique.js';
@@ -59,7 +59,7 @@ import { applyTransitions, hitTogether, planTransitions, type Seam } from './tra
 import { getHook, RECALL_BIAS, type HookId } from './hook.js';
 import { composeSectionTune, registerFor } from '../tune/adapt.js';
 import { planKeys } from '../tune/keyplan.js';
-import { figureSlots, handOff, harmonise, joinIn, patchBand } from '../tune/band.js';
+import { figureSlots, handOff, harmonise, harmoniseWith, joinIn, patchBand } from '../tune/band.js';
 import { has, planChart, playing } from './chart.js';
 import { varyRecall } from '../tune/tune.js';
 import type { Signature } from '../tune/judge.js';
@@ -69,7 +69,7 @@ import {
   compBehindSolo, drumsBehindSolo, generateDrumSolo, generateSolo, ornament, planSolos,
   type BarSpan, type SoloLayer,
 } from './solo.js';
-import { generateVocalTrack } from './vocals.js';
+import { generateVocalStack } from './vocals.js';
 import {
   generateBass, generateBrass, generateComp, generateCounter, generateDrums,
   generateLeftHand, generatePad, planFigureVariation, planKitVariation,
@@ -166,6 +166,22 @@ interface Remembered {
   /** Its rhythm too, so a recalled section can still call the band in. */
   figure?: { at: number; dur: number }[];
 }
+
+/**
+ * How far under the lead the second lead's fader sits.
+ *
+ * The same 0.82 `writeLine` writes every harmony note at and `syllabify` softens
+ * a held syllable's repeats by, and one step short of the 0.88 the vocal stack
+ * uses — a stack is two people on one microphone and this is two players a metre
+ * apart, so it is the wider of the two.
+ *
+ * It has to be stated as a gain rather than left in the velocities: the assembly
+ * loop normalises every part to its layer's median velocity on purpose, and a
+ * relation written into the notes is exactly what that pass exists to remove.
+ * See `VocalStack` and `STACK_VELOCITY` in `generate/vocals.ts` for the same
+ * number arrived at from the other side.
+ */
+const SECOND_LEAD = 0.82;
 
 export function generateSong(opts: GenerateOptions = {}): Song {
   const seed = String(opts.seed ?? Math.floor(Math.random() * 1e9));
@@ -320,7 +336,13 @@ export function generateSong(opts: GenerateOptions = {}): Song {
    */
   const clarity = strictness.level / 4;
   const density = clamp(era.density + mood.density, 0.25, 1);
-  const instruments = chooseInstruments(rng, era, style);
+  const instruments = chooseInstruments(
+    rng, era, style,
+    // Read here rather than resolved twice: `standing` below is the same
+    // `style.harmony ?? genre.harmony`, and the two must not be able to disagree
+    // about whether a seventh instrument was drawn.
+    (style.harmony ?? genre.harmony)?.on === 'melody',
+  );
 
   // ---- Form ------------------------------------------------------------
   const steps = buildForm(
@@ -387,6 +409,45 @@ export function generateSong(opts: GenerateOptions = {}): Song {
     beatsPerBar: style.beatsPerBar,
     ...(genre.arrangement ? { weights: genre.arrangement } : {}),
   });
+
+  /**
+   * …and whether this music simply *is* two-voiced, which the chart cannot say.
+   *
+   * `Device.harmony` above stays and keeps doing its job: one phrase, in one
+   * repeat chorus, never the cadence — 0.73% of melody bars over 570 songs,
+   * which is a colour arriving in an arrangement. A style whose *sound* is two
+   * voices — an Everly Brothers duet, a girl-group stack, an iskelmä duetto, a
+   * second violin — has no way to say so in a device pool, and the two are not
+   * the same statement at two strengths.
+   *
+   * **A declaration replaces the draw rather than adding to it.** Both firing
+   * would put a device harmony inside a section that is already in two parts,
+   * and the result is neither table's arrangement. So the device branch below is
+   * gated on there being no declaration, and gating it costs no random number —
+   * `has` is a set lookup and `planChart` has already spent its draws.
+   *
+   * All three values of `on` are built. `melody` is the last of them and is a
+   * second `Track` on the melody layer — `secondLead` below, written by the same
+   * `harmoniseWith` pass and off the same per-section draw the counter takes,
+   * differing only in which player ends up holding it. See `HarmonyProfile.on`.
+   *
+   * A style that declares nothing never reaches any of it: `standing` is
+   * `undefined`, the section draw is not constructed and the device branch below
+   * is what decides, exactly as it did.
+   */
+  const standing = style.harmony ?? genre.harmony;
+  /**
+   * Which sections a declared vocal stack sings in and how far from the tune,
+   * and the scale each of those sections is heard in.
+   *
+   * Filled in the section loop because that is the only place a section's chords
+   * exist; read once, after it, where the singer is written. Two maps rather
+   * than one because that is the shape `VocalStack` asks for — the steps are the
+   * arrangement's decision and the scale walk is the section's, and only the
+   * first of them is drawn.
+   */
+  const stackSteps = new Map<number, number>();
+  const stackScale = new Map<number, (midi: number, steps: number, beat: number) => number>();
 
   const sections: Section[] = [];
   let bar = 0;
@@ -602,6 +663,22 @@ export function generateSong(opts: GenerateOptions = {}): Song {
    * genre it is that accordionist who takes the break.
    */
   const leftHand = new Map<PlayedLayer, NoteEvent[]>();
+  /**
+   * The second lead's line, held aside for the same reason the left hands are and
+   * for one more of its own.
+   *
+   * It cannot go into `byLayer` because the map is keyed by `LayerId` and there
+   * is exactly one `melody` key — which is the whole of §4.2's decision restated
+   * in a data structure: a second part on a layer is a second *track*, not more
+   * notes on the first, and `melodicLine` and five reporting tools read that
+   * first track as *the line*. Held here, it goes through the same swing, the
+   * same overlap trim and the same assembly loop as everybody else, and comes out
+   * as its own `Track`.
+   *
+   * Empty for every style that declares no `harmony.on: 'melody'`, which is all
+   * but four of the 389.
+   */
+  let secondLead: NoteEvent[] = [];
   /**
    * Beat spans where a layer is carrying a solo rather than accompanying.
    *
@@ -1108,6 +1185,19 @@ export function generateSong(opts: GenerateOptions = {}): Song {
       style,
     };
     if (s === sections.length - 1) finalChord = ctxBase.chords[ctxBase.chords.length - 1];
+
+    /**
+     * The chord sounding at a beat, clamped to the section.
+     *
+     * One chord a bar, which is what `expandProgression` produces. Named because
+     * two readers below want it and both want it for the same reason: a span
+     * several bars wide is several chords, and an interval measured off the first
+     * of them is not that interval against the rest.
+     */
+    const chordAt = (beat: number): Chord => ctxBase.chords[Math.min(
+      ctxBase.chords.length - 1,
+      Math.max(0, Math.floor((beat - ctxBase.startBeat) / style.beatsPerBar)),
+    )]!;
 
     /**
      * One stream per layer per section, rather than one stream for the whole
@@ -1876,6 +1966,182 @@ export function generateSong(opts: GenerateOptions = {}): Song {
         }
       }
 
+      /**
+       * Whether a second voice stands in *this* section, and the stream that says
+       * so and then says how far away it sits.
+       *
+       * **Its own stream, and that is not tidiness.** A draw sharing the band's
+       * tape reshuffles every part written after it — the reason this section
+       * already has `:feel:`, `:trade:` and `:counter:…:join` streams of its own —
+       * and this one fires per section on a table nothing in the catalogue has
+       * filled in yet. The same `Rng` then carries the interval draw inside
+       * `harmoniseWith`, so the whole decision about this section costs the two
+       * numbers on this stream and nothing anywhere else moves.
+       *
+       * `amount` is a share of **sections**, not of notes or of bars. A second
+       * part rationed by note count would be the device again, arriving for a bar
+       * and a half; a style saying its music is two-voiced is saying it about
+       * passages. Eligible is `kinds` where the table names them, and otherwise
+       * every section the lead actually sings in — which is this branch, and
+       * `melody.length` is the rest of it: a lead that is present in the layer
+       * plan and silent in the bar has nobody to harmonise.
+       *
+       * The realised share is this ∩ whatever the `on` layer needs, and for
+       * `counter` that is a real narrowing — the block below wants an active
+       * counter layer that is not itself stating the tune. Drawing out here
+       * rather than inside it keeps the stream reading the same numbers whether
+       * or not that layer happens to be playing, which is what makes the draw
+       * safe to move later.
+       */
+      let harmonyRng: Rng | undefined;
+      if (standing && melody.length
+        && (!standing.kinds || standing.kinds.includes(section.kind))) {
+        const draw = new Rng(`${seed}:harmony:${s}`);
+        if (draw.chance(standing.amount)) harmonyRng = draw;
+      }
+      if (harmonyRng && standing?.on === 'vocal') {
+        stackSteps.set(s, harmonyRng.weighted(standing.intervals));
+        // Bound to this section's key and its own chord walk, because both move:
+        // a section lifted a tone has lifted its tonic with it, and `scaleHere`
+        // answers for the chord under the note rather than for the key.
+        stackScale.set(s, (midi, steps, beat) => stepInScale(
+          scaleHere(localTonic, mode, chordAt(beat)), midi, steps,
+        ));
+      }
+
+      /**
+       * The tune, written a second time at another pitch — whoever plays it.
+       *
+       * At section scope rather than inside the counter block it grew up in,
+       * because `on: 'melody'` puts the identical line on a second lead and the
+       * one thing that must not happen is two definitions of *what a second part
+       * against this tune is*, differing by a detail nobody meant. The counter's
+       * three calls are unchanged and pass the window they always passed; the
+       * whole of the move is that `range` is now an argument instead of a
+       * closure, because a second lead plays in the lead's window and an
+       * answering line plays in the answer's.
+       *
+       * `reach` is how much of the section the two of them are on together: one
+       * phrase out of the middle of it, or the whole statement bar the cadence.
+       * The first is the colour this was written for; the second is what a head
+       * arranged for two players sounds like, and it is what a declaration asks
+       * for.
+       */
+      const withTheTune = (
+        into: NoteEvent[],
+        /**
+         * How far from the tune the second part sits, and it is two different
+         * kinds of answer.
+         *
+         * A number is the device's `harmonyBelow` — one fixed step under every
+         * note, which is simply right over its two-bar window and is a
+         * transposition over sixteen. A declaration is the signed weighted
+         * `intervals` a style wrote down, plus the stream to draw one off, and
+         * it buys the chord-aware pass with it: the interval becomes the intent
+         * and the chord under each note decides what actually happens. See
+         * `harmoniseWith`.
+         */
+        size: number | { intervals: readonly (readonly [number, number])[]; rng: Rng },
+        /** The window the *second player* has, which is their own and not the tune's. */
+        range: readonly [number, number],
+        reach: 'phrase' | 'statement' = 'phrase',
+      ): NoteEvent[] => {
+        const half = reach === 'phrase' ? Math.floor(section.lengthBars / 2) : 0;
+        const bars = reach === 'phrase'
+          ? Math.min(4, section.lengthBars - half - 2)
+          : Math.max(0, section.lengthBars - 2);
+        const from = ctxBase.startBeat + half * style.beatsPerBar;
+        const to = from + bars * style.beatsPerBar;
+        // The chord under *this* note rather than under the start of the span:
+        // a window four bars wide is several chords, and a third measured off
+        // the first of them is a third against the others.
+        const step = (midi: number, steps: number, beat: number): number => stepInScale(
+          scaleHere(localTonic, mode, chordAt(beat)), midi, steps,
+        );
+        const line = typeof size === 'number'
+          ? harmonise(melody, from, to, size, step, range)
+          : harmoniseWith({
+            melody, from, to, intervals: size.intervals, rng: size.rng, step,
+            // Two questions rather than one, because two of the four rules
+            // want different answers: a passing note has to be in the scale
+            // the genre gives this chord, and an arrival has to be in the
+            // chord itself.
+            under: (beat) => {
+              const chord = chordAt(beat);
+              return {
+                scale: scaleHere(localTonic, mode, chord).pcs,
+                chord: chordPcs(chord),
+              };
+            },
+            range,
+            /**
+             * No `arrivals`, deliberately, and it is a limit rather than an
+             * omission. The skeleton's `Target.role` is keyed by phrase and
+             * measured in sixteenths from that phrase's own start, and a
+             * recalled tune has no written phrases at all — so the marks are
+             * missing in exactly the sections a standing second part is most
+             * often in. Re-deriving them from chord changes was refused where
+             * the pass lives: one chord a bar would make every fourth note an
+             * arrival and the line would stop being parallel. The last note of
+             * the span resolves regardless, which is the cadence.
+             */
+          }).map((n) => ({
+            // Two lines, said out loud, because from here nothing can tell by
+            // looking. See `NoteEvent.harmony`.
+            ...n, harmony: 'lead' as const,
+          }));
+        if (line.length < 3) return into;
+        return [...into.filter((n) => n.beat < from - 1e-6 || n.beat >= to - 1e-6), ...line]
+          .sort((a, b) => a.beat - b.beat);
+      };
+
+      /**
+       * …and where the second voice is a second *player on the tune*, it goes on
+       * a track of its own rather than into anybody else's part.
+       *
+       * The same pass, the same draw and the same span as `on: 'counter'` two
+       * screens down — `reach: 'statement'`, the whole section bar the cadence —
+       * and the only difference is where the notes land. An empty `into`, because
+       * there is nothing on this track to write over: the second lead plays this
+       * line and nothing else, which is what makes it a second player instead of
+       * an answering instrument that has stopped answering.
+       *
+       * **The window is the lead's plan cut to what the second player can
+       * actually blow, and the intersection is the whole point.** `writeLine`
+       * *drops* a note outside its window rather than folding it, and says why:
+       * folding by an octave manufactures the crossing and the octave rule 4 has
+       * just refused. `foldIntoRange` in the assembly loop does not know that and
+       * folds — so handing this pass `plan.lead` alone, with a second instrument
+       * whose bottom sits above it, put **870 of 7,968 sounding pairs on
+       * funk/horns above the tune**, a third below arriving as a sixth above.
+       * Intersecting here leaves the fold nothing to do and the rule survives to
+       * the emitted track: **870 → 2**, at the cost of 11% of the second lead's
+       * notes, which are exactly the ones that had nowhere to sound.
+       *
+       * Not `registerFor`, which moves the *tune's* window for the kind of
+       * section: a second part measured against a moved tune and then clipped to
+       * where the tune moved to loses a note wherever the two disagree.
+       *
+       * Falls back to the instrument's own range where the intersection is too
+       * narrow to write a line in, which is `registerFor`'s own rule and floor —
+       * below an octave the cadence machinery runs out of pitch classes.
+       *
+       * Not gated on `leadLayer === 'melody'` — the draw above already requires
+       * `melody.length`, and in a section where the counter is stating the tune
+       * this branch is not reached because the melody is empty. The one case
+       * that *would* differ is a solo, and a solo takes the other arm of the `if`
+       * entirely.
+       */
+      if (harmonyRng && standing?.on === 'melody' && instruments.melody2) {
+        const playable = rangeOfInstrument(instruments.melody2);
+        const lo = Math.max(plan.lead[0], playable[0]);
+        const hi = Math.min(plan.lead[1], playable[1]);
+        secondLead.push(...withTheTune(
+          [], { intervals: standing.intervals, rng: harmonyRng },
+          hi - lo >= 12 ? [lo, hi] : playable, 'statement',
+        ));
+      }
+
       // …and not where the counter is the one stating it: a line does not answer
       // itself. See `leadLayer`.
       if (!isSolo && active.has('counter') && leadLayer !== 'counter') {
@@ -1947,44 +2213,30 @@ export function generateSong(opts: GenerateOptions = {}): Song {
          * One phrase, in a chorus that has been heard before, and never the last two
          * bars: the cadence is where the two parts most need to be two.
          */
-        /**
-         * `reach` is how much of the section the two of them are on together: one
-         * phrase out of the middle of it, or the whole statement bar the cadence.
-         * The first is the colour this was written for; the second is what a head
-         * arranged for two players sounds like, and it is only asked for where the
-         * phrase window came back empty — see the fallback below.
-         */
-        const withTheTune = (
-          into: NoteEvent[], size: number, reach: 'phrase' | 'statement' = 'phrase',
-        ): NoteEvent[] => {
-          const half = reach === 'phrase' ? Math.floor(section.lengthBars / 2) : 0;
-          const bars = reach === 'phrase'
-            ? Math.min(4, section.lengthBars - half - 2)
-            : Math.max(0, section.lengthBars - 2);
-          const from = ctxBase.startBeat + half * style.beatsPerBar;
-          const to = from + bars * style.beatsPerBar;
-          const line = harmonise(
-            melody, from, to, size,
-            // The chord under *this* note rather than under the start of the span:
-            // a window four bars wide is several chords, and a third measured off
-            // the first of them is a third against the others.
-            (midi, steps, beat) => stepInScale(
-              scaleHere(localTonic, mode, ctxBase.chords[Math.min(
-                ctxBase.chords.length - 1,
-                Math.max(0, Math.floor((beat - ctxBase.startBeat) / style.beatsPerBar)),
-              )]!),
-              midi, steps,
-            ),
-            plan.counter,
-          );
-          if (line.length < 3) return into;
-          return [...into.filter((n) => n.beat < from - 1e-6 || n.beat >= to - 1e-6), ...line]
-            .sort((a, b) => a.beat - b.beat);
-        };
-
-        if (has(chart, 'harmony') && section.kind === 'chorus' && ordinal >= 1
+        if (!standing && has(chart, 'harmony') && section.kind === 'chorus' && ordinal >= 1
           && section.lengthBars >= 8) {
-          answer = withTheTune(answer, chart.harmonyBelow);
+          answer = withTheTune(answer, chart.harmonyBelow, plan.counter);
+        }
+
+        /**
+         * …and where the table has said outright that this music is two voices.
+         *
+         * The same two players and a different claim, which is why it takes the
+         * statement rather than a phrase out of the middle. The device above is a
+         * colour arriving in a chorus already heard, so it is short and it is
+         * placed; this is what the section *is*, so it runs from the top of it to
+         * the cadence — `reach: 'statement'`, the shape the soloist-head fallback
+         * below already asks for — and it does not care which chorus this is.
+         *
+         * No minimum length either, where the device wants eight bars. A style
+         * that sings in thirds sings in thirds in a four-bar tag, and the
+         * three-note floor inside `withTheTune` is what actually stops a span too
+         * short to be a line from becoming one.
+         */
+        if (harmonyRng && standing?.on === 'counter') {
+          answer = withTheTune(
+            answer, { intervals: standing.intervals, rng: harmonyRng }, plan.counter, 'statement',
+          );
         }
 
         /**
@@ -2045,8 +2297,8 @@ export function generateSong(opts: GenerateOptions = {}): Song {
          */
         if (!answer.length && soloistHeads.has(s)) {
           const size = new Rng(`${seed}:counter:${s}:join`).chance(0.65) ? 2 : 5;
-          answer = withTheTune(answer, size);
-          if (!answer.length) answer = withTheTune(answer, size, 'statement');
+          answer = withTheTune(answer, size, plan.counter);
+          if (!answer.length) answer = withTheTune(answer, size, plan.counter, 'statement');
         }
 
         /**
@@ -2615,6 +2867,20 @@ export function generateSong(opts: GenerateOptions = {}): Song {
       applySwing(notes.filter((n) => n.beat >= 0), swingPlan),
     ));
   }
+  /**
+   * The second lead is a melodic layer too, and gets exactly the same two passes.
+   *
+   * Written out rather than folded into the loop above because that loop is over
+   * `LayerId`s and this is the one part in the song that is not identified by
+   * one. Both parts are swung by the same plan off the same beats, so the pair
+   * stays vertically aligned to the millisecond — which matters more here than
+   * anywhere else, since the interval between them *is* the arrangement.
+   */
+  if (secondLead.length) {
+    secondLead = trimOverlaps(
+      applySwing(secondLead.filter((n) => n.beat >= 0), swingPlan),
+    );
+  }
 
   /**
    * The answer against the finished tune, once there is a finished tune.
@@ -2701,11 +2967,66 @@ export function generateSong(opts: GenerateOptions = {}): Song {
    * A stream per layer makes each hand a function of the seed and of the layer's
    * name, and of nothing any other part can reach.
    */
-  const techniqueRng = (layer: PlayedLayer) => new Rng(`${seed}:technique:${layer}`);
+  const techniqueRng = (layer: string) => new Rng(`${seed}:technique:${layer}`);
+
+  /**
+   * The second part, which is the tune's own notes at another pitch.
+   *
+   * Gathered here so that the loop below can put back what `applyTechnique`
+   * would otherwise take off it. A harmony line is written by copying the lead's
+   * `beat` and `duration` — see `NoteEvent.harmony` and `harmoniseWith` — and
+   * `TECHNIQUES` then scales note length per layer, on a stream of the layer's
+   * own: `muted` 0.34, `plectrum` 0.9, `strum` 0.85, `slap` 0.7, `fingerstyle`
+   * 1.2. So the tune's hand shortened the lead, the answer's hand did something
+   * else to its twin, and the one thing that makes the gesture legible went with
+   * it — on metal `power`, a harmony note of 0.870 against a lead note of 0.296,
+   * 194× the length of the note it is doubling. Measured over 48 songs a style,
+   * the share of harmony notes still holding the lead's length was 21% on
+   * `nwobhm`, 23% on `glam`, 31% on rock `southern`, 35% on `power`; over the
+   * nine declaring styles together, **8,190 of 22,479 notes off**. With this it
+   * is ten.
+   *
+   * The counter and not every layer, because that is the only layer where a
+   * harmony line shares a track with the part it is written against:
+   * `on: 'vocal'` is sung rather than cast onto a played layer, `on: 'melody'`
+   * gets a track of its own below and takes its own hand with it, and the
+   * `harmony` device writes into the answer. Eleven styles put one there and only
+   * seven of them have a right hand on either end of it; over all 389 genre/style
+   * pairs at three seeds in both modes, those seven are the only songs this block
+   * and its two exemptions in `technique.ts` move at all, and the other 382 come
+   * out byte-identical.
+   */
+  const harmonyLine = (byLayer.get('counter') ?? []).filter((n) => n.harmony);
+
+  /**
+   * Every part to be emitted: one per played layer, and then the second lead.
+   *
+   * A list rather than the `layerInstruments` record this used to walk, because a
+   * record keyed by `PlayedLayer` can hold exactly one part per layer and the
+   * whole of `on: 'melody'` is that a layer may carry two. Everything the loop
+   * does — the range fold, the level normalisation, the hand, the effects — is
+   * work on *a part*, not work on a layer, and it is the same work for both.
+   *
+   * The second lead goes last so the lead keeps its place at the front of
+   * `song.tracks`: `find(t => t.layer === 'melody')` is how six reporting tools
+   * and `undoubleAgainst` ask for the tune, and it is right only if the tune is
+   * the first melody track. The same ordering convention the drum kit relies on
+   * to keep the plain `drums` id and the vocal stack relies on to keep `vocal`.
+   */
+  const parts: {
+    layer: PlayedLayer; instrument: Instrument; notes: NoteEvent[]; second: boolean;
+  }[] = (Object.entries(layerInstruments) as [PlayedLayer, Instrument][])
+    .map(([layer, instrument]) => ({
+      layer, instrument, notes: byLayer.get(layer) ?? [], second: false,
+    }));
+  if (secondLead.length && instruments.melody2) {
+    parts.push({
+      layer: 'melody', instrument: instruments.melody2, notes: secondLead, second: true,
+    });
+  }
 
   const tracks: Track[] = [];
-  for (const [layer, instrument] of Object.entries(layerInstruments) as [PlayedLayer, Instrument][]) {
-    const notes = byLayer.get(layer) ?? [];
+  for (const { layer, instrument, notes, second } of parts) {
     if (!notes.length) continue;
 
     /**
@@ -2791,8 +3112,31 @@ export function generateSong(opts: GenerateOptions = {}): Song {
      * the band politely waiting for it to finish.
      */
     const isMachine = sequenced.has(layer as SequencedLayer);
-    const spans = isMachine ? undefined : soloSpans.get(layer);
-    let gain = gains[layer];
+    /**
+     * …and neither does the second lead, because it is never handed the chorus.
+     *
+     * `soloSpans` is keyed by layer and a melody solo would hand this part the
+     * ride belonging to the player beside it. It has no notes in a solo section
+     * to ride anyway — the draw that writes it sits in the arm of the section
+     * `if` a solo does not take — so reading the spans here would only mean
+     * scaling every note down and putting the same number back in the fader.
+     */
+    const spans = isMachine || second ? undefined : soloSpans.get(layer);
+    /**
+     * …and the second lead sits under the lead, at the interval the second part
+     * was written at.
+     *
+     * `writeLine` in `tune/band.ts` writes every harmony note at 0.82 of the note
+     * it is written against, which is the number the vocal stack and `syllabify`
+     * also use for the voice that is audibly the second one. The normalisation
+     * twenty lines up then *erases* it — deliberately, since its whole job is to
+     * make a part's level the fader's promise rather than whatever constant the
+     * figure was written with — so the relation has to be restated where level
+     * now lives, which is the fader. Stated once, not twice: the notes come out
+     * of the normalisation at the layer's median and the 0.82 is applied here and
+     * nowhere else.
+     */
+    let gain = second ? gains[layer] * SECOND_LEAD : gains[layer];
     if (spans?.length && gains.melody > gain) {
       const back = gain / gains.melody;
       for (const n of notes) {
@@ -2819,6 +3163,45 @@ export function generateSong(opts: GenerateOptions = {}): Song {
     }
 
     /**
+     * Which harmony note belongs to which note of the tune, taken before the
+     * hand touches either of them.
+     *
+     * Paired on the two fields the copy shares, `beat` **and** `duration`, and
+     * both halves earn their place. The beat alone is ambiguous — a two-handed
+     * player's left hand sits under the tune on the same beat, and a dead stroke
+     * lands on it too — so the index is the melodic line and the duration picks
+     * the note out of what is left. And requiring the duration to *still* match
+     * makes the pairing self-verifying: a twin that some earlier pass has already
+     * moved off its lead is not this one's to re-fasten, since that pass knew
+     * something this one does not. Ten notes in 22,479 over nine declaring
+     * styles at 48 songs each, and they come out of here exactly as they went in.
+     *
+     * Exact float equality rather than an epsilon, and it is safe for a specific
+     * reason: the twin's `beat` and `duration` are *copies*, and every pass
+     * between the copy and here — `applySwing` above all, which delays an
+     * offbeat and shortens it by the same amount — is a pure function of those
+     * two numbers. Same input, same arithmetic, same bits.
+     */
+    const twins: [NoteEvent, NoteEvent][] = [];
+    // The lead's own part, not the second lead's: `harmonyLine` is the answer's
+    // twins and the second lead's notes are twins of nothing on this track. The
+    // two cases cannot both be live in one song — `on` names one layer — but the
+    // predicate says which is which rather than relying on that.
+    if (layer === 'melody' && !second && harmonyLine.length) {
+      const line = new Map<number, NoteEvent[]>();
+      for (const n of notes) {
+        if (n.dead || n.hand === 'left') continue;
+        const at = line.get(n.beat);
+        if (at) at.push(n);
+        else line.set(n.beat, [n]);
+      }
+      for (const twin of harmonyLine) {
+        const lead = line.get(twin.beat)?.find((n) => n.duration === twin.duration);
+        if (lead) twins.push([twin, lead]);
+      }
+    }
+
+    /**
      * …and then play it the way the hand plays it.
      *
      * Here, at the far end of the layer's own block, because everything a
@@ -2838,7 +3221,11 @@ export function generateSong(opts: GenerateOptions = {}): Song {
      * a strumming technique would be the same contradiction the choreographer
      * refuses when it declines to write playing gestures for one.
      */
-    const hand = techniqueRng(layer);
+    // Their own hand, not the lead's. Two players on one layer are two people:
+    // sharing a stream would make the second lead's dead strokes and its note
+    // lengths a function of the first player's part, which is the fault the
+    // per-layer split below `techniqueRng` was made to fix, one level finer.
+    const hand = techniqueRng(second ? `${layer}-2` : layer);
     const technique = isMachine ? undefined : chooseTechnique({
       rng: hand,
       layer,
@@ -2863,6 +3250,25 @@ export function generateSong(opts: GenerateOptions = {}): Song {
           : {}),
       });
     }
+
+    /**
+     * …and the second part takes the length of the note it is doubling.
+     *
+     * Here, after the lead's own hand and not before it, because the lead's
+     * finished length is the whole answer — the multiplier, the barline
+     * exemption a held note keeps, and the cap that stops a string ringing into
+     * its own next strike are three separate decisions and this inherits all of
+     * them by construction rather than re-deriving any. Written on the lead's
+     * layer and not the answer's, so it does not matter which of the two the
+     * loop reaches first: `applyTechnique` leaves a harmony note alone on its
+     * own layer, and this is where its length comes from.
+     *
+     * Nothing else between here and the emitted track re-times these two against
+     * each other, and one thing deliberately does not: a `break` transition
+     * leaves one part ringing through a bar the band has vacated, and it is
+     * entitled to lengthen a harmony note past its lead.
+     */
+    for (const [twin, lead] of twins) twin.duration = lead.duration;
 
     const effects = effectsFor(layer, instrument);
     /**
@@ -2914,7 +3320,12 @@ export function generateSong(opts: GenerateOptions = {}): Song {
       // Said out loud, because from here on nothing can tell by looking: a
       // pianist's two hands and a four-part comp are both just simultaneous
       // notes. See `melodicLine`, which is what the declaration is for.
-      ...(leftHand.get(layer)?.length && instruments.handsFor[layer]
+      //
+      // The left hand belongs to the player whose right hand wrote it, so the
+      // second lead never claims it — `leftHand` is keyed by layer and a
+      // declaration here would tell `melodicLine` to go looking for a left hand
+      // in a part that is one line all the way through.
+      ...(!second && leftHand.get(layer)?.length && instruments.handsFor[layer]
         ? { twoHanded: { gap: instruments.handsFor[layer]!.gap } }
         : {}),
       /**
@@ -2937,7 +3348,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
       // The sections come with it because the words do: a chorus sings the
       // same line every time it comes round, and that is the only thing making
       // a refrain a refrain. See `generate/vocals.ts`.
-      const vocal = generateVocalTrack(
+      const sung = generateVocalStack(
         // `melodicLine`, not `notes`: where the lead is a two-handed player the
         // track carries their accompaniment too, and a singer does not sing the
         // left hand.
@@ -2947,6 +3358,40 @@ export function generateSong(opts: GenerateOptions = {}): Song {
         // needs to know where Sa is. Costs no draw and changes nothing for a
         // profile that sings words. See `WordStyle.degrees`.
         { sections, beatsPerBar: style.beatsPerBar, tonic },
+        /**
+         * …and the second singer, where the table asked for one.
+         *
+         * Absent for every style in the catalogue, and absent is not a slower
+         * path: `generateVocalStack` writes the lead and returns, drawing exactly
+         * what `generateVocalTrack` drew. The stack is a `Track` rather than
+         * extra notes on the first one because a vocal track is read as **one
+         * mouth** in three places — `visemesFor` emits a viseme per struck note,
+         * `phrasesOf` cuts one monophonic tract's utterances, and the Strudel
+         * writer has one attack and one formant centre per slot.
+         *
+         * Both maps are keyed by index into the same `sections` array being
+         * handed over on the line above, which is what stops the words and the
+         * harmony disagreeing about which section a syllable is in.
+         */
+        stackSteps.size
+          ? {
+            steps: stackSteps,
+            step: (midi, steps, beat) => {
+              // The forward walk `spanAt` makes on the other side of this call,
+              // and it has to be that walk rather than a similar one: a syllable
+              // whose words came from the chorus and whose harmony came from the
+              // verse before it is one singer a section behind the other.
+              let i = 0;
+              while (i < sections.length - 1
+                && beat >= (sections[i]!.startBar + sections[i]!.lengthBars)
+                  * style.beatsPerBar - 1e-6) i++;
+              // A section the stack was not given a scale for is one it does not
+              // sing in; returning the lead's own note is how `generateVocalStack`
+              // is told to leave that syllable to one voice.
+              return stackScale.get(i)?.(midi, steps, beat) ?? midi;
+            },
+          }
+          : undefined,
       );
       /**
        * The singer gets the room too.
@@ -2968,9 +3413,15 @@ export function generateSong(opts: GenerateOptions = {}): Song {
        * passed — the per-instrument tier keyed on `InstrumentId` and a voice is
        * not in that catalogue; `VocalProfile` carries its own name.
        */
-      if (vocal) {
+      if (sung.length) {
         const vocalEffects = effectsFor('vocal');
-        tracks.push(vocalEffects ? { ...vocal, effects: vocalEffects } : vocal);
+        // Every singer, in the order they came back: the lead is always first,
+        // which is the ordering the five `find(p => p.layer === 'vocal')` calls
+        // and the plain `vocal` casting id both depend on. The same convention
+        // the drum kit already relies on.
+        for (const voice of sung) {
+          tracks.push(vocalEffects ? { ...voice, effects: vocalEffects } : voice);
+        }
       }
     }
   }
@@ -3156,18 +3607,48 @@ export function generateSong(opts: GenerateOptions = {}): Song {
    * now, and a left-hand chord tone an octave off the tune is neither the tune nor
    * the answer. `melodicLine` is the same reading `genre-check.ts` measures, and
    * what comes back is spliced in by identity so nothing else on the track moves.
+   *
+   * ## …and the tune may have two players on it
+   *
+   * A `harmony.on: 'melody'` style puts a second lead on the melody layer, and
+   * `generateCounter` has never heard of it: the answer is written to avoid *the
+   * tune*, `avoidClash` is handed the tune, and `counterOf` in `arrange.ts` then
+   * gives the answer a window of `leadLo - 4 … leadHi - 3` — which is precisely
+   * where a second part written a third or a sixth *under* the tune is sitting.
+   * Measured over the three declaring styles at 40 seeds: of the answer notes
+   * sounding over the second lead at all, **54 of 182 on funk/horns and 117 of
+   * 198 on latin/banda were at the unison or the octave with it**, against 0 with
+   * the tune. The guarantee was true and was being made about one of the two
+   * people playing the line.
+   *
+   * So the second lead is repaired **first and the tune last**, and the order is
+   * the whole of it. Each call is a guarantee against one line and the second can
+   * undo the first, so the one that has to survive goes last — and the one that
+   * has to survive is the tune, which is what `npm run genres` asserts and what a
+   * listener is following. The second is therefore a best effort in principle and
+   * is measured rather than assumed: over the same corpus it comes out **54 → 0
+   * and 117 → 0**, with the tune still at 0, so the tune's repair never once
+   * pushed a note back onto the second lead. Where it eventually does, the tune
+   * wins, which is the right way round.
+   *
+   * Nothing without a second melody track spends anything here — `melody[1]` is
+   * undefined on 386 of the 389 styles and the inner call is not made.
    */
   {
-    const melodyTrack = song.tracks.find((t) => t.layer === 'melody');
+    const melody = song.tracks.filter((t) => t.layer === 'melody');
     const counterTrack = song.tracks.find((t) => t.layer === 'counter');
-    const line = melodyTrack ? melodicLine(melodyTrack) : [];
+    const line = melody[0] ? melodicLine(melody[0]) : [];
     const answer = counterTrack ? melodicLine(counterTrack) : [];
     if (counterTrack && line.length && answer.length) {
       // The instrument's own range, which by this line every note is already
       // inside — the fold saw to that — so the window cannot fail to contain the
       // note being repaired, and no repair can push one back out of it.
+      const window = rangeOfInstrument(layerInstruments.counter);
+      const scale = makeScale(tonic, mode);
+      const second = melody[1]?.notes ?? [];
       const repaired = undoubleAgainst(
-        answer, line, makeScale(tonic, mode), rangeOfInstrument(layerInstruments.counter),
+        second.length ? undoubleAgainst(answer, second, scale, window) : answer,
+        line, scale, window,
       );
       const moved = new Map<NoteEvent, NoteEvent>();
       answer.forEach((n, i) => { const to = repaired[i]!; if (to !== n) moved.set(n, to); });
@@ -3381,9 +3862,47 @@ function landEnding(song: Song, style: EndingStyle, chord: Chord | undefined): v
     if (style === 'button' && !struck.length && !ringing && source.length) {
       const last = source[source.length - 1]!;
       if (last.beat >= at - LAND_RECALL_BARS * beatsPerBar) {
-        // The whole last simultaneity, so a chord comes back as a chord. Built
-        // before anything is appended — `kept` is what is being added to.
-        const group = source.filter((n) => n.beat >= last.beat - EPS);
+        /**
+         * The whole last simultaneity, so a chord comes back as a chord — minus
+         * the second part, which has no voicing to give back.
+         *
+         * Built before anything is appended: `kept` is what is being added to.
+         *
+         * `NoteEvent.harmony` marks a note whose *pitch is a relation*: a third
+         * or a sixth under the lead note it was written against, and
+         * `writeLine`'s rule 4 in `tune/band.ts` refuses the unison, the octave
+         * and any crossing when it places it. A recall does not move that note,
+         * it copies it — but it copies it onto a downbeat where the lead is
+         * sounding some *other* pitch, so what arrives is a pitch with its
+         * relation cut, and the interval rule that made it legal is no longer
+         * about anything. `snapToChord` below then pulls both parts onto tones
+         * of the same final chord, up to two semitones each, which is how a
+         * third becomes a unison.
+         *
+         * That is the whole of the fault this excludes, and it is a real one:
+         * over the eleven styles declaring `harmony.on: 'counter'` at 40 seeds
+         * each, **4 of 19,992 harmony notes sat at the unison or the octave with
+         * the tune, and all four were recalled copies on the final downbeat** —
+         * finnfolk `soittokunta` cm-3/cm-21/cm-25 and `hidasvalssi` cm-24, the
+         * two styles in that set whose genre ends on a button. `cm-3` is the one
+         * `npm run genres` named. Excluded here rather than repaired afterwards
+         * because the repair cannot run after this: `undoubleAgainst` moves a
+         * note by scale steps, and a note moved off the landing chord is this
+         * pass overruling a full stop — which is the reason the last
+         * `undoubleAgainst` call sits *before* `landEnding` in the first place.
+         *
+         * A harmony note that was genuinely playing inside the final bar is not
+         * touched by this: it is pulled onto the downbeat by the `button` branch
+         * above together with the lead note it was written under, so the two
+         * arrive at the interval they were written at. Only the recall breaks
+         * the pairing, because only the recall invents an onset.
+         *
+         * Nothing else loses a note. `harmony` is written only where a style or
+         * genre declares a `HarmonyProfile`, so on every style that declares
+         * none this predicate is true of every note and the group is the group
+         * it always was.
+         */
+        const group = source.filter((n) => n.beat >= last.beat - EPS && !n.harmony);
         for (const note of group) {
           const copy: NoteEvent = {
             ...note,
@@ -3829,7 +4348,14 @@ function chooseTempo(rng: Rng, style: Style, mood: Mood, era: EraProfile): numbe
  * filled in order of how much the choice matters, so the lead gets first pick
  * and the brass, which is sparse anyway, absorbs any collision that is left.
  */
-function chooseInstruments(rng: Rng, era: EraProfile, style: Style) {
+function chooseInstruments(
+  rng: Rng, era: EraProfile, style: Style,
+  /**
+   * Whether this style's second voice is a second *player* on the tune, which is
+   * the one arrangement that needs a seventh instrument. See `HarmonyProfile`.
+   */
+  secondLead = false,
+) {
   const taken = new Set<string>();
   const ids = {} as Record<PlayedLayer, InstrumentId>;
   const pickId = (list: (readonly [InstrumentId, number])[]): InstrumentId => {
@@ -3898,6 +4424,45 @@ function chooseInstruments(rng: Rng, era: EraProfile, style: Style) {
   const brass = pick('brass', era.palette.brass);
 
   /**
+   * …and the second player on the tune, where the style says its melodic writing
+   * is two-voiced. See `HarmonyProfile.on`.
+   *
+   * **Off the melody list the lead was drawn from, with the lead's own name
+   * already in `taken`** — which is one line and settles the question the plan
+   * left open, both ways round. A style offering several melody voices gets a
+   * section of two of them, which is a trumpet and a tenor stating a head. A
+   * style whose `instruments.melody` names exactly one gets the *same* one back:
+   * `free` comes out empty and `pickId` falls through to the whole list, which is
+   * the fiddle pair and the second violin. So which of the two pictures a table
+   * gets is something the table already says, and there is no new field and no
+   * special case for it.
+   *
+   * **Distinct where it can be, and that is not only a matter of taste.** The IR
+   * gives the stage exactly two fields to tell two players apart with —
+   * `PartRef` is `{ layer, instrument }` — so two tracks on one layer sharing an
+   * instrument name are *one part* to `trackForPart`, which returns the first
+   * candidate to both. Measured: with the two leads on different objects,
+   * classical/march cm-0 choreographs 266 gestures for `melody` and 80 for
+   * `melody-2`, their own parts; with `instruments.melody` cut to one violin,
+   * both come out at 626 and the second violinist bows the first's line through
+   * the strains where they have nothing. The arrangement is right either way and
+   * the stage picture is not, so a style that asks for two of the same is
+   * accepting that and a style that does not never gets it by accident. Nothing
+   * in the catalogue asks for it today. **The fix, when a table wants the fiddle
+   * pair, is on the stage rather than here** — `PartRef` needs a third field or
+   * the casting ids need to reach `trackForPart` — and it is not worth spending
+   * before something needs it.
+   *
+   * Drawn last so it cannot move anybody else, and only where the declaration
+   * asks for it — so every style that declares no `on: 'melody'` spends the same
+   * random numbers in the same order and hashes as it did.
+   */
+  const second = secondLead ? INSTRUMENTS[pickId(wanted('melody', era.palette.melody))] : undefined;
+  // The same lift the lead gets, for the same reason: this is a tune, not a part.
+  // See `Instrument.lead`.
+  const melody2 = second?.lead !== undefined ? { ...second, centre: second.lead } : second;
+
+  /**
    * Who, of the whole band, has a second hand — not only the one out front.
    *
    * The lead was the only entry here for as long as the left hand was the lead's
@@ -3944,7 +4509,7 @@ function chooseInstruments(rng: Rng, era: EraProfile, style: Style) {
   if (!lead) {
     return {
       melody: handsFor.melody ? { ...drawn, centre: handsFor.melody.lead } : drawn,
-      counter, comp, pad, bass, brass, handsFor,
+      counter, comp, pad, bass, brass, handsFor, melody2,
     };
   }
   // The named lead replaces the drawn one, so its hands replace the drawn one's
@@ -3955,7 +4520,7 @@ function chooseInstruments(rng: Rng, era: EraProfile, style: Style) {
   else delete handsFor.melody;
   return {
     melody: { ...INSTRUMENTS[lead], ...(hands ? { centre: hands.lead } : {}) },
-    counter, comp, pad, bass, brass, handsFor,
+    counter, comp, pad, bass, brass, handsFor, melody2,
   };
 }
 

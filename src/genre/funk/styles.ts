@@ -766,6 +766,65 @@ const horns: Style = {
     } },
   ],
   melody: { leap: 0.42, ornament: 0.22, span: 18, sequence: 0.55, syncopation: 0.68 },
+  /**
+   * The one style here that is not playing a riff, and the archetype draw has it
+   * playing one.
+   *
+   * The header above: *"A horn chart is the one place in this genre where the
+   * line is composed — everything else here is a riff or an improvisation, and a
+   * section of four people playing in unison cannot be either"*, and *"a
+   * five-note pentatonic riff sits under a guitarist's fingers and a horn line
+   * does not"*. What it plays is the second-narrowest line in the genre: **7% of
+   * adjacent intervals wider than a third, against `vamp`'s 17%** — the
+   * guitarist's riff style this one defines itself against, and the one carrying
+   * the file's *lowest* declared `leap` at 0.24 against this style's 0.42. The
+   * style with the widest intentions in the file comes out second-narrowest of
+   * twenty-two.
+   *
+   * `archetypes` and not `leap`, because that is where it is lost. `leap` is
+   * already 0.42 and reaches `contourFor` as one threshold at 0.3 inside two
+   * shapes; the draw is what decides whether either shape is ever picked.
+   * `funk/index.ts` puts `riff-response` at 5 and `chant` at 4 — 60% of a
+   * fifteen-point table on the two archetypes whose shape lists hold almost no
+   * wide motion, `chant` none at all and `riff-response` one `leap-home` in
+   * eleven — and leaves `wide-interval` at its derived 2.6 while naming this
+   * style as the reason for leaving it derived. 2 and 5 move the draw from
+   * 33%/17% to 14%/35%.
+   *
+   * `chant` keeps the genre's 4 and becomes the largest entry, which is right
+   * here and almost nowhere else in the file: the genre pays for that weight with
+   * "a horn figure that is *entirely* one pitch, rhythmicised", and this is the
+   * style with the horn section in it.
+   */
+  voice: { archetypes: [['riff-response', 2], ['wide-interval', 5]] },
+  /**
+   * The second horn, and `index.ts` wrote the case for this before the layer
+   * existed to put it on.
+   *
+   * *"`horns` is the one worth revisiting, and not on a layer that exists. A
+   * Memphis chart voiced under the tune is a second lead — `span: 18` and
+   * `leap: 0.42` against a genre that writes riffs — which is `on: 'melody'`, and
+   * that is not built."* It is built, so this is that paragraph cashed in. The
+   * same note refuses the two writable values on their own merits and neither
+   * refusal has changed: `on: 'counter'` is the *answering* horn, which `riff: 7`
+   * has already given a different job and `mix` puts at 0.52 under a melody at
+   * 0.92; `on: 'vocal'` is a second singer, and this genre sings with one strained
+   * tenor.
+   *
+   * **0.75, and the residual is the unison.** A four-piece section states the
+   * figure together or in harmony, never one of them alone — and `arrangement`
+   * still draws `unison` and `tutti` at 2 and 7, which is the other thing these
+   * four do with one line. Three sections in four in two parts leaves those their
+   * turn. A solo section takes itself out, since the pass sits in the arm of the
+   * section `if` a solo does not take, so the number is spent on the stated heads.
+   *
+   * Thirds led, sixths behind, and under the tune. A section voiced downward from
+   * the lead is what a horn chart *is* — the arranger writes the top line first
+   * and hangs the rest off it — and the sixth is where the third would put the
+   * second horn on the note the first one just left. No `kinds`: the JB horns
+   * play the figure in the verse, in the chorus and in the vamp on the way out.
+   */
+  harmony: { amount: 0.75, intervals: [[-2, 7], [-5, 3]], on: 'melody' },
 };
 
 /**
@@ -2098,6 +2157,25 @@ const ballad: Style = {
     } },
   ],
   melody: { leap: 0.34, ornament: 0.5, span: 19, sequence: 0.5, syncopation: 0.55 },
+  /**
+   * The delta `funk/index.ts` wrote out in full and then declined to make.
+   *
+   * *"Owed, and it belongs in `styles.ts` rather than here: `ballad` wants a
+   * `Style.voice` of `riff-response` 1, `long-note` 3, `arch-hook` 4"*, argued
+   * from the header above — *"the one whose melody has phrases in it rather than
+   * a riff"*. This is that, unchanged.
+   *
+   * The arithmetic it was argued from. `riff-response` derives to 0.68 here,
+   * under 7% of this style's own table, because the derivation reads it off
+   * density and this style has the file's lowest at 2.67; the genre's 5 takes it
+   * to a third of the merged fifteen. What the measurement adds is that the
+   * shortfall is not in the notes — **2.27 realised onsets a bar and 50% of
+   * values a quarter or longer** are the sparsest, slowest line in the genre,
+   * exactly as the header asks for. It is in the *kind*. A phrase is `arch-hook`
+   * and `long-note`, and the merge left those two at a tenth and a seventeenth of
+   * the draw; 4 and 3 make them a quarter and a fifth.
+   */
+  voice: { archetypes: [['riff-response', 1], ['long-note', 3], ['arch-hook', 4]] },
 };
 
 /**

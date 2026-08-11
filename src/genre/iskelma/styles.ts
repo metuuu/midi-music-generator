@@ -916,6 +916,42 @@ const iskelmapop: Style = {
     modes: [['block', 5], ['answer', 4], ['stride', 2]],
   },
   melody: { leap: 0.24, ornament: 0.12, span: 14, sequence: 0.5, syncopation: 0.4 },
+  /**
+   * The one style in this genre that names a note value, and the one that plays it
+   * least.
+   *
+   * The description above opens *"Straight eighths, drum machine, synth strings"*,
+   * and the authored voice in `tune/voice.ts` says it again — *"Straight eighths and
+   * unembarrassed about it"* — over an accent table whose whole claim is that
+   * *"every eighth is a place a note belongs, and no sixteenth is"*. Measured, two
+   * seeds: **23% of its notes are eighths**, the lowest of the seven iskelmä styles
+   * — the tango, which is built on a held note, plays 24% — and **63% are a quarter
+   * or longer**. Humppa, which claims nothing at all about note values, plays 43%
+   * eighths. It also declares 3.60 onsets a bar and realises 2.57, the widest
+   * shortfall of the seven.
+   *
+   * **`density` is the field, because in this engine the density *is* the note
+   * value.** `makeGesture` aims every figure at `slotsPerBar / density` and
+   * `durationMenu` is a Gaussian half an octave wide around that: at 3.60 the target
+   * is 4.4 slots, so the menu sits on the quarter and prefers it to the eighth 8.6
+   * to 1 in an even figure. At 4.8 it aims at 3.3 and the ratio is 2.2 to 1, with
+   * `drive` and the short half of a `lilt` landing on the eighth outright.
+   *
+   * 4.8 is bracketed rather than guessed. This style's own `melodyCells` derive
+   * **4.38** by `cellDensity` — the authored voice went *below* the table it was
+   * written over — and humppa's 5.59, the one iskelmä that realises an eighth-note
+   * tune, is the ceiling a 100–126 bpm radio song has to stay under.
+   *
+   * **`ornament` back to the 0.12 the `melody` block above declares**, which the
+   * authored voice raised to 0.18 while arguing nothing about it. It is the second
+   * term of `paceWeights`' `run` — `0.9 + busy × 0.7 + ornament × 3`, where `busy`
+   * is the density — and `durationMenu`'s sixteenth weight is `0.5 + density × 0.28`
+   * besides, 1.51 to 1.84 across this change. So raising one without lowering the
+   * other spends the delta on sixteenths as much as on eighths, and 14% of this
+   * style's notes are sixteenths already, against the tango's 6% and the valssi's 5%
+   * — the "no sixteenth" leaking before anything here touched it.
+   */
+  voice: { density: 4.8, ornament: 0.12 },
 };
 
 export const STYLES: Record<string, Style> = {

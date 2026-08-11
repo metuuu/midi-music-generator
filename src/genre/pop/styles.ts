@@ -279,6 +279,31 @@ const girlgroup: Style = {
   ],
   /** The tom roll into the chorus is the whole vocabulary. There is no cymbal. */
   fills: [['tom-roll', 6], ['snare-toms', 3], ['lead-in', 2]],
+  /**
+   * The group, which is in the style's name.
+   *
+   * Three of the four proper nouns at the top of this block are *groups*, and
+   * one lead in front of two or three others is the arrangement those records
+   * are before any of the production decisions above happen to them. `index.ts`
+   * reads the same fact off this style from the other end, in the `voice` block,
+   * when it refuses `riff-response`: what is in `girlgroup` is *the line in
+   * thirds… a second singer rather than an answer*.
+   *
+   * **The chorus only, and that is the whole difference from the device.**
+   * `Device.harmony` reaches this style in 51.2% of its arrangements and places
+   * itself in one phrase of one *repeat* chorus, eight bars minimum. This is the
+   * group on **every** chorus, from the top of the statement to the cadence,
+   * with the verse left to the lead alone — which is the shape of the records
+   * rather than a colour arriving in the third eight. `bridge` is not named
+   * because `layersFor` writes no melody into one, so naming it would be inert.
+   *
+   * Below, because everything else here is built to put her on top: `mix.vocal`
+   * is 1.1 in `index.ts` and the wall is the thing she is in front of. 6 against
+   * 3 is `Chart.harmonyBelow`'s own 0.65/0.35 thirds-to-sixths, kept rather than
+   * re-guessed — what the declaration changes is the scope and the sign, not the
+   * interval.
+   */
+  harmony: { on: 'vocal', amount: 0.85, intervals: [[-2, 6], [-5, 3]], kinds: ['chorus'] },
   melody: { leap: 0.24, ornament: 0.16, span: 12, sequence: 0.55, syncopation: 0.25 },
 };
 
@@ -933,6 +958,36 @@ const sunshine: Style = {
       bd: [0, 6, 8], rim: [4, 12], rd: [0, 4, 8, 12], tb: [2, 6, 10, 14],
     } },
   ],
+  /**
+   * The stack, which the header above names as this style's subject rather than
+   * as one of its features: *a stack of four people singing a chord that a rock
+   * band could not have played*.
+   *
+   * **The one declaration in the genre with no `kinds` on it.** The other two are
+   * choruses, because a second voice arriving with the chorus is the pop
+   * arrangement gesture and is the same curve `layerPlan.response` gives the pad.
+   * This style is not that: the Association and the Free Design sing the verse in
+   * parts too, and a stack that waited for the chorus would be a different
+   * repertoire. 0.8 leaves about one section in five to the lead on her own.
+   *
+   * **Above the tune, and this is the style where the sign carries something.**
+   * The header's sentence for what the chord vocabulary is *for* is "a maj7 with
+   * the ninth on top", so the note that colours the chord is in the highest
+   * voice and the lead is not the one singing it. Nothing arithmetic pushes
+   * back: `octaveFold` only tie-breaks toward `centre: 66`, so the line's mean
+   * lands within six semitones of it, and with `melody.span: 13` the tune tops
+   * out at 78.5 in the worst fold — a third over that is still inside the
+   * profile's 84 ceiling, and the fold's own asymmetry says a part that reaches
+   * up is the milder failure anyway.
+   *
+   * Four voices are not sayable and should not be faked: `VocalStack.steps` is
+   * one number per section and says outright that a style wanting a quartet has
+   * to come back and widen it. So this is the stack's outer interval and no
+   * more. Thirds and sixths at `Chart.harmonyBelow`'s own 0.65/0.35, with the
+   * fourth at 1 because close voicing stacks adjacent voices in thirds *and*
+   * fourths, which is what "close" means here.
+   */
+  harmony: { on: 'vocal', amount: 0.8, intervals: [[2, 6], [5, 3], [3, 1]] },
   melody: { leap: 0.26, ornament: 0.14, span: 13, sequence: 0.5, syncopation: 0.35 },
 };
 
@@ -1453,6 +1508,26 @@ const discopop: Style = {
     }, ghosts: { sd: [7, 15] } },
   ],
   shots: [[[0, 6, 10], 3], [[0, 4, 12], 2]],
+  /**
+   * Two voices in the chorus, on the one name this block gives as its centre.
+   *
+   * ABBA, and the two singers are not incidental to what that centre sounds
+   * like: the chorus is carried by both of them and the verse is frequently one.
+   * **This is the thinnest of the genre's three declarations and it is scoped to
+   * exactly what the evidence covers** — everything else the header argues is
+   * chassis, the open hat and the octave bass and the strings, so this claims the
+   * chorus and nothing beyond it.
+   *
+   * Which is also the right shape for the gesture. Three of the four `forms` in
+   * `index.ts` have three choruses and the ballad has four, and the arrival is
+   * what a pop chorus is for; a second voice that turned up in the verses too
+   * would spend the contrast this style's own argument rests on — *take the kick
+   * pattern away and there is still a tune*.
+   *
+   * Intervals as in `girlgroup`, and for the same reason: below the lead, and 6
+   * against 3 is `Chart.harmonyBelow`'s 0.65/0.35 kept rather than re-guessed.
+   */
+  harmony: { on: 'vocal', amount: 0.8, intervals: [[-2, 6], [-5, 3]], kinds: ['chorus'] },
   melody: { leap: 0.28, ornament: 0.12, span: 13, sequence: 0.58, syncopation: 0.45 },
 };
 
@@ -1831,6 +1906,29 @@ const synthpop: Style = {
   ],
   fills: [['drop', 4], ['lead-in', 4], ['tom-roll', 3], ['snare-roll', 2]],
   melody: { leap: 0.26, ornament: 0.08, span: 12, sequence: 0.6, syncopation: 0.4 },
+  /**
+   * The header above stakes this style on one comparison, and the measurement
+   * loses it.
+   *
+   * What it says: *"here the bass line is an accompaniment and the melody is a
+   * chorus somebody sings in a supermarket. The tables say so: this style's
+   * `melody.span` is 12 semitones against `machine`'s narrow line"*. What the
+   * two actually play, side by side: this style 82% steps, 13% thirds, 5%
+   * intervals wider than a third, across a realised 15 semitones; `synth/machine`
+   * 77%, 17%, 6%, across 16 — and `machine` declares `span: 7` and `leap: 0.1`
+   * against the 12 and 0.26 here. The style that argues it is *not* the narrow
+   * one is the narrower of the two on every column, and its 82% steps is second
+   * only to `discopop`'s 83 against a genre median of 72.
+   *
+   * `leap` rather than `compass`, because compass is the field that has already
+   * been tried and did not do it: 12 semitones against 7 is nearly double the
+   * declaration and the line still came out inside `machine`'s. 0.34 is the top
+   * of the band this file already writes — `chamber`, `newromantic` and
+   * `stadium` all declare it — so the claim is that a sung chorus skips as much
+   * as an arranged one, not that a synthesiser band leaps further than anything
+   * else in pop.
+   */
+  voice: { leap: 0.34 },
 };
 
 /**
@@ -2467,6 +2565,36 @@ const dreampop: Style = {
   ],
   counterSpacing: 1,
   melody: { leap: 0.22, ornament: 0.16, span: 11, sequence: 0.5, syncopation: 0.2 },
+  /**
+   * Both of the things `Genre.voice` says it got wrong about this style, and it
+   * names this style in both of them.
+   *
+   * **`long-note` back to the 1.9 derivation gave it.** The genre entry is 1 and
+   * the exception is written into the same paragraph: *"the largest `long-note`
+   * in the genre, on the style this block opened with as its density floor.
+   * Cutting 1.9 to 1 is wrong about `dreampop`, and the fix is a `Style.voice`
+   * delta in wave 2"*. `archetypesFor` reads 0.4 plus 1.4 for every onset a bar
+   * under three, and 1.93 is the lowest declared density in the file — so 1.9 is
+   * a measurement of the cells above rather than a taste, and it is the one
+   * style in the genre where the flat 1 is a cut instead of a lift.
+   *
+   * **And the four-bar canvas, which missed being derived by 0.23 onsets.**
+   * `derivedVoice` hands four bars to anything under 1.7 a bar on the argument
+   * that *"four bars of half notes is a phrase, and two bars of them is a
+   * fragment"* — which is a description of the table above, where `[16]` and
+   * `[8, 8]` are the top two cells at weight 5 each. The measurement says the
+   * two-bar canvas is being filled rather than sung: this is the only style in
+   * the genre that comes out materially *denser* than it declares, 2.45 realised
+   * onsets a sounding bar against 1.93, +27% where the next-largest gain in the
+   * file is `newromantic`'s 1% and the median style loses 13%. A style whose
+   * header says the sections have no edges because *"the reverb tail from the
+   * previous section is still sounding when the next one starts"* should not be
+   * the one writing extra notes to get to the end of a short canvas.
+   */
+  voice: {
+    archetypes: [['long-note', 1.9]],
+    canvasBars: 4,
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -3288,6 +3416,29 @@ const tropical: Style = {
   ],
   fills: [['drop', 6], ['lead-in', 3], ['snare-roll', 2]],
   melody: { leap: 0.3, ornament: 0.05, span: 14, sequence: 0.76, syncopation: 0.6 },
+  /**
+   * `long-note` back to the 0.4 derivation gave it, because the genre entry
+   * names this style as the case its own argument does not cover.
+   *
+   * `index.ts` raises `long-note` to 1 on a count — *"`[16]` or `[8,8]` tops the
+   * `cadenceCells` in 23 of 24 — the exception is `tropical`, which has no sung
+   * line to end"* — and then hands the raise to all twenty-four including the
+   * exception. The header above says the same thing from this end: *"the cadence
+   * cells are short — a plucked figure has no held notes in it because the
+   * instrument cannot hold one"*. `archetypesFor` gives 0.4 to anything over
+   * three onsets a bar, so restoring it is restoring the reading, not inventing
+   * a number.
+   *
+   * The measurement says the raise is being paid for. 22% of this style's notes
+   * are a quarter or longer, the lowest share in the genre against a median of
+   * 45%, so the appetite is spent against the grain of everything the tables
+   * here say; and the realised density is **3.91 onsets a sounding bar against
+   * the 5.83 the cells declare** — a 33% shortfall, the worst of the twelve
+   * styles in the catalogue that declare over 5.5, where `jazz/gypsy` declares
+   * the same 5.80 and keeps 4.85. Held notes are what eats onsets, and this is
+   * the one style in the file whose melody layer *is* the hook.
+   */
+  voice: { archetypes: [['long-note', 0.4]] },
 };
 
 /**

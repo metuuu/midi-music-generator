@@ -510,6 +510,39 @@ export const arabic: Genre = {
    * ensemble plays together between vocal phrases, which is exactly a riff by
    * one name and a tutti by the other. `trade` is the exchange between a soloist
    * and the drum, which is real and is not frequent.
+   *
+   * ## Nothing here declares `Style.harmony`, and this row is the reason
+   *
+   * The standing property beside the device says *this music is two voices*, for
+   * a whole statement rather than for one phrase of one repeat chorus. No style
+   * in this folder declares one and neither does this genre. `harmony: 1` is the
+   * lowest non-zero weight in the catalogue — indian writes 0 and synth omits the
+   * row; the next lowest are ambient, dnb and house at 2, and rnb and metal are
+   * at 8 — while `unison: 9` is the highest. That pair is not a band that
+   * harmonises rarely, it is a band whose second player is on the first player's
+   * line, so one drawn phrase is the right size for a 1960s import and a standing
+   * declaration would make the import the texture.
+   *
+   * The two candidates fail on the carrier rather than on taste:
+   *
+   *  - **`on: 'vocal'`** is a second singer, and `vocals.ts` refuses one in as
+   *    many words — *there is one singer here, in front of an orchestra, and the
+   *    whole cultural apparatus of the repertoire is built on there being exactly
+   *    one*. `muwashshah` is the only style a group sings, and it sings in
+   *    **unison**, which its own header calls the whole texture.
+   *  - **`zaffa` has a real second voice and the field cannot name who plays
+   *    it.** Its header says the mizmar carries the tune and *whatever trumpets
+   *    the family could afford double it a fourth away*, which is
+   *    `intervals: [[3, 1]]` — three scale steps, signed, above. Those trumpets
+   *    are the `brass` layer, which three of the twenty-one styles keep and which
+   *    is measured under `transitions` at 1111 notes in 27 of 40 zaffa songs
+   *    against 0 in the other eighteen styles. `HarmonyProfile.on` offers
+   *    `melody`, `vocal` and `counter` and nothing else, and `counter` in all
+   *    four eras is the dulcimer, the nylon guitar and the violin — the qanun,
+   *    the oud and the kamanja, which is the takht the paragraph above says never
+   *    does this. The declaration becomes writable when `on` can say the horns,
+   *    and not before: `generateBrass` opens by calling itself *punctuation, not
+   *    a third melody*.
    */
   arrangement: { unison: 9, harmony: 1, riff: 5, tutti: 4, trade: 3 },
 

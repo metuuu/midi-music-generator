@@ -442,6 +442,50 @@ export const country: Genre = {
    *
    * `trade` is real and `tutti` is low. The band stopping to hit a figure together
    * empties a dance floor, which is iskelmä's argument and is true in the same room.
+   *
+   * ## Six styles say it outright, and this weight stays for all twenty-four
+   *
+   * `arrangement.harmony` is *this band harmonises sometimes* — one phrase, in one
+   * repeat chorus, on the answering instrument. `Style.harmony` is *this music is
+   * two voices*, and six styles here are named after the texture rather than
+   * decorated with it: `duet` and `gospel`, `bluegrass` and `bluegrasswaltz` for
+   * the chorus trio, `cowboy` for the Sons of the Pioneers and `countryrock` for
+   * the overdubbed stack. The other eighteen keep the draw, unchanged.
+   *
+   * `countrypolitan` is the one of the four traditions above that does **not**
+   * declare, and the reason is what a stack is: `generateVocalStack` writes a
+   * second singer on the lead's *own syllables*, and a Nashville vocal group is
+   * mostly wordless — the Jordanaires sing ooh where the singer is singing a
+   * sentence. That part is the pad `layerPlan` already drops seven semitones for.
+   *
+   * All six are `on: 'vocal'`, and the instrumental version of the same idea is
+   * deliberately not written: `westernswing`'s four-part fiddle writing and
+   * `bakersfield`'s Telecaster double-stops are a *second lead*, which is
+   * `on: 'melody'` and is not built. Neither style declares, rather than being
+   * handed an answering line it did not ask for — and here that would be the wrong
+   * player twice over, because `mix.counter` is 0.74 for the fill *between* the
+   * vocal lines, and a counter shadowing the tune for sixteen bars is that
+   * conversation switched off.
+   *
+   * ## What a five-note scale can give a second voice, and it is not a third
+   *
+   * `intervals` counts scale steps and `scaleForChord` answers the major
+   * pentatonic — steps of 2, 2, 3, 2, 3 semitones — so `+2` is a major third over
+   * the tonic and a **perfect fourth over the other four degrees**: 4, 5, 5, 5, 5.
+   * A brother duet's third wants B over G, which is precisely the leading tone the
+   * arithmetic at the top of this file says a country singer does not sing. So
+   * what is reachable is the open harmony of the shape-note book rather than the
+   * Louvin thirds, and the six tables are written knowing it. Minor is exempt:
+   * `MINOR_LADDER` hands over seven notes and `+2` is a genuine third there, which
+   * is 12% of `gospel`'s songs and 35% of `bluegrasswaltz`'s.
+   *
+   * Declaring is nonetheless the better of the two arrangements, by this genre's
+   * own arithmetic. `chart.ts` draws `harmonyBelow: 2 | 5` in the same steps
+   * through the same scale: 2 is that same fourth inverted, and **5 is an exact
+   * octave**, because a five-note scale has five steps in it. `writeLine`'s fourth
+   * rule catches the octave and pushes it one step further out, so the device's
+   * sixths — 35% of the songs that draw it — arrive a ninth or a tenth below the
+   * tune, or fall off the bottom of the counter's range and are dropped.
    */
   arrangement: { harmony: 7, unison: 5, riff: 4, trade: 4, swell: 3, tutti: 2 },
 

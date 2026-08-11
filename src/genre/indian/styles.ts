@@ -1269,6 +1269,25 @@ const bandish: Style = {
   transitions: [['shot', 4], ['fill', 3], ['break', 3]],
   scaleForChord: raga(KHAMAJ, ASAVARI),
   melody: { leap: 0.15, ornament: 0.42, span: 16, sequence: 0.55, syncopation: 0.35 },
+  /**
+   * *Drut* means fast, and this is the only field that can say so — `TEENTAL`'s
+   * `melodyCells` are shared with the jhālā and the mujrā and cannot tell three
+   * tempos apart.
+   *
+   * The header above says "the fixed composition, in teentāl, **at speed**". What
+   * it plays is 2.99 onsets in an eight-beat bar at 96–132, which is 0.37 a beat
+   * and **0.70 notes a second** — fewer than the thumrī's 0.82 and the ghazal's
+   * 0.81, both of which this file calls slow. A forty-second bandish comes out as
+   * twenty-eight notes.
+   *
+   * The cause is arithmetic rather than taste, and it is worth naming because it
+   * runs through the whole file: `cellDensity` counts onsets **per bar**, and a
+   * teentāl bar is eight beats where a keherwā bar is four, so one cell table
+   * reads half as dense per beat as another written to the same music. 5 across
+   * eight beats is 0.63 a beat, still under `DEFAULT_VOICE`'s 0.8, which is the
+   * right side of the line for a khyāl that leaves the tabla its room.
+   */
+  voice: { density: 5 },
   progressions: held('Isus4'),
 };
 
@@ -1370,6 +1389,20 @@ const tarana: Style = {
   progressions: held('I'),
   minorProgressions: held('i'),
   melody: { leap: 0.18, ornament: 0.3, span: 17, sequence: 0.6, syncopation: 0.4 },
+  /**
+   * The entry's thesis is rhythmic — "the voice and the drum are saying the same
+   * thing at the same time, which is the whole appeal" — and the line does not
+   * keep up with the drum. **78% of its notes last a quarter or longer and 7% are
+   * sixteenths**, at 2.75 onsets in a five-beat bar: one note every 3.6 mātrās,
+   * where the theka strikes on every one.
+   *
+   * The tillānā is the control, because this file calls it "the Southern cousin of
+   * the tarānā. Same idea and a different execution" and gives it the same tempo
+   * band — 36% eighths against 15%, 1.54 notes a second against 1.29. Jhaptāl's
+   * cells are shared with the jugalbandī, which is an *exchange* and wants the
+   * room between the answers; a singer playing percussion does not.
+   */
+  voice: { density: 4 },
 };
 
 /**
@@ -1712,6 +1745,20 @@ const varnam: Style = {
   scaleForChord: raga(BILAWAL, KAFI),
   progressions: held('Isus4'),
   melody: { leap: 0.16, ornament: 0.35, span: 17, sequence: 0.65, syncopation: 0.3 },
+  /**
+   * "Dense on purpose", and the cells cannot hear it. `ADI.melodyCells` resolve to
+   * 2.75 onsets a bar here, for the kṛti and for the santoor alike — and the
+   * santoor's entry is built on "a great deal of room around them", so one number
+   * is being asked to mean both things at once.
+   *
+   * What the varṇam plays is 2.69 a bar and **a tenth of its bars empty**, the
+   * second-highest rest share in the genre, in the one style whose own
+   * `transitions` note argues that "a seam that passed unmarked would be the only
+   * quiet thing in the piece". 3.8 is about 1.5 notes a second: clear of the kṛti
+   * and the santoor it shares a tāla with, still under the cabaret, which is where
+   * the densest writing in the *classical* repertoire belongs.
+   */
+  voice: { density: 3.8 },
 };
 
 /**
@@ -1835,6 +1882,21 @@ const padam: Style = {
   scaleForChord: raga(KHAMAJ, BHAIRAVI),
   progressions: held('Isus4'),
   melody: { leap: 0.1, ornament: 0.5, span: 13, sequence: 0.55, syncopation: 0.28 },
+  /**
+   * The item where "nothing much happens" plays the shortest notes in the genre:
+   * **45% eighths and 36% a quarter or longer**, both ends of the catalogue, at
+   * 0.81 onsets a beat — 1.07 notes a second, *faster* than the jhālā's 0.97, and
+   * the jhālā is the entry headed "the climax, where… the piece stops being about
+   * the rāga and starts being about speed".
+   *
+   * Khaṇḍa chāpu's bar is two and a half beats, the shortest in the file, so its
+   * cells read as the densest per beat of any tāla here — 0.84 against teentāl's
+   * 0.44 — and the other style spread from them is the svara kalpana, which is an
+   * arithmetic display and wants every one of them. This is one line of text
+   * turned over for several minutes. 1.5 is a note every 1.7 beats, which is the
+   * time the entry says the dancer is given.
+   */
+  voice: { density: 1.5 },
 };
 
 /**
@@ -2182,6 +2244,24 @@ const bhangra: Style = {
     outro: [{ chords: ['IV', 'V', 'I', 'I'], weight: 4 }],
   },
   melody: { leap: 0.2, ornament: 0.25, span: 14, sequence: 0.72, syncopation: 0.4 },
+  /**
+   * Two of the genre's extremes sit on the only tune in it written to be shouted
+   * back, and both are the wrong way round.
+   *
+   * **86% of its notes last a quarter or longer and 2% are sixteenths** — the most
+   * and the least in the catalogue — under a drum this entry describes as "low
+   * stroke on the offbeat, high stroke on every sixteenth… doing more work here
+   * than anywhere else in the file". At 2.07 onsets a bar it is also the sparsest
+   * of the seven keherwā styles, below the bhajan and below the dhun, at twice the
+   * dhun's tempo.
+   *
+   * **And 42% stepwise motion, the least in the genre.** The bhajan is the control
+   * and the comparison is fair, because it is the only other `earworm` here: its
+   * entry says the tune "sits in a fifth, repeats immediately" and it realises 82%
+   * steps against this one's 42%. "A bhangra tune is four bars long and is meant
+   * to be" — a tune that leaps three notes in five is not one a field sings back.
+   */
+  voice: { density: 3.6, leap: 0.12 },
 };
 
 // ---------------------------------------------------------------------------
@@ -2314,6 +2394,26 @@ const santoor: Style = {
   scaleForChord: raga(BILAWAL, GAURIMANOHARI),
   progressions: held('Isus4'),
   melody: { leap: 0.18, ornament: 0.3, span: 18, sequence: 0.55, syncopation: 0.3 },
+  /**
+   * The genre voice weights `long-note` at 3, and this is the one instrument in
+   * the room that cannot play one — "every note decays immediately and none of
+   * them can bend".
+   *
+   * The entry's substitute is stated in the same sentence: "the phrases are built
+   * from many short notes where a sitar would use one long one — and this style's
+   * cells are the shortest of any slow entry here for that reason". The second
+   * half of that has quietly stopped being true, because the cells belong to ādi
+   * tāla and the varṇam and the kṛti hold the identical table. So what it plays is
+   * **5% sixteenths and 74% a quarter or longer**: the fewest short notes of the
+   * three ādi styles — the varṇam 11%, the kṛti 12% — and the second fewest in the
+   * genre.
+   *
+   * Only the archetype weight moves. `density` is deliberately left alone: "a
+   * great deal of room around them" is the other half of the entry and is being
+   * delivered, and the disagreement is about how a note ends, not how many there
+   * are.
+   */
+  voice: { archetypes: [['long-note', 0.5]] },
 };
 
 /**

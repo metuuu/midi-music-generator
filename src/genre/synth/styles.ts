@@ -880,6 +880,46 @@ const cinematic: Style = {
     } },
   ],
   melody: { leap: 0.24, ornament: 0.06, span: 19, sequence: 0.5, syncopation: 0.12 },
+  /**
+   * The lead this file describes is not the lead it plays.
+   *
+   * Three claims above, all about note length. The header: *the only
+   * long-breathed melodic vocabulary in the genre — cells of a whole bar*. The
+   * brass paragraph, which turns that into a mechanism: `generateBrass` *swells
+   * under notes of two beats or more*, and *nothing else in the catalogue hands
+   * it that many long notes to swell under*. And `twoHanded` above, setting the
+   * left hand at 0.35 against `stalker`'s 0.55 on the stated ground that *this
+   * lead holds one note for most of a bar, so the left hand moving underneath
+   * is the event*.
+   *
+   * Measured over 200 songs a style, it is the busier of the two: 1.87 onsets a
+   * bar against `stalker`'s 1.59, 23% of its notes lasting two beats or more
+   * against `stalker`'s 37% and `berlin`'s 41%, and **not one note in the whole
+   * sample lasting a full bar**, where both of those manage 4%. So the swell
+   * sentence is false as written — two styles that exclude the brass layer
+   * outright hand out more of exactly the notes it needs — and the hand this
+   * style holds back is accompanying a tune that is moving faster than the one
+   * it was held back for.
+   *
+   * Two fields, one per half of the gap, and nothing else here is touched.
+   *
+   *   density 1.2     what *one note for most of a bar* is as a number.
+   *                   Derivation reads 1.79 by averaging the cell table, which
+   *                   counts `[4,4,8]` at weight 3 the same way as `[16]` at 6;
+   *                   15 of that table's 34 weight is a bar with one note in
+   *                   it, and 7 of the 12 cadence weight is the whole-bar note.
+   *   canvasBars 4    `adapt.ts` hands a four-bar canvas to anything under 1.70
+   *                   onsets a bar, because *four bars of half notes is a
+   *                   phrase, and two bars of them is a fragment*. This style
+   *                   misses that threshold by nine hundredths and it is the
+   *                   field that actually produces the long notes: density
+   *                   alone moves whole-bar notes from 0% to 0%.
+   *
+   * Together: 1.48 onsets a bar, 43% of notes held two beats or more, 5% held a
+   * full bar — sparser and longer than `stalker`, which is the order the two
+   * paragraphs above already claim and did not have.
+   */
+  voice: { density: 1.2, canvasBars: 4 },
 };
 
 /**
@@ -967,6 +1007,64 @@ const machine: Style = {
   excludeLayers: ['brass'],
   drumFills: false,
   filter: { depth: 0.3, shape: 'step' },
+  /**
+   * The carrier is a chord, and that is a fact about the instrument.
+   *
+   * `vocals.ts` opens by saying what this sound is made of: *someone speaks into
+   * it while somebody else plays a chord, and the chord is what you hear.* A
+   * vocoder is one modulator and as many carrier voices as there are keys down,
+   * so being in two parts is a property of the machine rather than a gesture
+   * inside one chorus — which is the line `HarmonyProfile` exists to draw
+   * against `Device.harmony`. It is on this style and on no other in the genre
+   * because that file already scopes itself the same way: *it belongs to the
+   * `machine` style, which is the only one in the genre with a `vocal` layer
+   * worth having.*
+   *
+   * **The device could not have produced this at any weight.** `NEEDS.harmony`
+   * is `counter`, so a drawn harmony is played by the answering instrument and
+   * the singer is unreachable from the pool. This is therefore not an argument
+   * with the genre's `arrangement` table, which leaves `harmony` at the shared
+   * default of 4 and says nothing about it. What it does cost is that a
+   * declaration *replaces* the draw: a song generated without `--vocals` gives
+   * up the drawn phrase of counter thirds and gets nothing back. That is the
+   * price of one table saying one thing about this music instead of two.
+   *
+   * `amount: 0.85` — high, because the sentence above is not *sometimes a
+   * chord* and because `hook: 'earworm'` wants a refrain that comes back the
+   * same way; short of 1 because the same catalogue holds a single key, in the
+   * counting and speaking pieces where the carrier is one oscillator, and 1
+   * would put those out of reach. The residual is named rather than hidden: a
+   * three-chorus song comes out with one of them bare two times in five. No
+   * `kinds` — how many keys are down is not a fact about which section it is.
+   *
+   * Both intervals sit **above**. The vocoded line is already in the lead's own
+   * octave — `range: [40, 84]` is set wide enough that the fold almost never
+   * fires — and the register beneath it is spoken for, since `layerPlan.offsets`
+   * drops the comp five semitones to clear exactly that space for the sequencer.
+   *
+   *   +2  a third, and the heavier of the two, because this style's harmony is
+   *       triads. All 14 distinct chord symbols below are plain, where
+   *       `cinematic` writes 19 extended ones out of 25 and `optical` 10 of 20.
+   *       A third is what makes a carrier a chord rather than an interval, and
+   *       this is the one style in the file that cadences.
+   *   +4  a fifth, and the colder. `ruleOverrides` disables `parallel-perfects`
+   *       for the whole genre and gives *the fifths lead, which bakes the
+   *       interval into the patch* as half its reason; `leadFifths` carries 3 of
+   *       the `modular` melody palette and 2 of `polysynth`, described there as
+   *       *the cheapest way a monophonic synthesiser ever faked harmony*. A held
+   *       root and fifth is that interval bought with a second key rather than
+   *       with a second oscillator.
+   *
+   * No octave, and `arrangement.unison: 6` is why it looks like there should be
+   * one. That device already plays the octave-doubled lead, on the counter, and
+   * the vocoder is already doubling the melody; a seven-step stack here would be
+   * the same fact stated a third time.
+   */
+  harmony: {
+    amount: 0.85,
+    intervals: [[2, 5], [4, 3]],
+    on: 'vocal',
+  },
   progressions: {
     intro: [
       { chords: ['i', 'i', 'VI', 'VI'], weight: 4 },

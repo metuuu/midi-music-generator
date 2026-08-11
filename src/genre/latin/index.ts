@@ -488,6 +488,22 @@ export const latin: Genre = {
    *
    * `trade` is lowest. Handing a phrase between two players is a conversation,
    * and these horns are a *section*.
+   *
+   * **`harmony: 5` is the moña, and it is why there is no `Genre.harmony`.** The
+   * device puts a harmonised phrase of the tune into one repeat chorus; what this
+   * weight is paying for is the paragraph above — two or three figures layered
+   * against each other, none of them the tune. A standing declaration *replaces*
+   * that draw for the style it is written on, so it is written on one of the
+   * twenty-six: `banda`, whose own description says "clarinets and trumpets in
+   * thirds" and is the only "in thirds" in the folder.
+   *
+   * The coro is the entry that looks like a vocal stack and is not. Three files
+   * say three or four people sing it — `defaultHook` above, `vocals.ts`'s choice
+   * of patch 52, `eras.ts`'s coro in the conjunto pad at 36.1% of the songs that
+   * write one — and the one place any of them says *how*, `eras.ts` says "an
+   * answer shouted in unison" and that the call-and-response figure it wants
+   * cannot be written yet. `HarmonyProfile` doubles the lead's own line and its
+   * own syllables; it cannot write an answer, and a coro is an answer.
    */
   arrangement: { riff: 6, swell: 7, harmony: 5, tutti: 5, unison: 3, trade: 2 },
 

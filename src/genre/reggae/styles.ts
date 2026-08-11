@@ -98,6 +98,39 @@
  *    ghosting pass in `applyFeel` only ever touches `sd`; and this genre names
  *    **no `feels` at all**, so `Feel.ghost` fires zero times in it — 0 feels
  *    over 420 songs. Nothing is being composed with here and nothing was lost.
+ *  - **Three styles declare `harmony` and eighteen do not.** `vocals.ts` states
+ *    the claim as plainly as it can be stated — *the unit is a trio… one lead
+ *    and two harmonies, and the two harmonies are not a decoration on the lead*
+ *    — and then spends `gm: 52`, Choir Aahs, on a single line of notes, because
+ *    a patch was the only place a second voice could be bought. `rocksteady`,
+ *    `roots` and `lovers` now ask for one instead. The other eighteen decline on
+ *    their own tables' arguments and they are not close calls: `dub` is the take
+ *    with the singer pulled off it, `bubble` and `skinhead` are records where
+ *    the comp is the lead and the melody layer is a guest, `ska` fronts a horn
+ *    *soloist*, `horns` spends its header refusing to let the section shadow the
+ *    tune at all, `nyabinghi` writes `excludeLayers: ['brass', 'counter']`
+ *    because *a chant is one melody and everybody sings it*, `dubpoetry` is
+ *    arranged around a voice that is talking, `rubadub` and `ragga` put a DJ
+ *    over the top in so many words, `slengteng` and `dancehall` are what he was
+ *    left standing on once the band had gone, and `mento`, `shuffle` and
+ *    `twotone` are a banjo band, an R&B band and a punk band. `onedrop`,
+ *    `rockers`, `steppers` and `flyers` carried trio records by the hundred and
+ *    are still not declared: each of those four tables is an argument about
+ *    where the kick or the hat is, and `onedrop`'s own header says *a singer*,
+ *    singular.
+ *
+ *    **The device is untouched on all eighteen**, which is what `arrangement`
+ *    already asked for — `harmony` is 4 of 18 there, third of five — so the
+ *    genre goes on saying that a harmony phrase arriving in a repeat chorus is a
+ *    real gesture. A declaration *replaces* that draw rather than adding to it,
+ *    so the three above trade an event for a property and nothing else moves.
+ *  - **And the second voice is above the lead on all three.** `intervals` is
+ *    signed and the sign is spent upward on the vocal profile's own numbers:
+ *    `signature: 'tenor'`, `range: [48, 77]` around `centre: 61` — 16 semitones
+ *    of room above and 13 below — and a note that these leads run to a full
+ *    falsetto *far more often than they run low*. A part under a voice sitting
+ *    that high is a baritone, and the profile says this repertoire has not got
+ *    one.
  */
 
 import type { BassPattern, CompPattern, DrumPattern, Style } from '../../style/types.js';
@@ -742,6 +775,23 @@ const rocksteady: Style = {
     afterTheOne(4),
   ],
   comp: [halfChop(6), skank(4), bubble(2)],
+  /**
+   * The trio, in the one era where it is the *form* rather than a texture: the
+   * Techniques, the Paragons, the Melodians, the Heptones. See the header for
+   * why three styles here declare and eighteen do not.
+   *
+   * Thirds and sixths, because rocksteady's harmony is imported — the verse
+   * tables above are "American soul changes played at half speed" and the bridge
+   * borrows a minor four, which the note there calls the one era of this music
+   * sentimental enough to use it. The fourth is at 1 rather than absent: these
+   * groups were singing in Kingston, and `roots` is where that opens out.
+   *
+   * No `kinds`, and `amount` at 0.75 over everything the lead sings in, because
+   * a vocal group is not a chorus that arrives — it is who is standing at the
+   * microphone for the whole side. The quarter left over is the lead taking a
+   * verse alone, which these records also do.
+   */
+  harmony: { on: 'vocal', amount: 0.75, intervals: [[2, 6], [5, 4], [3, 1]] },
   drums: [oneDrop(6), oneDropOpen(4), {
     name: 'rocksteady-two-drop', weight: 3, voices: {
       bd: [4, 8],
@@ -851,6 +901,28 @@ const skinhead: Style = {
     oneDrop(3),
   ],
   melody: { leap: 0.35, ornament: 0.3, span: 14, sequence: 0.45, syncopation: 0.55 },
+  /**
+   * A third fewer onsets, because the header above says the melody layer is not
+   * the lead here and the measurement says it is playing like one.
+   *
+   * *"It is the one style in the file where the comp is the lead instrument and
+   * the melody layer is a guest"* — and the file header names it with `bubble` as
+   * one of the two *"records where the comp is the lead and the melody layer is a
+   * guest"*. What the guest actually plays is **2.49 onsets per sounding bar, the
+   * third-busiest tune of the twenty-one** behind `ska` and `dancehall`, at 43%
+   * eighths and 44% quarters-or-longer — the second most even eighth-note line in
+   * the genre. It is outplaying `roots` (2.28), `onedrop` (2.21) and `lovers`
+   * (2.15), which are the three styles that put an actual singer in front of the
+   * band.
+   *
+   * `density` alone closes it, and it closes both halves at once: `makeGesture`
+   * aims each figure at `slotsPerBar / density`, so 3.14 asks for 5.1 sixteenths
+   * and 2.0 asks for a half note. 2.0 is `onedrop`'s own figure — the sparsest
+   * declaration in the file that still has a lead on it. Nothing else moves,
+   * because a guest turning up less often still plays boss-reggae phrases when it
+   * turns up: the leap, the span and the lilt are right.
+   */
+  voice: { density: 2 },
 };
 
 // ---------------------------------------------------------------------------
@@ -1392,6 +1464,25 @@ const roots: Style = {
     ] },
   ],
   comp: [skank(6), bubble(5), doubleSkank(4), halfChop(2)],
+  /**
+   * The Abyssinians, Culture, the Gladiators, the Mighty Diamonds — and this is
+   * where `vocals.ts` gets its list from: four of the five groups it names are
+   * this style's era.
+   *
+   * **The fourth carries 4 here and 1 on `rocksteady`, and the genre has already
+   * signed off on the difference.** `parallel-perfects` is softened to
+   * `minLevel: 4, penalty: 0.6` in `ruleOverrides` because *the skank planes,
+   * and so does the horn line*; a roots trio planes too, and singing in fourths
+   * is most of what makes this end of the repertoire sound modal where a soul
+   * group sounds sweet. `modeWeights` is 0.8 minor, the strongest in the file,
+   * and a fourth over an aeolian tune has nothing it needs to resolve.
+   *
+   * 0.7 rather than `rocksteady`'s 0.75 for one reason on the other side of the
+   * table: this is the style with the most layers in the genre, so there is a
+   * horn section and an organ already answering the singer, and a section where
+   * the lead stands alone against them is a real arrangement here.
+   */
+  harmony: { on: 'vocal', amount: 0.7, intervals: [[2, 5], [3, 4], [5, 2]] },
   drums: [oneDrop(7), oneDropOpen(4), {
     name: 'roots-rockers', weight: 3, voices: {
       bd: [0, 8],
@@ -1664,6 +1755,35 @@ const dub: Style = {
     },
   }],
   melody: { leap: 0.3, ornament: 0.2, span: 14, sequence: 0.4, syncopation: 0.7 },
+  /**
+   * Five notes, stated as five degrees — because on this style the genre's subset
+   * table takes one of them away again.
+   *
+   * `scaleForChord` above hands the tune a pentatonic, and `index.ts` works out
+   * what that does to the genre table and says the fix belongs here: *"Eight of
+   * eleven by weight therefore land on a four-note set on those two styles"*.
+   * `snapToSubset` keeps only the degrees the scale has, so the genre's
+   * `[0, 2, 3, 4, 6]` at weight 5 survives as **1 4 5 ♭7 — the ♭3 dropped**, which
+   * is the interval `augmented-second` is disabled genre-wide to permit, and
+   * `[0, 1, 2, 4, 5]` at weight 3 survives as 1 ♭3 4 ♭7 without the fifth.
+   *
+   * The interval mix is where it surfaces: **50% steps, the lowest of the
+   * twenty-one styles**, with 32% thirds and 18% wider — against a header that
+   * says the melodica and the surviving horn line are *"both of them playing five
+   * notes"* and that Pablo's lines *"have no second and no sixth in them at all"*.
+   * A pentatonic with a fourth of its notes missing has a five-semitone hole from
+   * the tonic to the fourth, and a line crossing that hole is measured as a leap
+   * this style never asked for.
+   *
+   * `[0, 1, 2, 3, 4]` is every degree the scale has, so `snapToSubset` hands the
+   * note straight back and the tune lives in the whole pentatonic. One entry,
+   * because on five notes there is no colour left to choose between — and one
+   * entry still costs `rng.weighted` exactly the one draw the table costs, so
+   * nothing behind it on the tape moves.
+   */
+  voice: {
+    subsets: [[[0, 1, 2, 3, 4], 1]],
+  },
 };
 
 /**
@@ -1787,6 +1907,27 @@ const nyabinghi: Style = {
     } },
   ],
   melody: { leap: 0.18, ornament: 0.25, span: 10, sequence: 0.65, syncopation: 0.45 },
+  /**
+   * The same delta as `dub`, for the same mechanism, and the numbers are sharper
+   * here because this style is the one that leaps least on purpose.
+   *
+   * Pentatonic by `scaleForChord` above, so the genre's `[0, 2, 3, 4, 6]` — five
+   * elevenths of its subset weight — reaches `snapToSubset` as 1 4 5 ♭7, and the
+   * tonic-to-fourth gap in that set is five semitones. This style declares
+   * **`leap: 0.18`, the lowest in the genre**, and plays **22% intervals wider
+   * than a third, the second-highest of the twenty-one** — against a header that
+   * calls the tune *"a chant… a handful of notes repeated until it means
+   * something"* and a `melody.span` of 10, the narrowest here. The leaps are
+   * manufactured by the subset rather than asked for by `leap`, which is why the
+   * fix is `subsets` and `leap` stays where it is.
+   *
+   * `[0, 1, 2, 3, 4]` is all five degrees, which `snapToSubset` passes through
+   * untouched: adjacent degrees of a pentatonic are two or three semitones and a
+   * chant walking them stops jumping.
+   */
+  voice: {
+    subsets: [[[0, 1, 2, 3, 4], 1]],
+  },
 };
 
 /**
@@ -1876,6 +2017,26 @@ const lovers: Style = {
     ] },
   ],
   comp: [halfChop(6), skank(5), bubble(3)],
+  /**
+   * Backing vocals rather than a trio, and the two fields are what says which:
+   * narrow `kinds`, high `amount`.
+   *
+   * Lovers rock is a solo singer — the header above says a teenager — with the
+   * harmony stacked behind the chorus, which is the soul shape the rest of this
+   * style is borrowed from and not the Kingston one where three people are the
+   * band. So it is 0.8 of two section kinds instead of 0.7 of all of them: when
+   * this idiom has backing vocals it has them on every chorus, and the verse is
+   * where the singer is alone.
+   *
+   * `bridge` is in with the chorus because this style has real bridge tables and
+   * the second form spends one, and a soul bridge is the other place the group
+   * comes in. Thirds and sixths and no open fourth, for the same reason the
+   * progressions above keep their dominants: this half of the record is Brixton.
+   */
+  harmony: {
+    on: 'vocal', amount: 0.8, intervals: [[2, 6], [5, 4]],
+    kinds: ['chorus', 'bridge'],
+  },
   drums: [
     { name: 'lovers-one-drop', weight: 7, voices: {
       bd: [8],
@@ -1978,6 +2139,29 @@ const bubbleStyle: Style = {
     },
   }, oneDropOpen(3)],
   melody: { leap: 0.3, ornament: 0.35, span: 14, sequence: 0.5, syncopation: 0.6 },
+  /**
+   * The other half of `skinhead`'s delta, and the file header names the two
+   * together: *"`bubble` and `skinhead` are records where the comp is the lead
+   * and the melody layer is a guest"*. This style's own header goes further —
+   * *"the organ part is a rhythm rather than a harmony"*, *"everything else
+   * arranged around keeping out of its way"* — and `requireLayers: ['comp']` is
+   * there so the organ can never be the thing that thins out.
+   *
+   * **The outlier is length, not count.** 2.22 onsets a sounding bar is mid-pack
+   * for the genre, but the duration mix is **45% eighths, the highest of the
+   * twenty-one, and 48% quarters-or-longer, the second-lowest after `ska`'s
+   * soloist** — a running eighth-note line, which is exactly what the genre voice
+   * in `index.ts` set `diminish: 0.4` to stop: *"a run of eighths over a one drop
+   * reads as somebody who has not noticed where the bar is"*. It is still
+   * happening here, over an organ that is already playing every sixteenth off the
+   * beat.
+   *
+   * So `density`, which is the field that sets length: `makeGesture` aims each
+   * figure at `slotsPerBar / density`, so 2.36 aims at 6.8 sixteenths and 2.0
+   * aims at a full half note. Same value as `skinhead` for the same sentence
+   * about the same two records.
+   */
+  voice: { density: 2 },
 };
 
 /**

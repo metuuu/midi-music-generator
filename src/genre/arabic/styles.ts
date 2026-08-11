@@ -224,6 +224,35 @@ const maqsum: Style = {
     } },
   ],
   melody: { leap: 0.11, ornament: 0.42, span: 13, sequence: 0.55, syncopation: 0.3 },
+  /**
+   * The one archetype this style disagrees with its genre about — and
+   * `index.ts` named it as the first place its own voice would be wrong.
+   *
+   * The cells above are written as *"the surface of this music is a stream of
+   * small notes decorating a much slower skeleton — the skeleton is what the
+   * cadence cells are for"*, and they declare 4.83 onsets a bar, the busiest
+   * table in the catalogue. **The skeleton is what comes out.** 3.12 onsets a
+   * bar — 0.65 of what was asked for and the largest loss of the twenty-one,
+   * with wahda's frame-around-a-silence next at 0.73 — 5% of its notes
+   * sixteenths, joint lowest here, and 58% a quarter or longer, behind only
+   * wahda's 76%. The style next door reads it back: baladi calls itself
+   * *"slower and heavier than the maqsum it came from"* and plays 4.08 onsets a
+   * bar against this one's 3.12.
+   *
+   * **`long-note` is where it goes and the arithmetic is one line.** Its
+   * `density` is 0.45, and `paceWeights` gates both `run` and `drive` on
+   * `max(0, density - 2.2)`: 4.83 × 0.45 = 2.17 puts the busiest table in the
+   * genre three hundredths *under* the threshold at which a line may move at
+   * all, and `durationMenu`'s sixteenth weight — `0.5 + density × 0.28` — falls
+   * with it. Any section shape below 1 takes it further down. The genre's 2.5 is
+   * a claim about the maqam's resting degrees and it is right for twenty
+   * styles; on this one it is being heard as a claim about the whole line.
+   *
+   * 1 is the tie with `chant`: one section in twelve rather than one in five.
+   * The ghammaz still gets held — it is no longer the third kind of tune the
+   * default iqa' writes.
+   */
+  voice: { archetypes: [['long-note', 1]] },
 };
 
 /**
@@ -881,6 +910,36 @@ const ayyub: Style = {
     } },
   ],
   melody: { leap: 0.09, ornament: 0.35, span: 10, sequence: 0.75, syncopation: 0.25 },
+  /**
+   * The header says this style is a state rather than a song, and the line it
+   * writes is the fastest in the genre.
+   *
+   * *"It is played for hours without changing"*; *"the one iqa' in this
+   * catalogue whose purpose is not a dance or a song but a state"*; and
+   * `hook: 'earworm'` because *"repetition here is the form rather than a
+   * setting applied to it"*. The cells agree — one sixteenth in the whole
+   * table, 8% of their weighted onsets. What is played is **46% sixteenths,
+   * joint highest of the twenty-one and level with `longa`, the virtuoso
+   * showpiece, over 14% a quarter or longer, lowest here but for that same
+   * longa.**
+   *
+   * The two things this style declares that *are* narrow both land, which is
+   * what says the fault is not general: `span: 10` comes out as the tightest
+   * realised compass in the genre at 14 semitones, and `leap: 0.09` as 6% wide
+   * intervals. It is the stillness that did not arrive, not the size.
+   *
+   * `chant` is the kind of tune this is — *"one note repeated with a tail — the
+   * hook is the rhythm"*, `plateau` at 5 of its 11 shape weight, `sequenceDir`
+   * 0, and the only archetype whose judge declines to punish a line for
+   * standing still (`interest` 0.5, `motion` 0.6). The genre put it at 1 and
+   * said in the same sentence what that was: a cut *"for the sixteen busiest
+   * styles and a small lift for ayyub 0.58"* — a floor this style was raised
+   * to, not a claim anybody made about the zar. 4 ties it with `riff-response`
+   * at the top of the table, one section in four instead of one in fourteen,
+   * and nothing else moves: the lazma is still what happens between the phrases
+   * where there are phrases.
+   */
+  voice: { archetypes: [['chant', 4]] },
 };
 
 /**
@@ -1131,6 +1190,35 @@ const wahda: Style = {
     } },
   ],
   melody: { leap: 0.1, ornament: 0.5, span: 15, sequence: 0.4, syncopation: 0.2 },
+  /**
+   * The long notes arrived. The small ones crowded against them did not.
+   *
+   * The cells above are written as *"long notes with small ones crowded against
+   * them — the shape of a held syllable that is decorated on the way out rather
+   * than on the way in"*, and 43% of their weighted onsets are eighths against
+   * 57% a quarter or longer. What is played is **18% eighths, the lowest share
+   * of the twenty-one, under 76% a quarter or longer — eighteen points clear of
+   * the next style in the genre.** The held syllable is right and this cycle is
+   * *"among the slowest here"* on purpose; the decoration is the half that is
+   * missing.
+   *
+   * **`ornament` is the field, and `density` is the field it must not be.** The
+   * bar here is *"a frame around a silence"*, so buying the ratio back with
+   * onsets would fix it by removing the thing the style is. `paceWeights`
+   * weights `run` at `0.9 + busy × 0.7 + ornament × 3` and `hold` at
+   * `1 + max(0, 2.6 - density) × 1.2`; on a `long-note` section — one in five
+   * at the genre's weighting — 3.00 × 0.45 = 1.35 makes `busy` zero and `hold`
+   * 2.5 against `run` 2.4, so this style holds more often than it runs in
+   * exactly the sections whose point is the held syllable. 0.75 puts `run` at
+   * 3.15 and in front.
+   *
+   * The style table is untouched and the file header's *"0.22 to 0.62"* still
+   * holds, because these are two fields with two jobs joined by an identity
+   * derivation: `melody.ornament` is *"probability of adding a grace/passing
+   * ornament"*, which 0.5 is right for, and `Voice.ornament` is the whole of
+   * this voice's appetite for a run of small values, which it is not.
+   */
+  voice: { ornament: 0.75 },
 };
 
 /**

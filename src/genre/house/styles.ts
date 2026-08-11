@@ -227,6 +227,30 @@ const chicago: Style = {
     }, ghosts: { hh: [1, 3, 5, 7, 9, 11, 13, 15] } },
   ],
   melody: { leap: 0.24, ornament: 0.06, span: 8, sequence: 0.82, syncopation: 0.4 },
+  /**
+   * **"The sparsest in the file after `minimal`'s" — off the largest cell table
+   * in it.** The header says it twice: this is what everything else departs
+   * from, and its tune is "four notes on an organ, played the same way for six
+   * minutes". What the tables derive is **2.50 onsets a bar — tenth densest of
+   * the genre's twenty-four and above its 2.40 median** — out of a six-entry
+   * `melodyCells`, joint largest in the file with `deep`, `garage` and
+   * `detroit`, and twice `minimal`'s three.
+   *
+   * `density` alone, because it is also what sets note *length*: `makeGesture`
+   * aims each figure at `slotsPerBar / density` sixteenths, so 2.50 asks for
+   * 6.4 — a dotted quarter this table never writes, its values being 2, 4, 8 and
+   * 16 — and rounding outward from a target between two playable values is why
+   * the style plays **30% eighths against the 15% its own cells declare**, the
+   * second-highest eighth share in the genre behind `piano`'s vamp. At 2.0 the
+   * target is 8, which is the heaviest entry here.
+   *
+   * 2.0 rather than the ~1.2 that "sparsest after `minimal`'s" would want, and
+   * the difference is which sentence this field answers to: the superlative is
+   * about the whole set of tables — three bass figures, three comps, three kits
+   * — and four notes over the two bars `derivedVoice` leaves this style on is
+   * the melody sentence's own arithmetic.
+   */
+  voice: { density: 2 },
 };
 
 /**
@@ -329,6 +353,21 @@ const jackin: Style = {
     }, ghosts: { hh: [2, 6, 10, 14] } },
   ],
   melody: { leap: 0.2, ornament: 0.05, span: 7, sequence: 0.86, syncopation: 0.5 },
+  /**
+   * **A shouted instruction carrying a busier voice than the gospel singer.**
+   * The header says what separates this from `chicago` — "the reason is one
+   * number: `swing`" — and says the tune is "four notes of somebody telling a
+   * room what to do". The tables make it two numbers. Derived, this style is
+   * **3.38 onsets a bar: the fourth densest of the genre's twenty-four, 35%
+   * above `chicago`'s 2.50, and above `garage`'s 3.13** — which is the one style
+   * in this file whose header claims a tune at all ("Everything else in this
+   * genre writes a hook; this writes a tune").
+   *
+   * 2.0 is `chicago`'s, for the reason the header already gives: the doubled
+   * thing is the hats. They stay doubled — the sixteenths are in `drums` and the
+   * limp is `swing: 0.14`, neither of which this touches.
+   */
+  voice: { density: 2 },
 };
 
 /**
@@ -1379,6 +1418,25 @@ const frenchtouch: Style = {
     }, ghosts: { sd: [7, 15] } },
   ],
   melody: { leap: 0.24, ornament: 0.08, span: 10, sequence: 0.9, syncopation: 0.4 },
+  /**
+   * **"No melodic material at all beyond the loop", deriving more of it than
+   * seven styles that claim less.** The header makes two melodic claims and the
+   * numbers refute both. `melodyCells` is called "the flattest in the file after
+   * `minimal`'s"; it derives **1.82 onsets a bar, with seven styles other than
+   * `minimal` flatter** — `dubtechno` and `hardgroove` at 1.21, `ambienthouse`
+   * 1.24, `tribal` 1.41, `techhouse` 1.44, `acid` 1.50, `progressive` 1.75. And
+   * this style is `disco` with the tune taken out — "what develops is the cutoff
+   * and the phasing, over four minutes, and everything else stays put" — while
+   * playing **2.07 onsets a bar against `disco`'s 1.79**.
+   *
+   * 1.4 sits it with `tribal` (1.41) and `techhouse` (1.44), the two styles
+   * whose comments make the identical claim — "a melody with almost nothing in
+   * it", "there is no melodic material to speak of" — and whose numbers already
+   * honour it. It also moves `makeGesture`'s target from 8.8 sixteenths to 11.4,
+   * which is this table's own shape: `[16]` at 6 and `[8, 8]` at 5 are two
+   * thirds of its weight.
+   */
+  voice: { density: 1.4 },
 };
 
 /**

@@ -806,6 +806,57 @@ export const dnb: Genre = {
    * being the largest brass emitter in the project to one of the smallest, which
    * is the correct description of a music with no horns in it, and it is a
    * better answer than writing sustain into a section that is not there.
+   *
+   * ## `harmony: 2` is the whole of the answer — there is no `HarmonyProfile`
+   * here or on any of the twenty-four styles
+   *
+   * Half the device pool's own default of 4, in the lowest band in the project:
+   * indian 0 by decision, arabic 1, then ambient, house and this at 2. A
+   * `Style.harmony` **replaces** that draw rather than joining it, so declaring
+   * one spends a weight deliberately written near the floor in order to assert
+   * something stronger than the weight says — and both carriers
+   * `HarmonyProfile.on` can currently name are wrong here for reasons already in
+   * these tables.
+   *
+   * **`counter` in this genre is a sparkle rather than a second player.** The
+   * celesta is in all four eras' counter palettes and leads three of them, and
+   * the rest of the list is the glockenspiel, the kalimba, the harp, the music
+   * box and the vibraphone. `mix.counter` is 0.42, the lowest in the project
+   * after ambient's 0.24 — metal, whose `power` calls itself twin guitars in
+   * thirds and weights this device at 8, mixes the same layer at 0.76 —
+   * `solo.rotation` puts it last at 1 against the drums' 7, and
+   * `EraProfile.sequenced` hands it to a sequencer in 0.2 to 0.45 of songs as
+   * the eras run on.
+   *
+   * **And the scale would be wrong by an order.** A declaration covers the
+   * statement rather than one phrase; `buildForm` doubles every non-intro
+   * section above 160 BPM, so a chorus here is thirty-two bars; and **18 of the
+   * 24 styles write `melody.sequence` at 0.8 or above**, `rollers` and `minimal`
+   * at 0.94 over what their own headers call a two-note motif restated ninety
+   * times. A parallel third under that for thirty-two bars is not a second
+   * voice, it is a chorus pedal on the first.
+   *
+   * **`vocal` here is one fragment, not two singers.** `vocals.ts` settles what
+   * sings in this music — a soul phrase cut at the syllable, pitched and
+   * triggered, with the words removed by the editing rather than by the engine —
+   * and `on: 'vocal'` writes a second line over the lead's own syllables, which
+   * is a duet and is the one thing a chop is not. What that file actually asks
+   * for is the opposite gesture and it records that no field spells it: *one
+   * syllable, four times, on four different pitches*. Declaring it would also
+   * cost the instrumental renderings something for nothing, since
+   * `GenerateOptions.vocals` is absent by default and the draw above would be
+   * switched off in every one of them.
+   *
+   * **What would have to be true.** `on` would have to name the brass layer. The
+   * one place two sustained lines genuinely lie across each other on these
+   * records is the string swell held under the tune in a breakdown — the
+   * paragraph above, and the whole reason `swell` keeps its 8 — and
+   * `generateBrass` opens by calling itself punctuation rather than a third
+   * melody. Arabic's `zaffa` reached that same wall from the other side. What
+   * looks two-voiced anywhere else here is a chord: the stab in `techstep`,
+   * `jungle` or `jumpup` is the comp by the paragraph above, and the 1992 move
+   * of taking a break *and the chord over it* up a fifth is one sampler moving,
+   * which `parallel-perfects` argues at length in `ruleOverrides`.
    */
   arrangement: { riff: 8, tutti: 6, unison: 3, harmony: 2, trade: 1, swell: 8 },
 

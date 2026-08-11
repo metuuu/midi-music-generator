@@ -3326,6 +3326,24 @@ const slowjam: Style = {
     },
   ],
   melody: { leap: 0.32, ornament: 0.6, span: 14, sequence: 0.25, syncopation: 0.35 },
+  /**
+   * The one number that contradicts this style's own description.
+   *
+   * The header says the room between the backbeats "is where the vocal run
+   * goes", and `breakCarrier: 'melody'` above says a break here is "the band
+   * stopping and *the singer carrying on*". The cells say the opposite: `[16]`
+   * and `[-4, 12]` lead the table and derivation reads **2.00 onsets a bar out
+   * of them, the joint lowest in the genre with `bedroom`** — the style that is
+   * one person and a sampler. At 56–74 BPM that is a bar of 3.7 seconds and a
+   * measured 2.24 onsets in it, so 0.6 notes a second: the eight bars the singer
+   * is meant to carry alone are eight bars of holding.
+   *
+   * 3.2 is `philly`'s per-bar figure over a bar nearly twice as long — 0.87
+   * notes a second against that style's 1.58, so about four fifths of a note per
+   * beat. Density only. The cells stay the skeleton and `cellAccents` still
+   * weights their positions; a run is exactly notes arriving between them.
+   */
+  voice: { density: 3.2 },
 };
 
 /**
@@ -4128,6 +4146,24 @@ const contemporary: Style = {
   // The highest ornament figure in the file. See the header — here the run is the
   // hook rather than a decoration on one.
   melody: { leap: 0.34, ornament: 0.75, span: 15, sequence: 0.25, syncopation: 0.4 },
+  /**
+   * `ornament` cannot buy a run on its own, and this is the style that proves it.
+   *
+   * The header says "the run *is* the hook" and that at `ache` and `smoulder`
+   * this style "decorates almost every note it sings, and it should". `index.ts`
+   * names the mechanism — "the run in this music is `ornament` splitting a held
+   * note" — and derivation reads the 0.75 above into `ops.ornament` as 2.65, the
+   * highest in the file. An operator that splits held notes needs held notes:
+   * there are **2.80 a bar declared and 2.81 measured**, which is a gain of 0.4%
+   * where `deepsoul`, at a lower appetite and a lower density, gains 23% on the
+   * same operator. And 63% of what it sings is a quarter or longer at 64–84 BPM
+   * — under a note a second, which is a ballad line, not a run.
+   *
+   * 4.2 is about a note a beat here and still below `motown`'s declared 2.2 a
+   * second. The genre's argument is untouched: `ops` is not named, the ornament
+   * appetite stays 2.65, and what changes is that it has something to decorate.
+   */
+  voice: { density: 4.2 },
 };
 
 export const STYLES: Record<string, Style> = {

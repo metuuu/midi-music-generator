@@ -100,7 +100,9 @@
  *    both set `boxDrums: false` for it anyway.
  */
 
-import type { BassPattern, CompPattern, DrumPattern, Style } from '../../style/types.js';
+import type {
+  BassPattern, CompPattern, DrumPattern, HarmonyProfile, Style,
+} from '../../style/types.js';
 
 // ---------------------------------------------------------------------------
 // The power chord
@@ -667,6 +669,79 @@ const METAL_SHOTS: (readonly [number[], number])[] = [
   [[0, 2, 3, 8], 2],
 ];
 
+/**
+ * The other guitarist, playing the tune with the first one rather than around it.
+ *
+ * `arrangement.harmony: 8` in `index.ts` is the highest weight any genre gives any
+ * device in this project, and the sentence under it is the reason five styles say
+ * it again here in a different field: *it is not an arranger's touch — it is the
+ * line-up*. A device pool can only say a harmonised phrase turns up in a repeat
+ * chorus; `nwobhm`'s header says two people playing harmonised lines is the event
+ * of 1980. Those are not one claim at two strengths, and `Device.harmony` keeps
+ * making the first one — the genre weight stands, unchanged, and is still the draw
+ * for the other nineteen styles, where a harmony line arriving once in a chorus is
+ * exactly right.
+ *
+ * ## `on: 'counter'` is the right layer here rather than the reachable one
+ *
+ * `solo.rotation` already reads `melody` and `counter` as *"literally the two
+ * guitarists in the band"*, and the palettes back it: the counter layer's top
+ * entry from 1979 on is `distortionGuitar`, at 7, 9 and 7 across the three later
+ * eras. So the second part is already cast on the instrument that plays it, and
+ * `on: 'melody'` — a second `Track` on the lead layer, which is not built — would
+ * be drafting a third guitarist to do what the second one is standing there for.
+ *
+ * What the declaration changes is what that player is *for*. An answering line
+ * waits for a hole in the tune, and `solo.vocabulary.space: 0.1` is the lowest
+ * figure in the project: this music does not leave any. A second guitarist with
+ * nothing to answer into plays the line.
+ *
+ * ## Thirds, under, with a fifth in reserve
+ *
+ * `parallel-perfects` is demoted in `index.ts` to protect two figures and this is
+ * the second of them, described on the way past — *"thirds mostly, but a fifth
+ * wherever the mode puts one"* — which is this table in its own order. `power`'s
+ * description says *twin guitars in thirds* and no style here says anything else.
+ *
+ * The sixth at 2 is the third inverted and is the wide version of the same pair:
+ * the interval a single `harmonyBelow` reached by coin flip for the whole
+ * catalogue at once, 0.65 thirds to 0.35 sixths, narrowed here toward the third
+ * because these tables name the third. The fifth at 1 is one section in eleven in
+ * bare parallel fifths — the harmonised power chord, and a gesture this genre
+ * disabled a rule to keep: *a NWOBHM harmony line that broke off to avoid a
+ * parallel fifth would be a NWOBHM harmony line with a hole in it*.
+ *
+ * **Signed negative, which is a decision about where the second guitarist is
+ * standing rather than a default.** The descant is the other reading of this
+ * figure and is what the sign was added for, and on this layer it would arrive
+ * with its top gone: `RegisterPlan.counter` is `[leadLow - 4, leadTop - 3]`, sized
+ * in its own words for *"a third under the tune at the top"*, and `writeLine`
+ * drops a note outside that window rather than folding it by an octave — which is
+ * correct, since a descant folded down is not a descant. Under the tune the same
+ * window fits the third at both ends by construction. It is also what this
+ * genre's lead leaves room for: `span` runs to 24 and `solo.vocabulary.climb: 6`
+ * is the steepest in the project, so the first guitarist is already going up the
+ * neck and the second one is not above them.
+ *
+ * ## No `kinds`, and no `on: 'vocal'` anywhere in this file
+ *
+ * The pair is a line-up rather than a section device — both of them are on stage
+ * all night — so there is no kind to name, and which sections it lands in is
+ * decided by where the chart put the second guitar. That narrowing is real and it
+ * is most of the difference between `amount` and what is heard: `layersFor` draws
+ * the counter at `density * 0.7` in a chorus and `density * 0.45` in a verse, and
+ * this genre's four eras run 0.60 to 0.72.
+ *
+ * Singing it is refused for the genre, by the genre: `vocals.ts` picks GM 85
+ * rather than a choir patch and says why — *"there is one person on the microphone
+ * here"*. Metal harmonises with amplifiers.
+ */
+const twinGuitars = (amount: number): HarmonyProfile => ({
+  amount,
+  intervals: [[-2, 8], [-5, 2], [-4, 1]],
+  on: 'counter',
+});
+
 // ---------------------------------------------------------------------------
 // 1970–75: the first generation
 // ---------------------------------------------------------------------------
@@ -829,6 +904,37 @@ const doom: Style = {
   comp: [hold(7), chug(3)],
   drums: [crawl(7), halfTime(4), backbeat(2)],
   melody: { leap: 0.2, ornament: 0.25, span: 11, sequence: 0.7, syncopation: 0.2 },
+  /**
+   * The one place this style and its genre disagree about what a tune is, and
+   * `index.ts` names it before this line existed.
+   *
+   * The header says *a riff that is the whole song* and *chords held until they
+   * stop being chords*; the cells say the same thing in numbers — `[16]` at 6 and
+   * `[8, 8]` at 5, deriving 1.42 onsets a bar, the lowest in the genre, and
+   * `long-note` at 2.62 of 11.3, near a quarter of the table. The genre voice
+   * overrides that to 1 and lifts `riff-response` from 0.60 to 5, so the likeliest
+   * kind of tune here becomes *a short figure and the thing that answers it*:
+   * 31.3% of the draw against 5.3% derived, while the held note falls from 23.1%
+   * to 6.3%. `index.ts` works both figures out under `long-note` and says the
+   * delta has to be a pair, because the 5 is doing most of the damage and moving
+   * the long note back alone would not return the style.
+   *
+   * Measured it is the widest gap in the genre: **2.98 realised onsets a bar
+   * against 1.42 declared, 2.10× where the metal median is 1.18×**, with 53% of
+   * the notes sixteenths at 52–74 BPM. A bar is four and a half seconds here and
+   * the tune is filling it. What this table can reach of that is the archetype's
+   * own `density: 0.45` and `stride: 3` against `riff-response`'s 1.15 and 1 —
+   * the rest of the inflation is genre-wide (metal is the only genre in the
+   * project realising *more* than it declares) and is not doom's to state.
+   *
+   * `riff-response` at 1 rather than back at its derived 0.60: two of these six
+   * cells start with a rest against four of nine in `RIFF_CELLS`, so the guitar
+   * does own the downbeat some of the time — just not five times as often as the
+   * note that is held through the bar.
+   */
+  voice: {
+    archetypes: [['long-note', 2.6], ['riff-response', 1]],
+  },
 };
 
 /**
@@ -1032,6 +1138,10 @@ const nwobhm: Style = {
   comp: [gallopChop(6), chug(5), downpick(3)],
   drums: [gallopKit(6), rideBeat(5), backbeat(4)],
   melody: { leap: 0.42, ornament: 0.4, span: 17, sequence: 0.55, syncopation: 0.45 },
+  // The highest in the file, with `melodeath`. The header calls the pair *the
+  // whole event* and the description leads on it; a majority of the sections the
+  // singer is in is what that sentence means when it is written as a number.
+  harmony: twinGuitars(0.6),
 };
 
 /**
@@ -1041,8 +1151,10 @@ const nwobhm: Style = {
  * picking rather than downstrokes, which is what lets it be that fast and is
  * also why it sounds lighter than thrash does at the same tempo. The tables are
  * nearly `nwobhm`'s; the differences are the tempo band, `tremolo` at the head of
- * the comp table instead of the gallop, and a kit that has stopped using the
- * ride because there is no time to get to it.
+ * the comp table instead of the gallop, a kit that has stopped using the ride
+ * because there is no time to get to it, and half the `harmony` amount — the two
+ * bands in the first sentence disagree about the second guitarist, because one of
+ * them has one and the other is a power trio.
  */
 const speed: Style = {
   id: 'speed',
@@ -1089,6 +1201,10 @@ const speed: Style = {
   comp: [tremolo(6), gallopChop(4), downpick(3)],
   drums: [backbeat(6), gallopKit(4), doubleKick(3)],
   melody: { leap: 0.45, ornament: 0.35, span: 18, sequence: 0.5, syncopation: 0.45 },
+  // Half of `nwobhm`'s, for the reason in the header: Priest harmonised
+  // everything and Motörhead had one guitarist. The tempo band argues the same
+  // way — at 214 the pair is a passage somebody wrote out, not the texture.
+  harmony: twinGuitars(0.3),
 };
 
 /**
@@ -1188,6 +1304,11 @@ const power: Style = {
   ],
   drums: [doubleKick(7), gallopKit(4), backbeat(3)],
   melody: { leap: 0.4, ornament: 0.45, span: 19, sequence: 0.6, syncopation: 0.4 },
+  // *Twin guitars in thirds* is the description's second clause and this table is
+  // that clause. A notch under `nwobhm` because the first clause outranks it:
+  // what this style is organised around is a chorus a crowd sings in unison, and
+  // `hook: 'earworm'` with the file's highest `relativeMajorChorus` says so twice.
+  harmony: twinGuitars(0.5),
 };
 
 /**
@@ -1278,6 +1399,11 @@ const glam: Style = {
   ],
   drums: [backbeat(7), rideBeat(4), gallopKit(2)],
   melody: { leap: 0.4, ornament: 0.5, span: 18, sequence: 0.6, syncopation: 0.4 },
+  // *The same twin-guitar arrangement*, says the header, *pointed at a major key
+  // and a radio* — and the second half of that sentence is what halves the
+  // number. On a record whose subject is the hook, the harmonised lead is a spot
+  // in the arrangement rather than the thing the arrangement is made of.
+  harmony: twinGuitars(0.3),
 };
 
 /**
@@ -2221,6 +2347,13 @@ const melodeath: Style = {
   comp: [tremolo(6), gallopChop(5), downpick(4)],
   drums: [doubleKick(6), blast(4), gallopKit(4), backbeat(2)],
   melody: { leap: 0.42, ornament: 0.4, span: 19, sequence: 0.6, syncopation: 0.45 },
+  // `nwobhm`'s number, because the header says this style *is* `nwobhm`'s harmony
+  // under `death`'s rhythm section and the harmony is the half being borrowed —
+  // *that is the entire invention*. It is also the one place in the file where the
+  // pair carries the tune outright: the voice is a scream, and the extreme era's
+  // melody palette heads with `distortionGuitar` at 8 for exactly that reason —
+  // if the guitars are not stating the line, nobody is.
+  harmony: twinGuitars(0.6),
 };
 
 /**
@@ -2387,6 +2520,30 @@ const gothic: Style = {
   ],
   drums: [crawl(5), backbeat(5), halfTime(4)],
   melody: { leap: 0.3, ornament: 0.6, span: 17, sequence: 0.55, syncopation: 0.3 },
+  /**
+   * *The melodic model is a chant, not a riff* — the header's own sentence,
+   * against a resolved table whose likeliest draw is the riff.
+   *
+   * Derivation reads `chant` off density and hands this style the 0.50 floor, so
+   * `index.ts` lifts it to 3.5 and cites this header by name for it. But it lifts
+   * `riff-response` to 5 in the same table, and the two together resolve to
+   * riff-response 30.3% of the draw against chant 21.2% — the sentence above
+   * losing to the thing it says this style is not. Swapping the pair is the whole
+   * delta.
+   *
+   * The numbers side with the header rather than with the table: **80% of
+   * adjacent intervals a step and 7% wide, second only to `postmetal` in this
+   * file for stepwise motion**, which is `chant`'s own `leap: 0.5` and
+   * `judge.motion: 0.6` and is nothing `riff-response` — *a short figure and the
+   * thing that answers it* — describes.
+   *
+   * `long-note` is left where the genre put it, on the genre's own argument
+   * against raising it here: the whole notes in the header are the *guitars*
+   * under the singer, not the sung line.
+   */
+  voice: {
+    archetypes: [['chant', 5], ['riff-response', 1]],
+  },
 };
 
 /**
@@ -2562,6 +2719,26 @@ const postmetal: Style = {
   comp: [hold(6), tremolo(4), downpick(3), chug(3)],
   drums: [crawl(5), halfTime(5), backbeat(4), doubleKick(2)],
   melody: { leap: 0.25, ornament: 0.3, span: 15, sequence: 0.6, syncopation: 0.3 },
+  /**
+   * `doom`'s pair, for the style `index.ts` names beside it.
+   *
+   * *A post-metal section does not return; it becomes the next one* — sixteen-bar
+   * builds with *nothing announced*, `[16]` at weight 6 in the cells and 8 in the
+   * cadences, which is *the longest cadence cells here* by the header's own count.
+   * That derives 1.52 onsets a bar and `long-note` at 2.47 of 11.1; the genre
+   * voice puts the archetype at 1 and `riff-response` at 5, which is a call and
+   * an answer announced every two bars in the one style whose header says nothing
+   * is announced.
+   *
+   * Measured, it is the second-widest gap in the genre — **2.77 realised onsets a
+   * bar against 1.52 declared, 1.82× against a metal median of 1.18×** — and the
+   * interval mix says which archetype is wrong rather than merely that one is:
+   * **84% steps and 4% wide intervals, the most stepwise line in the genre**. A
+   * build is a line that walks; the figure-and-answer is the thing it is not.
+   */
+  voice: {
+    archetypes: [['long-note', 2.5], ['riff-response', 1]],
+  },
 };
 
 export const STYLES: Record<string, Style> = {

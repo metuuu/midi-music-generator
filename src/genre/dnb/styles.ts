@@ -1383,6 +1383,53 @@ const intelligent: Style = {
     }, ghosts: { sd: [7, 9] } },
   ],
   melody: { leap: 0.3, ornament: 0.3, span: 17, sequence: 0.5, syncopation: 0.62 },
+  /**
+   * The genre voice describes the eighteen styles this one is the exception to.
+   *
+   * `dnb/index.ts` leads with `chant` at 5 — glossed *one note repeated with a
+   * tail, the hook is the rhythm* — and its argument for that is a genre in
+   * which *a hook is a two-bar fragment repeated until the record ends*. The
+   * header above answers that sentence directly: **this one has a tune in it and
+   * that one has a wash**, and this is *the one corner where a phrase is
+   * expected to answer itself rather than restate itself*. A chant is the
+   * archetype that stalls on purpose — `ARCHETYPES.chant` marks down `interest`
+   * to 0.5 and `motion` to 0.6 so the audition will let it — and it is the exact
+   * thing the header says this style is not.
+   *
+   * `long-note` is the same disagreement with a citation. The genre puts it at
+   * 2.5 on the ground that *fourteen styles' `melodyCells` lead with `[16]` or
+   * `[-8, 8]`* — this table leads with `[4, 4, 4, 4]` and `[-2, 2, 4, 8]` and is
+   * not one of the fourteen — and it names this style among those the lift is
+   * spent on, *which derive 0.40 to 0.57*. So the genre raised it fivefold on
+   * the one style whose header defines itself against the wash next door.
+   *
+   * **The numbers say it from the other side.** It declares 3.22 onsets a bar,
+   * the second-densest table here, and realises **2.00** — 0.62 of what it asks
+   * for, where the eight other styles declaring above 2.4 land at 0.74 to 0.88.
+   * 88% of its notes are a quarter or longer and **9% of its bars are empty, the
+   * highest rest share in the genre**, for the style the header calls *genuinely
+   * a melody rather than a fragment*. Against `atmospheric`, whose cells it is
+   * *twice as dense* as, it realises 1.27 times the onsets rather than two. The
+   * two archetypes with an `Archetype.density` below 1 are `chant` at 0.9 and
+   * `long-note` at 0.45, and the genre hands them 7.5 of its 14.9 weight.
+   *
+   * `arch-hook` takes the weight because its forms are the period and the
+   * sentence — an antecedent and its consequent is what answering yourself is —
+   * and because `hook: 'catchy'` above already means the figure comes back
+   * changed. `riff-response` keeps the genre's 4 untouched: the answer half of a
+   * riff-response is the same gesture, and the genre's case for it (the
+   * `figure`/`economy` judging, `solo.quoteMotto`) is not weakened by anything
+   * here. `wide-interval` and `descending-sequence` keep the genre's numbers
+   * too — there is no singer on this record either, and a figure walked down the
+   * scale is a restatement transposed, which is the thing being argued against.
+   */
+  voice: {
+    archetypes: [
+      ['arch-hook', 5],
+      ['chant', 1],
+      ['long-note', 1],
+    ],
+  },
 };
 
 /**

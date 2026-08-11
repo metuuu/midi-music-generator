@@ -606,6 +606,31 @@ const gigue: Style = {
   ],
   drums: [],
   melody: { leap: 0.3, ornament: 0.22, span: 16, sequence: 0.68, syncopation: 0.2 },
+  /**
+   * *The last movement of the suite and the only one that runs* — and it comes
+   * out slower than its own table.
+   *
+   * The cells are **68% eighths**, the most eighth-heavy table in the file, led
+   * by six of them filling the 6/8 bar at weight 6 of 32. Measured over 6
+   * seeds it plays 41% eighths and 45% a quarter or longer. Three styles here
+   * realise *more* long values than they declare and this is much the largest:
+   * +13 points, where the median style in the genre loses 12.
+   *
+   * **The cause is the weighted mean, not the cells.** `cellDensity` averages
+   * the whole table, so `[12]` and `[6, 6]` pull it to 3.63, and `makeGesture`
+   * then aims every figure at `12 / 3.63` = 3.3 sixteenths. **That is a dotted
+   * eighth and this style never writes one** — its values are 2, 4, 6 and 12.
+   * `durationMenu` is a Gaussian on log duration, so a target sitting between
+   * two playable values rounds outward, and outward from 3.3 is the quarter, at
+   * 2.1 times the eighth's weight.
+   *
+   * 4.5 puts the target at 2.7 and the eighth back in front, 1.2 to 1: **41% →
+   * 61% eighths** against the 68% declared, and 45% → 23% quarter-or-longer.
+   * The realised count goes 3.00 → 3.50 onsets a bar, which is the table's own
+   * 3.63 — this number was never wrong about how many notes, only about how
+   * long each one is.
+   */
+  voice: { density: 4.5 },
 };
 
 /**
@@ -1113,6 +1138,36 @@ const chorale: Style = {
   ],
   drums: [],
   melody: { leap: 0.14, ornament: 0.12, span: 12, sequence: 0.45, syncopation: 0.05 },
+  /**
+   * The one table in the genre with nothing shorter than a quarter in it, and a
+   * line that plays 26% shorter than that.
+   *
+   * The cells above say it in their own comment — *whole notes and halves, and
+   * nothing shorter than a quarter* — the header says *one note per bar or
+   * thereabouts*, and the description says *an undecorated melody*. Measured
+   * over 6 seeds: **2.11 onsets a bar, 7% sixteenths and 19% eighths against a
+   * table that declares 0% of either.** It is the largest short-value gap of
+   * the twenty-six, and the only table in the file where the declared figure is
+   * zero.
+   *
+   * **Density is what the burst reads.** `makeGesture` aims each figure at
+   * `slotsPerBar / density` and `pace('run')` takes 0.22 of that: at the cells'
+   * 2.17 a run aims at 1.6 sixteenths, where `durationMenu` gives the sixteenth
+   * one part in six against the eighth; at 1.5 it aims at 2.4, which is one
+   * part in thirty-seven. 1.5 rather than 2.17 is the header's *one note per
+   * bar* met halfway — the top cell is a whole note at weight 6 of 24 — and
+   * `paceWeights` gives `hold` 1.52 → 2.32 on the way.
+   *
+   * **`canvasBars` is the other half and carries more of it than density
+   * does.** `derivedVoice` hands a four-bar canvas to any style whose *cells*
+   * average under 1.7, for a reason that is this style exactly — *four bars of
+   * half notes is a phrase, and two bars of them is a fragment* — and a
+   * declared density cannot reach that branch. Measured: density alone gives
+   * 1.97 onsets a bar and 27% short values, which is where it started; both
+   * together give **1.51 onsets a bar, 10% short values and 90% a quarter or
+   * longer.**
+   */
+  voice: { density: 1.5, canvasBars: 4 },
 };
 
 /**
@@ -1253,6 +1308,32 @@ const toccata: Style = {
     ] },
   },
   melody: { leap: 0.34, ornament: 0.2, span: 20, sequence: 0.6, syncopation: 0.2 },
+  /**
+   * The style `index.ts` nominated for this, and it named the field. Its
+   * `long-note` paragraph lists what the genre's 1.5 costs — *the toccata goes
+   * 2.4% → 11.6% at 6.60 × 0.45 = 2.97* — and then says outright that this
+   * style and the étude *are the first candidates for a `Style.voice` delta*.
+   *
+   * The header is the disagreement. `ostinato` leads the left hand as *a
+   * running figure that does not stop for anything the right hand does*, and
+   * `answer` is deliberately last because *a left hand that waits for a gap has
+   * nothing to do in a style whose proposition is that there are no gaps*.
+   * Measured over 12 seeds and 137 sections, **7% of them come out under 3
+   * onsets a bar** — under half what the table asks — with a floor of 2.00 and
+   * a tenth percentile of 3.38.
+   *
+   * Nothing else here is wrong, which is why nothing else is declared: the
+   * realised duration mix is 32/47/21 sixteenths/eighths/quarter-or-longer
+   * against the 24/57/19 the cells above declare, the closest match of the
+   * twenty-six.
+   *
+   * **0.1 rather than 0**, and the four bars this style's cadence *takes to
+   * arrive* are the reason: a held note is a thing a toccata does at the end of
+   * one, and a weight of zero would say it cannot. One section in fifty rather
+   * than one in fourteen — under-3 sections 7% → 1%, the floor 2.00 → 2.75, and
+   * 5.33 → 5.64 onsets a bar overall.
+   */
+  voice: { archetypes: [['long-note', 0.1]] },
 };
 
 /**
@@ -1632,6 +1713,40 @@ const pavane: Style = {
   ],
   drums: [],
   melody: { leap: 0.16, ornament: 0.18, span: 13, sequence: 0.5, syncopation: 0.1 },
+  /**
+   * The one style in the file that asks for this in its own header: *a modal,
+   * unhurried tread that would carry parallel harmony without anyone hearing it
+   * as a mistake*, and a major table that *moves in thirds without ever quite
+   * committing*. Both sentences describe a texture rather than an event, which
+   * is exactly the line `HarmonyProfile` draws against `Device.harmony` — a
+   * device harmony is a colour arriving in a repeat chorus, and a pavane is
+   * two-voiced before anybody decides anything.
+   *
+   * **0.5, and the number comes off `modeWeights`.** The header attaches the
+   * thirds to the major reading and the cadences to the minor one, and major is
+   * 0.4 of the draw here. One number per style cannot condition on mode, so it
+   * sits just above that share: every major pavane two-voiced throughout is
+   * 0.4, and the minor ones take it on the way to a cadence rather than not at
+   * all.
+   *
+   * **Thirds and sixths level, where the device's own split is 0.65 to 0.35.**
+   * What this style is for is being archaic on purpose — a sixteenth-century
+   * dance revived in 1887 by two composers who wanted a form with no functional
+   * harmony left in it — and the archaic parallel texture is fauxbourdon, which
+   * is parallel sixths. The header gives one sentence to each and so does this.
+   *
+   * `on: 'counter'`, and below. The counter palettes in `eras.ts` are led by
+   * viola, cello, oboe and clarinet in three eras of four, which is the second
+   * oboe and the second violin `Genre.arrangement` names at weight 6. Above the
+   * tune is not merely unidiomatic for those desks, it is close to unwritable:
+   * `planRegisters` tops the counter's window at `leadHi - 3`, so a descant is
+   * dropped note by note exactly where the tune is highest.
+   */
+  harmony: {
+    amount: 0.5,
+    intervals: [[-2, 5], [-5, 5]],
+    on: 'counter',
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -2261,6 +2376,46 @@ const march: Style = {
   ],
   drums: [],
   melody: { leap: 0.28, ornament: 0.14, span: 15, sequence: 0.58, syncopation: 0.12 },
+  /**
+   * A band part, and a band part is written in thirds.
+   *
+   * `arrangement.harmony` at 6 in `index.ts` calls that *the second horn's
+   * entire job*, and this is the style in the file whose ensemble is nothing but
+   * sections. The header's own summary is an oom-pah bass, a full-band chord on
+   * every offbeat and four-square strains *so a band can read it outdoors*:
+   * second cornet under first is how that band gets a tune that carries across a
+   * park, and it is not something an arranger decides one performance at a time.
+   *
+   * **`on: 'melody'`, because the second cornet is a second player and not the
+   * countermelody desk.** The paragraph below already made the distinction and
+   * could not act on it: a march's trio is where the countermelody lives — *a
+   * genuine second line under the tune rather than a doubling of it* — and that
+   * line is the `counter` layer's. Writing the doubling onto the counter meant
+   * the two jobs took turns on one desk, so a strain in thirds was a strain with
+   * no countermelody in it. A second track on the melody layer is what a band
+   * part actually is: first cornet, second cornet under it, and the horns still
+   * answering underneath both.
+   *
+   * **`kinds` is the trio, kept out**, and it stays out for its own reason. A
+   * standing property runs `reach: 'statement'` and would take the whole section,
+   * so declaring the trio here would spend the one strain that has something else
+   * to say — the doubling would arrive exactly where the counterline is the
+   * point.
+   *
+   * Inside the strains, 0.6. What the other two fifths are is the strain stated
+   * by the whole band in octaves, which is `arrangement.unison` at 4 and is a
+   * thing a march really does about twice.
+   *
+   * Thirds led and sixths behind, the ordinary split, because nothing here
+   * argues for the pavane's: a second cornet sits a third under the first and
+   * takes the sixth where the harmony wants the chord's third on top.
+   */
+  harmony: {
+    amount: 0.6,
+    intervals: [[-2, 6], [-5, 3]],
+    on: 'melody',
+    kinds: ['verse', 'chorus'],
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -3122,6 +3277,35 @@ const etude: Style = {
     ] },
   },
   melody: { leap: 0.32, ornament: 0.18, span: 21, sequence: 0.62, syncopation: 0.2 },
+  /**
+   * The other style `index.ts` nominated — *an étude section drawn as
+   * `long-note` is judged at 9.30 × 0.45 = 4.19 onsets a bar on the style whose
+   * header defines the form as a figure that does not stop* — and **the
+   * nomination measures smaller than the thing standing next to it.**
+   * `long-note` at 0.3 moves this style by nothing at all: 2% of sections under
+   * 3 onsets a bar before and after, median 7.25 either way, because 4.19 is
+   * still busier than the declared density of twenty-two of the twenty-six
+   * styles in this file.
+   *
+   * What is wrong is the *value*, not the section. The header is *sixteenths
+   * for four minutes ... this style's melody cells are almost entirely made of
+   * sixteenths*, and they are — 70% of the onsets in the table. It plays 50%
+   * sixteenths and 40% eighths against the 16% declared, over 6 seeds.
+   *
+   * **The arithmetic is the gigue's, one octave down.** `makeGesture` aims
+   * every figure at `slotsPerBar / density`, and 16 / 9.30 = 1.7 sixteenths
+   * sits between the two values this table is made of, where `durationMenu`'s
+   * Gaussian gives the eighth 3.5 times the sixteenth's weight. `cellDensity`
+   * gets 9.30 by averaging a lead row of sixteen sixteenths, weight 6 of 27,
+   * against `[16]` and `[8, 1, 1, 1, 1, 4]`. 13 puts the target at 1.2: 63%
+   * sixteenths and 32% eighths, and 7.24 → 8.53 onsets a bar.
+   *
+   * It also does the nomination's job better than the nomination does. A
+   * `long-note` étude is now judged at 13 × 0.45 = 5.85 rather than 4.19, and
+   * sections under 3 onsets a bar go 2% → 0%.
+   */
+  voice: { density: 13 },
+
 };
 
 /**
@@ -3239,6 +3423,42 @@ const lacrimosa: Style = {
   ],
   drums: [],
   melody: { leap: 0.18, ornament: 0.22, span: 15, sequence: 0.5, syncopation: 0.15 },
+  /**
+   * Forty people in a gallery, and they are not singing one line.
+   *
+   * `on: 'vocal'`, which is the only `on` this style could take and the one the
+   * whole vocal profile was bent toward: `vocals.ts` says in its first paragraph
+   * that it leans to the chorus and away from the `aria` it has to share, and
+   * the header above calls this style *a texture* rather than a form — a slow
+   * compound metre, a sighing figure in the strings, and a chorus over it. The
+   * chorus in parts is half of that texture, and the engine has been singing it
+   * in one part.
+   *
+   * Below, and the field that settles it is `VOCALS.centre` at 64, whose own
+   * comment says *the melodic line in a mass or an oratorio is the soprano
+   * line*. So the second singer is the alto: a third or a sixth under a line
+   * centred there lands around 55–61, inside the profile's declared [53, 81],
+   * where a descant would push the top of the range at every climax.
+   *
+   * 0.7, the highest of the three declarations in this file, because it is the
+   * only one whose second part is a person rather than a desk. A section player
+   * doubles the tune where the arrangement asks; a choir is in parts unless
+   * something makes it otherwise, and what makes it otherwise is the unison
+   * statement sacred writing opens and closes with.
+   *
+   * **The cost, named: a declaration governs whether or not the render has
+   * voices in it.** `opts.vocals` is a switch on the render rather than a fact
+   * about the style, so a lacrimosa generated without it now takes neither path
+   * — the `harmony` device is skipped for a second voice that has nobody to
+   * sing it. That device reaches one melody bar in 137 by `Genre.harmony`'s own
+   * measurement, and two bars of an instrumental colour in some songs is the
+   * right thing to trade for the choir being a choir in every song that has one.
+   */
+  harmony: {
+    amount: 0.7,
+    intervals: [[-2, 6], [-5, 3]],
+    on: 'vocal',
+  },
 };
 
 // ---------------------------------------------------------------------------

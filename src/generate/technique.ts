@@ -393,6 +393,24 @@ export function applyTechnique(args: {
    * accident`, which is a check about two parts and cannot be satisfied from
    * inside one. Shortening is safe in a way lengthening is not, and the
    * asymmetry is the whole rule.
+   *
+   * **And a harmony note's length is not its own to articulate.** A second part
+   * is written by copying the lead's `beat` *and* `duration` — sharing the
+   * lead's onsets and lengths is the whole definition of the gesture, and
+   * `NoteEvent.harmony` is what says so. This pass runs per layer at track
+   * assembly, long after that copy, and the tune and the answer draw their
+   * techniques on separate streams: so the tune's hand shortened the lead and
+   * the answer's did something else to its twin, and the twinning was gone. On
+   * metal `power` it produced a harmony note of 0.870 against a lead note of
+   * 0.296 — the lead scaled by `muted`'s 0.34 and the harmony untouched, 194×
+   * the length of the note it is supposed to be doubling — and over nine
+   * declaring styles at 48 songs each, the share of harmony notes still holding
+   * the lead's length ran from 100% down to 21%.
+   *
+   * Exempt here rather than corrected here, because this pass sees one layer
+   * and the length belongs to a note on another one. `song.ts` re-fastens each
+   * twin to its lead once the lead's own hand has had its say, which is the
+   * only place both parts are in view. See the `harmonyLine` block there.
    */
   const bar = args.beatsPerBar;
   const held = (note: NoteEvent) =>
@@ -402,7 +420,7 @@ export function applyTechnique(args: {
     : profile.length;
 
   if (lengthens !== 1) {
-    for (const note of notes) if (!held(note)) note.duration *= lengthens;
+    for (const note of notes) if (!held(note) && !note.harmony) note.duration *= lengthens;
     /**
      * …but a string cannot still be ringing when it is struck again.
      *
@@ -438,7 +456,10 @@ export function applyTechnique(args: {
          * this the one thing a technique may not do: delete something.
          */
         const room = Math.max(1 / SLOTS_PER_BEAT, string[i + 1]!.beat - string[i]!.beat);
-        if (string[i]!.duration > room) string[i]!.duration = room;
+        // A harmony note is still a boundary — the string it is on is a real
+        // string and the note before it has to stop — but its own length is the
+        // lead's and not this pass's to cap. See the exemption above.
+        if (!string[i]!.harmony && string[i]!.duration > room) string[i]!.duration = room;
       }
     }
   }

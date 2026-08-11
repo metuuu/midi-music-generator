@@ -642,6 +642,41 @@ export const indian: Genre = {
    *
    * `riff` and `swell` are left where they are. Both need a horn section, and
    * only one style in the genre has one.
+   *
+   * ## `Genre.harmony` is declined too, and on all twenty-eight styles
+   *
+   * The zero above settles a *draw*; a `Style.harmony ?? Genre.harmony`
+   * declaration replaces one. Two different questions, so the second is answered
+   * here rather than left to be inferred from the first.
+   *
+   * The zero already has teeth. `planChart` builds its bag from the entries
+   * weighted above nought, so `harmony` is not merely unlikely in this genre, it
+   * is absent from the pool — the harmony-line rate here is **0**, against the
+   * catalogue's 0.73% of melody bars. A declaration would not lift a small
+   * number, it would be the only source of one.
+   *
+   * And both destinations the field can reach are already occupied. `on:
+   * 'counter'` is the sārangī, and what the sārangī does is the paragraph above
+   * — 8 of 17 by weight, one line and two instruments — so a standing third
+   * would trade the relationship the ensemble *is* for the Western one. `on:
+   * 'vocal'` is a stack, and the two styles here with a crowd in them are not
+   * stacked: the qawwāli's back row claps and answers, and the bhajan is written
+   * at `span: 11` so that a room which has not rehearsed can sing it back, which
+   * it does in unison and an octave apart where the voices are.
+   *
+   * **Filmī is the near miss and is still a miss.** Its own entry calls it the
+   * only place in this genre where harmony exists, and what exists there is a
+   * string section playing chords *under* a rāga — four styles with real
+   * progressions against twenty-four holding one chord for the length of the
+   * piece — which the `progressions` tables already carry. The second *line* on
+   * those records is the obbligato in the gaps at the ends of the couplets, and
+   * `counterSpacing: 1` is that gesture authored; a standing harmony on
+   * `counter` would overwrite it with a part locked to the lead's own onsets,
+   * which is precisely what that entry's comment says the obbligato must not be.
+   *
+   * What would have to be true before one is written: a style whose second voice
+   * sounds *with* the first rather than after it. Every candidate in this file
+   * either answers or shadows.
    */
   arrangement: { harmony: 0, unison: 8, trade: 5, tutti: 2, riff: 1, swell: 1 },
 

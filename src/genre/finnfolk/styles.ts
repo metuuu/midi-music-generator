@@ -305,6 +305,25 @@ const runolaulu: Style = {
    * the tune.
    */
   melody: { leap: 0.07, ornament: 0.28, span: 7, sequence: 0.75, syncopation: 0.05 },
+  /**
+   * The genre's `chant: 2.5` is one of the two weights argued *from* this style
+   * and it lands 0.72 below what derivation already knew about this table.
+   *
+   * The header says the tune is one line long and *comes round again unchanged
+   * for as long as the poem lasts*, and calls `hook: 'earworm'` the one place in
+   * the project that setting is unambiguously correct. What it plays agrees:
+   * **5.80 onsets per sounding bar, the second densest line in the genre, and 79%
+   * of its adjacent intervals a step** against a genre mean of 73. That is
+   * `ARCHETYPES.chant`'s own gloss — *one note repeated with a tail* — measured,
+   * and derivation reads exactly it and returns 3.22. The genre constant cannot
+   * keep that figure because it also lands on eleven fiddle dances; the two-tier
+   * shape its own note describes is this line.
+   *
+   * 5 rather than 3.22 because the weight has to *lead* here, ahead of
+   * `arch-hook`'s 4. A runo tune has no arch in it — there is one high point in a
+   * strain and this music has no strain, only the line said again.
+   */
+  voice: { archetypes: [['chant', 5]] },
 };
 
 /**
@@ -436,6 +455,29 @@ const itkuvirsi: Style = {
    * phrase is a descent by step onto a note it was never far from.
    */
   melody: { leap: 0.09, ornament: 0.55, span: 10, sequence: 0.3, syncopation: 0.04 },
+  /**
+   * `Genre.voice` says distinguishing the lament from its neighbours is a
+   * `Style.voice` job and declines to do it with a constant. This is the job.
+   *
+   * The header is a description of one archetype and nothing else: *a lament
+   * opens on the wail — the highest note of the phrase, struck and held — and
+   * then falls away for as long as it takes*, and *the lament's phrase is a
+   * descent onto the tonic from above*. `ARCHETYPES['descending-sequence']`
+   * carries `peakAt: [0.08, 0.25]` and `shapes: [['fall', 5], …]`, which is that
+   * sentence in the engine's own terms.
+   *
+   * What it gets is the genre floor. Derivation reads `melody.sequence`, this
+   * style sets it to 0.3 deliberately — *the poem repeats and the grief does
+   * not* — and 1 + 0.3×3 is **1.9, the second lowest of the twenty-four**, so the
+   * genre's flat 2 hands the lament exactly what it hands the polkka. The
+   * duration mix confirms the held half of the header and can say nothing about
+   * the fall: 84% of notes a quarter or longer and 4% eighths, the sparsest mix
+   * in the genre, which is `long-note` at the genre's 2 already doing its work.
+   *
+   * 5 so that the fall leads `arch-hook`'s 4. An arch peaks in its second half
+   * and this phrase peaks in its first bar; the two cannot both be the shape.
+   */
+  voice: { archetypes: [['descending-sequence', 5]] },
 };
 
 /**
@@ -712,6 +754,26 @@ const karjanhuuto: Style = {
    * fifth — is the range those leaps need to have somewhere to go.
    */
   melody: { leap: 0.55, ornament: 0.34, span: 19, sequence: 0.24, syncopation: 0.08 },
+  /**
+   * The delta `Genre.voice` names as the clearest one it still owes, and the
+   * numbers say it was right to.
+   *
+   * The header says a call is *made almost entirely of leaps* and that
+   * `leap: 0.55` is *the definition rather than a taste* — *a call that moved by
+   * step would not carry past the first stand of trees.* What it plays is **68%
+   * of its adjacent intervals a step and 25% wide**. The 25 is the largest wide
+   * share in the genre and the 68 is still two thirds of the line, so the style
+   * whose subject is the interval is currently a mostly stepwise tune with an
+   * unusual number of jumps in it.
+   *
+   * Derivation reads `leap` and returns 3.25; the genre cuts that to 1, which its
+   * own note prices at a 69% overwrite — correctly, because the same 1 has to
+   * serve `runolaulu` at 0.07 and `virsi` at 0.11. Restoring 3.25 rather than
+   * inventing a larger number: the derived figure was already this style's, and
+   * `ARCHETYPES['wide-interval']` carries `leap: 1.6` and `shapes: leap-home`,
+   * which is a call thrown out and walked home and needs no exaggerating.
+   */
+  voice: { archetypes: [['wide-interval', 3.25]] },
 };
 
 /**
@@ -820,6 +882,31 @@ const virsi: Style = {
   ],
   drums: SILENT,
   melody: { leap: 0.11, ornament: 0.48, span: 11, sequence: 0.48, syncopation: 0.06 },
+  /**
+   * *This is not a hymn style. It is the ornament style* — and it is the style
+   * with almost no sixteenths in it.
+   *
+   * The header's claim is subdivision and it makes it three times: *half the
+   * speed, every note ornamented into three or four*, and *the written note is a
+   * destination and everything between two of them is invention*. What it plays
+   * is **5% sixteenths and 83% of notes a quarter or longer**. Only `menuetti`
+   * has fewer sixteenths, and a minuet is entitled to; `itkuvirsi`, which is
+   * slower still and declares a *higher* ornament at 0.55, plays 13%. The half of
+   * the header about half speed arrived; the half about invention did not.
+   *
+   * The field is the genre's `long-note: 2` over this table's derived **0.64**,
+   * and not `ornament`, which the prose above endorses at 0.48 and which this
+   * delta has no business second-guessing. `Genre.voice` argues its 2 from the two
+   * sparsest tables in the file — `karjanhuuto` at 2.10 onsets a bar and
+   * `itkuvirsi` at 2.63 — and this one is 2.83, so it is paying for a claim made
+   * about somebody else. The archetype it buys carries
+   * `shapes: [['climb-hold', 4], …]`: the printed note held, which is exactly what
+   * the parishes stopped doing.
+   *
+   * Restored to derivation rather than pushed below it, because the slow half of
+   * the header is true — a line of this hymn does take forty seconds.
+   */
+  voice: { archetypes: [['long-note', 0.64]] },
 };
 
 /**
@@ -914,6 +1001,34 @@ const piirileikki: Style = {
     } },
   ],
   melody: { leap: 0.18, ornament: 0.12, span: 12, sequence: 0.66, syncopation: 0.14 },
+  /**
+   * The style that says it is the plainest tune in the file plays the fewest
+   * notes in the genre, and the two are not the same claim.
+   *
+   * The header says *the whole figure inside four of them* — four sixteenths, one
+   * beat of a 2/4 bar — and *everybody has to be able to sing it on the second
+   * time round, since there is nobody else to carry it*; `ornament: 0.12` above is
+   * the lowest in the genre and says the same thing. Plain means unadorned, and
+   * these cells state it: eight of them, the heaviest `[2, 2, 2, 2]`, **3.15
+   * onsets a bar**.
+   *
+   * What it plays is **1.98 — 63% of its own table, the largest shortfall of the
+   * twenty-four, and the lowest realised density in the genre**, under the
+   * unaccompanied herding call. **38% of its notes are a quarter or longer**,
+   * which in a 2/4 bar is half the bar; the other three 2/4 dances play 10%
+   * (`polkka`), 11% (`tanhu`) and 26% (`purpuri`). A ring dance at 120 whose notes
+   * last half a bar is not a ring dance, and a circle of people cannot sing a tune
+   * that has stopped.
+   *
+   * The field is the genre's `long-note: 2` over this table's derived **0.4**.
+   * `ARCHETYPES['long-note']` carries `density: 0.45` and `stride: 3`, so a
+   * five-fold lift halves the line and widens what is left; `Genre.voice` prices
+   * the same cost itself — *it also lifts twenty-two dance tables off a 0.40
+   * floor* — and this is the table where the bill arrived. Restoring 0.4 rather
+   * than choosing a new number: derivation was right about this style and the
+   * constant was outvoting it.
+   */
+  voice: { archetypes: [['long-note', 0.4]] },
 };
 
 // ---------------------------------------------------------------------------
@@ -2195,6 +2310,36 @@ const soittokunta: Style = {
   ],
   drums: SILENT,
   melody: { leap: 0.24, ornament: 0.3, span: 16, sequence: 0.55, syncopation: 0.24 },
+  /**
+   * The second fiddle plays the tune, and in this style that is not a device.
+   *
+   * `requireLayers: ['counter']` above says the second fiddle is in every section;
+   * the header says what it plays and when that started — *first and second
+   * fiddles in thirds*, and the revival is the moment it stopped being optional.
+   * The genre's `arrangement.harmony: 6` can say neither. It is one coin per song
+   * that lands in a repeat chorus of at least eight bars, and by this genre's own
+   * `FORMS` there are **1.25 of those in a song of 7.8 sections** before the
+   * duration trim — 16%, once, for one phrase. A band whose definition is two
+   * fiddles a third apart cannot be defined in 16% of its sections.
+   *
+   * 0.8 and not 1, because 1 deletes the answering line from this style outright
+   * and the header does not claim that much: it claims the thirds are what
+   * separates an ensemble from a fiddler, not that the second fiddle never once
+   * speaks in a gap. One strain in five is the smallest share that leaves the
+   * other reading alive. Nothing here touches `unison: 7` or `trade: 3`, which are
+   * still drawn per song — a section that gets both is the pair in octaves for its
+   * first half and in thirds for the rest, which is the `arrangement` note's own
+   * sentence about what two fiddlers do with one tune.
+   *
+   * Thirds at 8 against 2, under the tune. `2` is a third and `5` a sixth in the
+   * units `Chart.harmonyBelow` already uses, and the sign is the half that field
+   * could never write; a descant over a polska would be a third fiddle nobody in
+   * this band is. The prose here says *a third under the tune* twice and never
+   * names a sixth, where `hidasvalssi` names both — but the interval is drawn once
+   * for a whole statement, so deleting the sixth would mean the two of them never
+   * open out across a strain in the entire style.
+   */
+  harmony: { amount: 0.8, intervals: [[-2, 8], [-5, 2]], on: 'counter' },
 };
 
 /**
@@ -2294,6 +2439,28 @@ const hidasvalssi: Style = {
   ],
   drums: SILENT,
   melody: { leap: 0.2, ornament: 0.32, span: 16, sequence: 0.48, syncopation: 0.12 },
+  /**
+   * Thirds *and sixths*, which is the header's own pair and the only place in the
+   * file the sixth is named.
+   *
+   * The second of the two styles that require the counter layer, and the reason
+   * the intervals are weighted 6:3 rather than `soittokunta`'s 8:2 is that one
+   * sentence: *fiddles in thirds and sixths over a harmonium*. Two to one is also
+   * what `planChart` has been flipping per song at 0.65/0.35 since before a table
+   * could say it, so this is the project's existing ratio finally attached to a
+   * band that asked for it. Below the tune for `soittokunta`'s reason — the first
+   * fiddle is what is up there.
+   *
+   * 0.7 against that style's 0.8, and the gap is in the two `melodyCells` tables
+   * rather than in taste. Both bars are twelve sixteenths and this one averages
+   * **2.43 onsets in them against the polska's 3.79**; its cadence table draws
+   * `[12]`, one note held through the bar, 6 times in 11 against 5 in 14 there.
+   * The header calls that held note at the end of every phrase the thing the style
+   * is made of, and a phrase with that much air after it is one an answering line
+   * has somewhere to speak into. Taking the last of those holes away would spend
+   * what makes this waltz slow.
+   */
+  harmony: { amount: 0.7, intervals: [[-2, 6], [-5, 3]], on: 'counter' },
 };
 
 /**
@@ -2941,6 +3108,24 @@ const karjalanlaulu: Style = {
     } },
   ],
   melody: { leap: 0.2, ornament: 0.26, span: 13, sequence: 0.68, syncopation: 0.16 },
+  /**
+   * The other half of `runolaulu`'s delta, and it is owed harder here: derivation
+   * gives this table `chant` 3.30 and the genre's 2.5 takes 0.80 off it.
+   *
+   * The header says the metre *survived the trip intact and nothing else did*,
+   * and that `hook: 'earworm'` is here because *it is a hook and the band knows
+   * it* — the tune repeating is the arrangement's whole intention rather than a
+   * side effect of the poem. The measurement is the strongest in the genre for
+   * this archetype: **6.19 onsets per sounding bar, the densest of the
+   * twenty-four, and 85% of adjacent intervals a step, also the highest**, with
+   * 8% wide. A line that busy which almost never leaves the note next door is a
+   * chant whatever the band behind it is doing.
+   *
+   * Same 5 as `runolaulu` for the same reason, and the pair matching is the
+   * point: the two styles are eight hundred years apart, carry the same
+   * `groups: [12, 8]`, and this field should not be the thing that separates them.
+   */
+  voice: { archetypes: [['chant', 5]] },
 };
 
 export const STYLES: Record<string, Style> = {

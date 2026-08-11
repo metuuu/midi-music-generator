@@ -1709,10 +1709,24 @@ export interface HarmonyProfile {
    * Who is singing or playing it, which is a different question from where the
    * notes go.
    *
-   * `melody` is a second lead — a harmony guitar, a second violin — and it means
-   * a second `Track` on the melody layer, which the IR already allows and no
-   * song has yet used. `counter` hands it to the answering instrument, which is
-   * what the device does today.
+   * `melody` is a second lead — a second cornet, a wind band's segunda, the
+   * second horn of a Memphis chart — and it means a second `Track` on the melody
+   * layer. It draws a seventh instrument, off the melody list the lead was drawn
+   * from and with the lead's own name already taken, so a style offering several
+   * melody voices gets a section of two of them and a style naming exactly one
+   * gets two of that one. It is cast as `melody-2` and stands next to the lead.
+   * `counter` hands the line to the answering instrument, which is what the
+   * device does today.
+   *
+   * **The two are not interchangeable and the difference is what the counter
+   * does with the rest of its evening.** `counter` *replaces* the answering line
+   * for the sections it fires in, so a style declaring it at 0.8 has an answering
+   * instrument that answers in one section out of five; that is exactly right
+   * where the second player already is the counter — rock's second guitarist,
+   * a two-fiddle band's second fiddle — and wrong where the ensemble has both, a
+   * march band whose second cornet doubles the first while the horns go on
+   * answering underneath. Ask which player is holding the line, not which line
+   * sounds better.
    *
    * `vocal` is not the same kind of value as those two and the type cannot say
    * so: `vocal` is a `LayerId` but is excluded from `PlayedLayer` and never

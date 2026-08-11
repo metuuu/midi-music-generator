@@ -56,6 +56,29 @@
  * instead, because two choruses on the same phrase are the same swaras by
  * construction.
  *
+ * ### Two singers
+ *
+ * A stack is a second `Track` on the `vocal` layer, not extra notes on this
+ * one, and the argument is not symmetry with the melody layer — it is that
+ * three consumers walk this track's notes as **one mouth**. `visemesFor` emits
+ * one viseme per struck syllable and `npm run concert` asserts exactly one per
+ * note; `phrasesOf` in `web/sung-voice.ts` cuts the notes into utterances for a
+ * single monophonic tract; and the Strudel voice writes one attack, one formant
+ * centre and one consonant burst per slot. Two notes on a beat would be two
+ * mouth shapes on one face, an utterance that interleaves two lines, and a
+ * formant grid with two values fighting for one slot. A second track is two of
+ * each, which is what two singers are — and it needs no new note flag, where
+ * the `counter`-layer version of this needs one.
+ *
+ * What the two share is everything except pitch and level: the same syllable
+ * grid, the same words, the same vowels, codas and phrase breaks. That is
+ * structural rather than careful — `writer` runs **once**, and both tracks are
+ * written from the one `Sung[]` it produced. It has to be structural, because
+ * calling it twice is wrong twice over: `Rng.fork` advances its parent, so the
+ * second call would invent a different lexicon; and a `WordStyle.degrees` voice
+ * names the note it is standing on, so a transposed second call would sing
+ * different swaras on the same beat.
+ *
  * The words are never rendered, never serialised and never leave this file:
  * what goes on the `Track` is syllables, as it always was. `generate/phonetics.ts`
  * carries the rules — vowel harmony, syllable weight, which letters this voice
@@ -130,40 +153,186 @@ export interface LyricContext {
   tonic?: number;
 }
 
+/**
+ * How a second singer is placed against the first.
+ *
+ * Scale steps rather than semitones, and a callback rather than a scale,
+ * because the interval has to be measured against the chord sounding *there*:
+ * a section is several chords, and a third taken off the first of them is not a
+ * third against the rest. That is the same argument and the same signature
+ * `harmonise` in `tune/band.ts` already takes, so a caller holding one holds
+ * the other.
+ */
+export interface VocalStack {
+  /**
+   * Which sections carry a second voice, and how far from the tune it sits —
+   * signed scale steps, positive above. Keyed by index into
+   * `LyricContext.sections`; a section not named here is sung alone.
+   *
+   * **One number per section is the whole of "no three-part by default".** The
+   * type cannot express a trio, so a style that wants a gospel stack or a girl
+   * group has to come back and widen this, rather than getting one by accident
+   * out of a larger number.
+   *
+   * The draw belongs to the caller — `HarmonyProfile.amount` decides which
+   * sections and `intervals` decides the step, on the caller's own stream. This
+   * file draws nothing extra for a stack, which is what makes it safe to have
+   * added: a song that asks for none generates byte for byte what it did.
+   */
+  steps: ReadonlyMap<number, number>;
+  /** `(midi, steps, beat) => midi`, in the scale prevailing at that beat. */
+  step: (midi: number, steps: number, beat: number) => number;
+}
+
+/**
+ * How far under the lead the second singer sits.
+ *
+ * A stack is two people singing, not a voice with a shadow, so this is small —
+ * the same 0.82–0.88 range `harmonise` and `syllabify` already use for a part
+ * that is audibly the second one. Velocity rather than `gain`, because how loud
+ * *singing* is against the band is the genre mix table's decision and this is
+ * only the cue for which of the two is the lead.
+ */
+const STACK_VELOCITY = 0.88;
+
+/**
+ * The sung line, and the second one where a style asks for it.
+ *
+ * Always one track before any stack, and never more than two: the lead comes
+ * first so that the `find(t => t.layer === 'vocal')` in `concert/index.ts`,
+ * `visemesFor` and `web/sung-voice.ts` all keep landing on the singer the
+ * arrangement is built round, which is the same ordering convention the drum
+ * kit already relies on to keep the plain `drums` id.
+ */
+export function generateVocalStack(
+  melody: NoteEvent[],
+  profile: VocalProfile,
+  rng: Rng,
+  lyric: LyricContext,
+  stack?: VocalStack,
+): Track[] {
+  if (!melody.length) return [];
+
+  const line = oneNoteAtATime(melody);
+  const shift = octaveFold(line, profile);
+  const syllables = syllabify(line, shift, profile);
+
+  /**
+   * Once, however many people are singing it. See the header: a second `writer`
+   * would advance `rng` past its own lexicon and would re-name every swara off
+   * the transposed pitch, so the two singers would be on different words on the
+   * same beat — which is two soloists rather than a stack.
+   */
+  const sung = syllables.map(writer(profile, lyric, rng));
+
+  /**
+   * Joined to the next note when the next note is part of the same word, and
+   * only then. That is the rule the whole vocal layer turns on: silence goes
+   * between words, never inside one, and a listener reads a silence inside a
+   * word as a word boundary — so a line with silence everywhere is heard as a
+   * line of one-syllable words however good the vowels are.
+   *
+   * A phrase break wins over it. The next syllable beginning after a breath is
+   * a new word by construction, but the melody can also simply stop, and two
+   * notes a bar apart are not legato whatever the words say.
+   *
+   * Shared, because it is a fact about the words rather than about the pitch:
+   * two singers on one word are both inside it.
+   */
+  const joined = syllables.map((syl, i) => sung[i + 1] !== undefined
+    && sung[i + 1]!.word === sung[i]!.word
+    && syllables[i + 1]!.beat - syl.beat < PHRASE_GAP_BEATS + 1e-6);
+
+  const lead = voiceTrack(
+    profile, profile.name, writeLine(syllables, sung, joined, (syl) => syl.midi, 1),
+  );
+  if (!stack?.steps.size) return [lead];
+
+  const spans = spansOf(lyric);
+  const second = writeLine(syllables, sung, joined, (syl) => {
+    const steps = stack.steps.get(spanAt(spans, syl.beat));
+    // Nothing, and a unison — which is nothing that can be heard, and the exact
+    // fault `undoubleAgainst` and `npm run genres` exist to catch. An octave is
+    // not refused here: seven steps is a caller stating an octave stack, and
+    // this file has no business overruling a declaration it was handed.
+    if (!steps) return undefined;
+    /**
+     * Off the *folded* midi, and never folded again. `octaveFold` picks one
+     * octave for one line; running it over the second line would let it pick a
+     * different one and turn a third into a tenth, which is a different
+     * arrangement. Out-of-range notes are not dropped either — the one thing a
+     * stack claims is that both singers are on the same syllable at every
+     * onset, and a hole in the middle of a word is the worse fault. The excess
+     * is also the milder failure by this file's own asymmetry: a descant errs
+     * upward, and `BELOW_RANGE_WEIGHT` is 3 precisely because it is under the
+     * floor that a voice stops producing a note at all.
+     */
+    const midi = stack.step(syl.midi, steps, syl.beat);
+    return midi === syl.midi ? undefined : midi;
+  }, STACK_VELOCITY);
+
+  // A stack the scale refused everywhere is no stack. An empty second track
+  // would still draft a singer who stands there for the whole number.
+  if (!second.length) return [lead];
+  /**
+   * Every note of it marked, for the reason `NoteEvent.harmony` gives about a
+   * second *melody* track: the mark is what stops a consumer handed this track
+   * from reading it as the tune.
+   *
+   * The field's own note called itself "one of two places" and left the singers
+   * out, on the grounds that a stack is a whole track of its own and the track
+   * is the signal. That is true of `Track.voice`, which says this is sung, and
+   * false of the question the mark answers — *which of these two sung lines is
+   * the line* — because two vocal tracks are exactly as ambiguous as two melody
+   * ones. Order answers it and the mark makes the answer checkable, which is the
+   * argument already written down one layer over. Marking here costs a field on
+   * notes nothing else reads and makes `harmony` mean one thing in all three
+   * places a second part can be written.
+   */
+  for (const n of second) n.harmony = 'lead';
+  return [lead, voiceTrack(profile, `${profile.name} 2`, second)];
+}
+
+/**
+ * The one-voice call, which is every call today.
+ *
+ * Kept beside `generateVocalStack` rather than folded into it because the
+ * caller's shape is different: `song.ts` pushes one track through
+ * `effectsFor('vocal')` and has no use for an array of one.
+ */
 export function generateVocalTrack(
   melody: NoteEvent[],
   profile: VocalProfile,
   rng: Rng,
   lyric: LyricContext,
 ): Track | undefined {
-  if (!melody.length) return undefined;
+  return generateVocalStack(melody, profile, rng, lyric)[0];
+}
 
-  const line = oneNoteAtATime(melody);
-  const shift = octaveFold(line, profile);
-  const syllables = syllabify(line, shift, profile);
-  const write = writer(profile, lyric, rng);
-
+/**
+ * One singer's notes, off syllables somebody else has already cut and worded.
+ *
+ * `midiOf` returning `undefined` is a syllable this voice does not sing — the
+ * sections a stack was not asked for. It has to be able to say so per syllable
+ * rather than per span, because the two marks that run *between* notes have to
+ * be retracted at the edge of the silence it leaves: a `legatoToNext` pointing
+ * at a note that was never written, or a `tie` continuing a vowel nobody
+ * started, is a renderer instruction with no note on the other end of it.
+ */
+function writeLine(
+  syllables: Syllable[],
+  sung: Sung[],
+  joined: boolean[],
+  midiOf: (syl: Syllable) => number | undefined,
+  velocity: number,
+): NoteEvent[] {
+  const midis = syllables.map(midiOf);
   const notes: NoteEvent[] = [];
-  const sung = syllables.map(write);
-  const joined: boolean[] = [];
 
   syllables.forEach((syl, i) => {
+    const midi = midis[i];
+    if (midi === undefined) return;
     const s = sung[i]!;
-    const next = sung[i + 1];
-    /**
-     * Joined to the next note when the next note is part of the same word, and
-     * only then. That is the rule the whole vocal layer turns on: silence goes
-     * between words, never inside one, and a listener reads a silence inside a
-     * word as a word boundary — so a line with silence everywhere is heard as a
-     * line of one-syllable words however good the vowels are.
-     *
-     * A phrase break wins over it. The next syllable beginning after a breath
-     * is a new word by construction, but the melody can also simply stop, and
-     * two notes a bar apart are not legato whatever the words say.
-     */
-    joined[i] = next !== undefined
-      && next.word === s.word
-      && syllables[i + 1]!.beat - syl.beat < PHRASE_GAP_BEATS + 1e-6;
 
     /**
      * A tie only counts if the note before it actually runs into it.
@@ -175,24 +344,28 @@ export function generateVocalTrack(
      * the mark comes off and what is left is an ordinary syllable that happens
      * to repeat the vowel.
      */
-    const held = s.tie && joined[i - 1] === true;
+    const held = s.tie && joined[i - 1] === true && midis[i - 1] !== undefined;
+    const runsOn = joined[i] === true && midis[i + 1] !== undefined;
 
     notes.push({
       beat: syl.beat,
       duration: syl.duration,
-      midi: syl.midi,
-      velocity: syl.velocity,
+      midi,
+      velocity: syl.velocity * velocity,
       vowel: s.phoneme.vowel,
       consonant: s.phoneme.onset,
       ...(s.phoneme.coda !== 'none' ? { coda: s.phoneme.coda } : {}),
       ...(held ? { tie: true as const } : {}),
-      ...(joined[i] ? { legatoToNext: true as const } : {}),
+      ...(runsOn ? { legatoToNext: true as const } : {}),
     });
   });
+  return notes;
+}
 
+function voiceTrack(profile: VocalProfile, instrument: string, notes: NoteEvent[]): Track {
   return {
     layer: 'vocal',
-    instrument: profile.name,
+    instrument,
     gmProgram: profile.gm,
     strudelSound: profile.strudel,
     notes,
@@ -446,6 +619,24 @@ function spansOf(lyric: LyricContext): Span[] {
   });
 }
 
+/**
+ * Which section a syllable belongs to.
+ *
+ * Sections are in order and so are the notes, so this only ever walks forward —
+ * but it is written as a search so that a melody starting before the first
+ * section or running past the last still lands somewhere.
+ *
+ * One function rather than two copies of the walk, because the two callers must
+ * agree: a syllable whose words came from the chorus and whose harmony came
+ * from the verse before it would be one singer a section behind the other,
+ * which is the one thing a stack cannot be.
+ */
+function spanAt(spans: Span[], beat: number): number {
+  let i = 0;
+  while (i < spans.length - 1 && beat >= spans[i]!.to - 1e-6) i++;
+  return i;
+}
+
 // ---------------------------------------------------------------------------
 // Singing the note names
 // ---------------------------------------------------------------------------
@@ -540,11 +731,7 @@ function writer(
   let word = 0;
 
   return (syl: Syllable): Sung => {
-    // Sections are in order and so are the notes, so this only ever walks
-    // forward — but it is written as a search so that a melody starting before
-    // the first section or running past the last still lands somewhere.
-    let i = 0;
-    while (i < spans.length - 1 && syl.beat >= spans[i]!.to - 1e-6) i++;
+    const i = spanAt(spans, syl.beat);
     if (i !== span) {
       span = i;
       line = lineFor(spans[i]?.key ?? 'x');

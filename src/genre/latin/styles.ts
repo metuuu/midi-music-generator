@@ -951,6 +951,38 @@ const bolero: Style = {
     },
   },
   melody: { leap: 0.22, ornament: 0.34, span: 16, sequence: 0.4, syncopation: 0.34 },
+  /**
+   * A song, and the genre voice has it singing a coro.
+   *
+   * The comment above opens *"It is a **song** before it is a groove, and the
+   * tables say so"*, and the file header says it of this style by name — *"the
+   * bolero, the bachata and the ranchera carry a real number, because those three
+   * are songs before they are grooves"*. What it plays agrees: **2.70 onsets a
+   * sounding bar, second-sparsest of the twenty-six, and 54% of its notes a
+   * quarter or longer** at a tempo where, in its own words, *"everything has time
+   * to ring"*.
+   *
+   * The genre voice disagrees with both. It pins `riff-response` 5 and `chant`
+   * 3.5 for the montuno — 32% and 23% of the draw here, against 1.25 and 1.06
+   * derived — on the one style whose comment says *"A bolero has no montuno to
+   * put one on"*. `genre/latin/index.ts` names this style as one of the three
+   * that pair is an assumption about and points at this field.
+   *
+   * So the pair falls back to roughly what this style's own tables give it and
+   * the two song archetypes take the weight. `arch-hook` because *"the largest
+   * harmonic vocabulary in the file, real ii–V motion"* is a tune that goes
+   * somewhere and comes back rather than a two-bar cell; `long-note` because the
+   * quarter-note share above is already measuring the held phrase-ends.
+   * `descending-sequence` and `wide-interval` stay derived.
+   */
+  voice: {
+    archetypes: [
+      ['arch-hook', 5],
+      ['long-note', 2.5],
+      ['riff-response', 1.5],
+      ['chant', 1.2],
+    ],
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -1473,6 +1505,34 @@ const guaguanco: Style = {
     } },
   ],
   melody: { leap: 0.3, ornament: 0.26, span: 12, sequence: 0.5, syncopation: 0.7 },
+  /**
+   * The subset table takes a note out of the pentatonic the `scaleForChord`
+   * above exists to protect, and it is the ♭3.
+   *
+   * That comment says the line *"draws on a fixed minor pentatonic on the
+   * tonic"* — five notes — and then spends a paragraph on one of them: *"The
+   * three-semitone step from the tonic to the flat third is exactly what
+   * `augmented-second` vetoes at strictness 1, which is why the genre disables
+   * it."* A whole genre rule was switched off for that interval.
+   *
+   * What it plays is a four-note scale. **62% of adjacent intervals are steps,
+   * the lowest share of the twenty-six, and 27% are thirds, the highest** —
+   * which is what happens when the gaps between neighbouring degrees widen from
+   * 3-2-2-3 semitones to 5-2-3.
+   *
+   * `snapToSubset` is why: it keeps the subset entries whose *index* is below
+   * `scale.pcs.length`, and the scale arriving here is the five pcs this style
+   * hands back for every chord. So the genre's top two — 8 of its 13 weight —
+   * resolve against five notes rather than seven. `[0,2,3,4,6]` becomes 1 4 5 ♭7
+   * and deletes the ♭3; `[0,1,2,4,5]` becomes 1 ♭3 4 ♭7 and deletes the fifth.
+   *
+   * One entry, and it is inert by construction: all seven indices exist in a
+   * five-note scale, `allowed.size >= scale.pcs.length`, and the note comes back
+   * untouched. The pentatonic colour the genre table is for is already in this
+   * style's own scale, so the table has nothing left to add here and only a note
+   * to take away.
+   */
+  voice: { subsets: [[[0, 1, 2, 3, 4, 5, 6], 1]] },
 };
 
 /**
@@ -2258,6 +2318,28 @@ const bachata: Style = {
     },
   },
   melody: { leap: 0.22, ornament: 0.3, span: 15, sequence: 0.48, syncopation: 0.4 },
+  /**
+   * *"This is a song with a chorus, not a vamp with a coro."*
+   *
+   * The comment above says exactly that, in that order, and the genre voice then
+   * hands it the coro anyway: `riff-response` 5 and `chant` 3.5, 32% and 23% of
+   * the draw, against 1.70 and 1.29 derived from this style's own tables.
+   * `genre/latin/index.ts` names the bachata as one of the three styles those two
+   * numbers are an assumption about.
+   *
+   * `arch-hook` takes it, and only `arch-hook` — *"structurally it is a bolero at
+   * double the tempo"* is the sung form at speed, and the numbers keep the speed:
+   * **3.35 onsets a sounding bar against the bolero's 2.70, and 27% quarters or
+   * longer against its 54%**. So the bolero's `long-note` lift would be wrong
+   * here and is not copied over; this is a chorus, not a held phrase-end.
+   */
+  voice: {
+    archetypes: [
+      ['arch-hook', 5],
+      ['riff-response', 2],
+      ['chant', 1.5],
+    ],
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -3652,6 +3734,37 @@ const ranchera: Style = {
     modes: [['stride', 5], ['answer', 4], ['block', 1]],
   },
   melody: { leap: 0.28, ornament: 0.36, span: 17, sequence: 0.42, syncopation: 0.22 },
+  /**
+   * The held note the band waits through is not in the notes, and a mariachi
+   * waltz is being given a coro.
+   *
+   * Two sentences from the comment above and each is contradicted by a different
+   * column. *"The whole architecture is built around a held note at the end of a
+   * phrase that the band waits through — `cadenceCells` therefore weights the
+   * twelve-slot whole bar higher than any other style here."* What it plays is
+   * **21% of notes a quarter or longer, third-lowest of the twenty-six, and 52%
+   * eighths**. It is the sparsest style in the folder at 2.24 onsets a sounding
+   * bar and it spends that sparseness on rests rather than on length, which is
+   * the opposite statement.
+   *
+   * And *"it is barely a dance rhythm at all… a voice with a band behind it"*,
+   * under a genre voice pinning `riff-response` at 5 where derivation gives 0.68
+   * — a sevenfold lift, the largest in the folder, which `genre/latin/index.ts`
+   * flags by name: *"a mariachi waltz with no coro anywhere in its tables."*
+   *
+   * `long-note` is the field for both, because it is the one archetype that is a
+   * claim about duration rather than about contour — it carries `density` 0.45
+   * and a `judge.density` of 0.3, so a section that draws it is scored as a slow
+   * one instead of against a dance band. The coro pair goes to where this style's
+   * own tables put it.
+   */
+  voice: {
+    archetypes: [
+      ['long-note', 4],
+      ['riff-response', 1],
+      ['chant', 1],
+    ],
+  },
 };
 
 /**
@@ -3768,6 +3881,52 @@ const banda: Style = {
     } },
   ],
   melody: { leap: 0.32, ornament: 0.26, span: 16, sequence: 0.5, syncopation: 0.3 },
+  /**
+   * The thirds, and this style's own description names them as one of the four
+   * things it is made of.
+   *
+   * *A tuba walking the bass, clarinets and trumpets in thirds, a tambora with a
+   * mallet and a stick, and nothing with strings on it* — and three of those four
+   * are already unconditional facts of the tables above. The tuba fills: two of
+   * its three patterns walk, 9 of 15 weight. The tambora takes `bd` and `rim`
+   * together in both drum figures. The strings are gone by `excludeLayers` and by
+   * the era palettes. The fourth clause had nowhere to be written until this
+   * field, and `arrangement.harmony` could not carry it — the genre weights that
+   * device at 5 for the *moña*, which the mambo header defines as figures where
+   * "none of them is the tune". This is the tune, doubled, all night, and it is
+   * the only "in thirds" anywhere in the folder.
+   *
+   * `on: 'melody'`, and the sentence that used to say `counter` is the argument
+   * for it: *a wind band's segunda does not answer the primera, it moves with
+   * it*. This is the one style here whose header does not describe its second
+   * wind part as answering something — the ranchera's trumpets "answer the
+   * singer", the bolero's requinto answers the line, and the frevo spent its
+   * second trumpet on the offbeat comp stabs — so it is the one that wants a
+   * second *player on the tune* rather than the answering desk borrowed for a
+   * strain. That is also why this sits on one style rather than on the genre.
+   *
+   * **What the move buys is that the counter keeps its own job.** Under
+   * `on: 'counter'` the segunda was written over the answering line, so a banda
+   * playing its thirds was a banda with nothing answering; now the second clarinet
+   * doubles the primera and the counter goes on writing the figure behind them,
+   * which is a wind band with fifteen people in it rather than four.
+   *
+   * 0.8 rather than 1, and the residual is the strain stated by one wind alone,
+   * which a banda also does. `kinds` is absent deliberately — a march doubles its
+   * intro and its outro as readily as its chorus — and the solo sections take
+   * themselves out, since the pass sits in the arm of the section branch a solo
+   * does not take.
+   *
+   * Below the tune, because the segunda is below the primera. 3:1 against the
+   * sixth where `planChart`'s own coin flip is 65:35: a scored second part sits
+   * on the third and reaches for the sixth where the third below would drop it
+   * into the trombones, which is rarer than an arranger picking by ear.
+   */
+  harmony: {
+    amount: 0.8,
+    intervals: [[-2, 6], [-5, 2]],
+    on: 'melody',
+  },
 };
 
 // ---------------------------------------------------------------------------

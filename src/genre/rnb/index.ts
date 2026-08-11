@@ -557,6 +557,38 @@ export const rnb: Genre = {
    * funk arrangement, and what the horns do here is answer the singer. `trade`
    * stays low for the reason `solo.tradeFours` is low — there is nobody on this
    * stage to trade with.
+   *
+   * ## Why the 8 stays a device, and no style here declares `Style.harmony`
+   *
+   * `HarmonyProfile` places a second voice in **scale steps**, and this genre's
+   * major scale is `majorBlues` — six degrees whose own gaps are 2, 1, 1, 3, 2, 3
+   * semitones, because the whole point of the row is that both thirds are in it
+   * and they are next to each other. A step count is not an interval in a scale
+   * shaped like that. Forced onto `doowop` at `amount: 1` over 60 seeds, two steps
+   * under the tune came out a **perfect fourth 53.3%** of the time, a third 29.8%,
+   * and a **whole tone 17.0%** — the lead on the ♮3 and the second voice on the
+   * 2̂, which is the degree the row puts next door. `girlgroup` and `contemporary`
+   * measure the same within two points. Five steps is worse: 66.6% sevenths
+   * against 33.0% sixths.
+   *
+   * In minor it is exact — plain aeolian has seven degrees, and the same
+   * declaration comes out 99.4% thirds at two steps and 98.4% sixths at five. That
+   * does not rescue it, because the styles with a group standing in front of the
+   * band are the major-key ones: over 20 seeds each, `doowop` is in major 18
+   * times, `gospelsoul` 19 and `girlgroup` 15, against 59.4% for the genre.
+   *
+   * Those two step counts are the device's own — `Chart.harmonyBelow` is 2 or 5 —
+   * so a fourth under the tune is what the weight above already writes, and one
+   * phrase of one repeat chorus is a colour that survives being one. A standing
+   * property is the texture of every section it names, and a table saying *five
+   * people round one microphone sing in thirds* while producing a fourth half the
+   * time and a cluster one note in six describes a different record. `doowop`,
+   * `girlgroup` and `contemporary` are the three that would say it — the group,
+   * the group, and the eight backing vocals — and they stay silent until the
+   * interval can be spelled in semitones, or until `writeLine` corrects on the
+   * distance to the tune rather than on membership of the scale. A note the row
+   * puts a whole tone under the lead is *in* the scale, which is exactly why rule
+   * 2 leaves it there.
    */
   arrangement: { harmony: 8, swell: 7, tutti: 5, unison: 4, riff: 3, trade: 2 },
 

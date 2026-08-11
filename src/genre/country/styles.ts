@@ -694,6 +694,30 @@ const breakdown: Style = {
   comp: [chuck(6), roll(5), chop(3)],
   drums: [],
   melody: { leap: 0.3, ornament: 0.3, span: 12, sequence: 0.62, syncopation: 0.15 },
+  /**
+   * The second strain — which `Genre.voice` cut for a reason about singing, and
+   * there is nobody singing here.
+   *
+   * That table puts `descending-sequence` at 1.5 against the 2.86 this style's
+   * own `melody.sequence: 0.62` derives, and gives the reason: across this file
+   * the number means restatement rather than a walk down the scale, because
+   * *"`duet` says so at the field: a `sequence` of 0.68 because a duet's whole
+   * shape is the same phrase four times with different words."* That is a claim
+   * about **words**, and the header above is *"There is no singer, no break, no
+   * arrangement and nothing that could be called a chorus"*. The same genre
+   * comment names the exception it had no tier to say it in — *"A real descent
+   * is the second strain of a fiddle tune"* — and this is the fiddle tune: one
+   * strain and then the other strain and then the first one again.
+   *
+   * Restoring the derived reading is audible rather than notional. The
+   * archetype's `peakAt` is [0.08, 0.25] — it opens at the top and spends the
+   * section falling away from it — and over twenty songs against the same twenty
+   * seeds, the share of sections whose high point lands in their first third goes
+   * from 22% to 27%. The interval mix does not move with it (75/16/10 stepwise,
+   * thirds, wider, both ways), which is right: a strain that descends is a shape
+   * rather than a wider one.
+   */
+  voice: { archetypes: [['descending-sequence', 2.9]] },
 };
 
 /**
@@ -741,6 +765,26 @@ const bluegrass: Style = {
   comp: [roll(7), chop(6), chuck(4), reverseRoll(3)],
   drums: [],
   melody: { leap: 0.32, ornament: 0.28, span: 14, sequence: 0.6, syncopation: 0.18 },
+  /**
+   * The chorus trio, and `kinds` is the whole of what makes it that.
+   *
+   * `arrangement.harmony: 7` in `index.ts` names "a bluegrass chorus" as one of
+   * the four traditions the weight was written for, and here it is: a verse is one
+   * person telling it and the tenor arrives on the first word of the chorus. That
+   * is the one thing separating this from `duet` below, which never stops.
+   *
+   * Above three times in four, which is what *high lonesome* is a description of —
+   * a tenor over a lead already singing at the top of his range, which is why a
+   * band capos up to B and why `keys` in `index.ts` has a B in it at all. The
+   * fourth is the baritone, and it is there because a trio has both parts and this
+   * field holds one at a time: `harmoniseWith` draws once for the whole statement,
+   * so the weights are a share of choruses rather than of notes.
+   *
+   * See `arrangement` for why `+2` is a fourth on four of the five pentatonic
+   * degrees, and why that is the interval this repertoire actually has. 22% of
+   * these songs are minor, where it is a genuine third.
+   */
+  harmony: { amount: 0.9, intervals: [[2, 6], [-2, 2]], on: 'vocal', kinds: ['chorus'] },
 };
 
 /**
@@ -794,6 +838,14 @@ const bluegrasswaltz: Style = {
   }],
   drums: [],
   melody: { leap: 0.26, ornament: 0.25, span: 12, sequence: 0.58, syncopation: 0.12 },
+  /**
+   * The same five people, so the same trio. The header above lists what changes
+   * from `bluegrass` and it is the *figures* — the chop moves, the banjo stops
+   * rolling — which leaves the singing exactly where it was. 35% minor here
+   * against bluegrass's 22%, so a third more of these choruses get the seven-note
+   * ladder and a genuine third out of `+2`.
+   */
+  harmony: { amount: 0.9, intervals: [[2, 6], [-2, 2]], on: 'vocal', kinds: ['chorus'] },
 };
 
 /**
@@ -860,6 +912,23 @@ const gospel: Style = {
     modes: [['stride', 6], ['block', 4], ['answer', 2]],
   },
   melody: { leap: 0.24, ornament: 0.3, span: 11, sequence: 0.62, syncopation: 0.2 },
+  /**
+   * The tenor over the lead, which is the one of the four voices that sings the
+   * lead's words on the lead's syllables.
+   *
+   * `requireLayers: ['pad']` above already stands for the baritone and the bass:
+   * they are a texture under the singer and the pad is the honest place for them.
+   * What the pad cannot be is the tenor, because the tenor is *the same sentence
+   * an interval up* — which is exactly and only what `generateVocalStack` writes.
+   * No `kinds`: four men round one microphone do not stop for the verse.
+   *
+   * `+3` at a quarter of the draws is the one place in this file where the open
+   * interval is not a compromise but the tradition. The shape-note book named in
+   * the header is dispersed harmony — fourths and fifths where a hymnal would put
+   * thirds — and over the major pentatonic `+3` is a fifth on four degrees of
+   * five. 0.85 rather than 1 because a quartet lead does take a verse alone.
+   */
+  harmony: { amount: 0.85, intervals: [[2, 6], [3, 2]], on: 'vocal' },
 };
 
 /**
@@ -922,6 +991,57 @@ const cowboy: Style = {
   }],
   drums: [],
   melody: { leap: 0.42, ornament: 0.22, span: 16, sequence: 0.5, syncopation: 0.1 },
+  /**
+   * The one melody in this genre that is not a line of verse, said where
+   * `Genre.voice` assumes it is.
+   *
+   * That table weights `chant` at 3.5 for all twenty-four styles and argues it
+   * from a sung sentence — *"'I hear that lonesome whistle blow' is six syllables
+   * on one pitch and then a fall"*. On this style that is 22% of the archetype
+   * draws in place of the 0.57 its own density of 2.32 derives, which would be
+   * 5%. And the header above is the denial of exactly that sentence:
+   * **"Everything else here is a spoken line of verse set to notes; this one is a
+   * yodel with a song attached to it."** The archetype's gloss is *one note
+   * repeated with a tail — the hook is the rhythm*, and a yodel is neither half
+   * of that.
+   *
+   * Back to what this style's own density asks for, and nothing else moves. Over
+   * twenty songs against the same twenty seeds it shifts four points of adjacent
+   * intervals out of steps and into thirds — 61%/23% to 57%/25% — and takes the
+   * section's high point out of the last third in one section in twenty more.
+   *
+   * **`wide-interval` belongs here by the prose and is not written, because it
+   * buys nothing.** The header calls the leap into the head voice the point,
+   * `melody.leap: 0.42` is the highest in the file, and `Genre.voice` refused a
+   * genre weight for this archetype expressly so as not to spend it — so 2.6 → 4
+   * looked like the other half of this delta. Measured on the same paired seeds,
+   * intervals wider than a third went 17% to 17%. The cap is the scale and not
+   * the appetite: `scaleForChord` at the genre hands this style the major
+   * pentatonic, where one scale step is already 2 or 3 semitones and two steps is
+   * a fourth or a fifth, so how wide a leap comes out is a property of the five
+   * notes. It is the arithmetic `index.ts` uses to hold `ops.expand` at 0.6,
+   * reaching the archetype table this time.
+   */
+  voice: { archetypes: [['chant', 0.6]] },
+  /**
+   * Close harmony, and it goes **below**, which `melody.span: 16` decides rather
+   * than taste.
+   *
+   * A western trio puts a tenor over the lead and a baritone under him and this
+   * field holds one of the two. The span above is the widest in the genre by a
+   * distance and the header says why — the leap into the head voice is the point —
+   * so the lead is already at the ceiling of what a person can sing, and a second
+   * voice a fourth over the top of that is nobody's part. `generateVocalStack`
+   * would not even refuse it: the stack is written off the folded line and is
+   * never folded again, and an out-of-range note is sung rather than dropped,
+   * because both singers being on the same syllable outranks either being
+   * comfortable. Below is where the room is.
+   *
+   * `-2` is a fourth under four degrees of five and a major third under the third;
+   * `-3` is a fifth under, at a quarter, which is the parlour trio opening out on
+   * a held note. 0.9 because these records are close harmony from the top.
+   */
+  harmony: { amount: 0.9, intervals: [[-2, 6], [-3, 2]], on: 'vocal' },
 };
 
 /**
@@ -1883,6 +2003,29 @@ const duet: Style = {
   comp: [chuck(7), chop(4)],
   drums: [brushKit(5), twoBeatKit(4)],
   melody: { leap: 0.22, ornament: 0.24, span: 11, sequence: 0.68, syncopation: 0.12 },
+  /**
+   * The style the genre's `harmony: 7` was weighted for, saying it in the field
+   * that was built for it rather than in a device pool.
+   *
+   * `amount: 1` and no `kinds`, because the header above is not describing a
+   * gesture: *the tenor sits a third above the lead the whole way through and does
+   * not deviate*. One interval and one weight for the same reason — a table that
+   * offered a second would be offering the deviation the header says does not
+   * happen, and `harmoniseWith` draws once per section, so two entries would read
+   * as *the tenor moves between choruses*.
+   *
+   * Above, and this is the case `HarmonyProfile.intervals` was made signed for:
+   * `Chart.harmonyBelow` is unsigned, so before this field every harmony line in
+   * the project sat underneath the tune and a brother duet's tenor was unsayable.
+   *
+   * What it actually sounds like is the fourth, not the third — see `arrangement`
+   * in `index.ts`: the major pentatonic gives `+2` as 4, 5, 5, 5, 5 semitones, so
+   * the sweet third lands only where the tune is on the tonic. 30% of these songs
+   * are minor and get the real interval throughout. The gap is this style's alone
+   * to feel, and it is smaller than the alternative: the device this replaces
+   * draws the same fourth 65% of the time and an octave the other 35%.
+   */
+  harmony: { amount: 1, intervals: [[2, 1]], on: 'vocal' },
 };
 
 /**
@@ -2187,6 +2330,23 @@ const countryrock: Style = {
     },
   }],
   melody: { leap: 0.28, ornament: 0.2, span: 13, sequence: 0.58, syncopation: 0.25 },
+  /**
+   * "Close harmony over all of it", which is in the description above because it
+   * is half of what these records are.
+   *
+   * One interval and no weight beside it, and the reason is the same one the
+   * header gives for the strum filling the bar: this was made on eight tracks with
+   * everybody overdubbed. A stack punched in against a finished vocal is one
+   * singer a fixed distance from himself, and the tape does not renegotiate at bar
+   * nine — where a duet is two people in a room and a quartet is four, both of
+   * which can move.
+   *
+   * `kinds: ['chorus']`, unlike `duet`: the verse is one person telling it and the
+   * band arrives with the hook, which is the arrangement a 1972 single is built
+   * on. 0.8 rather than 0.9 because a fifth of these are the one voice all the way
+   * through, and that is a Gram Parsons record rather than an Eagles one.
+   */
+  harmony: { amount: 0.8, intervals: [[2, 1]], on: 'vocal', kinds: ['chorus'] },
 };
 
 /**

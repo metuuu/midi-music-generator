@@ -341,12 +341,34 @@ export const finnfolk: Genre = {
   /**
    * Two players on one tune, which is nearly the whole vocabulary.
    *
-   * `unison` and `harmony` are weighted higher here than in any other genre, and
-   * they are not decoration — they are what a pelimanni band *is*. A second
-   * fiddle plays the tune a third below it or in octaves with it, all night, and
-   * the word for the resulting texture is not "arrangement", it is "the band".
-   * `soittokunta` and `hidasvalssi` go further and require the counter layer
+   * This said `unison` and `harmony` were weighted higher here than in any other
+   * genre and neither is: `unison: 7` is third behind arabic's 9 and indian's 8,
+   * level with rock, and `harmony: 6` is joint fifth behind rnb and metal at 8 and
+   * country and pop at 7. What is true is the shape rather than the rank — the two
+   * of them are **13 of the 18 weight here**, with nothing but `trade` and `tutti`
+   * to spend the rest on, where arabic and indian put their unison next to a
+   * `harmony` of 1 and 0. They are not decoration.
+   * A second fiddle plays the tune a third below it or in octaves with it, all
+   * night, and the word for the resulting texture is not "arrangement", it is "the
+   * band". `soittokunta` and `hidasvalssi` go further and require the counter layer
    * outright.
+   *
+   * **`harmony: 6` is the answer for twenty-two of the twenty-four, and those same
+   * two are the exceptions.** A device is one coin per song landing in one phrase
+   * of one repeat chorus, which is a colour; a revival ensemble whose definition is
+   * first and second fiddles in thirds needs the statement, so both declare
+   * `Style.harmony` and the branch that would have placed the device is skipped for
+   * them. The chart still draws it and the weight costs the same number either way.
+   *
+   * The weight stays exactly where it is because the other twenty-two genuinely
+   * want the coin. For the eleven village dances the second fiddle is occasional —
+   * `soittokunta`'s own header is that the revival is when that stopped being true
+   * — and for the archaic six the two-voiced texture, where there is one at all, is
+   * **unison**: the *puoltaja* repeating the line under the start of the next, four
+   * women in unison eight hundred years later in `karjalanlaulu`, and a whole ring
+   * of people on one plain tune in `piirileikki`. `VOCALS` picks a choir patch for
+   * that rather than a solo one. It is the `unison` device and a vocal stack in
+   * thirds would be a different repertoire's singers.
    *
    * **`riff` and `swell` are zero, and that is a statement about an instrument
    * that is not here.** Both need the `brass` layer. There *was* brass in Finnish

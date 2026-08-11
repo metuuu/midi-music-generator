@@ -583,6 +583,53 @@ const choral: Style = {
   // tempos, and a choir that suddenly runs is a choir singing something else.
   counterSpacing: 1,
   strictness: 'strict',
+  /**
+   * Two voices, because sacred minimalism is choral music and a choir sings in
+   * parts. Pärt's tintinnabuli is a two-voice system by definition, and a solo
+   * line over an ison is the other canonical texture of the same repertoire —
+   * neither one voice nor two is the exception here, so the share is a coin
+   * flip. The genre's `defaultHook: 'catchy'` is what makes that read as an
+   * arrangement rather than as noise: every section is recalled, so a second
+   * singer arriving on a tune already heard *is* the "something different on
+   * top" the genre header describes.
+   *
+   * On the voice rather than the counter, and the mix table settles it. This
+   * genre puts `counter` at 0.24 against `melody`'s 0.54, under a note recording
+   * that an answering line 4.4 dB louder was already too loud for it — and two
+   * parts at 2.2 : 1 is one part with a shadow on it, not a duet. The vocal
+   * profile says the opposite thing: `gain: 0.7`, and a `[50, 72]` range whose
+   * own comment calls it a mixed-voice ensemble rather than one singer. The
+   * instrumental half of this texture, a second string line under the tune, is
+   * `on: 'melody'` and has nothing to be written on yet.
+   *
+   * Below, which is arithmetic rather than taste. `octaveFold` weights a note
+   * under the floor three times one over the ceiling, so it settles the sung
+   * line high in its own range, and the second part is written off that folded
+   * midi and never folded again — a descant over a treble line centred on 62
+   * spends the ten semitones it has left, where a part underneath has the rest
+   * of the ensemble to sit in.
+   *
+   * Thirds carry it, at 3 or 4 semitones. A sixth is 8 or 9 and is the one
+   * interval here that reaches under the 50 floor wherever the tune touches its
+   * own bottom, hence the smallest weight. The fifth is organum, which this
+   * genre has already written down as its own sound twice: `ruleOverrides` lifts
+   * `parallel-perfects` naming it, and the comp pattern below is called
+   * `organum`. 1̂ 4̂ 5̂ is the same interval said as a subset, and `Genre.voice`
+   * weights it 3.5.
+   *
+   * `intro` and `outro` are left out because the genre's form comment says what
+   * they are — the bare drone, and the thinning back out — and a second singer
+   * is neither. Declaring costs this style the device draw, which reached it in
+   * about 8% of songs (2 of an effective pool of 8, two thirds of which draws
+   * nothing at all) for one phrase of one repeat chorus, on that same buried
+   * counter. Worth losing.
+   */
+  harmony: {
+    amount: 0.5,
+    intervals: [[-2, 5], [-4, 3], [-5, 2]],
+    on: 'vocal',
+    kinds: ['verse', 'chorus'],
+  },
   progressions: {
     intro: [{ chords: ['i', 'i', 'VI', 'VI'], weight: 4 }],
     verse: [
@@ -655,6 +702,31 @@ const choral: Style = {
   /** Nobody at the back, and the placeholder that used to say so is gone — see `drone`. */
   drums: [],
   melody: { leap: 0.14, ornament: 0.05, span: 13, sequence: 0.55, syncopation: 0.3 },
+  /**
+   * The one archetype this style disagrees with its genre about.
+   *
+   * Its top verse row, at weight 5 of the 16 in that table, carries the note
+   * *"The descending aeolian tetrachord — i VII VI v — which is what modal
+   * lament sounds like in every tradition that has one"*, and
+   * `descending-sequence` is that sentence written as a kind of tune: `fall` at
+   * 5 of its 10 shape weight, `sequenceDir` −1, `stride` 2. What it actually
+   * draws is 1.5 of the genre table's 12.8 — one section in nine — because
+   * `Genre.voice` cut the derived 2.65 to stop five neighbours walking figures
+   * they have not got, and named the cost in the same breath: *"`choral` is the
+   * one style that loses by it … a style that wants the archetype outright has
+   * `Style.voice` for it"*.
+   *
+   * 3 is the tie with `chant`, and the tie is the whole claim: this repertoire
+   * walks a figure down about as often as it repeats one, which is the
+   * difference between Pärt and plainchant and is not a difference the genre
+   * tier can express for six styles at once. One section in five rather than
+   * one in nine. `long-note` at 6 still leads both, because the cells insist —
+   * a dotted half is 6 of 29 in the melody table and a whole-bar note 7 of 12
+   * in the cadences — and nothing else is touched.
+   */
+  voice: {
+    archetypes: [['descending-sequence', 3]],
+  },
 };
 
 /**
@@ -764,6 +836,38 @@ const aquatic: Style = {
     { name: 'none', weight: 2, voices: {} },
   ],
   melody: { leap: 0.15, ornament: 0.05, span: 12, sequence: 0.5, syncopation: 0.28 },
+  /**
+   * The one number above that contradicts the paragraph above it.
+   *
+   * The header says *"The pulse is real but it is not a groove — nothing
+   * syncopates against it and nothing fills"*, and gives the offbeat away to
+   * somebody else entirely: *"The chord on the and is the whole idiom, and it is
+   * why this style comps on the offbeats and nowhere else"*. The lead then
+   * declares 0.28, the highest of the three styles here whose cells never leave
+   * the grid — every onset in the six rows above sits on 0, 4, 8 or 12 — and
+   * lands 16% of its notes off the beat over 8 seeds, against drone's 14% at
+   * 0.20 and wasteland's 10% at 0.22. The style that says *nowhere else*
+   * outsyncopates the two that claim nothing either way.
+   *
+   * `Voice.syncopation` is where it gets in, past the cells rather than through
+   * them: `motif.ts` reads it for `lilt` (0.4 + sync × 3.2) and `snap` (0.2 +
+   * sync × 1.6) against a flat `even` of 2.2, for the pickup roll, and for the
+   * chance of shifting an accent onto a weak slot — four gestures that are each
+   * *against* a four-on-the-floor, and none of which the on-grid cells can veto,
+   * because `cellAccents` fills `accents` and the slot-weight branch that would
+   * have read this number returns before reaching it. It is also the only field
+   * that moves the measurement: `ops.displace` is the obvious suspect and is
+   * not the carrier — dropped to 0.35 on its own it leaves the share at 15%,
+   * so it is left where the genre put it.
+   *
+   * **0, asserted, the way this file's header asserts the absent dominant and
+   * bossa nova asserts `swing: 0`.** Not a ban, because every reader of it
+   * carries a floor: `lilt` keeps 0.4 and `snap` 0.2 against `even`'s 2.2, and
+   * the pickup roll still fires at 0.12. So the pulse can still breathe and
+   * simply has no appetite to. 16% off the beat becomes 12%, and quarter-note
+   * and longer goes from 89% to 95% of everything the lead plays.
+   */
+  voice: { syncopation: 0 },
 };
 
 export const STYLES: Record<string, Style> = {

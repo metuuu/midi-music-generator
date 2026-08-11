@@ -458,6 +458,39 @@ export const funk: Genre = {
    * `trade` stays low. Handing a phrase from one player to another is a
    * conversation, and this band is not having one — it is playing a figure at the
    * same time as everybody else, which is `tutti`.
+   *
+   * ## `harmony` stays a device, and that is the answer for all twenty-two styles
+   *
+   * `Style.harmony`/`Genre.harmony` say *this music is two voices* and replace the
+   * draw below rather than joining it. Nothing here asks for that. **Five of these
+   * six weights moved off the pool's `trade: 4, harmony: 4, unison: 3, tutti: 3,
+   * riff: 3, swell: 8`; `harmony` is the one that did not**, and both tables total
+   * 25, so a harmony phrase is 16% of this genre's draw exactly as it is of every
+   * other genre's. A funk record does have one now and then, in one repeat chorus,
+   * which is what the device is for.
+   *
+   * What this genre says instead, at 7 and 7 above, is that a second player states
+   * the **same line**: `riff` is the figure restated and `tutti` is everybody on it
+   * at once. `styles.ts` writes the same word wherever two parts sound together —
+   * `deepfunk` puts the bass and the guitar on identical slots so "the whole record
+   * sounds like one instrument", and `horns` calls its four-piece section a section
+   * "playing in unison".
+   *
+   * `horns` was the one worth revisiting, and not on a layer that existed. A
+   * Memphis chart voiced under the tune is a *second lead* — `span: 18` and
+   * `leap: 0.42` against a genre that writes riffs — which is `on: 'melody'`, a
+   * second `Track` on the melody layer. That is now built and `horns` declares it,
+   * at 0.75. The two reachable values were refused then and are still refused:
+   * `on: 'counter'` is the answering horn, which `mix` puts at 0.52 under a melody
+   * at 0.92 and `riff: 7` has already given a different job, and declaring the
+   * reachable thing because the real one is unreachable is a table describing an
+   * arrangement it is not making. **`horns` is the only one of the twenty-two.**
+   *
+   * `on: 'vocal'` is refused for a reason of its own. This genre sings with one
+   * strained tenor at the top of a male range — see `vocals.ts`, where the whole
+   * effect "depends on the listener being able to tell that this is hard work" —
+   * and the gang vocal it really has is a shout in unison, not a stack. A second
+   * singer in thirds is a different record with a nicer arrangement on it.
    */
   arrangement: { tutti: 7, riff: 7, swell: 3, harmony: 4, trade: 2, unison: 2 },
 
@@ -695,12 +728,21 @@ export const funk: Genre = {
    * line does not, `slap` 0.24 and 11 because the tune is not the point of that
    * number. A genre number at the mean flattens both and buys nothing.
    *
-   * Owed, and it belongs in `styles.ts` rather than here: `ballad` wants a
+   * Paid in `styles.ts` rather than here, and both are there now: `ballad` takes a
    * `Style.voice` of `riff-response` 1, `long-note` 3, `arch-hook` 4. Its prose
    * calls it "the one whose melody has phrases in it rather than a riff", and
    * `riff-response` at 5 takes it from under 7% of that style's derived table to a
    * third of the genre one. `memphis` needs nothing — its prose is "a guitar
    * answering with three notes", which is the archetype.
+   *
+   * The other one is `horns`, and it is the paragraph above turned round.
+   * Leaving `wide-interval` derived gives that style the top of the 1.70–2.70
+   * band and it still realises 7% of its intervals wider than a third, second
+   * narrowest of twenty-two and below the `vamp` it defines itself against. The
+   * spread is still the claim; what it does not survive is `riff-response` 5 and
+   * `chant` 4 sitting on top of it in the one style whose prose says it cannot be
+   * a riff. Stated there, where the exception is, rather than by softening two
+   * weights the other twenty-one are the reason for.
    *
    * ## Subsets — four rows that are eight sets, because the scale rule is two
    *

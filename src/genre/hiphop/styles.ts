@@ -677,6 +677,24 @@ const breaks: Style = {
       ghosts: { sd: [5, 13] } },
   ],
   melody: { leap: 0.28, ornament: 0.2, span: 12, sequence: 0.68, syncopation: 0.72 },
+  /**
+   * The one number this style disagrees with its genre about, and its own
+   * `description` is the evidence: *"Four bars of drums with **nothing over
+   * them**"*, under a header that says *"a drum break with almost nothing over
+   * it"* and that its *"whole content is the kit"*.
+   *
+   * What it plays is a part. `cellDensity` reads the cells at 4.13 onsets a bar
+   * and twenty songs realise **3.48**, busier than seventeen of the twenty-four
+   * leads in this genre, with only 39% of those notes reaching a quarter. That
+   * is `boombap`'s tune laid over a b-boy break, which is a different record —
+   * and the derivation cannot know, because the cells were written to be drawn
+   * from rather than to be read as a rate.
+   *
+   * 2.8 realises 2.55 and takes the quarter-notes-and-longer share to 61%: a
+   * stab and its answer over the drums rather than a line, which is the sparse
+   * half of this genre and is where a record made of its kit belongs.
+   */
+  voice: { density: 2.8 },
 };
 
 /**
@@ -1229,6 +1247,25 @@ const hornloop: Style = {
       ghosts: { sd: [11, 13] } },
   ],
   melody: { leap: 0.2, ornament: 0.14, span: 9, sequence: 0.85, syncopation: 0.6 },
+  /**
+   * The style states its own density in words and then does not play it.
+   *
+   * The header: *"one hit, half a second long, with the tail chopped off —
+   * **fired on the same two slots of every bar** until it stops being a horn
+   * section and becomes a percussion instrument"*, and the `description` repeats
+   * the two slots. Two slots a bar is two onsets a bar.
+   *
+   * Twenty songs realise **3.10 onsets a bar**, busier than fifteen of the
+   * twenty-four leads here, and **a quarter of those notes are sixteenths**
+   * while fewer than half reach a quarter — where the thing being described is
+   * a half-second note struck twice. `cellDensity` reads the four cells at 3.63
+   * and has no way to know they are a stab.
+   *
+   * 2.2 rather than 2 because the archetype and the section scale a declared
+   * density down: it arrives as **2.11**, with 69% of the notes a quarter or
+   * longer against 48% before. Two slots, and the note is allowed to be long.
+   */
+  voice: { density: 2.2 },
 };
 
 /**
@@ -2894,6 +2931,39 @@ const drill: Style = {
     } },
   ],
   melody: { leap: 0.22, ornament: 0.12, span: 11, sequence: 0.88, syncopation: 0.62 },
+  /**
+   * The genre's subsets are written for a five-note scale, and this is the one
+   * style in the genre that does not play one.
+   *
+   * The header's sentence is the whole reason `scaleForChord` above exists:
+   * *"`minorPentatonic` is 0, 3, 5, 7, 10 — there is no ♭2 in it, **there is no
+   * ♭6 either**, and those two notes are what a drill melody is made of."* The
+   * scale override buys both notes and then the inherited subset table spends
+   * one of them back.
+   *
+   * Every entry in `Genre.voice.subsets` stops at degree 4, because for the
+   * other twenty-three styles degree 4 *is* the top of the scale: `[0,1,2,3,4]`
+   * over a pentatonic is the whole thing and `snapToSubset` hands the note
+   * straight back, on the `allowed.size >= scale.pcs.length` line. Against
+   * seven-degree phrygian the identical list is a live filter — it keeps
+   * 1 ♭2 ♭3 4 5 and drops the ♭6 — and `[0,2,3,4]`, two elevenths of the weight,
+   * drops the ♭2 as well. Twelve songs measure the ♭6 at **11.2%** of 2,837
+   * melody notes, below the ♭2's 13.4% and half the fifth's 23.7%.
+   *
+   * So: the same four colours, re-spelled for the scale this style actually
+   * plays. The ♭2 is in all four now and the ♭6 in three, which takes the ♭6 to
+   * **16.2%** on the same twelve songs. The top entry is six of the seven
+   * degrees rather than all seven, so it stays a colour — what it leaves out is
+   * the ♭7, which is the one note in the mode this style has never claimed.
+   */
+  voice: {
+    subsets: [
+      [[0, 1, 2, 3, 4, 5], 4],
+      [[0, 1, 3, 4, 5], 3],
+      [[0, 1, 2, 5], 2],
+      [[0, 1, 2], 2],
+    ],
+  },
 };
 
 /**
@@ -3016,6 +3086,28 @@ const cloud: Style = {
     } },
   ],
   melody: { leap: 0.2, ornament: 0.3, span: 13, sequence: 0.6, syncopation: 0.35 },
+  /**
+   * Not the density — that is already the sparsest lead in the genre — but the
+   * **canvas it is written on**.
+   *
+   * The `description` is *"a pad held **across four bars**"*, and the header
+   * says of `counterSpacing` that *"the counter layer answers in the lead's
+   * gaps, and here those gaps are **two bars long**"*. The derived voice hands
+   * this style the default two-bar canvas, on which a two-bar gap is the whole
+   * canvas and therefore not a gap at all. Twenty songs bear that out: 1.86
+   * onsets a bar, 86% of them a quarter or longer, and **599 pairs of notes
+   * falling inside a single beat** — clusters, in the style whose subject is a
+   * held sound.
+   *
+   * Four bars takes those to 1.55, 92% and **254 pairs**: the same handful of
+   * notes, spread over the length the sample is said to be.
+   *
+   * The derivation would have granted it unprompted and misses by nothing at
+   * all. `cellDensity` over the five cells is 34/20 = **exactly 1.70** and the
+   * rule is `< 1.7` — so the one style in the file whose own sentence asks for
+   * a longer canvas is the one style the test excludes.
+   */
+  voice: { canvasBars: 4 },
 };
 
 /**

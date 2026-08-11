@@ -162,6 +162,15 @@ export const ambient: Genre = {
    *
    * The practical consequence is that about two thirds of ambient pieces draw no
    * device at all. That is the correct answer for this music rather than a gap.
+   *
+   * `harmony` stays a draw and is deliberately not lifted to `Genre.harmony`.
+   * The 2 is the pool's 4 halved — this genre does not sing in thirds — and five
+   * of the six styles have no second line in them at all: `drone` and `aquatic`
+   * exclude the `counter` layer outright, `wasteland`'s instruction to itself is
+   * that nothing comes back sounding meant, and `hauntology` and `kosmische` are
+   * one lead over a texture. `choral` is the exception and declares its own; a
+   * genre-level property would be that one style's claim written into the tier
+   * that governs six.
    */
   arrangement: { trade: 0, tutti: 0, riff: 0, unison: 6, harmony: 2 },
 

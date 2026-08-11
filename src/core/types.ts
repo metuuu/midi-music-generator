@@ -401,6 +401,45 @@ export interface NoteEvent {
    * permitting the fault, which is why the project had ruled the gesture out.
    */
   doubling?: 'lead';
+  /**
+   * Set on the notes of a second part written *against* the lead — a third above
+   * it, a sixth below it, held for a span — and on nothing else.
+   *
+   * A separate mark from `doubling` above rather than a wider reading of it,
+   * because the two make opposite claims and want opposite treatment.
+   * `doubling` says *these two players are stating the same line*, so
+   * `undoubleAgainst` leaves those notes exactly where they are. This says
+   * *these are two lines*, so an octave in it is not the gesture — it is
+   * precisely the fault the gesture is trying not to be, and it still wants the
+   * repair. Reusing `doubling` would have switched that repair off, which is the
+   * backstop keeping the unison-and-octave assertion green against the two
+   * things the writing pass cannot see: a melody note held across a section seam,
+   * and a recalled tune varied after the second part was placed.
+   *
+   * What it is for is the other half of the confound `doubling` already
+   * documents. `npm run genres` measures how much of the answering line sounds
+   * under the tune — 40% of unmarked notes over 760 songs — against a second
+   * sequencer that ignores the tune entirely, and a harmony note sounds under a
+   * melody note **100% of the time by construction**. Counting a deliberate
+   * second part there charges the answer with overlap the arrangement was
+   * written to produce, so this is what lets the pair exclude it the same way
+   * they already exclude `doubling`.
+   *
+   * Written only where a style or genre declares a `HarmonyProfile` — see
+   * `generate/song.ts` — in all three places a second part can be written, which
+   * is the second thing it is for. `on: 'counter'` mixes these notes into the
+   * answering line, where the mark is the only way to tell them from it.
+   * `on: 'melody'` and `on: 'vocal'` put them on a **second `Track` of their
+   * own**, every note marked and nothing else on it: there the mark is what stops
+   * a consumer handed that track from reading it as the tune. The singers were
+   * left out of an earlier draft of this note on the grounds that the track is
+   * already the signal — true of `Track.voice`, which says the line is sung, and
+   * false of *which of two sung lines is the line*, where two vocal tracks are
+   * exactly as ambiguous as two melody ones. Which of two melody tracks *is* the tune is answered by order —
+   * the lead is emitted first — and this is what makes the answer checkable
+   * rather than merely conventional. See `melodicLine`.
+   */
+  harmony?: 'lead';
 }
 
 /**
@@ -1892,6 +1931,26 @@ export interface Song {
  * A track with no `twoHanded` is returned untouched, so no existing measurement
  * moves — including the overlap check, which is a real bug report on a real line
  * and must not be quietly filtered away.
+ *
+ * ## The question this function does not answer
+ *
+ * It says *what is this player's line*, and since `HarmonyProfile`'s
+ * `on: 'melody'` a layer may carry two players. Both tracks come back from here
+ * as lines, correctly: the second lead **is** a line, monophonic, and everything
+ * that walks one is right about it.
+ *
+ * *Which of them is the tune* is a different question and it has a different
+ * answer, which is **order**. `generateSong` emits the lead first and the second
+ * lead last, so the `song.tracks.find(t => t.layer === 'melody')` that six
+ * reporting tools and the last `undoubleAgainst` all open with keeps landing on
+ * the tune — the same convention the drum kit relies on to keep the plain `drums`
+ * id and the vocal stack to keep `vocal`. A tool that wants the tune must ask
+ * that way round and must not `filter`.
+ *
+ * And a consumer that has been *handed* a track and needs to know which it holds
+ * asks the notes: every note of a second lead carries `NoteEvent.harmony` and no
+ * note of a tune ever does. That is a property of the part rather than of its
+ * position in an array, which is what makes it the one worth checking against.
  */
 export function melodicLine(track: Track): NoteEvent[] {
   /**

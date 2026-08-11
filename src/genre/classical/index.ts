@@ -398,6 +398,23 @@ export const classical: Genre = {
    *    entire job, and the second violin's, and the second horn's. In a dance
    *    band it is an arrangement decision; here it is the default state of a
    *    section.
+   *
+   *    **And it stays a weight: `Genre.harmony` is not declared, three styles
+   *    declare their own.** A standing property would reach all twenty-six, and
+   *    they are the wrong music for it in two different ways. The contrapuntal
+   *    ones would have the second part written onto the `counter` layer, which
+   *    is where their real second part already is — the fugue's own header names
+   *    that layer as the countersubject, the gigue's texture is *two or three
+   *    independent lines*, and the chorale picks its progressions so that *four
+   *    independent voices* are possible, which is the opposite claim to a
+   *    parallel third. And eight are one player at a keyboard — `toccata`,
+   *    `nocturne`, `waltz`, `polonaise`, `barcarolle`, `berceuse`, `etude` and
+   *    `prelude` all carry `twoHanded` — where a nocturne's melody doubled in
+   *    sixths is the right hand doing it and not a viola. That is `on: 'melody'`,
+   *    a second `Track` on the lead layer, and it is not built. So `pavane`,
+   *    `march` and `lacrimosa` say it in `styles.ts`, and the other twenty-three
+   *    keep the draw, which is the right instrument for a doubling that comes
+   *    and goes.
    *  - **`swell` at 6**, which is the horns sustaining under the tune's long
    *    notes. This is the most-used orchestral device there is and the layer it
    *    needs — `brass` — is present in every style here, unlike in ambient where
