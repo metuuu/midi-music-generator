@@ -147,12 +147,11 @@ const BEARING: Record<HairStyle, HairBearing> = {
   mane: 'close',
   mullet: 'close',
   dreadlocks: 'close',
-  // Close, and the fringe is why it is worth saying rather than assuming. What
-  // `emo` puts anywhere near a hat is a cap over a skull with a `bob`'s shell on
-  // it; everything that makes the style is *below* the brim and in front of the
-  // face, where nothing on a head can reach it. A beanie pulled over one and a
-  // fringe still hanging out from under it is the correct picture, and `close`
-  // is what draws it.
+  // Close, and the flattest thing in the list: what `emo` puts under a hat is
+  // hair ironed to within a centimetre of the skull. Everything that makes the
+  // style is *below* the brim and in front of the face, where nothing worn on a
+  // head can reach it, so a beanie pulled over one with the fringe still hanging
+  // out from under it is the correct picture and `close` is what draws it.
   emo: 'close',
   // The five that stand far enough off the skull for a hat to have to answer.
   // `slick` is in the list on the strength of one mesh: its quiff reaches
@@ -370,78 +369,141 @@ export function buildHair(
       // produce, and it survives the back row better than anything that depends
       // on the shape of a mass above the skull.
       //
+      // ## The other half of it is that the hair is *flat*, and that is built
+      //
+      // This was `crown()` and `shell()` — a bob's construction — and it came
+      // out as a helmet with a fringe on it. Those two are written for hair with
+      // body in it: the shell stands 2.5 cm off the skull at the sides, and
+      // eight at the back of the head, where its own push-back piles the mass
+      // up behind the skull. None of that is wrong for a bob and all of it is
+      // wrong here.
+      // Ironed hair is a *skin*. It lies down, it takes one band of light across
+      // the whole head instead of a highlight per mass, and its silhouette is
+      // the skull's own outline a centimetre out — which is a different picture
+      // from ten metres and is most of what says emo rather than "long hair".
+      //
       // **"Partly" is the whole specification, and it is a measurement.** At eye
-      // level — y +0.14 R — hair runs unbroken from the near temple in to
-      // x −0.05, so the swept eye is behind about a centimetre of it; then
-      // there is nothing in front of the face at all from x −0.20 to −0.40,
-      // which is exactly where the other eye is; then from x −0.55 outward the
-      // far temple is hair again. A fringe over both eyes is a bag over the
-      // head, and one that stops at the part is a side parting, which is not a
+      // level — y +0.14 R — hair covers the face from the near temple inward as
+      // far as x +0.07, so the swept eye is behind about a centimetre of it;
+      // from there to x −0.51 there is nothing in front of the face at all, and
+      // that band is exactly where the other eye is; outboard of −0.51 the far
+      // temple is hair again. A fringe over both eyes is a bag over the head,
+      // and one that stops at the part is a side parting, which is not a
       // silhouette.
-      crown(2.08, 1.18, 2.08, 0.52, -0.20);
-      shell();
+
       // Which side it is swept to. One draw, off the performer's own stream, so
       // a player wears the same fringe every night of the run.
       const s = rng.chance(0.5) ? SIDE.left : SIDE.right;
 
+      // Ironed is a surface as well as a shape, and this is the half of it a
+      // silhouette cannot carry. `hairSurface` is roughness 0.72 — hair that
+      // scatters — and under a follow spot that is a matte shape whatever it is
+      // shaped like. Straightened hair returns a *band*: one long highlight
+      // running the length of the fall, which is the thing a photograph of this
+      // haircut always has in it. At 0.40 it is well short of `slick`'s oiled
+      // 0.26 and of `updo`'s pinned 0.34, and that ordering is the point: a flat
+      // iron is not pomade, and the shine comes from the hair lying parallel to
+      // itself rather than from anything put on it. Every mesh below takes it,
+      // so the head is one surface and the band crosses the lot.
+      const ironed = surface(l, look.hair, { roughness: 0.40, metalness: 0.06 });
+
+      // One cap, where every other hanging style here is a crown *and* a shell.
+      //
+      // It is the same trick `shell` uses and it is turned down hard: the
+      // skull's own ellipsoid — 2 × 2.10 × 1.90 R — inflated by a *twelfth*
+      // across and less than that the other two ways, where a shell is inflated
+      // by a sixth, and pushed back 0.08 R where a shell goes back 0.38. A scaled
+      // copy of a convex shape is proud of it everywhere the surface turns away
+      // and buried behind it everywhere it turns towards you, so the face is
+      // still a hole in the geometry with no number tuned against a brow or a
+      // chin — but the hair that results lies between 0.4 and 2.0 cm off the
+      // skull at every point it covers, where a crown and a shell together are
+      // 3.5 cm on average and 8 cm at the back of the head.
+      //
+      // The two numbers pull against each other and there is not much room
+      // between them: the inflation is what covers the temple, the pushback is
+      // what clears the cheek and the chin, and this pair is close to the
+      // tightest that does both. There is no `crown()` on top because at this
+      // size the cap reaches the hairline itself — it crosses the midline at
+      // y +0.53 R, a centimetre and a half above the brow.
+      const cap = new Mesh(orb(l), ironed);
+      cap.scale.set(R * 2.16, R * 2.24, R * 2.00);
+      cap.position.set(0, R * 0.04, -R * 0.08);
+      cap.castShadow = true;
+      hair.add(cap);
+
+      // What a cap that tight costs is length: its hem comes out at y −1.08 R,
+      // which is the jaw and no further, and a cut that stops dead at the jaw
+      // all the way round is a bowl. This is the back of it — a flat tail at the
+      // nape, no wider than the head and 2 cm thick, taking the line down to
+      // −1.23 R. Still clear of the shoulder at −1.29 R, so `settle` has nothing
+      // to do; it is declared to it anyway, because the day the cut gets longer
+      // is not the day anybody will remember to.
+      const nape = new Mesh(orb(l), ironed);
+      nape.scale.set(R * 1.60, R * 0.76, R * 0.34);
+      nape.position.set(0, -R * 0.85, -R * 0.62);
+      nape.castShadow = true;
+      hair.add(nape);
+      falls(nape, 'back');
+
       // The fringe, and it is two rotations because a sheet of hair laid across
       // a face is doing two things at once.
       //
-      // `rotation.z` is the sweep — the root ends up high at the part on the far
-      // side, at x −0.27 R, y 0.84 R, and the tip low at the near cheekbone, at
-      // x +0.87 R, y −0.28 R. `rotation.x` is the small lean that keeps the top
-      // of it against the crown while the bottom stands off; it is +0.06 rather
-      // than negative, which is the sign that took a probe to settle, because a
-      // fringe hangs *away* from the head as it falls and the tip needs to come
-      // back rather than reach further out.
+      // `rotation.z` is the sweep: the root is at the part, x −0.16 R and
+      // y +0.50 R, inside the cap rather than perched on it, and the tip is at
+      // the near cheekbone, x +0.82 R and y −0.20 R. `rotation.x` is the lean,
+      // and it is nearly nothing — −0.06 — because the forehead itself comes
+      // forward on the way down from the hairline to the brow, so a sheet that
+      // follows the skin is very close to a flat plate.
       //
       // Euler order is `XYZ`, so `z` is applied to the mesh first and the lean
       // is then taken about the head's own lateral axis rather than about the
       // already-tilted hair. Written the other way round the sheet corkscrews
       // off the temple, which looks like a mistake rather than like hair.
       //
-      // The thickness is 0.42 R — not quite six centimetres — and it is not
-      // padding. The front of an eye is not the white, which stops at z +0.89 R,
-      // but the iris standing proud of it at z +0.945 R, and a fringe that only
-      // reached the white would have an eye looking through it. This reaches
-      // z +1.01 R over the swept eye. Its frontmost point is z +1.03 R, as far
-      // forward as the tip of the nose gets — and it is up at y +0.39 R, brow
-      // height, where there is no nose to meet.
-      const fringe = new Mesh(orb(l), mat);
-      fringe.scale.set(R * 0.92, R * 1.60, R * 0.42);
-      fringe.position.set(s * R * 0.30, R * 0.28, R * 0.82);
-      fringe.rotation.z = s * 0.80;
-      fringe.rotation.x = 0.06;
+      // It is 0.34 R thick and sits 1.1 cm off the brow and 0.4 cm off the skull
+      // at the eye, which is as flat as it can be and still work, because what
+      // an eye shows is not the white — that stops at z +0.89 R — but the iris
+      // standing proud of it at +0.945 R. Hair that only reached the white would
+      // have an eye looking through it. This runs +0.95 to +0.97 R across the
+      // swept eye, and it clears the nose by half its own thickness again at the
+      // closest the two come.
+      const fringe = new Mesh(orb(l), ironed);
+      fringe.scale.set(R * 0.88, R * 1.20, R * 0.34);
+      fringe.position.set(s * R * 0.33, R * 0.15, R * 0.80);
+      fringe.rotation.z = s * 0.95;
+      fringe.rotation.x = -0.06;
       fringe.castShadow = true;
       hair.add(fringe);
 
       // The short side of the part: what is left over when the rest goes the
-      // other way. It reaches the outer end of the open brow and stops — the
-      // nearest corner of that eye is a third of this ellipsoid's own radius
-      // outside it — so it frames the eye rather than joining in covering it.
-      // Without it the part has hair on one side and a bare temple on the other,
-      // which is a comb-over rather than a fringe.
-      const shortSide = new Mesh(orb(l), mat);
-      shortSide.scale.set(R * 0.60, R * 1.04, R * 0.30);
-      shortSide.position.set(-s * R * 0.52, R * 0.46, R * 0.68);
-      shortSide.rotation.z = -s * 0.60;
-      shortSide.rotation.x = -0.06;
+      // other way. It runs from just off the midline out to the far temple, and
+      // about a third of it stands proud of the cap — the outboard third, from
+      // x −0.22 R out to −0.84 — while the rest is inside the cap it grew from.
+      // That is the right share. It has to be *seen* to say there is a part
+      // here, and it must not become a second fringe: its front never passes
+      // z +0.83 R, so the eye it runs over, whose iris is at +0.945 R, is in
+      // front of it and stays open. Without it the part has hair sweeping off
+      // one side and nothing answering on the other, which reads as a comb-over.
+      const shortSide = new Mesh(orb(l), ironed);
+      shortSide.scale.set(R * 0.56, R * 0.86, R * 0.22);
+      shortSide.position.set(-s * R * 0.48, R * 0.33, R * 0.72);
+      shortSide.rotation.z = -s * 0.83;
       shortSide.castShadow = true;
       hair.add(shortSide);
 
-      // Two panels down the sides of the face, and the near one is the reason
-      // the fringe does not end in mid-air. The shell hangs to the jaw beside
-      // the ear, but its front is a long way back — z +0.39 R at the cheek — so
-      // a fringe leaving the face at the far cheekbone had nothing to arrive in.
-      // These stand forward of it to z +0.79 R, which puts the fringe's tip
-      // inside the near one rather than a millimetre off it, and they carry the
-      // cut down past the jaw to y −1.10 R: below the chin, above the shoulder
-      // line at −1.29 R. So this is a face framed rather than a curtain hung,
-      // and `settle` leaves both alone.
+      // Two sheets down the sides of the face, and the near one is the reason
+      // the fringe does not end in mid-air. The cap is at z +0.35 R by the time
+      // it is out at the cheek, so a fringe leaving the face at the cheekbone
+      // had nothing to arrive in. These stand forward to +0.86 R with the
+      // fringe's tip inside the near one, and they carry the cut to y −1.10 R:
+      // below the chin, above the shoulder line. Flat, at 0.44 R through, so
+      // that from the front they are two straight edges beside a face and not
+      // two rolls of hair.
       for (const side of [SIDE.left, SIDE.right]) {
-        const panel = new Mesh(orb(l), mat);
-        panel.scale.set(R * 0.62, R * 1.40, R * 1.16);
-        panel.position.set(side * R * 0.86, -R * 0.40, R * 0.22);
+        const panel = new Mesh(orb(l), ironed);
+        panel.scale.set(R * 0.44, R * 1.44, R * 1.04);
+        panel.position.set(side * R * 0.86, -R * 0.38, R * 0.34);
         panel.castShadow = true;
         hair.add(panel);
         falls(panel, 'shoulder');

@@ -705,7 +705,10 @@ export interface Station {
  * than an oversight — the ten-metre test is what licenses it, because a diagonal
  * drawn across a face is the single most legible thing in the union, and without
  * it the style would be a `bob` with a longer front and would fail the test
- * outright.
+ * outright. The other half of that value is that the hair is *flat*: ironed down
+ * to about a centimetre off the skull, where every other hanging style here has
+ * body in it. Both halves are the style, and the renderer builds each of them
+ * deliberately rather than as a consequence of the other.
  */
 export type HairStyle =
   // Held close to the skull.
@@ -725,7 +728,7 @@ export type HairStyle =
   | 'mane'       // past the shoulder blades, and over the collarbones as well
   | 'mullet'     // short everywhere the audience can see. Long behind
   | 'dreadlocks' // ropes, hanging separately and swinging separately
-  | 'emo'        // a fringe swept across the face, with one eye behind it
+  | 'emo'        // ironed flat to the skull, one eye behind a swept fringe
   // Cloth, worn instead of a hairstyle.
   | 'hood'       // outerwear, in the jacket's colour
   | 'wrap';      // cloth over the hair, falling to the shoulders
