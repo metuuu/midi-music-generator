@@ -17,7 +17,8 @@ import {
 } from './generate/parts.js';
 import { anticipate, subdivide, thin } from './generate/rhythm.js';
 import { getGenre, GENRE_IDS } from './genre/index.js';
-import { composeSectionTune } from './tune/adapt.js';
+import { composeSectionTune, voiceForStyle } from './tune/adapt.js';
+import { hasVoice } from './tune/voice.js';
 import { getHook } from './generate/hook.js';
 import { comfortableLeap, EMPTY_ACCOMPANIMENT, RULES } from './core/rules.js';
 import type { HookId } from './generate/hook.js';
@@ -4603,6 +4604,66 @@ console.log('\nSolos');
 }
 
 // --- Instrument agility ----------------------------------------------------
+/**
+ * Every genre says what its melodies are made of, and what it says arrives.
+ *
+ * `docs/voices-plan.md` §3.6 asks for the first of these as a *trivial*
+ * assertion, and the triviality is the point: a genre added without a voice
+ * inherits a generic answer to the three questions derivation cannot reach —
+ * which kinds of tune it writes, which degrees it lives in, what it does to a
+ * figure — and does so silently. That is exactly how `melody.sequence` sat
+ * authored-and-unread in every style in the project for the life of the old
+ * engine. A silence becomes a failure here.
+ *
+ * The second half is worth more and costs the same. A declaration that never
+ * reaches `composeTune` is the same silence one indirection further along, so
+ * this resolves each genre's voice through `voiceForStyle` against a real style
+ * of that genre and asserts the declared weights survive — which is the whole
+ * of what `Genre.voice` promises.
+ */
+console.log('\nMelodic voices');
+{
+  const voiceless: string[] = [];
+  const unreached: string[] = [];
+  const flat: string[] = [];
+  for (const gid of GENRE_IDS) {
+    const genre = getGenre(gid);
+    if (!genre.voice) { voiceless.push(gid); continue; }
+    // A style of this genre that has no authored voice of its own, since those
+    // three refuse the genre tier by rule and would report a false failure.
+    const style = Object.values(genre.styles).find((s) => !hasVoice(s.id));
+    if (!style) continue;
+    const resolved = voiceForStyle(style, genre.voice);
+
+    for (const [id, want] of genre.voice.archetypes ?? []) {
+      const got = resolved.archetypes.find(([a]) => a === id)?.[1];
+      if (got !== want) unreached.push(`${gid}/${id} declared ${want}, resolved ${got ?? 'absent'}`);
+    }
+    for (const [op, want] of Object.entries(genre.voice.ops ?? {})) {
+      if (resolved.ops?.[op as keyof typeof resolved.ops] !== want) {
+        unreached.push(`${gid}/ops.${op} declared ${want}`);
+      }
+    }
+    if (genre.voice.subsets && resolved.subsets !== genre.voice.subsets) {
+      unreached.push(`${gid}/subsets did not replace`);
+    }
+    // A table whose entries are all the same weight is a table that decided
+    // nothing — the draw is uniform and the genre has spent a declaration to
+    // say what the absence of one already said.
+    const ws = (genre.voice.archetypes ?? []).map(([, w]) => w);
+    if (ws.length > 1 && new Set(ws).size === 1) flat.push(gid);
+  }
+  check('every genre says what its melodies are made of', voiceless.length === 0,
+    voiceless.length ? `${voiceless.length} without a voice: ${voiceless.join(', ')}`
+      : `${GENRE_IDS.length} genres, every one declaring archetypes, subsets and ops`);
+  check('what a genre declares is what the engine resolves', unreached.length === 0,
+    unreached.length ? `${unreached.length}: ${unreached.slice(0, 3).join('; ')}`
+      : `every declared archetype, op and subset survives voiceForStyle`);
+  check('a genre voice actually chooses between the kinds of tune', flat.length === 0,
+    flat.length ? `${flat.join(', ')} weight every archetype the same`
+      : `no genre spends a declaration on a uniform table`);
+}
+
 // Tested by holding everything else fixed and varying only agility. Comparing
 // real songs instead would be confounded: brass and vibraphone appear in
 // different styles, and the style's own leap character swamps the instrument's.

@@ -118,12 +118,24 @@ import { STAGING } from './staging.js';
  *     if (mode === 'minor' && chord.dominantFunction)
  *       return makeScale(tonic, 'harmonicMinor');     // iskelmä does this
  *
- * Every minor table in `styles.ts` writes `VII` or `v` where a dance band would
- * write `V7`, and the five that do write a `V` are the imported dances — which
- * get a *major* triad with a real leading tone in it, and are handled by the
- * ladder running out and returning the chord's own scale rather than by a
- * special case. The raised seventh reaches the line through the chord or not at
- * all, which is the whole argument in the header made operational.
+ * Most tables in `styles.ts` write `VII` or `v` where a dance band would write
+ * `V7`. **Fifteen of the twenty-four styles do write a `V` somewhere**, though —
+ * this note said five, and five is a count of the imported dances rather than of
+ * the tables. The nine that never write one are `runolaulu`, `itkuvirsi`,
+ * `soitto`, `karjanhuuto`, `piirileikki`, `rekilaulu`, `poljento`,
+ * `sahkopelimanni` and `karjalanlaulu` — the two added to that list against an
+ * earlier count of seven are `piirileikki` (`i VII is III VI`) and
+ * `sahkopelimanni` (`i VII IV VI III iv`), neither of which has a major `V` in
+ * it. Counted by walking the parsed progressions rather than by grepping the
+ * file, which is what makes the difference: `VII` contains a `V`.
+ *
+ * A `V` is a major triad with a real leading tone in it, and the two modes take
+ * it differently. In a major key the ladder finds a home for it: `major` is the
+ * second entry and contains the chord's third. In a minor key nothing on the
+ * ladder does, so the search runs out and the fallback returns **dorian** — the
+ * flattest mode, not "the chord's own scale", which this note also had wrong. The
+ * raised seventh reaches the line through the chord tones or not at all, which is
+ * the whole argument in the header made operational.
  */
 const MINOR_LADDER: ScaleName[] = ['dorian', 'minor', 'phrygian'];
 const MAJOR_LADDER: ScaleName[] = ['mixolydian', 'major', 'lydian'];
@@ -420,6 +432,268 @@ export const finnfolk: Genre = {
      */
     'static-repetition': { minLevel: 3, vetoLevel: RULE_DISABLED, penalty: 0.7 },
     'repeated-note-run': { minLevel: 4, vetoLevel: RULE_DISABLED, penalty: 0.85 },
+  },
+
+  /**
+   * What the tune is, which degrees it lives in, and what a player does to a
+   * figure. Three fields, and they are the three `voiceForStyle` cannot reach.
+   *
+   * Everything else in `Voice` is already derived from the tables in
+   * `styles.ts`, and derived well: `span` runs from `runolaulu`'s 7 to
+   * `karjanhuuto`'s 19, and `ornament` from `piirileikki`'s 0.12 to
+   * `itkuvirsi`'s 0.55 — the narrowest and widest, plainest and most decorated,
+   * **in this genre**. An earlier draft called all three project records and all
+   * three were wrong: across the 389 styles `house/minimal` spans 6,
+   * `rnb/contemporary` ornaments at 0.75, `house/bleep` leaps at 0.6. The claims
+   * were inherited verbatim from `styles.ts:300`, `:432` and `:708`, which want
+   * the same correction. A genre-level `density` or `leap` would flatten a spread
+   * those twenty-four tables state correctly and argue for one at a time. So no
+   * numbers here.
+   *
+   * **What a weight below actually does, because two of the six were argued as if
+   * it did something else.** `mergeArchetypes` *replaces* the derived weight
+   * rather than adding to it, so each number here lands on all twenty-four styles
+   * at once, over whatever their own cells had earned. Derivation reads one
+   * thing — onsets per bar — which makes it confident about `chant` and
+   * `riff-response` and nearly blind elsewhere. A weight here earns its place by
+   * supplying a fact density cannot see. `chant` and `long-note` were instead
+   * overwriting the very styles that had the fact already; both are corrected
+   * below, with the cost of the correction stated.
+   *
+   * ## Which kinds of tune
+   *
+   * **`arch-hook` carries it because a strain is what this music has instead of
+   * a song.** The forms above say `verse` and `chorus` and immediately admit
+   * that they mean the A strain and the B strain of a two-strain tune: eight
+   * bars with one high point in them and a figure that comes back, played four
+   * times round and then the fiddler stops. 4 against derivation's 3, and that 3
+   * is flat for all 389 styles in the project because nothing in a `MelodyStyle`
+   * distinguishes a tune with an arch from one without. Small lift, and it is the
+   * genre declining to let a constant stand in for the shape of its literature.
+   *
+   * **`chant` is 2.5 rather than the 3.5 this table first carried, because the
+   * evidence for it is two styles and the weight reaches twenty-four.**
+   * `static-repetition` and `repeated-note-run` are softened above *because a runo
+   * line repeats one note for most of a line, and that is the form*; `runolaulu`
+   * and `karjalanlaulu` are eight hundred years apart, carry the same
+   * `groups: [12, 8]`, and are the only two styles in the project whose tune is one
+   * line of trochaic tetrameter said again unchanged. But their Kalevala-metre
+   * cells are the densest in the genre — 6.73 and 6.87 onsets per bar — so
+   * derivation *already* hands them `chant` at 3.22 and 3.30. The 3.5 was adding
+   * 0.28 and 0.20 to the two styles it was argued from, while lifting
+   * `karjanhuuto` from 0.50 and the eleven pelimanni dances from about 1.1–1.5 to
+   * 3.5 outright. `sectionShape('chorus')` then multiplies it by 1.5, and a chorus
+   * here is the B strain of a fiddle tune: that made a repeated-note B strain 24%
+   * of every second strain in the genre, on eleven tables that ask for no such
+   * thing.
+   *
+   * The honest cost of 2.5 is that it now sits *below* the two runo styles'
+   * derived figures and takes 0.72 and 0.80 off them. That is the wrong direction
+   * for those two and the right one for the other twenty-two, and it is what a
+   * single genre constant can do. The two-tier version — genre 2.5 plus a
+   * `Style.voice` delta of `chant: 5` on `runolaulu` and `karjalanlaulu` — is the
+   * shape `docs/voices-plan.md` §3.2 describes and it belongs in `styles.ts`.
+   *
+   * **`riff-response` third, on the polkka's own description**: *a polkka strain
+   * is a two-beat figure said four times with the last one changed*. Four styles
+   * are in 2/4 — `polkka`, `purpuri`, `piirileikki`, `tanhu` — and their cells are
+   * one gesture long. This said six and nothing is shorter than a 2/4 bar;
+   * `poljento`'s `beatsPerBar: 3.5` at `beatUnit: 8` is fourteen sixteenths, which
+   * is a longer bar rather than a shorter one.
+   *
+   * **`long-note` is 2, and it is two styles rather than the four this once
+   * named.** `karjanhuuto` at 2.10 onsets per bar and `itkuvirsi` at 2.63 are the
+   * genre's sparsest tables and derivation gives them only 1.66 and 0.91, because
+   * its formula floors at 0.4 the moment density passes 3. A phrase held until the
+   * breath goes is this archetype and nothing else, and for those two the genre
+   * knows something density does not.
+   *
+   * `runolaulu` and `konserttikantele` were the other two witnesses and neither
+   * survives: 6.73 and 3.33 onsets per bar, both floored at 0.40 by derivation,
+   * and `runolaulu` is the genre's *second densest* table. The old sentence
+   * reached for their `cadenceCells` instead — but that field is read by nothing
+   * outside `genre/` (declared `src/style/types.ts:911`), so it was evidence from
+   * a table with no consumer, and `runolaulu` was being counted twice, as the
+   * witness for `chant` and for the archetype that pulls against it. The cost of a
+   * genre-wide 2 is that it also lifts twenty-two dance tables off a 0.40 floor,
+   * and that cost is why it is 2 and not 2.5.
+   *
+   * **`descending-sequence` is a ceiling, and saying it is "the lament" overstated
+   * what a genre constant can do.** `itkuvirsi` opens on the wail — the highest
+   * note of the phrase, struck and held — and falls away from it, which is this
+   * archetype's `peakAt: [0.08, 0.25]` exactly. But derivation reads
+   * `melody.sequence` here rather than density, and it puts twenty-two of the
+   * twenty-four *above* 2, so what a flat 2 does is hold the archetype down
+   * everywhere and lift the lament by 0.10. That is still the right direction: the
+   * descending tetrachord is not this genre. Iskelmä's tango walks i–VII–VI–V and
+   * the tables here write `i VII VI VII` and turn round. Distinguishing the lament
+   * from its neighbours is a `Style.voice` job, not this field's.
+   *
+   * **`wide-interval` is pushed down and one style pays for it.** The
+   * `defaultStrictness` note above says this is singable music and mostly
+   * stepwise, and the numbers agree: `leap` is 0.07 on `runolaulu`, 0.09 on
+   * `itkuvirsi`, 0.11 on `virsi`. `karjanhuuto` is 0.55 — the largest in this
+   * genre, not in the project, where `house/bleep` is 0.6 and `metal/techdeath`
+   * ties at 0.55 — and derivation gives it `wide-interval` 3.25. Cutting that to 1
+   * is the largest single overwrite this table makes, 69%, and the mitigation
+   * offered here used to be that it keeps its derived `leap` and `expand`, which
+   * are note-level scalars and not the leaping *shape* being cut. Two things
+   * genuinely soften it: `sectionShape` lifts `wide-interval` ×2 in a bridge and
+   * ×1.5 in a solo, so its effective floor is 2 and 1.5 rather than 1. This is the
+   * clearest `Style.voice` delta the genre still owes.
+   *
+   * ## Which degrees, and this is where the flat seventh stops being a chord rule
+   *
+   * The header argues that the leading tone here is a property of the chord under
+   * the line rather than of the key. `scaleForChord` makes that true of the
+   * *harmony*; the subsets make it true of the *tune*, because degrees are
+   * 0-based indices into the mode's own scale and this genre's ladder makes a
+   * major key mixolydian. So degree 6 is the flat seventh, and three of the four
+   * entries below keep it.
+   *
+   *  - `[0,2,3,4,6]` leads. In a major key that is 1̂ 3̂ 4̂ 5̂ ♭7̂, which is
+   *    `rekilaulu` in five notes — a major tune with a flat seventh and no
+   *    dominant anywhere. In a minor key the shared table's own comment calls it
+   *    the pentatonic, which is `karjanhuuto`'s literal scale.
+   *  - The full diatonic next, for the eleven pelimanni dances. A fiddle tune in
+   *    D uses every note the hand is already on; the genre's `keys` table is
+   *    chosen for exactly that hand.
+   *  - `[0,1,3,4,6]` — 1̂ 2̂ 4̂ 5̂ ♭7̂, **no third at all**, which is the archaic
+   *    layer written as a scale. `isus2` and `isus4` are most of the harmony
+   *    there and neither has a third in it; `avoid-fourth` is disabled above
+   *    because the fourth over the tonic *is* the sonority rather than an avoid
+   *    note. A tune drawn from this subset is the two open strings of a kantele
+   *    with a line picked over them.
+   *  - `[0,1,2,4,5]` last and small — 1̂ 2̂ 3̂ 5̂ 6̂, the one subset with no seventh
+   *    in it, so the question the genre is built on never arises: the tune simply
+   *    declines to say which seventh it meant. This used to be argued as *the five
+   *    imported dances, where a real leading tone is available through the chord*,
+   *    and that is a bad reason twice. Seventeen styles write a `V`, not five, so
+   *    the situation is genre-wide rather than a corner. And "a leading tone is
+   *    reachable here" is an argument for the tune stating a seventh, not for
+   *    ducking one.
+   *
+   *    It stays last on a different and measurable ground: this is **pop's leading
+   *    subset**, at 5 of its 14, and separation from pop is the one thing this
+   *    field buys — 33.3% on the subsets against 16.5% on the archetypes. Raising
+   *    it to 3 as the recount first suggested spends 6.4 of those points (33.3% →
+   *    26.9%) to make finnfolk's tunes decline its own defining degree more often.
+   *    2 is small because the draw should be small, not because the situation is
+   *    rare.
+   *
+   * Against `karjanhuuto`'s five-note scale these are four-of-five colours rather
+   * than five-of-seven: `snapToSubset` drops a degree the scale does not have
+   * instead of wrapping it, which is the behaviour its own header argues for.
+   *
+   * ## What it does to a figure
+   *
+   * Four entries, and three of them are where derivation writes nothing at all.
+   * `voiceForStyle` fills `sequence`, `transpose`, `ornament`, `diminish`,
+   * `displace` and `expand` from the two numbers a style already declares, and
+   * leaves `invert`, `fragment` and `reharmonise` at a flat 1 for all
+   * twenty-four. Ornament is deliberately not among them: this genre's appetite
+   * for decoration is stated at `decorate` above, genre-wide, and derivation
+   * already spreads `ops.ornament` from 0.76 to 2.05 across the twenty-four, so
+   * saying it twice would be counting it twice. That note used to add "and at the
+   * highest figure in the project", which is a comparison against an empty set —
+   * finnfolk is the only genre in the repo that sets `decorate` at all, as the
+   * field's own comment says at the top of it.
+   *
+   *  - `fragment` at 0.6, up from 0.3, because the 0.3 was argued from the wrong
+   *    mechanism. `solo.vocabulary.space` is the rest ratio in a *solo* line
+   *    (`generate/solo.ts`); `{ op: 'fragment' }` slices a motif to its first N
+   *    onsets and leaves no hole at all — in all five combos that use it, the very
+   *    next operator is `sequence`, `extend` or `augment`, which fills the figure
+   *    straight back out. What a low appetite actually reaches is the **`close`
+   *    intent**, where `pick` scales only the *first* operator of each pair: at
+   *    0.3 the two `fragment`+`augment` cadences fell from 6 of 9 of the draw to
+   *    1.8 of 4.05, and the likeliest cadence in the genre became a bare
+   *    `augment 1.5` — the whole eight-bar strain slowed rather than a short tail
+   *    stretched, which is the opposite of how a fiddle tune lands. 0.6 puts those
+   *    two back in front at 62% while staying under 1, which is what keeps
+   *    `develop` from taking the strain apart.
+   *  - `invert` down, on `defaultHook` and the `static-repetition` note. The
+   *    transmission mechanism of this repertoire is that a fiddler hears a tune
+   *    twice and has it; a figure turned upside down is the most complete way to
+   *    make the second hearing not the first.
+   *  - `reharmonise` down hardest. Four styles have one chord for the whole
+   *    piece, and where the harmony does move, `scaleForChord`'s fallback stays
+   *    in the flattest mode rather than chasing the chord — *a fiddler whose left
+   *    hand is in first position does not re-orient because the accompanist has
+   *    played something unexpected.* Refitting a figure to new changes is a job
+   *    nobody here has.
+   *  - `displace` down, and this one overrides the derivation rather than filling
+   *    a hole. It reads `melody.syncopation` and turns it into an appetite for
+   *    shoving a figure off the beat, which gets this genre backwards twice over:
+   *    `poljento`'s 0.4 and `polska`'s 0.26 are statements about where the
+   *    *beats* are — 7/8, and 5:3:4 in a twelve-sixteenth bar — not about a wish
+   *    to leave them. The solo profile says the sentence outright: *the accent
+   *    belongs to the dance; everything the fiddler does off the beat is an
+   *    ornament rather than a displacement*, at `displace: 0.12`.
+   *
+   * ## The twins
+   *
+   * Measured on a fingerprint of duration classes, interval classes, density and
+   * turn rate, finnfolk is 0.108 from latin and 0.116 from pop against a
+   * catalogue mean of 0.382 — two of the six closest pairs there are, and both of
+   * them mine.
+   *
+   * **The nearest authored neighbour was neither of them.** `country` is the genre
+   * a listener would actually confuse this with — fiddle, strophic, singable,
+   * diatonic — and while this table carried `chant: 3.5` and `riff-response: 3` it
+   * was declaring country's own two cells verbatim, which put the two archetype
+   * tables 11.2% apart against latin's 19.2% and pop's 21.4%. Nothing in the
+   * archetypes was separating the pair; `subsets` was doing all of it, on
+   * `[0,1,3,4,6]` at 3 here against country's 1. `chant` at 2.5 is the first thing
+   * this field says that country does not.
+   *
+   * **Percentages against a neighbour are quoted sparingly below, and the reason is
+   * that they date.** These tables are all being revised at once: as this is
+   * written `country` has just dropped `long-note` and `wide-interval` and moved
+   * `riff-response` to 2, and `latin` has dropped `wide-interval`. A distance
+   * between two *declared* tables is not even well defined once one of them leaves
+   * an entry to derivation. What survives that is a cell quoted against a cell.
+   *
+   * **`archetypes` answers latin, and `chant` is not how.** Latin is a figure and
+   * the thing that answers it over a clave — a high turn rate held for a whole
+   * section — and the cells that disagree are `riff-response`, 3 here against
+   * `latin/index.ts`'s 5, and `long-note`, 2 against its 1.2. `chant` was named as
+   * the answer for three paragraphs while latin declared **the identical 3.5**,
+   * where it was worth 0.07 percentage points of a 19.2% separation. Two archetypes
+   * that genuinely differ are worth more than one that is copied.
+   *
+   * **`subsets` answers pop**, and this is the pairing that holds up: 33.3% apart
+   * on the subsets against 16.5% on the archetypes, both measured against pop's
+   * live table, and pop's own note at `pop/index.ts:743-744` makes the same claim
+   * from its side. Its precise form matters — pop's degrees *do* contain a 6, in
+   * three of its four subsets, so "a flat seventh pop's degrees do not contain" was
+   * the wrong sentence. What is true is that finnfolk's ladder makes degree 6 a
+   * choice among *sevens* and pop's case is a *five*.
+   *
+   * Getting `chant` and `long-note` right moved the archetypes ~5 points *toward*
+   * pop, and that is the correct trade rather than a cost to mitigate: these six
+   * weights answer to the twenty-four tables in `styles.ts` and to nothing else,
+   * and the subsets carry this pair.
+   *
+   * Three styles in the catalogue own an authored `Voice` and return before this
+   * field is read. None of them is here, so this governs all twenty-four.
+   */
+  voice: {
+    archetypes: [
+      ['arch-hook', 4],
+      ['chant', 2.5],
+      ['riff-response', 3],
+      ['long-note', 2],
+      ['descending-sequence', 2],
+      ['wide-interval', 1],
+    ],
+    subsets: [
+      [[0, 2, 3, 4, 6], 4],          // 1 3 4 5 ♭7 — rekilaulu, and the pentatonic in minor
+      [[0, 1, 2, 3, 4, 5, 6], 3],    // the eleven dances, on the strings the hand is on
+      [[0, 1, 3, 4, 6], 3],          // 1 2 4 5 ♭7 — no third, which is the drone
+      [[0, 1, 2, 4, 5], 2],          // 1 2 3 5 6 — no seventh, so no question
+    ],
+    ops: { displace: 0.35, fragment: 0.6, invert: 0.4, reharmonise: 0.25 },
   },
 
   /**

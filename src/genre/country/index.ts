@@ -523,6 +523,198 @@ export const country: Genre = {
   },
 
   /**
+   * What kind of tune this is, which degrees it lives in, and what it does to a
+   * figure. Three keys, and only three, because the other seven fields of `Voice`
+   * are already right: `adapt.ts` reads density, leap, ornament, span and
+   * syncopation off each style's own `melodyCells` and `melody` block, and those
+   * disagree across this file for reasons written at the field — `cowboy`'s span of
+   * 16 against `murderballad`'s 10, `truckdriving`'s syncopation of 0.35 against
+   * `ballad`'s 0.1. One genre number over the top of those would be describing
+   * twenty-four styles as one.
+   *
+   * The same test applies *inside* the three, which is why four archetypes are
+   * named and not six: `mergeArchetypes` keeps the derived weight for any id a
+   * genre leaves out, so naming one costs that id's per-style spread. Two were
+   * named in a first pass and are gone. `wide-interval` is `0.5 + melody.leap * 5`,
+   * 1.5 (`ballad`) to 2.6 (`cowboy`), mean 1.94 — a genre 2 *was* the mean, so it
+   * bought nothing and spent `cowboy`'s leap into the head voice, which was the
+   * thing being claimed. `long-note` is `0.4 + max(0, 3 − density) * 1.4` and
+   * **seventeen** of the twenty-four styles sit on the 0.4 floor: a genre 1.5 is a
+   * 3.75× lift on `breakdown` (density 4.95, no singer) and `bluegrass` (3.32) and
+   * barely moves `ballad` (1.48) or `cowboy` (1.35), which are the styles it was
+   * for. The long note here is *one note at the end of a phrase* — `PLAIN_CADENCES`
+   * leads with `[16]` and four styles weight that cell at 6 — and the cells already
+   * say it where it is true.
+   *
+   * ## Which kinds of tune
+   *
+   * `arch-hook` leads, on the `arrangement` table and not on `defaultHook`.
+   * `defaultHook: 'catchy'` is already spent — `repetitionFor` multiplies every
+   * section's repetition appetite by it, for every archetype equally, so quoting it
+   * here counts one setting twice and says nothing about the arch. What is
+   * country-specific is `harmony: 7`, *"the answering line stops answering and
+   * joins the tune in thirds or sixths"*, and `unison: 5`, *"two players state the
+   * tune together, in octaves"* (`generate/chart.ts:55-66`). Twelve of this genre's
+   * twenty-five arranging weight has a second player moving *with* the tune, and a
+   * tune two people hold at once has to be one shape both already know. Derivation
+   * is a flat 3 for every style, so it makes no claim here and this is the whole of it.
+   *
+   * `chant` next, and it is `repeated-note-run`'s demotion thirty lines up said a
+   * second time. That override exists because "I hear that lonesome whistle blow"
+   * is six syllables on one pitch and then a fall; the archetype's gloss is *one
+   * note repeated with a tail — the hook is the rhythm* and its heaviest shape is
+   * `plateau`. `defaultStrictness: 'standard'` is level 2 and the override's
+   * `minLevel: 3` puts the rule out of reach of it entirely, so that line is not
+   * merely cheap here, it is free. Derived is `0.5 + max(0, density − 2.2) * 0.6` =
+   * 0.52 to 2.15, so this is the largest lift in the table, taken on purpose.
+   *
+   * **It does not separate this genre from `finnfolk`, and it is not asked to.**
+   * That table is `arch-hook 4, chant 3.5, riff-response 3, long-note 2.5,
+   * descending-sequence 2, wide-interval 1` — the same 3.5 for a related reason,
+   * and its `repeated-note-run` override is `minLevel: 4, penalty: 0.85` against
+   * this file's `minLevel: 3, penalty: 0.6`. `penalty` is a score multiplier, so
+   * finnfolk spends the more generous of the two and no claim about the note is
+   * won on that ground. What separates them is `long-note` and `wide-interval`,
+   * stated flat there and handed back to `melody.leap` and the cells here, and
+   * `arch-hook`, where the two follow their arrangement tables — finnfolk at
+   * `unison 7, trade 3`, this genre at `harmony 7, unison 5, trade 4`.
+   *
+   * `riff-response` at 2, and both halves of the evidence are in that one table.
+   * `trade: 4` — *"the lead states a phrase and stops; the second instrument takes
+   * it over"* — is the device that leaves the hole the archetype needs, and behind
+   * only classical's 6 and indian's 5 across the project; `solo.rotation` puts
+   * `counter` level with `melody` at 5, which is this genre calling the answering
+   * instrument a soloist. But `harmony` and `unison` are three times its weight, so
+   * 5 to 2 here is roughly the 12 to 4 the arrangement already states. Derived runs
+   * 0.6 to 3.43, the widest spread of any archetype here, so a flat number is
+   * expensive whatever it is: at 2 a `ballad` still writes three times as
+   * riff-and-response as its own cells asked for, and at 3 it was five times.
+   *
+   * **`descending-sequence` is pushed down, and it is the one place derivation is
+   * actively wrong about this music.** `archetypesFor` reads `melody.sequence` —
+   * 0.42 (`westernswing`) to 0.7 across this file — as a walk down the scale. Here
+   * that number means something else, and `duet` says so at the field: *"a
+   * `sequence` of 0.68 because a duet's whole shape is the same phrase four times
+   * with different words."* That is restatement at pitch. A real descent is the
+   * second strain of a fiddle tune, which is why this is 1.5 against a derived
+   * 2.26–3.10 and not 0.5.
+   *
+   * The same misreading does **not** reach `ops.sequence`, which is why that one is
+   * left alone below. The `sequence` intent's doc is *"restate a step or two away —
+   * which way is the archetype's call, not the form's"*, and `opsFor` takes the
+   * direction from `archetype.sequenceDir` rather than from the op appetite. So
+   * `ops.sequence` buys exactly what `melody.sequence` means here; the descent
+   * lives in the archetype, which is the thing that was corrected.
+   *
+   * ## Which degrees — inert in major, load-bearing in minor
+   *
+   * Three different scales reach `snapToSubset` from this genre and the table has
+   * to be read against all three, because the indices are into whatever arrived;
+   * `snapToSubset` keeps `scale.pcs[d]` for `d < scale.pcs.length` and hands the
+   * note straight back once the survivors are the whole scale.
+   *
+   *  - **Major, about 70% of songs** — the weighted mean of `modeWeights.major`
+   *    across the 24 styles is 0.697. `scaleForChord` returns the major pentatonic
+   *    and 7.5 of the 10.5 weight below is a no-op. That is the point rather than a
+   *    defect: this is the one genre whose `scaleForChord` has already made the
+   *    subset decision, and anything narrower subtracts from a scale that has five.
+   *  - **Minor, about 30%** — `MINOR_LADDER` hands over seven and this table is the
+   *    only thing acting. Where it works, and where it can do damage.
+   *  - **`rockabilly`, `bakersfield`, `truckdriving`, `outlaw`** — their
+   *    `scaleForChord` takes only `tonic`, so it returns the minor pentatonic in
+   *    *both* modes and degrees 5 and 6 are gone before the table is read.
+   *
+   * `[0,1,2,3,4,5,6]` at 6 is therefore the entry doing the work, and it does it in
+   * minor: the modal ballad using all seven notes, which `scaleForChord` below
+   * states in as many words. In major and on those four it is the identity.
+   *
+   * `[0,2,3,4,6]` at 2, down from 4, because at 4 it contradicted both of the
+   * claims it was meant to serve. Against a seven-note minor mode it is the minor
+   * pentatonic — true, and `voice.ts`'s own gloss — but index 5 of any
+   * `MINOR_LADDER` mode is the sixth, the note this file twice calls the reason a
+   * mountain tune is not a lament, and at 4 the table deleted it from more than
+   * half of all minor sections. Against the four electric styles' five-note scale
+   * the survivors are pcs 0, 5, 7, 10 — 1̂ 4̂ 5̂ ♭7̂, so **it removes the ♭3**, from
+   * the only four styles that have one, which is the note the first twenty lines of
+   * this file exist to argue about. What it is worth keeping for is major, where it
+   * comes out 1̂ 3̂ 5̂ 6̂: the sixth chord, where a pedal steel lives. At 2 that colour
+   * costs one section in five rather than one in three.
+   *
+   * `[0,1,2,3,4,6]` at 1.5 drops the sixth too, and deliberately: aeolian bends to
+   * dorian when a major IV arrives and a tune that stays off that note lets the
+   * band decide. No-op in major and on the four. `[0,1,3,4,6]` at 1 is the only
+   * entry that *keeps* the ♭3 on those four (pcs 0, 3, 7, 10) and the one with no
+   * third at all everywhere else — `breakdown`'s colour, open tuning and ringing
+   * drones. It is also the entry that bites `westernswing`, the one style returning
+   * seven notes in major: over a `dom7`'s mixolydian it takes the third out, which
+   * is the fault that style overrode `scaleForChord` to escape. One draw in ten,
+   * and a colour rather than a discipline, which is what a genre table costs where
+   * a style has already said something more specific.
+   *
+   * ## What it does to a figure
+   *
+   * `reharmonise` at 0.2 is `non-chord-tone-on-strong-beat`'s demotion in the
+   * operator algebra instead of the rule table. The op sets `Motif.resnap`, which
+   * forces strong-beat notes onto chord tones — over a IV that is the subdominant
+   * root and over a V the leading tone, the two notes the arithmetic at the top of
+   * this file says this repertoire does not sing. It appears once in the whole
+   * grammar, in `close` at weight 1, so 0.2 takes it from 11% of cadential choices
+   * to 2%. `westernswing` is the exception and has already declared itself by
+   * overriding `scaleForChord` upward.
+   *
+   * `augment` at 1.6 is the phrase-end long note, a key derivation never sets — and
+   * it reaches one of the three routes to it rather than all three, which has to be
+   * said because the number reads like the whole gesture. `opsFor` multiplies by
+   * the appetite of the **first** op in the chain, and two of `close`'s three
+   * augment routes lead with `fragment`, which this genre leaves at 1. So 1.6 buys
+   * `[{augment, 1.5}]` alone: 2 → 3.2, which with `reharmonise` at 0.2 alongside
+   * takes the un-fragmented augment from 22% of `close` to 34%. That is the gesture
+   * the `[16]` cadence cell is for. Lifting `fragment` with it would buy the two
+   * shorter routes as well — a larger and different claim, about how much of the
+   * phrase survives into the cadence, which this file is not making.
+   *
+   * `transpose` at 1.5 is the chorus coming back unchanged. Derived is
+   * `0.7 + melody.sequence * 1.2` = 1.20 to 1.54, so this is the most restating
+   * style's number handed to all of them rather than a flattening of a wide field:
+   * the same tune every time is a fact about the genre, not about the style.
+   * `invert` at 0.5 because nothing here answers a line of verse by turning it
+   * upside down — the answer is the next line, or it is the steel — and it is the
+   * one op weight with no per-style number underneath it to overwrite.
+   *
+   * `expand` at 0.6 *does* overwrite a leap-derived field, which the first
+   * paragraph of this block says not to do. Derived is `0.6 + melody.leap * 2` =
+   * 1.00 (`ballad`) to 1.44 (`cowboy`), and 0.6 is exactly what that formula
+   * returns for a leap of zero. It wins anyway because `expand` multiplies the
+   * contour in **scale steps**, so what one costs is a property of the scale and
+   * not of the singer: two steps of a major pentatonic is a fourth or a fifth by
+   * construction, so a figure widened from 1 to 2 moves five to seven semitones
+   * here where in a seven-note mode it moves three or four. And this genre's lift
+   * is not a wider interval at all — it is the key change up a semitone that
+   * `eras.ts` carries as `keyChangeChance`.
+   *
+   * Left alone deliberately: `sequence` (above), `diminish`, `displace` and
+   * `ornament`, all four built by derivation out of per-style numbers argued at the
+   * style — `truckdriving`'s `syncopation: 0.35`, "a riff pushes the barline",
+   * against `ballad`'s 0.1 is exactly the pair a genre `displace` would erase — and
+   * `fragment`, left at the implicit 1 for the reason given under `augment`.
+   */
+  voice: {
+    archetypes: [
+      ['arch-hook', 5],
+      ['chant', 3.5],
+      ['riff-response', 2],
+      ['descending-sequence', 1.5],
+    ],
+    subsets: [
+      [[0, 1, 2, 3, 4, 5, 6], 6],
+      [[0, 2, 3, 4, 6], 2],
+      [[0, 1, 2, 3, 4, 6], 1.5],
+      [[0, 1, 3, 4, 6], 1],
+    ],
+    ops: { augment: 1.6, transpose: 1.5, expand: 0.6, invert: 0.5, reharmonise: 0.2 },
+  },
+
+  /**
    * The voice is the record, and one number says so.
    *
    * `melody` at 0.97 is the loudest melody layer in the project, and it goes with

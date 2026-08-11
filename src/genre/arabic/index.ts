@@ -514,6 +514,211 @@ export const arabic: Genre = {
   arrangement: { unison: 9, harmony: 1, riff: 5, tutti: 4, trade: 3 },
 
   /**
+   * What the tune itself is made of. `scaleForChord` below says which notes;
+   * this says what shape they are put in.
+   *
+   * Three fields, and only one of them is a field `voiceForStyle` genuinely
+   * cannot derive: `subsets` is the constant `SUBSETS` for every style in the
+   * catalogue. `archetypesFor` does hand each style a full six-entry archetype
+   * table, and `derivedVoice` six `ops` keys — the plan's §3.1 objection is that
+   * a derivation reading `density` and `melody.sequence` cannot have an opinion
+   * about what these records do, not that it stays silent. So everything below
+   * is an override, and every weight names the derived number it displaces.
+   * Ranges quoted are across all 21 styles in `styles.ts`.
+   *
+   * The six fields the derivation reads a real spread out of are left alone:
+   * `melody.ornament` runs 0.22 to 0.62 across the styles in `styles.ts` and
+   * `melody.leap` 0.09 to 0.18, and that spread is the whole distance between a
+   * longa and a taqsim. A genre-wide number there would flatten the only axis
+   * this catalogue varies on.
+   *
+   * ## Which kinds of tune
+   *
+   * **`riff-response` leads at 4**, and it is the lazma. `arrangement` directly
+   * above names it and weights `riff` at 5 and `tutti` at 4 for it — *a short
+   * instrumental figure the whole ensemble plays together between vocal phrases*
+   * — and the *dawr* `dawrhindi` is named for is the same shape sung, a refrain
+   * the audience answers. The derivation runs 0.6 (fallahi) to 3.27 (maqsum) on
+   * onset density alone, so this is a lift past every style: the lazma is a fact
+   * about the ensemble, and the ensemble is the same one in a fallahi.
+   *
+   * **`descending-sequence` at 3.25, which is ayyub's own derived weight** — the
+   * top of a derived range that runs 1.45 (taqsim) to 3.25, median 2.8. The
+   * **qafla** descends to the tonic in unison and every phrase in this music ends
+   * on one — `ending: 'button'` above is that fact — and `saidi`'s verse note
+   * states the figure at section scale: *the mizmar plays one phrase and answers
+   * it with the same phrase a step lower*. The claim is that the qafla puts every
+   * style where the derivation already puts its most sequential one, and no style
+   * past it.
+   *
+   * **Past it is where the solo breaks.** `SHAPES.solo.favour` multiplies this
+   * archetype by 1.5, and `peakAt` is [0.08, 0.25] — the high point in the first
+   * eighth to first quarter of the section. At the 5 this weight was first
+   * written at, that was 46% of solo sections, in the one section that
+   * `climb: 3.5` in `solo.vocabulary` below and `styles.ts`'s taqsim note both
+   * describe as going out as far as the player intends and *then* coming back
+   * down. 3.25 takes it to
+   * 35% before the player's idiom is applied. The qafla is a claim about where
+   * phrases end; it was doing duty here as a claim about where a section peaks,
+   * and those are different facts.
+   *
+   * **`long-note`, because the resting degree is held.** `avoid-fourth` is
+   * disabled below on the ground that the fourth is the **ghammaz** and roughly
+   * half the phrases in a Hijaz piece come to rest exactly there *and hold*;
+   * `transitions` records that this genre's lines are the sparsest in the
+   * project outside ambient; `wahda`'s own note calls its bar a frame around a
+   * silence.
+   *
+   * **And for the median style it is the largest override here.** Derived
+   * `long-note` is `0.4 + max(0, 3 − density) * 1.4`, and this genre's cell
+   * tables are dense enough that the density term is zero for 17 of 21 styles:
+   * the derived weight is the flat floor of 0.4 everywhere except malfuf 0.68,
+   * muwashshah 0.87, fallahi 1.03 and ayyub 1.33. So 2.5 is a 6× lift off a
+   * floor, not a nudge to something that was tracking anything. It is made at
+   * the genre because the claim is about the maqam's resting degrees, which no
+   * count of onsets can see — but `ARCHETYPES['long-note'].density` is 0.45 and
+   * what it scales is onsets per bar, so the styles that will hear a genre-wide
+   * 2.5 as wrong first are the busiest cell tables: maqsum at 4.83 onsets per bar
+   * and saidi at 4.75. Those are the two style deltas to expect, not `longa`,
+   * whose values are short but whose 2/4 bar puts it seventh at 3.90.
+   *
+   * **`arch-hook` at 2.5, slightly under the flat 3 `archetypesFor` hands every
+   * style.** Two facts pull opposite ways and the net is small. Up: the **sayr**
+   * is a climb out through the jins followed by a return *down through every
+   * resting degree*, which is how `taqsim` defines itself in `styles.ts`, and
+   * that shape is this archetype — `peakAt` [0.55, 0.72] — rather than a
+   * descending sequence; the mazhab also comes back unchanged three or four times
+   * a piece and `defaultHook: 'catchy'` is that observation. Down: the sayr is one
+   * gesture per solo section and the qafla puts the end of *every* phrase at the
+   * bottom of the line. A phrase-rate fact beats a section-rate one, but only
+   * just.
+   *
+   * **`chant` cut for most of the genre, and the cut is measured** — 1 against a
+   * derived 0.58 to 2.08, so it is a cut for the sixteen busiest styles and a
+   * small *lift* for ayyub 0.58, fallahi 0.71, muwashshah 0.78, malfuf 0.86 and
+   * wahda 0.98, whose sparse cells the derivation reads as un-chantlike and which
+   * have no more reason to avoid a repeated note than maqsum does.
+   * The cut is the argued half. `static-repetition` is softened below because a note struck twice with the second leaned on is the
+   * commonest ornament in the idiom — and `defaultStrictness` records what
+   * happened when a second repeated-note rule went off beside it: 23.3% of
+   * melodic intervals were repeats, against 16% for the next highest genre. A
+   * chant is that line by construction, so the ornament is kept in the rule
+   * table and not bought a second time here.
+   *
+   * **`wide-interval` is the one real demotion** — 0.6 under a derived 0.95
+   * (muwashshah, ayyub) to 1.4 (longa), so it is a cut for all 21 — and the
+   * styles header decides it: a maqam is *walked, not arpeggiated*, and the
+   * interval this music is identified by is one scale step and *therefore not a
+   * leap as far as any of these numbers are concerned*. The derivation reads
+   * `melody.leap`, which is exactly the number that interval is invisible to.
+   * The genre's own wide interval buys nothing from the archetype named for wide
+   * intervals.
+   *
+   * ## Which degrees — and here it is all seven
+   *
+   * The generic table is gone rather than reweighted, because half of it drops
+   * degree 3 or degree 2: the ghammaz, and the ♮3 that decides whether a
+   * major-mode piece is Hijaz at all. A subset that removed the fourth would
+   * undo `avoid-fourth` one layer below where the rule table can see it.
+   *
+   * The full seven carry the top weight here and nowhere else in the catalogue,
+   * and that is this folder's whole argument arriving in the one field that can
+   * state it: elsewhere a scale is raw material a hook lives in five notes of,
+   * and here the scale *is* the character. The other two entries are **jins** —
+   * the tetrachords a maqam is built out of, which is the unit this music
+   * phrases in and which the generic pentatonics cut across.
+   *
+   * **And this is where `indian` is standing.** That genre leads the full seven
+   * at 6 of 13, puts the same lower pentachord second, and reaches both by the
+   * same argument — the scale is the character, the line walks, there are no
+   * changes to reharmonise. Its comment nominates `subsets` as *the* field
+   * separating it from reggae, on the arithmetic that contiguous sets snap to
+   * seconds; this table is contiguous by the same arithmetic and cannot be that
+   * separator here. What separates these two is the archetype table —
+   * `descending-sequence` 3.25 against 1, `chant` 1 against 3.5, and no
+   * `diminish` here against 1.5 there, which is the difference between a taan and
+   * a taqsim. The one subset move that is arabic's alone is the third entry: the
+   * upper jins comes up to equal weight with the lower pentachord, because the
+   * ghusn working *past* the ghammaz is a form fact this repertoire has and a
+   * rāga phrase has no counterpart for.
+   *
+   * ## What it does to a figure
+   *
+   * `derivedVoice` writes six `ops` keys and `reharmonise`, `invert`, `fragment`
+   * and `extend` are not among them, so those four displace `opsFor`'s `?? 1`
+   * default rather than a derived number. `expand` and `displace` are derived,
+   * and are the two this block has to argue against something.
+   *
+   * **`reharmonise` off in all but name.** It sets `Motif.resnap`, which forces
+   * strong-beat notes onto chord tones — and `non-chord-tone-on-strong-beat` is
+   * softened below precisely because a maqam phrase lands on the maqam's resting
+   * degrees, which *coincide with the four-chord vocabulary only by luck*. One
+   * operator undoing one rule override, note for note.
+   *
+   * **`invert` low** for the reason `SAYR` exists at all: a maqam is a scale
+   * plus a habitual path through it, and a path walked backwards is not that
+   * path — it stops on degrees the maqam does not stop on.
+   *
+   * **`expand` at 0.5, under a derived 0.78–0.96**, is `wide-interval` low said
+   * to a figure instead of to a section: the derivation builds it out of
+   * `melody.leap`, and this genre has just spent a paragraph saying that number
+   * cannot see the interval it is identified by.
+   *
+   * **`displace` dropped, and dropping it is the correction.** The
+   * evidence for holding it down is `solo.vocabulary.offbeatAccent` at 0.12 and
+   * `dulab`'s scalar even cells, and both are real — but derived `displace` is
+   * `0.3 + syncopation * 1.5`, which runs 0.45 at dulab, the least syncopated
+   * style in the genre, to 0.98 at `taqsim`, whose 0.45 is the highest
+   * `melody.syncopation` in the catalogue and which writes leading rests into
+   * eight of its eleven cells. A flat genre number sat under all 21. That spread
+   * is the same one `ornament` and `leap` are left alone for, and the dulab end
+   * of it is already the dulab end.
+   *
+   * **`fragment` up, and it carries `extend` with it.** `taqsim`'s cell table is
+   * *a run, then a rest on the note the run arrived at* with leading rests that
+   * make it sound overheard, and `solo.vocabulary` puts `space` at 0.3 because the
+   * silence between phrases is where the room answers. The qafla — a figure that
+   * gains a tail falling onto the tonic — is `extend`, and it is bought here
+   * rather than named: `opsFor` scales each choice by the appetite for
+   * `ops[0].op`, the *first* operator of the pair, and both routes to `extend`
+   * have it second, under `[transpose 0, extend step]` and `[fragment 3, extend
+   * leap]`. An `extend` weight would change no draw. `fragment` is first in five
+   * entries including that second one, so lifting it is the only handle the
+   * two-op pairs expose.
+   *
+   * **`ornament` and `sequence` deliberately unnamed.** The derivation reads
+   * `melody.ornament` and `melody.sequence` per style, and those are the two
+   * numbers this catalogue varies hardest — `taqsim` at 0.62 and 0.15 against
+   * `longa` at 0.22 and 0.7 is the difference between an improvisation and a
+   * rondo, and it is already right.
+   */
+  voice: {
+    archetypes: [
+      ['riff-response', 4],
+      ['descending-sequence', 3.25],
+      ['long-note', 2.5],
+      ['arch-hook', 2.5],
+      ['chant', 1],
+      ['wide-interval', 0.6],
+    ],
+    subsets: [
+      // The whole maqam. Seven degrees is not the absence of a choice here, it
+      // is the choice — the scale is what the piece is named after.
+      [[0, 1, 2, 3, 4, 5, 6], 5],
+      // The lower jins and its ghammaz, with the fifth above them: the four
+      // bars a dulab announces, and where a phrase that has not left home lives.
+      [[0, 1, 2, 3, 4], 3],
+      // The upper jins with the tonic under it — where the ghusn works once it
+      // is past the ghammaz, and the octave it will come home to. Level with the
+      // lower jins: a ghusn that never crosses the ghammaz is half a form.
+      [[0, 3, 4, 5, 6], 3],
+    ],
+    ops: {
+      reharmonise: 0.05, invert: 0.2, expand: 0.5, fragment: 1.4,
+    },
+  },
+
+  /**
    * What the band does at a join. Three kinds now, and the one that is still
    * missing is the interesting half.
    *

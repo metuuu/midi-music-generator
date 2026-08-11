@@ -639,6 +639,199 @@ export const classical: Genre = {
   duration: [150, 300],
 
   /**
+   * What this genre's melodies are made of.
+   *
+   * Three keys, and they are the three `voiceForStyle` cannot derive. The six
+   * it can are left where the style tables already put them, which is a
+   * decision rather than an omission: derived density runs 2.10 on the waltz to
+   * 9.30 on the étude and the derived `ornament` appetite 0.76 on the chorale
+   * to 1.72 on the berceuse, and both spreads are arguments the headers in
+   * `styles.ts` make at length. One genre-level number would flatten
+   * twenty-six of them into one.
+   *
+   * **The same rule governs what is left out of `archetypes`.**
+   * `mergeArchetypes` keeps an *unnamed* id at its derived weight, so omitting
+   * an entry is this API's way of saying leave it alone and declaring one is
+   * always a flattening, including when the number declared is the mean it
+   * would have derived to. Five of the six ids are named below. The sixth is
+   * named nowhere, and the paragraph after the list is why.
+   *
+   * ## The twin is jazz, and the archetypes are what separate them
+   *
+   * On a fingerprint of duration classes, interval classes, density and turn
+   * rate, measured over every style in the catalogue, this genre and jazz come
+   * out 0.104 apart — the second closest of the 171 genre pairs, against a mean
+   * of 0.382. Nothing in the tables agrees: `melody.sequence` averages 0.53
+   * over these twenty-six against jazz's 0.38 over its ten, syncopation 0.20
+   * against 0.48, span 15.9 against 18.8. What agrees is the *derivation*.
+   * `archetypesFor` reads cell density and calls the result a riff, so the
+   * étude derives `riff-response` 8.72 and `chant` 4.76 — above bebop's 5.97
+   * and 3.42 — because its cells are sixteenths, which in a study is figuration
+   * and in a bebop head is the tune. And both genres floor the one archetype
+   * that would tell them apart: mean `long-note` 0.80 here, 0.49 there, so
+   * nobody in either of them holds a note. Correcting those two is most of the
+   * table below.
+   *
+   *  - **`arch-hook` at 4**, joint highest, and the one weight derivation has
+   *    nothing at all to say about — `archetypesFor` hands every style in
+   *    the project a flat 3. Its gloss is *rise to one high point, with a figure
+   *    that keeps coming back* and its forms are `period`, `sentence` and
+   *    `arch-form`: the minuet's header calls that *the form the
+   *    antecedent–consequent pair was invented in*, and it is what
+   *    `defaultHook: 'standard'` above means by a genre that restates its themes
+   *    and does not repeat its bars. **Not 5, and the reason is the chorus
+   *    multiplier.** `SHAPES.chorus` lifts this id by 1.8 and pushes `long-note`
+   *    down by 0.7, and `forms` above reads a chorus here as the second subject:
+   *    against the deliberately thin tail below, 5 puts the arch on 49.9–52.8%
+   *    of second-subject draws, which is one archetype writing more than half of
+   *    them. At 4 it is 44.3–47.2%, against 31.0–33.6% in a verse — still the
+   *    largest single share in the table, which is the claim, and no longer a
+   *    majority, which was not.
+   *  - **`descending-sequence` at 4.** The gigue is *a subject stated and then
+   *    restated a step away, over and over, until the cadence* at
+   *    `sequence: 0.68`, the fugue is 0.66, and the étude's harmony is *long
+   *    descending-fifth chains*. The archetype's own form table is led by
+   *    `chain` at 5, which is a sequential episode under another name. Level
+   *    with `arch-hook` rather than under it: the period and the sequential
+   *    episode are the two things a phrase in this repertoire is built out of,
+   *    and nothing in `styles.ts` ranks one over the other.
+   *  - **`long-note` at 1.5, and it is a density decision as much as a shape
+   *    one.** `ARCHETYPES['long-note']` carries `density: 0.45` and
+   *    `auditionTune` judges against `voice.density * arch.density`, so this
+   *    table is a *second* density control and the paragraph at the top of this
+   *    block promised not to touch the first. The reason to touch it anyway is
+   *    that derivation's `0.4 + max(0, 3 - density) * 1.4` is a cliff rather
+   *    than a reading: sixteen of the twenty-six sit on the 0.40 floor because
+   *    their cells average three onsets a bar or more, and the berceuse (3.00)
+   *    and the nocturne (2.94) are on it — the two styles in the file where a
+   *    held note *is* the tune. The chorale prelude is *the one style in the
+   *    file whose melody is slower than its accompaniment* and the adagio's
+   *    cells are *mostly halves and whole notes*; those and the sarabande, the
+   *    pavane and the lacrimosa reach 1.32–1.66 through their cells, and 1.5 is
+   *    that level put under all twenty-six. Draw share goes from 1.8–16.6% to
+   *    11.6–12.6%. **What it costs**: the étude goes 1.8% → 11.7%, and an étude
+   *    section drawn as `long-note` is judged at 9.30 × 0.45 = 4.19 onsets a bar
+   *    on the style whose header defines the form as *a figure that does not
+   *    stop: sixteenths for four minutes*; the toccata goes 2.4% → 11.6% at 6.60
+   *    × 0.45 = 2.97. Those two are the first candidates for a `Style.voice`
+   *    delta, the way `country/index.ts` nominates its three ballads for one.
+   *  - **`riff-response` at 0.8.** `arrangement` above puts `riff` at 1, the
+   *    lowest weight it gives any device, for a reason that transfers exactly:
+   *    *where this repertoire repeats a figure it is an ostinato in the
+   *    accompaniment rather than a stab in the gaps*. The dialogue this music
+   *    does have is `trade` at 6 — a whole phrase handed to the next player,
+   *    which is `arch-hook`'s period and not a riff with an answer on the end.
+   *  - **`chant` at 0.4**, the floor. *One note repeated with a tail — the hook
+   *    is the rhythm*, and the archetype carries judge weights whose stated job
+   *    is to stop the scorer vetoing a line that stalls. This genre runs at
+   *    `strict` on a rule table codified out of its own voice-leading, where a
+   *    line that stalls is a fault and not a hook.
+   *
+   * **`wide-interval` is the id named nowhere, and that is the whole of what
+   * this genre has to say about it.** `melody.leap` averages 0.246 here against
+   * jazz's 0.304, and derivation already reads that off style by style: 1.20 on
+   * the chorale, whose 0.14 is four voices that must not cross, to 2.20 on the
+   * toccata and the scherzo, whose 0.34 is two hands at a manual. Declaring the
+   * mean that spread derives to would not be leaving it alone — it would replace
+   * the spread with a constant, and the constant nearest to hand, 2, is jazz's
+   * *derived* mean of 2.02 rounded. The one weight worth not writing is the one
+   * that would move this genre onto its twin.
+   *
+   * ## The degrees, and why they are nearly all of them
+   *
+   * `scaleForChord` below is a function whose whole job is choosing *which
+   * seven notes*, and every rung of `MIXTURE_MAJOR` and `MIXTURE_MINOR` differs
+   * from the rung above it by one degree: the ♭6 of `harmonicMajor` is index 5,
+   * the leading tone of `harmonicMinor` is index 6, the mazurka's ♯4 is index 3,
+   * the Neapolitan's ♭2 is index 1. A five-note subset drops the degree the
+   * ladder was climbed for and hands back a line that cannot play the chord the
+   * composer wrote. So the full diatonic takes eight of the eleven weight below,
+   * where the generic table every unauthored style currently gets gives it three
+   * of fourteen. The other two entries are the two subsets this genre can argue
+   * for; the three it drops are `[0,1,2,4,5]`, which has no leading tone,
+   * `[0,1,3,4,6]`, which has no third — *modal, no third to commit you*, index
+   * 2, which is the ♭3 the bottom two rungs of `MIXTURE_MAJOR` are climbed for
+   * and the ♮3 of the tierce de Picardie at the bottom of `MIXTURE_MINOR` — and
+   * `[0,1,2,3,4,6]`, which has no sixth to borrow.
+   *
+   * ## What it does to a figure
+   *
+   * Three operators, and they are three of the five `voiceForStyle` never
+   * mentions. Its `ops` block spreads `melody.sequence` and `melody.ornament`
+   * across `sequence`, `transpose`, `ornament`, `diminish`, `displace` and
+   * `expand` — all six read off tables that argue for themselves, so all six are
+   * left alone. The rest fall back to 1, which is a genre with no opinion about
+   * development, and development is this repertoire's entire subject.
+   *
+   *  - **`invert` at 1.5.** The gigue's second half *traditionally inverts the
+   *    subject of its first*, and the fugue's header lists inversion among what
+   *    this engine cannot say. Half of that is now sayable — `Op.invert` turns a
+   *    figure upside down and leads the `answer` intent — and the half still
+   *    missing is the vertical one, an accompaniment made of the tune's material.
+   *    It takes `answer`'s invert branch 39.1% → 44.2%, against a `transpose`
+   *    branch derivation has already set to 1.34 out of `sequence` 0.53.
+   *  - **`augment` at 2.4**, the highest in the project — ambient and country,
+   *    the nearest, are at 1.8 and 1.6. **24 of the 26 `cadenceCells` tables
+   *    below are led by a single note filling the whole bar**; the two that are
+   *    not are the sarabande, whose long second beat is the dance itself, and
+   *    the polonaise, which ends on beat three on purpose. **What a weight here
+   *    buys is narrower than that count suggests, and the narrower thing is what
+   *    2.4 is for.** `opsFor` keys each alternative's appetite on its *first*
+   *    op, and two of `close`'s three augmenting paths are led by `fragment`, so
+   *    something augments in 88.9% of closes before any genre says anything at
+   *    all; 2.4 moves that to 93.2%, which is small. What it really moves is
+   *    *which* augmenting path: the bare one — the whole phrase drawn out,
+   *    rather than three notes of it kept and stretched — goes 22.2% → 32.4%,
+   *    and that is the sound a whole-bar cadence cell is asking for.
+   *  - **`fragment` at 1.5.** A development is a subject taken apart — the
+   *    sonata's is *chains of applied dominants that … never once settle* — and
+   *    the form above gives it sixteen bars so they have room to get somewhere
+   *    and back. It pulls `develop` toward its fragment-led alternatives,
+   *    47.1% → 54.6%, and away from the double-time ones, 31.6% → 24.4%,
+   *    without touching `diminish`, which each style has already set from its
+   *    own syncopation, 0.35 to 0.70.
+   *
+   * `extend` and `reharmonise` are deliberately unnamed, for two different
+   * reasons. `opsFor` keys the appetite on the *first* operator of each
+   * alternative and `extend` never leads one, so a weight there would be a
+   * number nothing reads. `reharmonise` leads exactly one alternative in the
+   * whole grammar and it is `close`'s fourth — so it is not an appetite for
+   * refitting a shape to new changes, it is the alternative to augmenting one,
+   * and any weight that lifts it spends the 24-of-26 count above. The
+   * recapitulation this genre would want it for is not what the op does anyway:
+   * it sets `Motif.resnap`, which forces strong beats onto chord tones, where
+   * the sonata's *entire event is that the second subject now comes back at
+   * home* is a transposition.
+   */
+  voice: {
+    archetypes: [
+      ['arch-hook', 4],
+      ['descending-sequence', 4],
+      ['long-note', 1.5],
+      ['riff-response', 0.8],
+      ['chant', 0.4],
+    ],
+    subsets: [
+      [[0, 1, 2, 3, 4, 5, 6], 8],
+      // Diatonic without the fourth — index 3, the one degree `lydian` moves,
+      // and `lydian` is a rung of `MIXTURE_MAJOR` that this genre climbs for
+      // one thing, the mazurka's major II. So this is the subset that survives
+      // that rung without a note changing under it. The ladder's own header
+      // says the chords reaching for a ♭6 and the chords reaching for a ♯4 are
+      // *disjoint sets*, which is why hedging both takes two entries.
+      [[0, 1, 2, 4, 5, 6], 2],
+      // 1̂ 3̂ 4̂ 5̂ 7̂ — the other half of that. It drops indices 1 and 5, so it
+      // survives `harmonicMajor`'s ♭6 and `phrygian`'s Neapolitan ♭2 instead.
+      // And in minor, under the `harmonicMinor` that `scaleForChord` returns
+      // for every dominant, it keeps the leading tone and never has the ♭6 next
+      // to it — so the interval `augmented-second` above spends a whole
+      // override arguing about cannot arise at all.
+      [[0, 2, 3, 4, 6], 1],
+    ],
+    ops: { invert: 1.5, augment: 2.4, fragment: 1.5 },
+  },
+
+  /**
    * The scale rule. **Where is the line? In whatever key the chord in front of
    * it is making.**
    *

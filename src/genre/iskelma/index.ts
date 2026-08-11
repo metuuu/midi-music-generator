@@ -149,6 +149,125 @@ export const iskelma: Genre = {
       liftIntoReturn: 0.85,
     },
   },
+  /**
+   * What the tunes are made of — for the five styles that have no voice of their own.
+   *
+   * `tango` and `iskelmapop` are authored in `tune/voice.ts` and return from
+   * `voiceForStyle` before this is read, which is the right split: they are the two
+   * ends of the repertoire and each already argues its own case. What is left is
+   * humppa, valssi, jenkka, foksi and beguine, and what those five share is not a
+   * tempo or a metre. It is a hall full of people dancing to a tune they are
+   * expected to recognise the second time it comes round.
+   *
+   * Three keys only, and four archetypes inside the first. The six scalars stay
+   * derived, because they already differ where the styles genuinely differ — the
+   * five spread 2.9 to 5.6 onsets a bar off their own cells — and so do two of the
+   * six archetypes, for the reason given under each. What is stated has to leave
+   * these five *between* tango and iskelmäpop rather than outside them, which is
+   * the test the opening paragraph sets and the one thing a genre-level number is
+   * most likely to fail.
+   *
+   * **`arch-hook` at 4 — both authored ends' figure, and the weight derivation
+   * cannot guess at:** `archetypesFor` hands every style in the catalogue a flat 3.
+   * `FORMS` above says otherwise, and it is the evidence here that is about the
+   * tune rather than the break: all four forms state the chorus three times, and
+   * three of them — weights 5, 3 and 4 of 17 — end chorus, chorus, outro. A tune
+   * that has to survive being the last thing heard twice running is a tune with one
+   * high point and a figure that comes back. `defaultHook: 'standard'` is *not* the
+   * evidence: it is level 2 of 0–4, humppa overrides it upward, and `repetitionFor`
+   * reads it directly already, so weighting an archetype on it counts it twice.
+   *
+   * **`long-note` is up from 0.4–0.57, on evidence `derivedVoice` never opens.** The
+   * `long-note` reading is a function of `melodyCells` alone, and `cadenceCells` is
+   * referenced nowhere outside the genre tables, so nothing sees that valssi's first
+   * cadence cell is `[12]` at weight 5 — the whole 3/4 bar held — or that foksi's and
+   * beguine's is `[16]`. The cadence cells run 1.5 to 2.1 onsets a bar against 2.9 to
+   * 5.6 for the melody cells: every style ends two to three times sparser than it
+   * moves, and only the bodies of the phrases are busy.
+   *
+   * **`wide-interval` at 2, which is what this genre's own two authored voices call
+   * a leap of 0.22 and 0.24** (`tune/voice.ts:177`, `:216`). These five sit at 0.20
+   * to 0.30 and bracket both, and `0.5 + leap × 5` spreads them 1.5 to 2.0 — so this
+   * is a push on valssi and beguine, nothing on humppa, and *not* a claim that a
+   * pavilion tune leaps wider than a tango. The argument for saying it at all is the
+   * archetype's gloss, *a singer's tune*, against `keys` above chosen to be singable:
+   * a whole-repertoire fact that a per-style note-to-note appetite cannot state.
+   *
+   * **`chant` at 2 splits humppa's 2.5 and valssi's 0.9.** Humppa's own note says
+   * the dance depends on the tune coming round again "without asking anyone to
+   * follow a development", and jenkka's bounce is in the dotted cell rather than in
+   * the metre — *the hook is the rhythm*, which is the archetype word for word. A
+   * valssi is not a chant, so this does not go higher.
+   *
+   * **`descending-sequence` and `riff-response` are left derived, and that is a
+   * decision rather than an omission.** The Andalusian descent is real — valssi's
+   * verse, beguine's twice through — and absent from the three major-key styles, so
+   * any flat number hands humppa and jenkka the property the sentence just denied
+   * them; the derived band is 2.05 to 2.5 and each style keeps its place in it. And
+   * `arrangement.riff: 6` two blocks up is an *accompaniment* weight — a brass stab
+   * every second bar, a sax answering the singer — where `riff-response` is a form
+   * for the tune itself. If the sax answers the singer then the tune is the call and
+   * leaves the holes, which argues for `long-note` above and not for this. The
+   * derivation's reading — busy cells, no ornament — spreads the five 1.1 to 4.2,
+   * and no melodic table here contradicts it.
+   *
+   * **Subsets, and the rule they are weighted for is a minor-mode rule.** The header
+   * of this file states it: aeolian, harmonic minor the moment a dominant arrives,
+   * so the leading tone leads. By `modeWeights` these five are minor 12, 58, 14, 30
+   * and 55 per cent of the time — about a third of what this voice writes, and the
+   * weights below are set knowing that. The rule is inaudible in a tune with no
+   * seventh degree in it, so the three sets carrying one take three quarters of the
+   * weight (8.5 of 11.5) and `[0, 1, 2, 4, 5]`, which drops it, is held level with
+   * the second rather than leading.
+   *
+   * **Ops.** `sequence` to the top of the derived band (1.2–1.5) and `transpose`
+   * just above it (1.12–1.3): the circle-of-fifths turnaround is named as the
+   * definitive figure of humppa's chorus (VI7–II7–V7 at weight 5), runs the whole of
+   * foksi's bridge and closes valssi's major verse, and harmony walking in fifths
+   * wants a figure walking with it. Nothing here is about the key change —
+   * `relativeMajorChorus` is the key route's job, and `Op`'s own doc says plainly
+   * that is not what `transpose` is.
+   *
+   * **`ornament` up because the genre has already said it once**, in the break
+   * above: the accordion or fiddle takes the tune and ornaments it,
+   * `vocabulary.ornament` is 0.4 against `chromatic: 0.1`, and the comment there
+   * calls it the whole content of the break.
+   *
+   * **Three down, and they are one statement.** `displace` shifts a whole figure
+   * off the beat, which is the thing a dance band must not do. 0.5 is not a guess:
+   * it is where the two least syncopated of the five already derive — humppa 0.48,
+   * valssi 0.57 — and the entry puts jenkka's 0.75, foksi's 0.98 and beguine's 1.20
+   * down there with them. `melody.syncopation` is not spent twice: it drives pace
+   * and the duration menu, the weak-onset promotion in `accentuate` and the pickup
+   * chance, and reaches `accentTemplate` only for a voice with no accent table,
+   * which none of these is — `cellAccents` builds theirs from the cells. Beguine is
+   * not the counter-example it looks like either: its 3-3-2 is written into the
+   * cell, `[6, 6, 4]`, rather than applied to one. `diminish` because
+   * `doubleTime: 0.08` two blocks up already says it. `invert` because a tune turned
+   * upside down is a tune nobody recognises the second time, which is the one thing
+   * this repertoire cannot afford.
+   */
+  voice: {
+    archetypes: [
+      ['arch-hook', 4],
+      ['wide-interval', 2],
+      ['chant', 2],
+      ['long-note', 1.2],
+    ],
+    subsets: [
+      [[0, 1, 2, 3, 4, 5, 6], 4],  // the lot — V7 in every progression of all five
+      [[0, 2, 3, 4, 6], 3],        // 1 3 4 5 7 in the major styles, pentatonic in the minor
+      [[0, 1, 2, 4, 5], 3],        // 1 2 3 5 6 bright and folk under humppa and jenkka; under
+                                   // valssi and beguine it reads 1 2 ♭3 5 ♭6 — the flat sixth
+                                   // with no seventh, the one colour where the header rule goes quiet
+      [[0, 1, 2, 3, 4, 6], 1.5],   // no sixth: ♭6 to ♮7 is an augmented second, and these keys are sung
+    ],
+    ops: {
+      sequence: 1.5, transpose: 1.4, ornament: 1.3,
+      displace: 0.5, diminish: 0.4, invert: 0.4,
+    },
+  },
+
   scaleForChord: (tonic, mode, chord) => {
     if (mode === 'minor' && chord.dominantFunction) return makeScale(tonic, 'harmonicMinor');
     return makeScale(tonic, mode === 'minor' ? 'minor' : 'major');

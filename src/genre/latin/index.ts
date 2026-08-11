@@ -266,6 +266,200 @@ export const latin: Genre = {
   defaultHook: 'catchy',
 
   /**
+   * The tune is a coro, and the two archetypes that describe one were the two
+   * the derivation had least of.
+   *
+   * Three keys and no numbers. `density`, `leap`, `ornament`, `compass` and
+   * `syncopation` are derived per style from tables that spread properly here —
+   * derived density runs 2.67 onsets a bar on the ranchera to 5.58 on the frevo
+   * — and any genre-wide figure for them would flatten a distinction the
+   * twenty-six styles have already drawn correctly.
+   *
+   * `accents` is left derived too, and that is right at this tier but is the one
+   * omission to flag rather than defend. `cellAccents` returns **one bar** —
+   * sixteen slots on twenty-three of these styles, twelve on the three in 3/4 —
+   * while the field's own note says *"a 32-long array is a two-bar statement,
+   * which is what a clave or a tango accent actually is"*, in the genre whose
+   * header says the clave *is* the genre. No genre-wide table can supply it:
+   * 3-2 and 2-3 are the same sixteen slots in the other order, and which one a
+   * number is in is a style fact — `styles.ts` writes both directions of the
+   * guaguanco clave as separate patterns. That is the strongest wave-2
+   * style-delta case in this folder.
+   *
+   * ## Archetypes: what a montuno is, in the vocabulary that has a word for it
+   *
+   * `riff-response` is *"a short figure and the thing that answers it"* and
+   * `chant` is *"one note repeated with a tail — the hook is the rhythm"*, and
+   * between them they are the second half of every son. `defaultHook` above
+   * spends a paragraph on why the coro has to be the same phrase every time, and
+   * the `repeated-note-run` override below is `chant` already written out in
+   * prose: the coro *"frequently sits on two or three pitches"* and the interest
+   * is *"entirely in where against the clave the syllables land"*. This genre
+   * softened a melodic rule to permit that tune and then had no field in which to
+   * ask for one. They lead.
+   *
+   * **What pinning them costs, named rather than conceded.** Derived
+   * `riff-response` spreads 0.68 on the ranchera to 4.18 on the frevo, and
+   * derived `chant` 0.78 to 2.53 — 6:1 and 3:1, both read off density, both
+   * honest about which of these styles is busy. Writing 5 and 3.5 over that is
+   * deliberate genre-tier work, because a coro is a fact about the repertoire and
+   * not about onsets a bar, but the ranchera moves sevenfold and has the least
+   * claim to it: a mariachi waltz with no coro anywhere in its tables. Nor is it
+   * alone. `FORMS[1]` below is 4 of 16 form weight, puts a bridge where the
+   * montuno would be and says so itself — *"these three are songs before they are
+   * grooves"* — so on the bolero, the bachata and the ranchera this pair is an
+   * assumption those two numbers are being asked to carry rather than one their
+   * own tables make. The fix for that is a `voice.archetypes` delta on the three,
+   * not a lower genre weight, which would charge the twenty-three sones for it.
+   *
+   * **`descending-sequence` is the weight that comes down, and it is the twin
+   * problem.** Measured over the catalogue these melodies are harder to tell from
+   * **finnfolk**'s than from anything else — 0.108 against a mean pairwise
+   * distance of 0.382 — and the cause is one derived number. The weight reads
+   * `melody.sequence`, both genres write that high, and here it lands
+   * between 2.20 and 2.80 in all twenty-six styles — a 1.27× spread, flatter in
+   * ratio than any other derived archetype weight here, though `long-note` below
+   * has the narrower absolute range at 0.40–0.87. But the
+   * two repertoires mean different things by it. A polska strain really does walk
+   * a figure down the scale; what gets restated here is a *guajeo* — *"one shape
+   * carried up and down through the chords of a two-bar vamp"*, in the words of
+   * the `parallel-perfects` override below — or a moña, and both come back at the
+   * same height every two bars because the vamp does. The appetite is right and
+   * the **direction** is wrong, and direction lives in `Archetype.sequenceDir`
+   * (−1 for a descending sequence, +0.2 for a riff, 0 for a chant) rather than in
+   * `ops`. So this field is the only one that can fix it, and `ops.sequence` is
+   * deliberately left where each style's own 0.40–0.60 already puts it.
+   *
+   * **The nearer neighbour is reggae, and this table has to answer for it.**
+   * `genre/reggae/index.ts` leads its voice with the same two archetypes
+   * (`chant 4`, `riff-response 4`), leads `subsets` with the same `[0,2,3,4,6]`,
+   * carries `[0,1,2,4,5]` and the whole mode under it, and declares the identical
+   * `fragment: 1.6` over a low `reharmonise`. That is convergence rather than
+   * carelessness in either file — a coro and a chorus over a two-bar vamp are the
+   * same melodic object, and both genres arrived at the pentatonic through their
+   * own `augmented-second` disable. The separation is at the other end of both
+   * tables. Reggae's scale rule is *"never raise the seventh"*, so no subset of
+   * its modes can be `[0,1,2,3,4,6]` and this one carries it; reggae writes
+   * `descending-sequence 2` and `long-note 2.2` where this cuts both to 1.2,
+   * because a one drop holds notes and a guajeo does not; `invert` is declared
+   * here and left derived there. Reggae then corrects `displace` and `diminish`
+   * and this file leaves both to the styles, which is the same disagreement seen
+   * from the rhythm side.
+   *
+   * `long-note` goes the other way and off a floor: derivation reads density, the
+   * cells here are busy, and it comes out at 0.40 in twenty-five of the
+   * twenty-six (0.87 on the ranchera). Meanwhile `arrangement` below weights
+   * `swell` at 7 — raised from 3 after this genre's horn layer measured 7%
+   * sustained — for a device that fires *only on the tune's long notes*. The
+   * colchón has to have something to lie under. 1.2 is a nudge and no more,
+   * because `SHAPES` multiplies this archetype by 0.7 in a chorus and 0.5 in a
+   * solo and these forms are chorus- and solo-heavy: the share lands near 4%
+   * in those two sections and around 7% averaged over a form, against roughly 3%
+   * derived. Enough that the horns have something to lie under, not enough to
+   * slow a montuno down.
+   *
+   * `arch-hook` keeps the flat 3 derivation gives every style in the project,
+   * which is right for a folder whose second form is the song form.
+   * `wide-interval` is deliberately **unnamed**, for the reason reggae leaves it
+   * unnamed too: `mergeArchetypes` gives a named id its declared weight and
+   * leaves an unnamed one derived, so writing any number here would replace
+   * `0.5 + leap × 5` — 1.50 on the guajira to 2.40 on the frevo — with a
+   * constant. Leap is the one melody field that already spreads honestly here,
+   * and this is the field that would throw that away.
+   *
+   * ## Subsets: the pentatonic, its major twin, and the accident
+   *
+   * `[0,2,3,4,6]` is the minor pentatonic in a minor key, and one style in this
+   * folder already says its melody lives there and nowhere else — `guaguanco`
+   * overrides `scaleForChord` to `minorPentatonic` on the tonic because *"a rumba
+   * melody is a pregón, a street-vendor's call"*. `[0,1,2,4,5]` is the same
+   * decision in the other mode: 1 2 3 5 6, and by `modeWeights` this genre is 58%
+   * major. It is also, under the phrygian dominant `chordScale` hands a `V7♭9`,
+   * the notes 1 ♭2 ♮3 5 ♭6 — the Spanish cadence with its augmented second
+   * intact, which is the interval the rule override below exists for.
+   *
+   * The full diatonic keeps a real weight for the bolero end, whose eleven
+   * distinct chord symbols are joint-most in `styles.ts` — the frevo also has
+   * eleven — and which is the one that genuinely moves ii–V.
+   *
+   * **The artefact, and it works against the override below rather than with
+   * it.** `song.ts` resolves `style.scaleForChord ?? genre.scaleForChord`, and
+   * `guaguanco` overrides to `minorPentatonic` on *every* chord, so the scale
+   * arriving at `snapToSubset` there is already the five pcs 1 ♭3 4 5 ♭7. That
+   * function keeps only the subset indices below `scale.pcs.length`, and against
+   * five notes the indices name different pitches. The whole mode and
+   * `[0,1,2,3,4,6]` are genuine no-ops, because all five indices exist in both.
+   * The two at the top are not. `[0,2,3,4,6]` survives as indices 0, 2, 3, 4 →
+   * **1 4 5 ♭7**, so the degree it drops is the **♭3** — precisely the
+   * tonic-to-♭3 that `augmented-second` is disabled below to permit, on the one
+   * style that comment names as its reason. `[0,1,2,4,5]` survives as 1 ♭3 4 ♭7
+   * and loses the fifth. Eight of thirteen by weight therefore narrow that style
+   * to four notes.
+   *
+   * Stated rather than fixed, because degrees are indices into whatever scale
+   * arrives: no entry can be five notes against seven and inert against five, and
+   * putting the whole mode on top would charge the other twenty-five styles for
+   * one style's problem — the pentatonic colour is what this table is for. The
+   * fix is a style delta, `guaguanco: { voice: { subsets: [[[0,1,2,3,4,5,6], 1]] } }`,
+   * since `voiceForStyle` takes `delta.subsets` whole and this table is
+   * genre-level by construction.
+   *
+   * `[0,1,2,3,4,6]` is where the `augmented-second` override below pays back the
+   * cost it names. That comment admits harmonic minor's ♭6-to-♮7 *accident* along
+   * with the phrygian-dominant *subject* and cannot separate them, because it
+   * measures an interval and a subset measures degrees. Degree 5 is that ♭6, and
+   * the ladder returns harmonic minor on the tonic under every minor-key V, so a
+   * line drawn from this set cannot step through the accident and still keeps the
+   * leading tone. Lightest of the four, because it also takes the ♭6 out of the
+   * phrygian dominant, where the same note is a colour.
+   *
+   * ## Ops: the four derivation never reaches
+   *
+   * `voiceForStyle` derives six of the eleven from `melody.sequence`, `.ornament`,
+   * `.syncopation` and `.leap`, and all four spread here — derived `displace`
+   * runs 0.60 on the norteño to 1.38 on the timba, and a genre-level value would
+   * flatten the cha-cha-chá, whose cells start on the beat because *"a
+   * cha-cha-chá melody that leaned would be the nuevo ritmo the dancers could not
+   * manage"*. Untouched. The other four sit at 1 for every style in the project:
+   *
+   *  - **`fragment` up.** A sonero answers the coro by throwing a piece of it
+   *    back — `solo.quoteMotto` and `paraphrase` are both 0.35 below — and this
+   *    is the operator that makes a one-bar figure out of a two-bar one.
+   *  - **`invert` down.** It is the largest single weight in the `answer` intent,
+   *    and an inverted coro is a different coro.
+   *  - **`reharmonise` down.** It refits a shape to new changes and a montuno has
+   *    none: *"a four-bar cell, twice, and nobody leaves it"*. Halved rather than
+   *    removed, because the bolero and the timba genuinely move.
+   *
+   * `augment` stood here at 1.5 and has been taken out, because neither half of
+   * its argument held. The evidence was that all twenty-six `cadenceCells` open
+   * with a whole-bar note at top weight — which is true of **360 of the project's
+   * 389 styles**, so it is a house convention and not a sentence about this
+   * genre. And `opsFor` reads its appetite off the **first** op of an entry, so
+   * the weight reached only the bare `augment` in `close` (2 → 3); the two
+   * entries that actually augment a cadence are `fragment` + `augment` pairs and
+   * are already lifted by the bullet above.
+   */
+  voice: {
+    archetypes: [
+      ['riff-response', 5],
+      ['chant', 3.5],
+      ['arch-hook', 3],
+      ['descending-sequence', 1.2],
+      ['long-note', 1.2],
+      // `wide-interval` stays unnamed: naming it replaces `0.5 + leap × 5`,
+      // which is 1.50 to 2.40 across these styles. See the header.
+    ],
+    subsets: [
+      [[0, 2, 3, 4, 6], 4],       // pentatonic in minor — the pregón; 1 4 5 ♭7 on guaguanco
+      [[0, 1, 2, 4, 5], 4],       // 1 2 3 5 6 in major; 1 ♭2 ♮3 5 ♭6 under a V7♭9
+      [[0, 1, 2, 3, 4, 5, 6], 3], // the bolero, which needs all seven
+      [[0, 1, 2, 3, 4, 6], 2],    // no ♭6: harmonic minor without the accident
+    ],
+    ops: { fragment: 1.6, reharmonise: 0.5, invert: 0.4 },
+  },
+
+  /**
    * The horns play *moñas* — interlocking figures, restated — and that is most
    * of what a horn section does here.
    *

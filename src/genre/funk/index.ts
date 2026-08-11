@@ -647,6 +647,163 @@ export const funk: Genre = {
   scaleForChord: (tonic, mode) =>
     makeScale(tonic, mode === 'minor' ? 'minorPentatonic' : 'mixolydian'),
 
+  /**
+   * What the tune is made of, over one chord.
+   *
+   * Three keys, and they are the three `voiceForStyle` cannot derive. The six it
+   * can are left where the style tables put them, and they are genuinely spread:
+   * derived density runs 2.67 in `ballad` to 5.79 in `souljazz`, `ornament` 0.20
+   * in `electro` to 0.55 in `talkbox`, `span` 11 in `slap` to 19 in `ballad`. A
+   * genre number for any of those would flatten this file's own organising
+   * claim, which is that these twenty-two styles differ by what the rhythm
+   * section agreed about the grid.
+   *
+   * ## Archetypes — the harmony does not move, so the tune is not going anywhere
+   *
+   * `riff-response` and `chant` carry it, and both weights are already stated
+   * elsewhere in this file. `arrangement` puts `riff` at 7 because the horns
+   * answering with the *same* figure restated is what makes a section a section —
+   * which is `riff-response`'s gloss, *a short figure and the thing that answers
+   * it*, and its judge already discounts `freshness` to 0.8, which is what a vamp
+   * needs from a scorer. `chant` is paid for by `ruleOverrides` above:
+   * `repeated-note-run` and `static-repetition` are both softened here for "a horn
+   * figure that is *entirely* one pitch, rhythmicised", and the archetype whose
+   * gloss is *the hook is the rhythm* is that figure. A genre that disabled the two
+   * rules which veto an archetype and then left it at its derived 0.78–2.66 would
+   * be arguing with itself.
+   *
+   * `arch-hook` and `descending-sequence` are each halved — from a flat derived 3,
+   * and from a derived 2.20–3.25 — and the two halvings are different arguments.
+   * An arch needs a high point to rise to, and `solo.vocabulary.climb` is already
+   * two semitones here because "the climb is a device for a line that has somewhere
+   * to get to". A descending sequence is expensive for a reason about the *scale*:
+   * a step of the minor pentatonic is a tone or a minor third, so the three
+   * statements the archetype's own gloss asks for fall seven semitones where a
+   * diatonic scale falls five, and `slap` declares a span of 11. Halved rather than
+   * floored, because these tables declare `melody.sequence` 0.40 to 0.75, mean
+   * 0.62, above rock's 0.58 and reggae's 0.52 — a 1 here is arithmetically
+   * `sequence: 0` written twenty-two times.
+   *
+   * `long-note` and `wide-interval` are deliberately absent, and each was named
+   * once and cost something. `long-note` derives to 0.40 for twenty styles, 0.49
+   * for `memphis` and 0.87 for `ballad`, which is already the sentence
+   * `arrangement` makes about `swell` — a held melody note is a ballad device and
+   * there is one ballad style in twenty-two. A genre 0.5 raised the twenty riff
+   * styles a quarter and cut `ballad` by 43%. `wide-interval` derives to 1.70–2.70
+   * and that spread is the claim, not noise in it: `horns` declares leap 0.42 and
+   * span 18 because a pentatonic riff sits under a guitarist's fingers and a horn
+   * line does not, `slap` 0.24 and 11 because the tune is not the point of that
+   * number. A genre number at the mean flattens both and buys nothing.
+   *
+   * Owed, and it belongs in `styles.ts` rather than here: `ballad` wants a
+   * `Style.voice` of `riff-response` 1, `long-note` 3, `arch-hook` 4. Its prose
+   * calls it "the one whose melody has phrases in it rather than a riff", and
+   * `riff-response` at 5 takes it from under 7% of that style's derived table to a
+   * third of the genre one. `memphis` needs nothing — its prose is "a guitar
+   * answering with three notes", which is the archetype.
+   *
+   * ## Subsets — four rows that are eight sets, because the scale rule is two
+   *
+   * `scaleForChord` above hands the melody a **five-note** scale in minor and
+   * mixolydian in major, and `snapToSubset` *drops* every degree the scale has not
+   * got rather than wrapping it. So each row below is read twice and colours two
+   * different scales, which is the whole point of indexing the mode rather than
+   * naming intervals.
+   *
+   *  - the full seven, top-weighted, and in this genre it means *no snap at all*:
+   *    `snapToSubset` returns the note untouched once the allowed set is the whole
+   *    scale. It is top because the narrowing already happened one field up. In
+   *    minor this row is the pentatonic, a five-note discipline the scale rule has
+   *    imposed; in major it is mixolydian with its sixth, and the header says a
+   *    Memphis chart needs that sixth and a bass riff does not. Every row under it
+   *    cuts a scale that has already been cut.
+   *  - `[0,1,3,4,6]` is the riff. Against the pentatonic it is 1 ♭3 5 ♭7 — `vamp`'s
+   *    three bass figures spelled out, "0, the ♭7 a tone below it, the ♭3 above".
+   *    It generalises to the rest of the file only narrowly: across 322 bass
+   *    `tone:` entries the ♭3 appears 33 times and the fourth 28, so dropping the
+   *    fourth drops the less-used of the two by five occurrences. A preference, not
+   *    a law, which is why it sits under the full mode. Against mixolydian it is
+   *    1 2 4 5 ♭7, a line with no third — the `dom7sus4` colour that `avoid-fourth`
+   *    is disabled above for. Note what the snap then does with a third: it walks
+   *    −1 before +1 and the ♭3 is not in the allowed set either, so a major third
+   *    moves *up* to the fourth. No blue note is reachable from here. The ♭3 over a
+   *    major vamp comes from the soloist's `chromatic` at 0.35 with `chromatic-tone`
+   *    disabled, which is where the header puts it.
+   *  - `[0,2,3,4,6]` is the only row that keeps the fourth in both readings. In
+   *    major it is 1 3 4 5 ♭7 — the two degrees the header says mixolydian is *for*,
+   *    the flat seventh and the fourth. In minor it is 1 4 5 ♭7, a riff with no
+   *    third, which is the other half of the same sound.
+   *  - `[0,1,2,4,5]` is the warm end, weighted lowest: the major pentatonic over
+   *    mixolydian, which is `memphis`, `boogie` and `talkbox` — party records — and
+   *    1 ♭3 4 ♭7 over the minor pentatonic, a riff colour with the fifth taken out.
+   *
+   * ## Ops — a riff that renegotiates has stopped being a riff
+   *
+   * The file header's sentence applied to the operator table. `fragment` is the one
+   * raised outright and it is "the hole is the part" as a transformation: the
+   * figures here are two to six onsets in sixteen slots and the silence between
+   * them is where the next player is. It is also the whole of the `answer` intent
+   * here — `[fragment 3, extend leap]` is 4.4 of that draw's 6.7 — because `opsFor`
+   * scales a chain by its **first** operator's appetite only. `extend` is never
+   * first in any of the seven intent tables, so naming it would be writing a key
+   * the engine does not read.
+   *
+   * The four pushed down are the four that rewrite the figure. `reharmonise` is
+   * near zero because there is nothing to reharmonise onto — `scaleForChord` does
+   * not take the chord as a parameter, which is the strongest form of that
+   * statement available. `invert` and `augment` are 0.3 because the fixed order is
+   * the composition, and because a triplet laid over a sixteenth grid "deletes the
+   * grid, and the grid is the music". `sequence` at 0.8 is the pentatonic step size
+   * above, applied to the operator that walks by it.
+   *
+   * `transpose` at 0.7 is the one number here that costs something, and the cost
+   * belongs beside it. It buys what it is named for: in `answer`, the branch that
+   * moves the figure down a step falls from 35% of the draw to 21%. But `opsFor`
+   * falls back to the `transpose` appetite for a chain with **no** operators, and
+   * the verbatim repeat is exactly that chain — so on a `catchy` chorus the
+   * verbatim share of `repeat` drops from 77% to 66%, in the genre whose
+   * `defaultHook` says the figure comes back the same. Eleven points of verbatim
+   * for fourteen off the transposed answer, and the right side of that trade only
+   * because what verbatim loses goes to the *ornamented* repeat, which is still the
+   * same figure, where a transposed answer is not. One lever, two jobs, and no
+   * second lever.
+   *
+   * `displace` at 0.5 is a correction rather than a preference. The derivation
+   * makes it `0.3 + syncopation × 1.5`, so this genre's 0.55–0.85 produces 1.1–1.6,
+   * a high appetite for shifting a restated figure off the beat. That reads the
+   * right number and draws the wrong conclusion twice: funk's syncopation is
+   * written into *where the onsets are*, which `cellAccents` has already read off
+   * the same cells, and `comping` above sets its own `displace` to 0.05 with the
+   * sentence that a funk figure nudged a sixteenth is a funk figure played wrong.
+   *
+   * `ornament`, `diminish` and `expand` keep their derived values, because each is
+   * read off a style number that genuinely disagrees inside this genre — ornament
+   * 0.20 to 0.55, syncopation 0.55 to 0.85, leap 0.24 to 0.44.
+   */
+  voice: {
+    archetypes: [
+      ['riff-response', 5],
+      ['chant', 4],
+      ['arch-hook', 1.5],
+      ['descending-sequence', 1.5],
+    ],
+    subsets: [
+      [[0, 1, 2, 3, 4, 5, 6], 5],
+      [[0, 1, 3, 4, 6], 4],
+      [[0, 2, 3, 4, 6], 3],
+      [[0, 1, 2, 4, 5], 2],
+    ],
+    ops: {
+      fragment: 2.2,
+      sequence: 0.8,
+      transpose: 0.7,
+      displace: 0.5,
+      invert: 0.3,
+      augment: 0.3,
+      reharmonise: 0.15,
+    },
+  },
+
   /** The ballroom, the lamé jacket and the hall bill. See `staging.ts`. */
   staging: STAGING,
 };

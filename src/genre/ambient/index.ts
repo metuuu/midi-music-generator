@@ -166,6 +166,189 @@ export const ambient: Genre = {
   arrangement: { trade: 0, tutti: 0, riff: 0, unison: 6, harmony: 2 },
 
   /**
+   * What the tune is made of.
+   *
+   * The header above asks where the melody gets its notes; this is the other
+   * half, which is what it does with them. Three fields and no more: the six
+   * `voiceForStyle` derives are left where the styles put them, because they
+   * genuinely disagree — 1.14 onsets a bar in `drone` against 2.45 in
+   * `hauntology`, a span of 12 in `aquatic` against 20 in `wasteland` — and a
+   * genre-wide number would flatten a distinction those tables already state.
+   *
+   * None of the six styles is one of the three voices registered by id, so this
+   * governs all of them. `kosmische` is worth naming anyway: it is the same
+   * records `berlin` in `tune/voice.ts` was authored from, and the weights here
+   * are that voice pushed one step further — berlin is a synth style with a lead
+   * over a sequencer, and this is the genre that refuses to have a foreground.
+   *
+   * **The archetypes.** `long-note` carries it, and the evidence is in every
+   * style's `cadenceCells`: a whole-bar note is the top row of all six, at weight
+   * 6 to 9, and `drone`'s melody cells are `[16]` at 8 of 22 with a bar of
+   * silence beside it. `chant` is second on the hooks: `defaultHook` above is
+   * `catchy` for the genre and `drone` sets `earworm` under its own note that
+   * this is the one place in the project where maximum repetition is *a
+   * description of the genre rather than a setting applied to it*, and a chant is
+   * one note repeated with a tail. `ruleOverrides` below points the same way —
+   * this is the only genre that lifts `static-repetition` outright, where eight
+   * others soften it to 3 or 4 — but that is corroboration rather than a second
+   * argument, and the difference is one both neighbours insist on. Arabic
+   * declines to weight `chant` at all because its own softening already pays for
+   * the observation, *the ornament is kept in the rule table and not bought a
+   * second time here*; synth refuses to raise two entries off one fact. What
+   * makes this not that: the override lifts a veto on a line the judge would
+   * otherwise refuse, and this weight decides how often that line is drawn.
+   *
+   * `arch-hook` is the derivation's worst guess here. `archetypesFor` hands it a
+   * flat 3 to all six styles, which is the top of the table in five of them —
+   * `drone` is the exception, where 1.136 onsets a bar give `long-note`
+   * 0.4 + (3 − 1.136) × 1.4 = 3.01. The separator is `density` and not `peakAt`:
+   * `ARCHETYPES['arch-hook']` multiplies onsets a bar by 1 where `long-note`
+   * multiplies by 0.45, against the 1.14 to 2.45 the styles declare, and its
+   * `peakAt` of [0.55, 0.72] would demote nothing — `long-note`'s own window is
+   * [0.5, 0.78] and contains it. The form comment above says these section kinds
+   * mean texture stages and `chorus` means only *the fullest the piece gets*,
+   * which is an argument about how many notes there are and not about where the
+   * high one falls.
+   *
+   * `riff-response` is last because the genre has said so twice: `arrangement`
+   * zeroes `riff`, `trade` and `tutti`, and `drone` and `aquatic` exclude the
+   * `counter` layer outright, so there is nothing here to answer. `chant` brings
+   * the *form* of that name back at 3 of its own 8, and that is not the claim
+   * undone: `grammar.ts`'s `riff-response` is a phrase template — a figure and
+   * the answer to it, inside one line on one instrument — where
+   * `arrangement.riff` is a second player.
+   *
+   * **The twin, and which key separates it.** On the fingerprint `dnb/index.ts`
+   * defines — duration classes, interval classes, density and turn rate —
+   * ambient's melodies sit closer to dnb's than to any other genre's, 0.116
+   * against a mean pairwise 0.382. The cause is in the cells: dnb's `minimal`
+   * declares `[16]` at 8 and `[-8,8]` at 4, which is the top of `drone`'s table
+   * at the same two weights, the four rows below them being drone's own and
+   * carrying 10 of its 22 — so derivation reads two nearly empty tables as one
+   * music. dnb answers this from its side and names the axis: `archetypes`
+   * separates them, `chant` at the top over `long-note` *held* at 2.5. This
+   * table is that ordering inverted, 6 over 3, and the inversion is the whole
+   * disagreement — both genres write few long notes, and only one of them has a
+   * figure to restate.
+   *
+   * `descending-sequence` at 1.5 is no part of that separation and must not be
+   * read as one: dnb's own voice sets it to 0.8, which is below this. It is a
+   * correction to the derivation, which reads `melody.sequence` as an appetite
+   * for walking a figure down the scale and returns 1.75 to 2.65 from the six
+   * styles' 0.25 to 0.55. What that number means in these tables is how much a
+   * figure is restated at all, and the restatement here is in place rather than
+   * a step lower — `defaultHook: 'catchy'` recalls every section. `choral` is
+   * the one style that loses by it, since the descending aeolian tetrachord its
+   * own progression note names is a walked figure; 1.5 rather than 0.5 leaves it
+   * about one section in nine of this table rather than one in twenty-four, and
+   * a style that wants the archetype outright has `Style.voice` for it.
+   *
+   * **The subsets.** The neighbour to state these against is synth, whose file
+   * opens by tabulating seven fields where the two genres say opposite things.
+   * Its voice already declares `[0,1,3,4,6]` at 5 — modal, no third to commit a
+   * line to a mode the harmony left open, sus2 and sus4 as the vocabulary,
+   * `avoid-fourth` disabled — which is word for word the argument this file
+   * would have made for it, and `docs/voices-plan.md` calls `subsets` the single
+   * most audible one-line decision in the engine. Buying that decision twice is
+   * not available, so it stays here as a colour at 1.5 and the weight goes to
+   * the one thing this genre has that synth does not: a tonic that never moves.
+   * `keyChangeChance` is 0 in all three eras and `scaleForChord` below re-roots
+   * every scale on the tonic, so what a passing chord changes is *which mode*,
+   * for the length of the piece.
+   *
+   * `[0,3,4]` — 1̂ 4̂ 5̂ — is that written as degrees. Only 0 and 4 hold their
+   * interval across all six of `BY_BRIGHTNESS`, and 3 moves in lydian alone,
+   * which needs a ♯4 in the chord to be reached; everything else is moved by the
+   * bends the header names, major → aeolian under a ♭VI shifting degrees 2, 5
+   * and 6 and minor → phrygian under a ♭II shifting degree 1. So this is the set
+   * no chord in these tables can contradict — which is also the correction the
+   * ♭II makes to the old reading here, since it bends the *second* and leaves
+   * the third alone. It is the quartal sound itself rather than an abstraction:
+   * 1–4 and 5–1 are the two fourths of `drone`'s `quartal-held` comp at weight 7
+   * and of the `isus4` and `Isus2` in the progressions. Three degrees is the
+   * fewest `snapToSubset` will act on at all, every pitch class is inside the two
+   * semitones it searches so nothing falls through to the scale, and where the
+   * snap would collapse a step `unstall` puts a scale note back — the line passes
+   * through the mode rather than being caged in three notes.
+   *
+   * The full diatonic leads, and here it is not the non-decision it is
+   * elsewhere: `scaleForChord` has already picked one of six modes of a fixed
+   * tonic, so all seven degrees mean the line follows the bend instead of
+   * sitting out of it, and phrygian's seven notes are not lydian's. It is what
+   * `choral` needs besides — a stepwise modal line cannot be written in a scale
+   * with holes in it — and synth keeps it at 2, so the ordering is a
+   * disagreement rather than a copy. `[0,2,3,4,6]` is the pentatonic
+   * `hauntology`'s childlike small-span melody is made of, and it is minor in a
+   * genre that is 55 to 94 per cent minor. The bright `[0,1,2,4,5]` is gone
+   * rather than demoted: it drops the fourth and the seventh, which are the two
+   * degrees this music is built on, and the styles that go major roughly half
+   * the time are served by `[0,3,4]`, which is the same three pitches in either
+   * mode.
+   *
+   * **The ops.** `augment` and `fragment` are the two this music actually does
+   * and derivation reaches neither — both sit at the fallback 1 today. They land
+   * in the same place, because `opsFor` charges only a row's *first* op: `close`,
+   * the intent every form's last slot carries, is `[fragment, augment]` at 3,
+   * `[fragment, augment]` at 3, `[augment]` at 2 and `[reharmonise]` at 1, so
+   * 1.5 and 1.8 hand the two of them 12.6 of that intent's 12.9. A figure that
+   * comes back shorter and slower is how every phrase group here ends, and
+   * `augment` losing whatever falls off the end of the canvas is the thinning
+   * that ends every piece. `wasteland`'s "fragments, not themes — nothing here
+   * should come back sounding like it was meant to" is one style saying it
+   * loudest, not the reason. The same `fragment` also raises `develop`'s two
+   * `[fragment, sequence]` rows from 3 to 4.5 and their second op is a walked
+   * figure — but `develop` is fragment-led here at any weight, since `diminish`
+   * below takes the 8 its two rows carry of that intent's 17.5 down to 2.
+   *
+   * `transpose` up, and not because a figure should move. `opsFor` falls back to
+   * this appetite for a row with no ops in it at all, so it also charges the
+   * *verbatim* repeat at 2 + repetition × 8 — which is `defaultHook: 'catchy'`
+   * and `drone`'s `earworm` asking for the thing they describe, and the same
+   * lever synth pulls to 1.7. Where it does move pitch it moves it once: in the
+   * `sequence` intent it lifts the two `transpose` rows over the staircase row,
+   * which is the sentence `descending-sequence` makes above. `sequence` at 0.7
+   * against a derived 1.0 to 1.6 is the other half of that, and it reaches only
+   * that one row, weighted 2 + stride.
+   *
+   * `expand` down to 0.5, because it and `wide-interval` at 1 are one statement:
+   * `types.ts` glosses it *identical shape, wider intervals*, and the leap of
+   * 0.12 to 0.28 that put `wide-interval` below all six derived values is the
+   * same number. Left at its derived 0.84 to 1.16 it would be the top row of
+   * `vary` once `ornament` and `diminish` come down, and `vary` is what every
+   * tile past the first draws when the repetition roll fails, in a genre whose
+   * sections are 8 and 16 bars. `diminish` down, which is the heaviest option in
+   * `opsFor`'s `develop` because it is the engine's only route to a fast passage,
+   * and this is the one genre with no use for one; `reharmonise` down, because it
+   * snaps strong beats onto the passing chord and the whole of `scaleForChord` is
+   * that the drone never notices the chord. `ornament` at 0.3 overrides a floor
+   * rather than a reading — the derivation is `0.4 + ornament * 3`, and with this
+   * genre declaring 0.02 to 0.10 the constant is nearly all of it. `displace` is
+   * deliberately not here: a figure that enters late is the wasteland sound, and
+   * the cells already say so as leading rests that `cellAccents` reads straight
+   * into the table.
+   */
+  voice: {
+    archetypes: [
+      ['long-note', 6],
+      ['chant', 3],
+      ['descending-sequence', 1.5],
+      ['arch-hook', 1],
+      ['wide-interval', 1],
+      ['riff-response', 0.3],
+    ],
+    subsets: [
+      [[0, 1, 2, 3, 4, 5, 6], 4],
+      [[0, 3, 4], 3.5],
+      [[0, 2, 3, 4, 6], 3],
+      [[0, 1, 3, 4, 6], 1.5],
+    ],
+    ops: {
+      augment: 1.8, transpose: 1.6, fragment: 1.5,
+      sequence: 0.7, expand: 0.5, ornament: 0.3, reharmonise: 0.3, diminish: 0.25,
+    },
+  },
+
+  /**
    * Where ambient disagrees with the shared rule table.
    *
    * The table was written from classical voice-leading and general arranging

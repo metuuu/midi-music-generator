@@ -643,6 +643,223 @@ export const pop: Genre = {
   ],
 
   /**
+   * What a pop tune is made of.
+   *
+   * Three keys and only three, because they are the three `voiceForStyle`
+   * cannot derive. The six it can — density, leap, ornament, compass,
+   * syncopation, accents — stay each style's own, and here that spread is the
+   * point: derived density runs 1.93 onsets a bar on `dreampop` to 5.83 on
+   * `tropical`, and one genre number would say a torch song and a marimba drop
+   * move at the same speed.
+   *
+   * **No style in this file has an authored voice**, so this governs all
+   * twenty-four. `iskelmapop` is registered by id over in iskelmä and is not
+   * this genre's `synthpop`, whatever the header concedes about them being the
+   * same music in two languages — and that claim is cashed under the subsets
+   * below, which is where the two tables had come to say the same thing.
+   *
+   * ## The archetypes: three declared, three left alone, and one line between
+   *
+   * `mergeArchetypes` is by key, so an archetype this table does not name keeps
+   * the weight derivation gave it, per style. The three named are the three
+   * where derivation has nothing left to say — one is flat across all
+   * twenty-four, one is clipped at the archetype's floor in twenty of them, and
+   * one is reading a field that does not mean what its name means. The three
+   * unnamed are ranking all twenty-four off fields that do mean it.
+   *
+   * `descending-sequence` **to 1.2**, and it is the entry that moves the most
+   * notes. `archetypesFor` reads `melody.sequence` into it and this genre writes
+   * the highest sequence numbers in the file, 0.68 to 0.76. The result is
+   * checkable and it is exact: **the only six styles whose derived
+   * `descending-sequence` clears the flat `arch-hook` 3 are the six at
+   * `hook: 'earworm'`** — `bubblegum`, `hinrg`, `europop`, `teen`, `dancepop`,
+   * `tropical`, at 3.04 to 3.28. What those tables mean by a high `sequence` is
+   * *the figure comes back*, not *the figure walks down the scale*, and the
+   * archetype's own entry puts its high point at 0.08–0.25 of the section — a
+   * tune falling away from its first bar, which is the opposite of every form in
+   * `FORMS` above. It goes to the floor.
+   *
+   * `arch-hook` **to 5**, because its gloss is this genre in one line: *rise to
+   * one high point, with a figure that keeps coming back*. It flattens nothing —
+   * `archetypesFor` hands all twenty-four a flat 3 — and the three numbers under
+   * it are all above. Three of the four forms have three choruses and the ballad
+   * has four, every one of them eight bars; `SHAPES.chorus.favour` lifts this
+   * archetype by 1.8 and nothing else by more; and `liftIntoReturn: 0.9`, which
+   * no genre in the project exceeds. (The *sixteen-bar* choruses in the comment
+   * three lines above `FORMS` are eight in the literal underneath it. That line
+   * belongs to whoever owns the form table; this paragraph counts the bars.)
+   *
+   * `long-note` **to 1**, off the floor and no further, and it is the one entry
+   * here that overrides live numbers. The derivation is 0.4 plus 1.4 for every
+   * onset a bar under three, and **twenty of the twenty-four are above three
+   * onsets a bar**, so for them that term is zero and the reading is bottoming
+   * out rather than measuring. Against that, `[16]` or `[8,8]` tops the
+   * `cadenceCells` in 23 of 24 — the exception is `tropical`, which has no sung
+   * line to end. A pop phrase *ends* long without being built out of long notes,
+   * and 1 against `arch-hook`'s 5 is that much appetite and no more. **The four
+   * styles derivation did rank pay for it**: `stadium` 0.62, `ballad` 0.85,
+   * `torch` 1.6 and `dreampop` 1.9 — the largest `long-note` in the genre, on
+   * the style this block opened with as its density floor. Cutting 1.9 to 1 is
+   * wrong about `dreampop`, and the fix is a `Style.voice` delta in wave 2
+   * rather than a reason to leave the other twenty clipped at 0.4.
+   *
+   * **`riff-response`, `chant` and `wide-interval` are left derived, and that is
+   * a decision rather than an omission.** Each is ranking all twenty-four off
+   * the field that means what the archetype means, and the flat numbers that
+   * stood here — 3, 2 and 2.5 — each deleted a spread this block's own first
+   * paragraph refuses to flatten.
+   *
+   *  - `riff-response` derives 0.6 on `torch` and 5.08 on `tropical`, the widest
+   *    band any archetype has here, off density and ornament. The 3 rested on
+   *    `arrangement.riff: 5` — but that is an *accompaniment* weight, the
+   *    answering figure another player fills the singer's holes with, where this
+   *    archetype is a form for the tune itself; iskelmä's voice draws the same
+   *    line for the same entry. Its other witness was a girl-group lead with the
+   *    group answering behind it, and no such claim exists in `girlgroup`'s
+   *    block: what is there is the line in thirds, which is
+   *    `arrangement.harmony: 7` and a second singer rather than an answer. The
+   *    flat 3 cut `tropical` — "the chorus stopped being sung and became a
+   *    marimba figure", the one style in the catalogue that really is a figure
+   *    and its answer — by 41%.
+   *  - `chant` derives 0.5 to 2.68, off density again, and the count that used
+   *    to settle it — nine `standard` against six `earworm` in `defaultHook` —
+   *    is the section-recall axis `docs/hook.md` describes, not a claim about a
+   *    tune being one note repeated with a tail. The two are related by intuition
+   *    and by no table in this file. Density already puts `tropical`, `bubblegum`
+   *    and `hinrg` on top and `torch` and `dreampop` at the bottom, which is the
+   *    answer this paragraph would have written by hand.
+   *  - `wide-interval` derives 1.5 to 2.2 off `melody.leap`, which is interval
+   *    width itself. The 2.5 was argued from `keys` — "a chorus is written to
+   *    land on a specific high note, that note is at the top of somebody's
+   *    range" — and that is tessitura and where the peak sits, which is
+   *    `arch-hook`'s `peakAt` and `SHAPES.chorus.register: 2`, both already in
+   *    force. There is no genre-level correction to make either: these styles
+   *    leap 0.2 to 0.34 and 279 of the project's 391 styles sit inside that band,
+   *    so a flat number above 2.2 would have claimed pop leaps further than any
+   *    table here says it does.
+   *
+   * ## The subsets, which this genre already argues for in the wrong field
+   *
+   * `ruleOverrides` softens `augmented-second` because "the melodic material of
+   * `tropical`, `dancepop` and `teen` is a five-note set walked in exactly those
+   * intervals, and half of `merseybeat` and `powerpop` is the major pentatonic
+   * with a passing note". That is a `subsets` claim made in a rule override for
+   * want of anywhere else to put it, while every style here took the generic six
+   * weighted defaults.
+   *
+   * Three, and all three keep the third. `stadium` is the one style whose chord
+   * symbols leave it out — `Isus2` and `IVsus2` in four rows, the only `sus`
+   * anywhere in this genre's progressions, with `newromantic` wanting the same
+   * voicing in prose without writing one — and `avoid-fourth` was softened on
+   * `stadium`'s own argument. Where the chord has no third, the singer has it.
+   *
+   *  - **1 2 3 5 6**, the major pentatonic, which is the set that paragraph
+   *    names.
+   *  - **1 3 4 5 7**, a different set in each mode at the same weight, which is
+   *    deliberate: `modeBias` runs 0.35–2.6 major against 0.4–3.0 minor and 52%
+   *    of style-and-mood pairs come out major, so an argument that holds in one
+   *    key is an argument about half the songs. In minor it is the minor
+   *    pentatonic and its top degree is the ♭7 the seventeen modal styles cadence
+   *    on — `VII` is the commonest chord in the 176 minor progression rows this
+   *    file writes, 320 against `i`'s 300, and it stands in 139 of them. Under
+   *    the seven that name `functional` a dominant fetches harmonic minor through
+   *    `scaleForChord` and that degree becomes the raised seventh: "in A minor
+   *    these records play E7 and the melody sings G♯ over it", which is
+   *    `styles.ts`'s own sentence for why those seven exist. In major it is the
+   *    tonic triad plus 7̂ and 4̂, the two notes of the tritone that resolves into
+   *    it, and this genre writes `V7` 180 times — the canonical table's
+   *    "yearning in major" is exactly that, a line that is always leaning on one
+   *    of the two.
+   *  - **the full diatonic**, for the Tin Pan Alley half: changes that move
+   *    every bar in `brill`, a 4–3 suspension over `baroque`'s harpsichord.
+   *
+   * **A fourth set stood here and is gone** — the pentatonic with 7̂ put back and
+   * 4̂ left out, at 2, for `sunshine`'s maj7 with a ninth on top. Its second
+   * reason, that in minor the ♭7 is what the ♭VII–IV–I family walks on, is wrong
+   * in both modes: `bVII` appears 28 times in `styles.ts` and every one of them
+   * is in a major-key block, where index 6 of that set is ♮7 — the one note ♭VII
+   * contradicts — while the minor family this file actually writes is
+   * i–VI–III–VII, whose ♭7 the second set already carries at 4. And its own
+   * witness argues the other way: `sunshine`'s header gives its two cadences as
+   * `IVmaj7 → I` and `bVII → I`, and 4̂ is in both. Three sets that survive their
+   * own argument beat four that do not.
+   *
+   * **This is the key that separates pop from finnfolk**, which sits 0.116 away
+   * on a fingerprint of duration classes, interval classes, density and turn
+   * rate, against a 0.382 mean across all 171 genre pairs. Both are sung,
+   * diatonic, mid-density music in even metres. The two already differ by half
+   * again on derived ornament appetite — 0.76 against 1.18 at the medians — and
+   * are still that close, so nothing derivation carries will do it. What does is
+   * that the two repertoires argue about different note sets: finnfolk's whole
+   * `scaleForChord` ladder is a choice among *sevens* that stops before the
+   * leading tone, and this genre's own case above is a *five*. Dropping 4̂ and 7̂
+   * turns two step-pairs into a minor third, so a pentatonic hook and a modal
+   * strain with the same contour do not have the same interval histogram.
+   *
+   * **The nearer neighbour is iskelmä, and no fingerprint says so.** That is the
+   * genre this file's header spends forty lines conceding overlap with, and the
+   * collision was here rather than in any derived number: `iskelmapop` in
+   * `voice.ts` declares four subsets, and what stood above was the same four in
+   * the same order, 5/4/3/2 against its 4/3/3/2 — normalised, a rounding error
+   * apart. Three sets led by the pentatonic is a different table. The other
+   * separation is free and is in the ops below: left derived, `ornament` puts
+   * `synthpop` at 0.64 where `iskelmapop` declares 1.2, which is what "not this
+   * genre's `synthpop`" has to mean if it means anything.
+   *
+   * ## The ops, which is what happens to a figure when the chorus arrives
+   *
+   * Two of the three are operators derivation never touches, so they flatten no
+   * per-style spread at all.
+   *
+   *  - **`expand` up.** "Same contour, wider intervals" is what a chorus here
+   *    does to a verse figure, and `opsFor`'s `lift` intent is where it lives —
+   *    two of that intent's three options are keyed on it, against a plain
+   *    transpose. Derivation reads `melody.leap` and lands every style between
+   *    1.00 and 1.28: a narrow spread read off the wrong number, how leapy the
+   *    line is rather than whether the second time round is bigger.
+   *  - **`invert` down.** Nobody sings a pop hook upside down. It is the
+   *    heaviest option in the `answer` intent at 3 of 7, and the answer in this
+   *    repertoire is the same figure a step lower or the same figure ending
+   *    differently — both already in that draw.
+   *  - **`reharmonise` down**, on the header's own admission about the last era:
+   *    "the tune is a fixed pitch set dragged across a moving loop". A four-chord
+   *    turnaround plays one hook over four harmonies and the hook does not
+   *    refit, which is also why the pentatonic sets above work at all. The
+   *    ceiling is one option in one intent, so this is a statement more than a
+   *    lever, and it is written down for the reader rather than for the draw.
+   *
+   * `ornament` is deliberately left alone and it is the one jazz had to invert.
+   * The operator writes a diatonic neighbour figure, which is exactly what
+   * `torch` at 0.3 and `tropical` at 0.05 are disagreeing about, so derivation
+   * means what it says here — the appetite comes out 0.55 to 1.30 with the
+   * median at 0.76. `sequence` and `transpose` likewise, and the number to name
+   * is the field rather than the operator: `melody.sequence` runs 0.34 to 0.76
+   * across the file, which lands the two operators at 1.18–2.02 and 1.11–1.61.
+   * The tables are right about which styles restate.
+   *
+   * **The canvas stays at two bars, and it was never open.** `derivedVoice`
+   * hands four bars to any style under 1.7 onsets a bar and the floor here is
+   * `dreampop` at 1.93, so nothing in this genre takes it — a genre-level four
+   * would be a claim about twenty-three styles made for one. That one is 0.23
+   * from flipping, which is where wave 2 should look and not this table.
+   */
+  voice: {
+    archetypes: [
+      ['arch-hook', 5],
+      ['descending-sequence', 1.2],
+      ['long-note', 1],
+    ],
+    subsets: [
+      [[0, 1, 2, 4, 5], 5],          // 1 2 3 5 6 — the major pentatonic
+      // 1 3 4 5 7 — pentatonic in minor, ♯7 under `functional`; in major the
+      // tonic triad plus the two notes of the tritone that resolves into it
+      [[0, 2, 3, 4, 6], 4],
+      [[0, 1, 2, 3, 4, 5, 6], 3],    // the whole scale, for the seven that cadence
+    ],
+    ops: { expand: 1.6, reharmonise: 0.4, invert: 0.3 },
+  },
+
+  /**
    * The scale rule: follow the key, and let seven styles raise the seventh.
    *
    * Seven rather than the six this line used to say — `scaleForChord: functional`

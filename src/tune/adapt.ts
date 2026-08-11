@@ -100,38 +100,61 @@ const CACHE = new WeakMap<Style, Voice>();
  * other seventeen are owed. See `docs/tune-plan.md` §13 and `docs/voices-plan.md`
  * §3.2.
  *
- * Three tiers, and the second is usually empty:
+ * The base is authored where one exists and derived otherwise, and then two
+ * declarations are applied over it in order of how specific they are:
  *
- * 1. **An authored `Voice` registered by id** wins outright and is not merged
- *    into. `tango`, `iskelmapop` and `berlin` are whole statements; a genre
- *    default reaching into one would be overruling the more specific claim.
- * 2. **`{ ...derived, ...genreVoice, ...style.voice }`**, shallow — so a genre
- *    that states the three fields derivation cannot reach leaves the six it can
- *    exactly where they were, per style.
+ * 1. **`Genre.voice` is refused over an authored base.** `tango`, `iskelmapop`
+ *    and `berlin` are whole statements about one style, and a genre default
+ *    reaching into one would be overruling the more specific claim with the less.
+ * 2. **`Style.voice` is honoured over either base**, and that asymmetry is the
+ *    point rather than an oversight. A style delta *is* the more specific claim,
+ *    so the argument that protects an authored voice from its genre is the same
+ *    argument that hands it to its own style. Refusing it here was the first
+ *    version and it failed silently, which is the worst way to fail: `Style.voice`
+ *    is the wave-2 mechanism in `docs/voices-plan.md` §3.4, so the first author to
+ *    give `tango` a delta would have got no note change, no type error and no
+ *    complaint.
  * 3. **`ops` and `archetypes` merge by key** instead of replacing. Both are
  *    tables over a closed vocabulary, and a genre that wants chants twice as
  *    likely is saying one thing about one entry, not silently ruling out the
  *    five it did not name. Replacement would make the shortest useful
- *    declaration the most destructive one.
+ *    declaration the most destructive one. `subsets` does replace, because a
+ *    subset list is one whole statement about colour rather than a table of
+ *    independent entries.
  *
- * With nothing declared anywhere — which is the whole catalogue as this is
- * written — the cached derived object is returned by identity and no note moves.
+ * Where neither declaration exists the base is returned **by identity**, so a
+ * catalogue that has not opted in cannot move a note.
  */
 export function voiceForStyle(style: Style, genreVoice?: Partial<Voice>): Voice {
-  if (hasVoice(style.id)) return getVoice(style.id);
-  const derived = derivedVoice(style);
+  /**
+   * …and tier 1 reads `style.id`, which is not unique — see `CACHE` above.
+   *
+   * Latent rather than live: none of `tango`, `iskelmapop` or `berlin` is among
+   * the 19 ids two genres share. It is worth naming because the failure would be
+   * worse than the one the `WeakMap` just fixed rather than the same size — a
+   * future `latin/tango` would take iskelmä's *authored* voice **and**, by rule 1
+   * above, bypass latin's genre voice on the way. The registry is keyed by id
+   * because an authored voice is written against a style by name; the guard is
+   * that the three names in it stay unique, and nothing enforces that yet.
+   */
+  const authored = hasVoice(style.id) ? getVoice(style.id) : undefined;
+  const base = authored ?? derivedVoice(style);
+  const over = authored ? undefined : genreVoice;
   const delta = style.voice;
-  if (!genreVoice && !delta) return derived;
+  if (!over && !delta) return base;
   return {
-    ...derived,
-    ...genreVoice,
+    ...base,
+    ...over,
     ...delta,
-    // The style's own name, not a genre's. `Partial<Voice>` cannot forbid `id`
-    // and a delta that set one would rename every style in the genre at once —
-    // `tune-lab` writes its files by this.
-    id: derived.id,
-    archetypes: mergeArchetypes(derived.archetypes, genreVoice?.archetypes, delta?.archetypes),
-    ops: { ...derived.ops, ...genreVoice?.ops, ...delta?.ops },
+    // The style's own name, not a genre's. `Partial<Voice>` cannot forbid `id`,
+    // and a genre delta that set one would rename every style in the genre at
+    // once. Nothing on this path reads `Voice.id` today — the two readers are
+    // `registerVoice` and `tune-lab`, both of which take an authored voice
+    // straight from the registry — so this is a guard against a field that can
+    // be set rather than against a consumer that exists.
+    id: base.id,
+    archetypes: mergeArchetypes(base.archetypes, over?.archetypes, delta?.archetypes),
+    ops: { ...base.ops, ...over?.ops, ...delta?.ops },
   };
 }
 

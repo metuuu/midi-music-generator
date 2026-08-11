@@ -491,6 +491,179 @@ export const synth: Genre = {
   ],
 
   /**
+   * What the tune is made of, before a style has its say.
+   *
+   * `berlin` is one of the three authored voices in `tune/voice.ts` and returns
+   * before this field is ever consulted, so what follows governs the other five:
+   * `cinematic`, `machine`, `cosmic`, `stalker`, `optical`. Three keys only —
+   * which kinds of tune, which degrees, what this music does to a figure — and
+   * the counting stays with the styles, where it has to be. `melody.span` runs
+   * from machine's seven semitones to cinematic's nineteen and `melody.ornament`
+   * from 0.02 to 0.12; a genre-wide number would average away the distinction
+   * those tables were written to make.
+   *
+   * ## Which kinds
+   *
+   * **`chant` leads, and it is the one archetype derivation cannot see.**
+   * `archetypesFor` computes it from cell density alone — 0.50 on `cinematic`
+   * and `stalker` to 0.98 on `optical` — and density says nothing about whether
+   * the same note comes back. Two rule overrides above exist for exactly that,
+   * `static-repetition` and `repeated-note-run`, softened because *a Kraftwerk
+   * melody repeats one note more than any rule expects*; `machine`'s own header
+   * says the tune is *four or five notes stated exactly the same way every
+   * time*, which is `chant`'s gloss — *one note repeated with a tail*.
+   *
+   * `arch-hook` is left where derivation puts it, at 3, and the reason is worth
+   * stating rather than leaving as a non-decision: `climb: 5` is the widest
+   * chorus rise in the project and `liftIntoReturn: 0.7` is the Vangelis ending,
+   * so the rising gesture is certainly here — but it is a *held* rise, and
+   * `long-note`'s own shape table leads with `climb-hold`. Raising both would
+   * count the same fact twice.
+   *
+   * **`long-note` at 2.5 is a lift for three styles whose own cells say the
+   * opposite, and that has to be said out loud.** Derivation reads it off
+   * density and gives `cinematic` 2.09 and `stalker` 2.41 — both of their
+   * melody cell tables lead with `[16]` at 6 — against `machine` 0.63, `cosmic`
+   * 0.54 and `optical` 0.40, because those three declare the densest melody
+   * cells in the genre at 2.83, 2.90 and 3.00 onsets a bar. So 2.5 barely moves
+   * the first two and roughly quadruples the last three. What argues for the
+   * lift genre-wide is where the phrases *end*: `[16]`, a whole bar on one note,
+   * is the top-weighted cadence cell in every style here — berlin 6, cinematic
+   * 7, machine 6, cosmic 5, stalker 7, optical 5. A held note is what these
+   * tunes arrive on even in the styles that move on the way there. It is not
+   * evidence that the lead is sparse, and a weight above every derived value
+   * would have been claiming that against three tables that deny it.
+   *
+   * `wide-interval` at 2 sits just over the derived range, which is `0.5 + leap
+   * * 5`: `machine` 1.00 to `optical` 1.90. `solo.vocabulary` above says *a
+   * synth lead is a singing instrument in this repertoire — long notes, wide
+   * intervals, bends*; that paragraph governs the improvised solo rather than
+   * the composed tune, but the claim inside it is about the instrument, and
+   * `eras.ts` puts `glide` on the *melody* patch in two eras, 1.5 and 2.5
+   * semitones, which is that sentence's *bends* on the line this field governs.
+   * `ARCHETYPES['wide-interval']` glosses itself *a singer's tune — it leaps out
+   * and steps home*. The declared `leap` numbers are low, 0.1 to 0.28, and that
+   * is why this is 2 rather than 3. `unison` at 6 is not evidence either way: an
+   * octave-doubled lead is *two players stating the tune together*, a doubling
+   * of the whole line, which says nothing about the intervals inside it.
+   *
+   * `riff-response` at 1.2 clears the genre's lowest derived value (`cinematic`
+   * 1.16) and sits under the other four, up to `machine`'s 1.60. The genre's
+   * prose invites pushing it far lower — `stalker` spaces its counter two beats
+   * because *what replies to an ostinato is a shape in the distance* — but
+   * `optical` runs the other way and argues it at length: `counterMode` stays at
+   * the default `answer`, *the bell echoing the lead a bar later… an answer, not
+   * an ostinato*, which is this archetype's own gloss. One of the five wants it,
+   * so the weight has to leave room. `arrangement.trade: 1` is not evidence
+   * here: `trade` is a device *between two players*, and `riff-response` is the
+   * shape of one line.
+   *
+   * **`descending-sequence` is pushed down, and that is a correction rather than
+   * a preference.** `archetypesFor` reads `melody.sequence` as an appetite for
+   * walking a figure *down* the scale, computing `1 + sequence * 3` — 2.20 to
+   * 3.70 here, the genre's second-heaviest derived archetype. In this genre that
+   * number means the same figure *again*, which is why the weight it loses is
+   * the weight `chant` above carries. The descending tetrachord is real — three
+   * of the five this governs walk `i–VII–VI` a chord to the bar, and `berlin`
+   * besides — so 2 rather than nothing, but it is a colour here.
+   *
+   * ## Which degrees
+   *
+   * `[0,1,3,4,6]` is 1̂ 2̂ 4̂ 5̂ 7̂: `isus2`, `isus4` and the ninth spelled as a
+   * scale. `styles.ts` opens by saying sus2, sus4 and the ninth *are the
+   * vocabulary, not the garnish*, and `avoid-fourth` is disabled above because
+   * the eleventh is *the default colour in a Vangelis cue*. Degree 1 is also
+   * where the Phrygian ♭II lands — the interval `scaleForChord` below leans
+   * towards on purpose, and *Carpenter's entire harmonic vocabulary in one move*.
+   *
+   * **It does not lead alone, and the reason is the neighbour this file spends
+   * its first forty lines separating from.** Ambient opens its `subsets` with
+   * the same degrees at the same 5 of 12 and argues them from `SUBSETS`' own
+   * *modal, no third to commit you*: a line without a third survives a harmony
+   * that never settles. This one settles. The header above says these records
+   * have *tunes, keys, cadences, and choruses that arrive*, `modeWeights` is
+   * stated per style, and the chords are `i9`, `iv9`, `VImaj7`, `IIImaj7`,
+   * `bIImaj7` — every one of which has the third in it. So `[0,2,3,4,6]`, the
+   * minor pentatonic in minor and the subset that *does* carry the third, comes
+   * up level with it at 4. Three of the five this governs draw minor at 0.55 or
+   * above — `cinematic` 0.55, `machine` 0.65, `stalker` 0.92 — and the two
+   * genres stop drawing from one distribution two thirds of the time.
+   *
+   * `[0,1,2,4,5]` is for the two that lean major — `cosmic` at 0.6, `optical` at
+   * 0.55 — and for `machine`'s 1974 table, whose own note says it *would be a
+   * folk song if a person were singing it*. The full diatonic stays on at 2 as
+   * the only subset here holding both the fourth and the sixth, which is what
+   * `cinematic`'s `iv9` → `VImaj7` needs under a line. Reaching the seventh is
+   * not what it is for: three of these four already do.
+   *
+   * ## What it does to a figure
+   *
+   * `voiceForStyle` merges `ops` by key, so every entry below replaces a
+   * per-style reading for all five, and two ops are absent because that trade is
+   * a bad one. `sequence` spans 0.4 on `optical` to 0.9 on `machine`, which is
+   * the difference between a tune somebody wrote at a keyboard and one that is
+   * the bass line's passenger. `displace` derives from `melody.syncopation`,
+   * 0.05 on `machine` against 0.40 on `optical` — the widest per-style gap in
+   * the genre's melody table, and `optical`'s header calls its line *more
+   * syncopated* than `berlin`'s in as many words. Derivation is reading the
+   * right field in both cases.
+   *
+   *   ornament 0.2    under derivation's floor rather than under its reading:
+   *                   `0.4 + ornament * 3` on a genre declaring 0.02 to 0.12 is
+   *                   0.46 to 0.76, nearly all constant. The decoration here is
+   *                   a delay line — `delayBeats: 0.75`, `melody.delay` 0.3 —
+   *                   and not a turn. Also `solo`'s `chromatic: 0.08`.
+   *   diminish 0.3    derivation's constant with the syncopation term cancelled,
+   *                   and the cancelling is the decision: where a note falls is
+   *                   not an argument for halving its value. This is `opsFor`'s
+   *                   only route to a fast passage, `doubleTime` is 0.1, and the
+   *                   comp is already in sixteenths five semitones down so it
+   *                   will not fuse with the lead — a lead that halves its
+   *                   values climbs back into it.
+   *   augment  1.4    the `[16]` cadence cell argued under *which kinds*, taken
+   *                   as an appetite rather than as a kind of tune: the same
+   *                   fact about phrase ends, spent on the other axis.
+   *                   Derivation never sets this one at all.
+   *   reharmonise 0.5 the header's own row, *one chord per two to four* bars. A
+   *                   figure here plays over two chords and comes home on the
+   *                   third, and one refitted to every change would be a
+   *                   different kind of record.
+   *   transpose 1.7   the same source field as `sequence` and not the same job,
+   *                   which is why one is flat and the other absent. `opsFor`'s
+   *                   `repeat` case falls through to *this* appetite for the
+   *                   verbatim option — the empty op list, scored through
+   *                   `ops[0]?.op ?? 'transpose'` — so this is what buys a
+   *                   chorus that comes back note for note, which is
+   *                   `defaultHook: 'catchy'` plus `earworm` on `machine` and
+   *                   `stalker`. Inside the `sequence` intent the per-style
+   *                   spread survives regardless, because it lives in the ratio
+   *                   against `sequence`, which is still derived.
+   */
+  voice: {
+    archetypes: [
+      ['chant', 3.5],
+      ['arch-hook', 3],
+      ['long-note', 2.5],
+      ['descending-sequence', 2],
+      ['wide-interval', 2],
+      ['riff-response', 1.2],
+    ],
+    subsets: [
+      [[0, 1, 3, 4, 6], 4],
+      [[0, 2, 3, 4, 6], 4],
+      [[0, 1, 2, 4, 5], 2],
+      [[0, 1, 2, 3, 4, 5, 6], 2],
+    ],
+    ops: {
+      transpose: 1.7,
+      augment: 1.4,
+      reharmonise: 0.5,
+      diminish: 0.3,
+      ornament: 0.2,
+    },
+  },
+
+  /**
    * The scale rule: follow the key, and never raise the seventh.
    *
    * Rooted on the tonic and bent to admit whatever the chord underneath is,

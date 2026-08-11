@@ -970,6 +970,273 @@ export const house: Genre = {
   ],
 
   /**
+   * What the tune is made of — and only the three things derivation cannot reach.
+   *
+   * `voiceForStyle` reads density, leap, ornament, compass, syncopation and the
+   * accent table off each style's own `melodyCells` and `melody` block, and those
+   * are right: the twenty-four tables here spread **1.0 to 3.63 onsets a bar**,
+   * and a genre number would flatten `minimal`'s one note a bar into
+   * `microhouse`'s five. What no derivation can know is which *kind* of tune this
+   * is, which degrees it lives in, and what it does to a figure.
+   *
+   * ## The twin is `dnb`, and the two scale rules are already the separation
+   *
+   * Fingerprinted on duration classes, interval classes, density and turn rate,
+   * `dnb`/`house` is the **closest pair of the 171 in the catalogue** — 0.095
+   * against a mean of 0.382. The cause is not mysterious, it is arithmetic:
+   * `archetypesFor` hands the two genres the same six numbers, averaged over each
+   * genre's styles — arch-hook 3.00/3.00, descending-sequence 3.27/3.38,
+   * riff-response 1.27/1.07, long-note 1.51/1.98, chant 0.75/0.67, wide-interval
+   * 1.95/1.84 — because both are read off a high `melody.sequence` and a low
+   * `ornament`, which both genres write. And both are handed the identical
+   * generic `SUBSETS`.
+   *
+   * **`subsets` is what separates them, because the two `scaleForChord`s already
+   * do.** `dnb/index.ts` calls its own split "the mirror image of funk's and of
+   * hiphop's": minor gets seven notes because *"a genre whose entire emotional
+   * apparatus is the flattened sixth cannot be handed a scale that omits it"*,
+   * major gets five. This genre is the other way round for the reason the header
+   * argues — pentatonic minor, mixolydian major — and the mean of the twenty-four
+   * `modeWeights` here is **0.79 minor**. So four songs in five, a subset in this
+   * genre is a choice of degrees inside a *five-note* scale, and that is a
+   * different decision from choosing inside seven.
+   *
+   * ## What the generic table does to five notes, which is why it is replaced
+   *
+   * `snapToSubset` drops degrees the scale does not have rather than wrapping
+   * them — its own comment says what wrapping cost. So the six generic subsets,
+   * written as indices into a seven-degree mode, land on the minor pentatonic
+   * like this, by weight out of 14: **5 delete the fifth, 3 delete the ♭3**, 2
+   * delete the fourth, and 4 do nothing at all. A house figure with no fifth or
+   * no third is not a colour anyone chose; it is what a table written for seven
+   * notes does when handed five.
+   *
+   * The three below are written for the five and checked against the seven:
+   *
+   *   `[0,1,2,3,4,5,6]` — minor: all five, no second narrowing, because the scale
+   *     rule *is* this genre's answer to which degrees the tune lives in and it
+   *     has already been given. Major: the whole mixolydian, which is the
+   *     header's looped 1979 twelve-inch — "the fourth and the sixth in the line,
+   *     which is a horn chart and needs seven notes".
+   *   `[0,1,3,4,6]` — minor: 1 ♭3 5 ♭7, the fourth left out. The `i7` stab, and
+   *     `styles.ts` on "`i7`, `i9` and `min11` doing the work that a plain triad
+   *     does elsewhere".
+   *   `[0,2,3,4,6]` — minor: 1 4 5 ♭7, no third. The sus voicing that
+   *     `ruleOverrides['avoid-fourth']` above is disabled for, and which that
+   *     entry calls the default keyboard voicing of the whole deep and garage
+   *     corner.
+   *
+   * **The same index is a different note in the two halves, and that is a real
+   * compromise rather than something to leave unsaid**: degree 2 is the fourth in
+   * the pentatonic and the *third* in mixolydian, so the second entry reads as a
+   * quartal, no-third colour in the major corner. That corner is a fifth of the
+   * songs and the full-diatonic entry at weight 5 is where it actually lives.
+   *
+   * ## The twin the fingerprint missed is `funk`, and here that principle inverts
+   *
+   * `scaleForChord` below is funk's line character for character, and line 96 above
+   * says so — "This is funk's, and it arrives at funk's answer from a different
+   * fact". What was not followed through is what that costs *this* field. The three
+   * rows above are funk's top three at near-identical weight (here 0.45/0.36/0.18;
+   * `funk/index.ts:790` 0.36/0.29/0.21 plus a fourth at 0.14), and
+   * `funk/index.ts:713-740` glosses them with the same readings already — "1 ♭3 5
+   * ♭7", "1 4 5 ♭7, a riff with no third", the full seven as "no snap at all".
+   * Measured against the eighteen other genres carrying a `Genre.voice`, **funk is
+   * this table's nearest neighbour by a distance, at TVD 0.175** — the next is
+   * `country` at 0.268, `dnb` is 0.714, and the mean across the eighteen is 0.48.
+   * Same scale rule, the same three rows, the same pitches.
+   *
+   * So "`subsets` is what separates them" is true of `dnb` and false here, and the
+   * separation has to be carried by the other two fields — which it is, and by how
+   * much is measurable. **Archetypes**: funk draws `riff-response` 34.5% and
+   * `long-note` 2.9%; this table draws `chant` 32.3% and `long-note` 25.8%, TVD
+   * 0.275. **Density**: funk's own comment measures 2.67 to 5.79 onsets a bar
+   * against 1.00 to 3.63 here, and both genres leave it derived. A funk melody is a
+   * busy figure that answers itself; this is one note held over a kick. Nothing in
+   * `subsets` is doing that work and it should not be asked to.
+   *
+   * The boundary this voice does *not* close is the header's other one, `synth`:
+   * it declares all six archetypes as well, and the two now share their top two —
+   * `chant` 24.4% and `long-note` 21.1% there against 32.3% and 25.8% here, TVD
+   * 0.243. That one is still held by tempo, the kit and the mix, not by this field.
+   *
+   * ## Which kinds of tune
+   *
+   * **`chant` at 5, from lowest of six.** Its gloss is "one note repeated with a
+   * tail — the hook is the rhythm", which is this genre stated as an archetype.
+   * `defaultHook: 'earworm'` above is the only genre default at the top of that
+   * scale and the argument given for it is the same sentence; `ruleOverrides`
+   * disables `static-repetition` and `repeated-note-run` because "the rules exist
+   * to catch a line that has *stalled* and this music does not have the concept".
+   *
+   * **`long-note` at 4.** The cells say it without being asked: `[16]` and
+   * `[8,8]` are the two heaviest across the file, `minimal` weights `[16]` at 8
+   * and `dubtechno` and `hardgroove` at 7, seven of the twenty-four styles derive
+   * under 1.7 onsets a bar, and `tribal`'s note settles its own melody as "a
+   * melody with almost nothing in it".
+   *
+   * **`riff-response` at 3.** The header's "two-bar stab, a sampled phrase or a
+   * sixteen-step sequence", and `chicago`'s organ chord sitting "in the same gaps
+   * the bass is in" — a figure and the hole after it. It stays *under* `chant`
+   * because the response half is a tail rather than an answer: `arrangement.trade`
+   * is 0 here, the first strike in the project, and nobody is listening for a
+   * reply.
+   *
+   * **`arch-hook` 1.2.** An arch rises to one high point; `progressive` says there
+   * is "no chorus that arrives, and no melody that develops", and the peak in this
+   * music is a filter opening and a layer entering, which is why
+   * `layerPlan.response` is 0.1 on the bass — there is nobody to play harder.
+   *
+   * **`wide-interval` 1.5, cut from a derived 1.95.** `archetypesFor` computes it
+   * as `0.5 + melody.leap * 5`, and its own gloss says what it is reading for: "a
+   * singer's tune — it leaps out and steps home". The `mix` block above is arguing
+   * against exactly that when it puts the lead at 0.86 under a bass at 0.92 —
+   * what occupies this layer is "a four-note organ figure or a sampled hook", and
+   * a leaping tune over it is the pop record that block refuses to make. It stays
+   * *above* `arch-hook` rather than at the floor because of `bleep`, two paragraphs
+   * below, which is the one style whose tune really is built out of the jump.
+   *
+   * **`descending-sequence` 0.8, cut from the derived 3.27 that is the largest
+   * entry in the derived table.** It is large there because `archetypesFor` reads
+   * `melody.sequence` as an appetite for walking a figure down the scale, and in
+   * these tables the field means the opposite: `frenchtouch` writes 0.9 and its
+   * own comment explains it as "the tune repeats exactly, because it is not a
+   * tune, it is a piece of the loop". Reachable rather than zero, because the
+   * bridge is the breakdown and `SectionShape.bridge` lifts this entry 1.6 — a
+   * breakdown melody walking down is the one place here a figure genuinely moves.
+   *
+   * **Where this comes out weakest is `bleep`**, and it is named rather than
+   * discovered later. Its derived `wide-interval` is 3.5 off a `melody.leap` of
+   * 0.6, and the header calls its span of 24 the one place a span number does
+   * structural work — a tune that jumps octaves because the midrange is not
+   * allowed. The genre weight replaces that.
+   *
+   * **`compass` stays per-style; the *effective* leap does not, and that is this
+   * table's cost rather than a field someone else set.** `motif.ts:688` passes
+   * `voice.leap * archetype.leap` into the contour, so any archetype table is also
+   * a leap multiplier. Derived, that multiplier is per-style — 1.006 in `minimal`
+   * to 1.135 in `bleep`; these six weights flatten all twenty-four to a constant
+   * **0.831**, because `chant` and `long-note` carry 0.5 and 0.8 and are 58% of the
+   * draw. Net leap: `bleep` 0.681 → 0.499, `microhouse` 0.486 → 0.374, `detroit`
+   * 0.394 → 0.299. The octave jumps therefore survive as a ratio — `bleep` is still
+   * a third leapier than `microhouse` behind it — and not at their own size.
+   * The override at 706 above — this genre is the only one in the project that
+   * touches `leap-beyond-third`, trading the rule's veto for twice its penalty — is
+   * what keeps the jump reachable at all once this table has damped the appetite
+   * for it. Together they say: rarer, and never blocked. If that is not enough the
+   * fix is a `Style.voice` delta on `bleep` and not a number moved here.
+   *
+   * ## What it does to a figure
+   *
+   * Four claims, each one already made somewhere above — and a fifth operator left
+   * unnamed on purpose, which is the last paragraph here because an omission in a
+   * table this short is a decision.
+   *
+   * **The loop is the same object every time round.** `transpose: 1.8`, because
+   * in `opsFor`'s `repeat` intent the verbatim branch is an *empty* op list and
+   * `appetite(ops[0]?.op ?? 'transpose')` therefore charges it to `transpose` —
+   * so this number buys exact restatement, which is what a loop is. `ornament:
+   * 0.35` is the same sentence from the other side: a figure decorated differently
+   * each time round has stopped being a loop. Genre-wide `ornament` runs 0.02 to
+   * 0.26 with a mean of 0.10, so the styles were already saying it one at a time.
+   *
+   * `sequence: 0.6` is *not* that sentence and is worth not selling as it. All
+   * three branches of the `sequence` intent move the figure by a scale step, and
+   * the two heaviest are `transpose ±1` and `±2`, both charged to `transpose: 1.8`
+   * — so the pair takes the transpose-headed share of that intent from 65% to 85%.
+   * It decides *which* operator walks the figure, not whether it walks. What the
+   * 0.6 removes is `{ op: 'sequence', times: 2 }`: the figure restated twice more,
+   * each time a step higher. One transposition is still the loop, moved; three
+   * rungs of it is a tune going somewhere, and that is the thing being refused.
+   *
+   * **The arrangement thins; it does not develop.** `fragment: 1.6` — keeping the
+   * first notes and letting the rest be silence is `Chart.exits` and
+   * `Style.drops` written onto one figure, and the header measures 45.6% of songs
+   * losing something they had. `expand: 0.4` refuses the other direction: `expand`
+   * is how a chorus lifts a verse figure and nothing lifts here
+   * (`relativeMajorChorus` is 0 in all twenty-four).
+   *
+   * **`augment: 0.5` is not the refusal it looks like, and the arithmetic goes
+   * beside it because `fragment` is what causes that.** Two of the four `close`
+   * branches are `[fragment, augment]` and `pick` charges a chain to `ops[0]`
+   * alone, so `fragment: 1.6` is *buying* augmented endings — across the intent
+   * they go 88.9% derived to **98.7%** under this table. The 0.5 reaches exactly
+   * one branch, the bare `[augment ×1.5]` that stretches the figure with nothing
+   * cut from it, and takes that from 22.2% of endings to 9.3%. Which is the claim
+   * it is entitled to make, and a real one: a phrase here ends as a *shortened*
+   * figure held longer, never the whole figure held longer. `opsFor` says augmenting
+   * is what makes a phrase "sound like an ending rather than like the tune
+   * stopping"; `ending: 'fade'` means what fades is already down to two or three
+   * notes.
+   *
+   * **The kick owns the beats.** `displace: 1.5`. The genre's defining placement
+   * is stated twice in `styles.ts` and both times as structure rather than
+   * flavour: a bass note "has to be *in the gaps* to be a bass line at all"
+   * because the kick occupies all four beats, and the offbeat chord is in those
+   * same gaps. Shifting a whole figure off the beat is that gesture, and this is
+   * the operator that names it.
+   *
+   * **How far it reaches is small, and the number is set knowing that.** `displace`
+   * heads one branch of `develop` (2 of 17.5) and one of `vary` (1.5 of 10), and
+   * the archetype table above spends **70% of its form draw** on `period`,
+   * `riff-response` and `aaba` — none of which has a `develop` slot at all. Derived
+   * it is `0.3 + syncopation * 1.5`: 0.53 in `minimal`, 1.50 in `microhouse`, mean
+   * 0.95. So 1.5 is every style displacing the way the most syncopated one already
+   * does, on one branch of two intents. The placement itself lands somewhere with
+   * far more reach — `accents`, derived per style off `melodyCells` and left there
+   * deliberately, because *where* the offbeats sit is what these twenty-four cell
+   * tables disagree about and a genre number would be the wrong shape for it.
+   *
+   * **Nothing answers, and nothing re-reads the chord.** `invert: 0.4` — `acid`
+   * and `trance` both write `counterMode: 'ostinato'` for "a second line running
+   * continuously alongside the first, not answering it", and a loop turned upside
+   * down is a different loop. `reharmonise: 0.15` is the lowest number here
+   * because it is the exact gesture `scaleForChord` below was chosen to refuse:
+   * "a line that re-oriented onto each chord would be a line that changed when
+   * the harmony changed, which is precisely what a loop cannot do".
+   *
+   * **`diminish` is the one operator in the vocabulary this table does not name,
+   * and it is the one that halves note values — so the silence gets a reason.** It
+   * is not a small omission: it heads 8 of `develop`'s 17.5 — more than any other
+   * operator there — and 2 of `vary`'s 10, and halving note values is the direct
+   * contradiction of `long-note: 4` and of the loop claim at the top of this
+   * section. It is left derived anyway, because `0.3 + syncopation` is already
+   * saying the right thing and saying it per style: 0.45 in `minimal`, 1.10 in
+   * `microhouse`, mean **0.73** across the twenty-four — below neutral without
+   * anyone declaring it, and spread over the one question about speed these styles
+   * genuinely disagree on. `dnb` writes 1.5 and `hiphop` 1.4 because a fast passage
+   * is what those genres are for. This one is not, and a flat number would buy the
+   * damping it already has at the price of telling `minimal` and `microhouse` that
+   * their figures move at the same rate.
+   */
+  voice: {
+    archetypes: [
+      ['chant', 5],
+      ['long-note', 4],
+      ['riff-response', 3],
+      ['wide-interval', 1.5],
+      ['arch-hook', 1.2],
+      ['descending-sequence', 0.8],
+    ],
+    subsets: [
+      [[0, 1, 2, 3, 4, 5, 6], 5],
+      [[0, 1, 3, 4, 6], 4],
+      [[0, 2, 3, 4, 6], 2],
+    ],
+    ops: {
+      transpose: 1.8,
+      fragment: 1.6,
+      displace: 1.5,
+      sequence: 0.6,
+      augment: 0.5,
+      invert: 0.4,
+      expand: 0.4,
+      ornament: 0.35,
+      reharmonise: 0.15,
+    },
+  },
+
+  /**
    * The scale rule, and the chord is not a parameter it reads.
    *
    * See the header for the whole argument. One line, no branch on the chord, and

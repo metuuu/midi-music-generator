@@ -224,6 +224,178 @@ export const jazz: Genre = {
   duration: [125, 215],
 
   /**
+   * What a jazz tune is made of.
+   *
+   * Three tables, and the six scalars `voiceForStyle` derives are left exactly
+   * where they were. Density is the reason: it comes from each style's own cells
+   * and spreads **2.42 onsets a bar on `ballad` to 7.07 on `bebop`** inside this
+   * one genre, which is the widest distinction the tables here make, and a
+   * genre-wide figure would flatten it.
+   *
+   * ## The degrees are *chord* degrees, which is the whole subset argument
+   *
+   * `scaleForChord` below roots the scale on the chord, so a subset index is a
+   * chord degree: 6 is whatever is sounding's seventh, 3 is its eleventh. Every
+   * chord in `styles.ts` is a seventh chord — "Plain triads barely appear" — so
+   * the seventh is a guide tone and stays in all three entries.
+   *
+   * The eleventh is the one the table has to argue about, and it divides by
+   * chord quality rather than by genre. `avoid-fourth` clears three guards before
+   * it fires (`core/rules.ts:309-313`): the chord is not `sus4`, it *has* a major
+   * third, and the note is held a beat on a strong one. Over `Imaj9` that is a
+   * real avoid note and the override above is right to tighten it. But the
+   * eleventh *is* the chord in `i11`/`iv11`, which is the entire harmonic content
+   * of the `trio`, `odd` and `fusion` vamps, and in the trio's signature `V7sus4`
+   * — "the V that never quite resolves" — which is why `scaleForChord` hands sus
+   * chords mixolydian for "the fourth the chord is built on". `snapToSubset` has
+   * none of the rule's three guards, and it runs on the *non-anchor* notes
+   * (`surface.ts:230,240`) — the passing ones the rule's own description calls
+   * "fine as a passing suspension". So the no-eleventh entry is a colour with a
+   * chord quality attached, not a discipline the genre holds: level with the
+   * whole chord-scale, not above it. (The overrides are not clean evidence for it
+   * either. Six of seven loosen, and the seventh, `augmented-second`, raises its
+   * veto *level* while raising its penalty from 0.02 to 0.3.)
+   *
+   * The whole chord-scale ties it, because `chromatic-tone` is disabled
+   * genre-wide — approach notes and enclosures *are* the vocabulary — and a bebop
+   * line running eighths through the changes has no business being snapped
+   * anywhere. Third is 1 3 4 5 7, the minor pentatonic over the min7 and min11
+   * vamps of `modal`, `trio`, `odd` and `fusion`, and it is at 1 because it is
+   * wrong off them: over a major-quality chord it is the eleventh back in with
+   * the major third a semitone under it, and on `blues`, which overrides
+   * `scaleForChord` to the six-note blues scale, `snapToSubset` keeps root, 4, ♭5
+   * and 5 — three adjacent semitones, no third and no seventh.
+   *
+   * `blues` bends the other two as well, because dropping degrees a shorter scale
+   * has not got is what `snapToSubset` does with them. The first entry lands as
+   * that scale minus its ♭5, one note thinner than a scale whose own comment says
+   * "six notes ... is thin, and a head built purely from it reads as pentatonic
+   * noodling"; the second snaps nothing at all against six notes. Three and three
+   * is what stops the thinning being the majority outcome there.
+   *
+   * ## The archetypes fix a derivation that reads density and means recall
+   *
+   * `archetypesFor` hands `bebop` the genre's highest `riff-response` (5.97) and
+   * its highest `chant` (3.42) purely because it is the busiest style here, and
+   * bebop's own entry says a recalled phrase is "the one thing the idiom actively
+   * refuses to do". So `chant` goes to the floor: it is `hook: 'through'` on five
+   * of the ten styles, and `defaultHook: 'loose'` above says why — jazz keeps its
+   * repetition in the form rather than in the phrase.
+   *
+   * `riff-response` at 2.5 cuts bebop's 5.97 and lifts every other style, ballad
+   * from 0.68 — a rise on nine of ten, and the reason it is not higher. Two
+   * tables argue for it: a blues head "is a riff, and a riff is stated again",
+   * and the trio's left hand draws `answer` 6 of 11 "because that is what this
+   * idiom is". Two argue against — `fusion` ranks `answer` last of four, "a
+   * fusion head *is* the two hands playing the same line an octave apart", and
+   * `odd` puts `ostinato` first. The archetype's `judge` is `figure: 1.8,
+   * economy: 1.5`, which is recall coming back by another door, so the tie goes
+   * to the middle of the table rather than the top of it.
+   *
+   * `descending-sequence` is the lift, from a derived 1.75–2.35 that never once
+   * outranks the flat 3 every style gets for `arch-hook`. Most of this genre is
+   * ii–V chains walking down in fifths — the rhythm-changes bridge is "four
+   * dominants round the circle of fifths" — and the archetype puts its high point
+   * at 0.08–0.25 of the section, a line entering on a guide tone and falling away
+   * through the changes. Three rather than four because the exceptions are named
+   * ones: trio's and bebop's thirds motion, "instead of round the circle", and
+   * the one-chord vamps of `odd` and `fusion`. It reads the same
+   * `melody.sequence` as `ops.sequence` and does not mean the same thing by it —
+   * the op asks how often a *figure* gets walked down, a per-style habit the
+   * tables have right; the archetype asks whether a *section* is shaped as a
+   * fall, which is a fact about the changes that `melody.sequence` never
+   * measured. That is why the op below is left alone and this is not.
+   *
+   * `arch-hook` comes down a little for the mirror reason: `FORMS` spends four
+   * sections on one AABA chorus, so this genre's arch is 32 bars long and its
+   * high point is not an eight-bar event. `wide-interval` goes up on the declared
+   * spans — 15 to 24 semitones, median 18 against the catalogue's 14 — and on the
+   * override that explains them, "leaping into a non-chord tone is how a bebop
+   * line gets anywhere".
+   *
+   * `long-note` is left off, and it took a weight to see why. Nine of ten styles
+   * put a whole-bar note at the top or joint top of their `cadenceCells` and
+   * `ending: 'button'` takes the head out on one — but cadence cells are drawn
+   * independently of the archetype, so the phrase ends long either way and none
+   * of that is evidence about the section. What a weight there actually buys is
+   * `density: 0.45` and `judge: { density: 0.3 }` across the whole of one, which
+   * on bebop is 3.2 onsets a bar against prose reading "continuous eighth-note
+   * lines ... at tempos where a singer would simply give up". `long-note` is a
+   * density archetype and density is the one thing derivation measures directly,
+   * so it is right already: ballad 1.21, bebop 0.4.
+   *
+   * ## What keeps this from being classical
+   *
+   * Measured over every style at three seeds, jazz and classical are **0.104**
+   * apart on a fingerprint of duration classes, interval classes, density and
+   * turn rate, where the average of all 171 genre pairs is 0.382. Both run
+   * eighth-note lines over functional harmony at similar spans, so the separation
+   * has to come from the tables, and it is the archetypes that carry it: against
+   * classical's `arch-hook` 5 / `long-note` 3 / `riff-response` 0.8, this genre
+   * tops out on `descending-sequence` and `wide-interval`, holds `long-note` at
+   * its derived floor for the busy styles, and triples `riff-response`. The
+   * subsets differ in kind rather than in shape — classical's no-fourth entry is
+   * about what a natural horn can place in the *key*, this one is about the
+   * eleventh of whatever chord is sounding.
+   *
+   * The op table does less of that work than it looks: `displace: 1.5` with
+   * `diminish: 1.4` is hiphop's exact pair and `displace: 1.5` with
+   * `ornament: 0.35` is house's. Only `ornament` separates jazz from classical,
+   * and it separates hard, because classical declares none and keeps a derived
+   * 0.76–1.72.
+   *
+   *  - **`ornament` to about a third.** The operator splits a held note into a
+   *    *diatonic* neighbour, and this genre has already written down that it does
+   *    not want one: `solo.vocabulary.ornament` is 0, "not an oversight — a
+   *    crushed grace before the beat is a dance-band gesture and belongs to the
+   *    genre that owns it." Jazz decoration is the chromatic approach, and the
+   *    operator algebra moves through the scale by construction, so it cannot
+   *    express one at all. Derivation reads `melody.ornament` and gets this
+   *    backwards — eight of ten styles at or above 1, `bebop` highest of all at
+   *    1.6. Only the appetite moves; `Voice.ornament` stays each style's own, so
+   *    an ornament that is drawn is still the size that style asked for.
+   *  - **`diminish` up.** Every style here derives it *below* 1, 0.58 to 0.95,
+   *    and `opsFor`'s own note says that is how the engine ended up with no fast
+   *    passages anywhere. `doubleTime` is 0.22 in the vocabulary above and
+   *    `fusion` calls itself "the one style here whose melodies are genuinely
+   *    faster than its beat". Double-time goes from about two draws in five of a
+   *    development to about half.
+   *  - **`displace` up**, on `offbeatAccent: 0.9` — "Nothing else in this
+   *    generator accents off the beat" — and on `comping.anticipate: 0.3`, the
+   *    chord arriving ahead of the barline. Displacing a figure two sixteenths
+   *    under `swing: 0.33` is it landing on the swung and.
+   *  - **`reharmonise` doubled**, and it moves nothing today. `Op.reharmonise`
+   *    sets `Motif.resnap` (`motif.ts:854`), and `resnap` is declared at
+   *    `types.ts:103` and read by no consumer in the tree, so this weight is a
+   *    claim held against the day the skeleton reads it rather than a change to
+   *    the notes. It is the claim this file exists to make — the header is one
+   *    sentence about it, and `bII7` standing in for `V7` and the trio's harmony
+   *    walking down in major thirds are both the same figure over changes it was
+   *    not written for — and derivation cannot reach the op at all, so 1 in its
+   *    single `close` slot was nobody's decision.
+   *
+   * `sequence` and `transpose` are left alone deliberately. Derivation reads
+   * `melody.sequence`, which these styles already write from 0.25 on bebop to
+   * 0.45 on blues and fusion, and a genre value would flatten a distinction the
+   * tables are making correctly.
+   */
+  voice: {
+    archetypes: [
+      ['descending-sequence', 3],
+      ['wide-interval', 3],
+      ['arch-hook', 2.5],
+      ['riff-response', 2.5],
+      ['chant', 0.4],
+    ],
+    subsets: [
+      [[0, 1, 2, 4, 5, 6], 3],       // the chord's 1 3 5 7 with its 9 and 13, and no 11
+      [[0, 1, 2, 3, 4, 5, 6], 3],    // the whole chord-scale — a bop line runs it
+      [[0, 2, 3, 4, 6], 1],          // 1 3 4 5 7 — the minor pentatonic over a min7 vamp
+    ],
+    ops: { reharmonise: 2, displace: 1.5, diminish: 1.4, ornament: 0.35 },
+  },
+
+  /**
    * Chord-scale mapping. Each chord quality gets the scale that jazz practice
    * associates with it, rooted on the *chord*, not the key.
    */

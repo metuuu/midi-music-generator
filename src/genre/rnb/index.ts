@@ -734,6 +734,196 @@ export const rnb: Genre = {
   ],
 
   /**
+   * What the tune is made of, and every weight below is the sentence this file
+   * opens with: **there is a singer, and everybody else is deciding how to get
+   * out of the way.**
+   *
+   * Three keys, and the six scalars are deliberately not among them. `melody`
+   * runs `ornament` from 0.18 on `stomper` to 0.75 on `contemporary` and `span`
+   * from 10 on `crossover` to 15 on `ballad`; a genre-level number would be the
+   * average of a hundred-and-forty-a-minute dance side and a record whose own
+   * comment says the run is the hook.
+   *
+   * ## The archetypes
+   *
+   * **`wide-interval` at 5**, above everything, and it is the one derivation
+   * structurally cannot reach: `archetypesFor` computes it from `melody.leap`,
+   * which is a per-note appetite, and tops out at 2.2. *"A singer's tune — it
+   * leaps out and steps home"* is a claim about a whole section. The evidence is
+   * the `keys` table above, where this catalogue sits in E♭ and A♭ because the
+   * key is picked for whatever "puts the top of the chorus at the top of
+   * somebody's range" — a genre that chooses its keys by where one phrase peaks
+   * writes its tunes out of that phrase. `ballad` states it in one line: span 15,
+   * the widest in the file with `contemporary`, so that somebody can cross their
+   * whole range inside one phrase.
+   *
+   * **`arch-hook` at 4.** `FORMS` above says the chorus arrives "because the
+   * words got to the part everybody knows", `defaultHook: 'catchy'` locks the
+   * tune and recalls it with five styles pushing to `earworm`, and the semitone
+   * key change exists to put the last chorus above a singer already at the top of
+   * their range. That is an arch with a late high point, stated three times.
+   * Derivation hands every style in the project a flat 3 here and the lift is
+   * small because `SHAPES` does the rest — a chorus multiplies it by 1.8.
+   *
+   * **`long-note` at 2.5**, above every derived value in the genre — the ceiling
+   * is `deepsoul`'s 2.03 — and against a floor of 0.4 on twelve of the
+   * twenty-four styles. `space` below argues this genre's reverb from exactly the
+   * same fact — "almost nothing playing sixteenths and a great deal of held
+   * singing" — and the cells agree wherever they are slow enough to say so:
+   * `deepsoul` weights `[24]` and `[12, 12]` at 5 each under a note that this
+   * singer holds a note across a beat and a half more often than they change one,
+   * and `quietstorm` is built on a chord that has "arrived and intends to stay for
+   * two bars".
+   *
+   * Those twelve at the floor are the fast half, and since every archetype here
+   * is named `mergeArchetypes` hands them 2.5 as well — a sixth of the draw
+   * before `SHAPES` weighs in, on `stomper`, whose own header says there "is not
+   * a hole anywhere in any of the tables below". That is intended rather than an
+   * oversight, because
+   * the archetype is *relative*: `wantDensity` is the style's own cell density
+   * times `ARCHETYPES['long-note'].density` of 0.45, so a long-note section on
+   * `stomper` still asks for 2.0 onsets a bar against its cells' 4.5, where on
+   * `deepsoul` it asks 0.8 against 1.8. It tells a fast style to halve rather than
+   * to stop — a singer holding across the bar while the band does not, which is
+   * this file's opening sentence with the tambourine still going.
+   *
+   * **`riff-response` down to 1.5**, and this is what separates the genre from
+   * funk playing the same instruments in the same decade. The answering half of
+   * this music is *a second layer*: `arrangement` above pushes `riff` down to 3
+   * because "a repeated figure stated by the horns is a funk arrangement, and what
+   * the horns do here is answer the singer", and `solo.tradeFours` is 0.1 because
+   * the one thing nobody on this stage does is answer another player in the same
+   * line. The answer is scored for somebody else, so the tune does not contain it.
+   * Derivation cannot see that — it reads `motown`, `stomper`, `funksoul` and
+   * `newjack` at 2.6 to 3.1 purely because their cells are the four busiest in the
+   * genre, which is a Detroit cell table mistaken for a vamp.
+   *
+   * **`descending-sequence` down to 1.2**, below every derived value in the genre
+   * — the floor is `deepsoul`'s 1.45 — and below `riff-response` for a reason:
+   * call and response is at least a gesture this music makes constantly and
+   * merely scores for another player, where a descending sequence is against the
+   * arrangement itself. Its `ARCHETYPES` entry puts the peak at 0.08–0.25 and
+   * spends the rest of the section falling away from it, and this repertoire is
+   * built the other way up: `FORMS` above carries three choruses wherever it can
+   * so that the last one is the arrival, and `preparedModulation` sends that one
+   * up a semitone "under a singer already at the top of their range". A tune whose
+   * high point is in its first eighth is that record read backwards.
+   *
+   * **`chant` down to 0.8.** A chant is one note repeated with a tail and its own
+   * judge weights halve `interest` and `motion` so that it is allowed to stall.
+   * This soloist carries `ornament` at 0.6, the highest in the project, "because
+   * the soloist in this music is imitating the singer and the singer is
+   * decorating everything" — and there is nothing on a stalled note to decorate.
+   * It is 0.8 rather than 0 because `hiphopsoul` is a two-bar loop with the
+   * harmony almost stopped, and a repeated note over one is the record.
+   *
+   * ## The subsets, and this genre subsets the scale before the voice sees it
+   *
+   * `scaleForChord` below hands the tune `majorBlues` — six degrees, 1 2 ♭3 ♮3 5
+   * 6 — where every other genre hands it seven. The generic `SUBSETS` rows are
+   * indices into a seven-degree mode and `snapToSubset` *drops* a degree the
+   * scale has not got, so `[0,1,2,4,5]` and `[0,1,2,4,5,6]` are the same five
+   * notes here and the table means something other than what it says. That is the
+   * reason to replace it rather than a preference.
+   *
+   * **The whole mode at 5**, which is a no-op — `snapToSubset` hands the note
+   * back untouched once the surviving degrees cover the scale — and it is this
+   * genre's own answer in both modes. In major the six degrees of `majorBlues`
+   * *are* the brief: both thirds available in one phrase, and a subset dropping
+   * either is the sheet music rather than the record. In minor the header says it
+   * outright — the answer "is plain aeolian rather than a pentatonic", because a
+   * soul line lands on the second and the sixth constantly and those are the two
+   * a pentatonic removes. It is also what protects `quietstorm`, `neosoul` and
+   * `offgrid`, where the mode arriving from `chordScale` is itself the colour and
+   * a subset over the top of it is a second opinion about a settled chord.
+   *
+   * **`[0,1,2,4,5]` at 3** — one row with three correct readings, which is the
+   * shape the scale rule's own table has. In `majorBlues` it is 1 2 ♭3 5 6: the
+   * blue third kept, the natural one dropped, a singer on the flat side of a
+   * major chord for a whole section. In aeolian it is 1 2 ♭3 5 ♭6, the second and
+   * the sixth the header insists on. In `deepsoul`'s `blues` it removes the ♭5
+   * and nothing else, which is that note being passed through rather than landed
+   * on — the distinction `chromatic-tone` above is softened for, arriving here as
+   * a degree the line does not stop on.
+   *
+   * **`[0,1,2,3,4,6]` at 2**, its mirror. In `majorBlues` it keeps both thirds
+   * and drops only the sixth, the tightest statement of the brief this table can
+   * make; in aeolian it keeps the fourth — the eleventh `min11` and `dom7sus4`
+   * are built on and that `avoid-fourth` above is softened for — and drops the
+   * ♭6, which is one of the two degrees the header refuses to lose. It is a
+   * different loss from the pentatonic's, and that is the whole answer to the
+   * header: that row takes the second *and* the sixth and what is left is a funk
+   * riff's five notes, where this one keeps the second and what is left — 1 2 ♭3
+   * 4 5 ♭7 — is the set aeolian and dorian agree on. Declining to say which sixth
+   * is in force is what a singer does over a vamp whose `IV` the worked table in
+   * the header sends to dorian and whose `iv` it leaves in aeolian. Below the row
+   * above because in `deepsoul`'s minor it is the one reading that comes out
+   * wrong, leaving the ♭5 in and taking the ♭7 out — and at 2 of 10, one section
+   * in five, which is a colour rather than the row the genre hands out.
+   *
+   * `[0,2,3,4,6]` is absent although in `majorBlues` it is this genre's four best
+   * notes. In minor it is the minor pentatonic exactly, and the header rejects
+   * that row by name.
+   *
+   * ## The ops
+   *
+   * Only the ones derivation never touches. It already writes `sequence`,
+   * `transpose`, `ornament`, `diminish`, `displace` and `expand` from the style's
+   * own numbers, and `ops` merges by key — so naming one would replace
+   * twenty-four readings with an average, which for `ornament` means collapsing
+   * `motown`'s 1.0 and `contemporary`'s 2.65 into a single figure. The run in
+   * this music is `ornament` splitting a held note anyway, not `diminish`
+   * replaying a figure at double speed, and derivation reads the highest ornament
+   * column in the file straight into it.
+   *
+   * `invert` at 0.5. `opsFor` draws it at weight 3 for an `answer`, and it is the
+   * one derivation of a phrase a listener cannot hear as the same phrase — which
+   * `defaultHook: 'catchy'` says is the point of a chorus here.
+   *
+   * `augment` at 1.7 and `fragment` at 1.3, which do not compound, because
+   * `appetite` multiplies an option by the appetite for its *first* operator only
+   * — the fact `extend` below turns on. `close`'s four options lead with
+   * `fragment`, `fragment`, `augment` and `reharmonise` at 3, 3, 2 and 1, so what
+   * the pair buys is 96.6% of closes being a stretch of some kind against 88.9%
+   * at flat weights — the held ending `long-note` is weighted from — with the
+   * whole-figure stretch growing from 22.2% to 29.3% and the keep-the-head pair
+   * staying at about two thirds. Moving the stretch toward the whole figure
+   * is the intent rather than the price: the last phrase of a soul chorus broadens
+   * all the way through, where keeping a head and hanging a long note off it is
+   * the more written gesture of the two. `fragment` is raised the less because it
+   * also leads two of `develop`'s six options, one of them a fragment sequenced
+   * down the scale, which is the archetype this voice has just pushed to the
+   * bottom.
+   *
+   * `reharmonise` at 0.4 is `scaleForChord` below stated as an operator. It sets
+   * `resnap`, forcing strong beats onto the tones of whichever chord has arrived,
+   * and this genre's scale rule is that twelve of its styles never re-orient at
+   * all — `deepsoul` says a line that dutifully followed each borrowing "would be
+   * a line that had read the chart". Doing it in the scale and again in the
+   * operator is doing it twice.
+   *
+   * `extend` is unnamed for a mechanical reason rather than a musical one: it
+   * never stands first in an `opsFor` choice and `appetite` reads only the first
+   * operator, so a weight on it would change nothing.
+   */
+  voice: {
+    archetypes: [
+      ['wide-interval', 5],
+      ['arch-hook', 4],
+      ['long-note', 2.5],
+      ['riff-response', 1.5],
+      ['descending-sequence', 1.2],
+      ['chant', 0.8],
+    ],
+    subsets: [
+      [[0, 1, 2, 3, 4, 5, 6], 5],
+      [[0, 1, 2, 4, 5], 3],
+      [[0, 1, 2, 3, 4, 6], 2],
+    ],
+    ops: { augment: 1.7, fragment: 1.3, invert: 0.5, reharmonise: 0.4 },
+  },
+
+  /**
    * The scale rule. One test, two answers, and the chord is a parameter it reads
    * exactly once.
    *

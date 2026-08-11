@@ -1693,9 +1693,16 @@ export function generateSong(opts: GenerateOptions = {}): Song {
           // scales, holds one note, or has to stop and breathe.
           agility: leadInstrument.agility,
           idiom: IDIOMS[leadInstrument.idiom],
-          // What the genre says its melodies are made of. Undefined on all
-          // nineteen as this is written, and `voiceForStyle` then hands back the
-          // derived voice by identity.
+          /**
+           * What the genre says its melodies are made of: which kinds of tune,
+           * which degrees, what it does to a figure. All nineteen declare one.
+           *
+           * The six scalars beside those — density, leap, ornament, compass,
+           * syncopation, the accent table — are deliberately *not* here and stay
+           * per style, because they already vary more inside a genre than
+           * between two: density spreads 2.42 to 7.07 onsets a bar across jazz
+           * alone. See `voiceForStyle`, which is where the two tiers meet.
+           */
           genreVoice: genre.voice,
           // Everything the song has already stated, so this section can be told
           // apart from it. Without this the freshness term has nothing to measure

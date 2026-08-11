@@ -646,6 +646,227 @@ export const indian: Genre = {
   arrangement: { harmony: 0, unison: 8, trade: 5, tutti: 2, riff: 1, swell: 1 },
 
   /**
+   * What the melodies are made of. The derivation is not blank here, it is wrong
+   * in two specific places: it has the *sign* of the sequence backwards, and it
+   * measures how fast this music moves against the wrong denominator.
+   *
+   * `archetypesFor` in `adapt.ts` gives `arch-hook` a flat 3 and builds
+   * `descending-sequence` out of `melody.sequence` at `1 + sequence * 3`. The
+   * twenty-eight entries in `styles.ts` declare 0.45 to 0.72, so it derives
+   * **second** at 2.35 to 3.16 — top in only two styles, `bhajan` at 3.10 and
+   * `bhangra` at 3.16, and in the four unmetred ones not even second, because
+   * `long-note` derives 2.86 there. So the derivation does not have the winning
+   * shape backwards. It has *this* shape backwards, and second place is still too
+   * high for it.
+   *
+   * Half the reading is right: this music does develop one figure, obsessively,
+   * and the practice has a name — *baḍhat*, the unfolding, which is what
+   * `develop: 0.88` above is and the highest number in the project. The sign is
+   * wrong. A descending sequence puts its high point in the first quarter of the
+   * section — `peakAt: [0.08, 0.25]` — and falls away from it for the rest;
+   * `climb: 6` is double jazz's because the shape of an improvisation here is the
+   * opposite fact: it starts in the lower tetrachord, ends on the upper Sa, and
+   * the piece is over when it gets there.
+   *
+   * ## Which kinds of tune
+   *
+   *  - **`arch-hook`, 4**, over a derived flat 3, so this is a lean and not a
+   *    replacement. *"Rise to one high point, with a figure that keeps coming
+   *    back"* is the bandish read literally. The figure is the mukhḍā, and
+   *    `quoteMotto: 0.7` and `liftIntoReturn: 0.55` above are the whole
+   *    improvisation aiming at it. The high point has to be argued at the same
+   *    scale the field works at: `peakAt` is 0.55–0.72 **of a section**, which is
+   *    where a vistār turns for sam, not where the antarā sits. The antarā is a
+   *    whole section, and its lift comes from `SectionShape.register: 2` through
+   *    `registerFor` — a different mechanism, which this field does not touch.
+   *  - **`chant`, 3.5**, against a derived 0.5–1.28. The derived term is
+   *    `0.5 + max(0, density - 2.2) * 0.6`, which is a busyness term, and a chant
+   *    is not busy — it is *repetitive*. The two rule overrides below are this
+   *    archetype argued for at length before it had a name here:
+   *    `static-repetition` and `repeated-note-run` are both relaxed because a
+   *    line dwelling on one swara is the method rather than a stall — sounded,
+   *    left, returned to, until the ear accepts it as home. Neither argument is
+   *    about tempo. The tarānā is the gloss word for word, sung on the tabla's
+   *    own bols so the hook *is* the rhythm, and it is one of the busier styles
+   *    in the genre at 3.13 onsets a bar.
+   *  - **`long-note`, 3**, and this is the entry that costs something, so it owes
+   *    a denominator. `cellDensity` counts onsets **per bar**; what a held note is
+   *    heard in is seconds. Across the nineteen genres this one runs 1.03 onsets
+   *    per second, third-slowest after ambient and synth and 40% under the
+   *    catalogue's 1.72 — but 2.49 per *bar*, which `0.4 + max(0, 3 - density) *
+   *    1.4` barely notices. What comes out is anti-correlated with the rate it is
+   *    trying to describe. `vilambit` is the ninth-slowest style in the whole
+   *    catalogue at 0.40 onsets a second — the eight below it derive `long-note`
+   *    between 2.62 and 3.01, and it derives the **floor**, 0.4. Six more styles
+   *    here sit on that floor while `cabaret`, three and a half times faster at
+   *    1.48, derives 1.29. So the authored 3 is not invented: it is the band the
+   *    derivation itself pays at this speed everywhere it can see the speed,
+   *    including at `alap`, `jor`, `alapana` and `tanam`, whose bars are sparse
+   *    per bar as well as per second and which therefore derive 2.86.
+   *    **The cost, named.** `long-note` is 3 of 14.6, so about a section in five
+   *    everywhere, and three styles here genuinely run at or above the
+   *    catalogue's own rate — `fusiongat` 2.01, `tillana` 1.91, `svara` 1.72.
+   *    Those three are where a style delta belongs; the other twenty-five are
+   *    slower than the mean piece of music in this project.
+   *  - **`riff-response`, 2.5.** Sawāl-jawāb, at the phrase level. `tradeFours`
+   *    is 0.5 and `trade` is 5 in the table above, `jugalbandi` is an entire
+   *    style whose form is one player answering the other, and the ālāpana is
+   *    distinguished from the ālāp in its own entry by the violin answering every
+   *    phrase where the North has a monologue.
+   *  - **`descending-sequence`, 1.** Down from the 2.35–3.16 the derivation
+   *    hands it, and deliberately not to zero: the avarohaṇa is half of every one
+   *    of the fourteen rāgas and a phrase walking down through it is a real
+   *    phrase. What is wrong is the *section's* peak sitting at the start.
+   *  - **`wide-interval`, 0.6.** The `leap` figures in `styles.ts` run 0.08 to
+   *    0.24, mean 0.152 — the **second**-lowest genre in the project, not the
+   *    lowest: arabic is 0.128 with a 0.18 ceiling, and finnfolk's floor is 0.07.
+   *    Arabic reaches the same 0.6 from the same sentence, which `styles.ts`
+   *    states as a rule rather than a tendency: a rāga phrase walks, and the
+   *    ornament is what happens between the steps. `tritone-leap` below is the
+   *    only override in this genre that keeps a **veto** at all — every other one
+   *    sets `RULE_DISABLED` on both levels, and two of them (`static-repetition`
+   *    0.6, `repeated-note-run` 0.75) keep penalties larger than its 0.4.
+   *
+   * ## Which degrees — and the answer is *the rāga*, which is the point
+   *
+   * `scaleForChord` has already chosen the subset. That is what a rāga is, and a
+   * second subset drawn per section would be the engine picking a rāga inside the
+   * rāga, which is the one thing this music does not do. So the full set carries
+   * this at nearly half the weight.
+   *
+   * The other three are **colours and not registers**, and the distinction is the
+   * machinery's rather than a nicety: `snapToSubset` fills `allowed` from
+   * `scale.pcs[d]` and tests `allowed.has(pc(midi))`, so a subset is a pitch-class
+   * set and cannot put a line anywhere in particular — it says which swaras the
+   * line may stop on, in every octave at once. Where to cut is the drone's
+   * decision: `Isus4` is Sa–Ma–Pa and `Isus2` is Sa–Re–Pa, so degrees 0 and 4 are
+   * the two notes already sounding under everything, and a set bounded by them is
+   * a set bounded by what the tanpura is holding.
+   *
+   * The generic table this replaces is wrong here in a way that can be stated:
+   * two of its six entries drop the fourth degree, 5 of 14 by weight. Ma is a
+   * swara — `avoid-fourth` is disabled below in as many words — and a subset
+   * table that removed it in a third of sections would be doing by draw what the
+   * rule table refuses to do by rule.
+   *
+   *  - **`[0,1,2,3,4]`, 3** — S R G M P, the two swaras both drone tunings hold
+   *    with everything between them. The bhajan's entry says its tune sits in a
+   *    fifth so a room that has not rehearsed can sing it back, and it declares
+   *    the smallest `span` in the file, 11, to prove it; the qawwāli's back row is
+   *    the same fact with more people.
+   *  - **`[0,4,5,6]`, 2** — P D N S, the same two swaras the other way round, and
+   *    the only entry that admits Dha and Ni. It is the one draw in which those
+   *    two carry a phrase instead of being passed through on the way somewhere.
+   *  - **`[0,1,2,3]`, 2** — S R G M, the ālāp before Pa has been admitted: its
+   *    entry's method as a pitch set, *one swara at a time, dwelling on each until
+   *    it has been established*. Two things it is not, both worth saying. On the
+   *    ālāp's own pair — Yaman and Simhendramadhyamam, this file's two **tīvra
+   *    Ma** rāgas — degree 3 is Ma♯, so the set's outer interval is the tritone,
+   *    and the one leap it offers across its own span is the move `tritone-leap`
+   *    still vetoes at level 3, which is exactly `alap`'s and `alapana`'s
+   *    `strict`. And on the pentatonics its surviving degrees are S R G P, which
+   *    contains the fifth and is not a lower tetrachord at all.
+   *
+   * **On Bhoopali and Dhani this whole field is nearly inert, which is right.**
+   * `snapToSubset` returns the note untouched when the surviving pitch classes
+   * are all of them or fewer than three, and a five-degree scale has no degrees 5
+   * or 6: `[0,1,2,3,4,5,6]` and `[0,1,2,3,4]` both cover the scale, and `[0,4,5,6]`
+   * collapses to Sa and the fifth degree — two classes, under the floor. That is
+   * 11 of 13 by weight handing the note straight back. A rāga that is already five
+   * notes has done its own subsetting; Bhoopali has no Ma and no Ni to withhold
+   * and Dhani no Re and no Dha.
+   *
+   * ## What it does to a figure
+   *
+   * Four named, and two of them are operators `adapt.ts` never reaches at all.
+   *
+   *  - **`diminish: 1.5`** — the taan, against a derived 0.45–0.75. `gait: 0.5` is
+   *    a note every two mātrās and `doubleTime: 0.42` says a taan runs at four to
+   *    eight times that; the varṇam states the rāga's phrases *at two speeds*,
+   *    which is diminution named in a style comment.
+   *  - **`displace: 0.3`**, against a derived 0.52–0.98. The solo vocabulary sets
+   *    `displace: 0.12` and gives the reason — a phrase that arrived a beat late
+   *    would have missed sam, and missing sam is the error the whole form is
+   *    organised to avoid. `offbeatAccent: 0.05` is the same sentence about
+   *    accents rather than about figures.
+   *  - **`invert: 0.25`** — the ārohaṇa and the avarohaṇa are two different lines
+   *    with different notes in different orders, which is the first thing the
+   *    rāga block in `styles.ts` says a rāga is. A rāga is recognised in three
+   *    notes, by its pakaḍ, and Yaman's Ni–Re–Ga upside down is not a variation
+   *    of Yaman.
+   *  - **`reharmonise: 0.15`** — *"made to fit new changes"*, and there are no
+   *    changes: twenty-four of the twenty-eight hold one chord for the length of
+   *    the piece. Where there are chords it is worse than a no-op, because it
+   *    sets `Motif.resnap` and forces strong beats onto chord tones — over a
+   *    three-note drone that is the line collapsing onto Sa, Ma and Pa, which is
+   *    the exact failure `unprepared-dissonance` below was relaxed to prevent.
+   *
+   * **`extend` is the operator this genre most wants and the one it cannot buy.**
+   * *"Add a note on the end"* is baḍhat written as an operator — state a phrase,
+   * extend it by one swara, restate it, extend it again — and a weight for it
+   * would change no draw. `opsFor` scales each choice by the appetite for
+   * `ops[0].op`, the *first* operator of the pair, and both routes to `extend`
+   * have it second: `[transpose 0, extend step]` under `repeat` and
+   * `[fragment 3, extend leap]` under `answer`. Every one of the other ten op
+   * kinds leads at least one choice; `extend` leads none, so 1.8 and 0.1 and
+   * absent are the same generated music, and it was 1.8 here until this was
+   * measured. arabic reaches the same figure through `fragment`, which is first
+   * in five entries including that second one. Not taken here: `fragment` also
+   * leads two of the six `develop` choices, carrying 6 of that intent's 17.5, and
+   * lifting it takes weight off the two `diminish` pairs that hold 8 of the same
+   * 17.5 — which is the taan, bought two bullets up on purpose.
+   *
+   * **`sequence` and `ornament` are left unnamed on purpose.** Both are derived
+   * from each style's own `melody` block and the spread there is real and
+   * correct — ornament 0.22 in the cabaret against 0.55 in a vilambit khyāl,
+   * sequence 0.45 in svara kalpana against 0.72 in bhangra. A genre-wide number
+   * would flatten a distinction the tables already state.
+   *
+   * ## Two neighbours, near in different fields
+   *
+   * **arabic, on `subsets`, and this field cannot be asked to separate them.**
+   * Its top two entries are these two sets in this order — `[0,1,2,3,4,5,6]` then
+   * `[0,1,2,3,4]` — reached by the same argument, that the scale *is* the
+   * character and a phrase which has not left home lives in the lower pentachord.
+   * Since the full set is a no-op in `snapToSubset`, the most frequent *active*
+   * subset is `[0,1,2,3,4]` in both genres, and `wide-interval: 0.6` is the same
+   * number in both files. What separates them is the archetype table:
+   * `descending-sequence` 1 here against 3.25 there, `chant` 3.5 against 1,
+   * `arch-hook` 4 against 2.5 — and `diminish: 1.5` here against no `diminish`
+   * there, which is the difference between a taan and a taqsim.
+   *
+   * **reggae, on the generated surface.** Fingerprinted on duration classes,
+   * interval classes, density and turn rate over every style at three seeds — when
+   * both genres still took the derived subset table — reggae and indian sat 0.106
+   * apart where the mean of all 171 genre pairs is 0.382. `subsets` is where they
+   * part, and the gap has widened since reggae authored its own: `[0,2,3,4,6]` at
+   * 5, the full seven at 3, `[0,1,2,4,5]` at 2, so gapped sets are 7 of 10 by
+   * weight there against 0 of 13 here. A snap there lands the line on thirds.
+   * Every entry here is *contiguous* round the octave, Sa Re Ga Ma and Pa Dha Ni
+   * Sa, so a snap lands on seconds — `styles.ts`'s sentence about a rāga phrase
+   * walking, expressed as an interval histogram. `ops` does the other half:
+   * `diminish` at 1.5 puts taan sixteenths into a genre that sets the same
+   * operator to 0.4 and writes every horn line as a quarter-note figure.
+   */
+  voice: {
+    archetypes: [
+      ['arch-hook', 4],
+      ['chant', 3.5],
+      ['long-note', 3],
+      ['riff-response', 2.5],
+      ['descending-sequence', 1],
+      ['wide-interval', 0.6],
+    ],
+    subsets: [
+      [[0, 1, 2, 3, 4, 5, 6], 6],
+      [[0, 1, 2, 3, 4], 3],
+      [[0, 1, 2, 3], 2],
+      [[0, 4, 5, 6], 2],
+    ],
+    ops: { diminish: 1.5, displace: 0.3, invert: 0.25, reharmonise: 0.15 },
+  },
+
+  /**
    * Where this genre disagrees with the shared rule table, and it disagrees
    * more than any other.
    *

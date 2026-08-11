@@ -656,6 +656,226 @@ export const reggae: Genre = {
   ],
 
   /**
+   * What the tune is made of — and it is the same negative claim as everything
+   * above: the bar has a hole in it and the melody is written against the hole.
+   *
+   * Three keys and no more. The six scalars `Voice` also carries are derived per
+   * style and derived *correctly*: `melody.leap` runs 0.18 on `nyabinghi` to 0.4
+   * on `ska` and `twotone`, and `syncopation` 0.4 on `mento` to 0.7 on `dub`,
+   * `dubpoetry` and `rubadub`, which `styles.ts` argues style by style. A genre
+   * number would flatten twenty-one tables that disagree on purpose.
+   *
+   * **And nothing computed *from* `leap` is named either**, which is the same
+   * refusal one level down and is the correction this table most needed.
+   * `archetypesFor` reads `wide-interval` as `0.5 + leap × 5` and `derivedVoice`
+   * reads the `expand` op as `0.6 + leap × 2`; `mergeArchetypes` and the ops
+   * spread both overwrite by key, so a genre entry for either is precisely the
+   * thing that erases the 2.2× spread the paragraph above is defending. Left
+   * alone they run 1.40 (`nyabinghi`) to 2.50 (`ska`, `twotone`) and 0.96 to
+   * 1.40, and the horn styles come out leaping while the chant styles do not —
+   * which is the entire reason `leap` is written per style. An earlier draft put
+   * them at 1.5 and 0.5, near the bottom of both ranges, and argued the first
+   * from `mix.bass` 0.94 against `mix.melody` 0.84 — a level, which says nothing
+   * about how far a line jumps.
+   *
+   * ## Which kinds of tune
+   *
+   * **`chant` and `riff-response` carry it at 4 each**, against derived medians
+   * of 0.60 and 0.60 — much the largest lift in the table — and this file has
+   * already argued both without using the words. `repeated-note-run` is softened
+   * in `ruleOverrides` because *a melody written against a bar with a hole in it
+   * gets a great deal of its interest from where the repeated note lands rather
+   * than from the note changing* — which is `chant`'s own gloss, one note
+   * repeated with a tail and the hook being the rhythm. `riff-response` rests on
+   * `defaultHook: 'catchy'`, on `ragga` pushing that to `earworm` for a hook of
+   * five notes played three hundred times, and on verse tables that are one or
+   * two chords for eight bars: a tune with nothing to move through answers
+   * itself or it does not answer at all. `arrangement` also puts `riff` at 6,
+   * the heaviest weight in that table, and that is a supporting aside rather
+   * than the argument — `chart.ts` gates `riff` on the `brass` layer, so it is
+   * the horns coming round every second bar, and the solo note above says the
+   * horns are what *answers* the melody layer rather than what it is.
+   * iskelmäpop reaches for these same two and means something else: there the
+   * hook is a fixed tune with a fixed rhythm, here it is a fixed *bar*, and the
+   * tune is what fits round it.
+   *
+   * **`long-note` at 2.2**, where a dance band would have it at 1, and it is the
+   * cells that say so rather than the tempo. `[16]` and `[-8,8]` are joint-top of
+   * `melodyCells` on `dub` and `dubpoetry` and `[16]` ties `[8,8]` on
+   * `nyabinghi`, which puts those three at 2.59, 2.83 and 2.15 derived off
+   * `0.4 + max(0, 3 − density) × 1.4` with no help from here; `rocksteady`,
+   * `onedrop` and `roots` are 1.61 to 1.75, on tables topped by `[8,8]` and
+   * `[-4,4,8]` rather than by `[16]` — `[-8,8]` is not in their melody tables at
+   * all, it is in their `cadenceCells` at 3. `[16]` does lead `cadenceCells` in
+   * all six, at 6, 6, 6, 7, 7, 7. 2.2 is `rubadub`'s own derived number and
+   * lifts that half of the genre rather than inventing it. **It overshoots the
+   * other half and that is not free**: `ska` at 3.52 onsets a bar, `twotone`
+   * 3.61 and `ragga` 3.59 derive the floor of 0.40, with `dancehall`, `mento`,
+   * `shuffle` and `skinhead` beside them — a third of the styles get a held-note
+   * archetype their cells argue against. The 3 this table used to carry was
+   * above every value the genre derives, top included.
+   * `solo.vocabulary.space` above is 0.42, which only `dnb` goes over, for the
+   * reason given there: a melodica over sixteen bars of dub plays four notes and
+   * lets the echo have the rest.
+   *
+   * **`descending-sequence` at 2**, against the 2.5 `archetypesFor` reads off a
+   * median `melody.sequence` of 0.50. The descending tetrachord is real and
+   * `roots` calls it the most common four bars in the genre — and the same note
+   * says what is wrong with it as a *tune* shape: it never gets to the bottom,
+   * because reaching the fifth would need a dominant and there is not one
+   * anywhere here. An archetype that spends a whole section falling away from a
+   * peak at the top would arrive where the harmony has refused to go.
+   *
+   * **`arch-hook` to 2**, against the flat 3 `archetypesFor` gives every style
+   * alike — it is the one archetype the derivation does not vary — and it is a
+   * refusal this file already states three times elsewhere. `layerPlan.response`
+   * puts the bass at 0.2 because *the figure is played at one weight from the
+   * first bar to the last*; `liftIntoReturn` is 0.2 because *a version does not
+   * deliver anything*; `ending` is `fade` because the record does not stop. An
+   * arch is a shape that peaks and resolves.
+   *
+   * ## Which degrees — and this is the key that separates the genre from indian
+   *
+   * Fingerprinted over the catalogue on duration classes, interval classes,
+   * density and turn rate, **reggae and indian are the third-closest of the six
+   * near pairs, 0.106 against a mean of 0.382 over all 171**. The mechanism is
+   * legible rather than mysterious: `archetypesFor` separates two genres mainly
+   * by `melody.sequence`, these twenty-one styles sit at a median 0.50 and
+   * indian's twenty-eight at 0.60, and `subsets` is the same generic six for both
+   * because it is the same generic six for all 386 underived styles. Two
+   * repertoires, one voice.
+   *
+   * So **1 ♭3 4 5 ♭7 leads at 5 of 11**. It is not a colour in this music:
+   * `augmented-second` is disabled in `ruleOverrides` genre-wide expressly so
+   * that `dub` and `nyabinghi` — the two styles whose own `scaleForChord` returns
+   * a pentatonic — can make the tonic-to-♭3 move the scale exists for, and that
+   * override is already the genre conceding that a five-note melody is native
+   * here. It is also the set that survives every bend `MINOR_LADDER` allows:
+   * aeolian, dorian and phrygian differ only at the second and the sixth, and
+   * those five degrees are what all three agree on. Against indian, where the
+   * rāga *is* the restriction and the line steps through seven notes, one line
+   * puts thirds into the interval histogram where there were seconds.
+   *
+   * The **whole mode** keeps a real weight under it, because three-fifths of
+   * `scaleForChord` below would otherwise be unreachable — the Real Rock sixth,
+   * the borrowed ♭VII and the phrygian second are this genre's entire harmonic
+   * vocabulary and a tune living in five notes never states one.
+   *
+   * ## The major half, which is 43% of the genre and was the half this table ducked
+   *
+   * `modeWeights.major` averages 0.433 across these styles — 0.85 on `mento`,
+   * 0.8 on `lovers`, 0.75 on `shuffle`, against 0.15 on `dub`. That matters more
+   * than it looks, because `MAJOR_LADDER[0]` is plain major *and* is the fallback
+   * below, so most major bars are read against it and only a ♭VII pulls the scale
+   * to mixolydian. On plain major the first entry is **1 3 4 5 ♮7**: leading tone
+   * in, second and sixth out. That is the one major set this genre does not own.
+   * The set it does own is the borrowed ♭VII, and that is the mixolydian reading
+   * of the same entry — real, and the rarer of the two.
+   *
+   * So **1 2 3 5 6 goes to 3**, level with the whole mode rather than under it.
+   * It is what `nyabinghi`'s own major branch returns, it is what `mento` and
+   * `lovers` sing, and at 3 it is drawn 27% of the time instead of 20% — enough
+   * that the ♮7 reading is not the default sound of the eight styles at or over
+   * `modeWeights.major` 0.5. The first entry keeps the lead at 45% because its
+   * minor reading is the genre's spine.
+   *
+   * ## One artefact, and it is worse than the first draft of this paragraph said
+   *
+   * `song.ts` resolves `style.scaleForChord ?? genre.scaleForChord`, and `dub`
+   * and `nyabinghi` override it with `minorPentatonic` / `majorPentatonic`, so on
+   * those two the scale arriving at `snapToSubset` is *already* five notes. That
+   * function keeps only subset indices below `scale.pcs.length`, and the indices
+   * mean different pitches in a five-note scale. Against `minorPentatonic`
+   * `[0, 3, 5, 7, 10]` the first entry survives as indices 0, 2, 3, 4 →
+   * **1 4 5 ♭7**, so it is the **♭3** that is dropped, not the ♭7 — which is
+   * exactly the tonic-to-♭3 move `augmented-second` is disabled genre-wide to
+   * permit, on the two styles it was disabled for. The third entry survives as
+   * **1 ♭3 4 ♭7** and loses the fifth; in major it is 1 2 3 6, again without the
+   * fifth. Only the whole mode is inert, because all five of its indices exist.
+   * Eight of eleven by weight therefore land on a four-note set on those two
+   * styles, and on the ♭3 half of it this table is working against
+   * `ruleOverrides` rather than with it.
+   *
+   * It cannot be fixed from here, and that is the reason it is stated rather
+   * than quietly left. Degrees are indices into whatever scale arrives, so no
+   * single entry can be 1 ♭3 4 5 ♭7 on seven notes and a no-op on five: the
+   * inert one is `[0, 1, 2, 3, 4]`, which reads 1 2 ♭3 4 5 everywhere else and
+   * is a different genre. The fix is a `subsets` delta on those two styles —
+   * `voiceForStyle` takes `delta.subsets` whole — and this table is genre-level
+   * by construction.
+   *
+   * ## What it does to a figure
+   *
+   * `sequence` and `transpose` are deliberately absent: `melody.sequence` spreads
+   * 0.35 to 0.7 across these styles, derivation reads it correctly, and a `mento`
+   * is not a `ragga` in this respect.
+   *
+   * **`displace` to 0.35, and it is the correction that matters most.** It is
+   * derived from `syncopation` as `0.3 + syncopation × 1.5`, which is high here
+   * for a reason `styles.ts` argues at length, so it arrives at 1.2 at the median
+   * — 0.90 on `mento` up to 1.35 on `dub`, `dubpoetry` and `rubadub`, with only
+   * `mento`, `shuffle` and `nyabinghi` under 1 — and pointing exactly backwards.
+   * `solo.vocabulary.offbeatAccent` above is 0.1, which only `indian` at 0.05
+   * goes under, and its argument is this one: four chops, four hats and a bass
+   * that starts after the downbeat mean everything is already off the beat, so
+   * shoving a whole figure off the grid is not a syncopation, it is the figure
+   * disappearing into the skank.
+   *
+   * **`diminish` to 0.4**, against a derived 0.70 to 1.00, for the reason `gait`
+   * is 0.65 and `doubleTime` 0.06: every line in this genre is a figure rather
+   * than a stream, and a run of eighths over a one drop reads as somebody who has
+   * not noticed where the bar is.
+   *
+   * **`fragment` to 1.6**, which is that sentence from the other side, and it is
+   * an addition rather than a correction — `derivedVoice` names six ops and this
+   * is not one, so the alternative is the 1.0 fallback. `fragment` keeps the
+   * first `keep` notes and lets the tail be silence, which is the one operator
+   * that answers a figure with the same figure minus its end. Taking something
+   * away is the compositional act here: a dub *is* the multitrack with parts
+   * pulled out of it, and `dubpoetry`'s bass has more rest in it than note. The
+   * cells that open with a rest, which an earlier draft cited here, are about
+   * where a figure starts and say nothing about its tail.
+   *
+   * **`reharmonise` to 0.3**, also an addition, and the genre's central claim as
+   * an operator. `rocksteady`'s bass note puts it plainly: the figure is the same
+   * four intervals over whichever chord arrives, and the ear hears the harmony
+   * move *underneath a line that did not*. A figure rewritten to fit the changes
+   * is the one thing "Real Rock" is not.
+   *
+   * `sequence`, `transpose` and `expand` are all absent for one reason: each is
+   * derived from a per-style number — `melody.sequence` spreads 0.35 to 0.7 here,
+   * `leap` 0.18 to 0.4 — and a `mento` is not a `ragga` in either respect.
+   *
+   * ## The neighbour to check is hiphop, not indian
+   *
+   * `hiphop` is the closest *authored* voice: it also leads on `riff-response`
+   * and `chant`, and `fragment: 1.6` is the same number. What separates them is
+   * that hiphop treats the grid as movable and this genre does not — `displace`
+   * 1.5 against 0.35, `diminish` 1.4 against 0.4 — and that the two subset tables
+   * are disjoint, hiphop's four entries all living inside the first five degrees
+   * while these three reach the sixth and the seventh. A reader who questions a
+   * boundary here will question reggae against dancehall and ragga, and those are
+   * styles inside this table rather than genres beside it.
+   */
+  voice: {
+    archetypes: [
+      ['chant', 4],
+      ['riff-response', 4],
+      ['long-note', 2.2],
+      ['descending-sequence', 2],
+      ['arch-hook', 2],
+      // `wide-interval` is deliberately unnamed: it is `0.5 + leap × 5` and leap
+      // is the field this genre most wants left per style. See the header.
+    ],
+    subsets: [
+      [[0, 2, 3, 4, 6], 5],          // 1 ♭3 4 5 ♭7 minor; 1 3 4 5 ♮7 major, ♭7 on mixolydian
+      [[0, 1, 2, 3, 4, 5, 6], 3],    // the whole mode, so the bends are audible
+      [[0, 1, 2, 4, 5], 3],          // 1 2 3 5 6 — mento, lovers, nyabinghi major
+    ],
+    ops: { displace: 0.35, diminish: 0.4, fragment: 1.6, reharmonise: 0.3 },
+  },
+
+  /**
    * The scale rule: follow the key, bend one step, and never raise the seventh.
    *
    * Rooted on the tonic and searched outward from the key's own mode so that the

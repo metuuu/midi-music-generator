@@ -322,6 +322,261 @@ export const metal: Genre = {
   defaultHook: 'standard',
 
   /**
+   * What the tune is made of, in the things derivation cannot reach.
+   *
+   * The two opening claims of this genre decide all of it. `index.ts` above says
+   * the chord has no quality and that this **puts the whole tonal argument in the
+   * melody**; `styles.ts` says the catalogue is organised by *what the right hand
+   * is doing*. Together they are the brief: the line carries the mode by itself,
+   * and it carries it over a figure that was already there.
+   *
+   * **Nothing numeric is set, and that is measured rather than modest.** Derived
+   * density runs 1.4 to 6.4 onsets a bar inside this genre alone — `doom`'s cells
+   * against `shred`'s — and `melody.leap` runs 0.2 to 0.55 across the same
+   * twenty-four. `docs/voices-plan.md` §3.2 puts that beside classical's 2.1 to
+   * 9.3 — a wider span, a narrower ratio — and calls a genre voice that flattened
+   * either one a regression. The style tables already count correctly; what they
+   * cannot say is what kind of tune they are counting.
+   *
+   * **So the test every weight below has to pass is whether the number derivation
+   * reads is the same quantity as the thing being named.** Where it is not — a
+   * note-count standing in for a call and an answer — a genre figure adds
+   * information. Where it is, the figure overwrites twenty-four authored numbers
+   * with a constant, and two entries left this table on exactly that ground. They
+   * are argued where they used to sit rather than deleted silently, because the
+   * next reader will reach for both of them.
+   *
+   * ## Which kinds of tune
+   *
+   * **`riff-response` leads, and `RIFF_CELLS` gives the reason in its own words**:
+   * *"a great many of them starting with a rest. A metal vocal line and a metal
+   * lead both enter after the riff has stated itself — the guitar owns the
+   * downbeat, and a tune that also arrived there would be competing with the thing
+   * it is sitting on."* That is a short figure and the thing that answers it,
+   * written out as a cell table, and seven of the twenty-four styles take the
+   * table verbatim. `archetypesFor` reads this off density and `(0.2 − ornament)`,
+   * which counts notes rather than hearing a relationship: it puts `doom` on the
+   * floor at 0.60, for a style whose own description is *a riff that is the whole
+   * song*.
+   *
+   * **`chant` second**, from `repeated-note-run` two blocks down: a metal riff is
+   * *"frequently one pitch — the open string, struck sixteen times a bar — with
+   * the figure happening in the rhythm"*, which is this archetype's gloss word for
+   * word. `gothic` says it outright — *the melodic model is a chant, not a riff* —
+   * and `power`'s football-terrace chorus is the same object sung by a crowd.
+   * Density is the proxy here too, and it hands `gothic` the 0.50 floor.
+   *
+   * This is the entry `arrangement` above multiplies. `harmony: 8` is the highest
+   * weight any genre gives any device in this project and it is *the line-up*
+   * rather than an arranger's touch, so `chant` at 3.5 — a fifth of sections, with
+   * the archetype's own `leap: 0.5` and `judge.motion: 0.6` — is two guitars a
+   * third apart repeating one note. That is the twin-guitar riff rather than an
+   * accident, but the two tables compound and nothing else in the file says so.
+   *
+   * **`descending-sequence` third, and it is where this genre and rock read the
+   * same chords in opposite directions.** The evidence is the descending
+   * tetrachord i–♭VII–♭VI–V, *"inherited from the baroque by way of nobody
+   * admitting it"* in `nwobhm`'s own note and written into ten progressions across
+   * seven styles — `heavy`, `nwobhm`, `speed`, `power`, `glam`, `melodeath`,
+   * `symphonic`. A tune that walks down with the bass is the tune that belongs on
+   * it: tango's argument, arrived at from the other end of Europe, and tango's
+   * authored voice weights this archetype 4 on nothing else. **i–♭VII–♭VI–♭VII is
+   * not evidence for it** and was cited here as though it were: the same note calls
+   * that one the *aeolian shuttle*, which goes down and comes back up. Rock demotes
+   * this archetype to 1.5 on the grounds that its own descent is *the band rather
+   * than the tune*; the disagreement is real, and the reason this genre takes the
+   * other side is that `melody.sequence` — the number derivation reads, 1 + 3× —
+   * is *"probability that a phrase repeats its motif as an exact sequence"* and
+   * says nothing about direction. The direction is in the chord tables, and the
+   * seven styles carrying it are not the seven with the highest `sequence`.
+   *
+   * **`arch-hook` down to 2, and it is the one entry with nothing underneath it.**
+   * `archetypesFor` hands every style in the project a flat 3 here — the only
+   * archetype weight in the derivation not read off a style number — so it is the
+   * one a genre table exists to set. The arch claim is not genre-wide: it belongs
+   * to four of the five styles that raise `strictness` to `standard` because they
+   * are writing singable tunes — `power`, `glam`, `melodeath`, `symphonic` — and
+   * `gothic`, the fifth, is a chant. Demoted rather than removed.
+   *
+   * **`wide-interval` is not in this table, and it was, at 2.5.** The claim under
+   * that number was `wide-leap`'s *the styles ask for spans of 19 to 24 semitones*
+   * — which is six styles of twenty-four (`power`, `progressive` and `melodeath`
+   * at 19, `symphonic` 21, `techdeath` 22, `shred` 24) against a median of 16.5
+   * and `doom`'s 11. A top quartile is not a genre-level claim and cannot outrank
+   * anything on the strength of being one. Meanwhile `melody.leap` is authored in
+   * all twenty-four and means precisely what this archetype means, so
+   * `0.5 + leap*5` is the derived weight with the best per-style evidence in the
+   * table: 1.50 for `doom`, 3.25 for `techdeath`. The flat number raised the first
+   * by two thirds and cut the second by a quarter. Left alone it clears the demoted
+   * arch in fourteen styles, ties it in six, and sits under it in the four whose
+   * own `leap` says they do not leap.
+   *
+   * **`long-note` last, and it is the weight to revisit first.** Two styles want
+   * it and the derivation names them without being asked: `doom` at 1.42 onsets a
+   * bar and `postmetal` at 1.52 are the only two here under the 1.7 that earns
+   * `canvasBars: 4`, and `postmetal` carries the longest cadence cells in the
+   * file. `gothic` is not a third — the whole notes in its header are the
+   * *guitars* under the singer, and its line is already argued to `chant` above.
+   * Derivation gives those two 2.62 and 2.47 and this overrides both to 1, which
+   * is the cost of a genre tier and is exactly the case `docs/voices-plan.md` §3.2
+   * says a `Style.voice` delta is for. **The delta is a pair.** For `doom` the
+   * long-note share of the table falls from 23.1% to 6.3% while `riff-response`
+   * rises from 5.3% to 31.3%, and the second number is doing most of that: a delta
+   * that moved `long-note` back alone would not return the style. It sits low
+   * anyway because the other twenty-two are a riff, because `RIFF_CADENCES`
+   * already puts the whole-bar note at the *end* of a phrase rather than through
+   * the middle of one, and because `solo.vocabulary.space` is 0.1, the lowest in
+   * the project — this music does not leave holes.
+   *
+   * ## Which degrees — and the genre has already written this one down
+   *
+   * `scaleForChord`'s fallback argues at length for the minor pentatonic: it
+   * *"drops the second and the sixth, which are precisely the two degrees the
+   * ladder above spends all its time arguing about — ♮2 against ♭2, ♭6 against ♮6
+   * — and keeps the five that every mode in the list agrees on"*. Zero-based that
+   * is `[0, 2, 3, 4, 6]`, already in `SUBSETS` and described there as *pentatonic
+   * in minor*, which is where this genre lives: the mean of the twenty-four
+   * `modeWeights` entries is 0.82 minor. Top weight, because the function naming
+   * it calls it *what a lead player actually does*.
+   *
+   * `[0, 1, 2, 3, 4, 6]` is second, and it is that same sentence with one
+   * concession fewer: the pentatonic declines *both* contested degrees, this
+   * declines the sixth and keeps the second. The second is the degree this genre's
+   * ladder moves. Under aeolian index 1 is the ♮2 — which `MINOR_LADDER` gives as
+   * the reason `minor` is ordered first — and under phrygian the same index is the
+   * ♭2 that `black` and `thrash` build whole verses on, the note `flat-nine` below
+   * was softened to permit. One index, and the mode decides which note it is.
+   * Keeping index 2 beside it is what makes the ♭2→♮3 of phrygian dominant
+   * reachable — *the single most recognisable interval in neoclassical metal*, the
+   * thing `augmented-second` below is disabled outright for. That interval used to
+   * survive 31% of subset draws and now survives 53%. Under `harmonicMinor` this
+   * set keeps the ♮7 of the neoclassical cadence and under `hungarianMinor` both
+   * the ♯4 and the ♮7. Measured across every style's tables, 15% of minor-key
+   * chord slots resolve to something other than aeolian — phrygian 8.3%, harmonic
+   * minor 5.1%, phrygian dominant 0.4% — and those are the bars this row is for.
+   *
+   * **Rock declares the same set and weights it last, for the mirror reason.**
+   * There the sixth is *"the degree that flips when a ladder moves"*, so dropping
+   * it is what lets a tune sit still while the harmony walks. On rock's three-mode
+   * ladder the sixth is also the *only* degree separating `minor` from `dorian`,
+   * so this set collapses two of its three rungs; on this genre's six it separates
+   * all six. Same row, opposite argument, and it is where the two tables stop
+   * being each other's.
+   *
+   * The full diatonic is third, for the styles that need a real seventh — `shred`
+   * above all, whose minor tables are *full of functional harmony, real dominants,
+   * real cadences*.
+   *
+   * `[0, 1, 3, 4, 6]` is fourth, down from second. It is the power chord as a
+   * melodic set — 1 2 4 5 ♭7, *no third to commit you*, in a genre whose founding
+   * sentence is that `i` and `I` are the same two fingers in the same place, and
+   * that argument is untouched. What demotes it is the other half of it: the third
+   * it declines is index 2, which is the ♮3 the phrygian dominant *is*, so the row
+   * cannot play the mode `shred` exists for. It is also rock's second entry at
+   * rock's second weight, which is to say the row where these two tables had least
+   * to tell them apart.
+   *
+   * `[0, 1, 2, 4, 5]` is the major pentatonic and is the other half of
+   * `scaleForChord`'s own sentence — *in major the same rule drops the fourth and
+   * the seventh*. Weighted 1 for two reasons rather than one. `MAJOR_LADDER`'s own
+   * note has the first: major here is `glam`, `power` and half of `nwobhm`, and
+   * measured that is seven styles at `modeWeights.major` ≥ 0.22 against a
+   * catalogue mean of 0.18, with major-key chord slots 15% of the total. The
+   * second is that on the other 85% the row is not the thing it is named for: over
+   * aeolian it reads 1 2 ♭3 5 ♭6, a ♭6 with no seventh under it.
+   *
+   * **What these become against a five-note scale.** `snapToSubset` drops a degree
+   * the scale has not got rather than wrapping it, so the pentatonic fallback
+   * truncates three of these rows. The leader becomes degrees 0,2,3,4 — 1 4 5 ♭7,
+   * and **loses the ♭3**, which is the same trap rock spells out for its own
+   * leading entry; `[0, 1, 3, 4, 6]` becomes 1 ♭3 5 ♭7; `[0, 1, 2, 4, 5]` over the
+   * major pentatonic loses the fifth. The second row is the one that survives
+   * whole — five of its six degrees exist, so `snapToSubset` hands the note back
+   * untouched. In minor this is a small exposure: the fallback fires on 1.2% of
+   * minor-key slots and on exactly one chord, the `bV` — carried by six styles,
+   * of which `tritone-leap` below names five. In major it is 29.6%, and that
+   * figure is mostly a table gap rather than this table's doing — twelve styles
+   * carry `modeWeights.major` above zero with no `majorProgressions`, so their
+   * minor romans are read in a major key. Same class as the iskelmä mode-table
+   * gap; it belongs in `styles.ts` and is recorded here because it is what makes
+   * the major number look alarming.
+   *
+   * ## What it does to a figure
+   *
+   * Five set, four left alone, on the test at the top of this comment.
+   * `sequence`, `transpose` and `expand` come off `melody.sequence` and
+   * `melody.leap`; `ornament` comes off `melody.ornament`. In every one of those
+   * the number derivation reads is the quantity the operator means.
+   *
+   *  - **`displace` up.** The tune enters after the riff, which is the `RIFF_CELLS`
+   *    sentence again, and shifting the whole figure off the beat is the operator
+   *    that states it. `syncopation`, which derivation reads for this at
+   *    `0.3 + 1.5×`, is a different quantity: it is an appetite for landing off the
+   *    beat, and this is a figure declining to own the downbeat because something
+   *    louder already does.
+   *  - **`diminish` and `augment` both up, which looks like a contradiction and is
+   *    the genre's structural device.** `metalcore` is *the contrast between two
+   *    tempos that are the same tempo*; `groove` keeps the riff in sixteenths and
+   *    halves the beat; the second form in this file is the shape *where the bridge
+   *    is not a contrasting section but the same riff at half the speed*. Both
+   *    directions of that flip are one figure at a new speed, which is again not
+   *    what `syncopation` counts. `solo.vocabulary` says it a third time from the
+   *    lead's side: `gait: 0.2` and `doubleTime: 0.5`, sixteenths as the default
+   *    rather than the climax.
+   *  - **`invert` down.** *No `vary`* is uniform across the catalogue and its reason
+   *    reaches the tune as well as the rhythm section: sixteen bars of the same
+   *    figure is the thing being demonstrated. A riff turned upside down is a riff
+   *    nobody recognises, which is the one thing this music cannot afford.
+   *  - **`reharmonise` down.** *Same shape, made to fit new changes* — and the
+   *    changes here state nothing to fit it to. What that buys is the plain
+   *    augmented cadence: `opsFor` keys an appetite on the **first** op of a pair,
+   *    so in `close` the two fragment-and-augment entries are keyed on `fragment`,
+   *    which this table does not declare. Their share does not rise — 66.7% to
+   *    65.9% — and it is the standalone `augment` that goes from 2 to 2.8 against
+   *    `reharmonise`'s 1 to 0.3. The figure slowed onto one downbeat rather than
+   *    the figure cut short, which is `ending: 'button'` said in the melody. The
+   *    keying is written down here because reading it the other way is how the
+   *    first draft got the arithmetic backwards.
+   *
+   * **`ornament` was in this table at 0.6 and is not.** The argument for it was
+   * that this operator splits a note into a neighbour figure — a *second* note —
+   * where a metal ornament is a bend and a vibrato: `solo.vocabulary.ornament` is
+   * 0.55 and says *nothing else in this project gets its expression so completely
+   * from what happens after the note is struck*, and a lead that trilled where it
+   * should have bent is a baroque line with a distortion pedal. That is true about
+   * the idiom and is not an argument about this field. Derived `ops.ornament` is
+   * `0.4 + melody.ornament*3` and runs 0.85 to 2.20 across the genre, so 0.6 sat
+   * below every style rather than under any of them: a common floor, not a
+   * demotion. What it flattened was `melody.ornament`'s 0.15 to 0.60 — a wider
+   * ratio than either spread the paragraph above protects by name — and it cost
+   * most in `gothic`, whose header claims *the highest `ornament` figure here* and
+   * whose appetite dropped 3.7× to sit level with `crossover`, a style whose own
+   * 0.15 derives 0.85 and which the flat number therefore lowered too. The bend
+   * remains the idiom's ornament; `melody.ornament` already ranks the styles for
+   * it, twenty-four times, in their own docs.
+   */
+  voice: {
+    archetypes: [
+      ['riff-response', 5],
+      ['chant', 3.5],
+      ['descending-sequence', 3],
+      ['arch-hook', 2],
+      ['long-note', 1],
+    ],
+    subsets: [
+      [[0, 2, 3, 4, 6], 5],          // 1 ♭3 4 5 ♭7 — the fallback's own pentatonic
+      [[0, 1, 2, 3, 4, 6], 4],       // the key without the ♭6 — the second degree kept
+      [[0, 1, 2, 3, 4, 5, 6], 3],
+      [[0, 1, 3, 4, 6], 2],          // 1 2 4 5 ♭7 — the power chord as a set
+      [[0, 1, 2, 4, 5], 1],          // major pentatonic in major, a ♭6 in minor
+    ],
+    ops: {
+      displace: 1.6, diminish: 1.5, augment: 1.4,
+      invert: 0.4, reharmonise: 0.3,
+    },
+  },
+
+  /**
    * The twin guitars, and everything else a long way behind.
    *
    * `harmony` at 8 is the highest weight any genre gives any device in this

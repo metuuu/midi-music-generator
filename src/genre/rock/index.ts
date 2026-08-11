@@ -857,6 +857,188 @@ export const rock: Genre = {
   ],
 
   /**
+   * What the tune is made of — the three tables `voiceForStyle` cannot derive,
+   * and only the weights inside them a genre can say something true about.
+   *
+   * The omissions are the argument. Density, leap, ornament, compass and
+   * syncopation are already spread across the twenty-four styles by their own
+   * `melody` blocks and each spread is authored: `ornament` runs from `punk`'s
+   * 0.1 to `psych`'s 0.5, `span` from `shoegaze`'s 8 to `surf`'s 19, and both of
+   * those styles argue their number in their own doc. A genre figure for any of
+   * them would overwrite twenty-four sentences with one.
+   *
+   * **Two archetypes are left out for exactly that reason**, and both were in the
+   * first draft of this table. `wide-interval` derives as `0.5 + melody.leap × 5`
+   * — 1.40 on `shoegaze` to 2.50 on `prog`, mean 2.02 — so a genre figure of 2 is
+   * the derived mean typed out, and all it buys is the deletion of the range,
+   * starting with `postpunk`'s leap of 0.22, which that style's own doc argues:
+   * the singer is not reaching for anything and half those vocals sit inside a
+   * fifth. `long-note` derives as `0.4 + max(0, 3 − density) × 1.4`, which is
+   * `density` under another name: `shoegaze` 1.93 and `stoner` 1.80 — the only
+   * two styles whose `melodyCells` genuinely lead with `[16]` and `[8,8]` — then
+   * `riff` 1.33, `grunge` 1.16, `postpunk` 0.87, and 0.40 for the other nineteen.
+   * Any single figure high enough to serve the held-note styles *cuts* the two it
+   * is for and hands the same weight to `punk`, which has nothing sustained
+   * anywhere in the arrangement. The derivation already makes both claims, per
+   * style, about the right styles.
+   *
+   * ## Archetypes — the riff first, where the derivation has it third
+   *
+   * `riff-response` derives 0.60 to 2.45 with a mean of 1.33, so 5 is a 3.8× lift
+   * and the largest opinion in the table. It is *a short figure and the thing that
+   * answers it*, which is `styles.ts`'s second standing fact in the tune engine's
+   * vocabulary: the riff is the composition. `hard` says the guitar figure *is*
+   * the harmony and the singer arrives in the gaps; `grunge` says the tune is a
+   * riff sung and that a great many of these vocal lines are the guitar figure
+   * with words on it; eight styles take `pentatonicLead` on the stated grounds
+   * that their tune is a riff rather than a song.
+   *
+   * `arch-hook` is the cheapest entry here and that is why it can be stated: the
+   * derivation returns a flat 3.0 for every style in the catalogue, so 4 adds an
+   * opinion without deleting one. It sits just under the riff because the other
+   * sixteen styles are songs, and `defaultHook: 'catchy'` above has already said
+   * why — a genre of singles whose commercial logic is that somebody remembers
+   * eight bars of it.
+   *
+   * **`chant` derives 0.50 to 1.67, mean 1.06, and `repeated-note-run` argued the
+   * lift first.** That override is in the table above because *three identical
+   * notes in a row is how a very large number of these choruses begin*, and the
+   * archetype glossed *one note repeated with a tail — the hook is the rhythm* is
+   * the same sentence in the other file. `glam`'s chorus is four words over a
+   * stomp and a handclap, `boogie` takes `earworm` on the grounds that nothing
+   * changes at all, and `motorik` gets somewhere by staying somewhere.
+   *
+   * **`descending-sequence` is the push down, and it has to answer tango.** The
+   * derivation reads `melody.sequence` — 0.45 to 0.75 here, deriving 2.35 to 3.25
+   * — as an appetite for walking a figure *down the scale*, and in this repertoire
+   * the restatement is at the same pitch: the riff is the same intervals over
+   * every chord it meets, which is the file's second standing fact and which
+   * `transpose: 1.8` below says again. `math` carries the highest sequence at 0.75
+   * and its own doc says what for — a figure stated and then stated *again on the
+   * next group*, not a step lower.
+   *
+   * That is worth a figure below the derived floor and not the 1.5 this table
+   * first carried, because tango weights the same archetype at 4 — joint-highest
+   * — for the descent this genre is supposed to share, and the difference is
+   * narrower than the first draft assumed. Two things separate them and both are
+   * in the tables. Tango's i–VII–VI–**V** tetrachord *cadences*; there is no
+   * uppercase V in a minor-key progression anywhere in `styles.ts` — 0 slots in
+   * 236 — so the figure here turns around instead: ♭VI–♭VII–i **rising** into the
+   * tonic carries 33.5% of the minor progression weight against 24.2% for
+   * i–♭VII–♭VI falling, and the single commonest minor row in the file is the
+   * rising one. And tango's own note puts the walk in the *tune*; here it is the
+   * guitar's loop, over which the vocal is far more often the repeated note the
+   * line above weights at 3.
+   *
+   * ## Subsets — what the ladder delivers, and what these can and cannot say
+   *
+   * **The ♭7 is the ladder's, not this table's.** These are indices into whatever
+   * mode `scaleForChord` returned, so degree 6 is the ♭7 only once the ladder has
+   * moved off its first rung. Running every chord of every style through the rule:
+   * the plain `major` rung — where degree 6 is the *leading tone* — takes 79% of
+   * major-key chord slots and about 41% of all slots in the genre. That is not a
+   * breach of the header's rule, which lifts the ban in major deliberately and
+   * says so at `scaleForChord` below, but it does mean no subset can carry the
+   * genre's characteristic note on its own. The one row that could — `[0,1,2,3,4,5]`,
+   * the key without its seventh, which is synth's sentence — would in minor delete
+   * the ♭7 as well, and is therefore wrong here in the half of the catalogue that
+   * matters most.
+   *
+   * **Two rows lead at 5 because this genre has two melodic dialects**, and the
+   * split is the same one `pentatonicLead` draws eight styles down: a riff or a
+   * song. `[0,2,3,4,6]` is the riff's — the minor pentatonic on every rung of
+   * `MINOR_LADDER`, the boogie scale 1 3 4 5 ♭7 on mixolydian, and 1 3 4 5 ♮7, the
+   * yearning major set `voice.ts` names, on the plain major rung. The full
+   * diatonic is the song's, and sixteen styles sing one — `beat` with `vi` and
+   * `iii` at real weight, the ballad, the jangle, the new wave, the prog.
+   *
+   * **The no-third row is at 2 and the first draft had it at 4 on the wrong
+   * evidence.** `POWER` voicings are four styles, not the genre — `styles.ts`
+   * measures the distorted guitar at 30% of rock's comp weight against metal's
+   * 77% — and that paragraph exists to draw one distinction: `pentatonicLead` is a
+   * claim about the *tune*, the power chord is a claim about the *chord*. Using
+   * the second to weight a melodic subset was the error. What survives is `alt`'s
+   * dead heat between the modes and `riff`'s and `stoner`'s harmony refusing to
+   * commit, which is worth a colour rather than a policy. At 4 the top three rows
+   * of this table were byte-identical to `metal/index.ts` in set and weight; the
+   * archetypes already separate the two genres 2× either way, and this is the row
+   * that makes the subsets do it too.
+   *
+   * `[0,1,2,3,4,6]` is the key without its sixth, and the narrow true claim is
+   * about one rung move rather than all four: `minor → dorian` under a major IV
+   * flips exactly that degree, so a minor tune living inside this set is one the
+   * bend leaves alone. The other moves flip other degrees — `major → mixolydian`
+   * flips the seventh, `minor → phrygian` the second — and it says nothing about
+   * those.
+   *
+   * **On the eight `pentatonicLead` styles the top row truncates, and that is a
+   * known defect rather than a feature.** `snapToSubset` drops a degree a
+   * five-note scale has not got, so the full diatonic and `[0,1,2,3,4,6]` are
+   * no-ops there — 7 of 14 weight, up from 5 of 14 before the reweight above —
+   * while `[0,2,3,4,6]` becomes 1 4 5 ♭7 and `[0,1,3,4,6]` becomes 1 ♭3 5 ♭7. The
+   * leading row losing the ♭3 is the one worth naming: it is the note the
+   * `augmented-second` override, the header's first line and the whole blues
+   * overlay exist for, gone from 36% of sections on the styles built on it. The
+   * fix is one line of `Style.voice` on each of those eight — `subsets` replaces
+   * rather than merges, and a lone full-diatonic row snaps nothing — and it
+   * belongs in `styles.ts`, which is the only place that can tell the eight from
+   * the sixteen. Until it lands this table is wrong on a third of the riff styles'
+   * sections and the number above is the size of it.
+   *
+   * ## Ops — a riff that renegotiates with each chord has stopped being a riff
+   *
+   * That sentence is at the top of `styles.ts`, and it is `reharmonise` at 0.2
+   * against `transpose` at 1.8. `pentatonicLead` writes it as code: it reads
+   * neither the mode nor the chord, so a figure meeting a ♭VII arrives *moved*
+   * rather than refitted. `invert` goes down with it, because a riff's notes are
+   * spelled as numbers taken literally and a shape turned upside down is a
+   * different figure rather than a development of one.
+   *
+   * **The larger half of what `transpose` does here is buy exact repeats.**
+   * `opsFor` keys the appetite on `ops[0]?.op ?? 'transpose'`, and the `repeat`
+   * intent's verbatim branch carries no ops at all — so 1.8 multiplies it too, and
+   * at the chorus's repetition it goes to roughly 15.8 against about 1.6 and 1.8
+   * for the two branches that do something. That is the genre this file describes
+   * — `defaultHook: 'catchy'`, the same chorus every time — but it is a second
+   * effect of the number and not the one the paragraph above argues.
+   *
+   * `expand` up: this genre's chorus is louder rather than brighter —
+   * `relativeMajorChorus: 0` on all twenty-four styles, `layerPlan.response` with
+   * the drums at 0.85 — and same contour with wider intervals is what *more of it*
+   * sounds like in a tune. `displace` down: the backbeat is a hard property of the
+   * drum tables rather than a tendency, `sd` on slots 4 and 12 in every pattern in
+   * the file, and `punk`'s every stroke is a downstroke.
+   *
+   * `sequence`, `ornament` and `diminish` are left where the styles put them. All
+   * three derive from numbers authored twenty-four times here, and those numbers
+   * disagree with each other for reasons each style has written down.
+   *
+   * `augment` and `fragment` are in neither table, so they sit at `opsFor`'s
+   * fallback of 1 — which means rock's cadence is the shared default apart from
+   * `reharmonise: 0.2` taking the fourth `close` branch nearly out of the draw,
+   * leaving fragment-and-augment at 3:3 against augment alone at 2. Country
+   * declares 1.6 there and metal 1.4; this genre has no evidence in its tables for
+   * either direction yet, and the position is neutral on purpose rather than by
+   * oversight.
+   */
+  voice: {
+    archetypes: [
+      ['riff-response', 5],
+      ['arch-hook', 4],
+      ['chant', 3],
+      ['descending-sequence', 2],
+    ],
+    subsets: [
+      // 1 ♭3 4 5 ♭7 on the minor ladder, 1 3 4 5 ♭7 on mixolydian, 1 3 4 5 ♮7 on plain major
+      [[0, 2, 3, 4, 6], 5],
+      [[0, 1, 2, 3, 4, 5, 6], 5],    // the whole key, for the sixteen that sing one
+      [[0, 1, 3, 4, 6], 2],          // no third — 1 2 4 5 ♭7, or 1 ♭3 5 ♭7 truncated onto a pentatonic
+      [[0, 1, 2, 3, 4, 6], 2],       // the key without the degree a major IV bends
+    ],
+    ops: { transpose: 1.8, expand: 1.6, displace: 0.5, invert: 0.3, reharmonise: 0.2 },
+  },
+
+  /**
    * The scale rule: follow the key, bend as far as the parallel minor, and never
    * raise the seventh.
    *
