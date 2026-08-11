@@ -93,7 +93,8 @@
  */
 
 import {
-  Color, Fog, Group, Mesh, type Object3D, PlaneGeometry, ShaderMaterial,
+  Color, DoubleSide, Fog, Group, Mesh, type Object3D, PlaneGeometry,
+  ShaderMaterial,
 } from 'three';
 
 import { Rng } from '../../core/rng.js';
@@ -399,6 +400,7 @@ export function buildStage(venue: Venue, opts: StageOptions = {}): StageRig {
       },
       transparent: true,
       depthWrite: false,
+      side: DoubleSide,
       vertexShader: /* glsl */ `
         varying vec2 vUv;
         void main() {
