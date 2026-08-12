@@ -435,8 +435,39 @@ export function generateSong(opts: GenerateOptions = {}): Song {
    * A style that declares nothing never reaches any of it: `standing` is
    * `undefined`, the section draw is not constructed and the device branch below
    * is what decides, exactly as it did.
+   *
+   * ## …but a sung declaration does not compete for these players
+   *
+   * The premise above is *"a section that is already in two parts"*, and for
+   * `counter` and `melody` it is true by construction — those are the layers the
+   * device itself writes into, and two passes arranging one player is the fault
+   * the gate exists for. `on: 'vocal'` is not that. It names a generator rather
+   * than a layer, `generateVocalStack` writes it over the singer's own syllables,
+   * and no instrumentalist is asked for anything. Two singers in thirds is not a
+   * reason for the horns to stop harmonising.
+   *
+   * **And where the singer is not there at all, the premise is simply false.**
+   * `vocals` defaults to false and the station never passes it, so on the sixteen
+   * styles declaring `on: 'vocal'` the gate was suppressing the device in favour
+   * of a part that was never written. Measured over the same sixteen styles at 20
+   * seeds each with vocals off, stripping the declaration at runtime took the
+   * share of songs carrying any second voice from 16.6% to 31.6% — the
+   * declaration was halving it and putting nothing in its place, which is the
+   * cost `iskelma/index.ts` names in its own note on why it declares none.
+   *
+   * Gated on the layer rather than on `opts.vocals`, which would have been the
+   * shorter fix and the wrong one: `vocals` is documented one screen up as an A/B
+   * that *"produces the identical instrumental arrangement whether or not vocals
+   * are on"*, and a device that fires only in the instrumental rendering would
+   * make the flag a reroll of the band. This way the horns do the same thing
+   * either way and the singer is the only difference, which is the claim.
    */
   const standing = style.harmony ?? genre.harmony;
+  /**
+   * The part of that declaration which is about *these players* — the only part
+   * the device can collide with. See the block above.
+   */
+  const standingPlayed = standing && standing.on !== 'vocal' ? standing : undefined;
   /**
    * Which sections a declared vocal stack sings in and how far from the tune,
    * and the scale each of those sections is heard in.
@@ -2339,7 +2370,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
          * One phrase, in a chorus that has been heard before, and never the last two
          * bars: the cadence is where the two parts most need to be two.
          */
-        if (!standing && has(chart, 'harmony') && section.kind === 'chorus' && ordinal >= 1
+        if (!standingPlayed && has(chart, 'harmony') && section.kind === 'chorus' && ordinal >= 1
           && section.lengthBars >= 8) {
           answer = withTheTune(answer, chart.harmonyBelow, plan.counter);
         }
