@@ -265,11 +265,15 @@ export const torsoShell = (l: Leases): LatheGeometry =>
  * So this builds one. Two concentric shells joined at every open edge, cut to
  * the same head, which gives three things a sphere cannot:
  *
- * **It joins the head.** `wall` is given in multiples of the head's own radius,
- * and the geometry is meant to be scaled by exactly the skull's own scale — so
- * `wall: [0.98, 1.10]` puts the inner surface *two per cent inside the skin* and
- * the outer ten per cent proud. There is no gap because the two solids
- * interpenetrate: hair grows out of a scalp rather than hovering over one.
+ * **It is placed against the head rather than near it.** `wall` is given in
+ * multiples of the head's own radius, and the geometry is meant to be scaled by
+ * exactly the skull's own scale, so both surfaces are stated *as* the head:
+ * `[1.03, 1.19]` is four millimetres of air under two and a half centimetres of
+ * hair, and `[0.98, x]` would bury the inner surface in the scalp. The point is
+ * not that one of those is right — hair wants a little air under it and a
+ * bathing cap does not — it is that the amount is a number somebody chose and
+ * can read back, where a sphere near a head has an offset that varies from the
+ * crown to the nape and is nobody's decision at all.
  *
  * **It has an edge.** The hem and the two sides of the face opening are walls
  * with area, so a cut reads as a cut from any angle and takes its own shading.
