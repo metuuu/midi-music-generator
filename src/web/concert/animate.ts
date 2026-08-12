@@ -440,6 +440,18 @@ const WATCH_HOLD_MIN_SECONDS = 0.5;
 const WATCH_HOLD_MAX_SECONDS = 1.8;
 
 /**
+ * The most of a cue that may be spent anticipating it.
+ *
+ * The seconds above are the right unit for the ordinary case and the wrong one
+ * for a short cue: they were drawn against solos that last half a minute, and a
+ * chorus traded in fours hands the stage over every four bars — five seconds at
+ * a bright tempo, which two seconds of head start eats half of. A quarter
+ * leaves the turn early enough to read as anticipation and late enough that the
+ * player still blowing has the room to themselves while they are in it.
+ */
+const WATCH_LEAD_SHARE = 0.25;
+
+/**
  * What a solo that has already finished is worth, against one that has not.
  *
  * `groove` arbitrates between two `watch` behaviours by amplitude, and a band
@@ -3278,8 +3290,9 @@ class Runtime implements Animator {
    * bars before they play, which is the fault this exists to fix.
    *
    * So: the span the beat is in, plus any span starting inside this player's own
-   * lead, plus any that ended inside their own hold. Both windows are seconds
-   * converted here rather than beats, because what makes an early turn read as
+   * lead — and inside a share of its own length, see `WATCH_LEAD_SHARE` — plus
+   * any that ended inside their own hold. Both windows are seconds converted
+   * here rather than beats, because what makes an early turn read as
    * anticipation instead of as a mistake is how long the audience sits with it,
    * and that does not change with the tempo.
    *
@@ -3296,11 +3309,20 @@ class Runtime implements Animator {
     while (i + 1 < spans.length && spans[i + 1]!.fromBeat <= beat) i++;
     p.spanCursor[index] = i;
 
-    const lead = beat + p.watchLead * this.beatsPerSecond;
+    const lead = p.watchLead * this.beatsPerSecond;
     const hold = beat - p.watchHold * this.beatsPerSecond;
     let v = spans[i]!.value;
-    for (let j = i + 1; j < spans.length && spans[j]!.fromBeat <= lead; j++) {
-      if (spans[j]!.value > v) v = spans[j]!.value;
+    for (let j = i + 1; j < spans.length && spans[j]!.fromBeat <= beat + lead; j++) {
+      const span = spans[j]!;
+      // Never earlier than a share of the thing being anticipated. A chorus
+      // traded in fours is eight cues in a row, and at a fast tempo a block is
+      // barely twice the lead — so a fixed head start spends the back half of
+      // every four with the band already turned away from the person still
+      // playing, which is the fault this whole function exists to prevent
+      // wearing the opposite sign. Nothing else is short enough to notice: a
+      // solo's own spans are quarter-sections, where the seconds bind first.
+      if (span.fromBeat - beat > (span.toBeat - span.fromBeat) * WATCH_LEAD_SHARE) continue;
+      if (span.value > v) v = span.value;
     }
     for (let j = i - 1; j >= 0 && spans[j]!.toBeat >= hold; j--) {
       const past = spans[j]!.value * WATCH_HOLD_WEIGHT;

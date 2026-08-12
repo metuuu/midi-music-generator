@@ -463,23 +463,53 @@ interface SoloSpan {
  * the player without re-deriving the "solo means counter" rule three files used
  * to each carry their own copy of. Matched on the layer, with the instrument
  * name as a tiebreak for a cast that has doubled a layer.
+ *
+ * A section can have two soloists in it. Trading fours is one chorus handed
+ * back and forth, and a section-long span would say the tenor player owns all
+ * thirty-two bars of it — so the whole band stands there watching somebody who
+ * stopped playing four bars ago while the drummer answers them in the dark.
+ * `SoloAssignment.blocks` is the arrangement's own statement about who has
+ * which bars, and reading it is the only way to get the alternation right: the
+ * blocks are not always fours and, in a full drum chorus, do not alternate at
+ * all. That degenerate case comes out of the same code path — `soloBars` is
+ * empty, `drumBars` is the section, and the drummer's own lookup returns the
+ * soloist — which is why the name is never tested here.
  */
 function soloSpans(song: Song, cast: Cast): SoloSpan[] {
   const barBeats = song.meta.beatsPerBar;
+  // Through `playerFor` rather than by layer, so a line somebody is covering
+  // as their second one still has a soloist. See `Performer.doubles`.
+  const kit = playerFor(cast, 'drums');
   const out: SoloSpan[] = [];
+
   for (const section of song.sections) {
     if (!section.solo) continue;
-    // Through `playerFor` rather than by layer, so a line somebody is covering
-    // as their second one still has a soloist. See `Performer.doubles`.
     const performer = playerFor(cast, section.solo.layer, section.solo.instrument);
     if (!performer) continue;
-    out.push({
-      fromBeat: quantise(section.startBar * barBeats),
-      toBeat: quantise((section.startBar + section.lengthBars) * barBeats),
-      performerId: performer.id,
-    });
+    const at = (bar: number): number => quantise((section.startBar + bar) * barBeats);
+    const { blocks } = section.solo;
+
+    if (!blocks) {
+      out.push({ fromBeat: at(0), toBeat: at(section.lengthBars), performerId: performer.id });
+      continue;
+    }
+    for (const [from, to] of blocks.soloBars) {
+      out.push({ fromBeat: at(from), toBeat: at(to), performerId: performer.id });
+    }
+    // A traded chorus behind a drum machine has nobody to turn to for the
+    // answering bars, and a head aimed at the person who has stopped would be
+    // the fault this whole branch exists to fix. Nothing is the honest answer:
+    // the band goes back to its own idle until the soloist comes in again.
+    if (!kit) continue;
+    for (const [from, to] of blocks.drumBars) {
+      out.push({ fromBeat: at(from), toBeat: at(to), performerId: kit.id });
+    }
   }
-  return out;
+
+  // In time order, because a trade interleaves two players and the order the
+  // spans are emitted in decides the order the `watch` behaviours are written
+  // in — which is the order two equal amplitudes are settled in downstream.
+  return out.sort((a, b) => a.fromBeat - b.fromBeat);
 }
 
 // ---------------------------------------------------------------------------
@@ -577,8 +607,12 @@ function groovePart(
   );
 
   const ownSolos = solos.filter((s) => s.performerId === performer.id);
+  // Overlap rather than containment: a trade's blocks are four bars and the
+  // energy profile is cut into quarters of a section, so on a long chorus one
+  // is not nested inside the other in either direction. Anywhere else the two
+  // tests agree, because there the window *is* the section.
   const inOwnSolo = (span: EnergySpan): boolean =>
-    ownSolos.some((s) => span.fromBeat >= s.fromBeat && span.toBeat <= s.toBeat);
+    ownSolos.some((s) => span.fromBeat < s.toBeat && span.toBeat > s.fromBeat);
 
   /**
    * A player whose layer is resting has more body available, not less.
@@ -599,6 +633,46 @@ function groovePart(
         base * span.energy * genreBody * restBonus(span) * (scale ? scale(span) : 1),
       )),
     }));
+
+  /**
+   * The same curve for a `watch`, cut *at* its windows instead of sampled by
+   * them.
+   *
+   * Every other behaviour can ask "is this energy span inside the window",
+   * because every other window is a whole section and the profile is cut by
+   * section. A trade is the exception: it hands the chorus over in four-bar
+   * blocks while the profile is cut into quarters of the section regardless, so
+   * on a thirty-two bar trade one energy span straddles two blocks and a
+   * containment test answers no for *both* players — a whole chorus with the
+   * band watching nobody. Cutting the other way keeps the section's build and
+   * puts the head turn on the block boundary, which is where the follow spot
+   * goes too.
+   *
+   * Outside the windows the value is a flat zero rather than a small number, so
+   * the runtime can tell "not watching" from "watching faintly" — see
+   * `watching` in `web/concert/animate.ts`, which reads these steps as a
+   * decision rather than as a size.
+   */
+  const watchSpans = (base: number, windows: SoloSpan[]): Span[] => {
+    const out: Span[] = [];
+    for (const span of energy) {
+      const value = round3(clamp01(base * span.energy * genreBody * restBonus(span)));
+      const cuts = [span.fromBeat, span.toBeat];
+      for (const w of windows) {
+        for (const edge of [w.fromBeat, w.toBeat]) {
+          if (edge > span.fromBeat && edge < span.toBeat) cuts.push(edge);
+        }
+      }
+      cuts.sort((a, b) => a - b);
+      for (let i = 0; i + 1 < cuts.length; i++) {
+        const [fromBeat, toBeat] = [cuts[i]!, cuts[i + 1]!];
+        if (toBeat - fromBeat < 1e-6) continue;
+        const on = windows.some((w) => fromBeat >= w.fromBeat && toBeat <= w.toBeat);
+        out.push({ fromBeat, toBeat, value: on ? value : 0 });
+      }
+    }
+    return out;
+  };
 
   const behaviours: GrooveBehaviour[] = [];
 
@@ -697,19 +771,19 @@ function groovePart(
    * One behaviour per distinct soloist rather than one with a switching target,
    * because `targetPerformerId` is a single field — which is right, since a
    * head can only be turned toward one person. A song whose solos rotate
-   * therefore produces two `watch` behaviours whose spans do not overlap.
+   * therefore produces two `watch` behaviours whose spans do not overlap, and a
+   * chorus traded between a soloist and the drummer produces two that alternate
+   * every four bars.
    */
   const targets = [...new Set(solos.filter((s) => s.performerId !== performer.id)
     .map((s) => s.performerId))];
   for (const target of targets) {
-    const windows = solos.filter((s) => s.performerId === target);
     behaviours.push({
       kind: 'watch',
       effector: 'head',
       periodBeats: barBeats * 2,
       targetPerformerId: target,
-      amplitude: spans(0.9, (span) =>
-        (windows.some((w) => span.fromBeat >= w.fromBeat && span.toBeat <= w.toBeat) ? 1 : 0)),
+      amplitude: watchSpans(0.9, solos.filter((s) => s.performerId === target)),
     });
   }
 
