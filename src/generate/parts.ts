@@ -410,6 +410,19 @@ export interface FigureVariation {
  * Both draws stay weighted by the table's own weights, so a rare colour is still
  * rare in the chorus. What the cast changes is *how many* of a style's figures
  * one song is allowed to hold, not which of them the idiom prefers.
+ *
+ * ## What it moved, measured the way the fault was
+ *
+ * Same probe, same eight songs a style, this and `DEFAULT_VARY` together:
+ * **147 styles under four distinct bass bar shapes fell to 83**, and the 195
+ * that wrote two identical songs fell to 88. The comp, which was already
+ * healthy, went from 18 styles with a repeat to 13. On the styles this was
+ * reported against, over 24 songs each: `synth/berlin` 16 distinct bass lines
+ * of 24 to 24 of 24, `reggae/roots` 15 to 24, `house/disco` 15 to 24.
+ *
+ * The floor that is left is the tables, not the mechanism. A style holding one
+ * rhythm spelled twice has nothing to cast, which is what `derive` is for and
+ * what widening those tables is for; see the note there for the count.
  */
 export interface FigureCast<P> {
   /** Verse, intro, outro — and the fallback for everything. */
@@ -456,6 +469,12 @@ export const DEFAULT_SWAP: Readonly<Record<'bass' | 'comp', number>> = { bass: 0
  *
  * A style that means never says `vary: { bass: 0 }`, which reads exactly as it
  * should and which the guard in `song.ts` treats as the absence it is.
+ *
+ * **It is the larger half of the pair, measured.** The cast alone took the 147
+ * styles under four distinct bass bar shapes to 113 and the 195 duplicate-song
+ * styles to 129; switching this on took them to 83 and 88. That order is not a
+ * surprise once stated: a cast changes the figure eight times in a song and this
+ * changes how it is played at every phrase end, which is four times as often.
  */
 export const DEFAULT_VARY: Readonly<Record<'bass' | 'comp', number>> = { bass: 0.35, comp: 0.25 };
 
@@ -480,13 +499,19 @@ function sameShape(
  *
  * ## Why a table cannot always be the answer
  *
- * Casting from the table is the better mechanism and it is tried first, but it
- * has a floor: measured over the catalogue, **169 of 387 styles hold one or two
- * distinct bass rhythms** and 210 hold three. A style with one rhythm spelled
- * twice — `countrypolitan`, `shuffle`, `cowboy`, `bebop` — has nothing to swap
- * to, and no amount of drawing fixes that. Widening 169 tables by hand is the
- * right long answer and a different job; this is what makes the mechanism reach
- * them in the meantime.
+ * Casting from the table is the better mechanism and it is drawn beside this
+ * one, but it has a floor: measured over the catalogue, **169 of 387 styles hold
+ * one or two distinct bass rhythms** and 210 hold three, so only ten styles in
+ * the whole project have more than three figures to be cast from. A style with
+ * one rhythm spelled twice — `countrypolitan`, `shuffle`, `cowboy`, `bebop` —
+ * has nothing to swap to at all, and no amount of drawing fixes that.
+ *
+ * Widening those tables is the right long answer and it is a different job: it
+ * is 169 acts of composition, one style at a time, and doing it badly is worse
+ * than not doing it. Three have been done — `house/trance`, `house/hardgroove`
+ * and `house/techhouse`, the three that measured worst on how many of eight
+ * songs came out distinct — and the rest are still two rows apiece. This is what
+ * makes the mechanism reach them in the meantime.
  *
  * ## Two operators, and they are the two already trusted here
  *
