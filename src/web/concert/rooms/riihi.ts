@@ -246,6 +246,23 @@ const WALL_OUT = 0.6;
 /** How far a log end runs past the corner it crosses. See `logWalls`. */
 const LOG_PROJECT = 0.34;
 
+/**
+ * How far inboard of the edge of the boards a rigging pick stands, which is a
+ * number this room has to know because its roof is not level.
+ *
+ * `RoomShape.rigLid` is defined against `BUILDERS.truss`, and that prop stands
+ * its verticals 0.4 m in from each end of a lattice that under a lid is capped
+ * at the width of the boards. In a room with a flat ceiling the distinction is
+ * worth nothing and nine of the twelve rooms never mention it. Here the roof
+ * climbs `RIDGE_RISE / halfX` — 0.385 m/m in the largest era, more than twice
+ * the shed's 0.16 — so 0.4 m of run is 0.153 m of rise, which is the whole of
+ * this room's published gap. Restated here rather than imported because
+ * `stage-props.ts` is downstream of this directory and importing it would point
+ * the dependency the wrong way; if the prop ever moves its picks, this is the
+ * line the measurement in `rigLid` will fail against.
+ */
+const RIG_PICK_IN = 0.4;
+
 /** The cart doors. Wide enough to back a load of sheaves through, and no wider. */
 const DOOR_W = 2.8;
 const DOOR_H = 2.35;
@@ -376,6 +393,34 @@ function shape(d: RoomDatum): RoomShape {
      * up bolted to a tie beam.
      */
     houseLid: b.soffit,
+    /**
+     * **The boarding over the pick, which is 0.153 m up the slope from
+     * `headroom`.**
+     *
+     * This room has no deck to publish — there are no rafters in this file, the
+     * planes *are* the roof, and `b.soffit` is the boarding exactly, at the edge
+     * of the boards. The shed's 0.470 m of rafter-and-purlin has no counterpart
+     * here. What is left is the slope itself, and in this barn the slope is
+     * steep enough to matter on its own: `RIDGE_RISE / halfX` is 0.385 m/m, so
+     * the 0.4 m from the edge of the deck in to a rigging pick is 0.153 m of
+     * climb. Measured, in the one era that names `truss` — the folk-department
+     * one, and it is the only truss venue in this room: drops topping out at
+     * 3.690 under boarding at 3.844.
+     *
+     * So this is the one field in the file that is stated *at the pick* rather
+     * than at the edge of the boards, and it can be, because unlike `headroom`
+     * and `houseLid` nothing takes a `Math.min` against it for clearance — see
+     * `RIG_PICK_IN` and `RoomShape.rigLid`. A camera solved against 3.844 would
+     * be a camera through the roof; a drop solved against 3.690 is a drop that
+     * stops in the air under it.
+     *
+     * Boarded over there is no roof at all and the prop's soffit is the only
+     * surface over the boards, so it collapses to `headroom` with everything
+     * else — the same branch `flyY` takes one line above.
+     */
+    rigLid: b.lowCeiling
+      ? headroom
+      : b.soffit + (RIDGE_RISE / b.halfX) * RIG_PICK_IN,
     /**
      * The gable behind the band, from the floor to the ridge — it is a wall of
      * the building and walls are measured from the ground. Where the room has
@@ -638,6 +683,64 @@ function build(c: RoomContext): RoomRig {
   }
   wall.receiveShadow = true;
   root.add(wall);
+
+  // --- the wall plate ------------------------------------------------------
+  /**
+   * The plate the rafters bear on, which this file has named twice and never
+   * built.
+   *
+   * `COURSES` is documented as "how many courses stand between the floor and the
+   * wall plate", `EAVES` as "the wall plate, above the house floor", and the roof
+   * says its rotation "lands the far edge exactly on the plate". There was no
+   * plate. The roof sprang off the crown of a round log, and a circle meets a
+   * plane at a point: between the top log's surface and the roof's lower edge
+   * there is a crescent of air 0.115 m tall at the wall's inner face, closing to
+   * nothing 0.055 m outboard of it, running the length of the building on all
+   * four sides.
+   *
+   * It is a real hole and it is a *sliver*, which is why it took a ray sweep to
+   * find. **Ten escaping rays, in the `pelimanni` and `revival` dressings**, of
+   * the 266 112 the catalogue is swept with: eight from a lens on the house floor
+   * looking out over the eaves at 51°, and two from the boards looking upstage
+   * over the gable. The arithmetic of the one that was traced: from
+   * (6.07, 0.05, 4.22) the ray crosses the inner face at y = 2.650 against a wall
+   * head at 2.690, passes over the top log's crown at x = 7.615, and would have
+   * met the roof plane 0.018 m further out — the plane simply stopped at 7.500.
+   *
+   * So a squared plate is laid on the top course. 0.23 m wide, the log's own
+   * diameter, so it occupies exactly the footprint the top round already had and
+   * nothing moves outward; 0.16 m deep, which takes the top two thirds of that
+   * log and leaves the roundness showing under it; and its top face at `eavesY`,
+   * which is the plane `EAVES` publishes and the plane the roof lands on. Any ray
+   * leaving now has to cross the roof, the plate's top or a log, and the three of
+   * them meet edge to edge at (`halfX`, `eavesY`).
+   *
+   * The corner is the notch above, one course up: the gables run long, out to
+   * the same `LOG_PROJECT` overrun the odd courses take, and the sides stop
+   * against them. They stop 0.06 m *inside* them rather than on them. Two
+   * timbers butted face to face put 0.037 m² of coplanar surface in each corner
+   * of the room at head height — the fight this file refuses everywhere else —
+   * and a notched corner has no butt joint in it to begin with.
+   */
+  const plateH = 0.16;
+  const plateY = eavesY - plateH / 2;
+  const gablePlateEnd = halfX + 2 * LOG_R + LOG_PROJECT;
+  const sidePlateGeo = c.kit.bevelBox(
+    2 * LOG_R, plateH, (zFront - LOG_R + 0.06) - (zBack + LOG_R - 0.06), 0.02,
+  );
+  for (const side of [-1, 1]) {
+    const plate = new Mesh(sidePlateGeo, timber);
+    plate.position.set(side * xSide, plateY, (zBack + zFront) / 2);
+    plate.receiveShadow = true;
+    root.add(plate);
+  }
+  const gablePlateGeo = c.kit.bevelBox(gablePlateEnd * 2, plateH, 2 * LOG_R, 0.02);
+  for (const at of [zBack, zFront]) {
+    const plate = new Mesh(gablePlateGeo, timber);
+    plate.position.set(0, plateY, at);
+    plate.receiveShadow = true;
+    root.add(plate);
+  }
 
   // --- the gables and the roof ---------------------------------------------
   /**

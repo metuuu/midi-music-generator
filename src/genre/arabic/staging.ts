@@ -187,10 +187,39 @@ const COURTYARD: StageRoom = {
     },
     /**
      * 2000s satellite. A television studio pretending to be the courtyard: the
-     * arcade is now a set, there is an LED wall where the sky was, and a truss
-     * over the whole thing. `screen` rather than `projection` — film on a cloth
-     * belongs to a different decade, and this era's whole point is that the
+     * arcade is now a set, a truss over the whole thing, and every surface lit
+     * by a rig rather than by the evening. This era's whole point is that the
      * picture is being made rather than the room.
+     *
+     * **It read *there is an LED wall where the sky was*, and there is no wall
+     * there for one to be on.** `screen` is gone. This is the third time this
+     * project has named two props that want the same surface and found out by
+     * measuring rather than by looking: `arches` is on the *room*, in all four
+     * eras, because it is the building, and `stage-props.ts` says in as many
+     * words that it arcades the back wall behind the band while `courtyard.ts`
+     * arcades the other three. So the one wall an LED screen hangs on is the
+     * wall the arcade stands 0.33 m downstage of, and the sky this sentence was
+     * trading on is upstage of both.
+     *
+     * Measured — 37.0% by `stage-check.ts` §5, and 33.9% by projecting both
+     * props' triangles at the house independently of it, which is the second
+     * method the check's own header asks for. The shape is worse than the
+     * fraction and is the real argument: a 0.36 m entablature runs unbroken
+     * across the whole 10.88 m of the video wall at 3.24–3.60 m, six piers
+     * 0.42 m wide stand under it and seven arch rings between them, and **not
+     * one vertical line of sight through the wall's full height is clear** — 0
+     * of 200 sampled columns. The largest piece of it a camera sees whole is
+     * 11.0%. The next worst lit prop in the catalogue is at 14.8% and is a
+     * backline along the bottom of a screen, which is a stage rather than a
+     * fault; between that and this there is nothing.
+     *
+     * The arcade wins, for the reason `latin/staging.ts` gives at length about
+     * the same collision in the same decade: it is the building, and the
+     * building is what the genre chose. What is left is still the studio — the
+     * truss, the cable runs, the black masking, the carpet and the cold key in
+     * the palette — and it is the half that was ever visible. `projection` is
+     * not the way out either: film on a cloth belongs to a different decade,
+     * and a cloth on that wall is behind the same six piers.
      */
     satellite: {
       palette: {
@@ -200,7 +229,7 @@ const COURTYARD: StageRoom = {
         proscenium: '#b9ae9c',
         ambient: '#cbd8ff',
       },
-      props: ['screen', 'truss', 'drapes', 'carpet', 'cables'],
+      props: ['truss', 'drapes', 'carpet', 'cables'],
       maybe: [['pa-stack', 0.45], ['haze', 0.4]],
       fog: 0.3,
       grow: [1.1, 0.6],

@@ -473,6 +473,30 @@ function shape(d: RoomDatum): RoomShape {
     headroom: soffit - rise,
     houseLid: soffit - rise,
     /**
+     * **The beam soffit again, and here that is a claim rather than a copy.**
+     *
+     * `rigLid` is the surface a motor drop is shackled to, and in a room with
+     * one-way downstand beams the surface a drop is shackled to *is a beam* — a
+     * hanger goes round the bottom flange, not up into the bay between two of
+     * them. So this publishes the same plane `headroom` does, which is the
+     * lowest thing overhead and also the thing anything overhead is fixed to.
+     *
+     * The measurement says both halves of that. A ray straight up from the
+     * truss's pick at `±(width / 2 − 0.4)` hits a rib at 5.486 m in the widest
+     * room — `headroom + 0.02`, the 20 mm the ribs are let up into the slab, see
+     * the note under `RIB_DEEP` — and in the two smaller ones the pick falls in
+     * a bay and the ray runs on to the slab at `headroom + 0.42`. Two of the
+     * three eras therefore read as a 0.42 m residual against a raycast, and it
+     * is the bay rather than a defect:
+     * the drop is between two beams at 2.1 m centres and the honest fixing is
+     * the beam. Publishing the slab would push it up *through* both of them.
+     *
+     * Nothing consumes this today — no synth era names `truss` — which is why
+     * the argument is written down rather than the number being chosen to make
+     * a scan quiet.
+     */
+    rigLid: soffit - rise,
+    /**
      * **The cyclorama, floor to slab and wall to wall — and this is the number
      * that matters most in this room.**
      *

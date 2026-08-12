@@ -490,6 +490,19 @@ function shape(d: RoomDatum): RoomShape {
      */
     headroom: Infinity,
     houseLid: Infinity,
+    /**
+     * And nothing to shackle to either, which is the third field the paragraph
+     * above answers rather than a fourth argument.
+     *
+     * `rigLid` splits from `headroom` in a room where the lowest thing overhead
+     * is a member with a surface behind it. Here neither exists. The only thing
+     * a ray fired up from the truss's pick can find in this room is the sky
+     * dome at 46.7 m, which is a painted hemisphere and not steel — publishing
+     * it would run a 42 m motor drop into a backdrop. `truss` takes its open-sky
+     * clause instead and stands the lattice on legs, which is what a rig in a
+     * field stands on.
+     */
+    rigLid: Infinity,
     backdropHeight: BACKDROP_H,
     /**
      * The fence, not a wall — and it is a surface all the same, which is what

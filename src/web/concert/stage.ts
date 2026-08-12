@@ -271,6 +271,7 @@ export function buildStage(venue: Venue, opts: StageOptions = {}): StageRig {
      */
     headroom: shape.headroom,
     houseLid: shape.houseLid,
+    rigLid: shape.rigLid,
     backdropHeight: shape.backdropHeight,
     wallX: shape.wallX,
     crowd: crowdExtent(venue.audience, -rise, depth / 2),

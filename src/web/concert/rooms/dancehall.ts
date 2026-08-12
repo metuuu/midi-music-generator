@@ -369,6 +369,35 @@ interface Hall {
   wallX: number;
   /** y of the underside of the lid, **above the house floor**. */
   lid: number;
+  /**
+   * y of the hall's **own** boarding, above the house floor, which is `LID` in
+   * every era including the boarded one.
+   *
+   * Two numbers where there was one, and the second is not a refinement of the
+   * first — it answers a different question. `lid` is *the lowest thing
+   * overhead*, which under `low-ceiling` is the prop's suspended plaster.
+   * This is *how tall the building is*, which no prop can change: you can hang
+   * a ceiling under a dance hall and you cannot lower its roof, and the walls
+   * are built to this.
+   *
+   * They were one number, and the room paid for it. The prop's plaster is a
+   * plane over the **house** — measured, `lipZ + 0.25` to
+   * `lipZ + houseDepth + 2.25` — while this hall runs `HALL_BEHIND` = 4.2 m
+   * past the last row, so a strip 1.95 m deep and the full width of the
+   * building, behind the crowd, belonged to nobody: a 3.6 m wall head under it
+   * and open sky over that. Six rays went out through it, three in each of the
+   * two dressings that name `low-ceiling` on this architecture — country's
+   * `honkytonk` and hiphop's `golden`.
+   *
+   * The 0.1 m between the two is what stops this from being the z-fight the
+   * header warns about — *two lids 10 cm apart is two buildings, and the one
+   * you can see is whichever was drawn last.* That is a rule about two surfaces
+   * competing for the same view, and these two never compete: the plaster is
+   * opaque, it is 0.1 m lower, and it is 1.25 m wider than the room at each
+   * side, so the only place the boarding is visible from anywhere inside is
+   * exactly the strip the plaster never reached.
+   */
+  roof: number;
 }
 
 function hall(d: RoomDatum): Hall {
@@ -378,12 +407,13 @@ function hall(d: RoomDatum): Hall {
     brick: d.props.has('brick'),
     wallX: d.houseWidth / 2 + WALL_OUT,
     /**
-     * Boarded over, the ceiling is the prop's and not this file's, and every
-     * number below is measured to the prop's plaster rather than to boarding
-     * that is not built. See the header: two lids 10 cm apart is two buildings,
-     * and the one you can see is whichever was drawn last.
+     * Boarded over, the lowest thing overhead is the prop's plaster and not
+     * this file's boarding, and every number solved off this field is measured
+     * to the plaster — the clearance the camera and the props want is the one
+     * they will actually meet.
      */
     lid: lowCeiling ? LOW_CEILING : LID,
+    roof: LID,
   };
 }
 
@@ -497,6 +527,24 @@ function shape(d: RoomDatum): RoomShape {
      * it is the era whose own comment asks for it.
      */
     houseLid: h.lowCeiling ? h.lid - HALL_RISE : headroom,
+    /**
+     * `headroom` a third time, and the reason is the same one that made the
+     * field above easy: the boarding over this room is one plane.
+     *
+     * `rigLid` exists because in a shed the lowest thing overhead is a rafter
+     * and the roof is 0.47 m behind it, so a motor drop trimmed to `headroom`
+     * ends in air. There is nothing behind this ceiling. Measured, with the ray
+     * fired straight up from the truss's pick at `±(width / 2 − 0.4)` on both
+     * runs: the first surface is at 3.150 m in the plain hall against a
+     * `headroom` of 3.150 — 0.000 m — so the drops the 1994 and 2010 eras hang
+     * were already landing on the boards and this line is here to say so rather
+     * than to move anything.
+     *
+     * It follows `headroom` under the `low-ceiling` prop for the reason `flyY`
+     * does: the soffit that arrives there is the only surface over the bandstand
+     * and a drop has nothing else to reach for.
+     */
+    rigLid: headroom,
     /**
      * The end wall of the hall, floor to ceiling, measured from the floor
      * because it is a wall and walls are measured from the ground.
@@ -633,8 +681,10 @@ function build(c: RoomContext): RoomRig {
   const m = c.m;
   const h = hall(c);
   const { wallX } = h;
-  /** The lid, in the stage's own coordinates. */
+  /** The lid, in the stage's own coordinates. What the posts and beams die into. */
   const lidY = m.houseY + h.lid;
+  /** The hall's own boarding, same coordinates. The same plane in three eras of four. */
+  const roofY = m.houseY + h.roof;
   /** The two ends of the building. See `WALL_OUT`. */
   const frontZ = m.backZ - 0.12;
   const backZ = m.lipZ + m.houseDepth + HALL_BEHIND;
@@ -719,16 +769,17 @@ function build(c: RoomContext): RoomRig {
    * solid wall answers that with a black screen where a single-sided one lets
    * you look straight in.
    *
-   * The floor-to-ceiling height is `h.lid` in every era including the boarded
-   * one, and that is deliberate rather than incidental: under the `low-ceiling`
-   * prop the plaster comes in at exactly `houseY + LOW_CEILING`, so a wall built
-   * to anything else would leave a slot of nothing all the way round the room —
-   * the failure `stage-props.ts` has already had twice and written two comments
-   * about, and the one this room came closest to shipping.
+   * The floor-to-ceiling height is `h.roof` and not `h.lid`, which are the same
+   * number in three eras of four and 0.1 m apart in the boarded one. A wall is
+   * built to the building's own ceiling: it was built to the *prop's* plaster
+   * instead, which is 0.1 m lower and — this is the half that mattered — 1.95 m
+   * shorter at the back than this room is, so the wall head stopped under a
+   * ceiling that was not there yet. See `Hall.roof`, which carries the
+   * measurement.
    */
   const wallRng = c.rng('walls');
   const sideWall = (side: number): Group => {
-    const wall = boardWall(c, h, roomLen, h.lid, wallRng);
+    const wall = boardWall(c, h, roomLen, h.roof, wallRng);
     wall.position.set(side * wallX, m.houseY, (frontZ + backZ) / 2);
     wall.rotation.y = side * -Math.PI / 2;
     return wall;
@@ -736,12 +787,12 @@ function build(c: RoomContext): RoomRig {
   root.add(sideWall(-1));
   root.add(sideWall(1));
 
-  const rear = boardWall(c, h, wallX * 2, h.lid, wallRng);
+  const rear = boardWall(c, h, wallX * 2, h.roof, wallRng);
   rear.position.set(0, m.houseY, backZ);
   rear.rotation.y = Math.PI;
   root.add(rear);
 
-  const end = boardWall(c, h, wallX * 2, h.lid, c.rng('backdrop'));
+  const end = boardWall(c, h, wallX * 2, h.roof, c.rng('backdrop'));
   end.position.set(0, m.houseY, frontZ);
   root.add(end);
 
@@ -865,7 +916,8 @@ function build(c: RoomContext): RoomRig {
    *
    * **Dropped 0.02 m**, so the beam's top is under the boarding rather than in
    * it. `postH` is `h.lid - beamH`, so a beam sitting square on its posts has its
-   * top face at `m.houseY + h.lid`, which is `lidY` — the plane of the ceiling,
+   * top face at `m.houseY + h.lid`, which is `lidY` — and in the three eras the
+   * hall has no suspended ceiling that is the plane of the boarding itself,
    * drawn `DoubleSide` and therefore drawn from below as well. Both runs the
    * length of the room, so it was three square metres of ceiling flickering
    * over the two things the eye follows in this room. The 2 cm comes off the
@@ -884,12 +936,20 @@ function build(c: RoomContext): RoomRig {
   /**
    * The ceiling, and it is the reason the room is worth building.
    *
-   * Not built at all where `low-ceiling` is up: `stage-props.ts` is about to
-   * span the whole room with a `DoubleSide` plane 10 cm below this one, and
-   * geometry nobody can see is geometry nobody should pay for. Everything else
-   * in this file stands in that era exactly as it does in the other three — the
-   * posts, the beams, the floor and the walls are what the eye reads a dance
-   * hall by at head height anyway, and the posts simply stop 10 cm lower.
+   * It used to be skipped where `low-ceiling` is up, on the grounds that
+   * `stage-props.ts` was about to span the whole room with a `DoubleSide` plane
+   * 10 cm below this one and geometry nobody can see is geometry nobody should
+   * pay for. The first clause is false and the second is therefore not the
+   * question. The prop's plaster spans the **house**, from `lipZ + 0.25` to
+   * `lipZ + houseDepth + 2.25`; this hall carries on `HALL_BEHIND` = 4.2 m past
+   * the last row, so it stopped 1.95 m short of the rear wall and the ceiling
+   * behind the crowd was open sky. Six of the catalogue's 4084 escaping rays
+   * were going out through the strip. See `Hall.roof`.
+   *
+   * So it is built in every era, at `roofY`, which is the hall's own boarding
+   * and is 0.1 m above the plaster rather than on it. The posts and the beams
+   * still die into `lidY` — what a post is visibly holding up in that era is
+   * the suspended ceiling, which is what you can see.
    *
    * `cellPlane` and `DoubleSide` and no shadow flags, which is what every lid in
    * this project is, and the argument is `low-ceiling`'s own and worth restating
@@ -911,21 +971,19 @@ function build(c: RoomContext): RoomRig {
    *
    * It runs wall to wall so every edge of it dies into something.
    */
-  if (!h.lowCeiling) {
-    const lid = new Mesh(
-      c.kit.own(cellPlane({
-        width: floorW, height: floorD,
-        cols: Math.max(8, Math.round(floorW / 0.3)),
-        rows: Math.max(4, Math.round(floorD / 2.2)),
-        colour: tint(blend(p.proscenium, p.ambient, 0.28), 0.2),
-        jitter: 0.1, rng: c.rng('ceiling'),
-      })),
-      c.kit.solid('#ffffff', { vertexColors: true, rough: 0.96, side: DoubleSide }),
-    );
-    lid.rotation.x = -Math.PI / 2;
-    lid.position.set(0, lidY, (frontZ + backZ) / 2);
-    root.add(lid);
-  }
+  const lid = new Mesh(
+    c.kit.own(cellPlane({
+      width: floorW, height: floorD,
+      cols: Math.max(8, Math.round(floorW / 0.3)),
+      rows: Math.max(4, Math.round(floorD / 2.2)),
+      colour: tint(blend(p.proscenium, p.ambient, 0.28), 0.2),
+      jitter: 0.1, rng: c.rng('ceiling'),
+    })),
+    c.kit.solid('#ffffff', { vertexColors: true, rough: 0.96, side: DoubleSide }),
+  );
+  lid.rotation.x = -Math.PI / 2;
+  lid.position.set(0, roofY, (frontZ + backZ) / 2);
+  root.add(lid);
 
   // --- the bandstand -------------------------------------------------------
   /**

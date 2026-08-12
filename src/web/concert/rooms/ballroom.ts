@@ -561,8 +561,19 @@ function shape(d: RoomDatum): RoomShape {
      * honest way to publish "nothing is in your way". Over the boards of this
      * room there is a stage house: a dark void above the arch, masked from the
      * front by the header, with a grid batten across it at `openingHeight + 1.2`
-     * and nothing else in it at all. No lid, no soffit, no plaster. The room's
-     * ceiling stops at the proscenium wall, where a theatre's always has.
+     * and nothing else in it but air.
+     *
+     * There is plaster on top of that void — see the roof at the end of the
+     * ceiling section, which was added after this paragraph and which the
+     * paragraph used to deny — and it changes nothing here, which is the point
+     * worth keeping. It is at `lidY`, the depth of the header above the arch
+     * (1.99 m in the 1968 room) and 0.52–1.02 m above the top of the grid batten
+     * across the eleven dressings that build it. The tallest thing anything in
+     * this room reaches is that batten, which `truss` and `mirror-ball` land on
+     * exactly — 6.000 m in 1975, 6.160 in 1980, 6.280 in 1984 — and the highest
+     * framing the director composes is 3.60. `circuit.ts` publishes `Infinity`
+     * under a steel roof ten metres up on exactly this argument. A clearance
+     * plane nothing can reach is not a clearance plane.
      *
      * `circuit.ts` reached the same answer from the other end and its reasoning
      * is the reasoning here, so it is not re-argued but it is re-measured.
@@ -607,6 +618,29 @@ function shape(d: RoomDatum): RoomShape {
      * to, which is the bug `lights.ts` describes at `roomLid`.
      */
     houseLid: (club ? LOW_CEILING : ceiling) - rise,
+    /**
+     * The same plane as `headroom`, because both of this room's lids are flat.
+     *
+     * `rigLid` is the steel a motor drop dies into rather than the lowest thing
+     * a lens has to clear, and the two only come apart where the roof is sloped,
+     * coffered or framed — the shed, the riihi and the salon, which are the
+     * three rooms that answer it with anything but this line. A plaster soffit
+     * is one plane and there is nothing behind it: measured over the truss's
+     * pick at `±(width / 2 − 0.4)`, the club era's soffit is at `STAGE_SOFFIT`
+     * and so is the first surface above it, to 0.000 m.
+     *
+     * `Infinity` in the other three eras, and that is the load-bearing half.
+     * There is a stage house up there — see `headroom` — and what is in it is a
+     * grid batten at `openingHeight + 1.2` for `truss` to find, with the room's
+     * own plaster 0.52–1.02 m above that. Neither may be published here. The
+     * batten would be a lid invented out of a beam that only exists over
+     * `runs[0]`, and the prop already has its own clause for a room with a tower
+     * and reaches the timber by itself. The plaster would be worse: a motor drop
+     * solved against it is half a metre to a metre of steel *through* the grid it
+     * is supposed to be shackled to, and the measurement says the drops land on
+     * that timber to 0.000 m today.
+     */
+    rigLid: club ? STAGE_SOFFIT : Infinity,
     /**
      * The wall behind the band, measured from the floor like a wall — and it is
      * the same height as the room, because it *is* the room. The stage is an
@@ -1350,6 +1384,68 @@ function build(c: RoomContext): RoomRig {
       inner.rotation.x = Math.PI / 2;
       root.add(inner);
     }
+
+    /**
+     * And the same plaster over the stage house, which had none.
+     *
+     * `headroom`'s note calls the volume above the arch "a dark void ... No lid,
+     * no soffit, no plaster", and it was one: the side walls run the whole length
+     * of the building and stop at `lidY`, the backdrop is the end wall at exactly
+     * `lidY`, the cheeks and the header close the downstage end to exactly
+     * `lidY` — four sides of a box with nothing on top of it. Measured, from the
+     * eye points `camera.ts` can actually reach: **624 escaping rays in funk's
+     * four dressings, 608 in pop's, 451 in rnb's, 1683 of the catalogue's 4084**.
+     * In the 1968 room, 144 of the 157 left from a lens standing *on the boards*
+     * looking up; the other 13 went out through the proscenium opening from the
+     * side of the house — the 51° shot the failure was reported as — passing
+     * under the header and carrying on up.
+     *
+     * One plane closes all of it, and every escaping ray in the room proves that
+     * one plane is enough: each of the 157 crosses the grid height *inside* the
+     * stage house, at z from −2.82 to 3.54 of a house that runs −3.60 to 3.80.
+     *
+     * ## Not borders, and that was measured before it was rejected
+     *
+     * The theatre answer to a void over the boards is a *teaser* on the bar, and
+     * this room has exactly one bar height to hang one from — the grid batten at
+     * `openingHeight + 1.2`, 1.85 m upstage of the proscenium wall. It fails
+     * twice. It cannot close the room: a border is a strip, the escapes cross the
+     * grid plane over 6.4 m of stage depth, and covering that with strips at one
+     * height *is* this plane, drawn in pieces. And it cannot be hung without
+     * getting into the picture, which is the more interesting half. The header's
+     * lower edge is the top of the frame at `wallZ`; a sightline that grazes it
+     * from a lens at the front of the house is 2.09 m higher again by the time it
+     * reaches the batten — 6.69 m against a border bottom at 4.60 — so a teaser
+     * there reads as the arch having been lowered by two metres, from every seat
+     * except the very back. What masks this room is the header, which is 1.99 m
+     * deep and standing where masking belongs.
+     *
+     * So the audience does see the grid here, and that is the room and not an
+     * oversight: `flyY` is solved to fill the head of the opening with the truss
+     * *in shot*, and the batten is the timber it hangs from.
+     *
+     * The plaster is darker than the house's. It is the one ceiling in the
+     * building nothing points at — the pars on the bar are aimed down at the band
+     * — and above the arch a theatre is painted out. Not black: `lidColour` at
+     * 0.55 is still a surface returning what the wash gives it, which is the
+     * whole of the cellar ceiling's lesson about spending the smallest light
+     * budget in the room on the darkest albedo in it.
+     */
+    const houseRoof = new Mesh(
+      c.kit.own(cellPlane({
+        width: halfX * 2,
+        height: wallZ - sideFrom,
+        cols: Math.max(4, Math.round((halfX * 2) / 1.5)),
+        rows: Math.max(3, Math.round((wallZ - sideFrom) / 1.5)),
+        colour: shade(lidColour, 0.55),
+        jitter: 0.09,
+        rng: lidRng,
+      })),
+      c.kit.solid('#ffffff', { vertexColors: true, rough: 0.98, side: DoubleSide }),
+    );
+    houseRoof.rotation.x = -Math.PI / 2;
+    houseRoof.position.set(0, lidY, (sideFrom + wallZ) / 2);
+    root.add(houseRoof);
   }
 
   // --- what the lamps hang on ----------------------------------------------

@@ -298,8 +298,37 @@ interface Works {
    * the camera and every hanging prop that 0.42 m for nothing, and would put
    * the `truss` prop's motor drops 42 cm short of the steel they are supposed
    * to be shackled to.
+   *
+   * **That last sentence was true of this number as well, and it took a second
+   * field to fix.** The drops were 0.533 m short, not 0.42 — measured, top of
+   * the drop at 4.766 against sheeting over the pick at 5.300 — because `truss`
+   * was reading `RoomShape.headroom`, this plane, as the surface it dies into.
+   * It is not a surface. It is the underside of the *rafter*, and the sheeting
+   * is a rafter and a purlin above it. See `soffitDeck`, which is the surface,
+   * and `rigLid` in `shape()`, which is now what the prop asks for.
    */
   soffit: number;
+  /**
+   * The **sheeting** over the edge of the boards, above the boards: `soffit`
+   * plus the depth of everything between the rafter's underside and the steel.
+   *
+   * The two are 0.470 m apart — `DECK`, a 0.34 m rafter with a 0.13 m purlin on
+   * it — and that gap is not a detail of the roof, it is the whole reason
+   * `rooms/types.ts` grew a third lid. A camera wants the lowest thing over its
+   * head and gets `soffit`; a motor drop wants the thing it is shackled to and
+   * gets this. Measured at 5.236 m in the three sheeted eras against a `soffit`
+   * of 4.766.
+   *
+   * Taken at the **edge of the boards** rather than over the truss's pick, which
+   * leaves 0.064 m on the table and is deliberate: the roof is a slope, one
+   * number cannot be true across it, and the deck edge is the lowest the
+   * sheeting gets anywhere over the stage. A value taken there can never be
+   * above the steel at any x a hanger could stand at; a value taken at the pick
+   * would be 0.064 m above the sheeting at the corner of the deck. `PITCH` is
+   * 0.16 m/m, so the last 0.4 m in to the pick is worth 0.064 m — the residual
+   * is that arithmetic exactly, and it is a sixth of what it replaces.
+   */
+  soffitDeck: number;
 }
 
 function works(d: RoomDatum): Works {
@@ -330,6 +359,14 @@ function works(d: RoomDatum): Works {
     soffit: cellar
       ? STAGE_SOFFIT
       : HAUNCH + PITCH * (halfX - d.width / 2) - SHED_RISE,
+    /**
+     * Boarded over there is no sheeting, so the one surface anything overhead
+     * can be fixed to is the soffit the prop draws — the same collapse the
+     * `haunch` and `ridge` lines above make, for the same reason.
+     */
+    soffitDeck: cellar
+      ? STAGE_SOFFIT
+      : HAUNCH + PITCH * (halfX - d.width / 2) + DECK - SHED_RISE,
   };
 }
 
@@ -440,6 +477,32 @@ function shape(d: RoomDatum): RoomShape {
      * is the version that cannot be wrong from a camera angle.
      */
     houseLid: w.cellar ? -SHED_RISE + LOW_CEILING : w.soffit,
+    /**
+     * **The sheeting, not the rafter — and this is the room the field was
+     * written for.**
+     *
+     * `headroom` above spends five paragraphs arguing that the roof is *in the
+     * way*, and every word of it is right about the camera and wrong about a
+     * hoist. It publishes the underside of the rafter, which is what a lens has
+     * to clear; a motor drop is shackled to the steel the rafter carries, and
+     * that is `DECK` — 0.34 m of rafter plus a 0.13 m purlin — higher up. So
+     * `truss` was reading 4.766 and stopping there, with the sheeting over its
+     * pick at 5.300: **0.533 m of daylight between the top of every drop and the
+     * roof it was supposed to die into**, in all six of the truss venues this
+     * room stages — two metal eras, two dnb and two house — five metres up,
+     * where the only camera that can see it is the one flying the orbit.
+     * Publishing `w.soffitDeck` closes 0.470 of that.
+     *
+     * The remaining 0.064 is the slope and it is left on purpose: see
+     * `Works.soffitDeck`, where the choice of the deck edge over the pick is
+     * argued. `PITCH * 0.4` is exactly that number.
+     *
+     * Under a lid it collapses to `STAGE_SOFFIT` with the rest of the roof. The
+     * 1982 era draws no frame, no purlin and no sheeting — the header says why —
+     * so the only thing over the boards is the prop's own soffit, and a drop
+     * that reached for a roof this file did not build would end in nothing.
+     */
+    rigLid: w.cellar ? STAGE_SOFFIT : w.soffitDeck,
     /**
      * The end wall behind the band, floor to ridge, measured from the slab
      * because it is a wall and walls are measured from the ground.

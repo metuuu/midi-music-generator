@@ -49,8 +49,9 @@
  *
  * ## Two methods, not one
  *
- * `shape()` answers eight numbers and builds nothing — seven when this was
- * written, and `houseLid` is the eighth. `build()` builds and
+ * `shape()` answers ten numbers and builds nothing — seven when this was
+ * written; `houseLid`, `wallX` and `rigLid` are the three added since.
+ * `build()` builds and
  * answers no numbers. The split is the same one `InstrumentModel.resolve` makes
  * against its own geometry, for the same reason: the choreography has to be
  * computable without ever constructing a guitar, and the room's dimensions have
@@ -120,7 +121,7 @@ import type { Kit, Quality, StageMetrics } from '../stage-kit.js';
  *
  * Everything here is a function of `Venue` alone and no room may argue with any
  * of it: these are the numbers `cast.ts`, `cables.ts` and `camera.ts` have
- * already committed to. It is `StageMetrics` minus the eight fields `RoomShape`
+ * already committed to. It is `StageMetrics` minus the nine fields `RoomShape`
  * decides and the two — `houseY` and `crowd` — that follow from `rise`.
  */
 export interface RoomDatum {
@@ -148,9 +149,9 @@ export interface RoomDatum {
 /**
  * What a room has to tell the rest of the show about itself.
  *
- * Eight numbers — seven when this was written, `houseLid` being the one added
- * since — and each of them is somewhere a room that had not thought
- * about the question would put something through a wall. They are required —
+ * Ten numbers — seven when this was written; `houseLid`, `wallX` and `rigLid`
+ * are the three added since — and each of them is somewhere a room that had not
+ * thought about the question would put something through a wall. They are required —
  * there is no partial form and no merge with a default — because the failure
  * this seam exists to prevent is a room *silently inheriting a proscenium's
  * dimensions*, which was **the failure every one of the fourteen rooms was
@@ -230,6 +231,57 @@ export interface RoomShape {
    * the only room with a lid on it. It is stated now.
    */
   houseLid: number;
+  /**
+   * y of the continuous surface a hanger over the **boards** can be shackled
+   * to, or `Infinity` where there is none.
+   *
+   * A third lid, and the split it makes is not the one `headroom` and `houseLid`
+   * make. Those two are both *clearance* planes and they differ by where you are
+   * standing — plaster over the audience, a lower soffit over the band. This one
+   * differs by what the number is **for**. A camera wants the lowest thing over
+   * its head; a motor drop wants the steel it ends in. In a room whose roof is
+   * sloped, coffered or framed those are two heights, because the lowest thing
+   * is a member and the surface is behind it: `headroom` is the underside of the
+   * rafter, `rigLid` is the sheeting the rafter carries.
+   *
+   * **Measured against `BUILDERS.truss`**, which is the only thing that asks and
+   * which stands its picks 0.4 m inboard of each end of a lattice that, under a
+   * lid, is capped at the width of the boards. So the question this field
+   * answers is exactly "what is over `x = ±(width / 2 − 0.4)`, upstage and
+   * downstage of the band" — not "how thick is your roof". A room with a flat
+   * lid over the boards answers its own `headroom` and is finished in one line;
+   * nine of the twelve do.
+   *
+   * The other three are the defect it was added for. `truss` read `headroom` as
+   * the surface its drops die into, and in eight of the twenty-three venues that
+   * can draw one — 21 name it outright and two more roll for it — the drops
+   * therefore ended in open air. Measured, at the top of
+   * the drop: **0.533 m** short in the shed, where `headroom` is the rafter
+   * soffit and the sheeting is a 0.470 m deck of rafter-plus-purlin above it;
+   * **0.153 m** short in the riihi, where the boarding *is* `headroom` at the
+   * edge of the deck but has climbed that far again over the 0.4 m in to the
+   * pick; **0.159 m** short in the salon, where `headroom` is the coffer ribs,
+   * the ribs are on the bay module and no pick lands on one, so what is actually
+   * over the drop is the panel plane 0.16 m higher. Nobody can get above those
+   * lids to see it, which is why it survived three rooms.
+   *
+   * One of the three answers a shade under the pick and says so: the shed takes
+   * its sheeting at the **edge of the boards**, 0.064 m below the same sheeting
+   * over the pick, because a shallow pitch makes that difference smaller than
+   * the price of publishing a plane that is above the roof at the corner of the
+   * deck. The riihi has no such choice — its boarding *is* `headroom` at the
+   * deck edge, so the whole of its gap is the 0.4 m of run, and taking the pick
+   * is the only answer that moves anything. Both are argued in their own files.
+   * A scan that raycasts up from the pick should expect 0.064 m in the shed and
+   * zero in the other two.
+   *
+   * `Infinity` for the reason `headroom` uses it, and it is deliberately not the
+   * same set of rooms: a stage house has a finite `houseLid` and genuinely
+   * nothing at all over the boards, so it says `Infinity` here and means it —
+   * `truss` has its own clause for that case and this field must not invent a
+   * grid for it.
+   */
+  rigLid: number;
   /**
    * How tall the thing behind the band is, measured from the **house floor**
    * rather than from the boards — it is a wall, and walls are measured from the

@@ -48,7 +48,7 @@
  */
 
 import {
-  BackSide, type BufferGeometry, Color, Float32BufferAttribute, Group, Mesh,
+  BackSide, type BufferGeometry, Color, DoubleSide, Float32BufferAttribute, Group, Mesh,
   MeshBasicMaterial, PlaneGeometry, SphereGeometry,
 } from 'three';
 
@@ -109,10 +109,12 @@ const CURTAIN_FROM_LIP = 0.45;
 
 /**
  * The proscenium's own numbers, exported so a room that is this room with
- * different walls can say so in one line rather than by copying eight
- * expressions and drifting from them. It was seven until `houseLid` stopped
- * being derived from `headroom` and became a field of its own, which is exactly
- * the drift this export exists to stop, arriving one level up.
+ * different walls can say so in one line rather than by copying ten
+ * expressions and drifting from them. It was seven, and each of the three since
+ * arrived the same way: `houseLid` and now `rigLid` stopped being derivable from
+ * `headroom` and became fields of their own, and `wallX` stopped being a
+ * constant a prop guessed at. That is exactly the drift this export exists to
+ * stop, arriving one level up, three times.
  *
  * Take it and override what differs — `{ ...prosceniumShape(d), rise: 0.45 }`
  * is a legitimate and complete answer for a room whose only architectural claim
@@ -140,8 +142,64 @@ export function prosceniumShape(d: RoomDatum): RoomShape {
      * a handspan under the plaster, which is what this is.
      */
     flyY: lowCeiling ? STAGE_SOFFIT - 0.13 : openingHeight - 0.35,
+    /**
+     * `Infinity` over the boards even in the room that now has a painted
+     * ceiling, and the precedent for that is `circuit.ts`.
+     *
+     * That room publishes `Infinity` under a steel roof ten metres up and argues
+     * why: this field is a *clearance* plane, and a height nobody can reach is
+     * the honest way to say "nothing is in your way". Publishing the ceiling
+     * instead is what breaks the props. `BUILDERS.truss` hangs at
+     * `headroom - 0.28` whenever the number is finite, which in a black box is
+     * 5.24 m — 1.02 m above the head of the arch, behind the header, where the
+     * audience cannot see it — and `rigHeight` sends every festoon and lantern
+     * run to the same place. Nothing this room draws gets near the plaster
+     * anyway: the fly bar trims at `openingHeight - 0.35` = 3.87 m, the tallest
+     * thing over the boards in any of the three black boxes is the projection
+     * screen at 4.05, and the highest framing the director composes is 3.60.
+     * The ceiling is at 5.52.
+     *
+     * The lid over the *house* is a different question and is answered
+     * differently on the next line, because something does read that one.
+     */
     headroom: lowCeiling ? Math.min(-rise + LOW_CEILING, STAGE_SOFFIT) : Infinity,
-    houseLid: lowCeiling ? -rise + LOW_CEILING : Infinity,
+    /**
+     * The plaster over the house — the cellar's soffit, and now the black box's
+     * ceiling too. `Infinity` only out of doors, which is the one dressing of
+     * this room that genuinely has nothing overhead.
+     *
+     * `openingHeight + 2.2 - rise` is `backdropHeight` two lines down, written
+     * in the stage's own coordinates: the walls have always been built to
+     * exactly this plane — `wallTop` in `build` used to reach it through a
+     * fallback and now just reads this field — so what changes here is not where
+     * anything stands, it is that the plane the room terminates its walls on is
+     * declared. It was `Infinity` and the ceiling was not built, which is how
+     * **2385 of the catalogue's 4084 escaping rays** came to be in one room:
+     * three walls with open sky over them, invisible only because
+     * `scene.background` is `#0b0908`.
+     *
+     * Declaring it is worth a line on its own because `camera.ts` reads it.
+     * The drag ceiling is `min(headroom, houseLid) - LENS_GAP`, so with both
+     * `Infinity` a viewer who pitched up went through the wall heads and out of
+     * the building — the same defect `ballroom.ts` records against its own
+     * plaster, one room over. It is 4.92 m here.
+     */
+    houseLid: openAir ? Infinity
+      : lowCeiling ? -rise + LOW_CEILING : openingHeight + 2.2 - rise,
+    /**
+     * `headroom` restated, because both of this room's answers to it are flat
+     * planes with nothing behind them.
+     *
+     * `rigLid` is the surface a motor drop dies into rather than the lowest
+     * thing a lens must clear, and the two only part company where the roof is
+     * sloped, coffered or framed. A cellar's soffit is a single sheet of plaster
+     * — `stage-props.ts` draws it at `STAGE_SOFFIT` and there is nothing above
+     * it that a hoist could reach. And over a fly tower there is honestly
+     * nothing at all, which is what the `Infinity` here means: `truss` has its
+     * own clause for a stage house and reaches for the grid by itself.
+     *
+     */
+    rigLid: lowCeiling ? Math.min(-rise + LOW_CEILING, STAGE_SOFFIT) : Infinity,
     /** A cloth indoors; a low wall you are meant to see over, outdoors. */
     backdropHeight: openAir ? 2.4 : openingHeight + 2.2,
     /**
@@ -242,7 +300,48 @@ function build(c: RoomContext): RoomRig {
   // --- the backdrop ------------------------------------------------------
   // Brick is the same cell trick with the rows staggered into a bond; an
   // open-air stage gets a low wall and the night behind it instead.
-  const backWidth = width * 1.2;
+  /** Inner face of the side walls. `prosceniumShape` publishes it as `wallX`. */
+  const wallHalfX = m.houseWidth / 2 + 0.6;
+  /**
+   * How wide the thing behind the band is — and the two branches below want
+   * two different answers, which is why this is no longer one number.
+   *
+   * `width * 1.2` for the open-air wall, unchanged: a tanssilava's back wall is
+   * a 2.4 m coped wall at the back of a dance floor with a sky dome behind it
+   * and **no side walls at all** — `wallX` is `Infinity` out there and the whole
+   * point of the room is that the ends of that wall are ends you can walk round.
+   *
+   * Indoors the same factor was wrong the way it was wrong in `salon.ts` and in
+   * the courtyard, and for the reason `salon.ts` gives: 1.2 is right for a
+   * *backdrop*, a cloth hung inside an arch where the arch and its tormentors
+   * mask whatever is either side of it. This room has an arch and does mask
+   * front-on — which is exactly why the hole survived here and was reported from
+   * the courtyard first — but the tormentors are flat panels standing at `archZ`
+   * and orbit yaw is not clamped anywhere in this renderer. Measured, against
+   * side walls at `houseWidth / 2 + 0.6`: **1.610 m by 6.556 m of nothing at
+   * each upstage corner in ambient/hybrid, 1.640 by 6.424 in tape and sampler**
+   * — 21.1 m² of void in a black box, which has no sky dome behind it either, so
+   * it is a true void and not a glimpse of night — and **1.720 m (1.680 in
+   * modern) by the cellar's 3.600 m of wall** in jazz's four. A sweep from
+   * twelve viewpoints inside the walls found it open through up to 12.50° of
+   * azimuth in the black box and 3.00° in the cellar, from half and a quarter of
+   * those viewpoints respectively; from the middle of the house it is 0.00°,
+   * which is the tormentors doing their job and is why nobody reported it.
+   *
+   * Closed by widening rather than by returning a panel at each end. A return
+   * would have to stand in this same plane — the gap is in x, not in z — so it
+   * is the same surface in two more draw calls, with the brick bond restarting
+   * twice across the back of the room. Widening touches nothing else: every
+   * tormentor and every wing stands downstage of here — 1.45 m at the closest,
+   * the upstage wing in jazz's cellar, and 6.98 m at the furthest — the fly
+   * tower is over the boards, `projection` hangs at `backZ + 0.06` and is sized
+   * off `width` and `openingWidth`, `drapes` hang at `curtainZ - 1.6`, and the
+   * cyc glow is `openingWidth * 1.02` at `backZ - 0.07`, still 0.03 m clear of
+   * a cloth that has only grown outward past it. Nothing that was masked
+   * becomes visible either: every direction that now lands on plaster used to
+   * land on nothing.
+   */
+  const backWidth = openAir ? width * 1.2 : wallHalfX * 2;
   const backColour = blackBox ? shade(p.backdrop, 0.55) : p.backdrop;
   const backRng = c.rng('backdrop');
   if (openAir) {
@@ -358,8 +457,14 @@ function build(c: RoomContext): RoomRig {
      * ceilings for the camera's sake, and a wall built to it would stop a
      * handspan short of the plaster and leave a slot of nothing all round the
      * room. What a wall has to meet is the ceiling above it.
+     *
+     * It was `Number.isFinite(m.houseLid) ? m.houseLid : backHeight - rise`, and
+     * the fallback is gone rather than kept for safety: `houseLid` is now finite
+     * in every dressing that reaches this line, because the one that answered
+     * `Infinity` is `openAir` and `openAir` builds no walls. A branch whose
+     * second arm cannot be taken is a claim that it can.
      */
-    const wallTop = Number.isFinite(m.houseLid) ? m.houseLid : backHeight - rise;
+    const wallTop = m.houseLid;
     const wallH = wallTop - m.houseY;
     /**
      * Behind the camera, with room to spare. The wide shot stands at most
@@ -386,20 +491,82 @@ function build(c: RoomContext): RoomRig {
       stagger: brick,
     });
 
-    const sideDepth = houseBackZ - m.backZ;
+    /**
+     * The upstage end of the room, and it is `backZ - 0.1` rather than `backZ`.
+     *
+     * That is where the backdrop stands — see above — and the side walls used to
+     * start a tenth of a metre downstage of it. Three walls that do not meet on
+     * one plane leave a 0.1 m slot at each upstage corner, floor to wall head,
+     * which a grazing ray goes straight out through, and which survived the
+     * corner being 1.6 m wide because nobody was looking for anything that
+     * narrow. The extra plaster is behind the backdrop and is never seen.
+     */
+    const wallFrom = m.backZ - 0.1;
+    const sideDepth = houseBackZ - wallFrom;
     for (const side of [-1, 1]) {
       const mesh = new Mesh(c.kit.own(wall(sideDepth, wallH)), wallMat);
-      mesh.position.set(side * (m.houseWidth / 2 + 0.6), m.houseY + wallH / 2, m.backZ + sideDepth / 2);
+      mesh.position.set(side * wallHalfX, m.houseY + wallH / 2, wallFrom + sideDepth / 2);
       mesh.rotation.y = side * -Math.PI / 2;
       mesh.receiveShadow = true;
       root.add(mesh);
     }
 
-    const back = new Mesh(c.kit.own(wall(m.houseWidth + 1.2, wallH)), wallMat);
+    const back = new Mesh(c.kit.own(wall(wallHalfX * 2, wallH)), wallMat);
     back.position.set(0, m.houseY + wallH / 2, houseBackZ);
     back.rotation.y = Math.PI;
     back.receiveShadow = true;
     root.add(back);
+
+    /**
+     * The ceiling, which this room did not have, and a black box is a room with
+     * a painted one.
+     *
+     * The three walls above stop at `wallTop` and for the whole life of this
+     * file there was nothing over them. That is not a stylised absence like the
+     * tanssilava's: it is a hole, and it was the largest single one in the
+     * catalogue — **2385 of 4084 escaping rays, about 795 in each of ambient's
+     * three black boxes**, out through the upper hemisphere from every eye point
+     * the director can reach. Fifty-two per cent of them left from a lens at
+     * 3.60 m, which is the top of a wide shot in a room 5.52 m to the plaster;
+     * the rest left from the floor of the house and from the
+     * boards. What made it survivable is that `scene.background` in `main.ts` is
+     * `#0b0908` and a black box is painted `#17181b`, so the void and the room
+     * are the same colour to within four counts — tilt up in `/sampler` and the
+     * room simply stops, without ever looking like it has.
+     *
+     * Only where the props have not laid one. Under `low-ceiling`
+     * `stage-props.ts` spans the whole room at `houseY + LOW_CEILING`, which is
+     * `m.houseLid` and therefore exactly `wallTop`: a second plane on the same
+     * plane is the z-fight `dancehall.ts` names as *two lids 10 cm apart is two
+     * buildings*, with nothing between them at all to choose by.
+     *
+     * Cells and `DoubleSide` and no shadow flags, which is what every lid in
+     * this project is. The cell argument is `low-ceiling`'s own and it applies
+     * to any ceiling: a hemisphere lights a flat plane to one number, so a
+     * surface whose normal never varies reads as a hole however carefully the
+     * colour is picked. And the colour goes *up* from the walls rather than
+     * down, for the reason the house floor twelve lines up gives — the cellar
+     * ceiling's lesson is that the darkest albedo in the room under the smallest
+     * light budget in the room returns five counts out of 255, which is the hole
+     * again, painted.
+     */
+    if (!lowCeiling) {
+      const lidRng = c.rng('ceiling');
+      const lidW = wallHalfX * 2;
+      const lid = new Mesh(
+        c.kit.own(cellPlane({
+          width: lidW, height: sideDepth,
+          cols: Math.max(4, Math.round(lidW / 1.4)),
+          rows: Math.max(4, Math.round(sideDepth / 1.4)),
+          colour: tint(wallColour, 0.06),
+          jitter: 0.08, rng: lidRng,
+        })),
+        c.kit.solid('#ffffff', { vertexColors: true, rough: 0.97, side: DoubleSide }),
+      );
+      lid.rotation.x = -Math.PI / 2;
+      lid.position.set(0, wallTop, wallFrom + sideDepth / 2);
+      root.add(lid);
+    }
   }
 
   // --- proscenium and masking -------------------------------------------

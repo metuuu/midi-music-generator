@@ -253,6 +253,29 @@
  * measures off `RoomShape.wallX` now, and `neon`'s wing pair — the half of this
  * that was framing rather than dressing — is gone, leaving one sign on the back
  * wall. Nothing here changed, which was the point.
+ *
+ * ## And then both props left, because this room has no surface for either
+ *
+ * The measurement above closed and the picture stayed wrong, which is the part
+ * worth writing down: *finding the wall* was never the whole question. A bill
+ * at `wallX - 0.03` in this hall lands 0.01–0.03 m off the first surface —
+ * correct by every test the other file can run — and that surface is a **door
+ * leaf**, because this room's sides are eight bays of 3.1 m double doors under
+ * coloured fanlights. Nothing in `stage-props.ts` can tell a door from a wall,
+ * and it should not be made to: a room knows what its walls are made of and
+ * that knowledge does not fit through `RoomShape`.
+ *
+ * The back wall is the same fact one turn further round. `arches` — which latin
+ * names genre-wide, so it is in every era — stands a free-standing arcade 0.32 m
+ * in front of it, and `neon` hangs its sign at `backZ - 0.05`: a lit sign 0.27 m
+ * behind a screen, read through the openings as a coloured glow with no object
+ * on it.
+ *
+ * So `latin` names neither prop now, and the reasoning lives in its 1975
+ * dressing rather than here, because it is a dressing decision. What this file
+ * owes the record is the *general* form of it: a room that puts anything in
+ * front of its walls — doors, arcading, glazing, panelling — has no wall for a
+ * wall prop, however well the arithmetic lands.
  */
 
 import {
@@ -315,6 +338,27 @@ const BANDSTAND_RISE = 0.7;
 const WALL_OUT = 0.6;
 
 /**
+ * How far upstage of `backZ` the end wall stands, and it is three numbers now
+ * rather than one.
+ *
+ * It was a bare `0.1` in the end wall's own line, which was fine while it was
+ * the only place that cared: the wall is set back so that a player on the back
+ * of the boards is not inside the plaster. It is not the only place that cares.
+ * The side walls run from `backZ`, the ceiling panels run from `backZ`, and the
+ * end wall is 0.1 m upstage of both — so the last 0.1 m of the building had no
+ * sides and no lid, and rays got out through it. Measured on 3 M random rays
+ * per era: 38, 35, 37 and 34 escapes, every one crossing a side wall between
+ * `backZ` and `backZ - 0.1`. It is a hair over one in a hundred
+ * thousand, which is why the gridded sweep never found it — a fan of azimuths
+ * from eye points down the hall can walk straight past a 0.1 m slot in the
+ * upstage corner, and did, 9.07 M times.
+ *
+ * So the sides and the lid lap back to meet the end wall instead, and the
+ * distance they lap is this, named, in all three places.
+ */
+const BACK_SETBACK = 0.1;
+
+/**
  * The moulded band round the head of the wall, and the thing the aperture stops
  * under.
  *
@@ -352,6 +396,64 @@ const PILASTER_OUT = 0.09;
  * which at the smallest hall this genre builds leaves 1.45 m for 0.9 m of them.
  */
 const DOOR_H = 3.1;
+
+/**
+ * How deep the doorway is cut, and it is the apparent thickness of the wall.
+ *
+ * It was a bare `0.15` in one line of `build` and that was survivable while the
+ * recess had no sides to it: a dark panel floating outboard of a hole reads as a
+ * hole at more or less whatever offset you give it, so the number was keeping
+ * two planes apart and doing nothing else. Now that the jambs, the head and the
+ * sill are drawn — see the openings in `build` — it is a dimension the eye
+ * measures, so it is named and it is argued.
+ *
+ * **The fanlight sets the upper bound, and it is why this is not the 0.4 m a
+ * masonry wall carrying a 5.7 m hall over a 1.38 m opening actually is.** The
+ * medio punto over every one of these openings is *applied* to the wall face
+ * rather than cut through it — the strip of plaster over each transom is solid
+ * and the glass hangs 12 mm in front of it, which is the trade the long walls
+ * argue for at length. So the head of the reveal is a step out of the wall face
+ * with a flush semicircle starting straight above it at 3.1 m, masked by
+ * nothing from anywhere on the floor. At 0.16 m to the back of the panel that
+ * step is exactly the depth the cornice already stands proud of the same
+ * plaster — `CORNICE_OUT` — and the two read as one wall. At 0.4 m they read as
+ * two, and the fix for that is arching a return round sixteen semicircles,
+ * which is the geometry the wall refused for better reasons than this one.
+ *
+ * The lower bound is the shut leaf, which hangs `LEAF_PROUD` inboard of the
+ * plaster. Under about 0.05 m the leaf, the wall and the back of the recess are
+ * three parallel planes inside a hand's breadth, which is the depth-buffer
+ * fight `LEAF_PROUD` was added to settle rather than one to start again.
+ */
+const REVEAL_D = 0.15;
+
+/**
+ * How thick a return reads, and how high the threshold stands.
+ *
+ * The jambs, the head and the sill are the *sides of a hole*, not lumps of
+ * masonry, so what this sets is how far each one stands inside the opening it
+ * lines. It costs the clear width twice over — 1.380 m of doorway comes out at
+ * 1.332 between the jamb faces, 3.5 % — and it buys two things a zero-thickness
+ * return could not.
+ *
+ * The first is that the doorway has an **arris**. What a return presents to the
+ * room, edge on in the plane of the plaster, is a strip this wide in the
+ * return's own colour: 24 mm of it down each side of every opening, which is
+ * how thick the wall says it is at exactly the place the eye asks. Under about
+ * 10 mm that line stops carrying and the opening reads as plaster folding
+ * through zero thickness, which is what it did.
+ *
+ * The second is that the corners **lap** rather than meet. The head and the
+ * sill run the full `openW` and the jambs stand inside it, so every corner is
+ * covered twice over this whole thickness rather than closed on a coincidence
+ * of arithmetic. 24 mm is a lap that survives a bay module nobody has built
+ * yet; a butt joint is only ever as good as the last decimal place.
+ *
+ * The other direction is the threshold. The sill is this number stood on the
+ * tiles, because that is what it is: a threshold across a doorway is a strip of
+ * stone 20–30 mm proud, and 24 mm is a step nobody has to look down for.
+ */
+const RETURN_T = 0.024;
 
 /**
  * The highest the wide shot's lens can stand, restated from `camera.ts`.
@@ -411,6 +513,23 @@ function hallHeight(width: number): number {
 function fanY(headroom: number): number {
   return Math.min(headroom - 0.55, LENS_CEILING + LENS_GAP);
 }
+
+/**
+ * How far the coffer panels are sunk **above** the ribs.
+ *
+ * The ribs are the datum and the panels are let up behind them — see the lid in
+ * `build`, which argues that way round at length, because it is how a coffered
+ * ceiling is built and because it makes `headroom` a number anybody can take a
+ * `Math.min` against.
+ *
+ * It was a literal in `build` and had to stop being one the moment `shape()`
+ * needed it too. `rigLid` is the panel plane and `headroom` is the rib soffit,
+ * so the whole of the distance between this room's two lids is this constant;
+ * writing 0.16 in both places would be a room disagreeing with itself by a
+ * handspan five metres up, which is precisely the drift `RoomShape` exists to
+ * catch and would not have caught here.
+ */
+const COFFER_SINK = 0.16;
 
 function shape(d: RoomDatum): RoomShape {
   const hallH = hallHeight(d.width);
@@ -524,6 +643,29 @@ function shape(d: RoomDatum): RoomShape {
      */
     headroom: lid,
     houseLid: lid,
+    /**
+     * **The panels, not the ribs** — the one place this room's three lids are
+     * not one number.
+     *
+     * The paragraph above is right that both *clearance* lids are the same
+     * plane, and it stays right. This is not a clearance lid. It is the surface
+     * a motor drop is shackled to, and what is over a drop in this room is not
+     * the rib: the ribs are on the bay module, `crossRibs` puts them at
+     * `lidD / round(lidD / bay)` centres down the hall, and the truss's picks
+     * stand at `±(width / 2 − 0.4)`, which is a position in **x** — the cross
+     * ribs run the full width, so a pick is always between two of them in z, and
+     * the two spines are at `±0.26` of the lid width, nowhere near the picks
+     * either. Measured over all four eras: no pick lands on a rib in any of
+     * them, so the first surface above the drop is the panel plane, at
+     * `lid + COFFER_SINK` every time — 5.510 m in moderno against a `headroom` of
+     * 5.350, and the same 0.160 m in the other three.
+     *
+     * That 0.160 was the whole defect here, and it is the smallest of the three
+     * rooms that had one: `truss` trimmed its drops to `headroom` and they
+     * stopped a handspan under a ceiling in the one era that names the prop.
+     * Publishing the plaster ends them in it.
+     */
+    rigLid: lid + COFFER_SINK,
     /**
      * The end wall of the hall, floor to ceiling, measured from the tiles.
      *
@@ -696,7 +838,32 @@ function build(c: RoomContext): RoomRig {
     wallMat,
   );
 
-  const wallH = hallH;
+  /**
+   * Up to the panels, not up to the ribs, and the difference was a slot round
+   * the whole room.
+   *
+   * This was `hallH` — `backdropHeight`, which is the rib soffit and is the
+   * right number to publish, because it is the height anybody in the hall reads
+   * the wall to. It is the wrong number to *build* to. The coffering's panels
+   * are `COFFER_SINK` above the ribs by construction (see the lid), the panels
+   * are the only thing spanning between the two spines, and the walls stopped
+   * level with the ribs — so there was a 0.16 m open band at the wall head all
+   * the way round the building, bridged only where a cross rib happened to land
+   * on it. Measured: 202 of the escaping rays in `conjunto` left through it,
+   * every one within 0.16 m of a wall.
+   *
+   * It is not hidden by the cornice either, which was the reason to check
+   * rather than assume. The cornice tops out level with the old wall head and
+   * stands `CORNICE_OUT * 2` deep, so a sightline clears its top edge and
+   * reaches the slot at anything over `atan(0.16 / 0.32)` = 26.6 degrees of
+   * elevation — which from a 1.7 m eye is everywhere on the floor inside 8.0 m
+   * of a wall, about half the hall.
+   *
+   * So the plaster runs on up behind the coffering to the panel plane, which is
+   * also how the building goes together: the wall carries the slab and the ribs
+   * hang off the underside of it.
+   */
+  const wallH = hallH + COFFER_SINK;
   const sideDepth = houseBackZ - m.backZ;
 
   /**
@@ -739,6 +906,29 @@ function build(c: RoomContext): RoomRig {
    * rectangle `reveals` already draws; the recess lines up with the hole because
    * both are solved from the same two numbers rather than from each other.
    *
+   * **And a cut hole owes its sides, which this owed and did not pay.** The
+   * paragraph above stops one step short: it says truly what is cut and what is
+   * applied, and then leaves the cut with nothing round its edge. The panel was
+   * `openW` by `DOOR_H`, exactly the size of the hole, standing `REVEAL_D`
+   * outboard of it with nothing joining its perimeter back to the plaster — so
+   * every one of the sixteen doorways was a recess open on all four sides, and
+   * the strip that leaked beside each jamb is `REVEAL_D * tan(theta)` wide: 26 mm
+   * at 10 degrees off the wall normal, 150 mm at 45. A wide shot looks *along* a
+   * wall, which is the worst case in the room. Traced before the fix: an eye at
+   * (6.468, 1.00, 4.90) at 79.7 degrees of azimuth crosses `x = 8.30` at
+   * `z = 5.233` — the plaster beside it starts at 5.240 — and `x = 8.45` at
+   * `z = 5.260`, where the panel has already ended at 5.240. It threads the gap
+   * and hits nothing in 400 m. The openings below now draw the jambs, the head
+   * and the sill; see there for what four returns across sixteen doorways cost.
+   *
+   * The fanlight was checked for the same fault and does not have it, which is
+   * the other half of what "not cut" has to mean: the header strip is a solid
+   * `openW` of plaster from the transom to the cornice, the glass is hung 12 mm
+   * in front of it on the room side, and there is no perimeter to leave open.
+   * Measured: of 9.07 M rays swept over the four eras, **not one** crossed the
+   * wall plane between the transom and the cornice soffit. Every escape in the
+   * room was in the 3.1 m band under `transomY`, which is the doorway.
+   *
    * Three geometries and not seventeen meshes a side: the middles are all one
    * width, the headers are all one width, and only the two end pieces differ.
    * `render` is still what makes them, so a strip is the same mottled plaster
@@ -755,8 +945,15 @@ function build(c: RoomContext): RoomRig {
       mesh.receiveShadow = true;
       root.add(mesh);
     };
-    // Half a pier against the back wall and another against the front.
-    put(render(endW, wallH, wallColour), m.houseY + wallH / 2, m.backZ + endW / 2);
+    /**
+     * Half a pier against the back wall and another against the front. The
+     * upstage one is `BACK_SETBACK` longer than its module, because the end
+     * wall is that far upstage of where the bays start and something has to
+     * close the corner; see the constant. The downstage one is not, because the
+     * rear wall stands on `houseBackZ` and the two already meet.
+     */
+    put(render(endW + BACK_SETBACK, wallH, wallColour),
+      m.houseY + wallH / 2, m.backZ - BACK_SETBACK + (endW + BACK_SETBACK) / 2);
     put(render(endW, wallH, wallColour), m.houseY + wallH / 2, houseBackZ - endW / 2);
     for (let i = 0; i < bays; i++) {
       const zc = m.backZ + (i + 0.5) * bay;
@@ -812,7 +1009,7 @@ function build(c: RoomContext): RoomRig {
     })),
     c.kit.solid('#ffffff', { vertexColors: true, rough: 0.94, side: DoubleSide }),
   );
-  back.position.set(0, wallH / 2 - rise, m.backZ - 0.1);
+  back.position.set(0, wallH / 2 - rise, m.backZ - BACK_SETBACK);
   back.receiveShadow = true;
   root.add(back);
 
@@ -868,13 +1065,43 @@ function build(c: RoomContext): RoomRig {
   root.add(piers);
 
   /**
-   * The openings, and there are three pieces to each of them.
+   * The openings, and there are four pieces to each of them.
    *
    * **The reveal** is a dark panel set 0.16 m into the wall. It is what makes a
    * hole in a plane read as a hole rather than as a rectangle painted on: the
    * eye takes the depth from the darkness and the offset, and neither costs
    * anything. At night, from inside a lit room, a doorway onto an unlit gallery
    * is very nearly black, so this is also simply what is there.
+   *
+   * **The returns** are the four sides of that recess — two jambs, a head and a
+   * sill — and until they were drawn the sentence above was a claim the geometry
+   * did not support. The panel was exactly the size of the hole and stood
+   * `REVEAL_D` outboard of it with nothing joining its perimeter to the plaster,
+   * so what the eye took the depth from was a box with no sides: a slot up each
+   * jamb `REVEAL_D * tan(theta)` wide, 26 mm at 10 degrees off the wall normal
+   * and 150 mm at 45, open on the head as well, in a brightly lit hall. **The
+   * sweep is the measurement and it is the whole of the case.** A fan of 1440
+   * azimuths at 25 elevations from 63 eye points down each hall, all four eras —
+   * 9.07 M rays, `far` at 400 m, single-sided materials honoured exactly as
+   * `Mesh.raycast` honours them: **41371 escaped before, 0 after.** Every one of
+   * the 40754 that survived the wall-head fix above left through the 3.1 m band
+   * under `transomY`, which is these sixteen doorways and nothing else.
+   *
+   * **What it costs is one draw call and 768 triangles**, 3.9 % on a room of
+   * 19766. Four returns across sixteen openings is 64 pieces, and 64 meshes is
+   * not what this file does: they are one `InstancedMesh` over a unit
+   * `BoxGeometry` — twelve triangles — scaled per instance, because a jamb is
+   * `retD` by `DOOR_H` by `RETURN_T` and a head is `retD` by `RETURN_T` by
+   * `openW`, and one box under two scales is cheaper than two cached
+   * geometries. It is the same idiom the piers, the leaves, the glass and the
+   * ribs are already built with; the only thing new is the non-uniform scale,
+   * which a plain box takes without distorting anything a bevelled one would.
+   *
+   * They are set *inside* the opening rather than lapped over the wall face —
+   * the jamb's inboard end is in the plane of the plaster and its outboard end
+   * is buried in the panel, so nothing of it is ever coplanar with the wall.
+   * That is the whole reason it is a box and not a plane: a plane on the wall's
+   * own plane is the tear `LEAF_PROUD` was added to stop, one bay along.
    *
    * **The leaf** is a louvred shutter, drawn as a `cellPlane` of one column and
    * **fourteen** rows with the jitter run up hard — eighteen, which is what the
@@ -897,19 +1124,76 @@ function build(c: RoomContext): RoomRig {
    * `hueShift` on the palette's `curtain` entry through `setColorAt` — twenty
    * different panes for one draw call and no material per pane.
    *
-   * None of the three casts. They are flat, they are in the plane of a wall that
+   * None of the four casts. They are flat, they are in the plane of a wall that
    * is already receiving, and a cast shadow from a plane is a black line — the
-   * exact case the shadow policy names. The leaves receive, because a shutter
-   * lit differently from the wall it is set in is the artefact this is here to
-   * avoid.
+   * exact case the shadow policy names, and a 24 mm return is a plane by that
+   * test. The leaves receive, because a shutter lit differently from the wall it
+   * is set in is the artefact this is here to avoid, and the returns receive for
+   * the same reason one turn further in: a jamb is plaster, the plaster either
+   * side of it receives, and a jamb that did not would be the one lit surface in
+   * the room with no shadow on it.
    */
   const openings = bays * 2;
   /** How far a shutter leaf hangs off the wall it is hung on. See below. */
   const LEAF_PROUD = 0.02;
-  const revealMat = c.kit.solid(shade(blend(p.backdrop, p.proscenium, 0.12), 0.25), { rough: 0.98 });
+  /**
+   * How far a piece of the recess over-runs the opening it lines.
+   *
+   * The panel was `openW` by `DOOR_H` — exactly the hole — and the returns are
+   * flush with the hole because they have to be: a jamb that stops short of the
+   * opening edge leaves a slot the width of the shortfall, which is the defect
+   * this whole assembly is here to close. So the two of them shared all four
+   * edges, and coplanar faces that *face the same way* with different materials
+   * on them are a fight the depth buffer settles differently per pixel and per
+   * frame. Measured at `LAP = 0`, every era: **768 same-facing overlapping face
+   * pairs** between the panel and the returns, 192 on each of the four planes.
+   * Back to back does not count and is not counted — the jambs' feet and the
+   * tiles share a plane at `houseY` facing opposite ways, and one of the two is
+   * culled from every viewpoint there is.
+   *
+   * Only the *panel* can move. It is the one piece of the recess that is
+   * outboard of the wall on all four sides, so over-running it costs nothing; a
+   * return cannot follow, because a return that over-ran upward would put its
+   * inboard face in the plane of the header strip — 384 pairs per era at
+   * `x = wallX`, 6 mm tall, across all sixteen doorways, and that one is in the
+   * middle of the picture rather than under the floor. Measured, then backed
+   * out. The sill is the single exception and it goes the other way, down under
+   * the tiles, where there is no wall to argue with.
+   *
+   * Twice this at the head and the foot, once at each end, and the count is 0.
+   */
+  const LAP = 0.006;
+  const revealColour = shade(blend(p.backdrop, p.proscenium, 0.12), 0.25);
+  const revealMat = c.kit.solid(revealColour, { rough: 0.98 });
   const reveals = new InstancedMesh(
-    c.kit.geometry(`salon-reveal|${openW.toFixed(3)}`, () => new BoxGeometry(openW, DOOR_H, 0.02)),
+    c.kit.geometry(`salon-reveal|${openW.toFixed(3)}`,
+      () => new BoxGeometry(openW + LAP * 2, DOOR_H + LAP * 4, 0.02)),
     revealMat, openings,
+  );
+  /**
+   * How far the returns run, and what colour a jamb is.
+   *
+   * Past the *back* of the panel rather than to its centre plane, and 10 mm
+   * past rather than exactly to it. The panel is 20 mm thick about `REVEAL_D`,
+   * so `REVEAL_D + 0.01` lands every return's outboard face on the panel's own
+   * back face, both looking the same way: measured, 256 same-facing overlapping
+   * face pairs per era, which is the fight this file spends most of its short
+   * comments avoiding. `+ 0.02` buries the end of the return in the panel
+   * instead, where nothing lines up with anything and no seal depends on two
+   * planes meeting exactly.
+   *
+   * The colour is built on the line between the plaster and the back of the
+   * recess rather than picked, and that is what makes the depth read: a third of
+   * the way across, then down again for the grazing light a side-on face gets in
+   * a room lit from the middle. The recess grades wall to jamb to black in every
+   * palette by construction, which a chosen colour would only manage in the one
+   * it was chosen against — 1938 is tungsten on whitewash and 1997 is cold grey.
+   */
+  const retD = REVEAL_D + 0.02;
+  const returns = new InstancedMesh(
+    c.kit.geometry('salon-return', () => new BoxGeometry(1, 1, 1)),
+    c.kit.solid(shade(blend(wallColour, revealColour, 0.34), 0.3), { rough: 0.96 }),
+    openings * 4,
   );
   const leafGeo = c.kit.own(cellPlane({
     width: openW, height: DOOR_H, cols: 1, rows: 18,
@@ -931,6 +1215,7 @@ function build(c: RoomContext): RoomRig {
 
   let oi = 0;
   let bi = 0;
+  let ri = 0;
   for (const side of [-1, 1]) {
     for (let i = 0; i < bays; i++) {
       const zc = m.backZ + (i + 0.5) * bay;
@@ -966,9 +1251,52 @@ function build(c: RoomContext): RoomRig {
 
       dummy.rotation.set(0, yaw, 0);
       dummy.scale.setScalar(1);
-      dummy.position.set(side * (halfX + 0.15), m.houseY + DOOR_H / 2, zc);
+      dummy.position.set(side * (halfX + REVEAL_D), m.houseY + DOOR_H / 2, zc);
       dummy.updateMatrix();
       reveals.setMatrixAt(oi, dummy.matrix);
+
+      /**
+       * The four sides of the recess, and every one of them laps its neighbour.
+       *
+       * Axis-aligned, so there is no rotation to carry — the wall runs down z on
+       * both sides of the hall and a return is a slab in x, y or z with nothing
+       * oblique about it. What varies is the scale, which is the point of using
+       * one unit box for all four.
+       *
+       * The jambs stand *in* the opening, their outer faces flush with its
+       * edges, so what the room sees down each side of a doorway is `RETURN_T`
+       * of plaster and not an edge. The head and the sill then run the full
+       * `openW` — the whole opening, jambs included — so each of them laps both
+       * jambs over their entire thickness. Four returns butted end to end would
+       * leave four corners to get exactly right; these overlap at all four, and
+       * the overlap is 24 mm rather than a tolerance.
+       *
+       * Every return stays inside the rectangle that was cut, and the one that
+       * does not is the sill, which drops `LAP` below the tiles because there is
+       * no wall down there to argue with and a threshold whose underside is in
+       * the plane of the floor is a fight the moment anybody orbits under the
+       * building. Everything else is flush: the returns share planes with each
+       * other — one mesh, one material, one normal, which makes a tie invisible
+       * — and with nothing else, because the panel gave `LAP` at every edge to
+       * get out of their way. See `LAP`.
+       */
+      const retX = side * (halfX + retD / 2);
+      dummy.rotation.set(0, 0, 0);
+      for (const jamb of [-1, 1]) {
+        dummy.position.set(retX, m.houseY + DOOR_H / 2, zc + jamb * (openW - RETURN_T) / 2);
+        dummy.scale.set(retD, DOOR_H, RETURN_T);
+        dummy.updateMatrix();
+        returns.setMatrixAt(ri++, dummy.matrix);
+      }
+      dummy.position.set(retX, transomY - RETURN_T / 2, zc);
+      dummy.scale.set(retD, RETURN_T, openW);
+      dummy.updateMatrix();
+      returns.setMatrixAt(ri++, dummy.matrix);
+      dummy.position.set(retX, m.houseY + (RETURN_T - LAP) / 2, zc);
+      dummy.scale.set(retD, RETURN_T + LAP, openW);
+      dummy.updateMatrix();
+      returns.setMatrixAt(ri++, dummy.matrix);
+      dummy.scale.setScalar(1);
 
       /**
        * 0.02 m off the plaster, and the shut leaf is what the number is for.
@@ -1041,7 +1369,9 @@ function build(c: RoomContext): RoomRig {
     }
   }
   leaves.receiveShadow = true;
+  returns.receiveShadow = true;
   root.add(reveals);
+  root.add(returns);
   root.add(leaves);
   root.add(glass);
   root.add(bars);
@@ -1094,11 +1424,15 @@ function build(c: RoomContext): RoomRig {
    *
    * That is the way round a coffered ceiling is actually built and it is also
    * the way round that makes `headroom` a number anybody can use: the ribs are
-   * at the published lid and the panels are sunk 0.16 m *above* it, so the
-   * lowest point of the ceiling is exactly the height this room told the rest of
-   * the show it was. A ceiling with beams hanging below its published plane
-   * would put the plane inside the beams, which is the same class of mistake as
-   * a fly bar inside a soffit.
+   * at the published lid and the panels are sunk `COFFER_SINK` *above* it, so
+   * the lowest point of the ceiling is exactly the height this room told the
+   * rest of the show it was. A ceiling with beams hanging below its published
+   * plane would put the plane inside the beams, which is the same class of
+   * mistake as a fly bar inside a soffit.
+   *
+   * The panels are published too, as `rigLid`, and that is the second thing this
+   * arrangement buys: a lens clears the ribs and a hoist reaches past them, and
+   * neither has to guess which of the two planes the other one meant.
    *
    * `cellPlane` for the panels, and it is the better half of the argument rather
    * than a habit: a hemisphere lights a flat plane to *one number*, so a lid
@@ -1113,18 +1447,29 @@ function build(c: RoomContext): RoomRig {
    */
   const lidW = halfX * 2;
   const lidD = houseBackZ - m.backZ;
+  /**
+   * The slab reaches the end wall; the ribs are set out on the hall.
+   *
+   * `lidD` is the bay module's territory and the ribs keep it. The plaster does
+   * not: the end wall stands `BACK_SETBACK` upstage of `backZ` and the slab has
+   * to land on it, or the last 0.1 m of the room is open to the sky at ceiling
+   * height. Sizing the panels off this rather than off `lidD` changes neither
+   * the cell count — `round(18.5 / 1.2)` and `round(18.4 / 1.2)` are both 15 —
+   * nor the rib spacing, so it is 0.1 m of extra plaster and nothing else.
+   */
+  const panelD = lidD + BACK_SETBACK;
   const panels = new Mesh(
     c.kit.own(cellPlane({
-      width: lidW, height: lidD,
+      width: lidW, height: panelD,
       cols: Math.max(4, Math.round(lidW / 1.2)),
-      rows: Math.max(4, Math.round(lidD / 1.2)),
+      rows: Math.max(4, Math.round(panelD / 1.2)),
       colour: shade(blend(p.proscenium, p.backdrop, 0.44), 0.24),
       jitter: 0.07, rng: c.rng('ceiling'),
     })),
     c.kit.solid('#ffffff', { vertexColors: true, rough: 0.97, side: DoubleSide }),
   );
   panels.rotation.x = -Math.PI / 2;
-  panels.position.set(0, lidY + 0.16, (m.backZ + houseBackZ) / 2);
+  panels.position.set(0, lidY + COFFER_SINK, (m.backZ - BACK_SETBACK + houseBackZ) / 2);
   root.add(panels);
 
   /**

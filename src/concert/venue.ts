@@ -181,14 +181,19 @@ import type { Venue } from './types.js';
  *   `candles`         one per table, and the only warm light in a cellar
  *   `low-ceiling`     a lid a metre above the players' heads
  *   `bar`             bottles on shelves, lit from behind
- *   `posters`         past bills pasted on the wall
+ *   `posters`         past bills pasted on the wall — a *blank* wall, so not in
+ *                     a room whose sides are doors, arcading or glazing. The
+ *                     renderer can only ask where the wall is, not what it is
+ *                     made of, so this one is the dressing's to get right.
  *   `rug`             a worn rug under the gear or the front line
  *   `neon`            one tube sign on the back wall. The one thing that says
  *                     *bar* from across a dark room — so name it in a dressing
  *                     that has a `bar` in it, and nowhere else. It hung three
  *                     copies and was named by nine dressings with no bar under
  *                     them, and the two together are why a lit sign read as
- *                     something this generator puts in every room.
+ *                     something this generator puts in every room. Not with
+ *                     `arches` either: that prop screens the back wall, and a
+ *                     sign behind a screen is a glow through an opening.
  *
  * The black box, and the synth hall, which is dressed out of the same four:
  *   `projection`      a lit rectangle upstage; ambient's only scenery
@@ -209,12 +214,27 @@ import type { Venue } from './types.js';
  *
  * The courtyard:
  *   `arches`          an arcade across the back wall. A riad, a cloister, a
- *                     hall with Moorish arcading.
+ *                     hall with Moorish arcading. **It takes that wall, and a
+ *                     dressing naming it may hang nothing else there to be
+ *                     looked at.** The stone stands 0.33 m downstage of the
+ *                     plaster, an unbroken 0.36 m entablature runs the full
+ *                     width, and 0.42 m piers stand under it — so there is no
+ *                     vertical line of sight through the wall at any height, in
+ *                     either room that arcades one. Three props have now been
+ *                     hung behind it: `neon` in latin, seen through the
+ *                     openings and cut; `screen` in latin and in arabic, at
+ *                     39.4% and 37.0% behind masonry — and the second of those
+ *                     was written in by the same paragraph that refused the
+ *                     first. It is always the same mistake and it is always
+ *                     made by somebody who has just finished explaining it.
  *
  * The arena:
  *   `truss`           flown lighting lattice over the stage
  *   `screen`          an LED wall behind the band. Not `projection`, which is
- *                     film on a cloth and belongs to a different decade.
+ *                     film on a cloth and belongs to a different decade. Not in
+ *                     a dressing that names `arches`, which owns that wall —
+ *                     see its entry, and note that being eleven metres wide is
+ *                     no defence: the arcade is wider.
  *   `crowd-barrier`   the steel rail across the pit, and the gap in front of
  *                     it. Not `railing`, which stands on the stage.
  *

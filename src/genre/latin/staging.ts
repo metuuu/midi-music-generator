@@ -112,12 +112,22 @@ const SALON: StageRoom = {
       grow: [0.5, 0.3],
     },
     /**
-     * 1975. The club: neon over the bar, past bills pasted up the wall, a PA
-     * facing the house and the band's own amplifiers behind them. Darker than
-     * either era above it and the first with any real smoke in the air —
-     * `fog: 0.34` without a `haze` prop, for the reason the lawn gives about its
-     * own: what is in the air is several hundred people and a Tuesday, not a
-     * machine.
+     * 1975. The club: a PA facing the house and the band's own amplifiers behind
+     * them. Darker than either era above it and the first with any real smoke in
+     * the air — `fog: 0.34` without a `haze` prop, for the reason the lawn gives
+     * about its own: what is in the air is several hundred people and a Tuesday,
+     * not a machine.
+     *
+     * **It read *neon over the bar, past bills pasted up the wall*, and this
+     * room can draw neither.** Both sentences describe a building with plain
+     * walls in it and `salon.ts` is not one: the sides are eight bays of 3.1 m
+     * double doors under coloured fanlights, so a pasted bill lands across a
+     * door leaf; and the arcade this genre names in all four eras stands 0.32 m
+     * in front of the back wall, so the one surface a sign hangs on is screened
+     * — measured, the sign sat 0.27 m behind the arcade and was seen through the
+     * openings. The hall is the thing this genre chose and it is worth more than
+     * two props. What is still here — the bar, the tables, the smoke, the PA —
+     * is the club, and it is the half that was ever visible.
      */
     salsa: {
       palette: {
@@ -127,16 +137,42 @@ const SALON: StageRoom = {
         proscenium: '#b09468',
         ambient: '#ffc890',
       },
-      props: ['neon', 'tables', 'bar', 'posters', 'pa-stack', 'backline', 'wedges'],
+      props: ['tables', 'bar', 'pa-stack', 'backline', 'wedges'],
       maybe: [['mirror-ball', 0.4], ['railing', 0.35], ['flight-case', 0.3]],
       fog: 0.34,
       grow: [0.3, 0.2],
     },
     /**
-     * 1997. A truss over the boards, a screen behind them and the arcade still
-     * there underneath it all, which is the point — this is the same hall with a
-     * production company in it. Cold at the top, warm on the floor, and the
-     * largest stage in the project once the growth is applied.
+     * 1997. A truss over the boards, a production company in the room, and the
+     * arcade still there underneath it all, which is the point — this is the
+     * same hall with sixty years on it. Cold at the top, warm on the floor, and
+     * the largest stage in the project once the growth is applied.
+     *
+     * **It read *a screen behind them*, and it closed by refusing `neon`
+     * because the arcade screens the wall a sign hangs on — then said this era
+     * had the better answer to what should be bright behind the band, and that
+     * it was `screen`.** Every word of that was right except the last four. The
+     * arcade takes the back wall; an LED wall hangs on the back wall; the size
+     * of the object hung there changes nothing about the stone standing in
+     * front of it. The paragraph named the defect and committed it one prop
+     * over, in the same sentence, which is how this mistake keeps surviving
+     * review: it is always made by somebody who has just finished explaining it.
+     *
+     * Measured — 39.4% by `stage-check.ts` §5, 38.1% by projecting both props'
+     * triangles at the house independently of it, of which the arcade is 31.8
+     * and the backline 6.3. 1975 records the sign sitting 0.27 m behind the
+     * arcade; this sits 0.33 m behind the same stone with **forty times the
+     * surface** on the same wall — 37.9 m² against 0.93. The shape is the
+     * argument rather than the fraction: a 0.36 m entablature runs unbroken
+     * across the whole 10.88 m of it at 3.22–3.58 m, six piers 0.42 m wide
+     * stand under that, and not one vertical line of sight through the wall's
+     * full height is clear. The largest piece of it a camera sees whole is
+     * 17.5%.
+     *
+     * So the answer 1975 already gave, a second time: the hall is what this
+     * genre chose and it is worth more than a prop. What says *1997* here is
+     * the truss, the PA, the barrier and the flight cases — production, which
+     * is the decade — and not one of them is on the back wall.
      */
     moderno: {
       palette: {
@@ -146,7 +182,7 @@ const SALON: StageRoom = {
         proscenium: '#8f9aa8',
         ambient: '#a8d8ff',
       },
-      props: ['truss', 'pa-stack', 'neon', 'tables', 'bar', 'backline', 'wedges', 'screen'],
+      props: ['truss', 'pa-stack', 'tables', 'bar', 'backline', 'wedges'],
       maybe: [['mirror-ball', 0.3], ['flight-case', 0.45], ['crowd-barrier', 0.4]],
       fog: 0.3,
       grow: [0.7, 0.4],

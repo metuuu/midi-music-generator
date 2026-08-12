@@ -21,7 +21,7 @@
 
 import {
   BufferAttribute, BufferGeometry, Color, DoubleSide, Material, MeshBasicMaterial,
-  MeshStandardMaterial, PlaneGeometry, Vector3,
+  MeshStandardMaterial, Vector3,
   type Side,
 } from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
@@ -96,6 +96,18 @@ export interface StageMetrics {
    * become a published number rather than a derived one.
    */
   houseLid: number;
+  /**
+   * y of the surface a hanger over the *boards* is shackled to, or `Infinity`.
+   *
+   * The third lid, and it is not a clearance plane — see `RoomShape.rigLid`,
+   * which owns the number and argues it at length. `headroom` and `houseLid`
+   * both answer "what is in my way"; this answers "what does a drop end on",
+   * and in a room whose roof is sloped, coffered or framed those are different
+   * heights because the lowest thing is a member and the surface is behind it.
+   * Forwarded here because `stage-props.ts` is where the drops are, and a prop
+   * cannot see a `RoomShape`.
+   */
+  rigLid: number;
   /**
    * How tall the thing behind the band is, measured from the house floor.
    *
@@ -504,11 +516,47 @@ export class Kit {
  * are all the same trick: one geometry, one draw call, per-cell vertex colours
  * from the palette, and a crisp seam wherever two cells meet because the
  * geometry is non-indexed and nothing interpolates across the join. No image,
- * no UV set, no mip chain, and it survives being lit by a moving spotlight in
- * a way a tiled photograph does not.
+ * nothing sampled through a UV, no mip chain, and it survives being lit by a
+ * moving spotlight in a way a tiled photograph does not.
  *
- * `stagger` shifts alternate rows by half a cell and clips at the edge, which
- * turns a grid into a bond and a grid of squares into a brick wall.
+ * `stagger` lays alternate courses half a cell over, which turns a grid into a
+ * bond and a grid of squares into a brick wall. **A shifted course is one cell
+ * longer than a straight one**, and that is the whole of what was wrong here:
+ * the cell pushed past the far jamb is *cut*, and the offcut belongs at the
+ * near jamb. Both pieces keep the colour of the cell they were cut from,
+ * because they are one brick — so the bond costs no extra draw from `rng`, and
+ * a wall's colours do not depend on how its ends were finished.
+ *
+ * It used to shift and clamp — `Math.max(-half, Math.min(half, x + shift))`
+ * with `shift` never negative, so the lower clamp could not fire. Only the far
+ * edge was ever cut and the near half-cell of every odd course was not drawn at
+ * all. That is a hole rather than a bond: `cellW / 2` wide by `height / rows`
+ * tall, stacked into a crenellation up one end of the plane, and a wall here is
+ * a single plane so there is nothing behind it to see instead. Measured over
+ * the catalogue before the fix — 68 staggered planes in 17 venues (the jazz
+ * cellar's house walls, the shed's blockwork, the dance hall's brick), 1117
+ * courses, **532 gaps**, one per shifted course, roughly 0.21 m square and
+ * never over 0.22, 24.04 m² of missing wall in total. A ray fired along the
+ * wall normal through the middle of each of the 532 hit nothing at all, where
+ * 8 of 8 control probes fired the same way into solid cells on the same planes
+ * stopped at the wall. They stack 5 to 15 high at each corner of the room, and
+ * those walls stand seven-odd metres from the middle of the house, so each
+ * stack is a column of whatever is outside the building about 1.5° wide. After:
+ * 0 gaps, 0 rays through, every course spans the full width of its plane, and
+ * the outline of all 68 is the same rectangle it was, to the last bit.
+ *
+ * Written into its buffers directly rather than by shifting a `PlaneGeometry`
+ * about, because a grid has exactly one quad per cell and the bond needs one
+ * more in every shifted course. Cell order, winding, the six-vertex quad layout
+ * and the count of `rng` draws are `PlaneGeometry`'s and the old loop's,
+ * unchanged and measured against a frozen copy of the tree with only this
+ * function swapped: of the 3279 geometries in the 72 scenes, **3211 are
+ * byte-for-byte what they were**, position and colour both; the 68 that are not
+ * are the staggered planes, which gained 532 quads, lost none, and did not
+ * change the colour of a single cell. The one thing that does move is a shifted
+ * course's x, by at most one float32 ulp — 9.5e-7 m out at the end of a 19 m
+ * wall — because `x + shift` is now rounded to float32 once where it used to be
+ * stored, added to and stored again.
  */
 export function cellPlane(opts: {
   width: number;
@@ -521,33 +569,76 @@ export function cellPlane(opts: {
   stagger?: boolean;
 }): BufferGeometry {
   const { width, height, cols, rows, colour, jitter, rng } = opts;
-  const geo = new PlaneGeometry(width, height, cols, rows).toNonIndexed();
-  const pos = geo.getAttribute('position') as BufferAttribute;
-  const base = new Color(colour);
-  const colours = new Float32Array(pos.count * 3);
+  const stagger = opts.stagger ?? false;
   const cellW = width / cols;
-  const half = width / 2;
-  const c = new Color();
+  const cellH = height / rows;
+  const halfW = width / 2;
+  const halfH = height / 2;
 
-  const cells = cols * rows;
-  for (let cell = 0; cell < cells; cell++) {
-    const iy = Math.floor(cell / cols);
-    const k = 1 + (rng.next() - 0.5) * 2 * jitter;
-    c.copy(base).multiplyScalar(k);
-    const shift = opts.stagger && iy % 2 === 1 ? cellW * 0.5 : 0;
-    for (let v = 0; v < 6; v++) {
-      const i = cell * 6 + v;
-      colours[i * 3] = c.r;
-      colours[i * 3 + 1] = c.g;
-      colours[i * 3 + 2] = c.b;
-      if (shift !== 0) {
-        const x = Math.max(-half, Math.min(half, pos.getX(i) + shift));
-        pos.setX(i, x);
+  // One quad per cell, plus the offcut each shifted course carries back to the
+  // near jamb — `Math.floor(rows / 2)` of them, since course 0 never moves.
+  const quads = cols * rows + (stagger ? Math.floor(rows / 2) : 0);
+  const xyz = new Float32Array(quads * 18);
+  const uv = new Float32Array(quads * 12);
+  const rgb = new Float32Array(quads * 18);
+
+  const base = new Color(colour);
+  const c = new Color();
+  let v = 0;
+
+  const vertex = (x: number, y: number): void => {
+    xyz[v * 3] = x;
+    xyz[v * 3 + 1] = y;
+    rgb[v * 3] = c.r;
+    rgb[v * 3 + 1] = c.g;
+    rgb[v * 3 + 2] = c.b;
+    uv[v * 2] = (x + halfW) / width;
+    uv[v * 2 + 1] = (y + halfH) / height;
+    v++;
+  };
+
+  /** One cell, wound the way `PlaneGeometry` winds one: (a,b,d) then (b,c,d). */
+  const cell = (x0: number, x1: number, y0: number, y1: number): void => {
+    vertex(x0, y0); vertex(x0, y1); vertex(x1, y0);
+    vertex(x0, y1); vertex(x1, y1); vertex(x1, y0);
+  };
+
+  for (let iy = 0; iy < rows; iy++) {
+    // Negated rather than `halfH - iy * cellH`, which is the same number in
+    // every case but one: a course line that lands exactly on y = 0 gets `-0`
+    // this way and `+0` the other, and `-0` is what `PlaneGeometry` wrote.
+    // Nothing downstream can tell them apart — but it is a different bit, on
+    // 358 of the catalogue's 3279 geometries, and writing it the way the file
+    // already had it is what lets the diff say the bond is all that changed.
+    const y0 = -(iy * cellH - halfH);
+    const y1 = -((iy + 1) * cellH - halfH);
+    const shift = stagger && iy % 2 === 1 ? cellW * 0.5 : 0;
+    for (let ix = 0; ix < cols; ix++) {
+      const k = 1 + (rng.next() - 0.5) * 2 * jitter;
+      c.copy(base).multiplyScalar(k);
+      const x0 = ix * cellW - halfW + shift;
+      const x1 = (ix + 1) * cellW - halfW + shift;
+      if (shift !== 0 && ix === cols - 1) {
+        // The far jamb cuts the last cell of a shifted course in two. Told by
+        // the index rather than by testing `x1 > halfW`, because `cols * cellW`
+        // is not exactly `width` in float and a straight course would then cut
+        // its last cell too, one ulp wide, at random across the catalogue.
+        cell(x0, halfW, y0, y1);
+        cell(-halfW, -halfW + shift, y0, y1);
+      } else {
+        cell(x0, x1, y0, y1);
       }
     }
   }
-  if (opts.stagger) pos.needsUpdate = true;
-  geo.setAttribute('color', new BufferAttribute(colours, 3));
+
+  const geo = new BufferGeometry();
+  geo.setAttribute('position', new BufferAttribute(xyz, 3));
+  // Nothing samples this today — every material these geometries are drawn with
+  // is `vertexColors` and mapless — but `PlaneGeometry` supplied one, and a
+  // material that later grows a map would have nothing to sample without it.
+  // Linear across the plane, so a cut cell maps to its own share of the span.
+  geo.setAttribute('uv', new BufferAttribute(uv, 2));
+  geo.setAttribute('color', new BufferAttribute(rgb, 3));
   geo.computeVertexNormals();
   return geo;
 }

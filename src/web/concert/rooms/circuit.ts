@@ -357,6 +357,23 @@ function shape(d: RoomDatum): RoomShape {
     headroom: club ? Math.min(-rise + LOW_CEILING, STAGE_SOFFIT) : Infinity,
     houseLid: club ? -rise + LOW_CEILING : Infinity,
     /**
+     * The same answer as `headroom`, and for once the interesting half is the
+     * `Infinity`.
+     *
+     * `rigLid` is the surface a motor drop is shackled to rather than the lowest
+     * thing a lens must clear, so a room whose roof is sloped or coffered has to
+     * publish two numbers. This one has neither: in the club the plaster is one
+     * flat plane and there is nothing above it worth reaching, and in the arena
+     * the refusal argued at length above has to be repeated here or it is
+     * pointless. The girder deck is modelled at 9.77–10.53 m and a ray straight
+     * up from the truss's pick finds it; publishing it would put the drops
+     * exactly where `headroom` was rejected for putting the whole lattice, five
+     * metres of stub over a rig that is meant to read as a rig. `truss` sends an
+     * open-sky room's legs to the floor instead, which is what an arena rig
+     * stands on.
+     */
+    rigLid: club ? Math.min(-rise + LOW_CEILING, STAGE_SOFFIT) : Infinity,
+    /**
      * The drape behind the band, measured from the house floor like a wall.
      *
      * Tall — over ten metres in the arena — and it has to be, for a reason

@@ -274,6 +274,31 @@ function shape(d: RoomDatum): RoomShape {
     /** The plaster, which is what anything over the house is bolted to. */
     houseLid: CANOPY + PLASTER_OVER,
     /**
+     * The cloth again, and it is the one room where publishing the *higher*
+     * surface would be obviously wrong.
+     *
+     * `rigLid` is the surface a hanger over the boards is shackled to, and the
+     * temptation in a room with two lids is to reach past the low one for the
+     * structural one — the plaster at `CANOPY + PLASTER_OVER`. That is exactly
+     * what must not happen here: the shamiana is stretched over the whole
+     * platform, so a drop that went to the plaster would come up *through* the
+     * canopy, in the one room whose entire overhead is that canopy. A shamiana
+     * is not something you shackle a motor to; a truss under one is tied to the
+     * same battens the cloth is, at the cloth.
+     *
+     * The residual against a raycast is the sag and is worth stating so nobody
+     * closes it. `CANOPY` is the cloth's *low* point at mid-span — see the
+     * header — and the truss's picks are out at `±(width / 2 − 0.4)`, where the
+     * cloth has already climbed 0.103–0.110 m of its `CANOPY_SAG` toward the tie
+     * line in the four eras. Publishing the height at the pick would put the
+     * published rigging plane above the lowest thing in the room, which is a
+     * number no other consumer could safely take a `Math.min` against.
+     *
+     * No era of this genre names `truss`. This is answered because `RoomShape`
+     * requires it and because the wrong answer here is a specific one.
+     */
+    rigLid: CANOPY,
+    /**
      * The wall behind the band, floor to plaster — it is a wall of the hall and
      * walls are measured from the ground. Full height rather than a coping
      * course: unlike a tanssilava's low wall this is not something anyone is

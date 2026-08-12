@@ -150,6 +150,22 @@ function shape(d: RoomDatum): RoomShape {
     headroom: openAir ? Infinity : wallH - rise,
     houseLid: openAir ? Infinity : wallH - rise,
     /**
+     * The awning again, and this room is the control case for the whole field.
+     *
+     * `rigLid` was added because three rooms publish a `headroom` that is the
+     * underside of a *member* with a surface behind it, so a motor drop trimmed
+     * to it stops in mid-air. The coffered awning here is not that: it is one
+     * plane at the wall head, and a ray fired straight up from `truss`'s pick at
+     * `±(width / 2 − 0.4)` hits it at 4.632 m against a `headroom` of 4.632 —
+     * **0.000 m**, the only lidded truss venue in the catalogue that was already
+     * right. So the line is a copy, and it is the measurement that says it may
+     * be one.
+     *
+     * Open, it is `Infinity` with the other two: there is sky over the court and
+     * `truss` stands its lattice on legs.
+     */
+    rigLid: openAir ? Infinity : wallH - rise,
+    /**
      * The limewashed wall behind the band, from the flags. Full height: unlike
      * a tanssilava's coping wall this is not something you are meant to see
      * over, it is the side of a building.
@@ -255,10 +271,22 @@ function build(c: RoomContext): RoomRig {
     wallMat,
   );
 
-  const sideDepth = houseBackZ - m.backZ;
+  /**
+   * Where the upstage end of the court is, and it is not `backZ`.
+   *
+   * The wall behind the band stands at `backZ - 0.1` — see below for why — and
+   * the side walls used to start at `backZ`, a tenth of a metre downstage of
+   * it. Four walls that do not meet on one plane leave a 0.1 m slot at each
+   * upstage corner, floor to wall head, and a grazing ray goes straight out
+   * through it. So the sides start where the wall they run into actually
+   * stands. The extra 0.1 m of plaster is behind that wall and is never seen
+   * from anywhere in the court.
+   */
+  const wallFrom = m.backZ - 0.1;
+  const sideDepth = houseBackZ - wallFrom;
   for (const side of [-1, 1]) {
     const mesh = plaster(sideDepth, wallH);
-    mesh.position.set(side * halfX, m.houseY + wallH / 2, m.backZ + sideDepth / 2);
+    mesh.position.set(side * halfX, m.houseY + wallH / 2, wallFrom + sideDepth / 2);
     mesh.rotation.y = side * -Math.PI / 2;
     mesh.receiveShadow = true;
     root.add(mesh);
@@ -271,24 +299,48 @@ function build(c: RoomContext): RoomRig {
   root.add(rear);
 
   /**
-   * The wall behind the band, which is this room's backdrop.
+   * The wall behind the band, and it is the fourth wall of the court rather
+   * than a cloth hung across one end of it.
    *
-   * Wider than the dais by the same 1.2 the proscenium uses, so it reads as a
-   * building rather than as a panel, and set 0.1 m upstage of `backZ` so
-   * nothing standing on the back of the dais is inside it. Double-sided, unlike
-   * the three house walls: the camera never gets behind the other three, and it
-   * very much can get behind this one by orbiting over the dais.
+   * **The full width of the court**, and not the `width * 1.2` this used to
+   * take from the proscenium along with the cell trick and the stream name.
+   * That factor is right for a *backdrop*: a panel behind a band inside an
+   * arch, where the arch and its tormentors mask whatever is either side of it.
+   * This room has no arch, no tormentor and no leg — `openingWidth` in `shape()`
+   * is 1.0 for precisely that reason — so nothing masked the ends of it and
+   * nothing ever will. Measured: a 14.52 m panel across a
+   * 17.30 m court, leaving **1.39 m by 5.08 m of nothing at each upstage
+   * corner** in the satellite dressing, and 1.50 x 4.62, 1.41 x 5.00 and
+   * 1.46 x 4.79 in takht, firqa and shaabi — the shortfall is `2.6 - 0.1 *
+   * width` per corner and every dressing this genre has is inside that band. A
+   * 7200-ray sweep at eye height from the middle of the house left the building
+   * through **9.10 to 10.30 degrees of azimuth** in all four eras, in two runs,
+   * one per corner. Three of the four have a sky dome to escape into and the
+   * fourth is roofed, so what the user reported from a screenshot is what it
+   * is: a black void where the corner should be.
+   *
+   * `salon.ts` reached the same conclusion in a hall with the same absence of
+   * masking, and the sentence there is the right one here: this is not a
+   * backdrop, it is the end wall of the building, and an end wall goes wall to
+   * wall.
+   *
+   * Set 0.1 m upstage of `backZ` so nothing standing on the back of the dais is
+   * inside it — `wallFrom` above is that plane, and the side walls now run to
+   * it. Double-sided, unlike the three house walls: the camera never gets
+   * behind the other three, and it very much can get behind this one by
+   * orbiting over the dais.
    */
+  const backW = halfX * 2;
   const back = new Mesh(
     c.kit.own(cellPlane({
-      width: m.width * 1.2, height: wallH,
-      cols: Math.max(5, Math.round(m.width * 1.2 / 1.4)),
+      width: backW, height: wallH,
+      cols: Math.max(5, Math.round(backW / 1.4)),
       rows: Math.max(3, Math.round(wallH / 1.4)),
       colour: tint(wallColour, 0.06), jitter: 0.05, rng: wallRng,
     })),
     c.kit.solid('#ffffff', { vertexColors: true, rough: 0.96, side: DoubleSide }),
   );
-  back.position.set(0, wallH / 2 - rise, m.backZ - 0.1);
+  back.position.set(0, wallH / 2 - rise, wallFrom);
   back.receiveShadow = true;
   root.add(back);
 
@@ -327,26 +379,79 @@ function build(c: RoomContext): RoomRig {
     { along: 'x', at: houseBackZ, from: -halfX, to: halfX, face: -1 },
   ];
 
+  /**
+   * How many bays a span gets at the 2.4 m nominal, forced odd so that an arch
+   * and not a pier stands on the centre line. **Only the rear run asks.**
+   */
   const bayOf = (span: number): number => {
     let bays = Math.max(2, Math.round(span / 2.4));
     if (bays % 2 === 0) bays += 1;
     return bays;
   };
-  const plan = runs.map((r) => ({ ...r, bays: bayOf(Math.abs(r.to - r.from)) }));
-  const totalBays = plan.reduce((sum, r) => sum + r.bays, 0);
   /**
-   * One bay width for the whole court, taken from the *rear* run.
+   * One bay width for the whole court, taken from the *rear* run — and every
+   * other run counts its bays in that module rather than in the nominal.
    *
    * Three runs of different lengths would otherwise give three different arch
    * radii, and an arcade whose arches change size as it turns a corner is the
    * one thing about an arcade anybody notices. The rear wall is the shortest
    * run and the one seen face-on from the stage, so it sets the module and the
    * longer sides take however many of it fit.
+   *
+   * "However many of it fit" is what this does now and is not what it did. Every
+   * run took its *count* from `bayOf`, which measures against the 2.4 m nominal,
+   * and then stepped by `bay`, which comes from the rear run. Two modules, so a
+   * side run laid `bays * bay` metres of arcade along a wall that is not that
+   * long and hung the surplus off both ends: **0.064 m per end in takht, 0.221
+   * in shaabi, 0.393 in firqa and 0.471 in satellite, which stood a pier at
+   * z = -4.271 against a court that begins at -3.80** — outside the building,
+   * upstage of the wall behind the band, standing on nothing.
+   *
+   * `ceil` rather than `round`, because a run's own step must never come out
+   * *wider* than the module: the ring below is one radius for the whole court
+   * and is solved against `bay`, so a wider bay would spring its arch short of
+   * its own pier and show the cut end in the opening. It costs nothing here —
+   * all four dressings keep the nine bays a side they already had, at 2.300 to
+   * 2.367 m instead of 2.314 to 2.471, and every run now ends exactly on the
+   * corner of the court.
    */
-  const rearRun = plan[2]!;
-  const bay = Math.abs(rearRun.to - rearRun.from) / rearRun.bays;
+  const rearSpan = Math.abs(runs[2]!.to - runs[2]!.from);
+  const rearBays = bayOf(rearSpan);
+  const bay = rearSpan / rearBays;
+  const plan = runs.map((run, i) => {
+    const span = Math.abs(run.to - run.from);
+    const bays = i === 2 ? rearBays : Math.max(2, Math.ceil(span / bay));
+    return { ...run, bays, step: span / bays };
+  });
+  const totalBays = plan.reduce((sum, run) => sum + run.bays, 0);
   const pierW = Math.min(0.44, bay * 0.28);
-  const r = Math.max(0.25, (bay - pierW) / 2);
+  /**
+   * The ring's radius, and it is solved against the **pier** rather than
+   * against the opening.
+   *
+   * It was `(bay - pierW) / 2`, the half-opening, which puts the tube's
+   * *centreline* on the pier's inner face where the arch springs. The tube is
+   * 0.30 m across, so half of it hung over the opening with no stone behind it;
+   * and because the arc runs past a half turn, each end of it is a cut face
+   * aimed down and outward — an open pipe end, in mid-air, at the springing
+   * height of 1.80 m, which is where a camera down in the yard is looking.
+   * Measured on the rear run of all four dressings, the inner corner of that cut
+   * face stood **0.1747 to 0.1772 m inside the opening**, clear of the stone by
+   * more than half the tube's width.
+   *
+   * The expression below is the one `stage-props.ts` arrived at for the same
+   * three pieces, and it reads as: take the opening's half-width, lift it by the
+   * tube radius in quadrature so the cut face's inner *corner* clears the pier
+   * rather than its centreline landing on it, project that out along the
+   * springing radius — the arc ends `ARC / 2 - PI / 2` past the horizontal,
+   * 14.4 degrees here — and hand the tube radius back. Measured after, on the
+   * same four rear runs: the cut end is buried **0.2437 m (takht), 0.2600
+   * (firqa), 0.2509 (shaabi), 0.2636 (satellite)** below the pier top, with its
+   * inner corner **0.0119, 0.0112, 0.0116 and 0.0110 m inside the pier**. The
+   * side runs bury it deeper still, their step being the shorter one. Both ends
+   * are stone on every face.
+   */
+  const r = Math.max(0.25, Math.hypot((bay - pierW) / 2, 0.15) / Math.cos(ARC / 2 - Math.PI / 2) + 0.15);
 
   const dummy = new Object3D();
   const piers = new InstancedMesh(
@@ -358,7 +463,12 @@ function build(c: RoomContext): RoomRig {
   let ri = 0;
   for (const run of plan) {
     const dir = Math.sign(run.to - run.from) || 1;
-    /** Centred on the run, so a corner pier lands within a few centimetres. */
+    /**
+     * Centred on the run, and stepped by the run's own `step` rather than by
+     * the court's module, so the end piers land **on** the corners rather than
+     * within a few centimetres of them. See `bay`: they used to land up to
+     * 0.471 m past them.
+     */
     const mid = (run.from + run.to) / 2;
     const y0 = m.houseY;
     /**
@@ -374,7 +484,7 @@ function build(c: RoomContext): RoomRig {
      */
     const overrun = run.along === 'z' ? 0.02 : 0;
     for (let i = 0; i <= run.bays; i++) {
-      const along = mid + dir * (i - run.bays / 2) * bay;
+      const along = mid + dir * (i - run.bays / 2) * run.step;
       dummy.position.set(
         run.along === 'z' ? run.at + run.face * 0.2 : along,
         y0 + (spring + overrun) / 2,
@@ -386,7 +496,7 @@ function build(c: RoomContext): RoomRig {
       piers.setMatrixAt(pi++, dummy.matrix);
     }
     for (let i = 0; i < run.bays; i++) {
-      const along = mid + dir * (i - (run.bays - 1) / 2) * bay;
+      const along = mid + dir * (i - (run.bays - 1) / 2) * run.step;
       dummy.position.set(
         run.along === 'z' ? run.at + run.face * 0.2 : along,
         y0 + spring,
@@ -457,6 +567,12 @@ function build(c: RoomContext): RoomRig {
      * slab hanging in space, and the inverse is just as bad: a lid that stops
      * short of a wall leaves a slot of nothing all round the room.
      *
+     * It ran to `backZ` and the wall behind the band is at `wallFrom`, which is
+     * 0.1 m upstage of that, so the sentence above was true of three walls and
+     * false of the fourth. It reaches the same plane the walls do now. Nothing
+     * about its height changes, which is the number `rigLid` is measured
+     * against.
+     *
      * `DoubleSide` and hung the same way up as the cellar's, which is the one
      * thing here worth copying rather than reasoning about afresh: a hemisphere
      * lights a single-sided plane from whichever face it has, and a ceiling lit
@@ -474,16 +590,16 @@ function build(c: RoomContext): RoomRig {
      */
     const lid = new Mesh(
       c.kit.own(cellPlane({
-        width: halfX * 2, height: houseBackZ - m.backZ,
+        width: halfX * 2, height: sideDepth,
         cols: Math.max(4, Math.round(halfX * 2 / 1.3)),
-        rows: Math.max(4, Math.round((houseBackZ - m.backZ) / 1.3)),
+        rows: Math.max(4, Math.round(sideDepth / 1.3)),
         colour: shade(blend(p.proscenium, p.backdrop, 0.55), 0.3),
         jitter: 0.09, rng: c.rng('ceiling'),
       })),
       c.kit.solid('#ffffff', { vertexColors: true, rough: 0.98, side: DoubleSide }),
     );
     lid.rotation.x = -Math.PI / 2;
-    lid.position.set(0, m.houseY + wallH, (m.backZ + houseBackZ) / 2);
+    lid.position.set(0, m.houseY + wallH, wallFrom + sideDepth / 2);
     root.add(lid);
   }
 

@@ -333,6 +333,24 @@ function shape(d: RoomDatum): RoomShape {
     headroom: openingHeight,
     houseLid: hallHeight(d.width) - rise,
     /**
+     * The recess soffit again, because it is a flat plane and there is nothing
+     * behind it.
+     *
+     * `rigLid` splits from `headroom` only where the lowest thing overhead is a
+     * *member* — a rafter with sheeting above it, a coffer rib with a panel
+     * behind it — and a motor drop clamped to the underside of the member is a
+     * drop that stops short of the surface. The soffit of this recess is a
+     * single plaster plane cast in one piece; a ray straight up from the truss's
+     * pick at `±(width / 2 − 0.4)` hits it at exactly `openingHeight` in all
+     * four eras, 5.501 to 5.908 m, to 0.000 m.
+     *
+     * No era of this genre names `truss`, so nothing consumes this today. It is
+     * answered honestly anyway, for the reason `RoomShape` requires every field:
+     * the failure the interface exists to stop is a room that has not thought
+     * about the question inheriting somebody else's answer to it.
+     */
+    rigLid: openingHeight,
+    /**
      * The back wall of the recess, floor to soffit. A wall rather than a cloth:
      * there is nothing hung in this room, and the organ stands against it.
      */

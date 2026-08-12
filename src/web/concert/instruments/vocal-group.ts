@@ -19,9 +19,10 @@
  *
  * ## Why it is not the singer's microphone
  *
- * The tempting answer was `buildSinger` with the height left out, and it is half
- * right — the height is exactly one of the two things that had to change, and it
- * is below. What it cannot do is the other half, and the other half is the whole
+ * The tempting answer was `buildSinger` reused as-is, and the height is not what
+ * separates them — both stands are racked out to the player standing at them,
+ * and the section below says why this one had to be argued back to that. What a
+ * shared builder cannot do is the other half, and the other half is the whole
  * reason this archetype exists.
  *
  * `singer.ts` builds a ball-grille dynamic on a boom clip: a 1960s object, and
@@ -51,25 +52,29 @@
  * same shiver-and-swing pair, the same refcounted cache. A reader who knows
  * `singer.ts` knows this file.
  *
- * ## The height is the group's, not this singer's — and that is deliberate
+ * ## The height is this singer's, and the row is uneven because people are
  *
  * `singer.ts` racks its stand out to `mouthFor(opts, …)`, this player's own
  * mouth, and its note calls that the one instrument in the family where the fix
  * is the object's actual behaviour: setting the height is the first thing anybody
- * does to a microphone stand.
+ * does to a microphone stand. This file does the same thing, and that is a
+ * reversal — it used to drop `opts.height` on the floor and send every stand in
+ * the row to `ARCHETYPES['vocal-group'].workHeight`, on the argument that four
+ * stands at four heights read as a stepped fence rather than as one group.
  *
- * A row of four is the case where that is false. Nobody adjusts four stands to
- * four people; they are set once, together, at the height of the group, and the
- * tall one dips their chin and the short one lifts theirs. Passing each singer's
- * own height here would produce four stands at four heights — a stepped fence,
- * which reads as four soloists who happen to be on at the same time rather than
- * as one group. So `opts.height` is dropped on the floor on purpose, and the
- * stand goes to `ARCHETYPES['vocal-group'].workHeight`.
+ * The argument was about the wrong object. A stand nobody adjusted does not
+ * make the row even; it makes the *heads* uneven, because the mouth contact is
+ * what the rig chases. `place('mouth', …)` moves the head until the lips reach
+ * the point, so a fixed 1.55 m mouth against casting's 1.58–1.92 m draw pulls a
+ * tall singer's head down by up to 15 cm and lifts a short one's — four people
+ * at four unexplained neck angles, hunching at nothing, which is a far louder
+ * fault than four shafts racked to four lengths. Bodies are the thing an
+ * audience reads; a chrome tube 40 cm below the faces is not.
  *
- * The two specs agree at 1.55 m, which is casting's mean draw, so this is also
- * the height the bench and every other height-less caller already gets. The
- * agreement is not a coincidence to be relied on: this file names its own
- * archetype's number, and if the group's ever moves the stand follows it.
+ * So the stand goes where this singer's mouth is and the heads sit level on
+ * their own shoulders. `SPEC.workHeight` stays as the fallback `mouthFor`
+ * answers for a caller with no performer — the bench, a test — which is what
+ * `InstrumentBuildOptions.height` documents it as.
  *
  * ## And they stand back off it
  *
@@ -195,13 +200,13 @@ export const buildVocalGroup: InstrumentBuilder = (
   const rng = new Rng(`vocal-group:${opts.seed}`);
 
   /**
-   * The group's height, and `opts.height` is deliberately not passed.
+   * This singer's own mouth — the stand is racked out to reach it.
    *
-   * See the note at the top. `mouthFor` with no height answers the archetype's
-   * `workHeight` and the mean player's reach in front, which is precisely "the
-   * height this group set their stands to before the number started".
+   * See the note at the top. Passing the height is what keeps the head where
+   * the body put it: the rig places the lips on `resolve`'s contact, so a stand
+   * set to anything but this player's mouth is paid for in neck.
    */
-  const mouth = mouthFor({ seed: opts.seed }, SPEC.workHeight);
+  const mouth = mouthFor(opts, SPEC.workHeight);
   /** The head's own centre, a chin's worth below the lips. See `HEAD_DROP`. */
   const headY = mouth.y - HEAD_DROP;
   /** The middle of the live face — the upstage skin of the slab. */
@@ -254,9 +259,9 @@ export const buildVocalGroup: InstrumentBuilder = (
   const geoLowerShaft = shared('glowershaft',
     () => new CylinderGeometry(0.0145, 0.0155, 0.93, 10).translate(0, 0.465, 0));
   const geoClutch = shared('gclutch', () => new CylinderGeometry(0.0225, 0.0225, 0.058, 12));
-  // Keyed by its own length, as the soloist's is: two groups at two heights are
-  // two lengths of shaft, and four stands in one row share the one buffer —
-  // which is the whole reason the height is the group's rather than the player's.
+  // Keyed by its own length, as the soloist's is: two singers of different
+  // heights are two lengths of shaft, and two of the same height still share
+  // one buffer — which a row of four, drawn from one casting range, often does.
   const geoUpperShaft = shared(`guppershaft:${upperLen.toFixed(3)}`,
     () => new CylinderGeometry(0.0108, 0.0108, upperLen, 10).translate(0, upperLen / 2, 0));
   const geoCollar = shared('gcollar', () => new TorusGeometry(0.0235, 0.006, 5, 14));
