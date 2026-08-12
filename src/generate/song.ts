@@ -71,9 +71,10 @@ import {
 } from './solo.js';
 import { generateVocalStack } from './vocals.js';
 import {
+  castFigures, DEFAULT_SWAP, DEFAULT_VARY, type FigureCast,
   generateBass, generateBrass, generateComp, generateCounter, generateDrums,
   generateLeftHand, generatePad, planFigureVariation, planKitVariation,
-  type PartContext, undoubleAgainst } from './parts.js';
+  type PartContext, sectionFigure, undoubleAgainst } from './parts.js';
 
 export interface GenerateOptions {
   seed?: string | number;
@@ -696,10 +697,57 @@ export function generateSong(opts: GenerateOptions = {}): Song {
     byLayer.set(l, []);
   }
 
-  // Fix the rhythm-section figures for the whole song — a band does not change
-  // its comping pattern every eight bars.
+  /**
+   * The per-layer re-roll salt, which is a property of the run rather than of a
+   * section: `--variation` names a layer to re-roll for the whole song, so this
+   * reads the same for every stream the band builds and is defined once here.
+   */
+  const salt = (layer: LayerId): string => {
+    const v = opts.variation?.[layer];
+    return v ? `:v${v}` : '';
+  };
+  /**
+   * The rhythm section's figure, for the sections that carry the band's
+   * identity — the verse, the intro, the outro.
+   *
+   * **Not the whole song any more, and the comment that used to stand here was
+   * the bug.** It said a band does not change its comping pattern every eight
+   * bars, which is true, and then fixed one figure to every bar of every
+   * section, which is a different claim and is false of any record: the chorus
+   * of a song is not the verse with a different tune over the same bass. What it
+   * produced was measurable — 147 of 387 styles played a bass line with four or
+   * fewer distinct bar shapes in it end to end, and 195 of 387 wrote two songs
+   * whose bass was the identical set of bars. See `FigureCast`.
+   *
+   * These two draws are untouched and stay in the position they have always
+   * held, so this is the *home* figure of a cast rather than a new decision:
+   * every song keeps the figure it had, along with the form, key, tempo,
+   * instruments, melody and drums that the rest of this stream decides. The
+   * contrast figures come out of streams of their own below.
+   */
   const bassPattern = rng.weightedBy(style.bass, (p) => p.weight);
   const compPattern = rng.weightedBy(style.comp, (p) => p.weight);
+  /**
+   * …and what the band plays instead where the form asks for something else.
+   *
+   * `Style.swap` over `Genre.swap` over `DEFAULT_SWAP`, which is the merge order
+   * `feels`, `fills` and `transitions` already use. A layer at zero constructs
+   * no stream and draws no number.
+   */
+  const swapFor = (layer: 'bass' | 'comp'): number =>
+    style.swap?.[layer] ?? genre.swap?.[layer] ?? DEFAULT_SWAP[layer];
+  const castFor = <P extends {
+    weight: number; hits: readonly { at: number; dur?: number }[]; cycle?: number; walking?: boolean;
+  }>(
+    layer: 'bass' | 'comp', table: readonly P[], home: P,
+  ): FigureCast<P> => castFigures(table, home, {
+    rng: new Rng(`${seed}:cast:${layer}${salt(layer)}`),
+    swap: swapFor(layer),
+    slotsPerBar: style.beatsPerBar * SLOTS_PER_BEAT,
+    ...(style.groups ? { groups: style.groups } : {}),
+  });
+  const bassCast = castFor('bass', style.bass, bassPattern);
+  const compCast = castFor('comp', style.comp, compPattern);
   /**
    * …and a band with no percussion section may say so by writing nothing.
    *
@@ -935,6 +983,12 @@ export function generateSong(opts: GenerateOptions = {}): Song {
    * to the figure and not to the bar — see `Cycle` in `style/types.ts` — so
    * reading them as bar positions would be arithmetic on two different
    * coordinate systems, and the metre is a better answer than a wrong one.
+   *
+   * **The home figure, and not the cast**, now that a song holds two or three.
+   * A seam shot is a gesture the band makes on the way *into* a section, so the
+   * figure it should catch is the one the band has been playing — and the union
+   * of the cast is not a figure anybody plays. Reading the home one keeps this
+   * the identity it was written to be.
    */
   const bandFigure = [
     ...(bassPattern.cycle ? [] : bassPattern.hits.map((h) => h.at)),
@@ -1213,10 +1267,6 @@ export function generateSong(opts: GenerateOptions = {}): Song {
      * Splitting it is what makes `variation` mean what it says. It is also the
      * same argument that separated the sections, applied to the other axis.
      */
-    const salt = (layer: LayerId): string => {
-      const v = opts.variation?.[layer];
-      return v ? `:v${v}` : '';
-    };
     const ctxFor = (layer: LayerId): PartContext => ({
       ...ctxBase,
       rng: new Rng(`${seed}:band:${s}:${layer}${salt(layer)}`),
@@ -1575,32 +1625,46 @@ export function generateSong(opts: GenerateOptions = {}): Song {
      * with the band walks the bass first, the bass follows the tune, and the tune
      * is exactly what `--hook` moves.
      */
+    /**
+     * `Style.vary` over `Genre.vary` over `DEFAULT_VARY` — the merge order
+     * `swap` uses above and the one `feels` and `fills` established. A layer
+     * that resolves to zero constructs no stream and draws no number.
+     */
     const varyFor = (
       layer: 'bass' | 'comp',
       pattern: { hits: readonly { at: number; dur: number }[]; cycle?: number; arpeggio?: boolean },
-    ) => (style.vary?.[layer]
-      ? planFigureVariation(pattern, {
-        chance: style.vary[layer]!,
-        rng: new Rng(`${seed}:vary:${layer}:${s}${salt(layer)}`),
-        slotsPerBar: style.beatsPerBar * 4,
-        ...(style.groups ? { groups: style.groups } : {}),
-      })
-      : undefined);
-    const bassVariation = varyFor('bass', bassPattern);
-    const compVariation = varyFor('comp', compPattern);
+    ) => {
+      const chance = style.vary?.[layer] ?? genre.vary?.[layer] ?? DEFAULT_VARY[layer];
+      return chance > 0
+        ? planFigureVariation(pattern, {
+          chance,
+          rng: new Rng(`${seed}:vary:${layer}:${s}${salt(layer)}`),
+          slotsPerBar: style.beatsPerBar * 4,
+          ...(style.groups ? { groups: style.groups } : {}),
+        })
+        : undefined;
+    };
+    /**
+     * The figure *this* section plays, which is the home one unless the form
+     * asked for something else. See `FigureCast`.
+     */
+    const sectionBassFigure = sectionFigure(bassCast, section.kind);
+    const sectionCompFigure = sectionFigure(compCast, section.kind);
+    const bassVariation = varyFor('bass', sectionBassFigure);
+    const compVariation = varyFor('comp', sectionCompFigure);
 
     // Keep this section's accompaniment to hand: the melody is written last, so
     // it can be checked against what the band is actually holding underneath.
     // A soloist's own layer is skipped here — a bass taking a chorus is not
     // also walking behind it, and a pianist soloing is not also comping.
     let sectionBass = active.has('bass') && soloLayer !== 'bass'
-      ? generateBass(ctxFor('bass'), bassPattern, {
+      ? generateBass(ctxFor('bass'), sectionBassFigure, {
         ...(bassVariation ? { variation: bassVariation } : {}),
       })
       : [];
     let sectionComp = active.has('comp') && soloLayer !== 'comp'
       ? generateComp(
-        ctxFor('comp'), compPattern, instruments.comp.centre,
+        ctxFor('comp'), sectionCompFigure, instruments.comp.centre,
         (c) => scaleHere(localTonic, mode, c),
         limitFor('comp'),
         // The comp layer only. Where the *counter* plays a chord pattern it is
@@ -2933,6 +2997,13 @@ export function generateSong(opts: GenerateOptions = {}): Song {
    * on, and a step row that showed four beats regardless would be displaying a
    * bar the machine is not playing. Absent `cycle` means the figure *is* the
    * bar, which is what most patterns are.
+   *
+   * The **home** figure's cycle, for the reason `bandFigure` reads the home one:
+   * this is a property of the whole track, one number handed to a renderer that
+   * has no notion of sections, and the verse's figure is what the track is
+   * mostly made of. A cast whose lift or drop cycles differently is shown at the
+   * home length — a rounding of the truth, rather than a wrong claim about a bar
+   * somebody is playing.
    */
   const cycleOf = (layer: PlayedLayer): number => {
     const slots = layer === 'counter'

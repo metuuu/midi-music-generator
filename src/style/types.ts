@@ -933,6 +933,31 @@ export interface Style {
    */
   vary?: Partial<Record<'bass' | 'comp', number>>;
   /**
+   * How readily this style's rhythm section plays a **different figure** in a
+   * chorus, a bridge or a solo, per layer, 0..1.
+   *
+   * The other half of `vary` above, and the half that paragraph got wrong. It
+   * says the pattern is the band's identity and is fixed for the whole song, and
+   * that a band changing its comping figure every eight bars would sound like a
+   * compilation. The first clause is right about a *band* and wrong about a
+   * *song* — a chorus whose bass opens up and a bridge whose bass thins out are
+   * arrangement, not a compilation — and the second describes a failure mode
+   * this does not have, because the figures are cast to section *kinds*: every
+   * verse gets the same one and so does every chorus. See `FigureCast`.
+   *
+   * Absent means `DEFAULT_SWAP`, which is on. That is the deliberate direction:
+   * 147 of 387 styles measured under four distinct bass bar shapes per song, so
+   * the fallback has to fix them without 387 table edits, and the styles that
+   * genuinely are one unbroken machine are the ones that can afford to say so.
+   * `Genre.swap` sits between the two for an idiom where that is a genre fact.
+   *
+   * **Zero is the way to say "one figure, all the way through"** — a dub plate,
+   * a minimal techno track, a sequencer piece whose subject is that it does not
+   * stop. A style that writes it constructs no stream and draws no number, so
+   * its songs are byte-for-byte what they were.
+   */
+  swap?: Partial<Record<'bass' | 'comp', number>>;
+  /**
    * Layers this style never uses, regardless of arrangement density. A drone
    * has no drum kit and no brass section, and no amount of density should
    * conjure one.

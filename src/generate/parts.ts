@@ -18,7 +18,7 @@ import type { Rng } from '../core/rng.js';
 // The three-tier kit/hand/either split, read here for the same reason the solo
 // generator and the fill vocabulary read it. See `HandStation`.
 import { drumStations } from '../concert/instruments.js';
-import type { DrumEvent, DrumVoice, NoteBend, NoteEvent } from '../core/types.js';
+import type { DrumEvent, DrumVoice, NoteBend, NoteEvent, SectionKind } from '../core/types.js';
 import { scaleStepsBetween, stepInScale, type Scale } from '../core/scale.js';
 import {
   buildFill, DEFAULT_FILLS, landing, seamOrchestration, type FillPalette,
@@ -28,7 +28,7 @@ import type {
   BassHit, BassPattern, BassTone, CompHit, CompingProfile, CompPattern, DrumPattern, LeftHandMode,
   Style,
 } from '../style/types.js';
-import { anticipate, metricStrength, SLOTS_PER_BEAT, subdivide } from './rhythm.js';
+import { anticipate, metricStrength, SLOTS_PER_BEAT, subdivide, thin } from './rhythm.js';
 
 export interface PartContext {
   chords: Chord[];
@@ -362,6 +362,280 @@ export interface FigureVariation {
   kind: 'push' | 'fill';
   /** The onset it happens to, in sixteenths from the top of the bar. */
   at: number;
+}
+
+/**
+ * The two or three figures a song's rhythm section actually has, and which
+ * section each belongs to.
+ *
+ * ## The fault this exists to fix
+ *
+ * `song.ts` drew one bass figure and one comp figure per song, with a comment
+ * saying a band does not change its comping pattern every eight bars. That is
+ * true of a band and false of a *song*, and the difference was audible: measured
+ * over the whole catalogue at eight songs a style, **147 of 387 styles played a
+ * bass line with four or fewer distinct bar shapes in it from beginning to
+ * end**, and 195 of 387 produced two songs whose bass was note-for-note the same
+ * set of bars. A hundred-bar Berlin school piece was one bar of root-root-root-
+ * root repeated a hundred times, and the only thing separating one such piece
+ * from the next was which of six rows won a single weighted draw.
+ *
+ * So the figure was not too repetitive — repetition is the idiom — it was
+ * repetitive at the wrong *rate*. A rhythm section repeats within a section and
+ * changes between them, and there was no mechanism in the engine that could
+ * express the second half of that sentence.
+ *
+ * ## Three roles, and why not more
+ *
+ * `home` is the band's identity: the verse, the intro, the outro, and anything
+ * unlabelled. `lift` is the chorus. `drop` is the bridge and the solo. A song
+ * with eight sections therefore states each figure several times, which is the
+ * point — a cast of eight figures heard once each is the failure this was
+ * supposed to avoid, not a richer version of the fix. Three is the largest
+ * number where every figure still gets repeated enough to be recognised.
+ *
+ * Repeat sections of a kind get the *same* figure, so the second chorus is the
+ * first chorus's floor rather than a third idea.
+ *
+ * ## The two contrast figures are not drawn flat
+ *
+ * A chorus whose bass thins out and a bridge whose bass gets busier are both
+ * arrangements in reverse. `lift` is drawn from the rows at least as dense as
+ * `home` and `drop` from the rows no denser, counting onsets per bar, so the
+ * cast reads as a shape across the song rather than as a shuffle. Where a table
+ * cannot supply one — every row the same density, a two-row table — the pool
+ * falls back to everything but the figures already cast, because a contrast in
+ * the wrong direction is still a contrast and no contrast is what this replaces.
+ *
+ * Both draws stay weighted by the table's own weights, so a rare colour is still
+ * rare in the chorus. What the cast changes is *how many* of a style's figures
+ * one song is allowed to hold, not which of them the idiom prefers.
+ */
+export interface FigureCast<P> {
+  /** Verse, intro, outro — and the fallback for everything. */
+  home: P;
+  /** The chorus, where the style has a second figure to give it. */
+  lift?: P;
+  /** The bridge and the solo. */
+  drop?: P;
+}
+
+/**
+ * How readily a rhythm section changes figure between sections, per layer.
+ *
+ * The fallback for a style and a genre that both say nothing, and it is
+ * deliberately *on*: the measurement above is a statement about the catalogue as
+ * it stands, so a default of zero would fix nothing and leave 387 tables to
+ * edit by hand. A style built on one unbroken machine — a dub plate, a minimal
+ * techno track, a sequencer piece whose whole subject is that it does not stop —
+ * says `swap: { bass: 0 }` and gets exactly what it had.
+ *
+ * The bass is likelier to move than the comp because the comp already moves on
+ * its own: its voicings follow the harmony and its arpeggio ladders drift
+ * against the bar, and it measured healthy where the bass did not — 8 of 382
+ * styles under four distinct bar shapes against the bass's 147.
+ */
+export const DEFAULT_SWAP: Readonly<Record<'bass' | 'comp', number>> = { bass: 0.7, comp: 0.45 };
+
+/**
+ * …and how often it plays the figure it has differently where a phrase turns
+ * over. The fallback for `Style.vary`, and the same argument in the smaller key.
+ *
+ * `vary` has been a good mechanism nobody switched on: **37 styles of 389
+ * declare it**, and the other 352 are not a considered decision that a bass
+ * player should lean into a phrase end exactly never — they are what a field
+ * added late looks like. Rock declares it at 0.05 to 0.12 across twenty styles
+ * and iskelmä at 0.3 to 0.45, so the range that has been listened to is wide,
+ * and a middling default sits inside it.
+ *
+ * Lower than `DEFAULT_SWAP` because the two gestures are not the same size: a
+ * swap is a section-long decision heard once per section, and this fires in one
+ * bar and is gone. Held at a level where a listener meets it about every other
+ * phrase — often enough that the loop breathes, rarely enough that its landing
+ * is still an event.
+ *
+ * A style that means never says `vary: { bass: 0 }`, which reads exactly as it
+ * should and which the guard in `song.ts` treats as the absence it is.
+ */
+export const DEFAULT_VARY: Readonly<Record<'bass' | 'comp', number>> = { bass: 0.35, comp: 0.25 };
+
+/** How many onsets this figure puts in a bar, cycle length allowed for. */
+function density(p: { hits: readonly { at: number }[]; cycle?: number }, slotsPerBar: number): number {
+  return p.cycle ? (p.hits.length * slotsPerBar) / p.cycle : p.hits.length;
+}
+
+/** Two figures that land on exactly the same slots are one rhythm in two spellings. */
+function sameShape(
+  a: { hits: readonly { at: number }[]; cycle?: number },
+  b: { hits: readonly { at: number }[]; cycle?: number },
+): boolean {
+  return a.cycle === b.cycle
+    && a.hits.length === b.hits.length
+    && a.hits.every((h, i) => h.at === b.hits[i]!.at);
+}
+
+/**
+ * The style's figure, played busier or sparser — for the tables that cannot cast
+ * a contrast because they have not got one.
+ *
+ * ## Why a table cannot always be the answer
+ *
+ * Casting from the table is the better mechanism and it is tried first, but it
+ * has a floor: measured over the catalogue, **169 of 387 styles hold one or two
+ * distinct bass rhythms** and 210 hold three. A style with one rhythm spelled
+ * twice — `countrypolitan`, `shuffle`, `cowboy`, `bebop` — has nothing to swap
+ * to, and no amount of drawing fixes that. Widening 169 tables by hand is the
+ * right long answer and a different job; this is what makes the mechanism reach
+ * them in the meantime.
+ *
+ * ## Two operators, and they are the two already trusted here
+ *
+ * `subdivide` puts two notes where the figure has one, carrying the same payload
+ * so the pitch does not move; `thin` drops the onsets the ear expects least,
+ * metrically rather than positionally, and guarantees it never leaves a hole.
+ * `planFigureVariation` reaches for the same two at a phrase end. The difference
+ * is scope, and it is the whole point: a phrase-end gesture happens in one bar,
+ * and this is held for the entire section, so it reads as *the figure this
+ * section is playing* rather than as a flourish.
+ *
+ * Neither operator can invent a note the figure did not have or move one to a
+ * pitch the harmony did not offer, so a derived figure is exactly as safe as the
+ * one it came from: `thin` only removes hits and `subdivide` only duplicates a
+ * payload at a later slot, so the declared span never grows and every figure
+ * `unplaceableRoots` cleared stays cleared.
+ *
+ * ## What it declines
+ *
+ * **A cycled figure**, for `planFigureVariation`'s reason: a figure that carries
+ * a cycle is supposed to drift against the bar, and changing how many onsets it
+ * has changes the drift itself rather than the figure. Those are also the
+ * patterns that measured healthiest, so they are the ones least in need of it.
+ *
+ * **A walking bass**, whose `hits` are not played at all — `generateBass` hands
+ * it to `generateWalkingBass` and never looks at them.
+ */
+function derive<P extends { hits: readonly { at: number; dur?: number }[]; cycle?: number; walking?: boolean }>(
+  home: P,
+  dir: 'busier' | 'sparser',
+  opts: { rng: Rng; slotsPerBar: number; groups?: readonly number[] },
+): P | undefined {
+  if (home.cycle || home.walking) return undefined;
+  const { rng, slotsPerBar, groups } = opts;
+
+  if (dir === 'sparser') {
+    // Climb the threshold until something actually goes. A figure already made
+    // of nothing but downbeats is not thinnable, and returning it unchanged
+    // would be casting a second copy of the home figure.
+    for (const keepAbove of [2, 3, 4]) {
+      const out = thin(home.hits, { slotsPerBar, ...(groups ? { groups } : {}), keepAbove });
+      if (out.length < home.hits.length) return { ...home, hits: out } as P;
+    }
+    return undefined;
+  }
+
+  /**
+   * Longest first, because the longest note is the one with room in it. One
+   * split most of the time and two occasionally: the point is a busier bar, and
+   * a figure with every long note halved is a different part rather than the
+   * same part played harder.
+   */
+  const targets = [...new Set(home.hits.filter((h) => (h.dur ?? 0) >= 2).map((h) => h.at))]
+    .sort((a, b) => Math.max(...home.hits.filter((h) => h.at === b).map((h) => h.dur ?? 0))
+      - Math.max(...home.hits.filter((h) => h.at === a).map((h) => h.dur ?? 0)));
+  if (!targets.length) return undefined;
+  let hits = home.hits;
+  for (const at of targets.slice(0, rng.chance(0.35) ? 2 : 1)) hits = subdivide(hits, { target: at });
+  return hits.length > home.hits.length ? { ...home, hits } as P : undefined;
+}
+
+/**
+ * Cast a song's figures for one layer.
+ *
+ * `home` is passed in rather than drawn here, and that is the whole reason this
+ * change is additive. It is still the draw `song.ts` has always made off the
+ * main stream in the position it has always made it, so every song keeps its
+ * form, key, tempo, instruments, melody and drums exactly — see the note on
+ * `drumSource` in `song.ts` for what one number taken out of that stream cost
+ * the last time. The draws below come from a stream of this layer's own, so a
+ * style that declares `swap: 0` constructs nothing and consumes nothing.
+ *
+ * ## Where the contrast comes from
+ *
+ * Two sources, and they are peers rather than a fallback chain. The table's own
+ * rows are searched first — a row that both contrasts in rhythm with home and
+ * moves the right way (denser for the lift, sparser for the drop), or failing
+ * that any row that contrasts in rhythm at all, because a contrast in the wrong
+ * direction is still a contrast and no contrast is what this replaces. Then the
+ * home figure *derived*, per `derive`.
+ *
+ * **A fallback chain was tried first and measured nearly dead.** Deriving only
+ * where the table had nothing left fired for 15 styles out of 387 — every other
+ * table has some second rhythm in it — and moved the catalogue by four styles.
+ * The derived figure is not a worse answer than a second table row, it is a
+ * different kind of answer: a band playing its own figure harder, rather than
+ * the band playing its other figure. Both are things that happen on records, so
+ * both are drawn, and a third of the time it is the derived one.
+ *
+ * Where neither source has anything, a **same-rhythm row** is the last resort,
+ * kept because it is not nothing: `berlin`'s `octave-pulse` lands on the same
+ * four slots as its `eighth-pulse` and walks root–octave–fifth–octave where the
+ * other stands on the root, and a chorus that does that has lifted.
+ */
+export function castFigures<
+  P extends {
+    weight: number; hits: readonly { at: number; dur?: number }[]; cycle?: number; walking?: boolean;
+  },
+>(
+  table: readonly P[],
+  home: P,
+  opts: { rng: Rng; swap: number; slotsPerBar: number; groups?: readonly number[] },
+): FigureCast<P> {
+  const { rng, swap, slotsPerBar } = opts;
+  if (swap <= 0) return { home };
+
+  const others = table.filter((p) => p !== home && p.weight > 0);
+  const homeDensity = density(home, slotsPerBar);
+  const weighted = (pool: readonly P[]): P | undefined =>
+    (pool.length ? rng.weightedBy(pool, (p) => p.weight) : undefined);
+
+  /** The search above, for one role. */
+  const cast = (pool: readonly P[], dir: 'busier' | 'sparser', wanted: (d: number) => boolean) => {
+    const fromTable = weighted(pool.filter((p) => !sameShape(p, home) && wanted(density(p, slotsPerBar))))
+      ?? weighted(pool.filter((p) => !sameShape(p, home)));
+    const derived = derive(home, dir, {
+      rng, slotsPerBar, ...(opts.groups ? { groups: opts.groups } : {}),
+    });
+    if (fromTable && derived) return rng.chance(0.35) ? derived : fromTable;
+    return fromTable ?? derived ?? weighted(pool);
+  };
+
+  const lift = rng.chance(swap) ? cast(others, 'busier', (d) => d >= homeDensity) : undefined;
+  /**
+   * A shade less likely than the lift, because a bridge is the section a form is
+   * likeliest not to have and a solo is the one a listener is likeliest to hear
+   * as the same music with somebody blowing over it. A song that gets a lift and
+   * no drop is a normal arrangement; the reverse is rarer and this makes it so.
+   */
+  const left = others.filter((p) => p !== lift);
+  const drop = rng.chance(swap * 0.75)
+    ? cast(left, 'sparser', (d) => d <= homeDensity)
+    : undefined;
+
+  // Both roles are drawn from `others` or derived, so neither can be the home
+  // figure itself; the one thing left to refuse is the drop repeating the lift,
+  // which a two-row table would otherwise produce.
+  return {
+    home,
+    ...(lift ? { lift } : {}),
+    ...(drop && drop !== lift ? { drop } : {}),
+  };
+}
+
+/** Which of the cast plays this section. */
+export function sectionFigure<P>(cast: FigureCast<P>, kind: SectionKind): P {
+  if (kind === 'chorus') return cast.lift ?? cast.home;
+  if (kind === 'bridge' || kind === 'solo') return cast.drop ?? cast.home;
+  return cast.home;
 }
 
 /**

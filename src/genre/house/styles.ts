@@ -2061,6 +2061,44 @@ const trance: Style = {
       { at: 10, dur: 1, tone: 'root', vel: 0.84 }, { at: 11, dur: 1, tone: 'root', vel: 0.66 },
       { at: 14, dur: 1, tone: 'root', vel: 0.88 }, { at: 15, dur: 1, tone: 'root', vel: 0.7 },
     ] },
+    /**
+     * The same offbeat with the octave in it, which is the difference between a
+     * bass that holds the floor down and one that is going somewhere.
+     *
+     * Both rows above sit on the root and nothing else, and that was the whole
+     * of this style's low end: measured over eight songs, **two of them were
+     * distinct** and the other six were the identical set of bars — the worst
+     * number in the catalogue. A table cannot be swapped out of if it holds one
+     * idea twice, and this is the first of the three rows that gives it more.
+     */
+    { name: 'octave-offbeat', weight: 5, hits: [
+      { at: 2, dur: 2, tone: 'root', vel: 0.9 }, { at: 6, dur: 2, tone: 'octave', vel: 0.8 },
+      { at: 10, dur: 2, tone: 'root', vel: 0.88 }, { at: 14, dur: 2, tone: 'octave', vel: 0.82 },
+    ] },
+    /**
+     * Two bars, and the second one climbs to the fifth and falls off the flat
+     * seventh — the build bass, where the figure has to arrive somewhere by the
+     * top of the phrase or the breakdown has nothing to break down from.
+     *
+     * A `cycle` of 32 rather than two bars written out, so it stays one figure
+     * that takes two bars rather than two figures that alternate.
+     */
+    { name: 'two-bar-build', weight: 4, cycle: 32, hits: [
+      { at: 2, dur: 2, tone: 'root', vel: 0.88 }, { at: 6, dur: 2, tone: 'root', vel: 0.82 },
+      { at: 10, dur: 2, tone: 'root', vel: 0.86 }, { at: 14, dur: 2, tone: 'root', vel: 0.82 },
+      { at: 18, dur: 2, tone: 'fifth', vel: 0.9 }, { at: 22, dur: 2, tone: 'fifth', vel: 0.82 },
+      { at: 26, dur: 2, tone: 'seventh', vel: 0.88 }, { at: 30, dur: 2, tone: 'octave', vel: 0.86 },
+    ] },
+    /**
+     * One note a half-bar, held. The breakdown bass: everything above it is doing
+     * the work and the low end is a pedal under it, which is the one thing this
+     * style's table could not say and the thing a sixteen-bar breakdown is made
+     * of. Sparse enough that `FigureCast` will reach for it as a drop.
+     */
+    { name: 'held-root', weight: 3, sustain: true, hits: [
+      { at: 0, dur: 8, tone: 'root', vel: 0.86 },
+      { at: 8, dur: 8, tone: 'root', vel: 0.82 },
+    ] },
   ],
   comp: [
     { name: 'held-supersaw', weight: 6, voices: 4, sustain: true, hits: [
@@ -2156,6 +2194,38 @@ const techhouse: Style = {
       { at: 6, dur: 2, tone: 'root', vel: 0.8 },
       { at: 10, dur: 1, tone: 'root', vel: 0.86 }, { at: 11, dur: 1, tone: 'octave', vel: 0.62 },
       { at: 14, dur: 2, tone: 'root', vel: 0.82 },
+    ] },
+    /**
+     * Root and fifth, alternating on the offbeats. The oldest way there is of
+     * making a one-chord loop move without leaving the chord, and the two rows
+     * above had between them one pitch: eight songs off this table produced
+     * **three distinct bass lines** and the other five repeated.
+     */
+    { name: 'root-fifth-offbeat', weight: 5, hits: [
+      { at: 2, dur: 2, tone: 'root', vel: 0.88 }, { at: 6, dur: 2, tone: 'fifth', vel: 0.8 },
+      { at: 10, dur: 2, tone: 'root', vel: 0.86 }, { at: 14, dur: 2, tone: 'octave', vel: 0.82 },
+    ] },
+    /**
+     * Two bars, with the second answering the first a seventh lower — the
+     * question-and-answer bass, and the only figure here that takes longer than
+     * a bar to say what it is.
+     */
+    { name: 'two-bar-answer', weight: 4, cycle: 32, hits: [
+      { at: 2, dur: 2, tone: 'root', vel: 0.88 }, { at: 6, dur: 2, tone: 'root', vel: 0.78 },
+      { at: 10, dur: 1, tone: 'octave', vel: 0.84 }, { at: 11, dur: 1, tone: 'root', vel: 0.62 },
+      { at: 14, dur: 2, tone: 'root', vel: 0.8 },
+      { at: 18, dur: 2, tone: 'seventh', vel: 0.86 }, { at: 22, dur: 2, tone: 'seventh', vel: 0.76 },
+      { at: 26, dur: 1, tone: 'fifth', vel: 0.84 }, { at: 27, dur: 1, tone: 'seventh', vel: 0.6 },
+      { at: 30, dur: 2, tone: 'root', vel: 0.84 },
+    ] },
+    /**
+     * Two notes a bar, on the offbeats either side of the middle. The stripped
+     * figure a tech-house record drops to when the percussion takes over, and
+     * the sparse end `FigureCast` reaches for when it wants a bridge to breathe.
+     */
+    { name: 'half-bar-offbeat', weight: 3, hits: [
+      { at: 2, dur: 4, tone: 'root', vel: 0.86 },
+      { at: 10, dur: 4, tone: 'root', vel: 0.82 },
     ] },
   ],
   comp: [
@@ -2595,6 +2665,32 @@ const hardgroove: Style = {
       { at: 6, dur: 1, tone: 'root', vel: 0.9 }, { at: 7, dur: 1, tone: 'root', vel: 0.68 },
       { at: 10, dur: 1, tone: 'root', vel: 0.9 }, { at: 11, dur: 1, tone: 'octave', vel: 0.68 },
       { at: 14, dur: 1, tone: 'root', vel: 0.94 }, { at: 15, dur: 1, tone: 'root', vel: 0.72 },
+    ] },
+    /**
+     * Three beats, so the figure lands on 1, then 4, then 3, then 2, and takes
+     * three bars to come home.
+     *
+     * A loop that phases against the bar is what separates this end of the room
+     * from the four-four styles either side of it — the percussion tables above
+     * already do it and the bass never could, because both rows it had were a
+     * bar long and neither moved off the root. `berlin`'s `three-beat` is the
+     * same arithmetic in a different building.
+     */
+    { name: 'three-beat-loop', weight: 4, cycle: 12, hits: [
+      { at: 2, dur: 2, tone: 'root', vel: 0.92 },
+      { at: 6, dur: 2, tone: 'root', vel: 0.84 },
+      { at: 10, dur: 2, tone: 'octave', vel: 0.88 },
+    ] },
+    /**
+     * The octave jump on the backbeat halves. Offbeat like everything else here,
+     * and the one row that gives the low end a shape a listener could hum —
+     * which at this tempo is most of what stops eight minutes reading as one bar
+     * played four hundred times.
+     */
+    { name: 'octave-jump', weight: 4, hits: [
+      { at: 2, dur: 2, tone: 'root', vel: 0.94 }, { at: 6, dur: 2, tone: 'octave', vel: 0.86 },
+      { at: 10, dur: 2, tone: 'root', vel: 0.9 }, { at: 12, dur: 1, tone: 'fifth', vel: 0.72 },
+      { at: 14, dur: 2, tone: 'root', vel: 0.88 },
     ] },
   ],
   comp: [

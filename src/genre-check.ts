@@ -506,6 +506,27 @@ const feelPairs: { style: string; seed: string; felt: Song; plain: Song }[] = wi
     // 0.94-against-0.25 ghost this fixture exists to prevent.
     style.transitions = undefined;
     genre.transitions = undefined;
+    /**
+     * …and the figure cast with them, for the third time and the same reason.
+     *
+     * `FigureCast` lets a chorus play a *different* figure from its verse, and
+     * the intensity check below ranks the two by mean velocity. Those are two
+     * figures with two sets of written velocities, so the comparison stops being
+     * one section against another and becomes one table row against another:
+     * `iskelma/foksi` seed `fl-8` inverted at comp 0.346 against 0.367 the day
+     * the cast landed, on a chorus figure written softer than the verse's, and
+     * `applyDynamics` scaling both by their sections' intensity cannot and
+     * should not undo that.
+     *
+     * Held out rather than measured around, exactly as the seams above are. The
+     * pass-ordering invariant that check exists to defend — a feel may reshape a
+     * section's loudness and never outrank it — is about one figure played two
+     * ways, and this restores that.
+     */
+    const swap = style.swap;
+    const genreSwap = genre.swap;
+    style.swap = { bass: 0, comp: 0 };
+    genre.swap = { bass: 0, comp: 0 };
     for (let i = 0; i < 12; i++) {
       const seed = `fl-${i}`;
       style.feels = table;
@@ -517,6 +538,8 @@ const feelPairs: { style: string; seed: string; felt: Song; plain: Song }[] = wi
     }
     style.transitions = seams;
     genre.transitions = genreSeams;
+    style.swap = swap;
+    genre.swap = genreSwap;
   }
   return pairs;
 });

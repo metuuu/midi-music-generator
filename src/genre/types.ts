@@ -245,6 +245,31 @@ export interface Genre {
   fills?: FillPalette;
 
   /**
+   * How readily this idiom's rhythm section changes figure between sections —
+   * the fallback for styles that declare no `swap` of their own.
+   *
+   * The same merge order as `feels`, `fills` and `transitions` above and the
+   * same rule: a style's declaration *replaces* this rather than blending with
+   * it. Unlike those three, absent here does not mean "no draw" — it means
+   * `DEFAULT_SWAP`, because the fault this exists to fix is catalogue-wide and a
+   * default of nothing would leave it in place. See `Style.swap`.
+   *
+   * The genre level is for an idiom where the answer is a fact about the *music*
+   * rather than about one piece of it: house and dnb are built on a loop that is
+   * the track, and their styles should not each have to say so.
+   */
+  swap?: Partial<Record<'bass' | 'comp', number>>;
+
+  /**
+   * …and the same fallback for `Style.vary` — how often the rhythm section plays
+   * the figure it has differently at a phrase end. Absent means `DEFAULT_VARY`,
+   * which is on, for the reason written there: 37 styles of 389 declared `vary`
+   * and the silence of the other 352 was an accident of when the field arrived
+   * rather than a decision about how a bass player phrases.
+   */
+  vary?: Partial<Record<'bass' | 'comp', number>>;
+
+  /**
    * What this idiom does at a section join, weighted — the fallback for styles
    * that name no palette of their own. See `generate/transition.ts`.
    *
