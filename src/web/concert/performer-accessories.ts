@@ -374,31 +374,51 @@ function buildAccessory(
       // The band's own ends did not move: they still sit at x 0.89 on a 0.99 R
       // half-head, buried in the skull, so the silhouette is unchanged.
       //
-      // ## And no arms, which is a consequence of the line above it
+      // ## An arm is three capsules, and the first one starts under the lens
       //
-      // Three attempts and the third one worked geometrically and still looked
-      // wrong, so the fault was never the placement. Square-ended boxes beside
-      // the lens hung in mid-air; one capsule along the head was half under the
-      // skin at the cheekbone, because the widest point of a skull is halfway
-      // along a temple and a straight rod cannot lie on a curve; two capsules
-      // with a bend at that point tracked the curve to 2 mm and read as *three*
-      // dark marks in a row — band, dash, dash — because a pair of capsules meet
-      // at a point and pinch there, and because the first one had nothing to
-      // start from.
+      // Two things went wrong before this and only one of them was placement.
+      // The placement half: the widest point of a skull is halfway along a
+      // temple, so a straight rod that lies on the skin at the ear is 4 mm under
+      // it at the cheekbone, and a rod lifted clear of the bulge floats off both
+      // ends instead. Three short chords with a bend at each join follow the
+      // curve to 2 mm — never more than a fifth of the capsule under the skin,
+      // never more than 2 mm off it — and they overlap by 8 mm at the joins,
+      // which matters because two capsules laid end to end meet at a *point* and
+      // pinch there. Butted, they read as separate dashes. Overlapped, as an arm.
       //
-      // That last part is the real answer. The band's ends are *buried in the
-      // skull* on purpose, four paragraphs up, so this object has no visible
-      // hinge anywhere: whatever gets hung off the temple begins in bare skin
-      // with a gap behind it and reads as a mark on the head rather than as part
-      // of a pair of glasses. `glasses` and `sunglasses` can have arms because
-      // their rims stand out in open air at the lens plane and an arm can start
-      // at one. This one cannot, and a band that stops where the cheek starts is
-      // what a dark wrap looks like on a head this size anyway.
+      // The other half is where the arm begins. The band's ends are buried in
+      // the skull on purpose — that is what keeps its silhouette inside the head
+      // — so there is no rim standing in open air for an arm to hinge off, the
+      // way there is on `glasses` and `sunglasses`. An arm that starts on bare
+      // skin behind it therefore reads as a mark on the head, whatever it does
+      // afterwards. So the front capsule starts *inside the band*, at z 0.65
+      // where the lens still covers it, and comes out from under the lens edge
+      // at z 0.51 where the band's own surface dives into the cheek. The join is
+      // hidden by the thing it joins.
       const lens = surface(l, '#101014', { roughness: 0.10, metalness: 0.72 });
       const visor = new Mesh(orb(l), lens);
       visor.scale.set(R * 1.78, R * 0.60, R * 1.76);
       visor.position.set(0, R * 0.14, R * 0.22);
       head.add(visor);
+      // Outward offset, centre in `z`, half-length, and the turn about the
+      // head's own axis, for each chord of the arm. The turn is in `rotation.z`
+      // and not `y` because the `x` that lays a capsule along the head goes
+      // first: under the default Euler order that is the pair whose second turn
+      // keeps the axis horizontal.
+      const TEMPLE = [
+        [0.8625, 0.48, 0.197, 0.57],
+        [0.9855, 0.18, 0.194, 0.21],
+        [0.9875, -0.16, 0.213, -0.19],
+      ] as const;
+      for (const s of [SIDE.left, SIDE.right]) {
+        for (const [out, mid, half, turn] of TEMPLE) {
+          const bar = new Mesh(pill(l), lens);
+          bar.scale.set(R * 0.07, R * half, R * 0.07);
+          bar.rotation.set(Math.PI / 2, 0, s * turn);
+          bar.position.set(s * R * out, R * 0.20, R * mid);
+          head.add(bar);
+        }
+      }
       break;
     }
 
