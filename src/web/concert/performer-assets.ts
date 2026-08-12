@@ -204,11 +204,36 @@ export const tube = (l: Leases): CylinderGeometry =>
  * Cone of diameter 1 and height 1. **A beehive is a cone and always was** —
  * and is not one any more: `performer-hair.ts` rebuilt the tower out of `orb`
  * precisely because "a `spike` cannot be blunt, and a beehive that comes to a
- * point is a party hat". What is left on this geometry is a mohawk's fins and a
- * flared skirt, which is two callers and both of them want the point.
+ * point is a party hat". A mohawk's fins are what is left, and they are the
+ * only caller: the flared skirt that used to be the second one wanted the
+ * *flare* and took the point as the price, which is `flare` below.
  */
 export const spike = (l: Leases): ConeGeometry =>
   l.geometry('spike', () => new ConeGeometry(0.5, 1, 14));
+
+/**
+ * How wide `flare` is at its top, as a fraction of its hem.
+ *
+ * Exported because the caller has to size a skirt from the *waist* and this is
+ * the only thing that turns the one into the other. See `flare`.
+ */
+export const FLARE_WAIST = 0.80;
+
+/**
+ * A frustum: hem of diameter 1, height 1, `FLARE_WAIST` as wide at the top.
+ *
+ * The A-line skirt, and it replaced a `spike` for a reason that is arithmetic
+ * rather than taste. A cone's apex sat inside the waist, so its radius at the
+ * *hip line* — a couple of centimetres below that apex — was a couple of
+ * centimetres, and a hip is a quarter of a metre across. Every gown in the
+ * catalogue was a traffic cone with a pair of thighs coming out of the top of
+ * it. The flare has to start from something the body already fills, which is
+ * what a truncated cone is and what a cone cannot be made into by scaling: the
+ * apex is where it is, and moving it far enough up to clear the legs puts it
+ * three metres over the player's head.
+ */
+export const flare = (l: Leases): CylinderGeometry =>
+  l.geometry('flare', () => new CylinderGeometry(0.5 * FLARE_WAIST, 0.5, 1, 14));
 
 /** Disc of diameter 1 in the xy plane, facing `+z`. Lenses. */
 export const disc = (l: Leases): CircleGeometry =>

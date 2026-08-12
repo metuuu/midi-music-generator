@@ -349,15 +349,15 @@ function footRests(p: Proportions, posture: Posture): { left: Vector3; right: Ve
   switch (posture) {
     case 'stand':
       return {
-        left: new Vector3(SIDE.left * h * 0.072, y, 0),
-        right: new Vector3(SIDE.right * h * 0.072, y, h * 0.02),
+        left: new Vector3(SIDE.left * h * STANCE_X, y, 0),
+        right: new Vector3(SIDE.right * h * STANCE_X, y, h * 0.02),
       };
     case 'perch':
       // Weight on the front foot, the other trailing. A leaning player who is
       // square on their feet reads as a mannequin pushed over.
       return {
-        left: new Vector3(SIDE.left * h * 0.070, y, -h * 0.06),
-        right: new Vector3(SIDE.right * h * 0.075, y, h * 0.05),
+        left: new Vector3(SIDE.left * h * STANCE_X, y, -h * 0.06),
+        right: new Vector3(SIDE.right * h * (STANCE_X + 0.005), y, h * 0.05),
       };
     case 'sit':
       // Not square: one foot goes further under the bench than the other. Two
@@ -447,19 +447,98 @@ const FIT_AXIS = new Vector3();
  *
  * Here rather than in either of them because it is the same function, and a
  * second copy is a second place for the degenerate case below to be got wrong.
+ *
+ * `depth` is for the one caller whose cross-section is not round: the sheet of
+ * cloth `performer-legs.ts` sags between a seated player's thighs is half a
+ * metre across and a hand thick, and it is fitted between two points exactly as
+ * a limb is. Defaulting it to `radius` is what keeps every other call a limb.
+ * The roll about the axis is unconstrained — `setFromUnitVectors` takes the
+ * short way round — which is invisible on a cylinder and fine for the sheet,
+ * whose axis has no sideways component to roll it out of level.
  */
-export function fitLimb(mesh: Mesh, a: Vector3, b: Vector3, radius: number): void {
+export function fitLimb(
+  mesh: Mesh, a: Vector3, b: Vector3, radius: number, depth = radius,
+): void {
   const dx = b.x - a.x;
   const dy = b.y - a.y;
   const dz = b.z - a.z;
   const len = Math.sqrt(dx * dx + dy * dy + dz * dz);
   mesh.position.set(a.x + dx * 0.5, a.y + dy * 0.5, a.z + dz * 0.5);
   if (len < 1e-6) {
-    mesh.scale.set(radius * 2, 1e-4, radius * 2);
+    mesh.scale.set(radius * 2, 1e-4, depth * 2);
     return;
   }
   mesh.quaternion.setFromUnitVectors(FIT_UP, FIT_AXIS.set(dx / len, dy / len, dz / len));
-  mesh.scale.set(radius * 2, len, radius * 2);
+  mesh.scale.set(radius * 2, len, depth * 2);
+}
+
+/**
+ * How far out the hip sockets are, as a fraction of the shoulder width.
+ *
+ * `performer-legs.ts` is the only file that *builds* a leg and was for that
+ * reason the only one that knew where one starts or how thick it is. It is not
+ * the only file that has to know: a skirt is a tube with a pair of legs inside
+ * it, and the one property it cannot be allowed to get wrong is being wider
+ * than they are. Sized against a number somebody typed, it was not — every
+ * floor-length garment in the catalogue had two thighs bulging out of its
+ * sides, because a cartoon leg is nearly as wide as a cartoon shoulder and
+ * nothing said so anywhere `dressGarment` could read it.
+ *
+ * So the stance lives here, with the rest of the proportions, and both callers
+ * derive from it. That is the same rule `legsOf` in `performer-garments.ts`
+ * exists to keep from the other direction — one home per fact that two files
+ * have to agree about.
+ */
+export const LEG_SOCKET_X = 0.23;
+
+/**
+ * How far to each side a standing player plants a foot, as a fraction of their
+ * *height*.
+ *
+ * The other end of the leg, and the second thing a skirt has to be wider than.
+ * A hip socket scales with the shoulders and a stance scales with the body, so
+ * which of the two is the leg's widest point depends on the build: on a broad
+ * player the hips win, and on a slight one — narrow shoulders, same legs — the
+ * feet do, by three centimetres. `dressGarment` sized against the socket alone
+ * and cut every slight player's hem inside their own knees.
+ *
+ * It is also two centimetres narrower than the stance it replaced, which is the
+ * *other* half of a skirt that clears a bass guitar: cloth hangs off the widest
+ * thing under it, so the cheapest width to buy back is the one the feet were
+ * spending on a stance nobody had measured. 21 cm between the shoes at average
+ * height is a person standing; 25 was a person braced.
+ */
+export const STANCE_X = 0.060;
+
+/** How thick a leg is at the three places `performer-legs.ts` puts a mesh. */
+export interface LegRadii {
+  thigh: number;
+  shin: number;
+  knee: number;
+}
+
+/**
+ * Leg thickness, given how much the garment adds to it — see `legsOf`.
+ *
+ * A cartoon leg is thicker than a real one and tapers hard. Build widens the
+ * thigh twice as much as the shin, which is where build actually shows.
+ *
+ * **Thinner than it was, and a garment is why.** These were 0.043 and 0.032,
+ * which put a 19 cm thigh on an average body — three quarters of a head, and
+ * so wide that a skirt cut to contain the legs came out 58 cm across and went
+ * through the body of the bass the player was holding. See `clear` in
+ * `performer-garments.ts` for the squeeze; 15 cm is the answer to it, and next
+ * to a 50 cm shoulder line at ten metres it reads as the same leg.
+ */
+export function legRadii(p: Proportions, girth: number): LegRadii {
+  const thigh = p.height * (0.033 + 0.0095 * p.build) * girth;
+  return {
+    thigh,
+    shin: p.height * (0.026 + 0.005 * p.build) * girth,
+    // The one ball that has to be there: two cylinders meeting at a drummer's
+    // hundred degrees show daylight through the outside of the bend.
+    knee: thigh * 1.04,
+  };
 }
 
 // ---------------------------------------------------------------------------

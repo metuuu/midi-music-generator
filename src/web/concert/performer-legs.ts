@@ -52,6 +52,10 @@
  * cylinders meeting at a drummer's hundred degrees show daylight through the
  * outside of the bend.
  *
+ * A seated player in a skirted garment pays for up to five more — see `lap` —
+ * and nobody else pays anything for them: a standing player, and anybody in a
+ * suit, builds not one.
+ *
  * Every geometry and material is leased from the shared pool, so six players
  * cost one cylinder and one sphere between them.
  */
@@ -62,7 +66,9 @@ import type { Look } from '../../concert/types.js';
 
 import { Leases, bead, tube } from './performer-assets.js';
 import { legsOf } from './performer-garments.js';
-import { SIDE, fitLimb, type BodySide, type Proportions } from './performer-look.js';
+import {
+  LEG_SOCKET_X, SIDE, fitLimb, legRadii, type BodySide, type Proportions,
+} from './performer-look.js';
 
 // Scratch. `update` runs per leg per performer per frame.
 const A = new Vector3();
@@ -116,19 +122,22 @@ export function buildLegs(
    * on a pair of charcoal shins, and only from the wings.
    *
    * The legs are still built under a full-length skirt, which is not waste. A
-   * standing player's are inside the cloth; a *seated* player's come out from
-   * under it and go to the shoes, which is what a person sitting in a robe looks
-   * like — and the alternative, hiding them, is the failure the header of this
-   * file exists to argue against.
+   * standing player's are inside the cloth and a seated player has no skirt at
+   * all — `dressGarment` builds none, because one rigid cylinder cannot be worn
+   * sitting down — so the legs are the *only* thing under a robe on a bench,
+   * and hiding them would leave a pair of shoes out in front of a torso
+   * attached to nothing. That is the failure the header of this file exists to
+   * argue against, arrived at from the other end. What the seated garment does
+   * over them is `lap` below.
    */
   const leg = legsOf(look, l);
   const cloth = leg.material;
 
-  // A cartoon leg is thicker than a real one and tapers hard. Build widens the
-  // thigh twice as much as the shin, which is where build actually shows.
-  const thighR = p.height * (0.043 + 0.012 * p.build) * leg.girth;
-  const shinR = p.height * (0.032 + 0.006 * p.build) * leg.girth;
-  const kneeR = thighR * 1.04;
+  // The three radii, from `performer-look.ts` rather than from here, because
+  // the skirt in `performer-garments.ts` has to be wider than they are and a
+  // second copy of the formula is a skirt that stops clearing the legs the
+  // first time either number moves. See `legRadii`.
+  const { thigh: thighR, shin: shinR, knee: kneeR } = legRadii(p, leg.girth);
 
   /**
    * The hip socket, in the torso's own frame.
@@ -138,9 +147,10 @@ export function buildLegs(
    * sends the first fifteen centimetres of it straight through the player's own
    * abdomen — which is invisible from the front and obvious from the wings.
    */
+  const socketX = p.torsoW * LEG_SOCKET_X;
   const socket: Record<BodySide, Vector3> = {
-    left: new Vector3(SIDE.left * p.torsoW * 0.30, -p.torsoH * 0.06, seated ? p.torsoD * 0.30 : 0),
-    right: new Vector3(SIDE.right * p.torsoW * 0.30, -p.torsoH * 0.06, seated ? p.torsoD * 0.30 : 0),
+    left: new Vector3(SIDE.left * socketX, -p.torsoH * 0.06, seated ? p.torsoD * 0.30 : 0),
+    right: new Vector3(SIDE.right * socketX, -p.torsoH * 0.06, seated ? p.torsoD * 0.30 : 0),
   };
 
   /** The ankle, in the foot's own frame: up into the shoe and a little back. */
@@ -172,8 +182,16 @@ export function buildLegs(
    */
   const splay = p.splay;
 
-  interface Leg { side: BodySide; thigh: Mesh; knee: Mesh; shin: Mesh }
+  interface Leg {
+    side: BodySide;
+    thigh: Mesh;
+    knee: Mesh;
+    shin: Mesh;
+    /** Where this leg's three joints ended up, kept for the lap to read. */
+    at: { hip: Vector3; knee: Vector3; ankle: Vector3 };
+  }
   const legs: Leg[] = [];
+  const bySide = {} as Record<BodySide, Leg>;
 
   for (const side of ['left', 'right'] as const) {
     const thigh = new Mesh(tube(l), cloth);
@@ -186,7 +204,90 @@ export function buildLegs(
     shin.name = `${side}-shin`;
     shin.castShadow = true;
     root.add(thigh, knee, shin);
-    legs.push({ side, thigh, knee, shin });
+    const built: Leg = {
+      side, thigh, knee, shin,
+      at: { hip: new Vector3(), knee: new Vector3(), ankle: new Vector3() },
+    };
+    legs.push(built);
+    bySide[side] = built;
+  }
+
+  /**
+   * The garment, gathered over a seated player's legs.
+   *
+   * Nothing here for anybody on their feet, and nothing for a suit: `LapCloth`
+   * says why, and the short version is that a skirt is a rigid cylinder that
+   * cannot be worn sitting down, so the cloth has to be put where a sitting body
+   * actually holds it. Three pieces, none of which is a skirt:
+   *
+   *  - a **drape** over each thigh, which is the garment bunched over the one
+   *    part of a seated body it rests on;
+   *  - a **sheet** sagging in the gap between the two thighs, which is what
+   *    makes a lap read as one surface instead of as two padded legs. It is the
+   *    only piece that is not a limb, and it is the reason `fitLimb` grew a
+   *    depth;
+   *  - a **fall** down each shin for a floor-length hem, because a thobe does
+   *    not stop at the knee when its wearer sits — it carries on to the boards,
+   *    and a seated robe whose cloth ends at the knee is a tunic.
+   *
+   * All three are fitted from the joints the legs were just fitted to, in the
+   * same frame and in the same pass, which is the whole reason they are built
+   * in this file rather than with the skirt they replace. A lap solved against
+   * the *rest* pose would be a sheet hanging in the air the moment a drummer
+   * lifted a knee.
+   */
+  const lap = seated ? leg.lap : null;
+  const drapes = new Map<BodySide, Mesh>();
+  const falls = new Map<BodySide, Mesh>();
+  let sheet: Mesh | undefined;
+
+  /** How much wider than the leg inside it each piece of cloth is cut. */
+  const DRAPE = 1.42;
+  const FALL = 1.55;
+
+  if (lap) {
+    for (const { side } of legs) {
+      const drape = new Mesh(tube(l), lap.material);
+      drape.name = `${side}-lap`;
+      drape.castShadow = true;
+      root.add(drape);
+      drapes.set(side, drape);
+
+      // A fall needs somewhere to fall *to*. A cross-legged player's shins are
+      // already flat on the boards — `seatY` is honestly 0 there, which is the
+      // distinction `Proportions.seatY` exists to draw — so there is no drop
+      // below the knee for cloth to make, and a fall built anyway would be a
+      // tube laid along the floor through the player's own ankles.
+      if (lap.hem !== 'floor' || p.seatY <= 0) continue;
+      const fall = new Mesh(tube(l), lap.material);
+      fall.name = `${side}-fall`;
+      fall.castShadow = true;
+      root.add(fall);
+      falls.set(side, fall);
+    }
+
+    /**
+     * Cloth between the knees, and only where there is nothing between them.
+     *
+     * `splay` is the right question to ask and it is already the answer: it is
+     * how far the knees are turned out, and its own note in `Proportions` says
+     * what turns them — *what the knees are making room for*. A pianist's are
+     * at 0.30 and making room for nothing; a cellist's are at 0.75 with the
+     * lower bout between them and a cross-legged sitarist's are at 1.6 with the
+     * whole instrument in the gap. Sheeting either of those over would drape a
+     * seated player's garment across their own cello.
+     *
+     * It is also the difference between a lap and a table. At 0.30 the knees
+     * come out 48 cm apart on an average body, which is already most of a
+     * shoulder width; at 0.75 they are 75 cm, and a sheet that wide is not
+     * cloth at any thickness.
+     */
+    if (p.splay <= 0.4) {
+      sheet = new Mesh(tube(l), lap.material);
+      sheet.name = 'lap-sheet';
+      sheet.castShadow = true;
+      root.add(sheet);
+    }
   }
 
   function update(): void {
@@ -207,6 +308,9 @@ export function buildLegs(
         fitLimb(leg.thigh, A, A, thighR);
         fitLimb(leg.shin, A, A, shinR);
         leg.knee.position.copy(A);
+        leg.at.hip.copy(A);
+        leg.at.knee.copy(A);
+        leg.at.ankle.copy(A);
         continue;
       }
       D.divideScalar(span);
@@ -239,7 +343,44 @@ export function buildLegs(
       fitLimb(leg.thigh, A, K, thighR);
       fitLimb(leg.shin, K, B, shinR);
       leg.knee.position.copy(K);
+      leg.at.hip.copy(A);
+      leg.at.knee.copy(K);
+      leg.at.ankle.copy(B);
     }
+
+    if (!lap) return;
+
+    // The cloth, over the joints the legs were just fitted to. Same frame, same
+    // pass, one loop later — see the note on `lap` above.
+    for (const leg of legs) {
+      fitLimb(drapes.get(leg.side)!, leg.at.hip, leg.at.knee, thighR * DRAPE);
+      const fall = falls.get(leg.side);
+      if (fall) fitLimb(fall, leg.at.knee, leg.at.ankle, shinR * FALL);
+    }
+
+    if (!sheet) return;
+    const left = bySide.left;
+    const right = bySide.right;
+    /**
+     * The sag, and it is a sag rather than a plane on purpose.
+     *
+     * The sheet's ends are the two joint midpoints, lifted by a fraction of the
+     * thigh, and it is only 0.80 of a thigh thick — so its top surface sits
+     * below the tops of the two legs either side of it. That is the shape:
+     * cloth stretched between two knees hangs, and a lap whose middle is level
+     * with the top of the legs is a tray. The lift stops it being a trench.
+     *
+     * Its width is the gap between the knee *centres*, so both of its edges are
+     * buried inside the thigh drapes rather than standing out past them. That
+     * is what makes this piece unable to be a table however far the knees go —
+     * it can only ever fill a gap that already exists.
+     */
+    const lift = thighR * 0.30;
+    A.addVectors(left.at.hip, right.at.hip).multiplyScalar(0.5);
+    K.addVectors(left.at.knee, right.at.knee).multiplyScalar(0.5);
+    A.y += lift;
+    K.y += lift;
+    fitLimb(sheet, A, K, Math.abs(left.at.knee.x - right.at.knee.x) * 0.5, thighR * 0.80);
   }
 
   update();
