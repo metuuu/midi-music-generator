@@ -81,6 +81,14 @@ export interface CameraDirector {
   update(beat: number, dt: number): void;
   /** Drag to orbit. Hands control to the viewer until the next cut. */
   orbit(dx: number, dy: number): void;
+  /**
+   * Wheel or pinch to dolly. `factor` above 1 backs off, below 1 moves in.
+   *
+   * A multiplier rather than a distance because the shot it is scaling is not
+   * one distance: the same notch has to mean the same *gesture* on a ten metre
+   * wide shot and a two metre close-up, and only a ratio does that.
+   */
+  zoom(factor: number): void;
   /** The planned list, for verification and for the record. */
   shots(): readonly Shot[];
 }
@@ -205,6 +213,21 @@ const ROOM_GAP = 0.35;
  */
 const ORBIT_MIN = 1.1;
 
+/**
+ * How far in and out the viewer may dolly, as a multiple of the shot's own
+ * framing distance.
+ *
+ * Bounded as a *ratio* so both ends mean the same thing from every shot. In
+ * puts you at a third of wherever the director was standing, which turns the
+ * wide shot into a close-up and the close-up into a pair of hands — and
+ * `ORBIT_MIN` catches it before it reaches anybody's teeth. Out is the looser
+ * bound because it cannot go wrong in the same way: the room runs out long
+ * before three does in every venue here, and what happens then is the lens
+ * opening rather than the camera leaving the building.
+ */
+const ZOOM_MIN = 0.33;
+const ZOOM_MAX = 3;
+
 export function createDirector(reducedMotion = false): CameraDirector {
   const camera = new PerspectiveCamera(BASE_FOV, 1, 0.1, 120);
   const subjects = new Map<string, Object3D>();
@@ -238,6 +261,8 @@ export function createDirector(reducedMotion = false): CameraDirector {
   let viewerHas = false;
   let yaw = 0;
   let pitch = 0;
+  /** The viewer's dolly, as a multiple of the shot's framing distance. */
+  let range = 1;
   /** How far the lens has opened to pay for a walk-in. 1 is the framing's own. */
   let lens = 1;
 
@@ -706,6 +731,35 @@ export function createDirector(reducedMotion = false): CameraDirector {
     clearCrowd(wanted);
   }
 
+  /**
+   * Hand the camera over, starting from wherever it already is.
+   *
+   * The angle used to begin at zero, which is a defensible answer for a drag —
+   * a drag is a request to move, and it moves from the front — and no answer at
+   * all for a wheel. Zoom is a request to change *one* thing, and a notch that
+   * also swung the lens round to head-on before it moved in is a zoom that
+   * threw the shot away to do it. So the take is seeded from the shot's own
+   * direction, and the first gesture of either kind starts from the picture
+   * that was on screen.
+   *
+   * A drag inherits that and is better for it: the tail of a wide shot from
+   * stage left now turns from stage left rather than sliding to centre first.
+   * The cut still resets everything — see `update`.
+   */
+  function take(): void {
+    if (viewerHas) return;
+    viewerHas = true;
+    range = 1;
+    ray.copy(wanted).sub(wantedFocus);
+    const r = ray.length();
+    // Before the first frame there is no shot to inherit, and a zero-length
+    // direction has no angles in it. Head-on is the honest default there.
+    if (r < 1e-3) { yaw = 0; pitch = 0; return; }
+    ray.divideScalar(r);
+    yaw = Math.atan2(ray.x, ray.z);
+    pitch = Math.max(-0.5, Math.min(1.0, Math.asin(Math.max(-1, Math.min(1, ray.y)))));
+  }
+
   return {
     camera,
 
@@ -721,6 +775,7 @@ export function createDirector(reducedMotion = false): CameraDirector {
       viewerHas = false;
       yaw = 0;
       pitch = 0;
+      range = 1;
       lens = 1;
 
       /**
@@ -778,6 +833,7 @@ export function createDirector(reducedMotion = false): CameraDirector {
         viewerHas = false;
         yaw = 0;
         pitch = 0;
+        range = 1;
       }
 
       const shot = plan[Math.max(index, 0)];
@@ -814,20 +870,40 @@ export function createDirector(reducedMotion = false): CameraDirector {
          * the height is clamped again below — a lens through a side wall shows
          * you the room from outside for a moment, and a lens through the lid
          * shows you the plumbing.
+         *
+         * The dolly sits between the two: the viewer's `range` says what
+         * multiple of the shot's distance to ask for, and the room answers the
+         * same way it answers the angle. `r` is re-solved from the director's
+         * framing every frame rather than accumulated, so a zoom held across a
+         * push stays a third of the way in as the push moves, and the handback
+         * at the cut has nothing to unwind.
          */
-        const d = Math.max(ORBIT_MIN, Math.min(r, reach(wantedFocus, ray, r)));
+        const want = Math.max(ORBIT_MIN, r * range);
+        const d = Math.max(ORBIT_MIN, Math.min(want, reach(wantedFocus, ray, want)));
         wanted.copy(ray).multiplyScalar(d).add(wantedFocus);
         wanted.y = Math.max(Math.min(wanted.y, ceiling()), floorAt(wanted.z));
         /**
-         * How much of its framing distance the room took. The lens gives it
-         * back below.
+         * How much of the distance it asked for the room took. The lens gives
+         * it back below.
+         *
+         * Measured against what the *viewer* wanted rather than against the
+         * framing, which is the whole difference between a zoom and a shrug: a
+         * dolly the room can afford is answered by the camera moving and the
+         * lens staying where it was, so the picture actually gets closer.
+         * Compensating back to the framing distance would open the lens by
+         * exactly the ratio the camera had just moved in by, and the two would
+         * cancel to no zoom at all.
+         *
+         * Backing out in a room with no more room behind you is the one that
+         * still opens the lens, and that is right — a wider lens is what a
+         * camera with its back to the wall has left to give.
          *
          * The crowd is deliberately not fenced off in here, unlike in `place`.
          * Somebody who has dragged the camera down into the seats has asked to
          * be in the seats, and a head in the near foreground is a photograph of
          * a concert rather than a fault.
          */
-        squeeze = Math.max(1, r / d);
+        squeeze = Math.max(1, want / d);
       }
 
       /**
@@ -874,7 +950,7 @@ export function createDirector(reducedMotion = false): CameraDirector {
     },
 
     orbit(dx, dy) {
-      viewerHas = true;
+      take();
       // Yaw runs free and wraps: there is nowhere round the circle the camera
       // may not point, only distances the room will not lend it. Pitch is
       // bounded because it is not a circle — over the top and under the floor
@@ -882,6 +958,14 @@ export function createDirector(reducedMotion = false): CameraDirector {
       // `update`, by pulling the lens in rather than by refusing the angle.
       yaw = (yaw - dx * 0.005) % (Math.PI * 2);
       pitch = Math.max(-0.5, Math.min(1.0, pitch + dy * 0.004));
+    },
+
+    zoom(factor) {
+      take();
+      // Multiplied rather than added, so a notch is the same proportion of the
+      // picture wherever it is spent, and the bounds hold at both ends however
+      // far past them the gesture keeps going.
+      range = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, range * factor));
     },
 
     shots: () => plan,

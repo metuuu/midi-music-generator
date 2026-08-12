@@ -44,7 +44,13 @@
         overflow: hidden; touch-action: none;
       }
       /* The stage fills the window. Everything else floats over it. */
-      #stage { position: fixed; inset: 0; display: block; width: 100%; height: 100%; }
+      /* touch-action on the canvas itself as well as on the body: the pinch is
+         ours, and a browser that decides to page-zoom instead takes both
+         fingers with it. */
+      #stage {
+        position: fixed; inset: 0; display: block; width: 100%; height: 100%;
+        touch-action: none;
+      }
       #overlay {
         position: fixed; inset: 0; pointer-events: none;
         display: flex; align-items: center; justify-content: center;

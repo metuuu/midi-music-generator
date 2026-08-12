@@ -237,22 +237,61 @@ if (!canvas) {
     -(e.clientY / window.innerHeight) * 2 + 1,
   ];
 
-  let down = false;
+  // A fourth meaning, on a phone: two fingers are a pinch. Which is why the
+  // pointers are a map rather than a boolean — the count is the thing that
+  // separates a drag from a zoom, and it has to be read on the move event
+  // rather than guessed at on the way down.
+
+  /** Every finger or button currently down, at its last known place. */
+  const touching = new Map<number, { x: number; y: number }>();
   let dragged = 0;
   let lastX = 0;
   let lastY = 0;
+  /** How far apart the two fingers were when the pinch was last measured. */
+  let spread = 0;
+
+  function pinchSpread(): number {
+    const [a, b] = [...touching.values()];
+    return a && b ? Math.hypot(a.x - b.x, a.y - b.y) : 0;
+  }
+
+  /** The one finger left on the glass, if there is exactly one. */
+  function only(): { x: number; y: number } | undefined {
+    return touching.size === 1 ? [...touching.values()][0] : undefined;
+  }
 
   canvas.addEventListener('pointerdown', (e) => {
-    down = true;
-    dragged = 0;
-    lastX = e.clientX;
-    lastY = e.clientY;
+    touching.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (touching.size === 1) {
+      dragged = 0;
+      lastX = e.clientX;
+      lastY = e.clientY;
+    } else {
+      // A second finger retires the click. Somebody pinching has not asked to
+      // throw a tomato, and the first finger's travel is usually under the
+      // threshold that would have said so.
+      dragged = Infinity;
+      spread = pinchSpread();
+    }
     canvas.setPointerCapture(e.pointerId);
   });
 
   canvas.addEventListener('pointermove', (e) => {
+    const held = touching.get(e.pointerId);
+    if (held) { held.x = e.clientX; held.y = e.clientY; }
+
+    if (touching.size >= 2) {
+      const now = pinchSpread();
+      // Fingers apart is closer, which is what every map and every photograph
+      // on the same device already does. `spread` is zero on the frame a pinch
+      // starts or re-forms, and there is no ratio to take from that.
+      if (spread > 0 && now > 0) show.zoom(spread / now);
+      spread = now;
+      return;
+    }
+
     const [x, y] = ndc(e);
-    if (!down) { show.aim(x, y); return; }
+    if (!held) { show.aim(x, y); return; }
     const dx = e.clientX - lastX;
     const dy = e.clientY - lastY;
     lastX = e.clientX;
@@ -262,13 +301,46 @@ if (!canvas) {
     else show.aim(x, y);
   });
 
+  /**
+   * A finger leaving. Two of them do not lift together, so the second half of
+   * every pinch is a moment with one finger still down — and that finger is
+   * nowhere near where the drag last had its hand. Re-seating `lastX/lastY` on
+   * it is what stops the release of a pinch from whipping the camera round.
+   */
+  function lift(e: PointerEvent): void {
+    touching.delete(e.pointerId);
+    spread = 0;
+    const rest = only();
+    if (rest) { lastX = rest.x; lastY = rest.y; }
+  }
+
   canvas.addEventListener('pointerup', (e) => {
-    down = false;
-    if (dragged <= 6) {
+    const wasLast = touching.size === 1 && touching.has(e.pointerId);
+    lift(e);
+    if (wasLast && dragged <= 6) {
       const [x, y] = ndc(e);
       show.click(x, y);
     }
   });
+
+  canvas.addEventListener('pointercancel', lift);
+
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    /**
+     * Out of the browser's unit before it is used. Chrome reports pixels,
+     * Firefox reports lines and a trackpad's momentum arrives as a stream of
+     * small pixel deltas; without this a notch of the same wheel is worth
+     * sixteen times as much on one browser as on the other.
+     */
+    const px = e.deltaMode === 1 ? e.deltaY * 16
+      : e.deltaMode === 2 ? e.deltaY * window.innerHeight
+        : e.deltaY;
+    // Exponential, so a notch is a fixed proportion of the distance rather
+    // than a fixed number of metres — the same feel from a close-up as from
+    // the wide shot.
+    show.zoom(Math.exp(px * 0.0012));
+  }, { passive: false });
 
   window.addEventListener('keydown', (e) => {
     // Bare presses only: ⌘P is the print dialog and always has been, and a page

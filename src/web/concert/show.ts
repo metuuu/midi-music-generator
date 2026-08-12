@@ -128,6 +128,8 @@ export interface Show {
   /** A click on the stage: advance the bill, or throw a tomato. */
   click(ndcX: number, ndcY: number): void;
   drag(dx: number, dy: number): void;
+  /** Wheel or pinch. Above 1 backs the camera off, below 1 moves it in. */
+  zoom(factor: number): void;
   aim(ndcX: number, ndcY: number): void;
   /**
    * Show the programme mid-concert, or put it away again. The music never
@@ -1589,6 +1591,7 @@ export function createShow(opts: ShowOptions = {}): Show {
 
     aim(ndcX, ndcY) { tomatoes.aim(ndcX, ndcY, director.camera); },
     drag(dx, dy) { director.orbit(dx, dy); },
+    zoom(factor) { director.zoom(factor); },
     toggleProgramme() { bill.toggleProgramme(); },
     closeProgramme() { if (bill.mode() === 'programme') bill.hide(); },
 
