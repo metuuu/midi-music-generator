@@ -326,6 +326,24 @@ export interface HeadShell {
    */
   fall?: readonly [number, number, number];
   /**
+   * How much the hem wanders about the length `fall` asks for, in the same
+   * units. Zero — the default — is a hem cut with scissors.
+   *
+   * It exists because cloth and hair end differently and nothing else here can
+   * say so. A hood's hem is a seam and a seam is a line; a head of hair has no
+   * line anywhere on it, and a level one all the way round the skull is the
+   * single loudest reason a shell full of hair reads as a moulded rim. So the
+   * hair styles ask for a few millimetres of scallop and the two garments do
+   * not, and that difference costs one number rather than a second generator.
+   *
+   * `RAGS` lobes across the arc, tapered to nothing at both ends so the corners
+   * where a fringe meets a cap stay where they were put. Deterministic, and
+   * that is not a shortcut: this geometry is pooled by its spec, so a hem drawn
+   * from an `Rng` would hand two players in the same haircut two vertex buffers
+   * and neither of them the one already in the pool.
+   */
+  ragged?: number;
+  /**
    * The ellipse the fall lands on, as the share of the hem's own width and
    * depth it keeps — `[1, 1]` is plumb.
    *
@@ -340,19 +358,42 @@ export interface HeadShell {
 
 export const headShell = (l: Leases, spec: HeadShell): BufferGeometry => {
   const key = `shell:${spec.phi.join()}:${spec.hem.join()}:${spec.wall.join()}`
-    + `:${(spec.fall ?? [0, 0, 0]).join()}:${(spec.land ?? [1, 1]).join()}`;
+    + `:${(spec.fall ?? [0, 0, 0]).join()}:${(spec.land ?? [1, 1]).join()}`
+    + `:${spec.ragged ?? 0}`;
   return l.geometry(key, () => buildHeadShell(spec));
 };
 
+/** How many lobes a `ragged` hem wanders through across the whole arc. */
+const RAGS = 5;
+
 /**
- * 20 × 9 quads a surface, and 3 more rows if it falls.
+ * 24 × 9 quads a surface, 3 more rows if it falls, and 2 that roll the hem over.
  *
- * Measured: 1048 triangles for a shell that falls and 796 for a patch that does
- * not, so a whole head of hair or cloth is two of them and about 1850 — five
- * `ball`s, for the thing an audience looks at most and the thing that used to be
- * a sphere with a hole in it. It buys the mesh *count* back: `emo` went from six
- * meshes to two and `wrap` from three. The pole is a fan of degenerate quads, as
- * it is on every sphere in three.js, and costs nothing.
+ * Measured: about 1400 triangles for a shell that falls, so a whole head of hair
+ * or cloth is two of them — four `ball`s, for the thing an audience looks at most
+ * and the thing that used to be a sphere with a hole in it. It buys the mesh
+ * *count* back: `emo` went from six meshes to two and `wrap` from three. The pole
+ * is a fan of degenerate quads, as it is on every sphere in three.js, and costs
+ * nothing.
+ *
+ * ## The two rows at the bottom, which are most of what this shape is for
+ *
+ * The hem used to be a single quad ring joining the outer wall to the inner one:
+ * a flat annulus, square to both surfaces, level all the way round. On a
+ * geometry whose whole reason to exist is that "an edge is a thing" that was the
+ * right correction made once too literally, because the edge it produced is the
+ * edge of a *cut tube*. Every complaint about hair or cloth ending unnaturally
+ * came back to it — a hood finishing in a rim you could have turned on a lathe, a
+ * fringe whose point is a chamfered corner, a bob-length side that stops as if it
+ * had hit a shelf.
+ *
+ * So the hem is rolled instead. `brink` gives the bottom of each wall at a
+ * column; the roll sweeps a quarter circle from one to the other about their
+ * midpoint, with a radius of half the wall's own thickness, and the two surfaces
+ * *meet* at the bottom of it. That closes the shell without a ring — the last row
+ * of the outer surface and the last row of the inner one are the same points —
+ * so there is no flat face left anywhere to catch a light and read as a cut.
+ * It costs two rows and it is the difference between cloth and pipe.
  */
 function buildHeadShell(spec: HeadShell): BufferGeometry {
   const [phi0, phi1] = spec.phi;
@@ -360,27 +401,63 @@ function buildHeadShell(spec: HeadShell): BufferGeometry {
   const [rIn, rOut] = spec.wall;
   const [fa, fb, fc] = spec.fall ?? [0, 0, 0];
   const [landX, landZ] = spec.land ?? [1, 1];
+  const ragged = spec.ragged ?? 0;
   // Quadratic Bézier whose control point is chosen so the curve passes through
   // `fb` at the middle of the arc rather than merely being pulled toward it.
   const mid = 2 * fb - (fa + fc) / 2;
   const fallAt = (u: number): number =>
-    fa * (1 - u) ** 2 + 2 * mid * u * (1 - u) + fc * u ** 2;
-  const span = Math.max(fa, fb, fc);
-  const NP = 20;
+    fa * (1 - u) ** 2 + 2 * mid * u * (1 - u) + fc * u ** 2
+    // Lobes that add length and never take it away, so a scallop cannot pull a
+    // hem back above the sphere it left, and tapered to nothing at both ends of
+    // the arc so the corners a style placed deliberately stay put.
+    + ragged * Math.sin(Math.PI * u) * 0.5 * (1 - Math.cos(2 * Math.PI * RAGS * u));
+  const span = Math.max(fa, fb, fc) + ragged;
+  // 24 rather than 20 columns because `RAGS` lobes need something to be drawn
+  // with: five across twenty is four samples a lobe, which is a zigzag.
+  const NP = 24;
   const NT = 9;
-  const NF = fa + fb + fc > 0 ? 3 : 0;
-  const rows = NT + 1 + NF;
+  const NF = fa + fb + fc + ragged > 0 ? 3 : 0;
+  const NR = 2;
+  const rows = NT + 1 + NF + NR;
 
   const xyz: number[] = [];
   const put = (x: number, y: number, z: number): number => {
     xyz.push(x, y, z);
     return xyz.length / 3 - 1;
   };
+  /**
+   * The very bottom of one wall at column `u` — hem, fall and land all applied.
+   *
+   * Pulled out because the roll needs *both* walls' bottoms to know where the
+   * middle of the edge is and how thick it is, and a surface being built only
+   * knows its own radius.
+   */
+  const brink = (r: number, u: number): [number, number, number] => {
+    const phi = phi0 + (phi1 - phi0) * u;
+    const hem = hem0 + (hem1 - hem0) * u;
+    const s = Math.sin(hem);
+    // `land` is scaled by how far *this* column actually falls, not just by
+    // how far down the fall we are. Otherwise a column at the ear, which
+    // drops half as far as the one at the nape, would still swing the whole
+    // way out — and a cowl that spreads to its full width in half the drop is
+    // a flange sticking out over an ear.
+    const reach = span > 0 ? fallAt(u) / span : 0;
+    return [
+      -r * Math.cos(phi) * s * (1 + (landX - 1) * reach),
+      r * Math.cos(hem) - 0.5 * Math.max(0, fallAt(u)),
+      r * Math.sin(phi) * s * (1 + (landZ - 1) * reach),
+    ];
+  };
+
   // One flat array a surface, indexed `i * rows + j`: `NP + 1` columns of `rows`
   // vertices each, running from the crown down the profile. Flat rather than
   // nested because every read below is a corner of a quad, and four
   // `grid[side][i][j]` a quad is where an off-by-one hides.
-  const surfaceOf = (r: number): number[] => {
+  //
+  // `side` is +1 for the outer wall and −1 for the inner one, and only the roll
+  // rows read it: they are the one part of the profile that is not a function of
+  // this surface's own radius alone.
+  const surfaceOf = (r: number, side: number): number[] => {
     const out: number[] = [];
     for (let i = 0; i <= NP; i++) {
       const u = i / NP;
@@ -396,11 +473,6 @@ function buildHeadShell(spec: HeadShell): BufferGeometry {
       const hx = -r * Math.cos(phi) * s;
       const hz = r * Math.sin(phi) * s;
       const hy = r * Math.cos(hem);
-      // `land` is scaled by how far *this* column actually falls, not just by
-      // how far down the fall we are. Otherwise a column at the ear, which
-      // drops half as far as the one at the nape, would still swing the whole
-      // way out — and a cowl that spreads to its full width in half the drop is
-      // a flange sticking out over an ear.
       const reach = span > 0 ? fallAt(u) / span : 0;
       for (let k = 1; k <= NF; k++) {
         const t = (k / NF) * reach;
@@ -410,11 +482,29 @@ function buildHeadShell(spec: HeadShell): BufferGeometry {
           hz * (1 + (landZ - 1) * t),
         ));
       }
+      // The roll. A quarter circle about the midpoint of the two walls' bottom
+      // edges, radius half their separation, so `b = π/2` lands both surfaces on
+      // the same point and the shell closes on itself with nothing flat left.
+      const bo = brink(0.5 * rOut, u);
+      const bi = brink(0.5 * rIn, u);
+      const dx = (bo[0] - bi[0]) * 0.5;
+      const dy = (bo[1] - bi[1]) * 0.5;
+      const dz = (bo[2] - bi[2]) * 0.5;
+      const thick = Math.hypot(dx, dy, dz);
+      for (let m = 1; m <= NR; m++) {
+        const b = (m / NR) * Math.PI * 0.5;
+        const c = Math.cos(b);
+        out.push(put(
+          (bo[0] + bi[0]) * 0.5 + side * dx * c,
+          (bo[1] + bi[1]) * 0.5 + side * dy * c - thick * Math.sin(b),
+          (bo[2] + bi[2]) * 0.5 + side * dz * c,
+        ));
+      }
     }
     return out;
   };
-  const outer = surfaceOf(0.5 * rOut);
-  const inner = surfaceOf(0.5 * rIn);
+  const outer = surfaceOf(0.5 * rOut, 1);
+  const inner = surfaceOf(0.5 * rIn, -1);
   const O = (i: number, j: number): number => outer[i * rows + j] ?? 0;
   const I = (i: number, j: number): number => inner[i * rows + j] ?? 0;
 
@@ -422,11 +512,11 @@ function buildHeadShell(spec: HeadShell): BufferGeometry {
   // which for the outer surface is anticlockwise seen from outside.
   //
   // **Signed volume does not check this**, and believing it did cost a round.
-  // The hem was wound the other way, and a bottom ring facing up out of a shell
-  // whose other thousand triangles face out still leaves the total volume
-  // positive — so the mesh measured "outward" and had no bottom. A back-facing
-  // ring is culled, so from anywhere below the jaw you looked straight through
-  // the hem into the inside of the head.
+  // The hem ring — since replaced by the roll — was wound the other way, and a
+  // bottom ring facing up out of a shell whose other thousand triangles face out
+  // still leaves the total volume positive, so the mesh measured "outward" and
+  // had no bottom. A back-facing ring is culled, so from anywhere below the jaw
+  // you looked straight through the hem into the inside of the head.
   //
   // The test that does catch it is the manifold one: weld coincident vertices,
   // then walk every triangle's three directed edges. On a closed, consistently
@@ -444,10 +534,9 @@ function buildHeadShell(spec: HeadShell): BufferGeometry {
       quad(O(i, j), O(i, j + 1), O(i + 1, j + 1), O(i + 1, j));
       quad(I(i, j), I(i + 1, j), I(i + 1, j + 1), I(i, j + 1));
     }
-    // The hem, and the two sides of the opening: the walls that give the cut an
-    // edge with area instead of a knife edge that vanishes at a grazing angle.
-    // Outer → inner → along the arc, so the ring faces *down* off the hem.
-    quad(O(i, rows - 1), I(i, rows - 1), I(i + 1, rows - 1), O(i + 1, rows - 1));
+    // No hem ring: the roll's last row is shared between the two surfaces, so a
+    // quad across it would be four coincident corners. What used to close the
+    // bottom is now the bottom.
   }
   for (let j = 0; j < rows - 1; j++) {
     quad(O(0, j), I(0, j), I(0, j + 1), O(0, j + 1));

@@ -44,7 +44,7 @@
  * is stated there once rather than tuned per style.
  */
 
-import { Box3, BufferGeometry, Group, Mesh, Object3D } from 'three';
+import { Box3, BufferGeometry, Group, Mesh, Object3D, Vector3 } from 'three';
 
 import type { HairStyle, Look } from '../../concert/types.js';
 import type { Rng } from '../../core/rng.js';
@@ -53,6 +53,9 @@ import {
   Leases, bead, hairSurface, headShell, orb, pill, shade, spike, surface,
 } from './performer-assets.js';
 import { SIDE, assertBuilt, type Proportions } from './performer-look.js';
+
+/** The axis every capsule in this file is built along. See `dreadlocks`. */
+const UP = new Vector3(0, 1, 0);
 
 // ---------------------------------------------------------------------------
 // What hair tells the things worn over it
@@ -423,22 +426,38 @@ export function buildHair(
       // A hem at one angle all the way round is a **bowl cut**: same length over
       // the ear as at the nape, cut level, which is 1966 and not 2003. What is
       // left of a bowl once the fringe is swept is still a bowl. So the fall is
-      // three numbers — 0.10 of a head radius beside the face, 0.02 behind it,
-      // 0.10 on the other side — and the shape that comes out is the one this
+      // three numbers — 0.09 of a head radius beside the face, 0.02 behind it,
+      // 0.09 on the other side — and the shape that comes out is the one this
       // haircut is built on: layers, slightly longer at the face than at the
       // nape, which is what no single hem can say.
       //
-      // **They are small numbers on purpose.** The sides are the part that goes
-      // wrong in the other direction: hair down the jaw to the collar is a bob
-      // with a fringe on it, and this cut is *short* everywhere except the
-      // fringe. The ends land at y −1.11 R — just past the chin at −1.05, a
-      // fifth of a head radius clear of the shoulder line — and the length in
-      // the style is the thing hanging over one eye, not the pieces beside it.
+      // ## The sides, which were a bowl anyway
+      //
+      // "Small numbers on purpose" was the note here, and the numbers it was
+      // about were the *fall*, which is a tenth of a head radius and never was
+      // the problem. The hem was, and it sat at 0.80π: a level circle at
+      // y −1.00 R before the fall even started, which is past the ear, past the
+      // mouth and level with the jaw. Worse, a circle that low on a sphere is
+      // still 0.69 R across while the skull it is beside has narrowed to 0.31,
+      // so the hair stood a third of a head radius clear of the face on both
+      // sides and then dropped plumb. That is a mushroom, and no amount of
+      // sweeping the fringe rescues one.
+      //
+      // 0.64π puts the hem at y −0.53 R and the ends of the fall at −0.62, which
+      // is a hand's width higher: below the mouth at −0.44, well clear of the
+      // chin at −1.05, and — this is the half that matters — up where the shell
+      // is still following the widest part of the skull rather than flaring away
+      // from a jaw. The length in this style is the thing hanging over one eye,
+      // which reaches −0.75, and it is now unmistakably the longest thing here.
       head(headShell(l, {
         phi: [Math.PI * 0.72, Math.PI * 2.28],
-        hem: [Math.PI * 0.80, Math.PI * 0.80],
+        hem: [Math.PI * 0.64, Math.PI * 0.64],
         wall: [1.08, 1.18],
-        fall: [0.10, 0.02, 0.10],
+        fall: [0.09, 0.02, 0.09],
+        // Hair, so the hem wanders. See `ragged` — six millimetres of scallop,
+        // which is nothing as a length and is the whole difference between ends
+        // and a rim.
+        ragged: 0.06,
         land: [0.95, 0.95],
       }));
 
@@ -462,6 +481,7 @@ export function buildHair(
         hem: left ? [SHALLOW, DEEP] : [DEEP, SHALLOW],
         wall: [1.07, 1.16],
         fall: left ? [0, 0.04, 0.16] : [0.16, 0.04, 0],
+        ragged: 0.05,
       }));
       break;
     }
@@ -624,13 +644,27 @@ export function buildHair(
       scalp.castShadow = true;
       hair.add(scalp);
 
+      // ## Where the ring starts, which is the ear and not the cheekbone
+      //
+      // It ran from 0.75π to 2.25π, and the arithmetic of that is worth writing
+      // down because "the front 90° left out" sounds like enough and is not. At
+      // 0.75π the root lands at x ∓0.74 R, z +0.37 R, and a rope 0.38 R through
+      // reaches z +0.56 R from there — forward of the ear, forward of the
+      // temple, hanging down the front of a cheek. Two of the nine did that, one
+      // a side, and a face with a rope down each cheek is the first thing anyone
+      // looking at this style saw.
+      //
+      // 0.85π to 2.15π starts them at x ∓0.94 R, z +0.11 R instead: at the
+      // temple, in front of the ear and a long way behind the cheek at +0.58,
+      // which is where locks pulled back off a face actually begin. The bare
+      // 0.70π that leaves at the front is the forehead and the face, and the
+      // scalp covers the half of that which is hair.
       const n = 9;
-      // Nine and not ten, and thicker: what has to survive ten metres is the
-      // *gap*, not the rope. Nine locks round this ring are half a head radius
-      // apart and each is 0.38 R through, which leaves about two and a half
-      // centimetres of dark between them — where ten thinner ones left one, and
-      // one centimetre at ten metres is a texture nobody sees rather than a
-      // shape everybody does.
+      // What has to survive ten metres is the *gap*, not the rope. Nine round
+      // this ring are 0.54 R apart and each is 0.38 R through, which leaves
+      // about two centimetres of dark between them — where ten thinner ones
+      // left one, and one centimetre at ten metres is a texture nobody sees
+      // rather than a shape everybody does.
       const ring = 0.94;
       // A ring at a constant *normalised* radius on an ellipsoid sits at a
       // constant height, which is why one number does for all nine roots
@@ -640,9 +674,9 @@ export function buildHair(
       // temple as well as free below the jaw.
       const root = R * (0.14 + 1.06 * Math.sqrt(1 - ring * ring));
       for (let i = 0; i < n; i++) {
-        // Round the head from the right temple, backwards, to the left, with
-        // the front 90° left out — a lock over the nose is not a hairstyle.
-        const a = Math.PI * (0.75 + (i / (n - 1)) * 1.50);
+        // Round the head from one temple, backwards, to the other, with a
+        // little jitter so nine ropes are not nine ropes on a jig.
+        const a = Math.PI * (0.85 + (i / (n - 1)) * 1.30) + rng.float(-0.05, 0.05);
         // Lengths that straddle the shoulder line on purpose. `settle` leaves a
         // mass whose tip is already above the line alone and cuts every other
         // one to the same floor, so a set of lengths all past the shoulder
@@ -655,14 +689,45 @@ export function buildHair(
         const lock = new Mesh(pill(l), mat);
         lock.scale.set(R * 0.38, half, R * 0.38);
         const x = Math.cos(a) * R * 1.12 * ring;
-        lock.position.set(x, root - half, Math.sin(a) * R * 1.10 * ring - R * 0.36);
-        // Flared out at the tip, away from whichever side it grew on, and
-        // further than it was: the flare is what opens the gaps downward, so a
-        // comb that is tight at the root is a fan at the hem. Capped where it
-        // is because `SINK` only buries a tip that is still inside the roll of
-        // the shoulder, and at this ring a swing of a quarter of a radian puts
-        // the far side of the last rope at 1.40 R against a jacket 1.66 R wide.
-        lock.rotation.z = (x >= 0 ? 1 : -1) * rng.float(0.10, 0.26);
+        const z = Math.sin(a) * R * 1.10 * ring - R * 0.36;
+
+        // ## Why none of them hangs straight down any more
+        //
+        // Nine plumb capsules on a ring is a *cage*: parallel bars at a
+        // constant radius, which from the house is a cylinder with slots in it
+        // and from the side is one rope repeated. Hair does not do that. It
+        // leaves the scalp along the scalp's own normal and then gravity takes
+        // it, so a lock over the ear ends further out than it started and one at
+        // the nape ends further back — and it is that *spread*, not the gaps,
+        // that says a head is covered in ropes rather than wearing a grille.
+        //
+        // The old `rotation.z` was reaching for this and could only ever get a
+        // third of it: one axis, so the ones at the nape leaned sideways, which
+        // is the one direction a lock at the nape has no reason to go.
+        //
+        // So the lean follows the root's own outward direction, flattened to
+        // 0.4 in `z`. The flattening is not tidiness — the tip of a back lock
+        // that leans its full share ends 0.44 R behind a torso that is only
+        // 1.28 R deep, hanging in open air off the back of the neck, where the
+        // same lock over the ear has a whole shoulder to clear. Hair at the nape
+        // lies *on* a back; hair at the temple falls past one.
+        //
+        // Small angles, and the ceiling is what a lock at the temple does to a
+        // front view rather than what the shoulder will take: past about a
+        // sixth of a radian the two ropes on the ends of the arc stop reading as
+        // hair leaving a head and start reading as pigtails.
+        const lean = rng.float(0.08, 0.17);
+        const out = new Vector3(Math.cos(a), 0, 0.4 * Math.sin(a));
+        // The mesh's `+y` is its root end, so the axis leans *inward* by the
+        // same angle the tip swings out.
+        const up = new Vector3(0, 1, 0)
+          .multiplyScalar(Math.cos(lean))
+          .addScaledVector(out, -Math.sin(lean))
+          .normalize();
+        lock.quaternion.setFromUnitVectors(UP, up);
+        // Placed by its root rather than its centre, so leaning it does not pull
+        // the top out of the scalp it grew from.
+        lock.position.set(x, root, z).addScaledVector(up, -half);
         lock.castShadow = true;
         hair.add(lock);
         // Every lock rests, including the ones at the nape. Swinging the back
@@ -795,16 +860,34 @@ export function buildHair(
       halo.position.set(0, R * 0.55, -R * 0.85);
       halo.castShadow = true;
       hair.add(halo);
-      // Seven lumps on the silhouette itself. An ellipsoid this size has a
-      // perfect edge and nothing else in the room does; these break it.
-      for (let i = 0; i < 7; i++) {
-        const a = Math.PI * (-0.14 + (i / 6) * 1.28) + rng.float(-0.12, 0.12);
+      // Lumps on the silhouette itself. An ellipsoid this size has a perfect
+      // edge and nothing else in the room does; these break it.
+      //
+      // ## Seven was not enough of them, and each one was too big to hide that
+      //
+      // Seven round a 1.28π arc are 0.84 R apart and were drawn 0.52 to 0.82 R
+      // across, so most neighbours did not touch. What that produces is not a
+      // broken edge — it is seven *objects*, and because they were sat on the
+      // halo's own surface rather than into it, each one stood a third of a head
+      // radius proud of a smooth balloon. Balls on top of a ball. The one place
+      // it was worst is the top, where the eye has an unbroken curve to compare
+      // them against.
+      //
+      // Sixteen at 0.40–0.60 R is the same total volume of lump distributed so
+      // that it reads as a surface: 0.42 R apart, which is inside the diameter
+      // of every one of them, so the outline is a continuous fuzz. Pulled in to
+      // 1.52 R with a little play, so they break the edge from just inside it
+      // instead of perching on it, and jittered in `z` so the fuzz is a shell
+      // rather than a wreath — the fault the old ring shared with `curls`.
+      for (let i = 0; i < 16; i++) {
+        const a = Math.PI * (-0.16 + (i / 15) * 1.32) + rng.float(-0.05, 0.05);
+        const out = R * rng.float(1.46, 1.58);
         const bump = new Mesh(bead(l), mat);
-        bump.scale.setScalar(R * rng.float(0.52, 0.82));
+        bump.scale.setScalar(R * rng.float(0.40, 0.60));
         bump.position.set(
-          Math.cos(a) * R * 1.60,
-          R * 0.55 + Math.sin(a) * R * 1.42,
-          -R * 0.85,
+          Math.cos(a) * out,
+          R * 0.55 + Math.sin(a) * out * 0.89,
+          -R * 0.85 + R * rng.float(-0.55, 0.55),
         );
         hair.add(bump);
       }
@@ -852,26 +935,54 @@ export function buildHair(
       // survives a hat, a follow-spot and a back row; "the same but smaller"
       // does not.
       crown(2.20, 2.10, 2.16, 0.18, -0.22);
-      // Nine on the front-view outline and none anywhere else, for the reason
-      // the afro's seven are where they are: hair is read from its silhouette,
-      // and a bead on the far side of the head from the house is polygons spent
-      // on nothing. They overlap — 0.48 R apart on the ring, 0.58 to 0.76 R
-      // across — so the edge is a continuous scallop rather than a string of
-      // separate balls, which was the other half of what made eight of them read
-      // as damage.
+      // ## Nine on the outline was a rim, not a head of curls
       //
-      // Seeded, so the same performer has the same head of hair every show. The
-      // jitter in `z` is the one draw that is not about the outline: it stops
-      // the nine from lying in a single plane, which from the wings would be a
-      // smooth cap with a decorated rim.
-      for (let i = 0; i < 9; i++) {
-        const a = Math.PI * (-0.10 + (i / 8) * 1.20) + rng.float(-0.06, 0.06);
+      // The previous pass put all nine on one circle in the `x`–`y` plane with a
+      // little jitter in `z`, on the argument that hair is read from its
+      // silhouette and a bead on the far side of the head is polygons spent on
+      // nothing. The first half of that is true and the conclusion does not
+      // follow, because the silhouette is not the only thing the house can see:
+      // between the two arcs of beads was a **smooth ellipsoid**, lit like one,
+      // taking a clean highlight across the top of the skull. What walked on
+      // stage was a bald cap with a bead necklace stapled round the edge — two
+      // curved lines of balls with nothing between them, which is exactly what
+      // it looks like from the front and exactly what it was.
+      //
+      // So the beads cover the cap instead of ringing it. A Vogel spiral —
+      // `acos` on a linear ramp, so the points are equal-*area* rather than
+      // equal-angle and the crown does not end up denser than the temple —
+      // turned by the golden angle, which is the cheapest way to get a
+      // distribution with no rows, no seams and no repeats in it. Thirty
+      // candidates, of which the guard below drops the half-dozen that would
+      // land on a face, leave the rest about 0.6 R apart at 0.50–0.66 R across:
+      // touching or overlapping, so the surface is a continuous lumpy field
+      // rather than separate balls, and the outline is still scalloped because
+      // the ones near the edge are still there.
+      //
+      // They are sunk to 0.88 of the cap's radius rather than sat on it. A curl
+      // proud by 0.12–0.20 R is a curl; one sitting on the surface at its full
+      // 0.30 R is the afro's problem in miniature, and it is also what put the
+      // old ring's beads a third of a head radius outside a cap that is supposed
+      // to be a centimetre and a half proud of the skull.
+      const CURLS = 30;
+      for (let i = 0; i < CURLS; i++) {
+        // Polar angle from the crown, over a cap that reaches a little past the
+        // equator; azimuth by the golden angle, with `π/2` the way the face is.
+        const t = (i + 0.5) / CURLS;
+        const theta = Math.acos(1 - 1.30 * t);
+        const phi = i * 2.399963;
+        // How far down the skull hair is allowed to get, by direction. The back
+        // takes it to the nape, the sides to the ear, and the front stops at the
+        // hairline — a curl at 1.55 rad on the face side sits on an eyebrow,
+        // which is the one place on a head no hairstyle here may reach.
+        if (theta > 1.75 - 0.60 * Math.sin(phi)) continue;
+        const s = Math.sin(theta);
         const curl = new Mesh(bead(l), mat);
-        curl.scale.setScalar(R * rng.float(0.58, 0.76));
+        curl.scale.setScalar(R * rng.float(0.50, 0.66));
         curl.position.set(
-          Math.cos(a) * R * 1.02,
-          R * (0.18 + Math.sin(a) * 1.00),
-          -R * 0.22 + R * rng.float(-0.24, 0.24),
+          R * 0.88 * 1.10 * s * Math.cos(phi),
+          R * (0.18 + 0.88 * 1.05 * Math.cos(theta)),
+          R * (-0.22 + 0.88 * 1.08 * s * Math.sin(phi)),
         );
         hair.add(curl);
       }
