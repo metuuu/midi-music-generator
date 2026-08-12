@@ -727,10 +727,21 @@ const METAL_SHOTS: (readonly [number[], number])[] = [
  *
  * The pair is a line-up rather than a section device — both of them are on stage
  * all night — so there is no kind to name, and which sections it lands in is
- * decided by where the chart put the second guitar. That narrowing is real and it
- * is most of the difference between `amount` and what is heard: `layersFor` draws
- * the counter at `density * 0.7` in a chorus and `density * 0.45` in a verse, and
- * this genre's four eras run 0.60 to 0.72.
+ * decided by where the chart put the second guitar.
+ *
+ * **That narrowing was most of the difference between `amount` and what is heard,
+ * and it is why every style using this helper also requires the layer.**
+ * `layersFor` draws the counter at `density * 0.7` in a chorus and `density * 0.45`
+ * in a verse, and this genre's four eras run 0.60 to 0.72 — so the second
+ * guitarist was absent from roughly half the sections the harmony was declared
+ * over, and `amount` was being multiplied by a coin nobody wrote down. Measured
+ * over 40 songs a style, the five realised 0.335, 0.259, 0.243, 0.160 and 0.152
+ * against declarations of 0.6, 0.6, 0.5, 0.3 and 0.3; counting only the sections
+ * the layer was actually in, the same songs realised 0.614, 0.576, 0.533, 0.286
+ * and 0.304, which is what the tables say. `requireLayers: ['counter']` on each of
+ * the five is that second column made true of the first: the line-up this
+ * paragraph opens by claiming, stated where the chart reads it, leaving `amount`
+ * to decide what the two guitarists play rather than whether there are two.
  *
  * Singing it is refused for the genre, by the genre: `vocals.ts` picks GM 85
  * rather than a choir patch and says why — *"there is one person on the microphone
@@ -1098,7 +1109,7 @@ const nwobhm: Style = {
   hook: 'catchy',
   shots: METAL_SHOTS,
   breakCarrier: 'comp',
-  requireLayers: ['comp'],
+  requireLayers: ['comp', 'counter'],
   progressions: {
     verse: [
       { chords: ['i', 'i', 'VII', 'VII', 'VI', 'VI', 'VII', 'VII'], weight: 5, note: 'i–♭VII–♭VI–♭VII: the aeolian shuttle, and the single most-played eight bars in the genre' },
@@ -1171,7 +1182,7 @@ const speed: Style = {
   hook: 'catchy',
   shots: METAL_SHOTS,
   breakCarrier: 'comp',
-  requireLayers: ['comp'],
+  requireLayers: ['comp', 'counter'],
   excludeLayers: ['brass'],
   progressions: {
     verse: [
@@ -1240,7 +1251,7 @@ const power: Style = {
   hook: 'earworm',
   shots: METAL_SHOTS,
   breakCarrier: 'comp',
-  requireLayers: ['comp'],
+  requireLayers: ['comp', 'counter'],
   progressions: {
     verse: [
       { chords: ['i', 'i', 'VI', 'VI', 'III', 'III', 'VII', 'VII'], weight: 5 },
@@ -1342,7 +1353,7 @@ const glam: Style = {
   hook: 'earworm',
   shots: [[[0, 6, 8], 4], [[0, 4, 8, 12], 4], [[0, 7, 12], 3]],
   breakCarrier: 'comp',
-  requireLayers: ['comp'],
+  requireLayers: ['comp', 'counter'],
   progressions: {
     verse: [
       { chords: ['i', 'VII', 'VI', 'VII', 'i', 'VII', 'VI', 'V'], weight: 4 },
@@ -2321,7 +2332,7 @@ const melodeath: Style = {
   relativeMajorChorus: 0.1,
   shots: METAL_SHOTS,
   breakCarrier: 'comp',
-  requireLayers: ['comp'],
+  requireLayers: ['comp', 'counter'],
   excludeLayers: ['brass'],
   progressions: {
     verse: [

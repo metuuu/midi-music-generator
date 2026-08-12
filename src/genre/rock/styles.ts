@@ -1724,6 +1724,25 @@ const southern: Style = {
   vary: { bass: 0.1, comp: 0.12 },
   scaleForChord: pentatonicLead,
   /**
+   * The second guitarist, in the band rather than drawn for.
+   *
+   * `harmony` above is a share of the sections that have a counter layer in
+   * them, and nothing was making sure any did: `layersFor` draws the counter at
+   * `density * 0.45` in a verse and `* 0.7` in a chorus, so 0.6 of the sections
+   * that had one came to 27% of the sections that could have. Measured over 40
+   * songs the declaration realised 0.273; restricted to the sections where the
+   * layer actually sounded it realised 0.614, which is the number that was
+   * written down. The shortfall was never the harmony pass — it was the player
+   * not being in the room.
+   *
+   * A style whose description is *two guitars on the same line a third apart*
+   * has two guitarists at every point of the arrangement, the same way ambient
+   * has its pad. `harmony`'s 0.6 still decides which sections they play in
+   * thirds and which ones the second one spends answering, which is the split
+   * the field was set to 0.6 for.
+   */
+  requireLayers: ['counter'],
+  /**
    * The device this style exists for, taken out of the draw and made the sound.
    *
    * `Genre.arrangement` puts `harmony` at 6 where the shared pool says 4 — of 28

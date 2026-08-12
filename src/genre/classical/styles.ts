@@ -1633,6 +1633,17 @@ const pavane: Style = {
   modeWeights: { minor: 0.6, major: 0.4 },
   relativeMajorChorus: 0.25,
   excludeLayers: ['drums'],
+  /**
+   * The second desk, which a consort has whether or not the arranger drew one.
+   *
+   * `harmony` below is a share of the sections carrying a counter, and the
+   * counter is drawn at `density * 0.45` in a verse: the declared 0.5 realised
+   * 0.146 over 40 songs for that reason alone, the worst gap in the catalogue,
+   * and 0.576 once the denominator counts only the sections the second voice
+   * was present for. A pavane two-voiced throughout is what the note below
+   * says it is, so the voice belongs in the arrangement rather than in a draw.
+   */
+  requireLayers: ['counter'],
   progressions: {
     intro: [
       { chords: ['i', 'i', 'V7', 'i'], weight: 4 },

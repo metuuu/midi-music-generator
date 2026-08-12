@@ -4053,6 +4053,65 @@ function landEnding(song: Song, style: EndingStyle, chord: Chord | undefined): v
     track.notes = kept;
   }
 
+  /**
+   * …and the two melodic parts do not land on the same note.
+   *
+   * `snapToChord` is per-track by construction — it is handed one note and a set
+   * of pitch classes, and it cannot know what the other players are arriving on.
+   * Its own note says where that ends up: *"dropping every layer onto the root
+   * would end the piece on a unison"*, which is why it takes the nearest tone
+   * rather than the root. Nearest is enough to keep a voicing balanced and is not
+   * enough here, because two parts a third apart are two semitones from the same
+   * tone as often as not — the recall block above says the same thing in its own
+   * words, *"which is how a third becomes a unison"*.
+   *
+   * That block solved it for `harmony` notes by keeping them out of the recall.
+   * This is the same fault one category wider: a plain answering note, never
+   * marked, recalled onto the downbeat and snapped to the tone the tune also
+   * snapped to. It went unseen while it did, because it needs the counter to
+   * still be in the band in the final bar — `layersFor` draws the layer at
+   * `density * 0.45` and mostly it is not. The seven twin-guitar styles that now
+   * require the layer put it there every time, and metal `glam` cm-18 landed both
+   * guitars on A4.
+   *
+   * Moved rather than dropped, and moved to the *nearest* free tone with ties
+   * going down — `snapToChord`'s own rule, for `snapToChord`'s own reason: the
+   * note is part of a voicing the arranger balanced, and the smallest move that
+   * clears the tune disturbs it least. Downward is only a tiebreak here, not a
+   * policy: the answer sits under the tune everywhere else, but a fifth below
+   * costs five semitones where the third above costs four, and reaching past a
+   * nearer tone to honour a preference the ending does not depend on would be
+   * re-voicing the chord rather than un-doubling it. glam cm-18 takes C#5 over
+   * the tune's A4 on those grounds.
+   *
+   * The band still lands together on the chord, which is what the pass is for;
+   * only the doubling goes. `undoubleAgainst` cannot do this job — it moves by
+   * scale steps and would walk the note off the landing chord, which is why the
+   * last call to it sits before `landEnding` rather than after.
+   */
+  if (tones.length > 1) {
+    const landing = (track: Track | undefined): NoteEvent | undefined => {
+      if (!track) return undefined;
+      let best: NoteEvent | undefined;
+      for (const n of melodicLine(track)) {
+        if (n.beat < at - EPS) continue;
+        if (!best || n.beat < best.beat) best = n;
+      }
+      return best;
+    };
+    const lead = landing(song.tracks.find((t) => t.layer === 'melody'));
+    const answer = landing(song.tracks.find((t) => t.layer === 'counter'));
+    if (lead && answer && !answer.doubling
+      && Math.abs(lead.midi - answer.midi) % 12 === 0) {
+      const free = (m: number): boolean => tones.includes(((m % 12) + 12) % 12)
+        && Math.abs(lead.midi - m) % 12 !== 0;
+      for (let d = 1; d <= 6; d++) {
+        if (free(answer.midi - d)) { answer.midi -= d; break; }
+        if (free(answer.midi + d)) { answer.midi += d; break; }
+      }
+    }
+  }
+
   // The kit. Whatever it was playing in the last bar was a bar of pattern, and
   // the pattern is over.
   const hadDrums = song.drums.events.length > 0;
