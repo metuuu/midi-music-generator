@@ -259,15 +259,21 @@ another solo chorus in the same song.
 
 ## 5. Vocals in the concert
 
-The station is instrumental by default and the voice is opt-in. A concert should be
-mixed, the way a real set is: two or three instrumentals, one or two sung numbers, the
-singer walking off between them.
+The station is instrumental by default and the voice is opt-in. A concert may be mixed
+the way a set is — instrumentals, a sung number, the singer walking off between them —
+but mostly it is not: singing is drawn per number rather than programmed, at a rate low
+enough that instrumental evenings outnumber sung ones in every genre.
 
 - `ConcertOptions.vocals: 'instrumental' | 'mixed' | 'sung'`, default `mixed`.
 - **`instrumental` is a first-class mode**, not a degraded one — it is what most of this
   repertoire actually is, and the showbill, the staging and the lighting all have to
-  work with no singer present. Under `mixed`, roughly a third of the numbers are sung,
-  chosen so the sung one is not the opener.
+  work with no singer present. Under `mixed`, each number takes its own chance of being
+  sung — a rate the genre sets, from pop's 0.40 down to ambient's 0.10 (`SUNG_CHANCE` in
+  `setlist.ts`) — so the count is not dealt and the slot is not consulted. The opener is
+  as likely to be sung as the closer, no genre reaches a coin-flip, and a whole
+  instrumental evening is a normal outcome rather than a special case. The rates are
+  deliberately far below life: in this engine the voice is one more instrument, and a set
+  that always has a singer is a set that is never about the band.
 - The voice is **wordless** and stays that way — vowels and manner-of-articulation
   consonants, no language. That is the project's design, it is the sound that works, and
   the concert must not drift toward mouthing words it is not singing.

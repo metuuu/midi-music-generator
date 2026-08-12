@@ -179,32 +179,103 @@ function planSlots(count: number, sung: boolean[], rng: Rng): Slot[] {
 }
 
 /**
- * Which numbers are sung.
+ * Chance one number is sung, per genre. `mixed` reads this and nothing else.
  *
- * `mixed` is the default and means roughly a third — one of three or four, two
- * of five — and **never the opener**. Two reasons, and the second is the real
- * one: a set that opens with the singer has nowhere to go when they walk off,
- * and the band is more interesting to look at first. `instrumental` is a
- * first-class mode rather than a degraded one; most of this repertoire is
- * instrumental and the staging, the lighting and the bill all have to work with
- * no singer present.
+ * ## Why a chance rather than a count
+ *
+ * This used to deal a fixed quota — a third of the bill, rounded, never the
+ * opener — and both halves of that were wrong in the same way. **A quota makes
+ * the evening a property of its own length**: a four-number set had exactly one
+ * sung number and a five-number set exactly two, every time, so the only
+ * question left was which slots drew the short straw. And the opener rule made
+ * *position* answer a question position has no business answering — the second
+ * number of a set was measurably likelier to be sung than the first, which is a
+ * fact about an `i > 0` and not about a band. A number is now sung because this
+ * genre sings, and for no other reason; slot 1 and slot 5 draw the same coin.
+ *
+ * The price is that the count is no longer guaranteed. A whole evening can come
+ * out instrumental — at the table's mean rate a four-number set has nobody
+ * singing in it about a quarter of the time — and that is the intended reading
+ * rather than a degenerate case. Instrumental is a first-class mode here, and
+ * the staging, the lighting and the bill were all built to work with nobody at
+ * the centre mic.
+ *
+ * ## Why the numbers are this low
+ *
+ * They are deliberately not the real world's. A pop concert is sung start to
+ * finish and a country one nearly so; scored honestly, half the catalogue would
+ * be a singer with a backing band every night. **In this engine a voice is an
+ * instrument** — it sings an invented language, it takes the melody line, and a
+ * set that always has one is a set that never gets to be about the guitar
+ * player. So the table keeps the *ordering* real and shrinks the whole scale:
+ * pop and rnb sing four numbers in ten, ambient one, and no genre reaches a
+ * coin-flip. An evening with a singer stays an event rather than a default.
+ *
+ * The ordering is the part worth arguing with. It runs from song-led idioms —
+ * pop, rnb, hiphop, iskelmä, country, whose repertoire *is* the vocal line —
+ * through the ones that hold both a sung and a played tradition — rock, latin,
+ * arabic, finnfolk, indian, metal, reggae — down to the ones whose records are
+ * mostly instrumental and whose voice, when it appears, is a texture: funk and
+ * jazz to house and dnb, then synth, classical and ambient, where a choir patch
+ * is scenery.
+ *
+ * Every genre has an entry and `npm run concert` asserts it, so the default
+ * below is a runtime floor rather than a design: a genre that reaches it is a
+ * genre somebody forgot, and the check says so by name.
+ */
+export const SUNG_CHANCE: Record<string, number> = {
+  pop: 0.40,
+  rnb: 0.40,
+  hiphop: 0.40,
+  iskelma: 0.38,
+  country: 0.36,
+  reggae: 0.34,
+  rock: 0.32,
+  arabic: 0.32,
+  finnfolk: 0.32,
+  latin: 0.30,
+  indian: 0.30,
+  metal: 0.28,
+  funk: 0.24,
+  jazz: 0.20,
+  house: 0.20,
+  dnb: 0.16,
+  synth: 0.14,
+  classical: 0.12,
+  ambient: 0.10,
+};
+
+/** What an unlisted genre sings at. See `SUNG_CHANCE` — nothing should use it. */
+export const DEFAULT_SUNG_CHANCE = 0.25;
+
+/**
+ * Nothing in the table may reach a coin-flip. `npm run concert` asserts it, and
+ * it is the one line of this policy that is a promise rather than a taste: more
+ * of any genre's evenings are instrumental than sung.
+ */
+export const MAX_SUNG_CHANCE = 0.5;
+
+/**
+ * Which numbers are sung: one independent draw per number, at the genre's rate.
+ *
+ * `instrumental` and `sung` are the caller overriding the draw outright — the
+ * two modes a page needs when it is showing something specific — and neither
+ * consumes the stream, so a show does not shift underneath the toggle.
  *
  * The voice sings an invented language rather than a real one, and nobody ever
  * sees the words — a lexicon per song, spelled to that genre's phonotactics and
  * heard only as syllables. That is a property of `generate/vocals.ts` and this
  * file does not get a vote, which is exactly how it should stay.
  */
-function planVocals(count: number, policy: VocalPolicy, rng: Rng): boolean[] {
+function planVocals(count: number, genre: Genre, policy: VocalPolicy, rng: Rng): boolean[] {
   if (policy === 'instrumental') return new Array<boolean>(count).fill(false);
   if (policy === 'sung') return new Array<boolean>(count).fill(true);
 
-  const sung = new Array<boolean>(count).fill(false);
-  // Eligible = everything but the opener. A one-number set therefore has no
-  // sung number under `mixed`, which is right: it is a soundcheck.
-  const eligible: number[] = [];
-  for (let i = 1; i < count; i++) eligible.push(i);
-  const wanted = Math.min(Math.max(1, Math.round(count / 3)), eligible.length);
-  for (const i of rng.shuffle(eligible).slice(0, wanted)) sung[i] = true;
+  const chance = SUNG_CHANCE[genre.id] ?? DEFAULT_SUNG_CHANCE;
+  const sung: boolean[] = [];
+  // One draw per slot, in slot order, and the slot index is not consulted: that
+  // is the whole of "position does not decide". See `SUNG_CHANCE`.
+  for (let i = 0; i < count; i++) sung.push(rng.chance(chance));
   return sung;
 }
 
@@ -343,7 +414,7 @@ export function buildSetlist(opts: ConcertOptions = {}): Song[] {
   const count = opts.numbers === undefined
     ? planCount(genre, rng)
     : Math.max(1, Math.min(6, Math.round(opts.numbers)));
-  const slots = planSlots(count, planVocals(count, opts.vocals ?? 'mixed', rng), rng);
+  const slots = planSlots(count, planVocals(count, genre, opts.vocals ?? 'mixed', rng), rng);
 
   const usedMoods = new Set<string>();
   const usedKeys = new Set<Pc>();

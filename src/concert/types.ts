@@ -1441,6 +1441,12 @@ export interface ConcertOptions {
   era?: string;
   /** How many numbers. 3–5 is a set; 1 is a soundcheck. */
   numbers?: number;
+  /**
+   * Defaults to `mixed`, which is a *chance* per number rather than a quota:
+   * each number is sung or not on its own, at a rate the genre sets, and most
+   * of them are not. The other two settings override the draw outright. See
+   * `SUNG_CHANCE` in `setlist.ts`.
+   */
   vocals?: VocalPolicy;
   /**
    * Stage this exact piece of music, and nothing else.

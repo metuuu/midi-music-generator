@@ -31,6 +31,7 @@ import {
   trackCanReach,
 } from './concert/instruments.js';
 import { seenAs, stacked } from './concert/cast.js';
+import { MAX_SUNG_CHANCE, SUNG_CHANCE } from './concert/setlist.js';
 import { buildConcert, soundingEffectors } from './concert/index.js';
 import { cableBounds, routeOnDeck, stageBoxAt, type Obstacle } from './web/concert/cables.js';
 import { BUILDERS, buildInstrumentFor } from './web/concert/instruments/index.js';
@@ -270,6 +271,15 @@ let ambientSpots = 0;
 let visemeGaps = 0;
 let soloWithoutPlayer = 0;
 /**
+ * Numbers, and the ones with somebody singing them — overall and in the opener
+ * alone. Both halves of the `mixed` policy are statistical now (`SUNG_CHANCE`),
+ * so this is the only place either claim can be checked at all.
+ */
+let numbers = 0;
+let sungNumbers = 0;
+let openers = 0;
+let sungOpeners = 0;
+/**
  * The right hand keeps its grid; the left hand does not follow it there.
  *
  * A dead stroke is a damped string — see `NoteEvent.dead` — so the two hands
@@ -289,7 +299,7 @@ for (const gid of CHECKED_GENRES) {
     const concert = buildConcert({ seed: `check-${gid}-${i}`, genre: gid, vocals: 'mixed' });
     shows++;
 
-    for (const number of concert.numbers) {
+    for (const [slot, number] of concert.numbers.entries()) {
       const { song, cast, choreography, lighting, solos } = number;
       const byId = new Map(cast.performers.map((p) => [p.id, p]));
       const lastNote = Math.max(
@@ -424,6 +434,13 @@ for (const gid of CHECKED_GENRES) {
       // Visemes exist exactly when there is a voice.
       const hasVoice = song.tracks.some((t) => t.voice);
       if (hasVoice !== Boolean(number.visemes)) visemeGaps++;
+
+      numbers++;
+      if (hasVoice) sungNumbers++;
+      if (slot === 0) {
+        openers++;
+        if (hasVoice) sungOpeners++;
+      }
     }
   }
 }
@@ -750,6 +767,44 @@ check('every solo resolves to a performer', soloWithoutPlayer === 0,
 }
 check('visemes exist exactly when there is a voice', visemeGaps === 0,
   visemeGaps ? `${visemeGaps} mismatches` : 'none');
+
+/**
+ * Singing is a draw, so these are the assertions that replace reading the code.
+ *
+ * Three claims, and the bounds are wide on purpose — a rate is not a target, and
+ * a check that pins one to two decimals fails the next time anything upstream
+ * touches the RNG stream without a single note having changed. What is asserted
+ * is the *shape* of the policy:
+ *
+ *  - **a minority sings.** The table's mean is ~0.28 and the band around it is
+ *    five standard deviations wide at this sample size, so this fails when the
+ *    policy has actually moved, not when a draw wobbled.
+ *  - **the opener is not special.** It used to be the one slot that could never
+ *    be sung; now it draws the same coin as every other slot, and the cheapest
+ *    total statement of that is that singers do open shows.
+ *  - **no genre is a coin-flip**, which is `MAX_SUNG_CHANCE`, plus the coverage
+ *    that makes `DEFAULT_SUNG_CHANCE` unreachable — a genre missing from the
+ *    table would silently sing at a rate nobody chose for it.
+ */
+const sungRate = numbers ? sungNumbers / numbers : 0;
+check('sung numbers are the minority', sungRate > 0.15 && sungRate < 0.45,
+  `${sungNumbers}/${numbers} sung (${(sungRate * 100).toFixed(1)}%)`);
+
+check('the opener is sung like any other slot', sungOpeners > 0,
+  `${sungOpeners}/${openers} openers sung`);
+
+const unrated = GENRE_IDS.filter((id) => SUNG_CHANCE[id] === undefined);
+const strayRates = Object.keys(SUNG_CHANCE).filter((id) => !GENRE_IDS.includes(id));
+check('every genre, and only a genre, states a rate',
+  unrated.length === 0 && strayRates.length === 0,
+  [...unrated.map((id) => `missing ${id}`), ...strayRates.map((id) => `stray ${id}`)].join(', ')
+    || `${GENRE_IDS.length} genres`);
+
+const loudGenres = Object.entries(SUNG_CHANCE)
+  .filter(([, p]) => !(p > 0 && p <= MAX_SUNG_CHANCE));
+check('no genre sings more often than not', loudGenres.length === 0,
+  loudGenres.map(([id, p]) => `${id} ${p}`).join(', ')
+    || `≤ ${MAX_SUNG_CHANCE} everywhere`);
 
 /**
  * Nobody mimes a machine, and no machine plays from nowhere.
