@@ -57,7 +57,7 @@ import { applyDrop, planDrop } from './drop.js';
 import { effectiveBpm, planRamp, rampMap } from './tempo.js';
 import { applyTransitions, hitTogether, planTransitions, type Seam } from './transition.js';
 import { getHook, RECALL_BIAS, type HookId } from './hook.js';
-import { composeSectionTune, registerFor } from '../tune/adapt.js';
+import { composeSectionTune, planSubject, registerFor } from '../tune/adapt.js';
 import { planKeys } from '../tune/keyplan.js';
 import { figureSlots, handOff, harmonise, harmoniseWith, joinIn, patchBand } from '../tune/band.js';
 import { has, planChart, playing } from './chart.js';
@@ -786,6 +786,26 @@ export function generateSong(opts: GenerateOptions = {}): Song {
   });
   const bassCast = castFor('bass', style.bass, bassPattern, drawnBass);
   const compCast = castFor('comp', style.comp, compPattern, drawnComp);
+  /**
+   * …and the tune's equivalent: the material every section of this song is made
+   * out of.
+   *
+   * Drawn here with the other once-per-song decisions because that is what it
+   * is. `composeSectionTune` runs once per section and every call used to invent
+   * its own archetype and its own family of motifs, so a verse and a chorus of
+   * one song shared 0.025 of their interval three-grams — statistically two
+   * unrelated tunes stapled to one bassline. See `Subject`.
+   *
+   * Its own stream, and the whole of what it costs: nothing upstream of this
+   * line moves, and a caller that passes no subject — the tune lab, the
+   * instrument probes in `genre-check` — composes exactly what it always did.
+   */
+  const subject = planSubject({
+    style,
+    rng: new Rng(`${seed}:subject${salt('melody')}`),
+    ...(genre.voice ? { genreVoice: genre.voice } : {}),
+    mood: { leap: mood.leap, ornament: mood.ornament },
+  });
   /**
    * …and a band with no percussion section may say so by writing nothing.
    *
@@ -1900,6 +1920,10 @@ export function generateSong(opts: GenerateOptions = {}): Song {
           // apart from it. Without this the freshness term has nothing to measure
           // and a verse and a chorus may legitimately converge on one tune.
           avoid: stated,
+          // …and the material every section of this song is made out of, so the
+          // freshness term above is telling two treatments of one subject apart
+          // rather than two unrelated tunes. See `Subject`.
+          subject,
           mood: { leap: mood.leap, ornament: mood.ornament },
           /**
            * …and how the section is felt, in the same place and for the same

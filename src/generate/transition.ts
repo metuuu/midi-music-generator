@@ -1198,6 +1198,29 @@ function playBreak(
     (layer) => layer !== carrier && BAND_TAKEN_BY_A_BREAK.includes(layer),
   )) return;
   if (section.solo?.layer === carrier) return;
+  /**
+   * …and a fourth: the carrier has to have something **in this bar**.
+   *
+   * The three above ask whether the carrier is *in the section*, which is a
+   * question about the layer plan and was the only question anybody thought to
+   * ask. A layer can be in a section and rest in one bar of it, and a part
+   * resting is the ordinary case for a tune — a phrase ends, the singer breathes
+   * — so hushing the whole band behind a carrier that is not playing does not
+   * make stop-time, it makes a hole.
+   *
+   * Latent, and it needed the melody to move to surface: `rnb/slowjam` declares
+   * `breakCarrier: 'melody'`, and one song in the catalogue put a break on the
+   * last bar of a verse whose tune had already finished — one bar of 383, found
+   * the day the tune's material changed. `a break leaves someone playing` is the
+   * check that names it, and the invariant is better made true here than caught
+   * there.
+   *
+   * Sounding rather than struck, which is the same word the check settled on for
+   * the same reason: a note ringing across the bar is a layer carrying it, and a
+   * pad holding through a break is exactly what a break sounds like in ambient.
+   */
+  if (!song.tracks.some((t) => t.layer === carrier
+    && t.notes.some((n) => n.beat < to - 1e-6 && n.beat + n.duration > from + 1e-6))) return;
 
   /**
    * Everybody out but the carrier — left hand, singer and all.

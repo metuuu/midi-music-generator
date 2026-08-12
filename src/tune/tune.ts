@@ -52,6 +52,20 @@ export interface TuneOptions {
    */
   archetype?: ArchetypeId;
   /**
+   * **The song's own material**, where the song has any — the figures every
+   * section of it is made out of. See `Subject` in `adapt.ts`.
+   *
+   * Absent means this tune invents its own family, which is what every tune in
+   * the project did until now and what the tune lab and the checks still do.
+   *
+   * Supplied, it replaces the drawn family and *only* that: the phrase plan, the
+   * arc, which figure lands in which slot, the surface and the judge are all
+   * still this section's own, so two sections handed the same three motifs do
+   * not come out as the same tune. That is the whole design — a subject is
+   * material, not a melody.
+   */
+  subject?: readonly Motif[];
+  /**
    * What kind of section this is, as a bias on which archetypes are drawn and how
    * much the section repeats itself. See `voice.ts`.
    */
@@ -106,7 +120,14 @@ export function composeTune(opts: TuneOptions): Tune {
     ? { ...voice, density: voice.density * opts.density }
     : voice;
 
-  const motifs = motifFamily(rng, {
+  /**
+   * Drawn either way, and discarded when the song supplied its own — the same
+   * rule the archetype draw above states and for the same reason. Skipping it
+   * would take numbers off the front of the tape and move the phrase plan, the
+   * arc and every judge attempt behind it, so a song acquiring a subject would
+   * silently rewrite the sections that have nothing to do with one.
+   */
+  const drawnMotifs = motifFamily(rng, {
     voice: scaled,
     archetype: arch,
     slotsPerBar,
@@ -114,6 +135,7 @@ export function composeTune(opts: TuneOptions): Tune {
     ...(opts.idiom ? { idiom: opts.idiom } : {}),
     ...(ctx.groups ? { groups: ctx.groups } : {}),
   });
+  const motifs = opts.subject?.length ? [...opts.subject] : drawnMotifs;
 
   const { form, phrases } = planPhrases({
     bars, archetype: arch, voice: scaled, repetition: opts.repetition, rng,

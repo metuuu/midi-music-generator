@@ -35,10 +35,12 @@ import type { Feel } from '../style/feel.js';
 import type { IdiomProfile } from '../style/instruments.js';
 import type { Style, WeightedCell } from '../style/types.js';
 import type { HookLevel } from '../generate/hook.js';
+import { Rng } from '../core/rng.js';
 import type { Signature } from './judge.js';
+import { applyOps, motifFamily } from './motif.js';
 import { auditionTune, type Audition } from './tune.js';
-import type { ArchetypeId, Voice } from './types.js';
-import { SUBSETS, getVoice, hasVoice, sectionShape } from './voice.js';
+import type { ArchetypeId, Motif, Op, Voice } from './types.js';
+import { ARCHETYPES, SUBSETS, archetypeWeights, getVoice, hasVoice, sectionShape } from './voice.js';
 
 /**
  * How many tunes to write per section before choosing one.
@@ -361,6 +363,14 @@ export interface SectionTuneOptions {
   genreVoice?: Partial<Voice>;
   /** The song's other sections, so this one can be told apart from them. */
   avoid?: readonly Signature[];
+  /**
+   * The material this whole song is made of, where the caller has drawn one.
+   *
+   * Absent means this section invents its own, which is what every section did
+   * until now and what the tune lab and the instrument probes still do. See
+   * `Subject`.
+   */
+  subject?: Subject;
   attempts?: number;
   /**
    * The mood's multipliers on leap and ornament.
@@ -455,11 +465,144 @@ function adaptVoice(
   };
 }
 
+/**
+ * The material a whole song is made out of.
+ *
+ * ## The fault
+ *
+ * `composeSectionTune` is called once per section and every call invented its own
+ * archetype, its own subset and its own family of motifs. Measured over 1,167
+ * songs as the overlap of interval three-grams between one section's tune and
+ * another's: **0.581 between two choruses and 0.025 between a verse and a
+ * chorus.** The first number is the recall machinery working — a chorus is meant
+ * to be the same tune each time. The second is the finding: a verse and a chorus
+ * of the same song are, statistically, two unrelated tunes. A song was two or
+ * three separate pieces of music sharing a key, a tempo and a bassline.
+ *
+ * Real songs are made of one idea. The bridge is built out of the chorus, the
+ * solo quotes the tune, the outro is the hook slowed down. That is what makes
+ * three minutes feel like one thing rather than a medley, and the engine had no
+ * way to say it: `motifFamily` builds exactly this — a hook with an answer and a
+ * tag derived from it — and it was being rebuilt from scratch eight times a song.
+ *
+ * ## Derivation, not repetition
+ *
+ * Handing every section the identical three motifs would be the failure the user
+ * warned about from the other side: a song that states one idea eight times is
+ * not a song with a subject, it is a loop. So each *kind* of section gets the
+ * family put through its own operators — the chorus states it, the verse takes a
+ * fragment of it, the bridge inverts it, the outro augments it. Same material,
+ * different treatment, which is what development means.
+ *
+ * Everything downstream of the material still belongs to the section: the phrase
+ * plan, the arc, which figure lands in which slot, the surface realisation and
+ * the judge. Two sections handed one subject do not come out as one tune — they
+ * come out as two tunes about the same thing.
+ */
+export interface Subject {
+  /** The kind of tune this song is, fixed once so every section agrees. */
+  archetype: ArchetypeId;
+  /** The song's figures, before any section has had them. */
+  motifs: readonly Motif[];
+}
+
+/**
+ * How each kind of section treats the subject.
+ *
+ * The chorus is deliberately absent, which means *untouched*: the chorus is
+ * where a song states its idea plainly, and every other kind is heard against
+ * that. The verse takes a piece of it; the bridge turns it upside down, which is
+ * the oldest way there is of writing a middle eight that contrasts without
+ * changing the subject; the intro and outro stretch it, because a frame is the
+ * tune at half speed.
+ *
+ * `solo` is absent too, and for a different reason: a soloist quoting the head
+ * is playing the head, and `Section.solo` already routes that section through
+ * its own generator.
+ */
+const TREATMENT: Partial<Record<SectionKind, Op[]>> = {
+  verse: [{ op: 'fragment', keep: 3 }, { op: 'extend', with: 'step' }],
+  bridge: [{ op: 'invert' }],
+  intro: [{ op: 'fragment', keep: 2 }, { op: 'augment', factor: 2 }],
+  outro: [{ op: 'augment', factor: 2 }],
+};
+
+/**
+ * Draw the song's subject once.
+ *
+ * Its own stream, so a caller that does not ask for one draws nothing and its
+ * songs are what they were — the rule `AuditionOptions` states and the reason
+ * `composeTune` keeps drawing a family it is about to discard.
+ */
+export function planSubject(opts: {
+  style: Style;
+  rng: Rng;
+  genreVoice?: Partial<Voice>;
+  idiom?: IdiomProfile;
+  mood?: { leap: number; ornament: number };
+}): Subject {
+  const voice = adaptVoice(voiceForStyle(opts.style, opts.genreVoice), opts.mood);
+  const slotsPerBar = opts.style.beatsPerBar * SLOTS_PER_BEAT;
+  const archetype = opts.rng.weighted(archetypeWeights(voice));
+  return {
+    archetype,
+    motifs: motifFamily(opts.rng, {
+      voice,
+      archetype: ARCHETYPES[archetype],
+      slotsPerBar,
+      span: slotsPerBar * (voice.canvasBars ?? 2),
+      ...(opts.idiom ? { idiom: opts.idiom } : {}),
+      ...(opts.style.groups ? { groups: opts.style.groups } : {}),
+    }),
+  };
+}
+
+/**
+ * The song's material as this kind of section takes it. See `TREATMENT`.
+ *
+ * ## The feel has to arrive here, because the subject took its old door away
+ *
+ * A feel's `voice` block scales the composing `Voice` — how dense, how
+ * syncopated — and `composeTune` used to hand that scaled voice to
+ * `motifFamily`, so the figures a felt section was built from were *themselves*
+ * denser. A subject is drawn once for the whole song and cannot be, since the
+ * feel belongs to one section. Supplying the family without replacing that path
+ * silently unhooked it: `a feel composes the melody it asked for` went from a
+ * measurable move to none at all — funk 2.72 against 2.74 onsets a bar, where it
+ * had been asking for a third more.
+ *
+ * So the feel becomes a treatment, in the same vocabulary as the rest. Denser is
+ * `diminish`, which compresses the figure so more of it fits the phrase; sparser
+ * is `augment`, which stretches it until some of it falls off the canvas. That
+ * is what those two operators have always meant, and it puts the feel back where
+ * it was — changing the material rather than editing notes after the fact, which
+ * is the distinction `Feel.voice` exists to draw.
+ */
+function treat(
+  subject: Subject, kind: SectionKind, rng: Rng, density?: number,
+): readonly Motif[] {
+  const ops: Op[] = [...(TREATMENT[kind] ?? [])];
+  // A hair either side of 1 is a feel that declared nothing worth hearing, and
+  // an operator applied at factor 1.02 is churn in the stream for no sound.
+  if (density !== undefined && Math.abs(density - 1) > 0.05) {
+    ops.push(density > 1
+      ? { op: 'diminish', factor: density }
+      : { op: 'augment', factor: 1 / density });
+  }
+  if (!ops.length) return subject.motifs;
+  // The hook is transformed and its relatives are left alone, so a section keeps
+  // an unaltered reply to answer its own altered statement with.
+  return subject.motifs.map((m, i) => (i === 0 ? { ...applyOps(m, ops, rng), role: m.role } : m));
+}
+
 /** Write one section's tune. */
 export function composeSectionTune(opts: SectionTuneOptions): SectionTune {
   const base = voiceForStyle(opts.style, opts.genreVoice);
   const shape = sectionShape(opts.kind);
   const voice = adaptVoice(base, opts.mood, opts.feel);
+  const subject = opts.subject
+    ? treat(opts.subject, opts.kind, new Rng(`${opts.tag}:treat`), opts.feel?.density)
+    : undefined;
 
   const { best } = auditionTune({
     tag: opts.tag,
@@ -472,6 +615,7 @@ export function composeSectionTune(opts: SectionTuneOptions): SectionTune {
     rules: opts.rules,
     accompaniment: opts.accompaniment,
     agility: opts.agility,
+    ...(subject ? { subject, archetype: opts.subject!.archetype } : {}),
     ...(opts.idiom ? { idiom: opts.idiom } : {}),
     ctx: {
       chords: opts.chords,
