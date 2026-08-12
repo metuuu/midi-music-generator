@@ -80,7 +80,17 @@ const TAU = Math.PI * 2;
  */
 type Shape = 'goblet' | 'pair' | 'barrel';
 
-const SHAPE_OF: Record<string, Shape> = {
+/**
+ * Rack name to silhouette — and **the list the model bench enumerates**.
+ *
+ * Exported for that second reason rather than because anything else needs to
+ * read it. `gallery.ts` shows one exhibit per buildable object and had no way to
+ * ask this file what its objects were, so for as long as this table existed the
+ * bench drew the goblet three times over and the congas and the mridangam were
+ * never looked at once. Reading the keys means a fourth rack is an exhibit the
+ * day it is a shape, which is the only arrangement that does not go stale.
+ */
+export const SHAPE_OF: Record<string, Shape> = {
   darbuka: 'goblet',
   congas: 'pair',
   mridangam: 'barrel',
@@ -210,10 +220,28 @@ const EDGE = HEAD_R * 0.72;
  */
 const CONGA_STAND = 0.20;
 
-/** The trap table: where it stands beside the player, and how thick it is. */
-const TABLE_X = -0.40;
+/**
+ * The trap table: how wide the board is, how far downstage, and how thick.
+ *
+ * A percussionist's table — the small round stand at the player's right holding
+ * the pieces their hands leave the skin for: the riq, the shaker, the woodblock
+ * and the cowbell. It is at `-x` because that is the player's right, under the
+ * hand that reaches for a tambourine while the other stays on the drum, and it
+ * is only there when the part actually calls for one of the four. See
+ * `wantsTable`, and `PIECE`, which is what stands on it.
+ *
+ * **Where it stands is `tableXFor`, and it used to be a constant.** That
+ * constant was -0.40, which is a darbuka's 0.145 m head plus `TABLE_CLEAR` plus
+ * `TABLE_R` — the arithmetic below, done once by hand at the moment this file
+ * built one shape, and then left alone while it grew two more. Congas reach
+ * 0.44 m to that side and the mridangam's shell 0.29, so both stood *through*
+ * the board: from most angles the drum was sitting on the table.
+ */
+const TABLE_R = 0.20;
 const TABLE_Z = 0.02;
 const TABLE_THICK = 0.018;
+/** Knuckle room between the outermost drum and the board's near edge. */
+const TABLE_CLEAR = 0.055;
 
 /** How far behind the head a clap lands. Its height is `Seat.clap`. */
 const CLAP_Z = -0.16;
@@ -271,18 +299,32 @@ function headsFor(seat: Seat, shape: Shape): Head[] {
      * The right head first, because it is the one the hands live on — see
      * `Layout.rest` — and because the shell is built by whichever head comes
      * first and there is only one shell between the two.
+     *
+     * **Each head is the end of the barrel and faces straight out along it.**
+     * These read `(∓0.62, 0.78, -0.09)` — 38° up off the axis — while the shell
+     * was laid flat along `x`, and the two are the same axis written twice. So
+     * the skins stood at 38° to the ends they are stretched over, one rim
+     * lifting off the shell and the opposite one sinking into it, on the single
+     * drum in this family whose heads an audience sees edge-on.
+     *
+     * `HEAD_UP`'s lean is a true thing about a drum held between the knees and
+     * it is not transferable: a mridangam's heads are the two ends of a barrel
+     * lying across the shins, so they point left and right and have no freedom
+     * of their own. The tilt that reads as a mridangam is the barrel's, and the
+     * barrel does not have one — it lies flat.
      */
+    const axis = new Vector3(1, 0, 0);
     return [
       {
         at: new Vector3(-MRIDANGAM.reach, y, 0),
-        up: new Vector3(-0.62, 0.78, -0.09).normalize(),
+        up: axis.clone().negate(),
         r: HEAD_R * MRIDANGAM.rightR,
         shell: 'barrel',
         of: ['mp', 'hp'],
       },
       {
         at: new Vector3(MRIDANGAM.reach, y, 0),
-        up: new Vector3(0.62, 0.78, -0.09).normalize(),
+        up: axis.clone(),
         r: HEAD_R * MRIDANGAM.leftR,
         shell: 'none',
         of: ['lp'],
@@ -377,11 +419,35 @@ interface Head {
   of: DrumVoice[];
 }
 
+/**
+ * How far the board stands from the player's centre line, given what is beside
+ * it.
+ *
+ * The drums' own reach rather than a number per shape, for the reason
+ * `HEAD_ALONG` is derived from `HEAD_UP`: a table placed by a constant is a
+ * constant that is right for whichever drum was standing there when it was
+ * measured, and this family gained two more.
+ *
+ * A head is a disc with a normal, so how much of its radius counts *along `x`*
+ * is the radius foreshortened by how far that head is turned to face along `x`
+ * — all of it for a darbuka or a conga, which face the ceiling, and none of it
+ * for the mridangam's, which face along the barrel and present their edge. The
+ * shells swell a centimetre past that at the widest and the clearance absorbs
+ * it; a darbuka comes out at exactly the -0.40 this used to be written as.
+ */
+function tableXFor(heads: readonly Head[]): number {
+  let reach = 0;
+  for (const h of heads) {
+    reach = Math.min(reach, h.at.x - h.r * Math.sqrt(Math.max(0, 1 - h.up.x * h.up.x)));
+  }
+  return reach - TABLE_CLEAR - TABLE_R;
+}
+
 function layoutFor(seat: Seat, shape: Shape): Layout {
-  const tableAt = new Vector3(TABLE_X, seat.table, TABLE_Z);
+  const heads = headsFor(seat, shape);
+  const tableAt = new Vector3(tableXFor(heads), seat.table, TABLE_Z);
   const tableTop = tableAt.y + TABLE_THICK / 2;
   const flat = () => new Vector3(0, 1, 0);
-  const heads = headsFor(seat, shape);
 
   /** Every stroke on every skin, gathered from the heads that carry them. */
   const skins: Partial<Record<DrumVoice, Spot>> = {};
@@ -576,12 +642,31 @@ function congaGeometry(radius: number, height: number): LatheGeometry {
  * head carrying a ringing `na` and a cracking `ta` and the left a bass `thom`,
  * and the reason those sound the way they do is that the left head is the wider
  * of the two.
+ *
+ * **Written from `y = 0` upward, and both halves of that are load-bearing.**
+ * This profile was the one of the three written the way the shape reads on the
+ * page — the far end first, counting down — and then handed to the lathe
+ * unreversed, which cost it twice over:
+ *
+ *  - Every normal pointed *into* the shell, by `(dy, -dx)` along a descending
+ *    walk. Under `FrontSide` that is the barrel rendered as the inside of
+ *    itself, which is the fault `bodyGeometry` and `congaGeometry` both carry a
+ *    `.reverse()` against and the note on `headGeometry` above describes. It
+ *    survived because the mridangam is the one member of this family that no
+ *    exhibit on the model bench could be made to draw.
+ *  - And the ends were swapped. The caller stands this at the **right** head and
+ *    lays local `+y` toward the far one, so `y = 0` is the right end — while the
+ *    profile put `right` at `y = 1`. The shell met a 0.125 m skin with a 0.148 m
+ *    mouth at one end and the reverse at the other, 2.3 cm proud of its own hoop.
+ *
+ * Both are the same mistake about which way the profile runs, so the fix is the
+ * one change: `y` now counts up from the head that builds it.
  */
 function barrelGeometry(left: number, right: number, length: number): LatheGeometry {
   const belly = Math.max(left, right) * 1.16;
   const shell: Array<[number, number]> = [
-    [right, 1.00], [right * 1.04, 0.94], [belly, 0.66],
-    [belly, 0.40], [left * 1.04, 0.07], [left, 0.00],
+    [right, 0.00], [right * 1.04, 0.06], [belly, 0.34],
+    [belly, 0.60], [left * 1.04, 0.93], [left, 1.00],
   ];
   return new LatheGeometry(
     shell.map(([r, y]) => new Vector2(r, y * length)), 20,
@@ -721,15 +806,35 @@ export const buildHandDrum: InstrumentBuilder = (opts) => {
         barrelGeometry(other.r, head.r, MRIDANGAM.reach * 2), shellMat,
       ));
       barrel.position.copy(head.at);
-      // Lathed up `y`, laid down along `+x` toward the far head.
-      barrel.quaternion.setFromUnitVectors(new Vector3(0, 1, 0), new Vector3(1, 0, 0));
+      /**
+       * Lathed up `y` and laid down along the line **between the two heads** —
+       * read off them rather than written as `+x` a second time. Two places
+       * naming one axis is how the skins came to stand at 38° to the shell they
+       * cap; there is one axis now and both ends of the drum read it.
+       */
+      barrel.quaternion.setFromUnitVectors(
+        new Vector3(0, 1, 0), new Vector3().subVectors(other.at, head.at).normalize(),
+      );
       barrel.castShadow = true;
-      // It is lying on something — the carpet, or the player's shins — and a
-      // barrel drawn resting on nothing rolls in the eye even when it is still.
-      const cradle = addTo(root, new Mesh(
-        new CylinderGeometry(head.r * 0.5, head.r * 0.62, 0.05, 12), darkMat,
-      ));
-      cradle.position.set(0, head.at.y - head.r * 0.92, 0);
+      /**
+       * **And it lies on the player, so nothing is drawn under it.**
+       *
+       * There was a small dark cylinder here, on the argument that "a barrel
+       * drawn resting on nothing rolls in the eye even when it is still". The
+       * argument is sound and the object was not: it stood at `head.at.y -
+       * head.r * 0.92`, which was the underside of a shell that had no belly
+       * when the line was written. Measured against the shell this file
+       * actually builds, it spanned 0.180–0.230 m while the barrel's underside
+       * is at 0.148 — wholly *inside* the drum, never once drawn, and 18 cm
+       * clear of the carpet it was standing in for.
+       *
+       * Nothing replaces it, because the thing it was standing in for is the
+       * player. `MRIDANGAM` puts the shell across the shins at either seat —
+       * 0.148 m off the boards cross-legged, 0.548 on a chair — and both of
+       * those are a lap. The two drums either side of this branch reach the
+       * boards, by their own foot and by a stand; this one does not, and that
+       * is what a drum played in the lap is.
+       */
     }
 
     const skin = addTo(drum, new Mesh(headGeometry(head.r), skinMat));
@@ -773,7 +878,7 @@ export const buildHandDrum: InstrumentBuilder = (opts) => {
 
   if (wantsTable) {
     const table = addTo(root, new Mesh(
-      new CylinderGeometry(0.20, 0.20, TABLE_THICK, 16), darkMat,
+      new CylinderGeometry(TABLE_R, TABLE_R, TABLE_THICK, 16), darkMat,
     ));
     table.position.copy(L.tableAt);
     table.castShadow = true;

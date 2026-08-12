@@ -165,6 +165,43 @@ const SCALE_OF: Partial<Record<InstrumentId, number>> = {
 };
 
 /**
+ * The archetypes whose *geometry* moves with `SCALE_OF`, and one catalogue entry
+ * per size they actually build.
+ *
+ * The other half of the paragraph above — "three of those models take `scale`
+ * and ignore it today" — written down where something can read it. That sentence
+ * was true, correct and inert: it named the three models that stretch, and the
+ * model bench, whose whole job is to show every object a model can be asked for,
+ * had no way to find them out and so drew every family at its default. A tenor
+ * saxophone was the only saxophone anyone had looked at; a soprano is a straight
+ * horn 30 cm shorter hanging 28 cm higher, and it had never been on a screen.
+ *
+ * Names an `InstrumentId` per size rather than a bare number, so a row here goes
+ * through `buildInstrumentFor` exactly as the show's does and cannot disagree
+ * with `SCALE_OF` about what an alto is. The default member is listed with the
+ * rest — an exhibit list is not a diff against a default.
+ *
+ * **Only where the difference is an object.** `mallets`, `violin`, `flute` and
+ * `clarinet` all have several `SCALE_OF` entries and no model that reads one, so
+ * a row for the viola would be the violin drawn a second time and would say the
+ * bench had looked at something it had not. The day one of them learns to
+ * stretch it gains a line here, and the sentence above is the reminder.
+ */
+export const SIZED_FAMILIES: Partial<Record<Archetype, readonly InstrumentId[]>> = {
+  // Four horns across a 0.36–0.66 m body, and the one family where the size is
+  // the silhouette: `memberFor` snaps to a named member and the model calls
+  // itself after it.
+  saxophone: ['sopranoSax', 'altoSax', 'tenorSax', 'baritoneSax'],
+  // A uniform ±6 % on the whole instrument, which is the true size difference
+  // between a jazz upright and an orchestral contrabass and is deliberately
+  // undramatic. It is a branch that has shipped unlooked-at either way.
+  'upright-bass': ['acousticBass', 'contrabass'],
+  // A light Wurlitzer against a suitcase Rhodes: 3 cm of case, and the keybed —
+  // the only thing `resolve` reads — identical between them.
+  'electric-piano': ['celesta', 'epiano1'],
+};
+
+/**
  * Build the instrument this performer plays.
  *
  * The seed is derived from the performer id rather than passed in, so two

@@ -22,15 +22,14 @@
  * ## An archetype is not an object
  *
  * The list used to be `Object.keys(ARCHETYPES)`, which reads as "everything"
- * and is not: **three** archetypes build genuinely different objects depending
- * on
- * what was decided *before* the renderer was called — two, and `entries()`
- * below special-cases exactly the two the next sentence names — and enumerating
- * archetypes shows one of each and hides the rest. A synthesiser is a modular
- * wall, a polysynth or a digital slab depending on `Performer.rig`; a kit is
- * drums or pads depending on the number's `DrumSource`. Five objects reached
- * the stage that this page could not be made to draw — including, at the time
- * of writing, the two rigs someone was actively editing.
+ * and is not: several archetypes build genuinely different objects depending on
+ * what was decided *before* the renderer was called, and enumerating archetypes
+ * shows one of each and hides the rest. A synthesiser is a modular wall, a
+ * polysynth or a digital slab depending on `Performer.rig`; a kit is drums or
+ * pads depending on the number's `DrumSource`; a hand drum is a goblet drum, a
+ * set of congas or a mridangam depending on `DrumTrack.bank`, at either of two
+ * heights depending on whether the tradition sits on the floor; a saxophone is
+ * one of four horns depending on which catalogue entry was cast.
  *
  * The machines are missing for a blunter reason: they have no performer, so
  * `buildInstrumentFor` is not the way in and no amount of archetype
@@ -57,6 +56,28 @@
  * says four, because four is what a frame holds. The wings are drawn either
  * way, and a wing nobody has ever looked at is worse than a wing nobody stages.
  *
+ * ## Why this keeps going stale, and what is done about it
+ *
+ * It has now gone wrong three times in the same shape. A model grows a branch on
+ * a build option — `rig`, then `boards`, then `rack` and `posture` — the branch
+ * is argued for at length in the model's own header, and nothing brings it here,
+ * because `entries()` is a list and a list does not fail. The last round shipped
+ * a mridangam whose shell was inside-out and whose two ends were swapped, a
+ * fault visible in the first second of looking at it, on an object no exhibit
+ * could be made to draw.
+ *
+ * So the axes below are **read out of the tables that define them** rather than
+ * transcribed: `SHAPE_OF` in `hand-drum.ts` for which drums exist,
+ * `SIZED_FAMILIES` in `instruments/index.ts` for which families stretch,
+ * `SYNTH_RIGS[rig].maxBoards` for how many keyboards a frame holds. A fourth
+ * rack, or a fifth saxophone, is an exhibit the day it is one.
+ *
+ * What no table knows is *which option a model reads at all*, so that part is
+ * still hand-written and the rule for the next person is the short one: **a
+ * model that learns to branch on an `InstrumentBuildOptions` field owes this
+ * page a way to enumerate it.** `SIZED_FAMILIES` is that debt paid for `scale`,
+ * and it is deliberately next to `SCALE_OF` rather than here.
+ *
  * The player can be put in either of the two poses that matter: waiting at the
  * instrument, and playing it. Both come from the model's own `resolve`, so a
  * hand that lands in the wrong place here lands in the wrong place on stage.
@@ -71,9 +92,10 @@ import {
 
 import { ARCHETYPES, SYNTH_RIGS, specFor } from '../../concert/instruments.js';
 import type {
-  Archetype, ArchetypeSpec, Effector, Look, Performer, PlayPoint, SynthRigId,
+  Archetype, ArchetypeSpec, Effector, Look, Performer, PlayPoint, Posture, SynthRigId,
 } from '../../concert/types.js';
 import type { DrumEvent } from '../../core/types.js';
+import { INSTRUMENTS, type InstrumentId } from '../../style/instruments.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 
 import {
@@ -87,7 +109,8 @@ import {
 import {
   buildDrumMachine, type DrumMachine, type DrumMachineOptions,
 } from './instruments/drum-machine.js';
-import { buildInstrumentFor } from './instruments/index.js';
+import { SHAPE_OF } from './instruments/hand-drum.js';
+import { SIZED_FAMILIES, buildInstrumentFor } from './instruments/index.js';
 import type { Contact, InstrumentModel } from './instruments/types.js';
 import { lightTheRoom } from './performer-assets.js';
 import { buildPerformer, type PerformerRig } from './performer.js';
@@ -138,6 +161,27 @@ interface Entry {
   /** A drummer on pads rather than an acoustic kit. From the number's `DrumSource`. */
   electronic?: boolean;
   /**
+   * Which drum a hand percussionist is playing, where the archetype is
+   * `handdrum`. From the rack half of `DrumTrack.bank`; see `SHAPE_OF`.
+   */
+  rack?: string;
+  /**
+   * How the player at this object is arranged. Absent means the archetype's own.
+   *
+   * From `Station.posture`, and only the hand drum's geometry moves with it —
+   * see `InstrumentBuildOptions.posture`, which is the list of models that read
+   * it and has one entry.
+   */
+  posture?: Posture;
+  /**
+   * Which member of a sized family this is. Absent means the archetype's default.
+   *
+   * A catalogue id rather than a number, because `SCALE_OF` is the table that
+   * turns one into the other and this page has no business holding a second
+   * opinion about how big an alto is. See `SIZED_FAMILIES`.
+   */
+  instrument?: InstrumentId;
+  /**
    * The band's machine as a *module in this rig*, rather than as its own
    * object. See `StageMachine.mount`, and `machine` for the standalone one.
    */
@@ -174,6 +218,22 @@ const BAY_MODULES: readonly (readonly [DrumMachineOptions['kind'], string])[] = 
   ['programmed', 'rhythm module'],
   ['sequencer', 'step sequencer'],
 ];
+
+/**
+ * The two ways a hand percussionist is arranged, and therefore two objects.
+ *
+ * `postureFor` in `cast.ts` gives this archetype its own `straddle` everywhere
+ * except the two floor-seated traditions, where it gives `floor` — and the model
+ * is not the same drum moved down. `Seat` in `hand-drum.ts` puts the head at
+ * 0.72 m or 0.32, and the shell runs from the head to the boards either way, so
+ * the whole object shortens and the trap table beside it grows its own shorter
+ * legs. Two builds, and the bench had only ever run the first.
+ *
+ * Read off the spec rather than written as `['straddle', 'floor']`, so that an
+ * archetype that changes its mind about where its player sits cannot leave a row
+ * here describing a posture nothing takes.
+ */
+const HAND_POSTURES: readonly Posture[] = [ARCHETYPES.handdrum.posture, 'floor'];
 
 function entries(): Entry[] {
   const out: Entry[] = [];
@@ -216,6 +276,45 @@ function entries(): Entry[] {
     } else if (id === 'drumkit') {
       out.push({ id, label, archetype: id });
       out.push({ id: 'drumkit:pads', label: `${label}, pads`, archetype: id, electronic: true });
+    } else if (id === 'handdrum') {
+      /**
+       * Every drum in the family, at both of the heights it is played at.
+       *
+       * Six exhibits where there was one, and the one was the goblet drum on a
+       * chair — so the congas, the mridangam and every floor-seated build of any
+       * of them had shipped without a screen ever showing them. The mridangam is
+       * what that cost: it went out with its shell inside-out and its two ends
+       * swapped, which is the plainest thing a look would have caught.
+       *
+       * The product rather than the four combinations `cast.ts` actually
+       * reaches, for the reason the header gives about the modular's wings: the
+       * bench shows what the models can be asked for, and a build nobody stages
+       * is still a build nobody has looked at.
+       */
+      for (const rack of Object.keys(SHAPE_OF)) {
+        for (const posture of HAND_POSTURES) {
+          const floor = posture === 'floor';
+          out.push({
+            id: floor ? `handdrum:${rack}:floor` : `handdrum:${rack}`,
+            label: `${rack}${floor ? ', on the floor' : ''}`,
+            archetype: id,
+            rack,
+            ...(floor ? { posture } : {}),
+          });
+        }
+      }
+    } else if (SIZED_FAMILIES[id]) {
+      // One exhibit per size the model actually builds. See `SIZED_FAMILIES`,
+      // and note that the default member is a row here like any other — this
+      // page has no default, only objects.
+      for (const instrument of SIZED_FAMILIES[id]!) {
+        out.push({
+          id: `${id}:${instrument}`,
+          label: INSTRUMENTS[instrument].name,
+          archetype: id,
+          instrument,
+        });
+      }
     } else {
       out.push({ id, label, archetype: id });
     }
@@ -389,7 +488,17 @@ function performerFor(entry: Entry, archetype: Archetype): Performer {
     instrument: ARCHETYPES[archetype].label,
     look: LOOK,
     station: {
-      position: [0, 0, 0], facing: 0, posture: ARCHETYPES[archetype].posture, riser: 0,
+      position: [0, 0, 0],
+      facing: 0,
+      /**
+       * The exhibit's own posture where it has one, and it is not decoration:
+       * `buildInstrumentFor` reads it off the station, and `buildPerformer`
+       * reads the same field to decide whether this player is on a chair or
+       * cross-legged on the boards. Both ends of a floor-seated hand drummer
+       * come from this one line.
+       */
+      posture: entry.posture ?? ARCHETYPES[archetype].posture,
+      riser: 0,
     },
     ...(entry.rig ? { rig: entry.rig } : {}),
     ...(entry.boards ? { boards: entry.boards } : {}),
@@ -910,21 +1019,78 @@ function standDownState(
   };
 }
 
+/** How much air the grid leaves between one exhibit and the next. */
+const GRID_GAP = 0.6;
+
+/**
+ * Lay the exhibits out in a square, and answer the pitch it took.
+ *
+ * **Measured, because 45 exhibits do not fit the spacing 22 were given.** The
+ * pitch was 3.2 m written in the line above the loop, and by the time this page
+ * showed a four-board modular wall (2.80 m across) beside a grand piano the
+ * closest pair had 13.5 cm between them. It held — and it held the way the trap
+ * table in `hand-drum.ts` held, which is to say until the next wide object, with
+ * nothing anywhere that would say so.
+ *
+ * Two passes, and the first has to be a real build: an exhibit's size is what
+ * its model and its player come out as, and there is no declaring it in advance.
+ * `ArchetypeSpec.footprint` is not that number — it is a staging radius for a
+ * player and their clearance, and a grand piano's is 1.5 against the 2.3 m of
+ * actual piano this measures.
+ *
+ * **Each exhibit is centred on its own cell**, which is the half that makes the
+ * pitch honest. A box is not centred on the origin it was built around — a
+ * pianist sits at one end of their instrument, so the piano reaches 2.18 m from
+ * the point the grid was placing — and a pitch derived from widths while the
+ * contents sat off-centre would still collide. Centred, the guarantee is
+ * arithmetic: no exhibit reaches more than half the widest one from its cell, so
+ * neighbours cannot be closer than `GRID_GAP`.
+ *
+ * The axes helper stays at the model's own origin rather than moving to the
+ * middle of the cell, because where an exhibit's origin *is* — under the feet,
+ * or off at the end of a piano — is one of the things this grid is for.
+ */
+function layOutGrid(groups: readonly Group[]): number {
+  const cols = Math.ceil(Math.sqrt(groups.length));
+  const rows = Math.ceil(groups.length / cols);
+  const boxes = groups.map((g) => {
+    g.updateWorldMatrix(true, true);
+    return new Box3().setFromObject(g);
+  });
+  let widest = 0;
+  for (const b of boxes) {
+    widest = Math.max(widest, b.max.x - b.min.x, b.max.z - b.min.z);
+  }
+  const pitch = widest + GRID_GAP;
+  groups.forEach((g, i) => {
+    const mid = boxes[i]!.getCenter(new Vector3());
+    g.position.set(
+      ((i % cols) - (cols - 1) / 2) * pitch - mid.x,
+      0,
+      (Math.floor(i / cols) - (rows - 1) / 2) * pitch - mid.z,
+    );
+    // Added after the measurement rather than during the build, so a 0.3 m
+    // marker is not part of what the smallest exhibits are measured as.
+    g.add(new AxesHelper(0.3));
+  });
+  return pitch;
+}
+
 function build(which: Entry[]): void {
   clear();
-  const cols = Math.ceil(Math.sqrt(which.length));
-  const pitch = 3.2;
+  /**
+   * Built detached and parented once it is measured — `layOutGrid` reads a world
+   * box, and `stand` is the node the turntable spins, so a group already hanging
+   * off it would be measured in whatever direction the page happened to be
+   * pointing. Nothing in the build below reads a world position: `keepOutParts`
+   * works in the model's own frame by inverting `root.matrixWorld`, and the
+   * stances come from `resolve`.
+   */
+  const groups: Group[] = [];
 
-  which.forEach((entry, i) => {
+  which.forEach((entry) => {
     const group = new Group();
-    if (which.length > 1) {
-      group.position.set(
-        ((i % cols) - (cols - 1) / 2) * pitch,
-        0,
-        (Math.floor(i / cols) - (Math.ceil(which.length / cols) - 1) / 2) * pitch,
-      );
-    }
-    stand.add(group);
+    groups.push(group);
 
     if (entry.machine) {
       const machine = buildDrumMachine({
@@ -939,7 +1105,6 @@ function build(which: Entry[]): void {
       });
       machine.root.position.y = MACHINE_HEIGHT;
       group.add(machine.root);
-      if (which.length > 1) group.add(new AxesHelper(0.3));
       live.push({
         entry, machine, group, playing: [], waiting: [], zones: [], usesBow: false,
       });
@@ -953,7 +1118,10 @@ function build(which: Entry[]): void {
     // on the fretboard, which is the one pose a guitarist never takes.
     const performer = performerFor(entry, archetype);
     const model = buildInstrumentFor(
-      performer, undefined, undefined, undefined,
+      // The catalogue entry, where this exhibit is one size of a family — it is
+      // what `SCALE_OF` is keyed on, and the only way to ask for an alto rather
+      // than for 0.35. See `SIZED_FAMILIES`.
+      performer, entry.instrument, undefined, undefined,
       entry.electronic ? 'electronic-kit' : undefined,
       // The same bar the standalone machines run, for the same reason: a bay
       // whose step row never lights is a rack panel, and the row is the half of
@@ -962,6 +1130,10 @@ function build(which: Entry[]): void {
       entry.bay
         ? { kind: entry.bay, events: bayPattern(), beatsPerBar: MACHINE_BEATS_PER_BAR }
         : undefined,
+      // The whole rack, as ever: an instrument shown as an instrument rather
+      // than as one number's subset of it.
+      undefined,
+      entry.rack,
     );
     let rig: PerformerRig | undefined;
 
@@ -982,7 +1154,6 @@ function build(which: Entry[]): void {
     }
 
     if (showContacts.checked) markContacts(model, model.root);
-    if (which.length > 1) group.add(new AxesHelper(0.3));
     const spec = specFor(archetype);
     const playing = playStance(spec);
     live.push({
@@ -992,7 +1163,11 @@ function build(which: Entry[]): void {
     });
   });
 
-  frameAll(which);
+  const pitch = which.length > 1 ? layOutGrid(groups) : 0;
+  // Parented once they have been measured, never before. See `layOutGrid`.
+  for (const g of groups) stand.add(g);
+
+  frameAll(which, pitch);
   describe(which);
   drawTuner();
 }
@@ -1020,9 +1195,10 @@ let zoom = 1;
  * feet were outside the frame. 2.1 holds the whole stand and still shows the row
  * at twice the size the default distance would.
  */
-function frameAll(which: Entry[]): void {
+function frameAll(which: Entry[], pitch: number): void {
   if (which.length > 1) {
-    dist = Math.ceil(Math.sqrt(which.length)) * 3.2 * 1.15;
+    // The pitch the grid actually took, not the one it used to be written as.
+    dist = Math.ceil(Math.sqrt(which.length)) * pitch * 1.15;
     return;
   }
   dist = which[0]?.machine ? 2.1 : 4.2;
@@ -1071,9 +1247,17 @@ function describe(which: Entry[]): void {
   }
 
   const spec = specFor(item.model.archetype);
+  /**
+   * This exhibit's posture, not the archetype's — they are the same line for
+   * every exhibit but the floor-seated hand drums, and on those the spec's
+   * `straddle` was printed under a player sitting cross-legged on the boards.
+   * The one page whose job is to say what was actually built may not report the
+   * default it was overridden with.
+   */
+  const posture = entry.posture ?? spec.posture;
   facts.innerHTML = [
     `<b>${entry.label}</b>  (${entry.id})`,
-    `family ${spec.family} · ${spec.hands} hands · ${spec.posture}${spec.held ? ' · carried' : ' · stands'}`,
+    `family ${spec.family} · ${spec.hands} hands · ${posture}${spec.held ? ' · carried' : ' · stands'}`,
     `range ${spec.range[0]}–${spec.range[1]} · footprint ${spec.footprint} m · work height ${spec.workHeight} m`,
     ...size,
   ].join('<br>');
