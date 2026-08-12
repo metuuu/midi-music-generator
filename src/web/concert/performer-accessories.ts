@@ -277,6 +277,20 @@ function buildAccessory(
 
   switch (a) {
     case 'glasses': {
+      // ## Why an arm is not parallel to `z`
+      //
+      // The skull is an ellipsoid 2.00 R across, and at eye height it is only
+      // 0.56 R wide at the lens plane and 1.98 R wide at its own centre. An arm
+      // held at one `x` all the way back therefore starts outboard of the face
+      // and ends *inside the head*: these were parked at x 0.72 and ran from
+      // z 0.90 to z 0.10, so everything behind z 0.67 was under the surface and
+      // the temple appeared to be driven through the cheekbone.
+      //
+      // The arm is turned about `y` instead, onto the line that grazes the skull
+      // at the temple — the point a real arm touches — and stands clear of it in
+      // front and behind. That is one number per pair of glasses rather than a
+      // hinge and a second mesh, and it is the same trick either side because
+      // `SIDE` carries the sign.
       const frame = surface(l, '#2b2b30', { roughness: 0.4, metalness: 0.3 });
       for (const s of [SIDE.left, SIDE.right]) {
         const rim = new Mesh(hoop(l), frame);
@@ -284,8 +298,9 @@ function buildAccessory(
         rim.position.set(s * R * 0.36, R * 0.12, R * 0.90);
         head.add(rim);
         const arm = new Mesh(slab(l), frame);
-        arm.scale.set(R * 0.05, R * 0.05, R * 0.80);
-        arm.position.set(s * R * 0.72, R * 0.16, R * 0.50);
+        arm.scale.set(R * 0.05, R * 0.05, R * 0.87);
+        arm.rotation.y = -s * 0.33;
+        arm.position.set(s * R * 0.87, R * 0.16, R * 0.49);
         head.add(arm);
       }
       const bridge = new Mesh(slab(l), frame);
@@ -298,18 +313,29 @@ function buildAccessory(
     case 'sunglasses': {
       const frame = surface(l, '#17171b', { roughness: 0.3, metalness: 0.35 });
       const lens = surface(l, '#0d0d12', { roughness: 0.12, metalness: 0.6 });
+      // The lens plane is in front of the eye, which it was not. A flat disc at
+      // z 0.93 is behind the front of an iris at z 0.945, so both pupils showed
+      // through the glass as two paler dots, and no gaze moved them off it —
+      // the iris slides in x and y on the eyeball and never in z, so the fault
+      // was on every frame rather than at the corners of a glance. At z 0.98 the
+      // glass clears it by 5 mm whatever the eye is doing. `glasses` needs none
+      // of this: its rim is a hoop with nothing stretched across it.
       for (const s of [SIDE.left, SIDE.right]) {
         const glass = new Mesh(disc(l), lens);
         glass.scale.set(R * 0.70, R * 0.56, 1);
-        glass.position.set(s * R * 0.36, R * 0.12, R * 0.93);
+        glass.position.set(s * R * 0.36, R * 0.12, R * 0.98);
         head.add(glass);
         const rim = new Mesh(hoop(l), frame);
         rim.scale.set(R * 0.76, R * 0.62, R * 0.60);
-        rim.position.set(s * R * 0.36, R * 0.12, R * 0.92);
+        rim.position.set(s * R * 0.36, R * 0.12, R * 0.97);
         head.add(rim);
+        // Turned onto the skull's tangent for the reason `glasses` is, and
+        // reaching further forward than that one because the hinge it has to
+        // meet went forward with the lens.
         const arm = new Mesh(slab(l), frame);
-        arm.scale.set(R * 0.06, R * 0.06, R * 0.80);
-        arm.position.set(s * R * 0.74, R * 0.16, R * 0.50);
+        arm.scale.set(R * 0.06, R * 0.06, R * 0.91);
+        arm.rotation.y = -s * 0.31;
+        arm.position.set(s * R * 0.87, R * 0.16, R * 0.51);
         head.add(arm);
       }
       break;
@@ -332,25 +358,47 @@ function buildAccessory(
       // "wraparound", and every point of it stays inside the outline of the head
       // from every angle the house has.
       //
-      // The arms follow the skull back rather than standing off the corner of
-      // it. Square-ended boxes parked at z 0.42 were the other half of the
-      // overhang: they sat beside the *lens*, where the head has already started
-      // to narrow, so they showed as two blocks in mid-air either side of the
-      // eyes. A capsule laid along z behind the lens is hidden by the lens from
-      // the front and reads as a temple from three-quarters, which is the only
-      // angle an arm has ever been visible from.
+      // Deep, not just wide, and the depth is what keeps the eyes behind it. An
+      // iris is a bead of 0.17 R sitting 0.10 R proud of an eyeball whose own
+      // front pole is at z 0.89, so the thing this band has to stay in front of
+      // reaches z 0.945 — and a band 1.46 R deep centred at z 0.26 only reached
+      // z 0.935 at the eye's own x, because an ellipsoid has already curved away
+      // by the time it gets out there. Two pupils came through the lens as dots.
+      // At 1.76 R deep centred at z 0.22 the lens clears the iris by 12 mm at the
+      // eye's rest and by 5 mm with the gaze pinned to the outside of its clamp,
+      // which is where a mouthpiece player's eyes live whenever the turn is more
+      // than the waist will give. The extra 0.06 R of height is for the corner of
+      // that clamp — hard out and hard up at once, where the band is curving away
+      // in both axes at once and 4 mm of iris was still coming through.
+      //
+      // The band's own ends did not move: they still sit at x 0.89 on a 0.99 R
+      // half-head, buried in the skull, so the silhouette is unchanged.
+      //
+      // ## And no arms, which is a consequence of the line above it
+      //
+      // Three attempts and the third one worked geometrically and still looked
+      // wrong, so the fault was never the placement. Square-ended boxes beside
+      // the lens hung in mid-air; one capsule along the head was half under the
+      // skin at the cheekbone, because the widest point of a skull is halfway
+      // along a temple and a straight rod cannot lie on a curve; two capsules
+      // with a bend at that point tracked the curve to 2 mm and read as *three*
+      // dark marks in a row — band, dash, dash — because a pair of capsules meet
+      // at a point and pinch there, and because the first one had nothing to
+      // start from.
+      //
+      // That last part is the real answer. The band's ends are *buried in the
+      // skull* on purpose, four paragraphs up, so this object has no visible
+      // hinge anywhere: whatever gets hung off the temple begins in bare skin
+      // with a gap behind it and reads as a mark on the head rather than as part
+      // of a pair of glasses. `glasses` and `sunglasses` can have arms because
+      // their rims stand out in open air at the lens plane and an arm can start
+      // at one. This one cannot, and a band that stops where the cheek starts is
+      // what a dark wrap looks like on a head this size anyway.
       const lens = surface(l, '#101014', { roughness: 0.10, metalness: 0.72 });
       const visor = new Mesh(orb(l), lens);
-      visor.scale.set(R * 1.78, R * 0.54, R * 1.46);
-      visor.position.set(0, R * 0.14, R * 0.26);
+      visor.scale.set(R * 1.78, R * 0.60, R * 1.76);
+      visor.position.set(0, R * 0.14, R * 0.22);
       head.add(visor);
-      for (const s of [SIDE.left, SIDE.right]) {
-        const arm = new Mesh(pill(l), lens);
-        arm.scale.set(R * 0.07, R * 0.36, R * 0.07);
-        arm.rotation.x = Math.PI / 2;
-        arm.position.set(s * R * 0.99, R * 0.20, -R * 0.10);
-        head.add(arm);
-      }
       break;
     }
 
