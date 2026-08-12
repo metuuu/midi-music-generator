@@ -41,6 +41,23 @@
  * special case; the bend direction is the body's own forward, splayed outward a
  * little more when the player is sitting, projected off the hip→ankle axis.
  *
+ * ## How far it bulges is the garment's business too
+ *
+ * The bulge has a second bound, and it comes from the clothes. Near full
+ * extension the knee moves as the *square root* of the hip's drop — so the
+ * groove's 2 cm bob, which is barely visible on the body, swings a knee nine
+ * centimetres forward, and a floor-length skirt is thirteen deep. Every robed
+ * player in the catalogue punched a knee out through the front of their own hem
+ * once a beat, and no still frame of anybody standing showed it.
+ *
+ * A wider skirt is not the answer — see `clearFor` in `performer-garments.ts`,
+ * where cloth is already squeezed between the legs and the instrument — so the
+ * cloth bounds the knee instead, which is what cloth does to a knee. The leg
+ * gives up about a centimetre of length to do it, on top of the percent it was
+ * already allowed to stretch, and the trade is the right way round: a leg 1.5 %
+ * short is invisible and a knee outside a robe is not. `roomFor` is the bound
+ * and `skirtSpan` is where it comes from.
+ *
  * ## Cost
  *
  * Five meshes per leg would be a thigh, a knee, a shin, an ankle and a hip. It
@@ -65,7 +82,7 @@ import { Mesh, Object3D, Vector3 } from 'three';
 import type { Look } from '../../concert/types.js';
 
 import { Leases, bead, tube } from './performer-assets.js';
-import { legsOf } from './performer-garments.js';
+import { legsOf, skirtSpan, type SkirtSpan } from './performer-garments.js';
 import {
   LEG_SOCKET_X, SIDE, fitLimb, legRadii, type BodySide, type Proportions,
 } from './performer-look.js';
@@ -76,6 +93,7 @@ const B = new Vector3();
 const K = new Vector3();
 const D = new Vector3();
 const BEND = new Vector3();
+const AXIS = new Vector3();
 const UP = new Vector3(0, 1, 0);
 
 export interface LegsRig {
@@ -100,6 +118,45 @@ export interface LegsRig {
 export interface LegAnchors {
   torso: Object3D;
   feet: Record<BodySide, Object3D>;
+}
+
+/**
+ * How far a knee may leave the hip→ankle line before it leaves the cloth.
+ *
+ * The whole of the fix for the fault `skirtSpan` describes, and it is worth
+ * being exact rather than clamping each axis on its own. The knee that broke
+ * out was 15 cm to the side and 10 cm forward inside a hem 23 by 13 — outside
+ * the ellipse by a corner, and inside both of its axes taken separately, so a
+ * pair of box limits would have reported it contained.
+ *
+ * So it is solved: the knee travels `mid + bend · t`, the cloth is an ellipse
+ * shrunk by the knee's own radius, and the largest `t` still inside it is the
+ * positive root of a quadratic. `bend` is a unit vector but not usually a
+ * lateral one — the leg axis has been taken out of it — so `a` is the length of
+ * what is left in the plane, and a bend with nothing left in the plane is a knee
+ * travelling straight up its own leg, which no ellipse can bound.
+ *
+ * A negative discriminant means the knee is *already* out of the cloth with no
+ * bulge at all, which the sway can do on a slight body at the top of a swing.
+ * Zero is the answer then: not a fix, but the straightest leg available, and the
+ * frame after is back inside.
+ */
+function roomFor(
+  mid: Vector3, bend: Vector3, axis: Vector3, span: SkirtSpan, kneeR: number,
+): number {
+  const aw = Math.max(1e-3, span.halfW - kneeR);
+  const ad = Math.max(1e-3, span.halfD - kneeR);
+  const u = (mid.x - axis.x) / aw;
+  const w = (mid.z - axis.z) / ad;
+  const du = bend.x / aw;
+  const dw = bend.z / ad;
+  const a = du * du + dw * dw;
+  if (a < 1e-9) return Infinity;
+  const b = 2 * (u * du + w * dw);
+  const c = u * u + w * w - 1;
+  const disc = b * b - 4 * a * c;
+  if (disc <= 0) return 0;
+  return Math.max(0, (-b + Math.sqrt(disc)) / (2 * a));
 }
 
 export function buildLegs(
@@ -138,6 +195,23 @@ export function buildLegs(
   // second copy of the formula is a skirt that stops clearing the legs the
   // first time either number moves. See `legRadii`.
   const { thigh: thighR, shin: shinR, knee: kneeR } = legRadii(p, leg.girth);
+
+  /**
+   * The column of cloth this player's knees are inside, if there is one.
+   *
+   * Asked of `performer-garments.ts` for the same reason the leg's colour is —
+   * nothing here may decide what a garment is — and used for something the
+   * header of this file did not anticipate: a bound on the solve. See
+   * `skirtSpan`, which argues it from the cloth's end, and `roomFor`.
+   *
+   * The knee is what needs bounding rather than the whole leg, and the reason is
+   * a ratio. The groove drops the hips a couple of centimetres; a two-link leg
+   * at full extension turns that into eight or nine of *knee*, forward, because
+   * near full extension the bulge goes as the square root of the drop. So the
+   * one joint a garment cannot let move freely is the one that moves four times
+   * as far as the body does.
+   */
+  const column = skirtSpan(look, p);
 
   /**
    * The hip socket, in the torso's own frame.
@@ -292,6 +366,14 @@ export function buildLegs(
 
   function update(): void {
     const torso = anchors.torso;
+
+    // Where the cloth is, before anything asks whether a knee is inside it. The
+    // skirt hangs plumb from a point `hangY` up the torso's own frame, and the
+    // torso is swaying — see `SkirtSpan.hangY`. Once per frame rather than once
+    // per leg, since both legs are inside the same garment.
+    if (column) {
+      AXIS.set(0, column.hangY, 0).applyQuaternion(torso.quaternion).add(torso.position);
+    }
     for (const leg of legs) {
       // Both ends, in the root's frame. The torso and the feet are siblings of
       // the legs, so this is a rotate-and-add rather than a matrix chain.
@@ -336,9 +418,14 @@ export function buildLegs(
       // is, so a standing player has no permanent bend to jitter.
       const half = reach * 0.5;
       const halfSpan = Math.min(span, reach * 0.999) * 0.5;
-      const bulge = Math.sqrt(Math.max(0, half * half - halfSpan * halfSpan));
+      const slack = Math.sqrt(Math.max(0, half * half - halfSpan * halfSpan));
 
-      K.copy(A).addScaledVector(D, span * 0.5).addScaledVector(BEND, bulge);
+      // The knee at no bulge: the midpoint of hip→ankle, which is where the
+      // clamp below measures from.
+      K.copy(A).addScaledVector(D, span * 0.5);
+      const bulge =
+        column ? Math.min(slack, roomFor(K, BEND, AXIS, column, kneeR)) : slack;
+      K.addScaledVector(BEND, bulge);
 
       fitLimb(leg.thigh, A, K, thighR);
       fitLimb(leg.shin, K, B, shinR);

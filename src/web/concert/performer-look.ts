@@ -71,7 +71,7 @@ import type { Rng } from '../../core/rng.js';
 import {
   Leases, clothSurface, orb, shade, slab, surface, torsoShell, tube,
 } from './performer-assets.js';
-import { cutOf, dressGarment, relief } from './performer-garments.js';
+import { cutOf, dressGarment, legGirth, relief } from './performer-garments.js';
 
 /** Which way `+x` is for each side of the body. See the header. */
 export const SIDE = { left: 1, right: -1 } as const;
@@ -353,11 +353,22 @@ function footRests(p: Proportions, posture: Posture): { left: Vector3; right: Ve
         right: new Vector3(SIDE.right * h * STANCE_X, y, h * 0.02),
       };
     case 'perch':
-      // Weight on the front foot, the other trailing. A leaning player who is
-      // square on their feet reads as a mannequin pushed over.
+      /**
+       * Weight on the front foot, the other trailing. A leaning player who is
+       * square on their feet reads as a mannequin pushed over.
+       *
+       * The trail was three times this and it was the one stance no hem could
+       * cover. A skirt hangs plumb from the hip and is 13 cm deep — see
+       * `SKIRT_ROUND` — so a foot 10 cm behind the body puts the whole trailing
+       * leg, knee included, outside the cloth from the side, and the knee clamp
+       * in `performer-legs.ts` cannot help: it bounds where a knee *travels to*,
+       * and this one is out before it travels anywhere. 6 cm between the shoes
+       * fore and aft still reads as weight forward, and reads it from the front,
+       * which is where a keyboard player is seen from.
+       */
       return {
-        left: new Vector3(SIDE.left * h * STANCE_X, y, -h * 0.06),
-        right: new Vector3(SIDE.right * h * (STANCE_X + 0.005), y, h * 0.05),
+        left: new Vector3(SIDE.left * h * STANCE_X, y, -h * 0.020),
+        right: new Vector3(SIDE.right * h * (STANCE_X + 0.005), y, h * 0.016),
       };
     case 'sit':
       // Not square: one foot goes further under the bench than the other. Two
@@ -523,18 +534,22 @@ export interface LegRadii {
  * A cartoon leg is thicker than a real one and tapers hard. Build widens the
  * thigh twice as much as the shin, which is where build actually shows.
  *
- * **Thinner than it was, and a garment is why.** These were 0.043 and 0.032,
- * which put a 19 cm thigh on an average body — three quarters of a head, and
- * so wide that a skirt cut to contain the legs came out 58 cm across and went
- * through the body of the bass the player was holding. See `clear` in
- * `performer-garments.ts` for the squeeze; 15 cm is the answer to it, and next
- * to a 50 cm shoulder line at ten metres it reads as the same leg.
+ * **These numbers were once the answer to a garment problem and are not any
+ * more.** A skirt has to be wider than the legs inside it, so when the first
+ * honest hem came out 61 cm across and went through the body of a bass, thinning
+ * every leg in the catalogue looked like the way out. It was the wrong lever
+ * twice over: it changed every player on stage to fix the one in four wearing a
+ * skirt, and it was the *smaller* half of the width it bought — the sockets and
+ * the stance gave 7 cm of hem and this gave 5. The stance stayed narrow and
+ * these went back. See `clearFor` and `SKIRT_ROUND` in
+ * `performer-garments.ts`: the depth axis is where the instruments are, and it
+ * is the axis a skirt could always afford to give up.
  */
 export function legRadii(p: Proportions, girth: number): LegRadii {
-  const thigh = p.height * (0.033 + 0.0095 * p.build) * girth;
+  const thigh = p.height * (0.043 + 0.012 * p.build) * girth;
   return {
     thigh,
-    shin: p.height * (0.026 + 0.005 * p.build) * girth,
+    shin: p.height * (0.032 + 0.006 * p.build) * girth,
     // The one ball that has to be there: two cylinders meeting at a drummer's
     // hundred degrees show daylight through the outside of the bend.
     knee: thigh * 1.04,
@@ -647,16 +662,40 @@ export function dressTorso(
     }
   }
 
-  // Hips, in the trousers colour — or in the garment's own, when there are no
-  // trousers under the hem and this is the top of one continuous column. It has
-  // to be wide and deep enough to bury the top of each thigh — see the socket in
-  // `performer-legs.ts`, which sits at 30 % of the shoulder width and is inside
-  // this by a comfortable margin — and, now, the top of a skirt as well.
+  /**
+   * Hips, in the trousers colour — or in the garment's own, when there are no
+   * trousers under the hem and this is the top of one continuous column.
+   *
+   * **Sized off the legs rather than off the shoulders, and that is a fix.** It
+   * was `torsoW * 0.88`, chosen to bury the top of each thigh back when the hip
+   * socket sat at 30 % of the shoulder width. The socket is at 23 % now — see
+   * `LEG_SOCKET_X`, which came in to get a skirt off a bass guitar — and a
+   * number that was a burial margin quietly became a pelvis 6 cm wider than the
+   * legs coming out of it and 6 cm wider than the body above it. Nothing was
+   * wrong with the ellipsoid; it had simply stopped being told what it was
+   * supposed to contain.
+   *
+   * So it contains them by construction: the span across both thighs, less a
+   * little, so the *legs* are the widest thing below the waist. That ordering —
+   * waist, then hips, then thighs — is what reads as a body rather than as a
+   * blob with two poles under it, and it is the ordering the rig had before the
+   * socket moved. `torsoShell` swells to 0.76 of the shoulders just under the
+   * waist, so this lands within a centimetre of the shell above it and the join
+   * is a swell rather than a step.
+   *
+   * The depth came down with it and for the same reason: 0.98 made the hips as
+   * deep as the chest, which no body is, and there was never anything to bury
+   * there — a standing thigh is on the centre line, so a fifth of this depth
+   * would do. A seated one comes forward out of the front of the hips and is
+   * *meant* to.
+   */
+  const hipSpan =
+    2 * (p.torsoW * LEG_SOCKET_X + legRadii(p, legGirth(look.outfit.garment)).thigh);
   const hips = new Mesh(
     orb(l),
     clothSurface(l, cut.under === 'garment' ? jacket : trousers, fabric),
   );
-  hips.scale.set(p.torsoW * 0.88, p.torsoH * 0.34, p.torsoD * 0.98);
+  hips.scale.set(hipSpan * 0.96, p.torsoH * 0.34, p.torsoD * 0.80);
   hips.position.set(0, -p.torsoH * 0.05, 0);
   hips.castShadow = true;
   torso.add(hips);

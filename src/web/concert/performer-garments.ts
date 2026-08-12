@@ -405,6 +405,215 @@ export function legGirth(garment: Garment): number {
 }
 
 // ---------------------------------------------------------------------------
+// How wide a skirt is, which two files have to agree on
+// ---------------------------------------------------------------------------
+
+/**
+ * How flat a skirt is: its depth as a fraction of its width.
+ *
+ * **This is the axis every carried instrument is on**, and it is the whole of
+ * how a hem and a bass guitar are made to coexist. A torso is 0.70 as deep as
+ * it is wide; a robe cut to that ratio reaches 19 cm in front of the hip, and
+ * the body of a bass, a guitar or an accordion is about 10 cm out. 0.52 brings
+ * the hem in to 14 and every one of them comes clear.
+ *
+ * Splitting the two axes rather than keeping the cross-section round is what
+ * made that free, and the asymmetry is not arbitrary — it is the *sway* that
+ * decides how much width a skirt needs, and the sway is lateral. The groove
+ * moves the hips 2.6 % of the body's height sideways and 0.6 % fore and aft, a
+ * factor of four; a leg, meanwhile, is 17 cm across and 8 cm deep. Width is
+ * what cloth is short of here and depth is what it has to spare, so the ratio
+ * that satisfies the instruments is the ratio the body wanted anyway.
+ *
+ * It is also why the legs are the size they always were. Thinning them was the
+ * first answer to a hem that clipped a bass, and it was the wrong axis: it
+ * changed every player on stage — four in five of whom wear no skirt at all —
+ * to buy width that was never what the instrument objected to.
+ */
+const SKIRT_ROUND = 0.52;
+
+/**
+ * Every garment that has a skirt, and how loosely it is cut.
+ *
+ * A table rather than four literals in the switch below, which is where these
+ * were, and the move is not tidying: `skirtSpan` has to answer the same
+ * question from outside the switch, because the *legs* need to know how much
+ * room the cloth leaves them. Two readers, one home — the rule the rest of this
+ * file is built on, applied to the last fact that was still local.
+ *
+ * `ease` is how loose the cloth is *where it passes the legs*, as a multiple of
+ * `clearFor`. 1 is cut to the body, 1.05 hangs. It replaced a fraction of the
+ * shoulder width, and the change is the difference between a garment set that
+ * varies and one that does not: `clearFor` lands near 1.03 of the shoulders,
+ * and a floor applied to four typed fractions would have flattened every one of
+ * them below it to the same width and cut a sari like a kaftan.
+ *
+ * For a `flared` skirt the ease is still the **waist**, which is the narrow end
+ * and the only end a leg can get out of; the hem follows from `FLARE_WAIST`.
+ */
+const SKIRTS: Partial<Record<Garment, { kind: 'column' | 'flared'; ease: number }>> = {
+  /**
+   * Knee-length and cut to the body, so it hangs rather than flares — a
+   * sherwani and a 1720 court coat are both a straight skirt with a vent in it,
+   * and the flare belongs to the gown. Its legs are trousers, so `clearFor` is
+   * already the narrowest of the four: no ease on top of it.
+   */
+  coat: { kind: 'column', ease: 1 },
+  /**
+   * To the boards, and the loosest thing here. A thobe and a kaftan are cut to
+   * hang off the shoulders rather than off the body, and the eye has to read
+   * one column from the shoulder down rather than a jacket standing on a tube.
+   */
+  robe: { kind: 'column', ease: 1.05 },
+  /**
+   * The A-line, and the only one. Close at the waist and out to a hem a quarter
+   * as wide again, which is the shape and is also the only way a flare can be
+   * drawn on a body: see `flare`, and the cone that was here.
+   */
+  gown: { kind: 'flared', ease: 1.01 },
+  /** A sari is wrapped rather than hung: the tightest of the four. */
+  drape: { kind: 'column', ease: 1 },
+};
+
+/**
+ * The narrowest a skirt may be cut and still have the legs inside it, as a
+ * fraction of the shoulder width.
+ *
+ * **This is the number the whole garment set was wrong by.** The widths in
+ * `SKIRTS` were once fractions of the shoulders written against the *hips* —
+ * 0.88 is what `dressTorso` scales those to, and a column wider than it was
+ * said to step out past them and read as a barrel bolted to a person. The
+ * objection is real and the premise was not: what a skirt has to contain is not
+ * the hips, it is the *legs*, and this rig's legs used to be nearly as wide as
+ * its shoulders. Two thighs came out of the sides of every floor-length garment
+ * in the catalogue, from the front, on every player wearing one.
+ *
+ * Derived rather than typed, from the three facts `performer-legs.ts` and
+ * `restLocals` build against — see `LEG_SOCKET_X`, `STANCE_X` and `legRadii`,
+ * which is why all three live in `performer-look.ts` now and not in the files
+ * that draw a leg and place a foot.
+ *
+ * **The `max` is not belt and braces.** A leg's widest point is its hip on some
+ * bodies and its *foot* on others, because a socket is a fraction of the
+ * shoulders and a stance is a fraction of the height: a broad player's hips are
+ * wider than their stance and a slight player's stance is wider than their
+ * hips, by three centimetres. Sized off the socket alone, this cut every slight
+ * player's hem inside their own knees while every broad one looked right —
+ * which is the shape of bug that survives a bench, because the bench's example
+ * body is average.
+ *
+ * `0.19` is air, and it is a per-frame requirement rather than a taste — a hem
+ * cut to the standing silhouette is inside the legs as soon as anybody moves.
+ * The groove sways the hips up to 2.6 % of the body's height sideways
+ * (`performer.ts`) and the feet stay planted, so the skirt goes with the hips
+ * and **the leg does not go with either**: its top follows the cloth, its
+ * bottom stays on the boards, and its middle splits the difference. Half the
+ * sway therefore turns into a knee drifting sideways out of a hem that has
+ * moved the other way, which is 2.5 cm on a tall body and is why this number is
+ * so much larger than it looks like it should be. It buys width and, through
+ * `SKIRT_ROUND`, four fifths as much depth as it would have.
+ *
+ * ## What stopped this growing
+ *
+ * The first version of this arithmetic was right and produced a robe 61 cm
+ * across, which went straight through the body of an electric bass. That is the
+ * constraint nobody had written down: a strap-hung instrument sits about 10 cm
+ * off the front of the thigh, so **cloth on this rig is squeezed between the
+ * legs it must cover and the instrument it must not touch**.
+ *
+ * Two things gave, and it is worth being clear which, because the obvious one
+ * was the wrong one. The legs came *together* — sockets from 0.30 of the
+ * shoulders to 0.23, stance from 0.072 of the height to 0.060 — which took the
+ * hem to 54 cm and reads as a person standing rather than braced. They did
+ * **not** get thinner: that was tried, it bought 5 cm to the stance's 7, and it
+ * changed the silhouette of every player in the catalogue to fix the one in
+ * five wearing a skirt. What closed the rest of the gap was `SKIRT_ROUND`,
+ * because the instrument was never objecting to the width.
+ *
+ * One object is still un-dodgeable and it is not this file's to dodge. An
+ * upright bass is placed **17 cm inside its player's own torso**, garment or no
+ * garment, so a hem that clears it does not exist at any width.
+ */
+function clearFor(garment: Garment, p: Proportions): number {
+  return 2 * (
+    Math.max(LEG_SOCKET_X, STANCE_X * p.height / p.torsoW)
+    + legRadii(p, legGirth(garment)).thigh / p.torsoW
+  ) + 0.19;
+}
+
+/** A skirt, as the solid two files have to agree about. */
+export interface SkirtSpan {
+  /**
+   * Half-axes of the cross-section at the **narrow end**, in metres.
+   *
+   * A column has one width all the way down; a gown is `FLARE_WAIST` of its hem
+   * up at the waist. The narrow end is the honest limit for both, because the
+   * knee is nearer the waist than the hem.
+   */
+  halfW: number;
+  halfD: number;
+  /** How much wider the hem is than that. 1 for a column. */
+  spread: number;
+  /**
+   * Torso-local height of the hip the cloth hangs from.
+   *
+   * Above the hip line rather than at it, so the seam is not on the crease
+   * where two masses meet. It is not *buried* — a hanging skirt is wider than
+   * the hips it hangs off, and this one is by about 7 cm a side, so its top is
+   * a ring rather than a join. That is what the top of a skirt is, and it is
+   * edge-on from anywhere in the room.
+   *
+   * Reported rather than kept private because the skirt hangs *plumb* from this point, which makes it
+   * the axis of the whole solid. `performer-legs.ts` needs that axis, not the
+   * body's: the torso sways up to 2.6 % of the body's height sideways and the
+   * cloth goes with it, so a knee measured against the root's centre line is
+   * measured against a skirt that is no longer there. Getting this wrong reports
+   * a thigh 1.4 cm outside cloth it is comfortably inside, which is how long it
+   * took to notice.
+   */
+  hangY: number;
+}
+
+/**
+ * How much room this player's garment leaves their legs, or `null` for nobody.
+ *
+ * The answer `performer-legs.ts` asks for, and the third of this file's
+ * hand-overs after `sleeveOf` and `legsOf`. It exists because of a failure that
+ * no static measurement could have found and that a screenshot of a still frame
+ * would not have either: **a knee travels much further than the body that moves
+ * it.** The groove drops the hips about 1.8 cm — a bob, and barely visible —
+ * and a two-link leg near full extension answers that by swinging the knee
+ * `0.5 × √(2 × reach × drop)` forward, which is **8.7 cm**. Every skirt in the
+ * catalogue is 13 cm deep at most, for the instrument reason above, so every
+ * player wearing one punched a knee out through the front of it on the beat.
+ *
+ * The fix cannot be a deeper skirt — that is the squeeze `clearFor` describes,
+ * and the bass wins it. So the cloth constrains the *knee*, which is what cloth
+ * does: you cannot see a knee bend inside a thobe, because the thobe will not
+ * let it get very far before the cloth has to move, and this cloth cannot move.
+ * `performer-legs.ts` clamps its bulge against what comes back from here.
+ *
+ * Reported at the narrow end deliberately. A column has one width, and a gown
+ * is `FLARE_WAIST` of its hem up at the waist — and the knee is nearer the
+ * waist than the hem, so the narrow end is the honest limit for both.
+ */
+export function skirtSpan(look: Look, p: Proportions): SkirtSpan | null {
+  // Same two gates the mesh is built behind, and they have to stay the same
+  // two: a leg told it is inside cloth that was never built is a leg that
+  // stops bending for no visible reason.
+  if (p.seated) return null;
+  const cut = SKIRTS[look.outfit.garment];
+  if (!cut) return null;
+  const waist = clearFor(look.outfit.garment, p) * cut.ease;
+  return {
+    halfW: p.torsoW * waist * 0.5,
+    halfD: p.torsoW * waist * SKIRT_ROUND * 0.5,
+    spread: cut.kind === 'flared' ? 1 / FLARE_WAIST : 1,
+    hangY: p.torsoH * 0.10,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // The geometry only one garment has
 // ---------------------------------------------------------------------------
 
@@ -443,120 +652,35 @@ export function dressGarment(
   const kneeY = floorY * 0.52;
 
   /**
-   * The narrowest a skirt may be cut and still have the legs inside it, as a
-   * fraction of the shoulder width.
-   *
-   * **This is the number the whole garment set was wrong by.** The widths below
-   * were written against the hips — 0.88 is what `dressTorso` scales them to,
-   * and a column wider than that was said to step out past them and read as a
-   * barrel bolted to a person. The objection is real and the premise was not:
-   * what a skirt has to contain is not the hips, it is the *legs*, and this
-   * rig's legs used to be nearly as wide as its shoulders. Two thighs came out
-   * of the sides of every floor-length garment in the catalogue, from the
-   * front, on every player wearing one.
-   *
-   * Derived rather than typed, from the three facts `performer-legs.ts` and
-   * `restLocals` build against — see `LEG_SOCKET_X`, `STANCE_X` and `legRadii`,
-   * which is why all three live in `performer-look.ts` now and not in the files
-   * that draw a leg and place a foot.
-   *
-   * **The `max` is not belt and braces.** A leg's widest point is its hip on
-   * some bodies and its *foot* on others, because a socket is a fraction of the
-   * shoulders and a stance is a fraction of the height: a broad player's hips
-   * are wider than their stance and a slight player's stance is wider than
-   * their hips, by three centimetres. Sized off the socket alone, this cut
-   * every slight player's hem inside their own knees while every broad one
-   * looked right — which is the shape of bug that survives a bench, because the
-   * bench's example body is average.
-   *
-   * `0.13` is air, and it is a per-frame requirement rather than a taste. A hem
-   * cut exactly to the standing silhouette is inside the legs as soon as
-   * anybody moves: the groove sways the hips up to 2.6 % of the body's height
-   * sideways (`performer.ts`) and the feet stay planted, so the skirt travels
-   * and the shins do not.
-   *
-   * ## What stopped this growing
-   *
-   * The first version of this arithmetic was right and produced a robe 58 cm
-   * across, which went straight through the body of an electric bass. That is
-   * the constraint nobody had written down: a strap-hung instrument sits about
-   * 10 cm off the front of the thigh, so **cloth on this rig is squeezed between
-   * the legs it must cover and the instrument it must not touch**, and the way
-   * out is not to pick a number between them — it is to make the legs smaller.
-   * They are: the thigh went from 19 cm to 15, the sockets from 0.30 of the
-   * shoulders to 0.23 and the stance from 0.072 of the height to 0.060, which
-   * bought back 12 cm of hem and cost nothing that reads at ten metres.
-   *
-   * One object is still un-dodgeable and it is not this file's to dodge. An
-   * upright bass is placed **17 cm inside its player's own torso**, garment or
-   * no garment, so a hem that clears it does not exist at any width.
-   */
-  const clear = 2 * (
-    Math.max(LEG_SOCKET_X, STANCE_X * p.height / p.torsoW)
-    + legRadii(p, legGirth(garment)).thigh / p.torsoW
-  ) + 0.13;
-
-  /**
    * A skirt: a column or an A-line, hung plumb from inside the hip mass.
    *
-   * `ease` is how loose the cloth is *where it passes the legs*, as a multiple
-   * of `clear` — 1 is a skirt cut to the body, 1.05 is one that hangs. It
-   * replaced a fraction of the shoulder width, and the change is the difference
-   * between a garment set that varies and one that does not: `clear` lands near
-   * 0.88 of the shoulders, and a floor applied to four typed fractions would
-   * have flattened every one of them below it to the same width and cut a sari
-   * like a kaftan. An ease keeps a drape tighter than a robe *and* keeps both
-   * off the legs.
+   * Which of the two, and how loose, is `SKIRTS`; how wide it may be is
+   * `clearFor`; how far down it goes is `GarmentCut.hem`. None of the three is
+   * here, and that is the point — `performer-legs.ts` has to size a knee's
+   * travel against the same numbers, and a second copy of any of them is a
+   * skirt that stops matching the legs inside it. See `skirtSpan`.
    *
-   * For a `flared` skirt the ease is still the waist, which is the narrow end
-   * and the only end a leg can get out of; the hem follows from `FLARE_WAIST`.
-   *
-   * Nothing is built for a seated player, and that is the second half of the
-   * same fault. A skirt here is one rigid mesh — there is no skin, no bones and
-   * nothing to bend at the hip — so on a bench it hangs from the hips straight
-   * down through the boards while the thighs it is meant to be covering go
-   * *forward*, out through the front of it, and the shins come back down outside
-   * it. Cross-legged is worse than wrong: `floorY` sits above the hip for a
-   * player whose hip is 10 cm off the ground, so the mesh inverts and a sitarist
-   * in a kurtā wore a saucer. The legs are already the garment's own cloth under
-   * `under: 'garment'` — see `legsOf` — so what a seated player loses is the
-   * column and not the costume: the colour, the collar and the sleeves are all
-   * still there, and what is left reads as the same cloth over a lap. Giving
-   * them back a hem means cloth that drapes over a thigh, and that is a skinned
-   * garment rather than a wider cylinder.
+   * Nothing is built for a seated player. A skirt here is one rigid mesh —
+   * there is no skin, no bones and nothing to bend at the hip — so on a bench
+   * it hangs from the hips straight down through the boards while the thighs it
+   * is meant to be covering go *forward*, out through the front of it, and the
+   * shins come back down outside it. Cross-legged is worse than wrong: `floorY`
+   * sits above the hip for a player whose hip is 10 cm off the ground, so the
+   * mesh inverts and a sitarist in a kurtā wore a saucer. What a seated player
+   * gets instead is a lap, in the file that can fit one every frame.
    */
-  const skirt = (kind: 'column' | 'flared', ease: number): void => {
-    if (p.seated) return;
+  const skirt = (): void => {
+    const span = skirtSpan(look, p);
+    if (!span) return;
     const hemY = cutOf(garment).hem === 'knee' ? kneeY : floorY;
-
-    // The top sits *above* the hip line so the join is buried inside the hips
-    // ellipsoid rather than showing as a rim of a slightly different shade
-    // where two ellipsoids meet.
-    const topY = p.torsoH * 0.10;
+    const topY = span.hangY;
     const len = topY - hemY;
     // `flare` is scaled by its hem and is `FLARE_WAIST` of that at the top, so
-    // a skirt whose *waist* has to clear the legs is sized from the waist out.
-    const w = clear * ease / (kind === 'flared' ? FLARE_WAIST : 1);
-    const m = new Mesh(kind === 'flared' ? flare(l) : tube(l), cloth(jacket));
-    /**
-     * Flatter than the body it hangs off, and measured off the *width* rather
-     * than off `torsoD` to say so.
-     *
-     * This is the axis every carried instrument is on. A torso is 0.70 as deep
-     * as it is wide, and a skirt cut to that ratio reaches 16 cm in front of
-     * the hip — where the body of a bass, a guitar or an accordion is. 0.58
-     * brings the hem in to 14, which is the whole of the difference between a
-     * robe with a bass through it and one without, and it is bought at no cost
-     * to the legs: they are 8 cm deep and the shoes barely more, so a skirt has
-     * far more depth than it needs and far less width.
-     *
-     * What it costs is the *lower* leg of a player standing fore-and-aft rather
-     * than square — a perch splits the feet 19 cm front to back — whose shins
-     * come out below the hem. Which is what a hem and a spread stance do to
-     * each other, and is the reason the guarantee above is about the thigh and
-     * the knee rather than about the whole leg.
-     */
-    m.scale.set(p.torsoW * w, len, p.torsoW * w * 0.58);
+    // a skirt whose *waist* has to clear the legs is scaled from the waist out.
+    // `spread` is that factor, and it is 1 for the three columns.
+    const flared = SKIRTS[garment]?.kind === 'flared';
+    const m = new Mesh(flared ? flare(l) : tube(l), cloth(jacket));
+    m.scale.set(span.halfW * 2 * span.spread, len, span.halfD * 2 * span.spread);
 
     /**
      * Plumb, against the lean the rest of the garment takes.
@@ -639,34 +763,21 @@ export function dressGarment(
     }
 
     case 'coat':
-      // Knee-length and cut to the body, so it hangs rather than flares — a
-      // sherwani and a 1720 court coat are both a straight skirt with a vent in
-      // it, and the flare belongs to the gown. Its legs are trousers, so `clear`
-      // is already the narrowest of the four: no ease on top of it.
-      skirt('column', 1);
+      skirt();
       standCollar();
       break;
 
     case 'robe':
-      // To the boards, and the loosest thing here. A thobe and a kaftan are cut
-      // to hang off the shoulders rather than off the body, and the eye has to
-      // read one column from the shoulder down rather than a jacket standing on
-      // a tube.
-      skirt('column', 1.05);
+      skirt();
       standCollar();
       break;
 
     case 'gown':
-      // The A-line, and the only one. Close at the waist and out to a hem a
-      // quarter as wide again, which is the shape and is also the only way a
-      // flare can be drawn on a body: see `flare`, and the cone that was here.
-      skirt('flared', 1.01);
+      skirt();
       break;
 
     case 'drape': {
-      // A sari is wrapped rather than hung: the tightest of the four, which is
-      // `clear` and nothing over it.
-      skirt('column', 1);
+      skirt();
       /**
        * The band over the shoulder, and the only asymmetric cloth in the rig.
        *
