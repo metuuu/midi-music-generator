@@ -44,13 +44,13 @@
  * is stated there once rather than tuned per style.
  */
 
-import { Box3, Group, Mesh, Object3D } from 'three';
+import { Box3, BufferGeometry, Group, Mesh, Object3D } from 'three';
 
 import type { HairStyle, Look } from '../../concert/types.js';
 import type { Rng } from '../../core/rng.js';
 
 import {
-  Leases, bead, hairSurface, hoodShell, orb, pill, shade, slab, spike, surface,
+  Leases, bead, hairSurface, headShell, orb, pill, shade, spike, surface,
 } from './performer-assets.js';
 import { SIDE, assertBuilt, type Proportions } from './performer-look.js';
 
@@ -355,44 +355,38 @@ export function buildHair(
     }
 
     case 'emo': {
-      // The one head of hair in the file that is allowed in front of the face,
-      // and the note at the top of this function is what licenses it rather than
-      // what it breaks. The rule there is that mass reaching the face does not
-      // sit beside it — it is drawn over the whole of it — and every other style
-      // is written to keep clear. This one is written to spend that: a fringe
-      // swept across the brow, one eye behind it, and the other eye left alone.
+      // Hair that is *on* a head rather than near one, and the only style here
+      // built that way.
       //
-      // What makes it worth spending is the ten-metre test the union is judged
-      // by. Take the fringe away and this is a `bob` with a longer front, which
-      // is the same outline in the same colour and would not be worth a name. A
-      // dark diagonal across a face is not something any other style here can
-      // produce, and it survives the back row better than anything that depends
-      // on the shape of a mass above the skull.
+      // Every other case in this file is spheres parked against a skull, and for
+      // hair with body in it that is the right model — a mass has a middle, and
+      // where its surface ends up is a consequence. Ironed hair has no middle.
+      // It is a skin: a couple of millimetres of it lying on a scalp, following
+      // the skull to its widest point and then falling straight. Two spheres
+      // cannot make that shape and five cannot either. What they make is a
+      // helmet, and three passes at making the helmet smaller only ever made a
+      // smaller helmet.
       //
-      // ## The other half of it is that the hair is *flat*, and that is built
+      // So this is `headShell` — see `performer-assets.ts`, where the whole
+      // argument lives. Two walls cut to the head's own ellipsoid and joined at
+      // every edge, scaled by exactly the scale the skull is built at, so the
+      // inner wall is **two per cent inside the skin**. The hair is not near the
+      // head; it intersects it, the way hair grows out of a scalp. There is no
+      // gap to close because there is no gap.
       //
-      // This was `crown()` and `shell()` — a bob's construction — and it came
-      // out as a helmet with a fringe on it. Those two are written for hair with
-      // body in it: the shell stands 2.5 cm off the skull at the sides, and
-      // eight at the back of the head, where its own push-back piles the mass
-      // up behind the skull. None of that is wrong for a bob and all of it is
-      // wrong here.
-      // Ironed hair is a *skin*. It lies down, it takes one band of light across
-      // the whole head instead of a highlight per mass, and its silhouette is
-      // the skull's own outline a centimetre out — which is a different picture
-      // from ten metres and is most of what says emo rather than "long hair".
+      // ## The face, which is the point of the style
       //
-      // **"Partly" is the whole specification, and it is a measurement.** At eye
-      // level — y +0.14 R — hair covers the face from the near temple inward as
-      // far as x +0.07, so the swept eye is behind about a centimetre of it;
-      // from there to x −0.51 there is nothing in front of the face at all, and
-      // that band is exactly where the other eye is; outboard of −0.51 the far
-      // temple is hair again. A fringe over both eyes is a bag over the head,
-      // and one that stops at the part is a side parting, which is not a
-      // silhouette.
-
-      // Which side it is swept to. One draw, off the performer's own stream, so
-      // a player wears the same fringe every night of the run.
+      // The head is covered by two of these and the seam between them is the
+      // whole design. The cap takes the arc from one cheek round the back to the
+      // other, leaving a 0.56π opening centred on the face; the fringe fills
+      // that opening from the crown down, and its hem is a *diagonal* — that is
+      // the one thing this generator does that a sphere cannot, an edge that
+      // runs from the hairline on one side to below the eye on the other.
+      //
+      // The measured result: both brows are behind hair, the swept eye and its
+      // outer corner are behind hair, and the other eye, the nose, the mouth,
+      // both cheeks and the chin are in the open. One eye gone and one eye
+      // looking at you, which is what the style is.
       const s = rng.chance(0.5) ? SIDE.left : SIDE.right;
 
       // Ironed is a surface as well as a shape, and this is the half of it a
@@ -403,125 +397,51 @@ export function buildHair(
       // haircut always has in it. At 0.40 it is well short of `slick`'s oiled
       // 0.26 and of `updo`'s pinned 0.34, and that ordering is the point: a flat
       // iron is not pomade, and the shine comes from the hair lying parallel to
-      // itself rather than from anything put on it. Every mesh below takes it,
-      // so the head is one surface and the band crosses the lot.
+      // itself rather than from anything put on it. Both shells take it, so the
+      // head is one surface and the band crosses the whole of it.
       const ironed = surface(l, look.hair, { roughness: 0.40, metalness: 0.06 });
 
-      // One cap, where every other hanging style here is a crown *and* a shell.
-      //
-      // It is the same trick `shell` uses and it is turned down hard: the
-      // skull's own ellipsoid — 2 × 2.10 × 1.90 R — inflated by a *twelfth*
-      // across and less than that the other two ways, where a shell is inflated
-      // by a sixth, and pushed back 0.08 R where a shell goes back 0.38. A scaled
-      // copy of a convex shape is proud of it everywhere the surface turns away
-      // and buried behind it everywhere it turns towards you, so the face is
-      // still a hole in the geometry with no number tuned against a brow or a
-      // chin — but the hair that results lies between 0.4 and 2.0 cm off the
-      // skull at every point it covers, where a crown and a shell together are
-      // 3.5 cm on average and 8 cm at the back of the head.
-      //
-      // The two numbers pull against each other and there is not much room
-      // between them: the inflation is what covers the temple, the pushback is
-      // what clears the cheek and the chin, and this pair is close to the
-      // tightest that does both. There is no `crown()` on top because at this
-      // size the cap reaches the hairline itself — it crosses the midline at
-      // y +0.53 R, a centimetre and a half above the brow.
-      const cap = new Mesh(orb(l), ironed);
-      cap.scale.set(R * 2.16, R * 2.24, R * 2.00);
-      cap.position.set(0, R * 0.04, -R * 0.08);
-      cap.castShadow = true;
-      hair.add(cap);
+      // Both are scaled by the skull's own scale — `2 × 2.10 × 1.90 R`, the
+      // numbers `performer.ts` builds the head at — and that is not a
+      // coincidence to be tidied later. It is what makes `wall` mean what its
+      // doc says: a multiple of the head's own radius, on every axis at once.
+      const head = (g: BufferGeometry): Mesh => {
+        const m = new Mesh(g, ironed);
+        m.scale.set(R * 2, R * 2.10, R * 1.90);
+        m.castShadow = true;
+        hair.add(m);
+        return m;
+      };
 
-      // What a cap that tight costs is length: its hem comes out at y −1.08 R,
-      // which is the jaw and no further, and a cut that stops dead at the jaw
-      // all the way round is a bowl. This is the back of it — a flat tail at the
-      // nape, no wider than the head and 2 cm thick, taking the line down to
-      // −1.23 R. Still clear of the shoulder at −1.29 R, so `settle` has nothing
-      // to do; it is declared to it anyway, because the day the cut gets longer
-      // is not the day anybody will remember to.
-      const nape = new Mesh(orb(l), ironed);
-      nape.scale.set(R * 1.60, R * 0.76, R * 0.34);
-      nape.position.set(0, -R * 0.85, -R * 0.62);
-      nape.castShadow = true;
-      hair.add(nape);
-      falls(nape, 'back');
+      // The cap. It reaches 0.80π down the skull — past the ear, level with the
+      // jaw — and then falls a further 0.30 of a head radius straight down,
+      // which is the difference between a swimming cap and a haircut. The fall
+      // eases to nothing at both ends of the arc, so no hair ever hangs across
+      // the face, and draws in a tenth of the way on the drop, because hair
+      // hangs slightly inside the widest point of a head rather than plumb from
+      // it.
+      head(headShell(l, {
+        phi: [Math.PI * 0.72, Math.PI * 2.28],
+        hem: [Math.PI * 0.80, Math.PI * 0.80],
+        wall: [0.98, 1.10],
+        fall: 0.30,
+        gather: 0.10,
+      }));
 
-      // The fringe, and it is two rotations because a sheet of hair laid across
-      // a face is doing two things at once.
-      //
-      // `rotation.z` is the sweep: the root is at the part, x −0.16 R and
-      // y +0.50 R, inside the cap rather than perched on it, and the tip is at
-      // the near cheekbone, x +0.82 R and y −0.20 R. `rotation.x` is the lean,
-      // and it is nearly nothing — −0.06 — because the forehead itself comes
-      // forward on the way down from the hairline to the brow, so a sheet that
-      // follows the skin is very close to a flat plate.
-      //
-      // Euler order is `XYZ`, so `z` is applied to the mesh first and the lean
-      // is then taken about the head's own lateral axis rather than about the
-      // already-tilted hair. Written the other way round the sheet corkscrews
-      // off the temple, which looks like a mistake rather than like hair.
-      //
-      // It is 0.34 R thick and sits 1.1 cm off the brow and 0.4 cm off the skull
-      // at the eye, which is as flat as it can be and still work, because what
-      // an eye shows is not the white — that stops at z +0.89 R — but the iris
-      // standing proud of it at +0.945 R. Hair that only reached the white would
-      // have an eye looking through it. This runs +0.95 to +0.97 R across the
-      // swept eye, and it clears the nose by half its own thickness again at the
-      // closest the two come.
-      const fringe = new Mesh(orb(l), ironed);
-      fringe.scale.set(R * 0.88, R * 1.20, R * 0.34);
-      fringe.position.set(s * R * 0.33, R * 0.15, R * 0.80);
-      fringe.rotation.z = s * 0.95;
-      fringe.rotation.x = -0.06;
-      fringe.castShadow = true;
-      hair.add(fringe);
-
-      // The short side of the part: what is left over when the rest goes the
-      // other way. It runs from just off the midline out to the far temple, and
-      // about a third of it stands proud of the cap — the outboard third, from
-      // x −0.22 R out to −0.84 — while the rest is inside the cap it grew from.
-      // That is the right share. It has to be *seen* to say there is a part
-      // here, and it must not become a second fringe: its front never passes
-      // z +0.83 R, so the eye it runs over, whose iris is at +0.945 R, is in
-      // front of it and stays open. Without it the part has hair sweeping off
-      // one side and nothing answering on the other, which reads as a comb-over.
-      const shortSide = new Mesh(orb(l), ironed);
-      shortSide.scale.set(R * 0.56, R * 0.86, R * 0.22);
-      shortSide.position.set(-s * R * 0.48, R * 0.33, R * 0.72);
-      shortSide.rotation.z = -s * 0.83;
-      shortSide.castShadow = true;
-      hair.add(shortSide);
-
-      // Two curtains down the sides of the face, and they are **the only boxes
-      // in the file** for a reason that is the whole complaint about this style.
-      //
-      // Everything else here is built from spheres, and a head of hair made of
-      // spheres has one outline available to it: an ellipse, widest at the
-      // temples and curving back in under the jaw. That is a bob, and it is what
-      // this looked like however tightly the cap was cut, because the outline
-      // was still the cap's. Ironed hair does not curve back in. It leaves the
-      // widest point of the skull and falls *straight*, and it is cut off level
-      // at the bottom rather than tapering to a point — which is two straight
-      // lines and a corner, and no ellipsoid has ever had either.
-      //
-      // So: a slab a side, outer face at x ±1.12 R, which is 0.04 R proud of the
-      // cap at the temple and stays there all the way down while the cap curves
-      // away behind it. The top edge is at y +0.10 R, level with the cap's
-      // widest point, so the curtain leaves the head where hair does and there
-      // is no step at the join. The hem is flat at −1.14 R: below the chin,
-      // above the shoulder line, and blunt.
-      //
-      // They reach forward to z +0.86 R as well, which is what the fringe ends
-      // inside — the cap is back at +0.35 R by the time it is out at the cheek,
-      // so a fringe leaving the face at the cheekbone had nothing to arrive in.
-      for (const side of [SIDE.left, SIDE.right]) {
-        const curtain = new Mesh(slab(l), ironed);
-        curtain.scale.set(R * 0.40, R * 1.24, R * 1.50);
-        curtain.position.set(side * R * 0.92, -R * 0.52, R * 0.10);
-        curtain.castShadow = true;
-        hair.add(curtain);
-        falls(curtain, 'shoulder');
-      }
+      // The fringe. Same wall, the opening's arc, and a hem that runs from
+      // 0.32π at one end — y +0.62 R, a finger above the brow — to 0.60π at the
+      // other, which is y −0.36 R and below the eye. Which end gets which is the
+      // whole of what the part decides, so mirroring the style is these two
+      // numbers swapping places and nothing else.
+      const SHALLOW = Math.PI * 0.32;
+      const DEEP = Math.PI * 0.60;
+      head(headShell(l, {
+        // `phi` runs from the performer's right cheek to their left, so the far
+        // end of the arc is their left and `SIDE.left` sweeps the hair there.
+        phi: [Math.PI * 0.26, Math.PI * 0.74],
+        hem: s === SIDE.left ? [SHALLOW, DEEP] : [DEEP, SHALLOW],
+        wall: [0.98, 1.10],
+      }));
       break;
     }
 
@@ -938,103 +858,109 @@ export function buildHair(
     }
 
     case 'hood': {
-      // Outerwear, in the jacket's colour. Double sided, because you can see
-      // the inside of a hood from most seats in the house.
+      // Outerwear, in the jacket's colour, and the one thing in this union that
+      // is not a haircut. Which means it has to answer a question no haircut
+      // does: *what is it attached to*. A hood is sewn to a coat. Cloth comes up
+      // the back of the neck, over the head, and stops around the face, and a
+      // hood that does not do that is not a hood, it is a helmet.
       //
-      // ## It has to arrive somewhere, and it did not
+      // It was a helmet. What built it was a bare sphere 35 % wider than the
+      // skull with a bite out of the front: no thickness, so its edge was a
+      // knife and it only rendered at all because the material was
+      // `doubleSide`; nothing
+      // below the jaw, so there were four centimetres of daylight between the
+      // garment and the shoulders it is sewn to; and — because a sphere can only
+      // be concentric with the head — 3 to 9 cm of air all round. Three separate
+      // faults, one cause: three.js has no primitive for a garment.
       //
-      // A hood is the only thing in this union that is not a haircut, and the
-      // thing that makes one *read* as a hood rather than as a helmet is that it
-      // is attached to a coat: cloth comes up the back of the neck, over the
-      // head, and stops around the face. This had the middle third and nothing
-      // else. The shell stood between 3.2 and 9.5 cm off the skull — a bubble
-      // with a head loose inside it — and its bottom rim finished at y −1.02 R,
-      // which is the jaw, leaving four centimetres of daylight between the
-      // garment and the shoulders it is supposed to be sewn to. From the front
-      // that is a space helmet, and it is the same fault the wrap had for the
-      // same reason: a shell far deeper than it is wide, pushed back on top.
-      //
-      // So the shell is squared up — 2.5 to 3.5 cm off the skull all round,
-      // which is bulk a hood should have and an even amount of it — and the
-      // neck below it is now built rather than assumed.
+      // `headShell` is that primitive. Two walls, cut to the head's own
+      // ellipsoid and joined at every edge, so the cloth has a *section* — an
+      // edge with area that takes its own shading — and an inner surface that
+      // can be placed against the head instead of merely near it. This one sits
+      // at 1.02 to 1.16 of the head's radius: two per cent of daylight for the
+      // hair underneath, and two centimetres of cloth on top of it.
       const cloth = surface(l, shade(look.outfit.jacket, -0.05), {
-        roughness: 0.92, metalness: 0, doubleSide: true,
+        roughness: 0.92, metalness: 0,
       });
-      const shell = new Mesh(hoodShell(l), cloth);
-      shell.scale.set(R * 2.48, R * 2.56, R * 2.28);
-      shell.position.set(0, 0, -R * 0.06);
-      shell.castShadow = true;
-      hair.add(shell);
+      const drape = (g: BufferGeometry): void => {
+        const m = new Mesh(g, cloth);
+        m.scale.set(R * 2, R * 2.10, R * 1.90);
+        m.castShadow = true;
+        hair.add(m);
+      };
 
-      // The back of the neck, which is what joins the hood to the coat. It runs
-      // from inside the shell at y −0.04 R down to −1.28, and the shoulder line
-      // is at −1.29: the two meet, so there is cloth all the way from the collar
-      // to the crown and no gap for the head to be floating in.
+      // The garment itself, and `fall` is what sews it on. The hem sits at
+      // 0.72π — just below the ear — and then drops 0.58 of a head radius, which
+      // lands it at y −1.39 R against a shoulder line at −1.29: *through* the
+      // jacket rather than above it, so the two solids overlap and there is no
+      // seam to see. `gather` draws the drop 45 % of the way in on the way down,
+      // because cloth off the back of a head falls onto the shoulders and not
+      // behind them — without it the skirt hangs 3 cm clear of the back and the
+      // hood floats again, lower down.
       //
-      // It is behind the neck and not around it. The front edge stops at
-      // z +0.20 R while the chin is out at +0.56, because a hood that closes in
-      // front of the throat is a balaclava. Its back sits flush with the shell's
-      // at −1.04 rather than proud of it, so the two read as one garment from
-      // the side instead of as a bulge under a dome.
-      //
-      // Being on the head means it turns with the head, which for a yaw is very
-      // nearly free — it is a body of revolution about the neck — and for the
-      // pitch is the same approximation every hanging style in this file already
-      // makes.
-      const neck = new Mesh(orb(l), cloth);
-      neck.scale.set(R * 1.60, R * 1.24, R * 1.24);
-      neck.position.set(0, -R * 0.66, -R * 0.42);
-      neck.castShadow = true;
-      hair.add(neck);
-      falls(neck, 'back');
+      // Both are eased to nothing at the ends of the arc, so nothing hangs
+      // across the face and the front of the collar stays open.
+      drape(headShell(l, {
+        phi: [Math.PI * 0.80, Math.PI * 2.20],
+        hem: [Math.PI * 0.72, Math.PI * 0.72],
+        wall: [1.02, 1.16],
+        fall: 0.58,
+        gather: 0.45,
+      }));
+
+      // And the brow, which closes the top of the opening. The old shell's bite
+      // ran from the hem clear to the crown, so a hooded player was bare-headed
+      // in a wedge up the middle of their own forehead — visible in every front
+      // view and never once noticed, because a hood is the thing you expect to
+      // see a face inside. The opening should be a hole *around* a face: this is
+      // its top edge, at 0.36π, which is y +0.52 R and a thumb above the brow.
+      drape(headShell(l, {
+        phi: [Math.PI * 0.18, Math.PI * 0.82],
+        hem: [Math.PI * 0.36, Math.PI * 0.36],
+        wall: [1.02, 1.16],
+      }));
       break;
     }
 
     case 'wrap': {
-      // The same open shell as a hood and three deliberate differences from
-      // one, because at ten metres those are the whole distinction. It is cut
-      // to the skull rather than standing off it, so it is a covered head and
-      // not a garment with a head somewhere inside; it takes the accent colour
-      // rather than the jacket's, because a scarf over the hair is the one
-      // loud thing a player in an otherwise plain outfit is wearing; and it
-      // falls onto the shoulders, where a hood hangs behind them.
+      // The same generator as a hood and three deliberate differences from one,
+      // because at ten metres those are the whole distinction. It is cut to the
+      // skull rather than standing off it, so it is a covered head and not a
+      // garment with a head somewhere inside; it takes the accent colour rather
+      // than the jacket's, because a scarf over the hair is the one loud thing a
+      // player in an otherwise plain outfit is wearing; and it falls onto the
+      // shoulders, where a hood hangs behind them.
       //
-      // ## "Cut to the skull" was the sentence and 5.6 cm was the geometry
-      //
-      // The shell was 2.32 × 2.44 × 2.40 R against a skull of 2 × 2.10 × 1.90,
-      // and pushed back 0.16 R on top of that, which is cloth standing between
-      // 1.4 and 5.6 cm off the head — an eggshell with a head rattling inside
-      // it, worst at the back where the depth and the push-back compound.
-      // Nearly all of that was the *depth*: a scarf is tied round a head, so it
-      // is the same amount over the hair at the nape as it is at the ear, and a
-      // shell half a radius deeper than it is wide cannot be. Squaring the three
-      // up and taking the push-back out puts it at 0.9 to 1.2 cm all round,
-      // which is cloth lying on hair.
-      const cloth = surface(l, look.outfit.accent, {
-        roughness: 0.90, metalness: 0.04, doubleSide: true,
-      });
-      const cover = new Mesh(hoodShell(l), cloth);
-      cover.scale.set(R * 2.16, R * 2.24, R * 2.04);
-      cover.position.set(0, 0, -R * 0.02);
-      cover.castShadow = true;
-      hair.add(cover);
-      for (const s of [SIDE.left, SIDE.right]) {
-        // The cloth that carries on past the rim, and it has to *start* inside
-        // the cover or the wrap is a hat with two separate flaps hanging near
-        // it. The rim is at y −0.86 R and these begin at +0.20, so a fifth of
-        // each one is under the shell it hangs from; they are 0.10 R wider than
-        // the cover at the ear, which is the cloth thickening where it is
-        // gathered rather than a second silhouette.
-        const fall = new Mesh(orb(l), cloth);
-        fall.scale.set(R * 0.72, R * 2.10, R * 1.10);
-        fall.position.set(s * R * 0.82, -R * 0.85, -R * 0.26);
-        fall.castShadow = true;
-        hair.add(fall);
-        // "It falls onto the shoulders" is the sentence above, and it was not
-        // true of the geometry: 1.90 R of cloth against a shoulder line 1.29 R
-        // down. Now it is the sentence *and* where the cloth stops.
-        falls(fall, 'shoulder');
-      }
+      // "Cut to the skull" is now a number rather than a claim: the wall is 0.98
+      // to 1.06, so the inner surface is *inside the skin* and the cloth is
+      // eight millimetres thick. It cannot float, because it is not a separate
+      // object near a head — it is a solid that shares volume with one.
+      const cloth = surface(l, look.outfit.accent, { roughness: 0.90, metalness: 0.04 });
+      const tie = (g: BufferGeometry): void => {
+        const m = new Mesh(g, cloth);
+        m.scale.set(R * 2, R * 2.10, R * 1.90);
+        m.castShadow = true;
+        hair.add(m);
+      };
+
+      // A deeper hem than the hood's and a gentler gather: cloth tied at the
+      // nape hangs closer to plumb than cloth off a hood's back does, and it
+      // ends at y −1.38 R, which is on the shoulders and slightly into them.
+      tie(headShell(l, {
+        phi: [Math.PI * 0.76, Math.PI * 2.24],
+        hem: [Math.PI * 0.78, Math.PI * 0.78],
+        wall: [0.98, 1.06],
+        fall: 0.50,
+        gather: 0.30,
+      }));
+
+      // The front edge, lower than a hood's because a scarf covers the hairline
+      // where a hood shows it: 0.32π is y +0.60 R.
+      tie(headShell(l, {
+        phi: [Math.PI * 0.22, Math.PI * 0.78],
+        hem: [Math.PI * 0.32, Math.PI * 0.32],
+        wall: [0.98, 1.06],
+      }));
       break;
     }
 

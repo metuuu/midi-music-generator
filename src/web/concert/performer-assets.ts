@@ -35,8 +35,8 @@
 
 import {
   BoxGeometry, BufferGeometry, CapsuleGeometry, CircleGeometry, Color,
-  ConeGeometry, CylinderGeometry, DataTexture, DoubleSide, LatheGeometry,
-  LinearFilter, Material, MeshPhysicalMaterial, MeshStandardMaterial,
+  ConeGeometry, CylinderGeometry, DataTexture, DoubleSide, Float32BufferAttribute,
+  LatheGeometry, LinearFilter, Material, MeshPhysicalMaterial, MeshStandardMaterial,
   PMREMGenerator, PlaneGeometry, RGBAFormat, RepeatWrapping, SRGBColorSpace,
   type Scene, SphereGeometry, TorusGeometry, Vector2, type WebGLRenderer,
 } from 'three';
@@ -251,42 +251,169 @@ export const torsoShell = (l: Leases): LatheGeometry =>
   ], 14));
 
 /**
- * A hood: a sphere with a face-sized bite out of the front.
+ * What goes **on** a head: a shell with two walls, a hem, and a fall.
  *
- * `phiLength` short of a full turn is the whole trick — the opening is a hole
- * in the geometry rather than a hole in a texture, which is the only version
- * that survives being lit from the side.
+ * This replaces `hoodShell`, which was a bare `SphereGeometry` with a wedge left
+ * out of it, and which was a *surface* — and a surface is not a thing. It had no
+ * thickness, so its edge was a knife and it was only visible at all because the
+ * material was `doubleSide`; and because a sphere can only be concentric with
+ * the head, it could be *near* a skull but never on one, which is what made a
+ * hood look like a bubble with somebody loose inside. Every complaint about hair
+ * or cloth floating round a head came back to those two facts, and neither was
+ * fixable by choosing better numbers — three.js has no primitive for this shape.
  *
- * ## Why `phiStart` is 0.80π and not something rounder
+ * So this builds one. Two concentric shells joined at every open edge, cut to
+ * the same head, which gives three things a sphere cannot:
  *
- * The bite is the 0.60π that `phiLength` leaves out, and where it lands is
- * decided entirely by where the swept arc *starts*. three.js builds a sphere as
+ * **It joins the head.** `wall` is given in multiples of the head's own radius,
+ * and the geometry is meant to be scaled by exactly the skull's own scale — so
+ * `wall: [0.98, 1.10]` puts the inner surface *two per cent inside the skin* and
+ * the outer ten per cent proud. There is no gap because the two solids
+ * interpenetrate: hair grows out of a scalp rather than hovering over one.
+ *
+ * **It has an edge.** The hem and the two sides of the face opening are walls
+ * with area, so a cut reads as a cut from any angle and takes its own shading.
+ *
+ * **It can hang.** Below `hem` the profile leaves the sphere and drops straight,
+ * which is what hair and cloth actually do — they follow the skull to its widest
+ * point and then fall. An ellipsoid curves back in under the jaw instead, which
+ * is the one silhouette this whole family of shapes must not have.
+ *
+ * ## Where `phi = 0` is, which is the one thing here worth getting wrong once
+ *
+ * three.js builds a sphere as
  *
  *     x = −r·cos(phi)·sin(theta)      z = r·sin(phi)·sin(theta)
  *
  * — note the minus on `x` — so `phi = 0` is **−x**, the performer's right ear,
- * and the front of the face is `phi = π/2`. This shell was written with
- * `phiStart = 0.30π`, which sweeps 0.30π → 1.70π and leaves the gap centred on
- * `phi = 0`. Every hooded and wrapped player on the project's stage has
- * therefore been a featureless egg from the front with its face-hole over one
- * ear, and it went unnoticed because from the stalls an egg with two eyebrows
- * poking over the rim reads as a person who is merely far away.
+ * and the front of the face is `phi = π/2`. An opening centred on the face is
+ * therefore an arc that *starts* past π/2 and comes back round to just before
+ * it: `[0.80π, 2.20π]` leaves 0.20π…0.80π open, symmetric about the face.
  *
- * Centring the gap on the face means centring it on π/2, so the arc runs from
- * `π/2 + 0.30π` to `π/2 + 0.30π + 1.40π` — that is 0.80π through 2.20π, and the
- * 0.60π it misses is 0.20π…0.80π, symmetric about π/2. Hence 0.80π.
- *
- * The tempting near-miss is 0.5π + something, or "just add π/2 to what was
- * there": `phiStart` names the *edge* of the covered arc, not the centre of the
- * hole, and the two differ by half the gap. Anything that faces the opening
- * along ±x or −z is wrong in a way only the bench's front view shows, which is
- * how the original survived. Turn a hood to `front` and `side` before believing
- * any arithmetic here, this comment's included.
+ * The tempting near-miss is to name the centre of the hole rather than the edge
+ * of the cloth, and the two differ by half the gap. The predecessor of this
+ * geometry shipped with its opening centred on `phi = 0`, so every hooded player
+ * on the project's stage was a featureless egg from the front with its face-hole
+ * over one ear — for months, because from the stalls an egg with two eyebrows
+ * over the rim reads as a person who is merely far away. Turn a head to `front`
+ * and `side` on the costume bench before believing any arithmetic here, this
+ * comment's included.
  */
-export const hoodShell = (l: Leases): SphereGeometry =>
-  l.geometry('hood', () => new SphereGeometry(
-    0.5, 16, 12, Math.PI * 0.80, Math.PI * 1.40, 0, Math.PI * 0.78,
-  ));
+export interface HeadShell {
+  /** Start and end of the covered arc, in radians. See the note above. */
+  phi: readonly [number, number];
+  /**
+   * How far down the head the shell reaches at each end of the arc, as an
+   * angle from the crown. Equal ends give a level hem; unequal ends give a
+   * diagonal, which is what a swept fringe is.
+   */
+  hem: readonly [number, number];
+  /** Inner and outer surface, in multiples of the head's own radius. */
+  wall: readonly [number, number];
+  /**
+   * How far it falls below the hem, in head radii, once clear of the opening.
+   * Zero at both ends of the arc so hair never hangs across a face.
+   */
+  fall?: number;
+  /** How far the fall draws in toward the neck on the way down. 0 is plumb. */
+  gather?: number;
+  /** The share of the arc the fall takes to reach full length. */
+  ease?: number;
+}
+
+export const headShell = (l: Leases, spec: HeadShell): BufferGeometry => {
+  const key = `shell:${spec.phi.join()}:${spec.hem.join()}:${spec.wall.join()}`
+    + `:${spec.fall ?? 0}:${spec.gather ?? 0}:${spec.ease ?? 0.18}`;
+  return l.geometry(key, () => buildHeadShell(spec));
+};
+
+/**
+ * 20 × 9 quads a surface, and 3 more rows if it falls.
+ *
+ * Measured: 1048 triangles for a shell that falls and 796 for a patch that does
+ * not, so a whole head of hair or cloth is two of them and about 1850 — five
+ * `ball`s, for the thing an audience looks at most and the thing that used to be
+ * a sphere with a hole in it. It buys the mesh *count* back: `emo` went from six
+ * meshes to two and `wrap` from three. The pole is a fan of degenerate quads, as
+ * it is on every sphere in three.js, and costs nothing.
+ */
+function buildHeadShell(spec: HeadShell): BufferGeometry {
+  const [phi0, phi1] = spec.phi;
+  const [hem0, hem1] = spec.hem;
+  const [rIn, rOut] = spec.wall;
+  const fall = spec.fall ?? 0;
+  const gather = spec.gather ?? 0;
+  const ease = spec.ease ?? 0.18;
+  const NP = 20;
+  const NT = 9;
+  const NF = fall > 0 ? 3 : 0;
+  const rows = NT + 1 + NF;
+
+  const xyz: number[] = [];
+  const put = (x: number, y: number, z: number): number => {
+    xyz.push(x, y, z);
+    return xyz.length / 3 - 1;
+  };
+  // One flat array a surface, indexed `i * rows + j`: `NP + 1` columns of `rows`
+  // vertices each, running from the crown down the profile. Flat rather than
+  // nested because every read below is a corner of a quad, and four
+  // `grid[side][i][j]` a quad is where an off-by-one hides.
+  const surfaceOf = (r: number): number[] => {
+    const out: number[] = [];
+    for (let i = 0; i <= NP; i++) {
+      const u = i / NP;
+      const phi = phi0 + (phi1 - phi0) * u;
+      const hem = hem0 + (hem1 - hem0) * u;
+      const drop = 0.5 * fall * Math.min(1, Math.min(u, 1 - u) / ease);
+      for (let j = 0; j <= NT; j++) {
+        const theta = hem * (j / NT);
+        const s = Math.sin(theta);
+        out.push(put(-r * Math.cos(phi) * s, r * Math.cos(theta), r * Math.sin(phi) * s));
+      }
+      const s = Math.sin(hem);
+      const hx = -r * Math.cos(phi) * s;
+      const hz = r * Math.sin(phi) * s;
+      const hy = r * Math.cos(hem);
+      for (let k = 1; k <= NF; k++) {
+        const t = k / NF;
+        const pull = 1 - gather * t;
+        out.push(put(hx * pull, hy - drop * t, hz * pull));
+      }
+    }
+    return out;
+  };
+  const outer = surfaceOf(0.5 * rOut);
+  const inner = surfaceOf(0.5 * rIn);
+  const O = (i: number, j: number): number => outer[i * rows + j] ?? 0;
+  const I = (i: number, j: number): number => inner[i * rows + j] ?? 0;
+
+  // Wound so that `a → b → c → d` runs down the profile and then along the arc,
+  // which for the outer surface is anticlockwise seen from outside — the sign
+  // is checked by the signed volume of the result, not by eye.
+  const idx: number[] = [];
+  const quad = (a: number, b: number, c: number, d: number): void => {
+    idx.push(a, b, c, a, c, d);
+  };
+  for (let i = 0; i < NP; i++) {
+    for (let j = 0; j < rows - 1; j++) {
+      quad(O(i, j), O(i, j + 1), O(i + 1, j + 1), O(i + 1, j));
+      quad(I(i, j), I(i + 1, j), I(i + 1, j + 1), I(i, j + 1));
+    }
+    // The hem, and the two sides of the opening: the walls that give the cut an
+    // edge with area instead of a knife edge that vanishes at a grazing angle.
+    quad(O(i, rows - 1), O(i + 1, rows - 1), I(i + 1, rows - 1), I(i, rows - 1));
+  }
+  for (let j = 0; j < rows - 1; j++) {
+    quad(O(0, j), I(0, j), I(0, j + 1), O(0, j + 1));
+    quad(O(NP, j), O(NP, j + 1), I(NP, j + 1), I(NP, j));
+  }
+
+  const g = new BufferGeometry();
+  g.setAttribute('position', new Float32BufferAttribute(xyz, 3));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
+}
 
 // ---------------------------------------------------------------------------
 // Materials
