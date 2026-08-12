@@ -419,8 +419,22 @@ function buildHeadShell(spec: HeadShell): BufferGeometry {
   const I = (i: number, j: number): number => inner[i * rows + j] ?? 0;
 
   // Wound so that `a → b → c → d` runs down the profile and then along the arc,
-  // which for the outer surface is anticlockwise seen from outside — the sign
-  // is checked by the signed volume of the result, not by eye.
+  // which for the outer surface is anticlockwise seen from outside.
+  //
+  // **Signed volume does not check this**, and believing it did cost a round.
+  // The hem was wound the other way, and a bottom ring facing up out of a shell
+  // whose other thousand triangles face out still leaves the total volume
+  // positive — so the mesh measured "outward" and had no bottom. A back-facing
+  // ring is culled, so from anywhere below the jaw you looked straight through
+  // the hem into the inside of the head.
+  //
+  // The test that does catch it is the manifold one: weld coincident vertices,
+  // then walk every triangle's three directed edges. On a closed, consistently
+  // wound surface each directed edge occurs exactly once and its reverse occurs
+  // exactly once. The flipped ring showed up as forty-two directed edges used
+  // twice and forty-two edges with only one face — a hole and a fold, which is
+  // exactly what it was. Run that before believing any winding here, this
+  // comment's included.
   const idx: number[] = [];
   const quad = (a: number, b: number, c: number, d: number): void => {
     idx.push(a, b, c, a, c, d);
@@ -432,7 +446,8 @@ function buildHeadShell(spec: HeadShell): BufferGeometry {
     }
     // The hem, and the two sides of the opening: the walls that give the cut an
     // edge with area instead of a knife edge that vanishes at a grazing angle.
-    quad(O(i, rows - 1), O(i + 1, rows - 1), I(i + 1, rows - 1), I(i, rows - 1));
+    // Outer → inner → along the arc, so the ring faces *down* off the hem.
+    quad(O(i, rows - 1), I(i, rows - 1), I(i + 1, rows - 1), O(i + 1, rows - 1));
   }
   for (let j = 0; j < rows - 1; j++) {
     quad(O(0, j), I(0, j), I(0, j + 1), O(0, j + 1));

@@ -148,7 +148,7 @@ const BEARING: Record<HairStyle, HairBearing> = {
   mullet: 'close',
   dreadlocks: 'close',
   // Close, and the flattest thing in the list: what `emo` puts under a hat is
-  // hair ironed to two and a half centimetres of the skull. Everything that
+  // hair ironed to a centimetre and a half of the skull. Everything that
   // makes the style is *below* the brim and in front of the face, where nothing
   // worn on a head can reach it, so a beanie pulled over one with the fringe
   // still hanging out from under it is the picture, and `close` draws it.
@@ -369,12 +369,14 @@ export function buildHair(
       // So this is `headShell` — see `performer-assets.ts`, where the whole
       // argument lives. Two walls cut to the head's own ellipsoid and joined at
       // every edge, scaled by exactly the scale the skull is built at, so both
-      // surfaces are stated as the head: `[1.03, 1.19]` is **four millimetres of
-      // air under two and a half centimetres of hair**. The air is deliberate
+      // surfaces are stated as the head: `[1.08, 1.18]` is **a centimetre of air
+      // under a centimetre and a third of hair**. The air is deliberate
       // and it is the second thing this got wrong — a shell laid flat on the
-      // skin is a bathing cap, and hair sits a little off a scalp — but it is
-      // four millimetres by decision rather than a gap that opens and closes
-      // between the crown and the nape because two ellipsoids disagree.
+      // skin is a bathing cap, and hair sits off a scalp — but it is a
+      // centimetre by decision rather than a gap that opens and closes between
+      // the crown and the nape because two ellipsoids disagree. Thin wall, wide
+      // gap: the hair is *lifted*, which is what hair does, rather than a thick
+      // rind moulded onto a skull.
       //
       // ## The face, which is the point of the style
       //
@@ -435,7 +437,7 @@ export function buildHair(
       head(headShell(l, {
         phi: [Math.PI * 0.72, Math.PI * 2.28],
         hem: [Math.PI * 0.80, Math.PI * 0.80],
-        wall: [1.03, 1.19],
+        wall: [1.08, 1.18],
         fall: [0.10, 0.02, 0.10],
         land: [0.95, 0.95],
       }));
@@ -458,7 +460,7 @@ export function buildHair(
         // end of the arc is their left and `SIDE.left` sweeps the hair there.
         phi: [Math.PI * 0.26, Math.PI * 0.74],
         hem: left ? [SHALLOW, DEEP] : [DEEP, SHALLOW],
-        wall: [1.02, 1.15],
+        wall: [1.07, 1.16],
         fall: left ? [0, 0.04, 0.16] : [0.16, 0.04, 0],
       }));
       break;
@@ -906,8 +908,8 @@ export function buildHair(
       // was `doubleSide`, and — because a sphere can only be concentric with the
       // head — 3 to 9 cm of air, most of it behind the skull. `headShell` gives
       // the cloth a section and states its distance from the head as a number:
-      // 1.05 to 1.22, which is seven millimetres of daylight for the hair
-      // underneath and two and a half centimetres of cloth on top of it.
+      // 1.12 to 1.22, which is a centimetre and a half of daylight for the hair
+      // underneath and a centimetre and a third of cloth over it.
       const cloth = surface(l, shade(look.outfit.jacket, -0.05), {
         roughness: 0.92, metalness: 0,
       });
@@ -931,7 +933,7 @@ export function buildHair(
       drape(headShell(l, {
         phi: [Math.PI * 0.80, Math.PI * 2.20],
         hem: [Math.PI * 0.72, Math.PI * 0.72],
-        wall: [1.05, 1.22],
+        wall: [1.12, 1.22],
         fall: [0, 0.30, 0],
         land: [1.00, 0.85],
       }));
@@ -945,7 +947,7 @@ export function buildHair(
       drape(headShell(l, {
         phi: [Math.PI * 0.18, Math.PI * 0.82],
         hem: [Math.PI * 0.36, Math.PI * 0.36],
-        wall: [1.05, 1.22],
+        wall: [1.12, 1.22],
       }));
       break;
     }
@@ -959,9 +961,9 @@ export function buildHair(
       // player in an otherwise plain outfit is wearing; and it falls onto the
       // shoulders, where a hood hangs behind them.
       //
-      // "Cut to the skull" is now a number rather than a claim: the wall is 1.01
-      // to 1.12, so there is a millimetre and a half of air under a centimetre
-      // and a half of cloth. It is the tightest of the three, which is the
+      // "Cut to the skull" is now a number rather than a claim: the wall is 1.05
+      // to 1.14, so there is seven millimetres of air under a centimetre and a
+      // fifth of cloth. It is the tightest of the three, which is the
       // distinction — a scarf is tied *on*, where a hood is pulled *over*.
       const cloth = surface(l, look.outfit.accent, {
         roughness: 0.90, metalness: 0.04,
@@ -982,7 +984,7 @@ export function buildHair(
       tie(headShell(l, {
         phi: [Math.PI * 0.76, Math.PI * 2.24],
         hem: [Math.PI * 0.78, Math.PI * 0.78],
-        wall: [1.01, 1.12],
+        wall: [1.05, 1.14],
         fall: [0, 0.12, 0],
         land: [0.95, 0.80],
       }));
@@ -992,7 +994,7 @@ export function buildHair(
       tie(headShell(l, {
         phi: [Math.PI * 0.22, Math.PI * 0.78],
         hem: [Math.PI * 0.32, Math.PI * 0.32],
-        wall: [1.01, 1.12],
+        wall: [1.05, 1.14],
       }));
 
       // And the two lengths. They start at y +0.20 R, a fifth of the way up
