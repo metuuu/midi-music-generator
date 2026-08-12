@@ -94,28 +94,38 @@ export const iskelma: Genre = {
    * is `full` two lines above: the band stopping to hit a figure together empties
    * the floor, and this band does not empty the floor.
    *
-   * **`harmony: 5` is the whole of this genre's answer, and there is no
-   * `HarmonyProfile` beside it — here or on any of the seven styles.** The
-   * sentence above already names the device's own scope: *the second half of the
-   * chorus* is one phrase of one chorus, which is where `Device.harmony` places
-   * itself and nowhere else. A declaration replaces that draw rather than adding
-   * to it, so writing one would spend this weight to say a vaguer version of
-   * what it already says exactly.
+   * **`harmony: 5` is this genre's answer for the band, and two styles now
+   * declare a sung `HarmonyProfile` beside it.** The two statements do not
+   * compete, and the reason they do not is the layer.
    *
-   * The layer decides the rest. A declaration in this genre lands on `counter`,
-   * and the counter here is the *answering* voice — `solo.rotation` below hands
-   * it the entire break, and the `voice` block argues `long-note` up on the
-   * grounds that if the sax answers the singer then the tune is the call and
-   * leaves the holes. A standing second part in thirds occupies those holes for
-   * the length of the statement, which is the one thing the answer is for. Nor do
-   * the style tables ask for it: seven `twoHanded` blocks, every one of them about
-   * one player's two hands; a tango whose tune goes to the accordion, bandoneon,
-   * tenor or strings *depending on the night*, one per night; and one baritone in
-   * `vocals.ts`, `centre: 57`, working to G4. The duetto is what would change
-   * this, and it needs a second `VocalProfile` to sing against before `on:
-   * 'vocal'` describes anything — with `vocals: false` the default, declaring it
-   * today would suppress the device on every instrumental rendering and put
-   * nothing in its place.
+   * The case against a declaration was written here first and most of it stands.
+   * A declaration lands on `counter` unless it says otherwise, and the counter
+   * here is the *answering* voice — `solo.rotation` below hands it the entire
+   * break, and the `voice` block argues `long-note` up on the grounds that if the
+   * sax answers the singer then the tune is the call and leaves the holes. A
+   * standing part in thirds occupies those holes for the length of the statement,
+   * which is the one thing the answer is for. So no style here declares
+   * `on: 'counter'`, and `harmony: 5` remains the whole of what the band does:
+   * one phrase, in the second half of a chorus, which is where `Device.harmony`
+   * places itself and where this repertoire actually puts it.
+   *
+   * `on: 'vocal'` is a different claim about a different performer. It writes
+   * over the singer's own syllables, asks no instrumentalist for anything, and no
+   * longer suppresses the device — `song.ts` gates that on a profile competing
+   * for the same players, which a sung one does not. So the sax goes on answering
+   * and the horns go on harmonising exactly as they did, and the second voice in
+   * the chorus is a second voice rather than a redistribution of the first.
+   *
+   * The remaining objection was practical and is now measured rather than
+   * guessed. There is one baritone in `vocals.ts`, `centre: 57`, working to G4,
+   * and `generateVocalStack` writes both parts with it — so the stack goes
+   * *under* the tune here where country puts it over. A third above sat 23.7% of
+   * its notes past the top of the range; the same draw underneath reads 4.8%,
+   * inside what the lead already spends there. See `chorusThirds` in
+   * `styles.ts`, which carries the numbers, the two amounts, and the reasoning
+   * for the five styles that declare nothing — `tango` because it is a solo
+   * singer's number and always was, `humppa` because its tune is the lowest in
+   * the genre and measures worse than its own lead in either direction.
    */
   arrangement: { riff: 6, harmony: 5, tutti: 2 },
 

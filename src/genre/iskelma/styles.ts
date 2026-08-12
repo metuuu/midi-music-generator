@@ -12,7 +12,62 @@
  * A minor `VII` is G major and `VI` is F major — no flats needed.
  */
 
-import type { Style } from '../../style/types.js';
+import type { HarmonyProfile, Style } from '../../style/types.js';
+
+/**
+ * The thirds behind the second half of a chorus, as a standing part rather than
+ * as a draw.
+ *
+ * `index.ts` calls this *"audible on almost every record in the repertoire"* in
+ * the same sentence it weights `Device.harmony` to 5, and then argues at length
+ * that the weight is the whole answer and no style should declare a profile. Two
+ * of the three reasons it gives were about the layer and are answered by
+ * `on: 'vocal'`: a declaration in this genre *"lands on `counter`"*, where the
+ * counter is the answering sax and a standing part in thirds would occupy the
+ * holes the answer is for — true, and not true of the singer, who is not that
+ * player. The third reason was that declaring *"would suppress the device on
+ * every instrumental rendering and put nothing in its place"*, which was a
+ * correct reading of a real fault; `song.ts` no longer suppresses the device for
+ * a sung declaration, so the cost it names is gone and the horns go on
+ * harmonising whether or not anybody sings.
+ *
+ * **Under the tune, which is this singer rather than a taste.** The house voice
+ * is one baritone — `vocals.ts`, `centre: 57`, `range: [46, 67]`, *"a working
+ * baritone, not a soloist's advertised range"* — and `generateVocalStack` writes
+ * the second line with the lead's own profile, so both parts are that voice.
+ * Measured over the two styles that declare this, 25 seeds each, a third *above*
+ * put 1204 of 4140 stack notes past G4: 29.6% of the harmony sitting above the
+ * top of the range, against the lead's own 5.0%. The same draw underneath reads
+ * 2.7%, inside what the lead already spends there. Country declares
+ * `[[2, 6], …]` and is right to — its tenor is `centre: 61, range: [48, 76]` and
+ * has the room. This voice does not.
+ *
+ * `kinds: ['chorus']` because that is what the genre's own sentence says: the
+ * thirds are behind *the chorus*, and a verse sung in two parts throughout is a
+ * different and much heavier record.
+ *
+ * ## Two styles, and the three it is wrong for
+ *
+ * `tango` is a solo singer's number — the whole style is one voice holding the
+ * ends of its phrases, and a part underneath the *kaipuu* note would be arguing
+ * with the thing the style is built around. `jenkka`, `foksi` and `beguine` are
+ * dance forms the band plays rather than numbers the singer delivers.
+ *
+ * `humppa` is the interesting exclusion, because it reads like a candidate and
+ * measures like a fault. Its tune is the lowest in the genre — mean MIDI 58.3
+ * against `iskelmapop`'s 60.5, with 205 of 10,320 lead notes already under the
+ * floor — so a third beneath it puts 11.1% of the stack out of range, against
+ * that same lead's 6.1%. Turning the stack over does not rescue it either: the
+ * humppa tune is wide rather than merely low, and above reads 32.3%. The genre's
+ * own line about it is the tell — *"accordion carries the tune"* — so the voice
+ * there is one of the things happening rather than the thing to harmonise.
+ */
+const chorusThirds = (amount: number): HarmonyProfile => ({
+  amount,
+  intervals: [[-2, 6], [-5, 2]],
+  on: 'vocal',
+  kinds: ['chorus'],
+});
 
 /**
  * SUOMALAINEN TANGO — the centrepiece of the genre.
@@ -360,6 +415,10 @@ const valssi: Style = {
   boxDrums: false,
   modeWeights: { minor: 0.58, major: 0.42 },
   relativeMajorChorus: 0.35,
+  /** A pavilion waltz is the duetto number of the set — two voices a third
+   * apart over the lift into the downbeat, and the one dance where the crowd
+   * expects to hear them. */
+  harmony: chorusThirds(0.7),
   progressions: {
     intro: [
       { chords: ['i', 'V7', 'V7', 'i'], weight: 3 },
@@ -794,6 +853,10 @@ const iskelmapop: Style = {
   hook: 'catchy',
   modeWeights: { minor: 0.68, major: 0.32 },
   relativeMajorChorus: 0.7,
+  /** Radio pop with a fixed chorus and a key change to deliver it once more:
+   * the backing stack is not decoration on this style, it is how the hook is
+   * stated. The highest of the three. */
+  harmony: chorusThirds(0.8),
   progressions: {
     intro: [
       { chords: ['i', 'VII', 'VI', 'VII'], weight: 4 },
