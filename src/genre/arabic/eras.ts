@@ -49,6 +49,17 @@
  * replaced. `npm run genres` covers the seam directly, as *"darbuka over an 808
  * — bare indexed names on the rack, a prefix on the machine"*.
  *
+ * **What that statement turned out not to reach is the three hand strokes**, and
+ * the reason is that this era stages a person playing them: `shaabi` writes the
+ * same maqsum and wahda every other era does, so `drumStations` puts a
+ * percussionist behind a goblet drum whatever the bank says, and what the room
+ * heard them play was a LinnDrum cross-stick. So `DEFAULT_HAND_RACK` in
+ * `render/drum-banks.ts` now sounds `lp`/`mp`/`hp` from the darbuka on any bank
+ * that names no rack, and these four entries are covered by it. The era keeps
+ * what it was actually claiming — the kick, the snare, the hats and the claps
+ * are the box, and they are what a cassette-shop arrangement is made of — and
+ * loses only the substitution nobody was defending.
+ *
  * **The bass palette is an anachronism in the first era and is filled anyway.**
  * A takht has no bass line at all: the lowest sound in the room is the oud's
  * bottom course and the qanun's left hand, and both of them are playing the

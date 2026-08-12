@@ -177,6 +177,14 @@ export const BANK_VOICES: Record<string, DrumVoice[]> = {
  *
  * ## The hand drum
  *
+ * **These three chains are now a last resort rather than the usual answer**, and
+ * the paragraphs below describe what happens when they are reached. A bank with
+ * no rack on it no longer sends `lp`/`mp`/`hp` here at all: it plays them from
+ * the goblet drum the stage is already showing, which is `DEFAULT_HAND_RACK`
+ * below and is the whole of why that constant exists. What is left for these
+ * chains is a *named* rack that is missing a stroke — no rack in `SAMPLE_RACKS`
+ * is, today — so they are kept, unchanged, against the day one is.
+ *
  * `lp`, `mp` and `hp` are the one place where the chains had to be chosen
  * against each other rather than one at a time, and the trap is obvious once
  * seen: send all three to `perc` and a bank that has a `perc` plays a doum, a
@@ -455,6 +463,80 @@ export function rackVoices(bank: string): ReadonlySet<DrumVoice> | undefined {
   return shelf ? new Set(Object.keys(shelf) as DrumVoice[]) : undefined;
 }
 
+/** The three strokes nothing but a pair of hands on a skin ever plays. */
+export const HAND_STROKES: readonly DrumVoice[] = ['lp', 'mp', 'hp'];
+
+/**
+ * What a hand drum sounds like when the bank did not say which one it is.
+ *
+ * **The picture already answered this question and the sound was not listening.**
+ * A part that writes `lp`/`mp`/`hp` stages a percussionist — `drumStations` in
+ * `concert/instruments.ts` puts them there off the voices alone, rack or no rack
+ * — and the object built for them is `shapeFor(undefined)` in
+ * `web/concert/instruments/hand-drum.ts`, which is a goblet drum. So an audience
+ * watching an arabic *shaabi* number, a finnfolk *sottiisi* or a house *tribal*
+ * saw somebody striking one skin with their hands and heard a LinnDrum floor
+ * tom, its spare percussion sample and its cross-stick — a clank on the mid and
+ * high strokes that is not a drum being struck by a hand at all. Measured over
+ * 60 songs in each of the nineteen genres, 37 of the 264 numbers that stage a
+ * hand drummer were doing this: arabic's whole *shaabi* era, all four finnfolk
+ * eras, funk's *electro*, hiphop's *golden*, latin's *moderno*, reggae's
+ * *digital* and house's *tribal* wherever it is drawn. Not one of the 37 was a
+ * programmed part — every one had a person on the stand — which is what says
+ * this is a fault in the sound rather than a taste about boxes.
+ *
+ * The three surfaces the `FALLBACK` chains pick were the right answer while
+ * there was no goblet drum in any library and *are still the right answer for
+ * the drummer* — a kit player handed a doum plays their floor tom. They stopped
+ * being the right answer for a person with their palms on a skin the day
+ * `SAMPLE_RACKS.darbuka` landed, and that is the whole change here: **the
+ * default is the instrument that is standing on the stage.**
+ *
+ * `darbuka` and not `congas` because the shape is not a choice either — an
+ * unnamed hand drum is one drum between somebody's knees, which is what `Shape`
+ * says and what the model builds. Naming the same rack here is the two halves
+ * agreeing rather than a taste being applied twice.
+ *
+ * ## What this may not touch, which is most of it
+ *
+ * Only the three hand strokes, and only for the sound. A rack also carries
+ * `perc`, `cb`, `sh` and `tb` on its stand, and a default that claimed those
+ * would be a far larger statement wearing this one's clothes: `rackVoices` is
+ * read by casting, so every bare-banked song with a tambourine in it would
+ * suddenly grow a second percussionist holding a riq. `rackVoices` is therefore
+ * left alone — it answers *what is on the stand the bank named*, and a bank that
+ * named nothing has no stand. The three strokes need no such permission because
+ * they are hand-tier in `STATION_OF` already: nobody but the hand drummer can
+ * ever be holding them.
+ *
+ * MIDI never had this problem and is untouched. `render/midi.ts` writes `lp`,
+ * `mp` and `hp` to GM 87, 63 and 62 — a surdo and two congas — so the shipping
+ * file has always said hand drum and it was the audition that disagreed.
+ */
+export const DEFAULT_HAND_RACK = 'darbuka';
+
+/**
+ * Which rack answers for this voice: the one the bank names, or — for a hand
+ * stroke on a bank that names none — the default above.
+ *
+ * The one seam, so that the sample and the trim that belongs to it cannot come
+ * from different objects: `resolveDrumSample` here and `levelOfDrum` in
+ * `render/source-levels.ts` both ask this and nothing else.
+ */
+export function rackFor(bank: string, voice: DrumVoice): string | undefined {
+  const { rack } = readBankName(bank);
+  if (rack) return rack;
+  return HAND_STROKES.includes(voice) ? DEFAULT_HAND_RACK : undefined;
+}
+
+/** The shelf `rackFor` names, if there is one and this file has heard of it. */
+const shelfFor = (
+  bank: string, voice: DrumVoice,
+): Partial<Record<DrumVoice, RackSample>> | undefined => {
+  const rack = rackFor(bank, voice);
+  return rack ? SAMPLE_RACKS[rack] : undefined;
+};
+
 /**
  * The voice this kit should actually play for a requested one.
  *
@@ -471,8 +553,8 @@ export function rackVoices(bank: string): ReadonlySet<DrumVoice> | undefined {
  * what lets the notation sweep and the mix bench go on asking the old question.
  */
 export function resolveVoice(bank: string, voice: DrumVoice): DrumVoice | undefined {
-  const { machine, rack } = readBankName(bank);
-  const shelf = rack ? SAMPLE_RACKS[rack] : undefined;
+  const { machine } = readBankName(bank);
+  const shelf = shelfFor(bank, voice);
   if (shelf?.[voice]) return voice;
   const available = BANK_VOICES[machine];
   // An unknown bank is assumed complete: better to emit what was asked for and
@@ -510,8 +592,10 @@ export interface DrumSample {
 export function resolveDrumSample(bank: string, voice: DrumVoice): DrumSample | undefined {
   const sounding = resolveVoice(bank, voice);
   if (!sounding) return undefined;
-  const { machine, rack } = readBankName(bank);
-  const held = rack ? SAMPLE_RACKS[rack]?.[sounding] : undefined;
+  const { machine } = readBankName(bank);
+  // Asked of the voice that *sounds* rather than the one written, so a default
+  // rack can never be handed a stroke the machine had already substituted away.
+  const held = shelfFor(bank, sounding)?.[sounding];
   if (held) return { sample: held[0], n: held[1], voice: sounding };
   return { sample: sounding, bank: machine, voice: sounding };
 }

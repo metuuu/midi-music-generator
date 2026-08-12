@@ -84,7 +84,7 @@
 
 import type { Midi } from '../core/pitch.js';
 import type { DrumVoice } from '../core/types.js';
-import { readBankName } from './drum-banks.js';
+import { rackFor, readBankName } from './drum-banks.js';
 
 /**
  * Per-soundfont trim, relative to the catalogue median.
@@ -426,10 +426,15 @@ export const RACK_SAMPLE_LEVEL: Record<string, Partial<Record<DrumVoice, number>
  *
  * A rack answers first, for exactly the voices it carries, which is the same
  * order `resolveDrumSample` picks the sample in — so the trim and the sample it
- * belongs to cannot come from different objects.
+ * belongs to cannot come from different objects. `rackFor` rather than
+ * `readBankName` for exactly that reason: a hand stroke on a bank that names no
+ * rack is played from `DEFAULT_HAND_RACK`, and the darbuka's tek needs ×7.53 to
+ * reach the catalogue median, so a trim read off the bank name alone would put
+ * the drum this player is visibly striking 17 dB under the kit.
  */
 export function levelOfDrum(bank: string, voice: DrumVoice): number {
-  const { machine, rack } = readBankName(bank);
+  const { machine } = readBankName(bank);
+  const rack = rackFor(bank, voice);
   const held = rack ? RACK_SAMPLE_LEVEL[rack]?.[voice] : undefined;
   return held ?? DRUM_SAMPLE_LEVEL[machine]?.[voice] ?? 1;
 }
