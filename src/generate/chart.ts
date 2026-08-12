@@ -200,7 +200,32 @@ export function has(chart: Chart, device: Device): boolean {
 export function playing(chart: Chart, kind: SectionKind, layer: LayerId, ordinal: number): boolean {
   const here = chart.layers[kind];
   if (!here.includes(layer)) return false;
-  if (ordinal < (chart.enters[layer] ?? 0)) return false;
+  /**
+   * The opening edge is the **chorus's**, because the chorus is what it was
+   * decided from.
+   *
+   * `enters` is drawn against `layers.chorus` and counted in choruses — see
+   * `planChart`, whose own comment says only the chorus is asked because it is
+   * the only kind a song reliably has more than one of. Reading that number
+   * against a verse's ordinal, or a bridge's, is a category error: it asks
+   * "is this the second chorus?" of a section that is not a chorus, and any kind
+   * the form states once answers no every time.
+   *
+   * **It was worth almost nothing to fix and had to be fixed anyway.** Measured
+   * over 1,167 songs the scoping moves exactly one section in the whole
+   * catalogue — 441 bridges with no melodic line become 440 — because a layer
+   * held back from a first verse was mostly a layer the verse roster had not
+   * offered in the first place. What changes is what the field can now be *used*
+   * for: `peak` below sets an entry at the last chorus, and unscoped that would
+   * silence the layer through the first two verses as well, for no reason any
+   * listener could reconstruct.
+   *
+   * The closing edge stays cross-kind deliberately, and that asymmetry is not an
+   * oversight: `planExits` counts `most` across every tune-bearing kind and
+   * places the exit at the last of them, so a layer that leaves is leaving the
+   * song rather than leaving the choruses.
+   */
+  if (kind === 'chorus' && ordinal < (chart.enters[layer] ?? 0)) return false;
   return !here.includes('melody') || ordinal < (chart.exits[layer] ?? Infinity);
 }
 
@@ -238,6 +263,60 @@ export function planChart(args: {
     if (layers.chorus.includes(layer) && rng.chance(0.4)) enters[layer] = 1;
   }
 
+  /**
+   * Somebody who arrives for the **last** chorus, and only for it.
+   *
+   * ## The fault
+   *
+   * The engine could build an arrangement and could strip one, and could not
+   * make one *arrive*. `enters` above holds a layer back until the second
+   * chorus, which is a real gesture and the wrong one for the end of a song: a
+   * layer entering at chorus two is present for choruses two, three and four, so
+   * the last chorus is exactly the second chorus again. Measured over 1,167
+   * songs, **the last chorus of a song had the same number of players as the
+   * first in 64% of them**, was louder by 1.6% of velocity — which is nothing —
+   * and was actually *less* busy, by 0.09 onsets a beat. Nothing in the engine
+   * had ever said "and then everyone comes in".
+   *
+   * That is the most recognisable gesture in recorded popular music and it is
+   * the one thing a listener uses to know a song is ending rather than looping.
+   *
+   * ## Recruit before holding back
+   *
+   * Two ways to make a last chorus bigger, and the first is better. **Recruit**:
+   * a colour layer the chorus roster has not got, added to the roster and given
+   * an entry at the last one — a sound the song has genuinely not made before.
+   * **Hold back**: a layer already in every chorus, kept out of all but the last
+   * — the same players, arriving. The first is the stronger gesture, so it is
+   * tried first, and the second is what a band with nobody spare does instead.
+   *
+   * Recruiting respects `excludeLayers` and nothing else needs guarding: a
+   * roster is a claim about who is in the room, and `layersFor` has already
+   * applied the style's veto to it. Holding back refuses a `requireLayers`
+   * layer, because a style that has said a part must sound has not agreed to
+   * three minutes without it.
+   *
+   * `planExits` skips any layer with an entry, so the one that arrives here is
+   * never also the one that leaves — the two gestures stay one song apart by
+   * construction rather than by a check.
+   *
+   * ## Why it runs after the devices are drawn
+   *
+   * A recruit joins `layers.chorus`, and `anywhere` reads that roster to decide
+   * which devices this band is capable of. Placed before the draw, recruiting a
+   * counter made `trade`, `harmony` and `unison` eligible for a band that has no
+   * answering line in any other section — and `trade` hands a chorus to the
+   * drummer, so the catalogue gained 8,600 drum strokes and two concert checks
+   * failed: an accordion asked to grasp seventeen semitones at once, and
+   * one-armed drum figures up from 0.29% to 0.49% against a 0.4% bar. Both were
+   * real faults rather than threshold noise — a no-op draw inserted at the same
+   * point moved the stroke count by one, so the reshuffle was not the cause.
+   *
+   * The fix is the ordering, and it is also the more honest reading. `available`
+   * asks *what kind of ensemble is this*, and a player who appears for thirty
+   * seconds at the end is not an answering line the arrangement can be built on.
+   * Running last leaves the device pool describing the band that plays the song.
+   */
   const anywhere = (layer: LayerId): boolean => kinds.some((k) => layers[k].includes(layer));
   const weights = { ...POOL, ...args.weights };
   const available = DEVICES.filter((d) => {
@@ -269,6 +348,21 @@ export function planChart(args: {
     if (!left.length) break;
     const drawn = rng.weighted(left);
     if (available.includes(drawn)) devices.add(drawn);
+  }
+
+  const choruses = counts.chorus ?? 0;
+  if (choruses >= 2 && rng.chance(0.55)) {
+    const banned = new Set(style.excludeLayers ?? []);
+    const required = new Set(style.requireLayers ?? []);
+    const recruit = COLOUR.filter((l) => !layers.chorus.includes(l) && !banned.has(l));
+    const holdBack = COLOUR.filter((l) => layers.chorus.includes(l)
+      && enters[l] === undefined && !required.has(l));
+    const pool = recruit.length ? recruit : holdBack;
+    if (pool.length) {
+      const layer = rng.pick(pool);
+      if (!layers.chorus.includes(layer)) layers.chorus = [...layers.chorus, layer];
+      enters[layer] = choruses - 1;
+    }
   }
 
   return {

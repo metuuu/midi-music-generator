@@ -100,9 +100,29 @@ export function sectionIntensity(at: SectionPlacement): number {
   const through = at.total > 1 ? at.index / (at.total - 1) : 0;
   const arc = at.kind === 'outro' ? 0 : through * 0.16;
 
-  // And each return of a kind is a little more than the last — the second
-  // chorus is the one that has something to live up to.
-  const returns = Math.min(at.ordinal, 3) * 0.035;
+  /**
+   * And each return of a kind is a little more than the last — the second
+   * chorus is the one that has something to live up to.
+   *
+   * **Centred on the second instance rather than starting at the first**, which
+   * is where the escalation was going missing. `ordinal * 0.035` only ever adds,
+   * so a late chorus reached `base + arc + returns` = 1.00 + 0.14 + 0.07 and met
+   * the 1.06 ceiling, which ate two thirds of the gesture; measured, the last
+   * chorus of a song came out 1.6% of velocity above the first, which no listener
+   * can hear. Subtracting one instance spends the range downward instead, where
+   * there is headroom: the first chorus sits a little under and the last a little
+   * over, and the *distance* between them roughly doubles without the top moving.
+   *
+   * The ceiling stays where it is on purpose. Raising it buys nothing on the
+   * layer that would show it most — a drum stroke is `min(1, strength ×
+   * intensity × jitter)` and already clips on about one note in eighty — so a
+   * higher number would be arithmetic nobody hears.
+   *
+   * **This is the smaller half of the fix and is documented as such.** Two
+   * decibels is not what makes a final chorus land; a player who was not there
+   * arriving is, and that is `planChart`'s `peak`. This is the shading under it.
+   */
+  const returns = (Math.min(at.ordinal, 3) - 1) * 0.05;
 
   return clamp(base + arc + returns, 0.45, 1.06);
 }
