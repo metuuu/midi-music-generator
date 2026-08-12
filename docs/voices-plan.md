@@ -472,10 +472,22 @@ years before anybody needed it.
 
 **Part A.** 389 styles had three authored voices; all nineteen genres now declare
 archetypes, subsets and ops, and 24 styles carry a delta of their own. Genres became
-measurably more distinguishable — mean pairwise melodic distance 0.385 → **0.419**, and the
-near-indistinguishable pairs fell from six to four. `ambient/dnb`, `finnfolk/latin` and
-`jazz/classical` separated; `reggae/indian`, `reggae/rnb`, `finnfolk/pop` and `dnb/house`
-remain and are the next list.
+measurably more distinguishable: mean pairwise melodic distance **0.2790 → 0.3158, +13.2%**,
+measured across every style in the catalogue at three seeds each.
+
+**Those two numbers replace a wrong pair, and the error is the one this section is about.**
+The figures reported while the work was in flight — 0.385 rising to 0.419 — read
+`Track.notes` rather than `melodicLine`, so on every two-handed part they counted the
+player's *left hand* as melody. That inflates both ends and it does not inflate them
+evenly, because the genres differ in how many two-handed instruments they draw: some of
+what looked like melodic distance between genres was the distance between how often each
+one puts a pianist or an accordionist on the tune. The corrected measurement gives a
+*larger* relative gain from smaller absolute numbers. The commit messages for `193adf5`
+and `9d1cd04` carry the old pair and are left as written; this is the number.
+
+**And the "next list" in those messages was wrong too.** Corrected, the closest pairs are
+`arabic/finnfolk` 0.080, `country/rnb` 0.088, `iskelma/finnfolk` 0.093, `arabic/classical`
+0.095 and `synth/dnb` 0.099 — sharing only `dnb` with what was reported.
 
 **Part B.** A harmony line reached 0.73% of melody bars and no sung song had a second
 singer. 28 styles now declare one — 16 sung, 9 on the answering line, 3 as a second lead —
@@ -497,14 +509,37 @@ duration mix stopped coming from the cells' literal contents. What the cells giv
 and accent position, and they give both well. **A table can be wrong, or it can be right and
 asked the wrong question, and this document could not tell the two apart from the outside.**
 
-**The methodological finding, which cost the most and is the most reusable.** Three separate
-measurements built for this work were wrong on the first attempt, in three different ways:
+**Four of those five pairs should not be chased, and finding that out is the point.** The
+fingerprint measures duration mix, interval mix, density and turn rate. It is blind to
+*pitch content*, and that is exactly where these pairs differ most. Measured as a
+tonic-relative pitch-class histogram:
+
+    arabic/finnfolk   0.195   b2 +8.5, b6 +9.0, nat-2 -9.6   the maqam signature
+    arabic/classical  0.181   b2 +8.7
+    synth/dnb         0.129
+    iskelma/finnfolk  0.100   b7 -5.5, nat-4 +5.0
+    country/rnb       0.060
+
+Against rhythmic distances of 0.080–0.099, pitch is doing at least as much work and for the
+arabic pairs twice as much. Forcing those genres' duration and interval mixes apart to
+satisfy a metric that cannot see the axis they are already separated on is the Goodharting
+`judge.ts` names as its first design constraint. **`country/rnb` is the only pair close on
+both axes**, and it is defensible: their voices genuinely differ — rnb leads with
+`wide-interval: 5` where country leads with `arch-hook: 5` and `chant: 3.5` against rnb's
+0.8 — and the two traditions overlap on purpose, one holding `countrypolitan` and the other
+`crossover`.
+
+**The methodological finding, which cost the most and is the most reusable.** Four separate
+measurements built for this work were wrong on the first attempt, in four different ways:
 the wave-2 outlier report was confounded by note density, then by sample size, and even
 corrected clustered by genre and flagged styles that were already authored; a per-style
 table read `Track.notes` instead of `melodicLine`, counting a bandoneon player's left hand
 as melodic leaps; and the harmony-arrival metric compared a vocal stack against the
 instrumental melody rather than the sung line it is twinned with, hiding three quarters of
-the feature. Every one looked plausible until it was checked against something independent.
+the feature; and the genre-distinctness figure made the *same* `Track.notes` mistake as the
+second one and went unnoticed through two commit messages, because a number that moves in
+the direction you expected does not invite a second look. Every one looked plausible until
+it was checked against something independent.
 `docs/README.md` already says claims carry numbers; the corollary this wave earned is that
 **a number needs a second, differently-shaped measurement before it is allowed to direct
 work** — the first three would each have sent authors after phantoms.
