@@ -32,7 +32,7 @@ import type { Rng } from '../core/rng.js';
 import type { Scale } from '../core/scale.js';
 import { scaleStepsBetween, snapToScale, stepInScale } from '../core/scale.js';
 import { comfortableLeap } from '../core/rules.js';
-import type { Archetype, Cadence, Motif, Skeleton, Slot, Target } from './types.js';
+import type { Archetype, Cadence, Idiom, Motif, Skeleton, Slot, Target } from './types.js';
 
 /**
  * The section's height plan: one high point, and everything else on the way to it
@@ -127,6 +127,13 @@ export interface SkeletonOptions {
   carriesPeak: boolean;
   /** Leap freedom of whoever is playing, 0..1. */
   agility: number;
+  /**
+   * What the player actually plays. Read for `stride` only — see there.
+   *
+   * Optional because the tune lab and the checks build a skeleton without one,
+   * and a backbone with no instrument behind it is a real thing to want.
+   */
+  idiom?: Idiom;
   /** Constraint strictness, 0 (free) to 4 (polished). */
   strictness: number;
   rng: Rng;
@@ -453,7 +460,7 @@ function chooseAnchor(args: AnchorArgs): Midi {
       // axis has on music this sparse. Where a figure has two notes to a bar the
       // segments between anchors are empty, so nothing about the *surface* can be
       // smoothed — the intervals a listener hears are the backbone's own.
-      w *= Math.exp(-((steps - stride(archetype, args.strictness)) ** 2) / 8);
+      w *= Math.exp(-((steps - stride(archetype, args.strictness, args.idiom)) ** 2) / 8);
       // Not a weight. A structural note that repeats the one before it gives the
       // phrase nothing to move between, and at the top of the smoothness range —
       // where strides are narrowed — a soft penalty loses: repeated notes rose to
@@ -482,7 +489,7 @@ function chooseAnchor(args: AnchorArgs): Midi {
      */
     if (args.next !== undefined) {
       const ahead = Math.abs(scaleStepsBetween(args.scale, m, args.next));
-      w *= Math.exp(-((ahead - stride(archetype, args.strictness)) ** 2) / 12);
+      w *= Math.exp(-((ahead - stride(archetype, args.strictness, args.idiom)) ** 2) / 12);
       if (Math.round(m) === Math.round(args.next)) w *= 0.4;
     }
     if (args.role === 'peak') {
@@ -497,8 +504,30 @@ function chooseAnchor(args: AnchorArgs): Midi {
 }
 
 /** How far apart structural notes want to be, once taste has had its say. */
-function stride(archetype: Archetype, strictness: number): number {
-  return Math.max(1, archetype.stride - (strictness >= 3 ? 1 : 0));
+function stride(archetype: Archetype, strictness: number, idiom?: Idiom): number {
+  const taste = archetype.stride - (strictness >= 3 ? 1 : 0);
+  if (!idiom) return Math.max(1, taste);
+  /**
+   * …and how far apart they sit is the player's as well as the archetype's.
+   *
+   * **Widened for a runner, narrowed for a chord-breaker**, which is the opposite
+   * of the guess and is what the notes say. A backbone is the set of points the
+   * surface has to *get between*, so the question this number answers is how much
+   * ground one figure covers — and a player who walks needs more room to cover it
+   * than one who leaps. Put the anchors of a scalar line close together and the
+   * surface has no distance to spend, so `fitSegment` widens its steps into
+   * thirds; a broken-chord line has the opposite problem and wants them near.
+   *
+   * **This is the one place the idiom reaches the structure at all, and that is
+   * why it matters more than it looks.** Measured on the tango probe by tagging
+   * every realised interval with its origin: **62% of a mallet's notes are
+   * anchors**, and an anchor carries no contour whatever — `chooseAnchor` draws it
+   * from the chord, the arc and this stride. So `idiomise` and `shapesFor`, which
+   * are the whole of the instrument's hand, were only ever reaching the other 38%.
+   * A mallet's contour is 64% thirds and its finished line 31%, and that gap is
+   * not a pass losing them, it is two thirds of the notes never having been asked.
+   */
+  return Math.max(1, taste + (idiom.run - idiom.arpeggio));
 }
 
 /**

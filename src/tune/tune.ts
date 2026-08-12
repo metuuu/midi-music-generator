@@ -163,6 +163,8 @@ export function composeTune(opts: TuneOptions): Tune {
       carriesPeak: peakBar >= bar && peakBar < bar + phrase.bars,
       agility: opts.agility ?? 0.7,
       strictness: opts.strictness ?? 2,
+      // The one place the player's hand reaches the *structure* — see `stride`.
+      ...(opts.idiom ? { idiom: opts.idiom } : {}),
       rng,
       ...(phrase.from && skeletons[phrase.from.id] ? { model: skeletons[phrase.from.id]! } : {}),
     });
