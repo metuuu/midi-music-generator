@@ -1451,16 +1451,47 @@ function playElide(song: Song, seam: Seam, eighth: number): void {
   const edits: { track: Track; notes: NoteEvent[] }[] = [];
   for (const track of song.tracks) {
     if (track.machine) continue;
-    const attack = new Set(track.notes.filter((n) => Math.abs(n.beat - landing) < NEAR));
+    /**
+     * A damped string does not lean, and it is held out of the whole edit.
+     *
+     * The third time this sentence is written — `song.ts`'s ending pass makes it
+     * twice and `hitTogether` below makes it again — and it belongs here for the
+     * same reason: a dead stroke is the hand keeping time between chords, and the
+     * gesture this function performs is something the *chord* does. Leaning on a
+     * mute misplaces it and, worse, **lengthens** it: `anticipate` extends what
+     * it moves so the note is still sounding where it left, which turns a click
+     * into a quiet three-sixteenth note and breaks the one thing a technique
+     * promises — that it modifies and never composes.
+     *
+     * Measured on `country/altcountry` seed `hand-0`: a `strum` mute written at
+     * beat 176 with a sixteenth to run came out at 175.5 with three, the only
+     * stroke of 6,040 in the catalogue longer than a stroke.
+     *
+     * Filtered out of the input rather than merely out of `attack`, because the
+     * mute's own beat *is* the landing — `anticipate` moves every hit whose `at`
+     * matches the target, so leaving it in the array with an unsnapped `at` would
+     * move it anyway. Held out and put back untouched, it stays where the hand
+     * put it: the chord leans early and the mute lands on the beat behind it,
+     * which is what a strummer's hand actually does.
+     */
+    const damped = track.notes.filter((n) => n.dead);
+    const live = damped.length ? track.notes.filter((n) => !n.dead) : track.notes;
+    const attack = new Set(live.filter((n) => Math.abs(n.beat - landing) < NEAR));
     if (!attack.size) continue;
     const moved = anticipate(
       // Snapped to the downbeat so the whole attack moves as one, which is what
       // `anticipate` means by an attack and what keeps a chord a chord. The lean
       // the feel put on it is spent: the note is being re-timed anyway.
-      track.notes.map((n) => ({ at: attack.has(n) ? landing : n.beat, dur: n.duration, note: n })),
+      live.map((n) => ({ at: attack.has(n) ? landing : n.beat, dur: n.duration, note: n })),
       { target: landing, by: eighth },
     );
-    edits.push({ track, notes: moved.map((h) => ({ ...h.note, beat: h.at, duration: h.dur })) });
+    const notes = moved.map((h) => ({ ...h.note, beat: h.at, duration: h.dur }));
+    edits.push({
+      track,
+      notes: damped.length
+        ? [...notes, ...damped].sort((a, b) => a.beat - b.beat || a.midi - b.midi)
+        : notes,
+    });
   }
   if (!edits.length) return;
 

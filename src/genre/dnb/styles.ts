@@ -3117,6 +3117,24 @@ const autonomic: Style = {
       { at: 0, dur: 14, tone: 0, vel: 1 },
       { at: 20, dur: 12, tone: 10, vel: 0.78 },
     ] },
+    /**
+     * The sub that walks down. Root, flat seventh, fifth across two bars — a
+     * line rather than a pedal, and the thing this table had no row for: its
+     * top-weighted figure is one note at the head of the cycle, which no
+     * signature can reach into, and ten songs off it came out identical.
+     */
+    { name: 'stepping-sub', weight: 4, cycle: 32, hits: [
+      { at: 0, dur: 12, tone: 0, vel: 1 },
+      { at: 14, dur: 8, tone: 10, vel: 0.82 },
+      { at: 24, dur: 8, tone: 7, vel: 0.86 },
+    ] },
+    /**
+     * One note that falls a fourth halfway through, the way an autonomic sub
+     * does when the second bar is supposed to feel like a different room.
+     */
+    { name: 'reese-drop', weight: 3, cycle: 32, sustain: true, hits: [
+      { at: 0, dur: 26, tone: 0, glide: -5, glideTime: 0.5, vel: 1 },
+    ] },
   ],
   comp: [
     // The dub-techno chord: struck on the offbeat, left to the delay, and never
@@ -3354,6 +3372,32 @@ const minimal: Style = {
       { at: 0, dur: 14, tone: 0, vel: 1 },
       { at: 20, dur: 12, tone: 0, vel: 0.8 },
     ] },
+    /**
+     * The Reese: one note that leaves.
+     *
+     * Both rows above sit on the root and neither moves, and with a cycled
+     * figure whose only onset is the head of the cycle there is nothing for a
+     * signature to reach for either — measured, **every pair of ten songs off
+     * this table played the identical bass line**, the worst score in the
+     * catalogue. This is the row that gives the style a second idea, and it is
+     * the right one: what a minimal track has instead of a bassline is a sub
+     * that bends, and `glide` was added for exactly this.
+     *
+     * A fifth down over the first two thirds of the note, so it arrives and
+     * settles rather than sliding for the whole two bars.
+     */
+    { name: 'reese-fall', weight: 4, cycle: 32, sustain: true, hits: [
+      { at: 0, dur: 26, tone: 0, glide: -7, glideTime: 0.66, vel: 1 },
+    ] },
+    /**
+     * Three notes in two bars, the last one arriving early enough to pull the
+     * cycle round. The one row here with a rhythm in it.
+     */
+    { name: 'late-answer', weight: 3, cycle: 32, hits: [
+      { at: 0, dur: 12, tone: 0, vel: 1 },
+      { at: 16, dur: 6, tone: 10, vel: 0.82 },
+      { at: 26, dur: 6, tone: 0, vel: 0.86 },
+    ] },
   ],
   comp: [
     { name: 'one-hit', weight: 8, voices: 3, cycle: 32, hits: [{ at: 0, dur: 3, vel: 0.44 }] },
@@ -3454,6 +3498,23 @@ const revival: Style = {
       { at: 26, dur: 6, tone: 0, vel: 0.8 },
     ] },
     { name: 'held', weight: 3, hits: [{ at: 0, dur: 14, tone: 0, vel: 1 }] },
+    /**
+     * Three notes, and the middle one is the flat seventh a bar in — the two-bar
+     * sub that goes somewhere, which is what separates a revival track from the
+     * loop it is reviving.
+     */
+    { name: 'walking-sub', weight: 5, cycle: 32, hits: [
+      { at: 0, dur: 12, tone: 0, vel: 1 },
+      { at: 16, dur: 8, tone: 10, vel: 0.86 },
+      { at: 26, dur: 6, tone: 7, vel: 0.82 },
+    ] },
+    /**
+     * The Reese, falling a fifth across the pair of bars. One note, and the
+     * whole of its interest is that it does not stay where it started.
+     */
+    { name: 'reese', weight: 4, cycle: 32, sustain: true, hits: [
+      { at: 0, dur: 28, tone: 0, glide: -7, glideTime: 0.7, vel: 1 },
+    ] },
   ],
   comp: [
     { name: 'stab', weight: 6, voices: 3, cycle: 32, hits: [

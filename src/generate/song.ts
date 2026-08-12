@@ -71,10 +71,10 @@ import {
 } from './solo.js';
 import { generateVocalStack } from './vocals.js';
 import {
-  castFigures, DEFAULT_SWAP, DEFAULT_VARY, type FigureCast,
+  castFigures, DEFAULT_SIGNATURE, DEFAULT_SWAP, DEFAULT_VARY, type FigureCast,
   generateBass, generateBrass, generateComp, generateCounter, generateDrums,
-  generateLeftHand, generatePad, planFigureVariation, planKitVariation,
-  type PartContext, sectionFigure, undoubleAgainst } from './parts.js';
+  generateLeftHand, generatePad, planFigureVariation, planKitVariation, planSignature,
+  type PartContext, sectionFigure, signFigure, undoubleAgainst } from './parts.js';
 
 export interface GenerateOptions {
   seed?: string | number;
@@ -725,29 +725,67 @@ export function generateSong(opts: GenerateOptions = {}): Song {
    * instruments, melody and drums that the rest of this stream decides. The
    * contrast figures come out of streams of their own below.
    */
-  const bassPattern = rng.weightedBy(style.bass, (p) => p.weight);
-  const compPattern = rng.weightedBy(style.comp, (p) => p.weight);
+  const drawnBass = rng.weightedBy(style.bass, (p) => p.weight);
+  const drawnComp = rng.weightedBy(style.comp, (p) => p.weight);
+  /**
+   * …and then the song makes it its own.
+   *
+   * The one place in this engine where a rhythm figure is *composed* rather than
+   * drawn, and the reason it exists is that everything else here only rearranges
+   * what a table already holds: a style with two rows had two possible bass lines
+   * however cleverly they were cast across the sections. One edit, chosen once,
+   * applied to the home figure and to anything derived from it — so the whole
+   * song is one player's reading of the style, not a shuffle. See
+   * `planSignature`.
+   *
+   * Its own stream, so a style that declines draws nothing. Planned *after* the
+   * two draws above and applied to their result, which keeps the identity of the
+   * figure — which row this is — decided by the table's own weights.
+   */
+  const signFor = (layer: 'bass' | 'comp'): number =>
+    style.signature?.[layer] ?? genre.signature?.[layer] ?? DEFAULT_SIGNATURE[layer];
+  const signatureFor = (
+    layer: 'bass' | 'comp',
+    figure: { hits: readonly { at: number; dur?: number }[]; cycle?: number; walking?: boolean },
+  ) => planSignature(figure, {
+    chance: signFor(layer),
+    rng: new Rng(`${seed}:signature:${layer}${salt(layer)}`),
+    slotsPerBar: style.beatsPerBar * SLOTS_PER_BEAT,
+    pitched: layer === 'bass',
+    ...(style.groups ? { groups: style.groups } : {}),
+  });
+  const bassSignature = signatureFor('bass', drawnBass);
+  const compSignature = signatureFor('comp', drawnComp);
+  const bassPattern = bassSignature ? signFigure(drawnBass, bassSignature) : drawnBass;
+  const compPattern = compSignature ? signFigure(drawnComp, compSignature) : drawnComp;
   /**
    * …and what the band plays instead where the form asks for something else.
    *
    * `Style.swap` over `Genre.swap` over `DEFAULT_SWAP`, which is the merge order
    * `feels`, `fills` and `transitions` already use. A layer at zero constructs
    * no stream and draws no number.
+   *
+   * The **signed** figure is handed in as the home one, so a lift or drop that
+   * `castFigures` derives is derived from this song's bassline rather than from
+   * the table's. A contrast drawn from another table row is not signed, and that
+   * is the intended asymmetry: the verse riff is the song's own and the chorus is
+   * the idiom's.
    */
   const swapFor = (layer: 'bass' | 'comp'): number =>
     style.swap?.[layer] ?? genre.swap?.[layer] ?? DEFAULT_SWAP[layer];
   const castFor = <P extends {
     weight: number; hits: readonly { at: number; dur?: number }[]; cycle?: number; walking?: boolean;
   }>(
-    layer: 'bass' | 'comp', table: readonly P[], home: P,
+    layer: 'bass' | 'comp', table: readonly P[], home: P, origin: P,
   ): FigureCast<P> => castFigures(table, home, {
     rng: new Rng(`${seed}:cast:${layer}${salt(layer)}`),
     swap: swapFor(layer),
     slotsPerBar: style.beatsPerBar * SLOTS_PER_BEAT,
+    origin,
     ...(style.groups ? { groups: style.groups } : {}),
   });
-  const bassCast = castFor('bass', style.bass, bassPattern);
-  const compCast = castFor('comp', style.comp, compPattern);
+  const bassCast = castFor('bass', style.bass, bassPattern, drawnBass);
+  const compCast = castFor('comp', style.comp, compPattern, drawnComp);
   /**
    * …and a band with no percussion section may say so by writing nothing.
    *

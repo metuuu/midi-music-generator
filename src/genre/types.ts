@@ -270,6 +270,18 @@ export interface Genre {
   vary?: Partial<Record<'bass' | 'comp', number>>;
 
   /**
+   * …and the third, for how often a song composes its own version of the figure
+   * it drew. Absent means `DEFAULT_SIGNATURE`. See `Style.signature`.
+   *
+   * The genre level earns its place here more than for the other two: whether a
+   * rhythm figure is the band's to alter is mostly an idiom-wide fact. Latin and
+   * reggae are built on figures that *are* the genre — the clave, the one-drop —
+   * and jazz, funk and rock are built on players altering whatever they are
+   * handed. Those are four or five declarations rather than 130.
+   */
+  signature?: Partial<Record<'bass' | 'comp', number>>;
+
+  /**
    * What this idiom does at a section join, weighted — the fallback for styles
    * that name no palette of their own. See `generate/transition.ts`.
    *

@@ -958,6 +958,27 @@ export interface Style {
    */
   swap?: Partial<Record<'bass' | 'comp', number>>;
   /**
+   * How often a song plays **its own version** of the figure it drew rather than
+   * the table row as written, per layer, 0..1. See `planSignature`.
+   *
+   * The third of the trio and the one that answers the original report. `vary`
+   * and `swap` both make a song vary inside itself and neither can make two
+   * songs differ, because both leave the drawn row verbatim — measured, the odds
+   * that two songs of a style share a dominant bassline moved 39% to 36% under
+   * those two, which is nothing. A style with two rows has two possible bass
+   * lines until something composes a third.
+   *
+   * One edit, chosen once, held for the whole song: a push, a hole, a stutter or
+   * one note reaching for the octave. **Not per-bar randomisation** — a figure
+   * whose notes move about is a fault rather than a character, and the appeal of
+   * a rhythm-section figure is that it is the same one every time round.
+   *
+   * Zero for a style whose figure is not the band's to alter — a clave, a
+   * one-drop, a tresillo are the idiom itself and a hole punched in one is a
+   * different idiom. That is a real category and it is why this is a field.
+   */
+  signature?: Partial<Record<'bass' | 'comp', number>>;
+  /**
    * Layers this style never uses, regardless of arrangement density. A drone
    * has no drum kit and no brass section, and no amount of density should
    * conjure one.

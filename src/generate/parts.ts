@@ -478,6 +478,25 @@ export const DEFAULT_SWAP: Readonly<Record<'bass' | 'comp', number>> = { bass: 0
  */
 export const DEFAULT_VARY: Readonly<Record<'bass' | 'comp', number>> = { bass: 0.35, comp: 0.25 };
 
+/**
+ * …and how often a song composes its own version of the figure it drew, rather
+ * than playing the table row verbatim. See `planSignature`.
+ *
+ * The highest of the three, and it is the one aimed at the complaint the other
+ * two missed. `swap` and `vary` both make a song vary *within itself*, which
+ * measured well and left two songs of a style sharing a dominant bassline 36% of
+ * the time; this is the only one of the three that can make two songs *different
+ * from each other*, because it is the only one that changes the figure occupying
+ * most of the track.
+ *
+ * Bass over comp again, and by more than before. A bass figure is a line and one
+ * altered note is audible as this song's line; a comp figure is a rhythm carrying
+ * whole voicings, whose pitches already move with the harmony, so the same edit
+ * says much less and risks more — a chank whose slots have shifted stops locking
+ * with the kit.
+ */
+export const DEFAULT_SIGNATURE: Readonly<Record<'bass' | 'comp', number>> = { bass: 0.75, comp: 0.2 };
+
 /** How many onsets this figure puts in a bar, cycle length allowed for. */
 function density(p: { hits: readonly { at: number }[]; cycle?: number }, slotsPerBar: number): number {
   return p.cycle ? (p.hits.length * slotsPerBar) / p.cycle : p.hits.length;
@@ -491,6 +510,275 @@ function sameShape(
   return a.cycle === b.cycle
     && a.hits.length === b.hits.length
     && a.hits.every((h, i) => h.at === b.hits[i]!.at);
+}
+
+/**
+ * **This song's** version of the style's figure — one edit, held from the first
+ * bar to the last.
+ *
+ * ## The fault, and it is the one `FigureCast` did not fix
+ *
+ * The cast made a song vary *internally* and measured well at it: the share of a
+ * track spent on its one dominant bar fell from 0.75 to 0.52, and the number of
+ * songs whose chorus bass differs from their verse bass went from 15% to 71%.
+ * It did nothing at all for the complaint it was written for. Over the same
+ * fixture, the odds that two songs of one style share the same **dominant**
+ * bassline went 39% to 36% — inside the noise — and their *profile* similarity,
+ * how much of their playing time is spent on the same material, went the wrong
+ * way: 0.41 to 0.47.
+ *
+ * That second number is the cast's own doing and it is worth stating plainly.
+ * With two or three rows in a table, a song that reaches for more of the table
+ * is a song that overlaps more with the next one. `latin/son` has two rows and
+ * went from 0.51 to 0.85: before, one song played row A and another row B; after,
+ * both play both. Richer songs, less distinguishable from each other.
+ *
+ * The root cause is that **nothing in the engine has ever composed a bass
+ * figure** — it draws one, verbatim, out of a table of two. Two songs that draw
+ * the same row are the same bassline, and no amount of arranging *around* that
+ * row changes it.
+ *
+ * ## What this is not
+ *
+ * It is not per-bar randomisation. A figure whose notes move about is not a
+ * bassline with character, it is a bassline with a fault, and the whole appeal
+ * of a rhythm-section figure is that it is the same one every time round. So
+ * exactly **one** edit is chosen, once, and the *same* edited figure plays for
+ * the whole song. What that buys is the thing a record has and a table cannot:
+ * this song's bassline, recognisably the idiom and recognisably not the last
+ * one's.
+ *
+ * ## The four edits, and why these
+ *
+ * Each is a thing a player does to a figure they have been handed, and each
+ * leaves it recognisable as the figure:
+ *
+ *  - **`push`** — one onset arrives an eighth early and holds through where it
+ *    was. The anticipation, and the most common single alteration there is.
+ *  - **`hole`** — one onset removed. The gap is what turns a pattern into a
+ *    riff; `thin` will not do this because it is metric, and the point here is
+ *    that the hole is *this song's*, in a place the metre did not choose.
+ *  - **`echo`** — one onset repeated a sixteenth later, softly. The stutter, and
+ *    the same payload, so nothing is proposed about the harmony.
+ *  - **`reach`** — one onset's tone raised to the octave, fifth or seventh. The
+ *    note that lifts a floor into a line. The only edit that touches pitch, and
+ *    it can only reach a tone the chord already contains.
+ *
+ * The downbeat is never the target. It is the figure's anchor, the thing that
+ * says which bar this is, and a signature that moved it would be a different
+ * figure rather than the same one with a hand on it.
+ *
+ * `hole` declines a figure of fewer than three onsets, because two notes minus
+ * one is not a riff with a gap in it.
+ *
+ * ## The fifth edit, for the figure the other four cannot touch
+ *
+ * "Never the downbeat" leaves a figure whose *only* onset is the downbeat with
+ * nothing to work on — and those are not a curiosity, they are the entire low
+ * end of a genre. A drum-and-bass sub is one note a bar; so is a hiphop 808, a
+ * scherzo's bass and a lament's drone. Every one of them came out of the first
+ * four edits untouched, and they are exactly the styles that measured worst
+ * afterwards: **19 styles still collided over half the time and 12 of them were
+ * one-note figures**, `dnb/revival` and `dnb/jungle` at 80%, `finnfolk/itkuvirsi`
+ * at 100%.
+ *
+ *  - **`tail`** — a second, shorter note in the back half of the bar, on a tone
+ *    the chord already contains. What a sub-bass line actually varies is not its
+ *    rhythm, which is one note, but whether that note is answered before the bar
+ *    turns over, and by what.
+ *
+ * **A `sustain` figure declines it**, and that field is exactly the right gate
+ * because it is already the author's declaration that this is a held note rather
+ * than a struck one. A drone answered halfway through the bar is not a drone —
+ * `ambient/drone` and `finnfolk/itkuvirsi` both say `sustain: true` and both keep
+ * what they had, while `dnb`'s subs, which do not, get a line.
+ */
+export type Signature = { kind: 'push' | 'hole' | 'echo'; at: number }
+  | { kind: 'reach'; at: number; tone: BassTone }
+  | { kind: 'tail'; at: number; tone: BassTone; dur: number };
+
+/**
+ * Choose one, or none. Drawn from a stream of its own, so a style that declines
+ * constructs nothing and its songs are what they were.
+ *
+ * A walking bass is declined outright — `generateBass` hands it to
+ * `generateWalkingBass` and never reads its `hits` at all.
+ *
+ * ## A cycled figure takes `reach` and nothing else
+ *
+ * `derive` and `planFigureVariation` both refuse a cycled figure whole, on the
+ * argument that a figure carrying a cycle is meant to drift against the bar and
+ * that changing it fights the thing it was written to do. That argument is about
+ * **onsets**, and only three of the five edits here touch one: `push` moves an
+ * onset, `hole` removes one, `tail` adds one, and any of those changes the drift
+ * itself rather than the figure riding on it.
+ *
+ * `reach` changes a *pitch* and leaves every onset exactly where the author put
+ * it. The cycle it comes home on, the bar it lands across, the phase against the
+ * harmony — all identical. So refusing it was over-broad, and expensively: the
+ * styles built entirely on cycled figures are a fifth of the ones still
+ * measuring worst, and they are two whole idioms. Every latin bass is a tumbao
+ * or a variant, every drum-and-bass sub is a two-bar cycle, and both of those
+ * genres *do* vary which note the figure sits on — a tumbao walking root–fifth
+ * and one walking root–flat-seventh are the same tumbao, and a bass player who
+ * only ever played the first would be a sequencer.
+ */
+export function planSignature(
+  figure: {
+    hits: readonly { at: number; dur?: number }[];
+    cycle?: number; walking?: boolean; sustain?: boolean;
+  },
+  opts: {
+    chance: number; rng: Rng; slotsPerBar: number; groups?: readonly number[];
+    /**
+     * Whether this layer's hits carry a `tone` — the bass's do and the comp's do
+     * not, because a comp hit sounds a whole voicing and there is no one note in
+     * it to raise. `reach` and `tail` are ruled out where they do not.
+     */
+    pitched: boolean;
+  },
+): Signature | undefined {
+  const { chance, rng, slotsPerBar, groups, pitched } = opts;
+  if (chance <= 0 || figure.walking) return undefined;
+  if (!rng.chance(chance)) return undefined;
+
+  const movable = figure.hits.filter((h) => h.at > 0);
+
+  if (figure.cycle) {
+    // Pitch only, per the header. A cycled figure whose hits are all on the
+    // downbeat of the cycle has nothing to reach for and keeps what it had.
+    if (!pitched || !movable.length) return undefined;
+    const late = movable.filter((h) => h.at >= slotsPerBar / 2);
+    const target = rng.pick(late.length ? late : movable);
+    return {
+      kind: 'reach',
+      at: target.at,
+      tone: rng.weighted([['octave', 4], ['fifth', 3], ['seventh', 2]] as const),
+    };
+  }
+
+  if (!movable.length) {
+    /**
+     * Nothing but the downbeat, so the only edit available is what comes after
+     * it. See `tail` in the header.
+     *
+     * Placed on the half bar, the last beat or the last eighth — the three
+     * places a one-note bass answers itself — and never where the head is still
+     * sounding is not a constraint, because `signFigure` shortens the head to
+     * meet it. A tone the chord contains, so the answer is harmony rather than
+     * an invention.
+     */
+    if (!pitched || figure.sustain) return undefined;
+    const head = figure.hits[0];
+    if (!head) return undefined;
+    const at = rng.weighted([
+      [Math.round(slotsPerBar / 2), 4],
+      [Math.round(slotsPerBar * 0.75), 3],
+      [slotsPerBar - 2, 2],
+    ] as const);
+    if (at <= head.at + 1 || at >= slotsPerBar) return undefined;
+    return {
+      kind: 'tail',
+      at,
+      tone: rng.weighted([['fifth', 4], ['seventh', 3], ['octave', 2], ['root', 2]] as const),
+      dur: Math.max(2, Math.min(slotsPerBar - at - 1, rng.weighted([[4, 3], [2, 3], [6, 2]] as const))),
+    };
+  }
+
+  /**
+   * Weighted, and `reach` carries the most because it is the one edit that gives
+   * the figure a *note* rather than a rhythm — which is what a listener hums,
+   * and what two songs off one root-only table most need to tell them apart.
+   */
+  const kinds: (readonly [Signature['kind'], number])[] = [
+    ['reach', pitched ? 4 : 0], ['push', 3], ['echo', 3],
+    ['hole', figure.hits.length >= 3 ? 2 : 0],
+  ];
+  const kind = rng.weighted(kinds);
+
+  if (kind === 'reach') {
+    // The back half of the figure, where a bass line turns rather than lands.
+    const late = movable.filter((h) => h.at >= slotsPerBar / 2);
+    const target = rng.pick(late.length ? late : movable);
+    return { kind, at: target.at, tone: rng.weighted([['octave', 4], ['fifth', 3], ['seventh', 2]] as const) };
+  }
+  if (kind === 'push') {
+    // Only where there is room in front of it: `anticipate` refuses to land on
+    // the attack ahead, and a signature that silently did nothing would be a
+    // song whose identity depends on which figure it drew.
+    const room = movable.filter((h) => !figure.hits.some((o) => o.at >= h.at - 2 && o.at < h.at));
+    if (!room.length) return undefined;
+    return { kind, at: rng.pick(room).at };
+  }
+  if (kind === 'echo') {
+    const room = movable.filter((h) => (h.dur ?? 0) >= 2
+      && !figure.hits.some((o) => o.at > h.at && o.at <= h.at + 1));
+    if (!room.length) return undefined;
+    return { kind, at: rng.pick(room).at };
+  }
+  // `hole`, and never the metrically strongest onset the figure has: removing
+  // that is not a gap, it is the figure falling over.
+  const strength = (h: { at: number }) => metricStrength(h.at, slotsPerBar, groups);
+  const top = Math.max(...figure.hits.map(strength));
+  const weak = movable.filter((h) => strength(h) < top);
+  if (!weak.length) return undefined;
+  return { kind: 'hole', at: rng.pick(weak).at };
+}
+
+/**
+ * Apply the song's signature to whichever figure is about to be played.
+ *
+ * Returns the figure untouched where the slot it names is not in it, which is
+ * the case a cast makes reachable: the signature is planned against the *home*
+ * figure, and a lift drawn from another table row need not land on the same
+ * slots. That is the right answer rather than a missed one — the signature is
+ * the song's mark on its own figure, and a chorus that plays a different figure
+ * is playing the style's, not this song's.
+ *
+ * `tail` is the exception to that test, and has to be: it names the slot it is
+ * *adding*, which by definition the figure has not got. It declines instead on
+ * finding anything already sounding there.
+ */
+export function signFigure<
+  H extends { at: number; dur: number; vel?: number; tone?: BassTone },
+  P extends { hits: readonly H[] },
+>(figure: P, sig: Signature): P {
+  const hits = figure.hits;
+  if (sig.kind === 'tail') {
+    const head = hits[0];
+    if (!head || hits.length !== 1 || sig.at <= head.at) return figure;
+    return {
+      ...figure,
+      hits: [
+        // The head gives way to the answer rather than ringing under it: a sub
+        // that overlapped its own tail would be two notes at once, which on this
+        // layer is mud rather than harmony.
+        { ...head, dur: Math.max(1, Math.min(head.dur, sig.at - head.at - 1)) },
+        { ...head, at: sig.at, dur: sig.dur, tone: sig.tone, vel: (head.vel ?? 0.85) * 0.86 },
+      ] as unknown as readonly H[],
+    };
+  }
+  if (!hits.some((h) => h.at === sig.at)) return figure;
+  switch (sig.kind) {
+    case 'push':
+      return { ...figure, hits: anticipate(hits, { target: sig.at }) };
+    case 'hole':
+      return { ...figure, hits: hits.filter((h) => h.at !== sig.at) };
+    case 'echo': {
+      const out: H[] = [];
+      for (const h of hits) {
+        if (h.at !== sig.at) { out.push(h); continue; }
+        // The struck note gives up its last sixteenth to the repeat, so the
+        // figure gains an onset and not a beat of length.
+        const head = Math.max(1, h.dur - 1);
+        out.push({ ...h, dur: head });
+        out.push({ ...h, at: h.at + head, dur: 1, vel: (h.vel ?? 0.8) * 0.6 });
+      }
+      return { ...figure, hits: out.sort((a, b) => a.at - b.at) };
+    }
+    case 'reach':
+      return { ...figure, hits: hits.map((h) => (h.at === sig.at ? { ...h, tone: sig.tone } : h)) };
+  }
 }
 
 /**
@@ -613,15 +901,47 @@ export function castFigures<
 >(
   table: readonly P[],
   home: P,
-  opts: { rng: Rng; swap: number; slotsPerBar: number; groups?: readonly number[] },
+  opts: {
+    rng: Rng; swap: number; slotsPerBar: number; groups?: readonly number[];
+    /**
+     * The table row `home` came from, where a signature has made the two
+     * different objects. Without it the unsigned original is still in the pool
+     * and is the likeliest thing drawn against it — a chorus playing the same
+     * figure with the song's own mark rubbed off, which is the one contrast
+     * worth less than none. Defaults to `home`, which is right whenever no
+     * signature was applied. See `planSignature`.
+     */
+    origin?: P;
+  },
 ): FigureCast<P> {
   const { rng, swap, slotsPerBar } = opts;
   if (swap <= 0) return { home };
 
-  const others = table.filter((p) => p !== home && p.weight > 0);
+  const origin = opts.origin ?? home;
+  const others = table.filter((p) => p !== home && p !== origin && p.weight > 0);
   const homeDensity = density(home, slotsPerBar);
   const weighted = (pool: readonly P[]): P | undefined =>
     (pool.length ? rng.weightedBy(pool, (p) => p.weight) : undefined);
+
+  /**
+   * How often the derived figure wins over the table row, and it is a function
+   * of how much table there is.
+   *
+   * **A flat third was measured and it made songs converge.** Reaching into the
+   * table for a contrast means a song plays more of the table, and on a table of
+   * two or three that means every song plays nearly all of it: `latin/son` has
+   * two rows and its profile similarity — how much of two songs' playing time is
+   * spent on the same material — went from 0.51 to 0.85, richer songs that were
+   * *less* distinguishable from each other. Over the whole catalogue the
+   * three-row bucket went 0.39 to 0.47 and the four-plus bucket 0.21 to 0.29,
+   * while the two-row bucket held at 0.70 because it was already saturated.
+   *
+   * So the thinner the table, the more the contrast should come from the song's
+   * own figure rather than from the shared vocabulary. Two rows derives four
+   * times in five; six rows derives one time in five and spends the table it
+   * has, which is what a table that large is for.
+   */
+  const deriveOdds = Math.max(0.2, Math.min(0.8, 1.4 / Math.max(1, table.length)));
 
   /** The search above, for one role. */
   const cast = (pool: readonly P[], dir: 'busier' | 'sparser', wanted: (d: number) => boolean) => {
@@ -630,7 +950,7 @@ export function castFigures<
     const derived = derive(home, dir, {
       rng, slotsPerBar, ...(opts.groups ? { groups: opts.groups } : {}),
     });
-    if (fromTable && derived) return rng.chance(0.35) ? derived : fromTable;
+    if (fromTable && derived) return rng.chance(deriveOdds) ? derived : fromTable;
     return fromTable ?? derived ?? weighted(pool);
   };
 
