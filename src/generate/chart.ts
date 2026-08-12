@@ -300,23 +300,44 @@ export function planChart(args: {
    * never also the one that leaves — the two gestures stay one song apart by
    * construction rather than by a check.
    *
-   * ## Why it runs after the devices are drawn
+   * ## Why it runs before the devices are drawn
    *
    * A recruit joins `layers.chorus`, and `anywhere` reads that roster to decide
-   * which devices this band is capable of. Placed before the draw, recruiting a
-   * counter made `trade`, `harmony` and `unison` eligible for a band that has no
-   * answering line in any other section — and `trade` hands a chorus to the
-   * drummer, so the catalogue gained 8,600 drum strokes and two concert checks
-   * failed: an accordion asked to grasp seventeen semitones at once, and
-   * one-armed drum figures up from 0.29% to 0.49% against a 0.4% bar. Both were
-   * real faults rather than threshold noise — a no-op draw inserted at the same
-   * point moved the stroke count by one, so the reshuffle was not the cause.
+   * which devices this band is capable of — so placing this ahead of the draw
+   * lets a recruited counter make `trade`, `harmony` and `unison` reachable, and
+   * a recruited horn `riff` and `swell`.
    *
-   * The fix is the ordering, and it is also the more honest reading. `available`
-   * asks *what kind of ensemble is this*, and a player who appears for thirty
-   * seconds at the end is not an answering line the arrangement can be built on.
-   * Running last leaves the device pool describing the band that plays the song.
+   * **It was moved after the draw and moved back, and the measurement is why.**
+   * The argument for running last was that `available` asks *what kind of
+   * ensemble is this*, and that a player heard for thirty seconds at the end is
+   * not an answering line a whole arrangement can be built on. That reads well
+   * and is worth nearly half the gesture: last-chorus-has-more-players measured
+   * **63% running first against 35% running last**, mean layers +0.68 against
+   * +0.29, and the last chorus came out *busier* than the first rather than
+   * thinner. A recruit nobody may write a device for is a player standing at the
+   * back holding an instrument.
+   *
+   * The concert checks that appeared to condemn the early ordering — an
+   * accordion grasping seventeen semitones, one-armed drum figures at 0.49%
+   * against a 0.4% bar — were a concurrent edit to `concert-check.ts` and the
+   * drum models, not this. Run against a clean tree the early ordering reports
+   * `graspable: none` and 0.28%, better than the 0.29% it started from.
    */
+  const choruses = counts.chorus ?? 0;
+  if (choruses >= 2 && rng.chance(0.55)) {
+    const banned = new Set(style.excludeLayers ?? []);
+    const required = new Set(style.requireLayers ?? []);
+    const recruit = COLOUR.filter((l) => !layers.chorus.includes(l) && !banned.has(l));
+    const holdBack = COLOUR.filter((l) => layers.chorus.includes(l)
+      && enters[l] === undefined && !required.has(l));
+    const pool = recruit.length ? recruit : holdBack;
+    if (pool.length) {
+      const layer = rng.pick(pool);
+      if (!layers.chorus.includes(layer)) layers.chorus = [...layers.chorus, layer];
+      enters[layer] = choruses - 1;
+    }
+  }
+
   const anywhere = (layer: LayerId): boolean => kinds.some((k) => layers[k].includes(layer));
   const weights = { ...POOL, ...args.weights };
   const available = DEVICES.filter((d) => {
@@ -348,21 +369,6 @@ export function planChart(args: {
     if (!left.length) break;
     const drawn = rng.weighted(left);
     if (available.includes(drawn)) devices.add(drawn);
-  }
-
-  const choruses = counts.chorus ?? 0;
-  if (choruses >= 2 && rng.chance(0.55)) {
-    const banned = new Set(style.excludeLayers ?? []);
-    const required = new Set(style.requireLayers ?? []);
-    const recruit = COLOUR.filter((l) => !layers.chorus.includes(l) && !banned.has(l));
-    const holdBack = COLOUR.filter((l) => layers.chorus.includes(l)
-      && enters[l] === undefined && !required.has(l));
-    const pool = recruit.length ? recruit : holdBack;
-    if (pool.length) {
-      const layer = rng.pick(pool);
-      if (!layers.chorus.includes(layer)) layers.chorus = [...layers.chorus, layer];
-      enters[layer] = choruses - 1;
-    }
   }
 
   return {
