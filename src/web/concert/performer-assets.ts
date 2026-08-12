@@ -311,19 +311,32 @@ export interface HeadShell {
   /** Inner and outer surface, in multiples of the head's own radius. */
   wall: readonly [number, number];
   /**
-   * How far it falls below the hem, in head radii, once clear of the opening.
-   * Zero at both ends of the arc so hair never hangs across a face.
+   * How far it falls below the hem, in head radii, at the start, middle and end
+   * of the arc — a quadratic through the three, so one spec covers the shapes
+   * that actually occur.
+   *
+   * `[0, x, 0]` is a hood: nothing at the face, everything down the back.
+   * `[x, y, x]` with `y` smaller is a haircut: long beside the face, short
+   * behind, which is the difference between layers and a bowl. `[0, y, x]` is
+   * one-sided, which is what the long half of a swept fringe is.
    */
-  fall?: number;
-  /** How far the fall draws in toward the neck on the way down. 0 is plumb. */
-  gather?: number;
-  /** The share of the arc the fall takes to reach full length. */
-  ease?: number;
+  fall?: readonly [number, number, number];
+  /**
+   * The ellipse the fall lands on, as the share of the hem's own width and
+   * depth it keeps — `[1, 1]` is plumb.
+   *
+   * Two numbers rather than one because a head is rounder than a body: a hem
+   * that drops plumb arrives 0.89 R out at the ears, which is about right for a
+   * shoulder, and 0.85 R behind the skull, which is a hand's width off a back.
+   * A cowl that has to *land* on someone needs the two axes pulled by different
+   * amounts, and one number can only ever get one of them right.
+   */
+  land?: readonly [number, number];
 }
 
 export const headShell = (l: Leases, spec: HeadShell): BufferGeometry => {
   const key = `shell:${spec.phi.join()}:${spec.hem.join()}:${spec.wall.join()}`
-    + `:${spec.fall ?? 0}:${spec.gather ?? 0}:${spec.ease ?? 0.18}`;
+    + `:${(spec.fall ?? [0, 0, 0]).join()}:${(spec.land ?? [1, 1]).join()}`;
   return l.geometry(key, () => buildHeadShell(spec));
 };
 
@@ -341,12 +354,17 @@ function buildHeadShell(spec: HeadShell): BufferGeometry {
   const [phi0, phi1] = spec.phi;
   const [hem0, hem1] = spec.hem;
   const [rIn, rOut] = spec.wall;
-  const fall = spec.fall ?? 0;
-  const gather = spec.gather ?? 0;
-  const ease = spec.ease ?? 0.18;
+  const [fa, fb, fc] = spec.fall ?? [0, 0, 0];
+  const [landX, landZ] = spec.land ?? [1, 1];
+  // Quadratic Bézier whose control point is chosen so the curve passes through
+  // `fb` at the middle of the arc rather than merely being pulled toward it.
+  const mid = 2 * fb - (fa + fc) / 2;
+  const fallAt = (u: number): number =>
+    fa * (1 - u) ** 2 + 2 * mid * u * (1 - u) + fc * u ** 2;
+  const span = Math.max(fa, fb, fc);
   const NP = 20;
   const NT = 9;
-  const NF = fall > 0 ? 3 : 0;
+  const NF = fa + fb + fc > 0 ? 3 : 0;
   const rows = NT + 1 + NF;
 
   const xyz: number[] = [];
@@ -364,7 +382,7 @@ function buildHeadShell(spec: HeadShell): BufferGeometry {
       const u = i / NP;
       const phi = phi0 + (phi1 - phi0) * u;
       const hem = hem0 + (hem1 - hem0) * u;
-      const drop = 0.5 * fall * Math.min(1, Math.min(u, 1 - u) / ease);
+      const drop = 0.5 * Math.max(0, fallAt(u));
       for (let j = 0; j <= NT; j++) {
         const theta = hem * (j / NT);
         const s = Math.sin(theta);
@@ -374,10 +392,19 @@ function buildHeadShell(spec: HeadShell): BufferGeometry {
       const hx = -r * Math.cos(phi) * s;
       const hz = r * Math.sin(phi) * s;
       const hy = r * Math.cos(hem);
+      // `land` is scaled by how far *this* column actually falls, not just by
+      // how far down the fall we are. Otherwise a column at the ear, which
+      // drops half as far as the one at the nape, would still swing the whole
+      // way out — and a cowl that spreads to its full width in half the drop is
+      // a flange sticking out over an ear.
+      const reach = span > 0 ? fallAt(u) / span : 0;
       for (let k = 1; k <= NF; k++) {
-        const t = k / NF;
-        const pull = 1 - gather * t;
-        out.push(put(hx * pull, hy - drop * t, hz * pull));
+        const t = (k / NF) * reach;
+        out.push(put(
+          hx * (1 + (landX - 1) * t),
+          hy - drop * (k / NF),
+          hz * (1 + (landZ - 1) * t),
+        ));
       }
     }
     return out;
