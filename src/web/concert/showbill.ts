@@ -615,13 +615,8 @@ const CSS = `
   display: flex; align-items: center; justify-content: center;
   /* vmin rather than vw: on a wide monitor the margin that runs out first is
      the one above and below the paper, and 3vw of a 32:9 screen is a hand's
-     width of nothing on each side while the sheet is overflowing vertically.
-     Named, because the corner in the bottom right has to undo it: an absolute
-     child is placed against the padding box, and a corner "flush with the
-     frame" that is actually inset by a margin nobody can see would show a
-     different amount of itself on every screen size. */
-  --pad: clamp(.5rem, 2.4vmin, 2.5rem);
-  padding: var(--pad);
+     width of nothing on each side while the sheet is overflowing vertically. */
+  padding: clamp(.5rem, 2.4vmin, 2.5rem);
   cursor: pointer;
 }
 /* Down, not gone. The root stays in the page to carry the tab, so everywhere
@@ -646,17 +641,26 @@ const CSS = `
    Sized in \`rem\`, alone on the sheet: everything else scales with \`--fit\`,
    which is a measurement of the paper, and this corner is not on the paper. */
 .bill__tab {
-  position: absolute; display: none; pointer-events: auto;
+  position: fixed; display: none; pointer-events: auto;
   /* How much of the sheet is off the screen, said in the offsets rather than in
-     a transform: undo the root's padding, then push past the frame by 1.5rem
-     across and 2.5rem down. What is left is a band of stock a little larger
-     than the word printed on it, which is the whole of what this has to be —
-     enough paper to read PROGRAMME off, and not a scrap more taken from the
-     stage. It was a \`translate\` first and that was a trap: a translation after
-     a rotation runs along the rotated axes, so the numbers in it are not the
-     gap they produce, and the word ended up below the bottom of the screen. */
-  right: calc(env(safe-area-inset-right, 0px) - var(--pad) - 1.5rem);
-  bottom: calc(env(safe-area-inset-bottom, 0px) - var(--pad) - 2.5rem);
+     a transform: past the frame by 3rem across and 4rem down. What is left
+     is a band of stock a little larger than the word printed on it, which is
+     the whole of what this has to be — enough paper to read PROGRAMME off, and
+     not a scrap more taken from the stage. It was a \`translate\` first and that
+     was a trap: a translation after a rotation runs along the rotated axes, so
+     the numbers in it are not the gap they produce, and the word ended up below
+     the bottom of the screen.
+
+     \`fixed\`, against the viewport, and that is the point of it. An absolute
+     child is placed against the root's padding box, so the offsets had to undo
+     that padding — and the padding is \`vmin\`, which starts tracking the width
+     the moment a window is narrower than it is tall. The corner rose as the
+     page was squeezed, which is a strange thing for a piece of paper to do.
+     The 1.1rem that padding used to be worth on a desktop is folded into the
+     numbers above, so the corner shows what it showed on a wide screen and goes
+     on showing exactly that at every other shape. */
+  right: calc(env(safe-area-inset-right, 0px) - 3rem);
+  bottom: calc(env(safe-area-inset-bottom, 0px) - 4rem);
   width: 12.5rem; height: 6rem; padding: 1rem 0 0 1.45rem;
   /* Flex, and not for layout: a \`button\` centres its own content in its box
      whatever the padding says, and the word has to sit at the top left of the
