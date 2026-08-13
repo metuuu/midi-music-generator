@@ -488,6 +488,23 @@ export function buildSetlist(opts: ConcertOptions = {}): Song[] {
       strictness: rng.weighted(CONCERT_SMOOTHNESS),
       vocals: slot.sung,
       targetSeconds: shortest + (longest - shortest) * slot.length + rng.float(-8, 8),
+      /**
+       * …and a different band from everywhere, on every number, if the caller
+       * asked for one. See `ConcertOptions.chaos`.
+       *
+       * Handed down rather than drawn here, and it costs this file no random
+       * number: each chimera is assembled from the number's own seed, on a
+       * stream nothing else reads, so an evening with chaos on plays **the same
+       * repertoire, in the same keys, in the same moods, in the same room** as
+       * the evening with it off. Genre is still not an axis of this setlist —
+       * the crossing happens inside a number.
+       *
+       * Lengths and tempos do move, from `figures` up, and that is the feature
+       * rather than a leak: a chimera narrows its tempo band to what every band
+       * that wrote a figure in it can play, and the form is fitted to the target
+       * seconds at whatever speed comes out. See `compatible` in `genre/chaos.ts`.
+       */
+      ...(opts.chaos ? { chaos: opts.chaos } : {}),
     }));
   }
 

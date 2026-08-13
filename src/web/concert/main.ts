@@ -19,6 +19,7 @@ import {
 import type { ConcertOptions } from '../../concert/types.js';
 import { STRICTNESS_LEVELS } from '../../core/rules.js';
 import { HOOK_LEVELS } from '../../generate/hook.js';
+import { CHAOS_LEVELS } from '../../genre/chaos.js';
 import { initAudio } from '../audio.js';
 import { lightTheRoom } from './performer-assets.js';
 import { createShow, type Show, type ShowState } from './show.js';
@@ -61,11 +62,33 @@ function optionsFromUrl(): ConcertOptions {
     ? vocals
     : undefined;
 
+  /**
+   * `chaos=<kinds>&spread=<0..1>` — a concert without borders.
+   *
+   * A comma-separated subset of `CHAOS_LEVELS`, or `all`. **Filtered rather than
+   * rejected**, on the same reasoning as the two level controls below: a typo in
+   * a hand-edited URL should cost the default, not the stage — which is the
+   * opposite of `getChaosLevels`, the CLI's door, where a mistyped kind is a
+   * mistake worth reporting. An out-of-range spread is clamped inside
+   * `planChaos`, so only the kinds need looking up here.
+   *
+   * On a whole evening it makes every number its own chimera; on a `single=1`
+   * link it is what stops the stage playing the *host's* song instead of the one
+   * the radio was playing. See `ConcertOptions.chaos`.
+   */
+  const levels = (str('chaos') === 'all' ? [...CHAOS_LEVELS] : (str('chaos') ?? '').split(','))
+    .map((id) => CHAOS_LEVELS.find((l) => l === id.trim()))
+    .filter((l): l is (typeof CHAOS_LEVELS)[number] => !!l);
+  const chaos = levels.length
+    ? { levels, ...(str('spread') ? { spread: Number(str('spread')) } : {}) }
+    : undefined;
+
   const opts: ConcertOptions = {
     ...(str('seed') ? { seed: str('seed')! } : {}),
     ...(str('genre') ? { genre: str('genre')! } : {}),
     ...(str('era') ? { era: str('era')! } : {}),
     ...(policy ? { vocals: policy } : {}),
+    ...(chaos ? { chaos } : {}),
   };
   if (q.get('single') !== '1') return opts;
 
@@ -84,6 +107,7 @@ function optionsFromUrl(): ConcertOptions {
       ...(str('mood') ? { mood: str('mood')! } : {}),
       ...(strictness ? { strictness } : {}),
       ...(hook ? { hook } : {}),
+      ...(chaos ? { chaos } : {}),
       vocals: policy === 'sung',
     },
   };

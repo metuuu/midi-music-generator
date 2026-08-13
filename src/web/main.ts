@@ -18,9 +18,12 @@ import { renderMidi } from '../render/midi.js';
 import {
   meterLabel, songDurationBeats, songDurationSeconds, type LayerId, type Song,
 } from '../core/types.js';
+import { Rng } from '../core/rng.js';
 import { GENRES, getGenre } from '../genre/index.js';
+import type { ChaosLevel } from '../genre/chaos.js';
 import { STRICTNESS_LEVELS, getStrictness, type StrictnessId } from '../core/rules.js';
 import { HOOK_LEVELS, getHook, type HookId } from '../generate/hook.js';
+import { DEFAULT_SUNG_CHANCE, SUNG_CHANCE } from '../concert/setlist.js';
 
 const $ = <T extends HTMLElement>(id: string): T => {
   const el = document.getElementById(id);
@@ -38,7 +41,9 @@ const els = {
   hook: $<HTMLSelectElement>('hook'),
   hookHint: $<HTMLDivElement>('hook-hint'),
   seed: $<HTMLInputElement>('seed'),
-  vocals: $<HTMLInputElement>('vocals'),
+  chaos: $<HTMLDivElement>('chaos'),
+  chaosSpread: $<HTMLInputElement>('chaos-spread'),
+  vocals: $<HTMLSelectElement>('vocals'),
   play: $<HTMLButtonElement>('play'),
   next: $<HTMLButtonElement>('next'),
   radio: $<HTMLButtonElement>('radio'),
@@ -79,6 +84,69 @@ fillSelect(els.strictness, STRICTNESS_LEVELS.map((l) => [l.id, `${l.level} · ${
 els.strictness.value = 'standard';
 fillSelect(els.hook, HOOK_LEVELS.map((l) => [l.id, `${l.level} · ${l.label}`]));
 els.hook.value = 'standard';
+/**
+ * Whether there is a singer, in the vocabulary the concert already uses.
+ *
+ * It was a checkbox, which could say two of the three things worth saying. The
+ * third is the interesting one on a page with a radio mode: **let the genre
+ * decide**, at the rate `SUNG_CHANCE` sets, so a station plays mostly
+ * instrumentals with a sung one every third or fourth track the way the concert
+ * programmes an evening. Two of nineteen genres never sing at all and the table
+ * says so, which a checkbox could not.
+ *
+ * `VocalPolicy`'s three ids rather than three of this page's own, because the
+ * showbill, the concert URL and `buildSetlist` all speak them already and a
+ * fourth vocabulary for the same idea is how two of them drift.
+ */
+fillSelect(els.vocals, [
+  ['instrumental', 'instrumental'],
+  ['sung', 'sung'],
+  ['mixed', 'mixed — the genre decides'],
+]);
+els.vocals.value = 'instrumental';
+/**
+ * The chaos boxes — one per kind of property, independently tickable.
+ *
+ * A dropdown was the first version and it was wrong for one reason: it could
+ * only express a *reach*, so `harmony` implied `band` and there was no way to
+ * ask for somebody else's chords played by the host's own band. The kinds do not
+ * presuppose each other in the engine and should not in the control.
+ *
+ * Labelled by what each one *changes* rather than by its id, because the id is
+ * only legible once you have read `genre/chaos.ts` and the whole point of the
+ * control is to be turned without reading anything. The genre picker above goes
+ * on meaning what it means: it names the **host**, the band whose room and whose
+ * bar the piece keeps, and these say how much of everything else comes from
+ * somewhere else.
+ */
+const CHAOS_BOXES: [ChaosLevel, string, string][] = [
+  ['band', 'band', 'who is playing — instruments and the drum machine'],
+  ['performance', 'performance', 'how they play it — feels, fills, seams, effects'],
+  ['figures', 'figures', 'what they play — bass, comp and drum patterns, melodic cells'],
+  ['harmony', 'harmony', 'what it is played over — progressions and the chord-scale rule'],
+  ['form', 'form', 'what shape it is — form, length, ending, the title'],
+];
+for (const [id, label, hint] of CHAOS_BOXES) {
+  const wrap = document.createElement('label');
+  wrap.className = 'check';
+  wrap.title = hint;
+  const box = document.createElement('input');
+  box.type = 'checkbox';
+  box.id = `chaos-${id}`;
+  box.value = id;
+  box.onchange = onChaosChange;
+  const text = document.createElement('span');
+  text.textContent = label;
+  wrap.append(box, text);
+  els.chaos.append(wrap);
+}
+
+/** Which kinds are ticked, in `CHAOS_LEVELS` order rather than DOM order. */
+function chosenLevels(): ChaosLevel[] {
+  return CHAOS_BOXES
+    .map(([id]) => id)
+    .filter((id) => ($<HTMLInputElement>(`chaos-${id}`)).checked);
+}
 
 /**
  * Styles, eras and moods all belong to a genre, so switching genre has to
@@ -133,8 +201,40 @@ function currentOptions(): GenerateOptions {
   if (els.mood.value) opts.mood = els.mood.value;
   if (els.strictness.value) opts.strictness = els.strictness.value as StrictnessId;
   if (els.hook.value) opts.hook = els.hook.value as HookId;
-  if (els.vocals.checked) opts.vocals = true;
+  opts.vocals = wantsVocals(opts.seed);
+  const levels = chosenLevels();
+  if (levels.length) {
+    opts.chaos = { levels, spread: Number(els.chaosSpread.value) / 100 };
+  }
   return opts;
+}
+
+/**
+ * Is this one sung?
+ *
+ * `instrumental` and `sung` are the caller overriding the draw outright, exactly
+ * as `planVocals` describes them. `mixed` is the draw itself, at this genre's own
+ * rate, and it is resolved *here* rather than inside the generator because the
+ * generator has no notion of a policy — `GenerateOptions.vocals` is a boolean and
+ * should stay one.
+ *
+ * Which stream it comes from depends on whether a seed is pinned, and the two
+ * answers are both right:
+ *
+ *  - **Pinned** — derived from the seed, so a song sings or does not sing, and
+ *    goes on doing the same thing every time it is regenerated. That keeps the
+ *    documented A/B intact: `vocals` draws from its own stream inside the
+ *    generator, so the instrumental arrangement is identical either way, and a
+ *    control that re-flipped the coin on every redraw would hide that.
+ *  - **Unpinned** — a fresh coin, which is only reachable from radio mode, where
+ *    every track is a new song anyway and a station that decided once would be a
+ *    station that never changed its mind.
+ */
+function wantsVocals(seed: GenerateOptions['seed']): boolean {
+  const policy = els.vocals.value;
+  if (policy !== 'mixed') return policy === 'sung';
+  const rate = SUNG_CHANCE[els.genre.value] ?? DEFAULT_SUNG_CHANCE;
+  return seed === undefined ? Math.random() < rate : new Rng(`${seed}:sung`).chance(rate);
 }
 
 /** Strip muted layers so the audition matches what the game would hear. */
@@ -162,6 +262,11 @@ function describe(song: Song): void {
     `Smoothness: <b>${meta.strictnessLabel}</b> — ${getStrictness(meta.strictness as StrictnessId).gloss}`,
     `Hook: <b>${meta.hookLabel}</b> — ${getHook(meta.hook as HookId).gloss}`,
     song.tracks.map((t) => `${t.layer}: <b>${t.instrument}</b>`).join(' · '),
+    // Only on a chimera, and it names the donors rather than counting them: a
+    // listener who can hear something foreign wants to know what it was.
+    ...(meta.chaos ? [`Chaos: <b>${meta.chaos.levels.join(' + ')}</b> at ${Math.round(meta.chaos.spread * 100)}% over <b>${
+      meta.chaos.host.genre}:${meta.chaos.host.style}</b><br>${
+      Object.entries(meta.chaos.borrowed).map(([k, v]) => `${k} ← <b>${v}</b>`).join(' · ') || 'nothing borrowed'}`] : []),
     `seed: <b>${meta.seed}</b>`,
   ].join('<br>');
 
@@ -341,6 +446,10 @@ els.watch.onclick = () => {
     strictness: String(meta.strictness),
     hook: String(meta.hook),
     vocals: current.tracks.some((t) => t.voice) ? 'sung' : 'instrumental',
+    // Without these the stage would play the *host's* song — `meta.genre` names
+    // the genre a chimera is filed under, not the band that turned up. See
+    // `SongMeta.chaos`.
+    ...(meta.chaos ? { chaos: meta.chaos.levels.join(','), spread: String(meta.chaos.spread) } : {}),
   });
   location.href = `/concert.html?${q}`;
 };
@@ -360,6 +469,27 @@ els.dl.onclick = () => {
 for (const el of [els.mood, els.era, els.style]) {
   el.onchange = () => { if (!els.seed.value.trim()) void nextTrack(); };
 }
+
+/**
+ * The spread slider is meaningless with every box clear, and regenerating on
+ * every step of it would be a new song per pixel — so it takes effect on
+ * release, which is what `onchange` is for a range input.
+ *
+ * Both regenerate on the *same seed* rather than drawing a new song, like the
+ * smoothness and hook controls above and for the same reason: the whole value of
+ * these two is hearing one piece two ways, and a control that rerolled the song
+ * would leave nothing to compare.
+ */
+function onChaosChange(): void {
+  els.chaosSpread.disabled = chosenLevels().length === 0;
+  void regenerateSameSeed();
+}
+els.chaosSpread.onchange = () => { if (chosenLevels().length) void regenerateSameSeed(); };
+
+// The same seed, with and without the singer: `vocals` is documented as an A/B
+// that leaves the instrumental arrangement identical, and it was the one control
+// on this page that did nothing until the next track.
+els.vocals.onchange = () => { void regenerateSameSeed(); };
 
 els.genre.onchange = () => {
   populateForGenre();
@@ -397,7 +527,12 @@ els.seed.oninput = updateStrictnessHint;
  */
 async function regenerateSameSeed(): Promise<void> {
   const opts = currentOptions();
-  if (!opts.seed && current) opts.seed = current.meta.seed;
+  if (!opts.seed && current) {
+    opts.seed = current.meta.seed;
+    // …and settle the voice against *that* seed, or `mixed` would re-flip its
+    // coin every time smoothness or hook was nudged. See `wantsVocals`.
+    opts.vocals = wantsVocals(opts.seed);
+  }
   current = generateSong(opts);
   describe(current);
   if (playing) await play(current);

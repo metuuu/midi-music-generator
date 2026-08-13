@@ -14,6 +14,7 @@ npm run gen -- -n 12 --genre iskelma --mood kaihoisa --strictness strict
 npm run gen -- -n 12 --genre ambient --style wasteland --out ./out
 npm run gen -- -n 12 --genre ambient --style choral --vocals
 npm run gen -- -n 12 --genre synth --style berlin --mood motorway
+npm run gen -- -n 12 --genre iskelma --chaos band,figures  # a band from nineteen genres
 npm run gen -- --help                          # every genre, style, era and mood
 ```
 
@@ -191,6 +192,47 @@ The audition page's **Watch on stage** button hands the stage the song you are a
 
 Two benches exist for the parts of it that are too small to see from the stalls: **[/models.html](http://localhost:5173/models.html)** puts every instrument on a turntable, part by part, and **[/looks.html](http://localhost:5173/looks.html)** does the same for the wardrobe — every hair style, hat, fabric and garment the cast can be dealt. Both are the same argument as the voice lab: a thing you can only see in situ is a thing whose faults you find by accident. See [docs/concert.md](docs/concert.md).
 
+## Chaos — a concert without borders
+
+One band assembled out of nineteen: a humppa played by a metal drummer, a bebop head over a dub bass, a rāg whose keyboard player learned the part off a Roland.
+
+```bash
+npm run gen -- --genre iskelma --chaos band,figures
+npm run gen -- --genre jazz --chaos all --chaos-spread 1
+npm run gen -- --genre ambient --chaos band --chaos-donors metal,dnb,arabic
+npm run chaos      # assert what a chimera refuses to mix
+```
+
+`--genre` still names the **host** — the genre the piece is filed under, whose bar it counts in, whose room it is staged in and whose clothes the band wears. Chaos says how much of everything *else* comes from somewhere else, along two knobs rather than one, because "the whole band is foreign but the music is ours" and "one thing about this piece is from elsewhere" are different requests.
+
+`--chaos` takes any **subset** of five kinds, comma-separated, or `all`. They are independent rather than a ladder — `--chaos band,harmony` is the host's own patterns played on foreign instruments over somebody else's chord system, and `--chaos figures` alone is the host's band playing somebody else's patterns:
+
+| kind | traits | what becomes borrowable |
+| --- | --- | --- |
+| `band` | 8 | who is playing — instrument palettes per layer, the drum bank, the decade of the machines |
+| `performance` | 18 | how they play it — feels, fills, seams, drops, techniques, effects, the mix |
+| `figures` | 11 | what they play — bass, comp and drum patterns, melodic cells, the counter-line |
+| `harmony` | 3 | what it is played over — progressions, mode tables and the chord–scale rule |
+| `form` | 4 | what shape it is — forms, length, ending, count-in, the title |
+
+`--chaos-spread` is the share of eligible properties that actually move, drawn per property: at `0.2` a piece gets two or three foreign things and stays recognisable, at `1` everything the selected kinds allow belongs to somebody else. At `0` it is the plain song, byte for byte.
+
+**The kinds do not interfere.** Every trait spends its coin and its donor draw whether or not its kind is selected, so what `band` borrows on its own is exactly what it borrows alongside the other four, donor for donor — which is what makes ticking a box a comparison rather than a reroll. `npm run chaos` asserts it over 40 seeds.
+
+**Three things are never mixed, at any level**, and each of them is a way of producing garbage rather than chaos. The **bar** — every pattern in the project is slot indices in sixteenths, and a sixteen-slot figure hosted in a twelve-slot bar wraps and collides with itself, so figures move only between styles that agree about the metre and share a tempo. That costs less than it sounds: 305 of the 389 styles are plain 4/4 with no grouping. The **mode's table** — roman numerals are read relative to the mode, so progressions, mode weights and the chord–scale rule travel together from one donor or not at all. And **layer requirements**, because a donor that excludes the kit unioned with one that requires a pad is a band nobody assembled.
+
+A chimera is a *transform* rather than a twentieth genre: the generator draws a genre, era, style and mood exactly as it always has, and then rebuilds the band on a separate RNG stream. So a chaos song and a plain song from the same seed make the same decisions in the same order — with `band` alone selected the key, the tempo and the whole form come out identical, over 200 seeds in `npm run chaos`. The recipe rides on `SongMeta.chaos`, which is what keeps a song's own metadata sufficient to regenerate it.
+
+On the audition page it is five checkboxes and a **Mixing** slider; both regenerate on the same seed rather than drawing a new song, so you can hear one piece several ways. The now-playing panel prints the whole recipe — `drums ← metal:gothic`, `harmony ← latin:columbia` — so what you are hearing is always readable.
+
+**On stage the band follows.** The cast is derived from the tracks, so a borrowed instrument brings its archetype with it — its object, its posture, its gestures, and sometimes its headcount: borrowing ambient's pad palette puts a four-person choir where iskelmä had one violinist, and nothing had to be told. The clothes follow too, per player: **whoever lent the instrument dresses the person holding it**, read straight off the published recipe. What stays the host's is the room, the decade, the programme and the singer — one band, one night, wearing borrowed instruments.
+
+The concert takes the same options and applies them per number: one band, one room, one decade, and a different border crossing every song — `concert.html?chaos=band,harmony&spread=0.9`, or **Watch on stage ▸** from the radio, which carries the recipe across.
+
+**The stage follows on its own, and then some.** A `Performer` is derived from the track it plays, so a borrowed instrument brings its archetype with it — the physical object, the station, the posture, the gestures, and sometimes the headcount: borrowing ambient's pad palette into an iskelmä number puts a four-person choir where there had been one violinist. Nothing under `src/concert/` needed telling.
+
+The clothes are the one part that had to be wired, and they follow per player: **each performer is dressed by the genre that lent them their instrument**, read straight off `meta.chaos.borrowed`. A drummer behind a borrowed jazz kit is dressed by jazz; the person holding the sitar looks like a sitar player. The band's uniform still comes from the host — matching jackets are a fact about a band rather than a player — and how likely a guest is to put it on comes from their own genre's table. The room, the programme copy and the era stay the host's throughout: one band, one night, one building.
+
 ## Documentation
 
 Start at [docs/README.md](docs/README.md), which indexes the lot, carries a status header per file, and says which of them describe what exists and which are the reasoning behind it. Four genres have a page and nineteen exist — the four are the ones with a distinct answer to the chord-scale question, and the other fifteen are documented by the per-table comments in their own folders, which are dense and are the thing to read.
@@ -222,11 +264,12 @@ Two are worth naming here rather than leaving to the index:
 
 ```bash
 npm run verify      # everything below that asserts: typecheck, rules, genres,
-                    # notation validity, the concert, the audit and the ensemble
+                    # notation validity, the concert, chaos, the audit and the ensemble
 npm run ensemble    # how the layers sound together: voicings and register separation
 npm run score -- 7 iskelma tango   # read one song bar by bar, every layer
 npm run genres      # asserts what defines each genre
 npm run concert     # asserts the hands, the staging and the light cues
+npm run chaos       # asserts what a chimera refuses to mix, and what it leaves alone
 npm run tune        # the tune engine alone: one melody over I–vi–IV–V, no band
 npm run strictness  # rule violations and musical cost at each smoothness level
 npm run hook        # how much the music repeats itself at each hook level

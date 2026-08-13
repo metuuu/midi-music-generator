@@ -35,6 +35,7 @@ import {
 import {
   GENRES, getGenre, type EndingStyle, type FormStep, type Genre,
 } from '../genre/index.js';
+import { planChaos, type ChaosOptions } from '../genre/chaos.js';
 import {
   envelopeFor, foldIntoRange, HANDS, IDIOMS, INSTRUMENTS, rangeOfInstrument,
   type HandSpec, type Instrument, type InstrumentId,
@@ -129,6 +130,19 @@ export interface GenerateOptions {
    * it, which is also how a game would revoice one stem at runtime.
    */
   variation?: Partial<Record<LayerId, number>>;
+  /**
+   * Build the band out of more than one genre. See `genre/chaos.ts`.
+   *
+   * `genre`, `era` and `style` keep meaning what they mean and name the *host* —
+   * the genre this piece is filed under, whose bar, whose room and whose
+   * wardrobe it keeps. What the chimera replaces is everything the level
+   * allows, drawn from the other eighteen.
+   *
+   * On its own RNG stream, so this is an A/B on one seed's song and not a
+   * reroll of it: switch it on and the form, the key plan and the chart are the
+   * ones that seed always produced.
+   */
+  chaos?: ChaosOptions;
 }
 
 /**
@@ -206,13 +220,35 @@ export function generateSong(opts: GenerateOptions = {}): Song {
    * the property into a requirement. It is worth having anyway: it is what
    * makes a `.mid` file's header enough to regenerate the piece.
    */
-  const genre = getGenre(pick(rng.pick(Object.keys(GENRES)), opts.genre));
-  const era = chooseEra(rng, genre, opts);
-  const mood = lookup(genre.moods, opts.mood, 'mood', rng, Object.keys(genre.moods).slice(-1)[0]);
-  const drawnStyle = chooseStyle(rng, genre, era, mood);
-  const style = opts.style
-    ? lookup(genre.styles, opts.style, 'style', rng, opts.style)
-    : genre.styles[drawnStyle]!;
+  const hostGenre = getGenre(pick(rng.pick(Object.keys(GENRES)), opts.genre));
+  const hostEra = chooseEra(rng, hostGenre, opts);
+  const mood = lookup(hostGenre.moods, opts.mood, 'mood', rng, Object.keys(hostGenre.moods).slice(-1)[0]);
+  const drawnStyle = chooseStyle(rng, hostGenre, hostEra, mood);
+  const hostStyle = opts.style
+    ? lookup(hostGenre.styles, opts.style, 'style', rng, opts.style)
+    : hostGenre.styles[drawnStyle]!;
+  /**
+   * …and then, on a chaos song, the band is rebuilt out of the other eighteen.
+   *
+   * **After the four draws above and not before them**, which is what makes
+   * `--chaos` an A/B rather than a reroll. The genre, era, style and mood are
+   * the ones this seed always produced — a chimera is *this* song played by a
+   * band assembled from everywhere, so the host has to be drawn the ordinary way
+   * — and the assembly happens on `${seed}:chaos`, which nothing else reads.
+   *
+   * Every draw below is unmoved in the stream, because `Rng.weighted` spends one
+   * number whatever the weights are. What changes is which table answers — so at
+   * the `band` rung, where nothing the engine composes from has moved, the key,
+   * the tempo and the whole form come out identical to the plain song's, over
+   * 200 seeds in `npm run chaos`. See `genre/chaos.ts` for why that stops short
+   * of note-identity, which is a fact about left hands rather than about seeds.
+   */
+  const chaos = opts.chaos
+    ? planChaos(seed, { genre: hostGenre, era: hostEra, style: hostStyle }, opts.chaos)
+    : undefined;
+  const genre = chaos?.genre ?? hostGenre;
+  const era = chaos?.era ?? hostEra;
+  const style = chaos?.style ?? hostStyle;
   const mode = pick(chooseMode(rng, style, mood), opts.mode);
   const tonic = pick(
     rng.weighted(mode === 'minor' ? genre.keys.minor : genre.keys.major), opts.tonic,
@@ -3685,6 +3721,10 @@ export function generateSong(opts: GenerateOptions = {}): Song {
       // `none` publishes nothing either, because a band that considered dropping
       // out and did not is a band that played the section.
       ...(drop ? { drops: [drop] } : {}),
+      // The same rule a fifth time, and the one case where the field is not
+      // merely descriptive: without it `genre`, `era` and `style` reproduce the
+      // *host's* song rather than this one. See `SongMeta.chaos`.
+      ...(chaos ? { chaos: chaos.recipe } : {}),
     },
     sections,
     tracks,

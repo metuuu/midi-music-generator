@@ -94,6 +94,19 @@
       }
       .status { font-size: .8rem; color: var(--dim); margin-top: .8rem; min-height: 1.2em; }
       .status.err { color: #e2705a; }
+      /* Chaos: five independent boxes and the rate that applies to them, kept
+         together and given a rule above, because the pair is one control and
+         everything else in the panel is a single field. */
+      .controls .span.chaos {
+        display: flex; flex-wrap: wrap; gap: .85rem 2rem; align-items: flex-start;
+        border-top: 1px solid var(--edge); padding-top: .8rem; margin-top: .1rem;
+      }
+      .controls .span.chaos .mixing { min-width: 150px; }
+      .checks { display: flex; flex-wrap: wrap; gap: .1rem 1rem; padding-top: .15rem; }
+      /* Its own row: five boxes read as a set of choices, where five cells of a
+         150px grid would read as five unrelated controls. */
+      .span { grid-column: 1 / -1; }
+      .checks .check { font-size: .82rem; }
       .hint { font-size: .78rem; color: var(--dim); margin-top: .7rem; font-style: italic; }
       .check { display: flex; align-items: center; gap: .5rem; padding: .5rem 0; font-size: .85rem; }
       .check input { width: auto; accent-color: var(--hot); margin: 0; }
@@ -139,14 +152,24 @@
             <select id="hook"></select>
           </div>
           <div>
+            <label for="vocals">Voice</label>
+            <select id="vocals"></select>
+          </div>
+          <div>
             <label for="seed">Seed</label>
             <input id="seed" type="text" placeholder="random" />
           </div>
-          <div>
-            <label for="vocals">Voice</label>
-            <div class="check">
-              <input id="vocals" type="checkbox" />
-              <span>Sung vocal</span>
+          <!-- Chaos and its mixing rate are one control in two parts, so they
+               share a row of their own rather than sitting in the grid, where
+               the slider landed next to whatever happened to follow it. -->
+          <div class="span chaos">
+            <div>
+              <label>Chaos — borrow from the other genres</label>
+              <div id="chaos" class="checks"></div>
+            </div>
+            <div class="mixing">
+              <label for="chaos-spread">Mixing</label>
+              <input id="chaos-spread" type="range" min="0" max="100" step="5" value="50" disabled />
             </div>
           </div>
         </div>

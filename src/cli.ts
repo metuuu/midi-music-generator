@@ -16,6 +16,7 @@ import { meterLabel, songDurationSeconds, tempoLabel, type Song } from './core/t
 import { GENRES, GENRE_IDS, getGenre } from './genre/index.js';
 import { STRICTNESS_IDS, type StrictnessId } from './core/rules.js';
 import { HOOK_IDS, type HookId } from './generate/hook.js';
+import { CHAOS_LEVELS, getChaosLevels } from './genre/chaos.js';
 
 interface Args {
   count: number;
@@ -29,6 +30,9 @@ interface Args {
   strictness?: string;
   hook?: string;
   vocals: boolean;
+  chaos?: string;
+  chaosSpread?: number;
+  chaosDonors?: string[];
   quiet: boolean;
 }
 
@@ -49,6 +53,9 @@ function parseArgs(argv: string[]): Args {
       case '--strictness': args.strictness = String(next()); break;
       case '--hook': args.hook = String(next()); break;
       case '--vocals': args.vocals = true; break;
+      case '--chaos': args.chaos = String(next()); break;
+      case '--chaos-spread': args.chaosSpread = Number(next()); break;
+      case '--chaos-donors': args.chaosDonors = String(next()).split(','); break;
       case '--quiet': args.quiet = true; break;
       case '--help': case '-h': usage(); process.exit(0);
       default:
@@ -81,6 +88,19 @@ Music generator — ${Object.values(GENRES).map((g) => g.label).join(', ')}
       --vocals        double the melody with a sung line. The seed
                       still fixes the instrumental parts exactly, so the same
                       seed with and without this is the same arrangement.
+      --chaos <kinds> ${CHAOS_LEVELS.join(',')}  (or 'all', or any subset)
+                      build the band out of more than one genre. The kinds are
+                      independent and comma-separated, so --chaos band borrows
+                      only who is playing, --chaos band,harmony leaves the
+                      figures alone, and --chaos all lets everything move.
+                      --genre/--era/--style still name the host — the genre the
+                      piece is filed under, whose bar and whose room it keeps.
+      --chaos-spread <0..1>
+                      share of the eligible properties that actually move
+                      (default 0.5). 0 is a plain song, 1 borrows everything
+                      the selected kinds allow.
+      --chaos-donors <ids>
+                      comma-separated genres allowed to donate (default: all)
       --quiet         no per-song output
 
 ${GENRE_IDS.map((g) => {
@@ -120,6 +140,12 @@ function main(): void {
     if (args.strictness) opts.strictness = args.strictness as StrictnessId;
     if (args.hook) opts.hook = args.hook as HookId;
     if (args.vocals) opts.vocals = true;
+    if (args.chaos) {
+      const chaos: NonNullable<GenerateOptions['chaos']> = { levels: getChaosLevels(args.chaos) };
+      if (args.chaosSpread !== undefined) chaos.spread = args.chaosSpread;
+      if (args.chaosDonors) chaos.donors = args.chaosDonors;
+      opts.chaos = chaos;
+    }
 
     const song = generateSong(opts);
     const name = `${String(i + 1).padStart(2, '0')}-${slug(song.meta.title)}`;
@@ -155,6 +181,9 @@ function summarise(song: Song, file: string) {
     instruments: song.tracks.map((t) => `${t.layer}:${t.instrument}`),
     drumBank: song.drums.bank,
     form: song.sections.map((s) => `${s.kind}${s.transpose ? `+${s.transpose}` : ''}`),
+    // The recipe, verbatim, because `genre`/`style`/`era` above name the host
+    // and are no longer enough to regenerate the piece without it.
+    ...(meta.chaos ? { chaos: meta.chaos } : {}),
   };
 }
 
@@ -167,6 +196,12 @@ function describe(song: Song): string {
     `   ${meta.styleLabel} · ${meta.keyLabel} · ${tempoLabel(meta)} BPM · ${meterLabel(meta)} · ${Math.floor(mins / 60)}:${String(Math.round(mins % 60)).padStart(2, '0')}`,
     `   ${meta.eraLabel} · drums: ${song.drums.bank}${lift ? ` · key change +${lift.transpose}` : ''}`,
     `   ${song.tracks.map((t) => t.instrument).join(', ')}`,
+    // Only on a chimera, and it prints what moved rather than that something
+    // did: "borrowed 14 properties" tells a listener nothing they can act on,
+    // where "drums←iskelma:humppa" tells them what they are hearing.
+    ...(meta.chaos ? [`   chaos/${meta.chaos.levels.join('+') || 'none'} ×${meta.chaos.spread} · ${
+      Object.entries(meta.chaos.borrowed).map(([k, v]) => `${k}←${v}`).join(', ') || 'nothing borrowed'
+    }`] : []),
   ].join('\n');
 }
 

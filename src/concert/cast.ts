@@ -588,12 +588,82 @@ const MAX_ACCESSORIES = 3;
  * straight to the plain dress — an iskelmä band in an unknown decade should
  * still be an iskelmä band — and only a genre that has said nothing at all ends
  * up in the house's concert black. See `Staging.defaultEra`.
+ *
+ * Exported for `npm run chaos`, which asserts that a player dressed by a donor
+ * genre is actually wearing that genre's colours rather than the house's — a
+ * claim it cannot make without the same table this reads.
  */
-function wardrobeFor(genre: string, era: string): Wardrobe {
+export function wardrobeFor(genre: string, era: string): Wardrobe {
   const staging = GENRES[genre]?.staging;
   const table = staging?.wardrobe;
   if (!table) return PLAIN;
   return table[era] ?? table[staging?.defaultEra ?? ''] ?? PLAIN;
+}
+
+/**
+ * Which chaos trait dresses which player. See `wardrobeForPlayer`.
+ *
+ * Exported so `npm run chaos` can assert every name here is a trait that
+ * actually exists: the link between a layer and its donor is a *string*, and a
+ * trait renamed in `genre/chaos.ts` would quietly stop dressing anybody rather
+ * than fail. The layers not listed keep the house's clothes — the singer most
+ * importantly, who is the band's own whatever the band is playing.
+ */
+export const DRESSED_BY: Partial<Record<LayerId, string>> = {
+  melody: 'melody-instrument',
+  counter: 'counter-instrument',
+  comp: 'comp-instrument',
+  pad: 'pad-instrument',
+  bass: 'bass-instrument',
+  brass: 'brass-instrument',
+  // The kit's own trait is named after the machine rather than the layer,
+  // because what it borrows is a bank and a decade rather than one instrument.
+  drums: 'drum-machine',
+};
+
+/**
+ * What *this* player is wearing, which on a chimera is not always what the band
+ * is wearing.
+ *
+ * A chaos number puts foreign instruments in people's hands, and the cast
+ * already follows that all by itself — an `Archetype` is derived from the track,
+ * so borrowing ambient's pad palette puts a four-person choir where iskelmä had
+ * one violinist, and nobody had to be told. The clothes did not follow, because
+ * they come from `Genre.staging` and a chimera keeps the host's.
+ *
+ * This is the other half: **the person holding the sitar is dressed by the genre
+ * the sitar came from.** `SongMeta.chaos.borrowed` already names the donor per
+ * layer, so it costs no draw and no new field — it is a second reading of a
+ * recipe that was published for exactly this kind of question.
+ *
+ * ## The era resolves itself
+ *
+ * `wardrobeFor` is handed the *host's* era id, which the donor genre has almost
+ * never heard of, and falls through to that genre's own `defaultEra`. That is
+ * not a workaround, it is the fallback's stated purpose — *a band in an unknown
+ * decade should still be this genre's band* — and it is the right answer here
+ * for the same reason: what is wanted is a metal drummer, not a metal drummer
+ * from 1968.
+ *
+ * ## What stays the band's
+ *
+ * The uniform. It is drawn once from the house wardrobe before anyone is
+ * dressed, because matching jackets are a fact about a band rather than about a
+ * player, and a guest who draws into it has put the house jacket on. How likely
+ * that is comes from the *donor's* own `uniform` and `matched` numbers, so a
+ * genre that does not do uniforms brings a player who does not wear one. No rule
+ * was needed for that; it falls out of reading the donor's table.
+ *
+ * A genre that declares no wardrobe at all falls back to the house rather than
+ * to the concert black `PLAIN` would give it. `PLAIN` is the floor for a genre
+ * nobody has finished, and a chimera is not that — its host has clothes.
+ */
+function wardrobeForPlayer(song: Song, layer: LayerId, house: Wardrobe): Wardrobe {
+  const trait = DRESSED_BY[layer];
+  const from = trait ? song.meta.chaos?.borrowed[trait] : undefined;
+  if (!from) return house;
+  const dressed = wardrobeFor(from.split(':')[0]!, song.meta.era);
+  return dressed === PLAIN ? house : dressed;
 }
 
 /**
@@ -1198,7 +1268,12 @@ function roster(
 
     const spec = specFor(d.archetype);
     const look = makeLook({
-      id, seed, wardrobe, uniform, density,
+      id, seed, uniform, density,
+      // The house's clothes on an ordinary number, and the donor's on a player
+      // holding a borrowed instrument. `makeLook` draws on its own per-performer
+      // stream, so dressing one player from a foreign table cannot re-roll the
+      // face of anybody standing next to them. See `wardrobeForPlayer`.
+      wardrobe: wardrobeForPlayer(song, d.layer, wardrobe),
       isLead: d.layer === leadLayer,
     });
     // The object's default, unless it is one of the two the tradition sits down

@@ -565,6 +565,17 @@ function foxing(rng: Rng): string {
  * survives being served from a subdirectory. The era is only included when the
  * caller pinned it: normally the seed decides, and a link that spells out every
  * derived field is a link that stops working the day a default changes.
+ *
+ * **The chimera is not derived and has to be spelled out.** A chaos evening
+ * plays the host genre's repertoire in the host's room — that is the whole
+ * design — so a link without `chaos` reproduces a real, coherent, *different*
+ * show rather than failing, and nobody would notice they had been handed the
+ * plain one. The kinds go in as the comma list `optionsFromUrl` reads back.
+ *
+ * `spread` follows the era's rule rather than the kinds': it is emitted only
+ * when the caller set it, because an omitted spread means the same default at
+ * both ends of the link and writing it out would pin today's 0.5 into every
+ * share.
  */
 function shareUrl(opts: ConcertOptions, genre: string): string {
   const url = new URL(window.location.href);
@@ -575,6 +586,10 @@ function shareUrl(opts: ConcertOptions, genre: string): string {
   if (opts.era) url.searchParams.set('era', opts.era);
   if (opts.vocals) url.searchParams.set('vocals', opts.vocals);
   if (opts.numbers) url.searchParams.set('numbers', String(opts.numbers));
+  if (opts.chaos?.levels?.length) {
+    url.searchParams.set('chaos', opts.chaos.levels.join(','));
+    if (opts.chaos.spread !== undefined) url.searchParams.set('spread', String(opts.chaos.spread));
+  }
   return url.toString();
 }
 

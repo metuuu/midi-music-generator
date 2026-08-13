@@ -16,6 +16,7 @@ import type { VoiceSignatureId } from '../style/voices.js';
 import type { Seam } from '../generate/transition.js';
 import type { DropSpan } from '../generate/drop.js';
 import type { Technique } from '../generate/technique.js';
+import type { ChaosLevel } from '../genre/chaos.js';
 
 /**
  * Named layers. A game can duck, mute or crossfade these independently, which
@@ -1886,6 +1887,55 @@ export interface SongMeta {
    * "has the number begun" and any progress bar have to measure from.
    */
   leadInBars?: number;
+  /**
+   * What this band was assembled out of, on a number that was assembled rather
+   * than played. See `genre/chaos.ts`.
+   *
+   * Absent on every song the nineteen genres write by themselves, which is all
+   * of them unless a caller asked for a chimera — the same absent-means-not-
+   * asked rule `feels`, `transitions` and `drops` carry, and with the same
+   * consequence: nothing in the catalogue moved when this field appeared.
+   *
+   * Present, it is **constitutive rather than descriptive**, and it is the only
+   * field on this record that is. `genre`, `era` and `style` name the *host* —
+   * a real genre, a real era and a real style, which is what keeps the venue,
+   * the wardrobe and the year lookup working — so those three no longer suffice
+   * to regenerate the piece, and a consumer that drops this one gets the host's
+   * own song back rather than a slightly different chimera. `SongMeta` is meant
+   * to be enough to reproduce the song it describes; this is the part of the
+   * answer that says which nineteen-genre band turned up.
+   */
+  chaos?: ChaosRecipe;
+}
+
+/**
+ * The recipe for a chimera: the kinds, the rate, the host and what moved.
+ *
+ * Plain strings and numbers, because it is IR — printable, serialisable through
+ * a `.mid` header comment or a share link, and readable by a person who wants to
+ * know why there is a sitar in the humppa. `borrowed` maps a property name to
+ * the `genre:style` it came from; the names are `genre/chaos.ts`'s traits and
+ * only the ones that actually moved appear.
+ *
+ * `levels` holds `ChaosLevel`s and is typed as such. The import is type-only and
+ * stays that way — `core` is the layer everything else is built on and does not
+ * depend on `genre` at runtime — which is the arrangement `feels` already has
+ * with `style/feel.ts`, and for the same reason: a second declaration of the
+ * vocabulary down here is how two vocabularies drift apart.
+ */
+export interface ChaosRecipe {
+  /**
+   * Which kinds of property were allowed to move, in `CHAOS_LEVELS` order rather
+   * than the caller's, so two recipes that asked for the same thing compare
+   * equal however they were typed.
+   */
+  levels: ChaosLevel[];
+  /** The share of eligible properties offered a foreign donor, 0..1. */
+  spread: number;
+  /** The genre, era and style the chimera is filed under, and stands on. */
+  host: { genre: string; era: string; style: string };
+  /** Property name → `genre:style` it came from. Only what moved. */
+  borrowed: Record<string, string>;
 }
 
 export interface Song {

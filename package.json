@@ -1,7 +1,7 @@
 {
   "name": "midi-music-generator",
   "version": "0.1.0",
-  "description": "Rule-based generator for instrumental music in nineteen genres — form, harmony, melody, bass, comping and drums, rendered to MIDI and to Strudel",
+  "description": "Rule-based generator for instrumental music in nineteen genres \u2014 form, harmony, melody, bass, comping and drums, rendered to MIDI and to Strudel",
   "type": "module",
   "license": "MIT",
   "scripts": {
@@ -18,8 +18,9 @@
     "rules": "tsx src/rules-doc.ts",
     "rules:check": "tsx src/rules-doc.ts --check",
     "concert": "tsx src/concert-check.ts",
+    "chaos": "tsx src/chaos-check.ts",
     "stage": "tsx src/stage-check.ts",
-    "verify": "npm run typecheck && npm run rules:check && npm run genres && npm run check && npm run concert && npm run stage && npm run audit 40 && npm run ensemble 40",
+    "verify": "npm run typecheck && npm run rules:check && npm run genres && npm run check && npm run concert && npm run chaos && npm run stage && npm run audit 40 && npm run ensemble 40",
     "ensemble": "tsx src/ensemble-report.ts",
     "score": "tsx src/score.ts",
     "tune": "tsx src/tune-lab.ts"

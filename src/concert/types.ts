@@ -58,6 +58,7 @@ import type {
   BackingPolicy, Consonant, DrumVoice, LayerId, Song, Vowel,
 } from '../core/types.js';
 import type { GenerateOptions } from '../generate/song.js';
+import type { ChaosOptions } from '../genre/chaos.js';
 
 // ---------------------------------------------------------------------------
 // Instruments as physical objects
@@ -1465,4 +1466,23 @@ export interface ConcertOptions {
    * the song says how many (one) and whether it is sung.
    */
   song?: GenerateOptions;
+  /**
+   * A concert without borders: every number is a chimera. See `genre/chaos.ts`.
+   *
+   * Applied per number, so the evening is a *set* of border crossings rather
+   * than one — each number draws its own donors and comes out a different
+   * mixture. What it does **not** do is make genre an axis of the setlist, and
+   * the reasoning `buildSetlist` gives for that is untouched and still right:
+   * this is one band, in one room, in one decade, wearing one set of clothes.
+   * The borrowing happens inside a number rather than between them.
+   *
+   * That is also what keeps the staging out of it. `meta.genre` and `meta.era`
+   * still name the host, so the venue, the wardrobe, the programme and the year
+   * lookup all resolve exactly as they do for a plain evening — nothing under
+   * `src/concert/` needed telling that any of this exists.
+   *
+   * Ignored alongside `numbers` and `vocals` when `song` is set: a caller
+   * naming the exact piece has already said whether it is a chimera.
+   */
+  chaos?: ChaosOptions;
 }
