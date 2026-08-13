@@ -3,16 +3,19 @@
  *
  * `style/instruments.ts` is a catalogue of 126 *sounds*, because that is what a
  * generator needs. A stage needs a catalogue of *things a person stands
- * behind*, and there are far fewer of those — twenty-four, against those 126: a
+ * behind*, and there are far fewer of those — twenty-five, against those 126: a
  * soprano and a baritone sax are one model at two sizes, and the eight GM synth
  * pads are one keyboard.
  *
  * **That number read *twenty* until it was recounted**, and it is corrected in
  * place rather than deleted because the ratio is the whole argument for the file
- * and the ratio is the half that moved. Measured: `ARCHETYPES` holds 24 entries
+ * and the ratio is the half that moved. Measured: `ARCHETYPES` holds 25 entries
  * against `ARCHETYPE_OF`'s 126, and casting 360 numbers across all nineteen
- * genres puts every one of the 24 on a stage, so none of them is a row nobody
- * reaches. The 126 stayed right on its own; the stage half went stale on its
+ * genres puts every one of the 25 on a stage, so none of them is a row nobody
+ * reaches. The twenty-fifth is the `dulcimer`, and it is the only one of them
+ * ever to arrive by a *sound leaving* another archetype rather than by a sound
+ * arriving with nowhere to go. The 126 stayed right on its own; the stage half
+ * went stale on its
  * own — which is exactly the asymmetry this file is exposed to. Adding a *sound*
  * without an object is a compile error, by the paragraph immediately below.
  * Adding an *object* is a line in a closed union that nothing forces anybody to
@@ -100,8 +103,11 @@ import type { Archetype, ArchetypeSpec, SynthRigId } from './types.js';
  *  - **kantele**, **koto**, **dan tranh** — three zithers on a concert harp.
  *  - **banjo** and **strumstick** — a head and a rim, and a three-string stick,
  *    both currently dreadnoughts.
- *  - **steel drums**, **melodic tom**, **hammered dulcimer** — three more rows
- *    of `mallets` that are not rows of bars.
+ *  - **steel drums** and **melodic tom** — two more rows of `mallets` that are
+ *    not rows of bars. The third was the **hammered dulcimer**, and it is the
+ *    one entry ever to leave this list: it has its own archetype and its own
+ *    trapezoid of struck wire, because none of what a vibraphone is was true of
+ *    it and its pitch layout is not a keyboard.
  *  - **viola**, **piccolo**, **bassoon**, **oboe**, **english horn**,
  *    **recorder**, **shehnai** — right family, wrong size. These want
  *    `SCALE_OF` in `web/concert/instruments/index.ts` far more than they want
@@ -176,9 +182,20 @@ export const ARCHETYPE_OF: Record<InstrumentId, Archetype> = {
   // earns it on the thing the audience is watching rather than on the shape of
   // the object: every one of these is two beaters over a row of pitches, struck
   // by a standing player. It is the same argument the celesta already makes one
-  // section up. The four newcomers that are *not* a row of bars — the timpani,
-  // the toms, the pans and the dulcimer — are the clearest candidates in this
-  // whole file for a model of their own; see "Borrowed objects" above.
+  // section up. The three newcomers that are *not* a row of bars — the timpani,
+  // the toms and the pans — are the clearest candidates in this whole file for a
+  // model of their own; see "Borrowed objects" above.
+  //
+  // **What the row is made of is no longer this table's problem.** It was, and
+  // silently: a marimba, a xylophone and a balafon are rosewood over tubes with
+  // no motor and no damper pedal, and every one of them arrived on stage as
+  // three and a half octaves of aluminium because there was nowhere to say
+  // otherwise. `BARS_OF` in `web/concert/instruments/index.ts` is where that is
+  // said now, beside `SCALE_OF` and for the same reason — which member of a
+  // family a catalogue entry is belongs next to the answer about which family it
+  // joined. The archetype is unchanged and so is every contact on it: a wooden
+  // bar row is the same keyboard at the same work height, which is precisely why
+  // these fourteen can share one.
   vibraphone: 'mallets',
   glockenspiel: 'mallets',
   marimba: 'mallets',
@@ -187,7 +204,9 @@ export const ARCHETYPE_OF: Record<InstrumentId, Archetype> = {
   kalimba: 'mallets',
   xylophone: 'mallets',
   timpani: 'mallets',
-  dulcimer: 'mallets',
+  // The one entry in this section that is not two beaters over a row of bars,
+  // and now the one entry that does not have to pretend it is. See `dulcimer.ts`.
+  dulcimer: 'dulcimer',
   steelDrums: 'mallets',
   agogo: 'mallets',
   woodblock: 'mallets',
@@ -734,6 +753,38 @@ export const ARCHETYPES: Record<Archetype, ArchetypeSpec> = {
     id: 'mallets', label: 'vibraphone', family: 'percussion',
     hands: 2, posture: 'stand', points: ['key', 'rest'],
     range: [53, 96], held: false, footprint: 1.2, workHeight: 0.9,
+  }),
+
+  /**
+   * The other tuned percussion, and the one that is strung rather than barred.
+   *
+   * `label` names the catalogue entry that casts it, because for once the object
+   * and the entry are the same thing: `dulcimer` is the only sound that reaches
+   * this archetype. Nothing is borrowed onto it and nothing should be — a
+   * santoor and a cimbalom are this instrument, and a steel pan is not.
+   *
+   * `range` is `RANGE_OF.dulcimer` exactly, which is the invariant the
+   * saxophone's entry states: an archetype range must contain every `RANGE_OF`
+   * entry that maps to it. With one entry, containing it means being it.
+   *
+   * **And `lap`, because two of the five genres that cast it sit on the floor.**
+   * It is the second archetype to need the flag and it needs it for the reason
+   * the first does: same object, two traditions, two postures. A concert
+   * dulcimer stands on its own trestle in a country band and a finnfolk group;
+   * a santoor lies across the crossed legs of a player on a carpet in a takht
+   * and in a sabhā. The model drops the box to 0.34 m and stops building the
+   * legs when it is told which — see `postureFor` in `cast.ts` for the other
+   * half, and note that `workHeight` stays the standing figure for the same
+   * reason the hand drum's stays 0.72.
+   *
+   * `footprint` is under the vibraphone's: a metre of near edge and 42 cm of
+   * depth is a smaller object than three and a half octaves of bars, and the
+   * player stands at the long side of it rather than walking its length.
+   */
+  dulcimer: S({
+    id: 'dulcimer', label: 'hammered dulcimer', family: 'percussion',
+    hands: 2, posture: 'stand', points: ['key', 'rest'],
+    range: [55, 93], held: false, lap: true, footprint: 0.9, workHeight: 0.78,
   }),
 
   trumpet: S({

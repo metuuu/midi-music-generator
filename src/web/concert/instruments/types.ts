@@ -355,6 +355,36 @@ export interface InstrumentBuildOptions {
    */
   rack?: string;
   /**
+   * What this tuned percussion instrument's bars are made of. Mallets only;
+   * every other model ignores it.
+   *
+   * It is `rack` one archetype along, and it is here for the same reason: an
+   * archetype that covers a family needs one fact to say which member of it is
+   * standing there. `handdrum` could not tell a conga from a darbuka; `mallets`
+   * could not tell a marimba from a vibraphone, and staged fourteen catalogue
+   * entries as three and a half octaves of aluminium with a motor under it.
+   * Nine of those entries are not metal and three of them are unambiguously
+   * wood — the marimba, the xylophone and the balafon — which between them
+   * reach twelve genres.
+   *
+   * The narrowness test `year`, `electronic` and `rack` are held to is passed on
+   * the same sentence all three pass it on: this says nothing whatever about the
+   * music. It cannot vary across a bar, a number or a show, because the
+   * catalogue entry was drawn before a note existed. It is a fact about the
+   * object, which is precisely what a model is entitled to know.
+   *
+   * **And it does not move a single contact.** Rosewood bars sit in the same
+   * keyboard layout at the same work height, so `resolve` answers exactly what
+   * it answered before and the choreography is untouched — the difference is
+   * the material, the resonators, and the two pieces of a vibraphone a marimba
+   * has never had: the motor and the damper pedal. See `BARS_OF` in
+   * `./index.ts`, which is where a catalogue entry's answer comes from.
+   *
+   * Omitted means metal, which is what every caller got before this existed and
+   * what the archetype's own label still says it is.
+   */
+  bars?: 'metal' | 'wood';
+  /**
    * How the player at this object is arranged, from `Station.posture`.
    *
    * Omit and a model builds itself for the posture its own `ArchetypeSpec`

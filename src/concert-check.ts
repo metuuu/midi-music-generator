@@ -1407,7 +1407,7 @@ check('no genre sings more often than not', loudGenres.length === 0,
   let lateSilent = 0;
   let players = 0;
   let boxes = 0;
-  const BUSY = ['drumkit', 'harp', 'mallets', 'cello', 'upright-bass'];
+  const BUSY = ['drumkit', 'harp', 'mallets', 'dulcimer', 'cello', 'upright-bass'];
   const notes: string[] = [];
   for (const gid of CHECKED_GENRES) {
     for (let i = 0; i < 5; i++) {

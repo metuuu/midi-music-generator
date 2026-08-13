@@ -425,8 +425,22 @@ type Hand = 'left-hand' | 'right-hand';
  * writes. Two mallets in one hand cover less.
  */
 function handSpanSemitones(archetype: Archetype): number {
-  return archetype === 'mallets' ? 10 : 12;
+  return TWO_BEATERS.includes(archetype) ? BEATER_SPAN : 12;
 }
+
+/** A hand holding two beaters, named because `malletPart` reads it too. */
+const BEATER_SPAN = 10;
+
+/**
+ * The archetypes played with a beater in each hand rather than with fingers.
+ *
+ * Two of them, and everything in this file that used to ask `=== 'mallets'`
+ * asks this instead. The dulcimer is a trapezoid of struck wire and the
+ * vibraphone a row of bars, and from the arms' side of the seam that difference
+ * is nothing: no fingers to fit between two notes, so the only limit is reach,
+ * and both hands are full all night either way.
+ */
+const TWO_BEATERS: Archetype[] = ['mallets', 'dulcimer'];
 
 /**
  * The widest chord one hand will actually be given, in semitones, and why that
@@ -469,7 +483,7 @@ function handSpanSemitones(archetype: Archetype): number {
  * is here so that stops being true silently.
  */
 function grabSpan(archetype: Archetype, notes: number): number {
-  if (archetype === 'mallets') return handSpanSemitones(archetype);
+  if (TWO_BEATERS.includes(archetype)) return handSpanSemitones(archetype);
   return notes >= 4 ? -1 : handSpanSemitones(archetype);
 }
 
@@ -1265,9 +1279,16 @@ function playPart(
       });
       return;
     case 'mallets':
+    case 'dulcimer':
       // Not a keyboard. See `malletPart` — two sticks is a different problem
       // from ten fingers, and running it through `keyboardPart` left one arm
       // hanging over the middle of the instrument for whole numbers at a time.
+      //
+      // The dulcimer joins it because a hammer in each hand is the same two
+      // sticks. Its *pitches* are not in a line on the object — see the layout
+      // note in `dulcimer.ts` — but nothing here reads geometry: `malletPart`
+      // splits a part by register and the model answers where each register
+      // lives, which is the whole point of the seam.
       malletPart(groups, reach, board);
       return;
     case 'organ':
@@ -2537,7 +2558,7 @@ function malletPart(groups: NoteEvent[][], reach: [Midi, Midi], board: Board): v
    * How far a stick may stray onto the other stick's side, as a fraction of the
    * row. One hand span, so the rule bites at a crossover and nowhere else.
    */
-  const slack = handSpanSemitones('mallets') / Math.max(1, reach[1] - reach[0]);
+  const slack = BEATER_SPAN / Math.max(1, reach[1] - reach[0]);
   // Where the sticks start: a third and two thirds up, over a row nobody is
   // playing yet. Only the first note reads these — after that the sticks are
   // wherever the line has taken them — so they are a plausible opening stance

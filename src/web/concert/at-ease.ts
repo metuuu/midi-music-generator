@@ -239,10 +239,10 @@ export const AT_EASE: Partial<Record<Archetype, AtEasePose>> = {
  *
  * Structural, like `HasSoundingContact` in `instruments/index.ts` and for the
  * same reason: two of the **twenty-two** models have a bow and `InstrumentModel`
- * should not grow a member the other twenty must ignore. Two archetypes later
+ * should not grow a member the other twenty must ignore. Three archetypes later
  * the numerator is unchanged — the violin and the cello are still the only bows
- * on the stage — and the denominator is twenty-four, so the members that would
- * have to ignore it are twenty-two. See `Animator.carryBow`, and `gallery.ts`,
+ * on the stage — and the denominator is twenty-five, so the members that would
+ * have to ignore it are twenty-three. See `Animator.carryBow`, and `gallery.ts`,
  * which hands the bow over the same way so that a bench pose is a stage pose.
  */
 export interface CarriesBow {
@@ -269,7 +269,7 @@ export interface CarriesBow {
  * being a centimetre out.
  *
  * The practical half matters too and is worth stating plainly rather than
- * dressing up. The twenty-four models derive their rest from twenty-four
+ * dressing up. The twenty-five models derive their rest from twenty-five
  * different expressions — `contactAt(IDLE_X, FINGER_HEIGHT + 0.035, …)`,
  * a `restLeft` vector, `pluckAt(40, 0.05, 0.09)` — so tuning one meant opening
  * a file, working out which local constant was load-bearing and rebuilding,

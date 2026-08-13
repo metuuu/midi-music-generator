@@ -90,6 +90,24 @@ export type Archetype =
   | 'cello'
   | 'harp'
   | 'mallets'
+  /**
+   * Struck strings on a trapezoid box — the hammered dulcimer, the santoor, the
+   * cimbalom.
+   *
+   * It is here because it is the one thing `mallets` covers that is not a row
+   * of pitched bars, and the distinction is not a size or a finish: there are no
+   * bars, no resonators, no motor and no pedal, and the pitches are not laid out
+   * as a keyboard. A dulcimer's middle carries its bottom octave and its top
+   * octave interleaved and the strip on the right carries the octave between
+   * them, so a player's hands cross back over one small area instead of tracking
+   * the line. Staged on a vibraphone that read as a mallet part on the wrong
+   * object; see `dulcimer.ts`, where the layout is written down.
+   *
+   * Everything a *player* does is still a mallet player's, which is why this
+   * shares `malletPart` and `IMPLEMENT_OF` rather than growing its own: two
+   * beaters, no fingers, both hands full.
+   */
+  | 'dulcimer'
   | 'trumpet'
   | 'trombone'
   | 'saxophone'
@@ -241,14 +259,22 @@ export interface ArchetypeSpec {
    * the ground.
    *
    * **Absent is the answer for almost everything, and for a reason worth stating
-   * before somebody generously adds ten more.** Fifteen of the twenty-three
-   * archetypes reaching a floor-seated genre are borrowed objects — a sarangi
-   * staged as a violin, a santoor as a vibraphone, a harmonium as a Hammond
-   * console, a tanpura as a double bass. Every one of those *originals* is
-   * played on the floor and not one of the *objects* is. Setting a vibraphone
-   * down on a carpet would stage the wrong instrument and put it somewhere it
-   * cannot be played, which is two errors where there was one. The residual is
-   * real and it is the archetype table's to fix, not this flag's.
+   * before somebody generously adds ten more.** Most of the archetypes reaching
+   * a floor-seated genre are borrowed objects — a sarangi staged as a violin, a
+   * harmonium as a Hammond console, a tanpura as a double bass. Every one of
+   * those *originals* is played on the floor and not one of the *objects* is.
+   * Setting a vibraphone down on a carpet would stage the wrong instrument and
+   * put it somewhere it cannot be played, which is two errors where there was
+   * one. The residual is real and it is the archetype table's to fix, not this
+   * flag's.
+   *
+   * **The santoor is what fixing it looks like.** It was the fourth name on that
+   * list, staged as a vibraphone, and the honest answer was never a flag on
+   * `mallets` — a vibraphone does not go on a carpet however Persian the part
+   * is. It was `dulcimer`: a real trapezoid of struck wire, which genuinely does
+   * lie across a player's crossed legs, and which therefore carries this flag
+   * and means it. One archetype's worth of residual, paid off the way the
+   * paragraph above says it has to be.
    *
    * An archetype whose `posture` is already `floor` does not need this: it is
    * the degenerate case where the object's answer settles the question and no

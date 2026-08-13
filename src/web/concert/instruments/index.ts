@@ -28,6 +28,7 @@ import { buildAcousticGuitar } from './acoustic-guitar.js';
 import { buildCello } from './cello.js';
 import { buildClarinet } from './clarinet.js';
 import { buildDrumkit } from './drumkit.js';
+import { buildDulcimer } from './dulcimer.js';
 import { machinePanel, type MachineKind } from './drum-machine.js';
 import { buildElectricBass } from './electric-bass.js';
 import { buildElectricGuitar } from './electric-guitar.js';
@@ -57,6 +58,7 @@ export const BUILDERS: Record<Archetype, InstrumentBuilder> = {
   'organ': buildOrgan,
   'synth': buildSynth,
   'mallets': buildMallets,
+  'dulcimer': buildDulcimer,
   'accordion': buildAccordion,
   'harmonica': buildHarmonica,
   'acoustic-guitar': buildAcousticGuitar,
@@ -165,6 +167,39 @@ const SCALE_OF: Partial<Record<InstrumentId, number>> = {
 };
 
 /**
+ * Which catalogue entries are rows of *wood*. See `InstrumentBuildOptions.bars`.
+ *
+ * `SCALE_OF`'s sibling and the same kind of table: which member of a family a
+ * catalogue entry is, said beside `ARCHETYPE_OF`'s answer to which family it
+ * joined, rather than inside the geometry that eventually reads it. The
+ * difference is that `mallets` reads this one today.
+ *
+ * Partial, and the absent answer is metal — which is the majority and the
+ * archetype's own label. The four rows below are the ones where the bar is the
+ * instrument:
+ *
+ *  - **marimba**, **xylophone**, **balafon** — rosewood over tuned tubes, and a
+ *    balafon's are gourds. Between them these three are cast by pop, latin,
+ *    ambient, house, synth, hiphop, indian, dnb and funk, which is why this is
+ *    the cheap half of the mallet problem and the half worth doing first.
+ *  - **woodblock** — not a row of bars at all, and staged here because
+ *    `ARCHETYPE_OF` had nowhere better; a row of temple blocks is a borrowed
+ *    object either way, and borrowing a wooden one is a smaller error than
+ *    borrowing an aluminium one.
+ *
+ * Everything else that lands on `mallets` really is metal — vibraphone bars,
+ * glockenspiel bars, tubular bells, a music box comb, kalimba tines, steel
+ * pans, timpani heads over copper — or is a drum, and a melodic tom borrows a
+ * bar row whatever it is made of.
+ */
+const BARS_OF: Partial<Record<InstrumentId, 'wood'>> = {
+  marimba: 'wood',
+  xylophone: 'wood',
+  balafon: 'wood',
+  woodblock: 'wood',
+};
+
+/**
  * The archetypes whose *geometry* moves with `SCALE_OF`, and one catalogue entry
  * per size they actually build.
  *
@@ -250,6 +285,10 @@ export function buildInstrumentFor(
   return trimRest(withSoundingContact(build({
     seed: rng.int(0, 0xffff),
     scale: (instrumentId ? SCALE_OF[instrumentId] : undefined) ?? 0.5,
+    // Metal unless the catalogue entry says otherwise; see `BARS_OF`. Spread
+    // rather than passed as a default so a model that has never heard of bars
+    // sees the field absent, which is what every other optional here does.
+    ...(instrumentId && BARS_OF[instrumentId] ? { bars: BARS_OF[instrumentId] } : {}),
     // A horn is held to a face, and this performer's face is where it is.
     height: performer.look.height,
     // And a drum is played from wherever this performer is sitting. The cast

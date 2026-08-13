@@ -1859,7 +1859,7 @@ function sidewaysTurn(archetype: Archetype): number {
      */
     case 'grand-piano': return 1.77;
     case 'organ': case 'electric-piano': case 'synth': return 0.45;
-    case 'mallets': case 'harp': return 0.3;
+    case 'mallets': case 'dulcimer': case 'harp': return 0.3;
     case 'upright-bass': return 0.2;
     default: return 0;
   }
@@ -3295,8 +3295,8 @@ export function castSong(song: Song, venue: Venue, seed: string): Cast {
  * and not one of them could reach over and start a sequencer:
  *
  *  - a **drummer** has the busiest hands on the stage and both feet as well;
- *  - a **harpist** has both hands in the strings and a **mallet** player a
- *    stick in each;
+ *  - a **harpist** has both hands in the strings, and a **mallet** player and a
+ *    **dulcimer** player a beater in each;
  *  - a **cellist** and an **upright bassist** have one hand stopping and one
  *    bowing or plucking, and letting go of either stops the note.
  *
@@ -3307,10 +3307,10 @@ export function castSong(song: Song, venue: Venue, seed: string): Cast {
  * Read twice, for two different questions. `canWorkAPanel` asks it about hands
  * that are going to be sent somewhere; `anybody` asks it again, further down,
  * about which player a box that *nobody* can work should at least be standing
- * beside. The five below are the wrong answer to both.
+ * beside. The six below are the wrong answer to both.
  */
 const BUSY_HANDS: Archetype[] = [
-  'drumkit', 'harp', 'mallets', 'cello', 'upright-bass',
+  'drumkit', 'harp', 'mallets', 'dulcimer', 'cello', 'upright-bass',
 ];
 
 /**

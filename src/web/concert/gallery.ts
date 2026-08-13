@@ -303,6 +303,40 @@ function entries(): Entry[] {
           });
         }
       }
+    } else if (id === 'dulcimer') {
+      /**
+       * Both heights, for the reason the hand drum has both: `ARCHETYPES.dulcimer`
+       * carries `lap`, so `postureFor` puts this player on a carpet in the two
+       * floor-seated traditions, and the model is not the same box moved down —
+       * it loses its trestle entirely and the courses come to 0.34 m. That is a
+       * branch a real stage reaches in arabic and indian, and it would otherwise
+       * ship without a screen ever showing it.
+       */
+      out.push({ id, label, archetype: id });
+      out.push({
+        id: 'dulcimer:floor', label: `${label}, on the floor`,
+        archetype: id, posture: 'floor',
+      });
+    } else if (id === 'mallets') {
+      /**
+       * Two objects, and deliberately not four.
+       *
+       * `BARS_OF` gives the marimba, the xylophone and the balafon the same
+       * answer, and this model reads only that answer — so three wooden rows
+       * would be one exhibit drawn three times and would say the bench had
+       * looked at three things it had not. That is the argument `SIZED_FAMILIES`
+       * makes about the viola, made here about the other axis. The day the model
+       * learns to stretch as well, the xylophone earns its own row and the note
+       * above it changes.
+       */
+      for (const instrument of ['vibraphone', 'marimba'] as const) {
+        out.push({
+          id: `${id}:${instrument}`,
+          label: INSTRUMENTS[instrument].name,
+          archetype: id,
+          instrument,
+        });
+      }
     } else if (SIZED_FAMILIES[id]) {
       // One exhibit per size the model actually builds. See `SIZED_FAMILIES`,
       // and note that the default member is a row here like any other — this

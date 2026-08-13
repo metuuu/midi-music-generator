@@ -2780,11 +2780,14 @@ class Runtime implements Animator {
    * `effector`
    * parameter at all — a drum is struck where it is struck, so they never
    * needed to — and answer `{kind:'rest'}` with one point for both hands. It is
-   * nine of the twenty-four now, and the fall is the wind and brass family
+   * ten of the twenty-five now, and the fall is the wind and brass family
    * growing a second answer rather than the count of models changing: drumkit,
-   * handdrum, grand-piano, electric-piano, organ, synth, mallets, singer and
-   * vocal-group are what is left, and every one of them is still the case this
-   * method was written for. The
+   * handdrum, grand-piano, electric-piano, organ, synth, mallets, dulcimer,
+   * singer and vocal-group are what is left, and every one of them is still the
+   * case this method was written for — the dulcimer most deliberately of all,
+   * since its two hammers work one small area of the board and the mean of what
+   * each has struck is a far better guess than any point this file could pick.
+   * The
    * second is subtler: even pushed apart, one point in front of a drum kit is
    * not where either hand belongs.
    *

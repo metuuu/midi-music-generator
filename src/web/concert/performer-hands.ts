@@ -423,6 +423,10 @@ export const DEFAULT_HAND_POSES: Record<Archetype, { left: HandPoseId; right: Ha
   violin: { left: 'spread', right: 'bowhold' },
   cello: { left: 'spread', right: 'bowhold' },
   mallets: { left: 'stick', right: 'stick' },
+  // Two spoon hammers, held the way two mallets are: a fist round a shaft with
+  // the working end well past it. The instrument under them is a different
+  // object; the hands are not.
+  dulcimer: { left: 'stick', right: 'stick' },
   /**
    * The blown family, which was six archetypes borrowing two shapes that
    * describe neither a horn nor a hand on one.
@@ -499,6 +503,18 @@ export type HeldImplement = 'drumstick' | 'mallet';
 export const IMPLEMENT_OF: Partial<Record<Archetype, HeldImplement>> = {
   drumkit: 'drumstick',
   mallets: 'mallet',
+  /**
+   * `mallet` rather than a third entry, and it is a compromise worth naming.
+   *
+   * A dulcimer hammer is a short cane shaft with a flat spoon on the end, not a
+   * rattan stick with a ball of yarn — closer to a drumstick in length and to a
+   * mallet in everything else, and the thing that actually decides it is that
+   * the head is soft and wide against the wire. What `IMPLEMENT_AIM` needs is a
+   * length, a fulcrum and a working end, and the mallet's three are the nearer
+   * pair by a wide margin. The spoon is a spec of its own on the day the shape
+   * of the head is what somebody is looking at.
+   */
+  dulcimer: 'mallet',
 };
 
 /**
