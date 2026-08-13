@@ -76,8 +76,24 @@ export function buildConcert(opts: ConcertOptions = {}): Concert {
    * programme that disagreed with the clock by a bar per number would be wrong
    * about the length of the evening.
    */
-  const songs = buildSetlist(resolved).map(withCountIn);
-  if (!songs.length) throw new Error('buildConcert: the setlist came back empty');
+  const allSongs = buildSetlist(resolved).map(withCountIn);
+  if (!allSongs.length) throw new Error('buildConcert: the setlist came back empty');
+
+  /**
+   * One number off the evening, kept as that number rather than renumbered.
+   *
+   * The setlist runs in full first so slot N still draws the key, length and
+   * seed it would have had in the shared show; only then is everything else
+   * dropped. `pieceAt` is the printed programme position and the `/${n}` on
+   * the cast seed — both have to stay, or a copied row would stage a different
+   * band in a different key under a bill that said "3".
+   */
+  let songs = allSongs;
+  let pieceAt: number | undefined;
+  if (!resolved.song && resolved.piece !== undefined) {
+    pieceAt = Math.max(1, Math.min(allSongs.length, Math.round(resolved.piece)));
+    songs = [allSongs[pieceAt - 1]!];
+  }
 
   // Every number shares a genre and an era — a band is one band on one night,
   // and the venue, the wardrobe and the programme's typography all have to
@@ -107,9 +123,12 @@ export function buildConcert(opts: ConcertOptions = {}): Concert {
     : genre;
   const venue = chooseVenue(genre, era, seed, roomGenre);
 
-  const numbers = songs.map((song, i) => buildNumber(song, venue, `${seed}/${i + 1}`));
+  const numbers = songs.map((song, i) => {
+    const n = pieceAt ?? i + 1;
+    return buildNumber(song, venue, `${seed}/${n}`);
+  });
 
-  return { seed, genre, era, year, venue, bill: buildBill(songs), numbers };
+  return { seed, genre, era, year, venue, bill: buildBill(songs, pieceAt), numbers };
 }
 
 function buildNumber(song: Song, venue: Venue, seed: string): ConcertNumber {

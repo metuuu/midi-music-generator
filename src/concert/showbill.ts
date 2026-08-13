@@ -81,7 +81,12 @@ const HOUSE_BLURB = 'a new one, and nobody has decided about it yet';
  * from. `npm run concert` asserts the durations against
  * `songDurationSeconds`, which is the only place the two could ever drift.
  */
-export function buildBill(songs: Song[]): BillEntry[] {
+/**
+ * @param pieceAt When the evening has been narrowed to one setlist slot, the
+ *   1-based programme number of that slot — so a bill for `piece=3` still
+ *   prints III, and a share link can name the same row again.
+ */
+export function buildBill(songs: Song[], pieceAt?: number): BillEntry[] {
   // Lines already spent. A bill that says "twelve bars, no further questions"
   // twice reads as a bug, and with at least eighteen lines per genre against
   // five numbers there is no reason to allow it.
@@ -99,13 +104,16 @@ export function buildBill(songs: Song[]): BillEntry[] {
   return songs.map((song, i) => {
     const sung = song.tracks.some((t) => t.layer === 'vocal' && t.notes.length > 0);
     return {
-      number: i + 1,
+      number: pieceAt ?? i + 1,
       title: song.meta.title,
       seconds: Math.round(songDurationSeconds(song)),
       styleLabel: shortStyle(song.meta.styleLabel),
       // The full era label, which the renderer reads and does not print: it
       // selects the paper and the face. See `web/concert/showbill.ts`.
       eraLabel: song.meta.eraLabel,
+      // Position in *this* bill, not the parent setlist: blurbs tagged `close`
+      // only fire on the last line of what is printed, and a one-number extract
+      // is a bill of one whether it was slot three of five or a soundcheck.
       blurb: chooseBlurb(song, i, songs.length, spent),
       sung,
     };

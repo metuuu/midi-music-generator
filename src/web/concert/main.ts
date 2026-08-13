@@ -90,7 +90,21 @@ function optionsFromUrl(): ConcertOptions {
     ...(policy ? { vocals: policy } : {}),
     ...(chaos ? { chaos } : {}),
   };
-  if (q.get('single') !== '1') return opts;
+  /**
+   * `piece=3` — just the third number of the evening named by the other params.
+   *
+   * Parsed only off the whole-show path: a `single=1` link already *is* one
+   * number, described by style and mood rather than by setlist position, and
+   * folding `piece` into it would invent a second meaning for the same flag.
+   */
+  const pieceRaw = q.get('piece');
+  const piece = pieceRaw && /^\d+$/.test(pieceRaw) ? Number(pieceRaw) : undefined;
+  if (q.get('single') !== '1') {
+    return {
+      ...opts,
+      ...(piece !== undefined && piece > 0 ? { piece } : {}),
+    };
+  }
 
   // Both level controls are validated against their own tables rather than
   // cast: a typo in a hand-edited URL should cost the default, not the stage.

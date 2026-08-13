@@ -10,10 +10,10 @@
  *    what starts the show — and, conveniently, the gesture Web Audio has been
  *    waiting for since the page loaded.
  *  - the **programme**, reachable at any point mid-show. It marks the number
- *    playing and how far through it is, and it carries the seed and the link to
- *    this evening. **The music does not stop.** It is an overlay, not a pause,
- *    and a programme you can open mid-show without the band noticing is a thing
- *    real theatres have.
+ *    playing and how far through it is, and it carries the seed, the link to
+ *    this evening, and a copy control on each row for that number alone. **The
+ *    music does not stop.** It is an overlay, not a pause, and a programme you
+ *    can open mid-show without the band noticing is a thing real theatres have.
  *
  * Which is why the paper never quite leaves: once the show has started, a
  * corner of it stays in the bottom of the frame — the **tab** — and touching it
@@ -216,11 +216,17 @@ export function renderBill(
 
   // --- The numbers -------------------------------------------------------
   const list = el('ol', 'bill__list');
-  const rows = bill.map((entry, i) => {
+  /**
+   * Per-row copy is for an evening the setlist drew. A `song`-staged bill is
+   * already one exact number from somewhere else (the radio), and a `piece=`
+   * link would point at a different piece under the same seed.
+   */
+  const canCopyPiece = !opts.song;
+  const rows = bill.map((entry) => {
     const li = el('li', 'bill__item');
     const meter = el('i', 'bill__meter');
     li.append(
-      text('span', 'bill__num', numeral(i + 1, house.numeral)),
+      text('span', 'bill__num', numeral(entry.number, house.numeral)),
       text('span', 'bill__title', entry.title),
       text('span', 'bill__time', billTime(entry.seconds)),
       text('span', 'bill__style', entry.styleLabel),
@@ -230,6 +236,25 @@ export function renderBill(
     // The singer is a fact about the evening — they walk on for this one and
     // off again after — so it is marked, once, quietly, and never explained.
     if (entry.sung) li.append(text('span', 'bill__sung', 'sung'));
+    if (canCopyPiece) {
+      const pieceCopy = el('button', 'bill__piece-copy');
+      pieceCopy.type = 'button';
+      pieceCopy.textContent = 'copy';
+      pieceCopy.setAttribute('aria-label', `Copy link to number ${entry.number}`);
+      // Same reason the imprint stops the bubble: a click on the opening bill
+      // is otherwise "begin", and a click on the programme sheet is fine but
+      // must not also be read as a click on the scrim behind it.
+      pieceCopy.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const link = pieceShareUrl(opts, house.genre, entry.number);
+        const done = (ok: boolean): void => {
+          pieceCopy.textContent = ok ? 'copied' : 'copy';
+          window.setTimeout(() => { pieceCopy.textContent = 'copy'; }, 1600);
+        };
+        navigator.clipboard?.writeText(link).then(() => done(true), () => done(false)) ?? done(false);
+      });
+      li.append(pieceCopy);
+    }
     list.append(li);
     return { li, meter };
   });
@@ -549,6 +574,9 @@ function foxing(rng: Rng): string {
  * when the caller set it, because an omitted spread means the same default at
  * both ends of the link and writing it out would pin today's 0.5 into every
  * share.
+ *
+ * `piece` is never written here. The imprint is the evening; a single number
+ * is copied from its own row via `pieceShareUrl`.
  */
 function shareUrl(opts: ConcertOptions, genre: string): string {
   const url = new URL(window.location.href);
@@ -563,6 +591,13 @@ function shareUrl(opts: ConcertOptions, genre: string): string {
     url.searchParams.set('chaos', opts.chaos.levels.join(','));
     if (opts.chaos.spread !== undefined) url.searchParams.set('spread', String(opts.chaos.spread));
   }
+  return url.toString();
+}
+
+/** The same evening, stopped at one programme number. */
+function pieceShareUrl(opts: ConcertOptions, genre: string, piece: number): string {
+  const url = new URL(shareUrl(opts, genre));
+  url.searchParams.set('piece', String(piece));
   return url.toString();
 }
 
@@ -863,6 +898,31 @@ const CSS = `
 }
 .bill__copy:hover { color: var(--ink); border-color: var(--accent); }
 
+/* A quieter twin of the imprint's copy: one number, not the evening. It sits
+   at the bottom-right of its row — under the duration, opposite the sung pill —
+   and stays off the paper until the row is hovered. Always-visible chrome on
+   every number reads as UI on a programme. */
+.bill__piece-copy {
+  position: absolute; right: .45em; bottom: .85em; z-index: 1;
+  font: inherit; font-size: .72em; letter-spacing: .04em; text-transform: none;
+  cursor: pointer; color: var(--ink-dim);
+  background: transparent; border: 1px solid var(--hair); border-radius: .21em;
+  padding: .15em .5em; margin: 0;
+  opacity: 0; pointer-events: none;
+  transition: opacity .08s ease;
+}
+.bill__item:hover .bill__piece-copy,
+.bill__item:focus-within .bill__piece-copy {
+  opacity: 1; pointer-events: auto;
+}
+.bill__piece-copy:hover { color: var(--ink); border-color: var(--accent); }
+/* Touch has no hover: keep the control findable without planting four buttons
+   in the eye. Dim until the row is focused or tapped into. */
+@media (hover: none) {
+  .bill__piece-copy { opacity: .4; pointer-events: auto; }
+  .bill__item:focus-within .bill__piece-copy { opacity: 1; }
+}
+
 /* --- Layout: the poster ------------------------------------------------- */
 /* A dance-pavilion bill is centred, symmetrical and shouts the title. The
    ornament between numbers is doing the job a rule would do on a card. */
@@ -1054,7 +1114,8 @@ const CSS = `
 /* A calmed camera and a calmed programme. The tilt is decoration and the
    transitions are decoration; neither survives being asked not to move. */
 @media (prefers-reduced-motion: reduce) {
-  .billhouse__scrim, .bill, .bill__meter, .bill__tab, .bill__item::before { transition: none; }
+  .billhouse__scrim, .bill, .bill__meter, .bill__tab, .bill__item::before,
+  .bill__piece-copy { transition: none; }
   .bill { transform: none; }
   /* The tick stays — it is the indicator, not the decoration. It just stops
      breathing and sits at the steady end of its own range. */

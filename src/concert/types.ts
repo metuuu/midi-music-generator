@@ -1469,6 +1469,19 @@ export interface ConcertOptions {
   /** How many numbers. 3–5 is a set; 1 is a soundcheck. */
   numbers?: number;
   /**
+   * Stage only this number from the evening, 1-based as printed on the bill.
+   *
+   * The setlist is still drawn in full — same styles, keys, lengths and seeds
+   * as the shared link without `piece` — and then every number but this one is
+   * dropped. That is what makes a programme row's "copy" exact: the third
+   * number of an evening is `${seed}/3` with the key and length the setlist
+   * chose for slot three, and regenerating it any other way would invent a
+   * different piece.
+   *
+   * Ignored when `song` is set. Out of range clamps to the set that was drawn.
+   */
+  piece?: number;
+  /**
    * Defaults to `mixed`, which is a *chance* per number rather than a quota:
    * each number is sung or not on its own, at a rate the genre sets, and most
    * of them are not. The other two settings override the draw outright. See
@@ -1488,8 +1501,8 @@ export interface ConcertOptions {
    * Two consequences worth stating, both of which follow from "exactly this":
    * there is no arc, because there is no second number for one to run through;
    * and `MIN_CONCERT_STRICTNESS` does not apply, because it is the setlist's
-   * floor for numbers the setlist chose. `numbers` and `vocals` are ignored —
-   * the song says how many (one) and whether it is sung.
+   * floor for numbers the setlist chose. `numbers`, `vocals` and `piece` are
+   * ignored — the song says how many (one) and whether it is sung.
    */
   song?: GenerateOptions;
   /**
