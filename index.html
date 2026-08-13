@@ -101,8 +101,75 @@
         display: flex; flex-wrap: wrap; gap: .85rem 2rem; align-items: flex-start;
         border-top: 1px solid var(--edge); padding-top: .8rem; margin-top: .1rem;
       }
-      .controls .span.chaos .mixing { min-width: 150px; }
-      .checks { display: flex; flex-wrap: wrap; gap: .1rem 1rem; padding-top: .15rem; }
+      .controls .span.chaos .mixing { min-width: 190px; }
+      /*
+        The slider was picking up the `select, input` rule above — a padded,
+        bordered text box with a native track sitting inside it. That is why it
+        came out in the browser's own accent instead of the panel's, and why it
+        never looked full: the padding inset the track, so a value of 100 left a
+        strip of unfilled bar past the thumb.
+
+        Styled explicitly instead. The fill is a gradient driven by `--fill`,
+        which `main.ts` sets from the value, because a native range gives no way
+        to paint the track up to the thumb — so at 100 the bar is 100% hot, which
+        is the one thing the control has to be able to say.
+      */
+      input[type="range"] {
+        -webkit-appearance: none; appearance: none;
+        width: 100%; height: 1.5rem; padding: 0; border: 0; background: transparent;
+        cursor: pointer;
+      }
+      input[type="range"]::-webkit-slider-runnable-track {
+        height: 6px; border-radius: 3px; border: 1px solid var(--edge);
+        background: linear-gradient(to right, var(--hot) var(--fill, 50%), #100d0c var(--fill, 50%));
+      }
+      input[type="range"]::-moz-range-track {
+        height: 6px; border-radius: 3px; border: 1px solid var(--edge);
+        background: linear-gradient(to right, var(--hot) var(--fill, 50%), #100d0c var(--fill, 50%));
+      }
+      input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none; appearance: none;
+        width: 14px; height: 14px; margin-top: -5px; border-radius: 50%;
+        background: var(--ink); border: 1px solid var(--edge);
+      }
+      input[type="range"]::-moz-range-thumb {
+        width: 14px; height: 14px; border-radius: 50%;
+        background: var(--ink); border: 1px solid var(--edge);
+      }
+      input[type="range"]:disabled { opacity: .4; cursor: not-allowed; }
+      input[type="range"]:hover:not(:disabled)::-webkit-slider-thumb { border-color: var(--hot); }
+      input[type="range"]:hover:not(:disabled)::-moz-range-thumb { border-color: var(--hot); }
+      /*
+        `full chaos` sits at the end of the boxes it sets, and borrows the layer
+        chips' shape rather than the buttons': it is the same kind of object —
+        a small thing that is either on or off and says which by its colour —
+        and the panel already taught that idiom two rows down.
+      */
+      button.chip {
+        /* Set like the boxes it belongs with — same size, same caps, same
+           tracking — so the row reads as one line of controls rather than a
+           label with a widget stuck on the end. */
+        font-size: .76rem; text-transform: uppercase; letter-spacing: .08em;
+        line-height: 1.35; padding: .16rem .55rem;
+        border-radius: 999px; width: auto;
+        /* Outline in the text's own colour rather than the panel's edge, so the
+           pill reads as one drawn shape instead of a label inside a box. */
+        border: 1px solid var(--dim); background: transparent; color: var(--dim);
+        cursor: pointer; font-family: inherit; margin-left: .2rem;
+      }
+      /* Filled when it is on, like `button.primary` — an outline says "you may
+         press this" and a fill says "this is what is happening", and the second
+         is what the chip is for. */
+      button.chip.on {
+        background: var(--hot); border-color: var(--hot); color: #17110a; font-weight: 600;
+      }
+      button.chip:hover { border-color: var(--hot); }
+      .checks { display: flex; flex-wrap: wrap; align-items: center; gap: .1rem 1rem; padding-top: .15rem; }
+      /* The global `label` rule gives every one of these a bottom margin, which
+         `align-items: center` cannot see past — it centres the boxes and leaves
+         the text sitting higher than the chip beside it. Dropped here so the row
+         lines up on its baseline. */
+      .checks .check { margin-bottom: 0; }
       /* Its own row: five boxes read as a set of choices, where five cells of a
          150px grid would read as five unrelated controls. */
       .span { grid-column: 1 / -1; }
@@ -165,14 +232,10 @@
           <div class="span chaos">
             <div>
               <label>Chaos — borrow from the other genres</label>
-              <div id="chaos" class="checks"></div>
-            </div>
-            <div class="mixing">
-              <label for="chaos-all">Everything</label>
-              <label class="check" title="Every kind at once, mixing at 100% — the most foreign band this host can field">
-                <input id="chaos-all" type="checkbox" />
-                <span>full chaos</span>
-              </label>
+              <div id="chaos" class="checks">
+                <button id="chaos-all" type="button" class="chip"
+                        title="Every kind at once, mixing at 100% — press again to clear">full chaos</button>
+              </div>
             </div>
             <div class="mixing">
               <label for="chaos-spread">Mixing</label>

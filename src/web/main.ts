@@ -43,7 +43,7 @@ const els = {
   seed: $<HTMLInputElement>('seed'),
   chaos: $<HTMLDivElement>('chaos'),
   chaosSpread: $<HTMLInputElement>('chaos-spread'),
-  chaosAll: $<HTMLInputElement>('chaos-all'),
+  chaosAll: $<HTMLButtonElement>('chaos-all'),
   vocals: $<HTMLSelectElement>('vocals'),
   play: $<HTMLButtonElement>('play'),
   next: $<HTMLButtonElement>('next'),
@@ -140,8 +140,12 @@ for (const [id, label, hint] of CHAOS_BOXES) {
   const text = document.createElement('span');
   text.textContent = label;
   wrap.append(box, text);
-  els.chaos.append(wrap);
+  // Before the `full chaos` chip, which is written into the container in the
+  // markup so it lands at the end of the row it sets rather than the start.
+  els.chaos.insertBefore(wrap, els.chaosAll);
 }
+
+paintSpread();
 
 /** Which kinds are ticked, in `CHAOS_LEVELS` order rather than DOM order. */
 function chosenLevels(): ChaosLevel[] {
@@ -151,25 +155,53 @@ function chosenLevels(): ChaosLevel[] {
 }
 
 /**
- * **Full chaos** — every kind at once, mixing at 100%.
+ * **Full chaos** — every kind at once, mixing at 100%, and off again.
  *
- * A shortcut rather than a mode, and the distinction is the whole design of it:
- * it ticks the boxes and pushes the slider, so what it asks for is visible in
- * the controls and can be nudged afterwards. A separate flag that meant
- * "everything" would be a seventh thing to keep in step with the six, and the
- * first time somebody added a kind it would quietly stop meaning everything.
+ * A chip rather than a checkbox or a plain button, because it is doing the job
+ * of both and the panel already has the idiom: the layer mutes two rows down are
+ * small things that are either on or off and say which by their colour. This is
+ * the same object. Pressing it when it is off sets everything; pressing it when
+ * it is on clears everything, which is the only sensible reading of pressing
+ * *full chaos* on a stage that is already in full chaos.
  *
- * It unticks itself the moment any box is cleared, for the same reason: the
- * boxes are the truth and this only ever agrees with them.
+ * **It holds no state of its own.** `isFullChaos` asks the controls, so the
+ * highlight is a rendering of them rather than a fourth thing that can disagree
+ * — untick one box and the chip goes out by itself. That is what a checkbox
+ * could not do without a flag to keep in step, and it is why this reads as one
+ * control rather than two.
+ *
+ * A shortcut rather than a mode, still: everything it asked for stays visible
+ * and nudgeable, so "everything, but leave the chords alone" is two clicks.
  */
-function setFullChaos(on: boolean): void {
-  for (const [id] of CHAOS_BOXES) $<HTMLInputElement>(`chaos-${id}`).checked = on;
-  if (on) els.chaosSpread.value = '100';
+function isFullChaos(): boolean {
+  return chosenLevels().length === CHAOS_BOXES.length && els.chaosSpread.value === '100';
 }
 
 function syncFullChaos(): void {
-  els.chaosAll.checked = chosenLevels().length === CHAOS_BOXES.length
-    && els.chaosSpread.value === '100';
+  els.chaosAll.classList.toggle('on', isFullChaos());
+}
+
+function toggleFullChaos(): void {
+  const on = isFullChaos();
+  for (const [id] of CHAOS_BOXES) $<HTMLInputElement>(`chaos-${id}`).checked = !on;
+  // Turning it on pushes the rate to the top; turning it off puts it back in the
+  // middle rather than leaving it at 100, which would be the one setting nobody
+  // asked for — every box clear and the slider still pinned, so the next box
+  // ticked would arrive at full strength.
+  els.chaosSpread.value = on ? '50' : '100';
+  paintSpread();
+}
+
+/**
+ * Paint the slider's track up to the thumb.
+ *
+ * A native range gives no way to fill the bar behind the thumb, so the CSS reads
+ * this custom property and the value has to be pushed into it whenever it moves.
+ * Without it the control could not show the one setting it most needs to — a
+ * mixing rate of 100 looked like a bar two thirds full.
+ */
+function paintSpread(): void {
+  els.chaosSpread.style.setProperty('--fill', `${els.chaosSpread.value}%`);
 }
 
 /**
@@ -509,14 +541,13 @@ function onChaosChange(): void {
   syncFullChaos();
   void regenerateSameSeed();
 }
-els.chaosSpread.onchange = () => {
-  syncFullChaos();
-  if (chosenLevels().length) void regenerateSameSeed();
-};
-els.chaosAll.onchange = () => {
-  setFullChaos(els.chaosAll.checked);
-  els.chaosSpread.disabled = chosenLevels().length === 0;
-  void regenerateSameSeed();
+// Painted on `input` and regenerated on `change`: the bar has to follow the
+// thumb while it is being dragged, and the song must not.
+els.chaosSpread.oninput = () => { paintSpread(); syncFullChaos(); };
+els.chaosSpread.onchange = () => { if (chosenLevels().length) void regenerateSameSeed(); };
+els.chaosAll.onclick = () => {
+  toggleFullChaos();
+  onChaosChange();
 };
 
 // The same seed, with and without the singer: `vocals` is documented as an A/B
