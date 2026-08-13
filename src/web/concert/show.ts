@@ -113,7 +113,8 @@ export interface ShowOptions {
    */
   debug?: boolean;
   /**
-   * Put the same man on stage nineteen times over — `?metu` on the page.
+   * Put the same man on stage nineteen times over — `?metu` or `?poppodi`
+   * on the page (both mean the same thing).
    *
    * The whole band in one face and one dark suit. See `asMetu`, which is where
    * the look is and where the argument for it is; this flag only says whether

@@ -122,9 +122,10 @@ function optionsFromUrl(): ConcertOptions {
  *
  * Two of them, and neither is in `ConcertOptions` or in `shareUrl`. Both are
  * about *this page* rather than about the show — `?debug` labels every player
- * with the part they are playing, and `?metu` dresses the whole band as one man
- * — so neither belongs in a link that means "the same show, for somebody else".
- * The seed still reproduces the concert; the flag is the reader's own.
+ * with the part they are playing, and `?metu` (or `?poppodi`, the same egg under
+ * another name) dresses the whole band as one man — so neither belongs in a
+ * link that means "the same show, for somebody else". The seed still reproduces
+ * the concert; the flag is the reader's own.
  */
 function flagFromUrl(key: string): boolean {
   const v = new URLSearchParams(location.search).get(key);
@@ -219,7 +220,7 @@ if (!canvas) {
     show = createShow({
       concert: optionsFromUrl(),
       debug: flagFromUrl('debug'),
-      metu: flagFromUrl('metu'),
+      metu: flagFromUrl('metu') || flagFromUrl('poppodi'),
       onState: onState,
     });
   } catch (err) {
