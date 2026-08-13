@@ -10,10 +10,10 @@
  *    what starts the show — and, conveniently, the gesture Web Audio has been
  *    waiting for since the page loaded.
  *  - the **programme**, reachable at any point mid-show. It marks the number
- *    playing and how far through it is, and it carries the seed, the share link
- *    and the instrumental-only switch. **The music does not stop.** It is an
- *    overlay, not a pause, and a programme you can open mid-show without the
- *    band noticing is a thing real theatres have.
+ *    playing and how far through it is, and it carries the seed and the link to
+ *    this evening. **The music does not stop.** It is an overlay, not a pause,
+ *    and a programme you can open mid-show without the band noticing is a thing
+ *    real theatres have.
  *
  * Which is why the paper never quite leaves: once the show has started, a
  * corner of it stays in the bottom of the frame — the **tab** — and touching it
@@ -44,13 +44,13 @@
  *
  * `renderBill()` returns a `BillView` and that is the entire surface. It never
  * touches the document on its own — the caller appends `view.el` — and it never
- * decides anything about the show. It reports clicks and option changes; the
- * state machine decides what they mean. See `BillView` for each method.
+ * decides anything about the show. It reports clicks; the state machine decides
+ * what they mean. See `BillView` for each method.
  */
 
 import { Rng } from '../../core/rng.js';
 import { billDuration, billHouse, billTime } from '../../concert/showbill.js';
-import type { BillEntry, ConcertOptions, Venue, VocalPolicy } from '../../concert/types.js';
+import type { BillEntry, ConcertOptions, Venue } from '../../concert/types.js';
 
 // ---------------------------------------------------------------------------
 // The public surface
@@ -128,16 +128,6 @@ export interface BillView {
   onDismiss(fn: () => void): void;
 
   /**
-   * The audience changed a switch on the programme.
-   *
-   * Reports the *whole* desired `ConcertOptions`, not a delta, because the only
-   * sane response to "instrumental only" is to rebuild the concert from the
-   * same seed — and the caller needs every field to do that. The bill does not
-   * rebuild itself; it waits to be re-rendered with the new one.
-   */
-  onOptions(fn: (next: ConcertOptions) => void): void;
-
-  /**
    * Bind `P` to toggle and `Escape` to close, on `window` by default.
    *
    * Offered rather than assumed: input routing belongs to the show runner, and
@@ -153,9 +143,9 @@ export interface BillView {
 /**
  * Print a bill.
  *
- * `opts` is the concert's own options and is used for three things: the seed
- * and the share link on the programme, the state of the instrumental switch,
- * and — when they are set — the genre and era that choose the house style.
+ * `opts` is the concert's own options and is used for two things: the seed and
+ * the link on the programme, and — when they are set — the genre and era that
+ * choose the house style.
  * When they are not set, the house is recovered from the bill's own era labels
  * by `billHouse`, so a bill printed from a random seed still knows what decade
  * it is from.
@@ -190,7 +180,7 @@ export function renderBill(
   const tab = el('button', 'bill__tab');
   tab.type = 'button';
   tab.setAttribute('aria-label', 'Open the programme');
-  tab.append(text('span', 'bill__tabword', 'programme'), text('kbd', 'bill__key', 'P'));
+  tab.append(text('span', 'bill__tabword', 'programme'));
   root.append(tab);
 
   const sheet = el('article', `bill bill--${house.layout} paper--${house.paper}`);
@@ -245,58 +235,53 @@ export function renderBill(
   });
   sheet.append(list);
 
-  const foot = el('footer', 'bill__foot');
-  foot.append(text('span', 'bill__total', `${bill.length} numbers · ${billTime(billDuration(bill))}`));
-  const cue = text('span', 'bill__cue', '');
-  foot.append(cue);
-  sheet.append(foot);
-
-  // --- Options -----------------------------------------------------------
+  // --- The imprint -------------------------------------------------------
   /**
-   * The show's controls live on the programme rather than in a HUD.
+   * The colophon: how long the evening is, which evening it is, and how to hand
+   * it to somebody else.
    *
-   * Two reasons and the second is the better one: the stage stays clean, and a
-   * programme is where a person already expects to find out what they are
-   * watching. Clicks inside this block never reach the start handler, or
-   * ticking "instrumental only" on the opening bill would also raise the
-   * curtain.
+   * The seed sits opposite the running time because that is where a printer
+   * puts the plate number — small, in the margin of the last rule — and the
+   * copy button sits against it because the seed is the thing it copies. Two
+   * halves of one sentence, printed as one.
+   *
+   * It is a button and not a link: a link to the show you are already watching
+   * is a link that reloads it, which is the one thing the audience did not ask
+   * for; what they want is the address in their clipboard. Clicks inside the
+   * imprint never reach the start handler, or copying the link off the opening
+   * bill would also raise the curtain.
    */
-  const optionsBox = el('div', 'bill__opts');
-  optionsBox.addEventListener('click', (e) => e.stopPropagation());
-
-  const vocalToggle = document.createElement('input');
-  vocalToggle.type = 'checkbox';
-  vocalToggle.id = `bill-instrumental-${Math.random().toString(36).slice(2, 8)}`;
-  vocalToggle.checked = opts.vocals === 'instrumental';
-  const vocalLabel = document.createElement('label');
-  vocalLabel.className = 'bill__switch';
-  vocalLabel.htmlFor = vocalToggle.id;
-  vocalLabel.append(vocalToggle, document.createTextNode('instrumental only'));
-
-  const link = document.createElement('a');
-  link.className = 'bill__link';
-  link.textContent = 'share this concert';
-  link.href = shareUrl(opts, house.genre);
-  link.rel = 'noopener';
+  const share = shareUrl(opts, house.genre);
 
   const copy = el('button', 'bill__copy');
   copy.type = 'button';
   copy.textContent = 'copy link';
 
-  optionsBox.append(
-    text('span', 'bill__seed', seed ? `seed ${seed}` : 'unseeded'),
-    vocalLabel,
-    link,
-    copy,
+  const imprint = el('div', 'bill__imprint');
+  imprint.addEventListener('click', (e) => e.stopPropagation());
+  imprint.append(text('span', 'bill__seed', seed ? `seed ${seed}` : 'unseeded'), copy);
+
+  const foot = el('footer', 'bill__foot');
+  foot.append(
+    text('span', 'bill__total', `${bill.length} numbers · ${billTime(billDuration(bill))}`),
+    imprint,
   );
-  sheet.append(optionsBox);
+  sheet.append(foot);
+
+  /**
+   * The one line on the paper that is not printed on it.
+   *
+   * "Click anywhere to begin" is an instruction to the audience, not part of
+   * the bill, so it goes where an usher's card goes: on its own, centred,
+   * under everything else, in the accent the house prints its ink in. It is
+   * last in the sheet because it is the last thing you should read.
+   */
+  const cue = text('div', 'bill__cue', '');
+  sheet.append(cue);
 
   // --- Behaviour ---------------------------------------------------------
   const starters: (() => void)[] = [];
   const dismissers: (() => void)[] = [];
-  const optioners: ((next: ConcertOptions) => void)[] = [];
-  /** So unticking the switch restores what the show was doing, not a guess. */
-  let lastSung: VocalPolicy = opts.vocals && opts.vocals !== 'instrumental' ? opts.vocals : 'mixed';
   let mode: BillMode = 'hidden';
   let markedAt = -1;
   let markedTo = -1;
@@ -395,23 +380,13 @@ export function renderBill(
   };
   tab.addEventListener('click', onTab);
 
-  const onVocals = (): void => {
-    const vocals: VocalPolicy = vocalToggle.checked ? 'instrumental' : lastSung;
-    if (!vocalToggle.checked) lastSung = vocals;
-    const next: ConcertOptions = { ...opts, vocals };
-    link.href = shareUrl(next, house.genre);
-    for (const fn of optioners) fn(next);
-  };
-  vocalToggle.addEventListener('change', onVocals);
-
   const onCopy = (): void => {
-    const url = link.href;
     const done = (ok: boolean): void => {
-      copy.textContent = ok ? 'copied' : url;
+      copy.textContent = ok ? 'copied' : share;
       window.setTimeout(() => { copy.textContent = 'copy link'; }, 1600);
     };
     // No clipboard permission, no problem: show the URL so it can be selected.
-    navigator.clipboard?.writeText(url).then(() => done(true), () => done(false)) ?? done(false);
+    navigator.clipboard?.writeText(share).then(() => done(true), () => done(false)) ?? done(false);
   };
   copy.addEventListener('click', onCopy);
 
@@ -451,7 +426,6 @@ export function renderBill(
     },
     onStart: (fn) => { starters.push(fn); },
     onDismiss: (fn) => { dismissers.push(fn); },
-    onOptions: (fn) => { optioners.push(fn); },
     bindKeys(target = window) {
       unbind?.();
       const onKey = (e: Event): void => {
@@ -480,9 +454,8 @@ export function renderBill(
       root.removeEventListener('click', onRootClick);
       close.removeEventListener('click', onClose);
       tab.removeEventListener('click', onTab);
-      vocalToggle.removeEventListener('change', onVocals);
       copy.removeEventListener('click', onCopy);
-      starters.length = dismissers.length = optioners.length = 0;
+      starters.length = dismissers.length = 0;
       root.remove();
     },
   };
@@ -642,8 +615,13 @@ const CSS = `
   display: flex; align-items: center; justify-content: center;
   /* vmin rather than vw: on a wide monitor the margin that runs out first is
      the one above and below the paper, and 3vw of a 32:9 screen is a hand's
-     width of nothing on each side while the sheet is overflowing vertically. */
-  padding: clamp(.5rem, 2.4vmin, 2.5rem);
+     width of nothing on each side while the sheet is overflowing vertically.
+     Named, because the corner in the bottom right has to undo it: an absolute
+     child is placed against the padding box, and a corner "flush with the
+     frame" that is actually inset by a margin nobody can see would show a
+     different amount of itself on every screen size. */
+  --pad: clamp(.5rem, 2.4vmin, 2.5rem);
+  padding: var(--pad);
   cursor: pointer;
 }
 /* Down, not gone. The root stays in the page to carry the tab, so everywhere
@@ -654,37 +632,56 @@ const CSS = `
 .billhouse[data-mode="hidden"] .bill { display: none; }
 
 /* --- The tab -------------------------------------------------------------- */
-/* A corner of the programme, resting in the bottom of the frame the way it
-   rests on your knee: the same stock, the same ink, slightly askew, and lifting
-   towards the hand that reaches for it. It is deliberately the only piece of
-   furniture the show puts on top of the picture, so it is small, it is quiet,
-   and it is on the side away from the exit link.
+/* Not a tab: a corner of the programme itself, slid half out of the bottom
+   right of the frame the way it slides off your knee. The whole sheet is there
+   — same stock, same ink, a few degrees askew — and two of its edges are off
+   the screen, so what you see is a corner and the word printed on it. Reaching
+   for it pulls it a little further into the room.
+
+   It is the only piece of furniture the show puts on top of the picture, so it
+   sits in the corner away from the exit link, carries one word, and stays quiet
+   until looked at: a hairline of a shadow to lift it off the stage, and nothing
+   else printed on it.
 
    Sized in \`rem\`, alone on the sheet: everything else scales with \`--fit\`,
-   which is a measurement of the paper, and the tab is not on the paper. */
+   which is a measurement of the paper, and this corner is not on the paper. */
 .bill__tab {
   position: absolute; display: none; pointer-events: auto;
-  right: max(1rem, env(safe-area-inset-right, 0px));
-  bottom: max(1rem, env(safe-area-inset-bottom, 0px));
-  align-items: center; gap: .7em;
-  padding: .62em .9em .58em; border: 0; border-top: 2px solid var(--accent);
-  font-family: var(--face); font-size: .68rem; line-height: 1;
-  letter-spacing: .22em; text-transform: uppercase;
+  /* How much of the sheet is off the screen, said in the offsets rather than in
+     a transform: undo the root's padding, then push past the frame by 1.5rem
+     across and 2.5rem down. What is left is a band of stock a little larger
+     than the word printed on it, which is the whole of what this has to be —
+     enough paper to read PROGRAMME off, and not a scrap more taken from the
+     stage. It was a \`translate\` first and that was a trap: a translation after
+     a rotation runs along the rotated axes, so the numbers in it are not the
+     gap they produce, and the word ended up below the bottom of the screen. */
+  right: calc(env(safe-area-inset-right, 0px) - var(--pad) - 1.5rem);
+  bottom: calc(env(safe-area-inset-bottom, 0px) - var(--pad) - 2.5rem);
+  width: 12.5rem; height: 6rem; padding: 1rem 0 0 1.45rem;
+  /* Flex, and not for layout: a \`button\` centres its own content in its box
+     whatever the padding says, and the word has to sit at the top left of the
+     sheet — the part of it that is on screen. */
+  align-items: flex-start; justify-content: flex-start;
+  border: 0; text-align: left;
+  /* The title face at the title's weight: this word is the heading of the sheet
+     it is a corner of, and setting it in the text face made it read as a label
+     stuck on the paper rather than something printed with it. */
+  font-family: var(--display); font-weight: var(--display-weight);
+  font-size: .72rem; line-height: 1;
+  letter-spacing: .24em; text-transform: uppercase;
   color: var(--ink-dim); background: var(--stock); cursor: pointer;
-  box-shadow: 0 .6em 1.6em rgba(0, 0, 0, .5);
-  transform: rotate(-1.1deg) translateY(.4em);
-  transition: transform .25s ease, color .25s ease;
+  box-shadow: -.05rem -.15rem .9rem rgba(0, 0, 0, .28);
+  /* Tilted about the corner it is leaving through, and clockwise: the far edge
+     rises into the room, which is what opens the wedge. Anticlockwise drops it
+     back towards the frame and takes the visible band with it. */
+  transform-origin: 100% 100%;
+  transform: rotate(5deg);
+  transition: transform .28s ease, color .28s ease;
 }
-.billhouse.is-begun[data-mode="hidden"] .bill__tab { display: inline-flex; }
+.billhouse.is-begun[data-mode="hidden"] .bill__tab { display: flex; }
 .bill__tab:hover, .bill__tab:focus-visible {
-  color: var(--ink); transform: rotate(-1.1deg) translateY(0);
+  color: var(--ink); transform: rotate(5deg) translate(-.5rem, -.7rem);
 }
-.bill__key {
-  font-family: var(--mono); font-size: .92em; letter-spacing: 0;
-  padding: .1em .4em; border: 1px solid var(--hair); border-radius: .2em;
-}
-/* No keyboard, no key. A hint you cannot act on is just noise in the corner. */
-@media (hover: none) { .bill__key { display: none; } }
 
 .billhouse__scrim {
   position: absolute; inset: 0; background: rgba(6, 4, 3, 0);
@@ -799,30 +796,64 @@ const CSS = `
 .bill__item.is-playing::before { opacity: .8; animation: bill-breathe 2.8s ease-in-out infinite; }
 @keyframes bill-breathe { 50% { opacity: .3; } }
 
+/* Baseline, not stretch and not centre. Left to itself the running time hangs
+   from the top of a row whose height is set by a button, which is taller than
+   type; centring the boxes instead puts it two pixels low, because the seed
+   beside it is set in mono and a mono face does not divide its line the way a
+   text face does. Two words on one line look level when they sit on one
+   baseline, so that is what they are given.
+
+   The gap is the distance the two ends keep when the sheet is narrow enough to
+   bring them together — at that point they are one line of small caps running
+   into another, and they need more air between them than a word space. */
 .bill__foot {
   margin-top: 2.35em; padding-top: 1.03em; border-top: 1px solid var(--hair);
-  display: flex; justify-content: space-between; gap: 1.47em; flex-wrap: wrap;
+  display: flex; justify-content: space-between; align-items: baseline;
+  gap: .6em 2.6em; flex-wrap: wrap;
   font-size: .68em; letter-spacing: .1em; text-transform: uppercase;
   color: var(--ink-dim);
 }
-.bill__cue { color: var(--accent); }
+/* The plate number in the margin. Mono, and never uppercased: a seed is a
+   string somebody may read off the paper and type back in, and shouting it
+   would change what it says. */
+.bill__seed { font-family: var(--mono); text-transform: none; letter-spacing: .04em; }
 
-.bill__opts {
-  margin-top: 1.25em; padding-top: 1.11em; border-top: 1px dashed var(--hair);
-  display: none; align-items: center; gap: .7em 1.39em; flex-wrap: wrap;
-  font-size: .72em; color: var(--ink-dim); cursor: default;
+/* The usher's line. Centred under everything, on its own, in the house ink,
+   under the dashed rule that used to sit over the controls — the instruction is
+   not part of the bill and the rule is what says so.
+
+   The colophon sits between two rules and sits between them evenly. Both
+   elements are set at the same size, so the same number would be the same
+   distance — but the foot's 1.03em is measured from the far side of its own
+   rule, and the ink is what a reader compares, so this is that 1.03em plus the
+   hairline and the sliver of line box the other gap gets for free. Measured,
+   not guessed: 12.3px of stage above the row and 12.3 below. */
+.bill__cue {
+  margin-top: 1.3em; padding-top: 1.6em; border-top: 1px dashed var(--hair);
+  text-align: center;
+  font-size: .68em; letter-spacing: .18em; text-transform: uppercase;
+  color: var(--accent);
 }
-.billhouse[data-mode="programme"] .bill__opts { display: flex; }
-/* Worth having on the opening bill too: choosing instrumental-only before the
-   curtain goes up is a legitimate thing to want, and the share link is most
-   useful pointing at a show you have not spoiled for yourself yet. */
-.billhouse[data-mode="opening"] .bill__opts { display: flex; }
-.bill__seed { font-family: var(--mono); }
-.bill__switch { display: inline-flex; align-items: center; gap: .49em; cursor: pointer; }
-.bill__switch input { accent-color: var(--accent); margin: 0; cursor: pointer; }
-.bill__link { color: var(--accent); text-decoration: none; border-bottom: 1px solid currentColor; }
+.bill__cue:empty { display: none; }
+
+/* The seed and the button that copies it, set as one item so the foot's
+   \`space-between\` puts the pair against the right margin and the running time
+   against the left, rather than spreading three things across the page. */
+/* Baseline inside as well as outside, and that is load-bearing rather than
+   tidy: a flex container hands its parent the baseline of its first item, and
+   only if that item is baseline-aligned itself — centre the contents and the
+   box has no baseline to give, so the foot falls back to the imprint's bottom
+   edge and drops the running time a line-descent below the seed. */
+.bill__imprint {
+  display: inline-flex; align-items: baseline; gap: .9em;
+  cursor: default;
+}
+/* Not uppercased, for the same reason the seed is not: when the clipboard is
+   refused this button prints the URL itself, and a shouted address reads as a
+   broken one. */
 .bill__copy {
-  font: inherit; cursor: pointer; color: var(--ink-dim);
+  font: inherit; text-transform: none; letter-spacing: .02em;
+  cursor: pointer; color: var(--ink-dim);
   background: transparent; border: 1px solid var(--hair); border-radius: .21em;
   padding: .21em .63em;
 }
@@ -1003,28 +1034,18 @@ const CSS = `
   --title-size: 1.1em; --title-track: .06em; --title-case: lowercase;
 }
 
-/* --- A wide monitor gets a spread ---------------------------------------- */
-/* On a 21:9 the sheet was a narrow column with two thousand pixels of nothing
-   either side of it and its own foot below the fold — short of the one
-   dimension it had none of, drowning in the one it had plenty of. A programme
-   printed for a landscape sheet does the obvious thing and sets the numbers in
-   two columns, which is a centre spread and halves the height, so the fit below
-   rarely has to shrink anything at all.
+/* --- One column, always -------------------------------------------------- */
+/* A wide monitor used to get a centre spread: two columns of numbers, which
+   halved the height and kept the foot above the fold. It was the tidier
+   arrangement and the wrong one. A bill is a list you read straight down, and
+   the moment it breaks in the middle the reader has to find where it went — on
+   a programme that is also marking, in the margin, which number is playing, the
+   mark can be halfway up the far side of the sheet with a header between it and
+   the eye.
 
-   Column-major rather than a two-across grid: a programme is read down one
-   column and then down the next, and 1-2 / 3-4 is a table of contents. */
-@media (min-aspect-ratio: 16 / 9) and (min-width: 60rem) {
-  .bill { width: min(58em, 100%); }
-  .bill__list { columns: 2; column-gap: 3em; }
-  .bill__item { break-inside: avoid; }
-  /* The rules between numbers are written with \`+\`, which cannot see a column
-     break: the second column starts with a rule over it and the first does not,
-     and one hairline out of alignment is exactly the sort of thing that makes a
-     careful layout look careless. Rule the first number too and both columns
-     open the same way — which, under a header, is what a rule is for anyway. */
-  .bill--poster .bill__item:first-child,
-  .bill--card .bill__item:first-child { border-top: 1px solid var(--hair); }
-}
+   So the numbers run top to bottom whatever shape the window is. When the list
+   is longer than the screen the paper shrinks to fit, and past \`MIN_FIT\` it
+   scrolls, which is what one does with a long programme. */
 
 /* A calmed camera and a calmed programme. The tilt is decoration and the
    transitions are decoration; neither survives being asked not to move. */
