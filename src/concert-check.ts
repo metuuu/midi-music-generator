@@ -20,7 +20,7 @@
  */
 
 import { quantise } from './core/grid.js';
-import { isPlayedByHand, type DrumVoice } from './core/types.js';
+import { DRUM_MACHINES, SEQUENCERS, isPlayedByHand, type DrumVoice } from './core/types.js';
 import { readBankName } from './render/drum-banks.js';
 import { generateSong } from './generate/song.js';
 import { GENRE_IDS, getGenre } from './genre/index.js';
@@ -67,6 +67,38 @@ const check = (label: string, pass: boolean, detail: string) => {
   console.log(`  ${pass ? 'ok  ' : 'FAIL'}  ${label.padEnd(46)} ${detail}`);
   if (!pass) problems.push(label);
 };
+
+/**
+ * A check whose subject is switched off — reported, and counted as neither.
+ *
+ * The same third answer `genre-check.ts` gives its preset-box checks, for the
+ * same reason and with the same spelling. Twelve of the assertions below are
+ * about machines, and no machine is staged: `DRUM_MACHINES` and `SEQUENCERS`
+ * are both off, so `cast.machines` is empty everywhere and the loops that fill
+ * `mimed`, `askew`, `idle` and the rest walk over nothing. Both of the answers
+ * a boolean can give are lies — a red tick for a fault nobody introduced, or a
+ * green one for evidence nobody gathered — and a green tick that measured
+ * nothing is the worse of the two, because it is read as proof.
+ *
+ * The argument is a *reason the subject cannot occur*, never a result: the
+ * assertion is deleted from this run rather than evaluated leniently. Each call
+ * site tests the gate that is actually responsible, so flipping either flag in
+ * `core/types.ts` back to `true` brings its checks back with their teeth and
+ * nothing else has to be remembered to bring them.
+ */
+const off = (label: string, reason: string) => {
+  console.log(`  off   ${label.padEnd(46)} ${reason}`);
+};
+
+/** Why the drum-machine checks have nothing to look at. Said eight times. */
+const NO_BOXES = 'no drum machine is staged — DRUM_MACHINES is off';
+/** And the sequencer ones. Said twice. */
+const NO_SEQUENCERS = 'no sequencer is staged — SEQUENCERS is off';
+/**
+ * And the two that count *any* machine, so both gates have to be shut for them
+ * to have nothing — either flag alone puts a box on the boards for them.
+ */
+const NO_MACHINES = 'nothing plays without hands — DRUM_MACHINES and SEQUENCERS are both off';
 
 // --- The archetype table must be total -----------------------------------
 //
@@ -1018,32 +1050,54 @@ check('no genre sings more often than not', loudGenres.length === 0,
       }
     }
   }
-  check('a machine is never mimed by a drummer', mimed === 0,
-    mimed ? `${mimed} of ${machines}: ${notes.join('; ')}` : `${machines} machine numbers, ${handPlayed} played by hand`);
-  check('a machine is somewhere the audience can see it', unexplained === 0 && offStage === 0,
-    unexplained || offStage
-      ? `${unexplained} unplaced, ${offStage} off the boards: ${notes.join('; ')}`
-      : `${machines} placed on the boards`);
-  check('a machine does not count the band in', counted === 0,
-    counted ? `${counted} of ${machines} have lead-in bars` : `${machines} start on bar one`);
-  check('a machine is within reach of somebody', untended === 0 && adrift === 0,
-    untended || adrift
-      ? `${untended} untended, ${adrift} out of reach: ${notes.join('; ')}`
-      : `${machines} within ${MACHINE_REACH} m of the player who works them`);
-  check('a machine stands at the player\'s right hand', overKeys === 0 && floating === 0,
-    overKeys || floating
-      ? `${overKeys} over the keys, ${floating} off the deck: ${notes.join('; ')}`
-      : `${onTheRight} at their right hand, ${onTheLeft} pushed to their left`);
-  check('a machine bay only goes in a rig that has one', miscased === 0,
-    miscased ? `${miscased} misrouted: ${notes.join('; ')}`
-      : `${bays} in a modular, ${mounted} on a stand`);
-  check('a machine\'s panel faces the player who works it', askew === 0,
-    askew ? `${askew} pointed somewhere else: ${notes.join('; ')}`
-      : `${mounted} panels, worst ${(worstAim * 180 / Math.PI).toFixed(1)}° off`);
-  check('no two machines stand in one place', doubled === 0 && piled === 0,
-    doubled || piled
-      ? `${doubled} players minding two, ${piled} pairs within ${MACHINE_APART} m: ${notes.join('; ')}`
-      : `${machines} machine numbers, one box per pair of hands`);
+  /**
+   * All eight are about a number the machines play, and `isPlayedByHand` is
+   * true of every source with `DRUM_MACHINES` off — so the loop above `continue`s
+   * past every number in the corpus and `machines` is 0 by construction, not by
+   * measurement. `SEQUENCERS` cannot rescue them: a sequenced *pitched* track
+   * never makes it past that first test, whatever it does to `cast.machines`.
+   */
+  if (!DRUM_MACHINES) {
+    off('a machine is never mimed by a drummer', NO_BOXES);
+    off('a machine is somewhere the audience can see it', NO_BOXES);
+    off('a machine does not count the band in', NO_BOXES);
+    off('a machine is within reach of somebody', NO_BOXES);
+    off('a machine stands at the player\'s right hand', NO_BOXES);
+    off('a machine bay only goes in a rig that has one', NO_BOXES);
+    off('a machine\'s panel faces the player who works it', NO_BOXES);
+    off('no two machines stand in one place', NO_BOXES);
+  } else {
+    check('a machine is never mimed by a drummer', mimed === 0 && machines > 0,
+      mimed ? `${mimed} of ${machines}: ${notes.join('; ')}` : `${machines} machine numbers, ${handPlayed} played by hand`);
+    check('a machine is somewhere the audience can see it',
+      unexplained === 0 && offStage === 0 && machines > 0,
+      unexplained || offStage
+        ? `${unexplained} unplaced, ${offStage} off the boards: ${notes.join('; ')}`
+        : `${machines} placed on the boards`);
+    check('a machine does not count the band in', counted === 0 && machines > 0,
+      counted ? `${counted} of ${machines} have lead-in bars` : `${machines} start on bar one`);
+    check('a machine is within reach of somebody',
+      untended === 0 && adrift === 0 && machines > 0,
+      untended || adrift
+        ? `${untended} untended, ${adrift} out of reach: ${notes.join('; ')}`
+        : `${machines} within ${MACHINE_REACH} m of the player who works them`);
+    check('a machine stands at the player\'s right hand',
+      overKeys === 0 && floating === 0 && onTheRight + onTheLeft > 0,
+      overKeys || floating
+        ? `${overKeys} over the keys, ${floating} off the deck: ${notes.join('; ')}`
+        : `${onTheRight} at their right hand, ${onTheLeft} pushed to their left`);
+    check('a machine bay only goes in a rig that has one', miscased === 0 && bays + mounted > 0,
+      miscased ? `${miscased} misrouted: ${notes.join('; ')}`
+        : `${bays} in a modular, ${mounted} on a stand`);
+    check('a machine\'s panel faces the player who works it', askew === 0 && mounted > 0,
+      askew ? `${askew} pointed somewhere else: ${notes.join('; ')}`
+        : `${mounted} panels, worst ${(worstAim * 180 / Math.PI).toFixed(1)}° off`);
+    check('no two machines stand in one place',
+      doubled === 0 && piled === 0 && machines > 0,
+      doubled || piled
+        ? `${doubled} players minding two, ${piled} pairs within ${MACHINE_APART} m: ${notes.join('; ')}`
+        : `${machines} machine numbers, one box per pair of hands`);
+  }
 }
 
 /**
@@ -1469,23 +1523,61 @@ check('no genre sings more often than not', loudGenres.length === 0,
       }
     }
   }
-  check('nobody is staged playing a part a machine is playing', ghosts === 0,
-    ghosts ? `${ghosts}: ${notes.join('; ')}` : `${sequencers} sequencers, no ghost players`);
+  /**
+   * Two of the four here are sequencer questions and two are machine questions,
+   * and the gates they hang off differ accordingly.
+   *
+   * `ghosts` is counted off `machined`, which is built from `Track.machine` —
+   * pitched figures only, so `SEQUENCERS` alone decides whether it can ever be
+   * anything but empty; a drum machine is not in `song.tracks` at all. The
+   * sequencer host question is `m.kind === 'sequencer'` on its face. But `idle`
+   * and `lateEntries` walk `cast.machines` whole, boxes and sequencers alike,
+   * so either flag on its own stands machines in front of them — what the
+   * late-entry one then finds there is its own note, below.
+   */
+  if (!SEQUENCERS) {
+    off('nobody is staged playing a part a machine is playing', NO_SEQUENCERS);
+  } else {
+    check('nobody is staged playing a part a machine is playing', ghosts === 0 && sequencers > 0,
+      ghosts ? `${ghosts}: ${notes.join('; ')}` : `${sequencers} sequencers, no ghost players`);
+  }
   check('nobody is staged with nothing to play', silent === 0,
     silent ? `${silent} of ${players}: ${notes.join('; ')}`
       : `${players} players, every one with notes of their own`);
-  check('every machine somebody minds is worked by hand', idle === 0,
-    idle ? `${idle} of ${boxes} never touched: ${notes.join('; ')}`
-      : `${boxes} minded machines, every one with a hand on it`);
-  check('a machine that enters mid-number is visibly started', lateSilent === 0,
-    lateSilent
-      ? `${lateSilent} of ${lateEntries} enter with nobody touching them: ${notes.join('; ')}`
-      : `${lateEntries} entries, every one with a hand on the panel first`);
-  check('every sequencer has someone who could work it',
-    hostless === 0 && busyHost === 0,
-    hostless || busyHost
-      ? `${hostless} hostless, ${busyHost} on hands that are full: ${notes.join('; ')}`
-      : `${sequencers} hosted, ${bays} of them as a module in a modular`);
+  if (!DRUM_MACHINES && !SEQUENCERS) {
+    off('every machine somebody minds is worked by hand', NO_MACHINES);
+    off('a machine that enters mid-number is visibly started', NO_MACHINES);
+  } else {
+    check('every machine somebody minds is worked by hand', idle === 0 && boxes > 0,
+      idle ? `${idle} of ${boxes} never touched: ${notes.join('; ')}`
+        : `${boxes} minded machines, every one with a hand on it`);
+    /**
+     * The one machine check with no non-empty clause on it, and deliberately.
+     *
+     * Every sibling here ends in `> 0` so a sample of nothing cannot read as a
+     * pass, but `lateEntries` is the wrong quantity to demand that of: with
+     * `DRUM_MACHINES` on and `SEQUENCERS` off the corpus holds 78 machine
+     * numbers and *no* late entry at all, because a drum machine's figure is
+     * `song.drums.events` and the percussion is running from bar one — the same
+     * fact `a machine does not count the band in` asserts from the other side.
+     * All 22 late entries with both gates open are sequencers. Demanding one
+     * would fail a configuration where nothing is wrong, and gating this on
+     * `SEQUENCERS` alone would hide it the day a drum machine does come in
+     * late. The count is in the detail line either way.
+     */
+    check('a machine that enters mid-number is visibly started', lateSilent === 0,
+      lateSilent
+        ? `${lateSilent} of ${lateEntries} enter with nobody touching them: ${notes.join('; ')}`
+        : `${lateEntries} entries, every one with a hand on the panel first`);
+  }
+  if (!SEQUENCERS) off('every sequencer has someone who could work it', NO_SEQUENCERS);
+  else {
+    check('every sequencer has someone who could work it',
+      hostless === 0 && busyHost === 0 && sequencers > 0,
+      hostless || busyHost
+        ? `${hostless} hostless, ${busyHost} on hands that are full: ${notes.join('; ')}`
+        : `${sequencers} hosted, ${bays} of them as a module in a modular`);
+  }
 }
 
 /**
