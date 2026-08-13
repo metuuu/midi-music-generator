@@ -73,8 +73,8 @@
  * room that names both this and `low-ceiling` is describing a contradiction that
  * only the room can settle". This is the settlement, and it is forced rather
  * than chosen: `stage-props.ts` draws a limewashed lid at `houseY + LOW_CEILING`
- * and a soffit at `STAGE_SOFFIT` whenever that prop is named, whatever this file
- * publishes, and both of them are `DoubleSide` planes spanning the entire room.
+ * whenever that prop is named, whatever this file publishes, and it is one
+ * `DoubleSide` plane spanning the entire room.
  * A pitched roof 6 m up behind a flat ceiling 3.6 m up is two buildings, and the
  * one you can see is the wrong one. So on those seeds the barn takes the lid it
  * has been given: the log walls run up past it, the roof is not built at all —
@@ -133,7 +133,7 @@ import {
 import type { Rng } from '../../../core/rng.js';
 import {
   blend, cellPlane, hueShift, shade, tint,
-  LOW_CEILING, STAGE_SOFFIT,
+  LOW_CEILING,
 } from '../stage-kit.js';
 import {
   noCurtain, type RoomBuilder, type RoomContext, type RoomDatum, type RoomRig,
@@ -335,11 +335,11 @@ function barn(d: RoomDatum): Barn {
 function shape(d: RoomDatum): RoomShape {
   const b = barn(d);
   /**
-   * Over the boards there is a roof, unless there is a soffit under it, and
-   * then there is a soffit — `STAGE_SOFFIT` is where `stage-props.ts` draws one
-   * and a camera solved against anything higher is a camera through a ceiling.
+   * Over the boards there is a roof, unless there is plaster under it, and then
+   * there is plaster — `Barn.soffit` already answers both, because boarded over
+   * it collapses to the one lid `stage-props.ts` draws across the whole room.
    */
-  const headroom = b.lowCeiling ? STAGE_SOFFIT : b.soffit;
+  const headroom = b.soffit;
   return {
     rise: RIIHI_RISE,
     /**
@@ -377,12 +377,13 @@ function shape(d: RoomDatum): RoomShape {
      *
      * Half a metre under the roof is where you nail a pole up in a barn — high
      * enough that the pars on it clear `HEAD_BAND.hi` by nearly two thirds of a
-     * metre, low enough to reach off a ladder. Boarded over, the same expression
-     * lands on `STAGE_SOFFIT - 0.13`, which is the cellar's answer to the same
-     * question arrived at from the other side: there is no flying where there is
-     * a ceiling, so the bar goes a handspan under it. Taking the lower of the two
-     * rather than branching means a room that grows a lid can never leave its
-     * lamps inside the plaster, which is the bug `flyY` was written after.
+     * metre, low enough to reach off a ladder. Boarded over, both terms measure
+     * the same plane — the prop's plaster is the soffit and the `headroom` — so
+     * the half-metre wins and the pole hangs 2.80 m over the boards, lower than
+     * the cellar's own handspan-under-the-lid answer to the same question rather
+     * than equal to it. Taking the lower of the two rather than branching means a
+     * room that grows a lid can never leave its lamps inside the plaster, which
+     * is the bug `flyY` was written after.
      */
     flyY: Math.min(b.soffit - 0.5, headroom - 0.13),
     headroom,

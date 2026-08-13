@@ -60,12 +60,14 @@
  * the one to watch, because `Station.riser` says a performer is
  * standing on a platform and this places one. Its top is at **0.4 m**, centred
  * at **(0, -1.15 m upstage of centre)**, 2.8 m wide by 2.0 m deep. Only the
- * width holds: `riserFootprint` clamps at `min(2.8, width * 0.32)` and every
- * one of the catalogue's 72 dressings is wide enough, but the depth is
+ * width holds: the clamp is `min(2.8, width * 0.32)` and every one of the
+ * catalogue's 72 dressings is wide enough, but the depth is
  * `min(2.0, depth * 0.3)` and reaches the clamp in exactly half of them,
  * bottoming out at 1.41 m in house's `afterhours`. The z follows the depth off
  * `backZ + d / 2 + 0.45` and runs from −1.195 to −2.550; no venue produces
- * −1.15. Ask `riserFootprint` rather than this paragraph.
+ * −1.15. Ask `riserFootprint` rather than this paragraph — and ask it in
+ * `concert/venue.ts`, which is where it moved when `cast.ts` turned out to need
+ * the same answer and to be forbidden from importing this file to get it.
  *
  * ## Where props are allowed to *hang*
  *
@@ -119,11 +121,11 @@ import {
 
 import { Rng } from '../../core/rng.js';
 import type { Venue } from '../../concert/types.js';
-import { PROPS, type PropName } from '../../concert/venue.js';
+import { PROPS, riserFootprint, type PropName } from '../../concert/venue.js';
 import { rowGap, SEAT_Y } from './stage-audience.js';
 import {
   blend, cellPlane, HEAD_BAND, houseLid, hueShift, LENS_GAP, LOW_CEILING, playingArea, sagLine,
-  shade, STAGE_SOFFIT, tint,
+  shade, tint,
   type Kit, type PlayingArea, type Quality, type StageMetrics,
 } from './stage-kit.js';
 
@@ -149,26 +151,6 @@ export { PROPS as SUPPORTED_PROPS };
 export type { PropName };
 
 const KNOWN = new Set<string>(PROPS);
-
-/**
- * The drum riser's footprint, which two files need and only one draws.
- *
- * Exported because `show.ts` has to route leads around this platform and a
- * second copy of `min(2.8, width * 0.32)` over there would be a cable that
- * cleared the riser until somebody resized it. The prop below is the only thing
- * that puts a riser on the stage, so this is where the measurement lives.
- */
-export function riserFootprint(
-  // Narrowed to what it reads, so the check in `concert-check.ts` can ask
-  // without constructing a whole `StageMetrics` out of a venue.
-  m: { width: number; depth: number; backZ?: number },
-): { w: number; d: number; z: number } {
-  const w = Math.min(2.8, m.width * 0.32);
-  const d = Math.min(2.0, m.depth * 0.3);
-  // `backZ` is `-depth / 2` on every stage this builds — see `stage.ts` — so a
-  // caller holding only a venue need not go and construct one to ask.
-  return { w, d, z: (m.backZ ?? -m.depth / 2) + d / 2 + 0.45 };
-}
 
 /**
  * The strip of deck along the back wall that the room's own back-wall dressing
@@ -249,6 +231,59 @@ function arcadeFootprint(m: { openingWidth: number; backZ: number }): Arcade {
     clear: bay - pierW,
     bay,
     pierW,
+  };
+}
+
+/**
+ * Where `pa-stack` stands its poles, so the floor props sharing that strip can
+ * keep off them.
+ *
+ * `riserFootprint`'s argument a third time, and the cheapest instance of it: a
+ * pole is 0.4 m of base plate and the only question anybody else asks about it
+ * is where that plate is. `flight-case` used to carry a hand copy of the PA's
+ * old cabinet footprint for exactly this, which was right until the PA moved and
+ * would have been silently wrong the moment it did.
+ *
+ * The x is `drapes`' expression for the wing — outboard of the band, inboard of
+ * the deck edge — with the pole standing in the middle of what that leaves, and
+ * then held back off the edge by its own base. Both clamps bite somewhere in
+ * the catalogue and they are 0.5 m apart: the wing is `MARGIN_SIDE` wide and the
+ * plate is 0.36, so a room where `openingWidth` is no help gives the base 0.07 m
+ * of daylight to the widest a player's own footprint reaches, and a room where
+ * the aperture is wider than the boards would have hung 0.105 m of it over the
+ * edge with the house floor a stage below.
+ *
+ * The z is upstage, which is where a PA hangs in any room that flies one, and
+ * clear of `truss`' upstage run at `backZ + 0.9`.
+ */
+const PA_BASE_R = 0.18;
+
+/**
+ * And where `pa-ground` stands its columns, which is the older answer and a
+ * different one: on the deck, at the back corners, in the band's own room.
+ *
+ * Published for the same reason as the pole's — `flight-case` parks on this
+ * strip — and read a second time by `showPa`, which is the only thing in this
+ * file that has to decide whether a *person* is standing in a prop.
+ *
+ * The x and z are the numbers `pa-stack` used before it went up: a 1.0 × 0.7 m
+ * cabinet at `±(width / 2 - 0.7)` on `backZ + 1.3`. They reach 0.7 m inside
+ * `play.halfX`, which is the whole reason this prop can be struck and the pole
+ * version cannot — a stack in the wings is not in the wings.
+ */
+function paGroundFootprint(m: StageMetrics): { x: number; z: number; w: number; d: number } {
+  return { x: m.width / 2 - 0.7, z: m.backZ + 1.3, w: 1.0, d: 0.7 };
+}
+
+function paFootprint(m: StageMetrics): { x: number; z: number; r: number } {
+  const play = playingArea(m);
+  const inner = Math.max(
+    play.halfX, Math.min(m.width / 2 - 0.15, m.openingWidth / 2 - 0.25),
+  );
+  return {
+    x: Math.min((inner + m.width / 2) / 2, m.width / 2 - PA_BASE_R - 0.02),
+    z: m.backZ + 1.6,
+    r: PA_BASE_R,
   };
 }
 
@@ -350,6 +385,22 @@ export interface PropRig {
    * what this number needs without first asking what the room owns.
    */
   showRiser(on: boolean): void;
+  /**
+   * Strike the ground-stacked PA on whichever side this number's cast is
+   * standing in. See `BUILDERS['pa-ground']`.
+   *
+   * The caller passes where the band is and not which stack to hide, because
+   * where the cabinets are is this file's business and where the people are is
+   * `cast.ts`'s. A room whose props do not include `pa-ground` ignores it, as
+   * `showRiser` does.
+   *
+   * `r` is the radius of what the performer *occupies*, gear included — a
+   * modular is a metre of cabinets and a singer is a body — so the caller has
+   * to know which of those it is handing over. That is one question with an
+   * answer in the IR (`Performer.rig`) rather than a footprint this file could
+   * work out for itself.
+   */
+  showPa(cast: readonly { x: number; z: number; r: number }[]): void;
   update(t: number, dt: number): void;
 }
 
@@ -383,6 +434,13 @@ interface Ctx extends PropOptions {
   dressed: ReadonlySet<PropName>;
   /** Set by `BUILDERS.riser` so `showRiser` has something to hide. */
   riser?: Group;
+  /**
+   * The two ground-stacked PA columns, in `[-x, +x]` order, so `showPa` has
+   * something to hide. The fourth thing published across this record and the
+   * second one that exists for a *number* rather than for another builder —
+   * see `riser`, whose switch this is a copy of on purpose.
+   */
+  paGround?: Group[];
   /**
    * Where `BUILDERS.tables` put its tops, so `candles` can stand on one.
    *
@@ -731,6 +789,19 @@ export function dressStage(o: PropOptions): PropRig {
     ignored: unknownProps(o.venue.props),
     showRiser(on: boolean): void {
       if (ctx.riser) ctx.riser.visible = on;
+    },
+    showPa(cast): void {
+      if (!ctx.paGround) return;
+      const pa = paGroundFootprint(ctx.m);
+      ctx.paGround.forEach((stack, i) => {
+        const x = (i === 0 ? -1 : 1) * pa.x;
+        // A rectangle grown by the body's radius, which is the cheap standard
+        // test and the right one here: both shapes are axis-aligned and the
+        // corner error is a few centimetres on a prop that is either standing
+        // or gone.
+        stack.visible = !cast.some((p) => Math.abs(p.x - x) < pa.w / 2 + p.r
+          && Math.abs(p.z - pa.z) < pa.d / 2 + p.r);
+      });
     },
     update(t: number, dt: number): void {
       for (const fn of updaters) fn(t, dt);
@@ -2019,10 +2090,33 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
    */
   'low-ceiling': (c) => {
     const y = c.m.houseY + LOW_CEILING;
-    const depth = c.m.houseDepth + 2;
     const width = c.m.houseWidth + 6;
-    /** Where the house lid begins, and where the fascia hangs. */
-    const stepZ = c.m.lipZ + 0.25;
+    /**
+     * One plane, from behind the cloth to behind the back wall of the house.
+     *
+     * This was two, with a fascia across the lip joining them: `LOW_CEILING`
+     * over the house and a soffit 0.2–0.45 m lower over the boards, on the
+     * argument that a downstand at the proscenium line is the most basement
+     * thing in the room. It is, in a basement that has one. What this room has
+     * is a lid that was drawn in two pieces because the constants came in two
+     * pieces — a house height measured from the house floor and a stage height
+     * measured from the boards — so the size of the step was whatever the
+     * *riser* happened to be, 0.1 m in the shed and 0.45 m in the riihi, in
+     * rooms that are supposed to be the same cellar. A step nobody chose the
+     * height of is not a beam, and the fascia that closed it was three draw
+     * calls spent hiding the arithmetic.
+     *
+     * Both edges still die into something, which is the rule that mattered and
+     * is why the two-piece version existed at all: upstage into the cloth, half
+     * a metre behind `backZ`, and downstage past the back of the house into the
+     * wall `stage.ts` puts there. What goes over the boards now hides the top
+     * of the arch the way the soffit did — the plaster is opaque and full width,
+     * and the legs of the portal run up into it, which is what a suspended
+     * ceiling in an older room does to an older arch.
+     */
+    const front = c.m.backZ - 0.5;
+    const back = c.m.lipZ + c.m.houseDepth + 2.25;
+    const span = back - front;
 
     // Smoke-stained limewash: a fifth of the room's lamp colour blended into
     // the brick, then most of the way to white. Bright as a *surface*, dim in
@@ -2037,42 +2131,9 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
       colour: plaster, jitter: 0.17, rng: c.rng(tag),
     });
 
-    const ceil = put(c, c.kit.own(bays(width, depth, 'ceiling')), lid,
-      0, y, stepZ + depth / 2);
+    const ceil = put(c, c.kit.own(bays(width, span, 'ceiling')), lid,
+      0, y, (front + back) / 2);
     ceil.rotation.x = -Math.PI / 2;
-
-    /**
-     * And over the stage, lower — see `STAGE_SOFFIT`. This is the half that
-     * makes it a cellar, and the half that was missing.
-     *
-     * It runs from the fascia to behind the backdrop rather than to the back
-     * wall of the stage, for the same reason the house lid runs past the last
-     * row: an edge in mid-air is what read as a plane, and the only cure is for
-     * every edge to die into something. Upstage that something is the cloth.
-     */
-    const soffitDepth = stepZ - (c.m.backZ - 0.5);
-    const soffit = put(c, c.kit.own(bays(width, soffitDepth, 'soffit')), lid,
-      0, STAGE_SOFFIT, stepZ - soffitDepth / 2);
-    soffit.rotation.x = -Math.PI / 2;
-
-    /**
-     * The step between them, at the lip.
-     *
-     * Two lids at two heights with nothing joining them is a slot you can see
-     * the arch through, which is the same void as before in a thinner shape. A
-     * fascia closes it, and closing it is not the only thing it does: a
-     * downstand across the top of the opening is the most basement thing in the
-     * room. It is what the eye measures the band against, and it is darker than
-     * the plaster because the underside of a beam is the one surface here that
-     * faces the room rather than the floor.
-     */
-    const drop = y - STAGE_SOFFIT;
-    if (drop > 0.02) {
-      put(c, c.kit.geometry(`fascia|${width.toFixed(2)}|${drop.toFixed(2)}`,
-        () => new PlaneGeometry(width, drop)),
-        c.kit.solid(shade(plaster, 0.35), { side: DoubleSide }),
-        0, STAGE_SOFFIT + drop / 2, stepZ);
-    }
 
     /**
      * Service runs — along the room, and flush to the lid.
@@ -2098,14 +2159,65 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
      * gap at a grazing angle: a pipe with daylight between it and the ceiling is
      * a cylinder somebody left floating, and a pipe touching the ceiling is a
      * service run. That is the whole difference, and it is one number.
+     *
+     * ## The downstage end
+     *
+     * Which used to be the fascia's problem. The run stopped dead at the step
+     * and the step covered the cut, so nobody had to say where a pipe goes when
+     * it stops — and with one flat lid the same cut is an open cylinder in the
+     * middle of the plaster, which is the floating-geometry failure this file
+     * writes a comment about every time it finds one.
+     *
+     * A pipe that stops on a ceiling stops *in a wall*. So it bends: a quarter
+     * elbow of the same 0.07 m tube on a 0.3 m radius, and a cross arm out to
+     * `wallX` with 0.2 m of it buried past the plaster, which is the same
+     * margin every other edge in this prop takes.
+     *
+     * The turn is at `lipZ + 0.9` and the 0.9 is the one number here that was
+     * chosen rather than derived. It cannot be at the lip, which is where the
+     * step was and where the arm looks like it belongs: `proscenium.ts` stands
+     * its portal on `archZ = lipZ + 0.28` and its tormentors 0.36 m deep on
+     * `archZ + 0.1`, so an arm across the room at the old `stepZ` runs straight
+     * through both of them. A metre into the house clears the downstage face of
+     * the tormentor by 0.27 m of air, and it puts the cross run over the front
+     * of the *house* — near the top of the frame, four metres and more from any
+     * lens the director owns, where a 0.14 m pipe is a duct going into a wall
+     * and not the bar ruled across the picture that the paragraph above is
+     * about.
      */
     const PIPE_R = 0.07;
-    const pipe = c.kit.geometry(`pipe|${depth.toFixed(2)}`, () => new CylinderGeometry(PIPE_R, PIPE_R, depth, 6));
+    const BEND_R = 0.3;
+    /** Where the run turns out of the room. See above for the 0.9. */
+    const turnZ = c.m.lipZ + 0.9;
+    const runLen = back - (turnZ + BEND_R);
+    const run = c.kit.geometry(`pipe|${runLen.toFixed(2)}`,
+      () => new CylinderGeometry(PIPE_R, PIPE_R, runLen, 6));
+    const elbow = c.kit.geometry(`elbow|${BEND_R.toFixed(2)}`,
+      () => new TorusGeometry(BEND_R, PIPE_R, 6, 4, Math.PI / 2));
     const pipeMat = c.kit.solid(shade(c.p.proscenium, 0.5), { metal: 0.4, rough: 0.5 });
+    /** The axis, so that `PIPE_R` above it is a centimetre inside the plaster. */
+    const axisY = y - PIPE_R + 0.01;
     for (const side of [-1, 1]) {
-      const p = put(c, pipe, pipeMat,
-        side * c.m.houseWidth * 0.22, y - PIPE_R + 0.01, c.m.lipZ + depth / 2 + 0.25);
+      const x = side * c.m.houseWidth * 0.22;
+      const p = put(c, run, pipeMat, x, axisY, turnZ + BEND_R + runLen / 2);
       p.rotation.x = Math.PI / 2;
+
+      /**
+       * The bend, centred a radius outboard of the run and a radius upstage of
+       * the arm, which is where a quarter circle tangent to both of them goes.
+       * `Euler` is `XYZ`, so the z term turns the arc in its own plane first and
+       * the x term lays it flat second: the right-hand pipe wants the quadrant
+       * that opens inboard and the left-hand one wants its mirror.
+       */
+      const bend = put(c, elbow, pipeMat, x + side * BEND_R, axisY, turnZ + BEND_R);
+      bend.rotation.set(-Math.PI / 2, 0, side > 0 ? Math.PI / 2 : 0);
+
+      const armFrom = Math.abs(x) + BEND_R;
+      const armLen = c.m.wallX + 0.2 - armFrom;
+      const arm = put(c, c.kit.geometry(`pipe|${armLen.toFixed(2)}`,
+        () => new CylinderGeometry(PIPE_R, PIPE_R, armLen, 6)), pipeMat,
+        side * (armFrom + armLen / 2), axisY, turnZ);
+      arm.rotation.z = Math.PI / 2;
     }
   },
 
@@ -2458,19 +2570,34 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
     /**
      * And the PA is already parked here, on the seeds that have one.
      *
-     * `pa-stack` stands a 1.0 by 0.7 cabinet at `±(width/2 - 0.7)` on
-     * `backZ + 1.3` — dead inside the band this file draws from — so on any
-     * venue naming both, a case ended up standing in a speaker. Two files, one
-     * patch of floor, and neither could see the other; stating the one
-     * footprint here is cheaper than a shared occupancy map for two props.
+     * It used to be a 1.0 by 0.7 cabinet on the boards at `±(width/2 - 0.7)`,
+     * dead inside the band this file draws from, and a case that drew the same
+     * corner stood in a speaker. It is a pole now — see `paFootprint` — so what
+     * is left down here is 0.42 m of base plate, which is much easier to miss
+     * and still exactly as solid as the cabinet was.
      *
-     * The set it asks comes off `Ctx` now rather than being re-read from the
-     * venue: `dressStage` has it in hand, and see `Ctx.dressed` for what a
-     * builder may and may not do with the answer.
+     * The footprint comes off the one function that says where the PA is rather
+     * than off a hand copy of its old arithmetic, which is the correction this
+     * paragraph is: the copy was right for as long as nothing moved.
+     *
+     * The set it asks comes off `Ctx` rather than being re-read from the venue:
+     * `dressStage` has it in hand, and see `Ctx.dressed` for what a builder may
+     * and may not do with the answer.
      */
     if (c.dressed.has('pa-stack')) {
+      const pa = paFootprint(c.m);
       for (const side of [-1, 1]) {
-        down.push({ x: side * (c.m.width / 2 - 0.7), z: c.m.backZ + 1.3, w: 1.0 });
+        down.push({ x: side * pa.x, z: pa.z, w: pa.r * 2 });
+      }
+    }
+    // And the ground-stacked one is the old obstacle unchanged, on the venues
+    // that name it instead. It can be struck for a number; the cases stay where
+    // the venue was built, so this dodges the stack that was *placed* rather
+    // than the one that happens to be standing tonight.
+    if (c.dressed.has('pa-ground')) {
+      const pa = paGroundFootprint(c.m);
+      for (const side of [-1, 1]) {
+        down.push({ x: side * pa.x, z: pa.z, w: pa.w });
       }
     }
     for (let i = 0; i < 3; i++) {
@@ -2921,19 +3048,25 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
    *
    * `finnfolk/runo` was worse and is the reason there is a guard below. It names
    * `beams` **and** `low-ceiling`, so the floor clamp `max(HANG_FLOOR + 0.2, …)`
-   * won and put `y` at 2.85 — `STAGE_SOFFIT` exactly — which does not put the
-   * timber near the ceiling, it puts the ceiling *through the middle of the tie
-   * beams*: 2.730 to 2.970 against a soffit plane at 2.850, with the purlins
-   * entirely above it and outside the building. That contradiction used to be
-   * named here and left to the room, and the room has in fact answered it: it
-   * publishes a 2.850 m lid over the boards. A tie and a purlin need 0.46 m and
+   * won and put `y` at 2.85 — the cellar's old stage soffit exactly — which does
+   * not put the timber near the ceiling, it puts the ceiling *through the middle
+   * of the tie beams*: 2.730 to 2.970 against a soffit plane at 2.850, with the
+   * purlins entirely above it and outside the building. That contradiction used
+   * to be named here and left to the room, and the room answered it by
+   * publishing the lid it was given. A tie and a purlin need 0.46 m and
    * `HANG_FLOOR` needs 2.65, so a room needs **3.11 m** of lid to carry exposed
-   * roof timbers over standing people, and 2.85 is not 3.11. The prop stands
-   * down there rather than drawing the contradiction, which is also the right
-   * *building*: `low-ceiling` means the barn has been boarded over, and boarding
-   * a barn over is precisely the operation that takes the timbers out of sight.
-   * `country/stringband` is the closest room that still gets them, at 3.150 —
-   * 0.040 m of margin, so it is the one to re-measure if either constant moves.
+   * roof timbers over standing people, and 2.85 was not 3.11.
+   *
+   * The arithmetic no longer settles it, which is why the guard below is now a
+   * sentence rather than a subtraction. `stage-props.ts` draws one flat lid for
+   * `low-ceiling` instead of a house plaster and a lower stage soffit, so the
+   * riihi's boarding is at 3.30 m over the boards and 3.30 is comfortably 3.11:
+   * the timbers would fit, and they still must not be drawn. The reason was
+   * always the *building* rather than the clearance — `low-ceiling` means the
+   * barn has been boarded over, and boarding a barn over is precisely the
+   * operation that takes the timbers out of sight. `country/stringband` is the
+   * closest room that still gets them, at 3.150 — 0.040 m of margin, so it is
+   * the one to re-measure if either constant moves.
    *
    * ## And where the lid is a member, the purlin goes up behind it
    *
@@ -2972,10 +3105,23 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
     const PURLIN = 0.22;
     /**
      * The lowest thing the run goes under. It crosses the boards and the house,
-     * so both lids bind and the lower of them is the answer — `headroom` alone
-     * is the right number in five of the six venues and the wrong one in the
-     * cellar-height riihi, where the house is 0.45 m taller than the stage.
+     * so both lids bind and the lower of them is the answer. The one room where
+     * they differed was the cellar-height riihi, whose house stood 0.45 m taller
+     * than its stage; that room is the one the guard above now turns away, and
+     * the `min` is kept because a room with a sloped or stepped roof is a thing
+     * this vocabulary still allows.
      */
+    /**
+     * Boarded over, the timbers are behind the boarding and there is nothing to
+     * draw. See the docstring: this used to fall out of the arithmetic, because
+     * a cellar's stage soffit was 2.85 m and the assembly needs 3.11 m over
+     * `HANG_FLOOR`. One flat lid took the riihi's plaster to 3.30 m and the
+     * clearance appeared, which is a reason to *state* the rule rather than a
+     * reason to start drawing a roof under a ceiling. Asking whether the other
+     * prop is there is what `Ctx.dressed` is for; the answer here is to build
+     * nothing, not to build something else.
+     */
+    if (c.dressed.has('low-ceiling')) return;
     const lid = Math.min(c.m.headroom, houseLid(c.m));
     /** Top of the highest member. See the docstring for both clamps. */
     const top = Number.isFinite(lid)
@@ -3839,21 +3985,178 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
 
   // -- any stage -----------------------------------------------------------
 
+  /**
+   * The house speakers, on poles in the wings.
+   *
+   * ## They used to stand in the band, and this file could not see that they did
+   *
+   * A 1.0 × 0.7 m stack at `±(width / 2 - 0.7)` on `backZ + 1.3` is inside the
+   * playing area on both axes: `play.halfX` is `width / 2 - 0.5`, so 0.7 m of
+   * cabinet reached in past the band's own side limit, and 1.3 m off the back
+   * wall is the back line itself — `cast.ts` puts the drum riser at `backZ +
+   * 1.45` and `layoutModulars` stands a wall of cabinets at exactly that z. On
+   * the synth hall (10 × 6.6) the two overlap: the PA occupies x ∈ [3.8, 4.8],
+   * z ∈ [−2.35, −1.65], and a modular's outboard wing — 0.62 m upstage of its
+   * player, 0.32 deep, toed in 19° — occupies x ∈ [3.9, 4.5], z ∈ [−2.7,
+   * −2.22]. A speaker through a synthesiser, every number that casts one.
+   *
+   * The cast is not at fault and there is no x to move it to. A modular player
+   * declares a 1.1 m footprint and `layoutModulars` places them at `xLimit - r`,
+   * so the rig fills the playing area *to* its edge and no further. What is left
+   * outside is the 0.5 m wing, and no floor-standing PA fits in half a metre.
+   *
+   * ## So it goes up, which is what the vocabulary said it was all along
+   *
+   * `venue.ts` calls this prop "speakers, flown or on poles" and it was neither.
+   * On a pole the footprint on the boards is 0.4 m of base plate, which fits the
+   * wing with room to spare, and the box itself clears `HEAD_BAND.hi` — so the
+   * 0.2 m by which it overhangs the playing area is 0.2 m of air above every
+   * head in the band, which is the same bargain every hanging prop in this file
+   * already makes. Nothing on the deck can collide with it at any cast.
+   *
+   * Three numbers do the work and none of them is new:
+   *
+   * - **x** is `drapes`' answer to where a wing is — never inside the band,
+   *   never off the deck — and the pole stands in the middle of whatever that
+   *   leaves. See `paFootprint`. The wing is half a metre and the box is 0.9,
+   *   so it has to overhang *something*; it overhangs the band, in the air, and
+   *   not the deck edge, where it would be a floater over the house floor.
+   * - **y** is the head band, and the box is **scaled** to whatever is left
+   *   between it and the room's own lid rather than trimmed to a height. The
+   *   trim-only version put 0.169 m of cabinet through a shed's 2.950 m roof in
+   *   three venues: under a low lid there is no height at which a full-size box
+   *   both clears the heads and clears the plaster, so the box gets smaller,
+   *   which is what a top box in a low room is. `HEAD_BAND.hi` rather than
+   *   `HANG_FLOOR`, because that constant is owed to a run strung *over* the
+   *   band and this is 0.2 m of overhang at the extreme wing.
+   * - **z** is `backZ + 1.6`, 0.3 m upstage of where the stack stood. Not for
+   *   the cast — nothing on the deck can reach this prop now — but for `truss`,
+   *   whose upstage run is a 0.34 m section on `backZ + 0.9` trimmed to
+   *   `HANG_FLOOR + 0.205` in exactly the low rooms where this box is trimmed
+   *   down to meet it. They shared 0.0062 m³ in two venues. Downstage was never
+   *   available: that end of the deck is the front line, the curtain at
+   *   `curtainZ` and the wedges.
+   *
+   * One box rather than two stacked. A pole carries a top box; the sub it would
+   * have sat on is the half of the old prop that was standing in the band.
+   */
   'pa-stack': (c) => {
     const box = c.kit.solid(shade(c.p.backdrop, 0.55), { rough: 0.85 });
     const grille = c.kit.solid(shade(c.p.backdrop, 0.78), { rough: 0.95 });
+    const steel = c.kit.solid(shade(c.p.proscenium, 0.55), { metal: 0.65, rough: 0.4 });
+
+    const BOX_W = 0.9;
+    const BOX_H = 0.62;
+    const BOX_D = 0.52;
+    const { x: x0, z } = paFootprint(c.m);
+    // Aimed down at the house. A top box on a pole is never level: it is trimmed
+    // above the heads and then tipped back at the people it is for.
+    const TILT = 0.22;
+    /** The bottom of the box, and the height of the pole under it. */
+    const trim = HEAD_BAND.hi + 0.05;
+    /** What a full-size box stands in, tilt included — this is a bounding box. */
+    const full = BOX_H * Math.cos(TILT) + BOX_D * Math.sin(TILT);
+    /**
+     * Shrink to the gap between the heads and the lid, and no further than half.
+     * A box under 0.45 has stopped being a speaker and become a smoke detector;
+     * the shallowest lid in the catalogue asks for 0.49, so the floor is a guard
+     * rather than a number anything reaches.
+     */
+    const fit = Math.max(0.45, Math.min(1,
+      (Math.min(c.m.openingHeight, c.m.headroom) - 0.15 - trim) / full));
+
+    const plate = c.kit.geometry('pa-plate',
+      () => new CylinderGeometry(PA_BASE_R - 0.02, PA_BASE_R, 0.06, 12));
+    const mast = c.kit.geometry('pa-pole', () => new CylinderGeometry(0.045, 0.05, 1, 10));
+    const cone = c.kit.geometry('pa-driver', () => new CylinderGeometry(0.2, 0.2, 0.04, 14));
+    const horn = c.kit.geometry('pa-horn', () => new CylinderGeometry(0.11, 0.07, 0.05, 10));
+
     for (const side of [-1, 1]) {
-      const x = side * (c.m.width / 2 - 0.7);
-      const z = c.m.backZ + 1.3;
-      put(c, c.kit.bevelBox(1.0, 1.0, 0.7, 0.04), box, x, 0.5, z, true);
-      put(c, c.kit.bevelBox(0.9, 0.75, 0.62, 0.04), box, x, 1.38, z, true);
-      const cone = c.kit.geometry('driver', () => new CylinderGeometry(0.28, 0.28, 0.05, 12));
-      const d1 = put(c, cone, grille, x, 0.55, z + 0.36);
+      const x = side * x0;
+      put(c, plate, steel, x, 0.03, z, true);
+      // The pole runs into the cabinet rather than up to it, so no seam shows
+      // where the two meet.
+      const pole = put(c, mast, steel, x, (trim + 0.1) / 2, z, true);
+      pole.scale.y = trim + 0.1;
+
+      const head = new Group();
+      head.position.set(x, trim + full * fit / 2, z);
+      head.rotation.x = TILT;
+      head.scale.setScalar(fit);
+      const cab = new Mesh(c.kit.bevelBox(BOX_W, BOX_H, BOX_D, 0.03), box);
+      cab.castShadow = true;
+      const lf = new Mesh(cone, grille);
+      lf.rotation.x = Math.PI / 2;
+      lf.position.set(0, -0.09, BOX_D / 2 + 0.008);
+      const hf = new Mesh(horn, grille);
+      hf.rotation.x = Math.PI / 2;
+      hf.position.set(0, 0.19, BOX_D / 2 + 0.012);
+      head.add(cab, lf, hf);
+      c.root.add(head);
+    }
+  },
+
+  /**
+   * The same PA, ground-stacked: two columns of boxes on the deck at the back
+   * corners.
+   *
+   * This is what `pa-stack` was before it went up a pole, kept because getting
+   * out of the way is not always what a PA is for. In a dancehall, a warehouse
+   * or on a lawn with a rig on it the speakers *are* the room — `lawn.ts` says
+   * so at length about the one genre this is most true of — and a stack of
+   * boxes taller than the person in front of it is the picture. A top box
+   * trimmed above the heads is a PA that has been dealt with; a wall of
+   * cabinets on the deck is a sound system.
+   *
+   * ## Which is why this one, and only this one, can be struck
+   *
+   * The cabinets stand 0.7 m inside `play.halfX`, in the band's own floor. That
+   * is the whole point of them and it is also the collision: `layoutModulars`
+   * stands a wall of synthesiser at `backZ + 1.45` as far outboard as it fits,
+   * and on the seeds where it lands on this corner the two are in the same
+   * cubic metre. There is no x for either to move to — the cast fills the
+   * playing area to its edge by construction and the wing is 0.5 m wide.
+   *
+   * So the stack is struck for the number, on the side that is occupied, the
+   * way `riser` is struck when nobody is standing on it. It is what a crew does
+   * with a stack that a band's own gear has to go where: the boxes come down
+   * and go back up after the set. `showPa` is the switch and `show.ts` is the
+   * only place that can throw it, because the room is built once and the cast
+   * is cast per number.
+   *
+   * One side at a time. Two modulars flank, so both sides can go — and a stage
+   * with neither is what that band actually needs, rather than a symmetry kept
+   * for its own sake.
+   */
+  'pa-ground': (c) => {
+    const box = c.kit.solid(shade(c.p.backdrop, 0.55), { rough: 0.85 });
+    const grille = c.kit.solid(shade(c.p.backdrop, 0.78), { rough: 0.95 });
+    const { x: x0, z, w, d } = paGroundFootprint(c.m);
+    const cone = c.kit.geometry('driver', () => new CylinderGeometry(0.28, 0.28, 0.05, 12));
+    const stacks: Group[] = [];
+    for (const side of [-1, 1]) {
+      const x = side * x0;
+      const stack = new Group();
+      const lo = new Mesh(c.kit.bevelBox(w, 1.0, d, 0.04), box);
+      lo.position.set(x, 0.5, z);
+      const hi = new Mesh(c.kit.bevelBox(w - 0.1, 0.75, d - 0.08, 0.04), box);
+      hi.position.set(x, 1.38, z);
+      for (const m of [lo, hi]) {
+        m.castShadow = true;
+        m.receiveShadow = true;
+      }
+      const d1 = new Mesh(cone, grille);
+      d1.position.set(x, 0.55, z + d / 2 + 0.01);
       d1.rotation.x = Math.PI / 2;
-      const d2 = put(c, cone, grille, x, 1.36, z + 0.32);
+      const d2 = new Mesh(cone, grille);
+      d2.position.set(x, 1.36, z + d / 2 - 0.03);
       d2.rotation.x = Math.PI / 2;
       d2.scale.setScalar(0.62);
+      stack.add(lo, hi, d1, d2);
+      c.root.add(stack);
+      stacks.push(stack);
     }
+    c.paGround = stacks;
   },
 
   /**
@@ -4034,19 +4337,22 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
    * would do with it.
    */
   riser: (c) => {
-    const { w, d, z } = riserFootprint(c.m);
+    // `h` off the same function rather than the 0.4 that used to be written out
+    // here: it is the number `Station.riser` carries, and a deck built to any
+    // other height stands the kit in the air or buries it to the rims.
+    const { w, d, z, h } = riserFootprint(c.m);
     const deck = new Mesh(
-      c.kit.bevelBox(w, 0.4, d, 0.03),
+      c.kit.bevelBox(w, h, d, 0.03),
       c.kit.solid(shade(c.p.boards, 0.3), { rough: 0.9 }),
     );
-    deck.position.set(0, 0.2, z);
+    deck.position.set(0, h / 2, z);
     deck.castShadow = true;
     deck.receiveShadow = true;
     const lip = new Mesh(
       c.kit.bevelBox(w + 0.1, 0.04, d + 0.1, 0.015),
       c.kit.solid(shade(c.p.curtain, 0.35)),
     );
-    lip.position.set(0, 0.41, z);
+    lip.position.set(0, h + 0.01, z);
 
     const group = new Group();
     group.add(deck, lip);

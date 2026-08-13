@@ -164,7 +164,7 @@ import {
 
 import { buildCurtain } from '../stage-curtain.js';
 import {
-  blend, cellPlane, LOW_CEILING, shade, STAGE_SOFFIT, tint,
+  blend, cellPlane, LOW_CEILING, shade, tint,
 } from '../stage-kit.js';
 import {
   type RoomBuilder, type RoomContext, type RoomDatum, type RoomRig, type RoomShape,
@@ -200,30 +200,28 @@ const BALLROOM_RISE = 1.0;
  * And how far they stand above it once the room has been ceilinged — a kerb, and
  * the one number in this file that was *solved* rather than argued.
  *
- * A metre of stage cannot survive `low-ceiling`, and it fails twice. The prop
- * hangs its house plaster at `houseY + LOW_CEILING` and steps down to
- * `STAGE_SOFFIT` over the boards with a fascia joining the two, so a rise of
- * 1.0 m puts the house lid at 2.6 m and the stage soffit at 2.85 m — the step
- * upside down, no fascia drawn, and a 0.25 m slot at the lip with the whole
- * stage house visible through it. That is the void the prop's own docstring was
- * written to close. The fascia needs `LOW_CEILING - rise > STAGE_SOFFIT`, so the
- * rise has to come below 0.75 m.
+ * A metre of stage cannot survive `low-ceiling`. The prop hangs one sheet of
+ * plaster across the whole room at `houseY + LOW_CEILING`, so the rise is the
+ * *only* thing standing between the band and the ceiling: at 1.0 m the boards
+ * get 2.6 m of it, which is 0.2 m over the tallest player `HEAD_BAND` allows.
  *
- * The other end is the camera, and it is the tighter of the two. `camera.ts`
- * caps the lens at `STAGE_SOFFIT - LENS_GAP` — 2.25 m over the boards, wherever
- * the boards are — and wants to stand 0.3 m over `crowd.topY`. This house is
- * twelve rows seated, which `crowdExtent` puts at `houseY + 2.44`, so the two
- * meet at a rise of 0.49 m and below that every wide shot in the era is a lens
- * inside the back row's heads with the ceiling refusing to lift it out.
+ * It was solved rather than argued, and the solving is worth keeping even though
+ * one of the two walls it was solved against has since been demolished. The prop
+ * used to step down to a soffit over the boards with a fascia joining the two,
+ * and the fascia needed the house lid to stay above that soffit's fixed 2.85 m,
+ * which put a hard ceiling of 0.75 m on this number; below 0.49 m the camera
+ * failed from the other side, because `camera.ts` capped the lens at 2.25 m over
+ * the boards and wants to stand 0.3 m over `crowd.topY`, which twelve seated
+ * rows put at `houseY + 2.44`. The window was 0.49–0.75 m and 0.55 sat inside
+ * both ends.
  *
- * So the window is 0.49 m to 0.75 m, and it is narrow because both walls of it
- * are the prop's: this is a metre-high variety stage being asked to fit under a
- * suspended ceiling, and there is not much room in which both can be true.
- * 0.55 m sits inside it at both ends — 0.20 m of fascia at the lip, 0.06 m of
- * air between the lens and its own ceiling — and it is not a new invention: it
- * is `dancehall.ts`'s bandstand to the centimetre, which is the platform a small
- * room builds when it wants the band visible and has no height to put them above
- * the crowd with. Which is the 1998 room exactly.
+ * With one flat lid neither wall binds: the cap is `LOW_CEILING - rise -
+ * LENS_GAP` and the crowd is `-rise + 2.44`, so the rise cancels and the lens
+ * clears the back row by 0.26 m at whatever height the boards care to be. The
+ * number stays where it was because the *other* reason for it never depended on
+ * the prop: it is `dancehall.ts`'s bandstand to the centimetre, which is the
+ * platform a small room builds when it wants the band visible and has no height
+ * to put them above the crowd with. Which is the 1998 room exactly.
  */
 const CLUB_RISE = 0.55;
 
@@ -527,14 +525,14 @@ function shape(d: RoomDatum): RoomShape {
     openingWidth: d.width - 2 * ARCH_REVEAL,
     /**
      * The arch keeps its full height under the lid, and it is not a contradiction
-     * that the soffit is 1.55 m below the top of it.
+     * that the plaster is 1.35 m below the top of it.
      *
      * `proscenium.ts` does the same thing in the cellar and for the same reason:
      * the opening is what the *building* has, the lid is what has since been put
-     * across it, and the prop's fascia hides the difference from every seat in
-     * the room. Shrinking it here would move the arch, the architrave and the
-     * cheeks — the objects the fascia is drawn in front of — to fit a ceiling
-     * that is a suspended one.
+     * across it, and the prop's plaster hides the difference from every seat in
+     * the room by running over the top of it. Shrinking it here would move the
+     * arch, the architrave and the cheeks — the objects the ceiling is drawn in
+     * front of — to fit a ceiling that is a suspended one.
      */
     openingHeight,
     curtainZ: d.lipZ - CURTAIN_FROM_LIP,
@@ -542,18 +540,18 @@ function shape(d: RoomDatum): RoomShape {
      * Under the plaster, though, because a lantern is not dressing.
      *
      * `FLY_TRIM` puts the bar in the head of the arch at 3.87 m, which under a
-     * lid is 1.02 m inside the ceiling: the whole rig would light the stage from
+     * lid is 0.82 m inside the ceiling: the whole rig would light the stage from
      * a position the room does not contain, and the beams would begin in mid-air
-     * below it. `proscenium.ts` and `shed.ts` both drop to `STAGE_SOFFIT - 0.13`
-     * in their cellars and this is the same 0.13 m — the depth of the pipe plus
-     * the shackle that holds it up.
+     * below it. `proscenium.ts` and `shed.ts` both drop to a handspan under
+     * their cellar's plaster and this is the same 0.13 m — the depth of the pipe
+     * plus the shackle that holds it up.
      */
-    flyY: club ? STAGE_SOFFIT - 0.13 : openingHeight * FLY_TRIM,
+    flyY: club ? LOW_CEILING - rise - 0.13 : openingHeight * FLY_TRIM,
     /**
      * **`Infinity` over the boards, with a plaster ceiling 7.6 m over the house
      * six metres away, and that is the honest answer rather than a convenient
      * one** — in the three eras with nothing overhead. Under `low-ceiling` it is
-     * the prop's soffit, which is genuinely the lowest thing over the band.
+     * the prop's plaster, which is genuinely the lowest thing over the band.
      *
      * This field is not a description of the ceiling — `RoomShape` says what it
      * is for in two clauses, that the camera keeps `LENS_GAP` under it and every
@@ -605,29 +603,30 @@ function shape(d: RoomDatum): RoomShape {
      * clear air. Nothing about the number changed; something finally read the
      * other one.
      */
-    headroom: club ? STAGE_SOFFIT : Infinity,
+    headroom: club ? LOW_CEILING - rise : Infinity,
     /**
      * And the plaster over the house, which is the room's own in three eras and
      * the prop's in the fourth.
      *
-     * `LOW_CEILING` rather than `LOW_CEILING - rise` inverted: both are measured
-     * from the boards, and the prop hangs its lid at `houseY + LOW_CEILING`, so
-     * this is that same plane written the way `RoomShape` wants it. Getting it
+     * `LOW_CEILING` rather than the room's own plaster: the prop hangs its lid
+     * at `houseY + LOW_CEILING`, so this is that same plane written the way
+     * `RoomShape` wants it. Getting it
      * from the room's own 7.6 m ceiling instead would put the follow spot and
      * the chandeliers three metres above a lid they are supposed to be bolted
      * to, which is the bug `lights.ts` describes at `roomLid`.
      */
     houseLid: (club ? LOW_CEILING : ceiling) - rise,
     /**
-     * The same plane as `headroom`, because both of this room's lids are flat.
+     * The same plane as `headroom`, and under a lid the same *number*, because
+     * the prop's plaster is one sheet over the boards and the house alike.
      *
      * `rigLid` is the steel a motor drop dies into rather than the lowest thing
      * a lens has to clear, and the two only come apart where the roof is sloped,
      * coffered or framed — the shed, the riihi and the salon, which are the
      * three rooms that answer it with anything but this line. A plaster soffit
      * is one plane and there is nothing behind it: measured over the truss's
-     * pick at `±(width / 2 − 0.4)`, the club era's soffit is at `STAGE_SOFFIT`
-     * and so is the first surface above it, to 0.000 m.
+     * pick at `±(width / 2 − 0.4)`, the club era's plaster is at
+     * `LOW_CEILING - rise` and so is the first surface above it, to 0.000 m.
      *
      * `Infinity` in the other three eras, and that is the load-bearing half.
      * There is a stage house up there — see `headroom` — and what is in it is a
@@ -640,7 +639,7 @@ function shape(d: RoomDatum): RoomShape {
      * is supposed to be shackled to, and the measurement says the drops land on
      * that timber to 0.000 m today.
      */
-    rigLid: club ? STAGE_SOFFIT : Infinity,
+    rigLid: club ? LOW_CEILING - rise : Infinity,
     /**
      * The wall behind the band, measured from the floor like a wall — and it is
      * the same height as the room, because it *is* the room. The stage is an
@@ -1537,9 +1536,9 @@ function build(c: RoomContext): RoomRig {
    *
    * The batten is a metre above an arch that is now a metre inside the ceiling,
    * so the object that made this a rig rather than a floating pipe has to be the
-   * *plaster* instead: two short drops from the soffit to the bar, which is how
+   * *plaster* instead: two short drops from the ceiling to the bar, which is how
    * a bar is hung in every low room that ever had one. `shape` has already
-   * brought `flyY` down to `STAGE_SOFFIT - 0.13`, so the drops are 0.13 m of
+   * brought `flyY` down to a handspan under it, so the drops are 0.13 m of
    * steel and the geometry says the same thing the tall version says — the bar
    * is held up by something the room contains.
    */

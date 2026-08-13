@@ -282,7 +282,7 @@ const southern: EraProfile = {
     ],
     counter: [
       ['celesta', 4], ['marimba', 3], ['kalimba', 3], ['leadSquare', 3],
-      ['xylophone', 2], ['guitarHarmonics', 2], ['glockenspiel', 2],
+      ['xylophone', 2], ['glockenspiel', 2],
     ],
     comp: [
       ['synthStrings', 4], ['padPoly', 4], ['nylonGuitar', 3], ['epiano2', 3],
@@ -373,7 +373,7 @@ const modern: EraProfile = {
     ],
     counter: [
       ['celesta', 4], ['musicBox', 3], ['glockenspiel', 3], ['kalimba', 3],
-      ['leadSquare', 2], ['guitarHarmonics', 2], ['harp', 2],
+      ['leadSquare', 2], ['harp', 2],
     ],
     comp: [
       ['nylonGuitar', 4], ['celesta', 4], ['harp', 3], ['padPoly', 3],

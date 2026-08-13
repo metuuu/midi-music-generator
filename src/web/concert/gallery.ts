@@ -1184,7 +1184,23 @@ function build(which: Entry[]): void {
           .setY(-model.station.offset.y - rig.proportions.hipY);
         model.root.rotation.y = -model.station.facing;
       } else {
-        model.root.position.copy(model.station.offset).negate();
+        /**
+         * The same subtraction the show does, and for the same reason.
+         *
+         * A floor instrument is not always square to the player who stands at
+         * it: `PlayerStation.facing` is the player's yaw in the instrument's
+         * frame, so the instrument's yaw is the player's less that angle, and
+         * the offset — also in the instrument's frame — has to be turned by the
+         * instrument's yaw rather than dropped in as it stands. This branch
+         * used to drop it, which was invisible while every floor instrument
+         * declared zero and is not now: a harp is played *along* its own plane,
+         * asks for a right angle, and stood square here would put the harpist
+         * at a lectern. See `show.ts`, whose floor branch had the same hole.
+         */
+        const yaw = -model.station.facing;
+        model.root.rotation.y = yaw;
+        model.root.position.copy(model.station.offset)
+          .applyAxisAngle(new Vector3(0, 1, 0), yaw).negate();
         group.add(model.root);
       }
     } else {

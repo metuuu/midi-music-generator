@@ -70,7 +70,7 @@
  *
  * The fourth, 1993, names `low-ceiling`, and that one *is* a different
  * building: a lid comes in, the deck drops to a kerb, the walls close to the
- * minimum and the rig comes down to a pipe under the soffit. It is the same
+ * minimum and the rig comes down to a pipe under the plaster. It is the same
  * anonymity at a tenth of the volume, which is the joke the era is making.
  *
  * ## `open-air` is refused, and refusing it is the point
@@ -100,7 +100,7 @@ import {
 } from 'three';
 
 import {
-  blend, cellPlane, shade, tint, LOW_CEILING, STAGE_SOFFIT,
+  blend, cellPlane, shade, tint, LOW_CEILING,
 } from '../stage-kit.js';
 import {
   noCurtain, type RoomBuilder, type RoomContext, type RoomDatum, type RoomRig,
@@ -157,7 +157,7 @@ const DECK_MAX = 1.45;
  *
  * Deliberately the same argument `proscenium.ts` makes for a basement, because
  * it is the same fact about small rooms: there is a fixed distance between a
- * floor and a ceiling, `STAGE_SOFFIT` needs air over the tallest player's head,
+ * floor and a ceiling, `LOW_CEILING` needs air over the tallest player's head,
  * and every centimetre the deck gives up is a centimetre the lid does not have
  * to. 0.45 m rather than the cellar's 0.4 m for the one reason that differs —
  * this house is *standing*, not seated, and a standing head is 1.62 m off the
@@ -270,14 +270,14 @@ function shape(d: RoomDatum): RoomShape {
    * key and the back light. The aperture is what the audience looks through,
    * and in this room the audience is not looking at the roof.
    *
-   * Under a lid it is the soffit exactly. A club's picture is bounded above by
-   * the ceiling and by nothing else, and saying so keeps the dressing under the
-   * plaster: `neon` hangs its sign at `min(openingHeight - 0.5, …)`, which at a
-   * proscenium's 3.6 m opening is 3.1 m and *through* a 2.85 m soffit, and at
-   * this room's 2.85 m opening is 2.35 m and under it.
+   * Under a lid it is the plaster exactly. A club's picture is bounded above by
+   * the ceiling and by nothing else, and saying so keeps the dressing under it:
+   * `neon` hangs its sign at `min(openingHeight - 0.5, …)`, which at a
+   * proscenium's 3.6 m opening is 3.1 m and *through* a 3.15 m lid, and at this
+   * room's 3.15 m opening is 2.65 m and under it.
    */
   const openingHeight = club
-    ? STAGE_SOFFIT
+    ? -rise + LOW_CEILING
     : Math.max(4.4, Math.min(d.width * 0.5, 7.2));
 
   return {
@@ -324,7 +324,7 @@ function shape(d: RoomDatum): RoomShape {
      * there is no fly tower it is a length of scaffold on drop-arms a handspan
      * under the plaster.
      */
-    flyY: club ? STAGE_SOFFIT - 0.13 : openingHeight * FLY_TRIM,
+    flyY: club ? -rise + LOW_CEILING - 0.13 : openingHeight * FLY_TRIM,
     /**
      * **`Infinity`, with a steel roof ten metres up, and that is the honest
      * answer rather than a convenient one.**
@@ -348,13 +348,13 @@ function shape(d: RoomDatum): RoomShape {
      * middle of the house. Both are the floating-lamp bug that `houseLid` was
      * split out of `headroom` to stop, arrived at from the other end.
      *
-     * The lid is real in the small room and both numbers say so there, which is
+     * The lid is real in the small room and this number says so there, which is
      * the case that proves the field is being used rather than dodged: the
-     * `low-ceiling` prop draws the plaster at `houseY + LOW_CEILING` and the
-     * soffit at `STAGE_SOFFIT`, and these are those two heights, so the camera
-     * and the dressing clear a ceiling that is exactly where it is drawn.
+     * `low-ceiling` prop draws one sheet of plaster across the whole room at
+     * `houseY + LOW_CEILING`, and this is that height, so the camera and the
+     * dressing clear a ceiling that is exactly where it is drawn.
      */
-    headroom: club ? Math.min(-rise + LOW_CEILING, STAGE_SOFFIT) : Infinity,
+    headroom: club ? -rise + LOW_CEILING : Infinity,
     houseLid: club ? -rise + LOW_CEILING : Infinity,
     /**
      * The same answer as `headroom`, and for once the interesting half is the
@@ -372,7 +372,7 @@ function shape(d: RoomDatum): RoomShape {
      * open-sky room's legs to the floor instead, which is what an arena rig
      * stands on.
      */
-    rigLid: club ? Math.min(-rise + LOW_CEILING, STAGE_SOFFIT) : Infinity,
+    rigLid: club ? -rise + LOW_CEILING : Infinity,
     /**
      * The drape behind the band, measured from the house floor like a wall.
      *
@@ -667,8 +667,8 @@ function build(c: RoomContext): RoomRig {
    * has a stage-sized frustum to spend on the band.
    *
    * Skipped entirely in the small room, where `stage-props.ts` is about to draw
-   * a plaster ceiling and a soffit for the `low-ceiling` prop and two lids in
-   * one room is one lid too many.
+   * the `low-ceiling` prop's plaster across the whole room and two lids in one
+   * room is one lid too many.
    */
   if (!club) {
     const steel = c.kit.solid(shade(tint(p.proscenium, 0.25), 0.5), { metal: 0.6, rough: 0.45 });
@@ -757,7 +757,7 @@ function build(c: RoomContext): RoomRig {
    * rather than through it. In the three eras with no truss it is simply a bar
    * on chains, which is what a small rig is.
    *
-   * The chains stop at the soffit in the small room, where they are 75 mm
+   * The chains stop at the plaster in the small room, where they are 75 mm
    * drop-arms to the plaster rather than five and a half metres of hoist chain.
    * Same object, same argument, one seventieth of the length.
    */
@@ -770,7 +770,7 @@ function build(c: RoomContext): RoomRig {
   );
   flyBar.add(pipe);
 
-  const chainTop = club ? STAGE_SOFFIT : roofY;
+  const chainTop = club ? m.rigLid : roofY;
   const chainH = Math.max(0.06, chainTop - m.flyY - 0.055);
   const chainMat = c.kit.solid(shade(p.proscenium, 0.72), { metal: 0.55, rough: 0.5 });
   const chainGeo = c.kit.bevelBox(0.045, chainH, 0.045, Math.min(0.02, chainH * 0.3));

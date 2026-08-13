@@ -107,8 +107,8 @@
  *
  * `nwobhm` (1982) names `brick` **and** `low-ceiling`, and it genuinely is a
  * different building: the room has moved downstairs. `stage-props.ts` will draw
- * a limewashed lid at `houseY + LOW_CEILING` and a soffit at `STAGE_SOFFIT`
- * whatever this file publishes, and a steel roof 6.8 m up behind a plaster
+ * a limewashed lid across the whole room at `houseY + LOW_CEILING` whatever
+ * this file publishes, and a steel roof 6.8 m up behind a plaster
  * ceiling 3.6 m up is two buildings with only one of them visible. So on that
  * era the frame, the purlins, the sheeting and the roof are not built at all —
  * geometry nothing can see is geometry nobody should pay for — the masonry runs
@@ -128,7 +128,7 @@ import {
 
 import type { Rng } from '../../../core/rng.js';
 import {
-  blend, cellPlane, shade, tint, LOW_CEILING, STAGE_SOFFIT,
+  blend, cellPlane, shade, tint, LOW_CEILING,
 } from '../stage-kit.js';
 import {
   noCurtain, type RoomBuilder, type RoomContext, type RoomDatum, type RoomRig,
@@ -171,11 +171,11 @@ import {
  * It does not drop in the cellar era, and that is a claim rather than an
  * oversight. `proscenium.ts` takes its stage down to 0.4 m under a lid and
  * `circuit.ts` to 0.45 m, both of them buying headroom back from a deck that
- * was 0.9 m or 1.42 m to start with. There is nothing to buy here: at 0.65 m
- * the house lid lands at 2.95 m over the boards and the stage soffit at 2.85 m,
- * so `STAGE_SOFFIT` is already the binding constraint and taking the deck lower
- * would buy the camera nothing and cost the sightline a further 25 cm. The hired
- * deck is the hired deck in every decade.
+ * was 0.9 m or 1.42 m to start with. There is little to buy here: at 0.65 m the
+ * one lid lands at 2.95 m over the boards, which is 0.55 m over the tallest
+ * player the room can cast, and taking the deck lower would cost the sightline a
+ * further 25 cm to buy the camera height it does not need. The hired deck is the
+ * hired deck in every decade.
  */
 const SHED_RISE = 0.65;
 
@@ -357,7 +357,7 @@ function works(d: RoomDatum): Works {
     eaves: cellar ? LOW_CEILING + 0.5 : HAUNCH + DECK,
     ridge: cellar ? LOW_CEILING : HAUNCH + PITCH * halfX + DECK,
     soffit: cellar
-      ? STAGE_SOFFIT
+      ? LOW_CEILING - SHED_RISE
       : HAUNCH + PITCH * (halfX - d.width / 2) - SHED_RISE,
     /**
      * Boarded over there is no sheeting, so the one surface anything overhead
@@ -365,7 +365,7 @@ function works(d: RoomDatum): Works {
      * `haunch` and `ridge` lines above make, for the same reason.
      */
     soffitDeck: cellar
-      ? STAGE_SOFFIT
+      ? LOW_CEILING - SHED_RISE
       : HAUNCH + PITCH * (halfX - d.width / 2) + DECK - SHED_RISE,
   };
 }
@@ -410,12 +410,12 @@ function shape(d: RoomDatum): RoomShape {
      * need for one: the follow spot lands at `houseLid - 0.3`, which is 4.47 m,
      * which is under the rafter and over the band.
      *
-     * Under a lid it is `STAGE_SOFFIT` exactly, for the reason `circuit.ts`
+     * Under a lid it is the prop's plaster exactly, for the reason `circuit.ts`
      * states — a cellar's picture is bounded by its ceiling and by nothing else,
-     * and saying so keeps the dressing under the plaster. `neon`, which the
-     * 1982 era names, hangs its sign at `min(openingHeight - 0.5, …)`: 3.1 m and
-     * through the soffit if this said what a proscenium says, 2.35 m and under
-     * it when it says this.
+     * and saying so keeps the dressing under it. `neon`, which the 1982 era
+     * names, hangs its sign at `min(openingHeight - 0.5, …)`: 3.1 m and through
+     * the plaster if this said what a proscenium says, 2.45 m and under it when
+     * it says this.
      */
     openingHeight: w.soffit,
     /**
@@ -433,11 +433,11 @@ function shape(d: RoomDatum): RoomShape {
      *
      * Under a lid it is `proscenium.ts`'s cellar arithmetic unchanged, and it
      * has to be a branch rather than a `Math.min`: 0.95 m of drop-arm under a
-     * 2.85 m soffit is a bar at 1.9 m, which is below `HANG_FLOOR` and through
+     * 2.95 m ceiling is a bar at 2.0 m, which is below `HANG_FLOOR` and through
      * the singer. Where there is no roof to hang from, a bar is a length of
      * scaffold on 130 mm arms a handspan under the plaster.
      */
-    flyY: w.cellar ? STAGE_SOFFIT - 0.13 : w.soffit - RIG_DROP,
+    flyY: w.cellar ? w.soffit - 0.13 : w.soffit - RIG_DROP,
     /**
      * **Finite, and that is the whole difference between this roof and an
      * arena's.**
@@ -497,12 +497,13 @@ function shape(d: RoomDatum): RoomShape {
      * `Works.soffitDeck`, where the choice of the deck edge over the pick is
      * argued. `PITCH * 0.4` is exactly that number.
      *
-     * Under a lid it collapses to `STAGE_SOFFIT` with the rest of the roof. The
-     * 1982 era draws no frame, no purlin and no sheeting — the header says why —
-     * so the only thing over the boards is the prop's own soffit, and a drop
-     * that reached for a roof this file did not build would end in nothing.
+     * Under a lid `soffitDeck` is the plaster, collapsed there with the rest of
+     * the roof, so there is no branch to write. The 1982 era draws no frame, no
+     * purlin and no sheeting — the header says why — so the only thing over the
+     * boards is the prop's own ceiling, and a drop that reached for a roof this
+     * file did not build would end in nothing.
      */
-    rigLid: w.cellar ? STAGE_SOFFIT : w.soffitDeck,
+    rigLid: w.soffitDeck,
     /**
      * The end wall behind the band, floor to ridge, measured from the slab
      * because it is a wall and walls are measured from the ground.
@@ -1146,7 +1147,7 @@ function build(c: RoomContext): RoomRig {
     const x = side * (barLen / 2 - 0.9);
     /** The steel directly above this point: the roof, or the plaster under it. */
     const top = w.cellar
-      ? STAGE_SOFFIT
+      ? m.rigLid
       : haunchY + PITCH * (halfX - Math.abs(x)) - 0.02;
     const len = Math.max(0.06, top - m.flyY - 0.05);
     const arm = new Mesh(

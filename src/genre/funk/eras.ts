@@ -397,7 +397,7 @@ const electro: EraProfile = {
     ],
     counter: [
       ['leadSquare', 4], ['synthBass', 3], ['clavinet', 2], ['xylophone', 2],
-      ['agogo', 2], ['guitarHarmonics', 2], ['celesta', 2], ['leadCharang', 2],
+      ['agogo', 2], ['celesta', 2], ['leadCharang', 2],
     ],
     comp: [
       ['synthBrass2', 4], ['epiano2', 3], ['mutedGuitar', 3], ['clavinet', 3],

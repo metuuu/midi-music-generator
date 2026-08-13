@@ -294,7 +294,7 @@ const studio: EraProfile = {
     ],
     counter: [
       ['celesta', 4], ['leadSquare', 3], ['glockenspiel', 3], ['kalimba', 3],
-      ['guitarHarmonics', 2], ['harp', 2], ['electricVibes', 2],
+      ['harp', 2], ['electricVibes', 2],
     ],
     comp: [
       ['epiano2', 5], ['padPoly', 4], ['synthStrings', 4], ['nylonGuitar', 3],
@@ -380,7 +380,7 @@ const design: EraProfile = {
       ['padHalo', 3], ['glockenspiel', 2], ['synthChoir', 2], ['kalimba', 2],
     ],
     counter: [
-      ['celesta', 4], ['musicBox', 3], ['glockenspiel', 3], ['guitarHarmonics', 3],
+      ['celesta', 4], ['musicBox', 3], ['glockenspiel', 3],
       ['harp', 2], ['electricVibes', 2], ['leadSquare', 2],
     ],
     comp: [

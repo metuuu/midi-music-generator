@@ -174,9 +174,9 @@
  * is standing open to the night, and in a room whose side walls are eight bays
  * of louvred double doors that is a visible and complete answer.
  *
- * `low-ceiling` is **refused.** `stage-props.ts` draws a lid at
- * `houseY + LOW_CEILING` and a soffit at `STAGE_SOFFIT` whenever it is named,
- * whatever this file publishes, so answering it would mean not building the
+ * `low-ceiling` is **refused.** `stage-props.ts` draws a lid across the whole
+ * room at `houseY + LOW_CEILING` whenever it is named, whatever this file
+ * publishes, so answering it would mean not building the
  * coffering and measuring the eight numbers to 3.6 m — which is what
  * `dancehall.ts` does, correctly, because its own lid is at 3.7 m and the two
  * are ten centimetres apart. Here they are two metres apart. A hall with a 3.6 m

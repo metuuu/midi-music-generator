@@ -77,7 +77,7 @@ const LAWN: StageRoom = {
         ambient: '#ffd9a0',
       },
       props: [
-        'open-air', 'fairy-lights', 'bunting', 'dance-floor', 'pa-stack', 'moths',
+        'open-air', 'fairy-lights', 'bunting', 'dance-floor', 'pa-ground', 'moths',
       ],
       maybe: [['paper-lanterns', 0.45], ['posters', 0.5]],
       fog: 0.14,
@@ -97,7 +97,7 @@ const LAWN: StageRoom = {
         ambient: '#ffcf95',
       },
       props: [
-        'open-air', 'fairy-lights', 'dance-floor', 'pa-stack', 'backline',
+        'open-air', 'fairy-lights', 'dance-floor', 'pa-ground', 'backline',
         'posters', 'moths',
       ],
       maybe: [['neon', 0.4], ['paper-lanterns', 0.3]],
@@ -126,7 +126,7 @@ const LAWN: StageRoom = {
         ambient: '#ffc27a',
       },
       props: [
-        'open-air', 'pa-stack', 'dance-floor', 'crowd-barrier', 'backline',
+        'open-air', 'pa-ground', 'dance-floor', 'crowd-barrier', 'backline',
         'neon', 'posters', 'wedges', 'moths',
       ],
       maybe: [['fairy-lights', 0.5], ['flight-case', 0.3]],
@@ -149,7 +149,7 @@ const LAWN: StageRoom = {
         ambient: '#8fd8ff',
       },
       props: [
-        'open-air', 'pa-stack', 'neon', 'dance-floor', 'crowd-barrier',
+        'open-air', 'pa-ground', 'neon', 'dance-floor', 'crowd-barrier',
         'backline', 'wedges', 'truss', 'posters',
       ],
       maybe: [['flight-case', 0.45], ['mirror-ball', 0.25]],
@@ -162,7 +162,7 @@ const LAWN: StageRoom = {
       boards: '#a87c4a', backdrop: '#12231d', curtain: '#7a2320',
       proscenium: '#c9a05c', ambient: '#ffc98a',
     },
-    props: ['open-air', 'pa-stack', 'dance-floor', 'fairy-lights', 'moths'],
+    props: ['open-air', 'pa-ground', 'dance-floor', 'fairy-lights', 'moths'],
     fog: 0.25,
   },
 };

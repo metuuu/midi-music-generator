@@ -869,14 +869,15 @@ const EXCUSED_PAIRS = new Set<string>([
   // deck and a case is pushed back against the cloth; the alternative is a
   // 0.35 m gap of lit floor between them.
   'drapes|flight-case',
-  // A wing stack standing against the same cloth. `warehouse@house/warehouse`:
-  // the leg's inboard edge is at `openingWidth / 2 - 0.25` = 5.250 and the
-  // cabinet's outboard face at `width / 2 - 0.2` = 5.300, so the two want the
-  // same **50 mm** of deck at the wing and the cloth hangs down the corner of
-  // the box, 0.0170 m³ over its full 1.0 m height. Both numbers are solved off
-  // `width / 2` and neither can move without giving up what it is for — the leg
-  // masks from inside the aperture, the stack stands where a PA stands.
-  'drapes|pa-stack',
+  // `drapes|pa-stack` was here, and the excuse died with the thing it excused.
+  // A 1.0 m wing stack stood against the same cloth — `warehouse@house/warehouse`,
+  // the leg's inboard edge at `openingWidth / 2 - 0.25` = 5.250 against the
+  // cabinet's outboard face at `width / 2 - 0.2` = 5.300, 0.0170 m³ over the
+  // box's full height — and the argument was that neither number could move
+  // without giving up what it was for. One of them then moved for an unrelated
+  // reason: the PA went up on poles to get out of the band, and a pole and a
+  // hanging leg do not want the same deck. Measured with the excuse lifted,
+  // nothing solid meets.
 ]);
 
 let collisions = 0;

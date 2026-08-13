@@ -172,41 +172,36 @@ export const STAGE_RISE = 0.9;
  * sense of scale rather than an impossibility. It is an impossibility. A lid
  * that stops at the lip and an opening that carries on up past it is not a low
  * room, it is a shelf ending in mid-air over a void, and no amount of colour or
- * texture on the shelf fixes what is wrong above it. That is what
- * `STAGE_SOFFIT` is for, and this constant now only has to be the *house* half
- * of a ceiling that covers the whole room.
+ * texture on the shelf fixes what is wrong above it. The fix is that the lid
+ * covers the *whole* room, boards included, and hides the top of the arch by
+ * being over it.
  *
- * 3.6 m, and it can afford to go up because it is no longer the only thing
- * holding the room down — the soffit over the stage is what says cellar now, at
- * the place where the eye has the arch to compare it against. Over the house,
- * where there is nothing to compare it to, height only buys the camera room:
- * the lens gets 2.25 m once `LENS_GAP` and the soffit have had their share,
- * against 1.8 m before, in a house whose floor also came up half a metre.
+ * 3.6 m, and it buys the camera the room the 2.9 m version did not have: the
+ * lens gets `LOW_CEILING - rise - LENS_GAP`, which is 2.25 m over the boards in
+ * the jazz cellar against 1.8 m before, in a house whose floor also came up half
+ * a metre.
+ *
+ * ## One plane, and it was two
+ *
+ * There was a `STAGE_SOFFIT` here — 2.85 m over the *boards*, drawn from the lip
+ * upstage, with a fascia across the opening joining it to this. The argument for
+ * it was that a downstand at the proscenium line is the most basement thing in
+ * the room, and the argument was fine; the arithmetic under it was not. The two
+ * constants were measured from different floors, so the step was the *riser* and
+ * nothing else — 0.10 m in the shed, 0.45 m in the riihi, 0.35 m in the cellar
+ * this room is named after — and six rooms published two lids, a `Math.min` and
+ * a fly trim apiece to describe a bulkhead whose depth nobody had chosen.
+ *
+ * A cellar has one floor and one ceiling, and the stage is a riser standing on
+ * the floor. Measuring the plaster from the floor is therefore the physical
+ * model as well as the smaller one: the clearance over the boards falls out of
+ * the rise, which is the direction the causation actually runs. What it costs is
+ * that the band gets 0.65–0.90 m over `HEAD_BAND.hi` instead of the soffit's
+ * 0.45 m. The room still reads low, because a low ceiling that runs unbroken
+ * from the back wall to behind the cloth reads lower than a stepped one does —
+ * there is nothing in the frame at a *second* height to measure it against.
  */
 export const LOW_CEILING = 3.6;
-
-/**
- * How far above the *boards* the ceiling comes down over the stage.
- *
- * The other half of the lid, and the half that makes the cellar a cellar. Rooms
- * like this have a downstand at the proscenium line — a beam, a duct run, the
- * underside of the stairs to the street — and the stage is tucked under it. So
- * the ceiling steps: `LOW_CEILING` over the house, this over the boards, and a
- * fascia at the lip joining the two. `stage-props.ts` draws all three;
- * `stage.ts` publishes the lower of them as `headroom`, because a camera that
- * clears the house lid and not the soffit is back to filming through a ceiling.
- *
- * 2.85 m sets everything else in the room. `HEAD_BAND.hi` is 2.4 m, so it
- * leaves the tallest thing the band can be 0.45 m of air — tight, and meant to
- * be: a cellar stage where the trumpet player has room to spare overhead is a
- * theatre. That clearance is also the whole reason the boards came down to
- * `CELLAR_RISE`; at the old 0.9 m rise there was no height here to give.
- *
- * It hides the top of the arch, the fly bar and the upper backdrop, and that is
- * the point rather than a cost. Those are what a cellar does not have, and they
- * were only ever visible because nothing was in front of them.
- */
-export const STAGE_SOFFIT = 2.85;
 
 /**
  * The plaster over the *house*, or `Infinity` where there is none.
@@ -254,11 +249,11 @@ export function houseLid(m: StageMetrics): number {
  * lens at **1.8 m in the cellar** — a person standing on the floor of the room
  * rather than pressed into its ceiling. That number is the one `LOW_CEILING`
  * seventy lines up records itself as having replaced: the lid went to 3.6 m and
- * the boards came down to `CELLAR_RISE`, so the lens gets `STAGE_SOFFIT` less
- * this, which is **2.25 m in board space**, 2.65 m above the cellar's own floor.
- * The clearance the height was bought for still holds and is smaller than it was
- * claimed to be: jazz's seated house tops out at 1.44 m in the same frame, so
- * the gap is 0.81 m rather than the metre stated here.
+ * the boards came down to `CELLAR_RISE`, so the lens gets the plaster less this,
+ * which is **2.60 m in board space**, 3.00 m above the cellar's own floor. It
+ * was 2.25 m while the stage had a soffit of its own under the plaster, and the
+ * clearance the height was bought for is a good deal larger than was claimed
+ * here: jazz's seated house tops out at 1.44 m in the same frame.
  *
  * It costs the dressing nothing to widen: everything hung is built *downward
  * from the ceiling* to fit inside this band, so a deeper band is more room to

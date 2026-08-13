@@ -83,9 +83,9 @@
  * ## The modifiers
  *
  * `low-ceiling` is answered, and answering it is nearly free. `stage-props.ts`
- * draws a limewashed lid at `houseY + LOW_CEILING` and a soffit at
- * `STAGE_SOFFIT` whenever the prop is named, whatever this file publishes, and
- * a boarded ceiling at 3.7 m behind a plaster one at 3.6 m is two buildings ten
+ * draws a limewashed lid across the whole room at `houseY + LOW_CEILING`
+ * whenever the prop is named, whatever this file publishes, and a boarded
+ * ceiling at 3.7 m behind a plaster one at 3.6 m is two buildings ten
  * centimetres apart — z-fighting's older and stupider cousin. So on those seeds
  * the hall takes the ceiling it has been given: the boarding is not built, the
  * posts and their beams run up to the prop's lid instead, and the eight numbers
@@ -167,7 +167,7 @@ import {
 import type { Rng } from '../../../core/rng.js';
 import {
   blend, cellPlane, shade, tint,
-  LOW_CEILING, STAGE_SOFFIT,
+  LOW_CEILING,
 } from '../stage-kit.js';
 import {
   noCurtain, type RoomBuilder, type RoomContext, type RoomDatum, type RoomRig,
@@ -422,19 +422,16 @@ function hall(d: RoomDatum): Hall {
 function shape(d: RoomDatum): RoomShape {
   const h = hall(d);
   /**
-   * The lowest thing over the boards.
+   * The lowest thing over the boards, and it is the ceiling in both dressings.
    *
-   * Normally the ceiling, straight. Where the `low-ceiling` prop is up it is
-   * that prop's *soffit* rather than its house lid — `stage-props.ts` steps the
-   * ceiling down over the stage to `STAGE_SOFFIT` and hangs a fascia at the lip
-   * to join the two, and a camera or a lantern solved against the higher of the
-   * pair is a camera through a bulkhead. The `Math.min` states it rather than
-   * assuming the soffit is always lower, which it is at every rise this room
-   * could take and might not be at one somebody tries later.
+   * This used to take the lower of the room's lid and a second, fixed plane the
+   * `low-ceiling` prop stepped down to over the stage — the prop drew a soffit
+   * at 2.85 m and a fascia at the lip to join the two, and a camera or a lantern
+   * solved against the higher of the pair was a camera through a bulkhead. The
+   * prop draws one sheet across the whole room now, so the pair is a single
+   * plane and `Hall.lid` is already it.
    */
-  const headroom = h.lowCeiling
-    ? Math.min(h.lid - HALL_RISE, STAGE_SOFFIT)
-    : h.lid - HALL_RISE;
+  const headroom = h.lid - HALL_RISE;
   return {
     rise: HALL_RISE,
     /**
@@ -498,15 +495,15 @@ function shape(d: RoomDatum): RoomShape {
      *
      * Because it is stated against `headroom` rather than against the ceiling,
      * it follows the `low-ceiling` prop down automatically: 3.02 m in the plain
-     * hall, 2.72 m under the honky-tonk's soffit, which is `STAGE_SOFFIT - 0.13`
-     * exactly — the cellar's own number, in the room the cellar's ceiling has
-     * been dropped into. A room that grows a lid can never leave its lamps
+     * hall, 2.92 m under the honky-tonk's plaster — a handspan under the one lid
+     * that prop draws, in the room the cellar's ceiling has been dropped into. A
+     * room that grows a lid can never leave its lamps
      * inside the plaster, which is the bug this field exists to have fixed.
      *
      * The clearance underneath was checked rather than assumed. `lights.ts`
      * short-yokes its pars to 0.10 m under the pipe when `headroom` is finite,
-     * so the bottom of a can sits at 2.92 m over the plain hall and 2.62 m under
-     * the honky-tonk soffit, against `HEAD_BAND.hi` at 2.40 m. Both clear; the
+     * so the bottom of a can sits at 2.92 m over the plain hall and 2.82 m under
+     * the honky-tonk's plaster, against `HEAD_BAND.hi` at 2.40 m. Both clear; the
      * second only just, which is what a honky-tonk is.
      */
     flyY: headroom - 0.13,

@@ -1628,16 +1628,19 @@ function stageBand(slots: Slot[], venue: Venue, seed: string): void {
    * concert always looks the same, and that two consecutive numbers are not
    * mirror images of each other for no reason.
    *
-   * Unless there is a grand piano in the band, where the draw is not between
-   * two mirror images but between one good picture and one bad one. The piano
-   * takes the audience's left and takes it with two and a half metres of case
-   * — see `PIANO_SIDE` — so half the seeds were sending the bass into the one
-   * corner of the stage that was already full and leaving the other half of it
-   * bare boards. A piano trio came out as everybody on the left and nobody on
-   * the right. So the bass takes the side the piano did not.
+   * Unless there is furniture in the band, where the draw is not between two
+   * mirror images but between one good picture and one bad one. A grand takes
+   * the audience's left and takes it with two and a half metres of case — see
+   * `PIANO_SIDE` — so half the seeds were sending the bass into the one corner
+   * of the stage that was already full and leaving the other half of it bare
+   * boards. A piano trio came out as everybody on the left and nobody on the
+   * right. So the bass takes the side the furniture did not, and it has to ask
+   * *which* piece of furniture: a harp takes the opposite side to a piano, for
+   * the reason `HARP_SIDE` gives, and reading `PIANO_SIDE` for both would send
+   * the bass to keep it company instead of away from it.
    */
-  const furniture = slots.some((s) => BULKY.includes(s.archetype));
-  const side = furniture ? -PIANO_SIDE : rng.chance(0.5) ? 1 : -1;
+  const furniture = slots.find((s) => BULKY.includes(s.archetype));
+  const side = furniture ? -bulkySide(furniture.archetype) : rng.chance(0.5) ? 1 : -1;
 
   const kit = slots.find((s) => s.role === 'kit');
   const kitR = kit?.r ?? 0;
@@ -1884,7 +1887,24 @@ function sidewaysTurn(archetype: Archetype): number {
      */
     case 'grand-piano': return 1.77;
     case 'organ': case 'electric-piano': case 'synth': return 0.45;
-    case 'mallets': case 'dulcimer': case 'harp': return 0.3;
+    /**
+     * The harp's recital angle, and it is the piano's problem again.
+     *
+     * A harp is played *along* its own plane rather than from in front of it,
+     * so a harpist square to the house is a harpist showing the house the edge
+     * of the instrument — or, with the turn the other way, the flat back of the
+     * soundbox with themselves behind it. Neither is what a harp looks like.
+     *
+     * The old 0.3 was the mallet player's number, borrowed on the reasoning
+     * that both stand at something wide. A vibraphone is wide across the
+     * player; a harp is deep through them. At 0.3 the soundboard still pointed
+     * some 75° off the house. A right angle would be a full profile, which
+     * costs the face; 1.0 leaves the strings a little over 30° off square to
+     * the crowd, which is the angle a harpist is photographed at, and keeps the
+     * player turned toward the band rather than out of the picture.
+     */
+    case 'harp': return 1.0;
+    case 'mallets': case 'dulcimer': return 0.3;
     case 'upright-bass': return 0.2;
     default: return 0;
   }
@@ -2004,17 +2024,18 @@ function layoutFrontLine(
      * to the average of several. The exception is a front line with nothing but
      * furniture in it — a number whose only front-line player is the pianist —
      * where centring would park a grand piano across the middle of the stage
-     * and wall the band off. That one slides to the audience's left, for the
-     * reason `PIANO_SIDE` gives.
+     * and wall the band off. That one slides off centre, to the side
+     * `bulkySide` names for it.
      *
      * How far it slides depends on which piece of furniture it is, and the two
-     * are not close. A harp is a metre of floor with the player behind it, so
-     * the old 1.6 places the whole instrument. A grand is a bench with two and
-     * a half metres of piano hanging off the side of it, and placing the bench
-     * is not placing the piano — see `PIANO_OFF_CENTRE`.
+     * are not close. A harp is a metre of floor leaning on its player, so 1.6
+     * places the whole instrument. A grand is a bench with two and a half
+     * metres of piano hanging off the side of it, and placing the bench is not
+     * placing the piano — see `PIANO_OFF_CENTRE`.
      */
     const centreX = BULKY.includes(centre.archetype)
-      ? PIANO_SIDE * (centre.archetype === 'grand-piano' ? PIANO_OFF_CENTRE : BULKY_OFF_CENTRE)
+      ? bulkySide(centre.archetype)
+        * (centre.archetype === 'grand-piano' ? PIANO_OFF_CENTRE : BULKY_OFF_CENTRE)
       : 0;
     /**
      * A grand piano does not stand on the front edge.
@@ -2455,6 +2476,36 @@ const BULKY: Archetype[] = ['grand-piano', 'harp'];
 const PIANO_SIDE = -1;
 
 /**
+ * …and which side a harp goes, which is the other one, for the same kind of
+ * reason read off a different instrument.
+ *
+ * A harp is asymmetric in a way that is easy to get wrong, because it is not
+ * asymmetric across the *player*: its string plane runs fore-and-aft through
+ * them — base between the feet, treble corner on the right shoulder, column out
+ * in front — so the audience sees the strings only if the player's **left** side
+ * is turned toward the house. See the note on `station` in `instruments/harp.ts`.
+ *
+ * `sidewaysTurn` turns every player toward centre stage. On the audience's right
+ * that turn puts a harpist's left side to the house, and the fan, the hands and
+ * the whole front of the instrument come with it. On the left the identical rule
+ * turns them the other way and shows the house the back of the soundbox with the
+ * player hidden behind it — and the only way to get the strings back would be to
+ * turn a player out into the wing, which is a worse picture than the one it
+ * fixes.
+ *
+ * So the harp takes the right and the piano takes the left. Only one piece of
+ * furniture ever anchors a front line — `frontCentre` returns one player — so
+ * the two never both claim an off-centre slot; where a band carries both, the
+ * one that is not the anchor is laid out by its role like anything else.
+ */
+const HARP_SIDE = 1;
+
+/** Which side of the stage a given piece of furniture stands. */
+function bulkySide(archetype: Archetype): number {
+  return archetype === 'harp' ? HARP_SIDE : PIANO_SIDE;
+}
+
+/**
  * Which side a floor-seated percussionist sits, and it is not a coin toss
  * either.
  *
@@ -2479,9 +2530,10 @@ const FLOOR_PERCUSSION_SIDE = -1;
  * How far off centre a piece of furniture sits when it is the whole front line.
  *
  * The harp's number, and the grand piano's until it turned out to be measuring
- * the bench. Anything played from behind is more or less where its player is,
- * so 1.6 is a metre and a half of daylight between it and the middle of the
- * stage and there is nothing more to say about it.
+ * the bench. A harp is not quite where its player is — it leans on them and
+ * runs about 0.9 m out in front, so the turn `sidewaysTurn` gives it swings the
+ * column back toward the middle — but only to within 0.8 m of the centre line,
+ * which is still daylight. There is nothing more to say about it.
  */
 const BULKY_OFF_CENTRE = 1.6;
 

@@ -119,11 +119,12 @@
  * yard or a cellar would be a room with no opinion, and the point of moving the
  * building out of `stage.ts` was to stop rooms having no opinion. The one that
  * would genuinely break is worth naming since it would break silently:
- * `low-ceiling` makes `stage-props.ts` board the room over at `STAGE_SOFFIT`,
- * 2.85 m above the boards, under a `headroom` of 3.8 that the camera trusts —
- * every wide shot would then be taken through a ceiling. The answer to that is
- * not a branch here. It is that a sabhā with a cellar's soffit in it is a
- * different room and should be a different file.
+ * `low-ceiling` makes `stage-props.ts` board the room over at
+ * `houseY + LOW_CEILING`, 3.35 m above the boards at this dais height, under a
+ * `headroom` of 3.8 that the camera trusts — every wide shot would then be taken
+ * through a ceiling. The answer to that is not a branch here. It is that a sabhā
+ * with a cellar's plaster in it is a different room and should be a different
+ * file.
  *
  * ## What this file does not draw
  *

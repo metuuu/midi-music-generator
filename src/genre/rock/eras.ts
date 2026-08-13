@@ -298,12 +298,12 @@ const arena: EraProfile = {
   palette: {
     melody: [
       ['distortionGuitar', 5], ['overdriveGuitar', 4], ['leadSaw', 2],
-      ['synthBrass', 2], ['rockOrgan', 2], ['guitarHarmonics', 1],
+      ['synthBrass', 2], ['rockOrgan', 2],
       ['leadSquare', 1], ['cleanGuitar', 2],
     ],
     counter: [
       ['distortionGuitar', 4], ['overdriveGuitar', 3], ['leadSaw', 3],
-      ['synthBrass', 2], ['guitarHarmonics', 2], ['cleanGuitar', 2],
+      ['synthBrass', 2], ['cleanGuitar', 2],
       ['epiano2', 1],
     ],
     comp: [
@@ -407,10 +407,18 @@ const arena: EraProfile = {
  * `distortionGuitar` still leads, and it is a different distortion — a fuzz or
  * a cheap solid-state overdrive rather than a cranked valve stack, which is
  * grittier and much less sustaining. The catalogue has one patch for both, which
- * is a real limitation and is the reason `guitarHarmonics` is at a genuine
- * weight here: a pinched harmonic and a feedback squeal are the two things that
- * distinguish this decade's lead sound and neither of them is a distortion
- * setting.
+ * is a real limitation.
+ *
+ * **`guitarHarmonics` used to be at a genuine weight here and is gone**, and the
+ * reasoning that put it there is worth keeping because it was nearly right: a
+ * pinched harmonic and a feedback squeal are the two things that distinguish this
+ * decade's lead sound, and neither of them is a distortion setting. What that
+ * misses is that both are things a guitarist does *to a note* — the line is a
+ * distortion guitar and the squeal is an event inside it. A palette entry cannot
+ * express an event inside a line; it can only hand the whole part to GM 31, which
+ * is every note played as a harmonic, and that is a thin glassy ping rather than
+ * a squeal. The gesture belongs in `technique.ts` if it is ever worth having.
+ * `country/eras.ts` has the fuller account of why the patch left the catalogue.
  *
  * `tremoloStrings` in the pad palette is not an orchestra. It is a bowed guitar,
  * an EBow and a violin through a fuzzbox, all of which happened repeatedly on
@@ -447,12 +455,12 @@ const alt: EraProfile = {
   palette: {
     melody: [
       ['distortionGuitar', 5], ['overdriveGuitar', 4], ['cleanGuitar', 3],
-      ['guitarHarmonics', 2], ['mutedGuitar', 2], ['rockOrgan', 1],
+      ['mutedGuitar', 2], ['rockOrgan', 1],
       ['epiano1', 1], ['tremoloStrings', 1],
     ],
     counter: [
       ['distortionGuitar', 4], ['cleanGuitar', 4], ['overdriveGuitar', 3],
-      ['guitarHarmonics', 3], ['mutedGuitar', 2], ['epiano1', 1],
+      ['mutedGuitar', 2], ['epiano1', 1],
       ['glockenspiel', 1],
     ],
     comp: [

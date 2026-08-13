@@ -340,7 +340,7 @@ const superclub: EraProfile = {
     ],
     counter: [
       ['leadSaw', 4], ['cleanGuitar', 3], ['leadSquare', 3], ['celesta', 2],
-      ['glockenspiel', 2], ['epiano2', 2], ['marimba', 2], ['guitarHarmonics', 1],
+      ['glockenspiel', 2], ['epiano2', 2], ['marimba', 2],
     ],
     comp: [
       ['epiano1', 4], ['percussiveOrgan', 4], ['piano', 4], ['cleanGuitar', 3],
@@ -442,7 +442,7 @@ const afterhours: EraProfile = {
     ],
     counter: [
       ['leadSquare', 3], ['kalimba', 3], ['marimba', 3], ['celesta', 2],
-      ['glockenspiel', 2], ['epiano2', 2], ['guitarHarmonics', 2], ['leadSaw', 2],
+      ['glockenspiel', 2], ['epiano2', 2], ['leadSaw', 2],
     ],
     comp: [
       ['epiano1', 5], ['padPoly', 3], ['percussiveOrgan', 3], ['epiano2', 3],

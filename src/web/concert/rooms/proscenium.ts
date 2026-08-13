@@ -41,10 +41,10 @@
  * still has an arch and a fly tower, because a tanssilava is a roofed bandstand
  * and that is what the roof is holding up.
  *
- * `low-ceiling` — the cellar. Two lids, a kerb instead of a stage, and a fly
- * bar bolted to the soffit rather than flown. This is the modifier that pushed
- * hardest against the single-file shape and it is still on the right side of
- * the line: everything it changes is a height.
+ * `low-ceiling` — the cellar. One low lid over the whole room, a kerb instead
+ * of a stage, and a fly bar bolted to the plaster rather than flown. This is
+ * the modifier that pushed hardest against the single-file shape and it is
+ * still on the right side of the line: everything it changes is a height.
  */
 
 import {
@@ -55,7 +55,7 @@ import {
 import { buildCurtain } from '../stage-curtain.js';
 import {
   blend, cellPlane, hueShift, playingArea, shade, tint,
-  LOW_CEILING, STAGE_RISE, STAGE_SOFFIT,
+  LOW_CEILING, STAGE_RISE,
 } from '../stage-kit.js';
 import type { RoomBuilder, RoomContext, RoomDatum, RoomRig, RoomShape } from './types.js';
 
@@ -68,7 +68,7 @@ import type { RoomBuilder, RoomContext, RoomDatum, RoomRig, RoomShape } from './
  * pavilion wants and what a basement has never once had.
  *
  * It is not only a truth about clubs, it is where the headroom comes from.
- * `STAGE_SOFFIT` needs air over `HEAD_BAND.hi` and there is only so much room
+ * `LOW_CEILING` needs air over `HEAD_BAND.hi` and there is only so much room
  * between a floor and a ceiling; every centimetre the boards give up is a
  * centimetre the lid does not have to. Half a metre of it was sitting under the
  * band for no reason but a default shared with a room that has open sky.
@@ -131,17 +131,17 @@ export function prosceniumShape(d: RoomDatum): RoomShape {
     openingHeight,
     curtainZ: d.lipZ - CURTAIN_FROM_LIP,
     /**
-     * The pipe, and in a cellar it is bolted to the soffit rather than flown.
+     * The pipe, and in a cellar it is bolted to the plaster rather than flown.
      *
      * `openingHeight - 0.35` is a fly tower's answer and it stopped being true
      * the moment the stage got a lid: the arch is 3.6 m at its shortest and the
-     * soffit is at 2.85, so the bar and everything the rig hangs on it — every
+     * plaster is at 3.2, so the bar and everything the rig hangs on it — every
      * par, the warm lamp, the wires — sat *inside the ceiling*, invisible, with
      * their beams starting in the plaster. A fly bar cannot be higher than the
      * room; where there is no fly tower it is a length of scaffold on drop-arms
      * a handspan under the plaster, which is what this is.
      */
-    flyY: lowCeiling ? STAGE_SOFFIT - 0.13 : openingHeight - 0.35,
+    flyY: lowCeiling ? -rise + LOW_CEILING - 0.13 : openingHeight - 0.35,
     /**
      * `Infinity` over the boards even in the room that now has a painted
      * ceiling, and the precedent for that is `circuit.ts`.
@@ -162,9 +162,9 @@ export function prosceniumShape(d: RoomDatum): RoomShape {
      * The lid over the *house* is a different question and is answered
      * differently on the next line, because something does read that one.
      */
-    headroom: lowCeiling ? Math.min(-rise + LOW_CEILING, STAGE_SOFFIT) : Infinity,
+    headroom: lowCeiling ? -rise + LOW_CEILING : Infinity,
     /**
-     * The plaster over the house — the cellar's soffit, and now the black box's
+     * The plaster over the house — the cellar's own, and now the black box's
      * ceiling too. `Infinity` only out of doors, which is the one dressing of
      * this room that genuinely has nothing overhead.
      *
@@ -192,14 +192,15 @@ export function prosceniumShape(d: RoomDatum): RoomShape {
      *
      * `rigLid` is the surface a motor drop dies into rather than the lowest
      * thing a lens must clear, and the two only part company where the roof is
-     * sloped, coffered or framed. A cellar's soffit is a single sheet of plaster
-     * — `stage-props.ts` draws it at `STAGE_SOFFIT` and there is nothing above
-     * it that a hoist could reach. And over a fly tower there is honestly
-     * nothing at all, which is what the `Infinity` here means: `truss` has its
-     * own clause for a stage house and reaches for the grid by itself.
+     * sloped, coffered or framed. A cellar's plaster is a single sheet — one
+     * plane that `stage-props.ts` runs from behind the cloth to the back of the
+     * house, with nothing above it that a hoist could reach. And over a fly
+     * tower there is honestly nothing at all, which is what the `Infinity` here
+     * means: `truss` has its own clause for a stage house and reaches for the
+     * grid by itself.
      *
      */
-    rigLid: lowCeiling ? Math.min(-rise + LOW_CEILING, STAGE_SOFFIT) : Infinity,
+    rigLid: lowCeiling ? -rise + LOW_CEILING : Infinity,
     /** A cloth indoors; a low wall you are meant to see over, outdoors. */
     backdropHeight: openAir ? 2.4 : openingHeight + 2.2,
     /**
@@ -713,12 +714,15 @@ function build(c: RoomContext): RoomRig {
   flyBar.add(pipe);
   /**
    * What holds it up, and it has to reach something. 2.6 m of wire going up
-   * from a bar 0.16 m under a soffit is 2.44 m of steel through the ceiling —
+   * from a bar 0.16 m under the plaster is 2.44 m of steel through the ceiling —
    * the same mistake as the bar itself, one level down. In a low room these are
    * drop-arms to the plaster, which is how a pipe is hung where there is
-   * nothing above it to fly from.
+   * nothing above it to fly from. `rigLid` rather than the constant the cellar
+   * used to keep over its boards: the lid is the room's now, and a drop-arm
+   * solved against a plane the room does not publish is the same 2.44 m of
+   * steel waiting to come back.
    */
-  const wireH = lowCeiling ? Math.max(0.06, STAGE_SOFFIT - m.flyY - 0.045) : 2.6;
+  const wireH = lowCeiling ? Math.max(0.06, m.rigLid - m.flyY - 0.045) : 2.6;
   for (const side of [-1, 1]) {
     const wire = new Mesh(
       c.kit.bevelBox(0.03, wireH, 0.03, Math.min(0.014, wireH * 0.3)),

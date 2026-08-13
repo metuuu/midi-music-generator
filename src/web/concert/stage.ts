@@ -222,6 +222,18 @@ export interface StageRig {
   showRiser(on: boolean): void;
 
   /**
+   * Which ground-stacked PA columns are standing, for the number about to go
+   * on. Same bargain as `showRiser` one prop over: the room owns the stack and
+   * the cast owns the floor it is standing in, and only the runner sees both.
+   *
+   * Pass where every performer is and how much room they take — `r` is the gear
+   * and not the body, because a modular is a metre of cabinets and is the one
+   * thing that ever wants this corner. A room without `pa-ground` in its props
+   * ignores it. See `stage-props.ts`.
+   */
+  showPa(cast: readonly { x: number; z: number; r: number }[]): void;
+
+  /**
    * Where the light is in the air, so the haze can be in it.
    *
    * The banks are drawn, not lit — nothing in the scene's lighting reaches
@@ -711,6 +723,7 @@ export function buildStage(venue: Venue, opts: StageOptions = {}): StageRig {
     setAttention: (level) => audience.setAttention(level),
 
     showRiser: (on) => dressed.showRiser(on),
+    showPa: (cast) => dressed.showPa(cast),
 
     setAir: (beams) => takeAir?.(beams),
 

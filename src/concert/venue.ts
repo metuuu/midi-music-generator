@@ -240,7 +240,19 @@ import type { Venue } from './types.js';
  *                     it. Not `railing`, which stands on the stage.
  *
  * Any stage:
- *   `pa-stack`        speakers, flown or on poles, facing the house
+ *   `pa-stack`        speakers on poles in the wings, facing the house, trimmed
+ *                     over the band's heads
+ *   `pa-ground`       the same PA ground-stacked instead: two columns of boxes
+ *                     standing on the deck at the back corners. The sound
+ *                     system as furniture — a dancehall, a warehouse, a lawn
+ *                     with a rig on it — where `pa-stack` is a PA that has been
+ *                     got out of the way. Name one or the other, never both.
+ *
+ *                     It is the one prop in this list that a *number* can
+ *                     strike: it stands where a modular's cabinets stand, so
+ *                     the side a wall of synthesiser occupies goes away for as
+ *                     long as that band is on. See `StageRig.showPa` — the
+ *                     `riser` arrangement, for the same reason.
  *   `backline`        the band's own amplifiers, in a wall along the back wall
  *                     facing the other way. The defining object of a rock stage.
  *   `wedges`          floor monitors facing the band
@@ -266,7 +278,7 @@ export const PROPS = [
   // Arena
   'truss', 'screen', 'crowd-barrier',
   // Any stage
-  'pa-stack', 'backline', 'wedges', 'riser',
+  'pa-stack', 'pa-ground', 'backline', 'wedges', 'riser',
 ] as const;
 
 /**

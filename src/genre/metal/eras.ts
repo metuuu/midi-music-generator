@@ -199,7 +199,7 @@ const nwobhm: EraProfile = {
       ['drawbarOrgan', 1],
     ],
     counter: [
-      ['distortionGuitar', 7], ['overdriveGuitar', 4], ['guitarHarmonics', 1],
+      ['distortionGuitar', 7], ['overdriveGuitar', 4],
     ],
     comp: [
       ['distortionGuitar', 8], ['overdriveGuitar', 4], ['cleanGuitar', 1],
@@ -283,10 +283,10 @@ const thrash: EraProfile = {
   drumSources: [['kit', 12], ['programmed', 1], ['box', 1]],
   palette: {
     melody: [
-      ['distortionGuitar', 9], ['overdriveGuitar', 3], ['guitarHarmonics', 1],
+      ['distortionGuitar', 9], ['overdriveGuitar', 3],
     ],
     counter: [
-      ['distortionGuitar', 9], ['overdriveGuitar', 3], ['guitarHarmonics', 1],
+      ['distortionGuitar', 9], ['overdriveGuitar', 3],
     ],
     comp: [
       ['distortionGuitar', 10], ['overdriveGuitar', 2],
@@ -368,7 +368,7 @@ const extreme: EraProfile = {
   palette: {
     melody: [
       ['distortionGuitar', 8], ['overdriveGuitar', 3], ['strings1', 2],
-      ['guitarHarmonics', 1], ['fiddle', 1], ['recorder', 1],
+      ['fiddle', 1], ['recorder', 1],
     ],
     counter: [
       ['distortionGuitar', 7], ['strings1', 3], ['overdriveGuitar', 3],

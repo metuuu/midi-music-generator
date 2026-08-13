@@ -177,14 +177,43 @@ const FRAGMENT = /* glsl */ `
     float reach = sqrt(max(r * r - off * off, 0.0) / sq);
     float s0 = max(sMid - reach, 0.0);   // clamped at the camera, for when it is inside
     float s1 = sMid + reach;
-    float chord = clamp((s1 - s0) / (2.0 * r), 0.0, 1.0);
+
+    // Two questions, and they only look like one from outside.
+    //
+    // Where in the cone this ray passes is what the sharpening is for: full at
+    // the middle, nothing at the silhouette, raised to a power to harden the
+    // core. How much of that crossing is still in front of the camera is a
+    // quantity of air, and air is linear. Asking the power to answer both is
+    // what it did until now, and inside the beam it made a mess of it: stand on
+    // the axis and look across, and half the crossing is behind you, which the
+    // power turned into an eighth of the brightness and a beam that all but
+    // went out sideways.
+    float full = clamp(reach / r, 0.0, 1.0);
+    float seen = clamp((s1 - s0) / (2.0 * r), 0.0, 1.0);
+    float ahead = full > 1e-5 ? min(seen / full, 1.0) : 0.0;
+
+    // Is the camera in the beam, and how far off its axis if so: 1 at the wall,
+    // 0 on the axis, ramped across the wall rather than switched at it.
+    float camWall = vRadius * (${MOUTH.toFixed(3)} + ${(1 - MOUTH).toFixed(3)} * clamp(e / throwLen, 0.0, 1.0));
+    // Unclamped on purpose: it is a ratio, and a camera out in the house has to
+    // read as the twenty wall-radii away it is rather than as one.
+    float within = length(toCam - e * axis) / max(camWall, 1e-4);
+    float inside = (1.0 - smoothstep(0.85, 1.15, within)) * step(0.0, e) * step(e, throwLen);
 
     // The same number off the surface instead, faceted by the tessellation.
     // Where the two agree it is the one that carries the grain, so it is what
     // gets used; sq is exactly how much the ray crosses the cone rather than
     // running down it, which is exactly how far the surface can be trusted.
+    //
+    // From *inside* the cone it can be trusted nowhere, whatever sq says, and
+    // this is the term that has to say so. A dot against the wall's normal
+    // brightens the piece of wall that happens to face the lens, and seen from
+    // within a tube that piece is a bright sheet swinging round the inside as
+    // the camera turns: a thing in the shot that is not in the scene. The
+    // chord has no such preference: it asks the volume, and the volume does not
+    // know where the camera is pointing.
     float facing = abs(dot(normalize(vNormalV), -ray));
-    float a = pow(mix(chord, facing, sq), uSharp);
+    float a = pow(mix(full, facing, sq * (1.0 - inside)), uSharp) * ahead;
 
     // Where down the throw that crossing happens. Clamping the two ends to the
     // beam's own extent is what keeps a ray fired along the axis sampling the
@@ -200,12 +229,18 @@ const FRAGMENT = /* glsl */ `
     a *= smoothstep(0.0, 0.05, t);
 
     // Both walls draw and sum, except from inside, where the near one is behind
-    // the camera and the far one is all there is. Hand it the pair's weight,
-    // over a band straddling the wall wide enough that the near plane clipping
-    // the near wall just before the camera crosses it does not read as a dip.
-    float camWall = vRadius * (${MOUTH.toFixed(3)} + ${(1 - MOUTH).toFixed(3)} * clamp(e / throwLen, 0.0, 1.0));
-    float within = length(toCam - e * axis) / max(camWall, 1e-4);
-    a *= 1.0 + (1.0 - smoothstep(0.85, 1.15, within)) * step(0.0, e) * step(e, throwLen);
+    // the camera and the far one is all there is. The survivor is handed the
+    // pair's weight so that crossing the wall is not a step, but only *at* the
+    // wall: the compensation is for a missing wall and it is spent on the
+    // distance off the axis, which runs to nothing at the axis itself.
+    //
+    // Which is where it had to be spent. On the axis the chord is a whole
+    // throw of haze and clamps to full, and doubling full covers the frame in
+    // gel, an additive whiteout with the beam's own subject somewhere inside
+    // it, lit exactly as before and looking like the one thing in the shot that
+    // is not. A beam you are standing in should be bright. It should not be
+    // brighter than the same beam is from the seats, which is what this was.
+    a *= 1.0 + inside * min(within, 1.0);
 
     gl_FragColor = vec4(uColour, a * uAlpha);
   }

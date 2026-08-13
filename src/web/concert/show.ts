@@ -521,6 +521,23 @@ export function createShow(opts: ShowOptions = {}): Show {
      */
     stage.showRiser(number.cast.performers.some((p) => p.station.riser > 0));
 
+    /**
+     * And the ground-stacked PA only stands where nobody's gear is in it.
+     *
+     * The same sentence as the riser with the sign flipped — that platform goes
+     * when it is empty and these boxes go when they are *occupied* — and the
+     * one case is a wall of modular synthesiser, which `cast.ts` puts at the
+     * back corners as far outboard as it fits. A body gets 0.35 m, which is the
+     * radius the cable router already gives one; a modular gets 1.15, being
+     * 0.78 m of wing offset plus half a 0.6 m cabinet plus the toe-in. See
+     * `StageRig.showPa`.
+     */
+    stage.showPa(number.cast.performers.map((p) => ({
+      x: p.station.position[0],
+      z: p.station.position[2],
+      r: p.rig === 'modular' ? 1.15 : 0.35,
+    })));
+
     for (const performer of number.cast.performers) {
       const rig = buildPerformer(performer);
       /**

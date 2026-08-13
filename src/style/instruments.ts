@@ -551,10 +551,26 @@ export const INSTRUMENTS = {
   tenorSax: G(L(I('tenor sax', 66, 'gm_tenor_sax', 60, 0.6, 'wind'), 72), 0.74),
   baritoneSax: I('baritone sax', 67, 'gm_baritone_sax', 48, 0.5, 'wind'),
   clarinet: I('clarinet', 71, 'gm_clarinet', 72, 0.65, 'wind'),
-  flute: I('flute', 73, 'gm_flute', 84, 0.7, 'wind'),
+  // E5, not C6. The range below is the whole instrument, B3 to C7, and a centre
+  // at the top of it was being read as a tessitura: measured across the
+  // catalogue, 57% of every flute note landed above C6 and the top excursion
+  // reached C7. That is the flute's third octave, which is where a flautist goes
+  // for two bars of a climax and never for a whole part — it is the register
+  // that cuts through an orchestra, and a tune that lives there is shrill for
+  // the same reason it is audible. 76 is the middle of the horn and where the
+  // repertoire's melodies actually sit.
+  flute: I('flute', 73, 'gm_flute', 76, 0.7, 'wind'),
   padWarm: E(I('warm pad', 89, 'gm_pad_warm', 60, 0.5, 'bowed'), PAD),
   // Fingered like a keyboard, but it is a struck metal bar and rings like one.
-  celesta: E(I('celesta', 8, 'gm_celesta', 84, 1.0, 'keyboard'), { decay: 1.2, sustain: 0 }),
+  //
+  // And centred like the glockenspiel above, for the reason given there. At 84
+  // this was the worst offender in the catalogue — 42% of its notes above C6 and
+  // an excursion to C7 — because the keyboard idiom figures in broken chords and
+  // runs, so it spends far more notes at the top of its window than a mallet
+  // counter-line does. A celesta is a colour laid over a texture; 76 is still
+  // clear of a piano's right hand and stops the part living in the octave where
+  // this patch is a ping rather than a pitch.
+  celesta: E(I('celesta', 8, 'gm_celesta', 76, 1.0, 'keyboard'), { decay: 1.2, sustain: 0 }),
 
   // --- The ambient shelf ---------------------------------------------------
   // GM programs 88–103 are the eight synth pads and the eight "effects", and
@@ -596,7 +612,19 @@ export const INSTRUMENTS = {
   // rings for the better part of a bar, a music-box comb for a moment.
   tubularBells: E(I('tubular bells', 14, 'gm_tubular_bells', 72, 1.0, 'mallet'),
     { decay: 4.5, release: 0.8 }),
-  musicBox: E(I('music box', 10, 'gm_music_box', 84, 1.0, 'mallet'), { decay: 0.9 }),
+  // The comb is short and the sample is bright, and at 84 it was writing tunes
+  // that topped out at C7 — see the glockenspiel and the celesta.
+  //
+  // 79 and not the 76 those two took, because this one has to clear the band as
+  // well as stay out of the ping. Measured as the median distance from a part's
+  // own middle to the top edge of the accompaniment under it, the untouched
+  // bells sit 5 to 8 semitones clear — vibraphone 5, marimba 7, glockenspiel 8 —
+  // and a music box dropped to 76 measured **0**, which is the glockenspiel's
+  // point made in the other direction: a bell that is not above the pad is
+  // simply part of the pad. The keyboard bells can go lower because they play
+  // enough notes to be heard as a line; this plays a handful and has to be a
+  // colour or it is nothing.
+  musicBox: E(I('music box', 10, 'gm_music_box', 79, 1.0, 'mallet'), { decay: 0.9 }),
   kalimba: E(I('kalimba', 108, 'gm_kalimba', 72, 1.0, 'mallet'), { decay: 0.8 }),
   // Wood, not metal — a marimba bar is dead long before a vibraphone's is.
   marimba: E(I('marimba', 12, 'gm_marimba', 72, 1.0, 'mallet'), { decay: 0.9 }),
@@ -639,7 +667,22 @@ export const INSTRUMENTS = {
   // Sympathetic strings and a drone string of its own — the one plucked
   // instrument that already behaves like a pad.
   sitar: H(I('sitar', 104, 'gm_sitar', 60, 0.7, 'plucked'), HAND.other),
-  panFlute: I('pan flute', 75, 'gm_pan_flute', 79, 0.6, 'wind'),
+  // A siku is a row of stopped tubes and the longest one decides where it sits.
+  // The range above it is generous — the sample set covers it — but a pan flute
+  // centred at G5 was writing its excursions past G6, which is above the top
+  // tube of any of them and sounds like a whistle rather than a pipe.
+  //
+  // 76 and not the 72 that was tried first, which is the same E5 the flute takes
+  // above and is the more interesting half of the reason. At 72 the *ceiling*
+  // came down as intended and the variation came down with it: measured as the
+  // spread of where a part's top note lands across the catalogue, this went from
+  // seven semitones to three — every pan flute part topping out on the same
+  // note, which is a narrower instrument rather than a better-placed one. 76
+  // keeps the top of the real instrument reachable on the songs that climb: the
+  // highest note in the sweep only fell a semitone, to F#6, but the share of
+  // notes living above C6 fell from 19.5% to 4.6%, which is the fault — a pipe
+  // that visits the top of itself against one that has moved in.
+  panFlute: I('pan flute', 75, 'gm_pan_flute', 76, 0.6, 'wind'),
   shakuhachi: I('shakuhachi', 77, 'gm_shakuhachi', 74, 0.55, 'wind'),
 
   // --- The orchestra -------------------------------------------------------
@@ -741,7 +784,11 @@ export const INSTRUMENTS = {
   // where a marimba reads as harmony. 0.35 against the marimba's 0.9 is the
   // whole difference, and it is why the same written line sounds like a tune on
   // one and like a woodblock melody on the other.
-  xylophone: E(I('xylophone', 13, 'gm_xylophone', 84, 1.0, 'mallet'),
+  // 79 with the glockenspiel, which is the bar this is a drier cousin of. The
+  // range goes to C8 because the instrument does, and that is exactly why the
+  // centre has to hold it down: 0.35 seconds of rosewood at the top of a
+  // three-and-a-half octave frame is a stick hitting a stick.
+  xylophone: E(I('xylophone', 13, 'gm_xylophone', 79, 1.0, 'mallet'),
     { decay: 0.35 }),
   // A whole orchestra playing one chord, sampled, and then played from a
   // keyboard — which is why it is filed under `brass` rather than `keyboard`.
@@ -937,7 +984,24 @@ export const INSTRUMENTS = {
   // own 22 frets. Long decay, because a node is where the string loses least.
   // A harmonic is a fingertip resting over a node while the other hand plucks:
   // whatever else the right hand can do, it is not damping and not strumming.
-  guitarHarmonics: H(E(I('guitar harmonics', 31, 'gm_guitar_harmonics', 79, 0.6, 'plucked'),
+  //
+  // The centre is the node list, not the range. A guitar has four usable natural
+  // harmonics and they sound at fixed pitches: the twelfth fret gives E3–E5, the
+  // seventh B3–B5, the fifth E4–E6 and the fourth G#4–G#6, thirty pitches in all
+  // and the middle of them is around C5. At 79 the register planner was writing
+  // a *part* up at G5 with excursions to A6 — country dealt this as a pad, so it
+  // was a whole bed of them — and above E6 there is no node left to touch. 72 is
+  // the middle of what the hand can actually reach.
+  //
+  // **No palette deals this, and that is deliberate.** It stays in the catalogue
+  // because the entry above is true and because a consumer building its own
+  // palettes may want it; every `EraProfile` in `genre/` dropped it. Re-centring
+  // it fixed the register and did not fix the sound, which was the actual
+  // complaint: GM 31 is a thin glassy ping with almost no fundamental, and across
+  // a whole part it is a needle rather than a bell at any pitch. It stood in for
+  // a pedal steel in country and for a pinched harmonic in rock, and both of
+  // those stories are in the era files that used to tell them.
+  guitarHarmonics: H(E(I('guitar harmonics', 31, 'gm_guitar_harmonics', 72, 0.6, 'plucked'),
     { decay: 2.2 }), [['fingerstyle', 3], ['fingers', 2]]),
 
   // --- Machines ------------------------------------------------------------

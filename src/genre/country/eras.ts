@@ -40,12 +40,10 @@
  * layers, because what a pedal steel actually does on a record is two jobs:
  *
  *  - **The answering fill between the vocal lines**, which is most of it, and
- *    which `guitarHarmonics` carries. It is a struck string touched at a node, so
- *    it rings for 2.2 seconds where a fretted note rings for one; it sits between
- *    C4 and C7, which is exactly the steel's fill register; and what it sounds
- *    like is a bell made out of a guitar. It is at or near the head of the
- *    `counter` palette in three of the four eras below, and that placement is the
- *    substitution.
+ *    which the `fiddle`, the `harmonica` and `cleanGuitar` now share across the
+ *    `counter` palettes. None of them is a steel. They are the three instruments
+ *    that actually trade the fill with one on a record, which is the nearest
+ *    honest thing to it.
  *  - **The held chord underneath the chorus**, which `strings1` carries in the
  *    `pad`. A steel player pressing a pedal moves one note of a sustained triad
  *    while the others hold, and a bowed ensemble is the only thing in the
@@ -53,6 +51,20 @@
  *
  * What is lost is the bend itself, which is the whole instrument, and there is no
  * honest way to get it from a sampler triggered on note boundaries.
+ *
+ * **`guitarHarmonics` used to carry the first of those and no longer does.** The
+ * argument for it was good on paper — a struck node rings 2.2 seconds where a
+ * fretted note rings one, it sits in the steel's fill register, and what it
+ * sounds like is a bell made out of a guitar — and the sound is the part that did
+ * not survive listening. GM 31 is a thin glassy ping with almost no fundamental,
+ * and against a band it is not a bell, it is a needle.
+ *
+ * The failure is worth keeping because it is a *class* of mistake this file can
+ * make again: the substitution was chosen by reasoning about the physics of the
+ * real object and never checked against the sample that would play it. Half a fix
+ * made it worse — taking it off `melody` alone freed it to be dealt to `counter`
+ * more often, and its share there went from 15% to 21% of country tracks. A patch
+ * you do not want to hear cannot be fixed by moving which layer it plays.
  *
  * **The mandolin.** Also absent, also without a GM programme. It is carried as a
  * *figure* rather than as a patch — see `chop` in `styles.ts`, played by
@@ -253,10 +265,13 @@ const stringband: EraProfile = {
  * real weight rather than a token one because for about eighteen months in the
  * middle of this era it was the loudest bass sound in America.
  *
- * The `counter` palette is where the pedal steel lives — `guitarHarmonics` at the
- * head of it, for the reason set out at the top of this file. In this era the
- * answering fill between the vocal lines is the single most identifiable thing on
- * the record, and it is a steel player.
+ * The `counter` palette is where the pedal steel would live, and this is the era
+ * that misses it most: the answering fill between the vocal lines is the single
+ * most identifiable thing on these records, and it is a steel player. `fiddle` at
+ * the head of the palette is what the catalogue can honestly offer — the other
+ * instrument that trades that fill, on the same records, with the same player
+ * sitting out every second phrase. See the top of this file for why the patch
+ * that used to stand in for the steel does not any more.
  */
 const honkytonk: EraProfile = {
   id: 'honkytonk',
@@ -273,11 +288,11 @@ const honkytonk: EraProfile = {
   drumSources: [['kit', 1]],
   palette: {
     melody: [
-      ['fiddle', 5], ['cleanGuitar', 4], ['guitarHarmonics', 4], ['piano', 3],
+      ['fiddle', 5], ['cleanGuitar', 4], ['piano', 3],
       ['harmonica', 3], ['steelGuitar', 2], ['accordion', 2], ['tenorSax', 1],
     ],
     counter: [
-      ['guitarHarmonics', 6], ['fiddle', 5], ['cleanGuitar', 3], ['harmonica', 3],
+      ['fiddle', 5], ['cleanGuitar', 3], ['harmonica', 3],
       ['piano', 2], ['accordion', 2], ['dulcimer', 1],
     ],
     comp: [
@@ -311,7 +326,7 @@ const honkytonk: EraProfile = {
      * and stages 323 singers, none of whom came out as a keyboard player.
      */
     pad: [
-      ['strings1', 3], ['guitarHarmonics', 3], ['choirAahs', 3],
+      ['strings1', 3], ['choirAahs', 3],
       ['drawbarOrgan', 2], ['reedOrgan', 2],
     ],
     bass: [['acousticBass', 7], ['slapBass2', 3], ['pickBass', 2], ['fingerBass', 1]],
@@ -398,12 +413,12 @@ const nashville: EraProfile = {
   drumSources: [['kit', 1]],
   palette: {
     melody: [
-      ['piano', 4], ['guitarHarmonics', 4], ['cleanGuitar', 3], ['strings1', 3],
+      ['piano', 4], ['cleanGuitar', 3], ['strings1', 3],
       ['vibraphone', 2], ['harmonica', 2], ['fiddle', 2], ['nylonGuitar', 2],
       ['tenorSax', 1],
     ],
     counter: [
-      ['guitarHarmonics', 6], ['strings1', 3], ['piano', 3], ['cleanGuitar', 3],
+      ['strings1', 3], ['piano', 3], ['cleanGuitar', 3],
       ['vibraphone', 2], ['harmonica', 2], ['fiddle', 2],
     ],
     comp: [
@@ -497,12 +512,12 @@ const outlaw: EraProfile = {
   drumSources: [['kit', 7], ['box', 2], ['programmed', 1]],
   palette: {
     melody: [
-      ['cleanGuitar', 5], ['guitarHarmonics', 4], ['fiddle', 3], ['harmonica', 3],
+      ['cleanGuitar', 5], ['fiddle', 3], ['harmonica', 3],
       ['overdriveGuitar', 3], ['piano', 2], ['dulcimer', 2], ['banjo', 2],
       ['nylonGuitar', 2],
     ],
     counter: [
-      ['guitarHarmonics', 5], ['cleanGuitar', 4], ['fiddle', 3], ['harmonica', 3],
+      ['cleanGuitar', 4], ['fiddle', 3], ['harmonica', 3],
       ['dulcimer', 2], ['banjo', 2], ['epiano1', 1],
     ],
     comp: [
