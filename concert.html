@@ -37,7 +37,9 @@
         --hot: #e0a24a;
         font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
       }
-      * { box-sizing: border-box; }
+      /* No tap flash: Android's Chrome paints a blue rectangle over whatever a
+         finger lands on, and it lands on the showbill and the stage itself. */
+      * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
       html, body { height: 100%; }
       body {
         margin: 0; background: var(--bg); color: var(--ink);

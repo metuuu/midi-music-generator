@@ -34,7 +34,9 @@
         --bg: #15171a; --ink: #e8e4de; --dim: #8d8880; --hot: #e0a24a;
         font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
       }
-      * { box-sizing: border-box; }
+      /* No tap flash: Android's Chrome paints a blue rectangle over whatever a
+         finger lands on, and it lands on the controls and the canvas. */
+      * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
       html, body { height: 100%; }
       body { margin: 0; background: var(--bg); color: var(--ink); overflow: hidden; }
       #bench { position: fixed; inset: 0; display: block; width: 100%; height: 100%; }
