@@ -114,14 +114,20 @@ function optionsFromUrl(): ConcertOptions {
 }
 
 /**
- * `?debug` — label every player with the part they are playing.
+ * A flag typed into an address bar by hand.
  *
- * Presence is enough (`?debug`, `?debug=1`), because that is how a flag typed
- * into an address bar by hand is written. `debug=0` and `debug=false` turn it
- * off, so a link that carries the flag can be handed back without it.
+ * Presence is enough (`?debug`, `?debug=1`), because that is how such a thing is
+ * written. `=0` and `=false` turn it off, so a link that carries one can be
+ * handed back without it.
+ *
+ * Two of them, and neither is in `ConcertOptions` or in `shareUrl`. Both are
+ * about *this page* rather than about the show — `?debug` labels every player
+ * with the part they are playing, and `?metu` dresses the whole band as one man
+ * — so neither belongs in a link that means "the same show, for somebody else".
+ * The seed still reproduces the concert; the flag is the reader's own.
  */
-function debugFromUrl(): boolean {
-  const v = new URLSearchParams(location.search).get('debug');
+function flagFromUrl(key: string): boolean {
+  const v = new URLSearchParams(location.search).get(key);
   return v !== null && v !== '0' && v !== 'false';
 }
 
@@ -210,7 +216,12 @@ if (!canvas) {
 
   let show: Show;
   try {
-    show = createShow({ concert: optionsFromUrl(), debug: debugFromUrl(), onState: onState });
+    show = createShow({
+      concert: optionsFromUrl(),
+      debug: flagFromUrl('debug'),
+      metu: flagFromUrl('metu'),
+      onState: onState,
+    });
   } catch (err) {
     degrade(`The show could not be staged: ${String(err)}`);
     throw err;

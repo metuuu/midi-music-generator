@@ -65,6 +65,7 @@ import { Rng } from '../../core/rng.js';
 import type { LayerId, Song } from '../../core/types.js';
 import { songDurationBeats } from '../../core/types.js';
 import { buildConcert, revoiceNumber } from '../../concert/index.js';
+import { asMetu } from '../../concert/cast.js';
 import { trackForPart } from '../../concert/choreograph.js';
 import type {
   Concert, ConcertNumber, ConcertOptions, PartRef, Performer, StageMachine,
@@ -111,6 +112,14 @@ export interface ShowOptions {
    * person the casting gave that track to. See `debug-tags.ts`.
    */
   debug?: boolean;
+  /**
+   * Put the same man on stage nineteen times over — `?metu` on the page.
+   *
+   * The whole band in one face and one dark suit. See `asMetu`, which is where
+   * the look is and where the argument for it is; this flag only says whether
+   * the cast goes through it.
+   */
+  metu?: boolean;
   /** Called whenever the state changes, for the page's status line. */
   onState?: (state: ShowState, show: Show) => void;
 }
@@ -283,6 +292,20 @@ const BOW_NOD_SECONDS = 1.4;
 
 export function createShow(opts: ShowOptions = {}): Show {
   const concert = buildConcert(opts.concert ?? {});
+  /**
+   * Before a single rig is built, and that is the whole of the plumbing.
+   *
+   * Every model, tag and light downstream reads `Performer.look` out of this
+   * object when its number is staged, so redressing the cast here is redressing
+   * it everywhere — including the numbers that will not be staged for another
+   * twenty minutes, and including a player who gets a tomato and comes back
+   * (`revoiceNumber` keeps the cast, because it is the same band).
+   */
+  if (opts.metu) {
+    for (const number of concert.numbers) {
+      for (const performer of number.cast.performers) performer.look = asMetu(performer.look);
+    }
+  }
   let quality: Quality = opts.quality ?? 'high';
   const reducedMotion = opts.reducedMotion ?? prefersReducedMotion();
 

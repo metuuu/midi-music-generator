@@ -838,6 +838,75 @@ function makeLook(args: {
   };
 }
 
+/**
+ * Charcoal rather than black, and the same cloth top and bottom.
+ *
+ * A true black suit under a follow spot is a hole in the picture — every fold
+ * clips to the same value and the player becomes a silhouette with a face
+ * floating over it. This is dark enough to read as a dark suit beside a white
+ * shirt and light enough to still have shape in it.
+ */
+const METU_SUIT = '#23262c';
+
+/**
+ * Everybody on stage is the same person. `concert.html?metu`.
+ *
+ * An easter egg, and the one look in this file that is not drawn from a
+ * wardrobe: dark brown curls over a warm light face, a dark wool suit, and
+ * nothing else at all — no glasses, no hat, no beard, no earrings — on every
+ * player in every number. The brows follow the hair, as they do for everybody; see
+ * `browColour` in `web/concert/performer-face.ts`, which is where that stopped
+ * being a claim about skin tone.
+ *
+ * **It transforms a `Look` rather than replacing one, and the two fields it
+ * leaves alone are the reason.** `height` and `build` are the only parts of a
+ * look the *stage* has read — heads, sightlines and footprints were all laid out
+ * against them before anybody was dressed — so rewriting them here would mean a
+ * band standing in positions computed for different bodies. One face and one
+ * suit on nineteen different frames is the joke anyway; nineteen identical
+ * clones would be a restaging.
+ *
+ * The accessory list is emptied rather than filtered, which is the stronger of
+ * the two readings of what was asked for and the right one: a wardrobe that
+ * drew a bandana on the drummer and hoops on the singer would be dressing *two
+ * people*, and the whole of this is that there is one.
+ *
+ * `web/concert/show.ts` reads the flag and applies this to the cast before
+ * anything is built from it. Nothing in the IR knows the query string exists —
+ * this is a `Look` to a `Look`, and what the `Look` says is still exactly what
+ * walks on stage.
+ */
+export function asMetu(look: Look): Look {
+  return {
+    ...look,
+    // `SKIN[1]`, one step down its ramp from the palest tone rather than two:
+    // `SKIN[0]` came out paler than a stage face should be under a warm key, and
+    // the step below this one is where the ramp starts reading as a tan.
+    skin: '#e9c19b',
+    // Dark brown, and the fourth of five the catalogue has along one ramp:
+    // `#5c4025` is chestnut, `#3a2416` is brown, this is brown that is nearly
+    // out of light, and `#101010` is the black every wardrobe lists — which
+    // reads as black under a lantern and is what this is not.
+    hair: '#2e1d10',
+    hairStyle: 'curls',
+    outfit: {
+      ...look.outfit,
+      jacket: METU_SUIT,
+      trousers: METU_SUIT,
+      shirt: '#ffffff',
+      // The one loud colour, overwritten even though nothing left in this look
+      // can draw it — accent reaches the picture through an accessory, a wrap or
+      // brocade, and there are none, no wrap and no brocade here. A field left
+      // holding the tanssilava pink a lead singer drew is a trap for whoever
+      // adds the next thing that reads it.
+      accent: METU_SUIT,
+      fabric: 'wool',
+      garment: 'suit',
+    },
+    accessories: [],
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Casting
 // ---------------------------------------------------------------------------

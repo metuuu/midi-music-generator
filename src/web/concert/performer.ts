@@ -694,7 +694,9 @@ class Rig implements PerformerRig {
     skull.castShadow = true;
     this.head.add(skull);
 
-    this.face = buildFace(this.head, p.headR, look.skin, this.blown, this.leases, faceRng);
+    this.face = buildFace(
+      this.head, p.headR, look.skin, look.hair, this.blown, this.leases, faceRng,
+    );
     // Hair first, and the order is now load-bearing rather than incidental: a
     // hat has to be told what it is going on top of, and the only thing that
     // knows is the hair that was just built. See `HairProfile`.

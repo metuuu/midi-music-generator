@@ -34,11 +34,11 @@
  * decided by the rig — this file only knows where to put the irises.
  */
 
-import { Group, Mesh, MeshStandardMaterial, Object3D } from 'three';
+import { Color, Group, Mesh, MeshStandardMaterial, Object3D, SRGBColorSpace } from 'three';
 
 import { Rng } from '../../core/rng.js';
 
-import { Leases, bead, pip, shade, slab, surface, pill } from './performer-assets.js';
+import { Leases, bead, hairSurface, pip, shade, slab, surface, pill } from './performer-assets.js';
 import { SIDE } from './performer-look.js';
 
 export interface FaceRig {
@@ -59,16 +59,70 @@ export interface FaceRig {
 /** Iris colours. Nothing in `Look` says, so it comes off the performer's id. */
 const IRIS = ['#4a3524', '#2f4a5c', '#3d5240', '#5b5148', '#2a2320'] as const;
 
+/**
+ * Brows are hair, and were the only hair on this body that did not know it.
+ *
+ * They were `shade(skin, -0.30)` — a fixed step down from the *face* — which is
+ * a plausible brow on nobody in particular and the wrong one on anybody the
+ * wardrobe has an opinion about: a black-haired player in dark brown brows, and
+ * every player on the stage in a different pair, because they were tracking skin
+ * tone. The beard and the moustache in `performer-accessories.ts` have taken
+ * `look.hair` all along; this is the same claim, applied to the pair of them
+ * above the eyes.
+ *
+ * **The one thing hair colour cannot be trusted with is contrast.** Hair runs to
+ * `#efeae0` in the classical and country wardrobes, and white brows on a light
+ * face are not a subtle brow — they are *no brow*, and the brow is a channel:
+ * `brow(raise, furrow)` is where surprise and effort are written, and a player
+ * who cannot furrow has lost an expression rather than gained a hair colour. So
+ * the hair's own lightness stands unless it lands within `BROW_CONTRAST` of the
+ * face's, and only then is it pushed clear.
+ *
+ * Pushed *darker* where there is room and lighter where there is not, which is
+ * the half the old rule could not express: a `shade(skin, -0.30)` on a dark face
+ * clamps to black, so a grey-haired player in a dark skin tone got the same
+ * black brows as everybody else standing beside them. Light hair over a dark
+ * face is a real head and it now draws as one.
+ */
+const BROW_CONTRAST = 0.18;
+
+/**
+ * In sRGB, explicitly, and every call below says so.
+ *
+ * `Color` works in linear-sRGB by default, so an unqualified `getHSL` hands back
+ * a lightness on a curve nobody reading a hex code is thinking in: `#3a2416` is
+ * 0.157 to the eye and 0.02 linear, and a contrast rule written against one and
+ * fed the other pushes brows the wrong way — it lightened a dark-haired player
+ * on dark skin to `#aa724e`, which is a brow the colour of a plaster. The
+ * numbers here are read off the wardrobe's own hex strings, so the comparison
+ * has to happen in the space those strings are written in.
+ */
+function browColour(hairColour: string, skinColour: string): string {
+  const hair = { h: 0, s: 0, l: 0 };
+  const brow = new Color(hairColour);
+  brow.getHSL(hair, SRGBColorSpace);
+  const face = { h: 0, s: 0, l: 0 };
+  new Color(skinColour).getHSL(face, SRGBColorSpace);
+
+  const l = Math.abs(hair.l - face.l) >= BROW_CONTRAST
+    ? hair.l
+    : (face.l >= BROW_CONTRAST ? face.l - BROW_CONTRAST : face.l + BROW_CONTRAST);
+  brow.setHSL(hair.h, hair.s, l, SRGBColorSpace);
+  return `#${brow.getHexString(SRGBColorSpace)}`;
+}
+
 export function buildFace(
-  head: Object3D, headR: number, skinColour: string, blown: boolean,
-  l: Leases, rng: Rng,
+  head: Object3D, headR: number, skinColour: string, hairColour: string,
+  blown: boolean, l: Leases, rng: Rng,
 ): FaceRig {
   const R = headR;
   const skin = surface(l, skinColour, { roughness: 0.62 });
   const lipMat = surface(l, shade(skinColour, -0.13), { roughness: 0.5 });
   const whiteMat = surface(l, '#f3f0ea', { roughness: 0.35 });
   const irisMat = surface(l, rng.pick(IRIS), { roughness: 0.25 });
-  const browMat = surface(l, shade(skinColour, -0.30), { roughness: 0.8 });
+  // `hairSurface` rather than a face material: these are hair, and they catch a
+  // rim light the way the head does rather than the way a cheek does.
+  const browMat = hairSurface(l, browColour(hairColour, skinColour));
   const innerMat = surface(l, '#2b1216', { roughness: 0.6 });
 
   // --- eyes --------------------------------------------------------------
