@@ -61,18 +61,52 @@ const M_BOARD_W = M_WHITES * M_WHITE_W;
 const P_WHITE_W = 0.055;
 const P_WHITES = whiteIndex(35) - whiteIndex(LOW) + 1;
 const P_BOARD_W = P_WHITES * P_WHITE_W;
-const P_NATURAL_Y = 0.095;
-const P_SHARP_Y = 0.165;
 /**
- * Where a foot lands on a pedal key, and it has to be *on* one.
+ * The playing surfaces, and they are **kerb height, not chair height**.
  *
- * The naturals run from `-0.54` to `-0.14` and the sharps from `-0.46` to
- * `-0.26`; these used to say -0.60 and -0.53, which is off the end of both —
- * six centimetres of daylight between the shoe and the pedalboard, against the
- * toe rail. Near the front of the key, where a foot goes, and no further.
+ * These used to say 0.095 and 0.165. A pedal natural is 30 mm of wood, so its
+ * underside sat 65 mm clear of the boards with nothing at all underneath it,
+ * and the sharps floated another 38 mm above the naturals they stand over: a
+ * keyboard hanging in the air under the console, with an organist's feet up at
+ * shin height working it. A pedalboard *stands on the floor*. The naturals are
+ * 28 mm thick with their tops 55 mm up, the sharps are raised blocks 50 mm
+ * over them, and the frame below reaches the stage.
  */
-const P_NATURAL_Z = -0.47;
-const P_SHARP_Z = -0.40;
+const P_NATURAL_Y = 0.055;
+const P_SHARP_Y = 0.105;
+const P_NATURAL_H = 0.028;
+const P_NATURAL_L = 0.40;
+const P_SHARP_H = 0.040;
+const P_SHARP_L = 0.20;
+/** The lines the two sets of keys hinge on, both buried in the back rail. */
+const P_NATURAL_BACK = -0.34;
+const P_SHARP_BACK = -0.36;
+/**
+ * The frame: a rectangle of the console's own wood, standing on the boards.
+ * `TOP` clears the naturals and passes under the sharps, so the keys are held
+ * between two cheeks and run back under a rail rather than hanging in space.
+ */
+const P_FRAME_TOP = 0.075;
+const P_FRAME_FRONT = -0.785;
+const P_FRAME_BACK = -0.3325;
+/**
+ * Where a foot lands on a pedal key, and it has to be *on* one — near the
+ * player's end of it, which is where a foot goes.
+ *
+ * In this frame the naturals run from `-0.74` to `-0.34` and the sharps from
+ * `-0.56` to `-0.36`, the player being at negative z. These said -0.47 and
+ * -0.40, on the strength of a note claiming extents of `-0.54..-0.14` and
+ * `-0.46..-0.26` — which are neither the rig's numbers nor the stage's, and
+ * are wrong by 200 and 100 mm respectively. Measured against the geometry that
+ * is actually built, -0.47 put the shoe 130 mm from the *pivot* on a 400 mm
+ * key — a foot at the console end of the natural, not the near end — and -0.40
+ * put it 40 mm behind the sharp's own hinge, straddling the back rail. A
+ * natural is played 140 mm up from its tip and a sharp 60 mm up from the near
+ * end of its block, which also restores the thing the sharps are shaped for:
+ * the foot on a C sits 80 mm forward of the foot on a C sharp.
+ */
+const P_NATURAL_Z = -0.60;
+const P_SHARP_Z = -0.50;
 
 /** How far downstage the whole console sits from the reserved centre. */
 const Z_SHIFT = 0.22;
@@ -217,11 +251,23 @@ export const buildOrgan: InstrumentBuilder = (opts) => {
 
   const woodColour = opts.finish ?? rng.pick(['#4a3121', '#3a2618', '#5a4028', '#2c2018']);
   const woodMat = new MeshStandardMaterial({ color: woodColour, roughness: 0.55, metalness: 0.05 });
-  const darkMat = new MeshStandardMaterial({ color: '#1b1a1c', roughness: 0.7, metalness: 0.05 });
   // A Hammond has the colours the other way round from a piano, and that
   // inversion is most of what makes it recognisable from across a room.
   const naturalMat = new MeshStandardMaterial({ color: '#efe9db', roughness: 0.45, metalness: 0 });
   const sharpMat = new MeshStandardMaterial({ color: '#191a1d', roughness: 0.4, metalness: 0 });
+  /**
+   * The pedalboard is **wood**, and it is the one keyboard here where that is
+   * not a finish decision. The manuals are moulded key plastic and the drawbars
+   * are dyed rod; a pedalboard is joinery — maple slats and stained blocks in a
+   * frame — and the four faces of the console it bolts under are wood too. The
+   * pedals used to share the manuals' materials, so the thing on the floor
+   * read as a third keyboard that had fallen off the console rather than as
+   * the part of it a shoe is allowed to touch. Lighter than any of the finishes
+   * `woodColour` draws from, so the keys still separate from the frame holding
+   * them.
+   */
+  const pedalNaturalMat = new MeshStandardMaterial({ color: '#c8a56b', roughness: 0.6, metalness: 0 });
+  const pedalSharpMat = new MeshStandardMaterial({ color: '#3a2413', roughness: 0.5, metalness: 0 });
   const chromeMat = new MeshStandardMaterial({ color: '#c3c9d1', roughness: 0.3, metalness: 0.88 });
   const lampMat = new MeshStandardMaterial({
     color: '#3b2a05', emissive: '#ffb43a', emissiveIntensity: 0.6, roughness: 0.4,
@@ -370,36 +416,76 @@ export const buildOrgan: InstrumentBuilder = (opts) => {
 
   // --- Pedalboard ----------------------------------------------------------
 
-  const pedalNaturalGeo = new BoxGeometry(P_WHITE_W * 0.8, 0.03, 0.40);
-  pedalNaturalGeo.translate(0, -0.015, -0.20);
-  const pedalSharpGeo = new BoxGeometry(0.028, 0.032, 0.20);
-  pedalSharpGeo.translate(0, -0.016, -0.10);
+  const pedalNaturalGeo = new BoxGeometry(P_WHITE_W * 0.8, P_NATURAL_H, P_NATURAL_L);
+  pedalNaturalGeo.translate(0, -P_NATURAL_H / 2, -P_NATURAL_L / 2);
+  const pedalSharpGeo = new BoxGeometry(0.028, P_SHARP_H, P_SHARP_L);
+  pedalSharpGeo.translate(0, -P_SHARP_H / 2, -P_SHARP_L / 2);
 
   const pedalNaturals: number[] = [];
   const pedalSharps: number[] = [];
   for (let midi = LOW; midi < MANUAL_LOW; midi++) {
     (BLACK[midi % 12]! ? pedalSharps : pedalNaturals).push(midi);
   }
-  const pnMesh = addTo(rig, new InstancedMesh(pedalNaturalGeo, naturalMat, pedalNaturals.length));
-  const psMesh = addTo(rig, new InstancedMesh(pedalSharpGeo, sharpMat, pedalSharps.length));
+  const pnMesh = addTo(rig, new InstancedMesh(pedalNaturalGeo, pedalNaturalMat, pedalNaturals.length));
+  const psMesh = addTo(rig, new InstancedMesh(pedalSharpGeo, pedalSharpMat, pedalSharps.length));
   pnMesh.name = 'keys:pedal-natural';
   psMesh.name = 'keys:pedal-sharp';
   pnMesh.receiveShadow = true;
   psMesh.castShadow = true;
   pedalNaturals.forEach((midi, slot) => {
-    const pivot = new Vector3(pedalX(midi), P_NATURAL_Y, -0.34);
+    const pivot = new Vector3(pedalX(midi), P_NATURAL_Y, P_NATURAL_BACK);
     scratch.makeTranslation(pivot.x, pivot.y, pivot.z);
     pnMesh.setMatrixAt(slot, scratch);
     keys.set(midi, { mesh: pnMesh, slot, pivot, hit: new Hit() });
   });
   pedalSharps.forEach((midi, slot) => {
-    const pivot = new Vector3(pedalX(midi), P_SHARP_Y, -0.36);
+    const pivot = new Vector3(pedalX(midi), P_SHARP_Y, P_SHARP_BACK);
     scratch.makeTranslation(pivot.x, pivot.y, pivot.z);
     psMesh.setMatrixAt(slot, scratch);
     keys.set(midi, { mesh: psMesh, slot, pivot, hit: new Hit() });
   });
   pnMesh.instanceMatrix.needsUpdate = true;
   psMesh.instanceMatrix.needsUpdate = true;
+
+  /**
+   * The frame, and it is what makes the pedalboard part of the organ.
+   *
+   * There was none. Twelve keys were drawn at a height and left there, and
+   * nothing in the model said the board rests on anything or belongs to
+   * anything — a detached row of slats under a cabinet on legs. A pedalboard is
+   * a piece of furniture in the console's own wood: two cheeks holding the keys
+   * between them, a rail at the back that both hinges hide inside, and a toe
+   * rail across the front. `woodMat` and not a colour of its own, because the
+   * point of the frame is that it is the same object as the console.
+   *
+   * The back rail is the join. It is 900 mm wide against the board's 385, which
+   * carries it out through **both front legs** of the console at x ±0.42 — so
+   * the pedalboard is not merely near the organ, it is fixed to the two things
+   * standing on the floor beside it, and the keys emerge from under a rail that
+   * is visibly the base of the cabinet above.
+   */
+  const pedalCheekGeo = new BoxGeometry(0.028, P_FRAME_TOP, P_FRAME_BACK - P_FRAME_FRONT);
+  for (const side of [1, -1]) {
+    const cheek = addTo(rig, new Mesh(pedalCheekGeo, woodMat));
+    cheek.position.set(
+      side * (P_BOARD_W / 2 + 0.021), P_FRAME_TOP / 2, (P_FRAME_FRONT + P_FRAME_BACK) / 2,
+    );
+    cheek.castShadow = true;
+    cheek.receiveShadow = true;
+  }
+  const pedalRail = addTo(rig, new Mesh(new BoxGeometry(0.90, P_FRAME_TOP, 0.055), woodMat));
+  pedalRail.position.set(0, P_FRAME_TOP / 2, (P_NATURAL_BACK + P_SHARP_BACK) / 2 - 0.010);
+  pedalRail.castShadow = true;
+  pedalRail.receiveShadow = true;
+  /**
+   * A rail across the front of the pedalboard, which is what stops a foot. In
+   * front of the key tips rather than under them: a natural swings 14 mm down
+   * at the tip, and this used to be tall enough and close enough to be inside
+   * the wood it was supposed to stop.
+   */
+  const toeRail = addTo(rig, new Mesh(new BoxGeometry(P_BOARD_W + 0.07, 0.05, 0.04), woodMat));
+  toeRail.position.set(0, 0.025, P_FRAME_FRONT + 0.02);
+  toeRail.castShadow = true;
 
   // --- Bench ---------------------------------------------------------------
 
@@ -415,9 +501,6 @@ export const buildOrgan: InstrumentBuilder = (opts) => {
     const cheek = addTo(rig, new Mesh(new BoxGeometry(0.035, 0.40, 0.22), woodMat));
     cheek.position.set(side * 0.29, 0.20, -0.96);
   }
-  // A rail across the front of the pedalboard, which is what stops a foot.
-  const rail = addTo(rig, new Mesh(new BoxGeometry(P_BOARD_W + 0.06, 0.05, 0.03), darkMat));
-  rail.position.set(0, 0.06, -0.755);
 
   const moving = new Set<Key>();
   const lampHit = new Hit();
