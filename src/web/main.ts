@@ -478,7 +478,7 @@ els.radio.onclick = () => {
  * loaded here — the one Play would start — note for note, and then the band
  * bows. `single=1` is what says so; without it the concert programmes its own
  * evening of three to five contrasting numbers, which is the right default for
- * `/concert.html` and the wrong answer to this button.
+ * `/concert` and the wrong answer to this button.
  *
  * Everything comes from `song.meta` rather than from the controls, because the
  * controls can say "any era" and a song cannot. Meta records what was actually
@@ -507,7 +507,7 @@ els.watch.onclick = () => {
     // `SongMeta.chaos`.
     ...(meta.chaos ? { chaos: meta.chaos.levels.join(','), spread: String(meta.chaos.spread) } : {}),
   });
-  location.href = `/concert.html?${q}`;
+  location.href = `/concert?${q}`;
 };
 
 els.dl.onclick = () => {

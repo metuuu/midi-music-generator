@@ -223,7 +223,7 @@ export interface TechniqueProfile {
  * The table.
  *
  * The numbers are a considered first pass in the sense `IDIOM_ENVELOPES` means
- * it — argued from what the hand physically does, not measured — and `bench.html`
+ * it — argued from what the hand physically does, not measured — and `/bench`
  * is where they get settled by ear. Two of them are not adjustable taste and
  * should be defended before they are moved:
  *

@@ -43,7 +43,7 @@ function degrade(reason: string): void {
 
 /**
  * A concert is reproducible from its seed, so it is shareable from its URL.
- * `concert.html?seed=…&genre=jazz&vocals=instrumental` is the whole show.
+ * `concert?seed=…&genre=jazz&vocals=instrumental` is the whole show.
  *
  * `single=1` means something narrower: the query does not describe a band that
  * will pick its own programme, it describes **one specific number**, and the
@@ -204,7 +204,7 @@ if (!canvas) {
    * high metalness has no diffuse response, so without a `scene.environment`
    * those render as a bright dot on black and the lead is the darkest figure in
    * the house. `lightTheRoom` generates one; the same call, at the same
-   * intensity, backs both benches, so what is checked on `looks.html` is what
+   * intensity, backs both benches, so what is checked on `/looks` is what
    * walks on here.
    *
    * The handle is held rather than dropped because the render target it owns

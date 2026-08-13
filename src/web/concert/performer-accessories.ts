@@ -94,7 +94,7 @@ interface HeadFit {
  *
  * A hat missing from here is drawn exactly where it was written and is swallowed
  * by anything taller than the skull — which is what all eight used to do, and is
- * the reason `looks.html`'s fourth view exists.
+ * the reason `/looks`'s fourth view exists.
  */
 const HEAD_FIT: Partial<Record<Accessory, HeadFit>> = {
   // crown, at y 1.00 and 0.62 tall.

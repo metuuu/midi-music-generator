@@ -69,6 +69,9 @@ function idleTuning(): Plugin {
 
 export default defineConfig({
   plugins: [idleTuning()],
+  // Without this, `/concert` falls through to `index.html` (SPA fallback).
+  // With it, `/concert` resolves to `concert.html` — same for every page.
+  appType: 'mpa',
   /**
    * One copy of three.js, not two.
    *

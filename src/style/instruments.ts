@@ -94,7 +94,7 @@ export const IDIOMS: Record<Idiom, IdiomProfile> = {
  * is what `Idiom` is actually about. Those pay for themselves with an override
  * below rather than by splitting a figuration axis to carry a sound fact.
  *
- * Numbers are a considered first pass, not measurements. `bench.html` is where
+ * Numbers are a considered first pass, not measurements. `/bench` is where
  * they get settled by ear, and it prints the line to paste back here.
  */
 export const IDIOM_ENVELOPES: Record<Idiom, Envelope> = {

@@ -909,8 +909,8 @@ function makeLook(args: {
 const METU_SUIT = '#23262c';
 
 /**
- * Everybody on stage is the same person. `concert.html?metu` or
- * `concert.html?poppodi` — either flag, same look.
+ * Everybody on stage is the same person. `concert?metu` or
+ * `concert?poppodi` — either flag, same look.
  *
  * An easter egg, and the one look in this file that is not drawn from a
  * wardrobe: dark brown curls over a warm light face, a dark wool suit, and

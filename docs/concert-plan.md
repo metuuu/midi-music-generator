@@ -764,7 +764,7 @@ Small things that are easy here and disproportionately raise how finished it fee
 - **A performance budget with visible knobs.** Target 60fps on integrated graphics:
   instanced audience, one shadow map, shared materials, no post-processing beyond a
   cheap bloom on the fixtures. A quality selector that turns off haze and shadows.
-- **Deep-link a concert** — `concert.html?seed=…&genre=jazz&vocals=instrumental`
+- **Deep-link a concert** — `concert?seed=…&genre=jazz&vocals=instrumental`
   reproduces a show exactly. Trivial given determinism, and it is how a good moment gets
   shared. Lives on the programme (§8.6).
 - **The bandleader's count.** It is what makes the first downbeat land rather than merely

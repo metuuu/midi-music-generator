@@ -532,7 +532,7 @@ function foxing(rng: Rng): string {
 }
 
 /**
- * `concert.html?seed=…&genre=…&vocals=…` — the same show, for somebody else.
+ * `concert?seed=…&genre=…&vocals=…` — the same show, for somebody else.
  *
  * Built from the current location rather than from a hard-coded path, so it
  * survives being served from a subdirectory. The era is only included when the

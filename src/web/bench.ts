@@ -18,7 +18,7 @@
  * so what you hear here is what the song will do.
  *
  * It deliberately does not touch the concert or the generator. The model bench
- * on `models.html` is the *geometry* turntable, and its dropdown lists 3D models
+ * on `/models` is the *geometry* turntable, and its dropdown lists 3D models
  * — one of which stands in for six instruments — so it is the wrong place for
  * this by exactly that much.
  */

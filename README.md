@@ -5,10 +5,10 @@ A rule-based generator for **nineteen genres of instrumental music**, written fo
 ```bash
 npm install
 npm run dev                                    # audition page at localhost:5173
-                                               # concert   at  localhost:5173/concert.html
-                                               # voice lab at  localhost:5173/voice.html
-                                               # mix lab   at  localhost:5173/mix.html
-                                               # benches   at  /bench.html /looks.html /models.html
+                                               # concert   at  localhost:5173/concert
+                                               # voice lab at  localhost:5173/voice
+                                               # mix lab   at  localhost:5173/mix
+                                               # benches   at  /bench /looks /models
 npm run gen -- -n 12 --genre jazz --mood smoky --out ./out
 npm run gen -- -n 12 --genre iskelma --mood kaihoisa --strictness strict
 npm run gen -- -n 12 --genre ambient --style wasteland --out ./out
@@ -158,10 +158,10 @@ Five things went wrong on the way to that formant bank, all of which produce a v
 
 ### The voice lab
 
-A bench at [localhost:5173/voice.html](http://localhost:5173/voice.html) for the vocal work: type text, hear it sung or spoken, and see why it sounds the way it does. It is where **words**, **talk-singing** and **voice signatures** were built, and the song path now uses two of the three — the words above, and the lab's own synth as the singer. So it is one voice in two places rather than two voices, and every preset stays available to compare against.
+A bench at [localhost:5173/voice](http://localhost:5173/voice) for the vocal work: type text, hear it sung or spoken, and see why it sounds the way it does. It is where **words**, **talk-singing** and **voice signatures** were built, and the song path now uses two of the three — the words above, and the lab's own synth as the singer. So it is one voice in two places rather than two voices, and every preset stays available to compare against.
 
 ```bash
-npm run dev   # then open /voice.html
+npm run dev   # then open /voice
 ```
 
 Four things it separates, and keeps separate:
@@ -180,7 +180,7 @@ Measured at E3, peaking cascade → all-pole cascade: tract response span for /a
 A band walks out on a 3D stage and plays the set — visibly. Hands hit the drums the drums are actually being hit on, the follow spot finds whoever is soloing, and the programme tells you what you are about to hear.
 
 ```bash
-npm run dev        # then open /concert.html
+npm run dev        # then open /concert
 npm run concert    # assert the hands, the staging and the light cues
 ```
 
@@ -190,7 +190,7 @@ Three things follow, and all three are the point. The visuals **cannot cheat**: 
 
 The audition page's **Watch on stage** button hands the stage the song you are already listening to, rather than programming a new set.
 
-Two benches exist for the parts of it that are too small to see from the stalls: **[/models.html](http://localhost:5173/models.html)** puts every instrument on a turntable, part by part, and **[/looks.html](http://localhost:5173/looks.html)** does the same for the wardrobe — every hair style, hat, fabric and garment the cast can be dealt. Both are the same argument as the voice lab: a thing you can only see in situ is a thing whose faults you find by accident. See [docs/concert.md](docs/concert.md).
+Two benches exist for the parts of it that are too small to see from the stalls: **[/models](http://localhost:5173/models)** puts every instrument on a turntable, part by part, and **[/looks](http://localhost:5173/looks)** does the same for the wardrobe — every hair style, hat, fabric and garment the cast can be dealt. Both are the same argument as the voice lab: a thing you can only see in situ is a thing whose faults you find by accident. See [docs/concert.md](docs/concert.md).
 
 ## Chaos — a concert without borders
 
@@ -234,7 +234,7 @@ The `staging` kind takes the rest of the visuals. It dresses the players whose i
 
 **The decade is deliberately not mixed.** It is a gate rather than a palette — `eligibleDrumSources`, `SEQUENCER_FROM` and `rigPoolFor` all refuse what the year is too early for — so randomising it would subtract options rather than add strangeness, and would read on stage as gear going missing. Every gate still applies to whatever era each song resolved to: instrument *palettes* cross freely because they were never year-gated, while machines and synth rigs stay period-correct. `npm run chaos` stages 62 synths under full chaos and asserts every one is of its own decade.
 
-The concert takes the same options and applies them per number: one band, one room, one decade, and a different border crossing every song — `concert.html?chaos=band,harmony&spread=0.9`, or **Watch on stage ▸** from the radio, which carries the recipe across.
+The concert takes the same options and applies them per number: one band, one room, one decade, and a different border crossing every song — `concert?chaos=band,harmony&spread=0.9`, or **Watch on stage ▸** from the radio, which carries the recipe across.
 
 **The stage follows on its own, and then some.** A `Performer` is derived from the track it plays, so a borrowed instrument brings its archetype with it — the physical object, the station, the posture, the gestures, and sometimes the headcount: borrowing ambient's pad palette into an iskelmä number puts a four-person choir where there had been one violinist. Nothing under `src/concert/` needed telling.
 
