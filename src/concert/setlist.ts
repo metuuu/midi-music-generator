@@ -403,13 +403,38 @@ export function buildSetlist(opts: ConcertOptions = {}): Song[] {
   // concert seed without any of them shifting when another one changes.
   const rng = new Rng(`${seed}:setlist`);
 
-  const genre = getGenre(opts.genre ?? rng.pick(GENRE_IDS));
+  /**
+   * Genre and era are *drawn first and overridden second*, exactly as
+   * `generate/song.ts` draws its own four. The waste is the point.
+   *
+   * A short-circuit — `opts.genre ?? rng.pick(…)` — spends one fewer random
+   * number when the option is supplied, which shifts every later draw and hands
+   * back a different evening. That made the showbill's own share link a lie:
+   * `shareUrl` writes the genre and era it is looking at into the URL, so
+   * opening that URL passed them back as options and rebuilt the concert from a
+   * stream that had moved. Seed `evening` bare opened with Turquoise Aerial; the
+   * same seed with the genre it had just drawn opened with Telmir Works. Anyone
+   * following a shared link arrived at a different concert from the one the
+   * person sharing it was watching.
+   *
+   * So both draws run unconditionally and the option overrides the result. A
+   * concert's own reported genre and era are now enough to reproduce it, which
+   * is the same property `SongMeta` has one level down.
+   */
+  const drawnGenre = rng.pick(GENRE_IDS);
+  const genre = getGenre(opts.genre ?? drawnGenre);
   // One era for the set. Every visual system downstream — clothes, fixtures,
   // the paper the bill is printed on — takes the era as a single fact about the
   // evening, and a band that plays 1968 and then 1985 has no era at all.
-  const era = opts.era
-    ? lookupEra(genre, opts.era)
-    : genre.eras[rng.pick(Object.keys(genre.eras))]!;
+  //
+  // Drawn from *this* genre's eras, after the override above has settled which
+  // genre that is: era ids are genre-local, so the draw has nothing to pick from
+  // until the genre is known. That the list differs per genre costs nothing —
+  // `Rng.pick` spends one number whatever the length — so overriding the genre
+  // moves which era comes out without moving where the stream ends up, which is
+  // what lets a caller pass the genre alone and still get this same evening.
+  const drawnEra = rng.pick(Object.keys(genre.eras));
+  const era = opts.era ? lookupEra(genre, opts.era) : genre.eras[drawnEra]!;
 
   const count = opts.numbers === undefined
     ? planCount(genre, rng)
