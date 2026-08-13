@@ -1506,6 +1506,40 @@ export type SequencedLayer = 'bass' | 'counter';
 export const SEQUENCER_FROM = 1971;
 
 /**
+ * Whether a sequencer may take a part off a player at all. Off, for now.
+ *
+ * The same judgement `DRUM_MACHINES` records, reached about the same object.
+ * The note there said a sequencer running a pitched figure was a different
+ * thing with a different gate and left it alone; on a stage it is not different
+ * enough. `web/concert/instruments/drum-machine.ts` builds all three kinds and
+ * says so in its own header — they share a carcass and a stand because at stage
+ * distance they *are* the same silhouette, a shoebox at somebody's elbow. So
+ * turning the rhythm boxes off and leaving this on kept the box and only
+ * changed what it was running.
+ *
+ * And this one costs a person as well. `castSong` stages no performer for a
+ * machine-played track, so a sequenced bass is not a bassist plus a box — it is
+ * the box *instead of* the bassist, which is the trade the wrong way round. A
+ * player standing there is the better thing to look at, and that is the whole
+ * argument.
+ *
+ * **Struck at the draw, not out of the catalogue**, exactly as `DRUM_MACHINES`
+ * is. `Track.machine` keeps its meaning, every era table keeps its `sequenced`
+ * chances as written, and `placeMachines` in `concert/cast.ts`, `operatePart`
+ * in `concert/choreograph.ts` and the `sequencer` kind in `drum-machine.ts` are
+ * all still here and all still correct. Flipping this to `true` puts the
+ * sequencers back with no other edit, which is the point of gating one funnel
+ * rather than pruning eleven genres' era tables.
+ *
+ * It changes the music and not only the stage, and that is intended rather than
+ * a side effect. A sequenced part is written flat on purpose — one figure at one
+ * level, never handed a solo, and the section's intensity divided back out of
+ * its velocities — because there is nobody behind it to lean. Handing the line
+ * back to a player hands back the dynamics with it.
+ */
+export const SEQUENCERS = false;
+
+/**
  * The year a record could duck under its own kick. See `Effects.duck`.
  *
  * Gated hard and separately from any era weighting, exactly as `SEQUENCER_FROM`
@@ -1648,8 +1682,10 @@ export function canVary(source: DrumSource): boolean {
  * pads a drummer hits, `isPlayedByHand` says so, and there is a person behind
  * them. This gate is about the empty stage, not the electronic sound.
  *
- * A sequencer running a *pitched* figure is a different object with a different
- * gate — see `SEQUENCER_FROM` and `Era.sequenced` — and is left alone.
+ * A sequencer running a *pitched* figure has its own gate, `SEQUENCERS`, and
+ * this note used to say it was a different object and was left alone. It is now
+ * off for the same reason and by the same mechanism — see there for why the
+ * distinction did not survive contact with the stage.
  */
 export const DRUM_MACHINES = false;
 

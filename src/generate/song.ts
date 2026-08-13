@@ -25,7 +25,8 @@ import { Rng } from '../core/rng.js';
 import { applyTechnique, chooseTechnique, TECHNIQUES } from './technique.js';
 import { makeScale, stepInScale, type Mode, type Scale } from '../core/scale.js';
 import {
-  DEFAULT_DRUM_MIX, DEFAULT_SPACE, DUCK_FROM, SEQUENCER_FROM, canVary, eligibleDrumSources,
+  DEFAULT_DRUM_MIX, DEFAULT_SPACE, DUCK_FROM, SEQUENCER_FROM, SEQUENCERS, canVary,
+  eligibleDrumSources,
   isPlayedByHand, melodicLine,
   type DrumEvent, type DrumTrack, type DrumVoice, type Effects, type LayerId, type NoteEvent,
   type PlayedLayer as CorePlayedLayer,
@@ -608,15 +609,21 @@ export function generateSong(opts: GenerateOptions = {}): Song {
    * taken out of the stream rather than because anything about the draw
    * mattered.
    *
-   * Two gates, in the order that makes them un-overridable. The year is hard
-   * and runs first — no era table can put a sequencer behind a 1938 band. Then
+   * Three gates, in the order that makes them un-overridable. `SEQUENCERS` is
+   * the whole funnel and is currently shut — a machine standing where a player
+   * would have stood is the worse stage, see `core/types.ts`. Then the year,
+   * which is hard — no era table can put a sequencer behind a 1938 band. Then
    * the era's own chance per layer, which is where the period statement lives,
    * and which is absent for iskelmä and jazz because a pavilion orchestra and a
    * bop quintet had no such thing and would not have wanted one.
+   *
+   * The stream is drawn from only inside the gate, and it can be: it is this
+   * song's own and nothing else reads it, so shutting the funnel moves no other
+   * draw. That is the same property that made it worth namespacing.
    */
   const sequencedRng = new Rng(`${seed}:sequenced`);
   const sequenced = new Set<SequencedLayer>();
-  if (era.year >= SEQUENCER_FROM) {
+  if (SEQUENCERS && era.year >= SEQUENCER_FROM) {
     for (const layer of ['bass', 'counter'] as SequencedLayer[]) {
       const chance = era.sequenced?.[layer] ?? 0;
       if (chance > 0 && sequencedRng.chance(chance)) sequenced.add(layer);
