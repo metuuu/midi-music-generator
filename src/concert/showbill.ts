@@ -127,7 +127,17 @@ function shortStyle(label: string): string {
 }
 
 function chooseBlurb(song: Song, index: number, total: number, spent: Set<string>): string {
-  const table = GENRES[song.meta.genre]?.staging?.blurbs;
+  /**
+   * The copy comes from whoever lent it, on a chimera — see `genre/chaos.ts`.
+   *
+   * The blurbs below are matched to a style and a mood by name, and a foreign
+   * table knows neither, so a borrowed line lands on the genre-wide entries
+   * rather than the specific ones. That is the fallback working rather than
+   * failing: what a programme says about a chaos number should be a sentence
+   * about *that idiom*, not a claim about a tango it has never heard.
+   */
+  const from = song.meta.chaos?.borrowed['programme']?.split(':')[0] ?? song.meta.genre;
+  const table = GENRES[from]?.staging?.blurbs;
   if (!table || !table.length) return HOUSE_BLURB;
 
   const slot: BlurbSlot | undefined = index === 0 ? 'open' : index === total - 1 ? 'close' : undefined;

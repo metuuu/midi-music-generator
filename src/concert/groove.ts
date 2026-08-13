@@ -596,7 +596,20 @@ function groovePart(
   const barBeats = song.meta.beatsPerBar;
   const { bpm } = song.meta;
   const rng = new Rng(`${seed}:groove:${performer.id}`);
-  const genreBody = GENRES[song.meta.genre]?.staging?.body ?? GENRE_BODY_DEFAULT;
+  /**
+   * How much this music moves a body — from whoever lent it, on a chimera.
+   *
+   * `staging.body` is a genre's claim about its own music, and on a chaos number
+   * the music is not all its own: an ambient act's stillness arriving in a dance
+   * number is the most visible thing the `staging` kind does. Read off the
+   * published recipe rather than out of a chimera's `Genre`, because this lookup
+   * has always gone to the registry and the recipe is what names the lender. See
+   * the head of `genre/chaos.ts`.
+   *
+   * Absent on every ordinary number, where it resolves exactly as it did.
+   */
+  const bodyFrom = song.meta.chaos?.borrowed['body']?.split(':')[0] ?? song.meta.genre;
+  const genreBody = GENRES[bodyFrom]?.staging?.body ?? GENRE_BODY_DEFAULT;
 
   const jitter = PHASE_JITTER / lane.lanes;
   const phase = (lane.centre + rng.float(-jitter, jitter))

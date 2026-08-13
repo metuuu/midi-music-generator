@@ -28,11 +28,14 @@
  */
 
 import { GENRES, GENRE_IDS } from './genre/index.js';
-import { CHAOS_LEVELS, layerConflict, planChaos, type ChaosLevel } from './genre/chaos.js';
+import {
+  CHAOS_LEVELS, donorCounts, layerConflict, planChaos, type ChaosLevel,
+} from './genre/chaos.js';
 import { generateSong } from './generate/song.js';
 import { getGenre } from './genre/index.js';
 import { buildConcert } from './concert/index.js';
 import { DRESSED_BY, wardrobeFor } from './concert/cast.js';
+import { SYNTH_RIGS } from './concert/instruments.js';
 import { renderMidi } from './render/midi.js';
 import { renderStrudel } from './render/strudel.js';
 import type { Song } from './core/types.js';
@@ -302,10 +305,38 @@ section('Coverage — every kind and every trait reachable');
     'bass', 'comp', 'drums', 'melody-cells', 'melody-character', 'phrasing',
     'counter-line', 'band-shots', 'two-hands', 'layers', 'layer-plan',
     'harmony', 'second-voice', 'modulation',
-    'form', 'ending', 'repetition', 'title',
+    'form', 'ending', 'repetition', 'title', 'voice',
+    'body', 'programme', 'clothes',
+    'jacket-colour', 'shirt-colour', 'accent-colour', 'hair-colour',
   ];
+  /**
+   * Reachability is counted, not sampled — see `donorCounts`.
+   *
+   * The sampling below is real end-to-end evidence and stays, but it cannot be
+   * the assertion: `tempo-ramp` has one donor in 389 styles, so whether it turns
+   * up in four hundred chimeras is a coin flip, and this check went red on it the
+   * first time the trait list was reordered. What it should have been asking is
+   * whether anything in the catalogue *has* the property to lend.
+   */
+  const counts = donorCounts({
+    genre: getGenre('iskelma'),
+    era: Object.values(getGenre('iskelma').eras)[0]!,
+    style: Object.values(getGenre('iskelma').styles)[0]!,
+  });
   for (const trait of expected) {
-    check((seen.get(trait) ?? 0) > 0, `trait "${trait}" is reachable`, 'never fired in 400 chimeras');
+    check(
+      (counts.get(trait) ?? 0) > 0,
+      `trait "${trait}" is reachable`,
+      'no style in the catalogue has this property to lend',
+    );
+  }
+  const scarce = expected
+    .map((t) => [t, counts.get(t) ?? 0] as const)
+    .filter(([, n]) => n > 0 && n < 20)
+    .sort((a, b) => a[1] - b[1]);
+  if (scarce.length) {
+    console.log(`  scarce properties — ${scarce.map(([t, n]) => `${t}=${n}`).join(' ')} donor tables of ${
+      [...counts.values()].reduce((m, n) => Math.max(m, n), 0)}`);
   }
   for (const trait of seen.keys()) {
     check(expected.includes(trait), `trait "${trait}" is in this check's list`, 'add it to `expected`');
@@ -525,6 +556,51 @@ section('Playable — a chimera is a song like any other');
     }
   }
   console.log(`  ${dressed} players across 8 evenings dressed by the genre that lent them their instrument`);
+}
+
+{
+  /**
+   * The year still gates the gear, on a stage chaos has put strange things on.
+   *
+   * `concert-check` already asserts that every synthesiser existed in the year
+   * it is staged in, and that assertion has teeth — it caught a polysynth in
+   * 1780 once. Chaos makes the case it was written for reachable in a way plain
+   * songs never make it: borrowing a 1990s palette into a 1938 tanssilava puts a
+   * `synth` archetype in a decade where no genre would have drawn one, and
+   * `rigPoolFor` has to have a rig for it.
+   *
+   * Nothing here randomises the year, deliberately. It is a *gate* rather than a
+   * palette — `eligibleDrumSources`, `SEQUENCER_FROM` and `rigPoolFor` all refuse
+   * what the year is too early for — so mixing it would subtract options rather
+   * than add strangeness, and would read on stage as gear going missing.
+   */
+  let keyboards = 0;
+  let anachronistic = 0;
+  const notes: string[] = [];
+  for (const genre of GENRE_IDS) {
+    const concert = buildConcert({
+      seed: `year-${genre}`, genre, chaos: { levels: CHAOS_LEVELS, spread: 1 },
+    });
+    for (const number of concert.numbers) {
+      for (const performer of number.cast.performers) {
+        if (performer.archetype !== 'synth' || !performer.rig) continue;
+        keyboards++;
+        const spec = SYNTH_RIGS[performer.rig];
+        if (concert.year < spec.from || concert.year > spec.to) {
+          anachronistic++;
+          if (notes.length < 4) {
+            notes.push(`${genre} ${concert.year}: ${performer.rig} (${spec.from}–${spec.to})`);
+          }
+        }
+      }
+    }
+  }
+  check(
+    anachronistic === 0,
+    'every synthesiser chaos stages existed in the year it is staged in',
+    notes.join('; '),
+  );
+  console.log(`  ${keyboards} synths staged under full chaos, every one of its own decade`);
 }
 
 // ---------------------------------------------------------------------------

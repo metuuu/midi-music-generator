@@ -619,6 +619,10 @@ export const DRESSED_BY: Partial<Record<LayerId, string>> = {
   // The kit's own trait is named after the machine rather than the layer,
   // because what it borrows is a bank and a decade rather than one instrument.
   drums: 'drum-machine',
+  // …and the singer's, after the voice rather than an instrument, because that
+  // is what a singer has. `voice` moves `Genre.vocals`, which is the language
+  // the invented words are built from and how the line is delivered.
+  vocal: 'voice',
 };
 
 /**
@@ -659,11 +663,63 @@ export const DRESSED_BY: Partial<Record<LayerId, string>> = {
  * nobody has finished, and a chimera is not that — its host has clothes.
  */
 function wardrobeForPlayer(song: Song, layer: LayerId, house: Wardrobe): Wardrobe {
+  const recipe = song.meta.chaos;
+  if (!recipe) return house;
+
+  /** The wardrobe a borrowed property's lender dresses in, if it dresses at all. */
+  const lender = (trait: string): Wardrobe | undefined => {
+    const from = recipe.borrowed[trait];
+    if (!from) return undefined;
+    const table = wardrobeFor(from.split(':')[0]!, song.meta.era);
+    // A genre that has declared no clothes falls through to whoever is next
+    // rather than putting somebody in the house's concert black: `PLAIN` is the
+    // floor for a genre nobody has finished, and this is not that.
+    return table === PLAIN ? undefined : table;
+  };
+
+  /**
+   * The cut, from whoever lent this player their instrument — and failing that,
+   * from whoever lent the band its clothes.
+   *
+   * Two steps, in that order, because they answer different questions.
+   * `band` dresses the people whose hands are holding something foreign; the
+   * `clothes` trait dresses *the rest of the stage*, so a number can look
+   * borrowed without the whole band having changed hands. The house is the floor
+   * under both.
+   */
   const trait = DRESSED_BY[layer];
-  const from = trait ? song.meta.chaos?.borrowed[trait] : undefined;
-  if (!from) return house;
-  const dressed = wardrobeFor(from.split(':')[0]!, song.meta.era);
-  return dressed === PLAIN ? house : dressed;
+  const base = (trait ? lender(trait) : undefined) ?? lender('clothes') ?? house;
+
+  /**
+   * …and the colours off their own rails.
+   *
+   * `Wardrobe` is a set of palettes, and dressing from one donor gives a player
+   * that genre's whole look. These three put each palette on a genre of its own,
+   * so a player can be in a metal cut, a country jacket colour and a disco accent
+   * at once — which is what the `staging` kind is for and is unreachable from the
+   * `band` kind however hard it is turned.
+   *
+   * `trousers` and `loud` travel with the jacket rather than separately. Trousers
+   * follow the jacket through `Wardrobe.matched`, and `loud` is what `spotlight`
+   * swaps the jacket *for* on the front person — split either off and the result
+   * is a player whose two halves are arguing rather than one in borrowed clothes.
+   *
+   * Nothing here changes how many numbers `makeLook` draws: it picks one entry
+   * per palette whatever is in it, so re-pointing a list cannot shift the stream
+   * and cannot re-roll the player standing next door.
+   */
+  const jacket = lender('jacket-colour');
+  const shirt = lender('shirt-colour');
+  const accent = lender('accent-colour');
+  const hair = lender('hair-colour');
+  if (!jacket && !shirt && !accent && !hair) return base;
+  return {
+    ...base,
+    ...(jacket ? { jackets: jacket.jackets, trousers: jacket.trousers, loud: jacket.loud } : {}),
+    ...(shirt ? { shirts: shirt.shirts } : {}),
+    ...(accent ? { accents: accent.accents } : {}),
+    ...(hair ? { hair: hair.hair } : {}),
+  };
 }
 
 /**

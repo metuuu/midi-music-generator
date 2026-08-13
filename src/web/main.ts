@@ -43,6 +43,7 @@ const els = {
   seed: $<HTMLInputElement>('seed'),
   chaos: $<HTMLDivElement>('chaos'),
   chaosSpread: $<HTMLInputElement>('chaos-spread'),
+  chaosAll: $<HTMLInputElement>('chaos-all'),
   vocals: $<HTMLSelectElement>('vocals'),
   play: $<HTMLButtonElement>('play'),
   next: $<HTMLButtonElement>('next'),
@@ -125,6 +126,7 @@ const CHAOS_BOXES: [ChaosLevel, string, string][] = [
   ['figures', 'figures', 'what they play — bass, comp and drum patterns, melodic cells'],
   ['harmony', 'harmony', 'what it is played over — progressions and the chord-scale rule'],
   ['form', 'form', 'what shape it is — form, length, ending, the title'],
+  ['staging', 'staging', 'what it looks like — clothes, their colours, the body, the programme'],
 ];
 for (const [id, label, hint] of CHAOS_BOXES) {
   const wrap = document.createElement('label');
@@ -146,6 +148,28 @@ function chosenLevels(): ChaosLevel[] {
   return CHAOS_BOXES
     .map(([id]) => id)
     .filter((id) => ($<HTMLInputElement>(`chaos-${id}`)).checked);
+}
+
+/**
+ * **Full chaos** — every kind at once, mixing at 100%.
+ *
+ * A shortcut rather than a mode, and the distinction is the whole design of it:
+ * it ticks the boxes and pushes the slider, so what it asks for is visible in
+ * the controls and can be nudged afterwards. A separate flag that meant
+ * "everything" would be a seventh thing to keep in step with the six, and the
+ * first time somebody added a kind it would quietly stop meaning everything.
+ *
+ * It unticks itself the moment any box is cleared, for the same reason: the
+ * boxes are the truth and this only ever agrees with them.
+ */
+function setFullChaos(on: boolean): void {
+  for (const [id] of CHAOS_BOXES) $<HTMLInputElement>(`chaos-${id}`).checked = on;
+  if (on) els.chaosSpread.value = '100';
+}
+
+function syncFullChaos(): void {
+  els.chaosAll.checked = chosenLevels().length === CHAOS_BOXES.length
+    && els.chaosSpread.value === '100';
 }
 
 /**
@@ -482,9 +506,18 @@ for (const el of [els.mood, els.era, els.style]) {
  */
 function onChaosChange(): void {
   els.chaosSpread.disabled = chosenLevels().length === 0;
+  syncFullChaos();
   void regenerateSameSeed();
 }
-els.chaosSpread.onchange = () => { if (chosenLevels().length) void regenerateSameSeed(); };
+els.chaosSpread.onchange = () => {
+  syncFullChaos();
+  if (chosenLevels().length) void regenerateSameSeed();
+};
+els.chaosAll.onchange = () => {
+  setFullChaos(els.chaosAll.checked);
+  els.chaosSpread.disabled = chosenLevels().length === 0;
+  void regenerateSameSeed();
+};
 
 // The same seed, with and without the singer: `vocals` is documented as an A/B
 // that leaves the instrumental arrangement identical, and it was the one control

@@ -48,6 +48,28 @@
  *  - **`harmony`** — what it is played over. Progressions, mode tables and the
  *    chord–scale rule, which travel *together* from one donor and never apart.
  *  - **`form`** — what shape it is. Forms, length, ending, count-in, the title.
+ *  - **`staging`** — what it *looks* like. The clothes, their colours, how much
+ *    a body moves, and what the programme says about the piece.
+ *
+ * ## The staging kind is read by nobody in `generate/`
+ *
+ * The other five move properties the engine composes from. `staging` moves
+ * properties **only `src/concert/` reads**, and it reaches them by a different
+ * road: `groove.ts`, `showbill.ts` and `cast.ts` all look their answers up as
+ * `GENRES[song.meta.genre].staging.…`, straight out of the registry, so writing
+ * a chimera's own `staging` would change nothing. What those three read instead
+ * is `SongMeta.chaos.borrowed` — the recipe was published so a person could see
+ * why there is a sitar in the humppa, and it turns out to be exactly what the
+ * stage needs to dress one.
+ *
+ * So a `staging` trait's `take` moves nothing and only reports whether the donor
+ * has the thing at all. That is honest rather than a stub: the borrowing happens
+ * where the property is read, and the recipe is the channel.
+ *
+ * Some of the visuals were never in this kind and never needed to be. **The cast
+ * follows the music by itself** — an `Archetype` is derived from the track, so
+ * borrowing ambient's pad palette puts a four-person choir on stage where
+ * iskelmä had one violinist, under `band`, with nothing told about staging.
  *
  * ## What is never mixed, whatever is selected
  *
@@ -127,7 +149,7 @@ import type { Genre } from './types.js';
  * property is applied, which matters in one place only: a figure donor narrows
  * the tempo band, so `figures` runs before `harmony` and `form` read anything.
  */
-export const CHAOS_LEVELS = ['band', 'performance', 'figures', 'harmony', 'form'] as const;
+export const CHAOS_LEVELS = ['band', 'performance', 'figures', 'harmony', 'form', 'staging'] as const;
 export type ChaosLevel = typeof CHAOS_LEVELS[number];
 
 export interface ChaosOptions {
@@ -176,6 +198,9 @@ export function getChaosLevels(spec: string): ChaosLevel[] {
 }
 
 const DEFAULT_LEVELS: readonly ChaosLevel[] = ['band', 'performance', 'figures'];
+
+/** Everything this file can borrow. The "full chaos" setting. */
+export const ALL_CHAOS_LEVELS: readonly ChaosLevel[] = CHAOS_LEVELS;
 const DEFAULT_SPREAD = 0.5;
 
 // ---------------------------------------------------------------------------
@@ -327,6 +352,25 @@ const TRAITS: Trait[] = [
         drumSources: from.era.drumSources,
         year: from.era.year,
       };
+      return true;
+    },
+  },
+  {
+    /**
+     * The singer — what language the invented words are built from, and how the
+     * voice is delivered. See `Genre.vocals`.
+     *
+     * At `band` because a singer is one of the people playing, and split out of
+     * `title` for that reason: bundled together, the only way to borrow a voice
+     * was to borrow a title with it, and those are not the same request. It is
+     * also what dresses the singer — `DRESSED_BY` in `concert/cast.ts` maps the
+     * vocal layer to this trait, so a borrowed voice arrives in that genre's
+     * clothes.
+     */
+    name: 'voice',
+    tier: 'band',
+    take(draft, from) {
+      draft.genre = { ...draft.genre, vocals: from.genre.vocals };
       return true;
     },
   },
@@ -805,13 +849,87 @@ const TRAITS: Trait[] = [
      * is therefore the one property here that cannot go wrong. A name is how a
      * piece announces what it is, and a chimera announcing itself in the wrong
      * language is the joke landing rather than a fault.
+     *
+     * `Genre.vocals` used to travel with it and does not any more. A singer is
+     * *who is playing*, not what shape the piece is, and bundling the two meant
+     * the only way to borrow a voice was to borrow a title as well. See `voice`.
      */
     name: 'title',
     tier: 'form',
     take(draft, from) {
-      draft.genre = { ...draft.genre, title: from.genre.title, vocals: from.genre.vocals };
+      draft.genre = { ...draft.genre, title: from.genre.title };
       return true;
     },
+  },
+
+  // ---- staging: what it looks like -------------------------------------
+  {
+    /**
+     * How much this music moves a body, as a multiplier on the groove score.
+     *
+     * Read by `scoreGroove` off the registry, so this records rather than
+     * writes — see the head of this file. An ambient act's stillness arriving in
+     * a dance number is the most visible thing in this kind and the cheapest.
+     */
+    name: 'body',
+    tier: 'staging',
+    take: (_draft, from) => from.genre.staging?.body !== undefined,
+  },
+  {
+    /** What the programme says about the piece. Read by `buildBill`. */
+    name: 'programme',
+    tier: 'staging',
+    take: (_draft, from) => !!from.genre.staging?.blurbs?.length,
+  },
+  {
+    /**
+     * The band's clothes, for every player whose instrument was *not* itself
+     * borrowed.
+     *
+     * `cast.ts` already dresses a player by whoever lent them their instrument,
+     * which is `band`'s doing and stays first. This is the rest of the stage —
+     * the singer, and anybody on a layer the draw left alone — so a number can
+     * look foreign without the whole band having changed hands.
+     */
+    name: 'clothes',
+    tier: 'staging',
+    take: (_draft, from) => !!from.genre.staging?.wardrobe,
+  },
+  {
+    /**
+     * …and the colours off a fourth, fifth and sixth rail.
+     *
+     * A `Wardrobe` is a set of palettes — jackets, shirts, trousers, accents,
+     * the one loud colour a front person is allowed — and dressing a player from
+     * one donor gives them that genre's whole look. These take one palette each
+     * from a genre of its own, so a player can be in a metal cut, a country
+     * jacket colour and a disco accent at once.
+     *
+     * Three rails and not five, and the two left out are the reason it works.
+     * `trousers` follows the jacket through `Wardrobe.matched`, and `loud`
+     * belongs with the jacket because `spotlight` swaps one for the other on the
+     * front person — splitting either would produce a player whose two halves
+     * are arguing rather than one wearing borrowed clothes.
+     */
+    name: 'jacket-colour',
+    tier: 'staging',
+    take: (_draft, from) => !!from.genre.staging?.wardrobe,
+  },
+  {
+    name: 'shirt-colour',
+    tier: 'staging',
+    take: (_draft, from) => !!from.genre.staging?.wardrobe,
+  },
+  {
+    name: 'accent-colour',
+    tier: 'staging',
+    take: (_draft, from) => !!from.genre.staging?.wardrobe,
+  },
+  {
+    /** Hair colour, on the same rails and from a genre of its own. */
+    name: 'hair-colour',
+    tier: 'staging',
+    take: (_draft, from) => !!from.genre.staging?.wardrobe,
   },
 ];
 
@@ -961,6 +1079,50 @@ export function planChaos(
       borrowed,
     },
   };
+}
+
+/**
+ * How many places in the catalogue could donate each property.
+ *
+ * Exported for `npm run chaos`, and it replaced a sampling loop that was
+ * measuring the wrong thing. Reachability is a fact about the *tables* — does
+ * anything, anywhere, have this property to lend — and asking it by generating
+ * four hundred chimeras and seeing what turned up made it a fact about the
+ * draw instead. That check went red the first time the trait list was reordered,
+ * on `tempo-ramp`, which has **one** donor in 389 styles: the expected number of
+ * hits in 400 chimeras is about one, so a pass was luck and a failure said
+ * nothing. This counts, exactly, and cannot flake.
+ *
+ * The count is worth having in its own right rather than only as a boolean. A
+ * property with one donor is reachable and, in practice, nearly never reached,
+ * and that is a thing an author should be told rather than left to discover.
+ *
+ * Each `take` is called against a throwaway draft which is then discarded, so
+ * this measures precisely what the loop in `planChaos` would: whether the donor
+ * has anything to give. The metre gate is not applied — that is a fact about a
+ * particular host, and this is a fact about the catalogue.
+ */
+export function donorCounts(host: { genre: Genre; era: EraProfile; style: Style }): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const trait of TRAITS) {
+    let n = 0;
+    for (const id of GENRE_IDS) {
+      const genre = GENRES[id]!;
+      for (const style of Object.values(genre.styles)) {
+        for (const era of Object.values(genre.eras)) {
+          const draft: Draft = {
+            genre: host.genre,
+            style: host.style,
+            era: host.era,
+            bpm: [host.style.bpm[0], host.style.bpm[1]],
+          };
+          if (trait.take(draft, { genre, style, era })) n++;
+        }
+      }
+    }
+    counts.set(trait.name, n);
+  }
+  return counts;
 }
 
 /**

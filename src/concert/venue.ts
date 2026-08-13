@@ -342,10 +342,30 @@ const HOUSE: StageRoom = {
  * has declared no `staging.room` is the same case as far as this is concerned.
  * Both get the house, which is what "stages badly and obviously" means in
  * practice.
+ *
+ * ## `roomGenre` — the building, when it is somebody else's
+ *
+ * A chaos evening may play in a borrowed room: a jazz cellar hosting an iskelmä
+ * band, a warehouse hosting a string quartet. It is the one staging decision
+ * that **cannot** be per number — a band does not move between songs — so it is
+ * drawn once by `buildConcert` from the concert's own seed rather than by
+ * `planChaos` per song, and it arrives here as a separate argument rather than
+ * by replacing `genre`.
+ *
+ * Two things stay keyed to the host, and both are why the argument is separate.
+ * The **era label** — the evening still happens in the host's decade, and a
+ * borrowed room that renamed the year would be a time machine rather than a
+ * venue. And the **dressing** falls through to `room.fallback`, because the
+ * host's era id means nothing to a foreign room's era table; that is the
+ * fallback doing its job, and it is why a borrowed room comes out as itself in
+ * its plainest dress rather than as a decade it never saw.
+ *
+ * Defaults to `genre`, so every ordinary evening resolves exactly as it did —
+ * including the stream tag, which was already keyed on the room's genre.
  */
-export function chooseVenue(genre: string, era: string, seed: string): Venue {
-  const rng = new Rng(`${seed}:venue:${genre}:${era}`);
-  const room = GENRES[genre]?.staging?.room ?? HOUSE;
+export function chooseVenue(genre: string, era: string, seed: string, roomGenre = genre): Venue {
+  const rng = new Rng(`${seed}:venue:${roomGenre}:${era}`);
+  const room = GENRES[roomGenre]?.staging?.room ?? HOUSE;
   const dressing = room.eras[era] ?? room.fallback;
   const eraProfile: EraProfile | undefined = GENRES[genre]?.eras[era];
 

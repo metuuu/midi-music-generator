@@ -19,7 +19,8 @@
 
 import type { LayerId, Song } from '../core/types.js';
 import { generateSong, withCountIn, type GenerateOptions } from '../generate/song.js';
-import { getGenre } from '../genre/index.js';
+import { GENRE_IDS, getGenre } from '../genre/index.js';
+import { Rng } from '../core/rng.js';
 
 import { castSong, playerFor } from './cast.js';
 import { choreograph } from './choreograph.js';
@@ -89,7 +90,22 @@ export function buildConcert(opts: ConcertOptions = {}): Concert {
    * genre-local — see `EraProfile.year`.
    */
   const year = getGenre(genre).eras[era]?.year ?? 1980;
-  const venue = chooseVenue(genre, era, seed);
+  /**
+   * …and the building, which on a chaos evening may belong to somebody else.
+   *
+   * The one staging decision that cannot be a per-number trait: a band does not
+   * move between songs, so it is drawn here, once, on a stream nothing else
+   * reads. Everything else `staging` borrows — the clothes, their colours, the
+   * body, the programme copy — is per number and rides on each song's own
+   * recipe. See `chooseVenue` and `genre/chaos.ts`.
+   *
+   * Derived from the concert seed and the options, so a shared link reproduces
+   * the room without carrying a field for it.
+   */
+  const roomGenre = resolved.chaos?.levels?.includes('staging')
+    ? new Rng(`${seed}:chaos:room`).pick(GENRE_IDS)
+    : genre;
+  const venue = chooseVenue(genre, era, seed, roomGenre);
 
   const numbers = songs.map((song, i) => buildNumber(song, venue, `${seed}/${i + 1}`));
 

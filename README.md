@@ -214,6 +214,9 @@ npm run chaos      # assert what a chimera refuses to mix
 | `figures` | 11 | what they play — bass, comp and drum patterns, melodic cells, the counter-line |
 | `harmony` | 3 | what it is played over — progressions, mode tables and the chord–scale rule |
 | `form` | 4 | what shape it is — forms, length, ending, count-in, the title |
+| `staging` | 7 | what it *looks* like — the clothes, their colours, how much a body moves, the programme copy |
+
+`--chaos all` is the full-chaos setting — every kind at 100%, which the audition page has as a **full chaos** tickbox that simply ticks the six boxes and pushes the slider, so what it asked for stays visible and can be nudged afterwards.
 
 `--chaos-spread` is the share of eligible properties that actually move, drawn per property: at `0.2` a piece gets two or three foreign things and stays recognisable, at `1` everything the selected kinds allow belongs to somebody else. At `0` it is the plain song, byte for byte.
 
@@ -225,7 +228,11 @@ A chimera is a *transform* rather than a twentieth genre: the generator draws a 
 
 On the audition page it is five checkboxes and a **Mixing** slider; both regenerate on the same seed rather than drawing a new song, so you can hear one piece several ways. The now-playing panel prints the whole recipe — `drums ← metal:gothic`, `harmony ← latin:columbia` — so what you are hearing is always readable.
 
-**On stage the band follows.** The cast is derived from the tracks, so a borrowed instrument brings its archetype with it — its object, its posture, its gestures, and sometimes its headcount: borrowing ambient's pad palette puts a four-person choir where iskelmä had one violinist, and nothing had to be told. The clothes follow too, per player: **whoever lent the instrument dresses the person holding it**, read straight off the published recipe. What stays the host's is the room, the decade, the programme and the singer — one band, one night, wearing borrowed instruments.
+**On stage the band follows.** The cast is derived from the tracks, so a borrowed instrument brings its archetype with it — its object, its posture, its gestures, and sometimes its headcount: borrowing ambient's pad palette puts a four-person choir where iskelmä had one violinist, and nothing had to be told. The clothes follow too, per player: **whoever lent the instrument dresses the person holding it**, read straight off the published recipe.
+
+The `staging` kind takes the rest of the visuals. It dresses the players whose instruments were *not* borrowed, puts each colour palette on a genre of its own — a metal cut with a country jacket colour and a disco accent — and borrows how much a body moves and what the programme says about the piece. The **room** goes with it, and it is the one staging decision that cannot be per number, because a band does not move between songs: it is drawn once per evening from the concert's seed, so a jazz cellar can host an iskelmä band.
+
+**The decade is deliberately not mixed.** It is a gate rather than a palette — `eligibleDrumSources`, `SEQUENCER_FROM` and `rigPoolFor` all refuse what the year is too early for — so randomising it would subtract options rather than add strangeness, and would read on stage as gear going missing. Every gate still applies to whatever era each song resolved to: instrument *palettes* cross freely because they were never year-gated, while machines and synth rigs stay period-correct. `npm run chaos` stages 62 synths under full chaos and asserts every one is of its own decade.
 
 The concert takes the same options and applies them per number: one band, one room, one decade, and a different border crossing every song — `concert.html?chaos=band,harmony&spread=0.9`, or **Watch on stage ▸** from the radio, which carries the recipe across.
 
