@@ -93,8 +93,8 @@
  */
 
 import {
-  Color, DoubleSide, Fog, Group, Mesh, type Object3D, PlaneGeometry,
-  ShaderMaterial,
+  type Camera, Color, DoubleSide, Fog, Group, Mesh, type Object3D,
+  type PerspectiveCamera, PlaneGeometry, ShaderMaterial, Vector3,
 } from 'three';
 
 import { Rng } from '../../core/rng.js';
@@ -112,6 +112,45 @@ export { SUPPORTED_PROPS } from './stage-props.js';
 export { normaliseProp, unknownProps } from './stage-props.js';
 export type { PropName } from './stage-props.js';
 export type { Quality, StageMetrics } from './stage-kit.js';
+
+/**
+ * One beam, as the air sees it: a cone with a colour on it.
+ *
+ * The light rig builds these; see `StageRig.setAir`. Nothing here knows what
+ * fixture it came from, and it does not need to — a cone and a gel is the whole
+ * of what haze can answer to.
+ */
+export interface AirBeam {
+  /** Apex, world space. */
+  from: Vector3;
+  /** Unit vector down the throw. */
+  dir: Vector3;
+  /** Cosine of the half angle. Compared against, never taken an acos of. */
+  cos: number;
+  /** The gel, already scaled by how hard the fixture is running. Black is off. */
+  colour: Color;
+}
+
+/**
+ * How many of them the haze will look at. The rig has a dozen beams and sends
+ * its two punctual ones, which are the two that are *shaped* — a par wash
+ * covers the stage evenly enough that lighting the fog by it would only tint
+ * everything, which is not what a shaft is.
+ */
+const AIR_BEAMS = 2;
+
+/**
+ * How hard a bank of haze falls off from the middle to its rim.
+ *
+ * A chord through a sphere is `sqrt(1 - d^2)`, which stands almost straight up
+ * at the rim and would give the fog an edge you can point at. The flat cards
+ * this replaces used `smoothstep(1.0, 0.1, d)` squared instead, with no
+ * geometric justification and a much softer shoulder, and it looked like fog.
+ * `(1 - d^2)` raised to this power is that curve to within 0.03 across the
+ * whole of it, which is the closest a term with the volume in it gets to what
+ * was being looked at before.
+ */
+const HAZE_SOFT = 3.55;
 
 export interface StageOptions {
   quality?: Quality;
@@ -181,6 +220,22 @@ export interface StageRig {
    * A room without a riser in its props ignores it. See `stage-props.ts`.
    */
   showRiser(on: boolean): void;
+
+  /**
+   * Where the light is in the air, so the haze can be in it.
+   *
+   * The banks are drawn, not lit — nothing in the scene's lighting reaches
+   * them — which left one sitting in the middle of the follow spot exactly as
+   * grey as one in the wings. This is the light rig telling the air what it is
+   * doing: the beams are read at the point each pixel looks through, and where
+   * that point is inside a cone the haze picks up the gel. Fog outside every
+   * cone is untouched, so a rig doing nothing leaves the banks as they were.
+   *
+   * Call it every frame, after the beams have been aimed. At most `AIR_BEAMS`
+   * are read and the rest ignored; the array and its contents are copied, so
+   * the caller can keep one and rewrite it.
+   */
+  setAir(beams: readonly AirBeam[]): void;
 
   /** Audience size, haze card count. Cheap to change at any time. */
   setQuality(q: Quality): void;
@@ -384,49 +439,255 @@ export function buildStage(venue: Venue, opts: StageOptions = {}): StageRig {
   const fog = new Fog(fogColour, 14 - 12 * fogAmount, 78 - 56 * fogAmount);
 
   /**
-   * Soft cards of air near the boards, for the fog the `Fog` cannot do: a
-   * depth cue is not the same thing as smoke lying in a beam. Radial falloff
-   * in the fragment shader rather than a texture, oriented at the house
-   * because that is where the camera lives.
+   * Banks of air near the boards, for the fog the `Fog` cannot do: a depth cue
+   * is not the same thing as smoke lying in a beam.
+   *
+   * Each one is an **ellipsoid**, solved per fragment the way `lights-beams.ts`
+   * solves its cones: the alpha is how far the view ray travels inside the
+   * volume, so it thickens through the middle and thins to nothing at the rim
+   * from wherever it is looked at.
+   *
+   * It used to be a quad and no volume: a card facing the house, because that
+   * is where the camera lives. It lives there most of the time. The times it
+   * does not were a flat sheet of paper hanging over the drummer, thinning as
+   * it turned and gone edge-on, and the fog going with it.
+   *
+   * The quad is still there and is now a proxy and nothing else — something to
+   * rasterise, whose only job is to be at least as big on screen as the volume
+   * behind it. **The shader never reads where it is**: the centre comes in as a
+   * uniform, so `face()` can put the quad wherever it has to and none of that
+   * reaches the picture. Which is the whole trick, because a quad hung on the
+   * bank stops being able to cover it once the camera is close enough, and a
+   * quad pinned across the frustum covers it from anywhere but has no business
+   * being anywhere else. `face()` switches between them and the switch is
+   * invisible: same volume, same ray, same answer, drawn on a different screen.
+   *
+   * The ellipsoid is wide, low and deep enough to read from the side, which is
+   * the shape smoke pooled on boards actually has, and it is *not* turned by
+   * `face()`: haze lies where the room puts it whatever the camera does. Seen
+   * from the house it is the ellipse the card was, to the same falloff —
+   * `HAZE_SOFT` is fitted to the old `smoothstep` — so the shot this was tuned
+   * in is the one shot that did not change.
    */
-  const hazeCards: { mesh: Mesh; drift: number; phase: number; x: number }[] = [];
+  const hazeCards: { mesh: Mesh; centre: Vector3; drift: number; phase: number; x: number }[] = [];
   const cardCount = fogAmount < 0.08 && !extraHaze
     ? 0
-    : (quality === 'low' ? 2 : quality === 'medium' ? 4 : 6);
+    : (quality === 'low' ? 4 : quality === 'medium' ? 7 : 10);
+  /** Set below when there is haze to light. A room with none ignores the rig. */
+  let takeAir: ((beams: readonly AirBeam[]) => void) | undefined;
   if (cardCount > 0) {
-    const hazeMat = kit.own(new ShaderMaterial({
-      uniforms: {
-        uColour: { value: new Color(tint(fogColour, 0.35)) },
-        uOpacity: { value: (0.1 + fogAmount * 0.26) * (extraHaze ? 1.5 : 1) },
-      },
+    /**
+     * Half-axes, and the count above is the other half of them: ten smaller
+     * banks rather than six large ones, which took three goes to arrive at.
+     *
+     * A card is a plane, so the first pass kept its width and gave it just
+     * enough depth to be a bank — four times longer than deep, which put a
+     * quarter as much fog on screen from the wings as from the house. Rounding
+     * that out fixed the wings and broke something worse: a bank big enough to
+     * read from every side is big enough to stand in, and across the camera's
+     * own envelope — 1.4 to 3.6 m up, one to eight metres out — the lens was
+     * *inside* one in 18% of shots, six at once at worst. Every one of those is
+     * a proxy pinned to the frustum, which is haze that stops respecting depth
+     * and reads as fog appearing out of nowhere when a shot pushes in.
+     *
+     * Smaller and lower is what has none of the three problems. Round enough to
+     * hold up side-on, low enough to be under the lens rather than round it —
+     * which is where haze belongs anyway, since it pools — and enough of them
+     * that the stage still reads as hazy. Measured over the same envelope, the
+     * camera is inside one in 2% of shots, and never inside more than two.
+     *
+     * Both spans are cut from the room, because a bank deeper than the boards
+     * it lies on has nowhere to sit that is not around the camera.
+     */
+    const semi = new Vector3(width * 0.20, 0.6, Math.min(1.6, depth * 0.25));
+    const air = {
+      from: Array.from({ length: AIR_BEAMS }, () => new Vector3()),
+      dir: Array.from({ length: AIR_BEAMS }, () => new Vector3(0, -1, 0)),
+      // Cosine of nothing: a zero-width cone contains no point, so an untouched
+      // slot is off rather than lighting the whole stage.
+      cos: Array.from({ length: AIR_BEAMS }, () => 1),
+      colour: Array.from({ length: AIR_BEAMS }, () => new Color(0, 0, 0)),
+    };
+    /**
+     * One material per bank, because each needs its own `uCentre` and the quad
+     * can no longer carry it. Everything else is the same uniform *object* in
+     * all of them, so the rig writes the beams once and three compiles the one
+     * program; the cost of the split is six uploads of numbers that are already
+     * in hand.
+     */
+    const shared = {
+      uColour: { value: new Color(tint(fogColour, 0.35)) },
+      // Up a third on the flat cards' number, because ten of these hold about
+      // three fifths of the air six of the first banks did and a ray crosses
+      // fewer of them. The one number here that is a guess rather than a
+      // measurement, and the one to turn if the house shot reads thin.
+      uOpacity: { value: (0.135 + fogAmount * 0.35) * (extraHaze ? 1.5 : 1) },
+      uSemi: { value: semi },
+      uAirFrom: { value: air.from },
+      uAirDir: { value: air.dir },
+      uAirCos: { value: air.cos },
+      uAirCol: { value: air.colour },
+    };
+    const hazeMat = (centre: Vector3): ShaderMaterial => kit.own(new ShaderMaterial({
+      uniforms: { ...shared, uCentre: { value: centre } },
       transparent: true,
       depthWrite: false,
       side: DoubleSide,
       vertexShader: /* glsl */ `
-        varying vec2 vUv;
+        varying vec3 vWorld;
         void main() {
-          vUv = uv;
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          vWorld = (modelMatrix * vec4(position, 1.0)).xyz;
+          gl_Position = projectionMatrix * viewMatrix * vec4(vWorld, 1.0);
         }`,
       fragmentShader: /* glsl */ `
-        uniform vec3 uColour; uniform float uOpacity;
-        varying vec2 vUv;
+        uniform vec3 uColour; uniform float uOpacity; uniform vec3 uSemi;
+        uniform vec3 uCentre;
+        uniform vec3 uAirFrom[${AIR_BEAMS}];
+        uniform vec3 uAirDir[${AIR_BEAMS}];
+        uniform float uAirCos[${AIR_BEAMS}];
+        uniform vec3 uAirCol[${AIR_BEAMS}];
+        varying vec3 vWorld;
         void main() {
-          vec2 d = vUv - 0.5;
-          float r = length(vec2(d.x, d.y * 1.7)) * 2.0;
-          float a = smoothstep(1.0, 0.1, r);
-          gl_FragColor = vec4(uColour, a * a * uOpacity);
+          // Divide out the half-axes and the ellipsoid is the unit sphere, so
+          // the chord is what it always is on a sphere: 1 - d^2 under a root,
+          // d being how close to the centre the ray passes.
+          vec3 o = (cameraPosition - uCentre) / uSemi;
+          vec3 dir = normalize((vWorld - cameraPosition) / uSemi);
+          float mid = -dot(o, dir);
+          float off = max(1.0 - (dot(o, o) - mid * mid), 0.0);
+          // Shaped to what the flat card's falloff looked like, which is a good
+          // deal softer at the rim than bare haze would be. ${HAZE_SOFT.toFixed(2)} is a fit.
+          float a = pow(off, ${HAZE_SOFT.toFixed(2)});
+          // Only the part of that chord in front of the camera is in the
+          // picture. Without this a bank the camera has drawn level with holds
+          // full strength on the pixels where half of it is already behind.
+          float reach = sqrt(off);
+          a *= reach > 0.0 ? clamp((mid + reach) / (2.0 * reach), 0.0, 1.0) : 0.0;
+
+          // Where this pixel looks through the bank, in world space: one sample
+          // standing for the whole crossing, taken at its middle. Every beam
+          // holding that point adds its gel, so the shaft is drawn where the
+          // cone actually is, not over the bank as a whole. Softened over the
+          // outer part of the cone, because smoke has no edge.
+          vec3 held = (o + mid * dir) * uSemi + uCentre;
+          vec3 lit = vec3(0.0);
+          for (int i = 0; i < ${AIR_BEAMS}; i++) {
+            vec3 v = held - uAirFrom[i];
+            float along = dot(v, uAirDir[i]);
+            float cosOff = along / max(length(v), 1e-4);
+            lit += uAirCol[i] * step(0.0, along)
+              * smoothstep(uAirCos[i], mix(uAirCos[i], 1.0, 0.4), cosOff);
+          }
+          gl_FragColor = vec4(uColour + lit, a * uOpacity);
         }`,
     }));
-    const cardGeo = kit.geometry(`haze|${width}`, () => new PlaneGeometry(width * 0.85, 2.6));
+    takeAir = (beams): void => {
+      for (let i = 0; i < AIR_BEAMS; i++) {
+        const beam = beams[i];
+        if (!beam) { air.colour[i]!.setRGB(0, 0, 0); continue; }
+        air.from[i]!.copy(beam.from);
+        air.dir[i]!.copy(beam.dir);
+        air.cos[i] = beam.cos;
+        air.colour[i]!.copy(beam.colour);
+      }
+    };
+    const cardGeo = kit.geometry('haze', () => new PlaneGeometry(1, 1));
     const hazeRng = new Rng(`${venue.id}:haze`);
+    const right = new Vector3(), up = new Vector3(), fwd = new Vector3();
+    const eye = new Vector3(), look = new Vector3();
+
+    /**
+     * Where the hung proxy gives out, as a multiple of the distance from the
+     * bank's centre to its near tip. 1 is the surface; the correction below is
+     * `r / (r - 1)`, so this is also the cap: 1.06 needs a quad 17.7 times the
+     * flat silhouette, and past it the arithmetic runs away rather than
+     * degrading. Under it the frustum proxy takes over.
+     */
+    const HUNG_TO = 1.06, HUNG_CAP = HUNG_TO / (HUNG_TO - 1);
+    /**
+     * Nearest the frustum proxy may come to the lens. It otherwise stands at
+     * the bank's own near surface, which is the whole of why: a quad at the
+     * near plane is in front of the entire scene and the haze on it lays over
+     * everyone standing between the camera and the fog, while a quad at the
+     * surface is only in front of what the fog is in front of. This number is
+     * reached when that surface is behind the lens, which is to say when the
+     * camera is in the bank, and then laying over everything is the picture.
+     */
+    const PINNED_NEAREST = 0.25;
+
+    /**
+     * Put the proxy where it can be rasterised, which is one of two places.
+     *
+     * **Hung on the bank**, sized to its silhouette: the half-width along a
+     * screen axis is the volume's own extent along it, times the perspective
+     * the flat projection leaves out. That correction is the ratio of the
+     * distance to the centre and the distance to the near tip — 17% on a bank
+     * seen from the house, 270% on one seen end-on from the wings, where five
+     * of its ten metres are between the camera and its middle — and it goes to
+     * infinity at the surface, which is the whole difficulty.
+     *
+     * **Pinned across the frustum** once it does: a quad in front of the camera
+     * covering everything the camera can see. The volume is unchanged and every
+     * pixel still solves the same ray against the same ellipsoid, so nothing in
+     * the picture moves at the switch — the bank simply keeps being drawn, at
+     * whatever thickness the ray says, right through the camera passing into
+     * it. This is what used to be a fade to nothing, and a fade to nothing is
+     * what a bank of fog does least.
+     *
+     * The one thing given up is depth: pinned, the quad is nearer than the
+     * scene, so the haze lays over anything standing between the camera and the
+     * bank instead of behind it. That is only ever true within a few
+     * centimetres of the volume, where the honest picture is a camera in the
+     * smoke and everything veiled by it anyway.
+     *
+     * Frustum culling comes off with all of it: the proxy is a unit quad until
+     * this runs, so three would size the test off a scale that is a frame stale
+     * and cut banks at the edge of frame. Six meshes are not worth testing.
+     *
+     * Positions here are the room's and the camera's is the world's, which is
+     * the same space: `root` carries no transform and the shader relies on that
+     * too, comparing `uCentre` against `cameraPosition` directly. Move the stage
+     * root and the fog is what breaks.
+     */
+    const face = (mesh: Mesh, centre: Vector3, camera: Camera): void => {
+      camera.matrixWorld.extractBasis(right, up, fwd);
+      eye.setFromMatrixPosition(camera.matrixWorld);
+      mesh.quaternion.copy(camera.quaternion);
+
+      const reach = eye.distanceTo(centre);
+      look.copy(eye).sub(centre).divideScalar(Math.max(reach, 1e-4));
+      const tip = Math.hypot(semi.x * look.x, semi.y * look.y, semi.z * look.z);
+
+      if (reach > tip * HUNG_TO) {
+        const grow = Math.min(reach / Math.max(reach - tip, 1e-3), HUNG_CAP);
+        const span = (v: Vector3): number =>
+          Math.hypot(semi.x * v.x, semi.y * v.y, semi.z * v.z) * 2 * grow;
+        mesh.position.copy(centre);
+        mesh.scale.set(span(right), span(up), 1);
+      } else {
+        // `fwd` is the camera's third basis vector, which points *out* of the
+        // screen, so the quad goes the other way.
+        const at = Math.max(reach - tip, PINNED_NEAREST);
+        mesh.position.copy(eye).addScaledVector(fwd, -at);
+        const lens = camera as PerspectiveCamera;
+        const tall = 2 * at * Math.tan((lens.fov ?? 60) * (Math.PI / 180) * 0.5);
+        mesh.scale.set(tall * (lens.aspect ?? 1.8) * 1.05, tall * 1.05, 1);
+      }
+      mesh.updateMatrixWorld();
+    };
     for (let i = 0; i < cardCount; i++) {
-      const mesh = new Mesh(cardGeo, hazeMat);
       const x = hazeRng.float(-width * 0.2, width * 0.2);
-      mesh.position.set(x, hazeRng.float(0.5, 2.4), m.backZ + hazeRng.float(0.4, depth - 0.6));
+      const centre = new Vector3(
+        x, hazeRng.float(0.4, 1.2), m.backZ + hazeRng.float(0.4, depth - 0.6),
+      );
+      const mesh = new Mesh(cardGeo, hazeMat(centre));
       mesh.renderOrder = 4;
+      mesh.frustumCulled = false;
+      mesh.onBeforeRender = (_r, _s, camera) => face(mesh, centre, camera);
       root.add(mesh);
-      hazeCards.push({ mesh, drift: hazeRng.float(0.02, 0.06), phase: hazeRng.float(0, 6.28), x });
+      hazeCards.push({
+        mesh, centre, drift: hazeRng.float(0.02, 0.06), phase: hazeRng.float(0, 6.28), x,
+      });
     }
   }
 
@@ -451,6 +712,8 @@ export function buildStage(venue: Venue, opts: StageOptions = {}): StageRig {
 
     showRiser: (on) => dressed.showRiser(on),
 
+    setAir: (beams) => takeAir?.(beams),
+
     setQuality(q: Quality): void {
       audience.setQuality(q);
     },
@@ -467,8 +730,11 @@ export function buildStage(venue: Venue, opts: StageOptions = {}): StageRig {
       dressed.update(time, d);
       built.update?.(time, d);
       for (const card of hazeCards) {
-        card.mesh.position.x = card.x + Math.sin(time * card.drift * 6 + card.phase) * 1.1 * idle;
-        card.mesh.position.y += Math.sin(time * 0.2 + card.phase) * 0.0006 * idle;
+        // The bank drifts, not the quad standing in for it: `face()` owns the
+        // proxy's position and rewrites it every frame from wherever this puts
+        // the volume.
+        card.centre.x = card.x + Math.sin(time * card.drift * 6 + card.phase) * 1.1 * idle;
+        card.centre.y += Math.sin(time * 0.2 + card.phase) * 0.0006 * idle;
       }
     },
 

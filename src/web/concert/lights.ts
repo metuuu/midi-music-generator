@@ -96,7 +96,7 @@ import {
 } from './lights-cues.js';
 import { FollowSpot, OPERATOR, STEADY } from './lights-follow.js';
 import { HEAD_BAND, houseLid, Kit, shade, tint, type Quality } from './stage-kit.js';
-import type { StageRig } from './stage.js';
+import type { AirBeam, StageRig } from './stage.js';
 
 export type { Quality } from './stage-kit.js';
 export { OPERATOR, STEADY, type FollowTuning } from './lights-follow.js';
@@ -351,6 +351,20 @@ const WARM_BEAM_ANGLE = 0.5;
 
 /** Per-fixture beam density, relative to `beamDensity(haze)`. */
 const BEAM_SCALE = { spot: 1.0, warm: 0.5, par: 0.42, back: 0.55 } as const;
+
+/**
+ * How much of a fixture's gel its cone lays on the haze it crosses, at full.
+ *
+ * Added to the fog's own colour rather than multiplied into it, so a rig doing
+ * nothing leaves the banks exactly as `stage.ts` drew them and the whole effect
+ * is what a beam *adds*. Not `BEAM_SCALE`: that is how solid the cone itself
+ * looks, which is a function of the haze, and this is how hard the light lands
+ * in it, which is not — a beam in a smoky room is denser *and* the smoke it
+ * crosses is brighter, and the two are separately true. The warm sits lower
+ * because it is the wider, softer fixture and lighting fog evenly is the thing
+ * a shaft is not.
+ */
+const AIR_GAIN = { spot: 0.6, warm: 0.4 } as const;
 
 interface Tier {
   /** Lanterns on the fly bar, and how many of them show a beam. */
@@ -902,6 +916,28 @@ export function buildLightRig(
   const allBeams: Beam[] = [spotBeam, warmBeam, ...parBeams, ...backBeams];
   for (const b of allBeams) root.add(b.mesh);
 
+  /**
+   * The two punctual cones, in the terms the haze reads them in. One array,
+   * rewritten in place every frame and handed to `stage.setAir`, which copies.
+   */
+  const air: AirBeam[] = [0, 1].map(() => ({
+    from: new Vector3(), dir: new Vector3(0, -1, 0), cos: 1, colour: new Color(),
+  }));
+
+  /** Fill one slot from the same numbers the beam beside it was aimed with. */
+  function tellAir(
+    slot: number, from: Vector3, to: Vector3, halfAngle: number, gel: Color, level: number,
+  ): void {
+    const beam = air[slot]!;
+    beam.from.copy(from);
+    beam.dir.copy(to).sub(from);
+    const throwLen = beam.dir.length();
+    if (throwLen > 1e-3) beam.dir.divideScalar(throwLen);
+    else beam.dir.set(0, -1, 0);
+    beam.cos = Math.cos(halfAngle);
+    beam.colour.copy(gel).multiplyScalar(Math.max(level, 0));
+  }
+
   // --- state --------------------------------------------------------------
 
   const rng = new Rng(`${venue.id}:lights`);
@@ -1092,9 +1128,12 @@ export function buildLightRig(
     const spotAlpha = density * BEAM_SCALE.spot * sp.intensity * master;
     spotBeam.aim(fohPos, toFloor(fohPos, follow.aim, beamEnd), SPOT_ANGLE * 1.25);
     spotBeam.set(applyColour(colour, sp), spotAlpha);
+    tellAir(0, fohPos, beamEnd, SPOT_ANGLE * 1.25, applyColour(colour, sp), AIR_GAIN.spot * sp.intensity * master);
 
     warmBeam.aim(warmPos, toFloor(warmPos, warmAim, beamEnd), WARM_BEAM_ANGLE);
     warmBeam.set(applyColour(colour, wm), density * BEAM_SCALE.warm * wm.intensity * master);
+    tellAir(1, warmPos, beamEnd, WARM_BEAM_ANGLE, applyColour(colour, wm), AIR_GAIN.warm * wm.intensity * master);
+    stage.setAir(air);
 
     applyColour(colour, w);
     for (let i = 0; i < MAX_PARS; i++) {
