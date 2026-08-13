@@ -781,6 +781,10 @@ function applyPose(item: Exhibit): void {
   else if (spec.family === 'voice') rig.setMouth(0.5, 0.15, 0.2);
   else if (spec.blown) rig.setMouth(0.08, 0.65, 0.06);
   else rig.setMouth(0, 0, 0);
+  // The cheeks, on the same test and for the same reason. A mouth held open in
+  // the `play` pose with no air behind it is a face with something missing, and
+  // the tuner is where anyone looks at a face from 30 cm.
+  rig.setBlow(!playing ? 0 : spec.family === 'voice' ? 0.7 : spec.blown ? 1 : 0);
 
   // The instrument before the hands, because the hands are placed against where
   // it ended up.

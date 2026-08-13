@@ -233,6 +233,23 @@ export interface PerformerRig {
   setMouth(open: number, round: number, spread: number): void;
 
   /**
+   * How much air is going **out** of this mouth right now, 0..1. Puffs the
+   * cheeks of a player who has any — see `buildFace`, where only a blower does.
+   *
+   * A third channel rather than something read off the other two, because it is
+   * a third fact. `setMouth` is a *shape* and a wide-open jaw on an inhale is
+   * air going the other way; `setPlaying` is a *state* and a player sounding a
+   * phrase is not blowing in the gaps inside it. Pressure is neither, and a
+   * cheek is pressure.
+   *
+   * The rig owns two things the caller should not have to: the smoothing, which
+   * is a mouthful of air rather than a filter — see `PUFF_FILL` — and the
+   * anatomy, which is `SINGER_PUFF`. Send the phrase; the face decides what
+   * kind of mouth it is arriving at.
+   */
+  setBlow(amount: number): void;
+
+  /**
    * Body sway. `amount` 0..1 scales it; `phase` is in radians and the rig only
    * ever takes its sine, so the period belongs entirely to the caller — a
    * humppa felt in fast two and a ballad felt in slow half-notes are the same
@@ -450,12 +467,14 @@ const HEAD_EASE = 0.13;
  * How hard a player's *part* makes them concentrate, as opposed to how hard it
  * makes them work.
  *
- * `effort` is exertion, and the face has spent it on one thing: the cheeks of
- * somebody blowing. A cellist has no cheeks to puff and got 0.16 of a furrow
- * out of it, which is a person thinking about nothing in particular — while
- * carrying the tune on a fretless fingerboard, where every note is an intonation
- * decision and the bow arm is a second one. That is the most visibly
- * concentrated job on the stage and it had the blankest face on the stage.
+ * `effort` is exertion, and the face spent it for a long time on one thing: the
+ * cheeks of somebody blowing — which it no longer drives at all, those having
+ * moved to `setBlow`, where the air is. A cellist has no cheeks to puff and got
+ * 0.16 of a furrow out of it, which is a person thinking about nothing in
+ * particular — while carrying the tune on a fretless fingerboard, where every
+ * note is an intonation decision and the bow arm is a second one. That is the
+ * most visibly concentrated job on the stage and it had the blankest face on
+ * the stage.
  *
  * So the brow takes a share of the effort, and how big a share is a property of
  * the part: `FOCUS_BROW` for a bowed player on a line of their own, `IDLE_BROW`
@@ -470,6 +489,30 @@ const HEAD_EASE = 0.13;
 const IDLE_BROW = 0.22;
 const FOCUS_BROW = 0.85;
 const FOCUS_SQUINT = 0.18;
+
+/**
+ * The cheeks: the two time constants of a mouthful of air, and whose mouth it
+ * is.
+ *
+ * `setBlow` hands over a gesture envelope. It rises before the note, correctly,
+ * because the pressure does — and it drops at the end of every note in the
+ * phrase. Followed literally, a line of quavers pumps both cheeks eight times a
+ * bar, which is a goldfish rather than a trumpeter. So the fill is quick and
+ * the release is slow: air goes in faster than a player bothers to let it out,
+ * and between two notes of one phrase the cheeks simply stay up. Two constants
+ * rather than one is the whole of it, and the asymmetry is the physical claim.
+ *
+ * `SINGER_PUFF` is the anatomy. A cheek puffs when there is pressure behind a
+ * small aperture, and the aperture is a mouthpiece; a singer's mouth is open at
+ * the front and the air leaves through it. Both voice archetypes declare
+ * `blown` — singers breathe, and `ArchetypeSpec` says so for the breath and the
+ * embouchure both — so the flag cannot be the test. `mouthpiece` can, and
+ * already exists for the torso turn. A third of the puff is a full face rather
+ * than a full cheek, which is what a supported breath actually looks like.
+ */
+const PUFF_FILL = 0.10;
+const PUFF_EMPTY = 0.26;
+const SINGER_PUFF = 0.34;
 
 /**
  * The parts that count as a line of one's own.
@@ -618,6 +661,9 @@ class Rig implements PerformerRig {
   private mouthSpread = 0;
   private playing = false;
   private effort = 0;
+  /** What `setBlow` was told, and what the cheeks have got round to. */
+  private blowing = 0;
+  private puff = 0;
   /** The waist's turn toward the hands, radians. See `twistToHands`. */
   private twist = 0;
   private readonly bodyOffset = new Vector3();
@@ -1113,6 +1159,10 @@ class Rig implements PerformerRig {
     this.playing = playing;
   }
 
+  setBlow(amount: number): void {
+    this.blowing = clamp01(amount);
+  }
+
   // -- tomatoes -----------------------------------------------------------
 
   splat(worldPosition: Vector3, markRadius?: number): void {
@@ -1255,6 +1305,13 @@ class Rig implements PerformerRig {
 
     this.effort += ((this.playing ? 0.72 : 0.12) - this.effort) * (1 - Math.exp(-step / 0.35));
 
+    // The cheeks, on their own channel and their own two clocks. See
+    // `PUFF_FILL`: a mouthful of air fills faster than it empties, and a player
+    // with no mouthpiece to hold it against barely fills at all.
+    const puffTo = this.blowing * (this.mouthpiece ? 1 : SINGER_PUFF);
+    this.puff += (puffTo - this.puff)
+      * (1 - Math.exp(-step / (puffTo > this.puff ? PUFF_FILL : PUFF_EMPTY)));
+
     this.twistToHands(step);
 
     this.torso.position.copy(this.torsoBase).add(this.bodyOffset);
@@ -1349,7 +1406,7 @@ class Rig implements PerformerRig {
     // both of which are larger and both of which mean something else.
     this.face.eyes(Math.max(this.eyesClosed, bias.eyesClosed, this.effort * this.squint));
     this.face.brow(bias.browRaise, Math.max(bias.browFurrow, this.effort * this.browShare));
-    this.face.effort(this.effort);
+    this.face.blow(this.puff);
     this.face.update(now, step);
 
     this.followForearm('left');

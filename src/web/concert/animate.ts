@@ -3015,6 +3015,11 @@ class Runtime implements Animator {
     let open = 0;
     let round = 0;
     let spread = 0;
+    // The fourth number, and not derivable from the other three: a jaw wide
+    // open on an inhale is air going the other way, and an embouchure is a
+    // mouth that has barely moved with everything behind it. See
+    // `PerformerRig.setBlow` — this is the one channel the cheeks read.
+    let puff = 0;
 
     if (p.visemes.length) {
       const v = this.visemeAt(p, beat);
@@ -3031,6 +3036,10 @@ class Runtime implements Animator {
         open = v.open * e * loud;
         round = v.round * e;
         spread = v.spread * e;
+        // A syllable is a syllable's worth of air, so the envelope and the
+        // loudness carry over exactly. What a sung vowel does *not* carry is
+        // the vowel itself: /u/ and /a/ are the same breath.
+        puff = e * loud;
       }
     } else if (p.singer && force > 0) {
       /**
@@ -3058,12 +3067,16 @@ class Runtime implements Animator {
       open = 0.30 + 0.40 * force;
       round = 0.16;
       spread = 0.10;
+      puff = force;
     } else if (p.blown && blow > 0) {
       // An embouchure: a small, tight, round aperture that firms up as the note
       // starts. Nothing here is a viseme — a trumpeter is not singing a vowel.
       open = 0.08 * blow;
       round = 0.30 + 0.35 * blow;
       spread = 0.06 * blow;
+      // The whole gesture weight, prep included. A brass player's cheeks are up
+      // *before* the note, because the pressure is what starts it.
+      puff = blow;
     }
 
     // The inhale. A singer who never breathes is the most uncanny thing that
@@ -3074,9 +3087,20 @@ class Runtime implements Animator {
     if (depth > 0) {
       open = Math.max(open, 0.34 * depth);
       round = Math.max(round, 0.42 * depth);
+      // And the cheeks go the other way, because this is the one place the
+      // mouth opens on air arriving rather than leaving. Scaled rather than
+      // zeroed: a breath taken over the tail of a held note is both things at
+      // once, and the depth is exactly how much of it is the breath.
+      puff *= 1 - clamp01(depth);
     }
 
     p.rig.setMouth(clamp01(open), clamp01(round), clamp01(spread));
+    // A player who has been stopped is not blowing, whatever the track under
+    // them still says. The gesture loop is already skipped for them, so `blow`
+    // is zero either way — but the viseme branch above is not, and a singer who
+    // has just been hit by a tomato should lose their cheeks on the frame they
+    // lose the note, not carry on inflating through the rest of the phrase.
+    p.rig.setBlow(p.stopped ? 0 : clamp01(puff));
   }
 
   /** The viseme whose window contains `beat`, or `undefined`. Cursored. */

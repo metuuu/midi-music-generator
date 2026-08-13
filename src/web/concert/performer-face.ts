@@ -6,11 +6,12 @@
  * No morph targets and no blend shapes, because there is no mesh to morph — the
  * face is **eleven small primitives** whose transforms are computed every frame
  * from **six numbers**. Counted off the built head it is ten, and twelve on a
- * blower, whose cheeks are the two that come and go; the channels are nine, the
- * `gaze` pair and `effort` having arrived after this paragraph. That is not a
- * shortcut around a rigging pipeline; it is
- * what lets the same face be driven by the viseme track, the groove and a
- * tomato at the same time without any of them needing to know about the others.
+ * blower, whose cheeks are the two that come and go — and they go all the way,
+ * inside the skull and off the draw list, until there is air behind them; the
+ * channels are nine, the `gaze` pair and `blow` having arrived after this
+ * paragraph. That is not a shortcut around a rigging pipeline; it is what lets
+ * the same face be driven by the viseme track, the groove and a tomato at the
+ * same time without any of them needing to know about the others.
  *
  * ## The mouth is three numbers, and that is the contract
  *
@@ -30,15 +31,16 @@
  *
  * Eyes that track a target and lead the head; brows that furrow and raise;
  * blinking on a seeded schedule so a band does not blink in unison; cheeks that
- * puff for a player who is blowing into something. The gaze *direction* is
- * decided by the rig — this file only knows where to put the irises.
+ * puff for a player who is blowing into something, and are inside the head
+ * until they do. The gaze *direction* is decided by the rig — this file only
+ * knows where to put the irises.
  */
 
 import { Color, Group, Mesh, MeshStandardMaterial, Object3D, SRGBColorSpace } from 'three';
 
 import { Rng } from '../../core/rng.js';
 
-import { Leases, bead, hairSurface, pip, shade, slab, surface, pill } from './performer-assets.js';
+import { Leases, bead, hairSurface, orb, pip, shade, slab, surface, pill } from './performer-assets.js';
 import { SIDE } from './performer-look.js';
 
 export interface FaceRig {
@@ -50,8 +52,18 @@ export interface FaceRig {
   brow(raise: number, furrow: number): void;
   /** Where the irises point, in radians relative to straight ahead. */
   gaze(yaw: number, pitch: number): void;
-  /** 0..1 — how hard this player is working. Puffs the cheeks of a blower. */
-  effort(amount: number): void;
+  /**
+   * 0..1 — how much air is going out of this mouth right now. Puffs the cheeks
+   * of a blower and does nothing to anyone else, who has none built.
+   *
+   * Not effort, which is what this channel used to be. Effort is exertion: it
+   * idles at 0.12 for a player standing still and settles at 0.72 for one who
+   * is playing anything at all, so there was no value of it that took the
+   * cheeks away and no value that moved them much either. A cheek is not a
+   * function of how hard the part is. It is a function of whether there is
+   * pressure behind it on this note.
+   */
+  blow(amount: number): void;
   /** `now` in seconds, for the blink schedule. Applies every channel. */
   update(now: number, dt: number): void;
 }
@@ -110,6 +122,69 @@ function browColour(hairColour: string, skinColour: string): string {
   brow.setHSL(hair.h, hair.s, l, SRGBColorSpace);
   return `#${brow.getHexString(SRGBColorSpace)}`;
 }
+
+/**
+ * The skull, as the cheeks have to know it: an ellipsoid of `2 × 2.10 × 1.90 R`,
+ * written here as semi-axes.
+ *
+ * `performer.ts` builds it and `performer-hair.ts` inflates copies of it, so
+ * this is the third place the same three numbers appear, and it earns its
+ * repetition: every other feature on this face is a lump parked on the *outside*
+ * of the skull and can be placed by eye against a screenshot. A cheek is the one
+ * part that has to be *inside* it, and "inside an ellipsoid" is a containment
+ * test rather than a matter of taste. A test needs the shape it tests against.
+ */
+const SKULL = { x: 1, y: 1.05, z: 0.95 } as const;
+
+/**
+ * A cheek is a ball that **slides out of** the head, not one that grows on it.
+ *
+ * It used to be a ball of `0.20 R` parked at `(0.52, -0.28, 0.58) R` — `0.83 R`
+ * from the centre of a skull whose surface along that ray is at `0.98 R`, so
+ * half a centimetre of the ball stood through the face before anything drove
+ * it. Every wind player and every singer walked on wearing two lumps on their
+ * cheekbones and wore them all night, through the numbers they sat out as well
+ * as the ones they played. And the channel driving them was `effort`, which
+ * idles at 0.12 and settles at 0.72 — so the puff ran between **8 mm and 14 mm
+ * proud**: never absent, and 6 mm of travel between standing still and playing
+ * flat out. There was no value of the input that put the cheeks away, because
+ * the ball was outside the head at every value including zero.
+ *
+ * So the radius is fixed and the *centre travels* along `CHEEK_DIR`. At rest the
+ * whole ball is inside the skull and nothing draws; at full puff it stands
+ * `CHEEK_PUSH` proud and what shows is the cap that has come through — a cap
+ * that starts at zero width and widens, so a cheek **fills** rather than pops.
+ * That is the argument for sliding a fixed sphere rather than scaling one in
+ * place: a sphere grown about its own centre is either already showing at rest
+ * or has to cross the surface all at once, and it arrives as a disc.
+ *
+ * The numbers: at rest the ball's crown is `0.0095 R` — 1.3 mm — inside the
+ * skull, and at full puff it stands `0.12 R` proud, which is 1.6 cm on a 13.7 cm
+ * head radius, opening a cap about 6 cm across. That is a brass player's cheek
+ * at the top of a phrase, not a chipmunk's. Nothing shows at all below a puff
+ * of about 0.07, which is the 1.3 mm of clearance being crossed.
+ */
+const CHEEK_R = 0.28;
+const CHEEK_PUSH = 0.13;
+const CHEEK_DIR = unit(0.62, -0.30, 0.60);
+
+/**
+ * The rest distance, derived rather than eyeballed — which is the point of
+ * having `SKULL` at all. Move the cheek, widen it, or reshape the head, and the
+ * ball is still inside the face when nobody is blowing.
+ */
+const CHEEK_REST = deepestInside(CHEEK_DIR, CHEEK_R);
+
+/**
+ * Below this the cheek is not drawn at all.
+ *
+ * Belt and braces on the same door: the ball is inside the skull by
+ * construction at rest, and `visible` takes it off the draw list anyway. The
+ * threshold is small enough that it always lands well before the ball's crown
+ * reaches the surface — nothing pops into view, it is already invisible when it
+ * appears.
+ */
+const CHEEK_SHOW = 0.01;
 
 export function buildFace(
   head: Object3D, headR: number, skinColour: string, hairColour: string,
@@ -181,11 +256,22 @@ export function buildFace(
   // --- cheeks ------------------------------------------------------------
   // Only for players who are blowing into something. A guitarist with puffable
   // cheeks is two meshes nobody will ever see move.
+  //
+  // `orb` rather than the `pip` every other lump on this face is made of: what
+  // a puff shows is a cap coming through the skull, and the rim of that cap is
+  // a silhouette edge lying across a face at close camera range. Ten segments
+  // of sphere read as a hexagon there. 384 triangles on the players who blow,
+  // 144 more than the pips they replace, and none at all on anybody else.
+  //
+  // Neither the position nor the visibility is set here, unlike every other
+  // feature above: both are the puff's, and `applyCheeks` below runs before
+  // this function returns. A cheek has no build-time pose worth writing down.
   const cheeks: Mesh[] = [];
   if (blown) {
-    for (const s of [SIDE.left, SIDE.right]) {
-      const cheek = new Mesh(pip(l), skin);
-      cheek.position.set(s * R * 0.52, -R * 0.28, R * 0.58);
+    for (let i = 0; i < 2; i++) {
+      const cheek = new Mesh(orb(l), skin);
+      // `orb` is a diameter of 1.
+      cheek.scale.setScalar(R * CHEEK_R * 2);
       cheeks.push(cheek);
       head.add(cheek);
     }
@@ -200,7 +286,7 @@ export function buildFace(
   let browFurrow = 0;
   let gazeYaw = 0;
   let gazePitch = 0;
-  let effortAmount = 0;
+  let puffAmount = 0;
 
   // Blinking, seeded per performer. Two people blinking together looks staged,
   // and a band of six doing it looks like a rendering bug.
@@ -263,8 +349,14 @@ export function buildFace(
   }
 
   function applyCheeks(): void {
-    for (const cheek of cheeks) {
-      cheek.scale.setScalar(R * (0.40 + 0.16 * effortAmount));
+    const out = R * (CHEEK_REST + CHEEK_PUSH * puffAmount);
+    const shown = puffAmount > CHEEK_SHOW;
+    for (let i = 0; i < cheeks.length; i++) {
+      const cheek = cheeks[i];
+      if (!cheek) continue;
+      const s = i === 0 ? SIDE.left : SIDE.right;
+      cheek.position.set(s * CHEEK_DIR.x * out, CHEEK_DIR.y * out, CHEEK_DIR.z * out);
+      cheek.visible = shown;
     }
   }
 
@@ -284,7 +376,7 @@ export function buildFace(
       browFurrow = clamp01(furrow);
     },
     gaze(yaw: number, pitch: number): void { gazeYaw = yaw; gazePitch = pitch; },
-    effort(amount: number): void { effortAmount = clamp01(amount); },
+    blow(amount: number): void { puffAmount = clamp01(amount); },
     update(now: number, _dt: number): void {
       applyMouth();
       applyEyes(now);
@@ -300,4 +392,31 @@ function clamp(v: number, lo: number, hi: number): number {
 
 function clamp01(v: number): number {
   return Number.isFinite(v) ? (v < 0 ? 0 : v > 1 ? 1 : v) : 0;
+}
+
+/** A direction as a plain triple. No `Vector3`: it is read, never computed on. */
+function unit(x: number, y: number, z: number): { x: number; y: number; z: number } {
+  const n = Math.hypot(x, y, z);
+  return { x: x / n, y: y / n, z: z / n };
+}
+
+/**
+ * How far out along `dir` the centre of a sphere of `radius` can sit with all
+ * of the sphere still inside the skull. In multiples of R, like everything else
+ * in this file.
+ *
+ * Divide the world by `SKULL` and the skull becomes the unit sphere — but the
+ * sphere being placed becomes an *ellipsoid* in that space, and there is no
+ * closed form for the distance from a point to an ellipsoid worth writing here.
+ * Bounding the transformed cheek by its longest semi-axis, `radius / min(SKULL)`,
+ * is one line and is conservative in every direction at once.
+ *
+ * It costs about a millimetre of depth against the exact answer, and it cannot
+ * be wrong in the direction that matters. A cheek a millimetre deeper than it
+ * had to be is nothing; a cheek a millimetre shallower is a lump on a face.
+ */
+function deepestInside(dir: { x: number; y: number; z: number }, radius: number): number {
+  const reach = Math.hypot(dir.x / SKULL.x, dir.y / SKULL.y, dir.z / SKULL.z);
+  const thinnest = Math.min(SKULL.x, SKULL.y, SKULL.z);
+  return Math.max(0, (1 - radius / thinnest) / reach);
 }
