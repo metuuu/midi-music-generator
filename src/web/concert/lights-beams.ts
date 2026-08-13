@@ -20,14 +20,25 @@
  *
  * Three tricks make it read as air rather than as a plastic cone:
  *
- *  - **Facing-angle fade.** The brightness of a ray through a cone of haze is
- *    proportional to how far that ray travels inside it: long through the
- *    middle, nothing at the silhouette. On the cone's surface that is exactly
- *    `abs(dot(normal, view))` — near 1 where the surface faces you, which is
- *    the middle of the projected shape, and near 0 at the edge. Raising it to a
- *    power sharpens the core. Rendered double-sided, the near and far walls sum,
- *    which doubles the middle for free and is the right answer for the same
- *    reason.
+ *  - **The chord through the cone.** The brightness of a ray through a cone of
+ *    haze is proportional to how far that ray travels inside it: long through
+ *    the middle, nothing at the silhouette — and *everything* when the camera is
+ *    in the beam looking down it. Two things compute that length and the shader
+ *    uses both. `abs(dot(normal, view))` reads it off the surface, and side-on
+ *    it is exact — that dot product *is* the chord of a cylinder, normalised —
+ *    with the tessellation's fingerprints on it, because the normal is lerped
+ *    across each facet and renormalised per fragment. That grain is wanted: it
+ *    is what stops a beam being a smooth airbrushed cone, and it coarsens with
+ *    the segment count, so the low tier's eight-sided beams are the ribbed ones.
+ *    What the surface cannot do is inside: every wall the camera can see from in
+ *    there is grazing, the dot product goes to zero, and the beam you are
+ *    standing in is the dimmest thing on screen. So the length is *also* solved
+ *    analytically against the cone's axis, and the two are mixed by how much the
+ *    ray crosses the beam rather than running down it — which is precisely how
+ *    far the surface can be trusted. Raising the result to a power sharpens the
+ *    core. Rendered double-sided the near and far walls sum, which doubles the
+ *    middle for free and is right for the same reason; inside the cone the near
+ *    wall is behind the camera, so the far one is given the pair's weight.
  *  - **Dilution along the throw.** A beam spreads, so the same light is spread
  *    over more air the further it gets. The alpha falls off toward the far end
  *    and reaches zero there, which is also what stops the cone having a visible
@@ -64,6 +75,12 @@ import type { Kit } from './stage-kit.js';
 /** Local axis the unit cone points along: apex at the origin, spreading down. */
 const AXIS = new Vector3(0, -1, 0);
 
+/**
+ * The mouth's radius as a fraction of the wide end — the lens, not a point.
+ * The geometry and the shader both need it, so neither gets to spell it twice.
+ */
+const MOUTH = 0.045;
+
 const scratchDir = new Vector3();
 
 export interface Beam {
@@ -94,7 +111,7 @@ export interface BeamOptions {
  */
 function beamGeometry(kit: Kit, segments: number): BufferGeometry {
   return kit.geometry(`beam|${segments}`, () => {
-    const g = new CylinderGeometry(0.045, 1, 1, segments, 1, true);
+    const g = new CylinderGeometry(MOUTH, 1, 1, segments, 1, true);
     g.translate(0, -0.5, 0);
     return g;
   });
@@ -103,14 +120,22 @@ function beamGeometry(kit: Kit, segments: number): BufferGeometry {
 const VERTEX = /* glsl */ `
   varying vec3 vNormalV;
   varying vec3 vPosV;
-  varying float vT;
+  varying vec3 vMouthV;
+  varying vec3 vAxisV;
+  varying float vRadius;
   void main() {
+    // Lerped across each facet and renormalised below, which is where the
+    // beam's grain comes from. See the header.
     vNormalV = normalMatrix * normal;
     vec4 mv = modelViewMatrix * vec4(position, 1.0);
     vPosV = mv.xyz;
-    // Cylinder uv.y runs 0 at the wide end to 1 at the lens; flip it so vT is
-    // distance travelled, which is what everything downstream wants.
-    vT = 1.0 - uv.y;
+    // The cone's own frame, in view space: the centre of its mouth, its axis
+    // (length = the throw), and the radius of its wide end. The same three
+    // numbers for every vertex, carried down as varyings because three does not
+    // hand the fragment stage a model matrix to work them out from.
+    vMouthV = (modelViewMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+    vAxisV = (modelViewMatrix * vec4(0.0, -1.0, 0.0, 0.0)).xyz;
+    vRadius = length((modelViewMatrix * vec4(1.0, 0.0, 0.0, 0.0)).xyz);
     gl_Position = projectionMatrix * mv;
   }
 `;
@@ -121,17 +146,67 @@ const FRAGMENT = /* glsl */ `
   uniform float uSharp;
   varying vec3 vNormalV;
   varying vec3 vPosV;
-  varying float vT;
+  varying vec3 vMouthV;
+  varying vec3 vAxisV;
+  varying float vRadius;
+
   void main() {
-    // How much air this ray crosses: everything at the middle, nothing at the
-    // silhouette. See the header.
-    float facing = abs(dot(normalize(vNormalV), normalize(-vPosV)));
-    float a = pow(facing, uSharp);
+    float throwLen = max(length(vAxisV), 1e-4);
+    vec3 axis = vAxisV / throwLen;
+    vec3 ray = normalize(vPosV);   // the camera is the origin of view space
+    vec3 toCam = -vMouthV;         // ...so this is where it stands, mouth-relative
+
+    // Closest approach between the view ray and the beam's axis: sMid along the
+    // ray, tMid down the throw, off the gap left between the two.
+    float b = dot(ray, axis);
+    float d = dot(ray, toCam);
+    float e = dot(axis, toCam);
+    float sq = max(1.0 - b * b, 1e-6);   // collapses when the ray runs down the beam
+    float sMid = (b * e - d) / sq;
+    float tMid = (e - b * d) / sq;
+    float off = length(toCam + sMid * ray - tMid * axis);
+
+    // How much air the ray crosses, as a fraction of the cone's full width
+    // there: 1 straight through the middle, 0 at the silhouette. Treating the
+    // cone as a cylinder of the radius it has where the ray passes closest is
+    // exact side-on and within a hair over a beam this narrow. Looking down the
+    // beam, sq collapses and the chord runs away to a whole throw of haze,
+    // which is the honest answer and why it is clamped rather than capped by a
+    // dot product that would have said zero.
+    float r = vRadius * (${MOUTH.toFixed(3)} + ${(1 - MOUTH).toFixed(3)} * clamp(tMid / throwLen, 0.0, 1.0));
+    float reach = sqrt(max(r * r - off * off, 0.0) / sq);
+    float s0 = max(sMid - reach, 0.0);   // clamped at the camera, for when it is inside
+    float s1 = sMid + reach;
+    float chord = clamp((s1 - s0) / (2.0 * r), 0.0, 1.0);
+
+    // The same number off the surface instead, faceted by the tessellation.
+    // Where the two agree it is the one that carries the grain, so it is what
+    // gets used; sq is exactly how much the ray crosses the cone rather than
+    // running down it, which is exactly how far the surface can be trusted.
+    float facing = abs(dot(normalize(vNormalV), -ray));
+    float a = pow(mix(chord, facing, sq), uSharp);
+
+    // Where down the throw that crossing happens. Clamping the two ends to the
+    // beam's own extent is what keeps a ray fired along the axis sampling the
+    // middle of the haze still ahead of it rather than the far rim.
+    float tA = clamp(dot(s0 * ray - vMouthV, axis), 0.0, throwLen);
+    float tB = clamp(dot(s1 * ray - vMouthV, axis), 0.0, throwLen);
+    float t = 0.5 * (tA + tB) / throwLen;
+
     // The beam spreads, so the same light thins out along the throw, and it
     // reaches zero at the end rather than stopping at a rim.
-    a *= 1.0 - pow(clamp(vT, 0.0, 1.0), 1.25);
+    a *= 1.0 - pow(t, 1.25);
     // ...and it does not start as a bright disc pasted on the lens either.
-    a *= smoothstep(0.0, 0.05, vT);
+    a *= smoothstep(0.0, 0.05, t);
+
+    // Both walls draw and sum, except from inside, where the near one is behind
+    // the camera and the far one is all there is. Hand it the pair's weight,
+    // over a band straddling the wall wide enough that the near plane clipping
+    // the near wall just before the camera crosses it does not read as a dip.
+    float camWall = vRadius * (${MOUTH.toFixed(3)} + ${(1 - MOUTH).toFixed(3)} * clamp(e / throwLen, 0.0, 1.0));
+    float within = length(toCam - e * axis) / max(camWall, 1e-4);
+    a *= 1.0 + (1.0 - smoothstep(0.85, 1.15, within)) * step(0.0, e) * step(e, throwLen);
+
     gl_FragColor = vec4(uColour, a * uAlpha);
   }
 `;
