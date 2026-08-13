@@ -64,11 +64,13 @@
  * appears. Adding a prop is a two-file change by construction, and the compiler
  * names the second file.
  *
- * **One prop is furniture a performer stands at, and is therefore owned
+ * **One prop is furniture a performer stands at, and was therefore owned
  * twice.** `riser` is placed by the stage builder, while `cast.ts`
  * independently decides where the drummer sits. If the two disagree the kit
- * floats — so it is reconciled: its size, height and position are fixed
- * constants shared by both files, and `cast.ts` pins the drummer inside them.
+ * floats — and they did disagree, for as long as "shared constants" meant each
+ * file holding its own copy of the same three numbers. It is one function now:
+ * `riserFootprint` below says how big the platform is and where, `riserSeat`
+ * says where a drummer may sit on it, and both files ask.
  *
  * There used to be a second one. `gear-table` put a trestle upstage for the
  * ambient electronics to sit on, and it was never reconciled with anything:
@@ -276,6 +278,89 @@ export const PROPS = [
  * silently, because agreeing today is what they are best at.
  */
 export type PropName = (typeof PROPS)[number];
+
+// ---------------------------------------------------------------------------
+// The drum riser
+// ---------------------------------------------------------------------------
+
+/**
+ * How far a kit reaches around the person playing it, in metres.
+ *
+ * Measured off the model in `web/concert/instruments/drumkit.ts`, whose local
+ * box runs −0.875…0.848 across and −1.200…0.386 fore and aft with the throne at
+ * −0.95. So the drummer has 0.88 m of kit to either side of them, 0.25 m of
+ * stool behind, and 1.34 m of kick, rack toms and cymbal boom in front.
+ *
+ * **`ARCHETYPES.drumkit.footprint` is not this number and cannot be.** That is
+ * the 1.6 m circle the solver keeps other *players* out of — arm's length and
+ * room to work — and a circle cannot say which end of itself the drummer is at.
+ * Which end they are at is the whole question here, because the platform is
+ * 2 m deep and the kit occupies the metre and a third in front of the stool: a
+ * drummer dead centre on the riser has the kick hanging off the front of it.
+ *
+ * `turn` is what the facing jitter costs. Every player is turned by up to
+ * 0.07 rad in `cast.ts` so that a band is not a row of fence posts, and a
+ * rotated box is a wider one — 0.06 m on each extent at these proportions.
+ */
+export const KIT_REACH = { side: 0.88, behind: 0.25, ahead: 1.34, turn: 0.06 } as const;
+
+/**
+ * The drum riser: how big it is, how high, and where.
+ *
+ * **The one place this is decided**, which is the point of it. Two files act on
+ * this platform and only one of them draws it — `web/concert/stage-props.ts`
+ * builds the deck, and `concert/cast.ts` sits a drummer on top of it — so a
+ * second copy of the arithmetic anywhere is a kit standing in the air, and was:
+ * the cast held `2.8 × 2.0 m at backZ + 1.45` as three literals while the
+ * builder scaled the depth with the room, and the two agreed only on stages at
+ * least 6.67 m deep. Measured across nineteen genres, 8 seeds each: **99 of 413
+ * staged kits** hung off the platform, by up to 0.38 m downstage in house's
+ * 4.7 m warehouse.
+ *
+ * This lives in `concert/` rather than beside the geometry because the IR may
+ * not depend on the thing that draws it — see the note on `PROPS` above, which
+ * is the same inversion for the same reason.
+ *
+ * The upstage face is at `backZ + 0.45` whatever the depth does, the `d / 2`
+ * cancelling out of the sum, and `backline`, `arches` and `BACK_STRIP` all stop
+ * short of that line. Move the platform downstage and three props collide.
+ */
+export function riserFootprint(
+  // Narrowed to what it reads, so a caller holding only a venue can ask.
+  m: { width: number; depth: number; backZ?: number },
+): { w: number; d: number; z: number; h: number } {
+  const w = Math.min(2.8, m.width * 0.32);
+  const d = Math.min(2.0, m.depth * 0.3);
+  // `backZ` is `-depth / 2` on every stage this builds — see `web/concert/stage.ts`.
+  return { w, d, z: (m.backZ ?? -m.depth / 2) + d / 2 + 0.45, h: 0.4 };
+}
+
+/**
+ * Where the drummer may sit for the whole kit to land on the platform — or
+ * `undefined`, when this room's platform is too small to hold one.
+ *
+ * The second answer is the one worth having, and it is why this is a function
+ * rather than a pair of insets at the call site. `riserFootprint` scales with
+ * the room, `KIT_REACH` does not, and below about 6.1 m of stage depth the
+ * platform is simply shorter than the kit: no seat on it puts the kick and the
+ * stool both on the deck. Nine of the catalogue's dressings are that shallow —
+ * every jazz cellar, every warehouse, the dnb unit, the smaller hip-hop clubs.
+ *
+ * What a stage crew does there is not shave the kit down, it is leave the riser
+ * in the truck, and that is what `undefined` means: the drummer plays on the
+ * boards, `Station.riser` stays 0, and the platform is struck by the switch
+ * that already exists for the drummerless number. A cellar with the kit on the
+ * floor is also the right picture for a cellar.
+ */
+export function riserSeat(
+  m: { width: number; depth: number; backZ?: number },
+): { x0: number; x1: number; z0: number; z1: number } | undefined {
+  const { w, d, z } = riserFootprint(m);
+  const x = w / 2 - KIT_REACH.side - KIT_REACH.turn;
+  const z0 = z - d / 2 + KIT_REACH.behind + KIT_REACH.turn;
+  const z1 = z + d / 2 - KIT_REACH.ahead - KIT_REACH.turn;
+  return x >= 0 && z1 >= z0 ? { x0: -x, x1: x, z0, z1 } : undefined;
+}
 
 // ---------------------------------------------------------------------------
 // The house room

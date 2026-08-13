@@ -81,6 +81,7 @@ import type { EraProfile } from '../style/types.js';
  * before it can decide that two lines are one player. See `oneHanded`.
  */
 import { oneHanded, trackForPart } from './choreograph.js';
+import { riserFootprint, riserSeat } from './venue.js';
 import {
   DRUM_ARCHETYPE, HAND_DRUM_ARCHETYPE, SYNTH_RIGS, VOCAL_ARCHETYPE,
   archetypeForTrack, drumStations, rigPoolFor,
@@ -175,24 +176,27 @@ const FRONT_OPENING = 0.44;
 const IN_FRAME = 0.36;
 
 /**
- * The house drum riser: 2.8 m × 2.0 m, top at 0.4 m, centred 1.45 m downstage
- * of the back edge of the boards.
+ * The house drum riser is `riserFootprint`, and this file no longer holds a
+ * second opinion about it.
  *
- * These numbers are not a choice made here. `web/concert/stage.ts` builds a
- * physical riser at exactly this size and place, and `Station.riser` is
- * therefore double-owned: emit anything other than 0.4 for a player standing on
- * it and the kit floats above the platform or sinks into it. So there is
- * exactly one riser on this stage, the drummer is pinned to its footprint, and
- * everybody else is on the boards at 0.
+ * It used to: `2.8 × 2.0 m at backZ + 1.45`, three literals, described here as
+ * numbers that "are not a choice made here" and then written out anyway. The
+ * builder over in `web/concert/stage-props.ts` scales the depth with the room,
+ * so the two agreed on stages at least 6.67 m deep and nowhere else, and the
+ * kit hung off the front of the platform in nine of the catalogue's dressings.
+ * `Station.riser` is double-owned in the same way and now comes off the same
+ * call — emit anything but the deck's own height and the kit floats above the
+ * platform or sinks into it.
+ *
+ * What is still decided here is the seat: the drummer is pinned to the
+ * footprint and everybody else is on the boards at 0. `riserSeat` returns
+ * `undefined` where the platform is too short for a kit, and then the drummer
+ * is on the boards too and the platform is struck.
  *
  * The cost is real and worth naming: the sightline pass used to fix a hidden
  * drummer by raising the riser, which is what a stage manager would do and is
  * no longer available. It moves whoever is in front instead.
  */
-const RISER_HEIGHT = 0.4;
-const RISER_HALF_WIDTH = 1.4;
-const RISER_FROM_BACK = 1.45;
-const RISER_HALF_DEPTH = 1.0;
 
 /**
  * The radius of a *person*, as opposed to their instrument.
@@ -1639,13 +1643,16 @@ function stageBand(slots: Slot[], venue: Venue, seed: string): void {
   const kitR = kit?.r ?? 0;
 
   /**
-   * Where the riser is, in this venue's coordinates.
+   * The platform, and where a drummer may sit on it.
    *
-   * Derived from the back edge of the boards rather than from `zUp`, because
-   * that is how the stage builder derives it too — the two have to agree to the
-   * centimetre or the kit does not sit on the platform.
+   * Asked of `concert/venue.ts` rather than derived here, because the stage
+   * builder asks the same function — the two have to agree to the centimetre or
+   * the kit does not sit on the platform. `seat` is `undefined` on a stage too
+   * shallow to hold a kit at all; see below, and `riserSeat`.
    */
-  const riserZ = -D / 2 + RISER_FROM_BACK;
+  const riser = riserFootprint({ width: W, depth: D });
+  const riserZ = riser.z;
+  const seat = riserSeat({ width: W, depth: D });
 
   for (const s of slots) {
     switch (s.role) {
@@ -1660,7 +1667,7 @@ function stageBand(slots: Slot[], venue: Venue, seed: string): void {
          * below are all the drummer's, and every one of them is wrong for the
          * person sitting beside them.
          *
-         * **The riser is the first half.** `RISER_HEIGHT` is there because a kit
+         * **The riser is the first half.** The platform is there because a kit
          * is loud, immovable and hard to see over, and a hand percussionist is
          * none of those. For a floor-seated one it was the single most
          * conspicuously wrong thing this file did in two genres, and it is
@@ -1711,21 +1718,39 @@ function stageBand(slots: Slot[], venue: Venue, seed: string): void {
           break;
         }
         s.x = 0;
-        // Slightly upstage of the riser's centre: a kit is played from its
-        // downstage edge, and the drummer is the thing being placed.
-        s.z = clamp(zUp, riserZ - RISER_HALF_DEPTH + 0.4, riserZ + RISER_HALF_DEPTH - 0.4);
-        s.riser = RISER_HEIGHT;
         s.anchor = 6;
         /**
-         * Pinned to the platform, and `locked` so the solver's relaxation
-         * cannot widen its way off it. A drummer half on a riser is worse than
-         * a drummer standing in somebody's way.
+         * On the platform where the platform will hold a kit, and on the boards
+         * where it will not.
+         *
+         * The box is `riserSeat`'s, which insets the footprint by the kit's own
+         * reach rather than by a flat 0.4 m — the number this used to inset by,
+         * and the reason a drummer pushed to the end of their box by the
+         * separator took half a metre of cymbal stand off the side of the deck.
+         * `locked` so the relaxation cannot widen its way off the platform: a
+         * drummer half on a riser is worse than a drummer standing in somebody's
+         * way.
+         *
+         * Upstage within that box, which is the same `zUp` this always clamped
+         * to: a kit is played from its downstage edge, so the drummer sits at
+         * the back of the deck and the kick, the toms and the boom take the
+         * metre and a third in front of them.
+         *
+         * With no seat there is no platform — the riser is struck by the switch
+         * in `show.ts` the moment nobody has one — so the drummer goes to the
+         * back line on the boards with the same weight and no lock. Nothing is
+         * pinning them, and a stage that could not hold the deck is a stage
+         * where the solver needs every centimetre it can get.
          */
-        s.box = {
-          x0: -RISER_HALF_WIDTH + 0.4, x1: RISER_HALF_WIDTH - 0.4,
-          z0: riserZ - RISER_HALF_DEPTH + 0.4, z1: riserZ + RISER_HALF_DEPTH - 0.4,
-        };
-        s.locked = true;
+        if (seat) {
+          s.z = clamp(zUp, seat.z0, seat.z1);
+          s.riser = riser.h;
+          s.box = { ...seat };
+          s.locked = true;
+        } else {
+          s.z = zUp;
+          s.box = { x0: -1, x1: 1, z0: zUp - 0.15, z1: zUp + 0.5 };
+        }
         break;
       case 'bass':
         s.x = side * (kitR + s.r + 0.25);
@@ -3659,6 +3684,12 @@ function placeMachines(song: Song, slots: Slot[], venue: Venue): StageMachine[] 
        * without one on an occupied stage is a sequencer, and a sequencer with
        * nowhere to go is not staged rather than parked at the back untended.
        * An unexplained case is worse than one part fewer with an object.
+       *
+       * Where the kit would have been, **on the boards**. This used to stand
+       * the case at `RISER_HEIGHT + 0.92`, as though the platform were under it
+       * — and the platform is exactly what is not there: it is struck whenever
+       * nobody has `Station.riser`, and nobody here has anything, because there
+       * is nobody here. The box floated 0.4 m up on every empty stage.
        */
       if (out.length || slots.length) return;
       out.push({
@@ -3666,7 +3697,7 @@ function placeMachines(song: Song, slots: Slot[], venue: Venue): StageMachine[] 
         kind: want.kind,
         bank: want.bank,
         ...(want.layer ? { layer: want.layer } : {}),
-        position: [0, round(RISER_HEIGHT + 0.92), round(-venue.depth / 2 + RISER_FROM_BACK)],
+        position: [0, 0.92, round(riserFootprint(venue).z)],
         facing: 0,
         mount: 'stand',
         stand: 0.92,
