@@ -54,7 +54,7 @@ import {
 
 import { buildCurtain } from '../stage-curtain.js';
 import {
-  blend, cellPlane, hueShift, shade, tint,
+  blend, cellPlane, hueShift, playingArea, shade, tint,
   LOW_CEILING, STAGE_RISE, STAGE_SOFFIT,
 } from '../stage-kit.js';
 import type { RoomBuilder, RoomContext, RoomDatum, RoomRig, RoomShape } from './types.js';
@@ -648,17 +648,56 @@ function build(c: RoomContext): RoomRig {
   root.add(above);
 
   // --- wings -------------------------------------------------------------
+  /**
+   * Two masking flats a side, toed in, standing upstage of the cloth line — and
+   * they are placed by the edge that faces the band rather than by their own
+   * centre, which is the whole of the fix here.
+   *
+   * A wing is 2.4 m wide and toed in by `WING_TOE`, so 0.332 m of it lies
+   * inboard of wherever its centre is put. That was never accounted for. The
+   * centre went to `openingWidth / 2 - 0.25` — already a handspan inside the
+   * aperture — which left the cloth's inboard arris 0.582 m inboard of the
+   * aperture edge, and since `openingWidth` is `width * 0.94` while `cast.ts`
+   * clamps players to `width / 2 - 0.5`, that is **inboard of the outermost
+   * player** in five of this room's nine dressings. Measured over 24 numbers
+   * each, worst first: **0.346 m** of shoulder inside the cloth in jazz's swing
+   * and bop eras (a trombone standing at ±3.580 against an arris at 3.554, and
+   * the slide reaches past the shoulder again) and in the electric era (a
+   * guitar at the same station), **0.178 m** in jazz/modern, **0.102 m** in the
+   * tanssilava. The symptom is a horn player standing in what reads as a wall,
+   * and from a camera round the side it is the wall that wins — the room necks
+   * in at the wing line and the band is upstage of the neck, so the picture is
+   * a stage wider than the hole it is being seen through.
+   *
+   * So the flat is positioned by its arris — `inner + WING_HALF * sin(WING_TOE)`
+   * — and `inner` is held at `playingArea().halfX` or outboard of it. That is
+   * the guard `BUILDERS.drapes` already applies to the extra masking a black
+   * box hangs, down to the expression; this room was the one place it was
+   * missing.
+   *
+   * It costs no masking, which is worth stating because it is not obvious.
+   * `playingArea().halfX` is `width / 2 - 0.5` and the aperture edge is
+   * `width * 0.47`, so on every dressing this room is asked for the arris still
+   * lands **0.18–0.24 m inboard of the aperture** and the wing is still seen
+   * through the arch. What moved is the 0.332 m nobody had counted.
+   */
+  const WING_HALF = 1.2;
+  /** Toed in toward the centre line, radians off the side wall. */
+  const WING_TOE = 0.28;
+  const wingInner = Math.max(playingArea(m).halfX, openingWidth / 2 - 0.25);
+  const wingOut = wingInner + WING_HALF * Math.sin(WING_TOE);
   const wingMat = c.kit.solid(shade(p.curtain, 0.45), { rough: 0.98, side: BackSide });
-  const wingGeo = c.kit.geometry(`wing|${openingHeight}`, () => new PlaneGeometry(2.4, openingHeight + 1));
+  const wingGeo = c.kit.geometry(
+    `wing|${openingHeight}`, () => new PlaneGeometry(WING_HALF * 2, openingHeight + 1));
   for (const side of [-1, 1]) {
     for (let i = 0; i < 2; i++) {
       const wing = new Mesh(wingGeo, wingMat);
       wing.position.set(
-        side * (openingWidth / 2 - 0.25 + i * 0.5),
+        side * (wingOut + i * 0.5),
         (openingHeight + 1) / 2 - 0.4,
         m.curtainZ - 1.5 - i * 2.1,
       );
-      wing.rotation.y = side * (Math.PI / 2 + 0.28);
+      wing.rotation.y = side * (Math.PI / 2 + WING_TOE);
       root.add(wing);
     }
   }
