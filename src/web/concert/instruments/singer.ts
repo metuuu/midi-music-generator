@@ -25,9 +25,10 @@
  * stand is for and the reason this archetype needed the change least and shows
  * it most: a 1.55 m capsule in front of a 1.92 m singer is not a compromise,
  * it is a stand nobody adjusted. `Contact.normal` runs up the microphone's own
- * axis toward the singer: a rig that wants the lips a few centimetres off the
- * grille rather than on it adds `normal * gap`, which is what the normal is
- * for.
+ * axis toward the singer, and the contact it belongs to is a centimetre clear
+ * of the grille rather than on it — a mouth arrives at a ball 27 mm across, so
+ * "where the mouth goes" and "where the capsule is" are two different points
+ * and the gap between them is this file's to state. See `SUNG_GAP`.
  *
  * ## What moves
  *
@@ -83,8 +84,20 @@ function release(): void {
 
 const SPEC = ARCHETYPES.singer;
 
-/** How far in front of the capsule the singer's own lips sit. */
+/** Radius of the ball grille, which is the whole of what a singer aims at. */
+const GRILLE_R = 0.0268;
+/** How far off the face of the grille the singer's lips rest. */
 const LEAN_IN = 0.045;
+/**
+ * And how far off it they stop when they lean in to sing.
+ *
+ * Not zero, and not negative, which is what `CAPSULE` on its own amounts to:
+ * `CAPSULE` is the *centre* of the ball, so a rig that put the lips there put a
+ * 27 mm grille inside the singer's head. A microphone captures a mouth a
+ * centimetre off it perfectly well, and a centimetre off it is also what a
+ * singer looks like.
+ */
+const SUNG_GAP = 0.010;
 /** Where the capsule sits along the model's z; its height is the singer's. */
 const CAPSULE_Z = -0.030;
 /** How far the microphone leans back off vertical, toward the singer. */
@@ -149,11 +162,35 @@ export const buildSinger: InstrumentBuilder = (opts: InstrumentBuildOptions): In
     () => new CylinderGeometry(0.0102, 0.0102, upperLen, 10).translate(0, upperLen / 2, 0));
   const geoClipCollar = shared('clipcollar', () => new TorusGeometry(0.0225, 0.0055, 5, 14));
   const geoClipArm = shared('cliparm', () => new BoxGeometry(0.012, 0.048, 0.010));
+  /**
+   * The body, closed at both ends and rolled in under the ball at the top.
+   *
+   * A lathe of an open profile is a **tube**, and a tube is see-through from
+   * either end, because the inside faces are culled and there is nothing else
+   * there. Both ends of this one were open. The bottom is the smaller hole and
+   * it is not covered by anything — the connector block is 20 mm across a 26 mm
+   * opening — and the mic leans back 35°, which puts that opening in the front
+   * row's eyeline.
+   *
+   * The top is the fault that reads as breakage. The profile stopped 17 mm
+   * short of the grille and the grille was a bare hemisphere, so between the two
+   * there was a gap of nothing at all with the open underside of a bowl above
+   * it: from anywhere below the capsule you looked straight through the
+   * microphone. The last two points are the shoulder that fixes it, and the
+   * number that matters is the top ring's radius — it has to end up *inside* the
+   * sphere below, so that the two closed shells interlock and neither one's
+   * opening can be seen from outside it.
+   */
   const geoMicBody = shared('micbody', () => new LatheGeometry([
+    new Vector2(0.0000, 0.000),
     new Vector2(0.0130, 0.000), new Vector2(0.0165, 0.012), new Vector2(0.0180, 0.055),
-    new Vector2(0.0205, 0.098), new Vector2(0.0235, 0.118), new Vector2(0.0250, 0.128),
+    new Vector2(0.0205, 0.098), new Vector2(0.0235, 0.118), new Vector2(0.0242, 0.126),
+    new Vector2(0.0225, 0.133), new Vector2(0.0195, 0.1385),
   ], 14));
-  const geoGrille = shared('grillegeo', () => new SphereGeometry(0.0268, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2)
+  // A whole ball rather than the top half of one. It is 160 triangles more and
+  // it is the difference between a capsule and a hole; the half that has been
+  // added is the half facing the stand, so nothing the singer leans into moves.
+  const geoGrille = shared('grillegeo', () => new SphereGeometry(GRILLE_R, 16, 10)
     .translate(0, MIC_REACH, 0));
   const geoConnector = shared('connector', () => new BoxGeometry(0.020, 0.024, 0.020));
   const geoLink = shared('link', () => new CylinderGeometry(0.0055, 0.0055, LINK_LEN, 6)
@@ -256,8 +293,18 @@ export const buildSinger: InstrumentBuilder = (opts: InstrumentBuildOptions): In
   // --- contacts ----------------------------------------------------------
   /** Up the microphone's axis, toward the singer. */
   const axis = new Vector3(0, 1, 0).applyEuler(clip.rotation).normalize();
+  /**
+   * The lips: off the face of the ball, not at the middle of it.
+   *
+   * `CAPSULE` is the grille's centre — the clip is solved so that it lands
+   * there — so a mouth placed on `CAPSULE` is a mouth 27 mm inside the
+   * microphone. Backing off along `normal` is the obvious way to say "a
+   * centimetre clear of the grille" and it is the wrong one, for the same
+   * reason `restContact` gives below: the mic leans back 35°, so most of that
+   * motion is upward and it lifts the head instead of holding it back.
+   */
   const sungContact: Contact = {
-    position: CAPSULE.clone(),
+    position: CAPSULE.clone().add(new Vector3(0, 0, -(GRILLE_R + SUNG_GAP))),
     normal: axis.clone(),
   };
   /**
@@ -301,8 +348,10 @@ export const buildSinger: InstrumentBuilder = (opts: InstrumentBuildOptions): In
     outlet: new Vector3(-0.400, 0.010, -0.190),
     station: {
       // Just behind the stand, facing out. Close enough that the rig's head
-      // lands on the capsule without the body intersecting the shaft.
-      offset: new Vector3(0, 0, CAPSULE_Z - mouth.z - LEAN_IN),
+      // reaches the capsule without the body intersecting the shaft — and
+      // measured off the *face* of the grille, so that `LEAN_IN` is the gap a
+      // singer standing at rest actually has in front of their mouth.
+      offset: new Vector3(0, 0, CAPSULE_Z - GRILLE_R - mouth.z - LEAN_IN),
       facing: 0,
       posture: SPEC.posture,
     },

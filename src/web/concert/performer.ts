@@ -427,6 +427,26 @@ const MOUTHPIECE_IDLE_TURN = 0.10;
 const IDLE_TURN = 0.30;
 
 /**
+ * How long a head takes to arrive somewhere it has been placed, in seconds.
+ *
+ * Every other effector is placed absolutely, on purpose: a hand is *on* the
+ * snare on the beat or the whole animator is lying, and the arcs in
+ * `animate.ts` are what make the approach to it a movement rather than a jump.
+ * The head is the one part with no such arc worth the name. A singer's syllable
+ * is a `blow`, and `PREP_SECONDS.blow` is 30 ms — a number written for an
+ * embouchure, which does not travel, and inherited by the one effector that
+ * does. Thirty milliseconds is not a lean, it is a teleport, and the singer's
+ * head performed one at the top of every phrase.
+ *
+ * So the head is the one part that arrives under its own time constant. It is
+ * allowed to be late because being late costs nothing: a mouth a centimetre
+ * further off a microphone for a tenth of a second is still a mouth at a
+ * microphone, which is not true of a hand a centimetre off a drum. Departure is
+ * `Placed.tau` and stays where it was — this is the way in.
+ */
+const HEAD_EASE = 0.13;
+
+/**
  * How hard a player's *part* makes them concentrate, as opposed to how hard it
  * makes them work.
  *
@@ -603,6 +623,8 @@ class Rig implements PerformerRig {
   private readonly bodyOffset = new Vector3();
   private readonly bodyCommand = new Vector3();
   private bodyCommanded = false;
+  /** Where a `mouth` or `head` command wants the head. See `HEAD_EASE`. */
+  private readonly headGoal = new Vector3();
   private readonly breathPhase: number;
   private readonly swayBias: number;
 
@@ -905,7 +927,10 @@ class Rig implements PerformerRig {
         const head = this.restLocal['head'];
         if (mouth && head) local.add(V2.copy(head).sub(mouth));
       }
-      st.pos.copy(local).sub(st.rest).clampLength(0, this.proportions.headR * 1.3).add(st.rest);
+      // The goal, not the position: where the head *is* is eased toward this in
+      // `update`, which is the whole of `HEAD_EASE`.
+      this.headGoal.copy(local).sub(st.rest)
+        .clampLength(0, this.proportions.headR * 1.3).add(st.rest);
       st.commanded = true;
       return;
     }
@@ -1262,6 +1287,14 @@ class Rig implements PerformerRig {
       headState.rest.copy(p.head);
       headState.rest.y += nod * p.height * 0.006 + breath * p.height * 0.0025;
       headState.rest.z += bias.headPush;
+      // And the command, which is approached rather than obeyed. `pos` is where
+      // the head actually is — the loop below writes it back on every
+      // uncommanded frame too — so a phrase that starts from a head at rest and
+      // one that starts from a head still coming back off the last syllable
+      // both carry on from where the head got to. See `HEAD_EASE`.
+      if (headState.commanded) {
+        headState.pos.lerp(this.headGoal, 1 - Math.exp(-step / HEAD_EASE));
+      }
     }
 
     // --- limbs -------------------------------------------------------------
