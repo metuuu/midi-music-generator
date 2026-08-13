@@ -120,7 +120,7 @@ import {
 import { Rng } from '../../core/rng.js';
 import type { Venue } from '../../concert/types.js';
 import { PROPS, type PropName } from '../../concert/venue.js';
-import { rowGap } from './stage-audience.js';
+import { rowGap, SEAT_Y } from './stage-audience.js';
 import {
   blend, cellPlane, HEAD_BAND, houseLid, hueShift, LENS_GAP, LOW_CEILING, playingArea, sagLine,
   shade, STAGE_SOFFIT, tint,
@@ -2649,6 +2649,25 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
    * and furniture in it that caught the one shadow-casting lantern would be the
    * only lit thing among a hundred unlit people.
    *
+   * ## A back is not a seat
+   *
+   * The pane was the whole chair for as long as this prop has existed, and the
+   * name of the prop is what gives it away: `stalls` is where an audience
+   * *sits*, and there was nothing here to sit on. From behind the last row it
+   * passed, because a pane is what you see of the row in front. From anywhere
+   * the camera goes down the side of the house it was a rank of boards on
+   * sticks with people standing between them.
+   *
+   * So the standard the prop grew below is now two, at the ends of a pan, and
+   * the pan is at `SEAT_Y` — `stage-audience.ts`'s number, imported rather than
+   * restated, because it is the one measurement here that the people are also
+   * posed from. The legs move outboard with it: they used to stand at the
+   * pane's own x, which is the middle of somebody, and the litre of a crowd
+   * body each of the 39–48 posts a venue was sharing is smaller at the flank
+   * than it was at the sternum. Each leg is still 0.05 square and still runs to
+   * `houseY`, so the buried-volume arithmetic below is unchanged — it is per
+   * post, and there are now two of them rather than one that was wider.
+   *
    * ## The rake is the crowd's, not the floor's
    *
    * `row * rake` was being read as air, and it is structure. A sweep of all 72
@@ -2703,7 +2722,9 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
    * would bury 0.00396 and a sixteen-row house would go over. The other overlap
    * the sweep finds is 39–48 posts a venue sharing about a litre each with a
    * crowd body — the pane has always done that, on purpose, and a post at the
-   * pane's own x and z does no more of it. In the three flat rooms the whole post
+   * pane's own x and z did no more of it. The pair that replaced that post
+   * stand at the flanks instead and share less; see "A back is not a seat".
+   * In the three flat rooms the whole post
    * is visible, and the back row of rnb/soul stands on a 1.5 m stalk. That is
    * not a nice picture and it is the true one: the crowd in that room is already
    * 1.1 m in the air on a floor that does not rise, and a prop that hid it would
@@ -2728,24 +2749,36 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
       rows * perRow,
     );
     /**
-     * The standards. A unit box scaled in y, not a bevelled one: a bevel on a
-     * stretched box rounds unevenly along the axis it was stretched on, which
-     * `concert-hall.ts` says at length about its own steps.
+     * The pan and its two standards, three instances of one unit box.
+     *
+     * A unit box scaled per instance, not a bevelled one and not three
+     * geometries: a bevel on a stretched box rounds unevenly along the axis it
+     * was stretched on, which `concert-hall.ts` says at length about its own
+     * steps, and a second geometry for the pan would be a second draw call for
+     * a slab that differs from a leg only in which way it is long.
      */
-    const posts = new InstancedMesh(
-      c.kit.geometry('seat-post', () => new BoxGeometry(0.05, 1, 0.05)),
+    const frame = new InstancedMesh(
+      c.kit.geometry('seat-frame', () => new BoxGeometry(1, 1, 1)),
       woodwork,
-      rows * perRow,
+      rows * perRow * 3,
     );
+    /** Across the seat — the pane's width, so the chair is one object wide. */
+    const W = SEAT - 0.11;
+    /** Front to back. Deep enough to be a seat, short enough to clear the row. */
+    const PAN = 0.44;
+    const THICK = 0.055;
     const dummy = new Object3D();
     let i = 0;
+    let j = 0;
     for (let row = 0; row < rows; row++) {
       // Behind the row's own occupants — a seat back is the thing the person in
       // front of you is leaning on, so from the stage it fills the gaps.
       const z = c.m.crowd.frontZ + 0.35 + row * gap + 0.24;
       const y = c.m.houseY + row * rake + 0.66;
-      /** Floor to the underside of the pane. The air that used to be here. */
-      const leg = y - 0.25 - c.m.houseY;
+      /** The top of the pan, which is the hip height `stage-audience.ts` sits at. */
+      const pan = c.m.houseY + row * rake + SEAT_Y;
+      /** Floor to the underside of the pan. The air that used to be here. */
+      const leg = pan - THICK - c.m.houseY;
       const stagger = (row % 2) * SEAT * 0.5;
       for (let s = 0; s < perRow; s++) {
         const x = (s - (perRow - 1) / 2) * SEAT + stagger;
@@ -2753,15 +2786,25 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
         dummy.rotation.set(0, 0, 0);
         dummy.scale.setScalar(1);
         dummy.updateMatrix();
-        backs.setMatrixAt(i, dummy.matrix);
-        dummy.position.set(x, c.m.houseY + leg / 2, z);
-        dummy.scale.set(1, leg, 1);
+        backs.setMatrixAt(i++, dummy.matrix);
+        // Downstage of the pane by half its own depth and 0.03 more, so the
+        // person on it has the back behind their back rather than under their
+        // knees and the two boards do not meet in one face.
+        const seatZ = z - PAN / 2 - 0.03;
+        dummy.position.set(x, pan - THICK / 2, seatZ);
+        dummy.scale.set(W, THICK, PAN);
         dummy.updateMatrix();
-        posts.setMatrixAt(i++, dummy.matrix);
+        frame.setMatrixAt(j++, dummy.matrix);
+        for (const side of [-1, 1]) {
+          dummy.position.set(x + side * (W / 2 - 0.03), c.m.houseY + leg / 2, seatZ);
+          dummy.scale.set(0.05, leg, 0.05);
+          dummy.updateMatrix();
+          frame.setMatrixAt(j++, dummy.matrix);
+        }
       }
     }
     c.root.add(backs);
-    c.root.add(posts);
+    c.root.add(frame);
   },
 
   /**

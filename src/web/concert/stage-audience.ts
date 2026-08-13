@@ -19,6 +19,20 @@
  *   in front of it. It is now a tapered column anchored at the feet and
  *   restretched to the shoulders every frame, so a bobbing head cannot lift
  *   anybody off the boards. Same draw call, fewer triangles than the sphere.
+ * - **A seated house sits.** `audience.seated` used to buy nothing but a
+ *   shorter person: the same column, floor to shoulder, with its head at 1.14 m
+ *   instead of 1.62. That is not somebody in a chair, it is somebody 0.48 m
+ *   shorter standing in one, and it read as exactly that in every room that
+ *   draws the chairs — a rank of `stalls` pans with a body passing straight
+ *   down through each of them. A seated person is now three instances of the
+ *   *same* column: a torso standing out of the seat, a lap laid forward over it
+ *   and shins back down to the floor. Three times the instances in a seated
+ *   room and **no extra draw call**, which is the whole reason the parts are
+ *   one geometry rather than the four the shape wants.
+ * - **The chair decides the hip height, not the person.** `SEAT_Y` is not
+ *   scaled by `p.scale` the way the shoulder is. A taller person on the same
+ *   seat has a longer torso, not higher hips, and the alternative puts a tenth
+ *   of the house a few centimetres inside the pan `stage-props.ts` drew.
  * - **Unlit.** `MeshBasicMaterial`, near black, with a few percent of
  *   per-instance variation so the crowd has depth without having features.
  *   This is cheaper than lighting them, and it is also *better*: a foreground
@@ -93,6 +107,43 @@ const CHEST = 0.15;
 export function rowGap(seated: boolean): number {
   return (seated ? ROW.seated : ROW.standing).gap;
 }
+
+/**
+ * The top of the seat, above the row's own floor.
+ *
+ * Exported for the same reason `rowGap` is, and with less room for argument:
+ * this file poses the person and `stage-props.ts` draws the chair under them,
+ * and the two numbers are the same number. `stalls` restates the seat pitch,
+ * the rake and the stagger rather than importing them — the `HEAD_BAND` bargain
+ * its docstring makes — and that is defensible for a pitch, where being wrong
+ * costs a pane through a shoulder in a row you can barely see. It is not
+ * defensible for this one: a pan and a pair of hips that disagree by 0.05 m is
+ * a whole house hovering, in the front row, in the first frame.
+ *
+ * 0.44 m is a chair. It is also where the seat back `stalls` has always drawn
+ * ends — its pane spans 0.41 to 0.91 over the row's floor — so the pan this
+ * height puts under the crowd meets a back that was already at the right
+ * height, and nothing about the picture from behind the last row changes.
+ */
+export const SEAT_Y = 0.44;
+
+/**
+ * The rest of a seated body, in the units the column is scaled in.
+ *
+ * Radii, not widths: the geometry is a unit-radius cylinder, so `wide: 0.19` is
+ * a 0.38 m lap. Each is a little narrower than the part above it, which is what
+ * makes three straight columns read as one person rather than as scaffolding —
+ * shoulders 0.47 across, lap 0.38, shins 0.30.
+ */
+const LAP = {
+  /** Half the depth of the thigh, and so how far the hip axis clears the pan. */
+  thick: 0.1,
+  /** Hip to knee. Long enough that the knees clear the front of the pan. */
+  reach: 0.42,
+  wide: 0.19,
+  shinWide: 0.15,
+  shinThick: 0.09,
+} as const;
 
 /** Where the crowd is, for anything that has to keep out of it. */
 export interface CrowdExtent {
@@ -240,8 +291,17 @@ export function buildAudience(o: AudienceOptions): AudienceRig {
   ));
   const handGeo = kit.geometry('aud-hand', () => new IcosahedronGeometry(0.055, 0));
 
+  /**
+   * Instances of that column per person: one standing, three sitting.
+   *
+   * The count is the only thing a seated house changes about the mesh. Nothing
+   * downstream branches on it — `bodies.count` is `shown * PARTS` and the
+   * instance for person `i`, part `k`, is at `i * PARTS + k`.
+   */
+  const PARTS = seated ? 3 : 1;
+
   const heads = new InstancedMesh(headGeo, mat, Math.max(1, n));
-  const bodies = new InstancedMesh(bodyGeo, mat, Math.max(1, n));
+  const bodies = new InstancedMesh(bodyGeo, mat, Math.max(1, n * PARTS));
   const hands = new InstancedMesh(handGeo, mat, Math.max(1, n * 2));
   for (const m of [heads, bodies, hands]) {
     m.frustumCulled = false;   // one bounding sphere for the whole house
@@ -258,7 +318,8 @@ export function buildAudience(o: AudienceOptions): AudienceRig {
     const k = 0.86 + rng.next() * 0.3;
     tone.copy(baseTone).multiplyScalar(k);
     heads.setColorAt(i, tone);
-    bodies.setColorAt(i, tone.clone().multiplyScalar(0.82));
+    const limb = tone.clone().multiplyScalar(0.82);
+    for (let part = 0; part < PARTS; part++) bodies.setColorAt(i * PARTS + part, limb);
     hands.setColorAt(i * 2, tone);
     hands.setColorAt(i * 2 + 1, tone);
   }
@@ -268,6 +329,12 @@ export function buildAudience(o: AudienceOptions): AudienceRig {
 
   // --- state -------------------------------------------------------------
   const dummy = new Object3D();
+  // Yaw last, so a limb pitched flat still points where its owner is facing.
+  // Under the default XYZ the quarter turn that lays a thigh down is applied
+  // after the yaw and eats it — every lap in the house pointing at the stage,
+  // whatever the person above it was looking at. It costs the head nothing: a
+  // nod about the head's own axis rather than about the room's is what a nod is.
+  dummy.rotation.order = 'YXZ';
   let quality: Quality = o.quality;
   let shown = Math.min(n, CAP[quality]);
   let time = 0;
@@ -329,13 +396,49 @@ export function buildAudience(o: AudienceOptions): AudienceRig {
       // leaning in all happen without anybody taking off. No lean on x either:
       // the origin is at the shoulders, so a tilt there swings the feet.
       const shoulder = y - 0.12 * p.scale;
-      dummy.position.set(x - sway * 0.006, shoulder, z + 0.02);
-      dummy.rotation.set(0, p.yaw * 0.6, 0);
+      const bx = x - sway * 0.006;
+      const bz = z + 0.02;
+      const yaw = p.yaw * 0.6;
+      // Standing, that is the whole person. Sitting, it is the torso, and what
+      // it is stood on is the seat rather than the boards — the hip is the
+      // anchor the bob stretches against, so a nodding head cannot lift anybody
+      // off their chair for the same reason it cannot lift them off the floor.
+      const hip = seated ? p.foot + SEAT_Y : p.foot;
+      dummy.position.set(bx, shoulder, bz);
+      dummy.rotation.set(0, yaw, 0);
       dummy.scale.set(
-        p.scale * SHOULDER, Math.max(0.3, shoulder - p.foot), p.scale * CHEST,
+        p.scale * SHOULDER, Math.max(0.24, shoulder - hip), p.scale * CHEST,
       );
       dummy.updateMatrix();
-      bodies.setMatrixAt(i, dummy.matrix);
+      bodies.setMatrixAt(i * PARTS, dummy.matrix);
+
+      if (seated) {
+        // Forward is -z: the house faces the stage, which is downstage of it.
+        // The column hangs from its own top face, so a quarter turn about x
+        // lays it along the lap with the wide end at the hip and the taper at
+        // the knee. The shin is the same column left hanging, which is what a
+        // shin is — the standing body, from the knee down.
+        //
+        // The lap and the shins hang off the seat, not off the head: they take
+        // the lean and the sway, which move the chair's occupant on the chair,
+        // and not the bob, which is a person nodding above a lap that stays
+        // where it was put.
+        const axis = hip + LAP.thick * p.scale;
+        const reach = LAP.reach * p.scale;
+        dummy.position.set(bx, axis, bz);
+        dummy.rotation.set(Math.PI / 2, yaw, 0);
+        dummy.scale.set(p.scale * LAP.wide, reach, p.scale * LAP.thick);
+        dummy.updateMatrix();
+        bodies.setMatrixAt(i * PARTS + 1, dummy.matrix);
+
+        dummy.position.set(bx - Math.sin(yaw) * reach, axis, bz - Math.cos(yaw) * reach);
+        dummy.rotation.set(0, yaw, 0);
+        dummy.scale.set(
+          p.scale * LAP.shinWide, axis - p.foot, p.scale * LAP.shinThick,
+        );
+        dummy.updateMatrix();
+        bodies.setMatrixAt(i * PARTS + 2, dummy.matrix);
+      }
 
       // Hands: at the sides, or up and clapping, or over the head if this one
       // is the sort. The clap is the only fast motion in the house and it is
@@ -365,7 +468,7 @@ export function buildAudience(o: AudienceOptions): AudienceRig {
     }
 
     heads.count = shown;
-    bodies.count = shown;
+    bodies.count = shown * PARTS;
     hands.count = shown * 2;
     heads.instanceMatrix.needsUpdate = true;
     bodies.instanceMatrix.needsUpdate = true;

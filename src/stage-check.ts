@@ -489,23 +489,21 @@ console.log('\nFixed to something');
  */
 const ANCHOR_PROPS = new Set<string>(['lake']);
 /**
- * The two props that are not fixed to anything and are right not to be.
+ * The one prop that is not fixed to anything and is right not to be.
  *
  * `moths` fly. They are the one prop in the vocabulary whose whole subject is
  * not being attached to anything, and `BUILDERS.moths` says so — twenty-four
  * flecks on sine wander between `HANG_FLOOR + 0.28` and `0.92 openingHeight`.
  *
- * `stalls` is a wall of seat *backs* and nothing else: one 0.55 × 0.5 m plane
- * per seat, hanging at `houseY + 0.66`, with no pan, no legs and 0.41 m of air
- * under it. That is deliberate and its builder says why — "a seat back is the
- * thing the person in front of you is leaning on, so from the stage it fills
- * the gaps" — and what closes the gap under it is a person, drawn by
- * `stage-audience.ts` off the same `ROW` and `spacing` constants `stalls`
- * restates. It is the one prop in the catalogue whose support is somebody's
- * back, and the audience is not in the piece set (see `readPieces`), so 2094 of
- * the 2109 clusters this section first reported were one plane each.
+ * `stalls` was the other one, and it was here because it was a wall of seat
+ * *backs* and nothing else: one 0.55 × 0.5 m plane per seat, hanging at `houseY
+ * + 0.66`, with no pan, no legs and 0.41 m of air under it. 2094 of the 2109
+ * clusters this section first reported were one of those planes each. It has
+ * since grown the standards that argument was really asking for and then a pan
+ * between them, so every seat reaches `houseY` and the exemption was doing
+ * nothing but hiding a prop that now passes on its own.
  */
-const FLOATERS = new Set<string>(['moths', 'stalls']);
+const FLOATERS = new Set<string>(['moths']);
 
 class Union {
   private readonly up: number[];
