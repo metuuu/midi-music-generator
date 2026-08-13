@@ -165,7 +165,7 @@ const RIIHI: StageRoom = {
         proscenium: '#9aa6b4',
         ambient: '#cfe4ff',
       },
-      props: ['dance-floor', 'pa-stack', 'wedges', 'backline', 'truss', 'cables'],
+      props: ['dance-floor', 'pa-stack', 'wedges', 'backline', 'truss'],
       maybe: [['haze', 0.35], ['flight-case', 0.4], ['fairy-lights', 0.3]],
       fog: 0.24,
       grow: [0.8, 0.4],

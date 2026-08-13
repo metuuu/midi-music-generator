@@ -303,12 +303,14 @@ const HALL_BEHIND = 4.2;
  * margin, it is a different half of the room.
  *
  * **The leads.** `cableBounds` holds every routed cable inside
- * `|x| <= width / 2 - 0.25` and `z` inside the boards, and `concert-check.ts`
- * asserts that no lead crosses anything solid. The posts are 3 m outboard of
- * that strip in x and never over the boards in z, so there is no seed on which
- * a cable and a post can be within three metres of each other. (They are not in
- * `cables.ts`'s obstacle list either, and they must not be — the router's
- * obstacles are things a cable could plausibly reach.)
+ * `|x| <= width / 2` and `z` inside the boards, and `concert-check.ts` asserts
+ * that no lead crosses anything solid. That strip is the deck itself, because
+ * leads leave by its nearest edge and an edge has to be reachable; the posts
+ * are still `2.75 m` outboard of it in x and never over the boards in z, so
+ * there is no seed on which a cable and a post can be within two and a half
+ * metres of each other. (They are not in `cables.ts`'s obstacle list either,
+ * and they must not be — the router's obstacles are things a cable could
+ * plausibly reach.)
  *
  * **The lens.** `camera.ts` bounds the orbit with `inRoom`, which holds the
  * viewer's camera inside `|x| <= houseWidth / 2` out in the house and inside

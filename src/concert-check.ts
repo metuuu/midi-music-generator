@@ -33,9 +33,9 @@ import {
 import { seenAs, stacked } from './concert/cast.js';
 import { MAX_SUNG_CHANCE, SUNG_CHANCE } from './concert/setlist.js';
 import { buildConcert, soundingEffectors } from './concert/index.js';
-import { cableBounds, routeOnDeck, stageBoxAt, type Obstacle } from './web/concert/cables.js';
+import { cableBounds, cableExit, routeOnDeck, type Obstacle } from './web/concert/cables.js';
 import { BUILDERS, buildInstrumentFor } from './web/concert/instruments/index.js';
-import { riserFootprint } from './web/concert/stage-props.js';
+import { riserFootprint } from './concert/venue.js';
 import type { Archetype, Effector, Gesture, SynthRigId } from './concert/types.js';
 
 /**
@@ -1122,11 +1122,11 @@ check('no genre sings more often than not', loudGenres.length === 0,
  * only way to see either.
  *
  * The runs it checks are a **superset** of the real ones — every player and
- * every machine to the box, rather than only the electric gear that gets a
- * lead — because which archetypes own an outlet is a fact about the models and
- * this file has no business building twenty of them per number. A superset is
- * the right side to err on: it asserts the router copes with worse than it will
- * be given.
+ * every machine off its own nearest edge, rather than only the electric gear
+ * that gets a lead — because which archetypes own an outlet is a fact about the
+ * models and this file has no business building twenty of them per number. A
+ * superset is the right side to err on: it asserts the router copes with worse
+ * than it will be given.
  */
 {
   /**
@@ -1160,10 +1160,13 @@ check('no genre sings more often than not', loudGenres.length === 0,
   for (const gid of CHECKED_GENRES) {
     for (let i = 0; i < 4; i++) {
       const concert = buildConcert({ seed: `cable-${gid}-${i}`, genre: gid });
-      const metrics = { width: concert.venue.width, backZ: -concert.venue.depth / 2 };
+      const metrics = {
+        width: concert.venue.width,
+        backZ: -concert.venue.depth / 2,
+        lipZ: concert.venue.depth / 2,
+      };
       const riser = riserFootprint({ width: concert.venue.width, depth: concert.venue.depth });
-      const box = stageBoxAt(metrics);
-      const bounds = cableBounds({ ...metrics, lipZ: concert.venue.depth / 2 });
+      const bounds = cableBounds(metrics);
       for (const number of concert.numbers) {
         /**
          * Tagged with whose feet they are, because a lead leaving somebody's
@@ -1186,11 +1189,18 @@ check('no genre sings more often than not', loudGenres.length === 0,
           });
         }
         /**
-         * Behind each player rather than on them, which is where `show.ts`
-         * starts the run for carried gear and roughly where a keyboard's own
-         * socket is. A start point *on* a body is inside its own feet and
-         * inside the riser it is standing on, and asking the router to leave a
-         * solid it was pinned inside tests nothing but the pin.
+         * A stride off each player rather than on them. A start point *on* a
+         * body is inside its own feet and inside the riser it is standing on,
+         * and asking the router to leave a solid it was pinned inside tests
+         * nothing but the pin.
+         *
+         * Behind, and no longer because that is where `show.ts` starts one:
+         * carried gear now starts its run at the foot of the drop off its own
+         * jack, which is out to the side and a little downstage, and a keyboard
+         * starts at the foot of the drop off its case. Neither is reconstructible
+         * here — both need a built model — so this stays the round 0.38 m it was,
+         * and stays *upstage* because that is the harder of the two directions to
+         * route from: it is the side the riser is on.
          */
         const from: { what: string; owner?: string; x: number; z: number }[] = [
           ...number.cast.performers.map((p) => ({
@@ -1213,7 +1223,8 @@ check('no genre sings more often than not', loudGenres.length === 0,
            */
           if (against.some((o) => obstacleGap(start, o) < 0)) { indoors++; continue; }
           leads++;
-          const path = routeOnDeck(start, { x: box.x, z: box.z }, against, bounds);
+          const exit = cableExit(start, metrics, against);
+          const path = routeOnDeck(start, { x: exit.x, z: exit.z }, against, bounds);
           if (!path) {
             /**
              * Counted, and deliberately not narrated.
@@ -1248,10 +1259,12 @@ check('no genre sings more often than not', loudGenres.length === 0,
                * still bulge a hair past it.
                *
                * The two end segments are exempt, and have to be: a jack is
-               * where the gear was put, and gear standing hard against the back
-               * wall has a socket legitimately upstage of any strip a *cable*
-               * is asked to keep to. The claim is that the router does not take
-               * a run out there, not that no socket is out there.
+               * where the gear was put, and a player standing on the lip has a
+               * socket legitimately downstage of the half metre a *cable* is
+               * asked to keep off it. The claim is that the router does not
+               * take a run out there, not that no socket is out there. The far
+               * end needs no such licence any more — `cableExit` lands it on
+               * the boundary rather than past it.
                */
               const routed = s > 1 && s < path.length - 1;
               if (routed && (p.z < bounds.minZ - 0.02 || p.z > bounds.maxZ + 0.02

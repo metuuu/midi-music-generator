@@ -109,10 +109,10 @@
  *
  * ## What this room may not draw
  *
- * `synth/staging.ts` names `projection`, `cables` and `riser` for the genre and
+ * `synth/staging.ts` names `projection` and `riser` for the genre and
  * `drapes`, `pa-stack`, `wedges`, `flight-case`, `haze`, `rug` and `mirror-ball`
  * across the eras, and between them those are the entire evening: the lit
- * rectangle upstage, the gaffered multicore, the drum platform, the masking, the
+ * rectangle upstage, the drum platform, the masking, the
  * PA, the monitors, the cases and the ball. Every one belongs to
  * `stage-props.ts`, which places them for every room at once. **This file draws
  * none of them**, and the two numbers where it and the props have to agree are
@@ -658,9 +658,8 @@ function build(c: RoomContext): RoomRig {
    * from the screed to the slab and from one side wall to the other. There is no
    * seam in it, no cloth line, no bar it hangs off and nothing standing in front
    * of it that this file drew — the `projection` prop puts its shader field at
-   * `backZ + 0.06`, the `pa-stack` puts cabinets at `backZ + 1.3` and `cables`
-   * lays multicore at `backZ + 0.22`, all of them downstage of this and all of
-   * them somebody else's.
+   * `backZ + 0.06` and the `pa-stack` puts cabinets at `backZ + 1.3`, both of
+   * them downstage of this and both of them somebody else's.
    *
    * The bow is built by displacing the plane after `cellPlane` has coloured it
    * and then recomputing the normals — see `CYC_BOW` for why the normals are the

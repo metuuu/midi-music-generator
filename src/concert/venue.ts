@@ -200,7 +200,6 @@ import type { Venue } from './types.js';
  * The black box, and the synth hall, which is dressed out of the same four:
  *   `projection`      a lit rectangle upstage; ambient's only scenery
  *   `flight-case`     the boxes it all arrived in, still on stage
- *   `cables`          gaffered runs across the boards
  *   `drapes`          black masking where a wall would be
  *
  * The concert hall:
@@ -257,7 +256,7 @@ export const PROPS = [
   // Club, honky-tonk, dancehall
   'tables', 'candles', 'low-ceiling', 'bar', 'posters', 'rug', 'neon',
   // Black box
-  'projection', 'flight-case', 'cables', 'drapes',
+  'projection', 'flight-case', 'drapes',
   // Concert hall
   'stalls', 'organ-pipes', 'carpet',
   // Barn and warehouse

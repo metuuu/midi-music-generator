@@ -826,18 +826,7 @@ check('nothing is drawn through the room\'s own lid', throughLid === 0,
 console.log('\nOne thing per place');
 
 /**
- * `cables` runs 40 mm tubes across the deck and under whatever stands on it, so
- * it shares a little volume with the platforms it feeds by construction — a
- * lead that stopped at the edge of the riser would be a lead going nowhere.
- *
- * Measured over the ten venues carrying both: 0.0041–0.0069 m³ by bounding box,
- * which **straddles `SOLID`**, and 0.0001–0.0005 m³ of real intersecting
- * geometry. Excused by name rather than by moving the threshold, because a
- * 0.0069 m³ collision between two objects that are *not* a cable and a platform
- * is still worth a red line, and because the number that would have to move to
- * cover them is the bounding-box one — the honest one already clears.
- *
- * ## Three more, and each of them is one object resting on another
+ * Each of these is one object resting on another.
  *
  * The 53 collisions this section first reported came down to five on three
  * pairs once the props that were genuinely in each other's place had moved — an
@@ -846,10 +835,11 @@ console.log('\nOne thing per place');
  * What is left is the category the volume test cannot tell apart from a fault:
  * two things touching *because that is what they do*.
  *
- * Named rather than tolerated by a smaller `SOLID`, for the reason the cable
- * paragraph gives. The largest of the three is 0.0194 m³, so covering them would
- * mean a five-fold threshold and a section that could no longer see the 0.0087
- * m³ tabletop buried in a bar it was just used to find.
+ * Named rather than tolerated by a smaller `SOLID`, because a collision of this
+ * size between two objects that are *not* one of these pairs is still worth a
+ * red line. The largest of the three is 0.0194 m³, so covering them would mean a
+ * five-fold threshold and a section that could no longer see the 0.0087 m³
+ * tabletop buried in a bar it was just used to find.
  *
  * Two of the three are the same fact about cloth. A masking leg is a single
  * `PlaneGeometry` and everything parked in a wing stands against it, so the box
@@ -857,9 +847,13 @@ console.log('\nOne thing per place');
  * and three parity rays through a point in front of one vote it inside about
  * half the time. Both are re-measurable by hand from the two builders' own
  * placement rules, which is what the numbers below are.
+ *
+ * `cables|riser` and `backline|cables` were here too, and went with the prop:
+ * three unconnected tubes along the back wall that shared a little volume with
+ * whatever they ran under. Nothing replaces them — the band's real leads are
+ * built by `show.ts`, not by a prop, and this file only ever sees the dressing.
  */
 const EXCUSED_PAIRS = new Set<string>([
-  'cables|riser', 'backline|cables',
   // A truss clamped to the tie beam over it, which is what happens in a barn.
   // `BUILDERS.truss` argues this one by name and by number in its own docstring:
   // `finnfolk/contemporary` lands its downstage run at z 1.700 with a `beams`
@@ -953,7 +947,7 @@ const pairWorst = [...worstPair.values()].sort((a, b) => b.vol - a.vol);
 check('no two props occupy the same space', collisions === 0,
   collisions
     ? `${collisions} of ${candidates} candidates, ${worstPair.size} room-and-pair: ${pairWorst.slice(0, 8).map((x) => x.said).join('; ')}${pairWorst.length > 8 ? '; …' : ''}`
-    : `${candidates} boxes met, worst real overlap ${worstVolSaid}; ${excusedCount} excused cable pairs up to ${excusedWorst.toFixed(4)} m³ boxed`);
+    : `${candidates} boxes met, worst real overlap ${worstVolSaid}; ${excusedCount} excused resting pairs up to ${excusedWorst.toFixed(4)} m³ boxed`);
 
 // ---------------------------------------------------------------------------
 // §5 — nothing screens something meant to be looked at

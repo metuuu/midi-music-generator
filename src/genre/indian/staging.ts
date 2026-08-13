@@ -183,7 +183,7 @@ const SABHA: StageRoom = {
         proscenium: '#8a7a5e',
         ambient: '#e8b887',
       },
-      props: ['drapes', 'cables', 'pa-stack', 'wedges'],
+      props: ['drapes', 'pa-stack', 'wedges'],
       maybe: [['haze', 0.55], ['projection', 0.3], ['flowers', 0.3]],
       fog: 0.38,
       grow: [0.6, 0.3],

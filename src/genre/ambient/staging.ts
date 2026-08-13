@@ -58,7 +58,7 @@ const BLACK_BOX: StageRoom = {
         ambient: '#c9a37a',
       },
       props: [
-        'black-box', 'drapes', 'projection', 'cables',
+        'black-box', 'drapes', 'projection',
         'flight-case', 'rug',
       ],
       maybe: [['pa-stack', 0.5]],
@@ -77,7 +77,7 @@ const BLACK_BOX: StageRoom = {
         ambient: '#7fa8c8',
       },
       props: [
-        'black-box', 'projection', 'cables', 'flight-case',
+        'black-box', 'projection', 'flight-case',
         'pa-stack', 'wedges', 'haze',
       ],
       maybe: [['drapes', 0.35]],
@@ -95,7 +95,7 @@ const BLACK_BOX: StageRoom = {
         ambient: '#9aa6b2',
       },
       props: [
-        'black-box', 'drapes', 'projection', 'cables', 'rug',
+        'black-box', 'drapes', 'projection', 'rug',
       ],
       maybe: [['flight-case', 0.4], ['pa-stack', 0.3]],
       fog: 0.72,
@@ -107,7 +107,7 @@ const BLACK_BOX: StageRoom = {
       boards: '#26262a', backdrop: '#17181b', curtain: '#1e2024',
       proscenium: '#31333a', ambient: '#9aa6b2',
     },
-    props: ['black-box', 'drapes', 'projection', 'cables'],
+    props: ['black-box', 'drapes', 'projection'],
     fog: 0.7,
   },
 };

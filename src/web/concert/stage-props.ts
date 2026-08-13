@@ -54,9 +54,9 @@
  * The cast is placed by `concert/cast.ts` and this file cannot see it, so
  * everything here keeps out of the playing area: floor props sit within a
  * metre of the wings, upstage of the backline, or downstage of the lip. The
- * four exceptions are underfoot on purpose — `rug`, `carpet`, `cables` and
- * `riser` — the first three because a floor covering a band avoids is not a
- * floor covering, and they are all flat enough to be walked over. `riser` is
+ * three exceptions are underfoot on purpose — `rug`, `carpet` and `riser` —
+ * the first two because a floor covering a band avoids is not a floor
+ * covering, and both are flat enough to be walked over. `riser` is
  * the one to watch, because `Station.riser` says a performer is
  * standing on a platform and this places one. Its top is at **0.4 m**, centred
  * at **(0, -1.15 m upstage of centre)**, 2.8 m wide by 2.0 m deep. Only the
@@ -2492,43 +2492,25 @@ const BUILDERS: Record<PropName, (c: Ctx) => void> = {
   },
 
   /**
-   * Spare cable along the back wall — what a room owns, as opposed to what the
-   * band plugged in tonight.
+   * `cables` was here: three 36 mm tubes lying along the back wall, joined to
+   * nothing at either end, at twice the thickness of a real lead.
    *
-   * **This used to be the stage's only cabling and it was spaghetti**: three
-   * tubes between random points, one of them arriving 1.4 m from the lip. That
-   * worked precisely because it joined nothing to nothing — an eye that has
-   * decided a tube is texture does not follow it anywhere.
+   * It was the stage's only cabling once, and it worked precisely because it
+   * connected nothing — an eye that has decided a tube is texture does not
+   * follow it anywhere. Then `cables.ts` started running leads from real jacks,
+   * and the prop's last revision argued it could keep half its job: a bare deck
+   * reads as a showroom, so leave a room's own spare cable coiled upstage where
+   * nobody is using it.
    *
-   * `cables.ts` now runs real leads from real sockets to a stage box, and the
-   * two cannot share a floor: a lead you can trace beside three that wander
-   * off mid-stage makes the traceable one look like a mistake. So this keeps
-   * the job it was actually doing — a bare deck reads as a showroom — and gives
-   * up the half that now belongs to something else. Along the upstage edge,
-   * where a room's own cable lives when nobody is using it, and nowhere near
-   * the playing area.
-   *
-   * It stays deliberately ignorant of where the stage box is. It could derive
-   * that from `c.m` — it is the same arithmetic — and then there would be two
-   * answers on this stage to "where does cabling go", and drift the first time
-   * either moved.
+   * That argument does not survive the leads getting *better*. A run you can
+   * trace from a guitarist's jack to the wing, drawn at 13 mm, lying beside
+   * three fatter tubes that begin and end in open floor, does not read as a
+   * stage with spare cable on it. It reads as a stage where somebody drew the
+   * cabling twice and only meant it once — and the thicker, older, unconnected
+   * one is the one the eye picks first, because it is thicker. A bare deck was
+   * never the problem this prop was solving; it was solving an empty one, and
+   * the deck is not empty any more.
    */
-  cables: (c) => {
-    const rng = c.rng('cables');
-    const mat = c.kit.solid(shade(c.p.backdrop, 0.7), { rough: 0.9 });
-    const wall = c.m.backZ + 0.22;
-    for (let i = 0; i < 3; i++) {
-      const x0 = rng.float(-c.m.width * 0.34, c.m.width * 0.12);
-      const from = new Vector3(x0, 0.022, wall + rng.float(0, 0.12));
-      const to = new Vector3(x0 + rng.float(0.8, 2.0), 0.022, wall + rng.float(0, 0.16));
-      const mid = new Vector3(
-        (from.x + to.x) / 2, 0.022, wall + rng.float(0.10, 0.34),
-      );
-      const curve = new CatmullRomCurve3([from, mid, to]);
-      const geo = c.kit.own(new TubeGeometry(curve, 14, 0.018, 4, false));
-      c.root.add(new Mesh(geo, mat));
-    }
-  },
 
   /**
    * Extra masking legs. A black box is mostly drapes.

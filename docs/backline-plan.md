@@ -544,6 +544,36 @@ Instead **one stage box upstage**, low, with a row of jacks on it, and everythin
 electric runs a lead to it. A hub reads as a system. Leads vanishing into the wings read
 as housekeeping, which is what the current prop already is.
 
+> **Superseded — the box is gone; leads leave by the nearest edge.** The hub argument is
+> a fair one and it lost to what it built. One destination for the whole band means every
+> run is a diagonal from wherever the gear stands to the same upstage corner: eight long
+> cables across the middle of the deck, which is the one part of the floor where a lead is
+> both most visible and most obviously not where cable goes. Length is the cost. Every
+> metre is another metre that has to clear a pair of feet, another metre the eye can
+> follow to something it will find wrong, and another chance for `routeOnDeck` to give up
+> and draw nothing.
+>
+> A lead now leaves by the nearest of three edges — stage left, stage right, upstage;
+> never downstage, which is the audience — and ends on the deck edge, under the masking.
+> Runs become the two metres from a keyboard to the wall beside it instead of the six to
+> the far corner. What is lost is convergence, which was the argument for the hub, and
+> what is bought back is that the leads all leave the same way and that the only object
+> either version put on the stage is no longer on it. `cableBounds` widened to the boards
+> themselves to make the edges reachable — it still cannot take a run upstage of the
+> backdrop, which is what that inset was really protecting — and `cableExit` replaces
+> `stageBoxAt`/`stageBoxSocket` as the one place the show and `concert-check.ts` agree on
+> where a cable ends.
+>
+> **Nearest is not enough, and the check said so before anything shipped.** Sending every
+> run to its closest edge and giving up when that would not route dropped 202 leads of
+> 1531 where the hub dropped 53 — a player mid-front-line is three metres from either
+> wall with the rest of the line in the way, and upstage is further but open. `cableExit`
+> tries the edges in order of distance and takes the first that routes. On the same 1531
+> runs that drops **none**, and the tightest clearance any lead comes to anything goes
+> from 2 cm to 9 cm, because a short run has less to pass. It costs routing each lead
+> twice — once to choose the edge, once to draw it — which is a pure function called
+> again on its own inputs, once per number, behind a closed curtain.
+
 **Routing is the cost, not the tube.** The existing prop gets away with spaghetti
 *because* it connects nothing; the moment a lead starts at a real jack, every object it
 passes through is a defect. A cable at `y = 0.03` currently has nothing stopping it
@@ -567,6 +597,14 @@ the real box goes to the mixer.
 **What this costs elsewhere.** Real leads and the random `cables` prop in one room is two
 different stages at once. The prop retires, or shrinks to a taped run near the hub. Say
 so before building, because it is the kind of thing that gets left in and then defended.
+
+> **It got left in, and then defended — and is now gone.** The prop was cut back rather
+> than retired: three tubes along the upstage edge, on the argument that a room owns spare
+> cable and a bare deck reads as a showroom. That survived the hub and did not survive the
+> leads getting good. At 36 mm they are nearly three times the thickness of a real lead, so
+> beside a run you can trace from a jack to the wing they are what the eye picks first —
+> and they begin and end in open floor. `cables` is out of `PROPS`, out of eleven genre
+> staging tables, out of `stage-props.ts` and out of `stage-check.ts`'s excused pairs.
 
 **Where the jack is has to come from the model**, which means widening the seam
 `instruments/types.ts` deliberately keeps narrow. It passes the test `shift` passed and
@@ -596,8 +634,10 @@ learns what a section is.
   travel budget, the sightline assertions and the modular wall rules all have a new
   participant, and the lead — which is the whole point — is unaffected by which end it
   arrives at.
-- **A mixer, a desk, or anybody at one.** The stage box is a termination, not a person.
-  A visible engineer is a second stage.
+- **A mixer, a desk, or anybody at one.** A lead off the edge of the boards is a
+  termination, not a person. A visible engineer is a second stage. (This bullet used to
+  say the same of the stage box, which was retired for the reason in §8.4 — but the
+  refusal it states was never about the box.)
 
 ---
 
@@ -636,7 +676,10 @@ assertion in `concert-check.ts` that reaches into the renderer:
 
   Only crossings fail. A *dropped* run is the router obeying §8.4 where there is no gap
   to thread, and the count is printed rather than asserted so a change that quietly
-  stopped drawing the cabling shows up here instead of nowhere.
+  stopped drawing the cabling shows up here instead of nowhere. That printed count is
+  what caught the first cut of the edge exits quadrupling the drops, and is the reason
+  `cableExit` tries more than one edge — it is the only number in the project that would
+  have noticed.
 
 The second check this section planned — "every model with an `outlet` gets exactly one
 lead" — was **not built**, and the reason is worth keeping rather than quietly dropping.

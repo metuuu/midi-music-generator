@@ -181,7 +181,7 @@ const VARIETY: StageRoom = {
         ambient: '#8ce8ff',
       },
       props: ['pa-stack', 'truss', 'screen', 'crowd-barrier', 'wedges'],
-      maybe: [['haze', 0.75], ['flight-case', 0.35], ['cables', 0.3]],
+      maybe: [['haze', 0.75], ['flight-case', 0.35]],
       fog: 0.42,
       grow: [1.5, 0.5],
     },

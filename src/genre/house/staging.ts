@@ -111,12 +111,11 @@ const WAREHOUSE: StageRoom = {
   width: 11, depth: 5,
   audience: { rows: 10, density: 0.85, seated: false },
   /**
-   * The stack, the cable runs and the riser, none of which belong to a decade of
-   * this music rather than to all of it. There has been a wall of speaker boxes,
-   * a floor full of gaffered multicore and a platform nobody is standing on at
-   * every one of these nights since 1986.
+   * The stack and the riser, neither of which belongs to a decade of this music
+   * rather than to all of it. There has been a wall of speaker boxes and a
+   * platform nobody is standing on at every one of these nights since 1986.
    */
-  props: ['pa-stack', 'cables', 'riser'],
+  props: ['pa-stack', 'riser'],
   eras: {
     /**
      * 1986–90. A factory unit with the last tenant's paint still on it, one

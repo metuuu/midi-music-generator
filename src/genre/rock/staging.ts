@@ -106,7 +106,7 @@ const CIRCUIT: StageRoom = {
         ambient: '#c07ad8',
       },
       props: [
-        'haze', 'pa-stack', 'wedges', 'drapes', 'cables', 'posters',
+        'haze', 'pa-stack', 'wedges', 'drapes', 'posters',
       ],
       maybe: [['flight-case', 0.5], ['dance-floor', 0.3], ['railing', 0.25]],
       fog: 0.42,
@@ -136,7 +136,7 @@ const CIRCUIT: StageRoom = {
       },
       props: [
         'haze', 'truss', 'screen', 'crowd-barrier', 'pa-stack', 'wedges',
-        'cables', 'flight-case',
+        'flight-case',
       ],
       maybe: [['mirror-ball', 0.2], ['drapes', 0.35]],
       fog: 0.45,
@@ -166,7 +166,7 @@ const CIRCUIT: StageRoom = {
         ambient: '#e8b878',
       },
       props: [
-        'low-ceiling', 'bar', 'posters', 'neon', 'pa-stack', 'wedges', 'cables',
+        'low-ceiling', 'bar', 'posters', 'neon', 'pa-stack', 'wedges',
       ],
       maybe: [['flight-case', 0.4], ['rug', 0.3], ['crowd-barrier', 0.2]],
       fog: 0.24,
@@ -178,7 +178,7 @@ const CIRCUIT: StageRoom = {
       boards: '#5c452c', backdrop: '#141019', curtain: '#4a1520',
       proscenium: '#8a6a3e', ambient: '#d88a5a',
     },
-    props: ['pa-stack', 'wedges', 'drapes', 'cables'],
+    props: ['pa-stack', 'wedges', 'drapes'],
     fog: 0.3,
   },
 };

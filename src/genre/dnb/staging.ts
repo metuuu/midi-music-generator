@@ -80,9 +80,9 @@ import type { Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
  * an empty stage with two people on the lip of it, which is a different music
  * and a worse picture of this one.
  *
- * `pa-stack` and `cables` are in the genre's own props rather than in any era.
- * Everything else in this file changed between 1992 and 2012; those two did not,
- * because they are the objects without which none of this exists — a music whose
+ * `pa-stack` is in the genre's own props rather than in any era.
+ * Everything else in this file changed between 1992 and 2012; that did not,
+ * because it is the object without which none of this exists — a music whose
  * entire lower two octaves are inaudible on a domestic speaker is a music about
  * the rig before it is about anything else. **This genre never has a `backline`
  * in any era**, which `venue.ts` distinguishes from `pa-stack` precisely so a
@@ -103,7 +103,7 @@ const UNIT: StageRoom = {
   width: 10.4, depth: 5.2,
   // The rig, the wiring and the platform nobody stands on. None of them is a
   // decade's decision.
-  props: ['pa-stack', 'cables', 'riser', 'flight-case'],
+  props: ['pa-stack', 'riser', 'flight-case'],
   audience: { rows: 10, density: 0.92, seated: false },
   eras: {
     /**

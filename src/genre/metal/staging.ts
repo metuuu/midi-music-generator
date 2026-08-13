@@ -101,7 +101,7 @@ const SHED: StageRoom = {
         proscenium: '#8a7050',
         ambient: '#ffb469',
       },
-      props: ['drapes', 'pa-stack', 'wedges', 'cables', 'rug', 'beams'],
+      props: ['drapes', 'pa-stack', 'wedges', 'rug', 'beams'],
       maybe: [['mirror-ball', 0.25], ['posters', 0.45], ['railing', 0.3]],
       fog: 0.24,
     },
@@ -129,7 +129,7 @@ const SHED: StageRoom = {
       },
       props: [
         'brick', 'low-ceiling', 'pa-stack', 'wedges', 'posters', 'bar',
-        'cables', 'neon',
+        'neon',
       ],
       maybe: [['railing', 0.4], ['flight-case', 0.35], ['rug', 0.3]],
       fog: 0.32,
@@ -154,7 +154,7 @@ const SHED: StageRoom = {
         ambient: '#a8d4ff',
       },
       props: [
-        'haze', 'truss', 'pa-stack', 'wedges', 'flight-case', 'cables',
+        'haze', 'truss', 'pa-stack', 'wedges', 'flight-case',
         'posters', 'crowd-barrier',
       ],
       maybe: [['neon', 0.3], ['railing', 0.4], ['bar', 0.5]],
@@ -182,7 +182,7 @@ const SHED: StageRoom = {
       },
       props: [
         'haze', 'truss', 'screen', 'crowd-barrier', 'pa-stack', 'wedges',
-        'flight-case', 'cables',
+        'flight-case',
       ],
       maybe: [['posters', 0.25], ['railing', 0.45]],
       fog: 0.62,
@@ -194,7 +194,7 @@ const SHED: StageRoom = {
       boards: '#4a4038', backdrop: '#12151a', curtain: '#3a2028',
       proscenium: '#75798a', ambient: '#d8c0ff',
     },
-    props: ['pa-stack', 'wedges', 'cables', 'posters'],
+    props: ['pa-stack', 'wedges', 'posters'],
     fog: 0.4,
   },
 };

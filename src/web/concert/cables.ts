@@ -18,6 +18,28 @@
  * amplifiers and a mixing desk, both of which are new objects competing for
  * floor with a layout that took two waves to get right.
  *
+ * ## Off the nearest edge, not into a hub
+ *
+ * §8.4 bought a third object — one stage box upstage with a row of jacks, every
+ * lead on the stage running to it — on the argument that converging cables read
+ * as a system where cables into the wings read as housekeeping. That is a fair
+ * argument and it lost to what it actually built: eight runs from wherever the
+ * gear stands to one corner of the deck is eight long diagonals across the
+ * middle of the stage, which is the one place a cable is both most visible and
+ * most obviously not where a cable goes. Length is the cost here. Every metre
+ * of run is another metre that has to clear a pair of feet, another metre the
+ * eye can follow to something it will find wrong, and another chance for
+ * `routeOnDeck` to give up and draw nothing.
+ *
+ * So a lead now leaves by the **nearest edge of the boards** — stage left,
+ * stage right, or upstage, whichever is closest to the gear it comes from — and
+ * stops there, under the masking. That is where cable goes on a real stage, and
+ * it is short: most runs become the two or three metres from a keyboard to the
+ * wall beside it rather than the six from a keyboard to the far upstage corner.
+ * The system reads from the leads all leaving the same way, which is a weaker
+ * statement than a hub and is bought at a tenth of the geometry — and the hub
+ * itself, the only object either version added, is gone.
+ *
  * ## A visibly wrong lead is worse than no lead
  *
  * This is the whole risk and it is worth stating before the code. The prop gets
@@ -25,7 +47,7 @@
  * tube is texture will not follow it. The moment a lead starts at a real jack
  * it becomes something to trace, and every object it passes through is then a
  * defect the old version could not have. So routes are deliberate — down to the
- * deck, around whatever is in the way, to the box — and `routeOnDeck` is
+ * deck, around whatever is in the way, off the edge — and `routeOnDeck` is
  * allowed to fail, because a run that cannot be routed is better dropped than
  * drawn through a riser leg. An audience does not audit a stage for missing
  * cables. It notices one going through a table.
@@ -41,8 +63,8 @@
  */
 
 import {
-  BoxGeometry, BufferGeometry, CatmullRomCurve3, CylinderGeometry, Group,
-  InstancedMesh, Matrix4, Mesh, MeshStandardMaterial, TubeGeometry, Vector3,
+  BufferGeometry, CatmullRomCurve3, CylinderGeometry, Euler, Group, Mesh,
+  MeshStandardMaterial, Quaternion, TubeGeometry, Vector3,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
@@ -135,9 +157,9 @@ const SPLITS = 5;
  *
  * Scaled by the run's own length because the shape is about spare cable rather
  * than about distance: a 60 cm hop from a rhythm box to the rig beside it has
- * no room to meander, and the trip to the box at the back has metres of it. The
- * cap stops a long run turning into a decorative loop, which is the failure
- * `MAX_DETOUR` guards against on the routing side.
+ * no room to meander, and a front-line player's run to the wing has metres of
+ * it. The cap stops a long run turning into a decorative loop, which is the
+ * failure `MAX_DETOUR` guards against on the routing side.
  */
 const WANDER_MAX = 0.13;
 const WANDER_PER_M = 0.032;
@@ -173,7 +195,7 @@ export type Obstacle =
 export interface CableRun {
   /** Where the lead leaves the gear, in band space. */
   from: Vector3;
-  /** Where it arrives, in band space — a stage box, or another piece of gear. */
+  /** Where it ends, in band space — the edge of the boards, or another piece of gear. */
   to: Vector3;
 }
 
@@ -599,105 +621,24 @@ export function buildCabling(opts: CablingOptions): Cabling {
 }
 
 /**
- * The stage box: where every lead on this stage ends up.
+ * How much of the downstage lip a lead keeps off, and the strip of boards it
+ * may lie on.
  *
- * A hub rather than leads disappearing into the wings, and that is the whole
- * design decision. Cables running off into the dark are housekeeping — which is
- * what the old prop was — and an audience reads them as mess. Cables converging
- * on one object read as a system, and a system is the thing this is for.
+ * The other three edges are the deck's own, exactly, and that is the change
+ * from the stage-box version: the strip used to stop 25 cm inside the side
+ * walls and 14 cm downstage of the backdrop, because nothing on the stage
+ * needed to reach an edge — everything was going to one box in the upstage
+ * corner, and the inset was there to stop the wide bows that get a lead round a
+ * group of players from swinging it *behind the back wall* and out again.
  *
- * Deliberately small and deliberately dull: 40 cm of steel box with a row of
- * sockets on it, sitting on the boards. It is a termination and not a
- * character. §9 refuses a mixing desk and anyone standing at one for the same
- * reason — a visible engineer is a second stage.
+ * Leads leave by the edge now, so the edge has to be reachable. Bounding at the
+ * deck itself keeps the thing that inset was actually protecting — a run still
+ * cannot go upstage of the boards, which is where the backdrop is — and lets
+ * `cableExit` put the end of a run exactly *on* the boundary, where nothing
+ * clamps it and no route has to be threaded through a strip it is not allowed
+ * to be in. The lip keeps its half metre: the front edge is the one place on
+ * this deck where a cable would be nearer the camera than the band.
  */
-export interface StageBox {
-  root: Group;
-  /** Where leads land on it, in band space. */
-  socket: Vector3;
-  dispose(): void;
-}
-
-const BOX_W = 0.40;
-const BOX_H = 0.11;
-const BOX_D = 0.24;
-
-/**
- * How many jacks are on the front of it, and therefore how many leads can land
- * on their own one before the row starts again.
- *
- * Eight, because eight is what the leads arriving at it come to and because a
- * row reads as a row from about four onward. Out here rather than inside the
- * builder because `stageBoxSocket` has to land a lead on the same jack this
- * draws, and two copies of that arithmetic is one lead ending 5 cm to the side
- * of the hole it is supposed to be in.
- */
-const SOCKETS = 8;
-
-/** Where the i-th jack sits across the face, in the box's own frame. */
-function socketX(index: number): number {
-  const i = ((index % SOCKETS) + SOCKETS) % SOCKETS;
-  return -BOX_W / 2 + (BOX_W / SOCKETS) * (i + 0.5);
-}
-
-/**
- * The multicore: one fat cable leaving the box for the wings, and the reason
- * there is a box at all.
- *
- * A stage box is a *break-out* — thirty channels arrive on it as individual
- * leads and leave down one trunk to the desk, which is somewhere the audience
- * cannot see. Without that trunk the object is a steel crate that swallows
- * cables, and §8.4's argument for a hub over "leads into the wings" quietly
- * becomes an argument for a dead end. One cable going somewhere is what makes
- * the other eight arriving read as a signal path rather than as tidying.
- *
- * Three times the radius of a jack lead, which is about the ratio a 16-pair
- * multicore has to the cable plugged into it, and enough that it is legible as
- * a different kind of object from two rows back rather than as a lead that got
- * fat.
- */
-const TRUNK_RADIUS = RADIUS * 3;
-
-/**
- * Where the stage box goes: upstage, and *beside* the riser rather than behind
- * it.
- *
- * Behind is where the real one lives and it is the wrong answer here. A hub the
- * drummer's platform hides is a hub nobody can see leads converging on, and the
- * converging is the whole reason there is a hub rather than cables running off
- * into the wings. Clamped inside the boards, because a room 5 m wide would
- * otherwise put it in the masking.
- *
- * Here rather than in `show.ts` so that the one thing which has to agree about
- * this — a check that no lead crosses anything — reads it from the same place
- * the show does.
- */
-export function stageBoxAt(m: { width: number; backZ: number }): Vector3 {
-  return new Vector3(-(m.width / 2 - BOX_INSET), 0, m.backZ + BOX_INSET);
-}
-
-/**
- * How far off the two walls the box sits, and the strip of boards a lead is
- * allowed to lie on.
- *
- * The box used to stand a comfortable distance out from the riser, on the
- * reasoning that a hub the drummer's platform hides is a hub nobody sees leads
- * converge on. True, and it put the thing a metre and a half into open floor
- * with cables fanning across the middle of the stage to reach it — and because
- * nothing stopped a route going *upstage* of the backdrop, the wide bows that
- * get a lead round a group of players were free to swing behind the back wall
- * and come out again.
- *
- * The corner fixes both. Leads run to the back and then along it, which is
- * where cable goes on a real stage and is also the shortest way to keep it out
- * from underfoot; and `BOUND` is the strip they may do it in — inside the side
- * walls, downstage of the backdrop, and well upstage of the lip. Convergence
- * survives, because eight leads arriving at one corner converge exactly as much
- * as eight arriving anywhere else.
- */
-const BOX_INSET = 0.7;
-const BOUND_SIDE = 0.25;
-const BOUND_UP = 0.14;
 const BOUND_DOWN = 0.5;
 
 /** The strip of boards a routed lead may lie on. */
@@ -705,138 +646,97 @@ export interface Bounds { minX: number; maxX: number; minZ: number; maxZ: number
 
 export function cableBounds(m: { width: number; backZ: number; lipZ: number }): Bounds {
   return {
-    minX: -(m.width / 2 - BOUND_SIDE),
-    maxX: m.width / 2 - BOUND_SIDE,
-    minZ: m.backZ + BOUND_UP,
+    minX: -m.width / 2,
+    maxX: m.width / 2,
+    minZ: m.backZ,
     maxZ: m.lipZ - BOUND_DOWN,
   };
 }
 
 /**
- * Where leads land on a box that would be put `at`, in band space.
+ * Where a lead leaving gear at `at` goes off the stage, in band space.
  *
- * Separate from `buildStageBox` because the runs are collected while the band
- * is being dressed and the box is not built until it is known whether anything
- * needs one. Two copies of this arithmetic would be two answers to "where does
- * a cable end", and the one nobody checked would be the one that drew a lead
- * stopping 15 cm short of the sockets.
+ * Three edges — stage left, stage right, upstage — and never the fourth,
+ * because downstage is the audience. A perpendicular run to the closest wall is
+ * both the shortest cable and the one a crew would actually lay: you do not walk
+ * a lead across the middle of a stage to reach a wall that is two metres behind
+ * you.
+ *
+ * It ends *on* the deck edge rather than short of it or past it. Short of it is
+ * a cable stopping in open floor, which is the one shape that reads as a
+ * modelling mistake rather than as a stage; past it needs the route to leave the
+ * strip it is bounded by, and `tauten` would then spend its whole subdivision
+ * budget splitting a segment whose midpoint gets clamped straight back. On the
+ * edge, the wall or the masking leg is right there and the run reads as going
+ * under it.
+ *
+ * The free coordinate is clamped into the same strip the route lives in, so a
+ * player standing on the lip does not get an exit 40 cm from the front of the
+ * deck with the rest of their lead held back off it.
+ *
+ * ## The nearest edge it can actually reach
+ *
+ * Nearest alone is not good enough, and the number says so rather than an
+ * opinion: over 1531 runs on the check's seeds, sending every one to its closest
+ * edge and giving up when that failed dropped **202** of them where the old
+ * single hub in the upstage corner dropped 53. A dropped run is a piece of gear
+ * with no cable — §8.4's policy and the right call against drawing a lead
+ * through somebody's legs, but one in eight is not a policy, it is a shortfall.
+ *
+ * The cause is that "closest" and "reachable" are different questions. A player
+ * in the middle of the front line is three metres from either side wall with the
+ * whole rest of the front line standing between them and both of them, and
+ * `routeOnDeck` will not thread a gap that is not there. Upstage is further and
+ * usually open. So the edges are tried in order of distance and the first one
+ * that routes wins — which on those same 1531 runs drops **none of them**,
+ * against the hub's 53, while keeping every run that *can* be short, short. The
+ * tightest clearance any lead comes to anything goes from 2 cm to 9 cm at the
+ * same time, and for the same reason: a short run has less to pass.
+ *
+ * That means routing twice for every lead — once here to choose, once in
+ * `buildCabling` to draw. It is a pure function called again, once per number,
+ * behind a closed curtain. The alternative is handing `buildCabling` a list of
+ * candidates and letting it pick, which costs nothing extra — and misaims every
+ * lead that takes the fallback, because `show.ts` has to build the drop off the
+ * case *before* it knows which edge won, and a drop aimed at one wall meeting a
+ * run headed for another is a corner at the exact point a cable is nearest the
+ * camera. See `buildTail`.
+ *
+ * The two calls are not quite asked the same question, and it is worth being
+ * plain about the gap rather than claiming a determinism this does not have:
+ * `at` is where the gear *stands*, and the run `buildCabling` draws starts at
+ * the foot of the drop off its case, up to a third of a metre away. Which wall
+ * a keyboard is nearest is a fact about the keyboard and not about which side of
+ * it the jack is on, so the gear's own position is the right thing to ask — but
+ * a route chosen from one point and drawn from another can in principle be
+ * refused on the second pass, and that lead is then simply dropped. Which is the
+ * same answer §8.4 gives to every run it cannot thread.
+ *
+ * Here rather than in `show.ts` so that the one thing which has to agree about
+ * this — a check that no lead crosses anything — reads it from the same place
+ * the show does.
  */
-export function stageBoxSocket(at: Vector3, facing: number, index?: number): Vector3 {
-  /**
-   * A lead lands on *a* jack, not on the middle of the row.
-   *
-   * Every run used to arrive at one point, so eight leads met at a single spot
-   * in front of the box and the last 40 cm of all of them was the same line
-   * drawn eight times. A row of sockets with one bundle in front of it is the
-   * shape of a diagram; leads fanning to their own holes is the shape of a
-   * stage, and it is what makes the row on the case worth drawing at all.
-   */
-  return new Vector3(index === undefined ? 0 : socketX(index), BOX_H * 0.55, BOX_D / 2 + 0.02)
-    .applyAxisAngle(new Vector3(0, 1, 0), facing)
-    .add(at);
-}
+export function cableExit(
+  at: Point2, m: { width: number; backZ: number; lipZ: number },
+  /** What is in the way. Empty, this is simply the nearest edge. */
+  obstacles: readonly Obstacle[] = [],
+): Vector3 {
+  const b = cableBounds(m);
+  const x = Math.min(Math.max(at.x, b.minX), b.maxX);
+  const z = Math.min(Math.max(at.z, b.minZ), b.maxZ);
+  const edges = [
+    { away: at.x - b.minX, at: new Vector3(b.minX, DECK, z) },
+    { away: b.maxX - at.x, at: new Vector3(b.maxX, DECK, z) },
+    { away: at.z - b.minZ, at: new Vector3(x, DECK, b.minZ) },
+  ].sort((p, q) => p.away - q.away);
 
-export function buildStageBox(at: Vector3, facing: number, trunkTo?: Vector3): StageBox {
-  const root = new Group();
-  root.name = 'stage-box';
-  root.position.copy(at);
-  root.rotation.y = facing;
-
-  const shell = new MeshStandardMaterial({ color: '#23242a', roughness: 0.62, metalness: 0.45 });
-  const dark = new MeshStandardMaterial({ color: '#0e0e11', roughness: 0.5, metalness: 0.3 });
-  /** The trunk is rubber, not steel: matt, and it never takes a highlight. */
-  const rubber = new MeshStandardMaterial({ color: '#191a1e', roughness: 0.9, metalness: 0.03 });
-
-  const body = addTo(root, new Mesh(new BoxGeometry(BOX_W, BOX_H, BOX_D), shell));
-  body.position.y = BOX_H / 2;
-  body.castShadow = true;
-  body.receiveShadow = true;
-
-  /**
-   * A row of sockets down the downstage face, which is the only detail that
-   * makes this a stage box rather than a crate. See `SOCKETS`.
-   */
-  const jack = new CylinderGeometry(0.008, 0.008, 0.006, 6);
-  const jacks = addTo(root, new InstancedMesh(jack, dark, SOCKETS));
-  {
-    const m = new Matrix4();
-    const rot = new Matrix4().makeRotationX(Math.PI / 2);
-    for (let i = 0; i < SOCKETS; i++) {
-      m.makeTranslation(socketX(i), BOX_H * 0.55, BOX_D / 2).multiply(rot);
-      jacks.setMatrixAt(i, m);
-    }
-    jacks.instanceMatrix.needsUpdate = true;
+  for (const edge of edges) {
+    if (routeOnDeck(at, { x: edge.at.x, z: edge.at.z }, obstacles, b)) return edge.at;
   }
-
-  /**
-   * And the multicore out of the back of it — see `TRUNK_RADIUS`.
-   *
-   * Built here rather than as a `CableRun` because it is not one: a run starts
-   * at a jack and is routed round the band, and this leaves the *back* face,
-   * away from every obstacle on the stage, and goes under the masking. Routing
-   * it would be asking a relaxation to solve a problem it does not have.
-   *
-   * The shape is the whole of the detail: out of the case horizontally through
-   * a strain-relief boot, over and down to the boards under its own weight —
-   * which is what a cable this stiff does; it has a bend radius and cannot fall
-   * straight — and then a long lazy curve upstage. `trunkTo` is where the
-   * masking is, in band space, so the end is behind it and the cable reads as
-   * going somewhere rather than as stopping.
-   */
-  if (trunkTo) {
-    const local = trunkTo.clone().sub(at).applyAxisAngle(new Vector3(0, 1, 0), -facing);
-    const leave = new Vector3(BOX_W * 0.18, BOX_H * 0.5, -BOX_D / 2);
-    const boot = addTo(root, new Mesh(
-      new CylinderGeometry(TRUNK_RADIUS * 1.45, TRUNK_RADIUS * 1.15, 0.055, 8), dark,
-    ));
-    boot.position.copy(leave).setZ(leave.z - 0.022);
-    boot.rotation.x = Math.PI / 2;
-    boot.castShadow = true;
-
-    const down = new Vector3(leave.x + 0.02, TRUNK_RADIUS, leave.z - 0.20);
-    const run = new Vector3(local.x, TRUNK_RADIUS, local.z);
-    const along = new Vector3().subVectors(run, down);
-    // Across the run, so the two waypoints below bend it rather than stretch it.
-    const side = new Vector3(-along.z, 0, along.x).normalize();
-    const trunk = addTo(root, new Mesh(
-      new TubeGeometry(
-        new CatmullRomCurve3([
-          leave.clone(),
-          new Vector3(leave.x + 0.01, leave.y - 0.02, leave.z - 0.09),
-          down,
-          down.clone().lerp(run, 0.38).addScaledVector(side, 0.10),
-          down.clone().lerp(run, 0.74).addScaledVector(side, -0.05),
-          run,
-        ]),
-        28, TRUNK_RADIUS, 6, false,
-      ),
-      rubber,
-    ));
-    trunk.name = 'stage-box:multicore';
-    trunk.castShadow = true;
-    trunk.receiveShadow = true;
-  }
-
-  return {
-    root,
-    /**
-     * Just off the downstage face rather than at the box's own origin, so a run
-     * arrives at the sockets it is supposed to be going into instead of at a
-     * point inside the steel.
-     */
-    socket: stageBoxSocket(at, facing),
-    dispose(): void {
-      jacks.dispose();
-      root.traverse((o) => {
-        const mesh = o as Partial<Mesh>;
-        if (mesh.geometry) mesh.geometry.dispose();
-      });
-      shell.dispose();
-      dark.dispose();
-      rubber.dispose();
-      root.clear();
-    },
-  };
+  // Nothing routes, so the lead is going to be dropped whichever of these is
+  // named. Name the nearest, so the drop off the case at least leans the way
+  // the run would have gone.
+  return edges[0]!.at;
 }
 
 /**
@@ -853,6 +753,34 @@ export function buildStageBox(at: Vector3, facing: number, trunkTo?: Vector3): S
  * not welded to each other. That is not a compromise — it is what a guitar lead
  * does. There is always a loop of slack at a guitarist's feet, and the slack is
  * the reason they can move at all.
+ *
+ * ## And the player does not stand still
+ *
+ * That last paragraph was written as though "not welded" were free, and it is
+ * not. A carried tail is parented to the torso, so everything the player does
+ * with their body it does too: measured over two bars of a standing guitarist at
+ * full sway, the foot travels **74 mm across the boards and 26 mm up and down**.
+ * The deck run it hands over to is fixed in band space and does none of that.
+ *
+ * 74 mm is six cable-widths, and the version this replaces made the worst
+ * possible job of hiding it — the drop arrived at the deck at about **45°** and
+ * simply stopped, so the drift showed as a tube pointing down at a floor it was
+ * no longer touching, beside a second tube starting out of nothing.
+ *
+ * The fix is not to chase the foot every frame with new geometry. It is to
+ * arrive **flat**: the descent flattens onto the boards and then lies along them
+ * for `RUN_ON`, which measures **0.0°** over the last tenth of the cable. The
+ * join is now between two cables both lying down and pointing the same way, so a
+ * drift along that line is one sliding under the other and a drift across it is
+ * a shallow S-bend — which is what a cable by a moving foot actually does.
+ *
+ * **The drift itself is not removed and cannot be**, and it is worth saying so
+ * rather than implying the seam is solved. A cable hanging off a body that moves
+ * has an end that moves; the only reason the number went *up* from the 63 mm
+ * this had before is that the foot now sits further out, which is the same
+ * `RUN_ON` that buys the flat landing. What changed is that 74 mm of travel in a
+ * cable lying on the boards is cable being nudged about, and 63 mm in one
+ * hanging at 45° was a cable that had come unplugged.
  */
 export function buildTail(
   from: Vector3,
@@ -870,9 +798,26 @@ export function buildTail(
    */
   along: Vector3,
   colour = '#1b1b1f',
-): { root: Group; foot: Vector3; dispose(): void } {
+): Tail {
+  /**
+   * The cable hangs off its own group *at the jack*, and the plug sits in a
+   * second one at the same point.
+   *
+   * Two groups for one object, and the split is what lets a carried lead be
+   * corrected: `anchorTail` re-orients and re-stretches the cable every frame
+   * about the point it plugs into, and it can only do that if that point is the
+   * group's origin. The plug must *not* come along — it is screwed into the
+   * instrument and belongs rigidly to it — so it gets its own group and the
+   * caller parents both wherever they belong.
+   *
+   * Everything below is therefore built relative to `from` rather than at it.
+   */
   const root = new Group();
   root.name = 'lead-tail';
+  root.position.copy(from);
+  const plugRoot = new Group();
+  plugRoot.name = 'lead-plug';
+  plugRoot.position.copy(from);
   const mat = new MeshStandardMaterial({ color: colour, roughness: 0.88, metalness: 0.04 });
 
   /**
@@ -889,36 +834,280 @@ export function buildTail(
   const dir = new Vector3(along.x, 0, along.z);
   if (dir.lengthSq() < 1e-9) dir.set(0, 0, 1);
   dir.normalize();
-  const reach = Math.max(0.16, drop * 0.55);
+  const reach = Math.min(REACH_MAX, Math.max(0.16, drop * 0.55));
 
   const at = (out: number, down: number): Vector3 => new Vector3(
-    from.x + dir.x * reach * out, from.y - drop * down, from.z + dir.z * reach * out,
+    dir.x * reach * out, -drop * down, dir.z * reach * out,
   );
 
   /**
-   * Four points, and the spacing is the shape: barely out and a third down
-   * while it is still falling, then most of the way out over the last quarter
-   * of the drop, so the curve leaves the socket steep and meets the deck flat.
+   * Steep out of the socket, flat onto the boards, then lying on them.
+   *
+   * The spacing is a catenary's and not a compromise: a hanging cable is nearly
+   * vertical where it leaves the jack and nearly horizontal where it lands, and
+   * the reason it can be both is that it spends most of its *height* in the
+   * middle and most of its *reach* at the bottom. Hence the last descending
+   * point at 82% out and 98% down — two thirds of the fall is over before the
+   * cable has gone a third of the way out, and the whole of the flattening
+   * happens in the last fifth.
+   *
+   * Then `RUN_ON` of it simply lying there. That is what makes the arrival flat
+   * rather than merely flatter: the tangent through the touchdown is set by the
+   * points either side of it, so a stretch of deck *after* the landing is what
+   * pulls the approach horizontal — 6° off the boards, against the 45° this had
+   * when it stopped dead at the point it touched. It is also the whole of the
+   * answer to a player who moves; see the note above.
    */
-  const foot = at(1, 1);
+  const land = at(1, 1);
+  const end = land.clone().addScaledVector(dir, RUN_ON);
   const curve = new CatmullRomCurve3([
-    from.clone(),
-    at(0.16, 0.34),
-    at(0.55, 0.78),
-    at(0.92, 0.97),
-    foot.clone(),
+    new Vector3(),
+    at(0.13, 0.30),
+    at(0.44, 0.72),
+    at(0.86, 0.995),
+    land.clone(),
+    land.clone().addScaledVector(dir, RUN_ON * 0.5),
+    end.clone(),
   ]);
-  const mesh = addTo(root, new Mesh(new TubeGeometry(curve, 20, RADIUS, 5, false), mat));
+  const mesh = addTo(root, new Mesh(new TubeGeometry(curve, 26, RADIUS, 5, false), mat));
   mesh.castShadow = true;
+
+  const plug = buildPlug(plugRoot, curve);
 
   return {
     root,
-    /** Where it reaches the boards, in `from`'s frame. The deck run starts here. */
-    foot,
+    plug: plugRoot,
+    foot: end,
+    drop,
     dispose(): void {
       mesh.geometry.dispose();
+      plug.dispose();
       mat.dispose();
       root.clear();
+      plugRoot.clear();
+    },
+  };
+}
+
+export interface Tail {
+  /**
+   * The cable, hung at the jack — `root.position` *is* the jack, in the frame
+   * `from` was given in. Drive this with `anchorTail` if it is carried.
+   */
+  root: Group;
+  /** The plug in the socket. Rigid with the instrument, and never driven. */
+  plug: Group;
+  /**
+   * Where it reaches the boards, **in `root`'s own frame** rather than the
+   * instrument's, which is the one frame the answer stays true in.
+   *
+   * A carried tail is re-orientated and re-stretched every frame, so a foot
+   * expressed in the instrument's frame is a fact about the rest pose and about
+   * nothing else. This one survives, because it is the point the group's own
+   * transform is *solved for*: run it through `root.matrixWorld` at any moment
+   * and it is where the cable actually is. `from.clone().add(tail.foot)` gets
+   * the old rest-pose answer back for gear that never moves.
+   */
+  foot: Vector3;
+  /** The jack's own height above the boards, which is what `anchorTail` restores. */
+  drop: number;
+  dispose(): void;
+}
+
+/**
+ * Hold a carried lead's foot on the exact point the deck run starts from,
+ * whatever the player does.
+ *
+ * ## What goes wrong without it
+ *
+ * A tail is parented to the instrument and the instrument to a torso, so the
+ * cable inherits every axis of a jamming player. Measured over two bars of a
+ * standing guitarist at full sway, its foot travels **74 mm across the boards
+ * and 26 mm up and down**, and the run it hands over to is fixed in band space
+ * and does none of that. Two of those axes are worse than a gap:
+ *
+ * **The bob.** The flat stretch at the end of the lead sits at `DECK`, which is
+ * the cable's own half-thickness, so it has **1.5 mm** of clearance. Drop the
+ * body 26 mm and the whole 18 cm run-on is 2.4 cm under the stage — not a tip
+ * dipping in, a straight length of cable sunk into timber.
+ *
+ * **The roll.** Worse, because it is a lever. The torso rolls a few degrees and
+ * the cable tilts about a point most of a metre up, so the far end of the run-on
+ * swings through the deck on one side and lifts off it on the other. Every
+ * centimetre of flat stretch that improves the *landing* makes this worse.
+ *
+ * ## Why levelling it was not enough
+ *
+ * The first version of this only took the tilt out and stretched the drop to the
+ * jack's height. That fixed the deck — nothing went under it — and left the join
+ * visibly broken, for two reasons that are worth keeping written down:
+ *
+ *  - It did nothing about the 74 mm of horizontal drift, which is the part an
+ *    eye actually reads as *unplugged*.
+ *  - Worse, taking the tilt out **rotates the foot about the jack**, and the
+ *    deck run had been anchored to where the foot was *before* that rotation.
+ *    So the correction that fixed one defect introduced a permanent offset on
+ *    top of the drift. A cable joined to nothing, a little way from the tip of
+ *    the cable it was supposed to continue.
+ *
+ * ## Solving for the foot instead
+ *
+ * The tail's group sits at the jack and its geometry runs from there to `foot`,
+ * so between them the group's own transform has exactly the freedom needed to
+ * put that foot anywhere: a yaw to aim it, a horizontal scale to reach, and a
+ * vertical scale to descend. Given where the jack has ended up and where the
+ * foot must be, all three are solved rather than approximated — the foot lands
+ * on the anchor to floating-point, every frame, at any pose.
+ *
+ * What the player's movement becomes, then, is the *shape* of the slack: the
+ * loop stretches and swings as they lean, by about a fifth of its length at the
+ * extremes, which is what a cable with slack in it does when somebody standing
+ * on one end of it moves. It is not a compromise against the join; there is no
+ * join left to compromise.
+ *
+ * Pitch and roll are dropped and yaw is solved, so nothing tips into the boards.
+ * The plug is untouched — the whole reason it is a separate group: it is screwed
+ * into the instrument and moves with every axis, as it should.
+ */
+export function anchorTail(
+  tail: Tail,
+  /** Where the jack has ended up, in the frame `anchor` is given in. */
+  jack: Vector3,
+  /** Where the foot must stay: the point the deck run starts from. */
+  anchor: Vector3,
+  /** The instrument's orientation in that same frame. */
+  parent: Quaternion,
+): void {
+  const span = Math.hypot(tail.foot.x, tail.foot.z);
+  const wantX = anchor.x - jack.x;
+  const wantZ = anchor.z - jack.z;
+  const reach = Math.hypot(wantX, wantZ);
+  /**
+   * A jack directly over its own anchor has no bearing to solve for, and a tail
+   * built straight down has none to solve *from*. Neither happens on this stage
+   * — the foot is 0.4 m out — but a `NaN` quaternion propagates into the whole
+   * subtree and is not a thing to debug from a screenshot.
+   */
+  if (span < 1e-6 || reach < 1e-6) return;
+
+  // Yaw only: the angle from the direction the cable was built along to the one
+  // it has to point now. Pitch and roll never enter, so it cannot tip.
+  const turn = Math.atan2(wantX, wantZ) - Math.atan2(tail.foot.x, tail.foot.z);
+  LEVEL.setFromEuler(EULER.set(0, turn, 0, 'YXZ'));
+  // Expressed against the instrument it hangs off, which is what it is a child
+  // of: the parent's own orientation, inverted, times the one wanted.
+  tail.root.quaternion.copy(SPIN.copy(parent).invert().multiply(LEVEL));
+
+  /**
+   * Then reach and descend. Vertical is clamped away from zero and never
+   * inverted: a jack that has ended up at or below the boards is a placement
+   * fault somewhere else, and a negative scale turns the lead inside out rather
+   * than reporting it.
+   */
+  const s = reach / span;
+  tail.root.scale.set(s, Math.max(0.05, (jack.y - anchor.y) / tail.drop), s);
+}
+
+const EULER = new Euler();
+const LEVEL = new Quaternion();
+const SPIN = new Quaternion();
+
+/**
+ * How far a lead may lean out on its way down, however high the socket is, and
+ * how much of it then lies on the boards before the deck run takes over.
+ *
+ * `drop · 0.55` alone is right for a case at knee height and absurd by the time
+ * it reaches a guitar: a jack worn at 0.81 m got 0.44 m of lean, which is not a
+ * cable falling off an instrument, it is a cable being thrown. The ratio is
+ * describing the *shape* a lead makes leaving a socket, and that shape stops
+ * getting wider once there is enough rope to make it — past about a fifth of a
+ * metre the rest of the height is simply fall.
+ *
+ * The two are split rather than folded into one number because they are doing
+ * different jobs and want different limits. `REACH_MAX` is the width of the
+ * *fall*, and wide is wrong there. `RUN_ON` is cable lying flat, where the same
+ * distance costs nothing and buys the flat arrival and the tolerance to a moving
+ * player that the fall cannot. Together they put a guitarist's foot 0.40 m out
+ * from the jack, which is a loop of slack at somebody's feet; the fall itself is
+ * half of that.
+ */
+const REACH_MAX = 0.22;
+const RUN_ON = 0.18;
+
+/**
+ * The plug on the end of a lead, at the socket it is in.
+ *
+ * The one part of this whole system an audience is ever close enough to read,
+ * and until now the only instruments that had anything at all where a cable
+ * meets an instrument were the three synth rigs — `mountOutlet` bolts a socket
+ * plate to their back panels. A guitar, a bass, an electric piano and an organ
+ * all had a tube of rubber emerging from bare wood, which is the same defect as
+ * a lead that starts in mid-air and is worse for being at eye level in every
+ * close shot.
+ *
+ * ## Along the cable, not into the socket
+ *
+ * A plug wants to be drawn along its socket's axis, and there is no honest way
+ * to ask for that axis here: `mountOutlet` returns a point already 13 mm *proud*
+ * of a panel whose normal it hard-codes, and a guitar returns a point *on* the
+ * body face with no normal at all. Two conventions, one of which would put every
+ * plug on the stage at right angles to the thing it is plugged into.
+ *
+ * So the plug is drawn along the **cable's own first few centimetres**, which
+ * both conventions agree about and which cannot disagree with the tube it is
+ * wrapped around. It starts a plug's depth *behind* the point the cable does, so
+ * a barrel that ought to be inside a guitar body is inside it and one that ought
+ * to reach a socket plate reaches it — the same 13 mm `mountOutlet` already
+ * leaves for exactly this.
+ *
+ * Two pieces, because a plug is two things: a metal barrel that takes a
+ * highlight, and a moulded boot that does not and that tapers down to the cable.
+ * The boot is most of what is legible; the barrel is what says it is a jack and
+ * not a knot.
+ */
+const PLUG_BARREL = 0.021;
+const PLUG_BOOT = 0.017;
+const PLUG_SUNK = 0.013;
+
+function buildPlug(root: Group, curve: CatmullRomCurve3): { dispose(): void } {
+  const shell = new MeshStandardMaterial({ color: '#b9bcc4', roughness: 0.34, metalness: 0.9 });
+  const boot = new MeshStandardMaterial({ color: '#141418', roughness: 0.82, metalness: 0.05 });
+
+  const head = curve.getPointAt(0);
+  /**
+   * The direction the cable leaves, over a plug's length of it rather than at
+   * the point itself: a tangent at `t = 0` is the curve's, and the curve is a
+   * Catmull-Rom whose first tangent is set by a control point 30 cm away.
+   */
+  const span = Math.min(1, (PLUG_BARREL + PLUG_BOOT) / Math.max(curve.getLength(), 1e-6));
+  const axis = curve.getPointAt(span).sub(head);
+  if (axis.lengthSq() < 1e-9) axis.set(0, -1, 0);
+  axis.normalize();
+
+  const back = head.clone().addScaledVector(axis, -PLUG_SUNK);
+  const put = (mesh: Mesh, from: number, len: number): Mesh => {
+    mesh.position.copy(back).addScaledVector(axis, from + len / 2);
+    // A cylinder is built up `+y`; point it down the cable instead.
+    mesh.quaternion.setFromUnitVectors(new Vector3(0, 1, 0), axis);
+    mesh.castShadow = true;
+    return mesh;
+  };
+
+  const barrel = addTo(root, put(new Mesh(
+    new CylinderGeometry(0.0088, 0.0088, PLUG_BARREL, 8), shell,
+  ), 0, PLUG_BARREL));
+  barrel.name = 'lead-tail:plug';
+  const sleeve = addTo(root, put(new Mesh(
+    new CylinderGeometry(0.0104, 0.0072, PLUG_BOOT, 8), boot,
+  ), PLUG_BARREL, PLUG_BOOT));
+  sleeve.name = 'lead-tail:boot';
+
+  return {
+    dispose(): void {
+      barrel.geometry.dispose();
+      sleeve.geometry.dispose();
+      shell.dispose();
+      boot.dispose();
     },
   };
 }

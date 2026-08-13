@@ -83,11 +83,10 @@ const HALL: StageRoom = {
   width: 10, depth: 6.6,
   audience: { rows: 9, density: 0.7, seated: false },
   /**
-   * The screen, the cable runs and the drum platform, none of which belong to a
-   * decade of this music rather than to all of it. There has been a lit
-   * rectangle upstage and a floor full of gaffered multicore at every one of
-   * these concerts since 1974, and all three era tables would otherwise have had
-   * to repeat them.
+   * The screen and the drum platform, neither of which belongs to a decade of
+   * this music rather than to all of it. There has been a lit rectangle upstage
+   * at every one of these concerts since 1974, and all three era tables would
+   * otherwise have had to repeat it.
    *
    * **`riser` is not a taste decision, and drawing for it was the one real
    * mistake in this file's first draft.** Putting it in the digital era's `maybe`
@@ -105,7 +104,7 @@ const HALL: StageRoom = {
    * for a band that turns out to be three people and a sequencer is what most of
    * these evenings actually looked like.
    */
-  props: ['projection', 'cables', 'riser'],
+  props: ['projection', 'riser'],
   eras: {
     /**
      * 1972–77. A university hall or a cathedral, hired for the night, with two

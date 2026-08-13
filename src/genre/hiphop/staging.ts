@@ -83,7 +83,7 @@ const CLUB: StageRoom = {
   audience: { rows: 9, density: 0.88, seated: false },
   // The rig, the platform and the gaffer tape. None of them is a decade's
   // decision and all three are on every stage this genre has ever had.
-  props: ['pa-stack', 'riser', 'cables'],
+  props: ['pa-stack', 'riser'],
   eras: {
     /**
      * 1980. A community hall with the chairs stacked at the back, a rig somebody
