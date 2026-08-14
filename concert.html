@@ -256,6 +256,19 @@
       }
       .cx-detail { font-size: .64rem; color: var(--dim); }
       .cx-warn { color: #d9a06a; }
+      /* Where this fader's number is going to be written. A control, not a
+         caption — the two destinations are different claims about what you
+         heard, and the panel cannot tell which one you made. */
+      .cx-aim {
+        padding: .04rem .32rem; border-radius: 4px; cursor: pointer;
+        border: 1px solid transparent; background: #191413; color: var(--dim);
+        font-size: .62rem; letter-spacing: .02em;
+        max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      .cx-aim:hover { border-color: var(--edge); color: var(--ink); }
+      .cx-aim.global { color: var(--cool); }
+      /* Aimed at a table that cannot hold the number it is being given. */
+      .cx-aim.over { color: #e08a6a; border-color: #6a3a2c; }
       .cx-controls {
         display: grid; grid-template-columns: 1.6rem 1.6rem 1fr 2.9rem;
         gap: .3rem; align-items: center; margin-top: .1rem;

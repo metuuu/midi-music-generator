@@ -3344,13 +3344,57 @@ export function generateSong(opts: GenerateOptions = {}): Song {
      * nowhere else.
      */
     let gain = second ? gains[layer] * SECOND_LEAD : gains[layer];
-    if (spans?.length && gains.melody > gain) {
-      const back = gain / gains.melody;
-      for (const n of notes) {
-        const soloing = spans.some(([a, b]) => n.beat >= a - 1e-6 && n.beat < b - 1e-6);
-        if (!soloing) n.velocity = clamp(n.velocity * back, 0.08, 1);
+    if (spans?.length) {
+      const soloing = (n: NoteEvent): boolean =>
+        spans.some(([a, b]) => n.beat >= a - 1e-6 && n.beat < b - 1e-6);
+      /**
+       * The other half of the ride, and the half that was missing.
+       *
+       * A part's level is `gain × velocity` and the fader was the only one of
+       * the two that moved. The notes come out of the normalisation twenty
+       * lines up at `LAYER_VELOCITY[layer]` — 0.38 on the comp against the
+       * melody's 0.80 — so a soloist kept the *loudness of an accompanist* and
+       * only the fader argued otherwise.
+       *
+       * How badly that shows depends entirely on how far apart the genre's two
+       * faders are, which is why it survived: on the shared balance the ride is
+       * `0.95/0.72`, worth 2.4 dB, and it closed enough of the gap to look
+       * fixed. Rock mixes its comp at 0.86 against a melody at 0.9 — a guitar
+       * band, deliberately — so the ride there is worth **0.4 dB** and the
+       * whole 5 dB of velocity stayed. Measured on one rock number, inside the
+       * organ's own sixteen-bar solo: organ −6.0 dB, bass −1.1. The bass was
+       * five decibels over the soloist, through the solo.
+       *
+       * So the solo notes are re-normalised to the melody's own figure. The
+       * peak is held back the same way the first pass holds it, for the same
+       * reason — a line with a wide shape must not flatten against the ceiling
+       * — which means a part with a big accent still arrives a little under the
+       * tune rather than clipping. Restated on top of the first normalisation
+       * rather than replacing it, so a layer with no solo is untouched, and so
+       * the accompaniment bars keep the level they always had.
+       */
+      const solo = notes.filter(soloing);
+      if (solo.length) {
+        const sorted = solo.map((n) => n.velocity).sort((a, b) => a - b);
+        const median = sorted[Math.floor(sorted.length / 2)]!;
+        const peak = sorted.at(-1)!;
+        if (median > 0 && LAYER_VELOCITY[layer] < LAYER_VELOCITY.melody) {
+          const k = Math.min(LAYER_VELOCITY.melody / median, 1 / peak);
+          for (const n of solo) n.velocity = clamp(n.velocity * k, 0.08, 1);
+        }
       }
-      gain = gains.melody;
+
+      /**
+       * And the fader, as before. Never *down*: a bass already mixed above the
+       * tune is at lead level and a bassist taking a chorus does not want it
+       * cut — which is why this half stays behind its own guard while the
+       * velocity above has its own.
+       */
+      if (gains.melody > gain) {
+        const back = gain / gains.melody;
+        for (const n of notes) if (!soloing(n)) n.velocity = clamp(n.velocity * back, 0.08, 1);
+        gain = gains.melody;
+      }
     }
 
     /**

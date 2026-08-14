@@ -385,18 +385,54 @@ export function createConsole(show: Show): StageConsole {
     return show.number().cast.performers.find((p) => p.layer === layer);
   }
 
+  /**
+   * Where a melodic strip's change is meant to land, per layer.
+   *
+   * The fader sounds the same either way — it is a trim on the track, and the
+   * track is what you hear — so this changes nothing but the paste and how far
+   * the fader can travel. It exists because the two destinations are different
+   * claims and the panel cannot tell which one you made: pulling the comp down
+   * because *this song's organ* was hot is a statement about organs, and
+   * writing it to `mix.comp` moves the piano and the guitar the next time the
+   * genre deals one.
+   *
+   * Defaults to the instrument, and that default is the whole reason this
+   * control came back after being left out. What gets said at this panel is
+   * "the percussive organ is not loud enough", which names an object; a desk
+   * that could only answer in `Genre.mix` was answering a question nobody had
+   * asked, and — because `Genre.mix` is documented 0..1 and the comp already
+   * sits at 0.9 — could not answer it at all past +0.9 dB.
+   */
+  const aim = new Map<LayerId, 'instrument' | 'layer'>();
+  const aimOf = (layer: LayerId): 'instrument' | 'layer' => aim.get(layer) ?? 'instrument';
+
+  /**
+   * What the genre's own fader said, with the instrument's trim divided out.
+   *
+   * `Track.gain` is the product of the two, so a layer-aimed paste has to undo
+   * `Instrument.gain` or it would fold one organ's correction into the level of
+   * every comp the genre ever writes — the exact confusion the aim exists to
+   * end. One entry in the catalogue carries a trim today (the tenor sax, at
+   * 0.74) and this is right for the other 125 by returning the gain unchanged.
+   */
+  function layerGainOf(instrument: string, trackGain: number): number {
+    return trackGain / (CATALOGUE.get(instrument)?.entry.gain ?? 1);
+  }
+
   interface StripView { paint(): void }
   const strips: StripView[] = [];
 
   function strip(opts: {
     key: string;
-    /** The fader's own ceiling: both tables this writes to are documented 0..1. */
+    /** The level this strip's fader is a trim over. */
     base: number;
     layerName: string;
     instrument: string;
     who: string;
     detail: string;
     warn: boolean;
+    /** Melodic strips only: the layer and instrument a paste can be aimed at. */
+    aimable?: LayerId;
     /** Computed level in dB, and where it sits against the loudest part. */
     level?: { db: number; rail: number };
   }): HTMLElement {
@@ -433,6 +469,21 @@ export function createConsole(show: Show): StageConsole {
     detail.textContent = opts.detail;
     sub.append(detail);
 
+    let chip: HTMLButtonElement | undefined;
+    if (opts.aimable) {
+      // A control rather than a caption: the destination is a claim about what
+      // you just heard, and one click changes the paste without the sound.
+      chip = document.createElement('button');
+      chip.className = 'cx-aim';
+      chip.onclick = (e) => {
+        e.stopPropagation();
+        aim.set(opts.aimable!, aimOf(opts.aimable!) === 'instrument' ? 'layer' : 'instrument');
+        for (const s of strips) s.paint();
+        paintPaste();
+      };
+      sub.append(chip);
+    }
+
     const controls = document.createElement('div');
     controls.className = 'cx-controls';
     const mute = document.createElement('button');
@@ -447,15 +498,22 @@ export function createConsole(show: Show): StageConsole {
     fader.type = 'range';
     fader.min = '0';
     /**
-     * Each fader stops where its own table does.
+     * A drum voice stops where its table does; an instrument does not.
      *
-     * `Genre.mix` and `voiceGains` are both documented 0..1, so a trim that
-     * could take a layer already sitting at 0.9 up to ×2 would let a balance be
-     * tuned by ear to a number the tables cannot hold — and it would not be
-     * found out until the paste. Floored rather than rounded, so the top of the
+     * `voiceGains` is documented 0..1 and has no per-instrument twin, so a kit
+     * fader that could reach ×2 would let a balance be tuned by ear to a number
+     * the table cannot hold. Floored rather than rounded, so the top of the
      * travel is under the ceiling rather than a thousandth over it.
+     *
+     * A melodic strip is the other case and used to be treated as this one,
+     * which was the bug. `Genre.mix` is 0..1, so with the comp already sitting
+     * at 0.9 the whole travel above unity was **+0.9 dB** — and "this organ is
+     * not loud enough" is not a statement about `Genre.mix` at all. It is what
+     * `Instrument.gain` is for, which is a multiplier over whatever the genre
+     * says and carries no ceiling. So the travel goes to ×2, and it is the
+     * *paste* that refuses to write a layer-aimed value the table cannot hold.
      */
-    fader.max = String(Math.floor(100 / Math.max(opts.base, 0.01)) / 100);
+    fader.max = opts.aimable ? '2' : String(Math.floor(100 / Math.max(opts.base, 0.01)) / 100);
     fader.step = '0.01';
     fader.value = String(trimOf(opts.key));
     const read = document.createElement('span');
@@ -479,6 +537,17 @@ export function createConsole(show: Show): StageConsole {
       row.classList.toggle('moved', Math.abs(trim - 1) > 0.005);
       row.classList.toggle('picked', opts.key === `l:${picked}`);
       read.textContent = `${dbOf(trim)}`;
+      if (opts.aimable && chip) {
+        const toObject = aimOf(opts.aimable) === 'instrument';
+        chip.textContent = toObject ? `→ ${opts.instrument}` : `→ ${opts.aimable} · ${genreId()}`;
+        chip.title = toObject
+          ? 'this instrument, in every genre that deals it — click to aim at the layer'
+          : 'this layer in this genre, whatever plays it — click to aim at the instrument';
+        chip.classList.toggle('global', toObject);
+        // Said while you are still listening rather than at the paste: a
+        // layer-aimed value over unity is one `Genre.mix` cannot hold.
+        chip.classList.toggle('over', !toObject && opts.base * trim > 1.0005);
+      }
       if (opts.level) {
         rail.style.width = `${Math.round(opts.level.rail * 100)}%`;
         // Under 12 dB from the loudest part is a balance; past that a listener
@@ -528,6 +597,7 @@ export function createConsole(show: Show): StageConsole {
         who: who ? `${who.archetype}` : '',
         detail: `gm${track.gmProgram} · ${font.text}`,
         warn: font.warn,
+        aimable: track.layer,
         level: { db: 20 * Math.log10(level / loudest), rail: level / loudest },
       }));
     }
@@ -555,24 +625,59 @@ export function createConsole(show: Show): StageConsole {
     paintPaste();
   }
 
+  const genreId = (): string => show.number().song.meta.genre;
+
   /**
    * The session's output: absolute values for the tables, only the rows moved.
    *
-   * Aimed at `Genre.mix` rather than at `Instrument.gain`, which is the one
-   * place this is deliberately blunter than the mix lab. That page offers the
-   * choice because it is *for* settling the catalogue; here the question that
-   * gets asked is always about a genre's arrangement, and a chooser nobody uses
-   * is a control that has to be explained.
+   * Two destinations, because they are two claims — see `aim`. The
+   * instrument-aimed rows carry the **trim** and not the resulting level:
+   * `Instrument.gain` multiplies whatever the genre's fader already said, so
+   * writing the level there would fold this genre's balance into a global table
+   * and make the organ quiet everywhere a genre happens to be loud.
    */
   function paintPaste(): void {
     const song = show.number().song;
     const lines: string[] = [];
     const moved = song.tracks.filter((t) => Math.abs(trimOf(`l:${t.layer}`) - 1) > 0.005);
-    if (moved.length) {
-      lines.push(`// src/genre/${song.meta.genre}/index.ts — Genre.mix`);
+
+    const global = moved.filter((t) => aimOf(t.layer) === 'instrument');
+    if (global.length) {
+      lines.push('// src/style/instruments.ts — global, every genre that deals this');
+      for (const t of global) {
+        const trim = trimOf(`l:${t.layer}`);
+        const font = fontNote(t, median(t.notes.map((n) => n.midi)));
+        if (font.warn) {
+          // Said out loud rather than left in the number: a fader standing in
+          // for a measurement nobody took will be wrong by whatever the
+          // measurement would have said. See `Instrument.gain`.
+          lines.push(`// ⚠ ${t.instrument}: ${font.text}.`);
+          lines.push('//   That is a measurement this is standing in for. Take it if you can.');
+        }
+        // `…` rather than the entry's own text, because the panel does not have
+        // it: `G` wraps whatever that key is already defined as — often an `E`
+        // or an `L` wrap of its own — and printing the key would emit a
+        // self-reference that is not legal inside the object literal it goes in.
+        const key = CATALOGUE.get(t.instrument)?.key ?? t.instrument;
+        lines.push(`${key}: G(…, ${trim.toFixed(2)}),  // ${t.instrument} — wrap its existing entry`);
+      }
+    }
+
+    const layers = moved.filter((t) => aimOf(t.layer) === 'layer');
+    if (layers.length) {
+      if (lines.length) lines.push('');
+      lines.push(`// src/genre/${genreId()}/index.ts — Genre.mix`);
       lines.push('mix: {');
-      for (const t of moved) {
-        lines.push(`  ${t.layer}: ${(t.gain * trimOf(`l:${t.layer}`)).toFixed(2)},  // heard on ${t.instrument}`);
+      for (const t of layers) {
+        const level = layerGainOf(t.instrument, t.gain) * trimOf(`l:${t.layer}`);
+        if (level > 1.0005) {
+          // `Genre.mix` is documented 0..1 and the renderer would take a bigger
+          // number happily, which is what makes this worth saying: it would
+          // work, and the table would no longer mean what it says it means.
+          lines.push(`  // ⚠ ${level.toFixed(2)} is over the 0..1 this table holds.`);
+          lines.push(`  //   Aim this one at ${t.instrument} instead.`);
+        }
+        lines.push(`  ${t.layer}: ${level.toFixed(2)},  // heard on ${t.instrument}`);
       }
       lines.push('},');
     }
@@ -781,6 +886,9 @@ const SHELL = `
     “as written”. The decibel figure on the right of each name is what that part is
     actually heard at against the loudest one in the band — fader × velocity ×
     the measured trim on its font. Double-click a fader to put it back.
+    The chip under each name is <b>where the number will be written</b>: at the
+    instrument, in every genre that deals it, or at this genre’s layer whatever
+    happens to be playing it. Only the first can go over unity.
   </p>
   <div class="cx-strips"></div>
   <h3>Kit</h3>
