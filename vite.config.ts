@@ -1,10 +1,10 @@
 /**
- * Seven pages, not one.
+ * Eight pages, not one.
  *
  * The dev server finds any HTML file by path on its own, so this exists only
  * for `vite build` — which defaults to `index.html` alone and would silently
- * ship a bundle with no voice lab, no mix lab, no concert, no model bench and
- * no costume bench in it.
+ * ship a bundle with no radio, no voice lab, no mix lab, no concert, no model
+ * bench and no costume bench in it.
  */
 
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -84,7 +84,8 @@ export default defineConfig({
   build: {
     rollupOptions: {
       input: {
-        radio: here('index.html'),
+        studio: here('index.html'),
+        radio: here('radio.html'),
         voice: here('voice.html'),
         mix: here('mix.html'),
         concert: here('concert.html'),

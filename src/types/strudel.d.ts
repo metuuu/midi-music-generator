@@ -129,6 +129,16 @@ declare module '@strudel/webaudio' {
    */
   export function getSuperdoughAudioController(): {
     output?: { destinationGain?: GainNode | null };
+    /**
+     * One `Orbit` per orbit number, made on first use. Every voice on that orbit
+     * sums into it before its delay and its reverb, which makes it the only
+     * handle in the graph that can take a note that is *already sounding* out of
+     * the mix. Emptied rather than reused — see `silenceVoices` in
+     * `web/audio.ts`.
+     */
+    nodes?: Record<string, { disconnect?: () => void } | undefined>;
+    /** The named sends, same story and the same treatment. */
+    buses?: Record<string, { disconnect?: () => void } | undefined>;
   };
   /**
    * A registered sound, under the name the trigger path looks it up by — which

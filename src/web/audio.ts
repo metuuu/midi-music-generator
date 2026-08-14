@@ -190,6 +190,77 @@ export function setOutputLevel(level: number, seconds = CUT_SECONDS): void {
   }
 }
 
+/**
+ * Cut what is still sounding, rather than covering it up.
+ *
+ * `setOutputLevel(0)` is a fader, and a fader only hides: the voices behind it
+ * go on running on the audio clock, wherever they had got to in their envelopes.
+ * So the last chord of a record that has been faded out, or the pad and the
+ * reverb tail of one that simply ended, come *back* the moment the fader returns
+ * for the next record — swelling in underneath a downbeat they have nothing to
+ * do with. That is a changeover that sounds like two records overlapping, and no
+ * amount of fading fixes it, because the fade is what is hiding it.
+ *
+ * Strudel has nothing to ask for this with. `stop()` halts the *scheduler*,
+ * which only decides what is triggered next; a hap already handed to superdough
+ * owns its own source node with its whole envelope scheduled, and nothing
+ * upstream can recall it. What can be reached is the bus it plays into:
+ * superdough sums every voice into an `Orbit` per orbit number, ahead of that
+ * orbit's delay and reverb, so disconnecting one takes the notes *and* their
+ * tails out of the graph in the same instant.
+ *
+ * The orbits are then dropped rather than kept, because `getOrbit` only builds
+ * one when the slot is empty — leaving a disconnected orbit in place would
+ * silence that orbit for the rest of the session. Everything downstream
+ * survives, which is why this is not `resetGlobalEffects()`: that rebuilds the
+ * master gain too, and would take the limiter spliced onto it and the singer
+ * wired straight to it with it.
+ *
+ * A disconnect is a step discontinuity, which is a click at whatever amplitude
+ * the tail still had. **Callers do this with the fader already down.**
+ */
+export function silenceVoices(): void {
+  try {
+    const controller = getSuperdoughAudioController();
+    if (!controller) return;
+    for (const orbit of Object.values(controller.nodes ?? {})) orbit?.disconnect?.();
+    for (const bus of Object.values(controller.buses ?? {})) bus?.disconnect?.();
+    controller.nodes = {};
+    controller.buses = {};
+  } catch (err) {
+    console.warn('audio: the sounding voices would not cut', err);
+  }
+}
+
+/**
+ * A few quanta of grace between the fader arriving at zero and the cut behind
+ * it, so a disconnect can never land on a ramp that is still moving — which is
+ * the one way `silenceVoices` makes a noise rather than removing one.
+ */
+const CUT_GRACE_MS = 30;
+
+/**
+ * Stop, as a listener means it: fader down, and then what the fader was hiding.
+ *
+ * The pair above in the order they have to happen in, which is the whole of what
+ * a caller needs from them. Resolves once the sound is actually gone, so a caller
+ * that has a fader to raise afterwards — a stage abandoning a number, a page
+ * about to start another record — can wait for the silence rather than guess at
+ * it.
+ *
+ * Not for a *pause*. A pause is meant to be picked up again, and the tail that
+ * comes back with the fader is the same chord the listener left ringing. It is
+ * for stops and for changeovers: the two places where what is sounding belongs
+ * to a piece nobody is going to hear the rest of.
+ */
+export async function stopSounding(fade = CUT_SECONDS): Promise<void> {
+  setOutputLevel(0, fade);
+  await new Promise<void>((resolve) => {
+    window.setTimeout(resolve, fade * 1000 + CUT_GRACE_MS);
+  });
+  silenceVoices();
+}
+
 export async function playCode(code: string): Promise<void> {
   const repl = await initAudio();
   await repl.evaluate(code);
