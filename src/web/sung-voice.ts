@@ -111,6 +111,23 @@ export interface SungVoice {
   begin(song: Song): void;
   /** Silence and forget. Safe to call when nothing is playing. */
   end(): void;
+  /**
+   * Move her fader while she is singing, as a multiplier over what `begin` was
+   * given. 1 is the level the song asked for.
+   *
+   * The band has this for nothing — every layer is read through a `ref` at
+   * query time, so a fader is a map write. The singer is not in that stack: her
+   * level was captured into a patch at `begin` and the only way to change it was
+   * to `begin` again, which restarts the phrasing and is audible as a cut in the
+   * middle of a word. So the patch is mutated in place instead, and the next
+   * phrase handed to the synth carries the new level — a third of a second at
+   * most, which is the same "lands on the next bar" the band's own faders have.
+   *
+   * Not a ramp on a gain node, deliberately: `speak` builds an envelope per
+   * utterance and a node-level ride would fight it. This is a level for the
+   * phrases not yet scheduled, which is exactly what a fader on a part is.
+   */
+  setTrim(trim: number): void;
   /** Whether this song had a vocal layer for it to take over at all. */
   readonly singing: boolean;
 }
@@ -148,6 +165,10 @@ export function createSungVoice(): SungVoice {
   /** Next phrase to hand over, and which time round the loop it belongs to. */
   let cursor = 0;
   let pass = 0;
+  /** The level the song asked for, before any fader. See `setTrim`. */
+  let written = 0;
+  /** …and the fader over it. */
+  let trim = 1;
 
   /**
    * The synth, attached to Strudel's context and its master gain.
@@ -248,16 +269,25 @@ export function createSungVoice(): SungVoice {
         VOICE_SIGNATURES[track.voice.signature ?? 'male'] ?? VOICE_SIGNATURES.male;
       const delivery: Delivery =
         DELIVERIES[track.voice.delivery ?? 'sung'] ?? DELIVERIES.sung;
+      written = track.gain * VOICE_LEVEL;
       patch = {
         signature,
         delivery,
-        gain: track.gain * VOICE_LEVEL,
+        // The trim is kept across a `begin` on purpose: a fader somebody moved
+        // is a judgement about the singer, and a re-voice or a jump is not a
+        // reason to undo it. `end` is what forgets.
+        gain: written * trim,
         reverb: VOICE_REVERB,
         consonantGain: CONSONANT_LEVEL,
       };
       cursor = 0;
       pass = 0;
       timer = window.setInterval(() => tick(song), TICK_MS);
+    },
+
+    setTrim(next) {
+      trim = Number.isFinite(next) && next >= 0 ? next : 1;
+      if (patch) patch.gain = written * trim;
     },
 
     end() {
@@ -267,6 +297,10 @@ export function createSungVoice(): SungVoice {
       patch = undefined;
       cursor = 0;
       pass = 0;
+      // `trim` deliberately survives. There is one of these per show and it is
+      // ended and begun again at every number, at every jump, and every time a
+      // tomato lands — none of which is a reason to undo a fader somebody
+      // moved. The song's own level is `written`, and `begin` replaces that.
     },
   };
 }

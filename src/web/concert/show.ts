@@ -1266,6 +1266,33 @@ export function createShow(opts: ShowOptions = {}): Show {
       if (audibleAt(`l:${layer}`)) await swapPlayer(layer, code);
       else mutePlayer(layer);
     }
+
+    /**
+     * And the singer, who is not in that stack at all.
+     *
+     * `withoutSungVoice` takes her out of the pattern and `web/sung-voice.ts`
+     * sings her instead, so `onStage` has no `vocal` key and the loop above
+     * cannot reach her by any route. Which meant the desk's M did nothing to
+     * her, and — worse and less obviously — **soloing anybody else left her
+     * singing over them**, because solo works by silencing everything that is
+     * not soloed and she was not in the list of things.
+     *
+     * `silencePlayer` already knew this for the tomato path and said so. This is
+     * the same knowledge, on the path a fader takes.
+     *
+     * Only on a change of state, never on every push: `begin` restarts the
+     * phrasing from the top, so calling it each time a fader moved would cut
+     * her off mid-word on every pixel of a drag. The level itself goes through
+     * `setTrim`, which needs no restart.
+     */
+    // Asked of the number rather than of the voice: `singing` is false both for
+    // a singer who has been muted and for a number that never had one, and
+    // without this the seventeen instrumental numbers in twenty would try to
+    // start a singer who does not exist on every push of every fader.
+    if (!clockLive || !current.song.tracks.some((t) => t.layer === 'vocal' && t.voice)) return;
+    const wanted = audibleAt('l:vocal') && !sulking.has('vocal');
+    if (wanted && !voice.singing) voice.begin(audible(playing()));
+    else if (!wanted && voice.singing) voice.end();
   }
 
   /**
@@ -2256,10 +2283,13 @@ export function createShow(opts: ShowOptions = {}): Show {
 
     setMix(next) {
       mix = next;
-      // Two paths because they cost differently: the trims go through a render
-      // of only the layers whose text moved, and mute/solo touches no text at
-      // all. Both land at the top of the next bar.
+      // Three paths, because they cost three different things. The trims go
+      // through a render of only the layers whose emitted text moved; mute and
+      // solo touch no text at all; and the singer takes neither, because she is
+      // not in the pattern — her level is a field on a patch the next phrase
+      // will read. All three land within a bar.
       scheduleSound();
+      voice.setTrim(mix.layers.get('vocal') ?? 1);
       void applyMutes().catch((err) => console.error('concert: the mix would not apply', err));
     },
 
