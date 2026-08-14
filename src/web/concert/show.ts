@@ -59,7 +59,7 @@
  */
 
 import type { Camera, Object3D } from 'three';
-import { Box3, Group, Quaternion, Raycaster, Vector2, Vector3 } from 'three';
+import { Group, Quaternion, Raycaster, Vector2, Vector3 } from 'three';
 
 import { Rng } from '../../core/rng.js';
 import type { DrumVoice, LayerId, Song } from '../../core/types.js';
@@ -222,18 +222,6 @@ export interface Show {
 const APPLAUSE_SECONDS = 4.5;
 /** Beats a tomatoed player sits out before returning with a new part. */
 const SULK_BEATS = 8;
-/**
- * How thin a piece of dressing may be and still stop a tomato, in metres.
- *
- * A hand. Below it the object is a sheet — bunting, a projection screen, a rug —
- * and its bounding box is a plane with nothing behind it. See `hittableProps`.
- */
-const PROP_MIN_THICKNESS = 0.08;
-/**
- * And how long. A person's height, so a cabinet or a riser is furniture and a
- * ten-metre merged row of flowers is scenery painted on the room.
- */
-const PROP_MAX_SPAN = 3.0;
 
 // --- The beginning ---------------------------------------------------------
 //
@@ -1114,48 +1102,25 @@ export function createShow(opts: ShowOptions = {}): Show {
   }
 
   /**
-   * The furniture a tomato is allowed to hit, which is not all of it.
+   * The furniture a tomato is allowed to hit, which is now all of it.
    *
-   * `Staging.scenery` has been in the tomato module's contract since it was
-   * written and has never once been passed, so the collision world was the
-   * boards, the backdrop and two walls and nothing else: a throw at a PA stack
-   * or a riser went straight through it and marked whatever was behind.
+   * `Staging.scenery` had been in the tomato module's contract since it was
+   * written and was never passed, so the collision world was the boards, the
+   * backdrop and two walls: a throw at a PA stack went straight through it.
+   * Passing it needed a filter, because a collision proxy was one world-axis
+   * box round the whole prop and only a compact object survives that honestly —
+   * measured over six venues, 70 of 100 pieces of dressing did not, and handing
+   * those over would have hung room-sized invisible planes in the air.
    *
-   * **Filtered, and the filter is the whole of why this is a function.** A
-   * collision proxy is a world-axis-aligned box round the object, which is only
-   * honest for something compact. Measured over six venues, 100 pieces of
-   * dressing: 28 of them span more than three quarters of the room, because a
-   * builder that places a row of things places it as one mesh — the bunting is
-   * 10.6 m wide, the beams 19.8 × 15.7, the projection screens 9.3 × 5.2 — and
-   * several are flat, with a dimension of *exactly zero*: carpets, rugs, the
-   * dance floor. Handing those over would hang invisible room-sized planes in
-   * the air for tomatoes to stop dead against, which is a far worse bug than
-   * the one it fixes and is the same complaint arriving by a different door.
-   *
-   * So: nothing thinner than a hand, nothing longer than a person is tall. That
-   * admits the PA stacks and their poles, the risers, the chandeliers — the
-   * things that read as solid objects standing in a room — and leaves the
-   * cloth, the floor coverings and the merged rows alone. Anything rejected is
-   * exactly as hittable as it was before, which is not at all.
-   *
-   * The real fix, here and for the instruments, is an authored collision volume
-   * per prop rather than a bounding box and a rule of thumb. This is the part of
-   * it that can be had for a size test.
+   * The filter has moved rather than gone. `tomatoes.ts` cuts every prop into
+   * the pieces it is made of first and then applies the same size test to each
+   * piece, which is where it always belonged: a string of nine lanterns is nine
+   * lanterns to be accepted or refused one at a time, not one ten-metre object
+   * to be refused whole. Only geometry that is genuinely a single long mesh
+   * still fails, and there the refusal is right.
    */
   function hittableProps(): Object3D[] {
-    const box = new Box3();
-    const size = new Vector3();
-    const out: Object3D[] = [];
-    for (const { node } of stage.dressing.solids) {
-      box.setFromObject(node);
-      if (box.isEmpty()) continue;
-      box.getSize(size);
-      const thinnest = Math.min(size.x, size.y, size.z);
-      const longest = Math.max(size.x, size.y, size.z);
-      if (thinnest < PROP_MIN_THICKNESS || longest > PROP_MAX_SPAN) continue;
-      out.push(node);
-    }
-    return out;
+    return stage.dressing.solids.map(({ node }) => node);
   }
 
   function strikeBand(): void {

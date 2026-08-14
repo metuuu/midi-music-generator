@@ -100,8 +100,8 @@
 
 import {
   Box3, Camera, CircleGeometry, ConeGeometry, Group, IcosahedronGeometry,
-  type Intersection, Matrix3, Mesh, MeshBasicMaterial, MeshStandardMaterial,
-  Object3D, Quaternion, Raycaster, Vector3,
+  InstancedMesh, type Intersection, Matrix3, Matrix4, Mesh, MeshBasicMaterial,
+  MeshStandardMaterial, Object3D, Quaternion, Raycaster, Vector3,
 } from 'three';
 
 import type { Cast, Performer } from '../../concert/types.js';
@@ -477,6 +477,46 @@ const MARK_MAX = 2.9;
  */
 const REFINE_REACH = 0.9;
 
+/**
+ * How full a node's own box has to be before `decompose` accepts it whole.
+ *
+ * 0.55 from the catalogue sweep. Lower and a drum shell gets pointlessly cut
+ * into its own hoops; higher and the rule starts splitting objects that were
+ * always a fair box, which costs targets and buys nothing.
+ */
+const PART_OCCUPANCY = 0.55;
+/**
+ * Above this many cubic metres a node is cut up whatever its occupancy says.
+ *
+ * A quarter of a cubic metre is about a bass drum, and it is the size at which
+ * "the box is a fair slab" stops being a good enough answer — a harp's frame
+ * and a sitar's gourd both pass the occupancy test at most of a cubic metre,
+ * and both hang a wall of nothing beside a player.
+ */
+const PART_BIG = 0.25;
+/**
+ * Boxes one object may contribute. A backstop, not a budget.
+ *
+ * Fourteen is the measured mean and a drum kit is the worst at about thirty.
+ * This is here so that a model somebody builds out of two hundred rivets
+ * cannot quietly put two hundred entries in the list every substep walks.
+ */
+const PARTS_CAP = 160;
+/**
+ * Boxes one instanced leaf may be split into. See `pushLeaf`.
+ *
+ * Twenty-four is where the two costs cross for the worst object in the
+ * catalogue: a modular's 448 jacks become 24 boxes of about nineteen adjacent
+ * sockets each, which is tight enough that nothing stops in open air and small
+ * enough that a wall of synths does not double the target list.
+ */
+const INSTANCE_CHUNKS = 24;
+
+/** Thinner than a hand is a painted surface, not a thing you can hit. */
+const PROP_MIN_THICKNESS = 0.08;
+/** Longer than a person is tall is a row of things merged into one mesh. */
+const PROP_MAX_SPAN = 3.0;
+
 /** Seconds after which a reaction has played out and can be re-issued. */
 const GLARE_SECONDS = 2.7;
 /** How long one look at the wings lasts. */
@@ -500,6 +540,10 @@ const V5 = new Vector3();
 const V6 = new Vector3();
 const UP = new Vector3(0, 1, 0);
 const BOX = new Box3();
+const LEAF = new Box3();
+const SIZE = new Vector3();
+/** `pushLeaf`'s, and only its: one instance's transform at a time. */
+const M2 = new Matrix4();
 
 /**
  * `refine`'s own scratch, and its answer.
@@ -673,6 +717,8 @@ export function createTomatoes(scene: Object3D, opts: TomatoOptions = {}): Tomat
   // --- the world -----------------------------------------------------------
   /** Rebuilt on `begin`. Performer shapes are refreshed every frame. */
   const targets: Target[] = [];
+  /** `decompose`'s output, reused across the objects `begin` walks. */
+  const parts: Box3[] = [];
   /** Parallel to the performer entries, so the per-frame refresh is a walk. */
   const bodies: { rig: PerformerRig; head: Target; torso: Target }[] = [];
   /**
@@ -855,6 +901,110 @@ export function createTomatoes(scene: Object3D, opts: TomatoOptions = {}): Tomat
     if (ceiling <= box.min.y + 0.05) return false;
     box.max.y = Math.min(box.max.y, ceiling);
     return true;
+  }
+
+  /**
+   * Cut an object up into the handful of boxes it is actually made of.
+   *
+   * The replacement for one world bounding box per instrument, and the reason
+   * is arithmetic. Measured over the catalogue, as a fraction of its own box
+   * that an instrument's geometry actually occupies: a vibraphone **6%**, a
+   * modular synth 11%, an electric piano 18%, an organ 28%, a grand piano 40%.
+   * The other 94% of a vibraphone is a cuboid of air that stops tomatoes, hides
+   * the player standing behind it and takes marks on an invisible flat face.
+   * One box was never a proxy for those objects; it was a proxy for the room
+   * they stand in.
+   *
+   * ## The rule, and why it is not a table
+   *
+   * The obvious fix is an authored volume per archetype beside `ARCHETYPES`.
+   * It was measured against this one and it loses on both counts: it is
+   * twenty-odd hand-written numbers that restate geometry which is *generated*
+   * — every model varies by finish, year and player height, so the numbers are
+   * wrong the day somebody changes a builder and nothing says so — and it
+   * covers only instruments, while the same defect is sitting in the stage
+   * dressing. This reads the model instead, so it cannot drift from it.
+   *
+   * Descend into a node while either is true:
+   *
+   *   - **it is mostly air.** Occupancy is the summed volume of the leaf meshes
+   *     underneath against the node's own box. Leaves, not immediate children:
+   *     sibling boxes overlap, and summing *those* reports a guitar's box as
+   *     full when it is a thin slab lying in a large cuboid.
+   *   - **it is big.** A harp's frame passes the occupancy test — a triangle in
+   *     a rectangle is a fair slab — and is still most of a cubic metre. Being
+   *     wrong about a big box is expensive wherever it happens to be honest.
+   *
+   * Stop otherwise, and stop at `PARTS_CAP` however much is left, so a model
+   * with a hundred screws cannot flood the target list.
+   *
+   * Measured on the same catalogue: mean occupancy 100% → 54%, about fourteen
+   * boxes per instrument. The archetypes that stay a single box — an electric
+   * guitar, a harmonica, an accordion — are the ones whose single box was
+   * already honest, which is the rule agreeing with itself.
+   */
+  function decompose(node: Object3D, into: Box3[]): void {
+    node.updateWorldMatrix(true, true);
+    walkParts(node, into);
+    // Nothing came back: a node whose every mesh is empty or non-finite. The
+    // caller's own `addBox` drops an empty box, so one is a safe answer.
+    if (into.length === 0) into.push(new Box3().setFromObject(node));
+  }
+
+  function walkParts(node: Object3D, into: Box3[]): void {
+    const box = new Box3().setFromObject(node);
+    if (box.isEmpty()) return;
+    const kids = node.children.filter((c) => !BOX.setFromObject(c).isEmpty());
+    if (kids.length === 0) { pushLeaf(node, box, into); return; }
+    if (into.length + kids.length > PARTS_CAP) { into.push(box); return; }
+    const vol = boxVolume(box);
+    const tight = vol > 0 && Math.min(1, leafVolume(node) / vol) >= PART_OCCUPANCY;
+    if (tight && vol <= PART_BIG) { into.push(box); return; }
+    for (const kid of kids) walkParts(kid, into);
+  }
+
+  /**
+   * A leaf, and the one case where the hierarchy has run out but the air has
+   * not: an `InstancedMesh`.
+   *
+   * A modular synth is the example that found this. Its rig is thirteen leaves
+   * and every one of them is a single instanced mesh whose bounding box is the
+   * union of every copy — `modular:carcass` is ten cabinets scattered through
+   * **7.8 cubic metres**, reported as one solid. There is no child to descend
+   * into and no authored shape that would help either, because the instance
+   * matrices are where the geometry actually is.
+   *
+   * So split by instance. Not one box per copy: `modular:jacks` is 448 of them,
+   * and 448 targets for a panel of sockets is a worse answer than the one being
+   * fixed. Chunk the copies into at most `INSTANCE_CHUNKS` runs and union each
+   * run — builders emit instances in layout order, so consecutive copies are
+   * neighbours and a run's union is a tight local box rather than a scattering.
+   * A count under the chunk limit degenerates to exactly one box per copy.
+   *
+   * Only for leaves big enough to be worth it. A keyboard's white keys are an
+   * instanced mesh too, and its box is already the keyboard.
+   */
+  function pushLeaf(node: Object3D, box: Box3, into: Box3[]): void {
+    const inst = node as InstancedMesh;
+    const count = inst.isInstancedMesh ? inst.count : 0;
+    const geo = inst.isInstancedMesh ? inst.geometry : undefined;
+    if (count < 2 || !geo || boxVolume(box) <= PART_BIG) { into.push(box); return; }
+    if (!geo.boundingBox) geo.computeBoundingBox();
+    const bounds = geo.boundingBox;
+    if (!bounds) { into.push(box); return; }
+
+    const chunks = Math.min(count, INSTANCE_CHUNKS, Math.max(1, PARTS_CAP - into.length));
+    const per = Math.ceil(count / chunks);
+    for (let start = 0; start < count; start += per) {
+      const run = new Box3();
+      for (let i = start; i < Math.min(start + per, count); i++) {
+        inst.getMatrixAt(i, M2);
+        M2.premultiply(node.matrixWorld);
+        BOX.copy(bounds).applyMatrix4(M2);
+        run.union(BOX);
+      }
+      if (!run.isEmpty()) into.push(run);
+    }
   }
 
   /** Cheap enough for every frame: a matrix walk and six vectors per player. */
@@ -1558,19 +1708,36 @@ export function createTomatoes(scene: Object3D, opts: TomatoOptions = {}): Tomat
       if (staging?.instruments) {
         for (const entry of staging.instruments) {
           const [performerId, node] = entry;
-          // Registered before the trim can bail out: an instrument that does
-          // not collide is still an instrument, and a body trace must step over
-          // it either way.
+          // Registered before anything can bail out: an instrument that does not
+          // collide is still an instrument, and a body trace must step over it
+          // either way.
           carried.add(node);
-          BOX.setFromObject(node);
-          if (!trimAgainstOwner(BOX, performerId)) continue;
-          addBox('instrument', `${performerId}:instrument`, BOX, performerId, node);
+          parts.length = 0;
+          decompose(node, parts);
+          let i = 0;
+          for (const part of parts) {
+            // Per part, not per instrument. A cymbal that reaches over its
+            // drummer's head is trimmed and the kick drum beside it is not,
+            // where one box for the kit had to lose the whole top of itself.
+            if (!trimAgainstOwner(part, performerId)) continue;
+            addBox('instrument', `${performerId}:instrument:${i++}`, part, performerId, node);
+          }
         }
       }
       if (staging?.scenery) {
         for (const node of staging.scenery) {
-          BOX.setFromObject(node);
-          addBox('scenery', node.name || 'prop', BOX, undefined, node);
+          parts.length = 0;
+          decompose(node, parts);
+          let i = 0;
+          for (const part of parts) {
+            // The span test that used to live in `show.ts` and reject the whole
+            // prop, applied to the pieces instead. A row of bunting built as one
+            // ten-metre mesh cannot be cut up and is still refused; a string of
+            // lanterns built as one lantern each is now nine hittable lanterns
+            // where it used to be one invisible wall across the room.
+            if (!compact(part)) continue;
+            addBox('scenery', `${node.name || 'prop'}:${i++}`, part, undefined, node);
+          }
         }
       }
 
@@ -1845,6 +2012,52 @@ export function createTomatoes(scene: Object3D, opts: TomatoOptions = {}): Tomat
 
 function clamp(v: number, lo: number, hi: number): number {
   return v < lo ? lo : v > hi ? hi : v;
+}
+
+/**
+ * Whether a box is a solid object rather than a painted-on surface or a wall.
+ *
+ * Nothing thinner than a hand, nothing longer than a person is tall. The test
+ * came from `show.ts`, where it had to accept or reject a whole prop, and 70 of
+ * 100 pieces of dressing failed it — a builder that places a row of things
+ * places it as one object, so the bunting was 10.6 m wide and the beams
+ * 19.8 x 15.7, and several were flat with a dimension of exactly zero: carpets,
+ * rugs, the dance floor. Handing those over hangs room-sized invisible planes
+ * in the air for tomatoes to stop dead against.
+ *
+ * `decompose` runs first now, so this is asked of the *pieces*. A prop that is
+ * a row of separate meshes passes piece by piece; only geometry that is
+ * genuinely one long mesh still fails, and for that the answer really is no.
+ */
+function compact(box: Box3): boolean {
+  if (box.isEmpty()) return false;
+  box.getSize(SIZE);
+  const thinnest = Math.min(SIZE.x, SIZE.y, SIZE.z);
+  const longest = Math.max(SIZE.x, SIZE.y, SIZE.z);
+  return thinnest >= PROP_MIN_THICKNESS && longest <= PROP_MAX_SPAN;
+}
+
+/** Metres cubed, or 0 for an empty box. */
+function boxVolume(box: Box3): number {
+  if (box.isEmpty()) return 0;
+  box.getSize(SIZE);
+  return SIZE.x * SIZE.y * SIZE.z;
+}
+
+/**
+ * Summed world-box volume of every mesh under `node`, itself included.
+ *
+ * Overlapping leaves are counted twice, which is why this is only ever
+ * compared against a threshold and clamped to 1 — it is a "does this node have
+ * anything in it" test, not a measurement of solid.
+ */
+function leafVolume(node: Object3D): number {
+  let sum = 0;
+  node.traverse((child) => {
+    if (!(child as Mesh).isMesh) return;
+    sum += boxVolume(LEAF.setFromObject(child));
+  });
+  return sum;
 }
 
 function finite3(v: Vector3): boolean {
