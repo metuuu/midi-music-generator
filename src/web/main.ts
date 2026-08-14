@@ -20,7 +20,7 @@ import {
   meterLabel, songDurationBeats, songDurationSeconds, type LayerId, type Song,
 } from '../core/types.js';
 import { Rng } from '../core/rng.js';
-import { GENRES, getGenre } from '../genre/index.js';
+import { GENRES, GENRE_IDS, getGenre } from '../genre/index.js';
 import { formatChaosMixing, type ChaosLevel } from '../genre/chaos.js';
 import { STRICTNESS_LEVELS, getStrictness, type StrictnessId } from '../core/rules.js';
 import { HOOK_LEVELS, getHook, type HookId } from '../generate/hook.js';
@@ -67,7 +67,16 @@ const els = {
 
 let current: Song | undefined;
 let playing = false;
-let radioMode = false;
+/**
+ * On by default, because a station is what this page is for.
+ *
+ * Off, the page writes one song and waits to be asked for another, which is the
+ * bench behaviour the level controls want and not what somebody opening the site
+ * came for. Nothing sounds until Play is pressed either way — the browser would
+ * not allow it — so the default costs nothing and means the second press is the
+ * next record rather than a button nobody found.
+ */
+let radioMode = true;
 let radioTimer: number | undefined;
 /**
  * Which press the audio belongs to. Bumped by every play and every stop.
@@ -87,7 +96,18 @@ function fillSelect(select: HTMLSelectElement, entries: [string, string][], anyL
 }
 
 fillSelect(els.genre, Object.values(GENRES).map((g) => [g.id, g.label]));
-els.genre.value = 'iskelma';
+/**
+ * A different genre every time the page is opened.
+ *
+ * It defaulted to iskelmä because iskelmä was the first genre written, and the
+ * effect after eighteen more was a site that sounded like one of them: the other
+ * genres were a dropdown away and the opening record never came from them. Drawn
+ * fresh instead, so what plays first is a fair sample of what the thing does.
+ *
+ * `Math.random` rather than a seeded stream on purpose — the seed reproduces a
+ * *song*, and which genre a visitor happens to land on is not part of it.
+ */
+els.genre.value = GENRE_IDS[Math.floor(Math.random() * GENRE_IDS.length)]!;
 fillSelect(els.strictness, STRICTNESS_LEVELS.map((l) => [l.id, `${l.level} · ${l.label}`]));
 els.strictness.value = 'standard';
 fillSelect(els.hook, HOOK_LEVELS.map((l) => [l.id, `${l.level} · ${l.label}`]));
@@ -188,7 +208,7 @@ for (const [id, label, hint] of CHAOS_BOXES) {
   // is let go. And once one of these has been moved the panel is the user's, so
   // opening it again does not reset it to whatever the simple slider says.
   slider.oninput = () => { mixTouched = true; paintMix(id); syncFullChaos(); };
-  slider.onchange = () => { if (chosenLevels().length) void regenerateSameSeed(); };
+  slider.onchange = () => { if (chosenLevels().length) onControlChange(); };
   wrap.append(text, slider);
   els.chaosMixing.append(wrap);
 }
@@ -350,9 +370,11 @@ populateForGenre();
 
 function updateStrictnessHint(): void {
   const level = getStrictness(els.strictness.value as StrictnessId);
-  els.strictnessHint.textContent = els.seed.value.trim()
-    ? `${level.gloss} — seed is pinned, so changing this replays the same song filtered differently.`
-    : `${level.gloss} — pin a seed to hear the same song at different levels.`;
+  els.strictnessHint.textContent = radioMode
+    ? `${level.gloss} — radio mode is on, so this starts a new song. Turn it off to hear the same one filtered differently.`
+    : els.seed.value.trim()
+      ? `${level.gloss} — seed is pinned, so changing this replays the same song filtered differently.`
+      : `${level.gloss} — pin a seed to hear the same song at different levels.`;
 }
 
 /**
@@ -360,11 +382,16 @@ function updateStrictnessHint(): void {
  * seed pins the form, key, tempo, instruments and groove, and only the tune
  * moves underneath them. Say so, because a control you can compare against
  * itself is a different thing from one that rerolls the song.
+ *
+ * Except on a station, where every touch of a control is the next record — see
+ * `onControlChange`. The hint follows the mode rather than describing the one
+ * the page is not in.
  */
 function updateHookHint(): void {
   const level = getHook(els.hook.value as HookId);
-  els.hookHint.textContent =
-    `${level.gloss} — the arrangement is fixed by the seed, so this changes only how much the tune returns.`;
+  els.hookHint.textContent = radioMode
+    ? `${level.gloss} — radio mode is on, so this starts a new song. Turn it off to hear it against the same arrangement.`
+    : `${level.gloss} — the arrangement is fixed by the seed, so this changes only how much the tune returns.`;
 }
 
 function setStatus(text: string, isError = false): void {
@@ -654,7 +681,22 @@ async function nextTrack(): Promise<void> {
   current = await writing('Writing the next song', () => generateSongAsync(opts));
   describe(current);
   els.dl.disabled = false;
-  if (playing || radioMode) await play(current);
+  /**
+   * Playing carries on playing; silence stays silent.
+   *
+   * This used to start the audio whenever radio mode was on, which was harmless
+   * while the mode was something you had to switch on deliberately and is not
+   * now that it is the default: every route into here is a control being nudged
+   * or Next being pressed, and a page that began making a noise because somebody
+   * looked at the genre list is a page nobody trusts. It also un-pressed Stop —
+   * the timer is cleared by `stop`, but a control moved afterwards would start
+   * the music again.
+   *
+   * Nothing is lost on the station: `playing` stays true across an advance —
+   * `scheduleRadioAdvance` halts the scheduler rather than calling `stop` — so
+   * once Play has been pressed the records keep coming.
+   */
+  if (playing) await play(current);
 }
 
 els.play.onclick = async () => {
@@ -669,11 +711,22 @@ els.play.onclick = async () => {
 
 els.next.onclick = () => { void nextTrack(); };
 
-els.radio.onclick = () => {
-  radioMode = !radioMode;
+function paintRadio(): void {
   els.radio.textContent = `Radio mode: ${radioMode ? 'on' : 'off'}`;
   els.radio.classList.toggle('primary', radioMode);
-  if (radioMode && current) scheduleRadioAdvance(current);
+  // The level hints describe what their control does *in this mode*, and the
+  // mode just changed underneath them.
+  updateStrictnessHint();
+  updateHookHint();
+}
+
+els.radio.onclick = () => {
+  radioMode = !radioMode;
+  paintRadio();
+  // Only against something that is actually sounding. Scheduling an advance
+  // over a stopped page armed a timer that would have started the music by
+  // itself a few minutes later, with nobody having pressed anything.
+  if (radioMode && playing && current) scheduleRadioAdvance(current);
   else if (radioTimer) { clearTimeout(radioTimer); radioTimer = undefined; }
 };
 
@@ -737,29 +790,49 @@ els.dl.onclick = () => {
   URL.revokeObjectURL(url);
 };
 
+/**
+ * A control moved — hear it.
+ *
+ * Two readings, and which one is right is exactly what radio mode is for:
+ *
+ *  - **Off** — the same song, rewritten with the new setting. The seed holds the
+ *    form, key, tempo, instruments and groove, so smoothness, hook, the singer
+ *    and the chaos rates can be A/B'd against a fixed arrangement, which is the
+ *    only way to hear what any of them actually do.
+ *  - **On** — the next record. A station that answered "give me a moodier one"
+ *    by playing the same song again in a different mood is not a station; and
+ *    since a listener nudging a control there is asking for something new rather
+ *    than for a comparison, the seed goes with it. `nextTrack` drops any pinned
+ *    one for the same reason.
+ *
+ * One place rather than a decision repeated at each control, because the two
+ * that disagreed would be the bug.
+ */
+function onControlChange(): void {
+  if (radioMode) void nextTrack();
+  else void regenerateSameSeed();
+}
+
 for (const el of [els.mood, els.era, els.style]) {
-  el.onchange = () => { if (!els.seed.value.trim()) void nextTrack(); };
+  // A pinned seed is somebody holding one song, so off-station these wait for
+  // the next track rather than pulling it out from under them.
+  el.onchange = () => { if (radioMode || !els.seed.value.trim()) void nextTrack(); };
 }
 
 /**
  * The spread slider is meaningless with every box clear, and regenerating on
  * every step of it would be a new song per pixel — so it takes effect on
  * release, which is what `onchange` is for a range input.
- *
- * Both regenerate on the *same seed* rather than drawing a new song, like the
- * smoothness and hook controls above and for the same reason: the whole value of
- * these two is hearing one piece two ways, and a control that rerolled the song
- * would leave nothing to compare.
  */
 function onChaosChange(): void {
   syncChaosVisible();
   syncFullChaos();
-  void regenerateSameSeed();
+  onControlChange();
 }
 // Painted on `input` and regenerated on `change`: the bar has to follow the
 // thumb while it is being dragged, and the song must not.
 els.chaosSpread.oninput = () => { paintSpread(); syncFullChaos(); };
-els.chaosSpread.onchange = () => { if (chosenLevels().length) void regenerateSameSeed(); };
+els.chaosSpread.onchange = () => { if (chosenLevels().length) onControlChange(); };
 els.chaosAll.onclick = () => {
   toggleFullChaos();
   onChaosChange();
@@ -768,15 +841,18 @@ els.chaosAdvanced.onclick = () => {
   toggleAdvanced();
   onChaosChange();
 };
-// Same seed, different band: this is the one control that redraws the borrowings
-// and leaves the piece alone, so it regenerates like the rest rather than
-// waiting for the next track.
+/**
+ * Same seed, different band — the one control that keeps its seed on air.
+ *
+ * It *is* a seed, and the whole of what it does is hold the piece still while
+ * the borrowings are redrawn. Rerolling the song because this moved would leave
+ * it with nothing to do, so it stays on `regenerateSameSeed` in both modes.
+ */
 els.chaosSeed.onchange = () => { if (chosenLevels().length) void regenerateSameSeed(); };
 
-// The same seed, with and without the singer: `vocals` is documented as an A/B
-// that leaves the instrumental arrangement identical, and it was the one control
-// on this page that did nothing until the next track.
-els.vocals.onchange = () => { void regenerateSameSeed(); };
+// Vocals draw from their own RNG stream, so off-station the same seed gives the
+// identical arrangement either way — a straight A/B on the voice.
+els.vocals.onchange = onControlChange;
 
 els.genre.onchange = () => {
   populateForGenre();
@@ -789,19 +865,15 @@ els.genre.onchange = () => {
 // filtered two ways is the whole point of the control.
 els.strictness.onchange = () => {
   updateStrictnessHint();
-  void regenerateSameSeed();
+  onControlChange();
 };
 
 // Same reasoning as strictness: hook is meant to be heard against the same
 // arrangement, not against a fresh song.
 els.hook.onchange = () => {
   updateHookHint();
-  void regenerateSameSeed();
+  onControlChange();
 };
-
-// Vocals draw from their own RNG stream, so the same seed gives the identical
-// arrangement either way — toggling this is a straight A/B on the voice.
-els.vocals.onchange = () => { void regenerateSameSeed(); };
 
 els.seed.oninput = updateStrictnessHint;
 
@@ -833,8 +905,9 @@ async function boot(): Promise<void> {
     console.error(err);
   });
 
-  updateStrictnessHint();
-  updateHookHint();
+  // Wording, highlight and both hints from `radioMode` rather than from the
+  // markup, so the default lives in one place.
+  paintRadio();
   /**
    * The first song is written off the thread like every other one, so the page
    * paints its controls and its status before the generator has finished rather
