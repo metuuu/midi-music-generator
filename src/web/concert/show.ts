@@ -76,7 +76,7 @@ import { readBankName } from '../../render/drum-banks.js';
 import { renderStrudelParts } from '../../render/strudel.js';
 import {
   bandLoaded, clearBand, isPlaying, loadBand, mutePlayer, preloadSounds, setOutputLevel,
-  startLoaded, stopPlayback, swapPlayer,
+  startLoaded, stopPlayback, stopSounding, swapPlayer,
 } from '../audio.js';
 import { revoiceNumberAsync } from '../generator.js';
 import { createSungVoice, withoutSungVoice } from '../sung-voice.js';
@@ -1643,10 +1643,18 @@ export function createShow(opts: ShowOptions = {}): Show {
     if (next) {
       paused = true;
       voice.end();
-      // The fader before the scheduler: stopping first would leave the tail to
-      // ring for the twelve milliseconds it takes the master to travel, which
-      // is nothing, but the order is the one that reads correctly.
-      setOutputLevel(0);
+      /**
+       * The sound before the scheduler: stopping first would leave the tail to
+       * ring for the twelve milliseconds it takes the master to travel, which is
+       * nothing, but the order is the one that reads correctly.
+       *
+       * `stopSounding` rather than the fader alone, because this pause does not
+       * resume — it reloads from the bar it stopped on, and `jumpToBar` opens
+       * the fader again *before* that reload. Anything still running behind the
+       * closed fader would come back up into the wait, seconds of held pad from
+       * a bar the stage has already left.
+       */
+      void stopSounding();
       void stopPlayback();
       return;
     }
@@ -1671,10 +1679,21 @@ export function createShow(opts: ShowOptions = {}): Show {
   function goToNumber(n: number): void {
     if (state === 'bill' || n < 0 || n >= concert.numbers.length) return;
     voice.end();
-    // A number left behind while the transport was paused would otherwise stage
-    // the next one behind a master fader nobody can see is down.
-    if (paused) setOutputLevel(1);
     void stopPlayback();
+    /**
+     * This band stops sounding, rather than ringing on under the cloth.
+     *
+     * `endNumber` lets the last chord ring into the applause because that is
+     * what a room does; nothing is applauding here. The number is being
+     * abandoned mid-bar, and a held pad carrying on through the curtain and into
+     * the next staging belongs to nothing anybody can see.
+     *
+     * The fader goes back up *after* the cut, not before — a number left behind
+     * while the transport was paused would otherwise stage the next one behind a
+     * master nobody can see is down, and raising it first would simply let the
+     * abandoned band back in.
+     */
+    void stopSounding().then(() => setOutputLevel(1));
     transport.end();
     clockLive = false;
     animator.end();
@@ -2290,6 +2309,10 @@ export function createShow(opts: ShowOptions = {}): Show {
     dispose() {
       voice.end();
       void stopPlayback();
+      // The band goes with the stage. Halting the scheduler leaves whatever it
+      // last triggered to ring out, which is right at the end of a number and
+      // absurd here — there is no room left for it to ring in.
+      void stopSounding();
       animator.end();
       strikeBand();
       tomatoes.dispose();
