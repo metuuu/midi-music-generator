@@ -32,7 +32,7 @@ import { deep, depthSummary, seeds } from './depth.js';
  * standing inside the furniture. The quick pass runs a quarter of the seeds,
  * which is a shallower search for a counter-example and not a looser standard.
  */
-const S = (full: number) => seeds(full, Math.max(1, Math.round(full / 4)));
+const S = (full: number) => seeds(full, Math.max(1, Math.round(full / 4)), 1);
 import { INSTRUMENTS, type InstrumentId } from './style/instruments.js';
 import { armsKnotted, trackForPart } from './concert/choreograph.js';
 import {

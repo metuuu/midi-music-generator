@@ -85,7 +85,7 @@ import {
 } from 'three';
 
 import { GENRES } from './genre/index.js';
-import { depthSummary, seeds } from './depth.js';
+import { depthSummary, sample, seeds } from './depth.js';
 import { chooseVenue, PROPS, type PropName } from './concert/venue.js';
 import type { Venue } from './concert/types.js';
 import { buildStage } from './web/concert/stage.js';
@@ -430,7 +430,7 @@ const LIT: readonly PropName[] = ['screen', 'projection', 'neon', 'organ-pipes']
 
 const t0 = Date.now();
 const scenes: Scene[] = [];
-for (const gid of Object.keys(GENRES)) {
+for (const gid of sample(Object.keys(GENRES))) {
   /**
    * A venue is a (genre, era) pair and the sweep is coverage: every room, every
    * rig, measured once. The quick pass takes one era of each genre — nineteen

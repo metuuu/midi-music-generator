@@ -21,6 +21,7 @@
     "chaos": "tsx src/chaos-check.ts",
     "stage": "tsx src/stage-check.ts",
     "verify": "tsx src/verify.ts",
+    "verify:quick": "tsx src/verify.ts --quick",
     "verify:full": "tsx src/verify.ts --full",
     "ensemble": "tsx src/ensemble-report.ts",
     "score": "tsx src/score.ts",

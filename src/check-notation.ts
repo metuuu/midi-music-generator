@@ -12,6 +12,7 @@ import { DEFAULT_DRUM_MIX } from './core/types.js';
 import { resolveVoice, SAMPLE_RACKS } from './render/drum-banks.js';
 import { renderStrudel } from './render/strudel.js';
 import { GENRE_IDS } from './genre/index.js';
+import { depthSummary, seeds } from './depth.js';
 
 /**
  * Every drum voice, as a token this file will accept in a drum line.
@@ -186,7 +187,13 @@ let duckers = 0;
 // last sixteen bars — which is the case most likely to break the grid, since a
 // bar-group cannot open with a sustain marker and a held note has to be
 // re-articulated at every barline it crosses.
-for (let i = 0; i < 150; i++) {
+/**
+ * The corpus is a search for a string the grammar cannot parse, and one bad
+ * render settles it — so a shorter run is a shallower search rather than a
+ * looser standard. See `depth.ts`.
+ */
+const RENDERS = seeds(150, 40, 10);
+for (let i = 0; i < RENDERS; i++) {
   const genre = GENRE_IDS[i % GENRE_IDS.length]!;
   // Every third song sings. The sung layer is the only one that writes filter
   // and envelope grids, so leaving it out of the sweep meant a whole class of
@@ -341,4 +348,4 @@ if (problems.length) {
   for (const p of [...new Set(problems)].slice(0, 15)) console.log('  ' + p);
   process.exit(1);
 }
-console.log('Mini-notation is well formed.');
+console.log(`Mini-notation is well formed.${depthSummary()}`);

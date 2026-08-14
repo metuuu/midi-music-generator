@@ -70,12 +70,13 @@ const FIGURE_TRAITS = new Set([
 /**
  * Chaos is a property suite — a chimera must regenerate from its own recipe, a
  * spread of zero must be byte-identical, a kind at full must borrow what it
- * borrows alone. One counter-example settles any of them, so a quick pass
- * searches a twelfth as hard and is a weaker search rather than a wrong answer.
+ * borrows alone. One counter-example settles any of them, so the standard pass
+ * searches a twelfth as hard and the quick one a forty-eighth — a weaker search
+ * rather than a wrong answer.
  * The one loop left at full size is the wardrobe sweep, whose assertion is that
  * a trait *ever* fires — thin that and it fails on a draw nobody made.
  */
-const S = (full: number) => seeds(full, Math.max(2, Math.round(full / 12)));
+const S = (full: number) => seeds(full, Math.max(2, Math.round(full / 12)), Math.max(1, Math.round(full / 48)));
 
 const SEEDS = S(200);
 

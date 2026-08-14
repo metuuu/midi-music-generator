@@ -41,7 +41,7 @@ import type { Style } from './style/types.js';
 import type { Voice } from './tune/types.js';
 import { shotFigures, type TransitionPalette } from './generate/transition.js';
 import { FEELS, type FeelId } from './style/feel.js';
-import { deep, depthSummary, seeds } from './depth.js';
+import { deep, depthSummary, sample, seeds } from './depth.js';
 
 const problems: string[] = [];
 const check = (label: string, pass: boolean, detail: string) => {
@@ -258,7 +258,7 @@ for (const gid of GENRE_IDS) {
   const eras = Object.keys(genre.eras);
   const sounded = new Set<DrumVoice>();
   SOUNDED.set(gid, sounded);
-  for (const sid of Object.keys(genre.styles)) {
+  for (const sid of sample(Object.keys(genre.styles))) {
     for (const [m, mode] of (['major', 'minor'] as const).entries()) {
       for (let i = 0; i < SMOKE; i++) {
         try {
@@ -299,7 +299,7 @@ check('all style x mode combinations generate', problems.length === 0, `${ok} so
  * density, ornament, leap or restraint.
  */
 console.log('\nDefault mood');
-{
+if (deep('default mood', 'standard')) {
   const offenders: string[] = [];
   for (const gid of GENRE_IDS) {
     const moods = Object.values(getGenre(gid).moods);
@@ -1400,7 +1400,7 @@ check('walking bass moves mostly by step', stepPct > 55, `${stepPct.toFixed(1)}%
 
 // --- Bass shapes ---------------------------------------------------------
 console.log('\nBass shapes');
-{
+if (deep('bass shapes', 'standard')) {
   /**
    * A riff is a shape, and stays one whatever chord it is standing on.
    *
@@ -1544,7 +1544,7 @@ console.log('\nBass shapes');
 
 // --- Rhythm operators ----------------------------------------------------
 console.log('\nRhythm operators');
-{
+if (deep('rhythm operators', 'standard')) {
   /**
    * The operators are total, and they hand back what they were given.
    *
@@ -1911,7 +1911,7 @@ check('modal comp stacks fourths', total > 0 && fourths / total > 0.8,
 // Four claims, each of which is a thing the genre *is* rather than a setting it
 // happens to use, and each of which an innocent-looking edit could undo.
 console.log('\nAmbient');
-{
+if (deep('ambient', 'standard')) {
   const ambient = getGenre('ambient');
 
   // 1. Every chord the tables contain must be *reachable* — some mode of the
@@ -2010,7 +2010,7 @@ console.log('\nAmbient');
 // repo describe the same instrument and could quietly converge on the same
 // music.
 console.log('\nSynth');
-{
+if (deep('synth', 'standard')) {
   const synth = getGenre('synth');
 
   /**
@@ -2483,7 +2483,7 @@ if (deep('brass')) {
 // genre, at every boundary, whatever the section was turning into. A tom roll
 // is a dance-band gesture and a bebop drummer would not play one into the head.
 console.log('\nDrum fills');
-{
+if (deep('drum fills', 'standard')) {
   const fillVoices = (gid: string) => {
     const seen = new Map<string, number>();
     let bars = 0;
@@ -3301,7 +3301,7 @@ if (deep('transitions')) {
 //    click away and no randomly generated song will ever cover it. Both are
 //    forced here rather than drawn.
 console.log('\nDrum banks');
-{
+if (deep('drum banks', 'standard')) {
   /**
    * Every voice a genre can ask a bank for: the style tables read directly,
    * which is exhaustive over the patterns, plus what real songs add on top of
@@ -3653,7 +3653,7 @@ console.log('\nDrum banks');
 // produces a phrase whose accents drift a sixteenth per bar, which sounds like
 // a fault in the swing rather than like the arithmetic error it is.
 console.log('\nMetre');
-{
+if (deep('metre', 'standard')) {
   const wrong: string[] = [];
   let grouped = 0;
   for (const gid of GENRE_IDS) {
@@ -3849,7 +3849,7 @@ console.log('\nMetre');
 // dropped the reported mean of the jazz melody line by four semitones, which was
 // an accompaniment being read as a melody.
 console.log('\nTwo hands');
-{
+if (deep('two hands', 'standard')) {
   const missing: string[] = [];
   const figureless: string[] = [];
   for (const gid of GENRE_IDS) {
@@ -4736,7 +4736,7 @@ if (deep('solos')) {
  * of what `Genre.voice` promises.
  */
 console.log('\nMelodic voices');
-{
+if (deep('melodic voices', 'standard')) {
   const voiceless: string[] = [];
   const unreached: string[] = [];
   const flat: string[] = [];
@@ -4796,7 +4796,7 @@ console.log('\nMelodic voices');
 // real songs instead would be confounded: brass and vibraphone appear in
 // different styles, and the style's own leap character swamps the instrument's.
 console.log('\nInstrument awareness');
-{
+if (deep('instrument awareness', 'standard')) {
   // `tango` is one of the three authored voices, so `Genre.voice` is passed and
   // then ignored — `voiceForStyle` returns the authored one before it looks. Passed
   // anyway so the probe does not depend on which style it happens to hold fixed.
@@ -5016,7 +5016,7 @@ if (deep('sidechain')) {
 }
 
 console.log('\nRendered files');
-{
+if (deep('rendered files', 'standard')) {
   let doubles = 0;
   let unisons = 0;
   let songs = 0;
