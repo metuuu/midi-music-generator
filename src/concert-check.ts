@@ -2348,17 +2348,18 @@ console.log('\nThe tomato seam');
         }
 
         /**
-         * And nobody else moves. The generator's own dependency graph is real
-         * and mostly right — the counter answers the tune, the horns read it,
-         * `patchBand` moves the bass onto its anticipations — but none of it is
-         * wanted from a tomato, so `revoiceNumber` splices rather than swaps.
+         * And nobody else moves — nobody at all, including the other half of a
+         * doubled tune. The generator's own dependency graph is real and mostly
+         * right, the counter answers the tune and `patchBand` moves the bass
+         * onto its anticipations, but none of it is wanted from a tomato, so
+         * `revoiceNumber` splices rather than swaps.
          *
-         * The singer rides with the tune and that is not a leak: the sung line
-         * is the melody syllabified, so they are one line performed by two
-         * people. See `revoiceGroup`.
+         * The singer used to ride with the melody on the grounds that the sung
+         * line *is* the tune syllabified. True of a band nobody has thrown
+         * anything at; wrong the moment somebody has, because it put a new tune
+         * on a singer who was not hit. They diverge now. See `revoiceGroup`.
          */
-        const allowed = layer === 'melody' || layer === 'vocal'
-          ? ['melody', 'vocal'] : [layer];
+        const allowed: string[] = [layer];
         const moved = [...linesOf(after.song)]
           .filter(([key, line]) => before.get(key) !== line)
           .map(([key]) => key);
