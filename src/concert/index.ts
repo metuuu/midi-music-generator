@@ -341,12 +341,26 @@ export function revoiceNumber(
 /**
  * What a re-voice is allowed to borrow. See `revoiceNumber`.
  *
- * The default three, named rather than left off, because the default is a
- * property of `genre/chaos.ts` and this list is a claim about what a band can
- * survive without stopping. If a fourth kind is ever added to that file it must
- * not arrive here by inheritance.
+ * Named rather than left off, because the default is a property of
+ * `genre/chaos.ts` and this list is a claim about what a band can survive
+ * without stopping. If a fourth kind is ever added to that file it must not
+ * arrive here by inheritance.
+ *
+ * Two of the six are impossible and a third is merely wrong. `harmony` and
+ * `form` are what a band mid-song cannot move — the chart and the bar count are
+ * what the transport, the choreographer and the lighting score are all counting
+ * against. `band` is the one this list used to include: it is `takeInstrument`,
+ * `drum-machine`, `voice` and `sequencing`, which is to say *who is playing*,
+ * and a tomato does not change who is playing. `spliceLayers` refuses an
+ * instrument change outright, so leaving `band` in would only have written parts
+ * for instruments nobody on this stage is holding.
+ *
+ * What is left says the thing worth saying: **the same players, playing
+ * something else**. `figures` is what they play — the bass line, the comp
+ * pattern, the drum figure, the melodic cells — and `performance` is how they
+ * play it, down to the pedals and the desk.
  */
-const REVOICE_CHAOS: ChaosLevel[] = ['band', 'performance', 'figures'];
+const REVOICE_CHAOS: ChaosLevel[] = ['performance', 'figures'];
 
 /**
  * How much further into somebody else's genre each tomato pushes a player.
@@ -392,6 +406,27 @@ function revoiceGroup(layer: LayerId): { salted: LayerId; tracks: LayerId[] } {
  * `undefined` rather than a throw or a partial splice: the caller's answer is to
  * leave the number alone, and a player who comes back playing what they were is
  * a disappointment where a player whose bar lines have moved is a wreck.
+ *
+ * ## Notes only. The player keeps their instrument
+ *
+ * What is taken from `from` is `notes`, and nothing else. `instrument`,
+ * `gmProgram`, `strudelSound`, `voice`, `gain` and the whole effect chain stay
+ * as they are on the stage.
+ *
+ * Because the person does not change. A tomato does not hand the accordionist a
+ * Rhodes and it does not give the singer somebody else's voice — they are stood
+ * there holding the thing they were holding, in the clothes they were cast in,
+ * and `revoiceNumber` keeps the cast for exactly that reason. A part that came
+ * back on a different soundfont would be a different player, heard but not seen,
+ * and the picture would be the one telling the truth.
+ *
+ * Dropping `band` from `REVOICE_CHAOS` is not sufficient on its own and was the
+ * first thing tried: measured over the nineteen genres at two escalation steps,
+ * `band,performance,figures` moved an instrument, a kit or a voice on 37 splices
+ * of 38, `performance,figures` on 16, and `figures` alone still on 11 — because
+ * a chimera substitutes the style and the era that `chooseInstruments` draws
+ * from, whichever tier asked for it. Taking the notes and leaving the timbre is
+ * the only version that cannot be got round.
  */
 function spliceLayers(into: Song, from: Song, group: LayerId[]): Song | undefined {
   if (into.meta.totalBars !== from.meta.totalBars) return undefined;
@@ -404,8 +439,14 @@ function spliceLayers(into: Song, from: Song, group: LayerId[]): Song | undefine
     if (a.startBar !== b.startBar || a.lengthBars !== b.lengthBars) return undefined;
   }
 
-  // The kit is not a `Track`, so it is spliced as itself.
-  const drums = group.includes('drums') ? from.drums : into.drums;
+  /**
+   * The kit is not a `Track`, so it is spliced as itself — and only its events.
+   *
+   * `bank` and `source` are the drum machine and the object it is: a LinnDrum on
+   * a table, or a mridangam across somebody's shins. Same argument as the
+   * instruments below, and the same answer.
+   */
+  const drums = group.includes('drums') ? { ...into.drums, events: from.drums.events } : into.drums;
 
   /**
    * Positional, and the counts have to agree.
@@ -429,7 +470,8 @@ function spliceLayers(into: Song, from: Song, group: LayerId[]): Song | undefine
     if (!fresh) return track;
     const n = taken.get(track.layer) ?? 0;
     taken.set(track.layer, n + 1);
-    return fresh[n] ?? track;
+    const part = fresh[n];
+    return part ? { ...track, notes: part.notes } : track;
   });
 
   return { ...into, tracks, drums };

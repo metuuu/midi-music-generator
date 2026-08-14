@@ -1479,9 +1479,12 @@ export function createShow(opts: ShowOptions = {}): Show {
   //
   // `?debug`, and nothing here runs without it. What the labels answer is
   // "which track did casting give this person, and is it sounding *now*" —
-  // both read straight off `current.song`, so a revoiced number (a tomato
-  // lands, `revoiceNumber` writes a new instrument) shows the new instrument
-  // for the same reason the audience hears it.
+  // both read straight off `current.song`, so a tomatoed player's line goes on
+  // reading correctly through the sulk and the return.
+  //
+  // The instrument named here does not move when one lands, and that is a
+  // guarantee rather than an accident: `spliceLayers` takes the notes and
+  // leaves the timbre, because the person holding the thing has not changed.
 
   /** Scratch for the camera-space test below. One vector, not one per frame. */
   const tagAt = new Vector3();

@@ -2294,6 +2294,13 @@ console.log('\nThe tomato seam');
 
   const drifted: string[] = [];
   const bled: string[] = [];
+  const reinstrumented: string[] = [];
+  /** Instrument, kit and voice — what a player *is*, as against what they play. */
+  const timbreOf = (song: Song): string => JSON.stringify({
+    tracks: song.tracks.map((t) => [t.layer, t.instrument, t.gmProgram, t.strudelSound, t.gain,
+      t.voice?.signature, t.voice?.delivery]),
+    kit: [song.drums.bank, song.drums.source, song.drums.gain],
+  });
   /** Layers that came back playing the identical part, by escalation step. */
   const inert = new Map<number, string[]>();
   let revoiced = 0;
@@ -2357,6 +2364,19 @@ console.log('\nThe tomato seam');
           .map(([key]) => key);
         const strangers = moved.filter((key) => !allowed.includes(key.split('#')[0]!));
         if (strangers.length) bled.push(`${name} → ${strangers.join(' ')}`);
+
+        /**
+         * And they are still the person who was hit.
+         *
+         * The cast is not rebuilt by a re-voice — same people, same clothes,
+         * same instrument in their hands — so a part that came back on another
+         * soundfont would be heard and not seen, and the picture would be the
+         * one telling the truth. `chaos` reaches instrument choice through the
+         * style and era it substitutes, whichever tier asked for it, so this is
+         * enforced at the splice rather than by the level list: `spliceLayers`
+         * takes `notes` and leaves every timbral field alone.
+         */
+        if (timbreOf(after.song) !== timbreOf(number.song)) reinstrumented.push(name);
         if (!moved.length) {
           const at = inert.get(attempt) ?? [];
           at.push(layer);
@@ -2370,6 +2390,10 @@ console.log('\nThe tomato seam');
     drifted.length ? drifted.slice(0, 6).join(', ') : `${revoiced} re-voices, none modulated`);
   check('only the tomatoed player plays something else', bled.length === 0,
     bled.length ? bled.slice(0, 6).join(', ') : `${revoiced} re-voices, no part bled`);
+  check('nobody changes instrument, kit or voice', reinstrumented.length === 0,
+    reinstrumented.length
+      ? reinstrumented.slice(0, 6).join(', ')
+      : `${revoiced} re-voices, same band throughout`);
   /**
    * Not a failure, and reported anyway, per escalation step.
    *
