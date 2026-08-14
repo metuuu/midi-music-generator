@@ -11,27 +11,50 @@
  * Nothing here is browser-facing and nothing here imports Strudel, which is
  * deliberate — see the README's licence note. This is a table and a draw.
  *
- * ## Why this is not the genre dropdown with better styling
+ * ## What a station locks, and what it lets go
  *
- * Nineteen stations, one per genre, would be exactly that, and it would also be
- * the wrong cut. Four of the nine below draw from more than one genre, along
- * two different seams, and neither seam is a column in any table in `genre/`.
+ * Nineteen stations, one per genre, would be the dropdown with better styling,
+ * and it would also be the wrong cut. The rule underneath every entry below is
+ * that **a station locks one or two axes hard and lets the rest float.** Which
+ * axes it locks decides what kind of station it is, and there are three kinds —
+ * two that work and one that does not.
  *
- *  - **A mood.** `longwave` and `lateshift`: `ambient/drone`, `synth/stalker`
- *    and `classical/nocturne` are three genres' idea of the same hour of the
- *    night, and nothing in `genre/` can say so.
- *  - **A date.** `eightyfive` and `pirate`: an `EraProfile` decides the
- *    production rather than the notes — which drum machine, which instruments
- *    take the melody — so a station that selects on era selects exactly the
- *    thing a listener hears as "1985" or "1994". Six genres' 1980s share a
- *    LinnDrum and a gated snare across repertoires that share nothing else.
+ *  - **Mood stations** lock a mood and a pace and let genre and date go.
+ *    `longwave` spans 1720 to 2006 across three genres and nobody notices,
+ *    because everything on it is slow and wide; `lateshift` puts a reggae
+ *    `lovers` cut next to a `quietstorm` one, which on a station locked to
+ *    rhythm would be an error and here is the point. These are the strongest
+ *    entries, because mood and pace are what a listener is actually choosing.
+ *    Nobody tunes in wanting 1982; they want something to work to.
+ *  - **Sound stations** lock a production or an instrument and let mood go.
+ *    `neon` is synthesizers across forty years, `eightyfive` is a gated snare
+ *    across six genres, `overdrive` is distortion across three. The thread is
+ *    sonic rather than emotional, and the mood range inside them is wide on
+ *    purpose.
+ *  - **Genre stations** lock the genre and float everything else. These are the
+ *    filter, and there are none left. `The Dancehall` was `--genre reggae` and
+ *    the iskelmä station was `--genre iskelma --era tanssilava` with a nicer
+ *    name; both came off the dial, and their repertoire did not — reggae is now
+ *    on three stations, each holding the half that means something there.
  *
- * That cross-cut is the whole argument for the file. A station that could be
- * expressed as `--genre x` did not need inventing — which is why the iskelmä
- * station that used to sit at the top of this list is gone. It was
- * `--genre iskelma --era tanssilava` with a nicer name; that era now reaches
- * the dial the way every other single-genre corner does, through `borderfm`
- * and through the main app.
+ * The corollary is what keeps twelve stations distinct: **no two of them lock
+ * the same axis at the same value.** Two stations may share a genre freely, and
+ * most do.
+ *
+ * ## Nobody is stranded
+ *
+ * All nineteen genres play on a station of their own, and 68 of the catalogue's
+ * 73 eras are drawn somewhere. That was not true before `carnival` and `porch`:
+ * Latin, Arabic, Indian, Country and Finnish folk — five genres and some 125
+ * styles — were reachable only as a 1-in-19 draw on `borderfm`, where the band
+ * is borrowed from another genre anyway. A genre that only ever plays in
+ * costume is not on the radio.
+ *
+ * The five eras still unplayed are `iskelma/tanssilava` (retired with its
+ * station), `jazz/electric`, `arabic/takht`, `hiphop/southern` and
+ * `house/warehouse` — that last one because `rewind` promises 1993 to 1995 and
+ * a 1988 Chicago record would be the station keeping its coverage by breaking
+ * its word.
  *
  * ## Nothing here is prose
  *
@@ -94,20 +117,28 @@ export interface Station {
 }
 
 /**
- * Nine, and the count is a judgement rather than a limit.
+ * Twelve, and the number is the grid's rather than a judgement.
  *
- * Few enough that each one can be given a character instead of a filter. The
- * catalogue has 389 styles; a station list that tried to represent them would
- * be the `--help` output.
+ * `radio.html` lays the list out at `minmax(8.5rem, 1fr)` in a 37rem panel, so
+ * the dial is four columns wide and the count wants to be a multiple of four.
+ * Twelve is 4 × 3 on a desktop and 2 × 6 in the phone sheet — measured, and the
+ * sheet does not have to scroll to hold them.
  *
- * It was eight, and eight was the number that fitted a phone without
- * scrolling. The ninth costs one row of the grid and no more: `radio.html`
- * lays the list out at `minmax(8.5rem, 1fr)`, which is four columns in the
- * 40 rem desktop panel and two in the phone sheet, so eight is 2 rows and 4,
- * nine is 3 and 5 — and a tenth would be free, since both counts round to the
- * same row. The sheet has been `overflow-y: auto` since it was written.
+ * That constraint is doing real work. It was eight, and eight was chosen as a
+ * number that fitted a phone without scrolling — but eight could not hold
+ * nineteen genres, and five of them were never played. Letting the grid set the
+ * count and then filling it honestly is a better rule than picking a number and
+ * discovering afterwards what fell off the end.
  *
- * The first entry is the one a listener hears before touching anything —
+ * Nineteen stations, one per genre, is still not the answer — see the header.
+ *
+ * ## The order is the reading order
+ *
+ * Three rows of four, and they descend: the ones played by hands, the ones
+ * played by machines, and then the small hours. `borderfm` is last because it
+ * is the one that is not a promise.
+ *
+ * The first entry is what a listener hears before touching anything —
  * `radio.ts` opens on `STATIONS[0]` — so it is the most immediately legible
  * station rather than the most interesting one.
  *
@@ -116,6 +147,313 @@ export interface Station {
  * the two places that reach for the first one.
  */
 export const STATIONS: readonly [Station, ...Station[]] = [
+  {
+    /**
+     * The single, as a *function* rather than as a genre.
+     *
+     * This entry used to be `--genre pop` across three eras, which is the
+     * filter shape the header rejects. What it was reaching for was never pop:
+     * it was the three-minute record with a chorus in it, cut to be played on
+     * the radio between two others — and four genres were making that record
+     * at the same time, in the same rooms, for the same charts.
+     *
+     * So the lock is `hook: 'earworm'` and a short `seconds`, and the genres
+     * follow from it rather than the other way round. Motown and Stax
+     * (`rnb/soul`), the Beat era (`rock/beat`) and JB's band in 1968
+     * (`funk/jb`) are the same machine pointed at the same week's chart as
+     * `pop/twotrack`. None of them is here as a genre; all of them are here as
+     * a 45.
+     */
+    id: 'heavyrotation',
+    name: 'Heavy Rotation',
+    hook: 'earworm',
+    seconds: [150, 210],
+    sung: 0.45,
+    sources: [
+      /**
+       * Three eras in one source, which none of the other multi-era entries on
+       * the dial can do. `pop/eras.ts` is the one table here that zeroes
+       * *nothing* — every style is offered in every era, at a weight — so the
+       * usual anachronism split is unnecessary and a `sunshine` record can be
+       * dated 1965 or 2010 without the table objecting.
+       *
+       * The four styles `eightyfive` takes under `gated` — `stadium`,
+       * `newromantic`, `hinrg`, `jangle` — are deliberately absent, so the two
+       * pop stations never produce the same record.
+       */
+      {
+        genre: 'pop',
+        styles: [
+          'girlgroup', 'merseybeat', 'brill', 'bubblegum', 'sunshine', 'softrock',
+          'discopop', 'powerpop', 'citypop', 'dancepop', 'europop', 'teen', 'electropop',
+        ],
+        eras: ['twotrack', 'multitrack', 'sidechain'],
+        moods: ['single', 'summer', 'floor', 'heartbreak'],
+        weight: 4,
+      },
+      /**
+       * Only the styles both eras carry. `soul` and `philly` disagree about
+       * half the catalogue in opposite directions — `doowop` is 6 in 1965 and 0
+       * in 1974, `discosoul` is 0 and 8 — so the shared spine is what makes one
+       * source legal, and the two dates argue about the production instead.
+       */
+      {
+        genre: 'rnb',
+        styles: ['motown', 'stax', 'girlgroup', 'crossover', 'gospelsoul', 'funksoul', 'ballad'],
+        eras: ['soul', 'philly'],
+        moods: ['shout', 'sweet'],
+        weight: 3,
+      },
+      /**
+       * 1965, and the only era of the genre that belongs on a singles station.
+       * `overdrive` takes `hard` and `alt`; `eightyfive` takes `arena`. The
+       * beat era is the one where a rock record *was* a 45 with a chorus, and
+       * `rock/beat` zeroes thirteen of its twenty-four styles to say so.
+       */
+      {
+        genre: 'rock',
+        styles: ['beat', 'garage', 'surf', 'bluesrock'],
+        eras: ['beat'],
+        moods: ['bright', 'swagger', 'raw'],
+        weight: 2,
+      },
+      {
+        genre: 'funk',
+        styles: ['jbshuffle', 'vamp', 'horns', 'memphis', 'deepfunk'],
+        eras: ['jb'],
+        moods: ['raw', 'strut'],
+        weight: 1,
+      },
+    ],
+  },
+  {
+    /**
+     * Brass, hand percussion, and a floor that is outdoors.
+     *
+     * Four genres, and what they share is an *occasion* rather than a rhythm: a
+     * wedding, a street, a saint's day. `latin/salsa`, `reggae/ska`,
+     * `arabic/zaffa` and `indian/bhangra` disagree completely about where beat
+     * one is and agree completely about what the music is for, which is the
+     * mood-station shape the header describes — the lock is the room, and the
+     * genres are free to be as far apart as they like inside it.
+     *
+     * It is also the largest single repair to the dial's coverage. Latin,
+     * Arabic and Indian had never played on any station: three genres and 75
+     * styles reachable only as a 1-in-19 draw on `borderfm`, where the band is
+     * borrowed from somewhere else anyway.
+     *
+     * Every source here is split by era, because these tables refuse
+     * anachronism harder than most on the dial: `reggae/ska` weights all but
+     * three of its twenty-one styles at 0, and `latin/conjunto` zeroes
+     * `chachacha` and `timba` outright.
+     */
+    id: 'carnival',
+    name: 'Carnival',
+    hook: 'catchy',
+    seconds: [180, 300],
+    sung: 0.40,
+    sources: [
+      {
+        genre: 'latin',
+        styles: ['mambo', 'chachacha', 'guaracha', 'bolero', 'danzon', 'son', 'samba', 'plena'],
+        eras: ['orquesta'],
+        moods: ['sabroso', 'bravo', 'carnaval'],
+        weight: 2,
+      },
+      {
+        genre: 'latin',
+        styles: ['salsadura', 'cumbia', 'songo', 'merengue', 'timba', 'vallenato', 'partidoalto', 'bomba'],
+        eras: ['salsa', 'moderno'],
+        moods: ['sabroso', 'carnaval', 'rumbero', 'bravo'],
+        weight: 2,
+      },
+      /**
+       * The jump-up half of reggae, which is where `The Dancehall` went. That
+       * station was `--genre reggae` and came off the dial; its repertoire did
+       * not. The 1963 and 1967 records are here because a ska band is a horn
+       * section playing for a street; `lovers` and `rubadub` went to
+       * `lateshift`, and `ragga` and `slengteng` to `rewind`, each to the room
+       * where it means something.
+       */
+      {
+        genre: 'reggae',
+        styles: ['ska', 'mento', 'shuffle'],
+        eras: ['ska'],
+        moods: ['jump', 'easy', 'rough'],
+        weight: 1,
+      },
+      {
+        genre: 'reggae',
+        styles: ['rocksteady', 'skinhead', 'onedrop', 'bubble', 'horns'],
+        eras: ['rocksteady'],
+        moods: ['jump', 'sweet', 'easy'],
+        weight: 1,
+      },
+      {
+        genre: 'arabic',
+        styles: ['dabke', 'zaffa', 'saidi', 'baladi', 'malfuf', 'maqsum', 'khaleeji', 'fallahi'],
+        eras: ['firqa', 'shaabi', 'satellite'],
+        moods: ['farah', 'raqs', 'sahra'],
+        weight: 2,
+      },
+      {
+        genre: 'indian',
+        styles: ['bhangra', 'filmi', 'dhun', 'qawwali', 'ghazal', 'cabaret'],
+        eras: ['filmi', 'fusion'],
+        moods: ['utsav', 'shringara', 'vira'],
+        weight: 2,
+      },
+    ],
+  },
+  {
+    /**
+     * A fiddle, a modal tune, and a hard winter — Appalachia and Karelia, which
+     * turn out to be one station.
+     *
+     * The pairing is not a joke about latitude. These are the two genres here
+     * built on a solo voice and a fiddle playing dance music for people who
+     * worked outdoors, and their mood tables line up almost word for word:
+     * `lonesome` against `murheinen`, `hoedown` against `vauhdikas`, `sunday`
+     * against `harras`. Neither had ever been on the dial — country has 24
+     * styles and four eras and had never been drawn.
+     *
+     * Split three ways on the country side and two on the Finnish, because both
+     * tables date their repertoire hard: `country/stringband` zeroes ten styles
+     * including `truckdriving` and `outlaw`, and `finnfolk/runo` zeroes sixteen
+     * of twenty-four — a `polkka` in the rune-song era is not a rare record, it
+     * is a wrong one.
+     */
+    id: 'porch',
+    name: 'Porch',
+    hook: 'catchy',
+    seconds: [150, 260],
+    sung: 0.50,
+    sources: [
+      {
+        genre: 'country',
+        styles: ['breakdown', 'bluegrass', 'bluegrasswaltz', 'cowboy', 'murderballad', 'gospel', 'duet', 'cajun'],
+        eras: ['stringband'],
+        moods: ['lonesome', 'hardluck', 'hoedown', 'sunday'],
+        weight: 2,
+      },
+      {
+        genre: 'country',
+        styles: ['honkytonk', 'twostep', 'waltz', 'westernswing', 'trainsong', 'bakersfield', 'ballad', 'duet'],
+        eras: ['honkytonk', 'nashville'],
+        moods: ['barroom', 'heartbreak', 'lonesome', 'highway'],
+        weight: 2,
+      },
+      {
+        genre: 'country',
+        styles: ['outlaw', 'countryrock', 'truckdriving', 'newgrass', 'zydeco', 'ballad'],
+        eras: ['outlaw'],
+        moods: ['highway', 'hardluck', 'barroom'],
+        weight: 1,
+      },
+      {
+        genre: 'finnfolk',
+        styles: ['runolaulu', 'itkuvirsi', 'soitto', 'piirileikki', 'virsi', 'karjanhuuto'],
+        eras: ['runo'],
+        moods: ['arkainen', 'murheinen', 'harras'],
+        weight: 1,
+      },
+      {
+        genre: 'finnfolk',
+        styles: ['polska', 'polkka', 'sottiisi', 'katrilli', 'masurkka', 'haavalssi', 'menuetti', 'marssi', 'rekilaulu'],
+        eras: ['pelimanni', 'revival'],
+        moods: ['vauhdikas', 'pyoriva', 'juhlava', 'murheinen'],
+        weight: 2,
+      },
+      /**
+       * The living end of the tradition, and it belongs on this station rather
+       * than sounding like an exception to it. `contemporary` weights
+       * `sahkopelimanni` and `karjalanlaulu` at 8 — an amplified fiddle band is
+       * still a fiddle band, and the tunes are the ones in the entry above with
+       * better microphones on them.
+       */
+      {
+        genre: 'finnfolk',
+        styles: ['sahkopelimanni', 'karjalanlaulu', 'poljento', 'konserttikantele', 'polska', 'hidasvalssi'],
+        eras: ['contemporary'],
+        moods: ['vauhdikas', 'murheinen', 'jykeva'],
+        weight: 1,
+      },
+    ],
+  },
+  {
+    /**
+     * Hands moving fast, in public, to show you can.
+     *
+     * A Bach toccata, a bebop head and a Hindustani `jhala` are the same event
+     * in three traditions: the player demonstrating what the hands can do,
+     * inside a form the audience already knows well enough to be impressed by
+     * the liberties. That is a mood, and it is one no table in `genre/` names.
+     *
+     * Nothing else on the dial is bright *and* fast. `longwave` takes
+     * classical's slow corner — `nocturne`, `adagio`, `berceuse` — and
+     * `nightjazz` takes jazz's smoky one, so the virtuoso half of both genres
+     * had nowhere to be played. This is that half, and the third genre is what
+     * turns the pairing from a compromise into an argument.
+     *
+     * It is also where the eighteenth century arrives. `classical/baroque` and
+     * `classical/classical` had never been drawn on any station, and neither
+     * had `indian/hindustani` or `indian/carnatic` — four eras holding most of
+     * the notated music in the catalogue.
+     */
+    id: 'cadenza',
+    name: 'Cadenza',
+    hook: 'standard',
+    seconds: [180, 300],
+    sources: [
+      {
+        genre: 'classical',
+        styles: ['fugue', 'toccata', 'gigue', 'passacaglia', 'chaconne', 'overture', 'gavotte', 'sarabande'],
+        eras: ['baroque'],
+        moods: ['brillante', 'giocoso', 'maestoso'],
+        weight: 2,
+      },
+      /**
+       * Split from the entry above rather than listed with it, and the table is
+       * unusually blunt about why: `classical/baroque` weights `sonata`,
+       * `scherzo` and `etude` at 0, and `classical/classical` does the same to
+       * `prelude` and `barcarolle`. One source spanning both eras would offer
+       * every pairing at equal odds and print a sonata dated 1720.
+       */
+      {
+        genre: 'classical',
+        styles: ['sonata', 'rondo', 'scherzo', 'etude', 'minuet', 'overture', 'march'],
+        eras: ['classical'],
+        moods: ['brillante', 'giocoso', 'agitato'],
+        weight: 2,
+      },
+      /**
+       * `bop` alone, and `swingera` deliberately not. Bebop in 1938 is the same
+       * wrong date the entry above avoids — and `nightjazz` already holds
+       * `swingera` for the ballads, so the two jazz stations divide the genre
+       * by temperament rather than competing for it.
+       */
+      {
+        genre: 'jazz',
+        styles: ['bebop', 'gypsy', 'odd', 'blues'],
+        eras: ['bop'],
+        moods: ['hot', 'restless', 'swinging'],
+        weight: 2,
+      },
+      /**
+       * The display forms of both traditions in one source, because unlike the
+       * classical entries above, `hindustani` and `carnatic` zero nothing —
+       * they weight. A `varnam` under a Hindustani production is unusual rather
+       * than impossible, and the table is content to let it happen rarely.
+       */
+      {
+        genre: 'indian',
+        styles: ['jhala', 'jor', 'tarana', 'gat', 'tanam', 'varnam', 'tillana', 'jugalbandi'],
+        eras: ['hindustani', 'carnatic'],
+        moods: ['vira', 'utsav', 'shanta'],
+        weight: 2,
+      },
+    ],
+  },
   {
     /**
      * The decade as a production, which is the one thing an era table is for.
@@ -226,60 +564,6 @@ export const STATIONS: readonly [Station, ...Station[]] = [
     ],
   },
   {
-    id: 'nightjazz',
-    name: 'Night Jazz',
-    hook: 'loose',
-    seconds: [200, 330],
-    sources: [{
-      genre: 'jazz',
-      styles: ['ballad', 'trio', 'bossa', 'modal', 'swing'],
-      eras: ['swingera', 'bop', 'modern'],
-      moods: ['smoky', 'cool', 'dreamy', 'bluesy'],
-    }],
-  },
-  {
-    /**
-     * The one that is meant to be left on for hours, and the reason `seconds`
-     * exists on a `Station` at all: three to five minutes is a record, and this
-     * station is not playing records.
-     */
-    id: 'longwave',
-    name: 'Long Wave',
-    hook: 'loose',
-    seconds: [300, 480],
-    sources: [
-      { genre: 'ambient', moods: ['warm', 'weightless', 'submerged', 'sacred'], weight: 3 },
-      {
-        genre: 'synth',
-        styles: ['cinematic', 'stalker', 'cosmic'],
-        moods: ['cosmos', 'neutral'],
-        weight: 2,
-      },
-      /**
-       * `darksynth` is on a station about long, slow, wide records, and it is
-       * the fastest style in its genre. It is here because this station's other
-       * synth entry is `cinematic` and `stalker` — the film-score half — and the
-       * modern horror-synth records are the same repertoire made thirty years
-       * later by people who say so on the sleeve. Its own weight is 1 against
-       * that entry's 2, and `dread` is the only mood it is offered under, so it
-       * arrives as the one number that wakes the listener up.
-       */
-      {
-        genre: 'synth',
-        styles: ['darksynth'],
-        eras: ['retrowave'],
-        moods: ['dread'],
-        weight: 1,
-      },
-      {
-        genre: 'classical',
-        styles: ['nocturne', 'adagio', 'berceuse', 'prelude', 'barcarolle'],
-        eras: ['romantic', 'impressionist'],
-        moods: ['tranquillo', 'misterioso', 'cantabile'],
-      },
-    ],
-  },
-  {
     id: 'neon',
     name: 'Neon',
     hook: 'standard',
@@ -356,8 +640,8 @@ export const STATIONS: readonly [Station, ...Station[]] = [
      * two. Neurofunk is better served as a dark corner of `neon`, which
      * already owns `machine`, `dubtechno` and `dread`.
      */
-    id: 'pirate',
-    name: 'Pirate',
+    id: 'rewind',
+    name: 'Rewind',
     /**
      * `loose`, and it is the only setting that fits. A jungle record's hook is
      * a bassline and an edit; asking the hook table for a chorus you recognise
@@ -398,36 +682,177 @@ export const STATIONS: readonly [Station, ...Station[]] = [
         moods: ['submerged', 'bleak', 'weightless'],
         weight: 1,
       },
+      /**
+       * 1992, the year before the rest of the station, as its own entry because
+       * `dnb/rave` zeroes thirteen styles — every one of the names above except
+       * `jungle`. What it does weight is `hardcore` at 9 and `darkcore` at 8,
+       * which is the music the `dubplate` records were made *out of*, a year
+       * earlier and half a step slower.
+       */
+      {
+        genre: 'dnb',
+        styles: ['hardcore', 'darkcore', 'bleep', 'jungle'],
+        eras: ['rave'],
+        moods: ['roughneck', 'darkside'],
+        weight: 1,
+      },
+      /**
+       * The lineage, stated rather than implied. `dnb/dubplate` weights `ragga`
+       * at 9 and the style is named for what it samples: Jamaican vocals over
+       * chopped breaks. Putting `reggae/digital` on the same station is not a
+       * cross-genre gesture, it is the source material sitting next to the
+       * record that used it — `slengteng` is a 1985 riddim and half of jungle
+       * is built on it.
+       */
+      {
+        genre: 'reggae',
+        styles: ['ragga', 'slengteng', 'dancehall', 'dub', 'rubadub'],
+        eras: ['digital'],
+        moods: ['rough', 'jump', 'echo'],
+        weight: 1,
+      },
     ],
   },
   {
-    id: 'heavyrotation',
-    name: 'Heavy Rotation',
-    hook: 'earworm',
-    seconds: [150, 210],
-    sung: 0.40,
-    sources: [{
-      genre: 'pop',
-      styles: [
-        'girlgroup', 'powerpop', 'synthpop', 'dancepop', 'europop', 'teen',
-        'discopop', 'bubblegum', 'citypop',
-      ],
-      eras: ['multitrack', 'gated', 'sidechain'],
-      moods: ['single', 'summer', 'floor', 'heartbreak'],
-    }],
+    /**
+     * Distortion as a design decision.
+     *
+     * The lock is timbre rather than tempo — a sound station, like `neon` — and
+     * the three genres on it disagree about speed by a factor of two without
+     * the promise slipping. What a `thrash` guitar, a 1972 Marshall and a
+     * `neurofunk` reece bass have in common is an engineer deliberately
+     * ruining a signal and then spending a week tuning the ruin.
+     *
+     * ## Where neurofunk lives
+     *
+     * `rewind` above plays `dubplate` — chopped amen, ragga vocals, 1995 — and
+     * the era tables put `neurofunk` at 2 there against 9 in `studio`, with the
+     * moods inverting alongside: `wheelup` and `roughneck` on that station,
+     * `darkside` and `deepend` on this one. So the genre's two halves sit on
+     * two stations, and this is the one that shares its temperament, next to
+     * `crushing` and `cold` rather than next to a party.
+     *
+     * Five sources for three genres, and the splits are all dates. `metal/heavy`
+     * zeroes twelve styles including `thrash` and `death`; `rock/hard` zeroes
+     * `grunge` and `alt`. A single wide source would have printed a death metal
+     * record dated 1972.
+     */
+    id: 'overdrive',
+    name: 'Overdrive',
+    hook: 'loose',
+    seconds: [200, 330],
+    sources: [
+      {
+        genre: 'metal',
+        styles: ['thrash', 'speed', 'crossover', 'groove', 'death', 'industrial', 'progressive'],
+        eras: ['thrash'],
+        moods: ['crushing', 'savage', 'technical'],
+        weight: 2,
+      },
+      {
+        genre: 'metal',
+        styles: ['death', 'black', 'melodeath', 'techdeath', 'symphonic', 'gothic', 'postmetal', 'sludge'],
+        eras: ['extreme'],
+        moods: ['crushing', 'savage', 'cold'],
+        weight: 2,
+      },
+      {
+        genre: 'metal',
+        styles: ['heavy', 'doom', 'stoner', 'progressive'],
+        eras: ['heavy'],
+        moods: ['crushing', 'epic', 'swagger'],
+        weight: 1,
+      },
+      {
+        genre: 'rock',
+        styles: ['hard', 'riff', 'bluesrock', 'boogie', 'glam', 'prog', 'southern', 'psych', 'motorik'],
+        eras: ['hard'],
+        moods: ['heavy', 'raw', 'swagger'],
+        weight: 2,
+      },
+      {
+        genre: 'rock',
+        styles: ['grunge', 'alt', 'indie', 'shoegaze', 'stoner', 'math', 'punk'],
+        eras: ['alt'],
+        moods: ['heavy', 'raw', 'hazy'],
+        weight: 1,
+      },
+      {
+        genre: 'dnb',
+        styles: ['neurofunk', 'techstep', 'rollers', 'halftime', 'drumfunk', 'minimal'],
+        eras: ['studio', 'design'],
+        moods: ['darkside', 'deepend', 'roughneck'],
+        weight: 2,
+      },
+    ],
   },
   {
-    id: 'dancehall',
-    name: 'The Dancehall',
-    hook: 'catchy',
-    sources: [{
-      genre: 'reggae',
-      styles: ['rocksteady', 'onedrop', 'rockers', 'steppers', 'roots', 'dub', 'lovers', 'rubadub', 'slengteng', 'dancehall'],
-      eras: ['rocksteady', 'roots', 'digital'],
-      moods: ['conscious', 'sweet', 'easy', 'echo', 'jump'],
-    }],
+    /**
+     * A late bar, and the Latin entries are what make it a bar rather than a
+     * jazz filter.
+     *
+     * `bossa` was already here, which is the tell: the station had one foot in
+     * this repertoire and was calling it jazz. A `bolero` and a `danzón` are
+     * the same hour of the same night played by the band that was booked
+     * instead — slow, sung, and for couples — and `latin/conjunto` weights
+     * `bolero` at 7 and `son` at 9 without needing a mood table to explain it.
+     *
+     * `carnival` takes the same genre's other half at three times the volume.
+     * Nothing overlaps: that station is `salsa` and `moderno`, this one is the
+     * two eras before them.
+     */
+    id: 'nightjazz',
+    name: 'Night Jazz',
+    hook: 'loose',
+    seconds: [200, 330],
+    sources: [
+      /**
+       * Split by era, and this fixes a fault the station had from the start.
+       * One source listing five styles across all three eras offered `bossa`
+       * and `modal` under `swingera`, and `jazz/eras.ts` weights both at 0 in
+       * 1938 — bossa nova is twenty years later and modal jazz is thirty. The
+       * station had been printing wrong dates on one record in seven.
+       */
+      {
+        genre: 'jazz',
+        styles: ['ballad', 'swing', 'blues', 'gypsy'],
+        eras: ['swingera'],
+        moods: ['smoky', 'bluesy', 'dreamy'],
+        weight: 1,
+      },
+      {
+        genre: 'jazz',
+        styles: ['ballad', 'trio', 'bossa', 'modal', 'swing'],
+        eras: ['bop', 'modern'],
+        moods: ['smoky', 'cool', 'dreamy', 'bluesy'],
+        weight: 3,
+      },
+      {
+        genre: 'latin',
+        styles: ['bolero', 'danzon', 'son', 'guajira'],
+        eras: ['conjunto'],
+        moods: ['romantico', 'campo'],
+        weight: 1,
+      },
+    ],
   },
   {
+    /**
+     * Sweet, slow, and after midnight — and the two new entries are where the
+     * "aren't reggae and funk both funky?" question comes out right.
+     *
+     * They are not. `reggae/index.ts` opens by saying that every other
+     * repertoire in this project states the downbeat and that this one tells
+     * the floor where beat one is *by refusing to play there*; funk is built on
+     * the One. On a station locked to rhythm they would be opposites. This
+     * station is locked to a mood, so the disagreement stops mattering and what
+     * is left is the thing they actually share — `lovers` and `slink` are the
+     * same hour as `quietstorm` and `lofi`, played by two bands who would argue
+     * about the drums.
+     *
+     * That is the general rule, in one entry: a station gets to be wide on
+     * every axis it did not lock.
+     */
     id: 'lateshift',
     name: 'Late Shift',
     hook: 'standard',
@@ -437,12 +862,80 @@ export const STATIONS: readonly [Station, ...Station[]] = [
         styles: ['lofi', 'jazzrap', 'boombap', 'soulloop', 'abstract'],
         eras: ['golden', 'modern'],
         moods: ['dusty', 'hazy'],
+        weight: 3,
       },
       {
         genre: 'rnb',
         styles: ['quietstorm', 'neosoul', 'slowjam', 'bedroom'],
         eras: ['newjack', 'neo'],
         moods: ['smoulder', 'ache', 'sweet'],
+        weight: 3,
+      },
+      {
+        genre: 'reggae',
+        styles: ['lovers', 'rubadub', 'onedrop', 'dub', 'roots'],
+        eras: ['roots', 'digital'],
+        moods: ['sweet', 'easy', 'echo'],
+        weight: 1,
+      },
+      {
+        genre: 'funk',
+        styles: ['ballad', 'jazzfunk', 'souljazz', 'clav', 'deepfunk'],
+        eras: ['pfunk', 'boogie'],
+        moods: ['slink', 'strut'],
+        weight: 1,
+      },
+    ],
+  },
+  {
+    /**
+     * The one that is meant to be left on for hours, and the reason `seconds`
+     * exists on a `Station` at all: three to five minutes is a record, and this
+     * station is not playing records.
+     */
+    id: 'longwave',
+    name: 'Long Wave',
+    hook: 'loose',
+    seconds: [300, 480],
+    sources: [
+      { genre: 'ambient', moods: ['warm', 'weightless', 'submerged', 'sacred'], weight: 3 },
+      {
+        genre: 'synth',
+        styles: ['cinematic', 'stalker', 'cosmic'],
+        moods: ['cosmos', 'neutral'],
+        weight: 2,
+      },
+      /**
+       * `darksynth` is on a station about long, slow, wide records, and it is
+       * the fastest style in its genre. It is here because this station's other
+       * synth entry is `cinematic` and `stalker` — the film-score half — and the
+       * modern horror-synth records are the same repertoire made thirty years
+       * later by people who say so on the sleeve. Its own weight is 1 against
+       * that entry's 2, and `dread` is the only mood it is offered under, so it
+       * arrives as the one number that wakes the listener up.
+       *
+       * `overdrive` is the other station with a distorted guitar on it and this
+       * is not a candidate for it: the lock there is an engineer ruining a
+       * signal on purpose, and this is a film composer quoting one.
+       */
+      {
+        genre: 'synth',
+        styles: ['darksynth'],
+        eras: ['retrowave'],
+        moods: ['dread'],
+        weight: 1,
+      },
+      /**
+       * The slow corner of the genre, and the boundary with `cadenza` is the
+       * era rather than the taste: this takes `romantic` and `impressionist`,
+       * that one takes `baroque` and `classical`. Between them the genre is
+       * played whole for the first time.
+       */
+      {
+        genre: 'classical',
+        styles: ['nocturne', 'adagio', 'berceuse', 'prelude', 'barcarolle'],
+        eras: ['romantic', 'impressionist'],
+        moods: ['tranquillo', 'misterioso', 'cantabile'],
       },
     ],
   },
@@ -469,15 +962,27 @@ export function getStation(id: string): Station | undefined {
 /**
  * What a station contains, in genre labels, for the line under its name.
  *
- * Derived rather than written, so it cannot disagree with the table above. A
- * station drawing from more than three genres is counted instead of named,
- * because naming six of them would be a paragraph in a card 8.5 rem wide.
+ * Derived rather than written, so it cannot disagree with the table above.
  *
- * The count is the *station's* and not the catalogue's, which it was not
- * always. This used to answer `all 19 genres` to anything above three, on the
- * assumption that only `borderfm` would ever be above three; `eightyfive`
- * draws six and would have announced nineteen. "All" is now a claim the
- * function only makes when it is true.
+ * ## Every genre is named, however many there are
+ *
+ * There is no width limit here and there should not be, because the page
+ * already solved this: `fitStationLabels` in `radio.ts` measures each line
+ * against its card and slides the ones that overflow, at a duration computed
+ * from how far over they are — *"a reading speed rather than a fixed
+ * duration"*. A six-genre station is a longer slide, not a different kind of
+ * problem.
+ *
+ * Two earlier answers were worse. `all 19 genres` above three genres was
+ * simply false for anything but `borderfm`. Replacing it with a count —
+ * `6 genres` — was true and useless: a listener choosing a station wants to
+ * know it has metal on it, and the number is the one fact about the contents
+ * that answers nothing.
+ *
+ * `borderfm` keeps the summary, and only `borderfm`: nineteen labels is 180
+ * characters and about ninety seconds of sliding, which is not a label any
+ * more. Naming them would also tell the listener nothing the station's own
+ * name does not.
  */
 export function sourceLabel(station: Station): string {
   /**
@@ -491,7 +996,6 @@ export function sourceLabel(station: Station): string {
    */
   const genres = [...new Set(station.sources.map((s) => s.genre))];
   if (genres.length === GENRE_IDS.length) return `all ${GENRE_IDS.length} genres`;
-  if (genres.length > 3) return `${genres.length} genres`;
   return genres.map((id) => getGenre(id).label).join(' · ');
 }
 

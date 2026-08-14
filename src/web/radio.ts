@@ -1,7 +1,7 @@
 /**
  * SPDX-License-Identifier: AGPL-3.0-or-later
  *
- * The listener's page. Eight stations, three buttons, everything else behind a
+ * The listener's page. Twelve stations, three buttons, everything else behind a
  * key.
  *
  * `web/main.ts` is the other half of this pair and the two are aimed at
@@ -768,7 +768,21 @@ function fitStationLabels(): void {
     if (!inner) return;
     span.classList.remove('scroll');
     const over = Math.ceil(inner.scrollWidth - span.clientWidth);
-    if (over <= 1) return;
+    /**
+     * A floor rather than "anything that overflows at all", because a label
+     * one character over is worse animated than clipped.
+     *
+     * `1` was right when `Ambient · Synth · Classical` was the only line that
+     * overflowed, at 23 px. Now that every station names its genres rather than
+     * counting them, two of the twelve came within 6 and 7 px of fitting — and
+     * at `.67rem` a character is about five, so those slid one letter back and
+     * forth for seven seconds a cycle. That reads as a wobble, not a reveal.
+     *
+     * The panel is now wide enough that both of them fit outright (see the
+     * width sweep in `radio.html`), so this is insurance rather than a fix: the
+     * next station added will land wherever it lands.
+     */
+    if (over < 12) return;
     span.style.setProperty('--shift', `${-over}px`);
     // A reading speed rather than a fixed duration, so a label twice as long
     // over takes about twice as long to cross.

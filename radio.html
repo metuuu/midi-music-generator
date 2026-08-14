@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Radio</title>
-    <meta name="description" content="Nine stations of generated music, written in the browser as it plays." />
+    <meta name="description" content="Twelve stations of generated music, written in the browser as it plays." />
     <meta name="color-scheme" content="dark" />
     <meta name="theme-color" content="#0d0b0a" />
     <link rel="canonical" href="https://midi.poppodi.click/radio" />
@@ -16,7 +16,7 @@
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Radio" />
     <meta property="og:title" content="Radio" />
-    <meta property="og:description" content="Nine stations of generated music, written in the browser as it plays." />
+    <meta property="og:description" content="Twelve stations of generated music, written in the browser as it plays." />
     <meta property="og:url" content="https://midi.poppodi.click/radio" />
     <meta property="og:image" content="https://midi.poppodi.click/og.png" />
     <meta property="og:image:width" content="1200" />
@@ -386,9 +386,37 @@
          it used to — the only difference is that it no longer takes part in the
          layout. A bordered box floating over the page read as a dialog, which
          is not what this is. */
+      /* Four columns, so twelve stations are 4 × 3. `.grid` auto-fits at
+         `minmax(8.5rem, 1fr)` with a `.4rem` gap, so anything from 35.2rem
+         (four cards at their minimum) up to 44rem holds exactly four.
+
+         37rem inside that range, and both ends of the range are wrong for the
+         same reason — a label that overflows by less than `fitStationLabels`'s
+         12 px threshold clips without sliding, which is the worst of both. The
+         widths were swept rather than reasoned about:
+
+           35.2rem  card 136  "Pop · R&B · Rock · Funk" clips 7 px, Cadenza 6
+           36rem    card 139  the same two, 4 px and 3
+           37rem    card 143  nothing clips  ← this one
+           38rem    card 147  nothing clips
+           40rem    card 155  "Ambient · Synth · Classical" clips 4 px
+           42rem    card 163  Overdrive and Late Shift clip 10 px each
+
+         Note 40rem, which is what this panel was before the dial grew: widening
+         is not monotonically safer, because every card width puts some label
+         just barely over. 37rem is the narrowest clean one, and it keeps the
+         card at the 143 px it already had.
+
+         Fitting the six-genre labels outright would need a 244 px card and a
+         46rem panel. Those stay on the marquee, which is what it is for.
+
+         Three rows here; the phone sheet below is its own media query and is
+         unaffected — still two columns and six rows, and it does not scroll to
+         hold them (measured at 375 × 812 it comes to 392 px against the 72svh
+         it is allowed). The `overflow-y: auto` there stays as insurance. */
       .stations-wrap {
         position: absolute; top: 1.25rem; left: 50%;
-        width: 40rem; max-width: calc(100vw - 2.5rem);
+        width: 37rem; max-width: calc(100vw - 2.5rem);
         transform: translateX(-50%) translateY(-.4rem);
         opacity: 0; visibility: hidden;
         transition: opacity .25s ease, transform .25s ease, visibility 0s linear .25s;
