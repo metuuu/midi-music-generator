@@ -20,7 +20,7 @@
     "concert": "tsx src/concert-check.ts",
     "chaos": "tsx src/chaos-check.ts",
     "stage": "tsx src/stage-check.ts",
-    "verify": "npm run typecheck && npm run rules:check && npm run genres && npm run check && npm run concert && npm run chaos && npm run stage && npm run audit 40 && npm run ensemble 40",
+    "verify": "tsx src/verify.ts",
     "ensemble": "tsx src/ensemble-report.ts",
     "score": "tsx src/score.ts",
     "tune": "tsx src/tune-lab.ts"

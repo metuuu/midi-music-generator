@@ -224,15 +224,47 @@ const probeLine = (args: {
 }).notes;
 
 // --- Every style, both modes, must generate ------------------------------
+/**
+ * The catalogue corpus: every style, both modes, six seeds each, with the eras
+ * dealt across them.
+ *
+ * The smoke check only asks whether a song came out, so this used to throw all
+ * 4,668 of them away — while the drum-bank sweep 3,000 lines below wrote its own
+ * 4,400 over the same catalogue to read one field off each. That is a minute and
+ * a half of the run spent generating the same music twice, and the corpus is
+ * kept here instead. `SOUNDED` is the harvest: the kit voices a genre actually
+ * plays, which is the half of `emitted` that has to come from real songs.
+ *
+ * **The era is dealt rather than drawn**, and that is what makes the corpus
+ * enough for both. The bank sweep asked for every era of every style, three
+ * seeds each; twelve seeds dealt round the eras give three per pair at four eras
+ * — the most any genre has — and more at three or two, so no (style, era) pair
+ * covered before is covered less now. Pinning it costs nothing elsewhere:
+ * `generateSong` draws every choice before it reads the option that overrides
+ * it, so a named era consumes the same random numbers as an unnamed one and the
+ * songs of every other check are untouched.
+ *
+ * Nothing is *stored* — 4,668 songs is a lot of arrangement to hold to reach one
+ * set of voice names — so a check that wants the songs themselves still has to
+ * write its own.
+ */
 console.log('\nSmoke: every style in every mode');
+const SOUNDED = new Map<string, Set<DrumVoice>>();
 let ok = 0;
 for (const gid of GENRE_IDS) {
   const genre = getGenre(gid);
+  const eras = Object.keys(genre.eras);
+  const sounded = new Set<DrumVoice>();
+  SOUNDED.set(gid, sounded);
   for (const sid of Object.keys(genre.styles)) {
-    for (const mode of ['major', 'minor'] as const) {
+    for (const [m, mode] of (['major', 'minor'] as const).entries()) {
       for (let i = 0; i < 6; i++) {
         try {
-          generateSong({ seed: `${gid}-${sid}-${mode}-${i}`, genre: gid, style: sid, mode });
+          const era = eras[(m * 6 + i) % eras.length];
+          const song = generateSong({
+            seed: `${gid}-${sid}-${mode}-${i}`, genre: gid, style: sid, mode, ...(era ? { era } : {}),
+          });
+          for (const e of song.drums.events) sounded.add(e.voice);
           ok++;
         } catch (e) {
           problems.push(`${gid}/${sid}/${mode}`);
@@ -1062,31 +1094,35 @@ const levelByBar = (events: readonly Timed[], beatsPerBar: number) => {
    * The assertion is on the kit alone. The band around the box still leans; a
    * bass player does not stop playing in the pocket because the drummer is a
    * machine, and it is the machine that cannot lean.
+   *
+   * The probe is under the guard, because `song.drums.source !== 'box'` skips
+   * every seed with the machines off — one feel table's worth of songs written
+   * per feel, and not one of them reaching the comparison.
    */
-  const style = getGenre('iskelma').styles.foksi!;
-  const table = style.feels;
-  let boxed = 0; let moved = 0; let felt = 0;
-  for (const id of Object.keys(FEELS) as FeelId[]) {
-    style.feels = [[id, 1]];
-    for (let i = 0; i < 60; i++) {
-      const song = generateSong({ seed: `bx-${i}`, genre: 'iskelma', style: 'foksi' });
-      if (song.drums.source !== 'box') continue;
-      style.feels = undefined;
-      const plain = generateSong({ seed: `bx-${i}`, genre: 'iskelma', style: 'foksi' });
-      style.feels = [[id, 1]];
-      boxed++;
-      if (id !== 'straight') felt++;
-      const a = song.drums.events; const b = plain.drums.events;
-      if (a.length !== b.length) { moved += Math.abs(a.length - b.length); continue; }
-      for (let k = 0; k < a.length; k++) {
-        if (Math.abs(a[k]!.beat - b[k]!.beat) > 1e-9 || a[k]!.voice !== b[k]!.voice
-          || Math.abs(a[k]!.velocity - b[k]!.velocity) > 1e-9) moved++;
-      }
-    }
-  }
-  style.feels = table;
   if (!DRUM_MACHINES) off('a box does not groove', NO_BOXES);
   else {
+    const style = getGenre('iskelma').styles.foksi!;
+    const table = style.feels;
+    let boxed = 0; let moved = 0; let felt = 0;
+    for (const id of Object.keys(FEELS) as FeelId[]) {
+      style.feels = [[id, 1]];
+      for (let i = 0; i < 60; i++) {
+        const song = generateSong({ seed: `bx-${i}`, genre: 'iskelma', style: 'foksi' });
+        if (song.drums.source !== 'box') continue;
+        style.feels = undefined;
+        const plain = generateSong({ seed: `bx-${i}`, genre: 'iskelma', style: 'foksi' });
+        style.feels = [[id, 1]];
+        boxed++;
+        if (id !== 'straight') felt++;
+        const a = song.drums.events; const b = plain.drums.events;
+        if (a.length !== b.length) { moved += Math.abs(a.length - b.length); continue; }
+        for (let k = 0; k < a.length; k++) {
+          if (Math.abs(a[k]!.beat - b[k]!.beat) > 1e-9 || a[k]!.voice !== b[k]!.voice
+            || Math.abs(a[k]!.velocity - b[k]!.velocity) > 1e-9) moved++;
+        }
+      }
+    }
+    style.feels = table;
     check(
       'a box does not groove',
       moved === 0 && felt > 0,
@@ -2634,28 +2670,32 @@ console.log("\nThe drummer's hand");
    * line. A preset box plays one pattern per button: the *set* of voices it
    * sounds is the same in every section, and a hand that varied would put a
    * ride or an open hat into one of them and nothing into the others.
+   *
+   * The sweep sits under the guard because with the machines off it can only
+   * ever count to nothing: `boxes` is incremented for songs no draw can produce,
+   * so 760 songs were written to be skipped by the line below them.
    */
-  let boxes = 0; let varying = 0;
-  for (const gid of GENRE_IDS) {
-    for (let i = 0; i < 40; i++) {
-      const song = generateSong({ seed: `box-${gid}-${i}`, genre: gid });
-      // `canVary` and not "is it a machine": a programmed box and a set of
-      // electronic pads are both machines and both have somebody deciding what
-      // they do bar to bar. Exactly one source has a start button.
-      if (canVary(song.drums.source ?? 'kit') || !song.drums.events.length) continue;
-      boxes++;
-      const bpb = song.meta.beatsPerBar;
-      const sets = song.sections.map((sec) => {
-        const from = sec.startBar * bpb;
-        const to = from + sec.lengthBars * bpb;
-        return [...new Set(song.drums.events
-          .filter((e) => e.beat >= from && e.beat < to).map((e) => e.voice))].sort().join(',');
-      }).filter((s) => s.length);
-      if (new Set(sets).size > 1) varying++;
-    }
-  }
   if (!DRUM_MACHINES) off('a box keeps one hand on one button', NO_BOXES);
   else {
+    let boxes = 0; let varying = 0;
+    for (const gid of GENRE_IDS) {
+      for (let i = 0; i < 40; i++) {
+        const song = generateSong({ seed: `box-${gid}-${i}`, genre: gid });
+        // `canVary` and not "is it a machine": a programmed box and a set of
+        // electronic pads are both machines and both have somebody deciding what
+        // they do bar to bar. Exactly one source has a start button.
+        if (canVary(song.drums.source ?? 'kit') || !song.drums.events.length) continue;
+        boxes++;
+        const bpb = song.meta.beatsPerBar;
+        const sets = song.sections.map((sec) => {
+          const from = sec.startBar * bpb;
+          const to = from + sec.lengthBars * bpb;
+          return [...new Set(song.drums.events
+            .filter((e) => e.beat >= from && e.beat < to).map((e) => e.voice))].sort().join(',');
+        }).filter((s) => s.length);
+        if (new Set(sets).size > 1) varying++;
+      }
+    }
     check(
       'a box keeps one hand on one button',
       varying === 0 && boxes > 0,
@@ -2707,22 +2747,6 @@ console.log("\nThe drummer's hand");
    * catalogue it proves the mechanism is alive *somewhere*, which is the half
    * that stops this being green in a world where the field was quietly dropped.
    */
-  let rolled = 0; let byHand = 0; let handSongs = 0; let rollingStyles = 0;
-  for (const gid of GENRE_IDS) {
-    for (const sid of Object.keys(getGenre(gid).styles)) {
-      let here = 0;
-      for (let i = 0; i < 4; i++) {
-        const song = generateSong({ seed: `roll-${gid}-${sid}-${i}`, genre: gid, style: sid });
-        const rolls = song.drums.events.filter((e) => (e.roll ?? 1) > 1).length;
-        rolled += rolls; here += rolls;
-        if (isPlayedByHand(song.drums.source ?? 'kit')) {
-          handSongs++;
-          byHand += rolls;
-        }
-      }
-      if (here > 0) rollingStyles++;
-    }
-  }
   /**
    * Off with the boxes, because a roll is only ever written for one of them.
    *
@@ -2734,9 +2758,31 @@ console.log("\nThe drummer's hand");
    * loosened: the assertion is worth keeping whole for the day a hand-played
    * source can roll, and a green tick now would be the thing that quietly
    * retires it.
+   *
+   * The guard is above the sweep rather than beside the `check`, and that is the
+   * only reason to touch this: the corpus is 1,556 songs and thirty seconds, and
+   * every one of them was being written to be counted by an assertion that had
+   * already declined to make a claim. Nothing about the check moves — with the
+   * machines on, the loop below runs exactly as it did.
    */
   if (!DRUM_MACHINES) off('no hand is asked to play a roll', 'no roll is written — DRUM_MACHINES is off');
   else {
+    let rolled = 0; let byHand = 0; let handSongs = 0; let rollingStyles = 0;
+    for (const gid of GENRE_IDS) {
+      for (const sid of Object.keys(getGenre(gid).styles)) {
+        let here = 0;
+        for (let i = 0; i < 4; i++) {
+          const song = generateSong({ seed: `roll-${gid}-${sid}-${i}`, genre: gid, style: sid });
+          const rolls = song.drums.events.filter((e) => (e.roll ?? 1) > 1).length;
+          rolled += rolls; here += rolls;
+          if (isPlayedByHand(song.drums.source ?? 'kit')) {
+            handSongs++;
+            byHand += rolls;
+          }
+        }
+        if (here > 0) rollingStyles++;
+      }
+    }
     check(
       'no hand is asked to play a roll',
       byHand === 0 && rolled > 0,
@@ -3267,22 +3313,19 @@ console.log('\nDrum banks');
    * a ghost is the least likely stroke in the pattern to turn up in three
    * generated songs, since it is also the first thing a fill clears and a box
    * drops it entirely.
+   *
+   * The generated half is `SOUNDED`, harvested off the smoke corpus at the top of
+   * this file rather than written again here — same catalogue, same eras, and at
+   * least as many songs per (style, era) pair as the sweep that used to live in
+   * this function. See the note there for why the era is dealt rather than drawn.
    */
   const emitted = (gid: string): Set<DrumVoice> => {
     const genre = getGenre(gid);
-    const voices = new Set<DrumVoice>();
+    const voices = new Set<DrumVoice>(SOUNDED.get(gid));
     for (const style of Object.values(genre.styles)) {
       for (const pattern of style.drums) {
         for (const voice of Object.keys(pattern.voices) as DrumVoice[]) voices.add(voice);
         for (const voice of Object.keys(pattern.ghosts ?? {}) as DrumVoice[]) voices.add(voice);
-      }
-    }
-    for (const era of Object.keys(genre.eras)) {
-      for (const sid of Object.keys(genre.styles)) {
-        for (let i = 0; i < 3; i++) {
-          const song = generateSong({ seed: `bank-${gid}-${era}-${sid}-${i}`, genre: gid, era, style: sid });
-          for (const e of song.drums.events) voices.add(e.voice);
-        }
       }
     }
     return voices;
