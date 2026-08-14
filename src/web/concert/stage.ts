@@ -106,11 +106,11 @@ import {
   blend, cellPlane, shade, tint,
   Kit, type Quality, type StageMetrics,
 } from './stage-kit.js';
-import { dressStage, readProps, type PropRig } from './stage-props.js';
+import { dressStage, readProps, type PropRig, type PropSolid } from './stage-props.js';
 
 export { SUPPORTED_PROPS } from './stage-props.js';
 export { normaliseProp, unknownProps } from './stage-props.js';
-export type { PropName } from './stage-props.js';
+export type { PropName, PropSolid } from './stage-props.js';
 export type { Quality, StageMetrics } from './stage-kit.js';
 
 /**
@@ -183,7 +183,15 @@ export interface StageRig {
   /** Dimensions worked out from the venue; the camera and tomatoes want these. */
   metrics: StageMetrics;
   /** Props recognised and placed, and the strings that were ignored. */
-  dressing: { placed: readonly string[]; ignored: readonly string[] };
+  dressing: {
+    placed: readonly string[];
+    ignored: readonly string[];
+    /**
+     * Every solid piece of dressing, for anything that has to collide with
+     * the furniture. See `PropRig.solids`.
+     */
+    solids: readonly PropSolid[];
+  };
 
   /**
    * Where the curtain should be: 0 closed, 1 fully gathered.
@@ -712,7 +720,7 @@ export function buildStage(venue: Venue, opts: StageOptions = {}): StageRig {
     fog,
     flyBar: built.flyBar,
     metrics: m,
-    dressing: { placed: dressed.placed, ignored: dressed.ignored },
+    dressing: { placed: dressed.placed, ignored: dressed.ignored, solids: dressed.solids },
 
     setCurtain: (open) => curtain.setOpen(open),
     snapCurtain: (open) => curtain.snap(open),

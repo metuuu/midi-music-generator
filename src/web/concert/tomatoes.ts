@@ -332,6 +332,21 @@ const SPLAT_CAP = 24;
 /** Flight time bounds, seconds. Below the first it is a dart; above, a lob. */
 const MIN_FLIGHT_SECONDS = 0.3;
 const MAX_FLIGHT_SECONDS = 1.6;
+/**
+ * How high above the hand a level throw is allowed to arc, in metres.
+ *
+ * The real bound on a throw, and the one `MAX_FLIGHT_SECONDS` was standing in
+ * for badly: 1.6 s of hang is 3.5 m of arc, which from the back of the house
+ * put tomatoes over the PA stacks and down out of the lighting rig. See
+ * `solveLaunch` for the table.
+ *
+ * 1.2 m is chosen to be *seen* rather than to be small. The module note by
+ * `gravity` argues that an arc whose apex you can watch is what makes a throw
+ * legible rather than a bullet, and a metre of rise over a stage is plainly an
+ * arc; it is also under the top of a ground-stacked cabinet, so a throw across
+ * the room reads as going *at* the band rather than over them.
+ */
+const APEX_CEILING = 1.2;
 /** Give up on a tomato that has hit nothing. */
 const LIFETIME = 6;
 /** Physics substep. A tomato covers 8cm in one, and a head is 30cm across. */
@@ -843,17 +858,46 @@ export function createTomatoes(scene: Object3D, opts: TomatoOptions = {}): Tomat
    *
    * Flight time comes from the horizontal distance and a fixed launch speed, so
    * a near throw is quick and a far one hangs; then the vertical component is
-   * whatever makes the arithmetic land. The whole solve is three lines because
+   * whatever makes the arithmetic land. The whole solve is four lines because
    * there is no drag: a 55mm tomato over ten metres loses about a centimetre to
    * air, which is a tenth of the aim scatter and would cost the exactness that
    * makes "it lands where you aimed" testable.
+   *
+   * ## Why the flight time is capped rather than the speed
+   *
+   * A fixed launch speed means the whole of a longer throw is paid for in
+   * *hang*, and the height of a ballistic arc goes with the square of it. From
+   * the back of the house that was not a throw, it was a mortar: the apex above
+   * the launch point runs
+   *
+   *     5 m  0.38 m      12 m  2.19 m
+   *     8 m  0.98 m      15 m  3.43 m
+   *    10 m  1.52 m      20 m  3.52 m
+   *
+   * — so a tomato aimed at the far side of the stage went up over the PA stacks
+   * and came down out of the lighting. `MAX_FLIGHT_SECONDS` did bound it, at
+   * 1.6 s, which is 3.5 m of arc and far too generous to be the bound anybody
+   * wanted.
+   *
+   * `APEX_CEILING` is that bound said in the units it is actually about. A
+   * throw at a target on the level peaks `gravity · t² / 8` above the hand, so
+   * capping the time at `√(8 · ceiling / gravity)` caps the arc — and every
+   * throw inside about nine metres is untouched, because it was already quicker
+   * than that. Past nine metres the arm simply throws harder, which is what an
+   * arm does, and the tomato covers the extra ground flat rather than over the
+   * top.
+   *
+   * The cap is on the *ballistic* half only. Aim at something above you and the
+   * `dy / t` term still lifts the arc as far as it has to, because that is not a
+   * lob, it is a target on a riser and the throw has to get up there.
    */
   function solveLaunch(from: Vector3, to: Vector3, out: Vector3): void {
     const dx = to.x - from.x;
     const dy = to.y - from.y;
     const dz = to.z - from.z;
     const horiz = Math.hypot(dx, dz);
-    const t = clamp(horiz / throwSpeed, MIN_FLIGHT_SECONDS, MAX_FLIGHT_SECONDS);
+    const hang = Math.min(MAX_FLIGHT_SECONDS, Math.sqrt(8 * APEX_CEILING / gravity));
+    const t = clamp(horiz / throwSpeed, MIN_FLIGHT_SECONDS, hang);
     out.set(dx / t, dy / t + 0.5 * gravity * t, dz / t);
   }
 

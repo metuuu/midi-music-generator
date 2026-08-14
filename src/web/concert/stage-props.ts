@@ -372,8 +372,25 @@ export interface PropOptions {
   reducedMotion: boolean;
 }
 
+/** One solid piece of dressing, and which prop put it there. */
+export interface PropSolid {
+  name: PropName;
+  node: Object3D;
+}
+
 export interface PropRig {
   root: Group;
+  /**
+   * The individual objects the dressing put in the room, one per solid thing.
+   *
+   * For anything that wants to know where the furniture *is* — which so far
+   * means a tomato, whose collision world was the boards, the backdrop and two
+   * walls and nothing else, so a throw at a PA stack went straight through it
+   * and marked the wall behind. See `Staging.scenery` in `tomatoes.ts`.
+   *
+   * Not `root`: one box round the whole dressing is a box round the room.
+   */
+  solids: PropSolid[];
   /** Which names were placed. */
   placed: PropName[];
   /** Which were not recognised. */
@@ -777,14 +794,29 @@ export function dressStage(o: PropOptions): PropRig {
   };
 
   const placed: PropName[] = [];
+  /**
+   * What each builder actually put in the room, so that something can be thrown
+   * at it.
+   *
+   * Taken as the slice of `root.children` a builder added rather than by asking
+   * the builders to return anything: there are seventy-odd of them, they all
+   * write into `ctx.root` and several add more than one object — two PA stacks,
+   * a row of bales — and a bounding box drawn round *all* of a prop's pieces at
+   * once would be a box with the stage in the middle of it. One node, one solid
+   * thing, which is the granularity a collision proxy wants.
+   */
+  const solids: PropSolid[] = [];
   for (const name of PROPS) {
     if (!wanted.has(name)) continue;
+    const before = root.children.length;
     BUILDERS[name](ctx);
     placed.push(name);
+    for (const node of root.children.slice(before)) solids.push({ name, node });
   }
 
   return {
     root,
+    solids,
     placed,
     ignored: unknownProps(o.venue.props),
     showRiser(on: boolean): void {

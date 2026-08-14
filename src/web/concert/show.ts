@@ -59,7 +59,7 @@
  */
 
 import type { Camera, Object3D } from 'three';
-import { Group, Quaternion, Raycaster, Vector2, Vector3 } from 'three';
+import { Box3, Group, Quaternion, Raycaster, Vector2, Vector3 } from 'three';
 
 import { Rng } from '../../core/rng.js';
 import type { DrumVoice, LayerId, Song } from '../../core/types.js';
@@ -222,6 +222,18 @@ export interface Show {
 const APPLAUSE_SECONDS = 4.5;
 /** Beats a tomatoed player sits out before returning with a new part. */
 const SULK_BEATS = 8;
+/**
+ * How thin a piece of dressing may be and still stop a tomato, in metres.
+ *
+ * A hand. Below it the object is a sheet — bunting, a projection screen, a rug —
+ * and its bounding box is a plane with nothing behind it. See `hittableProps`.
+ */
+const PROP_MIN_THICKNESS = 0.08;
+/**
+ * And how long. A person's height, so a cabinet or a riser is furniture and a
+ * ten-metre merged row of flowers is scenery painted on the room.
+ */
+const PROP_MAX_SPAN = 3.0;
 
 // --- The beginning ---------------------------------------------------------
 //
@@ -1097,7 +1109,53 @@ export function createShow(opts: ShowOptions = {}): Show {
     lights.setSubjects(subjects);
     tomatoes.begin(number.cast, rigs, stage, {
       instruments: [...models].map(([id, m]) => [id, m.root] as const),
+      scenery: hittableProps(),
     });
+  }
+
+  /**
+   * The furniture a tomato is allowed to hit, which is not all of it.
+   *
+   * `Staging.scenery` has been in the tomato module's contract since it was
+   * written and has never once been passed, so the collision world was the
+   * boards, the backdrop and two walls and nothing else: a throw at a PA stack
+   * or a riser went straight through it and marked whatever was behind.
+   *
+   * **Filtered, and the filter is the whole of why this is a function.** A
+   * collision proxy is a world-axis-aligned box round the object, which is only
+   * honest for something compact. Measured over six venues, 100 pieces of
+   * dressing: 28 of them span more than three quarters of the room, because a
+   * builder that places a row of things places it as one mesh — the bunting is
+   * 10.6 m wide, the beams 19.8 × 15.7, the projection screens 9.3 × 5.2 — and
+   * several are flat, with a dimension of *exactly zero*: carpets, rugs, the
+   * dance floor. Handing those over would hang invisible room-sized planes in
+   * the air for tomatoes to stop dead against, which is a far worse bug than
+   * the one it fixes and is the same complaint arriving by a different door.
+   *
+   * So: nothing thinner than a hand, nothing longer than a person is tall. That
+   * admits the PA stacks and their poles, the risers, the chandeliers — the
+   * things that read as solid objects standing in a room — and leaves the
+   * cloth, the floor coverings and the merged rows alone. Anything rejected is
+   * exactly as hittable as it was before, which is not at all.
+   *
+   * The real fix, here and for the instruments, is an authored collision volume
+   * per prop rather than a bounding box and a rule of thumb. This is the part of
+   * it that can be had for a size test.
+   */
+  function hittableProps(): Object3D[] {
+    const box = new Box3();
+    const size = new Vector3();
+    const out: Object3D[] = [];
+    for (const { node } of stage.dressing.solids) {
+      box.setFromObject(node);
+      if (box.isEmpty()) continue;
+      box.getSize(size);
+      const thinnest = Math.min(size.x, size.y, size.z);
+      const longest = Math.max(size.x, size.y, size.z);
+      if (thinnest < PROP_MIN_THICKNESS || longest > PROP_MAX_SPAN) continue;
+      out.push(node);
+    }
+    return out;
   }
 
   function strikeBand(): void {
@@ -1546,9 +1604,9 @@ export function createShow(opts: ShowOptions = {}): Show {
     const wanted = current;
     loading = (async () => {
       await load(current.song, to);
-      // The number moved on while the pattern was being built — a walk-off, the
-      // end of the piece, the next number staged. Starting now would start the
-      // wrong band. Same guard, same reason, as `returnToPlaying`.
+      // The number moved on while the pattern was being built — the end of the
+      // piece, the next number staged. Starting now would start the wrong band.
+      // Same guard, same reason, as `returnToPlaying`.
       if (current !== wanted || fromBar !== to) return;
       transport.begin(current.song, to);
       await startLoaded();
@@ -1739,12 +1797,10 @@ export function createShow(opts: ShowOptions = {}): Show {
     silencePlayer(layer);
   });
 
-  tomatoes.onPatienceLost(() => {
-    if (state !== 'playing') return;
-    // The band stops together, properly, rather than the audio being cut. They
-    // finish the bar they are in — anything else reads as a crash, not a walk-off.
-    endNumber();
-  });
+  // There used to be a walk-off here: a fifth hit fired `onPatienceLost` and
+  // this called `endNumber` so the band finished the bar and stopped. The event
+  // is gone from `tomatoes.ts` — the reason is in its module docs — and a number
+  // now ends only when it runs out or somebody asks for the next one.
 
   /**
    * Bring a sulking player back with a freshly generated part.
@@ -1770,11 +1826,10 @@ export function createShow(opts: ShowOptions = {}): Show {
     /**
      * The number moved on while the part was being written.
      *
-     * A walk-off, the end of the piece, or the next number staged behind the
-     * curtain — in every one of those the part that just arrived belongs to a
-     * song nobody is playing, and splicing it in would put one player on
-     * yesterday's music. The sulk goes with the number, so there is nothing to
-     * clean up.
+     * The end of the piece, or the next number staged behind the curtain — in
+     * either of those the part that just arrived belongs to a song nobody is
+     * playing, and splicing it in would put one player on yesterday's music.
+     * The sulk goes with the number, so there is nothing to clean up.
      */
     if (current !== wanted || state !== 'playing') return;
 
