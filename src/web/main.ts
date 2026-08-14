@@ -9,8 +9,11 @@
  * mechanism a game would use to duck stems.
  */
 
-import { initAudio, playCode, preloadSounds, setOutputLevel, stopPlayback } from './audio.js';
-import { generateSongAsync, generatorIsThreaded } from './generator.js';
+import {
+  initAudio, loadCode, playCode, preloadSounds, setOutputLevel, silenceVoices, startLoaded,
+  stopPlayback, stopSounding,
+} from './audio.js';
+import { generateSongAsync } from './generator.js';
 import { createSungVoice, withoutSungVoice } from './sung-voice.js';
 
 import type { GenerateOptions } from '../generate/song.js';
@@ -59,12 +62,13 @@ const els = {
   watch: $<HTMLButtonElement>('watch'),
   copy: $<HTMLButtonElement>('copy'),
   dl: $<HTMLButtonElement>('dl'),
-  status: $<HTMLDivElement>('status'),
+  oops: $<HTMLDivElement>('oops'),
   title: $<HTMLSpanElement>('title'),
   meta: $<HTMLDivElement>('meta'),
   form: $<HTMLDivElement>('form'),
   layers: $<HTMLDivElement>('layers'),
   code: $<HTMLPreElement>('code'),
+  codeBox: $<HTMLDetailsElement>('code-box'),
 };
 
 /**
@@ -79,6 +83,15 @@ const DEFAULT_SPREAD = els.chaosSpread.value;
 
 let current: Song | undefined;
 let playing = false;
+/**
+ * The band is on its way over the wire — see `preloadSounds`.
+ *
+ * A second or two on a cold page, and it used to be announced in the status line
+ * while the button went on saying "Play ▶", so the one control the page is about
+ * looked untouched for the whole of it. It is a state of *this button*, like the
+ * other two, and `paintPlay` is the only thing that reads it.
+ */
+let loading = false;
 /**
  * On by default, because a station is what this page is for.
  *
@@ -101,6 +114,25 @@ let radioTimer: number | undefined;
  */
 let playGeneration = 0;
 const muted = new Set<LayerId>();
+
+/** A record, written and rendered, waiting for its turn. */
+interface Prepared {
+  song: Song;
+  /** Its Strudel. Cheap to produce, but not free in the gap between two records. */
+  code: string;
+}
+
+/**
+ * The next record, cued while this one is still playing. See `prepareNext`.
+ *
+ * A promise rather than a value because the changeover may arrive before the
+ * worker has answered — on a short piece, or a cold fetch of a band nobody has
+ * heard yet — and `advance` would rather wait on the work already in flight than
+ * start a second copy of it. It resolves to `undefined` rather than rejecting;
+ * nothing on a station should stop because the record after next could not be
+ * written early.
+ */
+let pending: Promise<Prepared | undefined> | undefined;
 
 function fillSelect(select: HTMLSelectElement, entries: [string, string][], anyLabel?: string): void {
   if (anyLabel) select.append(new Option(anyLabel, ''));
@@ -542,46 +574,63 @@ function updateHookHint(): void {
     : `${level.gloss} — the arrangement is fixed by the seed, so this changes only how much the tune returns.`;
 }
 
-function setStatus(text: string, isError = false): void {
-  els.status.textContent = text;
-  els.status.className = isError ? 'status err' : 'status';
+/**
+ * Say that something broke, or take the notice away.
+ *
+ * What is left of a status line that used to narrate the ordinary running of the
+ * page — "Writing the next song…", "Loading instruments…", "Playing.",
+ * "Stopped." — none of which anybody could read, because each was replaced by
+ * the next within a few hundred milliseconds while the thing they described was
+ * still going on. The state of the machine belongs on the control that has it,
+ * which is `paintPlay`. This is only for the three things that are genuinely
+ * news and stay true until something is done about them.
+ */
+function showError(text: string): void {
+  els.oops.textContent = text;
+  els.oops.hidden = false;
+}
+
+function clearError(): void {
+  els.oops.textContent = '';
+  els.oops.hidden = true;
 }
 
 /**
- * Ask the worker for a song, and say so while it is being written.
+ * What the one button says, from the only two flags that decide it.
  *
- * Generation is 21–144 ms and a long house track more, and on this page it fell
- * between pressing a button and anything happening — the controls stayed live,
- * the status stayed on the last thing it said, and the page simply stopped for a
- * moment. Off the thread it is a wait with a name on it.
+ * Loading, playing and stopped are three states of the same control, and they
+ * used to be spread across two places — the label knew about two of them and a
+ * line underneath announced all three, so the page said "Playing." below a
+ * button reading "Stop ■" and said "Loading instruments…" below one still
+ * offering to play. Written here once instead.
+ */
+function paintPlay(): void {
+  els.play.textContent = loading ? 'Loading…' : playing ? 'Stop ■' : 'Play ▶';
+}
+
+/**
+ * One song at a time, however fast the buttons are pressed.
  *
  * The buttons go dead for the duration rather than queueing: two presses of Next
  * are two songs written and one thrown away, and the thrown-away one is the one
- * the person was looking at. `generatorIsThreaded` decides the wording, because
- * a page that fell back to generating inline cannot repaint to show this at all
- * and promising otherwise would be a lie told at exactly the wrong moment.
+ * the person was looking at.
+ *
+ * It used to announce the wait as well ("Writing the next song…"). It no longer
+ * does, because generation is the *short* part — 13–89 ms on a worker thread,
+ * against a preload measured in hundreds of milliseconds and a transpile of up
+ * to 240 KB after it. The line was on screen for a twentieth of the wait it
+ * claimed to be describing and gone before the part that actually stalls, which
+ * is why it read as a flicker. The button says "Loading…" across the whole of
+ * it instead — see `paintPlay`.
  */
-async function writing<T>(what: string, work: () => Promise<T>): Promise<T> {
+async function writing<T>(work: () => Promise<T>): Promise<T> {
   const buttons = [els.play, els.next, els.radio, els.reset, els.copy, els.dl];
   const was = buttons.map((b) => b.disabled);
-  const said = els.status.textContent;
-  const saying = `${what}…`;
   for (const b of buttons) b.disabled = true;
-  if (generatorIsThreaded()) setStatus(saying);
   try {
     return await work();
   } finally {
     buttons.forEach((b, i) => { b.disabled = was[i]!; });
-    /**
-     * Put the line back, but only if it is still ours.
-     *
-     * A song that is about to be played has a `play` behind it which will say
-     * "Loading instruments…" a moment later, and a failure has already said
-     * what went wrong. Overwriting either would replace news with history. What
-     * is left is the case this is for: a song written while nothing is playing,
-     * which otherwise leaves the page claiming to be writing it for ever.
-     */
-    if (els.status.textContent === saying) setStatus(said ?? '');
   }
 }
 
@@ -617,6 +666,25 @@ function currentOptions(): GenerateOptions {
       if (seed) opts.chaos.seed = seed;
     }
   }
+  return opts;
+}
+
+/**
+ * The recipe for the *next* record on the station.
+ *
+ * `currentOptions` with any pinned seed dropped, which is the whole of what makes
+ * it the next record rather than this one again. One function rather than the two
+ * lines written out at each site, because `nextTrack` and `prepareNext` have to
+ * draw from the same hat — a record fetched in advance under a different recipe
+ * from the one that plays is a preload that bought nothing.
+ *
+ * The seed is dropped *after* `currentOptions` has read it, deliberately: that is
+ * what settles `vocals` for a pinned seed before it goes, and it is the order the
+ * page has always used here.
+ */
+function stationOptions(): GenerateOptions {
+  const opts = currentOptions();
+  delete opts.seed;
   return opts;
 }
 
@@ -713,8 +781,24 @@ function describe(song: Song): void {
     els.layers.append(el);
   }
 
-  els.code.textContent = renderStrudel(song);
+  paintCode();
 }
+
+/**
+ * The emitted Strudel, but only for somebody who has opened the drawer.
+ *
+ * It was written out with the rest of the description, on every song — a whole
+ * second render of a piece that is 47 to 94 KB of text, plus the DOM write, on
+ * the main thread, between a control being nudged and the music starting, for a
+ * panel that is closed. The song that is playing is `current`, so this can be
+ * left until the disclosure is opened and cost nothing until then.
+ */
+function paintCode(): void {
+  if (!els.codeBox.open || !current) return;
+  els.code.textContent = renderStrudel(current);
+}
+
+els.codeBox.ontoggle = paintCode;
 
 /**
  * The vocal layer, sung rather than played.
@@ -725,11 +809,41 @@ function describe(song: Song): void {
  */
 const voice = createSungVoice();
 
-async function play(song: Song): Promise<void> {
+/**
+ * A record cued behind the one that is playing, and the moment it may begin.
+ */
+interface Handover {
+  /** Already rendered, by `prepareNext`. */
+  code: string;
+  /**
+   * The downbeat may not land before this `performance.now()` reading — the end
+   * of the previous record's ring-out.
+   *
+   * A floor, not a delay. The compile happens *before* this is waited on, so a
+   * compile that ate the whole window starts the moment it finishes: the gap
+   * between two records is the longer of the ring and the compile, where it used
+   * to be the two of them added together.
+   */
+  notBefore: number;
+}
+
+/**
+ * Start a record. Two ways in, and the difference between them is most of what
+ * makes an hour of this listenable.
+ *
+ *  - **Cold** — Play was pressed, or a control moved. There is nothing to hide
+ *    the wait behind, so compile and start in one call and let the button say
+ *    "Loading…" for the whole of it.
+ *  - **Handover** — the record before this one has just stopped and is ringing
+ *    out. Its replacement was written, rendered and fetched during it, so all
+ *    that is left to do is the compile, and there is a window to do it in. See
+ *    `advance`.
+ */
+async function play(song: Song, handover?: Handover): Promise<void> {
   const generation = ++playGeneration;
   // The vocal layer leaves the pattern and is sung by `web/voice-synth.ts`
   // instead — see `sung-voice.ts` for why it cannot stay in it.
-  const code = renderStrudel(withoutSungVoice(audible(song)));
+  const code = handover?.code ?? renderStrudel(withoutSungVoice(audible(song)));
   try {
     /**
      * Get the instruments onto the machine before the downbeat, not on it.
@@ -739,26 +853,110 @@ async function play(song: Song): Promise<void> {
      * over the wire — see `preloadSounds`. It is bounded and it is cached, so
      * the wait is a second or so on the first song of a session and nothing at
      * all on a track that reuses instruments already heard.
+     *
+     * Already warm on a handover — `prepareNext` fetched this band under the
+     * previous record — so the call is kept rather than skipped: it costs
+     * nothing when it has nothing to do, and it is the guarantee rather than the
+     * optimisation.
      */
-    setStatus('Loading instruments…');
+    if (!handover) {
+      /**
+       * The button says "Loading…" for a cold start and says nothing at all for
+       * a handover, because on a handover there is nothing to report: the
+       * previous record is ringing, the station is audibly still playing, and a
+       * control that announced a load over the top of music would be describing
+       * the machinery instead of the state. `playing` is still true throughout,
+       * so the button goes on offering the stop it should.
+       */
+      loading = true;
+      paintPlay();
+    }
     await preloadSounds(song);
-    // Stopped, or superseded by a newer press, while the band was loading.
-    // Whoever bumped the generation has already said what the status is.
+    /**
+     * Stopped, or superseded by a newer press, while the band was loading.
+     *
+     * The flag is deliberately left alone here: whoever bumped the generation
+     * owns the button now — a stop has already cleared it, and a newer press has
+     * set it for its own load — so clearing it on the way out would paint this
+     * dead press's state over theirs.
+     */
     if (generation !== playGeneration) return;
-    // Back up, in case the last thing that happened was a stop. Unconditional
-    // rather than guarded on it: this is the one place the station makes a
-    // noise, and a fader left down by any route is silence nobody can explain.
-    setOutputLevel(1);
-    await playCode(code);
+    if (handover) {
+      /**
+       * The compile, in the one window where a blocked main thread costs nothing.
+       *
+       * This is where the wait actually is. Measured in the page, turning the
+       * emitted code into a pattern is **0.5–1.9 s of blocked main thread** —
+       * 60–65% of it the drum layer — and it does not warm up, so the same string
+       * costs the same every time. Generation, by comparison, is tens of
+       * milliseconds on a worker.
+       *
+       * It cannot run while the scheduler is going: a second of blocked thread
+       * is a second in which nothing hands Web Audio the notes it was about to
+       * play, and the pattern tears. And running it *after* the ring-out — which
+       * is what the page did before — adds the whole of it to the silence
+       * between two records, so the gap was the ring plus the compile plus the
+       * fetch, three to four seconds, twenty times an hour.
+       *
+       * `advance` has already stopped the scheduler, so here there is nothing to
+       * starve. The last chord is ringing on the audio clock, which this thread
+       * cannot reach and does not need to.
+       */
+      await loadCode(code);
+      if (generation !== playGeneration) return;
+      await until(handover.notBefore);
+      if (generation !== playGeneration) return;
+      /**
+       * The ring-out ends here, and it ends *properly*.
+       *
+       * The fader is the only thing that reaches a voice already handed to Web
+       * Audio, and a fader only hides — so a last chord with four seconds of
+       * pad left in it would go on sounding straight through the next record's
+       * opening bar, at full level, with nothing on the page to say why. The
+       * last sliver of the ring is faded rather than cut on the spot, because a
+       * disconnect on a signal that is still moving is a click.
+       */
+      setOutputLevel(0, TAIL_FADE_SECONDS);
+      await until(performance.now() + TAIL_FADE_SECONDS * 1000);
+      if (generation !== playGeneration) return;
+      voice.end();
+      silenceVoices();
+      setOutputLevel(1, 0.08);
+      await startLoaded();
+    } else {
+      /**
+       * Whatever the last press left ringing stops before this one begins, and
+       * the fader comes back up for it — unconditionally, because a fader left
+       * down by any route is silence nobody can explain. Both matter on this
+       * page for a reason the station does not have: a mute toggled mid-song is
+       * a cold start over the top of a record that is still sounding, and
+       * without the cut the muted layer goes on playing until its notes run out.
+       *
+       * The scheduler goes first, or there would be nothing to cut: it is still
+       * running the *old* pattern here, and the compile below blocks for up to
+       * two seconds, so a disconnect on its own would be undone by the next hap
+       * it triggered.
+       */
+      void stopPlayback();
+      await stopSounding();
+      if (generation !== playGeneration) return;
+      voice.end();
+      setOutputLevel(1);
+      await playCode(code);
+    }
     voice.begin(audible(song));
     playing = true;
-    els.play.textContent = 'Stop ■';
-    setStatus('Playing.');
+    loading = false;
+    paintPlay();
+    // Whatever went wrong last time did not go wrong this time, and a failure
+    // notice that outlives the failure is the same lie the status line told.
+    clearError();
     scheduleRadioAdvance(song);
   } catch (err) {
     playing = false;
-    els.play.textContent = 'Play ▶';
-    setStatus(`Strudel could not evaluate the pattern: ${String(err)}`, true);
+    loading = false;
+    paintPlay();
+    showError(`Strudel could not evaluate the pattern: ${String(err)}`);
     console.error(err);
   }
 }
@@ -772,16 +970,23 @@ async function play(song: Song): Promise<void> {
  * one. It is not what a stop button means. A held pad on the final bar goes on
  * for seconds after the press, and the page looks like it ignored the click.
  *
- * So the master comes down as well, and goes back up in `play`. See
- * `setOutputLevel`, which is the only thing that reaches a sounding voice.
+ * So the sound comes down as well, and the fader goes back up in `play`.
+ * `stopSounding` is the fader and then the disconnect behind it, because the
+ * fader alone only hides: the voices go on running and would come back up with
+ * the next press, seconds later, under a record that has nothing to do with
+ * them.
  */
 function stop(): void {
   playGeneration += 1;
   voice.end();
-  setOutputLevel(0);
+  void stopSounding();
   void stopPlayback();
   playing = false;
-  els.play.textContent = 'Play ▶';
+  // Also the cancel: the generation bump above makes a load that is still in the
+  // air land on nothing, and this is what takes the button off "Loading…" the
+  // moment it is pressed rather than whenever the fetch happens to finish.
+  loading = false;
+  paintPlay();
   if (radioTimer) { clearTimeout(radioTimer); radioTimer = undefined; }
 }
 
@@ -795,6 +1000,16 @@ function stop(): void {
  * beat of air a station leaves between records.
  */
 const RING_OUT_SECONDS = 1.8;
+
+/**
+ * …and how long the very end of that ring is faded over.
+ *
+ * The gap is the ending, so it sounds at full level for the whole of the ring —
+ * but what is left at the end of it is then cut outright rather than left to
+ * bleed into the next record, and a cut on a signal that is still moving is a
+ * click. See `play`.
+ */
+const TAIL_FADE_SECONDS = 0.12;
 
 function scheduleRadioAdvance(song: Song): void {
   if (radioTimer) clearTimeout(radioTimer);
@@ -814,19 +1029,95 @@ function scheduleRadioAdvance(song: Song): void {
    * them today.
    */
   const ms = (songDurationBeats(song) / song.meta.bpm) * 60 * 1000;
-  radioTimer = window.setTimeout(() => {
-    // Stop at the loop point rather than let the pattern come round again
-    // underneath the ring.
-    void stopPlayback();
-    radioTimer = window.setTimeout(() => { void nextTrack(); }, RING_OUT_SECONDS * 1000);
-  }, ms);
+  radioTimer = window.setTimeout(() => { void advance(); }, ms);
+  // …and write the one after it now, while there is a whole record's worth of
+  // time to do it in. Costs nothing here: it returns immediately.
+  prepareNext();
+}
+
+/** Wait until a `performance.now()` reading, or not at all if it has passed. */
+function until(mark: number): Promise<void> {
+  const ms = mark - performance.now();
+  if (ms <= 0) return Promise.resolve();
+  return new Promise((resolve) => { window.setTimeout(resolve, ms); });
+}
+
+/** The next record, written and rendered. */
+async function writeNext(): Promise<Prepared> {
+  const song = await generateSongAsync(stationOptions());
+  return { song, code: renderStrudel(withoutSungVoice(audible(song))) };
+}
+
+/**
+ * Cue the next record over the top of this one.
+ *
+ * Everything here used to happen in the gap between two records, in series with
+ * it. Generation is 13–89 ms on a worker and the render is single figures, so
+ * neither is the point; `preloadSounds` is the point. It is network, and a
+ * station that changes genre every few minutes asks for a band nobody has heard
+ * yet more often than not, so the gap carried a cold fetch as well as a compile.
+ * Done here it happens under a record that is already playing, where latency is
+ * free.
+ *
+ * Deliberately **not** wrapped in `writing`. That disables the controls, and a
+ * panel that went dead for a moment in the middle of every song would be a bug
+ * nobody could describe, let alone reproduce.
+ *
+ * Never rejects, and that is load-bearing rather than tidy: a station that fell
+ * silent because the worker died while writing the record *after* next would be
+ * failing at a moment that has nothing to do with what is playing. `advance`
+ * writes its own when this comes back empty, which is what the page did before
+ * any of this existed.
+ */
+function prepareNext(): void {
+  pending = (async () => {
+    try {
+      const next = await writeNext();
+      await preloadSounds(next.song);
+      return next;
+    } catch (err) {
+      console.warn('radio: could not cue the next record in advance', err);
+      return undefined;
+    }
+  })();
+}
+
+/**
+ * One record ends and the next begins.
+ *
+ * The generation is *read* rather than bumped: this is not a press, it is the
+ * press that started this record carrying on into the next one. What it guards
+ * against is Stop landing during the ring-out — the timer that got us here has
+ * already fired, so clearing `radioTimer` no longer cancels anything, and
+ * without these checks the station would answer a stop by starting a song.
+ */
+async function advance(): Promise<void> {
+  const generation = playGeneration;
+  // Stop at the loop point rather than let the pattern come round again
+  // underneath the ring. The scheduler halts; the voices already handed to Web
+  // Audio play their last chord out. See `RING_OUT_SECONDS`.
+  void stopPlayback();
+  const notBefore = performance.now() + RING_OUT_SECONDS * 1000;
+
+  const cued = await pending;
+  // Consumed either way. Whatever happens next ends in `play`, which cues
+  // another one against whatever the panel says by then.
+  pending = undefined;
+  if (generation !== playGeneration) return;
+
+  const next = cued ?? await writeNext();
+  if (generation !== playGeneration) return;
+
+  current = next.song;
+  describe(current);
+  els.dl.disabled = false;
+  await play(current, { code: next.code, notBefore });
 }
 
 async function nextTrack(): Promise<void> {
-  // Radio mode should keep moving, so drop any pinned seed.
-  const opts = currentOptions();
-  if (radioMode) delete opts.seed;
-  current = await writing('Writing the next song', () => generateSongAsync(opts));
+  // Radio mode should keep moving, so drop any pinned seed — `stationOptions`.
+  const opts = radioMode ? stationOptions() : currentOptions();
+  current = await writing(() => generateSongAsync(opts));
   describe(current);
   els.dl.disabled = false;
   /**
@@ -848,9 +1139,11 @@ async function nextTrack(): Promise<void> {
 }
 
 els.play.onclick = async () => {
-  if (playing) { stop(); setStatus('Stopped.'); return; }
+  // Loading counts as playing for the purpose of this press: the button says
+  // something is happening, so pressing it has to be able to call that off.
+  if (playing || loading) { stop(); return; }
   if (!current) {
-    current = await writing('Writing a song', () => generateSongAsync(currentOptions()));
+    current = await writing(() => generateSongAsync(currentOptions()));
     describe(current);
     els.dl.disabled = false;
   }
@@ -934,22 +1227,24 @@ function shareLink(song: Song): string {
   return `${location.origin}${location.pathname}?${songParams(song)}`;
 }
 
-const COPY_LABEL = els.copy.textContent ?? 'Copy link';
-let copyTimer: number | undefined;
-
 /**
  * Copy it, and say so on the button that was pressed.
  *
  * The clipboard needs permission and does not always have it, and a share
  * button that silently does nothing is worse than no button. When it is refused
- * the address goes into the status line, which is selectable text a few pixels
- * below — the reader can still take it, and nothing has been lost.
+ * the address is written out below as selectable text — the reader can still
+ * take it, and nothing has been lost. That notice is the failure notice, which
+ * is what a refused clipboard is.
  */
+const COPY_LABEL = els.copy.textContent ?? 'Copy link';
+let copyTimer: number | undefined;
+
 els.copy.onclick = () => {
   if (!current) return;
   const link = shareLink(current);
   const done = (ok: boolean): void => {
-    if (!ok) { setStatus(link); return; }
+    if (!ok) { showError(`The clipboard was refused. The link is ${link}`); return; }
+    clearError();
     els.copy.textContent = 'Copied ✓';
     // The label comes back from the constant rather than from whatever the
     // button said a moment ago: two presses inside the window would otherwise
@@ -1154,7 +1449,7 @@ async function regenerateSameSeed(): Promise<void> {
     // coin every time smoothness or hook was nudged. See `wantsVocals`.
     opts.vocals = wantsVocals(opts.seed);
   }
-  current = await writing('Rewriting this song', () => generateSongAsync(opts));
+  current = await writing(() => generateSongAsync(opts));
   describe(current);
   if (playing) await play(current);
 }
@@ -1163,7 +1458,7 @@ async function boot(): Promise<void> {
   // Kick the audio stack off now so its first-click listener is already armed
   // when the user presses Play.
   void initAudio().catch((err) => {
-    setStatus(`Failed to initialise Strudel: ${String(err)}`, true);
+    showError(`Failed to initialise Strudel: ${String(err)}`);
     console.error(err);
   });
 
@@ -1176,8 +1471,14 @@ async function boot(): Promise<void> {
    * than arriving whole a tenth of a second late. Nothing is enabled until it
    * lands — there is no song for the buttons to act on until then — which is
    * what `writing` already says, so this only has to say what is happening.
+   *
+   * And it says it on the button, which is the thing that is not ready yet. The
+   * markup starts it on "Loading…" for the moment before this module runs at
+   * all; the flag is what keeps that true through the write and takes it off
+   * again afterwards.
    */
-  setStatus('Writing the opening song…');
+  loading = true;
+  paintPlay();
   current = await generateSongAsync(currentOptions());
   describe(current);
   els.play.disabled = false;
@@ -1185,8 +1486,8 @@ async function boot(): Promise<void> {
   els.radio.disabled = false;
   els.copy.disabled = false;
   els.dl.disabled = false;
-  els.play.textContent = 'Play ▶';
-  setStatus('Ready. Instruments come from the soundfont CDN, so the first press has a moment of loading.');
+  loading = false;
+  paintPlay();
 }
 
 void boot();

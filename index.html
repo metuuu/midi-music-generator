@@ -150,8 +150,12 @@
         padding: .9rem; overflow: auto; max-height: 340px; font-size: .74rem; line-height: 1.5;
         color: #cfc3b6; margin-top: .7rem;
       }
-      .status { font-size: .8rem; color: var(--dim); margin-top: .8rem; min-height: 1.2em; }
-      .status.err { color: #e2705a; }
+      /* No reserved height: this is not a line the page keeps for itself, it is
+         a thing that appears when something has gone wrong and is not there the
+         rest of the time. `hidden` needs saying because `display: block` here
+         would otherwise beat it. */
+      .oops { font-size: .8rem; color: #e2705a; margin-top: .8rem; }
+      .oops[hidden] { display: none; }
       /* Chaos: five independent boxes and the rate that applies to them, kept
          together and given a rule above, because the pair is one control and
          everything else in the panel is a single field. */
@@ -376,7 +380,13 @@
           <button id="copy" disabled>Copy link</button>
           <button id="dl" disabled>Download MIDI</button>
         </div>
-        <div class="status" id="status"></div>
+        <!-- Only when something has actually broken. There is no status line:
+             what the page is doing is written on the button that is doing it,
+             and a row that announced "Playing." under a button reading "Stop ■"
+             was two places to look and one of them always out of date. This is
+             absent until there is a failure to name, so it costs no space and
+             never flickers. -->
+        <div class="oops" id="oops" hidden></div>
       </div>
 
       <div class="panel">
@@ -387,7 +397,11 @@
         <div class="form-strip" id="form"></div>
         <label class="layers-label">Layers — click to mute, live</label>
         <div class="layers" id="layers"></div>
-        <details>
+        <!-- Filled when it is opened rather than with every song: the code is
+             tens of kilobytes and rendering it for a closed drawer was work
+             done between a control being nudged and the music starting. See
+             `paintCode`. -->
+        <details id="code-box">
           <summary>Generated Strudel code</summary>
           <pre id="code"></pre>
         </details>
