@@ -180,79 +180,403 @@ export const SOUNDFONT_LEVEL: Record<string, number> = {
   gm_lead_5_charang: 0.48,
   gm_lead_6_voice: 1.41,
   gm_lead_7_fifths: 1.00,
-  gm_lead_8_bass_lead: 0.68,
 };
 
 /**
- * Where a font's own level steps across the keyboard, as a correction to the
+ * Where a font's own level moves across the keyboard, as a correction to the
  * trim above.
  *
- * `SOUNDFONT_LEVEL` was measured at one pitch — each instrument's `centre` —
- * and the assumption underneath it was that a soundfont is one instrument at
- * one loudness with the pitch changed. It is not. A webaudiofont program is a
- * handful of recorded notes in zones, and the zones were not levelled against
- * each other: they are separate takes, sometimes from separate instruments, and
- * the trim is only true in the zone it was measured in.
+ * `SOUNDFONT_LEVEL` was measured at one pitch — each instrument's `centre` — and
+ * the assumption underneath it was that a soundfont is one instrument at one
+ * loudness with the pitch changed. It is not, for two separate reasons, and this
+ * table corrects them together.
  *
- * Measured the same way as the trim — the renderer's own zone lookup, playback
- * rate, loop and envelope, then maximum momentary loudness — at every semitone
- * of the instrument's range, and averaged per zone. Below, dB against the pitch
- * the trim was measured at, with the share of notes the generator actually
- * writes in each zone over 600 songs:
+ * **The zones are separate takes.** A webaudiofont program is a handful of
+ * recorded notes in key ranges, and the ranges were never levelled against each
+ * other. `gm_brass_section` steps 1.1 dB at key 63 between two zones that share
+ * a root — the same resampling ratio either side, so nothing but the takes can
+ * account for it.
+ *
+ * **Between the boundaries the sample is resampled.** `getFontBufferSource`
+ * plays a zone at `2^((100·midi − baseDetune)/1200)`, so a note away from its
+ * zone's root is that waveform with its whole spectrum moved, and loudness
+ * follows the spectrum rather than the peak. The generator writes 1.94 semitones
+ * below the sample roots on average, 22.5% of all notes six or more semitones
+ * below and 7.3% a full octave or more — the library runs duller and quieter
+ * than the fonts it is playing. Five fonts are one zone for the whole keyboard,
+ * where this is the only effect there is and a per-zone average reports nothing.
+ *
+ * ## How the numbers were made
+ *
+ * Every semitone of every instrument's range, through the renderer's own zone
+ * lookup, playback rate, loop and envelope, measured as maximum momentary
+ * loudness exactly as `SOUNDFONT_LEVEL` was, then segmented wherever the curve
+ * moves more than 0.5 dB. Segmented on the curve and not at the zone edges,
+ * because the ramp inside a zone is as real as the step at its edge.
+ *
+ * Sounded for 2 s. That is not the length of a written note — the median is
+ * nearer 0.3 s — but it is what reproduces the six rows this table used to hold,
+ * which were made by hand through the browser's own renderer: **0.11 dB of mean
+ * error across their 43 zones**, and two independent methods agreeing on the
+ * violin to 0.06. Measuring at the length the generator actually writes moves
+ * the answer by 0.34 dB in the note-weighted mean, and by 2.4 dB on the cello.
+ * That is the open question left in this file.
+ *
+ * Each font's rows cover only the span the generator writes for it. A dead
+ * octave nobody plays gets no correction, and `levelOfSound`'s bottom entry
+ * covers everything underneath.
+ *
+ * ## What a fader cannot fix
+ *
+ * Some zones hold no usable recording. They are left at 1.00 rather than
+ * corrected, because gain pointed at a broken sample makes it louder without
+ * making it right:
  *
  * ```
- *   violin (centre 76)          accordion (centre 72)     brass section (72)
- *     55      −4.8    0%          41–53   −1.9   11%        36–66   −4.1   67%
- *     56–62   −0.1    1%          54–57   −2.8    3%        67–70   −3.0   18%
- *     63–68   −2.0    0%          58–61   −1.9   15%        71–84   ~0      11%
- *     69–72   −3.8    8%          62–65   −3.9   15%
- *     73–77    0.0   38%          66–69   +0.3   18%      trumpet (72)
- *     78–82   −2.6   42%          70–77    0.0   32%        52–67   −3.3   33%
- *     83–86   −0.3    9%          78–85   +0.7    6%        68–76   −0.4   46%
- *     87–96   −1.1    2%          86–93   +1.3    0%        77–86   +0.8   21%
- *
- *   flute (centre 84)           muted trumpet (centre 72)
- *     59–64   −4.3    1%          52–75    ~0     71%
- *     65–73   −1.9    6%          76–78   −2.1    16%
- *     74–83   −0.2   25%          79–86   −0.5    12%
- *     84–96   +0.4   69%
+ *   gm_vibraphone  73–84   −22 dB   14% of its notes   52 ms fragment, looped
+ *   gm_vibraphone  86–90   silent    1%                empty payload
+ *   gm_shanai      66–69   +27 dB    9%                52 ms fragment
+ *   gm_bandoneon   81–82   +22 dB    8%                52 ms fragment
+ *   gm_woodblock   67–68   −15 dB    1%                unlooped, runs out
  * ```
  *
- * The violin is the case that started this. Its loudest zone is the one its
- * `centre` sits in, and the zone the tune spends most of its time in — F#5 to
- * A#5, 42% of every violin note in the catalogue — is 2.6 dB below it. So the
- * fader was set on the register the line *starts* in and the line then walks up
- * into a quieter recording of the same instrument, which is exactly the
- * "sometimes" in "the violin is sometimes not loud enough": not sometimes in
- * time, sometimes in pitch. The accordion has the same fault across the bottom
- * half of its keyboard, where its comping and its left hand live: 44% of its
- * notes sit 1.9–3.9 dB under.
+ * The vibraphone is the one to act on: an eighth of every vibraphone note in the
+ * catalogue is a fragment 22 dB down, which is a font to replace rather than a
+ * level to trim.
  *
- * The brass section is the worst of them and the clearest statement of why one
- * pitch is not enough: the window its trim was measured in holds **5%** of the
- * notes anybody writes for it, and 85% of them sit 3 to 4.1 dB below that. A
- * section that is supposed to answer the tune had been mixed as though it were
- * a section playing an octave higher than it ever plays.
+ * ## The largest faults that are levels
  *
- * The absence of the rest of the catalogue is not a claim that the rest is
- * even. These are the fonts that were measured because somebody heard them.
+ * ```
+ *   gm_bandoneon        41–53   +11.3 dB   49% of its notes
+ *   gm_bassoon          34–47    −4.3      83%
+ *   gm_pan_flute        80–86    +9.6      27%
+ *   gm_brass_section    36–63    −4.2      58%
+ *   gm_orchestral_harp  48–67    +2.7      83%
+ *   gm_tenor_sax        70–75    +5.0      40%
+ *   gm_xylophone        65–73    −4.3      40%
+ *   gm_synth_brass_1    62–69    −2.7      49%
+ * ```
  *
- * Read as: from this MIDI note up to the next entry, multiply. A font with no
- * entry is flat as far as anyone has checked, and gets 1.
+ * Flattening moves a font's average level, and that is the fault being fixed
+ * rather than a side effect of fixing it: the trim puts `centre` at the
+ * catalogue median, so a font most of whose notes sat under `centre` has to get
+ * louder on the way to being even.
+ *
+ * Measured over the same 600 songs, against the table as it stood with six rows
+ * in it: **63% of every note moves by 0.1 dB or more, the median move is 0.9 dB
+ * and the largest is 11.4 dB — and the net across the whole catalogue is
+ * +0.10 dB.** Nothing here makes the music louder; it moves level from the
+ * registers that had too much of it to the ones that had too little. The fonts
+ * that move most are the bandoneon (−5.7 dB on average), the bassoon (+3.9), the
+ * tenor sax (−3.2), the orchestral harp (−2.3, on 30k notes) and synth brass 1
+ * (+2.2).
+ *
+ * Read as: from this MIDI note up to the next entry, multiply. 93 of the 103
+ * fonts the generator can reach are here. The other ten measured flatter than
+ * 1.2 dB across everything anyone plays on them, and get 1 — and unlike before,
+ * that is now a measurement rather than an absence of one.
  */
 export const REGISTER_LEVEL: Record<string, readonly (readonly [Midi, number])[]> = {
-  gm_violin: [
-    [55, 1.74], [56, 1.01], [63, 1.26], [69, 1.55],
-    [73, 1.00], [78, 1.35], [83, 1.04], [87, 1.14],
-  ],
   gm_accordion: [
-    [41, 1.24], [54, 1.38], [58, 1.24], [62, 1.57],
-    [66, 0.97], [70, 1.00], [78, 0.92], [86, 0.86],
+    [41, 1.25], [54, 1.39], [58, 1.25], [62, 1.57], [66, 0.99], [78, 0.92],
   ],
-  gm_brass_section: [[36, 1.60], [67, 1.42], [71, 0.99]],
-  gm_trumpet: [[52, 1.46], [68, 1.03], [73, 1.07], [77, 0.91]],
-  gm_flute: [[59, 1.64], [65, 1.24], [74, 0.97], [79, 1.09], [84, 0.95]],
-  gm_muted_trumpet: [[52, 1.02], [76, 1.27], [79, 1.05]],
+  gm_acoustic_bass: [
+    [28, 0.73], [32, 0.65], [39, 0.61], [40, 0.98],
+  ],
+  gm_acoustic_guitar_nylon: [
+    [40, 0.85], [42, 0.97], [47, 1.09], [58, 1.01], [64, 0.96], [70, 1.29],
+    [77, 1.48],
+  ],
+  gm_acoustic_guitar_steel: [
+    [41, 0.87], [44, 0.76], [45, 1.21], [47, 0.73], [49, 0.60], [50, 1.06],
+    [52, 1.15], [54, 1.03], [56, 0.89], [57, 1.01], [61, 0.83], [64, 0.68],
+    [66, 0.95], [68, 1.87], [69, 1.40], [71, 1.78], [73, 1.41], [74, 2.13],
+    [76, 1.44], [78, 1.28],
+  ],
+  gm_agogo: [
+    [72, 0.93], [78, 1.03], [84, 1.14], [89, 1.22],
+  ],
+  gm_alto_sax: [
+    [58, 1.59], [62, 1.24], [66, 1.98], [70, 1.00], [74, 1.09],
+  ],
+  gm_bandoneon: [
+    [41, 0.27], [54, 1.00], [72, 0.98], [81, 1.00],
+  ],
+  gm_banjo: [
+    [50, 1.57], [54, 0.85], [60, 1.00], [64, 0.72], [71, 0.80], [75, 0.97],
+  ],
+  gm_baritone_sax: [
+    [38, 1.60], [42, 0.85], [46, 1.00], [54, 0.88], [58, 1.11], [62, 0.92],
+  ],
+  gm_bassoon: [
+    [34, 1.64], [48, 1.00], [52, 1.64], [56, 1.39], [60, 0.89], [64, 1.48],
+    [69, 0.98],
+  ],
+  gm_brass_section: [
+    [36, 1.62], [64, 1.43], [71, 0.98], [77, 1.02],
+  ],
+  gm_celesta: [
+    [46, 1.23], [66, 1.12], [74, 1.00], [79, 0.88], [86, 0.82],
+  ],
+  gm_cello: [
+    [36, 1.01], [37, 0.82], [50, 0.99], [60, 1.14], [70, 1.04], [79, 0.95],
+  ],
+  gm_choir_aahs: [
+    [28, 1.09], [31, 0.97], [59, 1.02], [65, 0.81], [71, 0.66], [77, 0.61],
+  ],
+  gm_church_organ: [
+    [36, 1.13], [53, 1.01], [62, 0.91], [70, 0.77], [78, 0.90],
+  ],
+  gm_clarinet: [
+    [50, 1.15], [66, 1.04], [73, 0.94], [81, 0.86],
+  ],
+  gm_clavinet: [
+    [35, 1.62], [36, 1.45], [40, 1.27], [42, 1.59], [45, 1.33], [49, 1.13],
+    [51, 1.03], [61, 0.75], [66, 0.79], [72, 0.74], [73, 0.58], [79, 0.52],
+  ],
+  gm_contrabass: [
+    [28, 1.23], [37, 0.98], [50, 1.20],
+  ],
+  gm_distortion_guitar: [
+    [40, 1.39], [45, 1.20], [50, 1.37], [55, 1.22], [59, 1.00], [62, 0.84],
+    [67, 1.01], [71, 0.84], [74, 0.71], [78, 0.94],
+  ],
+  gm_drawbar_organ: [
+    [26, 1.11], [30, 0.97], [39, 0.88], [51, 1.02],
+  ],
+  gm_dulcimer: [
+    [55, 0.84], [62, 0.96], [68, 0.63], [74, 0.69], [79, 1.11],
+  ],
+  gm_electric_guitar_jazz: [
+    [40, 0.70], [42, 0.55], [44, 0.69], [53, 0.74], [60, 1.01], [62, 1.14],
+    [66, 0.86], [70, 0.79], [75, 0.76],
+  ],
+  gm_electric_guitar_muted: [
+    [40, 0.90], [55, 1.00], [67, 1.08],
+  ],
+  gm_english_horn: [
+    [61, 1.11], [62, 0.92], [66, 0.98], [75, 0.88],
+  ],
+  gm_epiano1: [
+    [29, 0.91], [44, 0.82], [51, 0.73], [55, 1.00], [64, 1.15], [67, 0.95],
+    [71, 0.81], [75, 0.69], [79, 1.09], [83, 0.76],
+  ],
+  gm_epiano2: [
+    [35, 1.02], [65, 1.11], [69, 1.28], [78, 1.40],
+  ],
+  gm_fiddle: [
+    [57, 1.71], [60, 1.20], [68, 0.98], [72, 0.86], [76, 1.02], [84, 1.09],
+  ],
+  gm_flute: [
+    [60, 1.57], [63, 1.44], [65, 1.26], [72, 1.18], [74, 1.00], [79, 1.10],
+    [84, 0.93],
+  ],
+  gm_french_horn: [
+    [50, 1.04], [63, 0.96], [73, 0.89],
+  ],
+  gm_fretless_bass: [
+    [28, 1.03], [51, 0.81], [59, 0.87],
+  ],
+  gm_fx_atmosphere: [
+    [33, 1.18], [39, 1.05], [47, 0.96], [73, 0.90],
+  ],
+  gm_fx_brightness: [
+    [62, 1.04], [73, 0.95], [78, 0.88], [82, 0.76],
+  ],
+  gm_fx_crystal: [
+    [53, 0.74], [68, 0.79], [71, 0.99], [92, 0.92],
+  ],
+  gm_fx_echoes: [
+    [50, 0.82], [61, 1.00], [73, 0.86],
+  ],
+  gm_fx_sci_fi: [
+    [45, 0.91], [46, 1.03], [55, 1.09], [56, 0.96], [62, 1.04], [71, 0.72],
+    [73, 0.64], [78, 1.19],
+  ],
+  gm_glockenspiel: [
+    [58, 0.76], [66, 0.85], [72, 0.96], [81, 1.06], [88, 0.38],
+  ],
+  gm_harmonica: [
+    [60, 1.45], [62, 1.80], [67, 1.61], [71, 1.01], [74, 1.08], [78, 0.96],
+    [82, 1.06],
+  ],
+  gm_harpsichord: [
+    [45, 1.15], [46, 0.97], [48, 0.91], [51, 0.99], [67, 1.22], [71, 1.02],
+    [76, 0.83], [79, 0.94], [82, 1.24],
+  ],
+  gm_kalimba: [
+    [63, 0.90], [69, 0.99], [75, 1.11],
+  ],
+  gm_lead_1_square: [
+    [36, 1.37], [46, 1.23], [57, 1.09], [68, 1.00], [79, 1.06],
+  ],
+  gm_lead_2_sawtooth: [
+    [50, 1.25], [56, 0.86], [68, 0.99], [80, 1.15],
+  ],
+  gm_lead_3_calliope: [
+    [64, 1.06], [72, 0.97], [78, 0.85],
+  ],
+  gm_lead_4_chiff: [
+    [66, 1.02], [71, 0.65], [72, 1.00], [79, 0.65], [80, 0.89],
+  ],
+  gm_lead_5_charang: [
+    [64, 0.33], [68, 1.00], [77, 0.90],
+  ],
+  gm_lead_6_voice: [
+    [43, 0.89], [53, 0.99], [85, 0.90], [89, 0.82],
+  ],
+  gm_marimba: [
+    [55, 1.34], [56, 0.82], [63, 0.91], [70, 1.01], [76, 1.13], [81, 1.25],
+  ],
+  gm_music_box: [
+    [63, 1.27], [72, 1.34], [73, 1.00],
+  ],
+  gm_muted_trumpet: [
+    [53, 1.02], [76, 1.27], [79, 1.06],
+  ],
+  gm_oboe: [
+    [64, 1.33], [69, 1.25], [70, 1.06], [74, 0.99], [85, 0.89],
+  ],
+  gm_orchestra_hit: [
+    [53, 1.16], [56, 1.05], [61, 0.93],
+  ],
+  gm_orchestral_harp: [
+    [35, 1.01], [38, 0.92], [42, 0.82], [48, 0.73], [68, 0.99], [79, 0.90],
+  ],
+  gm_overdriven_guitar: [
+    [40, 1.44], [50, 1.24], [55, 1.15], [59, 1.00], [62, 1.25], [66, 1.17],
+    [67, 1.22], [70, 1.15], [71, 1.02], [74, 1.05], [78, 0.91],
+  ],
+  gm_pad_bowed: [
+    [50, 1.14], [57, 1.02], [58, 1.08], [59, 0.98], [69, 0.92],
+  ],
+  gm_pad_halo: [
+    [32, 1.12], [35, 1.02], [39, 0.91], [44, 0.85], [53, 0.93], [59, 1.02],
+    [64, 1.07], [70, 0.99],
+  ],
+  gm_pad_metallic: [
+    [44, 0.87], [50, 0.97], [62, 1.18], [67, 0.87], [75, 0.81],
+  ],
+  gm_pad_new_age: [
+    [34, 1.62], [44, 1.02], [64, 1.15], [68, 1.27], [73, 1.18],
+  ],
+  gm_pad_poly: [
+    [25, 1.42], [31, 1.30], [53, 1.19], [59, 1.01], [65, 1.34], [71, 1.08],
+  ],
+  gm_pad_sweep: [
+    [34, 0.93], [43, 0.87], [50, 0.97], [62, 1.18], [67, 0.87],
+  ],
+  gm_pad_warm: [
+    [26, 1.33], [36, 1.19], [43, 1.04], [73, 0.96],
+  ],
+  gm_pan_flute: [
+    [59, 1.00], [80, 0.33], [87, 0.31],
+  ],
+  gm_percussive_organ: [
+    [29, 1.07], [59, 0.96], [74, 0.91],
+  ],
+  gm_piano: [
+    [33, 1.28], [34, 1.14], [45, 1.31], [49, 1.00], [52, 0.87], [57, 0.99],
+    [61, 1.26], [65, 1.00], [68, 1.30], [73, 0.92], [78, 1.02], [83, 1.31],
+    [86, 1.11],
+  ],
+  gm_pizzicato_strings: [
+    [45, 0.98], [64, 1.08], [70, 1.43], [77, 1.64],
+  ],
+  gm_recorder: [
+    [65, 1.03], [81, 0.78], [84, 0.87], [87, 0.79],
+  ],
+  gm_reed_organ: [
+    [28, 1.83], [54, 1.71], [57, 1.05], [58, 1.02],
+  ],
+  gm_rock_organ: [
+    [25, 0.41], [31, 0.37], [37, 0.34], [42, 1.12], [50, 0.99], [74, 0.93],
+  ],
+  gm_shakuhachi: [
+    [60, 0.82], [67, 0.91], [72, 1.05],
+  ],
+  gm_shanai: [
+    [60, 1.00], [62, 1.00], [63, 1.81], [66, 1.00], [70, 0.97], [83, 0.91],
+  ],
+  gm_sitar: [
+    [50, 1.02], [71, 1.12], [77, 1.21],
+  ],
+  gm_slap_bass_1: [
+    [29, 1.09], [37, 0.99], [49, 1.32],
+  ],
+  gm_slap_bass_2: [
+    [28, 1.22], [39, 0.95],
+  ],
+  gm_soprano_sax: [
+    [69, 0.83], [72, 0.72], [76, 0.98], [80, 0.68],
+  ],
+  gm_string_ensemble_1: [
+    [36, 1.12], [45, 1.03], [50, 1.17], [57, 1.06], [62, 1.22], [67, 0.99],
+  ],
+  gm_string_ensemble_2: [
+    [36, 1.12], [45, 1.03], [50, 1.17], [57, 1.06], [62, 1.22], [67, 0.99],
+  ],
+  gm_synth_bass_1: [
+    [28, 1.26], [32, 1.12], [37, 0.98], [52, 0.92], [56, 1.20], [67, 0.94],
+  ],
+  gm_synth_bass_2: [
+    [28, 1.30], [31, 1.18], [35, 1.06], [40, 0.97],
+  ],
+  gm_synth_brass_1: [
+    [46, 1.48], [62, 1.36], [70, 0.99], [77, 0.90],
+  ],
+  gm_synth_brass_2: [
+    [50, 1.46], [63, 1.35], [69, 0.99], [77, 0.91],
+  ],
+  gm_synth_choir: [
+    [34, 0.97], [38, 0.84], [58, 0.94], [64, 1.00], [70, 0.96],
+  ],
+  gm_synth_strings_1: [
+    [36, 1.16], [43, 1.03], [73, 0.94], [86, 0.87],
+  ],
+  gm_tenor_sax: [
+    [48, 1.49], [53, 1.20], [56, 0.99], [61, 0.76], [66, 0.83], [70, 0.56],
+    [76, 0.72],
+  ],
+  gm_timpani: [
+    [38, 0.98], [48, 1.09], [54, 1.19],
+  ],
+  gm_tremolo_strings: [
+    [37, 1.10], [47, 1.02], [50, 1.17], [57, 1.06], [62, 1.22], [67, 0.99],
+  ],
+  gm_trombone: [
+    [41, 1.17], [49, 0.92], [59, 1.02], [74, 0.78],
+  ],
+  gm_trumpet: [
+    [52, 1.53], [61, 1.37], [68, 1.03], [73, 1.07], [77, 0.91],
+  ],
+  gm_tuba: [
+    [28, 1.28], [36, 0.99], [46, 0.68], [51, 0.72], [56, 0.59],
+  ],
+  gm_tubular_bells: [
+    [64, 0.94], [72, 1.04], [78, 1.15],
+  ],
+  gm_vibraphone: [
+    [53, 1.32], [61, 1.20], [66, 1.06], [72, 1.00], [73, 1.00], [85, 0.95],
+    [86, 1.00],
+  ],
+  gm_viola: [
+    [60, 1.01], [73, 1.12], [81, 0.77],
+  ],
+  gm_violin: [
+    [62, 1.01], [63, 1.27], [69, 1.55], [73, 1.01], [78, 1.36], [83, 1.07],
+  ],
+  gm_voice_oohs: [
+    [29, 1.75], [33, 1.55], [58, 1.31], [63, 1.00], [70, 1.11],
+  ],
+  gm_woodblock: [
+    [67, 1.00], [68, 1.00], [69, 3.14], [70, 2.46], [71, 2.02], [72, 1.73],
+    [73, 1.52], [74, 1.37], [75, 1.25], [76, 1.17], [77, 1.07], [79, 0.95],
+    [83, 0.87],
+  ],
+  gm_xylophone: [
+    [65, 1.63], [74, 1.01],
+  ],
 };
 
 /**
@@ -325,9 +649,10 @@ export const DRUM_SAMPLE_LEVEL: Record<string, Partial<Record<DrumVoice, number>
  * in a way somebody notices, not fail to render.
  *
  * The pitch is not optional, because there is no such thing as the loudness of
- * a soundfont — see `REGISTER_LEVEL`. For the fonts nobody has measured across
- * their range it makes no difference, which is the only reason this reads as
- * one number for most of the catalogue.
+ * a soundfont — see `REGISTER_LEVEL`, which now carries a curve for 93 of the
+ * 103 fonts the generator can reach. The ten without one were measured too and
+ * are flat; a font absent from both tables is a new catalogue entry nobody has
+ * put a meter on yet.
  */
 export function levelOfSound(sound: string, midi: Midi): number {
   const base = SOUNDFONT_LEVEL[sound] ?? 1;
