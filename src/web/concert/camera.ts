@@ -73,6 +73,29 @@ export interface CameraDirector {
    * nobody tells it they are there.
    */
   room(metrics: StageMetrics): void;
+  /**
+   * Drive the camera through the part of the evening that has no clock.
+   *
+   * `begin` is the other half of the same rule and was written first: a camera
+   * that has never been placed is at the origin, standing on the boards inside
+   * the band and looking at the back of the curtain. `begin` fixed that for the
+   * reveal, and the reveal is not the first thing anybody sees — the opening
+   * bill is, and it is up for as long as it takes to read a programme, over a
+   * room nobody has pointed a lens at yet.
+   *
+   * So this is the house wide, aimed at the closed tabs: the honest picture of
+   * a theatre before a concert, and where the first shot of the evening starts
+   * from anyway. It moves once, on the click that drops the bill, easing back
+   * the half metre between reading a programme and watching a show.
+   *
+   * Call it every frame from the bill through the count-in — it eases rather
+   * than jumps, it re-solves the framing so a window that changes size while
+   * the bill is up stays framed, and it costs what one wide shot costs.
+   *
+   * **Not during the applause**, which is the other clockless stretch and is
+   * deliberately a still camera. See the ending note in `show.ts`.
+   */
+  rest(venue: Venue, dt: number): void;
   /** Plan the shot list for a number. Call before it starts. */
   begin(song: Song, cast: Cast, solos: SoloSpot[], venue: Venue, seed: string): void;
   /** The objects a shot can point at, keyed by performer id. */
@@ -228,6 +251,28 @@ const ORBIT_MIN = 1.1;
 const ZOOM_MIN = 0.33;
 const ZOOM_MAX = 3;
 
+/**
+ * How far a shot leans in over its own length, in metres.
+ *
+ * Named because two places have to agree about it and they are not near each
+ * other. A wide shot is solved for where its push *ends* and stands this much
+ * further back to begin with, so a resting camera that framed the same shot
+ * with no push in it sat half a metre downstage of where the number was about
+ * to start — and paid for it with a hard snap backwards on the first frame of
+ * the evening. See `standInHouse`.
+ */
+const SHOT_PUSH = 0.5;
+
+/**
+ * How fast the camera closes on where it is trying to be, per second.
+ *
+ * One rate for every move this director makes — the push inside a shot, the
+ * handback after a drag, and the settle back off the programme — because three
+ * rates would be three different cameras. About four tenths of a second to
+ * cover most of the distance, which is a lean rather than a dolly.
+ */
+const EASE_RATE = 2.5;
+
 export function createDirector(reducedMotion = false): CameraDirector {
   const camera = new PerspectiveCamera(BASE_FOV, 1, 0.1, 120);
   const subjects = new Map<string, Object3D>();
@@ -265,6 +310,17 @@ export function createDirector(reducedMotion = false): CameraDirector {
   let range = 1;
   /** How far the lens has opened to pay for a walk-in. 1 is the framing's own. */
   let lens = 1;
+  /**
+   * Whether the camera is standing in the house rather than on a shot.
+   *
+   * What `begin` asks to decide whether the reveal is a move or a cut, and the
+   * only thing that distinguishes the first number of the evening from the
+   * rest: coming off the bill there is a picture on screen to travel from, and
+   * coming off the number before there is not.
+   */
+  let resting = false;
+  /** Whether the lens has ever been put anywhere at all. See `rest`. */
+  let placed = false;
 
   const eye = new Vector3();
   const focus = new Vector3();
@@ -760,11 +816,91 @@ export function createDirector(reducedMotion = false): CameraDirector {
     pitch = Math.max(-0.5, Math.min(1.0, Math.asin(Math.max(-1, Math.min(1, ray.y)))));
   }
 
+  /**
+   * The shot the evening sits on whenever there is no music to shoot.
+   *
+   * A `Shot` rather than a hand-written position because the house wide is
+   * already solved — three constraints, a lens that opens in a small room, a
+   * rostrum that stays under the ceiling — and none of that is worth writing a
+   * second time for the picture that is on screen the longest. It carries the
+   * plan's own push, so `t` alone says which end of it to stand at and both
+   * ends are positions a planned wide shot genuinely occupies.
+   */
+  const houseShot: Shot = {
+    beat: 0,
+    framing: 'wide',
+    subject: { kind: 'stage' },
+    push: reducedMotion ? 0 : SHOT_PUSH,
+  };
+
+  /**
+   * Which end of the house shot's push the camera stands at.
+   *
+   * The programme is read from half a metre closer in than the show is watched
+   * from — `HOUSE_READ` is the pushed-in end, `HOUSE_SHOW` the wide shot's own
+   * opening frame — and the click that drops the bill is what travels between
+   * them. See `rest`.
+   */
+  const HOUSE_READ = 1;
+  const HOUSE_SHOW = 0;
+
+  /**
+   * Put the lens in the house and drop everything the last number left behind.
+   *
+   * Snapped, for the two moments with nothing on screen to be continuous with:
+   * the first frame the page ever draws, and a curtain that has just come down
+   * on the number before.
+   */
+  function standInHouse(t: number): void {
+    index = -1;
+    held = 0;
+    viewerHas = false;
+    yaw = 0;
+    pitch = 0;
+    range = 1;
+    lens = 1;
+    place(houseShot, t);
+    eye.copy(wanted);
+    focus.copy(wantedFocus);
+    camera.position.copy(eye);
+    camera.lookAt(focus);
+    resting = true;
+    placed = true;
+  }
+
   return {
     camera,
 
     room(m) {
       metrics = m;
+    },
+
+    rest(v, dt) {
+      venue = v;
+      /**
+       * Where the house shot stands depends on whether a number has been
+       * staged, and `plan` is exactly that question already answered: empty
+       * while the bill is up, full from the click onwards.
+       *
+       * So the move the click makes is this one. The programme sits at the
+       * pushed-in end and the show sits at the wide shot's opening frame, and
+       * dropping the bill eases the camera back over the half metre between
+       * them — under the tabs going up, since the cloth starts moving 0.2 s
+       * after the click and takes a good deal longer than the lens does.
+       */
+      const t = plan.length ? HOUSE_SHOW : HOUSE_READ;
+      // Nothing to travel from on the first frame the page draws.
+      if (!placed) { standInHouse(t); return; }
+
+      place(houseShot, t);
+      // The same curve as a push and as the handback from a drag. There is only
+      // one rate at which this camera moves.
+      const k = Math.min(dt * EASE_RATE, 1);
+      eye.lerp(wanted, k);
+      focus.lerp(wantedFocus, k);
+      camera.position.copy(eye);
+      camera.lookAt(focus);
+      resting = true;
     },
 
     begin(song, cast, solos, v, seed) {
@@ -779,7 +915,7 @@ export function createDirector(reducedMotion = false): CameraDirector {
       lens = 1;
 
       /**
-       * Take up the opening position *now*, not on the first frame with a clock.
+       * Take up a position *now*, not on the first frame with a clock.
        *
        * The runner stopped driving the director while the transport is silent —
        * correctly, because a stopped clock honestly reports beat 0 and the
@@ -788,14 +924,33 @@ export function createDirector(reducedMotion = false): CameraDirector {
        * that has never been placed is still at the origin: standing on the
        * boards, inside the band, looking at the back of the curtain. The reveal
        * is the one shot in the show that cannot be got wrong.
+       *
+       * **The house wide, though, and not `plan[0]`.** Framing the reveal on the
+       * first shot of the shot list is framing it on a decision the music makes
+       * about a stage nobody can see yet: about one number in three opens on a
+       * close-up of whoever has the tune, so the cloth went up on a lens two
+       * metres from a person — and before that, the click that dropped the
+       * programme snapped the camera there from the back of the room. A reveal
+       * is a wide shot in every building that has ever had a curtain in it, and
+       * it is also the picture already on screen behind the bill, so the whole
+       * of the opening is now one continuous position.
+       *
+       * The plan takes over on the first frame the clock is live, which is the
+       * count-in — a cut with the stage open and lit, which is where a cut
+       * belongs. Where `plan[0]` is a wide it costs no movement either, because
+       * it is this shot.
+       *
+       * **Only when the camera is not already standing there**, which is the
+       * difference between the first number and the rest of them. Coming off
+       * the bill the lens is in the house and half a metre in, and `rest` is
+       * about to ease it back over the same half metre the curtain travels on;
+       * snapping here would be that move happening in one frame, which is the
+       * complaint this whole passage exists to answer. Coming off *a number*
+       * there is nothing to be continuous with — the camera was last on a
+       * close-up of a drummer who has since been struck — so it snaps, behind
+       * a curtain that is already closed.
        */
-      if (plan.length) {
-        place(plan[0]!, 0);
-        eye.copy(wanted);
-        focus.copy(wantedFocus);
-        camera.position.copy(eye);
-        camera.lookAt(focus);
-      }
+      if (!resting) standInHouse(HOUSE_SHOW);
     },
 
     setSubjects(next) {
@@ -846,6 +1001,8 @@ export function createDirector(reducedMotion = false): CameraDirector {
 
       const shot = plan[Math.max(index, 0)];
       if (!shot) return;
+      // The shot list has the camera from here. See `rest`.
+      resting = false;
 
       const shotEnd = plan[index + 1]?.beat ?? beat + 16;
       const span = Math.max(shotEnd - shot.beat, 1);
@@ -923,7 +1080,7 @@ export function createDirector(reducedMotion = false): CameraDirector {
        * makes the push read as a camera operator leaning in rather than as a
        * dolly on rails.
        */
-      const k = held === 0 ? 1 : Math.min(dt * 2.5, 1);
+      const k = held === 0 ? 1 : Math.min(dt * EASE_RATE, 1);
       eye.lerp(wanted, k);
       focus.lerp(wantedFocus, k);
       camera.position.copy(eye);
@@ -997,7 +1154,7 @@ function planShots(
   const rng = new Rng(`${seed}:camera`);
   const { beatsPerBar } = song.meta;
   const shots: Shot[] = [];
-  const push = reducedMotion ? 0 : 0.5;
+  const push = reducedMotion ? 0 : SHOT_PUSH;
 
   const soloAt = new Map<number, SoloSpot>();
   for (const s of solos) soloAt.set(s.sectionIndex, s);

@@ -786,6 +786,33 @@ export class VoiceSynth {
     src.onended = () => gain.disconnect();
   }
 
+  /**
+   * Ride the whole voice, over `seconds`, from wherever it is now.
+   *
+   * A fader rather than a level: it is on the master, after every utterance and
+   * after the reverb return, so it reaches a phrase that is **already
+   * scheduled**. `speak` lays a whole breath's worth of envelope onto the audio
+   * clock in one go, so a level held on the patch alone cannot be heard until
+   * the next breath — which is seconds on a sung line and reads as a fader that
+   * does nothing.
+   *
+   * It does not fight the per-utterance envelope: this multiplies the sum, so
+   * the shape of every syllable survives intact. The limiter sits after it,
+   * which is where a brickwall belongs — see the constructor.
+   *
+   * `linearRampToValueAtTime` needs a starting point it can be measured from and
+   * `value` is not one while another ramp is in flight, so the current value is
+   * pinned first. A short ramp rather than a step, because a step on a sounding
+   * voice is a click.
+   */
+  setLevel(gain: number, seconds = 0.03): void {
+    const now = this.ctx.currentTime;
+    this.master.gain.cancelScheduledValues(now);
+    this.master.gain.setValueAtTime(this.master.gain.value, now);
+    if (seconds <= 0) this.master.gain.setValueAtTime(gain, now);
+    else this.master.gain.linearRampToValueAtTime(gain, now + seconds);
+  }
+
   stop(): void {
     const now = this.ctx.currentTime;
     for (const u of this.active) {

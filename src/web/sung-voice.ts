@@ -119,13 +119,15 @@ export interface SungVoice {
    * query time, so a fader is a map write. The singer is not in that stack: her
    * level was captured into a patch at `begin` and the only way to change it was
    * to `begin` again, which restarts the phrasing and is audible as a cut in the
-   * middle of a word. So the patch is mutated in place instead, and the next
-   * phrase handed to the synth carries the new level — a third of a second at
-   * most, which is the same "lands on the next bar" the band's own faders have.
+   * middle of a word.
    *
-   * Not a ramp on a gain node, deliberately: `speak` builds an envelope per
-   * utterance and a node-level ride would fight it. This is a level for the
-   * phrases not yet scheduled, which is exactly what a fader on a part is.
+   * So it rides `VoiceSynth.setLevel`, which is a ramp on the master and
+   * therefore reaches the phrase that is already sounding. Writing it onto the
+   * patch instead — which is what this did — only reached the phrases not yet
+   * handed over, and a phrase is a *breath*, not a bar: `speak` schedules a
+   * whole one against the audio clock in one call, so a fader moved a syllable
+   * into a long line was inaudible until the singer next drew breath, seconds
+   * later. A fader nobody can hear is what sends people back to `begin`.
    */
   setTrim(trim: number): void;
   /** Whether this song had a vocal layer for it to take over at all. */
@@ -192,6 +194,9 @@ export function createSungVoice(): SungVoice {
     let master: AudioNode | undefined;
     try { master = getSuperdoughAudioController()?.output?.destinationGain ?? undefined; } catch { /* soft */ }
     synth = new VoiceSynth(ctx, master);
+    // A fader moved before the first phrase was pumped — during the count-in,
+    // say — has nothing to write to and would otherwise be forgotten.
+    synth.setLevel(trim, 0);
     return synth;
   }
 
@@ -273,10 +278,10 @@ export function createSungVoice(): SungVoice {
       patch = {
         signature,
         delivery,
-        // The trim is kept across a `begin` on purpose: a fader somebody moved
-        // is a judgement about the singer, and a re-voice or a jump is not a
-        // reason to undo it. `end` is what forgets.
-        gain: written * trim,
+        // The song's own level only. The fader is on the synth's master and
+        // survives every `begin` and `end` there is — see `setTrim` — so
+        // multiplying it in here as well would apply it twice.
+        gain: written,
         reverb: VOICE_REVERB,
         consonantGain: CONSONANT_LEVEL,
       };
@@ -287,7 +292,7 @@ export function createSungVoice(): SungVoice {
 
     setTrim(next) {
       trim = Number.isFinite(next) && next >= 0 ? next : 1;
-      if (patch) patch.gain = written * trim;
+      synth?.setLevel(trim);
     },
 
     end() {

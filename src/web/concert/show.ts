@@ -1367,19 +1367,46 @@ export function createShow(opts: ShowOptions = {}): Show {
   const playing = (): Song => sliceSong(current.song, fromBar);
 
   let soundPending = false;
-  function scheduleSound(): void {
+  /**
+   * Whether anything folded into the pending render gave the singer a new line.
+   *
+   * OR-ed across the pushes rather than taken from the last one: a fader moved
+   * during the same task as a tomato's return must not talk the show out of the
+   * `begin` the returning singer needs.
+   */
+  let resingPending = false;
+  function scheduleSound(resing = false): void {
+    resingPending ||= resing;
     if (soundPending) return;
     soundPending = true;
     setTimeout(() => {
       soundPending = false;
-      void sound(playing());
+      const fresh = resingPending;
+      resingPending = false;
+      void sound(playing(), fresh);
     }, 0);
   }
 
-  async function sound(song: Song): Promise<void> {
+  /**
+   * The singer is begun again only when her line is actually new, and that
+   * condition is the whole of this signature.
+   *
+   * `begin` is not a refresh. It stops whatever the synth has already scheduled
+   * and restarts the phrasing from the first phrase, so the voice cuts mid-word
+   * and does not sound again until the next breath — which on a sung line is
+   * seconds, not a bar. This used to run on *every* push of `setMix`, so moving
+   * the vocal fader silenced her for the rest of the phrase and dragging it
+   * silenced her for as long as the drag went on. `applyMutes` had the same
+   * knowledge and guarded itself; this path went round the guard.
+   *
+   * What a fader actually needs is `setTrim`, which reaches the phrase in the
+   * air. What needs a `begin` is a *different line*: the top of a number, a
+   * jump, and a singer coming back from a sulk with a re-voiced part.
+   */
+  async function sound(song: Song, resing: boolean): Promise<void> {
     try {
       await loadLayers(song, true);
-      voice.begin(audible(song));
+      if (resing) voice.begin(audible(song));
     } catch (err) {
       // A pattern that will not evaluate is a bug worth seeing, but it must not
       // take the stage down with it — the visuals are driven by the IR and will
@@ -1504,7 +1531,7 @@ export function createShow(opts: ShowOptions = {}): Show {
         // After the scheduler, never before: every phrase is placed by the
         // scheduler's own clock and there is no clock until it starts.
         voice.begin(audible(playing()));
-      } else await sound(playing());
+      } else await sound(playing(), true);
     } catch (err) {
       console.error('concert: the number could not be started', err);
     }
@@ -1855,7 +1882,11 @@ export function createShow(opts: ShowOptions = {}): Show {
     // `revoiceNumber` here, so it is the last thing that should also render a
     // pattern before the picture gets a look in. What it evaluates now is the
     // layer that came back and nothing else — see `band`.
-    scheduleSound();
+    //
+    // The singer is re-begun only when the part that came back is hers: her
+    // line is unchanged by anybody else's re-voice, and a `begin` she does not
+    // need would cost her the phrase she is in — see `sound`.
+    scheduleSound(layer === 'vocal');
   }
 
   // --- Input -------------------------------------------------------------
@@ -2236,6 +2267,23 @@ export function createShow(opts: ShowOptions = {}): Show {
     // director reads 0 as a position rather than as an absence — which is the
     // whole of the zoom-out this show used to end on.
     if (clockLive) director.update(beat, dt);
+    /**
+     * The opening, which is the one stretch with a picture and no clock.
+     *
+     * The camera has to be somewhere from the moment the page draws, and until
+     * this existed it was at the origin — the director is the only thing that
+     * ever moves it, and nothing drove the director before the first downbeat,
+     * so the whole of the programme was shot from inside the band looking at
+     * the back of the curtain. `rest` holds the house wide across all three of
+     * these states and makes the one move the opening has in it.
+     *
+     * Named states rather than `!clockLive`, and the difference is the ending:
+     * the applause has no clock either and is deliberately a camera that does
+     * not move at all. See the ending note above.
+     */
+    if (!clockLive && (state === 'bill' || state === 'curtain' || state === 'count-in')) {
+      director.rest(concert.venue, dt);
+    }
     tomatoes.update(beat, dt);
     stage.update(live ? beat : Number.NaN, dt);
     for (const model of models.values()) model.update(shown);
