@@ -70,7 +70,7 @@ export const VOCALS: VocalProfile = {
   /**
    * 0.9, and it is above the lead rather than level with it.
    *
-   * The mix table in `index.ts` puts the melody at 0.86, which is low for a lead
+   * The mix table in `index.ts` puts the melody at 0.68, which is low for a lead
    * and argued there: in an instrumental house record the "tune" is a stab, and a
    * stab that dominates is a different genre. But on the nights there is a
    * singer, the singer is the record — a garage twelve-inch is sold on the vocal

@@ -321,12 +321,12 @@ export const reggae: Genre = {
   /**
    * The bass is level with the tune, and that single number is the genre.
    *
-   * The shared defaults put the bass at 0.63 and the melody at 0.95, which is
+   * The shared defaults put the bass at 0.50 and the melody at 0.75, which is
    * correct for every other repertoire here — a bass is the floor and the tune is
    * the thing the floor is under. In this music the bass *is* the lead: it plays
    * the figure people whistle, it is the part the record is remembered by, and on
    * a sound system it is being reproduced by a stack of speakers built for nothing
-   * else. 0.94 against a melody at 0.84 puts them within a decibel of each other,
+   * else. 0.74 against a melody at 0.66 puts them within a decibel of each other,
    * with the melody very slightly behind, which is where these mixes actually sit.
    *
    * The comp goes the other way, from 0.72 down to 0.55, and that is not the skank
@@ -342,9 +342,10 @@ export const reggae: Genre = {
    * mix where they are accompaniment is a mix of some other record.
    */
   mix: {
-    bass: 0.94,
+    // `melody` and `bass` carry the catalogue's 2 dB trim; see `gains` in generate/song.ts
+    bass: 0.74,
     drums: 0.72,
-    melody: 0.84,
+    melody: 0.66,
     comp: 0.55,
     pad: 0.38,
     counter: 0.5,
@@ -675,7 +676,7 @@ export const reggae: Genre = {
    * 1.40, and the horn styles come out leaping while the chant styles do not —
    * which is the entire reason `leap` is written per style. An earlier draft put
    * them at 1.5 and 0.5, near the bottom of both ranges, and argued the first
-   * from `mix.bass` 0.94 against `mix.melody` 0.84 — a level, which says nothing
+   * from `mix.bass` 0.74 against `mix.melody` 0.66 — a level, which says nothing
    * about how far a line jumps.
    *
    * ## Which kinds of tune

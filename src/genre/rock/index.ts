@@ -525,12 +525,15 @@ export const rock: Genre = {
   /**
    * The comp is the record, and that single number is the genre.
    *
-   * The shared default puts the comp at 0.72, under the bass at 0.63 only in the
+   * The shared default puts the comp at 0.72, over the bass at 0.50 only in the
    * sense that a chordal instrument is accompaniment. In this music it is not:
    * the guitar is the loudest thing in the room, on stage and on the record, and
    * an arrangement where it sits politely behind the tune is a mix of some other
-   * genre. 0.86 puts it within a decibel of the melody — which, half the time,
-   * *is a guitar too*.
+   * genre. 0.86 used to put it within a decibel of the melody — which, half the
+   * time, *is a guitar too* — and since the catalogue took 2 dB off every tune it
+   * puts the comp a decibel and a half *in front*. That is the right side of the
+   * line to have landed on: nothing else in the table moved, so what the trim
+   * did here was finish the sentence this paragraph was already making.
    *
    * Drums up from 0.59 to 0.72. A rock kit is being hit hard and recorded with
    * room microphones; it is the second-loudest object in the arrangement and in
@@ -543,10 +546,11 @@ export const rock: Genre = {
    * keyboard player mixed over two guitarists, which has never once happened.
    */
   mix: {
+    // `melody` and `bass` carry the catalogue's 2 dB trim; see `gains` in generate/song.ts
     comp: 0.86,
     drums: 0.72,
-    bass: 0.7,
-    melody: 0.9,
+    bass: 0.55,
+    melody: 0.71,
     counter: 0.62,
     pad: 0.44,
     brass: 0.5,

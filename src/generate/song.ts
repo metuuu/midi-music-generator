@@ -2878,6 +2878,22 @@ export function generateSong(opts: GenerateOptions = {}): Song {
    * since done the same**: 17 of the 19 state a `mix`, and the two that do not
    * are exactly the two these numbers were solved for. `brass` barely moved
    * (0.994) and is left alone.
+   *
+   * ## The 2 dB off `melody` and `bass`
+   *
+   * Both layers were forward of where they should be, and in most of the
+   * catalogue rather than in any one genre — which is what makes it a statement
+   * about the two layers and not about anybody's arrangement. So both faders
+   * came down by ×0.79 **here and in all seventeen genre tables at once**,
+   * leaving every genre exactly as far forward or back as it had put itself:
+   * ambient's melody is still the decoration behind its pad, dnb's bass is still
+   * the loudest thing dnb owns, synth's lead is still the one over unity.
+   *
+   * The alternative was lifting everything else, and that road has been walked
+   * twice already — the `comp` and `pad` notes below are both records of the
+   * same complaint answered upward. A third round would have been the whole mix
+   * climbing toward the ceiling to solve a balance problem, and a balance
+   * problem is cheaper solved on the side that is wrong.
    */
   /**
    * How hard a part on each layer is played, as the velocity its *typical* note
@@ -2900,8 +2916,8 @@ export function generateSong(opts: GenerateOptions = {}): Song {
   };
 
   const gains: Record<PlayedLayer, number> = {
-    // was 0.9 — bass fonts run 1.44× quiet
-    bass: 0.63,
+    // was 0.9 — bass fonts run 1.44× quiet — then 0.63, less the catalogue's 2 dB
+    bass: 0.50,
     /**
      * was 0.62, then 0.51 once the fonts were measured — and then +3 dB, which
      * is the one number here that is an opinion rather than a measurement.
@@ -2932,8 +2948,9 @@ export function generateSong(opts: GenerateOptions = {}): Song {
      * present when the tune leaves a gap.
      */
     pad: 0.66,
-    // was 0.85 — melody fonts run 1.12× *hot*, so this one goes up
-    melody: 0.95,
+    // was 0.85 — melody fonts run 1.12× *hot*, so this one went up to 0.95, and
+    // then down again by the catalogue's 2 dB
+    melody: 0.75,
     counter: 0.56,
     brass: 0.60,
     ...genre.mix,
@@ -3357,11 +3374,15 @@ export function generateSong(opts: GenerateOptions = {}): Song {
        * only the fader argued otherwise.
        *
        * How badly that shows depends entirely on how far apart the genre's two
-       * faders are, which is why it survived: on the shared balance the ride is
-       * `0.95/0.72`, worth 2.4 dB, and it closed enough of the gap to look
-       * fixed. Rock mixes its comp at 0.86 against a melody at 0.9 — a guitar
-       * band, deliberately — so the ride there is worth **0.4 dB** and the
-       * whole 5 dB of velocity stayed. Measured on one rock number, inside the
+       * faders are, which is why it survived so long: on the shared balance the
+       * ride was `0.95/0.72`, worth 2.4 dB, and it closed enough of the gap to
+       * look fixed. Rock mixes its comp at 0.86 against a melody at 0.71 — a
+       * guitar band, deliberately — so the ride there is worth **nothing at
+       * all**, it is the wrong way round, and the whole 5 dB of velocity stayed.
+       * The 2 dB off every melody has since done the same to the shared
+       * balance, where `0.75/0.72` is now 0.35 dB: the case this paragraph
+       * calls the exception is the ordinary one. Measured on one rock number,
+       * back when the ride still flattered it, inside the
        * organ's own sixteen-bar solo: organ −6.0 dB, bass −1.1. The bass was
        * five decibels over the soloist, through the solo.
        *

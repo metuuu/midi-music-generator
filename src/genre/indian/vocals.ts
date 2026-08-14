@@ -122,7 +122,7 @@ export const VOCALS: VocalProfile = {
   strudel: 'sawtooth',
   /**
    * Above the melody layer it doubles rather than under it, which is the
-   * inverse of ambient and the reason the genre's `mix` puts `melody` at 0.95:
+   * inverse of ambient and the reason the genre's `mix` puts `melody` at 0.75:
    * in a vocal item the instrument is shadowing the singer, and the shadow
    * should be behind the thing casting it.
    */

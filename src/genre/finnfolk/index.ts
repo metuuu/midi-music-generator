@@ -725,9 +725,14 @@ export const finnfolk: Genre = {
    * everywhere else: a counter-melody is a second player answering in the lead's
    * gaps and it is supposed to be underneath. In a pelimanni band the counter is
    * the *other fiddle playing the same tune a third down*, and two players on one
-   * line at unequal levels is one player with a halo. 0.82 against a melody at
-   * 0.92 is two people, with the first fiddle just in front, which is where a
+   * line at unequal levels is one player with a halo. 0.65 against a melody at
+   * 0.73 is two people, with the first fiddle just in front, which is where a
    * pair of them actually sits in a room.
+   *
+   * Which is why it is the one counter that moved when the catalogue took 2 dB
+   * off every melody: this number was never a level, it was a *distance* from
+   * the first fiddle. Left at 0.82 it would have made the second fiddle the
+   * louder of the two.
    *
    * The pad goes furthest back of anything except ambient's kit, and for a
    * related reason: there is no pad in this music. What the layer draws is a
@@ -743,10 +748,11 @@ export const finnfolk: Genre = {
    * spread to.
    */
   mix: {
-    melody: 0.92,
-    counter: 0.82,
+    // `melody` and `bass` carry the catalogue's 2 dB trim; see `gains` in generate/song.ts
+    melody: 0.73,
+    counter: 0.65,
     comp: 0.66,
-    bass: 0.6,
+    bass: 0.47,
     pad: 0.36,
     drums: 0.42,
   },

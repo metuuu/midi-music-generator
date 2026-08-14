@@ -593,10 +593,11 @@ export const latin: Genre = {
    * added in a different city.
    */
   mix: {
+    // `melody` and `bass` carry the catalogue's 2 dB trim; see `gains` in generate/song.ts
     drums: 0.8,
-    bass: 0.8,
+    bass: 0.63,
     comp: 0.82,
-    melody: 0.92,
+    melody: 0.73,
     brass: 0.86,
     counter: 0.62,
     pad: 0.38,

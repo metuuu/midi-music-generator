@@ -686,7 +686,7 @@ export const house: Genre = {
    * supposed to fuse*. A declaration is the opposite claim — its checks demand no
    * unison, no octave and no crossing, two parts that stay audibly two — and the
    * several pitches here belong to the comp, which is why `mix` puts that layer at
-   * 0.6 under a melody at 0.86.
+   * 0.6 alongside a melody at 0.68.
    *
    * **What these tables do thicken a line with is the octave, which the field
    * cannot name.** `piano`'s own description is *an octave piano vamp* and its
@@ -821,13 +821,13 @@ export const house: Genre = {
    * The bottom of the record is the record, and the top of it is the hi-hat.
    *
    * Stated against the shared defaults, which is what an omitted layer gets. The
-   * bass goes from 0.63 to 0.92 and the drums from 0.59 to 0.82 — further than
+   * bass goes from 0.50 to 0.73 and the drums from 0.59 to 0.82 — further than
    * funk pushes either, and funk is the genre whose own file says "every other
    * genre in this project mixes the other way round and is right to". This one is
    * further out still, because a funk record has a singer and a horn section on
    * top of its rhythm section and this has a stab.
    *
-   * The melody at 0.86 is the number that says the most. It is *below* every
+   * The melody at 0.68 is the number that says the most. It is *below* every
    * other genre's lead and deliberately so: what occupies the melody layer here is
    * a four-note organ figure or a sampled hook, and a lead mixed like a lead turns
    * a house record into a pop record with the vocal taken out. The exception is
@@ -841,10 +841,11 @@ export const house: Genre = {
    * missing sidechain hurts most.
    */
   mix: {
-    bass: 0.92,
+    // `melody` and `bass` carry the catalogue's 2 dB trim; see `gains` in generate/song.ts
+    bass: 0.73,
     drums: 0.82,
     comp: 0.6,
-    melody: 0.86,
+    melody: 0.68,
     pad: 0.5,
     counter: 0.48,
     brass: 0.62,
@@ -1152,7 +1153,7 @@ export const house: Genre = {
    * **`wide-interval` 1.5, cut from a derived 1.95.** `archetypesFor` computes it
    * as `0.5 + melody.leap * 5`, and its own gloss says what it is reading for: "a
    * singer's tune — it leaps out and steps home". The `mix` block above is arguing
-   * against exactly that when it puts the lead at 0.86 under a bass at 0.92 —
+   * against exactly that when it puts the lead at 0.68 under a bass at 0.73 —
    * what occupies this layer is "a four-note organ figure or a sampled hook", and
    * a leaping tune over it is the pop record that block refuses to make. It stays
    * *above* `arch-hook` rather than at the floor because of `bleep`, two paragraphs

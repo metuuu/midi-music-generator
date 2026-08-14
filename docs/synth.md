@@ -10,8 +10,8 @@ Organised by *what the machine is doing* rather than by dance or by feel, becaus
 
 | | ambient | synth |
 |---|---|---|
-| `mix.melody` vs `mix.pad` | 0.55 vs 0.78 — inverted deliberately | 0.9 vs 0.55; the tune is on top |
-| `mix.comp` | 0.5 — accompaniment | 0.72 — the sequencer is a **co-lead** |
+| `mix.melody` vs `mix.pad` | 0.43 vs 0.71 — inverted deliberately | 1.0 vs 0.63; the tune is on top |
+| `mix.comp` | 0.44 — accompaniment | 0.57 — the sequencer is a **co-lead** |
 | `keyChangeChance` | 0 in every era | 0.1–0.3; the final lift is a signature move |
 | `drumFills` | `false` in every style | on, except `stalker` |
 | `SoloProfile` | absent, and asserted absent | the lead break is the climax |
@@ -126,7 +126,7 @@ Brightness is quantised to sixteenths so that consecutive equal values collapse 
 ## The mix, and the register
 
 ```
-melody 0.9   comp 0.72   bass 0.86   pad 0.55   counter 0.6   drums 0.68
+melody 1.0   comp 0.57   bass 0.65   pad 0.63   counter 0.50   drums 0.55
 ```
 
 The second number is the one that says something. Every other genre mixes its comp as accompaniment. Here the sequencer figure is *material* — it is what the listener came for, and on half this repertoire it is playing when nothing else is.

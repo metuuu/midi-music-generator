@@ -611,15 +611,16 @@ export const rnb: Genre = {
    * bought the record for. It is quiet against the voice and loud against every
    * other genre's, and those are both true at once.
    *
-   * The bass at 0.74 is well above the default and well below funk's 0.86. The
+   * The bass at 0.58 is well above the default and well below funk's 0.68. The
    * bass parts on these records are famous; they are also underneath a singer, and
-   * the difference between 0.74 and 0.86 is the difference between a countermelody
+   * the difference between 0.58 and 0.68 is the difference between a countermelody
    * and a subject.
    */
   mix: {
+    // `melody` and `bass` carry the catalogue's 2 dB trim; see `gains` in generate/song.ts
     vocal: 1.0,
-    melody: 0.88,
-    bass: 0.74,
+    melody: 0.7,
+    bass: 0.58,
     drums: 0.66,
     brass: 0.7,
     comp: 0.62,

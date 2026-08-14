@@ -33,7 +33,7 @@ export const VOCALS: VocalProfile = {
   // same peak. Measured: swapping saw for square took the vocal from level with
   // the melody to 7 dB above it, changing nothing else.
   strudel: 'square',
-  // Clearly above the melody it doubles (0.85) — a lead vocal is the loudest
+  // Clearly above the melody it doubles (0.75) — a lead vocal is the loudest
   // thing in a pop mix — with enough left under 1.0 that the peaks do not clip
   // against the drums, which reach it on their own.
   // A lead vocal sits just above the tune it doubles, not above the scale.

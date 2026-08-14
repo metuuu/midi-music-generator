@@ -782,10 +782,11 @@ export const country: Genre = {
    * that have no drummer.
    */
   mix: {
-    melody: 0.97,
+    // `melody` and `bass` carry the catalogue's 2 dB trim; see `gains` in generate/song.ts
+    melody: 0.77,
     counter: 0.74,
     comp: 0.72,
-    bass: 0.58,
+    bass: 0.46,
     drums: 0.56,
     pad: 0.6,
     brass: 0.56,

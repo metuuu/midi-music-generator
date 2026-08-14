@@ -618,15 +618,15 @@ export const hiphop: Genre = {
    *
    * Every number is stated against the shared defaults rather than against
    * another genre, since those are what an omitted layer gets. `bass` goes from
-   * 0.63 to 0.92 and `melody` comes *down* from its usual 0.9 to 0.78, and the
+   * 0.50 to 0.73 and `melody` comes *down* from its usual 0.75 to 0.62, and the
    * crossing of those two lines is the whole mix statement. Funk gets close —
-   * 0.86 against 0.92 — and stops short, correctly, because a funk record has a
+   * 0.68 against 0.73 — and stops short, correctly, because a funk record has a
    * tune on it.
    *
    * **This used to claim it was the only genre where the lines cross, and four
-   * others cross them.** Ranked by the margin: dnb +0.28 (0.94 over 0.66),
-   * ambient +0.19 (0.73 over 0.54), **this genre +0.14**, reggae +0.10, house
-   * +0.06. So it is third of five rather than one of one. Four of the five are
+   * others cross them.** Ranked by the margin: dnb +0.22 (0.74 over 0.52),
+   * ambient +0.15 (0.58 over 0.43), **this genre +0.11**, reggae +0.08, house
+   * +0.05. So it is third of five rather than one of one. Four of the five are
    * genres whose subject really is the bottom of the record, so the company is
    * the right company and the sentence was wrong about the catalogue rather
    * than about the music. The ranking is the more useful form anyway: dnb ahead
@@ -648,9 +648,10 @@ export const hiphop: Genre = {
    * and both should be felt rather than heard.
    */
   mix: {
-    bass: 0.92,
+    // `melody` and `bass` carry the catalogue's 2 dB trim; see `gains` in generate/song.ts
+    bass: 0.73,
     drums: 0.82,
-    melody: 0.78,
+    melody: 0.62,
     comp: 0.66,
     brass: 0.6,
     counter: 0.5,

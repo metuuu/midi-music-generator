@@ -863,12 +863,12 @@ export const dnb: Genre = {
   /**
    * **The bass and the drums are both above the tune. Hiphop is the only other
    * genre in the project where that is true of both at once, and by a much
-   * narrower margin — 0.92 and 0.82 over a 0.78 melody, against 0.94 and 0.9
-   * over 0.66 here.**
+   * narrower margin — 0.73 and 0.82 over a 0.62 melody, against 0.74 and 0.9
+   * over 0.52 here.**
    *
    * Every number is stated against the shared defaults rather than against
    * another genre, since those are what an omitted layer gets. `bass` goes from
-   * 0.63 to 0.94 — level with reggae's and joint highest in the project — and
+   * 0.50 to 0.74 — level with reggae's and joint highest in the project — and
    * `drums` from 0.59 to 0.9, which is the highest kit level anywhere and the
    * number that separates this genre from hiphop's 0.82. Hiphop's kit sits at 0.82 under a voice; here the name of the music
    * is the two loudest things in it, in that order, and there is no voice.
@@ -888,9 +888,10 @@ export const dnb: Genre = {
    * decoration would make the genre's defining gesture inaudible.
    */
   mix: {
-    bass: 0.94,
+    // `melody` and `bass` carry the catalogue's 2 dB trim; see `gains` in generate/song.ts
+    bass: 0.74,
     drums: 0.9,
-    melody: 0.66,
+    melody: 0.52,
     comp: 0.6,
     pad: 0.44,
     counter: 0.42,
@@ -1144,7 +1145,7 @@ export const dnb: Genre = {
    * and synth all soften `static-repetition` and `repeated-note-run` together,
    * and house's 0.9 / 0.92 is within a hair of the 0.88 / 0.92 here — the same
    * pair is cited under house's own `chant: 5`. What is this genre's alone is the
-   * size of the object being repeated: `mix.melody: 0.66` above is argued as *a
+   * size of the object being repeated: `mix.melody: 0.52` above is argued as *a
    * two-note fragment whose job is to imply a key*, `rollers` says ninety
    * restatements in as many words, and ten of the twenty-four tables lead
    * `melodyCells` with the bare `[16]`, `minimal` weighting it 8 against a 4 and
@@ -1364,7 +1365,7 @@ export const dnb: Genre = {
      * those three derivations, inversion is the one a listener cannot hear as the
      * same object — `fragment` at 1.8 keeps the notes and drops some, `displace`
      * keeps all of them and moves them, and an inverted contour keeps neither
-     * pitch nor direction. Under `mix.melody: 0.66`, with a two-note fragment
+     * pitch nor direction. Under `mix.melody: 0.52`, with a two-note fragment
      * doing all the identifying, that is the derivation nearest to composing a
      * second thing.
      *

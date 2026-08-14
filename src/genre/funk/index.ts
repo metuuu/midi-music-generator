@@ -519,10 +519,11 @@ export const funk: Genre = {
    * heard.
    */
   mix: {
-    bass: 0.86,
+    // `melody` and `bass` carry the catalogue's 2 dB trim; see `gains` in generate/song.ts
+    bass: 0.68,
     drums: 0.75,
     comp: 0.66,
-    melody: 0.92,
+    melody: 0.73,
     brass: 0.72,
     counter: 0.52,
     pad: 0.34,

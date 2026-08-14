@@ -1052,11 +1052,12 @@ export const indian: Genre = {
    * a violin shadowing the line, and a shadow you cannot hear is not a shadow.
    */
   mix: {
-    melody: 0.95,
+    // `melody` and `bass` carry the catalogue's 2 dB trim; see `gains` in generate/song.ts
+    melody: 0.75,
     counter: 0.66,
     comp: 0.52,
     pad: 0.5,
-    bass: 0.58,
+    bass: 0.46,
     drums: 0.72,
   },
 

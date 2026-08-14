@@ -35,7 +35,7 @@
  *
  *   ambient                                  synth
  *   ────────────────────────────────────────────────────────────────────────
- *   mix: pad 0.78 over melody 0.55           the tune is on top
+ *   mix: pad 0.71 over melody 0.43           the tune is on top
  *   mix: comp 0.5, accompaniment             comp 0.72 — the sequencer co-leads
  *   keyChangeChance 0 in every era           the final lift is a signature move
  *   drumFills false in every style           arrivals are announced
@@ -336,14 +336,15 @@ export const synth: Genre = {
    * opinion of this genre's, only the shared bed re-centred on a pool of synth
    * strings, and when that bed came up 2 dB this one had to follow or the
    * calibration would have turned into a mix decision by neglect. It is the
-   * furthest back of anywhere here even so, at 0.63 under a lead at 1.27, which
+   * furthest back of anywhere here even so, at 0.63 under a lead at 1.0, which
    * is the genre stating that its pad is a wash behind the tune and not a
    * string section.
    */
   mix: {
-    melody: 1.27,
+    // `melody` and `bass` carry the catalogue's 2 dB trim; see `gains` in generate/song.ts
+    melody: 1.0,
     comp: 0.57,
-    bass: 0.82,
+    bass: 0.65,
     pad: 0.63,
     counter: 0.50,
     drums: 0.55,

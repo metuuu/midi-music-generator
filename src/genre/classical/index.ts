@@ -568,9 +568,20 @@ export const classical: Genre = {
    * politely underneath everything.
    */
   mix: {
+    /**
+     * The one melody in the catalogue **exempt** from the 2 dB trim `gains` in
+     * `generate/song.ts` took off every other genre's tune.
+     *
+     * That trim is about a lead sitting on top of a band. This one never was:
+     * 0.88 is 0.6 dB over the string section directly below it, the narrowest
+     * daylight any genre puts between its tune and its bed, and taking two off
+     * it would put the melody *under* the strings — which is not an orchestra
+     * mixed politely, it is an orchestra with the tune lost in it. The bass
+     * takes the trim with everyone else; at 0.8 it was among the highest here.
+     */
     melody: 0.88,
     pad: 0.82,
-    bass: 0.8,
+    bass: 0.63,
     comp: 0.6,
     counter: 0.62,
     brass: 0.7,

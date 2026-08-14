@@ -757,11 +757,12 @@ export const metal: Genre = {
    * The shared defaults put the comp at 0.72, well behind the melody, which is
    * correct everywhere else: a chordal part is accompaniment. Here it is the
    * *subject*. Somebody who has heard one of these records remembers the riff,
-   * and the riff is on this layer; 0.9 puts it within a decibel of the lead,
-   * which is where these mixes actually sit and is unfashionably loud by every
-   * other genre's standards.
+   * and the riff is on this layer; 0.9 used to put it within a decibel of the
+   * lead, and since the catalogue took 2 dB off every tune it puts the riff a
+   * decibel and a half in front of one. Which is where these mixes actually sit,
+   * and is unfashionably loud by every other genre's standards.
    *
-   * The bass goes the other way, from 0.63 down to 0.55, and this is the number
+   * The bass goes the other way, from 0.50 down to 0.43, and this is the number
    * that will look like a mistake. It is not. A metal bass is *felt rather than
    * heard*: it doubles the guitar an octave down, so it adds weight to a part
    * that already exists rather than stating anything of its own, and a mix that
@@ -776,11 +777,12 @@ export const metal: Genre = {
    * orchestral layer and sits with it.
    */
   mix: {
+    // `melody` and `bass` carry the catalogue's 2 dB trim; see `gains` in generate/song.ts
     comp: 0.9,
-    melody: 0.94,
+    melody: 0.74,
     drums: 0.8,
     counter: 0.76,
-    bass: 0.55,
+    bass: 0.43,
     pad: 0.4,
     brass: 0.5,
   },

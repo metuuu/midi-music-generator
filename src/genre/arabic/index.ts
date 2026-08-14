@@ -1051,8 +1051,9 @@ export const arabic: Genre = {
    * doubling the tune quietly, which is thickening rather than harmony.
    */
   mix: {
-    melody: 0.94,
-    bass: 0.72,
+    // `melody` and `bass` carry the catalogue's 2 dB trim; see `gains` in generate/song.ts
+    melody: 0.74,
+    bass: 0.57,
     drums: 0.66,
     counter: 0.5,
     comp: 0.5,

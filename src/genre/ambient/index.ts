@@ -418,10 +418,11 @@ export const ambient: Genre = {
    * entire argument is that nothing answers loudly.
    */
   mix: {
+    // `melody` and `bass` carry the catalogue's 2 dB trim; see `gains` in generate/song.ts
     pad: 0.71,
     comp: 0.44,
-    bass: 0.73,
-    melody: 0.54,
+    bass: 0.58,
+    melody: 0.43,
     counter: 0.24,
     // The kit, where there is one, is a texture at the back of the room rather
     // than the thing keeping everyone together. Less than half the level every

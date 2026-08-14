@@ -585,10 +585,11 @@ export const pop: Genre = {
    * literal above is where it is argued.
    */
   mix: {
+    // `melody` and `bass` carry the catalogue's 2 dB trim; see `gains` in generate/song.ts
     vocal: 1.1,
-    melody: 0.95,
+    melody: 0.75,
     comp: 0.7,
-    bass: 0.85,
+    bass: 0.67,
     pad: 0.6,
     counter: 0.55,
     drums: 0.72,
