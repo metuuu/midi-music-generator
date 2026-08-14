@@ -27,6 +27,7 @@
 
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { FULL } from './depth.js';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const TSX = fileURLToPath(new URL('../node_modules/.bin/tsx', import.meta.url));
@@ -36,13 +37,15 @@ interface Step {
   name: string;
   cmd: string;
   args: string[];
+  /** Honours `--full`; the rest have one depth and would choke on the flag. */
+  deep?: boolean;
 }
 
 const STEPS: Step[] = [
-  { name: 'genres', cmd: TSX, args: ['src/genre-check.ts'] },
-  { name: 'concert', cmd: TSX, args: ['src/concert-check.ts'] },
-  { name: 'chaos', cmd: TSX, args: ['src/chaos-check.ts'] },
-  { name: 'stage', cmd: TSX, args: ['src/stage-check.ts'] },
+  { name: 'genres', cmd: TSX, args: ['src/genre-check.ts'], deep: true },
+  { name: 'concert', cmd: TSX, args: ['src/concert-check.ts'], deep: true },
+  { name: 'chaos', cmd: TSX, args: ['src/chaos-check.ts'], deep: true },
+  { name: 'stage', cmd: TSX, args: ['src/stage-check.ts'], deep: true },
   { name: 'notation', cmd: TSX, args: ['src/check-notation.ts'] },
   { name: 'typecheck', cmd: TSC, args: ['--noEmit'] },
   { name: 'rules', cmd: TSX, args: ['src/rules-doc.ts', '--check'] },
@@ -58,7 +61,8 @@ interface Result {
 
 const run = (step: Step): Promise<Result> => new Promise((resolve) => {
   const started = Date.now();
-  const child = spawn(step.cmd, step.args, { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] });
+  const args = FULL && step.deep ? [...step.args, '--full'] : step.args;
+  const child = spawn(step.cmd, args, { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] });
   const chunks: Buffer[] = [];
   child.stdout.on('data', (c: Buffer) => chunks.push(c));
   child.stderr.on('data', (c: Buffer) => chunks.push(c));
@@ -78,7 +82,8 @@ const run = (step: Step): Promise<Result> => new Promise((resolve) => {
 });
 
 const started = Date.now();
-console.log(`Running ${STEPS.length} checks in parallel: ${STEPS.map((s) => s.name).join(', ')}`);
+console.log(`Running ${STEPS.length} checks in parallel — ${FULL ? 'the whole sweep' : 'the quick pass'}`
+  + `: ${STEPS.map((s) => s.name).join(', ')}`);
 
 const results = await Promise.all(STEPS.map(run));
 const wall = (Date.now() - started) / 1000;
@@ -92,6 +97,7 @@ for (const step of STEPS) {
 }
 const serial = results.reduce((a, r) => a + r.seconds, 0);
 console.log(`\n  ${wall.toFixed(1)}s wall, ${serial.toFixed(1)}s of work`);
+if (!FULL) console.log('\n  This was the quick pass. Run npm run verify:full before you call the work done.');
 if (failed.length) {
   console.log(`\n  ${failed.length} of ${STEPS.length} failed: ${failed.map((r) => r.step.name).join(', ')}`);
   process.exit(1);

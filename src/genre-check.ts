@@ -41,6 +41,7 @@ import type { Style } from './style/types.js';
 import type { Voice } from './tune/types.js';
 import { shotFigures, type TransitionPalette } from './generate/transition.js';
 import { FEELS, type FeelId } from './style/feel.js';
+import { deep, depthSummary, seeds } from './depth.js';
 
 const problems: string[] = [];
 const check = (label: string, pass: boolean, detail: string) => {
@@ -250,6 +251,7 @@ const probeLine = (args: {
  */
 console.log('\nSmoke: every style in every mode');
 const SOUNDED = new Map<string, Set<DrumVoice>>();
+const SMOKE = seeds(6);
 let ok = 0;
 for (const gid of GENRE_IDS) {
   const genre = getGenre(gid);
@@ -258,9 +260,9 @@ for (const gid of GENRE_IDS) {
   SOUNDED.set(gid, sounded);
   for (const sid of Object.keys(genre.styles)) {
     for (const [m, mode] of (['major', 'minor'] as const).entries()) {
-      for (let i = 0; i < 6; i++) {
+      for (let i = 0; i < SMOKE; i++) {
         try {
-          const era = eras[(m * 6 + i) % eras.length];
+          const era = eras[(m * SMOKE + i) % eras.length];
           const song = generateSong({
             seed: `${gid}-${sid}-${mode}-${i}`, genre: gid, style: sid, mode, ...(era ? { era } : {}),
           });
@@ -726,7 +728,7 @@ const levelByBar = (events: readonly Timed[], beatsPerBar: number) => {
   };
 };
 
-{
+if (deep('the pocket')) {
   /**
    * **The pocket exists**, and it is the one thing nothing in this project could
    * express: `applySwing` shifts offbeats only, uniformly, for the whole song.
@@ -1202,7 +1204,7 @@ const levelByBar = (events: readonly Timed[], beatsPerBar: number) => {
   );
 }
 
-{
+if (deep('the composed feel')) {
   /**
    * **The composed half: a feel that reaches the melody reaches it by writing a
    * different one.** `Feel.voice` multiplies the `Voice` before `auditionTune`
@@ -1630,7 +1632,7 @@ console.log('\nRhythm operators');
 
 // --- Rhythm-section variation --------------------------------------------
 console.log('\nRhythm-section variation');
-{
+if (deep('rhythm-section variation')) {
   /**
    * The bass stops playing one bar a hundred times.
    *
@@ -2225,7 +2227,7 @@ console.log('\nSynth');
 // onto chord tones, which are a third apart, so raising strictness once made
 // the line *less* smooth. Wide leaps must fall as the level rises.
 console.log('\nSmoothness monotonicity');
-{
+if (deep('smoothness monotonicity')) {
   /**
    * A hundred and twenty seeds, and every one of them is load-bearing.
    *
@@ -2289,7 +2291,7 @@ console.log('\nSmoothness monotonicity');
 // repeating, by repeating the one thing that must never repeat, and by faking
 // repetition through playing fewer notes.
 console.log('\nHook');
-{
+if (deep('hook')) {
   // Onsets are quantised by scaling *then* rounding. A swung offbeat sits on
   // beat .665, which is exactly on the boundary at two decimal places, so two
   // identical melodies at different offsets in the song can round apart.
@@ -2432,7 +2434,7 @@ console.log('\nHook');
 // coin flip. Every one of its notes was exactly half a beat long, and 79% of
 // them sounded on top of the melody rather than around it.
 console.log('\nBrass');
-{
+if (deep('brass')) {
   let notes = 0, clashing = 0, sustained = 0, offBeat = 0;
   const lengths = new Set<string>();
   for (const gid of GENRE_IDS) {
@@ -2800,7 +2802,7 @@ console.log("\nThe drummer's hand");
 // claims are asserted here, and the second is the one the whole mechanism rests
 // on.
 console.log('\nTransitions');
-{
+if (deep('transitions')) {
   /**
    * The music of a song, with the seam plan held out.
    *
@@ -4010,7 +4012,7 @@ console.log('\nTwo hands');
 // the split is not a loosening — the ostinato picks up two claims of its own
 // below, and the one thing both parts must do is stated for both.
 console.log('\nCounter-melody');
-{
+if (deep('counter-melody')) {
   let steps = 0, thirds = 0, moves = 0, overlap = 0, doubled = 0, multi = 0, figures = 0;
   /**
    * Which song, so a failure can be reproduced rather than hunted for.
@@ -4229,7 +4231,7 @@ console.log('\nCounter-melody');
  * engine is not doing the work the plan says it should.
  */
 console.log('\nSolos');
-{
+if (deep('solos')) {
   interface SoloStats {
     sections: number;
     notes: number;
@@ -4943,7 +4945,7 @@ console.log('\nInstrument awareness');
  *    emitted file and the emitted source, not from `Effects`.
  */
 console.log('\nSidechain');
-{
+if (deep('sidechain')) {
   const DUCKING = ['dancepop', 'europop', 'electropop', 'tropical'];
   let modern = 0, duckedPad = 0, early = 0, earlyDucked = 0;
   let paired = 0, orbits = 0, worstDb = 0, compared = 0;
@@ -5061,7 +5063,7 @@ console.log('\nRendered files');
  * quietly wrong about.
  */
 console.log('\nRight hand');
-{
+if (deep('right hand')) {
   const cap = 0.35;
   let strokes = 0, tooLoud = 0, foreign = 0, inLine = 0, tracks = 0;
   let deadTracks = 0, pitchless = 0;
@@ -5158,4 +5160,4 @@ if (problems.length) {
   console.log(`${problems.length} check(s) failed.\n`);
   process.exit(1);
 }
-console.log('All genre checks passed.\n');
+console.log(`All genre checks passed.${depthSummary()}\n`);

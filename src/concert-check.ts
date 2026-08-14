@@ -24,6 +24,15 @@ import { DRUM_MACHINES, SEQUENCERS, isPlayedByHand, type DrumVoice, type Song } 
 import { readBankName } from './render/drum-banks.js';
 import { generateSong } from './generate/song.js';
 import { GENRE_IDS, getGenre } from './genre/index.js';
+import { deep, depthSummary, seeds } from './depth.js';
+
+/**
+ * Every loop below is a seed sweep over the catalogue, and what they assert is a
+ * property of each show — a gesture per sounding note, a cue per number, nobody
+ * standing inside the furniture. The quick pass runs a quarter of the seeds,
+ * which is a shallower search for a counter-example and not a looser standard.
+ */
+const S = (full: number) => seeds(full, Math.max(1, Math.round(full / 4)));
 import { INSTRUMENTS, type InstrumentId } from './style/instruments.js';
 import { armsKnotted, trackForPart } from './concert/choreograph.js';
 import {
@@ -152,7 +161,7 @@ const strays = new Map<string, number>();
 for (const gid of GENRE_IDS) {
   const genre = getGenre(gid);
   for (const eid of Object.keys(genre.eras)) {
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < S(12); i++) {
       const song = generateSong({ seed: `stage-${gid}-${eid}-${i}`, genre: gid, era: eid, vocals: i % 3 === 0 });
       for (const track of song.tracks) {
         if (track.voice) continue; // the singer is not drawn from the catalogue
@@ -327,7 +336,7 @@ let frettedMutes = 0;
 let struckMutes = 0;
 
 for (const gid of CHECKED_GENRES) {
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < S(4); i++) {
     const concert = buildConcert({ seed: `check-${gid}-${i}`, genre: gid, vocals: 'mixed' });
     shows++;
 
@@ -693,7 +702,7 @@ check('every solo resolves to a performer', soloWithoutPlayer === 0,
   let closest = Infinity;
   let closestAt = '';
   for (const gid of CHECKED_GENRES) {
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < S(4); i++) {
       const concert = buildConcert({ seed: `stage-${gid}-${i}`, genre: gid });
       const halfW = concert.venue.width / 2;
       const halfD = concert.venue.depth / 2;
@@ -757,7 +766,7 @@ check('every solo resolves to a performer', soloWithoutPlayer === 0,
   let placements = 0;
   const worst = new Map<string, number>();
   for (const gid of CHECKED_GENRES) {
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < S(4); i++) {
       for (const number of buildConcert({ seed: `stage-${gid}-${i}`, genre: gid }).numbers) {
         const people = number.cast.performers;
         const seen = people.map(seenAs);
@@ -888,7 +897,7 @@ check('no genre sings more often than not', loudGenres.length === 0,
   let handPlayed = 0;
   const notes: string[] = [];
   for (const gid of CHECKED_GENRES) {
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < S(4); i++) {
       const concert = buildConcert({ seed: `machine-${gid}-${i}`, genre: gid });
       const halfW = concert.venue.width / 2;
       const halfD = concert.venue.depth / 2;
@@ -1158,7 +1167,7 @@ check('no genre sings more often than not', loudGenres.length === 0,
   let worst = Infinity;
   const notes: string[] = [];
   for (const gid of CHECKED_GENRES) {
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < S(4); i++) {
       const concert = buildConcert({ seed: `cable-${gid}-${i}`, genre: gid });
       const metrics = {
         width: concert.venue.width,
@@ -1327,7 +1336,7 @@ check('no genre sings more often than not', loudGenres.length === 0,
   let worst = 0;
   const notes: string[] = [];
   for (const gid of CHECKED_GENRES) {
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < S(4); i++) {
       const concert = buildConcert({ seed: `rig-${gid}-${i}`, genre: gid });
       for (const number of concert.numbers) {
         const counts = new Map<SynthRigId, number>();
@@ -1423,7 +1432,7 @@ check('no genre sings more often than not', loudGenres.length === 0,
   const BUSY = ['drumkit', 'harp', 'mallets', 'dulcimer', 'cello', 'upright-bass'];
   const notes: string[] = [];
   for (const gid of CHECKED_GENRES) {
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < S(5); i++) {
       const concert = buildConcert({ seed: `seq-${gid}-${i}`, genre: gid });
       for (const number of concert.numbers) {
         const machined = new Set(
@@ -1616,7 +1625,7 @@ check('no genre sings more often than not', loudGenres.length === 0,
   let worst = Infinity;
   const notes: string[] = [];
   for (const gid of CHECKED_GENRES) {
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < S(5); i++) {
       const concert = buildConcert({ seed: `board-${gid}-${i}`, genre: gid });
       for (const number of concert.numbers) {
         for (const p of number.cast.performers) {
@@ -1672,7 +1681,7 @@ check('no genre sings more often than not', loudGenres.length === 0,
   let idle = 0;
   const notes: string[] = [];
   for (const gid of CHECKED_GENRES) {
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < S(5); i++) {
       const concert = buildConcert({ seed: `idle-${gid}-${i}`, genre: gid });
       for (const number of concert.numbers) {
         for (const p of number.cast.performers) {
@@ -1734,7 +1743,7 @@ check('no genre sings more often than not', loudGenres.length === 0,
   let sidelined = 0;
   const notes: string[] = [];
   for (const gid of CHECKED_GENRES) {
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < S(6); i++) {
       const concert = buildConcert({ seed: `wall-${gid}-${i}`, genre: gid });
       for (const number of concert.numbers) {
         const walls = number.cast.performers.filter((p) => p.rig === 'modular');
@@ -1833,7 +1842,7 @@ check('no genre sings more often than not', loudGenres.length === 0,
    */
   const oneArmed = new Map<Archetype, { idle: number; strokes: number }>();
   for (const gid of CHECKED_GENRES) {
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < S(4); i++) {
       const concert = buildConcert({ seed: `check-${gid}-${i}`, genre: gid, vocals: 'mixed' });
       for (const number of concert.numbers) {
         for (const performer of number.cast.performers) {
@@ -1938,7 +1947,7 @@ let drumCoverageOff = 0;
 const airborne = new Map<string, number>();
 
 for (const gid of GENRE_IDS) {
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < S(3); i++) {
     for (const number of buildConcert({ seed: `percussion-${gid}-${i}`, genre: gid }).numbers) {
       for (const performer of number.cast.performers) {
         if (performer.archetype !== 'drumkit' && performer.archetype !== 'handdrum') continue;
@@ -2099,7 +2108,7 @@ console.log('\nInstruments');
   let undeclaredGestures = 0;
 
   for (const gid of GENRE_IDS) {
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < S(5); i++) {
       for (const number of buildConcert({ seed: `hands-${gid}-${i}`, genre: gid }).numbers) {
         /**
          * The other half of the nut check, and it comes from the music rather
@@ -2276,7 +2285,7 @@ console.log('\nInstruments');
 // sulks, and neither had any coverage until the mechanic acquired enough
 // arithmetic to get them wrong.
 console.log('\nThe tomato seam');
-{
+if (deep('the tomato seam')) {
   /** Beat, pitch and length. Velocity is left out: dynamics are not the line. */
   const lineOf = (notes: readonly { beat: number; midi: number; duration: number }[]): string =>
     JSON.stringify(notes.map((n) => [n.beat, n.midi, n.duration]));
@@ -2417,7 +2426,7 @@ console.log('\nThe tomato seam');
 // -------------------------------------------------------------------------
 console.log(
   problems.length
-    ? `\n${problems.length} problem(s): ${problems.join('; ')}\n`
-    : '\nAll concert checks passed.\n',
+    ? `\n${problems.length} problem(s): ${problems.join('; ')}${depthSummary()}\n`
+    : `\nAll concert checks passed.${depthSummary()}\n`,
 );
 process.exit(problems.length ? 1 : 0);

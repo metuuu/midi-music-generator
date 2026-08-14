@@ -85,6 +85,7 @@ import {
 } from 'three';
 
 import { GENRES } from './genre/index.js';
+import { depthSummary, seeds } from './depth.js';
 import { chooseVenue, PROPS, type PropName } from './concert/venue.js';
 import type { Venue } from './concert/types.js';
 import { buildStage } from './web/concert/stage.js';
@@ -430,7 +431,15 @@ const LIT: readonly PropName[] = ['screen', 'projection', 'neon', 'organ-pipes']
 const t0 = Date.now();
 const scenes: Scene[] = [];
 for (const gid of Object.keys(GENRES)) {
-  for (const eid of Object.keys(GENRES[gid]?.eras ?? {})) {
+  /**
+   * A venue is a (genre, era) pair and the sweep is coverage: every room, every
+   * rig, measured once. The quick pass takes one era of each genre — nineteen
+   * rooms rather than seventy-two — which still visits every genre's furniture
+   * and every instrument the catalogue can stage, and misses only the rooms an
+   * era swaps in.
+   */
+  const eids = Object.keys(GENRES[gid]?.eras ?? {});
+  for (const eid of eids.slice(0, seeds(eids.length, 1))) {
     const venue = chooseVenue(gid, eid, 'seed0');
     builtBy.clear();
     lastShape = undefined;
@@ -1283,4 +1292,4 @@ if (problems.length) {
   console.log(`${problems.length} check(s) failed.\n`);
   process.exit(1);
 }
-console.log('All stage checks passed.\n');
+console.log(`All stage checks passed.${depthSummary()}\n`);

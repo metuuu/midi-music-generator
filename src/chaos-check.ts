@@ -40,6 +40,7 @@ import { renderMidi } from './render/midi.js';
 import { renderStrudel } from './render/strudel.js';
 import type { Song } from './core/types.js';
 import type { Style } from './style/types.js';
+import { depthSummary, seeds } from './depth.js';
 
 let failures = 0;
 let checks = 0;
@@ -66,7 +67,17 @@ const FIGURE_TRAITS = new Set([
   'bass', 'comp', 'drums', 'melody-cells', 'counter-line', 'band-shots', 'two-hands',
 ]);
 
-const SEEDS = 200;
+/**
+ * Chaos is a property suite — a chimera must regenerate from its own recipe, a
+ * spread of zero must be byte-identical, a kind at full must borrow what it
+ * borrows alone. One counter-example settles any of them, so a quick pass
+ * searches a twelfth as hard and is a weaker search rather than a wrong answer.
+ * The one loop left at full size is the wardrobe sweep, whose assertion is that
+ * a trait *ever* fires — thin that and it fails on a draw nobody made.
+ */
+const S = (full: number) => seeds(full, Math.max(2, Math.round(full / 12)));
+
+const SEEDS = S(200);
 
 // ---------------------------------------------------------------------------
 // 1. Gates
@@ -187,7 +198,8 @@ section('The A/B — what a chimera leaves alone');
     const { chaos, ...meta } = song.meta;
     return JSON.stringify({ ...song, meta });
   };
-  for (let i = 0; i < 60; i++) {
+  const IDENTICAL = S(60);
+  for (let i = 0; i < IDENTICAL; i++) {
     const plain = generateSong({ seed: `zero${i}` });
     const quiet = generateSong({ seed: `zero${i}`, chaos: { levels: CHAOS_LEVELS, spread: 0 } });
     check(
@@ -200,7 +212,7 @@ section('The A/B — what a chimera leaves alone');
       `spread 0 borrows nothing (seed zero${i})`,
     );
   }
-  console.log('  60 seeds at spread 0, byte-identical to the plain song');
+  console.log(`  ${IDENTICAL} seeds at spread 0, byte-identical to the plain song`);
 }
 
 {
@@ -286,7 +298,8 @@ section('The A/B — what a chimera leaves alone');
    * the host. This is the check that `chaos` closes that gap rather than merely
    * describing it.
    */
-  for (let i = 0; i < 60; i++) {
+  const REGENERATED = S(60);
+  for (let i = 0; i < REGENERATED; i++) {
     // A different subset each time: single kinds, then adjacent pairs, then the
     // lot — so the round trip is exercised on combinations rather than only on
     // the two ends of the range.
@@ -330,7 +343,7 @@ section('The A/B — what a chimera leaves alone');
       `a chimera regenerates from its own metadata (seed rep${i}, ${levels.join('+')})`,
     );
   }
-  console.log('  60 chimeras over single kinds, pairs and the full set, each regenerated exactly from its recipe');
+  console.log(`  ${REGENERATED} chimeras over single kinds, pairs and the full set, each regenerated exactly from its recipe`);
 }
 
 // ---------------------------------------------------------------------------
@@ -347,7 +360,8 @@ section('Coverage — every kind and every trait reachable');
    * nothing uses. Every trait must appear in some recipe.
    */
   const seen = new Map<string, number>();
-  for (let i = 0; i < 400; i++) {
+  const COVER = S(400);
+  for (let i = 0; i < COVER; i++) {
     const song = generateSong({ seed: `cover${i}`, chaos: { levels: CHAOS_LEVELS, spread: 1 } });
     for (const trait of Object.keys(song.meta.chaos!.borrowed)) {
       seen.set(trait, (seen.get(trait) ?? 0) + 1);
@@ -401,7 +415,7 @@ section('Coverage — every kind and every trait reachable');
     check(expected.includes(trait), `trait "${trait}" is in this check's list`, 'add it to `expected`');
   }
   const rarest = [...seen].sort((a, b) => a[1] - b[1]).slice(0, 4);
-  console.log(`  ${seen.size} traits fired over 400 chimeras; rarest ${rarest.map(([t, n]) => `${t}=${n}`).join(' ')}`);
+  console.log(`  ${seen.size} traits fired over ${COVER} chimeras; rarest ${rarest.map(([t, n]) => `${t}=${n}`).join(' ')}`);
 }
 
 {
@@ -424,7 +438,8 @@ section('Coverage — every kind and every trait reachable');
    * exactly what the five singles borrow between them, so no trait is reachable
    * only in combination.
    */
-  for (let i = 0; i < 40; i++) {
+  const KINDS = S(40);
+  for (let i = 0; i < KINDS; i++) {
     const all = generateSong({ seed: `kinds${i}`, chaos: { levels: CHAOS_LEVELS, spread: 1 } })
       .meta.chaos!.borrowed;
     const union: Record<string, string> = {};
@@ -447,7 +462,7 @@ section('Coverage — every kind and every trait reachable');
       `${extra.join(', ')}`,
     );
   }
-  console.log(`  40 seeds: each of ${CHAOS_LEVELS.join(', ')} borrows the same things alone as together`);
+  console.log(`  ${KINDS} seeds: each of ${CHAOS_LEVELS.join(', ')} borrows the same things alone as together`);
 }
 
 {
@@ -479,7 +494,8 @@ section('Coverage — every kind and every trait reachable');
   });
   const flat = (rate: number) => Object.fromEntries(CHAOS_LEVELS.map((l) => [l, rate]));
 
-  for (let i = 0; i < 30; i++) {
+  const MIXES = S(30);
+  for (let i = 0; i < MIXES; i++) {
     const plain = generateSong({ seed: `mix${i}`, chaos: { levels: CHAOS_LEVELS, spread: 0.7 } });
     const spelled = generateSong({
       seed: `mix${i}`,
@@ -504,7 +520,7 @@ section('Coverage — every kind and every trait reachable');
       );
     }
   }
-  console.log(`  30 seeds: a flat mix is the spread, and one kind at full silences into ${CHAOS_LEVELS.length} solos`);
+  console.log(`  ${MIXES} seeds: a flat mix is the spread, and one kind at full silences into ${CHAOS_LEVELS.length} solos`);
 }
 
 {
@@ -559,7 +575,8 @@ section('Playable — a chimera is a song like any other');
    */
   let midi = 0;
   let strudel = 0;
-  for (let i = 0; i < 40; i++) {
+  const RENDERED = S(40);
+  for (let i = 0; i < RENDERED; i++) {
     const song = generateSong({ seed: `render${i}`, chaos: { levels: CHAOS_LEVELS, spread: 1 }, vocals: i % 3 === 0 });
     try {
       midi += renderMidi(song).length;
@@ -573,7 +590,7 @@ section('Playable — a chimera is a song like any other');
     }
     checks += 2;
   }
-  console.log(`  40 chimeras rendered — ${Math.round(midi / 1024)} kB of MIDI, ${Math.round(strudel / 1024)} kB of Strudel`);
+  console.log(`  ${RENDERED} chimeras rendered — ${Math.round(midi / 1024)} kB of MIDI, ${Math.round(strudel / 1024)} kB of Strudel`);
 }
 
 {
@@ -588,7 +605,8 @@ section('Playable — a chimera is a song like any other');
    * Lengths and tempos are allowed to move, and do, because a chimera narrows
    * its tempo band to what every band that wrote a figure in it can play.
    */
-  for (let i = 0; i < 4; i++) {
+  const EVENINGS = S(4);
+  for (let i = 0; i < EVENINGS; i++) {
     const plain = buildConcert({ seed: `show${i}` });
     const wild = buildConcert({ seed: `show${i}`, chaos: { levels: ['figures'], spread: 0.8 } });
     const programme = (c: typeof plain) => JSON.stringify(
@@ -605,7 +623,7 @@ section('Playable — a chimera is a song like any other');
       );
     }
   }
-  console.log('  4 evenings staged with chaos on: same repertoire, same room, same decade, a chimera per number');
+  console.log(`  ${EVENINGS} evenings staged with chaos on: same repertoire, same room, same decade, a chimera per number`);
 }
 
 {
@@ -651,7 +669,7 @@ section('Playable — a chimera is a song like any other');
   }
 
   let dressed = 0;
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < S(8); i++) {
     const concert = buildConcert({ seed: `dress${i}`, chaos: { levels: ['band'], spread: 1 } });
     for (const number of concert.numbers) {
       const recipe = number.song.meta.chaos!;
@@ -721,7 +739,7 @@ section('Playable — a chimera is a song like any other');
 
 // ---------------------------------------------------------------------------
 
-console.log(`\n${checks} checks, ${failures} failure(s)`);
+console.log(`\n${checks} checks, ${failures} failure(s)${depthSummary()}`);
 if (failures) process.exit(1);
 
 // Keeps `planChaos` and `ChaosLevel` honest at the type level even though this
