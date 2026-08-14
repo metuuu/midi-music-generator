@@ -24,7 +24,7 @@ import {
   DUCK_BEATS, DUCK_ONSET_SECONDS, duckFloor, kickOnsets, sweptCutoff, tempoLabel,
 } from '../core/types.js';
 import type {
-  DrumVoice, Effects, Envelope, NoteEvent, Song, Track, Vowel,
+  DrumVoice, Effects, Envelope, LayerId, NoteEvent, Song, Track, Vowel,
 } from '../core/types.js';
 import {
   CONSONANTS, FORMANT_BANDWIDTHS, FORMANT_GAINS, VOICE_MIX, VOWEL_FORMANTS,
@@ -37,7 +37,104 @@ export interface StrudelRenderOptions {
   standalone?: boolean;
 }
 
+/**
+ * One layer's music, as code that evaluates to a pattern on its own.
+ *
+ * The unit a live stage swaps. `code` is self-contained — a sung layer's
+ * `voiceBinding` declarations travel inside it rather than sitting above the
+ * whole stack — so it can go through `evaluate` by itself and the result is the
+ * pattern for that layer and nothing else.
+ */
+export interface LayerPattern {
+  layer: LayerId;
+  code: string;
+}
+
+/**
+ * A song split into the parts a running stage can replace one at a time.
+ *
+ * The reason this exists rather than everyone calling `renderStrudel`: a whole
+ * song is 60–124 KB of generated JavaScript, and handing that to Strudel means
+ * an acorn parse, a compile of a source string the engine has never seen, and a
+ * pattern graph of several thousand combinators — all on the main thread, all
+ * while the stage is trying to hold 60 fps. A tomato used to pay it twice, once
+ * to mute the player and once to bring them back. Split up, muting costs no
+ * evaluation whatever and a re-voice costs one layer's worth. See
+ * `web/audio.ts`, which holds the layers behind `ref` so the running pattern
+ * reads them at query time.
+ */
+export interface StrudelParts {
+  /** Cycles per minute, for the scheduler. One bar is one cycle. */
+  cpm: number;
+  layers: LayerPattern[];
+}
+
+/**
+ * One emitted block, and which player it belongs to.
+ *
+ * `defs` are statements that have to run before `code` and that only this layer
+ * uses — the `const v0 = …` a sung part is filtered out of four times. They ride
+ * with the part rather than sitting above the stack so that one layer can be
+ * evaluated on its own. In the whole-song render they land exactly where they
+ * always did, because nothing else writes to the file between `setcpm` and the
+ * stack.
+ */
+interface Emitted {
+  layer: LayerId;
+  defs: string[];
+  code: string;
+}
+
 export function renderStrudel(song: Song, opts: StrudelRenderOptions = {}): string {
+  const { header, parts } = build(song, opts);
+  const lines = [...header];
+  for (const part of parts) {
+    if (!part.defs.length) continue;
+    lines.push(...part.defs, '');
+  }
+  const stacked = parts.map((p) => p.code).join(',\n\n');
+
+  if (opts.standalone !== false) {
+    lines.push('stack(');
+    lines.push(stacked);
+    lines.push(')');
+  } else {
+    lines.push(`stack(\n${stacked}\n)`);
+  }
+
+  return lines.join('\n') + '\n';
+}
+
+/**
+ * The same song, one evaluable block per layer.
+ *
+ * Order is the emission order of `renderStrudel`, so a stack built from these in
+ * sequence is the stack that function would have written — which matters, since
+ * superdough's orbit numbers are handed out as parts are emitted and a layer
+ * pulled out of sequence would duck against a bus that is not there.
+ */
+export function renderStrudelParts(song: Song, opts: StrudelRenderOptions = {}): StrudelParts {
+  const { parts } = build(song, opts);
+  const byLayer = new Map<LayerId, Emitted[]>();
+  for (const part of parts) {
+    const at = byLayer.get(part.layer) ?? [];
+    at.push(part);
+    byLayer.set(part.layer, at);
+  }
+
+  return {
+    cpm: song.meta.bpm / song.meta.beatsPerBar,
+    layers: [...byLayer].map(([layer, group]) => ({
+      layer,
+      code: [
+        ...group.flatMap((p) => p.defs),
+        `stack(\n${group.map((p) => p.code).join(',\n\n')}\n)`,
+      ].join('\n'),
+    })),
+  };
+}
+
+function build(song: Song, opts: StrudelRenderOptions): { header: string[]; parts: Emitted[] } {
   const { meta } = song;
   const slotsPerBar = meta.beatsPerBar * SLOTS_PER_BEAT;
   const lines: string[] = [];
@@ -113,7 +210,11 @@ export function renderStrudel(song: Song, opts: StrudelRenderOptions = {}): stri
   lines.push(`setcpm(${(meta.bpm / meta.beatsPerBar).toFixed(4)});`);
   lines.push('');
 
-  const parts: string[] = [];
+  const parts: Emitted[] = [];
+  /** Every emitted block belongs to somebody. `push` is where it is said. */
+  const push = (layer: LayerId, code: string, defs: string[] = []) => {
+    parts.push({ layer, code, defs });
+  };
 
   const spelling = spellingFor(meta.tonic, meta.mode);
   const ducked = duckPlan(song);
@@ -155,13 +256,18 @@ export function renderStrudel(song: Song, opts: StrudelRenderOptions = {}): stri
     // stops the whole pattern parsing. See `voiceBinding`.
     if (track.voice) {
       const binding = voiceBinding(sungTracks++);
-      lines.push(...voiceDefinition(
+      // The definition rides on the first of this voice's formants, so that a
+      // layer lifted out on its own carries the name its parts refer to.
+      const defs = voiceDefinition(
         track, binding, formatGrid(grid), meta.totalBars, slotsPerBar, meta.bpm, divided,
-      ));
-      lines.push('');
-      parts.push(...voiceParts(track, binding, meta.totalBars, slotsPerBar));
+      );
+      let first = true;
+      for (const code of voiceParts(track, binding, meta.totalBars, slotsPerBar)) {
+        push(track.layer, code, first ? defs : []);
+        first = false;
+      }
       const burst = consonantBurst(track, meta.totalBars, slotsPerBar, meta.bpm, divided);
-      if (burst) parts.push(burst);
+      if (burst) push(track.layer, burst, first ? defs : []);
       continue;
     }
 
@@ -231,7 +337,7 @@ export function renderStrudel(song: Song, opts: StrudelRenderOptions = {}): stri
       ...(ducked.targets.has(track) ? [`    .orbit(${orbits.size + 2})`] : []),
     ].join('\n');
     if (ducked.targets.has(track)) orbits.set(track, orbits.size + 2);
-    parts.push(part);
+    push(track.layer, part);
   }
 
   // Drums: one pattern per voice so the per-voice mix survives.
@@ -364,32 +470,22 @@ export function renderStrudel(song: Song, opts: StrudelRenderOptions = {}): stri
      * is saying. See `drumNudge`.
      */
     const shift = drumNudge(grid, slotsPerBar, meta.bpm);
-    parts.push(
-      [
-        `  // drums — ${voice}${drumNote(song.drums.bank, voice, played)}`,
-        `  s(\`${formatGrid(bars)}\`)`,
-        played.bank !== undefined
-          ? `    .bank('${played.bank}')`
-          : `    .n(${played.n})`,
-        dyn ? `    .gain(\`${formatGrid(dyn)}\`)` : `    .gain(${gain.toFixed(3)})`,
-        ...(shift ? [`    .nudge(\`${formatGrid(shift)}\`)`] : []),
-        ...effectChain(fx, song),
-        // The sidechain's source end, on the kick and only on the kick. See
-        // `duckPlan`; `kickOnsets` argues why it is `bd` by name.
-        ...(voice === 'bd' ? ducked.controls(orbits) : []),
-      ].join('\n'),
-    );
+    push('drums', [
+      `  // drums — ${voice}${drumNote(song.drums.bank, voice, played)}`,
+      `  s(\`${formatGrid(bars)}\`)`,
+      played.bank !== undefined
+        ? `    .bank('${played.bank}')`
+        : `    .n(${played.n})`,
+      dyn ? `    .gain(\`${formatGrid(dyn)}\`)` : `    .gain(${gain.toFixed(3)})`,
+      ...(shift ? [`    .nudge(\`${formatGrid(shift)}\`)`] : []),
+      ...effectChain(fx, song),
+      // The sidechain's source end, on the kick and only on the kick. See
+      // `duckPlan`; `kickOnsets` argues why it is `bd` by name.
+      ...(voice === 'bd' ? ducked.controls(orbits) : []),
+    ].join('\n'));
   }
 
-  if (opts.standalone !== false) {
-    lines.push('stack(');
-    lines.push(parts.join(',\n\n'));
-    lines.push(')');
-  } else {
-    lines.push(`stack(\n${parts.join(',\n\n')}\n)`);
-  }
-
-  return lines.join('\n') + '\n';
+  return { header: lines, parts };
 }
 
 /** Drum-machine sample set used by the audition render (verified reachable). */

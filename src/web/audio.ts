@@ -15,7 +15,10 @@
  * drums play, every melodic instrument is silent.
  */
 
-import { evalScope, type StrudelRepl } from '@strudel/core';
+import {
+  evalScope, evaluate, ref, silence, stack,
+  type Pattern, type StrudelRepl,
+} from '@strudel/core';
 import {
   getAudioContext,
   getSampleBuffer,
@@ -36,9 +39,9 @@ import { getFontBufferSource, registerSoundfonts } from '@strudel/soundfonts';
  */
 import GM_FONTS from '@strudel/soundfonts/gm.mjs';
 
-import type { Envelope, Song } from '../core/types.js';
+import type { Envelope, LayerId, Song } from '../core/types.js';
 import { resolveDrumSample } from '../render/drum-banks.js';
-import { SAMPLE_MANIFESTS } from '../render/strudel.js';
+import { SAMPLE_MANIFESTS, type StrudelParts } from '../render/strudel.js';
 
 let instance: StrudelRepl | undefined;
 let booting: Promise<StrudelRepl> | undefined;
@@ -146,6 +149,123 @@ function installLimiter(): void {
 export async function playCode(code: string): Promise<void> {
   const repl = await initAudio();
   await repl.evaluate(code);
+}
+
+// ---------------------------------------------------------------------------
+// A band you can change one player in
+// ---------------------------------------------------------------------------
+
+/**
+ * The layers the running pattern is reading, by layer id.
+ *
+ * Module state rather than a returned handle because there is one scheduler and
+ * one audible band; two of these would be two songs playing at once, and the
+ * bug that produces is not one anybody would diagnose from the sound.
+ */
+const band = new Map<LayerId, Pattern>();
+
+/**
+ * Put a whole song on, as a stack of layers that can be replaced individually.
+ *
+ * The alternative — and what this replaces — is handing Strudel the whole song
+ * as text every time anything changes. That is 60–124 KB of generated
+ * JavaScript through an acorn parse, a compile of a source string the engine has
+ * never seen before (so nothing is JIT-cached), and a pattern graph of several
+ * thousand combinators, synchronously, on the frame the stage is animating.
+ *
+ * What makes the difference is `ref`, whose own docstring in `@strudel/core`
+ * says it: *exposes a custom value at query time. basically allows mutating
+ * state without evaluation*. The pattern the scheduler holds asks this map for
+ * each layer every time it is queried, so `mutePlayer` is a map write and costs
+ * nothing at all, and `swapPlayer` costs one layer's text rather than a song's.
+ *
+ * `autostart` is false for the same reason `loadCode` exists: a stage decides
+ * when bar one happens, and evaluating onto a running clock starts the song
+ * somewhere in its middle. See `startLoaded`.
+ */
+export async function loadBand(parts: StrudelParts, autostart = false): Promise<void> {
+  const repl = await initAudio();
+  band.clear();
+  for (const { layer, code } of parts.layers) {
+    band.set(layer, await compile(code));
+  }
+  // `setcpm` in the emitted preamble, called directly — there is no code left
+  // to evaluate it in. One cycle is one bar, so cps is cpm/60.
+  repl.setCps(parts.cpm / 60);
+  /**
+   * Snapshot the layer ids, not the map's keys at query time.
+   *
+   * A `ref` per layer that existed when the song was loaded, and no more: the
+   * stack itself is fixed for the number, and only what each `ref` returns
+   * moves. Reading the live key set here would let a swap change the *shape* of
+   * the stack, which is a re-evaluation by another route.
+   */
+  const layers = parts.layers.map((l) => l.layer);
+  await repl.setPattern(
+    stack(...layers.map((layer) => ref(() => band.get(layer) ?? silence))),
+    autostart,
+  );
+}
+
+/**
+ * Take a player out, in place, for nothing.
+ *
+ * No transpile, no evaluation, no `setPattern` — the running pattern reads this
+ * map on its next query and finds silence. Strudel queries a cycle ahead, so the
+ * player drops out at the top of the next bar, which is where a musician would
+ * have dropped out anyway.
+ */
+export function mutePlayer(layer: LayerId): void {
+  band.set(layer, silence);
+}
+
+/**
+ * Put a player back with different music.
+ *
+ * The one evaluation a re-voice pays for, and it is this layer's text rather
+ * than the song's — a few KB against 60–124. A layer that is not part of the
+ * loaded stack is written anyway and simply never read, which is the right
+ * answer for a chimera that arrived with a part nobody is holding a `ref` for.
+ */
+export async function swapPlayer(layer: LayerId, code: string): Promise<void> {
+  await initAudio();
+  band.set(layer, await compile(code));
+}
+
+/** Whether a band is loaded, so a caller can tell a swap from a cold start. */
+export function bandLoaded(): boolean {
+  return band.size > 0;
+}
+
+/**
+ * Whether the clock is running.
+ *
+ * Asked before starting rather than started blindly: `scheduler.start()` rewinds
+ * to cycle 0, so calling it on a running number would take the band back to the
+ * top of the song. The old path could not get this wrong because `playCode`
+ * evaluated and started in one call and a swap always came with an evaluation;
+ * a swap that touches no pattern has to check.
+ */
+export async function isPlaying(): Promise<boolean> {
+  const repl = await initAudio();
+  return repl.scheduler.started;
+}
+
+/** Forget the band. The scheduler keeps whatever it was last given. */
+export function clearBand(): void {
+  band.clear();
+}
+
+/**
+ * One layer's code to one pattern, without disturbing what is playing.
+ *
+ * `repl.evaluate` would install the result as *the* pattern, which is the
+ * opposite of the point. `evaluate` from `@strudel/core` is the same machinery
+ * with no scheduler attached: transpile, run, hand back the value.
+ */
+async function compile(code: string): Promise<Pattern> {
+  const { pattern } = await evaluate(code, transpiler);
+  return pattern as Pattern;
 }
 
 /**

@@ -16,6 +16,35 @@ declare module '@strudel/core' {
   export function evalScope(...modules: unknown[]): Promise<void>;
   export const controls: Record<string, unknown>;
   export function repl(options: Record<string, unknown>): StrudelRepl;
+  /**
+   * A pattern, opaque. Nothing here inspects one — they are made by `evaluate`,
+   * combined by `stack`, and handed to the scheduler.
+   */
+  export interface Pattern { readonly __pattern: unique symbol }
+  /** The pattern that plays nothing, for a player who has been taken out. */
+  export const silence: Pattern;
+  /** Everything at once. */
+  export function stack(...patterns: Pattern[]): Pattern;
+  /**
+   * A pattern that asks `accessor` what it is on every query.
+   *
+   * The whole of how a running band changes one player without being rebuilt:
+   * the scheduler holds a stack of these, and swapping what the accessor returns
+   * needs no transpile, no evaluation and no `setPattern`. Strudel's own note on
+   * it is "exposes a custom value at query time. basically allows mutating state
+   * without evaluation". See `loadBand` in `web/audio.ts`.
+   */
+  export function ref(accessor: () => Pattern): Pattern;
+  /**
+   * Code to pattern, with no scheduler involved.
+   *
+   * The half of `StrudelRepl.evaluate` that does the work, without the half that
+   * installs the result as *the* pattern — which is what lets one layer be
+   * compiled while the band goes on playing.
+   */
+  export function evaluate(
+    code: string, transpiler?: unknown, options?: unknown,
+  ): Promise<{ pattern: unknown }>;
   export interface StrudelRepl {
     /**
      * Compile and load. `autostart` defaults to true; passing false loads the
@@ -23,6 +52,10 @@ declare module '@strudel/core' {
      * when bar 1 happens — see `loadCode`/`startLoaded` in `web/audio.ts`.
      */
     evaluate(code: string, autostart?: boolean, hush?: boolean): Promise<unknown>;
+    /** Install an already-built pattern, skipping the transpiler entirely. */
+    setPattern(pattern: Pattern, autostart?: boolean): Promise<unknown>;
+    /** Cycles per second. `setcpm(n)` in evaluated code is this with `n / 60`. */
+    setCps(cps: number): void;
     /** Start the clock on the loaded pattern, from cycle 0 — or from wherever
      * `pause` left it, which is the difference between the two ways of
      * stopping below. */

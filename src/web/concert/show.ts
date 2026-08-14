@@ -73,8 +73,11 @@ import type {
 import { drumEventsFor, instrumentIdForTrack, specFor } from '../../concert/instruments.js';
 import { countsItselfIn } from '../../generate/song.js';
 import { readBankName } from '../../render/drum-banks.js';
-import { renderStrudel } from '../../render/strudel.js';
-import { loadCode, playCode, preloadSounds, startLoaded, stopPlayback } from '../audio.js';
+import { renderStrudelParts } from '../../render/strudel.js';
+import {
+  bandLoaded, clearBand, isPlaying, loadBand, mutePlayer, preloadSounds, startLoaded,
+  stopPlayback, swapPlayer,
+} from '../audio.js';
 import { createSungVoice, withoutSungVoice } from '../sung-voice.js';
 
 import { createAnimator, type Animator } from './animate.js';
@@ -1047,20 +1050,85 @@ export function createShow(opts: ShowOptions = {}): Show {
   }
 
   /**
-   * Re-render the pattern, but not on this frame.
+   * What each layer of the loaded band was last given, by layer.
    *
-   * `sound` is `async` and looks deferred and is not: `renderStrudel` runs
-   * synchronously, before the first `await`, on whatever frame called it. That
-   * is fine at the top of a number, where the picture is behind a curtain and
-   * nothing is moving, and it is exactly wrong on the frame a tomato lands —
-   * which is already the busiest frame of the show and the one the thrower is
-   * watching for a response. A whole song's worth of pattern text is built
-   * between the impact and the picture of it.
+   * Kept so a re-voice can evaluate the parts that actually moved and leave the
+   * rest alone. The splice in `revoiceNumber` means that is normally one layer
+   * out of six, and the five it skips are the expensive ones to have been wrong
+   * about — see `loadBand`.
+   */
+  let onStage = new Map<LayerId, string>();
+
+  /**
+   * Take a player out of the band, for the price of a map write.
    *
-   * So the impact frame gets the splat and the flinch, and the pattern is
-   * rebuilt on the next task. Coalesced, because a burst of hits would
-   * otherwise queue a full render each, and they would all produce the same
-   * answer — the *last* state of `sulking` is the only one that matters.
+   * This used to re-render the whole song without that track and hand Strudel
+   * the result: a 60–124 KB transpile and a fresh pattern graph, on the frame
+   * after a tomato landed, to remove one part. The stack the scheduler holds now
+   * reads each layer through a `ref`, so silencing one is a value change that
+   * costs no evaluation at all and lands at the top of the next bar — which is
+   * where a musician would have stopped anyway.
+   *
+   * The singer is not in that stack: `withoutSungVoice` takes her out of the
+   * pattern and `web/sung-voice.ts` sings her instead, so she is silenced by
+   * ending that rather than by muting a layer nobody is reading.
+   */
+  function silencePlayer(layer: LayerId): void {
+    mutePlayer(layer);
+    if (layer === 'vocal') voice.end();
+  }
+
+  /**
+   * Put the band's music on, or bring the parts of it that changed up to date.
+   *
+   * The first call for a number loads every layer; later ones evaluate only what
+   * moved. Building the text is 2–8 ms for a whole song and was never the
+   * problem — what cost was handing all of it to Strudel, which this now does one
+   * layer at a time and only when that layer is different.
+   */
+  async function loadLayers(song: Song, autostart: boolean): Promise<void> {
+    const parts = renderStrudelParts(withoutSungVoice(song));
+    if (!bandLoaded()) {
+      onStage = new Map(parts.layers.map((l) => [l.layer, l.code]));
+      await loadBand(parts, autostart);
+      return;
+    }
+    for (const { layer, code } of parts.layers) {
+      // `sulking` rather than the code alone: a player whose part came back
+      // identical is still a player who has to be un-muted, and a re-voice that
+      // changed nothing is not rare — see the note in `concert-check.ts`.
+      if (onStage.get(layer) === code && !sulking.has(layer)) continue;
+      onStage.set(layer, code);
+      await swapPlayer(layer, code);
+    }
+    /**
+     * And start the clock if the caller wanted one and there is none.
+     *
+     * The old path could not forget this: it went through `playCode`, which
+     * evaluates *and* starts, so a re-render always carried a start with it.
+     * Swapping a layer touches no scheduler at all, so the one caller that
+     * relies on this — `startMusic`, where the loaded song is not the one now
+     * on stage because a tomato replaced it while the curtain was travelling —
+     * would otherwise stage a band that never plays.
+     *
+     * Guarded, because `start` rewinds to cycle 0 and a number in its second
+     * chorus must not go back to the top.
+     */
+    if (autostart && !await isPlaying()) await startLoaded();
+  }
+
+  /**
+   * Rebuild the band, but not on this frame.
+   *
+   * `loadLayers` runs its render synchronously, before the first `await`, on whatever
+   * frame called it. That is fine at the top of a number, where the picture is
+   * behind a curtain and nothing is moving, and it is wrong on the frame a
+   * tomato lands — which is already the busiest frame of the show and the one
+   * the thrower is watching for a response.
+   *
+   * So the impact frame gets the splat and the flinch, and the sound catches up
+   * on the next task. Coalesced, because a burst of hits would otherwise queue a
+   * render each and they would all produce the same answer.
    */
   let soundPending = false;
   function scheduleSound(): void {
@@ -1074,7 +1142,7 @@ export function createShow(opts: ShowOptions = {}): Show {
 
   async function sound(song: Song): Promise<void> {
     try {
-      await playCode(renderStrudel(withoutSungVoice(audible(song))));
+      await loadLayers(song, true);
       voice.begin(audible(song));
     } catch (err) {
       // A pattern that will not evaluate is a bug worth seeing, but it must not
@@ -1151,7 +1219,10 @@ export function createShow(opts: ShowOptions = {}): Show {
       // would start this song somewhere in its middle.
       await stopPlayback();
       voice.end();
-      await loadCode(renderStrudel(withoutSungVoice(audible(song))));
+      // A fresh band rather than an updated one: this is a different song, and
+      // a layer left over from the last number would be read by the new stack.
+      clearBand();
+      await loadLayers(song, false);
       loaded = song;
     } catch (err) {
       console.error('concert: Strudel could not evaluate the pattern', err);
@@ -1320,8 +1391,16 @@ export function createShow(opts: ShowOptions = {}): Show {
     sulking.set(layer, { until: transport.beat() + SULK_BEATS, attempt });
 
     animator.setPlaying(hit.performerId, false);
-    // Off this frame. See `scheduleSound`.
-    scheduleSound();
+    /**
+     * On this frame, and that is the change worth noticing.
+     *
+     * Silencing a player used to be a whole-song re-render deferred to the next
+     * task, so the tomato landed and the part it hit went on playing for a frame
+     * and then everything stalled. It is now a map write against the `ref` the
+     * stack is reading, which costs nothing measurable and lands at the top of
+     * the next bar — so it can happen where it belongs, beside the flinch.
+     */
+    silencePlayer(layer);
   });
 
   tomatoes.onPatienceLost(() => {
@@ -1342,7 +1421,8 @@ export function createShow(opts: ShowOptions = {}): Show {
     }
     // Also off this frame, and for the same reason: this one already ran
     // `revoiceNumber` here, so it is the last thing that should also render a
-    // pattern before the picture gets a look in.
+    // pattern before the picture gets a look in. What it evaluates now is the
+    // layer that came back and nothing else — see `band`.
     scheduleSound();
   }
 
