@@ -20,7 +20,7 @@ import {
 } from '../core/types.js';
 import { Rng } from '../core/rng.js';
 import { GENRES, getGenre } from '../genre/index.js';
-import type { ChaosLevel } from '../genre/chaos.js';
+import { formatChaosMixing, type ChaosLevel } from '../genre/chaos.js';
 import { STRICTNESS_LEVELS, getStrictness, type StrictnessId } from '../core/rules.js';
 import { HOOK_LEVELS, getHook, type HookId } from '../generate/hook.js';
 import { DEFAULT_SUNG_CHANCE, SUNG_CHANCE } from '../concert/setlist.js';
@@ -43,7 +43,11 @@ const els = {
   seed: $<HTMLInputElement>('seed'),
   chaos: $<HTMLDivElement>('chaos'),
   chaosSpread: $<HTMLInputElement>('chaos-spread'),
+  chaosMixBlock: $<HTMLDivElement>('chaos-mix-block'),
+  chaosOne: $<HTMLDivElement>('chaos-one'),
+  chaosMixing: $<HTMLDivElement>('chaos-mixing'),
   chaosAll: $<HTMLButtonElement>('chaos-all'),
+  chaosAdvanced: $<HTMLButtonElement>('chaos-advanced'),
   vocals: $<HTMLSelectElement>('vocals'),
   play: $<HTMLButtonElement>('play'),
   next: $<HTMLButtonElement>('next'),
@@ -145,7 +149,87 @@ for (const [id, label, hint] of CHAOS_BOXES) {
   els.chaos.insertBefore(wrap, els.chaosAll);
 }
 
+/**
+ * **Advanced** — the same Mixing slider, once per kind.
+ *
+ * One rate for everything is the right *first* control and it cannot say the
+ * thing people actually want to say, which is a rate per kind: a wholly foreign
+ * band playing our own chords, with one thing about the form from elsewhere.
+ * With a single dial that is three different songs and none of them is it.
+ *
+ * Built from the same table as the boxes, in the same order, so the two rows
+ * read down: the third box and the third slider are the same kind, and adding a
+ * seventh kind adds both without touching this file twice.
+ *
+ * The panel is a *view* of the rates rather than a second set of them — the
+ * simple slider goes on existing underneath, and a kind with no slider of its
+ * own falls back to it in `planChaos` exactly as `ChaosOptions.mixing` says.
+ */
+for (const [id, label, hint] of CHAOS_BOXES) {
+  const wrap = document.createElement('div');
+  wrap.className = 'mixing';
+  const text = document.createElement('label');
+  text.htmlFor = `chaos-mix-${id}`;
+  text.title = hint;
+  const value = document.createElement('b');
+  value.id = `chaos-mix-${id}-value`;
+  text.append(document.createTextNode(label), value);
+  const slider = document.createElement('input');
+  slider.type = 'range';
+  slider.id = `chaos-mix-${id}`;
+  slider.min = '0';
+  slider.max = '100';
+  slider.step = '5';
+  slider.value = els.chaosSpread.value;
+  // Same split as the single slider: painted while it is dragged, heard when it
+  // is let go. And once one of these has been moved the panel is the user's, so
+  // opening it again does not reset it to whatever the simple slider says.
+  slider.oninput = () => { mixTouched = true; paintMix(id); syncFullChaos(); };
+  slider.onchange = () => { if (chosenLevels().length) void regenerateSameSeed(); };
+  wrap.append(text, slider);
+  els.chaosMixing.append(wrap);
+}
+
+/** Has anybody moved a per-kind slider? See the `advanced` chip. */
+let mixTouched = false;
+
+const mixSlider = (id: ChaosLevel): HTMLInputElement => $<HTMLInputElement>(`chaos-mix-${id}`);
+
+function advancedChaos(): boolean {
+  return els.chaosAdvanced.classList.contains('on');
+}
+
+/** Fill one per-kind track and write its rate beside the name. */
+function paintMix(id: ChaosLevel): void {
+  const slider = mixSlider(id);
+  slider.style.setProperty('--fill', `${slider.value}%`);
+  $<HTMLElement>(`chaos-mix-${id}-value`).textContent = `${slider.value}%`;
+}
+
+function paintAllMix(): void {
+  for (const [id] of CHAOS_BOXES) paintMix(id);
+}
+
+/**
+ * A rate with nothing to apply to is not shown at all.
+ *
+ * With no kind ticked the whole block goes, because a Mixing slider above six
+ * clear boxes is a control for a thing that is not happening. In the advanced
+ * panel it is per kind, for the same reason one step down: the boxes already
+ * say which kinds are off, and repeating it in six dead sliders reads as a
+ * broken panel rather than an available one.
+ */
+function syncChaosVisible(): void {
+  const chosen = new Set(chosenLevels());
+  els.chaosMixBlock.hidden = chosen.size === 0;
+  for (const [id] of CHAOS_BOXES) {
+    (mixSlider(id).parentElement as HTMLElement).hidden = !chosen.has(id);
+  }
+}
+
 paintSpread();
+paintAllMix();
+syncChaosVisible();
 
 /** Which kinds are ticked, in `CHAOS_LEVELS` order rather than DOM order. */
 function chosenLevels(): ChaosLevel[] {
@@ -174,7 +258,13 @@ function chosenLevels(): ChaosLevel[] {
  * and nudgeable, so "everything, but leave the chords alone" is two clicks.
  */
 function isFullChaos(): boolean {
-  return chosenLevels().length === CHAOS_BOXES.length && els.chaosSpread.value === '100';
+  if (chosenLevels().length !== CHAOS_BOXES.length) return false;
+  // Whichever control is the one in force: in advanced mode the single slider
+  // applies to nothing, so a page with six sliders at 100 is in full chaos
+  // however that one happens to be sitting.
+  return advancedChaos()
+    ? CHAOS_BOXES.every(([id]) => mixSlider(id).value === '100')
+    : els.chaosSpread.value === '100';
 }
 
 function syncFullChaos(): void {
@@ -188,8 +278,37 @@ function toggleFullChaos(): void {
   // middle rather than leaving it at 100, which would be the one setting nobody
   // asked for — every box clear and the slider still pinned, so the next box
   // ticked would arrive at full strength.
+  //
+  // Both controls move, whichever is showing. The one out of sight is where the
+  // page lands if it is switched to, and full chaos followed by a switch that
+  // dropped back to half chaos would be the chip lying about what it did.
   els.chaosSpread.value = on ? '50' : '100';
+  for (const [id] of CHAOS_BOXES) mixSlider(id).value = on ? '50' : '100';
+  mixTouched = true;
   paintSpread();
+  paintAllMix();
+}
+
+/**
+ * Open or close the per-kind panel.
+ *
+ * Opening it for the first time copies the single slider into all six, so the
+ * panel starts as a picture of the setting it replaces and the song does not
+ * move underneath the click. After that the six are the user's — flipping the
+ * chip is then an A/B between one rate and their own mix, which is the reason
+ * to have a chip rather than a mode you cannot get out of.
+ */
+function toggleAdvanced(): void {
+  const on = !advancedChaos();
+  els.chaosAdvanced.classList.toggle('on', on);
+  els.chaosOne.hidden = on;
+  els.chaosMixing.hidden = !on;
+  // Six sliders need the row; one is happy in a column beside the boxes.
+  els.chaosMixBlock.classList.toggle('wide', on);
+  if (on && !mixTouched) {
+    for (const [id] of CHAOS_BOXES) mixSlider(id).value = els.chaosSpread.value;
+  }
+  paintAllMix();
 }
 
 /**
@@ -261,6 +380,14 @@ function currentOptions(): GenerateOptions {
   const levels = chosenLevels();
   if (levels.length) {
     opts.chaos = { levels, spread: Number(els.chaosSpread.value) / 100 };
+    // Only the ticked kinds: an entry for a kind nobody selected changes
+    // nothing, and leaving it out keeps the recipe printed below down to what
+    // was actually heard.
+    if (advancedChaos()) {
+      opts.chaos.mixing = Object.fromEntries(
+        levels.map((id) => [id, Number(mixSlider(id).value) / 100]),
+      );
+    }
   }
   return opts;
 }
@@ -320,7 +447,11 @@ function describe(song: Song): void {
     song.tracks.map((t) => `${t.layer}: <b>${t.instrument}</b>`).join(' · '),
     // Only on a chimera, and it names the donors rather than counting them: a
     // listener who can hear something foreign wants to know what it was.
-    ...(meta.chaos ? [`Chaos: <b>${meta.chaos.levels.join(' + ')}</b> at ${Math.round(meta.chaos.spread * 100)}% over <b>${
+    // A kind mixed at a rate of its own carries that rate; the bare ones are on
+    // the rate that follows the list.
+    ...(meta.chaos ? [`Chaos: <b>${meta.chaos.levels.map((l) => (
+      meta.chaos!.mixing?.[l] !== undefined ? `${l} ${Math.round(meta.chaos!.mixing[l]! * 100)}%` : l
+    )).join(' + ')}</b> at ${Math.round(meta.chaos.spread * 100)}% over <b>${
       meta.chaos.host.genre}:${meta.chaos.host.style}</b><br>${
       Object.entries(meta.chaos.borrowed).map(([k, v]) => `${k} ← <b>${v}</b>`).join(' · ') || 'nothing borrowed'}`] : []),
     `seed: <b>${meta.seed}</b>`,
@@ -505,7 +636,13 @@ els.watch.onclick = () => {
     // Without these the stage would play the *host's* song — `meta.genre` names
     // the genre a chimera is filed under, not the band that turned up. See
     // `SongMeta.chaos`.
-    ...(meta.chaos ? { chaos: meta.chaos.levels.join(','), spread: String(meta.chaos.spread) } : {}),
+    ...(meta.chaos ? {
+      chaos: meta.chaos.levels.join(','),
+      spread: String(meta.chaos.spread),
+      // …and the per-kind rates, when there were any. Without them the stage
+      // would play the same kinds mixed evenly, which is a different chimera.
+      ...(meta.chaos.mixing ? { mix: formatChaosMixing(meta.chaos.mixing) } : {}),
+    } : {}),
   });
   location.href = `/concert?${q}`;
 };
@@ -537,7 +674,7 @@ for (const el of [els.mood, els.era, els.style]) {
  * would leave nothing to compare.
  */
 function onChaosChange(): void {
-  els.chaosSpread.disabled = chosenLevels().length === 0;
+  syncChaosVisible();
   syncFullChaos();
   void regenerateSameSeed();
 }
@@ -547,6 +684,10 @@ els.chaosSpread.oninput = () => { paintSpread(); syncFullChaos(); };
 els.chaosSpread.onchange = () => { if (chosenLevels().length) void regenerateSameSeed(); };
 els.chaosAll.onclick = () => {
   toggleFullChaos();
+  onChaosChange();
+};
+els.chaosAdvanced.onclick = () => {
+  toggleAdvanced();
   onChaosChange();
 };
 

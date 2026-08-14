@@ -257,14 +257,28 @@ section('The A/B — what a chimera leaves alone');
       : i % 3 === 1
         ? [CHAOS_LEVELS[i % CHAOS_LEVELS.length]!, CHAOS_LEVELS[(i + 2) % CHAOS_LEVELS.length]!]
         : [...CHAOS_LEVELS];
-    const first = generateSong({ seed: `rep${i}`, chaos: { levels, spread: 0.6 } });
+    // …and every fourth of them mixed per kind rather than evenly, because a
+    // rate the recipe forgot to record would reproduce as `spread` and the song
+    // would come back *nearly* right — which is the failure this catches and
+    // the only kind `mixing` can cause.
+    const mixing = i % 4 === 3
+      ? { band: 1, figures: 0.15, harmony: 0.9, staging: 0 }
+      : undefined;
+    const first = generateSong({
+      seed: `rep${i}`,
+      chaos: { levels, spread: 0.6, ...(mixing ? { mixing } : {}) },
+    });
     const again = generateSong({
       seed: first.meta.seed,
       genre: first.meta.genre,
       era: first.meta.era,
       style: first.meta.style,
       mood: first.meta.mood,
-      chaos: { levels: first.meta.chaos!.levels, spread: first.meta.chaos!.spread },
+      chaos: {
+        levels: first.meta.chaos!.levels,
+        spread: first.meta.chaos!.spread,
+        ...(first.meta.chaos!.mixing ? { mixing: first.meta.chaos!.mixing } : {}),
+      },
     });
     check(
       JSON.stringify(first) === JSON.stringify(again),
@@ -389,6 +403,63 @@ section('Coverage — every kind and every trait reachable');
     );
   }
   console.log(`  40 seeds: each of ${CHAOS_LEVELS.join(', ')} borrows the same things alone as together`);
+}
+
+{
+  /**
+   * **Per-kind mixing is the same control, once per kind** — the two claims
+   * `ChaosOptions.mixing` makes, each asserted against something already known
+   * to be true rather than against itself.
+   *
+   * *A uniform mix is the spread.* Every kind set to 0.7 by hand must produce
+   * the song `spread: 0.7` produces, note for note and donor for donor. If it
+   * did not, the advanced control would be a second mechanism wearing the same
+   * name, and the simple one would stop being the special case of it.
+   *
+   * *One kind at full and the rest at nothing is that kind alone.* Which is the
+   * sharper of the two, because it is the independence check one axis over: the
+   * kinds already borrow the same things alone as together, so if turning the
+   * others down to zero leaves the first one's borrowings untouched, then a rate
+   * moves what its own kind takes and nothing else — which is the whole reason
+   * to hand somebody six sliders rather than one.
+   *
+   * The recipe's own rate fields are normalised away before comparing, because
+   * they are exactly what differs by construction: two settings that describe
+   * the same song describe it differently, and it is the *song* that has to
+   * match.
+   */
+  const withoutRates = (song: Song): string => JSON.stringify({
+    ...song,
+    meta: { ...song.meta, chaos: { ...song.meta.chaos!, spread: 0, mixing: undefined } },
+  });
+  const flat = (rate: number) => Object.fromEntries(CHAOS_LEVELS.map((l) => [l, rate]));
+
+  for (let i = 0; i < 30; i++) {
+    const plain = generateSong({ seed: `mix${i}`, chaos: { levels: CHAOS_LEVELS, spread: 0.7 } });
+    const spelled = generateSong({
+      seed: `mix${i}`,
+      chaos: { levels: CHAOS_LEVELS, spread: 0.2, mixing: flat(0.7) },
+    });
+    check(
+      withoutRates(plain) === withoutRates(spelled),
+      `every kind mixed at 0.7 is spread 0.7 (seed mix${i})`,
+    );
+
+    for (const level of CHAOS_LEVELS) {
+      const solo = generateSong({ seed: `mix${i}`, chaos: { levels: [level], spread: 1 } })
+        .meta.chaos!.borrowed;
+      const loud = generateSong({
+        seed: `mix${i}`,
+        chaos: { levels: CHAOS_LEVELS, mixing: { ...flat(0), [level]: 1 } },
+      }).meta.chaos!.borrowed;
+      check(
+        JSON.stringify(solo) === JSON.stringify(loud),
+        `"${level}" at 1 with the rest at 0 borrows exactly what it borrows alone (seed mix${i})`,
+        `alone ${JSON.stringify(solo)}\n      mixed ${JSON.stringify(loud)}`,
+      );
+    }
+  }
+  console.log(`  30 seeds: a flat mix is the spread, and one kind at full silences into ${CHAOS_LEVELS.length} solos`);
 }
 
 {

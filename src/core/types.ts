@@ -1968,6 +1968,12 @@ export interface ChaosRecipe {
   levels: ChaosLevel[];
   /** The share of eligible properties offered a foreign donor, 0..1. */
   spread: number;
+  /**
+   * That share again for the kinds that were mixed at a rate of their own —
+   * only the selected ones, and only where it differs from `spread`, so a
+   * recipe with no advanced mixing in it does not carry the field at all.
+   */
+  mixing?: Partial<Record<ChaosLevel, number>>;
   /** The genre, era and style the chimera is filed under, and stands on. */
   host: { genre: string; era: string; style: string };
   /** Property name → `genre:style` it came from. Only what moved. */

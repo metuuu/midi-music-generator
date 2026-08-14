@@ -51,6 +51,7 @@
 import { Rng } from '../../core/rng.js';
 import { billDuration, billHouse, billTime } from '../../concert/showbill.js';
 import type { BillEntry, ConcertOptions, Venue } from '../../concert/types.js';
+import { formatChaosMixing } from '../../genre/chaos.js';
 
 // ---------------------------------------------------------------------------
 // The public surface
@@ -590,6 +591,9 @@ function shareUrl(opts: ConcertOptions, genre: string): string {
   if (opts.chaos?.levels?.length) {
     url.searchParams.set('chaos', opts.chaos.levels.join(','));
     if (opts.chaos.spread !== undefined) url.searchParams.set('spread', String(opts.chaos.spread));
+    // Per-kind rates on the same rule as the spread: written only when the
+    // caller set them, so a plain chaos link stays a plain chaos link.
+    if (opts.chaos.mixing) url.searchParams.set('mix', formatChaosMixing(opts.chaos.mixing));
   }
   return url.toString();
 }

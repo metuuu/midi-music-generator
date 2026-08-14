@@ -199,6 +199,7 @@ One band assembled out of nineteen: a humppa played by a metal drummer, a bebop 
 ```bash
 npm run gen -- --genre iskelma --chaos band,figures
 npm run gen -- --genre jazz --chaos all --chaos-spread 1
+npm run gen -- --genre jazz --chaos all --chaos-mixing band:1,harmony:0.1   # a rate per kind
 npm run gen -- --genre ambient --chaos band --chaos-donors metal,dnb,arabic
 npm run chaos      # assert what a chimera refuses to mix
 ```
@@ -220,13 +221,15 @@ npm run chaos      # assert what a chimera refuses to mix
 
 `--chaos-spread` is the share of eligible properties that actually move, drawn per property: at `0.2` a piece gets two or three foreign things and stays recognisable, at `1` everything the selected kinds allow belongs to somebody else. At `0` it is the plain song, byte for byte.
 
-**The kinds do not interfere.** Every trait spends its coin and its donor draw whether or not its kind is selected, so what `band` borrows on its own is exactly what it borrows alongside the other four, donor for donor — which is what makes ticking a box a comparison rather than a reroll. `npm run chaos` asserts it over 40 seeds.
+`--chaos-mixing` is that share again **per kind** — `band:1,harmony:0.1,form:0` is a wholly foreign band playing our own chords in our own shape, which one rate cannot ask for however it is set. A kind left out keeps `--chaos-spread`, so the simple knob is the advanced one with nothing said, and the audition page has it behind an **advanced** chip that opens the same slider once per kind. Turning a kind down does not disturb what the others took, for the reason the next paragraph gives, so this stays a comparison rather than a reroll.
+
+**The kinds do not interfere.** Every trait spends its coin and its donor draw whether or not its kind is selected — and `Rng.chance` spends one number whatever the probability is, so the same holds of the rate that weights it. What `band` borrows on its own is exactly what it borrows alongside the other five, at any mixing rate the others are set to, donor for donor. That is what makes ticking a box or moving one slider a comparison rather than a reroll. `npm run chaos` asserts both directions: 40 seeds for the boxes, and 30 more where one kind at 1 with the rest at 0 must borrow exactly what that kind borrows alone.
 
 **Three things are never mixed, at any level**, and each of them is a way of producing garbage rather than chaos. The **bar** — every pattern in the project is slot indices in sixteenths, and a sixteen-slot figure hosted in a twelve-slot bar wraps and collides with itself, so figures move only between styles that agree about the metre and share a tempo. That costs less than it sounds: 305 of the 389 styles are plain 4/4 with no grouping. The **mode's table** — roman numerals are read relative to the mode, so progressions, mode weights and the chord–scale rule travel together from one donor or not at all. And **layer requirements**, because a donor that excludes the kit unioned with one that requires a pad is a band nobody assembled.
 
 A chimera is a *transform* rather than a twentieth genre: the generator draws a genre, era, style and mood exactly as it always has, and then rebuilds the band on a separate RNG stream. So a chaos song and a plain song from the same seed make the same decisions in the same order — with `band` alone selected the key, the tempo and the whole form come out identical, over 200 seeds in `npm run chaos`. The recipe rides on `SongMeta.chaos`, which is what keeps a song's own metadata sufficient to regenerate it.
 
-On the audition page it is five checkboxes and a **Mixing** slider; both regenerate on the same seed rather than drawing a new song, so you can hear one piece several ways. The now-playing panel prints the whole recipe — `drums ← metal:gothic`, `harmony ← latin:columbia` — so what you are hearing is always readable.
+On the audition page it is six checkboxes and a **Mixing** slider, with **advanced** swapping that one slider for one per kind; all of them regenerate on the same seed rather than drawing a new song, so you can hear one piece several ways. The now-playing panel prints the whole recipe — `drums ← metal:gothic`, `harmony ← latin:columbia` — so what you are hearing is always readable.
 
 **On stage the band follows.** The cast is derived from the tracks, so a borrowed instrument brings its archetype with it — its object, its posture, its gestures, and sometimes its headcount: borrowing ambient's pad palette puts a four-person choir where iskelmä had one violinist, and nothing had to be told. The clothes follow too, per player: **whoever lent the instrument dresses the person holding it**, read straight off the published recipe.
 
@@ -234,7 +237,7 @@ The `staging` kind takes the rest of the visuals. It dresses the players whose i
 
 **The decade is deliberately not mixed.** It is a gate rather than a palette — `eligibleDrumSources`, `SEQUENCER_FROM` and `rigPoolFor` all refuse what the year is too early for — so randomising it would subtract options rather than add strangeness, and would read on stage as gear going missing. Every gate still applies to whatever era each song resolved to: instrument *palettes* cross freely because they were never year-gated, while machines and synth rigs stay period-correct. `npm run chaos` stages 62 synths under full chaos and asserts every one is of its own decade.
 
-The concert takes the same options and applies them per number: one band, one room, one decade, and a different border crossing every song — `concert?chaos=band,harmony&spread=0.9`, or **Watch on stage ▸** from the radio, which carries the recipe across.
+The concert takes the same options and applies them per number: one band, one room, one decade, and a different border crossing every song — `concert?chaos=band,harmony&spread=0.9&mix=harmony:0.2`, or **Watch on stage ▸** from the radio, which carries the recipe across, per-kind rates and all.
 
 **The stage follows on its own, and then some.** A `Performer` is derived from the track it plays, so a borrowed instrument brings its archetype with it — the physical object, the station, the posture, the gestures, and sometimes the headcount: borrowing ambient's pad palette into an iskelmä number puts a four-person choir where there had been one violinist. Nothing under `src/concert/` needed telling.
 

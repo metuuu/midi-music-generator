@@ -16,7 +16,7 @@ import { meterLabel, songDurationSeconds, tempoLabel, type Song } from './core/t
 import { GENRES, GENRE_IDS, getGenre } from './genre/index.js';
 import { STRICTNESS_IDS, type StrictnessId } from './core/rules.js';
 import { HOOK_IDS, type HookId } from './generate/hook.js';
-import { CHAOS_LEVELS, getChaosLevels } from './genre/chaos.js';
+import { CHAOS_LEVELS, getChaosLevels, getChaosMixing } from './genre/chaos.js';
 
 interface Args {
   count: number;
@@ -32,6 +32,7 @@ interface Args {
   vocals: boolean;
   chaos?: string;
   chaosSpread?: number;
+  chaosMixing?: string;
   chaosDonors?: string[];
   quiet: boolean;
 }
@@ -55,6 +56,7 @@ function parseArgs(argv: string[]): Args {
       case '--vocals': args.vocals = true; break;
       case '--chaos': args.chaos = String(next()); break;
       case '--chaos-spread': args.chaosSpread = Number(next()); break;
+      case '--chaos-mixing': args.chaosMixing = String(next()); break;
       case '--chaos-donors': args.chaosDonors = String(next()).split(','); break;
       case '--quiet': args.quiet = true; break;
       case '--help': case '-h': usage(); process.exit(0);
@@ -99,6 +101,12 @@ Music generator — ${Object.values(GENRES).map((g) => g.label).join(', ')}
                       share of the eligible properties that actually move
                       (default 0.5). 0 is a plain song, 1 borrows everything
                       the selected kinds allow.
+      --chaos-mixing <kind:rate,...>
+                      that share again, per kind — band:1,harmony:0.2 borrows
+                      every instrument and one chord table in five. A kind
+                      left out keeps --chaos-spread. Turning a kind down does
+                      not disturb what the others borrowed, so this is still a
+                      comparison rather than a reroll.
       --chaos-donors <ids>
                       comma-separated genres allowed to donate (default: all)
       --quiet         no per-song output
@@ -143,6 +151,7 @@ function main(): void {
     if (args.chaos) {
       const chaos: NonNullable<GenerateOptions['chaos']> = { levels: getChaosLevels(args.chaos) };
       if (args.chaosSpread !== undefined) chaos.spread = args.chaosSpread;
+      if (args.chaosMixing) chaos.mixing = getChaosMixing(args.chaosMixing);
       if (args.chaosDonors) chaos.donors = args.chaosDonors;
       opts.chaos = chaos;
     }
@@ -199,7 +208,11 @@ function describe(song: Song): string {
     // Only on a chimera, and it prints what moved rather than that something
     // did: "borrowed 14 properties" tells a listener nothing they can act on,
     // where "drums←iskelma:humppa" tells them what they are hearing.
-    ...(meta.chaos ? [`   chaos/${meta.chaos.levels.join('+') || 'none'} ×${meta.chaos.spread} · ${
+    // A kind mixed at a rate of its own prints that rate beside it; the rest
+    // are on the ×spread that follows the list.
+    ...(meta.chaos ? [`   chaos/${meta.chaos.levels.map((l) => (
+      meta.chaos!.mixing?.[l] !== undefined ? `${l}×${meta.chaos!.mixing[l]}` : l
+    )).join('+') || 'none'} ×${meta.chaos.spread} · ${
       Object.entries(meta.chaos.borrowed).map(([k, v]) => `${k}←${v}`).join(', ') || 'nothing borrowed'
     }`] : []),
   ].join('\n');

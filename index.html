@@ -103,7 +103,34 @@
         display: flex; flex-wrap: wrap; gap: .85rem 2rem; align-items: flex-start;
         border-top: 1px solid var(--edge); padding-top: .8rem; margin-top: .1rem;
       }
-      .controls .span.chaos .mixing { min-width: 190px; }
+      .controls .span.chaos .mixing-block { min-width: 190px; }
+      /* Advanced takes the row: six sliders beside the boxes would be a column
+         190px wide with six things in it. */
+      .controls .span.chaos .mixing-block.wide { flex: 1 1 100%; }
+      /* Set like a `label`, because that is what it is standing in for — a
+         label may not contain a button, and the chip belongs to this heading
+         rather than to the row of boxes, which is a different control. */
+      .mixing-head {
+        display: flex; align-items: center; gap: .5rem; margin-bottom: .35rem;
+        font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; color: var(--dim);
+      }
+      /* One slider per ticked kind, each under about as much space as its name
+         needs. Kinds that are not ticked are absent rather than greyed: the row
+         above already says they are off, and saying it twice in six dead
+         sliders is a panel that looks broken. */
+      /* Columns capped at the width the single slider has rather than stretched
+         to fill the row: a rate is the same control whichever panel it is in,
+         and one that got longer because there were three of them would be
+         three different-looking controls doing the same job. */
+      .mixing-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 190px)); gap: .25rem 1.6rem;
+      }
+      .mixing-grid[hidden] { display: none; }
+      /* Name on the left, rate on the right — the number is the thing you are
+         setting and it should not have to be read off the thumb's position. */
+      .mixing-grid label { display: flex; justify-content: space-between; gap: .5rem; margin-bottom: .1rem; }
+      .mixing-grid label b { color: var(--ink); font-weight: 500; font-variant-numeric: tabular-nums; }
       /*
         The slider was picking up the `select, input` rule above — a padded,
         bordered text box with a native track sitting inside it. That is why it
@@ -166,6 +193,9 @@
         background: var(--hot); border-color: var(--hot); color: #17110a; font-weight: 600;
       }
       button.chip:hover { border-color: var(--hot); }
+      /* Smaller again inside a heading: it is a switch on the control below it
+         rather than one of the things being controlled. */
+      button.chip.mini { font-size: .66rem; letter-spacing: .06em; padding: .08rem .45rem; margin-left: 0; }
       .checks { display: flex; flex-wrap: wrap; align-items: center; gap: .1rem 1rem; padding-top: .15rem; }
       /* The global `label` rule gives every one of these a bottom margin, which
          `align-items: center` cannot see past — it centres the boxes and leaves
@@ -239,9 +269,21 @@
                         title="Every kind at once, mixing at 100% — press again to clear">full chaos</button>
               </div>
             </div>
-            <div class="mixing">
-              <label for="chaos-spread">Mixing</label>
-              <input id="chaos-spread" type="range" min="0" max="100" step="5" value="50" disabled />
+            <!-- There is nothing to mix until a kind is ticked, so the whole
+                 block is absent until then rather than sitting there dead. -->
+            <div class="mixing-block" id="chaos-mix-block" hidden>
+              <div class="mixing-head">
+                Mixing
+                <button id="chaos-advanced" type="button" class="chip mini"
+                        title="One rate per kind, instead of one for all of them">advanced</button>
+              </div>
+              <div class="mixing" id="chaos-one">
+                <input id="chaos-spread" type="range" min="0" max="100" step="5" value="50"
+                       aria-label="Mixing" />
+              </div>
+              <!-- Advanced: the same slider once per ticked kind, filled by
+                   `main.ts` from the same table the boxes are built from. -->
+              <div class="mixing-grid" id="chaos-mixing" hidden></div>
             </div>
           </div>
         </div>

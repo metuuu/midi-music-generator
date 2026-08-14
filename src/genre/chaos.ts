@@ -35,6 +35,15 @@
  * about this piece is from somewhere else" (everything, spread 0.1), and a
  * single 0..1 dial cannot reach either.
  *
+ * `mixing` is the third knob and it is the second one again, per kind: a rate
+ * for `band` that is not the rate for `harmony`. It exists because the two
+ * questions above are asked *per kind* in practice — "a completely foreign band
+ * playing our own chords, with one thing about the form from elsewhere" is
+ * `band: 1, harmony: 0, form: 0.2`, and with a single rate it is three songs
+ * none of which is the one that was wanted. A kind with no entry in `mixing`
+ * falls back to `spread`, so the simple control is the advanced control with
+ * nothing said.
+ *
  * The five kinds are **independently selectable**, not a ladder. Each is a claim
  * about a different part of the music, and none of them presupposes another:
  *
@@ -169,8 +178,27 @@ export interface ChaosOptions {
    * Drawn per property, so this is a rate rather than a count: at 0.2 a piece
    * gets two or three foreign things and stays recognisable, at 1 everything
    * the selected kinds allow is somebody else's.
+   *
+   * The rate for every kind that has no rate of its own. See `mixing`.
    */
   spread?: number;
+  /**
+   * That share again, per kind, for the kinds named. Overrides `spread`.
+   *
+   * A kind set to 0 here is *not* the same as leaving it out of `levels`: it
+   * borrows nothing either way, but it still spends its coins, so a kind can be
+   * turned down to nothing and back up without disturbing what the others took.
+   * Which is the invariant the whole control rests on and it now holds along
+   * both axes — **moving one kind's rate never changes what another kind
+   * borrowed**, because `Rng.chance` spends one number whatever the probability
+   * is and every trait draws whether or not it is allowed to move. `npm run
+   * chaos` asserts it.
+   *
+   * Entries for kinds that are not selected are read and have no effect, so a
+   * UI may send all six and let the selection decide, rather than keeping the
+   * two lists in step.
+   */
+  mixing?: Partial<Record<ChaosLevel, number>>;
   /**
    * Which genres may donate. All nineteen when omitted. The host is not
    * excluded — a humppa borrowing a jenkka's bass line is a small chaos and a
@@ -195,6 +223,59 @@ export function getChaosLevels(spec: string): ChaosLevel[] {
     if (!found) throw new Error(`Unknown chaos level "${id}". Known: ${CHAOS_LEVELS.join(', ')}, all`);
     return found;
   });
+}
+
+/**
+ * Read a per-kind mixing spec — `band:1,harmony:0.2`.
+ *
+ * Strict, like `getChaosLevels` and for the same reason: this is the door the
+ * CLI and a hand-written `--chaos-mixing` come through, and a mistyped kind or
+ * an out-of-range rate there is a mistake worth reporting rather than a default
+ * to fall back to. The *URL's* door filters instead — see `readChaosMixing`.
+ *
+ * `:` rather than `=` because the same spelling has to survive a query string,
+ * where `=` comes out as `%3D` and a link stops being readable by a person.
+ */
+export function getChaosMixing(spec: string): Partial<Record<ChaosLevel, number>> {
+  const out: Partial<Record<ChaosLevel, number>> = {};
+  for (const part of spec.split(',').map((s) => s.trim()).filter(Boolean)) {
+    const [id, value] = part.split(':').map((s) => s.trim());
+    const found = CHAOS_LEVELS.find((l) => l === id);
+    if (!found) throw new Error(`Unknown chaos kind "${id}". Known: ${CHAOS_LEVELS.join(', ')}`);
+    const rate = Number(value);
+    if (!Number.isFinite(rate) || rate < 0 || rate > 1) {
+      throw new Error(`Chaos mixing for "${found}" must be 0..1, got "${value ?? ''}"`);
+    }
+    out[found] = rate;
+  }
+  return out;
+}
+
+/**
+ * The same spec, lenient: unknown kinds and unreadable rates are dropped.
+ *
+ * The URL's door. A typo in a hand-edited link should cost that one kind its
+ * override, not the page — which is the policy `optionsFromUrl` already applies
+ * to the kinds themselves, and this is the same argument one field along.
+ */
+export function readChaosMixing(spec: string): Partial<Record<ChaosLevel, number>> {
+  const out: Partial<Record<ChaosLevel, number>> = {};
+  for (const part of spec.split(',').map((s) => s.trim()).filter(Boolean)) {
+    const [id, value] = part.split(':').map((s) => s.trim());
+    const found = CHAOS_LEVELS.find((l) => l === id);
+    const rate = Number(value);
+    if (!found || !Number.isFinite(rate)) continue;
+    out[found] = Math.max(0, Math.min(1, rate));
+  }
+  return out;
+}
+
+/** …and back to a spec, for a share link or a `Watch on stage` hop. */
+export function formatChaosMixing(mixing: Partial<Record<ChaosLevel, number>>): string {
+  return CHAOS_LEVELS
+    .filter((l) => mixing[l] !== undefined)
+    .map((l) => `${l}:${mixing[l]}`)
+    .join(',');
 }
 
 const DEFAULT_LEVELS: readonly ChaosLevel[] = ['band', 'performance', 'figures'];
@@ -986,7 +1067,16 @@ export function planChaos(
   chaos: ChaosOptions = {},
 ): { genre: Genre; era: EraProfile; style: Style; recipe: ChaosRecipe } {
   const levels = new Set(chaos.levels ?? DEFAULT_LEVELS);
-  const spread = Math.max(0, Math.min(1, chaos.spread ?? DEFAULT_SPREAD));
+  const clamp = (n: number) => Math.max(0, Math.min(1, n));
+  const spread = clamp(chaos.spread ?? DEFAULT_SPREAD);
+  /**
+   * One rate per kind, resolved before the loop so a trait's tier is the whole
+   * of the lookup. Every kind gets one, selected or not, because every trait
+   * spends a coin either way — see the loop.
+   */
+  const rates = Object.fromEntries(
+    CHAOS_LEVELS.map((l) => [l, clamp(chaos.mixing?.[l] ?? spread)]),
+  ) as Record<ChaosLevel, number>;
 
   // Its own stream, read by nothing else, so a chaos song spends the same
   // numbers in the same places as the plain song of the same seed.
@@ -1022,8 +1112,13 @@ export function planChaos(
      * because a figure narrows the tempo band and only figures read it. That
      * stays inside `figures`, which is where it belongs: it is one band making
      * room for another, not a setting leaking across.
+     *
+     * The rate the coin is weighted by is this trait's *kind's* rate, and that
+     * costs the argument nothing: `Rng.chance` spends one number whatever the
+     * probability is, so turning `harmony` down to a tenth leaves every draw
+     * `band` made in exactly the place it was. See `ChaosOptions.mixing`.
      */
-    const coin = rng.chance(spread);
+    const coin = rng.chance(rates[trait.tier]);
     const eligible = trait.metre
       ? pool.filter(({ style }) => compatible(host.style, style, draft.bpm))
       : pool;
@@ -1062,6 +1157,21 @@ export function planChaos(
     ? soundModeWeights({ ...draft.style, bpm: draft.bpm })
     : { ...draft.style, bpm: draft.bpm };
 
+  /**
+   * The rates worth writing down: a *selected* kind whose rate is not `spread`.
+   *
+   * Both halves of that earn their place. An unselected kind's rate changed
+   * nothing — its coins were spent and thrown away — and recording it would put
+   * a number in the recipe that cannot be heard. A kind sitting on `spread`
+   * already has its rate published one field up. What is left is exactly what a
+   * reader needs to see and what regeneration needs to be handed back, which is
+   * the standard `SongMeta.chaos` is held to.
+   */
+  const mixing: Partial<Record<ChaosLevel, number>> = {};
+  for (const level of CHAOS_LEVELS) {
+    if (levels.has(level) && rates[level] !== spread) mixing[level] = rates[level];
+  }
+
   return {
     // The host's identity, and the host's staging with it. A chaos concert is
     // one band in one room, whatever the band turns out to be made of — and
@@ -1075,6 +1185,7 @@ export function planChaos(
       // asked for the same kinds compare equal however they were typed.
       levels: CHAOS_LEVELS.filter((l) => levels.has(l)),
       spread,
+      ...(Object.keys(mixing).length ? { mixing } : {}),
       host: { genre: host.genre.id, era: host.era.id, style: host.style.id },
       borrowed,
     },

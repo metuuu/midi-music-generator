@@ -19,7 +19,7 @@ import {
 import type { ConcertOptions } from '../../concert/types.js';
 import { STRICTNESS_LEVELS } from '../../core/rules.js';
 import { HOOK_LEVELS } from '../../generate/hook.js';
-import { CHAOS_LEVELS } from '../../genre/chaos.js';
+import { CHAOS_LEVELS, readChaosMixing } from '../../genre/chaos.js';
 import { initAudio } from '../audio.js';
 import { lightTheRoom } from './performer-assets.js';
 import { createShow, type Show, type ShowState } from './show.js';
@@ -79,8 +79,16 @@ function optionsFromUrl(): ConcertOptions {
   const levels = (str('chaos') === 'all' ? [...CHAOS_LEVELS] : (str('chaos') ?? '').split(','))
     .map((id) => CHAOS_LEVELS.find((l) => l === id.trim()))
     .filter((l): l is (typeof CHAOS_LEVELS)[number] => !!l);
+  // `mix=band:1,harmony:0.2` — the same rate per kind, for a link that came off
+  // the radio's advanced panel. Filtered, not rejected, like everything else
+  // here: a mistyped kind costs that kind its own rate and keeps `spread`.
+  const mixing = readChaosMixing(str('mix') ?? '');
   const chaos = levels.length
-    ? { levels, ...(str('spread') ? { spread: Number(str('spread')) } : {}) }
+    ? {
+      levels,
+      ...(str('spread') ? { spread: Number(str('spread')) } : {}),
+      ...(Object.keys(mixing).length ? { mixing } : {}),
+    }
     : undefined;
 
   const opts: ConcertOptions = {
