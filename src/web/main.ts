@@ -21,7 +21,7 @@ import {
 } from '../core/types.js';
 import { Rng } from '../core/rng.js';
 import { GENRES, GENRE_IDS, getGenre } from '../genre/index.js';
-import { formatChaosMixing, type ChaosLevel } from '../genre/chaos.js';
+import { formatChaosMixing, readChaosMixing, type ChaosLevel } from '../genre/chaos.js';
 import { STRICTNESS_LEVELS, getStrictness, type StrictnessId } from '../core/rules.js';
 import { HOOK_LEVELS, getHook, type HookId } from '../generate/hook.js';
 import { DEFAULT_SUNG_CHANCE, SUNG_CHANCE } from '../concert/setlist.js';
@@ -52,10 +52,12 @@ const els = {
   chaosAll: $<HTMLButtonElement>('chaos-all'),
   chaosAdvanced: $<HTMLButtonElement>('chaos-advanced'),
   vocals: $<HTMLSelectElement>('vocals'),
+  reset: $<HTMLButtonElement>('reset'),
   play: $<HTMLButtonElement>('play'),
   next: $<HTMLButtonElement>('next'),
   radio: $<HTMLButtonElement>('radio'),
   watch: $<HTMLButtonElement>('watch'),
+  copy: $<HTMLButtonElement>('copy'),
   dl: $<HTMLButtonElement>('dl'),
   status: $<HTMLDivElement>('status'),
   title: $<HTMLSpanElement>('title'),
@@ -64,6 +66,16 @@ const els = {
   layers: $<HTMLDivElement>('layers'),
   code: $<HTMLPreElement>('code'),
 };
+
+/**
+ * The mixing rate before anybody moves it, taken from the markup rather than
+ * written down a second time here — `Reset` and the `full chaos` chip both need
+ * to know where the middle is, and two of them would be one of them wrong.
+ *
+ * Read now, at the top, because a copied link overwrites the control a moment
+ * later and the default would go with it.
+ */
+const DEFAULT_SPREAD = els.chaosSpread.value;
 
 let current: Song | undefined;
 let playing = false;
@@ -95,9 +107,43 @@ function fillSelect(select: HTMLSelectElement, entries: [string, string][], anyL
   for (const [value, label] of entries) select.append(new Option(label, value));
 }
 
+/**
+ * What a copied link says, and the only keys this page will take out of its own
+ * address bar.
+ *
+ * The concert's vocabulary rather than a second one — `web/concert/main.ts`
+ * reads exactly these names, and `Watch on stage` already hands them across, so
+ * the two pages go on describing the same song in the same words. A private
+ * spelling here would be the pair of them drifting one rename at a time.
+ */
+const LINK_KEYS = [
+  'seed', 'genre', 'era', 'style', 'mood', 'strictness', 'hook', 'vocals',
+  'chaos', 'spread', 'mix', 'chaosSeed',
+] as const;
+
+const linked = new URLSearchParams(location.search);
+/** Was this page opened from a link somebody copied, or cold? */
+const cameFromLink = LINK_KEYS.some((key) => linked.has(key));
+
+/**
+ * A linked value, but only if the control it is for can actually hold it.
+ *
+ * A link is a string that people edit, forward and keep for months, and the
+ * tables behind these selects move — a style that has been renamed would
+ * otherwise leave its select on a value with no option, which reads back as the
+ * empty string and generates from a blank mood. Checked against the options,
+ * so a field the page cannot honour costs that field its default and nothing
+ * else.
+ */
+function linkedOption(select: HTMLSelectElement, key: string): string | undefined {
+  const want = linked.get(key);
+  if (!want) return undefined;
+  return Array.from(select.options).some((o) => o.value === want) ? want : undefined;
+}
+
 fillSelect(els.genre, Object.values(GENRES).map((g) => [g.id, g.label]));
 /**
- * A different genre every time the page is opened.
+ * A different genre every time the page is opened — unless a link named one.
  *
  * It defaulted to iskelmä because iskelmä was the first genre written, and the
  * effect after eighteen more was a site that sounded like one of them: the other
@@ -105,9 +151,12 @@ fillSelect(els.genre, Object.values(GENRES).map((g) => [g.id, g.label]));
  * fresh instead, so what plays first is a fair sample of what the thing does.
  *
  * `Math.random` rather than a seeded stream on purpose — the seed reproduces a
- * *song*, and which genre a visitor happens to land on is not part of it.
+ * *song*, and which genre a visitor happens to land on is not part of it. Which
+ * is also why a link beats the draw: somebody who was handed an address was
+ * handed one record, not a fresh sample of the site.
  */
-els.genre.value = GENRE_IDS[Math.floor(Math.random() * GENRE_IDS.length)]!;
+els.genre.value = linkedOption(els.genre, 'genre')
+  ?? GENRE_IDS[Math.floor(Math.random() * GENRE_IDS.length)]!;
 fillSelect(els.strictness, STRICTNESS_LEVELS.map((l) => [l.id, `${l.level} · ${l.label}`]));
 els.strictness.value = 'standard';
 fillSelect(els.hook, HOOK_LEVELS.map((l) => [l.id, `${l.level} · ${l.label}`]));
@@ -305,8 +354,8 @@ function toggleFullChaos(): void {
   // Both controls move, whichever is showing. The one out of sight is where the
   // page lands if it is switched to, and full chaos followed by a switch that
   // dropped back to half chaos would be the chip lying about what it did.
-  els.chaosSpread.value = on ? '50' : '100';
-  for (const [id] of CHAOS_BOXES) mixSlider(id).value = on ? '50' : '100';
+  els.chaosSpread.value = on ? DEFAULT_SPREAD : '100';
+  for (const [id] of CHAOS_BOXES) mixSlider(id).value = on ? DEFAULT_SPREAD : '100';
   mixTouched = true;
   paintSpread();
   paintAllMix();
@@ -368,6 +417,105 @@ function populateForGenre(): void {
 }
 populateForGenre();
 
+/**
+ * Put a copied link's settings into the controls.
+ *
+ * After `populateForGenre`, which fills the three per-genre selects and pushes
+ * the genre's own defaults into the two level ones — a link is more specific
+ * than a default and has to land on top of it, not under it.
+ *
+ * Radio mode goes off with the seed, because the station's whole business is
+ * dropping one: `nextTrack` deletes a pinned seed, and the advance timer would
+ * have thrown this song away a few minutes after the page opened, with nobody
+ * having touched anything. The link is one record; the button is right there
+ * when the listener wants a station instead.
+ */
+function applyLink(): void {
+  if (!cameFromLink) return;
+
+  for (const [select, key] of [
+    [els.mood, 'mood'], [els.era, 'era'], [els.style, 'style'],
+    [els.strictness, 'strictness'], [els.hook, 'hook'], [els.vocals, 'vocals'],
+  ] as const) {
+    const value = linkedOption(select, key);
+    if (value !== undefined) select.value = value;
+  }
+
+  const seed = linked.get('seed')?.trim();
+  if (seed) {
+    els.seed.value = seed;
+    radioMode = false;
+  }
+
+  /**
+   * Chaos, spelled the way the stage reads it in `optionsFromUrl`: the ticked
+   * kinds as a comma list, the one rate that applies to them, and the per-kind
+   * rates when the advanced panel was open. Unknown kinds are dropped rather
+   * than refused, for the same reason a renamed style is.
+   */
+  const levels = new Set((linked.get('chaos') ?? '')
+    .split(',')
+    .map((id) => CHAOS_BOXES.find(([l]) => l === id.trim())?.[0])
+    .filter((l): l is ChaosLevel => l !== undefined));
+  for (const [id] of CHAOS_BOXES) $<HTMLInputElement>(`chaos-${id}`).checked = levels.has(id);
+
+  const spread = Number(linked.get('spread'));
+  if (linked.has('spread') && Number.isFinite(spread)) {
+    els.chaosSpread.value = String(Math.min(100, Math.max(0, Math.round(spread * 100))));
+  }
+
+  const mixing = readChaosMixing(linked.get('mix') ?? '');
+  if (Object.keys(mixing).length) {
+    // A kind the spec leaves out keeps the single rate, which is what an absent
+    // entry means everywhere else — see `ChaosOptions.mixing`.
+    for (const [id] of CHAOS_BOXES) {
+      const rate = mixing[id];
+      mixSlider(id).value = rate === undefined
+        ? els.chaosSpread.value
+        : String(Math.round(rate * 100));
+    }
+    // Before the panel opens, or opening it would copy the single slider over
+    // the six rates that were just read out of the link.
+    mixTouched = true;
+    toggleAdvanced();
+  }
+
+  const chaosSeed = linked.get('chaosSeed')?.trim();
+  if (chaosSeed) els.chaosSeed.value = chaosSeed;
+
+  paintSpread();
+  paintAllMix();
+  syncChaosVisible();
+  syncFullChaos();
+}
+
+/**
+ * …and take them back out of the address bar.
+ *
+ * They are in the controls now, and the controls are the state. Left in the
+ * query the address would go on describing the moment the page was opened
+ * rather than anything done since — press Next a dozen times, refresh, and the
+ * link's song comes back over the top of the station, which is the one thing
+ * nobody asked a reload to do.
+ *
+ * `replaceState` rather than `pushState`: the clean address takes the place of
+ * the one that was loaded instead of stacking a second entry on top of it, so
+ * Back leaves the site the way it always did rather than stepping from the page
+ * to the same page without its parameters.
+ *
+ * Only our own keys go. Anything else in the query belongs to somebody else and
+ * is none of this page's business.
+ */
+function consumeLink(): void {
+  if (!cameFromLink) return;
+  const url = new URL(location.href);
+  for (const key of LINK_KEYS) url.searchParams.delete(key);
+  history.replaceState(history.state, '', `${url.pathname}${url.search}${url.hash}`);
+}
+
+applyLink();
+consumeLink();
+
 function updateStrictnessHint(): void {
   const level = getStrictness(els.strictness.value as StrictnessId);
   els.strictnessHint.textContent = radioMode
@@ -414,7 +562,7 @@ function setStatus(text: string, isError = false): void {
  * and promising otherwise would be a lie told at exactly the wrong moment.
  */
 async function writing<T>(what: string, work: () => Promise<T>): Promise<T> {
-  const buttons = [els.play, els.next, els.radio, els.dl];
+  const buttons = [els.play, els.next, els.radio, els.reset, els.copy, els.dl];
   const was = buttons.map((b) => b.disabled);
   const said = els.status.textContent;
   const saying = `${what}…`;
@@ -731,6 +879,89 @@ els.radio.onclick = () => {
 };
 
 /**
+ * Everything that steers *this* song, as query parameters.
+ *
+ * Read out of `song.meta` rather than off the controls, because the controls can
+ * say "any era" and a song cannot: meta records what was actually drawn, which
+ * is precisely why regenerating from it is exact. A link built from the panel
+ * would reproduce the *dropdowns*, and hand the reader a different record.
+ *
+ * `vocals` likewise comes from the tracks rather than from the policy — `mixed`
+ * is a coin, and copying the coin instead of how it landed is a link that sings
+ * for one person and not the other.
+ *
+ * One builder for both buttons: the stage and the radio describe the same song
+ * with the same words, and the second copy of this list is where they would stop
+ * agreeing. `applyLink` reads it back at this end and `optionsFromUrl` at that
+ * one.
+ */
+function songParams(song: Song): URLSearchParams {
+  const { meta } = song;
+  return new URLSearchParams({
+    seed: meta.seed,
+    genre: meta.genre,
+    era: meta.era,
+    style: meta.style,
+    mood: meta.mood,
+    strictness: String(meta.strictness),
+    hook: String(meta.hook),
+    vocals: song.tracks.some((t) => t.voice) ? 'sung' : 'instrumental',
+    // Without these the link would reproduce the *host's* song — `meta.genre`
+    // names the genre a chimera is filed under, not the band that turned up.
+    // See `SongMeta.chaos`.
+    ...(meta.chaos ? {
+      chaos: meta.chaos.levels.join(','),
+      spread: String(meta.chaos.spread),
+      // …and the per-kind rates, when there were any, or the same kinds would
+      // come back mixed evenly, which is a different chimera.
+      ...(meta.chaos.mixing ? { mix: formatChaosMixing(meta.chaos.mixing) } : {}),
+      // …and the band's own seed, or a different band would be assembled out of
+      // the song's.
+      ...(meta.chaos.seed ? { chaosSeed: meta.chaos.seed } : {}),
+    } : {}),
+  });
+}
+
+/**
+ * The address of this exact record, for somebody else's browser.
+ *
+ * Built from `location.origin` and the path rather than from the current href,
+ * so nothing that happens to be hanging off this page's own address travels
+ * with it. `consumeLink` has already emptied the query anyway; this is what
+ * keeps that true whichever route the page arrived by.
+ */
+function shareLink(song: Song): string {
+  return `${location.origin}${location.pathname}?${songParams(song)}`;
+}
+
+const COPY_LABEL = els.copy.textContent ?? 'Copy link';
+let copyTimer: number | undefined;
+
+/**
+ * Copy it, and say so on the button that was pressed.
+ *
+ * The clipboard needs permission and does not always have it, and a share
+ * button that silently does nothing is worse than no button. When it is refused
+ * the address goes into the status line, which is selectable text a few pixels
+ * below — the reader can still take it, and nothing has been lost.
+ */
+els.copy.onclick = () => {
+  if (!current) return;
+  const link = shareLink(current);
+  const done = (ok: boolean): void => {
+    if (!ok) { setStatus(link); return; }
+    els.copy.textContent = 'Copied ✓';
+    // The label comes back from the constant rather than from whatever the
+    // button said a moment ago: two presses inside the window would otherwise
+    // restore "Copied ✓" over itself and leave it there for good.
+    if (copyTimer) clearTimeout(copyTimer);
+    copyTimer = window.setTimeout(() => { els.copy.textContent = COPY_LABEL; }, 1600);
+  };
+  void (navigator.clipboard?.writeText(link).then(() => done(true), () => done(false))
+    ?? done(false));
+};
+
+/**
  * Watch this song being played, rather than a concert like it.
  *
  * The stage is a renderer of the same IR, so the number it plays is the number
@@ -739,9 +970,9 @@ els.radio.onclick = () => {
  * evening of three to five contrasting numbers, which is the right default for
  * `/concert` and the wrong answer to this button.
  *
- * Everything comes from `song.meta` rather than from the controls, because the
- * controls can say "any era" and a song cannot. Meta records what was actually
- * chosen, which is precisely why regenerating from it is exact.
+ * The song itself is described by `songParams`, which is the same list the copy
+ * button hands out — the stage and this page have to mean the same record by the
+ * same words, and a second copy of that list is where they would stop.
  *
  * Muted layers are not carried across. A muted layer is an audition tool — the
  * player is still on stage, still playing, and silencing an instrument you can
@@ -750,31 +981,8 @@ els.radio.onclick = () => {
 els.watch.onclick = () => {
   if (!current) return;
   stop();
-  const { meta } = current;
-  const q = new URLSearchParams({
-    single: '1',
-    seed: meta.seed,
-    genre: meta.genre,
-    era: meta.era,
-    style: meta.style,
-    mood: meta.mood,
-    strictness: String(meta.strictness),
-    hook: String(meta.hook),
-    vocals: current.tracks.some((t) => t.voice) ? 'sung' : 'instrumental',
-    // Without these the stage would play the *host's* song — `meta.genre` names
-    // the genre a chimera is filed under, not the band that turned up. See
-    // `SongMeta.chaos`.
-    ...(meta.chaos ? {
-      chaos: meta.chaos.levels.join(','),
-      spread: String(meta.chaos.spread),
-      // …and the per-kind rates, when there were any. Without them the stage
-      // would play the same kinds mixed evenly, which is a different chimera.
-      ...(meta.chaos.mixing ? { mix: formatChaosMixing(meta.chaos.mixing) } : {}),
-      // …and the band's own seed, or the stage would assemble a different band
-      // out of the song's.
-      ...(meta.chaos.seed ? { chaosSeed: meta.chaos.seed } : {}),
-    } : {}),
-  });
+  const q = songParams(current);
+  q.set('single', '1');
   location.href = `/concert?${q}`;
 };
 
@@ -818,6 +1026,60 @@ for (const el of [els.mood, els.era, els.style]) {
   // the next track rather than pulling it out from under them.
   el.onchange = () => { if (radioMode || !els.seed.value.trim()) void nextTrack(); };
 }
+
+/**
+ * Every field back to what a fresh page would have said — except the genre.
+ *
+ * There is a lot to put back. Eight controls, six boxes, seven sliders and two
+ * seeds is a panel somebody can wander a long way into, and the way out was to
+ * remember what the neutral mood was called and which of the levels this genre
+ * defaults to. That is not knowledge a listener has.
+ *
+ * **The genre stays.** It is the one control on the page with no default to go
+ * back to — the opening one is a coin toss, redrawn per visit, precisely so the
+ * site is not one genre — so "reset" would have to mean "and now you are
+ * listening to something else", which is Next's job and not this button's. What
+ * this clears is everything said *about* a genre; which genre remains the
+ * listener's.
+ *
+ * `populateForGenre` is where the per-genre defaults are decided, so it is used
+ * here rather than copied: mood, era, style and both levels are reset by the
+ * same code that fills them, and a genre that changes its default hook changes
+ * this button with it.
+ */
+function resetControls(): void {
+  populateForGenre();
+  els.vocals.value = 'instrumental';
+  els.seed.value = '';
+  for (const [id] of CHAOS_BOXES) {
+    $<HTMLInputElement>(`chaos-${id}`).checked = false;
+    mixSlider(id).value = DEFAULT_SPREAD;
+  }
+  els.chaosSpread.value = DEFAULT_SPREAD;
+  els.chaosSeed.value = '';
+  // The panel is only the user's while they have touched it, and they have just
+  // asked for none of it — so it closes, and opening it again starts as a
+  // picture of the single slider the way it does on a fresh page.
+  mixTouched = false;
+  if (advancedChaos()) toggleAdvanced();
+  paintSpread();
+  paintAllMix();
+  syncChaosVisible();
+  syncFullChaos();
+  updateStrictnessHint();
+  updateHookHint();
+}
+
+/**
+ * Cleared, and then heard, on the same rule as every other control: the next
+ * record on a station, and the same song rewritten plainly when the station is
+ * off. A reset that left the last chimera playing under a panel with every box
+ * clear would be the panel and the music disagreeing about what is happening.
+ */
+els.reset.onclick = () => {
+  resetControls();
+  onControlChange();
+};
 
 /**
  * The spread slider is meaningless with every box clear, and regenerating on
@@ -921,6 +1183,7 @@ async function boot(): Promise<void> {
   els.play.disabled = false;
   els.next.disabled = false;
   els.radio.disabled = false;
+  els.copy.disabled = false;
   els.dl.disabled = false;
   els.play.textContent = 'Play ▶';
   setStatus('Ready. Instruments come from the soundfont CDN, so the first press has a moment of loading.');
