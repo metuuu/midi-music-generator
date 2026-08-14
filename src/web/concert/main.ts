@@ -88,6 +88,10 @@ function optionsFromUrl(): ConcertOptions {
       levels,
       ...(str('spread') ? { spread: Number(str('spread')) } : {}),
       ...(Object.keys(mixing).length ? { mixing } : {}),
+      // `chaosSeed=…` — the band's own seed. On a whole evening that is one
+      // band playing the set rather than a new one every number, which is the
+      // interesting thing to be able to link to.
+      ...(str('chaosSeed') ? { seed: str('chaosSeed')! } : {}),
     }
     : undefined;
 

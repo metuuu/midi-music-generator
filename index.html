@@ -127,6 +127,10 @@
         grid-template-columns: repeat(auto-fit, minmax(150px, 190px)); gap: .25rem 1.6rem;
       }
       .mixing-grid[hidden] { display: none; }
+      /* Under the rates and the width of one of them: it belongs to the same
+         panel, and it is not a rate. */
+      .chaos-seed { max-width: 190px; margin-top: .55rem; }
+      .chaos-seed input { padding: .35rem .5rem; font-size: .8rem; }
       /* Name on the left, rate on the right — the number is the thing you are
          setting and it should not have to be read off the thumb's position. */
       .mixing-grid label { display: flex; justify-content: space-between; gap: .5rem; margin-bottom: .1rem; }
@@ -284,6 +288,14 @@
               <!-- Advanced: the same slider once per ticked kind, filled by
                    `main.ts` from the same table the boxes are built from. -->
               <div class="mixing-grid" id="chaos-mixing" hidden></div>
+              <!-- …and which seed the band comes from, which is a different
+                   question from which seed the song comes from and was only
+                   ever the same string by default. -->
+              <div class="chaos-seed" id="chaos-seed-row" hidden>
+                <label for="chaos-seed">Chaos seed</label>
+                <input id="chaos-seed" type="text" placeholder="same as song"
+                       title="Draw the band from this instead of the song's seed — the same piece, borrowed from somewhere else" />
+              </div>
             </div>
           </div>
         </div>

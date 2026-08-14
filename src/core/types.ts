@@ -1974,6 +1974,14 @@ export interface ChaosRecipe {
    * recipe with no advanced mixing in it does not carry the field at all.
    */
   mixing?: Partial<Record<ChaosLevel, number>>;
+  /**
+   * The seed the *band* was drawn from, when it was not the song's own.
+   *
+   * `SongMeta.seed` reproduces the piece and this reproduces who turned up to
+   * play it. Absent on the ordinary case, where they are the same string and
+   * the one above is the answer to both.
+   */
+  seed?: string;
   /** The genre, era and style the chimera is filed under, and stands on. */
   host: { genre: string; era: string; style: string };
   /** Property name → `genre:style` it came from. Only what moved. */

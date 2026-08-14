@@ -117,6 +117,11 @@
  * seed make the same decisions in the same order**, with different tables
  * answering them.
  *
+ * The band's seed can be *replaced* without touching the song's, which is what
+ * `ChaosOptions.seed` is: the two were already separate streams and this is the
+ * knob that says so. Every invariant below survives it, because they are all
+ * claims about what the **main** stream did.
+ *
  * With `band` alone selected that gives an exact invariant, and `npm run chaos`
  * asserts it over 200 seeds: **same key, same tempo, same form**, down to each
  * section's kind and length. Everything deciding those is drawn before an
@@ -205,6 +210,25 @@ export interface ChaosOptions {
    * real one.
    */
   donors?: string[];
+  /**
+   * Which seed the *band* is drawn from. The song's own when omitted.
+   *
+   * The two seeds were always separate streams — `${seed}:chaos` is read by
+   * nothing else — and this cuts the last thing joining them, which turns one
+   * knob into two questions that can be asked apart:
+   *
+   *  - **A different band on the same piece.** Pin the song's seed, change this,
+   *    and the key, the tempo and the form are where they were while everything
+   *    borrowed comes from somewhere else. That is the A/B `band` already
+   *    promises, now reachable without also rerolling the song to reach it.
+   *  - **The same band on a different piece.** Leave this pinned and let the
+   *    song seed run, and every song draws its donors from the same numbers —
+   *    which, across a concert, is one band playing an evening rather than a
+   *    different border crossing every number.
+   *
+   * Any string; it is hashed like every other seed in the project.
+   */
+  seed?: string;
 }
 
 /**
@@ -1079,8 +1103,9 @@ export function planChaos(
   ) as Record<ChaosLevel, number>;
 
   // Its own stream, read by nothing else, so a chaos song spends the same
-  // numbers in the same places as the plain song of the same seed.
-  const rng = new Rng(`${seed}:chaos`);
+  // numbers in the same places as the plain song of the same seed — and its own
+  // seed too, when the caller gave one. See `ChaosOptions.seed`.
+  const rng = new Rng(`${chaos.seed ?? seed}:chaos`);
 
   const pool = donorStyles(chaos.donors ?? GENRE_IDS, host.style);
 
@@ -1186,6 +1211,9 @@ export function planChaos(
       levels: CHAOS_LEVELS.filter((l) => levels.has(l)),
       spread,
       ...(Object.keys(mixing).length ? { mixing } : {}),
+      // Only when it was not the song's own. A recipe that wrote the seed out
+      // either way would say two things had been decided where one had.
+      ...(chaos.seed !== undefined && chaos.seed !== seed ? { seed: chaos.seed } : {}),
       host: { genre: host.genre.id, era: host.era.id, style: host.style.id },
       borrowed,
     },

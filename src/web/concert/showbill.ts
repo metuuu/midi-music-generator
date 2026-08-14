@@ -594,6 +594,7 @@ function shareUrl(opts: ConcertOptions, genre: string): string {
     // Per-kind rates on the same rule as the spread: written only when the
     // caller set them, so a plain chaos link stays a plain chaos link.
     if (opts.chaos.mixing) url.searchParams.set('mix', formatChaosMixing(opts.chaos.mixing));
+    if (opts.chaos.seed) url.searchParams.set('chaosSeed', String(opts.chaos.seed));
   }
   return url.toString();
 }

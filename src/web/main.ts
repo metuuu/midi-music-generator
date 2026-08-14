@@ -46,6 +46,8 @@ const els = {
   chaosMixBlock: $<HTMLDivElement>('chaos-mix-block'),
   chaosOne: $<HTMLDivElement>('chaos-one'),
   chaosMixing: $<HTMLDivElement>('chaos-mixing'),
+  chaosSeed: $<HTMLInputElement>('chaos-seed'),
+  chaosSeedRow: $<HTMLDivElement>('chaos-seed-row'),
   chaosAll: $<HTMLButtonElement>('chaos-all'),
   chaosAdvanced: $<HTMLButtonElement>('chaos-advanced'),
   vocals: $<HTMLSelectElement>('vocals'),
@@ -303,6 +305,7 @@ function toggleAdvanced(): void {
   els.chaosAdvanced.classList.toggle('on', on);
   els.chaosOne.hidden = on;
   els.chaosMixing.hidden = !on;
+  els.chaosSeedRow.hidden = !on;
   // Six sliders need the row; one is happy in a column beside the boxes.
   els.chaosMixBlock.classList.toggle('wide', on);
   if (on && !mixTouched) {
@@ -387,6 +390,17 @@ function currentOptions(): GenerateOptions {
       opts.chaos.mixing = Object.fromEntries(
         levels.map((id) => [id, Number(mixSlider(id).value) / 100]),
       );
+      /**
+       * The band's own seed, when one is typed.
+       *
+       * Empty means the song's, which is what it has always been and what the
+       * placeholder says. Typing anything here redraws every borrowing and
+       * leaves the piece exactly where it was — the two streams were always
+       * separate, so this is the one control on the page that can change who is
+       * playing without changing what they are playing. See `ChaosOptions.seed`.
+       */
+      const seed = els.chaosSeed.value.trim();
+      if (seed) opts.chaos.seed = seed;
     }
   }
   return opts;
@@ -452,7 +466,8 @@ function describe(song: Song): void {
     ...(meta.chaos ? [`Chaos: <b>${meta.chaos.levels.map((l) => (
       meta.chaos!.mixing?.[l] !== undefined ? `${l} ${Math.round(meta.chaos!.mixing[l]! * 100)}%` : l
     )).join(' + ')}</b> at ${Math.round(meta.chaos.spread * 100)}% over <b>${
-      meta.chaos.host.genre}:${meta.chaos.host.style}</b><br>${
+      meta.chaos.host.genre}:${meta.chaos.host.style}</b>${
+      meta.chaos.seed ? ` · band from seed <b>${meta.chaos.seed}</b>` : ''}<br>${
       Object.entries(meta.chaos.borrowed).map(([k, v]) => `${k} ← <b>${v}</b>`).join(' · ') || 'nothing borrowed'}`] : []),
     `seed: <b>${meta.seed}</b>`,
   ].join('<br>');
@@ -642,6 +657,9 @@ els.watch.onclick = () => {
       // …and the per-kind rates, when there were any. Without them the stage
       // would play the same kinds mixed evenly, which is a different chimera.
       ...(meta.chaos.mixing ? { mix: formatChaosMixing(meta.chaos.mixing) } : {}),
+      // …and the band's own seed, or the stage would assemble a different band
+      // out of the song's.
+      ...(meta.chaos.seed ? { chaosSeed: meta.chaos.seed } : {}),
     } : {}),
   });
   location.href = `/concert?${q}`;
@@ -690,6 +708,10 @@ els.chaosAdvanced.onclick = () => {
   toggleAdvanced();
   onChaosChange();
 };
+// Same seed, different band: this is the one control that redraws the borrowings
+// and leaves the piece alone, so it regenerates like the rest rather than
+// waiting for the next track.
+els.chaosSeed.onchange = () => { if (chosenLevels().length) void regenerateSameSeed(); };
 
 // The same seed, with and without the singer: `vocals` is documented as an A/B
 // that leaves the instrumental arrangement identical, and it was the one control

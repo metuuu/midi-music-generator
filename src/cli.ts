@@ -33,6 +33,7 @@ interface Args {
   chaos?: string;
   chaosSpread?: number;
   chaosMixing?: string;
+  chaosSeed?: string;
   chaosDonors?: string[];
   quiet: boolean;
 }
@@ -57,6 +58,7 @@ function parseArgs(argv: string[]): Args {
       case '--chaos': args.chaos = String(next()); break;
       case '--chaos-spread': args.chaosSpread = Number(next()); break;
       case '--chaos-mixing': args.chaosMixing = String(next()); break;
+      case '--chaos-seed': args.chaosSeed = String(next()); break;
       case '--chaos-donors': args.chaosDonors = String(next()).split(','); break;
       case '--quiet': args.quiet = true; break;
       case '--help': case '-h': usage(); process.exit(0);
@@ -107,6 +109,11 @@ Music generator — ${Object.values(GENRES).map((g) => g.label).join(', ')}
                       left out keeps --chaos-spread. Turning a kind down does
                       not disturb what the others borrowed, so this is still a
                       comparison rather than a reroll.
+      --chaos-seed <text>
+                      draw the band from this seed instead of the song's. Pin
+                      --seed and change this to hear the same piece played by
+                      a different set of borrowings; pin this and let --seed
+                      run to hear one band play a whole set.
       --chaos-donors <ids>
                       comma-separated genres allowed to donate (default: all)
       --quiet         no per-song output
@@ -152,6 +159,7 @@ function main(): void {
       const chaos: NonNullable<GenerateOptions['chaos']> = { levels: getChaosLevels(args.chaos) };
       if (args.chaosSpread !== undefined) chaos.spread = args.chaosSpread;
       if (args.chaosMixing) chaos.mixing = getChaosMixing(args.chaosMixing);
+      if (args.chaosSeed) chaos.seed = args.chaosSeed;
       if (args.chaosDonors) chaos.donors = args.chaosDonors;
       opts.chaos = chaos;
     }
@@ -212,7 +220,7 @@ function describe(song: Song): string {
     // are on the ×spread that follows the list.
     ...(meta.chaos ? [`   chaos/${meta.chaos.levels.map((l) => (
       meta.chaos!.mixing?.[l] !== undefined ? `${l}×${meta.chaos!.mixing[l]}` : l
-    )).join('+') || 'none'} ×${meta.chaos.spread} · ${
+    )).join('+') || 'none'} ×${meta.chaos.spread}${meta.chaos.seed ? ` @${meta.chaos.seed}` : ''} · ${
       Object.entries(meta.chaos.borrowed).map(([k, v]) => `${k}←${v}`).join(', ') || 'nothing borrowed'
     }`] : []),
   ].join('\n');

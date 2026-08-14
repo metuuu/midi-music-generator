@@ -237,6 +237,44 @@ section('The A/B — what a chimera leaves alone');
     if (players(plain) !== players(wild) || plain.drums.bank !== wild.drums.bank) moved++;
   }
   console.log(`  ${SEEDS} seeds: form, key and tempo held; the band changed on ${moved} of them`);
+
+  /**
+   * …and a band seed of its own keeps that promise while changing the answer.
+   *
+   * Two claims in one loop, because separately neither is worth much. The piece
+   * must be **untouched** — same key, same tempo, same form, by the same
+   * argument as above, since `ChaosOptions.seed` moves a stream the main draw
+   * never reads. And the borrowings must actually **differ** from the song's own
+   * seed, or the control is decorative: a seed field that quietly changed
+   * nothing would be the worst version of this feature, and it is the one a
+   * typo in the stream name would produce.
+   */
+  let redrawn = 0;
+  for (let i = 0; i < SEEDS; i++) {
+    const own = generateSong({ seed: `ab${i}`, chaos: { levels: ['band'], spread: 1 } });
+    const elsewhere = generateSong({
+      seed: `ab${i}`,
+      chaos: { levels: ['band'], spread: 1, seed: `elsewhere${i}` },
+    });
+    check(
+      shape(own) === shape(elsewhere),
+      `a band seed of its own leaves the piece alone (seed ab${i})`,
+      `${shape(own)} vs ${shape(elsewhere)}`,
+    );
+    check(
+      elsewhere.meta.chaos!.seed === `elsewhere${i}`,
+      `the recipe names the band's seed (seed ab${i})`,
+    );
+    if (JSON.stringify(own.meta.chaos!.borrowed) !== JSON.stringify(elsewhere.meta.chaos!.borrowed)) {
+      redrawn++;
+    }
+  }
+  check(
+    redrawn > SEEDS * 0.9,
+    'a different band seed draws a different band',
+    `only ${redrawn}/${SEEDS} seeds borrowed anything different`,
+  );
+  console.log(`  ${SEEDS} seeds under a foreign band seed: the piece held, the borrowings moved on ${redrawn}`);
 }
 
 {
@@ -264,9 +302,15 @@ section('The A/B — what a chimera leaves alone');
     const mixing = i % 4 === 3
       ? { band: 1, figures: 0.15, harmony: 0.9, staging: 0 }
       : undefined;
+    // …and every fifth drawn from a band seed of its own, which the recipe has
+    // to carry for the same reason: reproduced from the song's seed instead, it
+    // would come back as a different band playing the right piece.
+    const chaosSeed = i % 5 === 4 ? `band${i}` : undefined;
     const first = generateSong({
       seed: `rep${i}`,
-      chaos: { levels, spread: 0.6, ...(mixing ? { mixing } : {}) },
+      chaos: {
+        levels, spread: 0.6, ...(mixing ? { mixing } : {}), ...(chaosSeed ? { seed: chaosSeed } : {}),
+      },
     });
     const again = generateSong({
       seed: first.meta.seed,
@@ -278,6 +322,7 @@ section('The A/B — what a chimera leaves alone');
         levels: first.meta.chaos!.levels,
         spread: first.meta.chaos!.spread,
         ...(first.meta.chaos!.mixing ? { mixing: first.meta.chaos!.mixing } : {}),
+        ...(first.meta.chaos!.seed ? { seed: first.meta.chaos!.seed } : {}),
       },
     });
     check(
