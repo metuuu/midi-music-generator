@@ -64,7 +64,7 @@ import { Group, Quaternion, Raycaster, Vector2, Vector3 } from 'three';
 import { Rng } from '../../core/rng.js';
 import type { LayerId, Song } from '../../core/types.js';
 import { songDurationBeats } from '../../core/types.js';
-import { buildConcert, revoiceNumber } from '../../concert/index.js';
+import { buildConcert } from '../../concert/index.js';
 import { asMetu } from '../../concert/cast.js';
 import { trackForPart } from '../../concert/choreograph.js';
 import type {
@@ -78,6 +78,7 @@ import {
   bandLoaded, clearBand, isPlaying, loadBand, mutePlayer, preloadSounds, startLoaded,
   stopPlayback, swapPlayer,
 } from '../audio.js';
+import { revoiceNumberAsync } from '../generator.js';
 import { createSungVoice, withoutSungVoice } from '../sung-voice.js';
 
 import { createAnimator, type Animator } from './animate.js';
@@ -456,7 +457,14 @@ export function createShow(opts: ShowOptions = {}): Show {
   let fade = 0;
   const blackout = buildBlackout();
   /** Layers currently silenced by a tomato, and the beat each may return on. */
-  const sulking = new Map<LayerId, { until: number; attempt: number }>();
+  /**
+   * Who is sitting out, until when, and whether their new part is on its way.
+   *
+   * `returning` exists because the part is written on a worker now: the frame
+   * loop passes `until` once and then keeps passing it, so without a flag every
+   * frame of the wait would ask for another one. See `returnToPlaying`.
+   */
+  const sulking = new Map<LayerId, { until: number; attempt: number; returning?: boolean }>();
 
   const setState = (next: ShowState): void => {
     state = next;
@@ -1410,9 +1418,39 @@ export function createShow(opts: ShowOptions = {}): Show {
     endNumber();
   });
 
-  /** Bring a sulking player back with a freshly generated part. */
-  function returnToPlaying(layer: LayerId, attempt: number): void {
-    current = revoiceNumber(current, layer, attempt);
+  /**
+   * Bring a sulking player back with a freshly generated part.
+   *
+   * Asked for on the worker and applied whenever it answers, which is the one
+   * place in this file where a wait is the feature rather than the cost. The
+   * part is a whole `generateSong` and a choreography rebuild — 21–144 ms — and
+   * it used to run here, on the frame the eighth beat came round, in the middle
+   * of a number. Now the player simply goes on sulking until it lands, and a sulk
+   * that runs three frames long is a sulk.
+   *
+   * `sulking` keeps the entry until the answer arrives, which is what stops the
+   * frame loop asking again on every one of those frames — the `until` is a beat
+   * that has already passed. `returning` is what says the asking has been done.
+   */
+  async function returnToPlaying(layer: LayerId, attempt: number): Promise<void> {
+    const sulk = sulking.get(layer);
+    if (!sulk || sulk.returning) return;
+    sulk.returning = true;
+
+    const wanted = current;
+    const revoiced = await revoiceNumberAsync(current, layer, attempt);
+    /**
+     * The number moved on while the part was being written.
+     *
+     * A walk-off, the end of the piece, or the next number staged behind the
+     * curtain — in every one of those the part that just arrived belongs to a
+     * song nobody is playing, and splicing it in would put one player on
+     * yesterday's music. The sulk goes with the number, so there is nothing to
+     * clean up.
+     */
+    if (current !== wanted || state !== 'playing') return;
+
+    current = revoiced;
     concert.numbers[index] = current;
     sulking.delete(layer);
     animator.begin(current, rigs, models);
@@ -1659,7 +1697,7 @@ export function createShow(opts: ShowOptions = {}): Show {
 
       case 'playing': {
         for (const [layer, sulk] of sulking) {
-          if (beat >= sulk.until) returnToPlaying(layer, sulk.attempt);
+          if (beat >= sulk.until) void returnToPlaying(layer, sulk.attempt);
         }
         /**
          * The number's length in **beats**, asked for directly.

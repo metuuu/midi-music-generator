@@ -10,9 +10,10 @@
  */
 
 import { initAudio, playCode, preloadSounds, stopPlayback } from './audio.js';
+import { generateSongAsync, generatorIsThreaded } from './generator.js';
 import { createSungVoice, withoutSungVoice } from './sung-voice.js';
 
-import { generateSong, type GenerateOptions } from '../generate/song.js';
+import type { GenerateOptions } from '../generate/song.js';
 import { renderStrudel } from '../render/strudel.js';
 import { renderMidi } from '../render/midi.js';
 import {
@@ -371,6 +372,44 @@ function setStatus(text: string, isError = false): void {
   els.status.className = isError ? 'status err' : 'status';
 }
 
+/**
+ * Ask the worker for a song, and say so while it is being written.
+ *
+ * Generation is 21–144 ms and a long house track more, and on this page it fell
+ * between pressing a button and anything happening — the controls stayed live,
+ * the status stayed on the last thing it said, and the page simply stopped for a
+ * moment. Off the thread it is a wait with a name on it.
+ *
+ * The buttons go dead for the duration rather than queueing: two presses of Next
+ * are two songs written and one thrown away, and the thrown-away one is the one
+ * the person was looking at. `generatorIsThreaded` decides the wording, because
+ * a page that fell back to generating inline cannot repaint to show this at all
+ * and promising otherwise would be a lie told at exactly the wrong moment.
+ */
+async function writing<T>(what: string, work: () => Promise<T>): Promise<T> {
+  const buttons = [els.play, els.next, els.radio, els.dl];
+  const was = buttons.map((b) => b.disabled);
+  const said = els.status.textContent;
+  const saying = `${what}…`;
+  for (const b of buttons) b.disabled = true;
+  if (generatorIsThreaded()) setStatus(saying);
+  try {
+    return await work();
+  } finally {
+    buttons.forEach((b, i) => { b.disabled = was[i]!; });
+    /**
+     * Put the line back, but only if it is still ours.
+     *
+     * A song that is about to be played has a `play` behind it which will say
+     * "Loading instruments…" a moment later, and a failure has already said
+     * what went wrong. Overwriting either would replace news with history. What
+     * is left is the case this is for: a song written while nothing is playing,
+     * which otherwise leaves the page claiming to be writing it for ever.
+     */
+    if (els.status.textContent === saying) setStatus(said ?? '');
+  }
+}
+
 function currentOptions(): GenerateOptions {
   const opts: GenerateOptions = { genre: els.genre.value };
   if (els.seed.value.trim()) opts.seed = els.seed.value.trim();
@@ -595,7 +634,7 @@ async function nextTrack(): Promise<void> {
   // Radio mode should keep moving, so drop any pinned seed.
   const opts = currentOptions();
   if (radioMode) delete opts.seed;
-  current = generateSong(opts);
+  current = await writing('Writing the next song', () => generateSongAsync(opts));
   describe(current);
   els.dl.disabled = false;
   if (playing || radioMode) await play(current);
@@ -603,7 +642,11 @@ async function nextTrack(): Promise<void> {
 
 els.play.onclick = async () => {
   if (playing) { stop(); setStatus('Stopped.'); return; }
-  if (!current) { current = generateSong(currentOptions()); describe(current); els.dl.disabled = false; }
+  if (!current) {
+    current = await writing('Writing a song', () => generateSongAsync(currentOptions()));
+    describe(current);
+    els.dl.disabled = false;
+  }
   await play(current);
 };
 
@@ -760,12 +803,12 @@ async function regenerateSameSeed(): Promise<void> {
     // coin every time smoothness or hook was nudged. See `wantsVocals`.
     opts.vocals = wantsVocals(opts.seed);
   }
-  current = generateSong(opts);
+  current = await writing('Rewriting this song', () => generateSongAsync(opts));
   describe(current);
   if (playing) await play(current);
 }
 
-function boot(): void {
+async function boot(): Promise<void> {
   // Kick the audio stack off now so its first-click listener is already armed
   // when the user presses Play.
   void initAudio().catch((err) => {
@@ -775,7 +818,15 @@ function boot(): void {
 
   updateStrictnessHint();
   updateHookHint();
-  current = generateSong(currentOptions());
+  /**
+   * The first song is written off the thread like every other one, so the page
+   * paints its controls and its status before the generator has finished rather
+   * than arriving whole a tenth of a second late. Nothing is enabled until it
+   * lands — there is no song for the buttons to act on until then — which is
+   * what `writing` already says, so this only has to say what is happening.
+   */
+  setStatus('Writing the opening song…');
+  current = await generateSongAsync(currentOptions());
   describe(current);
   els.play.disabled = false;
   els.next.disabled = false;
@@ -785,4 +836,4 @@ function boot(): void {
   setStatus('Ready. Instruments come from the soundfont CDN, so the first press has a moment of loading.');
 }
 
-boot();
+void boot();
