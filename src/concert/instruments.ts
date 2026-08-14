@@ -343,7 +343,6 @@ export const ARCHETYPE_OF: Record<InstrumentId, Archetype> = {
   leadVoice: 'synth',
   leadCharang: 'synth',
   leadFifths: 'synth',
-  leadBassLead: 'synth',
   /**
    * The three choir patches, and the *default* answer for them is still a
    * keyboard.

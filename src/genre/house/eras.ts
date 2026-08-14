@@ -155,7 +155,7 @@ const warehouse: EraProfile = {
       ['padHalo', 2], ['choirAahs', 2], ['strings1', 1],
     ],
     bass: [
-      ['synthBass', 6], ['synthBass2', 4], ['leadBassLead', 3], ['fingerBass', 2],
+      ['synthBass', 6], ['synthBass2', 4], ['fingerBass', 2],
       ['pickBass', 1],
     ],
     brass: [['synthBrass', 4], ['synthBrass2', 3], ['orchestraHit', 2], ['brassSection', 1]],
@@ -257,7 +257,7 @@ const rave: EraProfile = {
       ['strings1', 2],
     ],
     bass: [
-      ['synthBass', 6], ['synthBass2', 5], ['leadBassLead', 3], ['fingerBass', 2],
+      ['synthBass', 6], ['synthBass2', 5], ['fingerBass', 2],
       ['fretlessBass', 1],
     ],
     brass: [
@@ -353,7 +353,7 @@ const superclub: EraProfile = {
       ['fxAtmosphere', 2],
     ],
     bass: [
-      ['synthBass', 6], ['synthBass2', 5], ['fingerBass', 3], ['leadBassLead', 3],
+      ['synthBass', 6], ['synthBass2', 5], ['fingerBass', 3],
       ['pickBass', 2], ['slapBass', 1],
     ],
     brass: [
@@ -453,7 +453,7 @@ const afterhours: EraProfile = {
       ['synthStrings', 3], ['padNewAge', 2], ['synthChoir', 2], ['padSweep', 2],
     ],
     bass: [
-      ['synthBass', 6], ['synthBass2', 5], ['leadBassLead', 3], ['fingerBass', 2],
+      ['synthBass', 6], ['synthBass2', 5], ['fingerBass', 2],
       ['fretlessBass', 1],
     ],
     brass: [['synthBrass', 3], ['synthBrass2', 2], ['brassSection', 1], ['trumpet', 1]],

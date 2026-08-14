@@ -393,7 +393,7 @@ const electro: EraProfile = {
   palette: {
     melody: [
       ['leadSquare', 5], ['leadSaw', 4], ['synthBrass2', 4], ['leadCharang', 3],
-      ['leadCalliope', 2], ['epiano2', 2], ['leadBassLead', 2],
+      ['leadCalliope', 2], ['epiano2', 2],
     ],
     counter: [
       ['leadSquare', 4], ['synthBass', 3], ['clavinet', 2], ['xylophone', 2],

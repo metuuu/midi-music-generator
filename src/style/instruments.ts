@@ -655,11 +655,32 @@ export const INSTRUMENTS = {
    * never choose it as the instrument you audit anything on.
    */
   leadFifths: E(I('fifths lead', 86, 'gm_lead_7_fifths', 72, 0.9, 'keyboard'), SYNTH_LEAD),
-  // Two layers in one programme, a lead over a bass an octave down, which is
-  // what a one-keyboard band used when there was nobody to play the bass line.
-  // Centred with the other leads because the layer underneath follows the note
-  // it is given; it is a lead that brings its own bottom, not a bass.
-  leadBassLead: E(I('bass lead', 87, 'gm_lead_8_bass_lead', 72, 0.9, 'keyboard'), SYNTH_LEAD),
+  /**
+   * **GM 87 is deliberately absent, and this is the note that says so.**
+   *
+   * "Bass + lead" is two layers in one programme — a lead over a bass an octave
+   * down, which is what a one-keyboard band used when there was nobody to play
+   * the bass line. It was in the catalogue centred at 72 with the other leads,
+   * and drawn from eleven palette rows: seven of them `bass`.
+   *
+   * It was removed because it sounds bad, and the reason it sounds bad is
+   * structural rather than a matter of taste. It carried `SYNTH_LEAD`, so it was
+   * the one bass here that never decays — full level held for the length of
+   * every note, against the plucky front `SYNTH_BASS` gives `synthBass` and
+   * `synthBass2`.
+   *
+   * It also used to break the arranger, and that half of the complaint has since
+   * been answered somewhere better. `song.ts` once handed `resolveCollisions` a
+   * floor of `instruments.bass.centre + 10`, so drawing this patch moved that
+   * floor from 50 to **82** and no octave-down repair was ever safe. Removing
+   * the patch did not fix that; `cello`, `bassoon` and `steelGuitar` sat in
+   * `bass` rows too and quietly did the same thing. The floor is a constant now
+   * — see `REPAIR_FLOOR` in `generate/arrange.ts` — and a `centre` in a bass
+   * slot is inert again, as it always read as being.
+   *
+   * `leadSquare`, `leadSaw` and `leadCharang` cover the lead; `synthBass` and
+   * `synthBass2` cover the bass. Nothing needs a patch that is both.
+   */
   fretlessBass: I('fretless bass', 35, 'gm_fretless_bass', 40, 0.7, 'bowed'),
   synthBass2: E(I('synth bass 2', 39, 'gm_synth_bass_2', 40, 0.85, 'keyboard'), SYNTH_BASS),
   cello: CELLO,
@@ -1234,7 +1255,6 @@ export const INSTRUMENT_RANGE: Record<InstrumentId, readonly [Midi, Midi]> = {
   leadVoice: [21, 108],
   leadCharang: [21, 108],
   leadFifths: [21, 108],
-  leadBassLead: [21, 108],
   fretlessBass: [28, 63],
   synthBass2: [21, 108],
   cello: [36, 81],
