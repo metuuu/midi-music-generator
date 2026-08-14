@@ -48,6 +48,35 @@
       .deck { width: 100%; max-width: 40rem; display: flex; flex-direction: column; }
       svg { display: block; width: 1.35rem; height: 1.35rem; fill: currentColor; }
 
+      /* ── the focus ring ───────────────────────────────────────────────────
+         The browser's own is a white-and-black pair sized for a light page. On
+         this one it is the brightest thing on the screen and it belongs to
+         nothing else here. The accent already means "this is the control you
+         are on" — hover says it in exactly this colour — so the ring says it in
+         the same words, and only to the keyboard: `:focus-visible` leaves
+         nothing behind after a tap or a click.
+
+         The offset is not decoration. Every control on this page is either a
+         thin ring or a filled circle, and an outline drawn on the border sits
+         on top of one; three pixels out it reads as its own mark. */
+      :focus-visible { outline: 2px solid var(--hot); outline-offset: 3px; }
+      /* The two controls already painted in the accent cannot wear it — a hot
+         ring three pixels off a hot fill is a halo rather than a mark. Ink,
+         which carries against the fill and against the page both. */
+      #play:focus-visible,
+      .seg button[aria-pressed="true"]:focus-visible { outline-color: var(--ink); }
+      /* The station cards sit .4rem apart, and at the full offset two
+         neighbours' rings all but meet. */
+      .grid button:focus-visible { outline-offset: 2px; }
+      /* What hover does, for the same reason: the ring says where you are, and
+         a glyph at .3 opacity is too faint to say what you are on. */
+      #open-settings:focus-visible, #volume-btn:focus-visible { opacity: .55; }
+      /* The volume slider is a bar inside a pill barely bigger than it, so a
+         ring offset from the bar lands on the pill's own edge. The pill wears
+         it instead. */
+      .vol-pop input:focus-visible { outline: none; }
+      .vol-pop:has(input:focus-visible) { outline: 2px solid var(--hot); outline-offset: 2px; }
+
       /* ── the player ───────────────────────────────────────────────────────
          Takes rather over half the screen and keeps that height whatever else
          happens. It used to give some back when the stations opened, which
