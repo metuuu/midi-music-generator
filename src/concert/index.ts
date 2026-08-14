@@ -20,6 +20,7 @@
 import type { LayerId, Song, Track } from '../core/types.js';
 import { generateSong, withCountIn } from '../generate/song.js';
 import { GENRE_IDS, getGenre } from '../genre/index.js';
+import type { ChaosLevel } from '../genre/chaos.js';
 import { Rng } from '../core/rng.js';
 
 import { castSong, playerFor } from './cast.js';
@@ -248,24 +249,114 @@ export function resolveSolos(song: Song, cast: Cast): SoloSpot[] {
  * The choreography is rebuilt from the spliced song rather than patched.
  * `choreograph` seeds per performer — `${seed}:choreo:${performer.id}` — so
  * everybody whose notes did not move gets byte-identical gestures back.
+ *
+ * ## And they come back playing somebody else's music
+ *
+ * `variation` alone is a weak answer to a tomato. It rerolls the *draws* on one
+ * stream, which on a layer that draws heavily is a new part and on a layer that
+ * barely draws is a shrug — measured, 29 re-voices out of 113 changed nothing
+ * whatever, because a generator that makes no random choices has none to reroll.
+ * `pad` cannot be varied at all.
+ *
+ * So the re-voice runs under `chaos`, which is a different lever: it swaps the
+ * *material* — which figure, which instrument, whose feel — rather than
+ * rerolling a choice. A player who was hit comes back playing some other genre's
+ * line over this genre's chart, which is the joke the mechanic is for, and it
+ * works on a layer with no randomness in it at all.
+ *
+ * Only `band`, `performance` and `figures`, which `genre/chaos.ts` describes as
+ * the three that change what a piece sounds like without touching what it is
+ * built on. `harmony` and `form` are precisely what a band mid-song cannot move,
+ * and `staging` is not about notes.
+ *
+ * ## Asking for less until it fits
+ *
+ * Even those three can move the form. A chimera borrowing a figure in another
+ * metre is a song in another metre, and `spliceLayers` rightly refuses it: at
+ * full spread that took out classical and metal entirely — 17 re-voices of 113
+ * refused, against 4 at the mildest step, so the *harder* you were pelted the
+ * more likely the band was to come back playing exactly what they had been.
+ *
+ * So the spread is a request rather than a setting. Ask for the escalated one,
+ * and on a refusal ask for half of it, and then for none — which is a plain
+ * `variation` re-voice against the recipe's own form and cannot fail to fit.
+ * Only the refusals pay for the extra generation; the common path is one call.
  */
 export function revoiceNumber(
   number: ConcertNumber, layer: LayerId, attempt: number,
 ): ConcertNumber {
   const { salted, tracks: group } = revoiceGroup(layer);
-  const song = generateSong({ ...number.recipe, variation: { [salted]: attempt } });
+  const wanted = Math.min(1, CHAOS_PER_TOMATO * attempt);
+
+  for (const spread of [wanted, wanted / 2, 0]) {
+    const song = generateSong({
+      ...number.recipe,
+      /**
+       * Pinned, and this is what makes a chaotic re-voice splice at all.
+       *
+       * A chimera narrows its tempo band to what every band that lent it a
+       * figure can play, and then fits the form to `targetSeconds` at whatever
+       * speed comes out — so the fresh song arrives at a different tempo with a
+       * different number of bars. Measured over the nineteen genres at three
+       * escalation steps: **9 of 57 fit without this line and 57 of 57 with
+       * it.** The ladder above is for what it does not catch.
+       *
+       * It costs no determinism. `generateSong` draws the tempo and *then*
+       * applies the override — `pick(chooseTempo(rng, …), opts.bpm)` — so
+       * pinning it spends the same random numbers as leaving it off, and a
+       * plain re-voice comes back byte-identical either way.
+       */
+      bpm: number.song.meta.bpm,
+      variation: { [salted]: attempt },
+      chaos: {
+        // Donors the caller narrowed stay narrowed. `mixing` deliberately does
+        // not survive: a per-kind rate would pin the spread this escalates.
+        ...(number.recipe.chaos?.donors ? { donors: number.recipe.chaos.donors } : {}),
+        levels: REVOICE_CHAOS,
+        spread,
+      },
+    });
+    /**
+     * Counted in again, and this is load-bearing rather than tidy: this runs
+     * *mid-number*, against a transport that is already playing the counted-in
+     * version, and a song that came back a bar short would put every remaining
+     * beat of the piece one bar away from the clock animating it.
+     */
+    const spliced = spliceLayers(number.song, withCountIn(song), group);
+    if (spliced) {
+      return { ...number, song: spliced, choreography: choreograph(spliced, number.cast) };
+    }
+  }
+
   /**
-   * Counted in again, and this is load-bearing rather than tidy: this runs
-   * *mid-number*, against a transport that is already playing the counted-in
-   * version, and a song that came back a bar short would put every remaining
-   * beat of the piece one bar away from the clock animating it.
+   * Not even the plain re-voice fit, which means the fresh song has a different
+   * number of tracks on this layer — a variation that silenced a part somebody
+   * is cast on, or gave them a second one. Leave the number alone: a player who
+   * comes back playing what they were is a disappointment, and a stage where the
+   * notes and the bodies disagree about who is on it is a wreck.
    */
-  const staged = withCountIn(song);
-  const spliced = spliceLayers(number.song, staged, group);
-  // The fresh song did not fit the one on stage. See `spliceLayers`.
-  if (!spliced) return number;
-  return { ...number, song: spliced, choreography: choreograph(spliced, number.cast) };
+  return number;
 }
+
+/**
+ * What a re-voice is allowed to borrow. See `revoiceNumber`.
+ *
+ * The default three, named rather than left off, because the default is a
+ * property of `genre/chaos.ts` and this list is a claim about what a band can
+ * survive without stopping. If a fourth kind is ever added to that file it must
+ * not arrive here by inheritance.
+ */
+const REVOICE_CHAOS: ChaosLevel[] = ['band', 'performance', 'figures'];
+
+/**
+ * How much further into somebody else's genre each tomato pushes a player.
+ *
+ * Three good hits and they are playing it entirely — `spread` clamps at 1. That
+ * is the same count the band's patience ladder is measured in, so the music and
+ * the body language escalate together: by the time the drummer is staring at the
+ * house, the bassist who got the first one is on a foreign figure.
+ */
+const CHAOS_PER_TOMATO = 0.35;
 
 /**
  * Which tracks one hit re-voices, and whose stream it salts.

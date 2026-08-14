@@ -2294,8 +2294,18 @@ console.log('\nThe tomato seam');
 
   const drifted: string[] = [];
   const bled: string[] = [];
-  const inert: string[] = [];
+  /** Layers that came back playing the identical part, by escalation step. */
+  const inert = new Map<number, string[]>();
   let revoiced = 0;
+
+  /**
+   * The first tomato and the fourth. `revoiceNumber` widens `chaos.spread` with
+   * the attempt, so these are the mildest and the fullest re-voice the mechanic
+   * can produce, and the isolation has to hold at both: a chimera at full spread
+   * rewrites parts this has no business handing over, and the splice is the only
+   * thing stopping it.
+   */
+  const ATTEMPTS = [1, 3];
 
   /**
    * The opener of one evening per genre, and every layer somebody is cast on.
@@ -2310,8 +2320,8 @@ console.log('\nThe tomato seam');
       .numbers.slice(0, 1)) {
       const before = linesOf(number.song);
       const layers = [...new Set(number.cast.performers.map((p) => p.layer))];
-      for (const layer of layers) {
-        const after = revoiceNumber(number, layer, 1);
+      for (const layer of layers) for (const attempt of ATTEMPTS) {
+        const after = revoiceNumber(number, layer, attempt);
         revoiced++;
         const name = `${number.song.meta.style} ${layer}`;
 
@@ -2347,7 +2357,11 @@ console.log('\nThe tomato seam');
           .map(([key]) => key);
         const strangers = moved.filter((key) => !allowed.includes(key.split('#')[0]!));
         if (strangers.length) bled.push(`${name} → ${strangers.join(' ')}`);
-        if (!moved.length) inert.push(name);
+        if (!moved.length) {
+          const at = inert.get(attempt) ?? [];
+          at.push(layer);
+          inert.set(attempt, at);
+        }
       }
     }
   }
@@ -2357,14 +2371,22 @@ console.log('\nThe tomato seam');
   check('only the tomatoed player plays something else', bled.length === 0,
     bled.length ? bled.slice(0, 6).join(', ') : `${revoiced} re-voices, no part bled`);
   /**
-   * Not a failure, and reported anyway. A layer whose generator draws no random
-   * numbers cannot be varied — `pad` is the standing example — so its player
-   * takes a tomato, sulks, and comes back playing the identical part. That is a
-   * real hole in the mechanic rather than a bug in this file, and a count is how
-   * anybody would notice it changing.
+   * Not a failure, and reported anyway, per escalation step.
+   *
+   * A sulk nobody can hear is the one way this mechanic fails silently: the
+   * player stops, the crowd gasps, and the part that comes back is the part that
+   * left. `variation` alone could not fix it — a generator that draws no random
+   * numbers has none to reroll, which is why `pad` was inert everywhere — so the
+   * re-voice runs under `chaos` and swaps material instead. The number that
+   * matters is the trend across the two steps: a fourth tomato should leave
+   * fewer players unchanged than a first.
    */
-  console.log(`  note  ${'a re-voice that changed nothing'.padEnd(46)} `
-    + `${inert.length}/${revoiced}${inert.length ? ` — ${[...new Set(inert.map((s) => s.split(' ')[1]))].join(', ')}` : ''}`);
+  for (const attempt of ATTEMPTS) {
+    const at = inert.get(attempt) ?? [];
+    const each = revoiced / ATTEMPTS.length;
+    console.log(`  note  ${`a re-voice that changed nothing (hit ${attempt})`.padEnd(46)} `
+      + `${at.length}/${each}${at.length ? ` — ${[...new Set(at)].join(', ')}` : ''}`);
+  }
 }
 
 // -------------------------------------------------------------------------
