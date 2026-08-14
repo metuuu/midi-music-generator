@@ -17,7 +17,7 @@
  * know both who is soloing and that they exist.
  */
 
-import type { LayerId, Song } from '../core/types.js';
+import type { LayerId, Song, Track } from '../core/types.js';
 import { generateSong, withCountIn } from '../generate/song.js';
 import { GENRE_IDS, getGenre } from '../genre/index.js';
 import { Rng } from '../core/rng.js';
@@ -228,16 +228,32 @@ export function resolveSolos(song: Song, cast: Cast): SoloSpot[] {
  * on stage in the same clothes, because they are. And the groove, visemes and
  * lighting are kept, because none of them describes the notes of one layer.
  *
- * Note the arrangement caveat the solo engine turned up: varying `melody` also
- * moves `counter`, `brass`, `comp` and `pad`, because those layers answer the
- * tune or are pushed off it by collision repair. That is correct arrangement
- * behaviour rather than stream entanglement — but it means a tomatoed singer
- * changes more of the band than a tomatoed bassist does.
+ * ## Only the player who was hit
+ *
+ * `variation` salts one layer's streams, but the band is *written in an order*
+ * and the later parts read the earlier ones: the counter answers the tune note
+ * by note, the horns take it as an argument, `patchBand` moves the bass onto
+ * its anticipations, and collision repair shoves comp, pad and brass off
+ * anything doubling it. Measured, varying `melody` moved up to four other
+ * parts. All of that is correct arrangement behaviour and none of it is wanted
+ * here: a tomato is one player sulking, not the band rewriting the chart around
+ * them.
+ *
+ * So the whole song is regenerated and then **only the hit player's tracks are
+ * kept**. Everything else stays the object it already was. Isolation by
+ * construction rather than by trusting the dependency graph — which matters
+ * doubly once `chaos` is in the call, because a chimera rewrites parts this has
+ * no intention of handing over.
+ *
+ * The choreography is rebuilt from the spliced song rather than patched.
+ * `choreograph` seeds per performer — `${seed}:choreo:${performer.id}` — so
+ * everybody whose notes did not move gets byte-identical gestures back.
  */
 export function revoiceNumber(
   number: ConcertNumber, layer: LayerId, attempt: number,
 ): ConcertNumber {
-  const song = generateSong({ ...number.recipe, variation: { [layer]: attempt } });
+  const { salted, tracks: group } = revoiceGroup(layer);
+  const song = generateSong({ ...number.recipe, variation: { [salted]: attempt } });
   /**
    * Counted in again, and this is load-bearing rather than tidy: this runs
    * *mid-number*, against a transport that is already playing the counted-in
@@ -245,7 +261,87 @@ export function revoiceNumber(
    * beat of the piece one bar away from the clock animating it.
    */
   const staged = withCountIn(song);
-  return { ...number, song: staged, choreography: choreograph(staged, number.cast) };
+  const spliced = spliceLayers(number.song, staged, group);
+  // The fresh song did not fit the one on stage. See `spliceLayers`.
+  if (!spliced) return number;
+  return { ...number, song: spliced, choreography: choreograph(spliced, number.cast) };
+}
+
+/**
+ * Which tracks one hit re-voices, and whose stream it salts.
+ *
+ * Almost always the player's own layer and nothing else. The exception is the
+ * singer, and it is not a special case so much as an admission about what the
+ * vocal layer *is*: `generateVocalStack` syllabifies the melody, so the sung
+ * line and the tune are one line performed by two people. Splicing `melody`
+ * alone would leave the singer on the tune nobody is playing any more.
+ *
+ * It also gives a tomatoed singer a consequence at all. `salt('vocal')` is read
+ * by no stream in the generator — the vocal is derived rather than drawn — so
+ * `variation: { vocal: n }` is a no-op and she used to come back singing exactly
+ * what she had been singing. Salting `melody` is what "sing something else"
+ * actually means.
+ */
+function revoiceGroup(layer: LayerId): { salted: LayerId; tracks: LayerId[] } {
+  return layer === 'melody' || layer === 'vocal'
+    ? { salted: 'melody', tracks: ['melody', 'vocal'] }
+    : { salted: layer, tracks: [layer] };
+}
+
+/**
+ * `into` with `group`'s parts taken from `from`, or `undefined` if they do not fit.
+ *
+ * The fit check is the whole safety of this. A spliced part is written against
+ * *its own* song's form — its bars, its metre, its section seams — and dropped
+ * into another one it is simply notes at the wrong beats. The recipe is pinned,
+ * so a plain re-voice always fits; a `chaos` re-voice may not, because a chimera
+ * narrows its tempo band from the figures it borrowed and refits the form to the
+ * target seconds at whatever speed comes out.
+ *
+ * `undefined` rather than a throw or a partial splice: the caller's answer is to
+ * leave the number alone, and a player who comes back playing what they were is
+ * a disappointment where a player whose bar lines have moved is a wreck.
+ */
+function spliceLayers(into: Song, from: Song, group: LayerId[]): Song | undefined {
+  if (into.meta.totalBars !== from.meta.totalBars) return undefined;
+  if (into.meta.beatsPerBar !== from.meta.beatsPerBar) return undefined;
+  if (into.meta.bpm !== from.meta.bpm) return undefined;
+  if (into.sections.length !== from.sections.length) return undefined;
+  for (let i = 0; i < into.sections.length; i++) {
+    const a = into.sections[i]!;
+    const b = from.sections[i]!;
+    if (a.startBar !== b.startBar || a.lengthBars !== b.lengthBars) return undefined;
+  }
+
+  // The kit is not a `Track`, so it is spliced as itself.
+  const drums = group.includes('drums') ? from.drums : into.drums;
+
+  /**
+   * Positional, and the counts have to agree.
+   *
+   * A layer is not always one track — a vocal stack is two, and the lead is
+   * first by a convention `visemesFor` and `web/sung-voice.ts` both rely on. So
+   * the n-th track of a layer is replaced by the n-th of that layer in the fresh
+   * song, and a run that produced a different number of them is a run this
+   * cannot splice: appending would put an uncast singer on the stage and
+   * dropping would silence a cast one.
+   */
+  const spare = new Map<LayerId, Track[]>();
+  for (const layer of group) spare.set(layer, from.tracks.filter((t) => t.layer === layer));
+  for (const [layer, fresh] of spare) {
+    if (fresh.length !== into.tracks.filter((t) => t.layer === layer).length) return undefined;
+  }
+
+  const taken = new Map<LayerId, number>();
+  const tracks = into.tracks.map((track) => {
+    const fresh = spare.get(track.layer);
+    if (!fresh) return track;
+    const n = taken.get(track.layer) ?? 0;
+    taken.set(track.layer, n + 1);
+    return fresh[n] ?? track;
+  });
+
+  return { ...into, tracks, drums };
 }
 
 /** Total running time of the show, in seconds. */

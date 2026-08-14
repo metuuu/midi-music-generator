@@ -20,7 +20,7 @@
  */
 
 import { quantise } from './core/grid.js';
-import { DRUM_MACHINES, SEQUENCERS, isPlayedByHand, type DrumVoice } from './core/types.js';
+import { DRUM_MACHINES, SEQUENCERS, isPlayedByHand, type DrumVoice, type Song } from './core/types.js';
 import { readBankName } from './render/drum-banks.js';
 import { generateSong } from './generate/song.js';
 import { GENRE_IDS, getGenre } from './genre/index.js';
@@ -32,7 +32,7 @@ import {
 } from './concert/instruments.js';
 import { seenAs, stacked } from './concert/cast.js';
 import { MAX_SUNG_CHANCE, SUNG_CHANCE } from './concert/setlist.js';
-import { buildConcert, soundingEffectors } from './concert/index.js';
+import { buildConcert, revoiceNumber, soundingEffectors } from './concert/index.js';
 import { cableBounds, cableExit, routeOnDeck, type Obstacle } from './web/concert/cables.js';
 import { BUILDERS, buildInstrumentFor } from './web/concert/instruments/index.js';
 import { riserFootprint } from './concert/venue.js';
@@ -2266,6 +2266,105 @@ console.log('\nInstruments');
     lying.length
       ? lying.map((r) => `${line(r)} (+${(r.gap * 100).toFixed(1)} pts)`).join(', ')
       : `${scored.length} tuned archetypes, worst ${line(scored[0]!)}`);
+}
+
+// --- The tomato seam ------------------------------------------------------
+//
+// `revoiceNumber` is the one call in `src/concert/` that runs *mid-performance*,
+// against a transport that is already playing the song it is rewriting. Both
+// assertions below are about what the rest of the band is doing while one player
+// sulks, and neither had any coverage until the mechanic acquired enough
+// arithmetic to get them wrong.
+console.log('\nThe tomato seam');
+{
+  /** Beat, pitch and length. Velocity is left out: dynamics are not the line. */
+  const lineOf = (notes: readonly { beat: number; midi: number; duration: number }[]): string =>
+    JSON.stringify(notes.map((n) => [n.beat, n.midi, n.duration]));
+  const linesOf = (song: Song): Map<string, string> => {
+    const out = new Map<string, string>();
+    const seen = new Map<string, number>();
+    for (const t of song.tracks) {
+      const n = seen.get(t.layer) ?? 0;
+      seen.set(t.layer, n + 1);
+      out.set(`${t.layer}#${n}`, lineOf(t.notes));
+    }
+    out.set('drums', JSON.stringify(song.drums.events.map((e) => [e.beat, e.voice])));
+    return out;
+  };
+
+  const drifted: string[] = [];
+  const bled: string[] = [];
+  const inert: string[] = [];
+  let revoiced = 0;
+
+  /**
+   * The opener of one evening per genre, and every layer somebody is cast on.
+   *
+   * A re-voice is a whole `generateSong`, so this is the widest sample that does
+   * not double the runtime of this file: nineteen genres is the axis that
+   * matters, because what varies between them is which layers exist and which
+   * of them the arrangement reads.
+   */
+  for (const gid of CHECKED_GENRES) {
+    for (const number of buildConcert({ seed: `revoice-${gid}`, genre: gid, vocals: 'mixed' })
+      .numbers.slice(0, 1)) {
+      const before = linesOf(number.song);
+      const layers = [...new Set(number.cast.performers.map((p) => p.layer))];
+      for (const layer of layers) {
+        const after = revoiceNumber(number, layer, 1);
+        revoiced++;
+        const name = `${number.song.meta.style} ${layer}`;
+
+        /**
+         * The band is mid-song. Key, metre, tempo and length are what the
+         * transport, the choreographer and the lighting score are all already
+         * counting against, and a re-voice that moves any of them has modulated
+         * a band that did not stop playing. This is the regression guard for
+         * the recipe: reconstructing the `generateSong` call from `SongMeta`
+         * silently dropped `tonic`, `mode` and `targetSeconds`.
+         */
+        const a = number.song.meta;
+        const b = after.song.meta;
+        if (a.tonic !== b.tonic || a.mode !== b.mode || a.bpm !== b.bpm
+          || a.beatsPerBar !== b.beatsPerBar || a.totalBars !== b.totalBars) {
+          drifted.push(name);
+        }
+
+        /**
+         * And nobody else moves. The generator's own dependency graph is real
+         * and mostly right — the counter answers the tune, the horns read it,
+         * `patchBand` moves the bass onto its anticipations — but none of it is
+         * wanted from a tomato, so `revoiceNumber` splices rather than swaps.
+         *
+         * The singer rides with the tune and that is not a leak: the sung line
+         * is the melody syllabified, so they are one line performed by two
+         * people. See `revoiceGroup`.
+         */
+        const allowed = layer === 'melody' || layer === 'vocal'
+          ? ['melody', 'vocal'] : [layer];
+        const moved = [...linesOf(after.song)]
+          .filter(([key, line]) => before.get(key) !== line)
+          .map(([key]) => key);
+        const strangers = moved.filter((key) => !allowed.includes(key.split('#')[0]!));
+        if (strangers.length) bled.push(`${name} → ${strangers.join(' ')}`);
+        if (!moved.length) inert.push(name);
+      }
+    }
+  }
+
+  check('a re-voiced band stays in the key it is playing', drifted.length === 0,
+    drifted.length ? drifted.slice(0, 6).join(', ') : `${revoiced} re-voices, none modulated`);
+  check('only the tomatoed player plays something else', bled.length === 0,
+    bled.length ? bled.slice(0, 6).join(', ') : `${revoiced} re-voices, no part bled`);
+  /**
+   * Not a failure, and reported anyway. A layer whose generator draws no random
+   * numbers cannot be varied — `pad` is the standing example — so its player
+   * takes a tomato, sulks, and comes back playing the identical part. That is a
+   * real hole in the mechanic rather than a bug in this file, and a count is how
+   * anybody would notice it changing.
+   */
+  console.log(`  note  ${'a re-voice that changed nothing'.padEnd(46)} `
+    + `${inert.length}/${revoiced}${inert.length ? ` — ${[...new Set(inert.map((s) => s.split(' ')[1]))].join(', ')}` : ''}`);
 }
 
 // -------------------------------------------------------------------------
