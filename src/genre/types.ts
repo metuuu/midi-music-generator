@@ -688,6 +688,31 @@ export interface Staging {
   blurbs?: Blurb[];
 
   /**
+   * What the programme is printed *on*, keyed by era id — the same key as
+   * `wardrobe`, and for the same reason.
+   *
+   * `blurbs` above says what the bill *says*. This says what it is: the stock,
+   * the ink, the face, the setting and the way the numbers are laid out. The
+   * two were separated by about a year and a registry — the copy moved here
+   * when a fourth genre started printing `HOUSE_BLURB` under every number, and
+   * the paper stayed behind in `web/concert/showbill.ts` as a
+   * `Record<'genre:era', House>` with a silent fallback to a plain card.
+   *
+   * It went exactly the way the first one had. Measured before this field
+   * existed: **eight** of the registry's **seventy-two** genre-and-era pairs
+   * had a house, so sixteen genres and one orphaned jazz era — a 1990 thrash
+   * gig, a Baroque recital, a 1986 warehouse night, a Carnatic concert — were
+   * all handed the same off-white Blue Note card with the word "Programme" on
+   * it. Every fallback worked as designed and the result was fifteen genres
+   * nobody had finished.
+   *
+   * So the paper follows the copy. See `BillHouse` for the fields and
+   * `web/concert/showbill.ts` for what the renderer still owns, which is the
+   * *layouts* — a layout is structure and cannot be said in a colour.
+   */
+  bill?: Record<string, BillHouse>;
+
+  /**
    * How much body this music has, as a multiplier on the groove score, 0..1.
    *
    * Staging rather than mixing, and the same axis the wardrobe dresses: a
@@ -891,4 +916,149 @@ export interface Blurb {
   /** Mood ids this line is about. */
   moods?: string[];
   slot?: BlurbSlot;
+}
+
+// ---------------------------------------------------------------------------
+// What a genre prints
+// ---------------------------------------------------------------------------
+
+/**
+ * How the numbers are set out on the page.
+ *
+ * The one part of a bill that is not a colour or a face, so it is the one part
+ * the renderer keeps: each of these is a block of grid rules in
+ * `web/concert/showbill.ts` and there is no way to express "the duration hangs
+ * in a third column" as a token. Six of them against nineteen genres, which is
+ * the right ratio — a layout is a *kind of document*, and there are not
+ * nineteen kinds of document. Two genres sharing `flyer` and disagreeing about
+ * everything printed on it is the system working.
+ *
+ *  - `poster` — centred and symmetrical, the number set as a line of its own
+ *    above a title in large caps. What a jobbing printer did with the type he
+ *    had. Dance pavilions, dancehalls, tent shows.
+ *  - `card` — hard against the left margin, the number hanging outside the
+ *    text block, title and duration on one line. Small enough to leave on a
+ *    table. Clubs.
+ *  - `handout` — almost nothing: no rules, no capitals, generous space, the
+ *    duration small and right. A genre that refuses to have a foreground gets
+ *    a bill that refuses to have a headline.
+ *  - `flyer` — photocopied and shouted. The number is a slab in the left
+ *    margin at title size, the title is jammed uppercase against it, and there
+ *    is no rule anywhere because nobody ruled anything. Gigs, jams, raves.
+ *  - `programme` — formal. Roman numerals in the margin, the title in text
+ *    case, and a dotted leader running from the end of it to the duration at
+ *    the right, which is the one typographic device that says *concert* and
+ *    nothing else. Recitals, sabhas, takht evenings.
+ *  - `handbill` — a jobbing strip: heavy rules top and bottom of every number,
+ *    a slab number, and the style set as a subtitle in the middle of the
+ *    measure. Village halls, opry houses, barn dances.
+ */
+export type BillLayout =
+  | 'poster' | 'card' | 'handout' | 'flyer' | 'programme' | 'handbill';
+
+/** How one run of type is set: its size, its tracking and its case. */
+export interface BillSetting {
+  /** Relative to the sheet's one knob, so the whole bill scales as paper does. */
+  size: string;
+  /** `letter-spacing`. Negative closes a grotesque up; .3em is a poster. */
+  track: string;
+  case: 'uppercase' | 'lowercase' | 'none';
+}
+
+/**
+ * One printed programme: a stock, an ink, a face and a way of setting them.
+ *
+ * Values rather than the name of a stylesheet rule, exactly as `Wardrobe` is
+ * hex colours rather than the name of a costume. That is what lets a genre be
+ * finished inside its own folder: the renderer writes every field below onto
+ * the sheet as a custom property and owns nothing but the six layouts, so
+ * adding a genre now touches `genre/<id>/` and stops there. The version this
+ * replaced named a CSS class — `paper: 'manila'` — which meant a new genre's
+ * paper had to be written into the renderer's stylesheet, which meant nobody
+ * wrote one.
+ *
+ * ## Writing one
+ *
+ * Read the neighbours first — the argument for that is at the top of
+ * `iskelma/staging.ts` and it applies twice as hard here, because a programme
+ * is judged against the last programme the audience saw and there are
+ * seventy-two of them. The registers worth knowing before you start:
+ *
+ *  - **The era is in the paper, never in a caption.** Printing "1974" on a
+ *    bill tells the reader a fact instead of giving them an impression. Cream
+ *    stock and a letterpressed serif is 1968; a photocopied monospace sheet is
+ *    1979; cold sans on coated white is 1997. `eraLabel` is printed beside the
+ *    venue and that is the whole of the dating.
+ *  - **Two colours, at most.** Every entry here is an ink and one accent,
+ *    because that is what the presses these are imitating could do, and a bill
+ *    with four colours on it reads as a web page.
+ *  - **System stacks only.** No fetches — a programme that needs the network
+ *    to look right looks wrong on the one night the network is bad. The stacks
+ *    are longer than they look because the interesting faces (Didot, Bodoni,
+ *    Century Gothic) are present on some machines and not others, and the
+ *    fallback has to fail into the same *category* of face.
+ *  - **`aged` is about the stock, not the decade.** Uncoated paper foxes;
+ *    coated and digital-era paper does not. A 1930s card that was kept in a
+ *    sleeve is not aged and a 1985 photocopy on cheap bond is.
+ */
+export interface BillHouse {
+  layout: BillLayout;
+
+  /**
+   * The word above the list. A tanssilava does not say "Programme".
+   *
+   * The one place the bill is allowed to be in another language, and it earns
+   * that because it is a *label on an object* rather than copy — nobody has to
+   * read "Ohjelma" to know what they are holding. Every other word on the
+   * sheet stays in the house voice.
+   */
+  word: string;
+
+  numeral: 'roman' | 'arabic' | 'none';
+
+  /** Aged stock gets foxing marks. Coated and digital-era stock does not. */
+  aged?: boolean;
+
+  /** The stock. A CSS colour. */
+  stock: string;
+
+  /**
+   * What is printed *into* the stock — laid lines, tooth, gloss, the shadow of
+   * a photocopier drum. A CSS `background-image`, so gradients and nothing
+   * else; absent is a perfectly flat sheet, which is itself a statement about
+   * the decade.
+   */
+  grain?: string;
+
+  ink: string;
+  /** Second-rank ink: numbers, durations, the colophon. */
+  inkDim: string;
+  /** Rules and hairlines. */
+  hair: string;
+  /** The second colour on the press. Used for the accent and the running mark. */
+  accent: string;
+
+  /** Text face — the blurb, the style, the small print. A CSS font stack. */
+  face: string;
+  /** Title and venue face. Often the same stack; the interesting ones are not. */
+  display: string;
+  displayWeight: number;
+
+  venue: BillSetting;
+  title: BillSetting;
+
+  /**
+   * What sits under the venue block. `rule` is a CSS `border-bottom` shorthand,
+   * `pad` the space above it, `shadow` a `box-shadow` for the second line of a
+   * deco double rule, and `align` overrides the layout's own alignment for the
+   * head alone — a swing card is a left-aligned list under a centred masthead,
+   * which is a real thing that card stock did and not a compromise. All absent
+   * is a head that simply stops, which is what the quieter papers want.
+   */
+  head?: {
+    pad?: string;
+    rule?: string;
+    shadow?: string;
+    align?: 'left' | 'center' | 'right';
+  };
 }

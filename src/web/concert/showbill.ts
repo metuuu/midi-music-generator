@@ -24,7 +24,7 @@
  * the same piece of paper the second time, and building two would guarantee
  * they drifted apart.
  *
- * ## Era in the paper, genre in the layout
+ * ## Era in the paper, genre in the layout — and the paper is not kept here
  *
  * A 1968 tanssilava bill and a 1997 ambient handout are not the same document
  * with different words in it, and printing "1974" in a caption is the laziest
@@ -36,9 +36,32 @@
  * poster is centred and shouts, a club card is a tight left-aligned list, a
  * gallery handout is mostly empty space.
  *
+ * **This file used to hold both, and that is why sixteen genres had no bill.**
+ * `houseStyle` was a `Record<'genre:era', House>` right here, with a silent
+ * fallback to the Blue Note card — and when it was measured, eight of the
+ * seventy-two pairs the generator can produce had an entry. A thrash gig, a
+ * Baroque recital and a warehouse night were being handed the same off-white
+ * card. It is the exact failure `Staging.blurbs` was moved out of `concert/`
+ * to fix a year earlier, repeated in the neighbouring field, and the cause was
+ * the same: **a table every author has to edit is a registry**, and a registry
+ * living inside the renderer means a genre cannot be finished in its own
+ * folder.
+ *
+ * So the papers left, and what stayed is exactly what a *renderer* owns:
+ *
+ *  - the **layouts** — six blocks of grid rules, one per `BillLayout`. Nobody
+ *    can say "the duration hangs in a third column" in a colour, and there are
+ *    not nineteen kinds of document anyway.
+ *  - `applyHouse`, which writes a genre's `BillHouse` onto the root as custom
+ *    properties, and
+ *  - `HOUSE_BILL`, the floor, which is deliberately dull — a fallback that
+ *    looks good is a reason never to write the real thing, and the old one
+ *    looked good.
+ *
  * Nothing external: system font stacks only, backgrounds built from gradients,
  * no fetches. A programme that needs the network to look right is a programme
- * that looks wrong on the one night the network is bad.
+ * that looks wrong on the one night the network is bad. That rule is stated
+ * again on `BillHouse`, because it is now enforced nineteen folders away.
  *
  * ## What the show runner gets
  *
@@ -52,6 +75,8 @@ import { Rng } from '../../core/rng.js';
 import { billDuration, billHouse, billTime } from '../../concert/showbill.js';
 import type { BillEntry, ConcertOptions, Venue } from '../../concert/types.js';
 import { formatChaosMixing } from '../../genre/chaos.js';
+import { GENRES } from '../../genre/index.js';
+import type { BillHouse } from '../../genre/types.js';
 
 // ---------------------------------------------------------------------------
 // The public surface
@@ -157,16 +182,19 @@ export function renderBill(
   injectStyles();
 
   const found = billHouse(bill);
-  const house = houseStyle(opts.genre || found.genre, opts.era || found.era);
+  const genreId = opts.genre || found.genre;
+  const house = houseStyle(genreId, opts.era || found.era);
   const seed = String(opts.seed ?? '');
 
   // --- Structure ---------------------------------------------------------
   /**
-   * The stock is named on the root as well as on the sheet, because the tab is
-   * a corner of the same paper and has to be printed in the same ink. Nothing
-   * else on the root draws, so the class costs a cascade and no pixels.
+   * The stock is written onto the root rather than onto the sheet, because the
+   * tab is a corner of the same paper and has to be printed in the same ink.
+   * Custom properties inherit, so one call dresses both and nothing on the root
+   * itself draws.
    */
-  const root = el('div', `billhouse paper--${house.paper}`);
+  const root = el('div', 'billhouse');
+  applyHouse(root, house);
   root.dataset.mode = 'hidden';
 
   const scrim = el('div', 'billhouse__scrim');
@@ -184,7 +212,7 @@ export function renderBill(
   tab.append(text('span', 'bill__tabword', 'programme'));
   root.append(tab);
 
-  const sheet = el('article', `bill bill--${house.layout} paper--${house.paper}`);
+  const sheet = el('article', `bill bill--${house.layout}`);
   sheet.setAttribute('role', 'dialog');
   sheet.setAttribute('aria-label', `Programme — ${venue.label}`);
   sheet.tabIndex = -1;
@@ -247,7 +275,7 @@ export function renderBill(
       // must not also be read as a click on the scrim behind it.
       pieceCopy.addEventListener('click', (e) => {
         e.stopPropagation();
-        const link = pieceShareUrl(opts, house.genre, entry.number);
+        const link = pieceShareUrl(opts, genreId, entry.number);
         const done = (ok: boolean): void => {
           pieceCopy.textContent = ok ? 'copied' : 'copy';
           window.setTimeout(() => { pieceCopy.textContent = 'copy'; }, 1600);
@@ -277,7 +305,7 @@ export function renderBill(
    * imprint never reach the start handler, or copying the link off the opening
    * bill would also raise the curtain.
    */
-  const share = shareUrl(opts, house.genre);
+  const share = shareUrl(opts, genreId);
 
   const copy = el('button', 'bill__copy');
   copy.type = 'button';
@@ -492,53 +520,85 @@ export function renderBill(
 // House style
 // ---------------------------------------------------------------------------
 
-interface House {
-  genre: string;
-  /** How the programme is set out. */
-  layout: 'poster' | 'card' | 'handout';
-  /** Which stock it is printed on, and therefore which face it is set in. */
-  paper: string;
-  /** The word above the list. A tanssilava does not say "Programme". */
-  word: string;
-  numeral: 'roman' | 'arabic' | 'none';
-  /** Aged stock gets foxing marks. Coated and digital-era stock does not. */
-  aged: boolean;
+/**
+ * The floor, and it is meant to be dull.
+ *
+ * A genre with no `staging.bill` prints this: grey offset stock, the system
+ * sans, no second colour, and the word "Programme" over a plain card. It is
+ * legible and it is nobody's, which is the point — the version of this file
+ * that lived before `BillHouse` fell back to the *Blue Note* card, and a
+ * fallback that looks good is a reason never to write the real thing. Sixteen
+ * genres took that reason. See `Staging.bill`.
+ */
+const HOUSE_BILL: BillHouse = {
+  layout: 'card',
+  word: 'Programme',
+  numeral: 'arabic',
+  stock: '#e6e6e4',
+  ink: '#23242a', inkDim: '#75767c', hair: '#c4c5c2', accent: '#5a5c62',
+  face: 'ui-sans-serif, system-ui, sans-serif',
+  display: 'ui-sans-serif, system-ui, sans-serif',
+  displayWeight: 600,
+  venue: { size: '1.2em', track: '.06em', case: 'uppercase' },
+  title: { size: '1.5em', track: '0', case: 'none' },
+  head: { pad: '.7em', rule: '1px solid var(--hair)' },
+};
+
+/**
+ * Which paper this evening is printed on.
+ *
+ * A lookup and nothing more, which is the whole of what this function should
+ * be: it used to hold the table, and holding it is what kept sixty-four of the
+ * seventy-two genre-and-era pairs on the same card. The paper now lives beside
+ * the styles and the blurbs it is about — `Staging.bill` in the genre folder —
+ * and the era falls back the same way the wardrobe does, to `defaultEra`, so a
+ * genre handed an era it has never printed still hands out *its own* bill
+ * rather than the house's.
+ */
+function houseStyle(genre: string, era: string): BillHouse {
+  const staging = GENRES[genre]?.staging;
+  const bills = staging?.bill;
+  const fallback = staging?.defaultEra;
+  return bills?.[era]
+    ?? (fallback ? bills?.[fallback] : undefined)
+    ?? HOUSE_BILL;
 }
 
 /**
- * Eight house styles, one per genre-and-era the generator can produce.
+ * Write the paper onto the element as custom properties.
  *
- * The pairs are what the tables already say and this only translates them into
- * print. A 1968 dance pavilion advertised itself on a cream poster in a
- * letterpressed serif with the numbers in Roman; a 1985 iskelmäpop bill is
- * glossy, geometric and magenta; a swing-era club printed deco rules on buff
- * card; Blue Note put a grotesque hard against the left margin and threw the
- * rest away; ambient stopped printing anything at all and handed out a sheet of
- * A5 with lowercase type in the corner of it.
- *
- * An unrecognised pair falls back to a plain card rather than to nothing, so a
- * fourth genre gets a legible bill on the day it is added and a slightly dull
- * one until somebody writes it a house.
+ * Every field, unconditionally, including the ones with obvious defaults —
+ * because these land on one shared root and a property left unset would be
+ * inherited from whatever the page above happens to define, which is a bug that
+ * only appears on the genre that forgot. The absent-means-nothing cases are
+ * spelled out here rather than in the stylesheet for the same reason.
  */
-function houseStyle(genre: string, era: string): House {
-  const key = `${genre}:${era}`;
-  const houses: Record<string, House> = {
-    'iskelma:tanssilava': { genre, layout: 'poster', paper: 'lava', word: 'Ohjelma', numeral: 'roman', aged: true },
-    'iskelma:eighties': { genre, layout: 'poster', paper: 'neon', word: 'Ohjelma', numeral: 'arabic', aged: false },
-    'jazz:swingera': { genre, layout: 'card', paper: 'buff', word: 'Tonight', numeral: 'roman', aged: true },
-    'jazz:bop': { genre, layout: 'card', paper: 'bop', word: 'Tonight', numeral: 'arabic', aged: false },
-    'jazz:modern': { genre, layout: 'card', paper: 'modern', word: 'Tonight', numeral: 'arabic', aged: false },
-    'ambient:tape': { genre, layout: 'handout', paper: 'manila', word: 'programme', numeral: 'arabic', aged: true },
-    'ambient:sampler': { genre, layout: 'handout', paper: 'gloss', word: 'programme', numeral: 'arabic', aged: false },
-    'ambient:hybrid': { genre, layout: 'handout', paper: 'pale', word: 'programme', numeral: 'none', aged: false },
-  };
-  return houses[key]
-    ?? { genre, layout: 'card', paper: 'bop', word: 'Programme', numeral: 'arabic', aged: false };
+function applyHouse(el: HTMLElement, h: BillHouse): void {
+  const s = el.style;
+  s.setProperty('--stock', h.stock);
+  s.setProperty('--grain', h.grain ?? 'none');
+  s.setProperty('--ink', h.ink);
+  s.setProperty('--ink-dim', h.inkDim);
+  s.setProperty('--hair', h.hair);
+  s.setProperty('--accent', h.accent);
+  s.setProperty('--face', h.face);
+  s.setProperty('--display', h.display);
+  s.setProperty('--display-weight', String(h.displayWeight));
+  s.setProperty('--venue-size', h.venue.size);
+  s.setProperty('--venue-track', h.venue.track);
+  s.setProperty('--venue-case', h.venue.case);
+  s.setProperty('--title-size', h.title.size);
+  s.setProperty('--title-track', h.title.track);
+  s.setProperty('--title-case', h.title.case);
+  s.setProperty('--head-pad', h.head?.pad ?? '0');
+  s.setProperty('--head-rule', h.head?.rule ?? '0 solid transparent');
+  s.setProperty('--head-shadow', h.head?.shadow ?? 'none');
+  s.setProperty('--head-align', h.head?.align ?? 'inherit');
 }
 
 const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'];
 
-function numeral(n: number, style: House['numeral']): string {
+function numeral(n: number, style: BillHouse['numeral']): string {
   if (style === 'none') return '';
   if (style === 'roman') return ROMAN[n] ?? String(n);
   return `${n}.`;
@@ -770,7 +830,16 @@ const CSS = `
 .billhouse[data-mode="programme"] .bill__close { display: block; }
 .bill__close:hover { color: var(--ink); border-color: var(--accent); }
 
-.bill__head { text-align: inherit; margin-bottom: 1.4em; }
+/* The masthead's rule is the paper's, not the layout's — a deco double line, a
+   4mm bar of the second colour, one hairline, or nothing at all. All four come
+   in as tokens because they are the single loudest thing on the sheet and the
+   genre is the only one who knows which it wanted. */
+.bill__head {
+  text-align: var(--head-align, inherit); margin-bottom: 1.4em;
+  padding-bottom: var(--head-pad, 0);
+  border-bottom: var(--head-rule, 0 solid transparent);
+  box-shadow: var(--head-shadow, none);
+}
 .bill__venue {
   font-family: var(--display); font-size: var(--venue-size);
   letter-spacing: var(--venue-track); text-transform: var(--venue-case);
@@ -860,7 +929,13 @@ const CSS = `
 /* The plate number in the margin. Mono, and never uppercased: a seed is a
    string somebody may read off the paper and type back in, and shouting it
    would change what it says. */
-.bill__seed { font-family: var(--mono); text-transform: none; letter-spacing: .04em; }
+/* The one face no paper gets to choose. Every house had named the same monospace
+   stack, which is a token nobody was using — a seed is a machine's word and it
+   is set in a machine's face on cream stock and on gloss alike. */
+.bill__seed {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  text-transform: none; letter-spacing: .04em;
+}
 
 /* The usher's line. Centred under everything, on its own, in the house ink,
    under the dashed rule that used to sit over the controls — the instruction is
@@ -907,11 +982,34 @@ const CSS = `
    at the bottom-right of its row — under the duration, opposite the sung pill —
    and stays off the paper until the row is hovered. Always-visible chrome on
    every number reads as UI on a programme. */
+/* Printed on the paper, not on the type.
+   It is absolutely positioned at the bottom right of a row whose last element
+   is the blurb, and the blurb is set to the full measure — so a chip with a
+   transparent background was always sitting on the last line of the copy, and
+   on the numbers whose blurb runs the width of the sheet it sat on the words.
+   \`--stock\` is what is underneath it, so \`--stock\` is what it is printed on:
+   the control becomes a small patch of the same paper with a hairline round it,
+   which is what a hover chip on a printed page has to be.
+
+   The stock alone, without the grain, and the consequence is worth stating
+   rather than glossing. On the sixty-odd papers whose \`grain\` is a few per cent
+   of tooth the patch is not findable — it differs from the sheet by less than
+   the texture it is missing. On the handful carrying a real wash across the
+   whole sheet — retrowave's sunset, P-Funk's airbrush, the two rave flyers —
+   it reads as a small pale label sitting on the paper. That is the right way
+   round: the chip only exists while the row is under the cursor, and a control
+   you have reached for being visible is not the failure. Typing on top of
+   typing was.
+
+   The alternative was to reproduce the grain on the chip, and it cannot be
+   done honestly — a gradient sized to the sheet cannot be aligned inside a box
+   that is not, so the papers it would matter for are exactly the ones it would
+   land wrong on. */
 .bill__piece-copy {
   position: absolute; right: .45em; bottom: .85em; z-index: 1;
   font: inherit; font-size: .72em; letter-spacing: .04em; text-transform: none;
   cursor: pointer; color: var(--ink-dim);
-  background: transparent; border: 1px solid var(--hair); border-radius: .21em;
+  background: var(--stock); border: 1px solid var(--hair); border-radius: .21em;
   padding: .15em .5em; margin: 0;
   opacity: 0; pointer-events: none;
   transition: opacity .08s ease;
@@ -971,137 +1069,111 @@ const CSS = `
 }
 .bill--handout .bill__num { grid-column: 1; font-size: .66em; letter-spacing: .2em; opacity: .6; }
 .bill--handout .bill__title { grid-column: 1; }
-.bill--handout .bill__time { grid-column: 2; grid-row: 2; font-size: .74em; align-self: end; }
+/* Right, and said out loud rather than left to the column.
+   The duration is the only thing in column two and the column is 2.6em of the
+   sheet's type while the duration is set at .74em of it, so a start-aligned
+   time floats a good thirteen pixels short of a margin that everything else on
+   the paper — the blurb, the rule over the colophon, the copy control — is
+   flush to. On a bill of one number, which is what a \`piece\` link prints,
+   there is no second duration to make a column of it and the gap reads as a
+   mistake rather than as a measure. The card layout has always said this; the
+   handout was the copy that forgot to. */
+.bill--handout .bill__time {
+  grid-column: 2; grid-row: 2; font-size: .74em; align-self: end; text-align: right;
+}
 .bill--handout .bill__style { grid-column: 1; font-size: .72em; margin-top: .28em; font-style: normal; }
 .bill--handout .bill__blurb { grid-column: 1 / 3; font-size: .8em; margin-top: .56em; opacity: .8; }
 .bill--handout .bill__sung { grid-column: 1; justify-self: start; margin-top: .75em; border: 0; padding: 0; }
+/* The one row that has no space under it, so the hairline is moved into the
+   space between rows instead. Every other layout pads its numbers top and
+   bottom and the meter lands in that padding; a handout is padded only at the
+   top — the air belongs above the number, where the next one is starting —
+   which left the progress line ruled straight through the blurb's descenders.
+   Half an em down is the gap, and the gap is where "under the row" is. */
+.bill--handout .bill__meter { bottom: -.5em; }
 .bill--handout .bill__foot { border-top-color: transparent; }
 
-/* --- Paper: 1960s–70s tanssilava ---------------------------------------- */
-/* Cream stock, brown-black ink, poster red. The face is a text serif set far
-   too large with far too much tracking, which is exactly what a jobbing
-   printer did with the type he had. */
-.paper--lava {
-  --stock: #efe2c4;
-  --grain: repeating-linear-gradient(0deg, rgba(120, 96, 56, .05) 0 1px, transparent 1px 4px);
-  --ink: #2c2318; --ink-dim: #7a6a50; --hair: #b9a680; --accent: #96301f;
-  --face: Georgia, 'Iowan Old Style', 'Times New Roman', serif;
-  --display: Georgia, 'Iowan Old Style', 'Times New Roman', serif;
-  --mono: ui-monospace, Menlo, Consolas, monospace;
-  --display-weight: 700;
-  --venue-size: 1.4em; --venue-track: .3em; --venue-case: uppercase;
-  --title-size: 1.72em; --title-track: .13em; --title-case: uppercase;
+/* --- Layout: the gig flyer ----------------------------------------------- */
+/* Photocopied and shouted. The number is a slab in the left margin at title
+   size and in the second colour, the title is jammed against it, and there is
+   no rule anywhere on the sheet because nobody ruled anything — the rules on
+   the other layouts are a printer's habit and this was run off at a copy shop
+   the afternoon of the show. The style is set as spaced capitals under the
+   title, which is the one place a flyer of any decade is formal: it is the bit
+   that tells you which band you are looking at. */
+.bill--flyer .bill__item {
+  display: grid; grid-template-columns: 2.3em minmax(0, 1fr) 3.1em;
+  column-gap: .7em; align-items: baseline; padding: .8em 0 .85em;
 }
-.paper--lava .bill__head { padding-bottom: .8em; border-bottom: 3px double var(--hair); }
+.bill--flyer .bill__num {
+  grid-column: 1; font-size: 1.45em; line-height: 1;
+  letter-spacing: -.03em; color: var(--accent);
+}
+.bill--flyer .bill__title { grid-column: 2; }
+.bill--flyer .bill__time { grid-column: 3; font-size: .8em; text-align: right; }
+.bill--flyer .bill__style {
+  grid-column: 2 / 4; font-size: .68em; letter-spacing: .22em;
+  text-transform: uppercase; font-style: normal; margin-top: .3em;
+}
+.bill--flyer .bill__blurb { grid-column: 2 / 4; font-size: .82em; margin-top: .38em; }
+.bill--flyer .bill__sung { grid-column: 2 / 4; justify-self: start; margin-top: .7em; }
 
-/* --- Paper: 1980s iskelmäpop -------------------------------------------- */
-/* Coated, glossy, and printed in two colours because that was now cheap.
-   Geometric sans, tight, with a bar of accent instead of a rule. */
-.paper--neon {
-  --stock: #fbf6f8;
-  --grain: linear-gradient(158deg, rgba(255, 255, 255, .9), rgba(233, 214, 231, .55));
-  --ink: #1d1a22; --ink-dim: #766e80; --hair: #d8c8d6; --accent: #cf1f6e;
-  --face: 'Avenir Next', Avenir, 'Trebuchet MS', ui-sans-serif, sans-serif;
-  --display: 'Avenir Next', Avenir, 'Century Gothic', 'Futura', ui-sans-serif, sans-serif;
-  --mono: ui-monospace, Menlo, Consolas, monospace;
-  --display-weight: 800;
-  --venue-size: 1.25em; --venue-track: .18em; --venue-case: uppercase;
-  --title-size: 1.8em; --title-track: -.01em; --title-case: uppercase;
+/* --- Layout: the recital programme --------------------------------------- */
+/* The dotted leader is the whole of this layout and it is worth the trouble:
+   a line of dots running from the end of a title to a figure at the right
+   margin says *concert* and says nothing else, and no other document in this
+   project uses one. It is the row's own \`::after\` — a generated grid item
+   pinned to the third column, empty, carrying a dotted bottom border — because
+   the alternative was a fourth span in the DOM on every layout to serve one.
+   \`::before\` is spoken for by the running mark, which is \`absolute\` and so is
+   not a grid item at all; \`::after\` is in flow and is.
+   Baseline alignment throughout, and the leader is baseline-aligned too: an
+   empty block box takes its bottom edge as its baseline, which drops the dots
+   exactly where a compositor would have set them. */
+.bill--programme .bill__item {
+  display: grid;
+  grid-template-columns: 2.4em minmax(0, auto) minmax(1.2em, 1fr) 2.9em;
+  column-gap: .55em; align-items: baseline; padding: .78em 0;
 }
-.paper--neon .bill__head { padding-bottom: .8em; border-bottom: .4em solid var(--accent); }
+.bill--programme .bill__num { grid-column: 1; font-size: .85em; text-align: right; }
+.bill--programme .bill__title { grid-column: 2; }
+.bill--programme .bill__item::after {
+  content: ''; grid-column: 3; grid-row: 1;
+  align-self: baseline; border-bottom: 1px dotted var(--hair);
+}
+.bill--programme .bill__time { grid-column: 4; font-size: .82em; text-align: right; }
+.bill--programme .bill__style { grid-column: 2 / 5; font-size: .78em; margin-top: .2em; }
+.bill--programme .bill__blurb {
+  grid-column: 2 / 5; font-size: .82em; margin-top: .34em; font-style: italic;
+}
+.bill--programme .bill__sung { grid-column: 2 / 5; justify-self: start; margin-top: .7em; }
 
-/* --- Paper: 1930s–40s swing --------------------------------------------- */
-/* Buff card, deco double rules, a didone at small sizes with a lot of air
-   around it. The blue is the second colour of the period's printing. */
-.paper--buff {
-  --stock: #e9dbba;
-  --grain: repeating-linear-gradient(90deg, rgba(90, 70, 40, .035) 0 1px, transparent 1px 3px);
-  --ink: #251d13; --ink-dim: #756244; --hair: #b6a179; --accent: #1d4463;
-  --face: 'Iowan Old Style', Georgia, 'Times New Roman', serif;
-  --display: Didot, 'Bodoni 72', 'Playfair Display', Georgia, serif;
-  --mono: ui-monospace, Menlo, Consolas, monospace;
-  --display-weight: 700;
-  --venue-size: 1.28em; --venue-track: .34em; --venue-case: uppercase;
-  --title-size: 1.6em; --title-track: .1em; --title-case: uppercase;
+/* --- Layout: the jobbing handbill ---------------------------------------- */
+/* What a village printer sold by the hundred: every number boxed off by a rule,
+   the whole list closed top and bottom by a double, the figure set large and in
+   the second colour because the second colour was paid for and would be used.
+   Louder than the card and more orderly than the flyer, which is exactly the
+   register of a hall that is proud of its evening and has a fixed number of
+   ornaments to be proud with. */
+.bill--handbill .bill__list {
+  border-top: 3px double var(--hair); border-bottom: 3px double var(--hair);
 }
-.paper--buff .bill__head {
-  text-align: center; padding-bottom: .7em;
-  border-bottom: 1px solid var(--hair); box-shadow: 0 4px 0 -3px var(--hair);
+.bill--handbill .bill__item {
+  display: grid; grid-template-columns: 2.5em minmax(0, 1fr) 3em;
+  column-gap: .75em; align-items: baseline; padding: .8em 0 .85em;
 }
-
-/* --- Paper: 1950s–60s bop ------------------------------------------------ */
-/* Off-white, a grotesque hard against the left margin, one hairline and a lot
-   of nerve. Reid Miles is the whole reference and he was mostly right. */
-.paper--bop {
-  --stock: #eae7df;
-  --grain: none;
-  --ink: #15161a; --ink-dim: #6d6e73; --hair: #c3c1b9; --accent: #c1471c;
-  --face: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-  --display: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-  --mono: ui-monospace, Menlo, Consolas, monospace;
-  --display-weight: 700;
-  --venue-size: 1.35em; --venue-track: -.02em; --venue-case: uppercase;
-  --title-size: 1.7em; --title-track: -.03em; --title-case: uppercase;
+.bill--handbill .bill__item + .bill__item { border-top: 1px solid var(--hair); }
+.bill--handbill .bill__num { grid-column: 1; font-size: 1.05em; color: var(--accent); }
+.bill--handbill .bill__title { grid-column: 2; }
+.bill--handbill .bill__time { grid-column: 3; font-size: .82em; text-align: right; }
+.bill--handbill .bill__style {
+  grid-column: 2 / 4; font-size: .7em; letter-spacing: .2em;
+  text-transform: uppercase; font-style: normal; margin-top: .26em;
 }
-.paper--bop .bill__head { padding-bottom: .7em; border-bottom: 2px solid var(--ink); }
-
-/* --- Paper: 1960s–70s modern -------------------------------------------- */
-/* Warm grey, larger and looser, lowercase. The decade stopped shouting. */
-.paper--modern {
-  --stock: #ddd7cb;
-  --grain: linear-gradient(180deg, rgba(255, 255, 255, .35), rgba(0, 0, 0, .04));
-  --ink: #1e1c18; --ink-dim: #6f6a5f; --hair: #b3ac9e; --accent: #3c7d68;
-  --face: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-  --display: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-  --mono: ui-monospace, Menlo, Consolas, monospace;
-  --display-weight: 500;
-  --venue-size: 1.3em; --venue-track: .02em; --venue-case: lowercase;
-  --title-size: 1.9em; --title-track: -.02em; --title-case: lowercase;
+.bill--handbill .bill__blurb {
+  grid-column: 2 / 4; font-size: .84em; margin-top: .36em; font-style: italic;
 }
-.paper--modern .bill__head { padding-bottom: .9em; }
-
-/* --- Paper: 1970s–80s tape ----------------------------------------------- */
-/* A photocopy of a typewritten sheet, on whatever was in the tray. */
-.paper--manila {
-  --stock: #ded5bf;
-  --grain: repeating-linear-gradient(0deg, rgba(70, 60, 40, .03) 0 2px, transparent 2px 5px);
-  --ink: #3b362c; --ink-dim: #857d6c; --hair: #b8ae97; --accent: #6b5f45;
-  --face: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
-  --display: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
-  --mono: ui-monospace, Menlo, Consolas, monospace;
-  --display-weight: 400;
-  --venue-size: .82em; --venue-track: .22em; --venue-case: uppercase;
-  --title-size: 1.15em; --title-track: .08em; --title-case: uppercase;
-}
-
-/* --- Paper: 1990s sampler ------------------------------------------------ */
-/* Bright, cold, tiny type in the corner of a large sheet. */
-.paper--gloss {
-  --stock: #edf0f1;
-  --grain: none;
-  --ink: #1e2329; --ink-dim: #79828b; --hair: #ccd3d7; --accent: #4f7d95;
-  --face: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-  --display: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-  --mono: ui-monospace, Menlo, Consolas, monospace;
-  --display-weight: 400;
-  --venue-size: .8em; --venue-track: .16em; --venue-case: lowercase;
-  --title-size: 1.2em; --title-track: .01em; --title-case: lowercase;
-}
-
-/* --- Paper: 2000s hybrid ------------------------------------------------- */
-/* Almost not there. No numbers, hairlines, and type set as small as it can be
-   and remain a document. */
-.paper--pale {
-  --stock: #eceef0;
-  --grain: linear-gradient(180deg, #f2f4f5, #e5e8ea);
-  --ink: #262a2e; --ink-dim: #8a9199; --hair: #d6dade; --accent: #7d8b96;
-  --face: ui-sans-serif, 'Helvetica Neue', Arial, sans-serif;
-  --display: ui-sans-serif, 'Helvetica Neue', Arial, sans-serif;
-  --mono: ui-monospace, Menlo, Consolas, monospace;
-  --display-weight: 300;
-  --venue-size: .76em; --venue-track: .3em; --venue-case: lowercase;
-  --title-size: 1.1em; --title-track: .06em; --title-case: lowercase;
-}
+.bill--handbill .bill__sung { grid-column: 2 / 4; justify-self: start; margin-top: .7em; }
 
 /* --- One column, always -------------------------------------------------- */
 /* A wide monitor used to get a centre spread: two columns of numbers, which

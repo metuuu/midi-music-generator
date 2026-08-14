@@ -12,7 +12,7 @@
  * table rather than as the point.
  */
 
-import type { Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
+import type { BillHouse, Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
 
 /**
  * THE BLACK BOX — ambient.
@@ -261,9 +261,65 @@ const BLURBS: Blurb[] = [
   { text: 'best heard from the back, or from the corridor' },
 ];
 
+/**
+ * THE BILL — a sheet of A5 with the type in the corner of it.
+ *
+ * All three eras take `handout`, which is the layout that refuses to have a
+ * headline: no rules, no capitals, generous space, the duration small and set
+ * right. A genre that refuses to have a foreground gets a bill that refuses to
+ * have one, and the word is lowercase **programme** because saying it any
+ * louder would be the first assertive thing in the room.
+ *
+ * The papers are the three ways this music has been sold. 1979 is a photocopy
+ * of a typewritten sheet on whatever was in the tray, which is why the face is
+ * a monospace and why it is the only aged stock of the three — cheap bond foxes
+ * and coated paper does not. 1994 is bright, cold and coated, with tiny type in
+ * the corner of a large sheet, because by then this was being handed out in
+ * galleries. 2004 is almost not there: hairlines, the type as small as it can
+ * be and remain a document, and **no numbers at all** — `numeral: 'none'` is
+ * the sharpest thing any of these tables says, and it is a statement about the
+ * music. A piece that is found already happening does not have a position in a
+ * running order.
+ */
+const BILL: Record<string, BillHouse> = {
+  tape: {
+    layout: 'handout', word: 'programme', numeral: 'arabic', aged: true,
+    stock: '#ded5bf',
+    grain: 'repeating-linear-gradient(0deg, rgba(70, 60, 40, .03) 0 2px, transparent 2px 5px)',
+    ink: '#3b362c', inkDim: '#857d6c', hair: '#b8ae97', accent: '#6b5f45',
+    face: "ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace",
+    display: "ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace",
+    displayWeight: 400,
+    venue: { size: '.82em', track: '.22em', case: 'uppercase' },
+    title: { size: '1.15em', track: '.08em', case: 'uppercase' },
+  },
+  sampler: {
+    layout: 'handout', word: 'programme', numeral: 'arabic',
+    stock: '#edf0f1',
+    ink: '#1e2329', inkDim: '#79828b', hair: '#ccd3d7', accent: '#4f7d95',
+    face: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    display: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    displayWeight: 400,
+    venue: { size: '.8em', track: '.16em', case: 'lowercase' },
+    title: { size: '1.2em', track: '.01em', case: 'lowercase' },
+  },
+  hybrid: {
+    layout: 'handout', word: 'programme', numeral: 'none',
+    stock: '#eceef0',
+    grain: 'linear-gradient(180deg, #f2f4f5, #e5e8ea)',
+    ink: '#262a2e', inkDim: '#8a9199', hair: '#d6dade', accent: '#7d8b96',
+    face: "ui-sans-serif, 'Helvetica Neue', Arial, sans-serif",
+    display: "ui-sans-serif, 'Helvetica Neue', Arial, sans-serif",
+    displayWeight: 300,
+    venue: { size: '.76em', track: '.3em', case: 'lowercase' },
+    title: { size: '1.1em', track: '.06em', case: 'lowercase' },
+  },
+};
+
 export const STAGING: Staging = {
   room: BLACK_BOX,
   wardrobe: WARDROBE,
+  bill: BILL,
   /**
    * Tape. The warm, tungsten, domestic end of the genre is the one it is
    * remembered as; the sampler era is where it went, not where it lives.

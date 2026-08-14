@@ -17,7 +17,7 @@
  * staging before writing a new one.
  */
 
-import type { Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
+import type { BillHouse, Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
 
 /**
  * THE PAVILION — iskelmä.
@@ -200,9 +200,59 @@ const BLURBS: Blurb[] = [
   { text: 'played every summer since, and not worn out yet' },
 ];
 
+/**
+ * THE BILL — a poster, both decades, and nailed to the door.
+ *
+ * This genre advertises itself rather than informing you, which is why both
+ * eras take `poster`: centred, symmetrical, the title far too large and the
+ * number set on a line of its own above it. A tanssilava bill was not handed
+ * out at the door, it was up on the door a fortnight before, and the layout
+ * still carries that even now it is a programme in your lap.
+ *
+ * The word is **Ohjelma** in both, and it is the only Finnish on the sheet.
+ * `BillHouse.word` argues why that is allowed: it is a label on an object and
+ * not copy, and nobody has to read it to know what they are holding.
+ *
+ * The two papers are twenty years and an entire printing industry apart. 1968
+ * is letterpress on cream stock with a text serif set at poster size and far
+ * too much tracking — which is exactly what a jobbing printer did with the type
+ * he had, and the reason the tracking is a *feature* is that he was filling a
+ * measure. 1985 is offset on coated stock in two colours because two colours
+ * had become cheap, geometric and tight, with a 4mm bar of magenta where the
+ * older sheet has a double rule. Neither prints a date anywhere; the paper is
+ * the date.
+ */
+const BILL: Record<string, BillHouse> = {
+  tanssilava: {
+    layout: 'poster', word: 'Ohjelma', numeral: 'roman', aged: true,
+    stock: '#efe2c4',
+    grain: 'repeating-linear-gradient(0deg, rgba(120, 96, 56, .05) 0 1px, transparent 1px 4px)',
+    ink: '#2c2318', inkDim: '#7a6a50', hair: '#b9a680', accent: '#96301f',
+    face: "Georgia, 'Iowan Old Style', 'Times New Roman', serif",
+    display: "Georgia, 'Iowan Old Style', 'Times New Roman', serif",
+    displayWeight: 700,
+    venue: { size: '1.4em', track: '.3em', case: 'uppercase' },
+    title: { size: '1.72em', track: '.13em', case: 'uppercase' },
+    head: { pad: '.8em', rule: '3px double var(--hair)' },
+  },
+  eighties: {
+    layout: 'poster', word: 'Ohjelma', numeral: 'arabic',
+    stock: '#fbf6f8',
+    grain: 'linear-gradient(158deg, rgba(255, 255, 255, .9), rgba(233, 214, 231, .55))',
+    ink: '#1d1a22', inkDim: '#766e80', hair: '#d8c8d6', accent: '#cf1f6e',
+    face: "'Avenir Next', Avenir, 'Trebuchet MS', ui-sans-serif, sans-serif",
+    display: "'Avenir Next', Avenir, 'Century Gothic', 'Futura', ui-sans-serif, sans-serif",
+    displayWeight: 800,
+    venue: { size: '1.25em', track: '.18em', case: 'uppercase' },
+    title: { size: '1.8em', track: '-.01em', case: 'uppercase' },
+    head: { pad: '.8em', rule: '.4em solid var(--accent)' },
+  },
+};
+
 export const STAGING: Staging = {
   room: PAVILION,
   wardrobe: WARDROBE,
+  bill: BILL,
   /**
    * Tanssilava, when the era is one this genre has no clothes for. The sixties
    * pavilion is the picture the whole genre is of, and the eighties are the

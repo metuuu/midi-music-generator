@@ -27,7 +27,7 @@
  * with one style each, which is a registry wearing a genre's clothes.
  */
 
-import type { Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
+import type { BillHouse, Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
 
 /**
  * THE DANCE HALL — country.
@@ -424,9 +424,77 @@ const BLURBS: Blurb[] = [
   { text: 'hats off for this one', styles: ['gospel'], moods: ['sunday'] },
 ];
 
+/**
+ * THE BILL — a slab-serif strip off a small-town press.
+ *
+ * `handbill`, shared with the riihi, and the two halls are closer than the map
+ * suggests: both are rooms with a fixed evening, a fixed stock of rules, and a
+ * printer down the road who owns one interesting face and uses it. Here that
+ * face is a slab, which is the whole visual signature of American jobbing
+ * printing from the medicine show to the Opry. The word is **Program**, spelled
+ * the way the room spells it, which is the only reason it is not "Programme".
+ *
+ * 1932 is newsprint, already yellow when it was new. 1955 is a brighter card
+ * and a hotter red — honky-tonk had money and neon. 1966 is the Nashville sound
+ * asking to be taken seriously: cleaner stock, a colder blue, less shouting.
+ * 1978 is kraft and brown and set in the slab again, because outlaw country's
+ * entire graphic argument was that it looked like 1932.
+ */
+const BILL: Record<string, BillHouse> = {
+  stringband: {
+    layout: 'handbill', word: 'Program', numeral: 'arabic', aged: true,
+    stock: '#e6ddc8',
+    grain: 'repeating-linear-gradient(0deg, rgba(100, 82, 46, .05) 0 1px, transparent 1px 4px)',
+    ink: '#241f18', inkDim: '#7b6e58', hair: '#bcae90', accent: '#8a2f1c',
+    face: "Georgia, 'Iowan Old Style', serif",
+    display: "Rockwell, 'Bodoni 72', Georgia, serif",
+    displayWeight: 700,
+    venue: { size: '1.16em', track: '.2em', case: 'uppercase' },
+    title: { size: '1.52em', track: '.04em', case: 'uppercase' },
+    head: { pad: '.75em', rule: '3px double var(--hair)', align: 'center' },
+  },
+  honkytonk: {
+    layout: 'handbill', word: 'Program', numeral: 'arabic', aged: true,
+    stock: '#f0e7d0',
+    grain: 'repeating-linear-gradient(90deg, rgba(120, 90, 40, .035) 0 1px, transparent 1px 3px)',
+    ink: '#231c14', inkDim: '#7e6c50', hair: '#c4b28b', accent: '#b3341f',
+    face: "Georgia, 'Iowan Old Style', serif",
+    display: "Rockwell, 'Bodoni 72', Georgia, serif",
+    displayWeight: 700,
+    venue: { size: '1.2em', track: '.16em', case: 'uppercase' },
+    title: { size: '1.58em', track: '.02em', case: 'uppercase' },
+    head: { pad: '.7em', rule: '.3em solid var(--accent)' },
+  },
+  nashville: {
+    layout: 'handbill', word: 'Program', numeral: 'arabic',
+    stock: '#ece7da',
+    grain: 'linear-gradient(180deg, rgba(255, 253, 246, .7), rgba(0, 0, 0, .03))',
+    ink: '#20211f', inkDim: '#787a72', hair: '#c3c1b4', accent: '#2f5d7a',
+    face: "'Iowan Old Style', Georgia, serif",
+    display: "Didot, 'Bodoni 72', 'Playfair Display', Georgia, serif",
+    displayWeight: 500,
+    venue: { size: '1.12em', track: '.26em', case: 'uppercase' },
+    title: { size: '1.54em', track: '.02em', case: 'none' },
+    head: { pad: '.85em', rule: '1px solid var(--hair)', align: 'center' },
+  },
+  outlaw: {
+    layout: 'handbill', word: 'Program', numeral: 'arabic', aged: true,
+    stock: '#ded0b4',
+    grain: 'repeating-linear-gradient(0deg, rgba(80, 60, 30, .05) 0 2px, transparent 2px 5px)',
+    ink: '#241c11', inkDim: '#7c6a4a', hair: '#b39c76', accent: '#6b4a1e',
+    face: "Georgia, 'Iowan Old Style', serif",
+    display: "Rockwell, 'Bodoni 72', Georgia, serif",
+    displayWeight: 700,
+    venue: { size: '1.14em', track: '.24em', case: 'uppercase' },
+    title: { size: '1.5em', track: '.05em', case: 'uppercase' },
+    head: { pad: '.75em', rule: '3px double var(--hair)' },
+  },
+};
+
 export const STAGING: Staging = {
   room: DANCE_HALL,
   wardrobe: WARDROBE,
+  bill: BILL,
   /**
    * Honky-tonk, when the era is one this genre has no clothes for. It is the
    * picture the word means to anybody who is not being careful — a hat, a steel

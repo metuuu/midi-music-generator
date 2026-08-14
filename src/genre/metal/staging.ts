@@ -32,7 +32,7 @@
  * what one object does to a picture and the arithmetic was never load-bearing.
  */
 
-import type { Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
+import type { BillHouse, Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
 
 /**
  * THE SHED — metal.
@@ -440,9 +440,80 @@ const BLURBS: Blurb[] = [
   { text: 'they will play the fast one last', slot: 'close' },
 ];
 
+/**
+ * THE BILL — run off at a copy shop the afternoon of the show.
+ *
+ * `flyer`: the number is a slab in the left margin in the second colour, the
+ * title is jammed against it in capitals, and there is not one rule on the
+ * sheet. Every other layout here rules something, because a printer rules
+ * things; nobody ruled a flyer. The word is **Tonight** and it is set at the
+ * top because that is the only fact the sheet was ever really carrying.
+ *
+ * The four are a photocopier getting worse and a band getting louder. 1972 is
+ * brown kraft and a heavy grotesque, still half a poster. 1979 is white bond
+ * and red and a condensed face that had to fit a lot of consonants into one
+ * line. 1986 is a xerox of a xerox in one colour, because thrash flyers were
+ * black-only and the artwork was already a photocopy when it went in.
+ *
+ * **2000 is printed the other way round, and it is the only bill here that is.**
+ * Extreme metal put pale ink on black and it is not a stylistic flourish — it
+ * is what a copier does when the artwork is a photograph of a forest at night,
+ * and every one of those flyers came out of the machine nearly solid. Seventy-
+ * one of these papers are dark type on a light stock; this one earns the
+ * exception by being the genre where the audience would have noticed its
+ * absence.
+ */
+const BILL: Record<string, BillHouse> = {
+  heavy: {
+    layout: 'flyer', word: 'Tonight', numeral: 'arabic', aged: true,
+    stock: '#ded4c0',
+    grain: 'repeating-linear-gradient(0deg, rgba(70, 54, 32, .05) 0 2px, transparent 2px 5px)',
+    ink: '#1a1611', inkDim: '#7a6c56', hair: '#b6a689', accent: '#8c2f1a',
+    face: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    display: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    displayWeight: 800,
+    venue: { size: '1.16em', track: '.18em', case: 'uppercase' },
+    title: { size: '1.62em', track: '-.02em', case: 'uppercase' },
+  },
+  nwobhm: {
+    layout: 'flyer', word: 'Tonight', numeral: 'arabic', aged: true,
+    stock: '#e7e6e2',
+    grain: 'repeating-linear-gradient(0deg, rgba(30, 30, 30, .035) 0 1px, transparent 1px 4px)',
+    ink: '#141416', inkDim: '#6f7073', hair: '#c6c6c2', accent: '#b3121b',
+    face: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    display: "Impact, Haettenschweiler, 'Arial Narrow', 'Helvetica Neue', sans-serif",
+    displayWeight: 400,
+    venue: { size: '1.24em', track: '.1em', case: 'uppercase' },
+    title: { size: '1.86em', track: '.01em', case: 'uppercase' },
+  },
+  thrash: {
+    layout: 'flyer', word: 'Tonight', numeral: 'arabic', aged: true,
+    stock: '#dedcd8',
+    grain: 'repeating-linear-gradient(93deg, rgba(20, 20, 20, .055) 0 1px, transparent 1px 3px)',
+    ink: '#111113', inkDim: '#6a6a6d', hair: '#bcbcb8', accent: '#1c1c1e',
+    face: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    display: "Impact, Haettenschweiler, 'Arial Narrow', 'Helvetica Neue', sans-serif",
+    displayWeight: 400,
+    venue: { size: '1.2em', track: '.06em', case: 'uppercase' },
+    title: { size: '1.92em', track: '-.02em', case: 'uppercase' },
+  },
+  extreme: {
+    layout: 'flyer', word: 'Tonight', numeral: 'arabic',
+    stock: '#17181a',
+    grain: 'radial-gradient(120% 90% at 50% 0%, rgba(90, 92, 96, .28), rgba(0, 0, 0, .5))',
+    ink: '#d9d5cc', inkDim: '#83807a', hair: '#3a3b3d', accent: '#a02121',
+    face: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    display: "Impact, Haettenschweiler, 'Arial Narrow', 'Helvetica Neue', sans-serif",
+    displayWeight: 400,
+    venue: { size: '1.1em', track: '.26em', case: 'uppercase' },
+    title: { size: '1.8em', track: '.03em', case: 'uppercase' },
+  },
+};
+
 export const STAGING: Staging = {
   room: SHED,
   wardrobe: WARDROBE,
+  bill: BILL,
   /**
    * The new wave, when the era is one this genre has no clothes for. It is the
    * decade where the line-up settled into the shape it has kept ever since — two

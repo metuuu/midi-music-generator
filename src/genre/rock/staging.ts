@@ -18,7 +18,7 @@
  * whole silhouette.
  */
 
-import type { Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
+import type { BillHouse, Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
 
 /**
  * THE CIRCUIT — rock.
@@ -431,9 +431,73 @@ const BLURBS: Blurb[] = [
   { text: 'one more, and then the lights come up', slot: 'close' },
 ];
 
+/**
+ * THE BILL — a handbill, four rooms, one word.
+ *
+ * `flyer`, shared with the shed and the park and the warehouse, and this is the
+ * genre that makes the layout worth having: rock has been advertised by a sheet
+ * of paper stuck to something for sixty years and the sheet has barely changed
+ * shape. The word is **The Bill**, which is what it was called on the circuit
+ * this room is named after, and which no other genre here would say out loud.
+ *
+ * 1965 is a package-tour handbill: cream, blue, six acts and a heavy sans,
+ * printed by somebody who also did wedding invitations. 1971 is the ballroom
+ * poster having a good decade — ochre, a didone worked far too hard, and the
+ * only warm paper of the four. 1982 is silver and arena-sized, set in a
+ * condensed face because the tour had a logo. 1991 is a zine: photocopied,
+ * green, lowercase, and deliberately the quietest sheet in the genre.
+ */
+const BILL: Record<string, BillHouse> = {
+  beat: {
+    layout: 'flyer', word: 'The Bill', numeral: 'arabic', aged: true,
+    stock: '#f0e9d8',
+    grain: 'repeating-linear-gradient(0deg, rgba(110, 92, 54, .04) 0 1px, transparent 1px 4px)',
+    ink: '#1e1a12', inkDim: '#7a6d55', hair: '#c3b493', accent: '#1b4f8a',
+    face: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    display: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    displayWeight: 800,
+    venue: { size: '1.2em', track: '.14em', case: 'uppercase' },
+    title: { size: '1.66em', track: '-.02em', case: 'uppercase' },
+  },
+  hard: {
+    layout: 'flyer', word: 'The Bill', numeral: 'arabic', aged: true,
+    stock: '#e9dcc0',
+    grain: 'radial-gradient(120% 100% at 30% 0%, rgba(255, 246, 220, .8), rgba(150, 104, 40, .2))',
+    ink: '#241a10', inkDim: '#826c4a', hair: '#bfa77f', accent: '#7a2f12',
+    face: "Georgia, 'Iowan Old Style', serif",
+    display: "Didot, 'Bodoni 72', 'Playfair Display', Georgia, serif",
+    displayWeight: 700,
+    venue: { size: '1.26em', track: '.2em', case: 'uppercase' },
+    title: { size: '1.8em', track: '.02em', case: 'uppercase' },
+  },
+  arena: {
+    layout: 'flyer', word: 'The Bill', numeral: 'arabic',
+    stock: '#e3e5e8',
+    grain: 'linear-gradient(168deg, rgba(255, 255, 255, .9), rgba(178, 186, 196, .6))',
+    ink: '#15171b', inkDim: '#6f757e', hair: '#c2c7cd', accent: '#b0341f',
+    face: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    display: "Impact, Haettenschweiler, 'Arial Narrow', 'Helvetica Neue', sans-serif",
+    displayWeight: 400,
+    venue: { size: '1.18em', track: '.24em', case: 'uppercase' },
+    title: { size: '1.86em', track: '.02em', case: 'uppercase' },
+  },
+  alt: {
+    layout: 'flyer', word: 'The Bill', numeral: 'arabic', aged: true,
+    stock: '#e3e2dc',
+    grain: 'repeating-linear-gradient(0deg, rgba(40, 44, 40, .04) 0 2px, transparent 2px 5px)',
+    ink: '#1c1e1c', inkDim: '#737771', hair: '#c1c2bb', accent: '#2f6b4f',
+    face: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    display: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    displayWeight: 700,
+    venue: { size: '1.02em', track: '.08em', case: 'lowercase' },
+    title: { size: '1.56em', track: '-.02em', case: 'lowercase' },
+  },
+};
+
 export const STAGING: Staging = {
   room: CIRCUIT,
   wardrobe: WARDROBE,
+  bill: BILL,
   /**
    * The hard era, when the era is one this genre has no clothes for. It is the
    * decade the word means to anybody who is not being careful about it, and the

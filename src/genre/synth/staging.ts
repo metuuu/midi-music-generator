@@ -52,7 +52,7 @@
  * `backdropHeight` is the number that room argues about hardest.
  */
 
-import type { Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
+import type { BillHouse, Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
 
 /**
  * THE HALL — synth.
@@ -391,9 +391,83 @@ const BLURBS: Blurb[] = [
   { text: 'it does not stop. somebody turns it down', slot: 'close' },
 ];
 
+/**
+ * THE BILL — a Konzert, in a building with a dome on it.
+ *
+ * `handout`, shared with ambient and argued for the same way — this music has
+ * no foreground and a bill with a headline on it would be promising something
+ * else — and then everything printed on the layout disagrees with ambient's,
+ * which is what a layout is for. The word is **Konzert** in all three decades
+ * because the audience for the first one was German, the venues were
+ * planetariums and cathedrals, and every later act in this genre is answering
+ * that concert whether it means to or not.
+ *
+ * The papers are the three machines. 1974 is a technical document: grey board,
+ * a faint plotting grid, roman numerals and a geometric face, printed by people
+ * who thought of themselves as engineers. 1980 is the moment the machine became
+ * an instrument you could afford — warmer stock, a chrome wash across it, and
+ * violet, which is the colour that decade put on everything with a keyboard.
+ * 1987 is digital and says so: cold white, cyan, and type set with no warmth in
+ * it at all.
+ */
+const BILL: Record<string, BillHouse> = {
+  modular: {
+    layout: 'handout', word: 'Konzert', numeral: 'roman',
+    stock: '#dcdcd6',
+    grain: 'repeating-linear-gradient(0deg, rgba(40, 60, 70, .045) 0 1px, transparent 1px 9px), repeating-linear-gradient(90deg, rgba(40, 60, 70, .045) 0 1px, transparent 1px 9px)',
+    ink: '#22262a', inkDim: '#767c80', hair: '#b2b6b0', accent: '#3d6478',
+    face: "'Avenir Next', Avenir, ui-sans-serif, sans-serif",
+    display: "'Century Gothic', Futura, 'Avenir Next', ui-sans-serif, sans-serif",
+    displayWeight: 400,
+    venue: { size: '.86em', track: '.26em', case: 'uppercase' },
+    title: { size: '1.24em', track: '.1em', case: 'lowercase' },
+  },
+  polysynth: {
+    layout: 'handout', word: 'Konzert', numeral: 'arabic',
+    stock: '#e7e4ea',
+    grain: 'linear-gradient(168deg, rgba(255, 255, 255, .95), rgba(196, 190, 214, .5) 58%, rgba(255, 255, 255, .8))',
+    ink: '#221f2a', inkDim: '#77728a', hair: '#cbc4d6', accent: '#6b4ea8',
+    face: "'Avenir Next', Avenir, 'Trebuchet MS', ui-sans-serif, sans-serif",
+    display: "'Avenir Next', Avenir, 'Century Gothic', ui-sans-serif, sans-serif",
+    displayWeight: 600,
+    venue: { size: '.86em', track: '.2em', case: 'uppercase' },
+    title: { size: '1.3em', track: '.02em', case: 'uppercase' },
+  },
+  digital: {
+    layout: 'handout', word: 'Konzert', numeral: 'arabic',
+    stock: '#f0f3f4',
+    ink: '#151a1e', inkDim: '#6f7c84', hair: '#ccd6da', accent: '#1a8fa8',
+    face: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    display: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    displayWeight: 700,
+    venue: { size: '.84em', track: '.3em', case: 'uppercase' },
+    title: { size: '1.22em', track: '.05em', case: 'uppercase' },
+  },
+  /**
+   * The one bill in the file that is a *quotation* rather than a period, which
+   * is the only honest way to print this era: its own header says the palette
+   * overlaps the first three almost completely and that the overlap is the
+   * point. So the sunset gradient and the magenta are 1984's, and everything
+   * underneath them — a flat coated stock with no grain in it, hairlines, type
+   * set at a weight no photosetter offered — is the laptop it was made on.
+   * Nothing here is aged, because nothing here is old.
+   */
+  retrowave: {
+    layout: 'handout', word: 'Konzert', numeral: 'arabic',
+    stock: '#f1eff6',
+    grain: 'linear-gradient(178deg, rgba(255, 255, 255, .96) 34%, rgba(226, 150, 196, .42) 62%, rgba(120, 96, 180, .3))',
+    ink: '#1b1a26', inkDim: '#726f8c', hair: '#cfc9de', accent: '#c02a8e',
+    face: "ui-sans-serif, 'Helvetica Neue', Arial, sans-serif",
+    display: "'Avenir Next', Avenir, 'Century Gothic', ui-sans-serif, sans-serif",
+    displayWeight: 300,
+    venue: { size: '.82em', track: '.38em', case: 'uppercase' },
+    title: { size: '1.26em', track: '.16em', case: 'uppercase' },
+  },
+};
 export const STAGING: Staging = {
   room: HALL,
   wardrobe: WARDROBE,
+  bill: BILL,
   /**
    * Polysynth, when the era is one this genre has no clothes for. 1978–83 is
    * where this repertoire is most itself — the era with the heaviest style

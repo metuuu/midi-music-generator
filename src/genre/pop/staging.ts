@@ -14,7 +14,7 @@
  * deliberately not the arena, which is rock's.
  */
 
-import type { Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
+import type { BillHouse, Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
 
 /**
  * THE VARIETY THEATRE — pop.
@@ -417,9 +417,78 @@ const BLURBS: Blurb[] = [
   { text: 'the one nobody will admit to knowing all the words to', slot: 'close' },
 ];
 
+/**
+ * THE BILL — a card, because pop is a variety bill and always was.
+ *
+ * `card`, shared with jazz, funk and the revue, and the reason is the room: a
+ * variety theatre hands you something at the door with a running order on it,
+ * six acts long, and expects you to follow along. Left margin, number hanging
+ * outside it, title and duration on one line. The word is **Programme** and it
+ * is the plainest heading in this file, which is correct — pop is the genre
+ * that does not need a special word for what it is doing.
+ *
+ * The four papers are four production eras of the same industry. 1965 is cream
+ * and rose and a heavy grotesque, printed cheaply in quantity. 1975 is warm,
+ * amber, lowercase and rounded — the decade the sleeve got soft. 1985 is
+ * coated, glossy and blue, set in a geometric sans at its heaviest, and it is
+ * the loudest of the four by a distance. 1998 is cold white and pink and set
+ * light, because by then the design was done in a browser and the browser had
+ * opinions.
+ */
+const BILL: Record<string, BillHouse> = {
+  twotrack: {
+    layout: 'card', word: 'Programme', numeral: 'arabic', aged: true,
+    stock: '#efe9dc',
+    grain: 'repeating-linear-gradient(0deg, rgba(110, 90, 60, .035) 0 1px, transparent 1px 4px)',
+    ink: '#1f1a18', inkDim: '#7a7069', hair: '#c4b9ae', accent: '#b03a5c',
+    face: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    display: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    displayWeight: 700,
+    venue: { size: '1.24em', track: '.1em', case: 'uppercase' },
+    title: { size: '1.64em', track: '-.02em', case: 'uppercase' },
+    head: { pad: '.7em', rule: '2px solid var(--ink)' },
+  },
+  multitrack: {
+    layout: 'card', word: 'Programme', numeral: 'arabic',
+    stock: '#eee6d6',
+    grain: 'radial-gradient(120% 100% at 26% 0%, rgba(255, 250, 236, .9), rgba(190, 150, 90, .18))',
+    ink: '#251f16', inkDim: '#867a64', hair: '#c9bda2', accent: '#b1741f',
+    face: "'Avenir Next', Avenir, ui-sans-serif, sans-serif",
+    display: "'Century Gothic', Futura, 'Avenir Next', ui-sans-serif, sans-serif",
+    displayWeight: 500,
+    venue: { size: '1.2em', track: '.14em', case: 'lowercase' },
+    title: { size: '1.76em', track: '.01em', case: 'lowercase' },
+    head: { pad: '.9em' },
+  },
+  gated: {
+    layout: 'card', word: 'Programme', numeral: 'arabic',
+    stock: '#f4f2f6',
+    grain: 'linear-gradient(158deg, rgba(255, 255, 255, .95), rgba(214, 214, 232, .55))',
+    ink: '#191a22', inkDim: '#74757f', hair: '#cfcfda', accent: '#2f57c4',
+    face: "'Avenir Next', Avenir, 'Trebuchet MS', ui-sans-serif, sans-serif",
+    display: "'Avenir Next', Avenir, 'Century Gothic', ui-sans-serif, sans-serif",
+    displayWeight: 800,
+    venue: { size: '1.22em', track: '.22em', case: 'uppercase' },
+    title: { size: '1.8em', track: '-.01em', case: 'uppercase' },
+    head: { pad: '.7em', rule: '.4em solid var(--accent)' },
+  },
+  sidechain: {
+    layout: 'card', word: 'Programme', numeral: 'arabic',
+    stock: '#f4f2f3',
+    ink: '#1b1e24', inkDim: '#7b828b', hair: '#d6d2d4', accent: '#d8306a',
+    face: "ui-sans-serif, 'Helvetica Neue', Arial, sans-serif",
+    display: "ui-sans-serif, 'Helvetica Neue', Arial, sans-serif",
+    displayWeight: 500,
+    venue: { size: '1.06em', track: '.3em', case: 'lowercase' },
+    title: { size: '1.68em', track: '-.02em', case: 'lowercase' },
+    head: { pad: '.9em' },
+  },
+};
+
 export const STAGING: Staging = {
   room: VARIETY,
   wardrobe: WARDROBE,
+  bill: BILL,
   /**
    * 1985. Handed an era this genre has no clothes for, the picture to fall back
    * on is the gated one — not because it is the best of the four but because it

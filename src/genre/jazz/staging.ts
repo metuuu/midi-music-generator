@@ -15,7 +15,7 @@
  * a second room.
  */
 
-import type { Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
+import type { BillHouse, Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
 
 /**
  * THE CELLAR — jazz.
@@ -252,9 +252,89 @@ const BLURBS: Blurb[] = [
   { text: 'somebody will take four choruses and nobody will mind' },
 ];
 
+/**
+ * THE BILL — a card, four decades of it, left on the table.
+ *
+ * All four eras take `card`: hard against the left margin, the number hanging
+ * outside the text block, title and duration on one line. That is what fits on
+ * something small enough to be left on a table with a drink on it, and every
+ * decade of this music has been played in a room where that is the furniture.
+ * The word is **Tonight**, which is what a club prints when the bill changes
+ * every night and the audience did not come for a particular one.
+ *
+ * The papers are the argument. 1938 is buff card, deco double rules and a
+ * didone at small sizes with a lot of air — the blue is the second colour of
+ * the period's jobbing printing and it is not there to be noticed. 1957 is
+ * Reid Miles and nothing else: off-white, a grotesque hard against the margin,
+ * one hairline in the ink itself and a lot of nerve. 1968 is the same press
+ * having calmed down — warm grey, larger and looser, and lowercase, because
+ * the decade stopped shouting.
+ *
+ * **1974 is the era that had no bill at all** and printed the bop card instead,
+ * which was wrong in the specific way this whole field exists to fix: electric
+ * jazz is the one decade of this music that was sold as a *record sleeve*
+ * rather than as a night out, and the sleeves were airbrushed, warm and
+ * rounded. So it is oxide and tan, set in a geometric sans with the title in
+ * lowercase, and it is the only jazz paper here that does not have a rule
+ * under the masthead — a fusion sleeve did not rule anything, it faded it.
+ */
+const BILL: Record<string, BillHouse> = {
+  swingera: {
+    layout: 'card', word: 'Tonight', numeral: 'roman', aged: true,
+    stock: '#e9dbba',
+    grain: 'repeating-linear-gradient(90deg, rgba(90, 70, 40, .035) 0 1px, transparent 1px 3px)',
+    ink: '#251d13', inkDim: '#756244', hair: '#b6a179', accent: '#1d4463',
+    face: "'Iowan Old Style', Georgia, 'Times New Roman', serif",
+    display: "Didot, 'Bodoni 72', 'Playfair Display', Georgia, serif",
+    displayWeight: 700,
+    venue: { size: '1.28em', track: '.34em', case: 'uppercase' },
+    title: { size: '1.6em', track: '.1em', case: 'uppercase' },
+    head: {
+      pad: '.7em', rule: '1px solid var(--hair)',
+      shadow: '0 4px 0 -3px var(--hair)', align: 'center',
+    },
+  },
+  bop: {
+    layout: 'card', word: 'Tonight', numeral: 'arabic',
+    stock: '#eae7df',
+    ink: '#15161a', inkDim: '#6d6e73', hair: '#c3c1b9', accent: '#c1471c',
+    face: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    display: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    displayWeight: 700,
+    venue: { size: '1.35em', track: '-.02em', case: 'uppercase' },
+    title: { size: '1.7em', track: '-.03em', case: 'uppercase' },
+    head: { pad: '.7em', rule: '2px solid var(--ink)' },
+  },
+  modern: {
+    layout: 'card', word: 'Tonight', numeral: 'arabic',
+    stock: '#ddd7cb',
+    grain: 'linear-gradient(180deg, rgba(255, 255, 255, .35), rgba(0, 0, 0, .04))',
+    ink: '#1e1c18', inkDim: '#6f6a5f', hair: '#b3ac9e', accent: '#3c7d68',
+    face: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    display: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    displayWeight: 500,
+    venue: { size: '1.3em', track: '.02em', case: 'lowercase' },
+    title: { size: '1.9em', track: '-.02em', case: 'lowercase' },
+    head: { pad: '.9em' },
+  },
+  electric: {
+    layout: 'card', word: 'Tonight', numeral: 'arabic',
+    stock: '#e4d3b6',
+    grain: 'radial-gradient(120% 90% at 18% 0%, rgba(255, 236, 196, .85), rgba(196, 142, 74, .22) 62%, rgba(120, 74, 32, .16))',
+    ink: '#2a1c10', inkDim: '#8a6b46', hair: '#c1a074', accent: '#b4551a',
+    face: "'Avenir Next', Avenir, 'Trebuchet MS', ui-sans-serif, sans-serif",
+    display: "'Century Gothic', Futura, 'Avenir Next', ui-sans-serif, sans-serif",
+    displayWeight: 500,
+    venue: { size: '1.32em', track: '.1em', case: 'lowercase' },
+    title: { size: '1.86em', track: '.01em', case: 'lowercase' },
+    head: { pad: '.95em' },
+  },
+};
+
 export const STAGING: Staging = {
   room: CELLAR,
   wardrobe: WARDROBE,
+  bill: BILL,
   /**
    * Bop. The quintet in the room nobody had redecorated is what this genre
    * looks like when you are not told which decade it is.

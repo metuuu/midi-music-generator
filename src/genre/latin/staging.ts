@@ -24,7 +24,7 @@
  * what dressing is for.
  */
 
-import type { Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
+import type { BillHouse, Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
 
 /**
  * THE SALÓN — latin.
@@ -429,9 +429,76 @@ const BLURBS: Blurb[] = [
   { text: 'the percussionists will still be here at two', slot: 'close' },
 ];
 
+/**
+ * THE BILL — a poster for a dance, and the dance is the event.
+ *
+ * `poster`, shared with the pavilion and the lawn, and the three of them are
+ * the project's dancing genres — which is not a coincidence but the rule: if
+ * the audience came to move, the sheet was on a wall a week early telling them
+ * where. Centred, symmetrical, the title far too large. The word is
+ * **Programa**.
+ *
+ * 1940 is a conjunto card in cream and a deep blue, small and formal, from a
+ * salon that also hosted weddings. 1955 is the orquesta at full size: hot red,
+ * a didone, and a masthead you could read from the pavement. 1975 is Fania —
+ * off-white, a grotesque set as tight and heavy as it will go, and the one
+ * paper in this genre with no serif anywhere on it. 1995 is gloss and teal and
+ * has been designed on a computer, which it is not hiding.
+ */
+const BILL: Record<string, BillHouse> = {
+  conjunto: {
+    layout: 'poster', word: 'Programa', numeral: 'roman', aged: true,
+    stock: '#f0e4c8',
+    grain: 'repeating-linear-gradient(0deg, rgba(110, 88, 44, .04) 0 1px, transparent 1px 4px)',
+    ink: '#231d14', inkDim: '#7c6c4e', hair: '#c1ad86', accent: '#164f6b',
+    face: "'Iowan Old Style', Georgia, serif",
+    display: "Didot, 'Bodoni 72', 'Playfair Display', Georgia, serif",
+    displayWeight: 600,
+    venue: { size: '1.24em', track: '.3em', case: 'uppercase' },
+    title: { size: '1.62em', track: '.1em', case: 'uppercase' },
+    head: { pad: '.75em', rule: '1px solid var(--hair)', shadow: '0 4px 0 -3px var(--hair)' },
+  },
+  orquesta: {
+    layout: 'poster', word: 'Programa', numeral: 'roman', aged: true,
+    stock: '#f4ebd8',
+    grain: 'repeating-linear-gradient(90deg, rgba(130, 96, 44, .035) 0 1px, transparent 1px 3px)',
+    ink: '#251b14', inkDim: '#826c54', hair: '#c9b391', accent: '#c23b1f',
+    face: "Georgia, 'Iowan Old Style', serif",
+    display: "Didot, 'Bodoni 72', 'Playfair Display', Georgia, serif",
+    displayWeight: 700,
+    venue: { size: '1.34em', track: '.24em', case: 'uppercase' },
+    title: { size: '1.78em', track: '.06em', case: 'uppercase' },
+    head: { pad: '.7em', rule: '3px double var(--hair)' },
+  },
+  salsa: {
+    layout: 'poster', word: 'Programa', numeral: 'arabic',
+    stock: '#f2ecdd',
+    ink: '#1a1712', inkDim: '#787060', hair: '#c8bfa8', accent: '#d2361f',
+    face: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    display: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    displayWeight: 800,
+    venue: { size: '1.28em', track: '.06em', case: 'uppercase' },
+    title: { size: '1.88em', track: '-.04em', case: 'uppercase' },
+    head: { pad: '.65em', rule: '.4em solid var(--accent)' },
+  },
+  moderno: {
+    layout: 'poster', word: 'Programa', numeral: 'arabic',
+    stock: '#f1f3f5',
+    grain: 'linear-gradient(180deg, #f7f9fa, #e8ecef)',
+    ink: '#1b2126', inkDim: '#78838c', hair: '#ccd4da', accent: '#1f7a8c',
+    face: "ui-sans-serif, 'Helvetica Neue', Arial, sans-serif",
+    display: "'Avenir Next', Avenir, ui-sans-serif, sans-serif",
+    displayWeight: 600,
+    venue: { size: '1.1em', track: '.28em', case: 'lowercase' },
+    title: { size: '1.7em', track: '-.01em', case: 'none' },
+    head: { pad: '.85em' },
+  },
+};
+
 export const STAGING: Staging = {
   room: SALON,
   wardrobe: WARDROBE,
+  bill: BILL,
   /**
    * The orquesta, when the era is one this genre has no clothes for. It is the
    * decade the word conjures for anybody who is not being careful, and the other

@@ -56,7 +56,7 @@
  * brings a bag.
  */
 
-import type { Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
+import type { BillHouse, Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
 
 /**
  * THE UNIT — drum and bass.
@@ -427,9 +427,71 @@ const BLURBS: Blurb[] = [
   { text: 'everything here is somebody else\'s drums and one note' },
 ];
 
+/**
+ * THE BILL — a line-up, because nobody here is playing a song.
+ *
+ * `flyer`, and the word is **Line-up**, which is the only heading that is true
+ * of this music: an evening is a sequence of names with times against them, and
+ * the audience knows the names. It is also the one word in this file that is
+ * printed on the *actual* flyers rather than being a period reconstruction.
+ *
+ * 1992 is a rave flyer: dayglo, a fat geometric sans, printed four-up and
+ * guillotined badly. 1995 is a dub-plate label — white, black, one hairline of
+ * information, and set the way an acetate's centre is set. 2002 is the studio
+ * era going cold and blue and lowercase, when the music acquired an engineering
+ * culture. 2012 is stark white, set in a hairline weight at enormous tracking,
+ * and it is the quietest bill in the file — which for the loudest genre in the
+ * project is exactly the joke that decade was making.
+ */
+const BILL: Record<string, BillHouse> = {
+  rave: {
+    layout: 'flyer', word: 'Line-up', numeral: 'arabic',
+    stock: '#eef0d8',
+    grain: 'linear-gradient(152deg, rgba(255, 255, 240, .9), rgba(206, 224, 150, .5))',
+    ink: '#1b1d16', inkDim: '#74786a', hair: '#c4c8ab', accent: '#c2185b',
+    face: "'Avenir Next', Avenir, ui-sans-serif, sans-serif",
+    display: "'Century Gothic', Futura, 'Avenir Next', ui-sans-serif, sans-serif",
+    displayWeight: 800,
+    venue: { size: '1.18em', track: '.12em', case: 'uppercase' },
+    title: { size: '1.78em', track: '-.02em', case: 'uppercase' },
+  },
+  dubplate: {
+    layout: 'flyer', word: 'Line-up', numeral: 'arabic',
+    stock: '#e9e7e0',
+    ink: '#141416', inkDim: '#6e6f71', hair: '#c4c2bb', accent: '#1a1a1c',
+    face: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    display: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    displayWeight: 700,
+    venue: { size: '1.06em', track: '.3em', case: 'uppercase' },
+    title: { size: '1.6em', track: '.02em', case: 'uppercase' },
+  },
+  studio: {
+    layout: 'flyer', word: 'Line-up', numeral: 'arabic',
+    stock: '#e2e7ea',
+    grain: 'linear-gradient(180deg, rgba(250, 253, 255, .8), rgba(0, 0, 0, .035))',
+    ink: '#161c20', inkDim: '#727d84', hair: '#c6ced3', accent: '#17607a',
+    face: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    display: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    displayWeight: 500,
+    venue: { size: '1.02em', track: '.16em', case: 'lowercase' },
+    title: { size: '1.62em', track: '-.02em', case: 'lowercase' },
+  },
+  design: {
+    layout: 'flyer', word: 'Line-up', numeral: 'arabic',
+    stock: '#f5f6f7',
+    ink: '#1d2126', inkDim: '#848a91', hair: '#d8dbde', accent: '#2b2f36',
+    face: "ui-sans-serif, 'Helvetica Neue', Arial, sans-serif",
+    display: "ui-sans-serif, 'Helvetica Neue', Arial, sans-serif",
+    displayWeight: 200,
+    venue: { size: '.94em', track: '.4em', case: 'uppercase' },
+    title: { size: '1.54em', track: '.14em', case: 'uppercase' },
+  },
+};
+
 export const STAGING: Staging = {
   room: UNIT,
   wardrobe: WARDROBE,
+  bill: BILL,
   /**
    * 1995. Handed a decade this genre has no clothes for, the picture to fall
    * back on is the low arch with the lid a metre overhead — the sampler, the

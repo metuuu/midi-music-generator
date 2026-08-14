@@ -14,7 +14,7 @@
  * legible from this file alone.
  */
 
-import type { Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
+import type { BillHouse, Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
 
 /**
  * THE BALLROOM — funk.
@@ -393,9 +393,78 @@ const BLURBS: Blurb[] = [
   { text: 'bring a towel' },
 ];
 
+/**
+ * THE BILL — a card, because the sleeve was the poster.
+ *
+ * `card`, shared with jazz, and the reason is a building rather than a sound:
+ * this is ballroom music and a ballroom hands you something at the door that
+ * fits in a jacket pocket. The word is **Showtime**, which is what the man with
+ * the microphone says before the band comes on and is therefore the only honest
+ * heading a funk bill could carry.
+ *
+ * The four papers are four sleeves. 1968 is one colour and a lot of black — a
+ * grotesque set as heavy as the press would take it, because that record was
+ * sold on a photograph and a shout. 1975 is airbrushed: violet, a soft wash
+ * across the stock, and lowercase type, which is the decade the band started
+ * arriving in a spaceship. 1980 is silver and blue and tidy, boogie having
+ * discovered the word *sophisticated*. 1984 is a grid, in black and hot pink,
+ * with nothing warm anywhere in it.
+ */
+const BILL: Record<string, BillHouse> = {
+  jb: {
+    layout: 'card', word: 'Showtime', numeral: 'arabic', aged: true,
+    stock: '#eee4d4',
+    grain: 'repeating-linear-gradient(90deg, rgba(90, 66, 36, .035) 0 1px, transparent 1px 3px)',
+    ink: '#1c150e', inkDim: '#7c6a52', hair: '#c0ab8c', accent: '#c33a12',
+    face: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    display: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    displayWeight: 800,
+    venue: { size: '1.3em', track: '-.02em', case: 'uppercase' },
+    title: { size: '1.74em', track: '-.04em', case: 'uppercase' },
+    head: { pad: '.65em', rule: '3px solid var(--ink)' },
+  },
+  pfunk: {
+    layout: 'card', word: 'Showtime', numeral: 'arabic',
+    stock: '#e9e0f0',
+    grain: 'radial-gradient(130% 100% at 24% 0%, rgba(255, 250, 255, .9), rgba(150, 110, 200, .22) 60%, rgba(70, 40, 110, .14))',
+    ink: '#221a2c', inkDim: '#7d7290', hair: '#cbc0da', accent: '#6c2ea8',
+    face: "'Avenir Next', Avenir, ui-sans-serif, sans-serif",
+    display: "'Century Gothic', Futura, 'Avenir Next', ui-sans-serif, sans-serif",
+    displayWeight: 500,
+    venue: { size: '1.28em', track: '.12em', case: 'lowercase' },
+    title: { size: '1.84em', track: '.01em', case: 'lowercase' },
+    head: { pad: '.9em' },
+  },
+  boogie: {
+    layout: 'card', word: 'Showtime', numeral: 'arabic',
+    stock: '#e6ebf0',
+    grain: 'linear-gradient(172deg, rgba(255, 255, 255, .95), rgba(190, 205, 220, .55))',
+    ink: '#181d24', inkDim: '#737f8c', hair: '#c4cfd8', accent: '#1f6f9c',
+    face: "'Avenir Next', Avenir, 'Trebuchet MS', ui-sans-serif, sans-serif",
+    display: "'Avenir Next', Avenir, 'Century Gothic', ui-sans-serif, sans-serif",
+    displayWeight: 700,
+    venue: { size: '1.22em', track: '.2em', case: 'uppercase' },
+    title: { size: '1.72em', track: '.02em', case: 'uppercase' },
+    head: { pad: '.7em', rule: '.3em solid var(--accent)' },
+  },
+  electro: {
+    layout: 'card', word: 'Showtime', numeral: 'arabic',
+    stock: '#f0f0f2',
+    grain: 'repeating-linear-gradient(0deg, rgba(20, 20, 30, .04) 0 1px, transparent 1px 11px), repeating-linear-gradient(90deg, rgba(20, 20, 30, .04) 0 1px, transparent 1px 11px)',
+    ink: '#121318', inkDim: '#6e7079', hair: '#cbccd2', accent: '#d8215f',
+    face: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    display: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    displayWeight: 800,
+    venue: { size: '1.18em', track: '.3em', case: 'uppercase' },
+    title: { size: '1.7em', track: '-.03em', case: 'uppercase' },
+    head: { pad: '.6em', rule: '2px solid var(--ink)' },
+  },
+};
+
 export const STAGING: Staging = {
   room: BALLROOM,
   wardrobe: WARDROBE,
+  bill: BILL,
   /**
    * P-Funk. Handed an era this genre has no clothes for, the picture to fall
    * back on is 1975 — the nine-piece in the hazed purple room is what the whole

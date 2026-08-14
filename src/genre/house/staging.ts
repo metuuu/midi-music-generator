@@ -73,7 +73,7 @@
  * what was missing rather than inferring that the shed was a happy fit.
  */
 
-import type { Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
+import type { BillHouse, Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
 
 /**
  * THE WAREHOUSE — house.
@@ -411,9 +411,73 @@ const BLURBS: Blurb[] = [
   { text: 'somebody else decides when this ends', slot: 'close' },
 ];
 
+/**
+ * THE BILL — a flyer for a night, not for a band.
+ *
+ * `flyer`, and the word is **The Night**, which is the unit this music is sold
+ * in: nobody came to see a person, they came to a night that happens to be
+ * every Saturday and has a name. That is also why the layout suits it — the
+ * flyer is the only sheet here that puts a large figure in the margin, and on a
+ * warehouse bill the figure is nearly all the information anybody needed.
+ *
+ * 1988 is a photocopy in magenta with a fat geometric face, run off in a
+ * hundred and handed out on a street. 1993 is dayglo and Impact and orange,
+ * which is the rave era's entire graphic vocabulary. 1999 is the superclub:
+ * coated, blue, lowercase, designed by an agency and printed on card stock
+ * thick enough to be a coaster. 2005 is after-hours — grey, weightless, set
+ * light and tracked wide, and it looks tired on purpose.
+ */
+const BILL: Record<string, BillHouse> = {
+  warehouse: {
+    layout: 'flyer', word: 'The Night', numeral: 'arabic', aged: true,
+    stock: '#e8e6de',
+    grain: 'repeating-linear-gradient(92deg, rgba(30, 30, 30, .04) 0 1px, transparent 1px 3px)',
+    ink: '#17181b', inkDim: '#707175', hair: '#c3c1b9', accent: '#d2196b',
+    face: "'Avenir Next', Avenir, ui-sans-serif, sans-serif",
+    display: "'Century Gothic', Futura, 'Avenir Next', ui-sans-serif, sans-serif",
+    displayWeight: 800,
+    venue: { size: '1.14em', track: '.16em', case: 'uppercase' },
+    title: { size: '1.74em', track: '-.02em', case: 'uppercase' },
+  },
+  rave: {
+    layout: 'flyer', word: 'The Night', numeral: 'arabic',
+    stock: '#f0f2d6',
+    grain: 'linear-gradient(148deg, rgba(255, 255, 242, .9), rgba(212, 226, 148, .5))',
+    ink: '#1a1c14', inkDim: '#737766', hair: '#c5c9a8', accent: '#e0530f',
+    face: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    display: "Impact, Haettenschweiler, 'Arial Narrow', 'Helvetica Neue', sans-serif",
+    displayWeight: 400,
+    venue: { size: '1.2em', track: '.08em', case: 'uppercase' },
+    title: { size: '1.86em', track: '.01em', case: 'uppercase' },
+  },
+  superclub: {
+    layout: 'flyer', word: 'The Night', numeral: 'arabic',
+    stock: '#eef0f3',
+    grain: 'linear-gradient(162deg, rgba(255, 255, 255, .95), rgba(196, 206, 220, .55))',
+    ink: '#161a20', inkDim: '#737b86', hair: '#c9d0d8', accent: '#1f5fc4',
+    face: "'Avenir Next', Avenir, 'Trebuchet MS', ui-sans-serif, sans-serif",
+    display: "'Avenir Next', Avenir, 'Century Gothic', ui-sans-serif, sans-serif",
+    displayWeight: 700,
+    venue: { size: '1.06em', track: '.2em', case: 'lowercase' },
+    title: { size: '1.7em', track: '-.01em', case: 'lowercase' },
+  },
+  afterhours: {
+    layout: 'flyer', word: 'The Night', numeral: 'arabic',
+    stock: '#e4e5e6',
+    grain: 'linear-gradient(180deg, rgba(250, 250, 251, .7), rgba(0, 0, 0, .04))',
+    ink: '#22252a', inkDim: '#828790', hair: '#cdcfd2', accent: '#5b6470',
+    face: "ui-sans-serif, 'Helvetica Neue', Arial, sans-serif",
+    display: "ui-sans-serif, 'Helvetica Neue', Arial, sans-serif",
+    displayWeight: 300,
+    venue: { size: '.96em', track: '.34em', case: 'lowercase' },
+    title: { size: '1.56em', track: '.06em', case: 'lowercase' },
+  },
+};
+
 export const STAGING: Staging = {
   room: WAREHOUSE,
   wardrobe: WARDROBE,
+  bill: BILL,
   /**
    * The superclub, when the era is one this genre has no clothes for.
    *

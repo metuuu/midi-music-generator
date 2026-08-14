@@ -20,7 +20,7 @@
  * one flag.
  */
 
-import type { Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
+import type { BillHouse, Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
 
 /**
  * THE COURTYARD — arabic.
@@ -449,9 +449,82 @@ const BLURBS: Blurb[] = [
   { text: 'the tuning takes as long as it takes', slot: 'open' },
 ];
 
+/**
+ * THE BILL — an evening, printed.
+ *
+ * `programme` and the dotted leader, for the reason the sabha sheet takes it:
+ * this is seated music with an announced order, and the leader is the one
+ * typographic device that says so without a word. Roman numerals in the takht
+ * era only — by the sixties the orchestra had grown and the sheet had started
+ * counting the way everything else did.
+ *
+ * **Sahra** is an evening's entertainment and **haflah** is the party it turned
+ * into, which is close to the whole history of this genre in two words: the
+ * first two eras print the first and the last two print the second. Like
+ * `Ohjelma` on the pavilion bill, they are labels on an object rather than
+ * copy, and nobody has to read either to know what they are holding.
+ *
+ * The papers go buff, cream, photocopy, gloss — a takht card kept in a sleeve,
+ * a state-orchestra programme, a shaabi sheet run off on cheap bond for a
+ * wedding, and a satellite-era handout that has never been near a press at all.
+ * Only the third is aged, because it is the only one printed on paper that
+ * foxes.
+ */
+const BILL: Record<string, BillHouse> = {
+  takht: {
+    layout: 'programme', word: 'Sahra', numeral: 'roman', aged: true,
+    stock: '#ecdfc4',
+    grain: 'repeating-linear-gradient(0deg, rgba(110, 88, 44, .04) 0 1px, transparent 1px 4px)',
+    ink: '#241d12', inkDim: '#7d6a4a', hair: '#bfa87e', accent: '#1f5a63',
+    face: "'Iowan Old Style', Georgia, 'Times New Roman', serif",
+    display: "Didot, 'Bodoni 72', 'Playfair Display', Georgia, serif",
+    displayWeight: 600,
+    venue: { size: '1.16em', track: '.32em', case: 'uppercase' },
+    title: { size: '1.44em', track: '.04em', case: 'none' },
+    head: { pad: '.75em', rule: '1px solid var(--hair)', shadow: '0 4px 0 -3px var(--hair)', align: 'center' },
+  },
+  firqa: {
+    layout: 'programme', word: 'Sahra', numeral: 'arabic',
+    stock: '#f0e6d2',
+    grain: 'linear-gradient(180deg, rgba(255, 252, 244, .7), rgba(0, 0, 0, .03))',
+    ink: '#231e14', inkDim: '#82735a', hair: '#c8b795', accent: '#8b6b1f',
+    face: "'Iowan Old Style', Georgia, serif",
+    display: "'Iowan Old Style', Georgia, 'Times New Roman', serif",
+    displayWeight: 600,
+    venue: { size: '1.14em', track: '.26em', case: 'uppercase' },
+    title: { size: '1.46em', track: '.02em', case: 'none' },
+    head: { pad: '.8em', rule: '1px solid var(--hair)', align: 'center' },
+  },
+  shaabi: {
+    layout: 'programme', word: 'Haflah', numeral: 'arabic', aged: true,
+    stock: '#e4e6dc',
+    grain: 'repeating-linear-gradient(0deg, rgba(60, 66, 50, .035) 0 2px, transparent 2px 5px)',
+    ink: '#232620', inkDim: '#787e70', hair: '#b8bdae', accent: '#b03a2e',
+    face: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    display: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    displayWeight: 700,
+    venue: { size: '1.02em', track: '.14em', case: 'uppercase' },
+    title: { size: '1.4em', track: '-.01em', case: 'uppercase' },
+    head: { pad: '.65em', rule: '2px solid var(--ink)' },
+  },
+  satellite: {
+    layout: 'programme', word: 'Haflah', numeral: 'arabic',
+    stock: '#f2f4f6',
+    grain: 'linear-gradient(180deg, #f7f9fa, #e9edf1)',
+    ink: '#1c2128', inkDim: '#7b8590', hair: '#ccd5dd', accent: '#2b6cb0',
+    face: "ui-sans-serif, 'Helvetica Neue', Arial, sans-serif",
+    display: "ui-sans-serif, 'Helvetica Neue', Arial, sans-serif",
+    displayWeight: 300,
+    venue: { size: '.98em', track: '.28em', case: 'lowercase' },
+    title: { size: '1.36em', track: '.01em', case: 'none' },
+    head: { pad: '.9em' },
+  },
+};
+
 export const STAGING: Staging = {
   room: COURTYARD,
   wardrobe: WARDROBE,
+  bill: BILL,
   /**
    * Takht. The small ensemble in the courtyard is the picture the whole genre
    * is of, and the other three eras are things that happened to it.

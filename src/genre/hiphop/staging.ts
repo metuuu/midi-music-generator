@@ -42,7 +42,7 @@
  * picture — a club owns its riser and the act brings a laptop.
  */
 
-import type { Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
+import type { BillHouse, Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
 
 /**
  * THE CLUB — hiphop.
@@ -413,9 +413,73 @@ const BLURBS: Blurb[] = [
   { text: 'the speakers are the expensive part' },
 ];
 
+/**
+ * THE BILL — a xerox, and the xerox is the medium.
+ *
+ * `flyer`, and of the five genres that take it this is the one whose flyers are
+ * *collected*: the Buddy Esquire park-jam sheets are in museums, and they were
+ * made with a photocopier, press-down lettering and a ruler. The layout's
+ * refusal to rule anything is aimed squarely at them. The word is **The Set**,
+ * which is what is being announced — not an evening, not a bill, one continuous
+ * run at a pair of decks.
+ *
+ * 1980 is that xerox: grey, black-only, the number enormous in the margin and
+ * the title jammed into what is left. 1991 is the golden era in red and white,
+ * clean and confident, because the record now had a budget. 2001 is chrome and
+ * violet — southern rap arrived with an airbrush and a set of custom rims and
+ * the flyer knew it. 2015 is almost nothing at all: near-white, near-black,
+ * type set light and tracked wide, which is what a genre does once it has
+ * stopped needing to advertise.
+ */
+const BILL: Record<string, BillHouse> = {
+  parkjam: {
+    layout: 'flyer', word: 'The Set', numeral: 'arabic', aged: true,
+    stock: '#e2e0d8',
+    grain: 'repeating-linear-gradient(91deg, rgba(20, 20, 20, .05) 0 1px, transparent 1px 3px)',
+    ink: '#141518', inkDim: '#6d6e70', hair: '#bfbeb6', accent: '#1a1b1e',
+    face: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    display: "Impact, Haettenschweiler, 'Arial Narrow', 'Helvetica Neue', sans-serif",
+    displayWeight: 400,
+    venue: { size: '1.2em', track: '.1em', case: 'uppercase' },
+    title: { size: '1.84em', track: '-.01em', case: 'uppercase' },
+  },
+  golden: {
+    layout: 'flyer', word: 'The Set', numeral: 'arabic',
+    stock: '#ebeae4',
+    ink: '#16171a', inkDim: '#6f7074', hair: '#c6c5bf', accent: '#b3181f',
+    face: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    display: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    displayWeight: 800,
+    venue: { size: '1.22em', track: '.04em', case: 'uppercase' },
+    title: { size: '1.74em', track: '-.04em', case: 'uppercase' },
+  },
+  southern: {
+    layout: 'flyer', word: 'The Set', numeral: 'arabic',
+    stock: '#e6e8ec',
+    grain: 'linear-gradient(166deg, rgba(255, 255, 255, .92), rgba(178, 182, 198, .6))',
+    ink: '#171922', inkDim: '#737786', hair: '#c6cad4', accent: '#7b5aa8',
+    face: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    display: "Impact, Haettenschweiler, 'Arial Narrow', 'Helvetica Neue', sans-serif",
+    displayWeight: 400,
+    venue: { size: '1.16em', track: '.2em', case: 'uppercase' },
+    title: { size: '1.8em', track: '.02em', case: 'uppercase' },
+  },
+  modern: {
+    layout: 'flyer', word: 'The Set', numeral: 'arabic',
+    stock: '#f4f5f6',
+    ink: '#1a1b1e', inkDim: '#82848a', hair: '#d5d7da', accent: '#25272c',
+    face: "ui-sans-serif, 'Helvetica Neue', Arial, sans-serif",
+    display: "ui-sans-serif, 'Helvetica Neue', Arial, sans-serif",
+    displayWeight: 300,
+    venue: { size: '.98em', track: '.34em', case: 'lowercase' },
+    title: { size: '1.6em', track: '.02em', case: 'lowercase' },
+  },
+};
+
 export const STAGING: Staging = {
   room: CLUB,
   wardrobe: WARDROBE,
+  bill: BILL,
   /**
    * The golden era. Handed a decade this genre has no clothes for, the picture
    * to fall back on is the low black room in 1991 — the sampler, the hooded top

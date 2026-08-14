@@ -35,7 +35,7 @@
  * `lap` in `concert/types.ts`, which argues at length why they must.
  */
 
-import type { Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
+import type { BillHouse, Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
 
 /**
  * THE SABHĀ — a music hall for one soloist.
@@ -414,9 +414,79 @@ const BLURBS: Blurb[] = [
   { text: 'played sitting down, which is the whole idea' },
 ];
 
+/**
+ * THE BILL — a recital sheet, and the leader is the point.
+ *
+ * `programme`, with the dotted leader running from the end of every title to
+ * the duration at the right margin. Of the six layouts it is the only one that
+ * says *sit down and listen to this* rather than *come to this*, which is the
+ * correct thing for a repertoire whose audience is seated, attentive and often
+ * counting. Roman numerals in the first two eras for the same reason.
+ *
+ * The word changes and that is deliberate: an evening of this music is not one
+ * kind of event across the four. A **Mehfil** is a gathering in a room, a
+ * **Kacheri** is a concert with a fixed order to it, and by the film and fusion
+ * eras the sheet is a programme in the ordinary sense and says so.
+ *
+ * The papers are ivory, sandal, glossy and cold, which is the century in four
+ * steps. The two older ones are aged because they are printed on uncoated stock
+ * in halls that are not air-conditioned; the film sheet is not, because it came
+ * off the same press as the poster outside.
+ */
+const BILL: Record<string, BillHouse> = {
+  hindustani: {
+    layout: 'programme', word: 'Mehfil', numeral: 'roman', aged: true,
+    stock: '#f2ece0',
+    grain: 'repeating-linear-gradient(0deg, rgba(120, 96, 56, .035) 0 1px, transparent 1px 4px)',
+    ink: '#2a2118', inkDim: '#7f6f56', hair: '#c4b596', accent: '#7c3b1e',
+    face: "'Iowan Old Style', Georgia, 'Times New Roman', serif",
+    display: "'Iowan Old Style', Georgia, 'Times New Roman', serif",
+    displayWeight: 600,
+    venue: { size: '1.1em', track: '.24em', case: 'uppercase' },
+    title: { size: '1.4em', track: '.02em', case: 'none' },
+    head: { pad: '.8em', rule: '1px solid var(--hair)', align: 'center' },
+  },
+  carnatic: {
+    layout: 'programme', word: 'Kacheri', numeral: 'roman', aged: true,
+    stock: '#f4ecdc',
+    grain: 'repeating-linear-gradient(90deg, rgba(130, 100, 50, .03) 0 1px, transparent 1px 3px)',
+    ink: '#26201a', inkDim: '#82705c', hair: '#c9b899', accent: '#8a1f2e',
+    face: "'Iowan Old Style', Georgia, serif",
+    display: "Didot, 'Bodoni 72', 'Playfair Display', Georgia, serif",
+    displayWeight: 600,
+    venue: { size: '1.12em', track: '.3em', case: 'uppercase' },
+    title: { size: '1.42em', track: '.03em', case: 'none' },
+    head: { pad: '.75em', rule: '1px solid var(--hair)', shadow: '0 4px 0 -3px var(--hair)', align: 'center' },
+  },
+  filmi: {
+    layout: 'programme', word: 'Programme', numeral: 'arabic',
+    stock: '#f7f1e6',
+    grain: 'linear-gradient(162deg, rgba(255, 250, 236, .95), rgba(232, 206, 160, .5))',
+    ink: '#2a2015', inkDim: '#8a755a', hair: '#d6c3a4', accent: '#c2761a',
+    face: "'Avenir Next', Avenir, ui-sans-serif, sans-serif",
+    display: "'Century Gothic', Futura, 'Avenir Next', ui-sans-serif, sans-serif",
+    displayWeight: 700,
+    venue: { size: '1.08em', track: '.18em', case: 'uppercase' },
+    title: { size: '1.46em', track: '.01em', case: 'uppercase' },
+    head: { pad: '.7em', rule: '.3em solid var(--accent)' },
+  },
+  fusion: {
+    layout: 'programme', word: 'Programme', numeral: 'arabic',
+    stock: '#eef0ef',
+    ink: '#1d2422', inkDim: '#77827e', hair: '#ccd4d1', accent: '#2e7a70',
+    face: "ui-sans-serif, 'Helvetica Neue', Arial, sans-serif",
+    display: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    displayWeight: 400,
+    venue: { size: '1em', track: '.22em', case: 'lowercase' },
+    title: { size: '1.4em', track: '0', case: 'none' },
+    head: { pad: '.85em' },
+  },
+};
+
 export const STAGING: Staging = {
   room: SABHA,
   wardrobe: WARDROBE,
+  bill: BILL,
   /**
    * Hindustani, when handed an era this genre has no clothes for. The North
    * Indian recital is the picture the whole thing is of outside India, and it is

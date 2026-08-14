@@ -18,7 +18,7 @@
  * rather than what the room is made of.
  */
 
-import type { Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
+import type { BillHouse, Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
 
 /**
  * THE THEATRE — R&B.
@@ -438,9 +438,79 @@ const BLURBS: Blurb[] = [
   { text: 'the horn section would like a word about the parking' },
 ];
 
+/**
+ * THE BILL — a revue, and everybody is on it.
+ *
+ * `card`, and the word is **The Revue** — which is the most specific heading in
+ * this file and the one that carries the most history. A 1965 soul bill was not
+ * a band playing for an hour; it was a house band, a compère, three singers and
+ * a closing act, and the card in your hand had all of them on it in order. The
+ * layout is the theatre's: left margin, number hanging outside the text block,
+ * running order down the page.
+ *
+ * 1965 is cream and a hot orange-red, set heavy — a handbill for a package
+ * tour. 1974 is sweet soul at its most upholstered: mauve stock, a plum second
+ * colour, and a rounded geometric face in lowercase. 1989 is new jack, which
+ * means coated white, a hard blue and capitals tracked tight enough to look
+ * expensive. 1998 is neo-soul deliberately undoing all three — warm matte
+ * paper, an olive-brown ink and lowercase type at a normal weight, the sound of
+ * a genre refusing to be marketed.
+ */
+const BILL: Record<string, BillHouse> = {
+  soul: {
+    layout: 'card', word: 'The Revue', numeral: 'arabic', aged: true,
+    stock: '#eee6d2',
+    grain: 'repeating-linear-gradient(0deg, rgba(110, 88, 50, .04) 0 1px, transparent 1px 4px)',
+    ink: '#201a12', inkDim: '#7c705a', hair: '#c4b596', accent: '#a8341f',
+    face: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    display: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    displayWeight: 800,
+    venue: { size: '1.26em', track: '.08em', case: 'uppercase' },
+    title: { size: '1.68em', track: '-.03em', case: 'uppercase' },
+    head: { pad: '.65em', rule: '3px solid var(--ink)' },
+  },
+  philly: {
+    layout: 'card', word: 'The Revue', numeral: 'arabic',
+    stock: '#ece0e6',
+    grain: 'radial-gradient(130% 100% at 22% 0%, rgba(255, 250, 252, .9), rgba(170, 120, 150, .2))',
+    ink: '#241a20', inkDim: '#83717c', hair: '#cdb9c4', accent: '#7a2f5c',
+    face: "'Avenir Next', Avenir, ui-sans-serif, sans-serif",
+    display: "'Century Gothic', Futura, 'Avenir Next', ui-sans-serif, sans-serif",
+    displayWeight: 500,
+    venue: { size: '1.22em', track: '.16em', case: 'lowercase' },
+    title: { size: '1.8em', track: '.01em', case: 'lowercase' },
+    head: { pad: '.9em' },
+  },
+  newjack: {
+    layout: 'card', word: 'The Revue', numeral: 'arabic',
+    stock: '#eef1f4',
+    grain: 'linear-gradient(164deg, rgba(255, 255, 255, .95), rgba(196, 208, 220, .55))',
+    ink: '#161b21', inkDim: '#727d88', hair: '#c8d2da', accent: '#1f6fa8',
+    face: "'Avenir Next', Avenir, 'Trebuchet MS', ui-sans-serif, sans-serif",
+    display: "'Avenir Next', Avenir, 'Century Gothic', ui-sans-serif, sans-serif",
+    displayWeight: 800,
+    venue: { size: '1.18em', track: '.24em', case: 'uppercase' },
+    title: { size: '1.72em', track: '-.02em', case: 'uppercase' },
+    head: { pad: '.7em', rule: '.3em solid var(--accent)' },
+  },
+  neo: {
+    layout: 'card', word: 'The Revue', numeral: 'arabic',
+    stock: '#e8e4dc',
+    grain: 'linear-gradient(180deg, rgba(255, 253, 246, .5), rgba(0, 0, 0, .035))',
+    ink: '#221f18', inkDim: '#7d776a', hair: '#c3bdb0', accent: '#6b5a2f',
+    face: "ui-sans-serif, 'Helvetica Neue', Arial, sans-serif",
+    display: "ui-sans-serif, 'Helvetica Neue', Arial, sans-serif",
+    displayWeight: 400,
+    venue: { size: '1.02em', track: '.24em', case: 'lowercase' },
+    title: { size: '1.62em', track: '0', case: 'lowercase' },
+    head: { pad: '.9em' },
+  },
+};
+
 export const STAGING: Staging = {
   room: THEATRE,
   wardrobe: WARDROBE,
+  bill: BILL,
   /**
    * 1965. Handed an era this genre has no clothes for, the picture to fall back on
    * is the revue — the matched suits, the seated house and the tambourine — because

@@ -31,7 +31,7 @@
  * and it is allowed because it is the only era where somebody brought a machine.
  */
 
-import type { Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
+import type { BillHouse, Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
 
 /**
  * THE RIIHI — Finnish folk.
@@ -448,9 +448,77 @@ const BLURBS: Blurb[] = [
   { text: 'played at this wedding and at the one before it' },
 ];
 
+/**
+ * THE BILL — what a village printer sold by the hundred.
+ *
+ * `handbill`: every number boxed off by a rule, the whole list closed top and
+ * bottom by a double, and the figure set large and in the second colour because
+ * the second colour had been paid for and was going to be used. It is louder
+ * than a club card and more orderly than a flyer, which is the register of a
+ * hall that is proud of its evening and has a fixed stock of ornaments to be
+ * proud with. The word is **Ohjelma**, the same as the pavilion's, and the two
+ * sheets are cousins that went in different directions.
+ *
+ * The four stocks are a century of Finnish jobbing printing: unbleached and
+ * brown for the archaic layer, a brighter cream and a rust red for the village
+ * fiddler, 1970s offset and a folk-revival green for Kaustinen, and a cool
+ * white set lowercase for the era in which this music acquired a department at
+ * a university. Only the two older ones fox.
+ */
+const BILL: Record<string, BillHouse> = {
+  runo: {
+    layout: 'handbill', word: 'Ohjelma', numeral: 'roman', aged: true,
+    stock: '#e5dcc6',
+    grain: 'repeating-linear-gradient(0deg, rgba(100, 82, 46, .05) 0 1px, transparent 1px 5px)',
+    ink: '#2b2519', inkDim: '#7d7054', hair: '#bcae8d', accent: '#5c4a2a',
+    face: "'Iowan Old Style', Georgia, 'Times New Roman', serif",
+    display: "Georgia, 'Iowan Old Style', serif",
+    displayWeight: 600,
+    venue: { size: '1.1em', track: '.28em', case: 'uppercase' },
+    title: { size: '1.4em', track: '.06em', case: 'none' },
+    head: { pad: '.8em', rule: '3px double var(--hair)', align: 'center' },
+  },
+  pelimanni: {
+    layout: 'handbill', word: 'Ohjelma', numeral: 'roman', aged: true,
+    stock: '#efe6cd',
+    grain: 'repeating-linear-gradient(90deg, rgba(110, 88, 44, .04) 0 1px, transparent 1px 3px)',
+    ink: '#282016', inkDim: '#7f6e52', hair: '#c2b18c', accent: '#8a3b1e',
+    face: "Georgia, 'Iowan Old Style', serif",
+    display: "Rockwell, Georgia, 'Iowan Old Style', serif",
+    displayWeight: 700,
+    venue: { size: '1.14em', track: '.22em', case: 'uppercase' },
+    title: { size: '1.5em', track: '.04em', case: 'uppercase' },
+    head: { pad: '.75em', rule: '3px double var(--hair)', align: 'center' },
+  },
+  revival: {
+    layout: 'handbill', word: 'Ohjelma', numeral: 'arabic',
+    stock: '#e8e8e0',
+    grain: 'linear-gradient(180deg, rgba(255, 255, 250, .6), rgba(0, 0, 0, .03))',
+    ink: '#1f221e', inkDim: '#767a72', hair: '#c2c5bb', accent: '#2c6b4a',
+    face: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    display: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    displayWeight: 600,
+    venue: { size: '1.08em', track: '.16em', case: 'uppercase' },
+    title: { size: '1.48em', track: '-.01em', case: 'uppercase' },
+    head: { pad: '.7em', rule: '2px solid var(--ink)' },
+  },
+  contemporary: {
+    layout: 'handbill', word: 'Ohjelma', numeral: 'arabic',
+    stock: '#eef0f1',
+    ink: '#20242a', inkDim: '#7c848d', hair: '#ccd2d7', accent: '#46607a',
+    face: "ui-sans-serif, 'Helvetica Neue', Arial, sans-serif",
+    display: "ui-sans-serif, 'Helvetica Neue', Arial, sans-serif",
+    displayWeight: 400,
+    venue: { size: '.98em', track: '.26em', case: 'lowercase' },
+    title: { size: '1.42em', track: '0', case: 'lowercase' },
+    head: { pad: '.9em' },
+  },
+};
+
 export const STAGING: Staging = {
   room: RIIHI,
   wardrobe: WARDROBE,
+  bill: BILL,
   /**
    * Pelimanni, when the era is one this genre has no clothes for.
    *

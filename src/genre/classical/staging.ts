@@ -27,7 +27,7 @@
  * `synth/staging.ts` makes about the black box in the other direction.
  */
 
-import type { Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
+import type { BillHouse, Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
 
 /**
  * THE CONCERT HALL — classical.
@@ -417,9 +417,79 @@ const BLURBS: Blurb[] = [
   { text: 'the timpani have been counting since bar one' },
 ];
 
+/**
+ * THE BILL — the document every other layout here is a reaction to.
+ *
+ * `programme`, and this is the repertoire that invented it: roman numerals in
+ * the margin, the title in text case rather than shouted, and a dotted leader
+ * running to the duration at the right. Nothing on the sheet is trying to sell
+ * you anything, because you are already sitting down. The word is
+ * **Programme** and it is the only genre here entitled to it without irony.
+ *
+ * All four are aged, which is the one place this table refuses to follow the
+ * decade: these are uncoated papers in unheated halls in every century they
+ * cover, and a Baroque programme printed on something that does not fox would
+ * be a facsimile. What moves instead is the *stock and the second colour* —
+ * 1720 is laid paper and brown ink, 1785 a cleaner wove with a slate blue, 1870
+ * a heavier cream with a wine red that the century put on everything, and 1910
+ * a pale grey-green set lowercase, because by then the printing had gone quiet
+ * along with the harmony.
+ */
+const BILL: Record<string, BillHouse> = {
+  baroque: {
+    layout: 'programme', word: 'Programme', numeral: 'roman', aged: true,
+    stock: '#f0e8d4',
+    grain: 'repeating-linear-gradient(0deg, rgba(120, 96, 50, .05) 0 1px, transparent 1px 6px)',
+    ink: '#2a2317', inkDim: '#7d6c4c', hair: '#c1ad84', accent: '#6b4a22',
+    face: "'Iowan Old Style', Georgia, 'Times New Roman', serif",
+    display: "'Iowan Old Style', Georgia, 'Times New Roman', serif",
+    displayWeight: 600,
+    venue: { size: '1.1em', track: '.3em', case: 'uppercase' },
+    title: { size: '1.4em', track: '.03em', case: 'none' },
+    head: { pad: '.8em', rule: '3px double var(--hair)', align: 'center' },
+  },
+  classical: {
+    layout: 'programme', word: 'Programme', numeral: 'roman', aged: true,
+    stock: '#f1ebdc',
+    grain: 'repeating-linear-gradient(90deg, rgba(110, 92, 56, .03) 0 1px, transparent 1px 3px)',
+    ink: '#26221a', inkDim: '#7e7360', hair: '#c5b99e', accent: '#3a4a6b',
+    face: "'Iowan Old Style', Georgia, serif",
+    display: "Didot, 'Bodoni 72', 'Playfair Display', Georgia, serif",
+    displayWeight: 500,
+    venue: { size: '1.12em', track: '.34em', case: 'uppercase' },
+    title: { size: '1.44em', track: '.02em', case: 'none' },
+    head: { pad: '.85em', rule: '1px solid var(--hair)', align: 'center' },
+  },
+  romantic: {
+    layout: 'programme', word: 'Programme', numeral: 'roman', aged: true,
+    stock: '#ece2cd',
+    grain: 'linear-gradient(180deg, rgba(255, 250, 238, .6), rgba(0, 0, 0, .04))',
+    ink: '#241d16', inkDim: '#7b6b56', hair: '#bdac8e', accent: '#6a2436',
+    face: "'Iowan Old Style', Georgia, serif",
+    display: "Didot, 'Bodoni 72', 'Playfair Display', Georgia, serif",
+    displayWeight: 700,
+    venue: { size: '1.22em', track: '.26em', case: 'uppercase' },
+    title: { size: '1.52em', track: '.02em', case: 'none' },
+    head: { pad: '.8em', rule: '1px solid var(--hair)', shadow: '0 4px 0 -3px var(--hair)', align: 'center' },
+  },
+  impressionist: {
+    layout: 'programme', word: 'Programme', numeral: 'roman', aged: true,
+    stock: '#e9ecea',
+    grain: 'repeating-linear-gradient(0deg, rgba(60, 80, 74, .028) 0 1px, transparent 1px 5px)',
+    ink: '#222826', inkDim: '#79847f', hair: '#c2ccc7', accent: '#4e7f7a',
+    face: "'Iowan Old Style', Georgia, serif",
+    display: "Didot, 'Bodoni 72', 'Playfair Display', Georgia, serif",
+    displayWeight: 400,
+    venue: { size: '1.06em', track: '.3em', case: 'lowercase' },
+    title: { size: '1.44em', track: '.01em', case: 'lowercase' },
+    head: { pad: '.9em' },
+  },
+};
+
 export const STAGING: Staging = {
   room: CONCERT_HALL,
   wardrobe: WARDROBE,
+  bill: BILL,
   /**
    * Classical, when the era is one this genre has no clothes for. 1785 is where
    * the word means what most people mean by it, and it is the middle of the four

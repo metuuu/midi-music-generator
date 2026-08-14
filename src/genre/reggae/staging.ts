@@ -13,7 +13,7 @@
  * boxes and there is no building in the neighbourhood that would hold it.
  */
 
-import type { Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
+import type { BillHouse, Blurb, StageRoom, Staging, Wardrobe } from '../types.js';
 
 /**
  * THE LAWN — reggae.
@@ -388,9 +388,79 @@ const BLURBS: Blurb[] = [
   { text: 'nobody has left the bar and nobody is going to' },
 ];
 
+/**
+ * THE BILL — a dance poster, and it was on a wall.
+ *
+ * `poster`, shared with iskelmä, and the two are the same document for the same
+ * reason: neither was ever handed to anybody. A sound-system dance was
+ * advertised by a hand-set sheet pasted to a wall a week before, so the title
+ * is enormous, the number sits on a line of its own above it, and the whole
+ * thing is centred because a poster read from across a road has no left margin.
+ * The word is **Dance**, which is what the sheet said, and it is a noun rather
+ * than an instruction.
+ *
+ * Four decades of one printer getting hold of different ink. 1964 is
+ * yellow-cream stock with a slab face and green, hand-set and slightly
+ * over-inked. 1968 is the same press in coral and a serif, because rocksteady
+ * slowed everything down including the advertising. 1975 is kraft and gold and
+ * heavy sans — roots is the decade this music got serious about itself. 1987 is
+ * a photocopy in magenta, which is what the digital era was: cheaper, faster,
+ * and printed the afternoon of the dance.
+ */
+const BILL: Record<string, BillHouse> = {
+  ska: {
+    layout: 'poster', word: 'Dance', numeral: 'arabic', aged: true,
+    stock: '#f2e6b6',
+    grain: 'repeating-linear-gradient(0deg, rgba(120, 100, 40, .05) 0 1px, transparent 1px 5px)',
+    ink: '#1e2a1c', inkDim: '#6e7355', hair: '#c2b787', accent: '#17703c',
+    face: "Georgia, 'Iowan Old Style', serif",
+    display: "Rockwell, 'Courier New', Georgia, serif",
+    displayWeight: 700,
+    venue: { size: '1.3em', track: '.24em', case: 'uppercase' },
+    title: { size: '1.72em', track: '.06em', case: 'uppercase' },
+    head: { pad: '.75em', rule: '3px double var(--hair)' },
+  },
+  rocksteady: {
+    layout: 'poster', word: 'Dance', numeral: 'arabic', aged: true,
+    stock: '#f0d9cd',
+    grain: 'repeating-linear-gradient(0deg, rgba(140, 80, 60, .04) 0 1px, transparent 1px 4px)',
+    ink: '#2a1c18', inkDim: '#87675c', hair: '#cfae9e', accent: '#b2382a',
+    face: "Georgia, 'Iowan Old Style', serif",
+    display: "'Iowan Old Style', Georgia, 'Times New Roman', serif",
+    displayWeight: 700,
+    venue: { size: '1.24em', track: '.28em', case: 'uppercase' },
+    title: { size: '1.68em', track: '.1em', case: 'uppercase' },
+    head: { pad: '.75em', rule: '1px solid var(--hair)' },
+  },
+  roots: {
+    layout: 'poster', word: 'Dance', numeral: 'arabic', aged: true,
+    stock: '#ddc9a5',
+    grain: 'repeating-linear-gradient(90deg, rgba(90, 66, 30, .05) 0 1px, transparent 1px 3px)',
+    ink: '#231a0e', inkDim: '#7e6a44', hair: '#b39a6c', accent: '#a86a12',
+    face: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    display: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    displayWeight: 800,
+    venue: { size: '1.2em', track: '.2em', case: 'uppercase' },
+    title: { size: '1.8em', track: '-.02em', case: 'uppercase' },
+    head: { pad: '.7em', rule: '.35em solid var(--accent)' },
+  },
+  digital: {
+    layout: 'poster', word: 'Dance', numeral: 'arabic',
+    stock: '#f2f2ea',
+    ink: '#1b1b1f', inkDim: '#74747c', hair: '#cfcfc6', accent: '#d2266b',
+    face: "'Avenir Next', Avenir, ui-sans-serif, sans-serif",
+    display: "'Century Gothic', Futura, 'Avenir Next', ui-sans-serif, sans-serif",
+    displayWeight: 800,
+    venue: { size: '1.16em', track: '.16em', case: 'uppercase' },
+    title: { size: '1.86em', track: '-.03em', case: 'uppercase' },
+    head: { pad: '.7em', rule: '.4em solid var(--accent)' },
+  },
+};
+
 export const STAGING: Staging = {
   room: LAWN,
   wardrobe: WARDROBE,
+  bill: BILL,
   /**
    * Roots, when the era is one this genre has no clothes for. It is the decade
    * the word means to anybody who is not being careful, and the other three are
