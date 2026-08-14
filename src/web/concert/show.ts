@@ -62,8 +62,8 @@ import type { Camera, Object3D } from 'three';
 import { Group, Quaternion, Raycaster, Vector2, Vector3 } from 'three';
 
 import { Rng } from '../../core/rng.js';
-import type { LayerId, Song } from '../../core/types.js';
-import { songDurationBeats } from '../../core/types.js';
+import type { DrumVoice, LayerId, Song } from '../../core/types.js';
+import { sliceSong, songDurationBeats } from '../../core/types.js';
 import { buildConcert } from '../../concert/index.js';
 import { asMetu } from '../../concert/cast.js';
 import { trackForPart } from '../../concert/choreograph.js';
@@ -75,8 +75,8 @@ import { countsItselfIn } from '../../generate/song.js';
 import { readBankName } from '../../render/drum-banks.js';
 import { renderStrudelParts } from '../../render/strudel.js';
 import {
-  bandLoaded, clearBand, isPlaying, loadBand, mutePlayer, preloadSounds, startLoaded,
-  stopPlayback, swapPlayer,
+  bandLoaded, clearBand, isPlaying, loadBand, mutePlayer, preloadSounds, setOutputLevel,
+  startLoaded, stopPlayback, swapPlayer,
 } from '../audio.js';
 import { revoiceNumberAsync } from '../generator.js';
 import { createSungVoice, withoutSungVoice } from '../sung-voice.js';
@@ -127,6 +127,46 @@ export interface ShowOptions {
   metu?: boolean;
   /** Called whenever the state changes, for the page's status line. */
   onState?: (state: ShowState, show: Show) => void;
+  /**
+   * A `?debug` label was clicked. Only fires when `debug` is on, because
+   * without it there are no labels to click.
+   *
+   * The show does not know what a console is and must not: this reports which
+   * layer was picked and stops there. See `pickTagAt`.
+   */
+  onPick?: (layer: LayerId) => void;
+}
+
+/**
+ * A trim over what the tables already say, per layer and per drum voice.
+ *
+ * Trims rather than levels, and that is the same decision `web/mix-lab.ts` made
+ * and for the same reason: unity is the centre of every fader, so "I have not
+ * touched this" is visible at a glance across two dozen of them. It also means
+ * this object stays meaningful across a number change, where the absolute
+ * levels do not — a new number deals different instruments, and a stored 0.44
+ * would be a statement about whatever happened to be playing when it was set.
+ *
+ * `muted` and `solo` are keyed `l:<layer>` and `d:<voice>`, the same namespace
+ * the mix lab uses, so a session can be moved between the two pages by hand.
+ */
+export interface ShowMix {
+  layers: ReadonlyMap<LayerId, number>;
+  voices: ReadonlyMap<DrumVoice, number>;
+  muted: ReadonlySet<string>;
+  solo: ReadonlySet<string>;
+}
+
+/** Where the number that is sounding has got to. All figures in the *piece*. */
+export interface Position {
+  /** Bar being heard, 0-based, fractional. */
+  bar: number;
+  /** Bars in the whole number, whatever the pattern was cut to. */
+  bars: number;
+  /** The bar the pattern was cut at, 0 unless jumped. */
+  fromBar: number;
+  beatsPerBar: number;
+  paused: boolean;
 }
 
 export interface Show {
@@ -137,6 +177,27 @@ export interface Show {
   state(): ShowState;
   /** The number playing, 0-based. */
   index(): number;
+  /** The number playing, whole and uncut. What a console reads to draw itself. */
+  number(): ConcertNumber;
+  /** Where it has got to, or undefined when nothing is sounding. */
+  position(): Position | undefined;
+  /**
+   * Ride the faders. The band changes on the next bar; nothing restarts.
+   *
+   * Only the layers whose emitted text actually moved are handed to Strudel —
+   * see `loadLayers` — so a fader drag costs one layer's transpile per frame
+   * rather than a song's.
+   */
+  setMix(next: ShowMix): void;
+  /**
+   * Begin this number again from `bar`, by *cutting the piece there* rather
+   * than by seeking. See `sliceSong`, which is where the argument lives.
+   */
+  jumpToBar(bar: number): void;
+  /** Hold the clock where it is, or let it go on. The stage holds with it. */
+  setPaused(paused: boolean): void;
+  /** Strike this number and stage another. The curtain runs as it always does. */
+  goToNumber(n: number): void;
   /** One call per frame. Samples the clock itself — nobody else may. */
   frame(dt: number): void;
   /** A click on the stage: advance the bill, or throw a tomato. */
@@ -440,6 +501,8 @@ export function createShow(opts: ShowOptions = {}): Show {
    * what is sounding.
    */
   let loaded: Song | undefined;
+  /** Which bar that load was cut at, so a jump's reload is not mistaken for it. */
+  let loadedFromBar = 0;
   /** The load in flight, so the downbeat can wait for it rather than race it. */
   let loading: Promise<void> | undefined;
   /**
@@ -453,6 +516,28 @@ export function createShow(opts: ShowOptions = {}): Show {
    * the new timeline at its ending.
    */
   let heldBeat = 0;
+  /** The same, un-wrapped — what "are we done yet" reads while the clock is held. */
+  let heldElapsed = 0;
+  /**
+   * Which bar of `current.song` the scheduler is calling bar zero. 0 unless jumped.
+   *
+   * A jump does not seek. It hands the scheduler the piece *cut* at this bar
+   * (see `sliceSong`) and tells the transport to add the offset back, so nothing
+   * downstream ever learns that the pattern is not the whole number. This is the
+   * one variable that knows.
+   */
+  let fromBar = 0;
+  /**
+   * The clock is stopped on purpose, and the number is not over.
+   *
+   * True while paused, and across the reload a jump costs. It exists because
+   * `clockLive` answers a different question — *is there a number at all* — and
+   * the frame loop's two absences want opposite treatment: no number is the
+   * pre-roll pose, a held clock is the pose the band was last in. Without it,
+   * pressing pause snapped the whole band to the first downbeat.
+   */
+  let paused = false;
+  let jumping = false;
   /** 0..1 of black over the picture. Only the bow moves it. */
   let fade = 0;
   const blackout = buildBlackout();
@@ -1058,6 +1143,74 @@ export function createShow(opts: ShowOptions = {}): Show {
   }
 
   /**
+   * The faders, as the console last left them. Empty is "as the tables have it".
+   *
+   * Held by the show rather than by the console, and it outlives a number on
+   * purpose: what a fader session is *for* is deciding whether a genre's pad
+   * sits right, and the answer is not visible in one number. The trims are
+   * relative (see `ShowMix`), so carrying them across a change of instrument
+   * carries the judgement rather than the level.
+   */
+  let mix: ShowMix = { layers: new Map(), voices: new Map(), muted: new Set(), solo: new Set() };
+
+  /** Solo wins over mute; an empty solo set means everything sounds. */
+  function audibleAt(key: string): boolean {
+    if (mix.solo.size > 0) return mix.solo.has(key);
+    return !mix.muted.has(key);
+  }
+
+  /**
+   * The song as the console's faders would have it.
+   *
+   * A copy every time rather than an edit, because the trims are a *view* of a
+   * mix and not a change to the arrangement: `current.song` has to still be the
+   * song its seed produces, or a re-voice would compound every fader that had
+   * moved since the number started.
+   *
+   * Mute is a gain of zero rather than a removed track, and that distinction is
+   * load-bearing here in a way it is not on the mix lab. `loadBand` snapshots
+   * the layer ids at load time and builds one `ref` per layer, so the *shape* of
+   * the stack is fixed for the number — a layer whose tracks all vanished would
+   * emit no part at all, never be swapped, and go on sounding whatever the `ref`
+   * was last given. Silencing a whole layer therefore goes through
+   * `mutePlayer`, and this only ever scales.
+   */
+  function mixed(song: Song): Song {
+    if (!mix.layers.size && !mix.voices.size) return song;
+    const tracks = song.tracks.map((t) => {
+      const trim = mix.layers.get(t.layer) ?? 1;
+      return trim === 1 ? t : { ...t, gain: t.gain * trim };
+    });
+    if (!mix.voices.size) return { ...song, tracks };
+
+    const voiceGains = { ...song.drums.voiceGains };
+    for (const [voice, trim] of mix.voices) {
+      voiceGains[voice] = (voiceGains[voice] ?? 1) * trim;
+    }
+    return { ...song, tracks, drums: { ...song.drums, voiceGains } };
+  }
+
+  /**
+   * Push the console's mute and solo state onto the loaded band.
+   *
+   * Cheap in one direction and not the other: silencing is a map write inside
+   * `mutePlayer` and costs nothing, while bringing a player back has to hand
+   * Strudel that layer's text again, because the `ref` is holding `silence` and
+   * nothing else remembers the pattern. A few KB, on a button press.
+   *
+   * `sulking` is checked first and wins, and the precedence is not arbitrary: a
+   * player who has been hit by a tomato is *out*, and un-soloing a fader must
+   * not put them back on stage in the middle of their sulk.
+   */
+  async function applyMutes(): Promise<void> {
+    for (const [layer, code] of onStage) {
+      if (sulking.has(layer)) continue;
+      if (audibleAt(`l:${layer}`)) await swapPlayer(layer, code);
+      else mutePlayer(layer);
+    }
+  }
+
+  /**
    * What each layer of the loaded band was last given, by layer.
    *
    * Kept so a re-voice can evaluate the parts that actually moved and leave the
@@ -1093,12 +1246,21 @@ export function createShow(opts: ShowOptions = {}): Show {
    * moved. Building the text is 2–8 ms for a whole song and was never the
    * problem — what cost was handing all of it to Strudel, which this now does one
    * layer at a time and only when that layer is different.
+   *
+   * The faders go on here rather than at any of the call sites, so that every
+   * route to the scheduler — a number opening, a tomato, a jump — carries the
+   * console's trims without having to remember to. It is also what makes riding
+   * a fader cheap: the emitted text of the five layers that did not move is
+   * byte-identical, so the loop below skips them and one layer is handed over.
    */
   async function loadLayers(song: Song, autostart: boolean): Promise<void> {
-    const parts = renderStrudelParts(withoutSungVoice(song));
+    const parts = renderStrudelParts(withoutSungVoice(mixed(song)));
     if (!bandLoaded()) {
       onStage = new Map(parts.layers.map((l) => [l.layer, l.code]));
       await loadBand(parts, autostart);
+      // After the load, never before: `mutePlayer` writes into the map the
+      // stack reads, and `loadBand` clears it.
+      await applyMutes();
       return;
     }
     for (const { layer, code } of parts.layers) {
@@ -1107,7 +1269,11 @@ export function createShow(opts: ShowOptions = {}): Show {
       // changed nothing is not rare — see the note in `concert-check.ts`.
       if (onStage.get(layer) === code && !sulking.has(layer)) continue;
       onStage.set(layer, code);
-      await swapPlayer(layer, code);
+      // A muted player is not brought back by a re-render. `onStage` is updated
+      // either way, so the code is there for `applyMutes` to restore from when
+      // the fader is un-muted.
+      if (audibleAt(`l:${layer}`)) await swapPlayer(layer, code);
+      else mutePlayer(layer);
     }
     /**
      * And start the clock if the caller wanted one and there is none.
@@ -1138,13 +1304,25 @@ export function createShow(opts: ShowOptions = {}): Show {
    * on the next task. Coalesced, because a burst of hits would otherwise queue a
    * render each and they would all produce the same answer.
    */
+  /**
+   * The piece as the scheduler has it — the number, cut where a jump left it.
+   *
+   * Derived rather than stored, and that is what keeps a jump and a tomato from
+   * fighting. `returnToPlaying` replaces `current` with a re-voiced number while
+   * the band is playing; a stored slice would then be the *old* number's, and
+   * the player coming back would come back on music nobody else was reading.
+   * Recomputing costs one pass over the notes on the two occasions anything asks
+   * during a jump, and returns `current.song` itself when there has been none.
+   */
+  const playing = (): Song => sliceSong(current.song, fromBar);
+
   let soundPending = false;
   function scheduleSound(): void {
     if (soundPending) return;
     soundPending = true;
     setTimeout(() => {
       soundPending = false;
-      void sound(current.song);
+      void sound(playing());
     }, 0);
   }
 
@@ -1178,6 +1356,11 @@ export function createShow(opts: ShowOptions = {}): Show {
     revealed = false;
     cueGiven = false;
     heldBeat = 0;
+    heldElapsed = 0;
+    // A jump belongs to the number it was made in. The faders do not — see `mix`.
+    fromBar = 0;
+    paused = false;
+    jumping = false;
 
     // The programme can be opened at any moment, including this one, so the
     // number being staged is marked the instant it is staged rather than at the
@@ -1200,7 +1383,7 @@ export function createShow(opts: ShowOptions = {}): Show {
     // warm-up that `begin` just paid for behind this closed curtain.
 
     setState('curtain');
-    loading = load(current.song);
+    loading = load(current.song, 0);
   }
 
   /**
@@ -1221,7 +1404,7 @@ export function createShow(opts: ShowOptions = {}): Show {
    * several seconds long and the stage is silent behind it, which is precisely
    * the room that fetch wanted. See `preloadSounds`.
    */
-  async function load(song: Song): Promise<void> {
+  async function load(song: Song, bar: number): Promise<void> {
     try {
       // Stop before loading. See the module note: a running cycle counter
       // would start this song somewhere in its middle.
@@ -1230,8 +1413,18 @@ export function createShow(opts: ShowOptions = {}): Show {
       // A fresh band rather than an updated one: this is a different song, and
       // a layer left over from the last number would be read by the new stack.
       clearBand();
-      await loadLayers(song, false);
+      await loadLayers(sliceSong(song, bar), false);
+      /**
+       * The *uncut* number is what gets recorded as loaded, and the bar beside
+       * it.
+       *
+       * `startMusic` compares by identity to answer "is what the scheduler is
+       * holding still the number on stage", and a slice is a fresh object on
+       * every call — comparing against one would answer no every time and pay
+       * for a second render of a band that was already correct.
+       */
       loaded = song;
+      loadedFromBar = bar;
     } catch (err) {
       console.error('concert: Strudel could not evaluate the pattern', err);
     }
@@ -1242,7 +1435,7 @@ export function createShow(opts: ShowOptions = {}): Show {
 
   /** The downbeat. Everything is already compiled; this is one clock start. */
   async function startMusic(): Promise<void> {
-    transport.begin(current.song);
+    transport.begin(current.song, fromBar);
     clockLive = true;
     try {
       /**
@@ -1256,12 +1449,12 @@ export function createShow(opts: ShowOptions = {}): Show {
       await loading;
       // A pattern that failed to load — or one a tomato replaced while the
       // curtain was travelling — is compiled here instead, late but audible.
-      if (loaded === current.song) {
+      if (loaded === current.song && loadedFromBar === fromBar) {
         await startLoaded();
         // After the scheduler, never before: every phrase is placed by the
         // scheduler's own clock and there is no clock until it starts.
-        voice.begin(audible(current.song));
-      } else await sound(current.song);
+        voice.begin(audible(playing()));
+      } else await sound(playing());
     } catch (err) {
       console.error('concert: the number could not be started', err);
     }
@@ -1305,6 +1498,141 @@ export function createShow(opts: ShowOptions = {}): Show {
       lights.setMaster(0, CURTAIN_IN_SECONDS);
     }
     setState(last ? 'bow' : 'applause');
+  }
+
+  // --- The console's transport -------------------------------------------
+  //
+  // Three operations a debugging overlay needs and an audience does not: hold
+  // the clock, begin this number somewhere else, and go to another number. All
+  // three are gated on `?debug` at the page — see `main.ts` — and none of them
+  // is reachable from the stage itself.
+  //
+  // What they share is that they are all expressed in the vocabulary the show
+  // already had. A jump is `load` plus `startLoaded`, which is exactly what the
+  // top of every number does; a pause is Strudel's own, which keeps the phase;
+  // and going to another number is `stageNumber`, curtain and all. Nothing here
+  // reaches past `web/audio.ts`, and nothing downstream of the transport knows
+  // any of it happened.
+
+  /**
+   * Begin this number again from `bar`, by cutting the piece there.
+   *
+   * The clock has no cursor to move — see `sliceSong` for why, at length — so
+   * this stops it, hands the scheduler a piece whose bar `bar` is its first, and
+   * starts it again from zero. `transport.begin` is told the offset, and from
+   * that point every system on the stage reads a position in the *piece* and
+   * none of them can tell.
+   *
+   * The stop costs a few tens of milliseconds of silence and lets whatever was
+   * ringing ring out over the cut, which is the same behaviour — and the same
+   * argument — as `endNumber`'s. `jumping` holds the band's pose across it, so
+   * the picture does not flick to the pre-roll and back.
+   */
+  function jumpToBar(bar: number): void {
+    if (!clockLive || (state !== 'playing' && state !== 'count-in')) return;
+    const to = Math.max(0, Math.min(Math.round(bar), current.song.meta.totalBars - 1));
+    jumping = true;
+    // Here rather than only in `setPaused`, so that scrubbing while paused is
+    // also a way to start again — the fader is down and nothing else raises it.
+    if (paused) setOutputLevel(1);
+    paused = false;
+    fromBar = to;
+    // The held position moves *now* rather than when the audio lands, so the
+    // frame that follows this call already shows the band where they are going.
+    // Otherwise the stage holds the old bar for the length of the reload, which
+    // reads as the scrub having missed.
+    heldBeat = to * current.song.meta.beatsPerBar;
+    heldElapsed = heldBeat;
+    const wanted = current;
+    loading = (async () => {
+      await load(current.song, to);
+      // The number moved on while the pattern was being built — a walk-off, the
+      // end of the piece, the next number staged. Starting now would start the
+      // wrong band. Same guard, same reason, as `returnToPlaying`.
+      if (current !== wanted || fromBar !== to) return;
+      transport.begin(current.song, to);
+      await startLoaded();
+      voice.begin(audible(playing()));
+      jumping = false;
+    })();
+    void loading.catch((err) => {
+      jumping = false;
+      console.error('concert: the jump could not be made', err);
+    });
+  }
+
+  /**
+   * Stop dead, or pick it up again from the bar it stopped on.
+   *
+   * ## Why this is a stop and a jump rather than Strudel's own pause
+   *
+   * `Cyclist.pause` only clears the callback timer. Two things follow from that
+   * and both are wrong here.
+   *
+   * **The sound does not stop.** Every voice already handed to Web Audio has its
+   * whole envelope scheduled on the audio clock, and nothing in the scheduler
+   * can recall it — so a paused transport went on sounding for as long as the
+   * longest note had left, which on a pad is several seconds of band over a
+   * stage that has visibly stopped. `setOutputLevel(0)` is the only thing that
+   * reaches those voices, because everything goes through the master.
+   *
+   * **And the position does not hold.** The clock keeps its `phase`, which is a
+   * point on the audio clock rather than an offset, and the audio clock runs
+   * through the pause. So the resume tick finds `phase` far in the past and
+   * loops to catch up — measured, a five-second pause came back three bars late,
+   * with the bars in between fired at once into the past. A pause that quietly
+   * skips music is worse than one that costs a reload.
+   *
+   * So: down, stop, and resume by starting the piece again from the bar it
+   * stopped on — which is `jumpToBar`, already written, already the same shape
+   * as the top of any number. The cost is up to one bar of rewind at the join,
+   * which is the same bar-snapping a jump has, and one reload.
+   */
+  function setPaused(next: boolean): void {
+    if (!clockLive || next === paused) return;
+    if (next) {
+      paused = true;
+      voice.end();
+      // The fader before the scheduler: stopping first would leave the tail to
+      // ring for the twelve milliseconds it takes the master to travel, which
+      // is nothing, but the order is the one that reads correctly.
+      setOutputLevel(0);
+      void stopPlayback();
+      return;
+    }
+    // `jumpToBar` raises the fader and clears `paused` itself, and lands on the
+    // bar rather than between two — see the note there on why the unit is a bar.
+    jumpToBar(Math.floor(heldBeat / current.song.meta.beatsPerBar));
+  }
+
+  /**
+   * Strike this number and stage another, without waiting for the applause.
+   *
+   * Deliberately goes the long way round — `stageNumber`, curtain, count and
+   * all — rather than dropping the band on stage mid-air. Three seconds is a
+   * long time when you are hunting a level and it is still the right call: the
+   * reveal is what builds the cast, the cue timeline and the camera plan, and a
+   * shortcut past it would be a second staging path to keep correct.
+   *
+   * The room is put back by hand because the applause that normally does it is
+   * being skipped, and the cloth is snapped rather than travelled: this number
+   * is not ending, it is being abandoned.
+   */
+  function goToNumber(n: number): void {
+    if (state === 'bill' || n < 0 || n >= concert.numbers.length) return;
+    voice.end();
+    // A number left behind while the transport was paused would otherwise stage
+    // the next one behind a master fader nobody can see is down.
+    if (paused) setOutputLevel(1);
+    void stopPlayback();
+    transport.end();
+    clockLive = false;
+    animator.end();
+    animatorHasRigs = false;
+    lights.setHouse(HOUSE_FLOOR);
+    stage.snapCurtain(0);
+    fade = 0;
+    stageNumber(n);
   }
 
   /**
@@ -1596,7 +1924,20 @@ export function createShow(opts: ShowOptions = {}): Show {
    * are offered, so one behind the camera cannot be clicked through the back
    * of the lens.
    */
-  function copyTagAt(ndcX: number, ndcY: number): boolean {
+  /**
+   * A click on a player's label picks that player out on the desk.
+   *
+   * It used to copy the label's text to the clipboard, which was the most this
+   * could do when there was nowhere for a selection to *go*. There is now: the
+   * strip carrying that layer's fader, and the lane under the scrub bar showing
+   * where in the piece the part actually sounds. A name in a paste buffer
+   * answered no question; "this player, this fader, these bars" answers three.
+   *
+   * The layer is what travels rather than the performer, because the layer is
+   * what everything downstream is keyed by — the mix tables, the strips, the
+   * `ref` stack. A performer is one person holding one of them.
+   */
+  function pickTagAt(ndcX: number, ndcY: number): boolean {
     if (!tags.size && !machineTags.size) return false;
     const all = [...tags.values(), ...[...machineTags.values()].map((m) => m.tag)];
     const shown = all.filter((t) => t.root.visible);
@@ -1607,14 +1948,15 @@ export function createShow(opts: ShowOptions = {}): Show {
     const tag = hit && shown.find((t) => t.root === hit.object);
     if (!tag) return false;
 
-    const text = tag.text();
-    // `navigator.clipboard` is absent on an insecure origin, which a stage
-    // served over plain http on a LAN is. The label is still on the screen and
-    // the console still has it, so this stays a diagnostic rather than an
-    // error the show has to report.
-    const copy = navigator.clipboard?.writeText(text);
-    if (copy) copy.then(() => tag.flash(), (err) => console.warn('concert: copy failed', err));
-    else console.warn('concert: no clipboard here. The label says:\n' + text);
+    const performerId = [...tags].find(([, t]) => t === tag)?.[0];
+    const layer = performerId
+      ? current.cast.performers.find((p) => p.id === performerId)?.layer
+      // A machine with no layer of its own is running the kit. See `StageMachine`.
+      : [...machineTags.values()].find((m) => m.tag === tag)?.spec.layer ?? 'drums';
+    if (!layer) return false;
+
+    tag.flash();
+    opts.onPick?.(layer);
     return true;
   }
 
@@ -1625,18 +1967,29 @@ export function createShow(opts: ShowOptions = {}): Show {
     seconds += dt;
 
     /**
+     * The clock is stopped and the number is not over — paused, or mid-jump.
+     *
+     * A third thing the transport cannot say. It answers *what is sounding*, and
+     * the honest answer while the scheduler is held is "nothing, at cycle zero" —
+     * which every system below would read as the top of the piece. So the held
+     * position stands in, and it stands in for `elapsed` as well as for `beat`:
+     * without that, `endNumber` would compare a zeroed elapsed against the
+     * number's length and a pause near the finish would silently un-finish it.
+     */
+    const held = clockLive && (paused || jumping);
+    /**
      * One sample, at the top, passed to everyone. Nothing below may ask the
      * transport again this frame.
      */
-    const beat = transport.beat();
+    const beat = held ? heldBeat : transport.beat();
     /** The same sample, un-wrapped: how far into the number we are. */
-    const elapsed = transport.elapsed();
+    const elapsed = held ? heldElapsed : transport.elapsed();
     /**
      * Whether that number is a position in a piece of music that is actually
      * sounding. Before the downbeat the transport honestly reports 0, and 0 is
      * a place *in* the music — see `PRE_ROLL_BEAT`.
      */
-    const live = clockLive && transport.state() === 'playing' && elapsed > 0;
+    const live = !held && clockLive && transport.state() === 'playing' && elapsed > 0;
 
     switch (state) {
       case 'bill':
@@ -1776,8 +2129,8 @@ export function createShow(opts: ShowOptions = {}): Show {
      * that goes dark for the length of its own reveal is not a reveal. So the
      * animator reads the pre-roll and everything else reads the opening state.
      */
-    const shown = live ? beat : PRE_ROLL_BEAT;
-    if (live) heldBeat = beat;
+    const shown = live ? beat : held ? heldBeat : PRE_ROLL_BEAT;
+    if (live) { heldBeat = beat; heldElapsed = elapsed; }
     if (animatorHasRigs) animator.update(shown, dt);
     else for (const rig of rigs.values()) rig.update(seconds, dt);
 
@@ -1833,15 +2186,39 @@ export function createShow(opts: ShowOptions = {}): Show {
     concert,
     state: () => state,
     index: () => index,
+    number: () => current,
     frame,
+
+    position() {
+      if (!clockLive) return undefined;
+      const { beatsPerBar, totalBars } = current.song.meta;
+      // `heldBeat` rather than the transport, for the console's own sake: it is
+      // repainted off the frame loop and would otherwise flicker to the top of
+      // the piece for the tens of milliseconds a jump's reload takes.
+      const beat = paused || jumping ? heldBeat : transport.beat();
+      return { bar: beat / beatsPerBar, bars: totalBars, fromBar, beatsPerBar, paused };
+    },
+
+    setMix(next) {
+      mix = next;
+      // Two paths because they cost differently: the trims go through a render
+      // of only the layers whose text moved, and mute/solo touches no text at
+      // all. Both land at the top of the next bar.
+      scheduleSound();
+      void applyMutes().catch((err) => console.error('concert: the mix would not apply', err));
+    },
+
+    jumpToBar,
+    setPaused,
+    goToNumber,
 
     click(ndcX, ndcY) {
       // Three things a click can mean, and the state decides which. Getting
       // this wrong is what makes tomatoes feel broken.
       if (state === 'bill') return;
-      // Four, under `?debug`: a label copies itself and eats the click, so
-      // reading one does not also pelt the player wearing it.
-      if (copyTagAt(ndcX, ndcY)) return;
+      // Four, under `?debug`: a label picks its player out on the desk and eats
+      // the click, so selecting one does not also pelt them.
+      if (pickTagAt(ndcX, ndcY)) return;
       if (state === 'playing' || state === 'count-in') {
         tomatoes.aim(ndcX, ndcY, director.camera);
         tomatoes.throwNow(director.camera);

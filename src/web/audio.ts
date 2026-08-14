@@ -146,6 +146,50 @@ function installLimiter(): void {
   limiter.connect(ctx.destination);
 }
 
+/**
+ * How long the master fader takes to travel. Long enough not to click.
+ *
+ * A hard `gain = 0` on a sounding chord is a step discontinuity in the
+ * waveform, which is a click — and a loud one, because the chord it interrupts
+ * is at whatever amplitude it happened to be at. Twelve milliseconds is under a
+ * frame and is heard as an immediate stop rather than as a fade.
+ */
+const CUT_SECONDS = 0.012;
+
+/**
+ * Take the whole output down, or bring it back. The only real stop there is.
+ *
+ * `stopPlayback` halts the *scheduler*, and everywhere else in this project
+ * that is exactly right: the last bar of a piece is a held chord and letting it
+ * ring over the applause is what a room does — `endNumber` and the radio's
+ * `RING_OUT_SECONDS` both depend on it and both say so.
+ *
+ * It is wrong for a pause. Voices already handed to Web Audio have their whole
+ * envelope scheduled on the audio clock and nothing in Strudel can recall them,
+ * so a paused transport went on sounding for as long as the longest note had
+ * left — up to several seconds of pad over a stage that had visibly stopped.
+ * The scheduler cannot fix that because the notes are no longer its business.
+ * The master gain can, because everything goes through it.
+ *
+ * Fails soft for `installLimiter`'s reason, and reaches the same node: the
+ * limiter splice moves what `destinationGain` is connected *to* and leaves the
+ * gain itself alone, so this is the master fader either way.
+ */
+export function setOutputLevel(level: number, seconds = CUT_SECONDS): void {
+  try {
+    const master = getSuperdoughAudioController()?.output?.destinationGain;
+    if (!master) return;
+    const now = getAudioContext().currentTime;
+    // Cancel first: a second press during the ramp would otherwise ramp from a
+    // value that is itself still moving, and the two schedules fight.
+    master.gain.cancelScheduledValues(now);
+    master.gain.setValueAtTime(master.gain.value, now);
+    master.gain.linearRampToValueAtTime(level, now + Math.max(seconds, 0.001));
+  } catch (err) {
+    console.warn('audio: the master fader would not move', err);
+  }
+}
+
 export async function playCode(code: string): Promise<void> {
   const repl = await initAudio();
   await repl.evaluate(code);

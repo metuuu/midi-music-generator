@@ -9,7 +9,7 @@
  * mechanism a game would use to duck stems.
  */
 
-import { initAudio, playCode, preloadSounds, stopPlayback } from './audio.js';
+import { initAudio, playCode, preloadSounds, setOutputLevel, stopPlayback } from './audio.js';
 import { generateSongAsync, generatorIsThreaded } from './generator.js';
 import { createSungVoice, withoutSungVoice } from './sung-voice.js';
 
@@ -570,6 +570,10 @@ async function play(song: Song): Promise<void> {
     // Stopped, or superseded by a newer press, while the band was loading.
     // Whoever bumped the generation has already said what the status is.
     if (generation !== playGeneration) return;
+    // Back up, in case the last thing that happened was a stop. Unconditional
+    // rather than guarded on it: this is the one place the station makes a
+    // noise, and a fader left down by any route is silence nobody can explain.
+    setOutputLevel(1);
     await playCode(code);
     voice.begin(audible(song));
     playing = true;
@@ -584,9 +588,22 @@ async function play(song: Song): Promise<void> {
   }
 }
 
+/**
+ * Stop, as a listener means it.
+ *
+ * `stopPlayback` halts the scheduler and leaves whatever was already handed to
+ * Web Audio to finish — which is the *right* behaviour a few lines down, where
+ * `RING_OUT_SECONDS` uses it to let one record's last chord die under the next
+ * one. It is not what a stop button means. A held pad on the final bar goes on
+ * for seconds after the press, and the page looks like it ignored the click.
+ *
+ * So the master comes down as well, and goes back up in `play`. See
+ * `setOutputLevel`, which is the only thing that reaches a sounding voice.
+ */
 function stop(): void {
   playGeneration += 1;
   voice.end();
+  setOutputLevel(0);
   void stopPlayback();
   playing = false;
   els.play.textContent = 'Play ▶';

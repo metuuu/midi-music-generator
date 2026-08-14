@@ -74,6 +74,224 @@
       }
       .corner a { color: var(--dim); text-decoration: none; }
       .corner a:hover { color: var(--hot); }
+
+      /* ------------------------------------------------------------------
+         The stage console — `?debug` only. See src/web/concert/console.ts,
+         which builds it and argues for the shape.
+
+         Two surfaces, because they are two shapes: a timeline is horizontal
+         and belongs across the bottom where there is least to look at, and a
+         stack of faders is vertical and would cover the band it describes if
+         it were a bottom sheet. Above the billhouse (z-index 40/50), because
+         a transport that could be lost behind the programme is a transport
+         nobody can find; the module hides the whole thing while the opening
+         bill is up, which is the case that would actually collide.
+         ------------------------------------------------------------------ */
+      #console {
+        --panel: rgba(17, 13, 12, .90);
+        --edge: #2f2724;
+        --cool: #79b0c4;
+        --sunk: #100d0c;
+      }
+      #console button { font-family: inherit; }
+
+      .cx-bar {
+        position: fixed; left: 0; right: 0; bottom: 0; z-index: 60;
+        display: grid; grid-template-columns: auto 1fr auto;
+        align-items: center; gap: 1.1rem;
+        padding: .55rem 1rem .6rem;
+        background: var(--panel); backdrop-filter: blur(16px);
+        border-top: 1px solid var(--edge);
+        touch-action: none;
+      }
+      .cx-group { display: flex; align-items: center; gap: .4rem; }
+      .cx-right { gap: .75rem; }
+
+      .cx-btn {
+        min-width: 2.1rem; height: 2.1rem; padding: 0 .5rem;
+        display: inline-flex; align-items: center; justify-content: center;
+        border-radius: 7px; border: 1px solid var(--edge);
+        background: #221c19; color: var(--ink);
+        font-size: .82rem; line-height: 1; cursor: pointer;
+        transition: border-color .12s, color .12s, background .12s;
+      }
+      /* `:not(.on)` because the two rules would otherwise fight and hover would
+         win on specificity — a lit button under the pointer that opened it came
+         out amber on amber, which is to say blank. */
+      .cx-btn:hover:not(:disabled):not(.on) { border-color: var(--hot); color: var(--hot); }
+      .cx-btn:disabled { opacity: .35; cursor: default; }
+      .cx-btn.on { background: var(--hot); border-color: var(--hot); color: #17110a; font-weight: 600; }
+      .cx-btn.on:hover { background: #f0b25c; }
+      .cx-wide { min-width: 3.6rem; letter-spacing: .04em; }
+      .cx-play { font-size: .72rem; }
+      .cx-numbers {
+        margin-left: .35rem; font-size: .72rem; color: var(--dim);
+        font-variant-numeric: tabular-nums; letter-spacing: .06em;
+      }
+      .cx-readout {
+        font-size: .72rem; color: var(--dim); letter-spacing: .05em;
+        font-variant-numeric: tabular-nums; white-space: nowrap; min-width: 9.5rem;
+        text-align: right;
+      }
+
+      /* The scrub bar. The form is painted into it, so the shape of the piece
+         is the thing you aim at rather than a bare percentage. */
+      .cx-scrub { position: relative; padding-top: .1rem; }
+      .cx-track {
+        position: relative; height: 1.45rem; border-radius: 5px;
+        background: var(--sunk); border: 1px solid var(--edge);
+        overflow: hidden; cursor: pointer; touch-action: none;
+      }
+      .cx-track:hover { border-color: #4a3d34; }
+      .cx-form { position: absolute; inset: 0; }
+      .cx-seg {
+        position: absolute; top: 0; bottom: 0;
+        box-shadow: inset -1px 0 0 rgba(11, 9, 8, .85);
+      }
+      /* Where the picked player actually sounds. A lane along the foot of the
+         track rather than a wash over it, so the form stays readable
+         underneath — the two are different questions about the same bar. */
+      .cx-lane { position: absolute; left: 0; right: 0; bottom: 0; height: .3rem; }
+      .cx-run {
+        position: absolute; top: 0; bottom: 0;
+        background: var(--cool); box-shadow: 0 0 5px rgba(121, 176, 196, .55);
+      }
+      /* The picked player's name, and the way back out of the selection. */
+      .cx-pick {
+        max-width: 11rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        padding: .22rem .5rem; border-radius: 6px; cursor: pointer;
+        border: 1px solid rgba(121, 176, 196, .45);
+        background: rgba(121, 176, 196, .14); color: var(--cool);
+        font-size: .68rem; letter-spacing: .04em;
+      }
+      .cx-pick:hover { border-color: var(--cool); }
+      .cx-pick::after { content: " ✕"; opacity: .6; }
+
+      /* A lightening rather than a second painted copy of the sections: the
+         colours are the form and must not change meaning halfway along. */
+      .cx-played {
+        position: absolute; left: 0; top: 0; bottom: 0;
+        background: rgba(255, 255, 255, .16); pointer-events: none;
+      }
+      .cx-head, .cx-ghost {
+        position: absolute; top: -1px; bottom: -1px; width: 2px;
+        margin-left: -1px; pointer-events: none;
+      }
+      .cx-head { background: var(--ink); box-shadow: 0 0 6px rgba(239, 230, 220, .8); }
+      .cx-ghost { background: var(--cool); opacity: 0; transition: opacity .1s; }
+      .cx-tip {
+        position: absolute; top: -1.35rem; transform: translateX(-50%);
+        padding: .1rem .4rem; border-radius: 5px;
+        background: var(--cool); color: #0c1418;
+        font-size: .66rem; font-weight: 600; white-space: nowrap;
+        opacity: 0; transition: opacity .1s; pointer-events: none;
+      }
+
+      /* The desk. Off to the right until it is asked for. */
+      .cx-desk {
+        position: fixed; top: 0; right: 0; bottom: 3.3rem; z-index: 59;
+        width: min(23rem, 92vw); overflow-y: auto; overscroll-behavior: contain;
+        padding: 1rem 1rem 2rem;
+        background: var(--panel); backdrop-filter: blur(16px);
+        border-left: 1px solid var(--edge);
+        transform: translateX(101%); transition: transform .26s cubic-bezier(.22, .61, .36, 1);
+      }
+      #console.cx-open .cx-desk { transform: none; }
+      .cx-desk-head { display: flex; align-items: flex-start; justify-content: space-between; gap: .5rem; }
+      .cx-desk h2 {
+        margin: 0; font-size: .74rem; text-transform: uppercase;
+        letter-spacing: .11em; color: var(--dim); font-weight: 600;
+      }
+      .cx-desk h3 {
+        margin: 1.2rem 0 .5rem; font-size: .68rem; text-transform: uppercase;
+        letter-spacing: .11em; color: var(--dim); font-weight: 600;
+      }
+      .cx-desk-title { margin-top: .2rem; font-size: .82rem; color: var(--ink); }
+      .cx-note { font-size: .72rem; line-height: 1.65; color: var(--dim); margin: .9rem 0 1rem; }
+      .cx-note b { color: var(--ink); font-weight: 600; }
+
+      .cx-strips, .cx-kit { display: grid; gap: .25rem; }
+      .cx-strip {
+        position: relative; padding: .42rem .5rem;
+        border-radius: 8px; border: 1px solid transparent;
+        display: grid; gap: .18rem;
+      }
+      .cx-strip.moved { border-color: #4a3a25; }
+      .cx-strip.silent { opacity: .34; }
+      /* Picked from the stage or from the desk — the same blue as the lane it
+         drew and as the performer chip, so the three read as one selection. */
+      .cx-strip.picked {
+        border-color: rgba(121, 176, 196, .55);
+        background: rgba(121, 176, 196, .07);
+      }
+      /* The name is the hit target for selecting; the controls below are not.
+         Only on the melodic strips — a drum voice has no player to pick out and
+         no lane to draw, so a pointer over one would be promising nothing. */
+      .cx-strips .cx-line { cursor: pointer; }
+      /* How loud this part is against the loudest in the band, drawn rather
+         than only printed — the answer to "why is that quiet" should be
+         visible before it is read. */
+      .cx-rail {
+        position: absolute; left: 0; top: 0; bottom: 0; width: 0;
+        background: rgba(224, 162, 74, .13); border-radius: 8px;
+        pointer-events: none; transition: width .18s;
+      }
+      .cx-rail-low { background: rgba(198, 92, 72, .16); }
+      .cx-line, .cx-sub, .cx-controls { position: relative; }
+      .cx-line { display: flex; align-items: baseline; gap: .4rem; }
+      .cx-tag {
+        font-size: .6rem; text-transform: uppercase; letter-spacing: .09em;
+        color: var(--hot); font-weight: 700; min-width: 3.1rem;
+      }
+      .cx-inst { flex: 1; font-size: .8rem; color: var(--ink); }
+      .cx-heard {
+        font-size: .74rem; font-weight: 600; color: var(--ink);
+        font-variant-numeric: tabular-nums;
+      }
+      .cx-sub { display: flex; align-items: center; gap: .35rem; flex-wrap: wrap; }
+      .cx-who {
+        padding: .04rem .3rem; border-radius: 4px;
+        background: rgba(121, 176, 196, .16); color: var(--cool);
+        font-size: .62rem; letter-spacing: .03em;
+      }
+      .cx-detail { font-size: .64rem; color: var(--dim); }
+      .cx-warn { color: #d9a06a; }
+      .cx-controls {
+        display: grid; grid-template-columns: 1.6rem 1.6rem 1fr 2.9rem;
+        gap: .3rem; align-items: center; margin-top: .1rem;
+      }
+      .cx-tog {
+        height: 1.3rem; border-radius: 5px; border: 1px solid var(--edge);
+        background: #191413; color: var(--dim);
+        font-size: .62rem; font-weight: 700; cursor: pointer; padding: 0;
+      }
+      .cx-tog.on { background: var(--hot); border-color: var(--hot); color: #17110a; }
+      .cx-controls input[type=range] { width: 100%; accent-color: var(--hot); height: 1rem; }
+      .cx-read {
+        font-size: .66rem; color: var(--dim); text-align: right;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .cx-paste-wrap { margin-top: 1.3rem; }
+      .cx-paste-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+      .cx-paste-head h3 { margin: 0; }
+      .cx-paste-head div { display: flex; gap: .35rem; }
+      .cx-paste {
+        margin: .5rem 0 0; padding: .6rem; border-radius: 7px;
+        background: var(--sunk); border: 1px solid var(--edge);
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: .68rem; line-height: 1.6; color: var(--ink);
+        white-space: pre-wrap; max-height: 14rem; overflow: auto;
+      }
+
+      /* A phone has no room for a drawer beside a stage, so it takes the
+         screen — and the transport loses its readout before it loses a
+         control, since the controls are the half you cannot do without. */
+      @media (max-width: 34rem) {
+        .cx-readout { display: none; }
+        .cx-bar { gap: .7rem; padding: .5rem .6rem .55rem; }
+        .cx-desk { width: 100vw; }
+      }
     </style>
   </head>
   <body>

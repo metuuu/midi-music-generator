@@ -807,7 +807,15 @@ export function createDirector(reducedMotion = false): CameraDirector {
       // Advance to the last shot whose cut has passed. A loop rather than a
       // single step so that a dropped frame or a seek cannot leave the camera
       // one shot behind for the rest of the number.
-      let next = index;
+      //
+      // And *back* to the beginning first when the beat has gone backwards,
+      // which is the one direction the loop above cannot walk. This was the
+      // only system on the stage that could not survive a jump: the lighting
+      // rig is a pure function of the beat, and the animator re-seeks its own
+      // cursors on the same test. Left as it was, a jump back to bar 8 held
+      // whatever shot bar 60 was on for the rest of the number — the plan
+      // never runs out, so it never recovers.
+      let next = plan[index] && plan[index]!.beat > beat ? 0 : index;
       while (next + 1 < plan.length && plan[next + 1]!.beat <= beat) next++;
       /**
        * The cut is also the handback, and it travels the way every other change

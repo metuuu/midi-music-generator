@@ -7,7 +7,7 @@
  * interchangeable renderer sitting behind it.
  */
 
-import { flatTempo, secondsAt, tempoRange, type TempoMap } from './grid.js';
+import { flatTempo, secondsAt, tempoAt, tempoRange, type TempoMap } from './grid.js';
 import type { Midi } from './pitch.js';
 import type { Mode } from './scale.js';
 import type { FeelSpan } from '../style/feel.js';
@@ -2250,6 +2250,111 @@ export function kickOnsets(drums: DrumTrack): number[] {
 
 export function songDurationBeats(song: Song): number {
   return song.meta.totalBars * song.meta.beatsPerBar;
+}
+
+/**
+ * The same piece, beginning at `fromBar` — everything before it removed and
+ * everything after it rebased so that bar becomes bar zero.
+ *
+ * ## Why this exists rather than a seek
+ *
+ * Nothing downstream of here can seek. Strudel's scheduler counts cycles from
+ * zero at `start()` and the pattern is emitted as `<bar bar bar …>`, so the bar
+ * that sounds is decided entirely by *how many cycles have elapsed* — there is
+ * no cursor to move. Reaching bar 40 means either running the clock to 40, or
+ * handing the scheduler a piece whose bar 40 is its first.
+ *
+ * The second is what this does, and it is the cheaper claim by a long way. The
+ * alternative was writing into `Cyclist.lastEnd` and `num_ticks_since_cps_change`
+ * to fake an origin, which works by reading Strudel's source rather than its
+ * documented surface, and would have to be re-derived every time that package
+ * moves. This needs nothing from Strudel at all: `render/strudel.ts` builds
+ * every grid from `Track.notes` indexed by bar and reads only `totalBars`,
+ * `beatsPerBar` and `bpm` out of the meta, so a rebased song renders correctly
+ * with no renderer change whatsoever.
+ *
+ * ## Bars rather than beats
+ *
+ * The unit is deliberate and not a convenience. One cycle is one bar, so a cut
+ * anywhere else would land the whole piece off the barline relative to the
+ * clock — every subsequent bar a fraction early, which is not a jump but a
+ * mistuned transport. It is also the only place anybody wants to jump to.
+ *
+ * ## What the caller still owes
+ *
+ * **The position this reports is not the position the piece is at.** A show
+ * built round the uncut song — a lighting cue list, a camera plan, a gesture
+ * timeline — is indexed by the *original* beat, and a scheduler running the
+ * slice reports zero at the cut. Whoever slices has to add the offset back
+ * before handing a beat to anything else. See `ConcertTransport.begin`.
+ */
+export function sliceSong(song: Song, fromBar: number): Song {
+  const { beatsPerBar, totalBars } = song.meta;
+  const bar = Math.max(0, Math.min(Math.floor(fromBar), totalBars - 1));
+  if (bar === 0) return song;
+  const from = bar * beatsPerBar;
+
+  /**
+   * A note straddling the cut is kept with a shortened head, not dropped.
+   *
+   * Dropping it is the obvious reading of "everything before this bar" and it
+   * is wrong in the ear: the pad writes eight-beat chords, so a cut two beats
+   * into one would open the piece with a bar of missing harmony under a melody
+   * that expects it. What a listener dropped into bar 40 should hear is the
+   * chord that is *sounding* at bar 40, which is this one, for however much of
+   * itself is left.
+   */
+  const tracks = song.tracks.map((track) => ({
+    ...track,
+    notes: track.notes
+      .filter((n) => n.beat + n.duration > from)
+      .map((n) => (n.beat >= from
+        ? { ...n, beat: n.beat - from }
+        : { ...n, beat: 0, duration: n.duration - (from - n.beat) })),
+  }));
+
+  // Drums get no such treatment: a stroke is an onset, and an onset before the
+  // cut has already happened. Sounding it at bar zero would be inventing a hit.
+  const events = song.drums.events
+    .filter((e) => e.beat >= from)
+    .map((e) => ({ ...e, beat: e.beat - from }));
+
+  const sections = song.sections
+    .filter((s) => s.startBar + s.lengthBars > bar)
+    .map((s) => (s.startBar >= bar
+      ? { ...s, startBar: s.startBar - bar }
+      : { ...s, startBar: 0, lengthBars: s.startBar + s.lengthBars - bar }));
+
+  /**
+   * The ramp is re-based rather than dropped, and the leading point is the
+   * tempo *sounding* at the cut rather than the piece's opening one.
+   *
+   * Nothing in the audition path reads this — `render/strudel.ts` prints a
+   * TEMPO RAMP warning and plays flat at `meta.bpm` — so it would survive being
+   * left alone or thrown away. It is done properly because a `Song` is the
+   * hand-off point to renderers that do not exist yet, and a slice carrying the
+   * original map would tell the next one that a piece cut into its accelerando
+   * begins at the tempo it was counted off at.
+   */
+  const tempo = song.meta.tempo && [
+    { beat: 0, bpm: tempoAt(song.meta.tempo, from) },
+    ...song.meta.tempo.filter((p) => p.beat > from).map((p) => ({ ...p, beat: p.beat - from })),
+  ];
+
+  return {
+    ...song,
+    meta: {
+      ...song.meta,
+      totalBars: totalBars - bar,
+      ...(tempo ? { tempo } : {}),
+      // The count is at the front of the piece or it is nothing. A slice that
+      // kept it would have the drummer click four into the middle of a chorus.
+      leadInBars: 0,
+    },
+    sections,
+    tracks,
+    drums: { ...song.drums, events },
+  };
 }
 
 /**

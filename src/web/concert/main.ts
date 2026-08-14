@@ -21,6 +21,7 @@ import { STRICTNESS_LEVELS } from '../../core/rules.js';
 import { HOOK_LEVELS } from '../../generate/hook.js';
 import { CHAOS_LEVELS, readChaosMixing } from '../../genre/chaos.js';
 import { initAudio } from '../audio.js';
+import { createConsole, type StageConsole } from './console.js';
 import { lightTheRoom } from './performer-assets.js';
 import { createShow, type Show, type ShowState } from './show.js';
 
@@ -241,19 +242,39 @@ if (!canvas) {
   const room = lightTheRoom(renderer, scene);
   void room;
 
+  const debug = flagFromUrl('debug');
   let show: Show;
   try {
     show = createShow({
       concert: optionsFromUrl(),
-      debug: flagFromUrl('debug'),
+      debug,
       metu: flagFromUrl('metu') || flagFromUrl('poppodi'),
       onState: onState,
+      // Declared before the console exists, and read only when a label is
+      // clicked — which cannot happen before the first frame. Reaching through
+      // the binding rather than capturing it is what lets the two be built in
+      // the order they have to be built in.
+      onPick: (layer) => stageConsole?.select(layer),
     });
   } catch (err) {
     degrade(`The show could not be staged: ${String(err)}`);
     throw err;
   }
   scene.add(show.root);
+
+  /**
+   * The transport and the mixing desk, on the same flag as the labels.
+   *
+   * `?debug` has meant "diagnostics that change no staging, no timing and no
+   * sound" up to now, and the console breaks the third of those on purpose —
+   * moving a fader is the whole point of it. It shares the flag anyway rather
+   * than taking a second one, because in practice the two are wanted together:
+   * a label naming the part a player is holding and a strip saying how loud it
+   * is are the same investigation, and a second flag would mostly be a thing to
+   * forget. The show below is identical without it — nothing here is on the
+   * path of a page that does not ask.
+   */
+  const stageConsole: StageConsole | undefined = debug ? createConsole(show) : undefined;
   /**
    * Air, rather than a ramp.
    *
@@ -408,6 +429,16 @@ if (!canvas) {
     // Bare presses only: ⌘P is the print dialog and always has been, and a page
     // that answers it with something else is a page that broke printing.
     if (e.metaKey || e.ctrlKey || e.altKey) return;
+    /**
+     * The console gets first refusal, and only when there is one.
+     *
+     * It claims space, the arrows, `m` and the brackets; `p` and Escape are the
+     * programme's and it does not offer for either. First rather than last
+     * because space would otherwise scroll the page under a transport that
+     * wanted it, and a key handled twice is worse than a key handled by the
+     * wrong half.
+     */
+    if (stageConsole?.key(e)) { e.preventDefault(); return; }
     if (e.key === 'p' || e.key === 'P') show.toggleProgramme();
     // The programme is a dialog and Escape closes dialogs. The tab in the
     // corner and the × on the sheet are the other two ways out; the show never
@@ -464,6 +495,9 @@ if (!canvas) {
     const dt = Math.min((now - last) / 1000, 0.1);
     last = now;
     show.frame(dt);
+    // After the show, never before: it reads the position the frame just
+    // settled, and a console painted first would be one frame behind all night.
+    stageConsole?.frame();
     renderer.render(scene, show.camera);
     requestAnimationFrame(frame);
   }

@@ -91,15 +91,33 @@ export interface ConcertTransport extends Transport {
    * patterns on a running clock at cycle 137.4 starts a 32-bar song at bar 9
    * rather than bar 0. A full stop resets the counter, and there is applause
    * between numbers anyway, so it costs nothing.
+   *
+   * **`song` is always the whole number, and `fromBar` is where the pattern
+   * was cut.** That pairing is the whole of how a jump works here: the
+   * scheduler is given a slice (see `sliceSong`) and reports zero at the cut,
+   * while everything that reads this transport — the cue timeline, the camera
+   * plan, the gesture lists, all of them built against the uncut number at
+   * staging time — needs the position in the *piece*. So the offset is added
+   * back here, once, and no other system learns that a jump ever happened.
    */
-  begin(song: Song): void;
+  begin(song: Song, fromBar?: number): void;
   end(): void;
+  /**
+   * Which bar of `song` the scheduler's own bar zero is. 0 unless jumped.
+   *
+   * Read by anything that has to turn a position in the *piece* back into a
+   * position in the *pattern* — the scrub bar, and the singer, whose phrases
+   * are placed against the scheduler rather than against the score.
+   */
+  offsetBars(): number;
 }
 
 export function createTransport(): ConcertTransport {
   let song: Song | undefined;
   /** Cached so a frame that fires before the scheduler exists reads 0, not NaN. */
   let lag = 0.1;
+  /** The bar of `song` that the scheduler is calling bar zero. See `begin`. */
+  let offset = 0;
 
   function audibleCycle(): number {
     if (!song) return 0;
@@ -120,18 +138,36 @@ export function createTransport(): ConcertTransport {
   }
 
   return {
-    begin(next) { song = next; },
-    end() { song = undefined; },
+    begin(next, fromBar = 0) {
+      song = next;
+      offset = Math.max(0, Math.min(Math.floor(fromBar), next.meta.totalBars - 1));
+    },
+    end() { song = undefined; offset = 0; },
+    offsetBars: () => offset,
 
     beat() {
       if (!song) return 0;
       const { totalBars, beatsPerBar } = song.meta;
-      const bar = audibleCycle() % totalBars;
-      return ((bar % totalBars) + totalBars) % totalBars * beatsPerBar;
+      /**
+       * The loop is the *slice's*, not the piece's.
+       *
+       * Strudel wraps `<a b c>` at the length of the pattern it was given, and
+       * after a jump that pattern is `totalBars - offset` long. Wrapping the
+       * raw cycle at `totalBars` instead — which is what this did before there
+       * was an offset, correctly, because the two were the same number — would
+       * have the visuals carry straight on through a loop the ear had already
+       * taken, and drift by a whole slice every time round.
+       */
+      const bars = Math.max(1, totalBars - offset);
+      const bar = audibleCycle() % bars;
+      return (offset + ((bar % bars) + bars) % bars) * beatsPerBar;
     },
 
     elapsed() {
-      return song ? audibleCycle() * song.meta.beatsPerBar : 0;
+      // Un-wrapped and offset, so "are we done yet" is still asked of the whole
+      // number: at the end of the slice this reaches `totalBars * beatsPerBar`
+      // exactly, whatever bar the jump started from.
+      return song ? (offset + audibleCycle()) * song.meta.beatsPerBar : 0;
     },
 
     state() {
