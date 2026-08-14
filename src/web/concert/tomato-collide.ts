@@ -20,6 +20,17 @@
  * rounded, which is wrong by at most the tomato's radius on a box edge and is
  * not worth a rounded-box solve.
  *
+ * ## These shapes stop a tomato. They do not place the mark
+ *
+ * Worth knowing before you tighten anything here on a mark's account. A box
+ * around a grand piano is two metres of mostly air and a torso's capsule stands
+ * a good seven centimetres proud of the shirt, and neither matters for stopping
+ * something travelling at ten metres a second — but a mark left on either is a
+ * mark hanging in space, and you look at it for the rest of the number. So the
+ * mark does not go where these say. `refine` in `tomatoes.ts` traces the real
+ * meshes once, on the frame of the impact, and the answer here is only the
+ * fallback for when that trace finds nothing.
+ *
  * ## The one approximation worth knowing about
  *
  * Everything is static within a substep. The band moves — a nodding head

@@ -14,8 +14,8 @@
  * It owns the physics, the marks on everything that is not a person, and the
  * band's visible morale. It owns **none** of the musical consequence. A hit
  * emits `onHit` and the show runner mutes the layer, rerolls the part through
- * `GenerateOptions.variation` and brings the player back; five hits emit
- * `onPatienceLost` and the show runner stops the number at the end of the bar.
+ * `GenerateOptions.variation` and brings the player back. That is the whole of
+ * what a tomato does to the music.
  * There is no import from `src/generate/` here and there never should be —
  * the visuals cannot be allowed a path by which they change what is heard, and
  * the way to keep that structural rather than a promise is to report events and
@@ -44,12 +44,20 @@
  *             what "visibly considering leaving" looks like from the tenth row.
  *   4th       the whole band is glaring, the glances at the wings get quick,
  *             and the house has stopped laughing.
- *   5th       `onPatienceLost`.
+ *   5th       the top of the ladder, and it stays there.
  *
- * The thresholds scale with `patience` so that tuning the budget does not throw
- * the ladder away. The rungs are counted in body hits — two in the kit climb
- * one rung — but the *first* connection of any kind is answered immediately,
- * because a hit nobody visibly notices is a hit that did not happen.
+ * The ladder used to end in a walk-off: a fifth hit fired `onPatienceLost` and
+ * the show runner stopped the number at the end of the bar. That is gone. It
+ * worked, and it was the wrong thing to spend a number on — about fifteen
+ * seconds of accurate throwing ended the piece you were listening to, so the
+ * mechanic's reward for engaging with it was taking away the music. The band
+ * now gets as angry as it ever did and keeps playing.
+ *
+ * `PATIENCE` therefore no longer buys anything back; it is only how many hits
+ * the ladder is spread over. The thresholds scale with it, the rungs are counted
+ * in body hits — two in the kit climb one rung — and the *first* connection of
+ * any kind is answered immediately, because a hit nobody visibly notices is a
+ * hit that did not happen.
  *
  * ## Frame contract, which matters more than usual here
  *
@@ -57,7 +65,6 @@
  * const tomatoes = createTomatoes(scene, { seed: concert.seed });
  * tomatoes.begin(number.cast, rigs, stage, { instruments, scenery });
  * tomatoes.onHit((ev) => show.hit(ev));         // mute, reroll, return
- * tomatoes.onPatienceLost(() => show.walkOff());
  *
  * // per frame, with the one beat the transport was asked for at the top:
  * animate.update(beat, dt);        // writes gaze, groove, effectors
@@ -92,8 +99,9 @@
  */
 
 import {
-  Box3, Camera, CircleGeometry, ConeGeometry, Group, IcosahedronGeometry, Mesh,
-  MeshBasicMaterial, MeshStandardMaterial, Object3D, Quaternion, Vector3,
+  Box3, Camera, CircleGeometry, ConeGeometry, Group, IcosahedronGeometry,
+  type Intersection, Matrix3, Mesh, MeshBasicMaterial, MeshStandardMaterial,
+  Object3D, Quaternion, Raycaster, Vector3,
 } from 'three';
 
 import type { Cast, Performer } from '../../concert/types.js';
@@ -101,7 +109,7 @@ import { Rng } from '../../core/rng.js';
 import { Leases, quad, splatSurface } from './performer-assets.js';
 import type { PerformerRig } from './performer.js';
 import type { StageRig } from './stage.js';
-import { sweep, type Impact, type Target } from './tomato-collide.js';
+import { sweep, type Impact, type Shape, type Target } from './tomato-collide.js';
 import { createSplatField, SPLAT_TRIANGLES } from './tomato-splat.js';
 
 export interface TomatoOptions {
@@ -111,9 +119,8 @@ export interface TomatoOptions {
    */
   seed?: string;
   /**
-   * Hits in one number before the band walks it off. The plan says start at 5
-   * and tune by feel; 5 is what this shipped with, and why is in the module
-   * docs for `PATIENCE`.
+   * How many body hits the band's tells are spread over. Nothing happens at the
+   * end of it any more — see `PATIENCE`, and the module docs for what used to.
    */
   patience?: number;
   /** Seconds between throws. The reason the show gets seen at all. */
@@ -157,7 +164,11 @@ export interface TomatoHit {
   /** Hits the band has taken this number, this one included. */
   bandHits: number;
   /**
-   * What is left before `onPatienceLost`, counted in body hits and rounded up.
+   * What is left of the tell ladder, counted in body hits and rounded up.
+   *
+   * Nothing happens when it reaches 0 — see the module docs on the walk-off
+   * that used to. It is a mood read-out, and it stays at 0 once the band is as
+   * annoyed as it gets.
    * 0 means this hit was the last one, exactly as before — but it no longer
    * falls out of `bandHits`, because an instrument hit costs less than one. See
    * `INSTRUMENT_COST`.
@@ -273,7 +284,6 @@ export interface Tomatoes {
   strike(): void;
 
   onHit(fn: (ev: TomatoHit) => void): void;
-  onPatienceLost(fn: () => void): void;
   hitsThisNumber(): number;
   /** Hits one player has taken this number. */
   hitsOn(performerId: string): number;
@@ -288,12 +298,14 @@ export interface Tomatoes {
 // ---------------------------------------------------------------------------
 
 /**
- * Five, from the plan, and it survived the tuning pass for a specific reason:
- * with a two-second cooldown it is about fifteen seconds of uninterrupted,
- * accurate throwing to end a number, and every one of those seconds has the
- * band getting angrier at you. Three was reachable by accident. Eight and the
- * ladder's rungs stop being distinguishable — you cannot see the difference
- * between "two of eight" and "three of eight" in a body language.
+ * How many body hits the tell ladder is spread over.
+ *
+ * Five, from the plan. It was a budget once — the fifth hit ended the number —
+ * and now it only sets the spacing of the rungs, so the argument for the number
+ * is what is left of the original: three and the rungs arrive faster than you
+ * can read them, eight and you cannot see the difference between "two of eight"
+ * and "three of eight" in body language. Past the fifth the band stays at the
+ * top of the ladder for the rest of the piece.
  */
 const PATIENCE = 5;
 /**
@@ -313,7 +325,7 @@ const PATIENCE = 5;
  * broken rather than that they missed.
  *
  * Half also keeps the arithmetic legible: two in the kit are one in the chest,
- * and the walk-off is still five bodies or ten drums.
+ * so the top of the ladder is five bodies or ten drums.
  */
 const INSTRUMENT_COST = 0.5;
 /**
@@ -447,6 +459,24 @@ const HARD_IMPACT = 12;
 const MARK_MIN = 1.7;
 const MARK_MAX = 2.9;
 
+/**
+ * How far past the proxy contact `refine` keeps looking for real geometry.
+ *
+ * The gap it has to cross is the gap between a collision shape and the thing
+ * that shape stands for, and the worst of those is a drum kit: the box is the
+ * world bounding box of the whole model, so its front face can be somewhere out
+ * past the crash cymbal while the shell a tomato is heading for is most of a
+ * metre behind it. Under about half a metre those hits stay on the box.
+ *
+ * It is not larger because the reach is also the blast radius of a miss. A ray
+ * that slips between the tubes of a drum stand keeps going and marks whatever
+ * of the *same* instrument it finds on the far side — nothing else is traced,
+ * so it cannot wander onto a neighbour, but it can put a mark on the back of a
+ * piano lid. At 0.9 that is rare and still a real surface; at three metres it
+ * would be common and would read as marks appearing out of nowhere.
+ */
+const REFINE_REACH = 0.9;
+
 /** Seconds after which a reaction has played out and can be re-issued. */
 const GLARE_SECONDS = 2.7;
 /** How long one look at the wings lasts. */
@@ -470,6 +500,32 @@ const V5 = new Vector3();
 const V6 = new Vector3();
 const UP = new Vector3(0, 1, 0);
 const BOX = new Box3();
+
+/**
+ * `refine`'s own scratch, and its answer.
+ *
+ * `HIT_P` and `HIT_N` are read all the way through `land`, past `openBurst` and
+ * `register`, which is further than any other scratch in this file survives —
+ * so they are not V-anything. Nothing either of those calls reaches can write
+ * here, and naming them for the one job keeps it that way.
+ */
+const HIT_P = new Vector3();
+const HIT_N = new Vector3();
+/**
+ * The mesh `refine` landed on, or undefined when it fell back to the proxy.
+ *
+ * A rig needs this and not just the point: only the mesh says which part of a
+ * body the surface belonged to. See `PerformerRig.splat`.
+ */
+let HIT_OBJ: Object3D | undefined;
+const RAY_DIR = new Vector3();
+const RAY_N = new Vector3();
+const RAY_SCALE = new Vector3();
+const RAY_TMP = new Vector3();
+const NORMALS = new Matrix3();
+const ray = new Raycaster();
+/** Reused, emptied before and after every trace. `intersectObject` appends. */
+const rayHits: Intersection[] = [];
 
 /** The `Impact.target` before anything has been hit. Never dereferenced. */
 const NOTHING: Target = {
@@ -619,6 +675,21 @@ export function createTomatoes(scene: Object3D, opts: TomatoOptions = {}): Tomat
   const targets: Target[] = [];
   /** Parallel to the performer entries, so the per-frame refresh is a walk. */
   const bodies: { rig: PerformerRig; head: Target; torso: Target }[] = [];
+  /**
+   * Every instrument root, so that tracing a *body* can step over them.
+   *
+   * A held instrument is parented into its player's rig — `show.ts` says why,
+   * and it is right: a sax has to sway with the person blowing it. It means the
+   * subtree `refine` traces for a body hit has a saxophone in it, and a tomato
+   * that got past the horn's own box (which is trimmed away under its owner's
+   * head, so that the drummer can be hit in the face at all) would otherwise
+   * come to rest on the bell — while `PerformerRig.splat` hangs the mark off a
+   * head. A mark drawn on the horn that moves with the chin.
+   *
+   * A body hit marks the body. If the horn was really in the way, its own box
+   * is what should have caught the tomato.
+   */
+  const carried = new Set<Object3D>();
   const tells = new Map<string, Tell>();
   let rigs: Map<string, PerformerRig> = new Map();
   let stage: StageRig | undefined;
@@ -641,7 +712,7 @@ export function createTomatoes(scene: Object3D, opts: TomatoOptions = {}): Tomat
    * Tomatoes that connected with somebody this number, on them or on their kit.
    *
    * An honest event count, which is what `TomatoHit.bandHits` promises. It is
-   * deliberately *not* what the walk-off is measured in — see `spent`.
+   * deliberately *not* what the tell ladder is measured in — see `spent`.
    */
   let hits = 0;
   /**
@@ -653,7 +724,6 @@ export function createTomatoes(scene: Object3D, opts: TomatoOptions = {}): Tomat
    * is fractional, so patience is what carries the fraction.
    */
   let spent = 0;
-  let lost = false;
   let lastBeat = 0;
   let camera: Camera | undefined;
   let aimed: Vector3 | undefined;
@@ -673,9 +743,7 @@ export function createTomatoes(scene: Object3D, opts: TomatoOptions = {}): Tomat
   let laughLevel = 0;
   let tier = 0;
   const hitQueue: TomatoHit[] = [];
-  let lostQueued = false;
   const hitListeners: ((ev: TomatoHit) => void)[] = [];
-  const lostListeners: (() => void)[] = [];
 
   // -- thresholds, as fractions of the budget so tuning keeps the ladder ----
   const tNod = Math.max(2, Math.ceil(patience * 0.4));
@@ -1064,9 +1132,10 @@ export function createTomatoes(scene: Object3D, opts: TomatoOptions = {}): Tomat
     f.force = impactForce(f, normal);
     f.live = false;
     f.burst = 0;
-    // `sweep` reports where the tomato's *centre* is at contact, which is one
-    // radius off the surface. Everything about the burst happens on it.
-    f.hitAt.copy(point).addScaledVector(normal, -radius);
+    // `point` is on the surface, not the tomato's centre: `refine` has already
+    // taken the radius off, and on a hit it traced the surface outright rather
+    // than backing off a proxy. Everything about the burst happens there.
+    f.hitAt.copy(point);
     f.hitNormal.copy(normal);
     f.hitQuat.setFromUnitVectors(UP, normal);
     if (f.shadow) f.shadow.visible = false;
@@ -1121,8 +1190,166 @@ export function createTomatoes(scene: Object3D, opts: TomatoOptions = {}): Tomat
     }
   }
 
-  function land(f: Flight, point: Vector3, normal: Vector3, target: Target): void {
-    openBurst(f, point, normal);
+  /**
+   * Move a hit off the collision proxy and onto something somebody can see.
+   *
+   * `sweep` answers with the shape it was given, and the shapes are coarse on
+   * purpose: a person is a sphere on a capsule and an instrument is the world
+   * bounding box of its model. That is the right trade for *stopping* a tomato
+   * — it is exact enough that nobody can tell, and it costs no allocation in
+   * the substep loop. It is the wrong answer for *marking* one, because the
+   * mark is a thing you then stare at for the rest of the number:
+   *
+   *   - an instrument's box is mostly air, so its mark hangs in the air beside
+   *     the instrument, on an invisible flat face;
+   *   - that face is world-axis-aligned, so every mark on the front of a drum
+   *     kit is coplanar and faces the house dead on, and the drips in
+   *     `tomato-splat.ts` — which fall out of `normal · up` and would run down
+   *     a slanted shell beautifully — never see a slanted anything;
+   *   - a torso's capsule is `torsoW * 0.46` while `torsoShell` is barely over
+   *     half that deep at the chest, so a mark on a shirt floats clear of it.
+   *
+   * So once, on the frame a tomato lands, trace the thing it hit. One ray
+   * against one subtree, a few hundred triangles, some tens of microseconds —
+   * next to the burst this is free, and it is emphatically not in the substep
+   * loop. The trace starts where the substep started, which is the one point
+   * we know is in open air, and runs the way the tomato was going.
+   *
+   * `Raycaster` allocates: an intersection record per surface it meets, each
+   * with a point and a face. That is the one place in this module where a hit
+   * costs the collector anything, and it is deliberate — the alternative is a
+   * hand-rolled triangle sweep over every mesh in the band, which is `sweep`
+   * again with worse constants. What the warm-up promises is that the throw
+   * path builds no *geometry, material or mesh*, and this builds none of the
+   * three. A few dozen short-lived objects on the frame something bursts, next
+   * to the thirty pieces of pulp that frame already starts moving, is noise.
+   *
+   * ## The second ray
+   *
+   * The first ray follows the tomato, and for a body or a drum kit that is the
+   * end of it. A grand piano is the case it does not cover: the box is the lid
+   * raised at an angle over a footprint two metres square, so most of a corner
+   * approach clips the box through open air and comes out the other side having
+   * met no wood at all — three quarters of a metre of nothing between the mark
+   * and the instrument, measured. So a miss gets one more ray, from the proxy
+   * contact toward the middle of the box, which is *into* the thing rather than
+   * past it. It can put a mark somewhere the tomato did not literally go; it is
+   * still on the piano, and the piano is what was hit.
+   *
+   * What neither ray reaches is a box inflated by one thin outlier — a synth rig
+   * with a stand raising its box most of a metre above the rig, hit up in that
+   * empty metre. The line to the middle of the box crosses the room. Aiming at
+   * the nearest piece instead was written and measured and caught none of them,
+   * so it is not here; the fix is a tighter shape per archetype, which the
+   * comment on `trimAgainstOwner` prices at twenty-four files.
+   *
+   * Leaves the surface point in `HIT_P`, its outward normal in `HIT_N` and the
+   * mesh in `HIT_OBJ`, and returns what a mark should hang on. Two misses leave
+   * the proxy's own answer there — a mark in roughly the wrong place beats no
+   * mark at all, since the band has already flinched.
+   */
+  function refine(centre: Vector3, normal: Vector3, target: Target, from: Vector3): Object3D | undefined {
+    // The proxy answer, which is also the fallback. `sweep` reports where the
+    // tomato's *centre* is at contact, one radius off the surface.
+    HIT_P.copy(centre).addScaledVector(normal, -radius);
+    HIT_N.copy(normal);
+    HIT_OBJ = undefined;
+
+    const node = target.kind === 'performer'
+      ? (target.performerId ? rigs.get(target.performerId)?.root : undefined)
+      : target.node;
+    // Nothing to trace. The room's own walls and boards are built from metrics
+    // rather than from meshes, and their proxy *is* the surface.
+    if (!node) return target.node;
+
+    // The rig has been posed this frame but nothing has drawn yet, so the world
+    // matrices under here are a frame stale. A head marked where it was last
+    // frame is a mark a centimetre off, every time, in the same direction.
+    node.updateWorldMatrix(true, true);
+    // A body trace steps over the horn the body is holding; an instrument trace
+    // is looking for exactly that horn, so it steps over nothing.
+    const skip = target.kind === 'performer' ? carried : undefined;
+
+    // Along the way the tomato was going, from the one point this substep knows
+    // was in open air.
+    RAY_DIR.copy(centre).sub(from);
+    // Contact on the first sample of the substep: there is no travel to take a
+    // direction from, so come in against the surface.
+    if (RAY_DIR.lengthSq() < 1e-12) RAY_DIR.copy(normal).negate();
+    let found = finite3(RAY_DIR) && RAY_DIR.lengthSq() > 1e-12
+      && trace(from, from.distanceTo(centre) + REFINE_REACH, node, skip);
+
+    if (!found) {
+      // Inward, from the proxy contact — which is on the proxy, and a proxy
+      // encloses what it stands for, so that point is outside the geometry.
+      //
+      // A body aims at its own middle, which for a sphere or a capsule is where
+      // the body is. A box aims at the nearest piece instead, because the middle
+      // of a box is not reliably inside anything: a synth rig whose bounding box
+      // is raised most of a metre by one thin stand has a hit up at 1.55 m and a
+      // box centre down at 0.86, and the line between them passes through the
+      // room. Nearest-piece turns that from a mark hanging in mid-air into a
+      // mark on the part of the instrument closest to where it was hit.
+      core(target.shape, HIT_P, RAY_DIR);
+      found = inward(node, skip);
+    }
+
+    if (found && target.kind !== 'performer' && HIT_OBJ) {
+      return parentFor(HIT_OBJ, target.node);
+    }
+    return target.node;
+  }
+
+  /**
+   * A fallback ray from `HIT_P` to the aim point `RAY_DIR` is holding, and out
+   * the far side — a piano struck on the tail has its nearest wood beyond the
+   * centre of its own bounding box.
+   */
+  function inward(node: Object3D, skip: ReadonlySet<Object3D> | undefined): boolean {
+    RAY_DIR.sub(HIT_P);
+    const reach = RAY_DIR.length();
+    if (!(reach > 1e-4)) return false;
+    RAY_DIR.divideScalar(reach);
+    return trace(HIT_P, reach * 2, node, skip);
+  }
+
+  /**
+   * One ray from `origin` along `RAY_DIR`, writing the first surface a mark can
+   * go on into `HIT_P` / `HIT_N` / `HIT_OBJ`. Leaves all three alone on a miss.
+   */
+  function trace(origin: Vector3, far: number, node: Object3D, skip: ReadonlySet<Object3D> | undefined): boolean {
+    RAY_DIR.normalize();
+    ray.set(origin, RAY_DIR);
+    ray.near = 0;
+    ray.far = far;
+    rayHits.length = 0;
+    ray.intersectObject(node, true, rayHits);
+
+    let hit = false;
+    for (const it of rayHits) {
+      // Sorted by distance, so the first one that is really there wins.
+      if (!it.face || !markable(it.object, node, skip)) continue;
+      NORMALS.getNormalMatrix(it.object.matrixWorld);
+      RAY_N.copy(it.face.normal).applyMatrix3(NORMALS);
+      if (RAY_N.lengthSq() < 1e-12) continue; // Degenerate triangle. Try the next.
+      RAY_N.normalize();
+      // A back face reports its normal pointing away from us — which happens on
+      // anything built double-sided, a cymbal especially, and on every hit the
+      // second ray makes from inside a bounding box.
+      if (RAY_N.dot(RAY_DIR) > 0) RAY_N.negate();
+      HIT_P.copy(it.point);
+      HIT_N.copy(RAY_N);
+      HIT_OBJ = it.object;
+      hit = true;
+      break;
+    }
+    rayHits.length = 0;
+    return hit;
+  }
+
+  function land(f: Flight, point: Vector3, normal: Vector3, target: Target, from: Vector3): void {
+    const host = refine(point, normal, target, from);
+    openBurst(f, HIT_P, HIT_N);
     const rig = target.performerId ? rigs.get(target.performerId) : undefined;
     const body = target.kind === 'performer';
     const instrument = target.kind === 'instrument';
@@ -1133,7 +1360,7 @@ export function createTomatoes(scene: Object3D, opts: TomatoOptions = {}): Tomat
     const mark = radius * (MARK_MIN + (MARK_MAX - MARK_MIN) * f.force);
 
     if (rig && target.performerId && (body || instrument)) {
-      register(target.performerId, rig, body, point, mark);
+      register(target.performerId, rig, body, f.hitAt, f.hitNormal, HIT_OBJ, mark);
     }
 
     // A mark on a body is the rig's: it knows which part was hit and can parent
@@ -1141,10 +1368,9 @@ export function createTomatoes(scene: Object3D, opts: TomatoOptions = {}): Tomat
     if (body) return;
 
     // Everything else — their kit, the boards, the backdrop — is a mark here.
-    // `f.hitAt` is already the surface point rather than the tomato's centre;
-    // `PerformerRig.splat` does its own projection onto the part it picks, so
-    // the centre is the right thing to hand *it* and the wrong thing for this.
-    splats.place(f.hitAt, normal, mark, target.node);
+    // `host` is the mesh the trace found when it found one, so a mark on a
+    // cymbal swings with the cymbal rather than with the kit it belongs to.
+    splats.place(f.hitAt, f.hitNormal, mark, host);
   }
 
   /**
@@ -1155,7 +1381,8 @@ export function createTomatoes(scene: Object3D, opts: TomatoOptions = {}): Tomat
    * split is worth a function boundary is in the module docs.
    */
   function register(
-    performerId: string, rig: PerformerRig, body: boolean, point: Vector3, mark: number,
+    performerId: string, rig: PerformerRig, body: boolean,
+    point: Vector3, normal: Vector3, hitObject: Object3D | undefined, mark: number,
   ): void {
     const tell = tells.get(performerId);
     if (tell) tell.hits++;
@@ -1168,7 +1395,10 @@ export function createTomatoes(scene: Object3D, opts: TomatoOptions = {}): Tomat
       // reaction with a weaker one rather than adding to it. The size goes
       // with the point: the rig knows which part was hit and cannot know how
       // fast the thing was going, and it clamps the number against that part.
-      rig.splat(point, mark);
+      // The normal and the mesh go with both, and they are what stop the mark
+      // being laid on the sphere the rig approximates that part by — see
+      // `refine`, which is where the point stopped being a guess.
+      rig.splat(point, mark, normal, hitObject);
     } else {
       // Their kit and not them: they look up from it, they do not flinch.
       rig.react('surprise', 0.55);
@@ -1190,7 +1420,6 @@ export function createTomatoes(scene: Object3D, opts: TomatoOptions = {}): Tomat
       patienceLeft: Math.max(0, Math.ceil(patience - spent)),
       struck: body ? 'body' : 'instrument',
     });
-    if (spent >= patience && !lost) { lost = true; lostQueued = true; }
   }
 
   /**
@@ -1320,6 +1549,7 @@ export function createTomatoes(scene: Object3D, opts: TomatoOptions = {}): Tomat
       stage = nextStage;
       targets.length = 0;
       bodies.length = 0;
+      carried.clear();
       tells.clear();
 
       buildRoom(nextStage);
@@ -1328,6 +1558,10 @@ export function createTomatoes(scene: Object3D, opts: TomatoOptions = {}): Tomat
       if (staging?.instruments) {
         for (const entry of staging.instruments) {
           const [performerId, node] = entry;
+          // Registered before the trim can bail out: an instrument that does
+          // not collide is still an instrument, and a body trace must step over
+          // it either way.
+          carried.add(node);
           BOX.setFromObject(node);
           if (!trimAgainstOwner(BOX, performerId)) continue;
           addBox('instrument', `${performerId}:instrument`, BOX, performerId, node);
@@ -1468,7 +1702,10 @@ export function createTomatoes(scene: Object3D, opts: TomatoOptions = {}): Tomat
           positionAt(f, f.age, V2);
           const armed = V1.distanceToSquared(f.from) > ARM_DISTANCE * ARM_DISTANCE;
           if (armed && sweep(V1, V2, radius, targets, impact)) {
-            land(f, impact.point, impact.normal, impact.target);
+            // V1 is where this substep started, and the last thing `sweep` said
+            // about it is that nothing was in the way — which makes it the one
+            // point `refine` can safely start a ray from.
+            land(f, impact.point, impact.normal, impact.target, V1);
             break;
           }
         }
@@ -1500,16 +1737,12 @@ export function createTomatoes(scene: Object3D, opts: TomatoOptions = {}): Tomat
       tellFrame();
 
       // --- events, once the frame's physics has settled --------------------
-      // Deliberately after everything: a listener that mutes a layer or ends a
-      // number must not run half way through the substep loop, and one that
-      // throws must not leave a tomato in an impossible state.
+      // Deliberately after everything: a listener that mutes a layer must not
+      // run half way through the substep loop, and one that throws must not
+      // leave a tomato in an impossible state.
       if (hitQueue.length > 0) {
         const queued = hitQueue.splice(0, hitQueue.length);
         for (const ev of queued) for (const fn of hitListeners) fn(ev);
-      }
-      if (lostQueued) {
-        lostQueued = false;
-        for (const fn of lostListeners) fn();
       }
     },
 
@@ -1529,15 +1762,12 @@ export function createTomatoes(scene: Object3D, opts: TomatoOptions = {}): Tomat
       hits = 0;
       spent = 0;
       tier = 0;
-      lost = false;
-      lostQueued = false;
       hitQueue.length = 0;
       laughAt = Number.POSITIVE_INFINITY;
       cooldown = 0;
     },
 
     onHit(fn) { hitListeners.push(fn); },
-    onPatienceLost(fn) { lostListeners.push(fn); },
     hitsThisNumber() { return hits; },
     hitsOn(performerId) { return tells.get(performerId)?.hits ?? 0; },
 
@@ -1601,9 +1831,9 @@ export function createTomatoes(scene: Object3D, opts: TomatoOptions = {}): Tomat
       shadowMat.dispose();
       targets.length = 0;
       bodies.length = 0;
+      carried.clear();
       tells.clear();
       hitListeners.length = 0;
-      lostListeners.length = 0;
       root.removeFromParent();
     },
   };
@@ -1619,6 +1849,77 @@ function clamp(v: number, lo: number, hi: number): number {
 
 function finite3(v: Vector3): boolean {
   return Number.isFinite(v.x) && Number.isFinite(v.y) && Number.isFinite(v.z);
+}
+
+/**
+ * What a mark traced onto `leaf` should hang on.
+ *
+ * The leaf is the better answer when it can be had: a mark on a cymbal should
+ * swing with the cymbal and not merely ride the kit. It cannot always be had.
+ * `SplatField.place` hangs a mark with `Object3D.attach`, which preserves the
+ * world transform by giving the mark a compensating scale — and one scale
+ * cannot undo a non-uniform one under a rotation, so a mark on a part that has
+ * been stretched along a single axis comes out sheared. There are plenty of
+ * those: a limb whose `scale.y` is its length in metres is the house style.
+ *
+ * So: the leaf when its world scale is uniform, and the whole instrument when
+ * it is not. The mark still travels either way; it just travels with something
+ * larger.
+ */
+function parentFor(leaf: Object3D, fallback: Object3D | undefined): Object3D | undefined {
+  leaf.getWorldScale(RAY_SCALE);
+  const lo = Math.min(RAY_SCALE.x, RAY_SCALE.y, RAY_SCALE.z);
+  const hi = Math.max(RAY_SCALE.x, RAY_SCALE.y, RAY_SCALE.z);
+  if (lo > 1e-4 && hi / lo < 1.02) return leaf;
+  return fallback;
+}
+
+/**
+ * The middle of a collision shape, as seen from `p`, into `out`.
+ *
+ * Where a second ray aims when the first one — the one that follows the tomato
+ * — went through the shape without meeting anything real. Every shape here
+ * encloses the thing it stands for, so a ray from a point on the shape toward
+ * its core runs into that thing rather than past it.
+ *
+ * A capsule answers with the nearest point on its own axis rather than its
+ * midpoint, which is the difference between a glancing hit on a shoulder aiming
+ * at the shoulder and one aiming at the navel.
+ */
+function core(shape: Shape, p: Vector3, out: Vector3): Vector3 {
+  if (shape.kind === 'sphere') return out.copy(shape.centre);
+  if (shape.kind === 'box') {
+    return out.copy(shape.min).add(shape.max).multiplyScalar(0.5);
+  }
+  out.copy(shape.b).sub(shape.a);
+  const len = out.lengthSq();
+  if (len < 1e-12) return out.copy(shape.a);
+  const u = clamp(RAY_TMP.copy(p).sub(shape.a).dot(out) / len, 0, 1);
+  return out.multiplyScalar(u).add(shape.a);
+}
+
+/**
+ * Whether a traced hit is one a mark can go on: visible the whole way up to
+ * `stopAt`, and not inside anything in `skip`.
+ *
+ * Visibility has to be asked here because `Raycaster` does not ask it. It tests
+ * layers and then calls `raycast` on every descendant, so a mesh that has been
+ * switched off — a bell that is only out for one number, the spare hands a rig
+ * keeps hidden — is exactly as solid to a ray as anything you can see. A mark
+ * on one of those is a mark that never appears.
+ *
+ * One walk for both questions, and it stops at `stopAt` rather than at the
+ * scene root: everything above the thing being traced is somebody else's.
+ */
+function markable(obj: Object3D, stopAt: Object3D, skip?: ReadonlySet<Object3D>): boolean {
+  let node: Object3D | null = obj;
+  while (node) {
+    if (!node.visible) return false;
+    if (skip?.has(node)) return false;
+    if (node === stopAt) return true;
+    node = node.parent;
+  }
+  return true;
 }
 
 /** Any unit vector at right angles to `v`, chosen to stay well-conditioned. */

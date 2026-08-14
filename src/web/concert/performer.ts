@@ -284,8 +284,30 @@ export interface PerformerRig {
    * same size however hard the thing arrived is the flattest part of a hit.
    * Omit it and the mark is sized from the part it landed on, as before. It is
    * clamped against that part either way.
+   *
+   * `worldNormal` and `hitObject` are the surface that was actually hit, and
+   * giving them changes where the mark goes rather than merely how it is
+   * turned. Without them this has to guess the skin from the part's own sphere,
+   * and the sphere is not the skin: a torso's is `max(torsoW, torsoH) * 0.46`
+   * while the shell it stands for is barely over half that deep, so a chest
+   * mark hangs the better part of a hand's width in front of the shirt. With
+   * them, the caller has already traced the geometry and the mark goes where
+   * the tomato went.
+   *
+   * They come as a pair, and both are needed. The normal is what lays the mark
+   * flat against the skin instead of against the sphere. The object is what
+   * says which part of this body the skin *was*, which the point alone cannot:
+   * `nearestPart` measures to four node origins, and a collarbone is nearer the
+   * head's origin than the torso's while plainly belonging to the torso — so a
+   * traced point without its object gives a mark drawn correctly on a shoulder
+   * and then swivelling with the chin. A hit on something no part owns — a
+   * shin, a hem — is not traced at all and falls back to the sphere, which is
+   * the same answer this always gave.
    */
-  splat(worldPosition: Vector3, markRadius?: number): void;
+  splat(
+    worldPosition: Vector3, markRadius?: number, worldNormal?: Vector3,
+    hitObject?: Object3D,
+  ): void;
 
   /** Struck between numbers. The stage keeps its scars only for the number. */
   clearSplats(): void;
@@ -408,6 +430,19 @@ interface Splat {
 }
 
 const MAX_SPLATS = 8;
+
+/**
+ * How far a mark floats off the skin when the caller traced the skin for us:
+ * this, plus `SPLAT_LIFT_PER_SIZE` of the mark's own width.
+ *
+ * The material's polygon offset settles the depth *test*; this settles the
+ * geometry, which the depth test cannot. A mark is flat and a shoulder is not,
+ * so a quad laid tangent to one has its corners inside the cloth and comes out
+ * as a mark with the middle bitten out. Scaling with the mark keeps a small one
+ * pressed where it belongs instead of hovering like a sticker.
+ */
+const SPLAT_LIFT = 0.002;
+const SPLAT_LIFT_PER_SIZE = 0.04;
 
 /** How long each reaction runs, in seconds. */
 const REACTION_SECONDS: Record<PerformerReaction, number> = {
@@ -1165,16 +1200,49 @@ class Rig implements PerformerRig {
 
   // -- tomatoes -----------------------------------------------------------
 
-  splat(worldPosition: Vector3, markRadius?: number): void {
+  splat(
+    worldPosition: Vector3, markRadius?: number, worldNormal?: Vector3,
+    hitObject?: Object3D,
+  ): void {
     if (!finite(worldPosition)) return;
-    const host = this.nearestPart(worldPosition);
+    /**
+     * The part the traced surface actually belongs to, when it belongs to one.
+     *
+     * Exact where `nearestPart` is a guess, and it is the whole reason
+     * `hitObject` is a parameter — see the note on the interface.
+     */
+    const owner = this.partOwning(hitObject);
+    const host = owner ?? this.nearestPart(worldPosition);
     if (!host) return;
 
     host.node.updateWorldMatrix(true, false);
-    const local = V1.copy(worldPosition).applyMatrix4(M1.copy(host.node.matrixWorld).invert());
-    const dir = V2.copy(local).sub(host.centre);
-    if (dir.lengthSq() < 1e-9) dir.copy(FWD);
-    dir.normalize();
+    M1.copy(host.node.matrixWorld).invert();
+    const local = V1.copy(worldPosition).applyMatrix4(M1);
+    /**
+     * Whether the point we were handed is on the skin or merely near it.
+     *
+     * All three of the traced things or none of them. A normal without an owner
+     * is a point on a shin drawn in the hip's frame, which stays where the hip
+     * puts it while the shin walks out from under it — worse than the float it
+     * would have fixed.
+     */
+    const traced = owner !== undefined && worldNormal !== undefined
+      && finite(worldNormal) && worldNormal.lengthSq() > 1e-9;
+    const dir = V2;
+    if (traced) {
+      // Into this part's frame. `transformDirection` is the rotation of the
+      // inverse world matrix and it normalises on the way, which is the whole
+      // job here: these four nodes carry no scale of their own — the scale is
+      // on the skull and the shell *inside* them — so the rotation is all there
+      // is to undo.
+      dir.copy(worldNormal!).transformDirection(M1);
+      if (dir.lengthSq() < 1e-9) dir.copy(FWD);
+      dir.normalize();
+    } else {
+      dir.copy(local).sub(host.centre);
+      if (dir.lengthSq() < 1e-9) dir.copy(FWD);
+      dir.normalize();
+    }
 
     const slot = this.takeSplat(host.node);
     const mesh = slot.mesh;
@@ -1195,7 +1263,11 @@ class Rig implements PerformerRig {
       ? markRadius : host.radius;
     const size = Math.min(wanted, host.radius * 1.6) * this.rng.float(0.85, 1.35);
     mesh.scale.set(size, size, 1);
-    mesh.position.copy(host.centre).addScaledVector(dir, host.radius * 1.01);
+    if (traced) {
+      mesh.position.copy(local).addScaledVector(dir, SPLAT_LIFT + size * SPLAT_LIFT_PER_SIZE);
+    } else {
+      mesh.position.copy(host.centre).addScaledVector(dir, host.radius * 1.01);
+    }
     mesh.quaternion.setFromUnitVectors(FWD, dir);
     mesh.rotateZ(this.rng.float(0, Math.PI * 2));
 
@@ -1205,6 +1277,14 @@ class Rig implements PerformerRig {
     // has bigger problems than a drip pointing the wrong way.
     host.node.getWorldQuaternion(Q1);
     slot.down.set(0, -1, 0).applyQuaternion(Q1.invert());
+    // Down along the surface, not down through it. The creep used to be world
+    // down whatever the mark was lying on, which on a shoulder or the top of a
+    // forearm walks the quad straight into the arm it is stuck to — invisible
+    // when the mark was floating a hand's width clear of the body, and the
+    // first thing you see once it is not.
+    slot.down.addScaledVector(dir, -slot.down.dot(dir));
+    if (slot.down.lengthSq() < 1e-9) slot.down.set(0, 0, 0);
+    else slot.down.normalize();
     slot.born = Number.NaN;
 
     this.react('hit');
@@ -1214,6 +1294,11 @@ class Rig implements PerformerRig {
     if (this.splats.length < MAX_SPLATS) {
       const mesh = new Mesh(quad(this.leases), splatSurface(this.leases));
       mesh.renderOrder = 3;
+      // A mark is not a surface. `tomatoes.ts` traces this rig to find the skin
+      // a tomato hit, and a mark hanging off that skin sits in front of it —
+      // so the second tomato into a chest would stick to the first one's quad,
+      // and the third to the second's, each a little further out.
+      mesh.raycast = () => {};
       host.add(mesh);
       const slot: Splat = { mesh, from: new Vector3(), down: new Vector3(), born: 0 };
       this.splats.push(slot);
@@ -1224,6 +1309,24 @@ class Rig implements PerformerRig {
     this.splatNext++;
     if (slot.mesh.parent !== host) host.add(slot.mesh);
     return slot;
+  }
+
+  /**
+   * Which of this rig's parts owns `obj`, by ancestry rather than by distance.
+   *
+   * Four comparisons per level and at most a handful of levels — the alternative
+   * was a `Map` from every mesh in the body to its part, rebuilt whenever a
+   * garment changed, to save a walk that happens once per tomato.
+   *
+   * Undefined for anything no part owns, which is legs, and for `undefined`
+   * itself, which is any caller that did not trace.
+   */
+  private partOwning(obj: Object3D | undefined): TargetPart | undefined {
+    for (let node: Object3D | null = obj ?? null; node; node = node.parent) {
+      for (const part of this.parts) if (part.node === node) return part;
+      if (node === this.root) return undefined;
+    }
+    return undefined;
   }
 
   /**

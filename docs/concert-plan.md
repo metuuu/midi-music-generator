@@ -61,7 +61,7 @@ src/web/concert/ Performance IR -> pixels.     App side. three.js + the Strudel 
 | Where does it live? | A third page, `concert.html`, alongside `index.html` and `voice.html`. Registered in `vite.config.ts` (which exists precisely because `vite build` only sees `index.html` otherwise). Cross-linked from both existing pages. |
 | Showbill contents | **A setlist.** A concert is 3–5 generated numbers; the bill lists each one's title and duration, plus a hint at style and era. Implies applause between numbers, a bow at the end, and re-staging when the instrumentation changes. |
 | Showbill mid-show | **Always reachable.** A programme button, the `P` key, or clicking the bill hanging in the wings. The music does not stop; the bill overlays, marks the number playing, and is where the show's options and share link live (§7.3). |
-| Tomato hit | **Just that player** — they drop out for a couple of bars and come back with a freshly generated part. Until the band runs out of patience: enough hits in one number and the whole band walks it off and moves to the next piece (§8.9). |
+| Tomato hit | **Just that player** — they drop out for a couple of bars and come back with a freshly generated part. The band gets visibly angrier as the hits pile up and never stops playing (§8.9). |
 | Vocals | **Mixed by default, with an instrumental-only switch.** Some numbers are sung, some are not, and the singer leaves the stage for the instrumentals. See §5. |
 | Smoothness | **The top half of the scale, never the bottom.** A concert is a performance, not an experiment. See §6. |
 | 3D library | **three.js** (MIT). Hand-rolled WebGL is a month of work to reach parity on shadows, and the dependency sits on the app side of the licence line where Strudel already is. Pinned, imported as ES modules, no CDN — the soundfont CDN is already one runtime dependency too many. |
@@ -625,17 +625,18 @@ scenery; a splat decal that persists for the rest of the number and drips.
 4. The stage keeps its scars for the rest of the number and is struck clean between
    numbers.
 
-**Enough hits — the band.** Patience is a budget: a small number of hits within one
-number (start at 5, tune by feel) and the band has had enough. They stop at the end of
-the current bar — properly, together, not by cutting the audio — the audience erupts,
-the curtain comes in, and the show advances to the next piece.
+**Enough hits — the band's mood, and nothing else.** After the first hit the bandleader
+glares, after the second the drummer stops the groove nod, after the third someone is
+visibly considering leaving, and by the fifth the whole band is glaring and the house
+has stopped laughing. It goes no further and it does not decay. **The tell is the
+feature** — a counter on the HUD would be the cheap version of this and is explicitly
+not what we want.
 
-The rule has to be *legible* or it reads as a bug. So the band tells you it is coming:
-after the first hit the bandleader glares, after the second the drummer stops the
-groove nod, after the third someone is visibly considering leaving. **The tell is the
-feature** — a threshold you can see approaching is a game mechanic, and one you cannot
-is a random punishment. A counter on the HUD would be the cheap version of this and is
-explicitly not what we want.
+*Superseded.* This section used to spend that ladder on a walk-off: five hits and the
+band stopped at the end of the bar, the curtain came in, and the show advanced to the
+next piece. It was built and it worked. It was still wrong — about fifteen seconds of
+accurate throwing took away the piece you were listening to, so the mechanic paid you
+for engaging with it by ending the music. The tells stay; the ending is gone.
 
 A throw cooldown, so you cannot exhaust the band in four seconds and never see the show.
 
@@ -935,7 +936,7 @@ Added to `npm run verify` alongside the existing checks.
 | **Ambient has no band, and no solo** | Staging must not assume a rhythm section, and the lighting must not assume a foreground. Ambient is a table, a lot of fog, and two people not looking at each other — designed for explicitly, not degraded into. |
 | **The solo is the biggest piece of work and it is musical** | Started first, verified by ear as well as by the report scripts, and worth shipping to the radio page on its own merits even if the stage slips. |
 | **High smoothness makes jazz solos tame** | The solo engine carries its own vocabulary rather than relying on a loose constraint level (§6). If it still sounds tame, the fix is in `generate/solo.ts` — measured by the §4.6 assertions, not by taste alone. |
-| **The band's patience reads as a bug** | The escalating tells (§8.9) are part of the feature, not decoration. If a playtester is surprised when the band walks off, the tells are not working and that is a Wave 3 fix. |
+| **The band's patience reads as a bug** | The escalating tells (§8.9) are part of the feature, not decoration. They no longer end anything (see §8.9), so the risk is now the milder one: a playtester who cannot tell the band has noticed at all. |
 | **Groove looks robotic** | Per-performer phase offset and looseness, pulse read from the drum pattern rather than the metre, and a hard priority rule that play beats groove (§8.3). |
 | **Performance** | Budget set in Wave 0, measured in Wave 1, quality tiers in Wave 3. Instanced audience, one shadow map, no heavy post. |
 | **Parallel agents drifting** | Contracts frozen in Wave 0; `npm run concert` is the shared definition of correct; `npm run typecheck` is the shared definition of connected. |

@@ -255,6 +255,12 @@ export function createSplatField(o: SplatOptions = {}): SplatField {
     mesh.castShadow = false;
     mesh.receiveShadow = false;
     mesh.frustumCulled = false;
+    // Invisible to a ray. `tomatoes.ts` traces the thing a tomato hit to find
+    // the surface it should stick to, and a mark already hanging on that
+    // surface is nearer the camera than the surface is — so the second tomato
+    // into a drum would land on the first one's blob and creep outward from
+    // there, a millimetre at a time, for as long as the audience kept throwing.
+    mesh.raycast = () => {};
 
     return {
       mesh, geo, pos, attr,
