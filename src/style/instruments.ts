@@ -871,7 +871,7 @@ export const INSTRUMENTS = {
   // — same reach, same idiom, same two hands, and the `HANDS` entry below is
   // the piano's numbers restated rather than new ones, because it is the same
   // anatomy. What differs is a hall and a lid, and those live in the sample.
-  steinway: L(I('concert grand', 0, 'steinway', 60, 1.0, 'keyboard'), 72),
+  steinway: G(L(I('concert grand', 0, 'steinway', 60, 1.0, 'keyboard'), 72), 0.63),
 
   // --- Outside the western orchestra ---------------------------------------
   // Four General MIDI programmes in the 104–111 "ethnic" block that the
