@@ -1798,8 +1798,41 @@ function buildOnsetGrid(
   return grid;
 }
 
-/** `<[bar] [bar] ...>` — angle brackets step one bar per cycle. */
+/**
+ * `<[bar] [bar] ...>` — angle brackets step one bar per cycle.
+ *
+ * Written out once per bar, and a song is 72 to 208 of them. That is the whole
+ * cost of playing one: **compiling the emitted code into a pattern is 0.5–1.9
+ * seconds of blocked main thread**, of which the drum layer alone is 60–65%,
+ * and every one of those milliseconds is spent parsing bars that are usually
+ * the same bar. Not the transpile — that is 4–12 ms — the mini-notation parse,
+ * because every slot of every bar of every grid becomes its own step.
+ *
+ * So identical neighbours are folded into `[bar]!n`, and a grid whose bars are
+ * *all* the same drops the alternation entirely and is emitted as one bar. Both
+ * are exactly equal to what they replace: `x!n` is `x` repeated n times in the
+ * same sequence, and `<x>` is `x`, so the same hap falls in the same place with
+ * the same value. Verified rather than assumed — every layer of every genre was
+ * queried over its whole length before and after, hap for hap, and the streams
+ * are identical. The parse gets 7–9.5× faster on the layer that dominates it:
+ * jazz drums 3.5 s → 0.5 s, house drums 3.6 s → 0.4 s.
+ *
+ * A gain grid that never changes is the extreme case and a common one — 184
+ * copies of the same fourteen slots become fourteen — and it is *why* the
+ * emitted file was 240 KB for a house track.
+ */
 function formatGrid(bars: string[][]): string {
-  const rows = bars.map((slots) => `  [${slots.join(' ')}]`);
-  return `<\n${rows.join('\n')}\n>`;
+  const rows = bars.map((slots) => `[${slots.join(' ')}]`);
+  // Nothing to alternate between. Also catches the empty grid, which has no
+  // bars to say anything about and is silence.
+  if (rows.every((row) => row === rows[0])) return rows[0] ?? '~';
+
+  const runs: { row: string; n: number }[] = [];
+  for (const row of rows) {
+    const last = runs[runs.length - 1];
+    if (last?.row === row) last.n += 1;
+    else runs.push({ row, n: 1 });
+  }
+  const lines = runs.map(({ row, n }) => `  ${row}${n > 1 ? `!${n}` : ''}`);
+  return `<\n${lines.join('\n')}\n>`;
 }

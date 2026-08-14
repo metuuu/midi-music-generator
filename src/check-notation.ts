@@ -116,6 +116,28 @@ function slotsOf(inner: string): string[] {
   return out;
 }
 
+/**
+ * One bar of a grid, in whichever of the three shapes `formatGrid` wrote it.
+ *
+ * It used to write one `[...]` per line and nothing else, so a bar was a line
+ * that began with `[` and ended with `]`. It now folds identical neighbours into
+ * `[...]!n` and drops the alternation entirely when every bar is the same, which
+ * puts that bar inline in the control that owns it — `.gain(\`[0.122]\`)`. Both
+ * new shapes fail the old test, and a reader that skips what it does not
+ * recognise **reports nothing and passes**: this file's oldest failure mode, and
+ * the reason `slotsOf` exists. See `formatGrid` in `render/strudel.ts`.
+ *
+ * `repeat` is what the `!n` says, so the count at the end is still bars of music
+ * read rather than lines of text looked at.
+ */
+function barOf(line: string): { inner: string; repeat: number } | undefined {
+  const own = line.match(/^\[(.*)\](?:!(\d+))?$/);
+  if (own) return { inner: own[1]!.trim(), repeat: Number(own[2] ?? 1) };
+  // Inline: the whole grid is one bar, inside the backticks of its control.
+  const alone = line.match(/`\[(.*)\]`/);
+  return alone ? { inner: alone[1]!.trim(), repeat: 1 } : undefined;
+}
+
 const problems: string[] = [];
 /**
  * Drum voices asked for that the chosen bank does not have.
@@ -220,17 +242,21 @@ for (let i = 0; i < RENDERS; i++) {
    * before the run started. That is the only context a line-at-a-time reader can
    * have, and it is exactly enough for the one question worth asking about a
    * number — whether a minus sign in front of it is music or a fault.
+   *
+   * Named before the bar is read rather than after, because a grid whose bars
+   * are all the same is now written inline — `.gain(\`[0.122]\`)` is a control
+   * and its only bar on one line, and reading the bar first would judge it
+   * against whatever the last grid happened to be.
    */
   let control = '';
   for (const raw of code.split('\n')) {
     const line = raw.trim();
-    if (!line.startsWith('[') || !line.endsWith(']')) {
-      const named = line.match(/\.([a-z][a-zA-Z]*)\(/);
-      if (named) control = named[1]!;
-      continue;
-    }
-    bars++;
-    const inner = line.slice(1, -1).trim();
+    const named = line.match(/\.([a-z][a-zA-Z]*)\(/);
+    if (named) control = named[1]!;
+    const bar = barOf(line);
+    if (!bar) continue;
+    bars += bar.repeat;
+    const inner = bar.inner;
     if (/^_/.test(inner)) problems.push(`bar starts with a sustain marker: ${line.slice(0, 70)}`);
     if (/(^|\s)~\s+_/.test(inner)) problems.push(`sustain marker after a rest: ${line.slice(0, 70)}`);
     if (/,\s*[\]]/.test(inner)) problems.push(`empty chord member: ${line.slice(0, 70)}`);
