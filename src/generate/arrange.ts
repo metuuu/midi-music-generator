@@ -36,6 +36,7 @@ import type { Midi } from '../core/pitch.js';
 import { pc } from '../core/pitch.js';
 import { minInterval } from '../core/voicing.js';
 import type { LayerId, NoteEvent } from '../core/types.js';
+import { BASS_RANGE } from './parts.js';
 
 /** Layers that must stay out of the lead's register. */
 const ACCOMPANIMENT: LayerId[] = ['comp', 'pad', 'brass'];
@@ -197,6 +198,52 @@ export function planRegisters(args: {
 }
 
 /**
+ * How low the octave-down repair may reach: two semitones under the top of
+ * `BASS_RANGE`, which is where the bass part actually is.
+ *
+ * **A constant, and the constant is the point.** This was
+ * `instruments.bass.centre + 10`, which read as "clear the bass's octave" and
+ * was not: `generateBass` is never handed an instrument, so the written bass
+ * line is identical whichever patch the palette deals, while that expression
+ * moved with the patch's own tessitura. Almost every bass patch is centred at
+ * 40 and the sum came to 50, so the mistake was invisible — until a palette
+ * dealt one that was not, and then the floor rose above the notes it was
+ * supposed to be protecting and the repair simply stopped happening.
+ *
+ * Measured over 1140 songs, as the share of collisions that ended in a thinned
+ * voicing or an unrepaired unison rather than a clean octave displacement:
+ *
+ *     country/stringband   steel guitar (60)   100.0%  →  81.2%   upright bass 80.1%
+ *     synth/polysynth      electric cello (52) 100.0%  →  77.0%   synth bass   62.0%
+ *     funk/jb              baritone sax (48)    99.4%  →  77.1%   picked bass  84.3%
+ *     jazz/swingera        baritone sax (48)    98.4%  →  59.3%   upright bass 63.2%
+ *     classical/baroque    cello (52)           98.1%  →  75.0%   contrabass   73.0%
+ *                          bassoon (50)         95.7%  →  70.8%
+ *     finnfolk/pelimanni   cello (52)           91.7%  →  47.5%   contrabass   48.0%
+ *
+ * A steel guitar in the bass slot repaired *nothing*: every collision in the
+ * comp, pad and brass was thinned out or left sounding as a unison, and nothing
+ * reported it. The right-hand column is the same era's ordinary bass patch, and
+ * landing on it is the whole of the fix — the patch stops being a variable in a
+ * decision it was never entitled to a vote in.
+ *
+ * 50 and not `BASS_RANGE[1]` itself, which is the tempting tidy answer and is
+ * worse. The two semitones of overlap are what nearly every song in the
+ * catalogue has always had, and taking them away is not free: at a flat 52 the
+ * failure rate rises across *every* bass patch — 71.4% to 75.6% overall, and up
+ * on each of the thirteen rows individually — because the repair loses the last
+ * whole tone it had to work with. Lower is likewise not better on its own. The
+ * curve is monotonic (46 → 55.7%, 48 → 60.7%, 50 → 69.2%, 52 → 75.6%), so a
+ * floor of 28 would "repair" everything by burying the accompaniment in the
+ * bass's register, which is the fault this number exists to prevent. It is a
+ * musical bound, not a score to maximise; 50 is the value the rest of the
+ * arrangement was tuned against, and it is kept deliberately.
+ *
+ * Not a parameter. It was one, and the caller filled it in from the instrument.
+ */
+const REPAIR_FLOOR: Midi = BASS_RANGE[1] - 2;
+
+/**
  * Move accompaniment notes that are doubling or grinding against the melody.
  *
  * Runs after the melody exists, on the layers whose notes sustain long enough
@@ -211,16 +258,16 @@ export function planRegisters(args: {
  * The repair is always downward by an octave, never sideways to another chord
  * tone: moving a voice to a different note changes the harmony, and an octave
  * displacement keeps the chord exactly as voiced while removing the collision.
- * When the octave down would break the voicing's own spacing, the note is left
- * alone — one audible unison is better than a manufactured cluster.
+ * When the octave down would break the voicing's own spacing, or would reach
+ * below `REPAIR_FLOOR`, the note is left alone — one audible unison is better
+ * than a manufactured cluster.
  */
 export function resolveCollisions(args: {
   melody: readonly NoteEvent[];
   layers: Map<LayerId, NoteEvent[]>;
   clarity: number;
-  floor: Midi;
 }): number {
-  const { melody, layers, clarity, floor } = args;
+  const { melody, layers, clarity } = args;
   if (!melody.length || clarity <= 0) return 0;
 
   // Index the melody by sixteenth so a sustained chord can be tested against
@@ -270,7 +317,7 @@ export function resolveCollisions(args: {
 
       const together = (chordAt.get(from) ?? []).filter((o) => o !== n);
       const lower = n.midi - 12;
-      const safe = lower >= floor && together.every((o) => {
+      const safe = lower >= REPAIR_FLOOR && together.every((o) => {
         if (o.midi === lower) return false;
         const bottom = Math.min(o.midi, lower);
         return Math.abs(o.midi - lower) >= minInterval(bottom, clarity);

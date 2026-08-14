@@ -2737,7 +2737,6 @@ export function generateSong(opts: GenerateOptions = {}): Song {
         ['comp', sectionComp], ['pad', sectionPad], ['brass', sectionBrass],
       ]),
       clarity,
-      floor: instruments.bass.centre + 10,
     });
 
 

@@ -47,8 +47,16 @@ export interface PartContext {
  * it, and for an outline that is the whole of the requirement: a root, a fifth,
  * a third, a walking approach are each chosen by asking the harmony, and any
  * octave of the answer is still the answer.
+ *
+ * Exported because it is the *only* honest answer to "where is the bass?".
+ * `generateBass` is never handed an instrument — whichever patch the palette
+ * deals, the written line is placed against this and comes out identical. Any
+ * other part of the program that needs to reason about the bass's register has
+ * to read it from here; asking the instrument gives a number about the patch's
+ * own tessitura, which the bass line has never once been placed against. See
+ * `REPAIR_FLOOR` in `arrange.ts` for the pass that learnt this the hard way.
  */
-const BASS_RANGE: [Midi, Midi] = [28, 52];
+export const BASS_RANGE: [Midi, Midi] = [28, 52];
 
 /**
  * How far above that register a **shape** may reach, and the number is the
