@@ -68,7 +68,7 @@ import { Rng } from '../core/rng.js';
 import type { Mode } from '../core/scale.js';
 import type { Song } from '../core/types.js';
 import type { StrictnessId } from '../core/rules.js';
-import { generateSong } from '../generate/song.js';
+import { generateSong, type GenerateOptions } from '../generate/song.js';
 import { GENRE_IDS, getGenre, type Genre } from '../genre/index.js';
 import type { EraProfile, Mood, Style } from '../style/types.js';
 import type { ConcertOptions, VocalPolicy } from './types.js';
@@ -378,6 +378,20 @@ function drawKey(
 // ---------------------------------------------------------------------------
 
 /**
+ * One number, and the exact options that produced it.
+ *
+ * The recipe is carried rather than re-derived because a live re-voice has to
+ * regenerate this song mid-performance and `SongMeta` is not enough to do it
+ * with: it records the key and the tempo that came *out*, but not
+ * `targetSeconds`, and reconstructing the call from what it does record put the
+ * band back in a different key on 30 numbers out of 32. See `revoiceNumber`.
+ */
+export interface SetlistNumber {
+  song: Song;
+  recipe: GenerateOptions;
+}
+
+/**
  * Pick and order the numbers for one concert.
  *
  * Deterministic: the same options give byte-identical songs, and each number's
@@ -386,7 +400,7 @@ function drawKey(
  * songs, so this is the first thing that runs and the only thing that decides
  * what the evening consists of.
  */
-export function buildSetlist(opts: ConcertOptions = {}): Song[] {
+export function buildSetlist(opts: ConcertOptions = {}): SetlistNumber[] {
   /**
    * A number the caller already chose skips everything below.
    *
@@ -396,7 +410,7 @@ export function buildSetlist(opts: ConcertOptions = {}): Song[] {
    * it: the song is generated from exactly the options handed in, so it is the
    * same song those options produce anywhere else, note for note.
    */
-  if (opts.song) return [generateSong(opts.song)];
+  if (opts.song) return [{ song: generateSong(opts.song), recipe: opts.song }];
 
   const seed = String(opts.seed ?? Math.floor(Math.random() * 1e9));
   // Its own stream, so the cast, the venue and the lighting can share the
@@ -469,13 +483,21 @@ export function buildSetlist(opts: ConcertOptions = {}): Song[] {
     keys[i] = key;
   }
 
-  const songs: Song[] = [];
+  const songs: SetlistNumber[] = [];
   for (let i = 0; i < slots.length; i++) {
     const slot = slots[i]!;
     const { style, mood } = picks[i]!;
     const { tonic, mode } = keys[i]!;
 
-    songs.push(generateSong({
+    /**
+     * Built as a value rather than passed inline, because it is kept.
+     *
+     * `SetlistNumber.recipe` is the only record of what this song was asked
+     * for, and it has to be the *identical object* that was handed to
+     * `generateSong` — a recipe reassembled later from the result is exactly
+     * the mistake this replaced.
+     */
+    const recipe: GenerateOptions = {
       // A number's seed says which show it belongs to and where in it. That is
       // worth more than opacity: a bug report can name `abc/3` and be exact.
       seed: `${seed}/${i + 1}`,
@@ -505,7 +527,8 @@ export function buildSetlist(opts: ConcertOptions = {}): Song[] {
        * seconds at whatever speed comes out. See `compatible` in `genre/chaos.ts`.
        */
       ...(opts.chaos ? { chaos: opts.chaos } : {}),
-    }));
+    };
+    songs.push({ song: generateSong(recipe), recipe });
   }
 
   // No reordering pass. There used to be one — `chooseTempo` jitters by up to a

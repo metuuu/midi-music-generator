@@ -1416,6 +1416,12 @@ export interface BillEntry {
 
 export interface ConcertNumber {
   song: Song;
+  /**
+   * The exact `generateSong` call this number came from, kept so a live
+   * re-voice can make the same one again. See `revoiceNumber`, and
+   * `SetlistNumber` for why `song.meta` cannot stand in for it.
+   */
+  recipe: GenerateOptions;
   cast: Cast;
   choreography: Choreography;
   groove: GrooveScore;

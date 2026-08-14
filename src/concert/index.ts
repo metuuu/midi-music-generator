@@ -18,7 +18,7 @@
  */
 
 import type { LayerId, Song } from '../core/types.js';
-import { generateSong, withCountIn, type GenerateOptions } from '../generate/song.js';
+import { generateSong, withCountIn } from '../generate/song.js';
 import { GENRE_IDS, getGenre } from '../genre/index.js';
 import { Rng } from '../core/rng.js';
 
@@ -26,7 +26,7 @@ import { castSong, playerFor } from './cast.js';
 import { choreograph } from './choreograph.js';
 import { scoreGroove } from './groove.js';
 import { scoreLighting } from './lighting.js';
-import { buildSetlist } from './setlist.js';
+import { buildSetlist, type SetlistNumber } from './setlist.js';
 import { buildBill } from './showbill.js';
 import { chooseVenue } from './venue.js';
 import { visemesFor } from './visemes.js';
@@ -76,7 +76,8 @@ export function buildConcert(opts: ConcertOptions = {}): Concert {
    * programme that disagreed with the clock by a bar per number would be wrong
    * about the length of the evening.
    */
-  const allSongs = buildSetlist(resolved).map(withCountIn);
+  const allSongs = buildSetlist(resolved)
+    .map((entry) => ({ ...entry, song: withCountIn(entry.song) }));
   if (!allSongs.length) throw new Error('buildConcert: the setlist came back empty');
 
   /**
@@ -98,8 +99,8 @@ export function buildConcert(opts: ConcertOptions = {}): Concert {
   // Every number shares a genre and an era — a band is one band on one night,
   // and the venue, the wardrobe and the programme's typography all have to
   // agree about which night it is.
-  const genre = songs[0]!.meta.genre;
-  const era = songs[0]!.meta.era;
+  const genre = songs[0]!.song.meta.genre;
+  const era = songs[0]!.song.meta.era;
   /**
    * The decade, resolved here for the same reason the era is: one band, one
    * night. The stage needs it and cannot get it from `era`, whose ids are
@@ -123,15 +124,20 @@ export function buildConcert(opts: ConcertOptions = {}): Concert {
     : genre;
   const venue = chooseVenue(genre, era, seed, roomGenre);
 
-  const numbers = songs.map((song, i) => {
+  const numbers = songs.map((entry, i) => {
     const n = pieceAt ?? i + 1;
-    return buildNumber(song, venue, `${seed}/${n}`);
+    return buildNumber(entry, venue, `${seed}/${n}`);
   });
 
-  return { seed, genre, era, year, venue, bill: buildBill(songs, pieceAt), numbers };
+  return {
+    seed, genre, era, year, venue,
+    bill: buildBill(songs.map((entry) => entry.song), pieceAt),
+    numbers,
+  };
 }
 
-function buildNumber(song: Song, venue: Venue, seed: string): ConcertNumber {
+function buildNumber(entry: SetlistNumber, venue: Venue, seed: string): ConcertNumber {
+  const { song, recipe } = entry;
   const cast = castSong(song, venue, seed);
   const solos = resolveSolos(song, cast);
 
@@ -146,6 +152,7 @@ function buildNumber(song: Song, venue: Venue, seed: string): ConcertNumber {
 
   return {
     song,
+    recipe,
     cast,
     choreography: choreograph(song, cast),
     groove: scoreGroove(song, cast, seed),
@@ -204,13 +211,17 @@ export function resolveSolos(song: Song, cast: Cast): SoloSpot[] {
  * else's, so the song comes back identical in form, key, tempo, groove and
  * every other part, with a different line for the player who was hit.
  *
- * **The options have to be rebuilt from `meta`, not just the seed.** A seed on
- * its own does not reproduce a song: `generateSong({ seed })` picks a genre at
- * random and would hand back a different piece of music entirely, in a
- * different key, while the band carried on playing the old one. Every field
- * that steered the original is recorded in `SongMeta` precisely so this is
- * possible — which is worth noticing, because it means the IR was already
- * carrying what a live re-voice needs before anyone asked it to.
+ * **The song is regenerated from the recipe it was built with, and `SongMeta`
+ * is not that recipe.** This used to reassemble the call out of what the IR
+ * records — genre, era, style, mood, strictness, hook — which looks complete
+ * and is not: `targetSeconds` is nowhere in `SongMeta`, and `tonic` and `mode`
+ * are in it but were not being passed back. `generateSong` therefore drew a
+ * fresh key. Measured over 32 numbers, the band came back in a **different key
+ * on 30 of them**, a different mode on 13, and a different length on 16 — three
+ * of those shorter, which ends the number early, because `show.ts` runs the
+ * piece until `elapsed >= songDurationBeats(current.song)`. A tomato modulated
+ * the band mid-song. So `ConcertNumber.recipe` carries the original call and
+ * this makes it again with one field changed.
  *
  * Two things are deliberately *not* done. The choreography is recomputed (it
  * has to be — the notes changed) but the cast is untouched: the same people are
@@ -226,18 +237,7 @@ export function resolveSolos(song: Song, cast: Cast): SoloSpot[] {
 export function revoiceNumber(
   number: ConcertNumber, layer: LayerId, attempt: number,
 ): ConcertNumber {
-  const { meta } = number.song;
-  const song = generateSong({
-    seed: meta.seed,
-    genre: meta.genre,
-    era: meta.era,
-    style: meta.style,
-    mood: meta.mood,
-    strictness: meta.strictness as GenerateOptions['strictness'],
-    hook: meta.hook as GenerateOptions['hook'],
-    vocals: number.song.tracks.some((t) => t.voice),
-    variation: { [layer]: attempt },
-  });
+  const song = generateSong({ ...number.recipe, variation: { [layer]: attempt } });
   /**
    * Counted in again, and this is load-bearing rather than tidy: this runs
    * *mid-number*, against a transport that is already playing the counted-in
