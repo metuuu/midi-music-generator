@@ -190,16 +190,17 @@ interface Entry {
 }
 
 /**
- * What the three rigs are called on the bench.
+ * What the rigs are called on the bench.
  *
  * The ids are the cast's vocabulary and say what the object *is* only if you
  * already know; these say what you are looking for when you pick one, which is
- * a silhouette. See `synth-rig.ts` for the three decades behind them.
+ * a silhouette. See `synth-rig.ts` for the decades behind them.
  */
 const RIG_LABEL: Record<SynthRigId, string> = {
   modular: 'modular wall',
   polysynth: 'polysynth',
   digital: 'digital slab',
+  modern: 'laptop and controller',
 };
 
 /**

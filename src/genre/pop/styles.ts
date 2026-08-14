@@ -1,5 +1,5 @@
 /**
- * The pop catalogue — twenty-four styles, 1963 to now.
+ * The pop catalogue — twenty-five styles, 1963 to now.
  *
  * Organised by **what the record was made on and made for**, because that is the
  * only axis that separates these from each other and from their neighbours. A
@@ -34,13 +34,22 @@
  * both ways, and `Style.scaleForChord` is exactly the seam for saying so — the
  * blues is the only other style anywhere that reaches for it.
  *
- * The line between the two groups is drawn in data rather than by taste, and it
- * is checkable by reading the tables: **a style writes `V` in a minor
- * progression if and only if it names `functional`.** `parseRoman` flags a major
- * fifth degree as `dominantFunction` whatever a genre believes, so a modal style
- * writing one puts a ♯7 in the comp's voicing under a melody drawing ♮7 from the
- * chord scale — which is a clash rather than a modal reading, and it leaves both
- * tables looking innocent.
+ * **`citypop` is the third rule and the eighth style to override**, and it is a
+ * different kind of override: `chordScale` re-roots on the chord rather than on
+ * the tonic, which is jazz's answer rather than either of this genre's. It is
+ * argued at its own site and at the function; the short version is that Japanese
+ * AOR moves a chord a bar through maj7s and secondary dominants, and a tune that
+ * stayed in the key over that is not a modal reading of it, it is a singer who
+ * has not learned the song.
+ *
+ * The line between the groups is drawn in data rather than by taste, and it is
+ * checkable by reading the tables: **a style writes `V` in a minor progression
+ * if and only if its rule raises the seventh under a dominant** — which means
+ * `functional`, or `chordScale`, whose `default` branch falls through to it.
+ * `parseRoman` flags a major fifth degree as `dominantFunction` whatever a genre
+ * believes, so a modal style writing one puts a ♯7 in the comp's voicing under a
+ * melody drawing ♮7 from the chord scale — which is a clash rather than a modal
+ * reading, and it leaves both tables looking innocent.
  */
 
 import type { Chord } from '../../core/chord.js';
@@ -74,6 +83,65 @@ const functional = (tonic: Pc, mode: Mode, chord: Chord): Scale =>
     tonic,
     mode === 'minor' ? (chord.dominantFunction ? 'harmonicMinor' : 'minor') : 'major',
   );
+
+/**
+ * The chord-following rule — a **third** answer, named by one style.
+ *
+ * Both rules above are key-relative: they root the scale on the tonic and ask
+ * the chord one question at most, which is whether it is a dominant. That is
+ * right for almost everything in this genre, because almost everything in this
+ * genre is a song whose harmony exists to hold a tune up. `citypop` is the
+ * exception and it is an exception about the *repertoire* rather than about the
+ * writing: those records are AOR played by session musicians who had read the
+ * same charts as the jazz players next door, the changes move every bar, and
+ * the line moves with them. A tune that stayed in the key over `IVmaj7` and
+ * `V7/vi` and `#iv%7` would not be a modal reading of a city pop song, it would
+ * be a singer who had not learned it.
+ *
+ * So this re-roots on the chord, which is `jazz`'s answer and is borrowed from
+ * it rather than re-derived — and `genre/types.ts` is the reason that borrowing
+ * does not make city pop a jazz style or a genre of its own. The rule is one of
+ * the things a style may say; everything *else* about these records is pop, from
+ * the verse-chorus form to the hook to the LinnDrum the era hands them.
+ *
+ * Two departures from the jazz version, and both are the difference between a
+ * soloist and a singer:
+ *
+ *  - **Lydian on any major seventh that is not the tonic.** The ♯11 over `IVmaj7`
+ *    is the single most recognisable colour in this idiom, and jazz's rule gives
+ *    plain major there. Home stays major, because a ♯4 over the tonic is a
+ *    different and much stranger record.
+ *  - **Plain triads fall through to `functional`.** A `IV` with no seventh on it
+ *    has not asked for a mode and should not get one; the jazz rule treats a
+ *    triad as a seventh chord with a note missing, which is true of a comper's
+ *    hands and not of a chart.
+ *
+ * The `default` branch is what keeps this genre's stated invariant intact — *a
+ * style writes `V` in a minor progression if and only if its rule raises the
+ * seventh under a dominant.* It falls through to `functional`, so `citypop` may
+ * write the minor `V7` its repertoire is full of, and the header's older
+ * phrasing — *if and only if it names `functional`* — is the one line this rule
+ * made stale.
+ */
+const chordScale = (tonic: Pc, mode: Mode, chord: Chord): Scale => {
+  const root = chord.root;
+  switch (chord.quality) {
+    case 'maj7': case 'maj9':
+      return makeScale(root, root === tonic ? 'major' : 'lydian');
+    case 'min7': case 'min9': case 'min11':
+      return makeScale(root, 'dorian');
+    case 'dom7': case 'dom9': case 'dom13': case 'dom7sus4':
+      return makeScale(root, 'mixolydian');
+    case 'halfdim7':
+      return makeScale(root, 'locrian');
+    // An altered dominant takes melodic minor a semitone up — the standard
+    // shortcut, and the one place this idiom's line really does go outside.
+    case 'dom7b9': case 'dom7sharp9': case 'dom7sharp5': case 'dom7flat5':
+      return makeScale(((root + 1) % 12) as Pc, 'melodicMinor');
+    default:
+      return functional(tonic, mode, chord);
+  }
+};
 
 // ---------------------------------------------------------------------------
 // 1963–67 — the chamber, the two-track and the tambourine
@@ -2074,6 +2142,342 @@ const newromantic: Style = {
 };
 
 /**
+ * CITY POP — Tokyo, 1982, and the chords are the whole argument.
+ *
+ * Tatsuro Yamashita, Mariya Takeuchi, Anri, Toshiki Kadomatsu, Junko Ohashi.
+ * Japanese AOR made by session players who had read the same charts as the
+ * fusion band next door: a maj7 on almost every strong beat, a chord a bar
+ * rather than a chord a phrase, a bass that moves the whole time, and a song
+ * about a car, a coastline or somebody leaving.
+ *
+ * ## Why it is here and not in `funk` or `jazz`
+ *
+ * Both were considered and both fail on a field rather than on a feeling.
+ *
+ * **`funk` fails on the scale rule.** That genre answers the chord-scale
+ * question with `minorPentatonic` in minor and `mixolydian` in major, which is a
+ * *vamp* rule — right for a style that stays on one chord for sixteen bars and
+ * useless for one that runs `IVmaj7 V7 iii7 vi7` a bar apiece. Its `boogie` and
+ * `jazzfunk` styles are this music's rhythm section and neither is this music's
+ * harmony.
+ *
+ * **`jazz` fails on the era and on the form.** Its newest era is `electric`
+ * (1975) and its nearest style is `fusion`, which is seven eighths and quartal
+ * and instrumental. City pop is sung, it has a chorus that arrives, and it is
+ * 1978–86 — which is `multitrack` and `gated` here, both of which already exist
+ * and are already right.
+ *
+ * What was actually missing was the *rule*, and `Style.scaleForChord` is the
+ * seam this genre already built for exactly that. See `chordScale` above:
+ * lydian on any major seventh that is not the tonic, dorian on the minors,
+ * mixolydian on the dominants. That one field is the difference between a
+ * `IVmaj7` a singer floats a ♯11 over and a `IVmaj7` a singer sings the key over.
+ *
+ * ## The royal road, and the two things it is not
+ *
+ * `IV–V–iii–vi` — 王道進行, the "royal road" — leads the chorus table at weight 6
+ * and appears in the verse besides. It is not a cliché being repeated for
+ * flavour: it is genuinely the most-used progression in this repertoire and in
+ * most of the Japanese pop written after it, and a table that buried it under an
+ * even spread would be describing some other country's 1982.
+ *
+ * It is also **not** ♭VII–IV–I, which is what the other seventeen styles in this
+ * file reach for when they want motion without a cadence, and **not** I–V–vi–IV,
+ * which is what the last four reach for. Both of those are in here at low
+ * weights because a session in Tokyo could play anything; neither is what makes
+ * a record sound like this one.
+ *
+ * ## Where it sits against `discopop` and `boogie`
+ *
+ * The kick is not the point. `discopop` is a song on a dance chassis and says
+ * so; this is a song on a *band*, and the four-on-the-floor row in its kit table
+ * is one row of five rather than the style's identity. What carries it instead
+ * is the sixteenth-note bass and the electric piano playing pushed chords — the
+ * two parts that would still be recognisable with the drums muted.
+ */
+const citypop: Style = {
+  id: 'citypop',
+  label: 'City pop (1982)',
+  description:
+    'Tokyo AOR: major sevenths a bar apiece, the royal-road turnaround, a sixteenth-note bass and a Rhodes pushing every chord a sixteenth early.',
+  beatsPerBar: 4,
+  beatUnit: 4,
+  swing: 0,
+  bpm: [96, 118],
+  /**
+   * The brightest table in the genre after `sunshine`, and the minor quarter is
+   * not a sad quarter — a minor city pop side is a night drive rather than a
+   * lament, and its own table below keeps the sevenths and the ii–V.
+   */
+  modeWeights: { minor: 0.28, major: 0.72 },
+  /**
+   * Nothing lifts to the relative major, because the harmony is already there
+   * and back twice a verse. `relativeMajorChorus` is a device for a style whose
+   * chorus needs somewhere brighter to go; this one's problem is the opposite.
+   */
+  relativeMajorChorus: 0,
+  hook: 'catchy',
+  /** The third rule in this file. See `chordScale`, which exists for this style. */
+  scaleForChord: chordScale,
+  /**
+   * The Rhodes and the bass, named because they are the two parts that survive
+   * the drums being muted.
+   *
+   * `epiano2` is the DX7 electric piano and `epiano1` the Rhodes proper; both
+   * are right and they are two different years of the same idea, so both are
+   * here and the era decides which is available. `slapBass` is asked for at 4
+   * and is the reason the `gated` era's bass palette gained one.
+   */
+  instruments: {
+    comp: [['epiano2', 6], ['epiano1', 5], ['cleanGuitar', 4], ['piano', 3]],
+    bass: [['fingerBass', 6], ['slapBass', 4], ['fretlessBass', 3]],
+  },
+  /**
+   * The sixteenth-note chop, on the layer playing it. `HAND.guitar` carries
+   * `muted` at weight 2 and this raises it, because a clean guitar comping
+   * sixteenths in this idiom is damped with the heel of the hand on almost every
+   * stroke — an undamped one rings through the next chord and the part turns to
+   * wash.
+   */
+  techniques: {
+    comp: [['muted', 5], ['strum', 3], ['fingerstyle', 2]],
+  },
+  progressions: {
+    intro: [
+      { chords: ['Imaj7', 'Imaj7', 'IVmaj7', 'IVmaj7'], weight: 4 },
+      { chords: ['IVmaj7', 'V7', 'iii7', 'vi7'], weight: 4 },
+      { chords: ['ii7', 'V7', 'Imaj7', 'Imaj7'], weight: 3 },
+    ],
+    verse: [
+      { chords: ['Imaj7', 'Imaj7', 'iii7', 'iii7', 'vi7', 'vi7', 'ii7', 'V7'], weight: 5, note: 'Down in thirds from the tonic and out through the turnaround — the verse of half this repertoire' },
+      { chords: ['IVmaj7', 'V7', 'iii7', 'vi7', 'IVmaj7', 'V7', 'Imaj7', 'Imaj7'], weight: 5, note: 'The royal road (王道進行), a chord a bar. It is the most-used progression in Japanese pop and this style is the reason it is in the project' },
+      { chords: ['Imaj7', 'IVmaj7', 'iii7', 'vi7', 'ii7', 'V7', 'Imaj7', 'Imaj7'], weight: 4 },
+      { chords: ['vi7', 'V7', 'IVmaj7', 'iii7', 'ii7', 'V7', 'Imaj7', 'Imaj7'], weight: 4, note: 'The whole thing descending stepwise, which is what the bass is doing underneath it' },
+      { chords: ['Imaj7', 'V7/vi', 'vi7', 'V7/V', 'ii7', 'V7', 'Imaj7', 'Imaj7'], weight: 3, note: 'Two secondary dominants in eight bars. This is the line between city pop and the pop styles either side of it: those records borrow a chord, these ones modulate briefly and come back' },
+      { chords: ['Imaj7', 'Imaj7', 'bVIImaj7', 'bVIImaj7', 'IVmaj7', 'IVmaj7', 'V7', 'V7'], weight: 3, note: 'The backdoor ♭VII, borrowed from the American AOR these players were listening to' },
+      { chords: ['IVmaj7', 'IVmaj7', 'iii7', 'V7/ii', 'ii7', 'ii7', 'V7', 'V7'], weight: 3 },
+      { chords: ['Imaj7', 'Imaj7', 'V', 'V', 'vi', 'vi', 'IV', 'IV'], weight: 1, note: 'Plain triads and the four chords everybody else in this file plays. Weighted 1 rather than 0 because a session in Tokyo could play anything, and because a style that literally cannot state the common progression is a style being protected from its neighbours' },
+    ],
+    chorus: [
+      { chords: ['IVmaj7', 'V7', 'iii7', 'vi7', 'IVmaj7', 'V7', 'Imaj7', 'Imaj7'], weight: 6, note: 'The royal road again, and in the chorus it is the whole eight bars: the ♯11 on the first chord, the deception on the fourth, and home only at the end' },
+      { chords: ['IVmaj7', 'V7', 'Imaj7', 'Imaj7', 'IVmaj7', 'V7', 'vi7', 'vi7'], weight: 4 },
+      { chords: ['ii7', 'V7', 'Imaj7', 'IVmaj7', 'ii7', 'V7', 'Imaj7', 'Imaj7'], weight: 4 },
+      { chords: ['Imaj7', 'V7/vi', 'vi7', 'vi7', 'IVmaj7', 'V7', 'Imaj7', 'Imaj7'], weight: 3 },
+      { chords: ['ii7', 'V7', 'Imaj7', 'Imaj7', 'ii7', 'bII7', 'Imaj7', 'Imaj7'], weight: 2, note: 'The tritone substitution — ♭II7 where the V7 was, the one jazz device this idiom uses without irony and always in the second half' },
+      { chords: ['bVImaj7', 'bVIImaj7', 'Imaj7', 'Imaj7', 'bVImaj7', 'bVIImaj7', 'Imaj7', 'Imaj7'], weight: 2 },
+    ],
+    bridge: [
+      { chords: ['iv7', 'bVIImaj7', 'Imaj7', 'Imaj7', 'ii7', 'V7', 'iii7', 'vi7'], weight: 4, note: 'The borrowed minor fourth, which in this idiom is a modulation that changed its mind' },
+      { chords: ['#iv%7', 'V7/iii', 'iii7', 'iii7', 'ii7', 'V7', 'Imaj7', 'Imaj7'], weight: 3, note: 'The half-diminished on the sharp fourth: a ii–V into the mediant that lands and then walks home' },
+      { chords: ['IVmaj7', 'iii7', 'ii7', 'V7', 'Imaj7', 'Imaj7', 'V7/V', 'V7'], weight: 3 },
+    ],
+    outro: [
+      { chords: ['ii7', 'V7', 'Imaj7', 'Imaj7'], weight: 4 },
+      { chords: ['IVmaj7', 'V7', 'Imaj7', 'Imaj7'], weight: 3 },
+      { chords: ['Imaj7', 'Imaj7', 'IVmaj7', 'IVmaj7'], weight: 2 },
+    ],
+  },
+  /**
+   * The minor quarter, and it is the same music at night. Sevenths and ninths
+   * throughout, a real `V7` — which this style is entitled to because its own
+   * rule raises the seventh under a dominant, exactly as `functional` does for
+   * the seven styles that name it — and the half-diminished `ii%7` that is the
+   * minor ii–V's first chord in every chart these players had read.
+   *
+   * In minor the numerals are read against the minor scale, so `VII` and `III`
+   * are already flattened and writing `bVII` here would mean the note below it.
+   */
+  minorProgressions: {
+    intro: [
+      { chords: ['i9', 'i9', 'iv9', 'iv9'], weight: 4 },
+      { chords: ['ii%7', 'V7', 'i9', 'i9'], weight: 3 },
+    ],
+    verse: [
+      { chords: ['i9', 'i9', 'iv9', 'iv9', 'VIImaj7', 'VIImaj7', 'IIImaj7', 'IIImaj7'], weight: 5 },
+      { chords: ['i9', 'i9', 'ii%7', 'V7', 'i9', 'i9', 'ii%7', 'V7'], weight: 4, note: 'The minor ii–V, twice. Half-diminished, then a dominant with the raised seventh in it — the one chord this genre\'s other seventeen styles are not allowed' },
+      { chords: ['iv9', 'iv9', 'VIImaj7', 'VIImaj7', 'IIImaj7', 'IIImaj7', 'VImaj7', 'VImaj7'], weight: 4, note: 'Round the circle: iv–VII–III–VI is a ii–V–I in the relative major with the tonic never arriving' },
+      { chords: ['i9', 'i9', 'VI7', 'VI7', 'ii%7', 'ii%7', 'V7', 'V7'], weight: 3 },
+    ],
+    chorus: [
+      { chords: ['iv9', 'V7', 'i9', 'i9', 'iv9', 'V7', 'i9', 'i9'], weight: 5 },
+      { chords: ['VImaj7', 'VII', 'i9', 'i9', 'VImaj7', 'VII', 'i9', 'i9'], weight: 4 },
+      { chords: ['iv9', 'iv9', 'VIImaj7', 'VIImaj7', 'i9', 'i9', 'ii%7', 'V7'], weight: 3 },
+    ],
+    bridge: [
+      { chords: ['VImaj7', 'VImaj7', 'IIImaj7', 'IIImaj7', 'ii%7', 'ii%7', 'V7', 'V7'], weight: 4 },
+      { chords: ['iv9', 'VIImaj7', 'IIImaj7', 'VImaj7', 'ii%7', 'V7', 'i9', 'i9'], weight: 3 },
+    ],
+    outro: [
+      { chords: ['ii%7', 'V7', 'i9', 'i9'], weight: 4 },
+      { chords: ['iv9', 'V7', 'i9', 'i9'], weight: 3 },
+    ],
+  },
+  /**
+   * Sixteenth pickups and a great many pushes. A city pop melody arrives before
+   * the bar it belongs to more often than on it — which is what the negative
+   * first entries in these cells are — and then holds, because the chord it has
+   * arrived over is doing the moving.
+   */
+  melodyCells: [
+    { cell: [-2, 2, 4, 8], weight: 5 },
+    { cell: [4, 4, 4, 4], weight: 4 },
+    { cell: [-1, 3, 4, 8], weight: 4 },
+    { cell: [2, 2, 4, 8], weight: 4 },
+    { cell: [6, 2, 4, 4], weight: 4 },
+    { cell: [-4, 4, 4, 4], weight: 3 },
+    { cell: [3, 3, 2, 8], weight: 3 },
+    { cell: [8, 4, 4], weight: 3 },
+    { cell: [-2, 6, 8], weight: 3 },
+    { cell: [16], weight: 2 },
+  ],
+  cadenceCells: [
+    { cell: [16], weight: 5 },
+    { cell: [-2, 14], weight: 4 },
+    { cell: [8, 8], weight: 3 },
+    { cell: [4, 4, 8], weight: 3 },
+  ],
+  bass: [
+    /**
+     * Sixteenths with the holes in the right places. The part that carries this
+     * style: a fingered electric bass playing a line rather than roots, with the
+     * octave on the offbeat and a chromatic approach into the next bar.
+     */
+    { name: 'sixteenth-line', weight: 6, hits: [
+      { at: 0, dur: 2, tone: 'root', vel: 0.94 },
+      { at: 3, dur: 1, tone: 'octave', vel: 0.72 },
+      { at: 4, dur: 2, tone: 'fifth', vel: 0.84 },
+      { at: 7, dur: 1, tone: 'root', vel: 0.68 },
+      { at: 8, dur: 2, tone: 'root', vel: 0.9 },
+      { at: 11, dur: 1, tone: 'octave', vel: 0.7 },
+      { at: 12, dur: 2, tone: 'third', vel: 0.82 },
+      { at: 15, dur: 1, tone: 'approach', vel: 0.78 },
+    ] },
+    /** The thumb and the popped octave. Kadomatsu, and the reason the era's
+     *  palette gained a slap patch. */
+    { name: 'thumb-and-pop', weight: 5, hits: [
+      { at: 0, dur: 2, tone: 'root', vel: 0.96 },
+      { at: 3, dur: 1, tone: 'octave', vel: 0.86 },
+      { at: 6, dur: 1, tone: 'seventh', vel: 0.7 },
+      { at: 8, dur: 2, tone: 'root', vel: 0.9 },
+      { at: 11, dur: 1, tone: 'octave', vel: 0.84 },
+      { at: 12, dur: 2, tone: 'fifth', vel: 0.8 },
+      { at: 15, dur: 1, tone: 'approach', vel: 0.76 },
+    ] },
+    /**
+     * Eighths that walk. Written on chord functions rather than intervals for
+     * the reason `BassTone` gives: this is an *outline* and it is supposed to
+     * renegotiate with each chord, which over a table of `maj7`s and `min7`s is
+     * the difference between a major seventh and a flat one on the same step.
+     */
+    { name: 'walking-eighths', weight: 4, hits: [
+      { at: 0, dur: 2, tone: 'root', vel: 0.92 },
+      { at: 2, dur: 2, tone: 'fifth', vel: 0.72 },
+      { at: 4, dur: 2, tone: 'octave', vel: 0.84 },
+      { at: 6, dur: 2, tone: 'seventh', vel: 0.72 },
+      { at: 8, dur: 2, tone: 'fifth', vel: 0.86 },
+      { at: 10, dur: 2, tone: 'third', vel: 0.72 },
+      { at: 12, dur: 2, tone: 'root', vel: 0.84 },
+      { at: 14, dur: 2, tone: 'approach', vel: 0.8 },
+    ] },
+    /** The push: the bar's root arriving a sixteenth early and held through the
+     *  downbeat, which is the single most common rhythmic figure in the idiom
+     *  and the thing the comp is doing at the same moment. */
+    { name: 'pushed-root', weight: 4, hits: [
+      { at: 0, dur: 3, tone: 'root', vel: 0.94 },
+      { at: 6, dur: 2, tone: 'fifth', vel: 0.78 },
+      { at: 8, dur: 3, tone: 'root', vel: 0.88 },
+      { at: 12, dur: 2, tone: 'octave', vel: 0.8 },
+      { at: 15, dur: 1, tone: 'approach', vel: 0.74 },
+    ] },
+    /** Two notes, long, for the fretless and for the verse of a ballad-tempo
+     *  side. */
+    { name: 'half-notes', weight: 2, hits: [
+      { at: 0, dur: 7, tone: 'root', vel: 0.9 },
+      { at: 8, dur: 7, tone: 'fifth', vel: 0.8 },
+    ] },
+  ],
+  comp: [
+    /**
+     * The push, as a chord: struck a sixteenth before the beat it belongs to and
+     * held across it. Everything in this idiom arrives early — it is what the
+     * Rhodes player is doing while the drummer stays exactly on the grid, and it
+     * is why these records swing without any swing in them.
+     */
+    { name: 'pushed-rhodes', weight: 6, voices: 4, hits: [
+      { at: 0, dur: 3, vel: 0.62 },
+      { at: 7, dur: 3, vel: 0.56 },
+      { at: 11, dur: 2, vel: 0.5 },
+      { at: 15, dur: 1, vel: 0.52 },
+    ] },
+    /** Sixteenth chops, damped. The clean guitar, and the technique table above
+     *  is what stops it ringing into the next chord. */
+    { name: 'guitar-chop', weight: 5, voices: 3, hits: [
+      { at: 2, dur: 1, vel: 0.5 }, { at: 3, dur: 1, vel: 0.42 },
+      { at: 6, dur: 1, vel: 0.48 }, { at: 7, dur: 1, vel: 0.4 },
+      { at: 10, dur: 1, vel: 0.5 }, { at: 11, dur: 1, vel: 0.42 },
+      { at: 14, dur: 1, vel: 0.48 }, { at: 15, dur: 1, vel: 0.44 },
+    ] },
+    { name: 'offbeat-eighths', weight: 4, voices: 4, hits: [
+      { at: 2, dur: 2, vel: 0.54 }, { at: 6, dur: 2, vel: 0.48 },
+      { at: 10, dur: 2, vel: 0.54 }, { at: 14, dur: 2, vel: 0.48 },
+    ] },
+    { name: 'held-strings', weight: 3, voices: 4, sustain: true, hits: [{ at: 0, dur: 16, vel: 0.44 }] },
+    { name: 'quarters', weight: 3, voices: 4, hits: [
+      { at: 0, dur: 3, vel: 0.6 }, { at: 4, dur: 3, vel: 0.48 },
+      { at: 8, dur: 3, vel: 0.56 }, { at: 12, dur: 3, vel: 0.5 },
+    ] },
+  ],
+  drums: [
+    /**
+     * The backbeat with sixteenth hats and a ghost on the way to it — a real
+     * drummer, which is what these records had even in the years the machines
+     * were everywhere. This style's era spans both, and the kit tables are
+     * written for the player rather than the box; the LinnDrum comes through the
+     * era's `drumSources` when it comes.
+     */
+    { name: 'sixteenth-groove', weight: 6, voices: {
+      bd: [0, 10], sd: [4, 12],
+      hh: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    }, ghosts: { sd: [7, 14] } },
+    { name: 'eighth-hats', weight: 5, voices: {
+      bd: [0, 6, 10], sd: [4, 12],
+      hh: [0, 2, 4, 6, 8, 10, 12, 14], oh: [14],
+    } },
+    /** The four-on-the-floor row, and one row is all it is. See the header:
+     *  this is a song on a band, not a song on a chassis. */
+    { name: 'four-on-the-floor', weight: 3, voices: {
+      bd: [0, 4, 8, 12], sd: [4, 12], hh: [2, 6, 10, 14], oh: [6, 14],
+    } },
+    { name: 'rim-verse', weight: 4, voices: {
+      bd: [0, 10], rim: [4, 12], hh: [0, 2, 4, 6, 8, 10, 12, 14],
+    } },
+    { name: 'shaker-and-snare', weight: 3, voices: {
+      bd: [0, 6, 10], sd: [4, 12], sh: [0, 2, 4, 6, 8, 10, 12, 14],
+    }, ghosts: { sd: [15] } },
+  ],
+  /**
+   * The stack, above the tune as often as below it.
+   *
+   * These records are overdubbed by the person singing them — Yamashita sang
+   * every part of his own choruses — and a self-overdubbed stack sits *close*:
+   * a third above, a third below, and a fifth above at the top of a phrase. That
+   * is the opposite of `girlgroup` and `discopop`, which both put the second
+   * voice underneath and argue it from `Chart.harmonyBelow`. `HarmonyProfile`
+   * made the sign a style's to choose and this is the style that wanted the
+   * other one.
+   */
+  harmony: { on: 'vocal', amount: 0.75, intervals: [[2, 6], [-2, 4], [4, 2]], kinds: ['chorus'] },
+  /**
+   * `syncopation: 0.6` is the highest in the genre and it is the number this
+   * style is really made of — the pushes in the cells above, stated once more as
+   * an appetite. `sequence: 0.3` is the lowest here for the same reason it is
+   * low in `synth/boulevard`: a tune that restated its figure over changes that
+   * have already moved would be answering a question nobody asked.
+   */
+  melody: { leap: 0.3, ornament: 0.22, span: 15, sequence: 0.3, syncopation: 0.6 },
+};
+
+/**
  * STADIUM — the gated snare, and the record that is about the back row.
  *
  * 1985 and the reason `Style.effects` exists in the shape it does. Everything
@@ -3454,7 +3858,7 @@ export const STYLES: Record<string, Style> = Object.fromEntries(
   [
     girlgroup, merseybeat, brill, bubblegum, baroque, sunshine,
     softrock, ballad, torch, discopop, powerpop, chamber,
-    synthpop, newromantic, stadium, jangle, hinrg, dreampop,
+    synthpop, newromantic, citypop, stadium, jangle, hinrg, dreampop,
     europop, teen, dancepop, electropop, indiepop, tropical,
   ].map((s) => [s.id, s]),
 );

@@ -626,7 +626,13 @@ learns what a section is.
 - **More than two hands.** Stated again here because every future request in this area
   will be a request to break it.
 - **A fourth rig model.** The 1974 pool is served by the polysynth rig with a mono
-  flavour, per §5.2.
+  flavour, per §5.2. *(Amended 2026-08-14: still true of 1974, and a fourth rig was
+  built anyway — at the other end of the timeline. `modern`, 1991 onward: a controller
+  that makes no sound with a laptop on a shelf above it. This bullet was refusing an
+  extra object for a pool that already had one; what it did not anticipate is four eras
+  landing after 1990 — synth's `retrowave`, pop's `sidechain`, dnb and hiphop — with no
+  object at all, so `rigPoolFor` returned the 1987 slab for every one of them. §3's own
+  wording left the room: "`'modular' | 'polysynth' | 'digital'` to start, with room.")*
 - **Rewriting the drum generator.** §4's part gate constrains what `box` may be given;
   it does not touch how `kit` parts are written today.
 - **Amplifiers, and anything else that takes floor.** §8.4 buys the connection without

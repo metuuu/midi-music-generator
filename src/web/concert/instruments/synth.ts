@@ -29,6 +29,7 @@ import {
 import { boardsFor, type BoardSpec } from '../../../concert/instruments.js';
 import type { GestureKind, PlayPoint, SynthRigId } from '../../../concert/types.js';
 import { buildDigitalRig } from './synth-rig-digital.js';
+import { buildModernRig } from './synth-rig-modern.js';
 import { buildModularRig } from './synth-rig-modular.js';
 import { buildPolysynthRig } from './synth-rig-polysynth.js';
 import { disposeTree, placeBoard, type SynthRigBuilder } from './synth-rig.js';
@@ -98,7 +99,7 @@ const REBOUND_LIFT = 0.85;
  * Where the control surface is, relative to the keys.
  *
  * A hand's depth above the key plane and a hand's reach behind the key line —
- * which is where a panel is on all three rigs, and which is clear of the keys
+ * which is where a panel is on every rig, and which is clear of the keys
  * by construction so reaching for a knob never puts a fist through a keybed.
  */
 const PANEL_RISE = 0.10;
@@ -152,7 +153,7 @@ class Hit {
 }
 
 /**
- * Which of the three to build.
+ * Which of the four to build.
  *
  * A lookup and no longer a decision, which is the whole of this change. It used
  * to take the year and answer from it, per performer, here in the renderer —
@@ -165,10 +166,10 @@ class Hit {
  * one array and a cap can be applied. See `assignRigs` and `SYNTH_RIGS`.
  *
  * The table lives here and **not** in `synth-rig.ts` on purpose. That file is
- * the contract every rig is written against; if it also imported the three rigs
- * then every rig would transitively depend on the other two, and each of them
- * would import a module that imports it back. The keyboard is the one place
- * that already knows about all three, so the mapping happens here.
+ * the contract every rig is written against; if it also imported the rigs then
+ * every rig would transitively depend on all the others, and each of them would
+ * import a module that imports it back. The keyboard is the one place that
+ * already knows about every one of them, so the mapping happens here.
  *
  * An unnamed rig is the keyboard-shaped instrument rather than the earliest
  * one, because that is what this model looked like before any of this existed
@@ -179,6 +180,7 @@ const RIGS: Record<SynthRigId, SynthRigBuilder> = {
   modular: buildModularRig,
   polysynth: buildPolysynthRig,
   digital: buildDigitalRig,
+  modern: buildModernRig,
 };
 
 function pickRig(rig: SynthRigId | undefined): SynthRigBuilder {
@@ -340,7 +342,7 @@ export const buildSynth: InstrumentBuilder = (opts) => {
         /**
          * The panel, in this model's own frame rather than the rig's.
          *
-         * Every one of the three rigs puts its controls in the same place —
+         * Every one of the rigs puts its controls in the same place —
          * above the key plane and behind the key line — because that is the one
          * region a keyboard leaves free: the modular's console, the polysynth's
          * knob row and the digital deck are all there. So the keyboard can

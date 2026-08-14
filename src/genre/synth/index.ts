@@ -1,9 +1,25 @@
 /**
- * Synth — vintage electronic music, 1972 to 1990.
+ * Synth — vintage electronic music, 1972 to 1990, and the revival that quotes it.
  *
  * Vangelis, Jean-Michel Jarre, Kraftwerk, and the Tangerine Dream that had a
  * drum machine. Four bodies of work that share a decade and a shelf of
  * instruments, and that the repo could not previously hold.
+ *
+ * ## And a fourth era that shares none of the shelf
+ *
+ * `retrowave` is 2005 onward — the night-drive records, the horror synth with a
+ * guitarist in it, the television theme nobody commissioned — and it is an era
+ * of this genre rather than a genre of its own for the reason this file exists
+ * to state. A genre here answers one question, *how does the melody relate to
+ * the harmony under it*, and that music answers it exactly as the four above do:
+ * follow the key, never raise the seventh, ♭VII where another idiom writes V.
+ * Filing it separately would have meant copying `scaleForChord` below into a
+ * second file and changing the tempi, which is the definition of a distinction
+ * that is not one.
+ *
+ * What it does not share is the shelf, and `eras.ts` argues that at length: the
+ * fourth era invents no instrument, and what makes it an era is the *desk* — the
+ * duck, the drive and a room longer than any of these records were mixed in.
  *
  * ## Why this is not ambient with a sequencer
  *
@@ -137,7 +153,7 @@ export const synth: Genre = {
   id: 'synth',
   label: 'Synth',
   description:
-    'Berlin-school sequencers, machine pop, cinematic analogue, cosmic disco and late-digital arpeggios — 1972 to 1990.',
+    'Berlin-school sequencers, machine pop, cinematic analogue, cosmic disco and late-digital arpeggios — 1972 to 1990, and the retrowave that quotes them.',
   styles: STYLES,
   eras: ERAS,
   moods: MOODS,
@@ -170,8 +186,9 @@ export const synth: Genre = {
    * statement that the machine was running before the record started and did not
    * stop when it ended. `machine` is the exception in the real world, since
    * Kraftwerk button their songs like the pop records they are, but a genre gets
-   * one answer here and the fade is the one that is right for five styles out of
-   * six.
+   * one answer here and the fade is the one that is right for eight styles out
+   * of nine — the revival made it the *default*, since a loop that stops is a
+   * loop somebody had to write an ending for.
    */
   ending: 'fade',
 
@@ -195,9 +212,9 @@ export const synth: Genre = {
 
   /**
    * Loop music, and it should sound like it. `catchy` locks the rhythm and
-   * recalls each section; `machine` and `stalker` push it to `earworm`, which is
-   * the honest setting for music whose entire proposition is the same four bars
-   * again.
+   * recalls each section; `machine`, `stalker` and `outrun` push it to
+   * `earworm`, which is the honest setting for music whose entire proposition is
+   * the same four bars again.
    */
   defaultHook: 'catchy',
 
@@ -216,9 +233,9 @@ export const synth: Genre = {
    * listening. It stays available, at a weight that keeps it rare.
    *
    * **`riff` is raised and fires rarely, and that is a fact about the styles rather
-   * than about this table.** Three of the six synth styles carry `excludeLayers:
-   * ['brass']`, so the layer a riff needs is absent from half the genre and the
-   * weight bites only in the three that keep it — measured at 2% when there were
+   * than about this table.** Five of the nine synth styles carry `excludeLayers:
+   * ['brass']`, so the layer a riff needs is absent from most of the genre and the
+   * weight bites only in the four that keep it — measured at 2% when there were
    * two of those, and the count is the only thing that has changed.
    *
    * That sat awkwardly beside `synth/eras.ts`, which says at length that the brass
@@ -494,13 +511,14 @@ export const synth: Genre = {
    * What the tune is made of, before a style has its say.
    *
    * `berlin` is one of the three authored voices in `tune/voice.ts` and returns
-   * before this field is ever consulted, so what follows governs the other five:
-   * `cinematic`, `machine`, `cosmic`, `stalker`, `optical`. Three keys only —
+   * before this field is ever consulted, so what follows governs the other
+   * eight: `cinematic`, `machine`, `cosmic`, `stalker`, `optical`, and the three
+   * revival styles `outrun`, `darksynth` and `boulevard`. Three keys only —
    * which kinds of tune, which degrees, what this music does to a figure — and
    * the counting stays with the styles, where it has to be. `melody.span` runs
    * from machine's seven semitones to cinematic's nineteen and `melody.ornament`
-   * from 0.02 to 0.12; a genre-wide number would average away the distinction
-   * those tables were written to make.
+   * from 0.02 to boulevard's 0.14; a genre-wide number would average away the
+   * distinction those tables were written to make.
    *
    * ## Which kinds
    *
@@ -520,52 +538,59 @@ export const synth: Genre = {
    * `long-note`'s own shape table leads with `climb-hold`. Raising both would
    * count the same fact twice.
    *
-   * **`long-note` at 2.5 is a lift for three styles whose own cells say the
+   * **`long-note` at 2.5 is a lift for five styles whose own cells say the
    * opposite, and that has to be said out loud.** Derivation reads it off
-   * density and gives `cinematic` 2.09 and `stalker` 2.41 — both of their
-   * melody cell tables lead with `[16]` at 6 — against `machine` 0.63, `cosmic`
-   * 0.54 and `optical` 0.40, because those three declare the densest melody
-   * cells in the genre at 2.83, 2.90 and 3.00 onsets a bar. So 2.5 barely moves
-   * the first two and roughly quadruples the last three. What argues for the
-   * lift genre-wide is where the phrases *end*: `[16]`, a whole bar on one note,
-   * is the top-weighted cadence cell in every style here — berlin 6, cinematic
-   * 7, machine 6, cosmic 5, stalker 7, optical 5. A held note is what these
-   * tunes arrive on even in the styles that move on the way there. It is not
-   * evidence that the lead is sparse, and a weight above every derived value
-   * would have been claiming that against three tables that deny it.
+   * density and gives `cinematic` 2.09, `stalker` 2.41 and `outrun` 1.71 — all
+   * three of their melody cell tables lead with `[16]` — against `machine` 0.63,
+   * `cosmic` 0.53 and a floor of 0.40 on `optical`, `darksynth` and
+   * `boulevard`, because those declare the densest melody cells in the genre at
+   * 3.00, 3.25 and 3.50 onsets a bar. So 2.5 barely moves the first three and
+   * roughly quadruples the rest. What argues for the lift genre-wide is where
+   * the phrases *end*: `[16]`, a whole bar on one note, is the top-weighted
+   * cadence cell in every style here — berlin 6, cinematic 7, machine 6, cosmic
+   * 5, stalker 7, optical 5, outrun 6, darksynth 5, boulevard 5. A held note is
+   * what these tunes arrive on even in the styles that move on the way there,
+   * and the two busiest tables in the genre are both revival styles that still
+   * land on one. It is not evidence that the lead is sparse, and a weight above
+   * every derived value would have been claiming that against five tables that
+   * deny it.
    *
-   * `wide-interval` at 2 sits just over the derived range, which is `0.5 + leap
-   * * 5`: `machine` 1.00 to `optical` 1.90. `solo.vocabulary` above says *a
+   * `wide-interval` at 2 sits at the top of the derived range rather than over
+   * it, which is `0.5 + leap * 5`: `machine` 1.00 to `darksynth`'s 2.00, the
+   * widest appetite in the genre and the reason this line used to read *just
+   * over*. `solo.vocabulary` above says *a
    * synth lead is a singing instrument in this repertoire — long notes, wide
    * intervals, bends*; that paragraph governs the improvised solo rather than
    * the composed tune, but the claim inside it is about the instrument, and
    * `eras.ts` puts `glide` on the *melody* patch in two eras, 1.5 and 2.5
    * semitones, which is that sentence's *bends* on the line this field governs.
    * `ARCHETYPES['wide-interval']` glosses itself *a singer's tune — it leaps out
-   * and steps home*. The declared `leap` numbers are low, 0.1 to 0.28, and that
+   * and steps home*. The declared `leap` numbers are low, 0.1 to 0.30, and that
    * is why this is 2 rather than 3. `unison` at 6 is not evidence either way: an
    * octave-doubled lead is *two players stating the tune together*, a doubling
    * of the whole line, which says nothing about the intervals inside it.
    *
    * `riff-response` at 1.2 clears the genre's lowest derived value (`cinematic`
-   * 1.16) and sits under the other four, up to `machine`'s 1.60. The genre's
+   * 1.16) and sits under the other seven, up to `darksynth`'s 1.94. The genre's
    * prose invites pushing it far lower — `stalker` spaces its counter two beats
    * because *what replies to an ostinato is a shape in the distance* — but
    * `optical` runs the other way and argues it at length: `counterMode` stays at
    * the default `answer`, *the bell echoing the lead a bar later… an answer, not
-   * an ostinato*, which is this archetype's own gloss. One of the five wants it,
-   * so the weight has to leave room. `arrangement.trade: 1` is not evidence
+   * an ostinato*, which is this archetype's own gloss. Two of the eight want it
+   * now, `darksynth` being a style whose lead *is* a riff, so the weight has to
+   * leave room. `arrangement.trade: 1` is not evidence
    * here: `trade` is a device *between two players*, and `riff-response` is the
    * shape of one line.
    *
    * **`descending-sequence` is pushed down, and that is a correction rather than
    * a preference.** `archetypesFor` reads `melody.sequence` as an appetite for
-   * walking a figure *down* the scale, computing `1 + sequence * 3` — 2.20 to
+   * walking a figure *down* the scale, computing `1 + sequence * 3` — 2.05 to
    * 3.70 here, the genre's second-heaviest derived archetype. In this genre that
    * number means the same figure *again*, which is why the weight it loses is
-   * the weight `chant` above carries. The descending tetrachord is real — three
-   * of the five this governs walk `i–VII–VI` a chord to the bar, and `berlin`
-   * besides — so 2 rather than nothing, but it is a colour here.
+   * the weight `chant` above carries. The descending tetrachord is real — four
+   * of the eight this governs walk `i–VII–VI` a chord to the bar, `outrun`
+   * having joined them with a progression whose note says exactly that, and
+   * `berlin` besides — so 2 rather than nothing, but it is a colour here.
    *
    * ## Which degrees
    *
@@ -585,11 +610,13 @@ export const synth: Genre = {
    * stated per style, and the chords are `i9`, `iv9`, `VImaj7`, `IIImaj7`,
    * `bIImaj7` — every one of which has the third in it. So `[0,2,3,4,6]`, the
    * minor pentatonic in minor and the subset that *does* carry the third, comes
-   * up level with it at 4. Three of the five this governs draw minor at 0.55 or
-   * above — `cinematic` 0.55, `machine` 0.65, `stalker` 0.92 — and the two
-   * genres stop drawing from one distribution two thirds of the time.
+   * up level with it at 4. Five of the eight this governs draw minor at 0.55 or
+   * above — `cinematic` 0.55, `machine` 0.65, `outrun` 0.9, `stalker` 0.92,
+   * `darksynth` 0.95 — and the two genres stop drawing from one distribution
+   * two thirds of the time.
    *
-   * `[0,1,2,4,5]` is for the two that lean major — `cosmic` at 0.6, `optical` at
+   * `[0,1,2,4,5]` is for the three that lean major — `boulevard` at 0.65,
+   * `cosmic` at 0.6, `optical` at
    * 0.55 — and for `machine`'s 1974 table, whose own note says it *would be a
    * folk song if a person were singing it*. The full diatonic stays on at 2 as
    * the only subset here holding both the fourth and the sixth, which is what
@@ -599,12 +626,13 @@ export const synth: Genre = {
    * ## What it does to a figure
    *
    * `voiceForStyle` merges `ops` by key, so every entry below replaces a
-   * per-style reading for all five, and two ops are absent because that trade is
-   * a bad one. `sequence` spans 0.4 on `optical` to 0.9 on `machine`, which is
-   * the difference between a tune somebody wrote at a keyboard and one that is
-   * the bass line's passenger. `displace` derives from `melody.syncopation`,
-   * 0.05 on `machine` against 0.40 on `optical` — the widest per-style gap in
-   * the genre's melody table, and `optical`'s header calls its line *more
+   * per-style reading for all eight, and two ops are absent because that trade
+   * is a bad one. `sequence` spans 0.35 on `boulevard` to 0.9 on `machine`,
+   * which is the difference between a tune somebody wrote at a keyboard and one
+   * that is the bass line's passenger. `displace` derives from
+   * `melody.syncopation`, 0.05 on `machine` against 0.40 on `optical` and
+   * `boulevard` — the widest per-style gap in the genre's melody table, and
+   * `optical`'s header calls its line *more
    * syncopated* than `berlin`'s in as many words. Derivation is reading the
    * right field in both cases.
    *

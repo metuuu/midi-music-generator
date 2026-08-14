@@ -22,7 +22,7 @@
  * The overlap is worse than that, because it is not only structural. Iskelmä
  * *is* Finnish pop and it already contains a style called `iskelmapop`, whose
  * own description reads "1980s radio iskelmä: straight eighths, drum machine,
- * synth strings" — which is a fair description of four of the twenty-four styles
+ * synth strings" — which is a fair description of four of the twenty-five styles
  * in this file. Synth covers the instrumental electronic end and would have
  * taken `synthpop` and `electropop` without complaint. Rock has `beat`, `jangle`
  * and `newwave`, and would have taken `merseybeat`, `powerpop` and `indiepop`.
@@ -108,10 +108,21 @@
  * and does not get one.** From about 2005 the melodic practice of this
  * repertoire stops being scale-derived at all: the tune is a fixed pitch set
  * dragged across a moving loop, closer to what `jazz/blues` does with its tonic
- * scale than to what the other twenty-two styles here do. `Style.scaleForChord`
+ * scale than to what the other twenty-three styles here do. `Style.scaleForChord`
  * would have supported it, `blues` is precedent, and it was not written because
  * the honest version needs measurement this pass did not do. Named here rather
  * than discovered later.
+ *
+ * **That gap is now the *second* of its kind rather than the only one, and the
+ * first one got written.** `citypop` names `chordScale` in `styles.ts` — a rule
+ * that re-roots on the chord instead of on the tonic, borrowed from jazz — and
+ * it is here rather than in that genre because everything except the rule is
+ * pop: the form, the hook, the singing, the era and the LinnDrum. It cost one
+ * function and one field, which is a fair estimate of what the paragraph above
+ * is still owed. The difference is that this one had a measurement available:
+ * the tune sings outside the key scale in 4.6% of its notes against 0.5% for
+ * `synthpop` and 0.9% for `softrock`, and 5.6% of the notes over a `IVmaj7` bar
+ * are its sharp eleventh.
  */
 
 import { makeScale } from '../../core/scale.js';
@@ -236,20 +247,34 @@ export const pop: Genre = {
    * would put one there is a genre-level rule returning harmonic minor under a
    * dominant-function chord, and this genre's rule does not do that.
    *
-   * **So the leading tone is a style decision and it is made twenty-four times.**
+   * **So the leading tone is a style decision and it is made twenty-five times.**
    * `Style.scaleForChord` is the seam — the field whose docstring says it is
    * absent on every style but one, and that the blues is why it exists. Seven
    * styles here name `functional` in `styles.ts`: `brill`, `girlgroup`,
    * `baroque`, `ballad`, `torch`, `chamber` and `newromantic`. The first six are
    * all pre-1970 and descend from Tin Pan Alley and the theatre pit; the seventh
    * is a synthesiser band in 1981 whose writers had been to musical theatre, and
-   * it is the one the measurement found rather than the reading. The other
-   * seventeen take the genre rule and never raise the seventh.
+   * it is the one the measurement found rather than the reading.
+   *
+   * `citypop` is the eighth and it arrives by a different door: it names
+   * `chordScale` rather than `functional`, and that rule's `default` branch
+   * falls through to `functional` — so it raises the seventh under a dominant
+   * for the same reason and by the same code, while re-rooting on the chord
+   * everywhere else. The other seventeen take the genre rule and never raise the
+   * seventh.
    *
    * The division is checkable rather than declared, and the invariant is worth
    * stating because it is exactly the kind of thing that rots in silence: **a
-   * style writes `V` in a minor progression if and only if it names
-   * `functional`.** Over 220 songs four styles broke it — `newromantic` gained
+   * style writes `V` in a minor progression if and only if its rule raises the
+   * seventh under a dominant.** That used to read *if and only if it names
+   * `functional`*, which was the same sentence while `functional` was the only
+   * such rule and is not any more: `citypop`'s `chordScale` reaches the
+   * substitution through its own `default` branch, and its minor table is full
+   * of the `ii%7–V7` its repertoire is built on. The restatement is the one the
+   * invariant always meant — the question is what the melody will be handed over
+   * that chord, not which function name is written in the table.
+   *
+   * Over 220 songs four styles broke it — `newromantic` gained
    * the substitution, and `merseybeat`, `discopop` and `powerpop` had their minor
    * `V` taken away, because in those three the aeolian reading is the right one
    * and the `V` was the error. That is the actual shape of the repertoire, stated
@@ -369,7 +394,7 @@ export const pop: Genre = {
    * *four* and listed four, and the five it dropped are the ones that make the
    * claim interesting — `ballad` and `newromantic` are the styles this genre
    * argues hardest about elsewhere, and `jangle`, `dreampop` and `indiepop` are
-   * the whole of its late-eighties corner. Nine of twenty-four sit at `standard`
+   * the whole of its late-eighties corner. Nine of twenty-five sit at `standard`
    * against six at `earworm`, so the genre leans away from the loop rather than
    * toward it, which is the opposite of the shape the old count implied.
    *
@@ -433,7 +458,7 @@ export const pop: Genre = {
    * first paragraph of this block already writes.
    *
    * **No `Genre.harmony`.** The fallback would replace the draw on all
-   * twenty-four, and five of them say in their own headers that there is nobody
+   * twenty-five, and five of them say in their own headers that there is nobody
    * to sing it: `torch` is *one singer, one accompanist*, `tropical` is *nobody
    * sings over it*, `hinrg`'s tune is *shouted over* the track rather than sung
    * across it, `dancepop`'s chorus is *played rather than sung*, and `chamber`
@@ -516,16 +541,18 @@ export const pop: Genre = {
      *
      * Synth vetoes the second from the first level because its whole position is
      * that the note is not in the music. This genre's position is that the note
-     * is in *seven styles* of the music and not in the other seventeen, and a
+     * is in *eight styles* of the music and not in the other seventeen, and a
      * genre-level veto cannot say that. What happens instead is what synth's own
      * note describes as the better outcome: in the seventeen modal styles the rule is
      * simply inert, because their chord scale never produces a raised seventh for
-     * it to catch, and in the **seven** functional ones it is doing exactly the
-     * job it was written for. Seven, matching the *seven styles* three lines above
-     * and the list `styles.ts` gives in full — `girlgroup`, `brill`, `baroque`,
-     * `ballad`, `torch`, `chamber` and `newromantic`. This read *six*, against its
-     * own paragraph, which is the cheapest kind of wrong number to leave behind
-     * and the easiest to read straight past.
+     * it to catch, and in the **eight** functional ones it is doing exactly the
+     * job it was written for. Eight, matching the count three lines above and the
+     * list `styles.ts` gives in full — `girlgroup`, `brill`, `baroque`, `ballad`,
+     * `torch`, `chamber`, `newromantic`, and `citypop` through the `default`
+     * branch of its own rule. This read *six*, against its own paragraph, which
+     * is the cheapest kind of wrong number to leave behind and the easiest to
+     * read straight past; it then read *seven* until a style arrived that raises
+     * the seventh without naming `functional` to do it.
      *
      * The residual is named rather than hidden. The soloist's `chromatic`
      * appetite offers the semitone either side of wherever the line is, so a

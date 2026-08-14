@@ -20,7 +20,7 @@
  *
  * The generic model is still the right answer to "which synthesiser is this
  * pad patch" — that question has no answer. It is the wrong answer to "what did
- * a synthesiser look like", because that question has three, and they share
+ * a synthesiser look like", because that question has four, and they share
  * almost no geometry:
  *
  *  - **1972–77** a cabinet of patch cables the player stands inside; the
@@ -29,14 +29,18 @@
  *    knobs, an X-stand.
  *  - **1984–90** a thin plastic slab with membrane buttons and no knobs at all,
  *    usually two of them stacked on a double stand.
+ *  - **1991–** a controller that makes no sound at all, with a laptop open on a
+ *    shelf above it. The fourth was added when four eras of this project had
+ *    passed 1990 and every one of them was staging the slab.
  *
  * ## What is on which side of it
  *
  * **The keys stay in `synth.ts`.** They are the only part `resolve` touches, and
  * `resolve` is required to be pure, cheap and identical for the same point on
  * every replay. Nothing here may move them, and nothing here is consulted about
- * where a hand goes — which is exactly what makes three rigs safe to build in
- * parallel against one unchanged contract.
+ * where a hand goes — which is exactly what makes four rigs safe to build in
+ * parallel against one unchanged contract, and what made the fourth cheap to
+ * add: it is a new object, not a new question.
  *
  * **Everything else is a rig**: the case the keys sit in, the control surface,
  * the patch bay, the wheels, and whatever holds it off the floor. A rig is
@@ -240,7 +244,7 @@ const OUTLET_PROUD = 0.013;
 /**
  * Bolt a socket plate on the back of a case, and say where its lead starts.
  *
- * One object for all three rigs, and the reason is the same as `placeBoard`'s:
+ * One object for all four rigs, and the reason is the same as `placeBoard`'s:
  * two copies of "where does a cable leave this thing" is two answers, and the
  * one nobody checked is the one that draws a lead hanging in the air 8 cm
  * behind a keyboard. A rig says where its back panel is; this decides what a
@@ -313,7 +317,7 @@ export const buildBareRig: SynthRigBuilder = () => {
 };
 
 /**
- * The boundaries between the three rigs, as years.
+ * The boundaries between the rigs, as years — the first two of the three.
  *
  * 1978 is the Prophet-5 — the first polyphonic synthesiser with a memory, and
  * the year the instrument stopped being a cabinet and became a keyboard. 1984 is
@@ -321,18 +325,22 @@ export const buildBareRig: SynthRigBuilder = () => {
  * discontinuities in what the object looked like rather than round numbers, and
  * a show whose era lands either side of one should stage a different prop.
  *
- * **Anything earlier than the first boundary is modular; anything later than
- * the second is digital.** Neither constant decides anything any more: nothing
- * in the repo reads either of them. Which rig is built comes off
- * `Performer.rig`, drawn in `concert/cast.ts` from `SYNTH_RIGS` and
- * `rigPoolFor` — whose own spans disagree with these two numbers, `polysynth`
- * running 1963–1990 against `modular`'s 1973–1985 — and `synth.ts`'s `pickRig`
- * says so in as many words. They are kept because the two dates are the reason
- * there are three rigs at all, and that argument is upstream of whoever reads
- * the spans. Ambient's `tape` era (1978) and its
+ * **There is now a third boundary and it has no constant here.** `modern.from`
+ * is 1991 — General MIDI, and the year the keyboard stopped needing to make a
+ * sound — and it lives in `SYNTH_RIGS` alone. That is the right place for it and
+ * an argument for these two eventually following it there; they are kept because
+ * the two dates are the reason there was a rig table at all, and that argument is
+ * upstream of whoever reads the spans.
+ *
+ * **Anything earlier than the first boundary is modular; anything after the
+ * third is a controller.** Neither constant decides anything: nothing in the
+ * repo reads either of them. Which rig is built comes off `Performer.rig`, drawn
+ * in `concert/cast.ts` from `SYNTH_RIGS` and `rigPoolFor` — whose own spans
+ * disagree with these two numbers, `polysynth` running 1963–1990 against
+ * `modular`'s 1973–1985 — and `synth.ts`'s `pickRig` says so in as many words.
+ * Ambient's `tape` era (1978) and its
  * `hybrid` era (2006) are still the pair that shows why this had to be a year
- * and not a switch
- * over this genre's three era ids.
+ * and not a switch over a genre's era ids.
  */
 export const POLYSYNTH_FROM = 1978;
 export const DIGITAL_FROM = 1984;

@@ -110,6 +110,16 @@ const twotrack: EraProfile = {
     softrock: 2, ballad: 5, torch: 4, discopop: 0.5, powerpop: 1, chamber: 3,
     synthpop: 0.5, newromantic: 0.5, stadium: 0.5, jangle: 2, hinrg: 0.5, dreampop: 0.5,
     europop: 0.5, teen: 0.5, dancepop: 0.5, electropop: 0.5, indiepop: 1, tropical: 0.5,
+    /**
+     * `citypop` at the table's floor rather than at zero, which is the rule this
+     * genre set for itself: *nothing is ever zero, because a zero would be a
+     * claim about the repertoire that is false.* Japanese pop in 1965 is not city
+     * pop — the records that made it are ten years away and the players who made
+     * them were at school — but the floor here is what every style out of its
+     * decade gets, and singling this one out for a zero would say the style is
+     * impossible rather than early.
+     */
+    citypop: 0.5,
   },
   tempoScale: 1,
   /**
@@ -211,6 +221,14 @@ const multitrack: EraProfile = {
     softrock: 9, ballad: 8, torch: 6, discopop: 8, powerpop: 7, chamber: 6,
     synthpop: 1, newromantic: 1, stadium: 1, jangle: 2, hinrg: 2, dreampop: 1,
     europop: 0.5, teen: 0.5, dancepop: 0.5, electropop: 0.5, indiepop: 1, tropical: 0.5,
+    /**
+     * The first era where `citypop` is real. 1978 and 1979 are its first records
+     * — *Spacy*, *Go Ahead!* — and this era's own furniture is what they were
+     * made on: twenty-four tracks, a hired rhythm section, a Rhodes and a
+     * fretless. A 5 rather than the 8 it gets one era on, because the style's
+     * centre is 1982 and this is the two years before it.
+     */
+    citypop: 5,
   },
   tempoScale: 0.98,
   /**
@@ -291,7 +309,15 @@ const gated: EraProfile = {
       ['synthStrings2', 5], ['padWarm', 4], ['padPoly', 3], ['synthChoir', 3],
       ['padHalo', 2], ['strings1', 2], ['padNewAge', 2],
     ],
-    bass: [['synthBass', 5], ['synthBass2', 4], ['fingerBass', 3], ['fretlessBass', 2], ['pickBass', 2]],
+    /**
+     * `slapBass` at 2, added with `citypop` and earning its place without it.
+     * The thumb is not a Japanese import: 1983 is Level 42, Duran Duran, *Thriller*
+     * and every television theme of the decade, and a 1985 palette that could not
+     * deal one was describing the decade with its most audible bass technique
+     * left out. Small, because the fingered and synth basses are still most of
+     * what these records used.
+     */
+    bass: [['synthBass', 5], ['synthBass2', 4], ['fingerBass', 3], ['fretlessBass', 2], ['pickBass', 2], ['slapBass', 2]],
     brass: [
       ['synthBrass2', 5], ['synthBrass', 4], ['brassSection', 3], ['tenorSax', 3],
       ['trumpet', 2], ['orchestraHit', 1],
@@ -302,6 +328,10 @@ const gated: EraProfile = {
     softrock: 3, ballad: 7, torch: 3, discopop: 3, powerpop: 3, chamber: 2,
     synthpop: 9, newromantic: 8, stadium: 9, jangle: 7, hinrg: 8, dreampop: 5,
     europop: 2, teen: 1, dancepop: 1, electropop: 1, indiepop: 2, tropical: 0.5,
+    /** Home. 1980–85 is the whole of this style's centre, the LinnDrum above is
+     *  literally the machine on those records, and the DX7 electric piano
+     *  leading the comp palette is the sound it comps with. */
+    citypop: 8,
   },
   tempoScale: 1,
   /**
@@ -424,6 +454,14 @@ const sidechain: EraProfile = {
     softrock: 2, ballad: 6, torch: 2, discopop: 2, powerpop: 2, chamber: 4,
     synthpop: 3, newromantic: 1, stadium: 2, jangle: 3, hinrg: 2, dreampop: 5,
     europop: 8, teen: 8, dancepop: 9, electropop: 8, indiepop: 7, tropical: 8,
+    /**
+     * The revival, at a real weight. This is the one style in the table whose
+     * modern presence is a *rediscovery* rather than a continuation — the records
+     * left Japan thirty years late, and what came back is both a new generation
+     * of the thing and a sample source for everybody else. 4 rather than 8: it is
+     * a live idiom again, and it is not what most of this era's chart is.
+     */
+    citypop: 4,
   },
   tempoScale: 1,
   keyChangeChance: 0.08,

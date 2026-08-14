@@ -1007,18 +1007,25 @@ export interface Look {
 /**
  * Which object a keyboard player is standing behind.
  *
- * One archetype, three objects, and they share almost no geometry — the
+ * One archetype, four objects, and they share almost no geometry — the
  * argument is set out at length in `web/concert/instruments/synth-rig.ts`. What
  * that file could not do is *count*: it chose per performer, from the year, in
  * the renderer, so a 1974 concert put a five-cabinet Moog System 55 behind
  * every keyboard on the stage. Three walls of patch cables, because nothing was
  * in a position to know there were three.
  *
+ * **`modern` is the fourth and it closed a hole at the other end of the
+ * timeline.** `digital` runs to 2100, so for twenty-three years it was the only
+ * entry a modern-era pool could draw and every keyboard player in every show
+ * after 1990 stood behind the same 1987 slab — retrowave in 2013, sidechain pop
+ * in 2010, dnb in 2012, hiphop in 2015, one object between them. The hole was
+ * not a missing weight, it was a missing thing to weight.
+ *
  * The type is here and the table of what each one *is* — how much floor, how
  * tall, how many a band may own — is `SYNTH_RIGS` in `concert/instruments.ts`,
  * which is the same split `Archetype` and `ARCHETYPES` already use.
  */
-export type SynthRigId = 'modular' | 'polysynth' | 'digital';
+export type SynthRigId = 'modular' | 'polysynth' | 'digital' | 'modern';
 
 export interface Performer {
   /** Stable within a number. Choreography, groove and lighting all key on it. */

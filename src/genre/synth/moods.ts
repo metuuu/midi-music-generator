@@ -39,7 +39,10 @@ const moods: Mood[] = [
     gloss: 'the street outside, after midnight — a small ostinato and something behind it',
     // `optical` is barely here. A bright arpeggio in a major key is the one
     // thing in the genre this mood cannot use, and the style leans major.
-    styleBias: { stalker: 4.0, cinematic: 1.3, berlin: 1.1, machine: 0.7, optical: 0.4, cosmic: 0.2 },
+    styleBias: {
+      stalker: 4.0, darksynth: 3.4, cinematic: 1.3, berlin: 1.1, outrun: 1.0,
+      machine: 0.7, boulevard: 0.4, optical: 0.4, cosmic: 0.2,
+    },
     // The hardest mode bias in the genre. A horror ostinato in major is a
     // nursery rhyme, and the difference between the two is one note.
     modeBias: { minor: 3.0, major: 0.2 },
@@ -58,7 +61,18 @@ const moods: Mood[] = [
     id: 'motorway',
     label: 'Motorway',
     gloss: 'forward at a constant speed, all night — sequencer, headlights, no destination yet',
-    styleBias: { berlin: 3.2, machine: 2.6, optical: 2.0, cosmic: 1.4, cinematic: 0.8, stalker: 0.5 },
+    /**
+     * `outrun` is at the top of this table and belongs there more literally
+     * than anything else in it. The older styles are *about* motion — a
+     * sequence that does not stop is a road by analogy — and that style is a
+     * genre whose records are named after cars, whose sleeves are a windscreen
+     * at night, and whose entire proposition is the second half of this mood's
+     * gloss: headlights, no destination yet.
+     */
+    styleBias: {
+      outrun: 3.8, berlin: 3.2, machine: 2.6, optical: 2.0, darksynth: 1.8,
+      cosmic: 1.4, boulevard: 1.2, cinematic: 0.8, stalker: 0.5,
+    },
     modeBias: { minor: 1.4, major: 1.0 },
     tempo: 0.35,
     density: 0.1,
@@ -75,7 +89,10 @@ const moods: Mood[] = [
     gloss: 'the city, arrived at and lit up — four on the floor and everything on top',
     // The mood's second home. A city lit up at night is a digital record, and
     // `optical` is the only style here whose instrument was invented for it.
-    styleBias: { cosmic: 3.6, optical: 2.8, machine: 2.2, cinematic: 1.2, stalker: 0.6, berlin: 0.5 },
+    styleBias: {
+      cosmic: 3.6, boulevard: 3.4, optical: 2.8, outrun: 2.4, machine: 2.2,
+      darksynth: 1.6, cinematic: 1.2, stalker: 0.6, berlin: 0.5,
+    },
     // Even, and deliberately so. This is the one mood where minor is not sad —
     // a euphoric sequencer record in A minor is still euphoric, because the
     // pulse is carrying the affect and the mode is only colouring it.
@@ -92,7 +109,16 @@ const moods: Mood[] = [
     id: 'cosmos',
     label: 'Cosmos',
     gloss: 'off the planet — slow, wide intervals, major and unafraid',
-    styleBias: { cinematic: 3.0, berlin: 2.6, optical: 1.5, cosmic: 1.2, machine: 0.5, stalker: 0.4 },
+    /**
+     * The three revival styles are all under 1 here, which is the only mood
+     * where that happens to them. This music looks at a city and at a road; it
+     * does not look up. A night-drive record with a choir over it is a
+     * `cinematic` record, and it is available under that name.
+     */
+    styleBias: {
+      cinematic: 3.0, berlin: 2.6, optical: 1.5, cosmic: 1.2, boulevard: 0.8,
+      outrun: 0.7, machine: 0.5, stalker: 0.4, darksynth: 0.3,
+    },
     // Major-leaning, which is the whole difference between this and `dread`.
     // Space in this repertoire is awe rather than horror: the camera pulls back
     // and the choir comes in, and that gesture does not work in minor.

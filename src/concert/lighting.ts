@@ -179,6 +179,62 @@ const HOUSE: Record<string, HouseStyle> = {
     dim: 0.72, floor: 0.26, contrast: 0.22, fade: 12, lagBars: 2,
     footlights: false, announces: false, haze: 0.90, preset: 0.35,
   },
+  /**
+   * A big civic hall with a screen in it, and more smoke than anything here
+   * except the black box.
+   *
+   * Every number below is argued from `genre/synth/`, because this genre states
+   * its own lighting in prose and the rig should not be re-deciding it.
+   *
+   *  - **`floor` and `contrast` are the filter.** `genre/synth/index.ts` sets
+   *    `filter.kind` to 0.22 for an intro and 1 for a chorus and calls it "the
+   *    arrangement": everywhere else a section arrives because more players
+   *    start playing, and here it arrives because a filter opened across the
+   *    previous sixteen bars. So this house has the lowest floor and the widest
+   *    swing in the table — the same gesture, in light instead of cutoff — and
+   *    the outro closes further than it opened, which `filter.kind.outro: 0.18`
+   *    already says about the sound.
+   *  - **`fade: 4` because the arrival was a slope.** A dance band's chorus
+   *    lands on a crash and two beats is right for it. This one has been coming
+   *    since bar sixteen, and a light that snaps onto the downbeat of a filter
+   *    sweep arrives after the thing it was for. Not ambient's twelve: the
+   *    arrival is real, it just is not sudden.
+   *  - **No footlights.** The room is `genre/synth/staging.ts`'s hall — a
+   *    municipal auditorium, not a pavilion — and its boards run from `#4a4238`
+   *    to nearly black. Uplight off the deck onto a man standing behind a
+   *    Prophet-5 is a music-hall fixture in a room that never was a theatre.
+   *  - **`announces: true`, and the field does not mean what the genre's most
+   *    quotable line is about.** `genre/synth/index.ts` sets `countIn: false`
+   *    and argues it well — "a sequencer is already running when the lights go
+   *    up, and four clicks in front of it would be a drummer announcing a
+   *    machine that does not need announcing". That is a *drummer* announcing,
+   *    and this field is the *lighting* announcing: fill bumps, the key-change
+   *    push, and whether there is a follow spot at all. All three are wanted
+   *    here. The genre carries `keyChangeChance` up to 0.3 — the highest
+   *    outside iskelmä, and set there precisely because the lifted final
+   *    statement is what a film cue is built toward — and `solo.rotation` puts
+   *    a lead break in the middle of the form. `false` would delete the spot
+   *    from a genre whose staging file exists because the music *has* a
+   *    foreground, which is the whole argument it makes against the black box.
+   *  - **`haze` sits just under ambient's.** The staging file calls this the
+   *    heaviest fog in the project; measured against `genre/ambient/staging.ts`
+   *    it is the second heaviest — 0.55–0.8 across four eras against ambient's
+   *    0.68–0.85 across three — and the ratio between the two is what this
+   *    number keeps. It is above jazz for a reason of kind rather than degree:
+   *    a cellar is hazy because everyone in it is smoking, and a hall is hazy
+   *    because somebody wheeled a machine in and pointed it at the beams.
+   *  - **`preset` is low, and the sequencer is why.** The bill in `staging.ts`
+   *    prints "already running when the lights came up" as an opening line.
+   *    This is a room found dark with the music already going, so most of the
+   *    opening look is a fade rather than a state — but not ambient's 0.35,
+   *    because there has been a lit rectangle upstage at every one of these
+   *    concerts since 1974 (`props: ['projection', 'riser']`) and the audience
+   *    is standing rather than seated in the black.
+   */
+  synth: {
+    dim: 0.80, floor: 0.16, contrast: 0.66, fade: 4, lagBars: 0,
+    footlights: false, announces: true, haze: 0.80, preset: 0.45,
+  },
 };
 
 const DEFAULT_HOUSE: HouseStyle = {
@@ -256,6 +312,90 @@ const PALETTES: Record<string, Palette> = {
   'ambient/hybrid': {
     warm: '#b8c6d8', cool: '#6a86c0', accent: '#8f7ad0',
     cycDeep: '#0c1020', cycLift: '#22305a', spot: '#eef2ff',
+  },
+  /**
+   * 1972–77 modular: two floods and a dry-ice machine, in a hall hired for the
+   * night.
+   *
+   * `genre/synth/eras.ts` says a rig of that decade "had gels and no console",
+   * so the whole evening is two or three flat washes that sit for twenty
+   * minutes, and the table is built as literally that — two gels and one for
+   * the moment.
+   *
+   * **Green is the `warm`, which looks like a mistake and is the period.** The
+   * era's own dressing calls the green wash "the period's one reliable colour"
+   * and paints the room's ambient `#9fc9a6`. It is pulled yellow of that here
+   * because the flood behind it is tungsten: a green gel over 3200 K is a
+   * yellow-green, and a gel is all this rig has. The `cool` is the other flood
+   * — steel through violet, agreeing with the hall's `#3a2c46` curtain, and it
+   * is what the dry ice is lit by. The `accent` is the deep amber that gets
+   * used for the one big moment, which in a rig with no console is the whole of
+   * what "a cue" means. The cyc is the cloth's own `#171b21` at rest, lifting
+   * to the green of the flood on stone.
+   */
+  'synth/modular': {
+    warm: '#a6c98e', cool: '#7b74b0', accent: '#c4562a',
+    cycDeep: '#141a20', cycLift: '#2f4a44', spot: '#fff0d8',
+  },
+  /**
+   * 1978–83 polysynth: the decade the concerts got big.
+   *
+   * The era header names its own colours — "deep blue, white light, one hard
+   * beam" — and adds that this is lit by things pointed at the band rather than
+   * by anything in the room, which is the sentence separating it from the two
+   * on either side. So `warm` is that white light, cold rather than tungsten,
+   * and `cool` is the saturated blue of the room's `#20305e` curtain.
+   *
+   * **The accent is red, and it comes out of the wardrobe rather than out of a
+   * colour wheel.** `staging.ts` dresses this era in a red shirt and a black
+   * tie and says the uniform is an *argument* — four identical operators — with
+   * `accents: ['#c62222', ...]` under it. A red rim on a white wash over a blue
+   * stage is that photograph, and it is the only red accent in this table.
+   */
+  'synth/polysynth': {
+    warm: '#dfe8ff', cool: '#3f5ec8', accent: '#dc2b34',
+    cycDeep: '#0e1430', cycLift: '#2a49a8', spot: '#f6f8ff',
+  },
+  /**
+   * 1984–90 digital: cyan and magenta, and the most fog of the first three.
+   *
+   * Both gels are lifted straight from the era's own `accents`
+   * (`['#ff4fa3', '#2fd8d0', ...]`), because the wardrobe and the rig were lit
+   * by the same decade and disagreeing with it here would only be inventing a
+   * fifth colour. The `warm` is the white of a television key with the magenta
+   * still in it — near-white rather than amber, since an FM instrument's whole
+   * selling point was a top end nothing analogue could reach and warming the
+   * stage under it would be arguing with the record.
+   *
+   * The spot is the only pure white in the table. A 1987 arena follow spot is a
+   * xenon, and a xenon genuinely is whiter than every tungsten lantern above.
+   */
+  'synth/digital': {
+    warm: '#f2e6ee', cool: '#2fd8d0', accent: '#ff4fa3',
+    cycDeep: '#0a1622', cycLift: '#1c5a6a', spot: '#ffffff',
+  },
+  /**
+   * 2005– retrowave: the same two colours as `digital`, in different holes in
+   * the rig.
+   *
+   * That is the entry, and it is the era. `eras.ts` says this decade invented
+   * no hardware and that the overlap with the ones above is the point, so a
+   * palette that reached for new colours would be describing a different music.
+   * What moved is *where the colour is*: `staging.ts` calls this "the first
+   * stage in this genre lit **by the backdrop** rather than by anything pointed
+   * at the band", and paints the room `ambient: '#ff3fa4'` over nearly black
+   * boards. So the magenta comes off the back light and becomes the wash — the
+   * whole room is the sleeve art — the cyan drops back to the rim, which is the
+   * same `#2fd8d0` gel `digital` has in its `cool`, and the `cool` becomes the
+   * indigo underneath the sunset that the bill's own gradient already prints.
+   *
+   * The cyc carries the largest lift in this file, for the same reason: it is
+   * the only era here where the backdrop is the source rather than the thing
+   * behind the source, so it has to be able to get genuinely hot.
+   */
+  'synth/retrowave': {
+    warm: '#ff5fae', cool: '#5a4ad0', accent: '#2fd8d0',
+    cycDeep: '#170a2e', cycLift: '#a02a80', spot: '#ffeef8',
   },
 };
 
@@ -1165,6 +1305,22 @@ function hazeFor(genre: string, era: string, house: HouseStyle, rng: Rng): numbe
     'ambient/tape': -0.04,
     'ambient/sampler': 0.02,
     'ambient/hybrid': 0.05,
+    /**
+     * The four synth rows track the room's own `fog` — 0.55, 0.62, 0.75, 0.8 in
+     * `genre/synth/staging.ts` — because they are the same fact seen from two
+     * sides, and the spread is wider here than in any other genre because the
+     * genre's own is.
+     *
+     * `modular` is the outlier and is the only one that is physics rather than
+     * budget: a dry-ice machine makes a bank of cold fog that sinks and clears,
+     * so a 1974 hall is briefly opaque at knee height and thin everywhere the
+     * beams actually are. The later three are a hazer, which is the opposite
+     * device — it fills the room evenly and stays filled all night.
+     */
+    'synth/modular': -0.10,
+    'synth/polysynth': -0.04,
+    'synth/digital': 0.04,
+    'synth/retrowave': 0.08,
   };
   const spread = genre === 'ambient' ? 0.03 : 0.05;
   return round3(clamp01(

@@ -1039,7 +1039,7 @@ const RUN_ON = 0.18;
  *
  * The one part of this whole system an audience is ever close enough to read,
  * and until now the only instruments that had anything at all where a cable
- * meets an instrument were the three synth rigs — `mountOutlet` bolts a socket
+ * meets an instrument were the synth rigs — `mountOutlet` bolts a socket
  * plate to their back panels. A guitar, a bass, an electric piano and an organ
  * all had a tube of rubber emerging from bare wood, which is the same defect as
  * a lead that starts in mid-air and is worse for being at eye level in every

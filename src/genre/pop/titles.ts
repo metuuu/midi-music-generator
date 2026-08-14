@@ -67,13 +67,22 @@ interface Noun {
  * told the next twenty producers which riddim you meant, and it was information.
  * Here the format word is *decoration*: a pop record that mentions the radio is
  * flattering the thing that is about to play it.
+ *
+ * **Every style has to appear in at least one row or it loses the pattern
+ * silently.** `usable` filters this list by style and `generateTitle` only
+ * offers the `format` pattern when something survives, so a style absent from
+ * all six is not handed a fallback — it is quietly dealt seven patterns instead
+ * of eight. `citypop` was added to the file and to none of these rows, which cost
+ * it about a ninth of its title weight and locked it out of the two words its own
+ * repertoire is most literally about: the radio and the telephone are what half
+ * those records are named after.
  */
 const FORMATS: Noun[] = [
-  { word: 'Radio', styles: ['synthpop', 'newromantic', 'stadium', 'powerpop', 'jangle'] },
+  { word: 'Radio', styles: ['synthpop', 'newromantic', 'stadium', 'powerpop', 'jangle', 'citypop'] },
   { word: 'Record', styles: ['bubblegum', 'merseybeat', 'girlgroup', 'brill', 'powerpop'] },
   { word: 'Discotheque', styles: ['discopop', 'hinrg', 'europop'] },
   { word: 'Jukebox', styles: ['girlgroup', 'merseybeat', 'brill', 'bubblegum'] },
-  { word: 'Telephone', styles: ['girlgroup', 'brill', 'synthpop', 'teen', 'electropop'] },
+  { word: 'Telephone', styles: ['girlgroup', 'brill', 'synthpop', 'teen', 'electropop', 'citypop'] },
   { word: 'Encore', styles: ['stadium', 'ballad', 'europop', 'dancepop'] },
 ];
 

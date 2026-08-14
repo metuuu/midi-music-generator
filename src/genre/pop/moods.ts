@@ -89,7 +89,8 @@ const moods: Mood[] = [
     label: 'Summer',
     gloss: 'the July release: bright, warm, and slightly too pleased with itself',
     styleBias: {
-      sunshine: 3.4, tropical: 3.2, merseybeat: 2, bubblegum: 2, jangle: 1.8,
+      sunshine: 3.4, tropical: 3.2, citypop: 2.6, merseybeat: 2, bubblegum: 2,
+      jangle: 1.8,
       indiepop: 1.8, discopop: 1.6, dancepop: 1.4, softrock: 1.3, girlgroup: 1.1,
       torch: 0.05, dreampop: 0.2, newromantic: 0.2, baroque: 0.4, stadium: 0.4,
       chamber: 0.5, hinrg: 0.5,
@@ -107,7 +108,7 @@ const moods: Mood[] = [
     gloss: 'made for a room with a floor in it: four on it, and no slow bit',
     styleBias: {
       dancepop: 3.4, hinrg: 3.2, europop: 3, discopop: 2.8, electropop: 2.4,
-      teen: 1.6, synthpop: 1.4, tropical: 1.4, stadium: 1,
+      teen: 1.6, synthpop: 1.4, tropical: 1.4, citypop: 1.3, stadium: 1,
       torch: 0.02, chamber: 0.05, baroque: 0.05, dreampop: 0.1, ballad: 0.1,
       brill: 0.2, jangle: 0.3, indiepop: 0.3,
     },
@@ -124,7 +125,7 @@ const moods: Mood[] = [
     gloss: 'the last track: slow, wide, and mostly reverb',
     styleBias: {
       dreampop: 3.4, torch: 2.4, softrock: 2.2, chamber: 1.8, newromantic: 1.6,
-      ballad: 1.5, jangle: 1.2, baroque: 1.1, indiepop: 1,
+      ballad: 1.5, jangle: 1.2, citypop: 1.2, baroque: 1.1, indiepop: 1,
       bubblegum: 0.05, hinrg: 0.05, europop: 0.1, powerpop: 0.15, merseybeat: 0.2,
       teen: 0.25, tropical: 0.3,
     },

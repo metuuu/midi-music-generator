@@ -182,6 +182,54 @@ const HALL: StageRoom = {
       fog: 0.75,
       grow: [0.6, 0.3],
     },
+    /**
+     * 2005 onward. Magenta and cyan on black, the heaviest fog in the project,
+     * and the first stage in this genre lit *by the backdrop* rather than by
+     * anything pointed at the band.
+     *
+     * The palette is the sleeve art, and that is a fact about the music rather
+     * than a joke at its expense: this is a repertoire whose visual identity was
+     * fixed before most of its records were made, by a generation who agreed in
+     * advance that it looks like a sunset over a grid. Two colours, both
+     * saturated, meeting in the middle — and the boards go nearly black because
+     * everything else is doing so much.
+     *
+     * `crowd-barrier` is the one object here that appears in no other era of
+     * this genre, and it is the whole staging idea in one prop: the older eras
+     * hired a civic room and sat or stood an audience in front of a man behind
+     * a Prophet, and these acts play a festival tent with a pit in it. A barrier
+     * says *this crowd is close and moving* without changing the room.
+     *
+     * **`neon` and `truss` were both tried and neither stands up in this room,
+     * which is `npm run stage` doing its job.** A neon sign is a club object
+     * with no wall to fix to on a stage this deep — it came back as a free
+     * cluster, and 100% of it hidden behind the projection besides — and a truss
+     * flies at 5.466 m in a hall whose lid is 5.886, so it hung from nothing with
+     * a fifth of a metre of air above it. Both were the right instinct about the
+     * venue and the wrong instinct about the geometry; the barrier is the half of
+     * the idea that touches the floor.
+     *
+     * The mirror ball is not offered, unlike in the two eras above. It is a
+     * quotation of 1979, and 1979 is the one decade these records are not
+     * quoting. The flight cases stay at a low weight rather than going entirely:
+     * what arrives in a van in 2013 is two laptops and a controller, but
+     * somebody still has to carry the keyboards.
+     */
+    retrowave: {
+      palette: {
+        boards: '#1a1620',
+        backdrop: '#120a1e',
+        curtain: '#2b0c3d',
+        proscenium: '#5a4a6e',
+        ambient: '#ff3fa4',
+      },
+      props: [
+        'pa-stack', 'wedges', 'haze', 'drapes', 'crowd-barrier',
+      ],
+      maybe: [['flight-case', 0.3]],
+      fog: 0.8,
+      grow: [0.6, 0.3],
+    },
   },
   fallback: {
     palette: {
@@ -348,6 +396,57 @@ const WARDROBE: Record<string, Wardrobe> = {
     loudFabric: 'leather', sequinChance: 0,
     matched: 0.3, uniform: 0.3, spotlight: 0.5,
   },
+  /**
+   * 2005 onward. Black, and one thing that is not.
+   *
+   * The arc this file's header describes — five people who came to move
+   * equipment, then the most deliberately dressed band in the project, then
+   * session players in whatever 1987 was selling — ends here, and it ends by
+   * going all the way back. These acts dress like the *audience*, which no
+   * other era in this genre does: a black t-shirt, a leather jacket, and the
+   * single loud object on the whole stage is whatever is printed on the shirt.
+   *
+   * So `matched` and `uniform` are the lowest in the file and `spotlight` is
+   * the highest. That combination is unusual and it is the correct description:
+   * nobody is dressed as a group, and one person is unmistakably the act,
+   * because half of these projects *are* one person and the other half are one
+   * person with friends helping.
+   *
+   * **`sunglasses` at 0.5 is the highest accessory weight in the genre and it
+   * is not a joke.** The mask, the helmet and the shades are this repertoire's
+   * one costume idea, inherited whole from the vocoder bands of `polysynth` and
+   * meant the same way: the performer declines to have a face. The union has no
+   * mask, and dark glasses indoors under a magenta wash is as close as the
+   * wardrobe gets to the gesture.
+   *
+   * `denim` and `leather` at the top with `nylon` behind them — a tour jacket,
+   * which is the one garment on this stage that belongs to the decade it is
+   * being worn in rather than to the decade being remembered.
+   */
+  retrowave: {
+    jackets: ['#111114', '#1c1c22', '#2a1a2e', '#20242c', '#3a1f34'],
+    shirts: ['#111114', '#1a1a20', '#e8e6ef', '#241a2c'],
+    trousers: ['#14141a', '#1f2229', '#2b2b33'],
+    accents: ['#ff3fa4', '#2fd8d0', '#f0a63c'],
+    loud: ['#ff3fa4', '#2fd8d0'],
+    hair: ['#101010', '#22160f', '#3a2416', '#5c4025', '#a83e2b', '#cfcac2'],
+    hairStyles: [['short', 5], ['long', 4], ['slick', 3], ['bald', 3], ['curls', 2], ['mullet', 1]],
+    accessories: [['sunglasses', 0.5], ['beard', 0.35], ['headphones', 0.25], ['chain', 0.15], ['earrings', 0.15]],
+    fabrics: [['leather', 5], ['denim', 4], ['nylon', 3], ['knit', 2], ['wool', 1]],
+    /**
+     * `shirtsleeves` at the head of the table, which happens nowhere else in
+     * this project.
+     *
+     * Its own gloss is *no jacket at all*, and that is what this looks like:
+     * the t-shirt is the outfit. `suit` at 4 is the leather jacket over it —
+     * the same silhouette `digital` uses, worn by somebody who bought it for a
+     * different reason — and `waistcoat` is absent, because there is no version
+     * of this stage where anybody is wearing a fitted body over a shirt.
+     */
+    garments: [['shirtsleeves', 6], ['suit', 4]],
+    loudFabric: 'leather', sequinChance: 0,
+    matched: 0.15, uniform: 0.1, spotlight: 0.6,
+  },
 };
 
 /**
@@ -361,9 +460,16 @@ const WARDROBE: Record<string, Wardrobe> = {
  * *equipment behaving like a person* and *people behaving like equipment*, which
  * is the joke this music has always made about itself and the only one it needs.
  *
- * Tagged against the six styles and five moods this genre actually has, and
+ * Tagged against the nine styles and five moods this genre actually has, and
  * `slot` is used sparingly. "Started before the lights went up" is only true of
  * the first number and is a small lie anywhere else.
+ *
+ * The revival lines carry one extra constraint the older ones do not. This
+ * music is *about* an era it did not live in, so a bill line that plays the
+ * nostalgia straight reads as the programme note being in on a joke — and the
+ * house register above is affectionate rather than knowing. So they describe
+ * what the number does, in the same dry voice as the rest, and let the
+ * quotation marks stay off.
  */
 const BLURBS: Blurb[] = [
   { text: 'sixteen steps, and the rest of the evening', styles: ['berlin'] },
@@ -384,6 +490,14 @@ const BLURBS: Blurb[] = [
   { text: 'somebody is behind you in this one', styles: ['stalker'], moods: ['dread'] },
   { text: 'the same group, brighter, and in a better mood', styles: ['optical'] },
   { text: 'an arpeggio with somewhere to be', styles: ['optical'], moods: ['motorway'] },
+  { text: 'one bass line, and nowhere in particular to be', styles: ['outrun'] },
+  { text: 'four chords, and none of them going anywhere', styles: ['outrun'], moods: ['motorway'] },
+  { text: 'the pad breathes because the kick tells it to', styles: ['outrun', 'boulevard'] },
+  { text: 'somebody brought a guitar to the sequencer', styles: ['darksynth'] },
+  { text: 'a hundred and forty, and all of it uphill', styles: ['darksynth'], moods: ['dread'] },
+  { text: 'the horror cue, with a band behind it', styles: ['darksynth'] },
+  { text: 'the theme from a series nobody commissioned', styles: ['boulevard'] },
+  { text: 'a slap bass, sincerely and without apology', styles: ['boulevard'], moods: ['neon'] },
   { text: 'headlights, and nothing to overtake', moods: ['motorway'] },
   { text: 'a long way out, and no plans to come back', moods: ['cosmos'] },
   { text: 'lit entirely from underneath', moods: ['neon'] },
@@ -464,6 +578,7 @@ const BILL: Record<string, BillHouse> = {
     title: { size: '1.26em', track: '.16em', case: 'uppercase' },
   },
 };
+
 export const STAGING: Staging = {
   room: HALL,
   wardrobe: WARDROBE,

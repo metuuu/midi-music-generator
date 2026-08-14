@@ -1275,7 +1275,10 @@ export interface SynthRigSpec {
    * cheeks on an X-stand is the whole instrument, and a second one is a second
    * station rather than a second tier. A digital slab is a keyboard too — but
    * two of them on a double stand is what the decade looked like, so it stops at
-   * two: a stack, not a frame.
+   * two: a stack, not a frame. A controller goes back to one, and that is the
+   * fourth rig's own period statement rather than a shortage: people stopped
+   * stacking a second keyboard *because* the laptop took the upper tier, so a
+   * second keybed there would be drawing the object this rig replaced.
    *
    * **A ceiling, not a count.** How many a player actually stands at is
    * `boardsWanted` in `cast.ts`, from the parts they are carrying; this is only
@@ -1348,6 +1351,44 @@ export const SYNTH_RIGS: Record<SynthRigId, SynthRigSpec> = {
     id: 'digital', label: 'digital synth', from: 1984, to: 2100,
     max: 99, footprint: 0.95, height: 1.35, furniture: false, maxBoards: 2,
   },
+  /**
+   * 1991 onward. A slim controller with no sound in it and a laptop open above
+   * it — the silhouette of a 2010s electronic act.
+   *
+   * `from: 1991` is two things that happened in one year and produced one
+   * object between them. General MIDI was published, which is the moment a
+   * sound module became a commodity any keyboard could drive: the thing under
+   * the hands stopped needing to be an instrument, and the controller — a
+   * keybed, a circuit board and a socket, with no voice in it at all — became a
+   * category you could buy. And the PowerBook 100/140 shipped, which is the
+   * first computer with the lid-and-palmrest shape a lid still has. Neither
+   * alone would justify a rig. Together they are the whole read: a screen
+   * standing up where a second keyboard used to be.
+   *
+   * It was needed because `digital` ran to 2100 unopposed. `rigPoolFor(2013)`
+   * returned exactly one entry, so retrowave, sidechain pop, dnb and hiphop all
+   * staged the DX7 slab and nothing else — the same fault the modular era had
+   * in reverse, one object doing twenty-three years.
+   *
+   * `to: 2100` for the same reason `digital` has it: there is no later object
+   * in this table for it to hand over to, and the field means "still on stages"
+   * rather than "still in the shops".
+   *
+   * **`maxBoards: 1`, and that is the period statement rather than a
+   * limitation.** The reason people stopped stacking a second keyboard is that
+   * the laptop took the tier: the second sound is in the machine, and what goes
+   * above the controller is a screen. Giving this rig a second keybed would be
+   * drawing the object it replaced. A player with two lines plays them on one
+   * board, exactly as a polysynth player does — see `boardsWanted`.
+   *
+   * `footprint` and `height` are measurements and are argued at their fields:
+   * 0.95 because the keybed and the person are unchanged, 1.42 because that is
+   * where the top of an open lid on the tier lands.
+   */
+  modern: {
+    id: 'modern', label: 'controller and laptop', from: 1991, to: 2100,
+    max: 99, footprint: 0.95, height: 1.42, furniture: false, maxBoards: 1,
+  },
 };
 
 /**
@@ -1362,9 +1403,11 @@ export const SYNTH_RIGS: Record<SynthRigId, SynthRigSpec> = {
  * The weights are the period statement. In 1974 the modular is what the money
  * went on and everything else on the stage is a Minimoog; by 1981 the modular
  * is the thing in the corner that two bands in ten still cart around; after
- * 1984 it is gone and the slab has won. Availability is enforced separately
- * from weighting — an entry outside its own `from`/`to` is dropped before any
- * draw — so no weight written later can stage a DX7 in 1974.
+ * 1984 it is gone and the slab has won; after 1990 the slab is in turn the
+ * thing a keyboard player still owns while the rig they build round it is a
+ * controller and a screen. Availability is enforced separately from weighting —
+ * an entry outside its own `from`/`to` is dropped before any draw — so no
+ * weight written later can stage a DX7 in 1974.
  */
 /**
  * Gear a genre does not own, whatever the year allows.
@@ -1547,11 +1590,33 @@ export function boardGap(boards: BoardSpec[], a: number, b: number): number {
 export function rigPoolFor(
   year: number, genre?: string,
 ): (readonly [SynthRigId, number])[] {
+  /**
+   * Four bands, one per discontinuity in what the object looked like.
+   *
+   * The last two are the same statement twice, and writing the second one is
+   * what this branch existed to make possible. 1984 replaced the polysynth with
+   * the slab and kept the polysynth at 3 against 8, because a band that had a
+   * Prophet in 1987 still had it. 1991 does exactly that again one object
+   * along: the controller-and-laptop rig leads at 8, and `digital` keeps the
+   * same 3 — a hardware synth on a 2013 stage is ordinary, and the point of the
+   * fourth rig was never to make the third one disappear. Two rigs in the pool
+   * is also what stops a five-keyboard number coming out as five of the same
+   * thing, which is the fault the whole table was written for.
+   *
+   * `polysynth` is 0 after 1990 rather than a small number, and `modern` is 0
+   * before 1991, so the two boundaries are stated here as well as in the spans.
+   * The filter below would enforce both on its own — `polysynth.to` is 1990 and
+   * `modern.from` is 1991 — and saying it twice is deliberate: a weight is what
+   * a reader looks at to see what a decade stages, and a decade whose answer is
+   * "nothing, because of a field two hundred lines up" reads as an omission.
+   */
   const weights: Record<SynthRigId, number> = year < 1978
-    ? { modular: 6, polysynth: 5, digital: 0 }
+    ? { modular: 6, polysynth: 5, digital: 0, modern: 0 }
     : year < 1984
-      ? { modular: 2, polysynth: 8, digital: 0 }
-      : { modular: 0, polysynth: 3, digital: 8 };
+      ? { modular: 2, polysynth: 8, digital: 0, modern: 0 }
+      : year < 1991
+        ? { modular: 0, polysynth: 3, digital: 8, modern: 0 }
+        : { modular: 0, polysynth: 0, digital: 3, modern: 8 };
 
   const vetoed = genre ? GENRE_RIG_VETO[genre] ?? [] : [];
   const open = (Object.keys(weights) as SynthRigId[])
