@@ -2408,7 +2408,7 @@ console.log('\nThe tomato seam');
   for (const attempt of ATTEMPTS) {
     const at = inert.get(attempt) ?? [];
     const each = revoiced / ATTEMPTS.length;
-    console.log(`  note  ${`a re-voice that changed nothing (hit ${attempt})`.padEnd(46)} `
+    console.log(`  note  ${`a re-voice a listener could not hear (hit ${attempt})`.padEnd(46)} `
       + `${at.length}/${each}${at.length ? ` — ${[...new Set(at)].join(', ')}` : ''}`);
   }
 }

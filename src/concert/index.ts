@@ -20,7 +20,7 @@
 import type { LayerId, Song, Track } from '../core/types.js';
 import { generateSong, withCountIn } from '../generate/song.js';
 import { GENRE_IDS, getGenre } from '../genre/index.js';
-import type { ChaosLevel } from '../genre/chaos.js';
+import type { ChaosLevel, ChaosOptions } from '../genre/chaos.js';
 import { Rng } from '../core/rng.js';
 
 import { castSong, playerFor } from './cast.js';
@@ -287,8 +287,65 @@ export function revoiceNumber(
 ): ConcertNumber {
   const { salted, tracks: group } = revoiceGroup(layer);
   const wanted = Math.min(1, CHAOS_PER_TOMATO * attempt);
+  /**
+   * A part that fits and sounds the same. Kept, and only used if nothing better
+   * turns up — see the end of the loop.
+   */
+  let inaudible: ConcertNumber | undefined;
 
-  for (const spread of [wanted, wanted / 2, 0]) {
+  /**
+   * Six different questions, asked in order until one is answered audibly.
+   *
+   * Not six volumes of one question, and the two axes are the reason. Every
+   * chaotic rung shares a chimera — `planChaos` reads `${seed}:chaos`, which
+   * nothing here varies — so turning `spread` up only asks the *same* borrowed
+   * band for more of itself. The other axis is the `variation` salt, which is
+   * just a number naming a draw, and asking for a different draw is a different
+   * question rather than a louder one.
+   *
+   * Both axes are needed, and the rock/jangle bass that reported this is why.
+   * Traced rung by rung on that number, at the first tomato:
+   *
+   *   chaos 0.35 + figures 1   97 bars — refused, the form moved
+   *   chaos 1    + figures 1   97 bars — refused
+   *   chaos 0.35               89 bars — fits, and identical
+   *   chaos 0.35 @ salt 12     89 bars — fits, and different
+   *
+   * Forcing `figures` to 1 is what borrows a foreign bass figure, and borrowing
+   * one refits the form — 97 bars against the stage's 89 — so the splice rightly
+   * refuses it and every rung that could change the notes was being thrown away.
+   * What was left fitted and was inaudible: the identical line at the identical
+   * pitches, differing only in velocity. A tomato that plays the same bassline a
+   * hair louder is a tomato that did nothing, which is exactly what was reported.
+   *
+   * The salt offsets are primes so that a second tomato on the same player never
+   * lands on a draw the first one already used: attempts 1–5 take salts 1–5,
+   * 12–16 and 24–28, and no two overlap.
+   */
+  const CHAOS = (spread: number, forceFigures = false): ChaosOptions => ({
+    levels: REVOICE_CHAOS,
+    spread,
+    ...(forceFigures ? { mixing: { figures: 1 } } : {}),
+  });
+  const ladder: { chaos: ChaosOptions; salt: number }[] = [
+    // The interesting one, and the one most likely to move the form and be
+    // refused. Asked first because when it does fit it is the best answer.
+    { chaos: CHAOS(wanted, true), salt: attempt },
+    { chaos: CHAOS(wanted), salt: attempt },
+    // Half the rate borrows less and therefore fits more often. Rungs are
+    // written as fractions of `wanted` rather than as constants so that none of
+    // them collapses into another at the top of the escalation — a ladder whose
+    // first two rungs are the same request at `attempt: 3` is a ladder of five.
+    { chaos: CHAOS(wanted / 2), salt: attempt },
+    { chaos: CHAOS(wanted / 2), salt: attempt + 11 },
+    // Borrows nothing: `variation` alone, against the recipe's own form, which
+    // cannot fail to fit. Two draws of it, because the last thing to try is
+    // simply asking this player's own band the question again.
+    { chaos: { levels: [], spread: 0 }, salt: attempt + 11 },
+    { chaos: { levels: [], spread: 0 }, salt: attempt + 23 },
+  ];
+
+  for (const { chaos: rung, salt } of ladder) {
     const song = generateSong({
       ...number.recipe,
       /**
@@ -307,13 +364,12 @@ export function revoiceNumber(
        * plain re-voice comes back byte-identical either way.
        */
       bpm: number.song.meta.bpm,
-      variation: { [salted]: attempt },
+      variation: { [salted]: salt },
       chaos: {
-        // Donors the caller narrowed stay narrowed. `mixing` deliberately does
-        // not survive: a per-kind rate would pin the spread this escalates.
+        // Donors the caller narrowed stay narrowed. The caller's own `mixing`
+        // does not survive: a per-kind rate would pin the spread this escalates.
         ...(number.recipe.chaos?.donors ? { donors: number.recipe.chaos.donors } : {}),
-        levels: REVOICE_CHAOS,
-        spread,
+        ...rung,
       },
     });
     /**
@@ -323,19 +379,63 @@ export function revoiceNumber(
      * beat of the piece one bar away from the clock animating it.
      */
     const spliced = spliceLayers(number.song, withCountIn(song), group);
-    if (spliced) {
-      return { ...number, song: spliced, choreography: choreograph(spliced, number.cast) };
-    }
+    if (!spliced) continue;
+    const next = { ...number, song: spliced, choreography: choreograph(spliced, number.cast) };
+    /**
+     * And it has to be *audible*. This is the rung the loop is really for.
+     *
+     * Everything above is a probability: a rate that usually moves a figure, a
+     * chimera that usually has something else to say. A tomato is not a
+     * probability — somebody threw it, watched the player stop, and is waiting
+     * to hear what they do differently. So the answer is checked rather than
+     * assumed, and a spread that produced the same notes in the same places is
+     * simply not the answer; try the next one.
+     *
+     * The rungs are different questions, not just louder versions of one. Every
+     * chaotic spread shares a chimera — `planChaos` reads `${seed}:chaos`, which
+     * this does not vary — so the last rung, spread 0, is the only one that asks
+     * the host's own band for a different figure instead of borrowing one. It is
+     * a genuine alternative rather than a giving-up.
+     */
+    if (audiblyDiffers(number.song, spliced, group)) return next;
+    inaudible ??= next;
   }
 
   /**
-   * Not even the plain re-voice fit, which means the fresh song has a different
-   * number of tracks on this layer — a variation that silenced a part somebody
-   * is cast on, or gave them a second one. Leave the number alone: a player who
-   * comes back playing what they were is a disappointment, and a stage where the
-   * notes and the bodies disagree about who is on it is a wreck.
+   * Nothing on the ladder changed anything a listener could hear.
+   *
+   * The best of a bad set, and it is still worth returning: the velocities and
+   * the feel did move even where the notes did not, and the alternative is a
+   * player who visibly sulks and demonstrably does not react. Some layers cannot
+   * do better — `generatePad` draws no random numbers at all, so a pad has
+   * nothing to reroll and no figure table to borrow from. `concert-check.ts`
+   * counts these rather than failing on them.
+   *
+   * `number` itself, finally, if not even one rung produced a song that fitted.
+   * That means a different number of tracks on this layer — a variation that
+   * silenced a part somebody is cast on, or gave them a second one — and a stage
+   * where the notes and the bodies disagree about who is on it is a wreck.
    */
-  return number;
+  return inaudible ?? number;
+}
+
+/**
+ * Whether a listener could tell these two apart on the layers that were spliced.
+ *
+ * Pitch, onset and length. **Not velocity**, and that exclusion is the whole
+ * point of the function: a re-voice that moves only how hard the notes are
+ * struck is the same part played a hair louder, and it was being counted as a
+ * change by everything that compared parts by serialising them whole.
+ */
+function audiblyDiffers(before: Song, after: Song, group: LayerId[]): boolean {
+  if (group.includes('drums')) {
+    const line = (s: Song) => JSON.stringify(s.drums.events.map((e) => [e.beat, e.voice]));
+    if (line(before) !== line(after)) return true;
+  }
+  const line = (s: Song) => JSON.stringify(s.tracks
+    .filter((t) => group.includes(t.layer))
+    .map((t) => t.notes.map((n) => [n.beat, n.midi, n.duration])));
+  return line(before) !== line(after);
 }
 
 /**
