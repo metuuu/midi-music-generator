@@ -14,11 +14,19 @@
  * straddling its path, and that is what curls the torn ends of the bar back on
  * themselves. Nothing scripts the hook; it is what the projection does.
  *
- * **Filaments.** Each strand is a chain of particles linked to its neighbours
- * along the bar. A link stretched past `BREAK` is cut, and stays cut. That is a
- * real cut: no force is left across it, so the gap holds open and the two ends
- * move independently. The version before this faked it by dimming particles
- * while a string still spanned the gap, which is why it never felt severed.
+ * **Filaments.** The bar itself is chains of particles linked to their
+ * neighbours along its length. A link stretched past `BREAK` is cut, and stays
+ * cut. That is a real cut: no force is left across it, so the gap holds open
+ * and the two ends move independently. The version before this faked it by
+ * dimming particles while a string still spanned the gap, which is why it
+ * never felt severed.
+ *
+ * **A halo it gives off.** The glow is not a cloud the bar wears, it is gas the
+ * bar emits: each halo particle is born on the line, drifts out, fades, and is
+ * born on the line again. That holds a steady soft glow in which nothing is
+ * standing still, and it needs no rule to make it follow the bar — a source has
+ * no resting place of its own, so wherever the line goes the glow leaves from
+ * there, and a stretch torn away emits nothing and goes dark.
  *
  * **Heat.** One number per particle, deciding whether it belongs to the bar or
  * to the air. Hot particles let go of their rest position and grip the fluid;
@@ -53,24 +61,23 @@ interface Pool {
 }
 
 // ── the band ──────────────────────────────────────────────────────────────
-const COLS = 512;
-const STRANDS = 64;
+const COLS = 768;
+const STRANDS = 96;
 const BAR_H = 5;
 const RIM_SIGMA = 3.2;
 const BLOOM_SIGMA = 9;
-const W_CORE = 0.46;
-const W_RIM = 0.79;
-const SPAN_Z = 2.6;
+const W_CORE = 0.62;
+const W_RIM = 0.86;
 
 const SPRITE_CORE = 1.6;
 const SPRITE_RIM = 4.5;
 const SPRITE_BLOOM = 11;
-const ALPHA_CORE = 0.08;
-const ALPHA_RIM = 0.011;
-const ALPHA_BLOOM = 0.0033;
+const ALPHA_CORE = 0.19;
+// Brighter per particle than a standing cloud needed, because an emitted one
+// spends much of its life faded in or out rather than at full strength.
+const ALPHA_RIM = 0.032;
+const ALPHA_BLOOM = 0.0068;
 const WANDER_CORE = 0.25;
-const WANDER_RIM = 0.9;
-const WANDER_BLOOM = 3.2;
 const WANDER_K1 = 7.5;
 const WANDER_K2 = 19;
 const HEAT_GAIN = 3.2;
@@ -97,10 +104,59 @@ const DRAG = 6;
 const DRAG_COLD = 0.12;
 const DRAG_HOT = 1.9;
 const DRAG_FREE = 1.6;
+
+/**
+ * The halo, which the bar emits rather than wears.
+ *
+ * Every halo particle is born on the line, drifts outward, and fades out; when
+ * it is spent it is born on the line again. Held steady that adds up to the
+ * same soft glow as a fixed cloud would, except that nothing in it is standing
+ * still — which is the difference between a picture of a glow and a glow.
+ *
+ * Being emitted is also what keeps it *attached*. A cloud with its own resting
+ * place has its own life, and drifts around looking unrelated to the bar; gas
+ * has no resting place, only a source, so wherever the bar goes — bent,
+ * dragged, torn open — the glow comes off it there and the gap in a cut is a
+ * gap in the glow too. It follows without being told to.
+ *
+ * Emitting in every direction is what rounds the ends, as well: a line seen
+ * through gas it is giving off in all directions is a capsule, with no special
+ * case needed for where it stops.
+ */
+const HALO_LIFE = 1.6;
+const HALO_IN = 0.18;
+const HALO_OUT = 0.35;
+const EMIT_RATE = 1.6;
+const SWIRL_RATE = 1.1;
+/**
+ * A note on why the halo has no physics of its own at all.
+ *
+ * Three ways of making the glow answer the mouse like the line all failed, and
+ * they failed for one reason: the glow was answering the mouse.
+ *
+ * Matching drag cannot work, because the gap is not drag — the bar has a spring
+ * holding it somewhere and gas has nothing, so any flow settles them at
+ * different speeds. Carrying the glow at the line's speed and then blowing it
+ * with the wind *past* the line cannot work either, though it looks as if it
+ * should: the two terms add back up to exactly the speed it had before. And
+ * giving the glow the bar's own spring, aimed at a point that moves with the
+ * bar, is worst of all — the target is itself on a spring, so it is two
+ * oscillators chained together, and it bounces like one.
+ *
+ * So the glow has no springs, no drag and no damping. It stores one point: how
+ * far it has drifted from the strand that made it, which grows as it ages and
+ * is all the movement of its own it has. Where it is drawn is that strand, plus
+ * that. It bends, flings and springs back on precisely the same rubber as the
+ * bar, because it is riding the bar rather than imitating it.
+ */
+const CORE_ROWS = Math.ceil(W_CORE * STRANDS - 0.5);
 const DAMP_BOUND = 7.5;
 const DAMP_FREE = 0.8;
-const BREAK = 5.5;
-const RELINK = 1.7;
+// Multiples of the link's rest length, which is the bar's width over COLS —
+// so both of these have to move if COLS does, or the bar tears at a different
+// width than it used to.
+const BREAK = 8;
+const RELINK = 2.5;
 const COOL = 0.5;
 const HEAT_SLOW = 520;
 const HEAT_FAST = 1900;
@@ -117,6 +173,7 @@ const SWIRL_LONG = 190;
 const SWIRL_CHURN = 55;
 
 const SETTLE_MS = 5400;
+const IDLE_MS = 90;
 const AIR_MS = 1200;
 const GAS_MS = (FREE_LIFE + WAIT + GROW) * 1000;
 const KEY_MS = 1800;
@@ -274,10 +331,7 @@ const HOME = `
 #define BLOOM_SIGMA ${BLOOM_SIGMA.toFixed(2)}
 #define W_CORE ${W_CORE.toFixed(3)}
 #define W_RIM ${W_RIM.toFixed(3)}
-#define SPAN_Z ${SPAN_Z.toFixed(3)}
 #define WANDER_CORE ${WANDER_CORE.toFixed(3)}
-#define WANDER_RIM ${WANDER_RIM.toFixed(3)}
-#define WANDER_BLOOM ${WANDER_BLOOM.toFixed(3)}
 #define WANDER_K1 ${WANDER_K1.toFixed(3)}
 #define WANDER_K2 ${WANDER_K2.toFixed(3)}
 
@@ -294,43 +348,39 @@ float rnd(uint i, uint k) {
 /**
  * Where a particle belongs when nothing has disturbed it.
  *
- * Strand offsets are stratified rather than drawn at random: the strands of a
- * population sit at even steps across the band, and the Gaussian falls on their
- * *brightness* instead of their position. Random draws leave gaps and clumps,
- * and since a strand holds one offset for its whole length, a clump of two or
- * three at the same height reads as a hard line hanging above the bar.
+ * The two populations are laid out on opposite principles, because they are
+ * different kinds of thing.
  *
- * Each strand also wanders slowly along its length, so the band is woven rather
- * than stacked. Slowly is the point: neighbours sit a fraction of a pixel apart
- * and the link springs iron out anything sharper — which is exactly what
- * happened to the per-particle jitter this replaces. At these wavelengths the
- * strand is ~0.5% longer than a straight one, which the shared rest length can
- * absorb without leaving the bar under tension.
+ * **The core is the bar.** It has to hold together, stretch and tear, so it is
+ * built of filaments: one offset per strand, held for the strand's length, with
+ * the strands stratified at even steps so none of them can double up. They are
+ * a twelfth of a pixel apart, which is a solid slab.
+ *
+ * **The halo has no rest position at all**, so there is nothing to lay out: it
+ * is emitted, and this only says where it first appears. That is also why it
+ * cannot read as ghost lines — a chain draws a curve, and a curve is a line
+ * whether straight or woven, but gas leaving a source in every direction has
+ * no row to line up in.
  */
-vec2 homeOf(ivec2 c, out float t, out int pop, out float weight) {
+vec2 homeOf(ivec2 c, out float t, out int pop) {
   uint s = uint(c.y);
   float sv = (float(c.y) + 0.5) / float(STRANDS);
   float u = (float(c.x) + rnd(s, 11u)) / float(COLS);
   t = u;
 
-  float off, amp;
+  float off;
   if (sv < W_CORE) {
     pop = 0;
     off = ((sv / W_CORE) * 2.0 - 1.0) * (BAR_H * 0.5);
-    weight = 1.0;
-    amp = WANDER_CORE;
+    // Slow enough along the strand that the link springs do not fight it.
+    off += (sin(u * WANDER_K1 + rnd(s, 21u) * 6.28318530718) * 0.62
+      + sin(u * WANDER_K2 + rnd(s, 22u) * 6.28318530718) * 0.38) * WANDER_CORE;
   } else {
+    // The halo has no resting place — it is emitted from the line and drifts.
+    // This is only where it first appears, before its first breath.
     pop = sv < W_RIM ? 1 : 2;
-    float lo = pop == 1 ? W_CORE : W_RIM;
-    float hi = pop == 1 ? W_RIM : 1.0;
-    float z = (((sv - lo) / (hi - lo)) * 2.0 - 1.0) * SPAN_Z;
-    off = z * (pop == 1 ? RIM_SIGMA : BLOOM_SIGMA);
-    weight = exp(-0.5 * z * z);
-    amp = pop == 1 ? WANDER_RIM : WANDER_BLOOM;
+    off = 0.0;
   }
-
-  off += (sin(u * WANDER_K1 + rnd(s, 21u) * 6.28318530718) * 0.62
-    + sin(u * WANDER_K2 + rnd(s, 22u) * 6.28318530718) * 0.38) * amp;
 
   // Rounded ends: a strand sitting off-centre starts and stops a little short.
   float r = BAR_H * 0.5;
@@ -351,6 +401,10 @@ ${SEG}
 #define DRAG_COLD ${DRAG_COLD.toFixed(3)}
 #define DRAG_HOT ${DRAG_HOT.toFixed(3)}
 #define DRAG_FREE ${DRAG_FREE.toFixed(3)}
+#define HALO_LIFE ${HALO_LIFE.toFixed(3)}
+#define EMIT_RATE ${EMIT_RATE.toFixed(3)}
+#define SWIRL_RATE ${SWIRL_RATE.toFixed(3)}
+#define CORE_ROWS ${CORE_ROWS}
 #define DAMP_BOUND ${DAMP_BOUND.toFixed(3)}
 #define DAMP_FREE ${DAMP_FREE.toFixed(3)}
 #define BREAK ${BREAK.toFixed(3)}
@@ -409,13 +463,17 @@ vec2 swirl(vec2 p) {
 
 void main() {
   ivec2 c = ivec2(gl_FragCoord.xy);
-  float t, weight;
+  float t;
   int pop;
-  vec2 home = homeOf(c, t, pop, weight);
+  vec2 home = homeOf(c, t, pop);
+
+  uint i = uint(c.y) * uint(COLS) + uint(c.x);
 
   if (uInit > 0.5) {
     oPos = vec4(home, 0.0, 0.0);
-    oSt = vec4(0.0, 1.0, 2.0, 0.0);
+    // Halo particles start partway through a life of their own, or the whole
+    // glow would breathe in and out together as one pulse.
+    oSt = vec4(0.0, 1.0, 2.0, pop == 0 ? 0.0 : rnd(i, 61u) * HALO_LIFE);
     return;
   }
 
@@ -423,9 +481,62 @@ void main() {
   vec4 S = texelFetch(uSt, c, 0);
   vec2 p = P.xy, v = P.zw;
   float heat = S.x, linkN = S.y, age = S.z, torn = S.w;
-  uint i = uint(c.y) * uint(COLS) + uint(c.x);
-  float free = torn > 0.0 ? 1.0 : 0.0;
+  float gate = smoothstep(HEAT_SLOW, HEAT_FAST, length(uCursorV));
 
+  // ── the halo: gas the line gives off ─────────────────────────────────────
+  if (pop != 0) {
+    float spread = pop == 1 ? RIM_SIGMA : BLOOM_SIGMA;
+    float life = HALO_LIFE * (0.6 + 0.8 * rnd(i, 61u));
+    // The strand this one came off, and keeps an eye on for its whole life,
+    // plus how far it has drifted from it while nobody was interfering.
+    ivec2 src = ivec2(c.x, int(rnd(i, 62u) * float(CORE_ROWS)));
+    vec4 line = texelFetch(uPos, src, 0);
+    vec2 drift = S.yz;
+    torn += uDt;
+    if (torn > life) {
+      // Born again on the line as it stands now, off one of the core rows, so
+      // the glow leaves the bar wherever the bar has got to — and a stretch
+      // that has been torn away emits nothing, leaving the gap dark.
+      //
+      // It leaves already as stirred up as the bar it came off, standing on it
+      // and not yet drifted anywhere.
+      torn = 0.0;
+      drift = vec2(0.0);
+      heat = max(heat, texelFetch(uSt, src, 0).x);
+    }
+
+    // Its own movement, and the whole of it: out along its own bearing, easing
+    // off with age so the cloud thins with distance, wandering as it goes.
+    float ang = rnd(i, 63u) * 6.28318530718;
+    vec2 away = vec2(cos(ang), sin(ang))
+      * (spread * EMIT_RATE * (0.35 + 1.3 * rnd(i, 64u)) * (1.0 - torn / life));
+    drift += (away + swirl(p) * (spread * SWIRL_RATE)) * uDt;
+
+    // Where the strand is, plus how far it has wandered off it. That is the
+    // whole position: no spring, no drag, no damping, nothing of its own to
+    // bounce on. Bend the bar and the glow bends; fling it and the glow is
+    // flung the same distance and comes back on the same rubber.
+    p = line.xy + drift;
+
+    if (uCursorOn > 0.5) {
+      float d = segDist(p) / BLOB;
+      heat = max(heat, exp(-d * d) * gate);
+    }
+    heat *= exp(-COOL * uDt);
+
+    if (!(dot(p, p) < 1e12)) {
+      p = line.xy;
+      drift = vec2(0.0);
+      torn = 0.0;
+    }
+    oPos = vec4(p, 0.0, 0.0);
+    oSt = vec4(heat, drift, torn);
+    return;
+  }
+
+  // ── the bar ──────────────────────────────────────────────────────────────
+  vec2 fluid = texture(uVel, clamp(p / uGrid, vec2(0.0), vec2(1.0))).xy;
+  float free = torn > 0.0 ? 1.0 : 0.0;
   // Both ends of a link measure it on the same snapshot, so the two of them
   // never disagree about whether it has just broken.
   float lenN = c.x < COLS - 1 ? distance(posAt(c.x + 1, c.y), p) : 0.0;
@@ -437,15 +548,14 @@ void main() {
 
   vec2 toHome = home - p;
   float hm = length(toHome);
-  vec2 fluid = texture(uVel, clamp(p / uGrid, vec2(0.0), vec2(1.0))).xy;
 
   vec2 F = vec2(0.0);
   float grip;
   if (free < 0.5) {
-    if (c.x < COLS - 1 && linkN > 0.5 && lenN > 1e-4) {
+    if (linkN > 0.5 && lenN > 1e-4) {
       F += ((posAt(c.x + 1, c.y) - p) / lenN) * (K_LINK * (lenN - uRest));
     }
-    if (c.x > 0 && linkP > 0.5 && lenP > 1e-4) {
+    if (linkP > 0.5 && lenP > 1e-4) {
       F += ((posAt(c.x - 1, c.y) - p) / lenP) * (K_LINK * (lenP - uRest));
     }
     // A plain spring, harder the further it is pulled. Nothing caps it: past
@@ -472,7 +582,6 @@ void main() {
 
   if (uCursorOn > 0.5) {
     float d = segDist(p) / BLOB;
-    float gate = smoothstep(HEAT_SLOW, HEAT_FAST, length(uCursorV));
     heat = max(heat, exp(-d * d) * gate);
   }
 
@@ -535,6 +644,9 @@ ${HOME}
 #define GROW ${GROW.toFixed(3)}
 #define FREE_HOLD ${FREE_HOLD.toFixed(3)}
 #define FREE_LIFE ${FREE_LIFE.toFixed(3)}
+#define HALO_LIFE ${HALO_LIFE.toFixed(3)}
+#define HALO_IN ${HALO_IN.toFixed(3)}
+#define HALO_OUT ${HALO_OUT.toFixed(3)}
 
 uniform sampler2D uPos;
 uniform sampler2D uSt;
@@ -552,20 +664,29 @@ vec3 hsl2rgb(float h, float s, float l) {
 
 void main() {
   ivec2 c = ivec2(gl_VertexID % COLS, gl_VertexID / COLS);
-  float t, weight;
+  float t;
   int pop;
-  homeOf(c, t, pop, weight);
+  homeOf(c, t, pop);
   uint i = uint(c.y) * uint(COLS) + uint(c.x);
 
   vec2 p = texelFetch(uPos, c, 0).xy;
   vec4 S = texelFetch(uSt, c, 0);
-  // Grown in where it belongs, and thinning out to nothing once it is adrift.
-  float fade = smoothstep(0.0, 1.0, clamp(S.z / GROW, 0.0, 1.0))
-    * (1.0 - smoothstep(FREE_HOLD, FREE_LIFE, S.w));
+  float fade;
+  if (pop == 0) {
+    // Grown in where it belongs, thinning to nothing once it is adrift.
+    fade = smoothstep(0.0, 1.0, clamp(S.z / GROW, 0.0, 1.0))
+      * (1.0 - smoothstep(FREE_HOLD, FREE_LIFE, S.w));
+  } else {
+    // Struck alight as it leaves the line and dying away as it drifts. The
+    // long tail is most of the halo: brightest just off the bar, thinning as
+    // it goes, which is the shape of a glow.
+    float life = HALO_LIFE * (0.6 + 0.8 * rnd(i, 61u));
+    fade = smoothstep(0.0, life * HALO_IN, S.w)
+      * (1.0 - smoothstep(life * HALO_OUT, life, S.w));
+  }
 
   vec3 rgb = hsl2rgb(mix(uHue.x, uHue.y, t), 0.85, 0.56);
-  // The halo's Gaussian lives here rather than in where the strands sit.
-  float a = (pop == 0 ? ALPHA_CORE : (pop == 1 ? ALPHA_RIM : ALPHA_BLOOM)) * weight;
+  float a = pop == 0 ? ALPHA_CORE : (pop == 1 ? ALPHA_RIM : ALPHA_BLOOM);
   if (pop == 0) a *= 0.7 + 0.6 * rnd(i, 15u);
   vColor = rgb * (a * fade * (1.0 + HEAT_GAIN * S.x));
 
@@ -968,6 +1089,7 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
   }
 
   let raf = 0;
+  let idleAt = 0;
   let busyUntil = 0;
   let last = 0;
   let simTime = 0;
@@ -1019,6 +1141,29 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
 
     draw();
     if (ts < busyUntil) raf = requestAnimationFrame(frame);
+    else armIdle();
+  }
+
+  /**
+   * The heartbeat, once the cursor is gone and the physics has settled.
+   *
+   * It runs a whole frame, not just a redraw, because the movement in the glow
+   * is real: the halo is riding the room's drift, and that has to be stepped to
+   * happen. It is affordable because the simulation is the cheap half — the
+   * fluid grid is a few thousand cells and the particle pass a few hundred
+   * thousand, against millions of fragments for the draw that happens either
+   * way. Dropping to a ninth of the frame rate is what keeps the whole thing
+   * small, and a drift this slow has nothing to gain from running faster.
+   */
+  function idleTick(): void {
+    idleAt = 0;
+    if (document.hidden || raf || performance.now() < busyUntil) return;
+    raf = requestAnimationFrame(frame);
+  }
+
+  function armIdle(): void {
+    if (idleAt || document.hidden) return;
+    idleAt = window.setTimeout(idleTick, IDLE_MS);
   }
 
   function wake(ms: number): void {
@@ -1034,6 +1179,8 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
     if (document.hidden) {
       if (raf) cancelAnimationFrame(raf);
       raf = 0;
+      if (idleAt) clearTimeout(idleAt);
+      idleAt = 0;
     } else {
       wake(50);
     }
@@ -1059,6 +1206,7 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
     return null;
   }
   draw();
+  armIdle();
 
   const ro = new ResizeObserver(onResize);
   ro.observe(host);
@@ -1087,6 +1235,8 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
       document.removeEventListener('visibilitychange', onVisibility);
       canvas.removeEventListener('webglcontextlost', onLost);
       if (raf) cancelAnimationFrame(raf);
+      if (idleAt) clearTimeout(idleAt);
+      idleAt = 0;
       canvas.remove();
       drop(acc);
       drop(divT);
