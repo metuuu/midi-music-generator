@@ -11,6 +11,7 @@ interface Target {
 interface Pool {
   pos: WebGLTexture;
   life: WebGLTexture;
+  spark: WebGLTexture;
   fbo: WebGLFramebuffer;
 }
 
@@ -37,48 +38,56 @@ const MASS_RIM = 0.7;
 const MASS_BLOOM = 0.45;
 
 const K_HOME = 340;
-const DAMP = 7;
+const DAMP = 12;
 const FOLLOW_RIM = 0.94;
 const FOLLOW_BLOOM = 0.82;
 
 const PUSH_R = 52;
 const PUSH_FLAT = 0.25;
-const PUSH = 2400;
-const COUPLE = 36;
+const PUSH = 5200;
+const PUSH_SLOW = 180;
+const PUSH_FAST = 1100;
+const COUPLE = 48;
 const COUPLE_SPREAD = 1.5;
 const CURSOR_MAX = 4000;
+const JUMP_MAX = 900;
 
-const ESCAPE_SPEED = 1100;
-const ESCAPE_SPREAD = 1.2;
+const ESCAPE_SPEED = 700;
+const ESCAPE_SPREAD = 1.4;
 const FLING_FAN = 1;
 const FLING_SPREAD = 0.75;
-const FREE_DRAG = 1.6;
-const FREE_CURL = 1.4;
-const FREE_LIFE = 1.1;
+const FREE_DRAG = 1.1;
+const FREE_CURL = 0.9;
+const FREE_LIFE = 2.2;
 const FREE_SPREAD = 0.8;
-const WAIT_MAX = 0.45;
+const SPARK_GAIN = 2.8;
+const SPARK_HOLD = 0.35;
+const RELAUNCH = 0.45;
+const WAIT_MAX = 0.15;
 const SPAWN_R = 26;
 const SPAWN_PULL = 0.2;
 const GROW = 0.6;
 
 const STR_N = 192;
-const WAVE_BARS = 1;
+const WAVE_BARS = 1.35;
 const WAVE_TENSION = (WAVE_BARS * STR_N) ** 2;
-const WAVE_STIFF = 80;
-const WAVE_DAMP = 2.4;
-const WAVE_CONTACT = 600;
-const WAVE_DRAG = 3.5;
+const WAVE_STIFF = 200;
+const WAVE_DAMP = 5;
+const WAVE_CONTACT = 260;
+const WAVE_DRAG = 2;
 const WAVE_LONG = 0.35;
 const WAVE_SUB = 1 / 720;
+const WHIP_SLOW = 420;
+const WHIP_FAST = 1800;
 
-const SETTLE_MS = 3800;
+const SETTLE_MS = 4600;
 const KEY_MS = 1800;
 
 const MAX_DT = 1 / 30;
 
 const SUBSTEP = 1 / 180;
 const SUBSTEP_SPAN = 0.3;
-const SUBSTEP_MAX = 10;
+const SUBSTEP_MAX = 20;
 
 const PRELUDE = (side: number): string => `
 precision highp int;
@@ -94,6 +103,7 @@ precision highp int;
 #define MASS_BLOOM ${MASS_BLOOM.toFixed(3)}
 #define FREE_LIFE ${FREE_LIFE.toFixed(3)}
 #define FREE_SPREAD ${FREE_SPREAD.toFixed(3)}
+#define SPARK_HOLD ${SPARK_HOLD.toFixed(3)}
 #define GROW ${GROW.toFixed(3)}
 
 uniform vec3 uBar;
@@ -119,12 +129,14 @@ float freeLifeOf(uint i) {
   return FREE_LIFE * (1.0 - FREE_SPREAD * 0.5 + FREE_SPREAD * rnd(i, 32u));
 }
 
-float fadeOf(float phase, float age, uint i) {
-  if (phase > 1.5) return 0.0;
-  if (phase > 0.5) {
-    float f = max(0.0, 1.0 - age / freeLifeOf(i));
-    return f * f;
-  }
+float sparkFadeOf(float age, uint i) {
+  float life = freeLifeOf(i);
+  float hold = life * SPARK_HOLD;
+  float f = 1.0 - clamp((age - hold) / max(life - hold, 1e-3), 0.0, 1.0);
+  return f * f * (3.0 - 2.0 * f);
+}
+
+float growFadeOf(float age) {
   return smoothstep(0.0, 1.0, clamp(age / GROW, 0.0, 1.0));
 }
 
@@ -170,6 +182,8 @@ precision highp int;
 #define WDRAG ${WAVE_DRAG.toFixed(3)}
 #define LONG ${WAVE_LONG.toFixed(3)}
 #define PUSH_R ${PUSH_R.toFixed(1)}
+#define WHIP_SLOW ${WHIP_SLOW.toFixed(1)}
+#define WHIP_FAST ${WHIP_FAST.toFixed(1)}
 
 uniform sampler2D uStr;
 uniform vec3 uBar;
@@ -205,8 +219,9 @@ void main() {
       vec2 dir = dm > 1e-4 ? away / dm : vec2(0.0, 1.0);
       dir.x *= LONG;
       float w = 1.0 - dm / r;
-      acc += dir * (CONTACT * (r - dm));
-      acc += (uCursorV - v) * (WDRAG * w);
+      float whip = smoothstep(WHIP_SLOW, WHIP_FAST, length(uCursorV) / uScale);
+      acc += dir * (CONTACT * (r - dm) * whip);
+      acc += (uCursorV - v) * (WDRAG * w * whip);
     }
   }
 
@@ -226,6 +241,8 @@ ${PRELUDE(side)}
 #define PUSH_R ${PUSH_R.toFixed(1)}
 #define PUSH_FLAT ${PUSH_FLAT.toFixed(3)}
 #define PUSH ${PUSH.toFixed(1)}
+#define PUSH_SLOW ${PUSH_SLOW.toFixed(1)}
+#define PUSH_FAST ${PUSH_FAST.toFixed(1)}
 #define COUPLE ${COUPLE.toFixed(2)}
 #define COUPLE_SPREAD ${COUPLE_SPREAD.toFixed(3)}
 #define ESCAPE_SPEED ${ESCAPE_SPEED.toFixed(1)}
@@ -234,6 +251,7 @@ ${PRELUDE(side)}
 #define FLING_SPREAD ${FLING_SPREAD.toFixed(3)}
 #define FREE_DRAG ${FREE_DRAG.toFixed(3)}
 #define FREE_CURL ${FREE_CURL.toFixed(3)}
+#define RELAUNCH ${RELAUNCH.toFixed(3)}
 #define WAIT_MAX ${WAIT_MAX.toFixed(3)}
 #define SPAWN_R ${SPAWN_R.toFixed(1)}
 #define SPAWN_PULL ${SPAWN_PULL.toFixed(3)}
@@ -241,6 +259,7 @@ ${PRELUDE(side)}
 
 uniform sampler2D uPos;
 uniform sampler2D uLife;
+uniform sampler2D uSpark;
 uniform sampler2D uStr;
 uniform vec2 uField;
 uniform float uDt;
@@ -251,6 +270,7 @@ uniform float uCursorOn;
 
 layout(location = 0) out vec4 oPos;
 layout(location = 1) out vec4 oLife;
+layout(location = 2) out vec4 oSpark;
 
 vec4 bendAt(float t) {
   float f = t * float(STR_N - 1);
@@ -279,53 +299,39 @@ void main() {
 
   if (uInit > 0.5) {
     oPos = vec4(home, 0.0, 0.0);
-    oLife = vec4(0.0, 4.0, 0.0, 0.0);
+    oLife = vec4(0.0, 0.0, 4.0, 0.0);
+    oSpark = vec4(0.0);
     return;
   }
 
   vec4 s = texelFetch(uPos, c, 0);
+  vec4 k = texelFetch(uSpark, c, 0);
+  vec3 st = texelFetch(uLife, c, 0).xyz;
   vec2 p = s.xy, v = s.zw;
-  vec2 st = texelFetch(uLife, c, 0).xy;
-  float phase = st.x, age = st.y;
+  float phase = st.x, sage = st.y, bage = st.z;
   float mass = massOf(pop);
-
-  if (phase > 1.5) {
-    age += uDt;
-    if (age < 0.0) {
-      oPos = vec4(home, 0.0, 0.0);
-      oLife = vec4(2.0, age, 0.0, 0.0);
-      return;
-    }
-    ivec2 hop = ivec2(1 + int(rnd(i, 34u) * 2.0), 1 + int(rnd(i, 35u) * 2.0));
-    if (rnd(i, 36u) < 0.5) hop.x = -hop.x;
-    if (rnd(i, 37u) < 0.5) hop.y = -hop.y;
-    ivec2 nc = clamp(c + hop, ivec2(0), ivec2(SIDE - 1));
-    vec2 np = texelFetch(uPos, nc, 0).xy;
-    bool near = texelFetch(uLife, nc, 0).x < 0.5
-      && distance(np, home) < SPAWN_R * uScale;
-    oPos = vec4(near ? mix(np, home, SPAWN_PULL) : home, 0.0, 0.0);
-    oLife = vec4(0.0, 0.0, 0.0, 0.0);
-    return;
-  }
+  float life = freeLifeOf(i);
 
   if (phase > 0.5) {
-    float sp = length(v);
-    if (sp > 1e-4) {
-      vec2 dir = v / sp;
+    vec2 q = k.xy, w = k.zw;
+    float spd = length(w);
+    if (spd > 1e-4) {
+      vec2 dir = w / spd;
       float curl = (rnd(i, 31u) - 0.5) * 2.0 * FREE_CURL;
-      v += vec2(-dir.y, dir.x) * (curl * sp * uDt);
+      w += vec2(-dir.y, dir.x) * (curl * spd * uDt);
     }
-    v *= exp(-FREE_DRAG * uDt / mass);
-    p += v * uDt;
-    age += uDt;
-    if (age > freeLifeOf(i) || outside(p) || !(dot(p, p) < 1e12)) {
-      oPos = vec4(home, 0.0, 0.0);
-      oLife = vec4(2.0, -WAIT_MAX * rnd(i, 33u), 0.0, 0.0);
+    w *= exp(-FREE_DRAG * uDt / mass);
+    q += w * uDt;
+    sage += uDt;
+    if (sage > life || outside(q) || !(dot(q, q) < 1e12)) {
+      phase = 0.0;
+      sage = 0.0;
+      oSpark = vec4(0.0);
     } else {
-      oPos = vec4(p, v);
-      oLife = vec4(1.0, age, 0.0, 0.0);
+      oSpark = vec4(q, w);
     }
-    return;
+  } else {
+    oSpark = vec4(0.0);
   }
 
   vec2 force = (home - p) * K_HOME;
@@ -336,7 +342,8 @@ void main() {
     float r = PUSH_R * uScale;
     if (dm < r) {
       float w = 1.0 - smoothstep(PUSH_FLAT, 1.0, dm / r);
-      if (dm > 1e-4) force += (away / dm) * (PUSH * uScale * w);
+      float move = smoothstep(PUSH_SLOW, PUSH_FAST, length(uCursorV) / uScale);
+      if (dm > 1e-4) force += (away / dm) * (PUSH * uScale * w * move);
       float grip = 1.0 - COUPLE_SPREAD * 0.5 + COUPLE_SPREAD * rnd(i, 21u);
       force += (uCursorV - v) * (COUPLE * w * grip);
     }
@@ -345,28 +352,38 @@ void main() {
   v += (force / mass) * uDt;
   v *= exp(-DAMP * uDt / mass);
   p += v * uDt;
-  age = min(age + uDt, 4.0);
+  bage = min(bage + uDt, 4.0);
 
   if (!(dot(p, p) < 1e12)) {
-    oPos = vec4(home, 0.0, 0.0);
-    oLife = vec4(0.0, 4.0, 0.0, 0.0);
-    return;
+    p = home;
+    v = vec2(0.0);
+    bage = 4.0;
   }
 
   float esc = ESCAPE_SPEED * uScale
     * (1.0 - ESCAPE_SPREAD * 0.5 + ESCAPE_SPREAD * rnd(i, 22u));
   vec2 rel = v - homeV;
-  if (age >= GROW && length(rel) > esc && dot(rel, p - home) > 0.0) {
+  bool held = phase > 0.5 && sage < life * RELAUNCH;
+  if (!held && bage >= GROW && length(rel) > esc && dot(rel, p - home) > 0.0) {
     float a = (rnd(i, 23u) - 0.5) * FLING_FAN;
     float ca = cos(a), sa = sin(a);
     float gain = 1.0 - FLING_SPREAD * 0.5 + FLING_SPREAD * rnd(i, 24u);
-    oPos = vec4(p, mat2(ca, sa, -sa, ca) * v * gain);
-    oLife = vec4(1.0, 0.0, 0.0, 0.0);
-    return;
+    oSpark = vec4(p, mat2(ca, sa, -sa, ca) * v * gain);
+    phase = 1.0;
+    sage = 0.0;
+
+    ivec2 hop = ivec2(1 + int(rnd(i, 34u) * 2.0), 1 + int(rnd(i, 35u) * 2.0));
+    if (rnd(i, 36u) < 0.5) hop.x = -hop.x;
+    if (rnd(i, 37u) < 0.5) hop.y = -hop.y;
+    ivec2 nc = clamp(c + hop, ivec2(0), ivec2(SIDE - 1));
+    vec2 np = texelFetch(uPos, nc, 0).xy;
+    p = distance(np, home) < SPAWN_R * uScale ? mix(np, home, SPAWN_PULL) : home;
+    v = vec2(0.0);
+    bage = -WAIT_MAX * rnd(i, 33u);
   }
 
   oPos = vec4(p, v);
-  oLife = vec4(0.0, age, 0.0, 0.0);
+  oLife = vec4(phase, sage, bage, 0.0);
 }`;
 
 const DRAW_VS = (side: number): string => `#version 300 es
@@ -378,9 +395,11 @@ ${PRELUDE(side)}
 #define SPRITE_CORE ${SPRITE_CORE.toFixed(2)}
 #define SPRITE_RIM ${SPRITE_RIM.toFixed(2)}
 #define SPRITE_BLOOM ${SPRITE_BLOOM.toFixed(2)}
+#define SPARK_GAIN ${SPARK_GAIN.toFixed(3)}
 
 uniform sampler2D uPos;
 uniform sampler2D uLife;
+uniform sampler2D uSpark;
 uniform vec2 uField;
 uniform vec2 uHue;
 
@@ -393,22 +412,34 @@ vec3 hsl2rgb(float h, float s, float l) {
 }
 
 void main() {
-  ivec2 c = ivec2(gl_VertexID % SIDE, gl_VertexID / SIDE);
+  bool spark = gl_VertexID >= SIDE * SIDE;
+  int id = spark ? gl_VertexID - SIDE * SIDE : gl_VertexID;
+  ivec2 c = ivec2(id % SIDE, id / SIDE);
   float t;
   int pop;
   homeOf(c, t, pop);
-  vec2 p = texelFetch(uPos, c, 0).xy;
-  vec2 st = texelFetch(uLife, c, 0).xy;
+  vec3 st = texelFetch(uLife, c, 0).xyz;
+
+  if (spark && st.x < 0.5) {
+    vColor = vec3(0.0);
+    gl_PointSize = 1.0;
+    gl_Position = vec4(4.0, 4.0, 4.0, 1.0);
+    return;
+  }
 
   uint i = uint(c.y) * uint(SIDE) + uint(c.x);
-  float fade = fadeOf(st.x, st.y, i);
+  vec2 p = spark ? texelFetch(uSpark, c, 0).xy : texelFetch(uPos, c, 0).xy;
+  float fade = spark ? sparkFadeOf(st.y, i) * SPARK_GAIN : growFadeOf(st.z);
   vec3 rgb = hsl2rgb(mix(uHue.x, uHue.y, t), 0.85, 0.56);
   float a = pop == 0 ? ALPHA_CORE : (pop == 1 ? ALPHA_RIM : ALPHA_BLOOM);
   if (pop == 0) a *= 0.7 + 0.6 * rnd(i, 15u);
   vColor = rgb * a * fade;
 
   float sprite = pop == 0 ? SPRITE_CORE : (pop == 1 ? SPRITE_RIM : SPRITE_BLOOM);
-  gl_PointSize = sprite * uScale * (0.45 + 0.55 * fade);
+  float grade = spark
+    ? 0.7 + 0.5 * min(fade, 1.0)
+    : 0.45 + 0.55 * fade;
+  gl_PointSize = sprite * uScale * grade;
   vec2 ndc = (p / uField) * 2.0 - 1.0;
   gl_Position = vec4(ndc.x, -ndc.y, 0.0, 1.0);
 }`;
@@ -528,17 +559,19 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
   function makePool(n: number): Pool {
     const pos = makeTex(gl!.RGBA32F, n, n);
     const life = makeTex(gl!.RGBA16F, n, n);
+    const spark = makeTex(gl!.RGBA32F, n, n);
     const fbo = gl!.createFramebuffer();
     if (!fbo) throw new Error('glow-field: no pool');
     gl!.bindFramebuffer(gl!.FRAMEBUFFER, fbo);
     gl!.framebufferTexture2D(gl!.FRAMEBUFFER, gl!.COLOR_ATTACHMENT0, gl!.TEXTURE_2D, pos, 0);
     gl!.framebufferTexture2D(gl!.FRAMEBUFFER, gl!.COLOR_ATTACHMENT1, gl!.TEXTURE_2D, life, 0);
-    gl!.drawBuffers([gl!.COLOR_ATTACHMENT0, gl!.COLOR_ATTACHMENT1]);
+    gl!.framebufferTexture2D(gl!.FRAMEBUFFER, gl!.COLOR_ATTACHMENT2, gl!.TEXTURE_2D, spark, 0);
+    gl!.drawBuffers([gl!.COLOR_ATTACHMENT0, gl!.COLOR_ATTACHMENT1, gl!.COLOR_ATTACHMENT2]);
     if (gl!.checkFramebufferStatus(gl!.FRAMEBUFFER) !== gl!.FRAMEBUFFER_COMPLETE) {
       throw new Error('glow-field: float targets are not renderable here');
     }
     gl!.bindFramebuffer(gl!.FRAMEBUFFER, null);
-    return { pos, life, fbo };
+    return { pos, life, spark, fbo };
   }
 
   function drop(t: Target | undefined): void {
@@ -551,6 +584,7 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
     if (!p) return;
     gl!.deleteTexture(p.pos);
     gl!.deleteTexture(p.life);
+    gl!.deleteTexture(p.spark);
     gl!.deleteFramebuffer(p.fbo);
   }
 
@@ -589,11 +623,11 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
       drawU = {};
       resolveU = {};
       waveU = {};
-      for (const n of ['uPos', 'uLife', 'uStr', 'uBar', 'uScale', 'uField',
+      for (const n of ['uPos', 'uLife', 'uSpark', 'uStr', 'uBar', 'uScale', 'uField',
         'uDt', 'uInit', 'uCursor', 'uCursorV', 'uCursorOn']) {
         simU[n] = gl!.getUniformLocation(simProg, n);
       }
-      for (const n of ['uPos', 'uLife', 'uBar', 'uScale', 'uField', 'uHue']) {
+      for (const n of ['uPos', 'uLife', 'uSpark', 'uBar', 'uScale', 'uField', 'uHue']) {
         drawU[n] = gl!.getUniformLocation(drawProg, n);
       }
       for (const n of ['uStr', 'uBar', 'uScale', 'uDt', 'uCursor', 'uCursorV', 'uCursorOn']) {
@@ -654,8 +688,11 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
     gl!.bindTexture(gl!.TEXTURE_2D, pools[front].life);
     gl!.uniform1i(simU.uLife ?? null, 1);
     gl!.activeTexture(gl!.TEXTURE2);
+    gl!.bindTexture(gl!.TEXTURE_2D, pools[front].spark);
+    gl!.uniform1i(simU.uSpark ?? null, 2);
+    gl!.activeTexture(gl!.TEXTURE3);
     gl!.bindTexture(gl!.TEXTURE_2D, strs[strFront].tex);
-    gl!.uniform1i(simU.uStr ?? null, 2);
+    gl!.uniform1i(simU.uStr ?? null, 3);
     bindShape(simU);
     gl!.uniform2f(simU.uField ?? null, canvas.width, canvas.height);
     gl!.uniform1f(simU.uDt ?? null, dt);
@@ -685,11 +722,14 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
     gl!.activeTexture(gl!.TEXTURE1);
     gl!.bindTexture(gl!.TEXTURE_2D, pools[front].life);
     gl!.uniform1i(drawU.uLife ?? null, 1);
+    gl!.activeTexture(gl!.TEXTURE2);
+    gl!.bindTexture(gl!.TEXTURE_2D, pools[front].spark);
+    gl!.uniform1i(drawU.uSpark ?? null, 2);
     bindShape(drawU);
     gl!.uniform2f(drawU.uField ?? null, canvas.width, canvas.height);
     gl!.uniform2f(drawU.uHue ?? null, hue, hue2);
     gl!.bindVertexArray(vao);
-    gl!.drawArrays(gl!.POINTS, 0, count);
+    gl!.drawArrays(gl!.POINTS, 0, count * 2);
 
     gl!.bindFramebuffer(gl!.FRAMEBUFFER, null);
     gl!.viewport(0, 0, canvas.width, canvas.height);
@@ -761,15 +801,16 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
 
     let dx = pointerOn ? pointerX - lastX : 0;
     let dy = pointerOn ? pointerY - lastY : 0;
+    if (Math.hypot(dx, dy) > JUMP_MAX * scale) {
+      dx = 0;
+      dy = 0;
+    }
     if (dt > 0) {
-      const capped = CURSOR_MAX * scale * dt;
-      const moved = Math.hypot(dx, dy);
-      if (moved > capped) {
-        dx *= capped / moved;
-        dy *= capped / moved;
-      }
-      cursorVX = dx / dt;
-      cursorVY = dy / dt;
+      const cap = CURSOR_MAX * scale;
+      const speed = Math.hypot(dx, dy) / dt;
+      const k = speed > cap ? cap / speed : 1;
+      cursorVX = (dx / dt) * k;
+      cursorVY = (dy / dt) * k;
     } else {
       cursorVX = 0;
       cursorVY = 0;
