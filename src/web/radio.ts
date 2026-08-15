@@ -73,7 +73,9 @@ const els = {
   debugOpen: $<HTMLAnchorElement>('debug-open'),
   debugCopy: $<HTMLButtonElement>('debug-copy'),
   debugRef: $<HTMLElement>('debug-ref'),
+  stationsGrip: $<HTMLDivElement>('stations-grip'),
   settings: $<HTMLDialogElement>('settings'),
+  settingsGrip: $<HTMLDivElement>('settings-grip'),
   openSettings: $<HTMLButtonElement>('open-settings'),
   closeSettings: $<HTMLButtonElement>('close-settings'),
   voice: $<HTMLDivElement>('voice'),
@@ -106,14 +108,26 @@ let station: Station = STATIONS[0];
 let wander = DEFAULT_WANDER;
 let voice: VoicePolicy = 'instrumental';
 /**
+ * Where the fader sits until somebody moves it. The markup carries the same
+ * figure as the slider's own `value`, so the control is in the right place on
+ * the first paint rather than snapping there when `paintVolume` runs.
+ */
+const DEFAULT_VOLUME = 0.8;
+/**
  * The listener's own fader, 0..1, over everything the master already does.
  *
  * There is no `<audio>` element to hang a system volume off — the mix is
  * assembled in Web Audio — so this is the only volume this page has, and every
  * place that brings the sound back up has to bring it back to *this* rather
  * than to 1. See `setOutputLevel`.
+ *
+ * Opens at four fifths rather than at the top, which is the one setting on this
+ * page that can only be found by looking for it: a listener who wants it louder
+ * has somewhere to go, where a fader already at its ceiling can only ever
+ * disappoint. The master is mixed to sit under a limiter with headroom to
+ * spare, so this costs nothing audible.
  */
-let volume = 1;
+let volume = DEFAULT_VOLUME;
 let current: Cut | undefined;
 let playing = false;
 let loading = false;
@@ -298,6 +312,30 @@ els.debugCopy.onclick = () => {
 };
 
 /**
+ * Where the two hues stand now, unwrapped — free to sit past 360 or below 0.
+ *
+ * The starting pair is what `@property` declares as their initial values, so
+ * the first record turns from the same place the page was painted in.
+ */
+let hueNow = 32;
+let hue2Now = 8;
+
+/**
+ * `from`, moved to wherever `to` is by the shorter of the two ways round.
+ *
+ * The result is not reduced to 0–360, and must not be: the hue is transitioned
+ * as a plain number, so the browser sweeps between the two figures it is given
+ * arithmetically. 350 to 10 is four degrees the short way and a backwards
+ * scroll through green, cyan and blue the way a wrapped value states it. Left
+ * unwrapped, 350 to 370 says the same colour and takes the arc that is meant.
+ * `hsl()` wraps whatever it is handed, so nothing downstream cares how far the
+ * figure has drifted.
+ */
+function turn(from: number, to: number): number {
+  return from + ((((to - from) % 360) + 540) % 360) - 180;
+}
+
+/**
  * The bar's two colours are the record's key.
  *
  * Hue from the tonic, so the twelve keys are twelve colours and a station that
@@ -305,13 +343,20 @@ els.debugCopy.onclick = () => {
  * major and most of the way round the wheel in minor — which is the one thing
  * about a piece a listener hears in the first bar, and the only reason to pick
  * the pairing off the mode rather than off another random number.
+ *
+ * Each hue takes its own short way. Carrying the second as a fixed offset from
+ * the first would be less code and wrong: the offset itself changes by 155°
+ * whenever the mode does, and that arrives on top of the tonic's own move as
+ * one sweep of up to 335°.
  */
 function paintKey(song: Song): void {
   const hue = (song.meta.tonic * 30 + 10) % 360;
   const away = song.meta.mode === 'major' ? 40 : 195;
+  hueNow = turn(hueNow, hue);
+  hue2Now = turn(hue2Now, (hue + away) % 360);
   const root = document.documentElement.style;
-  root.setProperty('--hue', String(hue));
-  root.setProperty('--hue-2', String((hue + away) % 360));
+  root.setProperty('--hue', String(hueNow));
+  root.setProperty('--hue-2', String(hue2Now));
 }
 
 /**
@@ -898,14 +943,231 @@ document.addEventListener('click', (e) => {
 });
 
 // ---------------------------------------------------------------------------
+// Sheets
+// ---------------------------------------------------------------------------
+
+/**
+ * On a phone both panels are the same object — a sheet docked to the bottom
+ * edge with a bar across the top of it — and a bar drawn there is a promise:
+ * everything else shaped like this can be pulled down and thrown away.
+ *
+ * The bar is the only handle, and that is the whole reason this can be as
+ * simple as it is. Making the *sheet* draggable means telling a pull apart from
+ * a scroll and from a press on a station card, which is where these get
+ * complicated; a grip that does nothing else needs none of that, and the
+ * gesture lands where the eye already says it should.
+ *
+ * Nothing here knows which panel it is driving. See `draggable`.
+ */
+
+/**
+ * Whether the two panels are sheets at the moment, rather than the floating
+ * pair the desktop layout uses.
+ *
+ * Asked of the grip rather than of a `matchMedia` copy of the breakpoint. The
+ * break is written once, in the stylesheet, and it is not only a width — it is
+ * `(hover: none), (max-width: 34rem)`, so a *desktop* window narrowed past 34rem
+ * is in the sheet layout with a mouse in it. A second copy of that here would be
+ * a second definition free to drift from the first, and the whole reason this
+ * function exists is that something drifted. The grip is `display: none` in
+ * exactly the layout where the panels are not sheets, which makes reading it the
+ * stylesheet's own answer to the question.
+ */
+function isSheet(): boolean {
+  return getComputedStyle(els.stationsGrip).display !== 'none';
+}
+
+/** How far down a pull has to get before letting go puts the sheet away. */
+const SHEET_CLOSE_PX = 64;
+/**
+ * …or how fast it has to be travelling when it is let go, in px per ms.
+ *
+ * A flick is a short, quick pull, and it means the same thing as a long slow
+ * one. Without this, throwing the sheet down and lifting off after 40 px is a
+ * gesture that visibly went somewhere and then snapped back.
+ */
+const SHEET_FLICK = 0.5;
+/** Below which a flick is a wobble on a tap rather than a throw. */
+const SHEET_FLICK_FLOOR_PX = 8;
+/**
+ * How long a stretch of the pull the throw is measured over, in ms.
+ *
+ * Not optional smoothing. Measured across the single frame it ended on, an
+ * ordinary drag *is* a flick: pointer moves arrive every 8 ms or so, and 6 px in
+ * one of them reads as 0.75 px/ms — half again over the threshold, from a hand
+ * moving at 6 px a frame. Every deliberate pull closed the sheet.
+ *
+ * A window this long also gets the other half for free. Speed is only taken
+ * from moves, so a hand that drags, stops, and *then* lifts off leaves the last
+ * fast reading standing however long it waited; measured against a stamp rather
+ * than a frame, the pause is in the divisor and the speed falls to nothing where
+ * it belongs.
+ */
+const SHEET_FLICK_WINDOW_MS = 90;
+/** The furthest the sheet will lift above its dock, however hard it is pulled. */
+const SHEET_LIFT_PX = 40;
+
+/**
+ * Upward travel, damped — the sheet's answer to being pulled the way it does
+ * not go.
+ *
+ * A hard clamp would be one line, and it stops dead: the thumb goes on moving
+ * and the sheet does not, which reads as the page having lost the touch. This
+ * never quite stops, so the sheet is always still answering; it just costs
+ * exponentially more travel to get anywhere. The first pixel is nearly free and
+ * the twentieth is most of the fight, which is what "stiff" is.
+ *
+ * `SHEET_LIFT_PX` is the asymptote rather than a reachable figure: half of it is
+ * spent by 55 px of pull, three quarters by 110, and the rest is never had.
+ */
+function rubber(px: number): number {
+  return SHEET_LIFT_PX * (1 - Math.exp(-px / (SHEET_LIFT_PX * 2)));
+}
+
+/** A panel that docks to the bottom of the screen, as much as a drag needs. */
+interface Sheet {
+  /** What moves. */
+  el: HTMLElement;
+  /** The bar across its top, and the only thing that starts a drag. */
+  grip: HTMLElement;
+  /** Whether it is on screen. A pull on a sheet that is away is nothing. */
+  isOpen: () => boolean;
+  /** Put it away, by whatever route this panel is put away by. */
+  close: () => void;
+}
+
+/**
+ * Let the thumb move the sheet.
+ *
+ * The transform is inline only while a finger is down. Both endings hand the
+ * element straight back to the stylesheet — releasing sets `transform` to the
+ * empty string rather than to a figure of its own — so the settle back and the
+ * slide away are the panel's own CSS running from wherever the drag left it,
+ * and there is no inline state left behind to fight the next open or close.
+ * That is why `close()` can be called in the same breath: the removal and the
+ * close land in one style pass, so what the browser sees is a single move from
+ * the dragged position to the closed one.
+ */
+function draggable({ el, grip, isOpen, close }: Sheet): void {
+  /** Where the finger went down. */
+  let from = 0;
+  /** Where the sheet is now, in pixels below its dock. */
+  let at = 0;
+  /**
+   * Two marks left behind along the way, each a reading and its stamp. The
+   * throw is measured against the older of them, which is what keeps the
+   * measurement a window wide rather than a frame wide — see
+   * `SHEET_FLICK_WINDOW_MS`. Kept as a pair rather than one that is moved up
+   * each time, because a single mark is a window only until the moment it is
+   * replaced, and the release can land in that moment.
+   */
+  let older = 0;
+  let olderAt = 0;
+  let newer = 0;
+  let newerAt = 0;
+
+  grip.addEventListener('pointerdown', (e) => {
+    if (!isOpen()) return;
+    // Every later move and the release come here whatever they are over, which
+    // is most of them: a pull that closes the sheet ends well below it.
+    grip.setPointerCapture(e.pointerId);
+    from = e.clientY;
+    at = 0;
+    older = 0;
+    newer = 0;
+    olderAt = e.timeStamp;
+    newerAt = e.timeStamp;
+    // The sheet is under the thumb now, and nothing may be interpolating
+    // between where it is and where the thumb has got to.
+    el.style.transition = 'none';
+  });
+
+  grip.addEventListener('pointermove', (e) => {
+    if (!grip.hasPointerCapture(e.pointerId)) return;
+    const dy = e.clientY - from;
+    at = dy >= 0 ? dy : -rubber(-dy);
+    if (e.timeStamp - newerAt > SHEET_FLICK_WINDOW_MS) {
+      older = newer;
+      olderAt = newerAt;
+      newer = at;
+      newerAt = e.timeStamp;
+    }
+    el.style.transform = `translateY(${at.toFixed(1)}px)`;
+  });
+
+  const letGo = (e: PointerEvent): void => {
+    if (!grip.hasPointerCapture(e.pointerId)) return;
+    grip.releasePointerCapture(e.pointerId);
+    /**
+     * The stylesheet's transition, back on — and armed a style pass *before*
+     * the transform moves rather than in the same one as it. Dropping
+     * `transition: none` is itself a change, and a browser handed both at once
+     * has no before-change style with a transition in it to start one from, so
+     * the sheet would jump to its resting place. Reading a layout property is
+     * what forces the pass in between.
+     */
+    el.style.transition = '';
+    void el.offsetHeight;
+    // Against the release's own stamp, so a hand that stopped before it lifted
+    // off has that pause counted against it.
+    const over = e.timeStamp - olderAt;
+    const speed = over > 0 ? (at - older) / over : 0;
+    const away = at > SHEET_CLOSE_PX
+      || (speed > SHEET_FLICK && at > SHEET_FLICK_FLOOR_PX);
+    el.style.transform = '';
+    if (away) close();
+  };
+
+  grip.addEventListener('pointerup', letGo);
+  // A system gesture taking the pointer away mid-pull leaves the sheet wherever
+  // it had got to unless this puts it back.
+  grip.addEventListener('pointercancel', letGo);
+}
+
+draggable({
+  el: els.stationsWrap,
+  grip: els.stationsGrip,
+  isOpen: () => document.body.classList.contains('stations-open'),
+  close: () => showStations(false),
+});
+
+draggable({
+  el: els.settings,
+  grip: els.settingsGrip,
+  isOpen: () => els.settings.open,
+  close: () => els.settings.close(),
+});
+
+// ---------------------------------------------------------------------------
 // Settings
 // ---------------------------------------------------------------------------
 
 els.openSettings.onclick = () => els.settings.showModal();
 els.closeSettings.onclick = () => els.settings.close();
-// Clicking the backdrop closes it: the dialog itself fills none of that area,
-// so a press landing on `dialog` rather than on a child is a press outside.
-els.settings.onclick = (e) => { if (e.target === els.settings) els.settings.close(); };
+/**
+ * A press outside the panel closes it.
+ *
+ * `e.target === dialog` is the usual way to ask this — a press on the backdrop
+ * is reported against the dialog itself, because the backdrop is a
+ * pseudo-element and has no node of its own to name. On its own it is not
+ * enough: the dialog's *padding* belongs to the dialog too, so a press on the
+ * air inside the panel says exactly the same thing. On the desktop card that is
+ * a 1.5 rem frame and was already wrong; on the phone sheet it is the full
+ * width of the screen, and a thumb landing beside the voice buttons would put
+ * the settings away.
+ *
+ * So: the target says it is not on a control, and the point says whether it is
+ * on the panel. The target test stays because it is what rules out a keyboard
+ * press on a child — those arrive as clicks at (0, 0), which is outside every
+ * sheet docked to the bottom of the screen.
+ */
+els.settings.onclick = (e) => {
+  if (e.target !== els.settings) return;
+  const box = els.settings.getBoundingClientRect();
+  const outside = e.clientX < box.left || e.clientX > box.right
+    || e.clientY < box.top || e.clientY > box.bottom;
+  if (outside) els.settings.close();
+};
 
 els.voice.onclick = (e) => {
   const picked = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-voice]');
@@ -1003,12 +1265,25 @@ document.addEventListener('keydown', (e) => {
 });
 
 /**
- * …and on hover, where there is a pointer to hover with.
+ * …and on hover, where there is a pointer to hover with *and* a panel worth
+ * hovering over.
  *
  * Reaching a list of eight things should not cost a press. Gated on
  * `(hover: hover)` because a touch screen reports `pointerenter` on the tap
  * that precedes the click, so on a phone this would open the panel and the
  * click would immediately shut it again.
+ *
+ * And gated again, per event, on the panel not being a sheet — because the two
+ * questions are not the same one, and a desktop window narrowed past the break
+ * answers them differently. There, hover opened a sheet that docks to the
+ * bottom of the screen, half a page from the pointer; the sheet brought its
+ * scrim up with it, the scrim covered the button the pointer was still on, so
+ * `pointerleave` fired against a pointer that had not moved and shut the sheet
+ * again — which uncovered the button, which fired `pointerenter`. The button
+ * flickered, wore the scrim's cursor rather than its own, and could not be
+ * clicked at all: every press landed on the scrim. Read at event time rather
+ * than latched at load, so a window dragged across the break is right on the
+ * next movement rather than at the next reload.
  *
  * The close is deferred only when the pointer leaves *towards the other half of
  * the control* — down out of the button, or up out of the panel — because that
@@ -1023,6 +1298,7 @@ if (window.matchMedia('(hover: hover)').matches) {
   /** `down` for the button, which the panel sits under; `up` for the panel. */
   const leave = (el: HTMLElement, toward: 'down' | 'up') => (e: Event): void => {
     hold();
+    if (isSheet()) return;
     // A pinned panel was asked for and stays until it is asked away.
     if (pinned) return;
     const box = el.getBoundingClientRect();
@@ -1035,7 +1311,11 @@ if (window.matchMedia('(hover: hover)').matches) {
   for (const [el, toward] of [
     [els.stationsToggle, 'down'], [els.stationsWrap, 'up'],
   ] as const) {
-    el.addEventListener('pointerenter', () => { hold(); showStations(true); });
+    el.addEventListener('pointerenter', () => {
+      if (isSheet()) return;
+      hold();
+      showStations(true);
+    });
     el.addEventListener('pointerleave', leave(el, toward));
   }
 }
@@ -1102,7 +1382,7 @@ async function boot(): Promise<void> {
       localStorage.setItem(STATION_KEY, station.id);
       localStorage.setItem(DAY_KEY, today());
     }
-    volume = (storedNumber(VOLUME_KEY, 0, 100) ?? 100) / 100;
+    volume = (storedNumber(VOLUME_KEY, 0, 100) ?? DEFAULT_VOLUME * 100) / 100;
   } catch { /* private mode: the defaults are already right */ }
 
   paintStations();

@@ -23,23 +23,80 @@
     <meta property="og:image:height" content="630" />
     <meta name="twitter:card" content="summary_large_image" />
     <style>
+      /* The record's key, as two hues. Set per record by `radio.ts`; the initial
+         values are only what the glow looks like before the first song has been
+         written.
+
+         Registered rather than simply declared, because an unregistered custom
+         property changes *discretely*: the bar and its halo both cut straight to
+         the new key the instant a record landed, and no `transition` could reach
+         them. Registered as numbers they interpolate, and everything derived
+         from them — two gradients — is rebuilt from the interpolated figure
+         every frame. That indirection is the point. Transitioning `background`
+         instead would ask the browser to interpolate one gradient into another,
+         which it does not reliably do; interpolating two numbers, it always
+         does. */
+      @property --hue { syntax: "<number>"; inherits: true; initial-value: 32; }
+      @property --hue-2 { syntax: "<number>"; inherits: true; initial-value: 8; }
+
       :root {
         --bg: #0d0b0a;
         --ink: #f2eae1;
         --dim: #8d8079;
         --edge: #2b2421;
         --hot: #e0a24a;
-        /* The record's key, as two hues. Set per record by `radio.ts`; these are
-           only what the glow looks like before the first song has been written. */
-        --hue: 32;
-        --hue-2: 8;
+        /* Declared here because this is the element the hues change on —
+           `paintKey` sets them on the document root, and a transition only fires
+           where the value moves. Long enough to read as a turn around the wheel
+           rather than a cut; `paintKey` keeps the figures unwrapped, so the turn
+           is always the shorter of the two arcs. */
+        transition: --hue 1.8s ease-in-out, --hue-2 1.8s ease-in-out;
         font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+
+        /* The gutter, in one place, because three boxes have to agree on it:
+           the deck's own padding, the stations panel's `max-width`, and the
+           settings dialog's width. They were three copies of the same figure —
+           the panel and the dialog each carrying it doubled — and a change to
+           the padding silently left both hanging off the deck's edges. */
+        --pad: 1.75rem;
+
+        /* ── the whole page, as one number ────────────────────────────────
+           Every size here is in `rem` — type, buttons, gaps, the player's
+           width, the stations panel's — so the root font size is the only
+           lever the layout needs. Moving it continuously means the page
+           shrinks as one drawing rather than as a set of drawings that snap
+           between breakpoints, and the card-width sweep noted down at
+           `.stations-wrap` holds all the way down: card and type shrink
+           together, so a label that fits at one size fits at every size.
+
+           `1rem` is the ceiling, and the ceiling is the page as it was
+           designed. This only ever gives size back to a viewport too small to
+           hold it — it never takes a screen with room to spare and inflates
+           the type to fill it, which is how a player ends up looking like a
+           kiosk on a large monitor. On anything from a 360px phone up, this
+           is exactly the layout that was here before.
+
+           Both shrink terms are lengths rather than a fraction of the
+           reader's own font size, and that is the right way round for what
+           they are: fit constraints, not preferences. A reader who has set
+           their browser to 20px keeps all of it wherever the page has room —
+           the cap is in `rem`, so their `1rem` is their 20px — but at 20px on
+           a 375px screen the station sheet cannot hold two columns, and no
+           preference makes it able to.
+
+           4.44vw is 16px at 360px wide and proportional below it. `min()`
+           against `svh` is the other half: a 812 × 375 phone held sideways
+           has width to spare and no height at all, and the column comes to
+           about 20.5rem all told, so 4.4svh is the largest root size that
+           still leaves air under the buttons. On anything of ordinary height
+           the height term is far above the cap and never applies. */
+        font-size: clamp(0.75rem, min(4.44vw, 4.4svh), 1rem);
       }
       * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
       body {
         margin: 0; background: var(--bg); color: var(--ink);
         min-height: 100svh; display: flex; justify-content: center;
-        padding: max(1rem, env(safe-area-inset-top)) 1.25rem max(1.5rem, env(safe-area-inset-bottom));
+        padding: max(1rem, env(safe-area-inset-top)) var(--pad) max(1.5rem, env(safe-area-inset-bottom));
         overflow-x: hidden;
       }
       /* Wide, so the stations can use the width. The player is narrowed back
@@ -190,28 +247,55 @@
          properties set once per record; the breathing is one composited opacity
          animation. This page is meant to be left on for an hour, and a
          `requestAnimationFrame` running for that hour to move five pixels is a
-         battery cost with nothing to show for it. */
+         battery cost with nothing to show for it.
+
+         Three layers, and the element itself paints none of them: `::before` is
+         the wide bloom, `<i>` the tight rim, `::after` the bar. Document order
+         alone puts the two halo layers behind the bar — no `z-index`, which
+         matters, because the stopped state hangs a `filter` on `.glow` and a
+         filter opens a stacking context that a negative `z-index` cannot climb
+         out of. The extra element earns its place: one `box-shadow` could stack
+         two blurs on a single box and `filter: blur()` cannot, so a tight rim
+         and a wide bloom need a box each. */
       .glow {
-        position: relative; width: 100%; height: 5px; border-radius: 3px; margin: 2.25rem 0 0;
-        background: linear-gradient(90deg, hsl(var(--hue) 78% 52%), hsl(var(--hue-2) 76% 56%));
-        box-shadow: 0 0 10px hsl(var(--hue) 85% 55% / .5), 0 0 26px hsl(var(--hue-2) 85% 55% / .28);
-        transition: filter 1.2s ease, box-shadow 1.2s ease, opacity 1.2s ease;
+        position: relative; width: 100%; height: 5px; margin: 2.25rem 0 0;
+        transition: filter 1.2s ease, opacity 1.2s ease;
       }
-      /* The breathing is a second shadow fading in and out over the first,
-         rather than the first one animating: `box-shadow` repaints and `opacity`
-         composites, and only one of those is free to run for an hour. */
       .glow::after {
-        content: ""; position: absolute; inset: 0; border-radius: inherit; opacity: 0;
-        box-shadow: 0 0 16px hsl(var(--hue) 90% 62% / .7), 0 0 40px hsl(var(--hue-2) 90% 62% / .45);
+        content: ""; position: absolute; inset: 0; border-radius: 3px;
+        background: linear-gradient(90deg, hsl(var(--hue) 78% 52%), hsl(var(--hue-2) 76% 56%));
       }
-      body.playing .glow::after { animation: breathe 6s ease-in-out infinite; }
-      @keyframes breathe { 0%, 100% { opacity: .12; } 50% { opacity: .85; } }
-      /* Stopped: the colour drains out over a second rather than blinking off. */
-      body:not(.playing) .glow {
-        filter: grayscale(1) brightness(.8); box-shadow: none; opacity: .45;
+      /* The halo is the bar again, blurred, rather than a `box-shadow`.
+
+         A shadow takes one flat colour and spreads it evenly around the whole
+         box. The two this used to carry — one per hue — therefore mixed into a
+         single average everywhere, and the glow came out the same colour at both
+         ends of a bar that is two. A blurred copy of the gradient is, at every
+         point across the width, the colour of the bar directly above it.
+
+         Both layers are taller than the bar on purpose. Blurring a 5 px band by
+         14 px leaves under a fifth of its alpha at the peak, so the extra height
+         is what buys back the strength the shadows had at the reach they had —
+         matched against them layer by layer rather than guessed. */
+      .glow > i, .glow::before {
+        content: ""; position: absolute; border-radius: 8px;
+        background: linear-gradient(90deg, hsl(var(--hue) 88% 56%), hsl(var(--hue-2) 88% 56%));
+        transition: opacity 1.2s ease;
       }
+      .glow > i { inset: -1px; filter: blur(5px); opacity: .37; }
+      .glow::before { inset: -4px -3px; filter: blur(14px); opacity: .41; }
+      /* The breathing is the bloom's opacity and nothing else: `opacity`
+         composites where a `box-shadow` repaints, and only one of those is free
+         to run for an hour. The rim holds still underneath it, so what swells is
+         the reach of the glow rather than the brightness of the bar. */
+      body.playing .glow::before { animation: breathe 6s ease-in-out infinite; }
+      @keyframes breathe { 0%, 100% { opacity: .19; } 50% { opacity: .64; } }
+      /* Stopped: the colour drains out over a second rather than blinking off,
+         and the halo goes with it. */
+      body:not(.playing) .glow { filter: grayscale(1) brightness(.8); opacity: .45; }
+      body:not(.playing) .glow > i, body:not(.playing) .glow::before { opacity: 0; }
       @media (prefers-reduced-motion: reduce) {
-        body.playing .glow::after { animation: none; opacity: .45; }
+        body.playing .glow::before { animation: none; opacity: .41; }
       }
 
       /* ── controls ─────────────────────────────────────────────────────────
@@ -439,13 +523,21 @@
          Fitting the six-genre labels outright would need a 244 px card and a
          46rem panel. Those stay on the marquee, which is what it is for.
 
+         The px figures above are at a 16px root, which is the largest the
+         root now gets — see `:root`. Below it the sweep is unaffected,
+         because the type shrinks with the card: a 37rem panel is 4 × 143 px
+         of card at 16px and 4 × 125 px at 14px, and the labels on those cards
+         are an eighth smaller too, so what fits is the same list either way.
+         `fitStationLabels` re-measures on resize regardless, which is what
+         catches the rest.
+
          Three rows here; the phone sheet below is its own media query and is
          unaffected — still two columns and six rows, and it does not scroll to
          hold them (measured at 375 × 812 it comes to 392 px against the 72svh
          it is allowed). The `overflow-y: auto` there stays as insurance. */
       .stations-wrap {
         position: absolute; top: 1.25rem; left: 50%;
-        width: 37rem; max-width: calc(100vw - 2.5rem);
+        width: 37rem; max-width: calc(100vw - 2 * var(--pad));
         transform: translateX(-50%) translateY(-.4rem);
         opacity: 0; visibility: hidden;
         transition: opacity .25s ease, transform .25s ease, visibility 0s linear .25s;
@@ -457,6 +549,13 @@
 
       /* The scrim exists only for the sheet below. */
       .scrim { display: none; }
+      /* …and so does the grip. Above the break neither panel is a sheet — the
+         stations float under the player and the settings are a centred card —
+         and a bar that says "pull me down" over something that does not move is
+         a lie. `display: none` also takes it out of the drag entirely: no box,
+         no `pointerdown`, so `draggable` never fires on the desktop layout
+         without having to ask what layout it is in. */
+      .grip { display: none; }
 
       /*
         On a phone, a sheet.
@@ -471,9 +570,14 @@
         .stations-wrap {
           position: fixed; inset: auto 0 0 0; top: auto; width: 100%; max-width: none;
           transform: translateY(100%); z-index: 40;
-          background: #12100e; border-top: 1px solid var(--edge);
+          /* The settings panel's surface and dimmer both, because this is the
+             settings panel's shape: a dialog in everything but the tag. */
+          background: #0a0908; border-top: 1px solid var(--edge);
           border-radius: 16px 16px 0 0; max-height: 72svh; overflow-y: auto;
-          padding: 1.1rem 1.25rem calc(1.4rem + env(safe-area-inset-bottom));
+          /* Little at the top, because the grip is the top: it carries a
+             finger's worth of height of its own and the bar sits in the middle
+             of that. The 1.1rem this was is now split between the two. */
+          padding: .4rem var(--pad) calc(1.4rem + env(safe-area-inset-bottom));
           transition: transform .28s cubic-bezier(.32, .72, 0, 1), visibility 0s linear .28s;
           opacity: 1;
         }
@@ -481,29 +585,169 @@
           transform: translateY(0);
           transition: transform .28s cubic-bezier(.32, .72, 0, 1), visibility 0s;
         }
+        /* Dimmed, not blacked out. At `#000c` the page behind went to almost
+           nothing and the sheet read as a screen of its own; the point of a
+           scrim is to say the page is still there and is not the thing being
+           talked to. Kept in step with the settings backdrop, which is the same
+           device over the same page. */
         .scrim {
-          display: block; position: fixed; inset: 0; z-index: 30; background: #000b;
+          display: block; position: fixed; inset: 0; z-index: 30; background: #0009;
           opacity: 0; visibility: hidden;
           transition: opacity .28s ease, visibility 0s linear .28s;
         }
         body.stations-open .scrim {
           opacity: 1; visibility: visible; transition: opacity .28s ease, visibility 0s;
         }
-        /* The button sits about 30 px from the right edge of a phone screen and
-           the pill is 90 px wide, so out to the right it would run off. Under
-           the button instead, where it clears the edge by 16 px. */
-        .vol-pop {
-          left: 50%; top: 100%;
-          transform: translateX(-50%) translateY(-.25rem);
-          margin: .45rem 0 0;
-        }
-        .vol.open .vol-pop { transform: translateX(-50%) translateY(0); }
+        /* ── the two that are not about the music, in the corners ──────────
+           On the desktop row they bracket the transport, dim and ringless, at
+           arm's length from the three controls that play something. A phone
+           has no room for that bracketing — the row is 3 rem circles and a
+           4 rem one across a 20 rem screen — so they leave the row entirely
+           and take the two corners a thumb already rests on. What is left in
+           the middle is the transport and only the transport: stations, play,
+           skip, one circle each side of the accent.
 
-        /* A grip, so the sheet reads as one. */
-        .stations-wrap::before {
-          content: ""; display: block; width: 2.25rem; height: 4px; border-radius: 2px;
-          background: var(--edge); margin: -.35rem auto .85rem;
+           `fixed`, so they hold the corners of the *screen* rather than of the
+           player, which is a centred column that grows with the viewport.
+           Neither carries a z-index above the scrim's 30 on purpose: with the
+           sheet up they dim underneath it like everything else on the page.
+
+           The insets are the page gutter plus whatever the notch or the home
+           bar claims, so on a squared-off screen they sit exactly where the
+           deck's own edge is. */
+        /* The same gutter all three ways, and its own figure rather than
+           `--pad`.
+
+           Equal is the part that matters: these are corner marks, and the only
+           thing a corner can be read against is its own two distances. It was
+           1.15 down and 1.75 across, which sat the pair visibly nearer the
+           bottom edge than the side.
+
+           Tighter than the page gutter, though, and deliberately: `--pad` is
+           the margin the *deck* keeps — the width a column of text and cards is
+           held in from the edge — and a glyph pushed in that far reads as
+           having drifted in off the corner rather than as belonging to it. */
+        #open-settings, .vol {
+          --corner: 1.05rem;
+          position: fixed; bottom: calc(var(--corner) + env(safe-area-inset-bottom));
         }
+        #open-settings { left: calc(var(--corner) + env(safe-area-inset-left)); }
+        .vol { right: calc(var(--corner) + env(safe-area-inset-right)); }
+
+        /* Bigger than the pair on the desktop row, and for the reason they are
+           smaller there: size is relative to what is beside it. In the row they
+           are read against 3 rem circles and a 4 rem one, and being the small
+           dim things is the whole point. Alone in a corner there is nothing to
+           be small against — the nearest control is half a screen away — so the
+           same glyph just reads as faint, and it is being found by a thumb
+           rather than pointed at.
+
+           Both step by the same 1.21, so the cog stays deliberately under the
+           speaker's size and the two go on carrying the same weight of ink. */
+        #open-settings, #volume-btn { width: 1.7rem; height: 1.7rem; }
+        #open-settings svg { width: 1.35rem; height: 1.35rem; }
+        #volume-btn svg { width: 1.7rem; height: 1.7rem; }
+
+        /* Up and over rather than down and centred. Down was right under a
+           button in the middle of the page; from the bottom corner the pill
+           would open into the home bar, and centred on a button a gutter's
+           width from the edge, half of it would hang off the screen. Above and
+           flush right does neither, and it lands the pill in the gap between
+           the corner and the transport, where nothing else is. */
+        .vol-pop {
+          left: auto; right: 0; top: auto; bottom: 100%;
+          transform: translateY(.25rem);
+          margin: 0 0 .45rem;
+          /* The two figures swap with the axis. Their job is to land the bar
+             the same distance from the pill's edge all the way round, and
+             which of them is "along the bar" and which is "across it" is
+             exactly what turning the fader upright changes — see the desktop
+             rule for the arithmetic. */
+          padding: .26rem .31rem;
+        }
+        .vol.open .vol-pop { transform: translateY(0); }
+
+        /* ── the fader, upright ───────────────────────────────────────────
+           A volume that stands up is the gesture everybody already knows, and
+           on this side of the break it is also the only one with room: the
+           pill opens out of a bottom corner, and a bar reaching sideways from
+           there either runs into the transport or off the screen. Standing, it
+           climbs into the empty band above the corner, and the thumb travels
+           the way the level does.
+
+           `writing-mode` is what turns the control rather than a `rotate()`.
+           A rotated input keeps its own hit box — the box the browser tests
+           taps against stays where it was laid out — so the slider would take
+           presses from a horizontal strip while showing a vertical bar.
+           Turning it in the writing mode turns the layout, so what is drawn
+           and what is pressed stay the same shape.
+
+           `direction: rtl` is the other half: `vertical-lr` alone runs the
+           value from the top down, which is a fader that gets louder as it
+           goes lower. */
+        .vol-pop input[type="range"] {
+          writing-mode: vertical-lr; direction: rtl;
+          width: .9rem; height: 5rem;
+        }
+        /* The bar, stood on its end: the inset that was left/right is now
+           top/bottom, and the gradient climbs instead of running across. Still
+           a real box rather than a background, and still inset by half a thumb
+           at each end so its ends are where the thumb's centre can reach. */
+        .vol-pop::before {
+          left: 50%; right: auto; margin: 0 0 0 -2px;
+          top: calc(.26rem + 6px); bottom: calc(.26rem + 6px);
+          width: 4px; height: auto;
+          background: linear-gradient(to top, var(--hot) var(--fill, 100%), #241e1b var(--fill, 100%));
+        }
+
+        /* Clear of both corners. The failure line is the one thing that can
+           appear at the foot of the deck — the player grows to fill the deck,
+           so anything after it lands at the bottom of the screen — and a long
+           message centred across the full width runs straight under a glyph
+           that is fixed on top of it. */
+        .oops { padding: 0 3rem; }
+
+        /* The sheet is two columns and its cards are whatever half the screen
+           leaves — the 8.5rem the desktop panel asks for is a floor for
+           deciding *how many* columns fit, and on the narrowest phones two of
+           them no longer do. At 320px the gutter leaves 265px inside the
+           sheet, where two 8.5rem cards and their gap want 274, so the grid
+           dropped to a single column of full-width cards. 7.5rem clears it
+           with room to spare and changes nothing anywhere else: below the
+           break the two cards still split whatever is there, and a wide
+           touch screen — which lands here on `hover: none`, not on width —
+           fits the same number of columns either way. */
+        .grid { grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr)); }
+
+        /* ── the grip ─────────────────────────────────────────────────────
+           A bar, and — separately — something a thumb can catch. Four pixels
+           is the right *mark* and an impossible *target*, so the element is a
+           finger's worth of height reaching both edges of the sheet, and the
+           line is drawn inside it by the pseudo-element. It was a
+           pseudo-element outright before this, which is exactly as much as was
+           needed while it did nothing.
+
+           `touch-action: none` is what makes the drag possible at all: without
+           it the browser claims the vertical axis for its own scrolling and
+           pull-to-refresh, and the first `pointermove` that arrives is already
+           a cancellation. */
+        .grip {
+          display: block; position: relative; height: 1.4rem;
+          margin: 0 calc(-1 * var(--pad)); touch-action: none; cursor: grab;
+        }
+        .grip:active { cursor: grabbing; }
+        .grip::before {
+          content: ""; position: absolute; left: 50%; top: 50%;
+          width: 2.25rem; height: 4px; margin: -2px 0 0 -1.125rem;
+          border-radius: 2px; background: var(--edge);
+        }
+
+        /* The settings become a sheet too — but their rules cannot live here.
+           The `dialog` block they override is written further down, and on
+           equal specificity the later rule wins whether or not it is in a media
+           query, so a copy of it up here would be quietly overwritten by the
+           desktop card. They are at the foot of this stylesheet instead, under
+           the same query. */
       }
       @media (prefers-reduced-motion: reduce) {
         .stations-wrap, .scrim { transition-duration: 0s; }
@@ -579,13 +823,25 @@
         font-size: .7rem; opacity: .7;
       }
 
-      /* ── settings ─────────────────────────────────────────────────────── */
+      /* ── settings ───────────────────────────────────────────────────────
+         Darker than the page it opens over, not lighter, which is the usual
+         way round and the wrong one here. The backdrop takes the page down
+         before the dialog is drawn at all, so a panel *lighter* than the page
+         is the brightest thing on a screen you are meant to glance at and
+         dismiss. Under the dim, #0a0908 still reads as a lit surface — it is
+         the two controls on it, a step above, that carry the panel's shape
+         rather than the panel itself. */
       dialog {
-        border: 1px solid var(--edge); border-radius: 18px; background: #12100e; color: var(--ink);
-        width: min(23rem, calc(100vw - 2.5rem)); padding: 1.5rem 1.5rem 1.25rem;
-        box-shadow: 0 24px 60px #000b;
+        border: 1px solid var(--edge); border-radius: 18px; background: #0a0908; color: var(--ink);
+        width: min(23rem, calc(100vw - 2 * var(--pad))); padding: 1.5rem 1.5rem 1.25rem;
+        box-shadow: 0 24px 60px #000c;
       }
-      dialog::backdrop { background: #000b; backdrop-filter: blur(2px); }
+      /* Enough to take the page out of the argument, not enough to pretend it
+         has gone. The blur does most of the work of separating the two, so the
+         dim does not have to be near-black to be read as one — and the page
+         behind is the thing the settings are about. `.scrim` carries the same
+         figure for the stations sheet. */
+      dialog::backdrop { background: #0009; backdrop-filter: blur(2px); }
       .dlg-title {
         margin: 0 0 1.4rem; font-size: 1.05rem; font-weight: 600; letter-spacing: .01em;
       }
@@ -597,7 +853,7 @@
          separate controls instead of one setting with three positions. */
       .seg {
         display: flex; gap: .25rem; padding: .25rem;
-        background: #1a1613; border: 1px solid var(--edge); border-radius: 11px;
+        background: #141110; border: 1px solid var(--edge); border-radius: 11px;
       }
       .seg button {
         flex: 1; padding: .5rem .3rem; border-radius: 8px; font: inherit; font-size: .8rem;
@@ -639,11 +895,83 @@
       }
       .done {
         width: 100%; margin-top: 1.75rem; padding: .65rem; border-radius: 10px;
-        border: 1px solid var(--edge); background: #1a1613; color: var(--ink);
+        border: 1px solid var(--edge); background: #141110; color: var(--ink);
         font: inherit; font-size: .85rem; cursor: pointer;
         transition: border-color .18s ease, color .18s ease;
       }
       .done:hover { border-color: var(--hot); color: var(--hot); }
+
+      /* ── the settings, as a sheet ───────────────────────────────────────
+         The same dialog, docked. A centred card is right on a screen you are
+         looking at and wrong on one you are holding: it lands in the middle,
+         which is the part of a phone a thumb reaches last, and it arrives from
+         nowhere and leaves the same way. The stations already dock to the
+         bottom edge on this side of the break, and the settings are the same
+         kind of thing — asked for, glanced at, put away — so they arrive by the
+         same slide and leave by the same pull.
+
+         Down here rather than up with the rest of the phone layout, and the
+         placement is load-bearing: every declaration in this block overrides
+         one written just above it at the same specificity, and on equal
+         specificity the later rule wins whether or not it is inside a media
+         query. Written in the phone block, all of this would be silently undone
+         by the desktop card's own rules.
+
+         `margin: auto auto 0` is the whole of the docking. A modal dialog is
+         given `position: fixed; inset: 0; margin: auto` by the browser itself,
+         so pinning one edge's margin to zero is what decides which edge it sits
+         against — no `position` of our own, and nothing that would take it out
+         of the top layer or off the `::backdrop` that comes with being there.
+
+         The slide needs `@starting-style`, and that is not garnish: a dialog is
+         `display: none` until it opens, so there is no before-change style for
+         the transform to move *from* and the sheet would simply appear at its
+         dock. `allow-discrete` is the other half — it holds `display` and
+         `overlay` at their old values for the length of the transition, which
+         is what lets the sheet be seen on the way *out*. Without it `close()`
+         takes it off the screen in the same frame and the exit is a
+         disappearance. */
+      @media (hover: none), (max-width: 34rem) {
+        dialog {
+          width: 100%; max-width: none; margin: auto auto 0;
+          border-width: 1px 0 0; border-radius: 16px 16px 0 0;
+          max-height: 88svh; overflow-y: auto;
+          /* Little at the top for the same reason the stations sheet has
+             little: the grip is the top, and it carries its own height. More
+             at the foot than the card keeps, because the button that used to
+             hold that space is gone from this layout — see `.done` below. */
+          padding: .4rem var(--pad) calc(2rem + env(safe-area-inset-bottom));
+          /* Upwards, because that is the only edge with a page behind it. */
+          box-shadow: 0 -18px 50px #000a;
+          transform: translateY(100%);
+          transition:
+            transform .3s cubic-bezier(.32, .72, 0, 1),
+            overlay .3s allow-discrete, display .3s allow-discrete;
+        }
+        dialog[open] { transform: translateY(0); }
+        dialog::backdrop {
+          opacity: 0;
+          transition: opacity .3s ease, overlay .3s allow-discrete, display .3s allow-discrete;
+        }
+        dialog[open]::backdrop { opacity: 1; }
+        @starting-style {
+          dialog[open] { transform: translateY(100%); }
+          dialog[open]::backdrop { opacity: 0; }
+        }
+        /* The grip has already put the title a good way down the sheet, and it
+           does not need a card's worth of air under it as well. */
+        .dlg-title { margin-bottom: 1.1rem; }
+        /* No Done. The card has one because a card gives you nothing else —
+           the backdrop is a guess and Escape is a keyboard. A sheet says how it
+           leaves in its own shape: the grip at the top is the affordance, and
+           pulling it down is both quicker and more certain than reaching for a
+           button. Left in, it would be a second way to do the thing the sheet
+           already announces, taking the widest line on the panel to say it. */
+        .done { display: none; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        dialog, dialog::backdrop { transition-duration: 0s; }
+      }
     </style>
   </head>
   <body class="booting">
@@ -653,7 +981,8 @@
         <div class="sub-box"><div class="sub" id="sub"></div></div>
         <div class="era" id="era"></div>
 
-        <div class="glow" aria-hidden="true"></div>
+        <!-- The `<i>` is the tight rim of the halo. See `.glow`. -->
+        <div class="glow" aria-hidden="true"><i></i></div>
 
         <div class="controls">
           <div class="side left">
@@ -711,7 +1040,7 @@
                 </svg>
               </button>
               <div class="vol-pop" id="vol-pop">
-                <input id="volume" type="range" min="0" max="100" step="1" value="100"
+                <input id="volume" type="range" min="0" max="100" step="1" value="80"
                        aria-label="Volume" />
               </div>
             </div>
@@ -720,6 +1049,10 @@
 
         <div class="stations-anchor">
           <div class="stations-wrap" id="stations-wrap" role="group" aria-label="Stations">
+            <!-- The bar a thumb pulls the sheet down by. Nothing above the
+                 phone break, where this is a floating panel rather than a
+                 sheet — see `.grip`. -->
+            <div class="grip" id="stations-grip" aria-hidden="true"></div>
             <div class="grid" id="stations"></div>
           </div>
         </div>
@@ -737,6 +1070,7 @@
     </main>
 
     <dialog id="settings" aria-labelledby="dlg-title">
+      <div class="grip" id="settings-grip" aria-hidden="true"></div>
       <h3 class="dlg-title" id="dlg-title">Settings</h3>
 
       <section>
