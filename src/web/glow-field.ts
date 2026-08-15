@@ -1,6 +1,44 @@
+/**
+ * The glow bar, as gas.
+ *
+ * The bar is not a drawn shape and not a displaced string. It is a few tens of
+ * thousands of particles strung into filaments, sitting in a real fluid.
+ *
+ * Three things, and everything visible falls out of them:
+ *
+ * **A fluid.** A velocity field on a coarse grid, solved the standard way —
+ * semi-Lagrangian advection, then a Jacobi pressure solve that projects the
+ * field divergence-free. The cursor drags the fluid along with it. That is the
+ * whole of the cursor's involvement: it never touches a particle directly.
+ * Dragging a blob through a fluid leaves a counter-rotating vortex pair
+ * straddling its path, and that is what curls the torn ends of the bar back on
+ * themselves. Nothing scripts the hook; it is what the projection does.
+ *
+ * **Filaments.** Each strand is a chain of particles linked to its neighbours
+ * along the bar. A link stretched past `BREAK` is cut, and stays cut. That is a
+ * real cut: no force is left across it, so the gap holds open and the two ends
+ * move independently. The version before this faked it by dimming particles
+ * while a string still spanned the gap, which is why it never felt severed.
+ *
+ * **Heat.** One number per particle, deciding whether it belongs to the bar or
+ * to the air. Hot particles let go of their rest position and grip the fluid;
+ * cold ones are held to the bar and barely feel it. The cursor heats what it
+ * sweeps past, in proportion to its speed — so a resting hand does nothing — and
+ * a snapping link heats both its ends. Heat decays, so a torn piece drifts,
+ * cools, comes home under a speed-capped spring, and re-links. The bar puts
+ * itself back together without anything having to remember it was ever a bar.
+ *
+ * Units are CSS pixels throughout, velocities included. The device pixel ratio
+ * is applied once, at draw time; nothing in the simulation knows about it.
+ */
+
 export interface GlowField {
   setKey(hue: number, hue2: number): void;
   destroy(): void;
+}
+
+export interface GlowFieldOptions {
+  onLost?: () => void;
 }
 
 interface Target {
@@ -10,104 +48,240 @@ interface Target {
 
 interface Pool {
   pos: WebGLTexture;
-  life: WebGLTexture;
-  spark: WebGLTexture;
+  st: WebGLTexture;
   fbo: WebGLFramebuffer;
 }
 
-export interface GlowFieldOptions {
-  onLost?: () => void;
-}
-
+// ── the band ──────────────────────────────────────────────────────────────
+const COLS = 512;
+const STRANDS = 64;
 const BAR_H = 5;
 const RIM_SIGMA = 3.2;
 const BLOOM_SIGMA = 9;
-
-const W_CORE = 0.72;
-const W_RIM = 0.2;
+const W_CORE = 0.46;
+const W_RIM = 0.79;
+const SPAN_Z = 2.6;
 
 const SPRITE_CORE = 1.6;
 const SPRITE_RIM = 4.5;
 const SPRITE_BLOOM = 11;
-const ALPHA_CORE = 0.075;
-const ALPHA_RIM = 0.01;
-const ALPHA_BLOOM = 0.003;
+const ALPHA_CORE = 0.08;
+const ALPHA_RIM = 0.011;
+const ALPHA_BLOOM = 0.0033;
+const WANDER_CORE = 0.25;
+const WANDER_RIM = 0.9;
+const WANDER_BLOOM = 3.2;
+const WANDER_K1 = 7.5;
+const WANDER_K2 = 19;
+const HEAT_GAIN = 3.2;
+const GROW = 0.7;
 
-const MASS_CORE = 1;
-const MASS_RIM = 0.7;
-const MASS_BLOOM = 0.45;
+// ── the fluid ─────────────────────────────────────────────────────────────
+const CELL = 10;
+const GRID_MAX = 180;
+const VISC = 0.55;
+const ITERS = 24;
+const GRAB = 40;
+const BLOB = 46;
+const STIR_SPEED = 26;
+const STIR_GRIP = 0.35;
+const STIR_WAVES = 6;
+const STIR_LONG = 520;
+const STIR_CHURN = 40;
 
-const K_HOME = 340;
-const DAMP = 12;
-const FOLLOW_RIM = 0.94;
-const FOLLOW_BLOOM = 0.82;
+// ── the filaments ─────────────────────────────────────────────────────────
+const K_LINK = 1400;
+const K_HOME = 560;
+const HOT_HOLD = 0.06;
+const DRAG = 6;
+const DRAG_COLD = 0.12;
+const DRAG_HOT = 1.9;
+const DRAG_FREE = 1.6;
+const DAMP_BOUND = 7.5;
+const DAMP_FREE = 0.8;
+const BREAK = 5.5;
+const RELINK = 1.7;
+const COOL = 0.5;
+const HEAT_SLOW = 520;
+const HEAT_FAST = 1900;
+const WAIT = 0.5;
 
-const PUSH_R = 52;
-const PUSH_FLAT = 0.25;
-const PUSH = 5200;
-const PUSH_SLOW = 180;
-const PUSH_FAST = 1100;
-const COUPLE = 48;
-const COUPLE_SPREAD = 1.5;
-const CURSOR_MAX = 4000;
-const JUMP_MAX = 900;
+// ── torn off, and on its way out ──────────────────────────────────────────
+const TEAR_AWAY = 58;
+const FREE_LIFE = 2.6;
+const FREE_HOLD = 1;
+const RISE_V = 40;
+const SWIRL_V = 46;
+const SWIRL_WAVES = 4;
+const SWIRL_LONG = 190;
+const SWIRL_CHURN = 55;
 
-const ESCAPE_SPEED = 700;
-const ESCAPE_SPREAD = 1.4;
-const FLING_FAN = 1;
-const FLING_SPREAD = 0.75;
-const FREE_DRAG = 1.1;
-const FREE_CURL = 0.9;
-const FREE_LIFE = 2.2;
-const FREE_SPREAD = 0.8;
-const SPARK_GAIN = 2.8;
-const SPARK_HOLD = 0.35;
-const RELAUNCH = 0.45;
-const WAIT_MAX = 0.15;
-const SPAWN_R = 26;
-const SPAWN_PULL = 0.2;
-const GROW = 0.6;
-
-const STR_N = 192;
-const WAVE_BARS = 1.35;
-const WAVE_TENSION = (WAVE_BARS * STR_N) ** 2;
-const WAVE_STIFF = 200;
-const WAVE_DAMP = 5;
-const WAVE_CONTACT = 260;
-const WAVE_DRAG = 2;
-const WAVE_LONG = 0.35;
-const WAVE_SUB = 1 / 720;
-const WHIP_SLOW = 420;
-const WHIP_FAST = 1800;
-
-const SETTLE_MS = 4600;
+const SETTLE_MS = 5400;
+const AIR_MS = 1200;
+const GAS_MS = (FREE_LIFE + WAIT + GROW) * 1000;
 const KEY_MS = 1800;
-
 const MAX_DT = 1 / 30;
+const SUB = 1 / 200;
+const SUB_MAX = 6;
+const JUMP_MAX = 900;
+const CURSOR_MAX = 5500;
 
-const SUBSTEP = 1 / 180;
-const SUBSTEP_SPAN = 0.3;
-const SUBSTEP_MAX = 20;
+const QUAD_VS = `#version 300 es
+void main() {
+  vec2 p = vec2((gl_VertexID << 1) & 2, gl_VertexID & 2);
+  gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0);
+}`;
 
-const PRELUDE = (side: number): string => `
-precision highp int;
+/** How near a point is to the cursor's whole path across this frame. */
+const SEG = `
+uniform vec2 uFrom;
+uniform vec2 uTo;
+uniform vec2 uCursorV;
+uniform float uCursorOn;
 
-#define SIDE ${side}
-#define BAR_H ${BAR_H.toFixed(1)}
+float segDist(vec2 p) {
+  vec2 ab = uTo - uFrom;
+  float L = dot(ab, ab);
+  float t = L > 1e-4 ? clamp(dot(p - uFrom, ab) / L, 0.0, 1.0) : 0.0;
+  return distance(p, uFrom + ab * t);
+}`;
+
+const ADVECT_FS = `#version 300 es
+precision highp float;
+${SEG}
+#define VISC ${VISC.toFixed(3)}
+#define GRAB ${GRAB.toFixed(2)}
+#define BLOB ${BLOB.toFixed(1)}
+#define STIR_SPEED ${STIR_SPEED.toFixed(2)}
+#define STIR_GRIP ${STIR_GRIP.toFixed(3)}
+#define STIR_WAVES ${STIR_WAVES}
+#define STIR_LONG ${STIR_LONG.toFixed(1)}
+#define STIR_CHURN ${STIR_CHURN.toFixed(1)}
+
+uniform sampler2D uVel;
+uniform vec2 uGrid;
+uniform float uDt;
+uniform float uTime;
+
+out vec2 oVel;
+
+/**
+ * The room's own air. Each term is a sinusoid pushed along its own
+ * perpendicular, which is divergence-free by construction — so the pressure
+ * solve has nothing to correct in it and the ambient drift survives projection.
+ */
+vec2 stir(vec2 p) {
+  vec2 f = vec2(0.0);
+  for (int n = 0; n < STIR_WAVES; n++) {
+    float fn = float(n);
+    float k = 6.28318530718 / (STIR_LONG / (1.0 + fn * 0.7));
+    float ang = fn * 2.39996 + 0.61;
+    vec2 d = vec2(cos(ang), sin(ang));
+    float amp = 1.0 / (0.8 + fn);
+    float drift = mod(fn, 2.0) < 0.5 ? -STIR_CHURN : STIR_CHURN;
+    f += (amp * cos(dot(d, p) * k + fn * 5.13 + uTime * k * drift)) * vec2(d.y, -d.x);
+  }
+  return f * 0.6;
+}
+
+void main() {
+  vec2 cell = gl_FragCoord.xy;
+  vec2 size = vec2(textureSize(uVel, 0));
+  vec2 p = cell * (uGrid / size);
+  vec2 v = texture(uVel, cell / size).xy;
+
+  v = texture(uVel, (p - v * uDt) / uGrid).xy;
+  v *= exp(-VISC * uDt);
+  v += (stir(p) * STIR_SPEED - v) * min(STIR_GRIP * uDt, 1.0);
+
+  // A still cursor drags the air to a standstill, which is what a still hand
+  // in the way of a draught actually does.
+  if (uCursorOn > 0.5) {
+    float d = segDist(p) / BLOB;
+    v += (uCursorV - v) * (exp(-d * d) * min(GRAB * uDt, 1.0));
+  }
+  oVel = v;
+}`;
+
+const DIV_FS = `#version 300 es
+precision highp float;
+#define CELL ${CELL.toFixed(2)}
+uniform sampler2D uVel;
+out float oDiv;
+
+vec2 at(ivec2 c) {
+  ivec2 n = ivec2(textureSize(uVel, 0));
+  return texelFetch(uVel, clamp(c, ivec2(0), n - 1), 0).xy;
+}
+
+void main() {
+  ivec2 c = ivec2(gl_FragCoord.xy);
+  oDiv = (at(c + ivec2(1, 0)).x - at(c - ivec2(1, 0)).x
+    + at(c + ivec2(0, 1)).y - at(c - ivec2(0, 1)).y) / (2.0 * CELL);
+}`;
+
+const JACOBI_FS = `#version 300 es
+precision highp float;
+#define CELL ${CELL.toFixed(2)}
+uniform sampler2D uPrs;
+uniform sampler2D uDiv;
+out float oPrs;
+
+float at(ivec2 c) {
+  ivec2 n = ivec2(textureSize(uPrs, 0));
+  return texelFetch(uPrs, clamp(c, ivec2(0), n - 1), 0).x;
+}
+
+void main() {
+  ivec2 c = ivec2(gl_FragCoord.xy);
+  float d = texelFetch(uDiv, c, 0).x;
+  oPrs = (at(c - ivec2(1, 0)) + at(c + ivec2(1, 0))
+    + at(c - ivec2(0, 1)) + at(c + ivec2(0, 1)) - CELL * CELL * d) * 0.25;
+}`;
+
+const PROJECT_FS = `#version 300 es
+precision highp float;
+#define CELL ${CELL.toFixed(2)}
+uniform sampler2D uVel;
+uniform sampler2D uPrs;
+out vec2 oVel;
+
+float at(ivec2 c) {
+  ivec2 n = ivec2(textureSize(uPrs, 0));
+  return texelFetch(uPrs, clamp(c, ivec2(0), n - 1), 0).x;
+}
+
+void main() {
+  ivec2 c = ivec2(gl_FragCoord.xy);
+  ivec2 n = ivec2(textureSize(uVel, 0));
+  // The border holds still, or the whole field slides off toward one corner.
+  if (c.x == 0 || c.y == 0 || c.x == n.x - 1 || c.y == n.y - 1) {
+    oVel = vec2(0.0);
+    return;
+  }
+  vec2 v = texelFetch(uVel, c, 0).xy;
+  v.x -= (at(c + ivec2(1, 0)) - at(c - ivec2(1, 0))) / (2.0 * CELL);
+  v.y -= (at(c + ivec2(0, 1)) - at(c - ivec2(0, 1))) / (2.0 * CELL);
+  oVel = v;
+}`;
+
+/** The rest layout of the band, shared by the simulation and the draw pass. */
+const HOME = `
+#define COLS ${COLS}
+#define STRANDS ${STRANDS}
+#define BAR_H ${BAR_H.toFixed(2)}
 #define RIM_SIGMA ${RIM_SIGMA.toFixed(2)}
 #define BLOOM_SIGMA ${BLOOM_SIGMA.toFixed(2)}
 #define W_CORE ${W_CORE.toFixed(3)}
 #define W_RIM ${W_RIM.toFixed(3)}
-#define MASS_CORE ${MASS_CORE.toFixed(3)}
-#define MASS_RIM ${MASS_RIM.toFixed(3)}
-#define MASS_BLOOM ${MASS_BLOOM.toFixed(3)}
-#define FREE_LIFE ${FREE_LIFE.toFixed(3)}
-#define FREE_SPREAD ${FREE_SPREAD.toFixed(3)}
-#define SPARK_HOLD ${SPARK_HOLD.toFixed(3)}
-#define GROW ${GROW.toFixed(3)}
+#define SPAN_Z ${SPAN_Z.toFixed(3)}
+#define WANDER_CORE ${WANDER_CORE.toFixed(3)}
+#define WANDER_RIM ${WANDER_RIM.toFixed(3)}
+#define WANDER_BLOOM ${WANDER_BLOOM.toFixed(3)}
+#define WANDER_K1 ${WANDER_K1.toFixed(3)}
+#define WANDER_K2 ${WANDER_K2.toFixed(3)}
 
 uniform vec3 uBar;
-uniform float uScale;
 
 uint hashU(uint x) {
   x ^= x >> 16; x *= 0x7feb352du;
@@ -117,291 +291,256 @@ uint hashU(uint x) {
 float rnd(uint i, uint k) {
   return float(hashU(i * 9781u + k) & 0xffffffu) / 16777216.0;
 }
-float gauss(float u1, float u2) {
-  return sqrt(-2.0 * log(max(u1, 1e-6))) * cos(6.28318530718 * u2);
-}
+/**
+ * Where a particle belongs when nothing has disturbed it.
+ *
+ * Strand offsets are stratified rather than drawn at random: the strands of a
+ * population sit at even steps across the band, and the Gaussian falls on their
+ * *brightness* instead of their position. Random draws leave gaps and clumps,
+ * and since a strand holds one offset for its whole length, a clump of two or
+ * three at the same height reads as a hard line hanging above the bar.
+ *
+ * Each strand also wanders slowly along its length, so the band is woven rather
+ * than stacked. Slowly is the point: neighbours sit a fraction of a pixel apart
+ * and the link springs iron out anything sharper — which is exactly what
+ * happened to the per-particle jitter this replaces. At these wavelengths the
+ * strand is ~0.5% longer than a straight one, which the shared rest length can
+ * absorb without leaving the bar under tension.
+ */
+vec2 homeOf(ivec2 c, out float t, out int pop, out float weight) {
+  uint s = uint(c.y);
+  float sv = (float(c.y) + 0.5) / float(STRANDS);
+  float u = (float(c.x) + rnd(s, 11u)) / float(COLS);
+  t = u;
 
-float massOf(int pop) {
-  return pop == 0 ? MASS_CORE : (pop == 1 ? MASS_RIM : MASS_BLOOM);
-}
-
-float freeLifeOf(uint i) {
-  return FREE_LIFE * (1.0 - FREE_SPREAD * 0.5 + FREE_SPREAD * rnd(i, 32u));
-}
-
-float sparkFadeOf(float age, uint i) {
-  float life = freeLifeOf(i);
-  float hold = life * SPARK_HOLD;
-  float f = 1.0 - clamp((age - hold) / max(life - hold, 1e-3), 0.0, 1.0);
-  return f * f * (3.0 - 2.0 * f);
-}
-
-float growFadeOf(float age) {
-  return smoothstep(0.0, 1.0, clamp(age / GROW, 0.0, 1.0));
-}
-
-vec2 homeOf(ivec2 c, out float t, out int pop) {
-  uint i = uint(c.y) * uint(SIDE) + uint(c.x);
-  float which = rnd(i, 4u);
-  float off, along;
-  if (which < W_CORE) {
+  float off, amp;
+  if (sv < W_CORE) {
     pop = 0;
-    off = (rnd(i, 2u) - 0.5) * BAR_H * uScale;
-    along = 0.0;
+    off = ((sv / W_CORE) * 2.0 - 1.0) * (BAR_H * 0.5);
+    weight = 1.0;
+    amp = WANDER_CORE;
   } else {
-    pop = which < W_CORE + W_RIM ? 1 : 2;
-    float sg = (pop == 1 ? RIM_SIGMA : BLOOM_SIGMA) * uScale;
-    off = gauss(rnd(i, 2u), rnd(i, 3u)) * sg;
-    along = gauss(rnd(i, 8u), rnd(i, 9u)) * sg;
+    pop = sv < W_RIM ? 1 : 2;
+    float lo = pop == 1 ? W_CORE : W_RIM;
+    float hi = pop == 1 ? W_RIM : 1.0;
+    float z = (((sv - lo) / (hi - lo)) * 2.0 - 1.0) * SPAN_Z;
+    off = z * (pop == 1 ? RIM_SIGMA : BLOOM_SIGMA);
+    weight = exp(-0.5 * z * z);
+    amp = pop == 1 ? WANDER_RIM : WANDER_BLOOM;
   }
 
-  float r = BAR_H * 0.5 * uScale;
-  float cap = r - sqrt(max(r * r - min(abs(off), r) * min(abs(off), r), 0.0));
-  float u = (float(c.x) + rnd(i, 13u)) / float(SIDE);
-  float x = mix(uBar.x + cap, uBar.y - cap, u) + along;
-  t = clamp((x - uBar.x) / max(uBar.y - uBar.x, 1.0), 0.0, 1.0);
-  return vec2(x, uBar.z + off);
-}
-`;
+  off += (sin(u * WANDER_K1 + rnd(s, 21u) * 6.28318530718) * 0.62
+    + sin(u * WANDER_K2 + rnd(s, 22u) * 6.28318530718) * 0.38) * amp;
 
-const QUAD_VS = `#version 300 es
-void main() {
-  vec2 p = vec2((gl_VertexID << 1) & 2, gl_VertexID & 2);
-  gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0);
+  // Rounded ends: a strand sitting off-centre starts and stops a little short.
+  float r = BAR_H * 0.5;
+  float o = min(abs(off), r);
+  float cap = r - sqrt(max(r * r - o * o, 0.0));
+  return vec2(mix(uBar.x + cap, uBar.y - cap, u), uBar.z + off);
 }`;
 
-const WAVE_FS = `#version 300 es
+const SIM_FS = `#version 300 es
 precision highp float;
 precision highp int;
-
-#define N ${STR_N}
-#define TENSION ${WAVE_TENSION.toFixed(1)}
-#define STIFF ${WAVE_STIFF.toFixed(2)}
-#define WDAMP ${WAVE_DAMP.toFixed(3)}
-#define CONTACT ${WAVE_CONTACT.toFixed(2)}
-#define WDRAG ${WAVE_DRAG.toFixed(3)}
-#define LONG ${WAVE_LONG.toFixed(3)}
-#define PUSH_R ${PUSH_R.toFixed(1)}
-#define WHIP_SLOW ${WHIP_SLOW.toFixed(1)}
-#define WHIP_FAST ${WHIP_FAST.toFixed(1)}
-
-uniform sampler2D uStr;
-uniform vec3 uBar;
-uniform float uScale;
-uniform float uDt;
-uniform vec2 uCursor;
-uniform vec2 uCursorV;
-uniform float uCursorOn;
-
-out vec4 oStr;
-
-vec2 nodeAt(int i) {
-  return texelFetch(uStr, ivec2(i, 0), 0).xy;
-}
-
-void main() {
-  int i = int(gl_FragCoord.x);
-  if (i == 0 || i == N - 1) { oStr = vec4(0.0); return; }
-
-  vec4 s = texelFetch(uStr, ivec2(i, 0), 0);
-  vec2 d = s.xy, v = s.zw;
-
-  vec2 lap = nodeAt(i - 1) + nodeAt(i + 1) - 2.0 * d;
-  vec2 acc = lap * TENSION - d * STIFF - v * WDAMP;
-
-  if (uCursorOn > 0.5) {
-    float u = float(i) / float(N - 1);
-    vec2 home = vec2(mix(uBar.x, uBar.y, u), uBar.z);
-    vec2 away = home + d - uCursor;
-    float dm = length(away);
-    float r = PUSH_R * uScale;
-    if (dm < r) {
-      vec2 dir = dm > 1e-4 ? away / dm : vec2(0.0, 1.0);
-      dir.x *= LONG;
-      float w = 1.0 - dm / r;
-      float whip = smoothstep(WHIP_SLOW, WHIP_FAST, length(uCursorV) / uScale);
-      acc += dir * (CONTACT * (r - dm) * whip);
-      acc += (uCursorV - v) * (WDRAG * w * whip);
-    }
-  }
-
-  v += acc * uDt;
-  d += v * uDt;
-  if (!(dot(d, d) < 1e12)) { d = vec2(0.0); v = vec2(0.0); }
-  oStr = vec4(d, v);
-}`;
-
-const SIM_FS = (side: number): string => `#version 300 es
-precision highp float;
-${PRELUDE(side)}
-#define K_HOME ${K_HOME.toFixed(1)}
-#define DAMP ${DAMP.toFixed(2)}
-#define FOLLOW_RIM ${FOLLOW_RIM.toFixed(3)}
-#define FOLLOW_BLOOM ${FOLLOW_BLOOM.toFixed(3)}
-#define PUSH_R ${PUSH_R.toFixed(1)}
-#define PUSH_FLAT ${PUSH_FLAT.toFixed(3)}
-#define PUSH ${PUSH.toFixed(1)}
-#define PUSH_SLOW ${PUSH_SLOW.toFixed(1)}
-#define PUSH_FAST ${PUSH_FAST.toFixed(1)}
-#define COUPLE ${COUPLE.toFixed(2)}
-#define COUPLE_SPREAD ${COUPLE_SPREAD.toFixed(3)}
-#define ESCAPE_SPEED ${ESCAPE_SPEED.toFixed(1)}
-#define ESCAPE_SPREAD ${ESCAPE_SPREAD.toFixed(3)}
-#define FLING_FAN ${FLING_FAN.toFixed(3)}
-#define FLING_SPREAD ${FLING_SPREAD.toFixed(3)}
-#define FREE_DRAG ${FREE_DRAG.toFixed(3)}
-#define FREE_CURL ${FREE_CURL.toFixed(3)}
-#define RELAUNCH ${RELAUNCH.toFixed(3)}
-#define WAIT_MAX ${WAIT_MAX.toFixed(3)}
-#define SPAWN_R ${SPAWN_R.toFixed(1)}
-#define SPAWN_PULL ${SPAWN_PULL.toFixed(3)}
-#define STR_N ${STR_N}
+${HOME}
+${SEG}
+#define K_LINK ${K_LINK.toFixed(2)}
+#define K_HOME ${K_HOME.toFixed(2)}
+#define HOT_HOLD ${HOT_HOLD.toFixed(3)}
+#define DRAG ${DRAG.toFixed(3)}
+#define DRAG_COLD ${DRAG_COLD.toFixed(3)}
+#define DRAG_HOT ${DRAG_HOT.toFixed(3)}
+#define DRAG_FREE ${DRAG_FREE.toFixed(3)}
+#define DAMP_BOUND ${DAMP_BOUND.toFixed(3)}
+#define DAMP_FREE ${DAMP_FREE.toFixed(3)}
+#define BREAK ${BREAK.toFixed(3)}
+#define RELINK ${RELINK.toFixed(3)}
+#define COOL ${COOL.toFixed(3)}
+#define HEAT_SLOW ${HEAT_SLOW.toFixed(1)}
+#define HEAT_FAST ${HEAT_FAST.toFixed(1)}
+#define BLOB ${BLOB.toFixed(1)}
+#define WAIT ${WAIT.toFixed(3)}
+#define TEAR_AWAY ${TEAR_AWAY.toFixed(1)}
+#define FREE_LIFE ${FREE_LIFE.toFixed(3)}
+#define RISE_V ${RISE_V.toFixed(2)}
+#define SWIRL_V ${SWIRL_V.toFixed(2)}
+#define SWIRL_WAVES ${SWIRL_WAVES}
+#define SWIRL_LONG ${SWIRL_LONG.toFixed(1)}
+#define SWIRL_CHURN ${SWIRL_CHURN.toFixed(1)}
 
 uniform sampler2D uPos;
-uniform sampler2D uLife;
-uniform sampler2D uSpark;
-uniform sampler2D uStr;
-uniform vec2 uField;
+uniform sampler2D uSt;
+uniform sampler2D uVel;
+uniform vec2 uGrid;
 uniform float uDt;
+uniform float uTime;
+uniform float uRest;
 uniform float uInit;
-uniform vec2 uCursor;
-uniform vec2 uCursorV;
-uniform float uCursorOn;
 
 layout(location = 0) out vec4 oPos;
-layout(location = 1) out vec4 oLife;
-layout(location = 2) out vec4 oSpark;
+layout(location = 1) out vec4 oSt;
 
-vec4 bendAt(float t) {
-  float f = t * float(STR_N - 1);
-  int i0 = clamp(int(floor(f)), 0, STR_N - 1);
-  int i1 = min(i0 + 1, STR_N - 1);
-  vec4 a = texelFetch(uStr, ivec2(i0, 0), 0);
-  vec4 b = texelFetch(uStr, ivec2(i1, 0), 0);
-  return mix(a, b, f - float(i0));
+vec2 posAt(int x, int y) {
+  return texelFetch(uPos, ivec2(x, y), 0).xy;
 }
 
-bool outside(vec2 p) {
-  float m = 80.0 * uScale;
-  return p.x < -m || p.y < -m || p.x > uField.x + m || p.y > uField.y + m;
+/**
+ * Detail the grid cannot hold.
+ *
+ * The solver smooths everything down to its cell size, which leaves a plume
+ * moving as one smooth body — the mushroom. This is the structure that was lost:
+ * a few short-wavelength divergence-free terms, evaluated per particle and
+ * turning over in time, so the cloud is folded and drawn out into wisps instead
+ * of swelling uniformly. Divergence-free matters — it stirs without inflating.
+ */
+vec2 swirl(vec2 p) {
+  vec2 f = vec2(0.0);
+  for (int n = 0; n < SWIRL_WAVES; n++) {
+    float fn = float(n);
+    float k = 6.28318530718 / (SWIRL_LONG / (1.0 + fn * 0.65));
+    float ang = fn * 2.39996 + 1.7;
+    vec2 d = vec2(cos(ang), sin(ang));
+    float amp = 1.0 / (0.7 + fn);
+    float drift = mod(fn, 2.0) < 0.5 ? -SWIRL_CHURN : SWIRL_CHURN;
+    f += (amp * cos(dot(d, p) * k + fn * 3.71 + uTime * k * drift)) * vec2(d.y, -d.x);
+  }
+  return f * 0.62;
 }
 
 void main() {
   ivec2 c = ivec2(gl_FragCoord.xy);
-  uint i = uint(c.y) * uint(SIDE) + uint(c.x);
-  float t;
+  float t, weight;
   int pop;
-  vec2 rest = homeOf(c, t, pop);
-  float follow = pop == 0 ? 1.0 : (pop == 1 ? FOLLOW_RIM : FOLLOW_BLOOM);
-  vec4 bend = bendAt(t);
-  vec2 home = rest + bend.xy * follow;
-  vec2 homeV = bend.zw * follow;
+  vec2 home = homeOf(c, t, pop, weight);
 
   if (uInit > 0.5) {
     oPos = vec4(home, 0.0, 0.0);
-    oLife = vec4(0.0, 0.0, 4.0, 0.0);
-    oSpark = vec4(0.0);
+    oSt = vec4(0.0, 1.0, 2.0, 0.0);
     return;
   }
 
-  vec4 s = texelFetch(uPos, c, 0);
-  vec4 k = texelFetch(uSpark, c, 0);
-  vec3 st = texelFetch(uLife, c, 0).xyz;
-  vec2 p = s.xy, v = s.zw;
-  float phase = st.x, sage = st.y, bage = st.z;
-  float mass = massOf(pop);
-  float life = freeLifeOf(i);
+  vec4 P = texelFetch(uPos, c, 0);
+  vec4 S = texelFetch(uSt, c, 0);
+  vec2 p = P.xy, v = P.zw;
+  float heat = S.x, linkN = S.y, age = S.z, torn = S.w;
+  uint i = uint(c.y) * uint(COLS) + uint(c.x);
+  float free = torn > 0.0 ? 1.0 : 0.0;
 
-  if (phase > 0.5) {
-    vec2 q = k.xy, w = k.zw;
-    float spd = length(w);
-    if (spd > 1e-4) {
-      vec2 dir = w / spd;
-      float curl = (rnd(i, 31u) - 0.5) * 2.0 * FREE_CURL;
-      w += vec2(-dir.y, dir.x) * (curl * spd * uDt);
+  // Both ends of a link measure it on the same snapshot, so the two of them
+  // never disagree about whether it has just broken.
+  float lenN = c.x < COLS - 1 ? distance(posAt(c.x + 1, c.y), p) : 0.0;
+  float lenP = c.x > 0 ? distance(posAt(c.x - 1, c.y), p) : 0.0;
+  float linkP = c.x > 0 ? texelFetch(uSt, ivec2(c.x - 1, c.y), 0).y : 0.0;
+  // Never knit back onto a neighbour that is off being gas — it would drift
+  // out of reach again a frame later, dragging a thread behind it.
+  float tornN = c.x < COLS - 1 ? texelFetch(uSt, ivec2(c.x + 1, c.y), 0).w : 1.0;
+
+  vec2 toHome = home - p;
+  float hm = length(toHome);
+  vec2 fluid = texture(uVel, clamp(p / uGrid, vec2(0.0), vec2(1.0))).xy;
+
+  vec2 F = vec2(0.0);
+  float grip;
+  if (free < 0.5) {
+    if (c.x < COLS - 1 && linkN > 0.5 && lenN > 1e-4) {
+      F += ((posAt(c.x + 1, c.y) - p) / lenN) * (K_LINK * (lenN - uRest));
     }
-    w *= exp(-FREE_DRAG * uDt / mass);
-    q += w * uDt;
-    sage += uDt;
-    if (sage > life || outside(q) || !(dot(q, q) < 1e12)) {
-      phase = 0.0;
-      sage = 0.0;
-      oSpark = vec4(0.0);
-    } else {
-      oSpark = vec4(q, w);
+    if (c.x > 0 && linkP > 0.5 && lenP > 1e-4) {
+      F += ((posAt(c.x - 1, c.y) - p) / lenP) * (K_LINK * (lenP - uRest));
     }
+    // A plain spring, harder the further it is pulled. Nothing caps it: past
+    // TEAR_AWAY the particle is gas and this force is gone anyway, so within
+    // the bar's range the pull can stay honestly proportional — which is what
+    // snaps a stretched line back and lets it overshoot instead of creeping.
+    // Some of it survives being hot, so the line stays taut under the drag.
+    float cold = mix(HOT_HOLD, 1.0, (1.0 - heat) * (1.0 - heat));
+    F += toHome * (K_HOME * cold);
+    grip = DRAG * (DRAG_COLD + DRAG_HOT * heat);
   } else {
-    oSpark = vec4(0.0);
+    // Gas. It rides the air, plus turbulence the grid is too coarse to carry.
+    // Lift and grip vary per particle, so what set off together comes apart on
+    // the way rather than travelling as one body.
+    fluid += swirl(p) * (SWIRL_V * (0.5 + rnd(i, 72u)));
+    fluid.y -= RISE_V * (0.3 + 1.4 * rnd(i, 73u));
+    grip = DRAG * DRAG_FREE * (0.55 + 0.9 * rnd(i, 74u));
   }
+  F += (fluid - v) * grip;
 
-  vec2 force = (home - p) * K_HOME;
+  v += F * uDt;
+  v *= exp(-mix(DAMP_BOUND, DAMP_FREE, free) * uDt);
+  p += v * uDt;
 
   if (uCursorOn > 0.5) {
-    vec2 away = p - uCursor;
-    float dm = length(away);
-    float r = PUSH_R * uScale;
-    if (dm < r) {
-      float w = 1.0 - smoothstep(PUSH_FLAT, 1.0, dm / r);
-      float move = smoothstep(PUSH_SLOW, PUSH_FAST, length(uCursorV) / uScale);
-      if (dm > 1e-4) force += (away / dm) * (PUSH * uScale * w * move);
-      float grip = 1.0 - COUPLE_SPREAD * 0.5 + COUPLE_SPREAD * rnd(i, 21u);
-      force += (uCursorV - v) * (COUPLE * w * grip);
-    }
+    float d = segDist(p) / BLOB;
+    float gate = smoothstep(HEAT_SLOW, HEAT_FAST, length(uCursorV));
+    heat = max(heat, exp(-d * d) * gate);
   }
 
-  v += (force / mass) * uDt;
-  v *= exp(-DAMP * uDt / mass);
-  p += v * uDt;
-  bage = min(bage + uDt, 4.0);
+  if (free < 0.5) {
+    if (c.x < COLS - 1) {
+      if (linkN > 0.5 && lenN > BREAK * uRest) {
+        linkN = 0.0;
+        heat = 1.0;
+      } else if (linkN < 0.5 && lenN < RELINK * uRest && heat < 0.25 && tornN == 0.0) {
+        linkN = 1.0;
+      }
+    }
+    // The neighbour cuts the link on its side; this end only takes the heat.
+    if (c.x > 0 && linkP > 0.5 && lenP > BREAK * uRest) heat = 1.0;
+  }
 
-  if (!(dot(p, p) < 1e12)) {
+  heat *= exp(-COOL * uDt);
+  age = min(age + uDt, 2.0);
+
+  /**
+   * Carried this far off the bar and it is not part of the bar any more: it
+   * lets go of its neighbours and of home, and from here it only drifts, thins
+   * out and goes dark. Below the threshold a particle is merely bent, and
+   * springs back — which is the whole difference between a nudge and a tear.
+   */
+  if (free < 0.5) {
+    if (hm > TEAR_AWAY) {
+      torn = 1e-3;
+      linkN = 0.0;
+    }
+  } else {
+    torn += uDt;
+  }
+
+  // Gone: it comes back at home, dark, and grows in where it belongs. The bar
+  // reassembles in place rather than by flying its pieces back across the page.
+  if (torn > FREE_LIFE || !(dot(p, p) < 1e12)) {
     p = home;
     v = vec2(0.0);
-    bage = 4.0;
-  }
-
-  float esc = ESCAPE_SPEED * uScale
-    * (1.0 - ESCAPE_SPREAD * 0.5 + ESCAPE_SPREAD * rnd(i, 22u));
-  vec2 rel = v - homeV;
-  bool held = phase > 0.5 && sage < life * RELAUNCH;
-  if (!held && bage >= GROW && length(rel) > esc && dot(rel, p - home) > 0.0) {
-    float a = (rnd(i, 23u) - 0.5) * FLING_FAN;
-    float ca = cos(a), sa = sin(a);
-    float gain = 1.0 - FLING_SPREAD * 0.5 + FLING_SPREAD * rnd(i, 24u);
-    oSpark = vec4(p, mat2(ca, sa, -sa, ca) * v * gain);
-    phase = 1.0;
-    sage = 0.0;
-
-    ivec2 hop = ivec2(1 + int(rnd(i, 34u) * 2.0), 1 + int(rnd(i, 35u) * 2.0));
-    if (rnd(i, 36u) < 0.5) hop.x = -hop.x;
-    if (rnd(i, 37u) < 0.5) hop.y = -hop.y;
-    ivec2 nc = clamp(c + hop, ivec2(0), ivec2(SIDE - 1));
-    vec2 np = texelFetch(uPos, nc, 0).xy;
-    p = distance(np, home) < SPAWN_R * uScale ? mix(np, home, SPAWN_PULL) : home;
-    v = vec2(0.0);
-    bage = -WAIT_MAX * rnd(i, 33u);
+    heat = 0.0;
+    torn = 0.0;
+    age = -WAIT * rnd(i, 33u);
   }
 
   oPos = vec4(p, v);
-  oLife = vec4(phase, sage, bage, 0.0);
+  oSt = vec4(heat, linkN, age, torn);
 }`;
 
-const DRAW_VS = (side: number): string => `#version 300 es
+const DRAW_VS = `#version 300 es
 precision highp float;
-${PRELUDE(side)}
+precision highp int;
+${HOME}
 #define ALPHA_CORE ${ALPHA_CORE.toFixed(5)}
 #define ALPHA_RIM ${ALPHA_RIM.toFixed(5)}
 #define ALPHA_BLOOM ${ALPHA_BLOOM.toFixed(5)}
 #define SPRITE_CORE ${SPRITE_CORE.toFixed(2)}
 #define SPRITE_RIM ${SPRITE_RIM.toFixed(2)}
 #define SPRITE_BLOOM ${SPRITE_BLOOM.toFixed(2)}
-#define SPARK_GAIN ${SPARK_GAIN.toFixed(3)}
+#define HEAT_GAIN ${HEAT_GAIN.toFixed(3)}
+#define GROW ${GROW.toFixed(3)}
+#define FREE_HOLD ${FREE_HOLD.toFixed(3)}
+#define FREE_LIFE ${FREE_LIFE.toFixed(3)}
 
 uniform sampler2D uPos;
-uniform sampler2D uLife;
-uniform sampler2D uSpark;
-uniform vec2 uField;
+uniform sampler2D uSt;
+uniform vec2 uView;
 uniform vec2 uHue;
+uniform float uDpr;
 
 out vec3 vColor;
 
@@ -412,35 +551,27 @@ vec3 hsl2rgb(float h, float s, float l) {
 }
 
 void main() {
-  bool spark = gl_VertexID >= SIDE * SIDE;
-  int id = spark ? gl_VertexID - SIDE * SIDE : gl_VertexID;
-  ivec2 c = ivec2(id % SIDE, id / SIDE);
-  float t;
+  ivec2 c = ivec2(gl_VertexID % COLS, gl_VertexID / COLS);
+  float t, weight;
   int pop;
-  homeOf(c, t, pop);
-  vec3 st = texelFetch(uLife, c, 0).xyz;
+  homeOf(c, t, pop, weight);
+  uint i = uint(c.y) * uint(COLS) + uint(c.x);
 
-  if (spark && st.x < 0.5) {
-    vColor = vec3(0.0);
-    gl_PointSize = 1.0;
-    gl_Position = vec4(4.0, 4.0, 4.0, 1.0);
-    return;
-  }
+  vec2 p = texelFetch(uPos, c, 0).xy;
+  vec4 S = texelFetch(uSt, c, 0);
+  // Grown in where it belongs, and thinning out to nothing once it is adrift.
+  float fade = smoothstep(0.0, 1.0, clamp(S.z / GROW, 0.0, 1.0))
+    * (1.0 - smoothstep(FREE_HOLD, FREE_LIFE, S.w));
 
-  uint i = uint(c.y) * uint(SIDE) + uint(c.x);
-  vec2 p = spark ? texelFetch(uSpark, c, 0).xy : texelFetch(uPos, c, 0).xy;
-  float fade = spark ? sparkFadeOf(st.y, i) * SPARK_GAIN : growFadeOf(st.z);
   vec3 rgb = hsl2rgb(mix(uHue.x, uHue.y, t), 0.85, 0.56);
-  float a = pop == 0 ? ALPHA_CORE : (pop == 1 ? ALPHA_RIM : ALPHA_BLOOM);
+  // The halo's Gaussian lives here rather than in where the strands sit.
+  float a = (pop == 0 ? ALPHA_CORE : (pop == 1 ? ALPHA_RIM : ALPHA_BLOOM)) * weight;
   if (pop == 0) a *= 0.7 + 0.6 * rnd(i, 15u);
-  vColor = rgb * a * fade;
+  vColor = rgb * (a * fade * (1.0 + HEAT_GAIN * S.x));
 
   float sprite = pop == 0 ? SPRITE_CORE : (pop == 1 ? SPRITE_RIM : SPRITE_BLOOM);
-  float grade = spark
-    ? 0.7 + 0.5 * min(fade, 1.0)
-    : 0.45 + 0.55 * fade;
-  gl_PointSize = sprite * uScale * grade;
-  vec2 ndc = (p / uField) * 2.0 - 1.0;
+  gl_PointSize = sprite * uDpr * (0.5 + 0.5 * fade);
+  vec2 ndc = (p / uView) * 2.0 - 1.0;
   gl_Position = vec4(ndc.x, -ndc.y, 0.0, 1.0);
 }`;
 
@@ -507,42 +638,60 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
   });
   if (!gl || !gl.getExtension('EXT_color_buffer_float')) return null;
 
-  let side = 0;
-  let count = 0;
+  let advectProg: WebGLProgram | undefined;
+  let divProg: WebGLProgram | undefined;
+  let jacobiProg: WebGLProgram | undefined;
+  let projectProg: WebGLProgram | undefined;
   let simProg: WebGLProgram | undefined;
   let drawProg: WebGLProgram | undefined;
   let resolveProg: WebGLProgram | undefined;
-  let waveProg: WebGLProgram | undefined;
-  let simU: Record<string, WebGLUniformLocation | null> = {};
-  let drawU: Record<string, WebGLUniformLocation | null> = {};
-  let resolveU: Record<string, WebGLUniformLocation | null> = {};
-  let waveU: Record<string, WebGLUniformLocation | null> = {};
+  const U = new Map<WebGLProgram, Record<string, WebGLUniformLocation | null>>();
+
+  let vels: [Target, Target] | undefined;
+  let velFront: 0 | 1 = 0;
+  let divT: Target | undefined;
+  let prss: [Target, Target] | undefined;
+  let prsFront: 0 | 1 = 0;
   let pools: [Pool, Pool] | undefined;
   let front: 0 | 1 = 0;
-  let strs: [Target, Target] | undefined;
-  let strFront: 0 | 1 = 0;
   let acc: Target | undefined;
-  let scale = 1;
+
+  let dpr = 1;
+  let viewW = 1;
+  let viewH = 1;
+  let gridW = 0;
+  let gridH = 0;
   let barX0 = 0;
   let barX1 = 0;
   let barY = 0;
 
   const vao = gl.createVertexArray();
 
-  function makeTex(format: number, w: number, h: number): WebGLTexture {
+  function locate(prog: WebGLProgram, names: string[]): void {
+    const map: Record<string, WebGLUniformLocation | null> = {};
+    for (const n of names) map[n] = gl!.getUniformLocation(prog, n);
+    U.set(prog, map);
+  }
+
+  function u(prog: WebGLProgram, name: string): WebGLUniformLocation | null {
+    return U.get(prog)?.[name] ?? null;
+  }
+
+  function makeTex(format: number, w: number, h: number, smooth: boolean): WebGLTexture {
     const tex = gl!.createTexture();
     if (!tex) throw new Error('glow-field: no texture');
     gl!.bindTexture(gl!.TEXTURE_2D, tex);
     gl!.texStorage2D(gl!.TEXTURE_2D, 1, format, w, h);
-    gl!.texParameteri(gl!.TEXTURE_2D, gl!.TEXTURE_MIN_FILTER, gl!.NEAREST);
-    gl!.texParameteri(gl!.TEXTURE_2D, gl!.TEXTURE_MAG_FILTER, gl!.NEAREST);
+    const f = smooth ? gl!.LINEAR : gl!.NEAREST;
+    gl!.texParameteri(gl!.TEXTURE_2D, gl!.TEXTURE_MIN_FILTER, f);
+    gl!.texParameteri(gl!.TEXTURE_2D, gl!.TEXTURE_MAG_FILTER, f);
     gl!.texParameteri(gl!.TEXTURE_2D, gl!.TEXTURE_WRAP_S, gl!.CLAMP_TO_EDGE);
     gl!.texParameteri(gl!.TEXTURE_2D, gl!.TEXTURE_WRAP_T, gl!.CLAMP_TO_EDGE);
     return tex;
   }
 
-  function makeTarget(format: number, w: number, h: number): Target {
-    const tex = makeTex(format, w, h);
+  function makeTarget(format: number, w: number, h: number, smooth = false): Target {
+    const tex = makeTex(format, w, h, smooth);
     const fbo = gl!.createFramebuffer();
     if (!fbo) throw new Error('glow-field: no target');
     gl!.bindFramebuffer(gl!.FRAMEBUFFER, fbo);
@@ -556,22 +705,20 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
     return { tex, fbo };
   }
 
-  function makePool(n: number): Pool {
-    const pos = makeTex(gl!.RGBA32F, n, n);
-    const life = makeTex(gl!.RGBA16F, n, n);
-    const spark = makeTex(gl!.RGBA32F, n, n);
+  function makePool(): Pool {
+    const pos = makeTex(gl!.RGBA32F, COLS, STRANDS, false);
+    const st = makeTex(gl!.RGBA16F, COLS, STRANDS, false);
     const fbo = gl!.createFramebuffer();
     if (!fbo) throw new Error('glow-field: no pool');
     gl!.bindFramebuffer(gl!.FRAMEBUFFER, fbo);
     gl!.framebufferTexture2D(gl!.FRAMEBUFFER, gl!.COLOR_ATTACHMENT0, gl!.TEXTURE_2D, pos, 0);
-    gl!.framebufferTexture2D(gl!.FRAMEBUFFER, gl!.COLOR_ATTACHMENT1, gl!.TEXTURE_2D, life, 0);
-    gl!.framebufferTexture2D(gl!.FRAMEBUFFER, gl!.COLOR_ATTACHMENT2, gl!.TEXTURE_2D, spark, 0);
-    gl!.drawBuffers([gl!.COLOR_ATTACHMENT0, gl!.COLOR_ATTACHMENT1, gl!.COLOR_ATTACHMENT2]);
+    gl!.framebufferTexture2D(gl!.FRAMEBUFFER, gl!.COLOR_ATTACHMENT1, gl!.TEXTURE_2D, st, 0);
+    gl!.drawBuffers([gl!.COLOR_ATTACHMENT0, gl!.COLOR_ATTACHMENT1]);
     if (gl!.checkFramebufferStatus(gl!.FRAMEBUFFER) !== gl!.FRAMEBUFFER_COMPLETE) {
       throw new Error('glow-field: float targets are not renderable here');
     }
     gl!.bindFramebuffer(gl!.FRAMEBUFFER, null);
-    return { pos, life, spark, fbo };
+    return { pos, st, fbo };
   }
 
   function drop(t: Target | undefined): void {
@@ -583,124 +730,156 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
   function dropPool(p: Pool | undefined): void {
     if (!p) return;
     gl!.deleteTexture(p.pos);
-    gl!.deleteTexture(p.life);
-    gl!.deleteTexture(p.spark);
+    gl!.deleteTexture(p.st);
     gl!.deleteFramebuffer(p.fbo);
   }
 
   function measureBar(): void {
     const r = host.getBoundingClientRect();
-    barX0 = r.left * scale;
-    barX1 = r.right * scale;
-    barY = (r.top + r.height / 2) * scale;
+    barX0 = r.left;
+    barX1 = r.right;
+    barY = r.top + r.height / 2;
+  }
+
+  function bindTex(prog: WebGLProgram, name: string, unit: number, tex: WebGLTexture): void {
+    gl!.activeTexture(gl!.TEXTURE0 + unit);
+    gl!.bindTexture(gl!.TEXTURE_2D, tex);
+    gl!.uniform1i(u(prog, name), unit);
+  }
+
+  function pass(prog: WebGLProgram, target: WebGLFramebuffer | null, w: number, h: number): void {
+    gl!.bindFramebuffer(gl!.FRAMEBUFFER, target);
+    gl!.viewport(0, 0, w, h);
+    gl!.disable(gl!.BLEND);
+    gl!.useProgram(prog);
+    gl!.bindVertexArray(vao);
+  }
+
+  /** The fluid domain in CSS px — a whole number of cells, covering the view. */
+  function span(): [number, number] {
+    return [gridW * CELL, gridH * CELL];
   }
 
   function resize(): boolean {
-    scale = Math.min(window.devicePixelRatio || 1, 2);
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
     const box = canvas.getBoundingClientRect();
-    const w = Math.max(2, Math.round(box.width * scale));
-    const h = Math.max(2, Math.round(box.height * scale));
+    const w = Math.max(2, Math.round(box.width * dpr));
+    const h = Math.max(2, Math.round(box.height * dpr));
     const wasX0 = barX0, wasX1 = barX1, wasY = barY;
     const sameSize = w === canvas.width && h === canvas.height && !!simProg;
     if (!sameSize) {
       canvas.width = w;
       canvas.height = h;
     }
+    viewW = Math.max(1, box.width);
+    viewH = Math.max(1, box.height);
     measureBar();
     if (sameSize && barX0 === wasX0 && barX1 === wasX1 && barY === wasY) return false;
-    if (sameSize) return true;
 
-    const barW = Math.max(1, barX1 - barX0);
-    const next = Math.max(200, Math.min(420, Math.round(Math.sqrt(barW * 230))));
-    if (next !== side || !simProg) {
-      side = next;
-      count = side * side;
-      simProg = link(gl!, QUAD_VS, SIM_FS(side));
-      drawProg = link(gl!, DRAW_VS(side), DRAW_FS);
-      resolveProg ??= link(gl!, QUAD_VS, RESOLVE_FS);
-      waveProg ??= link(gl!, QUAD_VS, WAVE_FS);
-      simU = {};
-      drawU = {};
-      resolveU = {};
-      waveU = {};
-      for (const n of ['uPos', 'uLife', 'uSpark', 'uStr', 'uBar', 'uScale', 'uField',
-        'uDt', 'uInit', 'uCursor', 'uCursorV', 'uCursorOn']) {
-        simU[n] = gl!.getUniformLocation(simProg, n);
-      }
-      for (const n of ['uPos', 'uLife', 'uSpark', 'uBar', 'uScale', 'uField', 'uHue']) {
-        drawU[n] = gl!.getUniformLocation(drawProg, n);
-      }
-      for (const n of ['uStr', 'uBar', 'uScale', 'uDt', 'uCursor', 'uCursorV', 'uCursorOn']) {
-        waveU[n] = gl!.getUniformLocation(waveProg, n);
-      }
-      resolveU.uAcc = gl!.getUniformLocation(resolveProg, 'uAcc');
-      if (pools) for (const p of pools) dropPool(p);
-      pools = [makePool(side), makePool(side)];
+    if (!simProg) {
+      advectProg = link(gl!, QUAD_VS, ADVECT_FS);
+      divProg = link(gl!, QUAD_VS, DIV_FS);
+      jacobiProg = link(gl!, QUAD_VS, JACOBI_FS);
+      projectProg = link(gl!, QUAD_VS, PROJECT_FS);
+      simProg = link(gl!, QUAD_VS, SIM_FS);
+      drawProg = link(gl!, DRAW_VS, DRAW_FS);
+      resolveProg = link(gl!, QUAD_VS, RESOLVE_FS);
+      locate(advectProg, ['uVel', 'uGrid', 'uDt', 'uTime',
+        'uFrom', 'uTo', 'uCursorV', 'uCursorOn']);
+      locate(divProg, ['uVel']);
+      locate(jacobiProg, ['uPrs', 'uDiv']);
+      locate(projectProg, ['uVel', 'uPrs']);
+      locate(simProg, ['uPos', 'uSt', 'uVel', 'uGrid', 'uDt', 'uTime', 'uRest', 'uInit',
+        'uBar', 'uFrom', 'uTo', 'uCursorV', 'uCursorOn']);
+      locate(drawProg, ['uPos', 'uSt', 'uView', 'uHue', 'uDpr', 'uBar']);
+      locate(resolveProg, ['uAcc']);
+      pools = [makePool(), makePool()];
       front = 0;
     }
-    if (!strs) {
-      strs = [makeTarget(gl!.RGBA32F, STR_N, 1), makeTarget(gl!.RGBA32F, STR_N, 1)];
-      strFront = 0;
+
+    const gw = Math.max(24, Math.min(GRID_MAX, Math.round(viewW / CELL)));
+    const gh = Math.max(24, Math.min(GRID_MAX, Math.round(viewH / CELL)));
+    if (gw !== gridW || gh !== gridH) {
+      gridW = gw;
+      gridH = gh;
+      if (vels) for (const v of vels) drop(v);
+      if (prss) for (const p of prss) drop(p);
+      drop(divT);
+      vels = [makeTarget(gl!.RG16F, gw, gh, true), makeTarget(gl!.RG16F, gw, gh, true)];
+      prss = [makeTarget(gl!.R16F, gw, gh), makeTarget(gl!.R16F, gw, gh)];
+      divT = makeTarget(gl!.R16F, gw, gh);
+      velFront = 0;
+      prsFront = 0;
     }
-    drop(acc);
-    acc = makeTarget(gl!.RGBA16F, w, h);
-    stepParticles(0, 0, 0, true);
+
+    if (!sameSize || !acc) {
+      drop(acc);
+      acc = makeTarget(gl!.RGBA16F, w, h);
+    }
+    stepParticles(0, true);
     return true;
   }
 
-  function bindShape(u: Record<string, WebGLUniformLocation | null>): void {
-    gl!.uniform3f(u.uBar ?? null, barX0, barX1, barY);
-    gl!.uniform1f(u.uScale ?? null, scale);
+  function bindStroke(prog: WebGLProgram): void {
+    gl!.uniform2f(u(prog, 'uFrom'), strokeFromX, strokeFromY);
+    gl!.uniform2f(u(prog, 'uTo'), strokeToX, strokeToY);
+    gl!.uniform2f(u(prog, 'uCursorV'), cursorVX, cursorVY);
+    gl!.uniform1f(u(prog, 'uCursorOn'), pointerOn ? 1 : 0);
   }
 
-  function stepWave(dt: number, cx: number, cy: number): void {
-    if (!waveProg || !strs) return;
-    const back = strFront === 0 ? 1 : 0;
-    gl!.bindFramebuffer(gl!.FRAMEBUFFER, strs[back].fbo);
-    gl!.viewport(0, 0, STR_N, 1);
-    gl!.disable(gl!.BLEND);
-    gl!.useProgram(waveProg);
-    gl!.activeTexture(gl!.TEXTURE0);
-    gl!.bindTexture(gl!.TEXTURE_2D, strs[strFront].tex);
-    gl!.uniform1i(waveU.uStr ?? null, 0);
-    bindShape(waveU);
-    gl!.uniform1f(waveU.uDt ?? null, dt);
-    gl!.uniform2f(waveU.uCursor ?? null, cx, cy);
-    gl!.uniform2f(waveU.uCursorV ?? null, cursorVX, cursorVY);
-    gl!.uniform1f(waveU.uCursorOn ?? null, pointerOn ? 1 : 0);
-    gl!.bindVertexArray(vao);
+  function stepFluid(dt: number): void {
+    if (!advectProg || !divProg || !jacobiProg || !projectProg || !vels || !prss || !divT) return;
+    const [gx, gy] = span();
+
+    const vb = velFront === 0 ? 1 : 0;
+    pass(advectProg, vels[vb].fbo, gridW, gridH);
+    bindTex(advectProg, 'uVel', 0, vels[velFront].tex);
+    gl!.uniform2f(u(advectProg, 'uGrid'), gx, gy);
+    gl!.uniform1f(u(advectProg, 'uDt'), dt);
+    gl!.uniform1f(u(advectProg, 'uTime'), simTime);
+    bindStroke(advectProg);
     gl!.drawArrays(gl!.TRIANGLES, 0, 3);
-    gl!.bindFramebuffer(gl!.FRAMEBUFFER, null);
-    strFront = back;
+    velFront = vb;
+
+    pass(divProg, divT.fbo, gridW, gridH);
+    bindTex(divProg, 'uVel', 0, vels[velFront].tex);
+    gl!.drawArrays(gl!.TRIANGLES, 0, 3);
+
+    // Pressure carries over from the last frame instead of starting cold, so
+    // these sweeps go further than the same count would from zero.
+    for (let k = 0; k < ITERS; k++) {
+      const pb = prsFront === 0 ? 1 : 0;
+      pass(jacobiProg, prss[pb].fbo, gridW, gridH);
+      bindTex(jacobiProg, 'uPrs', 0, prss[prsFront].tex);
+      bindTex(jacobiProg, 'uDiv', 1, divT.tex);
+      gl!.drawArrays(gl!.TRIANGLES, 0, 3);
+      prsFront = pb;
+    }
+
+    const vc = velFront === 0 ? 1 : 0;
+    pass(projectProg, vels[vc].fbo, gridW, gridH);
+    bindTex(projectProg, 'uVel', 0, vels[velFront].tex);
+    bindTex(projectProg, 'uPrs', 1, prss[prsFront].tex);
+    gl!.drawArrays(gl!.TRIANGLES, 0, 3);
+    velFront = vc;
   }
 
-  function stepParticles(dt: number, cx: number, cy: number, init = false): void {
-    if (!simProg || !pools || !strs) return;
+  function stepParticles(dt: number, init = false): void {
+    if (!simProg || !pools || !vels) return;
+    const [gx, gy] = span();
     const back = front === 0 ? 1 : 0;
-    gl!.bindFramebuffer(gl!.FRAMEBUFFER, pools[back].fbo);
-    gl!.viewport(0, 0, side, side);
-    gl!.disable(gl!.BLEND);
-    gl!.useProgram(simProg);
-    gl!.activeTexture(gl!.TEXTURE0);
-    gl!.bindTexture(gl!.TEXTURE_2D, pools[front].pos);
-    gl!.uniform1i(simU.uPos ?? null, 0);
-    gl!.activeTexture(gl!.TEXTURE1);
-    gl!.bindTexture(gl!.TEXTURE_2D, pools[front].life);
-    gl!.uniform1i(simU.uLife ?? null, 1);
-    gl!.activeTexture(gl!.TEXTURE2);
-    gl!.bindTexture(gl!.TEXTURE_2D, pools[front].spark);
-    gl!.uniform1i(simU.uSpark ?? null, 2);
-    gl!.activeTexture(gl!.TEXTURE3);
-    gl!.bindTexture(gl!.TEXTURE_2D, strs[strFront].tex);
-    gl!.uniform1i(simU.uStr ?? null, 3);
-    bindShape(simU);
-    gl!.uniform2f(simU.uField ?? null, canvas.width, canvas.height);
-    gl!.uniform1f(simU.uDt ?? null, dt);
-    gl!.uniform1f(simU.uInit ?? null, init ? 1 : 0);
-    gl!.uniform2f(simU.uCursor ?? null, cx, cy);
-    gl!.uniform2f(simU.uCursorV ?? null, cursorVX, cursorVY);
-    gl!.uniform1f(simU.uCursorOn ?? null, !init && pointerOn ? 1 : 0);
-    gl!.bindVertexArray(vao);
+    pass(simProg, pools[back].fbo, COLS, STRANDS);
+    bindTex(simProg, 'uPos', 0, pools[front].pos);
+    bindTex(simProg, 'uSt', 1, pools[front].st);
+    bindTex(simProg, 'uVel', 2, vels[velFront].tex);
+    gl!.uniform3f(u(simProg, 'uBar'), barX0, barX1, barY);
+    gl!.uniform2f(u(simProg, 'uGrid'), gx, gy);
+    gl!.uniform1f(u(simProg, 'uDt'), dt);
+    gl!.uniform1f(u(simProg, 'uTime'), simTime);
+    gl!.uniform1f(u(simProg, 'uRest'), Math.max(barX1 - barX0, 1) / COLS);
+    gl!.uniform1f(u(simProg, 'uInit'), init ? 1 : 0);
+    bindStroke(simProg);
+    if (init) gl!.uniform1f(u(simProg, 'uCursorOn'), 0);
     gl!.drawArrays(gl!.TRIANGLES, 0, 3);
     gl!.bindFramebuffer(gl!.FRAMEBUFFER, null);
     front = back;
@@ -709,36 +888,21 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
   function draw(): void {
     if (!drawProg || !resolveProg || !pools || !acc) return;
 
-    gl!.bindFramebuffer(gl!.FRAMEBUFFER, acc.fbo);
-    gl!.viewport(0, 0, canvas.width, canvas.height);
+    pass(drawProg, acc.fbo, canvas.width, canvas.height);
     gl!.clearColor(0, 0, 0, 0);
     gl!.clear(gl!.COLOR_BUFFER_BIT);
     gl!.enable(gl!.BLEND);
     gl!.blendFunc(gl!.ONE, gl!.ONE);
-    gl!.useProgram(drawProg);
-    gl!.activeTexture(gl!.TEXTURE0);
-    gl!.bindTexture(gl!.TEXTURE_2D, pools[front].pos);
-    gl!.uniform1i(drawU.uPos ?? null, 0);
-    gl!.activeTexture(gl!.TEXTURE1);
-    gl!.bindTexture(gl!.TEXTURE_2D, pools[front].life);
-    gl!.uniform1i(drawU.uLife ?? null, 1);
-    gl!.activeTexture(gl!.TEXTURE2);
-    gl!.bindTexture(gl!.TEXTURE_2D, pools[front].spark);
-    gl!.uniform1i(drawU.uSpark ?? null, 2);
-    bindShape(drawU);
-    gl!.uniform2f(drawU.uField ?? null, canvas.width, canvas.height);
-    gl!.uniform2f(drawU.uHue ?? null, hue, hue2);
-    gl!.bindVertexArray(vao);
-    gl!.drawArrays(gl!.POINTS, 0, count * 2);
+    bindTex(drawProg, 'uPos', 0, pools[front].pos);
+    bindTex(drawProg, 'uSt', 1, pools[front].st);
+    gl!.uniform3f(u(drawProg, 'uBar'), barX0, barX1, barY);
+    gl!.uniform2f(u(drawProg, 'uView'), viewW, viewH);
+    gl!.uniform2f(u(drawProg, 'uHue'), hue, hue2);
+    gl!.uniform1f(u(drawProg, 'uDpr'), dpr);
+    gl!.drawArrays(gl!.POINTS, 0, COLS * STRANDS);
 
-    gl!.bindFramebuffer(gl!.FRAMEBUFFER, null);
-    gl!.viewport(0, 0, canvas.width, canvas.height);
-    gl!.disable(gl!.BLEND);
-    gl!.useProgram(resolveProg);
-    gl!.activeTexture(gl!.TEXTURE0);
-    gl!.bindTexture(gl!.TEXTURE_2D, acc.tex);
-    gl!.uniform1i(resolveU.uAcc ?? null, 0);
-    gl!.bindVertexArray(vao);
+    pass(resolveProg, null, canvas.width, canvas.height);
+    bindTex(resolveProg, 'uAcc', 0, acc.tex);
     gl!.drawArrays(gl!.TRIANGLES, 0, 3);
   }
 
@@ -751,19 +915,36 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
   let keyAt = -Infinity;
 
   let pointerOn = false;
+  let pointerNear = false;
+  let gasUntil = 0;
   let pointerX = 0;
   let pointerY = 0;
   let lastX = 0;
   let lastY = 0;
   let cursorVX = 0;
   let cursorVY = 0;
+  let strokeFromX = 0;
+  let strokeFromY = 0;
+  let strokeToX = 0;
+  let strokeToY = 0;
 
   function onPointer(e: PointerEvent): void {
-    const x = e.clientX * scale;
-    const y = e.clientY * scale;
-    const r = (PUSH_R + 60) * scale;
-    const near = Math.abs(y - barY) <= r && x >= barX0 - r && x <= barX1 + r;
-    if (!near) {
+    const x = e.clientX;
+    const y = e.clientY;
+    const r = BLOB + TEAR_AWAY * 2;
+    pointerNear = Math.abs(y - barY) <= r && x >= barX0 - r && x <= barX1 + r;
+    /**
+     * Torn-off gas drifts a long way from the bar, and a cursor swept through
+     * it should scatter it — the cursor stirs the fluid, and free particles
+     * ride the fluid, so this only needs the pointer to count as live out
+     * there. It does while there is anything in the air to stir: `gasUntil`
+     * outlives the last stroke fast enough to have torn something by one full
+     * lifetime of gas. Near the bar is what wakes the field from idle; the far
+     * field can only carry on something already running, so waving around the
+     * rest of the page never spins the simulation up on its own.
+     */
+    const live = pointerNear || performance.now() < gasUntil;
+    if (!live) {
       if (pointerOn) {
         pointerOn = false;
         wake(SETTLE_MS);
@@ -777,7 +958,7 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
     pointerOn = true;
     pointerX = x;
     pointerY = y;
-    wake(SETTLE_MS);
+    wake(pointerNear ? SETTLE_MS : AIR_MS);
   }
 
   function onPointerGone(): void {
@@ -789,11 +970,13 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
   let raf = 0;
   let busyUntil = 0;
   let last = 0;
+  let simTime = 0;
 
   function frame(ts: number): void {
     raf = 0;
     const dt = Math.min(Math.max((ts - last) / 1000, 0), MAX_DT);
     last = ts;
+    simTime = ts / 1000;
 
     const k = ease(Math.min(Math.max((ts - keyAt) / KEY_MS, 0), 1));
     hue = fromHue + (toHue - fromHue) * k;
@@ -801,39 +984,37 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
 
     let dx = pointerOn ? pointerX - lastX : 0;
     let dy = pointerOn ? pointerY - lastY : 0;
-    if (Math.hypot(dx, dy) > JUMP_MAX * scale) {
+    if (Math.hypot(dx, dy) > JUMP_MAX) {
       dx = 0;
       dy = 0;
     }
     if (dt > 0) {
-      const cap = CURSOR_MAX * scale;
       const speed = Math.hypot(dx, dy) / dt;
-      const k = speed > cap ? cap / speed : 1;
-      cursorVX = (dx / dt) * k;
-      cursorVY = (dy / dt) * k;
+      const s = speed > CURSOR_MAX ? CURSOR_MAX / speed : 1;
+      cursorVX = (dx / dt) * s;
+      cursorVY = (dy / dt) * s;
+      // Fast enough over the bar to have heated something off it, so assume
+      // there is gas in the air for one lifetime — which is what lets the
+      // cursor go on stirring it once it has drifted clear.
+      if (pointerNear && speed > HEAT_SLOW) gasUntil = performance.now() + GAS_MS;
     } else {
       cursorVX = 0;
       cursorVY = 0;
     }
-    const fromX = pointerX - dx;
-    const fromY = pointerY - dy;
+    // The whole sweep since the last frame, not the point it ended at. Both the
+    // fluid and the heating take it as a segment, so a fast flick lays down one
+    // continuous stroke instead of a dotted line of impulses.
+    strokeFromX = pointerX - dx;
+    strokeFromY = pointerY - dy;
+    strokeToX = pointerX;
+    strokeToY = pointerY;
     lastX = pointerX;
     lastY = pointerY;
 
-    const travel = Math.hypot(dx, dy);
-    const n = Math.max(1, Math.min(SUBSTEP_MAX, Math.ceil(Math.max(
-      dt / SUBSTEP,
-      travel / (SUBSTEP_SPAN * PUSH_R * scale),
-    ))));
-    const h = dt / n;
-    const m = Math.max(1, Math.ceil(h / WAVE_SUB));
-    for (let s = 0; s < n; s++) {
-      for (let q = 0; q < m; q++) {
-        const a = (s + (q + 0.5) / m) / n;
-        stepWave(h / m, fromX + dx * a, fromY + dy * a);
-      }
-      const a = (s + 0.5) / n;
-      stepParticles(h, fromX + dx * a, fromY + dy * a);
+    if (dt > 0) {
+      stepFluid(dt);
+      const n = Math.max(1, Math.min(SUB_MAX, Math.ceil(dt / SUB)));
+      for (let s = 0; s < n; s++) stepParticles(dt / n);
     }
 
     draw();
@@ -908,8 +1089,10 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
       if (raf) cancelAnimationFrame(raf);
       canvas.remove();
       drop(acc);
+      drop(divT);
+      if (vels) for (const v of vels) drop(v);
+      if (prss) for (const p of prss) drop(p);
       if (pools) for (const p of pools) dropPool(p);
-      if (strs) for (const s of strs) drop(s);
     },
   };
 }
