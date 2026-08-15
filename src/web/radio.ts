@@ -42,6 +42,7 @@ import {
   startLoaded, stopPlayback, stopSounding,
 } from './audio.js';
 import { generateSongAsync } from './generator.js';
+import { mountGlowField, type GlowField } from './glow-field.js';
 import { createSungVoice, withoutSungVoice } from './sung-voice.js';
 
 import { songDurationBeats, type Song } from '../core/types.js';
@@ -321,6 +322,16 @@ let hueNow = 32;
 let hue2Now = 8;
 
 /**
+ * The particle field, if this browser would draw one.
+ *
+ * Undefined is the ordinary case rather than a failure: the CSS glow in
+ * `radio.html` is complete on its own, and everything here is written so that a
+ * page without WebGL2 — or one whose context is taken away halfway through an
+ * hour — simply goes on showing it.
+ */
+let glowField: GlowField | undefined;
+
+/**
  * `from`, moved to wherever `to` is by the shorter of the two ways round.
  *
  * The result is not reduced to 0–360, and must not be: the hue is transitioned
@@ -357,6 +368,10 @@ function paintKey(song: Song): void {
   const root = document.documentElement.style;
   root.setProperty('--hue', String(hueNow));
   root.setProperty('--hue-2', String(hue2Now));
+  // Told the same two figures rather than reading them back off the custom
+  // property, so the field's sweep and the CSS one are the same sweep — and so
+  // that the fallback is already correct if the context is lost mid-record.
+  glowField?.setKey(hueNow, hue2Now);
 }
 
 /**
@@ -919,13 +934,132 @@ els.volBtn.onclick = (e) => {
   showVolume(!els.vol.classList.contains('open'));
 };
 
-/** Hover opens it, where there is a pointer to hover with. */
+// ---------------------------------------------------------------------------
+// A pointer that meant it
+// ---------------------------------------------------------------------------
+
+/**
+ * How much recent movement counts towards how fast the pointer is going.
+ *
+ * A single interval between two samples is too small a thing to judge on: at a
+ * hundred-odd samples a second any sweep contains instants that measure slow,
+ * and a fling only has to produce one of those over a button for the button to
+ * light up. A few samples put one of those in context. Much more than that and
+ * the window becomes a memory of how the pointer got here, which is the other
+ * failure — a pointer that crossed the page fast and is now moving slowly over
+ * a control has arrived, and making it wait for the crossing to age out of the
+ * average is a delay by another name.
+ */
+const SPEED_WINDOW_MS = 50;
+
+/**
+ * Where the pointer has been, lately, oldest first.
+ *
+ * Stamped with `performance.now()` at the moment the event is handled rather
+ * than with the event's own `timeStamp`, because everything that reads this
+ * compares against `performance.now()` and the two are not guaranteed to be the
+ * same clock. A few milliseconds of handler latency is noise; two epochs
+ * subtracted from each other is a speed of any size at all.
+ */
+const trail: { x: number; y: number; t: number }[] = [];
+document.addEventListener('pointermove', (e) => {
+  const t = performance.now();
+  while (trail.length > 0 && t - trail[0]!.t > SPEED_WINDOW_MS) trail.shift();
+  trail.push({ x: e.clientX, y: e.clientY, t });
+}, { passive: true });
+
+/**
+ * How fast the pointer is going, in pixels per millisecond — the distance it
+ * has travelled between the samples still inside the window, over the time
+ * those samples span.
+ *
+ * Fewer than two of them and there is nothing to divide: the pointer has moved
+ * once from somewhere unknown, or has not moved recently at all. Both are the
+ * shape of a mouse that was sitting still and has just been thrown, and calling
+ * either of them *slow* is what let a fling through every time it started from
+ * a rest. Unknown is not slow. The next sample is a handful of milliseconds
+ * behind and answers it properly.
+ */
+function pointerSpeed(): number {
+  const now = performance.now();
+  while (trail.length > 0 && now - trail[0]!.t > SPEED_WINDOW_MS) trail.shift();
+  if (trail.length < 2) return Infinity;
+  let path = 0;
+  for (let i = 1; i < trail.length; i++) {
+    path += Math.hypot(trail[i]!.x - trail[i - 1]!.x, trail[i]!.y - trail[i - 1]!.y);
+  }
+  const span = trail[trail.length - 1]!.t - trail[0]!.t;
+  return span > 0 ? path / span : Infinity;
+}
+
+/**
+ * Above this, in pixels per millisecond, the pointer is passing over rather
+ * than arriving.
+ *
+ * A hand bringing a mouse onto a target is still moving when it gets there —
+ * the samples either side of the arrival run a few hundred pixels a second — so
+ * the figure has to clear that, or nothing answers until the pointer has come to
+ * a full stop, which is a delay however it is dressed up. A fling runs several
+ * times higher.
+ */
+const FLYBY = 1;
+
+/**
+ * Do it, but only for a pointer that was moving slowly enough to have meant it.
+ *
+ * There is no timer here and there must not be one. Everything this gates is
+ * asked on `pointerenter` and again on every `pointermove`, so a pointer that
+ * swept in fast and then slowed answers on its next movement, a few
+ * milliseconds later — and a pointer that never slows never gets an answer at
+ * all, which is the whole point. A timer that fires anyway is a second way in
+ * that measures nothing, and it was letting flings through.
+ *
+ * The one thing this gives up: a fling that ends dead on a control, pointer
+ * frozen on the pixel it landed on, leaves the control unlit until the mouse is
+ * moved again. Any movement at all opens it, because that movement is slow.
+ */
+function ifAimed(act: () => void): void {
+  if (pointerSpeed() <= FLYBY) act();
+}
+
+/**
+ * The accent every control wears under the pointer, on the same terms.
+ *
+ * This is `:hover` in every respect but one, and the one is why it is here: a
+ * mouse thrown across the page lit up whatever it crossed, and on a row of six
+ * controls that is six flashes for a gesture aimed at none of them. The class
+ * says the pointer is on this control *and meant to be*; the stylesheet hangs
+ * the accent off that instead. Only under `(hover: hover)`, so a touch screen —
+ * which has no pointer to aim and would leave the class behind on whatever it
+ * last tapped — never gets one.
+ */
+if (window.matchMedia('(hover: hover)').matches) {
+  document.querySelectorAll<HTMLElement>('.controls button').forEach((el) => {
+    const ask = (): void => {
+      if (!el.classList.contains('aimed')) ifAimed(() => el.classList.add('aimed'));
+    };
+    el.addEventListener('pointerenter', ask);
+    el.addEventListener('pointermove', ask);
+    el.addEventListener('pointerleave', () => el.classList.remove('aimed'));
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Volume, on hover
+// ---------------------------------------------------------------------------
+
+/** Hover opens it, where there is a pointer to hover with — and aims it. */
 if (window.matchMedia('(hover: hover)').matches) {
   let closing: number | undefined;
-  els.vol.addEventListener('pointerenter', () => {
+  const ask = (): void => {
     window.clearTimeout(closing);
-    showVolume(true);
-  });
+    // Already up — this is the pointer moving about on the control it opened,
+    // not a fresh approach, and there is nothing left to be sure of.
+    if (els.vol.classList.contains('open')) return;
+    ifAimed(() => showVolume(true));
+  };
+  els.vol.addEventListener('pointerenter', ask);
+  els.vol.addEventListener('pointermove', ask);
   els.vol.addEventListener('pointerleave', () => {
     window.clearTimeout(closing);
     // Just enough grace to cross the few pixels between the button and the
@@ -1290,10 +1424,31 @@ document.addEventListener('keydown', (e) => {
  * is the one direction where the gap between them has to be crossable. Leaving
  * any other way is someone going somewhere else, and waiting 400 ms to admit it
  * makes the panel feel stuck to the cursor.
+ *
+ * Towards is read as the half of the box the pointer left from, not as the one
+ * edge it left through. A pointer aimed at a panel below and to one side leaves
+ * a round button through its *side*, low down, and calling that a sideways
+ * departure faded the stations out from under a cursor that was on its way to
+ * them. Anywhere on the facing half is on the way; the far half is not.
+ *
+ * And towards means the far side of that half as well: the panel is 37 rem wide
+ * against a button of three, so most of the panel's top edge has nothing above
+ * it but page. Leaving up through *there* is leaving, and only the strip the
+ * button actually stands on is the gap worth holding open.
  */
 if (window.matchMedia('(hover: hover)').matches) {
   let shutting: number | undefined;
   const hold = (): void => { window.clearTimeout(shutting); shutting = undefined; };
+
+  /**
+   * How far to either side of the button still counts as heading for it.
+   *
+   * A pointer crossing a 1.25 rem gap at speed lands a few pixels off the line
+   * it left on, and the events either side of the gap are sampled, not
+   * continuous. Wide enough to forgive that, narrow enough that the rest of a
+   * 37 rem edge is not in it.
+   */
+  const SLACK = 12;
 
   /** `down` for the button, which the panel sits under; `up` for the panel. */
   const leave = (el: HTMLElement, toward: 'down' | 'up') => (e: Event): void => {
@@ -1302,8 +1457,12 @@ if (window.matchMedia('(hover: hover)').matches) {
     // A pinned panel was asked for and stays until it is asked away.
     if (pinned) return;
     const box = el.getBoundingClientRect();
-    const y = (e as PointerEvent).clientY;
-    const crossing = toward === 'down' ? y >= box.bottom : y <= box.top;
+    const to = (el === els.stationsToggle ? els.stationsWrap : els.stationsToggle)
+      .getBoundingClientRect();
+    const { clientX: x, clientY: y } = e as PointerEvent;
+    const mid = (box.top + box.bottom) / 2;
+    const crossing = (toward === 'down' ? y >= mid : y <= mid)
+      && x >= to.left - SLACK && x <= to.right + SLACK;
     if (crossing) shutting = window.setTimeout(() => showStations(false), 400);
     else showStations(false);
   };
@@ -1311,11 +1470,17 @@ if (window.matchMedia('(hover: hover)').matches) {
   for (const [el, toward] of [
     [els.stationsToggle, 'down'], [els.stationsWrap, 'up'],
   ] as const) {
-    el.addEventListener('pointerenter', () => {
+    const ask = (): void => {
       if (isSheet()) return;
       hold();
-      showStations(true);
-    });
+      // Already open — this is the pointer crossing the gap between the two
+      // halves of the control, which `hold` has just rescued, or moving about
+      // inside the panel. Nothing left to be sure of.
+      if (document.body.classList.contains('stations-open')) return;
+      ifAimed(() => showStations(true));
+    };
+    el.addEventListener('pointerenter', ask);
+    el.addEventListener('pointermove', ask);
     el.addEventListener('pointerleave', leave(el, toward));
   }
 }
@@ -1356,6 +1521,21 @@ async function boot(): Promise<void> {
   });
 
   buildStations();
+
+  /**
+   * Before the first record, so the field is already showing the opening colour
+   * rather than arriving under one. It draws one frame and goes to sleep.
+   */
+  const glowHost = document.querySelector<HTMLElement>('.glow');
+  if (glowHost) {
+    glowField = mountGlowField(glowHost, {
+      onLost: () => {
+        glowField = undefined;
+        document.body.classList.remove('glow-live');
+      },
+    }) ?? undefined;
+    if (glowField) document.body.classList.add('glow-live');
+  }
 
   const linked = new URLSearchParams(location.search).get('s');
   const fromLink = linked ? parseRef(linked) : undefined;

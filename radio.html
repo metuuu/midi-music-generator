@@ -60,6 +60,28 @@
            the padding silently left both hanging off the deck's edges. */
         --pad: 1.75rem;
 
+        /* ── a press, as two curves ───────────────────────────────────────
+           Down and back up are not the same movement and are not written as
+           one. Down is short and flat: the press has already happened, and
+           anything slower than about a tenth of a second reads as the page
+           lagging behind the finger. Back up is three times as long, on a
+           curve that overshoots its own end — that overshoot is the bounce.
+           It is worth a quarter of a pixel at the sizes here, which is the
+           right amount: the movements it rides on are two pixels at their
+           largest, and a bounce you can measure on a control that small is a
+           control coming loose from the row.
+
+           Held here because four families of button share them, and a press
+           that answers differently on a station card than on Play is a page
+           with two personalities. Each control spends them the same way:
+           `transform var(--squish, var(--bounce))`, where the default is the
+           spring and `:active` swaps in the dip. One declaration therefore
+           carries both the way down and the way back, and neither can drift
+           from the other — the transition in force is always the one belonging
+           to the state being moved *into*. */
+        --bounce: .3s cubic-bezier(.34, 1.56, .64, 1);
+        --dip: .09s cubic-bezier(.4, 0, .6, 1);
+
         /* ── the whole page, as one number ────────────────────────────────
            Every size here is in `rem` — type, buttons, gaps, the player's
            width, the stations panel's — so the root font size is the only
@@ -117,10 +139,12 @@
          thin ring or a filled circle, and an outline drawn on the border sits
          on top of one; three pixels out it reads as its own mark. */
       :focus-visible { outline: 2px solid var(--hot); outline-offset: 3px; }
-      /* The two controls already painted in the accent cannot wear it — a hot
-         ring three pixels off a hot fill is a halo rather than a mark. Ink,
-         which carries against the fill and against the page both. */
-      #play:focus-visible,
+      /* The segmented control's chosen tab is painted in the accent and butts up
+         against its neighbours, so a hot ring on it reads as a halo on the fill
+         rather than as a mark. Ink, which carries against the fill and against
+         the page both. Play keeps the accent ring like everything else: it has
+         three pixels of page all the way round it, and one control answering
+         focus in a different colour to the rest of the row is the odder thing. */
       .seg button[aria-pressed="true"]:focus-visible { outline-color: var(--ink); }
       /* The station cards sit .4rem apart, and at the full offset two
          neighbours' rings all but meet. */
@@ -298,6 +322,41 @@
         body.playing .glow::before { animation: none; opacity: .41; }
       }
 
+      /* ── the glow, when it is a field ─────────────────────────────────────
+         `web/glow-field.ts` draws the bar as a bundle of particle strands that
+         can be torn apart with the cursor. The class goes on only once that has
+         actually started; on a browser without WebGL2, or one that loses the
+         context later, everything above is what stays on the screen. */
+      body.glow-live .glow > i,
+      body.glow-live .glow::before,
+      body.glow-live .glow::after { opacity: 0; }
+      /* The canvas covers the whole viewport, and it has to: a torn particle
+         travels a long way from the bar, and any box tight enough to frame the
+         glow is an edge for it to be clipped against. It sits behind the page
+         rather than over it — `z-index: -1` puts it under the title and the
+         controls but above the body's own background, so the particles pass
+         behind the type instead of washing over it.
+
+         All of which is set inline, in `glow-field.ts`, and deliberately not
+         here: a canvas is a replaced element, so its position and *size* have to
+         be stated together — `inset: 0` alone leaves it at the intrinsic size of
+         its drawing buffer, which puts the bar off down the page at half the
+         resolution and looks like anything but a missing stylesheet rule. What
+         is left here is only what the field can afford to lose. */
+      .glow-field { transition: filter 1.2s ease, opacity 1.2s ease; }
+      /* The stopped state, which the CSS layers get from `.glow` and this cannot,
+         because it hangs off the body rather than off the bar. */
+      body:not(.playing) .glow-field { filter: grayscale(1) brightness(.8); opacity: .45; }
+      /* The breathing stays in CSS rather than moving into the shader, and that
+         is the whole reason the field is allowed to sleep: an `opacity`
+         animation composites, so this costs no frame of ours, where a `time`
+         uniform would cost every frame for the hour the page is left on. */
+      body.playing.glow-live .glow-field { animation: field-breathe 6s ease-in-out infinite; }
+      @keyframes field-breathe { 0%, 100% { opacity: .84; } 50% { opacity: 1; } }
+      @media (prefers-reduced-motion: reduce) {
+        body.playing.glow-live .glow-field { animation: none; opacity: .92; }
+      }
+
       /* ── controls ─────────────────────────────────────────────────────────
          Four, in one row, and the sizes are the hierarchy: the cog is a bare
          dim glyph, the two round ones are secondary, the accent one is what the
@@ -323,9 +382,42 @@
         border: 1px solid var(--edge); background: transparent; color: var(--ink);
         border-radius: 50%; cursor: pointer; font: inherit;
         width: 3rem; height: 3rem;
-        transition: color .18s ease, border-color .18s ease;
+        transition: color .18s ease, border-color .18s ease, transform var(--squish, var(--bounce));
       }
-      .controls button:hover:not(:disabled) { border-color: var(--hot); color: var(--hot); }
+      /* `.aimed` rather than `:hover`, and put there by the script — see
+         "A pointer that meant it". It is the same state with one condition
+         added: the pointer is on the control *and was going slowly enough to
+         have meant it*, so a mouse flung across the page no longer lights up
+         every control it happens to cross on the way.
+
+         It also settles what `:hover` gets wrong on a touch screen, which has
+         no pointer to leave and so leaves the last thing tapped hovered until
+         something else is tapped — Next, which does its work and stays where it
+         is, sat there wearing the accent as though it were still pressed. The
+         script only ever adds the class under `(hover: hover)`. */
+      /* The growth is part of the same answer as the colour, and the figure was
+         found by overshooting it in both directions. A twentieth is a 3 rem
+         circle visibly becoming a different size of circle in a row where every
+         other one stayed put; a fiftieth is half a pixel of edge, which is not a
+         movement so much as a rumour of one. This sits between them at a pixel
+         or so per edge — plainly seen, and still a control coming forward to
+         meet the pointer rather than changing what it is. It rides on `.aimed`
+         with everything else, so a mouse flung across the row does not make six
+         controls flinch. */
+      .controls button.aimed:not(:disabled) {
+        border-color: var(--hot); color: var(--hot); transform: scale(1.035);
+      }
+      /* And the press itself, which is the thing colour cannot say: a control
+         that only brightens has told you the pointer is on it, not that it took
+         the click. Rather more than the hover growth, and that ordering is the
+         point: hovering is the page noticing you, pressing is the page
+         answering, so the press has to be the larger of the two movements. It
+         is the deepest one on the page — a couple of pixels off the small
+         circles and three off Play, which is as far as a control can go and
+         still look like it sprang back rather than shrank. `:not(:disabled)`
+         because Next spends the first record greyed out, and a dead button that
+         still dips is a button that lies. */
+      .controls button:active:not(:disabled) { --squish: var(--dip); transform: scale(.95); }
       .controls button:disabled { opacity: .35; cursor: not-allowed; }
       /*
         No ring and a dimmer glyph: it is the one control here that is not about
@@ -342,13 +434,17 @@
         border: 0; color: var(--dim); opacity: .3;
       }
       #open-settings::before { content: ""; position: absolute; inset: -.7rem; }
-      #open-settings:hover { opacity: .55; }
+      #open-settings.aimed { opacity: .55; }
       /* Smaller than its button, and smaller than it looks it should be. A gear
          fills its own box corner to corner where a speaker is a wedge with air
          around it: at a matched 1.4rem the cog painted 19.4 px of ink against
          the speaker's 13.5, and read as the larger control. */
       #open-settings svg { width: 1.1rem; height: 1.1rem; fill: currentColor; }
       #stations-toggle svg { fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; }
+      /* Next carries the same argument as Play, at its own scale: a pointed
+         wedge alongside a bar rounded at 1. The `rect` keeps its own `rx` — only
+         the wedge needs drawing small and stroking back out. */
+      #skip path { stroke: currentColor; stroke-width: 2; stroke-linejoin: round; }
 
       /* Volume mirrors the cog at the other end of the row: same size, same
          dimness, same lack of a ring, so the two secondary controls bracket the
@@ -362,7 +458,7 @@
         border: 0; color: var(--dim); opacity: .3;
       }
       #volume-btn::before { content: ""; position: absolute; inset: -.7rem; }
-      #volume-btn:hover, .vol.open #volume-btn { opacity: .55; }
+      #volume-btn.aimed, .vol.open #volume-btn { opacity: .55; }
       #volume-btn svg { width: 1.4rem; height: 1.4rem; fill: currentColor; }
       #volume-btn .wave, #volume-btn .wave2 {
         fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round;
@@ -378,15 +474,27 @@
         position: absolute; left: 100%; top: 50%;
         transform: translateX(-.25rem) translateY(-50%);
         /*
-          The vertical padding is not free to be whatever looks tidy: it has to
-          land the bar the same distance from the pill's edge as its ends are.
-          Sideways that distance is the padding *plus* the 6 px of thumb
-          overhang; up and down it is the padding plus half the difference
-          between the input's box and the 4 px bar. Balancing the two is what
-          fixes the ring of space around the line looking thinner top and bottom
-          than it does at the ends.
+          The padding is not free to be whatever looks tidy, and the two figures
+          are not the same figure: one runs across the bar, the other along it,
+          and they are named that way because turning the fader upright on the
+          phone swaps which is which.
+
+          What has to come out even is the ring of space around the *thumb* at
+          the ends of its travel — that ball is what the eye measures the pill
+          against, and it was sitting 2 px nearer the ends than the sides.
+          Across the bar the gap is the padding plus the sliver of air the
+          input's own box carries around a 12 px ball; along it the thumb's
+          centre stops exactly on the bar's end, so the gap is the padding and
+          nothing else. The 2 px is what that sliver is worth.
+
+          The bar underneath then sits fractionally longer than it is thick out
+          from the pill's edge. That is the trade and it is the right way round
+          — the ball is a solid 12 px object and the line is 4 px, so the line's
+          own spacing is read at the ends, where the ball is standing.
         */
-        margin-left: .45rem; padding: .31rem .26rem;
+        --across: .31rem;
+        --along: calc(.26rem + 2px);
+        margin-left: .45rem; padding: var(--across) var(--along);
         background: #060505; border: 1px solid var(--edge); border-radius: 999px;
         opacity: 0; visibility: hidden;
         transition: opacity .16s ease, transform .16s ease, visibility 0s linear .16s;
@@ -426,7 +534,7 @@
       */
       .vol-pop::before {
         content: ""; position: absolute; pointer-events: none;
-        left: calc(.26rem + 6px); right: calc(.26rem + 6px);
+        left: calc(var(--along) + 6px); right: calc(var(--along) + 6px);
         top: 50%; height: 4px; margin-top: -2px; border-radius: 2px;
         background: linear-gradient(to right, var(--hot) var(--fill, 100%), #241e1b var(--fill, 100%));
       }
@@ -454,24 +562,80 @@
         width: 4rem; height: 4rem;
         background: var(--hot); border-color: var(--hot); color: #17110a;
       }
-      #play:hover { color: #17110a; }
+      #play.aimed { color: #17110a; }
       #play svg { width: 1.6rem; height: 1.6rem; }
       /* One icon at a time, chosen by the state the button is in. The load says
-         so on the button that is loading rather than in a row underneath it. */
-      #play [data-when] { display: none; }
+         so on the button that is loading rather than in a row underneath it.
+
+         All three are drawn at once now, stacked in the button's single grid
+         cell, and only opacity and scale say which one is current. Switched with
+         `display` — which is what this was — the triangle vanished in the same
+         frame the bars appeared, and the one control the page is about answered
+         a click with a cut. Nothing transitions out of `display: none`, so the
+         icons had to stay on the screen to be animated off it.
+
+         `scale` rather than `transform: scale()`, and the spinner is the reason:
+         its rotation is a `transform` animation, and a running animation
+         overrides the property it runs on outright. As its own property the pop
+         composes with the spin instead of being eaten by it.
+
+         The spin is hung off the load state rather than off the element for what
+         `display: none` used to do for free — an animation on an `opacity: 0`
+         element still runs, and this page is meant to be left on for an hour. */
+      /* The fade and the scale are meant to be read together; the scale is what
+         gives the fade a direction. From half size it was an icon flying in from
+         somewhere, which is a lot of event for a button that has changed its
+         mind about one glyph — and from a sixth it was the fade with a nudge
+         nobody would name. At .7 the triangle gives way and the bars arrive
+         having leant in, which is the whole of what it has to say. */
+      #play [data-when] {
+        grid-area: 1 / 1; pointer-events: none;
+        opacity: 0; scale: .7;
+        transition: opacity .16s ease, scale var(--bounce);
+      }
       #play[data-state="play"] [data-when="play"],
       #play[data-state="pause"] [data-when="pause"],
-      #play[data-state="load"] [data-when="load"] { display: block; }
-      /* An arc on a transparent ring rather than a full ring in a washed-out
-         tint of the button: a translucent dark over the accent came out muddy
-         green-grey, which is not a colour anything else here uses. Half the
-         circle rather than a quarter, at 4 px, so it carries at 24 px. */
-      #play .spin {
-        width: 1.55rem; height: 1.55rem; border-radius: 50%;
-        border: 4px solid transparent;
-        border-top-color: #17110a; border-right-color: #17110a;
-        animation: spin 1.1s linear infinite;
+      #play[data-state="load"] [data-when="load"] { opacity: 1; scale: 1; }
+      /* The triangle, blunted. Three sharp points next to a pair of bars rounded
+         at 1.4 was the button contradicting itself twice a song — so the path is
+         drawn 1.4 units inside the shape it wants to be and given a 2.8 stroke
+         to grow back out on a round join. Same silhouette as before, same 1.4 of
+         radius as the bars carry, and no arcs to hand-write. */
+      #play [data-when="play"] path {
+        stroke: currentColor; stroke-width: 2.8; stroke-linejoin: round;
       }
+      /* An arc rather than a full ring in a washed-out tint of the button: a
+         translucent dark over the accent came out muddy green-grey, which is not
+         a colour anything else here uses. Half the circle rather than a quarter,
+         at 4 units, so it carries at 24 px.
+
+         A stroked circle rather than a bordered box, and the ends are the whole
+         reason. A border arc is two edges of a box meeting a transparent third,
+         so it ends on the mitre between them — a diagonal cut, and the one
+         square-cornered thing left on a button whose other two icons are rounded
+         at 1.4 and 1. A stroke ends where `stroke-linecap` says it does.
+
+         The figures are the old ring exactly: `r: 10` with a 4-wide stroke puts
+         the outer edge on 12, which is the 24-unit box the border filled. The
+         dash is 4 short of the 31.4 a half-circle measures, because a round cap
+         is drawn *past* the end of the path by half the stroke at each end —
+         so the arc paints the same 180° the two borders did, with the ends
+         rounded off inside it rather than added to it. */
+      #play .spin {
+        width: 1.55rem; height: 1.55rem;
+        fill: none; stroke: #17110a; stroke-width: 4; stroke-linecap: round;
+        stroke-dasharray: 27.4 62.83;
+        /* Paused rather than absent, which is what this was — and the pause is
+           what fixes the way out. Dropped when the state left `load`, the
+           rotation reverted to zero in one frame and the arc jumped a half turn
+           while it was fading; held and stopped, it fades from wherever it had
+           got to. It costs nothing to leave it here: a paused animation is not
+           sampled, which is the same reason the version bound to `[data-state]`
+           was written in the first place — this page is meant to be left on for
+           an hour. */
+        animation: spin 1.1s linear infinite paused;
+      }
+      #play[data-state="load"] .spin { animation-play-state: running; }
       @keyframes spin { to { transform: rotate(1turn); } }
       @media (prefers-reduced-motion: reduce) { #play .spin { animation-duration: 3s; } }
 
@@ -658,12 +822,10 @@
           left: auto; right: 0; top: auto; bottom: 100%;
           transform: translateY(.25rem);
           margin: 0 0 .45rem;
-          /* The two figures swap with the axis. Their job is to land the bar
-             the same distance from the pill's edge all the way round, and
-             which of them is "along the bar" and which is "across it" is
-             exactly what turning the fader upright changes — see the desktop
-             rule for the arithmetic. */
-          padding: .26rem .31rem;
+          /* The two figures swap with the axis: standing the fader up makes the
+             padding along the travel the vertical one. Same pair, same
+             arithmetic — see the desktop rule. */
+          padding: var(--along) var(--across);
         }
         .vol.open .vol-pop { transform: translateY(0); }
 
@@ -695,7 +857,7 @@
            at each end so its ends are where the thumb's centre can reach. */
         .vol-pop::before {
           left: 50%; right: auto; margin: 0 0 0 -2px;
-          top: calc(.26rem + 6px); bottom: calc(.26rem + 6px);
+          top: calc(var(--along) + 6px); bottom: calc(var(--along) + 6px);
           width: 4px; height: auto;
           background: linear-gradient(to top, var(--hot) var(--fill, 100%), #241e1b var(--fill, 100%));
         }
@@ -764,8 +926,35 @@
         text-align: left; padding: .55rem .65rem; border-radius: 9px;
         border: 1px solid transparent; background: #141110; color: var(--dim);
         font: inherit; cursor: pointer; overflow: hidden;
+        transition: color .18s ease, border-color .18s ease, transform var(--squish, var(--bounce));
       }
       .grid button:hover { color: var(--ink); }
+      /* Less than the transport takes, because a fraction is not a distance and
+         the card is a wide box rather than a circle: the same figure buys three
+         times the travel across 143 px that it does across a 3 rem button, and
+         the card has a .4rem gap to barge its neighbours over. Matched by the
+         pixel instead — about a pixel of movement at each end, which is what the
+         transport gets.
+
+         Only where there is a pointer, too. `:hover` sticks to the last thing
+         tapped on a touch screen — the note at `.aimed` is about exactly this —
+         and a card left standing 2% proud of the other eleven says the sheet is
+         still waiting on a choice that has already been made. The colour has the
+         same fault and has always had it; a size need not join in. */
+      @media (hover: hover) {
+        .grid button:hover { transform: scale(1.015); }
+      }
+      /* After the hover rule, and it has to be: the two selectors weigh the
+         same, a media query adds nothing to that weight, and a tie is settled by
+         which was written last. The other way round, a card pressed under the
+         pointer — which is every card pressed with a mouse — would answer with
+         the hover size and no dip at all.
+
+         Shallower than the transport's press for the reason the growth is
+         smaller: measured in pixels the two dip by about the same amount, and it
+         takes a much smaller fraction to do it over this width. Deeper and the
+         card reads as a wobble rather than as a click. */
+      .grid button:active { --squish: var(--dip); transform: scale(.978); }
       /* The current station is named in the accent and nothing else changes —
          a filled box for the one you are already listening to would be the
          loudest thing under a player it is not part of. */
@@ -858,9 +1047,16 @@
       .seg button {
         flex: 1; padding: .5rem .3rem; border-radius: 8px; font: inherit; font-size: .8rem;
         border: 0; background: transparent; color: var(--dim); cursor: pointer;
-        transition: background .18s ease, color .18s ease;
+        transition: background .18s ease, color .18s ease, transform var(--squish, var(--bounce));
       }
       .seg button:hover { color: var(--ink); }
+      /* The dip and no growth. These three sit shoulder to shoulder inside one
+         track, and a segment that swells on hover is a segment climbing out of
+         the box that says the three are one control. Pressed, it dips *into*
+         the track, which is the shape saying what it is — by a couple of pixels
+         at each end, matched to the dip the rest of the page takes rather than
+         to its fraction. */
+      .seg button:active { --squish: var(--dip); transform: scale(.962); }
       .seg button[aria-pressed="true"] {
         background: var(--hot); color: #17110a; font-weight: 600;
       }
@@ -897,9 +1093,13 @@
         width: 100%; margin-top: 1.75rem; padding: .65rem; border-radius: 10px;
         border: 1px solid var(--edge); background: #141110; color: var(--ink);
         font: inherit; font-size: .85rem; cursor: pointer;
-        transition: border-color .18s ease, color .18s ease;
+        transition: border-color .18s ease, color .18s ease, transform var(--squish, var(--bounce));
       }
       .done:hover { border-color: var(--hot); color: var(--hot); }
+      /* Shallower still: it is the width of the panel, and a bar that long
+         changes size at both ends at once. Growing on hover it would be a bar
+         reaching past the dialog's own padding, so it does not. */
+      .done:active { --squish: var(--dip); transform: scale(.986); }
 
       /* ── the settings, as a sheet ───────────────────────────────────────
          The same dialog, docked. A centred card is right on a screen you are
@@ -972,6 +1172,18 @@
       @media (prefers-reduced-motion: reduce) {
         dialog, dialog::backdrop { transition-duration: 0s; }
       }
+      /* Every press on the page, stilled in two lines, because every press on
+         the page spends the same two figures — see `--bounce`. The states all
+         survive: a pressed button is still smaller and a hovered one still
+         larger, they simply arrive there rather than travel. The icon's
+         cross-fade stays too, at its own duration, for the same reason the
+         station labels keep their colour — a fade is not a movement.
+
+         Last in the sheet on purpose: this is `:root` overriding `:root`, which
+         is a tie on specificity, and a tie goes to whoever is written later. */
+      @media (prefers-reduced-motion: reduce) {
+        :root { --bounce: 0s; --dip: 0s; }
+      }
     </style>
   </head>
   <body class="booting">
@@ -1014,17 +1226,28 @@
             </button>
           </div>
           <button id="play" data-state="load" aria-label="Loading">
-            <svg viewBox="0 0 24 24" data-when="play" aria-hidden="true"><path d="M7 4.5v15l12.5-7.5z" /></svg>
+            <!-- Drawn 1.4 in from the triangle it looks like: the stroke on it
+                 puts that back on a round join. Outer points (7, 4.5),
+                 (7, 19.5), (19.5, 12), which is the shape this always was. -->
+            <svg viewBox="0 0 24 24" data-when="play" aria-hidden="true"><path d="M8.4 6.97v10.06l8.38-5.03z" /></svg>
             <svg viewBox="0 0 24 24" data-when="pause" aria-hidden="true">
               <rect x="6.5" y="5" width="4" height="14" rx="1.4" />
               <rect x="13.5" y="5" width="4" height="14" rx="1.4" />
             </svg>
-            <div class="spin" data-when="load" aria-hidden="true"></div>
+            <!-- The load arc. A circle with most of its outline dashed away,
+                 not a bordered box — see `.spin` for why the difference is the
+                 shape of its two ends. -->
+            <svg class="spin" viewBox="0 0 24 24" data-when="load" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" />
+            </svg>
           </button>
           <div class="side right">
             <button id="skip" aria-label="Next record" disabled>
               <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M6 5.5v13l9.5-6.5z" /><rect x="16.5" y="5.5" width="2.4" height="13" rx="1" />
+                <!-- Inset by 1, and stroked back out, for the reason Play's is:
+                     the bar beside it is rounded at 1 and the wedge was not.
+                     Outer points (6, 5.5), (6, 18.5), (15.5, 12). -->
+                <path d="M7 7.4v9.2l6.73-4.6z" /><rect x="16.5" y="5.5" width="2.4" height="13" rx="1" />
               </svg>
             </button>
             <div class="vol" id="vol">
@@ -1101,7 +1324,7 @@
         </div>
       </section>
 
-      <button class="done" id="close-settings" type="button">Done</button>
+      <button class="done" id="close-settings" type="button">Close</button>
     </dialog>
 
     <script type="module" src="/src/web/radio.ts"></script>
