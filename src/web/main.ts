@@ -902,7 +902,7 @@ async function play(song: Song, handover?: Handover): Promise<void> {
        * starve. The last chord is ringing on the audio clock, which this thread
        * cannot reach and does not need to.
        */
-      await loadCode(code);
+      await loadCode(code, endsItself(song));
       if (generation !== playGeneration) return;
       await until(handover.notBefore);
       if (generation !== playGeneration) return;
@@ -942,7 +942,7 @@ async function play(song: Song, handover?: Handover): Promise<void> {
       if (generation !== playGeneration) return;
       voice.end();
       setOutputLevel(1);
-      await playCode(code);
+      await playCode(code, endsItself(song));
     }
     voice.begin(audible(song));
     playing = true;
@@ -959,6 +959,24 @@ async function play(song: Song, handover?: Handover): Promise<void> {
     showError(`Strudel could not evaluate the pattern: ${String(err)}`);
     console.error(err);
   }
+}
+
+/**
+ * The piece's length in bars when it is meant to end, and `undefined` when it is
+ * meant to go round.
+ *
+ * The one place on this page where the two modes are actually different music
+ * rather than a different label. A record on the station ends and the next one
+ * follows, so the pattern is cut at the double bar — otherwise the scheduler's
+ * lookahead sounds the song's own opening downbeat underneath the ring-out, a
+ * tenth of a second after the ending. See `playOnce` in `web/audio.ts`.
+ *
+ * With radio off this is an audition: you press Play, listen, change a control
+ * and listen again, and a song that fell silent after one pass would mean
+ * pressing Play between every comparison. So it loops, as it always has.
+ */
+function endsItself(song: Song): number | undefined {
+  return radioMode ? song.meta.totalBars : undefined;
 }
 
 /**
@@ -1093,9 +1111,10 @@ function prepareNext(): void {
  */
 async function advance(): Promise<void> {
   const generation = playGeneration;
-  // Stop at the loop point rather than let the pattern come round again
-  // underneath the ring. The scheduler halts; the voices already handed to Web
-  // Audio play their last chord out. See `RING_OUT_SECONDS`.
+  // The clock stops; the sound does not. The voices already handed to Web Audio
+  // play the last chord out over the gap — see `RING_OUT_SECONDS` — and there is
+  // nothing after it for the scheduler to find, because the pattern was cut at
+  // the double bar when it was loaded. See `endsItself`.
   void stopPlayback();
   const notBefore = performance.now() + RING_OUT_SECONDS * 1000;
 

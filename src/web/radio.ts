@@ -434,7 +434,7 @@ async function play(cut: Cut, handover?: Handover): Promise<void> {
        * so there is nothing here to starve; the last chord is ringing on the
        * audio clock, which this thread cannot reach and does not need to.
        */
-      await loadCode(cut.code);
+      await loadCode(cut.code, cut.song.meta.totalBars);
       if (mine !== generation) return;
       await until(handover.notBefore);
       if (mine !== generation) return;
@@ -459,7 +459,7 @@ async function play(cut: Cut, handover?: Handover): Promise<void> {
       // Back up in case the last thing that happened was a stop. Unconditional:
       // a fader left down by any route is silence nobody can explain.
       setOutputLevel(volume);
-      await playCode(cut.code);
+      await playCode(cut.code, cut.song.meta.totalBars);
     }
 
     sungVoice.begin(cut.song);

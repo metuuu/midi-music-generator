@@ -17,10 +17,31 @@ declare module '@strudel/core' {
   export const controls: Record<string, unknown>;
   export function repl(options: Record<string, unknown>): StrudelRepl;
   /**
-   * A pattern, opaque. Nothing here inspects one — they are made by `evaluate`,
-   * combined by `stack`, and handed to the scheduler.
+   * A cycle position. Strudel keeps time in exact fractions rather than floats,
+   * so a comparison is a method call.
    */
-  export interface Pattern { readonly __pattern: unique symbol }
+  export interface CycleTime {
+    lt(other: number): boolean;
+  }
+  /**
+   * One event, as a query returns it.
+   *
+   * `whole` is the event's own span — where it *starts*, as against the `part`
+   * of it this query happened to cover. It is absent on a continuous signal,
+   * which has no onsets and triggers nothing.
+   */
+  export interface Hap {
+    whole?: { begin: CycleTime };
+  }
+  /**
+   * A pattern. Made by `evaluate`, combined by `stack`, handed to the scheduler
+   * — and, in one place, filtered: see `playOnce` in `web/audio.ts`.
+   */
+  export interface Pattern {
+    readonly __pattern: unique symbol;
+    /** The same pattern with the events the test rejects removed. */
+    filterHaps(test: (hap: Hap) => boolean): Pattern;
+  }
   /** The pattern that plays nothing, for a player who has been taken out. */
   export const silence: Pattern;
   /** Everything at once. */
@@ -98,6 +119,11 @@ declare module '@strudel/transpiler' {
 
 declare module '@strudel/webaudio' {
   import type { StrudelRepl } from '@strudel/core';
+  /**
+   * Options are Strudel's own and untyped here, with one worth naming:
+   * `editPattern` is called on every pattern on its way to the scheduler,
+   * whichever route it arrived by, and whatever it returns is what plays.
+   */
   export function webaudioRepl(options?: Record<string, unknown>): StrudelRepl;
   export function initAudioOnFirstClick(options?: Record<string, unknown>): Promise<void>;
   export function getAudioContext(): AudioContext;

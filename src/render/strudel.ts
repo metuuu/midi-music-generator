@@ -66,6 +66,15 @@ export interface LayerPattern {
 export interface StrudelParts {
   /** Cycles per minute, for the scheduler. One bar is one cycle. */
   cpm: number;
+  /**
+   * How long the piece is, in bars — which is to say in cycles.
+   *
+   * Carried because the emitted patterns cannot say it themselves: `<bar bar bar
+   * …>` is a `slowcat`, so the pattern's own answer to "how long is this" is
+   * "forever". Whoever puts it on the scheduler needs the real length in order
+   * to end it. See `playOnce` in `web/audio.ts`.
+   */
+  bars: number;
   layers: LayerPattern[];
 }
 
@@ -124,6 +133,7 @@ export function renderStrudelParts(song: Song, opts: StrudelRenderOptions = {}):
 
   return {
     cpm: song.meta.bpm / song.meta.beatsPerBar,
+    bars: song.meta.totalBars,
     layers: [...byLayer].map(([layer, group]) => ({
       layer,
       code: [

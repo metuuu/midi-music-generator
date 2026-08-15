@@ -73,8 +73,10 @@ async function boot(): Promise<StrudelRepl> {
   await audioReady;
 
   // Creating the repl also injects setcpm/setcps into the eval scope, which the
-  // generated code relies on.
-  const repl = webaudioRepl({ transpiler });
+  // generated code relies on. `editPattern` is Strudel's own hook on the way
+  // into the scheduler, and every route to a pattern goes through it — see
+  // `playOnce`.
+  const repl = webaudioRepl({ transpiler, editPattern: playOnce });
 
   registerSynthSounds();
   registerSoundfonts();
@@ -98,6 +100,81 @@ async function boot(): Promise<StrudelRepl> {
 
   instance = repl;
   return repl;
+}
+
+// ---------------------------------------------------------------------------
+// Where the piece ends
+// ---------------------------------------------------------------------------
+
+/**
+ * How many cycles the loaded piece lasts, or `undefined` to let it run round
+ * for as long as the clock does.
+ *
+ * ## Why the ending has to be in the pattern
+ *
+ * `render/strudel.ts` emits every part as `<bar bar bar …>`, which is a
+ * `slowcat`: it steps one bar per cycle and then starts again from the first,
+ * forever. So a piece here has a written ending and no *stop*, and everything
+ * that wanted one — the concert's `endNumber`, the radio's `advance` — got it by
+ * halting the scheduler at the right moment instead.
+ *
+ * **No caller can be on time for that moment.** Strudel's clock runs ahead of
+ * the ear by construction: `zyklus` queries the pattern in 50 ms chunks out to
+ * `interval + overlap` = 0.2 s past the audio clock, and each hap it finds is
+ * handed to superdough for `latency` = 0.1 s later again. So at every instant
+ * roughly **0.3 seconds of music is already scheduled and cannot be recalled** —
+ * which is exactly the property the rest of this file depends on, since it is
+ * what lets a last chord ring out over applause that has already started.
+ *
+ * The result was an audible stutter at the end of every piece: a number, or a
+ * record, finished and was followed about a tenth of a second later by *its own
+ * first downbeat* — kick, bass and the top of the melody, once, and then
+ * nothing, because the scheduler stopped before the second beat could be
+ * queried. Not a loop that was cut short so much as a loop nobody heard the rest
+ * of, sounding underneath the applause or the changeover.
+ *
+ * So the loop point is taken out of the pattern rather than raced by a caller,
+ * and the stop goes back to being what it is for everywhere else — the thing
+ * that ends the *clock*, over whatever is still ringing.
+ *
+ * Read at query time rather than compiled in, so setting it is an assignment
+ * rather than a re-evaluation and it reaches a band that is already playing.
+ * Left `undefined` by the benches and by the audition page with radio off, where
+ * hearing the same eight bars come round again is the point.
+ */
+let pieceCycles: number | undefined;
+
+/**
+ * The end of the piece, as the pattern sees it.
+ *
+ * Installed on every pattern the repl sets — `loadBand`, `loadCode` and
+ * `playCode` all reach the scheduler through `setPattern`, and Strudel calls
+ * this hook there — so there is no route to a running pattern that can forget
+ * it.
+ *
+ * Onsets are the whole of what has to go. A hap with no `whole` is a continuous
+ * signal and triggers nothing; a hap whose `whole` began before the end is the
+ * last chord, still turning up in the chunks queried past the boundary and still
+ * wanted, because that is the note that is doing the ringing.
+ */
+function playOnce(pattern: Pattern): Pattern {
+  return pattern.filterHaps(
+    (hap) => pieceCycles === undefined || !hap.whole || hap.whole.begin.lt(pieceCycles),
+  );
+}
+
+/**
+ * Whether what is loaded is meant to come round again.
+ *
+ * For the singer, who is not in the pattern and therefore not covered by
+ * `playOnce`: `sung-voice.ts` places her phrases against the scheduler's clock
+ * and wraps them itself, with a 0.9 s lookahead — three times Strudel's — so a
+ * line that opens the piece would be handed to the synth, and sung, over the end
+ * of it. She rounds with the band or she stops with it; this is how she knows
+ * which.
+ */
+export function pieceLoops(): boolean {
+  return pieceCycles === undefined;
 }
 
 /**
@@ -261,8 +338,15 @@ export async function stopSounding(fade = CUT_SECONDS): Promise<void> {
   silenceVoices();
 }
 
-export async function playCode(code: string): Promise<void> {
+/**
+ * Compile, load and start, in one call.
+ *
+ * `bars` is the piece's length in bars, which is its length in cycles — pass it
+ * and the pattern plays once, leave it out and it loops. See `pieceCycles`.
+ */
+export async function playCode(code: string, bars?: number): Promise<void> {
   const repl = await initAudio();
+  pieceCycles = bars;
   await repl.evaluate(code);
 }
 
@@ -301,6 +385,11 @@ const band = new Map<LayerId, Pattern>();
 export async function loadBand(parts: StrudelParts, autostart = false): Promise<void> {
   const repl = await initAudio();
   band.clear();
+  // The number ends where it ends rather than starting again over the applause.
+  // Taken from the parts rather than asked of the caller, because a stage that
+  // forgot to say would be a stage with a stutter on the end of every number.
+  // See `pieceCycles`.
+  pieceCycles = parts.bars;
   for (const { layer, code } of parts.layers) {
     band.set(layer, await compile(code));
   }
@@ -393,8 +482,9 @@ async function compile(code: string): Promise<Pattern> {
  * lift their sticks. Loading behind the curtain and starting on the cue costs
  * nothing and puts the first click exactly where the show asked for it.
  */
-export async function loadCode(code: string): Promise<void> {
+export async function loadCode(code: string, bars?: number): Promise<void> {
   const repl = await initAudio();
+  pieceCycles = bars;
   await repl.evaluate(code, false);
 }
 

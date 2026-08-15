@@ -56,7 +56,7 @@ import { getAudioContext, getSuperdoughAudioController } from '@strudel/webaudio
 import type { NoteEvent, Song, Track } from '../core/types.js';
 import { DELIVERIES, type Delivery } from '../style/delivery.js';
 import { VOICE_SIGNATURES, type VoiceSignature } from '../style/voices.js';
-import { initAudio } from './audio.js';
+import { initAudio, pieceLoops } from './audio.js';
 import { VoiceSynth, type SynthEvent, type VoicePatch } from './voice-synth.js';
 
 /**
@@ -233,7 +233,20 @@ export function createSungVoice(): SungVoice {
     // otherwise spin here forever rather than merely sounding wrong.
     for (let n = 0; n < 64; n++) {
       const phrase = phrases[cursor];
-      if (!phrase) { cursor = 0; pass++; continue; }
+      /**
+       * The end of the line: round again with the band, or stop with it.
+       *
+       * She has to be told, because she is not in the pattern and so `playOnce`
+       * cannot cut her — and she is the one who would be caught worst by the
+       * loop. `LOOKAHEAD` is 0.9 s against Strudel's 0.3, and `speak` lays a
+       * whole phrase down on the audio clock in one call, so a line that opens
+       * the piece would be handed over before the end of it and then sung over
+       * the ending in full, seconds of it, with the band already stopped.
+       */
+      if (!phrase) {
+        if (!pieceLoops()) return;
+        cursor = 0; pass++; continue;
+      }
       const at = timeOf(phrase.beat, beatsPerBar, pass);
       if (at === undefined) return;
       if (at > horizon) return;
