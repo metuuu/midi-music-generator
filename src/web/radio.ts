@@ -80,6 +80,7 @@ const els = {
   openSettings: $<HTMLButtonElement>('open-settings'),
   closeSettings: $<HTMLButtonElement>('close-settings'),
   voice: $<HTMLDivElement>('voice'),
+  glowMode: $<HTMLDivElement>('glow-mode'),
   wander: $<HTMLInputElement>('wander'),
   wanderName: $<HTMLElement>('wander-name'),
   wanderGloss: $<HTMLElement>('wander-gloss'),
@@ -356,6 +357,55 @@ let hue2Now = 8;
  * hour — simply goes on showing it.
  */
 let glowField: GlowField | undefined;
+
+/** Which of the two glows the listener has asked for. */
+type GlowMode = 'particles' | 'plain';
+let glowMode: GlowMode = 'particles';
+
+function paintGlowMode(): void {
+  els.glowMode.querySelectorAll('button').forEach((b) => {
+    b.setAttribute('aria-pressed', String(b.dataset.glow === glowMode));
+  });
+}
+
+/**
+ * Put the chosen glow on the page, taking the other one off.
+ *
+ * Both directions have to work at any moment, not just at boot: this is reached
+ * from the settings while a record is playing. Mounting hands the field the
+ * colour the page is already showing, or the bar would open on the default
+ * amber and slide to the right hue over the next couple of seconds, in the
+ * middle of a record that has been that colour all along.
+ *
+ * Failure is not an error. `mountGlowField` returns null on a machine without
+ * WebGL2, and the page simply keeps the CSS glow — the same state it is in when
+ * the context is lost mid-hour, and the same one this setting's other position
+ * asks for on purpose.
+ */
+function applyGlowMode(): void {
+  if (glowMode === 'plain') {
+    glowField?.destroy();
+    glowField = undefined;
+    document.body.classList.remove('glow-live');
+    return;
+  }
+  if (glowField) return;
+  const host = document.querySelector<HTMLElement>('.glow');
+  if (!host) return;
+  glowField = mountGlowField(host, {
+    onLost: () => {
+      glowField = undefined;
+      document.body.classList.remove('glow-live');
+    },
+    // A cut may be drawn from anywhere on the page, so the field has to be told
+    // what a finger might be doing instead — the controls, and the two panels
+    // that scroll under one.
+    keepTouch: 'button, a, input, select, textarea, dialog, #stations-wrap, #scrim, .vol',
+  }) ?? undefined;
+  if (!glowField) return;
+  document.body.classList.add('glow-live');
+  glowField.setKey(hueNow, hue2Now);
+}
 
 /**
  * `from`, moved to wherever `to` is by the shorter of the two ways round.
@@ -752,6 +802,7 @@ async function nextCold(): Promise<void> {
 const STATION_KEY = 'radio.station';
 const WANDER_KEY = 'radio.wander';
 const VOICE_KEY = 'radio.voice';
+const GLOW_KEY = 'radio.glow';
 /** The last calendar day this page was opened on. See `openingStation`. */
 const DAY_KEY = 'radio.day';
 
@@ -1340,6 +1391,15 @@ els.voice.onclick = (e) => {
   recue();
 };
 
+els.glowMode.onclick = (e) => {
+  const picked = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-glow]');
+  if (!picked) return;
+  glowMode = picked.dataset.glow as GlowMode;
+  try { localStorage.setItem(GLOW_KEY, glowMode); } catch { /* private mode */ }
+  paintGlowMode();
+  applyGlowMode();
+};
+
 els.wander.oninput = () => {
   wander = Number(els.wander.value) / 100;
   paintWander();
@@ -1552,16 +1612,12 @@ async function boot(): Promise<void> {
    * Before the first record, so the field is already showing the opening colour
    * rather than arriving under one. It draws one frame and goes to sleep.
    */
-  const glowHost = document.querySelector<HTMLElement>('.glow');
-  if (glowHost) {
-    glowField = mountGlowField(glowHost, {
-      onLost: () => {
-        glowField = undefined;
-        document.body.classList.remove('glow-live');
-      },
-    }) ?? undefined;
-    if (glowField) document.body.classList.add('glow-live');
-  }
+  try {
+    const storedGlow = localStorage.getItem(GLOW_KEY);
+    if (storedGlow === 'particles' || storedGlow === 'plain') glowMode = storedGlow;
+  } catch { /* private mode */ }
+  paintGlowMode();
+  applyGlowMode();
 
   const linked = new URLSearchParams(location.search).get('s');
   const fromLink = linked ? parseRef(linked) : undefined;

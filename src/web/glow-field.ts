@@ -47,6 +47,12 @@ export interface GlowField {
 
 export interface GlowFieldOptions {
   onLost?: () => void;
+  /**
+   * What a finger may be doing that is not cutting — anything there to be
+   * pressed, dragged or scrolled. A touch landing inside one of these is left
+   * entirely alone; everywhere else on the page is somewhere a cut can start.
+   */
+  keepTouch?: string;
 }
 
 interface Target {
@@ -81,7 +87,7 @@ const WANDER_CORE = 0.25;
 const WANDER_K1 = 7.5;
 const WANDER_K2 = 19;
 const HEAT_GAIN = 3.2;
-const GROW = 0.5;
+const GROW = 0.35;
 
 // ── the fluid ─────────────────────────────────────────────────────────────
 const CELL = 10;
@@ -138,7 +144,19 @@ const DRAG_FREE = 1.6;
  * through gas it is giving off in all directions is a capsule, with no special
  * case needed for where it stops.
  */
-const HALO_LIFE = 1.6;
+const HALO_LIFE = 2.0;
+/**
+ * How much harder a stirred-up piece of bar throws its gas off.
+ *
+ * This is what carries a tear now. The line lets go of a scrap for a moment and
+ * has it back almost at once; what is seen flying is the halo, flung outward
+ * where the bar is hot and then drifting and fading on `HALO_LIFE`, which the
+ * healing never consults. Lengthen it and gas hangs about longer with the bar
+ * knitting shut exactly as fast as before.
+ */
+const BLAST = 6;
+/** How readily gas out on its own takes up the flow it is drifting in. */
+const LOOSE_GRIP = 4;
 const HALO_IN = 0.18;
 const HALO_OUT = 0.35;
 const EMIT_RATE = 1.6;
@@ -171,18 +189,74 @@ const DAMP_FREE = 0.8;
 // so both of these have to move if COLS does, or the bar tears at a different
 // width than it used to.
 const BREAK = 8;
+/**
+ * How much sooner a strand at the outside of the band parts than one down its
+ * middle.
+ *
+ * A cut is otherwise a flat wall with two square corners, because every strand
+ * gives way at much the same place. The bar's own ends are rounded — each
+ * strand starts and stops a little short of the one inside it — and this is
+ * that same shape, except cut by the tear rather than drawn in: the outer
+ * strands part under less strain, so more of them goes, and the face left
+ * behind is blunt.
+ */
+const BREAK_EDGE = 0.55;
+/**
+ * How much harder the outside of the band fades back from a cut than its
+ * middle, which is what rounds the corners off the face a cut leaves.
+ *
+ * The face is otherwise square in the only way that matters: the last particle
+ * before a gap is at full brightness and the next one is not there at all, so
+ * the edge is sharp in *opacity*, over half a pixel, and moving particles about
+ * cannot soften something that is sharp for that reason. What does is letting a
+ * particle be as present as there is strand around it — dark at the face,
+ * whole again a few pixels in — and fading the outer strands over a longer run
+ * than the middle ones, so the taper is deeper at the top and bottom of the
+ * band than down its centre.
+ */
+const EDGE_BITE = 2.5;
 const RELINK = 2.5;
 // How far a cut has to have cooled before it will knit. Paired with COOL: a
 // piece coming back is exempt from being called adrift for about GROW, and it
 // has to be able to knit inside that, or it leaves again and cycles.
-const RELINK_COOL = 0.35;
+const RELINK_COOL = 0.85;
 const COOL = 0.85;
 const HEAT_SLOW = 520;
 const HEAT_FAST = 1900;
+/**
+ * How long a returning piece lies dark before it starts to show, randomised
+ * per particle.
+ *
+ * This is where the unevenness in a healing cut belongs, and the reason is
+ * which clock it is on. A piece counts as bar the instant it is back, so the
+ * next one along may follow it immediately whether this one has appeared yet
+ * or not: the waiting is in how it *looks*, never in how fast the line comes
+ * back. Putting the same unevenness in the gas — holding a piece out there for
+ * a randomised while before letting it return — stalls the front behind
+ * whichever piece drew the longest life, which is gas deciding the pace of the
+ * bar and is not its business.
+ */
 const WAIT = 0.2;
 
 // ── torn off, and on its way out ──────────────────────────────────────────
 const TEAR_AWAY = 58;
+/**
+ * How long a cut lies open before it knits shut — the bar's own clock, and the
+ * point of it is what it is not tied to.
+ *
+ * The gas life served as this, so the drifting scraps set the pace of the
+ * healing: ask for debris that hangs about for two seconds and the line took
+ * two seconds to come back, which is none of the debris's business.
+ *
+ * They cannot simply be separated, though, because a piece has to have faded
+ * before it can be put back — it is the same particle in both places, and one
+ * still bright would be seen to jump. So the piece that leaves only flashes and
+ * goes (`FREE_LIFE`, which has to land inside this), and what actually flies is
+ * the halo, thrown clear by the heat of the tear and living out its own life
+ * well after the bar it came off has closed over. Different particles: that is
+ * the only way to have both.
+ */
+const HEAL_WAIT = 0.22;
 /**
  * How much more readily an end left by a cut gives way than bar with
  * neighbours on both sides.
@@ -195,19 +269,30 @@ const TEAR_AWAY = 58;
  * cut ends up blunt.
  */
 const FRAY = 0.35;
-const FREE_LIFE = 1.4;
-const FREE_HOLD = 0.5;
 /**
- * How unevenly torn-off pieces are ready to come back, past their gas life.
+ * Two kinds of strand, and a cut heals in two passes because of them.
  *
- * With one time for all of them the whole gap becomes eligible on the same
- * frame and closes in a quarter of a second, which reads as a snap however it
- * is ordered. Spread it and the two edges creep toward each other unevenly
- * instead, the front held up wherever the next piece along is not ready yet.
- * They are long invisible by then, so the waiting does not show; only the
- * knitting does.
+ * The bar cannot both hold its material out in the air and have it back at
+ * once — it is the same particle in both places. But it does not need *all* of
+ * it back to look like a bar. So some strands are kept and some are given up:
+ * the kept ones flash and are back inside `HEAL_WAIT`, closing the cut, and the
+ * given-up ones fly properly and stay out for `SHED_LIFE`, filling the bar back
+ * to full some time after it already reads as whole.
+ *
+ * Which matters because debris has to be made of bar to look like anything.
+ * Throwing the halo instead was worth about a fourteenth of the brightness —
+ * it is the faint glow, not the bright line, and no share of it adds up to a
+ * cut's worth of material.
+ *
+ * Each strand is its own chain, so a given-up one healing slowly never holds a
+ * kept one up. `FREE_HOLD` is a fraction of whichever life applies rather than
+ * a time, or a two-second scrap would spend a tenth of a second bright and the
+ * rest fading.
  */
-const REGROW_STAGGER = 0.45;
+const SHED_SHARE = 0.45;
+const SHED_LIFE = 2;
+const FREE_LIFE = 0.18;
+const FREE_HOLD = 0.3;
 const RISE_V = 40;
 const SWIRL_V = 46;
 const SWIRL_WAVES = 4;
@@ -217,7 +302,7 @@ const SWIRL_CHURN = 55;
 const SETTLE_MS = 5400;
 const IDLE_MS = 90;
 const AIR_MS = 1200;
-const GAS_MS = (FREE_LIFE + WAIT + GROW) * 1000;
+const GAS_MS = (SHED_LIFE + WAIT + GROW + HALO_LIFE) * 1000;
 const KEY_MS = 1800;
 const MAX_DT = 1 / 30;
 const SUB = 1 / 200;
@@ -446,11 +531,14 @@ ${SEG}
 #define DRAG_FREE ${DRAG_FREE.toFixed(3)}
 #define HALO_LIFE ${HALO_LIFE.toFixed(3)}
 #define EMIT_RATE ${EMIT_RATE.toFixed(3)}
+#define BLAST ${BLAST.toFixed(3)}
+#define LOOSE_GRIP ${LOOSE_GRIP.toFixed(3)}
 #define SWIRL_RATE ${SWIRL_RATE.toFixed(3)}
 #define CORE_ROWS ${CORE_ROWS}
 #define DAMP_BOUND ${DAMP_BOUND.toFixed(3)}
 #define DAMP_FREE ${DAMP_FREE.toFixed(3)}
 #define BREAK ${BREAK.toFixed(3)}
+#define BREAK_EDGE ${BREAK_EDGE.toFixed(3)}
 #define RELINK ${RELINK.toFixed(3)}
 #define RELINK_COOL ${RELINK_COOL.toFixed(3)}
 #define COOL ${COOL.toFixed(3)}
@@ -459,9 +547,11 @@ ${SEG}
 #define BLOB ${BLOB.toFixed(1)}
 #define WAIT ${WAIT.toFixed(3)}
 #define TEAR_AWAY ${TEAR_AWAY.toFixed(1)}
+#define HEAL_WAIT ${HEAL_WAIT.toFixed(3)}
+#define SHED_SHARE ${SHED_SHARE.toFixed(3)}
+#define SHED_LIFE ${SHED_LIFE.toFixed(3)}
 #define FRAY ${FRAY.toFixed(3)}
 #define FREE_LIFE ${FREE_LIFE.toFixed(3)}
-#define REGROW_STAGGER ${REGROW_STAGGER.toFixed(3)}
 #define GROW ${GROW.toFixed(3)}
 #define RISE_V ${RISE_V.toFixed(2)}
 #define SWIRL_V ${SWIRL_V.toFixed(2)}
@@ -529,6 +619,9 @@ void main() {
   vec2 p = P.xy, v = P.zw;
   float heat = S.x, linkN = S.y, age = S.z, torn = S.w;
   float gate = smoothstep(HEAT_SLOW, HEAT_FAST, length(uCursorV));
+  // Both halves want this now: the bar is dragged by it, and gas that has come
+  // loose rides it.
+  vec2 fluid = texture(uVel, clamp(p / uGrid, vec2(0.0), vec2(1.0))).xy;
 
   // ── the halo: gas the line gives off ─────────────────────────────────────
   if (pop != 0) {
@@ -538,32 +631,67 @@ void main() {
     // plus how far it has drifted from it while nobody was interfering.
     ivec2 src = ivec2(c.x, int(rnd(i, 62u) * float(CORE_ROWS)));
     vec4 line = texelFetch(uPos, src, 0);
+    vec4 sst = texelFetch(uSt, src, 0);
     vec2 drift = S.yz;
-    torn += uDt;
-    if (torn > life) {
+    /**
+     * A negative age means it has come loose.
+     *
+     * Riding a strand is what keeps the glow married to the line, but it is
+     * also what stops the glow ever leaving: whatever the strand does the gas
+     * does, so when the strand is put back the gas is dragged back with it, and
+     * nothing can be thrown off a bar that takes it all home again. There is
+     * no channel to spare for saying which of the two a particle is doing, so
+     * the sign of its age says it.
+     */
+    bool loose = torn < 0.0;
+    float age = abs(torn) + uDt;
+    float ang = rnd(i, 63u) * 6.28318530718;
+    vec2 dir = vec2(cos(ang), sin(ang));
+
+    if (age > life) {
       // Born again on the line as it stands now, off one of the core rows, so
       // the glow leaves the bar wherever the bar has got to — and a stretch
       // that has been torn away emits nothing, leaving the gap dark.
       //
       // It leaves already as stirred up as the bar it came off, standing on it
       // and not yet drifted anywhere.
-      torn = 0.0;
+      age = 0.0;
+      loose = false;
       drift = vec2(0.0);
-      heat = max(heat, texelFetch(uSt, src, 0).x);
+      p = line.xy;
+      v = vec2(0.0);
+      heat = max(heat, sst.x);
     }
 
-    // Its own movement, and the whole of it: out along its own bearing, easing
-    // off with age so the cloud thins with distance, wandering as it goes.
-    float ang = rnd(i, 63u) * 6.28318530718;
-    vec2 away = vec2(cos(ang), sin(ang))
-      * (spread * EMIT_RATE * (0.35 + 1.3 * rnd(i, 64u)) * (1.0 - torn / life));
-    drift += (away + swirl(p) * (spread * SWIRL_RATE)) * uDt;
+    // The strand it came off has been torn out of the bar. It does not go home
+    // with it: it keeps where it is, takes up the speed the tear was carrying
+    // and a shove of its own, and lives the rest of its life out in the air.
+    // This is what flies when the bar is cut, and it is on nobody's clock but
+    // its own — the line closes over long before it is done.
+    if (!loose && sst.w > 0.0) {
+      loose = true;
+      // A fresh life. It was somewhere in the middle of one when the tear took
+      // it, and half a life left is half a puff.
+      age = 0.0;
+      v = line.zw + dir * (spread * EMIT_RATE * BLAST);
+      heat = max(heat, sst.x);
+    }
 
-    // Where the strand is, plus how far it has wandered off it. That is the
-    // whole position: no spring, no drag, no damping, nothing of its own to
-    // bounce on. Bend the bar and the glow bends; fling it and the glow is
-    // flung the same distance and comes back on the same rubber.
-    p = line.xy + drift;
+    if (loose) {
+      vec2 want = fluid + swirl(p) * (spread * SWIRL_RATE);
+      v += (want - v) * min(LOOSE_GRIP * uDt, 1.0);
+      p += v * uDt;
+    } else {
+      // Its own movement: out along its own bearing, easing off with age so the
+      // cloud thins with distance, wandering as it goes. Added to the strand's
+      // position — no spring, no drag, nothing of its own to bounce on, so bend
+      // the bar and the glow bends, fling it and the glow is flung with it.
+      vec2 away = dir
+        * (spread * EMIT_RATE * (0.35 + 1.3 * rnd(i, 64u)) * (1.0 - age / life));
+      drift += (away + swirl(p) * (spread * SWIRL_RATE)) * uDt;
+      p = line.xy + drift;
+      v = vec2(0.0);
+    }
 
     if (uCursorOn > 0.5) {
       float d = segDist(p) / BLOB;
@@ -573,16 +701,17 @@ void main() {
 
     if (!(dot(p, p) < 1e12)) {
       p = line.xy;
+      v = vec2(0.0);
       drift = vec2(0.0);
-      torn = 0.0;
+      age = 0.0;
+      loose = false;
     }
-    oPos = vec4(p, 0.0, 0.0);
-    oSt = vec4(heat, drift, torn);
+    oPos = vec4(p, v);
+    oSt = vec4(heat, drift, loose ? -age : age);
     return;
   }
 
   // ── the bar ──────────────────────────────────────────────────────────────
-  vec2 fluid = texture(uVel, clamp(p / uGrid, vec2(0.0), vec2(1.0))).xy;
   float free = torn > 0.0 ? 1.0 : 0.0;
   // Both ends of a link measure it on the same snapshot, so the two of them
   // never disagree about whether it has just broken.
@@ -641,9 +770,13 @@ void main() {
     heat = max(heat, exp(-d * d) * gate);
   }
 
+  // Where along the band this strand sits: nothing at the middle, one at the
+  // outside. A tear takes more of the outside, which is what blunts the cut.
+  float edge = clamp(abs(home.y - uBar.z) / (BAR_H * 0.5), 0.0, 1.0);
+  float brk = BREAK * uRest * mix(1.0, BREAK_EDGE, edge);
   if (free < 0.5) {
     if (c.x < COLS - 1) {
-      if (linkN > 0.5 && lenN > BREAK * uRest) {
+      if (linkN > 0.5 && lenN > brk) {
         linkN = 0.0;
         heat = 1.0;
       } else if (linkN < 0.5 && lenN < RELINK * uRest && heat < RELINK_COOL && tornN == 0.0) {
@@ -651,7 +784,7 @@ void main() {
       }
     }
     // The neighbour cuts the link on its side; this end only takes the heat.
-    if (c.x > 0 && linkP > 0.5 && lenP > BREAK * uRest) heat = 1.0;
+    if (c.x > 0 && linkP > 0.5 && lenP > brk) heat = 1.0;
   }
 
   heat *= exp(-COOL * uDt);
@@ -697,8 +830,11 @@ void main() {
    * invisible: what shows is the two edges knitting toward each other.
    */
   bool rooted = c.x == 0 || c.x == COLS - 1 || sP.w == 0.0 || sN.w == 0.0;
-  float ready = FREE_LIFE * (1.0 + REGROW_STAGGER * rnd(i, 65u));
-  if ((torn > ready && rooted) || !(dot(p, p) < 1e12)) {
+  // Kept strands are back as soon as the bar wants them; given-up ones stay out
+  // until they have finished burning off. Either way it has to have faded
+  // first, being the same particle here as the one drifting out there.
+  float gasLife = rnd(uint(c.y), 71u) < SHED_SHARE ? SHED_LIFE : FREE_LIFE;
+  if ((torn > max(HEAL_WAIT, gasLife) && rooted) || !(dot(p, p) < 1e12)) {
     p = home;
     v = vec2(0.0);
     heat = 0.0;
@@ -724,10 +860,14 @@ ${HOME}
 #define GROW ${GROW.toFixed(3)}
 #define FREE_HOLD ${FREE_HOLD.toFixed(3)}
 #define FREE_LIFE ${FREE_LIFE.toFixed(3)}
+#define SHED_SHARE ${SHED_SHARE.toFixed(3)}
+#define SHED_LIFE ${SHED_LIFE.toFixed(3)}
 #define HALO_LIFE ${HALO_LIFE.toFixed(3)}
 #define HALO_IN ${HALO_IN.toFixed(3)}
 #define HALO_OUT ${HALO_OUT.toFixed(3)}
 #define CORE_ROWS ${CORE_ROWS}
+#define EDGE_BITE ${EDGE_BITE.toFixed(3)}
+#define BAR_H2 ${(BAR_H * 0.5).toFixed(3)}
 
 uniform sampler2D uPos;
 uniform sampler2D uSt;
@@ -736,6 +876,16 @@ uniform vec2 uHue;
 uniform float uDpr;
 
 out vec3 vColor;
+
+/**
+ * Whether there is still bar at this column of this strand — gas does not
+ * count, it has left. Past either end of the bar counts as bar, because that
+ * is where it stops rather than where it was cut.
+ */
+float barAt(int x, int y) {
+  if (x < 0 || x > COLS - 1) return 1.0;
+  return texelFetch(uSt, ivec2(x, y), 0).w > 0.0 ? 0.0 : 1.0;
+}
 
 vec3 hsl2rgb(float h, float s, float l) {
   h = fract(h / 360.0);
@@ -747,7 +897,7 @@ void main() {
   ivec2 c = ivec2(gl_VertexID % COLS, gl_VertexID / COLS);
   float t;
   int pop;
-  homeOf(c, t, pop);
+  vec2 home = homeOf(c, t, pop);
   uint i = uint(c.y) * uint(COLS) + uint(c.x);
 
   vec2 p = texelFetch(uPos, c, 0).xy;
@@ -755,22 +905,38 @@ void main() {
   float fade;
   if (pop == 0) {
     // Grown in where it belongs, thinning to nothing once it is adrift.
+    float gasLife = rnd(uint(c.y), 71u) < SHED_SHARE ? SHED_LIFE : FREE_LIFE;
     fade = smoothstep(0.0, 1.0, clamp(S.z / GROW, 0.0, 1.0))
-      * (1.0 - smoothstep(FREE_HOLD, FREE_LIFE, S.w));
+      * (1.0 - smoothstep(gasLife * FREE_HOLD, gasLife, S.w));
+    // As present as there is strand around it. Sampled a little way along in
+    // both directions and taking the poorer side, so a particle at a cut face
+    // is dark and one a few pixels in is whole, and the edge a cut leaves is
+    // a taper rather than a wall. Only for bar — gas has left and takes its
+    // brightness with it.
+    if (S.w == 0.0) {
+      float l = (barAt(c.x - 2, c.y) + barAt(c.x - 5, c.y)
+        + barAt(c.x - 9, c.y) + barAt(c.x - 14, c.y)) * 0.25;
+      float r = (barAt(c.x + 2, c.y) + barAt(c.x + 5, c.y)
+        + barAt(c.x + 9, c.y) + barAt(c.x + 14, c.y)) * 0.25;
+      float edge = clamp(abs(home.y - uBar.z) / BAR_H2, 0.0, 1.0);
+      fade *= pow(min(l, r), mix(1.0, EDGE_BITE, edge));
+    }
   } else {
     // Struck alight as it leaves the line and dying away as it drifts. The
     // long tail is most of the halo: brightest just off the bar, thinning as
     // it goes, which is the shape of a glow.
     float life = HALO_LIFE * (0.6 + 0.8 * rnd(i, 61u));
-    fade = smoothstep(0.0, life * HALO_IN, S.w)
-      * (1.0 - smoothstep(life * HALO_OUT, life, S.w));
-    // And never brighter than the piece of bar giving it off. A spent fragment
-    // goes dark while it is still drifting, and would otherwise leave its glow
-    // hanging in the air with nothing to have come from; the same term is what
-    // lights the glow back up in step with the line as a gap knits closed.
-    vec4 sst = texelFetch(uSt, ivec2(c.x, int(rnd(i, 62u) * float(CORE_ROWS))), 0);
-    fade *= smoothstep(0.0, 1.0, clamp(sst.z / GROW, 0.0, 1.0))
-      * (1.0 - smoothstep(FREE_HOLD, FREE_LIFE, sst.w));
+    float age = abs(S.w);
+    fade = smoothstep(0.0, life * HALO_IN, age)
+      * (1.0 - smoothstep(life * HALO_OUT, life, age));
+    // Gas that has come loose answers to nothing — it is out in the air on its
+    // own clock, and its age is stored negative to say so. Gas still riding a
+    // strand is never brighter than the strand it is coming off, so the glow
+    // grows back in step with the line rather than ahead of it.
+    if (S.w >= 0.0) {
+      vec4 sst = texelFetch(uSt, ivec2(c.x, int(rnd(i, 62u) * float(CORE_ROWS))), 0);
+      fade *= smoothstep(0.0, 1.0, clamp(sst.z / GROW, 0.0, 1.0));
+    }
   }
 
   vec3 rgb = hsl2rgb(mix(uHue.x, uHue.y, t), 0.85, 0.56);
@@ -831,6 +997,7 @@ function link(gl: WebGL2RenderingContext, vs: string, fs: string): WebGLProgram 
 const ease = (t: number): number => t * t * (3 - 2 * t);
 
 export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): GlowField | null {
+  const keep = opts.keepTouch ?? 'button, a, input, select, textarea, dialog';
   const canvas = document.createElement('canvas');
   canvas.className = 'glow-field';
   canvas.setAttribute('aria-hidden', 'true');
@@ -1125,6 +1292,8 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
 
   let pointerOn = false;
   let pointerNear = false;
+  /** The finger drawing a cut, or -1. */
+  let touchId = -1;
   let gasUntil = 0;
   let pointerX = 0;
   let pointerY = 0;
@@ -1174,6 +1343,53 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
     if (!pointerOn) return;
     pointerOn = false;
     wake(SETTLE_MS);
+  }
+
+  /**
+   * A finger landing on the bar.
+   *
+   * Captured, so the rest of the stroke keeps arriving however far off the
+   * strip it travels — which is the entire point of a fling, and without it the
+   * cut would stop at the edge of the grip. The position is seeded here as
+   * well: a touch appears from nowhere, and taking its first move against
+   * wherever the last one ended would read as one enormous flick.
+   */
+  function onTouchDown(e: PointerEvent): void {
+    if (e.pointerType === 'mouse') return;
+    if ((e.target as Element | null)?.closest(keep)) return;
+    touchId = e.pointerId;
+    lastX = e.clientX;
+    lastY = e.clientY;
+    pointerX = e.clientX;
+    pointerY = e.clientY;
+    pointerNear = true;
+    pointerOn = true;
+    wake(SETTLE_MS);
+  }
+
+  /**
+   * And lifting off. A mouse leaves by going somewhere else, which `onPointer`
+   * sees; a finger simply stops existing, and nothing else would ever tell us —
+   * the field would go on stirring the air at the last place it was touched.
+   */
+  function onTouchUp(e: PointerEvent): void {
+    if (e.pointerType === 'mouse' || e.pointerId !== touchId) return;
+    touchId = -1;
+    onPointerGone();
+  }
+
+  /**
+   * Holding the page still for the length of a cut.
+   *
+   * A finger that moves means scroll the page, and the browser will take the
+   * gesture and cancel the stroke unless told otherwise. `touch-action` cannot
+   * do it here — it is read where the touch lands, and a cut may start
+   * anywhere — so the refusal has to be made move by move. Only while a cut is
+   * actually under way: a touch that began on something scrollable never set
+   * `touchId`, and scrolls exactly as it always did.
+   */
+  function onTouchDrag(e: TouchEvent): void {
+    if (touchId >= 0) e.preventDefault();
   }
 
   let raf = 0;
@@ -1300,6 +1516,10 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
   ro.observe(host);
   window.addEventListener('resize', onResize);
   window.addEventListener('pointermove', onPointer, { passive: true });
+  window.addEventListener('pointerdown', onTouchDown);
+  window.addEventListener('pointerup', onTouchUp);
+  window.addEventListener('pointercancel', onTouchUp);
+  window.addEventListener('touchmove', onTouchDrag, { passive: false });
   window.addEventListener('pointerleave', onPointerGone);
   window.addEventListener('blur', onPointerGone);
   document.addEventListener('visibilitychange', onVisibility);
@@ -1318,6 +1538,10 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
       ro.disconnect();
       window.removeEventListener('resize', onResize);
       window.removeEventListener('pointermove', onPointer);
+      window.removeEventListener('pointerdown', onTouchDown);
+      window.removeEventListener('pointerup', onTouchUp);
+      window.removeEventListener('pointercancel', onTouchUp);
+      window.removeEventListener('touchmove', onTouchDrag);
       window.removeEventListener('pointerleave', onPointerGone);
       window.removeEventListener('blur', onPointerGone);
       document.removeEventListener('visibilitychange', onVisibility);

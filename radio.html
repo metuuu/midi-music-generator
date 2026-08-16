@@ -1302,6 +1302,24 @@
       </section>
 
       <!--
+        Which of the two glows is on show.
+
+        Both are real and complete: the plain one is the three CSS layers
+        described up in `.glow`, and the live one is `web/glow-field.ts` drawing
+        the same bar as gas you can cut. The plain one is also what a machine
+        without WebGL2 gets, and what everybody gets if the context is lost, so
+        this is a choice between two states the page already has to be able to
+        be in rather than a feature that can be switched off.
+      -->
+      <section>
+        <h2>Glow</h2>
+        <div class="seg" id="glow-mode">
+          <button type="button" data-glow="particles">Particles</button>
+          <button type="button" data-glow="plain">Plain</button>
+        </div>
+      </section>
+
+      <!--
         Variety, shelved rather than deleted.
 
         Every station runs at `DEFAULT_WANDER` while this is hidden — see
