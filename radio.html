@@ -304,31 +304,62 @@
       .glow > i, .glow::before {
         content: ""; position: absolute; border-radius: 8px;
         background: linear-gradient(90deg, hsl(var(--hue) 88% 56%), hsl(var(--hue-2) 88% 56%));
-        transition: opacity 1.2s ease;
+        transition: filter 1.2s ease;
       }
-      .glow > i { inset: -1px; filter: blur(5px); opacity: .37; }
-      .glow::before { inset: -4px -3px; filter: blur(14px); opacity: .41; }
+      /* The halo fades on the `opacity()` *filter* rather than the `opacity`
+         property, and that is the whole reason the on and off are smooth.
+
+         An animation outranks a transition on the property they share. While
+         the breathing sat on `opacity` and the stopped state sat on `opacity`
+         too, the two could only take turns: starting playback handed the bloom
+         to the keyframes, which begin at .19 wherever the fade had got to, and
+         stopping took the animation away, which drops the layer at whatever
+         frame it was last drawn on. Both ends of the transport snapped, and the
+         second one snapped from a different brightness every time.
+
+         Two properties, no argument. The keyframes keep `opacity` and never let
+         go of it; the transport moves a filter alongside them, and the layer's
+         painted alpha is the product of the two. Both lists name the same
+         functions in the same order so the interpolation is defined rather than
+         merely usually right, and the blur is already forcing a layer here, so
+         the filter costs nothing a blurred copy of the bar was not costing. */
+      .glow > i { inset: -1px; filter: blur(5px) opacity(1); opacity: .37; }
+      .glow::before { inset: -4px -3px; filter: blur(14px) opacity(1); opacity: .41; }
       /* The breathing is the bloom's opacity and nothing else: `opacity`
          composites where a `box-shadow` repaints, and only one of those is free
          to run for an hour. The rim holds still underneath it, so what swells is
-         the reach of the glow rather than the brightness of the bar. */
-      body.playing .glow::before { animation: breathe 6s ease-in-out infinite; }
+         the reach of the glow rather than the brightness of the bar.
+
+         It is declared unconditionally and paused when stopped, not switched off
+         and on. A paused animation holds the exact value it froze at and resumes
+         from it, so the breath is one continuous curve across a stop and a start
+         with an invisible stretch in the middle — where switching it off means
+         re-entering the cycle at 0% no matter where it left. It costs nothing
+         while it is paused. */
+      .glow::before { animation: breathe 6s ease-in-out infinite; }
       @keyframes breathe { 0%, 100% { opacity: .19; } 50% { opacity: .64; } }
       /* Stopped: the colour drains out over a second rather than blinking off,
          and the halo goes with it. */
       body:not(.playing) .glow { filter: grayscale(1) brightness(.8); opacity: .45; }
-      body:not(.playing) .glow > i, body:not(.playing) .glow::before { opacity: 0; }
+      body:not(.playing) .glow > i { filter: blur(5px) opacity(0); }
+      body:not(.playing) .glow::before { filter: blur(14px) opacity(0); animation-play-state: paused; }
       @media (prefers-reduced-motion: reduce) {
-        body.playing .glow::before { animation: none; opacity: .41; }
+        .glow::before { animation: none; opacity: .41; }
       }
 
       /* ── the glow, when it is a field ─────────────────────────────────────
          `web/glow-field.ts` draws the bar as a bundle of particle strands that
          can be torn apart with the cursor. The class goes on only once that has
          actually started; on a browser without WebGL2, or one that loses the
-         context later, everything above is what stays on the screen. */
-      body.glow-live .glow > i,
-      body.glow-live .glow::before,
+         context later, everything above is what stays on the screen.
+
+         The two halo layers are taken off by the same filter the transport
+         uses, not by `opacity`, and for the same reason: the bloom's `opacity`
+         belongs to the breath, and a declaration cannot outbid an animation on
+         the property it is animating. Setting it here would have left the CSS
+         bloom breathing away underneath the field. */
+      body.glow-live .glow > i { filter: blur(5px) opacity(0); }
+      body.glow-live .glow::before { filter: blur(14px) opacity(0); }
       body.glow-live .glow::after { opacity: 0; }
       /* The canvas covers the whole viewport, and it has to: a torn particle
          travels a long way from the bar, and any box tight enough to frame the
@@ -343,18 +374,31 @@
          its drawing buffer, which puts the bar off down the page at half the
          resolution and looks like anything but a missing stylesheet rule. What
          is left here is only what the field can afford to lose. */
-      .glow-field { transition: filter 1.2s ease, opacity 1.2s ease; }
+      .glow-field { transition: filter 1.2s ease; }
       /* The stopped state, which the CSS layers get from `.glow` and this cannot,
-         because it hangs off the body rather than off the bar. */
-      body:not(.playing) .glow-field { filter: grayscale(1) brightness(.8); opacity: .45; }
+         because it hangs off the body rather than off the bar.
+
+         The dimming rides in the filter for the same reason it does up in the
+         halo: `opacity` is spoken for by the breath, and a property with an
+         animation on it cannot also be transitioned. Filters interpolate out of
+         `none` against the identity value of each function they are going to,
+         so the playing state stays filterless — worth keeping for an element
+         that covers the viewport and is redrawn while it plays.
+
+         .49 rather than .45 because what lands on the screen is this times the
+         frame the breath froze on, and the breath averages .92. */
+      body:not(.playing) .glow-field {
+        filter: grayscale(1) brightness(.8) opacity(.49);
+        animation-play-state: paused;
+      }
       /* The breathing stays in CSS rather than moving into the shader, and that
          is the whole reason the field is allowed to sleep: an `opacity`
          animation composites, so this costs no frame of ours, where a `time`
          uniform would cost every frame for the hour the page is left on. */
-      body.playing.glow-live .glow-field { animation: field-breathe 6s ease-in-out infinite; }
+      .glow-field { animation: field-breathe 6s ease-in-out infinite; }
       @keyframes field-breathe { 0%, 100% { opacity: .84; } 50% { opacity: 1; } }
       @media (prefers-reduced-motion: reduce) {
-        body.playing.glow-live .glow-field { animation: none; opacity: .92; }
+        .glow-field { animation: none; opacity: .92; }
       }
 
       /* ── controls ─────────────────────────────────────────────────────────
