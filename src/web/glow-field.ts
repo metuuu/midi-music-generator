@@ -719,9 +719,13 @@ void main() {
     // its own — the line closes over long before it is done.
     if (!loose && sst.w > 0.0) {
       loose = true;
-      // A fresh life. It was somewhere in the middle of one when the tear took
-      // it, and half a life left is half a puff.
-      age = 0.0;
+      // A fresh life — it was somewhere in the middle of one when the tear took
+      // it, and half a life left is half a puff. Not zero, though: the sign of
+      // the age is what says it has come loose, and negative zero is not
+      // negative. Store that and the flag is gone on the very next step, the
+      // particle reads as still attached, and it snaps back onto the line
+      // instead of flying.
+      age = 1e-3;
       v = line.zw + dir * (spread * EMIT_RATE * BLAST);
       heat = max(heat, sst.x);
     }
@@ -979,15 +983,19 @@ void main() {
     // it goes, which is the shape of a glow.
     float life = HALO_LIFE * (0.6 + 0.8 * rnd(i, 61u));
     float age = abs(S.w);
-    fade = smoothstep(0.0, life * HALO_IN, age)
-      * (1.0 - smoothstep(life * HALO_OUT, life, age));
-    // Gas that has come loose answers to nothing — it is out in the air on its
-    // own clock, and its age is stored negative to say so. Gas still riding a
-    // strand is never brighter than the strand it is coming off, so the glow
-    // grows back in step with the line rather than ahead of it.
-    if (S.w >= 0.0) {
+    float dying = 1.0 - smoothstep(life * HALO_OUT, life, age);
+    if (S.w < 0.0) {
+      // Thrown clear, and answering to nothing — out in the air on its own
+      // clock. No striking up from nothing either: it was alight when the tear
+      // took it, and its life was restarted only so it has one to burn.
+      fade = dying;
+    } else {
+      // Riding a strand: lit as it leaves and never brighter than the piece of
+      // bar giving it off, so the glow grows back in step with the line rather
+      // than ahead of it.
       vec4 sst = texelFetch(uSt, ivec2(c.x, int(rnd(i, 62u) * float(CORE_ROWS))), 0);
-      fade *= smoothstep(0.0, 1.0, clamp(sst.z / GROW, 0.0, 1.0));
+      fade = smoothstep(0.0, life * HALO_IN, age) * dying
+        * smoothstep(0.0, 1.0, clamp(sst.z / GROW, 0.0, 1.0));
     }
   }
 
