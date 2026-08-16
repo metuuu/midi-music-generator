@@ -81,7 +81,7 @@ const WANDER_CORE = 0.25;
 const WANDER_K1 = 7.5;
 const WANDER_K2 = 19;
 const HEAT_GAIN = 3.2;
-const GROW = 0.7;
+const GROW = 0.5;
 
 // ── the fluid ─────────────────────────────────────────────────────────────
 const CELL = 10;
@@ -98,6 +98,21 @@ const STIR_CHURN = 40;
 
 // ── the filaments ─────────────────────────────────────────────────────────
 const K_LINK = 1400;
+/**
+ * What stops the line folding to a point.
+ *
+ * Links hold neighbours apart but say nothing about the angle between them, so
+ * a chain of them can turn a corner in a single node — and nothing made of gas
+ * has a corner like that in it. Resisting the second difference along the
+ * strand turns a kink into an arc.
+ *
+ * Sized against `K_HOME`, which sets how far down it bites: features shorter
+ * than about `sqrt(SMOOTH / K_HOME)` nodes get rounded away, four here, a
+ * couple of pixels, roughly the thickness of the bar. Everything longer is
+ * untouched — a hand's-breadth bend spans thousands of nodes and does not feel
+ * this at all — which is why it smooths corners without stiffening the line.
+ */
+const SMOOTH = 9000;
 const K_HOME = 560;
 const HOT_HOLD = 0.06;
 const DRAG = 6;
@@ -157,15 +172,42 @@ const DAMP_FREE = 0.8;
 // width than it used to.
 const BREAK = 8;
 const RELINK = 2.5;
-const COOL = 0.5;
+// How far a cut has to have cooled before it will knit. Paired with COOL: a
+// piece coming back is exempt from being called adrift for about GROW, and it
+// has to be able to knit inside that, or it leaves again and cycles.
+const RELINK_COOL = 0.35;
+const COOL = 0.85;
 const HEAT_SLOW = 520;
 const HEAT_FAST = 1900;
-const WAIT = 0.5;
+const WAIT = 0.2;
 
 // ── torn off, and on its way out ──────────────────────────────────────────
 const TEAR_AWAY = 58;
-const FREE_LIFE = 2.6;
-const FREE_HOLD = 1;
+/**
+ * How much more readily an end left by a cut gives way than bar with
+ * neighbours on both sides.
+ *
+ * A slice leaves the two remaining ends tapering to a spike, because the tear
+ * follows the cursor's rounded reach and its outermost fringe barely parts at
+ * all. A spike is the pointiest thing on the screen and the last thing gas
+ * would do. An exposed end is the most stretched part of what is left, so
+ * letting it go first erodes the taper back to where the bar is whole and the
+ * cut ends up blunt.
+ */
+const FRAY = 0.35;
+const FREE_LIFE = 1.4;
+const FREE_HOLD = 0.5;
+/**
+ * How unevenly torn-off pieces are ready to come back, past their gas life.
+ *
+ * With one time for all of them the whole gap becomes eligible on the same
+ * frame and closes in a quarter of a second, which reads as a snap however it
+ * is ordered. Spread it and the two edges creep toward each other unevenly
+ * instead, the front held up wherever the next piece along is not ready yet.
+ * They are long invisible by then, so the waiting does not show; only the
+ * knitting does.
+ */
+const REGROW_STAGGER = 0.45;
 const RISE_V = 40;
 const SWIRL_V = 46;
 const SWIRL_WAVES = 4;
@@ -395,6 +437,7 @@ precision highp int;
 ${HOME}
 ${SEG}
 #define K_LINK ${K_LINK.toFixed(2)}
+#define SMOOTH ${SMOOTH.toFixed(2)}
 #define K_HOME ${K_HOME.toFixed(2)}
 #define HOT_HOLD ${HOT_HOLD.toFixed(3)}
 #define DRAG ${DRAG.toFixed(3)}
@@ -409,13 +452,17 @@ ${SEG}
 #define DAMP_FREE ${DAMP_FREE.toFixed(3)}
 #define BREAK ${BREAK.toFixed(3)}
 #define RELINK ${RELINK.toFixed(3)}
+#define RELINK_COOL ${RELINK_COOL.toFixed(3)}
 #define COOL ${COOL.toFixed(3)}
 #define HEAT_SLOW ${HEAT_SLOW.toFixed(1)}
 #define HEAT_FAST ${HEAT_FAST.toFixed(1)}
 #define BLOB ${BLOB.toFixed(1)}
 #define WAIT ${WAIT.toFixed(3)}
 #define TEAR_AWAY ${TEAR_AWAY.toFixed(1)}
+#define FRAY ${FRAY.toFixed(3)}
 #define FREE_LIFE ${FREE_LIFE.toFixed(3)}
+#define REGROW_STAGGER ${REGROW_STAGGER.toFixed(3)}
+#define GROW ${GROW.toFixed(3)}
 #define RISE_V ${RISE_V.toFixed(2)}
 #define SWIRL_V ${SWIRL_V.toFixed(2)}
 #define SWIRL_WAVES ${SWIRL_WAVES}
@@ -539,12 +586,16 @@ void main() {
   float free = torn > 0.0 ? 1.0 : 0.0;
   // Both ends of a link measure it on the same snapshot, so the two of them
   // never disagree about whether it has just broken.
-  float lenN = c.x < COLS - 1 ? distance(posAt(c.x + 1, c.y), p) : 0.0;
-  float lenP = c.x > 0 ? distance(posAt(c.x - 1, c.y), p) : 0.0;
-  float linkP = c.x > 0 ? texelFetch(uSt, ivec2(c.x - 1, c.y), 0).y : 0.0;
+  vec2 pN = posAt(min(c.x + 1, COLS - 1), c.y);
+  vec2 pP = posAt(max(c.x - 1, 0), c.y);
+  float lenN = c.x < COLS - 1 ? distance(pN, p) : 0.0;
+  float lenP = c.x > 0 ? distance(pP, p) : 0.0;
+  vec4 sP = c.x > 0 ? texelFetch(uSt, ivec2(c.x - 1, c.y), 0) : vec4(0.0);
+  vec4 sN = c.x < COLS - 1 ? texelFetch(uSt, ivec2(c.x + 1, c.y), 0) : vec4(0.0);
+  float linkP = sP.y;
   // Never knit back onto a neighbour that is off being gas — it would drift
   // out of reach again a frame later, dragging a thread behind it.
-  float tornN = c.x < COLS - 1 ? texelFetch(uSt, ivec2(c.x + 1, c.y), 0).w : 1.0;
+  float tornN = sN.w;
 
   vec2 toHome = home - p;
   float hm = length(toHome);
@@ -553,10 +604,15 @@ void main() {
   float grip;
   if (free < 0.5) {
     if (linkN > 0.5 && lenN > 1e-4) {
-      F += ((posAt(c.x + 1, c.y) - p) / lenN) * (K_LINK * (lenN - uRest));
+      F += ((pN - p) / lenN) * (K_LINK * (lenN - uRest));
     }
     if (linkP > 0.5 && lenP > 1e-4) {
-      F += ((posAt(c.x - 1, c.y) - p) / lenP) * (K_LINK * (lenP - uRest));
+      F += ((pP - p) / lenP) * (K_LINK * (lenP - uRest));
+    }
+    // Held straight against sharp turns only. See SMOOTH: this is invisible at
+    // the scale of a bend and decisive at the scale of a kink.
+    if (c.x > 0 && c.x < COLS - 1 && linkN > 0.5 && linkP > 0.5) {
+      F += (pN + pP - 2.0 * p) * SMOOTH;
     }
     // A plain spring, harder the further it is pulled. Nothing caps it: past
     // TEAR_AWAY the particle is gas and this force is gone anyway, so within
@@ -590,7 +646,7 @@ void main() {
       if (linkN > 0.5 && lenN > BREAK * uRest) {
         linkN = 0.0;
         heat = 1.0;
-      } else if (linkN < 0.5 && lenN < RELINK * uRest && heat < 0.25 && tornN == 0.0) {
+      } else if (linkN < 0.5 && lenN < RELINK * uRest && heat < RELINK_COOL && tornN == 0.0) {
         linkN = 1.0;
       }
     }
@@ -602,13 +658,25 @@ void main() {
   age = min(age + uDt, 2.0);
 
   /**
-   * Carried this far off the bar and it is not part of the bar any more: it
-   * lets go of its neighbours and of home, and from here it only drifts, thins
-   * out and goes dark. Below the threshold a particle is merely bent, and
-   * springs back — which is the whole difference between a nudge and a tear.
+   * Two ways to stop being part of the bar.
+   *
+   * Carried this far off it, or cut on both sides and holding on to nothing.
+   * Either way it lets go of its neighbours and of home, and from here it only
+   * drifts, thins out and goes dark. A piece severed at both ends is no longer
+   * bar in any sense worth keeping: leaving it sprung to a place in a line it
+   * has been cut out of is what made stranded fragments snap back into
+   * formation, which is the least living thing the whole field did.
+   *
+   * Only once it has finished growing in, or a piece coming back would find
+   * itself briefly linked to nothing and leave again before its neighbour had
+   * the chance to take hold of it.
    */
+  bool tied = (c.x < COLS - 1 && linkN > 0.5) || (c.x > 0 && linkP > 0.5);
+  // Whole bar, as against an end a cut has exposed. The bar's own two ends
+  // count as whole — they are where it stops, not where it was broken.
+  bool whole = (c.x == COLS - 1 || linkN > 0.5) && (c.x == 0 || linkP > 0.5);
   if (free < 0.5) {
-    if (hm > TEAR_AWAY) {
+    if (hm > TEAR_AWAY * (whole ? 1.0 : FRAY) || (!tied && age > GROW)) {
       torn = 1e-3;
       linkN = 0.0;
     }
@@ -616,9 +684,21 @@ void main() {
     torn += uDt;
   }
 
-  // Gone: it comes back at home, dark, and grows in where it belongs. The bar
-  // reassembles in place rather than by flying its pieces back across the page.
-  if (torn > FREE_LIFE || !(dot(p, p) < 1e12)) {
+  /**
+   * Coming back, and only where there is something to come back onto.
+   *
+   * A piece waits until the neighbour it would join is bar again, so a gap
+   * closes from its two edges inward — each returning particle giving the next
+   * one in something to attach to — rather than the whole length of it
+   * reappearing at once. The ends of the bar count as attached to begin with,
+   * or a gap that reached one would have nothing to grow from.
+   *
+   * A piece still waiting its turn has long since faded out, so the queue is
+   * invisible: what shows is the two edges knitting toward each other.
+   */
+  bool rooted = c.x == 0 || c.x == COLS - 1 || sP.w == 0.0 || sN.w == 0.0;
+  float ready = FREE_LIFE * (1.0 + REGROW_STAGGER * rnd(i, 65u));
+  if ((torn > ready && rooted) || !(dot(p, p) < 1e12)) {
     p = home;
     v = vec2(0.0);
     heat = 0.0;
@@ -647,6 +727,7 @@ ${HOME}
 #define HALO_LIFE ${HALO_LIFE.toFixed(3)}
 #define HALO_IN ${HALO_IN.toFixed(3)}
 #define HALO_OUT ${HALO_OUT.toFixed(3)}
+#define CORE_ROWS ${CORE_ROWS}
 
 uniform sampler2D uPos;
 uniform sampler2D uSt;
@@ -683,6 +764,13 @@ void main() {
     float life = HALO_LIFE * (0.6 + 0.8 * rnd(i, 61u));
     fade = smoothstep(0.0, life * HALO_IN, S.w)
       * (1.0 - smoothstep(life * HALO_OUT, life, S.w));
+    // And never brighter than the piece of bar giving it off. A spent fragment
+    // goes dark while it is still drifting, and would otherwise leave its glow
+    // hanging in the air with nothing to have come from; the same term is what
+    // lights the glow back up in step with the line as a gap knits closed.
+    vec4 sst = texelFetch(uSt, ivec2(c.x, int(rnd(i, 62u) * float(CORE_ROWS))), 0);
+    fade *= smoothstep(0.0, 1.0, clamp(sst.z / GROW, 0.0, 1.0))
+      * (1.0 - smoothstep(FREE_HOLD, FREE_LIFE, sst.w));
   }
 
   vec3 rgb = hsl2rgb(mix(uHue.x, uHue.y, t), 0.85, 0.56);
