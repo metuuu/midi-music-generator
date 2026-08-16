@@ -42,11 +42,18 @@
 
 export interface GlowField {
   setKey(hue: number, hue2: number): void;
+  /**
+   * Whether the bar is a live thing or scenery. A stopped bar gives off no gas
+   * and takes no notice of the cursor.
+   */
+  setPlaying(playing: boolean): void;
   destroy(): void;
 }
 
 export interface GlowFieldOptions {
   onLost?: () => void;
+  /** What the transport is doing at the moment the field is mounted. */
+  playing?: boolean;
   /**
    * What a finger may be doing that is not cutting — anything there to be
    * pressed, dragged or scrolled. A touch landing inside one of these is left
@@ -303,6 +310,18 @@ const SETTLE_MS = 5400;
 const IDLE_MS = 90;
 const AIR_MS = 1200;
 const GAS_MS = (SHED_LIFE + WAIT + GROW + HALO_LIFE) * 1000;
+/**
+ * Frames to run for after the transport changes, which is the one thing that
+ * happens to this field with nobody's hand near it.
+ *
+ * Long enough for the whole halo to have gone or the whole halo to have come
+ * back: the longest life a particle can be partway through when the emitting
+ * stops, and on the way in the longest wait one can be given before it starts
+ * living that life. Short of this the drain would finish on the idle
+ * heartbeat, a ninth of the frame rate, which is plenty for a slow drift and
+ * not for a fade with an end to it.
+ */
+const EMIT_MS = HALO_LIFE * (1.4 + 1) * 1000;
 const KEY_MS = 1800;
 const MAX_DT = 1 / 30;
 const SUB = 1 / 200;
@@ -567,6 +586,22 @@ uniform float uDt;
 uniform float uTime;
 uniform float uRest;
 uniform float uInit;
+/**
+ * How long the line has been emitting, in seconds, or a negative number if it
+ * is not emitting at all.
+ *
+ * Both halves of that are needed and one number carries them, because what the
+ * halo has to do on the way back in is not the opposite of what it does on the
+ * way out. Stopping is easy: nothing is born again, and the glow drains as its
+ * particles live out the lives they were already in. Starting cannot simply be
+ * that switch thrown back, or every particle that had been waiting would be
+ * born in the same frame and the whole halo would breathe in and out as one
+ * pulse from then on — the very thing the initial spread of ages exists to
+ * prevent. So a particle waits its own share of a lifetime before it is allowed
+ * back, and the elapsed time is what it measures that against. The halo comes
+ * up the way it was first laid down.
+ */
+uniform float uEmit;
 
 layout(location = 0) out vec4 oPos;
 layout(location = 1) out vec4 oSt;
@@ -609,8 +644,11 @@ void main() {
   if (uInit > 0.5) {
     oPos = vec4(home, 0.0, 0.0);
     // Halo particles start partway through a life of their own, or the whole
-    // glow would breathe in and out together as one pulse.
-    oSt = vec4(0.0, 1.0, 2.0, pop == 0 ? 0.0 : rnd(i, 61u) * HALO_LIFE);
+    // glow would breathe in and out together as one pulse. On a bar that is not
+    // emitting they start spent instead, so a stopped page lays out a bare line
+    // rather than a halo it then has to be seen draining away.
+    float born = uEmit < 0.0 ? HALO_LIFE * 2.0 : rnd(i, 61u) * HALO_LIFE;
+    oSt = vec4(0.0, 1.0, 2.0, pop == 0 ? 0.0 : born);
     return;
   }
 
@@ -648,7 +686,11 @@ void main() {
     float ang = rnd(i, 63u) * 6.28318530718;
     vec2 dir = vec2(cos(ang), sin(ang));
 
-    if (age > life) {
+    // Whether the line will have this one back: it emits while the radio plays
+    // and not otherwise, and each particle waits out its own share of a
+    // lifetime after playback resumes so they do not all return together.
+    bool born = uEmit > rnd(i, 65u) * HALO_LIFE;
+    if (age > life && born) {
       // Born again on the line as it stands now, off one of the core rows, so
       // the glow leaves the bar wherever the bar has got to — and a stretch
       // that has been torn away emits nothing, leaving the gap dark.
@@ -661,6 +703,13 @@ void main() {
       p = line.xy;
       v = vec2(0.0);
       heat = max(heat, sst.x);
+    } else if (age > life) {
+      // Spent, with nothing emitting it back. Held at the end of its life
+      // rather than left to run on: the draw has already faded it to nothing
+      // there, and an age that kept climbing would have it drifting inward —
+      // the outward push is scaled by the life it has left, and past the end
+      // that figure is negative.
+      age = life;
     }
 
     // The strand it came off has been torn out of the bar. It does not go home
@@ -688,7 +737,10 @@ void main() {
       // the bar and the glow bends, fling it and the glow is flung with it.
       vec2 away = dir
         * (spread * EMIT_RATE * (0.35 + 1.3 * rnd(i, 64u)) * (1.0 - age / life));
-      drift += (away + swirl(p) * (spread * SWIRL_RATE)) * uDt;
+      // Spent and waiting on a line that is not emitting: it holds where it
+      // died instead of wandering off invisibly for as long as the radio is
+      // stopped, which is the only way an age of exactly a life is reached.
+      if (age < life) drift += (away + swirl(p) * (spread * SWIRL_RATE)) * uDt;
       p = line.xy + drift;
       v = vec2(0.0);
     }
@@ -1166,7 +1218,7 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
       locate(jacobiProg, ['uPrs', 'uDiv']);
       locate(projectProg, ['uVel', 'uPrs']);
       locate(simProg, ['uPos', 'uSt', 'uVel', 'uGrid', 'uDt', 'uTime', 'uRest', 'uInit',
-        'uBar', 'uFrom', 'uTo', 'uCursorV', 'uCursorOn']);
+        'uEmit', 'uBar', 'uFrom', 'uTo', 'uCursorV', 'uCursorOn']);
       locate(drawProg, ['uPos', 'uSt', 'uView', 'uHue', 'uDpr', 'uBar']);
       locate(resolveProg, ['uAcc']);
       pools = [makePool(), makePool()];
@@ -1254,6 +1306,7 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
     gl!.uniform1f(u(simProg, 'uTime'), simTime);
     gl!.uniform1f(u(simProg, 'uRest'), Math.max(barX1 - barX0, 1) / COLS);
     gl!.uniform1f(u(simProg, 'uInit'), init ? 1 : 0);
+    gl!.uniform1f(u(simProg, 'uEmit'), playing ? simTime - emitAt : -1);
     bindStroke(simProg);
     if (init) gl!.uniform1f(u(simProg, 'uCursorOn'), 0);
     gl!.drawArrays(gl!.TRIANGLES, 0, 3);
@@ -1290,6 +1343,22 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
   let toHue2 = 8;
   let keyAt = -Infinity;
 
+  /**
+   * Whether the radio is playing, which is the whole of what the field is for.
+   *
+   * A stopped bar is scenery: it emits nothing and does not answer the cursor.
+   * The second half matters as much as the first — a grey bar that still tears
+   * open and flings gas about is claiming to be the live thing it is drawn as
+   * not being, and it would be doing it with a halo that is no longer there to
+   * throw. It is passed in rather than assumed, because the field is mounted
+   * whenever the listener asks for it — which is as likely to be a stopped page
+   * as the middle of a song, and the first thing the layout does is hand every
+   * halo particle a life to be partway through.
+   */
+  let playing = opts.playing ?? true;
+  /** When the line last started emitting, on the clock `simTime` runs on. */
+  let emitAt = 0;
+
   let pointerOn = false;
   let pointerNear = false;
   /** The finger drawing a cut, or -1. */
@@ -1307,6 +1376,7 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
   let strokeToY = 0;
 
   function onPointer(e: PointerEvent): void {
+    if (!playing) return;
     const x = e.clientX;
     const y = e.clientY;
     const r = BLOB + TEAR_AWAY * 2;
@@ -1355,6 +1425,7 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
    * wherever the last one ended would read as one enormous flick.
    */
   function onTouchDown(e: PointerEvent): void {
+    if (!playing) return;
     if (e.pointerType === 'mouse') return;
     if ((e.target as Element | null)?.closest(keep)) return;
     touchId = e.pointerId;
@@ -1533,6 +1604,29 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
       toHue2 = nextHue2;
       keyAt = performance.now();
       wake(KEY_MS + 60);
+    },
+    setPlaying(next: boolean): void {
+      if (next === playing) return;
+      playing = next;
+      if (playing) {
+        emitAt = performance.now() / 1000;
+      } else {
+        /**
+         * The cursor is let go of here rather than left to lapse on its own.
+         *
+         * `onPointer` is the only thing that ever clears these, and it is now
+         * refusing to run — so a hand resting over the bar when the music
+         * stopped would leave `pointerOn` set, and the field would go on being
+         * stirred at that spot by a cursor it could no longer see move. The
+         * gas clock goes with it: whatever is still in the air is finishing,
+         * not being tended.
+         */
+        pointerOn = false;
+        pointerNear = false;
+        touchId = -1;
+        gasUntil = 0;
+      }
+      wake(EMIT_MS);
     },
     destroy(): void {
       ro.disconnect();

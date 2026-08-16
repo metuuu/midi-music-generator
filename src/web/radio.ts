@@ -214,6 +214,10 @@ function paintPlay(): void {
   // The glow reads this, and it is the whole of what drives it: lit and
   // breathing while the flag is set, grey when it is not. See `.glow`.
   document.body.classList.toggle('playing', playing);
+  // The class dims the field; this stops it being a live thing underneath the
+  // dimming — a grey bar that still emits gas and still tears under the cursor
+  // is only pretending to be off. The CSS cannot say that, so it is said here.
+  glowField?.setPlaying(playing);
 }
 
 /**
@@ -401,6 +405,9 @@ function applyGlowMode(): void {
     // what a finger might be doing instead — the controls, and the two panels
     // that scroll under one.
     keepTouch: 'button, a, input, select, textarea, dialog, #stations-wrap, #scrim, .vol',
+    // The setting can be switched mid-song, so the field is not entitled to
+    // assume it is being mounted onto a stopped page.
+    playing,
   }) ?? undefined;
   if (!glowField) return;
   document.body.classList.add('glow-live');
