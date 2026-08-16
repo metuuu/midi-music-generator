@@ -1026,13 +1026,44 @@
         border: 1px solid var(--edge); border-radius: 18px; background: #0a0908; color: var(--ink);
         width: min(23rem, calc(100vw - 2 * var(--pad))); padding: 1.5rem 1.5rem 1.25rem;
         box-shadow: 0 24px 60px #000c;
+        opacity: 0; transform: scale(.97);
+        transition:
+          opacity .22s ease, transform .22s cubic-bezier(.32, .72, 0, 1),
+          overlay .22s allow-discrete, display .22s allow-discrete;
       }
+      dialog[open] { opacity: 1; transform: none; }
       /* Enough to take the page out of the argument, not enough to pretend it
          has gone. The blur does most of the work of separating the two, so the
          dim does not have to be near-black to be read as one — and the page
          behind is the thing the settings are about. `.scrim` carries the same
          figure for the stations sheet. */
-      dialog::backdrop { background: #0009; backdrop-filter: blur(2px); }
+      dialog::backdrop {
+        background: #0009; backdrop-filter: blur(2px);
+        opacity: 0;
+        transition: opacity .22s ease, overlay .22s allow-discrete, display .22s allow-discrete;
+      }
+      dialog[open]::backdrop { opacity: 1; }
+      /* The card grows the last three per cent of its way in and fades as it
+         does, and both of those need `@starting-style` to happen at all: a
+         dialog is `display: none` until it opens, so there is no before-change
+         style to move *from* and it would simply be there. `allow-discrete` is
+         the other half of the same problem at the other end — it holds
+         `display` and `overlay` at their old values for the length of the
+         transition, which is what lets the card be seen leaving. Without it
+         `close()` takes it off the screen in one frame. The phone's sheet has
+         wanted both since it was written; the card was the one that cut.
+
+         Three per cent, and the dim behind it is the reason it can be that
+         little. A panel arriving over a page that is dimming at the same moment
+         is already the largest change on the screen, so the card only has to
+         come the last of the way to meet it — more and it is a card thrown at
+         you. The scale rides the sheet's own curve, which is most of its travel
+         spent slowing down; the fade is plain, because a fade with a shape is a
+         fade you can see the working of. */
+      @starting-style {
+        dialog[open] { opacity: 0; transform: scale(.97); }
+        dialog[open]::backdrop { opacity: 0; }
+      }
       .dlg-title {
         margin: 0 0 1.4rem; font-size: 1.05rem; font-weight: 600; letter-spacing: .01em;
       }
@@ -1146,6 +1177,14 @@
           /* Upwards, because that is the only edge with a page behind it. */
           box-shadow: 0 -18px 50px #000a;
           transform: translateY(100%);
+          /* Opaque throughout, which the card is not, and this is the line that
+             says so — the sheet takes the transform and leaves the fade. A
+             sheet is attached to the edge it comes from and travelling is the
+             whole of what it does; fading as well would be it arriving and
+             materialising at once. Pinned rather than left alone because the
+             card's `opacity: 0` sits on the same selector further up, and the
+             transition below does not carry opacity to move it back. */
+          opacity: 1;
           transition:
             transform .3s cubic-bezier(.32, .72, 0, 1),
             overlay .3s allow-discrete, display .3s allow-discrete;
@@ -1157,7 +1196,13 @@
         }
         dialog[open]::backdrop { opacity: 1; }
         @starting-style {
-          dialog[open] { transform: translateY(100%); }
+          /* Both of these override the card's own starting style, and the
+             opacity is here for the same reason it is pinned above: left off,
+             the sheet would begin its slide at the card's `0` and jump to full
+             on the next frame, since the sheet's transition does not carry
+             opacity to fade it. It is off the bottom of the screen for that
+             one frame, so nothing shows — an accident, not an arrangement. */
+          dialog[open] { transform: translateY(100%); opacity: 1; }
           dialog[open]::backdrop { opacity: 0; }
         }
         /* The grip has already put the title a good way down the sheet, and it
