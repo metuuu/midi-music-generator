@@ -206,11 +206,37 @@ function parseRef(ref: string): { station: Station; wander: number; token: strin
  * quiet through the slow part, which makes it both noise and a lie.
  */
 function paintPlay(): void {
-  els.play.dataset.state = loading ? 'load' : playing ? 'pause' : 'play';
+  const state = loading ? 'load' : playing ? 'pause' : 'play';
+  if (els.play.dataset.state === 'load' && state !== 'load') releaseBreath();
+  els.play.dataset.state = state;
   els.play.setAttribute('aria-label', loading ? 'Loading' : playing ? 'Pause' : 'Play');
   // The glow reads this, and it is the whole of what drives it: lit and
   // breathing while the flag is set, grey when it is not. See `.glow`.
   document.body.classList.toggle('playing', playing);
+}
+
+/**
+ * Hand the button's opacity back from the load breath to the stylesheet.
+ *
+ * The breath is a CSS animation hung off `[data-state="load"]`, so leaving the
+ * state drops it — and a dropped animation does not reliably start a
+ * transition out of the value it was last drawn at. The button was simply at
+ * .6 in one frame and 1 in the next, which is the one moment in the whole
+ * sequence the eye is guaranteed to be on the button.
+ *
+ * So the value is pinned to wherever the breath had got to *before* the state
+ * changes, and let go a frame later. An animation outranks an inline style, so
+ * pinning it early costs nothing while the breath is still running; when the
+ * animation goes, the inline value is already underneath it, and clearing that
+ * is an ordinary style change the `opacity` transition on `.controls button`
+ * can pick up. Two frames of bookkeeping for the fade the CSS should have
+ * given for free.
+ */
+function releaseBreath(): void {
+  els.play.style.opacity = getComputedStyle(els.play).opacity;
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => { els.play.style.opacity = ''; });
+  });
 }
 
 /**
