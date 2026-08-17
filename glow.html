@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Glow bench — cut the line and measure what grows back</title>
+    <meta name="robots" content="noindex" />
+    <meta name="color-scheme" content="dark" />
+    <style>
+      :root {
+        --bg: #15171a; --ink: #e8e4de; --dim: #8d8880; --hot: #e0a24a;
+        --line: #3a3e45; --raise: #23262b;
+        --hue: 32; --hue-2: 8;
+        font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: var(--bg); color: var(--ink); padding: 2rem; }
+      h1 { font-size: 1rem; font-weight: 600; margin: 0 0 .35rem; }
+      p { color: var(--dim); font-size: .82rem; margin: 0 0 1.5rem; max-width: 46rem; }
+
+      /* The bar itself, as the radio dresses it — the field replaces these layers
+         once it has mounted, exactly as it does on the real page. */
+      /* A fixed width, not a percentage of the page. A bench has to lay the bar
+         out to the same size every time or the numbers are not comparable, and a
+         viewport that has collapsed — an automated driver, a pane with no size —
+         gives a percentage-width bar no width at all, a two-pixel field, and a
+         run that reports a cut that never happened. */
+      .stage { width: 62rem; }
+      .glow { position: relative; width: 60rem; height: 5px; margin: 3.5rem 0; }
+      .glow::after {
+        content: ""; position: absolute; inset: 0; border-radius: 3px;
+        background: linear-gradient(90deg, hsl(var(--hue) 78% 52%), hsl(var(--hue-2) 76% 56%));
+      }
+      body.glow-live .glow::after { opacity: 0; }
+
+      .row { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
+      label { font-size: .8rem; color: var(--dim); display: flex; gap: .3rem; align-items: center; }
+      button {
+        font: inherit; font-size: .82rem; padding: .45rem 1rem; border-radius: .4rem;
+        background: var(--hot); color: #1a1206; border: 0; cursor: pointer;
+      }
+      button:disabled { opacity: .5; cursor: default; }
+      #out {
+        margin: 1.5rem 0 0; padding: 1rem; background: #101215; border: 1px solid var(--line);
+        border-radius: .4rem; color: var(--ink); font-family: ui-monospace, SFMono-Regular,
+        Menlo, monospace; font-size: 10px; line-height: 1.35; white-space: pre; overflow-x: auto;
+        min-height: 6rem;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="stage">
+      <h1>Glow bench</h1>
+      <p>
+        Plays a scripted cut across the bar and then samples the census every
+        frame — one character per eight columns, <code>#</code> line,
+        <code>-</code> part, <code>.</code> gas. A heal that closes from both
+        edges inward looks like one shape; a tip that grows and is thrown away
+        again looks like a fringe that flickers and never advances.
+      </p>
+
+      <div class="glow"><i></i></div>
+
+      <div class="row">
+        <label><input type="radio" name="gesture" value="all" checked /> all</label>
+        <label><input type="radio" name="gesture" value="sweep" /> sweep</label>
+        <label><input type="radio" name="gesture" value="notch" /> notch</label>
+        <label><input type="radio" name="gesture" value="chop" /> chop</label>
+        <label><input type="radio" name="gesture" value="recut" /> recut</label>
+        <button id="run">Run</button>
+      </div>
+
+      <pre id="out"></pre>
+    </div>
+    <script type="module" src="/src/web/glow-lab.ts"></script>
+  </body>
+</html>
