@@ -74,6 +74,7 @@ const STIR_CHURN = 40;
 
 const K_LINK = 1400;
 const SMOOTH = 9000;
+const YARN = 4200;
 const K_HOME = 560;
 const HOT_HOLD = 0.06;
 const DRAG = 6;
@@ -111,6 +112,7 @@ const KNIFE = 0.2;
 const HEAL_V = 350;
 const HEAL_HEAT = 0.8;
 const BEND_KEEP = 0.9;
+const END_ALONE = 0.4;
 const LEAP = 8;
 const LIMB = 0.25;
 const SHED_SHARE = 0.34;
@@ -352,11 +354,28 @@ ${HOME}
 #define HEAL_WAIT ${HEAL_WAIT.toFixed(3)}
 
 uniform sampler2D uSt;
+uniform sampler2D uPos;
 
 out vec4 oCol;
 
 void main() {
   int x = int(gl_FragCoord.x);
+
+  if (int(gl_FragCoord.y) == 1) {
+    vec2 sum = vec2(0.0);
+    float bound = 0.0;
+    for (int y = 0; y < CORE_ROWS; y++) {
+      ivec2 m = ivec2(x, y);
+      if (texelFetch(uSt, m, 0).w != 0.0) continue;
+      float mt;
+      int mp;
+      sum += texelFetch(uPos, m, 0).xy - homeOf(m, mt, mp);
+      bound += 1.0;
+    }
+    oCol = vec4(bound > 0.0 ? sum / bound : vec2(0.0), bound, 0.0);
+    return;
+  }
+
   float kept = 0.0;
   float here = 0.0;
   float ready = 0.0;
@@ -378,6 +397,28 @@ void main() {
   oCol = vec4(here / n, ready / n, here > 0.0 ? aged / here : 0.0, 0.0);
 }`;
 
+const GAP_FS = `#version 300 es
+precision highp float;
+precision highp int;
+#define COLS ${COLS}
+#define WHOLE ${WHOLE.toFixed(3)}
+
+uniform sampler2D uWhole;
+
+out vec2 oGap;
+
+void main() {
+  float l = float(COLS);
+  float r = float(COLS);
+  for (int x = 0; x < COLS; x++) {
+    if (texelFetch(uWhole, ivec2(x, 0), 0).x > WHOLE) {
+      l = min(l, float(x));
+      r = min(r, float(COLS - 1 - x));
+    }
+  }
+  oGap = vec2(l, r);
+}`;
+
 const SIM_FS = `#version 300 es
 precision highp float;
 precision highp int;
@@ -385,6 +426,7 @@ ${HOME}
 ${SEG}
 #define K_LINK ${K_LINK.toFixed(2)}
 #define SMOOTH ${SMOOTH.toFixed(2)}
+#define YARN ${YARN.toFixed(2)}
 #define K_HOME ${K_HOME.toFixed(2)}
 #define HOT_HOLD ${HOT_HOLD.toFixed(3)}
 #define DRAG ${DRAG.toFixed(3)}
@@ -410,6 +452,7 @@ ${SEG}
 #define HEAL_V ${HEAL_V.toFixed(2)}
 #define HEAL_HEAT ${HEAL_HEAT.toFixed(3)}
 #define BEND_KEEP ${BEND_KEEP.toFixed(3)}
+#define END_ALONE ${END_ALONE.toFixed(3)}
 #define LEAP ${LEAP}
 #define LIMB ${LIMB.toFixed(3)}
 #define KNIFE ${KNIFE.toFixed(3)}
@@ -425,6 +468,7 @@ uniform sampler2D uSt;
 uniform sampler2D uVel;
 
 uniform sampler2D uWhole;
+uniform sampler2D uGap;
 uniform vec2 uGrid;
 uniform float uDt;
 uniform float uTime;
@@ -456,23 +500,29 @@ bool anchored(int x) {
 }
 
 vec2 grewFrom(int x, float knit) {
+  vec2 gap = texelFetch(uGap, ivec2(0, 0), 0).xy;
+  float alone = float(COLS) * END_ALONE;
+  bool endL = gap.x > alone;
+  bool endR = gap.y > alone;
   bool doneL = false;
   bool doneR = false;
   for (int d = 1; d <= LEAP; d++) {
-    if (!doneL) {
-      vec2 c = colAt(x - d);
+    int l = x - d;
+    int r = x + d;
+    if (!doneL && (l >= 0 || endL)) {
+      vec2 c = colAt(l);
       if (c.x > WHOLE) {
         doneL = true;
-        if (c.y >= float(d) * knit && anchored(x - d)) {
+        if (c.y >= float(d) * knit && anchored(l)) {
           return vec2(float(-d), c.y - float(d) * knit);
         }
       }
     }
-    if (!doneR) {
-      vec2 c = colAt(x + d);
+    if (!doneR && (r <= COLS - 1 || endR)) {
+      vec2 c = colAt(r);
       if (c.x > WHOLE) {
         doneR = true;
-        if (c.y >= float(d) * knit && anchored(x + d)) {
+        if (c.y >= float(d) * knit && anchored(r)) {
           return vec2(float(d), c.y - float(d) * knit);
         }
       }
@@ -480,6 +530,11 @@ vec2 grewFrom(int x, float knit) {
     if (doneL && doneR) break;
   }
   return vec2(0.0);
+}
+
+vec3 bundleAt(int x) {
+  vec4 b = texelFetch(uWhole, ivec2(x, 1), 0);
+  return vec3(b.xy, b.z);
 }
 
 vec2 swirl(vec2 p) {
@@ -618,6 +673,9 @@ void main() {
     if (c.x > 0 && c.x < COLS - 1 && linkN > 0.5 && linkP > 0.5) {
       F += (pN + pP - 2.0 * p) * SMOOTH;
     }
+
+    vec3 bundle = bundleAt(c.x);
+    if (bundle.z > 1.0) F += (bundle.xy - (p - home)) * YARN;
 
     float cold = mix(HOT_HOLD, 1.0, (1.0 - heat) * (1.0 - heat));
     F += toHome * (K_HOME * cold);
@@ -907,6 +965,7 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
   let jacobiProg: WebGLProgram | undefined;
   let projectProg: WebGLProgram | undefined;
   let censusProg: WebGLProgram | undefined;
+  let gapProg: WebGLProgram | undefined;
   let simProg: WebGLProgram | undefined;
   let drawProg: WebGLProgram | undefined;
   let resolveProg: WebGLProgram | undefined;
@@ -920,6 +979,7 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
   let pools: [Pool, Pool] | undefined;
   let front: 0 | 1 = 0;
   let whole: Target | undefined;
+  let gapT: Target | undefined;
   let acc: Target | undefined;
 
   let dpr = 1;
@@ -1050,6 +1110,7 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
       jacobiProg = link(gl!, QUAD_VS, JACOBI_FS);
       projectProg = link(gl!, QUAD_VS, PROJECT_FS);
       censusProg = link(gl!, QUAD_VS, CENSUS_FS);
+      gapProg = link(gl!, QUAD_VS, GAP_FS);
       simProg = link(gl!, QUAD_VS, SIM_FS);
       drawProg = link(gl!, DRAW_VS, DRAW_FS);
       resolveProg = link(gl!, QUAD_VS, RESOLVE_FS);
@@ -1058,13 +1119,15 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
       locate(divProg, ['uVel']);
       locate(jacobiProg, ['uPrs', 'uDiv']);
       locate(projectProg, ['uVel', 'uPrs']);
-      locate(censusProg, ['uSt']);
-      locate(simProg, ['uPos', 'uSt', 'uVel', 'uWhole', 'uGrid', 'uDt', 'uTime', 'uRest',
+      locate(censusProg, ['uSt', 'uPos', 'uBar']);
+      locate(gapProg, ['uWhole']);
+      locate(simProg, ['uPos', 'uSt', 'uVel', 'uWhole', 'uGap', 'uGrid', 'uDt', 'uTime', 'uRest',
         'uInit', 'uEmit', 'uBar', 'uFrom', 'uTo', 'uCursorV', 'uCursorOn']);
       locate(drawProg, ['uPos', 'uSt', 'uView', 'uHue', 'uDpr', 'uBar']);
       locate(resolveProg, ['uAcc', 'uPeak']);
       pools = [makePool(), makePool()];
-      whole = makeTarget(gl!.RGBA16F, COLS, 1);
+      whole = makeTarget(gl!.RGBA16F, COLS, 2);
+      gapT = makeTarget(gl!.RG16F, 1, 1);
       front = 0;
     }
 
@@ -1134,13 +1197,19 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
   }
 
   function stepParticles(dt: number, init = false): void {
-    if (!simProg || !censusProg || !pools || !whole || !vels) return;
+    if (!simProg || !censusProg || !gapProg || !pools || !whole || !gapT || !vels) return;
     const [gx, gy] = span();
     const rest = Math.max(barX1 - barX0, 1) / COLS;
 
     if (!init) {
-      pass(censusProg, whole.fbo, COLS, 1);
+      pass(censusProg, whole.fbo, COLS, 2);
       bindTex(censusProg, 'uSt', 0, pools[front].st);
+      bindTex(censusProg, 'uPos', 1, pools[front].pos);
+      gl!.uniform3f(u(censusProg, 'uBar'), barX0, barX1, barY);
+      gl!.drawArrays(gl!.TRIANGLES, 0, 3);
+
+      pass(gapProg, gapT.fbo, 1, 1);
+      bindTex(gapProg, 'uWhole', 0, whole.tex);
       gl!.drawArrays(gl!.TRIANGLES, 0, 3);
     }
 
@@ -1150,6 +1219,7 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
     bindTex(simProg, 'uSt', 1, pools[front].st);
     bindTex(simProg, 'uVel', 2, vels[velFront].tex);
     bindTex(simProg, 'uWhole', 3, whole.tex);
+    bindTex(simProg, 'uGap', 4, gapT.tex);
     gl!.uniform3f(u(simProg, 'uBar'), barX0, barX1, barY);
     gl!.uniform2f(u(simProg, 'uGrid'), gx, gy);
     gl!.uniform1f(u(simProg, 'uDt'), dt);
@@ -1464,6 +1534,7 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
       drop(acc);
       drop(divT);
       drop(whole);
+      drop(gapT);
       if (vels) for (const v of vels) drop(v);
       if (prss) for (const p of prss) drop(p);
       if (pools) for (const p of pools) dropPool(p);
