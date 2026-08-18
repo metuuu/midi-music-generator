@@ -57,6 +57,7 @@ const WANDER_K1 = 7.5;
 const WANDER_K2 = 19;
 const HEAT_GAIN = 3.2;
 const GROW = 0.25;
+const GAS_GROW = 4.5;
 
 const HEADROOM = 1.8;
 
@@ -66,6 +67,7 @@ const VISC = 0.55;
 const ITERS = 24;
 const GRAB = 40;
 const BLOB = 46;
+const BLOB_SLOW = 160;
 const STIR_SPEED = 26;
 const STIR_GRIP = 0.35;
 const STIR_WAVES = 6;
@@ -83,20 +85,29 @@ const DRAG_HOT = 1.9;
 const DRAG_FREE = 1.6;
 
 const HALO_LIFE = 2.0;
-const HALO_SHED = 0.45;
-const HALO_GONE = 0.2;
-const HALO_DRIFT = 1.3;
+const HALO_SHED = 0.65;
+const BLOOM_SHED = 0.25;
+const HALO_GONE = 0.45;
+const HALO_DRIFT = 2.0;
 const BLAST = 6;
 const LOOSE_GRIP = 4;
 const HALO_IN = 0.18;
 const HALO_OUT = 0.35;
+
 const EMIT_RATE = 1.6;
 const SWIRL_RATE = 1.1;
 const CORE_ROWS = Math.ceil(W_CORE * STRANDS - 0.5);
 const DAMP_BOUND = 7.5;
 const DAMP_FREE = 0.8;
-const BREAK = 8;
-const BREAK_EDGE = 0.55;
+const BREAK = 20;
+const BREAK_EDGE = 0.7;
+const BREAK_HURT = 0.18;
+const RELINK_KEEP = 0.6;
+const TEAR_HURT = 0.4;
+const MEND_HOLD = 0.5;
+const MEND_FALL = 3;
+const CUT_WAIT = 0.5;
+const MENDED = 0.62;
 const EDGE_BITE = 2.5;
 const REACH = [2, 5, 9, 14];
 const ISLAND = 0.5;
@@ -106,20 +117,25 @@ const COOL = 0.85;
 const HEAT_SLOW = 520;
 const HEAT_FAST = 1900;
 
-const TEAR_AWAY = 58;
-const HEAL_WAIT = 0.22;
+const TEAR_AWAY = 86;
+const HEAL_WAIT = 0.5;
 const KNIFE = 0.2;
 const HEAL_V = 350;
 const HEAL_HEAT = 0.8;
 const BEND_KEEP = 0.9;
 const END_ALONE = 0.4;
+const HASTE_FULL = 3;
+const HASTE_WAIT = 0.08;
+const HASTE_HEAL = 1.7;
+const HASTE_GAS = 0.25;
 const LEAP = 8;
 const LIMB = 0.25;
-const SHED_SHARE = 0.34;
-const SHED_LIFE = 1.2;
-const FREE_LIFE = 0.18;
+const SHED_SHARE = 0.45;
+const SHED_LIFE = 1.6;
+const FREE_LIFE = HEAL_WAIT;
 const WHOLE = 0.75;
-const FREE_HOLD = 0.3;
+const GAS_TAIL = 1.6;
+const TAIL_KEEP = 0.15;
 const RISE_V = 40;
 const SWIRL_V = 46;
 const SWIRL_WAVES = 4;
@@ -155,6 +171,11 @@ void main() {
 }`;
 
 const SEG = `
+#define BLOB ${BLOB.toFixed(1)}
+#define BLOB_SLOW ${BLOB_SLOW.toFixed(1)}
+#define HEAT_SLOW ${HEAT_SLOW.toFixed(1)}
+#define HEAT_FAST ${HEAT_FAST.toFixed(1)}
+
 uniform vec2 uFrom;
 uniform vec2 uTo;
 uniform vec2 uCursorV;
@@ -165,6 +186,10 @@ float segDist(vec2 p) {
   float L = dot(ab, ab);
   float t = L > 1e-4 ? clamp(dot(p - uFrom, ab) / L, 0.0, 1.0) : 0.0;
   return distance(p, uFrom + ab * t);
+}
+
+float blobNow() {
+  return mix(BLOB_SLOW, BLOB, smoothstep(HEAT_SLOW, HEAT_FAST, length(uCursorV)));
 }`;
 
 const ADVECT_FS = `#version 300 es
@@ -172,7 +197,6 @@ precision highp float;
 ${SEG}
 #define VISC ${VISC.toFixed(3)}
 #define GRAB ${GRAB.toFixed(2)}
-#define BLOB ${BLOB.toFixed(1)}
 #define STIR_SPEED ${STIR_SPEED.toFixed(2)}
 #define STIR_GRIP ${STIR_GRIP.toFixed(3)}
 #define STIR_WAVES ${STIR_WAVES}
@@ -211,7 +235,7 @@ void main() {
   v += (stir(p) * STIR_SPEED - v) * min(STIR_GRIP * uDt, 1.0);
 
   if (uCursorOn > 0.5) {
-    float d = segDist(p) / BLOB;
+    float d = segDist(p) / blobNow();
     v += (uCursorV - v) * (exp(-d * d) * min(GRAB * uDt, 1.0));
   }
   oVel = v;
@@ -302,8 +326,13 @@ const HOME = `
 #define FREE_LIFE ${FREE_LIFE.toFixed(3)}
 #define HALO_LIFE ${HALO_LIFE.toFixed(3)}
 #define HALO_SHED ${HALO_SHED.toFixed(3)}
+#define BLOOM_SHED ${BLOOM_SHED.toFixed(3)}
 #define HALO_GONE ${HALO_GONE.toFixed(3)}
 #define HALO_DRIFT ${HALO_DRIFT.toFixed(3)}
+#define GAS_TAIL ${GAS_TAIL.toFixed(3)}
+#define HASTE_FULL ${HASTE_FULL.toFixed(3)}
+#define HASTE_WAIT ${HASTE_WAIT.toFixed(3)}
+#define TAIL_KEEP ${TAIL_KEEP.toFixed(3)}
 
 uniform vec3 uBar;
 
@@ -320,16 +349,21 @@ bool keptStrand(int y) {
   return rnd(uint(y), 71u) >= SHED_SHARE;
 }
 
-float gasLifeOf(int y) {
-  return keptStrand(y) ? FREE_LIFE : SHED_LIFE * (0.6 + 0.8 * rnd(uint(y), 75u));
+float gasLifeOf(int y, float ease) {
+  return keptStrand(y) ? FREE_LIFE * ease : SHED_LIFE * (0.3 + 1.1 * rnd(uint(y), 75u));
+}
+
+float gasFade(float age, float life) {
+  return 1.0 - smoothstep(max(life - GAS_TAIL, life * TAIL_KEEP), life, age);
 }
 
 float haloLifeOf(uint i) {
   return HALO_LIFE * (0.6 + 0.8 * rnd(i, 61u));
 }
 
-float flungLifeOf(uint i) {
-  return (rnd(i, 66u) < HALO_SHED ? HALO_DRIFT : HALO_GONE) * (0.6 + 0.8 * rnd(i, 67u));
+float flungLifeOf(uint i, int pop) {
+  float shed = pop == 2 ? BLOOM_SHED : HALO_SHED;
+  return (rnd(i, 66u) < shed ? HALO_DRIFT : HALO_GONE) * (0.45 + 1.0 * rnd(i, 67u));
 }
 
 vec2 homeOf(ivec2 c, out float t, out int pop) {
@@ -365,6 +399,7 @@ ${HOME}
 
 uniform sampler2D uSt;
 uniform sampler2D uPos;
+uniform sampler2D uGap;
 
 out vec4 oCol;
 
@@ -399,7 +434,8 @@ void main() {
       here += 1.0;
       ready += 1.0;
       aged += s.z;
-    } else if (s.w > HEAL_WAIT) {
+    } else if (s.w > HEAL_WAIT * mix(1.0, HASTE_WAIT,
+      clamp(texelFetch(uGap, ivec2(0, 0), 0).z / HASTE_FULL, 0.0, 1.0))) {
       ready += 1.0;
     }
   }
@@ -411,22 +447,55 @@ const GAP_FS = `#version 300 es
 precision highp float;
 precision highp int;
 #define COLS ${COLS}
+#define MID ${COLS >> 1}
+#define CORE_ROWS ${CORE_ROWS}
 #define WHOLE ${WHOLE.toFixed(3)}
+#define MENDED ${MENDED.toFixed(3)}
+#define MEND_HOLD ${MEND_HOLD.toFixed(3)}
+#define MEND_FALL ${MEND_FALL.toFixed(3)}
+#define CUT_WAIT ${CUT_WAIT.toFixed(3)}
+#define HASTE_FULL ${HASTE_FULL.toFixed(3)}
 
 uniform sampler2D uWhole;
+uniform sampler2D uPrev;
+uniform float uDt;
 
-out vec2 oGap;
+out vec4 oGap;
 
 void main() {
   float l = float(COLS);
   float r = float(COLS);
+  float mid = float(COLS);
+  float holes = 0.0;
+  float gone = 0.0;
   for (int x = 0; x < COLS; x++) {
     if (texelFetch(uWhole, ivec2(x, 0), 0).x > WHOLE) {
       l = min(l, float(x));
       r = min(r, float(COLS - 1 - x));
+      mid = min(mid, abs(float(x - MID)));
+    } else {
+      gone += 1.0;
+    }
+    if (texelFetch(uWhole, ivec2(x, 1), 0).z < float(CORE_ROWS) * MENDED) {
+      holes += 1.0;
     }
   }
-  oGap = vec2(l, r);
+
+  vec4 was = texelFetch(uPrev, ivec2(0, 0), 0);
+
+  if (int(gl_FragCoord.x) == 1) {
+    float turn = texelFetch(uPrev, ivec2(1, 0), 0).x;
+    // Each emptying takes the other turn: in from the ends, then out of the middle.
+    if (gone > float(COLS) - 0.5 && was.x < float(COLS) - 0.5) turn = 1.0 - turn;
+    oGap = vec4(turn, mid, 0.0, 0.0);
+    return;
+  }
+
+  float run = gone > 0.5 ? min(was.z + uDt, HASTE_FULL) : 0.0;
+  float sore = holes > 0.5
+    ? min(was.w + uDt, CUT_WAIT + MEND_HOLD)
+    : max(was.w - uDt * MEND_FALL, 0.0);
+  oGap = vec4(l, r, run, sore);
 }`;
 
 const SIM_FS = `#version 300 es
@@ -451,18 +520,22 @@ ${SEG}
 #define DAMP_FREE ${DAMP_FREE.toFixed(3)}
 #define BREAK ${BREAK.toFixed(3)}
 #define BREAK_EDGE ${BREAK_EDGE.toFixed(3)}
+#define BREAK_HURT ${BREAK_HURT.toFixed(3)}
+#define RELINK_KEEP ${RELINK_KEEP.toFixed(3)}
+#define TEAR_HURT ${TEAR_HURT.toFixed(3)}
+#define CUT_WAIT ${CUT_WAIT.toFixed(3)}
 #define RELINK ${RELINK.toFixed(3)}
 #define RELINK_COOL ${RELINK_COOL.toFixed(3)}
 #define COOL ${COOL.toFixed(3)}
-#define HEAT_SLOW ${HEAT_SLOW.toFixed(1)}
-#define HEAT_FAST ${HEAT_FAST.toFixed(1)}
-#define BLOB ${BLOB.toFixed(1)}
 #define TEAR_AWAY ${TEAR_AWAY.toFixed(1)}
 #define HEAL_WAIT ${HEAL_WAIT.toFixed(3)}
 #define HEAL_V ${HEAL_V.toFixed(2)}
+#define HASTE_HEAL ${HASTE_HEAL.toFixed(3)}
+#define HASTE_GAS ${HASTE_GAS.toFixed(3)}
 #define HEAL_HEAT ${HEAL_HEAT.toFixed(3)}
 #define BEND_KEEP ${BEND_KEEP.toFixed(3)}
 #define END_ALONE ${END_ALONE.toFixed(3)}
+#define MID ${COLS >> 1}
 #define LEAP ${LEAP}
 #define LIMB ${LIMB.toFixed(3)}
 #define KNIFE ${KNIFE.toFixed(3)}
@@ -509,30 +582,38 @@ bool anchored(int x) {
   return max(reach(x, -1), reach(x, 1)) >= ISLAND;
 }
 
-vec2 grewFrom(int x, float knit) {
+vec2 grewFrom(int x, float knit, out bool seeded) {
   vec2 gap = texelFetch(uGap, ivec2(0, 0), 0).xy;
+  vec2 turn = texelFetch(uGap, ivec2(1, 0), 0).xy;
   float alone = float(COLS) * END_ALONE;
-  bool endL = gap.x > alone;
-  bool endR = gap.y > alone;
+  bool ends = turn.x > 0.5;
+  bool endL = ends && gap.x > alone;
+  bool endR = ends && gap.y > alone;
+  bool core = !ends && turn.y > alone;
+  seeded = false;
   bool doneL = false;
   bool doneR = false;
   for (int d = 1; d <= LEAP; d++) {
     int l = x - d;
     int r = x + d;
     if (!doneL && (l >= 0 || endL)) {
-      vec2 c = colAt(l);
+      bool sown = core && l == MID;
+      vec2 c = sown ? vec2(1.0, 2.0) : colAt(l);
       if (c.x > WHOLE) {
         doneL = true;
-        if (c.y >= float(d) * knit && anchored(l)) {
+        if (c.y >= float(d) * knit && (sown || anchored(l))) {
+          seeded = sown || l < 0;
           return vec2(float(-d), c.y - float(d) * knit);
         }
       }
     }
     if (!doneR && (r <= COLS - 1 || endR)) {
-      vec2 c = colAt(r);
+      bool sown = core && r == MID;
+      vec2 c = sown ? vec2(1.0, 2.0) : colAt(r);
       if (c.x > WHOLE) {
         doneR = true;
-        if (c.y >= float(d) * knit && anchored(r)) {
+        if (c.y >= float(d) * knit && (sown || anchored(r))) {
+          seeded = sown || r > COLS - 1;
           return vec2(float(d), c.y - float(d) * knit);
         }
       }
@@ -582,6 +663,8 @@ void main() {
   vec2 p = P.xy, v = P.zw;
   float heat = S.x, linkN = S.y, age = S.z, torn = S.w;
   float gate = smoothstep(HEAT_SLOW, HEAT_FAST, length(uCursorV));
+  float blob = blobNow();
+  float rush = clamp(texelFetch(uGap, ivec2(0, 0), 0).z / HASTE_FULL, 0.0, 1.0);
 
   vec2 fluid = texture(uVel, clamp(p / uGrid, vec2(0.0), vec2(1.0))).xy;
 
@@ -599,8 +682,10 @@ void main() {
     float ang = rnd(i, 63u) * 6.28318530718;
     vec2 dir = vec2(cos(ang), sin(ang));
 
-    float span = loose ? flungLifeOf(i) : life;
+    float span = loose ? flungLifeOf(i, pop) : life;
     bool back = sst.w == 0.0;
+    // An open line bleeds: more of the halo tears loose the longer the cut stays open.
+    bool vent = rnd(i, 68u) < HASTE_GAS * rush;
     bool born = uEmit > rnd(i, 65u) * HALO_LIFE;
     if (age > span && born && back) {
 
@@ -615,7 +700,7 @@ void main() {
       age = span;
     }
 
-    if (!loose && !back) {
+    if (!loose && (!back || vent)) {
       loose = true;
 
       age = 1e-3;
@@ -638,7 +723,7 @@ void main() {
     }
 
     if (uCursorOn > 0.5) {
-      float d = segDist(p) / BLOB;
+      float d = segDist(p) / blob;
       heat = max(heat, exp(-d * d) * gate);
     }
     heat *= exp(-COOL * uDt);
@@ -703,17 +788,21 @@ void main() {
   p += v * uDt;
 
   if (uCursorOn > 0.5) {
-    float d = segDist(p) / BLOB;
+    float d = segDist(p) / blob;
     heat = max(heat, exp(-d * d) * gate);
   }
 
   float edge = clamp(abs(home.y - uBar.z) / (BAR_H * 0.5), 0.0, 1.0);
-  float brk = BREAK * uRest * mix(1.0, BREAK_EDGE, edge);
+  bool cut = texelFetch(uGap, ivec2(0, 0), 0).w > CUT_WAIT;
+  float hurt = cut ? BREAK_HURT : 1.0;
+  float away = cut ? TEAR_AWAY * TEAR_HURT : TEAR_AWAY;
+  float brk = BREAK * uRest * mix(1.0, BREAK_EDGE, edge) * hurt;
 
   if (free < 0.5 && c.x < COLS - 1) {
     if (linkN > 0.5 && lenN > brk) {
       linkN = 0.0;
-    } else if (linkN < 0.5 && lenN < RELINK * uRest && heat < RELINK_COOL && tornN == 0.0) {
+    } else if (linkN < 0.5 && lenN < RELINK * uRest * max(hurt, RELINK_KEEP)
+      && heat < RELINK_COOL && tornN == 0.0) {
       linkN = 1.0;
     }
   }
@@ -730,7 +819,7 @@ void main() {
     bool shred = col.x <= WHOLE;
     bool island = max(reach(c.x, -1), reach(c.x, 1)) < ISLAND;
 
-    if (hm > TEAR_AWAY || shred || island || (!tied && !fresh)) {
+    if (hm > away || shred || island || (!tied && !fresh)) {
       torn = 1e-3;
       linkN = 0.0;
     }
@@ -738,22 +827,22 @@ void main() {
     torn += uDt;
   }
 
-  float gasLife = gasLifeOf(c.y);
-  bool due = torn > max(HEAL_WAIT, gasLife);
-  float knit = uRest / HEAL_V;
-  vec2 grew = due ? grewFrom(c.x, knit) : vec2(0.0);
+  float ease = mix(1.0, HASTE_WAIT, rush);
+  float gasLife = gasLifeOf(c.y, ease);
+  bool due = torn > max(HEAL_WAIT * ease, gasLife);
+  float knit = uRest / (HEAL_V * mix(1.0, HASTE_HEAL, rush));
+  bool seeded = false;
+  vec2 grew = due ? grewFrom(c.x, knit, seeded) : vec2(0.0);
   int from = int(grew.x);
   bool rooted = from != 0;
   bool ready = col.y > 0.999;
 
-  int at = c.x + from;
-  bool over = at < 0 || at > COLS - 1;
-  ivec2 face = ivec2(clamp(at, 0, COLS - 1), c.y);
+  ivec2 face = ivec2(clamp(c.x + from, 0, COLS - 1), c.y);
   vec4 sF = texelFetch(uSt, face, 0);
-  bool held = rooted && !over && sF.w == 0.0;
-  bool edged = rooted && over;
+  bool held = rooted && !seeded && sF.w == 0.0;
+  bool edged = rooted && seeded;
 
-  float blade = segDist(home) / BLOB;
+  float blade = segDist(home) / blob;
   bool calm = uCursorOn < 0.5 || exp(-blade * blade) * gate < KNIFE;
   if ((due && (held || edged) && ready && calm) || !(dot(p, p) < 1e12)) {
 
@@ -771,7 +860,7 @@ void main() {
 
     vec2 off = p - home;
     float far = length(off);
-    float cap = TEAR_AWAY * BEND_KEEP;
+    float cap = away * BEND_KEEP;
     if (far > cap) p = home + off * (cap / far);
 
     if (!(dot(p, p) < 1e12)) {
@@ -800,7 +889,8 @@ ${HOME}
 #define SPRITE_BLOOM ${SPRITE_BLOOM.toFixed(2)}
 #define HEAT_GAIN ${HEAT_GAIN.toFixed(3)}
 #define GROW ${GROW.toFixed(3)}
-#define FREE_HOLD ${FREE_HOLD.toFixed(3)}
+#define GAS_GROW ${GAS_GROW.toFixed(3)}
+
 #define HALO_IN ${HALO_IN.toFixed(3)}
 #define HALO_OUT ${HALO_OUT.toFixed(3)}
 #define EDGE_BITE ${EDGE_BITE.toFixed(3)}
@@ -808,6 +898,7 @@ ${HOME}
 
 uniform sampler2D uPos;
 uniform sampler2D uSt;
+uniform sampler2D uGap;
 uniform vec2 uView;
 uniform vec2 uHue;
 uniform float uDpr;
@@ -834,12 +925,16 @@ void main() {
 
   vec2 p = texelFetch(uPos, c, 0).xy;
   vec4 S = texelFetch(uSt, c, 0);
+  float sprite = pop == 0 ? SPRITE_CORE : (pop == 1 ? SPRITE_RIM : SPRITE_BLOOM);
   float fade;
+  float size;
   if (pop == 0) {
 
-    float gasLife = gasLifeOf(c.y);
-    fade = smoothstep(0.0, 1.0, clamp(S.z / GROW, 0.0, 1.0))
-      * (1.0 - smoothstep(gasLife * FREE_HOLD, gasLife, S.w));
+    float gasLife = gasLifeOf(c.y, mix(1.0, HASTE_WAIT,
+      clamp(texelFetch(uGap, ivec2(0, 0), 0).z / HASTE_FULL, 0.0, 1.0)));
+    fade = smoothstep(0.0, 1.0, clamp(S.z / GROW, 0.0, 1.0)) * gasFade(S.w, gasLife);
+
+    size = sprite + GAS_GROW * clamp(S.w / gasLife, 0.0, 1.0);
 
     if (S.w == 0.0) {
       float l = (barAt(c.x - REACH1, c.y) + barAt(c.x - REACH2, c.y)
@@ -855,14 +950,16 @@ void main() {
     float age = abs(S.w);
     if (S.w < 0.0) {
 
-      float gone = flungLifeOf(i);
-      fade = 1.0 - smoothstep(gone * HALO_OUT, gone, age);
+      float gone = flungLifeOf(i, pop);
+      fade = gasFade(age, gone);
+      size = sprite + GAS_GROW * clamp(age / gone, 0.0, 1.0);
     } else {
 
       vec4 sst = texelFetch(uSt, ivec2(c.x, int(rnd(i, 62u) * float(CORE_ROWS))), 0);
       fade = smoothstep(0.0, life * HALO_IN, age)
         * (1.0 - smoothstep(life * HALO_OUT, life, age))
         * smoothstep(0.0, 1.0, clamp(sst.z / GROW, 0.0, 1.0));
+      size = sprite * (0.5 + 0.5 * fade);
     }
   }
 
@@ -871,8 +968,7 @@ void main() {
   if (pop == 0) a *= 0.7 + 0.6 * rnd(i, 15u);
   vColor = rgb * (a * fade * (1.0 + HEAT_GAIN * S.x));
 
-  float sprite = pop == 0 ? SPRITE_CORE : (pop == 1 ? SPRITE_RIM : SPRITE_BLOOM);
-  gl_PointSize = sprite * uDpr * (0.5 + 0.5 * fade);
+  gl_PointSize = size * uDpr;
   vec2 ndc = (p / uView) * 2.0 - 1.0;
   gl_Position = vec4(ndc.x, -ndc.y, 0.0, 1.0);
 }`;
@@ -989,7 +1085,8 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
   let pools: [Pool, Pool] | undefined;
   let front: 0 | 1 = 0;
   let whole: Target | undefined;
-  let gapT: Target | undefined;
+  let gaps: [Target, Target] | undefined;
+  let gapFront: 0 | 1 = 0;
   let acc: Target | undefined;
 
   let dpr = 1;
@@ -1129,15 +1226,16 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
       locate(divProg, ['uVel']);
       locate(jacobiProg, ['uPrs', 'uDiv']);
       locate(projectProg, ['uVel', 'uPrs']);
-      locate(censusProg, ['uSt', 'uPos', 'uBar']);
-      locate(gapProg, ['uWhole']);
+      locate(censusProg, ['uSt', 'uPos', 'uGap', 'uBar']);
+      locate(gapProg, ['uWhole', 'uPrev', 'uDt']);
       locate(simProg, ['uPos', 'uSt', 'uVel', 'uWhole', 'uGap', 'uGrid', 'uDt', 'uTime', 'uRest',
         'uInit', 'uEmit', 'uBar', 'uFrom', 'uTo', 'uCursorV', 'uCursorOn']);
-      locate(drawProg, ['uPos', 'uSt', 'uView', 'uHue', 'uDpr', 'uBar']);
+      locate(drawProg, ['uPos', 'uSt', 'uGap', 'uView', 'uHue', 'uDpr', 'uBar']);
       locate(resolveProg, ['uAcc', 'uPeak']);
       pools = [makePool(), makePool()];
       whole = makeTarget(gl!.RGBA16F, COLS, 2);
-      gapT = makeTarget(gl!.RG16F, 1, 1);
+      gaps = [makeTarget(gl!.RGBA16F, 2, 1), makeTarget(gl!.RGBA16F, 2, 1)];
+      gapFront = 0;
       front = 0;
     }
 
@@ -1207,7 +1305,7 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
   }
 
   function stepParticles(dt: number, init = false): void {
-    if (!simProg || !censusProg || !gapProg || !pools || !whole || !gapT || !vels) return;
+    if (!simProg || !censusProg || !gapProg || !pools || !whole || !gaps || !vels) return;
     const [gx, gy] = span();
     const rest = Math.max(barX1 - barX0, 1) / COLS;
 
@@ -1215,12 +1313,17 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
       pass(censusProg, whole.fbo, COLS, 2);
       bindTex(censusProg, 'uSt', 0, pools[front].st);
       bindTex(censusProg, 'uPos', 1, pools[front].pos);
+      bindTex(censusProg, 'uGap', 2, gaps[gapFront].tex);
       gl!.uniform3f(u(censusProg, 'uBar'), barX0, barX1, barY);
       gl!.drawArrays(gl!.TRIANGLES, 0, 3);
 
-      pass(gapProg, gapT.fbo, 1, 1);
+      const gb = gapFront === 0 ? 1 : 0;
+      pass(gapProg, gaps[gb].fbo, 2, 1);
       bindTex(gapProg, 'uWhole', 0, whole.tex);
+      bindTex(gapProg, 'uPrev', 1, gaps[gapFront].tex);
+      gl!.uniform1f(u(gapProg, 'uDt'), dt);
       gl!.drawArrays(gl!.TRIANGLES, 0, 3);
+      gapFront = gb;
     }
 
     const back = front === 0 ? 1 : 0;
@@ -1229,7 +1332,7 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
     bindTex(simProg, 'uSt', 1, pools[front].st);
     bindTex(simProg, 'uVel', 2, vels[velFront].tex);
     bindTex(simProg, 'uWhole', 3, whole.tex);
-    bindTex(simProg, 'uGap', 4, gapT.tex);
+    bindTex(simProg, 'uGap', 4, gaps[gapFront].tex);
     gl!.uniform3f(u(simProg, 'uBar'), barX0, barX1, barY);
     gl!.uniform2f(u(simProg, 'uGrid'), gx, gy);
     gl!.uniform1f(u(simProg, 'uDt'), dt);
@@ -1245,7 +1348,7 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
   }
 
   function draw(): void {
-    if (!drawProg || !resolveProg || !pools || !acc) return;
+    if (!drawProg || !resolveProg || !pools || !acc || !gaps) return;
 
     pass(drawProg, acc.fbo, canvas.width, canvas.height);
     gl!.clearColor(0, 0, 0, 0);
@@ -1254,6 +1357,7 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
     gl!.blendFunc(gl!.ONE, gl!.ONE);
     bindTex(drawProg, 'uPos', 0, pools[front].pos);
     bindTex(drawProg, 'uSt', 1, pools[front].st);
+    bindTex(drawProg, 'uGap', 2, gaps[gapFront].tex);
     gl!.uniform3f(u(drawProg, 'uBar'), barX0, barX1, barY);
     gl!.uniform2f(u(drawProg, 'uView'), viewW, viewH);
     gl!.uniform2f(u(drawProg, 'uHue'), hue, hue2);
@@ -1296,7 +1400,7 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
     if (!playing) return;
     const x = e.clientX;
     const y = e.clientY;
-    const r = BLOB + TEAR_AWAY * 2;
+    const r = BLOB_SLOW + TEAR_AWAY * 2;
     pointerNear = Math.abs(y - barY) <= r && x >= barX0 - r && x <= barX1 + r;
     const live = pointerNear || performance.now() < gasUntil;
     if (!live) {
@@ -1544,7 +1648,7 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
       drop(acc);
       drop(divT);
       drop(whole);
-      drop(gapT);
+      if (gaps) for (const g of gaps) drop(g);
       if (vels) for (const v of vels) drop(v);
       if (prss) for (const p of prss) drop(p);
       if (pools) for (const p of pools) dropPool(p);
