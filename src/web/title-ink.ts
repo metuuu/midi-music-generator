@@ -174,8 +174,10 @@ export function readTitleInk(el: HTMLElement, dpr: number): TitleInk | null {
       for (let px = 0; px < w && n < MAX_PTS; px += step) {
         const a = data[(py * w + px) * 4 + 3]! / 255;
         if (a < INK) continue;
-        pts[n * 3] = box.left + px / dpr;
-        pts[n * 3 + 1] = box.top + py / dpr;
+        // Centres, not corners: a point sprite is placed by its middle, and
+        // half a device pixel out is the difference between type and a blur.
+        pts[n * 3] = box.left + (px + 0.5) / dpr;
+        pts[n * 3 + 1] = box.top + (py + 0.5) / dpr;
         pts[n * 3 + 2] = a;
         n++;
       }
