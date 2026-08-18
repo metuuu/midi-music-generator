@@ -1532,6 +1532,22 @@
       </section>
 
       <!--
+        Whether the bar may go brighter than the page's own white, which only
+        means anything where the particles are drawing and the screen has the
+        range to show it. The whole section is hidden in every other case
+        rather than disabled: a switch that cannot move is not a setting, and
+        naming what this machine is unable to do tells the listener nothing
+        they can act on.
+      -->
+      <section id="hdr" hidden>
+        <h2>HDR</h2>
+        <div class="seg" id="glow-range">
+          <button type="button" data-hdr="on">On</button>
+          <button type="button" data-hdr="off">Off</button>
+        </div>
+      </section>
+
+      <!--
         Variety, shelved rather than deleted.
 
         Every station runs at `DEFAULT_WANDER` while this is hidden — see

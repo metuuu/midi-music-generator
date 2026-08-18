@@ -7,6 +7,15 @@ export interface GlowCensus {
 export interface GlowField {
   setKey(hue: number, hue2: number): void;
   setPlaying(playing: boolean): void;
+  /**
+   * Whether there is anywhere brighter than white to go on the screen the
+   * window is on at this moment — the browser having the switch and the
+   * display having the range. Asked rather than stored, because dragging the
+   * window to another monitor changes the answer.
+   */
+  hdrReady(): boolean;
+  /** Whether to use that range, when there is any. Ignored where there is none. */
+  setHdr(on: boolean): void;
   setSpectrumMode(mode: SpectrumMode): void;
   census(): GlowCensus | null;
   pump(ms: number): void;
@@ -27,6 +36,8 @@ export type SpectrumMode = 'bands' | 'flux';
 export interface GlowFieldOptions {
   onLost?: () => void;
   playing?: boolean;
+  /** What was chosen last time. Defaults to taking the range where it exists. */
+  hdr?: boolean;
   keepTouch?: string;
   /**
    * Where the music comes from, polled rather than passed, because the audio
@@ -1181,6 +1192,7 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
       || typeof hdrCanvas.configureHighDynamicRange === 'function');
   const hdrRange = canHdr ? window.matchMedia?.('(dynamic-range: high)') ?? null : null;
   let headroom = 1;
+  let hdrWanted = opts.hdr ?? true;
 
   function extendRange(on: boolean): void {
     if ('drawingBufferToneMapping' in hdrGl) {
@@ -1807,8 +1819,14 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
     if (resize()) draw();
   }
 
-  function onRange(): void {
-    const on = !!hdrRange?.matches;
+  /**
+   * The ceiling, from the two things that decide it: what the screen can show
+   * and what the listener asked for. Both changes arrive here — a window
+   * dragged to another monitor and a switch thrown in the settings — so there
+   * is one path to the buffer's format and one to the shader.
+   */
+  function applyHdr(): void {
+    const on = !!hdrRange?.matches && hdrWanted;
     if (on === (headroom > 1)) return;
     headroom = on ? HEADROOM : 1;
     extendRange(on);
@@ -1823,7 +1841,7 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
     opts.onLost?.();
   }
 
-  onRange();
+  applyHdr();
   document.body.appendChild(canvas);
   try {
     resize();
@@ -1847,7 +1865,7 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
   window.addEventListener('blur', onPointerGone);
   document.addEventListener('visibilitychange', onVisibility);
   canvas.addEventListener('webglcontextlost', onLost);
-  hdrRange?.addEventListener('change', onRange);
+  hdrRange?.addEventListener('change', applyHdr);
 
   function readCensus(): GlowCensus | null {
     if (!gl || !whole) return null;
@@ -1881,6 +1899,13 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
     },
     census(): GlowCensus | null {
       return readCensus();
+    },
+    hdrReady(): boolean {
+      return !!hdrRange?.matches;
+    },
+    setHdr(on: boolean): void {
+      hdrWanted = on;
+      applyHdr();
     },
     pump(ms: number): void {
       pumpAt = (pumpAt || performance.now()) + ms;
@@ -1918,7 +1943,7 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
       window.removeEventListener('blur', onPointerGone);
       document.removeEventListener('visibilitychange', onVisibility);
       canvas.removeEventListener('webglcontextlost', onLost);
-      hdrRange?.removeEventListener('change', onRange);
+      hdrRange?.removeEventListener('change', applyHdr);
       if (raf) cancelAnimationFrame(raf);
       if (idleAt) clearTimeout(idleAt);
       idleAt = 0;

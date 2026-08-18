@@ -82,6 +82,8 @@ const els = {
   closeSettings: $<HTMLButtonElement>('close-settings'),
   voice: $<HTMLDivElement>('voice'),
   glowMode: $<HTMLDivElement>('glow-mode'),
+  glowRange: $<HTMLDivElement>('glow-range'),
+  hdrSection: $<HTMLElement>('hdr'),
   wander: $<HTMLInputElement>('wander'),
   wanderName: $<HTMLElement>('wander-name'),
   wanderGloss: $<HTMLElement>('wander-gloss'),
@@ -566,6 +568,13 @@ type GlowMode = 'particles' | 'plain';
 let glowMode: GlowMode = 'particles';
 
 /**
+ * Whether the bar may use a screen's room above white, where there is any.
+ * Kept whatever the machine can do, so that carrying the same browser to a
+ * monitor that has the range finds the answer already given.
+ */
+let hdr = true;
+
+/**
  * How the bar reads what is playing, or `off` for not at all.
  *
  * One key doing both jobs, set with `localStorage.setItem('radio.spectrum', …)`
@@ -584,6 +593,22 @@ const SPECTRUM_TAP: boolean = false;
 function paintGlowMode(): void {
   els.glowMode.querySelectorAll('button').forEach((b) => {
     b.setAttribute('aria-pressed', String(b.dataset.glow === glowMode));
+  });
+}
+
+/**
+ * The range switch, shown only where it would do something — the particles
+ * drawing and the screen having somewhere above white to go.
+ *
+ * Asked of the field each time rather than remembered, because the answer
+ * belongs to the screen the window is on and a window can be dragged to
+ * another one. Called wherever that could have changed: the mode switching,
+ * and the panel being opened.
+ */
+function paintGlowRange(): void {
+  els.hdrSection.hidden = !glowField?.hdrReady();
+  els.glowRange.querySelectorAll('button').forEach((b) => {
+    b.setAttribute('aria-pressed', String((b.dataset.hdr === 'on') === hdr));
   });
 }
 
@@ -624,6 +649,7 @@ function applyGlowMode(): void {
     glowField?.destroy();
     glowField = undefined;
     document.body.classList.remove('glow-live');
+    paintGlowRange();
     return;
   }
   if (glowField) return;
@@ -641,6 +667,9 @@ function applyGlowMode(): void {
     // The setting can be switched mid-song, so the field is not entitled to
     // assume it is being mounted onto a stopped page.
     playing,
+    // Opened in the state that was chosen, rather than lighting up and being
+    // turned down a frame later.
+    hdr,
     // Polled, because the analyser does not exist until a click has built the
     // audio chain, and the bar is on the page well before that.
     spectrum: spectrum === 'off' ? undefined : getSpectrum,
@@ -1123,6 +1152,7 @@ const WANDER_KEY = 'radio.wander';
 const VOICE_KEY = 'radio.voice';
 const GLOW_KEY = 'radio.glow';
 const SPECTRUM_KEY = 'radio.spectrum';
+const HDR_KEY = 'radio.hdr';
 /** The last calendar day this page was opened on. See `openingStation`. */
 const DAY_KEY = 'radio.day';
 
@@ -1676,7 +1706,11 @@ draggable({
 // Settings
 // ---------------------------------------------------------------------------
 
-els.openSettings.onclick = () => els.settings.showModal();
+els.openSettings.onclick = () => {
+  // The screen may have changed since the panel was last open.
+  paintGlowRange();
+  els.settings.showModal();
+};
 els.closeSettings.onclick = () => els.settings.close();
 /**
  * A press outside the panel closes it.
@@ -1721,6 +1755,16 @@ els.glowMode.onclick = (e) => {
   try { localStorage.setItem(GLOW_KEY, glowMode); } catch { /* private mode */ }
   paintGlowMode();
   applyGlowMode();
+  paintGlowRange();
+};
+
+els.glowRange.onclick = (e) => {
+  const picked = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-hdr]');
+  if (!picked) return;
+  hdr = picked.dataset.hdr === 'on';
+  try { localStorage.setItem(HDR_KEY, hdr ? 'on' : 'off'); } catch { /* private mode */ }
+  paintGlowRange();
+  glowField?.setHdr(hdr);
 };
 
 els.wander.oninput = () => {
@@ -1951,6 +1995,8 @@ async function boot(): Promise<void> {
   try {
     const storedGlow = localStorage.getItem(GLOW_KEY);
     if (storedGlow === 'particles' || storedGlow === 'plain') glowMode = storedGlow;
+    const storedHdr = localStorage.getItem(HDR_KEY);
+    if (storedHdr === 'on' || storedHdr === 'off') hdr = storedHdr === 'on';
     const storedSpectrum = localStorage.getItem(SPECTRUM_KEY);
     if (storedSpectrum === 'off' || storedSpectrum === 'bands' || storedSpectrum === 'flux') {
       spectrum = storedSpectrum;
@@ -1958,6 +2004,7 @@ async function boot(): Promise<void> {
   } catch { /* private mode */ }
   paintGlowMode();
   applyGlowMode();
+  paintGlowRange();
 
   const linked = new URLSearchParams(location.search).get('s');
   const fromLink = linked ? parseRef(linked) : undefined;
