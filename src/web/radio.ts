@@ -410,7 +410,10 @@ function showLines(cut: Cut): void {
    */
   const booting = document.body.classList.contains('booting');
   // Taken over from wherever the last one had got to, exactly as the fade is.
-  const cloud = booting ? null : titleCloud();
+  // Somebody who has asked for less movement keeps the particles and is not
+  // handed back the element's own words — nothing is thrown, and the title is
+  // put up where it belongs and faded in.
+  const cloud = booting || STILL?.matches ? null : titleCloud();
   cloud?.leave(null);
   // Both branches are held for the whole span, not for the half of it their own
   // text spends: the turn is the longer thing here, and it is the thing a
@@ -447,7 +450,7 @@ let inkable = false;
  * the context is lost, and the motion query is a system preference.
  */
 function titleCloud(): ReturnType<GlowField['title']> {
-  if (!inkable || STILL?.matches) return null;
+  if (!inkable) return null;
   return glowField?.title() ?? null;
 }
 
@@ -460,9 +463,18 @@ function titleCloud(): ReturnType<GlowField['title']> {
  */
 function handTitleOver(): void {
   const cloud = titleCloud();
-  const ink = cloud ? readTitleInk(els.title, Math.min(window.devicePixelRatio || 1, 2)) : null;
-  cloud?.arrive(ink);
-  document.body.classList.toggle('title-live', !!ink);
+  if (!cloud) {
+    document.body.classList.remove('title-live');
+    return;
+  }
+  const ink = readTitleInk(els.title, Math.min(window.devicePixelRatio || 1, 2));
+  // Nothing readable is not a reason to hand the pixels back. Before the first
+  // record there is no title to take, and after it a reading that failed would
+  // put the element's own words up in place of the particles — which the page
+  // is not going to do, because the particles are what can be lit.
+  if (!ink) return;
+  cloud.arrive(ink);
+  document.body.classList.add('title-live');
 }
 
 void inkReady().then(() => {
@@ -489,14 +501,12 @@ function writeLines(cut: Cut): void {
   document.body.classList.remove('text-out');
   // Measured after the skeletons are, so the two readings of this layout are
   // one, and handed over at the moment the cloud stops needing the old shape.
-  if (booting) {
-    // A settled cloud is the same image as the text it replaces, so the pixels
-    // change hands unseen — but only once the page has finished revealing them
-    // its own way.
-    window.setTimeout(handTitleOver, LINES_WAIT_MS + LINES_IN_MS);
-    return;
-  }
   handTitleOver();
+  // The first title is not a changeover and is not thrown anywhere: it is
+  // already in place and simply comes up, over the same third of a second the
+  // element's own text would have taken, under the same bars narrowing onto it.
+  if (booting) titleCloud()?.reveal(LINES_WAIT_MS, LINES_IN_MS);
+  else if (STILL?.matches) titleCloud()?.reveal(0, LINES_IN_MS);
 }
 
 /**

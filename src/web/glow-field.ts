@@ -1786,6 +1786,9 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
      * keeps sampling, so a record starting is felt within one of them.
      */
     if (readSpectrum(dt)) busyUntil = Math.max(busyUntil, ts + SPEC_MS);
+    // Asked rather than left to the wake the cloud arms for itself, because a
+    // compile can outlast that wake and the title would stop mid-throw.
+    if (cloud?.busy()) busyUntil = Math.max(busyUntil, ts + 120);
 
     if (dt > 0) {
       stepFluid(dt);

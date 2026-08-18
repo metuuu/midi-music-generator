@@ -22,18 +22,29 @@ const POOL = POOL_W * POOL_H;
  * slower than they leave reads as two things happening rather than one.
  */
 export const CLOUD_OUT_MS = 190;
-const CLOUD_FLOAT_MS = 200;
-const CLOUD_IN_MS = 360;
-export const CLOUD_MS = CLOUD_OUT_MS + CLOUD_FLOAT_MS + CLOUD_IN_MS;
+const CLOUD_IN_MS = 560;
+export const CLOUD_MS = CLOUD_OUT_MS + CLOUD_IN_MS;
 
+/**
+ * The gathering begins the instant the throwing stops, and there is no third
+ * part between them.
+ *
+ * With a pause in the middle the words went out to an exploded shape, hung
+ * there as a thing in its own right, and came back — two gestures with a stop
+ * between. Butted together the whole changeover is one arc: the points are
+ * thrown, their own momentum carries them out against a spring that starts at
+ * nothing, and they are drawn in from wherever that got them.
+ */
 const OUT_END = CLOUD_OUT_MS / CLOUD_MS;
-const IN_START = (CLOUD_OUT_MS + CLOUD_FLOAT_MS) / CLOUD_MS;
+const IN_START = OUT_END;
+/** Where a split-off has fully faded up, and the two coverages have swapped. */
+const HANDOVER = OUT_END + (1 - IN_START) * 0.25;
 
 /** How hard a shape holds its particles, and how hard the next one takes them. */
 const K_HOLD = 900;
 const K_CATCH = 760;
 const DRAG_HELD = 54;
-const DRAG_FREE = 2.6;
+const DRAG_FREE = 1.0;
 /**
  * The shove that throws the letters apart, and the drift of what it let go.
  *
@@ -41,7 +52,7 @@ const DRAG_FREE = 2.6;
  * ejection in every direction rather than a title blooming outwards from its
  * middle.
  */
-const EJECT = 880;
+const EJECT = 2400;
 const WANDER = 90;
 const RISE = 14;
 const FLUID_GRIP = 1.6;
@@ -72,6 +83,7 @@ float rnd(uint i, uint salt) {
 const GRIPS = `
 #define OUT_END ${OUT_END.toFixed(5)}
 #define IN_START ${IN_START.toFixed(5)}
+#define HANDOVER ${HANDOVER.toFixed(5)}
 
 uniform float uPhase;
 
@@ -191,6 +203,7 @@ uniform sampler2D uPos;
 uniform sampler2D uSt;
 uniform vec2 uView;
 uniform float uStep;
+uniform float uFade;
 
 out float vCov;
 out float vSoft;
@@ -209,14 +222,14 @@ void main() {
   // Split off another at the moment the words came apart, so it fades up from
   // there; or it is what the new title had no room for, and goes out well
   // before the new one is legible.
-  float fade = (S.y > 0.5 ? 1.0 : smoothstep(OUT_END, IN_START, ph))
+  float fade = (S.y > 0.5 ? 1.0 : smoothstep(OUT_END, HANDOVER, ph))
     * (S.z > 0.5 ? 1.0 : 1.0 - smoothstep(OUT_END, 0.85, ph));
 
   vec2 p = texelFetch(uPos, c, 0).xy;
   // The two titles antialiased their edges differently, and a sample carries
   // both figures so the change of hands happens while the words are apart
   // rather than as a step at the moment they are swapped.
-  vCov = mix(S.x, S.w, smoothstep(OUT_END, IN_START, ph)) * fade;
+  vCov = mix(S.x, S.w, smoothstep(OUT_END, HANDOVER, ph)) * fade * uFade;
   vSoft = loose;
 
   gl_PointSize = uStep + GAS_GROW * loose;
@@ -258,6 +271,11 @@ export interface TitleCloud {
   live(): boolean;
   /** Whether a changeover is still running, so the field knows to stay awake. */
   busy(): boolean;
+  /**
+   * Bring a title that is simply there up from nothing, which is the page's own
+   * reveal rather than a changeover — see `reveal` in the implementation.
+   */
+  reveal(delayMs: number, durMs: number): void;
   step(dt: number, time: number, vel: WebGLTexture, gridW: number, gridH: number): void;
   draw(viewW: number, viewH: number): void;
   destroy(): void;
@@ -302,7 +320,7 @@ void main() {
   const drawProg = link(DRAW_VS, DRAW_FS);
   locate(simProg, ['uPos', 'uAnchor', 'uSt', 'uVel', 'uGrid', 'uDt', 'uTime',
     'uPhase', 'uPlace', 'uFromN']);
-  locate(drawProg, ['uPos', 'uSt', 'uView', 'uInk', 'uStep', 'uCeil', 'uPhase']);
+  locate(drawProg, ['uPos', 'uSt', 'uView', 'uInk', 'uStep', 'uCeil', 'uPhase', 'uFade']);
 
   function makeTex(): WebGLTexture {
     const tex = gl.createTexture();
@@ -347,6 +365,9 @@ void main() {
   let fromCount = 0;
   let startedAt = 0;
   let running = false;
+  /** When the whole cloud is up, and over how long it came up. */
+  let revealAt = -Infinity;
+  let revealMs = 0;
   let step = 1;
 
   /**
@@ -399,6 +420,19 @@ void main() {
     return Math.min(1, (performance.now() - startedAt) / CLOUD_MS);
   }
 
+  /**
+   * The whole cloud's own opacity, which only the first title ever spends.
+   *
+   * It is the fade the page would have run on its own text, run here instead —
+   * the placeholder bars still narrow onto the words, and what comes up under
+   * them is particles rather than the element, so the pixels are never the
+   * element's to begin with.
+   */
+  function revealed(): number {
+    if (revealMs <= 0) return 1;
+    return Math.min(1, Math.max(0, (performance.now() - revealAt) / revealMs));
+  }
+
   return {
     leave(ink: TitleInk | null): void {
       // Taken over from wherever it had got to rather than restarted: the slots
@@ -413,21 +447,37 @@ void main() {
       wake(CLOUD_MS + 60);
     },
     arrive(ink: TitleInk | null): void {
-      // The slots this adds on top of the outgoing title have never held a
-      // particle, so they are the ones the next step places.
-      placed = Math.min(placed, liveN);
+      if (running) {
+        // The slots this adds on top of the outgoing title have never held a
+        // particle, so they are the ones the next step places.
+        placed = Math.min(placed, liveN);
+      } else {
+        /**
+         * A title arriving with nothing thrown is simply put where it belongs:
+         * there is no flight for it to join, so every point is placed on the
+         * new shape rather than sliding onto it from the last one.
+         *
+         * It is how the page's first title goes up, how a window being resized
+         * reflows, and how a changeover reads for somebody who has asked for
+         * less movement.
+         */
+        fromInk = null;
+        placed = 0;
+      }
       toInk = ink;
       upload();
-      // Called with no changeover running when the page hands over a title it
-      // has already revealed its own way, and that has to be painted at once
-      // rather than at the next idle tick.
       wake(running ? CLOUD_MS : 120);
     },
     live(): boolean {
       return !!(fromInk || toInk);
     },
     busy(): boolean {
-      return running && phase() < 1;
+      return (running && phase() < 1) || revealed() < 1;
+    },
+    reveal(delayMs: number, durMs: number): void {
+      revealAt = performance.now() + delayMs;
+      revealMs = durMs;
+      wake(delayMs + durMs + 60);
     },
     step(dt: number, time: number, vel: WebGLTexture, gridW: number, gridH: number): void {
       if (!fromInk && !toInk) return;
@@ -469,6 +519,7 @@ void main() {
       // than the words under it is a notification rather than a name.
       gl.uniform1f(u(drawProg, 'uCeil'), 1);
       gl.uniform1f(u(drawProg, 'uPhase'), phase());
+      gl.uniform1f(u(drawProg, 'uFade'), revealed());
       gl.drawArrays(gl.POINTS, 0, POOL);
     },
     destroy(): void {
