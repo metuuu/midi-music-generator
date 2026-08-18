@@ -1,0 +1,37 @@
+{
+ "_base": "https://music-generator-audio.b-cdn.net/samples/audio/",
+ "ta": [
+  "ta/0.wav",
+  "ta/1.wav",
+  "ta/2.wav",
+  "ta/3.wav",
+  "ta/4.wav",
+  "ta/5.wav",
+  "ta/6.wav",
+  "ta/7.wav",
+  "ta/8.wav"
+ ],
+ "na": [
+  "na/0.wav",
+  "na/1.wav",
+  "na/2.wav",
+  "na/3.wav",
+  "na/4.wav",
+  "na/5.wav",
+  "na/6.wav",
+  "na/7.wav",
+  "na/8.wav",
+  "na/9.wav",
+  "na/10.wav",
+  "na/11.wav"
+ ],
+ "thom": [
+  "thom/0.wav",
+  "thom/1.wav",
+  "thom/2.wav",
+  "thom/3.wav",
+  "thom/4.wav",
+  "thom/5.wav",
+  "thom/6.wav"
+ ]
+}

@@ -3,5 +3,9 @@ out/
 dist/
 .DS_Store
 
+# The sample packs, the Opus conversions, and the tree that was uploaded to the
+# CDN. Working material for regenerating public/samples — 6 GB, never shipped.
+.cache/
+
 # Ad-hoc probe scripts left at the root by whoever was measuring something.
 .*-tmp.ts

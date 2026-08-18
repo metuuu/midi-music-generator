@@ -31,7 +31,7 @@ import {
   webaudioRepl,
 } from '@strudel/webaudio';
 import { transpiler } from '@strudel/transpiler';
-import { getFontBufferSource, registerSoundfonts } from '@strudel/soundfonts';
+import { getFontBufferSource, registerSoundfonts, setSoundfontUrl } from '@strudel/soundfonts';
 /**
  * The soundfont-name → bank-list map, which the package exports only as the
  * default of this module. `list.mjs`, the one on the public entry point, opens
@@ -41,7 +41,17 @@ import GM_FONTS from '@strudel/soundfonts/gm.mjs';
 
 import type { Envelope, LayerId, Song } from '../core/types.js';
 import { resolveDrumSample } from '../render/drum-banks.js';
-import { SAMPLE_MANIFESTS, type StrudelParts } from '../render/strudel.js';
+import { SAMPLE_MANIFESTS, localManifest, type StrudelParts } from '../render/strudel.js';
+
+/**
+ * Where the 125 General MIDI soundfonts come from.
+ *
+ * The package defaults to `felixroos.github.io/webaudiofontdata` — one person's
+ * GitHub Pages, and the last third-party host anything here depended on. The
+ * fonts are 17.6 MB in total and MIT-licensed, so they sit beside the samples
+ * on the CDN. See CREDITS.md.
+ */
+const SOUNDFONT_URL = 'https://music-generator-audio.b-cdn.net/soundfonts';
 
 let instance: StrudelRepl | undefined;
 let preparing: Promise<StrudelRepl> | undefined;
@@ -122,6 +132,7 @@ async function prepare(): Promise<StrudelRepl> {
   const repl = webaudioRepl({ transpiler, editPattern: playOnce });
 
   registerSynthSounds();
+  setSoundfontUrl(SOUNDFONT_URL);
   registerSoundfonts();
   /**
    * All three manifests, together, and all three awaited.
@@ -136,8 +147,11 @@ async function prepare(): Promise<StrudelRepl> {
    * Awaited as a group rather than left to settle, because a manifest that has
    * not arrived is a `sound not found` at playback for every part that needed
    * it, and the fetch happens once per page load.
+   *
+   * Read off our own origin — see `localManifest`. The audio behind them is on
+   * the CDN, which is what each file's own `_base` says.
    */
-  await Promise.all(SAMPLE_MANIFESTS.map((url) => samples(url)));
+  await Promise.all(SAMPLE_MANIFESTS.map((url) => samples(localManifest(url))));
 
   installLimiter();
 

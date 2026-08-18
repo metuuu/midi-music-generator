@@ -500,7 +500,7 @@ function build(song: Song, opts: StrudelRenderOptions): { header: string[]; part
 
 /** Drum-machine sample set used by the audition render (verified reachable). */
 export const DRUM_SAMPLES_URL =
-  'https://raw.githubusercontent.com/felixroos/dough-samples/main/tidal-drum-machines.json';
+  'https://music-generator-audio.b-cdn.net/samples/tidal-drum-machines.json';
 
 /**
  * The Versilian Community Sample Library: 128 sets of real instruments,
@@ -523,7 +523,7 @@ export const DRUM_SAMPLES_URL =
  * names do not have one.
  */
 export const VCSL_SAMPLES_URL =
-  'https://raw.githubusercontent.com/felixroos/dough-samples/main/vcsl.json';
+  'https://music-generator-audio.b-cdn.net/samples/vcsl.json';
 
 /**
  * Thirteen mridangam strokes, recorded on a real mridangam.
@@ -540,7 +540,7 @@ export const VCSL_SAMPLES_URL =
  * `render/drum-banks.ts`, which reads `thom`, `na` and `ta` off this list.
  */
 export const MRIDANGAM_SAMPLES_URL =
-  'https://raw.githubusercontent.com/felixroos/dough-samples/main/mridangam.json';
+  'https://music-generator-audio.b-cdn.net/samples/mridangam.json';
 
 /**
  * Every sample manifest the audition loads, in the order it loads them.
@@ -558,6 +558,23 @@ export const MRIDANGAM_SAMPLES_URL =
 export const SAMPLE_MANIFESTS: readonly string[] = [
   DRUM_SAMPLES_URL, VCSL_SAMPLES_URL, MRIDANGAM_SAMPLES_URL,
 ];
+
+/**
+ * The same manifest, off our own origin.
+ *
+ * A manifest is 38 kB and every page load needs all of it, so it ships with the
+ * app rather than being fetched: three round trips saved at boot, and a boot
+ * that cannot fail on somebody else's server. The audio it points at is a
+ * different matter and stays on the CDN — `_base` inside the file is the
+ * absolute URL, so nothing here has to know where that is.
+ *
+ * `SAMPLE_MANIFESTS` above is the same file on the CDN, and is what the
+ * `.strudel.js` export writes, because that file is meant to be pasted into
+ * strudel.cc where `/samples/vcsl.json` is somebody else's origin.
+ */
+export function localManifest(url: string): string {
+  return `/samples/${url.slice(url.lastIndexOf('/') + 1)}`;
+}
 
 /**
  * The note's amplitude shape, as superdough controls.

@@ -1,0 +1,1818 @@
+{
+ "_base": "https://music-generator-audio.b-cdn.net/samples/audio/",
+ "AkaiLinn_bd": [
+  "AkaiLinn_bd/0.wav"
+ ],
+ "AkaiLinn_cb": [
+  "AkaiLinn_cb/0.wav"
+ ],
+ "AkaiLinn_cp": [
+  "AkaiLinn_cp/0.wav"
+ ],
+ "AkaiLinn_cr": [
+  "AkaiLinn_cr/0.wav"
+ ],
+ "AkaiLinn_hh": [
+  "AkaiLinn_hh/0.wav"
+ ],
+ "AkaiLinn_ht": [
+  "AkaiLinn_ht/0.wav"
+ ],
+ "AkaiLinn_lt": [
+  "AkaiLinn_lt/0.wav"
+ ],
+ "AkaiLinn_mt": [
+  "AkaiLinn_mt/0.wav"
+ ],
+ "AkaiLinn_oh": [
+  "AkaiLinn_oh/0.wav"
+ ],
+ "AkaiLinn_rd": [
+  "AkaiLinn_rd/0.wav"
+ ],
+ "AkaiLinn_sd": [
+  "AkaiLinn_sd/0.wav"
+ ],
+ "AkaiLinn_sh": [
+  "AkaiLinn_sh/0.wav"
+ ],
+ "AkaiLinn_tb": [
+  "AkaiLinn_tb/0.wav"
+ ],
+ "AkaiMPC60_bd": [
+  "AkaiMPC60_bd/0.wav"
+ ],
+ "AkaiMPC60_cp": [
+  "AkaiMPC60_cp/0.wav"
+ ],
+ "AkaiMPC60_cr": [
+  "AkaiMPC60_cr/0.wav"
+ ],
+ "AkaiMPC60_hh": [
+  "AkaiMPC60_hh/0.wav"
+ ],
+ "AkaiMPC60_ht": [
+  "AkaiMPC60_ht/0.wav"
+ ],
+ "AkaiMPC60_lt": [
+  "AkaiMPC60_lt/0.wav"
+ ],
+ "AkaiMPC60_misc": [
+  "AkaiMPC60_misc/0.wav"
+ ],
+ "AkaiMPC60_mt": [
+  "AkaiMPC60_mt/0.wav"
+ ],
+ "AkaiMPC60_oh": [
+  "AkaiMPC60_oh/0.wav"
+ ],
+ "AkaiMPC60_perc": [
+  "AkaiMPC60_perc/0.wav"
+ ],
+ "AkaiMPC60_rd": [
+  "AkaiMPC60_rd/0.wav"
+ ],
+ "AkaiMPC60_rim": [
+  "AkaiMPC60_rim/0.wav"
+ ],
+ "AkaiMPC60_sd": [
+  "AkaiMPC60_sd/0.wav"
+ ],
+ "AkaiXR10_bd": [
+  "AkaiXR10_bd/0.wav"
+ ],
+ "AkaiXR10_cb": [
+  "AkaiXR10_cb/0.wav"
+ ],
+ "AkaiXR10_cp": [
+  "AkaiXR10_cp/0.wav"
+ ],
+ "AkaiXR10_cr": [
+  "AkaiXR10_cr/0.wav"
+ ],
+ "AkaiXR10_hh": [
+  "AkaiXR10_hh/0.wav"
+ ],
+ "AkaiXR10_ht": [
+  "AkaiXR10_ht/0.wav"
+ ],
+ "AkaiXR10_lt": [
+  "AkaiXR10_lt/0.wav"
+ ],
+ "AkaiXR10_misc": [
+  "AkaiXR10_misc/0.wav"
+ ],
+ "AkaiXR10_mt": [
+  "AkaiXR10_mt/0.wav"
+ ],
+ "AkaiXR10_oh": [
+  "AkaiXR10_oh/0.wav"
+ ],
+ "AkaiXR10_perc": [
+  "AkaiXR10_perc/0.wav"
+ ],
+ "AkaiXR10_rd": [
+  "AkaiXR10_rd/0.wav"
+ ],
+ "AkaiXR10_rim": [
+  "AkaiXR10_rim/0.wav"
+ ],
+ "AkaiXR10_sd": [
+  "AkaiXR10_sd/0.wav"
+ ],
+ "AkaiXR10_sh": [
+  "AkaiXR10_sh/0.wav"
+ ],
+ "AkaiXR10_tb": [
+  "AkaiXR10_tb/0.wav"
+ ],
+ "AlesisHR16_bd": [
+  "AlesisHR16_bd/0.wav"
+ ],
+ "AlesisHR16_cp": [
+  "AlesisHR16_cp/0.wav"
+ ],
+ "AlesisHR16_hh": [
+  "AlesisHR16_hh/0.wav"
+ ],
+ "AlesisHR16_ht": [
+  "AlesisHR16_ht/0.wav"
+ ],
+ "AlesisHR16_lt": [
+  "AlesisHR16_lt/0.wav"
+ ],
+ "AlesisHR16_oh": [
+  "AlesisHR16_oh/0.wav"
+ ],
+ "AlesisHR16_perc": [
+  "AlesisHR16_perc/0.wav"
+ ],
+ "AlesisHR16_rim": [
+  "AlesisHR16_rim/0.wav"
+ ],
+ "AlesisHR16_sd": [
+  "AlesisHR16_sd/0.wav"
+ ],
+ "AlesisHR16_sh": [
+  "AlesisHR16_sh/0.wav"
+ ],
+ "AlesisSR16_bd": [
+  "AlesisSR16_bd/0.wav"
+ ],
+ "AlesisSR16_cb": [
+  "AlesisSR16_cb/0.wav"
+ ],
+ "AlesisSR16_cp": [
+  "AlesisSR16_cp/0.wav"
+ ],
+ "AlesisSR16_cr": [
+  "AlesisSR16_cr/0.wav"
+ ],
+ "AlesisSR16_hh": [
+  "AlesisSR16_hh/0.wav"
+ ],
+ "AlesisSR16_misc": [
+  "AlesisSR16_misc/0.wav"
+ ],
+ "AlesisSR16_oh": [
+  "AlesisSR16_oh/0.wav"
+ ],
+ "AlesisSR16_perc": [
+  "AlesisSR16_perc/0.wav"
+ ],
+ "AlesisSR16_rd": [
+  "AlesisSR16_rd/0.wav"
+ ],
+ "AlesisSR16_rim": [
+  "AlesisSR16_rim/0.wav"
+ ],
+ "AlesisSR16_sd": [
+  "AlesisSR16_sd/0.wav"
+ ],
+ "AlesisSR16_sh": [
+  "AlesisSR16_sh/0.wav"
+ ],
+ "AlesisSR16_tb": [
+  "AlesisSR16_tb/0.wav"
+ ],
+ "BossDR110_bd": [
+  "BossDR110_bd/0.wav"
+ ],
+ "BossDR110_cp": [
+  "BossDR110_cp/0.wav"
+ ],
+ "BossDR110_cr": [
+  "BossDR110_cr/0.wav"
+ ],
+ "BossDR110_hh": [
+  "BossDR110_hh/0.wav"
+ ],
+ "BossDR110_oh": [
+  "BossDR110_oh/0.wav"
+ ],
+ "BossDR110_rd": [
+  "BossDR110_rd/0.wav"
+ ],
+ "BossDR110_sd": [
+  "BossDR110_sd/0.wav"
+ ],
+ "BossDR220_bd": [
+  "BossDR220_bd/0.wav"
+ ],
+ "BossDR220_cp": [
+  "BossDR220_cp/0.wav"
+ ],
+ "BossDR220_cr": [
+  "BossDR220_cr/0.wav"
+ ],
+ "BossDR220_hh": [
+  "BossDR220_hh/0.wav"
+ ],
+ "BossDR220_ht": [
+  "BossDR220_ht/0.wav"
+ ],
+ "BossDR220_lt": [
+  "BossDR220_lt/0.wav"
+ ],
+ "BossDR220_mt": [
+  "BossDR220_mt/0.wav"
+ ],
+ "BossDR220_oh": [
+  "BossDR220_oh/0.wav"
+ ],
+ "BossDR220_perc": [
+  "BossDR220_perc/0.wav"
+ ],
+ "BossDR220_rd": [
+  "BossDR220_rd/0.wav"
+ ],
+ "BossDR220_sd": [
+  "BossDR220_sd/0.wav"
+ ],
+ "BossDR550_bd": [
+  "BossDR550_bd/0.wav"
+ ],
+ "BossDR550_cb": [
+  "BossDR550_cb/0.wav"
+ ],
+ "BossDR550_cp": [
+  "BossDR550_cp/0.wav"
+ ],
+ "BossDR550_cr": [
+  "BossDR550_cr/0.wav"
+ ],
+ "BossDR550_hh": [
+  "BossDR550_hh/0.wav"
+ ],
+ "BossDR550_ht": [
+  "BossDR550_ht/0.wav"
+ ],
+ "BossDR550_lt": [
+  "BossDR550_lt/0.wav"
+ ],
+ "BossDR550_misc": [
+  "BossDR550_misc/0.wav"
+ ],
+ "BossDR550_mt": [
+  "BossDR550_mt/0.wav"
+ ],
+ "BossDR550_oh": [
+  "BossDR550_oh/0.wav"
+ ],
+ "BossDR550_perc": [
+  "BossDR550_perc/0.wav"
+ ],
+ "BossDR550_rd": [
+  "BossDR550_rd/0.wav"
+ ],
+ "BossDR550_rim": [
+  "BossDR550_rim/0.wav"
+ ],
+ "BossDR550_sd": [
+  "BossDR550_sd/0.wav"
+ ],
+ "BossDR550_sh": [
+  "BossDR550_sh/0.wav"
+ ],
+ "BossDR550_tb": [
+  "BossDR550_tb/0.wav"
+ ],
+ "CasioSK1_bd": [
+  "CasioSK1_bd/0.wav"
+ ],
+ "CasioSK1_hh": [
+  "CasioSK1_hh/0.wav"
+ ],
+ "CasioSK1_ht": [
+  "CasioSK1_ht/0.wav"
+ ],
+ "CasioSK1_mt": [
+  "CasioSK1_mt/0.wav"
+ ],
+ "CasioSK1_oh": [
+  "CasioSK1_oh/0.wav"
+ ],
+ "CasioSK1_sd": [
+  "CasioSK1_sd/0.wav"
+ ],
+ "DoepferMS404_bd": [
+  "DoepferMS404_bd/0.wav"
+ ],
+ "DoepferMS404_hh": [
+  "DoepferMS404_hh/0.wav"
+ ],
+ "DoepferMS404_lt": [
+  "DoepferMS404_lt/0.wav"
+ ],
+ "DoepferMS404_oh": [
+  "DoepferMS404_oh/0.wav"
+ ],
+ "DoepferMS404_sd": [
+  "DoepferMS404_sd/0.wav"
+ ],
+ "EmuDrumulator_bd": [
+  "EmuDrumulator_bd/0.wav"
+ ],
+ "EmuDrumulator_cb": [
+  "EmuDrumulator_cb/0.wav"
+ ],
+ "EmuDrumulator_cp": [
+  "EmuDrumulator_cp/0.wav"
+ ],
+ "EmuDrumulator_cr": [
+  "EmuDrumulator_cr/0.wav"
+ ],
+ "EmuDrumulator_hh": [
+  "EmuDrumulator_hh/0.wav"
+ ],
+ "EmuDrumulator_ht": [
+  "EmuDrumulator_ht/0.wav"
+ ],
+ "EmuDrumulator_lt": [
+  "EmuDrumulator_lt/0.wav"
+ ],
+ "EmuDrumulator_mt": [
+  "EmuDrumulator_mt/0.wav"
+ ],
+ "EmuDrumulator_oh": [
+  "EmuDrumulator_oh/0.wav"
+ ],
+ "EmuDrumulator_perc": [
+  "EmuDrumulator_perc/0.wav"
+ ],
+ "EmuDrumulator_rim": [
+  "EmuDrumulator_rim/0.wav"
+ ],
+ "EmuDrumulator_sd": [
+  "EmuDrumulator_sd/0.wav"
+ ],
+ "EmuSP12_bd": [
+  "EmuSP12_bd/0.wav"
+ ],
+ "EmuSP12_cb": [
+  "EmuSP12_cb/0.wav"
+ ],
+ "EmuSP12_cp": [
+  "EmuSP12_cp/0.wav"
+ ],
+ "EmuSP12_cr": [
+  "EmuSP12_cr/0.wav"
+ ],
+ "EmuSP12_hh": [
+  "EmuSP12_hh/0.wav"
+ ],
+ "EmuSP12_ht": [
+  "EmuSP12_ht/0.wav"
+ ],
+ "EmuSP12_lt": [
+  "EmuSP12_lt/0.wav"
+ ],
+ "EmuSP12_misc": [
+  "EmuSP12_misc/0.wav"
+ ],
+ "EmuSP12_mt": [
+  "EmuSP12_mt/0.wav"
+ ],
+ "EmuSP12_oh": [
+  "EmuSP12_oh/0.wav"
+ ],
+ "EmuSP12_perc": [
+  "EmuSP12_perc/0.wav"
+ ],
+ "EmuSP12_rd": [
+  "EmuSP12_rd/0.wav"
+ ],
+ "EmuSP12_rim": [
+  "EmuSP12_rim/0.wav"
+ ],
+ "EmuSP12_sd": [
+  "EmuSP12_sd/0.wav"
+ ],
+ "KorgDDM110_bd": [
+  "KorgDDM110_bd/0.wav"
+ ],
+ "KorgDDM110_cp": [
+  "KorgDDM110_cp/0.wav"
+ ],
+ "KorgDDM110_cr": [
+  "KorgDDM110_cr/0.wav"
+ ],
+ "KorgDDM110_hh": [
+  "KorgDDM110_hh/0.wav"
+ ],
+ "KorgDDM110_ht": [
+  "KorgDDM110_ht/0.wav"
+ ],
+ "KorgDDM110_lt": [
+  "KorgDDM110_lt/0.wav"
+ ],
+ "KorgDDM110_oh": [
+  "KorgDDM110_oh/0.wav"
+ ],
+ "KorgDDM110_rim": [
+  "KorgDDM110_rim/0.wav"
+ ],
+ "KorgDDM110_sd": [
+  "KorgDDM110_sd/0.wav"
+ ],
+ "KorgKPR77_bd": [
+  "KorgKPR77_bd/0.wav"
+ ],
+ "KorgKPR77_cp": [
+  "KorgKPR77_cp/0.wav"
+ ],
+ "KorgKPR77_hh": [
+  "KorgKPR77_hh/0.wav"
+ ],
+ "KorgKPR77_oh": [
+  "KorgKPR77_oh/0.wav"
+ ],
+ "KorgKPR77_sd": [
+  "KorgKPR77_sd/0.wav"
+ ],
+ "KorgKR55_bd": [
+  "KorgKR55_bd/0.wav"
+ ],
+ "KorgKR55_cb": [
+  "KorgKR55_cb/0.wav"
+ ],
+ "KorgKR55_cr": [
+  "KorgKR55_cr/0.wav"
+ ],
+ "KorgKR55_hh": [
+  "KorgKR55_hh/0.wav"
+ ],
+ "KorgKR55_ht": [
+  "KorgKR55_ht/0.wav"
+ ],
+ "KorgKR55_oh": [
+  "KorgKR55_oh/0.wav"
+ ],
+ "KorgKR55_perc": [
+  "KorgKR55_perc/0.wav"
+ ],
+ "KorgKR55_rim": [
+  "KorgKR55_rim/0.wav"
+ ],
+ "KorgKR55_sd": [
+  "KorgKR55_sd/0.wav"
+ ],
+ "KorgKRZ_bd": [
+  "KorgKRZ_bd/0.wav"
+ ],
+ "KorgKRZ_cr": [
+  "KorgKRZ_cr/0.wav"
+ ],
+ "KorgKRZ_fx": [
+  "KorgKRZ_fx/0.wav"
+ ],
+ "KorgKRZ_hh": [
+  "KorgKRZ_hh/0.wav"
+ ],
+ "KorgKRZ_ht": [
+  "KorgKRZ_ht/0.wav"
+ ],
+ "KorgKRZ_lt": [
+  "KorgKRZ_lt/0.wav"
+ ],
+ "KorgKRZ_misc": [
+  "KorgKRZ_misc/0.wav"
+ ],
+ "KorgKRZ_oh": [
+  "KorgKRZ_oh/0.wav"
+ ],
+ "KorgKRZ_rd": [
+  "KorgKRZ_rd/0.wav"
+ ],
+ "KorgKRZ_sd": [
+  "KorgKRZ_sd/0.wav"
+ ],
+ "KorgM1_bd": [
+  "KorgM1_bd/0.wav"
+ ],
+ "KorgM1_cb": [
+  "KorgM1_cb/0.wav"
+ ],
+ "KorgM1_cp": [
+  "KorgM1_cp/0.wav"
+ ],
+ "KorgM1_cr": [
+  "KorgM1_cr/0.wav"
+ ],
+ "KorgM1_hh": [
+  "KorgM1_hh/0.wav"
+ ],
+ "KorgM1_ht": [
+  "KorgM1_ht/0.wav"
+ ],
+ "KorgM1_misc": [
+  "KorgM1_misc/0.wav"
+ ],
+ "KorgM1_mt": [
+  "KorgM1_mt/0.wav"
+ ],
+ "KorgM1_oh": [
+  "KorgM1_oh/0.wav"
+ ],
+ "KorgM1_perc": [
+  "KorgM1_perc/0.wav"
+ ],
+ "KorgM1_rd": [
+  "KorgM1_rd/0.wav"
+ ],
+ "KorgM1_rim": [
+  "KorgM1_rim/0.wav"
+ ],
+ "KorgM1_sd": [
+  "KorgM1_sd/0.wav"
+ ],
+ "KorgM1_sh": [
+  "KorgM1_sh/0.wav"
+ ],
+ "KorgM1_tb": [
+  "KorgM1_tb/0.wav"
+ ],
+ "KorgMinipops_bd": [
+  "KorgMinipops_bd/0.wav"
+ ],
+ "KorgMinipops_hh": [
+  "KorgMinipops_hh/0.wav"
+ ],
+ "KorgMinipops_misc": [
+  "KorgMinipops_misc/0.wav"
+ ],
+ "KorgMinipops_oh": [
+  "KorgMinipops_oh/0.wav"
+ ],
+ "KorgMinipops_sd": [
+  "KorgMinipops_sd/0.wav"
+ ],
+ "KorgT3_bd": [
+  "KorgT3_bd/0.wav"
+ ],
+ "KorgT3_cp": [
+  "KorgT3_cp/0.wav"
+ ],
+ "KorgT3_hh": [
+  "KorgT3_hh/0.wav"
+ ],
+ "KorgT3_misc": [
+  "KorgT3_misc/0.wav"
+ ],
+ "KorgT3_oh": [
+  "KorgT3_oh/0.wav"
+ ],
+ "KorgT3_perc": [
+  "KorgT3_perc/0.wav"
+ ],
+ "KorgT3_rim": [
+  "KorgT3_rim/0.wav"
+ ],
+ "KorgT3_sd": [
+  "KorgT3_sd/0.wav"
+ ],
+ "KorgT3_sh": [
+  "KorgT3_sh/0.wav"
+ ],
+ "Linn9000_bd": [
+  "Linn9000_bd/0.wav"
+ ],
+ "Linn9000_cb": [
+  "Linn9000_cb/0.wav"
+ ],
+ "Linn9000_cr": [
+  "Linn9000_cr/0.wav"
+ ],
+ "Linn9000_hh": [
+  "Linn9000_hh/0.wav"
+ ],
+ "Linn9000_ht": [
+  "Linn9000_ht/0.wav"
+ ],
+ "Linn9000_lt": [
+  "Linn9000_lt/0.wav"
+ ],
+ "Linn9000_mt": [
+  "Linn9000_mt/0.wav"
+ ],
+ "Linn9000_oh": [
+  "Linn9000_oh/0.wav"
+ ],
+ "Linn9000_perc": [
+  "Linn9000_perc/0.wav"
+ ],
+ "Linn9000_rd": [
+  "Linn9000_rd/0.wav"
+ ],
+ "Linn9000_rim": [
+  "Linn9000_rim/0.wav"
+ ],
+ "Linn9000_sd": [
+  "Linn9000_sd/0.wav"
+ ],
+ "Linn9000_tb": [
+  "Linn9000_tb/0.wav"
+ ],
+ "LinnDrum_bd": [
+  "LinnDrum_bd/0.wav"
+ ],
+ "LinnDrum_cb": [
+  "LinnDrum_cb/0.wav"
+ ],
+ "LinnDrum_cp": [
+  "LinnDrum_cp/0.wav"
+ ],
+ "LinnDrum_cr": [
+  "LinnDrum_cr/0.wav"
+ ],
+ "LinnDrum_hh": [
+  "LinnDrum_hh/0.wav"
+ ],
+ "LinnDrum_ht": [
+  "LinnDrum_ht/0.wav"
+ ],
+ "LinnDrum_lt": [
+  "LinnDrum_lt/0.wav"
+ ],
+ "LinnDrum_mt": [
+  "LinnDrum_mt/0.wav"
+ ],
+ "LinnDrum_oh": [
+  "LinnDrum_oh/0.wav"
+ ],
+ "LinnDrum_perc": [
+  "LinnDrum_perc/0.wav"
+ ],
+ "LinnDrum_rd": [
+  "LinnDrum_rd/0.wav"
+ ],
+ "LinnDrum_rim": [
+  "LinnDrum_rim/0.wav"
+ ],
+ "LinnDrum_sd": [
+  "LinnDrum_sd/0.wav"
+ ],
+ "LinnDrum_sh": [
+  "LinnDrum_sh/0.wav"
+ ],
+ "LinnDrum_tb": [
+  "LinnDrum_tb/0.wav"
+ ],
+ "LinnLM1_bd": [
+  "LinnLM1_bd/0.wav"
+ ],
+ "LinnLM1_cb": [
+  "LinnLM1_cb/0.wav"
+ ],
+ "LinnLM1_cp": [
+  "LinnLM1_cp/0.wav"
+ ],
+ "LinnLM1_hh": [
+  "LinnLM1_hh/0.wav"
+ ],
+ "LinnLM1_ht": [
+  "LinnLM1_ht/0.wav"
+ ],
+ "LinnLM1_lt": [
+  "LinnLM1_lt/0.wav"
+ ],
+ "LinnLM1_oh": [
+  "LinnLM1_oh/0.wav"
+ ],
+ "LinnLM1_perc": [
+  "LinnLM1_perc/0.wav"
+ ],
+ "LinnLM1_rim": [
+  "LinnLM1_rim/0.wav"
+ ],
+ "LinnLM1_sd": [
+  "LinnLM1_sd/0.wav"
+ ],
+ "LinnLM1_sh": [
+  "LinnLM1_sh/0.wav"
+ ],
+ "LinnLM1_tb": [
+  "LinnLM1_tb/0.wav"
+ ],
+ "LinnLM2_bd": [
+  "LinnLM2_bd/0.wav"
+ ],
+ "LinnLM2_cb": [
+  "LinnLM2_cb/0.wav"
+ ],
+ "LinnLM2_cp": [
+  "LinnLM2_cp/0.wav"
+ ],
+ "LinnLM2_cr": [
+  "LinnLM2_cr/0.wav"
+ ],
+ "LinnLM2_hh": [
+  "LinnLM2_hh/0.wav"
+ ],
+ "LinnLM2_ht": [
+  "LinnLM2_ht/0.wav"
+ ],
+ "LinnLM2_lt": [
+  "LinnLM2_lt/0.wav"
+ ],
+ "LinnLM2_mt": [
+  "LinnLM2_mt/0.wav"
+ ],
+ "LinnLM2_oh": [
+  "LinnLM2_oh/0.wav"
+ ],
+ "LinnLM2_rd": [
+  "LinnLM2_rd/0.wav"
+ ],
+ "LinnLM2_rim": [
+  "LinnLM2_rim/0.wav"
+ ],
+ "LinnLM2_sd": [
+  "LinnLM2_sd/0.wav"
+ ],
+ "LinnLM2_sh": [
+  "LinnLM2_sh/0.wav"
+ ],
+ "LinnLM2_tb": [
+  "LinnLM2_tb/0.wav"
+ ],
+ "MFB512_bd": [
+  "MFB512_bd/0.wav"
+ ],
+ "MFB512_cp": [
+  "MFB512_cp/0.wav"
+ ],
+ "MFB512_cr": [
+  "MFB512_cr/0.wav"
+ ],
+ "MFB512_hh": [
+  "MFB512_hh/0.wav"
+ ],
+ "MFB512_ht": [
+  "MFB512_ht/0.wav"
+ ],
+ "MFB512_lt": [
+  "MFB512_lt/0.wav"
+ ],
+ "MFB512_mt": [
+  "MFB512_mt/0.wav"
+ ],
+ "MFB512_oh": [
+  "MFB512_oh/0.wav"
+ ],
+ "MFB512_sd": [
+  "MFB512_sd/0.wav"
+ ],
+ "MPC1000_bd": [
+  "MPC1000_bd/0.wav"
+ ],
+ "MPC1000_cp": [
+  "MPC1000_cp/0.wav"
+ ],
+ "MPC1000_hh": [
+  "MPC1000_hh/0.wav"
+ ],
+ "MPC1000_oh": [
+  "MPC1000_oh/0.wav"
+ ],
+ "MPC1000_perc": [
+  "MPC1000_perc/0.wav"
+ ],
+ "MPC1000_sd": [
+  "MPC1000_sd/0.wav"
+ ],
+ "MPC1000_sh": [
+  "MPC1000_sh/0.wav"
+ ],
+ "OberheimDMX_": [
+  "OberheimDMX_/0.wav"
+ ],
+ "OberheimDMX_bd": [
+  "OberheimDMX_bd/0.wav"
+ ],
+ "OberheimDMX_cp": [
+  "OberheimDMX_cp/0.wav"
+ ],
+ "OberheimDMX_cr": [
+  "OberheimDMX_cr/0.wav"
+ ],
+ "OberheimDMX_hh": [
+  "OberheimDMX_hh/0.wav"
+ ],
+ "OberheimDMX_ht": [
+  "OberheimDMX_ht/0.wav"
+ ],
+ "OberheimDMX_lt": [
+  "OberheimDMX_lt/0.wav"
+ ],
+ "OberheimDMX_mt": [
+  "OberheimDMX_mt/0.wav"
+ ],
+ "OberheimDMX_oh": [
+  "OberheimDMX_oh/0.wav"
+ ],
+ "OberheimDMX_rd": [
+  "OberheimDMX_rd/0.wav"
+ ],
+ "OberheimDMX_rim": [
+  "OberheimDMX_rim/0.wav"
+ ],
+ "OberheimDMX_sd": [
+  "OberheimDMX_sd/0.wav"
+ ],
+ "OberheimDMX_sh": [
+  "OberheimDMX_sh/0.wav"
+ ],
+ "OberheimDMX_tb": [
+  "OberheimDMX_tb/0.wav"
+ ],
+ "RhythmAce_bd": [
+  "RhythmAce_bd/0.wav"
+ ],
+ "RhythmAce_hh": [
+  "RhythmAce_hh/0.wav"
+ ],
+ "RhythmAce_ht": [
+  "RhythmAce_ht/0.wav"
+ ],
+ "RhythmAce_lt": [
+  "RhythmAce_lt/0.wav"
+ ],
+ "RhythmAce_oh": [
+  "RhythmAce_oh/0.wav"
+ ],
+ "RhythmAce_perc": [
+  "RhythmAce_perc/0.wav"
+ ],
+ "RhythmAce_sd": [
+  "RhythmAce_sd/0.wav"
+ ],
+ "RolandCompurhythm1000_bd": [
+  "RolandCompurhythm1000_bd/0.wav"
+ ],
+ "RolandCompurhythm1000_cb": [
+  "RolandCompurhythm1000_cb/0.wav"
+ ],
+ "RolandCompurhythm1000_cp": [
+  "RolandCompurhythm1000_cp/0.wav"
+ ],
+ "RolandCompurhythm1000_cr": [
+  "RolandCompurhythm1000_cr/0.wav"
+ ],
+ "RolandCompurhythm1000_hh": [
+  "RolandCompurhythm1000_hh/0.wav"
+ ],
+ "RolandCompurhythm1000_ht": [
+  "RolandCompurhythm1000_ht/0.wav"
+ ],
+ "RolandCompurhythm1000_lt": [
+  "RolandCompurhythm1000_lt/0.wav"
+ ],
+ "RolandCompurhythm1000_mt": [
+  "RolandCompurhythm1000_mt/0.wav"
+ ],
+ "RolandCompurhythm1000_oh": [
+  "RolandCompurhythm1000_oh/0.wav"
+ ],
+ "RolandCompurhythm1000_perc": [
+  "RolandCompurhythm1000_perc/0.wav"
+ ],
+ "RolandCompurhythm1000_rd": [
+  "RolandCompurhythm1000_rd/0.wav"
+ ],
+ "RolandCompurhythm1000_rim": [
+  "RolandCompurhythm1000_rim/0.wav"
+ ],
+ "RolandCompurhythm1000_sd": [
+  "RolandCompurhythm1000_sd/0.wav"
+ ],
+ "RolandCompurhythm78_bd": [
+  "RolandCompurhythm78_bd/0.wav"
+ ],
+ "RolandCompurhythm78_cb": [
+  "RolandCompurhythm78_cb/0.wav"
+ ],
+ "RolandCompurhythm78_hh": [
+  "RolandCompurhythm78_hh/0.wav"
+ ],
+ "RolandCompurhythm78_misc": [
+  "RolandCompurhythm78_misc/0.wav"
+ ],
+ "RolandCompurhythm78_oh": [
+  "RolandCompurhythm78_oh/0.wav"
+ ],
+ "RolandCompurhythm78_perc": [
+  "RolandCompurhythm78_perc/0.wav"
+ ],
+ "RolandCompurhythm78_sd": [
+  "RolandCompurhythm78_sd/0.wav"
+ ],
+ "RolandCompurhythm78_tb": [
+  "RolandCompurhythm78_tb/0.wav"
+ ],
+ "RolandCompurhythm8000_bd": [
+  "RolandCompurhythm8000_bd/0.wav"
+ ],
+ "RolandCompurhythm8000_cb": [
+  "RolandCompurhythm8000_cb/0.wav"
+ ],
+ "RolandCompurhythm8000_cp": [
+  "RolandCompurhythm8000_cp/0.wav"
+ ],
+ "RolandCompurhythm8000_cr": [
+  "RolandCompurhythm8000_cr/0.wav"
+ ],
+ "RolandCompurhythm8000_hh": [
+  "RolandCompurhythm8000_hh/0.wav"
+ ],
+ "RolandCompurhythm8000_ht": [
+  "RolandCompurhythm8000_ht/0.wav"
+ ],
+ "RolandCompurhythm8000_lt": [
+  "RolandCompurhythm8000_lt/0.wav"
+ ],
+ "RolandCompurhythm8000_mt": [
+  "RolandCompurhythm8000_mt/0.wav"
+ ],
+ "RolandCompurhythm8000_oh": [
+  "RolandCompurhythm8000_oh/0.wav"
+ ],
+ "RolandCompurhythm8000_perc": [
+  "RolandCompurhythm8000_perc/0.wav"
+ ],
+ "RolandCompurhythm8000_rim": [
+  "RolandCompurhythm8000_rim/0.wav"
+ ],
+ "RolandCompurhythm8000_sd": [
+  "RolandCompurhythm8000_sd/0.wav"
+ ],
+ "RolandD110_bd": [
+  "RolandD110_bd/0.wav"
+ ],
+ "RolandD110_cb": [
+  "RolandD110_cb/0.wav"
+ ],
+ "RolandD110_cr": [
+  "RolandD110_cr/0.wav"
+ ],
+ "RolandD110_hh": [
+  "RolandD110_hh/0.wav"
+ ],
+ "RolandD110_lt": [
+  "RolandD110_lt/0.wav"
+ ],
+ "RolandD110_oh": [
+  "RolandD110_oh/0.wav"
+ ],
+ "RolandD110_perc": [
+  "RolandD110_perc/0.wav"
+ ],
+ "RolandD110_rd": [
+  "RolandD110_rd/0.wav"
+ ],
+ "RolandD110_rim": [
+  "RolandD110_rim/0.wav"
+ ],
+ "RolandD110_sd": [
+  "RolandD110_sd/0.wav"
+ ],
+ "RolandD110_sh": [
+  "RolandD110_sh/0.wav"
+ ],
+ "RolandD110_tb": [
+  "RolandD110_tb/0.wav"
+ ],
+ "RolandD70_bd": [
+  "RolandD70_bd/0.wav"
+ ],
+ "RolandD70_cb": [
+  "RolandD70_cb/0.wav"
+ ],
+ "RolandD70_cp": [
+  "RolandD70_cp/0.wav"
+ ],
+ "RolandD70_cr": [
+  "RolandD70_cr/0.wav"
+ ],
+ "RolandD70_hh": [
+  "RolandD70_hh/0.wav"
+ ],
+ "RolandD70_lt": [
+  "RolandD70_lt/0.wav"
+ ],
+ "RolandD70_mt": [
+  "RolandD70_mt/0.wav"
+ ],
+ "RolandD70_oh": [
+  "RolandD70_oh/0.wav"
+ ],
+ "RolandD70_perc": [
+  "RolandD70_perc/0.wav"
+ ],
+ "RolandD70_rd": [
+  "RolandD70_rd/0.wav"
+ ],
+ "RolandD70_rim": [
+  "RolandD70_rim/0.wav"
+ ],
+ "RolandD70_sd": [
+  "RolandD70_sd/0.wav"
+ ],
+ "RolandD70_sh": [
+  "RolandD70_sh/0.wav"
+ ],
+ "RolandJD990_bd": [
+  "RolandJD990_bd/0.wav"
+ ],
+ "RolandJD990_cb": [
+  "RolandJD990_cb/0.wav"
+ ],
+ "RolandJD990_cp": [
+  "RolandJD990_cp/0.wav"
+ ],
+ "RolandJD990_cr": [
+  "RolandJD990_cr/0.wav"
+ ],
+ "RolandJD990_hh": [
+  "RolandJD990_hh/0.wav"
+ ],
+ "RolandJD990_ht": [
+  "RolandJD990_ht/0.wav"
+ ],
+ "RolandJD990_lt": [
+  "RolandJD990_lt/0.wav"
+ ],
+ "RolandJD990_misc": [
+  "RolandJD990_misc/0.wav"
+ ],
+ "RolandJD990_mt": [
+  "RolandJD990_mt/0.wav"
+ ],
+ "RolandJD990_oh": [
+  "RolandJD990_oh/0.wav"
+ ],
+ "RolandJD990_perc": [
+  "RolandJD990_perc/0.wav"
+ ],
+ "RolandJD990_rd": [
+  "RolandJD990_rd/0.wav"
+ ],
+ "RolandJD990_sd": [
+  "RolandJD990_sd/0.wav"
+ ],
+ "RolandJD990_tb": [
+  "RolandJD990_tb/0.wav"
+ ],
+ "RolandMC303_bd": [
+  "RolandMC303_bd/0.wav"
+ ],
+ "RolandMC303_cb": [
+  "RolandMC303_cb/0.wav"
+ ],
+ "RolandMC303_cp": [
+  "RolandMC303_cp/0.wav"
+ ],
+ "RolandMC303_fx": [
+  "RolandMC303_fx/0.wav"
+ ],
+ "RolandMC303_hh": [
+  "RolandMC303_hh/0.wav"
+ ],
+ "RolandMC303_ht": [
+  "RolandMC303_ht/0.wav"
+ ],
+ "RolandMC303_lt": [
+  "RolandMC303_lt/0.wav"
+ ],
+ "RolandMC303_misc": [
+  "RolandMC303_misc/0.wav"
+ ],
+ "RolandMC303_mt": [
+  "RolandMC303_mt/0.wav"
+ ],
+ "RolandMC303_oh": [
+  "RolandMC303_oh/0.wav"
+ ],
+ "RolandMC303_perc": [
+  "RolandMC303_perc/0.wav"
+ ],
+ "RolandMC303_rd": [
+  "RolandMC303_rd/0.wav"
+ ],
+ "RolandMC303_rim": [
+  "RolandMC303_rim/0.wav"
+ ],
+ "RolandMC303_sd": [
+  "RolandMC303_sd/0.wav"
+ ],
+ "RolandMC303_sh": [
+  "RolandMC303_sh/0.wav"
+ ],
+ "RolandMC303_tb": [
+  "RolandMC303_tb/0.wav"
+ ],
+ "RolandMT32_bd": [
+  "RolandMT32_bd/0.wav"
+ ],
+ "RolandMT32_cb": [
+  "RolandMT32_cb/0.wav"
+ ],
+ "RolandMT32_cp": [
+  "RolandMT32_cp/0.wav"
+ ],
+ "RolandMT32_cr": [
+  "RolandMT32_cr/0.wav"
+ ],
+ "RolandMT32_hh": [
+  "RolandMT32_hh/0.wav"
+ ],
+ "RolandMT32_ht": [
+  "RolandMT32_ht/0.wav"
+ ],
+ "RolandMT32_lt": [
+  "RolandMT32_lt/0.wav"
+ ],
+ "RolandMT32_mt": [
+  "RolandMT32_mt/0.wav"
+ ],
+ "RolandMT32_oh": [
+  "RolandMT32_oh/0.wav"
+ ],
+ "RolandMT32_perc": [
+  "RolandMT32_perc/0.wav"
+ ],
+ "RolandMT32_rd": [
+  "RolandMT32_rd/0.wav"
+ ],
+ "RolandMT32_rim": [
+  "RolandMT32_rim/0.wav"
+ ],
+ "RolandMT32_sd": [
+  "RolandMT32_sd/0.wav"
+ ],
+ "RolandMT32_sh": [
+  "RolandMT32_sh/0.wav"
+ ],
+ "RolandMT32_tb": [
+  "RolandMT32_tb/0.wav"
+ ],
+ "RolandR8_bd": [
+  "RolandR8_bd/0.wav"
+ ],
+ "RolandR8_cb": [
+  "RolandR8_cb/0.wav"
+ ],
+ "RolandR8_cp": [
+  "RolandR8_cp/0.wav"
+ ],
+ "RolandR8_cr": [
+  "RolandR8_cr/0.wav"
+ ],
+ "RolandR8_hh": [
+  "RolandR8_hh/0.wav"
+ ],
+ "RolandR8_ht": [
+  "RolandR8_ht/0.wav"
+ ],
+ "RolandR8_lt": [
+  "RolandR8_lt/0.wav"
+ ],
+ "RolandR8_mt": [
+  "RolandR8_mt/0.wav"
+ ],
+ "RolandR8_oh": [
+  "RolandR8_oh/0.wav"
+ ],
+ "RolandR8_perc": [
+  "RolandR8_perc/0.wav"
+ ],
+ "RolandR8_rd": [
+  "RolandR8_rd/0.wav"
+ ],
+ "RolandR8_rim": [
+  "RolandR8_rim/0.wav"
+ ],
+ "RolandR8_sd": [
+  "RolandR8_sd/0.wav"
+ ],
+ "RolandR8_sh": [
+  "RolandR8_sh/0.wav"
+ ],
+ "RolandR8_tb": [
+  "RolandR8_tb/0.wav"
+ ],
+ "RolandSystem100_bd": [
+  "RolandSystem100_bd/0.wav"
+ ],
+ "RolandSystem100_hh": [
+  "RolandSystem100_hh/0.wav"
+ ],
+ "RolandSystem100_misc": [
+  "RolandSystem100_misc/0.wav"
+ ],
+ "RolandSystem100_oh": [
+  "RolandSystem100_oh/0.wav"
+ ],
+ "RolandSystem100_perc": [
+  "RolandSystem100_perc/0.wav"
+ ],
+ "RolandSystem100_sd": [
+  "RolandSystem100_sd/0.wav"
+ ],
+ "RolandTR505_bd": [
+  "RolandTR505_bd/0.wav"
+ ],
+ "RolandTR505_cb": [
+  "RolandTR505_cb/0.wav"
+ ],
+ "RolandTR505_cp": [
+  "RolandTR505_cp/0.wav"
+ ],
+ "RolandTR505_cr": [
+  "RolandTR505_cr/0.wav"
+ ],
+ "RolandTR505_hh": [
+  "RolandTR505_hh/0.wav"
+ ],
+ "RolandTR505_ht": [
+  "RolandTR505_ht/0.wav"
+ ],
+ "RolandTR505_lt": [
+  "RolandTR505_lt/0.wav"
+ ],
+ "RolandTR505_mt": [
+  "RolandTR505_mt/0.wav"
+ ],
+ "RolandTR505_oh": [
+  "RolandTR505_oh/0.wav"
+ ],
+ "RolandTR505_perc": [
+  "RolandTR505_perc/0.wav"
+ ],
+ "RolandTR505_rd": [
+  "RolandTR505_rd/0.wav"
+ ],
+ "RolandTR505_rim": [
+  "RolandTR505_rim/0.wav"
+ ],
+ "RolandTR505_sd": [
+  "RolandTR505_sd/0.wav"
+ ],
+ "RolandTR606_bd": [
+  "RolandTR606_bd/0.wav"
+ ],
+ "RolandTR606_cr": [
+  "RolandTR606_cr/0.wav"
+ ],
+ "RolandTR606_hh": [
+  "RolandTR606_hh/0.wav"
+ ],
+ "RolandTR606_ht": [
+  "RolandTR606_ht/0.wav"
+ ],
+ "RolandTR606_lt": [
+  "RolandTR606_lt/0.wav"
+ ],
+ "RolandTR606_oh": [
+  "RolandTR606_oh/0.wav"
+ ],
+ "RolandTR606_sd": [
+  "RolandTR606_sd/0.wav"
+ ],
+ "RolandTR626_bd": [
+  "RolandTR626_bd/0.wav"
+ ],
+ "RolandTR626_cb": [
+  "RolandTR626_cb/0.wav"
+ ],
+ "RolandTR626_cp": [
+  "RolandTR626_cp/0.wav"
+ ],
+ "RolandTR626_cr": [
+  "RolandTR626_cr/0.wav"
+ ],
+ "RolandTR626_hh": [
+  "RolandTR626_hh/0.wav"
+ ],
+ "RolandTR626_ht": [
+  "RolandTR626_ht/0.wav"
+ ],
+ "RolandTR626_lt": [
+  "RolandTR626_lt/0.wav"
+ ],
+ "RolandTR626_mt": [
+  "RolandTR626_mt/0.wav"
+ ],
+ "RolandTR626_oh": [
+  "RolandTR626_oh/0.wav"
+ ],
+ "RolandTR626_perc": [
+  "RolandTR626_perc/0.wav"
+ ],
+ "RolandTR626_rd": [
+  "RolandTR626_rd/0.wav"
+ ],
+ "RolandTR626_rim": [
+  "RolandTR626_rim/0.wav"
+ ],
+ "RolandTR626_sd": [
+  "RolandTR626_sd/0.wav"
+ ],
+ "RolandTR626_sh": [
+  "RolandTR626_sh/0.wav"
+ ],
+ "RolandTR626_tb": [
+  "RolandTR626_tb/0.wav"
+ ],
+ "RolandTR707_bd": [
+  "RolandTR707_bd/0.wav"
+ ],
+ "RolandTR707_cb": [
+  "RolandTR707_cb/0.wav"
+ ],
+ "RolandTR707_cp": [
+  "RolandTR707_cp/0.wav"
+ ],
+ "RolandTR707_cr": [
+  "RolandTR707_cr/0.wav"
+ ],
+ "RolandTR707_hh": [
+  "RolandTR707_hh/0.wav"
+ ],
+ "RolandTR707_ht": [
+  "RolandTR707_ht/0.wav"
+ ],
+ "RolandTR707_lt": [
+  "RolandTR707_lt/0.wav"
+ ],
+ "RolandTR707_mt": [
+  "RolandTR707_mt/0.wav"
+ ],
+ "RolandTR707_oh": [
+  "RolandTR707_oh/0.wav"
+ ],
+ "RolandTR707_rim": [
+  "RolandTR707_rim/0.wav"
+ ],
+ "RolandTR707_sd": [
+  "RolandTR707_sd/0.wav"
+ ],
+ "RolandTR707_tb": [
+  "RolandTR707_tb/0.wav"
+ ],
+ "RolandTR808_bd": [
+  "RolandTR808_bd/0.wav"
+ ],
+ "RolandTR808_cb": [
+  "RolandTR808_cb/0.wav"
+ ],
+ "RolandTR808_cp": [
+  "RolandTR808_cp/0.wav"
+ ],
+ "RolandTR808_cr": [
+  "RolandTR808_cr/0.wav"
+ ],
+ "RolandTR808_hh": [
+  "RolandTR808_hh/0.wav"
+ ],
+ "RolandTR808_ht": [
+  "RolandTR808_ht/0.wav"
+ ],
+ "RolandTR808_lt": [
+  "RolandTR808_lt/0.wav"
+ ],
+ "RolandTR808_mt": [
+  "RolandTR808_mt/0.wav"
+ ],
+ "RolandTR808_oh": [
+  "RolandTR808_oh/0.wav"
+ ],
+ "RolandTR808_perc": [
+  "RolandTR808_perc/0.wav"
+ ],
+ "RolandTR808_rim": [
+  "RolandTR808_rim/0.wav"
+ ],
+ "RolandTR808_sd": [
+  "RolandTR808_sd/0.wav"
+ ],
+ "RolandTR808_sh": [
+  "RolandTR808_sh/0.wav"
+ ],
+ "RolandTR909_bd": [
+  "RolandTR909_bd/0.wav"
+ ],
+ "RolandTR909_cp": [
+  "RolandTR909_cp/0.wav"
+ ],
+ "RolandTR909_cr": [
+  "RolandTR909_cr/0.wav"
+ ],
+ "RolandTR909_hh": [
+  "RolandTR909_hh/0.wav"
+ ],
+ "RolandTR909_ht": [
+  "RolandTR909_ht/0.wav"
+ ],
+ "RolandTR909_lt": [
+  "RolandTR909_lt/0.wav"
+ ],
+ "RolandTR909_mt": [
+  "RolandTR909_mt/0.wav"
+ ],
+ "RolandTR909_oh": [
+  "RolandTR909_oh/0.wav"
+ ],
+ "RolandTR909_rd": [
+  "RolandTR909_rd/0.wav"
+ ],
+ "RolandTR909_rim": [
+  "RolandTR909_rim/0.wav"
+ ],
+ "RolandTR909_sd": [
+  "RolandTR909_sd/0.wav"
+ ],
+ "SakataDPM48_bd": [
+  "SakataDPM48_bd/0.wav"
+ ],
+ "SakataDPM48_cp": [
+  "SakataDPM48_cp/0.wav"
+ ],
+ "SakataDPM48_cr": [
+  "SakataDPM48_cr/0.wav"
+ ],
+ "SakataDPM48_hh": [
+  "SakataDPM48_hh/0.wav"
+ ],
+ "SakataDPM48_ht": [
+  "SakataDPM48_ht/0.wav"
+ ],
+ "SakataDPM48_lt": [
+  "SakataDPM48_lt/0.wav"
+ ],
+ "SakataDPM48_mt": [
+  "SakataDPM48_mt/0.wav"
+ ],
+ "SakataDPM48_oh": [
+  "SakataDPM48_oh/0.wav"
+ ],
+ "SakataDPM48_perc": [
+  "SakataDPM48_perc/0.wav"
+ ],
+ "SakataDPM48_rd": [
+  "SakataDPM48_rd/0.wav"
+ ],
+ "SakataDPM48_rim": [
+  "SakataDPM48_rim/0.wav"
+ ],
+ "SakataDPM48_sd": [
+  "SakataDPM48_sd/0.wav"
+ ],
+ "SakataDPM48_sh": [
+  "SakataDPM48_sh/0.wav"
+ ],
+ "SequentialCircuitsDrumtracks_bd": [
+  "SequentialCircuitsDrumtracks_bd/0.wav"
+ ],
+ "SequentialCircuitsDrumtracks_cb": [
+  "SequentialCircuitsDrumtracks_cb/0.wav"
+ ],
+ "SequentialCircuitsDrumtracks_cp": [
+  "SequentialCircuitsDrumtracks_cp/0.wav"
+ ],
+ "SequentialCircuitsDrumtracks_cr": [
+  "SequentialCircuitsDrumtracks_cr/0.wav"
+ ],
+ "SequentialCircuitsDrumtracks_hh": [
+  "SequentialCircuitsDrumtracks_hh/0.wav"
+ ],
+ "SequentialCircuitsDrumtracks_ht": [
+  "SequentialCircuitsDrumtracks_ht/0.wav"
+ ],
+ "SequentialCircuitsDrumtracks_oh": [
+  "SequentialCircuitsDrumtracks_oh/0.wav"
+ ],
+ "SequentialCircuitsDrumtracks_rd": [
+  "SequentialCircuitsDrumtracks_rd/0.wav"
+ ],
+ "SequentialCircuitsDrumtracks_rim": [
+  "SequentialCircuitsDrumtracks_rim/0.wav"
+ ],
+ "SequentialCircuitsDrumtracks_sd": [
+  "SequentialCircuitsDrumtracks_sd/0.wav"
+ ],
+ "SequentialCircuitsDrumtracks_sh": [
+  "SequentialCircuitsDrumtracks_sh/0.wav"
+ ],
+ "SequentialCircuitsDrumtracks_tb": [
+  "SequentialCircuitsDrumtracks_tb/0.wav"
+ ],
+ "SequentialCircuitsTom_bd": [
+  "SequentialCircuitsTom_bd/0.wav"
+ ],
+ "SequentialCircuitsTom_cp": [
+  "SequentialCircuitsTom_cp/0.wav"
+ ],
+ "SequentialCircuitsTom_cr": [
+  "SequentialCircuitsTom_cr/0.wav"
+ ],
+ "SequentialCircuitsTom_hh": [
+  "SequentialCircuitsTom_hh/0.wav"
+ ],
+ "SequentialCircuitsTom_ht": [
+  "SequentialCircuitsTom_ht/0.wav"
+ ],
+ "SequentialCircuitsTom_oh": [
+  "SequentialCircuitsTom_oh/0.wav"
+ ],
+ "SequentialCircuitsTom_sd": [
+  "SequentialCircuitsTom_sd/0.wav"
+ ],
+ "SimmonsSDS5_bd": [
+  "SimmonsSDS5_bd/0.wav"
+ ],
+ "SimmonsSDS5_hh": [
+  "SimmonsSDS5_hh/0.wav"
+ ],
+ "SimmonsSDS5_ht": [
+  "SimmonsSDS5_ht/0.wav"
+ ],
+ "SimmonsSDS5_lt": [
+  "SimmonsSDS5_lt/0.wav"
+ ],
+ "SimmonsSDS5_mt": [
+  "SimmonsSDS5_mt/0.wav"
+ ],
+ "SimmonsSDS5_oh": [
+  "SimmonsSDS5_oh/0.wav"
+ ],
+ "SimmonsSDS5_rim": [
+  "SimmonsSDS5_rim/0.wav"
+ ],
+ "SimmonsSDS5_sd": [
+  "SimmonsSDS5_sd/0.wav"
+ ],
+ "SoundmastersR88_bd": [
+  "SoundmastersR88_bd/0.wav"
+ ],
+ "SoundmastersR88_cr": [
+  "SoundmastersR88_cr/0.wav"
+ ],
+ "SoundmastersR88_hh": [
+  "SoundmastersR88_hh/0.wav"
+ ],
+ "SoundmastersR88_oh": [
+  "SoundmastersR88_oh/0.wav"
+ ],
+ "SoundmastersR88_sd": [
+  "SoundmastersR88_sd/0.wav"
+ ],
+ "UnivoxMicroRhythmer12_bd": [
+  "UnivoxMicroRhythmer12_bd/0.wav"
+ ],
+ "UnivoxMicroRhythmer12_hh": [
+  "UnivoxMicroRhythmer12_hh/0.wav"
+ ],
+ "UnivoxMicroRhythmer12_oh": [
+  "UnivoxMicroRhythmer12_oh/0.wav"
+ ],
+ "UnivoxMicroRhythmer12_sd": [
+  "UnivoxMicroRhythmer12_sd/0.wav"
+ ],
+ "ViscoSpaceDrum_bd": [
+  "ViscoSpaceDrum_bd/0.wav"
+ ],
+ "ViscoSpaceDrum_cb": [
+  "ViscoSpaceDrum_cb/0.wav"
+ ],
+ "ViscoSpaceDrum_hh": [
+  "ViscoSpaceDrum_hh/0.wav"
+ ],
+ "ViscoSpaceDrum_ht": [
+  "ViscoSpaceDrum_ht/0.wav"
+ ],
+ "ViscoSpaceDrum_lt": [
+  "ViscoSpaceDrum_lt/0.wav"
+ ],
+ "ViscoSpaceDrum_misc": [
+  "ViscoSpaceDrum_misc/0.wav"
+ ],
+ "ViscoSpaceDrum_mt": [
+  "ViscoSpaceDrum_mt/0.wav"
+ ],
+ "ViscoSpaceDrum_oh": [
+  "ViscoSpaceDrum_oh/0.wav"
+ ],
+ "ViscoSpaceDrum_perc": [
+  "ViscoSpaceDrum_perc/0.wav"
+ ],
+ "ViscoSpaceDrum_rim": [
+  "ViscoSpaceDrum_rim/0.wav"
+ ],
+ "ViscoSpaceDrum_sd": [
+  "ViscoSpaceDrum_sd/0.wav"
+ ],
+ "XdrumLM8953_bd": [
+  "XdrumLM8953_bd/0.wav"
+ ],
+ "XdrumLM8953_cr": [
+  "XdrumLM8953_cr/0.wav"
+ ],
+ "XdrumLM8953_hh": [
+  "XdrumLM8953_hh/0.wav"
+ ],
+ "XdrumLM8953_ht": [
+  "XdrumLM8953_ht/0.wav"
+ ],
+ "XdrumLM8953_lt": [
+  "XdrumLM8953_lt/0.wav"
+ ],
+ "XdrumLM8953_mt": [
+  "XdrumLM8953_mt/0.wav"
+ ],
+ "XdrumLM8953_oh": [
+  "XdrumLM8953_oh/0.wav"
+ ],
+ "XdrumLM8953_rd": [
+  "XdrumLM8953_rd/0.wav"
+ ],
+ "XdrumLM8953_rim": [
+  "XdrumLM8953_rim/0.wav"
+ ],
+ "XdrumLM8953_sd": [
+  "XdrumLM8953_sd/0.wav"
+ ],
+ "XdrumLM8953_tb": [
+  "XdrumLM8953_tb/0.wav"
+ ],
+ "YamahaRM50_bd": [
+  "YamahaRM50_bd/0.wav"
+ ],
+ "YamahaRM50_cb": [
+  "YamahaRM50_cb/0.wav"
+ ],
+ "YamahaRM50_cp": [
+  "YamahaRM50_cp/0.wav"
+ ],
+ "YamahaRM50_cr": [
+  "YamahaRM50_cr/0.wav"
+ ],
+ "YamahaRM50_hh": [
+  "YamahaRM50_hh/0.wav"
+ ],
+ "YamahaRM50_ht": [
+  "YamahaRM50_ht/0.wav"
+ ],
+ "YamahaRM50_lt": [
+  "YamahaRM50_lt/0.wav"
+ ],
+ "YamahaRM50_misc": [
+  "YamahaRM50_misc/0.wav"
+ ],
+ "YamahaRM50_mt": [
+  "YamahaRM50_mt/0.wav"
+ ],
+ "YamahaRM50_oh": [
+  "YamahaRM50_oh/0.wav"
+ ],
+ "YamahaRM50_perc": [
+  "YamahaRM50_perc/0.wav"
+ ],
+ "YamahaRM50_rd": [
+  "YamahaRM50_rd/0.wav"
+ ],
+ "YamahaRM50_sd": [
+  "YamahaRM50_sd/0.wav"
+ ],
+ "YamahaRM50_sh": [
+  "YamahaRM50_sh/0.wav"
+ ],
+ "YamahaRM50_tb": [
+  "YamahaRM50_tb/0.wav"
+ ],
+ "YamahaRX21_bd": [
+  "YamahaRX21_bd/0.wav"
+ ],
+ "YamahaRX21_cp": [
+  "YamahaRX21_cp/0.wav"
+ ],
+ "YamahaRX21_cr": [
+  "YamahaRX21_cr/0.wav"
+ ],
+ "YamahaRX21_hh": [
+  "YamahaRX21_hh/0.wav"
+ ],
+ "YamahaRX21_ht": [
+  "YamahaRX21_ht/0.wav"
+ ],
+ "YamahaRX21_lt": [
+  "YamahaRX21_lt/0.wav"
+ ],
+ "YamahaRX21_mt": [
+  "YamahaRX21_mt/0.wav"
+ ],
+ "YamahaRX21_oh": [
+  "YamahaRX21_oh/0.wav"
+ ],
+ "YamahaRX21_sd": [
+  "YamahaRX21_sd/0.wav"
+ ],
+ "YamahaRX5_bd": [
+  "YamahaRX5_bd/0.wav"
+ ],
+ "YamahaRX5_cb": [
+  "YamahaRX5_cb/0.wav"
+ ],
+ "YamahaRX5_fx": [
+  "YamahaRX5_fx/0.wav"
+ ],
+ "YamahaRX5_hh": [
+  "YamahaRX5_hh/0.wav"
+ ],
+ "YamahaRX5_lt": [
+  "YamahaRX5_lt/0.wav"
+ ],
+ "YamahaRX5_oh": [
+  "YamahaRX5_oh/0.wav"
+ ],
+ "YamahaRX5_rim": [
+  "YamahaRX5_rim/0.wav"
+ ],
+ "YamahaRX5_sd": [
+  "YamahaRX5_sd/0.wav"
+ ],
+ "YamahaRX5_sh": [
+  "YamahaRX5_sh/0.wav"
+ ],
+ "YamahaRX5_tb": [
+  "YamahaRX5_tb/0.wav"
+ ],
+ "YamahaRY30_bd": [
+  "YamahaRY30_bd/0.wav"
+ ],
+ "YamahaRY30_cb": [
+  "YamahaRY30_cb/0.wav"
+ ],
+ "YamahaRY30_cp": [
+  "YamahaRY30_cp/0.wav"
+ ],
+ "YamahaRY30_cr": [
+  "YamahaRY30_cr/0.wav"
+ ],
+ "YamahaRY30_hh": [
+  "YamahaRY30_hh/0.wav"
+ ],
+ "YamahaRY30_ht": [
+  "YamahaRY30_ht/0.wav"
+ ],
+ "YamahaRY30_lt": [
+  "YamahaRY30_lt/0.wav"
+ ],
+ "YamahaRY30_misc": [
+  "YamahaRY30_misc/0.wav"
+ ],
+ "YamahaRY30_mt": [
+  "YamahaRY30_mt/0.wav"
+ ],
+ "YamahaRY30_oh": [
+  "YamahaRY30_oh/0.wav"
+ ],
+ "YamahaRY30_perc": [
+  "YamahaRY30_perc/0.wav"
+ ],
+ "YamahaRY30_rd": [
+  "YamahaRY30_rd/0.wav"
+ ],
+ "YamahaRY30_rim": [
+  "YamahaRY30_rim/0.wav"
+ ],
+ "YamahaRY30_sd": [
+  "YamahaRY30_sd/0.wav"
+ ],
+ "YamahaRY30_sh": [
+  "YamahaRY30_sh/0.wav"
+ ],
+ "YamahaRY30_tb": [
+  "YamahaRY30_tb/0.wav"
+ ]
+}
