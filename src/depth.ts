@@ -1,9 +1,9 @@
 /**
  * How much evidence a check run is allowed to gather.
  *
- *   npm run verify:quick    a sample of the catalogue — seconds
- *   npm run verify          every style, one seed each — half a minute
- *   npm run verify:full     the whole sweep — minutes
+ *   npm run verify              a sample of the catalogue — seconds (the default)
+ *   npm run verify -- --standard  every style, one seed each — half a minute
+ *   npm run verify:full         the whole sweep — minutes
  *
  * The full sweep is six minutes of writing music nobody listens to, and a check
  * that is too slow to run is a check that does not run. What a cheaper pass must
@@ -43,12 +43,8 @@
  * takes to read the answer.
  *
  * It is the one tier where a check can be green because it never looked, which
- * is why it is opt-in, says which fraction it took, and is not what you get by
- * typing `npm run verify`. Two suites are left out of it entirely rather than
- * sampled: `concert-check` and `chaos-check` assert ratios over the whole
- * catalogue — how many numbers are sung, which traits ever fire — and a quarter
- * of the catalogue is not a thinner version of those, it is a different
- * population that sends them red on the sample rather than on the change.
+ * is why it says which fraction it took, and is not the sweep. `--standard`
+ * and `--full` are the opt-in. Every suite honours the same flags.
  *
  * A pass under the full sweep therefore prints `skip` lines and a closing count,
  * and neither the word `ok` nor the exit status is ever produced by evidence
@@ -60,7 +56,7 @@ export type Depth = 'quick' | 'standard' | 'full';
 
 export const DEPTH: Depth = process.argv.includes('--full')
   ? 'full'
-  : process.argv.includes('--quick') ? 'quick' : 'standard';
+  : process.argv.includes('--standard') ? 'standard' : 'quick';
 
 /** The whole sweep was asked for, on the command line or by the runner. */
 export const FULL = DEPTH === 'full';

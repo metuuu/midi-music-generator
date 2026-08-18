@@ -16,6 +16,7 @@ import { melodicLine } from './core/types.js';
 import type { Song } from './core/types.js';
 import { generateSong } from './generate/song.js';
 import { renderMidi } from './render/midi.js';
+import { seeds } from './depth.js';
 
 interface Stats {
   songs: number;
@@ -124,8 +125,10 @@ function pct(a: number, b: number): string {
 }
 
 function main(): void {
-  const count = Number(process.argv[2] ?? 60);
-  const genre = process.argv[3];
+  const rest = process.argv.slice(2).filter((a) => !a.startsWith('--'));
+  const numbered = rest.find((a) => /^\d+$/.test(a));
+  const genre = rest.find((a) => !/^\d+$/.test(a));
+  const count = numbered ? Number(numbered) : seeds(60, 40, 10);
   const s: Stats = {
     songs: 0, strongBeatNotes: 0, strongBeatChordTones: 0, intervals: [], leaps: 0,
     steps: 0, repeats: 0, melodyNotes: 0, keyChanges: 0, minorSongs: 0,

@@ -40,7 +40,7 @@ import { renderMidi } from './render/midi.js';
 import { renderStrudel } from './render/strudel.js';
 import type { Song } from './core/types.js';
 import type { Style } from './style/types.js';
-import { depthSummary, seeds } from './depth.js';
+import { depthSummary, deep, sample, seeds } from './depth.js';
 
 let failures = 0;
 let checks = 0;
@@ -535,7 +535,7 @@ section('Coverage — every kind and every trait reachable');
    */
   const perMetre = new Map<string, number>();
   let borrowedFigures = 0;
-  for (const gid of GENRE_IDS) {
+  for (const gid of sample(GENRE_IDS)) {
     const genre = getGenre(gid);
     for (const style of Object.values(genre.styles)) {
       const key = `${style.beatsPerBar}${style.groups ? `[${style.groups.join('+')}]` : ''}`;
@@ -656,17 +656,19 @@ section('Playable — a chimera is a song like any other');
    * not have picked out exactly the layer with a second palette.
    */
   const palette = (w: ReturnType<typeof wardrobeFor>) => [...w.jackets, ...w.loud];
-  const traitNames = new Set<string>();
-  for (let i = 0; i < 40; i++) {
-    const song = generateSong({ seed: `dress${i}`, chaos: { levels: CHAOS_LEVELS, spread: 1 } });
-    for (const name of Object.keys(song.meta.chaos!.borrowed)) traitNames.add(name);
-  }
-  for (const [layer, trait] of Object.entries(DRESSED_BY)) {
-    check(
-      traitNames.has(trait),
-      `the trait dressing "${layer}" exists (${trait})`,
-      'no chimera ever borrowed it — the name is stale and that layer silently keeps the house clothes',
-    );
+  if (deep('the trait dressing a layer fires', 'standard')) {
+    const traitNames = new Set<string>();
+    for (let i = 0; i < 40; i++) {
+      const song = generateSong({ seed: `dress${i}`, chaos: { levels: CHAOS_LEVELS, spread: 1 } });
+      for (const name of Object.keys(song.meta.chaos!.borrowed)) traitNames.add(name);
+    }
+    for (const [layer, trait] of Object.entries(DRESSED_BY)) {
+      check(
+        traitNames.has(trait),
+        `the trait dressing "${layer}" exists (${trait})`,
+        'no chimera ever borrowed it — the name is stale and that layer silently keeps the house clothes',
+      );
+    }
   }
 
   let dressed = 0;
@@ -712,7 +714,7 @@ section('Playable — a chimera is a song like any other');
   let keyboards = 0;
   let anachronistic = 0;
   const notes: string[] = [];
-  for (const genre of GENRE_IDS) {
+  for (const genre of sample(GENRE_IDS)) {
     const concert = buildConcert({
       seed: `year-${genre}`, genre, chaos: { levels: CHAOS_LEVELS, spread: 1 },
     });

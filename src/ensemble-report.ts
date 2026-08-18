@@ -16,6 +16,7 @@ import { pc } from './core/pitch.js';
 import { melodicLine } from './core/types.js';
 import type { NoteEvent, Song } from './core/types.js';
 import { generateSong } from './generate/song.js';
+import { seeds } from './depth.js';
 
 interface Stats {
   songs: number;
@@ -150,8 +151,10 @@ const pct = (a: number, b: number) => (b === 0 ? 'n/a' : `${((a / b) * 100).toFi
 const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
 
 function main(): void {
-  const count = Number(process.argv[2] ?? 40);
-  const genre = process.argv[3];
+  const rest = process.argv.slice(2).filter((a) => !a.startsWith('--'));
+  const numbered = rest.find((a) => /^\d+$/.test(a));
+  const genre = rest.find((a) => !/^\d+$/.test(a));
+  const count = numbered ? Number(numbered) : seeds(40, 20, 10);
   const s: Stats = {
     songs: 0, chords: 0, clusterLow: 0, clusterAny: 0, doubledUnison: 0,
     missingThird: 0, missingSeventh: 0, seventhChords: 0,

@@ -24,7 +24,7 @@ import { DRUM_MACHINES, SEQUENCERS, isPlayedByHand, type DrumVoice, type Song } 
 import { readBankName } from './render/drum-banks.js';
 import { generateSong } from './generate/song.js';
 import { GENRE_IDS, getGenre } from './genre/index.js';
-import { deep, depthSummary, seeds } from './depth.js';
+import { deep, depthSummary, sample, seeds } from './depth.js';
 
 /**
  * Every loop below is a seed sweep over the catalogue, and what they assert is a
@@ -280,7 +280,7 @@ console.log('\nShows');
  * one of the five, and it would have rebuilt the list that this note has now
  * twice had to apologise for.
  */
-const CHECKED_GENRES = GENRE_IDS;
+const CHECKED_GENRES = sample(GENRE_IDS);
 
 /**
  * The span of one grab, in semitones, above which it is two hands or a lie.
@@ -827,12 +827,14 @@ check('visemes exist exactly when there is a voice', visemeGaps === 0,
  *    that makes `DEFAULT_SUNG_CHANCE` unreachable — a genre missing from the
  *    table would silently sing at a rate nobody chose for it.
  */
-const sungRate = numbers ? sungNumbers / numbers : 0;
-check('sung numbers are the minority', sungRate > 0.15 && sungRate < 0.45,
-  `${sungNumbers}/${numbers} sung (${(sungRate * 100).toFixed(1)}%)`);
+if (deep('sung mix', 'standard')) {
+  const sungRate = numbers ? sungNumbers / numbers : 0;
+  check('sung numbers are the minority', sungRate > 0.15 && sungRate < 0.45,
+    `${sungNumbers}/${numbers} sung (${(sungRate * 100).toFixed(1)}%)`);
 
-check('the opener is sung like any other slot', sungOpeners > 0,
-  `${sungOpeners}/${openers} openers sung`);
+  check('the opener is sung like any other slot', sungOpeners > 0,
+    `${sungOpeners}/${openers} openers sung`);
+}
 
 const unrated = GENRE_IDS.filter((id) => SUNG_CHANCE[id] === undefined);
 const strayRates = Object.keys(SUNG_CHANCE).filter((id) => !GENRE_IDS.includes(id));

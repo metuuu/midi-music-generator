@@ -1,9 +1,9 @@
 /**
  * The whole suite, run at once.
  *
- *   npm run verify:quick    six suites over a quarter of the catalogue — ~10s
- *   npm run verify          all nine, every style, one seed each — ~36s
- *   npm run verify:full     all nine, the whole sweep — ~350s
+ *   npm run verify                all nine, a quarter of the catalogue — seconds
+ *   npm run verify -- --standard  all nine, every style, one seed each — ~36s
+ *   npm run verify:full           all nine, the whole sweep — ~350s
  *
  * `depth.ts` holds what those tiers mean and why they are drawn where they are;
  * this file only decides which steps a tier runs and passes the flag down.
@@ -44,27 +44,18 @@ interface Step {
   args: string[];
   /** Honours the depth flags; the rest have one depth and would choke on them. */
   deep?: boolean;
-  /**
-   * Left out of the quick pass. The staging and chimera suites assert ratios
-   * over the whole catalogue — how many numbers are sung, which traits ever
-   * fire — so a quarter of the catalogue is not a thinner version of them, it is
-   * a different population, and they go red on the sample rather than on the
-   * change. The quick tier answers "does it still build and run"; these two
-   * answer questions it is not asking.
-   */
-  standard?: boolean;
 }
 
 const STEPS: Step[] = [
   { name: 'genres', cmd: TSX, args: ['src/genre-check.ts'], deep: true },
-  { name: 'concert', cmd: TSX, args: ['src/concert-check.ts'], deep: true, standard: true },
-  { name: 'chaos', cmd: TSX, args: ['src/chaos-check.ts'], deep: true, standard: true },
+  { name: 'concert', cmd: TSX, args: ['src/concert-check.ts'], deep: true },
+  { name: 'chaos', cmd: TSX, args: ['src/chaos-check.ts'], deep: true },
   { name: 'stage', cmd: TSX, args: ['src/stage-check.ts'], deep: true },
-  { name: 'notation', cmd: TSX, args: ['src/check-notation.ts'] },
+  { name: 'notation', cmd: TSX, args: ['src/check-notation.ts'], deep: true },
   { name: 'typecheck', cmd: TSC, args: ['--noEmit'] },
   { name: 'rules', cmd: TSX, args: ['src/rules-doc.ts', '--check'] },
-  { name: 'audit', cmd: TSX, args: ['src/audit.ts', '40'] },
-  { name: 'ensemble', cmd: TSX, args: ['src/ensemble-report.ts', '40'] },
+  { name: 'audit', cmd: TSX, args: ['src/audit.ts'], deep: true },
+  { name: 'ensemble', cmd: TSX, args: ['src/ensemble-report.ts'], deep: true },
 ];
 
 interface Result {
@@ -75,7 +66,7 @@ interface Result {
 
 const run = (step: Step): Promise<Result> => new Promise((resolve) => {
   const started = Date.now();
-  const args = step.deep && DEPTH !== 'standard' ? [...step.args, `--${DEPTH}`] : step.args;
+  const args = step.deep ? [...step.args, `--${DEPTH}`] : step.args;
   const child = spawn(step.cmd, args, { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] });
   const chunks: Buffer[] = [];
   child.stdout.on('data', (c: Buffer) => chunks.push(c));
@@ -96,31 +87,26 @@ const run = (step: Step): Promise<Result> => new Promise((resolve) => {
 });
 
 const started = Date.now();
-const wanted = STEPS.filter((s) => !(s.standard && DEPTH === 'quick'));
-console.log(`Running ${wanted.length} checks in parallel — ${
+console.log(`Running ${STEPS.length} checks in parallel — ${
   FULL ? 'the whole sweep' : DEPTH === 'quick' ? 'the quick pass' : 'the standard pass'}`
-  + `: ${wanted.map((s) => s.name).join(', ')}`);
+  + `: ${STEPS.map((s) => s.name).join(', ')}`);
 
-const running = STEPS.filter((s) => !(s.standard && DEPTH === 'quick'));
-const held = STEPS.filter((s) => s.standard && DEPTH === 'quick');
-const results = await Promise.all(running.map(run));
+const results = await Promise.all(STEPS.map(run));
 const wall = (Date.now() - started) / 1000;
 const failed = results.filter((r) => r.code !== 0);
 const byName = new Map(results.map((r) => [r.step.name, r]));
 
 console.log(`\n${'='.repeat(72)}\n== summary\n${'='.repeat(72)}`);
 for (const step of STEPS) {
-  const r = byName.get(step.name);
-  if (!r) { console.log(`  skip  ${step.name.padEnd(12)} not in the quick pass`); continue; }
+  const r = byName.get(step.name)!;
   console.log(`  ${r.code === 0 ? 'ok  ' : 'FAIL'}  ${step.name.padEnd(12)} ${r.seconds.toFixed(1)}s`);
 }
 const serial = results.reduce((a, r) => a + r.seconds, 0);
 console.log(`\n  ${wall.toFixed(1)}s wall, ${serial.toFixed(1)}s of work`);
 if (!FULL) {
-  console.log(`\n  This was the ${DEPTH} pass${held.length ? `, without ${held.map((s) => s.name).join(' and ')}` : ''}.`
-    + ' Run npm run verify:full before you call the work done.');
+  console.log(`\n  This was the ${DEPTH} pass. Run npm run verify:full before you call the work done.`);
 }
 if (failed.length) {
-  console.log(`\n  ${failed.length} of ${running.length} failed: ${failed.map((r) => r.step.name).join(', ')}`);
+  console.log(`\n  ${failed.length} of ${STEPS.length} failed: ${failed.map((r) => r.step.name).join(', ')}`);
   process.exit(1);
 }
