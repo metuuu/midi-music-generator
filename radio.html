@@ -210,6 +210,18 @@
         font-size: 1.95rem; font-weight: 600; line-height: 1.15; margin: 0;
         display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
       }
+      /* While the field is drawing the title's pixels — see `title-cloud.ts`.
+         The element keeps everything except its ink: it is still what reserves
+         the two lines, still what wraps the words, still what a screen reader
+         and a selection find. `color` rather than `opacity` because the fade
+         between records is spoken for, and because a transparent word still
+         highlights when it is dragged over.
+
+         The class goes on only once a cloud has ink in it, so a machine with no
+         WebGL2, a lost context, a listener who has asked for less movement and
+         a title that would not rasterise all keep the page painting its own
+         words. */
+      body.title-live .title { color: transparent; }
       /* Two lines' worth for the same reason the title has them. Measured over
          every genre·style pair the stations can produce, one wraps —
          "Finnish folk · Karjalanlaulu (Karelian song, amplified)" is 34 px

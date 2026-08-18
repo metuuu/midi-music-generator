@@ -22,8 +22,8 @@ const POOL = POOL_W * POOL_H;
  * slower than they leave reads as two things happening rather than one.
  */
 export const CLOUD_OUT_MS = 190;
-const CLOUD_FLOAT_MS = 230;
-const CLOUD_IN_MS = 400;
+const CLOUD_FLOAT_MS = 200;
+const CLOUD_IN_MS = 360;
 export const CLOUD_MS = CLOUD_OUT_MS + CLOUD_FLOAT_MS + CLOUD_IN_MS;
 
 const OUT_END = CLOUD_OUT_MS / CLOUD_MS;
@@ -31,22 +31,24 @@ const IN_START = (CLOUD_OUT_MS + CLOUD_FLOAT_MS) / CLOUD_MS;
 
 /** How hard a shape holds its particles, and how hard the next one takes them. */
 const K_HOLD = 900;
-const K_CATCH = 780;
+const K_CATCH = 760;
 const DRAG_HELD = 54;
-const DRAG_FREE = 1.4;
-/** The puff that breaks the letters, and the drift of what it let go. */
-const BURST = 900;
-const WANDER = 190;
-const RISE = 34;
-const FLUID_GRIP = 2.6;
-/** How much wider than the title box the loose gas is scattered. */
-const SPREAD_X = 0.6;
-const SPREAD_Y = 1.7;
-/** Device pixels a sample grows by once it is gas. */
-const GAS_GROW = 5.5;
-/** How far the gas is allowed towards the record's key, and above white. */
-const KEY_PULL = 0.8;
-const GAS_HEADROOM = 1.7;
+const DRAG_FREE = 2.6;
+/**
+ * The shove that throws the letters apart, and the drift of what it let go.
+ *
+ * Each particle's own direction and no shared one, which is what makes it an
+ * ejection in every direction rather than a title blooming outwards from its
+ * middle.
+ */
+const EJECT = 880;
+const WANDER = 90;
+const RISE = 14;
+const FLUID_GRIP = 1.6;
+/** How fast a particle split off another leaves it, in pixels per second. */
+const SPLIT_V = 70;
+/** Device pixels a sample grows by once it is loose. */
+const GAS_GROW = 2.4;
 
 const HASH = `
 uint hash(uint x) {
@@ -77,32 +79,20 @@ float holdAt(float ph) { return 1.0 - smoothstep(0.0, OUT_END, ph); }
 float catchAt(float ph) { return smoothstep(IN_START, 1.0, ph); }
 float looseAt(float ph) { return clamp(1.0 - holdAt(ph) - catchAt(ph), 0.0, 1.0); }`;
 
-const SCATTER = `
-#define SPREAD_X ${SPREAD_X.toFixed(3)}
-#define SPREAD_Y ${SPREAD_Y.toFixed(3)}
 
-uniform vec4 uBox;
-
-/** Somewhere in the air around the title, for a particle with no shape to be in. */
-vec2 scatterOf(uint i) {
-  float a = rnd(i, 3u) * 6.28318530718;
-  float r = sqrt(rnd(i, 7u));
-  return uBox.xy + uBox.zw * 0.5
-    + vec2(cos(a) * uBox.z * SPREAD_X, sin(a) * uBox.w * SPREAD_Y) * r;
-}`;
 
 const SIM_FS = `#version 300 es
 precision highp float;
 precision highp int;
 ${HASH}
 ${GRIPS}
-${SCATTER}
 #define POOL_W ${POOL_W}
 #define K_HOLD ${K_HOLD.toFixed(1)}
 #define K_CATCH ${K_CATCH.toFixed(1)}
 #define DRAG_HELD ${DRAG_HELD.toFixed(2)}
 #define DRAG_FREE ${DRAG_FREE.toFixed(3)}
-#define BURST ${BURST.toFixed(1)}
+#define EJECT ${EJECT.toFixed(1)}
+#define SPLIT_V ${SPLIT_V.toFixed(1)}
 #define WANDER ${WANDER.toFixed(1)}
 #define RISE ${RISE.toFixed(1)}
 #define FLUID_GRIP ${FLUID_GRIP.toFixed(3)}
@@ -115,6 +105,7 @@ uniform vec2 uGrid;
 uniform float uDt;
 uniform float uTime;
 uniform float uPlace;
+uniform float uFromN;
 
 out vec4 oPos;
 
@@ -136,13 +127,31 @@ void main() {
   vec4 A = texelFetch(uAnchor, c, 0);
   vec4 S = texelFetch(uSt, c, 0);
 
-  vec2 src = S.y > 0.5 ? A.xy : scatterOf(i);
-  vec2 dst = S.z > 0.5 ? A.zw : scatterOf(i ^ 40503u);
+  float ph = clamp(uPhase, 0.0, 1.0);
+  // A particle the old title never had has no shape to be held by, and a
+  // particle the new one has no room for is never taken.
+  float home = S.y > 0.5 ? holdAt(ph) : 0.0;
+  float take = S.z > 0.5 ? catchAt(ph) : 0.0;
+  float loose = looseAt(ph);
 
-  // A slot that was not in use before this record cannot be moved from where it
-  // was; it has to be put somewhere first.
+  /**
+   * A slot the last title did not fill is not conjured out of the air near
+   * where it is wanted — it is split off one that is already flying, taking
+   * that one's place and speed and then leaving it at its own angle.
+   *
+   * Which is the only honest way to make one: every particle in the new title
+   * came out of the old title, and the ones there were not enough of came out
+   * of it twice.
+   */
   if (float(i) >= uPlace) {
-    oPos = vec4(src, 0.0, 0.0);
+    if (uFromN > 0.5) {
+      int par = int(mod(float(i), uFromN));
+      vec4 PP = texelFetch(uPos, ivec2(par % POOL_W, par / POOL_W), 0);
+      float split = rnd(i, 23u) * 6.28318530718;
+      oPos = vec4(PP.xy, PP.zw + vec2(cos(split), sin(split)) * SPLIT_V);
+    } else {
+      oPos = vec4(A.zw, 0.0, 0.0);
+    }
     return;
   }
 
@@ -150,19 +159,13 @@ void main() {
   vec2 p = P.xy;
   vec2 v = P.zw;
 
-  float ph = clamp(uPhase, 0.0, 1.0);
-  float hold = holdAt(ph);
-  float grab = catchAt(ph);
-  float loose = looseAt(ph);
+  vec2 a = (A.xy - p) * (K_HOLD * home) + (A.zw - p) * (K_CATCH * take);
 
-  vec2 a = (src - p) * (K_HOLD * hold) + (dst - p) * (K_CATCH * grab);
-
-  // Outwards from the middle of the title and a little of its own way, so the
-  // words come apart rather than swelling.
+  // Its own way and no other, so the words go out in every direction rather
+  // than swelling away from their middle.
   float kick = exp(-pow((ph - OUT_END * 0.55) / (OUT_END * 0.5 + 1e-4), 2.0));
   float ang = rnd(i, 11u) * 6.28318530718;
-  vec2 away = normalize(src - (uBox.xy + uBox.zw * 0.5) + vec2(1e-3));
-  a += (away * 0.5 + vec2(cos(ang), sin(ang))) * (BURST * kick);
+  a += vec2(cos(ang), sin(ang)) * (EJECT * kick);
 
   // Loose, it is gas: it rises, it wanders, and it goes where the cursor has
   // already pushed the fluid the bar is drawn in.
@@ -172,7 +175,7 @@ void main() {
   a.y -= RISE * loose;
 
   v += a * uDt;
-  v *= exp(-mix(DRAG_FREE, DRAG_HELD, max(hold, grab)) * uDt);
+  v *= exp(-mix(DRAG_FREE, DRAG_HELD, pow(max(home, take), 2.0)) * uDt);
   oPos = vec4(p + v * uDt, v);
 }`;
 
@@ -181,34 +184,21 @@ precision highp float;
 precision highp int;
 ${HASH}
 ${GRIPS}
-${SCATTER}
 #define POOL_W ${POOL_W}
 #define GAS_GROW ${GAS_GROW.toFixed(2)}
-#define KEY_PULL ${KEY_PULL.toFixed(3)}
 
 uniform sampler2D uPos;
 uniform sampler2D uSt;
 uniform vec2 uView;
-uniform vec2 uHue;
-uniform vec3 uInk;
 uniform float uStep;
-uniform float uCeil;
 
-out vec3 vColor;
 out float vCov;
 out float vSoft;
-out float vCeil;
-
-vec3 hsl2rgb(float h, float s, float l) {
-  h = fract(h / 360.0);
-  vec3 k = mod(vec3(0.0, 8.0, 4.0) + h * 12.0, 12.0);
-  return l - s * min(l, 1.0 - l) * clamp(min(k - 3.0, 9.0 - k), -1.0, 1.0);
-}
 
 void main() {
   ivec2 c = ivec2(gl_VertexID % POOL_W, gl_VertexID / POOL_W);
   vec4 S = texelFetch(uSt, c, 0);
-  if (S.w <= 0.0) {
+  if (max(S.x, S.w) <= 0.0) {
     gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
     gl_PointSize = 0.0;
     return;
@@ -216,20 +206,18 @@ void main() {
 
   float ph = clamp(uPhase, 0.0, 1.0);
   float loose = looseAt(ph);
-  // Nothing to come from, so it arrives out of the air; nothing to go to, so it
-  // is what is left over and goes out with the gas.
-  float fade = (S.y > 0.5 ? 1.0 : smoothstep(0.0, IN_START, ph))
-    * (S.z > 0.5 ? 1.0 : 1.0 - smoothstep(OUT_END, 1.0, ph));
+  // Split off another at the moment the words came apart, so it fades up from
+  // there; or it is what the new title had no room for, and goes out well
+  // before the new one is legible.
+  float fade = (S.y > 0.5 ? 1.0 : smoothstep(OUT_END, IN_START, ph))
+    * (S.z > 0.5 ? 1.0 : 1.0 - smoothstep(OUT_END, 0.85, ph));
 
   vec2 p = texelFetch(uPos, c, 0).xy;
-  float t = clamp((p.x - uBox.x) / max(uBox.z, 1.0), 0.0, 1.0);
-  vColor = mix(uInk, hsl2rgb(mix(uHue.x, uHue.y, t), 0.85, 0.62), loose * KEY_PULL);
-  vCov = S.w * fade;
+  // The two titles antialiased their edges differently, and a sample carries
+  // both figures so the change of hands happens while the words are apart
+  // rather than as a step at the moment they are swapped.
+  vCov = mix(S.x, S.w, smoothstep(OUT_END, IN_START, ph)) * fade;
   vSoft = loose;
-  // Above white only while it is gas. A page's title is page white by
-  // definition, and a headline lit brighter than the words under it is a
-  // notification, not a name.
-  vCeil = mix(1.0, uCeil, loose);
 
   gl_PointSize = uStep + GAS_GROW * loose;
   vec2 ndc = (p / uView) * 2.0 - 1.0;
@@ -246,10 +234,10 @@ void main() {
  */
 const DRAW_FS = `#version 300 es
 precision highp float;
-in vec3 vColor;
+uniform vec3 uInk;
+uniform float uCeil;
 in float vCov;
 in float vSoft;
-in float vCeil;
 out vec4 oColor;
 void main() {
   vec2 d = gl_PointCoord - 0.5;
@@ -257,8 +245,8 @@ void main() {
   cov = clamp(cov, 0.0, 0.995);
   if (cov <= 0.0) discard;
   float peak = -log(1.0 - cov);
-  vec3 c = vColor * peak;
-  oColor = vec4(c, max(c.r, max(c.g, c.b)) * vCeil);
+  vec3 c = uInk * peak;
+  oColor = vec4(c, max(c.r, max(c.g, c.b)) * uCeil);
 }`;
 
 export interface TitleCloud {
@@ -271,7 +259,7 @@ export interface TitleCloud {
   /** Whether a changeover is still running, so the field knows to stay awake. */
   busy(): boolean;
   step(dt: number, time: number, vel: WebGLTexture, gridW: number, gridH: number): void;
-  draw(viewW: number, viewH: number, hue: number, hue2: number, ceil: number): void;
+  draw(viewW: number, viewH: number): void;
   destroy(): void;
 }
 
@@ -313,9 +301,8 @@ void main() {
   );
   const drawProg = link(DRAW_VS, DRAW_FS);
   locate(simProg, ['uPos', 'uAnchor', 'uSt', 'uVel', 'uGrid', 'uDt', 'uTime',
-    'uPhase', 'uPlace', 'uBox']);
-  locate(drawProg, ['uPos', 'uSt', 'uView', 'uHue', 'uInk', 'uStep', 'uCeil',
-    'uPhase', 'uBox']);
+    'uPhase', 'uPlace', 'uFromN']);
+  locate(drawProg, ['uPos', 'uSt', 'uView', 'uInk', 'uStep', 'uCeil', 'uPhase']);
 
   function makeTex(): WebGLTexture {
     const tex = gl.createTexture();
@@ -356,13 +343,11 @@ void main() {
   let liveN = 0;
   /** The index from which this step must place particles rather than move them. */
   let placed = 0;
+  /** How many the outgoing title had, which is what the new ones are split off. */
+  let fromCount = 0;
   let startedAt = 0;
   let running = false;
   let step = 1;
-  let boxX = 0;
-  let boxY = 0;
-  let boxW = 1;
-  let boxH = 1;
 
   /**
    * Write both anchor sets into the pool and hand them to the GPU.
@@ -379,22 +364,24 @@ void main() {
     st.fill(0);
     for (let i = 0; i < live; i++) {
       const a = i * 4;
+      let leaving = 0;
+      let landing = 0;
       if (fromInk && i < fromN) {
         const j = ((i * 7919) % fromN) * 3;
         anchor[a] = fromInk.pts[j]!;
         anchor[a + 1] = fromInk.pts[j + 1]!;
+        leaving = fromInk.pts[j + 2]!;
         st[a + 1] = 1;
       }
       if (toInk && i < toN) {
         const j = ((i * 7919) % toN) * 3;
         anchor[a + 2] = toInk.pts[j]!;
         anchor[a + 3] = toInk.pts[j + 1]!;
+        landing = toInk.pts[j + 2]!;
         st[a + 2] = 1;
-        st[a + 3] = toInk.pts[j + 2]!;
-      } else if (fromInk && i < fromN) {
-        const j = ((i * 7919) % fromN) * 3;
-        st[a + 3] = fromInk.pts[j + 2]!;
       }
+      st[a] = leaving || landing;
+      st[a + 3] = landing || leaving;
     }
 
     gl.bindTexture(gl.TEXTURE_2D, anchorTex);
@@ -402,15 +389,9 @@ void main() {
     gl.bindTexture(gl.TEXTURE_2D, stTex);
     gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, POOL_W, POOL_H, gl.RGBA, gl.FLOAT, st);
 
-    const ink = toInk ?? fromInk;
-    if (ink) {
-      step = ink.step;
-      boxX = ink.x;
-      boxY = ink.y;
-      boxW = ink.w;
-      boxH = ink.h;
-    }
+    if (toInk ?? fromInk) step = (toInk ?? fromInk)!.step;
     liveN = live;
+    fromCount = Math.min(POOL, fromN);
   }
 
   function phase(): number {
@@ -433,10 +414,14 @@ void main() {
     },
     arrive(ink: TitleInk | null): void {
       // The slots this adds on top of the outgoing title have never held a
-      // particle, so they are the ones the next step puts in the air.
+      // particle, so they are the ones the next step places.
       placed = Math.min(placed, liveN);
       toInk = ink;
       upload();
+      // Called with no changeover running when the page hands over a title it
+      // has already revealed its own way, and that has to be painted at once
+      // rather than at the next idle tick.
+      wake(running ? CLOUD_MS : 120);
     },
     live(): boolean {
       return !!(fromInk || toInk);
@@ -454,32 +439,35 @@ void main() {
       bindTex(simProg, 'uSt', 2, stTex);
       bindTex(simProg, 'uVel', 3, vel);
       gl.uniform2f(u(simProg, 'uGrid'), gridW, gridH);
-      gl.uniform4f(u(simProg, 'uBox'), boxX, boxY, boxW, boxH);
       gl.uniform1f(u(simProg, 'uDt'), dt);
       gl.uniform1f(u(simProg, 'uTime'), time);
       gl.uniform1f(u(simProg, 'uPhase'), phase());
       gl.uniform1f(u(simProg, 'uPlace'), placed);
+      gl.uniform1f(u(simProg, 'uFromN'), fromCount);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);
       front = back;
       // Everything the last upload named has a position now.
       placed = POOL;
     },
-    draw(viewW, viewH, hue, hue2, ceil): void {
+    draw(viewW, viewH): void {
       if (!fromInk && !toInk) return;
-      const canvasW = gl.drawingBufferWidth;
-      const canvasH = gl.drawingBufferHeight;
-      pass(drawProg, acc(), canvasW, canvasH);
+      const target = acc();
+      if (!target) return;
+      pass(drawProg, target, gl.drawingBufferWidth, gl.drawingBufferHeight);
       gl.enable(gl.BLEND);
       gl.blendFunc(gl.ONE, gl.ONE);
       bindTex(drawProg, 'uPos', 0, posTex[front]!);
       bindTex(drawProg, 'uSt', 1, stTex);
       gl.uniform2f(u(drawProg, 'uView'), viewW, viewH);
-      gl.uniform2f(u(drawProg, 'uHue'), hue, hue2);
+      // `--ink`, and it does not move. A title changing colour as it comes
+      // apart says the name is changing into something; it is only changing.
       gl.uniform3f(u(drawProg, 'uInk'), 0.949, 0.918, 0.882);
-      gl.uniform4f(u(drawProg, 'uBox'), boxX, boxY, boxW, boxH);
       gl.uniform1f(u(drawProg, 'uStep'), Math.max(1, step));
-      gl.uniform1f(u(drawProg, 'uCeil'), ceil > 1 ? GAS_HEADROOM : 1);
+      // Page white exactly, on every screen. The ceiling written here is the
+      // one number that would let a title go above it, and a name lit brighter
+      // than the words under it is a notification rather than a name.
+      gl.uniform1f(u(drawProg, 'uCeil'), 1);
       gl.uniform1f(u(drawProg, 'uPhase'), phase());
       gl.drawArrays(gl.POINTS, 0, POOL);
     },

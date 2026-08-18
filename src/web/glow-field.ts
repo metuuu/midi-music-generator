@@ -1,3 +1,5 @@
+import { mountTitleCloud, type TitleCloud } from './title-cloud.js';
+
 export interface GlowCensus {
   line: Float32Array;
   ready: Float32Array;
@@ -18,6 +20,11 @@ export interface GlowField {
   setHdr(on: boolean): void;
   setSpectrumMode(mode: SpectrumMode): void;
   census(): GlowCensus | null;
+  /**
+   * The title's particles, which are drawn in this field's buffer and are
+   * therefore lit by its resolve. Null where the field never started.
+   */
+  title(): TitleCloud | null;
   pump(ms: number): void;
   destroy(): void;
 }
@@ -1236,6 +1243,7 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
   let barY = 0;
 
   const vao = gl.createVertexArray();
+  let cloud: TitleCloud | null = null;
 
   function locate(prog: WebGLProgram, names: string[]): void {
     const map: Record<string, WebGLUniformLocation | null> = {};
@@ -1488,6 +1496,10 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
     gl!.drawArrays(gl!.TRIANGLES, 0, 3);
     gl!.bindFramebuffer(gl!.FRAMEBUFFER, null);
     front = back;
+
+    // The same velocity field the bar is drawn in, so gas let go of a title
+    // drifts on whatever the cursor has already stirred up.
+    cloud?.step(dt, simTime, vels[velFront].tex, gx, gy);
   }
 
   function draw(): void {
@@ -1506,6 +1518,8 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
     gl!.uniform2f(u(drawProg, 'uHue'), hue, hue2);
     gl!.uniform1f(u(drawProg, 'uDpr'), dpr);
     gl!.drawArrays(gl!.POINTS, 0, COLS * STRANDS);
+
+    cloud?.draw(viewW, viewH);
 
     pass(resolveProg, null, canvas.width, canvas.height);
     bindTex(resolveProg, 'uAcc', 0, acc.tex);
@@ -1850,6 +1864,19 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
     console.warn('glow-field: would not start', err);
     return null;
   }
+  /**
+   * Failing here costs the title its particles and nothing else — the page
+   * keeps painting its own text, and the bar carries on.
+   */
+  try {
+    cloud = mountTitleCloud({
+      gl, link: (vs, fs) => link(gl!, vs, fs), locate, u, bindTex, pass, wake,
+      acc: () => acc?.fbo ?? null,
+    });
+  } catch (err) {
+    console.warn('glow-field: the title keeps its own pixels', err);
+  }
+
   draw();
   armIdle();
 
@@ -1899,6 +1926,9 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
     },
     census(): GlowCensus | null {
       return readCensus();
+    },
+    title(): TitleCloud | null {
+      return cloud;
     },
     hdrReady(): boolean {
       return !!hdrRange?.matches;
@@ -1956,6 +1986,8 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
       if (vels) for (const v of vels) drop(v);
       if (prss) for (const p of prss) drop(p);
       if (pools) for (const p of pools) dropPool(p);
+      cloud?.destroy();
+      cloud = null;
     },
   };
 }

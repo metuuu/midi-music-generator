@@ -44,6 +44,8 @@ import {
 import { generateSongAsync } from './generator.js';
 import { mountGlowField, type GlowField, type SpectrumMode } from './glow-field.js';
 import { createSungVoice, withoutSungVoice } from './sung-voice.js';
+import { CLOUD_MS } from './title-cloud.js';
+import { inkReady, readTitleInk } from './title-ink.js';
 
 import { Rng } from '../core/rng.js';
 import { songDurationBeats, type Song } from '../core/types.js';
@@ -400,11 +402,21 @@ function showLines(cut: Cut): void {
   // starting a second one underneath it.
   window.clearTimeout(swapping);
   swapping = undefined;
+  /**
+   * The first record is the placeholders' own reveal and the cloud stays out of
+   * it: the bars narrow onto the words and the words come up under them, which
+   * is a gesture about a page finishing loading rather than about a name being
+   * replaced. There is no name to replace yet.
+   */
+  const booting = document.body.classList.contains('booting');
+  // Taken over from wherever the last one had got to, exactly as the fade is.
+  const cloud = booting ? null : titleCloud();
+  cloud?.leave(null);
   // Both branches are held for the whole span, not for the half of it their own
   // text spends: the turn is the longer thing here, and it is the thing a
   // compile would freeze. See `LINES_MS`.
-  linesBy = performance.now() + LINES_MS;
-  if (document.body.classList.contains('booting')) {
+  linesBy = performance.now() + (cloud ? Math.max(LINES_MS, CLOUD_MS) : LINES_MS);
+  if (booting) {
     writeLines(cut);
     return;
   }
@@ -414,6 +426,51 @@ function showLines(cut: Cut): void {
     writeLines(cut);
   }, LINES_OUT_MS);
 }
+
+/**
+ * Somebody who has asked for less movement, for whom a title that comes apart
+ * into gas is precisely the thing being asked against.
+ */
+const STILL = window.matchMedia?.('(prefers-reduced-motion: reduce)') ?? null;
+
+/**
+ * Whether the fonts the title will be drawn in are the ones it was measured
+ * against. Rasterising before they land bakes a fallback face into the cloud.
+ */
+let inkable = false;
+
+/**
+ * The cloud, where there is one and it is allowed to have the pixels.
+ *
+ * Asked for each time rather than kept, because every one of the answers can
+ * change mid-hour: the field is dropped when the setting says plain and when
+ * the context is lost, and the motion query is a system preference.
+ */
+function titleCloud(): ReturnType<GlowField['title']> {
+  if (!inkable || STILL?.matches) return null;
+  return glowField?.title() ?? null;
+}
+
+/**
+ * Hand the cloud the title that is now in the document, and say so on the body.
+ *
+ * The class is what makes the element's own text transparent, and it goes on
+ * only once there is actually a cloud holding ink to replace it — a title that
+ * could not be read back is a title the page must keep painting itself.
+ */
+function handTitleOver(): void {
+  const cloud = titleCloud();
+  const ink = cloud ? readTitleInk(els.title, Math.min(window.devicePixelRatio || 1, 2)) : null;
+  cloud?.arrive(ink);
+  document.body.classList.toggle('title-live', !!ink);
+}
+
+void inkReady().then(() => {
+  inkable = true;
+  // The first record can land before the fonts do, and it is the page that has
+  // been painting it until now.
+  handTitleOver();
+});
 
 function writeLines(cut: Cut): void {
   const { meta } = cut.song;
@@ -426,9 +483,20 @@ function writeLines(cut: Cut): void {
   els.era.textContent = meta.eraLabel;
   // The placeholders have something to be replaced by now. One-way: the first
   // record is the only time there is nothing to show.
-  if (document.body.classList.contains('booting')) shapeSkeletons();
+  const booting = document.body.classList.contains('booting');
+  if (booting) shapeSkeletons();
   document.body.classList.remove('booting');
   document.body.classList.remove('text-out');
+  // Measured after the skeletons are, so the two readings of this layout are
+  // one, and handed over at the moment the cloud stops needing the old shape.
+  if (booting) {
+    // A settled cloud is the same image as the text it replaces, so the pixels
+    // change hands unseen — but only once the page has finished revealing them
+    // its own way.
+    window.setTimeout(handTitleOver, LINES_WAIT_MS + LINES_IN_MS);
+    return;
+  }
+  handTitleOver();
 }
 
 /**
@@ -649,6 +717,7 @@ function applyGlowMode(): void {
     glowField?.destroy();
     glowField = undefined;
     document.body.classList.remove('glow-live');
+    document.body.classList.remove('title-live');
     paintGlowRange();
     return;
   }
@@ -659,6 +728,7 @@ function applyGlowMode(): void {
     onLost: () => {
       glowField = undefined;
       document.body.classList.remove('glow-live');
+      document.body.classList.remove('title-live');
     },
     // A cut may be drawn from anywhere on the page, so the field has to be told
     // what a finger might be doing instead — the controls, and the two panels
@@ -679,6 +749,7 @@ function applyGlowMode(): void {
   if (!glowField) return;
   document.body.classList.add('glow-live');
   glowField.setKey(hueNow, hue2Now);
+  handTitleOver();
 }
 
 /**
@@ -1290,7 +1361,11 @@ function fitStationLabels(): void {
 let refit: number | undefined;
 window.addEventListener('resize', () => {
   window.clearTimeout(refit);
-  refit = window.setTimeout(fitStationLabels, 150);
+  refit = window.setTimeout(() => {
+    fitStationLabels();
+    // Ink is viewport geometry, so a resize has moved every point of it.
+    handTitleOver();
+  }, 150);
 });
 // Web fonts land after first layout and change every one of these widths.
 if (document.fonts?.ready) void document.fonts.ready.then(fitStationLabels);
