@@ -44,22 +44,67 @@ import { resolveDrumSample } from '../render/drum-banks.js';
 import { SAMPLE_MANIFESTS, type StrudelParts } from '../render/strudel.js';
 
 let instance: StrudelRepl | undefined;
-let booting: Promise<StrudelRepl> | undefined;
+let preparing: Promise<StrudelRepl> | undefined;
+let starting: Promise<StrudelRepl> | undefined;
 
 /**
- * Start loading immediately. `initAudioOnFirstClick` registers a `mousedown`
- * listener synchronously and resolves when it fires, so it has to be called
- * before the user can reach the Play button — otherwise it waits for the
- * *next* click and the first press appears to do nothing.
+ * The engine, once it is allowed to make a noise.
+ *
+ * Which is a later moment than being built, and the gap between the two was
+ * most of this file's cold start. A browser will not let a page produce sound
+ * until somebody has touched it, so `initAudioOnFirstClick` resolves on the
+ * first `mousedown` — and *everything* used to sit behind that: the eval scope,
+ * the repl, the soundfont registrations and the three sample manifests. So the
+ * first press paid for assembling the engine before it could begin paying for
+ * the record, with the listener watching a button they had already pressed.
+ *
+ * Only the last step actually needs the click. See `prepareAudio` for the rest,
+ * which now happens while the page is still being read.
  */
 export function initAudio(): Promise<StrudelRepl> {
-  if (instance) return Promise.resolve(instance);
-  if (!booting) booting = boot();
-  return booting;
+  if (!starting) starting = start();
+  return starting;
 }
 
-async function boot(): Promise<StrudelRepl> {
-  const audioReady = initAudioOnFirstClick();
+async function start(): Promise<StrudelRepl> {
+  const repl = await prepareAudio();
+  /**
+   * The same promise `prepare` armed, awaited rather than armed again — it is
+   * memoised inside superdough, so this is the listener that is already there.
+   * superdough's own `initAudio` runs off that listener and is what resumes the
+   * context and loads the worklets, so nothing may sound before it resolves.
+   */
+  await initAudioOnFirstClick();
+  return repl;
+}
+
+/**
+ * Everything that can be built before the listener has touched anything.
+ *
+ * All of it: the eval scope, the repl, the sound registries and the sample
+ * manifests. None of it makes a sound, and none of it needs the context to be
+ * running — which is the point, because the context is created here too, and a
+ * suspended `AudioContext` decodes audio and compiles patterns perfectly well.
+ * `preloadSounds` and `loadCode` come here rather than to `initAudio` for
+ * exactly that reason: a page can have a whole record fetched, decoded and
+ * compiled before the first press, and then the press is a `start()`.
+ *
+ * The one thing this costs is a console warning in Chrome, which notices a
+ * context that was created before a gesture and says so. Its state is
+ * `suspended` until superdough resumes it on the click, which is the ordinary
+ * create-early-resume-on-gesture arrangement every web audio library uses.
+ */
+function prepareAudio(): Promise<StrudelRepl> {
+  if (!preparing) preparing = prepare();
+  return preparing;
+}
+
+async function prepare(): Promise<StrudelRepl> {
+  // Armed before anything is awaited. The listener is registered synchronously
+  // and resolves on the *next* `mousedown`, so arming it behind an await would
+  // spend the listener's own press on waking the page up and leave the first
+  // real press appearing to do nothing.
+  void initAudioOnFirstClick();
 
   // Make the pattern vocabulary (note, s, stack, sound, …) available to
   // evaluated code.
@@ -69,8 +114,6 @@ async function boot(): Promise<StrudelRepl> {
     import('@strudel/tonal'),
     import('@strudel/webaudio'),
   );
-
-  await audioReady;
 
   // Creating the repl also injects setcpm/setcps into the eval scope, which the
   // generated code relies on. `editPattern` is Strudel's own hook on the way
@@ -339,6 +382,41 @@ export async function stopSounding(fade = CUT_SECONDS): Promise<void> {
 }
 
 /**
+ * The code the repl is holding, so a compile can be recognised as one that has
+ * already been paid for.
+ *
+ * A transpile is 0.5–1.9 s of blocked main thread, and it is the whole of what a
+ * press on a warmed page would otherwise still have to wait for: the radio
+ * compiles its first record while nothing is playing — see `arm` in
+ * `web/radio.ts` — and the press that follows asks for exactly the same text.
+ * Being able to answer *that one is already loaded, start it* is the difference
+ * between a button that answers and a button that thinks about it.
+ */
+let loadedCode: string | undefined;
+
+/**
+ * Compiles, in the order they were asked for.
+ *
+ * `repl.evaluate` installs the pattern the scheduler reads, so two of them in
+ * flight at once leave whichever *finished* last on the air rather than whichever
+ * was *asked for* last — and the later one is the one somebody pressed for. Not
+ * hypothetical now that a page compiles ahead of the press: a skip landing inside
+ * that compile is two evaluations racing, and the loser was the record playing.
+ *
+ * Chained rather than cancelled, because a transpile already running cannot be
+ * abandoned. The loser is simply overwritten a moment later by the winner.
+ */
+let compiling: Promise<unknown> = Promise.resolve();
+
+function queued<T>(work: () => Promise<T>): Promise<T> {
+  const mine = compiling.then(work);
+  // Never rejects: one compile that threw must not poison every compile behind
+  // it. The caller still sees its own failure, through `mine`.
+  compiling = mine.catch(() => undefined);
+  return mine;
+}
+
+/**
  * Compile, load and start, in one call.
  *
  * `bars` is the piece's length in bars, which is its length in cycles — pass it
@@ -346,8 +424,11 @@ export async function stopSounding(fade = CUT_SECONDS): Promise<void> {
  */
 export async function playCode(code: string, bars?: number): Promise<void> {
   const repl = await initAudio();
-  pieceCycles = bars;
-  await repl.evaluate(code);
+  await queued(async () => {
+    pieceCycles = bars;
+    await repl.evaluate(code);
+    loadedCode = code;
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -385,6 +466,10 @@ const band = new Map<LayerId, Pattern>();
 export async function loadBand(parts: StrudelParts, autostart = false): Promise<void> {
   const repl = await initAudio();
   band.clear();
+  // The pattern about to be installed is a stack of `ref`s rather than anybody's
+  // text, so whatever `loadedCode` names is no longer what the scheduler is
+  // reading and a later `loadCode` for that text must not believe otherwise.
+  loadedCode = undefined;
   // The number ends where it ends rather than starting again over the applause.
   // Taken from the parts rather than asked of the caller, because a stage that
   // forgot to say would be a stage with a stutter on the end of every number.
@@ -483,9 +568,18 @@ async function compile(code: string): Promise<Pattern> {
  * nothing and puts the first click exactly where the show asked for it.
  */
 export async function loadCode(code: string, bars?: number): Promise<void> {
-  const repl = await initAudio();
-  pieceCycles = bars;
-  await repl.evaluate(code, false);
+  // `prepareAudio` rather than `initAudio`: a compile is arithmetic on a
+  // suspended context and needs nobody's permission, so a page may have its
+  // first record loaded before anything has been pressed. The press then only
+  // has `startLoaded` left to do.
+  const repl = await prepareAudio();
+  await queued(async () => {
+    pieceCycles = bars;
+    // Already the pattern the repl is holding — see `loadedCode`.
+    if (code === loadedCode) return;
+    await repl.evaluate(code, false);
+    loadedCode = code;
+  });
 }
 
 /**
@@ -590,7 +684,13 @@ export async function preloadSounds(song: Song): Promise<void> {
 }
 
 async function warm(song: Song): Promise<void> {
-  await initAudio();
+  // `prepareAudio` rather than `initAudio`, which is the whole of what makes
+  // this a *pre*load on a cold page. Every call below is a fetch and a decode
+  // against a context that is allowed to be suspended, so none of them needs the
+  // listener to have touched anything — and waiting for the click meant the
+  // 1.6 MB this exists to get ahead of only started moving on the press it was
+  // supposed to be ahead of.
+  await prepareAudio();
   const ctx = getAudioContext();
   const loads: Promise<unknown>[] = [];
 

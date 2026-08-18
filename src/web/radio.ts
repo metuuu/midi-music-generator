@@ -38,7 +38,7 @@
  */
 
 import {
-  initAudio, loadCode, pausePlayback, playCode, preloadSounds, setOutputLevel, silenceVoices,
+  initAudio, loadCode, pausePlayback, preloadSounds, setOutputLevel, silenceVoices,
   startLoaded, stopPlayback, stopSounding,
 } from './audio.js';
 import { generateSongAsync } from './generator.js';
@@ -132,7 +132,29 @@ const DEFAULT_VOLUME = 0.8;
 let volume = DEFAULT_VOLUME;
 let current: Cut | undefined;
 let playing = false;
-let loading = false;
+/**
+ * Whether the transport is fetching, compiling or otherwise not yet able to
+ * make a noise.
+ *
+ * Opens `true`, matching the `data-state="load"` the markup carries and the
+ * placeholders standing in for the title: writing the first record *is* a load,
+ * and a page that offered a triangle over three grey bars was offering to play
+ * something that did not exist yet. See `opening` for why a press there cannot
+ * mean what it means during every other load.
+ */
+let loading = true;
+/**
+ * Whether that first record is still the one being waited for.
+ *
+ * `loading` covers the wait so the button breathes rather than lying, but a
+ * press inside it cannot be the stop that a press during any other load is:
+ * there is nothing to call off, and somebody who presses Play on a page that has
+ * only just opened has plainly asked for music. So it is remembered and answered
+ * when the record lands.
+ */
+let opening = true;
+/** Somebody pressed Play while the page was still opening. See `opening`. */
+let wanted = false;
 /**
  * Held rather than stopped — the scheduler keeps its phase and the record
  * resumes where it left off.
@@ -267,6 +289,130 @@ function clearError(): void {
 }
 
 function describe(cut: Cut): void {
+  // Both immediate, and neither is part of the page's own choreography: the lock
+  // screen is the OS's business and the debug row is a developer's. The two that
+  // are — the key and the lines — go together, inside `showLines`.
+  if (debugging) paintDebug(cut);
+  announce(cut);
+  showLines(cut);
+}
+
+/**
+ * How long the outgoing lines take to leave, how long the incoming ones wait
+ * before they start, and how long they then take to arrive.
+ *
+ * Three figures rather than one because none of the three is the same gesture:
+ * the old title is being got out of the way, which should be quick or it reads
+ * as hesitation; then a beat; then the new one is introduced. The beat is what
+ * keeps the first record's reveal legible — the placeholders are fading out
+ * across it, and two fades starting on the same frame read as one thing
+ * changing rather than as one leaving and another coming.
+ *
+ * Only the last two are spent on that first record, where there is no outgoing
+ * title to clear. See `showLines`.
+ *
+ * All three are stated again in the stylesheet and the two sets have to agree —
+ * these decide when the *text* is swapped and how long the page has to wait for
+ * the lines before it may block the main thread; the CSS decides what any of it
+ * looks like.
+ */
+const LINES_OUT_MS = 190;
+const LINES_WAIT_MS = 100;
+const LINES_IN_MS = 300;
+
+/**
+ * The whole changeover, from the old title beginning to leave to the new one
+ * being fully up — and the bar's turn to the new key is the same span, begun on
+ * the same call. That is what makes the two one gesture rather than two things
+ * that happen near each other. The stylesheet and `KEY_MS` in `web/glow-field.ts`
+ * both carry it as .59s.
+ *
+ * It is also how long the page may not be interrupted for. Neither half of the
+ * turn is composited — the CSS one repaints a gradient through `var(--hue)`, the
+ * field's runs on `requestAnimationFrame` — so both stop dead under a blocked
+ * main thread, where the lines' own fade would have carried on. `arm` waits this
+ * long before it compiles anything. See there.
+ */
+const LINES_MS = LINES_OUT_MS + LINES_WAIT_MS + LINES_IN_MS;
+
+/** The swap in progress, if any, so a second record does not land inside it. */
+let swapping: number | undefined;
+/**
+ * Whose lines are up, or on their way up.
+ *
+ * Two routes describe a record twice — `nextCold` names it before handing it to
+ * `play`, which names it again on the downbeat, and `boot` does the same for a
+ * press that arrived while the page was opening. Both were free when the text was
+ * simply assigned. A swap is not free: it would fade the title that had just
+ * arrived out and bring the identical one back.
+ */
+let shown: Cut | undefined;
+/**
+ * When the lines now arriving will have arrived, as a `performance.now()`.
+ *
+ * Read by `arm`, which has a compile to run and must not run it through the
+ * reveal. See there.
+ */
+let linesBy = 0;
+
+/**
+ * Put a record's three lines up, over the top of whatever was there.
+ *
+ * Out and then in on the same three elements rather than a cross-fade between
+ * two copies of them, which would need a second set of nodes in the layout and
+ * is the one thing this page will not spend: the title box reserves two lines
+ * and the genre box two, and nothing on the page may move when a record changes.
+ *
+ * One class, and it is taken off rather than answered by a second one: the lines
+ * are already at nothing when the text under them is swapped, so letting the
+ * class go is the arrival. Nothing has to be pinned for a frame first, which is
+ * what a swap that *moved* would have needed — see `releaseBreath` for what that
+ * costs.
+ *
+ * The first record is the one case that is a real cross-fade, and it gets one
+ * for free: the placeholders are painted on the *boxes* rather than on the
+ * lines, so they are a layer the lines' own fade cannot reach. There is nothing
+ * to get out of the way and no out-half to wait through — the text goes up at
+ * once, and the bars leave over it as it arrives. See the skeleton rules in
+ * `radio.html`.
+ */
+function showLines(cut: Cut): void {
+  if (shown === cut) return;
+  shown = cut;
+  /**
+   * The bar starts turning as the old title starts leaving, and arrives with the
+   * new one — one movement across the whole changeover rather than a colour that
+   * follows a name.
+   *
+   * It was painted at the top of `describe` once, which is the downbeat, and ran
+   * for 1.8 s: the bar changed key under the previous record's name and was
+   * still changing it a second after the new one had settled. The boot is the
+   * one case where the two lengths differ — there is no title to clear, so the
+   * lines are up in .4s and the turn takes the full .59s — and a hue arriving
+   * fractionally late once a page load is not worth a second figure to carry.
+   */
+  paintKey(cut.song);
+  // A record landing inside another one's arrival takes it over from wherever it
+  // had got to: the class going back on turns the fade around rather than
+  // starting a second one underneath it.
+  window.clearTimeout(swapping);
+  swapping = undefined;
+  // Both branches are held for the whole span, not for the half of it their own
+  // text spends: the turn is the longer thing here, and it is the thing a
+  // compile would freeze. See `LINES_MS`.
+  linesBy = performance.now() + LINES_MS;
+  if (document.body.classList.contains('booting')) {
+    writeLines(cut);
+    return;
+  }
+  document.body.classList.add('text-out');
+  swapping = window.setTimeout(() => {
+    swapping = undefined;
+    writeLines(cut);
+  }, LINES_OUT_MS);
+}
+
+function writeLines(cut: Cut): void {
   const { meta } = cut.song;
   els.title.textContent = meta.title;
   els.sub.textContent = `${meta.genreLabel} · ${meta.styleLabel}`;
@@ -275,12 +421,41 @@ function describe(cut: Cut): void {
   // periods do, and it is the era's own sentence rather than one assembled out
   // of its `year` here.
   els.era.textContent = meta.eraLabel;
-  paintKey(cut.song);
   // The placeholders have something to be replaced by now. One-way: the first
   // record is the only time there is nothing to show.
+  if (document.body.classList.contains('booting')) shapeSkeletons();
   document.body.classList.remove('booting');
-  if (debugging) paintDebug(cut);
-  announce(cut);
+  document.body.classList.remove('text-out');
+}
+
+/**
+ * Tell each placeholder bar what the line replacing it actually came out as, so
+ * it can go to that shape on its way out.
+ *
+ * A bar guessed at the median title and a real title is never the median, so a
+ * bar that only faded left a 72% rectangle dissolving over a line of words some
+ * other width — two things in the same place at the same moment, agreeing about
+ * nothing. Given the measurement it narrows onto the words as it goes, and a
+ * title that came out two lines long has the bar stand up to meet it.
+ *
+ * Measured here and nowhere else because this is the one moment both shapes
+ * exist: the text is in the document and the placeholders are still standing.
+ * All three read before any is written, so the three forced layouts are one.
+ *
+ * The bars are drawn by pseudo-elements and cannot be given a style of their
+ * own, so the figures go on the boxes and are inherited. The `calc` around them
+ * lives in the stylesheet — what is handed over is the line box, and what the
+ * bar keeps is that less the padding a placeholder always stood inside.
+ */
+function shapeSkeletons(): void {
+  const measured = [els.title, els.sub, els.era].map((line) => ({
+    box: line.parentElement,
+    rect: line.getBoundingClientRect(),
+  }));
+  for (const { box, rect } of measured) {
+    box?.style.setProperty('--sk-w', `${rect.width.toFixed(1)}px`);
+    box?.style.setProperty('--sk-h', `${rect.height.toFixed(1)}px`);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -528,6 +703,47 @@ function recue(): void {
   if (playing) cueNext();
 }
 
+/**
+ * Everything the first press would otherwise be charged for, paid while nobody
+ * is waiting.
+ *
+ * The band over the wire is the large half — a median 1.6 MB of soundfonts and
+ * kit for a record, and it used to begin moving on the press — and the compile is
+ * the slow half, 0.5–1.9 s of blocked main thread. Done here, a cold press is a
+ * `startLoaded` and the button never has anything to say.
+ *
+ * Only ever for the record showing on an idle page, and only *once*: the record
+ * cued under a playing one is deliberately not compiled, because that compile
+ * would block the thread the scheduler is running on. See `cueNext`, and the
+ * changeover in `play`, which is where the compile belongs when there is music
+ * to hide it behind.
+ */
+async function arm(cut: Cut): Promise<void> {
+  try {
+    await preloadSounds(cut.song);
+    /**
+     * The compile is a blocked main thread, and a transition that has not started
+     * yet cannot start until the thread comes back — so compiling through the
+     * reveal would hold the placeholders up and then land the whole swap in a
+     * lump. One already running is composited and survives it, which is why
+     * waiting for the lines is enough. See `showLines`.
+     */
+    await until(linesBy);
+    /**
+     * Somebody pressed something, and the transport is theirs now. `loadCode`
+     * installs the pattern the scheduler reads, so arming a record nobody is
+     * waiting for any more would put it underneath one that is playing.
+     */
+    if (current !== cut || playing || paused || loading) return;
+    await loadCode(cut.code, cut.song.meta.totalBars);
+  } catch (err) {
+    // A record that would not get ready early is one that gets ready on the
+    // press instead, which is where every record was before this existed. Not
+    // something the listener can do anything about, so the page does not say so.
+    console.warn('radio: could not get the record ready ahead of the press', err);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Transport
 // ---------------------------------------------------------------------------
@@ -553,6 +769,10 @@ interface Handover {
    * An unfaded handover is the ring-out, which sounds at full level and is taken
    * down at the end of it instead. Either way the fader is at zero by the time
    * the last record is cut, and comes back up on the downbeat.
+   *
+   * It is also the answer to whether the gap is worth reporting, and the only
+   * one there is: a gap with the ending still sounding over it needs no notice,
+   * and the same gap in silence needs one. See `play`.
    */
   faded: boolean;
 }
@@ -560,10 +780,23 @@ interface Handover {
 async function play(cut: Cut, handover?: Handover): Promise<void> {
   const mine = ++generation;
   try {
-    if (!handover) {
-      // Nothing is sounding to hide the wait behind, so the button says so for
-      // the whole of it. On a handover there is nothing to report: the previous
-      // record is still ringing and the station is audibly still playing.
+    /**
+     * The button says so for the whole of the wait, unless there is music over
+     * it — and whether there is depends on which changeover this is rather than
+     * on it being one. A record that ended has 1.8 s of ring-out sounding while
+     * this runs and the station is audibly still playing, so there is nothing to
+     * report; a skip pulled the fader to zero before it got here, so the same
+     * gap is silence, and up to two seconds of it under a Pause glyph is a
+     * station that looks like it has failed. `faded` is exactly that difference.
+     *
+     * The glow stays lit either way, which is deliberate: `paintPlay` takes it
+     * from `playing`, and a changeover does not touch that. It says *this
+     * station is on*, not *sound is leaving the speaker this instant*, and both
+     * directions of its fade are 1.2 s — so blinking it off across a gap this
+     * short would dip, reverse and recover, which reads as a fault rather than
+     * as information.
+     */
+    if (!handover || handover.faded) {
       loading = true;
       paintPlay();
     }
@@ -602,7 +835,15 @@ async function play(cut: Cut, handover?: Handover): Promise<void> {
       // Back up in case the last thing that happened was a stop. Unconditional:
       // a fader left down by any route is silence nobody can explain.
       setOutputLevel(volume);
-      await playCode(cut.code, cut.song.meta.totalBars);
+      /**
+       * The same two steps as the handover above, rather than one `playCode`
+       * that does both, and for the same reason plus one: `arm` has usually
+       * compiled this record already, and `loadCode` knows it — so what is left
+       * of the press is the scheduler starting.
+       */
+      await loadCode(cut.code, cut.song.meta.totalBars);
+      if (mine !== generation) return;
+      await startLoaded();
     }
 
     sungVoice.begin(cut.song);
@@ -876,6 +1117,9 @@ async function refreshIdle(): Promise<void> {
     if (playing) return;
     current = cut;
     describe(cut);
+    // Tuned while stopped, which is the other place a record sits on an idle
+    // page waiting to be pressed. Same treatment as the first one. See `arm`.
+    void arm(cut);
   } catch (err) {
     console.warn('radio: could not write a record for the new station', err);
   }
@@ -1419,12 +1663,15 @@ els.wander.oninput = () => {
 // ---------------------------------------------------------------------------
 
 /**
- * One button, four meanings, and only one of them is "stop".
+ * One button, five meanings, and only one of them is "stop".
  *
  * A load is the odd one out: there is no record to hold, so the press calls the
- * load off outright rather than pausing something that has not started.
+ * load off outright rather than pausing something that has not started. Except
+ * during the *first* load, where there is nothing to call off either — that
+ * press is kept and answered by `boot`. See `opening`.
  */
 function pressPlay(): void {
+  if (opening) { wanted = true; return; }
   if (loading) { stop(); return; }
   if (playing) { pause(); return; }
   if (paused) { void resume(); return; }
@@ -1607,7 +1854,17 @@ function storedNumber(key: string, lo: number, hi: number): number | undefined {
 }
 
 async function boot(): Promise<void> {
-  // Arm the audio stack's first-click listener before the user can reach Play.
+  /**
+   * Build the audio stack now, which is also what arms its first-click listener
+   * before the user can reach Play.
+   *
+   * Everything but the click itself happens off this call — the eval scope, the
+   * repl, the sound registries, the three sample manifests — so by the time a
+   * record exists to warm, the engine behind it is already there. See
+   * `prepareAudio` in `web/audio.ts`. The promise itself does not resolve until
+   * somebody has touched the page, so this is not awaited; it is here for the
+   * work it starts and for the error it might report.
+   */
   void initAudio().catch((err) => {
     showError('The audio engine would not start. Reloading usually fixes it.');
     console.error(err);
@@ -1670,10 +1927,20 @@ async function boot(): Promise<void> {
     current = cut;
     describe(cut);
     els.skip.disabled = false;
+    opening = false;
+    /**
+     * Pressed while the page was opening, so the wait the listener has already
+     * begun goes on being a wait — `play` owns the button from here and it is
+     * already in the state it needs to be in.
+     */
+    if (wanted) { await play(cut); return; }
     loading = false;
     paintPlay();
-    void preloadSounds(cut.song);
+    // …and then get this record ready to start on the first press rather than
+    // making that press wait for it. Returns immediately.
+    void arm(cut);
   } catch (err) {
+    opening = false;
     loading = false;
     paintPlay();
     showError('The generator would not start. Reloading usually fixes it.');

@@ -47,10 +47,19 @@
         --hot: #e0a24a;
         /* Declared here because this is the element the hues change on —
            `paintKey` sets them on the document root, and a transition only fires
-           where the value moves. Long enough to read as a turn around the wheel
-           rather than a cut; `paintKey` keeps the figures unwrapped, so the turn
-           is always the shorter of the two arcs. */
-        transition: --hue 1.8s ease-in-out, --hue-2 1.8s ease-in-out;
+           where the value moves. `paintKey` keeps the figures unwrapped, so the
+           turn is always the shorter of the two arcs.
+
+           It is the whole changeover, and that is where the figure comes from:
+           `paintKey` is called as the old title starts leaving and the new one
+           is fully up .19s + .1s + .3s later, so the bar turns across the swap
+           and arrives with the name. It ran for 1.8s before, which is a handsome
+           sweep and was three times too long — the title had been legible for the
+           better part of a second under a bar still showing the last record's
+           key, which reads as the bar lagging rather than as a bar drifting.
+           `LINES_MS` in `web/radio.ts` and `KEY_MS` in `web/glow-field.ts` are
+           the same figure for the same sweep. */
+        transition: --hue .59s ease-in-out, --hue-2 .59s ease-in-out;
         font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 
         /* The gutter, in one place, because three boxes have to agree on it:
@@ -217,6 +226,13 @@
         width: 100%; min-height: 2.15rem; margin-top: .4rem;
       }
       .sub { color: var(--dim); font-size: .9rem; }
+      /* No reserved height, unlike the two boxes above: the era is one line that
+         never wraps, so its own line box is the right height and there is
+         nothing for a minimum to protect against. It exists because the
+         placeholder bar is drawn on the box rather than on the line — see the
+         skeleton rules below — and a bar needs something to be positioned
+         against. */
+      .era-box { display: flex; justify-content: center; width: 100%; }
       /* The production era, which is where the year is. Dimmer than the genre
          line because it is the third thing you would want to know, not the
          second. Never wraps — no era label in the catalogue is long enough at
@@ -233,31 +249,125 @@
          script it would flash the empty layout first, which is the thing it
          exists to prevent.
 
-         Heights in `em`, so each one is exactly the line box of the text it
-         stands in for. Stated in `rem` they were 4–5 px short apiece and the
-         controls jumped on arrival, which is the whole fault this addresses.
-         Widths are the measured widths of real titles rather than round
-         numbers. The bar is thinner than its line box: `box-sizing` is
-         `border-box` globally, so the padding eats into the height and
-         `background-clip` keeps the paint off it. */
-      body.booting .title, body.booting .sub, body.booting .era {
-        color: transparent; border-radius: 3px; background: #1c1815;
-        background-clip: content-box; animation: sk 2.4s ease-in-out infinite;
-      }
-      /* The `height` is the line box and matches the real text to the pixel; the
-         `padding` is what decides how much of it gets painted. Set too generously
-         at first, which left a 21 px bar standing in for 31 px type — the box was
-         right and the mark inside it was visibly light. */
-      /* Widths are the median of the real thing, measured across every
+         They are painted on the *boxes* rather than on the lines they stand in
+         for, and that is what lets the reveal be a cross-fade. A bar drawn on
+         the same element as the text sits behind the same `opacity` as the
+         text, so it could only ever leave before the text arrived, and the page
+         spent a third of a second showing neither. On the box it is a layer of
+         its own: the bar going and the line coming are one fade, run in
+         opposite directions over the same third of a second.
+
+         The sizes are the ones that were measured on the lines themselves, moved
+         into the box's own units — the bar's height *is* its painted height now,
+         where before it was a line box with padding eaten out of it by
+         `background-clip`. The title's 1.15em of 1.95rem type less .06em of
+         padding at each end is 2.01rem, and the .12rem that padding left under
+         it is what holds the bar off the foot of a bottom-aligned box; the
+         subtitle's 1.2em of .9rem less .24em is .65rem, and the era's 1.2em of
+         .76rem less .26em is .52rem.
+
+         Widths are the median of the real thing, measured across every
          genre·style and era label the stations can produce: subtitles run
          31–46% of the player and eras 25–33%. Guessed at, they were 64% and
          38% — both visibly wider than anything that ever replaced them. */
-      body.booting .title { width: 72%; height: 1.15em; padding: .06em 0; }
-      body.booting .sub { width: 33%; height: 1.2em; padding: .24em 0; }
-      body.booting .era { width: 25%; height: 1.2em; padding: .26em 0; }
-      @keyframes sk { 0%, 100% { opacity: .45; } 50% { opacity: .9; } }
+      .title-box, .sub-box, .era-box { position: relative; }
+      .title-box::after, .sub-box::after, .era-box::after {
+        content: ""; position: absolute; pointer-events: none;
+        left: 50%; top: 50%; translate: -50% -50%;
+        border-radius: 8px; background: #1c1815;
+        opacity: 0; transition: opacity .3s ease, width .3s ease, height .3s ease;
+        /* Paused rather than dropped when the placeholders go, and that is the
+           whole of how the bar leaves cleanly: an animation taken away hands the
+           property back to the rule underneath in a single frame, so the pulse
+           ending would have brightened the bar to full at the exact moment it
+           began to fade. Paused, it holds the frame it was on. It runs on
+           `filter` for the neighbouring reason — an animation outranks a
+           transition on the property they share, and `opacity` is spoken for by
+           the fade. */
+        animation: sk 2.4s ease-in-out infinite paused;
+      }
+      /* Each bar is a line box less the padding the placeholder used to keep off
+         it, and it is written that way — `var()` over `calc()` rather than the
+         one figure it works out to — because the line box is the half that
+         moves. When the record lands, the script measures what the real line
+         actually came out as and hands it over, and the bar goes to that shape
+         as it fades: a title bar most of the player wide narrowing to the width
+         of the words that replaced it, and standing up to two lines tall if that
+         is what arrived. Without it the bars simply vanished and the text simply
+         appeared, in the same place, at the same moment, at different sizes.
+         The trims stay behind in the `calc`, so the bar remains a mark inside
+         the line rather than the whole line box. The defaults are what the page
+         opens on: the median real title, subtitle and era — the title's taken in
+         by a rem, in `rem` rather than the 16px it comes to here because what it
+         is standing in for is type, and type on this page shrinks by up to a
+         quarter with the root size while a pixel does not shrink at all.
+         See `showLines` in `web/radio.ts`. */
+      .title-box::after {
+        top: auto; bottom: .12rem; translate: -50% 0;
+        width: var(--sk-w, calc(72% - 1rem)); height: calc(var(--sk-h, 2.245rem) - .235rem);
+      }
+      .sub-box::after { width: var(--sk-w, 33%); height: calc(var(--sk-h, 1.08rem) - .43rem); }
+      .era-box::after { width: var(--sk-w, 25%); height: calc(var(--sk-h, .912rem) - .395rem); }
+      body.booting .title-box::after,
+      body.booting .sub-box::after,
+      body.booting .era-box::after { opacity: 1; animation-play-state: running; }
+      /* The lines are empty until the record lands, so this hides nothing. It is
+         where their arrival starts from. */
+      body.booting .title, body.booting .sub, body.booting .era { opacity: 0; }
+      /* The era is the one line with no reserved box above it — the other two
+         have minimum heights of their own — so while it is empty its own line
+         box is what holds the space open. In `em`, which is exactly the line box
+         of the text that replaces it; in `rem` it was 4–5 px short and the
+         controls jumped on arrival. */
+      body.booting .era { height: 1.2em; }
+      @keyframes sk { 0%, 100% { filter: opacity(.45); } 50% { filter: opacity(.9); } }
       @media (prefers-reduced-motion: reduce) {
-        body.booting .title, body.booting .sub, body.booting .era { animation: none; opacity: .6; }
+        .title-box::after, .sub-box::after, .era-box::after {
+          animation: none; filter: opacity(.6);
+        }
+      }
+
+      /* ── one record giving way to the next ────────────────────────────────
+         The three lines fade out and the next three fade in. Nothing travels:
+         the lines are centred in boxes whose height is reserved to the pixel so
+         that a record landing moves nothing on this page, and a title that
+         drifted up on its way out was the one thing contradicting that. So the
+         change is carried entirely by the fade, which is also how the icons on
+         Play change and how the station labels answer the pointer.
+
+         Out and then in on the same three elements, not a cross-fade between
+         two copies of them: a second set of nodes would have to sit in the
+         layout, which is the same objection again.
+
+         On `opacity`, which is composited, and that matters more here than
+         anywhere else on the page: the compile between two records is up to
+         1.9 s of blocked main thread, and a transition already running goes on
+         running through it. Starting one is the part that cannot — see `arm` in
+         `web/radio.ts` for the half of that the script has to arrange.
+
+         The leaving is quicker than the arriving. The old title is being got out
+         of the way and the new one is being introduced; a departure that takes
+         as long as an arrival reads as hesitation. Both figures are in the
+         script too — it decides when the text is actually swapped — and the two
+         have to agree. */
+      /* …and they always take a moment before they begin arriving. On the first
+         record that moment is the whole point: the placeholders are fading out
+         over the same third of a second, and two fades that start on the same
+         frame read as one thing changing rather than as one leaving and another
+         coming. A tenth is enough to tell them apart and short enough that the
+         page is never showing nothing. Between two records it is a beat of air
+         between the titles, which is the same gesture again. */
+      .title, .sub, .era { transition: opacity .3s ease .1s; }
+      /* One class and no second one for the way back. The lines are at nothing
+         by the time the text under them is swapped, so handing them back to the
+         rule above *is* the arrival — it fades them from where the departure
+         left them to where they belong, at the resting duration and after the
+         resting wait rather than the quicker figures here, because the
+         transition in force is always the one belonging to the state being
+         moved into. Leaving is not something to hang about before, so the wait
+         is taken off for that half. */
+      body.text-out .title, body.text-out .sub, body.text-out .era {
+        opacity: 0; transition-duration: .19s; transition-delay: 0s;
       }
 
       /* ── the glow ─────────────────────────────────────────────────────────
@@ -619,12 +729,20 @@
          a click with a cut. Nothing transitions out of `display: none`, so the
          icons had to stay on the screen to be animated off it.
 
-         Load is the state with no glyph at all. There is no rule lighting one
-         for it, so the default below simply holds: whichever icon was showing
-         fades out and the disc is left bare, and the button itself carries the
-         message — see the breath under this. A spinner stood here before and
-         was the one thing on the page keeping its own time, turning at a rate
-         nothing else moved at, on the single control the eye is already on. */
+         Load off the air is the state with no glyph at all. There is no rule
+         lighting one for it, so the default below simply holds: whichever icon
+         was showing fades out and the disc is left bare, and the button itself
+         carries the message — see the breath under this. A spinner stood here
+         before and was the one thing on the page keeping its own time, turning
+         at a rate nothing else moved at, on the single control the eye is
+         already on.
+
+         Load *on* the air keeps the bars, and that is the one exception. It is
+         the gap between two records on a station that is playing — see `skip` in
+         `web/radio.ts` — and a bare disc there says the transport has no state,
+         when what is true is that it has one and cannot act on it yet. The bars
+         say which state, the breath says not yet, and between them they are the
+         only two things about that moment worth knowing. */
       /* The fade and the scale are meant to be read together; the scale is what
          gives the fade a direction. From half size it was an icon flying in from
          somewhere, which is a lot of event for a button that has changed its
@@ -638,6 +756,11 @@
       }
       #play[data-state="play"] [data-when="play"],
       #play[data-state="pause"] [data-when="pause"] { opacity: 1; scale: 1; }
+      /* …and the loading station keeps them, asked of the body rather than of a
+         fourth state on the button: `playing` is already written there, on the
+         same brush stroke as `data-state` and by the same function, so the two
+         cannot disagree about whether the station is on. */
+      body.playing #play[data-state="load"] [data-when="pause"] { opacity: 1; scale: 1; }
       /* The triangle, blunted. Three sharp points next to a pair of bars rounded
          at 1.4 was the button contradicting itself twice a song — so the path is
          drawn 1.4 units inside the shape it wants to be and given a 2.8 stroke
@@ -1282,7 +1405,7 @@
       <section class="player">
         <div class="title-box"><h1 class="title" id="title"></h1></div>
         <div class="sub-box"><div class="sub" id="sub"></div></div>
-        <div class="era" id="era"></div>
+        <div class="era-box"><div class="era" id="era"></div></div>
 
         <!-- The `<i>` is the tight rim of the halo. See `.glow`. -->
         <div class="glow" aria-hidden="true"><i></i></div>

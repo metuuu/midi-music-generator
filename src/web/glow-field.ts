@@ -131,7 +131,17 @@ const IDLE_MS = 90;
 const AIR_MS = 1200;
 const GAS_MS = (SHED_LIFE + GROW + HALO_LIFE) * 1000;
 const EMIT_MS = HALO_LIFE * (1.4 + 1) * 1000;
-const KEY_MS = 1800;
+/**
+ * How long the bar takes to turn to a new record's key.
+ *
+ * The same figure as the `--hue` transition in `radio.html`, and it has to be:
+ * the page hands both this and the stylesheet the same two hues at the same
+ * moment, so that a machine drawing the field and a machine drawing the CSS
+ * fallback are drawing one sweep. It is the length of a whole changeover —
+ * `LINES_MS` in `web/radio.ts` — because that is what the sweep keeps time with:
+ * it begins as the old title leaves and lands as the new one settles.
+ */
+const KEY_MS = 590;
 const MAX_DT = 1 / 30;
 const SUB = 1 / 200;
 const SUB_MAX = 6;
