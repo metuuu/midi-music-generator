@@ -275,9 +275,61 @@ function installLimiter(): void {
     attack: 0.001,
     release: 0.1,
   });
+  fader = new GainNode(ctx, { gain: 1 });
   master.disconnect();
   master.connect(limiter);
-  limiter.connect(ctx.destination);
+  limiter.connect(openSpectrum(ctx));
+  limiter.connect(fader);
+  fader.connect(ctx.destination);
+}
+
+/**
+ * The fader, downstream of both the limiter and the glow's tap.
+ *
+ * Where it sits is the whole point. `destinationGain` is Strudel's and stays at
+ * unity; this is what every level change moves, so the analyser reads the mix
+ * as mixed and the bar looks the same at any volume — a listener turning the
+ * sound down is not asking to turn the picture down with it.
+ *
+ * It also puts the limiter where a limiter belongs. Hung off `destinationGain`
+ * it saw post-fader signal, so anything under about half volume never reached
+ * the −1 dBFS threshold and the peak catching quietly switched itself off at
+ * exactly the settings a listener is most likely to use. Now the mix is caught
+ * first and turned down second, which is the ordinary order and makes the
+ * limiter's behaviour independent of the knob.
+ */
+let fader: GainNode | undefined;
+
+/**
+ * The window the glow looks through. Post-limiter, ahead of the fader.
+ *
+ * An `AnalyserNode` is a tap, not a link in the chain: it needs no output
+ * connection to fill its buffer, so nothing downstream of it can go wrong and
+ * the sound is the same whether anything reads it or not.
+ *
+ * Post-limiter and pre-fader: a peak the limiter caught reads caught, and the
+ * volume knob downstream cannot reach it. Pausing still stills the bar, but by
+ * `setPlaying` rather than by the level, which is why the two can be separated
+ * at all.
+ *
+ * Smoothing is off. `AnalyserNode` only offers a symmetric time constant, and a
+ * visualiser wants to jump on a transient and fall away slowly, so the release
+ * is shaped where the bands are folded instead.
+ */
+let spectrum: AnalyserNode | undefined;
+
+function openSpectrum(ctx: BaseAudioContext): AnalyserNode {
+  spectrum ??= new AnalyserNode(ctx, { fftSize: 4096, smoothingTimeConstant: 0 });
+  return spectrum;
+}
+
+/**
+ * Undefined until the first record has armed the chain, and never on its own
+ * account: asking must not build an `AudioContext`, because the one this would
+ * build is the one the browser refuses to start outside a gesture.
+ */
+export function getSpectrum(): AnalyserNode | null {
+  return spectrum ?? null;
 }
 
 /**
@@ -305,13 +357,13 @@ const CUT_SECONDS = 0.012;
  * The scheduler cannot fix that because the notes are no longer its business.
  * The master gain can, because everything goes through it.
  *
- * Fails soft for `installLimiter`'s reason, and reaches the same node: the
- * limiter splice moves what `destinationGain` is connected *to* and leaves the
- * gain itself alone, so this is the master fader either way.
+ * Fails soft for `installLimiter`'s reason, and falls back to the node it used
+ * to move: without the splice there is no `fader`, and `destinationGain` is
+ * then the only fader there is.
  */
 export function setOutputLevel(level: number, seconds = CUT_SECONDS): void {
   try {
-    const master = getSuperdoughAudioController()?.output?.destinationGain;
+    const master = fader ?? getSuperdoughAudioController()?.output?.destinationGain;
     if (!master) return;
     const now = getAudioContext().currentTime;
     // Cancel first: a second press during the ramp would otherwise ramp from a

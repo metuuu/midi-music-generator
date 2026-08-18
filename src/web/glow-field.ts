@@ -7,15 +7,40 @@ export interface GlowCensus {
 export interface GlowField {
   setKey(hue: number, hue2: number): void;
   setPlaying(playing: boolean): void;
+  setSpectrumMode(mode: SpectrumMode): void;
   census(): GlowCensus | null;
   pump(ms: number): void;
   destroy(): void;
 }
 
+/**
+ * What the music does to the bar.
+ *
+ * `bands` reads level: every column is pushed up by how loud its band is, so
+ * the bar carries the shape of the spectrum and rides above its rest line.
+ * `flux` reads change: a column goes up when its band is louder than it has
+ * lately been and down when it is quieter, so the bar waves about its rest line
+ * instead of leaving it.
+ */
+export type SpectrumMode = 'bands' | 'flux';
+
 export interface GlowFieldOptions {
   onLost?: () => void;
   playing?: boolean;
   keepTouch?: string;
+  /**
+   * Where the music comes from, polled rather than passed, because the audio
+   * chain is built on the first click and the bar is on the page before that.
+   * Returning null is the ordinary state until then, and turns the drive off.
+   */
+  spectrum?: () => AnalyserNode | null;
+  spectrumMode?: SpectrumMode;
+  /**
+   * A tap on the bar, as opposed to a drag across it. The field reports it
+   * because it is the only thing that knows where the bar is; what a tap means
+   * is not its business.
+   */
+  onTap?: () => void;
 }
 
 interface Target {
@@ -59,7 +84,7 @@ const HEAT_GAIN = 3.2;
 const GROW = 0.25;
 const GAS_GROW = 4.5;
 
-const HEADROOM = 1.8;
+const HEADROOM = 2.0;
 
 const CELL = 10;
 const GRID_MAX = 180;
@@ -141,6 +166,82 @@ const SWIRL_V = 46;
 const SWIRL_WAVES = 4;
 const SWIRL_LONG = 190;
 const SWIRL_CHURN = 55;
+
+/**
+ * Thirty-two bands and no more, because the bar cannot carry finer detail.
+ *
+ * `SMOOTH` drags every node towards the midpoint of its two neighbours at a
+ * strength that beats the home spring for anything narrower than roughly forty
+ * columns, so a bump that fine is flattened before it is ever drawn. Thirty-two
+ * log-spaced bands puts a bump every twenty-four columns, which is about the
+ * sharpest shape the yarn will actually hold.
+ */
+const SPEC_BANDS = 32;
+const SPEC_LOW = 40;
+const SPEC_HIGH = 12000;
+/**
+ * The two ends of the band scale, in dBFS, measured rather than guessed.
+ *
+ * These are per-bin levels off a 4096-point analyser, not mix levels: a record
+ * peaking a decibel under full scale spreads that across two thousand bins, so
+ * the window sits far below where a mix's own does.
+ *
+ * Set off both ends of what the stations play. A loud hiphop record averages a
+ * third of the scale here and peaks in the low eighties without clipping; a
+ * quiet ambient one peaks around four tenths. Widening the window instead of
+ * simply lowering it is what keeps the top of the scale for transients rather
+ * than spending it on the bed.
+ */
+const SPEC_FLOOR = -63;
+const SPEC_CEIL = -11;
+/**
+ * Decibels of lift per octave, so that a mix reads level along the bar.
+ *
+ * Music is not flat: energy falls away roughly 3-6 dB per octave above the low
+ * mids, so a straight reading of the bins leaves the left end of the bar always
+ * bright and the right end always dark, whatever is playing. The tilt is the
+ * standard analyser fix and it is what makes the whole length of the bar worth
+ * looking at.
+ */
+const SPEC_TILT = 4;
+const SPEC_RISE = 26;
+const SPEC_FALL = 7;
+/**
+ * What a full band is worth in heat, held under `RELINK_COOL` on purpose.
+ *
+ * Heat is the channel the cursor already writes, and it drives four things at
+ * once: brightness through `HEAT_GAIN`, slack in the home spring, drag, and
+ * whether a cut is allowed to knit back together. The last is the reason for
+ * the ceiling — a loud record must not hold a cut open.
+ */
+const SPEC_HEAT = 0.5;
+const SPEC_LIFT = 4800;
+/** How much of each end of the bar the lift fades out across. */
+const SPEC_ANCHOR = 0.06;
+const SPEC_QUIET = 0.02;
+const SPEC_UNIT = 5;
+/**
+ * How fast the average a band is judged against follows the band itself.
+ *
+ * Slow enough that a hi-hat is a spike against its own recent history rather
+ * than something the average has already absorbed, fast enough that a section
+ * change resets what counts as normal within a bar or two.
+ */
+const SPEC_SLOW = 0.7;
+const SPEC_FLUX = 3.5;
+
+/**
+ * What separates a tap on the bar from a cut across it.
+ *
+ * The reach is far tighter than the one that arms a cut, because a cut wants to
+ * be felt coming and a tap has to be aimed. Slip and hold are what keep the two
+ * apart: a drag has left the spot by the time it lifts, and a press held on the
+ * line is somebody leaning on it, not choosing something.
+ */
+const TAP_REACH = 26;
+const TAP_SLIP = 6;
+const TAP_HOLD = 500;
+const SPEC_MS = 400;
 
 const SETTLE_MS = 5400;
 const IDLE_MS = 90;
@@ -545,10 +646,15 @@ ${SEG}
 #define SWIRL_WAVES ${SWIRL_WAVES}
 #define SWIRL_LONG ${SWIRL_LONG.toFixed(1)}
 #define SWIRL_CHURN ${SWIRL_CHURN.toFixed(1)}
+#define SPEC_HEAT ${SPEC_HEAT.toFixed(3)}
+#define SPEC_LIFT ${SPEC_LIFT.toFixed(1)}
+#define SPEC_ANCHOR ${SPEC_ANCHOR.toFixed(3)}
 
 uniform sampler2D uPos;
 uniform sampler2D uSt;
 uniform sampler2D uVel;
+uniform sampler2D uSpec;
+uniform float uSpecOn;
 
 uniform sampler2D uWhole;
 uniform sampler2D uGap;
@@ -666,6 +772,12 @@ void main() {
   float blob = blobNow();
   float rush = clamp(texelFetch(uGap, ivec2(0, 0), 0).z / HASTE_FULL, 0.0, 1.0);
 
+  // Sampled, not fetched: thirty-two bands read across the bar as one curve.
+  // Level lights the bar, drive moves it, and only drive is allowed a sign.
+  vec2 spec = uSpecOn > 0.5 ? texture(uSpec, vec2(t, 0.5)).xy : vec2(0.0);
+  float band = spec.x;
+  float drive = spec.y;
+
   vec2 fluid = texture(uVel, clamp(p / uGrid, vec2(0.0), vec2(1.0))).xy;
 
   if (pop != 0) {
@@ -742,6 +854,11 @@ void main() {
 
   float free = torn > 0.0 ? 1.0 : 0.0;
 
+  // The line only. Halo and bloom take their heat from the strand they were
+  // thrown off, the way they already take the cursor's, so the gas carries what
+  // the music was when it left rather than lighting the whole cloud at once.
+  heat = max(heat, band * SPEC_HEAT);
+
   vec2 pN = texelFetch(uPos, ivec2(min(c.x + 1, COLS - 1), c.y), 0).xy;
   vec2 pP = texelFetch(uPos, ivec2(max(c.x - 1, 0), c.y), 0).xy;
   float lenN = c.x < COLS - 1 ? distance(pN, p) : 0.0;
@@ -774,6 +891,13 @@ void main() {
 
     float cold = mix(HOT_HOLD, 1.0, (1.0 - heat) * (1.0 - heat));
     F += toHome * (K_HOME * cold);
+    // Up, and only up. The yarn binds every strand to its column's mean, so a
+    // column rides a push as one and a swell that parts the strands is pulled
+    // flat before it can be seen.
+    //
+    // The two ends are the anchors. The lift fades out into them, so the bar
+    // stays pinned where it meets the page and only its span rides the music.
+    F.y -= drive * SPEC_LIFT * smoothstep(0.0, SPEC_ANCHOR, min(t, 1.0 - t));
     grip = DRAG * (DRAG_COLD + DRAG_HOT * heat);
   } else {
 
@@ -1088,6 +1212,7 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
   let gaps: [Target, Target] | undefined;
   let gapFront: 0 | 1 = 0;
   let acc: Target | undefined;
+  let specTex: WebGLTexture | undefined;
 
   let dpr = 1;
   let viewW = 1;
@@ -1229,10 +1354,12 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
       locate(censusProg, ['uSt', 'uPos', 'uGap', 'uBar']);
       locate(gapProg, ['uWhole', 'uPrev', 'uDt']);
       locate(simProg, ['uPos', 'uSt', 'uVel', 'uWhole', 'uGap', 'uGrid', 'uDt', 'uTime', 'uRest',
-        'uInit', 'uEmit', 'uBar', 'uFrom', 'uTo', 'uCursorV', 'uCursorOn']);
+        'uInit', 'uEmit', 'uBar', 'uFrom', 'uTo', 'uCursorV', 'uCursorOn', 'uSpec', 'uSpecOn']);
       locate(drawProg, ['uPos', 'uSt', 'uGap', 'uView', 'uHue', 'uDpr', 'uBar']);
       locate(resolveProg, ['uAcc', 'uPeak']);
       pools = [makePool(), makePool()];
+      // Smooth, so the shader reads one curve rather than thirty-two steps.
+      specTex = makeTex(gl!.RG16F, SPEC_BANDS, 1, true);
       whole = makeTarget(gl!.RGBA16F, COLS, 2);
       gaps = [makeTarget(gl!.RGBA16F, 2, 1), makeTarget(gl!.RGBA16F, 2, 1)];
       gapFront = 0;
@@ -1305,7 +1432,9 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
   }
 
   function stepParticles(dt: number, init = false): void {
-    if (!simProg || !censusProg || !gapProg || !pools || !whole || !gaps || !vels) return;
+    if (!simProg || !censusProg || !gapProg || !pools || !whole || !gaps || !vels || !specTex) {
+      return;
+    }
     const [gx, gy] = span();
     const rest = Math.max(barX1 - barX0, 1) / COLS;
 
@@ -1333,6 +1462,8 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
     bindTex(simProg, 'uVel', 2, vels[velFront].tex);
     bindTex(simProg, 'uWhole', 3, whole.tex);
     bindTex(simProg, 'uGap', 4, gaps[gapFront].tex);
+    bindTex(simProg, 'uSpec', SPEC_UNIT, specTex);
+    gl!.uniform1f(u(simProg, 'uSpecOn'), specLive ? 1 : 0);
     gl!.uniform3f(u(simProg, 'uBar'), barX0, barX1, barY);
     gl!.uniform2f(u(simProg, 'uGrid'), gx, gy);
     gl!.uniform1f(u(simProg, 'uDt'), dt);
@@ -1381,6 +1512,117 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
   let playing = opts.playing ?? true;
   let emitAt = 0;
 
+  let spec: AnalyserNode | null = null;
+  let bins: Float32Array<ArrayBuffer> | undefined;
+  let edges: Int32Array | undefined;
+  let tilt: Float32Array | undefined;
+  const bands = new Float32Array(SPEC_BANDS);
+  /** What each band has lately been, which is what `flux` reads it against. */
+  const slow = new Float32Array(SPEC_BANDS);
+  /** Level and drive interleaved, in the layout the two-channel upload wants. */
+  const pack = new Float32Array(SPEC_BANDS * 2);
+  let mode: SpectrumMode = opts.spectrumMode ?? 'bands';
+  let specLive = false;
+
+  /**
+   * Which bins each band owns, worked out once the analyser is there to ask.
+   *
+   * Log-spaced because pitch is. Linear bins put the whole of the bass in the
+   * first column and a half of the bar and give half their number to everything
+   * above 12 kHz, where there is nothing to look at.
+   *
+   * Every band is forced at least one bin of its own. At the bottom the bands
+   * are narrower than a bin is wide, so without that the lowest few would all
+   * read the same bin and move as one.
+   */
+  function planBands(rate: number, count: number): void {
+    edges = new Int32Array(SPEC_BANDS + 1);
+    tilt = new Float32Array(SPEC_BANDS);
+    const width = rate / (count * 2);
+    const span = SPEC_HIGH / SPEC_LOW;
+    let at = 1;
+    for (let b = 0; b <= SPEC_BANDS; b++) {
+      const f = SPEC_LOW * Math.pow(span, b / SPEC_BANDS);
+      at = Math.max(at, Math.min(count - 1, Math.round(f / width)));
+      edges[b] = at;
+      at += 1;
+      if (b < SPEC_BANDS) tilt[b] = SPEC_TILT * Math.log2(Math.pow(span, (b + 0.5) / SPEC_BANDS));
+    }
+  }
+
+  /**
+   * The music, folded to what the bar can hold, and true while it is worth
+   * running for.
+   *
+   * Loudest bin per band rather than the mean: a band is mostly noise floor and
+   * averaging buries the one partial that is actually sounding in it.
+   *
+   * Rising fast and falling slow is the whole difference between a bar that
+   * moves with the music and one that flickers. `AnalyserNode` cannot do it —
+   * its own smoothing is a single symmetric constant — so the levels arrive raw
+   * and are shaped here.
+   *
+   * Level is the same in both modes and is always positive, because it lights
+   * the bar. Only the drive channel differs, and only it may go negative.
+   */
+  function readSpectrum(dt: number): boolean {
+    if (!spec) spec = opts.spectrum?.() ?? null;
+    const on = !!spec && playing;
+    if (on && spec) {
+      const n = spec.frequencyBinCount;
+      if (!bins || bins.length !== n) {
+        bins = new Float32Array(n);
+        planBands(spec.context.sampleRate, n);
+      }
+      spec.getFloatFrequencyData(bins);
+    }
+    const rise = 1 - Math.exp(-SPEC_RISE * dt);
+    const fall = 1 - Math.exp(-SPEC_FALL * dt);
+    const drift = 1 - Math.exp(-SPEC_SLOW * dt);
+    const range = SPEC_CEIL - SPEC_FLOOR;
+    let loud = 0;
+    for (let b = 0; b < SPEC_BANDS; b++) {
+      let want = 0;
+      if (on && bins && edges && tilt) {
+        const lo = edges[b] ?? 0;
+        const hi = edges[b + 1] ?? lo;
+        let db = -Infinity;
+        for (let i = lo; i < hi; i++) db = Math.max(db, bins[i] ?? -Infinity);
+        want = Math.min(Math.max((db + (tilt[b] ?? 0) - SPEC_FLOOR) / range, 0), 1);
+      }
+      const was = bands[b] ?? 0;
+      const now = was + (want - was) * (want > was ? rise : fall);
+      bands[b] = now;
+
+      // Read against the average as it was before this frame moved it, or a
+      // band would be compared with a figure it has already been folded into.
+      //
+      // Except with nothing playing, where the average is pinned to the band
+      // instead. A pause is the app stopping, not the music getting quieter,
+      // and an average that trails the fall by a second reads every band as
+      // suddenly below its usual — which pushes the whole bar under the line on
+      // the way to being still.
+      const avg = on ? (slow[b] ?? 0) : now;
+      slow[b] = avg + (now - avg) * drift;
+      pack[b * 2] = now;
+      pack[b * 2 + 1] = mode === 'flux'
+        ? Math.min(Math.max((now - avg) * SPEC_FLUX, -1), 1)
+        : now;
+
+      if (now > loud) loud = now;
+    }
+    const live = loud > SPEC_QUIET;
+    if ((live || specLive) && specTex) {
+      // On its own unit, so the upload cannot leave a binding somewhere a later
+      // pass would read.
+      gl!.activeTexture(gl!.TEXTURE0 + SPEC_UNIT);
+      gl!.bindTexture(gl!.TEXTURE_2D, specTex);
+      gl!.texSubImage2D(gl!.TEXTURE_2D, 0, 0, 0, SPEC_BANDS, 1, gl!.RG, gl!.FLOAT, pack);
+    }
+    specLive = live;
+    return live;
+  }
+
   let pointerOn = false;
   let pointerNear = false;
   let touchId = -1;
@@ -1391,6 +1633,10 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
   let lastY = 0;
   let cursorVX = 0;
   let cursorVY = 0;
+  let tapOn = false;
+  let tapX = 0;
+  let tapY = 0;
+  let tapAt = 0;
   let strokeFromX = 0;
   let strokeFromY = 0;
   let strokeToX = 0;
@@ -1428,8 +1674,15 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
 
   function onTouchDown(e: PointerEvent): void {
     if (!playing) return;
-    if (e.pointerType === 'mouse') return;
     if ((e.target as Element | null)?.closest(keep)) return;
+
+    tapOn = Math.abs(e.clientY - barY) <= TAP_REACH
+      && e.clientX >= barX0 && e.clientX <= barX1;
+    tapX = e.clientX;
+    tapY = e.clientY;
+    tapAt = performance.now();
+
+    if (e.pointerType === 'mouse') return;
     touchId = e.pointerId;
     lastX = e.clientX;
     lastY = e.clientY;
@@ -1441,6 +1694,15 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
   }
 
   function onTouchUp(e: PointerEvent): void {
+    if (tapOn) {
+      const slip = Math.hypot(e.clientX - tapX, e.clientY - tapY);
+      tapOn = false;
+      // Cancelled counts as lifted for the arming, and as nothing for the tap.
+      if (e.type === 'pointerup' && slip <= TAP_SLIP
+        && performance.now() - tapAt <= TAP_HOLD) {
+        opts.onTap?.();
+      }
+    }
     if (e.pointerType === 'mouse' || e.pointerId !== touchId) return;
     touchId = -1;
     onPointerGone();
@@ -1489,6 +1751,15 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
     strokeToY = pointerY;
     lastX = pointerX;
     lastY = pointerY;
+
+    /**
+     * Music holds the field awake on its own. Nothing else does — the frame
+     * loop drops to a 90 ms tick the moment the cursor and the last cut are
+     * done with it, and a bar that only redraws nine times a second is not
+     * showing anybody a spectrum. That tick is also what brings it back: it
+     * keeps sampling, so a record starting is felt within one of them.
+     */
+    if (readSpectrum(dt)) busyUntil = Math.max(busyUntil, ts + SPEC_MS);
 
     if (dt > 0) {
       stepFluid(dt);
@@ -1615,6 +1886,13 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
       pumpAt = (pumpAt || performance.now()) + ms;
       frame(pumpAt);
     },
+    setSpectrumMode(next: SpectrumMode): void {
+      if (next === mode) return;
+      // No reset: the averages a switch to `flux` reads against have been kept
+      // up to date all along, whichever mode was being drawn.
+      mode = next;
+      wake(SPEC_MS);
+    },
     setPlaying(next: boolean): void {
       if (next === playing) return;
       playing = next;
@@ -1648,6 +1926,7 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
       drop(acc);
       drop(divT);
       drop(whole);
+      if (specTex) gl!.deleteTexture(specTex);
       if (gaps) for (const g of gaps) drop(g);
       if (vels) for (const v of vels) drop(v);
       if (prss) for (const p of prss) drop(p);

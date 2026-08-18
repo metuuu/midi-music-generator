@@ -38,11 +38,11 @@
  */
 
 import {
-  initAudio, loadCode, pausePlayback, preloadSounds, setOutputLevel, silenceVoices,
+  getSpectrum, initAudio, loadCode, pausePlayback, preloadSounds, setOutputLevel, silenceVoices,
   startLoaded, stopPlayback, stopSounding,
 } from './audio.js';
 import { generateSongAsync } from './generator.js';
-import { mountGlowField, type GlowField } from './glow-field.js';
+import { mountGlowField, type GlowField, type SpectrumMode } from './glow-field.js';
 import { createSungVoice, withoutSungVoice } from './sung-voice.js';
 
 import { songDurationBeats, type Song } from '../core/types.js';
@@ -541,10 +541,44 @@ let glowField: GlowField | undefined;
 type GlowMode = 'particles' | 'plain';
 let glowMode: GlowMode = 'particles';
 
+/**
+ * How the bar reads what is playing, or `off` for not at all.
+ *
+ * One key doing both jobs, set with `localStorage.setItem('radio.spectrum', …)`
+ * and a reload. There is deliberately no control for it: `off` is a way of
+ * taking the feature back out rather than a thing to choose between.
+ */
+let spectrum: SpectrumMode | 'off' = 'flux';
+
+/**
+ * Whether a tap on the bar cycles the look. Parked, not removed — the cycle is
+ * built and works, and there is one look worth showing at the moment, so there
+ * is nothing for it to cycle to.
+ */
+const SPECTRUM_TAP: boolean = false;
+
 function paintGlowMode(): void {
   els.glowMode.querySelectorAll('button').forEach((b) => {
     b.setAttribute('aria-pressed', String(b.dataset.glow === glowMode));
   });
+}
+
+/**
+ * Tap the bar to change what it is doing with the music. See `SPECTRUM_TAP`.
+ *
+ * Two looks and no more in the cycle. `off` is not one of them: a listener who
+ * has taken the drive out is not asking to be walked back through it by
+ * touching the thing they took it out of.
+ *
+ * Kept, because a look is a preference. The mode goes straight to the field
+ * rather than through a remount, so the bar carries its own state across the
+ * change instead of starting again flat.
+ */
+function cycleSpectrum(): void {
+  if (spectrum === 'off') return;
+  spectrum = spectrum === 'bands' ? 'flux' : 'bands';
+  try { localStorage.setItem(SPECTRUM_KEY, spectrum); } catch { /* private mode */ }
+  glowField?.setSpectrumMode(spectrum);
 }
 
 /**
@@ -583,6 +617,11 @@ function applyGlowMode(): void {
     // The setting can be switched mid-song, so the field is not entitled to
     // assume it is being mounted onto a stopped page.
     playing,
+    // Polled, because the analyser does not exist until a click has built the
+    // audio chain, and the bar is on the page well before that.
+    spectrum: spectrum === 'off' ? undefined : getSpectrum,
+    spectrumMode: spectrum === 'off' ? undefined : spectrum,
+    onTap: SPECTRUM_TAP ? cycleSpectrum : undefined,
   }) ?? undefined;
   if (!glowField) return;
   document.body.classList.add('glow-live');
@@ -1051,6 +1090,7 @@ const STATION_KEY = 'radio.station';
 const WANDER_KEY = 'radio.wander';
 const VOICE_KEY = 'radio.voice';
 const GLOW_KEY = 'radio.glow';
+const SPECTRUM_KEY = 'radio.spectrum';
 /** The last calendar day this page was opened on. See `openingStation`. */
 const DAY_KEY = 'radio.day';
 
@@ -1879,6 +1919,10 @@ async function boot(): Promise<void> {
   try {
     const storedGlow = localStorage.getItem(GLOW_KEY);
     if (storedGlow === 'particles' || storedGlow === 'plain') glowMode = storedGlow;
+    const storedSpectrum = localStorage.getItem(SPECTRUM_KEY);
+    if (storedSpectrum === 'off' || storedSpectrum === 'bands' || storedSpectrum === 'flux') {
+      spectrum = storedSpectrum;
+    }
   } catch { /* private mode */ }
   paintGlowMode();
   applyGlowMode();
