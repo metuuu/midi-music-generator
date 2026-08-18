@@ -45,6 +45,7 @@ import { generateSongAsync } from './generator.js';
 import { mountGlowField, type GlowField, type SpectrumMode } from './glow-field.js';
 import { createSungVoice, withoutSungVoice } from './sung-voice.js';
 
+import { Rng } from '../core/rng.js';
 import { songDurationBeats, type Song } from '../core/types.js';
 import type { GenerateOptions } from '../generate/song.js';
 import { HOOK_LEVELS } from '../generate/hook.js';
@@ -519,11 +520,34 @@ els.debugCopy.onclick = () => {
 };
 
 /**
+ * How far apart the bar's two colours sit, in degrees of hue.
+ *
+ * A spread rather than a second hue, and that is the whole of the fix. The pair
+ * used to be two independently unwrapped numbers, each taking its own short way
+ * to its own target — which pins each of them only to within a full turn, so
+ * the arc *between* them was free to walk by up to 360° a record. Being a random
+ * walk it wandered off and did not come back, and a few dozen records in the bar
+ * had passed a whole revolution and was a rainbow for good. Carried as a plain
+ * bounded number the arc cannot do that: whatever the hues themselves get up to,
+ * the bar only ever spans what is named here.
+ *
+ * Near in major and half as far again in minor, which is the one thing about a
+ * piece a listener hears in the first bar. Never so near that the bar reads as
+ * one colour, never past a third of the wheel.
+ */
+const SPAN_NEAR = 48;
+const SPAN_WIDE = 104;
+const SPAN_JITTER = 20;
+
+/**
  * Where the two hues stand now, unwrapped — free to sit past 360 or below 0.
  *
- * The starting pair is what `@property` declares as their initial values, so
- * the first record turns from the same place the page was painted in.
+ * `tonicNow` is the record's own colour and the only one that travels; the two
+ * ends are read off it and the spread each time. The starting pair is what
+ * `@property` declares as their initial values, so the first record turns from
+ * the same place the page was painted in.
  */
+let tonicNow = 32;
 let hueNow = 32;
 let hue2Now = 8;
 
@@ -647,21 +671,29 @@ function turn(from: number, to: number): number {
  * The bar's two colours are the record's key.
  *
  * Hue from the tonic, so the twelve keys are twelve colours and a station that
- * stays in one of them looks like it. The second hue is a near neighbour in
- * major and most of the way round the wheel in minor — which is the one thing
- * about a piece a listener hears in the first bar, and the only reason to pick
- * the pairing off the mode rather than off another random number.
+ * stays in one of them looks like it. The tonic takes the short way round, and
+ * it is the only thing that does: the far end is the tonic plus the spread, so
+ * the two can never drift apart into a rainbow however many records pass.
  *
- * Each hue takes its own short way. Carrying the second as a fixed offset from
- * the first would be less code and wrong: the offset itself changes by 155°
- * whenever the mode does, and that arrives on top of the tonic's own move as
- * one sweep of up to 335°.
+ * Everything else about the pairing comes off the record's own seed, which is
+ * why the same record is the same colours every time it comes round rather than
+ * a fresh throw. The spread is jittered so that two songs in the same mode are
+ * not the same picture, it takes either way round the wheel, and either end may
+ * hold the tonic — so a bar sometimes runs warm into cool and sometimes cool
+ * into warm. Turning over passes through one flat colour on the way, which is a
+ * moment of the transition rather than a place the bar ever rests.
  */
 function paintKey(song: Song): void {
   const hue = (song.meta.tonic * 30 + 10) % 360;
-  const away = song.meta.mode === 'major' ? 40 : 195;
-  hueNow = turn(hueNow, hue);
-  hue2Now = turn(hue2Now, (hue + away) % 360);
+  tonicNow = turn(tonicNow, hue);
+
+  const rng = new Rng(`${song.meta.seed}:glow`);
+  const near = song.meta.mode === 'major' ? SPAN_NEAR : SPAN_WIDE;
+  const span = (near + (rng.next() * 2 - 1) * SPAN_JITTER) * (rng.next() < 0.5 ? -1 : 1);
+  const flip = rng.next() < 0.5;
+  hueNow = flip ? tonicNow + span : tonicNow;
+  hue2Now = flip ? tonicNow : tonicNow + span;
+
   const root = document.documentElement.style;
   root.setProperty('--hue', String(hueNow));
   root.setProperty('--hue-2', String(hue2Now));
