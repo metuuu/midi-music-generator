@@ -12,11 +12,6 @@ export interface TitleInk {
   /** Three floats per point: x, y, and the coverage the rasteriser found there. */
   pts: Float32Array;
   n: number;
-  /** The element's own box, which is what a cloud scatters around. */
-  x: number;
-  y: number;
-  w: number;
-  h: number;
   /** How far apart the samples came out, in device pixels. */
   step: number;
 }
@@ -24,10 +19,11 @@ export interface TitleInk {
 /**
  * How far apart the samples are, in device pixels, and how many there may be.
  *
- * One sample per device pixel is what makes a settled cloud read as type rather
- * than as a dot screen. The cap is a ceiling on the particle pool, not a target:
- * a title that would exceed it is sampled coarser and drawn with fatter points,
- * which costs sharpness only on a title long enough to be near the clamp anyway.
+ * One sample per device pixel is the whole of why a settled cloud is type and
+ * not an impression of it — there is no crisp layer behind these points to fall
+ * back on. The cap is half the cloud's pool, which is what one title has to
+ * itself; two clamped lines inside a 24rem player do not come near it at any
+ * pixel ratio this page draws at, and a title that did would be sampled coarser.
  */
 const STEP = 1;
 const MAX_PTS = 32768;
@@ -41,6 +37,8 @@ let ctx: CanvasRenderingContext2D | null = null;
 interface Run {
   top: number;
   left: number;
+  right: number;
+  height: number;
   from: number;
   to: number;
 }
@@ -63,7 +61,7 @@ export function inkReady(): Promise<void> {
  * cloud exactly where it wraps on the page — including the wrap that a font
  * this machine happens to have makes and another does not.
  */
-function runsOf(node: Text, clipBottom: number): Run[] {
+function runsOf(node: Text): Run[] {
   const s = node.data;
   const range = document.createRange();
   const runs: Run[] = [];
@@ -76,25 +74,15 @@ function runsOf(node: Text, clipBottom: number): Run[] {
     // neither line.
     if (box.width === 0 && box.height === 0) continue;
     if (!cur || box.top - cur.top > 1) {
-      cur = { top: box.top, left: box.left, from: i, to: i + 1 };
+      cur = { top: box.top, left: box.left, right: box.right, height: box.height, from: i, to: i + 1 };
       runs.push(cur);
     } else {
       cur.to = i + 1;
       cur.left = Math.min(cur.left, box.left);
+      cur.right = Math.max(cur.right, box.right);
     }
   }
-  return runs.filter((run) => run.top < clipBottom - 1);
-}
-
-/**
- * Where the browser puts the baseline of a line box, by CSS's own arithmetic.
- *
- * Worked out from the element's box and its line height rather than taken off
- * the character rects, because what those rects report — the font's content box
- * or the whole line box — is not the same in every engine.
- */
-function baselineOf(top: number, line: number, lh: number, asc: number, desc: number): number {
-  return top + lh * line + (lh - (asc + desc)) / 2 + asc;
+  return runs;
 }
 
 /**
@@ -107,12 +95,43 @@ export function readTitleInk(el: HTMLElement, dpr: number): TitleInk | null {
   const node = el.firstChild;
   if (!(node instanceof Text) || !node.data.trim()) return null;
 
-  const box = el.getBoundingClientRect();
-  if (box.width < 1 || box.height < 1) return null;
-
   const cs = getComputedStyle(el);
   const size = parseFloat(cs.fontSize) || 16;
-  const lh = parseFloat(cs.lineHeight) || size * 1.2;
+
+  /**
+   * The lines, and the box drawn around what they actually cover.
+   *
+   * Taken off the character rects and not off the element, which cannot be
+   * trusted for this: `.title` is a `-webkit-box` so that it can be clamped to
+   * two lines, and a `-webkit-box` reports a zero-width border box in some
+   * layouts. Read from the element, a perfectly good title measured as nothing
+   * and the page quietly went back to painting its own words.
+   */
+  const all = runsOf(node);
+  const clamp = parseInt(cs.webkitLineClamp, 10);
+  const runs = Number.isFinite(clamp) && clamp > 0 ? all.slice(0, clamp) : all;
+  if (!runs.length) return null;
+
+  let left = Infinity;
+  let right = -Infinity;
+  let top = Infinity;
+  let bottom = -Infinity;
+  let widest = 0;
+  for (const run of runs) {
+    left = Math.min(left, run.left);
+    right = Math.max(right, run.right);
+    top = Math.min(top, run.top);
+    bottom = Math.max(bottom, run.top + run.height);
+    widest = Math.max(widest, run.right - run.left);
+  }
+  // Glyph ink overshoots its advance box — round tops, tails, an italic — and
+  // what is being read back here is the ink.
+  const PAD = 2;
+  const box = {
+    left: left - PAD, top: top - PAD,
+    width: right - left + PAD * 2, height: bottom - top + PAD * 2,
+  };
+  if (box.width < 1 || box.height < 1) return null;
 
   if (!pad) {
     pad = document.createElement('canvas');
@@ -120,6 +139,8 @@ export function readTitleInk(el: HTMLElement, dpr: number): TitleInk | null {
   }
   if (!ctx || !pad) return null;
 
+  const originX = Math.round(box.left * dpr);
+  const originY = Math.round(box.top * dpr);
   const w = Math.max(1, Math.ceil(box.width * dpr));
   const h = Math.max(1, Math.ceil(box.height * dpr));
   if (pad.width !== w || pad.height !== h) {
@@ -136,28 +157,26 @@ export function readTitleInk(el: HTMLElement, dpr: number): TitleInk | null {
   // full alpha channel.
   ctx.fillStyle = '#fff';
 
-  const metrics = ctx.measureText('Hxg');
-  const asc = metrics.fontBoundingBoxAscent || size * 0.8;
-  const desc = metrics.fontBoundingBoxDescent || size * 0.2;
-
-  const runs = runsOf(node, box.bottom);
-  if (!runs.length) return null;
+  /**
+   * A character rect's top is the font's content box, so the baseline is that
+   * plus the ascent — one reading, needing neither the line height nor the
+   * element's own box, both of which this used to go through.
+   */
+  const asc = ctx.measureText('Hxg').fontBoundingBoxAscent || size * 0.8;
 
   const s = node.data;
-  const clamped = runs[runs.length - 1]!.to < s.trimEnd().length;
+  const clipped = runs.length < all.length;
   runs.forEach((run, line) => {
     let text = s.slice(run.from, run.to);
     let x = run.left - box.left;
     // The clamp shortens the last line and re-centres what is left of it, and
     // the character rects describe the line before it was shortened.
-    if (clamped && line === runs.length - 1) {
-      while (text && ctx!.measureText(`${text}…`).width > box.width) {
-        text = text.slice(0, -1);
-      }
+    if (clipped && line === runs.length - 1) {
+      while (text && ctx!.measureText(`${text}…`).width > widest) text = text.slice(0, -1);
       text = `${text}…`;
       x = cs.textAlign === 'center' ? (box.width - ctx!.measureText(text).width) / 2 : x;
     }
-    ctx!.fillText(text, x, baselineOf(0, line, lh, asc, desc));
+    ctx!.fillText(text, x, run.top - box.top + asc);
   });
 
   const data = ctx.getImageData(0, 0, w, h).data;
@@ -176,8 +195,8 @@ export function readTitleInk(el: HTMLElement, dpr: number): TitleInk | null {
         if (a < INK) continue;
         // Centres, not corners: a point sprite is placed by its middle, and
         // half a device pixel out is the difference between type and a blur.
-        pts[n * 3] = box.left + (px + 0.5) / dpr;
-        pts[n * 3 + 1] = box.top + (py + 0.5) / dpr;
+        pts[n * 3] = (originX + px + 0.5) / dpr;
+        pts[n * 3 + 1] = (originY + py + 0.5) / dpr;
         pts[n * 3 + 2] = a;
         n++;
       }
@@ -186,8 +205,5 @@ export function readTitleInk(el: HTMLElement, dpr: number): TitleInk | null {
     step++;
   }
 
-  return {
-    pts: pts.subarray(0, n * 3), n, step,
-    x: box.left, y: box.top, w: box.width, h: box.height,
-  };
+  return { pts: pts.subarray(0, n * 3), n, step };
 }

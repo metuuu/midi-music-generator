@@ -303,27 +303,37 @@ function describe(cut: Cut): void {
 }
 
 /**
- * How long the outgoing lines take to leave, how long the incoming ones wait
- * before they start, and how long they then take to arrive.
+ * How long the lines take to leave, and how long the title takes to come back.
  *
- * Three figures rather than one because none of the three is the same gesture:
- * the old title is being got out of the way, which should be quick or it reads
- * as hesitation; then a beat; then the new one is introduced. The beat is what
- * keeps the first record's reveal legible — the placeholders are fading out
- * across it, and two fades starting on the same frame read as one thing
- * changing rather than as one leaving and another coming.
+ * Separate figures because none of them is the same gesture, and every one of
+ * them is the particles': the leaving traces a name dropping to a tenth of
+ * itself, the arriving traces one condensing back out of the field, and the
+ * beat between is what keeps the first record's reveal legible — the
+ * placeholders are fading out across it, and two fades starting on the same
+ * frame read as one thing changing rather than as one leaving and another
+ * coming.
  *
  * Only the last two are spent on that first record, where there is no outgoing
  * title to clear. See `showLines`.
  *
- * All three are stated again in the stylesheet and the two sets have to agree —
+ * Every one is stated again in the stylesheet and the two sets have to agree —
  * these decide when the *text* is swapped and how long the page has to wait for
  * the lines before it may block the main thread; the CSS decides what any of it
  * looks like.
  */
-const LINES_OUT_MS = 190;
+const LINES_OUT_MS = 450;
 const LINES_WAIT_MS = 100;
-const LINES_IN_MS = 300;
+const LINES_IN_MS = 620;
+/**
+ * And the genre and era with it: how long they wait, and how long they take.
+ *
+ * A shade ahead of the title rather than behind it — see the stylesheet — so
+ * the name, not these two, is the end of the span the page may not be
+ * interrupted for. `LINES_MS` takes whichever of the pair finishes last, which
+ * is what keeps that true if either figure moves again.
+ */
+const LINES_SUB_MS = 80;
+const LINES_SUB_IN_MS = 580;
 
 /**
  * The whole changeover, from the old title beginning to leave to the new one
@@ -338,10 +348,19 @@ const LINES_IN_MS = 300;
  * main thread, where the lines' own fade would have carried on. `arm` waits this
  * long before it compiles anything. See there.
  */
-const LINES_MS = LINES_OUT_MS + LINES_WAIT_MS + LINES_IN_MS;
+const LINES_MS = LINES_OUT_MS
+  + Math.max(LINES_WAIT_MS + LINES_IN_MS, LINES_SUB_MS + LINES_SUB_IN_MS);
 
 /** The swap in progress, if any, so a second record does not land inside it. */
 let swapping: number | undefined;
+/**
+ * When the three lines were last taken out, which is not always here.
+ *
+ * A skip takes them out at the press and most of the leaving is spent under the
+ * compile; what is left of it by the downbeat is all the text swap has to wait
+ * for. See `skip`.
+ */
+let linesOutAt = 0;
 /**
  * Whose lines are up, or on their way up.
  *
@@ -411,23 +430,49 @@ function showLines(cut: Cut): void {
   const booting = document.body.classList.contains('booting');
   // Taken over from wherever the last one had got to, exactly as the fade is.
   // Somebody who has asked for less movement keeps the particles and is not
-  // handed back the element's own words — nothing is thrown, and the title is
+  // handed back the element's own words — nothing evaporates, and the title is
   // put up where it belongs and faded in.
+  //
+  // A skip has already asked for this at the press, and asking twice does
+  // nothing; a record that ended has not, and this is where it happens. See
+  // `skip`.
   const cloud = booting || STILL?.matches ? null : titleCloud();
-  cloud?.leave(null);
-  // Both branches are held for the whole span, not for the half of it their own
-  // text spends: the turn is the longer thing here, and it is the thing a
-  // compile would freeze. See `LINES_MS`.
-  linesBy = performance.now() + (cloud ? Math.max(LINES_MS, CLOUD_MS) : LINES_MS);
-  if (booting) {
+  cloud?.release();
+  /**
+   * Both branches are held for the whole span, not for the half of it their own
+   * text spends: the turn is the longer thing here, and it is the thing a
+   * compile would freeze. See `LINES_MS`.
+   *
+   * The cloud is longer than the turn and is held for its own length, because
+   * it is the least interruptible thing on the page — the fade is composited
+   * and survives a blocked main thread, and a simulation on
+   * `requestAnimationFrame` stops dead in the middle of it.
+   */
+  /**
+   * A record that ended is taking the lines out here; a skip took them out at
+   * the press; the first record has nothing up to take out.
+   *
+   * The text is swapped when the leaving is over and not a fixed wait after
+   * this, which is the difference between the two: a skip has already spent
+   * most of it under the compile, so what is left is usually nothing and the
+   * new words start arriving on the downbeat itself.
+   */
+  if (!booting && !document.body.classList.contains('text-out')) {
+    document.body.classList.add('text-out');
+    linesOutAt = performance.now();
+  }
+  // Whatever is left of the leaving, which is all of it for a record that ended
+  // and whatever the compile did not already spend for a skip.
+  const left = booting ? 0 : Math.max(0, linesOutAt + LINES_OUT_MS - performance.now());
+  linesBy = performance.now() + (cloud ? Math.max(LINES_MS, left + CLOUD_MS) : LINES_MS);
+  if (left <= 0) {
     writeLines(cut);
     return;
   }
-  document.body.classList.add('text-out');
   swapping = window.setTimeout(() => {
     swapping = undefined;
     writeLines(cut);
-  }, LINES_OUT_MS);
+  }, left);
 }
 
 /**
@@ -484,6 +529,19 @@ void inkReady().then(() => {
   handTitleOver();
 });
 
+/**
+ * Put the three lines back after a changeover that never arrived.
+ *
+ * A skip lets them all go at the press, before there is a record to put in
+ * their place — so every way out that does not reach `writeLines` has to hand
+ * back what is still in the document, or the page keeps the space and shows
+ * nothing standing in it.
+ */
+function keepLines(): void {
+  document.body.classList.remove('text-out');
+  handTitleOver();
+}
+
 function writeLines(cut: Cut): void {
   const { meta } = cut.song;
   els.title.textContent = meta.title;
@@ -503,8 +561,9 @@ function writeLines(cut: Cut): void {
   // one, and handed over at the moment the cloud stops needing the old shape.
   handTitleOver();
   // The first title is not a changeover and is not thrown anywhere: it is
-  // already in place and simply comes up, over the same third of a second the
-  // element's own text would have taken, under the same bars narrowing onto it.
+  // already in place and simply comes up, on the wait, the length and the curve
+  // the element's own text would have taken, under the same bars narrowing onto
+  // it. The curve is `revealed` in `web/title-cloud.ts`; the other two are here.
   if (booting) titleCloud()?.reveal(LINES_WAIT_MS, LINES_IN_MS);
   else if (STILL?.matches) titleCloud()?.reveal(0, LINES_IN_MS);
 }
@@ -727,8 +786,11 @@ function applyGlowMode(): void {
     glowField?.destroy();
     glowField = undefined;
     document.body.classList.remove('glow-live');
-    document.body.classList.remove('title-live');
     paintGlowRange();
+    // The words go back to the element in the same breath as the canvas goes.
+    // A title left marked live has no particles and no ink of its own either,
+    // and stays that way until the next record.
+    handTitleOver();
     return;
   }
   if (glowField) return;
@@ -738,7 +800,7 @@ function applyGlowMode(): void {
     onLost: () => {
       glowField = undefined;
       document.body.classList.remove('glow-live');
-      document.body.classList.remove('title-live');
+      handTitleOver();
     },
     // A cut may be drawn from anywhere on the page, so the field has to be told
     // what a finger might be doing instead — the controls, and the two panels
@@ -759,6 +821,9 @@ function applyGlowMode(): void {
   if (!glowField) return;
   document.body.classList.add('glow-live');
   glowField.setKey(hueNow, hue2Now);
+  // And the title becomes particles now rather than at the next record. Nothing
+  // was let go of, so the cloud places the points on the shape the element is
+  // already showing instead of condensing them onto it.
   handTitleOver();
 }
 
@@ -936,6 +1001,41 @@ function until(mark: number): Promise<void> {
   return new Promise((resolve) => { window.setTimeout(resolve, ms); });
 }
 
+/**
+ * Wait for a frame to have been *drawn*, before taking the thread away.
+ *
+ * A press and the compile it leads to are the same task — every `await` between
+ * them settles as a microtask — so a changeover told to begin at the press had
+ * not been drawn once by the time the thread went away for up to half a second.
+ * Measured: the long task begins on the click and the first paint is on the far
+ * side of it.
+ *
+ * Waiting on the frame callback alone is not enough, and this is the whole
+ * reason for the timer inside it: a callback runs *before* the style and paint
+ * of the frame it belongs to, so resolving there hands the thread straight back
+ * with nothing recomputed. A class put on at the press and taken off in that
+ * continuation is a class the style engine never sees twice — no transition
+ * runs at all and the genre line jumps to the next record. A task scheduled
+ * from inside the callback is the first thing after that frame is on the glass.
+ *
+ * The outer timeout is not a deadline, it is the answer for anywhere frames are
+ * not coming — a background tab, a hidden pane — where waiting would never end.
+ */
+function painted(): Promise<void> {
+  // Nothing to wait for where nothing is drawn, and waiting there is expensive:
+  // a hidden page fires no frames at all and throttles its timers to about the
+  // second, so this measured 794 ms in a background tab. A skip from the lock
+  // screen would have spent every one of them waiting for a paint nobody was
+  // going to see.
+  if (document.hidden) return Promise.resolve();
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (): void => { if (!done) { done = true; resolve(); } };
+    requestAnimationFrame(() => { window.setTimeout(finish, 0); });
+    window.setTimeout(finish, 60);
+  });
+}
+
 interface Handover {
   /**
    * A floor on the downbeat, not a delay before starting work. The compile runs
@@ -1042,6 +1142,7 @@ async function play(cut: Cut, handover?: Handover): Promise<void> {
     paintPlay();
     showError('That record would not play. Press next for another.');
     console.error(err);
+    keepLines();
   }
 }
 
@@ -1179,16 +1280,54 @@ async function advance(): Promise<void> {
 async function skip(): Promise<void> {
   if (!playing) { void nextCold(); return; }
   const mine = generation;
+  /**
+   * All three lines go now, not on the downbeat.
+   *
+   * What is between the press and the downbeat is a fader and a compile —
+   * measured at 190–500 ms — and lines that wait for the far side of it are a
+   * button that looks like it was not pressed. The gas is the thing that covers
+   * a wait, so it cannot be on the other side of one, and the genre and era go
+   * with the title rather than standing there under a name that has left. The
+   * new words still arrive on the downbeat with everything else: `release` and
+   * `arrive` keep their own clocks. See `CLOUD_MS` in `web/title-cloud.ts`.
+   *
+   * Somebody who has asked for less movement keeps the whole changeover on the
+   * downbeat, where it is one fade rather than a fade and then a wait.
+   */
+  if (!STILL?.matches) {
+    titleCloud()?.release();
+    document.body.classList.add('text-out');
+    linesOutAt = performance.now();
+  }
   setOutputLevel(0, SKIP_FADE_SECONDS);
   void stopPlayback();
+  // The words above are on the screen going before the compile takes the thread.
+  await painted();
   await changeover(mine, performance.now() + SKIP_FADE_SECONDS * 1000, true);
 }
 
 async function changeover(mine: number, notBefore: number, faded: boolean): Promise<void> {
+  /**
+   * A faded changeover is silence from here, and the wait starts at this line
+   * rather than at `play`: the record after this one is only usually written,
+   * and a skip taken early in a record waits on the generator with the button
+   * still holding a steady Pause over nothing.
+   */
+  if (faded) { loading = true; paintPlay(); }
   const cued = await pending;
   // Consumed either way — whatever happens next ends in `play`, which cues
   // another against whatever the settings say by then.
   pending = undefined;
+  /**
+   * Somebody pressed something else and the lines are theirs now.
+   *
+   * Nothing is handed back here, and handing it back was a bug worth naming:
+   * `keepLines` puts the words that are still in the document back into the
+   * cloud, which spends the letting-go the *newer* changeover is in the middle
+   * of. Its own title then had nothing to condense out of and was placed
+   * instead — a record that changed with no animation at all, every time two
+   * presses landed inside one changeover. A stop hands them back itself.
+   */
   if (mine !== generation) return;
 
   let next = cued;

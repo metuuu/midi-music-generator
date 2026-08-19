@@ -104,6 +104,39 @@ const GAS_GROW = 4.5;
 
 const HEADROOM = 2.0;
 
+/**
+ * The same, for a solid element the field is lighting rather than the bar.
+ *
+ * Far lower than the bar's, and the reason is area. The bar is five pixels of
+ * light with a hand's breadth of dark either side of it, so a stop above white
+ * reads as something glowing across the room; a four-rem disc at that ceiling
+ * is a lamp pointed at the reader. Brightness is judged against what surrounds
+ * it, and these two have nothing in common there.
+ *
+ * The amber's own brightest channel is .878, so 1.14 is where the disc merely
+ * reaches white and everything above that is the range being spent. This is
+ * about a tenth of a stop past it — enough to read as lit rather than painted,
+ * which is the whole of what it is for.
+ */
+const BUTTON_HEADROOM = 1.1;
+
+/**
+ * And the same again for the title, which is deliberately the same figure.
+ *
+ * The name and the button are the two things on the page that are *the record
+ * playing* rather than scenery around it, so they lift together or the lift
+ * means nothing. Type is nearly all edge and takes even less than the disc
+ * does: a tenth of a stop is a name that looks lit from behind, and anything
+ * past that is a notification.
+ */
+const TITLE_HEADROOM = 1.1;
+
+/** How wide the lit disc's edge is softened, in device pixels. */
+const DISC_EDGE = 1.3;
+
+/** What the lamp's canvas carries past the element, for that edge to fade in. */
+const SPILL = 1;
+
 const CELL = 10;
 const GRID_MAX = 180;
 const VISC = 0.55;
@@ -1118,24 +1151,31 @@ void main() {
 const DRAW_FS = `#version 300 es
 precision highp float;
 in vec3 vColor;
+uniform float uCeil;
 out vec4 oColor;
 void main() {
   vec2 d = gl_PointCoord - 0.5;
   float f = max(0.0, 1.0 - dot(d, d) * 4.0);
-  oColor = vec4(vColor * f * f, 0.0);
+  vec3 c = vColor * f * f;
+  oColor = vec4(c, max(c.r, max(c.g, c.b)) * uCeil);
 }`;
 
 const RESOLVE_FS = `#version 300 es
 precision highp float;
 uniform sampler2D uAcc;
-uniform float uPeak;
 out vec4 oColor;
 void main() {
-  vec3 acc = texelFetch(uAcc, ivec2(gl_FragCoord.xy), 0).rgb;
+  vec4 acc = texelFetch(uAcc, ivec2(gl_FragCoord.xy), 0);
   float peak = max(acc.r, max(acc.g, acc.b));
+  // Each emitter wrote the ceiling it wanted into the alpha channel, weighted
+  // by the light it put here, so this is a per-pixel figure and two of them
+  // overlapping meet in between. Below one is allowed and meant: it is how a
+  // solid element holds its own colour on a screen with nothing above white,
+  // where the particles ask for exactly one and get what they always got.
+  float ceiling = max(acc.a / max(peak, 1e-4), 1e-3);
   float cover = 1.0 - exp(-peak);
-  float lit = uPeak * (1.0 - exp(-peak / uPeak));
-  oColor = vec4(acc * (lit / max(peak, 1e-4)), cover);
+  float lit = ceiling * (1.0 - exp(-peak / ceiling));
+  oColor = vec4(acc.rgb * (lit / max(peak, 1e-4)), cover);
 }`;
 
 function half(raw: ArrayLike<number>, at: number, isHalf: boolean): number {
@@ -1371,12 +1411,12 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
       locate(divProg, ['uVel']);
       locate(jacobiProg, ['uPrs', 'uDiv']);
       locate(projectProg, ['uVel', 'uPrs']);
-      locate(censusProg, ['uSt', 'uPos', 'uGap', 'uBar']);
+      locate(censusProg, ['uSt', 'uPos', 'uBar']);
       locate(gapProg, ['uWhole', 'uPrev', 'uDt']);
       locate(simProg, ['uPos', 'uSt', 'uVel', 'uWhole', 'uGap', 'uGrid', 'uDt', 'uTime', 'uRest',
         'uInit', 'uEmit', 'uBar', 'uFrom', 'uTo', 'uCursorV', 'uCursorOn', 'uSpec', 'uSpecOn']);
-      locate(drawProg, ['uPos', 'uSt', 'uGap', 'uView', 'uHue', 'uDpr', 'uBar']);
-      locate(resolveProg, ['uAcc', 'uPeak']);
+      locate(drawProg, ['uPos', 'uSt', 'uView', 'uHue', 'uDpr', 'uBar', 'uCeil']);
+      locate(resolveProg, ['uAcc']);
       pools = [makePool(), makePool()];
       // Smooth, so the shader reads one curve rather than thirty-two steps.
       specTex = makeTex(gl!.RG16F, SPEC_BANDS, 1, true);
@@ -1503,7 +1543,7 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
   }
 
   function draw(): void {
-    if (!drawProg || !resolveProg || !pools || !acc || !gaps) return;
+    if (!drawProg || !resolveProg || !pools || !acc) return;
 
     pass(drawProg, acc.fbo, canvas.width, canvas.height);
     gl!.clearColor(0, 0, 0, 0);
@@ -1512,18 +1552,19 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
     gl!.blendFunc(gl!.ONE, gl!.ONE);
     bindTex(drawProg, 'uPos', 0, pools[front].pos);
     bindTex(drawProg, 'uSt', 1, pools[front].st);
-    bindTex(drawProg, 'uGap', 2, gaps[gapFront].tex);
     gl!.uniform3f(u(drawProg, 'uBar'), barX0, barX1, barY);
     gl!.uniform2f(u(drawProg, 'uView'), viewW, viewH);
     gl!.uniform2f(u(drawProg, 'uHue'), hue, hue2);
     gl!.uniform1f(u(drawProg, 'uDpr'), dpr);
+    gl!.uniform1f(u(drawProg, 'uCeil'), headroom);
     gl!.drawArrays(gl!.POINTS, 0, COLS * STRANDS);
 
-    cloud?.draw(viewW, viewH);
+    // The title's own ceiling, and the one thing that decides it: a name is
+    // lit while the record is playing and is page white when it is not.
+    cloud?.draw(viewW, viewH, playing && headroom > 1 ? TITLE_HEADROOM : 1);
 
     pass(resolveProg, null, canvas.width, canvas.height);
     bindTex(resolveProg, 'uAcc', 0, acc.tex);
-    gl!.uniform1f(u(resolveProg, 'uPeak'), headroom);
     gl!.drawArrays(gl!.TRIANGLES, 0, 3);
   }
 
