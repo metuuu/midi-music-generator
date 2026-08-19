@@ -183,35 +183,69 @@ const TEAR_HURT = 0.4;
 const MEND_HOLD = 0.5;
 const MEND_FALL = 3;
 const CUT_WAIT = 0.5;
-const MENDED = 0.62;
+/**
+ * How much of a column has to be back before it stops holding the wound open.
+ *
+ * Read off the same share of the same strands as `WHOLE`, and set above it, so
+ * that a column counts as a hole for a little longer than it counts as gap —
+ * anything measured against a wider population waits on gas the line ignores.
+ */
+const MENDED = 0.95;
 const EDGE_BITE = 2.5;
 const REACH = [2, 5, 9, 14];
 const ISLAND = 0.5;
 const RELINK = 2.5;
 const RELINK_COOL = 0.85;
 const COOL = 0.85;
+/**
+ * How much of a piece of gas's life its glow is given, as a share of it.
+ *
+ * The bar cools on `COOL`, which is slower than most gas lives: a strand torn
+ * off it is therefore still lit when its life curve runs out, and a bright
+ * thing reaching zero is read as taken away rather than as gone out. Gas gets
+ * its own clock so that the glow is spent early and what is left is an ordinary
+ * particle with most of its drift still ahead of it.
+ */
+const GLOW_KEEP = 0.3;
 const HEAT_SLOW = 520;
 const HEAT_FAST = 1900;
 
 const TEAR_AWAY = 86;
-const HEAL_WAIT = 0.5;
 const KNIFE = 0.2;
 const HEAL_V = 350;
 const HEAL_HEAT = 0.8;
 const BEND_KEEP = 0.9;
 const END_ALONE = 0.4;
 const HASTE_FULL = 3;
-const HASTE_WAIT = 0.08;
+/**
+ * What is left of the wait when haste is full, and it is a floor rather than a
+ * figure. The wait is also how long gas is visible for, so anything much under
+ * a half is a cloud that is deleted rather than one that goes: a hole standing
+ * open anywhere on the bar arms this, which is most of the time once somebody
+ * is drawing across it, and every strand torn while it is armed gets whatever
+ * is set here as its whole life.
+ */
+const HASTE_WAIT = 0.45;
 const HASTE_HEAL = 1.7;
 const HASTE_GAS = 0.25;
 const LEAP = 8;
 const LIMB = 0.25;
-const SHED_SHARE = 0.45;
+const SHED_SHARE = 0.6;
 const SHED_LIFE = 1.6;
-const FREE_LIFE = HEAL_WAIT;
+const FREE_LIFE = 0.9;
 const WHOLE = 0.75;
 const GAS_TAIL = 1.6;
 const TAIL_KEEP = 0.15;
+/**
+ * The least of its span a piece of gas can take to go, against a full one.
+ *
+ * A kept strand's span is the line's schedule and not the particle's: every one
+ * of them waits the same, so they are all torn on one stroke and all reach the
+ * end of it on one frame, and a cloud that goes out together goes out like a
+ * light being switched. Spread only downwards, because the light has to be out
+ * before the strand is allowed home.
+ */
+const GONE_SPREAD = 0.45;
 const RISE_V = 40;
 const SWIRL_V = 46;
 const SWIRL_WAVES = 4;
@@ -418,12 +452,21 @@ uniform sampler2D uDiv;
 out float oPrs;
 
 float at(ivec2 c) {
-  ivec2 n = ivec2(textureSize(uPrs, 0));
-  return texelFetch(uPrs, clamp(c, ivec2(0), n - 1), 0).x;
+  return texelFetch(uPrs, c, 0).x;
 }
 
 void main() {
   ivec2 c = ivec2(gl_FragCoord.xy);
+  ivec2 n = ivec2(textureSize(uPrs, 0));
+  // Held at zero the whole way round, and the solve does not survive without
+  // it. Reflect at every edge instead and pressure is only fixed up to a
+  // constant with nothing to pin that constant down; each frame starts from the
+  // last one's answer, so any imbalance left in the divergence walks the field
+  // away from zero and keeps walking until the numbers stop fitting.
+  if (c.x == 0 || c.y == 0 || c.x == n.x - 1 || c.y == n.y - 1) {
+    oPrs = 0.0;
+    return;
+  }
   float d = texelFetch(uDiv, c, 0).x;
   oPrs = (at(c - ivec2(1, 0)) + at(c + ivec2(1, 0))
     + at(c - ivec2(0, 1)) + at(c + ivec2(0, 1)) - CELL * CELL * d) * 0.25;
@@ -485,6 +528,7 @@ const HOME = `
 #define HASTE_FULL ${HASTE_FULL.toFixed(3)}
 #define HASTE_WAIT ${HASTE_WAIT.toFixed(3)}
 #define TAIL_KEEP ${TAIL_KEEP.toFixed(3)}
+#define GONE_SPREAD ${GONE_SPREAD.toFixed(3)}
 
 uniform vec3 uBar;
 
@@ -501,12 +545,38 @@ bool keptStrand(int y) {
   return rnd(uint(y), 71u) >= SHED_SHARE;
 }
 
-float gasLifeOf(int y, float ease) {
-  return keptStrand(y) ? FREE_LIFE * ease : SHED_LIFE * (0.3 + 1.1 * rnd(uint(y), 75u));
+float shedLifeOf(int y) {
+  return SHED_LIFE * (0.3 + 1.1 * rnd(uint(y), 75u));
 }
 
-float gasFade(float age, float life) {
-  return 1.0 - smoothstep(max(life - GAS_TAIL, life * TAIL_KEEP), life, age);
+/**
+ * How long a torn strand is gas for, which is the same figure as how long it
+ * waits before it may knit back, so that it is always out of sight by the time
+ * it is allowed home.
+ */
+float gasSpanOf(int y, float ease) {
+  float wait = FREE_LIFE * ease;
+  return keptStrand(y) ? wait : max(shedLifeOf(y), wait);
+}
+
+/** How much of that span this one takes to go, so that no two end together. */
+float gasGoneOf(uint i) {
+  return GONE_SPREAD + (1.0 - GONE_SPREAD) * rnd(i, 76u);
+}
+
+/** Where in that span the gas begins to go, as a share of it. */
+float gasTailOf(int y) {
+  return keptStrand(y) ? TAIL_KEEP : max(1.0 - GAS_TAIL / shedLifeOf(y), TAIL_KEEP);
+}
+
+/**
+ * Gas is drawn against how far through its span it is rather than how many
+ * seconds it has been out, because haste shortens that span underneath it: a
+ * count in seconds is measured against a length that has changed since, and the
+ * whole cloud steps through its fade at once.
+ */
+float gasFade(float t, float tail) {
+  return 1.0 - smoothstep(tail, 1.0, t);
 }
 
 float haloLifeOf(uint i) {
@@ -547,11 +617,9 @@ const CENSUS_FS = `#version 300 es
 precision highp float;
 precision highp int;
 ${HOME}
-#define HEAL_WAIT ${HEAL_WAIT.toFixed(3)}
 
 uniform sampler2D uSt;
 uniform sampler2D uPos;
-uniform sampler2D uGap;
 
 out vec4 oCol;
 
@@ -586,8 +654,7 @@ void main() {
       here += 1.0;
       ready += 1.0;
       aged += s.z;
-    } else if (s.w > HEAL_WAIT * mix(1.0, HASTE_WAIT,
-      clamp(texelFetch(uGap, ivec2(0, 0), 0).z / HASTE_FULL, 0.0, 1.0))) {
+    } else if (s.w >= 1.0) {
       ready += 1.0;
     }
   }
@@ -600,7 +667,6 @@ precision highp float;
 precision highp int;
 #define COLS ${COLS}
 #define MID ${COLS >> 1}
-#define CORE_ROWS ${CORE_ROWS}
 #define WHOLE ${WHOLE.toFixed(3)}
 #define MENDED ${MENDED.toFixed(3)}
 #define MEND_HOLD ${MEND_HOLD.toFixed(3)}
@@ -628,7 +694,7 @@ void main() {
     } else {
       gone += 1.0;
     }
-    if (texelFetch(uWhole, ivec2(x, 1), 0).z < float(CORE_ROWS) * MENDED) {
+    if (texelFetch(uWhole, ivec2(x, 0), 0).x < MENDED) {
       holes += 1.0;
     }
   }
@@ -680,7 +746,6 @@ ${SEG}
 #define RELINK_COOL ${RELINK_COOL.toFixed(3)}
 #define COOL ${COOL.toFixed(3)}
 #define TEAR_AWAY ${TEAR_AWAY.toFixed(1)}
-#define HEAL_WAIT ${HEAL_WAIT.toFixed(3)}
 #define HEAL_V ${HEAL_V.toFixed(2)}
 #define HASTE_HEAL ${HASTE_HEAL.toFixed(3)}
 #define HASTE_GAS ${HASTE_GAS.toFixed(3)}
@@ -697,6 +762,7 @@ ${SEG}
 #define SWIRL_WAVES ${SWIRL_WAVES}
 #define SWIRL_LONG ${SWIRL_LONG.toFixed(1)}
 #define SWIRL_CHURN ${SWIRL_CHURN.toFixed(1)}
+#define GLOW_KEEP ${GLOW_KEEP.toFixed(3)}
 #define SPEC_HEAT ${SPEC_HEAT.toFixed(3)}
 #define SPEC_LIFT ${SPEC_LIFT.toFixed(1)}
 #define SPEC_ANCHOR ${SPEC_ANCHOR.toFixed(3)}
@@ -739,7 +805,18 @@ bool anchored(int x) {
   return max(reach(x, -1), reach(x, 1)) >= ISLAND;
 }
 
-vec2 grewFrom(int x, float knit, out bool seeded) {
+/**
+ * Whether the strand of this row at that column is home and can be grown out of.
+ *
+ * Asked of the row rather than of the column, because the two disagree: a column
+ * reads as line on its kept strands alone, and the shed ones come due a second
+ * behind them, into a neighbourhood that already looks whole.
+ */
+bool faceAt(int x, int y) {
+  return texelFetch(uSt, ivec2(clamp(x, 0, COLS - 1), y), 0).w == 0.0;
+}
+
+vec2 grewFrom(ivec2 c, float knit, out bool seeded) {
   vec2 gap = texelFetch(uGap, ivec2(0, 0), 0).xy;
   vec2 turn = texelFetch(uGap, ivec2(1, 0), 0).xy;
   float alone = float(COLS) * END_ALONE;
@@ -751,27 +828,32 @@ vec2 grewFrom(int x, float knit, out bool seeded) {
   bool doneL = false;
   bool doneR = false;
   for (int d = 1; d <= LEAP; d++) {
-    int l = x - d;
-    int r = x + d;
+    int l = c.x - d;
+    int r = c.x + d;
     if (!doneL && (l >= 0 || endL)) {
       bool sown = core && l == MID;
-      vec2 c = sown ? vec2(1.0, 2.0) : colAt(l);
-      if (c.x > WHOLE) {
+      bool over = l < 0;
+      vec2 w = sown ? vec2(1.0, 2.0) : colAt(l);
+      // Kept looking rather than given up on, or a strand whose own row is still
+      // out at the nearest face roots on a face that can never hand it anything
+      // and waits there for good.
+      if (w.x > WHOLE && (sown || over || faceAt(l, c.y))) {
         doneL = true;
-        if (c.y >= float(d) * knit && (sown || anchored(l))) {
-          seeded = sown || l < 0;
-          return vec2(float(-d), c.y - float(d) * knit);
+        if (w.y >= float(d) * knit && (sown || anchored(l))) {
+          seeded = sown || over;
+          return vec2(float(-d), w.y - float(d) * knit);
         }
       }
     }
     if (!doneR && (r <= COLS - 1 || endR)) {
       bool sown = core && r == MID;
-      vec2 c = sown ? vec2(1.0, 2.0) : colAt(r);
-      if (c.x > WHOLE) {
+      bool over = r > COLS - 1;
+      vec2 w = sown ? vec2(1.0, 2.0) : colAt(r);
+      if (w.x > WHOLE && (sown || over || faceAt(r, c.y))) {
         doneR = true;
-        if (c.y >= float(d) * knit && (sown || anchored(r))) {
-          seeded = sown || r > COLS - 1;
-          return vec2(float(d), c.y - float(d) * knit);
+        if (w.y >= float(d) * knit && (sown || anchored(r))) {
+          seeded = sown || over;
+          return vec2(float(d), w.y - float(d) * knit);
         }
       }
     }
@@ -889,7 +971,7 @@ void main() {
       float d = segDist(p) / blob;
       heat = max(heat, exp(-d * d) * gate);
     }
-    heat *= exp(-COOL * uDt);
+    heat *= exp(-(loose ? 1.0 / (flungLifeOf(i, pop) * GLOW_KEEP) : COOL) * uDt);
 
     if (!(dot(p, p) < 1e12)) {
       p = line.xy;
@@ -982,7 +1064,13 @@ void main() {
     }
   }
 
-  heat *= exp(-COOL * uDt);
+  float span = gasSpanOf(c.y, mix(1.0, HASTE_WAIT, rush));
+  // Cooled on the life the strand would have had at rest rather than the
+  // hurried one, because haste is the line's business and not the light's: tie
+  // the two and holding a cut open takes the glow out of everything thrown off
+  // it.
+  float glow = gasSpanOf(c.y, 1.0) * GLOW_KEEP;
+  heat *= exp(-(free > 0.5 ? 1.0 / glow : COOL) * uDt);
   age = min(age + uDt, 2.0);
 
   bool tied = (c.x < COLS - 1 && linkN > 0.5) || (c.x > 0 && linkP > 0.5);
@@ -999,15 +1087,13 @@ void main() {
       linkN = 0.0;
     }
   } else {
-    torn += uDt;
+    torn = min(torn + uDt / span, 1.0);
   }
 
-  float ease = mix(1.0, HASTE_WAIT, rush);
-  float gasLife = gasLifeOf(c.y, ease);
-  bool due = torn > max(HEAL_WAIT * ease, gasLife);
+  bool due = torn >= 1.0;
   float knit = uRest / (HEAL_V * mix(1.0, HASTE_HEAL, rush));
   bool seeded = false;
-  vec2 grew = due ? grewFrom(c.x, knit, seeded) : vec2(0.0);
+  vec2 grew = due ? grewFrom(c, knit, seeded) : vec2(0.0);
   int from = int(grew.x);
   bool rooted = from != 0;
   bool ready = col.y > 0.999;
@@ -1073,7 +1159,6 @@ ${HOME}
 
 uniform sampler2D uPos;
 uniform sampler2D uSt;
-uniform sampler2D uGap;
 uniform vec2 uView;
 uniform vec2 uHue;
 uniform float uDpr;
@@ -1105,11 +1190,10 @@ void main() {
   float size;
   if (pop == 0) {
 
-    float gasLife = gasLifeOf(c.y, mix(1.0, HASTE_WAIT,
-      clamp(texelFetch(uGap, ivec2(0, 0), 0).z / HASTE_FULL, 0.0, 1.0)));
-    fade = smoothstep(0.0, 1.0, clamp(S.z / GROW, 0.0, 1.0)) * gasFade(S.w, gasLife);
+    float went = min(S.w / gasGoneOf(i), 1.0);
+    fade = smoothstep(0.0, 1.0, clamp(S.z / GROW, 0.0, 1.0)) * gasFade(went, gasTailOf(c.y));
 
-    size = sprite + GAS_GROW * clamp(S.w / gasLife, 0.0, 1.0);
+    size = sprite + GAS_GROW * went;
 
     if (S.w == 0.0) {
       float l = (barAt(c.x - REACH1, c.y) + barAt(c.x - REACH2, c.y)
@@ -1125,9 +1209,10 @@ void main() {
     float age = abs(S.w);
     if (S.w < 0.0) {
 
-      float gone = flungLifeOf(i, pop);
-      fade = gasFade(age, gone);
-      size = sprite + GAS_GROW * clamp(age / gone, 0.0, 1.0);
+      float span = flungLifeOf(i, pop);
+      float went = clamp(age / span, 0.0, 1.0);
+      fade = gasFade(went, max(1.0 - GAS_TAIL / span, TAIL_KEEP));
+      size = sprite + GAS_GROW * went;
     } else {
 
       vec4 sst = texelFetch(uSt, ivec2(c.x, int(rnd(i, 62u) * float(CORE_ROWS))), 0);
@@ -1435,7 +1520,10 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
       if (prss) for (const p of prss) drop(p);
       drop(divT);
       vels = [makeTarget(gl!.RG16F, gw, gh, true), makeTarget(gl!.RG16F, gw, gh, true)];
-      prss = [makeTarget(gl!.R16F, gw, gh), makeTarget(gl!.R16F, gw, gh)];
+      // Full floats, unlike everything else here, because pressure is the one
+      // field whose numbers are not a picture: it runs to roughly the cursor's
+      // speed times the width of its blob, which a half float cannot hold.
+      prss = [makeTarget(gl!.R32F, gw, gh), makeTarget(gl!.R32F, gw, gh)];
       divT = makeTarget(gl!.R16F, gw, gh);
       velFront = 0;
       prsFront = 0;
@@ -1502,7 +1590,6 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
       pass(censusProg, whole.fbo, COLS, 2);
       bindTex(censusProg, 'uSt', 0, pools[front].st);
       bindTex(censusProg, 'uPos', 1, pools[front].pos);
-      bindTex(censusProg, 'uGap', 2, gaps[gapFront].tex);
       gl!.uniform3f(u(censusProg, 'uBar'), barX0, barX1, barY);
       gl!.drawArrays(gl!.TRIANGLES, 0, 3);
 
