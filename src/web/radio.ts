@@ -960,12 +960,12 @@ function paintKey(song: Song): void {
 }
 
 /**
- * Hand the record to the OS.
+ * Hand the record to the OS — a title on the car stereo, a name on the lock
+ * screen.
  *
- * Twenty lines, and the difference between a browser tab and something with
- * lock-screen controls, a title on the car stereo and a skip on the headphones.
  * Guarded because support has moved more than once and a station that threw
- * here would be a station that did not play.
+ * here would be a station that did not play. What the transport is *doing* is
+ * `tellOs`; this is only what is on.
  */
 function announce(cut: Cut): void {
   if (!('mediaSession' in navigator)) return;
@@ -976,10 +976,101 @@ function announce(cut: Cut): void {
       artist: cut.station.name,
       album: `${meta.genreLabel} · ${meta.styleLabel}`,
     });
-    navigator.mediaSession.playbackState = playing ? 'playing' : 'paused';
   } catch (err) {
     console.warn('radio: the lock screen would not take the record', err);
   }
+}
+
+/**
+ * A tone under the floor of hearing, sounding from an `<audio>` element for as
+ * long as a record is on air.
+ *
+ * Every browser gates the controls on audio leaving a *media element*, and this
+ * page's mix is assembled entirely in Web Audio — so without this the handlers
+ * at the foot of the file are registered against a session the OS never shows.
+ * The element is the claim on the transport; the music stays the graph's.
+ */
+const KEEP_ALIVE_HZ = 30;
+const KEEP_ALIVE_RATE = 8000;
+/** Chromium files anything shorter as a sound effect and gives it no session at all. */
+const KEEP_ALIVE_SECONDS = 6;
+/**
+ * How loud that tone is, which may not be zero.
+ *
+ * Chromium decides a tab is silent by measuring the power it renders against
+ * roughly −72 dBFS, and a stream of zeroes fails that test and takes the
+ * controls down with it. This is −60 dBFS at 30 Hz, where the ear is some 50 dB
+ * less sensitive again and most speakers do not respond at all.
+ */
+const KEEP_ALIVE_PEAK = 0.001;
+
+/** The tone as a WAV, built at the first press rather than shipped as 128 kB of base64. */
+function keepAliveUrl(): string {
+  const frames = KEEP_ALIVE_RATE * KEEP_ALIVE_SECONDS;
+  const buffer = new ArrayBuffer(44 + frames * 2);
+  const view = new DataView(buffer);
+  const tag = (at: number, text: string): void => {
+    for (let i = 0; i < text.length; i += 1) view.setUint8(at + i, text.charCodeAt(i));
+  };
+  tag(0, 'RIFF');
+  view.setUint32(4, 36 + frames * 2, true);
+  tag(8, 'WAVEfmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, KEEP_ALIVE_RATE, true);
+  view.setUint32(28, KEEP_ALIVE_RATE * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  tag(36, 'data');
+  view.setUint32(40, frames * 2, true);
+  // A whole number of cycles across the buffer, so the loop has no seam.
+  const peak = Math.round(32767 * KEEP_ALIVE_PEAK);
+  for (let i = 0; i < frames; i += 1) {
+    const sample = Math.sin((2 * Math.PI * KEEP_ALIVE_HZ * i) / KEEP_ALIVE_RATE);
+    view.setInt16(44 + i * 2, Math.round(peak * sample), true);
+  }
+  return URL.createObjectURL(new Blob([buffer], { type: 'audio/wav' }));
+}
+
+let keepAlive: HTMLAudioElement | undefined;
+
+/**
+ * Claim the OS transport, or let it go.
+ *
+ * Fails soft, as the rest of this seam does: a rejected `play` costs the
+ * lock-screen controls and nothing else, and the record it was called for is
+ * already sounding.
+ */
+function holdTransport(on: boolean): void {
+  if (!on) { keepAlive?.pause(); return; }
+  if (!keepAlive) {
+    keepAlive = new Audio(keepAliveUrl());
+    keepAlive.loop = true;
+  }
+  void keepAlive.play().catch((err) => {
+    console.warn('radio: the OS would not hand this page the transport', err);
+  });
+}
+
+/**
+ * A station has no runtime, and this is how that is said.
+ *
+ * An infinite duration is the sanctioned way to declare live media, and it is
+ * given rather than left unset because the keep-alive element is six seconds
+ * long — cleared, the OS falls back to *its* timeline and draws a bar that
+ * fills and starts over ten times under one song. Declared, there is no
+ * scrubber at all: a title, a station and the transport, which is what a radio
+ * looks like.
+ */
+const LIVE: MediaPositionState = { duration: Infinity, position: 0, playbackRate: 1 };
+
+/** What the OS is told every time the transport moves. */
+function tellOs(): void {
+  if (!('mediaSession' in navigator)) return;
+  navigator.mediaSession.playbackState = playing ? 'playing' : 'paused';
+  // Not every browser has the scrubber to be told about.
+  try { navigator.mediaSession.setPositionState(LIVE); } catch { /* unsupported */ }
 }
 
 // ---------------------------------------------------------------------------
@@ -1213,6 +1304,7 @@ async function play(cut: Cut, handover?: Handover): Promise<void> {
     playing = true;
     paused = false;
     loading = false;
+    holdTransport(true);
     paintPlay();
     clearError();
     describe(cut);
@@ -1247,7 +1339,11 @@ function stop(): void {
   loading = false;
   paintPlay();
   if (timer) { clearTimeout(timer); timer = undefined; }
-  if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
+  holdTransport(false);
+  tellOs();
+  // A stop landing inside a skip's gap is a changeover that will never arrive,
+  // and the record on the screen is the one that was playing. See `keepLines`.
+  keepLines();
 }
 
 /** How long a pause takes to fade down, and a resume to come back up. */
@@ -1283,8 +1379,9 @@ function pause(): void {
   void pausePlayback();
   playing = false;
   paused = true;
+  holdTransport(false);
   paintPlay();
-  if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
+  tellOs();
 }
 
 /** Put the needle back down where it lifted. */
@@ -1297,11 +1394,12 @@ async function resume(): Promise<void> {
   if (mine !== generation) return;
   playing = true;
   paused = false;
+  holdTransport(true);
   paintPlay();
   // What was left of the record when it was held, not the whole of it again.
   endsAt = performance.now() + heldMs;
   timer = window.setTimeout(() => { void advance(); }, heldMs);
-  if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+  tellOs();
 }
 
 /**
@@ -1331,6 +1429,9 @@ function schedule(cut: Cut): void {
   const ms = durationMs(cut.song);
   endsAt = performance.now() + ms;
   timer = window.setTimeout(() => { void advance(); }, ms);
+  // `endsAt` is this record's now, so the scrubber is told here rather than in
+  // `announce`, which runs a step earlier.
+  tellOs();
   // …and write the one after it now, while there is a record's worth of time to
   // do it in. Returns immediately.
   cueNext();
