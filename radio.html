@@ -1330,6 +1330,32 @@
       .seg button[aria-pressed="true"] {
         background: var(--hot); color: #17110a; font-weight: 600;
       }
+      .seg[hidden] { display: none; }
+
+      /* The one thing in the panel that is not a control, because what it asks
+         for is not here: an address to copy rather than a link, since a page
+         has no way to send anyone into their own browser's settings. */
+      .flag { margin: 0; font-size: .74rem; line-height: 1.55; color: var(--dim); }
+      .flag b { color: var(--ink); font-weight: 600; }
+      /* The browser's name opens the sentence, and it is not always a proper
+         noun — an unrecognised fork is "this browser", which needs the capital
+         the name brings with it. */
+      .flag-lead { display: block; }
+      .flag-lead::first-letter { text-transform: uppercase; }
+      .flag-url { display: flex; align-items: center; gap: .4rem; margin: .55rem 0; }
+      .flag-url code {
+        flex: 1; min-width: 0; overflow-wrap: anywhere;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: .68rem; color: var(--ink);
+        background: #141110; border: 1px solid var(--edge); border-radius: 7px;
+        padding: .32rem .45rem;
+      }
+      .flag-url button {
+        flex: none; padding: .32rem .55rem; border-radius: 7px; font: inherit; font-size: .68rem;
+        border: 1px solid var(--edge); background: #141110; color: var(--dim); cursor: pointer;
+        transition: border-color .18s ease, color .18s ease;
+      }
+      .flag-url button:hover { border-color: var(--hot); color: var(--hot); }
 
       /* What the slider is set to, said in words rather than labelled at its
          ends. "Keep it steady ⟷ Surprise me" described the control; this
@@ -1605,9 +1631,12 @@
         Whether the bar may go brighter than the page's own white, which only
         means anything where the particles are drawing and the screen has the
         range to show it. The whole section is hidden in every other case
-        rather than disabled: a switch that cannot move is not a setting, and
-        naming what this machine is unable to do tells the listener nothing
-        they can act on.
+        rather than disabled: a switch that cannot move is not a setting.
+
+        One case is neither, and gets the note instead of the switch: a screen
+        with the range behind a browser holding it back. Naming what this
+        machine cannot do would tell the listener nothing — naming what they
+        can go and turn on is the one thing worth saying.
       -->
       <section id="hdr" hidden>
         <h2>HDR</h2>
@@ -1615,6 +1644,17 @@
           <button type="button" data-hdr="on">On</button>
           <button type="button" data-hdr="off">Off</button>
         </div>
+        <p class="flag" id="hdr-flag" hidden>
+          <b class="flag-lead"><span class="flag-brand"></span> is limiting this page to
+            standard brightness.</b>
+          <span class="flag-url">
+            <code id="hdr-flag-url"></code>
+            <button type="button" id="hdr-flag-copy">Copy</button>
+          </span>
+          Enable this flag and restart <span class="flag-brand"></span> to unlock the full
+          range. Note that it enables all experimental web features across
+          <span class="flag-brand"></span>.
+        </p>
       </section>
 
       <!--

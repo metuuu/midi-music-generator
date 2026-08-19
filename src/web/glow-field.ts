@@ -16,6 +16,11 @@ export interface GlowField {
    * window to another monitor changes the answer.
    */
   hdrReady(): boolean;
+  /**
+   * The other answer: the screen has the range and this browser will not hand
+   * it over, which is a thing the listener can go and change.
+   */
+  hdrBlocked(): boolean;
   /** Whether to use that range, when there is any. Ignored where there is none. */
   setHdr(on: boolean): void;
   setSpectrumMode(mode: SpectrumMode): void;
@@ -1543,7 +1548,9 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
   const canHdr = typeof hdrGl.drawingBufferStorage === 'function'
     && ('drawingBufferToneMapping' in hdrGl
       || typeof hdrCanvas.configureHighDynamicRange === 'function');
-  const hdrRange = canHdr ? window.matchMedia?.('(dynamic-range: high)') ?? null : null;
+  // Asked even where the browser has no way to use it, because a screen with
+  // range behind a browser holding it back is worth saying out loud.
+  const hdrRange = window.matchMedia?.('(dynamic-range: high)') ?? null;
   let headroom = 1;
   let hdrWanted = opts.hdr ?? true;
 
@@ -2199,13 +2206,14 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
   }
 
   /**
-   * The ceiling, from the two things that decide it: what the screen can show
-   * and what the listener asked for. Both changes arrive here — a window
-   * dragged to another monitor and a switch thrown in the settings — so there
-   * is one path to the buffer's format and one to the shader.
+   * The ceiling, from the three things that decide it: what this browser will
+   * hand over, what the screen can show and what the listener asked for. The
+   * changes that can arrive here — a window dragged to another monitor and a
+   * switch thrown in the settings — take one path to the buffer's format and
+   * one to the shader.
    */
   function applyHdr(): void {
-    const on = !!hdrRange?.matches && hdrWanted;
+    const on = canHdr && !!hdrRange?.matches && hdrWanted;
     if (on === (headroom > 1)) return;
     headroom = on ? HEADROOM : 1;
     extendRange(on);
@@ -2296,7 +2304,10 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
       return cloud;
     },
     hdrReady(): boolean {
-      return !!hdrRange?.matches;
+      return canHdr && !!hdrRange?.matches;
+    },
+    hdrBlocked(): boolean {
+      return !canHdr && !!hdrRange?.matches;
     },
     setHdr(on: boolean): void {
       hdrWanted = on;

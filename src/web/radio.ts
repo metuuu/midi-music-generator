@@ -88,6 +88,10 @@ const els = {
   glowMode: $<HTMLDivElement>('glow-mode'),
   glowRange: $<HTMLDivElement>('glow-range'),
   hdrSection: $<HTMLElement>('hdr'),
+  hdrFlag: $<HTMLParagraphElement>('hdr-flag'),
+  hdrFlagBrand: document.querySelectorAll<HTMLElement>('.flag-brand'),
+  hdrFlagUrl: $<HTMLElement>('hdr-flag-url'),
+  hdrFlagCopy: $<HTMLButtonElement>('hdr-flag-copy'),
   wander: $<HTMLInputElement>('wander'),
   wanderName: $<HTMLElement>('wander-name'),
   wanderGloss: $<HTMLElement>('wander-gloss'),
@@ -747,9 +751,42 @@ function paintGlowMode(): void {
   });
 }
 
+const FLAG_PAGE = 'flags/#enable-experimental-web-platform-features';
+
+/** Every Chromium fork keeps that page, under a scheme named after itself. */
+const FORKS: readonly (readonly [string, string, string])[] = [
+  ['Microsoft Edge', 'Edge', 'edge://'],
+  ['Brave', 'Brave', 'brave://'],
+  ['Opera', 'Opera', 'opera://'],
+  ['Vivaldi', 'Vivaldi', 'vivaldi://'],
+  ['Google Chrome', 'Chrome', 'chrome://'],
+];
+
+/**
+ * Which browser is holding the range back and where its flag lives, read from
+ * the brand list rather than the user agent string — every fork writes
+ * "Chrome" into that string whether or not it is Chrome.
+ *
+ * Null where there is no flag worth naming: a browser that is not Chromium,
+ * and a page served insecurely, where the brand list is withheld and a guess
+ * would send someone to an address their browser does not have.
+ */
+function flagHome(): { name: string; url: string } | null {
+  const brands = (navigator as Navigator & {
+    userAgentData?: { brands?: { brand: string }[] };
+  }).userAgentData?.brands;
+  if (!brands?.some((b) => b.brand === 'Chromium')) return null;
+  const fork = FORKS.find(([brand]) => brands.some((b) => b.brand === brand));
+  return { name: fork?.[1] ?? 'this browser', url: (fork?.[2] ?? 'chrome://') + FLAG_PAGE };
+}
+
+const FLAG_HOME = flagHome();
+
 /**
  * The range switch, shown only where it would do something — the particles
- * drawing and the screen having somewhere above white to go.
+ * drawing and the screen having somewhere above white to go — and in its place
+ * the address to go and turn on, where the screen has the range and only the
+ * browser is in the way.
  *
  * Asked of the field each time rather than remembered, because the answer
  * belongs to the screen the window is on and a window can be dragged to
@@ -757,7 +794,15 @@ function paintGlowMode(): void {
  * and the panel being opened.
  */
 function paintGlowRange(): void {
-  els.hdrSection.hidden = !glowField?.hdrReady();
+  const ready = !!glowField?.hdrReady();
+  const flag = glowField?.hdrBlocked() ? FLAG_HOME : null;
+  els.hdrSection.hidden = !ready && !flag;
+  els.glowRange.hidden = !ready;
+  els.hdrFlag.hidden = !flag;
+  if (flag) {
+    els.hdrFlagBrand.forEach((el) => { el.textContent = flag.name; });
+    els.hdrFlagUrl.textContent = flag.url;
+  }
   els.glowRange.querySelectorAll('button').forEach((b) => {
     b.setAttribute('aria-pressed', String((b.dataset.hdr === 'on') === hdr));
   });
@@ -1994,6 +2039,15 @@ els.glowMode.onclick = (e) => {
   paintGlowMode();
   applyGlowMode();
   paintGlowRange();
+};
+
+els.hdrFlagCopy.onclick = () => {
+  void navigator.clipboard.writeText(els.hdrFlagUrl.textContent ?? '').then(
+    () => { els.hdrFlagCopy.textContent = 'Copied'; },
+    () => { els.hdrFlagCopy.textContent = 'Copy failed'; },
+  ).finally(() => {
+    window.setTimeout(() => { els.hdrFlagCopy.textContent = 'Copy'; }, 1600);
+  });
 };
 
 els.glowRange.onclick = (e) => {
