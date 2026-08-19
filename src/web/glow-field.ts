@@ -1929,8 +1929,17 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
     }
 
     draw();
-    if (ts < busyUntil) raf = requestAnimationFrame(frame);
-    else armIdle();
+    if (ts < busyUntil) {
+      raf = requestAnimationFrame(frame);
+    } else {
+      // Cleared, and it has to be: `wake` and `idleTick` both take a set `raf`
+      // to mean a frame is already coming, and the one left here has already
+      // been and gone. Held, the field could not be started again by anything
+      // short of the tab being hidden and shown — a resize while nothing was
+      // playing left the title's points wherever the last frame had put them.
+      raf = 0;
+      armIdle();
+    }
   }
 
   function idleTick(): void {
