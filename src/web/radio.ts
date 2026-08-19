@@ -1744,6 +1744,34 @@ function paintVoice(): void {
 
 const VOLUME_KEY = 'radio.volume';
 
+/**
+ * Whether there is a mouse — a pointer that hovers, and points precisely.
+ *
+ * The speaker answers to it: where hover already brings the slider up, the
+ * button itself has nothing left to open and is free to be the mute. Where
+ * there is no mouse — a phone — the tap is the only way to the slider and stays
+ * that. `pointer: fine` is in the query because phone browsers have claimed
+ * `hover: hover` with nothing hovering, and on one of those the tap muted.
+ */
+const HOVERS = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+
+/**
+ * Whether a mouse made this press, asked of the press rather than of the
+ * device. A pointer type is what actually arrived; keyboard activation brings
+ * none and falls back to what the device claimed.
+ */
+function byMouse(e: Event): boolean {
+  const kind = e instanceof PointerEvent ? e.pointerType : '';
+  return kind ? kind === 'mouse' : HOVERS;
+}
+
+/**
+ * The level to come back to when the speaker is clicked a second time. Follows
+ * the fader while it is above zero, so unmuting lands where the listener last
+ * left it rather than at the default.
+ */
+let premute = DEFAULT_VOLUME;
+
 function paintVolume(): void {
   els.volume.value = String(Math.round(volume * 100));
   // On the container rather than the input: the bar is drawn by `.vol-pop`'s
@@ -1752,6 +1780,18 @@ function paintVolume(): void {
   // The speaker's arcs are the level, so the button says where it is set
   // without the slider having to be showing.
   els.volBtn.dataset.level = volume === 0 ? '0' : volume < 0.5 ? '1' : '2';
+  if (volume > 0) premute = volume;
+  if (HOVERS) els.volBtn.setAttribute('aria-label', volume === 0 ? 'Unmute' : 'Mute');
+}
+
+/** Move the fader from somewhere other than the fader, and tell everything. */
+function setVolume(next: number): void {
+  volume = next;
+  paintVolume();
+  try { localStorage.setItem(VOLUME_KEY, els.volume.value); } catch { /* private mode */ }
+  // Only while something is sounding: off-air the fader is held at 0 by `stop`,
+  // and moving it here would start leaking the next record's opening bar.
+  if (playing) setOutputLevel(volume, 0.05);
 }
 
 function showVolume(open: boolean): void {
@@ -1760,16 +1800,18 @@ function showVolume(open: boolean): void {
 }
 
 els.volume.oninput = () => {
-  volume = Number(els.volume.value) / 100;
-  paintVolume();
-  try { localStorage.setItem(VOLUME_KEY, els.volume.value); } catch { /* private mode */ }
-  // Only while something is sounding: off-air the fader is held at 0 by `stop`,
-  // and moving it here would start leaking the next record's opening bar.
-  if (playing) setOutputLevel(volume, 0.05);
+  setVolume(Number(els.volume.value) / 100);
 };
 
 els.volBtn.onclick = (e) => {
   e.stopPropagation();
+  // A finger has no hover, so nothing has opened the fader for it and the tap
+  // has to. Only a mouse, which brought the pill up on its way in, is free to
+  // spend the press on the mute.
+  if (byMouse(e)) {
+    setVolume(volume === 0 ? premute : 0);
+    return;
+  }
   showVolume(!els.vol.classList.contains('open'));
 };
 
@@ -1888,10 +1930,12 @@ if (window.matchMedia('(hover: hover)').matches) {
 // ---------------------------------------------------------------------------
 
 /** Hover opens it, where there is a pointer to hover with — and aims it. */
-if (window.matchMedia('(hover: hover)').matches) {
-  let closing: number | undefined;
-  const ask = (): void => {
-    window.clearTimeout(closing);
+if (HOVERS) {
+  // Touch sends this whole set too — enter on the press, leave on the release,
+  // both before the click. Unguarded on a device that claims a hover it has
+  // not got, the tap opened the pill and the leave closed it again.
+  const ask = (e: PointerEvent): void => {
+    if (!byMouse(e)) return;
     // Already up — this is the pointer moving about on the control it opened,
     // not a fresh approach, and there is nothing left to be sure of.
     if (els.vol.classList.contains('open')) return;
@@ -1899,12 +1943,13 @@ if (window.matchMedia('(hover: hover)').matches) {
   };
   els.vol.addEventListener('pointerenter', ask);
   els.vol.addEventListener('pointermove', ask);
-  els.vol.addEventListener('pointerleave', () => {
-    window.clearTimeout(closing);
-    // Just enough grace to cross the few pixels between the button and the
-    // slider under it. Longer than that and the pill reads as stuck to the
-    // cursor, hanging about after the pointer has plainly gone elsewhere.
-    closing = window.setTimeout(() => showVolume(false), 140);
+  // Away the moment the pointer goes, like the stations do. There is no strip
+  // of page between the button and the pill for a grace period to protect: the
+  // button's press target reaches .7rem out and the pill starts at .45rem, so
+  // the two overlap and the pointer never leaves anything on the way across.
+  els.vol.addEventListener('pointerleave', (e) => {
+    if (!byMouse(e)) return;
+    showVolume(false);
   });
 }
 

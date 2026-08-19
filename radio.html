@@ -702,7 +702,10 @@
           Across the bar the gap is the padding plus the sliver of air the
           input's own box carries around a 12 px ball; along it the thumb's
           centre stops exactly on the bar's end, so the gap is the padding and
-          nothing else. The 2 px is what that sliver is worth.
+          nothing else. The sliver is therefore measured rather than written
+          down as a figure: it is half of what the box has over the ball, which
+          is 1.2 px at a 16 px root and shrinks with every phone that shrinks
+          the root — where a flat 2 px overshot by up to that much again.
 
           The bar underneath then sits fractionally longer than it is thick out
           from the pill's edge. That is the trade and it is the right way round
@@ -710,7 +713,7 @@
           own spacing is read at the ends, where the ball is standing.
         */
         --across: .31rem;
-        --along: calc(.26rem + 2px);
+        --along: calc(var(--across) + (.9rem - 12px) / 2);
         margin-left: .45rem; padding: var(--across) var(--along);
         background: #060505; border: 1px solid var(--edge); border-radius: 999px;
         opacity: 0; visibility: hidden;
@@ -771,7 +774,7 @@
       /* Smaller than the settings sliders carry, and re-centred on the track:
          the shared rule offsets a 14 px thumb, this one is 12. */
       .vol-pop input[type="range"]::-webkit-slider-thumb {
-        width: 12px; height: 12px; margin-top: -4px;
+        width: 12px; height: 12px; margin-block-start: -4px;
       }
       .vol-pop input[type="range"]::-moz-range-thumb { width: 12px; height: 12px; }
       #stations-toggle[aria-expanded="true"] { color: var(--hot); border-color: var(--hot); }
@@ -1400,17 +1403,24 @@
         -webkit-appearance: none; appearance: none;
         width: 100%; height: 1.5rem; background: transparent; cursor: pointer;
       }
+      /* Logical rather than `height`, and the same for the thumb's offset below:
+         these two are the thickness of the bar and the shove that centres the
+         ball across it, and the volume fader turns on its side on the phone.
+         Written physically they go on pointing down the page after the control
+         has turned, which is along the travel — the one axis neither belongs
+         on. In a horizontal control they are the same property they were. */
       input[type="range"]::-webkit-slider-runnable-track {
-        height: 4px; border-radius: 2px;
+        block-size: 4px; border-radius: 2px;
         background: linear-gradient(to right, var(--hot) var(--fill, 50%), #241e1b var(--fill, 50%));
       }
       input[type="range"]::-moz-range-track {
-        height: 4px; border-radius: 2px;
+        block-size: 4px; border-radius: 2px;
         background: linear-gradient(to right, var(--hot) var(--fill, 50%), #241e1b var(--fill, 50%));
       }
       input[type="range"]::-webkit-slider-thumb {
         -webkit-appearance: none; appearance: none;
-        width: 14px; height: 14px; margin-top: -5px; border-radius: 50%; background: var(--ink);
+        width: 14px; height: 14px; margin-block-start: -5px;
+        border-radius: 50%; background: var(--ink);
       }
       input[type="range"]::-moz-range-thumb {
         width: 14px; height: 14px; border: 0; border-radius: 50%; background: var(--ink);
