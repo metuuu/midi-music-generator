@@ -878,6 +878,36 @@
         #play[data-state="load"] { animation-duration: 4.5s; }
       }
 
+      /* ── the wait, as a drain ─────────────────────────────────────────────
+         The gap a skip opens with the station still on: the page drains to the
+         grey the transport wears when it is off and comes back, on the button's
+         own two seconds and easing. `paintPlay` starts both in one style change,
+         so the page and the button breathe in phase. The way out is
+         `releaseDrain`, for the reason the button's breath needs
+         `releaseBreath`. */
+      body.waiting .title, body.waiting .sub, body.waiting .era,
+      body.waiting .glow { animation: drain 2s ease-in-out infinite; }
+      /* Two animations on two properties, the field's own opacity breath named
+         first so that it continues rather than restarting at 0%. */
+      body.waiting .glow-field {
+        animation: field-breathe 6s ease-in-out infinite, drain 2s ease-in-out infinite;
+      }
+      /* The trough is the stopped state's own figures: between records the
+         station really is momentarily without one, and going the whole way says
+         that where a shallow dip would only look unsteady. */
+      @keyframes drain {
+        0%, 100% { filter: grayscale(0) brightness(1); }
+        50% { filter: grayscale(1) brightness(.8); }
+      }
+      /* Slowed to the button's figure rather than stopped, and the field's
+         six-second breath stays off here instead of being handed back by the
+         rule above. */
+      @media (prefers-reduced-motion: reduce) {
+        body.waiting .title, body.waiting .sub, body.waiting .era,
+        body.waiting .glow { animation-duration: 4.5s; }
+        body.waiting .glow-field { animation: drain 4.5s ease-in-out infinite; }
+      }
+
       /* ── the stations ─────────────────────────────────────────────────────
          Out of the flow entirely, so they neither push anything down when they
          open nor reserve a band of empty page when they are shut. Reserving the

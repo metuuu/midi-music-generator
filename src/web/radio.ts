@@ -247,10 +247,18 @@ function paintPlay(): void {
   // The glow reads this, and it is the whole of what drives it: lit and
   // breathing while the flag is set, grey when it is not. See `.glow`.
   document.body.classList.toggle('playing', playing);
+  // A station that is on with no record on it yet: the page drains its colour
+  // and gets it back on the button's own clock. See `body.waiting`.
+  const waiting = playing && loading;
+  if (document.body.classList.contains('waiting') && !waiting) releaseDrain();
+  document.body.classList.toggle('waiting', waiting);
   // The class dims the field; this stops it being a live thing underneath the
   // dimming — a grey bar that still emits gas and still tears under the cursor
   // is only pretending to be off. The CSS cannot say that, so it is said here.
   glowField?.setPlaying(playing);
+  // And the button's own light, which spends the screen's range on the same
+  // condition the title does: there is a record on. See `mountLamp`.
+  lamp?.setPlaying(playing);
 }
 
 /**
@@ -262,9 +270,6 @@ function paintPlay(): void {
  * .6 in one frame and 1 in the next, which is the one moment in the whole
  * sequence the eye is guaranteed to be on the button.
  *
-  // And the button's own light, which spends the screen's range on the same
-  // condition the title does: there is a record on. See `mountLamp`.
-  lamp?.setPlaying(playing);
  * So the value is pinned to wherever the breath had got to *before* the state
  * changes, and let go a frame later. An animation outranks an inline style, so
  * pinning it early costs nothing while the breath is still running; when the
@@ -277,6 +282,23 @@ function releaseBreath(): void {
   els.play.style.opacity = getComputedStyle(els.play).opacity;
   requestAnimationFrame(() => {
     requestAnimationFrame(() => { els.play.style.opacity = ''; });
+  });
+}
+
+/**
+ * Hand the page's colour back from the wait drain to the stylesheet.
+ *
+ * The same two frames of bookkeeping as `releaseBreath`, and for the same
+ * reason: the drain is an animation hung off a class, and dropping it snaps the
+ * filter rather than transitioning out of it. Pinned before the class goes and
+ * cleared a frame later, onto the `filter` transition each of these already
+ * carries.
+ */
+function releaseDrain(): void {
+  const drained = document.querySelectorAll<HTMLElement>('.title, .sub, .era, .glow, .glow-field');
+  drained.forEach((el) => { el.style.filter = getComputedStyle(el).filter; });
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => { drained.forEach((el) => { el.style.filter = ''; }); });
   });
 }
 
@@ -1394,8 +1416,11 @@ async function changeover(mine: number, notBefore: number, faded: boolean): Prom
     try {
       next = await write(station, wander, newToken());
     } catch (err) {
+      loading = false;
+      paintPlay();
       showError('The generator stopped. Reload to start it again.');
       console.error(err);
+      keepLines();
       return;
     }
   }
