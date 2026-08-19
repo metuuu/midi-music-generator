@@ -781,6 +781,14 @@
       }
       #play.aimed { color: #17110a; }
       #play svg { width: 1.6rem; height: 1.6rem; }
+      /* Room for the light, which `web/glow-field.ts` puts here as a canvas —
+         over the fill and under the glyph. Both rules are paint order and
+         nothing else: the canvas is positioned and would otherwise cover the
+         glyphs, which are not, so they are given a position of their own and
+         the two are painted in the order they stand in. With no canvas to
+         hold, neither rule shows. */
+      #play { position: relative; }
+      #play [data-when] { position: relative; }
       /* One icon at a time, chosen by the state the button is in. The load says
          so on the button that is loading rather than in a row underneath it.
 

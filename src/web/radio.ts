@@ -42,7 +42,9 @@ import {
   startLoaded, stopPlayback, stopSounding,
 } from './audio.js';
 import { generateSongAsync } from './generator.js';
-import { mountGlowField, type GlowField, type SpectrumMode } from './glow-field.js';
+import {
+  mountGlowField, mountLamp, type GlowField, type Lamp, type SpectrumMode,
+} from './glow-field.js';
 import { createSungVoice, withoutSungVoice } from './sung-voice.js';
 import { CLOUD_MS } from './title-cloud.js';
 import { inkReady, readTitleInk } from './title-ink.js';
@@ -256,6 +258,9 @@ function paintPlay(): void {
  * .6 in one frame and 1 in the next, which is the one moment in the whole
  * sequence the eye is guaranteed to be on the button.
  *
+  // And the button's own light, which spends the screen's range on the same
+  // condition the title does: there is a record on. See `mountLamp`.
+  lamp?.setPlaying(playing);
  * So the value is pinned to wherever the breath had got to *before* the state
  * changes, and let go a frame later. An animation outranks an inline style, so
  * pinning it early costs nothing while the breath is still running; when the
@@ -703,6 +708,15 @@ let glowField: GlowField | undefined;
 /** Which of the two glows the listener has asked for. */
 type GlowMode = 'particles' | 'plain';
 let glowMode: GlowMode = 'particles';
+
+/**
+ * The light on the play button, which is not the glow and does not come and go
+ * with it: the particles are a look the listener chooses between, and the one
+ * bright control on the page is not. It has a canvas of its own inside the
+ * button, so none of what the field's canvas wears — the stopped grayscale,
+ * the six-second breath — lands on a control.
+ */
+let lamp: Lamp | undefined;
 
 /**
  * Whether the bar may use a screen's room above white, where there is any.
@@ -1989,6 +2003,7 @@ els.glowRange.onclick = (e) => {
   try { localStorage.setItem(HDR_KEY, hdr ? 'on' : 'off'); } catch { /* private mode */ }
   paintGlowRange();
   glowField?.setHdr(hdr);
+  lamp?.setHdr(hdr);
 };
 
 els.wander.oninput = () => {
@@ -2227,6 +2242,9 @@ async function boot(): Promise<void> {
     }
   } catch { /* private mode */ }
   paintGlowMode();
+  // Outside the glow and before it: the button is lit whichever glow is on
+  // show, and on a page whose WebGL2 never came up it simply is not.
+  lamp = mountLamp(els.play, { hdr, playing }) ?? undefined;
   applyGlowMode();
   paintGlowRange();
 

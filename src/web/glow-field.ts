@@ -1299,6 +1299,227 @@ function link(gl: WebGL2RenderingContext, vs: string, fs: string): WebGLProgram 
 
 const ease = (t: number): number => t * t * (3 - 2 * t);
 
+/**
+ * Everything a canvas has to do to be allowed above white, in one place
+ * because there are two canvases on this page that want it.
+ *
+ * Both halves are asked for by name: a buffer that can hold a number above one
+ * and a switch saying the number above one means brighter than white. Missing
+ * either, `range` is null and the caller stays at a ceiling of one, which is
+ * the picture every display got before any of this.
+ */
+function hdrPlumbing(canvas: HTMLCanvasElement, gl: WebGL2RenderingContext): {
+  range: MediaQueryList | null;
+  extend(on: boolean): void;
+  size(w: number, h: number, on: boolean): void;
+} {
+  const hc = canvas as HTMLCanvasElement & Partial<HdrCanvas>;
+  const hg = gl as WebGL2RenderingContext & Partial<HdrContext>;
+  // RGBA16F is not a drawing-buffer format until one of these is enabled, and
+  // asking for it without them is refused rather than reported: the buffer
+  // stays at eight bits and every channel clips at white independently, which
+  // walks an amber to yellow as the ceiling rises and then to white. Cheap
+  // insurance against reading that as a colour bug — it is a format bug.
+  const float = !!gl.getExtension('EXT_color_buffer_float')
+    || !!gl.getExtension('EXT_color_buffer_half_float');
+  const can = float
+    && typeof hg.drawingBufferStorage === 'function'
+    && ('drawingBufferToneMapping' in hg
+      || typeof hc.configureHighDynamicRange === 'function');
+  return {
+    range: can ? window.matchMedia?.('(dynamic-range: high)') ?? null : null,
+    extend(on: boolean): void {
+      if (!can) return;
+      if ('drawingBufferToneMapping' in hg) {
+        hg.drawingBufferToneMapping = { mode: on ? 'extended' : 'standard' };
+      } else {
+        hc.configureHighDynamicRange?.({ mode: on ? 'extended' : 'default' });
+      }
+    },
+    size(w: number, h: number, on: boolean): void {
+      canvas.width = w;
+      canvas.height = h;
+      if (can) hg.drawingBufferStorage!(on ? gl.RGBA16F : gl.RGBA8, w, h);
+    },
+  };
+}
+
+const LAMP_FS = `#version 300 es
+precision highp float;
+#define EDGE ${DISC_EDGE.toFixed(3)}
+
+uniform vec2 uCentre;
+uniform float uRadius;
+uniform vec3 uColor;
+uniform float uCeil;
+
+out vec4 oColor;
+
+void main() {
+  float cov = clamp((uRadius - distance(gl_FragCoord.xy, uCentre)) / EDGE + 0.5, 0.0, 1.0);
+  if (cov <= 0.0) discard;
+  oColor = vec4(uColor * uCeil * cov, cov);
+}`;
+
+export interface Lamp {
+  /** Whether the screen this window is on has anywhere above white to go. */
+  hdrReady(): boolean;
+  setHdr(on: boolean): void;
+  /** Whether there is a record on, which is what the range is spent on. */
+  setPlaying(on: boolean): void;
+  destroy(): void;
+}
+
+/**
+ * The one bright control on the page, lit rather than filled.
+ *
+ * A canvas of its own, laid over the element's own fill and under its glyph,
+ * and the reasons are all about what it is *not* sharing. It is not in the
+ * glow field, which carries a grayscale-and-fade for a stopped radio and a
+ * six-second breath for a playing one — both written for scenery, and a button
+ * is not scenery. It is not replacing the CSS circle either, only covering it,
+ * so a machine without WebGL2 and a canvas that never draws both leave the
+ * button exactly as it has always been, with nothing to switch and nothing to
+ * fall back to.
+ *
+ * Being the element's own child is the rest of it: the press dip and the slow
+ * breath of a loading station are transforms and opacity on the button, and a
+ * child wears both without being told either.
+ */
+export function mountLamp(
+  host: HTMLElement, opts: { hdr?: boolean; playing?: boolean } = {},
+): Lamp | null {
+  const canvas = document.createElement('canvas');
+  canvas.setAttribute('aria-hidden', 'true');
+  canvas.style.cssText = 'position:absolute;display:block;pointer-events:none;';
+
+  const gl = canvas.getContext('webgl2', {
+    alpha: true,
+    antialias: false,
+    depth: false,
+    stencil: false,
+    powerPreference: 'low-power',
+  });
+  if (!gl) return null;
+
+  const hdr = hdrPlumbing(canvas, gl);
+  let prog: WebGLProgram;
+  try {
+    prog = link(gl, QUAD_VS, LAMP_FS);
+  } catch (err) {
+    // The button draws its own circle and always has. Nothing to put back.
+    console.warn('glow-field: no lamp', err);
+    return null;
+  }
+  const vao = gl.createVertexArray();
+  const uCentre = gl.getUniformLocation(prog, 'uCentre');
+  const uRadius = gl.getUniformLocation(prog, 'uRadius');
+  const uColor = gl.getUniformLocation(prog, 'uColor');
+  const uCeil = gl.getUniformLocation(prog, 'uCeil');
+
+  let wanted = opts.hdr ?? true;
+  let playing = opts.playing ?? false;
+  let red = 0;
+  let green = 0;
+  let blue = 0;
+
+  // Read from the element rather than from a constant, so the button and the
+  // light on it cannot come to disagree about what colour it is.
+  function readColour(): void {
+    const m = getComputedStyle(host).backgroundColor.match(/(\d+(?:\.\d+)?)/g);
+    if (!m || m.length < 3 || (m.length > 3 && Number(m[3]) === 0)) return;
+    red = Number(m[0]) / 255;
+    green = Number(m[1]) / 255;
+    blue = Number(m[2]) / 255;
+  }
+
+  /**
+   * Above white only while something is playing.
+   *
+   * The range is what the record is spending, so a stopped radio has no claim
+   * on it: the button is then a shape saying press me, and a shape that is
+   * brighter than the page it is sitting on is asking rather than offering.
+   */
+  function ceiling(): number {
+    return playing && wanted && hdr.range?.matches ? BUTTON_HEADROOM : 1;
+  }
+
+  /**
+   * Drawn on a change and not a frame sooner. Nothing here moves on its own:
+   * the press, the breath and the fade are all the element's, and it takes the
+   * canvas with it.
+   */
+  function paint(): void {
+    // Laid out rather than measured: `offsetWidth` is the box the stylesheet
+    // gave the element, where a client rect is that box with the press dip
+    // already applied to it. Sizing from the dip would put the dip in twice —
+    // once in the canvas, and again in the transform that carries it.
+    const across = Math.min(host.offsetWidth, host.offsetHeight);
+    if (across < 2) return;
+
+    // A canvas is a replaced element, so a pair of insets cannot stretch it —
+    // with no width of its own it takes the size of its buffer and hangs off
+    // the corner. The box is therefore set here, in the same pass that decides
+    // what goes in it.
+    const border = parseFloat(getComputedStyle(host).borderTopWidth) || 0;
+    const boxW = host.offsetWidth + SPILL * 2;
+    const boxH = host.offsetHeight + SPILL * 2;
+    canvas.style.left = `${-(border + SPILL)}px`;
+    canvas.style.top = `${-(border + SPILL)}px`;
+    canvas.style.width = `${boxW}px`;
+    canvas.style.height = `${boxH}px`;
+
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = Math.max(2, Math.round(boxW * dpr));
+    const h = Math.max(2, Math.round(boxH * dpr));
+    const lit = ceiling() > 1;
+    hdr.size(w, h, lit);
+    hdr.extend(lit);
+    readColour();
+    gl!.viewport(0, 0, w, h);
+    gl!.clearColor(0, 0, 0, 0);
+    gl!.clear(gl!.COLOR_BUFFER_BIT);
+    gl!.useProgram(prog);
+    gl!.bindVertexArray(vao);
+    gl!.uniform2f(uCentre, w / 2, h / 2);
+    // The element's own circle, edge for edge. What the canvas carries beyond
+    // it is room for the edge to soften into, not disc.
+    gl!.uniform1f(uRadius, (across / 2) * dpr);
+    gl!.uniform3f(uColor, red, green, blue);
+    gl!.uniform1f(uCeil, ceiling());
+    gl!.drawArrays(gl!.TRIANGLES, 0, 3);
+  }
+
+  readColour();
+  host.prepend(canvas);
+  paint();
+
+  const ro = new ResizeObserver(paint);
+  ro.observe(host);
+  hdr.range?.addEventListener('change', paint);
+
+  return {
+    hdrReady(): boolean {
+      return !!hdr.range?.matches;
+    },
+    setHdr(on: boolean): void {
+      if (on === wanted) return;
+      wanted = on;
+      paint();
+    },
+    setPlaying(on: boolean): void {
+      if (on === playing) return;
+      playing = on;
+      paint();
+    },
+    destroy(): void {
+      ro.disconnect();
+      hdr.range?.removeEventListener('change', paint);
+      canvas.remove();
+    },
+  };
+}
+
 export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): GlowField | null {
   const keep = opts.keepTouch ?? 'button, a, input, select, textarea, dialog';
   const canvas = document.createElement('canvas');
