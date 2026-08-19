@@ -1677,6 +1677,8 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
   const pack = new Float32Array(SPEC_BANDS * 2);
   let mode: SpectrumMode = opts.spectrumMode ?? 'bands';
   let specLive = false;
+  /** Seconds of music the averages have seen, which is what warms them up. */
+  let specAge = 0;
 
   /**
    * Which bins each band owns, worked out once the analyser is there to ask.
@@ -1732,7 +1734,11 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
     }
     const rise = 1 - Math.exp(-SPEC_RISE * dt);
     const fall = 1 - Math.exp(-SPEC_FALL * dt);
-    const drift = 1 - Math.exp(-SPEC_SLOW * dt);
+    specAge = on ? specAge + dt : 0;
+    // The mean of the music heard so far, while that is the faster of the two,
+    // so a band is read against a level it has actually had rather than against
+    // the zero the average starts from.
+    const drift = Math.max(1 - Math.exp(-SPEC_SLOW * dt), specAge > 0 ? dt / specAge : 1);
     const range = SPEC_CEIL - SPEC_FLOOR;
     let loud = 0;
     for (let b = 0; b < SPEC_BANDS; b++) {
@@ -1751,17 +1757,15 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
       // Read against the average as it was before this frame moved it, or a
       // band would be compared with a figure it has already been folded into.
       //
-      // Except with nothing playing, where the average is pinned to the band
-      // instead. A pause is the app stopping, not the music getting quieter,
-      // and an average that trails the fall by a second reads every band as
-      // suddenly below its usual — which pushes the whole bar under the line on
-      // the way to being still.
-      const avg = on ? (slow[b] ?? 0) : now;
+      // Pinned to the band on the frames either side of the music, though: a
+      // pause is the app stopping rather than the music getting quieter, and a
+      // start is not every band swelling at once.
+      const avg = on && specAge > dt ? (slow[b] ?? 0) : now;
       slow[b] = avg + (now - avg) * drift;
       pack[b * 2] = now;
-      pack[b * 2 + 1] = mode === 'flux'
-        ? Math.min(Math.max((now - avg) * SPEC_FLUX, -1), 1)
-        : now;
+      // Compressed rather than clipped, so a loud change keeps the shape of the
+      // spectrum instead of flattening every band onto one ceiling.
+      pack[b * 2 + 1] = mode === 'flux' ? Math.tanh((now - avg) * SPEC_FLUX) : now;
 
       if (now > loud) loud = now;
     }
