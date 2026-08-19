@@ -50,6 +50,7 @@ export interface GlowFieldOptions {
   playing?: boolean;
   /** What was chosen last time. Defaults to taking the range where it exists. */
   hdr?: boolean;
+
   keepTouch?: string;
   /**
    * Where the music comes from, polled rather than passed, because the audio
@@ -1594,7 +1595,6 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
   let barX0 = 0;
   let barX1 = 0;
   let barY = 0;
-
   const vao = gl.createVertexArray();
   let cloud: TitleCloud | null = null;
 
