@@ -63,6 +63,10 @@
         transition: --hue .59s ease-in-out, --hue-2 .59s ease-in-out;
         font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 
+        /* No pull-to-refresh: a downward drag past the top of a player is a
+           reload of the page and the loss of whatever is playing. */
+        overscroll-behavior-y: contain;
+
         /* The gutter, in one place, because three boxes have to agree on it:
            the deck's own padding, the stations panel's `max-width`, and the
            settings dialog's width. They were three copies of the same figure —
@@ -91,6 +95,14 @@
            to the state being moved *into*. */
         --bounce: .45s cubic-bezier(.34, 1.56, .64, 1);
         --dip: .09s cubic-bezier(.4, 0, .6, 1);
+
+        /* How deep a press goes, as a multiple of the depth written on each
+           control, so that every family keeps the depth it was given relative
+           to the others. One under a pointer, and more where there is none: a
+           mouse has already said where it is by hovering, while a finger
+           arrives with no warning and then sits on top of the thing it pressed,
+           so the movement it hides has to be big enough to read around it. */
+        --press: 1;
 
         /* ── the whole page, as one number ────────────────────────────────
            Every size here is in `rem` — type, buttons, gaps, the player's
@@ -631,11 +643,13 @@
          point: hovering is the page noticing you, pressing is the page
          answering, so the press has to be the larger of the two movements. It
          is the deepest one on the page — a couple of pixels off the small
-         circles and three off Play, which is as far as a control can go and
-         still look like it sprang back rather than shrank. `:not(:disabled)`
-         because Next spends the first record greyed out, and a dead button that
-         still dips is a button that lies. */
-      .controls button:active:not(:disabled) { --squish: var(--dip); transform: scale(.95); }
+         circles and three off Play, which is as far as a control can go under
+         a pointer and still look like it sprang back rather than shrank.
+         `:not(:disabled)` because Next spends the first record greyed out, and
+         a dead button that still dips is a button that lies. */
+      .controls button:active:not(:disabled) {
+        --squish: var(--dip); transform: scale(calc(1 - .05 * var(--press)));
+      }
       .controls button:disabled { opacity: .35; cursor: not-allowed; }
       /*
         No ring and a dimmer glyph: it is the one control here that is not about
@@ -1236,7 +1250,7 @@
          smaller: measured in pixels the two dip by about the same amount, and it
          takes a much smaller fraction to do it over this width. Deeper and the
          card reads as a wobble rather than as a click. */
-      .grid button:active { --squish: var(--dip); transform: scale(.978); }
+      .grid button:active { --squish: var(--dip); transform: scale(calc(1 - .022 * var(--press))); }
       /* The current station is named in the accent and nothing else changes —
          a filled box for the one you are already listening to would be the
          loudest thing under a player it is not part of. */
@@ -1369,7 +1383,7 @@
          the track, which is the shape saying what it is — by a couple of pixels
          at each end, matched to the dip the rest of the page takes rather than
          to its fraction. */
-      .seg button:active { --squish: var(--dip); transform: scale(.962); }
+      .seg button:active { --squish: var(--dip); transform: scale(calc(1 - .038 * var(--press))); }
       .seg button[aria-pressed="true"] {
         background: var(--hot); color: #17110a; font-weight: 600;
       }
@@ -1445,7 +1459,7 @@
       /* Shallower still: it is the width of the panel, and a bar that long
          changes size at both ends at once. Growing on hover it would be a bar
          reaching past the dialog's own padding, so it does not. */
-      .done:active { --squish: var(--dip); transform: scale(.986); }
+      .done:active { --squish: var(--dip); transform: scale(calc(1 - .014 * var(--press))); }
 
       /* ── the settings, as a sheet ───────────────────────────────────────
          The same dialog, docked. A centred card is right on a screen you are
@@ -1531,6 +1545,13 @@
       }
       @media (prefers-reduced-motion: reduce) {
         dialog, dialog::backdrop { transition-duration: 0s; }
+      }
+      /* Twice the travel where there is no pointer. `(hover: none)` and not the
+         phone breakpoint, because it is the input that decides this: a narrow
+         window with a mouse in it keeps the pointer's figures, and a tablet the
+         width of a desk keeps the finger's. */
+      @media (hover: none) {
+        :root { --press: 2; }
       }
       /* Every press on the page, stilled in two lines, because every press on
          the page spends the same two figures — see `--bounce`. The states all
