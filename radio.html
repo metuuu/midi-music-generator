@@ -896,6 +896,14 @@
       body.waiting .glow-field {
         animation: field-breathe 6s ease-in-out infinite, drain 2s ease-in-out infinite;
       }
+      /* Not the bar, where it is lit. `drain` is a filter, and a filter on a
+         canvas that is drawing above white is rasterised through an SDR surface
+         — so a gap would spend the range and hand it back, which is the one
+         thing a changeover has no business doing. The words and the halo carry
+         the wait on their own; the class is set in `web/glow-field.ts`. */
+      body.waiting .glow-field.range {
+        animation: field-breathe 6s ease-in-out infinite;
+      }
       /* The trough is the stopped state's own figures: between records the
          station really is momentarily without one, and going the whole way says
          that where a shallow dip would only look unsteady. */
@@ -910,6 +918,7 @@
         body.waiting .title, body.waiting .sub, body.waiting .era,
         body.waiting .glow { animation-duration: 4.5s; }
         body.waiting .glow-field { animation: drain 4.5s ease-in-out infinite; }
+        body.waiting .glow-field.range { animation: none; }
       }
 
       /* ── the stations ─────────────────────────────────────────────────────
