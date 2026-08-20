@@ -2231,8 +2231,7 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
      * Music holds the field awake on its own. Nothing else does — the frame
      * loop drops to a 90 ms tick the moment the cursor and the last cut are
      * done with it, and a bar that only redraws nine times a second is not
-     * showing anybody a spectrum. That tick is also what brings it back: it
-     * keeps sampling, so a record starting is felt within one of them.
+     * showing anybody a spectrum.
      */
     if (readSpectrum(dt)) busyUntil = Math.max(busyUntil, ts + SPEC_MS);
     // Asked rather than left to the wake the cloud arms for itself, because a
@@ -2263,10 +2262,20 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
     }
   }
 
+  /**
+   * What brings the field back, and all it does is listen: a record starting is
+   * felt within one of these, and that is the whole of what the timer is for.
+   * So it costs one spectrum read rather than a fluid solve, six substeps and
+   * two full-screen passes over a page where nothing is moving.
+   */
   function idleTick(): void {
     idleAt = 0;
-    if (document.hidden || raf || performance.now() < busyUntil) return;
-    raf = requestAnimationFrame(frame);
+    const now = performance.now();
+    if (document.hidden || raf || now < busyUntil) return;
+    const dt = Math.min(Math.max((now - last) / 1000, 0), MAX_DT);
+    last = now;
+    if (readSpectrum(dt)) wake(SPEC_MS);
+    else armIdle();
   }
 
   function armIdle(): void {
