@@ -12,7 +12,7 @@ import { DEFAULT_DRUM_MIX } from './core/types.js';
 import { resolveVoice, SAMPLE_RACKS } from './render/drum-banks.js';
 import { renderStrudel } from './render/strudel.js';
 import { GENRE_IDS } from './genre/index.js';
-import { depthSummary, seeds } from './depth.js';
+import { deep, depthSummary, seeds } from './depth.js';
 
 /**
  * Every drum voice, as a token this file will accept in a drum line.
@@ -193,16 +193,24 @@ let trilledSlots = 0;
  * nothing is on logs an error inside superdough and plays normally. So the two
  * are asserted against each other rather than against a threshold, which is the
  * only claim this sweep can make honestly: **the number here is small and is
- * expected to be small.** Seven styles in two genres duck, of 389, and this file
- * draws one song per genre in rotation — so a run meets one or two of them, and
- * the standing count is 2 buses from 1 kick rather than the hundreds
- * `rolledSlots` reports. The population claim lives in `npm run genres`, which
- * generates 240 songs of the adopting styles on purpose; what is worth having
- * here is the *pairing*, because that is a property of the emitter rather than
- * of the catalogue and one song is enough to see it.
+ * expected to be small.** Ten styles and one era duck, in synth, pop and house,
+ * of 393 styles across 19 genres. The population claim lives in `npm run
+ * genres`, which generates 240 songs of the adopting styles on purpose; what is
+ * worth having here is the *pairing*, because that is a property of the emitter
+ * rather than of the catalogue and one song is enough to see it.
+ *
+ * **Which is why the corpus decides whether this can be asked at all.** Measured
+ * on these seeds: one rotation draws **no** ducking record, two draw one
+ * (`house/trance`) and eight draw two. So `Sidechain: 0 parts on a duck bus`
+ * was the commonest thing this line printed, and it read as a measurement of the
+ * emitter when it was a fact about which styles came up — which is the
+ * `deep`-tier condition in `depth.ts` exactly. Records that *asked* are counted
+ * beside the buses now, so the remaining zero says which zero it is.
  */
 let duckBuses = 0;
 let duckers = 0;
+/** Records whose style asked for a sidechain at all, so a zero above is legible. */
+let duckSongs = 0;
 
 // Cover every genre in turn. Each brings something the others never emit: jazz
 // has extended chords and voicings past three notes, and ambient has notes that
@@ -213,8 +221,15 @@ let duckers = 0;
  * The corpus is a search for a string the grammar cannot parse, and one bad
  * render settles it — so a shorter run is a shallower search rather than a
  * looser standard. See `depth.ts`.
+ *
+ * Counted in **rotations** rather than in songs, because the line above is not a
+ * preference: a count that is not a whole rotation silently stops covering every
+ * genre, and the quick tier used to draw ten songs against nineteen genres —
+ * so `pop` and `house` were never rendered here at all, and neither was anything
+ * else past `metal`. Nine genres unvisited by the cheapest check anybody runs.
+ * The whole quick pass costs under a second, so one full rotation is the floor.
  */
-const RENDERS = seeds(150, 40, 10);
+const RENDERS = seeds(8, 2, 1) * GENRE_IDS.length;
 for (let i = 0; i < RENDERS; i++) {
   const genre = GENRE_IDS[i % GENRE_IDS.length]!;
   // Every third song sings. The sung layer is the only one that writes filter
@@ -226,6 +241,8 @@ for (let i = 0; i < RENDERS; i++) {
   const code = renderStrudel(song, { includePrebake: true });
   duckBuses += (code.match(/\n\s*\.orbit\(\d+\)/g) ?? []).length;
   duckers += (code.match(/\n\s*\.duckorbit\(/g) ?? []).length;
+  // The IR's own request, ahead of anything the renderer decided about it.
+  if (song.tracks.some((t) => t.effects?.duck)) duckSongs++;
 
   for (const voice of new Set(song.drums.events.map((e) => e.voice))) {
     drumParts++;
@@ -329,10 +346,21 @@ console.log(
 );
 console.log(`Rolled slots: ${rolledSlots} struck more than once inside a sixteenth.`);
 console.log(`Trilled slots: ${trilledSlots} alternating two pitches inside a sixteenth.`);
-console.log(`Sidechain: ${duckBuses} parts on a duck bus, ducked from ${duckers} kicks.`);
-// A kick ducking nothing, or a bus nobody ducks. Both play, neither pumps.
-if ((duckBuses > 0) !== (duckers > 0)) {
-  problems.push(`sidechain half-emitted: ${duckBuses} buses against ${duckers} duckers`);
+if (deep('the sidechain pairing', 'standard')) {
+  if (!duckSongs) {
+    // Not a measurement of the emitter. Said in words rather than as a zero,
+    // which is what this line printed for as long as it was wrong.
+    console.log(`Sidechain: no record in this corpus asked for one, of ${songs} songs.`);
+  } else {
+    console.log(
+      `Sidechain: ${duckBuses} parts on a duck bus, ducked from ${duckers} kicks`
+      + ` — ${duckSongs} of ${songs} records asked.`,
+    );
+    // A kick ducking nothing, or a bus nobody ducks. Both play, neither pumps.
+    if ((duckBuses > 0) !== (duckers > 0)) {
+      problems.push(`sidechain half-emitted: ${duckBuses} buses against ${duckers} duckers`);
+    }
+  }
 }
 // A dropped voice is a part that was written and then silently thrown away. It
 // is tolerable for an ornament and not for the kit's backbone: no bank in the

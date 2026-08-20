@@ -108,7 +108,7 @@ export const deep = (label: string, from: 'full' | 'standard' = 'full'): boolean
 export const depthSummary = (): string => {
   if (FULL) return '';
   const what = skipped.length
-    ? `${skipped.length} checks skipped and the corpora thinned`
+    ? `${skipped.length} check${skipped.length === 1 ? '' : 's'} skipped and the corpora thinned`
     : 'the corpora thinned';
   const tier = DEPTH === 'quick'
     ? `This was the quick pass — one style in ${SAMPLE}, ${what}.`
