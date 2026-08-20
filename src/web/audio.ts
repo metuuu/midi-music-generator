@@ -21,6 +21,7 @@ import {
 } from '@strudel/core';
 import {
   getAudioContext,
+  getDefaultValue,
   getSampleBuffer,
   getSound,
   getSuperdoughAudioController,
@@ -41,7 +42,9 @@ import GM_FONTS from '@strudel/soundfonts/gm.mjs';
 
 import type { Envelope, LayerId, Song } from '../core/types.js';
 import { resolveDrumSample } from '../render/drum-banks.js';
-import { SAMPLE_MANIFESTS, localManifest, type StrudelParts } from '../render/strudel.js';
+import {
+  SAMPLE_MANIFESTS, duckBuses, localManifest, type StrudelParts,
+} from '../render/strudel.js';
 
 /**
  * Where the 125 General MIDI soundfonts come from.
@@ -409,12 +412,66 @@ export function silenceVoices(): void {
   try {
     const controller = getSuperdoughAudioController();
     if (!controller) return;
+    const open = Object.keys(controller.nodes ?? {}).map(Number);
     for (const orbit of Object.values(controller.nodes ?? {})) orbit?.disconnect?.();
     for (const bus of Object.values(controller.buses ?? {})) bus?.disconnect?.();
     controller.nodes = {};
     controller.buses = {};
+    /**
+     * The numbers come straight back, empty. Dropping the orbit *objects* is
+     * the whole point above, but dropping the **slots** takes the sidechain's
+     * targets with them — a changeover runs this between the preload that opens
+     * the next record's buses and its downbeat, so without this the first kick
+     * of every record after the first names buses that were just deleted. See
+     * `openDuckBuses`.
+     */
+    for (const orbit of open) openOrbit(controller, orbit);
   } catch (err) {
     console.warn('audio: the sounding voices would not cut', err);
+  }
+}
+
+/**
+ * The outputs superdough would have given a bus, zero-based.
+ *
+ * Read from superdough's own defaults rather than written down, because the
+ * only thing that must not drift is the agreement with the buses it opens
+ * itself. Its other branch — a channel pair per orbit — is reachable only with
+ * `multiChannelOrbits`, which nothing here turns on.
+ */
+function orbitChannels(): number[] {
+  const channels = getDefaultValue('channels');
+  const list = Array.isArray(channels) ? channels : [channels];
+  // superdough's own note: gear counts outputs from 1 and the Web Audio API
+  // from 0.
+  return list.map((ch) => Number(ch) - 1);
+}
+
+type Controller = ReturnType<typeof getSuperdoughAudioController>;
+
+function openOrbit(controller: Controller, orbit: number): void {
+  controller.getOrbit?.(orbit, orbitChannels());
+}
+
+/**
+ * Open the buses this song's sidechain is going to name.
+ *
+ * superdough builds an orbit the first time something sounds on it, and the
+ * kick ducks from bar one — so a record whose pad enters at bar 32 spends its
+ * first third logging *duck target orbit n does not exist* and not pumping. The
+ * fix is the same thing an engineer does before a take: the bus exists because
+ * it is on the desk, not because something is on it yet.
+ *
+ * Never throws. A desk that could not be set up is a record that plays without
+ * its compressor, which is where every record was before this existed.
+ */
+export function openDuckBuses(song: Song): void {
+  try {
+    const controller = getSuperdoughAudioController();
+    if (!controller) return;
+    for (const orbit of duckBuses(song)) openOrbit(controller, orbit);
+  } catch (err) {
+    console.warn('audio: the sidechain buses would not open', err);
   }
 }
 
@@ -747,6 +804,10 @@ export async function preloadSounds(song: Song): Promise<void> {
   } catch (err) {
     console.warn('audio: the instruments could not be preloaded', err);
   }
+  // Here because this is the one call every page already makes with the song in
+  // hand on the way to a downbeat, and the desk has to be set up by then for the
+  // same reason the band does. See `openDuckBuses`.
+  openDuckBuses(song);
 }
 
 async function warm(song: Song): Promise<void> {

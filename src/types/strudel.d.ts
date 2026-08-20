@@ -165,7 +165,23 @@ declare module '@strudel/webaudio' {
     nodes?: Record<string, { disconnect?: () => void } | undefined>;
     /** The named sends, same story and the same treatment. */
     buses?: Record<string, { disconnect?: () => void } | undefined>;
+    /**
+     * The orbit for a number, made on the spot if the slot is empty.
+     *
+     * Called here as well as by superdough, because a bus a ducker names has to
+     * exist before the ducker names it — see `openDuckBuses` in `web/audio.ts`.
+     * `channels` are the destination's, zero-based, and only read on creation.
+     */
+    getOrbit?: (orbitNum: number, channels: number[]) => unknown;
   };
+  /**
+   * A superdough control's default, by name.
+   *
+   * Read for `channels` only, so that a bus opened from here lands on the same
+   * outputs superdough would have given it. See `orbitChannels` in
+   * `web/audio.ts`.
+   */
+  export function getDefaultValue(key: string): unknown;
   /**
    * A registered sound, under the name the trigger path looks it up by — which
    * for a banked sample is `bank_name`, lower case. `data.samples` is the bank

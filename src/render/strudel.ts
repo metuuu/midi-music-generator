@@ -893,6 +893,25 @@ function effectChain(fx: Effects | undefined, song: Song, lpf?: string, bent?: b
  * the duck makes room *for*. A record that ducks its own singer under its own
  * kick has the compressor patched backwards.
  */
+/**
+ * The mixer buses this song's sidechain will name.
+ *
+ * superdough builds an orbit the first time something **sounds** on it, and the
+ * kick ducks from bar 0 — so on a record whose pad enters at bar 32, every kick
+ * before that names a bus nothing has opened, superdough logs *duck target orbit
+ * n does not exist* and carries on, and the record does not pump until the pad
+ * arrives. Measured on `nv0`: orbit 3 enters at bar 32 and orbit 4 at bar 16,
+ * against a kick on beat 0.
+ *
+ * A count rather than the emitted map, and deliberately a superset of it: a bus
+ * nothing ever sums into is two silent gain nodes, where one the ducker names
+ * and nobody opened is a missing compressor. See `openDuckBuses` in
+ * `web/audio.ts`, which is what opens them.
+ */
+export function duckBuses(song: Song): number[] {
+  return Array.from({ length: duckPlan(song).targets.size }, (_, i) => i + 2);
+}
+
 function duckPlan(song: Song): {
   targets: Map<Track, { depth: string; attack: string }>;
   controls: (orbits: Map<Track, number>) => string[];
