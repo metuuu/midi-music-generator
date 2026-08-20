@@ -143,6 +143,29 @@ const DISC_EDGE = 1.3;
 /** What the lamp's canvas carries past the element, for that edge to fade in. */
 const SPILL = 1;
 
+/**
+ * What the accumulation buffer is rounded up to, and it only ever grows.
+ *
+ * The target is a full-screen half float, so a window being dragged was forty
+ * megabytes allocated and cleared on every frame of the drag. Rounded to this
+ * it is a handful over the whole gesture, and a window coming back in is not an
+ * allocation at all.
+ */
+const ACC_STEP = 256;
+
+/**
+ * The rows the widest sprite is drawn on, and the share of the width they are
+ * gathered at.
+ *
+ * Thirteen rows of ninety-six carry an eleven-pixel blob at a hundred and
+ * fiftieth of an alpha, and at full width that is seven tenths of everything
+ * the field fills. Gathered at half and read back through the card's own
+ * bilinear it is a quarter of that, and a blur that faint has nothing in it for
+ * the missing samples to lose.
+ */
+const BLOOM_ROW = Math.ceil(W_RIM * STRANDS - 0.5);
+const BLOOM_SCALE = 2;
+
 const CELL = 10;
 const GRID_MAX = 180;
 const VISC = 0.55;
@@ -353,6 +376,18 @@ const KEY_MS = 590;
 const MAX_DT = 1 / 30;
 const SUB = 1 / 200;
 const SUB_MAX = 6;
+/**
+ * The title's own step, and it is pinned rather than taken from the display.
+ *
+ * The cloud's spring is explicit where its damping is exact, so how fast a
+ * point catches its pixel follows the step it is handed — at a sixtieth it
+ * catches at ten a second and at a two-hundred-and-fortieth at twenty-four, and
+ * a name that gathered differently on a 120 Hz screen than on a 60 Hz one would
+ * be the display showing through the work. Half the bar's rate is where the two
+ * meet: `K_CATCH` is a fifth as stiff as the yarn and needs nothing like two
+ * hundred steps a second to be held.
+ */
+const CLOUD_SUB = 1 / 120;
 const JUMP_MAX = 900;
 const CURSOR_MAX = 5500;
 
@@ -1254,9 +1289,14 @@ void main() {
 const RESOLVE_FS = `#version 300 es
 precision highp float;
 uniform sampler2D uAcc;
+uniform sampler2D uBloom;
+uniform vec2 uBloomUv;
 out vec4 oColor;
 void main() {
-  vec4 acc = texelFetch(uAcc, ivec2(gl_FragCoord.xy), 0);
+  // Alpha is taken along with the colour, or the ceiling below would be weighed
+  // against light that is only partly here.
+  vec4 acc = texelFetch(uAcc, ivec2(gl_FragCoord.xy), 0)
+    + texture(uBloom, gl_FragCoord.xy * uBloomUv);
   float peak = max(acc.r, max(acc.g, acc.b));
   // Each emitter wrote the ceiling it wanted into the alpha channel, weighted
   // by the light it put here, so this is a per-pixel figure and two of them
@@ -1539,7 +1579,6 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
     antialias: false,
     depth: false,
     stencil: false,
-    preserveDrawingBuffer: true,
     powerPreference: 'low-power',
   });
   if (!gl || !gl.getExtension('EXT_color_buffer_float')) return null;
@@ -1585,6 +1624,9 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
   let gaps: [Target, Target] | undefined;
   let gapFront: 0 | 1 = 0;
   let acc: Target | undefined;
+  let bloom: Target | undefined;
+  let accW = 0;
+  let accH = 0;
   let specTex: WebGLTexture | undefined;
 
   let dpr = 1;
@@ -1709,7 +1751,8 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
     measureBar();
     if (sameSize && barX0 === wasX0 && barX1 === wasX1 && barY === wasY) return false;
 
-    if (!simProg) {
+    const built = !simProg;
+    if (built) {
       advectProg = link(gl!, QUAD_VS, ADVECT_FS);
       divProg = link(gl!, QUAD_VS, DIV_FS);
       jacobiProg = link(gl!, QUAD_VS, JACOBI_FS);
@@ -1729,7 +1772,7 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
       locate(simProg, ['uPos', 'uSt', 'uVel', 'uWhole', 'uGap', 'uGrid', 'uDt', 'uTime', 'uRest',
         'uInit', 'uEmit', 'uBar', 'uFrom', 'uTo', 'uCursorV', 'uCursorOn', 'uSpec', 'uSpecOn']);
       locate(drawProg, ['uPos', 'uSt', 'uView', 'uHue', 'uDpr', 'uBar', 'uCeil']);
-      locate(resolveProg, ['uAcc']);
+      locate(resolveProg, ['uAcc', 'uBloom', 'uBloomUv']);
       pools = [makePool(), makePool()];
       // Smooth, so the shader reads one curve rather than thirty-two steps.
       specTex = makeTex(gl!.RG16F, SPEC_BANDS, 1, true);
@@ -1757,11 +1800,31 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
       prsFront = 0;
     }
 
-    if (!sameSize || !acc) {
+    // Every pass into this target already takes its viewport from the canvas
+    // rather than from the target, and the resolve reads it by fragment
+    // coordinate, so a buffer wider than the screen lines up with it untouched.
+    const aw = Math.max(accW, Math.ceil(w / ACC_STEP) * ACC_STEP);
+    const ah = Math.max(accH, Math.ceil(h / ACC_STEP) * ACC_STEP);
+    if (!acc || aw > accW || ah > accH) {
       drop(acc);
-      acc = makeTarget(gl!.RGBA16F, w, h);
+      drop(bloom);
+      accW = aw;
+      accH = ah;
+      acc = makeTarget(gl!.RGBA16F, aw, ah);
+      // Smooth, because reading it back up to full width is the whole point.
+      bloom = makeTarget(gl!.RGBA16F, aw / BLOOM_SCALE, ah / BLOOM_SCALE, true);
     }
-    stepParticles(0, true);
+
+    // The homes went with the bar and the spring carries every strand after
+    // them, so a title reflowing to a second line is a slide rather than a
+    // snap, and a cut standing open across one lives through it. Only a jump
+    // further than a strand can be stretched is worth rebuilding for.
+    const jumped = Math.max(Math.abs(barX0 - wasX0), Math.abs(barX1 - wasX1),
+      Math.abs(barY - wasY));
+    if (built || jumped > TEAR_AWAY) {
+      stepParticles(0, true);
+      stepCloud(0);
+    }
     return true;
   }
 
@@ -1851,28 +1914,49 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
     gl!.drawArrays(gl!.TRIANGLES, 0, 3);
     gl!.bindFramebuffer(gl!.FRAMEBUFFER, null);
     front = back;
-
-    // The same velocity field the bar is drawn in, so gas let go of a title
-    // drifts on whatever the cursor has already stirred up.
-    cloud?.step(dt, simTime, vels[velFront].tex, gx, gy);
   }
 
-  function draw(): void {
-    if (!drawProg || !resolveProg || !pools || !acc) return;
+  /**
+   * The same velocity field the bar is drawn in, so gas let go of a title
+   * drifts on whatever the cursor has already stirred up.
+   */
+  function stepCloud(dt: number): void {
+    if (!cloud || !vels) return;
+    const [gx, gy] = span();
+    cloud.step(dt, simTime, vels[velFront].tex, gx, gy);
+  }
 
-    pass(drawProg, acc.fbo, canvas.width, canvas.height);
+  /**
+   * One run of rows, into whatever buffer that run is gathered in.
+   *
+   * A sprite is sized in device pixels and placed in clip space, so a buffer at
+   * a fraction of the width wants the same fraction of the ratio and nothing
+   * else: the point covers the share of the screen it always did.
+   */
+  function points(target: WebGLFramebuffer, w: number, h: number,
+    scale: number, first: number, count: number): void {
+    pass(drawProg!, target, w, h);
     gl!.clearColor(0, 0, 0, 0);
     gl!.clear(gl!.COLOR_BUFFER_BIT);
     gl!.enable(gl!.BLEND);
     gl!.blendFunc(gl!.ONE, gl!.ONE);
-    bindTex(drawProg, 'uPos', 0, pools[front].pos);
-    bindTex(drawProg, 'uSt', 1, pools[front].st);
-    gl!.uniform3f(u(drawProg, 'uBar'), barX0, barX1, barY);
-    gl!.uniform2f(u(drawProg, 'uView'), viewW, viewH);
-    gl!.uniform2f(u(drawProg, 'uHue'), hue, hue2);
-    gl!.uniform1f(u(drawProg, 'uDpr'), dpr);
-    gl!.uniform1f(u(drawProg, 'uCeil'), headroom);
-    gl!.drawArrays(gl!.POINTS, 0, COLS * STRANDS);
+    bindTex(drawProg!, 'uPos', 0, pools![front].pos);
+    bindTex(drawProg!, 'uSt', 1, pools![front].st);
+    gl!.uniform3f(u(drawProg!, 'uBar'), barX0, barX1, barY);
+    gl!.uniform2f(u(drawProg!, 'uView'), viewW, viewH);
+    gl!.uniform2f(u(drawProg!, 'uHue'), hue, hue2);
+    gl!.uniform1f(u(drawProg!, 'uDpr'), dpr / scale);
+    gl!.uniform1f(u(drawProg!, 'uCeil'), headroom);
+    gl!.drawArrays(gl!.POINTS, first, count);
+  }
+
+  function draw(): void {
+    if (!drawProg || !resolveProg || !pools || !acc || !bloom) return;
+
+    const seat = BLOOM_ROW * COLS;
+    points(bloom.fbo, Math.ceil(canvas.width / BLOOM_SCALE),
+      Math.ceil(canvas.height / BLOOM_SCALE), BLOOM_SCALE, seat, COLS * STRANDS - seat);
+    points(acc.fbo, canvas.width, canvas.height, 1, 0, seat);
 
     // The title's own ceiling, and the one thing that decides it: a name is
     // lit while the record is playing and is page white when it is not.
@@ -1880,6 +1964,10 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
 
     pass(resolveProg, null, canvas.width, canvas.height);
     bindTex(resolveProg, 'uAcc', 0, acc.tex);
+    bindTex(resolveProg, 'uBloom', 1, bloom.tex);
+    // The haze sits in a buffer a whole fraction narrower than this one, so a
+    // fragment finds its own place in it by dividing by the wider of the two.
+    gl!.uniform2f(u(resolveProg, 'uBloomUv'), 1 / accW, 1 / accH);
     gl!.drawArrays(gl!.TRIANGLES, 0, 3);
   }
 
@@ -2099,6 +2187,7 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
   }
 
   let raf = 0;
+  let sizeRaf = 0;
   let idleAt = 0;
   let busyUntil = 0;
   let last = 0;
@@ -2154,6 +2243,10 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
       stepFluid(dt);
       const n = Math.max(1, Math.min(SUB_MAX, Math.ceil(dt / SUB)));
       for (let s = 0; s < n; s++) stepParticles(dt / n);
+      // Rounded and not raised: 120 lands on one step and 60 on two, where a
+      // ceiling would flap between two counts on the jitter either side.
+      const cn = Math.max(1, Math.round(dt / CLOUD_SUB));
+      for (let s = 0; s < cn; s++) stepCloud(dt / cn);
     }
 
     draw();
@@ -2201,21 +2294,38 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
     }
   }
 
+  /**
+   * Coalesced, because two things watch for this and both fire on a drag: the
+   * observer on the bar, and the window's own event. It was running the whole
+   * of `resize` twice a frame, layout reads and all.
+   */
   function onResize(): void {
-    if (resize()) draw();
+    if (sizeRaf) return;
+    sizeRaf = requestAnimationFrame(() => {
+      sizeRaf = 0;
+      // Woken rather than merely redrawn. The homes went with the bar and it is
+      // the spring that carries the strands after them, which takes frames — a
+      // repaint on its own puts the old positions back under the new geometry
+      // and leaves them there for as long as nothing else asks for a frame.
+      if (resize()) wake(SETTLE_MS);
+    });
   }
 
   /**
    * The ceiling, from the three things that decide it: what this browser will
    * hand over, what the screen can show and what the listener asked for. The
    * changes that can arrive here — a window dragged to another monitor and a
-   * switch thrown in the settings — take one path to the buffer's format and
-   * one to the shader.
+   * switch thrown in the settings — take one path to the buffer's format, one
+   * to the shader and one to the stylesheet.
    */
   function applyHdr(): void {
     const on = canHdr && !!hdrRange?.matches && hdrWanted;
     if (on === (headroom > 1)) return;
     headroom = on ? HEADROOM : 1;
+    // Said on the element too, because there is one thing the page must not do
+    // to a canvas drawing above white: a CSS filter rasterises it through an
+    // SDR surface and the range is gone. See `.glow-field.range`.
+    canvas.classList.toggle('range', on);
     extendRange(on);
     sizeBuffer(canvas.width, canvas.height);
     draw();
@@ -2225,6 +2335,8 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
     e.preventDefault();
     if (raf) cancelAnimationFrame(raf);
     raf = 0;
+    if (sizeRaf) cancelAnimationFrame(sizeRaf);
+    sizeRaf = 0;
     opts.onLost?.();
   }
 
@@ -2351,10 +2463,13 @@ export function mountGlowField(host: HTMLElement, opts: GlowFieldOptions = {}): 
       canvas.removeEventListener('webglcontextlost', onLost);
       hdrRange?.removeEventListener('change', applyHdr);
       if (raf) cancelAnimationFrame(raf);
+      if (sizeRaf) cancelAnimationFrame(sizeRaf);
+      sizeRaf = 0;
       if (idleAt) clearTimeout(idleAt);
       idleAt = 0;
       canvas.remove();
       drop(acc);
+      drop(bloom);
       drop(divT);
       drop(whole);
       if (specTex) gl!.deleteTexture(specTex);
