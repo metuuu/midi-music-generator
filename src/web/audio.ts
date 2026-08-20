@@ -568,25 +568,140 @@ export async function playCode(code: string, bars?: number): Promise<void> {
 const band = new Map<LayerId, Pattern>();
 
 /**
- * Put a whole song on, as a stack of layers that can be replaced individually.
+ * A song compiled and waiting, as patterns rather than as text.
  *
- * The alternative — and what this replaces — is handing Strudel the whole song
- * as text every time anything changes. That is 60–124 KB of generated
- * JavaScript through an acorn parse, a compile of a source string the engine has
- * never seen before (so nothing is JIT-cached), and a pattern graph of several
- * thousand combinators, synchronously, on the frame the stage is animating.
+ * Everything expensive about putting a record on has already happened by the
+ * time one of these exists, which is the whole point of the shape: installing
+ * it is a handful of map writes and a `setPattern`.
+ */
+export interface StagedBand {
+  cpm: number;
+  bars: number;
+  layers: { layer: LayerId; pattern: Pattern }[];
+}
+
+/**
+ * A task between compiles, so a running clock gets its tick.
  *
- * What makes the difference is `ref`, whose own docstring in `@strudel/core`
- * says it: *exposes a custom value at query time. basically allows mutating
- * state without evaluation*. The pattern the scheduler holds asks this map for
- * each layer every time it is queried, so `mutePlayer` is a map write and costs
- * nothing at all, and `swapPlayer` costs one layer's text rather than a song's.
+ * A task rather than a frame, because a hidden page fires no frames and the
+ * clock this is making room for is a `setInterval` on this same thread.
+ */
+function breathe(): Promise<void> {
+  return new Promise((resolve) => { window.setTimeout(resolve, 0); });
+}
+
+/**
+ * The largest block that may be compiled under music, in bytes.
+ *
+ * Measured over 309 blocks. At 16 KB the worst compile was 124 ms and the
+ * median 77, against the ~0.3 s of audio the scheduler always has in hand — see
+ * `pieceCycles`. Past that the curve turns hard: 32 KB and over measured 524 ms,
+ * which is not a pause but a dropout.
+ *
+ * Three quarters of records have no block over this and are compiled through
+ * before the changeover reaches them. The rest arrive with their one dense part
+ * still to do, which is the whole of what a changeover used to be.
+ */
+const UNDER_MUSIC_BYTES = 16 * 1024;
+
+/**
+ * Blocks already compiled for a set of parts, so a later pass pays for the rest.
+ *
+ * Weak on the parts rather than keyed by text: a record's compiled halves die
+ * with the record, and two records that happened to emit the same bass line
+ * never reach into each other's work.
+ */
+const warmed = new WeakMap<StrudelParts, Map<string, Pattern>>();
+
+function blocksOf(parts: StrudelParts): Map<string, Pattern> {
+  let done = warmed.get(parts);
+  if (!done) warmed.set(parts, done = new Map());
+  return done;
+}
+
+/**
+ * Compile as much of a song as can be compiled without starving the clock.
+ *
+ * ## What this is for
+ *
+ * Handing Strudel a whole song is 27–194 KB of generated JavaScript through an
+ * acorn parse and a pattern graph of several thousand combinators — 88 ms to
+ * near a second of blocked main thread, on the thread the clock runs on. That is
+ * why a record used to be compiled in the gap between two records and nowhere
+ * else: a gap is the one place there is nothing to starve.
+ *
+ * Blocks are what makes most of it fit *under* music instead. A song emits 2–19
+ * of them, the median record's largest is 11 KB, and with a task between each
+ * the thread comes back long before the scheduler runs out of queried audio.
+ *
+ * ## What it deliberately leaves
+ *
+ * Compile cost is not linear in a block's length — a dense comp is one
+ * mini-notation string of 224 bars, and the two biggest measured 443 and 400 ms
+ * on their own. Those are left for the changeover rather than slowed down,
+ * because a starved scheduler is an audible hole and a longer gap is not.
+ *
+ * Nothing is returned: the work lands where `stageBand` will find it.
+ */
+export async function warmBand(parts: StrudelParts): Promise<void> {
+  // `prepareAudio` rather than `initAudio` for the reason `loadCode` gives: a
+  // compile is arithmetic and needs nobody's permission.
+  const repl = await prepareAudio();
+  const done = blocksOf(parts);
+  for (const { blocks } of parts.layers) {
+    for (const block of blocks) {
+      if (done.has(block) || block.length > UNDER_MUSIC_BYTES) continue;
+      done.set(block, await compile(block));
+      if (repl.scheduler.started) await breathe();
+    }
+  }
+}
+
+/**
+ * A song as patterns, compiling whatever `warmBand` did not get to.
+ *
+ * The pause between blocks is taken only while the clock is running, which is
+ * what lets one function serve an idle page arming its first record and a
+ * changeover that has already stopped the scheduler. Neither has anything to be
+ * polite to, so both compile in a single run.
+ */
+export async function stageBand(parts: StrudelParts): Promise<StagedBand> {
+  const repl = await prepareAudio();
+  const done = blocksOf(parts);
+  const layers: StagedBand['layers'] = [];
+  for (const { layer, blocks } of parts.layers) {
+    const patterns: Pattern[] = [];
+    for (const block of blocks) {
+      let pattern = done.get(block);
+      if (!pattern) {
+        pattern = await compile(block);
+        done.set(block, pattern);
+        if (repl.scheduler.started) await breathe();
+      }
+      patterns.push(pattern);
+    }
+    layers.push({
+      layer,
+      pattern: patterns.length === 1 ? patterns[0]! : stack(...patterns),
+    });
+  }
+  return { cpm: parts.cpm, bars: parts.bars, layers };
+}
+
+/**
+ * Put a staged song on, as a stack of layers that can be replaced individually.
+ *
+ * What makes a player swappable afterwards is `ref`, whose own docstring in
+ * `@strudel/core` says it: *exposes a custom value at query time. basically
+ * allows mutating state without evaluation*. The pattern the scheduler holds
+ * asks this map for each layer every time it is queried, so `mutePlayer` is a
+ * map write and costs nothing at all, and `swapPlayer` costs one layer.
  *
  * `autostart` is false for the same reason `loadCode` exists: a stage decides
  * when bar one happens, and evaluating onto a running clock starts the song
  * somewhere in its middle. See `startLoaded`.
  */
-export async function loadBand(parts: StrudelParts, autostart = false): Promise<void> {
+export async function installBand(staged: StagedBand, autostart = false): Promise<void> {
   const repl = await initAudio();
   band.clear();
   // The pattern about to be installed is a stack of `ref`s rather than anybody's
@@ -597,13 +712,11 @@ export async function loadBand(parts: StrudelParts, autostart = false): Promise<
   // Taken from the parts rather than asked of the caller, because a stage that
   // forgot to say would be a stage with a stutter on the end of every number.
   // See `pieceCycles`.
-  pieceCycles = parts.bars;
-  for (const { layer, code } of parts.layers) {
-    band.set(layer, await compile(code));
-  }
+  pieceCycles = staged.bars;
+  for (const { layer, pattern } of staged.layers) band.set(layer, pattern);
   // `setcpm` in the emitted preamble, called directly — there is no code left
   // to evaluate it in. One cycle is one bar, so cps is cpm/60.
-  repl.setCps(parts.cpm / 60);
+  repl.setCps(staged.cpm / 60);
   /**
    * Snapshot the layer ids, not the map's keys at query time.
    *
@@ -612,11 +725,21 @@ export async function loadBand(parts: StrudelParts, autostart = false): Promise<
    * moves. Reading the live key set here would let a swap change the *shape* of
    * the stack, which is a re-evaluation by another route.
    */
-  const layers = parts.layers.map((l) => l.layer);
+  const layers = staged.layers.map((l) => l.layer);
   await repl.setPattern(
     stack(...layers.map((layer) => ref(() => band.get(layer) ?? silence))),
     autostart,
   );
+}
+
+/**
+ * Compile a song and put it on, in one call.
+ *
+ * The pair is worth keeping apart wherever the two halves can happen at
+ * different times — see `stageBand`, and the radio's `cueNext`.
+ */
+export async function loadBand(parts: StrudelParts, autostart = false): Promise<void> {
+  await installBand(await stageBand(parts), autostart);
 }
 
 /**

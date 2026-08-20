@@ -48,6 +48,16 @@ export interface StrudelRenderOptions {
 export interface LayerPattern {
   layer: LayerId;
   code: string;
+  /**
+   * The same music in pieces that each evaluate on their own.
+   *
+   * A whole song compiles in 88 ms to near a second and the scheduler's clock is
+   * a timer on that same thread, so a compile that has to happen under music has
+   * to be taken in slices. A song emits 2–19 of these; the median record's
+   * largest is 11 KB and its worst is dense enough to need the gap after all.
+   * See `warmBand` in `web/audio.ts`.
+   */
+  blocks: string[];
 }
 
 /**
@@ -92,6 +102,12 @@ interface Emitted {
   layer: LayerId;
   defs: string[];
   code: string;
+  /**
+   * Whether this block only evaluates alongside the one before it. A sung voice
+   * is one `const` filtered three times and only the first of them carries it,
+   * so those four are one slice however small the slices are meant to be.
+   */
+  joins: boolean;
 }
 
 export function renderStrudel(song: Song, opts: StrudelRenderOptions = {}): string {
@@ -124,24 +140,33 @@ export function renderStrudel(song: Song, opts: StrudelRenderOptions = {}): stri
  */
 export function renderStrudelParts(song: Song, opts: StrudelRenderOptions = {}): StrudelParts {
   const { parts } = build(song, opts);
-  const byLayer = new Map<LayerId, Emitted[]>();
+  const byLayer = new Map<LayerId, Emitted[][]>();
   for (const part of parts) {
-    const at = byLayer.get(part.layer) ?? [];
-    at.push(part);
-    byLayer.set(part.layer, at);
+    const runs = byLayer.get(part.layer) ?? [];
+    if (part.joins && runs.length) runs[runs.length - 1]!.push(part);
+    else runs.push([part]);
+    byLayer.set(part.layer, runs);
   }
 
   return {
     cpm: song.meta.bpm / song.meta.beatsPerBar,
     bars: song.meta.totalBars,
-    layers: [...byLayer].map(([layer, group]) => ({
+    layers: [...byLayer].map(([layer, runs]) => ({
       layer,
-      code: [
-        ...group.flatMap((p) => p.defs),
-        `stack(\n${group.map((p) => p.code).join(',\n\n')}\n)`,
-      ].join('\n'),
+      code: evaluable(runs.flat()),
+      blocks: runs.map(evaluable),
     })),
   };
+}
+
+/** Emitted blocks as one expression, with the declarations they refer to. */
+function evaluable(group: Emitted[]): string {
+  return [
+    ...group.flatMap((p) => p.defs),
+    group.length === 1
+      ? group[0]!.code
+      : `stack(\n${group.map((p) => p.code).join(',\n\n')}\n)`,
+  ].join('\n');
 }
 
 function build(song: Song, opts: StrudelRenderOptions): { header: string[]; parts: Emitted[] } {
@@ -222,8 +247,8 @@ function build(song: Song, opts: StrudelRenderOptions): { header: string[]; part
 
   const parts: Emitted[] = [];
   /** Every emitted block belongs to somebody. `push` is where it is said. */
-  const push = (layer: LayerId, code: string, defs: string[] = []) => {
-    parts.push({ layer, code, defs });
+  const push = (layer: LayerId, code: string, defs: string[] = [], joins = false) => {
+    parts.push({ layer, code, defs, joins });
   };
 
   const spelling = spellingFor(meta.tonic, meta.mode);
@@ -273,7 +298,7 @@ function build(song: Song, opts: StrudelRenderOptions): { header: string[]; part
       );
       let first = true;
       for (const code of voiceParts(track, binding, meta.totalBars, slotsPerBar)) {
-        push(track.layer, code, first ? defs : []);
+        push(track.layer, code, first ? defs : [], !first);
         first = false;
       }
       const burst = consonantBurst(track, meta.totalBars, slotsPerBar, meta.bpm, divided);

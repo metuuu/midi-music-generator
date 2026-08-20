@@ -38,8 +38,9 @@
  */
 
 import {
-  getSpectrum, initAudio, loadCode, pausePlayback, preloadSounds, setOutputLevel, silenceVoices,
-  startLoaded, stopPlayback, stopSounding,
+  getSpectrum, initAudio, installBand, pausePlayback, preloadSounds, setOutputLevel,
+  silenceVoices, stageBand, startLoaded, stopPlayback, stopSounding, warmBand,
+  type StagedBand,
 } from './audio.js';
 import { generateSongAsync } from './generator.js';
 import {
@@ -53,7 +54,7 @@ import { Rng } from '../core/rng.js';
 import { songDurationBeats, type Song } from '../core/types.js';
 import type { GenerateOptions } from '../generate/song.js';
 import { HOOK_LEVELS } from '../generate/hook.js';
-import { renderStrudel } from '../render/strudel.js';
+import { renderStrudelParts, type StrudelParts } from '../render/strudel.js';
 import {
   DEFAULT_WANDER, STATIONS, getStation, newToken, recordOptions, sourceLabel,
   type Station, type VoicePolicy,
@@ -114,7 +115,9 @@ interface Cut {
    */
   opts: GenerateOptions;
   /** Its Strudel, rendered when the cut was written rather than in the gap. */
-  code: string;
+  parts: StrudelParts;
+  /** The same record compiled, once anybody has asked for it. See `bandFor`. */
+  staged?: Promise<StagedBand>;
 }
 
 let station: Station = STATIONS[0];
@@ -1082,17 +1085,31 @@ async function write(st: Station, w: number, token: string): Promise<Cut> {
   const song = await generateSongAsync(opts);
   // Rendered here rather than in the changeover: it is single-figure
   // milliseconds, but the gap between two records has none to spare.
-  return { station: st, wander: w, token, song, opts, code: renderStrudel(withoutSungVoice(song)) };
+  return {
+    station: st, wander: w, token, song, opts,
+    parts: renderStrudelParts(withoutSungVoice(song)),
+  };
+}
+
+/**
+ * A record's compiled band, finishing whatever `warmBand` did not get to.
+ *
+ * Memoised on the cut, so the three routes to a downbeat — armed on an idle
+ * page, cued under the record before, or neither because the press beat both —
+ * never pay for the same compile twice and never race each other for it.
+ */
+function bandFor(cut: Cut): Promise<StagedBand> {
+  if (!cut.staged) cut.staged = stageBand(cut.parts);
+  return cut.staged;
 }
 
 /**
  * Cue the next record over the top of this one.
  *
  * Generation is tens of milliseconds on a worker and the render is single
- * figures, so neither is why this exists. `preloadSounds` is why: it is network,
- * and a station that changes genre between records asks for a band nobody has
- * heard yet more often than not. Done here it happens under music, where
- * latency costs nothing.
+ * figures, so neither is why this exists. The other two are: `preloadSounds` is
+ * network, and the compile is 88 ms to near a second of blocked main thread.
+ * Done here both happen under music, where latency costs nothing.
  */
 function cueNext(): void {
   const st = station;
@@ -1101,6 +1118,14 @@ function cueNext(): void {
     try {
       const next = await write(st, w, newToken());
       await preloadSounds(next.song);
+      // Not awaited, because nothing is waiting: a record cued three minutes
+      // out has three minutes. A skip landing mid-warm goes to `bandFor`, which
+      // keeps every block this got through and compiles the rest itself.
+      void warmBand(next.parts).catch((err) => {
+        // A record that would not compile early compiles in the gap instead,
+        // which is where every record compiled before this existed.
+        console.warn('radio: could not compile the next record in advance', err);
+      });
       return next;
     } catch (err) {
       console.warn('radio: could not cue the next record in advance', err);
@@ -1127,33 +1152,32 @@ function recue(): void {
  *
  * The band over the wire is the large half — a median 1.6 MB of soundfonts and
  * kit for a record, and it used to begin moving on the press — and the compile is
- * the slow half, 0.5–1.9 s of blocked main thread. Done here, a cold press is a
- * `startLoaded` and the button never has anything to say.
+ * the slow half. Done here, a cold press is a `startLoaded` and the button never
+ * has anything to say.
  *
- * Only ever for the record showing on an idle page, and only *once*: the record
- * cued under a playing one is deliberately not compiled, because that compile
- * would block the thread the scheduler is running on. See `cueNext`, and the
- * changeover in `play`, which is where the compile belongs when there is music
- * to hide it behind.
+ * Only ever for the record showing on an idle page, and the only route that
+ * compiles a whole record in one run — a record cued under a playing one goes
+ * through `warmBand`, which leaves its densest part alone. Nothing is playing
+ * here, so there is nothing to leave it alone for.
  */
 async function arm(cut: Cut): Promise<void> {
   try {
     await preloadSounds(cut.song);
     /**
-     * The compile is a blocked main thread, and a transition that has not started
-     * yet cannot start until the thread comes back — so compiling through the
-     * reveal would hold the placeholders up and then land the whole swap in a
-     * lump. One already running is composited and survives it, which is why
-     * waiting for the lines is enough. See `showLines`.
+     * An idle page has no clock to be polite to, so `stageBand` compiles this
+     * one in a single run — and a transition that has not started yet cannot
+     * start until the thread comes back. One already running is composited and
+     * survives it, which is why waiting for the lines is enough. See `showLines`.
      */
     await until(linesBy);
+    const staged = await bandFor(cut);
     /**
-     * Somebody pressed something, and the transport is theirs now. `loadCode`
-     * installs the pattern the scheduler reads, so arming a record nobody is
-     * waiting for any more would put it underneath one that is playing.
+     * Somebody pressed something, and the transport is theirs now. Installing
+     * puts this record under the scheduler, so arming one nobody is waiting for
+     * any more would put it underneath one that is playing.
      */
     if (current !== cut || playing || paused || loading) return;
-    await loadCode(cut.code, cut.song.meta.totalBars);
+    await installBand(staged);
   } catch (err) {
     // A record that would not get ready early is one that gets ready on the
     // press instead, which is where every record was before this existed. Not
@@ -1258,12 +1282,14 @@ async function play(cut: Cut, handover?: Handover): Promise<void> {
 
     if (handover) {
       /**
-       * The compile, in the one window where a blocked main thread costs
-       * nothing. `skip` and `advance` have both already stopped the scheduler,
-       * so there is nothing here to starve; the last chord is ringing on the
-       * audio clock, which this thread cannot reach and does not need to.
+       * Most of it already done: `cueNext` compiled this record under the one
+       * that has just ended, all but any block too dense to compile under music.
+       * What is left lands here, and here is where it costs least — `skip` and
+       * `advance` have both already stopped the scheduler, so there is nothing
+       * to starve and the last chord is ringing on a clock this thread cannot
+       * reach.
        */
-      await loadCode(cut.code, cut.song.meta.totalBars);
+      await installBand(await bandFor(cut));
       if (mine !== generation) return;
       await until(handover.notBefore);
       if (mine !== generation) return;
@@ -1291,10 +1317,10 @@ async function play(cut: Cut, handover?: Handover): Promise<void> {
       /**
        * The same two steps as the handover above, rather than one `playCode`
        * that does both, and for the same reason plus one: `arm` has usually
-       * compiled this record already, and `loadCode` knows it — so what is left
-       * of the press is the scheduler starting.
+       * compiled this record already and `bandFor` knows it — so what is left of
+       * the press is the scheduler starting.
        */
-      await loadCode(cut.code, cut.song.meta.totalBars);
+      await installBand(await bandFor(cut));
       if (mine !== generation) return;
       await startLoaded();
     }
