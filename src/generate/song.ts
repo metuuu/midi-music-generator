@@ -73,7 +73,7 @@ import {
 } from './solo.js';
 import { generateVocalStack } from './vocals.js';
 import {
-  castFigures, DEFAULT_SIGNATURE, DEFAULT_SWAP, DEFAULT_VARY, type FigureCast,
+  castFigures, DEFAULT_SIGNATURE, DEFAULT_SWAP, DEFAULT_VARY, doubleFigure, type FigureCast,
   generateBass, generateBrass, generateComp, generateCounter, generateDrums,
   generateLeftHand, generatePad, planFigureVariation, planKitVariation, planSignature,
   type PartContext, sectionFigure, signFigure, undoubleAgainst } from './parts.js';
@@ -1806,9 +1806,19 @@ export function generateSong(opts: GenerateOptions = {}): Song {
     // A soloist's own layer is skipped here — a bass taking a chorus is not
     // also walking behind it, and a pianist soloing is not also comping.
     const walkup = style.walkup ?? genre.walkup ?? 0;
+    /**
+     * A bass that doubles the guitar takes the comp figure's rhythm on the root,
+     * and the comp's phrase-end gesture with it, so the two stay locked. A held
+     * or arpeggiated guitar has no rhythm to double, and the row's own hits play.
+     */
+    const doubled = sectionBassFigure.doubles && active.has('comp') && soloLayer !== 'comp'
+      && !sectionCompFigure.arpeggio && sectionCompFigure.hits.length >= 2
+      ? doubleFigure(sectionBassFigure, sectionCompFigure)
+      : undefined;
+    const variation = doubled ? compVariation : bassVariation;
     let sectionBass = active.has('bass') && soloLayer !== 'bass'
-      ? generateBass(ctxFor('bass'), sectionBassFigure, {
-        ...(bassVariation ? { variation: bassVariation } : {}),
+      ? generateBass(ctxFor('bass'), doubled ?? sectionBassFigure, {
+        ...(variation ? { variation } : {}),
         ...(walkup > 0 ? {
           walkup: {
             chance: walkup,

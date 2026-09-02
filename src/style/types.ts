@@ -187,6 +187,12 @@ export interface BassPattern {
    * on. The pad already merges this way, and for the same reason.
    */
   sustain?: boolean;
+  /**
+   * Double the guitar: take the comp figure's rhythm on the root wherever the
+   * comp is sounding, is not an arpeggio and has at least two onsets. `hits` is
+   * what plays under a held chord, where there is nothing to double.
+   */
+  doubles?: boolean;
 }
 
 export interface CompHit {

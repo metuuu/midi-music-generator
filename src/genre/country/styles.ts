@@ -155,6 +155,70 @@ const waltzBoom = (weight: number): BassPattern => ({
 });
 
 /**
+ * Root, third, fifth, sixth in quarters: the honky-tonk walk, and what a
+ * western swing bass plays all night. The sixth is a number because the chord
+ * has no such function, and the major sixth over a minor chord is the idiom.
+ */
+const walkSix = (weight: number): BassPattern => ({
+  name: 'one-three-five-six', weight,
+  hits: [
+    { at: 0, dur: 4, tone: 'root', vel: 1 },
+    { at: 4, dur: 4, tone: 'third', vel: 0.84 },
+    { at: 8, dur: 4, tone: 'fifth', vel: 0.9 },
+    { at: 12, dur: 4, tone: 9, vel: 0.84 },
+  ],
+});
+
+/**
+ * The tic-tac: root and fifth in quarters with a muted eighth behind each, the
+ * Nashville session sound of a baritone guitar shadowing the bass.
+ */
+const ticTac = (weight: number): BassPattern => ({
+  name: 'tic-tac', weight,
+  hits: [
+    { at: 0, dur: 2, tone: 'root', vel: 1 },
+    { at: 2, dur: 1, tone: 'root', vel: 0.55 },
+    { at: 4, dur: 2, tone: 'fifth', vel: 0.86 },
+    { at: 6, dur: 1, tone: 'fifth', vel: 0.5 },
+    { at: 8, dur: 2, tone: 'root', vel: 0.95 },
+    { at: 10, dur: 1, tone: 'root', vel: 0.55 },
+    { at: 12, dur: 2, tone: 'fifth', vel: 0.86 },
+    { at: 14, dur: 2, tone: 'approach', vel: 0.7 },
+  ],
+});
+
+/** Root, third, fifth, octave in quarters: the gospel walk up the chord. */
+const gospelWalk = (weight: number): BassPattern => ({
+  name: 'gospel-walk', weight,
+  hits: [
+    { at: 0, dur: 4, tone: 'root', vel: 1 },
+    { at: 4, dur: 4, tone: 'third', vel: 0.84 },
+    { at: 8, dur: 4, tone: 'fifth', vel: 0.9 },
+    { at: 12, dur: 4, tone: 'octave', vel: 0.82 },
+  ],
+});
+
+/** The boom-chuck with an eighth-note pickup into the next chord. */
+const boomPickup = (weight: number): BassPattern => ({
+  name: 'boom-chuck-pickup', weight,
+  hits: [
+    { at: 0, dur: 4, tone: 'root', vel: 1 },
+    { at: 8, dur: 6, tone: 'fifth', vel: 0.85 },
+    { at: 14, dur: 2, tone: 'approach', vel: 0.78 },
+  ],
+});
+
+/** Root, third, fifth across the waltz bar. */
+const waltzArpeggio = (weight: number): BassPattern => ({
+  name: 'waltz-one-three-five', weight,
+  hits: [
+    { at: 0, dur: 4, tone: 'root', vel: 1 },
+    { at: 4, dur: 4, tone: 'third', vel: 0.8 },
+    { at: 8, dur: 4, tone: 'fifth', vel: 0.84 },
+  ],
+});
+
+/**
  * The chuck: the chord on two and four, short.
  *
  * The guitar half. Two sixteenths of chord and then the fretting hand relaxes —
@@ -690,7 +754,7 @@ const breakdown: Style = {
     { cell: [16], weight: 4 },
     { cell: [4, 4, 8], weight: 3 },
   ],
-  bass: [boomChuck(6), boomRun(4)],
+  bass: [boomPickup(3), boomChuck(6), boomRun(4)],
   comp: [chuck(6), roll(5), chop(3)],
   drums: [],
   melody: { leap: 0.3, ornament: 0.3, span: 12, sequence: 0.62, syncopation: 0.15 },
@@ -761,7 +825,7 @@ const bluegrass: Style = {
   minorProgressions: MINOR_CHORDS,
   melodyCells: PLAIN_CELLS,
   cadenceCells: PLAIN_CADENCES,
-  bass: [boomChuck(6), boomRun(5)],
+  bass: [boomPickup(3), boomChuck(6), boomRun(5)],
   comp: [roll(7), chop(6), chuck(4), reverseRoll(3)],
   drums: [],
   melody: { leap: 0.32, ornament: 0.28, span: 14, sequence: 0.6, syncopation: 0.18 },
@@ -817,7 +881,7 @@ const bluegrasswaltz: Style = {
   minorProgressions: MINOR_CHORDS,
   melodyCells: WALTZ_CELLS,
   cadenceCells: WALTZ_CADENCES,
-  bass: [waltzBoom(6), {
+  bass: [waltzArpeggio(3), waltzBoom(6), {
     name: 'waltz-walk', weight: 3, hits: [
       { at: 0, dur: 4, tone: 'root', vel: 1 },
       { at: 8, dur: 4, tone: 'approach', vel: 0.78 },
@@ -885,7 +949,7 @@ const gospel: Style = {
   minorProgressions: MINOR_CHORDS,
   melodyCells: PLAIN_CELLS,
   cadenceCells: PLAIN_CADENCES,
-  bass: [boomChuck(5), twoBeat(4), boomRun(3)],
+  bass: [gospelWalk(4), boomChuck(5), twoBeat(4), boomRun(3)],
   comp: [chuck(5), {
     name: 'gospel-rock', weight: 5, voices: 4, hits: [
       { at: 0, dur: 3, vel: 0.7 },
@@ -980,7 +1044,7 @@ const cowboy: Style = {
     { cell: [-4, 12], weight: 3 },
     { cell: [8, 8], weight: 2 },
   ],
-  bass: [twoBeat(6), boomChuck(4)],
+  bass: [boomPickup(3), twoBeat(6), boomChuck(4)],
   comp: [chuck(5), {
     name: 'open-strum', weight: 5, voices: 5, hits: [
       { at: 0, dur: 4, vel: 0.8 },
@@ -1125,7 +1189,7 @@ const murderballad: Style = {
     { cell: [-8, 8], weight: 3 },
     { cell: [8, 8], weight: 2 },
   ],
-  bass: [twoBeat(6), boomChuck(3)],
+  bass: [boomPickup(2), twoBeat(6), boomChuck(3)],
   comp: [chuck(4), {
     name: 'ballad-strum', weight: 6, voices: 5, hits: [
       { at: 0, dur: 6, vel: 0.76 },
@@ -1170,7 +1234,7 @@ const newgrass: Style = {
   minorProgressions: MINOR_CHORDS,
   melodyCells: PLAIN_CELLS,
   cadenceCells: PLAIN_CADENCES,
-  bass: [boomRun(6), boomChuck(4), {
+  bass: [boomPickup(3), boomRun(6), boomChuck(4), {
     name: 'newgrass-walk', weight: 3, walking: true, hits: [
       { at: 0, dur: 4, tone: 'root' },
       { at: 4, dur: 4, tone: 'third' },
@@ -1237,7 +1301,7 @@ const honkytonk: Style = {
   },
   melodyCells: PLAIN_CELLS,
   cadenceCells: PLAIN_CADENCES,
-  bass: [boomChuck(6), boomRun(4), {
+  bass: [walkSix(5), ticTac(3), boomChuck(6), boomRun(4), {
     name: 'shuffle-walk', weight: 4, walking: true, hits: [
       { at: 0, dur: 4, tone: 'root' },
       { at: 4, dur: 4, tone: 'third' },
@@ -1300,7 +1364,7 @@ const twostep: Style = {
   minorProgressions: MINOR_CHORDS,
   melodyCells: PLAIN_CELLS,
   cadenceCells: PLAIN_CADENCES,
-  bass: [twoBeat(6), boomChuck(5), boomRun(3)],
+  bass: [walkSix(4), twoBeat(6), boomChuck(5), boomRun(3)],
   comp: [chuck(7), {
     name: 'dancehall-eighths', weight: 4, voices: 4, hits: [
       { at: 0, dur: 2, vel: 0.62 }, { at: 4, dur: 2, vel: 0.92 },
@@ -1342,7 +1406,7 @@ const waltz: Style = {
   minorProgressions: MINOR_CHORDS,
   melodyCells: WALTZ_CELLS,
   cadenceCells: WALTZ_CADENCES,
-  bass: [waltzBoom(6), {
+  bass: [waltzArpeggio(3), waltzBoom(6), {
     name: 'waltz-one-five', weight: 3, hits: [
       { at: 0, dur: 4, tone: 'root', vel: 1 },
       { at: 8, dur: 4, tone: 'fifth', vel: 0.72 },
@@ -1448,7 +1512,7 @@ const westernswing: Style = {
     { cell: [-4, 12], weight: 3 },
     { cell: [8, 8], weight: 2 },
   ],
-  bass: [{
+  bass: [walkSix(5), {
     name: 'walking', weight: 7, walking: true, hits: [
       { at: 0, dur: 4, tone: 'root' },
       { at: 4, dur: 4, tone: 'third' },
@@ -1523,7 +1587,7 @@ const trainsong: Style = {
   minorProgressions: MINOR_CHORDS,
   melodyCells: PLAIN_CELLS,
   cadenceCells: PLAIN_CADENCES,
-  bass: [{
+  bass: [ticTac(3), {
     name: 'damped-quarters', weight: 7, hits: [
       { at: 0, dur: 3, tone: 'root', vel: 1 },
       { at: 4, dur: 3, tone: 'root', vel: 0.8 },
@@ -1609,7 +1673,7 @@ const rockabilly: Style = {
     { cell: [12, 4], weight: 3 },
     { cell: [8, 8], weight: 3 },
   ],
-  bass: [{
+  bass: [walkSix(4), {
     name: 'slap', weight: 7, hits: [
       { at: 0, dur: 2, tone: 'root', vel: 1 },
       { at: 4, dur: 2, tone: 'fifth', vel: 0.86 },
@@ -1685,7 +1749,7 @@ const cajun: Style = {
   minorProgressions: MINOR_CHORDS,
   melodyCells: PLAIN_CELLS,
   cadenceCells: PLAIN_CADENCES,
-  bass: [boomChuck(6), twoBeat(4)],
+  bass: [boomPickup(3), boomChuck(6), twoBeat(4)],
   comp: [chuck(6), {
     name: 'accordion-push', weight: 5, voices: 3, hits: [
       { at: 0, dur: 2, vel: 0.7 }, { at: 4, dur: 3, vel: 0.94 },
@@ -1783,7 +1847,7 @@ const zydeco: Style = {
     { cell: [-4, 4, 4, 4], weight: 2 },
   ],
   cadenceCells: PLAIN_CADENCES,
-  bass: [{
+  bass: [boomPickup(3), {
     name: 'zydeco-eights', weight: 6, hits: [
       { at: 0, dur: 2, tone: 'root', vel: 1 },
       { at: 6, dur: 2, tone: 'root', vel: 0.78 },
@@ -1880,7 +1944,7 @@ const countrypolitan: Style = {
     { cell: [-4, 12], weight: 3 },
     { cell: [8, 8], weight: 2 },
   ],
-  bass: [twoBeat(7), boomChuck(3)],
+  bass: [ticTac(4), twoBeat(7), boomChuck(3)],
   comp: [{
     name: 'session-eighths', weight: 6, voices: 4, hits: [
       { at: 0, dur: 4, vel: 0.62 },
@@ -1939,7 +2003,7 @@ const ballad: Style = {
     { cell: [-8, 8], weight: 3 },
     { cell: [12, 4], weight: 2 },
   ],
-  bass: [twoBeat(7), {
+  bass: [gospelWalk(2), twoBeat(7), {
     name: 'ballad-root', weight: 4, hits: [{ at: 0, dur: 14, tone: 'root', vel: 0.92 }],
   }],
   comp: [{
@@ -1999,7 +2063,7 @@ const duet: Style = {
   minorProgressions: MINOR_CHORDS,
   melodyCells: PLAIN_CELLS,
   cadenceCells: PLAIN_CADENCES,
-  bass: [boomChuck(6), twoBeat(4)],
+  bass: [boomPickup(3), gospelWalk(2), boomChuck(6), twoBeat(4)],
   comp: [chuck(7), chop(4)],
   drums: [brushKit(5), twoBeatKit(4)],
   melody: { leap: 0.22, ornament: 0.24, span: 11, sequence: 0.68, syncopation: 0.12 },
@@ -2068,7 +2132,7 @@ const bakersfield: Style = {
     { cell: [2, 2, 2, 2, 8], weight: 2 },
   ],
   cadenceCells: PLAIN_CADENCES,
-  bass: [{
+  bass: [ticTac(4), walkSix(3), {
     name: 'fender-eights', weight: 7, hits: [
       { at: 0, dur: 2, tone: 'root', vel: 1 },
       { at: 4, dur: 2, tone: 'root', vel: 0.8 },
@@ -2134,7 +2198,7 @@ const truckdriving: Style = {
     { cell: [-4, 2, 2, 8], weight: 3 },
   ],
   cadenceCells: PLAIN_CADENCES,
-  bass: [{
+  bass: [ticTac(4), walkSix(3), {
     name: 'driving-eights', weight: 7, hits: [
       { at: 0, dur: 2, tone: 'root', vel: 1 },
       { at: 4, dur: 2, tone: 'root', vel: 0.82 },
@@ -2226,7 +2290,7 @@ const outlaw: Style = {
     { cell: [12, 4], weight: 2 },
   ],
   cadenceCells: PLAIN_CADENCES,
-  bass: [{
+  bass: [ticTac(3), {
     name: 'root-and-stay', weight: 7, hits: [
       { at: 0, dur: 4, tone: 'root', vel: 1 },
       { at: 4, dur: 4, tone: 'root', vel: 0.82 },
@@ -2306,7 +2370,7 @@ const countryrock: Style = {
   minorProgressions: MINOR_CHORDS,
   melodyCells: PLAIN_CELLS,
   cadenceCells: PLAIN_CADENCES,
-  bass: [{
+  bass: [boomPickup(3), {
     name: 'rock-eights', weight: 6, hits: [
       { at: 0, dur: 2, tone: 'root', vel: 1 },
       { at: 4, dur: 2, tone: 'root', vel: 0.8 },
@@ -2419,7 +2483,7 @@ const altcountry: Style = {
     { cell: [-4, 12], weight: 4 },
     { cell: [8, 8], weight: 2 },
   ],
-  bass: [twoBeat(6), {
+  bass: [boomPickup(3), twoBeat(6), {
     name: 'held-root', weight: 5, sustain: true, hits: [
       { at: 0, dur: 8, tone: 'root', vel: 0.92 },
       { at: 8, dur: 8, tone: 'root', vel: 0.86 },
@@ -2476,7 +2540,7 @@ const countrypop: Style = {
   minorProgressions: MINOR_CHORDS,
   melodyCells: PLAIN_CELLS,
   cadenceCells: PLAIN_CADENCES,
-  bass: [{
+  bass: [gospelWalk(3), {
     name: 'pop-eights', weight: 7, hits: [
       { at: 0, dur: 2, tone: 'root', vel: 1 },
       { at: 4, dur: 2, tone: 'root', vel: 0.82 },

@@ -657,6 +657,64 @@ const melodicBass = (weight: number): BassPattern => ({
   ],
 });
 
+/**
+ * The bass doubles the rhythm guitar: whatever the comp figure plays, on the
+ * root, an octave down. Under a ringing or arpeggiated guitar there is nothing
+ * to double and the eighths play instead. See `BassPattern.doubles`.
+ */
+const doubleGuitar = (weight: number): BassPattern => ({
+  name: 'double-guitar', weight, doubles: true,
+  hits: rootEights(weight).hits,
+});
+
+/** Root eighths that climb into the next bar through the ♭7 and the leading tone. */
+const eighthsPickup = (weight: number): BassPattern => ({
+  name: 'eighths-pickup', weight,
+  hits: [
+    { at: 0, dur: 2, tone: 0, vel: 0.98 }, { at: 2, dur: 2, tone: 0, vel: 0.8 },
+    { at: 4, dur: 2, tone: 0, vel: 0.86 }, { at: 6, dur: 2, tone: 0, vel: 0.8 },
+    { at: 8, dur: 2, tone: 0, vel: 0.92 }, { at: 10, dur: 2, tone: 0, vel: 0.8 },
+    { at: 12, dur: 2, tone: 10, vel: 0.88 }, { at: 14, dur: 2, tone: 11, vel: 0.84 },
+  ],
+});
+
+/**
+ * Root, third, fifth, octave and back down in eighths: the arpeggio every
+ * sixties bass player climbed. A line of thirds rather than a bounce, and
+ * `third` asks the chord so a minor chord climbs a minor third.
+ */
+const climb = (weight: number): BassPattern => ({
+  name: 'climb', weight,
+  hits: [
+    { at: 0, dur: 2, tone: 0, vel: 0.98 }, { at: 2, dur: 2, tone: 0, vel: 0.78 },
+    { at: 4, dur: 2, tone: 'third', vel: 0.86 }, { at: 6, dur: 2, tone: 7, vel: 0.84 },
+    { at: 8, dur: 2, tone: 12, vel: 0.92 }, { at: 10, dur: 2, tone: 7, vel: 0.82 },
+    { at: 12, dur: 2, tone: 'third', vel: 0.84 }, { at: 14, dur: 2, tone: 0, vel: 0.8 },
+  ],
+});
+
+/** Root and fourth, then root and fifth: a bar of Chuck Berry. */
+const fourths = (weight: number): BassPattern => ({
+  name: 'fourths', weight,
+  hits: [
+    { at: 0, dur: 2, tone: 0, vel: 0.98 }, { at: 2, dur: 2, tone: 0, vel: 0.8 },
+    { at: 4, dur: 2, tone: 5, vel: 0.9 }, { at: 6, dur: 2, tone: 5, vel: 0.8 },
+    { at: 8, dur: 2, tone: 0, vel: 0.94 }, { at: 10, dur: 2, tone: 0, vel: 0.8 },
+    { at: 12, dur: 2, tone: 7, vel: 0.9 }, { at: 14, dur: 2, tone: 5, vel: 0.82 },
+  ],
+});
+
+/** The root worried by its semitone neighbours, in pairs of eighths. */
+const crawl = (weight: number): BassPattern => ({
+  name: 'crawl', weight,
+  hits: [
+    { at: 0, dur: 2, tone: 0, vel: 0.98 }, { at: 2, dur: 2, tone: 0, vel: 0.82 },
+    { at: 4, dur: 2, tone: 1, vel: 0.9 }, { at: 6, dur: 2, tone: 1, vel: 0.82 },
+    { at: 8, dur: 2, tone: 0, vel: 0.94 }, { at: 10, dur: 2, tone: 0, vel: 0.82 },
+    { at: 12, dur: 2, tone: -1, vel: 0.9 }, { at: 14, dur: 2, tone: -1, vel: 0.82 },
+  ],
+});
+
 // ---------------------------------------------------------------------------
 // The guitar
 // ---------------------------------------------------------------------------
@@ -864,7 +922,7 @@ const beat: Style = {
     { cell: [12, 4], weight: 3 },
     { cell: [-4, 12], weight: 2 },
   ],
-  bass: [rootOctave(6), rootEights(3), boogieShuffle(2)],
+  bass: [climb(4), rootOctave(6), rootEights(3), boogieShuffle(2)],
   comp: [halfNotes(5), ringingChord(4), downstrokes(3)],
   drums: [tambourineBeat(6), backbeat(4), shuffleKit(2)],
   melody: { leap: 0.3, ornament: 0.22, span: 12, sequence: 0.55, syncopation: 0.3 },
@@ -940,7 +998,7 @@ const garage: Style = {
     { cell: [12, 4], weight: 3 },
     { cell: [-8, 8], weight: 2 },
   ],
-  bass: [rootEights(6), rootOctave(3), pentatonicRiff(2)],
+  bass: [doubleGuitar(4), fourths(3), rootEights(6), rootOctave(3), pentatonicRiff(2)],
   comp: [downstrokes(6), ringingChord(3), chug(2)],
   drums: [backbeat(6), tambourineBeat(3), trainBeat(2)],
   melody: { leap: 0.28, ornament: 0.14, span: 10, sequence: 0.6, syncopation: 0.3 },
@@ -1023,7 +1081,7 @@ const surf: Style = {
     { cell: [8, 8], weight: 3 },
     { cell: [4, 4, 8], weight: 2 },
   ],
-  bass: [rootEights(6), rootOctave(4), boogieShuffle(2)],
+  bass: [fourths(3), rootEights(6), rootOctave(4), boogieShuffle(2)],
   comp: [downstrokes(5), chug(4), halfNotes(2)],
   drums: [backbeat(5), trainBeat(4), tambourineBeat(2)],
   melody: { leap: 0.36, ornament: 0.45, span: 19, sequence: 0.5, syncopation: 0.25 },
@@ -1104,7 +1162,7 @@ const jangle: Style = {
     { cell: [8, 8], weight: 4 },
     { cell: [-4, 12], weight: 3 },
   ],
-  bass: [rootOctave(6), rootEights(4), melodicBass(2)],
+  bass: [climb(4), rootOctave(6), rootEights(4), melodicBass(2)],
   comp: [jangleArp(6), ringingChord(3), halfNotes(2)],
   drums: [backbeat(6), tambourineBeat(4), backbeatOpen(2)],
   melody: { leap: 0.3, ornament: 0.25, span: 13, sequence: 0.5, syncopation: 0.35 },
@@ -1232,7 +1290,7 @@ const bluesrock: Style = {
    * shapes and shuffle cleanly, which is the actual reason this repertoire's
    * bass players played them.
    */
-  bass: [boogieShuffle(6), rootOctave(4)],
+  bass: [doubleGuitar(4), fourths(4), boogieShuffle(6), rootOctave(4)],
   comp: [ringingChord(5), chug(4), downstrokes(3)],
   drums: [shuffleKit(6), backbeat(4), backbeatOpen(2)],
   melody: { leap: 0.34, ornament: 0.4, span: 15, sequence: 0.45, syncopation: 0.4 },
@@ -1315,7 +1373,7 @@ const boogie: Style = {
     { cell: [12, 4], weight: 3 },
     { cell: [-4, 12], weight: 3 },
   ],
-  bass: [boogieShuffle(7), rootOctave(3), rootEights(2)],
+  bass: [fourths(3), boogieShuffle(7), rootOctave(3), rootEights(2)],
   comp: [chug(6), downstrokes(4), ringingChord(2)],
   drums: [shuffleKit(6), backbeat(4), backbeatOpen(2)],
   melody: { leap: 0.3, ornament: 0.3, span: 13, sequence: 0.6, syncopation: 0.35 },
@@ -1409,7 +1467,7 @@ const hard: Style = {
     { cell: [-4, 12], weight: 4 },
     { cell: [12, 4], weight: 3 },
   ],
-  bass: [pentatonicRiff(6), rootEights(4), rootOctave(3)],
+  bass: [doubleGuitar(5), crawl(3), pentatonicRiff(6), rootEights(4), rootOctave(3)],
   comp: [chug(5, POWER), ringingChord(4, POWER), downstrokes(4, POWER)],
   drums: [backbeat(6), backbeatOpen(4), fourOnFloor(2)],
   melody: { leap: 0.35, ornament: 0.3, span: 15, sequence: 0.55, syncopation: 0.4 },
@@ -1502,7 +1560,7 @@ const riff: Style = {
     { cell: [-4, 12], weight: 3 },
     { cell: [8, 8], weight: 2 },
   ],
-  bass: [tritoneRiff(6), pentatonicRiff(5), rootOctave(2)],
+  bass: [doubleGuitar(5), crawl(3), tritoneRiff(6), pentatonicRiff(5), rootOctave(2)],
   comp: [ringingChord(6, POWER), chug(4, POWER), wall(2, POWER)],
   drums: [backbeat(5), halftime(4), backbeatOpen(3)],
   melody: { leap: 0.3, ornament: 0.25, span: 12, sequence: 0.6, syncopation: 0.3 },
@@ -1578,7 +1636,7 @@ const glam: Style = {
     { cell: [8, 8], weight: 3 },
     { cell: [12, 4], weight: 2 },
   ],
-  bass: [rootEights(6), rootOctave(4), pushedRoot(2)],
+  bass: [eighthsPickup(3), rootEights(6), rootOctave(4), pushedRoot(2)],
   comp: [stomp(6), ringingChord(4), downstrokes(3)],
   drums: [
     { name: 'glam-stomp', weight: 6, voices: {
@@ -1690,7 +1748,7 @@ const psych: Style = {
     { cell: [8, 8], weight: 3 },
     { cell: [-8, 8], weight: 2 },
   ],
-  bass: [heldRoot(5), rootEights(4), rootOctave(3)],
+  bass: [climb(3), heldRoot(5), rootEights(4), rootOctave(3)],
   comp: [ringingChord(5), jangleArp(4), halfNotes(3)],
   drums: [backbeat(5), tambourineBeat(4), backbeatOpen(3)],
   melody: { leap: 0.32, ornament: 0.5, span: 14, sequence: 0.45, syncopation: 0.35 },
@@ -1821,7 +1879,7 @@ const southern: Style = {
     { cell: [12, 4], weight: 3 },
     { cell: [-4, 12], weight: 3 },
   ],
-  bass: [boogieShuffle(6), rootOctave(4), pentatonicRiff(3)],
+  bass: [doubleGuitar(4), boogieShuffle(6), rootOctave(4), pentatonicRiff(3)],
   comp: [ringingChord(5), downstrokes(4), chug(3)],
   drums: [shuffleKit(5), backbeat(5), backbeatOpen(2)],
   melody: { leap: 0.36, ornament: 0.35, span: 16, sequence: 0.5, syncopation: 0.4 },
@@ -2307,7 +2365,7 @@ const stoner: Style = {
     { cell: [-8, 8], weight: 3 },
     { cell: [8, 8], weight: 2 },
   ],
-  bass: [tritoneRiff(5), heldRoot(4), pentatonicRiff(4)],
+  bass: [doubleGuitar(5), crawl(3), tritoneRiff(5), heldRoot(4), pentatonicRiff(4)],
   comp: [wall(6, POWER), ringingChord(4, POWER), chug(2, POWER)],
   drums: [halftime(6), backbeat(4), backbeatOpen(2)],
   melody: { leap: 0.26, ornament: 0.25, span: 11, sequence: 0.6, syncopation: 0.25 },
@@ -2415,7 +2473,7 @@ const punk: Style = {
     { cell: [8, 8], weight: 3 },
     { cell: [12, 4], weight: 2 },
   ],
-  bass: [rootEights(7), rootOctave(3), pushedRoot(2)],
+  bass: [doubleGuitar(4), eighthsPickup(3), rootEights(7), rootOctave(3), pushedRoot(2)],
   comp: [downstrokes(7), chug(3), ringingChord(2)],
   drums: [trainBeat(6), backbeat(4), fourOnFloor(2)],
   melody: { leap: 0.24, ornament: 0.1, span: 10, sequence: 0.7, syncopation: 0.2 },
@@ -2489,7 +2547,7 @@ const newwave: Style = {
     { cell: [8, 8], weight: 3 },
     { cell: [-4, 12], weight: 3 },
   ],
-  bass: [rootEights(6), melodicBass(4), pushedRoot(3)],
+  bass: [eighthsPickup(3), rootEights(6), melodicBass(4), pushedRoot(3)],
   comp: [chug(6), downstrokes(4), stomp(2)],
   drums: [backbeat(6), fourOnFloor(3), backbeatSixteens(3)],
   melody: { leap: 0.32, ornament: 0.2, span: 13, sequence: 0.6, syncopation: 0.4 },
@@ -2564,7 +2622,7 @@ const postpunk: Style = {
     { cell: [-4, 12], weight: 3 },
     { cell: [8, 8], weight: 2 },
   ],
-  bass: [melodicBass(7), rootEights(4), pentatonicRiff(2)],
+  bass: [crawl(3), melodicBass(7), rootEights(4), pentatonicRiff(2)],
   comp: [jangleArp(5), wall(4), chug(3)],
   drums: [backbeat(5), backbeatSixteens(4), fourOnFloor(3)],
   melody: { leap: 0.22, ornament: 0.15, span: 9, sequence: 0.65, syncopation: 0.3 },
@@ -2687,7 +2745,7 @@ const arena: Style = {
     { cell: [12, 4], weight: 3 },
     { cell: [-4, 12], weight: 3 },
   ],
-  bass: [pushedRoot(6), rootEights(4), rootOctave(3)],
+  bass: [eighthsPickup(3), pushedRoot(6), rootEights(4), rootOctave(3)],
   comp: [ringingChord(5), chug(4), downstrokes(3)],
   drums: [backbeatSixteens(6), backbeatOpen(4), fourOnFloor(3)],
   melody: { leap: 0.34, ornament: 0.25, span: 15, sequence: 0.6, syncopation: 0.35 },
@@ -2764,7 +2822,7 @@ const ballad: Style = {
     { cell: [8, 8], weight: 3 },
     { cell: [-4, 12], weight: 3 },
   ],
-  bass: [heldRoot(5), rootOctave(4), pushedRoot(3)],
+  bass: [climb(3), heldRoot(5), rootOctave(4), pushedRoot(3)],
   comp: [jangleArp(5), ringingChord(4), wall(3)],
   drums: [backbeat(5), halftime(4), backbeatSixteens(3)],
   melody: { leap: 0.3, ornament: 0.35, span: 16, sequence: 0.55, syncopation: 0.3 },
@@ -2859,7 +2917,7 @@ const grunge: Style = {
     { cell: [-4, 12], weight: 3 },
     { cell: [8, 8], weight: 3 },
   ],
-  bass: [rootEights(6), pentatonicRiff(4), heldRoot(3)],
+  bass: [doubleGuitar(5), crawl(3), rootEights(6), pentatonicRiff(4), heldRoot(3)],
   comp: [ringingChord(5, POWER), chug(4, POWER), wall(4, POWER)],
   drums: [backbeat(5), halftime(4), backbeatOpen(4)],
   melody: { leap: 0.28, ornament: 0.2, span: 12, sequence: 0.6, syncopation: 0.3 },
@@ -2955,7 +3013,7 @@ const alt: Style = {
    * does with that space instead is the oldest figure there is — the root and
    * the octave, alternating, which leaves the guitar the whole of the offbeat.
    */
-  bass: [rootOctave(5), rootEights(4), pushedRoot(4)],
+  bass: [doubleGuitar(3), eighthsPickup(3), rootOctave(5), rootEights(4), pushedRoot(4)],
   comp: [ringingChord(5), downstrokes(4), chug(3)],
   drums: [backbeat(6), backbeatOpen(4), backbeatSixteens(3)],
   melody: { leap: 0.3, ornament: 0.22, span: 13, sequence: 0.55, syncopation: 0.35 },
@@ -3028,7 +3086,7 @@ const indie: Style = {
     { cell: [8, 8], weight: 4 },
     { cell: [-4, 12], weight: 3 },
   ],
-  bass: [rootOctave(5), melodicBass(4), rootEights(4)],
+  bass: [climb(4), rootOctave(5), melodicBass(4), rootEights(4)],
   comp: [jangleArp(6), ringingChord(4), chug(2)],
   drums: [backbeat(6), tambourineBeat(3), backbeatOpen(3)],
   melody: { leap: 0.32, ornament: 0.25, span: 14, sequence: 0.5, syncopation: 0.4 },

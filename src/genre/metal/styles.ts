@@ -378,9 +378,13 @@ const triads = (weight: number, hits: CompPattern['hits']): CompPattern => ({
  * Six roots and then the fifth and the flat seventh as one lift into the next
  * bar. Root, fifth, root, fifth on beats three and four was a see-saw at the end
  * of every bar in twenty styles.
+ *
+ * `doubles`: wherever the guitar has a rhythm the bass takes it note for note,
+ * which is what the first sentence says this line is. The eighths below play
+ * under a held chord, where there is nothing to double.
  */
 const followRiff = (weight: number): BassPattern => ({
-  name: 'follow', weight,
+  name: 'follow', weight, doubles: true,
   hits: [
     { at: 0, dur: 2, tone: 0, vel: 1 }, { at: 2, dur: 2, tone: 0, vel: 0.84 },
     { at: 4, dur: 2, tone: 0, vel: 0.94 }, { at: 6, dur: 2, tone: 0, vel: 0.84 },
@@ -455,6 +459,57 @@ const fifths = (weight: number): BassPattern => ({
 const holdBass = (weight: number): BassPattern => ({
   name: 'hold-bass', weight, sustain: true,
   hits: [{ at: 0, dur: 16, tone: 0, vel: 1 }],
+});
+
+/** Eight roots, the semitone above for four and the root for four: one finger moving one fret. */
+const semitoneRiff = (weight: number): BassPattern => ({
+  name: 'semitone-riff', weight,
+  hits: Array.from({ length: 16 }, (_, i) => ({
+    at: i, dur: 1, tone: i >= 8 && i < 12 ? 1 : 0, vel: i % 4 === 0 ? 0.98 : 0.84,
+  })),
+});
+
+/** Root, root, tritone, fifth in pairs of eighths: the Sabbath stomp an octave down. */
+const tritoneStomp = (weight: number): BassPattern => ({
+  name: 'tritone-stomp', weight,
+  hits: [
+    { at: 0, dur: 2, tone: 0, vel: 1 }, { at: 2, dur: 2, tone: 0, vel: 0.84 },
+    { at: 4, dur: 2, tone: 0, vel: 0.94 }, { at: 6, dur: 2, tone: 0, vel: 0.84 },
+    { at: 8, dur: 2, tone: 6, vel: 0.96 }, { at: 10, dur: 2, tone: 6, vel: 0.86 },
+    { at: 12, dur: 2, tone: 7, vel: 0.94 }, { at: 14, dur: 2, tone: 7, vel: 0.86 },
+  ],
+});
+
+/** Six roots and a fall through the minor third and the semitone back onto the root. */
+const dropRun = (weight: number): BassPattern => ({
+  name: 'drop-run', weight,
+  hits: [
+    { at: 0, dur: 2, tone: 0, vel: 1 }, { at: 2, dur: 2, tone: 0, vel: 0.84 },
+    { at: 4, dur: 2, tone: 0, vel: 0.94 }, { at: 6, dur: 2, tone: 0, vel: 0.84 },
+    { at: 8, dur: 2, tone: 0, vel: 0.96 }, { at: 10, dur: 2, tone: 0, vel: 0.84 },
+    { at: 12, dur: 2, tone: 3, vel: 0.92 }, { at: 14, dur: 2, tone: 1, vel: 0.88 },
+  ],
+});
+
+/** Four roots, the flat sixth twice and the fifth twice: the fall every neoclassical riff makes. */
+const sixthFall = (weight: number): BassPattern => ({
+  name: 'sixth-fall', weight,
+  hits: [
+    { at: 0, dur: 2, tone: 0, vel: 1 }, { at: 2, dur: 2, tone: 0, vel: 0.84 },
+    { at: 4, dur: 2, tone: 0, vel: 0.94 }, { at: 6, dur: 2, tone: 0, vel: 0.84 },
+    { at: 8, dur: 2, tone: 8, vel: 0.96 }, { at: 10, dur: 2, tone: 8, vel: 0.86 },
+    { at: 12, dur: 2, tone: 7, vel: 0.94 }, { at: 14, dur: 2, tone: 7, vel: 0.86 },
+  ],
+});
+
+/** A half-bar root and then the minor third and the fourth as quarters: the slow riff. */
+const slowRiff = (weight: number): BassPattern => ({
+  name: 'slow-riff', weight,
+  hits: [
+    { at: 0, dur: 8, tone: 0, vel: 1 },
+    { at: 8, dur: 4, tone: 3, vel: 0.92 },
+    { at: 12, dur: 4, tone: 5, vel: 0.9 },
+  ],
 });
 
 // ---------------------------------------------------------------------------
@@ -844,7 +899,7 @@ const heavy: Style = {
     { cell: [6, 2, 8], weight: 3 },
   ],
   cadenceCells: RIFF_CADENCES,
-  bass: [followRiff(6), fifths(4), poundBass(2)],
+  bass: [tritoneStomp(4), followRiff(6), fifths(4), poundBass(2)],
   comp: [chug(6), hold(4), stabs(3)],
   drums: [backbeat(6), rideBeat(4), halfTime(3)],
   melody: { leap: 0.3, ornament: 0.35, span: 14, sequence: 0.5, syncopation: 0.35 },
@@ -915,7 +970,7 @@ const doom: Style = {
     { cell: [16], weight: 8 },
     { cell: [-8, 8], weight: 4 },
   ],
-  bass: [holdBass(6), followRiff(3), fifths(2)],
+  bass: [slowRiff(5), holdBass(6), followRiff(3), fifths(2)],
   comp: [hold(7), chug(3)],
   drums: [crawl(7), halfTime(4), backbeat(2)],
   melody: { leap: 0.2, ornament: 0.25, span: 11, sequence: 0.7, syncopation: 0.2 },
@@ -1011,7 +1066,7 @@ const stoner: Style = {
   },
   melodyCells: RIFF_CELLS,
   cadenceCells: RIFF_CADENCES,
-  bass: [followRiff(6), fifths(4), poundBass(2)],
+  bass: [tritoneStomp(4), slowRiff(3), followRiff(6), fifths(4), poundBass(2)],
   comp: [chug(6), stabs(4), hold(2)],
   drums: [backbeat(6), rideBeat(4), halfTime(2)],
   melody: { leap: 0.35, ornament: 0.45, span: 14, sequence: 0.45, syncopation: 0.4 },
@@ -1069,7 +1124,7 @@ const sludge: Style = {
     { cell: [-2, 2, 4, 8], weight: 3 },
   ],
   cadenceCells: RIFF_CADENCES,
-  bass: [poundBass(5), holdBass(4), followRiff(3)],
+  bass: [slowRiff(4), poundBass(5), holdBass(4), followRiff(3)],
   comp: [downpick(5), hold(4), chug(3)],
   drums: [halfTime(6), crawl(4), backbeat(3)],
   melody: { leap: 0.28, ornament: 0.2, span: 12, sequence: 0.5, syncopation: 0.4 },
@@ -1149,7 +1204,7 @@ const nwobhm: Style = {
   },
   melodyCells: RIFF_CELLS,
   cadenceCells: RIFF_CADENCES,
-  bass: [gallopBass(6), followRiff(5), fifths(3)],
+  bass: [dropRun(4), gallopBass(6), followRiff(5), fifths(3)],
   comp: [gallopChop(6), chug(5), downpick(3)],
   drums: [gallopKit(6), rideBeat(5), backbeat(4)],
   melody: { leap: 0.42, ornament: 0.4, span: 17, sequence: 0.55, syncopation: 0.45 },
@@ -1212,7 +1267,7 @@ const speed: Style = {
   },
   melodyCells: RIFF_CELLS,
   cadenceCells: RIFF_CADENCES,
-  bass: [poundBass(6), gallopBass(4), followRiff(3)],
+  bass: [semitoneRiff(4), poundBass(6), gallopBass(4), followRiff(3)],
   comp: [tremolo(6), gallopChop(4), downpick(3)],
   drums: [backbeat(6), gallopKit(4), doubleKick(3)],
   melody: { leap: 0.45, ornament: 0.35, span: 18, sequence: 0.5, syncopation: 0.45 },
@@ -1309,7 +1364,7 @@ const power: Style = {
    * player under a continuous double kick has no gaps to place a note in and no
    * reason to want any — the two parts are one object.
    */
-  bass: [poundBass(6), gallopBass(5), followRiff(4)],
+  bass: [sixthFall(4), poundBass(6), gallopBass(5), followRiff(4)],
   comp: [
     chug(6), gallopChop(5),
     triads(4, [
@@ -1398,7 +1453,7 @@ const glam: Style = {
     { cell: [4, 12], weight: 5 },
     { cell: [-4, 12], weight: 3 },
   ],
-  bass: [followRiff(6), fifths(4), poundBass(2)],
+  bass: [dropRun(3), followRiff(6), fifths(4), poundBass(2)],
   comp: [
     triads(6, [
       { at: 0, dur: 2, vel: 0.95 }, { at: 2, dur: 2, vel: 0.82 },
@@ -1498,7 +1553,7 @@ const shred: Style = {
     { cell: [2, 2, 12], weight: 4 },
     { cell: [4, 12], weight: 3 },
   ],
-  bass: [poundBass(6), followRiff(4), fifths(3)],
+  bass: [sixthFall(4), poundBass(6), followRiff(4), fifths(3)],
   comp: [chug(6), downpick(4), gallopChop(3)],
   drums: [doubleKick(5), gallopKit(5), backbeat(4)],
   melody: { leap: 0.5, ornament: 0.6, span: 24, sequence: 0.65, syncopation: 0.35 },
@@ -1568,7 +1623,7 @@ const thrash: Style = {
   },
   melodyCells: RIFF_CELLS,
   cadenceCells: RIFF_CADENCES,
-  bass: [poundBass(7), followRiff(4), gallopBass(3)],
+  bass: [semitoneRiff(5), poundBass(7), followRiff(4), gallopBass(3)],
   comp: [downpick(8), gallopChop(3), chug(3)],
   drums: [doubleKick(6), backbeat(5), gallopKit(4)],
   melody: { leap: 0.35, ornament: 0.2, span: 15, sequence: 0.45, syncopation: 0.5 },
@@ -1627,7 +1682,7 @@ const crossover: Style = {
     { cell: [-8, 4, 4], weight: 3 },
   ],
   cadenceCells: RIFF_CADENCES,
-  bass: [poundBass(7), followRiff(4)],
+  bass: [semitoneRiff(4), poundBass(7), followRiff(4)],
   comp: [downpick(6), chug(5), tremolo(3)],
   drums: [dbeat(7), backbeat(4), doubleKick(3)],
   melody: { leap: 0.3, ornament: 0.15, span: 13, sequence: 0.4, syncopation: 0.45 },
@@ -1680,7 +1735,7 @@ const groove: Style = {
   },
   melodyCells: RIFF_CELLS,
   cadenceCells: RIFF_CADENCES,
-  bass: [followRiff(6), poundBass(5), fifths(3)],
+  bass: [dropRun(4), followRiff(6), poundBass(5), fifths(3)],
   comp: [stabs(6), downpick(5), chug(4)],
   drums: [halfTime(7), backbeat(4), rideBeat(3)],
   melody: { leap: 0.3, ornament: 0.25, span: 13, sequence: 0.6, syncopation: 0.6 },
@@ -1729,7 +1784,7 @@ const metalcore: Style = {
   },
   melodyCells: RIFF_CELLS,
   cadenceCells: RIFF_CADENCES,
-  bass: [poundBass(6), followRiff(5), fifths(2)],
+  bass: [dropRun(4), poundBass(6), followRiff(5), fifths(2)],
   comp: [downpick(6), stabs(5), gallopChop(3)],
   drums: [halfTime(6), gallopKit(5), doubleKick(4)],
   melody: { leap: 0.38, ornament: 0.3, span: 16, sequence: 0.55, syncopation: 0.5 },
@@ -1789,7 +1844,7 @@ const industrial: Style = {
     { cell: [16], weight: 3 },
   ],
   cadenceCells: RIFF_CADENCES,
-  bass: [poundBass(6), followRiff(4), holdBass(2)],
+  bass: [semitoneRiff(3), poundBass(6), followRiff(4), holdBass(2)],
   comp: [downpick(6), chug(5), stabs(3)],
   drums: [backbeat(6), halfTime(4), doubleKick(3)],
   melody: { leap: 0.25, ornament: 0.2, span: 12, sequence: 0.7, syncopation: 0.4 },
@@ -2233,7 +2288,7 @@ const death: Style = {
     { cell: [16], weight: 2 },
   ],
   cadenceCells: RIFF_CADENCES,
-  bass: [poundBass(7), followRiff(4), fifths(2)],
+  bass: [semitoneRiff(4), dropRun(3), poundBass(7), followRiff(4), fifths(2)],
   comp: [tremolo(7), downpick(5), chug(2)],
   drums: [blast(6), bombBlast(5), doubleKick(5), backbeat(2)],
   melody: { leap: 0.45, ornament: 0.2, span: 18, sequence: 0.4, syncopation: 0.55 },
@@ -2301,7 +2356,7 @@ const black: Style = {
     { cell: [8, 8], weight: 4 },
     { cell: [-4, 12], weight: 3 },
   ],
-  bass: [poundBass(7), followRiff(3)],
+  bass: [semitoneRiff(3), poundBass(7), followRiff(3)],
   comp: [tremolo(8), downpick(3), hold(2)],
   drums: [blast(7), hammerBlast(5), bombBlast(4), backbeat(2)],
   melody: { leap: 0.3, ornament: 0.15, span: 15, sequence: 0.7, syncopation: 0.35 },
@@ -2358,7 +2413,7 @@ const melodeath: Style = {
   },
   melodyCells: RIFF_CELLS,
   cadenceCells: RIFF_CADENCES,
-  bass: [poundBass(6), gallopBass(4), followRiff(4)],
+  bass: [sixthFall(4), dropRun(3), poundBass(6), gallopBass(4), followRiff(4)],
   comp: [tremolo(6), gallopChop(5), downpick(4)],
   drums: [doubleKick(6), blast(4), gallopKit(4), backbeat(2)],
   melody: { leap: 0.42, ornament: 0.4, span: 19, sequence: 0.6, syncopation: 0.45 },
@@ -2445,7 +2500,7 @@ const symphonic: Style = {
     { cell: [4, 12], weight: 4 },
     { cell: [-4, 12], weight: 3 },
   ],
-  bass: [poundBass(5), followRiff(5), fifths(3)],
+  bass: [sixthFall(4), poundBass(5), followRiff(5), fifths(3)],
   comp: [
     triads(6, [
       { at: 0, dur: 2, vel: 0.95 }, { at: 2, dur: 2, vel: 0.82 },
@@ -2522,7 +2577,7 @@ const gothic: Style = {
     { cell: [-4, 12], weight: 4 },
     { cell: [8, 8], weight: 3 },
   ],
-  bass: [holdBass(5), followRiff(4), fifths(4)],
+  bass: [slowRiff(4), holdBass(5), followRiff(4), fifths(4)],
   comp: [
     triads(6, [
       { at: 0, dur: 8, vel: 0.9 }, { at: 8, dur: 8, vel: 0.86 },
@@ -2730,7 +2785,7 @@ const postmetal: Style = {
     { cell: [16], weight: 8 },
     { cell: [-8, 8], weight: 4 },
   ],
-  bass: [holdBass(6), followRiff(4), poundBass(3)],
+  bass: [slowRiff(4), holdBass(6), followRiff(4), poundBass(3)],
   comp: [hold(6), tremolo(4), downpick(3), chug(3)],
   drums: [crawl(5), halfTime(5), backbeat(4), doubleKick(2)],
   melody: { leap: 0.25, ornament: 0.3, span: 15, sequence: 0.6, syncopation: 0.3 },

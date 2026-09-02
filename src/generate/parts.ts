@@ -1317,6 +1317,20 @@ export function generateBass(
   return pattern.sustain ? mergeHeld(out) : out;
 }
 
+/** The comp figure's rhythm on the root, for a bass row that doubles the guitar. */
+export function doubleFigure(bass: BassPattern, comp: CompPattern): BassPattern {
+  const sorted = [...comp.hits].sort((a, b) => a.at - b.at);
+  // A tremolo guitar overlaps its own strokes; a bass doubling it does not.
+  const hits: BassHit[] = sorted.map((h, i) => {
+    const next = sorted[i + 1];
+    return { at: h.at, dur: next ? Math.min(h.dur, next.at - h.at) : h.dur, tone: 0, vel: h.vel ?? 0.9 };
+  });
+  return {
+    name: bass.name, weight: bass.weight, doubles: true, hits,
+    ...(comp.cycle !== undefined ? { cycle: comp.cycle } : {}),
+  };
+}
+
 /** What a bass walks into a chord change with, and the stream it draws that from. */
 export interface WalkupOptions {
   /** Chance per bar whose root changes, 0..1. */

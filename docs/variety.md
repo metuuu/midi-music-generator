@@ -292,8 +292,31 @@ walking notes at or above C3 fell from 23% to 6% with the stepwise share unchang
 And §6.3 is built: a repeat of a section kind draws one more `planSignature` edit from a
 stream keyed to the kind and the instance, at 0.6 of the song's signature chance, so
 repeated sections playing the bass note for note went from 21% to 17%. The 17% left is
-mostly drones and loops, which should repeat. §6.2 is still open, and so is the
-numbers-spelled half of §6.1: a figure written as `7` is a shape and is left alone.
+mostly drones and loops, which should repeat.
+
+§6.2 landed the same day, by composition: five figures for country (`one-three-five-six`,
+`tic-tac`, `gospel-walk`, `boom-chuck-pickup`, `waltz-one-three-five`), four for rock
+(`eighths-pickup`, `climb`, `fourths`, `crawl`) and five for metal (`semitone-riff`,
+`tritone-stomp`, `drop-run`, `sixth-fall`, `slow-riff`), added as an extra row to 64 styles.
+The §2.3 numbers for the three:
+
+| genre | distinct | /style | r/5/8 | thin |
+|---|---|---|---|---|
+| country | 13 → 18 | 0.54 → 0.75 | 89% → 82% | 19 → 8 |
+| rock | 14 → 18 | 0.58 → 0.75 | 88% → 84% | 5 → 5 |
+| metal | 14 → 19 | 0.58 → 0.79 | 97% → 91% | 4 → 4 |
+
+In the output, country's distinct pitches a bar went from 2.3 to 2.8 and its see-saw share
+from 20% to 10%; rock's from 2.1 to 2.8 and 14% to 11%.
+
+And the bass can double the guitar. `BassPattern.doubles` hands the comp figure's rhythm
+to `generateBass` on the root wherever the comp is sounding, is not an arpeggio and has
+two or more onsets, with the comp's phrase-end gesture so the two stay locked; the row's
+own hits play under a held chord. Metal's `follow` doubles, which is what its header
+always said it was, and rock has a `double-guitar` row in nine riff styles. The riff's
+pitch motion is still the chord progression, because the comp has no other: what this
+locks is the rhythm. The numbers-spelled half of §6.1 is still open: a figure written as
+`7` is a shape and is left alone.
 
 ### 6.1 Chord-aware note choice on the bass
 
