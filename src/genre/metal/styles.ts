@@ -374,14 +374,18 @@ const triads = (weight: number, hits: CompPattern['hits']): CompPattern => ({
  * puts in the guitar's hands — and the reason that one asks for two voices rather
  * than three. The octave doubling of a power chord is *this line*, and a band has
  * one of it.
+ *
+ * Six roots and then the fifth and the flat seventh as one lift into the next
+ * bar. Root, fifth, root, fifth on beats three and four was a see-saw at the end
+ * of every bar in twenty styles.
  */
 const followRiff = (weight: number): BassPattern => ({
   name: 'follow', weight,
   hits: [
     { at: 0, dur: 2, tone: 0, vel: 1 }, { at: 2, dur: 2, tone: 0, vel: 0.84 },
     { at: 4, dur: 2, tone: 0, vel: 0.94 }, { at: 6, dur: 2, tone: 0, vel: 0.84 },
-    { at: 8, dur: 2, tone: 0, vel: 0.96 }, { at: 10, dur: 2, tone: 7, vel: 0.86 },
-    { at: 12, dur: 2, tone: 0, vel: 0.94 }, { at: 14, dur: 2, tone: 7, vel: 0.86 },
+    { at: 8, dur: 2, tone: 0, vel: 0.96 }, { at: 10, dur: 2, tone: 0, vel: 0.84 },
+    { at: 12, dur: 2, tone: 7, vel: 0.9 }, { at: 14, dur: 2, tone: 10, vel: 0.86 },
   ],
 });
 

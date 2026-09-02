@@ -283,7 +283,16 @@ of bars whose contour repeats the bar before went from 62% to 52% overall, and i
 genres this was reported against from 70% to 30% (iskelmä), 70% to 45% (country), 77% to
 56% (rock) and 70% to 28% (classical). The see-saw share, an interval undone at once by its
 inverse, fell in rock from 29% to 14% and moved little elsewhere, because a root-fifth
-two-beat still bounces by definition. §6.2 and §6.3 are still open, and so is the
+two-beat still bounces by definition.
+
+Three smaller pieces followed the same day. Metal's `follow` is six roots and then the
+fifth and the flat seventh as one lift, which took metal's see-saw share from 18% to 8%.
+The walking bass places its approach target with the same pull toward E2, so the share of
+walking notes at or above C3 fell from 23% to 6% with the stepwise share unchanged at 70%.
+And §6.3 is built: a repeat of a section kind draws one more `planSignature` edit from a
+stream keyed to the kind and the instance, at 0.6 of the song's signature chance, so
+repeated sections playing the bass note for note went from 21% to 17%. The 17% left is
+mostly drones and loops, which should repeat. §6.2 is still open, and so is the
 numbers-spelled half of §6.1: a figure written as `7` is a shape and is left alone.
 
 ### 6.1 Chord-aware note choice on the bass

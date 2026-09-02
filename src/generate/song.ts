@@ -1780,7 +1780,23 @@ export function generateSong(opts: GenerateOptions = {}): Song {
      * The figure *this* section plays, which is the home one unless the form
      * asked for something else. See `FigureCast`.
      */
-    const sectionBassFigure = sectionFigure(bassCast, section.kind);
+    /**
+     * A repeat of a section kind gets one more hand on the figure, drawn from a
+     * stream of its own, so verse three is recognisably verse one and not a copy
+     * of it. See `planSignature`.
+     */
+    const castBassFigure = sectionFigure(bassCast, section.kind);
+    const again = sections.slice(0, s).filter((x) => x.kind === section.kind).length;
+    const encore = again > 0
+      ? planSignature(castBassFigure, {
+        chance: signFor('bass') * 0.6,
+        rng: new Rng(`${seed}:encore:bass:${section.kind}:${again}${salt('bass')}`),
+        slotsPerBar: style.beatsPerBar * SLOTS_PER_BEAT,
+        pitched: true,
+        ...(style.groups ? { groups: style.groups } : {}),
+      })
+      : undefined;
+    const sectionBassFigure = encore ? signFigure(castBassFigure, encore) : castBassFigure;
     const sectionCompFigure = sectionFigure(compCast, section.kind);
     const bassVariation = varyFor('bass', sectionBassFigure);
     const compVariation = varyFor('comp', sectionCompFigure);

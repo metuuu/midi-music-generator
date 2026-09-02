@@ -1565,8 +1565,10 @@ function generateWalkingBass(ctx: PartContext): NoteEvent[] {
     const beats = Math.max(1, Math.round(beatsPerBar));
     const line: Midi[] = [root];
 
-    // Final beat: approach the next root, usually chromatically from below.
-    const nextRoot = nearestPc(next.root, root);
+    // Final beat: approach the next root, usually chromatically from below. The
+    // root is placed with the figure bass's pull toward E2, so a line that has
+    // walked to the top of the register is led back down rather than left there.
+    const nextRoot = placeRoot(next.root, { lo: 0, hi: 0 }, root);
     const approach = clampToRange(
       rng.weighted([
         [nextRoot - 1, 5],
