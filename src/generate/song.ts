@@ -1789,9 +1789,19 @@ export function generateSong(opts: GenerateOptions = {}): Song {
     // it can be checked against what the band is actually holding underneath.
     // A soloist's own layer is skipped here — a bass taking a chorus is not
     // also walking behind it, and a pianist soloing is not also comping.
+    const walkup = style.walkup ?? genre.walkup ?? 0;
     let sectionBass = active.has('bass') && soloLayer !== 'bass'
       ? generateBass(ctxFor('bass'), sectionBassFigure, {
         ...(bassVariation ? { variation: bassVariation } : {}),
+        ...(walkup > 0 ? {
+          walkup: {
+            chance: walkup,
+            rng: new Rng(`${seed}:walkup:${s}${salt('bass')}`),
+            scale: (c: Chord) => scaleHere(localTonic, mode, c),
+            tonic: localTonic,
+            ...(s === sections.length - 1 ? { final: true } : {}),
+          },
+        } : {}),
       })
       : [];
     let sectionComp = active.has('comp') && soloLayer !== 'comp'

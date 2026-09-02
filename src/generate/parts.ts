@@ -19,7 +19,7 @@ import type { Rng } from '../core/rng.js';
 // generator and the fill vocabulary read it. See `HandStation`.
 import { drumStations } from '../concert/instruments.js';
 import type { DrumEvent, DrumVoice, NoteBend, NoteEvent, SectionKind } from '../core/types.js';
-import { scaleStepsBetween, stepInScale, type Scale } from '../core/scale.js';
+import { isInScale, scaleStepsBetween, stepInScale, type Scale } from '../core/scale.js';
 import {
   buildFill, DEFAULT_FILLS, landing, seamOrchestration, type FillPalette,
 } from './fills.js';
@@ -57,6 +57,9 @@ export interface PartContext {
  * `REPAIR_FLOOR` in `arrange.ts` for the pass that learnt this the hard way.
  */
 export const BASS_RANGE: [Midi, Midi] = [28, 52];
+
+/** Where a root sits before anything pulls it: E2, the middle of the register. */
+const BASS_HOME: Midi = 40;
 
 /**
  * How far above that register a **shape** may reach, and the number is the
@@ -229,14 +232,10 @@ function spanOf(hits: readonly BassHit[]): { lo: number; hi: number } {
  *     root and there is nothing to buy by pushing it up into the cello's
  *     octave, so it never is: this term is what keeps a bass sounding like one
  *     and keeps the reach a relief valve rather than a wider range.
- *  3. **Distance from where the bass already was.** The tie-break, and it is
- *     what makes this change inaudible where it should be. When several octaves
- *     cost the same, the one nearest `nearestPc(root, 40)` wins — which is the
- *     position the old loops would have chosen, so every figure that already
- *     fitted comes out on exactly the note it came out on before. Measured
- *     against the whole catalogue: **65 of its 705 bass figures are placed
- *     differently, and they are precisely the 65 that were folding.** Nothing
- *     that was intact moved.
+ *  3. **Distance from home, counted twice, plus distance from the bar before.**
+ *     `near` is the previous bar's root, so a root a semitone away is taken a
+ *     semitone away rather than an eleventh off, while the heavier pull towards
+ *     E2 keeps a progression from leading the line to either end of the register.
  *
  * A bar's root can still land an octave from its neighbour's, and that is real
  * damage rather than a free win — a riff an octave under the bar before it has
@@ -250,12 +249,12 @@ function spanOf(hits: readonly BassHit[]): { lo: number; hi: number } {
  * from anywhere. Nothing here is drawn — the whole decision is arithmetic on the
  * root and the span — so no figure this touches costs the song a random number.
  */
-function placeRoot(root: Pc, shape: { lo: number; hi: number }): Midi {
-  const home = nearestPc(root, 40);
+function placeRoot(root: Pc, shape: { lo: number; hi: number }, near?: Midi): Midi {
+  const home = nearestPc(root, BASS_HOME);
   const cost = (at: Midi): readonly number[] => [
     Math.max(0, BASS_RANGE[0] - (at + shape.lo)) + Math.max(0, at + shape.hi - SHAPE_CEILING),
     Math.max(0, at + shape.hi - BASS_RANGE[1]),
-    Math.abs(at - home),
+    2 * Math.abs(at - BASS_HOME) + (near === undefined ? 0 : Math.abs(at - near)),
   ];
   let best = home;
   let lowest = cost(home);
@@ -569,8 +568,10 @@ function sameShape(
  *  - **`echo`** — one onset repeated a sixteenth later, softly. The stutter, and
  *    the same payload, so nothing is proposed about the harmony.
  *  - **`reach`** — one onset's tone raised to the octave, fifth or seventh. The
- *    note that lifts a floor into a line. The only edit that touches pitch, and
- *    it can only reach a tone the chord already contains.
+ *    note that lifts a floor into a line. The only edit that touches pitch, it
+ *    can only reach a tone the chord already contains, and it only lifts a
+ *    root: a figure's own fifth is a line already, and an octave in its place
+ *    turns a two-beat into a disco bounce.
  *
  * The downbeat is never the target. It is the figure's anchor, the thing that
  * says which bar this is, and a signature that moved it would be a different
@@ -633,7 +634,7 @@ export type Signature = { kind: 'push' | 'hole' | 'echo'; at: number }
  */
 export function planSignature(
   figure: {
-    hits: readonly { at: number; dur?: number }[];
+    hits: readonly { at: number; dur?: number; tone?: BassTone }[];
     cycle?: number; walking?: boolean; sustain?: boolean;
   },
   opts: {
@@ -698,16 +699,17 @@ export function planSignature(
    * the figure a *note* rather than a rhythm — which is what a listener hums,
    * and what two songs off one root-only table most need to tell them apart.
    */
+  const floor = movable.filter((h) => h.tone === 'root' || h.tone === 0);
   const kinds: (readonly [Signature['kind'], number])[] = [
-    ['reach', pitched ? 4 : 0], ['push', 3], ['echo', 3],
+    ['reach', pitched && floor.length ? 4 : 0], ['push', 3], ['echo', 3],
     ['hole', figure.hits.length >= 3 ? 2 : 0],
   ];
   const kind = rng.weighted(kinds);
 
   if (kind === 'reach') {
     // The back half of the figure, where a bass line turns rather than lands.
-    const late = movable.filter((h) => h.at >= slotsPerBar / 2);
-    const target = rng.pick(late.length ? late : movable);
+    const late = floor.filter((h) => h.at >= slotsPerBar / 2);
+    const target = rng.pick(late.length ? late : floor);
     return { kind, at: target.at, tone: rng.weighted([['octave', 4], ['fifth', 3], ['seventh', 2]] as const) };
   }
   if (kind === 'push') {
@@ -1194,7 +1196,7 @@ function* figureHits<T extends { at: number; dur?: number }>(
 export function generateBass(
   ctx: PartContext,
   pattern: BassPattern,
-  opts: { variation?: FigureVariation } = {},
+  opts: { variation?: FigureVariation; walkup?: WalkupOptions } = {},
 ): NoteEvent[] {
   if (pattern.walking) return generateWalkingBass(ctx);
   const { chords, beatsPerBar, startBeat, rng } = ctx;
@@ -1210,6 +1212,16 @@ export function generateBass(
    * two behaviours, which is the fault that cost 57 figures in nine genres.
    */
   const shape = spanOf(pattern.hits);
+  const roots: Midi[] = [];
+  for (let bar = 0; bar < chords.length; bar++) roots.push(placeRoot(chords[bar]!.root, shape, roots[bar - 1]));
+  const bounce = bounceSlots(pattern.hits);
+  const walks = opts.walkup && !pattern.cycle && !pattern.sustain
+    ? planWalkups(pattern.hits, chords, roots, {
+      slotsPerBar,
+      ...opts.walkup,
+      after: placeRoot(opts.walkup.tonic, shape, roots[roots.length - 1]),
+    })
+    : new Map<number, Walkup>();
 
   for (const { hit, bar, slot } of figureHits(pattern.hits, {
     cycle: pattern.cycle ?? slotsPerBar,
@@ -1217,14 +1229,13 @@ export function generateBass(
     slotsPerBar,
     ...(opts.variation ? { variation: opts.variation } : {}),
   })) {
+    const walk = walks.get(bar);
+    const inBar = slot - bar * slotsPerBar;
+    if (walk && inBar >= walk.start) continue;
     const chord = chords[bar]!;
-    const next = chords[bar + 1] ?? chords[0]!;
+    const nextRoot = roots[bar + 1] ?? roots[0]!;
     const pcs = chordPcs(chord);
-    /**
-     * Placed for the whole figure rather than repaired note by note. Nothing
-     * about it is drawn — see `placeRoot`.
-     */
-    const rootMidi = placeRoot(chord.root, shape);
+    const rootMidi = roots[bar]!;
 
     {
       /**
@@ -1264,7 +1275,8 @@ export function generateBass(
         let midi: Midi;
         switch (tone) {
           case 'fifth':
-            midi = nearestPc(pc(chord.root + 7), rootMidi + 2);
+            // A fifth the figure bounces on sits below a high root, as a hand on a bass does.
+            midi = bounce.has(hit.at) && rootMidi >= BASS_HOME ? rootMidi - 5 : rootMidi + 7;
             break;
           case 'third':
             midi = nearestPc(pcs[1] ?? chord.root, rootMidi + 2);
@@ -1273,7 +1285,7 @@ export function generateBass(
             midi = nearestPc(pcs[3] ?? pc(chord.root + 10), rootMidi + 2);
             break;
           case 'approach':
-            midi = approachNote(rootMidi, next.root, rng);
+            midi = approachNote(rootMidi, nextRoot, rng);
             break;
         }
         return clampToRange(midi, BASS_RANGE[0], BASS_RANGE[1]);
@@ -1283,15 +1295,149 @@ export function generateBass(
       const velocity = (hit.vel ?? 0.85) * rng.float(0.94, 1.0);
       out.push({
         beat: startBeat + slot / SLOTS_PER_BEAT,
-        duration: hit.dur / SLOTS_PER_BEAT,
+        // A note the walk takes over from gives way to it rather than ringing under it.
+        duration: (walk ? Math.min(hit.dur, walk.start - inBar) : hit.dur) / SLOTS_PER_BEAT,
         midi,
         velocity,
         ...bendOf(hit, midi, place),
       });
     }
   }
+  for (const [bar, walk] of walks) {
+    for (const { slot, midi, velocity } of walk.notes) {
+      out.push({
+        beat: startBeat + (bar * slotsPerBar + slot) / SLOTS_PER_BEAT,
+        duration: walk.dur / SLOTS_PER_BEAT,
+        midi,
+        velocity,
+      });
+    }
+  }
   out.sort((a, b) => a.beat - b.beat || a.midi - b.midi);
   return pattern.sustain ? mergeHeld(out) : out;
+}
+
+/** What a bass walks into a chord change with, and the stream it draws that from. */
+export interface WalkupOptions {
+  /** Chance per bar whose root changes, 0..1. */
+  chance: number;
+  rng: Rng;
+  scale: (chord: Chord) => Scale;
+  /** The section's key, which its last bar walks towards: the next section is not written yet. */
+  tonic: Pc;
+  /** The song ends with this section, so its last bar has nothing to walk into. */
+  final?: boolean;
+}
+
+/** One bar's walk: the figure stops at `start` and these notes arrive on the next root. */
+interface Walkup {
+  start: number;
+  dur: number;
+  notes: { slot: number; midi: Midi; velocity: number }[];
+}
+
+/**
+ * The slots at which a `fifth` is a bounce off the root rather than a step in a
+ * line: both neighbours in the figure are the root, so the fifth may sit below.
+ */
+function bounceSlots(hits: readonly BassHit[]): Set<number> {
+  const sorted = [...hits].sort((a, b) => a.at - b.at);
+  const grounded = (h: BassHit): boolean => h.tone === 'root' || h.tone === 0 || h.tone === 'approach';
+  const out = new Set<number>();
+  const n = sorted.length;
+  // An echo of the fifth is the same note, so the neighbour is the nearest hit on another tone.
+  const beside = (i: number, dir: 1 | -1): BassHit | undefined => {
+    for (let k = 1; k < n; k++) {
+      const h = sorted[(((i + dir * k) % n) + n) % n]!;
+      if (h.tone !== 'fifth') return h;
+    }
+    return undefined;
+  };
+  sorted.forEach((h, i) => {
+    if (h.tone !== 'fifth' || h.glide !== undefined) return;
+    const prev = beside(i, -1);
+    const next = beside(i, 1);
+    if (!prev || !next) return;
+    // Struck together with the root it is a voicing, and the root stays the floor.
+    if (prev.at === h.at || next.at === h.at) return;
+    if (grounded(prev) && grounded(next)) out.add(h.at);
+  });
+  return out;
+}
+
+/** The scale steps climbing to a root from below it. */
+function turnaround(scale: Scale, to: Midi, steps: number): Midi[] {
+  if (!isInScale(scale, to)) return [];
+  const out: Midi[] = [];
+  for (let n = steps; n >= 1; n--) {
+    const midi = stepInScale(scale, to, -n);
+    if (midi >= BASS_RANGE[0]) out.push(midi);
+  }
+  return out;
+}
+
+/** The scale steps strictly between two roots, or the chromatic neighbour when they are a tone apart. */
+function walkLine(scale: Scale, from: Midi, to: Midi): Midi[] {
+  if (!isInScale(scale, from) || !isInScale(scale, to)) return [];
+  const steps = scaleStepsBetween(scale, from, to);
+  const dir = Math.sign(steps);
+  const out: Midi[] = [];
+  for (let n = 1; n < Math.abs(steps); n++) out.push(stepInScale(scale, from, n * dir));
+  if (!out.length && Math.abs(to - from) === 2) out.push(to - dir);
+  return out;
+}
+
+/**
+ * Where the bass walks into the next chord, and with what.
+ *
+ * The walk takes the last beats of the bar at the figure's own pulse, never
+ * faster than eighths or slower than quarters, and never the downbeat. It is
+ * declined where either root is outside the scale, so a chromatic chord keeps
+ * the figure's own approach. A phrase end on an unchanged chord walks up to
+ * the root from below instead, which is the turnaround every two-beat player
+ * has.
+ */
+function planWalkups(
+  hits: readonly BassHit[],
+  chords: readonly Chord[],
+  roots: readonly Midi[],
+  opts: WalkupOptions & { slotsPerBar: number; after: Midi },
+): Map<number, Walkup> {
+  const { slotsPerBar, chance, rng, scale } = opts;
+  const out = new Map<number, Walkup>();
+  if (!hits.length) return out;
+  const sorted = [...hits].sort((a, b) => a.at - b.at);
+  const gaps = sorted.slice(1).map((h, i) => h.at - sorted[i]!.at);
+  const pulse = Math.max(2, Math.min(4, gaps.length ? Math.min(...gaps) : 4));
+  const room = Math.min(4, slotsPerBar / pulse - 1);
+  if (slotsPerBar % pulse !== 0 || room <= 0) return out;
+  const dur = Math.min(pulse, Math.max(...hits.map((h) => h.dur)));
+  const late = hits.filter((h) => h.at > 0);
+  const vel = late.length ? late.reduce((a, h) => a + (h.vel ?? 0.85), 0) / late.length : 0.8;
+  const bars = opts.final ? chords.length - 1 : chords.length;
+  for (let bar = 0; bar < bars; bar++) {
+    const from = roots[bar]!;
+    const to = roots[bar + 1] ?? opts.after;
+    const phraseEnd = (bar + 1) % phraseBars(chords.length) === 0;
+    const same = pc(from) === pc(to);
+    if (same && !phraseEnd) continue;
+    // A phrase end is where a player most wants to be heard arriving.
+    if (!rng.chance(Math.min(1, chance * (phraseEnd ? 1.5 : 1)))) continue;
+    const key = scale(chords[bar]!);
+    const line = same
+      ? turnaround(key, to, Math.min(room, 3))
+      : walkLine(key, from, to).slice(-room);
+    if (!line.length) continue;
+    // One note is an approach the figure may already have; two is a walk.
+    if (line.length === 1 && room >= 2) line.unshift(from);
+    const start = slotsPerBar - line.length * pulse;
+    out.set(bar, {
+      start,
+      dur,
+      notes: line.map((midi, i) => ({ slot: start + i * pulse, midi, velocity: vel * rng.float(0.94, 1.0) })),
+    });
+  }
+  return out;
 }
 
 /**
@@ -1413,7 +1559,7 @@ function generateWalkingBass(ctx: PartContext): NoteEvent[] {
 
     // Beat 1: the root, kept near where the previous bar left off.
     const root = clampToRange(
-      previous === undefined ? nearestPc(chord.root, 40) : nearestPc(chord.root, previous),
+      previous === undefined ? nearestPc(chord.root, BASS_HOME) : nearestPc(chord.root, previous),
       BASS_RANGE[0], BASS_RANGE[1],
     );
     const beats = Math.max(1, Math.round(beatsPerBar));
@@ -1471,13 +1617,12 @@ function generateWalkingBass(ctx: PartContext): NoteEvent[] {
  * Walk into the next chord's root from a semitone or whole tone away.
  * The chromatic approach from below is the strongest and most common.
  */
-function approachNote(from: Midi, nextRoot: number, rng: Rng): Midi {
-  const target = nearestPc(nextRoot, from);
+function approachNote(from: Midi, target: Midi, rng: Rng): Midi {
   const options: (readonly [Midi, number])[] = [
     [target - 1, 4],
     [target + 1, 2],
     [target - 2, 2],
-    [nearestPc(pc(nextRoot + 7), from), 2],
+    [nearestPc(pc(target + 7), from), 2],
   ];
   return rng.weighted(options);
 }

@@ -268,6 +268,8 @@ export interface Genre {
    * rather than a decision about how a bass player phrases.
    */
   vary?: Partial<Record<'bass' | 'comp', number>>;
+  /** The fallback for `Style.walkup`. Absent means the bass never walks into a chord change. */
+  walkup?: number;
 
   /**
    * …and the third, for how often a song composes its own version of the figure

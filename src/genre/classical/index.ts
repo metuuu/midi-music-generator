@@ -257,6 +257,7 @@ const FORMS: (readonly [FormStep[], number])[] = [
 ];
 
 export const classical: Genre = {
+  walkup: 0.15,
   /**
    * True, and it is the single most characteristic gesture in this repertoire.
    *

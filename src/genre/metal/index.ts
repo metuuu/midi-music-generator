@@ -176,6 +176,7 @@ const FORMS: (readonly [FormStep[], number])[] = [
 ];
 
 export const metal: Genre = {
+  walkup: 0.1,
   /**
    * Direct, never prepared — and this genre's version of that claim is **not**
    * reggae's or synth's, which is worth being precise about because the field

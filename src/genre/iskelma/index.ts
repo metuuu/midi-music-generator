@@ -40,6 +40,7 @@ const FORMS: (readonly [FormStep[], number])[] = [
 ];
 
 export const iskelma: Genre = {
+  walkup: 0.3,
   id: 'iskelma',
   label: 'Iskelmä',
   description: 'Finnish dance-pavilion pop — tango, humppa, valssi, jenkka, foksi, beguine, 80s radio iskelmä.',

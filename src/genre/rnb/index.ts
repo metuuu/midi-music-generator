@@ -238,6 +238,7 @@ const FORMS: (readonly [FormStep[], number])[] = [
 ];
 
 export const rnb: Genre = {
+  walkup: 0.3,
   id: 'rnb',
   label: 'R&B',
   description:

@@ -262,7 +262,29 @@ A fourth arranging mechanism meets the same ceiling.
 
 ## 6. What follows, in order of value against risk
 
-Nothing below is built.
+Three of the four pieces of §6.1 landed on 2026-09-02, in `generateBass` rather than in the
+tables, so every uncycled figure gets them without being rewritten:
+
+- **The fifth bounces below a high root.** A `fifth` whose neighbours in the figure are both
+  the root now sits a fourth under any root at or above E2, the way a hand on a bass does.
+  A fifth inside a line, or struck together with the root, stays above.
+- **Roots are voice-led.** `placeRoot` takes the previous bar's root, so a B♭ to B is a
+  semitone rather than an eleventh, with the pull toward E2 weighted double so a progression
+  cannot walk the line out of the register.
+- **Walk-ups and turnarounds.** `Style.walkup` over `Genre.walkup`, the chance per bar that
+  the last beats before a root change give way to scale steps arriving on the next root,
+  and that a phrase end on an unchanged chord climbs to the root from below. Ten genres
+  declare it; a chromatic chord, a cycled figure and a drone all decline.
+
+`reach` no longer replaces a figure's own fifth with the octave, which was turning every
+other two-beat into a disco bounce and dropping the whole line an octave to fit it. Rock's
+`root-octave` is now root, root, octave, fifth. Measured over 8 songs a genre, the share
+of bars whose contour repeats the bar before went from 62% to 52% overall, and in the
+genres this was reported against from 70% to 30% (iskelmä), 70% to 45% (country), 77% to
+56% (rock) and 70% to 28% (classical). The see-saw share, an interval undone at once by its
+inverse, fell in rock from 29% to 14% and moved little elsewhere, because a root-fifth
+two-beat still bounces by definition. §6.2 and §6.3 are still open, and so is the
+numbers-spelled half of §6.1: a figure written as `7` is a shape and is left alone.
 
 ### 6.1 Chord-aware note choice on the bass
 

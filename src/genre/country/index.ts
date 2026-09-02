@@ -189,6 +189,7 @@ const FORMS: (readonly [FormStep[], number])[] = [
 ];
 
 export const country: Genre = {
+  walkup: 0.35,
   /**
    * Prepared, and it is the one field where this genre disagrees with every other
    * genre written since iskelmä.

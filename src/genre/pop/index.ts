@@ -218,6 +218,7 @@ const FORMS: (readonly [FormStep[], number])[] = [
 ];
 
 export const pop: Genre = {
+  walkup: 0.2,
   /**
    * **True**, and this is the load-bearing decision in the file.
    *

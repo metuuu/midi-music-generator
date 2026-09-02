@@ -512,8 +512,10 @@ const rootEights = (weight: number): BassPattern => ({
 });
 
 /**
- * Root and octave, alternating — the oldest bass figure in popular music and
- * still the commonest one here.
+ * Root, root, octave, fifth in quarters: the octave is a lift on beat three
+ * that comes down through the fifth, not a see-saw. The see-saw it replaced
+ * was root-octave-root-octave, which in seventeen of these styles at quarter
+ * speed was the most audible thing in the band.
  *
  * `12` rather than `'octave'`, and the difference shows up on the two or three
  * bars a song spends on a seventh chord: `octave` is the chord's own root an
@@ -526,9 +528,9 @@ const rootOctave = (weight: number): BassPattern => ({
   name: 'root-octave', weight,
   hits: [
     { at: 0, dur: 4, tone: 0, vel: 0.98 },
-    { at: 4, dur: 4, tone: 12, vel: 0.84 },
-    { at: 8, dur: 4, tone: 0, vel: 0.92 },
-    { at: 12, dur: 4, tone: 12, vel: 0.84 },
+    { at: 4, dur: 4, tone: 0, vel: 0.84 },
+    { at: 8, dur: 4, tone: 12, vel: 0.92 },
+    { at: 12, dur: 4, tone: 7, vel: 0.84 },
   ],
 });
 

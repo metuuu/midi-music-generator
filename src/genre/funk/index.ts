@@ -150,6 +150,7 @@ const FORMS: (readonly [FormStep[], number])[] = [
 ];
 
 export const funk: Genre = {
+  walkup: 0.2,
   id: 'funk',
   label: 'Funk',
   description:

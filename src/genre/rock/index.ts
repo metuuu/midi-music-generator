@@ -181,6 +181,7 @@ const FORMS: (readonly [FormStep[], number])[] = [
 ];
 
 export const rock: Genre = {
+  walkup: 0.25,
   /**
    * Direct, never prepared — and the same negative claim as the missing harmonic
    * minor.

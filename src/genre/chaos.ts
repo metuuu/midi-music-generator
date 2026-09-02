@@ -689,9 +689,11 @@ const TRAITS: Trait[] = [
     take(draft, from) {
       draft.genre = {
         ...draft.genre, vary: from.genre.vary, swap: from.genre.swap, signature: from.genre.signature,
+        walkup: from.genre.walkup,
       };
       draft.style = {
         ...draft.style, vary: from.style.vary, swap: from.style.swap, signature: from.style.signature,
+        walkup: from.style.walkup,
       };
       return true;
     },

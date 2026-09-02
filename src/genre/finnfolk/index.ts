@@ -208,6 +208,7 @@ const FORMS: (readonly [FormStep[], number])[] = [
 ];
 
 export const finnfolk: Genre = {
+  walkup: 0.25,
   /**
    * Never announced, and here that is nearly a tautology.
    *

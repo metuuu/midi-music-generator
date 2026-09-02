@@ -138,6 +138,7 @@ const FORMS: (readonly [FormStep[], number])[] = [
 ];
 
 export const reggae: Genre = {
+  walkup: 0.15,
   /**
    * Direct, never prepared — the same negative claim as the missing harmonic minor.
    *

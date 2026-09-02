@@ -61,6 +61,7 @@ const FORMS: (readonly [FormStep[], number])[] = [
 ];
 
 export const jazz: Genre = {
+  walkup: 0.3,
   id: 'jazz',
   label: 'Jazz',
   description: 'Swing, bebop, ballads, bossa nova, blues, modal and gypsy jazz.',
