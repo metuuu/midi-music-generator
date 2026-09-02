@@ -517,20 +517,17 @@ const rootEights = (weight: number): BassPattern => ({
  * was root-octave-root-octave, which in seventeen of these styles at quarter
  * speed was the most audible thing in the band.
  *
- * `12` rather than `'octave'`, and the difference shows up on the two or three
- * bars a song spends on a seventh chord: `octave` is the chord's own root an
- * octave up whatever the quality, which is the same note, so here the two agree
- * — but the figure sitting next to it in most of these styles is `[0, 7, 12]`,
- * and *that* one differs the moment a chord has an altered fifth. Spelling the
- * whole family in numbers keeps them one family.
+ * `'octave'` and `'fifth'` rather than `12` and `7`: the fifth is a perfect
+ * fifth either way, and the name is what lets it sit below a high root. This is
+ * an outline; the riffs beside it stay in numbers because they are shapes.
  */
 const rootOctave = (weight: number): BassPattern => ({
   name: 'root-octave', weight,
   hits: [
     { at: 0, dur: 4, tone: 0, vel: 0.98 },
     { at: 4, dur: 4, tone: 0, vel: 0.84 },
-    { at: 8, dur: 4, tone: 12, vel: 0.92 },
-    { at: 12, dur: 4, tone: 7, vel: 0.84 },
+    { at: 8, dur: 4, tone: 'octave', vel: 0.92 },
+    { at: 12, dur: 4, tone: 'fifth', vel: 0.84 },
   ],
 });
 
@@ -1988,7 +1985,7 @@ const prog: Style = {
     { name: 'seven-root', weight: 4, hits: [
       { at: 0, dur: 4, tone: 0, vel: 0.98 },
       { at: 4, dur: 4, tone: 0, vel: 0.86 },
-      { at: 8, dur: 6, tone: 7, vel: 0.9 },
+      { at: 8, dur: 6, tone: 'fifth', vel: 0.9 },
     ] },
     /**
      * And one that does not fit the bar at all.
@@ -2140,9 +2137,9 @@ const math: Style = {
     { name: 'five-root', weight: 4, hits: [
       { at: 0, dur: 4, tone: 0, vel: 0.98 },
       { at: 4, dur: 4, tone: 0, vel: 0.82 },
-      { at: 8, dur: 4, tone: 12, vel: 0.86 },
+      { at: 8, dur: 4, tone: 'octave', vel: 0.86 },
       { at: 12, dur: 4, tone: 0, vel: 0.94 },
-      { at: 16, dur: 4, tone: 7, vel: 0.84 },
+      { at: 16, dur: 4, tone: 'fifth', vel: 0.84 },
     ] },
   ],
   comp: [

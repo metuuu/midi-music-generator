@@ -725,7 +725,7 @@ const horns: Style = {
     ] },
     { name: 'held', weight: 2, hits: [
       { at: 0, dur: 8, tone: 0, vel: 1 },
-      { at: 10, dur: 6, tone: 7, vel: 0.7 },
+      { at: 10, dur: 6, tone: 'fifth', vel: 0.7 },
     ] },
   ],
   comp: [
@@ -912,7 +912,7 @@ const memphis: Style = {
   bass: [
     { name: 'root-fifth', weight: 6, hits: [
       { at: 0, dur: 6, tone: 0, vel: 1 },
-      { at: 8, dur: 4, tone: 7, vel: 0.72 },
+      { at: 8, dur: 4, tone: 'fifth', vel: 0.72 },
       { at: 14, dur: 2, tone: 0, vel: 0.62 },
     ] },
     { name: 'three-note', weight: 5, hits: [
@@ -1206,7 +1206,7 @@ const souljazz: Style = {
     ] },
     { name: 'two-feel', weight: 3, hits: [
       { at: 0, dur: 7, tone: 0, vel: 1 },
-      { at: 8, dur: 7, tone: 7, vel: 0.72 },
+      { at: 8, dur: 7, tone: 'fifth', vel: 0.72 },
     ] },
   ],
   comp: [
@@ -1652,7 +1652,7 @@ const afrofunk: Style = {
     ] },
     { name: 'root-and-fifth', weight: 3, hits: [
       { at: 0, dur: 5, tone: 0, vel: 1 },
-      { at: 6, dur: 2, tone: 7, vel: 0.68 },
+      { at: 6, dur: 2, tone: 'fifth', vel: 0.68 },
       { at: 11, dur: 3, tone: 0, vel: 0.7 },
     ] },
   ],
@@ -3605,7 +3605,7 @@ const talkbox: Style = {
     ] },
     { name: 'held-sub', weight: 3, sustain: true, hits: [
       { at: 0, dur: 8, tone: 0, vel: 1 },
-      { at: 10, dur: 6, tone: 7, vel: 0.7 },
+      { at: 10, dur: 6, tone: 'fifth', vel: 0.7 },
     ] },
   ],
   comp: [

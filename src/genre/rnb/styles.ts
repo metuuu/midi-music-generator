@@ -3943,7 +3943,7 @@ const bedroom: Style = {
     {
       name: 'soft-sub',
       weight: 6,
-      hits: [{ at: 0, dur: 8, tone: 0, vel: 1 }, { at: 9, dur: 3, tone: 7, vel: 0.7 }, { at: 13, dur: 3, tone: 0, vel: 0.76 }],
+      hits: [{ at: 0, dur: 8, tone: 0, vel: 1 }, { at: 9, dur: 3, tone: 'fifth', vel: 0.7 }, { at: 13, dur: 3, tone: 0, vel: 0.76 }],
       sustain: true,
     },
     {

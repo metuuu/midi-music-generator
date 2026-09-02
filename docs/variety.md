@@ -315,8 +315,18 @@ two or more onsets, with the comp's phrase-end gesture so the two stay locked; t
 own hits play under a held chord. Metal's `follow` doubles, which is what its header
 always said it was, and rock has a `double-guitar` row in nine riff styles. The riff's
 pitch motion is still the chord progression, because the comp has no other: what this
-locks is the rhythm. The numbers-spelled half of §6.1 is still open: a figure written as
-`7` is a shape and is left alone.
+locks is the rhythm.
+
+The numbers-spelled half of §6.1 is closed by a table pass rather than a third spelling. A
+number means this interval whatever the chord, which is what a riff is, and the blues
+riff's minor third or boogie's major sixth over any chord would be wrong renegotiated.
+What a numbers figure loses is only the register choice for the fifth, and that matters
+only for an outline pretending to be a riff. Of 342 numbers-only figures, 63 were root,
+fifth and octave alone at quarter speed or slower, two-beats and half-note root-fifths,
+29 of them latin. In 57 of those `7` is now `fifth` and `12` is `octave`, so the fifth
+sits below a high root as it does in a named figure; the six spelled with `-5` already
+chose below and are left as written. A figure written as `7` beside a `3` or a `10` is
+still a shape and still left alone.
 
 ### 6.1 Chord-aware note choice on the bass
 

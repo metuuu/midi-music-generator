@@ -370,7 +370,7 @@ const electrorap: Style = {
     { name: 'tresillo', weight: 5, hits: [
       { at: 0, dur: 4, tone: 0, vel: 1 },
       { at: 6, dur: 4, tone: 0, vel: 0.76 },
-      { at: 12, dur: 4, tone: 7, vel: 0.72 },
+      { at: 12, dur: 4, tone: 'fifth', vel: 0.72 },
     ] },
     { name: 'two-bar-sequence', weight: 3, cycle: 32, hits: [
       { at: 0, dur: 2, tone: 0, vel: 1 },
@@ -1087,7 +1087,7 @@ const soulloop: Style = {
     ] },
     { name: 'held-root', weight: 3, sustain: true, hits: [
       { at: 0, dur: 12, tone: 0, vel: 1 },
-      { at: 12, dur: 4, tone: 7, vel: 0.68 },
+      { at: 12, dur: 4, tone: 'fifth', vel: 0.68 },
     ] },
   ],
   comp: [
@@ -1603,9 +1603,9 @@ const party: Style = {
     ] },
     { name: 'root-octave', weight: 5, hits: [
       { at: 0, dur: 4, tone: 0, vel: 1 },
-      { at: 6, dur: 2, tone: 12, vel: 0.68 },
+      { at: 6, dur: 2, tone: 'octave', vel: 0.68 },
       { at: 10, dur: 2, tone: 0, vel: 0.76 },
-      { at: 14, dur: 2, tone: 12, vel: 0.6 },
+      { at: 14, dur: 2, tone: 'octave', vel: 0.6 },
     ] },
     { name: 'two-bar-party', weight: 3, cycle: 32, hits: [
       { at: 0, dur: 4, tone: 0, vel: 1 },
@@ -1748,7 +1748,7 @@ const gfunk: Style = {
      */
     { name: 'rubber', weight: 6, hits: [
       { at: 0, dur: 5, tone: 0, vel: 1 },
-      { at: 6, dur: 2, tone: 7, vel: 0.7 },
+      { at: 6, dur: 2, tone: 'fifth', vel: 0.7 },
       // Up a minor seventh into the last beat, where a two-sixteenth root and a
       // struck ♭7 used to sit on either side of slot 12. This is the gesture the
       // style is named for and it was the one thing the table could not write.
@@ -1759,7 +1759,7 @@ const gfunk: Style = {
       // The name was always a description of the record and never of the row:
       // the octave is struck and then falls a fourth to the fifth, one note,
       // half a second of travel. It used to be two.
-      { at: 8, dur: 8, tone: 12, vel: 0.72, glide: 7, glideTime: 0.4 },
+      { at: 8, dur: 8, tone: 'octave', vel: 0.72, glide: 7, glideTime: 0.4 },
     ] },
     { name: 'two-bar-bounce', weight: 4, cycle: 32, hits: [
       { at: 0, dur: 4, tone: 0, vel: 1 },
@@ -2018,7 +2018,7 @@ const bounce: Style = {
     ] },
     { name: 'root-fifth', weight: 4, hits: [
       { at: 0, dur: 4, tone: 0, vel: 1 },
-      { at: 6, dur: 2, tone: 7, vel: 0.7 },
+      { at: 6, dur: 2, tone: 'fifth', vel: 0.7 },
       { at: 10, dur: 6, tone: 0, vel: 0.74 },
     ] },
     { name: 'two-bar-shout', weight: 3, cycle: 32, hits: [
@@ -2679,7 +2679,7 @@ const trap: Style = {
     ] },
     { name: 'sub-and-fifth', weight: 5, hits: [
       { at: 0, dur: 6, tone: 0, vel: 1 },
-      { at: 8, dur: 4, tone: 7, vel: 0.72 },
+      { at: 8, dur: 4, tone: 'fifth', vel: 0.72 },
       { at: 13, dur: 3, tone: 0, vel: 0.7 },
     ] },
     { name: 'two-bar-sub', weight: 4, cycle: 32, hits: [
@@ -3045,7 +3045,7 @@ const cloud: Style = {
     ] },
     { name: 'held-with-answer', weight: 4, sustain: true, hits: [
       { at: 0, dur: 12, tone: 0, vel: 1 },
-      { at: 12, dur: 4, tone: 7, vel: 0.64 },
+      { at: 12, dur: 4, tone: 'fifth', vel: 0.64 },
     ] },
     { name: 'two-bar-drift', weight: 3, cycle: 32, sustain: true, hits: [
       { at: 0, dur: 12, tone: 0, vel: 1 },
@@ -3196,7 +3196,7 @@ const lofi: Style = {
     ] },
     { name: 'upright-two', weight: 5, hits: [
       { at: 0, dur: 8, tone: 0, vel: 1 },
-      { at: 8, dur: 8, tone: 7, vel: 0.7 },
+      { at: 8, dur: 8, tone: 'fifth', vel: 0.7 },
     ] },
     { name: 'two-bar-soft', weight: 3, cycle: 32, hits: [
       { at: 0, dur: 6, tone: 0, vel: 1 },
@@ -3463,7 +3463,7 @@ const minimal: Style = {
     { name: 'two-bar-pair', weight: 3, cycle: 32, hits: [
       { at: 0, dur: 8, tone: 0, vel: 1 },
       { at: 10, dur: 6, tone: 0, vel: 0.7 },
-      { at: 16, dur: 8, tone: 7, vel: 0.78 },
+      { at: 16, dur: 8, tone: 'fifth', vel: 0.78 },
       { at: 27, dur: 5, tone: 0, vel: 0.68 },
     ] },
   ],

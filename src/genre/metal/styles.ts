@@ -2194,7 +2194,7 @@ const techdeath: Style = {
     { name: 'grouping-five', weight: 4, hits: [
       { at: 0, dur: 4, tone: 0, vel: 1 }, { at: 4, dur: 4, tone: 0, vel: 0.86 },
       { at: 8, dur: 4, tone: -5, vel: 0.94 }, { at: 12, dur: 4, tone: 0, vel: 0.86 },
-      { at: 16, dur: 4, tone: 7, vel: 0.88 },
+      { at: 16, dur: 4, tone: 'fifth', vel: 0.88 },
     ] },
   ],
   comp: [

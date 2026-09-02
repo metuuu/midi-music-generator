@@ -265,7 +265,7 @@ const bleep: Style = {
       { at: 12, dur: 4, tone: 0, vel: 0.72 },
     ] },
     { name: 'octave-drop', weight: 4, hits: [
-      { at: 0, dur: 6, tone: 12, vel: 0.86 },
+      { at: 0, dur: 6, tone: 'octave', vel: 0.86 },
       { at: 8, dur: 8, tone: 0, vel: 1 },
     ] },
     { name: 'two-bar-sub', weight: 3, cycle: 32, hits: [
@@ -977,7 +977,7 @@ const hardstep: Style = {
     { name: 'punched', weight: 3, hits: [
       { at: 0, dur: 3, tone: 0, vel: 1 },
       { at: 4, dur: 2, tone: 0, vel: 0.7 },
-      { at: 8, dur: 3, tone: 12, vel: 0.8 },
+      { at: 8, dur: 3, tone: 'octave', vel: 0.8 },
       { at: 12, dur: 4, tone: 0, vel: 0.78 },
     ] },
   ],
@@ -1107,7 +1107,7 @@ const jazzstep: Style = {
     ] },
     { name: 'sub-under-jazz', weight: 3, hits: [
       { at: 0, dur: 10, tone: 0, vel: 1 },
-      { at: 12, dur: 4, tone: 7, vel: 0.72 },
+      { at: 12, dur: 4, tone: 'fifth', vel: 0.72 },
     ] },
   ],
   comp: [
@@ -1234,7 +1234,7 @@ const atmospheric: Style = {
     ] },
     { name: 'two-bar-wash', weight: 5, cycle: 32, sustain: true, hits: [
       { at: 0, dur: 16, tone: 0, vel: 1 },
-      { at: 16, dur: 12, tone: 7, vel: 0.82 },
+      { at: 16, dur: 12, tone: 'fifth', vel: 0.82 },
       { at: 28, dur: 4, tone: 5, vel: 0.7 },
     ] },
     { name: 'answering', weight: 3, cycle: 32, hits: [
@@ -2310,8 +2310,8 @@ const jumpup: Style = {
      */
     { name: 'wobble', weight: 7, hits: [
       { at: 0, dur: 3, tone: 0, vel: 1 },
-      { at: 4, dur: 4, tone: 7, glide: 0, vel: 0.82 },
-      { at: 10, dur: 6, tone: 7, glide: 0, vel: 0.8 },
+      { at: 4, dur: 4, tone: 'fifth', glide: 0, vel: 0.82 },
+      { at: 10, dur: 6, tone: 'fifth', glide: 0, vel: 0.8 },
     ] },
     /**
      * The bounce, and it stays struck on purpose. What this row does is *leap* —
@@ -2463,13 +2463,13 @@ const dancefloor: Style = {
     { name: 'driving-sub', weight: 5, hits: [
       { at: 0, dur: 6, tone: 0, vel: 1 },
       { at: 8, dur: 4, tone: 0, vel: 0.86 },
-      { at: 12, dur: 4, tone: 7, vel: 0.78 },
+      { at: 12, dur: 4, tone: 'fifth', vel: 0.78 },
     ] },
     { name: 'octave-hook', weight: 4, cycle: 32, hits: [
       { at: 0, dur: 6, tone: 0, vel: 1 },
-      { at: 8, dur: 4, tone: 12, vel: 0.8 },
+      { at: 8, dur: 4, tone: 'octave', vel: 0.8 },
       { at: 16, dur: 6, tone: 0, vel: 0.94 },
-      { at: 24, dur: 8, tone: 7, vel: 0.82 },
+      { at: 24, dur: 8, tone: 'fifth', vel: 0.82 },
     ] },
   ],
   comp: [

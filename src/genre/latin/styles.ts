@@ -744,7 +744,7 @@ const guajira: Style = {
   ],
   bass: [tumbao(6), { name: 'guajira-two-beat', weight: 4, hits: [
     { at: 0, dur: 6, tone: 0, vel: 0.94 },
-    { at: 8, dur: 6, tone: 7, vel: 0.8 },
+    { at: 8, dur: 6, tone: 'fifth', vel: 0.8 },
   ] }],
   comp: [
     { name: 'tres-arpeggio', weight: 6, voices: 4, cycle: 32, voicing: 'tertian',
@@ -890,11 +890,11 @@ const bolero: Style = {
   bass: [
     { name: 'bolero-two', weight: 6, hits: [
       { at: 0, dur: 6, tone: 0, vel: 0.96 },
-      { at: 8, dur: 6, tone: 7, vel: 0.82 },
+      { at: 8, dur: 6, tone: 'fifth', vel: 0.82 },
     ] },
     { name: 'bolero-anticipated', weight: 4, hits: [
       { at: 0, dur: 6, tone: 0, vel: 0.96 },
-      { at: 8, dur: 4, tone: 7, vel: 0.8 },
+      { at: 8, dur: 4, tone: 'fifth', vel: 0.8 },
       { at: 14, dur: 2, tone: 0, vel: 0.74 },
     ] },
     { name: 'cinquillo-bass', weight: 3, hits: [
@@ -1078,7 +1078,7 @@ const danzon: Style = {
     ] },
     { name: 'danzon-two', weight: 4, hits: [
       { at: 0, dur: 7, tone: 0, vel: 0.96 },
-      { at: 8, dur: 7, tone: 7, vel: 0.8 },
+      { at: 8, dur: 7, tone: 'fifth', vel: 0.8 },
     ] },
   ],
   comp: [
@@ -1202,13 +1202,13 @@ const chachacha: Style = {
   bass: [
     { name: 'chacha-bass', weight: 6, hits: [
       { at: 0, dur: 6, tone: 0, vel: 0.96 },
-      { at: 8, dur: 4, tone: 7, vel: 0.82 },
+      { at: 8, dur: 4, tone: 'fifth', vel: 0.82 },
       { at: 12, dur: 4, tone: 0, vel: 0.86 },
     ] },
     tumbao(4),
     { name: 'chacha-two', weight: 3, hits: [
       { at: 0, dur: 7, tone: 0, vel: 0.96 },
-      { at: 8, dur: 7, tone: 7, vel: 0.82 },
+      { at: 8, dur: 7, tone: 'fifth', vel: 0.82 },
     ] },
   ],
   comp: [
@@ -1461,7 +1461,7 @@ const guaguanco: Style = {
     { name: 'rumba-bass', weight: 6, cycle: 32, hits: [
       { at: 6, dur: 2, tone: -5, vel: 0.88 },
       { at: 14, dur: 4, tone: 0, vel: 1 },
-      { at: 22, dur: 2, tone: 7, vel: 0.84 },
+      { at: 22, dur: 2, tone: 'fifth', vel: 0.84 },
       { at: 28, dur: 4, tone: 0, vel: 0.94 },
     ] },
     { name: 'rumba-bass-sparse', weight: 3, cycle: 32, hits: [
@@ -1611,7 +1611,7 @@ const columbia: Style = {
       { at: 6, dur: 4, tone: 0, vel: 0.94 },
       { at: 12, dur: 2, tone: -5, vel: 0.8 },
       { at: 16, dur: 4, tone: 0, vel: 0.96 },
-      { at: 22, dur: 2, tone: 7, vel: 0.78 },
+      { at: 22, dur: 2, tone: 'fifth', vel: 0.78 },
     ] },
     { name: 'columbia-open', weight: 3, cycle: 24, hits: [
       { at: 0, dur: 6, tone: 0, vel: 0.96 },
@@ -2118,12 +2118,12 @@ const merengue: Style = {
     { name: 'merengue-bass', weight: 6, hits: [
       { at: 0, dur: 3, tone: 0, vel: 1 },
       { at: 4, dur: 3, tone: 0, vel: 0.8 },
-      { at: 8, dur: 3, tone: 7, vel: 0.9 },
+      { at: 8, dur: 3, tone: 'fifth', vel: 0.9 },
       { at: 12, dur: 3, tone: 0, vel: 0.84 },
     ] },
     { name: 'merengue-two', weight: 4, hits: [
       { at: 0, dur: 7, tone: 0, vel: 1 },
-      { at: 8, dur: 7, tone: 7, vel: 0.86 },
+      { at: 8, dur: 7, tone: 'fifth', vel: 0.86 },
     ] },
     { name: 'merengue-driving', weight: 3, hits: [
       { at: 0, dur: 2, tone: 0, vel: 1 },
@@ -2273,7 +2273,7 @@ const bachata: Style = {
     ] },
     { name: 'bachata-simple', weight: 4, hits: [
       { at: 0, dur: 7, tone: 0, vel: 0.96 },
-      { at: 8, dur: 7, tone: 7, vel: 0.82 },
+      { at: 8, dur: 7, tone: 'fifth', vel: 0.82 },
     ] },
   ],
   comp: [
@@ -2423,16 +2423,16 @@ const cumbia: Style = {
   bass: [
     { name: 'cumbia-bass', weight: 6, hits: [
       { at: 0, dur: 4, tone: 0, vel: 0.96 },
-      { at: 8, dur: 4, tone: 7, vel: 0.84 },
+      { at: 8, dur: 4, tone: 'fifth', vel: 0.84 },
     ] },
     { name: 'cumbia-bass-three', weight: 4, hits: [
       { at: 0, dur: 4, tone: 0, vel: 0.96 },
-      { at: 8, dur: 2, tone: 7, vel: 0.84 },
+      { at: 8, dur: 2, tone: 'fifth', vel: 0.84 },
       { at: 12, dur: 4, tone: 0, vel: 0.8 },
     ] },
     { name: 'cumbia-pickup', weight: 3, hits: [
       { at: 0, dur: 4, tone: 0, vel: 0.96 },
-      { at: 8, dur: 4, tone: 7, vel: 0.84 },
+      { at: 8, dur: 4, tone: 'fifth', vel: 0.84 },
       { at: 14, dur: 2, tone: -5, vel: 0.7 },
     ] },
   ],
@@ -2553,13 +2553,13 @@ const vallenato: Style = {
   bass: [
     { name: 'vallenato-bass', weight: 6, hits: [
       { at: 0, dur: 4, tone: 0, vel: 0.96 },
-      { at: 8, dur: 4, tone: 7, vel: 0.84 },
+      { at: 8, dur: 4, tone: 'fifth', vel: 0.84 },
     ] },
     { name: 'vallenato-walk', weight: 3, hits: [
       { at: 0, dur: 4, tone: 0, vel: 0.96 },
-      { at: 4, dur: 4, tone: 7, vel: 0.74 },
+      { at: 4, dur: 4, tone: 'fifth', vel: 0.74 },
       { at: 8, dur: 4, tone: 0, vel: 0.86 },
-      { at: 12, dur: 4, tone: 7, vel: 0.74 },
+      { at: 12, dur: 4, tone: 'fifth', vel: 0.74 },
     ] },
   ],
   comp: [
@@ -2691,12 +2691,12 @@ const joropo: Style = {
   bass: [
     { name: 'joropo-three', weight: 5, hits: [
       { at: 0, dur: 3, tone: 0, vel: 0.96 },
-      { at: 4, dur: 3, tone: 7, vel: 0.76 },
+      { at: 4, dur: 3, tone: 'fifth', vel: 0.76 },
       { at: 8, dur: 3, tone: 0, vel: 0.82 },
     ] },
     { name: 'joropo-six', weight: 5, hits: [
       { at: 0, dur: 5, tone: 0, vel: 0.96 },
-      { at: 6, dur: 5, tone: 7, vel: 0.86 },
+      { at: 6, dur: 5, tone: 'fifth', vel: 0.86 },
     ] },
     { name: 'joropo-one', weight: 2, hits: [
       { at: 0, dur: 10, tone: 0, vel: 0.96 },
@@ -2803,11 +2803,11 @@ const plena: Style = {
   bass: [
     { name: 'plena-bass', weight: 6, hits: [
       { at: 0, dur: 4, tone: 0, vel: 0.96 },
-      { at: 8, dur: 4, tone: 7, vel: 0.84 },
+      { at: 8, dur: 4, tone: 'fifth', vel: 0.84 },
     ] },
     { name: 'plena-anticipated', weight: 4, hits: [
       { at: 0, dur: 4, tone: 0, vel: 0.96 },
-      { at: 8, dur: 2, tone: 7, vel: 0.82 },
+      { at: 8, dur: 2, tone: 'fifth', vel: 0.82 },
       { at: 14, dur: 2, tone: 0, vel: 0.76 },
     ] },
   ],
@@ -3460,13 +3460,13 @@ const frevo: Style = {
   bass: [
     { name: 'frevo-two', weight: 6, hits: [
       { at: 0, dur: 4, tone: 0, vel: 1 },
-      { at: 8, dur: 4, tone: 7, vel: 0.86 },
+      { at: 8, dur: 4, tone: 'fifth', vel: 0.86 },
     ] },
     { name: 'frevo-four', weight: 4, hits: [
       { at: 0, dur: 3, tone: 0, vel: 1 },
-      { at: 4, dur: 3, tone: 7, vel: 0.78 },
+      { at: 4, dur: 3, tone: 'fifth', vel: 0.78 },
       { at: 8, dur: 3, tone: 0, vel: 0.9 },
-      { at: 12, dur: 3, tone: 7, vel: 0.78 },
+      { at: 12, dur: 3, tone: 'fifth', vel: 0.78 },
     ] },
     { name: 'frevo-pickup', weight: 3, hits: [
       { at: 0, dur: 4, tone: 0, vel: 1 },
@@ -3581,11 +3581,11 @@ const norteno: Style = {
   bass: [
     { name: 'norteno-oompah', weight: 6, hits: [
       { at: 0, dur: 3, tone: 0, vel: 1 },
-      { at: 8, dur: 3, tone: 7, vel: 0.86 },
+      { at: 8, dur: 3, tone: 'fifth', vel: 0.86 },
     ] },
     { name: 'norteno-walk', weight: 4, hits: [
       { at: 0, dur: 3, tone: 0, vel: 1 },
-      { at: 8, dur: 2, tone: 7, vel: 0.84 },
+      { at: 8, dur: 2, tone: 'fifth', vel: 0.84 },
       { at: 12, dur: 3, tone: 0, vel: 0.78 },
     ] },
   ],
@@ -3696,11 +3696,11 @@ const ranchera: Style = {
     ] },
     { name: 'guitarron-octave', weight: 4, hits: [
       { at: 0, dur: 4, tone: 0, vel: 1 },
-      { at: 4, dur: 4, tone: 12, vel: 0.66 },
+      { at: 4, dur: 4, tone: 'octave', vel: 0.66 },
     ] },
     { name: 'guitarron-walk', weight: 3, hits: [
       { at: 0, dur: 4, tone: 0, vel: 1 },
-      { at: 8, dur: 4, tone: 7, vel: 0.74 },
+      { at: 8, dur: 4, tone: 'fifth', vel: 0.74 },
     ] },
   ],
   comp: [
@@ -3846,13 +3846,13 @@ const banda: Style = {
   bass: [
     { name: 'tuba-two', weight: 6, hits: [
       { at: 0, dur: 3, tone: 0, vel: 1 },
-      { at: 8, dur: 3, tone: 7, vel: 0.88 },
+      { at: 8, dur: 3, tone: 'fifth', vel: 0.88 },
     ] },
     { name: 'tuba-walk', weight: 5, hits: [
       { at: 0, dur: 3, tone: 0, vel: 1 },
-      { at: 4, dur: 3, tone: 7, vel: 0.78 },
-      { at: 8, dur: 3, tone: 12, vel: 0.86 },
-      { at: 12, dur: 3, tone: 7, vel: 0.78 },
+      { at: 4, dur: 3, tone: 'fifth', vel: 0.78 },
+      { at: 8, dur: 3, tone: 'octave', vel: 0.86 },
+      { at: 12, dur: 3, tone: 'fifth', vel: 0.78 },
     ] },
     { name: 'tuba-fill', weight: 4, hits: [
       { at: 0, dur: 3, tone: 0, vel: 1 },

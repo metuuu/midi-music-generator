@@ -646,7 +646,7 @@ const ska: Style = {
      */
     { name: 'octave-two', weight: 4, hits: [
       { at: 0, dur: 6, tone: 0, vel: 0.98 },
-      { at: 8, dur: 6, tone: 12, vel: 0.86 },
+      { at: 8, dur: 6, tone: 'octave', vel: 0.86 },
     ] },
   ],
   comp: [skank(7, 4), doubleSkank(3, 4)],
@@ -2127,7 +2127,7 @@ const bubbleStyle: Style = {
     afterTheOne(5),
     { name: 'bubble-two', weight: 3, hits: [
       { at: 0, dur: 6, tone: 0, vel: 0.98 },
-      { at: 8, dur: 6, tone: 7, vel: 0.88 },
+      { at: 8, dur: 6, tone: 'fifth', vel: 0.88 },
     ] },
   ],
   comp: [bubble(8), skank(3), doubleSkank(2)],
