@@ -69,7 +69,6 @@
  */
 
 import { Matrix4, Quaternion, Vector3 } from 'three';
-import type { Box3 } from 'three';
 
 import { soundingEffectors } from '../../concert/choreograph.js';
 import { ARCHETYPES } from '../../concert/instruments.js';
@@ -84,7 +83,7 @@ import {
 } from './animate-arc.js';
 import {
   AT_EASE, COINCIDENT, IDLE_HOVER, ZONE_PULL, escapeFrom, keepOutParts, letGo,
-  lowerAtEase, type AtEasePose, type CarriesBow,
+  lowerAtEase, type AtEasePose, type CarriesBow, type KeepOutPart,
 } from './at-ease.js';
 import type { InstrumentModel } from './instruments/types.js';
 import {
@@ -1180,7 +1179,7 @@ class Player {
    *
    * Measured once, because a floor instrument does not move.
    */
-  readonly keepOut: readonly Box3[] | undefined;
+  readonly keepOut: readonly KeepOutPart[] | undefined;
 
   stopped = false;
   /** Eases 1 → 0 when this player is stopped. Scales every groove amplitude. */

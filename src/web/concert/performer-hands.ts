@@ -94,6 +94,7 @@ export type HandPoseId =
   | 'wrap'    // round a vertical tube, fingertips on the far face of it
   | 'arch'    // over a tube held sideways, thumb underneath
   | 'valve'   // three fingertips on three buttons, thumb under the leadpipe
+  | 'harp'    // curled toward the strings, thumb straight up
   | 'cupped'; // a shell round the end of a harmonica
 
 export interface HandPose {
@@ -273,6 +274,12 @@ export const HAND_POSES: Record<HandPoseId, HandPose> = {
   spread: { curl: [0.30, 0.36, 0.38, 0.34], tip: 0.34, spread: 1.00, thumbCurl: 0.10, thumbOut: 0.86, cup: 0.10, wrist: -0.16, touch: 1.00, tool: 0.00, align: 0.45 },
   strap: { curl: [0.50, 0.58, 0.56, 0.48], tip: 0.68, spread: 0.22, thumbCurl: 0.22, thumbOut: 0.08, cup: 0.14, wrist: 0.24, touch: 0.85, tool: 0.00, align: 0.50 },
   pluck: { curl: [0.84, 0.54, 0.60, 0.66], tip: 0.90, spread: 0.10, thumbCurl: 0.70, thumbOut: 0.50, cup: 0.52, wrist: 0.00, touch: 1.00, tool: 0.00, align: 0.30 },
+  /**
+   * A harpist's hand: fingers curled toward the palm, which faces the strings,
+   * and the thumb straight up. The forearm continues the hand, so the elbow is
+   * carried out behind the wrist rather than hung under it.
+   */
+  harp: { curl: [0.52, 0.58, 0.62, 0.62], tip: 0.72, spread: 0.14, thumbCurl: 0.04, thumbOut: 0.96, cup: 0.36, wrist: 0.00, touch: 1.00, tool: 0.00, align: 0.50 },
   point: { curl: [0.00, 1.00, 1.00, 1.00], tip: 1.00, spread: 0.00, thumbCurl: 0.60, thumbOut: 0.18, cup: 0.55, wrist: 0.00, touch: 1.00, tool: 0.00, align: 0.35 },
   open: { curl: [0.05, 0.05, 0.08, 0.10], tip: 0.05, spread: 0.76, thumbCurl: 0.00, thumbOut: 0.82, cup: 0.00, wrist: -0.10, touch: 0.80, tool: 0.00, align: 0.10 },
   /**
@@ -418,7 +425,7 @@ export const DEFAULT_HAND_POSES: Record<Archetype, { left: HandPoseId; right: Ha
   'electric-guitar': { left: 'spread', right: 'pluck' },
   'upright-bass': { left: 'spread', right: 'pluck' },
   'electric-bass': { left: 'spread', right: 'pluck' },
-  harp: { left: 'pluck', right: 'pluck' },
+  harp: { left: 'harp', right: 'harp' },
   sitar: { left: 'spread', right: 'pluck' },
   violin: { left: 'spread', right: 'bowhold' },
   cello: { left: 'spread', right: 'bowhold' },

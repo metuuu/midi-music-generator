@@ -101,7 +101,7 @@ import { TransformControls } from 'three/examples/jsm/controls/TransformControls
 import {
   AT_EASE, COINCIDENT, IDLE_HOVER, NOMINAL_HEIGHT, REST_TRIM, ZONE_PULL, escapeFrom,
   keepOutParts, letGo, lowerAtEase, type AtEasePose, type CarriesBow, type HandTrim,
-  type RestTrim,
+  type KeepOutPart, type RestTrim,
 } from './at-ease.js';
 import {
   AT_EASE_FILE, SAVE_ROUTE, easeEntrySource, keyOf, trimEntrySource, type Tuning,
@@ -455,7 +455,7 @@ interface Exhibit {
    */
   carry?: { pos: Vector3; quat: Quaternion; pivot: Vector3 };
   /** Parts of a floor instrument an at-ease hand could end up inside. */
-  keepOut?: readonly Box3[];
+  keepOut?: readonly KeepOutPart[];
   /**
    * The at-ease pose itself, as an object the gizmo can be attached to.
    *

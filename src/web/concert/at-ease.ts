@@ -482,7 +482,28 @@ const KEEP_OUT_BAND = 0.28;
  *
  * Once per performer per number, at bind time.
  */
-export function keepOutParts(model: InstrumentModel, rig: PerformerRig): Box3[] | undefined {
+/**
+ * One mesh a hand may not idle inside.
+ *
+ * A mesh lathed from `CylinderGeometry` carries its taper too: the bounding box
+ * of a tall frustum is a block the size of its fat end for the whole run, and a
+ * harp's soundbox read that way covers the player's lap.
+ */
+export interface KeepOutPart {
+  box: Box3;
+  cone?: { toMesh: Matrix4; rTop: number; rBottom: number; halfH: number };
+}
+
+const CONE_Q = new Vector3();
+
+function inCone(c: NonNullable<KeepOutPart['cone']>, local: Vector3): boolean {
+  const q = CONE_Q.copy(local).applyMatrix4(c.toMesh);
+  if (Math.abs(q.y) > c.halfH) return false;
+  const r = c.rBottom + (c.rTop - c.rBottom) * ((q.y + c.halfH) / (2 * c.halfH));
+  return Math.hypot(q.x, q.z) <= r;
+}
+
+export function keepOutParts(model: InstrumentModel, rig: PerformerRig): KeepOutPart[] | undefined {
   const root = model.root;
   root.updateWorldMatrix(true, true);
   const inv = new Matrix4().copy(root.matrixWorld).invert();
@@ -493,12 +514,17 @@ export function keepOutParts(model: InstrumentModel, rig: PerformerRig): Box3[] 
   const lo = Math.min(left.y, right.y) - KEEP_OUT_BAND;
   const hi = Math.max(left.y, right.y) + KEEP_OUT_BAND;
 
-  const parts: Box3[] = [];
+  const parts: KeepOutPart[] = [];
   const rel = new Matrix4();
   root.traverse((o) => {
     const mesh = o as {
       isMesh?: boolean;
-      geometry?: { boundingBox: Box3 | null; computeBoundingBox(): void };
+      geometry?: {
+        type: string;
+        parameters?: { radiusTop: number; radiusBottom: number; height: number };
+        boundingBox: Box3 | null;
+        computeBoundingBox(): void;
+      };
       matrixWorld: Matrix4;
     };
     if (!mesh.isMesh || !mesh.geometry) return;
@@ -508,7 +534,11 @@ export function keepOutParts(model: InstrumentModel, rig: PerformerRig): Box3[] 
     rel.multiplyMatrices(inv, mesh.matrixWorld);
     const box = g.clone().applyMatrix4(rel);
     if (box.isEmpty() || box.max.y < lo || box.min.y > hi) return;
-    parts.push(box);
+    const p = mesh.geometry.parameters;
+    const cone = mesh.geometry.type === 'CylinderGeometry' && p
+      ? { toMesh: rel.clone().invert(), rTop: p.radiusTop, rBottom: p.radiusBottom, halfH: p.height / 2 }
+      : undefined;
+    parts.push(cone ? { box, cone } : { box });
   });
   return parts.length ? parts : undefined;
 }
@@ -535,7 +565,7 @@ export function keepOutParts(model: InstrumentModel, rig: PerformerRig): Box3[] 
  * model that has been moved.
  */
 export function escapeFrom(
-  parts: readonly Box3[] | undefined, point: Vector3, gate: number,
+  parts: readonly KeepOutPart[] | undefined, point: Vector3, gate: number,
   rigQuat: Quaternion, modelQuatInv: Quaternion, modelInv: Matrix4,
 ): Vector3 {
   if (!parts || gate <= 0) return point;
@@ -552,8 +582,9 @@ export function escapeFrom(
   // in the next.
   let push = 0;
   for (let i = 0; i < parts.length; i++) {
-    const box = parts[i]!;
+    const { box, cone } = parts[i]!;
     if (!box.containsPoint(local)) continue;
+    if (cone && !inCone(cone, local)) continue;
     let exit = Number.POSITIVE_INFINITY;
     if (Math.abs(dir.x) > 1e-6) {
       exit = Math.min(exit, (dir.x > 0 ? box.max.x - local.x : box.min.x - local.x) / dir.x);

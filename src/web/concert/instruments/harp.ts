@@ -41,8 +41,8 @@
  *
  * `+x` runs from the column toward the treble corner — bass → treble, and also
  * *back toward the player*. `+y` is up. `+z` is out of the string plane on the
- * side the soundboard faces, which is the side both hands work from and, once
- * there is somebody sitting at it, the player's left.
+ * side the soundboard faces, which, once there is somebody sitting at it, is the
+ * player's left: the left hand works from there and the right hand from `-z`.
  *
  * There is no mount matrix: the harp's own frame **is** the model frame, and
  * every fact about how it meets a person lives in `station`. See the note there
@@ -194,8 +194,6 @@ const PEDAL_KEYED = 0.035;
 const NECK_R = 0.056;
 const NECK_TAPER = 0.38;
 
-const PLANE_NORMAL = new Vector3(0, 0, 1);
-
 /** Soundboard end of string `n`. */
 function footOf(n: number, out: Vector3): Vector3 {
   return out.copy(SOUND_LOW).lerp(SOUND_HIGH, n / (COURSES - 1));
@@ -246,49 +244,49 @@ function pluckPoint(n: number): Vector3 {
 }
 
 /**
- * Which way the *next course* lies from this one, at the pluck point — the axis
- * the knuckles run along.
+ * Which side of the string plane each hand works from, as the sign of `z`.
  *
- * A harpist's four fingers take four adjacent strings, so the knuckle line is
- * the line those strings are strung out on and the fingers point across it, up
- * the string. `Contact.along` becomes the hand's own `+x` and its fingers come
- * out as `along × normal`, so getting this axis wrong does not tilt a hand, it
- * *rolls* it.
- *
- * **It used to be the constant `(1, 0, 0)`** — the build frame's bass-to-treble
- * axis, on the reasoning that the courses run bass to treble, which is true of
- * the fan and false of the pluck points. A string is plucked 42 % of the way up
- * from a soundboard that itself climbs steeply through the frame, so
- * consecutive pluck points step almost *straight up*, and against the courses
- * they were meant to lie across that constant was some 85° out. The roll it
- * produced put the fingers pointing at the floor.
- *
- * Taken from the two courses themselves rather than written down, because the
- * spacing is a function of the fan and the fan has already changed twice in
- * this file — see `NECK_CURVE`, which moved every head and would have silently
- * put any hand-written axis out again.
+ * Opposite sides, palms facing each other through the strings. One side for
+ * both would make the two hands mirror images with the same palm facing, and
+ * one of them would have its thumb at the floor.
  */
-function courseStep(n: number): Vector3 {
-  const a = n >= COURSES - 1 ? COURSES - 2 : n;
-  return pluckPoint(a + 1).sub(pluckPoint(a)).normalize();
-}
+const LEFT_SIDE = 1;
+const RIGHT_SIDE = -1;
 
 /**
- * Where a hand goes on course `n`, `off` metres clear of the string plane.
+ * Where the fingers point: at the column, dipped a little toward the soundboard.
  *
- * One function for both hands, because on a harp there is only one answer: the
- * hand that stops the string is the hand that sounds it. `soundingContact`
- * therefore delegates here rather than to `resolve` — going back through
- * `resolve` would go through `withSoundingContact`'s replacement of it, which
- * works only because that wrapper passes no effector, and is one refactor away
- * from being a loop.
+ * Level with the forearm, so the wrist stays open and the arm comes in from the
+ * body. Pointed along the strings the wrist would sit at the top or bottom of
+ * the hand and the forearm would stand on end.
  */
-function pluckAt(n: number, lift: number, off: number): Contact {
+const FINGER_DIP = 0.50;
+const FINGERS = new Vector3(-Math.cos(FINGER_DIP), -Math.sin(FINGER_DIP), 0);
+/**
+ * How far each hand turns out of the string plane, about the vertical: the
+ * fingertips stay on the string and the wrist swings away from it, toward the
+ * arm that hand hangs from.
+ */
+const HAND_YAW = 0.55;
+
+/** Where a hand goes on course `n`, `off` metres clear of the plane on `side`. */
+function pluckAt(n: number, lift: number, off: number, side: number): Contact {
+  const turn = new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), -side * HAND_YAW);
+  const normal = new Vector3(0, 0, side).applyQuaternion(turn);
+  const fingers = FINGERS.clone().applyQuaternion(turn);
   return {
-    position: pluckPoint(n).add(new Vector3(0, lift, off)),
-    normal: PLANE_NORMAL.clone(),
-    along: courseStep(n),
+    position: pluckPoint(n).add(new Vector3(0, lift, side * off)),
+    normal,
+    // `along` is the hand's own `+x` and the fingers come out as `along × normal`.
+    along: new Vector3().crossVectors(normal, fingers),
   };
+}
+
+/** Hands wait lifted off the middle of the fan, a hand's breadth clear of it. */
+function handAt(point: PlayPoint, side: number): Contact | undefined {
+  if (point.kind === 'rest') return pluckAt(40, 0.05, 0.09, side);
+  const n = courseOf(point);
+  return n === undefined ? undefined : pluckAt(n, 0, 0.012, side);
 }
 
 /**
@@ -342,9 +340,9 @@ class Kit {
 /** Not part of `InstrumentModel`. */
 export interface HarpModel extends InstrumentModel {
   /**
-   * The same place `resolve` returns: on a harp the stopping hand and the
-   * sounding hand are the same hand. Present so every string model in this
-   * family answers the same question.
+   * The right hand's contact. `withSoundingContact` routes the right hand and
+   * the bow through this and everything else through `resolve`, so on a harp
+   * the two entry points are the two sides of the string plane.
    */
   soundingContact(point: PlayPoint): Contact | undefined;
 }
@@ -616,19 +614,8 @@ export const buildHarp: InstrumentBuilder = (opts) => {
     root,
     station,
 
-    resolve(point: PlayPoint): Contact | undefined {
-      // Hands lifted off the middle of the fan, which is where they wait.
-      if (point.kind === 'rest') return pluckAt(40, 0.05, 0.09);
-      const n = courseOf(point);
-      if (n === undefined) return undefined;
-      return pluckAt(n, 0, 0.012);
-    },
-
-    soundingContact(point: PlayPoint): Contact | undefined {
-      if (point.kind === 'rest') return pluckAt(40, 0.05, 0.09);
-      const n = courseOf(point);
-      return n === undefined ? undefined : pluckAt(n, 0, 0.012);
-    },
+    resolve: (point: PlayPoint): Contact | undefined => handAt(point, LEFT_SIDE),
+    soundingContact: (point: PlayPoint): Contact | undefined => handAt(point, RIGHT_SIDE),
 
     react(point: PlayPoint, force: number, now: number): void {
       const n = courseOf(point);
