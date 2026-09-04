@@ -197,9 +197,9 @@ export function renderMidi(song: Song): Uint8Array {
        * shipping-only feature. This is the mirror image and the first
        * audition-only *contour*: a pitch bend addresses a channel, so if a part
        * sounds two notes while one of them is travelling, the .mid moves both.
-       * The generator never writes that — `BassHit.glide` is the only author and
-       * the bass is monophonic — so this marker is for a `Song` that arrived from
-       * somewhere else, and a person opening the track in a DAW and hearing a
+       * The generator never writes that — the bass and a soloing line are the
+       * only authors and both are monophonic — so this marker is for a `Song`
+       * that arrived from somewhere else, and a person opening the track in a DAW and hearing a
        * chord slide should find the reason on the track it happened on.
        */
       if (bend.smeared) {
@@ -213,7 +213,8 @@ export function renderMidi(song: Song): Uint8Array {
     const handOver = handOverTicks(struck);
     for (const note of struck.notes) {
       const key = clamp7(note.midi);
-      const on = beatsToTicks(note.beat);
+      // A raked string is struck late and released with the chord.
+      const on = beatsToTicks(note.beat + (note.rake ?? 0));
       const written = Math.max(on + 1, beatsToTicks(note.beat + note.duration));
       // Off the key before anything strikes it again. See `handOverTicks`.
       const off = Math.min(written, handOver.get(key)?.get(on) ?? written);
@@ -770,7 +771,7 @@ function handOverTicks(track: Track): Map<number, Map<number, number>> {
   for (const note of track.notes) {
     const key = clamp7(note.midi);
     const ticks = onsets.get(key) ?? new Set<number>();
-    ticks.add(beatsToTicks(note.beat));
+    ticks.add(beatsToTicks(note.beat + (note.rake ?? 0)));
     onsets.set(key, ticks);
   }
 

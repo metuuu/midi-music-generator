@@ -318,61 +318,73 @@ function build(song: Song, opts: StrudelRenderOptions): { header: string[]; part
      * to the note, in the same way the drum trim belongs to the sample that
      * sounds rather than to the kit.
      */
-    const level = (note: NoteEvent) => levelOfSound(track.strudelSound, note.midi);
     /**
-     * Per-note dynamics, as a gain grid laid on the same sixteenth slots as the
-     * notes. Only emitted when the part actually has something to carry — a comp
-     * that plays every chord at one level, on one zone of its font, gains
-     * nothing from a second grid saying so, and the audition output stays
-     * readable.
+     * A raked chord cannot be one pattern: a slot writes one token and takes one
+     * nudge, so the voices are dealt into one pattern per string. Everything else
+     * about the part is shared, the orbit included, which is why it is decided
+     * before the strings are.
      */
-    const dyn = dynamicGrid(track, meta.totalBars, slotsPerBar, level);
-    /**
-     * The same trick again for the filter: where a part's notes carry
-     * brightness, the cutoff becomes a pattern on the note slots and takes the
-     * place of the static `.lpf()` in the effect chain rather than joining it —
-     * two `.lpf()` calls on one pattern is the second one winning silently.
-     */
-    const sweep = filterSweep(track, meta.totalBars, slotsPerBar);
-    /**
-     * And once more for the pitch. Where a part's notes travel, the pitch
-     * envelope becomes a pattern on the note slots — and unlike the two above it
-     * this one is emitted here rather than inside `effectChain`, because a part
-     * can carry a glide without carrying any effects at all and `effectChain`
-     * returns empty for a track with no `Effects`. It suppresses the static
-     * `.penv()` there instead; see `pitchSlide`.
-     */
-    const slide = pitchSlide(track, meta.totalBars, slotsPerBar, meta.bpm);
-    /**
-     * And where the notes fall between the slots. Unlike the three above it this
-     * one carries no musical decision of its own — it is the correction for what
-     * `slotOf` rounded away, and a part written exactly on the grid emits none.
-     * See `timingNudge`.
-     */
-    const nudged = timingNudge(track, meta.totalBars, slotsPerBar, meta.bpm, divided);
-    const part = [
-      `  // ${track.layer} — ${track.instrument}`,
-      `  note(\`${formatGrid(grid)}\`)`,
-      `    .sound('${track.strudelSound}')`,
-      dyn
-        ? `    .gain(\`${formatGrid(dyn)}\`)`
-        : `    .gain(${(track.gain * level(track.notes[0]!)).toFixed(3)})`,
-      ...envelopeChain(track.envelope),
-      ...slide,
-      ...nudged,
-      ...effectChain(track.effects, song, sweep, slide.length > 0),
+    const orbit = ducked.targets.has(track) ? orbits.get(track) ?? orbits.size + 2 : undefined;
+    if (orbit !== undefined) orbits.set(track, orbit);
+    const ranks = strumRanks(track.notes);
+    for (const [rank, notes] of ranks.entries()) {
+      const voice = { ...track, notes };
+      const { grid, divided } = buildNoteGrid(notes, song.meta.totalBars, slotsPerBar, spelling);
+      const level = (note: NoteEvent) => levelOfSound(track.strudelSound, note.midi);
       /**
-       * The sidechain's target end: a bus of its own for the kick to reach.
-       *
-       * A duck is the one effect in this renderer that is not a property of the
-       * part at all — it is something done *to* the part by another part — so
-       * it is the one that cannot be written in the effect chain above. See
-       * `duckPlan`.
+       * Per-note dynamics, as a gain grid laid on the same sixteenth slots as the
+       * notes. Only emitted when the part actually has something to carry — a comp
+       * that plays every chord at one level, on one zone of its font, gains
+       * nothing from a second grid saying so, and the audition output stays
+       * readable.
        */
-      ...(ducked.targets.has(track) ? [`    .orbit(${orbits.size + 2})`] : []),
-    ].join('\n');
-    if (ducked.targets.has(track)) orbits.set(track, orbits.size + 2);
-    push(track.layer, part);
+      const dyn = dynamicGrid(voice, meta.totalBars, slotsPerBar, level);
+      /**
+       * The same trick again for the filter: where a part's notes carry
+       * brightness, the cutoff becomes a pattern on the note slots and takes the
+       * place of the static `.lpf()` in the effect chain rather than joining it —
+       * two `.lpf()` calls on one pattern is the second one winning silently.
+       */
+      const sweep = filterSweep(voice, meta.totalBars, slotsPerBar);
+      /**
+       * And once more for the pitch. Where a part's notes travel, the pitch
+       * envelope becomes a pattern on the note slots — and unlike the two above it
+       * this one is emitted here rather than inside `effectChain`, because a part
+       * can carry a glide without carrying any effects at all and `effectChain`
+       * returns empty for a track with no `Effects`. It suppresses the static
+       * `.penv()` there instead; see `pitchSlide`.
+       */
+      const slide = pitchSlide(voice, meta.totalBars, slotsPerBar, meta.bpm);
+      /**
+       * And where the notes fall between the slots. Unlike the three above it this
+       * one carries no musical decision of its own — it is the correction for what
+       * `slotOf` rounded away, and a part written exactly on the grid emits none.
+       * See `timingNudge`.
+       */
+      const nudged = timingNudge(voice, meta.totalBars, slotsPerBar, meta.bpm, divided);
+      const part = [
+        `  // ${track.layer} — ${track.instrument}${ranks.length > 1 ? ` (string ${rank + 1} of ${ranks.length})` : ''}`,
+        `  note(\`${formatGrid(grid)}\`)`,
+        `    .sound('${track.strudelSound}')`,
+        dyn
+          ? `    .gain(\`${formatGrid(dyn)}\`)`
+          : `    .gain(${(track.gain * level(voice.notes[0]!)).toFixed(3)})`,
+        ...envelopeChain(track.envelope),
+        ...slide,
+        ...nudged,
+        ...effectChain(track.effects, song, sweep, slide.length > 0),
+        /**
+         * The sidechain's target end: a bus of its own for the kick to reach.
+         *
+         * A duck is the one effect in this renderer that is not a property of the
+         * part at all — it is something done *to* the part by another part — so
+         * it is the one that cannot be written in the effect chain above. See
+         * `duckPlan`.
+         */
+        ...(orbit !== undefined ? [`    .orbit(${orbit})`] : []),
+      ].join('\n');
+      push(track.layer, part);
+    }
   }
 
   // Drums: one pattern per voice so the per-voice mix survives.
@@ -1400,7 +1412,8 @@ function timingNudge(
   divided: ReadonlySet<number>,
   indent = '    ',
 ): string[] {
-  const moved = (n: NoteEvent) => offGrid(n.beat) && !divided.has(slotOf(n.beat));
+  const moved = (n: NoteEvent) =>
+    (offGrid(n.beat) || n.rake !== undefined) && !divided.has(slotOf(n.beat));
   if (!track.notes.some(moved)) return [];
 
   // Seconds, because that is what `nudge` is in, from beats, because that is what
@@ -1409,8 +1422,32 @@ function timingNudge(
   // the tempo the scheduler was actually given.
   const seconds = 60 / bpm;
   const grid = buildValueGrid(track.notes, totalBars, slotsPerBar,
-    (n) => (moved(n) ? nudgeToken(n.beat - quantise(n.beat), seconds) : '0'));
+    (n) => (moved(n) ? nudgeToken(n.beat - quantise(n.beat) + (n.rake ?? 0), seconds) : '0'));
   return [`${indent}.nudge(\`${formatGrid(grid)}\`)`];
+}
+
+/**
+ * One line per string, for a chord struck one string at a time.
+ * The voices of each slot are dealt by strike order, so the first pattern holds
+ * every chord's first string and every single note, the second the second
+ * strings, and so on. A track with no rake is one rank and reads as it did.
+ */
+function strumRanks(notes: NoteEvent[]): NoteEvent[][] {
+  if (!notes.some((n) => n.rake)) return [notes];
+  const bySlot = new Map<number, NoteEvent[]>();
+  for (const n of notes) {
+    const slot = slotOf(n.beat);
+    const at = bySlot.get(slot);
+    if (at) at.push(n);
+    else bySlot.set(slot, [n]);
+  }
+  const ranks: NoteEvent[][] = [];
+  for (const chord of bySlot.values()) {
+    chord.sort((a, b) => (a.rake ?? 0) - (b.rake ?? 0) || a.midi - b.midi);
+    chord.forEach((n, i) => { (ranks[i] ??= []).push(n); });
+  }
+  for (const rank of ranks) rank.sort((a, b) => a.beat - b.beat || a.midi - b.midi);
+  return ranks;
 }
 
 /**

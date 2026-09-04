@@ -208,7 +208,8 @@ Real instrumental writing differs by **figuration**, and none of it is expressib
 |---|---|---|---|---|
 | `mallet` — vibraphone, harp, glockenspiel | 0.9 | 0.5 | 1.0 | 0.05 |
 | `keyboard` — piano, organ, celesta | 0.7 | 0.8 | 0.7 | 0.05 |
-| `plucked` — guitars, pizzicato, sitar | 0.8 | 0.4 | 1.0 | 0.1 |
+| `plucked` — nylon guitar, pizzicato, sitar | 0.8 | 0.4 | 1.0 | 0.1 |
+| `guitar` — steel-string and electric guitars | 0.4 | 0.9 | 1.0 | 0.1 |
 | `bowed` — violin, string ensembles, cello | 0.25 | 0.6 | 0.3 | 0.15 |
 | `wind` — flute, saxes, clarinet, shakuhachi | 0.2 | 1.0 | 0.4 | 0.7 |
 | `brass` — trumpet, trombone, brass section | 0.35 | 0.3 | 0.6 | 0.9 |

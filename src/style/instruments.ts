@@ -34,6 +34,7 @@ export type Idiom =
   | 'keyboard'  // broken chords and runs both, no breath limit
   | 'mallet'    // arpeggiated, wide, tolerant of repeated notes
   | 'plucked'   // arpeggiated but narrower; re-articulation is free
+  | 'guitar'    // scale shapes across a neck: runs first, re-articulation free
   | 'bowed'     // long slurred lines, few rests, moderate leaps
   | 'wind'      // scalar runs, and it has to breathe
   | 'brass'     // sparse and narrow, and it has to breathe harder
@@ -77,6 +78,9 @@ export const IDIOMS: Record<Idiom, IdiomProfile> = {
   keyboard: { arpeggio: 0.7, run: 0.8, repeat: 0.7, breath: 0.05, detache: 0.10 },
   mallet: { arpeggio: 0.9, run: 0.5, repeat: 1.0, breath: 0.05, detache: 0.10 },
   plucked: { arpeggio: 0.8, run: 0.4, repeat: 1.0, breath: 0.1, detache: 0.13 },
+  // A harp or a kantele breaks chords because its strings are tuned to one; a
+  // fretted six-string is played in scale positions, and its lines run.
+  guitar: { arpeggio: 0.4, run: 0.9, repeat: 1.0, breath: 0.1, detache: 0.13 },
   bowed: { arpeggio: 0.25, run: 0.6, repeat: 0.3, breath: 0.15, detache: 0.06 },
   wind: { arpeggio: 0.2, run: 1.0, repeat: 0.4, breath: 0.7, detache: 0.11 },
   brass: { arpeggio: 0.35, run: 0.3, repeat: 0.6, breath: 0.9, detache: 0.15 },
@@ -107,6 +111,7 @@ export const IDIOM_ENVELOPES: Record<Idiom, Envelope> = {
   // own length, not for the length it was written for.
   mallet: { attack: 0.002, decay: 1.6, sustain: 0, release: 0.35 },
   plucked: { attack: 0.003, decay: 1.1, sustain: 0, release: 0.25 },
+  guitar: { attack: 0.003, decay: 1.1, sustain: 0, release: 0.25 },
   // A bow takes time to move a string, and that slowness is most of what tells
   // the ear this is bowed and not a keyboard patch holding a note.
   bowed: { attack: 0.08, decay: 0.15, sustain: 0.9, release: 0.4 },
@@ -297,6 +302,12 @@ export interface Instrument {
    * guitar. See `chooseTechnique`.
    */
   techniques?: (readonly [Technique, number])[];
+  /**
+   * How readily a struck note is bent up into pitch, 0..1. Absent means the
+   * pitch is fixed once struck, which is every instrument without a string
+   * under a fretting finger. Read by `ornament` in `generate/solo.ts`.
+   */
+  bend?: number;
 }
 
 const I = (
@@ -353,6 +364,9 @@ const H = (
 
 /** The same instrument, up where it plays a tune. See `Instrument.lead`. */
 const L = (instrument: Instrument, lead: number): Instrument => ({ ...instrument, lead });
+
+/** The same instrument, with a fretting hand that bends. See `Instrument.bend`. */
+const B = (instrument: Instrument, bend: number): Instrument => ({ ...instrument, bend });
 
 /** An instrument that does not ring the way its idiom rings. */
 const E = (instrument: Instrument, envelope: Partial<Envelope>): Instrument =>
@@ -478,41 +492,43 @@ export const INSTRUMENTS = {
     // strings are strung for them, and a plectrum on nylon is the exception a
     // flamenco player makes rather than the rule.
     [['fingerstyle', 6], ['strum', 4], ['plectrum', 1]]),
-  steelGuitar: H(L(I('steel guitar', 25, 'gm_acoustic_guitar_steel', 60, 0.8, 'plucked'), 71), HAND.guitar),
-  jazzGuitar: H(L(I('jazz guitar', 26, 'gm_electric_guitar_jazz', 60, 0.85, 'plucked'), 71),
+  // Bends are the electric guitar's own gesture: heavy acoustic strings barely
+  // move, flatwound jazz strings are not asked to, and nylon does not bend at all.
+  steelGuitar: B(H(L(I('steel guitar', 25, 'gm_acoustic_guitar_steel', 60, 0.8, 'guitar'), 71), HAND.guitar), 0.3),
+  jazzGuitar: B(H(L(I('jazz guitar', 26, 'gm_electric_guitar_jazz', 60, 0.85, 'guitar'), 71),
     // A hollow-body comps in four with a plectrum — Freddie Green, and it is the
     // one guitar sound in this catalogue that is a *rhythm* before it is a
     // texture. Strumming is there for the nights it is a texture.
-    [['plectrum', 6], ['strum', 3], ['fingerstyle', 2], ['muted', 1]]),
-  cleanGuitar: H(L(I('clean electric guitar', 27, 'gm_electric_guitar_clean', 60, 0.8, 'plucked'), 71),
-    HAND.guitar),
+    [['plectrum', 6], ['strum', 3], ['fingerstyle', 2], ['muted', 1]]), 0.25),
+  cleanGuitar: B(H(L(I('clean electric guitar', 27, 'gm_electric_guitar_clean', 60, 0.8, 'guitar'), 71),
+    HAND.guitar), 0.7),
   // Palm-muted: the string is damped by the hand that struck it.
   // …and the technique is not drawn for, because the programme *is* the
   // technique. Same argument as `slapBass` below: GM named a hand, the catalogue
   // inherited it as an instrument, and a muted guitar ringing on would be the
   // patch and the part disagreeing about what the hand is doing.
-  mutedGuitar: H(L(E(I('muted guitar', 28, 'gm_electric_guitar_muted', 60, 0.8, 'plucked'),
-    { decay: 0.25 }), 71), [['muted', 1]]),
+  mutedGuitar: B(H(L(E(I('muted guitar', 28, 'gm_electric_guitar_muted', 60, 0.8, 'guitar'),
+    { decay: 0.25 }), 71), [['muted', 1]]), 0.4),
   // Overdrive is a clean note pushed into an amplifier that has run out of
   // headroom. The string still decays like a string, so this takes the plucked
   // envelope untouched.
   // Same neck as the clean one, so the same 71. An amplifier does not move where
   // a guitarist plays a lead.
-  overdriveGuitar: H(L(I('overdriven guitar', 29, 'gm_overdriven_guitar', 60, 0.8, 'plucked'), 71),
+  overdriveGuitar: B(H(L(I('overdriven guitar', 29, 'gm_overdriven_guitar', 60, 0.8, 'guitar'), 71),
     // An amplifier at the edge of breakup is a riff instrument, and a riff is
     // downstrokes with the heel of the hand on the strings.
-    [['muted', 5], ['plectrum', 4], ['strum', 3]]),
+    [['muted', 5], ['plectrum', 4], ['strum', 3]]), 0.9),
   // Distortion is the same process taken far enough to compress, and compression
   // is what abolishes the decay: the note holds at level until the player damps
   // it. Two and a half seconds against the plucked default's one is the whole
   // difference between a chord and a power chord.
-  distortionGuitar: H(L(E(I('distortion guitar', 30, 'gm_distortion_guitar', 60, 0.8, 'plucked'),
+  distortionGuitar: B(H(L(E(I('distortion guitar', 30, 'gm_distortion_guitar', 60, 0.8, 'guitar'),
     { decay: 2.6 }), 71),
     // The palm mute is *most* of what distorted rhythm guitar is — a compressed
     // note that never decays has to be stopped by the hand or the riff is one
     // long chord. Strumming an open chord through this is the chorus, not the
     // verse, and the weights say so.
-    [['muted', 7], ['plectrum', 3], ['strum', 2]]),
+    [['muted', 7], ['plectrum', 3], ['strum', 2]]), 0.9),
   // Fingers, and only fingers: nobody takes a plectrum to a double bass, and a
   // palm mute needs a bridge the hand can rest on.
   acousticBass: H(I('upright bass', 32, 'gm_acoustic_bass', 40, 0.7, 'plucked'), [['fingers', 1]]),

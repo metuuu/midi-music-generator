@@ -301,11 +301,13 @@ export interface NoteEvent {
    * saying anything about itself, and a `Song` written before this existed still
    * reads back.
    *
-   * Layer-agnostic on purpose. Only the bass can author one today — see
-   * `BassHit.glide` — but the field is on the note rather than on anything
-   * bass-shaped, because the renderers read notes and a lead portamento is the
-   * same mechanism. The one layer it must never be written on is a **chordal**
-   * one, and that is not a taste: see `NoteBend` for what MIDI does to a chord.
+   * Layer-agnostic on purpose. Two authors write one — `BassHit.glide` on the
+   * bass, and `ornament` in `generate/solo.ts` on a line played by an
+   * instrument with `Instrument.bend` — and the field is on the note rather
+   * than on anything bass-shaped, because the renderers read notes and both
+   * gestures are the same mechanism. The one layer it must never be written on
+   * is a **chordal** one, and that is not a taste: see `NoteBend` for what MIDI
+   * does to a chord.
    */
   bend?: NoteBend;
   /**
@@ -329,6 +331,14 @@ export interface NoteEvent {
    * a thing a *finger* does, and there is only one of them per voice.
    */
   trill?: NoteTrill;
+  /**
+   * How long after the chord it belongs to this string is struck, in beats.
+   * A strum sweeps the strings a few milliseconds apart, and the sweep is
+   * declared here rather than written into `beat` so a chord still reads as one
+   * event to everything that groups notes by onset. Absent means struck with the
+   * chord. See `TechniqueProfile.rake`.
+   */
+  rake?: number;
   /**
    * A stroke on a damped string: an attack with no pitch worth hearing.
    *
@@ -539,9 +549,9 @@ export interface NoteEvent {
  * note**. A track has a channel to itself, so on a monophonic part the two are
  * the same thing; on a part sounding two notes at once they are not, and the
  * .mid bends the whole chord — a whammy bar rather than a portamento. That is
- * why `BassHit` is the only place a bend can be authored and `CompHit` is not,
- * and `render/midi.ts` marks the file rather than emitting the wrong sound
- * quietly if it is ever handed one anyway.
+ * why a bend is authored on the bass and on a soloing line and never on
+ * `CompHit`, and `render/midi.ts` marks the file rather than emitting the
+ * wrong sound quietly if it is ever handed one anyway.
  */
 export interface NoteBend {
   /**

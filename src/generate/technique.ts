@@ -39,7 +39,9 @@
  *     reason the field exists at all: slap without dead strokes is a bright
  *     patch, and a funk guitar without them is a chord on every eighth.
  *  2. **Articulate.** How much of its written length a note actually sounds. A
- *     palm mute is the same figure at a third of the length.
+ *     palm mute is the same figure at a third of the length. The few
+ *     milliseconds between the strings of a strummed chord are articulation
+ *     too, declared on the note as `rake` rather than written into its onset.
  *  3. **Colour.** An envelope and a small effects chain merged over the
  *     instrument's own, because a plectrum really does have a harder front than
  *     a thumb and both are the same bass.
@@ -210,6 +212,11 @@ export interface TechniqueProfile {
   /** Absent means the hand only ever touches a string to sound it. */
   dead?: DeadStrokes;
   /**
+   * Seconds between one string and the next when a chord is struck. Absent
+   * means every voice sounds at once. See `rakeChords`.
+   */
+  rake?: number;
+  /**
    * What the right hand does on stage, as a `GestureKind` name.
    *
    * A string rather than the imported union, because `concert/` imports from
@@ -250,6 +257,8 @@ export const TECHNIQUES: Record<Technique, TechniqueProfile> = {
     // A pick is a hard edge on a soft string: the front arrives sooner and the
     // note gives up sooner. Both halves are small — this is the same instrument.
     envelope: { attack: 0.0015, decay: 0.95 },
+    // A pick crosses the strings fast: a four-note chord lands inside 20 ms.
+    rake: 0.006,
     gesture: 'pluck',
   },
   muted: {
@@ -287,6 +296,9 @@ export const TECHNIQUES: Record<Technique, TechniqueProfile> = {
      * `Style.techniques`, which can carry a profile override.
      */
     dead: { step: 2, chance: 0.34, level: 0.15, length: 1 },
+    // Relaxed: five strings over some 45 ms, which is the sound of a strum
+    // rather than of a chord.
+    rake: 0.011,
     gesture: 'strum',
   },
   fingerstyle: {
@@ -355,6 +367,35 @@ export function chooseTechnique(args: {
  * changed a number `npm run genres` asserts, without a line of the feel code
  * changing.
  */
+/**
+ * Strike the voices of a chord one string at a time.
+ * A hand keeping a stroke grid strums down on it and up between, low string
+ * first on a downstroke; a pick with no grid is all downstrokes. The spacing
+ * closes up at speed so the last string still lands inside the chord's slot.
+ */
+function rakeChords(notes: NoteEvent[], perString: number, step: number | undefined, bpm: number): void {
+  const chords = new Map<number, NoteEvent[]>();
+  for (const n of notes) {
+    if (n.dead) continue;
+    const at = chords.get(n.beat);
+    if (at) at.push(n);
+    else chords.set(n.beat, [n]);
+  }
+  const spacing = perString * bpm / 60;
+  const widest = 0.35 / SLOTS_PER_BEAT;
+  for (const [beat, chord] of chords) {
+    if (chord.length < 2) continue;
+    chord.sort((a, b) => a.midi - b.midi);
+    const down = step === undefined
+      || Math.floor(Math.round(beat * SLOTS_PER_BEAT) / Math.max(1, step)) % 2 === 0;
+    const gap = Math.min(spacing, widest / (chord.length - 1));
+    chord.forEach((n, i) => {
+      const rake = (down ? i : chord.length - 1 - i) * gap;
+      if (rake > 0) n.rake = rake;
+    });
+  }
+}
+
 export function applyTechnique(args: {
   notes: NoteEvent[];
   technique: Technique;
@@ -362,6 +403,8 @@ export function applyTechnique(args: {
   rng: Rng;
   /** The style's bar length, for walking the hand's grid across the part. */
   beatsPerBar: number;
+  /** For turning a rake in seconds into beats. */
+  bpm: number;
   /** The downbeat of the final bar. Nothing at or after it is touched. */
   endsAt: number;
   /** Profile override, where a style has one. See `Style.techniques`. */
@@ -420,7 +463,8 @@ export function applyTechnique(args: {
     : profile.length;
 
   if (lengthens !== 1) {
-    for (const note of notes) if (!held(note) && !note.harmony) note.duration *= lengthens;
+    // A bent note is left to ring: the hand that pushes the string up is not the hand that damps it.
+    for (const note of notes) if (!held(note) && !note.harmony && !note.bend) note.duration *= lengthens;
     /**
      * …but a string cannot still be ringing when it is struck again.
      *
@@ -463,6 +507,8 @@ export function applyTechnique(args: {
       }
     }
   }
+
+  if (profile.rake) rakeChords(notes, profile.rake, profile.dead?.step, args.bpm);
 
   const dead = profile.dead;
   if (!dead || !profile.layers.includes(args.layer)) return;

@@ -770,7 +770,7 @@ export const rock: Genre = {
       offbeatAccent: 0.3,
       // Almost none. An enclosure is a bebop device — approaching a target from
       // above and below — and a rock guitarist approaches from *below only*,
-      // by bending into the note, which arrives here as `ornament` instead.
+      // by bending into the note, which is what `ornament` becomes on a guitar.
       enclosure: 0.04,
       /**
        * Modest, and deliberately not zero.

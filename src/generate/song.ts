@@ -68,7 +68,7 @@ import type { Signature } from '../tune/judge.js';
 import { chooseMotto } from './motto.js';
 import { SLOTS_PER_BEAT, trimOverlaps } from './rhythm.js';
 import {
-  compBehindSolo, drumsBehindSolo, generateDrumSolo, generateSolo, ornament, planSolos,
+  compBehindSolo, drumsBehindSolo, generateDrumSolo, generateSolo, isolateBends, ornament, planSolos,
   type BarSpan, type SoloLayer,
 } from './solo.js';
 import { generateVocalStack } from './vocals.js';
@@ -1945,6 +1945,9 @@ export function generateSong(opts: GenerateOptions = {}): Song {
         accompaniment,
         agility: soloInstrument.agility,
         idiom: IDIOMS[soloInstrument.idiom],
+        bends: soloInstrument.bend
+          ? { appetite: soloInstrument.bend, rng: new Rng(`${seed}:bend:${s}${salt(soloLayer)}`) }
+          : undefined,
         motto,
         quoteMotto: genre.solo.quoteMotto ?? 0,
         swing: style.swing,
@@ -2163,6 +2166,9 @@ export function generateSong(opts: GenerateOptions = {}): Song {
            * parameter's own note in `ornament`.
            */
           !style.twoHanded,
+          leadInstrument.bend
+            ? { appetite: leadInstrument.bend, rng: new Rng(`${seed}:bend:${s}${salt('melody')}`) }
+            : undefined,
         );
       }
 
@@ -3551,12 +3557,16 @@ export function generateSong(opts: GenerateOptions = {}): Song {
         layer,
         rng: hand,
         beatsPerBar: style.beatsPerBar,
+        bpm,
         endsAt: (totalBars - 1) * style.beatsPerBar,
         ...(Object.keys(correction).length
           ? { profile: { ...TECHNIQUES[technique], ...correction } }
           : {}),
       });
     }
+    // After the hand, whose dead strokes and ringing fingerstyle are the last
+    // things to land beside a bend. See `isolateBends`.
+    if (layer !== 'bass') isolateBends(notes);
 
     /**
      * …and the second part takes the length of the note it is doubling.

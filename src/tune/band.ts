@@ -359,7 +359,10 @@ function writeLine(
   const out: NoteEvent[] = [];
   for (let i = 0; i < taken.length; i++) {
     const n = taken[i]!;
-    let midi = step(n.midi, steps, n.beat);
+    // A bent lead is harmonised where it arrives, and the twin bends with it.
+    const rise = n.bend?.semitones ?? 0;
+    const lead = n.midi + rise;
+    let midi = step(lead, steps, n.beat);
     const pcs = chords?.[i];
 
     /**
@@ -384,9 +387,9 @@ function writeLine(
      */
     let sprung = false;
     if (pcs && key) {
-      const gap = Math.abs(midi - n.midi);
+      const gap = Math.abs(midi - lead);
       if (gap < near || gap > far) {
-        midi = n.midi + away * inClass([near, far], gap, key, pcs.chord, n.midi, away);
+        midi = lead + away * inClass([near, far], gap, key, pcs.chord, lead, away);
         sprung = true;
       }
     }
@@ -416,15 +419,18 @@ function writeLine(
       // a sixth that has to become a seventh for one note is still this line; only
       // then the note is dropped, which is what a second player does when the note
       // they want is the note the lead is already on.
-      if (crowds(midi, n.midi, away)) midi = step(midi, away, n.beat);
-      if (crowds(midi, n.midi, away)) continue;
+      if (crowds(midi, lead, away)) midi = step(midi, away, n.beat);
+      if (crowds(midi, lead, away)) continue;
     }
 
     // A note outside the second player's window is dropped rather than folded by an
     // octave: a descant folded down is no longer above the tune, and the fold would
     // manufacture the octave rule 4 just refused.
     if (midi < lo || midi > hi) continue;
-    out.push({ beat: n.beat, duration: n.duration, midi, velocity: n.velocity * 0.82 });
+    out.push({
+      beat: n.beat, duration: n.duration, midi: midi - rise, velocity: n.velocity * 0.82,
+      ...(n.bend ? { bend: n.bend } : {}),
+    });
   }
   return out;
 }

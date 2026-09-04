@@ -689,6 +689,17 @@ export interface SoloOptions {
    * nothing downstream would clean it up.
    */
   pickupBeats?: number;
+  /** Whether this player bends into notes, and on which stream. See `Bending`. */
+  bends?: Bending;
+}
+
+/**
+ * A fretting hand that bends, drawn on its own stream so a song whose soloist
+ * cannot bend is byte for byte what it was. `appetite` is `Instrument.bend`.
+ */
+export interface Bending {
+  appetite: number;
+  rng: Rng;
 }
 
 export function generateSolo(opts: SoloOptions): NoteEvent[] {
@@ -704,6 +715,7 @@ export function generateSolo(opts: SoloOptions): NoteEvent[] {
   const accompaniment = opts.accompaniment ?? EMPTY_ACCOMPANIMENT;
   const agility = opts.agility ?? 0.7;
   const idiom = opts.idiom ?? IDIOMS.vocal;
+  const bends = opts.bends;
   const scaleFor = (chord: Chord) => opts.scaleForChord(tonic, mode, chord);
   const barOf = (slot: number) => Math.min(bars - 1, Math.max(0, Math.floor(slot / slotsPerBar)));
   const chordAt = (slot: number) => chords[barOf(slot)]!;
@@ -844,7 +856,7 @@ export function generateSolo(opts: SoloOptions): NoteEvent[] {
         prev, prevPrev, prevChord,
         chordAt, scaleFor, barOf, slotsPerBar, groups: opts.groups, beatsPerBar, startBeat,
         range, rng, rules, strictness: opts.strictness, accompaniment,
-        agility, idiom, mode, tonic, vocab,
+        agility, idiom, mode, tonic, vocab, bends,
         changeSlots, enclosed, energy,
         intensity: opts.intensity,
         climb: vocab.climb * (opts.choruses > 1 ? (opts.chorus + 1) / opts.choruses : 1),
@@ -950,7 +962,7 @@ export function generateSolo(opts: SoloOptions): NoteEvent[] {
       prev, prevPrev, prevChord,
       chordAt, scaleFor, barOf, slotsPerBar, groups: opts.groups, beatsPerBar, startBeat,
       range, rng, rules, strictness: opts.strictness, accompaniment,
-      agility, idiom, mode, tonic, vocab,
+      agility, idiom, mode, tonic, vocab, bends,
       // No landing target inside a run: the run *is* the gesture, and pulling
       // its middle onto a guide tone would flatten the one thing it does.
       changeSlots: new Set<number>(), enclosed: new Set<number>(),
@@ -1015,6 +1027,7 @@ function placeCell(args: {
   energy: number;
   intensity: number;
   climb: number;
+  bends?: Bending;
 }): { notes: NoteEvent[]; first: Midi; last: Midi; lastSlot: number; prevPrev?: Midi; span: number } {
   const { cell, start, blockEnd, range, rng, vocab } = args;
   const [lo, hi] = range;
@@ -1143,6 +1156,7 @@ function placeCell(args: {
     ornament(
       notes, args.scaleFor, args.chordAt, args.startBeat, range, rng,
       Math.min(1, vocab.ornament * (0.45 + args.energy)),
+      false, args.bends,
     );
   }
 
@@ -1226,6 +1240,9 @@ function choose(args: {
     candidates.add(args.preferred);
   }
 
+  // The step the line just took, so a candidate can be judged as continuing it.
+  const last = args.prevPrev === undefined ? 0 : prev - args.prevPrev;
+
   const scored: (readonly [Midi, number])[] = [];
   for (const cand of candidates) {
     const semis = Math.abs(cand - prev);
@@ -1265,9 +1282,11 @@ function choose(args: {
     if (!inScale && !isChordTone) w *= 0.12 + vocab.chromatic * 1.5;
 
     // Figuration, as in the melody engine: continuing a figure is what makes a
-    // line sound played rather than assembled.
+    // line sound played rather than assembled. A step the same way as the last
+    // step is a run, and the idiom says how much the player wants to keep one.
+    const running = last !== 0 && Math.abs(last) <= 2 && Math.sign(cand - prev) === Math.sign(last);
     if (semis === 0) w *= 0.3 + args.idiom.repeat * 0.4;
-    else if (semis <= 2) w *= 2.4;
+    else if (semis <= 2) w *= 2.4 * (running ? 1 + args.idiom.run * 0.5 : 1);
     else if (semis <= 4) w *= 1.1 + args.idiom.arpeggio * 0.6;
     else w *= 0.35;
 
@@ -1341,6 +1360,12 @@ const GRACE_SLOTS = 0.55;
 const TRILL_BEATS = 1;
 
 /**
+ * The longest a bend takes to arrive, in beats. Half the note on anything
+ * shorter, so the pitch is heard at rest for at least as long as it travelled.
+ */
+const BEND_BEATS = 0.35;
+
+/**
  * Grace notes, mordents and trills.
  *
  * The entire content of an iskelmä instrumental break and of a Finnish folk
@@ -1388,12 +1413,30 @@ export function ornament(
    * theirs.
    */
   trill = false,
+  /** A hand that bends takes the ornament as a bend instead. See `Bending`. */
+  bends?: Bending,
 ): void {
   const slot1 = 1 / SLOTS_PER_BEAT;
   const grace = slot1 * GRACE_SLOTS;
   for (let i = notes.length - 1; i >= 0; i--) {
     const note = notes[i]!;
     if (note.duration < slot1 * 2.5 || !rng.chance(amount)) continue;
+    /**
+     * A bend into the note: struck on the scale step below and pushed up to
+     * pitch. The struck note is a transient, so the rules that already passed
+     * the arrival are not asked again; a fourth or wider is no bend on any
+     * string, and the note takes an ordinary ornament instead.
+     */
+    if (bends && bends.rng.chance(bends.appetite)) {
+      const slot = Math.round((note.beat - startBeat) * SLOTS_PER_BEAT);
+      const scale = scaleFor(chordAt(Math.max(0, slot)));
+      const rise = note.midi - clampToRange(stepInScale(scale, note.midi, -1), lo, hi);
+      if (rise > 0 && rise <= 3) {
+        note.midi -= rise;
+        note.bend = { semitones: rise, beats: Math.min(note.duration * 0.5, BEND_BEATS) };
+        continue;
+      }
+    }
     /**
      * Never crush the note in front.
      *
@@ -1457,6 +1500,40 @@ export function ornament(
     }
   }
   notes.sort((a, b) => a.beat - b.beat);
+}
+
+/**
+ * Keep every bend alone on its track. A MIDI bend moves the whole channel, so a
+ * note ringing under a bent one would travel with it — see `NoteBend`. A note
+ * reaching into a bend from before is cut at the bend's onset, a note struck
+ * during one ends the bent note there, and a note struck with it takes the bend
+ * off.
+ */
+export function isolateBends(notes: NoteEvent[]): void {
+  if (!notes.some((n) => n.bend)) return;
+  // Below this a note is a click, the threshold `trimOverlaps` uses.
+  const MIN_AUDIBLE = 0.125;
+  const gone = new Set<NoteEvent>();
+  for (const bent of notes) {
+    if (!bent.bend) continue;
+    for (const other of notes) {
+      if (other === bent || gone.has(other) || !bent.bend) continue;
+      if (other.beat >= bent.beat + bent.duration || other.beat + other.duration <= bent.beat) continue;
+      if (other.beat < bent.beat) {
+        other.duration = bent.beat - other.beat;
+        if (other.duration < MIN_AUDIBLE) gone.add(other);
+      } else if (other.beat > bent.beat) {
+        bent.duration = other.beat - bent.beat;
+      } else {
+        bent.midi += bent.bend.semitones;
+        delete bent.bend;
+      }
+    }
+  }
+  if (!gone.size) return;
+  let kept = 0;
+  for (const n of notes) if (!gone.has(n)) notes[kept++] = n;
+  notes.length = kept;
 }
 
 // ---------------------------------------------------------------------------
