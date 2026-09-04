@@ -389,7 +389,7 @@ const arena: EraProfile = {
    * the one that came up; this one is the one that was always meant to be down.
    */
   voiceEffects: {
-    sd: { reverb: 0.9, lowpass: 6000 },
+    sd: { reverb: 0.9, lowpass: 6000, gate: 0.2 },
   },
   space: { reverbSize: 0.85, delayBeats: 0.75, delayFeedback: 0.34 },
 };

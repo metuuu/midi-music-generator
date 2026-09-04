@@ -209,6 +209,8 @@ let trilledSlots = 0;
  */
 let duckBuses = 0;
 let duckers = 0;
+/** Parts on a bus of their own for a gate, which is not a sidechain. */
+let gateBuses = 0;
 /** Records whose style asked for a sidechain at all, so a zero above is legible. */
 let duckSongs = 0;
 
@@ -239,7 +241,11 @@ for (let i = 0; i < RENDERS; i++) {
   const song = generateSong({ seed: `notation-${i}`, genre, vocals: i % 3 === 0 });
   songs++;
   const code = renderStrudel(song, { includePrebake: true });
-  duckBuses += (code.match(/\n\s*\.orbit\(\d+\)/g) ?? []).length;
+  // A bus carries either a duck or a gate; the gate's part names its impulse.
+  for (const part of code.split(/\n\n/)) {
+    if (!/\n\s*\.orbit\(\d+\)/.test(part)) continue;
+    if (/\.ir\('/.test(part)) gateBuses++; else duckBuses++;
+  }
   duckers += (code.match(/\n\s*\.duckorbit\(/g) ?? []).length;
   // The IR's own request, ahead of anything the renderer decided about it.
   if (song.tracks.some((t) => t.effects?.duck)) duckSongs++;
@@ -346,6 +352,7 @@ console.log(
 );
 console.log(`Rolled slots: ${rolledSlots} struck more than once inside a sixteenth.`);
 console.log(`Trilled slots: ${trilledSlots} alternating two pitches inside a sixteenth.`);
+console.log(`Gated parts: ${gateBuses} on a bus of their own.`);
 if (deep('the sidechain pairing', 'standard')) {
   if (!duckSongs) {
     // Not a measurement of the emitter. Said in words rather than as a zero,

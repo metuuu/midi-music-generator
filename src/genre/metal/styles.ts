@@ -1038,7 +1038,7 @@ const stoner: Style = {
   shots: METAL_SHOTS,
   breakCarrier: 'comp',
   requireLayers: ['comp'],
-  excludeLayers: ['brass'],
+  excludeLayers: ['brass', 'pad'],
   progressions: {
     verse: [
       { chords: ['i', 'i', 'III', 'III', 'iv', 'iv', 'i', 'i'], weight: 5 },
@@ -1169,6 +1169,7 @@ const nwobhm: Style = {
   shots: METAL_SHOTS,
   breakCarrier: 'comp',
   requireLayers: ['comp', 'counter'],
+  excludeLayers: ['brass', 'pad'],
   progressions: {
     verse: [
       { chords: ['i', 'i', 'VII', 'VII', 'VI', 'VI', 'VII', 'VII'], weight: 5, note: 'i–♭VII–♭VI–♭VII: the aeolian shuttle, and the single most-played eight bars in the genre' },
@@ -1242,7 +1243,7 @@ const speed: Style = {
   shots: METAL_SHOTS,
   breakCarrier: 'comp',
   requireLayers: ['comp', 'counter'],
-  excludeLayers: ['brass'],
+  excludeLayers: ['brass', 'pad'],
   progressions: {
     verse: [
       { chords: ['i', 'i', 'VII', 'VII', 'i', 'i', 'VII', 'VII'], weight: 5 },
@@ -1718,7 +1719,7 @@ const groove: Style = {
   shots: [[[0, 7, 10], 5], [[0, 3, 6, 10], 4], [[0, 6, 8], 3]],
   breakCarrier: 'comp',
   requireLayers: ['comp'],
-  excludeLayers: ['brass'],
+  excludeLayers: ['brass', 'pad'],
   progressions: {
     verse: [
       { chords: ['i', 'i', 'i', 'i', 'i', 'i', 'bII', 'bII'], weight: 5 },
@@ -1767,7 +1768,7 @@ const metalcore: Style = {
   shots: [[[0, 6, 8], 5], [[0, 3, 6, 10], 4], [[0, 4, 8, 12], 3]],
   breakCarrier: 'comp',
   requireLayers: ['comp'],
-  excludeLayers: ['brass'],
+  excludeLayers: ['brass', 'pad'],
   progressions: {
     verse: [
       { chords: ['i', 'i', 'VI', 'VI', 'III', 'III', 'VII', 'VII'], weight: 5 },
@@ -2055,7 +2056,7 @@ const djent: Style = {
   shots: [[[0, 7, 14], 5], [[0, 4, 8, 12], 3]],
   breakCarrier: 'comp',
   requireLayers: ['comp'],
-  excludeLayers: ['brass'],
+  excludeLayers: ['brass', 'pad'],
   progressions: {
     verse: [
       { chords: ['i', 'i', 'i', 'i', 'i', 'i', 'i', 'i'], weight: 6, note: 'One chord for eight bars, because the event is the cycle and a chord change would give the ear something easier to hold on to' },
@@ -2392,7 +2393,7 @@ const melodeath: Style = {
   shots: METAL_SHOTS,
   breakCarrier: 'comp',
   requireLayers: ['comp', 'counter'],
-  excludeLayers: ['brass'],
+  excludeLayers: ['brass', 'pad'],
   progressions: {
     verse: [
       { chords: ['i', 'i', 'VI', 'VI', 'III', 'III', 'VII', 'VII'], weight: 5 },

@@ -2649,9 +2649,8 @@ const postpunk: Style = {
  * too — a style that is `hard`'s chords at `hard`'s tempo and is a separate
  * style solely because of what was done to one drum is the case an override
  * exists for — but it declares nothing, because the era already says it and a
- * second statement of one fact is the one that rots. The half still missing is
- * the gate itself: the plate is on the snare and nothing stops it, because
- * `Effects` has no decay.
+ * second statement of one fact is the one that rots. The era's `gate` is the
+ * other half: the plate on the snare, stopped at 200 ms.
  *
  * `pushedRoot` in the bass, because at this tempo with a drummer playing
  * sixteenths there is nowhere left to be busy. The one note off the grid is the

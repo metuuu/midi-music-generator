@@ -36,6 +36,13 @@ export interface PartContext {
   startBeat: number;
   rng: Rng;
   style: Style;
+  /** The genre's bass register, when it states one. See `placeRoot`. */
+  bassRegister?: BassRegister;
+}
+
+export interface BassRegister {
+  home: Midi;
+  floor: Midi;
 }
 
 /**
@@ -249,12 +256,15 @@ function spanOf(hits: readonly BassHit[]): { lo: number; hi: number } {
  * from anywhere. Nothing here is drawn — the whole decision is arithmetic on the
  * root and the span — so no figure this touches costs the song a random number.
  */
-function placeRoot(root: Pc, shape: { lo: number; hi: number }, near?: Midi): Midi {
-  const home = nearestPc(root, BASS_HOME);
+function placeRoot(
+  root: Pc, shape: { lo: number; hi: number }, near?: Midi,
+  register: BassRegister = { home: BASS_HOME, floor: BASS_RANGE[0] },
+): Midi {
+  const home = nearestPc(root, register.home);
   const cost = (at: Midi): readonly number[] => [
-    Math.max(0, BASS_RANGE[0] - (at + shape.lo)) + Math.max(0, at + shape.hi - SHAPE_CEILING),
+    Math.max(0, register.floor - (at + shape.lo)) + Math.max(0, at + shape.hi - SHAPE_CEILING),
     Math.max(0, at + shape.hi - BASS_RANGE[1]),
-    2 * Math.abs(at - BASS_HOME) + (near === undefined ? 0 : Math.abs(at - near)),
+    2 * Math.abs(at - register.home) + (near === undefined ? 0 : Math.abs(at - near)),
   ];
   let best = home;
   let lowest = cost(home);
@@ -1213,7 +1223,9 @@ export function generateBass(
    */
   const shape = spanOf(pattern.hits);
   const roots: Midi[] = [];
-  for (let bar = 0; bar < chords.length; bar++) roots.push(placeRoot(chords[bar]!.root, shape, roots[bar - 1]));
+  for (let bar = 0; bar < chords.length; bar++) {
+    roots.push(placeRoot(chords[bar]!.root, shape, roots[bar - 1], ctx.bassRegister));
+  }
   const bounce = bounceSlots(pattern.hits);
   const walks = opts.walkup && !pattern.cycle && !pattern.sustain
     ? planWalkups(pattern.hits, chords, roots, {
@@ -1582,7 +1594,7 @@ function generateWalkingBass(ctx: PartContext): NoteEvent[] {
     // Final beat: approach the next root, usually chromatically from below. The
     // root is placed with the figure bass's pull toward E2, so a line that has
     // walked to the top of the register is led back down rather than left there.
-    const nextRoot = placeRoot(next.root, { lo: 0, hi: 0 }, root);
+    const nextRoot = placeRoot(next.root, { lo: 0, hi: 0 }, root, ctx.bassRegister);
     const approach = clampToRange(
       rng.weighted([
         [nextRoot - 1, 5],

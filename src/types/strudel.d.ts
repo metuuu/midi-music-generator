@@ -198,6 +198,10 @@ declare module '@strudel/webaudio' {
   export function getSampleBuffer(
     value: Record<string, unknown>, bank: unknown,
   ): Promise<{ buffer: AudioBuffer; playbackRate: number }>;
+  /** Fetch and decode one URL into the sampler's own cache, keyed by the URL. */
+  export function loadBuffer(
+    url: string, ac: AudioContext, s?: string, n?: number,
+  ): Promise<AudioBuffer>;
 }
 
 declare module '@strudel/soundfonts/gm.mjs' {

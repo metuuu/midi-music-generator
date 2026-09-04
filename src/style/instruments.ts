@@ -141,7 +141,10 @@ export interface Instrument {
   name: string;
   /** 0-based General MIDI program. */
   gm: number;
-  /** Soundfont name in @strudel/soundfonts. */
+  /**
+   * Sound name in the audition: a soundfont in @strudel/soundfonts, a
+   * registered sample, or one of superdough's own oscillators.
+   */
   strudel: string;
   /**
    * Processing that is part of what this instrument *is*, merged last — over
@@ -529,6 +532,15 @@ export const INSTRUMENTS = {
     // long chord. Strumming an open chord through this is the chorus, not the
     // verse, and the weights say so.
     [['muted', 7], ['plectrum', 3], ['strum', 2]]), 0.9),
+  /**
+   * The same amplifier with the riff hand on it. Centred at 48 rather than 60
+   * because a riff lives on the bottom two strings, E2 to A3, and the arranger
+   * floors a layer at its centre minus nine; at 60 no offset could put a power
+   * chord where a metal band plays one. A second entry rather than the lead's
+   * because one instrument is cast once, and the band has two guitarists.
+   */
+  rhythmGuitar: H(E(I('rhythm guitar', 30, 'gm_distortion_guitar', 48, 0.8, 'plucked'),
+    { decay: 2.6 }), [['muted', 7], ['plectrum', 3], ['strum', 2]]),
   // Fingers, and only fingers: nobody takes a plectrum to a double bass, and a
   // palm mute needs a bridge the hand can rest on.
   acousticBass: H(I('upright bass', 32, 'gm_acoustic_bass', 40, 0.7, 'plucked'), [['fingers', 1]]),
@@ -646,6 +658,19 @@ export const INSTRUMENTS = {
   marimba: E(I('marimba', 12, 'gm_marimba', 72, 1.0, 'mallet'), { decay: 0.9 }),
   leadSquare: E(I('square lead', 80, 'gm_lead_1_square', 72, 0.9, 'keyboard'), SYNTH_LEAD),
   leadSaw: E(I('saw lead', 81, 'gm_lead_2_sawtooth', 72, 0.9, 'keyboard'), SYNTH_LEAD),
+  /**
+   * superdough's own oscillators rather than samples: a GM lead is one
+   * recording of one voice, and the revival's sound is five detuned saws with
+   * a filter moving on every note. The GM number is what the `.mid` plays; the
+   * envelope, filter, glide and sweep reach these exactly as they reach a font.
+   */
+  supersawLead: E(I('supersaw lead', 81, 'supersaw', 72, 0.9, 'keyboard'), SYNTH_LEAD),
+  pulseLead: E(I('pulse lead', 80, 'square', 72, 0.9, 'keyboard'), SYNTH_LEAD),
+  supersawPad: E(I('supersaw pad', 90, 'supersaw', 60, 0.5, 'bowed'), PAD),
+  /** The same oscillator with a keyboard's front, for stabs and arpeggios a pad's attack would swallow. */
+  supersawPoly: E(I('supersaw poly', 90, 'supersaw', 60, 0.9, 'keyboard'),
+    { attack: 0.015, decay: 0.3, sustain: 0.8, release: 0.25 }),
+  analogBass: E(I('analogue bass', 38, 'sawtooth', 40, 0.85, 'keyboard'), SYNTH_BASS),
   leadCalliope: I('calliope lead', 82, 'gm_lead_3_calliope', 72, 0.8, 'wind'),
   leadChiff: I('chiff lead', 83, 'gm_lead_4_chiff', 72, 0.8, 'wind'),
   leadVoice: I('voice lead', 85, 'gm_lead_6_voice', 72, 0.7, 'vocal'),
@@ -1208,6 +1233,7 @@ export const INSTRUMENT_RANGE: Record<InstrumentId, readonly [Midi, Midi]> = {
   mutedGuitar: [40, 86],
   overdriveGuitar: [40, 86],
   distortionGuitar: [40, 86],
+  rhythmGuitar: [38, 86],
   acousticBass: [28, 67],
   fingerBass: [28, 63],
   pickBass: [28, 63],
@@ -1266,6 +1292,11 @@ export const INSTRUMENT_RANGE: Record<InstrumentId, readonly [Midi, Midi]> = {
   marimba: [53, 96],
   leadSquare: [21, 108],
   leadSaw: [21, 108],
+  supersawLead: [21, 108],
+  pulseLead: [21, 108],
+  supersawPad: [21, 108],
+  supersawPoly: [21, 108],
+  analogBass: [21, 108],
   leadCalliope: [21, 108],
   leadChiff: [21, 108],
   leadVoice: [21, 108],

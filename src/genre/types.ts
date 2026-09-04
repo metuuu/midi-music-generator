@@ -30,6 +30,7 @@ import type { Mode, Scale } from '../core/scale.js';
 import type {
   BackingPolicy, DrumVoice, Effects, EndingStyle, LayerId, PlayedLayer, SectionKind, Space,
 } from '../core/types.js';
+import type { Midi } from '../core/pitch.js';
 import type { Technique, TechniqueProfile } from '../generate/technique.js';
 import type { RuleOverrides, StrictnessId } from '../core/rules.js';
 import type { HookId } from '../generate/hook.js';
@@ -366,6 +367,13 @@ export interface Genre {
   solo?: SoloProfile;
 
   /**
+   * How many consecutive solo sections a short form may grow to. Jazz takes
+   * another chorus because that is what blowing means; a loop genre with one
+   * lead break wants a second verse and chorus instead. Absent means four.
+   */
+  maxSolos?: number;
+
+  /**
    * How heavily the *tune itself* is decorated, 0..1. Absent means not at all,
    * which is the right answer for most of the catalogue.
    *
@@ -554,6 +562,12 @@ export interface Genre {
    * because the plan was not a genre's to state.
    */
   layerPlan?: {
+    /**
+     * Where the bass layer's roots sit before anything pulls them, and the
+     * lowest note it may write. Default E2 and E1, which is a walking bass and
+     * a dance band; a riff genre puts its roots on the low string.
+     */
+    bass?: { home: Midi; floor: Midi };
     /**
      * Semitones each accompaniment layer sits above (+) or below (−) the shared
      * ceiling the arranger puts under the tune. Merged over the default, which

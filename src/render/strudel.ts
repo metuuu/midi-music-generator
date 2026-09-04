@@ -182,6 +182,7 @@ function build(song: Song, opts: StrudelRenderOptions): { header: string[]; part
 
   if (opts.includePrebake) {
     for (const url of SAMPLE_MANIFESTS) lines.push(`await samples('${url}');`);
+    if (usesGate(song)) lines.push(`await samples({ ${GATE_IR}: '${gateBurstDataUrl()}' });`);
     lines.push('');
   }
 
@@ -253,6 +254,18 @@ function build(song: Song, opts: StrudelRenderOptions): { header: string[]; part
 
   const spelling = spellingFor(meta.tonic, meta.mode);
   const ducked = duckPlan(song);
+  /**
+   * A gated part needs a bus of its own, because an orbit has one reverb and a
+   * gate is a different reverb. Numbered above the duck buses so `duckBuses`
+   * stays exact, and shared by every part cut at the same length.
+   */
+  const gateOrbits = new Map<number, number>();
+  const gateBus = (fx: Effects | undefined): string[] => {
+    if (!fx?.gate || !fx.reverb) return [];
+    const orbit = gateOrbits.get(fx.gate) ?? 2 + ducked.targets.size + gateOrbits.size;
+    gateOrbits.set(fx.gate, orbit);
+    return [`    .orbit(${orbit})`];
+  };
   /**
    * Which bus each ducked part ended up on, assigned as the parts are actually
    * emitted rather than planned in advance.
@@ -381,7 +394,7 @@ function build(song: Song, opts: StrudelRenderOptions): { header: string[]; part
          * it is the one that cannot be written in the effect chain above. See
          * `duckPlan`.
          */
-        ...(orbit !== undefined ? [`    .orbit(${orbit})`] : []),
+        ...(orbit !== undefined ? [`    .orbit(${orbit})`] : gateBus(track.effects)),
       ].join('\n');
       push(track.layer, part);
     }
@@ -526,6 +539,7 @@ function build(song: Song, opts: StrudelRenderOptions): { header: string[]; part
       dyn ? `    .gain(\`${formatGrid(dyn)}\`)` : `    .gain(${gain.toFixed(3)})`,
       ...(shift ? [`    .nudge(\`${formatGrid(shift)}\`)`] : []),
       ...effectChain(fx, song),
+      ...gateBus(fx),
       // The sidechain's source end, on the kick and only on the kick. See
       // `duckPlan`; `kickOnsets` argues why it is `bd` by name.
       ...(voice === 'bd' ? ducked.controls(orbits) : []),
@@ -533,6 +547,56 @@ function build(song: Song, opts: StrudelRenderOptions): { header: string[]; part
   }
 
   return { header: lines, parts };
+}
+
+/** The sample name a gate convolves against. */
+export const GATE_IR = 'gateburst';
+
+let gateBurst: string | undefined;
+
+/**
+ * A 300 ms burst of noise as a WAV data URL, generated rather than shipped: the
+ * impulse response a gate convolves against. `roomsize` is how much of it
+ * superdough keeps, so a part gated at 0.18 hears its first 180 ms and then
+ * nothing, which is the dense flat tail and the stop that no decaying room has.
+ */
+export function gateBurstDataUrl(): string {
+  if (gateBurst) return gateBurst;
+  const rate = 22050;
+  const frames = Math.round(rate * 0.3);
+  const bytes = new Uint8Array(44 + frames);
+  const view = new DataView(bytes.buffer);
+  const ascii = (at: number, s: string) => {
+    for (let i = 0; i < s.length; i++) bytes[at + i] = s.charCodeAt(i);
+  };
+  ascii(0, 'RIFF'); view.setUint32(4, 36 + frames, true); ascii(8, 'WAVE');
+  ascii(12, 'fmt '); view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+  view.setUint32(24, rate, true); view.setUint32(28, rate, true);
+  view.setUint16(32, 1, true); view.setUint16(34, 8, true);
+  ascii(36, 'data'); view.setUint32(40, frames, true);
+  // Eight-bit noise off a fixed LCG, falling 4 dB across the burst: the dense
+  // early part of a large hall, and the same bytes on every render.
+  let x = 0x9e3779b9;
+  for (let i = 0; i < frames; i++) {
+    x = (Math.imul(x, 1664525) + 1013904223) >>> 0;
+    const level = 1 - 0.37 * (i / frames);
+    bytes[44 + i] = 128 + Math.round(((x >>> 8) / 0x1000000 - 0.5) * 254 * level);
+  }
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x2000) {
+    bin += String.fromCharCode(...bytes.subarray(i, i + 0x2000));
+  }
+  gateBurst = `data:audio/wav;base64,${btoa(bin)}`;
+  return gateBurst;
+}
+
+/** Whether any part of the song cuts its reverb, so the impulse is worth registering. */
+export function usesGate(song: Song): boolean {
+  const cuts = (fx: Effects | undefined) => Boolean(fx?.gate && fx.reverb);
+  return song.tracks.some((t) => cuts(t.effects))
+    || cuts(song.drums.effects)
+    || Object.values(song.drums.voiceEffects ?? {}).some(cuts);
 }
 
 /** Drum-machine sample set used by the audition render (verified reachable). */
@@ -820,7 +884,11 @@ function effectChain(fx: Effects | undefined, song: Song, lpf?: string, bent?: b
   }
   if (fx.pan !== undefined) out.push(`    .pan(${((fx.pan + 1) / 2).toFixed(2)})`);
   if (fx.reverb) {
-    out.push(`    .room(${fx.reverb.toFixed(2)}).roomsize(${space.reverbSize.toFixed(2)})`);
+    // A gate keeps `gate` seconds of a flat burst instead of the song's room:
+    // superdough's `roomsize` is how much of the impulse it keeps.
+    out.push(fx.gate
+      ? `    .room(${fx.reverb.toFixed(2)}).roomsize(${fx.gate.toFixed(2)}).ir('${GATE_IR}')`
+      : `    .room(${fx.reverb.toFixed(2)}).roomsize(${space.reverbSize.toFixed(2)})`);
   }
   if (fx.delay) {
     const cycles = space.delayBeats / meta.beatsPerBar;

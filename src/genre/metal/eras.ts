@@ -81,11 +81,17 @@ const heavy: EraProfile = {
   label: '1970–75 heavy',
   description:
     'One guitar into a valve amplifier at the edge of breakup, a Hammond in the corner, and a tape machine with a room on it.',
+  /**
+   * The two banks with an acoustic kit in them first, in every era: the R8 and
+   * the RY30 are sampled drums, and the twelve-bit samplers that used to lead
+   * these tables are hip-hop kits standing in for one.
+   */
   drumBanks: [
-    ['AkaiMPC60', 5],
-    ['EmuSP12', 3],
-    ['AlesisSR16', 3],
-    ['RolandCompurhythm1000', 2],
+    ['RolandR8', 5],
+    ['YamahaRY30', 3],
+    ['AkaiMPC60', 2],
+    ['EmuSP12', 1],
+    ['AlesisSR16', 1],
   ],
   drumSources: [['kit', 1]],
   palette: {
@@ -98,8 +104,8 @@ const heavy: EraProfile = {
       ['cleanGuitar', 2], ['rockOrgan', 2], ['flute', 1],
     ],
     comp: [
-      ['overdriveGuitar', 6], ['distortionGuitar', 4], ['rockOrgan', 3],
-      ['drawbarOrgan', 3], ['cleanGuitar', 2], ['percussiveOrgan', 1],
+      ['rhythmGuitar', 6], ['overdriveGuitar', 4], ['rockOrgan', 3],
+      ['drawbarOrgan', 3], ['cleanGuitar', 1],
     ],
     pad: [
       ['drawbarOrgan', 4], ['strings1', 3], ['rockOrgan', 2], ['choirAahs', 1],
@@ -149,10 +155,11 @@ const heavy: EraProfile = {
      * a filter here because that is what it is, and every era below moves the
      * number rather than removing it.
      */
-    comp: { reverb: 0.2, lowpass: 5200 },
-    melody: { reverb: 0.28, delay: 0.14, lowpass: 5600 },
-    counter: { reverb: 0.28, delay: 0.12, lowpass: 5400 },
-    bass: { reverb: 0.06, lowpass: 2600 },
+    // The edge of breakup: the least drive of the four, on everything.
+    comp: { reverb: 0.2, lowpass: 5200, drive: 0.3 },
+    melody: { reverb: 0.28, delay: 0.14, lowpass: 5600, drive: 0.3 },
+    counter: { reverb: 0.28, delay: 0.12, lowpass: 5400, drive: 0.3 },
+    bass: { reverb: 0.06, lowpass: 2600, drive: 0.1 },
     drums: { reverb: 0.3, lowpass: 9000 },
     pad: { reverb: 0.4, lowpass: 4600 },
     brass: { reverb: 0.4, lowpass: 5500 },
@@ -185,11 +192,11 @@ const nwobhm: EraProfile = {
   description:
     'Two guitars where there was one, a pedal in front of the amp, the organ gone, and everything close-miked and dry.',
   drumBanks: [
-    ['AkaiMPC60', 4],
-    ['AlesisSR16', 4],
-    ['EmuSP12', 3],
-    ['RolandR8', 3],
+    ['RolandR8', 5],
+    ['YamahaRY30', 3],
     ['SimmonsSDS5', 2],
+    ['AkaiMPC60', 2],
+    ['AlesisSR16', 1],
     ['LinnDrum', 1],
   ],
   drumSources: [['kit', 1]],
@@ -202,7 +209,7 @@ const nwobhm: EraProfile = {
       ['distortionGuitar', 7], ['overdriveGuitar', 4],
     ],
     comp: [
-      ['distortionGuitar', 8], ['overdriveGuitar', 4], ['cleanGuitar', 1],
+      ['rhythmGuitar', 9], ['overdriveGuitar', 3], ['cleanGuitar', 1],
     ],
     pad: [
       ['strings1', 4], ['drawbarOrgan', 3], ['synthStrings', 2], ['choirAahs', 2],
@@ -224,20 +231,23 @@ const nwobhm: EraProfile = {
   keyChangeChance: 0.04,
   density: 0.66,
   effects: {
-    comp: { reverb: 0.12, lowpass: 6000 },
-    melody: { reverb: 0.24, delay: 0.16, lowpass: 6500 },
-    counter: { reverb: 0.24, delay: 0.14, lowpass: 6200 },
-    bass: { reverb: 0.04, lowpass: 3000 },
-    /**
-     * The one production cliché of this decade that is genuinely audible on the
-     * kit: a gated plate on the snare, long enough to be a room and cut off
-     * before it can be one. `reverb` alone cannot express the gate, so what is
-     * left is the size — and a bright kit with a big send is the right half of it.
-     */
-    drums: { reverb: 0.42, lowpass: 11000 },
+    comp: { reverb: 0.12, lowpass: 6000, drive: 0.45 },
+    melody: { reverb: 0.24, delay: 0.16, lowpass: 6500, drive: 0.4 },
+    counter: { reverb: 0.24, delay: 0.14, lowpass: 6200, drive: 0.4 },
+    bass: { reverb: 0.04, lowpass: 3000, drive: 0.15 },
+    // The kit stays fairly dry; the gated plate is on the snare below.
+    drums: { reverb: 0.3, lowpass: 11000 },
     pad: { reverb: 0.45, lowpass: 5000 },
     brass: { reverb: 0.4, lowpass: 6000 },
     vocal: { reverb: 0.34, delay: 0.16, lowpass: 7500 },
+  },
+  /**
+   * The one production cliché of this decade that is genuinely audible on the
+   * kit: a gated plate on the snare, long enough to be a room and cut off
+   * before it can be one. The send is the size and `gate` is the cut.
+   */
+  voiceEffects: {
+    sd: { reverb: 0.8, lowpass: 7000, gate: 0.2 },
   },
   space: { reverbSize: 0.62, delayBeats: 0.5, delayFeedback: 0.25 },
 };
@@ -272,13 +282,13 @@ const thrash: EraProfile = {
   description:
     'A solid-state preamp with the mids taken out, no room on anything, and a rhythm guitar close-miked so hard it has no space around it at all.',
   drumBanks: [
-    ['AkaiMPC60', 4],
-    ['AlesisSR16', 3],
-    ['RolandR8', 3],
+    ['RolandR8', 5],
+    ['YamahaRY30', 4],
     ['AkaiXR10', 3],
-    ['AlesisHR16', 2],
-    ['SimmonsSDS5', 2],
-    ['YamahaRX5', 1],
+    ['AkaiMPC60', 1],
+    ['AlesisSR16', 1],
+    ['AlesisHR16', 1],
+    ['SimmonsSDS5', 1],
   ],
   drumSources: [['kit', 12], ['programmed', 1], ['box', 1]],
   palette: {
@@ -289,7 +299,7 @@ const thrash: EraProfile = {
       ['distortionGuitar', 9], ['overdriveGuitar', 3],
     ],
     comp: [
-      ['distortionGuitar', 10], ['overdriveGuitar', 2],
+      ['rhythmGuitar', 11], ['overdriveGuitar', 1],
     ],
     pad: [
       ['strings1', 3], ['synthStrings', 3], ['choirAahs', 2], ['padWarm', 1],
@@ -311,10 +321,10 @@ const thrash: EraProfile = {
   keyChangeChance: 0.02,
   density: 0.6,
   effects: {
-    comp: { reverb: 0.06, lowpass: 7000 },
-    melody: { reverb: 0.2, delay: 0.14, lowpass: 7200 },
-    counter: { reverb: 0.2, delay: 0.12, lowpass: 7000 },
-    bass: { reverb: 0.02, lowpass: 3400 },
+    comp: { reverb: 0.06, lowpass: 7000, drive: 0.6 },
+    melody: { reverb: 0.2, delay: 0.14, lowpass: 7200, drive: 0.5 },
+    counter: { reverb: 0.2, delay: 0.12, lowpass: 7000, drive: 0.5 },
+    bass: { reverb: 0.02, lowpass: 3400, drive: 0.25 },
     drums: { reverb: 0.24, lowpass: 12000 },
     pad: { reverb: 0.42, lowpass: 5200 },
     brass: { reverb: 0.38, lowpass: 6200 },
@@ -356,13 +366,12 @@ const extreme: EraProfile = {
   description:
     'Blast beats, tremolo picking and a kit arriving through a wall — with a string section and a church organ arriving alongside it.',
   drumBanks: [
-    ['AkaiMPC60', 4],
-    ['RolandR8', 4],
+    ['RolandR8', 5],
+    ['YamahaRY30', 5],
     ['AkaiXR10', 3],
-    ['AlesisSR16', 3],
-    ['YamahaRY30', 2],
-    ['AlesisHR16', 2],
-    ['YamahaRX5', 1],
+    ['AkaiMPC60', 1],
+    ['AlesisSR16', 1],
+    ['AlesisHR16', 1],
   ],
   drumSources: [['kit', 12], ['programmed', 2], ['electronic-kit', 1], ['box', 1]],
   palette: {
@@ -374,9 +383,9 @@ const extreme: EraProfile = {
       ['distortionGuitar', 7], ['strings1', 3], ['overdriveGuitar', 3],
       ['churchOrgan', 2], ['fiddle', 1], ['panFlute', 1], ['bagpipes', 1],
     ],
+    /** The organs are in the pad, where they stand behind the riff rather than replacing it. */
     comp: [
-      ['distortionGuitar', 9], ['overdriveGuitar', 3], ['churchOrgan', 2],
-      ['pipeOrgan', 1], ['cleanGuitar', 1],
+      ['rhythmGuitar', 11], ['overdriveGuitar', 2], ['cleanGuitar', 1],
     ],
     pad: [
       ['strings1', 4], ['strings2', 3], ['choirAahs', 3], ['churchOrgan', 2],
@@ -400,10 +409,10 @@ const extreme: EraProfile = {
   keyChangeChance: 0.02,
   density: 0.64,
   effects: {
-    comp: { reverb: 0.16, lowpass: 6600 },
-    melody: { reverb: 0.3, delay: 0.16, lowpass: 6800 },
-    counter: { reverb: 0.3, delay: 0.14, lowpass: 6600 },
-    bass: { reverb: 0.04, lowpass: 3200 },
+    comp: { reverb: 0.16, lowpass: 6600, drive: 0.6 },
+    melody: { reverb: 0.3, delay: 0.16, lowpass: 6800, drive: 0.5 },
+    counter: { reverb: 0.3, delay: 0.14, lowpass: 6600, drive: 0.5 },
+    bass: { reverb: 0.04, lowpass: 3200, drive: 0.3 },
     // Through a wall — see the header. The one number in this file that is a
     // recording accident promoted to a style.
     drums: { reverb: 0.5, lowpass: 4200 },

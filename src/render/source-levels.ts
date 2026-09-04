@@ -180,6 +180,14 @@ export const SOUNDFONT_LEVEL: Record<string, number> = {
   gm_lead_5_charang: 0.48,
   gm_lead_6_voice: 1.41,
   gm_lead_7_fifths: 1.00,
+  /**
+   * The oscillators, worked out from superdough's 0.3 amplitude rather than
+   * metered: a saw lands about 6 dB over the catalogue median and a square
+   * about 10 dB, with the supersaw's per-voice gain summing to the saw's.
+   */
+  supersaw: 0.50,
+  sawtooth: 0.50,
+  square: 0.32,
 };
 
 /**

@@ -1369,6 +1369,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
       beatsPerBar: style.beatsPerBar,
       startBeat: section.startBar * style.beatsPerBar,
       style,
+      ...(genre.layerPlan?.bass ? { bassRegister: genre.layerPlan.bass } : {}),
     };
     if (s === sections.length - 1) finalChord = ctxBase.chords[ctxBase.chords.length - 1];
 
@@ -2995,6 +2996,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
     counter: 0.56,
     brass: 0.60,
     ...genre.mix,
+    ...era.mix,
   };
 
   /**
@@ -3549,8 +3551,15 @@ export function generateSong(opts: GenerateOptions = {}): Song {
       // than merging, because a table of weights half-replaced is neither.
       wanted: style.techniques?.[layer] ?? genre.techniques?.[layer],
     });
-    if (technique) {
-      const correction = { ...genre.techniqueProfiles?.[technique], ...style.techniqueProfiles?.[technique] };
+    /**
+     * The hand's profile with the genre's and the style's corrections on it,
+     * read once: the stroke grid, the envelope and the effects all come from
+     * this object, so a corrected decay reaches the note and not only the grid.
+     */
+    const profile = technique
+      ? { ...TECHNIQUES[technique], ...genre.techniqueProfiles?.[technique], ...style.techniqueProfiles?.[technique] }
+      : undefined;
+    if (technique && profile) {
       applyTechnique({
         notes,
         technique,
@@ -3559,9 +3568,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
         beatsPerBar: style.beatsPerBar,
         bpm,
         endsAt: (totalBars - 1) * style.beatsPerBar,
-        ...(Object.keys(correction).length
-          ? { profile: { ...TECHNIQUES[technique], ...correction } }
-          : {}),
+        profile,
       });
     }
     // After the hand, whose dead strokes and ringing fingerstyle are the last
@@ -3599,7 +3606,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
      * statement where absence is the truth.
      */
     const handEffects = ((): Effects | undefined => {
-      const merged = { ...effects, ...(technique ? TECHNIQUES[technique].effects : {}) };
+      const merged = { ...effects, ...profile?.effects };
       return Object.keys(merged).length ? merged : undefined;
     })();
     /**
@@ -3631,7 +3638,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
        * departs from its family, and what the player is doing right now departs
        * from the object. A palm mute is not a different guitar.
        */
-      envelope: { ...envelopeFor(instrument), ...(technique ? TECHNIQUES[technique].envelope : {}) },
+      envelope: { ...envelopeFor(instrument), ...profile?.envelope },
       ...(handEffects ? { effects: handEffects } : {}),
       ...(technique ? { technique } : {}),
       // Said out loud, because from here on nothing can tell by looking: a
@@ -3771,8 +3778,8 @@ export function generateSong(opts: GenerateOptions = {}): Song {
      * below is reached by three: iskelmä, jazz and classical, the three whose
      * kit is a band's kit in a room rather than a produced one.
      */
-    gain: genre.mix?.drums ?? 0.59,
-    voiceGains: { ...DEFAULT_DRUM_MIX, ...genre.drumMix },
+    gain: era.mix?.drums ?? genre.mix?.drums ?? 0.59,
+    voiceGains: { ...DEFAULT_DRUM_MIX, ...genre.drumMix, ...era.drumMix },
     ...(drumEffects ? { effects: drumEffects } : {}),
     // Spread rather than assigned, so a song from a genre that says nothing
     // about a single drum voice carries no key at all — which is what every
@@ -4986,17 +4993,18 @@ function buildForm(rng: Rng, genre: Genre, style: Style, bpm: number, targetSeco
   const duration = () => steps.reduce((a, s) => a + s.bars, 0) * secondsPerBar;
   const unit = steps.find((s) => s.kind !== 'intro' && s.kind !== 'outro')?.bars ?? 8;
 
-  const MAX_SOLOS = 4;
+  const maxSolos = genre.maxSolos ?? 4;
   const MAX_SECTIONS = 14;
   let guard = 0;
   while (duration() < targetSeconds * 0.82 && guard++ < 8) {
     if (steps.length >= MAX_SECTIONS) break;
     // Where the form already blows — jazz, and iskelmä's solo-chorus templates
     // — add another *consecutive* solo, because that is what taking a second
-    // chorus means. Alternating solo and head instead reads as indecision.
+    // chorus means. Alternating solo and head instead reads as indecision. A
+    // genre that caps its solos gets another verse and chorus instead.
     const solos = steps.filter((s) => s.kind === 'solo').length;
     const lastSolo = steps.map((s) => s.kind).lastIndexOf('solo');
-    if (lastSolo >= 0 && solos < MAX_SOLOS) {
+    if (lastSolo >= 0 && solos < maxSolos) {
       steps.splice(lastSolo + 1, 0, { kind: 'solo', bars: unit });
     } else {
       const insertAt = Math.max(2, steps.findIndex((s) => s.kind === 'chorus') + 1);

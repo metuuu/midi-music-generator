@@ -220,6 +220,7 @@ export const ARCHETYPE_OF: Record<InstrumentId, Archetype> = {
   mutedGuitar: 'electric-guitar',
   overdriveGuitar: 'electric-guitar',
   distortionGuitar: 'electric-guitar',
+  rhythmGuitar: 'electric-guitar',
   // Still an electric guitar, and it is not even a different technique from the
   // audience's side: the hand is on the same neck, touching the string instead
   // of pressing it. Nothing to model.
@@ -338,6 +339,11 @@ export const ARCHETYPE_OF: Record<InstrumentId, Archetype> = {
   fxSciFi: 'synth',
   leadSquare: 'synth',
   leadSaw: 'synth',
+  supersawLead: 'synth',
+  pulseLead: 'synth',
+  supersawPad: 'synth',
+  supersawPoly: 'synth',
+  analogBass: 'synth',
   leadCalliope: 'synth',
   leadChiff: 'synth',
   leadVoice: 'synth',

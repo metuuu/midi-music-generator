@@ -502,12 +502,15 @@ const digital: EraProfile = {
     // synthesis could not reach, and darkening it here would be undoing the era.
     melody: { reverb: 0.65, delay: 0.28, lowpass: 12000 },
     bass: { reverb: 0.06, lowpass: 1400 },
-    // The gated snare, expressed as the only two numbers available: a very big
-    // send and a hard lowpass on top of it. The gate itself lives in the
-    // envelope rather than here, but this is the half that makes it enormous.
-    drums: { reverb: 0.7, lowpass: 6000 },
+    // The kit itself is fairly dry; the gated snare is on `voiceEffects` below,
+    // where it no longer puts a hall on the hats.
+    drums: { reverb: 0.35, lowpass: 6000 },
     brass: { reverb: 0.55, lowpass: 10000 },
     vocal: { reverb: 0.5, lowpass: 8000 },
+  },
+  /** The 1984 snare: a very big send, a hard lowpass, and the tail cut at 220 ms. */
+  voiceEffects: {
+    sd: { reverb: 0.9, lowpass: 6000, gate: 0.22 },
   },
 };
 
@@ -604,9 +607,10 @@ const retrowave: EraProfile = {
   sequenced: { bass: 0.68, counter: 0.6 },
   palette: {
     /**
-     * The detuned saw first and by a distance. Three sawtooths a few cents
-     * apart is the lead sound of this entire revival, and GM 81 is as close as
-     * a fixed patch gets to it.
+     * The detuned saw first and by a distance, and it is a real one: five
+     * sawtooths a few cents apart is the lead sound of this entire revival, and
+     * `supersawLead` is that oscillator rather than a sample of one. GM 81
+     * stays as the second choice.
      *
      * **The two guitars are the real addition.** They sit at weight 1 in
      * `digital` above, as the residue of a decade that had stopped buying them;
@@ -616,18 +620,17 @@ const retrowave: EraProfile = {
      * table and this is what that table intersects with.
      */
     melody: [
-      ['leadSaw', 6], ['leadSquare', 3], ['leadCharang', 3], ['distortionGuitar', 3],
-      ['overdriveGuitar', 3], ['leadVoice', 2], ['synthBrass2', 2], ['fxCrystal', 2],
-      ['leadFifths', 1],
+      ['supersawLead', 8], ['leadSaw', 3], ['pulseLead', 2], ['leadCharang', 2],
+      ['distortionGuitar', 3], ['overdriveGuitar', 2], ['synthBrass2', 2], ['fxCrystal', 1],
     ],
+    /** No celesta or glockenspiel: the bell this music has is the FM one. */
     counter: [
-      ['leadSquare', 3], ['fxCrystal', 3], ['leadSaw', 3], ['distortionGuitar', 2],
-      ['electricVibes', 2], ['celesta', 2], ['glockenspiel', 2], ['epiano2', 2],
-      ['synthBass', 2],
+      ['pulseLead', 3], ['fxCrystal', 3], ['supersawLead', 3], ['leadSaw', 2],
+      ['distortionGuitar', 2], ['epiano2', 2], ['analogBass', 2],
     ],
     comp: [
-      ['padPoly', 4], ['epiano2', 4], ['synthStrings', 3], ['leadSaw', 2],
-      ['percussiveOrgan', 2], ['clavinet', 2], ['padWarm', 2], ['epiano1', 2],
+      ['supersawPoly', 5], ['epiano2', 4], ['padPoly', 3], ['synthStrings', 2],
+      ['supersawLead', 2], ['clavinet', 2], ['padWarm', 2],
     ],
     /**
      * Warm before metallic, which is the one place this palette declines to
@@ -637,11 +640,11 @@ const retrowave: EraProfile = {
      * only level, which is the thing that is moving.
      */
     pad: [
-      ['padWarm', 5], ['padPoly', 4], ['synthStrings2', 3], ['synthChoir', 3],
-      ['padSweep', 3], ['padHalo', 2], ['crushedPad', 2], ['choirAahs', 2],
+      ['supersawPad', 7], ['padWarm', 4], ['padPoly', 3], ['synthStrings2', 2],
+      ['synthChoir', 2], ['padSweep', 2], ['padHalo', 1], ['crushedPad', 1],
     ],
     bass: [
-      ['synthBass', 6], ['synthBass2', 5], ['slapBass', 2],
+      ['analogBass', 7], ['synthBass', 4], ['synthBass2', 3], ['slapBass', 2],
       ['pickBass', 2], ['fingerBass', 1],
     ],
     /**
@@ -697,6 +700,13 @@ const retrowave: EraProfile = {
   keyChangeChance: 0.08,
   density: 0.62,
   /**
+   * Mixed as a 2013 record rather than a 1974 one: the kick and the bass lead,
+   * the tune sits in the band rather than in front of it, and the hats come up
+   * because the sixteenths are the pulse.
+   */
+  mix: { drums: 0.8, bass: 0.8, melody: 0.85, comp: 0.55, pad: 0.66, counter: 0.45 },
+  drumMix: { hh: 0.5, oh: 0.5, sd: 0.9, cp: 0.85 },
+  /**
    * The biggest room in the project, on the shortest delay this genre writes.
    *
    * Both halves are one decision. At `reverbSize` 0.95 the tail is still
@@ -732,7 +742,15 @@ const retrowave: EraProfile = {
      * and the two styles that want one ask for a guitar by name instead.
      */
     melody: { reverb: 0.55, delay: 0.3, lowpass: 11000, drive: 0.2 },
-    bass: { reverb: 0.05, lowpass: 1500, drive: 0.35 },
+    /**
+     * The pluck: a filter that snaps open on every note and shuts behind it,
+     * two octaves under the cutoff with a little resonance. That is what a saw
+     * through an analogue lowpass does and what a sample of one cannot.
+     */
+    bass: {
+      reverb: 0.05, lowpass: 1500, resonance: 0.25, drive: 0.35,
+      filterEnv: { octaves: 2, shape: 'wah' },
+    },
     /**
      * The kit stays comparatively dry and the tail moves to `voiceEffects`
      * below, which is the same correction `rock`'s arena era made and for the
@@ -753,14 +771,13 @@ const retrowave: EraProfile = {
    * Nothing else on the kit gets it — a kick through a hall is a rumble, and
    * hats through one are the reason the kit's own send came down.
    *
-   * What this writes is the plate and not the gate. `Effects` has no decay
-   * field, so the chop that gives the sound its name still needs a field nobody
-   * has built; this is the half that was available, and it is the half that
-   * makes the snare enormous.
+   * `gate` is the chop that gives the sound its name: a dense burst stopped at
+   * 180 ms, on a bus of its own. The send is what makes the snare enormous and
+   * the cut is what makes it 1984 rather than a cathedral.
    */
   voiceEffects: {
-    sd: { reverb: 0.9, lowpass: 7000 },
-    cp: { reverb: 0.8, lowpass: 7500 },
+    sd: { reverb: 0.9, lowpass: 7000, gate: 0.18 },
+    cp: { reverb: 0.8, lowpass: 7500, gate: 0.18 },
   },
 };
 

@@ -26,6 +26,7 @@ import {
   getSound,
   getSuperdoughAudioController,
   initAudioOnFirstClick,
+  loadBuffer,
   registerSynthSounds,
   samples,
   superdough,
@@ -43,7 +44,8 @@ import GM_FONTS from '@strudel/soundfonts/gm.mjs';
 import type { Envelope, LayerId, Song } from '../core/types.js';
 import { resolveDrumSample } from '../render/drum-banks.js';
 import {
-  SAMPLE_MANIFESTS, duckBuses, localManifest, type StrudelParts,
+  GATE_IR, SAMPLE_MANIFESTS, duckBuses, gateBurstDataUrl, localManifest, usesGate,
+  type StrudelParts,
 } from '../render/strudel.js';
 
 /**
@@ -137,6 +139,8 @@ async function prepare(): Promise<StrudelRepl> {
   registerSynthSounds();
   setSoundfontUrl(SOUNDFONT_URL);
   registerSoundfonts();
+  // The gate's impulse, generated rather than fetched. See `gateBurstDataUrl`.
+  await samples({ [GATE_IR]: gateBurstDataUrl() });
   /**
    * All three manifests, together, and all three awaited.
    *
@@ -990,6 +994,9 @@ async function warm(song: Song): Promise<void> {
     if (!set) continue;
     loads.push(getSampleBuffer({ s: played.sample, n: played.n ?? 0 }, set));
   }
+  // The impulse is fetched inside the trigger like any sample, and the first
+  // snare of a cold record would otherwise sound before its reverb exists.
+  if (usesGate(song)) loads.push(loadBuffer(gateBurstDataUrl(), ctx, GATE_IR, 0));
 
   // Settled rather than all: an instrument that will not load is one that was
   // going to fail on the downbeat regardless, and the rest of the band is

@@ -1895,6 +1895,14 @@ export interface EraProfile {
   /** Overall arrangement density 0..1, nudges how many layers play at once. */
   density: number;
   /**
+   * Per-layer mix, merged over the genre's. For an era that is a production
+   * rather than a rack, where the kick and the bass sit is as much the decade
+   * as which box they came out of.
+   */
+  mix?: Partial<Record<LayerId, number>>;
+  /** Per-voice kit balance, merged over the genre's. */
+  drumMix?: Partial<Record<DrumVoice, number>>;
+  /**
    * The room this era records in. Merged over the genre's, which is merged
    * over `DEFAULT_SPACE`.
    */

@@ -783,7 +783,9 @@ export const metal: Genre = {
     melody: 0.74,
     drums: 0.8,
     counter: 0.76,
-    bass: 0.43,
+    // Up from 0.43 once the line moved to the low string: a bass at E1 is felt
+    // on a big speaker and gone on a small one, and 0.43 lost it on both.
+    bass: 0.55,
     pad: 0.4,
     brass: 0.5,
   },
@@ -839,7 +841,14 @@ export const metal: Genre = {
    * responses left near the default.
    */
   layerPlan: {
-    offsets: { comp: -7, pad: -10 },
+    /**
+     * A riff lives on the low string and the arranger's E2 is a walking bass's
+     * home, so the roots move to A1 with the open E under them. −16 on the comp
+     * is what puts a power chord at E2 under a lead at 71; `rhythmGuitar`'s own
+     * centre is what lets the offset reach that far.
+     */
+    bass: { home: 33, floor: 28 },
+    offsets: { comp: -16, pad: -10 },
     response: { comp: 0.25, bass: 0.35, drums: 0.7, melody: 0.8 },
   },
 
@@ -922,12 +931,33 @@ export const metal: Genre = {
    */
   techniques: {
     comp: [['muted', 8], ['plectrum', 3], ['strum', 2]],
+    /**
+     * A lead is picked and rings; the mute is the riff hand, and left to the
+     * instrument's own list it landed on six leads in ten. The second guitar
+     * doubles the riff often enough to keep a little of it.
+     */
+    melody: [['plectrum', 1]],
+    counter: [['plectrum', 5], ['muted', 2]],
   },
+  /**
+   * A picked note into a compressing amplifier does not give up: the pick's
+   * quick front stays and the decay is the catalogue's 2.6 s rather than a
+   * clean string's one, with the note held under it until the hand stops it.
+   */
+  techniqueProfiles: {
+    plectrum: { envelope: { attack: 0.0015, decay: 2.6, sustain: 0.45, release: 0.3 } },
+  },
+  /**
+   * The amplifier, which every era refines and none removes. `drive` is the
+   * clipping stage the guitar samples were recorded without a second of: it is
+   * what makes two notes a power chord rather than two notes, because the
+   * intermodulation between them happens here and nowhere else.
+   */
   effects: {
-    comp: { reverb: 0.14, lowpass: 6000 },
-    melody: { reverb: 0.28, delay: 0.16, lowpass: 6600 },
-    counter: { reverb: 0.28, delay: 0.14, lowpass: 6400 },
-    bass: { reverb: 0.04, lowpass: 3000 },
+    comp: { reverb: 0.14, lowpass: 6000, drive: 0.5 },
+    melody: { reverb: 0.28, delay: 0.16, lowpass: 6600, drive: 0.4 },
+    counter: { reverb: 0.28, delay: 0.14, lowpass: 6400, drive: 0.4 },
+    bass: { reverb: 0.04, lowpass: 3000, drive: 0.2 },
     drums: { reverb: 0.34, lowpass: 11000 },
     pad: { reverb: 0.5, lowpass: 5000 },
     brass: { reverb: 0.46, lowpass: 6000 },
@@ -974,6 +1004,13 @@ export const metal: Genre = {
    * `full` everywhere.
    */
   soloBacking: 'full',
+  /**
+   * One lead break. Eight-bar sections at two hundred come out short of the
+   * duration, and the stretcher was filling the gap with solos: a third of the
+   * sections in every era, four in a row in most songs. It adds a verse and a
+   * chorus now, which is what the band would do.
+   */
+  maxSolos: 1,
   solo: {
     /**
      * The lead guitarist, then the other one, and the bass player once in a

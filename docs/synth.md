@@ -1,6 +1,6 @@
 # Synth — the ruleset
 
-*Reference, written 2026-07-28 and revised 2026-08-14. Its nine styles, four eras and five moods were re-checked against `src/genre/synth/` on 2026-08-14 and match exactly. Trustworthy, with one caveat stated where it bites: the audit figures at the foot of this file moved for reasons that are only partly this genre's, and the paragraph there says which. One number stated elsewhere about this genre has drifted — synth now declares six `ruleOverrides`, not the five [smoothness.md](smoothness.md) reports.*
+*Reference, written 2026-07-28 and revised 2026-08-14. Its nine styles, four eras and five moods were re-checked against `src/genre/synth/` on 2026-08-14 and match exactly. Trustworthy, with one caveat stated where it bites: the audit figures at the foot of this file moved for reasons that are only partly this genre's, and the paragraph there says which. One number stated elsewhere about this genre has drifted — synth now declares six `ruleOverrides`, not the five [smoothness.md](smoothness.md) reports. Revised again on 2026-09-02: the revival plays superdough's own oscillators, its bass carries a filter pluck, the era mixes itself, the snare is gated, and the genre caps its solos at one. The audit figures at the foot predate that pass.*
 
 Vintage electronic music, 1972 to 1990 — Vangelis, Jean-Michel Jarre, Kraftwerk, and the Tangerine Dream that had a drum machine — and, since 2026-08-14, the revival that quotes all four: Kavinsky, Carpenter Brut, Mitch Murder and the rest of what a listener would call synthwave.
 
@@ -30,9 +30,9 @@ That last row is asserted rather than described. `npm run genres` measures both 
 | **Cosmic** | 118–130 | 60% **major** | `cycle: 32` comp | Four-on-the-floor under a 16th sequence that drifts against it. Euphoric, instrumental |
 | **Stalker** | 84–104 | 92% minor | `cycle: 20` bass | Carpenter and Goblin. Five beats against a four-beat bar. `bII`, `#IV`, no fills, `hook: earworm` |
 | **Optical** | 96–126 | 55% **major** | `cycle: 32` comp | Late Tangerine Dream and *Rendez-Vous*. Bright arpeggio, a real tune, gated backbeat, **`filter: step` at 0.15** |
-| **Outrun** | 98–118 | 90% minor | eighth-note bass | The night drive. Saturated saw bass, gated snare, `duck: 10` on the pad, `hook: earworm`. Retrowave era only |
-| **Darksynth** | 124–150 | 95% minor | `cycle: 32` bass | `stalker` at speed with a guitarist: ♭II and the tritone, palm-muted counter, `break` on the bass. Retrowave era only |
-| **Boulevard** | 108–126 | 65% **major** | 16th comp stabs | The television theme. maj7 and a real ii–V, slap bass, brass stabs, backbeat. Retrowave era only |
+| **Outrun** | 98–118 | 90% minor | eighth-note bass | The night drive. A supersaw over a plucked saw bass, a two-bar arpeggio leading the comp, gated snare, `duck: 10` on the pad, `hook: earworm`. Retrowave era only |
+| **Darksynth** | 124–150 | 95% minor | `cycle: 32` bass | `stalker` at speed with a guitarist: ♭II and the tritone, a supersaw lead with the guitar under it, palm-muted counter, `break` on the bass. Retrowave era only |
+| **Boulevard** | 108–126 | 65% **major** | 16th comp stabs | The television theme. maj7 and a real ii–V, slap bass, brass stabs, FM bells on the counter, backbeat. Retrowave era only |
 
 Two of these are named for a body of work and it is worth saying which. **Stalker** is *Halloween* and *Escape from New York* — the branch of this music that descends from horror scoring rather than from the cosmos, and the one where the ostinato is the entire composition. **Cinematic** is *Blade Runner*.
 
@@ -52,9 +52,9 @@ Five artists went in and three styles came out, because a style has to differ in
 | **`darksynth`** — Carpenter Brut, Perturbator | `stalker` — the same ♭II and `#IV` | 124–150 against 84–104, no `twoHanded`, a named `distortionGuitar`, and `drumFills`/`transitions` on where the older style turns them off |
 | **`boulevard`** — Mitch Murder, Waveshaper, Baldocaster | `optical` — both bright, major-leaning, sequencer-adjacent | A played bass (`slapBass`), a backbeat kit rather than an arpeggio, sevenths and a resolving ii–V, and the duck |
 
-**`boulevard` is the one to watch and its own header says so.** It sits nearest an existing style and can be drawn in the same era as it, so the four separations above are the argument for it existing at all. The measurable one is the bass, and it was measured over 60 songs of each in the `retrowave` era: **`boulevard` is dealt a slap patch 47% of the time against `optical`'s 8%.** The first draft of its instrument table read 5–4–3 and produced 32%, losing to a picked bass at 35% — a signature that loses the draw two times in three — so the weight went to 7–4–2 after the count rather than before it.
+**`boulevard` is the one to watch and its own header says so.** It sits nearest an existing style and can be drawn in the same era as it, so the four separations above are the argument for it existing at all. The measurable one is the bass, and it was measured over 60 songs of each in the `retrowave` era: **`boulevard` is dealt a slap patch 47% of the time against `optical`'s 8%**, and 58% once the oscillators joined the era's bass list. The first draft of its instrument table read 5–4–3 and produced 32%, losing to a picked bass at 35% — a signature that loses the draw two times in three — so the weight went to 7–4–2 after the count rather than before it.
 
-Two other patch counts from the same run, both of them claims the style headers make in prose: `darksynth` has a guitar somewhere in **77%** of its songs, and `outrun` in 5%, which is the era palette leaking rather than the style asking.
+Two other patch counts, both of them claims the style headers make in prose: `darksynth` has a guitar somewhere in **60%** of its songs (77% before the supersaw took the lead), and `outrun` in 8%, which is the era palette leaking rather than the style asking.
 
 **`boulevard`'s harmony is Japanese and the table says so.** `IV–V–iii–vi` — the royal road, 王道進行 — is in its verse and chorus at weight 4, because the producers this style is named for grew up on Japanese television themes, arcade loops and city pop records, all of which run that sequence and the maj7 vocabulary around it. The same progression leads `pop/citypop`'s chorus table at 6, which is where it comes from. What this style deliberately does *not* get is that style's chord-following scale rule: a synthwave producer playing a city pop turnaround is playing the four chords they remember, not sight-reading the chart, and the ♯11 over the `IVmaj7` is the half that did not survive the trip.
 
@@ -162,9 +162,9 @@ The technology changed this music more than in any other genre here, so the firs
 - **`polysynth`** (1978–83) — Prophet, CS-80, Jupiter. The vocoder. No phaser and no crush, sitting deliberately between its neighbours' defining effects. `keyChangeChance` 0.3, the highest, because `cinematic` peaks here.
 - **`digital`** (1984–90) — DX7 and Fairlight, `crush: 12` on the sampled layers only, gated snare. `berlin` weighted lowest, argued from hardware: FM has no cutoff knob, so the sixteen-bar filter opening stops being available. `optical` carries the era's heaviest weight for the other half of that sentence — the group did not stop working in 1984, and what they made instead is what that style is.
 
-- **`retrowave`** (2005–) — the era that invented nothing. Its leads are the three above it emulated, its drum machines are the same four boxes, and what makes it an era is **the desk**: `Effects.duck` at 6 dB across the pad and the sequencer, `drive` 0.35 on the bass, `reverbSize` 0.95 — the largest in the project — and `voiceEffects` moving the gated tail off the whole kit and onto `sd` and `cp`, which is the correction [rock's arena era](rules.md) made first. `keyChangeChance` 0.08, the lowest here: this music does not lift, it adds a layer.
+- **`retrowave`** (2005–) — the era that invented nothing, and the one that plays real oscillators. `supersawLead`, `supersawPoly`, `supersawPad` and `analogBass` lead its palette: superdough's own `supersaw`, `square` and `sawtooth` rather than a GM sample of one, which is what the three vintage eras still deal. Its drum machines are the same four boxes, and the rest of it is **the desk**: `Effects.duck` at 6 dB across the pad and the sequencer, `drive` 0.35 and a two-octave `wah` filter envelope with resonance on the bass, `reverbSize` 0.95 — the largest in the project — a `mix` of its own with the kick and the bass in front of the tune, and `voiceEffects` gating `sd` and `cp` at 180 ms, which is the correction [rock's arena era](rules.md) made first. `keyChangeChance` 0.08, the lowest here: this music does not lift, it adds a layer.
 
-The fourth era is the one place in this genre where the era is the production rather than the instrument, and that is a weaker claim than the other three make. It is stated in the file instead of being smuggled in, because the fields carrying it are countable: four numbers and one per-voice table, and if they were removed the era would be `digital` with a different label.
+The fourth era is the one place in this genre where the era is the production rather than the instrument, and that is a weaker claim than the other three make. It is stated in the file instead of being smuggled in, because the fields carrying it are countable: a palette, a mix, the duck, the drive, the pluck and one per-voice table, and if they were removed the era would be `digital` with a different label.
 
 **Style weights are 24 against 16.** The three revival styles take about 60% of the era and the six older ones keep the rest, measured at 42 of 72 retrowave songs across 300 seeds. The first draft ran 24 against 21 and produced an era that was half pastiche — defensible for the repertoire, wrong for a table whose reason to exist is the three styles it introduced. `stalker` is the highest of the six at 4, because the composer those records are named for went back into a studio in 2015 and made three more.
 
@@ -193,6 +193,8 @@ A vocoder, for `machine` — and now for `outrun`, which is the only revival sty
 Also `vibDepth: 0` (no diaphragm), `scoop: 0` (an oscillator has no way of being approximately in tune on its way somewhere), `bodyGain` at three times any sung profile because the carrier leaking through unshaped *is* the instrument, and `syllableBeats` locked to the eighth — to the sequencer, not to a breath.
 
 ## What the audit says
+
+*Measured before the 2026-09-02 pass; the revival's leads, mix and forms have moved since.*
 
 60 songs, `npx tsx src/audit.ts 60 synth`:
 

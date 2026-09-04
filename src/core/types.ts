@@ -1172,10 +1172,10 @@ export interface FilterEnvelope {
  * the piece. That is the same argument as "the pad is the piece", and it is why
  * this sits in the IR rather than in a renderer.
  *
- * Only what survives to a real delivery format is expressed here. **Seven
+ * Only what survives to a real delivery format is expressed here. **Eight
  * fields are audition-only and say so** — `delay`, `highpass`, `drive`,
- * `crush`, `phaser`, `glide` and `filterEnv` — and a native engine is free to
- * implement them, because MIDI simply has nowhere to put them. The count said
+ * `crush`, `phaser`, `glide`, `filterEnv` and `gate` — and a native engine is
+ * free to implement them, because MIDI simply has nowhere to put them. The count said
  * two for a long time after it had stopped being two, which is worth one line:
  * a marker on the field is the thing that has to be right, and a total in a
  * header is a second copy of it that nothing updates.
@@ -1183,6 +1183,15 @@ export interface FilterEnvelope {
 export interface Effects {
   /** Send to the song's reverb, 0..1. MIDI CC91 — GM level 1, universal. */
   reverb?: number;
+  /**
+   * Cut the reverb tail this many seconds after the hit. **Audition only.**
+   *
+   * The gated snare: a big reverb's dense first fraction of a second, stopped
+   * dead. The sound is the flatness and the stop rather than the shortness, so
+   * a short room is not it. Inert without `reverb`, and it takes a bus of its
+   * own because an orbit has one reverb; see `gateBus` in `render/strudel.ts`.
+   */
+  gate?: number;
   /**
    * Send to the song's delay, 0..1. **Audition only**: MIDI has no standard
    * delay controller, and inventing one would mean a .mid that only plays back

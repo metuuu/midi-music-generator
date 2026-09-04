@@ -417,6 +417,12 @@ export const synth: Genre = {
    * a breakdown, which is a later decade's gesture.
    */
   soloBacking: 'full',
+  /**
+   * One lead break and no more. A short form here grows by another verse and
+   * chorus; left to the default it grew by solo choruses, and a fifth of
+   * `darksynth` came out as four of them in a row.
+   */
+  maxSolos: 1,
   solo: {
     rotation: [['melody', 6], ['counter', 3], ['comp', 2]],
     tradeFours: 0,

@@ -2506,15 +2506,16 @@ const outrun: Style = {
    */
   excludeLayers: ['brass'],
   /**
-   * The saw, named rather than left to the era's draw. `leadSaw` already leads
-   * that palette at 6, and this pushes it further for the reason the style
-   * exists: the lead here is the same waveform as the bass an octave and a half
-   * up, which is what makes these records sound like one instrument playing
-   * everything.
+   * The saw, named rather than left to the era's draw, and the same waveform on
+   * the bass: a supersaw over `analogBass` is one oscillator playing everything,
+   * which is what these records sound like. The pad and the comp are the wash
+   * the duck below was written for.
    */
   instruments: {
-    melody: [['leadSaw', 6], ['leadVoice', 3], ['leadCharang', 2]],
-    bass: [['synthBass', 6], ['synthBass2', 5]],
+    melody: [['supersawLead', 7], ['leadSaw', 3], ['leadCharang', 1]],
+    comp: [['supersawPoly', 5], ['padPoly', 3], ['epiano2', 2], ['synthStrings', 2]],
+    pad: [['supersawPad', 6], ['padWarm', 3], ['padPoly', 2]],
+    bass: [['analogBass', 7], ['synthBass', 3], ['synthBass2', 2]],
   },
   /** It gets there early or it announces itself. There is no band to break. */
   transitions: [['fill', 4], ['elide', 2]],
@@ -2733,14 +2734,15 @@ const outrun: Style = {
       { at: 10, dur: 2, vel: 0.44 },
       { at: 14, dur: 2, vel: 0.38 },
     ] },
-    { name: 'held', weight: 5, voices: 4, sustain: true, hits: [{ at: 0, dur: 16, vel: 0.36 }] },
+    { name: 'held', weight: 3, voices: 4, sustain: true, hits: [{ at: 0, dur: 16, vel: 0.36 }] },
     /**
      * The arpeggio, at two bars rather than `berlin`'s four. This music
      * inherited the sequencer and shortened it: a figure that comes home every
      * two bars agrees with the loop, and agreeing with the loop is the whole
-     * difference between a revival record and the thing it is reviving.
+     * difference between a revival record and the thing it is reviving. It
+     * leads the table because a night drive with no arpeggio is the exception.
      */
-    { name: 'arp-two-bar', weight: 4, voices: 3, arpeggio: true, arpDirection: 'up', arpOctaves: 2, cycle: 32, hits: [
+    { name: 'arp-two-bar', weight: 9, voices: 3, arpeggio: true, arpDirection: 'up', arpOctaves: 2, cycle: 32, hits: [
       { at: 0, dur: 1, vel: 0.5 }, { at: 1, dur: 1, vel: 0.34 }, { at: 2, dur: 1, vel: 0.4 }, { at: 3, dur: 1, vel: 0.34 },
       { at: 4, dur: 1, vel: 0.46 }, { at: 5, dur: 1, vel: 0.34 }, { at: 6, dur: 1, vel: 0.4 }, { at: 7, dur: 1, vel: 0.34 },
       { at: 8, dur: 1, vel: 0.46 }, { at: 9, dur: 1, vel: 0.34 }, { at: 10, dur: 1, vel: 0.4 }, { at: 11, dur: 1, vel: 0.34 },
@@ -2752,8 +2754,8 @@ const outrun: Style = {
     ] },
     /** The swell: one chord, struck on the downbeat and given three beats to
      *  come back up through the duck. */
-    { name: 'downbeat-swell', weight: 3, voices: 4, hits: [{ at: 0, dur: 12, vel: 0.4 }] },
-    { name: 'two-and-four', weight: 3, voices: 3, hits: [
+    { name: 'downbeat-swell', weight: 2, voices: 4, hits: [{ at: 0, dur: 12, vel: 0.4 }] },
+    { name: 'two-and-four', weight: 2, voices: 3, hits: [
       { at: 4, dur: 3, vel: 0.42 },
       { at: 12, dur: 3, vel: 0.4 },
     ] },
@@ -2894,9 +2896,9 @@ const darksynth: Style = {
    */
   excludeLayers: ['vocal', 'brass'],
   instruments: {
-    melody: [['leadSaw', 5], ['distortionGuitar', 4], ['overdriveGuitar', 3], ['leadCharang', 2]],
-    counter: [['distortionGuitar', 4], ['leadSquare', 3], ['leadSaw', 3]],
-    bass: [['synthBass', 6], ['synthBass2', 4]],
+    melody: [['supersawLead', 7], ['distortionGuitar', 3], ['leadSaw', 2], ['overdriveGuitar', 2], ['leadCharang', 1]],
+    counter: [['distortionGuitar', 4], ['pulseLead', 3], ['supersawLead', 2], ['leadSaw', 1]],
+    bass: [['analogBass', 7], ['synthBass', 3], ['synthBass2', 2]],
   },
   /**
    * The palm mute, on the layer that is playing the riff.
@@ -3333,8 +3335,10 @@ const boulevard: Style = {
    * times in three is not a signature.
    */
   instruments: {
+    melody: [['supersawLead', 5], ['synthBrass2', 3], ['leadSaw', 2], ['pulseLead', 2], ['distortionGuitar', 1], ['fxCrystal', 1]],
+    counter: [['fxCrystal', 4], ['pulseLead', 3], ['epiano2', 2], ['supersawLead', 2]],
     bass: [['slapBass', 7], ['synthBass', 4], ['pickBass', 2]],
-    comp: [['epiano2', 5], ['padPoly', 3], ['clavinet', 2]],
+    comp: [['epiano2', 5], ['supersawPoly', 3], ['padPoly', 2], ['clavinet', 2]],
   },
   transitions: [['fill', 4], ['shot', 2], ['elide', 1]],
   shots: [[[0, 6], 3], [[0, 3, 6], 2], [[6, 10], 2]],
