@@ -1382,15 +1382,12 @@ export function generateSong(opts: GenerateOptions = {}): Song {
      * An edit on the running list rather than a part of the section before,
      * because that section's bass was written before this one's chords were
      * drawn — the same reason every other seam gesture is an edit. Dressed as
-     * that section's own notes were, and left alone where the bar has already
-     * been taken away from the bass, such as a traded solo's drum bars.
+     * that section's own notes were.
      */
     if (walkBehind) {
-      const walk = seamWalk(walkBehind.section, ctxBase.chords[0]!.root);
       const bass = byLayer.get('bass') ?? [];
-      if (walk && bass.some((n) => n.beat >= walk.bar.start && n.beat < walk.bar.end)) {
-        byLayer.set('bass', walkInto(bass, { ...walk, notes: walkBehind.dress(walk.notes) }));
-      }
+      const walk = seamWalk(walkBehind.section, ctxBase.chords[0]!.root, bass);
+      if (walk) byLayer.set('bass', walkInto(bass, { ...walk, notes: walkBehind.dress(walk.notes) }));
       walkBehind = undefined;
     }
 
@@ -2890,18 +2887,23 @@ export function generateSong(opts: GenerateOptions = {}): Song {
     push(byLayer, 'brass', filtered(sectionBrass, 'brass'));
 
     /**
-     * Left for the next section to walk into. Not under a `shot` at the seam,
-     * which replaces the bar the walk would take; one aimed `inside` leaves it.
+     * Left for the next section to walk into: a figure whose style walks, or a
+     * walking line, which approaches every chord change. Not under a `shot` at
+     * the seam, which replaces the bar the walk would take; one aimed `inside`
+     * leaves it.
      */
     const seam = seams[s];
-    walkBehind = walkupOptions && sectionBass.length && !(seam?.kind === 'shot' && !seam.anchor)
+    const figure = doubled ?? sectionBassFigure;
+    walkBehind = (walkupOptions || figure.walking) && sectionBass.length
+      && !(seam?.kind === 'shot' && !seam.anchor)
       ? {
         section: {
-          pattern: doubled ?? sectionBassFigure,
+          pattern: figure,
           chords: ctxBase.chords,
           beatsPerBar: style.beatsPerBar,
           startBeat: ctxBase.startBeat,
-          walkup: walkupOptions,
+          rng: walkupOptions?.rng ?? new Rng(`${seed}:walkup:${s}:seam${salt('bass')}`),
+          ...(walkupOptions ? { walkup: walkupOptions } : {}),
           ...(ctxBase.bassRegister ? { bassRegister: ctxBase.bassRegister } : {}),
         },
         // What the section's own bass went through, in the same order, so the

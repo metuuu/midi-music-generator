@@ -1494,7 +1494,10 @@ export interface WalkSection {
   chords: readonly Chord[];
   beatsPerBar: number;
   startBeat: number;
-  walkup: WalkupOptions;
+  /** The stream the seam draws from: a figure continues its section's walkup stream, a walking line has its own. */
+  rng: Rng;
+  /** How a figure walks. A walking line needs none; it approaches every chord change anyway. */
+  walkup?: Pick<WalkupOptions, 'chance' | 'scale'>;
   bassRegister?: BassRegister;
 }
 
@@ -1506,31 +1509,45 @@ export interface SeamWalk {
 }
 
 /**
- * The section's last bar walking into the next section's opening chord.
- *
- * Planned once the arrival is known and played as an edit on the finished bass,
- * because the chord it lands on is drawn with the section after it. It draws
- * from the stream the section's own walkups left off in, so a section spends
- * one walkup draw per bar whether the bar is inside it or at its seam.
+ * The sixteenth a note was written on, counted from the top of a bar. By the
+ * time a seam is edited a feel has had the bar, and a note leaning a few
+ * milliseconds ahead of a slot is the note on that slot, not one before it.
  */
-export function seamWalk(section: WalkSection, arrival: Pc): SeamWalk | undefined {
-  const { pattern, chords, beatsPerBar, startBeat, walkup, bassRegister } = section;
-  if (pattern.walking || pattern.cycle || pattern.sustain || !chords.length) return undefined;
+function slotIn(bar: { start: number }, beat: number): number {
+  return Math.round((beat - bar.start) * SLOTS_PER_BEAT);
+}
+
+/**
+ * The section's last bar walking into the next section's opening chord, planned
+ * once that chord is drawn and played as an edit on the finished bass. A figure
+ * continues its section's walkup stream, so a section spends one walkup draw per
+ * bar whether the bar is inside it or at its seam; a walking line is rebuilt
+ * from its root toward the arrival. Nothing where the bass has already left the
+ * bar, such as a traded solo's drum bars.
+ */
+export function seamWalk(section: WalkSection, arrival: Pc, bass: readonly NoteEvent[]): SeamWalk | undefined {
+  const { pattern, chords, beatsPerBar, startBeat, walkup, rng, bassRegister } = section;
+  if (!chords.length) return undefined;
+  const last = chords.length - 1;
+  const start = startBeat + last * beatsPerBar;
+  const bar = { start, end: start + beatsPerBar };
   const slotsPerBar = beatsPerBar * SLOTS_PER_BEAT;
+  const inBar = bass.filter((n) => slotIn(bar, n.beat) >= 0 && slotIn(bar, n.beat) < slotsPerBar);
+  if (!inBar.length) return undefined;
+  if (pattern.walking) return walkingSeam(section, arrival, bar, inBar);
+  if (!walkup || pattern.cycle || pattern.sustain) return undefined;
   const pace = paceOf(pattern.hits, slotsPerBar);
   if (!pace) return undefined;
   const shape = spanOf(pattern.hits);
   let from: Midi | undefined;
   for (const chord of chords) from = placeRoot(chord.root, shape, from, bassRegister);
-  const last = chords.length - 1;
   const to = placeRoot(arrival, shape, from, bassRegister);
   const walk = planWalk(pace, walkup.scale(chords[last]!), from!, to, {
-    phraseEnd: true, chance: walkup.chance, rng: walkup.rng, slotsPerBar,
+    phraseEnd: true, chance: walkup.chance, rng, slotsPerBar,
   });
   if (!walk) return undefined;
-  const start = startBeat + last * beatsPerBar;
   return {
-    bar: { start, end: start + beatsPerBar },
+    bar,
     from: start + walk.start / SLOTS_PER_BEAT,
     notes: walk.notes.map(({ slot, midi, velocity }) => ({
       beat: start + slot / SLOTS_PER_BEAT,
@@ -1542,21 +1559,43 @@ export function seamWalk(section: WalkSection, arrival: Pc): SeamWalk | undefine
 }
 
 /**
+ * A walking line's last bar, re-aimed. The root on beat one stays, since it was
+ * placed off the bar before; the beats after it are written again toward the
+ * chord the next section opens on, by the rules every other bar follows.
+ */
+function walkingSeam(
+  section: WalkSection, arrival: Pc, bar: SeamWalk['bar'], inBar: readonly NoteEvent[],
+): SeamWalk | undefined {
+  const { chords, beatsPerBar, rng, bassRegister } = section;
+  const root = inBar.find((n) => slotIn(bar, n.beat) === 0);
+  const beats = Math.max(1, Math.round(beatsPerBar));
+  if (!root || beats < 2) return undefined;
+  const line = walkingBar(chords[chords.length - 1]!, arrival, root.midi, beats, rng, bassRegister);
+  return {
+    bar,
+    from: bar.start + 1,
+    notes: line.slice(1).map((midi, i) => ({
+      beat: bar.start + 1 + i,
+      duration: 0.92,
+      midi,
+      velocity: 0.82 * rng.float(0.95, 1.02),
+    })),
+  };
+}
+
+/**
  * The bass giving way to a walk planned after the bar was written: what
  * `generateBass` does to an inner bar, on notes that already exist. A note
  * ringing across the walk's start ends there rather than under it.
- *
- * Notes are placed by the slot they were written on, because a feel has had
- * the bar by now and a note leaning a few milliseconds ahead of the walk's first
- * slot is the figure's note on that slot, not one before it.
  */
 export function walkInto(notes: readonly NoteEvent[], walk: SeamWalk): NoteEvent[] {
-  const slot = (beat: number): number => Math.round((beat - walk.bar.start) * SLOTS_PER_BEAT);
-  const from = slot(walk.from);
-  const end = slot(walk.bar.end);
-  const kept = notes.filter((n) => slot(n.beat) < from || slot(n.beat) >= end);
+  const from = slotIn(walk.bar, walk.from);
+  const end = slotIn(walk.bar, walk.bar.end);
+  const kept = notes.filter((n) => slotIn(walk.bar, n.beat) < from || slotIn(walk.bar, n.beat) >= end);
   for (const n of kept) {
-    if (slot(n.beat) < from && n.beat + n.duration > walk.from) n.duration = Math.max(0.05, walk.from - n.beat);
+    if (slotIn(walk.bar, n.beat) < from && n.beat + n.duration > walk.from) {
+      n.duration = Math.max(0.05, walk.from - n.beat);
+    }
   }
   return [...kept, ...walk.notes].sort((a, b) => a.beat - b.beat || a.midi - b.midi);
 }
@@ -1676,7 +1715,6 @@ function generateWalkingBass(ctx: PartContext): NoteEvent[] {
     const chord = chords[bar]!;
     const next = chords[bar + 1] ?? chords[0]!;
     const barStart = startBeat + bar * beatsPerBar;
-    const tones = chordPcs(chord);
 
     // Beat 1: the root, kept near where the previous bar left off.
     const root = clampToRange(
@@ -1684,44 +1722,7 @@ function generateWalkingBass(ctx: PartContext): NoteEvent[] {
       BASS_RANGE[0], BASS_RANGE[1],
     );
     const beats = Math.max(1, Math.round(beatsPerBar));
-    const line: Midi[] = [root];
-
-    // Final beat: approach the next root, usually chromatically from below. The
-    // root is placed with the figure bass's pull toward E2, so a line that has
-    // walked to the top of the register is led back down rather than left there.
-    const nextRoot = placeRoot(next.root, { lo: 0, hi: 0 }, root, ctx.bassRegister);
-    const approach = clampToRange(
-      rng.weighted([
-        [nextRoot - 1, 5],
-        [nextRoot + 1, 3],
-        [nearestPc(pc(next.root + 7), root), 2],
-      ] as const),
-      BASS_RANGE[0], BASS_RANGE[1],
-    );
-
-    // Middle beats: step from the root toward the approach note.
-    for (let b = 1; b < beats - 1; b++) {
-      const from = line[line.length - 1]!;
-      const remaining = beats - 1 - b;
-      const gap = approach - from;
-      const ideal = from + Math.round(gap / (remaining + 1));
-      const candidates: (readonly [Midi, number])[] = [];
-      for (let semi = -4; semi <= 4; semi++) {
-        const cand = from + semi;
-        if (cand < BASS_RANGE[0] || cand > BASS_RANGE[1] || cand === from) continue;
-        const stepSize = Math.abs(semi);
-        // A walking line walks: the overwhelming majority of its motion is by
-        // semitone or tone, with the one real leap saved for the arrival on the
-        // next root. Pulling too hard toward the target turns every beat into a
-        // leap, so the target is a lean rather than a destination.
-        let w = stepSize <= 2 ? 7 : stepSize === 3 ? 1.2 : stepSize === 4 ? 0.6 : 0.15;
-        w *= Math.exp(-Math.abs(cand - ideal) / 5);
-        if (tones.includes(pc(cand))) w *= 2.2;
-        candidates.push([cand, w]);
-      }
-      line.push(candidates.length ? rng.weighted(candidates) : from);
-    }
-    if (beats > 1) line.push(approach);
+    const line = walkingBar(chord, next.root, root, beats, rng, ctx.bassRegister);
 
     for (let b = 0; b < line.length; b++) {
       out.push({
@@ -1734,6 +1735,53 @@ function generateWalkingBass(ctx: PartContext): NoteEvent[] {
     previous = line[line.length - 1];
   }
   return out;
+}
+
+/**
+ * One bar of walking line from a root already placed. The last beat approaches
+ * the next root, usually chromatically from below, and the beats between lean
+ * toward that approach. The target is placed with the figure bass's pull toward
+ * E2, so a line that has walked to the top of the register is led back down
+ * rather than left there.
+ */
+function walkingBar(
+  chord: Chord, nextRoot: Pc, root: Midi, beats: number, rng: Rng, register?: BassRegister,
+): Midi[] {
+  const tones = chordPcs(chord);
+  const line: Midi[] = [root];
+  const target = placeRoot(nextRoot, { lo: 0, hi: 0 }, root, register);
+  const approach = clampToRange(
+    rng.weighted([
+      [target - 1, 5],
+      [target + 1, 3],
+      [nearestPc(pc(nextRoot + 7), root), 2],
+    ] as const),
+    BASS_RANGE[0], BASS_RANGE[1],
+  );
+
+  for (let b = 1; b < beats - 1; b++) {
+    const from = line[line.length - 1]!;
+    const remaining = beats - 1 - b;
+    const gap = approach - from;
+    const ideal = from + Math.round(gap / (remaining + 1));
+    const candidates: (readonly [Midi, number])[] = [];
+    for (let semi = -4; semi <= 4; semi++) {
+      const cand = from + semi;
+      if (cand < BASS_RANGE[0] || cand > BASS_RANGE[1] || cand === from) continue;
+      const stepSize = Math.abs(semi);
+      // A walking line walks: the overwhelming majority of its motion is by
+      // semitone or tone, with the one real leap saved for the arrival on the
+      // next root. Pulling too hard toward the target turns every beat into a
+      // leap, so the target is a lean rather than a destination.
+      let w = stepSize <= 2 ? 7 : stepSize === 3 ? 1.2 : stepSize === 4 ? 0.6 : 0.15;
+      w *= Math.exp(-Math.abs(cand - ideal) / 5);
+      if (tones.includes(pc(cand))) w *= 2.2;
+      candidates.push([cand, w]);
+    }
+    line.push(candidates.length ? rng.weighted(candidates) : from);
+  }
+  if (beats > 1) line.push(approach);
+  return line;
 }
 
 /**

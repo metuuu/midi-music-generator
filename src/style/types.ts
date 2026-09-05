@@ -174,7 +174,8 @@ export interface BassPattern {
    * Generate a proper walking line instead of following `hits` literally:
    * quarter notes that connect one chord root to the next by step, with a
    * chromatic approach on beat 4. The signature sound of a jazz rhythm
-   * section, and not something a fixed pattern can fake.
+   * section, and not something a fixed pattern can fake. At a section's end
+   * the approach aims at the next section's opening chord.
    */
   walking?: boolean;
   /**

@@ -291,6 +291,9 @@ Three smaller pieces followed the same day. Metal's `follow` is six roots and th
 fifth and the flat seventh as one lift, which took metal's see-saw share from 18% to 8%.
 The walking bass places its approach target with the same pull toward E2, so the share of
 walking notes at or above C3 fell from 23% to 6% with the stepwise share unchanged at 70%.
+Its last bar in a section is rewritten once the next section's opening chord is drawn, so
+the approach on beat four lands under that root rather than under the section's own first
+chord.
 And §6.3 is built: a repeat of a section kind draws one more `planSignature` edit from a
 stream keyed to the kind and the instance, at 0.6 of the song's signature chance, so
 repeated sections playing the bass note for note went from 21% to 17%. The 17% left is
