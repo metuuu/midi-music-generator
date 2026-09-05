@@ -2711,13 +2711,6 @@ class Runtime implements Animator {
         V1.addScaledVector(V2.sub(slot.swayRef), IDLE_SWAY_FOLLOW);
       }
 
-      // Nothing may step. The drift above is smooth but the *goal* is not — a
-      // fingering changes from one note to the next — so a short follow turns a
-      // jump into a finger moving. It costs the drift no measurable lag.
-      if (slot.hasLast) {
-        V1.lerp(this.toWorld(p, slot.last, V6), Math.exp(-step / IDLE_FOLLOW_SECONDS));
-      }
-
       // And the wrist turns home rather than snapping there on the frame the
       // release ends — both axes of it. Passing only the normal leaves the roll
       // to whatever the rig's fallback produces, and for a wind player, whose
@@ -2760,6 +2753,16 @@ class Runtime implements Animator {
         this.escape(p, V1, down);
         if (norm) norm.lerp(V6.set(0, 1, 0).applyQuaternion(p.rigQuat), down).normalize();
         if (along) along.lerp(V6.set(1, 0, 0).applyQuaternion(p.rigQuat), down).normalize();
+      }
+
+      // Nothing may step. The drift above is smooth but the *goal* is not — a
+      // fingering changes from one note to the next — so a short follow turns a
+      // jump into a finger moving. It runs on the finished target, after the
+      // at-ease blend, because filtering before it made the resting point a
+      // function of the frame step at any partial stand-down, and a waiting
+      // wind player shook on every uneven frame.
+      if (slot.hasLast) {
+        V1.lerp(this.toWorld(p, slot.last, V6), Math.exp(-step / IDLE_FOLLOW_SECONDS));
       }
 
       p.rig.setEffector(e, V1, norm, along);
