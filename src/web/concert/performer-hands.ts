@@ -508,7 +508,7 @@ export const DEFAULT_HAND_POSES: Record<Archetype, { left: HandPoseId; right: Ha
  * the drummer's hands were bare fists landing on the heads, and the vibraphone
  * was being played by somebody patting it.
  */
-export type HeldImplement = 'drumstick' | 'mallet';
+export type HeldImplement = 'drumstick' | 'mallet' | 'hammer';
 
 /**
  * Which archetypes put something in the player's hands.
@@ -524,18 +524,7 @@ export type HeldImplement = 'drumstick' | 'mallet';
 export const IMPLEMENT_OF: Partial<Record<Archetype, HeldImplement>> = {
   drumkit: 'drumstick',
   mallets: 'mallet',
-  /**
-   * `mallet` rather than a third entry, and it is a compromise worth naming.
-   *
-   * A dulcimer hammer is a short cane shaft with a flat spoon on the end, not a
-   * rattan stick with a ball of yarn — closer to a drumstick in length and to a
-   * mallet in everything else, and the thing that actually decides it is that
-   * the head is soft and wide against the wire. What `IMPLEMENT_AIM` needs is a
-   * length, a fulcrum and a working end, and the mallet's three are the nearer
-   * pair by a wide margin. The spoon is a spec of its own on the day the shape
-   * of the head is what somebody is looking at.
-   */
-  dulcimer: 'mallet',
+  dulcimer: 'hammer',
 };
 
 /**
@@ -582,6 +571,15 @@ const IMPLEMENTS: Record<HeldImplement, ImplementSpec> = {
   mallet: {
     length: 5.40, grip: 0.24, thick: 0.17, bead: 0.23,
     shaft: '#d8c191', head: '#3f5f9e', headRough: 0.96,
+  },
+  /**
+   * A dulcimer hammer: a short cane with a small wooden spoon, 23 cm on a player
+   * of mean height. It was a `mallet`, and 30 cm of shaft in front of the fist
+   * parked a seated santoor player's hands at hip height behind the box.
+   */
+  hammer: {
+    length: 3.20, grip: 0.30, thick: 0.13, bead: 0.11,
+    shaft: '#c9b07a', head: '#5a3b22', headRough: 0.7,
   },
 };
 

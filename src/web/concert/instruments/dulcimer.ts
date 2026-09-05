@@ -94,6 +94,9 @@ const Z_FAR = 0.20;
 /** How deep the box is, top face to bottom. */
 const BOX_H = 0.085;
 
+/** How far a hammer descends onto the wire, off vertical. See `UP` in the seam. */
+const HAMMER_DROP = (30 * Math.PI) / 180;
+
 /** Where the strings sit above the boards, standing and on the floor. */
 const STRING_Y_STAND = 0.780;
 const STRING_Y_FLOOR = 0.340;
@@ -455,7 +458,14 @@ export const buildDulcimer: InstrumentBuilder = (opts) => {
   // --- The seam ------------------------------------------------------------
 
   const moving = new Set<Course>();
-  const UP = new Vector3(0, 1, 0);
+  /**
+   * Which way a hammer meets the wire: the palm normal leans away from the
+   * player by `HAMMER_DROP`, which pitches the fingers, and the shaft with
+   * them, down onto the course. A flat normal laid the hammer along the
+   * strings, and the rig, which parks the fist a shaft's length behind the
+   * tip, put a seated player's hands at hip height behind the near edge.
+   */
+  const UP = new Vector3(0, Math.cos(HAMMER_DROP), Math.sin(HAMMER_DROP));
   /**
    * Knuckles across the courses, so a hammer runs away from the player and
    * lands on one course rather than lying along three. Same axis and same
