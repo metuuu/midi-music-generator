@@ -273,8 +273,10 @@ tables, so every uncycled figure gets them without being rewritten:
   cannot walk the line out of the register.
 - **Walk-ups and turnarounds.** `Style.walkup` over `Genre.walkup`, the chance per bar that
   the last beats before a root change give way to scale steps arriving on the next root,
-  and that a phrase end on an unchanged chord climbs to the root from below. Ten genres
-  declare it; a chromatic chord, a cycled figure and a drone all decline.
+  and that a phrase end on an unchanged chord climbs to the root from below. A section's
+  last bar walks into the next section's opening chord, written as an edit once that
+  chord is drawn. Ten genres declare it; a chromatic chord, a cycled figure and a drone
+  all decline.
 
 `reach` no longer replaces a figure's own fifth with the octave, which was turning every
 other two-beat into a disco bounce and dropping the whole line an octave to fit it. Rock's

@@ -76,7 +76,8 @@ import {
   castFigures, DEFAULT_SIGNATURE, DEFAULT_SWAP, DEFAULT_VARY, doubleFigure, type FigureCast,
   generateBass, generateBrass, generateComp, generateCounter, generateDrums,
   generateLeftHand, generatePad, planFigureVariation, planKitVariation, planSignature,
-  type PartContext, sectionFigure, signFigure, undoubleAgainst } from './parts.js';
+  type PartContext, seamWalk, sectionFigure, signFigure, undoubleAgainst, walkInto,
+  type WalkSection } from './parts.js';
 
 export interface GenerateOptions {
   seed?: string | number;
@@ -1258,6 +1259,8 @@ export function generateSong(opts: GenerateOptions = {}): Song {
    */
   const feels: FeelSpan[] = [];
 
+  /** The section just written, waiting for this one's opening chord so its bass can walk into it. */
+  let walkBehind: { section: WalkSection; dress: (notes: NoteEvent[]) => NoteEvent[] } | undefined;
   for (let s = 0; s < sections.length; s++) {
     const section = sections[s]!;
     const localTonic = ((tonic + section.transpose) % 12 + 12) % 12;
@@ -1372,6 +1375,24 @@ export function generateSong(opts: GenerateOptions = {}): Song {
       ...(genre.layerPlan?.bass ? { bassRegister: genre.layerPlan.bass } : {}),
     };
     if (s === sections.length - 1) finalChord = ctxBase.chords[ctxBase.chords.length - 1];
+
+    /**
+     * The seam behind this section, walked now that its arrival is known.
+     *
+     * An edit on the running list rather than a part of the section before,
+     * because that section's bass was written before this one's chords were
+     * drawn — the same reason every other seam gesture is an edit. Dressed as
+     * that section's own notes were, and left alone where the bar has already
+     * been taken away from the bass, such as a traded solo's drum bars.
+     */
+    if (walkBehind) {
+      const walk = seamWalk(walkBehind.section, ctxBase.chords[0]!.root);
+      const bass = byLayer.get('bass') ?? [];
+      if (walk && bass.some((n) => n.beat >= walk.bar.start && n.beat < walk.bar.end)) {
+        byLayer.set('bass', walkInto(bass, { ...walk, notes: walkBehind.dress(walk.notes) }));
+      }
+      walkBehind = undefined;
+    }
 
     /**
      * The chord sounding at a beat, clamped to the section.
@@ -1807,6 +1828,13 @@ export function generateSong(opts: GenerateOptions = {}): Song {
     // A soloist's own layer is skipped here — a bass taking a chorus is not
     // also walking behind it, and a pianist soloing is not also comping.
     const walkup = style.walkup ?? genre.walkup ?? 0;
+    const walkupOptions = walkup > 0
+      ? {
+        chance: walkup,
+        rng: new Rng(`${seed}:walkup:${s}${salt('bass')}`),
+        scale: (c: Chord) => scaleHere(localTonic, mode, c),
+      }
+      : undefined;
     /**
      * A bass that doubles the guitar takes the comp figure's rhythm on the root,
      * and the comp's phrase-end gesture with it, so the two stay locked. A held
@@ -1820,15 +1848,7 @@ export function generateSong(opts: GenerateOptions = {}): Song {
     let sectionBass = active.has('bass') && soloLayer !== 'bass'
       ? generateBass(ctxFor('bass'), doubled ?? sectionBassFigure, {
         ...(variation ? { variation } : {}),
-        ...(walkup > 0 ? {
-          walkup: {
-            chance: walkup,
-            rng: new Rng(`${seed}:walkup:${s}${salt('bass')}`),
-            scale: (c: Chord) => scaleHere(localTonic, mode, c),
-            tonic: localTonic,
-            ...(s === sections.length - 1 ? { final: true } : {}),
-          },
-        } : {}),
+        ...(walkupOptions ? { walkup: walkupOptions } : {}),
       })
       : [];
     let sectionComp = active.has('comp') && soloLayer !== 'comp'
@@ -2868,6 +2888,43 @@ export function generateSong(opts: GenerateOptions = {}): Song {
     push(byLayer, 'comp', filtered(sectionComp, 'comp'));
     push(byLayer, 'pad', filtered(sectionPad, 'pad'));
     push(byLayer, 'brass', filtered(sectionBrass, 'brass'));
+
+    /**
+     * Left for the next section to walk into. Not under a `shot` at the seam,
+     * which replaces the bar the walk would take; one aimed `inside` leaves it.
+     */
+    const seam = seams[s];
+    walkBehind = walkupOptions && sectionBass.length && !(seam?.kind === 'shot' && !seam.anchor)
+      ? {
+        section: {
+          pattern: doubled ?? sectionBassFigure,
+          chords: ctxBase.chords,
+          beatsPerBar: style.beatsPerBar,
+          startBeat: ctxBase.startBeat,
+          walkup: walkupOptions,
+          ...(ctxBase.bassRegister ? { bassRegister: ctxBase.bassRegister } : {}),
+        },
+        // What the section's own bass went through, in the same order, so the
+        // walk leans and swings with the bar it takes.
+        dress: (notes) => {
+          if (felt) {
+            applyFeel({
+              feel: felt.feel,
+              amount: felt.amount,
+              bpm,
+              swing: swingOver(felt.feel, felt.amount),
+              beatsPerBar: style.beatsPerBar,
+              rng: new Rng(`${seed}:feel:${s}:walk`),
+              kitRng: new Rng(`${seed}:feel:${s}:walk:kit`),
+              endsAt: (totalBars - 1) * style.beatsPerBar,
+              layers: { bass: notes },
+            });
+          }
+          applyDynamics(notes, 'bass', intensity, genre.layerPlan?.response);
+          return filtered(notes, 'bass');
+        },
+      }
+      : undefined;
   }
 
   // ---- Assemble --------------------------------------------------------

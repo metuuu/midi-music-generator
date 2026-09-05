@@ -940,7 +940,8 @@ export interface Style {
   vary?: Partial<Record<'bass' | 'comp', number>>;
   /**
    * How often the bass walks into a chord change, 0..1: the last beats of the
-   * bar before a new root give way to scale steps that arrive on it. Absent
+   * bar before a new root give way to scale steps that arrive on it. The
+   * section's last bar walks into the next section's opening chord. Absent
    * means `Genre.walkup`, and that absent means never.
    */
   walkup?: number;

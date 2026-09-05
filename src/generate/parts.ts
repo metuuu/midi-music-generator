@@ -1228,11 +1228,7 @@ export function generateBass(
   }
   const bounce = bounceSlots(pattern.hits);
   const walks = opts.walkup && !pattern.cycle && !pattern.sustain
-    ? planWalkups(pattern.hits, chords, roots, {
-      slotsPerBar,
-      ...opts.walkup,
-      after: placeRoot(opts.walkup.tonic, shape, roots[roots.length - 1]),
-    })
+    ? planWalkups(pattern.hits, chords, roots, { slotsPerBar, ...opts.walkup })
     : new Map<number, Walkup>();
 
   for (const { hit, bar, slot } of figureHits(pattern.hits, {
@@ -1349,10 +1345,6 @@ export interface WalkupOptions {
   chance: number;
   rng: Rng;
   scale: (chord: Chord) => Scale;
-  /** The section's key, which its last bar walks towards: the next section is not written yet. */
-  tonic: Pc;
-  /** The song ends with this section, so its last bar has nothing to walk into. */
-  final?: boolean;
 }
 
 /** One bar's walk: the figure stops at `start` and these notes arrive on the next root. */
@@ -1413,6 +1405,55 @@ function walkLine(scale: Scale, from: Midi, to: Midi): Midi[] {
   return out;
 }
 
+/** The pulse a figure's walks move at, and how many notes a bar has room for. */
+interface Pace {
+  pulse: number;
+  room: number;
+  dur: number;
+  vel: number;
+}
+
+function paceOf(hits: readonly BassHit[], slotsPerBar: number): Pace | undefined {
+  if (!hits.length) return undefined;
+  const sorted = [...hits].sort((a, b) => a.at - b.at);
+  const gaps = sorted.slice(1).map((h, i) => h.at - sorted[i]!.at);
+  const pulse = Math.max(2, Math.min(4, gaps.length ? Math.min(...gaps) : 4));
+  const room = Math.min(4, slotsPerBar / pulse - 1);
+  if (slotsPerBar % pulse !== 0 || room <= 0) return undefined;
+  const dur = Math.min(pulse, Math.max(...hits.map((h) => h.dur)));
+  const late = hits.filter((h) => h.at > 0);
+  const vel = late.length ? late.reduce((a, h) => a + (h.vel ?? 0.85), 0) / late.length : 0.8;
+  return { pulse, room, dur, vel };
+}
+
+/** One bar's walk from one root to the next, or nothing where the draw or the scale declines it. */
+function planWalk(
+  pace: Pace,
+  key: Scale,
+  from: Midi,
+  to: Midi,
+  opts: { phraseEnd: boolean; chance: number; rng: Rng; slotsPerBar: number },
+): Walkup | undefined {
+  const { pulse, room, dur, vel } = pace;
+  const { phraseEnd, chance, rng } = opts;
+  const same = pc(from) === pc(to);
+  if (same && !phraseEnd) return undefined;
+  // A phrase end is where a player most wants to be heard arriving.
+  if (!rng.chance(Math.min(1, chance * (phraseEnd ? 1.5 : 1)))) return undefined;
+  const line = same
+    ? turnaround(key, to, Math.min(room, 3))
+    : walkLine(key, from, to).slice(-room);
+  if (!line.length) return undefined;
+  // One note is an approach the figure may already have; two is a walk.
+  if (line.length === 1 && room >= 2) line.unshift(from);
+  const start = opts.slotsPerBar - line.length * pulse;
+  return {
+    start,
+    dur,
+    notes: line.map((midi, i) => ({ slot: start + i * pulse, midi, velocity: vel * rng.float(0.94, 1.0) })),
+  };
+}
+
 /**
  * Where the bass walks into the next chord, and with what.
  *
@@ -1422,48 +1463,102 @@ function walkLine(scale: Scale, from: Midi, to: Midi): Midi[] {
  * the figure's own approach. A phrase end on an unchanged chord walks up to
  * the root from below instead, which is the turnaround every two-beat player
  * has.
+ *
+ * Never the section's last bar. What that bar walks into is the next section's
+ * opening chord, which is drawn with the next section, so `seamWalk` plays it
+ * once both sides of the join exist.
  */
 function planWalkups(
   hits: readonly BassHit[],
   chords: readonly Chord[],
   roots: readonly Midi[],
-  opts: WalkupOptions & { slotsPerBar: number; after: Midi },
+  opts: WalkupOptions & { slotsPerBar: number },
 ): Map<number, Walkup> {
   const { slotsPerBar, chance, rng, scale } = opts;
   const out = new Map<number, Walkup>();
-  if (!hits.length) return out;
-  const sorted = [...hits].sort((a, b) => a.at - b.at);
-  const gaps = sorted.slice(1).map((h, i) => h.at - sorted[i]!.at);
-  const pulse = Math.max(2, Math.min(4, gaps.length ? Math.min(...gaps) : 4));
-  const room = Math.min(4, slotsPerBar / pulse - 1);
-  if (slotsPerBar % pulse !== 0 || room <= 0) return out;
-  const dur = Math.min(pulse, Math.max(...hits.map((h) => h.dur)));
-  const late = hits.filter((h) => h.at > 0);
-  const vel = late.length ? late.reduce((a, h) => a + (h.vel ?? 0.85), 0) / late.length : 0.8;
-  const bars = opts.final ? chords.length - 1 : chords.length;
-  for (let bar = 0; bar < bars; bar++) {
-    const from = roots[bar]!;
-    const to = roots[bar + 1] ?? opts.after;
-    const phraseEnd = (bar + 1) % phraseBars(chords.length) === 0;
-    const same = pc(from) === pc(to);
-    if (same && !phraseEnd) continue;
-    // A phrase end is where a player most wants to be heard arriving.
-    if (!rng.chance(Math.min(1, chance * (phraseEnd ? 1.5 : 1)))) continue;
-    const key = scale(chords[bar]!);
-    const line = same
-      ? turnaround(key, to, Math.min(room, 3))
-      : walkLine(key, from, to).slice(-room);
-    if (!line.length) continue;
-    // One note is an approach the figure may already have; two is a walk.
-    if (line.length === 1 && room >= 2) line.unshift(from);
-    const start = slotsPerBar - line.length * pulse;
-    out.set(bar, {
-      start,
-      dur,
-      notes: line.map((midi, i) => ({ slot: start + i * pulse, midi, velocity: vel * rng.float(0.94, 1.0) })),
+  const pace = paceOf(hits, slotsPerBar);
+  if (!pace) return out;
+  for (let bar = 0; bar < chords.length - 1; bar++) {
+    const walk = planWalk(pace, scale(chords[bar]!), roots[bar]!, roots[bar + 1]!, {
+      phraseEnd: (bar + 1) % phraseBars(chords.length) === 0,
+      chance, rng, slotsPerBar,
     });
+    if (walk) out.set(bar, walk);
   }
   return out;
+}
+
+/** What a section's bass needs remembered so its last bar can walk into the section after it. */
+export interface WalkSection {
+  pattern: BassPattern;
+  chords: readonly Chord[];
+  beatsPerBar: number;
+  startBeat: number;
+  walkup: WalkupOptions;
+  bassRegister?: BassRegister;
+}
+
+/** A walk on the song's own grid: the figure gives way at `from` and the notes take the bar to `bar.end`. */
+export interface SeamWalk {
+  bar: { start: number; end: number };
+  from: number;
+  notes: NoteEvent[];
+}
+
+/**
+ * The section's last bar walking into the next section's opening chord.
+ *
+ * Planned once the arrival is known and played as an edit on the finished bass,
+ * because the chord it lands on is drawn with the section after it. It draws
+ * from the stream the section's own walkups left off in, so a section spends
+ * one walkup draw per bar whether the bar is inside it or at its seam.
+ */
+export function seamWalk(section: WalkSection, arrival: Pc): SeamWalk | undefined {
+  const { pattern, chords, beatsPerBar, startBeat, walkup, bassRegister } = section;
+  if (pattern.walking || pattern.cycle || pattern.sustain || !chords.length) return undefined;
+  const slotsPerBar = beatsPerBar * SLOTS_PER_BEAT;
+  const pace = paceOf(pattern.hits, slotsPerBar);
+  if (!pace) return undefined;
+  const shape = spanOf(pattern.hits);
+  let from: Midi | undefined;
+  for (const chord of chords) from = placeRoot(chord.root, shape, from, bassRegister);
+  const last = chords.length - 1;
+  const to = placeRoot(arrival, shape, from, bassRegister);
+  const walk = planWalk(pace, walkup.scale(chords[last]!), from!, to, {
+    phraseEnd: true, chance: walkup.chance, rng: walkup.rng, slotsPerBar,
+  });
+  if (!walk) return undefined;
+  const start = startBeat + last * beatsPerBar;
+  return {
+    bar: { start, end: start + beatsPerBar },
+    from: start + walk.start / SLOTS_PER_BEAT,
+    notes: walk.notes.map(({ slot, midi, velocity }) => ({
+      beat: start + slot / SLOTS_PER_BEAT,
+      duration: walk.dur / SLOTS_PER_BEAT,
+      midi,
+      velocity,
+    })),
+  };
+}
+
+/**
+ * The bass giving way to a walk planned after the bar was written: what
+ * `generateBass` does to an inner bar, on notes that already exist. A note
+ * ringing across the walk's start ends there rather than under it.
+ *
+ * Notes are placed by the slot they were written on, because a feel has had
+ * the bar by now and a note leaning a few milliseconds ahead of the walk's first
+ * slot is the figure's note on that slot, not one before it.
+ */
+export function walkInto(notes: readonly NoteEvent[], walk: SeamWalk): NoteEvent[] {
+  const slot = (beat: number): number => Math.round((beat - walk.bar.start) * SLOTS_PER_BEAT);
+  const from = slot(walk.from);
+  const end = slot(walk.bar.end);
+  const kept = notes.filter((n) => slot(n.beat) < from || slot(n.beat) >= end);
+  for (const n of kept) {
+    if (slot(n.beat) < from && n.beat + n.duration > walk.from) n.duration = Math.max(0.05, walk.from - n.beat);
+  }
+  return [...kept, ...walk.notes].sort((a, b) => a.beat - b.beat || a.midi - b.midi);
 }
 
 /**
