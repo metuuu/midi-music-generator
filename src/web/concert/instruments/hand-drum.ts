@@ -37,6 +37,7 @@ import {
   MeshStandardMaterial, Object3D, SphereGeometry, Vector2, Vector3,
 } from 'three';
 
+import { HAND_DRUM_SHAPE_OF, type HandDrumShape } from '../../../concert/instruments.js';
 import type { PlayPoint, Posture } from '../../../concert/types.js';
 import { Rng } from '../../../core/rng.js';
 import type { DrumVoice } from '../../../core/types.js';
@@ -76,28 +77,15 @@ const TAU = Math.PI * 2;
  * Named for what the silhouette is rather than for the rack, because the rack is
  * a sample library and this is a shape. A tabla would be two `barrel`s standing
  * upright, and a djembe a `goblet` one size up; neither is in the library yet and
- * both would map here rather than adding a fourth case.
+ * both would map here rather than adding a fourth case. The rack-to-shape table
+ * is `HAND_DRUM_SHAPE_OF` in `concert/instruments.ts`, because the choreographer
+ * reads it too: which hand a stroke gets depends on which drum it is on.
  */
-type Shape = 'goblet' | 'pair' | 'barrel';
+type Shape = HandDrumShape;
 
-/**
- * Rack name to silhouette — and **the list the model bench enumerates**.
- *
- * Exported for that second reason rather than because anything else needs to
- * read it. `gallery.ts` shows one exhibit per buildable object and had no way to
- * ask this file what its objects were, so for as long as this table existed the
- * bench drew the goblet three times over and the congas and the mridangam were
- * never looked at once. Reading the keys means a fourth rack is an exhibit the
- * day it is a shape, which is the only arrangement that does not go stale.
- */
-export const SHAPE_OF: Record<string, Shape> = {
-  darbuka: 'goblet',
-  congas: 'pair',
-  mridangam: 'barrel',
-};
-
+/** The rack's silhouette; a rack nobody has drawn is the goblet. */
 const shapeFor = (rack: string | undefined): Shape =>
-  (rack ? SHAPE_OF[rack] ?? 'goblet' : 'goblet');
+  (rack ? HAND_DRUM_SHAPE_OF[rack] ?? 'goblet' : 'goblet');
 
 /** Head radius. A goblet drum is narrower than this; a djembe is wider. */
 const HEAD_R = 0.145;

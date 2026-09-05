@@ -67,7 +67,7 @@
  * could be made to draw.
  *
  * So the axes below are **read out of the tables that define them** rather than
- * transcribed: `SHAPE_OF` in `hand-drum.ts` for which drums exist,
+ * transcribed: `HAND_DRUM_SHAPE_OF` in `concert/instruments.ts` for which drums exist,
  * `SIZED_FAMILIES` in `instruments/index.ts` for which families stretch,
  * `SYNTH_RIGS[rig].maxBoards` for how many keyboards a frame holds. A fourth
  * rack, or a fifth saxophone, is an exhibit the day it is one.
@@ -109,7 +109,7 @@ import {
 import {
   buildDrumMachine, type DrumMachine, type DrumMachineOptions,
 } from './instruments/drum-machine.js';
-import { SHAPE_OF } from './instruments/hand-drum.js';
+import { HAND_DRUM_SHAPE_OF } from '../../concert/instruments.js';
 import { SIZED_FAMILIES, buildInstrumentFor } from './instruments/index.js';
 import type { Contact, InstrumentModel } from './instruments/types.js';
 import { lightTheRoom } from './performer-assets.js';
@@ -162,7 +162,7 @@ interface Entry {
   electronic?: boolean;
   /**
    * Which drum a hand percussionist is playing, where the archetype is
-   * `handdrum`. From the rack half of `DrumTrack.bank`; see `SHAPE_OF`.
+   * `handdrum`. From the rack half of `DrumTrack.bank`; see `HAND_DRUM_SHAPE_OF`.
    */
   rack?: string;
   /**
@@ -292,7 +292,7 @@ function entries(): Entry[] {
        * bench shows what the models can be asked for, and a build nobody stages
        * is still a build nobody has looked at.
        */
-      for (const rack of Object.keys(SHAPE_OF)) {
+      for (const rack of Object.keys(HAND_DRUM_SHAPE_OF)) {
         for (const posture of HAND_POSTURES) {
           const floor = posture === 'floor';
           out.push({

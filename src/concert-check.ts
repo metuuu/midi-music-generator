@@ -34,10 +34,10 @@ import { deep, depthSummary, sample, seeds } from './depth.js';
  */
 const S = (full: number) => seeds(full, Math.max(1, Math.round(full / 4)), 1);
 import { INSTRUMENTS, type InstrumentId } from './style/instruments.js';
-import { armsKnotted, trackForPart } from './concert/choreograph.js';
+import { armsKnotted, handsKnotted, trackForPart } from './concert/choreograph.js';
 import {
   ARCHETYPES, ARCHETYPE_OF, SYNTH_RIGS, archetypeForTrack, drumEventsFor,
-  trackCanReach,
+  handDrumShapeFor, trackCanReach,
 } from './concert/instruments.js';
 import { seenAs, stacked } from './concert/cast.js';
 import { MAX_SUNG_CHANCE, SUNG_CHANCE } from './concert/setlist.js';
@@ -1806,36 +1806,21 @@ check('no genre sings more often than not', loudGenres.length === 0,
  * nothing; measured as a posture the drummer is left holding, it is the thing
  * the eye actually objects to.
  *
- * ## The knot is a kit question and is asked only of a kit
+ * ## Two tables, two predicates
  *
- * `armsKnotted` reads `KIT`, and `KIT` is a drum kit: the sweep of one player's
- * furniture from the hats on the left to the ride on the right. Its `mp`, `lp`
- * and `hp` rows are hand-drum strokes and its own comment says they are dead
- * weight kept for totality — "`kitDistance` is the only reader of this table".
- * That stopped being true here, because this block filtered on
- * `layer === 'drums'` and a hand percussionist is a drummer by that test.
- *
- * The two tables do not merely differ, they disagree about the geometry: a hand
- * drum's places are `HAND_REACH`, where the trap table `cp` sits at 0.55 to the
- * *right* of the three skin strokes at 0.30–0.38, and `KIT` puts `cp` at 0.02
- * out past the far side of the hi-hats. So a percussionist with their left hand
- * on the drum and their right on the trap table — the most ordinary posture
- * they have — read as fully swapped arms. That was 6.4% of indian's postures
- * and it was the whole of the failure: over fourteen genres a real kit is
- * knotted 0.06% of the time.
- *
- * A hand drum's arms can knot too and nothing here can see it. Writing the
- * predicate would mean restating the choreographer's geometry in the file that
- * checks it, which is refused elsewhere for the same reason and is refused
- * again: `armsKnotted` is exported precisely so this file asks rather than
- * re-derives, and the answer to a missing `handsKnotted` is to export one.
+ * `armsKnotted` reads `KIT` and is a kit question. A percussionist's places are
+ * `HAND_PLACES`, where the trap table stands to the right of every skin and the
+ * congas' low drum to the left of it, so the same posture is put to
+ * `handsKnotted` with the rack's shape. Both are exported so this file asks
+ * rather than re-derives.
  */
 {
   let strokes = 0;
-  let knotted = 0;
   let idleHand = 0;
-  let states = 0;
-  let worst = '';
+  const knots = {
+    drumkit: { knotted: 0, states: 0, worst: '' },
+    handdrum: { knotted: 0, states: 0, worst: '' },
+  };
   /**
    * One-armed figures per archetype, which is reporting rather than a second
    * threshold — this one *is* table-independent, since it asks only whether a
@@ -1852,6 +1837,8 @@ check('no genre sings more often than not', loudGenres.length === 0,
           const part = number.choreography.parts[performer.id];
           if (!part) continue;
           const onAKit = performer.archetype === 'drumkit';
+          const shape = performer.archetype === 'handdrum'
+            ? handDrumShapeFor(number.song.drums.bank) : undefined;
           const tally = oneArmed.get(performer.archetype) ?? { idle: 0, strokes: 0 };
           oneArmed.set(performer.archetype, tally);
           const hits = part.gestures
@@ -1878,12 +1865,17 @@ check('no genre sings more often than not', loudGenres.length === 0,
             tally.strokes++;
             // Both hands have to have played before there is a posture at all.
             if (at[other].beat === -Infinity) continue;
-            if (!onAKit) continue;
-            states++;
-            const now = armsKnotted(at['left-hand'].voice, at['right-hand'].voice);
+            if (!onAKit && !shape) continue;
+            const posture = knots[onAKit ? 'drumkit' : 'handdrum'];
+            posture.states++;
+            const now = shape
+              ? handsKnotted(shape, at['left-hand'].voice, at['right-hand'].voice)
+              : armsKnotted(at['left-hand'].voice, at['right-hand'].voice);
             if (now && wasKnotted) {
-              knotted++;
-              if (!worst) worst = `${gid} b${g.beat} L:${at['left-hand'].voice} R:${at['right-hand'].voice}`;
+              posture.knotted++;
+              if (!posture.worst) {
+                posture.worst = `${gid} b${g.beat} L:${at['left-hand'].voice} R:${at['right-hand'].voice}`;
+              }
             }
             wasKnotted = now;
           }
@@ -1891,9 +1883,14 @@ check('no genre sings more often than not', loudGenres.length === 0,
       }
     }
   }
-  const rate = knotted / Math.max(states, 1);
-  check('the drummer\'s arms are never knotted', rate < 0.002,
-    `${(rate * 100).toFixed(2)}% of ${states} kit postures held${worst ? ` — ${worst}` : ''}`);
+  for (const [who, what, { knotted, states, worst }] of [
+    ['the drummer\'s arms', 'kit', knots.drumkit],
+    ['the percussionist\'s hands', 'hand drum', knots.handdrum],
+  ] as const) {
+    const rate = knotted / Math.max(states, 1);
+    check(`${who} are never knotted`, rate < 0.002,
+      `${(rate * 100).toFixed(2)}% of ${states} ${what} postures held${worst ? ` — ${worst}` : ''}`);
+  }
   const idle = idleHand / Math.max(strokes, 1);
   // Split by archetype in the detail whichever way it goes, because one rate
   // over two instruments is a number that can be moved by either of them.
@@ -1974,7 +1971,7 @@ for (const gid of GENRE_IDS) {
         );
         const aux = [...new Set(owned.map((e) => e.voice))].sort();
         // The rack joins the key for the reason the pieces do: it decides which
-        // object is built, not how it is dressed. See `Shape` in `hand-drum.ts`.
+        // object is built, not how it is dressed. See `HandDrumShape`.
         const rack = performer.archetype === 'handdrum'
           ? readBankName(number.song.drums.bank).rack
           : undefined;

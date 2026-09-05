@@ -55,8 +55,8 @@ import type { DrumEvent, DrumVoice, NoteEvent, Song, Track } from '../core/types
 import { IDIOMS, INSTRUMENTS } from '../style/instruments.js';
 import type { Technique } from '../generate/technique.js';
 import {
-  boardGap, boardsFor, drumEventsFor, instrumentIdForTrack, rangeForTrack, specFor,
-  type BoardSpec,
+  boardGap, boardsFor, drumEventsFor, handDrumShapeFor, instrumentIdForTrack, rangeForTrack,
+  specFor, type BoardSpec, type HandDrumShape,
 } from './instruments.js';
 import type {
   Archetype, ArchetypeSpec, Cast, Choreography, Effector, Gesture, GestureKind,
@@ -379,7 +379,7 @@ const KIT: Record<DrumVoice, { sweep: number; tier: number }> = {
    * least of it: the kit had no hand drum on it, so every one of those strokes
    * was a windup toward a patch of air past the floor tom.
    *
-   * They belong to `HAND_REACH` and to `handdrum` now, and `drumStations` sees
+   * They belong to `HAND_PLACES` and to `handdrum` now, and `drumStations` sees
    * to it that `drumPart` is never handed one. `kitDistance` is the only reader
    * of this table and it is only ever called from there, so these numbers are
    * unreachable; the record stays total because widening `DrumVoice` should
@@ -730,7 +730,10 @@ function gesturesFor(
   const board = new Board(song.meta.bpm, rng.float(0.9, 1.12));
 
   if (performer.archetype === 'handdrum') {
-    handPart(drumEventsFor(song.drums.events, 'handdrum', song.drums.bank), board);
+    handPart(
+      drumEventsFor(song.drums.events, 'handdrum', song.drums.bank), board,
+      handDrumShapeFor(song.drums.bank),
+    );
   } else if (performer.archetype === 'drumkit' || performer.layer === 'drums') {
     // Their share of it. A percussion part is one event stream over as many as
     // two players — see `drumStations` — and the kit's share is everything the
@@ -2067,49 +2070,95 @@ function drumPart(events: DrumEvent[], board: Board): void {
 }
 
 /**
- * Where each surface a percussionist owns sits along their own reach, 0..1.
+ * Where each surface a percussionist owns stands, per silhouette: `x` across
+ * the player in metres, positive to their left, and `d` the rest of the way,
+ * forward on the skin and out to the trap table at their right.
  *
- * The hand drum's answer to `KIT`, and a far shorter table because a hand
- * drummer's world is one skin with a small table beside it. The three strokes
- * are clustered on purpose: they are three places on one head, four
- * centimetres apart, and the hands never leave it. Filing them any further
- * apart would charge a full windup for every *doum-tek* in the bar, which is
- * the mistake the note on `KIT`'s own `lp`/`mp`/`hp` entries warned about back
- * when this table did not exist and those three voices had nowhere else to go.
- *
- * The trap table is a genuine reach away, and that gap is the whole content of
- * this table: a *tek* costs almost nothing and picking up a riq costs a real
- * movement.
+ * A stroke costs the straight-line distance between two places. The goblet's
+ * three strokes are clustered on purpose, since they are three places on one
+ * head; the congas and the mridangam are different drums, and a hand that
+ * crosses to one is charged for it and seen to have crossed.
  */
-const HAND_REACH: Partial<Record<DrumVoice, number>> = {
-  mp: 0.30, lp: 0.34, hp: 0.38,
-  cp: 0.55,
-  cb: 0.80, tb: 0.86, sh: 0.92, perc: 0.96,
+interface HandPlace { x: number; d: number }
+
+const handTable = (x: number): Record<'cb' | 'tb' | 'sh' | 'perc', HandPlace> => ({
+  cb: { x, d: 0.60 }, tb: { x, d: 0.66 }, sh: { x, d: 0.72 }, perc: { x, d: 0.76 },
+});
+
+const HAND_PLACES: Record<HandDrumShape, Partial<Record<DrumVoice, HandPlace>>> = {
+  goblet: {
+    mp: { x: 0, d: 0.30 }, lp: { x: 0, d: 0.34 }, hp: { x: 0, d: 0.38 },
+    cp: { x: 0, d: 0.55 },
+    ...handTable(-0.40),
+  },
+  pair: {
+    lp: { x: 0.32, d: 0.34 }, mp: { x: 0, d: 0.34 }, hp: { x: -0.30, d: 0.34 },
+    cp: { x: 0, d: 0.55 },
+    ...handTable(-0.69),
+  },
+  barrel: {
+    lp: { x: 0.29, d: 0.34 }, mp: { x: -0.29, d: 0.30 }, hp: { x: -0.29, d: 0.38 },
+    cp: { x: 0, d: 0.55 },
+    ...handTable(-0.55),
+  },
 };
 
-function handDistance(from: DrumVoice, to: DrumVoice): number {
-  return Math.min(1, Math.abs((HAND_REACH[from] ?? 0.34) - (HAND_REACH[to] ?? 0.34)));
+/** A hand that struck this recently wants the other one to take the next stroke. */
+const HAND_FAST_SECONDS = 0.16;
+/** Dearer than a reach across the drums, so the far hand comes over to share. */
+const HAND_FAST_COST = 0.8;
+/** A hand that cannot arrive in time and strikes short-armed instead. */
+const HAND_RUSH_COST = 1;
+/** Dearer than everything else together, so a hand knots only when it is the last one free. */
+const HAND_KNOT_COST = 3;
+/** How far right of the right hand the left may sit and still be sharing a drum. */
+const HAND_KNOT_SLACK = 0.10;
+
+function handPlace(shape: HandDrumShape, voice: DrumVoice): HandPlace {
+  return HAND_PLACES[shape][voice] ?? HAND_PLACES[shape].lp!;
+}
+
+function handTravel(shape: HandDrumShape, from: DrumVoice, to: DrumVoice): number {
+  const a = handPlace(shape, from);
+  const b = handPlace(shape, to);
+  return Math.min(1, Math.hypot(a.x - b.x, a.d - b.d));
+}
+
+/**
+ * Whether a percussionist with hands on these two surfaces has them crossed.
+ *
+ * `armsKnotted` for the player with no sticks, and exported for the same
+ * reason: `concert-check.ts` asks this rather than restating the table above.
+ * Two hands on one drum are not crossed, which is what the slack is for.
+ */
+export function handsKnotted(shape: HandDrumShape, left: DrumVoice, right: DrumVoice): boolean {
+  return handPlace(shape, left).x < handPlace(shape, right).x - HAND_KNOT_SLACK;
+}
+
+/**
+ * The hand a surface belongs to outright, on the drum that lies across the player.
+ *
+ * A mridangam's heads are the two ends of a barrel on the shins, and neither
+ * hand plays the other's. Every other shape settles it by cost.
+ */
+function handOwner(shape: HandDrumShape, voice: DrumVoice): Hand | undefined {
+  if (shape !== 'barrel') return undefined;
+  const { x } = handPlace(shape, voice);
+  return x > HAND_KNOT_SLACK ? 'left-hand' : x < -HAND_KNOT_SLACK ? 'right-hand' : undefined;
 }
 
 /**
  * `DrumEvent[] → two hands`, for the player with no sticks.
  *
- * Deliberately a tenth of `drumPart`. Almost everything that function does is
- * about the things a kit has and a hand drum has not: a kick pedal, a hi-hat
- * whose open and shut states are a *leg position*, a third surface that has to
- * ride along with a stick already going somewhere, and a sticking plan that
- * looks at the last stroke of a fill to choose the first. A darbuka has one
- * skin and two hands on it, and the honest version of that is short.
- *
- * What it does have is alternation, and that is what `idle` buys. Nearest-hand
- * alone would send every stroke to the same hand, because the three strike
- * points are within four centimetres of each other and the same hand is
- * therefore always the nearest one — a percussionist playing a whole number
- * with their left hand parked. The bonus is small enough that it never
- * overrides the reach to the trap table, which is half the arc away, and large
- * enough to break the tie between two places on one skin.
+ * A stroke goes to the hand it costs least: distance, less a small bonus for
+ * the more rested hand so the goblet alternates, plus `HAND_FAST_COST` for a
+ * hand that just struck so the other comes over to share a fast run, plus
+ * `HAND_RUSH_COST` for a hand that cannot arrive in time, plus `HAND_KNOT_COST`
+ * for any choice that leaves the left hand right of the right one. Two strokes
+ * on one beat are planned together, because the cheaper hand for the first can
+ * be the wrong one once the second is forced.
  */
-function handPart(events: DrumEvent[], board: Board): void {
+function handPart(events: DrumEvent[], board: Board, shape: HandDrumShape): void {
   const slots = new Map<number, DrumEvent[]>();
   for (const e of events) {
     const beat = quantise(e.beat);
@@ -2120,69 +2169,67 @@ function handPart(events: DrumEvent[], board: Board): void {
 
   const HANDS: Hand[] = ['left-hand', 'right-hand'];
   /** Where each hand last landed, and when. */
-  const on: Record<Hand, DrumVoice> = { 'left-hand': 'mp', 'right-hand': 'hp' };
+  const on: Record<Hand, DrumVoice> = { 'left-hand': 'lp', 'right-hand': 'hp' };
   const since: Record<Hand, number> = { 'left-hand': -1e9, 'right-hand': -1e9 };
+  const fast = board.toBeats(HAND_FAST_SECONDS);
+
+  /** Hands for these strokes in this order, greedily, and what the order costs. */
+  const plan = (beat: number, strokes: DrumEvent[]): { hands: Hand[]; cost: number } => {
+    const at = { ...on };
+    const last = { ...since };
+    const taken = new Set<Hand>();
+    const hands: Hand[] = [];
+    let cost = 0;
+    for (const e of strokes) {
+      let hand = handOwner(shape, e.voice);
+      if (!hand) {
+        const free = HANDS.filter((h) => !taken.has(h));
+        // A third stroke joins a hand already moving, as a clap does on the kit.
+        const pool = free.length ? free : HANDS;
+        const rested: Hand = last['left-hand'] <= last['right-hand'] ? 'left-hand' : 'right-hand';
+        const score = (h: Hand): number => {
+          const other: Hand = h === 'left-hand' ? 'right-hand' : 'left-hand';
+          const [left, right] = h === 'left-hand' ? [e.voice, at[other]] : [at[other], e.voice];
+          const travel = handTravel(shape, at[h], e.voice);
+          return travel
+            - (h === rested ? 0.10 : 0)
+            + (beat - last[h] < fast ? HAND_FAST_COST : 0)
+            + (board.canReach(h, beat, travel, 'strike') ? 0 : HAND_RUSH_COST)
+            + (handsKnotted(shape, left, right) ? HAND_KNOT_COST : 0);
+        };
+        hand = pool.reduce((best, h) => (score(h) < score(best) ? h : best));
+        cost += score(hand);
+      }
+      hands.push(hand);
+      at[hand] = e.voice;
+      last[hand] = beat;
+      taken.add(hand);
+    }
+    return { hands, cost };
+  };
 
   for (const beat of [...slots.keys()].sort((a, b) => a - b)) {
-    // Loudest first, for the reason `drumPart` sorts the same way: when two
-    // strokes compete for one hand, the accent should get the hand that is
-    // already near it and the ghost note should be the one that travels.
-    const all = slots.get(beat)!.slice().sort((a, b) => b.velocity - a.velocity);
-    const taken = new Set<Hand>();
+    // Loudest first, as `drumPart` does: the accent gets the hand already near
+    // it and the ghost note travels. A pair is tried both ways round.
+    let strokes = slots.get(beat)!.slice().sort((a, b) => b.velocity - a.velocity);
+    let chosen = plan(beat, strokes);
+    if (strokes.length === 2) {
+      const swapped = [strokes[1]!, strokes[0]!];
+      const other = plan(beat, swapped);
+      if (other.cost < chosen.cost) { strokes = swapped; chosen = other; }
+    }
 
-    for (const e of all) {
-      const free = HANDS.filter((h) => !taken.has(h));
-      /**
-       * A third stroke on a two-handed instrument joins a hand that is already
-       * moving, exactly as a clap does on the kit: one physical event, not a
-       * third arm. It is rare here — a hand drum part with three simultaneous
-       * voices is a hand drum part with a mistake in it — but the record has to
-       * be total or a written note produces no gesture at all.
-       */
-      const pool = free.length ? free : HANDS;
-      /**
-       * Alternation, as *which hand went last* rather than as how long each
-       * one has been still.
-       *
-       * This was `min(beat - since[h], 1) * 0.10`, and the cap is what broke
-       * it. Past a single beat both hands are equally rested, so the term took
-       * the same value on both sides of the comparison and cancelled exactly,
-       * leaving bare proximity to decide. Proximity on this instrument never
-       * changes its mind — the three strike points are four centimetres apart,
-       * so whichever hand is nearest stays nearest for the rest of the number
-       * — and the result was a percussionist playing an entire number with one
-       * arm, which is the precise failure this bonus exists to prevent. It
-       * worked only on parts whose strokes fall closer together than a beat,
-       * and said nothing at all about the rest.
-       *
-       * Relative rather than absolute, so it cannot cancel: one hand is always
-       * the more rested of the two, and exactly one bonus is ever paid. The
-       * magnitude is unchanged and still claims what it claimed — 0.10 clears
-       * every distance within the skin, which is 0.08 at its widest, and falls
-       * well short of the reach out to the trap table, which is 0.17 at its
-       * nearest. So alternation still breaks ties on the head and still never
-       * argues with a real movement.
-       */
-      const rested: Hand
-        = since['left-hand'] <= since['right-hand'] ? 'left-hand' : 'right-hand';
-      const score = (h: Hand): number =>
-        handDistance(on[h], e.voice) - (h === rested ? 0.10 : 0);
-      const reachable = pool.filter(
-        (h) => board.canReach(h, beat, handDistance(on[h], e.voice), 'strike'),
-      );
-      const hand = (reachable.length ? reachable : pool)
-        .reduce((best, h) => (score(h) < score(best) ? h : best));
-
+    strokes.forEach((e, i) => {
+      const hand = chosen.hands[i]!;
       board.place({
         effector: hand, beat, kind: 'strike',
-        travel: handDistance(on[hand], e.voice),
+        travel: handTravel(shape, on[hand], e.voice),
         force: e.velocity,
         targets: [{ kind: 'drum', voice: e.voice }],
       });
       on[hand] = e.voice;
       since[hand] = beat;
-      taken.add(hand);
-    }
+    });
   }
 }
 

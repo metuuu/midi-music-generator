@@ -49,7 +49,7 @@ import type { DrumVoice } from '../core/types.js';
  * play them. That table is where the measurements live and it may not be copied
  * over here; see `rackVoices`, which exists to be the question casting asks.
  */
-import { rackVoices } from '../render/drum-banks.js';
+import { rackVoices, readBankName } from '../render/drum-banks.js';
 import type { InstrumentId } from '../style/instruments.js';
 import { INSTRUMENTS } from '../style/instruments.js';
 import type { Archetype, ArchetypeSpec, SynthRigId } from './types.js';
@@ -1008,6 +1008,28 @@ export const DRUM_ARCHETYPE: Archetype = 'drumkit';
 
 /** The other one. Both can be on a stage at once, and in a funk number they are. */
 export const HAND_DRUM_ARCHETYPE: Archetype = 'handdrum';
+
+/**
+ * The silhouette a rack names, which is the one fact the model and the
+ * choreographer must agree on: whether `lp`/`mp`/`hp` are three places on one
+ * skin or three drums a reach apart. `goblet` is the darbuka; `pair` the congas,
+ * low drum at the player's left; `barrel` the mridangam across the shins, bass
+ * head at the left end and the other two at the right. A rack nobody has drawn
+ * is a goblet.
+ */
+export type HandDrumShape = 'goblet' | 'pair' | 'barrel';
+
+export const HAND_DRUM_SHAPE_OF: Record<string, HandDrumShape> = {
+  darbuka: 'goblet',
+  congas: 'pair',
+  mridangam: 'barrel',
+};
+
+/** The shape behind a `DrumTrack.bank`, read off the rack half of its name. */
+export function handDrumShapeFor(bank: string | undefined): HandDrumShape {
+  const rack = bank ? readBankName(bank).rack : undefined;
+  return (rack && HAND_DRUM_SHAPE_OF[rack]) || 'goblet';
+}
 
 /**
  * Which object each drum voice needs standing under it.
